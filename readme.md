@@ -1263,7 +1263,9 @@ Crear el esquema de PostgreSQL con pgvector, los índices para travesía del gra
 
 *(pendiente — se completará en la Entrega 3)*
 
-En esta primera entrega no hay código, por lo que no existen pull requests. Se documentarán tres al final del proyecto.
+En esta primera entrega no hay código, así que no hay pull requests de desarrollo que documentar. Las tres que pide la plantilla se documentarán al final del proyecto.
+
+**Esta entrega se somete desde la rama `feature/entrega-1-CRN`**, en una pull request que contiene únicamente los dos documentos y los wireframes. Queda anotada aquí por trazabilidad, pero **no cuenta como una de las tres**: esta sección documenta pull requests de código, y una que solo añade documentación no muestra nada del proceso de desarrollo.
 
 Las ramas de entrega, con las iniciales que exige la mecánica del máster, son `feature/entrega-1-CRN`, `feature/entrega-2-CRN` y `final-project-CRN`.
 
