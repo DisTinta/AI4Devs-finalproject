@@ -1,0 +1,6 @@
+/vendor
+/node_modules
+/storage/*.key
+.env
+database/database.sqlite
+*.log

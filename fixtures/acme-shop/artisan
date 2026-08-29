@@ -1,0 +1,22 @@
+<?php
+
+declare(strict_types=1);
+
+/*
+ * Artisan console entrypoint (trimmed for the fixture). A real Laravel app boots
+ * the framework kernel here; this stub exists so the tree is recognisable and
+ * the analyzer sees a plausible root script. It is not meant to be executed.
+ */
+
+use Illuminate\Foundation\Application;
+
+define('LARAVEL_START', microtime(true));
+
+require __DIR__.'/vendor/autoload.php';
+
+/** @var Application $app */
+$app = require_once __DIR__.'/bootstrap/app.php';
+
+$status = $app->handleCommand(new Symfony\Component\Console\Input\ArgvInput());
+
+exit($status);
