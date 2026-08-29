@@ -15,6 +15,12 @@ node_modules/
 fixtures/*/vendor/
 fixtures/*/node_modules/
 
+# La historia Git de cada fixture NO se versiona tal cual (un repo
+# anidado no se puede commitear). Se reconstruye de forma determinista
+# con `node fixtures/build-history.mjs` a partir de fixtures/history/*.
+# Ese guion sí se versiona; el .git que genera, no.
+fixtures/*/.git/
+
 # ── Build y artefactos ──────────────────────────────────────
 dist/
 build/
