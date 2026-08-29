@@ -351,6 +351,22 @@ Si algún criterio no es testeable como está escrito, dímelo.
 
 **Nota posterior.** La restricción que escribí en el prompt —«la evidencia NO serán capturas ni vídeo»— se matizó después: la sección 1.3 del README incluye wireframes de las tres pantallas. No es una marcha atrás, es una distinción que al escribir el prompt no había hecho: **un wireframe documenta el diseño, una captura documenta un sistema en marcha.** En la Entrega 1 no hay código, así que la captura era imposible y el wireframe es lo que corresponde. El vídeo sigue descartado y la evidencia de funcionamiento sigue siendo ejecutable.
 
+### Prompt 2 — Decisiones de rumbo al construir los fixtures (Entrega 2, hito 1)
+
+Contexto: al crear los dos repositorios de muestra en `fixtures/`, el agente paró antes de generar y presentó dos decisiones que no le correspondían: qué hacer con el estado Git pendiente antes de cambiar de rama, y cómo versionar una historia Git anidada (imposible de commitear tal cual). Estas dos respuestas literales las resolvieron:
+
+```
+Deja CODEMIND-ROADMAP.md sin comitear. Y en vez de salir de la rama main sal
+de la rama feature/entrega-1-CRN, así no perdemos el acumulativo
+```
+
+```
+el readme.md lo subirás a la nueva rama, son cambios de hoy.
+1. Guion determinista reconstruye historia
+```
+
+**Ajuste humano.** Dos correcciones sobre lo que el agente proponía por defecto. Primera: ramificar `feature/entrega-2-CRN` desde `feature/entrega-1-CRN`, **no desde `main`** como pedía el guion inicial — `main` no tenía ni el roadmap ni el retoque del readme, y salir de ahí habría perdido el acumulativo de la entrega. La regla «ramificar desde main» cede ante el hecho concreto de dónde vive el trabajo. Segunda: de las tres formas de versionar la historia (bundle binario, datos sintéticos leídos en «modo fixture», o guion determinista), elegí el **guion determinista** porque es la única que mantiene ejercitado el extractor real `simple-git` sobre un `.git` real, sin blob binario y revisable en diff. El fichero de datos habría sido más fácil de versionar pero habría dejado sin probar justo el componente que los fixtures existen para alimentar.
+
 ---
 
 # 3. Modelo de Datos
