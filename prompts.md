@@ -21,6 +21,7 @@
 6. [Tickets de trabajo](#6-tickets-de-trabajo)
 7. [Pull requests](#7-pull-requests)
 8. [Lecciones sobre el uso de IA en este proyecto](#8-lecciones-sobre-el-uso-de-ia-en-este-proyecto)
+9. [Construcción de `fixtures`](#9-construcción-de-fixtures)
 
 ---
 
@@ -351,22 +352,6 @@ Si algún criterio no es testeable como está escrito, dímelo.
 
 **Nota posterior.** La restricción que escribí en el prompt —«la evidencia NO serán capturas ni vídeo»— se matizó después: la sección 1.3 del README incluye wireframes de las tres pantallas. No es una marcha atrás, es una distinción que al escribir el prompt no había hecho: **un wireframe documenta el diseño, una captura documenta un sistema en marcha.** En la Entrega 1 no hay código, así que la captura era imposible y el wireframe es lo que corresponde. El vídeo sigue descartado y la evidencia de funcionamiento sigue siendo ejecutable.
 
-### Prompt 2 — Decisiones de rumbo al construir los fixtures (Entrega 2, hito 1)
-
-Contexto: al crear los dos repositorios de muestra en `fixtures/`, el agente paró antes de generar y presentó dos decisiones que no le correspondían: qué hacer con el estado Git pendiente antes de cambiar de rama, y cómo versionar una historia Git anidada (imposible de commitear tal cual). Estas dos respuestas literales las resolvieron:
-
-```
-Deja CODEMIND-ROADMAP.md sin comitear. Y en vez de salir de la rama main sal
-de la rama feature/entrega-1-CRN, así no perdemos el acumulativo
-```
-
-```
-el readme.md lo subirás a la nueva rama, son cambios de hoy.
-1. Guion determinista reconstruye historia
-```
-
-**Ajuste humano.** Dos correcciones sobre lo que el agente proponía por defecto. Primera: ramificar `feature/entrega-2-CRN` desde `feature/entrega-1-CRN`, **no desde `main`** como pedía el guion inicial — `main` no tenía ni el roadmap ni el retoque del readme, y salir de ahí habría perdido el acumulativo de la entrega. La regla «ramificar desde main» cede ante el hecho concreto de dónde vive el trabajo. Segunda: de las tres formas de versionar la historia (bundle binario, datos sintéticos leídos en «modo fixture», o guion determinista), elegí el **guion determinista** porque es la única que mantiene ejercitado el extractor real `simple-git` sobre un `.git` real, sin blob binario y revisable en diff. El fichero de datos habría sido más fácil de versionar pero habría dejado sin probar justo el componente que los fixtures existen para alimentar.
-
 ---
 
 # 3. Modelo de Datos
@@ -618,3 +603,136 @@ Cinco cosas que aprendí, incluyendo las que salieron mal.
 ---
 
 *A partir de aquí, empezaremos a construir el proyecto y las conversaciones completas archivadas estarán en `docs/ai-sessions/`.*
+
+---
+
+# 9. Construcción de `fixtures`
+
+Primer hito de código de la Entrega 2: crear los dos repositorios de muestra
+`fixtures/acme-shop` (Laravel) y `fixtures/task-api` (TypeScript), con su historia
+de Git, su *drift* plantado y el documento de verdad-terreno `fixtures/README.md`.
+
+### Prompt 1 — Encargo de construcción de los fixtures
+
+Prompt literal con el que se abrió la fase (define contexto, objetivo, fuera de
+alcance, requisitos de contenido y forma de trabajo):
+
+```
+## Contexto
+
+Trabajas en **CODEMIND**, el proyecto final de AI4Devs de Cristina Rodríguez Núñez. Repositorio: fork `DisTinta/AI4Devs-finalproject`. Hoy no hay una sola línea de código de producto: la Entrega 1 fue solo documentación.
+
+Antes de escribir nada, lee estos ficheros de la raíz y trabaja a partir de ellos, no de suposiciones:
+
+- `CODEMIND-ROADMAP.md` — brújula viva: estado, bloqueos, cola de hitos y reglas duras.
+- `readme.md` — producto y diseño. Secciones que te afectan directamente: **1.2** (F1–F7), **1.4** (instalación y comandos de ejemplo), **2.2** (componentes y analizadores), **2.3** (árbol de ficheros), **2.5** (seguridad), **2.6** (los fixtures como arnés de pruebas y las Tablas 1 y 2), **3** (modelo de datos), **5** (HU1–HU3), **6** (Ticket 3, tarea 9: `seed:build`).
+- `prompts.md` — registro de uso de IA; §6 del roadmap fija la norma de registro.
+
+`ai4devs-requisitos-y-encaje.md` y `proposal-codemind/` son histórico. No son spec viva. No los uses como fuente de requisitos.
+
+## Objetivo de esta fase
+
+**Hito 1 de la cola del roadmap y nada más:** crear los dos repositorios de muestra en `fixtures/`, con su historia de Git, su *drift* plantado y su documento de verdad-terreno.
+
+- `fixtures/acme-shop/` — Laravel 11, PHP 8.2, ~47 ficheros, con drift plantado.
+- `fixtures/task-api/` — TypeScript + Fastify, ~38 ficheros.
+
+Estos dos árboles tienen **uso cuádruple** (readme §2.6): tests deterministas, demo alojada, arranque local sin dependencias y caso de la funcionalidad F6. Todo lo que decidas aquí condiciona los tests de integración, las semillas SQL y las mediciones publicadas. No son código de relleno.
+
+## Fuera de alcance — no lo hagas
+
+- **No** inicialices el esqueleto del monorepo (workspaces, `docker-compose`, `Makefile`, CI). Es el hito 2.
+- **No** instales el harness (`sdd-harness-kit`) ni crees `docs/project-context.md`, `AGENTS.md`, `CLAUDE.md`, `ai-specs/` ni `openspec/`. Los genera el kit, después del esqueleto.
+- **No** escribas nada de `packages/`, ni analizadores, ni migraciones, ni `seeds/graph-dump.sql`.
+- **No** elijas proveedor de LLM, ni añadas claves, ni configures despliegue. Son los dos bloqueos abiertos del roadmap §2 y los decide la autora.
+- **No** copies código de proyectos reales ni de tutoriales con licencia restrictiva. Todo original.
+
+## Requisitos de contenido
+
+### Comunes a los dos fixtures
+
+1. **Tamaño y forma.** Respeta el orden de magnitud del readme §1.4 (47 y 38 ficheros). No inventes ni ajustes las cifras de símbolos y aristas (312/1840, 264/2110): esas salen del analizador, que aún no existe. Si tu recuento final de ficheros se desvía, **no toques el readme**: anótalo en el informe final para que la autora decida.
+2. **Historia de Git real.** El extractor de Git (`simple-git`) consume commits, ficheros modificados por commit, señal de co-cambio y número de PR extraído del mensaje. Un árbol de ficheros sin historia deja HU3 y media Tabla 1 sin material. Necesitas **entre 25 y 40 commits por fixture**, con:
+   - fechas escalonadas y coherentes (varios meses),
+   - al menos 2–3 autores distintos (nombres ficticios; el sistema los seudonimiza igualmente),
+   - varios mensajes con formato `... (#123)` para que `pr_number` tenga de dónde salir,
+   - **pares de co-cambio deliberados**: ficheros que cambian sistemáticamente juntos sin que ninguna arista estática los relacione. Esa es la señal `[git]` que HU3 debe separar de la señal `[grafo]`.
+3. **Decisión pendiente — cómo se versiona esa historia.** Un repositorio Git anidado dentro del repositorio de entrega no se puede commitear tal cual. Antes de generar nada, **párate y presenta a la autora 2 o 3 opciones** con sus consecuencias sobre `npm run seed:build`, el clonado del evaluador y el peso del repositorio (por ejemplo: `.gitbundle` versionado y desempaquetado por un script; guion determinista que reconstruye la historia desde parches; historia sintética en un fichero de datos que el extractor sepa leer en modo fixture). Recomienda una y **espera confirmación** antes de implementarla.
+4. **Un secreto plantado, obviamente falso.** HU1 exige que un secreto detectable se almacene redactado. Necesitas exactamente uno por fixture, detectable por `gitleaks`, con valor manifiestamente sintético y un comentario que lo declare como fixture. Anota en el informe que habrá que añadir una excepción de `gitleaks` a nivel de repositorio cuando exista CI, para que el escaneo del propio proyecto no falle por su material de pruebas.
+5. **Sin dependencias instaladas.** Nada de `vendor/` ni `node_modules/` versionados. Los fixtures son **árboles de código fuente que se analizan, no aplicaciones que se ejecutan**: los tests que contienen son ficheros que el grafo lee, no suites que este proyecto corra. Que sean coherentes y creíbles como código sí importa; que arranquen, no.
+
+### `acme-shop` (PHP/Laravel) — el fixture difícil, a propósito
+
+El readme §2.1 declara que el grafo de llamadas nunca será completo en PHP y que eso **se mide y se publica** en lugar de disimularse. Este fixture es el que produce esa medición, así que tiene que contener de forma deliberada lo que rompe el análisis estático:
+
+- Dominio: pedidos, líneas de pedido, descuentos, impuestos, envío. La consulta de referencia de la demo es *«¿Cómo se calcula el precio final de un pedido?»* y su respuesta correcta implica que **los descuentos se aplican antes de los impuestos**. Esa cadena debe existir en el código, ser rastreable y estar cubierta por tests.
+- La consulta de impacto de referencia es *«cambiar el cálculo de descuentos»*: tiene que haber impacto directo, impacto indirecto a 2 saltos, tests afectados y documentación relacionada.
+- **Trampas para el analizador, repartidas y anotadas**: facades, resolución por contenedor de servicios, `__call`, atributos mágicos de Eloquent, rutas resueltas por *string*, `dispatch` de jobs y eventos. Cada una es un sitio de llamada que el analizador solo podrá marcar `heuristic`, nunca `exact`.
+- **Drift plantado (F6), dos casos distintos y documentados**:
+  - una divergencia real entre documentación y código — el `README` o un doc del fixture describe un comportamiento que el código contradice (p. ej. el orden descuento/impuesto, o un umbral que cambió y el doc no);
+  - una regla de negocio **implementada y cubierta por tests pero no documentada en ningún sitio**.
+  - El drift debe ser detectable por diferencia de fechas: el commit que cambió el código es **posterior** al último que tocó el documento que lo describe.
+
+### `task-api` (TypeScript + Fastify) — el fixture preciso
+
+Su función es el contraste: mismo núcleo, grafo notablemente mejor, porque el compilador resuelve referencias.
+
+- Dominio: API de tareas (CRUD, filtros, paginación, estados). La consulta de referencia es *«¿Cómo se validan las peticiones entrantes?»*, así que la validación por esquema (Zod o el JSON Schema de Fastify) tiene que ser el patrón real y visible del código, no un detalle.
+- Referencias **resolubles**: imports explícitos, tipos anotados, sin `any` gratuito ni acrobacias dinámicas. Aquí no se plantan trampas: la gracia es que salga limpio.
+- Tests unitarios y de integración como ficheros del árbol, con la misma calidad de escritura.
+- No hace falta plantar drift aquí: F6 se demuestra en `acme-shop`.
+
+## Entregable adicional: la verdad-terreno
+
+Escribe `fixtures/README.md` — es el documento que hace que los fixtures sirvan como arnés de pruebas en vez de ser dos carpetas de código bonito. Debe contener, para cada fixture:
+
+- qué es, qué stack y qué recuento real de ficheros;
+- el **inventario del drift plantado**: qué afirma el documento, qué hace el código, en qué commit divergieron;
+- la **regla de negocio no documentada** y los tests que la cubren;
+- las **preguntas de demostración** con su respuesta esperada y los ficheros y rangos de línea que deberían aparecer como evidencia (esto es la base del `npm run verify` del hito 6, y de las ~12 preguntas cacheadas del modo demo);
+- los **sitios de llamada anotados**: cuáles esperas `exact` y cuáles `heuristic`, con el motivo. El readme §2.6 pide 50 anotados a mano por lenguaje para la Tabla 2; deja al menos el formato y una primera tanda, y di en el informe cuántos faltan;
+- los **pares de co-cambio** plantados en la historia de Git;
+- dónde está el secreto plantado.
+
+Rangos de línea: si te resulta frágil fijarlos ahora, ancla la evidencia a símbolos (clase y método) y deja el rango como pendiente de generar. No inventes números de línea que no hayas comprobado.
+
+## Cómo trabajar
+
+1. **Lee primero, planifica después.** Empieza por los ficheros de la sección Contexto. No escribas código hasta haber presentado el plan.
+2. **Plan antes de generar**: propuesta de árbol de ficheros de cada fixture, dominio concreto, lista de trampas de PHP, inventario de drift previsto, y las opciones del punto 3 de Requisitos comunes. **Párate ahí y espera revisión.**
+3. Después, por partes y en este orden: `task-api` (el simple, para fijar el criterio de calidad) → `acme-shop` → historia de Git de ambos → `fixtures/README.md`.
+4. **Git**: crea `feature/entrega-2-CRN` a partir de `main` y trabaja ahí, en commits pequeños de un solo objetivo. **No hagas push ni abras PR sin confirmación.** Ojo al estado actual del repositorio: la rama activa es `feature/entrega-1-CRN`, `readme.md` tiene cambios en el índice y `CODEMIND-ROADMAP.md` está sin versionar — pregunta qué hacer con eso antes de cambiar de rama, no lo resuelvas por tu cuenta.
+
+## Criterios de aceptación
+
+- `fixtures/acme-shop/` y `fixtures/task-api/` existen, con recuentos de ficheros del orden documentado, y todo el código es original y coherente.
+- Cada fixture tiene historia de Git con el rango de commits pedido, autores múltiples, referencias a PR y pares de co-cambio deliberados; y la forma de versionar esa historia es la que la autora aprobó.
+- `acme-shop` contiene los dos casos de drift y las trampas de análisis estático, todos ellos inventariados en `fixtures/README.md`.
+- `task-api` no tiene trampas: sus referencias son resolubles por el compilador.
+- Un secreto sintético por fixture, detectable por `gitleaks`, declarado en el inventario.
+- Nada de `vendor/`, `node_modules/`, claves reales ni ficheros de más de 1 MB.
+- `fixtures/README.md` cubre los siete puntos de la sección anterior.
+- No se ha tocado `packages/`, ni `docs/`, ni la configuración del monorepo, ni el harness.
+
+## Al cerrar
+
+1. Marca la fila 1 de la cola en `CODEMIND-ROADMAP.md` §4 y reescribe §3 «Siguiente paso concreto» en una o dos frases (pasa a ser el esqueleto del monorepo). Actualiza la fecha del encabezado.
+2. Aplica la norma §6 del roadmap sobre `prompts.md`: registra en **esta misma sesión** el prompt significativo de esta fase, **literal**, en bloque de código, con su `**Ajuste humano.**`. Máximo 3 por sección. Prohibido reconstruir prompts de memoria y presentarlos como transcripción.
+3. Informe final, breve: recuentos reales, decisiones tomadas, desviaciones respecto a lo pedido y lo que queda pendiente para la Tabla 2.
+```
+
+**Por qué funcionó.** Dos condiciones de parada dentro del propio prompt: «no escribas código hasta haber presentado el plan» y, en el punto 3 de requisitos comunes, «párate y presenta 2 o 3 opciones … espera confirmación». Eso convirtió una tarea de generación en una con dos revisiones humanas antes de tocar nada — el estado Git y la estrategia de versionado de la historia, que son justo donde un agente mete la pata de forma cara.
+
+### Prompt 2 — Estado Git antes de cambiar de rama
+
+```
+En vez de salir de la rama main sal de la rama feature/entrega-1-CRN, así no perdemos el acumulativo
+```
+
+### Prompt 3 — Versionado de la historia y del readme
+
+```
+1. Guion determinista reconstruye historia
+```
+
+**Ajuste humano.** El prompt inicial pedía ramificar `feature/entrega-2-CRN` **desde `main`**; lo corregí a ramificar **desde `feature/entrega-1-CRN`**, porque `main` no tenía ni el roadmap ni el retoque del readme y salir de ahí habría perdido el acumulativo de la entrega. La regla escrita cede ante el hecho concreto de dónde vive el trabajo. Y de las tres formas de versionar la historia Git anidada que se me ofrecieron —bundle binario, datos sintéticos en «modo fixture», o guion determinista que la reconstruye— elegí el **guion determinista**: es la única que deja un `.git` real sobre el que corre el extractor `simple-git` de verdad, sin blob binario y revisable en diff. El fichero de datos era más cómodo de versionar pero habría dejado sin probar justo el componente que los fixtures existen para alimentar.
