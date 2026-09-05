@@ -19,18 +19,18 @@ export interface Task {
 
 export interface CreateTaskInput {
   title: string;
-  description?: string | null;
+  description?: string | null | undefined;
   status?: TaskStatus;
   priority?: TaskPriority;
   tags?: string[];
-  dueDate?: string | null;
+  dueDate?: string | null | undefined;
 }
 
 export interface UpdateTaskInput {
   title?: string;
-  description?: string | null;
+  description?: string | null | undefined;
   status?: TaskStatus;
   priority?: TaskPriority;
   tags?: string[];
-  dueDate?: string | null;
+  dueDate?: string | null | undefined;
 }

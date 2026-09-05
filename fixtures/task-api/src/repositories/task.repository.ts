@@ -9,10 +9,10 @@ import type { TaskStatus } from '../domain/task-status.js';
  * one-line wiring change in the db plugin.
  */
 export interface TaskQuery {
-  status?: TaskStatus;
-  priority?: TaskPriority;
-  tag?: string;
-  search?: string;
+  status?: TaskStatus | undefined;
+  priority?: TaskPriority | undefined;
+  tag?: string | undefined;
+  search?: string | undefined;
   sort: 'createdAt' | 'updatedAt' | 'priority' | 'dueDate';
   order: 'asc' | 'desc';
   page: number;
