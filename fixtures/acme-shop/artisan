@@ -3,9 +3,7 @@
 declare(strict_types=1);
 
 /*
- * Artisan console entrypoint (trimmed for the fixture). A real Laravel app boots
- * the framework kernel here; this stub exists so the tree is recognisable and
- * the analyzer sees a plausible root script. It is not meant to be executed.
+ * Artisan console entrypoint.
  */
 
 use Illuminate\Foundation\Application;

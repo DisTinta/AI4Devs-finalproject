@@ -34,7 +34,7 @@ class PriceCalculator
         return $taxable->add($tax)->add($shipping);
     }
 
-    /** Exposed for the impact demo: the discounted amount before tax and shipping. */
+    /** Returns the discounted amount before tax and shipping. */
     public function taxableBase(Order $order): Money
     {
         $subtotal = $order->subtotal;
