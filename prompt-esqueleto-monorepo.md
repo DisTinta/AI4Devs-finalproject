@@ -12,14 +12,17 @@
 > prepárame el prompt para el siguiente paso. Asegúrate de darle todas las
 > indicaciones que necesite para que no se pierda ni se invente cosas.
 
-Contexto en el momento de la petición:
+Contexto en el momento de la petición (actualizado tras decisiones v4, 5 sep 2026):
 
 - Hito 1 (`fixtures/`) cerrado y verificado.
 - Siguiente paso según `CODEMIND-ROADMAP.md` §3–§4: **esqueleto del monorepo**
   (`package.json` workspaces, `docker-compose` con Postgres + pgvector,
   `Makefile` / `make up`).
 - El harness **no** se instala en este hito (es el hito 3).
-- Bloqueos abiertos: proveedor LLM + presupuesto; servidor/dominio.
+- **Decisiones cerradas** (roadmap §2): evidencia **solo local** (sin demo alojada);
+  LLM **híbrido** (`LLM_*` opcionales; evaluación sin key); desarrollo con
+  **Ollama** documentado en `.env.example` (`LLM_BASE_URL`); “despliegue” =
+  Compose + CI + verify, no PaaS/VPS.
 - Norma vigente: registro síncrono en `prompts.md` (§6 del roadmap).
 
 ---
@@ -41,15 +44,19 @@ El **hito 1 (fixtures)** está cerrado y verificado. No lo reabras.
 
 Antes de escribir nada, lee en este orden y trabaja solo a partir de ellos:
 
-1. `CODEMIND-ROADMAP.md` — estado, bloqueos, cola, reglas duras, norma de `prompts.md`.
-2. `readme.md` §1.4 (instalación, `make up`, variables de entorno, puertos),
-   §2.2 (Fastify, componentes), §2.3 (árbol exacto), §2.4 (docker-compose único),
-   §2.6 (dependency-cruiser en CI), §6 Ticket 3 (solo para saber qué NO implementar aún).
+1. `CODEMIND-ROADMAP.md` — estado, **decisiones cerradas** (§2), cola, reglas duras,
+   norma de `prompts.md`.
+2. `readme.md` §1.4 (instalación, `make up`, variables de entorno — LLM opcional /
+   Ollama), §2.2 (Fastify, componentes), §2.3 (árbol exacto), §2.4 (Local + CI;
+   sin hosting público), §2.6 (dependency-cruiser en CI), §6 Ticket 3 (solo para
+   saber qué NO implementar aún).
 3. `fixtures/README.md` — solo si necesitas saber cómo se reconstruye la historia
    (`node fixtures/build-history.mjs`); no modifiques fixtures.
 4. `.gitignore` existente — respétalo y amplíalo solo si falta algo del esqueleto.
 
-`ai4devs-requisitos-y-encaje.md` y `proposal-codemind/` son histórico. No son spec.
+`ai4devs-requisitos-y-encaje.md` y `proposal-codemind/01`–`04` son histórico.
+La enmienda `proposal-codemind/05-…` detalla evidencia/LLM, pero **manda el
+readme + roadmap**; no la uses para ampliar el alcance de este hito.
 
 ## Objetivo — Hito 2 y nada más
 
@@ -76,9 +83,11 @@ documentes) deben pasar en verde sobre el esqueleto vacío.
   `seeds/graph-dump.sql` con datos reales, ni indexado de fixtures.
 - **No** implementes Context Engine, verificador, analizadores PHP/TS, CLI real
   de `ask`/`impact`/`index`, ni la web de consulta (Ticket 1 / 2).
-- **No** elijas proveedor LLM ni pongas claves. Bloqueo abierto del roadmap §2.
-  En `.env.example` deja `LLM_API_KEY=` vacío y comentarios neutros
-  (`LLM_MODEL`, `LLM_MODEL_VERIFY`) **sin** asumir OpenAI, Anthropic u otro vendor.
+- **No** implementes el adaptador LLM real ni instales/configures Ollama en esta
+  sesión (eso es hito 6). Las decisiones de roadmap §2 **ya están cerradas**:
+  respétalas en `.env.example` (ver entregable §5) — key vacía, `LLM_BASE_URL`
+  documentado para Ollama, sin claves reales, sin asumir Anthropic/OpenAI como
+  vendor obligatorio. **No** reabras el bloqueo ni inventes un hosting/PaaS.
 - **No** toques el contenido de `fixtures/acme-shop` ni `fixtures/task-api`
   (código, historia, README de fixtures).
 - **No** inventes cifras de mediciones, DEMO.md con salidas falsas, ni pesos de
@@ -171,16 +180,23 @@ Obligatorios:
 
 ### 5. `.env.example`
 
-Variables del readme §1.4, sin secretos reales:
+Variables del readme §1.4, sin secretos reales. Alineado a decisiones cerradas
+(roadmap §2 / readme §1.4):
 
-- `LLM_API_KEY=`
-- `LLM_MODEL=` (comentario: lo fija la autora al decidir proveedor)
-- `LLM_MODEL_VERIFY=`
+- `LLM_API_KEY=` (vacía; comentario: opcional — sin valor = modo evaluación /
+  solo caché en hitos posteriores; con Ollama suele bastar placeholder `ollama`)
+- `LLM_BASE_URL=` (comentario: API compatible OpenAI; ejemplo de desarrollo
+  `http://localhost:11434/v1` para **Ollama**; vacío + key vacía = solo evaluación)
+- `LLM_MODEL=` (comentario: modelo de generación; lo elige quien configure Ollama
+  u otro endpoint — sin fijar Anthropic/OpenAI como obligatorio)
+- `LLM_MODEL_VERIFY=` (comentario: modelo económico para verify en vivo; mismo criterio)
 - `DATABASE_URL=` (default al compose local)
 - `ALLOWED_REPOS_DIR=`
-- `DAILY_BUDGET_USD=`
+- `DAILY_BUDGET_USD=` (comentario: solo relevante con proveedor cloud de pago;
+  irrelevante con Ollama local)
 
-Ninguna clave inventada. Ningún vendor nombrado como decisión tomada.
+Ninguna clave inventada. Documentar Ollama como **ejemplo por defecto de
+desarrollo** está permitido y es lo decidido; no implements el cliente HTTP aún.
 
 ### 6. `dependency-cruiser`
 
@@ -199,7 +215,9 @@ Crea lo mínimo del árbol §2.3 que aún no exista:
 - `tests/unit/`, `tests/integration/`, `tests/e2e/` con `.gitkeep` si no hay tests aún
 - `docs/adr/`, `docs/ai-sessions/` vacíos o con `.gitkeep`
 - Stubs de una línea para `docs/DEMO.md`, `docs/TESTING.md`, `docs/DEPLOYMENT.md`,
-  `docs/CONFIDENCE.md` si quieres alinear el árbol; **sin contenido inventado**
+  `docs/CONFIDENCE.md` si quieres alinear el árbol; **sin contenido inventado**.
+  `DEPLOYMENT.md` = reproducible local/CI (Compose + verify), **no** guía de VPS
+  ni demo alojada.
 
 No crees los ficheros del harness listados en fuera de alcance.
 
@@ -261,7 +279,8 @@ npm run dev
 - `core` sin deps de infra; dependency-cruiser rojo ante import ilegal y verde en el estado limpio.
 - Compose solo Postgres+pgvector; healthy.
 - `make up` / scripts §1.4 existen; migrate/seed/verify/seed:build son stubs honestos.
-- `.env.example` sin vendor ni secretos.
+- `.env.example` con `LLM_*` opcionales + `LLM_BASE_URL` ejemplo Ollama; sin secretos
+  reales; sin Anthropic/OpenAI como vendor obligatorio; sin hosting inventado.
 - Cero ficheros del harness.
 - Roadmap hito 2 ✅ y `prompts.md` §10 Prompt 1 literal.
 - Informe final breve: qué se creó, salidas de verificación, commits, y
