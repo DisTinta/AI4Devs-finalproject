@@ -11,9 +11,6 @@
   },
   "dependencies": {
     "@codemind/core": "*",
-    "@fastify/swagger": "^8.14.0",
-    "@fastify/swagger-ui": "^4.0.0",
-    "fastify": "^4.28.0",
-    "zod": "^3.23.0"
+    "fastify": "^4.28.0"
   }
 }
