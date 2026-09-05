@@ -13,12 +13,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /**
  * An order.
  *
- * ANALYZER TRAP (Eloquent magic attributes): properties like $order->customer,
- * $order->lines and $order->subtotal are never declared. They are resolved at
- * runtime by Eloquent's __get over relationships and accessors. A static
- * analyzer sees no property and no return type here — any edge into these is
- * heuristic at best.
- *
  * @property-read \Illuminate\Database\Eloquent\Collection<int, OrderLine> $lines
  * @property-read Customer $customer
  */

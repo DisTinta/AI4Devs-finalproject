@@ -9,8 +9,7 @@ use App\Models\Order;
 use Illuminate\Http\JsonResponse;
 
 /**
- * Read endpoints for orders. Uses the Pricing facade to render totals, so the
- * controller -> PriceCalculator edge is heuristic (facade + container binding).
+ * Read endpoints for orders. Uses the Pricing facade to render totals.
  */
 class OrderController extends Controller
 {

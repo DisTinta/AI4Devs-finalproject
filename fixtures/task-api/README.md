@@ -56,8 +56,3 @@ npm run test       # vitest
 npm run typecheck  # tsc --noEmit
 ```
 
-## Note
-
-This repository is a **sample fixture** for CODEMIND, not a production service.
-It is analyzed, not deployed. See `fixtures/README.md` in the parent project for
-its role in the test harness.

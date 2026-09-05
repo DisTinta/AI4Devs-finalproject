@@ -5,10 +5,8 @@ import { applyFilters, sortTasks } from '../services/task.filters.js';
 import type { TaskQuery, TaskRepository } from './task.repository.js';
 
 /**
- * A Map-backed repository. Deliberately simple: the fixture is analyzed, not
- * benchmarked, so there is no indexing here beyond the Map itself. All filtering
- * and sorting is delegated to the pure functions in task.filters so the same
- * logic is unit-testable without a store.
+ * A Map-backed repository. All filtering and sorting is delegated to the pure
+ * functions in task.filters so the same logic is unit-testable without a store.
  */
 export class InMemoryTaskRepository implements TaskRepository {
   private readonly tasks = new Map<string, Task>();

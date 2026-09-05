@@ -1,8 +1,6 @@
 /**
  * Task lifecycle. Status transitions are explicit so that the service layer can
- * reject illegal moves instead of silently accepting any string. The compiler
- * resolves every reference to these values, which is exactly why this fixture is
- * the "precise" one for the analyzer: no dynamic dispatch, no magic.
+ * reject illegal moves instead of silently accepting any string.
  */
 export const TASK_STATUSES = ['todo', 'in_progress', 'blocked', 'done', 'archived'] as const;
 

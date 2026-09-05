@@ -9,16 +9,9 @@ use App\Support\Money;
 
 /**
  * Computes shipping cost. Orders whose (discounted) base exceeds the free
- * shipping threshold ship for free; otherwise a flat fee applies.
- *
- * The free-shipping threshold is read from config/shop.php. It was RAISED from
- * 50.00 to 75.00 (see git history / PR referenced in fixtures/README.md) but
- * docs/pricing.md was never updated — part of the documentation drift, in
- * addition to the tax-ordering divergence.
- *
- * ANALYZER TRAP (__call via CarrierGateway): the actual per-carrier rate is
- * fetched through a magic __call proxy, so the edge to the concrete rate method
- * is not statically resolvable.
+ * shipping threshold ship for free; otherwise a flat per-country fee applies.
+ * The threshold is read from config/shop.php so it can be changed without
+ * touching code.
  */
 class ShippingService
 {

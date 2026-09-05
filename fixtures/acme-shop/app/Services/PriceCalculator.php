@@ -10,18 +10,8 @@ use App\Support\Money;
 /**
  * Computes the final price of an order.
  *
- * ORDER OF OPERATIONS (this is the reference demo question):
- *   1. subtotal   = sum of line totals
- *   2. discount   = DiscountService, applied to the subtotal
- *   3. taxable    = subtotal - discount        <-- discount is applied BEFORE tax
- *   4. tax        = TaxService, on the discounted amount
- *   5. shipping   = ShippingService, on the discounted amount
- *   6. total      = discounted + tax + shipping
- *
- * The discount-before-tax ordering is deliberate and is covered by
- * PriceCalculatorTest. It is NOT reflected in docs/pricing.md, which still
- * describes tax being computed on the gross subtotal — that divergence is the
- * planted documentation drift (see fixtures/README.md).
+ * @param Order $order The order to price.
+ * @return Money       The total amount due in minor currency units.
  */
 class PriceCalculator
 {

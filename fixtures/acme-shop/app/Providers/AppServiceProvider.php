@@ -17,12 +17,9 @@ use Illuminate\Support\ServiceProvider;
 /**
  * Container bindings.
  *
- * ANALYZER TRAP (container resolution): 'pricing' is bound to a closure that
- * builds PriceCalculator. Anything that resolves app('pricing') or the Pricing
- * facade reaches PriceCalculator only through this string key. The wiring of
- * DiscountService -> CouponValidator and ShippingService -> CarrierGateway also
- * lives here as closures, so those construction edges are not visible to a
- * syntactic pass over the call sites.
+ * 'pricing' is bound to a closure that builds PriceCalculator. Anything that
+ * resolves app('pricing') or the Pricing facade reaches PriceCalculator through
+ * this string key registered here.
  */
 class AppServiceProvider extends ServiceProvider
 {

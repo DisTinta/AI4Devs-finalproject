@@ -13,13 +13,10 @@ use App\Support\Money;
  *
  *   a) loyalty discount   — silver/gold customers get a percentage off
  *   b) coupon discount    — a valid coupon code adds its percent_off
- *   c) volume discount    — UNDOCUMENTED business rule (see below)
+ *   c) volume discount    — orders with more than VOLUME_LINE_THRESHOLD lines
+ *                           earn an additional VOLUME_BONUS_PERCENT off
  *
- * (c) is the planted "implemented and tested but undocumented" rule: an order
- * with more than VOLUME_LINE_THRESHOLD distinct lines earns an extra
- * VOLUME_BONUS_PERCENT off, but the whole discount is capped at
- * MAX_DISCOUNT_PERCENT of the subtotal. This cap and the volume bonus appear in
- * no README or doc; only DiscountServiceTest pins them down.
+ * The combined discount is capped at MAX_DISCOUNT_PERCENT of the subtotal.
  */
 class DiscountService
 {
@@ -45,8 +42,6 @@ class DiscountService
         $discount = $subtotal->percentage($percent);
 
         if ($discount->isGreaterThan(Money::zero())) {
-            // ANALYZER TRAP (event dispatch): the listener edge is resolved by the
-            // EventServiceProvider map, not by a direct call here.
             event(new DiscountApplied($order, $discount));
         }
 

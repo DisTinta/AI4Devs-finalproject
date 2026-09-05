@@ -15,10 +15,7 @@ use Illuminate\Support\Facades\Log;
 /**
  * Recomputes and caches an order total off the request path.
  *
- * ANALYZER TRAP: this job is queued via RecalculateTotals::dispatch() in
- * OrderObserver. The edge from the dispatch call to handle() runs through the
- * queue, so it is not a direct call the analyzer can mark exact. handle() also
- * goes through the Pricing facade.
+ * Dispatched by OrderObserver; runs asynchronously through the queue worker.
  */
 class RecalculateTotals implements ShouldQueue
 {

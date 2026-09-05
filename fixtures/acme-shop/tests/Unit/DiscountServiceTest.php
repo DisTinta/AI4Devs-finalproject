@@ -17,10 +17,7 @@ use Mockery;
 use Tests\TestCase;
 
 /**
- * Covers the UNDOCUMENTED business rules of DiscountService (the planted
- * "implemented and tested but not documented" case): the volume bonus for
- * orders with more than five lines, and the 30% total discount cap. These
- * numbers live only here — no README or doc states them.
+ * Covers the volume-bonus and cap rules of DiscountService.
  */
 class DiscountServiceTest extends TestCase
 {

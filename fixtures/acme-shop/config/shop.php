@@ -4,10 +4,6 @@ declare(strict_types=1);
 
 /*
  * Shop pricing configuration.
- *
- * NOTE ON DRIFT: free_shipping_threshold was raised from 50.00 to 75.00. The
- * code reads this value, but docs/pricing.md still documents the old 50.00
- * threshold. See fixtures/README.md → planted drift.
  */
 
 return [

@@ -9,10 +9,8 @@ use BadMethodCallException;
 /**
  * Thin proxy to shipping carriers.
  *
- * ANALYZER TRAP (__call): rate methods such as flatRateFor() are NOT declared.
- * They are handled by __call, which maps the method name to a config-driven
- * carrier rate. No static analyzer can resolve a call to $gateway->flatRateFor()
- * to a concrete method, so any such edge is heuristic.
+ * Rate methods such as flatRateFor() are not declared; they are handled by
+ * __call, which maps the method name to a config-driven carrier rate.
  *
  * @method int flatRateFor(?string $country)
  */

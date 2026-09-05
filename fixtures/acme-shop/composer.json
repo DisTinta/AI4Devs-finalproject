@@ -1,8 +1,8 @@
 {
     "name": "acme/shop",
     "type": "project",
-    "description": "Sample Laravel storefront pricing domain (CODEMIND fixture).",
-    "keywords": ["laravel", "fixture"],
+    "description": "Laravel storefront pricing domain — orders, discounts, taxes and shipping.",
+    "keywords": ["laravel", "pricing", "storefront"],
     "license": "MIT",
     "require": {
         "php": "^8.2",

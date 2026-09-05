@@ -12,10 +12,7 @@ use Tests\TestCase;
 
 /**
  * Shipping is free above the configured threshold, otherwise a flat per-country
- * rate fetched through the CarrierGateway (__call) proxy.
- *
- * The threshold here (75.00) is the CURRENT code value. docs/pricing.md still
- * documents 50.00 — see fixtures/README.md drift inventory.
+ * rate fetched through the CarrierGateway proxy.
  */
 class ShippingServiceTest extends TestCase
 {

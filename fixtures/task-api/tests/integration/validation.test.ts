@@ -3,10 +3,9 @@ import type { FastifyInstance } from 'fastify';
 import { buildTestApp } from '../helpers/build-app.js';
 
 /**
- * These tests pin down the reference demo question: "how are incoming requests
- * validated?". The answer they encode: every request is parsed by its Zod schema
- * at the route boundary, and a failure returns a 400 VALIDATION_ERROR envelope
- * with per-field issues before any controller runs.
+ * Verifies that every request is parsed by its Zod schema at the route boundary,
+ * and that a failure returns a 400 VALIDATION_ERROR envelope with per-field
+ * issues before any controller runs.
  */
 describe('request validation', () => {
   let app: FastifyInstance;
