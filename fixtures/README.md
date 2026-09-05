@@ -6,10 +6,17 @@ local boot, and the F6 (drift) case. Everything a test, a seed or a published
 measurement asserts about them is written down here, so the fixtures are a
 *harness* and not just two folders of tidy code.
 
+> **On the PHP test suite.** `tests/CreatesApplication.php` in acme-shop
+> references `bootstrap/app.php`, which is not included in this tree. The
+> PHP unit tests cannot run without a full Laravel bootstrap. The fixture is
+> designed to be *analyzed*, not deployed. The arithmetic behind Q1 (€72.42)
+> was verified by hand against `App\Support\Money` — see §2.7 of the
+> engineering review.
+
 - **`acme-shop/`** — Laravel 11 / PHP 8.2. The **hard** fixture: built on the
-  dynamic Laravel features that defeat static analysis, on purpose.
+  dynamic Laravel features that defeat static analysis, on purpose. **53 files.**
 - **`task-api/`** — TypeScript + Fastify. The **precise** fixture: every
-  reference resolves at compile time.
+  reference resolves at compile time. **38 files.**
 
 ## Git history — how it is versioned
 
@@ -29,6 +36,21 @@ must run this before indexing. This choice keeps the real `simple-git` extractor
 no binary blob. The rebuilder snapshots and restores the source tree, so it never
 mutates the tracked fixture files.
 
+**Declared limitation — commit content.** Five commits with semantic load carry
+a real diff, anchored by snapshot files in `history/snapshots/`:
+
+| Fixture | Commit | What the diff shows |
+|---|---|---|
+| acme-shop | `fix: apply discount before tax and raise free-shipping threshold to 75 (#61)` | tax ordering change in `PriceCalculator.php`; threshold 50→75 in `config/shop.php` |
+| acme-shop | `refactor: tune loyalty tiers and shipping fees (#33)` | loyalty % and configurable threshold in `DiscountService`/`ShippingService` |
+| acme-shop | `refactor: extend shipping zones and discount stacking (#55)` | volume bonus + country-routing in `DiscountService`/`ShippingService` |
+| task-api | `refactor: tighten create and update validation (#31)` | nullable fields + empty-body refine in `task.schema.ts` |
+| task-api | `refactor: align schema defaults with service (#40)` | `.default()` calls in schema; `??` simplification in `task.service.ts` |
+
+All other commits carry a filler `// hist:rN` marker instead of real content.
+Their value is the co-change signal (which files changed together), the author,
+the date, and the `pr_number` extracted from the message — not the diff content.
+
 | Fixture | Commits | Authors | Date span | PR-tagged messages |
 |---|---|---|---|---|
 | acme-shop | 32 | 3 | 2024-01-08 … 2024-05-06 | 17 |
@@ -40,8 +62,8 @@ Authors are fictitious; the system pseudonymises commit authors anyway (readme �
 
 # acme-shop (PHP / Laravel) — the hard fixture
 
-**Stack:** PHP 8.2, Laravel 11. **Real file count: 52** source files
-(target in readme §1.4 was ~47; +5, same order of magnitude — see final report).
+**Stack:** PHP 8.2, Laravel 11. **Real file count: 53** source files
+(target in readme §1.4 was ~47; +6, same order of magnitude).
 No `vendor/`.
 
 **Domain:** orders, order lines, discounts, taxes, shipping. The reference
@@ -121,7 +143,7 @@ Each is a call site the analyzer can mark **heuristic** at best, never `exact`.
 | 2 | Container binding | `app/Providers/AppServiceProvider::register()` closures | construction edges exist only as string-keyed closures |
 | 3 | `__call` | `ShippingService` → `CarrierGateway::flatRateFor()` | `flatRateFor` is not declared; handled by `__call` |
 | 4 | Eloquent magic attribute | `$order->subtotal`, `$order->customer`, `$order->lines`, `$order->coupon_code` | accessors/relations resolved by `__get`, no declared property |
-| 5 | String-resolved route | `routes/web.php` → `'App\Http\Controllers\CheckoutController@store'` | string action, needs Laravel naming heuristic |
+| 5 | String-resolved route | `routes/web.php` → `'App\Http\Controllers\CheckoutController@store'` | string action; fully qualified (no namespace lookup needed); analyzer must split on `@` using Laravel's `Controller@method` convention |
 | 6 | Job dispatch | `OrderObserver` → `RecalculateTotals::dispatch()` → `handle()` | edge runs through the queue |
 | 7 | Event dispatch | `event(new OrderPlaced())` / `event(new DiscountApplied())` → listeners | listener edge lives only in `EventServiceProvider::$listen` |
 
@@ -141,9 +163,13 @@ anchored to symbols so it survives edits.
 
 ## Planted secret
 
-`config/app.php` line ~24 — a fake Laravel `APP_KEY`
-(`base64:FAKEfixtureKEY…`), tagged `pragma: allowlist secret (fixture)` and
-declared in a comment. Detectable by `gitleaks`. HU1 must store it redacted.
+`config/services.php` — a dev-only AWS S3 key (`AKIASHOPFAKE00000001`) set
+as the default for `AWS_ACCESS_KEY_ID`. Detectable by gitleaks rule
+`aws-access-token` (pattern `AKIA[A-Z0-9]{16}`). HU1 must store it redacted.
+
+> **CI note (pending hito 2).** When the repository has a gitleaks CI step,
+> add a `.gitleaksignore` entry by fingerprint so the scanner does not flag
+> these known-synthetic secrets in the fixture directories.
 
 ---
 
@@ -184,10 +210,10 @@ so the strong historical coupling is not obvious from the import graph.
 
 ## Planted secret
 
-`src/config/env.ts` line ~12 — a fake AWS-style token
-(`AKIAJ7FAKEFIXTURE42Q`) as the dev fallback JWT secret, tagged
-`pragma: allowlist secret (fixture)` and declared in a comment. Detectable by
-`gitleaks`.
+`src/config/env.ts` — a dev-only JWT secret constant (`AKIAJ7FAKEDEV000001Q`)
+used as the fallback when `JWT_SECRET` is absent. Detectable by gitleaks rule
+`aws-access-token` (same `AKIA[A-Z0-9]{16}` pattern). HU1 must store it
+redacted.
 
 ---
 
@@ -214,7 +240,7 @@ Columns: source symbol → target symbol · expected resolution · reason.
 | 9 | `CheckoutController::store` → `PriceCalculator::compute` | heuristic | `Pricing` facade |
 | 10 | `OrderObserver::created` → `RecalculateTotals::handle` | heuristic | job dispatched through the queue |
 | 11 | `routes/api.php` → `OrderController::show` | exact | array action `[Class, 'method']` |
-| 12 | `routes/web.php` → `CheckoutController::store` | heuristic | string action `'Controller@method'` |
+| 12 | `routes/web.php` → `CheckoutController::store` | heuristic | string; fully qualified—no namespace lookup needed; analyzer must apply Laravel's `Controller@method` convention to split class and method |
 
 ## task-api (TypeScript) — first batch (10 sites listed of 50; **40 pending**)
 
