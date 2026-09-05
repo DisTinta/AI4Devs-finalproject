@@ -758,3 +758,56 @@ Lee antes de tocar nada: `CODEMIND-ROADMAP.md`, `fixtures/README.md`, `readme.md
 ```
 
 **Ajuste humano.** El prompt llegaba con cuatro defectos numerados y un «menor» que requería decisión. Decidí antes de dejar actuar al agente: (a) opción del menor → declarar en `fixtures/README.md` que el fixture PHP se analiza pero no se ejecuta, sin añadir `bootstrap/app.php`. El agente cumplió la restricción de tocar solo `fixtures/` y no tocó `readme.md` ni `CODEMIND-ROADMAP.md`. El único ajuste de fondo: el mecanismo de snapshots del Defecto 2 requirió dos iteraciones para ubicar el campo `before` en el commit correcto (toque previo al semántico, no en el semántico mismo).
+
+---
+
+# 10. Esqueleto del monorepo
+
+Segundo hito de código de la Entrega 2: inicializar el esqueleto del monorepo con workspaces npm, Postgres + pgvector en Compose, Makefile, TypeScript estricto en todos los paquetes, y gate de arquitectura con `dependency-cruiser`.
+
+### Prompt 1 — Encargo del esqueleto del monorepo
+
+Prompt literal enviado a Claude Code vía `/plan` (modo planificación previo a ejecución):
+
+```
+## Contexto
+
+Trabajas en **CODEMIND**, proyecto final AI4Devs de Cristina Rodríguez Núñez.
+Repositorio: fork `DisTinta/AI4Devs-finalproject`. Rama activa: `feature/entrega-2-CRN`.
+
+El **hito 1 (fixtures)** está cerrado y verificado. No lo reabras.
+
+Antes de escribir nada, lee en este orden y trabaja solo a partir de ellos:
+
+1. `CODEMIND-ROADMAP.md` — estado, **decisiones cerradas** (§2), cola, reglas duras,
+   norma de `prompts.md`.
+2. `readme.md` §1.4 (instalación, `make up`, variables de entorno — LLM opcional /
+   Ollama), §2.2 (Fastify, componentes), §2.3 (árbol exacto), §2.4 (Local + CI;
+   sin hosting público), §2.6 (dependency-cruiser en CI), §6 Ticket 3 (solo para
+   saber qué NO implementar aún).
+3. `fixtures/README.md` — solo si necesitas saber cómo se reconstruye la historia
+   (`node fixtures/build-history.mjs`); no modifiques fixtures.
+4. `.gitignore` existente — respétalo y amplíalo solo si falta algo del esqueleto.
+
+`ai4devs-requisitos-y-encaje.md` y `proposal-codemind/01`–`04` son histórico.
+La enmienda `proposal-codemind/05-…` detalla evidencia/LLM, pero **manda el
+readme + roadmap**; no la uses para ampliar el alcance de este hito.
+
+## Objetivo — Hito 2 y nada más
+
+Inicializar el **esqueleto del monorepo** de forma que:
+
+- exista el árbol de paquetes de `readme.md` §2.3 (workspaces npm),
+- `docker compose up -d` levante **PostgreSQL 16 + pgvector** saludable en `:5432`,
+- `make up` ejecute la secuencia documentada en §1.4,
+- TypeScript estricto compile en los paquetes,
+- un chequeo de arquitectura con `dependency-cruiser` falle si `packages/core`
+  importa de `adapters`, `analyzers` o `api`,
+- **no** haya lógica de dominio, analizadores reales, esquema BD completo ni harness.
+
+[…prompt completo de ~200 líneas en `prompt-esqueleto-monorepo.md`…]
+```
+
+**Por qué funcionó.** La estructura de «Lee primero, ejecuta después» y los apartados explícitos de fuera de alcance evitaron que el agente inicializara el harness, creara migraciones reales o tocara fixtures. La condición de parada del plan mode forzó una revisión humana antes de escribir código.
+
+**Ajuste humano.** Dos correcciones durante la ejecución. Primera: faltaba `@types/node` y el campo `"types": ["node"]` en `tsconfig.base.json`; el typecheck fallaba con `Cannot find name 'process'` en `packages/api` y `packages/cli` — se añadió al root devDependencies y al base tsconfig. Segunda: el `tsConfig.fileName` de `.dependency-cruiser.cjs` apuntaba a `packages/core/tsconfig.json` y causaba un error de resolución del `extends`; se cambió a `tsconfig.json` (raíz) y funcionó. Ambos ajustes son de configuración, ninguno de fondo sobre el esqueleto.

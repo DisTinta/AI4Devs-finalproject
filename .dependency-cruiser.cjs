@@ -30,7 +30,7 @@ module.exports = {
     },
     tsPreCompilationDeps: true,
     tsConfig: {
-      fileName: 'packages/core/tsconfig.json',
+      fileName: 'tsconfig.json',
     },
     reporterOptions: {
       text: {

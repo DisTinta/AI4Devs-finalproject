@@ -2,7 +2,7 @@
 
 **Autora:** Cristina Rodríguez Núñez  
 **Repo de entrega:** fork `DisTinta/AI4Devs-finalproject`  
-**Última actualización:** 5 de septiembre de 2026
+**Última actualización:** 5 de septiembre de 2026 (hito 2 cerrado)
 
 > **Temporal.** Este fichero es la brújula viva **hasta que se instale el harness** (`sdd-harness-kit`). No crear ni escribir aún `docs/project-context.md` ni `AGENTS.md`: el kit los genera. Tras el harness, migrar el contenido vigente de este documento a `docs/project-context.md` (incluida la norma de `prompts.md`), actualizar punteros del kit, y **eliminar este archivo**.
 
@@ -14,7 +14,7 @@
 |---|---|
 | Entrega 1 — Documentación técnica | **Cerrada** (`readme.md`, `prompts.md`, wireframes en `images/`, PR + Typeform) |
 | Decisiones evidencia / LLM (v4) | **Cerradas** (5 sep 2026) — ver §2 |
-| Código / monorepo | Aún no iniciado |
+| Código / monorepo | **Esqueleto listo** (workspaces npm, Compose, Makefile, dependency-cruiser, CI — ver hito 2 ✅) |
 | Harness | Pendiente (se instala **después** del esqueleto del proyecto) |
 | `docs/project-context.md` | No existe a propósito; lo creará el harness |
 
@@ -34,7 +34,7 @@ Hasta el hito 6 no hace falta tener Ollama instalado: el esqueleto deja `.env.ex
 
 ## 3. Siguiente paso concreto
 
-Inicializar el **esqueleto del monorepo** según `readme.md` §2.3: workspaces npm, `docker-compose` (Postgres + pgvector) y `Makefile` / `make up`. Los fixtures ya existen (hito 1 cerrado); su historia Git se reconstruye con `node fixtures/build-history.mjs`, que `seed:build` deberá invocar. En `.env.example`: `LLM_API_KEY` vacía, `LLM_BASE_URL` documentado para Ollama, sin asumir Anthropic/OpenAI. Después: harness + adaptador `fastify` → migrar este fichero a `docs/project-context.md` y borrarlo → Ticket 3 (BD).
+Instalar el **harness** (`sdd-harness-kit` + adaptador `fastify`) → migrar el contenido vigente de este fichero a `docs/project-context.md` y **borrar** `CODEMIND-ROADMAP.md` → Ticket 3 (esquema BD, CHECK, invalidación, semillas).
 
 ---
 
@@ -45,7 +45,7 @@ Orden de trabajo (no saltar el harness antes del esqueleto):
 | # | Hito | Hecho |
 |---|---|---|
 | 1 | Fixtures `acme-shop` + `task-api` (drift plantado) | ✅ (rama `feature/entrega-2-CRN`) |
-| 2 | Esqueleto monorepo + `make up` | |
+| 2 | Esqueleto monorepo + `make up` | ✅ (rama `feature/entrega-2-CRN`) |
 | 3 | Harness (`sdd-harness-kit` + adaptador fastify) → migrar a `docs/project-context.md` y **borrar** `CODEMIND-ROADMAP.md` | |
 | 4 | Ticket 3 — esquema BD, CHECK, invalidación, semillas | |
 | 5 | Analizador PHP + extractor Git + generación de semillas | |
