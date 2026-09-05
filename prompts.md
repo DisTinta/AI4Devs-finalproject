@@ -723,16 +723,36 @@ Rangos de línea: si te resulta frágil fijarlos ahora, ancla la evidencia a sí
 
 **Por qué funcionó.** Dos condiciones de parada dentro del propio prompt: «no escribas código hasta haber presentado el plan» y, en el punto 3 de requisitos comunes, «párate y presenta 2 o 3 opciones … espera confirmación». Eso convirtió una tarea de generación en una con dos revisiones humanas antes de tocar nada — el estado Git y la estrategia de versionado de la historia, que son justo donde un agente mete la pata de forma cara.
 
-### Prompt 2 — Estado Git antes de cambiar de rama
+### Prompt 2 — Estado Git antes de cambiar de rama - Versionado de la historia y del readme
 
 ```
-En vez de salir de la rama main sal de la rama feature/entrega-1-CRN, así no perdemos el acumulativo
-```
-
-### Prompt 3 — Versionado de la historia y del readme
-
-```
-1. Guion determinista reconstruye historia
+En vez de salir de la rama main sal de la rama feature/entrega-1-CRN, así no perdemos el acumulativo. Guion determinista reconstruye historia
 ```
 
 **Ajuste humano.** El prompt inicial pedía ramificar `feature/entrega-2-CRN` **desde `main`**; lo corregí a ramificar **desde `feature/entrega-1-CRN`**, porque `main` no tenía ni el roadmap ni el retoque del readme y salir de ahí habría perdido el acumulativo de la entrega. La regla escrita cede ante el hecho concreto de dónde vive el trabajo. Y de las tres formas de versionar la historia Git anidada que se me ofrecieron —bundle binario, datos sintéticos en «modo fixture», o guion determinista que la reconstruye— elegí el **guion determinista**: es la única que deja un `.git` real sobre el que corre el extractor `simple-git` de verdad, sin blob binario y revisable en diff. El fichero de datos era más cómodo de versionar pero habría dejado sin probar justo el componente que los fixtures existen para alimentar.
+
+### Prompt 3 — Corrección de los cuatro defectos del hito 1
+
+Prompt con el que se abrió la sesión de corrección. Proviene del informe de revisión de ingeniería (`revision-fixtures-y-prompt-correccion.md` §3), preparado por el propio modelo en una sesión anterior y revisado por la autora antes de pegarse:
+
+```
+## Contexto
+
+Trabajas en **CODEMIND** (fork `DisTinta/AI4Devs-finalproject`). El hito 1 de la Entrega 2 —los fixtures `fixtures/acme-shop` y `fixtures/task-api`— está construido y commiteado en la rama `feature/entrega-2-CRN`. Una revisión de ingeniería ha encontrado cuatro defectos que hay que corregir **antes** de seguir con el esqueleto del monorepo.
+
+Lee antes de tocar nada: `CODEMIND-ROADMAP.md`, `fixtures/README.md`, `readme.md` §1.1, §1.2, §2.5, §2.6 y §5 (HU1). El informe completo de la revisión está en `revision-fixtures-y-prompt-correccion.md` §2, en la raíz.
+
+## Reglas duras — léelas dos veces
+
+1. **Solo se toca `fixtures/`.** Nada de `packages/`, `docs/`, `openspec/`, `ai-specs/`, `.claude/`, harness, `docker-compose`, `Makefile` ni workspaces. El esqueleto del monorepo es el hito 2 y no es esta tarea.
+2. **El comportamiento del dominio no cambia.** Ni un número.
+3. **No se renombra ni se mueve ningún fichero existente.**
+4. **Todo fichero que añadas o elimines debe reflejarse en el manifiesto de historia correspondiente.**
+5. **No toques `readme.md` ni `CODEMIND-ROADMAP.md` sin preguntar.**
+6. **No inventes.** Si una comprobación no la puedes ejecutar, dilo.
+7. **Commits pequeños, uno por defecto corregido.**
+
+[…prompt completo de 165 líneas en `revision-fixtures-y-prompt-correccion.md` §3…]
+```
+
+**Ajuste humano.** El prompt llegaba con cuatro defectos numerados y un «menor» que requería decisión. Decidí antes de dejar actuar al agente: (a) opción del menor → declarar en `fixtures/README.md` que el fixture PHP se analiza pero no se ejecuta, sin añadir `bootstrap/app.php`. El agente cumplió la restricción de tocar solo `fixtures/` y no tocó `readme.md` ni `CODEMIND-ROADMAP.md`. El único ajuste de fondo: el mecanismo de snapshots del Defecto 2 requirió dos iteraciones para ubicar el campo `before` en el commit correcto (toque previo al semántico, no en el semántico mismo).
