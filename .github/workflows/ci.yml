@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "feature/**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  typecheck-and-architecture:
+    name: Typecheck + Architecture gate
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript — check all packages
+        run: npm run typecheck
+
+      - name: Architecture gate — core must not import infra
+        run: npm run lint:architecture
