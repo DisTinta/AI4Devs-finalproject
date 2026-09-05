@@ -733,7 +733,7 @@ En vez de salir de la rama main sal de la rama feature/entrega-1-CRN, así no pe
 
 ### Prompt 3 — Corrección de los cuatro defectos del hito 1
 
-Prompt con el que se abrió la sesión de corrección. Proviene del informe de revisión de ingeniería (`revision-fixtures-y-prompt-correccion.md` §3), preparado por el propio modelo en una sesión anterior y revisado por la autora antes de pegarse:
+Prompt con el que se abrió la sesión de corrección. Proviene del informe de revisión de ingeniería (`revision-fixtures-y-prompt-correccion.md` §3), preparado por un modelo diferente (con Cursor) en una sesión anterior y revisado mi antes de pegarlo:
 
 ```
 ## Contexto
