@@ -273,8 +273,8 @@ Salida esperada al terminar:
 ✓ postgres        healthy on :5432 (pgvector 0.7)
 ✓ migrations      12 applied
 ✓ seed            2 projects loaded
-                    acme-shop   php/laravel   47 files · 312 symbols · 1840 edges
-                    task-api    typescript    38 files · 264 symbols · 2110 edges
+                    acme-shop   php/laravel   53 files · ~312 symbols · ~1840 edges  [illustrative until analyzer runs]
+                    task-api    typescript    38 files · ~264 symbols · ~2110 edges  [illustrative until analyzer runs]
 ✓ api             http://localhost:3000  (openapi at /docs)
 ✓ web             http://localhost:5173
 
