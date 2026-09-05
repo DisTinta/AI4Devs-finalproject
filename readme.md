@@ -11,11 +11,13 @@ Proyecto Final del Máster AI4Devs · Cristina Rodríguez Núñez
 > Este documento corresponde a la **Entrega 1 — Documentación técnica** (24 de septiembre de 2026), que es documentación sin código. Describe el sistema tal como está diseñado para construirse.
 >
 > - **Entrega 2** (22 de octubre): código funcional con el flujo principal operativo.
-> - **Entrega 3** (12 de noviembre): funcionalidades completas, tests, despliegue y `prompts.md`.
+> - **Entrega 3** (12 de noviembre): funcionalidades completas, tests, despliegue reproducible (Compose + CI + `verify`) y `prompts.md`.
 >
 > Las secciones marcadas con *(pendiente)* se completarán en las entregas correspondientes. La sección 7 (Pull Requests) queda necesariamente vacía en esta entrega, ya que aún no hay código.
 >
-> **Sobre la evidencia de funcionamiento:** la verificación se hará mediante la demo alojada y, sobre todo, mediante el repositorio levantable en local en tres comandos. Los wireframes de las tres pantallas principales están en [1.3](#13-diseño-y-experiencia-de-usuario).
+> **Sobre la evidencia de funcionamiento:** el repositorio levantable en local en tres comandos (`make up`), el guion `docs/DEMO.md` y `npm run verify`. Los wireframes de las tres pantallas principales están en [1.3](#13-diseño-y-experiencia-de-usuario).
+>
+> **Decisión (5 sep 2026).** Antes: evidencia = demo alojada + local. Ahora: **solo local**. Motivo: sin coste de hosting/dominio y un único entorno fiable el día de la revisión. Detalle en `proposal-codemind/05-propuesta-v4-evidencia-local-hibrido-ollama.md`.
 
 ---
 
@@ -50,11 +52,13 @@ Se diferencia de un asistente de código convencional en tres comportamientos ve
 
 ### **0.4. URL del proyecto:**
 
-*(pendiente — se publicará en la Entrega 3)*
+La evidencia ejecutable es el propio repositorio público, levantado en local:
 
-Demo alojada en servidor propio, con dos repositorios de muestra ya indexados y consultables sin registro ni configuración.
+https://github.com/DisTinta/AI4Devs-finalproject — clonar y seguir [1.4](#14-instrucciones-de-instalación) (`make up`).
 
-Alternativa equivalente y garantizada: clonar el repositorio y levantarlo en local en tres comandos. Ver [1.4](#14-instrucciones-de-instalación).
+No hay URL de servicio web alojado: quien evalúa prueba en su máquina con Docker y Node.
+
+> **Decisión (5 sep 2026).** Antes: §0.4 apuntaba a una demo alojada en servidor propio (pendiente Entrega 3). Ahora: la “URL del proyecto” es el **repo + arranque local**. Motivo: eliminar dependencia de un servidor el día de la revisión y evitar coste de hosting/dominio.
 
 ### 0.5. URL o archivo comprimido del repositorio
 
@@ -118,12 +122,18 @@ Desarrolladores que trabajan sobre código que no escribieron: incorporaciones a
 | **F6** | Detectar contradicciones entre la documentación y el código | should |
 | **F7** | Caché semántica de consultas con métrica de acierto | should |
 
-**F4 merece una nota**. Los wireframes de [1.3](#13-diseño-y-experiencia-de-usuario) muestran el diseño; F4 es la evidencia de que el sistema **funciona realmente**. Se concreta en dos caminos, ambos sin configuración:
+**F4 merece una nota**. Los wireframes de [1.3](#13-diseño-y-experiencia-de-usuario) muestran el diseño; F4 es la evidencia de que el sistema **funciona realmente**. Se concreta en un único camino garantizado:
 
-- **Camino A — demo alojada.** Servidor propio, los dos repositorios de muestra indexados y consultables sin registro. Un conjunto de preguntas sugeridas se responde desde caché, de forma instantánea y a coste cero; las preguntas libres se ejecutan con límite de uso.
-- **Camino B — local, en tres comandos.** Se clona el repositorio, se levanta con `make up` y el sistema queda operativo con los dos proyectos consultables. **Sin PHP instalado, sin clonar repositorios ajenos, sin esperar ningún indexado**, porque los grafos van versionados como semillas SQL.
+- **Local, en tres comandos.** Se clona el repositorio, se copia `.env.example` a `.env` (sin obligar a una API key) y se levanta con `make up`. Los dos proyectos de muestra quedan consultables. **Sin PHP instalado, sin clonar repositorios ajenos, sin esperar ningún indexado**, porque los grafos y las respuestas de evaluación van versionados como semillas SQL / caché.
 
-El camino B es el **garantizado**: no depende de que un servidor esté en pie el día de la revisión.
+**Modo híbrido LLM (parte de F4):**
+
+| Situación | Qué puede hacer quien evalúa |
+|---|---|
+| Sin `LLM_API_KEY` / sin endpoint LLM | Preguntas sugeridas y `npm run verify` desde caché/golden (**0 $**, sin cuenta de proveedor) |
+| Con LLM (p. ej. Ollama local o API cloud) | Pregunta libre e indexado de un repositorio propio |
+
+> **Decisión (5 sep 2026).** Antes: Camino A (demo alojada) + Camino B (local). Ahora: solo el local, con evaluación sin key. Motivo: fricción cero para el evaluador y sin servidor propio.
 
 #### Lo que el producto no hace
 
@@ -135,10 +145,11 @@ Declarado desde el principio: **no modifica código, no genera pull requests, no
 
 Los wireframes de las tres pantallas muestran el flujo completo del producto. La evidencia ejecutable complementa las imágenes:
 
-1. **La demo alojada**, donde se recorre el flujo completo en directo.
-2. **El repositorio levantable en local** en tres comandos (ver [1.4](#14-instrucciones-de-instalación)), que produce exactamente la misma experiencia.
-3. **`docs/DEMO.md`**: guion de demostración con los comandos exactos y **la salida real de terminal** que producen. Se puede copiar, ejecutar y comparar con lo que uno obtiene.
-4. **`npm run verify`**: prueba de humo ejecutable que consulta cada repositorio de muestra y compara con la salida esperada.
+1. **El repositorio levantable en local** en tres comandos (ver [1.4](#14-instrucciones-de-instalación)).
+2. **`docs/DEMO.md`**: guion de demostración con los comandos exactos y **la salida real de terminal** que producen. Se puede copiar, ejecutar y comparar con lo que uno obtiene.
+3. **`npm run verify`**: prueba de humo ejecutable que consulta cada repositorio de muestra y compara con la salida esperada (**sin llamar al LLM**: golden/caché versionada).
+
+> **Decisión (5 sep 2026).** Se eliminó la demo alojada de esta lista. La evidencia queda acotada a local + DEMO.md + verify.
 
 #### Las tres pantallas
 
@@ -247,13 +258,13 @@ El paso 3 es el más característico: un sistema que sabe callarse.
 
 ### **1.4. Instrucciones de instalación:**
 
-Al ser el arranque local **la evidencia principal de que el sistema funciona**, esta sección se trata como crítica. El camino corto no requiere nada más que **Docker y Node 20+**: ni PHP instalado, ni clonar repositorios ajenos, ni esperar un indexado.
+Al ser el arranque local **la única evidencia de que el sistema funciona ante quien evalúa**, esta sección se trata como crítica. El camino corto no requiere nada más que **Docker y Node 20+**: ni PHP instalado, ni clonar repositorios ajenos, ni esperar un indexado, **ni una API key de LLM**.
 
 #### Camino corto — sistema operativo en tres comandos
 
 ```bash
 git clone https://github.com/DisTinta/AI4Devs-finalproject && cd AI4Devs-finalproject
-cp .env.example .env               # añade tu clave de API
+cp .env.example .env               # LLM opcional: ver variables abajo
 make up
 ```
 
@@ -263,7 +274,7 @@ make up
 docker compose up -d               # PostgreSQL 16 + pgvector
 npm install
 npm run db:migrate                 # esquema
-npm run db:seed                    # ← los 2 repositorios de muestra YA indexados
+npm run db:seed                    # ← los 2 repositorios de muestra YA indexados (+ caché de evaluación)
 npm run dev                        # API en :3000 · web en :5173
 ```
 
@@ -277,13 +288,14 @@ Salida esperada al terminar:
                     task-api    typescript    38 files · ~264 symbols · ~2110 edges  [illustrative until analyzer runs]
 ✓ api             http://localhost:3000  (openapi at /docs)
 ✓ web             http://localhost:5173
+✓ llm             evaluation mode (cache-only) — set LLM_* to enable free-form asks
 
 Ready. No indexing required — sample graphs are pre-built.
 ```
 
 #### El mismo flujo por CLI
 
-Sin necesidad de abrir la web:
+Sin necesidad de abrir la web. Las preguntas de muestra funcionan **sin LLM** (caché):
 
 ```bash
 npm run cli -- projects
@@ -292,11 +304,12 @@ npm run cli -- impact acme-shop "cambiar el cálculo de descuentos"
 npm run cli -- ask task-api "¿Cómo se validan las peticiones entrantes?"
 ```
 
-#### Camino completo — indexar tu propio repositorio
+#### Camino completo — indexar tu propio repositorio o pregunta libre
 
-Solo aquí aparecen requisitos adicionales:
+Requiere un LLM configurado (recomendado en desarrollo: **Ollama** local) y, para PHP/Laravel, PHP 8.2+ en el PATH:
 
 ```bash
+# Ollama (ejemplo): LLM_BASE_URL=http://localhost:11434/v1  LLM_API_KEY=ollama  LLM_MODEL=… 
 # PHP/Laravel  → requiere PHP 8.2+ en el PATH
 # TypeScript   → nada extra, el analizador usa la API del compilador
 
@@ -310,20 +323,23 @@ npm run cli -- ask mi-proyecto "¿Cómo funciona el módulo de pagos?"
 npm run verify
 ```
 
-Ejecuta una consulta contra cada repositorio de muestra y compara la salida con la esperada. Sirve como prueba de humo para quien evalúa y como test de integración en CI.
+Ejecuta una consulta contra cada repositorio de muestra y compara la salida con la esperada (**determinista: no llama al LLM**). Sirve como prueba de humo para quien evalúa y como test de integración en CI.
 
 #### Variables de entorno
 
 | Variable | Obligatoria | Descripción |
 |---|---|---|
-| `LLM_API_KEY` | sí | Clave del proveedor de LLM |
+| `LLM_API_KEY` | no | Credencial del endpoint LLM. Vacía → **modo evaluación** (solo caché / verify). Con Ollama suele bastar un valor placeholder (`ollama`) |
+| `LLM_BASE_URL` | no | Base URL compatible OpenAI. Por defecto en desarrollo: Ollama (`http://localhost:11434/v1`). Sin URL + sin key → solo evaluación |
 | `LLM_MODEL` | no | Modelo para generación (valor por defecto en `.env.example`) |
-| `LLM_MODEL_VERIFY` | no | Modelo económico para la verificación de evidencias |
+| `LLM_MODEL_VERIFY` | no | Modelo económico para la verificación de evidencias en vivo |
 | `DATABASE_URL` | no | Cadena de conexión; por defecto apunta al contenedor local |
 | `ALLOWED_REPOS_DIR` | no | Directorio raíz permitido para indexar (ver [2.5](#25-seguridad)) |
-| `DAILY_BUDGET_USD` | no | Techo de gasto diario en LLM para la demo pública |
+| `DAILY_BUDGET_USD` | no | Techo de gasto diario si se usa un proveedor cloud de pago (irrelevante con Ollama local) |
 
-Las semillas se regeneran con `npm run seed:build`, que indexa los dos repositorios de muestra y volca el grafo a `seeds/graph-dump.sql`, versionado en el repositorio. Así la instalación es determinista y no depende de que el indexado se comporte igual en otra máquina.
+> **Decisión (5 sep 2026).** Antes: `LLM_API_KEY` obligatoria. Ahora: **opcional**; evaluación sin key; desarrollo libre con Ollama. Motivo: 0 € y 0 fricción para quien evalúa.
+
+Las semillas se regeneran con `npm run seed:build`, que indexa los dos repositorios de muestra y volca el grafo a `seeds/graph-dump.sql`, versionado en el repositorio. Así la instalación es determinista y no depende de que el indexado se comporte igual en otra máquina. La caché/golden de evaluación se genera en desarrollo (con Ollama u otro LLM) y viaja versionada para que `verify` no necesite modelo.
 
 ---
 
@@ -514,48 +530,51 @@ El Ejemplo 1 oficial reparte las secciones de la plantilla en ocho documentos nu
 
 ### **2.4. Infraestructura y despliegue**
 
+En este proyecto, **«despliegue» (Entrega 3) significa artefacto reproducible**: el mismo `docker-compose` que usa quien evalúa, más CI que comprueba que sigue funcionando. No hay servicio web público permanente.
+
 ```mermaid
 flowchart LR
     DEV["Local<br/>make up<br/>Postgres + pgvector"]
     GH["GitHub<br/>fork de la plantilla"]
-    CI["GitHub Actions<br/>lint · arquitectura · unit · integración · E2E · build"]
-    REG["Registro de imágenes"]
-    HOST["Servidor propio<br/>API + web + proxy TLS"]
-    DB[("Postgres<br/>con pgvector")]
-    LLM["API del LLM"]
+    CI["GitHub Actions<br/>lint · arquitectura · unit · integración · E2E · verify"]
+    DB[("Postgres<br/>en Compose / CI")]
+    LLM["LLM opcional<br/>Ollama u otro"]
 
-    DEV --> GH --> CI --> REG --> HOST
-    HOST --> DB
-    HOST --> LLM
+    DEV --> GH --> CI
+    DEV --> DB
+    CI --> DB
+    DEV -.-> LLM
 ```
 
-#### Proceso de despliegue
+> **Decisión (5 sep 2026).** Antes: el diagrama incluía registro de imágenes → servidor propio + proxy TLS + API LLM obligatoria. Ese destino de hosting se **descartó para la evaluación** (coste, dominio, punto único de fallo). El Compose local sigue siendo el artefacto único de ejecución.
 
-Push a la rama → CI ejecuta lint, test de arquitectura, unitarios, integración (con PostgreSQL en contenedor), E2E y build → imagen al registro → despliegue → migraciones → **carga de semillas** → `npm run verify` como prueba de humo.
+#### Proceso de verificación continua
 
-#### Dos entornos, no uno
+Push a la rama → CI ejecuta lint, test de arquitectura, unitarios, integración (con PostgreSQL en contenedor), E2E y **`npm run verify`** (golden/caché, sin LLM) → el mismo `docker-compose` que documenta [1.4](#14-instrucciones-de-instalación) es lo que corre en local.
+
+#### Dos entornos de ejecución
 
 | Entorno | Cómo se levanta | Para qué sirve | Garantía |
 |---|---|---|---|
-| **Local** | `make up` — Docker y Node, nada más | Que quien evalúe pruebe el sistema y la CLI | **Siempre disponible.** No depende de terceros |
-| **Demo alojada** | Servidor propio, mismo `docker-compose` más proxy inverso con TLS | Probar sin instalar nada | Sujeta a que el servidor esté en pie |
+| **Local** | `make up` — Docker y Node | Que quien evalúe pruebe el sistema y la CLI | **Única vía de evidencia.** No depende de un servidor de la autora |
+| **CI** | GitHub Actions con Postgres en contenedor | Que el artefacto no se rompa en cada push | Automatizada; misma semilla / verify |
 
-**Que los dos entornos usen el mismo `docker-compose` es deliberado**: elimina la clase de fallo «en mi máquina funciona». El despliegue no es una configuración distinta, es el mismo artefacto con variables de entorno de producción y un proxy delante (Caddy o Nginx, con certificado automático).
+**Que local y CI usen el mismo Compose (o el mismo servicio Postgres + las mismas migraciones/semillas) es deliberado**: elimina la clase de fallo «en mi máquina funciona».
 
-#### Modo demo: sostener una demo pública sin agotar la cuota de API
+#### Modo evaluación / híbrido LLM
 
 | Tipo de consulta | Comportamiento | Coste |
 |---|---|---|
-| Una de las ~12 preguntas sugeridas | Se sirve desde caché precalculada | **0 $** |
-| Pregunta libre semánticamente equivalente a una cacheada | Acierto de caché por similitud de embedding | **0 $** |
-| Pregunta libre nueva | Se ejecuta, con límite por IP y presupuesto diario global | Acotado |
-| Presupuesto diario agotado | Modo solo-caché, con aviso claro en la interfaz | 0 $ |
+| Una de las ~12 preguntas sugeridas (sin LLM) | Se sirve desde caché precalculada en semillas | **0 $** |
+| Pregunta libre semánticamente equivalente a una cacheada | Acierto de caché por similitud de embedding (si el índice de caché está sembrado) | **0 $** |
+| Pregunta libre nueva | Requiere LLM configurado (Ollama u otro); opcionalmente con presupuesto si el proveedor es de pago | 0 $ con Ollama; acotado con cloud |
+| Sin LLM y pregunta no cacheada | Aviso claro: modo solo-caché / configurar `LLM_*` | 0 $ |
 
-Así la demo es siempre utilizable, instantánea en el camino habitual, y su coste tiene techo. La métrica de acierto de caché se muestra en la propia interfaz.
+Así la evaluación es siempre utilizable sin cuenta de proveedor. La métrica de acierto de caché se muestra en la propia interfaz cuando aplica. Con Ollama, F5 puede mostrar tokens y ahorro frente a contexto bruto; el coste en USD puede ser 0.
 
 #### Secretos
 
-Solo por variables de entorno. `.env` en `.gitignore`, `.env.example` sin valores reales, secretos de despliegue en el gestor del proveedor. Ninguna clave en el repositorio ni en la imagen.
+Solo por variables de entorno. `.env` en `.gitignore`, `.env.example` sin valores reales. Ninguna clave en el repositorio ni en la imagen. No hay gestor de secretos de hosting porque no hay despliegue público.
 
 ### **2.5. Seguridad**
 
@@ -612,7 +631,7 @@ Cada consulta lleva su `project_id` y toda consulta al almacén lo filtra. Ningu
 
 #### 6. Límite de uso y protección de la cuota
 
-*Rate limiting* por IP y presupuesto diario global de gasto en LLM, para que un tercero no pueda agotar la cuota a través de la demo pública. Al alcanzar el techo, el sistema degrada a modo solo-caché con aviso, en lugar de fallar.
+*Rate limiting* por IP y, si el LLM es un proveedor cloud de pago, presupuesto diario global de gasto, para que un uso intensivo en local (o una futura exposición) no agote la cuota. Al alcanzar el techo, el sistema degrada a modo solo-caché con aviso, en lugar de fallar. Con Ollama local el presupuesto en USD no aplica.
 
 #### Riesgos aceptados, declarados
 
@@ -642,7 +661,7 @@ Los tests forman parte de la **definición de hecho de cada ticket**, no de una 
 
 **`npm run verify` cumple una función doble:** es un test de integración en CI **y** el mecanismo por el que alguien externo comprueba que su instalación local reproduce lo documentado. Los wireframes de [1.3](#13-diseño-y-experiencia-de-usuario) muestran el diseño de las pantallas, no el sistema en marcha, y no se aporta vídeo: **la evidencia de funcionamiento es ejecutable**, y esta es la pieza que la hace comprobable en un solo comando.
 
-**Los dos repositorios de muestra son también el arnés de pruebas.** Uso cuádruple: tests deterministas, demo alojada, arranque local sin dependencias, y caso de la funcionalidad F6. `acme-shop` incluye a propósito una divergencia entre documentación y código, y una regla de negocio implementada y cubierta por tests pero sin documentar.
+**Los dos repositorios de muestra son también el arnés de pruebas.** Uso cuádruple: tests deterministas, arranque local sin dependencias de LLM, caso de la funcionalidad F6, y material de `npm run verify` / `docs/DEMO.md`. `acme-shop` incluye a propósito una divergencia entre documentación y código, y una regla de negocio implementada y cubierta por tests pero sin documentar.
 
 **Objetivo de cobertura:** >80 % en `packages/core`, >70 % en `analyzers`. No se persigue cobertura alta en adaptadores de infraestructura.
 
@@ -1223,7 +1242,7 @@ El objetivo de diseño no es que sea bonita: es que **la fiabilidad de la respue
 - Responsive a 1280 px y 768 px.
 - Test E2E con Playwright del flujo: elegir proyecto → preguntar → expandir evidencia → ver coste.
 
-**Definición de hecho:** E2E en verde, recorrido documentado en `docs/DEMO.md` con la salida real de cada paso, revisión de accesibilidad básica. Los wireframes de [1.3](#13-diseño-y-experiencia-de-usuario) son la referencia visual; la evidencia ejecutable es la demo alojada y el arranque local.
+**Definición de hecho:** E2E en verde, recorrido documentado en `docs/DEMO.md` con la salida real de cada paso, revisión de accesibilidad básica. Los wireframes de [1.3](#13-diseño-y-experiencia-de-usuario) son la referencia visual; la evidencia ejecutable es el arranque local y `npm run verify`.
 
 **Dependencias:** endpoint `/ask` · **Estimación:** 4 días
 

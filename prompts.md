@@ -600,6 +600,8 @@ Cinco cosas que aprendí, incluyendo las que salieron mal.
 
 **5. Pedir autorrevisión dentro del mismo prompt es barato y rentable.** «Después, revisa tu propio resultado y señala cuál sería más difícil de cumplir» identificó correctamente el criterio de latencia como el punto frágil, y me hizo subir una estimación antes de comprometerme con ella. Cuesta una frase.
 
+**6. Decisión de producto (5 sep 2026) — evidencia solo local, LLM híbrido, Ollama.** En una sesión de criterio (Cursor), sin un único prompt de «genera documento», cerré dos bloqueos que la Entrega 1 había dejado abiertos: (a) **sin demo web alojada** — quien evalúa levanta con Docker/`make up`; (b) **`LLM_API_KEY` opcional** — evaluación y `npm run verify` desde caché/golden; desarrollo de pregunta libre con **Ollama** local (API compatible OpenAI), sin obligar a gastar en API cloud. Claude Pro/Max y Cursor siguen siendo herramientas de autoría, no el backend del producto. El detalle vivo está en `readme.md` (callouts «Decisión (5 sep 2026)») y en `proposal-codemind/05-propuesta-v4-evidencia-local-hibrido-ollama.md`; la propuesta 04 queda histórica en esos puntos. **Lección:** cuando el coste y la fricción del evaluador chocan con un «Camino A» cómodo en el papel, conviene recortar el Camino A antes de construir infraestructura que no se va a mantener.
+
 ---
 
 *A partir de aquí, empezaremos a construir el proyecto y las conversaciones completas archivadas estarán en `docs/ai-sessions/`.*
