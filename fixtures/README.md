@@ -18,6 +18,31 @@ measurement asserts about them is written down here, so the fixtures are a
 - **`task-api/`** — TypeScript + Fastify. The **precise** fixture: every
   reference resolves at compile time. **38 files.**
 
+## Contamination grep — allowed hits
+
+The corpus decontamination check runs:
+
+```bash
+grep -rniE "codemind|analyzer trap|planted|ground truth|reference demo|demo question|undocumented|fixture|drift" \
+  fixtures/acme-shop fixtures/task-api \
+  --include='*.php' --include='*.ts' --include='*.md' --include='*.json' --include='*.xml' \
+  --exclude-dir=node_modules --exclude-dir=vendor
+```
+
+Note: `drift` is used without word boundaries so that `drifts` in swagger.ts is
+also caught; `\bdrift\b` would miss it.
+
+Expected output: exactly these two lines, nothing else.
+
+| File | Match | Why allowed |
+|---|---|---|
+| `acme-shop/app/Support/Money.php:11` | `floating-point drift` | domain vocabulary (money/arithmetic precision), not harness meta |
+| `task-api/src/plugins/swagger.ts:6` | `spec never drifts from the validation` | plausible real-project comment about OpenAPI/Zod sync |
+
+Any other match is a real contamination failure.
+
+Note: `.env.example` and `artisan` are excluded by the `--include` filters; they were cleaned in a prior round.
+
 ## Git history — how it is versioned
 
 A nested `.git` cannot be committed inside the delivery repo, so each fixture's
