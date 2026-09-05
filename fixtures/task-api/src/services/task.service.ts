@@ -8,8 +8,7 @@ import { newId } from './id.js';
 /**
  * Business logic for tasks. The service owns two rules the repository does not:
  * it stamps created/updated timestamps, and it enforces the status-transition
- * table on update. Everything it touches is resolved by the compiler, which is
- * what makes this fixture the precise counterpart to acme-shop.
+ * table on update.
  */
 export class TaskService {
   constructor(
@@ -69,12 +68,12 @@ export class TaskService {
 }
 
 /** Drop keys whose value is undefined so a partial update never nulls a field by accident. */
-function pruneUndefined<T extends object>(input: T): Partial<T> {
+function pruneUndefined<T extends object>(input: T): { [K in keyof T]?: Exclude<T[K], undefined> } {
   const out: Partial<T> = {};
   for (const [key, value] of Object.entries(input)) {
     if (value !== undefined) {
       out[key as keyof T] = value as T[keyof T];
     }
   }
-  return out;
+  return out as { [K in keyof T]?: Exclude<T[K], undefined> };
 }

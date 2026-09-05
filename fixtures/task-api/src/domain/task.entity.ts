@@ -27,10 +27,10 @@ export interface CreateTaskInput {
 }
 
 export interface UpdateTaskInput {
-  title?: string;
+  title?: string | undefined;
   description?: string | null | undefined;
-  status?: TaskStatus;
-  priority?: TaskPriority;
-  tags?: string[];
+  status?: TaskStatus | undefined;
+  priority?: TaskPriority | undefined;
+  tags?: string[] | undefined;
   dueDate?: string | null | undefined;
 }
