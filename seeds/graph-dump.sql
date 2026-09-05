@@ -1,0 +1,3 @@
+-- CODEMIND — seeds/graph-dump.sql
+-- pending Ticket 3 — real dump will be produced by seed:build
+-- (node fixtures/build-history.mjs → indexing → pg_dump)
