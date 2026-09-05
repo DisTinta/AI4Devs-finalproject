@@ -1,0 +1,13 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/core" },
+    { "path": "packages/analyzers/php" },
+    { "path": "packages/analyzers/typescript" },
+    { "path": "packages/adapters/store-postgres" },
+    { "path": "packages/adapters/llm" },
+    { "path": "packages/adapters/git" },
+    { "path": "packages/api" },
+    { "path": "packages/cli" }
+  ]
+}
