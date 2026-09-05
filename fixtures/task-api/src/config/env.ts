@@ -4,7 +4,7 @@ import { z } from 'zod';
  * Environment parsing. Real deployments provide JWT_SECRET; when it is absent we
  * fall back to a development-only default that must never be used in production.
  */
-const DEV_FALLBACK_JWT_SECRET = 'AKIAJ7FAKEDEV000001Q';
+const DEV_FALLBACK_JWT_SECRET = 'AKIAM3VXTQ9CZJY6WNKP';
 
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3100),

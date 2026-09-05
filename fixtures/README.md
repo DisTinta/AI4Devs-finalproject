@@ -163,9 +163,10 @@ anchored to symbols so it survives edits.
 
 ## Planted secret
 
-`config/services.php` — a dev-only AWS S3 key (`AKIASHOPFAKE00000001`) set
-as the default for `AWS_ACCESS_KEY_ID`. Detectable by gitleaks rule
-`aws-access-token` (pattern `AKIA[A-Z0-9]{16}`). HU1 must store it redacted.
+`config/services.php` — a dev-only AWS S3 key (`AKIAQSTCFM2KN7BXPWZR`) set
+as the default for `AWS_ACCESS_KEY_ID`. Detected by gitleaks 8.30.1 as
+`aws-access-token` (entropy 4.12, pattern `AKIA[A-Z0-9]{16}`). HU1 must
+store it redacted.
 
 > **CI note (pending hito 2).** When the repository has a gitleaks CI step,
 > add a `.gitleaksignore` entry by fingerprint so the scanner does not flag
@@ -210,10 +211,9 @@ so the strong historical coupling is not obvious from the import graph.
 
 ## Planted secret
 
-`src/config/env.ts` — a dev-only JWT secret constant (`AKIAJ7FAKEDEV000001Q`)
-used as the fallback when `JWT_SECRET` is absent. Detectable by gitleaks rule
-`aws-access-token` (same `AKIA[A-Z0-9]{16}` pattern). HU1 must store it
-redacted.
+`src/config/env.ts` — a dev-only JWT secret constant (`AKIAM3VXTQ9CZJY6WNKP`)
+used as the fallback when `JWT_SECRET` is absent. Detected by gitleaks 8.30.1
+as `generic-api-key` (entropy 4.12). HU1 must store it redacted.
 
 ---
 
