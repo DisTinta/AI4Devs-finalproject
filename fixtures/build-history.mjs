@@ -57,17 +57,32 @@ function git(dir, args, env = {}) {
  * @param {string} name
  * @param {{dir: string, manifest: string}} cfg
  */
+/**
+ * Normalise a file entry from the manifest. Entries may be:
+ *   - a plain string: 'config/shop.php'
+ *   - an object:      { path: 'config/shop.php', before: 'snapshots/r61/config/shop.php' }
+ *
+ * When `before` is present the path is relative to fixtures/history/.
+ * @param {string | {path: string, before?: string}} entry
+ * @returns {{ path: string, before: string|null }}
+ */
+function normaliseEntry(entry) {
+  if (typeof entry === 'string') return { path: entry, before: null };
+  return { path: entry.path, before: entry.before ?? null };
+}
+
 async function buildOne(name, cfg) {
   const { dir } = cfg;
   if (!existsSync(dir)) throw new Error(`Fixture directory missing: ${dir}`);
 
-  /** @type {Array<{date: string, author: string, message: string, files: string[]}>} */
+  /** @type {Array<{date: string, author: string, message: string, files: Array<string|{path:string,before?:string}>}>} */
   const commits = (await import(cfg.manifest)).default;
 
-  // Every file referenced anywhere, snapshotted at its final (tracked) content.
+  // Every file path referenced anywhere, snapshotted at its final (tracked) content.
   const finalContent = new Map();
   for (const commit of commits) {
-    for (const rel of commit.files) {
+    for (const entry of commit.files) {
+      const { path: rel } = normaliseEntry(entry);
       if (!finalContent.has(rel)) {
         const abs = resolve(dir, rel);
         if (!existsSync(abs)) throw new Error(`${name}: manifest references missing file ${rel}`);
@@ -78,11 +93,16 @@ async function buildOne(name, cfg) {
 
   // Which commit index is the LAST touch of each file (that one gets final content).
   const lastTouch = new Map();
-  commits.forEach((commit, i) => commit.files.forEach((rel) => lastTouch.set(rel, i)));
+  commits.forEach((commit, i) =>
+    commit.files.forEach((entry) => lastTouch.set(normaliseEntry(entry).path, i)),
+  );
 
   const restore = () => {
     for (const [rel, content] of finalContent) writeFileSync(resolve(dir, rel), content);
   };
+
+  // Resolve the history directory (where snapshots live).
+  const historyDir = dirname(resolve(HERE, cfg.manifest));
 
   try {
     rmSync(join(dir, '.git'), { recursive: true, force: true });
@@ -93,17 +113,25 @@ async function buildOne(name, cfg) {
     commits.forEach((commit, i) => {
       const [authorName, authorEmail] = parseAuthor(commit.author);
       let revision = 0;
-      for (const rel of commit.files) {
+      const paths = [];
+      for (const entry of commit.files) {
+        const { path: rel, before } = normaliseEntry(entry);
         const abs = resolve(dir, rel);
         const final = finalContent.get(rel);
         if (lastTouch.get(rel) === i) {
           writeFileSync(abs, final); // final touch: exact tracked content
+        } else if (before) {
+          // semantic commit: use the declared snapshot as "before" content
+          const snapshotAbs = resolve(historyDir, before);
+          if (!existsSync(snapshotAbs)) throw new Error(`snapshot missing: ${snapshotAbs}`);
+          writeFileSync(abs, readFileSync(snapshotAbs, 'utf8'));
         } else {
-          writeFileSync(abs, final + markerFor(rel, i)); // earlier touch: a real, small diff
+          writeFileSync(abs, final + markerFor(rel, i)); // filler: marker-only diff
         }
+        paths.push(rel);
         revision++;
       }
-      git(dir, ['add', ...commit.files]);
+      git(dir, ['add', ...paths]);
       const iso = `${commit.date} +0000`;
       git(
         dir,

@@ -3,13 +3,16 @@
 // Replayed by ../build-history.mjs. Dates span 2024-06 .. 2024-09. Three
 // fictitious authors. Several messages carry a "(#NN)" for pr_number.
 //
-// PLANTED SIGNAL (see fixtures/README.md):
-//  - Co-change pair: src/services/task.service.ts <-> src/schemas/task.schema.ts
-//    change together in three commits (r12, r21, r27). The service imports from
-//    the schema only indirectly, so the strong historical coupling is not
-//    something the static import graph makes obvious.
+// Co-change pair: src/services/task.service.ts <-> src/schemas/task.schema.ts
+// change together in three commits (#15, #31, #40). The service imports from
+// the schema only indirectly, so the strong historical coupling is not
+// something the static import graph makes obvious.
 //
 // No drift is planted here — F6 is demonstrated in acme-shop.
+//
+// Semantic diffs: commits #31 and #40 carry a real diff. The 'before' field
+// is placed on the EARLIER touch of each file so the next touch (which writes
+// the new state) produces a meaningful diff instead of a filler marker removal.
 
 const NOA = 'Noa Ferreira <noa.ferreira@taskapi.test>';
 const IVAN = 'Iván Molina <ivan.molina@taskapi.test>';
@@ -26,8 +29,12 @@ export default [
     files: ['src/domain/task.entity.ts', 'src/domain/pagination.ts'] },
   { date: '2024-06-13T16:30:00', author: IVAN, message: 'feat: domain errors with http mapping',
     files: ['src/domain/errors.ts'] },
+  // Schema first introduced without nullable fields or refine check.
+  // PR #31 will add those; using snapshot so that diff is real.
   { date: '2024-06-17T09:55:00', author: NOA, message: 'feat: zod task schemas for create and update (#6)',
-    files: ['src/schemas/task.schema.ts'] },
+    files: [
+      { path: 'src/schemas/task.schema.ts', before: 'snapshots/r31/src/schemas/task.schema.ts' },
+    ] },
   { date: '2024-06-20T13:12:00', author: SARA, message: 'feat: pagination query schema and barrel export',
     files: ['src/schemas/pagination.schema.ts', 'src/schemas/index.ts'] },
   { date: '2024-06-24T10:08:00', author: IVAN, message: 'feat: task repository port (#9)',
@@ -38,8 +45,13 @@ export default [
     files: ['src/repositories/in-memory-task.repository.ts'] },
   { date: '2024-07-04T09:41:00', author: IVAN, message: 'feat: uuid id helper',
     files: ['src/services/id.ts'] },
+  // Service first introduced with explicit conditional checks (before PR #40
+  // aligns it to schema defaults). Schema re-touched with no semantic change.
   { date: '2024-07-08T14:50:00', author: NOA, message: 'feat: task service with transition rules (#15)',
-    files: ['src/services/task.service.ts', 'src/schemas/task.schema.ts'] },
+    files: [
+      { path: 'src/services/task.service.ts', before: 'snapshots/r31/src/services/task.service.ts' },
+      { path: 'src/schemas/task.schema.ts', before: 'snapshots/r31/src/schemas/task.schema.ts' },
+    ] },
   { date: '2024-07-11T10:17:00', author: SARA, message: 'feat: environment parsing with zod',
     files: ['src/config/env.ts'] },
   { date: '2024-07-15T16:04:00', author: IVAN, message: 'feat: fastify instance decorator typing (#18)',
@@ -56,8 +68,13 @@ export default [
     files: ['src/routes/tasks.routes.ts', 'src/routes/health.routes.ts', 'src/routes/index.ts'] },
   { date: '2024-08-05T14:23:00', author: IVAN, message: 'feat: app builder and server bootstrap (#28)',
     files: ['src/app.ts', 'src/server.ts'] },
+  // Tightens schema: adds nullable fields and empty-body refine. Tightens
+  // service to match. 'before' = post-tighten/pre-defaults state (r40 snapshot).
   { date: '2024-08-08T09:47:00', author: NOA, message: 'refactor: tighten create and update validation (#31)',
-    files: ['src/schemas/task.schema.ts', 'src/services/task.service.ts'] },
+    files: [
+      { path: 'src/schemas/task.schema.ts', before: 'snapshots/r40/src/schemas/task.schema.ts' },
+      { path: 'src/services/task.service.ts', before: 'snapshots/r40/src/services/task.service.ts' },
+    ] },
   { date: '2024-08-12T13:30:00', author: SARA, message: 'test: helpers and status unit tests',
     files: ['tests/helpers/build-app.ts', 'tests/unit/task-status.test.ts'] },
   { date: '2024-08-15T11:14:00', author: IVAN, message: 'test: filter and sort unit tests (#34)',
@@ -68,6 +85,8 @@ export default [
     files: ['tests/integration/tasks.routes.test.ts'] },
   { date: '2024-08-26T14:18:00', author: IVAN, message: 'test: request validation integration tests',
     files: ['tests/integration/validation.test.ts'] },
+  // Last touch of schema and service: adds .default() calls to schema so they
+  // match service defaults; simplifies service to ?? operator. Diff from r40.
   { date: '2024-08-29T09:52:00', author: NOA, message: 'refactor: align schema defaults with service (#40)',
     files: ['src/schemas/task.schema.ts', 'src/services/task.service.ts'] },
   { date: '2024-09-02T13:07:00', author: SARA, message: 'docs: api reference and project readme',

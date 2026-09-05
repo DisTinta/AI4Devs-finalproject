@@ -4,12 +4,18 @@
 // fictitious authors (the system pseudonymises them anyway, readme §2.5).
 // Several messages carry a "(#NN)" so pr_number has something to parse.
 //
-// PLANTED SIGNALS (see fixtures/README.md):
-//  - Co-change pair: DiscountService.php <-> ShippingService.php change together
-//    in three commits (r11, r16, r30) with no static edge between them.
-//  - Drift by date: docs/pricing.md is last touched on 2024-02-19; the code it
-//    describes (PriceCalculator.php + config/shop.php) is changed LATER, on
-//    2024-05-02, and the doc is never updated.
+// Co-change pair: DiscountService.php <-> ShippingService.php change together
+// in three commits (#24, #33, #55) with no static edge between them.
+//
+// Drift by date: docs/pricing.md is last touched on 2024-02-19; the code it
+// describes (PriceCalculator.php + config/shop.php) is changed LATER, on
+// 2024-05-02, and the doc is never updated.
+//
+// Semantic diffs: five commits carry a 'before' snapshot so their diff
+// reflects the real change rather than a filler marker. The 'before' field
+// goes on the commit that introduces the OLD state; the NEXT touch of that
+// file then carries the new state (or writes the final content if it is the
+// last touch).
 
 const MARTA = 'Marta Ibáñez <marta.ibanez@acme.test>';
 const DIEGO = 'Diego Serrano <diego.serrano@acme.test>';
@@ -18,8 +24,14 @@ const LUCIA = 'Lucía Fernández <lucia.fernandez@acme.test>';
 export default [
   { date: '2024-01-08T09:14:00', author: MARTA, message: 'chore: bootstrap Laravel project skeleton',
     files: ['composer.json', '.gitignore', '.env.example', 'artisan', 'phpunit.xml'] },
+  // shop.php introduced with the old free-shipping threshold (50.00). PR #61
+  // will later raise it to 75.00 — that diff is what makes the doc stale.
   { date: '2024-01-09T11:02:00', author: MARTA, message: 'chore: application and shop configuration',
-    files: ['config/app.php', 'config/shop.php', 'config/services.php'] },
+    files: [
+      'config/app.php',
+      { path: 'config/shop.php', before: 'snapshots/r61/config/shop.php' },
+      'config/services.php',
+    ] },
   { date: '2024-01-11T16:40:00', author: DIEGO, message: 'feat: money value object in minor units',
     files: ['app/Support/Money.php'] },
   { date: '2024-01-15T10:22:00', author: MARTA, message: 'feat: customer and product models (#12)',
@@ -42,18 +54,32 @@ export default [
     files: ['app/Services/TaxService.php'] },
   { date: '2024-02-05T13:18:00', author: DIEGO, message: 'feat: coupon validator',
     files: ['app/Services/CouponValidator.php'] },
+  // First introduction with lower loyalty percentages (3 %/7 %) and a hardcoded
+  // shipping threshold. PR #33 will tune them; PR #55 will extend zone routing.
   { date: '2024-02-08T11:44:00', author: LUCIA, message: 'feat: discount and shipping services (#24)',
-    files: ['app/Services/DiscountService.php', 'app/Services/ShippingService.php'] },
+    files: [
+      { path: 'app/Services/DiscountService.php', before: 'snapshots/r33/app/Services/DiscountService.php' },
+      { path: 'app/Services/ShippingService.php', before: 'snapshots/r33/app/Services/ShippingService.php' },
+    ] },
   { date: '2024-02-12T16:02:00', author: DIEGO, message: 'feat: carrier gateway proxy for shipping rates',
     files: ['app/Services/CarrierGateway.php'] },
+  // PriceCalculator introduced applying tax on the gross subtotal (tax-first).
+  // PR #61 will change the order so discount is applied before tax.
   { date: '2024-02-15T09:38:00', author: MARTA, message: 'feat: price calculator composing the chain (#27)',
-    files: ['app/Services/PriceCalculator.php'] },
+    files: [
+      { path: 'app/Services/PriceCalculator.php', before: 'snapshots/r61/app/Services/PriceCalculator.php' },
+    ] },
   { date: '2024-02-19T14:20:00', author: LUCIA, message: 'docs: document pricing rules for the finance team',
     files: ['docs/pricing.md'] },
   { date: '2024-02-22T10:11:00', author: MARTA, message: 'feat: pricing facade and container bindings (#30)',
     files: ['app/Facades/Pricing.php', 'app/Providers/AppServiceProvider.php'] },
+  // Tunes loyalty to 5 %/10 % and makes the shipping threshold configurable.
+  // 'before' entries here carry the state after tuning (before extend-zones PR).
   { date: '2024-02-26T15:47:00', author: DIEGO, message: 'refactor: tune loyalty tiers and shipping fees (#33)',
-    files: ['app/Services/DiscountService.php', 'app/Services/ShippingService.php'] },
+    files: [
+      { path: 'app/Services/DiscountService.php', before: 'snapshots/r55/app/Services/DiscountService.php' },
+      { path: 'app/Services/ShippingService.php', before: 'snapshots/r55/app/Services/ShippingService.php' },
+    ] },
   { date: '2024-02-29T12:26:00', author: LUCIA, message: 'feat: order placed and discount applied events',
     files: ['app/Events/OrderPlaced.php', 'app/Events/DiscountApplied.php'] },
   { date: '2024-03-04T09:05:00', author: DIEGO, message: 'feat: order confirmation and discount audit listeners (#36)',
@@ -80,8 +106,12 @@ export default [
     files: ['tests/CreatesApplication.php', 'tests/TestCase.php', 'tests/Unit/PriceCalculatorTest.php'] },
   { date: '2024-04-12T16:27:00', author: LUCIA, message: 'test: feature tests for pricing and checkout (#53)',
     files: ['tests/Feature/OrderPricingTest.php', 'tests/Feature/CheckoutTest.php'] },
+  // Last touch of DiscountService and ShippingService: adds volume-bonus
+  // stacking and country-aware zone routing. Diff from r55 snapshot to final.
   { date: '2024-04-16T10:03:00', author: DIEGO, message: 'refactor: extend shipping zones and discount stacking (#55)',
     files: ['app/Services/DiscountService.php', 'app/Services/ShippingService.php'] },
+  // Last touch of PriceCalculator and shop.php: changes tax ordering (discount
+  // first) and raises free-shipping threshold to 75.00. Diff from r61 snapshots.
   { date: '2024-05-02T14:49:00', author: MARTA, message: 'fix: apply discount before tax and raise free-shipping threshold to 75 (#61)',
     files: ['app/Services/PriceCalculator.php', 'config/shop.php'] },
   { date: '2024-05-06T09:31:00', author: LUCIA, message: 'docs: project readme',
