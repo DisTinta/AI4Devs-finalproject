@@ -2,14 +2,9 @@ import { z } from 'zod';
 
 /**
  * Environment parsing. Real deployments provide JWT_SECRET; when it is absent we
- * fall back to a development-only default.
- *
- * fixture-secret: the constant below is a PLANTED, obviously-fake secret. It
- * exists so the harness secret scanner (gitleaks / HU1) has exactly one thing to
- * detect and redact in this repository. It is not a real credential and must
- * never be used. See fixtures/README.md → "Planted secret".
+ * fall back to a development-only default that must never be used in production.
  */
-const DEV_FALLBACK_JWT_SECRET = 'AKIAJ7FAKEFIXTURE42Q'; // pragma: allowlist secret (fixture)
+const DEV_FALLBACK_JWT_SECRET = 'AKIAJ7FAKEDEV000001Q';
 
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3100),

@@ -19,7 +19,7 @@ export default [
   { date: '2024-01-08T09:14:00', author: MARTA, message: 'chore: bootstrap Laravel project skeleton',
     files: ['composer.json', '.gitignore', '.env.example', 'artisan', 'phpunit.xml'] },
   { date: '2024-01-09T11:02:00', author: MARTA, message: 'chore: application and shop configuration',
-    files: ['config/app.php', 'config/shop.php'] },
+    files: ['config/app.php', 'config/shop.php', 'config/services.php'] },
   { date: '2024-01-11T16:40:00', author: DIEGO, message: 'feat: money value object in minor units',
     files: ['app/Support/Money.php'] },
   { date: '2024-01-15T10:22:00', author: MARTA, message: 'feat: customer and product models (#12)',
