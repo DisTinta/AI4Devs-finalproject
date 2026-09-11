@@ -1,4 +1,4 @@
-# Revisión de `fixtures/` y prompt de corrección
+# Revisión de `../../fixtures` y prompt de corrección
 
 **Proyecto:** CODEMIND · fork `DisTinta/AI4Devs-finalproject`
 **Rama revisada:** `feature/entrega-2-CRN` · commits `054f7ba` … `029b8dc`
@@ -9,7 +9,7 @@
 
 # 1. Petición
 
-> analiza el resultado construido `fixtures/`, eres el ingeniero jefe y dime si consideras que cumple las necesidades reales del proyecto
+> analiza el resultado construido `../../fixtures`, eres el ingeniero jefe y dime si consideras que cumple las necesidades reales del proyecto
 
 Y a continuación:
 
@@ -25,7 +25,7 @@ El coste de arreglarlo ahora es de medio día a un día. El coste de arreglarlo 
 
 ## 2.1. Método
 
-No se dio por buena ninguna afirmación de `fixtures/README.md`: se comprobó cada una.
+No se dio por buena ninguna afirmación de `../../fixtures/README.md`: se comprobó cada una.
 
 | Comprobación | Cómo | Resultado |
 |---|---|---|
@@ -48,7 +48,7 @@ No se dio por buena ninguna afirmación de `fixtures/README.md`: se comprobó ca
 - **`docs/pricing.md` es internamente coherente con su propia regla equivocada** (ejemplo trabajado €108.90). No se delata por incoherencia interna, que es como habría fallado un fixture escrito con prisa.
 - **Las 7 trampas de análisis son reales y bien elegidas**: facade, binding por contenedor, `__call`, atributos mágicos de Eloquent, ruta por string, job en cola y evento. Cubren el catálogo de lo que rompe el análisis estático en Laravel.
 - **`task-api` es genuinamente limpio**: imports explícitos, sin `any`, sin despacho dinámico, validación Zod en el borde de la ruta. El contraste con `acme-shop` existe de verdad.
-- **`fixtures/README.md` cubre los siete puntos pedidos** y `prompts.md` §9 registra la fase conforme a la norma §6 del roadmap.
+- **`../../fixtures/README.md` cubre los siete puntos pedidos** y `../../prompts.md` §9 registra la fase conforme a la norma §6 del roadmap.
 
 ## 2.3. Problema 1 — El corpus está contaminado: los fixtures le cuentan la respuesta al modelo
 
@@ -102,11 +102,11 @@ El mensaje no se corresponde con el cambio. Qué sobrevive y qué no:
 | Autoría y seudonimización | sí |
 | Cualquier cosa derivada del **contenido** del diff (churn real, «por qué cambió esto») | no |
 
-Dos motivos para arreglarlo: readme §1.1 vende el historial de Git como la fuente que dice **por qué** se cambió algo, y un evaluador que ejecute `git log -p` sobre el fixture ve una historia fabricada cuyos mensajes mienten — en un proyecto cuyo argumento central es verificar la evidencia en lugar de citarla. Además `fixtures/README.md` lo presenta como *«a real repository»* sin declarar el límite.
+Dos motivos para arreglarlo: readme §1.1 vende el historial de Git como la fuente que dice **por qué** se cambió algo, y un evaluador que ejecute `git log -p` sobre el fixture ve una historia fabricada cuyos mensajes mienten — en un proyecto cuyo argumento central es verificar la evidencia en lugar de citarla. Además `../../fixtures/README.md` lo presenta como *«a real repository»* sin declarar el límite.
 
 ## 2.5. Problema 3 — Dos afirmaciones de la verdad-terreno son falsas
 
-`fixtures/README.md` afirma que ambos secretos plantados son detectables por gitleaks. No es cierto:
+`../../fixtures/README.md` afirma que ambos secretos plantados son detectables por gitleaks. No es cierto:
 
 ```
 $ gitleaks detect --no-git --source fixtures
@@ -130,13 +130,13 @@ src/controllers/tasks.controller.ts(30,58): error TS2379 ... 'CreateTaskInput' w
 src/controllers/tasks.controller.ts(38,77): error TS2379 ... 'UpdateTaskInput' with 'exactOptionalPropertyTypes: true'
 ```
 
-El fixture cuyo argumento entero es *«el compilador resuelve todas las referencias, por eso cada arista sale `exact`»* no pasa el `npm run typecheck` que él mismo declara en su `package.json`. Los 25 tests pasan, así que es un desajuste de estrictez y no comportamiento roto — pero tiene que estar verde antes de que el analizador TypeScript produzca la Tabla 2, y cualquiera que revise el fixture ejecutará ese script.
+El fixture cuyo argumento entero es *«el compilador resuelve todas las referencias, por eso cada arista sale `exact`»* no pasa el `npm run typecheck` que él mismo declara en su `../../package.json`. Los 25 tests pasan, así que es un desajuste de estrictez y no comportamiento roto — pero tiene que estar verde antes de que el analizador TypeScript produzca la Tabla 2, y cualquiera que revise el fixture ejecutará ese script.
 
 ## 2.7. Menores, con nombre y apellidos
 
 1. **La suite PHP no puede ejecutarse.** `tests/CreatesApplication.php` hace `require __DIR__.'/../bootstrap/app.php'` y no existe `bootstrap/`. Es coherente con «se analiza, no se despliega» (declarado en `acme-shop/README.md`), pero entonces hay que decirlo en la verdad-terreno: las cifras que sostienen Q1 descansan sobre código que nunca se ha ejecutado. La aritmética del €72.42 se verificó a mano en esta revisión.
 2. **El readme está desactualizado respecto a su propio fixture:** §1.4 anuncia `47 files · 312 symbols · 1840 edges` y el fixture tiene 52 ficheros. En un proyecto sobre detectar documentación desincronizada, conviene marcar esas cifras como ilustrativas hasta que las emita el analizador.
-3. **`CODEMIND-ROADMAP.md` sigue sin versionar.** La brújula declarada vive solo en esta máquina y el ✅ del hito 1 no está en el repositorio.
+3. **`../../CODEMIND-ROADMAP.md` sigue sin versionar.** La brújula declarada vive solo en esta máquina y el ✅ del hito 1 no está en el repositorio.
 4. **Tabla 2: 12 + 10 anotados de 50 + 50.** El primer lote está bien y fija el formato; los 78 restantes son el trabajo de verdad y deberían tener sitio en la cola, no quedarse como *pending*.
 5. Los tres commits de co-cambio de `task-api` (#15, #31, #40) comparten autor. Variarlo cuesta nada y hace la señal histórica más creíble.
 
@@ -155,17 +155,17 @@ El fixture cuyo argumento entero es *«el compilador resuelve todas las referenc
 
 ## Contexto
 
-Trabajas en **CODEMIND** (fork `DisTinta/AI4Devs-finalproject`). El hito 1 de la Entrega 2 —los fixtures `fixtures/acme-shop` y `fixtures/task-api`— está construido y commiteado en la rama `feature/entrega-2-CRN`. Una revisión de ingeniería ha encontrado cuatro defectos que hay que corregir **antes** de seguir con el esqueleto del monorepo.
+Trabajas en **CODEMIND** (fork `DisTinta/AI4Devs-finalproject`). El hito 1 de la Entrega 2 —los fixtures `../../fixtures/acme-shop` y `fixtures/task-api`— está construido y commiteado en la rama `feature/entrega-2-CRN`. Una revisión de ingeniería ha encontrado cuatro defectos que hay que corregir **antes** de seguir con el esqueleto del monorepo.
 
-Lee antes de tocar nada: `CODEMIND-ROADMAP.md`, `fixtures/README.md`, `readme.md` §1.1, §1.2, §2.5, §2.6 y §5 (HU1). El informe completo de la revisión está en `revision-fixtures-y-prompt-correccion.md` §2, en la raíz.
+Lee antes de tocar nada: `../../CODEMIND-ROADMAP.md`, `fixtures/README.md`, `readme.md` §1.1, §1.2, §2.5, §2.6 y §5 (HU1). El informe completo de la revisión está en `01-revision-fixtures-y-prompt-correccion.md` §2, en la raíz.
 
 ## Reglas duras — léelas dos veces
 
-1. **Solo se toca `fixtures/`.** Nada de `packages/`, `docs/`, `openspec/`, `ai-specs/`, `.claude/`, harness, `docker-compose`, `Makefile` ni workspaces. El esqueleto del monorepo es el hito 2 y no es esta tarea.
+1. **Solo se toca `../../fixtures`.** Nada de `../../packages`, `docs/`, `openspec/`, `ai-specs/`, `.claude/`, harness, `docker-compose`, `Makefile` ni workspaces. El esqueleto del monorepo es el hito 2 y no es esta tarea.
 2. **El comportamiento del dominio no cambia.** Ni un número. Siguen valiendo exactamente: orden descuento→impuesto, umbral de envío gratis `75.00`, IVA `21.0/23.0/20.0/19.0`, lealtad `5.0/10.0`, `VOLUME_LINE_THRESHOLD = 5`, `VOLUME_BONUS_PERCENT = 5.0`, `MAX_DISCOUNT_PERCENT = 30.0`, tarifas `490/590/690`, y el total del ejemplo trabajado **7242 céntimos (€72.42)**. Si un cambio tuyo mueve cualquiera de esas cifras, el cambio está mal.
 3. **No se renombra ni se mueve ningún fichero existente.** No se borra ninguno salvo que este prompt lo diga.
 4. **Todo fichero que añadas o elimines debe reflejarse en el manifiesto de historia correspondiente**, y la comprobación de cobertura (§ Verificación) tiene que seguir dando 0 huérfanos y 0 fantasmas.
-5. **No toques `readme.md` ni `CODEMIND-ROADMAP.md` sin preguntar.** Hay dos cambios propuestos para ellos al final; se proponen, no se aplican por tu cuenta.
+5. **No toques `../../readme.md` ni `CODEMIND-ROADMAP.md` sin preguntar.** Hay dos cambios propuestos para ellos al final; se proponen, no se aplican por tu cuenta.
 6. **No inventes.** Si una comprobación no la puedes ejecutar, dilo; no escribas en la verdad-terreno nada que no hayas verificado con un comando cuya salida puedas enseñar. Es el defecto que se está corrigiendo: no lo repitas.
 7. **Commits pequeños, uno por defecto corregido.** No hagas push ni abras PR sin confirmación.
 
@@ -207,12 +207,12 @@ task-api/tests/integration/validation.test.ts
 
 Reglas de reescritura:
 
-- Prohibidas en código y en los README de los fixtures, en cualquier idioma: `CODEMIND`, `fixture`, `harness`, `analyzer`, `ANALYZER TRAP`, `planted`, `drift` (salvo los dos falsos positivos citados), `ground truth`, `reference demo`, `demo question`, `undocumented`, `heuristic`/`exact` en el sentido de aristas, y cualquier referencia a `fixtures/README.md`.
+- Prohibidas en código y en los README de los fixtures, en cualquier idioma: `CODEMIND`, `fixture`, `harness`, `analyzer`, `ANALYZER TRAP`, `planted`, `drift` (salvo los dos falsos positivos citados), `ground truth`, `reference demo`, `demo question`, `undocumented`, `heuristic`/`exact` en el sentido de aristas, y cualquier referencia a `../../fixtures/README.md`.
 - Sustituye cada comentario meta por uno que un desarrollador de ese proyecto habría escrito de verdad, o bórralo. `PriceCalculator` puede documentar sus parámetros; **no puede** enunciar el orden descuento-antes-de-impuesto en prosa: eso es la respuesta a Q1 y tiene que deducirse leyendo el código y sus tests.
 - `acme-shop/README.md`: reescríbelo como el README de un proyecto real. Que remita a `docs/pricing.md` como referencia canónica de precios y **que no describa el orden de operaciones**. Fuera el párrafo «A note for readers».
 - `docs/pricing.md` no se toca: su contenido equivocado es el material de F6 y ya es internamente coherente.
 - `DiscountService`: fuera toda mención a que la regla de volumen no está documentada. La regla se queda tal cual en el código. Los **nombres** de los tests de `DiscountServiceTest` se quedan (un test se llama así en cualquier proyecto); lo que se va es el docblock que explica que son el caso plantado.
-- `config/app.php` y `src/config/env.ts`: fuera los comentarios que anuncian el secreto falso (ver Defecto 3). El valor sigue siendo obviamente sintético y su declaración vive en `fixtures/README.md`, que no se indexa.
+- `config/app.php` y `src/config/env.ts`: fuera los comentarios que anuncian el secreto falso (ver Defecto 3). El valor sigue siendo obviamente sintético y su declaración vive en `../../fixtures/README.md`, que no se indexa.
 
 ## Defecto 2 — Que los diffs digan la verdad
 
@@ -221,7 +221,7 @@ Hoy cada commit intermedio de `build-history.mjs` escribe el contenido final má
 Implementación pedida, sin desviarte de ella:
 
 1. Extiende el formato del manifiesto para que un fichero de un commit pueda declarar su contenido **anterior**:
-   `files: ['config/shop.php']` sigue valiendo, y además se admite `files: [{ path: 'config/shop.php', before: 'snapshots/r31/config/shop.php' }]`, con la ruta relativa a `fixtures/history/`.
+   `files: ['config/shop.php']` sigue valiendo, y además se admite `files: [{ path: 'config/shop.php', before: 'snapshots/r31/config/shop.php' }]`, con la ruta relativa a `../../fixtures/history`.
 2. `build-history.mjs`: cuando un toque declara `before`, escribe ese contenido en ese commit en lugar del contenido final más marcador. El resto sigue con el marcador. El último toque de cada fichero sigue escribiendo el contenido final exacto.
 3. Crea los snapshots **solo** para los commits con carga semántica, que son estos y ningún otro:
 
@@ -234,7 +234,7 @@ Implementación pedida, sin desviarte de ella:
    | task-api | `refactor: align schema defaults with service (#40)` | ídem |
 
    Cada versión previa tiene que ser **código coherente que compila y cuadra con el mensaje del commit**: la de `PriceCalculator` anterior a #61 calcula el impuesto sobre el subtotal bruto —que es justo lo que `docs/pricing.md` sigue describiendo— y la de `config/shop.php` tiene el umbral en `50.00`. Así el documento no es que esté mal: es que **se quedó atrás**, y el commit #61 es la prueba fechada.
-4. Documenta el mecanismo en `fixtures/README.md`, sin adornos: los commits con snapshot llevan un diff real, el resto son de relleno con un marcador y su valor es la señal de co-cambio, la fecha y el `pr_number`, no el contenido. Que se lea como una limitación declarada, porque lo es.
+4. Documenta el mecanismo en `../../fixtures/README.md`, sin adornos: los commits con snapshot llevan un diff real, el resto son de relleno con un marcador y su valor es la señal de co-cambio, la fecha y el `pr_number`, no el contenido. Que se lea como una limitación declarada, porque lo es.
 
 ## Defecto 3 — Verdad-terreno verificada
 
@@ -247,7 +247,7 @@ Implementación pedida, sin desviarte de ella:
 
 `npx tsc --noEmit` da tres `TS2379` en `src/controllers/tasks.controller.ts` (líneas 14, 30 y 38) por `exactOptionalPropertyTypes: true`.
 
-- **No relajes el `tsconfig.json`.** Quitar `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess` o `strict` es exactamente la solución equivocada: la estrictez es lo que respalda la afirmación de que en este fixture el compilador resuelve todo.
+- **No relajes el `../../tsconfig.json`.** Quitar `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess` o `strict` es exactamente la solución equivocada: la estrictez es lo que respalda la afirmación de que en este fixture el compilador resuelve todo.
 - Arregla los tipos: alinea `TaskQuery`, `CreateTaskInput` y `UpdateTaskInput` con lo que Zod infiere realmente (propiedades opcionales que admiten `undefined`), o normaliza en el controlador antes de pasar al servicio. Lo que sea más idiomático; que no se note que fue un parche.
 - Los 25 tests siguen pasando. Si alguno se cae, el arreglo está mal.
 
@@ -255,7 +255,7 @@ Implementación pedida, sin desviarte de ella:
 
 `acme-shop/tests/CreatesApplication.php` hace `require __DIR__.'/../bootstrap/app.php'` y no existe `bootstrap/`: la suite PHP no puede ejecutarse ni instalando `vendor/`. Hay dos salidas y **las presentas, no eliges**:
 
-- **(a)** Declararlo en `fixtures/README.md`: el fixture PHP se analiza, no se ejecuta, y las cifras de Q1 están verificadas a mano. Coste cero, honesto, coherente con `acme-shop/README.md`.
+- **(a)** Declararlo en `../../fixtures/README.md`: el fixture PHP se analiza, no se ejecuta, y las cifras de Q1 están verificadas a mano. Coste cero, honesto, coherente con `acme-shop/README.md`.
 - **(b)** Añadir un `bootstrap/app.php` mínimo para que PHPUnit arranque con `vendor/` instalado. Más trabajo y requiere PHP en el entorno.
 
 Recomienda una en una frase y espera respuesta antes de tocar nada de esto.
@@ -306,14 +306,14 @@ Criterios de aceptación, en corto:
 
 - Los 7 bloques anteriores pasan; el 7 solo devuelve, como mucho, los dos falsos positivos declarados.
 - Ninguna cifra del dominio ha cambiado; el ejemplo trabajado sigue dando **7242**.
-- Los 5 commits con carga semántica tienen diff real; el resto queda declarado como relleno en `fixtures/README.md`.
-- `fixtures/README.md` no contiene ninguna afirmación que no hayas verificado con uno de esos comandos.
-- No existe ningún fichero nuevo fuera de `fixtures/`.
+- Los 5 commits con carga semántica tienen diff real; el resto queda declarado como relleno en `../../fixtures/README.md`.
+- `../../fixtures/README.md` no contiene ninguna afirmación que no hayas verificado con uno de esos comandos.
+- No existe ningún fichero nuevo fuera de `../../fixtures`.
 
 ## Al cerrar
 
 1. Informe final breve: qué se corrigió, salida de las verificaciones, y la recomendación (a)/(b) del menor pendiente.
 2. Propón —sin aplicar— estos dos cambios, para que los decida la autora:
-   - `readme.md` §1.4: marcar `47 files · 312 symbols · 1840 edges` como cifras ilustrativas hasta que las emita el analizador, o actualizarlas a los recuentos reales.
-   - `CODEMIND-ROADMAP.md`: sigue sin versionar; la brújula del proyecto vive solo en local y el ✅ del hito 1 no está en el repositorio.
-3. Aplica la norma §6 del roadmap sobre `prompts.md` **en esta misma sesión**: el prompt de corrección va literal, en bloque de código, dentro de §9, con su `**Ajuste humano.**`. Máximo 3 prompts por sección; si §9 ya tiene tres, sustituye el menos significativo y dilo en el informe.
+   - `../../readme.md` §1.4: marcar `47 files · 312 symbols · 1840 edges` como cifras ilustrativas hasta que las emita el analizador, o actualizarlas a los recuentos reales.
+   - `../../CODEMIND-ROADMAP.md`: sigue sin versionar; la brújula del proyecto vive solo en local y el ✅ del hito 1 no está en el repositorio.
+3. Aplica la norma §6 del roadmap sobre `../../prompts.md` **en esta misma sesión**: el prompt de corrección va literal, en bloque de código, dentro de §9, con su `**Ajuste humano.**`. Máximo 3 prompts por sección; si §9 ya tiene tres, sustituye el menos significativo y dilo en el informe.
