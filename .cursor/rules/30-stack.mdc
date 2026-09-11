@@ -1,0 +1,36 @@
+---
+description: Layer conventions for the Fastify backend in a hexagonal monorepo
+globs: ["packages/**/*.ts", "packages/**/*.tsx", "tests/**/*.ts"]
+alwaysApply: false
+---
+
+# Backend Fastify · hexagonal monorepo
+
+## Order of a vertical unit
+1. `tests/unit/<capability>/<behavior>.spec.ts` — the test first, red.
+2. `packages/core/ports/<Port>.ts` — the interface, if the unit needs a new boundary.
+3. `packages/core/<domain>/<Entity>.ts` — domain types and rules. No I/O.
+4. `packages/adapters/<impl>/` — the port implementation: SQL, HTTP client, files.
+5. `packages/api/schemas/<resource>.ts` — the Zod schema. Single source of truth for the shape.
+6. `packages/api/routes/<resource>.ts` — validate, delegate, serialize.
+
+## Hard rules
+- The dependency direction is inward: `api` and `adapters` know `core`; `core` knows
+  no one. Importing `adapters/`, `analyzers/` or `api/` from `packages/core` breaks the
+  build, and the `post-edit-quality` hook warns first.
+- `core` does not import `fastify`, does not see a `FastifyRequest` and does not know status codes.
+- The route handler does three things: validate, delegate, serialize.
+- No SQL outside `packages/adapters/store-postgres`.
+- Every external piece of data passes through a Zod schema — **including the model output**: `safeParse`,
+  and whatever fails validation is discarded, never interpreted.
+- No `any` or `as unknown as`. Explicit return types on exported members.
+- Files in kebab-case, types and classes in PascalCase.
+- Imports between packages by workspace name (`@scope/core`), never relative paths that
+  leave the package.
+- Every listing is paginated.
+
+## Forbidden
+- Moving business logic into a route "because it is only one line".
+- Mocking the database in an integration test.
+- Adding dependencies without a prior ADR.
+- Modifying files under `openspec/` or migrations that have already been applied.

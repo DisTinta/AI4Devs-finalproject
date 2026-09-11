@@ -16,8 +16,10 @@
   "scripts": {
     "dev": "concurrently --kill-others-on-fail \"npm -w packages/api run dev\" \"npm -w packages/web run dev\"",
     "typecheck": "tsc --build && tsc -p packages/web/tsconfig.json --noEmit",
-    "lint:architecture": "depcruise packages/core/src --config .dependency-cruiser.cjs",
+    "lint": "eslint .",
+    "lint:architecture": "depcruise packages --config .dependency-cruiser.cjs",
     "db:migrate": "node -e \"console.log('pending Ticket 3 — db:migrate not implemented'); process.exit(0)\"",
+    "db:rollback": "node -e \"console.log('pending Ticket 3 — db:rollback not implemented'); process.exit(0)\"",
     "db:seed": "node -e \"console.log('pending Ticket 3 / seed:build — db:seed not implemented'); process.exit(0)\"",
     "seed:build": "node -e \"console.log('pending Ticket 3 — invoke node fixtures/build-history.mjs before indexing'); process.exit(0)\"",
     "cli": "tsx packages/cli/src/index.ts",
@@ -25,11 +27,16 @@
     "test": "vitest run"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@stryker-mutator/core": "^8.7.1",
+    "@stryker-mutator/vitest-runner": "^8.7.1",
     "@types/node": "^20.14.0",
     "concurrently": "^8.2.0",
     "dependency-cruiser": "^16.3.0",
+    "eslint": "^9.39.5",
     "tsx": "^4.16.0",
     "typescript": "^5.5.0",
+    "typescript-eslint": "^8.70.0",
     "vitest": "^1.6.0"
   }
 }

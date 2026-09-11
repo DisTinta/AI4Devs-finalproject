@@ -1,0 +1,67 @@
+name: Frontend
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v4
+        id: changes
+        with:
+          filters: |
+            frontend:
+              - '**/*.{tsx,jsx,css,scss}'
+              - 'src/**'
+              - 'components/**'
+              - 'pages/**'
+              - 'app/**/*.{tsx,jsx}'
+              - 'resources/js/**'
+              - 'inertia/**'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'pnpm-lock.yaml'
+              - 'yarn.lock'
+              - 'tsconfig*.json'
+              - 'vite.config.*'
+              - 'vitest.config.*'
+              - 'tests/a11y/**'
+              - '.github/workflows/frontend.yml'
+
+      - uses: actions/setup-node@v4
+        if: steps.changes.outputs.frontend == 'true'
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        if: steps.changes.outputs.frontend == 'true'
+        run: npm ci
+
+      - name: Lint
+        if: steps.changes.outputs.frontend == 'true'
+        run: npm run lint
+
+      - name: Typecheck
+        if: steps.changes.outputs.frontend == 'true'
+        run: npm run typecheck
+
+      - name: Unit / component tests
+        if: steps.changes.outputs.frontend == 'true'
+        run: npx vitest run
+
+      - name: Accessibility (test:a11y)
+        if: steps.changes.outputs.frontend == 'true'
+        run: |
+          if [ -f package.json ] && npm run | grep -q ' test:a11y'; then
+            npm run test:a11y
+          else
+            echo "WARNING: npm script test:a11y not defined — see docs/frontend-standards.md. Add axe-core or equivalent to enforce this gate."
+          fi
