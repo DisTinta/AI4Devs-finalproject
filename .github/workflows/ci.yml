@@ -1,30 +1,98 @@
 name: CI
-
 on:
-  push:
-    branches: [main, "feature/**"]
   pull_request:
+  push:
     branches: [main]
-
+permissions:
+  contents: read
+  pull-requests: read
 jobs:
-  typecheck-and-architecture:
-    name: Typecheck + Architecture gate
+  quality:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      # runtime: full monorepo (PATH_SOURCE = packages), not just an app/.
+      # business: PATH_BUSINESS (packages/core) + Stryker config + tests/**.
+      - uses: dorny/paths-filter@v4
+        id: changes
         with:
-          node-version: "20"
-          cache: "npm"
+          filters: |
+            runtime:
+              - 'packages/**'
+              - 'tests/**'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'tsconfig*.json'
+              - '.dependency-cruiser.cjs'
+              - 'vitest.config.*'
+              - 'stryker.config.*'
+              - 'stryker.conf.*'
+              - '.github/workflows/ci.yml'
+            business:
+              - 'packages/core/**'
+              - 'tests/**'
+              - 'stryker.config.*'
+              - 'stryker.conf.*'
+              - 'package-lock.json'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
-      - name: TypeScript — check all packages
+      - name: Lint and format
+        run: npm run lint
+
+      - name: Type check
         run: npm run typecheck
 
-      - name: Architecture gate — core must not import infra
-        run: npm run lint:architecture
+      # The dependency rule is the central assertion of a hexagonal
+      # architecture. Without this step it is a promise; with it, it is a constraint.
+      - name: Dependency rule (core does not import infrastructure)
+        run: npx depcruise --config .dependency-cruiser.cjs packages
+
+      - name: Migrations (apply and roll back)
+        if: steps.changes.outputs.runtime == 'true'
+        run: npm run db:migrate && npm run db:rollback && npm run db:migrate
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/test
+
+      - name: Tests
+        if: steps.changes.outputs.runtime == 'true'
+        run: npx vitest run
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/test
+
+      # The hard gate is the mutation score, not coverage: requiring a coverage
+      # percentage fabricates empty tests. Coverage is published as a signal.
+      # Skips cleanly until the first test exists: Stryker's dry run fails with
+      # zero tests, and fabricating an empty test to force it green is exactly
+      # what this gate is meant to prevent. It self-activates once tests land.
+      - name: Mutation testing on critical paths
+        if: steps.changes.outputs.business == 'true'
+        run: |
+          if find packages tests \( -name '*.test.*' -o -name '*.spec.*' \) 2>/dev/null | grep -q .; then
+            npx stryker run
+          else
+            echo "WARNING: no test files yet — skipping mutation testing until tests exist (Ticket 1/2)."
+          fi

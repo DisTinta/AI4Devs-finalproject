@@ -34,6 +34,8 @@ playwright-report/
 test-results/
 blob-report/
 .playwright/
+.stryker-tmp/
+reports/mutation/
 
 # ── Base de datos ───────────────────────────────────────────
 # seeds/graph-dump.sql SÍ se versiona: es lo que hace que el
@@ -69,3 +71,7 @@ ai4devs-requisitos-y-encaje.md
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# sdd-harness-kit
+.claude/settings.local.json
+.worktrees/
