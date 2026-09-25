@@ -7,6 +7,8 @@
 > Este documento recoge los prompts y workflows principales usados en la creación del proyecto, siguiendo la estructura de la plantilla oficial: máximo 3 prompts por sección, priorizando los de creación inicial y los de corrección o adición de funcionalidades más relevantes.
 >
 > Cada sección incluye además **qué ajustes humanos** hubo que hacer sobre la salida del modelo. Esa parte es deliberada: es donde se ve el criterio propio, y en varios casos es más informativa que el prompt.
+>
+> **Nota (post-harness):** `CODEMIND-ROADMAP.md` se eliminó tras instalar el SDD harness. La brújula vigente (decisiones cerradas, norma de este registro, gotchas) está en `docs/project-context.md`. Las menciones al roadmap dentro de prompts archivados más abajo son **históricas** y no se reescriben.
 
 ---
 
@@ -601,6 +603,8 @@ Cinco cosas que aprendí, incluyendo las que salieron mal.
 **5. Pedir autorrevisión dentro del mismo prompt es barato y rentable.** «Después, revisa tu propio resultado y señala cuál sería más difícil de cumplir» identificó correctamente el criterio de latencia como el punto frágil, y me hizo subir una estimación antes de comprometerme con ella. Cuesta una frase.
 
 **6. Decisión de producto (5 sep 2026) — evidencia solo local, LLM híbrido, Ollama.** En una sesión de criterio (Cursor), sin un único prompt de «genera documento», cerré dos bloqueos que la Entrega 1 había dejado abiertos: (a) **sin demo web alojada** — quien evalúa levanta con Docker/`make up`; (b) **`LLM_API_KEY` opcional** — evaluación y `npm run verify` desde caché/golden; desarrollo de pregunta libre con **Ollama** local (API compatible OpenAI), sin obligar a gastar en API cloud. Claude Pro/Max y Cursor siguen siendo herramientas de autoría, no el backend del producto. El detalle vivo está en `readme.md` (callouts «Decisión (5 sep 2026)») y en `proposal-codemind/05-propuesta-v4-evidencia-local-hibrido-ollama.md`; la propuesta 04 queda histórica en esos puntos. **Lección:** cuando el coste y la fricción del evaluador chocan con un «Camino A» cómodo en el papel, conviene recortar el Camino A antes de construir infraestructura que no se va a mantener.
+
+**7. Retirada de `CODEMIND-ROADMAP.md` (post-harness).** Era brújula temporal pre-kit. Tras instalar `sdd-harness-kit` y migrar lo vigente a `docs/project-context.md` (fuentes de verdad, decisiones cerradas, norma síncrona de este `prompts.md`), el fichero se eliminó. Los literales de prompts y de `docs/ai-sessions/` que aún lo nombran se dejan intactos a propósito: reconstruirlos rompería la norma de no falsificar transcripciones. **Lección:** un documento «hasta que exista X» debe tener fecha de caducidad explícita y un destino de migración; si no, acaba como segunda fuente de verdad en conflicto con el harness.
 
 ---
 

@@ -21,6 +21,30 @@ change it", with verified citations. It is a TypeScript npm-workspaces monorepo:
 per-language analyzers, infrastructure adapters (Postgres+pgvector, LLM, Git), a Fastify API, a
 Commander CLI and a React+Vite web.
 
+## Sources of truth
+
+Do not invent product facts from memory. Prefer these files:
+
+- `readme.md` — product and design (canonical delivery doc)
+- `prompts.md` — AI usage log (literals + human adjustments)
+- `proposal-codemind/05-propuesta-v4-evidencia-local-hibrido-ollama.md` — evidence/LLM operational
+  amendment (proposal `04` is historical on those points)
+- This file — commands, constraints and agent gotchas
+
+## Closed product decisions (2026-09-05)
+
+Agents must not reopen these or invent a different hosting/vendor without an explicit author decision:
+
+1. **Evidence is local only.** No hosted web demo. No “Option B” video. Evaluators run `make up` +
+   `docs/DEMO.md` + `npm run verify` (golden/cache, no live LLM required).
+2. **Hybrid LLM + Ollama.** `LLM_API_KEY` / `LLM_BASE_URL` are optional. Empty → evaluation mode
+   (cache/golden only, 0 €). Set → free-form answers; default local path is Ollama (OpenAI-compatible
+   base URL). A paid cloud vendor is not required.
+3. **“Deployment” (Entrega 3)** means reproducible Compose + CI + `verify`, not a public PaaS/VPS.
+
+Ollama need not be installed until the Context Engine / live-LLM work; `.env.example` already matches
+the empty-key evaluation default.
+
 ## Commands
 
 Verified against `package.json` (root and per package). If a command is not here, it does not exist
@@ -72,9 +96,9 @@ Verified against `package.json` (root and per package). If a command is not here
 
 ## Operational constraints
 
-- Never commit `.env` or any secret. Copy `.env.example` → `.env` for local values.
-- LLM config is optional: empty `LLM_API_KEY` + `LLM_BASE_URL` = evaluation mode (cache/golden only,
-  no model calls, 0 €). Ollama is the reference local provider; no paid vendor is assumed.
+- Never commit `.env` or any secret. Copy `.env.example` → `.env` for local values. Do not put real
+  LLM keys in the repo.
+- LLM behaviour follows **Closed product decisions** above (optional credentials, evaluation mode).
 - `ALLOWED_REPOS_DIR` empty = indexing disabled (fixtures-only mode). Indexing only runs inside that
   root.
 - Specs and changes live under `openspec/` (initialized; `openspec/config.yaml` injects kit
@@ -85,6 +109,24 @@ Verified against `package.json` (root and per package). If a command is not here
 - Do not edit migrations already applied on the base branch: create a new one.
 - Respect the hexagonal boundary: `packages/core` must not import infrastructure. This is enforced by
   dependency-cruiser in CI, not just convention.
+
+## prompts.md — synchronous AI log
+
+Mandatory whenever an agent closes a milestone or a relevant AI-assisted decision:
+
+1. **When:** in the **same** work session — not deferred to “later” or end of project.
+2. **What:** only the **most significant** prompts (initial creation, course correction, relevant
+   feature addition). Max **3 per template section**, as `prompts.md` already states.
+3. **Format** (match existing entries):
+   - Heading `### Prompt N — …`
+   - Prompt **literal** in a code block (as sent)
+   - Optional: `**Por qué funcionó.**` when useful
+   - `**Ajuste humano.**` with what was changed or rejected from the model output
+4. **Forbidden:** reconstructing prompts after the fact and presenting them as a transcript.
+5. Sections marked *(pendiente)* (e.g. §7 Pull Requests): fill **only** when that work actually
+   exists.
+6. Product decisions made without a literal prompt (e.g. human criterion talk): record them in
+   `prompts.md` §8 as a lesson/human decision — do not invent a prompt block.
 
 ## Gotchas
 

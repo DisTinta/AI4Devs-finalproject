@@ -1,5 +1,7 @@
 # Revisión de `../../fixtures` y prompt de corrección
 
+> **Histórico.** `CODEMIND-ROADMAP.md` ya no existe; la brújula vigente es `docs/project-context.md`. Las menciones al roadmap en este archivo son de la época pre-harness y no se reescriben.
+
 **Proyecto:** CODEMIND · fork `DisTinta/AI4Devs-finalproject`
 **Rama revisada:** `feature/entrega-2-CRN` · commits `054f7ba` … `029b8dc`
 **Fecha:** 29 de agosto de 2026

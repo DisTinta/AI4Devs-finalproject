@@ -1,5 +1,7 @@
 # Revisión del Hito 2 (esqueleto monorepo) y prompt de corrección
 
+> **Histórico.** `CODEMIND-ROADMAP.md` ya no existe; la brújula vigente es `docs/project-context.md`. Las menciones al roadmap en este archivo son de la época pre-harness y no se reescriben.
+
 **Proyecto:** CODEMIND · fork `DisTinta/AI4Devs-finalproject`  
 **Rama revisada:** `feature/entrega-2-CRN` · commits `e1b8a6d` … `0077d16`  
 **Fecha:** 5 de septiembre de 2026  
