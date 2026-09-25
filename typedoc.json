@@ -1,0 +1,27 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "name": "CODEMIND",
+  "entryPointStrategy": "packages",
+  "entryPoints": [
+    "packages/core",
+    "packages/api",
+    "packages/cli",
+    "packages/analyzers/php",
+    "packages/analyzers/typescript",
+    "packages/adapters/store-postgres",
+    "packages/adapters/llm",
+    "packages/adapters/git"
+  ],
+  "packageOptions": {
+    "entryPoints": ["src/index.ts"],
+    "excludeExternals": true
+  },
+  "out": "docs/api",
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "readme": "none",
+  "validation": {
+    "notDocumented": true
+  },
+  "logLevel": "Warn"
+}
