@@ -26,6 +26,7 @@ dist/
 build/
 *.tsbuildinfo
 packages/web/dist/
+docs/api/
 
 # ── Tests y cobertura ───────────────────────────────────────
 coverage/

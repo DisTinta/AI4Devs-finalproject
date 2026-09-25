@@ -41,6 +41,10 @@ Verified against `package.json` (root and per package). If a command is not here
 - Mutation testing: `npx stryker run` (`stryker.config.json`, targets `packages/core/src`). CI guards
   it: it only runs once test files exist, otherwise it prints a warning and skips (Stryker's dry run
   fails with zero tests, and faking a test to force it green defeats the gate).
+- Docs coverage: `npm run docs:coverage` (or `npx typedoc --validation.notDocumented --logLevel Warn`)
+  — TypeDoc over the backend packages via root `typedoc.json`. HTML lands in `docs/api/` (gitignored).
+  `CMD_DOCS_COVERAGE` in `.claude/sdd-harness.env` points here. `packages/web` is out of scope (React
+  UI, not the API surface). As the public surface grows, undocumented exports fail this gate.
 - CLI: `npm run cli` (root) — `tsx packages/cli/src/index.ts`.
 - Migrations / rollback / seed / verify are **placeholders**: `npm run db:migrate`, `db:rollback`,
   `db:seed`, `seed:build`, `verify` print a "pending Ticket …" message and exit 0. They do nothing yet.
@@ -73,7 +77,9 @@ Verified against `package.json` (root and per package). If a command is not here
   no model calls, 0 €). Ollama is the reference local provider; no paid vendor is assumed.
 - `ALLOWED_REPOS_DIR` empty = indexing disabled (fixtures-only mode). Indexing only runs inside that
   root.
-- Do not edit anything under `openspec/`: it is input to the flow, not output.
+- Specs and changes live under `openspec/` (initialized; `openspec/config.yaml` injects kit
+  doctrine). Create or edit them only through the OpenSpec flow (`/opsx:*` or kit prompts/skills).
+  Do not rewrite `openspec/specs/` during apply except a deliberate sync/archive.
 - Do not add dependencies without justifying them in the pull request.
 - Do not force-push. Ever.
 - Do not edit migrations already applied on the base branch: create a new one.
@@ -97,3 +103,6 @@ services that must be started first, quirks of the local environment.
   evidence that behaviour is covered.
 - **The repo is mid-build (Entrega 2).** `db:migrate`/`db:seed`/`seed:build`/`verify` are
   placeholders; `make up` runs them but they no-op. Do not assume a working end-to-end flow exists.
+- **OpenSpec native skills are not under `ai-specs/`.** After `openspec init`, `/opsx:*` skills live
+  in `.claude/skills/openspec-*` and `.cursor/skills/openspec-*`. Do not delete them on sync; they
+  coexist with kit skills.

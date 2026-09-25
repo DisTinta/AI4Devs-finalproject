@@ -24,7 +24,8 @@
     "seed:build": "node -e \"console.log('pending Ticket 3 — invoke node fixtures/build-history.mjs before indexing'); process.exit(0)\"",
     "cli": "tsx packages/cli/src/index.ts",
     "verify": "node -e \"console.log('pending — verify not implemented (Ticket 1/2)'); process.exit(0)\"",
-    "test": "vitest run"
+    "test": "vitest run",
+    "docs:coverage": "typedoc --validation.notDocumented --logLevel Warn"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
@@ -35,6 +36,7 @@
     "dependency-cruiser": "^16.3.0",
     "eslint": "^9.39.5",
     "tsx": "^4.16.0",
+    "typedoc": "^0.28.20",
     "typescript": "^5.5.0",
     "typescript-eslint": "^8.70.0",
     "vitest": "^1.6.0"
