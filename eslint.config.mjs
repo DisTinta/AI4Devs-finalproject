@@ -10,6 +10,8 @@ export default tseslint.config(
       'seeds/**',
       '.stryker-tmp/**',
       'reports/**',
+      // TypeDoc HTML output (gitignored); keep lint green after `docs:coverage`.
+      'docs/api/**',
       // Tooling / agent-kit config, not application source.
       '.claude/**',
       '.cursor/**',
