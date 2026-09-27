@@ -7,6 +7,9 @@
     "playwright": {
       "command": "npx",
       "args": ["-y", "@playwright/mcp@latest", "--isolated"]
+    },
+    "linear": {
+      "url": "https://mcp.linear.app/mcp"
     }
   }
 }
