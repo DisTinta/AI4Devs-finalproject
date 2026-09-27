@@ -88,10 +88,13 @@ Verified against `package.json` (root and per package). If a command is not here
 ## Branch and ticket conventions
 
 - Branch naming: `feature/<slug>` (current: `feature/entrega-2-CRN`).
-- Ticket id: work will be tracked in **Linear** (not yet configured). Until Linear is live, "Ticket N"
-  references in code/docs are internal notes, **not** valid ticket ids per `base-standards.md` §2
-  (`[A-Z][A-Z0-9]+-[0-9]+`); treat commits as no-ticket (scope = capability/layer). Once Linear is
-  set up, record its key prefix here and use the ticket id as the commit scope.
+- Ticket id: work is tracked in **Linear**, team `Distinta-AI4Devs`, key **`DIS`** (configured
+  2026-09-27). The ticket id is `DIS-n` (matches `[A-Z][A-Z0-9]+-[0-9]+`, `base-standards.md` §2)
+  and is the commit scope. Projects: `CODEMIND — Entrega 2` / `CODEMIND — Entrega 3`, milestones
+  M1–M9. Hierarchy: parent issue = user story `CM-HU-*`, sub-issue = one work slice `CM-HU-*.k`;
+  the `CM-HU-* → DIS-n` map is in `docs/ai-sessions/03-planificacion-historias-de-usuario.md` §6.
+  **OpenSpec (`/opsx:propose`) is fed from one sub-issue** moved to Todo, never from the parent story.
+  Linear is the live backlog source; older "Ticket N" references are internal notes, not ticket ids.
 - Base branch: `main`.
 
 ## Operational constraints

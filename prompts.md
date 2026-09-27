@@ -1476,3 +1476,133 @@ Tras Fase C (o si el gate se aplaza): recuerda que Linear sigue bloqueado hasta 
 Preguntas §0: (1) endpoint de listado **rechazado**; (2) botón «indexar mi repo» **non-goal**; (3) Tree-sitter **sin PHP en el PATH**; (4) reglas propias en proceso + `gitleaks` en CI; (5) estado del job **non-goal**; (6) `404` **aceptado** como extensión mínima del contrato.
 
 Totales tras el gate: 26 issues padre · 65 sub-issues (58 − 1 fusionada + 8 nuevas). Estado del documento: `borrador post poke-holes · pendiente importación Linear`. Cuatro puntos del readme quedan para una pasada `/update-docs` posterior (§1.4 PHP/`1 project loaded`, §2.1 una pasada, §2.4 similitud, §2.6 cobertura). Sin Linear, sin código, sin commit.
+
+### Prompt 2 — Importación del backlog real a Linear
+
+Prompt literal ejecutado en Claude Code con el MCP de Linear autenticado (OAuth vía `/mcp`), rama `feature/backlog-planning`. Se conserva íntegro en `docs/ai-sessions/03-prompt-importar-backlog-linear.md`; el mapa resultante está en `docs/ai-sessions/03-planificacion-historias-de-usuario.md` §6:
+
+````
+## Contexto
+
+Trabajas en CODEMIND (fork DisTinta/AI4Devs-finalproject), rama `feature/entrega-2-CRN`.
+
+Fuente única del backlog (ya revisado por la autora, gate poke-holes aplicado):
+
+`docs/ai-sessions/03-planificacion-historias-de-usuario.md`
+
+Estado del documento: `borrador post poke-holes · pendiente importación Linear`.
+
+También lee (solo para convenciones, no para inventar alcance):
+
+- `docs/project-context.md` (tras importar, actualizar la línea de Linear / ticket id)
+- Leyenda Linear del propio §1 del archivo de planificación
+
+MCP: usa el servidor **Linear** (lectura+escritura). Si no está autenticado, para y pide a la autora completar OAuth (`/mcp` o Connect). No uses API keys en ficheros del repo.
+
+## Objetivo
+
+Materializar en Linear la jerarquía del backlog:
+
+| Markdown | Linear |
+|---|---|
+| Milestone M1–M9 / Entrega 2–3 | Project(s) + Milestone(s) |
+| CM-HU-XX (issue padre) | Issue padre en **Backlog**, enrollada al Project |
+| CM-HU-XX.k (sub-issue) | Sub-issue del padre (también issue) |
+| must / should + área + tipo | Labels |
+| IDs CM-HU-* | Comentario o descripción con id provisional; Linear asigna `COD-n` |
+
+## Cómo encaja Linear (obligatorio — no improvisar)
+
+1. Unidad = **issue**. No hay tipo Task aparte. Sub-issue = issue con padre.
+2. **Sin Initiatives.** Sin tercer nivel (no sub-sub-issues).
+3. Padres y sub-issues **enrollados a Project** (no usar parent/sub como sustituto del roadmap).
+4. Estado inicial de todo: **Backlog** (no Todo todavía).
+5. OpenSpec más adelante recibe **una sub-issue** (`COD-xx`), no la HU entera.
+6. Si el team aún no existe: créalo o usa el existente. Identifier preferido: **`COD`** (cumple `[A-Z][A-Z0-9]+-[0-9]+`). Si el team ya tiene otra key, úsala y documenta.
+7. Activar / respetar workflow default; opcional In Review; parent auto-close si el team lo permite (no bloquees la importación si no puedes cambiar settings).
+
+## Plan de creación (orden)
+
+### Paso 0 — Inventario (solo lectura)
+
+1. `list_teams` / equivalente: anota team id y key.
+2. `list_projects`: ¿existe ya algo CODEMIND?
+3. `list_issues` filtrado por project/team: ¿hay HU de ejemplo de Entrega 1? **No las borres** sin preguntar; no las uses como fuente. El backlog real es el markdown.
+4. Labels existentes: must, should, backend, frontend, database, cli, security, dx, docs, feature, chore, test.
+
+### Paso 1 — Mostrar plan y ESPERAR OK
+
+Antes de crear **nada**, muestra a la autora:
+
+- Team que usarás (nombre + key)
+- Project(s) a crear o reutilizar:
+  - Preferido: `CODEMIND — Entrega 2` y `CODEMIND — Entrega 3` **o** un solo project `CODEMIND` con milestones M1–M9 etiquetados por entrega (elige una opción y justifícala en una línea; por defecto: **dos projects** alineados al §0 del markdown)
+- Lista de milestones (M1–M9; M0 = hecho, no crear trabajo bajo M0 salvo que quieras un milestone cerrado vacío — mejor omitir M0)
+- Nº de issues padre y sub-issues a crear (debe coincidir con totales del markdown tras el gate: ~26 padres · ~65 sub-issues; verifica contando el archivo)
+- Convención de título: `[CM-HU-01] Esquema PostgreSQL…` / sub: `[CM-HU-01.1] Runner de migraciones…`
+- Qué va en la descripción del padre: bloque Enhanced (user story, AC, non-goals, labels/estimate) + enlace/path al markdown + id provisional. Reality map puede ir resumido o en comentario para no hinchar.
+- Qué va en la sub-issue: descripción + DoD + depende de + nota «candidata a /opsx:propose»
+- Relaciones: si Linear permite blocking/related, usa las dependencias del tablero §3; si no, documéntalas en la descripción
+
+**Para aquí hasta que Cristina diga explícitamente «OK, crea».**
+
+### Paso 2 — Crear (solo tras OK)
+
+1. Labels que falten.
+2. Project(s) + milestones.
+3. Issues padre en Backlog, una por CM-HU-* del §2, con project + milestone sugerido + labels must/should + área/tipo.
+4. Sub-issues bajo cada padre (tabla Sub-issues + viñetas de descripción del markdown).
+5. No dupliques: si un padre ya existe con el mismo `[CM-HU-XX]` en el título, actualiza en lugar de crear otro.
+
+### Paso 3 — Mapa y cierre documental
+
+1. Escribe/actualiza en `docs/ai-sessions/03-planificacion-historias-de-usuario.md`:
+   - Estado: `importado a Linear · fuente viva = Linear`
+   - Nueva sección (p. ej. `## 6. Mapa Linear`) tabla: `CM-HU-*` → `COD-n` → URL si la tienes → parent/sub
+2. Actualiza `docs/project-context.md` § Branch and ticket conventions: Linear configurado, team key, que el id de ticket es `COD-n`, OpenSpec se alimenta de la **sub-issue**.
+3. `prompts.md`: sección nueva o bajo §11 con Prompt de importación **literal** + `**Ajuste humano.**`
+4. Opcional breve: comentar en el Project la ruta del markdown de origen.
+
+## Contenido a NO crear
+
+- No importes §§5–6 del `readme` (ejemplo Entrega 1).
+- No crees Initiatives.
+- No vuelques cada AC Given/When/Then como sub-issue separada.
+- No crees issues por ítems de un futuro `tasks.md` OpenSpec.
+- No implementes código.
+- No hagas push.
+
+## Forma de trabajo
+
+1. Autentica / verifica Linear MCP (listar teams).
+2. Lee el markdown completo (al menos §0, §1, §2 tablas de sub-issues, §3 vista tablero).
+3. Plan en el chat → espera «OK, crea».
+4. Crea en lotes (p. ej. por milestone) e informa progreso.
+5. Entrega el mapa CM-HU → COD y actualiza docs.
+
+## Criterios de aceptación
+
+- Plan mostrado y aprobado antes de crear.
+- 26 padres (± si el markdown cambió; manda el archivo) + sus sub-issues en Linear, Backlog, con padre correcto.
+- Projects/milestones alineados al §0.
+- Labels must/should presentes.
+- Mapa en el markdown + project-context actualizado.
+- Cero Issues inventadas fuera del markdown.
+- `prompts.md` con literal.
+
+## Al cerrar
+
+Resume: team key, projects, nº issues creadas, primeras COD de ejemplo, y recuerda que OpenSpec arranca desde **una sub-issue** en Todo, no desde la HU padre.
+````
+
+**Por qué funcionó.** El inventario de solo lectura y la parada obligatoria «OK, crea» sacaron a la luz, antes de escribir nada, que el team ya existía y estaba vacío. La key real no se conoció hasta crear el primer objeto. El backlog se parseó del markdown a JSON con un script, en vez de transcribirlo a mano: así los totales (26 padres · 65 sub-issues) se comprobaron contra §3 antes de crear y las descripciones llegaron a Linear literales.
+
+**Ajuste humano.** La autora aprobó el plan tal como se presentó («OK, crea»), sin cambiar la key del team. Por eso el identificador real es **`DIS`** y no el `COD` preferido por el prompt; queda documentado en `project-context.md` y en §6 del backlog. Decisiones que el agente tomó dentro del plan aprobado:
+- Dos projects (Entrega 2 / Entrega 3) con M2 y M5 duplicados en ambos, porque 05b y 17 son de Entrega 3.
+- CM-HU-09.4 va a Entrega 3 · M6, aunque su padre sea de Entrega 2.
+- La estimación L/M va en la descripción, no en el campo `estimate`, porque la escala del team era desconocida.
+- No se usó el campo `priority` de Linear: must/should van solo como labels.
+- Se reutilizó la label existente `Feature`.
+- El ciclo 22.2 ↔ 22.4 del markdown quedó como `22.4 blocked by 22.2` (Linear admite una sola relación por par; la *related* inversa no se guardó). Total: 163 relaciones *blocked by*.
+- La creación se repartió en 4 subagentes en paralelo, por eso los números `DIS-n` quedaron intercalados y no consecutivos.
+- Linear normaliza el Markdown al guardar (viñetas `-` → `*`, escapado de `_`/`~`, negrita alrededor de código); el contenido no cambia.

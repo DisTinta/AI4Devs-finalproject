@@ -1,6 +1,6 @@
-# Backlog real — CODEMIND (pre-Linear)
+# Backlog real — CODEMIND
 
-**Estado:** borrador post poke-holes · pendiente importación Linear · **No importado a Linear**
+**Estado:** importado a Linear · fuente viva = Linear (2026-09-27; team key `DIS`; mapa en §6)
 **Fecha de elaboración:** 2026-09-27 · **Gate humano aplicado:** 2026-09-27 (decisiones de la autora sobre PH-01…PH-28 y preguntas §0)
 **Fuentes:** readme.md §§0–4 · docs/project-context.md · docs/backend-standards.md · docs/frontend-standards.md · fixtures/README.md · enrich-us · poke-holes
 **Prompt de origen:** docs/ai-sessions/03-prompt-planificacion-historias-de-usuario.md
@@ -95,10 +95,10 @@ Camino crítico de la Entrega 2 (flujo principal operativo): 01 → 02 → 03 �
 
 - **Issue padre** = historia de usuario INVEST (1–2 días equivalentes). ID provisional `CM-HU-NN`; si es fruto de un split, `CM-HU-NNa` / `CM-HU-NNb`.
 - **Sub-issue** = corte de trabajo de horas o una sesión de agente, entregable revisable por un humano. ID `CM-HU-NN.k`. Cada sub-issue es la unidad que más adelante recibirá un `/opsx:propose`; la HU entera no.
-- **Project / Milestone** = solo sugeridos aquí (`CODEMIND — Entrega 2`, `— Entrega 3`, milestones M1–M9). No se crean todavía.
-- **Estados** (futuros): Backlog → Todo → In Progress → In Review → Done. Todo nace en **Backlog**.
+- **Project / Milestone** = `CODEMIND — Entrega 2` y `— Entrega 3`, milestones M1–M9 (creados en Linear el 2026-09-27; M2 y M5 existen en ambos projects).
+- **Estados:** Backlog → Todo → In Progress → In Review → Done. Todo nace en **Backlog**.
 - **Labels sugeridas**: prioridad `must` / `should`; área `backend` / `frontend` / `database` / `cli` / `security` / `dx` / `docs`; tipo `feature` / `chore` / `test` / `docs`.
-- Sin Initiatives, sin tercer nivel. Los IDs `CM-HU-*` se mapearán a `COD-xx` al importar.
+- Sin Initiatives, sin tercer nivel. Los IDs `CM-HU-*` están mapeados a `DIS-n` en §6 (key real del team; no `COD`).
 - **Estado del repositorio en el Reality map:** los 9 workspaces existen con `src/index.ts` (los puertos de `packages/core/src/ports/*.ts` son interfaces vacías; adaptadores y analizadores son stubs vacíos; `packages/api` solo expone `GET /health`; `packages/cli` tiene los 4 comandos como stubs; `packages/web` es un placeholder). `db:migrate`, `db:rollback`, `db:seed`, `seed:build` y `verify` son placeholders que salen con 0. Los fixtures y su historial (`fixtures/`, `fixtures/history/*.commits.mjs`, `fixtures/build-history.mjs`) sí son reales y son el arnés de pruebas.
 
 ---
@@ -1817,3 +1817,107 @@ F6 (§1.2, should). §2.2: comando CLI `drift` **previsto, no entregado**; ya en
 **Resumen de la pasada:** 28 objeciones. Alcance faltante: PH-03, 06, 13, 24, 25. Contradicciones con §§0–4 / project-context: PH-01, 02, 04, 09, 10, 14, 21, 22. Criterio débil: PH-08, 15, 26, 27. Borde/error: PH-07, 11. Riesgo: PH-12, 16. INVEST/tamaño: PH-17, 18, 20. Non-goal ausente: PH-19. Orden: PH-05, 23, 28.
 
 **Resultado del gate (2026-09-27):** aceptadas PH-03, 04, 05, 06, 07, 08, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23, 24, 25, 26, 27, 28 · aceptadas parciales PH-02, PH-20 · rechazadas PH-01, PH-09. Pendientes de una pasada de docs posterior (`/update-docs`), fuera de este backlog: readme §1.4 (PHP en PATH, `1 project loaded` en E2), §2.1 (bucle de una pasada), §2.4 (similitud solo con LLM), §2.6 (cobertura informativa).
+
+---
+
+## 6. Mapa Linear
+
+**Importado:** 2026-09-27 · **Team:** `Distinta-AI4Devs` (key **`DIS`**; no se cambió a `COD`) · **Projects:** [CODEMIND — Entrega 2](https://linear.app/distinta-ai4devs/project/codemind-entrega-2-a5e56c1fa3b6) · [CODEMIND — Entrega 3](https://linear.app/distinta-ai4devs/project/codemind-entrega-3-91554d6f3850)
+
+Todo en **Backlog**. Labels `must`/`should` + área + tipo (`Feature` = tipo feature). Dependencias de §3 y de las tablas de sub-issues cargadas como relaciones *blocked by* nativas. Excepción: el ciclo 22.2 ↔ 22.4 del markdown (22.2 genera el CSV, 22.4 lo revisa, 22.2 cierra la Tabla 1) se cargó solo como `22.4 blocked by 22.2`; Linear admite una única relación por par, y la descripción de 22.2 conserva el «depende de 22.4» original. CM-HU-09.4 vive en Entrega 3 · M6. DIS-1…DIS-4 son issues previas del workspace (onboarding de Linear), ajenas a este backlog.
+
+**Fuente viva = Linear.** Este documento queda como registro de la planificación; los cambios de alcance se hacen en Linear.
+
+| CM-HU | Linear | Tipo | Padre | Project · Milestone |
+|---|---|---|---|---|
+| CM-HU-01 | [DIS-5](https://linear.app/distinta-ai4devs/issue/DIS-5/cm-hu-01-esquema-postgresql-del-grafo-con-restricciones-e-indices) | padre | — | Entrega 2 · M1 |
+| CM-HU-01.1 | [DIS-11](https://linear.app/distinta-ai4devs/issue/DIS-11/cm-hu-011-runner-de-migraciones-tablas-del-grafo-l1-project-file) | sub | DIS-5 | Entrega 2 · M1 |
+| CM-HU-01.2 | [DIS-12](https://linear.app/distinta-ai4devs/issue/DIS-12/cm-hu-012-tablas-de-historial-afirmaciones-uso-y-cache-check) | sub | DIS-5 | Entrega 2 · M1 |
+| CM-HU-01.3 | [DIS-13](https://linear.app/distinta-ai4devs/issue/DIS-13/cm-hu-013-indices-de-travesia-parcial-stale-hnsw-y-trigger-de) | sub | DIS-5 | Entrega 2 · M1 |
+| CM-HU-02 | [DIS-15](https://linear.app/distinta-ai4devs/issue/DIS-15/cm-hu-02-adaptador-storeport-sobre-postgresql-con-travesia-y) | padre | — | Entrega 2 · M1 |
+| CM-HU-02.1 | [DIS-22](https://linear.app/distinta-ai4devs/issue/DIS-22/cm-hu-021-arnes-de-integracion-postgres-en-contenedor-transaccion-por) | sub | DIS-15 | Entrega 2 · M1 |
+| CM-HU-02.2 | [DIS-23](https://linear.app/distinta-ai4devs/issue/DIS-23/cm-hu-022-contrato-storeport-escritura-transaccional-del-grafo-l1) | sub | DIS-15 | Entrega 2 · M1 |
+| CM-HU-02.3 | [DIS-24](https://linear.app/distinta-ai4devs/issue/DIS-24/cm-hu-023-lecturas-simbolos-por-nombre-vecinos-a-n-saltos-recursiva) | sub | DIS-15 | Entrega 2 · M1 |
+| CM-HU-03 | [DIS-25](https://linear.app/distinta-ai4devs/issue/DIS-25/cm-hu-03-extractor-de-git-commits-seudonimizados-co-cambio-y-numero-de) | padre | — | Entrega 2 · M1 |
+| CM-HU-03.1 | [DIS-35](https://linear.app/distinta-ai4devs/issue/DIS-35/cm-hu-031-gitport-adaptador-simple-git-commits-file-commit-author-hash) | sub | DIS-25 | Entrega 2 · M1 |
+| CM-HU-03.2 | [DIS-36](https://linear.app/distinta-ai4devs/issue/DIS-36/cm-hu-032-aristas-co-changed-con-weight-core-y-persistencia) | sub | DIS-25 | Entrega 2 · M1 |
+| CM-HU-04a | [DIS-37](https://linear.app/distinta-ai4devs/issue/DIS-37/cm-hu-04a-analizador-phplaravel-estructura-spans-y-aristas-exact) | padre | — | Entrega 2 · M2 |
+| CM-HU-04a.1 | [DIS-47](https://linear.app/distinta-ai4devs/issue/DIS-47/cm-hu-04a1-contrato-analyzerport-file-kind-en-core-parser-tree-sitter) | sub | DIS-37 | Entrega 2 · M2 |
+| CM-HU-04a.2 | [DIS-49](https://linear.app/distinta-ai4devs/issue/DIS-49/cm-hu-04a2-aristas-declarativas-imports-extends-implements-rutas-por) | sub | DIS-37 | Entrega 2 · M2 |
+| CM-HU-04a.3 | [DIS-52](https://linear.app/distinta-ai4devs/issue/DIS-52/cm-hu-04a3-llamadas-exact-por-tipo-declarado-constructor-propiedades) | sub | DIS-37 | Entrega 2 · M2 |
+| CM-HU-04a.4 | [DIS-54](https://linear.app/distinta-ai4devs/issue/DIS-54/cm-hu-04a4-spike-validar-el-contrato-analyzerport-con-un-fichero) | sub | DIS-37 | Entrega 2 · M2 |
+| CM-HU-04b | [DIS-55](https://linear.app/distinta-ai4devs/issue/DIS-55/cm-hu-04b-analizador-phplaravel-reglas-laravel-y-aristas-heuristic) | padre | — | Entrega 2 · M2 |
+| CM-HU-04b.1 | [DIS-61](https://linear.app/distinta-ai4devs/issue/DIS-61/cm-hu-04b1-facades-bindings-del-contenedor-call) | sub | DIS-55 | Entrega 2 · M2 |
+| CM-HU-04b.2 | [DIS-63](https://linear.app/distinta-ai4devs/issue/DIS-63/cm-hu-04b2-atributos-eloquent-rutas-por-string-jobs-y-eventos) | sub | DIS-55 | Entrega 2 · M2 |
+| CM-HU-05a | [DIS-64](https://linear.app/distinta-ai4devs/issue/DIS-64/cm-hu-05a-indexado-completo-por-cli-con-gateway-de-seguridad) | padre | — | Entrega 2 · M2 |
+| CM-HU-05a.1 | [DIS-84](https://linear.app/distinta-ai4devs/issue/DIS-84/cm-hu-05a1-gateway-de-seguridad-en-core-secret-scanner-path-policy) | sub | DIS-64 | Entrega 2 · M2 |
+| CM-HU-05a.2 | [DIS-85](https://linear.app/distinta-ai4devs/issue/DIS-85/cm-hu-05a2-caso-de-uso-index-repository-analizador-git-store-en) | sub | DIS-64 | Entrega 2 · M2 |
+| CM-HU-05a.3 | [DIS-86](https://linear.app/distinta-ai4devs/issue/DIS-86/cm-hu-05a3-comando-cli-index-con-name-language-framework-opcional) | sub | DIS-64 | Entrega 2 · M2 |
+| CM-HU-05a.4 | [DIS-87](https://linear.app/distinta-ai4devs/issue/DIS-87/cm-hu-05a4-paso-gitleaks-en-ciyml-gitleaksignore-con-las-huellas-de) | sub | DIS-64 | Entrega 2 · M2 |
+| CM-HU-05b | [DIS-6](https://linear.app/distinta-ai4devs/issue/DIS-6/cm-hu-05b-endpoint-post-apiprojectsidindex-e-indexado-incremental) | padre | — | Entrega 3 · M2 |
+| CM-HU-05b.2 | [DIS-9](https://linear.app/distinta-ai4devs/issue/DIS-9/cm-hu-05b2-post-apiprojectsidindex-202400403404-con-esquema-zod-y) | sub | DIS-6 | Entrega 3 · M2 |
+| CM-HU-05b.1 | [DIS-10](https://linear.app/distinta-ai4devs/issue/DIS-10/cm-hu-05b1-plan-incremental-por-content-hash-dependientes-directos) | sub | DIS-6 | Entrega 3 · M2 |
+| CM-HU-06 | [DIS-88](https://linear.app/distinta-ai4devs/issue/DIS-88/cm-hu-06-semillas-reproducibles-seedbuild-dbseed-y-listado-de) | padre | — | Entrega 2 · M4 |
+| CM-HU-06.1 | [DIS-91](https://linear.app/distinta-ai4devs/issue/DIS-91/cm-hu-061-seedbuild-real-historial-indexado-de-acme-shop-huella) | sub | DIS-88 | Entrega 2 · M4 |
+| CM-HU-06.2 | [DIS-92](https://linear.app/distinta-ai4devs/issue/DIS-92/cm-hu-062-dbseed-idempotente-cli-projects-via-storeport-constante-de) | sub | DIS-88 | Entrega 2 · M4 |
+| CM-HU-07 | [DIS-7](https://linear.app/distinta-ai4devs/issue/DIS-7/cm-hu-07-adaptador-llm-compatible-openai-con-modo-evaluacion-y) | padre | — | Entrega 2 · M3 |
+| CM-HU-07.1 | [DIS-17](https://linear.app/distinta-ai4devs/issue/DIS-17/cm-hu-071-llmport-adaptador-openai-compatible-chatcompletions) | sub | DIS-7 | Entrega 2 · M3 |
+| CM-HU-07.2 | [DIS-18](https://linear.app/distinta-ai4devs/issue/DIS-18/cm-hu-072-modo-evaluacion-sin-credenciales-cero-llamadas-presupuesto) | sub | DIS-7 | Entrega 2 · M3 |
+| CM-HU-08 | [DIS-19](https://linear.app/distinta-ai4devs/issue/DIS-19/cm-hu-08-context-engine-anclaje-expansion-por-grafo-ranking-y) | padre | — | Entrega 2 · M3 |
+| CM-HU-08.1 | [DIS-27](https://linear.app/distinta-ai4devs/issue/DIS-27/cm-hu-081-doble-en-memoria-de-storeport-anclaje-lexico-expansion-a-n) | sub | DIS-19 | Entrega 2 · M3 |
+| CM-HU-08.2 | [DIS-28](https://linear.app/distinta-ai4devs/issue/DIS-28/cm-hu-082-ranking-hibrido-kind-resolution-distancia-presupuesto-de) | sub | DIS-19 | Entrega 2 · M3 |
+| CM-HU-09 | [DIS-29](https://linear.app/distinta-ai4devs/issue/DIS-29/cm-hu-09-explicacion-con-afirmaciones-tipadas-procedencia-y-unknown) | padre | — | Entrega 2 · M3 |
+| CM-HU-09.1 | [DIS-38](https://linear.app/distinta-ai4devs/issue/DIS-38/cm-hu-091-tipos-claimevidence-reglas-hechoinferencia-y-esquema-zod-de) | sub | DIS-29 | Entrega 2 · M3 |
+| CM-HU-09.2 | [DIS-39](https://linear.app/distinta-ai4devs/issue/DIS-39/cm-hu-092-caso-de-uso-explain-prompt-politica-unknown-persistencia-de) | sub | DIS-29 | Entrega 2 · M3 |
+| CM-HU-09.3 | [DIS-40](https://linear.app/distinta-ai4devs/issue/DIS-40/cm-hu-093-comando-cli-ask-con-salida-legible-afirmaciones-tipo) | sub | DIS-29 | Entrega 2 · M3 |
+| CM-HU-09.5 | [DIS-41](https://linear.app/distinta-ai4devs/issue/DIS-41/cm-hu-095-sanitizacion-minima-del-contenido-no-confiable-antes-del) | sub | DIS-29 | Entrega 2 · M3 |
+| CM-HU-09.4 | [DIS-42](https://linear.app/distinta-ai4devs/issue/DIS-42/cm-hu-094-recalculo-perezoso-de-afirmaciones-stale-al-recuperarlas-re) | sub | DIS-29 | Entrega 3 · M6 |
+| CM-HU-10 | [DIS-56](https://linear.app/distinta-ai4devs/issue/DIS-56/cm-hu-10-verificador-de-evidencias-sintactico-semantico-y-politica-de) | padre | — | Entrega 2 · M3 |
+| CM-HU-10.1 | [DIS-68](https://linear.app/distinta-ai4devs/issue/DIS-68/cm-hu-101-verificacion-sintactica-readspan-excerpt-congelado-politica) | sub | DIS-56 | Entrega 2 · M3 |
+| CM-HU-10.2 | [DIS-70](https://linear.app/distinta-ai4devs/issue/DIS-70/cm-hu-102-verificacion-semantica-entailment-con-llm-model-verify-cache) | sub | DIS-56 | Entrega 2 · M3 |
+| CM-HU-11 | [DIS-57](https://linear.app/distinta-ai4devs/issue/DIS-57/cm-hu-11-confianza-calculada-y-metricas-de-uso-tokens-coste-ahorro) | padre | — | Entrega 2 · M3 |
+| CM-HU-11.1 | [DIS-72](https://linear.app/distinta-ai4devs/issue/DIS-72/cm-hu-111-confidencets-con-seis-pesos-docsconfidencemd-real) | sub | DIS-57 | Entrega 2 · M3 |
+| CM-HU-11.2 | [DIS-74](https://linear.app/distinta-ai4devs/issue/DIS-74/cm-hu-112-usagets-agregacion-desglose-verificacion-savingspct-costusd) | sub | DIS-57 | Entrega 2 · M3 |
+| CM-HU-12 | [DIS-59](https://linear.app/distinta-ai4devs/issue/DIS-59/cm-hu-12-api-fastify-base-transversal-y-post-apiprojectsidask) | padre | — | Entrega 2 · M3 |
+| CM-HU-12.1 | [DIS-76](https://linear.app/distinta-ai4devs/issue/DIS-76/cm-hu-121-base-fastify-appts-error-handler-con-formato-error-openapi) | sub | DIS-59 | Entrega 2 · M3 |
+| CM-HU-12.2 | [DIS-78](https://linear.app/distinta-ai4devs/issue/DIS-78/cm-hu-122-post-ask-esquemas-zod-ruta-mapeo-project-not-foundbudget) | sub | DIS-59 | Entrega 2 · M3 |
+| CM-HU-13 | [DIS-16](https://linear.app/distinta-ai4devs/issue/DIS-16/cm-hu-13-cache-de-evaluacion-respuestas-golden-sembradas-y-modo-sin) | padre | — | Entrega 2 · M4 |
+| CM-HU-13.1 | [DIS-21](https://linear.app/distinta-ai4devs/issue/DIS-21/cm-hu-131-cache-por-pregunta-normalizada-en-explain) | sub | DIS-16 | Entrega 2 · M4 |
+| CM-HU-13.2 | [DIS-26](https://linear.app/distinta-ai4devs/issue/DIS-26/cm-hu-132-cache-build-con-ollama-para-las-preguntas-demo-de-acme-shop) | sub | DIS-16 | Entrega 2 · M4 |
+| CM-HU-13.3 | [DIS-34](https://linear.app/distinta-ai4devs/issue/DIS-34/cm-hu-133-revision-humana-de-las-golden-de-acme-shop-correccion) | sub | DIS-16 | Entrega 2 · M4 |
+| CM-HU-14 | [DIS-43](https://linear.app/distinta-ai4devs/issue/DIS-43/cm-hu-14-npm-run-verify-integracion-en-ci-y-guion-docsdemomd) | padre | — | Entrega 2 · M4 |
+| CM-HU-14.1 | [DIS-44](https://linear.app/distinta-ai4devs/issue/DIS-44/cm-hu-141-verify-real-huella-comparacion-estructural-contra-golden-sin) | sub | DIS-43 | Entrega 2 · M4 |
+| CM-HU-14.2 | [DIS-45](https://linear.app/distinta-ai4devs/issue/DIS-45/cm-hu-142-docsdemomd-docsdeploymentmd-docstestingmd-con-salida-real-y) | sub | DIS-43 | Entrega 2 · M4 |
+| CM-HU-15a | [DIS-51](https://linear.app/distinta-ai4devs/issue/DIS-51/cm-hu-15a-web-pantalla-1-seleccion-de-proyecto-y-capa-de-servicios) | padre | — | Entrega 2 · M5 |
+| CM-HU-15a.1 | [DIS-58](https://linear.app/distinta-ai4devs/issue/DIS-58/cm-hu-15a1-andamiaje-web-tailwind-rtl-jsdom-testa11y-real-router) | sub | DIS-51 | Entrega 2 · M5 |
+| CM-HU-15a.2 | [DIS-60](https://linear.app/distinta-ai4devs/issue/DIS-60/cm-hu-15a2-projectpickerpage-desde-la-constante-de-proyectos-de) | sub | DIS-51 | Entrega 2 · M5 |
+| CM-HU-15b | [DIS-62](https://linear.app/distinta-ai4devs/issue/DIS-62/cm-hu-15b-web-pantalla-2-consulta-con-evidencia-verificada-unknown-y) | padre | — | Entrega 2 · M5 |
+| CM-HU-15b.1 | [DIS-65](https://linear.app/distinta-ai4devs/issue/DIS-65/cm-hu-15b1-askpage-querybox-sugeridas-answerviewstatementbadge) | sub | DIS-62 | Entrega 2 · M5 |
+| CM-HU-15b.2 | [DIS-66](https://linear.app/distinta-ai4devs/issue/DIS-66/cm-hu-15b2-usagepanel-estados-unknown-no-anchor-llm-required-429-error) | sub | DIS-62 | Entrega 2 · M5 |
+| CM-HU-16a | [DIS-83](https://linear.app/distinta-ai4devs/issue/DIS-83/cm-hu-16a-impacto-determinista-por-grafo-directo-indirecto-tests) | padre | — | Entrega 3 · M6 |
+| CM-HU-16a.1 | [DIS-89](https://linear.app/distinta-ai4devs/issue/DIS-89/cm-hu-16a1-caso-de-uso-impact-ancla-travesia-inversa-a-n-saltos) | sub | DIS-83 | Entrega 3 · M6 |
+| CM-HU-16a.2 | [DIS-90](https://linear.app/distinta-ai4devs/issue/DIS-90/cm-hu-16a2-regla-de-riesgo-con-justificacion-cli-impact-query-log) | sub | DIS-83 | Entrega 3 · M6 |
+| CM-HU-16b | [DIS-93](https://linear.app/distinta-ai4devs/issue/DIS-93/cm-hu-16b-impacto-senal-historica-git-documentacion-desalineada-y-post) | padre | — | Entrega 3 · M6 |
+| CM-HU-16b.1 | [DIS-94](https://linear.app/distinta-ai4devs/issue/DIS-94/cm-hu-16b1-history-por-co-cambio-y-pr-docs-con-stalestalesince-por) | sub | DIS-93 | Entrega 3 · M6 |
+| CM-HU-16b.2 | [DIS-95](https://linear.app/distinta-ai4devs/issue/DIS-95/cm-hu-16b2-post-impact-con-esquema-zod-y-tests-200400404) | sub | DIS-93 | Entrega 3 · M6 |
+| CM-HU-17 | [DIS-8](https://linear.app/distinta-ai4devs/issue/DIS-8/cm-hu-17-web-pantalla-3-informe-de-impacto-con-origen-por-linea) | padre | — | Entrega 3 · M5 |
+| CM-HU-17.1 | [DIS-14](https://linear.app/distinta-ai4devs/issue/DIS-14/cm-hu-171-impactpage-con-cinco-secciones-origintag-riskbanner-maxhops) | sub | DIS-8 | Entrega 3 · M5 |
+| CM-HU-18 | [DIS-20](https://linear.app/distinta-ai4devs/issue/DIS-20/cm-hu-18-analizador-typescript-sin-tocar-packagescore-y-semilla-de) | padre | — | Entrega 3 · M7 |
+| CM-HU-18.1 | [DIS-30](https://linear.app/distinta-ai4devs/issue/DIS-30/cm-hu-181-analizador-ts-estructura-spans-kind-aristas) | sub | DIS-20 | Entrega 3 · M7 |
+| CM-HU-18.2 | [DIS-31](https://linear.app/distinta-ai4devs/issue/DIS-31/cm-hu-182-llamadas-exact-via-typechecker-los-10-sitios-del-batch) | sub | DIS-20 | Entrega 3 · M7 |
+| CM-HU-18.3 | [DIS-32](https://linear.app/distinta-ai4devs/issue/DIS-32/cm-hu-183-semilla-y-golden-de-task-api-seedbuild-cache-build-verify) | sub | DIS-20 | Entrega 3 · M7 |
+| CM-HU-18.4 | [DIS-33](https://linear.app/distinta-ai4devs/issue/DIS-33/cm-hu-184-revision-humana-de-las-golden-de-task-api-q1-q4-trabajo-de) | sub | DIS-20 | Entrega 3 · M7 |
+| CM-HU-19 | [DIS-46](https://linear.app/distinta-ai4devs/issue/DIS-46/cm-hu-19-cache-semantica-por-similitud-de-embedding-con-metrica-de) | padre | — | Entrega 3 · M8 |
+| CM-HU-19.1 | [DIS-67](https://linear.app/distinta-ai4devs/issue/DIS-67/cm-hu-191-busqueda-por-similitud-en-cache-entry-umbral-integracion-en) | sub | DIS-46 | Entrega 3 · M8 |
+| CM-HU-19.2 | [DIS-69](https://linear.app/distinta-ai4devs/issue/DIS-69/cm-hu-192-hit-rate-por-proyecto-exposicion-en-cli-y-usagepanel) | sub | DIS-46 | Entrega 3 · M8 |
+| CM-HU-20 | [DIS-48](https://linear.app/distinta-ai4devs/issue/DIS-48/cm-hu-20-drift-contradicciones-entre-documentacion-y-codigo-f6) | padre | — | Entrega 3 · M8 |
+| CM-HU-20.1 | [DIS-71](https://linear.app/distinta-ai4devs/issue/DIS-71/cm-hu-201-extraccion-de-afirmaciones-del-doc-confrontacion-con) | sub | DIS-48 | Entrega 3 · M8 |
+| CM-HU-20.2 | [DIS-73](https://linear.app/distinta-ai4devs/issue/DIS-73/cm-hu-202-cli-drift-golden-q5-query-log) | sub | DIS-48 | Entrega 3 · M8 |
+| CM-HU-21 | [DIS-50](https://linear.app/distinta-ai4devs/issue/DIS-50/cm-hu-21-e2e-con-playwright-cobertura-publicada-y-gates-de-calidad) | padre | — | Entrega 3 · M9 |
+| CM-HU-21.1 | [DIS-75](https://linear.app/distinta-ai4devs/issue/DIS-75/cm-hu-211-playwright-config-ask-flow-y-unknown-sobre-la-semilla-job) | sub | DIS-50 | Entrega 3 · M9 |
+| CM-HU-21.2 | [DIS-77](https://linear.app/distinta-ai4devs/issue/DIS-77/cm-hu-212-cobertura-informativa-por-paquete-stryker-activo-como-gate) | sub | DIS-50 | Entrega 3 · M9 |
+| CM-HU-22 | [DIS-53](https://linear.app/distinta-ai4devs/issue/DIS-53/cm-hu-22-mediciones-publicadas-tabla-1-ahorro-de-contexto-y-tabla-2) | padre | — | Entrega 3 · M9 |
+| CM-HU-22.1 | [DIS-79](https://linear.app/distinta-ai4devs/issue/DIS-79/cm-hu-221-formato-de-anotacion-measure-graph-script-determinista-tabla) | sub | DIS-53 | Entrega 3 · M9 |
+| CM-HU-22.3 | [DIS-80](https://linear.app/distinta-ai4devs/issue/DIS-80/cm-hu-223-anotar-a-mano-los-50-sitios-de-llamada-por-lenguaje-38-40) | sub | DIS-53 | Entrega 3 · M9 |
+| CM-HU-22.2 | [DIS-81](https://linear.app/distinta-ai4devs/issue/DIS-81/cm-hu-222-measure-context-con-ollama-csv-ratio-de-verificacion) | sub | DIS-53 | Entrega 3 · M9 |
+| CM-HU-22.4 | [DIS-82](https://linear.app/distinta-ai4devs/issue/DIS-82/cm-hu-224-revisar-a-mano-la-correccion-de-las-20-respuestas-por) | sub | DIS-53 | Entrega 3 · M9 |
