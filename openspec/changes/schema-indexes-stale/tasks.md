@@ -48,9 +48,11 @@
 ## 5. Backend: Review and Update Existing Tests (MANDATORY)
 
 - [x] 5.1 Identify the existing tests affected by `0003`: the lifecycle tests of `migrations.spec.ts` (step 4), and every snapshot equality, which now includes indexes, triggers and functions. Confirm the constraints files need no change
-- [x] 5.2 Confirm no assertion was weakened. Confirm every `#### Scenario:` in `specs/graph-schema/spec.md` of this change has a test (14 scenarios)
+- [x] 5.2 Confirm no assertion was weakened. Confirm every `#### Scenario:` in `specs/graph-schema/spec.md` of this change has a test (16 scenarios after the adversarial review; 14 before)
 
 - [x] 5.3 After `/verify-against-spec` (2026-09-28): drop `OF content_hash` from the trigger (the `WHEN` guard alone decides) and pin `SET search_path = public` on the function in `0003`. In the spec, set `updated_at` to the transaction time (`now()`) and require exactly the listed secondary indexes. Re-run the store suite and the trigger forced failures (report 6 addendum)
+
+- [x] 5.4 After `/adversarial-review` (2026-09-28): add the scenarios and tests "A content hash rewritten by another trigger still marks the claims that cite it stale" and "Invalidation works whatever the session's search_path". Prove them with the forced failures of reintroducing `OF content_hash` and of removing `SET search_path`. Assert the literal three-migration list in the full-cycle test, and bound `rollbackAll`. Make the index helper's order deterministic and its cast normaliser complete. Add the cross-project and deadlock risks to `design.md` and to Linear DIS-23 / DIS-10 (report 6, addendum 2)
 
 ## 6. Backend: Run Tests and Verify Data State (MANDATORY)
 

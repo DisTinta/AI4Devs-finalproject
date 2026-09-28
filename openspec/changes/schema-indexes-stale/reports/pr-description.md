@@ -9,7 +9,7 @@ Adds migration `0003_indexes-stale`. It creates 17 secondary indexes:
 
 It also adds a trigger. When a file's `content_hash` changes, the trigger marks `stale` the claims
 that cite it. `snapshotSchema` now captures indexes, triggers and functions, so the lifecycle
-tests catch anything a down section leaves behind. Integration tests cover all 14 scenarios of the
+tests catch anything a down section leaves behind. Integration tests cover all 16 scenarios of the
 `graph-schema` delta, from OpenSpec change `schema-indexes-stale` (Linear DIS-13 / CM-HU-01.3).
 
 ## Why?
@@ -39,12 +39,12 @@ and the indexes are present in `pg_indexes`.
    - The rollback reverts **only** `0003_indexes-stale`.
    - The final state has 17 secondary indexes, the trigger `file_content_hash_marks_claims_stale`
      and the function `mark_claims_stale_on_content_change`.
-5. `npx vitest run tests/integration/store` → 77 passed (4 files).
+5. `npx vitest run tests/integration/store` → 79 passed (4 files).
 6. `npm run lint && npm run typecheck && npm run lint:architecture && npm run docs:coverage`: all
    exit 0, and the existing warnings are unchanged.
 7. Independent demonstration against the real scripts and database:
    `node openspec/changes/schema-indexes-stale/reports/2026-09-28-demo.mjs`
-   → `14 scenarios exercised, 14 match the spec`.
+   → `16 scenarios exercised, 16 match the spec`.
 
 Evidence from the agent's run, in `openspec/changes/schema-indexes-stale/reports/`:
 
@@ -79,6 +79,28 @@ Fixes after `/verify-against-spec`, commit `7dc275f`:
   `BEFORE` trigger cannot skip invalidation.
 - **The function pins `SET search_path = public`.**
 - **The spec now says "transaction time (`now()`)" and "exactly the listed secondary indexes".**
+
+Fixes after `/adversarial-review` (it returned FAIL, with one Major):
+
+- **The Major: nothing guarded the `7dc275f` change.** Reintroducing `OF content_hash` left all 7
+  trigger tests green. The fix is a new scenario, "A content hash rewritten by another trigger still
+  marks the claims that cite it stale". Its test creates a throwaway `BEFORE UPDATE` trigger inside
+  its own transaction, then runs `UPDATE file SET loc = 42`. With `OF content_hash` put back, that
+  test fails (`expected 'current' to be 'stale'`).
+- **`search_path`.** New scenario, "Invalidation works whatever the session's search_path": a
+  `pg_catalog`-only session updates `public.file`. With `SET search_path` removed, that test fails
+  (`relation "claim" does not exist`).
+- **Lifecycle tests:** the full-cycle test asserts the literal three-migration list. `rollbackAll`
+  is bounded and asserts that each call reverts exactly one migration.
+- **Index helper:** its order is deterministic (`ORDER BY` plus a tie-break on the predicate), and
+  the cast normaliser handles multi-word, quoted and array types.
+- **`design.md` Risks, two new entries:**
+  - invalidation can cross projects through cross-project evidence (accepted DIS-12 risk);
+  - concurrent re-indexes can deadlock on shared claims.
+
+  Both are also noted on DIS-23 and DIS-10.
+- **Spec edits after implementation** ("transaction time", "exactly these secondary indexes"): the
+  author approved them explicitly.
 
 Evidence quality:
 
@@ -124,6 +146,8 @@ Known limits:
 | Setting a first content hash marks the claims that cite it stale | `indexes-stale.spec.ts` › "Setting a first content hash marks the claims that cite it stale" |
 | A claim already stale is not touched | `indexes-stale.spec.ts` › "A claim already stale is not touched" |
 | A claim citing several files becomes stale when one of them changes | `indexes-stale.spec.ts` › "A claim citing several files becomes stale when one of them changes" |
+| A content hash rewritten by another trigger still marks the claims that cite it stale | `indexes-stale.spec.ts` › "A content hash rewritten by another trigger still marks the claims that cite it stale" |
+| Invalidation works whatever the session's search_path | `indexes-stale.spec.ts` › "Invalidation works whatever the session's search_path" |
 
 ## Origin
 

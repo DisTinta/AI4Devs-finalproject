@@ -4,7 +4,7 @@
 - Change: schema-indexes-stale (DIS-13)
 - Code exercised: `feature/DIS-13-schema-indexes-stale` at `59b977c`, plus the `/verify-against-spec` fixes to `0003`
   (trigger `AFTER UPDATE ON file` guarded only by `WHEN`, function `SET search_path = public`), re-run
-  after them
+  after them and again after the `/adversarial-review` additions (two scenarios, 16 in total)
 - System: local `docker compose` Postgres (`pgvector/pgvector:pg16`, healthy, pgvector 0.8.6).
   Shared DB: `postgres://codemind:codemind@localhost:5432/codemind`.
 - Interfaces:
@@ -26,7 +26,7 @@
     `packages/adapters/store-postgres/package.json`. It resolves from the repo root because npm
     workspaces hoist it to the root `node_modules`. Run it from the repo root after `npm ci`.
 - Command: `DATABASE_URL=postgres://codemind:codemind@localhost:5432/codemind node openspec/changes/schema-indexes-stale/reports/2026-09-28-demo.mjs`
-  → exit 0, `SUMMARY: 14 scenarios exercised, 14 match the spec, 0 do not`.
+  → exit 0, `SUMMARY: 16 scenarios exercised, 16 match the spec, 0 do not`.
 
 ## Demonstrated
 
@@ -46,6 +46,8 @@
 | Setting a first content hash marks the claims that cite it stale | `NULL` → `h1` | `stale` | yes | log [B5] |
 | A claim already stale is not touched | `h1` → `h2` on a `stale` claim | `stale`, `updated_at` unchanged (2000-01-01) | yes | log [B6] |
 | A claim citing several files becomes stale when one of them changes | only file B changes | `stale` | yes | log [B7] |
+| A content hash rewritten by another trigger still marks the claims that cite it stale | throwaway `BEFORE UPDATE` trigger rewrites the hash; `UPDATE file SET loc = 42` | hash is `rewritten`, claim `stale` | yes | log [B8] |
+| Invalidation works whatever the session's search_path | `SET LOCAL search_path = pg_catalog`, then `UPDATE public.file SET content_hash = 'h2'` | update succeeds, claim `stale` | yes | log [B9] |
 
 ## Evidence
 
@@ -70,12 +72,14 @@ reference DB (0001 + 0002 only, via runner): tables 10, enums 11, indexes 13, tr
      indexed edge.* / symbol.file_id / evidence.* / claim, query_log, cache_entry.project_id / file_commit.commit_id  ← via 0003
 
 [B1] before: status=current updated_at=2000-01-01T00:00:00.000Z
-     after:  status=stale   updated_at=2026-09-28T18:52:26.306Z
+     after:  status=stale   updated_at=2026-09-28T19:15:52.443Z
 [B4] after h1 → h1:        status=current updated_at=2000-01-01T00:00:00.000Z
 [B5] after NULL → h1:      status=stale
 [B6] after (already stale): status=stale  updated_at=2000-01-01T00:00:00.000Z
+[B8] after UPDATE file SET loc = 42 (content_hash now 'rewritten' by the throwaway BEFORE trigger): status=stale
+[B9] SET LOCAL search_path = pg_catalog; UPDATE public.file … → status=stale
 
-SUMMARY: 14 scenarios exercised, 14 match the spec, 0 do not
+SUMMARY: 16 scenarios exercised, 16 match the spec, 0 do not
 ```
 
 The error path of the scripts is unchanged by this change and is not re-run here. With
@@ -99,7 +103,7 @@ No screenshots: the change has no browser UI.
 
 ## Not demonstrated
 
-- All 14 scenarios of the delta spec were demonstrated.
+- All 16 scenarios of the delta spec were demonstrated.
 - Outside the delta: query latency and plan choice on real data volumes are non-goals of this
   change (CM-HU-02.3). The `EXPLAIN` check of D3 is in report 6.
 

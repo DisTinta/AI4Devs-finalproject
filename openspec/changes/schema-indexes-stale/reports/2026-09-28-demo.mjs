@@ -280,6 +280,26 @@ async function partB() {
     const s = await report('after only B changed', cl);
     record(id, name, s.status === 'stale', 'stale');
   });
+  await scenario('A content hash rewritten by another trigger still marks the claims that cite it stale', async (id, name) => {
+    const p = await project(); const f = await file(p, 'h1'); const cl = await claim(p, [f]);
+    const helper = `demo_rewrite_hash_${randomUUID().replaceAll('-', '')}`;
+    await c.query(`CREATE FUNCTION ${helper}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.id = '${f}' THEN NEW.content_hash := 'rewritten'; END IF; RETURN NEW; END; $$`);
+    await c.query(`CREATE TRIGGER ${helper} BEFORE UPDATE ON file FOR EACH ROW EXECUTE FUNCTION ${helper}()`);
+    log(`    (throwaway BEFORE UPDATE trigger ${helper} rewrites this file's content_hash; dropped by ROLLBACK)`);
+    await exec('UPDATE file SET loc = $2 WHERE id = $1', [f, 42]);
+    const hash = (await one('SELECT content_hash FROM file WHERE id = $1', [f])).content_hash;
+    const s = await report(`after (content_hash now '${hash}')`, cl);
+    record(id, name, hash === 'rewritten' && s.status === 'stale', 'hash rewritten by the other trigger; claim stale');
+  });
+  await scenario("Invalidation works whatever the session's search_path", async (id, name) => {
+    const p = await project(); const f = await file(p, 'h1'); const cl = await claim(p, [f]);
+    await c.query('SET LOCAL search_path = pg_catalog');
+    log(`    > SET LOCAL search_path = pg_catalog   (session now: ${(await one('SHOW search_path')).search_path})`);
+    await exec('UPDATE public.file SET content_hash = $2 WHERE id = $1', [f, 'h2']);
+    const s = (await one('SELECT status FROM public.claim WHERE id = $1', [cl])).status;
+    log(`    after: status=${s}`);
+    record(id, name, s === 'stale', 'update succeeded; claim stale');
+  });
   await c.end();
 }
 

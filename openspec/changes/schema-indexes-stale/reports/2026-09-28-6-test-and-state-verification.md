@@ -133,3 +133,55 @@ The author approved four fixes. Two change `0003`, two change only the spec:
     `updated_at` moved.
 - After restoring: 77/77. The demo driver passes 14/14 (`14 scenarios exercised, 14 match the
   spec`), and the shared DB state is identical before and after.
+
+## Addendum 2 — re-run after `/adversarial-review` (2026-09-28)
+
+The review gave **FAIL**: no Blocker, one Major. The Major was that the reason for commit `7dc275f`
+(dropping `OF content_hash`) had no test, so putting `OF content_hash` back left all 7 trigger
+tests green. The author approved the following:
+
+- **Two new scenarios, each with a test** in `indexes-stale.spec.ts`. The spec now has 16
+  scenarios.
+  - "A content hash rewritten by another trigger still marks the claims that cite it stale". The
+    test creates a throwaway `BEFORE UPDATE` trigger inside its own transaction; the trigger
+    rewrites `NEW.content_hash` of that one file. The test then runs `UPDATE file SET loc = 42`.
+  - "Invalidation works whatever the session's search_path". The test runs
+    `SET LOCAL search_path = pg_catalog`, then a schema-qualified `UPDATE public.file …`.
+
+  The requirement text now says that invalidation depends only on the old and new hash, not on
+  which columns the `UPDATE` names, and not on the session's `search_path`.
+- **Forced failures.** Each was restored with `git checkout` (`git diff` clean), and the shared DB
+  was rolled back and re-applied:
+  - E. `AFTER UPDATE OF content_hash ON file` reintroduced: "A content hash rewritten by another
+    trigger…" fails with `expected 'current' to be 'stale'`. The other 8 still pass, which proves
+    the gap the review found was real.
+  - F. `SET search_path = public` removed: "Invalidation works whatever the session's search_path"
+    fails with `error: relation "claim" does not exist`.
+- **Lifecycle tests** (`migrations.spec.ts`):
+  - The full-cycle test asserts the literal list `0001_graph-l1`, `0002_history-claims`,
+    `0003_indexes-stale` before the rollback and after the re-apply.
+  - `rollbackAll` now has an upper bound (one call per known migration) and asserts that each
+    `db:rollback` reverts exactly one migration. A rollback that exits 0 without reverting anything
+    fails at once instead of looping to the timeout.
+- **Index helper** (`schema-snapshot.ts`):
+  - The SQL now has an `ORDER BY`, and the sort breaks ties on the predicate.
+  - The predicate normaliser strips every cast (`::character varying`, `::"MyType"`,
+    `::text[]`), checked on sample predicates.
+  - The limits of `unindexedCascadingForeignKeys` are documented: composite FKs are checked on
+    their first column, and any leading index counts.
+- **`design.md` Risks:** two new entries, cross-project invalidation through cross-project
+  evidence, and deadlocks between concurrent re-indexes. Both are also noted on Linear DIS-23 and
+  DIS-10.
+- **Spec edits after implementation** ("transaction time", "exactly these secondary indexes"):
+  the author approved them explicitly before they were made (2026-09-28).
+
+Results:
+
+- `npx vitest run tests/integration/store`: 4 files, **79 passed**, 0 failed, 0 skipped (63 s).
+- Demo driver: `16 scenarios exercised, 16 match the spec, 0 do not`, and the state was restored
+  identical.
+- Shared DB afterwards:
+  - user triggers: `file_content_hash_marks_claims_stale` only;
+  - non-extension functions: `mark_claims_stale_on_content_change` only, so no helper trigger or
+    function survived;
+  - `pgmigrations`: `0001`, `0002`, `0003`.

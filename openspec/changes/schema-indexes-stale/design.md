@@ -264,6 +264,20 @@ Comparing `indexdef` text would tie the test to PostgreSQL's formatting.
 - **[A delete-and-reinsert re-index bypasses the trigger]** Deleting a `file` row removes its
   evidence (cascade) and fires no invalidation. This is already recorded on DIS-23, DIS-85 and
   DIS-10: writers must update files in place.
+- **[Invalidation crosses projects through a cross-project evidence]** The database accepts an
+  `evidence` row that cites a file of another project (accepted DIS-12 risk, like the edge
+  endpoints). The trigger matches on `evidence.file_id` only. So changing a file in project A marks
+  `stale` a claim of project B that cites it. Found by the adversarial review (2026-09-28).
+  Accepted: the writers must not create cross-project evidence, and the note is on DIS-23 / DIS-10.
+  A project check in the trigger would hide the writer's bug instead of surfacing it.
+- **[Concurrent re-indexes can deadlock on shared claims]** The trigger is `FOR EACH ROW` and
+  issues one `UPDATE claim` per changed file. Two transactions updating overlapping files in
+  different orders lock the shared claim rows in different orders, and PostgreSQL resolves the
+  deadlock by aborting one of them. Same-row races are safe: under `READ COMMITTED` the second
+  writer re-checks `status = 'current'` and skips. This only matters if the indexer re-indexes one
+  project in parallel. Mitigation for the writers (DIS-23 / DIS-10): one re-index per project at a
+  time, updating files in a stable order (`ORDER BY id`), and retry on SQLSTATE `40P01`. Found by
+  the adversarial review (2026-09-28).
 - **[`updated_at` now has two writers]** The writers set it, and the trigger sets it on
   invalidation. The two uses do not conflict, and the readme records both.
 - **[Existing lifecycle tests change again]** They are rewritten, not weakened. "Roll back only
