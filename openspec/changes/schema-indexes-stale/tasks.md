@@ -95,4 +95,4 @@
   - three files migrate the shared DB.
 - [x] 9.3 ADR: none planned (`design.md` D8). Write one via `/adr-new` only if the author asks at review
 - [x] 9.4 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules
-- [ ] 9.5 Prepare the PR description (`/pr-describe`) against `feature/entrega-2-CRN`. After verification, set DIS-13 to In Review in Linear, with a comment in Spanish linking the PR
+- [x] 9.5 Prepare the PR description (`/pr-describe`) against `feature/entrega-2-CRN`. After verification, set DIS-13 to In Review in Linear, with a comment in Spanish linking the PR (2026-09-28: PR https://github.com/DisTinta/AI4Devs-finalproject/pull/7 opened as `DisTinta`; DIS-13 In Review with the PR link and a comment in Spanish)
