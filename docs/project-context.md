@@ -151,3 +151,7 @@ services that must be started first, quirks of the local environment.
 - **OpenSpec native skills are not under `ai-specs/`.** After `openspec init`, `/opsx:*` skills live
   in `.claude/skills/openspec-*` and `.cursor/skills/openspec-*`. Do not delete them on sync; they
   coexist with kit skills.
+- **The post-edit hook does not type-check file by file.** `CMD_STATIC_FILE` is empty in
+  `.claude/sdd-harness.env`: a bare `tsc --noEmit <file>` ignores `tsconfig.base.json` (falls back
+  to commonjs / node10 resolution, no `skipLibCheck`) and fails on every test that imports `vitest`.
+  The type gate is `npm run typecheck` (also in CI). A finer per-file check is a later chore.
