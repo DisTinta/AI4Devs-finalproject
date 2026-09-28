@@ -164,6 +164,13 @@ services that must be started first, quirks of the local environment.
   A whitespace-only `DATABASE_URL` is treated as unset (same error, exit 1). Rollback never drops
   the `vector` extension (shared with later migrations). Concurrent runs rely on node-pg-migrate's
   default advisory lock; untested.
+- **DB integration specs are kept out of jobs that have no Postgres.** With `CI` set and no
+  `DATABASE_URL`, `tests/integration/store/support.ts` throws on import (by design). The Frontend
+  workflow therefore runs `npx vitest run --exclude 'tests/integration/**'`, and Stryker uses
+  `vitest.stryker.config.ts`, which excludes the same folder. New integration suites go under
+  `tests/integration/` so they stay excluded. Locally, an aborted Stryker run leaves
+  `.stryker-tmp/` behind (gitignored). A later `npx vitest run` then collects the tests in that
+  sandbox, so delete the folder by hand.
 - **`tests/integration/store/schema-snapshot.ts` does not capture indexes, triggers, functions,
   sequences or views** — only columns, constraints, enums and extensions. Enough for migration
   0001, which has none of them; DIS-13 (indexes/triggers) must extend it before reusing it in a

@@ -174,6 +174,11 @@ table requirements. This section only fixes what the spec leaves to implementati
   not trigger it; `psql -c "DROP DATABASE …"` typed in the shell does. The agent does not run such
   statements through the shell. If the hook blocks a legitimate step during apply, the agent stops
   and reports; no workarounds.
+- [Self-loop and duplicate edges are allowed] → The schema accepts an edge whose source equals its
+  target, and several edges with the same endpoints, `kind` and `extractor`: there is no UNIQUE
+  constraint on `edge`. Accepted for L1 (decided 2026-09-28 after the second adversarial review):
+  the writers own deduplication, and a later user story adds a constraint if it turns out to be
+  needed. Re-indexing without deduplication in the writer would double edge counts.
 - [Value-level CHECKs are only as strict as the spec] → `edge_extractor_not_empty` rejects `''`
   but accepts whitespace-only values such as `' '`, and `project.node_count` / `edge_count` and
   `file.loc` accept negative numbers. Both match the spec as written; out of scope for DIS-11 and

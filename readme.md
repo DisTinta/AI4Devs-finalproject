@@ -1274,7 +1274,7 @@ Crear el esquema de PostgreSQL con pgvector, los índices para travesía del gra
 
 1. Migraciones para las 10 tablas del modelo de [3.1](#31-diagrama-del-modelo-de-datos), incluida la tabla de unión `FILE_COMMIT` con clave primaria compuesta.
 2. Habilitar `pgvector` e índices HNSW sobre `FILE.embedding`, `SYMBOL.embedding` y `CACHE_ENTRY.question_embedding`.
-3. Índices compuestos de travesía: `EDGE(project_id, source_id, kind)` y `EDGE(project_id, target_id, kind)`.
+3. Índices compuestos de travesía: `EDGE(project_id, source_id, kind)` y `EDGE(project_id, target_id, kind)`. **Obsoleto desde DIS-11:** `source_id` / `target_id` ya no existen (cada extremo son dos FK, ver el [ADR](docs/adr/20260928-edge-endpoints-as-fk-pairs.md)); DIS-13 los redefine sobre `source_symbol_id` / `source_file_id` / `target_symbol_id` / `target_file_id` (nota «Pendiente (DIS-13)» en §3.2 → Índices).
 4. Restricción `fact_only_from_l1`: impide `type = 'FACT'` cuando `layer = 'L2'`.
 5. Restricción `l2_requires_provenance`: exige `provenance` no nulo en la capa inferida.
 6. Consulta recursiva (`WITH RECURSIVE`) de travesía a N saltos, con límite de profundidad y detección de ciclos.

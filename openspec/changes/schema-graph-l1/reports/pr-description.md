@@ -27,6 +27,9 @@ DIS-11 / CM-HU-01.1: the first concrete piece of the knowledge graph on disk.
 5. `npx vitest run tests/integration/store` — 32 passed. Without `DATABASE_URL` locally, the DB
    suites are skipped with a warning; in CI (`CI` set) they fail instead.
 6. `npm run lint && npm run typecheck && npm run lint:architecture && npm run docs:coverage`.
+   CI emulation without a database: with `CI=1` and `DATABASE_URL` unset,
+   `npx vitest run --exclude 'tests/integration/**'` exits 0. Plain `npx vitest run` fails by design
+   (D5).
 7. Error path: unset `DATABASE_URL` and run `npm run db:migrate` — non-zero exit, message names
    `DATABASE_URL`.
 
@@ -72,6 +75,16 @@ and `2026-09-28-9-manual-interface-testing.md`.
   sequences or views. That is enough for migration 0001, which has none. DIS-13 must extend the
   helper (at least `pg_indexes.indexdef` and `pg_trigger`) before reusing it to prove its own
   migration is reversible.
+- **CI: DB integration specs run only in the `quality` job, which has Postgres.** The Frontend
+  job's test step runs `npx vitest run --exclude 'tests/integration/**'`. Stryker uses
+  `vitest.stryker.config.ts`, which excludes `tests/integration/**`, and the mutation step's
+  "any test file?" guard in `ci.yml` ignores `tests/integration`. Without these changes, both jobs
+  would fail: they run with `CI=true` and no `DATABASE_URL`, so `support.ts` throws on import
+  (design D5). D5 itself is unchanged. Until `packages/core` has its first unit test, the mutation
+  step keeps skipping, as it did before this PR.
+- **Accepted, L1:** the schema allows self-loop edges (source = target) and duplicate edges (same
+  endpoints, `kind` and `extractor`), because `edge` has no UNIQUE constraint. The writers own
+  deduplication; a later story adds a constraint if needed.
 - **Accepted, out of scope:** `edge.extractor` accepts whitespace-only values, and `node_count`,
   `edge_count` and `loc` accept negative numbers (both match the spec). No test covers concurrent
   migrate runs; they rely on node-pg-migrate's default advisory lock.

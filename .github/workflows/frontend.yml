@@ -53,9 +53,11 @@ jobs:
         if: steps.changes.outputs.frontend == 'true'
         run: npm run typecheck
 
+      # DB integration specs run only in ci.yml (the job with Postgres); here
+      # they would throw on import because CI is set and DATABASE_URL is not (design D5).
       - name: Unit / component tests
         if: steps.changes.outputs.frontend == 'true'
-        run: npx vitest run
+        run: npx vitest run --exclude 'tests/integration/**'
 
       - name: Accessibility (test:a11y)
         if: steps.changes.outputs.frontend == 'true'

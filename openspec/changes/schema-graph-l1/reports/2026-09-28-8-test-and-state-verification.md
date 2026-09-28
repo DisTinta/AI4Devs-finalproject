@@ -5,7 +5,9 @@
 - Change: schema-graph-l1
 - Step: 8 — Backend: Run Tests and Verify Data State
 - Code verified: base `e3bafe5` plus the working-tree changes committed as the
-  `fix(DIS-11): close adversarial-review gaps before archive` commit (runner, tests, docs). The migration SQL
+  `fix(DIS-11): close adversarial-review gaps before archive` commit (runner, tests, docs), then
+  re-verified with the CI changes of the `fix(DIS-11): keep DB integration specs out of Frontend and
+  Stryker` commit (second adversarial review; see "CI conditions" below). The migration SQL
   (`0001_graph-l1.up.sql` / `.down.sql`) is unchanged from `016def8`: down drops the four tables and
   six enum types with no `IF EXISTS`, and keeps the `vector` extension.
 
@@ -20,16 +22,40 @@ Postgres, `pgvector/pgvector:pg16`, compose default credentials).
 - `npm run typecheck`
 - `npm run lint:architecture`
 - `npm run docs:coverage`
-- `npm run db:migrate && npm run db:rollback && npm run db:migrate` (CI step reproduced)
+- `npm run db:migrate && npm run db:rollback && npm run db:migrate` (the CI step, run locally)
 
-Stryker was not re-run: it mutates only `packages/core`, which has no mutants yet, so it gives no
-signal on this change.
+### CI conditions (reproduced locally by emulating CI; the GitHub workflows were not run)
+
+The first version of this report ran every command with `DATABASE_URL` set and did not run
+Stryker. The reason it gave, that `packages/core` "has no mutants", was wrong: Stryker always does
+a dry run, and CI never ran these commands without a database. The second adversarial review
+found that the Frontend job (`npx vitest run`) and the mutation step (`npx stryker run`) both run
+with `CI=true` and no `DATABASE_URL`. Under design D5, `tests/integration/store/support.ts` then
+throws when it is imported. Fix: the Frontend step now runs
+`npx vitest run --exclude 'tests/integration/**'`; Stryker uses `vitest.stryker.config.ts`, which
+excludes `tests/integration/**`; and the mutation step's "any test file?" guard in `ci.yml` ignores
+`tests/integration`. D5 is unchanged in the `quality` job, which has Postgres.
+
+Local emulation, each with `CI=1`:
+
+| Job / step emulated | `DATABASE_URL` | Command | Result |
+|---|---|---|---|
+| Frontend "Unit / component tests" | unset | `npx vitest run --exclude 'tests/integration/**'` ¹ | exit 0, `No test files found` (`passWithNoTests`) |
+| D5 still enforced | unset | `npx vitest run` | exit 1, both store specs throw `DATABASE_URL must be set in CI` (expected) |
+| `quality` → Mutation testing (the `ci.yml` shell block, verbatim) | unset | guard `find … -prune …` then `npx stryker run` | guard finds no unit test, prints the skip warning, exit 0 |
+| Stryker run directly | unset | `npx stryker run` | the dry run no longer loads the store specs (vitest reports `exclude: fixtures/**, node_modules/**, tests/integration/**`). It still exits 1: with no unit tests left, vitest reports `No test files found` and Stryker aborts with `Something went wrong in the initial test run`. This zero-test state existed before this change and is why the guard skips the step. |
+| `quality` → Tests | set | `npx vitest run` ¹ | 2 files, 32 passed |
+| `quality` → Migrations | set | `db:migrate && db:rollback && db:migrate` | exit 0 |
+
+¹ Run locally with `.stryker-tmp/**` excluded as well: the aborted Stryker run left a gitignored
+sandbox in `.stryker-tmp/` that vitest would otherwise collect. The repository hook blocks
+`rm -rf`, so the folder is still on disk. CI checks out a clean tree without it.
 
 ## Test results
 
 - Targeted tests: 32 passed, 0 failed, 0 skipped, in both consecutive runs (≈ 23 s each)
 - Required suite: 2 files, 32 passed, 0 failed, 0 skipped; runtime ≈ 24 s
-- Gates: lint exit 0 (0 errors, 4 pre-existing `no-empty-object-type` warnings on empty ports);
+- Gates (re-run after the CI changes, same results): lint exit 0 (0 errors, 4 pre-existing `no-empty-object-type` warnings on empty ports);
   typecheck exit 0; lint:architecture exit 0 (0 errors, 8 pre-existing `no-orphans` warnings on
   stub packages); docs:coverage exit 0 with no warnings; CI migrate → rollback → migrate exit 0
 - Scenario coverage: the 27 `#### Scenario:` in `specs/graph-schema/spec.md` each have a test with

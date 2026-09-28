@@ -48,7 +48,7 @@
 
 - [x] 8.1 Capture pre-test baseline: list of tables in `public`, rows in `pgmigrations`, list of databases on the server (to detect leftover throwaway DBs)
 - [x] 8.2 Run targeted tests: `npx vitest run tests/integration/store`
-- [x] 8.3 Run the required broader suite and gates: `npx vitest run`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`; reproduce the CI step `npm run db:migrate && npm run db:rollback && npm run db:migrate`
+- [x] 8.3 Run the required broader suite and gates: `npx vitest run`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`; reproduce the CI step `npm run db:migrate && npm run db:rollback && npm run db:migrate` (reproduced locally by emulating CI, including the no-database Frontend and Stryker steps; see report 8)
 - [x] 8.4 Verify post-test state matches the baseline (shared DB migrated, no leftover throwaway databases, no test rows); restore and document if not
 - [x] 8.5 Create the report `openspec/changes/schema-graph-l1/reports/YYYY-MM-DD-8-test-and-state-verification.md` using the template in `docs/openspec-tasks-mandatory-steps.md` §6
 - [x] 8.6 Mark complete only after tests pass and the report exists

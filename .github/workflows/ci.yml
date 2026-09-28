@@ -88,10 +88,13 @@ jobs:
       # Skips cleanly until the first test exists: Stryker's dry run fails with
       # zero tests, and fabricating an empty test to force it green is exactly
       # what this gate is meant to prevent. It self-activates once tests land.
+      # tests/integration/** is ignored here and in Stryker's own vitest config
+      # (vitest.stryker.config.ts): those specs need Postgres, which this step
+      # does not have, and they cannot kill mutants in packages/core.
       - name: Mutation testing on critical paths
         if: steps.changes.outputs.business == 'true'
         run: |
-          if find packages tests \( -name '*.test.*' -o -name '*.spec.*' \) 2>/dev/null | grep -q .; then
+          if find packages tests -path tests/integration -prune -o \( -name '*.test.*' -o -name '*.spec.*' \) -print 2>/dev/null | grep -q .; then
             npx stryker run
           else
             echo "WARNING: no test files yet — skipping mutation testing until tests exist (Ticket 1/2)."
