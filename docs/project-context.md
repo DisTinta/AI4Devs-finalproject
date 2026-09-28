@@ -56,7 +56,9 @@ Verified against `package.json` (root and per package). If a command is not here
   and `passWithNoTests` is on, so a green run may mean **zero tests ran**.
 - A subset of tests: `npx vitest run <pattern>` — prefer this over the full suite.
 - Type check: `npm run typecheck` (root) — `tsc --build` over project references + a separate
-  `--noEmit` pass on `packages/web`.
+  `--noEmit` pass on `packages/web` + `tsc -p tests/tsconfig.json` for the root `tests/` folder
+  (Vitest-style `ESNext`/`Bundler` resolution; under Node16 the tests would be CommonJS and fail
+  with TS1479 when importing ESM packages).
 - Architecture rule: `npm run lint:architecture` (root) — dependency-cruiser over `packages` using
   `.dependency-cruiser.cjs` (the single config; CI runs the same file).
 - Lint: `npm run lint` (root) — ESLint flat config (`eslint.config.mjs`), `@eslint/js` +
@@ -70,32 +72,49 @@ Verified against `package.json` (root and per package). If a command is not here
   `CMD_DOCS_COVERAGE` in `.claude/sdd-harness.env` points here. `packages/web` is out of scope (React
   UI, not the API surface). As the public surface grows, undocumented exports fail this gate.
 - CLI: `npm run cli` (root) — `tsx packages/cli/src/index.ts`.
-- Migrations / rollback / seed / verify are **placeholders**: `npm run db:migrate`, `db:rollback`,
-  `db:seed`, `seed:build`, `verify` print a "pending Ticket …" message and exit 0. They do nothing yet.
+- Migrations: `npm run db:migrate` (apply all pending) / `npm run db:rollback` (revert the latest
+  one) — `tsx packages/adapters/store-postgres/src/migrate.ts up|down`, node-pg-migrate with SQL
+  files `NNNN_name.up.sql` / `NNNN_name.down.sql` in `packages/adapters/store-postgres/migrations/`
+  (bookkeeping table `pgmigrations`). Both need `DATABASE_URL` (non-zero exit without it); locally
+  `postgres://codemind:codemind@localhost:5432/codemind` with the compose defaults.
+- Seed / verify are **placeholders**: `npm run db:seed`, `seed:build`, `verify` print a
+  "pending Ticket …" message and exit 0. They do nothing yet.
 - Local stack: `docker compose up -d` starts Postgres (`pgvector/pgvector:pg16`) on `5432`. On
   Windows, `make up` needs Git Bash/WSL; in native PowerShell run the `npm` scripts directly.
 
 ## Testing
 
 - Framework: Vitest (root `vitest.config.ts`; no per-package vitest config yet).
-- Test locations: `tests/{unit,integration,e2e,a11y}` (currently only `.gitkeep` +
-  `tests/a11y/smoke.example.tsx`) and co-located package sources. Real suites are not written yet.
-- No test-database isolation exists yet. CI and `.env.example` point `DATABASE_URL` at the same
-  Postgres; the isolation strategy is not implemented (Ticket 3).
+- Test locations: `tests/{unit,integration,e2e,a11y}` and co-located package sources. The first real
+  suite is `tests/integration/store/` (schema migrations and constraints, against real Postgres).
+- DB integration tests need `DATABASE_URL`. Unset locally → they are **skipped with a warning**
+  (so a green run may have skipped them); unset in CI (`CI` set) → they fail. Isolation is minimal
+  until DIS-22: lifecycle tests use a throwaway database each; constraint tests run in
+  `BEGIN`/`ROLLBACK` with per-test unique values. Do not migrate/roll back the shared DB from a test.
 - Test data comes from `fixtures/` (`acme-shop`, `task-api`, `history`, `build-history.mjs`) and
   `seeds/graph-dump.sql`. `fixtures/**` is excluded from Vitest collection.
 
 ## Branch and ticket conventions
 
-- Branch naming: `feature/<slug>` (current: `feature/entrega-2-CRN`).
-- Ticket id: work is tracked in **Linear**, team `Distinta-AI4Devs`, key **`DIS`** (configured
-  2026-09-27). The ticket id is `DIS-n` (matches `[A-Z][A-Z0-9]+-[0-9]+`, `base-standards.md` §2)
-  and is the commit scope. Projects: `CODEMIND — Entrega 2` / `CODEMIND — Entrega 3`, milestones
-  M1–M9. Hierarchy: parent issue = user story `CM-HU-*`, sub-issue = one work slice `CM-HU-*.k`;
-  the `CM-HU-* → DIS-n` map is in `docs/ai-sessions/03-planificacion-historias-de-usuario.md` §6.
-  **OpenSpec (`/opsx:propose`) is fed from one sub-issue** moved to Todo, never from the parent story.
-  Linear is the live backlog source; older "Ticket N" references are internal notes, not ticket ids.
-- Base branch: `main`.
+- Ticket id: **Linear** team `Distinta-AI4Devs`, key **`DIS`** → ids are `DIS-n` (e.g. `DIS-123`).
+  Matches `[A-Z][A-Z0-9]+-[0-9]+` (`base-standards.md` §2); use as the commit scope. Not `COD`.
+  Projects: `CODEMIND — Entrega 2` / `CODEMIND — Entrega 3`, milestones M1–M9. Hierarchy: parent =
+  user story `CM-HU-*`, sub-issue = one work slice `CM-HU-*.k`; map in
+  `docs/ai-sessions/03-planificacion-historias-de-usuario.md` §6. Linear is the live backlog;
+  older "Ticket N" notes are not ticket ids.
+- **OpenSpec (`/opsx:propose`) is fed from the sub-issue (`DIS-n`)**, never from the parent user story.
+- Branch naming for a change: `feature/DIS-n-slug` (merge into delivery branch
+  `feature/entrega-2-CRN`). Ultimate base branch: `main`.
+- **Linear status via MCP** (agents, per sub-issue `DIS-n`):
+  1. Starting work → set status to **In Progress**.
+  2. Verification succeeds → set **In Review** or **Done**, and leave a comment linking the
+     OpenSpec change.
+  3. **Language of Linear text (project exception to `base-standards.md` §2 “tickets in
+     English”):** every comment, status note, and human-facing update written **into Linear**
+     MUST be **Spanish only** — one language per comment, no Spanglish, no mixing English and
+     Spanish in the same sentence. Identifiers may stay as-is (`DIS-11`, `schema-graph-l1`,
+     file paths, command names). Code, commits, OpenSpec artifacts, ADRs and PR technical body
+     remain English.
 
 ## Operational constraints
 
@@ -137,8 +156,8 @@ What the model does NOT know by default about this project: non-obvious behaviou
 services that must be started first, quirks of the local environment.
 
 - **Some CI gates run against stubs, on purpose.** `lint`, `lint:architecture` and `typecheck` are
-  real and must pass. `db:migrate`/`db:rollback` are stubs that exit 0 (CI's apply/rollback/apply
-  sequence is a no-op until Ticket 3). Mutation testing skips itself until the first test exists.
+  real and must pass, and so is CI's `db:migrate` → `db:rollback` → `db:migrate` step. Mutation
+  testing now runs (test files exist) but `packages/core` has no mutants yet, so the score is `n/a`.
   These are intentional scaffolding, not bugs — do not "fix" a stub by faking behaviour.
 - **The infra packages are stubs, not empty.** All 9 workspaces (`core`, `analyzers/{php,typescript}`,
   `adapters/{store-postgres,llm,git}`, `api`, `cli`, `web`) have a `package.json` and a `src/index.ts`,
@@ -146,8 +165,31 @@ services that must be started first, quirks of the local environment.
   They resolve in `npm ls`; do not expect real behaviour from them yet.
 - **Vitest can report success with no tests** (`passWithNoTests: true`). A green suite is not
   evidence that behaviour is covered.
-- **The repo is mid-build (Entrega 2).** `db:migrate`/`db:seed`/`seed:build`/`verify` are
-  placeholders; `make up` runs them but they no-op. Do not assume a working end-to-end flow exists.
+- **The repo is mid-build (Entrega 2).** `db:seed`/`seed:build`/`verify` are placeholders that
+  no-op, and the schema only has the L1 graph tables (`project`, `file`, `symbol`, `edge`).
+  `db:migrate` / `db:rollback` are real and need `DATABASE_URL`: `make up` gets it from `.env`,
+  because the Makefile includes and exports `.env`. Plain `npm run db:*` does not read `.env`.
+  Do not assume a working end-to-end flow exists.
+- **Migration runner edge cases (known behaviour, DIS-11).** `db:rollback` with nothing applied
+  prints `No migrations to run!` and exits 0 (no-op, symmetric with `db:migrate` when up to date).
+  A whitespace-only `DATABASE_URL` is treated as unset (same error, exit 1). Rollback never drops
+  the `vector` extension (shared with later migrations). Concurrent runs rely on node-pg-migrate's
+  default advisory lock; untested.
+- **DB integration specs are kept out of jobs that have no Postgres.** With `CI` set and no
+  `DATABASE_URL`, `tests/integration/store/support.ts` throws on import (by design). The Frontend
+  workflow therefore runs `npx vitest run --exclude 'tests/integration/**'`, and Stryker uses
+  `vitest.stryker.config.ts`, which excludes the same folder. New integration suites go under
+  `tests/integration/` so they stay excluded. Locally, an aborted Stryker run leaves
+  `.stryker-tmp/` behind (gitignored). A later `npx vitest run` then collects the tests in that
+  sandbox, so delete the folder by hand.
+- **`tests/integration/store/schema-snapshot.ts` does not capture indexes, triggers, functions,
+  sequences or views** — only columns, constraints, enums and extensions. Enough for migration
+  0001, which has none of them; DIS-13 (indexes/triggers) must extend it before reusing it in a
+  reversibility test.
 - **OpenSpec native skills are not under `ai-specs/`.** After `openspec init`, `/opsx:*` skills live
   in `.claude/skills/openspec-*` and `.cursor/skills/openspec-*`. Do not delete them on sync; they
   coexist with kit skills.
+- **The post-edit hook does not type-check file by file.** `CMD_STATIC_FILE` is empty in
+  `.claude/sdd-harness.env`: a bare `tsc --noEmit <file>` ignores `tsconfig.base.json` (falls back
+  to commonjs / node10 resolution, no `skipLibCheck`) and fails on every test that imports `vitest`.
+  The type gate is `npm run typecheck` (also in CI). A finer per-file check is a later chore.

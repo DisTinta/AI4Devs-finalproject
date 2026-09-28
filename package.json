@@ -2,6 +2,9 @@
   "name": "codemind",
   "version": "0.0.1",
   "private": true,
+  "engines": {
+    "node": ">=20.11"
+  },
   "workspaces": [
     "packages/core",
     "packages/analyzers/php",
@@ -15,11 +18,11 @@
   ],
   "scripts": {
     "dev": "concurrently --kill-others-on-fail \"npm -w packages/api run dev\" \"npm -w packages/web run dev\"",
-    "typecheck": "tsc --build && tsc -p packages/web/tsconfig.json --noEmit",
+    "typecheck": "tsc --build && tsc -p packages/web/tsconfig.json --noEmit && tsc -p tests/tsconfig.json",
     "lint": "eslint .",
     "lint:architecture": "depcruise packages --config .dependency-cruiser.cjs",
-    "db:migrate": "node -e \"console.log('pending Ticket 3 — db:migrate not implemented'); process.exit(0)\"",
-    "db:rollback": "node -e \"console.log('pending Ticket 3 — db:rollback not implemented'); process.exit(0)\"",
+    "db:migrate": "tsx packages/adapters/store-postgres/src/migrate.ts up",
+    "db:rollback": "tsx packages/adapters/store-postgres/src/migrate.ts down",
     "db:seed": "node -e \"console.log('pending Ticket 3 / seed:build — db:seed not implemented'); process.exit(0)\"",
     "seed:build": "node -e \"console.log('pending Ticket 3 — invoke node fixtures/build-history.mjs before indexing'); process.exit(0)\"",
     "cli": "tsx packages/cli/src/index.ts",
@@ -35,6 +38,7 @@
     "concurrently": "^8.2.0",
     "dependency-cruiser": "^16.3.0",
     "eslint": "^9.39.5",
+    "pg": "^8.23.0",
     "tsx": "^4.16.0",
     "typedoc": "^0.28.20",
     "typescript": "^5.5.0",
