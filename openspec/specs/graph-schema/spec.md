@@ -2,9 +2,12 @@
 
 ## Purpose
 
-Versioned, reversible PostgreSQL schema that stores Codemind's L1 knowledge graph (projects, files,
-symbols and the edges between them), plus the commands that apply and revert it, so every later
-store, indexing and query feature has a schema whose integrity the database itself enforces.
+Versioned, reversible PostgreSQL schema for Codemind's knowledge store, plus the commands that apply
+and revert it. It holds the L1 knowledge graph (projects, files, symbols and the edges between
+them), the Git history (commits and the files each one touched), the claims with the evidence that
+supports them, the per-query usage log and the answer cache. Every later store, indexing and query
+feature builds on a schema whose integrity the database itself enforces, including the rule that
+an inferred claim is never stored as a fact.
 
 ## Requirements
 
@@ -18,7 +21,8 @@ migration is pending MUST change nothing and MUST still exit with code 0.
 
 - **WHEN** `npm run db:migrate` runs against an empty PostgreSQL 16 database with pgvector available
 - **THEN** the command exits with code 0
-- **AND** the tables `project`, `file`, `symbol` and `edge` exist
+- **AND** exactly the tables `project`, `file`, `symbol`, `edge`, `commit`, `file_commit`, `claim`,
+  `evidence`, `query_log` and `cache_entry` exist
 
 #### Scenario: Migrate an up-to-date database
 
@@ -28,9 +32,19 @@ migration is pending MUST change nothing and MUST still exit with code 0.
 
 ### Requirement: Roll back the latest migration
 
-`npm run db:rollback` SHALL revert the most recently applied migration, removing every table and
-enum type that migration created, and SHALL exit with code 0 when it succeeds. The `vector`
-extension is shared database infrastructure and is not removed by rollback.
+`npm run db:rollback` SHALL revert only the most recently applied migration, removing every table
+and enum type that migration created and leaving every earlier migration applied, and SHALL exit
+with code 0 when it succeeds. Each further call reverts the next most recent migration. The
+`vector` extension is shared database infrastructure and is not removed by rollback.
+
+#### Scenario: Roll back only the latest migration
+
+- **WHEN** every migration is applied and `npm run db:rollback` runs once
+- **THEN** the command exits with code 0
+- **AND** the tables `commit`, `file_commit`, `claim`, `evidence`, `query_log` and `cache_entry`
+  and the enum types created with them no longer exist
+- **AND** the tables `project`, `file`, `symbol` and `edge` and their enum types still exist
+- **AND** the L1 graph migration is the only migration recorded as applied
 
 #### Scenario: Roll back the L1 graph migration
 
@@ -39,18 +53,26 @@ extension is shared database infrastructure and is not removed by rollback.
 - **AND** the tables `project`, `file`, `symbol` and `edge` no longer exist
 - **AND** the enum types created by that migration no longer exist
 
+#### Scenario: Roll back both migrations leaves an empty schema
+
+- **WHEN** every migration is applied and `npm run db:rollback` runs twice
+- **THEN** both commands exit with code 0
+- **AND** no table and no enum type created by the migrations exists
+- **AND** the `vector` extension still exists
+
 ### Requirement: Migrations are reversible and reproducible
 
 Applying, rolling back and re-applying the migrations SHALL leave the database with a schema
 identical to the one produced by the first application (same tables, columns, types, nullability,
-defaults and constraints), and both schemas SHALL satisfy the L1 column contract.
+defaults and constraints), and both schemas SHALL satisfy the L1 column contract and the history,
+claim, usage and cache column contract.
 
 #### Scenario: Apply, roll back and apply again
 
 - **WHEN** the migrations are applied, then rolled back, then applied again
 - **THEN** every step exits with code 0
 - **AND** the schema after the second application is identical to the schema after the first
-- **AND** the schema after the second application satisfies the L1 column contract
+- **AND** the schema after the second application satisfies both column contracts
 
 ### Requirement: Fail clearly without a connection string
 
@@ -265,3 +287,292 @@ The database does NOT require an edge's endpoints to belong to the same project 
   is deleted
 - **THEN** that `edge` row no longer exists
 - **AND** the files of project B still exist
+
+### Requirement: History, claim, usage and cache column contract
+
+After migration, the tables `commit`, `file_commit`, `claim`, `evidence`, `query_log` and
+`cache_entry` SHALL have exactly the columns below (from `readme.md` §3.1), with the stated type,
+nullability and default. "enum" means a PostgreSQL enum type restricted to the listed values.
+Nullability follows two rules:
+
+- A column that §3.1 marks `not null` or gives an explicit default is NOT NULL (with that default,
+  if any). Every other column not covered by the next rule is nullable.
+- Audit timestamp columns (`*_at`) that §3.1 does not mark are NOT NULL DEFAULT `now()`, the same
+  convention as the L1 `project.created_at` (author decision). This applies to
+  `claim.created_at`, `claim.updated_at`, `query_log.created_at` and `cache_entry.created_at`;
+  `commit.committed_at` (a Git value, not an audit column) and `cache_entry.last_hit_at` (unset
+  until the first hit) stay nullable.
+
+Every `id` is a `uuid`
+primary key generated by the database when omitted; `file_commit` has no `id` and its primary key
+is the pair (`file_id`, `commit_id`).
+
+| Table | Column | Type | Null | Default |
+|---|---|---|---|---|
+| `commit` | `id` | uuid | NOT NULL | generated |
+| `commit` | `project_id` | uuid | NOT NULL | — |
+| `commit` | `sha` | text | NOT NULL | — |
+| `commit` | `message` | text | NULL | — |
+| `commit` | `author_hash` | text | NULL | — |
+| `commit` | `committed_at` | timestamptz | NULL | — |
+| `commit` | `pr_number` | integer | NULL | — |
+| `file_commit` | `file_id` | uuid | NOT NULL | — |
+| `file_commit` | `commit_id` | uuid | NOT NULL | — |
+| `file_commit` | `lines_added` | integer | NULL | — |
+| `file_commit` | `lines_removed` | integer | NULL | — |
+| `claim` | `id` | uuid | NOT NULL | generated |
+| `claim` | `project_id` | uuid | NOT NULL | — |
+| `claim` | `subject` | text | NOT NULL | — |
+| `claim` | `predicate` | text | NOT NULL | — |
+| `claim` | `object` | text | NULL | — |
+| `claim` | `layer` | enum (`L1`, `L2`) | NOT NULL | — |
+| `claim` | `type` | enum (`FACT`, `INFERENCE`, `UNKNOWN`) | NOT NULL | — |
+| `claim` | `confidence` | double precision | NULL | — |
+| `claim` | `status` | enum (`current`, `stale`) | NOT NULL | `current` |
+| `claim` | `provenance` | jsonb | NULL | — |
+| `claim` | `created_at` | timestamptz | NOT NULL | `now()` |
+| `claim` | `updated_at` | timestamptz | NOT NULL | `now()` |
+| `evidence` | `id` | uuid | NOT NULL | generated |
+| `evidence` | `claim_id` | uuid | NOT NULL | — |
+| `evidence` | `file_id` | uuid | NOT NULL | — |
+| `evidence` | `start_line` | integer | NOT NULL | — |
+| `evidence` | `end_line` | integer | NOT NULL | — |
+| `evidence` | `verification` | enum (`none`, `cited`, `entailed`, `broken`) | NOT NULL | — |
+| `evidence` | `excerpt` | text | NULL | — |
+| `query_log` | `id` | uuid | NOT NULL | generated |
+| `query_log` | `project_id` | uuid | NOT NULL | — |
+| `query_log` | `question` | text | NOT NULL | — |
+| `query_log` | `capability` | enum (`explain`, `impact`, `drift`) | NOT NULL | — |
+| `query_log` | `input_tokens` | integer | NULL | — |
+| `query_log` | `output_tokens` | integer | NULL | — |
+| `query_log` | `baseline_tokens` | integer | NULL | — |
+| `query_log` | `cost_usd` | numeric(10,6) | NULL | — |
+| `query_log` | `latency_ms` | integer | NULL | — |
+| `query_log` | `cache_hit` | boolean | NOT NULL | `false` |
+| `query_log` | `created_at` | timestamptz | NOT NULL | `now()` |
+| `cache_entry` | `id` | uuid | NOT NULL | generated |
+| `cache_entry` | `project_id` | uuid | NOT NULL | — |
+| `cache_entry` | `question_normalized` | text | NOT NULL | — |
+| `cache_entry` | `question_embedding` | vector(1536) | NULL | — |
+| `cache_entry` | `response` | jsonb | NULL | — |
+| `cache_entry` | `hit_count` | integer | NOT NULL | `0` |
+| `cache_entry` | `created_at` | timestamptz | NOT NULL | `now()` |
+| `cache_entry` | `last_hit_at` | timestamptz | NULL | — |
+
+#### Scenario: Migrated schema matches the history, claim, usage and cache column contract
+
+- **WHEN** `npm run db:migrate` runs against an empty database
+- **THEN** for each of `commit`, `file_commit`, `claim`, `evidence`, `query_log` and `cache_entry`,
+  the set of columns equals the set in the table above
+- **AND** every column has the listed type, nullability and default
+- **AND** the primary key of `file_commit` is (`file_id`, `commit_id`) and every other table's
+  primary key is `id`
+
+#### Scenario: Defaults apply on a minimal claim, query log and cache entry
+
+- **WHEN** a `claim` row is inserted with only `project_id`, `subject`, `predicate`, `layer = 'L1'`
+  and `type = 'FACT'`, a `query_log` row with only `project_id`, `question` and `capability`, and a
+  `cache_entry` row with only `project_id` and `question_normalized`
+- **THEN** the claim has a generated `id`, `status = 'current'` and non-null `created_at` and
+  `updated_at`
+- **AND** the query log has a generated `id`, `cache_hit = false` and a non-null `created_at`
+- **AND** the cache entry has a generated `id`, `hit_count = 0` and a non-null `created_at`
+
+### Requirement: Commit table
+
+The schema SHALL provide a `commit` table that belongs to exactly one `project`, whose `sha` is
+required and unique within its project. The table has no column for an author's name or e-mail:
+the author is stored only as `author_hash`. Deleting a project MUST delete its commits.
+
+#### Scenario: Duplicate sha within a project is rejected
+
+- **WHEN** two `commit` rows with the same `project_id` and `sha` are inserted
+- **THEN** the database rejects the second insert
+
+#### Scenario: Same sha in two projects is accepted
+
+- **WHEN** two `commit` rows with the same `sha` but different `project_id` are inserted
+- **THEN** both inserts succeed
+
+#### Scenario: Deleting a project deletes its commits
+
+- **WHEN** a `project` that has `commit` rows is deleted
+- **THEN** its `commit` rows no longer exist
+
+### Requirement: File-commit table
+
+The schema SHALL provide a `file_commit` table that joins one existing `file` to one existing
+`commit`, where each (`file_id`, `commit_id`) pair appears at most once. Deleting the file or the
+commit MUST delete the row.
+
+The database does NOT require the file and the commit to belong to the same project. This is the
+same accepted risk as the L1 edge endpoints: the writers own that consistency.
+
+#### Scenario: Duplicate file and commit pair is rejected
+
+- **WHEN** two `file_commit` rows with the same `file_id` and `commit_id` are inserted
+- **THEN** the database rejects the second insert
+
+#### Scenario: File-commit pointing to a missing commit is rejected
+
+- **WHEN** a `file_commit` row is inserted whose `commit_id` does not exist in `commit`
+- **THEN** the database rejects the insert
+
+#### Scenario: File-commit pointing to a missing file is rejected
+
+- **WHEN** a `file_commit` row is inserted whose `file_id` does not exist in `file`
+- **THEN** the database rejects the insert
+
+#### Scenario: Deleting a file deletes its file-commit rows
+
+- **WHEN** a `file` that has `file_commit` rows is deleted
+- **THEN** its `file_commit` rows no longer exist
+- **AND** the `commit` rows still exist
+
+#### Scenario: Deleting a commit deletes its file-commit rows
+
+- **WHEN** a `commit` that has `file_commit` rows is deleted
+- **THEN** its `file_commit` rows no longer exist
+- **AND** the `file` rows still exist
+
+### Requirement: Claim table
+
+The schema SHALL provide a `claim` table that belongs to exactly one `project`, with a required
+`subject` and `predicate`, a required `layer` limited to `L1` or `L2`, a required `type` limited to
+`FACT`, `INFERENCE` or `UNKNOWN`, a `status` limited to `current` or `stale`, and an optional
+`confidence` that, when present, MUST be between 0 and 1 inclusive. The database MUST enforce the
+fact/inference distinction with two named constraints:
+
+- `fact_only_from_l1`: a claim with `type = 'FACT'` MUST have `layer = 'L1'`.
+- `l2_requires_provenance`: a claim with `layer = 'L2'` MUST have a non-null `provenance`.
+  The constraint rejects SQL `NULL` only: a JSON `null` (`'null'::jsonb`) and any JSON shape are
+  accepted here. Validating the provenance content belongs to the writer (CM-HU-09).
+
+Deleting a project MUST delete its claims.
+
+#### Scenario: Fact from the inferred layer is rejected
+
+- **WHEN** a `claim` row is inserted with `type = 'FACT'`, `layer = 'L2'` and a non-null
+  `provenance`
+- **THEN** the database rejects the insert
+- **AND** the rejection names the constraint `fact_only_from_l1`
+
+#### Scenario: Inferred claim without provenance is rejected
+
+- **WHEN** a `claim` row is inserted with `type = 'INFERENCE'`, `layer = 'L2'` and `provenance`
+  null
+- **THEN** the database rejects the insert
+- **AND** the rejection names the constraint `l2_requires_provenance`
+
+#### Scenario: Fact from the observed layer without provenance is accepted
+
+- **WHEN** a `claim` row is inserted with `type = 'FACT'`, `layer = 'L1'` and `provenance` null
+- **THEN** the insert succeeds
+
+#### Scenario: Inference from the inferred layer with provenance is accepted
+
+- **WHEN** a `claim` row is inserted with `type = 'INFERENCE'`, `layer = 'L2'` and a non-null
+  `provenance`
+- **THEN** the insert succeeds
+
+#### Scenario: Invalid claim type is rejected
+
+- **WHEN** a `claim` row is inserted with `type = 'GUESS'`
+- **THEN** the database rejects the insert
+
+#### Scenario: Confidence at the bounds is accepted
+
+- **WHEN** one `claim` row is inserted with `confidence = 0` and another with `confidence = 1`
+- **THEN** both inserts succeed
+
+#### Scenario: Confidence outside 0..1 is rejected
+
+- **WHEN** a `claim` row is inserted with `confidence = 1.5`
+- **THEN** the database rejects the insert
+
+#### Scenario: Deleting a project deletes its claims
+
+- **WHEN** a `project` that has `claim` rows is deleted
+- **THEN** its `claim` rows no longer exist
+
+### Requirement: Evidence table
+
+The schema SHALL provide an `evidence` table where each row belongs to exactly one existing `claim`
+and cites exactly one existing `file`, with a required span where `start_line` is greater than 0
+and `end_line` is greater than or equal to `start_line`, and a required `verification` limited to
+`none`, `cited`, `entailed` or `broken`. Deleting the claim MUST delete its evidence. Deleting the
+cited file MUST delete the evidence and MUST NOT delete the claim.
+
+The database does NOT require the cited file to belong to the claim's project (accepted risk, as
+for `file_commit`).
+
+#### Scenario: Invalid evidence span is rejected
+
+- **WHEN** an `evidence` row with `start_line = 10` and `end_line = 9` is inserted
+- **THEN** the database rejects the insert
+
+#### Scenario: Single-line evidence span is accepted
+
+- **WHEN** an `evidence` row with `start_line = 10` and `end_line = 10` is inserted
+- **THEN** the insert succeeds
+
+#### Scenario: Non-positive evidence start line is rejected
+
+- **WHEN** an `evidence` row with `start_line = 0` is inserted
+- **THEN** the database rejects the insert
+
+#### Scenario: Evidence without verification is rejected
+
+- **WHEN** an `evidence` row is inserted with `verification` null
+- **THEN** the database rejects the insert
+
+#### Scenario: Deleting a claim deletes its evidence
+
+- **WHEN** a `claim` that has `evidence` rows is deleted
+- **THEN** its `evidence` rows no longer exist
+
+#### Scenario: Deleting a cited file deletes the evidence but keeps the claim
+
+- **WHEN** a `file` cited by an `evidence` row is deleted
+- **THEN** that `evidence` row no longer exists
+- **AND** the `claim` it supported still exists
+
+### Requirement: Query log table
+
+The schema SHALL provide a `query_log` table that belongs to exactly one `project`, with a required
+`question` and a required `capability` limited to `explain`, `impact` or `drift` (`drift` is
+accepted although its feature is planned, not delivered). Deleting a project MUST delete its query
+log rows.
+
+#### Scenario: Planned drift capability is accepted
+
+- **WHEN** a `query_log` row is inserted with `capability = 'drift'`
+- **THEN** the insert succeeds
+
+#### Scenario: Unknown capability is rejected
+
+- **WHEN** a `query_log` row is inserted with `capability = 'summarise'`
+- **THEN** the database rejects the insert
+
+#### Scenario: Deleting a project deletes its query log
+
+- **WHEN** a `project` that has `query_log` rows is deleted
+- **THEN** its `query_log` rows no longer exist
+
+### Requirement: Cache entry table
+
+The schema SHALL provide a `cache_entry` table that belongs to exactly one `project`, with a
+required `question_normalized`. Deleting a project MUST delete its cache entries.
+
+The database does NOT require `question_normalized` to be unique within a project; whether it must
+be is decided by the cache feature that writes the table.
+
+#### Scenario: Cache entry without a normalized question is rejected
+
+- **WHEN** a `cache_entry` row is inserted with `question_normalized` null
+- **THEN** the database rejects the insert
+
+#### Scenario: Deleting a project deletes its cache entries
+
+- **WHEN** a `project` that has `cache_entry` rows is deleted
+- **THEN** its `cache_entry` rows no longer exist
