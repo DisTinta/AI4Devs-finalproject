@@ -2,7 +2,7 @@ import { copyFileSync, existsSync, mkdtempSync, rmSync, rmdirSync, symlinkSync, 
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { type ColumnShape, appliedMigrations, createThrowawayDatabase, snapshotSchema } from './schema-snapshot';
+import { type ColumnShape, type SchemaSnapshot, appliedMigrations, createThrowawayDatabase, snapshotSchema } from './schema-snapshot';
 import { MIGRATIONS_DIR, migrateUp } from '../../../packages/adapters/store-postgres/src/migrate';
 import { databaseUrl, describeWithDatabase, repoRoot, runCommand, runNpmScript } from './support';
 
@@ -10,10 +10,12 @@ const SCRIPT_TIMEOUT_MS = 60_000;
 const LIFECYCLE_TIMEOUT_MS = 120_000;
 
 const L1_TABLES = ['edge', 'file', 'project', 'symbol'];
+const HISTORY_TABLES = ['cache_entry', 'claim', 'commit', 'evidence', 'file_commit', 'query_log'];
+const ALL_TABLES = [...L1_TABLES, ...HISTORY_TABLES].sort();
 
-// Transcribed by hand from the "L1 column contract" table of
-// openspec/changes/schema-graph-l1/specs/graph-schema/spec.md. Enum columns use the type names of
-// design.md D4; their allowed values are checked through EXPECTED_ENUMS.
+// Transcribed by hand from the "L1 column contract" table of openspec/specs/graph-schema/spec.md.
+// Enum columns use the type names of design.md D4 (schema-graph-l1); their allowed values are
+// checked through L1_ENUMS.
 const col = (table: string, column: string, type: string, notNull: boolean, dflt: string | null = null): ColumnShape => ({
   table,
   column,
@@ -21,7 +23,7 @@ const col = (table: string, column: string, type: string, notNull: boolean, dflt
   notNull,
   default: dflt,
 });
-const EXPECTED_COLUMNS: ColumnShape[] = [
+const L1_COLUMNS: ColumnShape[] = [
   col('project', 'id', 'uuid', true, 'gen_random_uuid()'),
   col('project', 'name', 'text', true),
   col('project', 'root_path', 'text', true),
@@ -60,7 +62,7 @@ const EXPECTED_COLUMNS: ColumnShape[] = [
   col('edge', 'extractor', 'text', true),
   col('edge', 'weight', 'double precision', false),
 ];
-const EXPECTED_ENUMS: Record<string, string[]> = {
+const L1_ENUMS: Record<string, string[]> = {
   edge_kind: ['calls', 'imports', 'extends', 'implements', 'tested_by', 'co_changed', 'describes'],
   edge_resolution: ['exact', 'heuristic'],
   file_kind: ['source', 'test', 'doc', 'config'],
@@ -69,11 +71,93 @@ const EXPECTED_ENUMS: Record<string, string[]> = {
   symbol_kind: ['class', 'interface', 'method', 'function', 'route'],
 };
 
+// Transcribed by hand from the "History, claim, usage and cache column contract" table of
+// openspec/changes/schema-history-claims/specs/graph-schema/spec.md. Enum type names and label
+// order come from that change's design.md D2.
+const HISTORY_COLUMNS: ColumnShape[] = [
+  col('commit', 'id', 'uuid', true, 'gen_random_uuid()'),
+  col('commit', 'project_id', 'uuid', true),
+  col('commit', 'sha', 'text', true),
+  col('commit', 'message', 'text', false),
+  col('commit', 'author_hash', 'text', false),
+  col('commit', 'committed_at', 'timestamp with time zone', false),
+  col('commit', 'pr_number', 'integer', false),
+  col('file_commit', 'file_id', 'uuid', true),
+  col('file_commit', 'commit_id', 'uuid', true),
+  col('file_commit', 'lines_added', 'integer', false),
+  col('file_commit', 'lines_removed', 'integer', false),
+  col('claim', 'id', 'uuid', true, 'gen_random_uuid()'),
+  col('claim', 'project_id', 'uuid', true),
+  col('claim', 'subject', 'text', true),
+  col('claim', 'predicate', 'text', true),
+  col('claim', 'object', 'text', false),
+  col('claim', 'layer', 'claim_layer', true),
+  col('claim', 'type', 'claim_type', true),
+  col('claim', 'confidence', 'double precision', false),
+  col('claim', 'status', 'claim_status', true, "'current'::claim_status"),
+  col('claim', 'provenance', 'jsonb', false),
+  col('claim', 'created_at', 'timestamp with time zone', true, 'now()'),
+  col('claim', 'updated_at', 'timestamp with time zone', true, 'now()'),
+  col('evidence', 'id', 'uuid', true, 'gen_random_uuid()'),
+  col('evidence', 'claim_id', 'uuid', true),
+  col('evidence', 'file_id', 'uuid', true),
+  col('evidence', 'start_line', 'integer', true),
+  col('evidence', 'end_line', 'integer', true),
+  col('evidence', 'verification', 'evidence_verification', true),
+  col('evidence', 'excerpt', 'text', false),
+  col('query_log', 'id', 'uuid', true, 'gen_random_uuid()'),
+  col('query_log', 'project_id', 'uuid', true),
+  col('query_log', 'question', 'text', true),
+  col('query_log', 'capability', 'query_capability', true),
+  col('query_log', 'input_tokens', 'integer', false),
+  col('query_log', 'output_tokens', 'integer', false),
+  col('query_log', 'baseline_tokens', 'integer', false),
+  col('query_log', 'cost_usd', 'numeric(10,6)', false),
+  col('query_log', 'latency_ms', 'integer', false),
+  col('query_log', 'cache_hit', 'boolean', true, 'false'),
+  col('query_log', 'created_at', 'timestamp with time zone', true, 'now()'),
+  col('cache_entry', 'id', 'uuid', true, 'gen_random_uuid()'),
+  col('cache_entry', 'project_id', 'uuid', true),
+  col('cache_entry', 'question_normalized', 'text', true),
+  col('cache_entry', 'question_embedding', 'vector(1536)', false),
+  col('cache_entry', 'response', 'jsonb', false),
+  col('cache_entry', 'hit_count', 'integer', true, '0'),
+  col('cache_entry', 'created_at', 'timestamp with time zone', true, 'now()'),
+  col('cache_entry', 'last_hit_at', 'timestamp with time zone', false),
+];
+const HISTORY_ENUMS: Record<string, string[]> = {
+  claim_layer: ['L1', 'L2'],
+  claim_status: ['current', 'stale'],
+  claim_type: ['FACT', 'INFERENCE', 'UNKNOWN'],
+  evidence_verification: ['none', 'cited', 'entailed', 'broken'],
+  query_capability: ['explain', 'impact', 'drift'],
+};
+const ALL_ENUMS: Record<string, string[]> = { ...L1_ENUMS, ...HISTORY_ENUMS };
+
 const byTableAndColumn = (a: ColumnShape, b: ColumnShape) =>
   a.table.localeCompare(b.table) || a.column.localeCompare(b.column);
 
-function expectColumnContract(columns: ColumnShape[]): void {
-  expect([...columns].sort(byTableAndColumn)).toEqual([...EXPECTED_COLUMNS].sort(byTableAndColumn));
+/** The columns of `columns` that belong to `tables`, so each contract checks only its own tables. */
+function onlyTables(columns: ColumnShape[], tables: string[]): ColumnShape[] {
+  return columns.filter((c) => tables.includes(c.table));
+}
+
+/** Asserts that the columns of the contract's tables equal the contract, no more and no less. */
+function expectColumnContract(columns: ColumnShape[], contract: ColumnShape[]): void {
+  const tables = [...new Set(contract.map((c) => c.table))];
+  expect([...onlyTables(columns, tables)].sort(byTableAndColumn)).toEqual([...contract].sort(byTableAndColumn));
+}
+
+/** The enum types of `schema` whose names appear in `expected` (labels as found). */
+function enumsOf(schema: SchemaSnapshot, expected: Record<string, string[]>): Record<string, string[]> {
+  return Object.fromEntries(Object.entries(schema.enums).filter(([name]) => name in expected));
+}
+
+/** Primary keys of `tables`, as `table: definition`, in table order. */
+function primaryKeysOf(schema: SchemaSnapshot, tables: string[]): string[] {
+  return schema.constraints
+    .filter((c) => tables.includes(c.table) && c.definition.startsWith('PRIMARY KEY'))
+    .map((c) => `${c.table}: ${c.definition}`);
 }
 
 function tablesOf(columns: ColumnShape[]): string[] {
@@ -165,7 +249,7 @@ describeWithDatabase('graph-schema: migration lifecycle', () => {
       const result = migrate();
 
       expect(result.status, result.stderr).toBe(0);
-      expect(tablesOf((await snapshotSchema(throwaway.url)).columns)).toEqual(L1_TABLES);
+      expect(tablesOf((await snapshotSchema(throwaway.url)).columns)).toEqual(ALL_TABLES);
     },
     LIFECYCLE_TIMEOUT_MS,
   );
@@ -176,13 +260,27 @@ describeWithDatabase('graph-schema: migration lifecycle', () => {
       expect(migrate().status).toBe(0);
 
       const schema = await snapshotSchema(throwaway.url);
-      expectColumnContract(schema.columns);
-      expect(schema.enums).toEqual(EXPECTED_ENUMS);
+      expectColumnContract(schema.columns, L1_COLUMNS);
+      expect(enumsOf(schema, L1_ENUMS)).toEqual(L1_ENUMS);
       // "Every id is a uuid primary key generated by the database when omitted."
-      const primaryKeys = schema.constraints
-        .filter((c) => c.definition.startsWith('PRIMARY KEY'))
-        .map((c) => `${c.table}: ${c.definition}`);
-      expect(primaryKeys).toEqual(L1_TABLES.map((table) => `${table}: PRIMARY KEY (id)`));
+      expect(primaryKeysOf(schema, L1_TABLES)).toEqual(L1_TABLES.map((table) => `${table}: PRIMARY KEY (id)`));
+    },
+    LIFECYCLE_TIMEOUT_MS,
+  );
+
+  it(
+    'Migrated schema matches the history, claim, usage and cache column contract',
+    async () => {
+      expect(migrate().status).toBe(0);
+
+      const schema = await snapshotSchema(throwaway.url);
+      expectColumnContract(schema.columns, HISTORY_COLUMNS);
+      expect(enumsOf(schema, HISTORY_ENUMS)).toEqual(HISTORY_ENUMS);
+      expect(primaryKeysOf(schema, HISTORY_TABLES)).toEqual(
+        HISTORY_TABLES.map((table) =>
+          table === 'file_commit' ? 'file_commit: PRIMARY KEY (file_id, commit_id)' : `${table}: PRIMARY KEY (id)`,
+        ),
+      );
     },
     LIFECYCLE_TIMEOUT_MS,
   );
@@ -218,8 +316,10 @@ describeWithDatabase('graph-schema: migration lifecycle', () => {
     LIFECYCLE_TIMEOUT_MS,
   );
 
+  // Proves rollback reverts ONE migration per call (count: 1), which DIS-11 could not distinguish
+  // from "revert all" while 0001 was the only migration.
   it(
-    'Roll back the L1 graph migration',
+    'Roll back only the latest migration',
     async () => {
       expect(migrate().status).toBe(0);
 
@@ -227,9 +327,46 @@ describeWithDatabase('graph-schema: migration lifecycle', () => {
 
       expect(result.status, result.stderr).toBe(0);
       const schema = await snapshotSchema(throwaway.url);
+      expect(tablesOf(schema.columns)).toEqual(L1_TABLES);
+      expectColumnContract(schema.columns, L1_COLUMNS);
+      expect(schema.enums).toEqual(L1_ENUMS);
+      expect(await appliedMigrations(throwaway.url)).toEqual(['0001_graph-l1']);
+    },
+    LIFECYCLE_TIMEOUT_MS,
+  );
+
+  it(
+    'Roll back the L1 graph migration',
+    async () => {
+      expect(migrate().status).toBe(0);
+      // Reach "only the L1 graph migration is applied".
+      expect(rollback().status).toBe(0);
+      expect(await appliedMigrations(throwaway.url)).toEqual(['0001_graph-l1']);
+
+      const result = rollback();
+
+      expect(result.status, result.stderr).toBe(0);
+      const schema = await snapshotSchema(throwaway.url);
+      expect(onlyTables(schema.columns, L1_TABLES)).toEqual([]);
+      expect(enumsOf(schema, L1_ENUMS)).toEqual({});
+    },
+    LIFECYCLE_TIMEOUT_MS,
+  );
+
+  it(
+    'Roll back both migrations leaves an empty schema',
+    async () => {
+      expect(migrate().status).toBe(0);
+
+      const first = rollback();
+      const second = rollback();
+
+      expect(first.status, first.stderr).toBe(0);
+      expect(second.status, second.stderr).toBe(0);
+      const schema = await snapshotSchema(throwaway.url);
       expect(schema.columns).toEqual([]);
       expect(schema.enums).toEqual({});
-      // The vector extension is shared with later migrations (DIS-12/13): rollback keeps it.
+      // The vector extension is shared database infrastructure: rollback keeps it.
       expect(schema.extensions).toContain('vector');
     },
     LIFECYCLE_TIMEOUT_MS,
@@ -246,8 +383,10 @@ describeWithDatabase('graph-schema: migration lifecycle', () => {
       const second = await snapshotSchema(throwaway.url);
 
       expect(second).toEqual(first);
-      expectColumnContract(second.columns);
-      expect(second.enums).toEqual(EXPECTED_ENUMS);
+      expectColumnContract(second.columns, L1_COLUMNS);
+      expectColumnContract(second.columns, HISTORY_COLUMNS);
+      expect(tablesOf(second.columns)).toEqual(ALL_TABLES);
+      expect(second.enums).toEqual(ALL_ENUMS);
     },
     LIFECYCLE_TIMEOUT_MS,
   );

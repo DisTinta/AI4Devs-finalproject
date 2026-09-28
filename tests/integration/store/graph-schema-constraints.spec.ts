@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import type { Client } from 'pg';
 import { beforeAll, expect, it } from 'vitest';
-import { migrateUp } from '../../../packages/adapters/store-postgres/src/migrate';
-import { SQLSTATE, databaseUrl, describeWithDatabase, expectSqlState, unique, withRollback } from './support';
+import { SQLSTATE, describeWithDatabase, expectSqlState, migrateSharedDatabase, unique, withRollback } from './support';
 
-// This file is the only one that migrates the shared DATABASE_URL database, and it never rolls
-// back: migrations.spec.ts works on its own throwaway database. Every test runs in BEGIN/ROLLBACK
-// with values unique to the test, so parallel files and open transactions never collide.
+// This file and history-claims-constraints.spec.ts are the two files that migrate the shared
+// DATABASE_URL database, through migrateSharedDatabase() (which retries while the other file holds
+// node-pg-migrate's lock), and neither ever rolls back: migrations.spec.ts works on its own
+// throwaway database. Every test runs in
+// BEGIN/ROLLBACK with values unique to the test, so parallel files and open transactions never collide.
 
 async function insertProject(client: Client, name = unique('project')): Promise<string> {
   const { rows } = await client.query<{ id: string }>(
@@ -80,7 +81,7 @@ async function countRows(client: Client, table: 'file' | 'symbol' | 'edge', id: 
 
 describeWithDatabase('graph-schema: L1 tables and constraints', () => {
   beforeAll(async () => {
-    await migrateUp(databaseUrl as string);
+    await migrateSharedDatabase();
   }, 60_000);
 
   describeWithDatabase('L1 column contract', () => {
