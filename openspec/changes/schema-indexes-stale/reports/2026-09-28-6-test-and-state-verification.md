@@ -102,3 +102,34 @@ pgvector 0.8.6), with `DATABASE_URL=postgres://codemind:codemind@localhost:5432/
 
 - Status: PASS
 - Blocking issues: none
+
+## Addendum — re-run after `/verify-against-spec` (2026-09-28)
+
+The author approved four fixes. Two change `0003`, two change only the spec:
+
+1. The trigger is now `AFTER UPDATE ON file … WHEN (OLD.content_hash IS DISTINCT FROM
+   NEW.content_hash)`, without `OF content_hash`. A `BEFORE` trigger that rewrote the hash in an
+   `UPDATE` not naming the column can no longer skip invalidation.
+2. Spec: `updated_at` is set to the **transaction time (`now()`)**, not to "the current time".
+3. The function has `SET search_path = public`. The catalog confirms `proconfig =
+   {search_path=public}`.
+4. Spec: "exactly the secondary indexes below, and no other". The index contract test already
+   asserted the exact set.
+
+`0003` was rolled back on the shared DB, edited and re-applied.
+
+- **A first apply attempt failed with `syntax error at or near "$"`.** The cause was the edit
+  script: JavaScript's `String.replace` turns `$$` in the replacement text into `$`, so the
+  function body lost its dollar-quote delimiter. The migration's single transaction left nothing
+  applied (`pgmigrations` stayed `0001`, `0002`). Fixed, then applied.
+- `npx vitest run tests/integration/store` → 4 files, **77 passed**, 0 failed, 0 skipped.
+- **Trigger forced failures, re-run.** `0003` was restored from a scratch copy (`cmp` identical)
+  and the shared DB re-applied after each break:
+  - A. The `WHEN` guard removed. **Two** tests now fail: "Updating other columns of a file leaves
+    its claims current" and "Writing the same content hash again leaves claims current". Without
+    `OF content_hash`, the guard is the only thing that tells a hash change apart from any other
+    update.
+  - B. `status = 'current'` removed. "A claim already stale is not touched" fails, because
+    `updated_at` moved.
+- After restoring: 77/77. The demo driver passes 14/14 (`14 scenarios exercised, 14 match the
+  spec`), and the shared DB state is identical before and after.

@@ -50,6 +50,8 @@
 - [x] 5.1 Identify the existing tests affected by `0003`: the lifecycle tests of `migrations.spec.ts` (step 4), and every snapshot equality, which now includes indexes, triggers and functions. Confirm the constraints files need no change
 - [x] 5.2 Confirm no assertion was weakened. Confirm every `#### Scenario:` in `specs/graph-schema/spec.md` of this change has a test (14 scenarios)
 
+- [x] 5.3 After `/verify-against-spec` (2026-09-28): drop `OF content_hash` from the trigger (the `WHEN` guard alone decides) and pin `SET search_path = public` on the function in `0003`. In the spec, set `updated_at` to the transaction time (`now()`) and require exactly the listed secondary indexes. Re-run the store suite and the trigger forced failures (report 6 addendum)
+
 ## 6. Backend: Run Tests and Verify Data State (MANDATORY)
 
 - [x] 6.1 Capture the pre-test baseline:
