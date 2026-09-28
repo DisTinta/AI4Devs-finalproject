@@ -128,6 +128,13 @@ sandbox in `.stryker-tmp/` that vitest would otherwise collect. The repository h
     → `No migrations to run!`, exit 0.
   - With `DATABASE_URL` unset, `npm run db:migrate` → exit 1, `DATABASE_URL is not set` (spec
     unchanged; no default in `migrate.ts`).
+  - **Real run by the human (2026-09-28, after `283c349`):** after installing GNU make and running
+    `cp .env.example .env`, `make up` was run in Git Bash with no `DATABASE_URL` in the shell.
+    Every step ran in order: `docker compose up -d` (Postgres already running), `npm install`,
+    `npm run db:migrate` → `No migrations to run!` (the `.env` value reached the runner),
+    `npm run db:seed` → placeholder message, and `npm run dev` → Vite on `:5173` and the API
+    listening on `:3000`. This closes the Major. The container evidence above is kept as a
+    supplement.
 - Re-run after these changes: store tests 34/34 twice, full suite 34/34, lint / typecheck /
   lint:architecture / docs:coverage exit 0 (same pre-existing warnings), CI migrate → rollback →
   migrate exit 0. The Frontend emulation (`CI=1`, no DB, integration excluded) still exits 0.
