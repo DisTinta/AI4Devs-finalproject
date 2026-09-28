@@ -36,12 +36,19 @@ See `proposal.md` — Why. Current state that shapes the approach:
 ### D1 — node-pg-migrate as the migration tool
 
 Chosen by the author. It is PostgreSQL-only, maintained, supports plain `.sql` migrations with up
-and down sections, keeps applied state in a `pgmigrations` table, takes an advisory lock, and runs
-all pending migrations in a single transaction by default (`singleTransaction: true`), which gives
-the "no partial changes" guarantee for free. The spec records that guarantee as a non-normative note
-(requirement "Fail clearly without a connection string") rather than a tested scenario; the runner
-must not pass `singleTransaction: false`, and task 6.4 checks it. It also exposes a programmatic
-`runner({ databaseUrl, dir, direction, count, migrationsTable })`.
+and down sections, keeps applied state in a `pgmigrations` table, takes an advisory lock, and can
+run all pending migrations in a single transaction (`singleTransaction: true`), which gives the
+"no partial changes" guarantee. The spec records that guarantee as a non-normative note
+(requirement "Fail clearly without a connection string"). It also exposes a programmatic
+`runner({ databaseUrl, dir, direction, count, migrationsTable, singleTransaction })`.
+
+**Correction (2026-09-28, fourth adversarial review):** `singleTransaction` defaults to `true`
+only in node-pg-migrate's **CLI** (`bin/node-pg-migrate.js`). The programmatic `runner()` that
+`migrate.ts` calls reads the option as given. When it is left out, the value is `undefined`, and
+the runner wraps each migration in its own `BEGIN`/`COMMIT`, so a failing later migration would
+leave the earlier ones applied. `migrate.ts` therefore passes `singleTransaction: true` explicitly.
+The lifecycle test "A failing later migration leaves no partial changes" proves it: valid `0001`
+plus a broken `0002` leaves `pgmigrations` empty and no L1 table (task 6.4).
 
 Alternatives: a hand-written runner over `pg` (fewer dependencies, but locking, ordering and
 bookkeeping become our code to test); postgrator (lighter, less adopted); Prisma/Knex/Drizzle
@@ -67,7 +74,7 @@ exits non-zero on any runner error.
 `migrateUp`, `migrateDown` and `MIGRATIONS_DIR` are also re-exported from the package entry
 (`packages/adapters/store-postgres/src/index.ts`): they are the runner's public API for the future
 `StorePort` adapter and for the integration tests. Other runner options stay at node-pg-migrate's
-defaults (`checkOrder`, `singleTransaction`); only what differs from them is passed.
+defaults (`checkOrder`); `singleTransaction: true` is passed explicitly (see the correction in D1).
 
 Root scripts become:
 
@@ -174,6 +181,10 @@ table requirements. This section only fixes what the spec leaves to implementati
   not trigger it; `psql -c "DROP DATABASE …"` typed in the shell does. The agent does not run such
   statements through the shell. If the hook blocks a legitimate step during apply, the agent stops
   and reports; no workarounds.
+- [Rollback keeps the `vector` extension] → **Approved by the author, 2026-09-28.** The down
+  section drops the four tables and six enum types but not `vector`, which DIS-12/13 share. The
+  spec was adjusted after implementation (`016def8`) to say so. This is a closed decision: do not
+  reopen it in later reviews.
 - [CLI entry-point detection in `migrate.ts`] → The CLI starts only when the module is the entry
   point. It compares the canonical paths of `process.argv[1]` and the module: links resolved with
   `realpathSync`, and case folded on win32. A path that reaches the file through a symlink or

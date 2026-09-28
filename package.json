@@ -18,7 +18,7 @@
   ],
   "scripts": {
     "dev": "concurrently --kill-others-on-fail \"npm -w packages/api run dev\" \"npm -w packages/web run dev\"",
-    "typecheck": "tsc --build && tsc -p packages/web/tsconfig.json --noEmit",
+    "typecheck": "tsc --build && tsc -p packages/web/tsconfig.json --noEmit && tsc -p tests/tsconfig.json",
     "lint": "eslint .",
     "lint:architecture": "depcruise packages --config .dependency-cruiser.cjs",
     "db:migrate": "tsx packages/adapters/store-postgres/src/migrate.ts up",

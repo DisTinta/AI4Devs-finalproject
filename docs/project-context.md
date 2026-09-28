@@ -56,7 +56,9 @@ Verified against `package.json` (root and per package). If a command is not here
   and `passWithNoTests` is on, so a green run may mean **zero tests ran**.
 - A subset of tests: `npx vitest run <pattern>` — prefer this over the full suite.
 - Type check: `npm run typecheck` (root) — `tsc --build` over project references + a separate
-  `--noEmit` pass on `packages/web`.
+  `--noEmit` pass on `packages/web` + `tsc -p tests/tsconfig.json` for the root `tests/` folder
+  (Vitest-style `ESNext`/`Bundler` resolution; under Node16 the tests would be CommonJS and fail
+  with TS1479 when importing ESM packages).
 - Architecture rule: `npm run lint:architecture` (root) — dependency-cruiser over `packages` using
   `.dependency-cruiser.cjs` (the single config; CI runs the same file).
 - Lint: `npm run lint` (root) — ESLint flat config (`eslint.config.mjs`), `@eslint/js` +

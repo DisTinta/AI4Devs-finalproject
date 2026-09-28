@@ -3,7 +3,7 @@
 Replaces the `db:migrate` / `db:rollback` placeholders with a real node-pg-migrate runner
 (`packages/adapters/store-postgres/src/migrate.ts`, plain SQL `.up.sql` / `.down.sql`) and adds the
 first migration with the L1 graph tables `project`, `file`, `symbol` and `edge`. Integration tests
-under `tests/integration/store/` (34 tests) cover all 27 scenarios of the `graph-schema` delta spec (OpenSpec
+under `tests/integration/store/` (35 tests) cover all 27 scenarios of the `graph-schema` delta spec (OpenSpec
 change `schema-graph-l1`, Linear DIS-11 / CM-HU-01.1).
 
 ## Why?
@@ -24,7 +24,7 @@ DIS-11 / CM-HU-01.1: the first concrete piece of the knowledge graph on disk.
    (PowerShell: `$env:DATABASE_URL = 'postgres://codemind:codemind@localhost:5432/codemind'`).
 4. `npm run db:migrate && npm run db:rollback && npm run db:migrate` — the same sequence as CI;
    each step exits 0 and the last leaves `project`, `file`, `symbol`, `edge` in `public`.
-5. `npx vitest run tests/integration/store` — 34 passed. Without `DATABASE_URL` locally, the DB
+5. `npx vitest run tests/integration/store` — 35 passed. Without `DATABASE_URL` locally, the DB
    suites are skipped with a warning; in CI (`CI` set) they fail instead.
 6. `npm run lint && npm run typecheck && npm run lint:architecture && npm run docs:coverage`.
    CI emulation without a database: with `CI=1` and `DATABASE_URL` unset,
@@ -43,7 +43,8 @@ and `2026-09-28-9-manual-interface-testing.md`.
   `docs/project-context.md` requires:
   - `node-pg-migrate` ^9.0.0 (runtime, `@codemind/adapter-store-postgres`): PostgreSQL-only
     migration runner with a `pgmigrations` bookkeeping table, advisory lock and a single transaction
-    per run (a failing migration leaves no partial changes). Chosen over a hand-written runner
+    per run when `singleTransaction: true` is passed, as `migrate.ts` does (a failing migration
+    leaves no partial changes). Chosen over a hand-written runner
     (ordering/locking/bookkeeping would be our code to test) and postgrator (less adopted). Requires
     Node ≥ 20.11; CI uses Node 20.
   - `pg` ^8.23.0 (runtime): the PostgreSQL driver node-pg-migrate needs as a peer dependency; also
@@ -89,6 +90,14 @@ and `2026-09-28-9-manual-interface-testing.md`.
 - **Runner entry point:** the CLI check compares `realpathSync` paths, and folds case on win32.
   Before, running the runner through a symlink or junction exited 0 without migrating. This is
   tested.
+- **Single transaction per run, made explicit.** `singleTransaction` defaults to `true` only in
+  node-pg-migrate's CLI. The programmatic `runner()` left it `undefined` and committed each
+  migration on its own. `migrate.ts` now passes `singleTransaction: true`, and the test "A failing
+  later migration leaves no partial changes" (valid 0001 + broken 0002) proves that nothing is
+  left applied.
+- **Tests are type-checked.** No tsconfig covered `tests/`, so the IDE flagged `TS1479` (under
+  Node16 the root package makes the tests CommonJS). `tests/tsconfig.json` uses Vitest's
+  resolution (`ESNext` / `Bundler`), and `npm run typecheck` now includes it.
 - **Accepted, L1:** the schema allows self-loop edges (source = target) and duplicate edges (same
   endpoints, `kind` and `extractor`), because `edge` has no UNIQUE constraint. The writers own
   deduplication; a later story adds a constraint if needed.
@@ -106,13 +115,13 @@ and `2026-09-28-9-manual-interface-testing.md`.
 
 | Scenario in the specification | Test that covers it |
 |---|---|
-| Migrate an empty database | `tests/integration/store/migrations.spec.ts:162` |
-| Migrate an up-to-date database | `tests/integration/store/migrations.spec.ts:190` |
-| Roll back the L1 graph migration | `tests/integration/store/migrations.spec.ts:221` |
-| Apply, roll back and apply again | `tests/integration/store/migrations.spec.ts:238` |
-| DATABASE_URL is missing on migrate | `tests/integration/store/migrations.spec.ts:84` (unset), `:107` (blank) |
-| DATABASE_URL is missing on rollback | `tests/integration/store/migrations.spec.ts:95` |
-| Migrated schema matches the column contract | `tests/integration/store/migrations.spec.ts:173` |
+| Migrate an empty database | `tests/integration/store/migrations.spec.ts:163` |
+| Migrate an up-to-date database | `tests/integration/store/migrations.spec.ts:191` |
+| Roll back the L1 graph migration | `tests/integration/store/migrations.spec.ts:222` |
+| Apply, roll back and apply again | `tests/integration/store/migrations.spec.ts:239` |
+| DATABASE_URL is missing on migrate | `tests/integration/store/migrations.spec.ts:85` (unset), `:108` (blank) |
+| DATABASE_URL is missing on rollback | `tests/integration/store/migrations.spec.ts:96` |
+| Migrated schema matches the column contract | `tests/integration/store/migrations.spec.ts:174` |
 | Defaults apply on a minimal insert | `tests/integration/store/graph-schema-constraints.spec.ts:87` |
 | Duplicate project name is rejected | `tests/integration/store/graph-schema-constraints.spec.ts:110` |
 | Unknown language is rejected | `tests/integration/store/graph-schema-constraints.spec.ts:119` |

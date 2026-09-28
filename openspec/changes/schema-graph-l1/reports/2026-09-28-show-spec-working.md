@@ -125,9 +125,11 @@ No screenshots: the change has no browser UI.
 ## Not demonstrated
 
 - None of the 27 scenarios.
-- Out of scope by design: partial-failure atomicity is a non-normative note in the spec (guaranteed by
-  node-pg-migrate's `singleTransaction`), not a scenario; it was not exercised by injecting a broken
-  migration.
+- Out of scope by design: partial-failure atomicity is a non-normative note in the spec, not a
+  scenario, and this demo did not exercise it. Addendum 2026-09-28: the claim that it was
+  "guaranteed by node-pg-migrate's `singleTransaction`" was false for the programmatic runner. It
+  is now passed explicitly and covered by a lifecycle test with a broken second migration (see
+  report 8).
 
 ## Handoff
 

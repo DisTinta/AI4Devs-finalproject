@@ -1,0 +1,16 @@
+{
+  // Type-checks the root tests/ folder, which no package tsconfig covers. Vitest bundles the
+  // tests itself, so use its resolution (ESM, extensionless imports) instead of Node16/CommonJS:
+  // under Node16 the root package (no "type": "module") makes these files CommonJS, and importing
+  // the ESM store adapter fails with TS1479. Checked by `npm run typecheck`.
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false
+  },
+  "include": ["**/*.ts"]
+}

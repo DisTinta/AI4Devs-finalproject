@@ -53,14 +53,14 @@ sandbox in `.stryker-tmp/` that vitest would otherwise collect. The repository h
 
 ## Test results
 
-- Targeted tests: 34 passed, 0 failed, 0 skipped, in both consecutive runs (32 before the third
-  review's two new tests; both counts seen twice in a row)
-- Required suite: 2 files, 34 passed, 0 failed, 0 skipped; runtime ≈ 24 s
+- Targeted tests: 35 passed, 0 failed, 0 skipped, in both consecutive runs (32 and then 34 in
+  earlier rounds; each count seen twice in a row)
+- Required suite: 2 files, 35 passed, 0 failed, 0 skipped; runtime ≈ 24 s
 - Gates (re-run after the CI changes, same results): lint exit 0 (0 errors, 4 pre-existing `no-empty-object-type` warnings on empty ports);
   typecheck exit 0; lint:architecture exit 0 (0 errors, 8 pre-existing `no-orphans` warnings on
   stub packages); docs:coverage exit 0 with no warnings; CI migrate → rollback → migrate exit 0
 - Scenario coverage: the 27 `#### Scenario:` in `specs/graph-schema/spec.md` each have a test with
-  the identical title. Seven extra tests pin behaviour the scenarios leave half-covered:
+  the identical title. Eight extra tests pin behaviour the scenarios leave half-covered:
   - `Endpoint with both a symbol and a file is rejected (target side)`
   - `Endpoint with neither a symbol nor a file is rejected (source side)`
   - `Weight outside 0..1 is rejected (below the lower bound)` (`weight = -0.1`)
@@ -69,6 +69,7 @@ sandbox in `.stryker-tmp/` that vitest would otherwise collect. The repository h
   - `Single-line symbol is accepted` (`start_line = end_line = 1`, boundary of `symbol_span_valid`)
   - `CLI runs when invoked through a linked path` (runner entry point reached through a junction or
     symlink)
+  - `A failing later migration leaves no partial changes` (task 6.4, single transaction)
 - SQLSTATE of the three new constraint tests: `23514 check_violation` in all three
   (`edge_target_exactly_one`, `edge_source_exactly_one`, `edge_weight_range`).
 
@@ -92,8 +93,9 @@ sandbox in `.stryker-tmp/` that vitest would otherwise collect. The repository h
   - File restored byte-identical after each mutation (`git diff --quiet`).
 - Rollback with nothing applied: checked by hand on an empty temporary database before writing the
   test — `db:rollback` twice in a row prints `No migrations to run!` and exits 0 both times.
-- Partial-failure atomicity (task 6.4): `migrate.ts` does not pass `singleTransaction`, so
-  node-pg-migrate's default `true` applies; a comment in `migrate.ts` forbids disabling it.
+- Partial-failure atomicity (task 6.4): **corrected in the fourth review, see below.** The
+  earlier claim here, that node-pg-migrate's default `true` applied because `migrate.ts` did not
+  pass `singleTransaction`, was false.
 - End-to-end (step 10): not applicable — the change adds no user interface or user workflow; the
   `db:*` CLI scripts are exercised in step 9.
 - Notes: no flaky tests, no retries.
@@ -138,6 +140,32 @@ sandbox in `.stryker-tmp/` that vitest would otherwise collect. The repository h
 - Re-run after these changes: store tests 34/34 twice, full suite 34/34, lint / typecheck /
   lint:architecture / docs:coverage exit 0 (same pre-existing warnings), CI migrate → rollback →
   migrate exit 0. The Frontend emulation (`CI=1`, no DB, integration excluded) still exits 0.
+
+### Fourth adversarial review (same day): single transaction
+
+- Finding confirmed in the installed code. `singleTransaction` has `default: true` only in the CLI
+  parser (`node_modules/node-pg-migrate/bin/node-pg-migrate.js:174-175`). The programmatic
+  `runner()` checks `options.singleTransaction` as passed (`dist/bundle/index.js:3587`). When it is
+  `undefined`, each migration gets its own `BEGIN`/`COMMIT` (`index.js:2659-2661`).
+- RED: new lifecycle test "A failing later migration leaves no partial changes". It uses a
+  throwaway DB and a temporary folder holding a copy of `0001` plus `0002_broken` (`CREATE TABLE`
+  then `SELECT 1 / 0`), and calls `migrateUp(url, dir)`; `migrateUp` gained an optional `dir` that
+  defaults to `MIGRATIONS_DIR`, so the npm scripts are unchanged. Without the flag it failed:
+  `expected [ '0001_graph-l1' ] to deeply equal []`, meaning 0001 stayed committed.
+- GREEN: `singleTransaction: true` passed explicitly in `migrate.ts`, with a comment explaining
+  that the CLI default and the API default differ. The error (`division by zero`) propagates,
+  `pgmigrations` is empty and no L1 table exists. The RED run is the mutation proof: removing the
+  flag makes this test fail.
+- The missing-URL message now reads "…database to migrate or roll back."
+- The IDE flagged the integration tests: no tsconfig covered `tests/`. With the repo's Node16
+  settings the tests are CommonJS, so they failed with `TS1479` when importing the ESM
+  `migrate.ts`. `npm run typecheck` never saw this. Added `tests/tsconfig.json`
+  (`module: ESNext`, `moduleResolution: Bundler`, like Vitest) and appended it to `typecheck`.
+  Result: 0 errors. Forcing `--module Node16` reproduces the 2 `TS1479` errors, so the gate
+  would catch them.
+- Re-run: store tests 35/35 twice, full suite 35/35, lint / typecheck / lint:architecture /
+  docs:coverage exit 0, CI migrate → rollback → migrate exit 0, Frontend emulation (`CI=1`,
+  no DB) exit 0, `db:rollback` without `DATABASE_URL` exit 1.
 
 ## Data state verification
 

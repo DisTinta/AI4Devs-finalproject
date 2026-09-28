@@ -19,8 +19,10 @@ author while planning DIS-11 (`openspec/changes/schema-graph-l1/design.md` D1).
 ## Decision
 We choose **node-pg-migrate 9 with SQL migrations** because:
 * It is PostgreSQL-only and maintained, keeps applied state in a `pgmigrations` table, takes an
-  advisory lock and runs pending migrations in a single transaction by default, so a migration that
-  fails part-way leaves no partial changes.
+  advisory lock and, with `singleTransaction: true`, runs all pending migrations in one transaction,
+  so a migration that fails part-way leaves no partial changes. That option defaults to `true`
+  only in the tool's CLI; the programmatic `runner()` we call needs it passed explicitly
+  (corrected 2026-09-28: without it, each migration commits on its own).
 * With a hand-written runner, ordering, locking and bookkeeping would be our own code to test;
   postgrator is lighter but less adopted.
 * SQL files (the `sql` loader grouping `NNNN_name.up.sql` + `NNNN_name.down.sql`) keep the schema
@@ -30,7 +32,7 @@ We choose **node-pg-migrate 9 with SQL migrations** because:
 ## Consequences
 * New runtime dependencies in `@codemind/adapter-store-postgres`: `node-pg-migrate` (^9, requires
   Node ≥ 20.11; CI uses Node 20) and `pg` (^8); `@types/pg` as a dev dependency.
-* The runner (`packages/adapters/store-postgres/src/migrate.ts`, run with `tsx`) must never disable
-  `singleTransaction`.
+* The runner (`packages/adapters/store-postgres/src/migrate.ts`, run with `tsx`) must always pass
+  `singleTransaction: true`. A lifecycle test with a deliberately broken second migration guards it.
 * Rollback reverts one migration per call; every migration ships its `.down.sql`.
 * Applied migrations are never edited on the base branch; changes go in a new numbered pair.

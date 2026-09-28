@@ -12,14 +12,17 @@ const MIGRATIONS_TABLE = 'pgmigrations';
 
 type Direction = 'up' | 'down';
 
-async function run(databaseUrl: string, direction: Direction): Promise<void> {
-  // singleTransaction is left at its default (true): a migration that fails part-way
-  // leaves no partial changes. Do not disable it.
+async function run(databaseUrl: string, direction: Direction, dir: string = MIGRATIONS_DIR): Promise<void> {
+  // singleTransaction must be passed explicitly. `true` is only the default of node-pg-migrate's
+  // CLI; the programmatic runner() leaves it undefined and then commits each migration on its own,
+  // so a failing later migration would leave the earlier ones applied. With `true`, the whole run
+  // is one transaction and a failure leaves no partial changes. Do not remove it.
   await runner({
     databaseUrl,
-    dir: MIGRATIONS_DIR,
+    dir,
     migrationsTable: MIGRATIONS_TABLE,
     direction,
+    singleTransaction: true,
     count: direction === 'up' ? Infinity : 1,
     migrationLoaderStrategies: [{ extensions: ['.sql'], loader: 'sql' }],
   });
@@ -28,9 +31,11 @@ async function run(databaseUrl: string, direction: Direction): Promise<void> {
 /**
  * Applies every pending migration, in order, to the database at `databaseUrl`.
  * Does nothing when the schema is already up to date.
+ *
+ * @param dir - Migrations folder; defaults to {@link MIGRATIONS_DIR}. Tests pass a temporary folder.
  */
-export async function migrateUp(databaseUrl: string): Promise<void> {
-  await run(databaseUrl, 'up');
+export async function migrateUp(databaseUrl: string, dir: string = MIGRATIONS_DIR): Promise<void> {
+  await run(databaseUrl, 'up', dir);
 }
 
 /** Reverts the most recently applied migration on the database at `databaseUrl`. */
@@ -47,7 +52,7 @@ async function main(args: string[]): Promise<number> {
   // A whitespace-only value is treated as unset: it can never name a database.
   const databaseUrl = process.env.DATABASE_URL?.trim();
   if (!databaseUrl) {
-    console.error('DATABASE_URL is not set: point it at the PostgreSQL database to migrate.');
+    console.error('DATABASE_URL is not set: point it at the PostgreSQL database to migrate or roll back.');
     return 1;
   }
   try {

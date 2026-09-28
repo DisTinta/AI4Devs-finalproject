@@ -1,8 +1,9 @@
-import { existsSync, mkdtempSync, rmdirSync, symlinkSync, unlinkSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdtempSync, rmSync, rmdirSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type ColumnShape, appliedMigrations, createThrowawayDatabase, snapshotSchema } from './schema-snapshot';
+import { MIGRATIONS_DIR, migrateUp } from '../../../packages/adapters/store-postgres/src/migrate';
 import { databaseUrl, describeWithDatabase, repoRoot, runCommand, runNpmScript } from './support';
 
 const SCRIPT_TIMEOUT_MS = 60_000;
@@ -247,6 +248,31 @@ describeWithDatabase('graph-schema: migration lifecycle', () => {
       expect(second).toEqual(first);
       expectColumnContract(second.columns);
       expect(second.enums).toEqual(EXPECTED_ENUMS);
+    },
+    LIFECYCLE_TIMEOUT_MS,
+  );
+
+  // Non-normative note of the spec ("Fail clearly without a connection string"): a run that fails
+  // part-way leaves no partial changes. 0001 is valid and 0002 fails, so with one transaction for
+  // the whole run nothing of 0001 may survive.
+  it(
+    'A failing later migration leaves no partial changes',
+    async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'codemind-migrations-'));
+      try {
+        for (const file of ['0001_graph-l1.up.sql', '0001_graph-l1.down.sql']) {
+          copyFileSync(join(MIGRATIONS_DIR, file), join(dir, file));
+        }
+        writeFileSync(join(dir, '0002_broken.up.sql'), 'CREATE TABLE broken_probe (id integer);\nSELECT 1 / 0;\n');
+        writeFileSync(join(dir, '0002_broken.down.sql'), 'DROP TABLE broken_probe;\n');
+
+        await expect(migrateUp(throwaway.url, dir)).rejects.toThrow(/division by zero/);
+
+        expect(await appliedMigrations(throwaway.url)).toEqual([]);
+        expect((await snapshotSchema(throwaway.url)).columns).toEqual([]);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
     },
     LIFECYCLE_TIMEOUT_MS,
   );
