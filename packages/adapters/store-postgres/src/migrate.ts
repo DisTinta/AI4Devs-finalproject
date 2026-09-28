@@ -43,7 +43,8 @@ async function main(args: string[]): Promise<number> {
     console.error('Usage: migrate.ts up|down');
     return 2;
   }
-  const databaseUrl = process.env.DATABASE_URL;
+  // A whitespace-only value is treated as unset: it can never name a database.
+  const databaseUrl = process.env.DATABASE_URL?.trim();
   if (!databaseUrl) {
     console.error('DATABASE_URL is not set: point it at the PostgreSQL database to migrate.');
     return 1;

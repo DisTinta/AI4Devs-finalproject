@@ -159,6 +159,15 @@ services that must be started first, quirks of the local environment.
   evidence that behaviour is covered.
 - **The repo is mid-build (Entrega 2).** `db:seed`/`seed:build`/`verify` are placeholders and
   the schema only has the L1 graph tables (`project`, `file`, `symbol`, `edge`); `make up` runs them but they no-op. Do not assume a working end-to-end flow exists.
+- **Migration runner edge cases (known behaviour, DIS-11).** `db:rollback` with nothing applied
+  prints `No migrations to run!` and exits 0 (no-op, symmetric with `db:migrate` when up to date).
+  A whitespace-only `DATABASE_URL` is treated as unset (same error, exit 1). Rollback never drops
+  the `vector` extension (shared with later migrations). Concurrent runs rely on node-pg-migrate's
+  default advisory lock; untested.
+- **`tests/integration/store/schema-snapshot.ts` does not capture indexes, triggers, functions,
+  sequences or views** — only columns, constraints, enums and extensions. Enough for migration
+  0001, which has none of them; DIS-13 (indexes/triggers) must extend it before reusing it in a
+  reversibility test.
 - **OpenSpec native skills are not under `ai-specs/`.** After `openspec init`, `/opsx:*` skills live
   in `.claude/skills/openspec-*` and `.cursor/skills/openspec-*`. Do not delete them on sync; they
   coexist with kit skills.

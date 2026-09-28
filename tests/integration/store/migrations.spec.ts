@@ -98,6 +98,18 @@ describe('graph-schema: fail clearly without a connection string', () => {
     },
     SCRIPT_TIMEOUT_MS,
   );
+
+  // A whitespace-only value is a set-but-meaningless variable: treat it exactly like unset.
+  it(
+    'DATABASE_URL is missing on migrate (blank value)',
+    () => {
+      const result = runNpmScript('db:migrate', { DATABASE_URL: '   ' });
+
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toContain('DATABASE_URL is not set');
+    },
+    SCRIPT_TIMEOUT_MS,
+  );
 });
 
 // Every test gets its own empty throwaway database: the shared DATABASE_URL database is never
@@ -156,6 +168,21 @@ describeWithDatabase('graph-schema: migration lifecycle', () => {
       expect(result.status, result.stderr).toBe(0);
       expect(await snapshotSchema(throwaway.url)).toEqual(before);
       expect(await appliedMigrations(throwaway.url)).toEqual(appliedBefore);
+    },
+    LIFECYCLE_TIMEOUT_MS,
+  );
+
+  // Characterisation, not a spec scenario: rollback with nothing applied is a no-op that exits 0,
+  // symmetric with "Migrate an up-to-date database" (node-pg-migrate prints "No migrations to run!").
+  it(
+    'Roll back a database with nothing applied',
+    async () => {
+      const before = await snapshotSchema(throwaway.url);
+
+      const result = rollback();
+
+      expect(result.status, result.stderr).toBe(0);
+      expect(await snapshotSchema(throwaway.url)).toEqual(before);
     },
     LIFECYCLE_TIMEOUT_MS,
   );

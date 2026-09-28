@@ -19,7 +19,7 @@ Every later slice of M1 (history/claim tables in DIS-12, the integration harness
   runner. `db:seed`, `seed:build` and `verify` stay placeholders.
 - First migration: enable the `vector` extension, create the enums used by the L1 tables and the
   tables `project`, `file`, `symbol`, `edge` as described in `readme.md` §3.1, with its down
-  section dropping everything it created.
+  section dropping every table and enum it created (the shared `vector` extension stays).
 - **Deviation from `readme.md` §3.1 (decided by the author):** `edge` does not use a single
   `source_id` / `target_id` pair. Each endpoint becomes two nullable foreign keys
   (`source_symbol_id` / `source_file_id`, `target_symbol_id` / `target_file_id`) with a `CHECK` that

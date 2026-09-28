@@ -250,6 +250,35 @@ describeWithDatabase('graph-schema: L1 tables and constraints', () => {
       });
     });
 
+    // The two scenarios above pin each rule on one side only; these pin the other side, so neither
+    // edge_source_exactly_one nor edge_target_exactly_one can be loosened to <= 1 or >= 1 unnoticed.
+    it('Endpoint with both a symbol and a file is rejected (target side)', async () => {
+      await withRollback(async (client) => {
+        const g = await insertGraph(client);
+
+        await expectSqlState(
+          insertEdge(client, {
+            projectId: g.projectId,
+            sourceSymbolId: g.callerId,
+            targetSymbolId: g.calleeId,
+            targetFileId: g.fileId,
+          }),
+          SQLSTATE.checkViolation,
+        );
+      });
+    });
+
+    it('Endpoint with neither a symbol nor a file is rejected (source side)', async () => {
+      await withRollback(async (client) => {
+        const g = await insertGraph(client);
+
+        await expectSqlState(
+          insertEdge(client, { projectId: g.projectId, targetSymbolId: g.calleeId }),
+          SQLSTATE.checkViolation,
+        );
+      });
+    });
+
     it('Endpoint pointing to a missing row is rejected', async () => {
       await withRollback(async (client) => {
         const g = await insertGraph(client);
@@ -301,6 +330,22 @@ describeWithDatabase('graph-schema: L1 tables and constraints', () => {
             sourceSymbolId: g.callerId,
             targetSymbolId: g.calleeId,
             weight: 1.5,
+          }),
+          SQLSTATE.checkViolation,
+        );
+      });
+    });
+
+    it('Weight outside 0..1 is rejected (below the lower bound)', async () => {
+      await withRollback(async (client) => {
+        const g = await insertGraph(client);
+
+        await expectSqlState(
+          insertEdge(client, {
+            projectId: g.projectId,
+            sourceSymbolId: g.callerId,
+            targetSymbolId: g.calleeId,
+            weight: -0.1,
           }),
           SQLSTATE.checkViolation,
         );

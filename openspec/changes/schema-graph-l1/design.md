@@ -40,7 +40,7 @@ and down sections, keeps applied state in a `pgmigrations` table, takes an advis
 all pending migrations in a single transaction by default (`singleTransaction: true`), which gives
 the "no partial changes" guarantee for free. The spec records that guarantee as a non-normative note
 (requirement "Fail clearly without a connection string") rather than a tested scenario; the runner
-must not pass `singleTransaction: false`, and task 6.3 checks it. It also exposes a programmatic
+must not pass `singleTransaction: false`, and task 6.4 checks it. It also exposes a programmatic
 `runner({ databaseUrl, dir, direction, count, migrationsTable })`.
 
 Alternatives: a hand-written runner over `pg` (fewer dependencies, but locking, ordering and
@@ -174,6 +174,11 @@ table requirements. This section only fixes what the spec leaves to implementati
   not trigger it; `psql -c "DROP DATABASE …"` typed in the shell does. The agent does not run such
   statements through the shell. If the hook blocks a legitimate step during apply, the agent stops
   and reports; no workarounds.
+- [Value-level CHECKs are only as strict as the spec] → `edge_extractor_not_empty` rejects `''`
+  but accepts whitespace-only values such as `' '`, and `project.node_count` / `edge_count` and
+  `file.loc` accept negative numbers. Both match the spec as written; out of scope for DIS-11 and
+  accepted (decided 2026-09-28 after the adversarial review). Tighten in a later migration if a
+  writer ever produces such values.
 - [Throwaway database needs `CREATEDB` privilege] → CI and local compose connect as the Postgres
   superuser; documented in the test file.
 - [node-pg-migrate major version and ESM/Node 20 compatibility] → Verify the installed version's
