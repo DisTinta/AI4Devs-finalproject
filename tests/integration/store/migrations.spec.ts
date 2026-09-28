@@ -2,7 +2,16 @@ import { copyFileSync, existsSync, mkdtempSync, rmSync, rmdirSync, symlinkSync, 
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { type ColumnShape, type SchemaSnapshot, appliedMigrations, createThrowawayDatabase, snapshotSchema } from './schema-snapshot';
+import {
+  type ColumnShape,
+  type IndexShape,
+  type SchemaSnapshot,
+  appliedMigrations,
+  createThrowawayDatabase,
+  secondaryIndexShapes,
+  snapshotSchema,
+  unindexedCascadingForeignKeys,
+} from './schema-snapshot';
 import { MIGRATIONS_DIR, migrateUp } from '../../../packages/adapters/store-postgres/src/migrate';
 import { databaseUrl, describeWithDatabase, repoRoot, runCommand, runNpmScript } from './support';
 
@@ -10,6 +19,8 @@ const SCRIPT_TIMEOUT_MS = 60_000;
 const LIFECYCLE_TIMEOUT_MS = 120_000;
 
 const L1_TABLES = ['edge', 'file', 'project', 'symbol'];
+/** The migrations applied in the "only L1 graph + history" reference state. */
+const HISTORY_MIGRATIONS = ['0001_graph-l1', '0002_history-claims'];
 const HISTORY_TABLES = ['cache_entry', 'claim', 'commit', 'evidence', 'file_commit', 'query_log'];
 const ALL_TABLES = [...L1_TABLES, ...HISTORY_TABLES].sort();
 
@@ -134,6 +145,43 @@ const HISTORY_ENUMS: Record<string, string[]> = {
 };
 const ALL_ENUMS: Record<string, string[]> = { ...L1_ENUMS, ...HISTORY_ENUMS };
 
+// Transcribed by hand from the "Query and vector indexes" table of
+// openspec/changes/schema-indexes-stale/specs/graph-schema/spec.md (key columns in order, method,
+// opclass for HNSW, predicate). Sorted like secondaryIndexShapes(): by table, then columns.
+const btree = (table: string, columns: string[], predicate: string | null = null): IndexShape => ({
+  table,
+  columns,
+  method: 'btree',
+  opclasses: null,
+  predicate,
+});
+const hnswCosine = (table: string, column: string): IndexShape => ({
+  table,
+  columns: [column],
+  method: 'hnsw',
+  opclasses: ['vector_cosine_ops'],
+  predicate: null,
+});
+const EXPECTED_INDEXES: IndexShape[] = [
+  btree('cache_entry', ['project_id']),
+  hnswCosine('cache_entry', 'question_embedding'),
+  btree('claim', ['project_id']),
+  btree('claim', ['project_id', 'status'], "status = 'stale'"),
+  btree('edge', ['project_id']),
+  btree('edge', ['source_file_id', 'kind'], 'source_file_id IS NOT NULL'),
+  btree('edge', ['source_symbol_id', 'kind'], 'source_symbol_id IS NOT NULL'),
+  btree('edge', ['target_file_id', 'kind'], 'target_file_id IS NOT NULL'),
+  btree('edge', ['target_symbol_id', 'kind'], 'target_symbol_id IS NOT NULL'),
+  btree('evidence', ['claim_id']),
+  btree('evidence', ['file_id']),
+  hnswCosine('file', 'embedding'),
+  btree('file', ['project_id', 'content_hash']),
+  btree('file_commit', ['commit_id']),
+  btree('query_log', ['project_id']),
+  hnswCosine('symbol', 'embedding'),
+  btree('symbol', ['file_id']),
+];
+
 const byTableAndColumn = (a: ColumnShape, b: ColumnShape) =>
   a.table.localeCompare(b.table) || a.column.localeCompare(b.column);
 
@@ -162,6 +210,22 @@ function primaryKeysOf(schema: SchemaSnapshot, tables: string[]): string[] {
 
 function tablesOf(columns: ColumnShape[]): string[] {
   return [...new Set(columns.map((c) => c.table))].sort();
+}
+
+/**
+ * Applies only the named migrations (`NNNN_name`, as recorded in pgmigrations) to `url`, by copying
+ * their files to a temporary directory and running the real runner over it.
+ */
+async function migrateUpTo(url: string, ids: string[]): Promise<void> {
+  const dir = mkdtempSync(join(tmpdir(), 'codemind-migrate-up-to-'));
+  try {
+    for (const id of ids) {
+      for (const side of ['up', 'down']) copyFileSync(join(MIGRATIONS_DIR, `${id}.${side}.sql`), join(dir, `${id}.${side}.sql`));
+    }
+    await migrateUp(url, dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 describe('graph-schema: fail clearly without a connection string', () => {
@@ -235,6 +299,17 @@ describeWithDatabase('graph-schema: migration lifecycle', () => {
   const migrate = () => runNpmScript('db:migrate', { DATABASE_URL: throwaway.url });
   const rollback = () => runNpmScript('db:rollback', { DATABASE_URL: throwaway.url });
 
+  /** Runs `db:rollback` until nothing is applied; returns the number of calls. Each must exit 0. */
+  const rollbackAll = async (): Promise<number> => {
+    let calls = 0;
+    while ((await appliedMigrations(throwaway.url)).length > 0) {
+      const result = rollback();
+      expect(result.status, result.stderr).toBe(0);
+      calls += 1;
+    }
+    return calls;
+  };
+
   beforeEach(async () => {
     throwaway = await createThrowawayDatabase(databaseUrl as string);
   });
@@ -286,6 +361,27 @@ describeWithDatabase('graph-schema: migration lifecycle', () => {
   );
 
   it(
+    'Migrated schema has the query and vector indexes',
+    async () => {
+      expect(migrate().status).toBe(0);
+
+      expect(await secondaryIndexShapes(throwaway.url)).toEqual(EXPECTED_INDEXES);
+    },
+    LIFECYCLE_TIMEOUT_MS,
+  );
+
+  // Generic on purpose: a future cascading FK without an index fails here without editing the test.
+  it(
+    'Every cascading foreign key is indexed',
+    async () => {
+      expect(migrate().status).toBe(0);
+
+      expect(await unindexedCascadingForeignKeys(throwaway.url)).toEqual([]);
+    },
+    LIFECYCLE_TIMEOUT_MS,
+  );
+
+  it(
     'Migrate an up-to-date database',
     async () => {
       expect(migrate().status).toBe(0);
@@ -316,21 +412,28 @@ describeWithDatabase('graph-schema: migration lifecycle', () => {
     LIFECYCLE_TIMEOUT_MS,
   );
 
-  // Proves rollback reverts ONE migration per call (count: 1), which DIS-11 could not distinguish
-  // from "revert all" while 0001 was the only migration.
+  // Proves rollback reverts ONE migration per call (count: 1). The snapshot must EQUAL a database
+  // migrated with 0001 + 0002 only: an index left behind by 0003's down section would survive here,
+  // while a full rollback would drop it together with its table.
   it(
     'Roll back only the latest migration',
     async () => {
-      expect(migrate().status).toBe(0);
+      const reference = await createThrowawayDatabase(databaseUrl as string);
+      try {
+        await migrateUpTo(reference.url, HISTORY_MIGRATIONS);
+        expect(migrate().status).toBe(0);
 
-      const result = rollback();
+        const result = rollback();
 
-      expect(result.status, result.stderr).toBe(0);
-      const schema = await snapshotSchema(throwaway.url);
-      expect(tablesOf(schema.columns)).toEqual(L1_TABLES);
-      expectColumnContract(schema.columns, L1_COLUMNS);
-      expect(schema.enums).toEqual(L1_ENUMS);
-      expect(await appliedMigrations(throwaway.url)).toEqual(['0001_graph-l1']);
+        expect(result.status, result.stderr).toBe(0);
+        const schema = await snapshotSchema(throwaway.url);
+        expect(schema).toEqual(await snapshotSchema(reference.url));
+        expect(tablesOf(schema.columns)).toEqual(ALL_TABLES);
+        expect(schema.enums).toEqual(ALL_ENUMS);
+        expect(await appliedMigrations(throwaway.url)).toEqual(HISTORY_MIGRATIONS);
+      } finally {
+        await reference.drop();
+      }
     },
     LIFECYCLE_TIMEOUT_MS,
   );
@@ -340,6 +443,7 @@ describeWithDatabase('graph-schema: migration lifecycle', () => {
     async () => {
       expect(migrate().status).toBe(0);
       // Reach "only the L1 graph migration is applied".
+      expect(rollback().status).toBe(0);
       expect(rollback().status).toBe(0);
       expect(await appliedMigrations(throwaway.url)).toEqual(['0001_graph-l1']);
 
@@ -357,6 +461,9 @@ describeWithDatabase('graph-schema: migration lifecycle', () => {
     'Roll back both migrations leaves an empty schema',
     async () => {
       expect(migrate().status).toBe(0);
+      // Reach "only the L1 graph migration and the history migration are applied".
+      expect(rollback().status).toBe(0);
+      expect(await appliedMigrations(throwaway.url)).toEqual(HISTORY_MIGRATIONS);
 
       const first = rollback();
       const second = rollback();
@@ -373,6 +480,27 @@ describeWithDatabase('graph-schema: migration lifecycle', () => {
   );
 
   it(
+    'Roll back every migration leaves an empty schema',
+    async () => {
+      expect(migrate().status).toBe(0);
+      const applied = (await appliedMigrations(throwaway.url)).length;
+
+      const calls = await rollbackAll();
+
+      expect(calls).toBe(applied);
+      const schema = await snapshotSchema(throwaway.url);
+      expect(schema.columns).toEqual([]);
+      expect(schema.enums).toEqual({});
+      expect(schema.indexes).toEqual([]);
+      expect(schema.triggers).toEqual([]);
+      expect(schema.functions).toEqual([]);
+      expect(await appliedMigrations(throwaway.url)).toEqual([]);
+      expect(schema.extensions).toContain('vector');
+    },
+    LIFECYCLE_TIMEOUT_MS,
+  );
+
+  it(
     'Apply, roll back and apply again',
     async () => {
       expect(migrate().status).toBe(0);
@@ -382,6 +510,7 @@ describeWithDatabase('graph-schema: migration lifecycle', () => {
       expect(migrate().status).toBe(0);
       const second = await snapshotSchema(throwaway.url);
 
+      // The snapshot covers indexes, triggers and functions too.
       expect(second).toEqual(first);
       expectColumnContract(second.columns, L1_COLUMNS);
       expectColumnContract(second.columns, HISTORY_COLUMNS);
@@ -391,16 +520,16 @@ describeWithDatabase('graph-schema: migration lifecycle', () => {
     LIFECYCLE_TIMEOUT_MS,
   );
 
-  // Same scenario, full cycle: one rollback reverts only 0002 (previous test), so 0001's own
-  // down-then-up is only inside the identity comparison when every migration is rolled back.
+  // Same scenario, full cycle: one rollback reverts only the latest migration (previous test), so the
+  // earlier ones' own down-then-up only enter the identity comparison when every migration is rolled back.
   it(
     'Apply, roll back and apply again (full cycle through 0001)',
     async () => {
       expect(migrate().status).toBe(0);
       const first = await snapshotSchema(throwaway.url);
+      const applied = await appliedMigrations(throwaway.url);
 
-      expect(rollback().status).toBe(0);
-      expect(rollback().status).toBe(0);
+      await rollbackAll();
       expect(await appliedMigrations(throwaway.url)).toEqual([]);
       expect(migrate().status).toBe(0);
       const second = await snapshotSchema(throwaway.url);
@@ -410,7 +539,7 @@ describeWithDatabase('graph-schema: migration lifecycle', () => {
       expectColumnContract(second.columns, HISTORY_COLUMNS);
       expect(tablesOf(second.columns)).toEqual(ALL_TABLES);
       expect(second.enums).toEqual(ALL_ENUMS);
-      expect(await appliedMigrations(throwaway.url)).toEqual(['0001_graph-l1', '0002_history-claims']);
+      expect(await appliedMigrations(throwaway.url)).toEqual(applied);
     },
     LIFECYCLE_TIMEOUT_MS,
   );

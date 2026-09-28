@@ -47,14 +47,30 @@ export interface ColumnShape {
   default: string | null;
 }
 
-export interface SchemaSnapshot {
-  columns: ColumnShape[];
-  constraints: { table: string; name: string; definition: string }[];
-  enums: Record<string, string[]>;
-  extensions: string[];
+/** A named schema object attached to a table (index or trigger), with its full SQL definition. */
+export interface TableObject {
+  table: string;
+  name: string;
+  definition: string;
 }
 
-/** Ordered description of the `public` schema, excluding node-pg-migrate's bookkeeping table. */
+export interface SchemaSnapshot {
+  columns: ColumnShape[];
+  constraints: TableObject[];
+  enums: Record<string, string[]>;
+  extensions: string[];
+  /** Every index, including those behind primary keys and unique constraints (`pg_indexes.indexdef`). */
+  indexes: TableObject[];
+  /** User triggers only; the internal triggers behind foreign keys are covered by `constraints`. */
+  triggers: TableObject[];
+  /** Functions of this schema; the ones an extension installs in `public` (pgvector's) are excluded. */
+  functions: { name: string; definition: string }[];
+}
+
+/**
+ * Ordered description of the `public` schema, excluding node-pg-migrate's bookkeeping table:
+ * columns, constraints, enums, extensions, indexes, triggers and non-extension functions.
+ */
 export async function snapshotSchema(databaseUrl: string): Promise<SchemaSnapshot> {
   const client = new Client({ connectionString: databaseUrl });
   await client.connect();
@@ -68,7 +84,7 @@ export async function snapshotSchema(databaseUrl: string): Promise<SchemaSnapsho
       LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
       WHERE a.attnum > 0 AND NOT a.attisdropped AND c.relname <> 'pgmigrations'
       ORDER BY c.relname, a.attnum`);
-    const constraints = await client.query<{ table: string; name: string; definition: string }>(`
+    const constraints = await client.query<TableObject>(`
       SELECT c.relname AS "table", k.conname AS "name", pg_get_constraintdef(k.oid) AS "definition"
       FROM pg_constraint k
       JOIN pg_class c ON c.oid = k.conrelid
@@ -85,12 +101,120 @@ export async function snapshotSchema(databaseUrl: string): Promise<SchemaSnapsho
     const extensions = await client.query<{ extname: string }>(
       `SELECT extname FROM pg_extension WHERE extname <> 'plpgsql' ORDER BY extname`,
     );
+    const indexes = await client.query<TableObject>(`
+      SELECT tablename AS "table", indexname AS "name", indexdef AS "definition"
+      FROM pg_indexes
+      WHERE schemaname = 'public' AND tablename <> 'pgmigrations'
+      ORDER BY tablename, indexname`);
+    const triggers = await client.query<TableObject>(`
+      SELECT c.relname AS "table", t.tgname AS "name", pg_get_triggerdef(t.oid) AS "definition"
+      FROM pg_trigger t
+      JOIN pg_class c ON c.oid = t.tgrelid
+      JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = 'public'
+      WHERE NOT t.tgisinternal AND c.relname <> 'pgmigrations'
+      ORDER BY c.relname, t.tgname`);
+    const functions = await client.query<{ name: string; definition: string }>(`
+      SELECT p.proname AS "name", pg_get_functiondef(p.oid) AS "definition"
+      FROM pg_proc p
+      JOIN pg_namespace n ON n.oid = p.pronamespace AND n.nspname = 'public'
+      WHERE NOT EXISTS (
+        SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e'
+      )
+      ORDER BY p.proname, pg_get_function_identity_arguments(p.oid)`);
     return {
       columns: columns.rows,
       constraints: constraints.rows,
       enums: Object.fromEntries(enums.rows.map((row) => [row.name, row.labels])),
       extensions: extensions.rows.map((row) => row.extname),
+      indexes: indexes.rows,
+      triggers: triggers.rows,
+      functions: functions.rows,
     };
+  } finally {
+    await client.end();
+  }
+}
+
+/** Contract shape of a secondary index: what the spec fixes, independent of its name and formatting. */
+export interface IndexShape {
+  table: string;
+  columns: string[];
+  method: string;
+  /** Operator classes, only for non-btree indexes (the btree ones are the column type's default). */
+  opclasses: string[] | null;
+  /** Partial-index predicate without outer parentheses and type casts, or null. */
+  predicate: string | null;
+}
+
+/** `(status = 'stale'::claim_status)` → `status = 'stale'`. */
+function normalisePredicate(predicate: string | null): string | null {
+  if (predicate === null) return null;
+  return predicate.replace(/^\((.*)\)$/, '$1').replace(/::[a-z_]+/g, '');
+}
+
+/**
+ * Secondary indexes of the `public` schema (not backing a primary key or unique constraint), as
+ * `IndexShape`s ordered by table, then columns.
+ */
+export async function secondaryIndexShapes(databaseUrl: string): Promise<IndexShape[]> {
+  const client = new Client({ connectionString: databaseUrl });
+  await client.connect();
+  try {
+    const { rows } = await client.query<{
+      table: string;
+      columns: string[];
+      method: string;
+      opclasses: string[];
+      predicate: string | null;
+    }>(`
+      SELECT t.relname AS "table",
+             ARRAY(SELECT a.attname FROM unnest(ix.indkey::int2[]) WITH ORDINALITY k(attnum, ord)
+                   JOIN pg_attribute a ON a.attrelid = ix.indrelid AND a.attnum = k.attnum
+                   ORDER BY k.ord)::text[] AS "columns",
+             am.amname AS "method",
+             ARRAY(SELECT oc.opcname FROM unnest(ix.indclass::oid[]) WITH ORDINALITY o(oid, ord)
+                   JOIN pg_opclass oc ON oc.oid = o.oid
+                   ORDER BY o.ord)::text[] AS "opclasses",
+             pg_get_expr(ix.indpred, ix.indrelid) AS "predicate"
+      FROM pg_index ix
+      JOIN pg_class i ON i.oid = ix.indexrelid
+      JOIN pg_class t ON t.oid = ix.indrelid
+      JOIN pg_namespace n ON n.oid = t.relnamespace AND n.nspname = 'public'
+      JOIN pg_am am ON am.oid = i.relam
+      WHERE t.relname <> 'pgmigrations'
+        AND NOT EXISTS (SELECT 1 FROM pg_constraint k WHERE k.conindid = ix.indexrelid)`);
+    return rows
+      .map((row) => ({
+        table: row.table,
+        columns: row.columns,
+        method: row.method,
+        opclasses: row.method === 'btree' ? null : row.opclasses,
+        predicate: normalisePredicate(row.predicate),
+      }))
+      .sort((a, b) => a.table.localeCompare(b.table) || a.columns.join().localeCompare(b.columns.join()));
+  } finally {
+    await client.end();
+  }
+}
+
+/**
+ * Foreign-key columns declared `ON DELETE CASCADE` that are not the first key column of any index on
+ * their table, as `table.column`, ordered.
+ */
+export async function unindexedCascadingForeignKeys(databaseUrl: string): Promise<string[]> {
+  const client = new Client({ connectionString: databaseUrl });
+  await client.connect();
+  try {
+    const { rows } = await client.query<{ fk: string }>(`
+      SELECT c.relname || '.' || a.attname AS "fk"
+      FROM pg_constraint k
+      JOIN pg_class c ON c.oid = k.conrelid
+      JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = 'public'
+      JOIN pg_attribute a ON a.attrelid = k.conrelid AND a.attnum = k.conkey[1]
+      WHERE k.contype = 'f' AND k.confdeltype = 'c'
+        AND NOT EXISTS (SELECT 1 FROM pg_index ix WHERE ix.indrelid = k.conrelid AND ix.indkey[0] = k.conkey[1])
+      ORDER BY 1`);
+    return rows.map((row) => row.fk);
   } finally {
     await client.end();
   }

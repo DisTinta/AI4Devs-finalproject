@@ -877,7 +877,9 @@ ALTER TABLE claim ADD CONSTRAINT l2_requires_provenance
   CHECK (layer <> 'L2' OR provenance IS NOT NULL);
 ```
 
-`provenance` registra modelo, hash del prompt, evidencias de entrada y marca temporal. `l2_requires_provenance` solo rechaza el `NULL` de SQL: un `null` JSON o cualquier otra forma de JSON pasa la restricción. La forma la validará quien escriba, con Zod, antes de insertar (CM-HU-09); este esquema no la comprueba. `created_at` y `updated_at` toman `now()` al insertar; `updated_at` no se actualiza solo (no hay trigger), lo fija quien escribe. `status = 'stale'` marca las afirmaciones cuya evidencia ha cambiado; se recalculan de forma perezosa la primera vez que la recuperación las alcanza.
+`provenance` registra modelo, hash del prompt, evidencias de entrada y marca temporal. `l2_requires_provenance` solo rechaza el `NULL` de SQL: un `null` JSON o cualquier otra forma de JSON pasa la restricción. La forma la validará quien escriba, con Zod, antes de insertar (CM-HU-09); este esquema no la comprueba. `created_at` y `updated_at` toman `now()` al insertar. `status = 'stale'` marca las afirmaciones cuya evidencia ha cambiado; se recalculan de forma perezosa la primera vez que la recuperación las alcanza.
+
+**Invalidación en la base de datos.** Cuando cambia el `content_hash` de un fichero (`IS DISTINCT FROM`, así que poner el primer hash sobre un `NULL` también cuenta), el trigger `file_content_hash_marks_claims_stale` pasa a `stale`, en la misma sentencia, todas las afirmaciones `current` con alguna evidencia que cite ese fichero, y les fija `updated_at = now()`. Las que ya estaban `stale` no se tocan, y el trigger nunca devuelve una afirmación a `current`: eso es trabajo del recálculo perezoso (CM-HU-09.4). `updated_at` tiene por tanto dos dueños: el trigger en el paso `current` → `stale`, y quien escribe en cualquier otra modificación. La invalidación es gruesa a propósito: cualquier cambio del fichero invalida todas sus citas, aunque el span citado no haya cambiado.
 
 ##### Cómo se calcula `confidence`
 
@@ -920,8 +922,21 @@ Sostiene F7 y el modo demo. El acierto **no es por texto exacto sino por similit
 #### Índices
 
 ```sql
-CREATE INDEX ON edge (project_id, source_id, kind);
-CREATE INDEX ON edge (project_id, target_id, kind);
+-- Travesía: un índice parcial por columna de extremo (cada extremo son dos FK, ver el ADR)
+CREATE INDEX ON edge (source_symbol_id, kind) WHERE source_symbol_id IS NOT NULL;
+CREATE INDEX ON edge (source_file_id, kind)   WHERE source_file_id IS NOT NULL;
+CREATE INDEX ON edge (target_symbol_id, kind) WHERE target_symbol_id IS NOT NULL;
+CREATE INDEX ON edge (target_file_id, kind)   WHERE target_file_id IS NOT NULL;
+
+-- FK con borrado en cascada que ninguna PK o UNIQUE encabeza
+CREATE INDEX ON edge (project_id);
+CREATE INDEX ON symbol (file_id);
+CREATE INDEX ON claim (project_id);
+CREATE INDEX ON evidence (claim_id);
+CREATE INDEX ON evidence (file_id);               -- también lo usa el trigger de invalidación
+CREATE INDEX ON query_log (project_id);
+CREATE INDEX ON cache_entry (project_id);
+
 CREATE INDEX ON file (project_id, content_hash);
 CREATE INDEX ON file_commit (commit_id);          -- co-cambio: ficheros de un commit
 CREATE INDEX ON claim (project_id, status) WHERE status = 'stale';
@@ -930,10 +945,7 @@ CREATE INDEX ON symbol      USING hnsw (embedding vector_cosine_ops);
 CREATE INDEX ON cache_entry USING hnsw (question_embedding vector_cosine_ops);
 ```
 
-> **Pendiente (DIS-13):** los dos índices de travesía de `edge` se escribieron sobre `source_id` /
-> `target_id`. Desde DIS-11 cada extremo son dos columnas (`source_symbol_id` / `source_file_id`,
-> `target_symbol_id` / `target_file_id`, ver el [ADR](docs/adr/20260928-edge-endpoints-as-fk-pairs.md)),
-> así que DIS-13 debe redefinirlos sobre esas columnas.
+Los índices de travesía **empiezan por el extremo, no por `project_id`**: un id de símbolo o de fichero pertenece a un único proyecto, así que anteponer `project_id` no filtra nada más, y un índice que empieza por el extremo sirve además al borrado en cascada desde `symbol` o `file`. Son parciales porque cada columna de extremo solo está rellena en las aristas que la usan. El resto de índices de claves foráneas existe para que borrar un proyecto, un fichero o una afirmación no recorra tablas enteras: PostgreSQL no indexa las claves foráneas por su cuenta. Las que ya encabezan una PK o una restricción UNIQUE (`file.project_id`, `commit.project_id`, `file_commit.file_id`) no necesitan índice propio.
 
 ---
 
@@ -1276,7 +1288,7 @@ Crear el esquema de PostgreSQL con pgvector, los índices para travesía del gra
 
 1. Migraciones para las 10 tablas del modelo de [3.1](#31-diagrama-del-modelo-de-datos), incluida la tabla de unión `FILE_COMMIT` con clave primaria compuesta.
 2. Habilitar `pgvector` e índices HNSW sobre `FILE.embedding`, `SYMBOL.embedding` y `CACHE_ENTRY.question_embedding`.
-3. Índices compuestos de travesía: `EDGE(project_id, source_id, kind)` y `EDGE(project_id, target_id, kind)`. **Obsoleto desde DIS-11:** `source_id` / `target_id` ya no existen (cada extremo son dos FK, ver el [ADR](docs/adr/20260928-edge-endpoints-as-fk-pairs.md)); DIS-13 los redefine sobre `source_symbol_id` / `source_file_id` / `target_symbol_id` / `target_file_id` (nota «Pendiente (DIS-13)» en §3.2 → Índices).
+3. Índices de travesía sobre `EDGE`: uno parcial por columna de extremo (`source_symbol_id`, `source_file_id`, `target_symbol_id`, `target_file_id`, cada uno con `kind`), porque desde DIS-11 cada extremo son dos FK (ver el [ADR](docs/adr/20260928-edge-endpoints-as-fk-pairs.md) y §3.2 → Índices).
 4. Restricción `fact_only_from_l1`: impide `type = 'FACT'` cuando `layer = 'L2'`.
 5. Restricción `l2_requires_provenance`: exige `provenance` no nulo en la capa inferida.
 6. Consulta recursiva (`WITH RECURSIVE`) de travesía a N saltos, con límite de profundidad y detección de ciclos.
