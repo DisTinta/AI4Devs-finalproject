@@ -288,6 +288,11 @@ for `file_commit`).
 - **WHEN** an `evidence` row with `start_line = 10` and `end_line = 9` is inserted
 - **THEN** the database rejects the insert
 
+#### Scenario: Single-line evidence span is accepted
+
+- **WHEN** an `evidence` row with `start_line = 10` and `end_line = 10` is inserted
+- **THEN** the insert succeeds
+
 #### Scenario: Non-positive evidence start line is rejected
 
 - **WHEN** an `evidence` row with `start_line = 0` is inserted

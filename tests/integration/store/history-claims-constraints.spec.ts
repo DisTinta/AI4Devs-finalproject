@@ -277,6 +277,13 @@ describeWithDatabase('graph-schema: history, claim, usage and cache tables', () 
 
         await expectCheckViolation(insertClaim(client, { projectId, confidence: 1.5 }), 'claim_confidence_range');
       });
+      // Below the range too: a CHECK (confidence <= 1) must not pass. Own transaction, because the
+      // rejection above aborts its transaction.
+      await withRollback(async (client) => {
+        const projectId = await insertProject(client);
+
+        await expectCheckViolation(insertClaim(client, { projectId, confidence: -0.1 }), 'claim_confidence_range');
+      });
     });
 
     it('Deleting a project deletes its claims', async () => {
@@ -301,6 +308,14 @@ describeWithDatabase('graph-schema: history, claim, usage and cache tables', () 
           insertEvidence(client, { ...c, startLine: 10, endLine: 9 }),
           'evidence_span_valid',
         );
+      });
+    });
+
+    it('Single-line evidence span is accepted', async () => {
+      await withRollback(async (client) => {
+        const c = await insertCitableClaim(client);
+
+        await expect(insertEvidence(client, { ...c, startLine: 10, endLine: 10 })).resolves.toMatch(/^[0-9a-f-]{36}$/);
       });
     });
 
