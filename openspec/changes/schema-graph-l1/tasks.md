@@ -72,5 +72,5 @@
 - [x] 11.2 Update `docs/project-context.md`: `db:migrate` / `db:rollback` are real (only `db:seed`, `seed:build`, `verify` remain placeholders), how to run migrations locally, the skip-locally / fail-in-CI rule for integration tests, and the gotchas section that calls the migration step a no-op
 - [x] 11.3 Write an ADR in `docs/adr/` (via `/adr-new`) for the edge endpoint model (D3) and the choice of node-pg-migrate (D1)
 - [x] 11.4 Run `/update-docs` and confirm the docs gate passes; add the relevant AI prompt to `prompts.md` per `docs/project-context.md` → prompts.md rules
-- [ ] 11.5 Prepare the PR description (`/pr-describe`) including the dependency justification; after verification, set DIS-11 to In Review in Linear with a comment linking this change
-- [ ] 11.6 Leave a comment on Linear DIS-13 (and a line in the PR description) stating that the traversal indexes must be redefined over `source_symbol_id` / `source_file_id` / `target_symbol_id` / `target_file_id`, not `source_id` / `target_id`, which do not exist after this change
+- [x] 11.5 Prepare the PR description (`/pr-describe`) including the dependency justification; after verification, set DIS-11 to In Review in Linear with a comment linking this change
+- [x] 11.6 Leave a comment on Linear DIS-13 (and a line in the PR description) stating that the traversal indexes must be redefined over `source_symbol_id` / `source_file_id` / `target_symbol_id` / `target_file_id`, not `source_id` / `target_id`, which do not exist after this change
