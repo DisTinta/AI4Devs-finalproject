@@ -391,6 +391,30 @@ describeWithDatabase('graph-schema: migration lifecycle', () => {
     LIFECYCLE_TIMEOUT_MS,
   );
 
+  // Same scenario, full cycle: one rollback reverts only 0002 (previous test), so 0001's own
+  // down-then-up is only inside the identity comparison when every migration is rolled back.
+  it(
+    'Apply, roll back and apply again (full cycle through 0001)',
+    async () => {
+      expect(migrate().status).toBe(0);
+      const first = await snapshotSchema(throwaway.url);
+
+      expect(rollback().status).toBe(0);
+      expect(rollback().status).toBe(0);
+      expect(await appliedMigrations(throwaway.url)).toEqual([]);
+      expect(migrate().status).toBe(0);
+      const second = await snapshotSchema(throwaway.url);
+
+      expect(second).toEqual(first);
+      expectColumnContract(second.columns, L1_COLUMNS);
+      expectColumnContract(second.columns, HISTORY_COLUMNS);
+      expect(tablesOf(second.columns)).toEqual(ALL_TABLES);
+      expect(second.enums).toEqual(ALL_ENUMS);
+      expect(await appliedMigrations(throwaway.url)).toEqual(['0001_graph-l1', '0002_history-claims']);
+    },
+    LIFECYCLE_TIMEOUT_MS,
+  );
+
   // Non-normative note of the spec ("Fail clearly without a connection string"): a run that fails
   // part-way leaves no partial changes. 0001 is valid and 0002 fails, so with one transaction for
   // the whole run nothing of 0001 may survive.
