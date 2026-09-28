@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
+import type { Client } from 'pg';
 import { beforeAll, expect, it } from 'vitest';
 import { migrateUp } from '../../../packages/adapters/store-postgres/src/migrate';
 import { SQLSTATE, databaseUrl, describeWithDatabase, expectSqlState, unique, withRollback } from './support';
@@ -8,7 +8,7 @@ import { SQLSTATE, databaseUrl, describeWithDatabase, expectSqlState, unique, wi
 // back: migrations.spec.ts works on its own throwaway database. Every test runs in BEGIN/ROLLBACK
 // with values unique to the test, so parallel files and open transactions never collide.
 
-async function insertProject(client: pg.Client, name = unique('project')): Promise<string> {
+async function insertProject(client: Client, name = unique('project')): Promise<string> {
   const { rows } = await client.query<{ id: string }>(
     `INSERT INTO project (name, root_path, language) VALUES ($1, '/repos/sample', 'typescript') RETURNING id`,
     [name],
@@ -16,7 +16,7 @@ async function insertProject(client: pg.Client, name = unique('project')): Promi
   return rows[0].id;
 }
 
-async function insertFile(client: pg.Client, projectId: string, path = unique('src/file.ts')): Promise<string> {
+async function insertFile(client: Client, projectId: string, path = unique('src/file.ts')): Promise<string> {
   const { rows } = await client.query<{ id: string }>(
     `INSERT INTO file (project_id, path, kind) VALUES ($1, $2, 'source') RETURNING id`,
     [projectId, path],
@@ -24,7 +24,7 @@ async function insertFile(client: pg.Client, projectId: string, path = unique('s
   return rows[0].id;
 }
 
-async function insertSymbol(client: pg.Client, fileId: string, startLine = 1, endLine = 5): Promise<string> {
+async function insertSymbol(client: Client, fileId: string, startLine = 1, endLine = 5): Promise<string> {
   const { rows } = await client.query<{ id: string }>(
     `INSERT INTO symbol (file_id, name, kind, start_line, end_line) VALUES ($1, 'handle', 'method', $2, $3) RETURNING id`,
     [fileId, startLine, endLine],
@@ -44,7 +44,7 @@ interface EdgeInput {
   weight?: number | null;
 }
 
-async function insertEdge(client: pg.Client, edge: EdgeInput): Promise<string> {
+async function insertEdge(client: Client, edge: EdgeInput): Promise<string> {
   const { rows } = await client.query<{ id: string }>(
     `INSERT INTO edge (project_id, source_symbol_id, source_file_id, target_symbol_id, target_file_id,
                        kind, resolution, extractor, weight)
@@ -65,7 +65,7 @@ async function insertEdge(client: pg.Client, edge: EdgeInput): Promise<string> {
 }
 
 /** One project with one file holding two symbols: enough to build any edge. */
-async function insertGraph(client: pg.Client) {
+async function insertGraph(client: Client) {
   const projectId = await insertProject(client);
   const fileId = await insertFile(client, projectId);
   const callerId = await insertSymbol(client, fileId, 1, 5);
@@ -73,7 +73,7 @@ async function insertGraph(client: pg.Client) {
   return { projectId, fileId, callerId, calleeId };
 }
 
-async function countRows(client: pg.Client, table: 'file' | 'symbol' | 'edge', id: string): Promise<number> {
+async function countRows(client: Client, table: 'file' | 'symbol' | 'edge', id: string): Promise<number> {
   const { rows } = await client.query<{ count: string }>(`SELECT count(*) FROM ${table} WHERE id = $1`, [id]);
   return Number(rows[0].count);
 }

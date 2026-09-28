@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import pg from 'pg';
+import { Client } from 'pg';
 import { describe, expect } from 'vitest';
 
 /** Repository root (Vitest runs from it), so npm scripts run exactly as a developer or CI runs them. */
@@ -55,8 +55,8 @@ export function unique(label: string): string {
  * Runs `work` on its own client inside `BEGIN` … `ROLLBACK`, so no row survives the test.
  * The rollback also runs when `work` throws.
  */
-export async function withRollback<T>(work: (client: pg.Client) => Promise<T>): Promise<T> {
-  const client = new pg.Client({ connectionString: databaseUrl });
+export async function withRollback<T>(work: (client: Client) => Promise<T>): Promise<T> {
+  const client = new Client({ connectionString: databaseUrl });
   await client.connect();
   try {
     await client.query('BEGIN');

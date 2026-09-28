@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import pg from 'pg';
+import { Client } from 'pg';
 
 /**
  * A uniquely named database on the server of `serverUrl`, so migrate/rollback runs never touch the
@@ -17,8 +17,8 @@ export async function createThrowawayDatabase(serverUrl: string): Promise<{ url:
   };
 }
 
-async function withAdminClient(serverUrl: string, work: (client: pg.Client) => Promise<unknown>): Promise<void> {
-  const client = new pg.Client({ connectionString: serverUrl });
+async function withAdminClient(serverUrl: string, work: (client: Client) => Promise<unknown>): Promise<void> {
+  const client = new Client({ connectionString: serverUrl });
   await client.connect();
   try {
     await work(client);
@@ -44,7 +44,7 @@ export interface SchemaSnapshot {
 
 /** Ordered description of the `public` schema, excluding node-pg-migrate's bookkeeping table. */
 export async function snapshotSchema(databaseUrl: string): Promise<SchemaSnapshot> {
-  const client = new pg.Client({ connectionString: databaseUrl });
+  const client = new Client({ connectionString: databaseUrl });
   await client.connect();
   try {
     const columns = await client.query<ColumnShape>(`
