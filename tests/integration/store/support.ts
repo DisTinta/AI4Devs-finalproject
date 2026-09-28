@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { Client } from 'pg';
 import { describe, expect } from 'vitest';
+import { migrateUp } from '../../../packages/adapters/store-postgres/src/migrate';
 
 /** Repository root (Vitest runs from it), so npm scripts run exactly as a developer or CI runs them. */
 export const repoRoot = process.cwd();
@@ -59,6 +60,30 @@ export function runCommand(command: string, env: Record<string, string | undefin
 /** Runs a root npm script (`db:migrate`, `db:rollback`) as a developer or CI does; see runCommand. */
 export function runNpmScript(script: string, env: Record<string, string | undefined>): ScriptResult {
   return runCommand(`npm run --silent ${script}`, env);
+}
+
+const MIGRATION_LOCK_BUSY = 'Another migration is already running';
+const SHARED_MIGRATION_CAP_MS = 45_000;
+const SHARED_MIGRATION_PAUSE_MS = 250;
+
+/**
+ * Migrates the shared `DATABASE_URL` database for the constraints files, which Vitest runs in
+ * parallel. node-pg-migrate's advisory lock does not wait by default (lock mode `'fail'`), so a run
+ * that finds another one holding the lock is retried after a short pause, up to a cap below the
+ * 60 s `beforeAll` timeout. Any other error is rethrown at once.
+ */
+export async function migrateSharedDatabase(): Promise<void> {
+  const deadline = Date.now() + SHARED_MIGRATION_CAP_MS;
+  for (;;) {
+    try {
+      await migrateUp(databaseUrl as string);
+      return;
+    } catch (error) {
+      const lockBusy = error instanceof Error && error.message.includes(MIGRATION_LOCK_BUSY);
+      if (!lockBusy || Date.now() >= deadline) throw error;
+      await new Promise((resolve) => setTimeout(resolve, SHARED_MIGRATION_PAUSE_MS));
+    }
+  }
 }
 
 /** A value unique to the calling test, so parallel files and open transactions never collide. */

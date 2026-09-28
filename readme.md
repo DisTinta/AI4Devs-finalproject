@@ -760,7 +760,7 @@ erDiagram
 
     COMMIT {
         uuid id PK
-        uuid project_id FK "not null"
+        uuid project_id FK "not null, on delete cascade"
         text sha "not null, unique(project_id, sha)"
         text message
         text author_hash "SEUDONIMIZADO — sin nombre ni correo"
@@ -769,15 +769,15 @@ erDiagram
     }
 
     FILE_COMMIT {
-        uuid file_id PK, FK "clave primaria compuesta"
-        uuid commit_id PK, FK "clave primaria compuesta"
+        uuid file_id PK, FK "clave primaria compuesta, on delete cascade"
+        uuid commit_id PK, FK "clave primaria compuesta, on delete cascade"
         int lines_added
         int lines_removed
     }
 
     CLAIM {
         uuid id PK
-        uuid project_id FK "not null"
+        uuid project_id FK "not null, on delete cascade"
         text subject "not null"
         text predicate "not null"
         text object
@@ -793,18 +793,18 @@ erDiagram
     EVIDENCE {
         uuid id PK
         uuid claim_id FK "not null, on delete cascade"
-        uuid file_id FK "not null"
-        int start_line "not null"
-        int end_line "not null"
+        uuid file_id FK "not null, on delete cascade"
+        int start_line "not null, check > 0"
+        int end_line "not null, check >= start_line"
         text verification "enum: none, cited, entailed, broken — not null"
         text excerpt "fragmento exacto citado, congelado"
     }
 
     QUERY_LOG {
         uuid id PK
-        uuid project_id FK "not null"
+        uuid project_id FK "not null, on delete cascade"
         text question "not null"
-        text capability "enum: explain, impact, drift — drift previsto (F6)"
+        text capability "enum: explain, impact, drift — not null, drift previsto (F6)"
         int input_tokens
         int output_tokens
         int baseline_tokens "coste que habría tenido el contexto bruto"
@@ -816,7 +816,7 @@ erDiagram
 
     CACHE_ENTRY {
         uuid id PK
-        uuid project_id FK "not null"
+        uuid project_id FK "not null, on delete cascade"
         text question_normalized "not null"
         vector question_embedding "pgvector(1536) — acierto por similitud"
         jsonb response "respuesta completa serializada"
@@ -859,6 +859,8 @@ Tabla de unión entre `FILE` y `COMMIT`, con clave primaria compuesta. Parece un
 
 `lines_added` y `lines_removed` permiten ponderar: un commit que toca dos ficheros con 200 líneas cada uno es una señal más fuerte que uno que corrige una errata en ambos.
 
+**Borrado en cascada.** Todas las claves foráneas de `COMMIT`, `FILE_COMMIT`, `CLAIM`, `EVIDENCE`, `QUERY_LOG` y `CACHE_ENTRY` usan `on delete cascade`, igual que las tablas del grafo L1: borrar un proyecto elimina su historial, sus afirmaciones, su registro de uso y su caché; borrar un fichero elimina sus filas de `FILE_COMMIT` y las evidencias que lo citan. Como en `EDGE`, la base de datos no comprueba que el fichero y el commit de `FILE_COMMIT`, ni el fichero citado por una `EVIDENCE`, pertenezcan al mismo proyecto; esa coherencia es responsabilidad de quien escribe.
+
 #### CLAIM
 
 Unidad de afirmación. `layer` y `type` son campos distintos a propósito: **`layer` dice de dónde salió la afirmación, `type` dice qué garantía tiene.** Fusionarlos impediría la restricción siguiente.
@@ -875,7 +877,7 @@ ALTER TABLE claim ADD CONSTRAINT l2_requires_provenance
   CHECK (layer <> 'L2' OR provenance IS NOT NULL);
 ```
 
-`provenance` registra modelo, hash del prompt, evidencias de entrada y marca temporal. `status = 'stale'` marca las afirmaciones cuya evidencia ha cambiado; se recalculan de forma perezosa la primera vez que la recuperación las alcanza.
+`provenance` registra modelo, hash del prompt, evidencias de entrada y marca temporal. `l2_requires_provenance` solo rechaza el `NULL` de SQL: un `null` JSON o cualquier otra forma de JSON pasa la restricción. La forma la validará quien escriba, con Zod, antes de insertar (CM-HU-09); este esquema no la comprueba. `created_at` y `updated_at` toman `now()` al insertar; `updated_at` no se actualiza solo (no hay trigger), lo fija quien escribe. `status = 'stale'` marca las afirmaciones cuya evidencia ha cambiado; se recalculan de forma perezosa la primera vez que la recuperación las alcanza.
 
 ##### Cómo se calcula `confidence`
 
@@ -898,7 +900,7 @@ La propiedad que sí se garantiza es la **reproducibilidad**: dos ejecuciones so
 
 #### EVIDENCE
 
-Cita concreta con span exacto y `excerpt` congelado, para poder detectar después que el código cambió. `verification` guarda el resultado del verificador:
+Cita concreta con span exacto y `excerpt` congelado, para poder detectar después que el código cambió. El span cumple las mismas restricciones que el de `SYMBOL` (`start_line > 0`, `end_line >= start_line`). Borrar el fichero citado borra la evidencia pero **no** la afirmación, que puede quedar sin evidencias (consecuencia del borrado en cascada). La base de datos no impone nada sobre ese caso; tratar una afirmación sin evidencias como no sustentada es una nota para CM-HU-09/10, no una regla de este esquema. `verification` guarda el resultado del verificador:
 
 | Valor | Significado |
 |---|---|
