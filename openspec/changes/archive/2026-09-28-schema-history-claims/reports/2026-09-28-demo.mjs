@@ -73,7 +73,7 @@ function contractFrom(path, tables) {
   });
 }
 const L1_CONTRACT = contractFrom('openspec/specs/graph-schema/spec.md', L1);
-const HISTORY_CONTRACT = contractFrom('openspec/changes/schema-history-claims/specs/graph-schema/spec.md', HISTORY);
+const HISTORY_CONTRACT = contractFrom('openspec/changes/archive/2026-09-28-schema-history-claims/specs/graph-schema/spec.md', HISTORY);
 
 // `'current'::claim_status` → `current`, so enum defaults compare with the spec's plain value.
 const normDefault = (d) => (d === null ? null : d.replace(/^'(.*)'::[a-z_]+$/, '$1'));

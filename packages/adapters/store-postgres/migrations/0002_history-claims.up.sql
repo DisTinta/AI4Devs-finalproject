@@ -1,5 +1,5 @@
 -- DIS-12 (CM-HU-01.2): Git history, claims with evidence, query usage and the answer cache.
--- Column contract: openspec/changes/schema-history-claims/specs/graph-schema/spec.md
+-- Column contract: openspec/specs/graph-schema/spec.md
 -- ("History, claim, usage and cache column contract"). Every foreign key cascades (design.md D3).
 -- The vector extension comes from 0001.
 

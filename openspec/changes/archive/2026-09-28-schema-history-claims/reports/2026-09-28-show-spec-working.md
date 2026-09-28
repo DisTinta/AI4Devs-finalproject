@@ -15,7 +15,7 @@
     change's delta for the six new tables, `openspec/specs/graph-schema/spec.md` for L1. They are
     not checked against the tests' hand transcription.
   - Full verbatim output: [`2026-09-28-demo-output.txt`](./2026-09-28-demo-output.txt).
-- Command: `DATABASE_URL=postgres://codemind:codemind@localhost:5432/codemind node openspec/changes/schema-history-claims/reports/2026-09-28-demo.mjs`
+- Command: `DATABASE_URL=postgres://codemind:codemind@localhost:5432/codemind node openspec/changes/archive/2026-09-28-schema-history-claims/reports/2026-09-28-demo.mjs`
   → exit 0, `SUMMARY: 35 scenarios exercised, 35 match the spec, 0 do not`.
 
 ## Demonstrated

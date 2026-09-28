@@ -72,8 +72,8 @@ const L1_ENUMS: Record<string, string[]> = {
 };
 
 // Transcribed by hand from the "History, claim, usage and cache column contract" table of
-// openspec/changes/schema-history-claims/specs/graph-schema/spec.md. Enum type names and label
-// order come from that change's design.md D2.
+// openspec/specs/graph-schema/spec.md. Enum type names and label order come from design.md D2 of
+// openspec/changes/archive/2026-09-28-schema-history-claims.
 const HISTORY_COLUMNS: ColumnShape[] = [
   col('commit', 'id', 'uuid', true, 'gen_random_uuid()'),
   col('commit', 'project_id', 'uuid', true),

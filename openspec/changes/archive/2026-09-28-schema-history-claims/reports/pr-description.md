@@ -35,10 +35,10 @@ integration test shows that `FACT` + `L2`, and `L2` without `provenance`, fail i
 6. `npm run lint && npm run typecheck && npm run lint:architecture && npm run docs:coverage`.
    All exit 0. The pre-existing warnings are unchanged.
 7. Independent demonstration of every scenario against the real scripts and database:
-   `node openspec/changes/schema-history-claims/reports/2026-09-28-demo.mjs`
+   `node openspec/changes/archive/2026-09-28-schema-history-claims/reports/2026-09-28-demo.mjs`
    → `35 scenarios exercised, 35 match the spec`.
 
-Evidence from the agent's run, in `openspec/changes/schema-history-claims/reports/`:
+Evidence from the agent's run, in `openspec/changes/archive/2026-09-28-schema-history-claims/reports/`:
 
 - `2026-09-28-7-test-and-state-verification.md`
 - `2026-09-28-8-manual-interface-testing.md`
