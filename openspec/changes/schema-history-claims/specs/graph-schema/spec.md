@@ -222,6 +222,8 @@ fact/inference distinction with two named constraints:
 
 - `fact_only_from_l1`: a claim with `type = 'FACT'` MUST have `layer = 'L1'`.
 - `l2_requires_provenance`: a claim with `layer = 'L2'` MUST have a non-null `provenance`.
+  The constraint rejects SQL `NULL` only: a JSON `null` (`'null'::jsonb`) and any JSON shape are
+  accepted here. Validating the provenance content belongs to the writer (CM-HU-09).
 
 Deleting a project MUST delete its claims.
 

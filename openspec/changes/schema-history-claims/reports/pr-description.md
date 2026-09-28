@@ -31,7 +31,7 @@ integration test shows that `FACT` + `L2`, and `L2` without `provenance`, fail i
    - Every step exits 0.
    - The rollback reverts **only** `0002_history-claims`.
    - The final state has ten tables in `public`.
-5. `npx vitest run tests/integration/store` → 65 passed (3 files).
+5. `npx vitest run tests/integration/store` → 66 passed (3 files).
 6. `npm run lint && npm run typecheck && npm run lint:architecture && npm run docs:coverage`.
    All exit 0. The pre-existing warnings are unchanged.
 7. Independent demonstration of every scenario against the real scripts and database:
@@ -89,6 +89,8 @@ Other points:
   - the `stale` trigger, traversal/partial/HNSW indexes;
   - `snapshotSchema` still captures no indexes or triggers, which is enough here because `0002`
     creates none.
+- **Unrelated commit in this PR:** `acb966a` only adds `"type": "streamable-http"` to the Linear
+  server in `.cursor/mcp.json`. It is local MCP configuration for Cursor, not product code.
 - **Privacy:** `commit` stores the author only as `author_hash`; there is no name or e-mail column.
   The free-text columns (`commit.message`, `query_log.question`, `cache_entry.response`) are only
   created here, and the writers own their content. Tests use synthetic values only.
@@ -102,7 +104,7 @@ Other points:
 | Roll back only the latest migration | `migrations.spec.ts` › "Roll back only the latest migration" |
 | Roll back the L1 graph migration | `migrations.spec.ts` › "Roll back the L1 graph migration" |
 | Roll back both migrations leaves an empty schema | `migrations.spec.ts` › "Roll back both migrations leaves an empty schema" |
-| Apply, roll back and apply again | `migrations.spec.ts` › "Apply, roll back and apply again" |
+| Apply, roll back and apply again | `migrations.spec.ts` › "Apply, roll back and apply again" (one rollback, reverts `0002`) and "Apply, roll back and apply again (full cycle through 0001)" (two rollbacks, added after `/verify-against-spec`) |
 | Migrated schema matches the history, claim, usage and cache column contract | `migrations.spec.ts` › "Migrated schema matches the history, claim, usage and cache column contract" |
 | Defaults apply on a minimal claim, query log and cache entry | `history-claims-constraints.spec.ts` › "Defaults apply on a minimal claim, query log and cache entry" |
 | Duplicate sha within a project is rejected | `history-claims-constraints.spec.ts` › "Duplicate sha within a project is rejected" |

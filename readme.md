@@ -877,7 +877,7 @@ ALTER TABLE claim ADD CONSTRAINT l2_requires_provenance
   CHECK (layer <> 'L2' OR provenance IS NOT NULL);
 ```
 
-`provenance` registra modelo, hash del prompt, evidencias de entrada y marca temporal. `l2_requires_provenance` solo rechaza el `NULL` de SQL: un `null` JSON o cualquier otra forma de JSON pasa la restricción, y la forma la valida quien escribe (Zod) antes de insertar. `created_at` y `updated_at` toman `now()` al insertar; `updated_at` no se actualiza solo (no hay trigger), lo fija quien escribe. `status = 'stale'` marca las afirmaciones cuya evidencia ha cambiado; se recalculan de forma perezosa la primera vez que la recuperación las alcanza.
+`provenance` registra modelo, hash del prompt, evidencias de entrada y marca temporal. `l2_requires_provenance` solo rechaza el `NULL` de SQL: un `null` JSON o cualquier otra forma de JSON pasa la restricción. La forma la validará quien escriba, con Zod, antes de insertar (CM-HU-09); este esquema no la comprueba. `created_at` y `updated_at` toman `now()` al insertar; `updated_at` no se actualiza solo (no hay trigger), lo fija quien escribe. `status = 'stale'` marca las afirmaciones cuya evidencia ha cambiado; se recalculan de forma perezosa la primera vez que la recuperación las alcanza.
 
 ##### Cómo se calcula `confidence`
 
@@ -900,7 +900,7 @@ La propiedad que sí se garantiza es la **reproducibilidad**: dos ejecuciones so
 
 #### EVIDENCE
 
-Cita concreta con span exacto y `excerpt` congelado, para poder detectar después que el código cambió. El span cumple las mismas restricciones que el de `SYMBOL` (`start_line > 0`, `end_line >= start_line`). Borrar el fichero citado borra la evidencia pero **no** la afirmación, que puede quedar sin evidencias y debe tratarse entonces como no sustentada. `verification` guarda el resultado del verificador:
+Cita concreta con span exacto y `excerpt` congelado, para poder detectar después que el código cambió. El span cumple las mismas restricciones que el de `SYMBOL` (`start_line > 0`, `end_line >= start_line`). Borrar el fichero citado borra la evidencia pero **no** la afirmación, que puede quedar sin evidencias (consecuencia del borrado en cascada). La base de datos no impone nada sobre ese caso; tratar una afirmación sin evidencias como no sustentada es una nota para CM-HU-09/10, no una regla de este esquema. `verification` guarda el resultado del verificador:
 
 | Valor | Significado |
 |---|---|

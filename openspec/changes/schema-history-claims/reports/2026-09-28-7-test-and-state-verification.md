@@ -73,3 +73,37 @@ local `docker compose` Postgres (`pgvector/pgvector:pg16`, healthy), on branch
 
 - Status: PASS
 - Blocking issues: none
+
+## Addendum — re-run after `/verify-against-spec` (2026-09-28)
+
+The audit found that "Apply, roll back and apply again" had become weaker than its scenario. One
+rollback now reverts only `0002`, so `0001`'s own down-then-up never took part in the identity
+comparison. Changes made:
+
+- **New test** "Apply, roll back and apply again (full cycle through 0001)"
+  (`migrations.spec.ts`). It runs migrate → two rollbacks (`pgmigrations` empty) → migrate, then
+  checks:
+  - the second snapshot equals the first;
+  - both column contracts;
+  - the ten tables and all eleven enums;
+  - `pgmigrations` = `0001_graph-l1, 0002_history-claims`.
+
+  The single-rollback test stays: it covers "reverts only `0002`".
+- **Forced failure.** With `DROP TYPE edge_resolution;` removed from `0001_graph-l1.down.sql`, the
+  new test fails while the single-rollback test still passes: that gap was real. `0001` was
+  restored with `git checkout` (`git status` clean for the file).
+- **Spec and readme text only:**
+  - `l2_requires_provenance` rejects SQL `NULL` only.
+  - Provenance validation will be done by CM-HU-09.
+  - A claim without evidence is a note for CM-HU-09/10, not a rule of this schema.
+
+  No behaviour change.
+
+Commands and results:
+
+- `npx vitest run tests/integration/store` → 3 files, **66 passed**, 0 failed, 0 skipped
+  (45.5 s). The scenario "Apply, roll back and apply again" is now covered by two tests.
+- `npm run lint` → 0 errors (the same 4 pre-existing warnings); `npm run typecheck` → exit 0;
+  `openspec validate schema-history-claims --strict` → valid.
+- Data state before/after: byte-identical. `pgmigrations` = `0001_graph-l1, 0002_history-claims`;
+  0 rows in the ten tables; databases `codemind, postgres, template0, template1`.
