@@ -146,15 +146,22 @@ export interface IndexShape {
   predicate: string | null;
 }
 
-/** `(status = 'stale'::claim_status)` → `status = 'stale'`. */
+/**
+ * Type casts as PostgreSQL prints them: quoted names, multi-word types and array suffixes included
+ * (`::claim_status`, `::character varying`, `::"MyType"`, `::text[]`).
+ */
+const TYPE_CAST = /::(?:"[^"]+"|[a-z_][a-z0-9_]*(?: varying| precision| with(?:out)? time zone)?)(?:\[\])*/g;
+
+/** `(status = 'stale'::claim_status)` → `status = 'stale'`: outer parentheses and every cast removed. */
 function normalisePredicate(predicate: string | null): string | null {
   if (predicate === null) return null;
-  return predicate.replace(/^\((.*)\)$/, '$1').replace(/::[a-z_]+/g, '');
+  return predicate.replace(/^\((.*)\)$/, '$1').replace(TYPE_CAST, '');
 }
 
 /**
  * Secondary indexes of the `public` schema (not backing a primary key or unique constraint), as
- * `IndexShape`s ordered by table, then columns.
+ * `IndexShape`s ordered by table, then columns, then predicate, so the order never depends on the
+ * catalog's.
  */
 export async function secondaryIndexShapes(databaseUrl: string): Promise<IndexShape[]> {
   const client = new Client({ connectionString: databaseUrl });
@@ -182,7 +189,8 @@ export async function secondaryIndexShapes(databaseUrl: string): Promise<IndexSh
       JOIN pg_namespace n ON n.oid = t.relnamespace AND n.nspname = 'public'
       JOIN pg_am am ON am.oid = i.relam
       WHERE t.relname <> 'pgmigrations'
-        AND NOT EXISTS (SELECT 1 FROM pg_constraint k WHERE k.conindid = ix.indexrelid)`);
+        AND NOT EXISTS (SELECT 1 FROM pg_constraint k WHERE k.conindid = ix.indexrelid)
+      ORDER BY t.relname, i.relname`);
     return rows
       .map((row) => ({
         table: row.table,
@@ -191,7 +199,12 @@ export async function secondaryIndexShapes(databaseUrl: string): Promise<IndexSh
         opclasses: row.method === 'btree' ? null : row.opclasses,
         predicate: normalisePredicate(row.predicate),
       }))
-      .sort((a, b) => a.table.localeCompare(b.table) || a.columns.join().localeCompare(b.columns.join()));
+      .sort(
+        (a, b) =>
+          a.table.localeCompare(b.table) ||
+          a.columns.join().localeCompare(b.columns.join()) ||
+          (a.predicate ?? '').localeCompare(b.predicate ?? ''),
+      );
   } finally {
     await client.end();
   }
@@ -200,6 +213,9 @@ export async function secondaryIndexShapes(databaseUrl: string): Promise<IndexSh
 /**
  * Foreign-key columns declared `ON DELETE CASCADE` that are not the first key column of any index on
  * their table, as `table.column`, ordered.
+ *
+ * Limits, accepted while every cascading FK has one column: a composite FK is checked on its first
+ * column only, and any index leading with that column counts, whatever its predicate.
  */
 export async function unindexedCascadingForeignKeys(databaseUrl: string): Promise<string[]> {
   const client = new Client({ connectionString: databaseUrl });

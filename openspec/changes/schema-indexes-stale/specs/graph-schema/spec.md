@@ -109,6 +109,9 @@ that file. It SHALL also set `updated_at` to the transaction time (`now()`) on e
 means the new value is distinct from the old one, so setting a hash on a file whose hash was
 `NULL` counts as a change. The database MUST NOT touch a claim that is already `stale`, and MUST
 NOT turn any claim back to `current`: recomputing claims is the lazy re-inference's job.
+The invalidation MUST depend only on the old and new values of `content_hash`. It MUST NOT depend
+on which columns the `UPDATE` names: a hash changed by another trigger still counts. It MUST NOT
+depend on the session's `search_path` either.
 
 #### Scenario: Changing a file's content hash marks the claims that cite it stale
 
@@ -153,3 +156,18 @@ NOT turn any claim back to `current`: recomputing claims is the lazy re-inferenc
 - **GIVEN** a `current` claim with evidence citing file A and file B
 - **WHEN** only file B's `content_hash` changes
 - **THEN** the claim has `status = 'stale'`
+
+#### Scenario: A content hash rewritten by another trigger still marks the claims that cite it stale
+
+- **GIVEN** a `current` claim with evidence citing a file, and a `BEFORE UPDATE` trigger on
+  `file` that sets a new `content_hash` on that file
+- **WHEN** that file is updated with a statement that sets only `loc`
+- **THEN** the claim has `status = 'stale'`
+
+#### Scenario: Invalidation works whatever the session's search_path
+
+- **GIVEN** a `current` claim with evidence citing a file, and a session whose `search_path` is
+  `pg_catalog` only
+- **WHEN** that file's `content_hash` is updated through a schema-qualified statement
+- **THEN** the update succeeds
+- **AND** the claim has `status = 'stale'`

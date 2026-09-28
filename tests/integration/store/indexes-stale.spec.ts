@@ -150,4 +150,44 @@ describeWithDatabase('graph-schema: stale invalidation on content change', () =>
       expect((await claimState(client, claimId)).status).toBe('stale');
     });
   });
+
+  // Pins the WHEN-only trigger (no "UPDATE OF content_hash"): a column-specific trigger would not
+  // fire here, because the statement does not name content_hash. The helper trigger is created
+  // inside this test's transaction, rewrites only this test's file, and disappears on ROLLBACK.
+  it('A content hash rewritten by another trigger still marks the claims that cite it stale', async () => {
+    await withRollback(async (client) => {
+      const projectId = await insertProject(client);
+      const fileId = await insertFile(client, projectId, 'h1');
+      const claimId = await insertCitingClaim(client, projectId, [fileId]);
+      const helper = unique('rewrite_hash').replaceAll('-', '_');
+      await client.query(`
+        CREATE FUNCTION ${helper}() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN
+          IF NEW.id = '${fileId}' THEN NEW.content_hash := 'rewritten'; END IF;
+          RETURN NEW;
+        END;
+        $$`);
+      await client.query(`CREATE TRIGGER ${helper} BEFORE UPDATE ON file FOR EACH ROW EXECUTE FUNCTION ${helper}()`);
+
+      await client.query('UPDATE file SET loc = 42 WHERE id = $1', [fileId]);
+
+      expect((await claimState(client, claimId)).status).toBe('stale');
+    });
+  });
+
+  // Pins "SET search_path = public" on the trigger function: without it, the function's unqualified
+  // "claim" / "evidence" would not resolve in a session whose search_path is pg_catalog only.
+  it("Invalidation works whatever the session's search_path", async () => {
+    await withRollback(async (client) => {
+      const projectId = await insertProject(client);
+      const fileId = await insertFile(client, projectId, 'h1');
+      const claimId = await insertCitingClaim(client, projectId, [fileId]);
+      await client.query('SET LOCAL search_path = pg_catalog');
+
+      await client.query('UPDATE public.file SET content_hash = $2 WHERE id = $1', [fileId, 'h2']);
+
+      const { rows } = await client.query<{ status: string }>('SELECT status FROM public.claim WHERE id = $1', [claimId]);
+      expect(rows[0].status).toBe('stale');
+    });
+  });
 });

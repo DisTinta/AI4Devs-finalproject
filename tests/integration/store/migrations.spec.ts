@@ -21,6 +21,8 @@ const LIFECYCLE_TIMEOUT_MS = 120_000;
 const L1_TABLES = ['edge', 'file', 'project', 'symbol'];
 /** The migrations applied in the "only L1 graph + history" reference state. */
 const HISTORY_MIGRATIONS = ['0001_graph-l1', '0002_history-claims'];
+/** Every migration, in order: what a fully migrated database records. */
+const ALL_MIGRATIONS = [...HISTORY_MIGRATIONS, '0003_indexes-stale'];
 const HISTORY_TABLES = ['cache_entry', 'claim', 'commit', 'evidence', 'file_commit', 'query_log'];
 const ALL_TABLES = [...L1_TABLES, ...HISTORY_TABLES].sort();
 
@@ -299,13 +301,22 @@ describeWithDatabase('graph-schema: migration lifecycle', () => {
   const migrate = () => runNpmScript('db:migrate', { DATABASE_URL: throwaway.url });
   const rollback = () => runNpmScript('db:rollback', { DATABASE_URL: throwaway.url });
 
-  /** Runs `db:rollback` until nothing is applied; returns the number of calls. Each must exit 0. */
+  /**
+   * Runs `db:rollback` until nothing is applied; returns the number of calls. Each must exit 0 and
+   * revert exactly one migration, and there can be at most one call per known migration, so a
+   * rollback that exits 0 without reverting anything fails at once instead of looping to the timeout.
+   */
   const rollbackAll = async (): Promise<number> => {
     let calls = 0;
-    while ((await appliedMigrations(throwaway.url)).length > 0) {
+    let applied = (await appliedMigrations(throwaway.url)).length;
+    while (applied > 0) {
+      expect(calls, 'more rollbacks than known migrations').toBeLessThan(ALL_MIGRATIONS.length);
       const result = rollback();
       expect(result.status, result.stderr).toBe(0);
       calls += 1;
+      const remaining = (await appliedMigrations(throwaway.url)).length;
+      expect(remaining, 'db:rollback must revert exactly one migration').toBe(applied - 1);
+      applied = remaining;
     }
     return calls;
   };
@@ -527,7 +538,7 @@ describeWithDatabase('graph-schema: migration lifecycle', () => {
     async () => {
       expect(migrate().status).toBe(0);
       const first = await snapshotSchema(throwaway.url);
-      const applied = await appliedMigrations(throwaway.url);
+      expect(await appliedMigrations(throwaway.url)).toEqual(ALL_MIGRATIONS);
 
       await rollbackAll();
       expect(await appliedMigrations(throwaway.url)).toEqual([]);
@@ -539,7 +550,7 @@ describeWithDatabase('graph-schema: migration lifecycle', () => {
       expectColumnContract(second.columns, HISTORY_COLUMNS);
       expect(tablesOf(second.columns)).toEqual(ALL_TABLES);
       expect(second.enums).toEqual(ALL_ENUMS);
-      expect(await appliedMigrations(throwaway.url)).toEqual(applied);
+      expect(await appliedMigrations(throwaway.url)).toEqual(ALL_MIGRATIONS);
     },
     LIFECYCLE_TIMEOUT_MS,
   );
