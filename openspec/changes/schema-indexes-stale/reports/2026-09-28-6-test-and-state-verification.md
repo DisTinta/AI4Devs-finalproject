@@ -185,3 +185,53 @@ Results:
   - non-extension functions: `mark_claims_stale_on_content_change` only, so no helper trigger or
     function survived;
   - `pgmigrations`: `0001`, `0002`, `0003`.
+
+## Addendum 3 — re-run after the second `/adversarial-review` (2026-09-28)
+
+The review gave PASS WITH GAPS, with one Major: nothing pinned the trigger's link between a claim
+and its own evidence (`e.claim_id = claim.id`). With the link dropped, any change to a cited file
+would stale every `current` claim in the database. All 9 trigger tests stayed green, because in
+"Claims citing only other files…" no claim cited the changed file B. The author approved these
+changes:
+
+- **"Claims citing only other files stay current" is reinforced.** A second claim now cites file B.
+  The test asserts that the claim on A stays `current` with `updated_at` unchanged, and that the
+  claim on B turns `stale`.
+- **`SET search_path = public, pg_temp`.** When `pg_temp` is not listed, PostgreSQL searches it
+  *first* for tables. Listing it last stops a session temporary table from shadowing `claim` or
+  `evidence`. The catalog confirms `proconfig = {"search_path=public, pg_temp"}`.
+- **Two new scenarios, 18 in total:**
+  - "Clearing a content hash marks the claims that cite it stale": `h → NULL` counts as a change.
+    The author accepted this on purpose.
+  - "A session temporary table named claim does not intercept invalidation".
+- **`updated_at` is asserted exactly equal to the transaction's `now()`** in the first trigger
+  test.
+- **The `BEFORE`-trigger test runs on its own throwaway database.** Its `CREATE TRIGGER … ON file`
+  no longer locks the shared `file` table for the parallel constraint files.
+- **`secondaryIndexShapes`** now excludes only indexes that back `p`, `u` or `x` constraints. An
+  FK's `conindid` points at the referenced unique index, so FKs no longer count.
+
+**Forced failures.** Each broken file was restored from a scratch copy (`cmp` identical), because
+`0003` had uncommitted edits. The shared DB was rolled back and re-applied after each break.
+
+- G. `e.claim_id = claim.id` removed. "Claims citing only other files stay current" fails with
+  `expected { status: 'stale', … } to deeply equal { status: 'current', … }`. The other 10 pass.
+- H. `search_path = public` without `pg_temp`. "A session temporary table named claim does not
+  intercept invalidation" fails with `expected 'current' to be 'stale'`: the trigger updated the
+  temp table, not the real one.
+- E, re-run after moving the `BEFORE` test to a throwaway DB. `OF content_hash` reintroduced:
+  "A content hash rewritten by another trigger…" still fails with `expected 'current' to be
+  'stale'`.
+
+**Results:**
+
+- `npx vitest run tests/integration/store`, twice in a row: 4 files, **81 passed**, 0 failed,
+  0 skipped (about 63–65 s).
+- lint and typecheck: exit 0.
+- Demo driver: `18 scenarios exercised, 18 match the spec, 0 do not`, and the state was restored
+  identical.
+- Shared DB afterwards:
+  - user triggers: `file_content_hash_marks_claims_stale` only;
+  - non-extension functions: `mark_claims_stale_on_content_change` only;
+  - no leftover throwaway database;
+  - `pgmigrations`: `0001`, `0002`, `0003`.

@@ -9,7 +9,7 @@ Adds migration `0003_indexes-stale`. It creates 17 secondary indexes:
 
 It also adds a trigger. When a file's `content_hash` changes, the trigger marks `stale` the claims
 that cite it. `snapshotSchema` now captures indexes, triggers and functions, so the lifecycle
-tests catch anything a down section leaves behind. Integration tests cover all 16 scenarios of the
+tests catch anything a down section leaves behind. Integration tests cover all 18 scenarios of the
 `graph-schema` delta, from OpenSpec change `schema-indexes-stale` (Linear DIS-13 / CM-HU-01.3).
 
 ## Why?
@@ -39,12 +39,12 @@ and the indexes are present in `pg_indexes`.
    - The rollback reverts **only** `0003_indexes-stale`.
    - The final state has 17 secondary indexes, the trigger `file_content_hash_marks_claims_stale`
      and the function `mark_claims_stale_on_content_change`.
-5. `npx vitest run tests/integration/store` → 79 passed (4 files).
+5. `npx vitest run tests/integration/store` → 81 passed (4 files).
 6. `npm run lint && npm run typecheck && npm run lint:architecture && npm run docs:coverage`: all
    exit 0, and the existing warnings are unchanged.
 7. Independent demonstration against the real scripts and database:
    `node openspec/changes/schema-indexes-stale/reports/2026-09-28-demo.mjs`
-   → `16 scenarios exercised, 16 match the spec`.
+   → `18 scenarios exercised, 18 match the spec`.
 
 Evidence from the agent's run, in `openspec/changes/schema-indexes-stale/reports/`:
 
@@ -77,7 +77,7 @@ Fixes after `/verify-against-spec`, commit `7dc275f`:
 - **The trigger is `AFTER UPDATE ON file`, not `UPDATE OF content_hash`.** Only the `WHEN
   (OLD.content_hash IS DISTINCT FROM NEW.content_hash)` guard decides, so a hash rewritten by a
   `BEFORE` trigger cannot skip invalidation.
-- **The function pins `SET search_path = public`.**
+- **The function pins `SET search_path`** (`public`, and later `public, pg_temp`).
 - **The spec now says "transaction time (`now()`)" and "exactly the listed secondary indexes".**
 
 Fixes after `/adversarial-review` (it returned FAIL, with one Major):
@@ -101,6 +101,25 @@ Fixes after `/adversarial-review` (it returned FAIL, with one Major):
   Both are also noted on DIS-23 and DIS-10.
 - **Spec edits after implementation** ("transaction time", "exactly these secondary indexes"): the
   author approved them explicitly.
+
+Fixes after the second `/adversarial-review` (it returned PASS WITH GAPS, with one Major):
+
+- **The Major: the claim ↔ its-own-evidence link was untested.** Dropping `e.claim_id = claim.id`
+  would stale every claim in the database on each change. "Claims citing only other files stay
+  current" now has a claim on B too. With the link dropped, that test fails.
+- **`SET search_path = public, pg_temp`.** `pg_temp` is listed last because PostgreSQL searches
+  it first when it is not listed. New scenario: "A session temporary table named claim does not
+  intercept invalidation". Without `pg_temp`, it fails.
+- **New scenario "Clearing a content hash marks the claims that cite it stale"** (`h → NULL`,
+  accepted on purpose).
+- **`updated_at` asserted equal to the transaction's `now()`.**
+- **The `BEFORE`-trigger test runs on a throwaway DB**, so there is no table lock on the shared
+  `file`.
+- **`secondaryIndexShapes`** filters by `contype IN ('p','u','x')`.
+- **Forced failures:**
+  - G (the link dropped) fails "Claims citing only other files…";
+  - H (`pg_temp` dropped) fails the temp-table scenario;
+  - E (`OF content_hash` put back) still fails after the `BEFORE` test moved to a throwaway DB.
 
 Evidence quality:
 
@@ -144,10 +163,12 @@ Known limits:
 | Updating other columns of a file leaves its claims current | `indexes-stale.spec.ts` › "Updating other columns of a file leaves its claims current" |
 | Writing the same content hash again leaves claims current | `indexes-stale.spec.ts` › "Writing the same content hash again leaves claims current" |
 | Setting a first content hash marks the claims that cite it stale | `indexes-stale.spec.ts` › "Setting a first content hash marks the claims that cite it stale" |
+| Clearing a content hash marks the claims that cite it stale | `indexes-stale.spec.ts` › "Clearing a content hash marks the claims that cite it stale" |
 | A claim already stale is not touched | `indexes-stale.spec.ts` › "A claim already stale is not touched" |
 | A claim citing several files becomes stale when one of them changes | `indexes-stale.spec.ts` › "A claim citing several files becomes stale when one of them changes" |
 | A content hash rewritten by another trigger still marks the claims that cite it stale | `indexes-stale.spec.ts` › "A content hash rewritten by another trigger still marks the claims that cite it stale" |
 | Invalidation works whatever the session's search_path | `indexes-stale.spec.ts` › "Invalidation works whatever the session's search_path" |
+| A session temporary table named claim does not intercept invalidation | `indexes-stale.spec.ts` › "A session temporary table named claim does not intercept invalidation" |
 
 ## Origin
 

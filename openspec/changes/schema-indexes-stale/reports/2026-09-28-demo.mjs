@@ -242,13 +242,19 @@ async function partB() {
     await report('before', cl);
     await exec('UPDATE file SET content_hash = $2 WHERE id = $1', [f, 'h2']);
     const s = await report('after', cl);
-    record(id, name, s.status === 'stale' && s.updated_at > PAST, `stale; updated_at moved from ${PAST} to ${s.updated_at}`);
+    const txNow = (await one('SELECT now() AS now')).now.toISOString();
+    log(`    transaction now(): ${txNow}`);
+    record(id, name, s.status === 'stale' && s.updated_at === txNow && s.updated_at > PAST,
+      `stale; updated_at moved from ${PAST} to the transaction time ${s.updated_at}`);
   });
   await scenario('Claims citing only other files stay current', async (id, name) => {
-    const p = await project(); const a = await file(p, 'a1'); const b = await file(p, 'b1'); const cl = await claim(p, [a]);
+    const p = await project(); const a = await file(p, 'a1'); const b = await file(p, 'b1');
+    const onA = await claim(p, [a]); const onB = await claim(p, [b]);
     await exec('UPDATE file SET content_hash = $2 WHERE id = $1', [b, 'b2']);
-    const s = await report('claim citing A after B changed', cl);
-    record(id, name, s.status === 'current' && s.updated_at === PAST, 'still current, updated_at untouched');
+    const sa = await report('claim citing only A, after B changed', onA);
+    const sb = await report('claim citing B, after B changed', onB);
+    record(id, name, sa.status === 'current' && sa.updated_at === PAST && sb.status === 'stale',
+      'the claim on A still current with updated_at untouched; the claim on B stale');
   });
   await scenario('Updating other columns of a file leaves its claims current', async (id, name) => {
     const p = await project(); const f = await file(p, 'h1'); const cl = await claim(p, [f]);
@@ -266,6 +272,12 @@ async function partB() {
     const p = await project(); const f = await file(p, null); const cl = await claim(p, [f]);
     await exec('UPDATE file SET content_hash = $2 WHERE id = $1', [f, 'h1']);
     const s = await report('after NULL → h1', cl);
+    record(id, name, s.status === 'stale', 'stale');
+  });
+  await scenario('Clearing a content hash marks the claims that cite it stale', async (id, name) => {
+    const p = await project(); const f = await file(p, 'h1'); const cl = await claim(p, [f]);
+    await exec('UPDATE file SET content_hash = $2 WHERE id = $1', [f, null]);
+    const s = await report('after h1 → NULL', cl);
     record(id, name, s.status === 'stale', 'stale');
   });
   await scenario('A claim already stale is not touched', async (id, name) => {
@@ -299,6 +311,16 @@ async function partB() {
     const s = (await one('SELECT status FROM public.claim WHERE id = $1', [cl])).status;
     log(`    after: status=${s}`);
     record(id, name, s === 'stale', 'update succeeded; claim stale');
+  });
+  await scenario('A session temporary table named claim does not intercept invalidation', async (id, name) => {
+    const p = await project(); const f = await file(p, 'h1'); const cl = await claim(p, [f]);
+    await c.query('CREATE TEMP TABLE claim ON COMMIT DROP AS SELECT id, status, updated_at FROM public.claim WHERE id = $1', [cl]);
+    log('    > CREATE TEMP TABLE claim ON COMMIT DROP AS SELECT … FROM public.claim   (session temp table shadows the name)');
+    await exec('UPDATE public.file SET content_hash = $2 WHERE id = $1', [f, 'h2']);
+    const real = (await one('SELECT status FROM public.claim WHERE id = $1', [cl])).status;
+    const temp = (await one('SELECT status FROM pg_temp.claim WHERE id = $1', [cl])).status;
+    log(`    after: public.claim status=${real}; pg_temp.claim status=${temp}`);
+    record(id, name, real === 'stale' && temp === 'current', 'the schema table\'s claim stale; the temp table untouched');
   });
   await c.end();
 }
