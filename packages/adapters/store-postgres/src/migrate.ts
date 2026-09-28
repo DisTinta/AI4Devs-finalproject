@@ -20,7 +20,6 @@ async function run(databaseUrl: string, direction: Direction): Promise<void> {
     migrationsTable: MIGRATIONS_TABLE,
     direction,
     count: direction === 'up' ? Infinity : 1,
-    checkOrder: true,
     migrationLoaderStrategies: [{ extensions: ['.sql'], loader: 'sql' }],
   });
 }

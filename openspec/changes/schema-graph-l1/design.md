@@ -64,6 +64,11 @@ resolved from the module location (not from `process.cwd()`), `migrationsTable: 
 reads `DATABASE_URL`, exits non-zero with a message naming `DATABASE_URL` when it is missing, and
 exits non-zero on any runner error.
 
+`migrateUp`, `migrateDown` and `MIGRATIONS_DIR` are also re-exported from the package entry
+(`packages/adapters/store-postgres/src/index.ts`): they are the runner's public API for the future
+`StorePort` adapter and for the integration tests. Other runner options stay at node-pg-migrate's
+defaults (`checkOrder`, `singleTransaction`); only what differs from them is passed.
+
 Root scripts become:
 
 - `db:migrate` → `tsx packages/adapters/store-postgres/src/migrate.ts up`
@@ -106,8 +111,12 @@ table requirements. This section only fixes what the spec leaves to implementati
   `edge_extractor_not_empty` (`CHECK (extractor <> '')`), `edge_weight_range`
   (`CHECK (weight BETWEEN 0 AND 1)`, which accepts NULL and both bounds).
 - The migration starts with `CREATE EXTENSION IF NOT EXISTS vector`; the down section drops tables
-  in reverse dependency order (`edge`, `symbol`, `file`, `project`), then the types, then
-  `DROP EXTENSION IF EXISTS vector`.
+  in reverse dependency order (`edge`, `symbol`, `file`, `project`), then the types. Drops use no
+  `IF EXISTS`: rolling back a half-present schema must fail loudly instead of succeeding silently.
+- **The down section does not drop the `vector` extension.** The extension is shared database
+  infrastructure, not an object owned by this migration: DIS-12/13 reuse it (`cache_entry` columns,
+  HNSW indexes), and it may already exist before `0001` runs. The up section's
+  `CREATE EXTENSION IF NOT EXISTS` is idempotent, so apply → rollback → apply is unaffected.
 - No secondary indexes beyond those implied by PK/UNIQUE — indexes are DIS-13.
 
 ### D5 — Integration tests: throwaway database for the lifecycle, transactions for constraints
@@ -169,8 +178,6 @@ table requirements. This section only fixes what the spec leaves to implementati
   superuser; documented in the test file.
 - [node-pg-migrate major version and ESM/Node 20 compatibility] → Verify the installed version's
   docs (context7) during apply; pin the major in `package.json`.
-- [Dropping the `vector` extension on rollback] → Safe while this is the only migration using it;
-  once DIS-12/13 add vector-dependent objects, their own down sections run first.
 - [`readme.md` §3.1 diverges from the schema until updated] → Update the diagram in the same PR
   (documentation task).
 

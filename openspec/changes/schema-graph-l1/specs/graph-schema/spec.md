@@ -26,8 +26,9 @@ migration is pending MUST change nothing and MUST still exit with code 0.
 
 ### Requirement: Roll back the latest migration
 
-`npm run db:rollback` SHALL revert the most recently applied migration, removing every table, type
-and extension that migration created, and SHALL exit with code 0 when it succeeds.
+`npm run db:rollback` SHALL revert the most recently applied migration, removing every table and
+enum type that migration created, and SHALL exit with code 0 when it succeeds. The `vector`
+extension is shared database infrastructure and is not removed by rollback.
 
 #### Scenario: Roll back the L1 graph migration
 

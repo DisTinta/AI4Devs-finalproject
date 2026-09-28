@@ -27,6 +27,18 @@ async function withAdminClient(serverUrl: string, work: (client: Client) => Prom
   }
 }
 
+/** Rows of node-pg-migrate's bookkeeping table, in run order (excluded from `snapshotSchema`). */
+export async function appliedMigrations(databaseUrl: string): Promise<string[]> {
+  const client = new Client({ connectionString: databaseUrl });
+  await client.connect();
+  try {
+    const { rows } = await client.query<{ name: string }>('SELECT name FROM pgmigrations ORDER BY id');
+    return rows.map((row) => row.name);
+  } finally {
+    await client.end();
+  }
+}
+
 export interface ColumnShape {
   table: string;
   column: string;

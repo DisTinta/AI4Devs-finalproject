@@ -310,15 +310,21 @@ describeWithDatabase('graph-schema: L1 tables and constraints', () => {
     it('Deleting a symbol deletes its edges', async () => {
       await withRollback(async (client) => {
         const g = await insertGraph(client);
-        const edgeId = await insertEdge(client, {
+        const asTarget = await insertEdge(client, {
           projectId: g.projectId,
           sourceSymbolId: g.callerId,
           targetSymbolId: g.calleeId,
         });
+        const asSource = await insertEdge(client, {
+          projectId: g.projectId,
+          sourceSymbolId: g.calleeId,
+          targetSymbolId: g.callerId,
+        });
 
         await client.query('DELETE FROM symbol WHERE id = $1', [g.calleeId]);
 
-        expect(await countRows(client, 'edge', edgeId)).toBe(0);
+        expect(await countRows(client, 'edge', asTarget)).toBe(0);
+        expect(await countRows(client, 'edge', asSource)).toBe(0);
       });
     });
 
@@ -326,16 +332,23 @@ describeWithDatabase('graph-schema: L1 tables and constraints', () => {
       await withRollback(async (client) => {
         const g = await insertGraph(client);
         const otherFileId = await insertFile(client, g.projectId);
-        const edgeId = await insertEdge(client, {
+        const asSource = await insertEdge(client, {
           projectId: g.projectId,
           sourceFileId: otherFileId,
           targetFileId: g.fileId,
           kind: 'imports',
         });
+        const asTarget = await insertEdge(client, {
+          projectId: g.projectId,
+          sourceFileId: g.fileId,
+          targetFileId: otherFileId,
+          kind: 'imports',
+        });
 
         await client.query('DELETE FROM file WHERE id = $1', [otherFileId]);
 
-        expect(await countRows(client, 'edge', edgeId)).toBe(0);
+        expect(await countRows(client, 'edge', asSource)).toBe(0);
+        expect(await countRows(client, 'edge', asTarget)).toBe(0);
       });
     });
 
