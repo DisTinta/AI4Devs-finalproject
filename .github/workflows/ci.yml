@@ -41,6 +41,7 @@ jobs:
               - 'tsconfig*.json'
               - '.dependency-cruiser.cjs'
               - 'vitest.config.*'
+              - 'vitest.stryker.config.*'
               - 'stryker.config.*'
               - 'stryker.conf.*'
               - '.github/workflows/ci.yml'
@@ -49,6 +50,7 @@ jobs:
               - 'tests/**'
               - 'stryker.config.*'
               - 'stryker.conf.*'
+              - 'vitest.stryker.config.*'
               - 'package-lock.json'
 
       - uses: actions/setup-node@v4

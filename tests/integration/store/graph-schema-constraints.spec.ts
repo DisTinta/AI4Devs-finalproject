@@ -170,6 +170,17 @@ describeWithDatabase('graph-schema: L1 tables and constraints', () => {
       });
     });
 
+    // Boundary of symbol_span_valid (end_line >= start_line): a one-line route or arrow function.
+    it('Single-line symbol is accepted', async () => {
+      await withRollback(async (client) => {
+        const fileId = await insertFile(client, await insertProject(client));
+
+        const symbolId = await insertSymbol(client, fileId, 1, 1);
+
+        expect(await countRows(client, 'symbol', symbolId)).toBe(1);
+      });
+    });
+
     it('Non-positive start line is rejected', async () => {
       await withRollback(async (client) => {
         const fileId = await insertFile(client, await insertProject(client));

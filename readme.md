@@ -264,7 +264,7 @@ Al ser el arranque local **la única evidencia de que el sistema funciona ante q
 
 ```bash
 git clone https://github.com/DisTinta/AI4Devs-finalproject && cd AI4Devs-finalproject
-cp .env.example .env               # LLM opcional: ver variables abajo
+cp .env.example .env               # DATABASE_URL del contenedor local; LLM opcional: ver variables abajo
 make up
 ```
 
@@ -333,7 +333,7 @@ Ejecuta una consulta contra cada repositorio de muestra y compara la salida con 
 | `LLM_BASE_URL` | no | Base URL compatible OpenAI. Por defecto en desarrollo: Ollama (`http://localhost:11434/v1`). Sin URL + sin key → solo evaluación |
 | `LLM_MODEL` | no | Modelo para generación (valor por defecto en `.env.example`) |
 | `LLM_MODEL_VERIFY` | no | Modelo económico para la verificación de evidencias en vivo |
-| `DATABASE_URL` | no | Cadena de conexión; por defecto apunta al contenedor local |
+| `DATABASE_URL` | **sí** (scripts `db:*`) | Cadena de conexión de PostgreSQL. `.env.example` trae la del contenedor local; `make up` la toma de `.env` (el Makefile carga y exporta `.env`). Si ejecutas `npm run db:migrate` / `db:rollback` a mano, expórtala antes: sin ella salen con error |
 | `ALLOWED_REPOS_DIR` | no | Directorio raíz permitido para indexar (ver [2.5](#25-seguridad)) |
 | `DAILY_BUDGET_USD` | no | Techo de gasto diario si se usa un proveedor cloud de pago (irrelevante con Ollama local) |
 

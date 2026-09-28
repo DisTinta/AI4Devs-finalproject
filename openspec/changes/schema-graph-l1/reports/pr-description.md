@@ -3,7 +3,7 @@
 Replaces the `db:migrate` / `db:rollback` placeholders with a real node-pg-migrate runner
 (`packages/adapters/store-postgres/src/migrate.ts`, plain SQL `.up.sql` / `.down.sql`) and adds the
 first migration with the L1 graph tables `project`, `file`, `symbol` and `edge`. Integration tests
-under `tests/integration/store/` (32 tests) cover all 27 scenarios of the `graph-schema` delta spec (OpenSpec
+under `tests/integration/store/` (34 tests) cover all 27 scenarios of the `graph-schema` delta spec (OpenSpec
 change `schema-graph-l1`, Linear DIS-11 / CM-HU-01.1).
 
 ## Why?
@@ -24,7 +24,7 @@ DIS-11 / CM-HU-01.1: the first concrete piece of the knowledge graph on disk.
    (PowerShell: `$env:DATABASE_URL = 'postgres://codemind:codemind@localhost:5432/codemind'`).
 4. `npm run db:migrate && npm run db:rollback && npm run db:migrate` — the same sequence as CI;
    each step exits 0 and the last leaves `project`, `file`, `symbol`, `edge` in `public`.
-5. `npx vitest run tests/integration/store` — 32 passed. Without `DATABASE_URL` locally, the DB
+5. `npx vitest run tests/integration/store` — 34 passed. Without `DATABASE_URL` locally, the DB
    suites are skipped with a warning; in CI (`CI` set) they fail instead.
 6. `npm run lint && npm run typecheck && npm run lint:architecture && npm run docs:coverage`.
    CI emulation without a database: with `CI=1` and `DATABASE_URL` unset,
@@ -82,6 +82,13 @@ and `2026-09-28-9-manual-interface-testing.md`.
   would fail: they run with `CI=true` and no `DATABASE_URL`, so `support.ts` throws on import
   (design D5). D5 itself is unchanged. Until `packages/core` has its first unit test, the mutation
   step keeps skipping, as it did before this PR.
+- **`make up` loads `.env`.** The Makefile includes and exports `.env` when it exists, so
+  `cp .env.example .env && make up` gets `DATABASE_URL`. `migrate.ts` has no default: plain
+  `npm run db:*` without the variable still fails clearly, as the spec requires. `readme.md` now
+  marks `DATABASE_URL` as required for the `db:*` scripts.
+- **Runner entry point:** the CLI check compares `realpathSync` paths, and folds case on win32.
+  Before, running the runner through a symlink or junction exited 0 without migrating. This is
+  tested.
 - **Accepted, L1:** the schema allows self-loop edges (source = target) and duplicate edges (same
   endpoints, `kind` and `extractor`), because `edge` has no UNIQUE constraint. The writers own
   deduplication; a later story adds a constraint if needed.
@@ -99,13 +106,13 @@ and `2026-09-28-9-manual-interface-testing.md`.
 
 | Scenario in the specification | Test that covers it |
 |---|---|
-| Migrate an empty database | `tests/integration/store/migrations.spec.ts:132` |
-| Migrate an up-to-date database | `tests/integration/store/migrations.spec.ts:160` |
-| Roll back the L1 graph migration | `tests/integration/store/migrations.spec.ts:191` |
-| Apply, roll back and apply again | `tests/integration/store/migrations.spec.ts:208` |
-| DATABASE_URL is missing on migrate | `tests/integration/store/migrations.spec.ts:81` (unset), `:104` (blank) |
-| DATABASE_URL is missing on rollback | `tests/integration/store/migrations.spec.ts:92` |
-| Migrated schema matches the column contract | `tests/integration/store/migrations.spec.ts:143` |
+| Migrate an empty database | `tests/integration/store/migrations.spec.ts:162` |
+| Migrate an up-to-date database | `tests/integration/store/migrations.spec.ts:190` |
+| Roll back the L1 graph migration | `tests/integration/store/migrations.spec.ts:221` |
+| Apply, roll back and apply again | `tests/integration/store/migrations.spec.ts:238` |
+| DATABASE_URL is missing on migrate | `tests/integration/store/migrations.spec.ts:84` (unset), `:107` (blank) |
+| DATABASE_URL is missing on rollback | `tests/integration/store/migrations.spec.ts:95` |
+| Migrated schema matches the column contract | `tests/integration/store/migrations.spec.ts:173` |
 | Defaults apply on a minimal insert | `tests/integration/store/graph-schema-constraints.spec.ts:87` |
 | Duplicate project name is rejected | `tests/integration/store/graph-schema-constraints.spec.ts:110` |
 | Unknown language is rejected | `tests/integration/store/graph-schema-constraints.spec.ts:119` |
@@ -113,19 +120,19 @@ and `2026-09-28-9-manual-interface-testing.md`.
 | Same path in two projects is accepted | `tests/integration/store/graph-schema-constraints.spec.ts:142` |
 | Deleting a project deletes its files | `tests/integration/store/graph-schema-constraints.spec.ts:152` |
 | Invalid span is rejected | `tests/integration/store/graph-schema-constraints.spec.ts:165` |
-| Non-positive start line is rejected | `tests/integration/store/graph-schema-constraints.spec.ts:173` |
-| Deleting a file deletes its symbols | `tests/integration/store/graph-schema-constraints.spec.ts:181` |
-| Edge without resolution is rejected | `tests/integration/store/graph-schema-constraints.spec.ts:194` |
-| Empty extractor is rejected | `tests/integration/store/graph-schema-constraints.spec.ts:210` |
-| Endpoint with both a symbol and a file is rejected | `tests/integration/store/graph-schema-constraints.spec.ts:226` (source side), `:255` (target side) |
-| Endpoint with neither a symbol nor a file is rejected | `tests/integration/store/graph-schema-constraints.spec.ts:242` (target side), `:271` (source side) |
-| Endpoint pointing to a missing row is rejected | `tests/integration/store/graph-schema-constraints.spec.ts:282` |
-| File-to-symbol edge is accepted | `tests/integration/store/graph-schema-constraints.spec.ts:293` |
-| Weight at the bounds is accepted | `tests/integration/store/graph-schema-constraints.spec.ts:310` |
-| Weight outside 0..1 is rejected | `tests/integration/store/graph-schema-constraints.spec.ts:323` (`1.5`), `:339` (`-0.1`) |
-| Deleting a symbol deletes its edges | `tests/integration/store/graph-schema-constraints.spec.ts:355` |
-| Deleting a file deletes its edges | `tests/integration/store/graph-schema-constraints.spec.ts:376` |
-| Deleting a project deletes its edges even when the endpoints survive | `tests/integration/store/graph-schema-constraints.spec.ts:400` |
+| Non-positive start line is rejected | `tests/integration/store/graph-schema-constraints.spec.ts:184` |
+| Deleting a file deletes its symbols | `tests/integration/store/graph-schema-constraints.spec.ts:192` |
+| Edge without resolution is rejected | `tests/integration/store/graph-schema-constraints.spec.ts:205` |
+| Empty extractor is rejected | `tests/integration/store/graph-schema-constraints.spec.ts:221` |
+| Endpoint with both a symbol and a file is rejected | `tests/integration/store/graph-schema-constraints.spec.ts:237` (source side), `:266` (target side) |
+| Endpoint with neither a symbol nor a file is rejected | `tests/integration/store/graph-schema-constraints.spec.ts:253` (target side), `:282` (source side) |
+| Endpoint pointing to a missing row is rejected | `tests/integration/store/graph-schema-constraints.spec.ts:293` |
+| File-to-symbol edge is accepted | `tests/integration/store/graph-schema-constraints.spec.ts:304` |
+| Weight at the bounds is accepted | `tests/integration/store/graph-schema-constraints.spec.ts:321` |
+| Weight outside 0..1 is rejected | `tests/integration/store/graph-schema-constraints.spec.ts:334` (`1.5`), `:350` (`-0.1`) |
+| Deleting a symbol deletes its edges | `tests/integration/store/graph-schema-constraints.spec.ts:366` |
+| Deleting a file deletes its edges | `tests/integration/store/graph-schema-constraints.spec.ts:387` |
+| Deleting a project deletes its edges even when the endpoints survive | `tests/integration/store/graph-schema-constraints.spec.ts:411` |
 
 ## Origin
 

@@ -44,7 +44,7 @@ Local emulation, each with `CI=1`:
 | D5 still enforced | unset | `npx vitest run` | exit 1, both store specs throw `DATABASE_URL must be set in CI` (expected) |
 | `quality` → Mutation testing (the `ci.yml` shell block, verbatim) | unset | guard `find … -prune …` then `npx stryker run` | guard finds no unit test, prints the skip warning, exit 0 |
 | Stryker run directly | unset | `npx stryker run` | the dry run no longer loads the store specs (vitest reports `exclude: fixtures/**, node_modules/**, tests/integration/**`). It still exits 1: with no unit tests left, vitest reports `No test files found` and Stryker aborts with `Something went wrong in the initial test run`. This zero-test state existed before this change and is why the guard skips the step. |
-| `quality` → Tests | set | `npx vitest run` ¹ | 2 files, 32 passed |
+| `quality` → Tests | set | `npx vitest run` ¹ | 2 files, 32 passed (34 after the third review) |
 | `quality` → Migrations | set | `db:migrate && db:rollback && db:migrate` | exit 0 |
 
 ¹ Run locally with `.stryker-tmp/**` excluded as well: the aborted Stryker run left a gitignored
@@ -53,18 +53,22 @@ sandbox in `.stryker-tmp/` that vitest would otherwise collect. The repository h
 
 ## Test results
 
-- Targeted tests: 32 passed, 0 failed, 0 skipped, in both consecutive runs (≈ 23 s each)
-- Required suite: 2 files, 32 passed, 0 failed, 0 skipped; runtime ≈ 24 s
+- Targeted tests: 34 passed, 0 failed, 0 skipped, in both consecutive runs (32 before the third
+  review's two new tests; both counts seen twice in a row)
+- Required suite: 2 files, 34 passed, 0 failed, 0 skipped; runtime ≈ 24 s
 - Gates (re-run after the CI changes, same results): lint exit 0 (0 errors, 4 pre-existing `no-empty-object-type` warnings on empty ports);
   typecheck exit 0; lint:architecture exit 0 (0 errors, 8 pre-existing `no-orphans` warnings on
   stub packages); docs:coverage exit 0 with no warnings; CI migrate → rollback → migrate exit 0
 - Scenario coverage: the 27 `#### Scenario:` in `specs/graph-schema/spec.md` each have a test with
-  the identical title. Five extra tests pin behaviour the scenarios leave half-covered:
+  the identical title. Seven extra tests pin behaviour the scenarios leave half-covered:
   - `Endpoint with both a symbol and a file is rejected (target side)`
   - `Endpoint with neither a symbol nor a file is rejected (source side)`
   - `Weight outside 0..1 is rejected (below the lower bound)` (`weight = -0.1`)
   - `DATABASE_URL is missing on migrate (blank value)` (`DATABASE_URL='   '`)
   - `Roll back a database with nothing applied` (characterisation: exit 0, schema unchanged)
+  - `Single-line symbol is accepted` (`start_line = end_line = 1`, boundary of `symbol_span_valid`)
+  - `CLI runs when invoked through a linked path` (runner entry point reached through a junction or
+    symlink)
 - SQLSTATE of the three new constraint tests: `23514 check_violation` in all three
   (`edge_target_exactly_one`, `edge_source_exactly_one`, `edge_weight_range`).
 
@@ -93,6 +97,40 @@ sandbox in `.stryker-tmp/` that vitest would otherwise collect. The repository h
 - End-to-end (step 10): not applicable — the change adds no user interface or user workflow; the
   `db:*` CLI scripts are exercised in step 9.
 - Notes: no flaky tests, no retries.
+
+### Third adversarial review (same day)
+
+- Single-line symbol, the boundary of `symbol_span_valid`: the test passed on first run, because
+  the constraint is already `>=`. Mutation: the CHECK was changed to `end_line > start_line` in
+  `0001_graph-l1.up.sql` and the shared DB rolled back and re-migrated. Exactly this test failed
+  (1 failed | 23 passed; `23514`, constraint `symbol_span_valid`). The file was restored
+  byte-identical (`git checkout`, `git diff --quiet`), then rolled back and re-migrated. The live
+  constraint reads `CHECK ((end_line >= start_line))`.
+- Entry point, RED → GREEN. Before the fix, running the runner through a directory junction
+  (`npx tsx <junction>/migrate.ts up`, `DATABASE_URL` unset) exited **0** and printed nothing: the
+  CLI was skipped without migrating. A different drive-letter case did not reproduce the problem,
+  because tsx keeps the path as given. The new test failed (`expected +0 not to be +0`). After the
+  fix, which compares `realpathSync` paths and folds case on win32, it passes, and the manual
+  junction run exits 1 with the `DATABASE_URL` message. The test removes its link with `unlinkSync`,
+  never with a recursive delete, and `packages/adapters/store-postgres/src` was checked intact
+  afterwards.
+- `runCommand` / `runNpmScript` now pass `timeout: 45 s` to `spawnSync`, below the 60 s timeout of
+  the smallest test. A hung child is killed and reported in stderr instead of blocking the event
+  loop.
+- `make up` and `DATABASE_URL`: the Makefile now includes and exports `.env` when it exists.
+  `make` is not installed on this machine (neither Git Bash nor WSL), and a deny rule blocks
+  creating `.env`, so `make up` itself was **not** run. Evidence instead:
+  - GNU make 4.x in a throwaway `alpine:3.20` container ran over a copy of the Makefile, with a
+    synthetic `.env` holding the `.env.example` connection string. A probe recipe saw
+    `DATABASE_URL=postgresql://codemind:codemind@localhost:5432/codemind`; without `.env` it saw
+    `<unset>`. `make -n up` still lists `npm run db:migrate` as the third step.
+  - `DATABASE_URL=postgresql://…/codemind npm run db:migrate` (the `.env.example` value and scheme)
+    → `No migrations to run!`, exit 0.
+  - With `DATABASE_URL` unset, `npm run db:migrate` → exit 1, `DATABASE_URL is not set` (spec
+    unchanged; no default in `migrate.ts`).
+- Re-run after these changes: store tests 34/34 twice, full suite 34/34, lint / typecheck /
+  lint:architecture / docs:coverage exit 0 (same pre-existing warnings), CI migrate → rollback →
+  migrate exit 0. The Frontend emulation (`CI=1`, no DB, integration excluded) still exits 0.
 
 ## Data state verification
 

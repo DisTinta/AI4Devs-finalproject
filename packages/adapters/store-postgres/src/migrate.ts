@@ -1,7 +1,8 @@
 // Migration runner for the Codemind PostgreSQL schema (node-pg-migrate, SQL migrations).
 // Invoked by the root `db:migrate` / `db:rollback` scripts as `tsx .../migrate.ts up|down`.
+import { realpathSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { runner } from 'node-pg-migrate';
 
 /** Absolute path of the SQL migrations folder, independent of the caller's working directory. */
@@ -58,7 +59,25 @@ async function main(args: string[]): Promise<number> {
   }
 }
 
-const invokedDirectly = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
-if (invokedDirectly) {
+/** Canonical form of a path: links resolved and, on Windows, case folded (its paths are case-insensitive). */
+function canonicalPath(path: string): string {
+  const real = realpathSync(path);
+  return process.platform === 'win32' ? real.toLowerCase() : real;
+}
+
+// Start the CLI only when this module is the entry point. Compare canonical paths, not raw URLs:
+// reaching the file through a symlink or junction, or with a different drive-letter case, must not
+// make the scripts exit 0 without migrating.
+function isEntryModule(): boolean {
+  const entry = process.argv[1];
+  if (entry === undefined) return false;
+  try {
+    return canonicalPath(entry) === canonicalPath(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (isEntryModule()) {
   process.exitCode = await main(process.argv.slice(2));
 }

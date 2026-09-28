@@ -107,6 +107,12 @@ Verified against `package.json` (root and per package). If a command is not here
   1. Starting work → set status to **In Progress**.
   2. Verification succeeds → set **In Review** or **Done**, and leave a comment linking the
      OpenSpec change.
+  3. **Language of Linear text (project exception to `base-standards.md` §2 “tickets in
+     English”):** every comment, status note, and human-facing update written **into Linear**
+     MUST be **Spanish only** — one language per comment, no Spanglish, no mixing English and
+     Spanish in the same sentence. Identifiers may stay as-is (`DIS-11`, `schema-graph-l1`,
+     file paths, command names). Code, commits, OpenSpec artifacts, ADRs and PR technical body
+     remain English.
 
 ## Operational constraints
 
@@ -157,8 +163,11 @@ services that must be started first, quirks of the local environment.
   They resolve in `npm ls`; do not expect real behaviour from them yet.
 - **Vitest can report success with no tests** (`passWithNoTests: true`). A green suite is not
   evidence that behaviour is covered.
-- **The repo is mid-build (Entrega 2).** `db:seed`/`seed:build`/`verify` are placeholders and
-  the schema only has the L1 graph tables (`project`, `file`, `symbol`, `edge`); `make up` runs them but they no-op. Do not assume a working end-to-end flow exists.
+- **The repo is mid-build (Entrega 2).** `db:seed`/`seed:build`/`verify` are placeholders that
+  no-op, and the schema only has the L1 graph tables (`project`, `file`, `symbol`, `edge`).
+  `db:migrate` / `db:rollback` are real and need `DATABASE_URL`: `make up` gets it from `.env`,
+  because the Makefile includes and exports `.env`. Plain `npm run db:*` does not read `.env`.
+  Do not assume a working end-to-end flow exists.
 - **Migration runner edge cases (known behaviour, DIS-11).** `db:rollback` with nothing applied
   prints `No migrations to run!` and exits 0 (no-op, symmetric with `db:migrate` when up to date).
   A whitespace-only `DATABASE_URL` is treated as unset (same error, exit 1). Rollback never drops

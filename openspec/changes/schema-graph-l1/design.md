@@ -174,6 +174,16 @@ table requirements. This section only fixes what the spec leaves to implementati
   not trigger it; `psql -c "DROP DATABASE …"` typed in the shell does. The agent does not run such
   statements through the shell. If the hook blocks a legitimate step during apply, the agent stops
   and reports; no workarounds.
+- [CLI entry-point detection in `migrate.ts`] → The CLI starts only when the module is the entry
+  point. It compares the canonical paths of `process.argv[1]` and the module: links resolved with
+  `realpathSync`, and case folded on win32. A path that reaches the file through a symlink or
+  junction, or with a different drive-letter case, still runs the CLI (tested). Residual risk: if
+  `realpathSync` throws on the entry path, the check returns `false` and the process exits 0
+  without migrating. The npm scripts always pass an existing file path, so this is not expected;
+  the lifecycle tests, which run the real scripts, would catch it.
+- [`make up` and `DATABASE_URL`] → The runner has no default connection string: the spec requires
+  a clear failure without one. The Makefile includes and exports `.env` when it exists, so
+  `cp .env.example .env && make up` works. Plain `npm run db:*` still needs the variable exported.
 - [Self-loop and duplicate edges are allowed] → The schema accepts an edge whose source equals its
   target, and several edges with the same endpoints, `kind` and `extractor`: there is no UNIQUE
   constraint on `edge`. Accepted for L1 (decided 2026-09-28 after the second adversarial review):

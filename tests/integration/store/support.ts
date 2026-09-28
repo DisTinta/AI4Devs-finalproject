@@ -28,22 +28,37 @@ export interface ScriptResult {
 }
 
 /**
- * Runs a root npm script (`db:migrate`, `db:rollback`) with the given environment overrides.
- * A value of `undefined` removes the variable from the child environment.
+ * Kill a child command after this long. spawnSync blocks the event loop, so Vitest's own per-test
+ * timeout cannot fire while a child hangs; this must stay below the smallest per-test timeout (60 s).
  */
-export function runNpmScript(script: string, env: Record<string, string | undefined>): ScriptResult {
+export const CHILD_TIMEOUT_MS = 45_000;
+
+/**
+ * Runs a shell command from the repository root with the given environment overrides.
+ * A value of `undefined` removes the variable from the child environment. A child that exceeds
+ * CHILD_TIMEOUT_MS is killed; its status is then `null` and stderr says so.
+ */
+export function runCommand(command: string, env: Record<string, string | undefined>): ScriptResult {
   const childEnv: NodeJS.ProcessEnv = { ...process.env };
   for (const [key, value] of Object.entries(env)) {
     if (value === undefined) delete childEnv[key];
     else childEnv[key] = value;
   }
-  const result = spawnSync(`npm run --silent ${script}`, {
+  const result = spawnSync(command, {
     cwd: repoRoot,
     env: childEnv,
     shell: true,
     encoding: 'utf8',
+    timeout: CHILD_TIMEOUT_MS,
   });
-  return { status: result.status, stdout: result.stdout, stderr: result.stderr };
+  const failure = result.error ? `
+[runCommand] ${command}: ${result.error.message}` : '';
+  return { status: result.status, stdout: result.stdout ?? '', stderr: (result.stderr ?? '') + failure };
+}
+
+/** Runs a root npm script (`db:migrate`, `db:rollback`) as a developer or CI does; see runCommand. */
+export function runNpmScript(script: string, env: Record<string, string | undefined>): ScriptResult {
+  return runCommand(`npm run --silent ${script}`, env);
 }
 
 /** A value unique to the calling test, so parallel files and open transactions never collide. */

@@ -1,6 +1,9 @@
+import { existsSync, mkdtempSync, rmdirSync, symlinkSync, unlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type ColumnShape, appliedMigrations, createThrowawayDatabase, snapshotSchema } from './schema-snapshot';
-import { databaseUrl, describeWithDatabase, runNpmScript } from './support';
+import { databaseUrl, describeWithDatabase, repoRoot, runCommand, runNpmScript } from './support';
 
 const SCRIPT_TIMEOUT_MS = 60_000;
 const LIFECYCLE_TIMEOUT_MS = 120_000;
@@ -107,6 +110,33 @@ describe('graph-schema: fail clearly without a connection string', () => {
 
       expect(result.status).not.toBe(0);
       expect(result.stderr).toContain('DATABASE_URL is not set');
+    },
+    SCRIPT_TIMEOUT_MS,
+  );
+});
+
+// The runner starts its CLI only when it is the entry module. A false negative in that check would
+// exit 0 without migrating, so the check must survive a path that reaches the file through a link
+// (symlink, or a Windows junction, which needs no privilege).
+describe('graph-schema: migration runner entry point', () => {
+  it(
+    'CLI runs when invoked through a linked path',
+    () => {
+      const linkParent = mkdtempSync(join(tmpdir(), 'codemind-entry-'));
+      const link = join(linkParent, 'src');
+      try {
+        symlinkSync(resolve(repoRoot, 'packages/adapters/store-postgres/src'), link, 'junction');
+
+        const result = runCommand(`npx tsx "${join(link, 'migrate.ts')}" up`, { DATABASE_URL: undefined });
+
+        // Reaching the DATABASE_URL check proves main() ran; a skipped CLI exits 0 silently.
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toContain('DATABASE_URL is not set');
+      } finally {
+        // Remove the link itself, never recursively: a recursive delete could follow it into src/.
+        if (existsSync(link)) unlinkSync(link);
+        rmdirSync(linkParent);
+      }
     },
     SCRIPT_TIMEOUT_MS,
   );
