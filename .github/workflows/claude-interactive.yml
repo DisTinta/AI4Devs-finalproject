@@ -14,7 +14,7 @@ permissions:
 jobs:
   claude:
     if: |
-      secrets.CLAUDE_ENABLED == 'true' &&
+      vars.CLAUDE_ENABLED == 'true' &&
       (
         (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
         (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||

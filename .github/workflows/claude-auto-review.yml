@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   auto-review:
-    if: ${{ secrets.CLAUDE_ENABLED == 'true' }}
+    if: ${{ vars.CLAUDE_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
