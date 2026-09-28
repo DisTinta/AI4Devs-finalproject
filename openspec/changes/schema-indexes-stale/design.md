@@ -127,7 +127,9 @@ project cascade could not use it for `current` claims.
 
 ```sql
 CREATE FUNCTION mark_claims_stale_on_content_change() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
 BEGIN
   UPDATE claim
      SET status = 'stale', updated_at = now()
@@ -138,7 +140,7 @@ END;
 $$;
 
 CREATE TRIGGER file_content_hash_marks_claims_stale
-  AFTER UPDATE OF content_hash ON file
+  AFTER UPDATE ON file
   FOR EACH ROW
   WHEN (OLD.content_hash IS DISTINCT FROM NEW.content_hash)
   EXECUTE FUNCTION mark_claims_stale_on_content_change();
@@ -146,13 +148,25 @@ CREATE TRIGGER file_content_hash_marks_claims_stale
 
 - **`AFTER … FOR EACH ROW`.** The trigger writes another table and never changes the `file` row.
   A single `UPDATE` that changes several files fires once per changed row.
-- **`UPDATE OF content_hash`.** The trigger only fires when `content_hash` is in the `SET` list.
-  The `WHEN` guard then drops same-value writes, and `IS DISTINCT FROM` treats `NULL → h` as a
-  change.
+- **`AFTER UPDATE` with a `WHEN` guard, not `UPDATE OF content_hash`.** Corrected
+  2026-09-28, after `/verify-against-spec`. A column-specific trigger fires only when
+  `content_hash` is in the `SET` list. A `BEFORE` trigger that rewrote `NEW.content_hash` during
+  an update that does not name the column would then change the hash without invalidating
+  anything, while the spec says "when the `content_hash` … changes". So the trigger fires on every
+  `UPDATE` of `file`, and `WHEN (OLD.content_hash IS DISTINCT FROM NEW.content_hash)` alone
+  decides. That guard drops same-value writes and treats `NULL → h` as a change. Its cost is one
+  comparison per updated `file` row.
+- **`SET search_path = public`.** Added 2026-09-28, after `/verify-against-spec`. The function
+  names `claim` and `evidence` without a schema. Pinning its `search_path` makes their resolution
+  independent of the caller's session. It stays `SECURITY INVOKER`: the role that updates `file`
+  also needs `UPDATE` on `claim` and `SELECT` on `evidence`, which the single application role
+  has.
 - **`status = 'current'`.** This leaves `stale` claims and their `updated_at` untouched, as the
   spec requires. It also keeps a claim's `updated_at` from moving on every edit of an
   already-stale file.
-- **`updated_at = now()` (author decision).** `now()` is the transaction start time. The tests
+- **`updated_at = now()` (author decision; the spec says "transaction time").** `now()` is the
+  transaction start time. `clock_timestamp()` was rejected, for consistency with the column
+  defaults. The tests
   therefore set `updated_at` to a past value first and assert it moved.
 - **The lookup** goes through `evidence_file_id_idx`, then the claim primary key.
 - **No `INSERT` or `DELETE` trigger.**

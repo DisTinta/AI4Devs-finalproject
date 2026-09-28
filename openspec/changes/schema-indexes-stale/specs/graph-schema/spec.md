@@ -62,8 +62,9 @@ contract.
 
 ### Requirement: Query and vector indexes
 
-After migration, the schema SHALL provide the indexes below, in addition to those implied by
-primary keys and unique constraints. Each row fixes the table, the key columns in order, the
+After migration, the schema SHALL provide exactly the secondary indexes below, and no other.
+"Secondary" means every index except those implied by primary keys and unique constraints. Each
+row fixes the table, the key columns in order, the
 access method and, for a partial index, its predicate. Index names are not part of this contract.
 
 | Table | Key columns (in order) | Method | Predicate | Purpose |
@@ -92,6 +93,7 @@ access method and, for a partial index, its predicate. Index names are not part 
 - **THEN** for every row of the table above, the database has an index on that table with exactly
   those key columns in that order, that access method (and operator class for the HNSW rows) and
   that predicate
+- **AND** no other secondary index exists
 
 #### Scenario: Every cascading foreign key is indexed
 
@@ -103,7 +105,7 @@ access method and, for a partial index, its predicate. Index names are not part 
 
 When the `content_hash` of a `file` row changes, the database itself SHALL mark as `stale`, in the
 same statement, every claim with `status = 'current'` that has at least one `evidence` row citing
-that file. It SHALL also set `updated_at` to the current time on each claim it changes. A change
+that file. It SHALL also set `updated_at` to the transaction time (`now()`) on each claim it changes. A change
 means the new value is distinct from the old one, so setting a hash on a file whose hash was
 `NULL` counts as a change. The database MUST NOT touch a claim that is already `stale`, and MUST
 NOT turn any claim back to `current`: recomputing claims is the lazy re-inference's job.

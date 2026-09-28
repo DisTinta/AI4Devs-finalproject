@@ -33,9 +33,12 @@ CREATE INDEX cache_entry_question_embedding_hnsw_idx ON cache_entry USING hnsw (
 -- citing it becomes stale, in the same statement. Already-stale claims are left alone, and nothing
 -- is ever turned back to current: recomputing claims is the lazy re-inference's job (CM-HU-09.4).
 -- CREATE FUNCTION without OR REPLACE: a function left behind by a broken down section must make the
--- next migrate fail loudly.
+-- next migrate fail loudly. search_path is pinned so that claim and evidence resolve to this schema
+-- whatever the caller's session says.
 CREATE FUNCTION mark_claims_stale_on_content_change() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
 BEGIN
   UPDATE claim
      SET status = 'stale', updated_at = now()
@@ -45,9 +48,11 @@ BEGIN
 END;
 $$;
 
--- IS DISTINCT FROM: same-value writes do not fire it, and a first hash set on NULL does.
+-- Fires on every UPDATE of file, not only when content_hash is in the SET list (UPDATE OF would miss
+-- a hash rewritten by a BEFORE trigger); the WHEN guard alone decides. IS DISTINCT FROM: same-value
+-- writes do not count, and a first hash set on NULL does.
 CREATE TRIGGER file_content_hash_marks_claims_stale
-  AFTER UPDATE OF content_hash ON file
+  AFTER UPDATE ON file
   FOR EACH ROW
   WHEN (OLD.content_hash IS DISTINCT FROM NEW.content_hash)
   EXECUTE FUNCTION mark_claims_stale_on_content_change();
