@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { URL } from 'node:url';
 
 const require = createRequire(`${process.cwd()}/package.json`);
 const { Client } = require('pg');
