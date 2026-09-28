@@ -128,7 +128,7 @@ project cascade could not use it for `current` claims.
 ```sql
 CREATE FUNCTION mark_claims_stale_on_content_change() RETURNS trigger
 LANGUAGE plpgsql
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 BEGIN
   UPDATE claim
@@ -154,11 +154,18 @@ CREATE TRIGGER file_content_hash_marks_claims_stale
   an update that does not name the column would then change the hash without invalidating
   anything, while the spec says "when the `content_hash` … changes". So the trigger fires on every
   `UPDATE` of `file`, and `WHEN (OLD.content_hash IS DISTINCT FROM NEW.content_hash)` alone
-  decides. That guard drops same-value writes and treats `NULL → h` as a change. Its cost is one
-  comparison per updated `file` row.
-- **`SET search_path = public`.** Added 2026-09-28, after `/verify-against-spec`. The function
-  names `claim` and `evidence` without a schema. Pinning its `search_path` makes their resolution
-  independent of the caller's session. It stays `SECURITY INVOKER`: the role that updates `file`
+  decides. That guard drops same-value writes, and treats both `NULL → h` and `h → NULL` as a
+  change. Clearing a hash counts because the content is no longer known, so its citations are no
+  longer guaranteed (accepted by the author on 2026-09-28, after the second adversarial review).
+  The cost is one comparison per updated `file` row.
+- **`SET search_path = public, pg_temp`.** Added 2026-09-28 after `/verify-against-spec`, and
+  `pg_temp` was added after the second adversarial review.
+  - The function names `claim` and `evidence` without a schema, and pinning its `search_path`
+    makes their resolution independent of the caller's session.
+  - `pg_temp` goes **last** on purpose. When `pg_temp` is not listed, PostgreSQL searches it
+    *first* for tables. A session temporary table named `claim` would then shadow the real one
+    inside the trigger.
+  - The function stays `SECURITY INVOKER`: the role that updates `file`
   also needs `UPDATE` on `claim` and `SELECT` on `evidence`, which the single application role
   has.
 - **`status = 'current'`.** This leaves `stale` claims and their `updated_at` untouched, as the

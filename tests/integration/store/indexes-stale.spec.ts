@@ -1,10 +1,39 @@
-import type { Client } from 'pg';
+import { Client } from 'pg';
 import { beforeAll, expect, it } from 'vitest';
-import { describeWithDatabase, migrateSharedDatabase, unique, withRollback } from './support';
+import { migrateUp } from '../../../packages/adapters/store-postgres/src/migrate';
+import { createThrowawayDatabase } from './schema-snapshot';
+import { databaseUrl, describeWithDatabase, migrateSharedDatabase, unique, withRollback } from './support';
 
 // One of the three files that migrate the shared DATABASE_URL database (through
 // migrateSharedDatabase(), which retries while another file holds node-pg-migrate's lock); none
 // rolls back. Every test runs in BEGIN/ROLLBACK: the trigger fires inside that same transaction.
+// The one test that needs DDL on `file` (a helper trigger) runs on its own throwaway database, so
+// its table lock never makes the parallel constraint files wait on the shared one.
+
+/**
+ * Runs `work` inside BEGIN/ROLLBACK on a fresh, fully migrated throwaway database, then drops it.
+ * For tests whose DDL would lock a shared table.
+ */
+async function withThrowawayMigrated<T>(work: (client: Client) => Promise<T>): Promise<T> {
+  const throwaway = await createThrowawayDatabase(databaseUrl as string);
+  try {
+    await migrateUp(throwaway.url);
+    const client = new Client({ connectionString: throwaway.url });
+    await client.connect();
+    try {
+      await client.query('BEGIN');
+      return await work(client);
+    } finally {
+      try {
+        await client.query('ROLLBACK');
+      } finally {
+        await client.end();
+      }
+    }
+  } finally {
+    await throwaway.drop();
+  }
+}
 
 /** A fixed past timestamp, so a test can tell whether the trigger moved `updated_at`. */
 const PAST = new Date('2000-01-01T00:00:00Z');
@@ -55,7 +84,7 @@ async function claimState(client: Client, claimId: string): Promise<{ status: st
   return rows[0];
 }
 
-const setContentHash = (client: Client, fileId: string, contentHash: string) =>
+const setContentHash = (client: Client, fileId: string, contentHash: string | null) =>
   client.query('UPDATE file SET content_hash = $2 WHERE id = $1', [fileId, contentHash]);
 
 describeWithDatabase('graph-schema: stale invalidation on content change', () => {
@@ -73,6 +102,9 @@ describeWithDatabase('graph-schema: stale invalidation on content change', () =>
 
       const claim = await claimState(client, claimId);
       expect(claim.status).toBe('stale');
+      // Exactly the transaction time (now()), as the spec says; a fixed date or clock_timestamp() fails.
+      const { rows } = await client.query<{ now: Date }>('SELECT now() AS now');
+      expect(claim.updated_at).toEqual(rows[0].now);
       expect(claim.updated_at.getTime()).toBeGreaterThan(PAST.getTime());
     });
   });
@@ -82,11 +114,15 @@ describeWithDatabase('graph-schema: stale invalidation on content change', () =>
       const projectId = await insertProject(client);
       const fileA = await insertFile(client, projectId);
       const fileB = await insertFile(client, projectId);
-      const claimId = await insertCitingClaim(client, projectId, [fileA]);
+      const claimOnA = await insertCitingClaim(client, projectId, [fileA]);
+      // B must be cited too: otherwise the EXISTS is false with or without "e.claim_id = claim.id",
+      // and the test could not tell a trigger that stales only B's claims from one that stales all.
+      const claimOnB = await insertCitingClaim(client, projectId, [fileB]);
 
       await setContentHash(client, fileB, unique('sha256'));
 
-      expect(await claimState(client, claimId)).toEqual({ status: 'current', updated_at: PAST });
+      expect(await claimState(client, claimOnA)).toEqual({ status: 'current', updated_at: PAST });
+      expect((await claimState(client, claimOnB)).status).toBe('stale');
     });
   });
 
@@ -126,6 +162,18 @@ describeWithDatabase('graph-schema: stale invalidation on content change', () =>
     });
   });
 
+  it('Clearing a content hash marks the claims that cite it stale', async () => {
+    await withRollback(async (client) => {
+      const projectId = await insertProject(client);
+      const fileId = await insertFile(client, projectId, 'h1');
+      const claimId = await insertCitingClaim(client, projectId, [fileId]);
+
+      await setContentHash(client, fileId, null);
+
+      expect((await claimState(client, claimId)).status).toBe('stale');
+    });
+  });
+
   it('A claim already stale is not touched', async () => {
     await withRollback(async (client) => {
       const projectId = await insertProject(client);
@@ -152,10 +200,10 @@ describeWithDatabase('graph-schema: stale invalidation on content change', () =>
   });
 
   // Pins the WHEN-only trigger (no "UPDATE OF content_hash"): a column-specific trigger would not
-  // fire here, because the statement does not name content_hash. The helper trigger is created
-  // inside this test's transaction, rewrites only this test's file, and disappears on ROLLBACK.
+  // fire here, because the statement does not name content_hash. The helper trigger is DDL on file,
+  // so it runs on a throwaway database; it rewrites only this test's file and goes with the ROLLBACK.
   it('A content hash rewritten by another trigger still marks the claims that cite it stale', async () => {
-    await withRollback(async (client) => {
+    await withThrowawayMigrated(async (client) => {
       const projectId = await insertProject(client);
       const fileId = await insertFile(client, projectId, 'h1');
       const claimId = await insertCitingClaim(client, projectId, [fileId]);
@@ -173,7 +221,7 @@ describeWithDatabase('graph-schema: stale invalidation on content change', () =>
 
       expect((await claimState(client, claimId)).status).toBe('stale');
     });
-  });
+  }, 60_000);
 
   // Pins "SET search_path = public" on the trigger function: without it, the function's unqualified
   // "claim" / "evidence" would not resolve in a session whose search_path is pg_catalog only.
@@ -188,6 +236,28 @@ describeWithDatabase('graph-schema: stale invalidation on content change', () =>
 
       const { rows } = await client.query<{ status: string }>('SELECT status FROM public.claim WHERE id = $1', [claimId]);
       expect(rows[0].status).toBe('stale');
+    });
+  });
+
+  // Pins "pg_temp" at the end of the function's search_path: when pg_temp is not listed, PostgreSQL
+  // searches it FIRST for tables, so this session's temp table "claim" would shadow the real one
+  // inside the trigger. The temp table goes with the ROLLBACK.
+  it('A session temporary table named claim does not intercept invalidation', async () => {
+    await withRollback(async (client) => {
+      const projectId = await insertProject(client);
+      const fileId = await insertFile(client, projectId, 'h1');
+      const claimId = await insertCitingClaim(client, projectId, [fileId]);
+      await client.query(
+        'CREATE TEMP TABLE claim ON COMMIT DROP AS SELECT id, status, updated_at FROM public.claim WHERE id = $1',
+        [claimId],
+      );
+
+      await client.query('UPDATE public.file SET content_hash = $2 WHERE id = $1', [fileId, 'h2']);
+
+      const real = await client.query<{ status: string }>('SELECT status FROM public.claim WHERE id = $1', [claimId]);
+      const temp = await client.query<{ status: string }>('SELECT status FROM pg_temp.claim WHERE id = $1', [claimId]);
+      expect(real.rows[0].status).toBe('stale');
+      expect(temp.rows[0].status).toBe('current');
     });
   });
 });

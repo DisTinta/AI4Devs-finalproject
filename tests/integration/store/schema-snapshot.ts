@@ -189,7 +189,11 @@ export async function secondaryIndexShapes(databaseUrl: string): Promise<IndexSh
       JOIN pg_namespace n ON n.oid = t.relnamespace AND n.nspname = 'public'
       JOIN pg_am am ON am.oid = i.relam
       WHERE t.relname <> 'pgmigrations'
-        AND NOT EXISTS (SELECT 1 FROM pg_constraint k WHERE k.conindid = ix.indexrelid)
+        -- "Secondary" = not backing a primary key, unique or exclusion constraint. A foreign key's
+        -- conindid is the REFERENCED unique index, so FKs must not count here.
+        AND NOT EXISTS (
+          SELECT 1 FROM pg_constraint k WHERE k.conindid = ix.indexrelid AND k.contype IN ('p', 'u', 'x')
+        )
       ORDER BY t.relname, i.relname`);
     return rows
       .map((row) => ({

@@ -106,25 +106,31 @@ access method and, for a partial index, its predicate. Index names are not part 
 When the `content_hash` of a `file` row changes, the database itself SHALL mark as `stale`, in the
 same statement, every claim with `status = 'current'` that has at least one `evidence` row citing
 that file. It SHALL also set `updated_at` to the transaction time (`now()`) on each claim it changes. A change
-means the new value is distinct from the old one, so setting a hash on a file whose hash was
-`NULL` counts as a change. The database MUST NOT touch a claim that is already `stale`, and MUST
+means the new value is distinct from the old one. So setting a hash on a file whose hash was
+`NULL` counts as a change, and so does clearing a hash to `NULL`: the content is no longer known,
+so the citations are no longer guaranteed. The database MUST NOT touch a claim that is already `stale`, and MUST
 NOT turn any claim back to `current`: recomputing claims is the lazy re-inference's job.
 The invalidation MUST depend only on the old and new values of `content_hash`. It MUST NOT depend
 on which columns the `UPDATE` names: a hash changed by another trigger still counts. It MUST NOT
-depend on the session's `search_path` either.
+depend on the session's `search_path` either, including a session temporary table that has the
+same name as a schema table.
 
 #### Scenario: Changing a file's content hash marks the claims that cite it stale
 
 - **GIVEN** a `current` claim with an `evidence` row citing a file, and an `updated_at` in the past
 - **WHEN** that file's `content_hash` is updated to a different value
 - **THEN** the claim has `status = 'stale'`
-- **AND** its `updated_at` is later than before the update
+- **AND** its `updated_at` equals the transaction time of the update (`now()`), which is later
+  than before
 
 #### Scenario: Claims citing only other files stay current
 
-- **GIVEN** a `current` claim whose only evidence cites file A
-- **WHEN** the `content_hash` of another file B changes
-- **THEN** the claim still has `status = 'current'`
+- **GIVEN** a `current` claim whose only evidence cites file A, and another `current` claim whose
+  evidence cites file B
+- **WHEN** the `content_hash` of file B changes
+- **THEN** the claim citing only file A still has `status = 'current'` and an unchanged
+  `updated_at`
+- **AND** the claim citing file B has `status = 'stale'`
 
 #### Scenario: Updating other columns of a file leaves its claims current
 
@@ -142,6 +148,12 @@ depend on the session's `search_path` either.
 
 - **GIVEN** a `current` claim with evidence citing a file whose `content_hash` is `NULL`
 - **WHEN** that file's `content_hash` is set to a value
+- **THEN** the claim has `status = 'stale'`
+
+#### Scenario: Clearing a content hash marks the claims that cite it stale
+
+- **GIVEN** a `current` claim with evidence citing a file whose `content_hash` is `h1`
+- **WHEN** that file's `content_hash` is set to `NULL`
 - **THEN** the claim has `status = 'stale'`
 
 #### Scenario: A claim already stale is not touched
@@ -171,3 +183,11 @@ depend on the session's `search_path` either.
 - **WHEN** that file's `content_hash` is updated through a schema-qualified statement
 - **THEN** the update succeeds
 - **AND** the claim has `status = 'stale'`
+
+#### Scenario: A session temporary table named claim does not intercept invalidation
+
+- **GIVEN** a `current` claim with evidence citing a file, and a session temporary table named
+  `claim`
+- **WHEN** that file's `content_hash` is updated
+- **THEN** the claim in the schema table has `status = 'stale'`
+- **AND** the temporary table is unchanged

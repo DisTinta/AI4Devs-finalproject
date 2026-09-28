@@ -34,10 +34,11 @@ CREATE INDEX cache_entry_question_embedding_hnsw_idx ON cache_entry USING hnsw (
 -- is ever turned back to current: recomputing claims is the lazy re-inference's job (CM-HU-09.4).
 -- CREATE FUNCTION without OR REPLACE: a function left behind by a broken down section must make the
 -- next migrate fail loudly. search_path is pinned so that claim and evidence resolve to this schema
--- whatever the caller's session says.
+-- whatever the caller's session says. pg_temp is listed last on purpose: when it is not listed,
+-- PostgreSQL searches it FIRST, so a session temp table named claim would shadow the real one.
 CREATE FUNCTION mark_claims_stale_on_content_change() RETURNS trigger
 LANGUAGE plpgsql
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 BEGIN
   UPDATE claim
