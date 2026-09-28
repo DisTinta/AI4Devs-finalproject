@@ -322,8 +322,11 @@ async function partB() {
     record(id, name, r0.ok && r1.ok, 'both accepted');
   });
   await scenario('Confidence outside 0..1 is rejected', async (id, name) => {
-    const r = await attempt(`INSERT INTO claim (project_id, subject, predicate, layer, type, confidence) VALUES ($1,'s','p','L1','FACT',1.5)`, [await project()]);
-    record(id, name, !r.ok && r.code === '23514' && r.constraint === 'claim_confidence_range', `${r.code} ${r.constraint}`);
+    const p = await project();
+    const above = await attempt(`INSERT INTO claim (project_id, subject, predicate, layer, type, confidence) VALUES ($1,'s','p','L1','FACT',1.5)`, [p]);
+    const below = await attempt(`INSERT INTO claim (project_id, subject, predicate, layer, type, confidence) VALUES ($1,'s','p','L1','FACT',-0.1)`, [p]);
+    const rejected = (r) => !r.ok && r.code === '23514' && r.constraint === 'claim_confidence_range';
+    record(id, name, rejected(above) && rejected(below), `1.5: ${above.code} ${above.constraint}; -0.1: ${below.code} ${below.constraint}`);
   });
   await scenario('Deleting a project deletes its claims', async (id, name) => {
     const p = await project();
@@ -339,6 +342,11 @@ async function partB() {
     const p = await project();
     const r = await attempt(evidenceSql, [await claim(p), await file(p), 10, 9, 'cited']);
     record(id, name, !r.ok && r.code === '23514' && r.constraint === 'evidence_span_valid', `${r.code} ${r.constraint}`);
+  });
+  await scenario('Single-line evidence span is accepted', async (id, name) => {
+    const p = await project();
+    const r = await attempt(evidenceSql, [await claim(p), await file(p), 10, 10, 'cited']);
+    record(id, name, r.ok, 'accepted');
   });
   await scenario('Non-positive evidence start line is rejected', async (id, name) => {
     const p = await project();

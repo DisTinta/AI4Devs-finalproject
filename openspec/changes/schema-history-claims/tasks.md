@@ -40,7 +40,9 @@
 ## 6. Backend: Review and Update Existing Tests (MANDATORY)
 
 - [x] 6.1 Identify existing tests affected by `0002` (`migrations.spec.ts` lifecycle tests updated in step 5; `graph-schema-constraints.spec.ts` header comment from 1.1); confirm no other test assumes a single migration or four tables
-- [x] 6.2 Confirm no assertion was weakened (every former L1 assertion still exists, scoped to the L1 tables) and that every `#### Scenario:` in `specs/graph-schema/spec.md` of this change has a test (34 scenarios)
+- [x] 6.2 Confirm no assertion was weakened (every former L1 assertion still exists, scoped to the L1 tables) and that every `#### Scenario:` in `specs/graph-schema/spec.md` of this change has a test (35 scenarios after the adversarial review; 34 before)
+- [x] 6.3 After `/verify-against-spec` (2026-09-28): add the test "Apply, roll back and apply again (full cycle through 0001)" and prove it fails when `0001`'s down misses a `DROP TYPE`; clarify in the spec that `l2_requires_provenance` rejects SQL `NULL` only; reword the readme notes on provenance validation (CM-HU-09) and on claims without evidence (CM-HU-09/10)
+- [x] 6.4 After `/adversarial-review` (2026-09-28): add the scenario and test "Single-line evidence span is accepted" and a `-0.1` insert inside "Confidence outside 0..1 is rejected"; prove both fail when the CHECKs become `end_line > start_line` / `confidence <= 1`; record in `design.md` Risks the re-index cascade risk and the value limits left to the writers; comment on Linear DIS-23 and DIS-85
 
 ## 7. Backend: Run Tests and Verify Data State (MANDATORY)
 

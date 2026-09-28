@@ -107,3 +107,34 @@ Commands and results:
   `openspec validate schema-history-claims --strict` → valid.
 - Data state before/after: byte-identical. `pgmigrations` = `0001_graph-l1, 0002_history-claims`;
   0 rows in the ten tables; databases `codemind, postgres, template0, template1`.
+
+## Addendum 2 — re-run after `/adversarial-review` (2026-09-28)
+
+The review gave PASS WITH GAPS: one Major and several Minors. Changes approved by the author:
+
+- **New scenario and test** "Single-line evidence span is accepted" (`start_line = end_line = 10`).
+  The spec required `end_line >= start_line`, but nothing tested the boundary.
+- **A `-0.1` insert inside "Confidence outside 0..1 is rejected"** (no new scenario). It runs in
+  its own transaction, because the `1.5` rejection aborts the first one.
+- **Forced failure.** In the shared DB, `0002` was rolled back and re-applied with
+  `evidence_span_valid CHECK (end_line > start_line)` and
+  `claim_confidence_range CHECK (confidence <= 1)`. Both tests failed:
+  - single-line → `promise rejected … instead of resolving`;
+  - confidence → `promise resolved '<uuid>' instead of rejecting`.
+
+  The file was restored with `git checkout` (`git status` clean) and `0002` rolled back and
+  re-applied.
+- **`design.md` Risks**, documentation only:
+  - the cascade risk when a re-index deletes and re-inserts `file` rows;
+  - negative counters, tokens and cost, empty required text, and the `numeric(10,6)` ceiling,
+    all left to the writers.
+- **Linear:** comments on DIS-23 (CM-HU-02.2) and DIS-85 (CM-HU-05a.2).
+- **Demo driver:** now covers 35 scenarios.
+
+Commands and results:
+
+- `npx vitest run tests/integration/store` → 3 files, **67 passed**, 0 failed, 0 skipped
+  (45.8 s).
+- Demo driver → `35 scenarios exercised, 35 match the spec, 0 do not`, state restored identical.
+- Data state after the run: `pgmigrations` = `0001_graph-l1, 0002_history-claims`, 0 rows in the
+  ten tables, no leftover throwaway database.

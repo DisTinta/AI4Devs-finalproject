@@ -3,7 +3,7 @@
 Adds migration `0002_history-claims` with the six remaining tables of `readme.md` §3.1: `commit`,
 `file_commit` (composite PK), `claim`, `evidence`, `query_log` and `cache_entry`. The database now
 enforces the fact/inference distinction through `fact_only_from_l1` and `l2_requires_provenance`.
-Integration tests cover all 34 scenarios of the `graph-schema` delta. The delta lives in OpenSpec
+Integration tests cover all 35 scenarios of the `graph-schema` delta. The delta lives in OpenSpec
 change `schema-history-claims` (Linear DIS-12 / CM-HU-01.2).
 
 ## Why?
@@ -31,12 +31,12 @@ integration test shows that `FACT` + `L2`, and `L2` without `provenance`, fail i
    - Every step exits 0.
    - The rollback reverts **only** `0002_history-claims`.
    - The final state has ten tables in `public`.
-5. `npx vitest run tests/integration/store` → 66 passed (3 files).
+5. `npx vitest run tests/integration/store` → 67 passed (3 files).
 6. `npm run lint && npm run typecheck && npm run lint:architecture && npm run docs:coverage`.
    All exit 0. The pre-existing warnings are unchanged.
 7. Independent demonstration of every scenario against the real scripts and database:
    `node openspec/changes/schema-history-claims/reports/2026-09-28-demo.mjs`
-   → `34 scenarios exercised, 34 match the spec`.
+   → `35 scenarios exercised, 35 match the spec`.
 
 Evidence from the agent's run, in `openspec/changes/schema-history-claims/reports/`:
 
@@ -89,6 +89,13 @@ Other points:
   - the `stale` trigger, traversal/partial/HNSW indexes;
   - `snapshotSchema` still captures no indexes or triggers, which is enough here because `0002`
     creates none.
+- **After the adversarial review (PASS WITH GAPS):**
+  - Added "Single-line evidence span is accepted" and a `-0.1` case in "Confidence outside 0..1 is
+    rejected". Both fail when the CHECKs are loosened to `>` / `<= 1`.
+  - `design.md` Risks now record two things as writer-owned:
+    - a re-index that deletes and re-inserts `file` rows would cascade away history and citations
+      (noted on DIS-23 / DIS-85);
+    - negative counters and cost, empty required text, and the `numeric(10,6)` ceiling.
 - **Unrelated commit in this PR:** `acb966a` only adds `"type": "streamable-http"` to the Linear
   server in `.cursor/mcp.json`. It is local MCP configuration for Cursor, not product code.
 - **Privacy:** `commit` stores the author only as `author_hash`; there is no name or e-mail column.
@@ -124,6 +131,7 @@ Other points:
 | Confidence outside 0..1 is rejected | `history-claims-constraints.spec.ts` › "Confidence outside 0..1 is rejected" |
 | Deleting a project deletes its claims | `history-claims-constraints.spec.ts` › "Deleting a project deletes its claims" |
 | Invalid evidence span is rejected | `history-claims-constraints.spec.ts` › "Invalid evidence span is rejected" |
+| Single-line evidence span is accepted | `history-claims-constraints.spec.ts` › "Single-line evidence span is accepted" |
 | Non-positive evidence start line is rejected | `history-claims-constraints.spec.ts` › "Non-positive evidence start line is rejected" |
 | Evidence without verification is rejected | `history-claims-constraints.spec.ts` › "Evidence without verification is rejected" |
 | Deleting a claim deletes its evidence | `history-claims-constraints.spec.ts` › "Deleting a claim deletes its evidence" |

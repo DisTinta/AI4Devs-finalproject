@@ -151,6 +151,25 @@ for one at review.
 - [Cascading `evidence.file_id` silently removes citations when a file is deleted] → Accepted by the
   author (D3). A deleted file cannot support anything; CM-HU-09/10 must treat a claim without
   evidence as unsupported.
+- [A re-index that deletes and re-inserts `file` rows wipes history and citations] → Because of the
+  cascades of D3, deleting a `file` row deletes its `file_commit` rows and every `evidence` that
+  cites it. A writer that re-indexes by delete-and-insert would silently lose the co-change history
+  and the citations of files that still exist. Constraint on the indexing writers (CM-HU-02.2 /
+  CM-HU-05a): upsert files by `(project_id, path)` and delete a `file` row only when the file was
+  really removed from the repository. The CM-HU-02.2 plan already upserts with `ON CONFLICT`; the
+  constraint is recorded on the Linear issues. Found by the adversarial review, 2026-09-28.
+- [Value-level limits left to the writers] → Same line as DIS-11 (non-negative counters and
+  whitespace `extractor` accepted there). Accepted by the author, 2026-09-28, after the adversarial
+  review:
+  - `lines_added`, `lines_removed`, `pr_number`, the `*_tokens` columns, `latency_ms` and
+    `hit_count` accept negative values. A negative `baseline_tokens` would corrupt the savings
+    figure, so `usage.ts` (CM-HU-11.2) owns producing non-negative values.
+  - The required text columns (`sha`, `subject`, `predicate`, `question`, `question_normalized`)
+    accept `''`: `NOT NULL` does not reject an empty string.
+  - `cost_usd numeric(10,6)` overflows at 10 000 USD or more (SQLSTATE `22003`). That is far above
+    `DAILY_BUDGET_USD`, but a writer must not store an unbounded aggregate there.
+
+  Tighten any of these with a later migration if a writer ever produces such values.
 - [No cross-project checks on `file_commit` and `evidence`] → Same accepted L1 risk as edge
   endpoints; the writers own it. Stated as non-requirements in the spec.
 - [Existing lifecycle tests change] → They are rewritten, not weakened: every assertion they had

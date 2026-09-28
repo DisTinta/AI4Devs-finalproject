@@ -16,7 +16,7 @@
     not checked against the tests' hand transcription.
   - Full verbatim output: [`2026-09-28-demo-output.txt`](./2026-09-28-demo-output.txt).
 - Command: `DATABASE_URL=postgres://codemind:codemind@localhost:5432/codemind node openspec/changes/schema-history-claims/reports/2026-09-28-demo.mjs`
-  → exit 0, `SUMMARY: 34 scenarios exercised, 34 match the spec, 0 do not`.
+  → exit 0, `SUMMARY: 35 scenarios exercised, 35 match the spec, 0 do not`.
 
 ## Demonstrated
 
@@ -44,25 +44,26 @@
 | Inference from the inferred layer with provenance is accepted | `INFERENCE` + `L2` + provenance | accepted | yes | log [B13] |
 | Invalid claim type is rejected | `type = 'GUESS'` | `22P02` invalid input value for enum `claim_type` | yes | log [B14] |
 | Confidence at the bounds is accepted | `confidence` 0 and 1 | both accepted | yes | log [B15] |
-| Confidence outside 0..1 is rejected | `confidence = 1.5` | `23514` `claim_confidence_range` | yes | log [B16] |
+| Confidence outside 0..1 is rejected | `confidence = 1.5` and `-0.1` | both `23514` `claim_confidence_range` | yes | log [B16] |
 | Deleting a project deletes its claims | DELETE project with 2 claims | claims after: 0 | yes | log [B17] |
 | Invalid evidence span is rejected | `start_line 10`, `end_line 9` | `23514` `evidence_span_valid` | yes | log [B18] |
-| Non-positive evidence start line is rejected | `start_line 0` | `23514` `evidence_start_line_positive` | yes | log [B19] |
-| Evidence without verification is rejected | `verification` NULL | `23502` not-null on `verification` | yes | log [B20] |
-| Deleting a claim deletes its evidence | DELETE claim with 2 evidence rows | evidence after: 0 | yes | log [B21] |
-| Deleting a cited file deletes the evidence but keeps the claim | DELETE cited file | evidence 0, claim still 1 | yes | log [B22] |
-| Planned drift capability is accepted | `capability = 'drift'` | accepted | yes | log [B23] |
-| Unknown capability is rejected | `capability = 'summarise'` | `22P02` invalid input value for enum `query_capability` | yes | log [B24] |
-| Deleting a project deletes its query log | DELETE project with 2 rows | query_log after: 0 | yes | log [B25] |
-| Cache entry without a normalized question is rejected | `question_normalized` NULL | `23502` not-null on `question_normalized` | yes | log [B26] |
-| Deleting a project deletes its cache entries | DELETE project with 2 entries | cache_entry after: 0 | yes | log [B27] |
+| Single-line evidence span is accepted | `start_line 10`, `end_line 10` | accepted | yes | log [B19] |
+| Non-positive evidence start line is rejected | `start_line 0` | `23514` `evidence_start_line_positive` | yes | log [B20] |
+| Evidence without verification is rejected | `verification` NULL | `23502` not-null on `verification` | yes | log [B21] |
+| Deleting a claim deletes its evidence | DELETE claim with 2 evidence rows | evidence after: 0 | yes | log [B22] |
+| Deleting a cited file deletes the evidence but keeps the claim | DELETE cited file | evidence 0, claim still 1 | yes | log [B23] |
+| Planned drift capability is accepted | `capability = 'drift'` | accepted | yes | log [B24] |
+| Unknown capability is rejected | `capability = 'summarise'` | `22P02` invalid input value for enum `query_capability` | yes | log [B25] |
+| Deleting a project deletes its query log | DELETE project with 2 rows | query_log after: 0 | yes | log [B26] |
+| Cache entry without a normalized question is rejected | `question_normalized` NULL | `23502` not-null on `question_normalized` | yes | log [B27] |
+| Deleting a project deletes its cache entries | DELETE project with 2 entries | cache_entry after: 0 | yes | log [B28] |
 
 ## Evidence
 
 Verbatim excerpts. The complete run is in [`2026-09-28-demo-output.txt`](./2026-09-28-demo-output.txt).
 
 ```text
-[A1] Migrate an empty database   (throwaway codemind_demo_756958f8…)
+[A1] Migrate an empty database   (throwaway codemind_demo_cae2325e…)
     $ DATABASE_URL=<throwaway> npm run db:migrate
       | ### MIGRATION 0001_graph-l1 (UP) ###
       | ### MIGRATION 0002_history-claims (UP) ###
@@ -86,16 +87,16 @@ Verbatim excerpts. The complete run is in [`2026-09-28-demo-output.txt`](./2026-
 [B14] REJECTED 22P02: invalid input value for enum claim_type: "GUESS"
 [B16] REJECTED 23514 [claim_confidence_range]: new row for relation "claim" violates check constraint "claim_confidence_range"
 [B18] REJECTED 23514 [evidence_span_valid]: new row for relation "evidence" violates check constraint "evidence_span_valid"
-[B20] REJECTED 23502: null value in column "verification" of relation "evidence" violates not-null constraint
-[B22] DELETE file → evidence: 0; claim still there: 1
+[B21] REJECTED 23502: null value in column "verification" of relation "evidence" violates not-null constraint
+[B23] DELETE file → evidence: 0; claim still there: 1
 
-SUMMARY: 34 scenarios exercised, 34 match the spec, 0 do not
+SUMMARY: 35 scenarios exercised, 35 match the spec, 0 do not
 ```
 
 **First run was a driver bug, not a system bug.** The first run reported 3 mismatches (A2, A4, A7).
 The cause was that the spec writes the alias `timestamptz`, while `format_type()` prints the
 canonical `timestamp with time zone`, which is the same PostgreSQL type. The driver now maps the
-alias (`TYPE_ALIASES`) and the re-run passes 34/34. The output file holds the passing re-run.
+alias (`TYPE_ALIASES`) and the re-run passes 34/34. After the adversarial review, the driver gained the scenario "Single-line evidence span is accepted" and the `-0.1` case; the output file holds that latest run (35/35).
 
 No screenshots: the change has no browser UI.
 
@@ -111,7 +112,7 @@ No screenshots: the change has no browser UI.
 
 ## Not demonstrated
 
-- None of the 34 scenarios of the delta spec.
+- None of the 35 scenarios of the delta spec.
 - Out of the delta and not re-run here:
   - The unchanged `DATABASE_URL`-missing scenarios.
   - The L1 table scenarios.

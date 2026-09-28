@@ -2,7 +2,7 @@ STATE BEFORE: {"migrations":["0001_graph-l1","0002_history-claims"],"counts":{"c
 
 === Part A — migration lifecycle (npm scripts, throwaway databases) ===
 
-[A1] Migrate an empty database   (throwaway codemind_demo_756958f8e7ae4621ad3836675c628f24)
+[A1] Migrate an empty database   (throwaway codemind_demo_cae2325e81ac4f988fc75a6544ca1fed)
     tables before: (none)
     $ DATABASE_URL=<throwaway> npm run db:migrate
       | > Migrating files:
@@ -46,7 +46,7 @@ STATE BEFORE: {"migrations":["0001_graph-l1","0002_history-claims"],"counts":{"c
     tables: (none); enums: (none); pgmigrations: (none)
   => MATCHES spec: exit 0; L1 tables and enums gone
 
-[A6] Roll back both migrations leaves an empty schema   (fresh throwaway codemind_demo_753ab05b44f0401c952cfc236a68c08a)
+[A6] Roll back both migrations leaves an empty schema   (fresh throwaway codemind_demo_8631366a1ab344f2b2c904b5eef04e2f)
     $ DATABASE_URL=<throwaway> npm run db:migrate
       | > Migrating files:
       | > - 0001_graph-l1
@@ -67,7 +67,7 @@ STATE BEFORE: {"migrations":["0001_graph-l1","0002_history-claims"],"counts":{"c
     tables: (none); enums: (none); extensions: vector
   => MATCHES spec: rollbacks exit 0/0; no table, no enum; vector kept: true
 
-[A7] Apply, roll back and apply again   (fresh throwaway codemind_demo_746e6e23f5a44136b321b47b5ceffef6)
+[A7] Apply, roll back and apply again   (fresh throwaway codemind_demo_ee49da395b3a4b19acf42e03bd7e0f7c)
     $ DATABASE_URL=<throwaway> npm run db:migrate
       | > Migrating files:
       | > - 0001_graph-l1
@@ -91,9 +91,9 @@ STATE BEFORE: {"migrations":["0001_graph-l1","0002_history-claims"],"counts":{"c
 === Part B — table scenarios (shared DB, BEGIN … ROLLBACK per scenario) ===
 
 [B1] Defaults apply on a minimal claim, query log and cache entry
-    claim: {"id":"ca278a59-353d-47cc-af8c-d550d3de506e","status":"current","created_at":"2026-09-28T16:56:29.620Z","updated_at":"2026-09-28T16:56:29.620Z"}
-    query_log: {"id":"bec0e44f-2c7f-472c-8eba-e40a3b70d41e","cache_hit":false,"created_at":"2026-09-28T16:56:29.620Z"}
-    cache_entry: {"id":"51c6d3f2-c7dc-4c4c-873e-5da818749242","hit_count":0,"created_at":"2026-09-28T16:56:29.620Z"}
+    claim: {"id":"026423b6-ca2f-4978-9d56-510e10534356","status":"current","created_at":"2026-09-28T17:26:16.265Z","updated_at":"2026-09-28T17:26:16.265Z"}
+    query_log: {"id":"32d3a115-49d9-45d9-a148-cff017b62c03","cache_hit":false,"created_at":"2026-09-28T17:26:16.265Z"}
+    cache_entry: {"id":"840169d1-ed14-4031-a099-583713d811ad","hit_count":0,"created_at":"2026-09-28T17:26:16.265Z"}
   => MATCHES spec: generated ids, status current, cache_hit false, hit_count 0, timestamps set
 
 [B2] Duplicate sha within a project is rejected
@@ -169,7 +169,9 @@ STATE BEFORE: {"migrations":["0001_graph-l1","0002_history-claims"],"counts":{"c
 [B16] Confidence outside 0..1 is rejected
     > INSERT INTO claim (project_id, subject, predicate, layer, type, confidence) VALUES ($1,'s','p','L1','FACT',1.5)
       REJECTED 23514 [claim_confidence_range]: new row for relation "claim" violates check constraint "claim_confidence_range"
-  => MATCHES spec: 23514 claim_confidence_range
+    > INSERT INTO claim (project_id, subject, predicate, layer, type, confidence) VALUES ($1,'s','p','L1','FACT',-0.1)
+      REJECTED 23514 [claim_confidence_range]: new row for relation "claim" violates check constraint "claim_confidence_range"
+  => MATCHES spec: 1.5: 23514 claim_confidence_range; -0.1: 23514 claim_confidence_range
 
 [B17] Deleting a project deletes its claims
     DELETE project → claims after: 0
@@ -180,48 +182,53 @@ STATE BEFORE: {"migrations":["0001_graph-l1","0002_history-claims"],"counts":{"c
       REJECTED 23514 [evidence_span_valid]: new row for relation "evidence" violates check constraint "evidence_span_valid"
   => MATCHES spec: 23514 evidence_span_valid
 
-[B19] Non-positive evidence start line is rejected
+[B19] Single-line evidence span is accepted
+    > INSERT INTO evidence (claim_id, file_id, start_line, end_line, verification) VALUES ($1, $2, $3, $4, $5)
+      ACCEPTED (rowCount 1)
+  => MATCHES spec: accepted
+
+[B20] Non-positive evidence start line is rejected
     > INSERT INTO evidence (claim_id, file_id, start_line, end_line, verification) VALUES ($1, $2, $3, $4, $5)
       REJECTED 23514 [evidence_start_line_positive]: new row for relation "evidence" violates check constraint "evidence_start_line_positive"
   => MATCHES spec: 23514 evidence_start_line_positive
 
-[B20] Evidence without verification is rejected
+[B21] Evidence without verification is rejected
     > INSERT INTO evidence (claim_id, file_id, start_line, end_line, verification) VALUES ($1, $2, $3, $4, $5)
       REJECTED 23502: null value in column "verification" of relation "evidence" violates not-null constraint
   => MATCHES spec: 23502
 
-[B21] Deleting a claim deletes its evidence
+[B22] Deleting a claim deletes its evidence
     DELETE claim → evidence after: 0
   => MATCHES spec: evidence after delete: 0
 
-[B22] Deleting a cited file deletes the evidence but keeps the claim
+[B23] Deleting a cited file deletes the evidence but keeps the claim
     DELETE file → evidence: 0; claim still there: 1
   => MATCHES spec: evidence 0, claim 1
 
-[B23] Planned drift capability is accepted
+[B24] Planned drift capability is accepted
     > INSERT INTO query_log (project_id, question, capability) VALUES ($1, 'How is the price computed?', $2)
       ACCEPTED (rowCount 1)
   => MATCHES spec: accepted
 
-[B24] Unknown capability is rejected
+[B25] Unknown capability is rejected
     > INSERT INTO query_log (project_id, question, capability) VALUES ($1, 'How is the price computed?', $2)
       REJECTED 22P02: invalid input value for enum query_capability: "summarise"
   => MATCHES spec: 22P02
 
-[B25] Deleting a project deletes its query log
+[B26] Deleting a project deletes its query log
     DELETE project → query_log after: 0
   => MATCHES spec: query_log after delete: 0
 
-[B26] Cache entry without a normalized question is rejected
+[B27] Cache entry without a normalized question is rejected
     > INSERT INTO cache_entry (project_id, question_normalized) VALUES ($1, NULL)
       REJECTED 23502: null value in column "question_normalized" of relation "cache_entry" violates not-null constraint
   => MATCHES spec: 23502
 
-[B27] Deleting a project deletes its cache entries
+[B28] Deleting a project deletes its cache entries
     DELETE project → cache_entry after: 0
   => MATCHES spec: cache_entry after delete: 0
 
 STATE AFTER: {"migrations":["0001_graph-l1","0002_history-claims"],"counts":{"cache_entry":0,"claim":0,"commit":0,"edge":0,"evidence":0,"file":0,"file_commit":0,"project":0,"query_log":0,"symbol":0},"databases":["codemind","postgres","template0","template1"]}
 STATE RESTORED (identical): true
 
-SUMMARY: 34 scenarios exercised, 34 match the spec, 0 do not
+SUMMARY: 35 scenarios exercised, 35 match the spec, 0 do not
