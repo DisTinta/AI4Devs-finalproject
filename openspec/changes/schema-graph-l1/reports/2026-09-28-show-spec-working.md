@@ -2,7 +2,7 @@
 
 - Date: 2026-09-28
 - Change: schema-graph-l1 (DIS-11)
-- Commit exercised: `f794c97` on `feature/DIS-11-schema-graph-l1`
+- Commit exercised: `30ab808` on `feature/DIS-11-schema-graph-l1` (re-run after fix `016def8`: rollback keeps the shared `vector` extension)
 - System: local `docker compose` Postgres (`pgvector/pgvector:pg16`, healthy), shared DB
   `postgres://codemind:codemind@localhost:5432/codemind`
 - Interfaces: the root npm scripts `db:migrate` / `db:rollback`, and the database itself (SQL
@@ -20,7 +20,7 @@
 | Migrate an empty database | `npm run db:migrate` on empty throwaway DB | exit 0; tables `(none)` → `edge, file, project, symbol` | yes | log [A1] |
 | Migrated schema matches the column contract | catalog query after migrate vs spec table | 37 spec rows, 37 columns, 0 mismatches; 6 enums with spec values | yes | log [A2] |
 | Migrate an up-to-date database | `npm run db:migrate` again | exit 0, `No migrations to run!`, schema unchanged `true` | yes | log [A3] |
-| Roll back the L1 graph migration | `npm run db:rollback` | exit 0; tables `(none)`, enums `{}`, extensions `[]` | yes | log [A4] |
+| Roll back the L1 graph migration | `npm run db:rollback` | exit 0; tables `(none)`, enums `{}`; `vector` extension kept (shared, per spec) | yes | log [A4] |
 | Apply, roll back and apply again | migrate → rollback → migrate | all exit 0; `second == first: true`; contract mismatches none | yes | log [A5] |
 | DATABASE_URL is missing on migrate | `npm run db:migrate`, var unset | exit 1, `DATABASE_URL is not set: …` | yes | log [A6] |
 | DATABASE_URL is missing on rollback | `npm run db:rollback`, var unset | exit 1, same message | yes | log [A7] |
@@ -74,7 +74,7 @@ Verbatim excerpts (full output in [`2026-09-28-demo-output.txt`](./2026-09-28-de
     $ DATABASE_URL=<throwaway> npm run db:rollback
       | ### MIGRATION 0001_graph-l1 (DOWN) ###
       exit=0
-    tables: (none) · enums: {} · extensions: []
+    tables: (none) · enums: {} · extensions: ["vector"]
 
 [A5] Apply, roll back and apply again
     second == first: true · contract mismatches: none
@@ -118,7 +118,7 @@ No screenshots: the change has no browser UI.
   project/file/symbol/edge = 0/0/0/0.
 - After: identical — same databases, same tables, `pgmigrations` = `0001_graph-l1`, rows 0/0/0/0.
 - Restored: yes. Lifecycle scenarios ran on throwaway database
-  `codemind_demo_e955c6d269b54eedb55319f56a10bde8`, created and dropped through the `pg` client (log
+  `codemind_demo_a2ed48b533064ec6b95361658081f788`, created and dropped through the `pg` client (log
   confirms `dropped throwaway database …`). Every table scenario ran in its own transaction ended with
   `ROLLBACK`, so no row was committed.
 

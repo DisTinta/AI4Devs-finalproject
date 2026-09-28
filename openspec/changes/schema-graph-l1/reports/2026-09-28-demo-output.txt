@@ -1,6 +1,6 @@
 
 == A. Lifecycle (real npm scripts, throwaway database) ==
-  created throwaway database codemind_demo_e955c6d269b54eedb55319f56a10bde8
+  created throwaway database codemind_demo_a2ed48b533064ec6b95361658081f788
 
 [A1] Migrate an empty database
     tables before: (none)
@@ -84,7 +84,7 @@
       | > - 0001_graph-l1
       | ### MIGRATION 0001_graph-l1 (DOWN) ###
       exit=0
-    tables: (none) · enums: {} · extensions: []
+    tables: (none) · enums: {} · extensions: ["vector"]
 
 [A5] Apply, roll back and apply again
     $ DATABASE_URL=<throwaway> npm run db:migrate
@@ -104,7 +104,7 @@
       exit=0
     second == first: true · contract mismatches: none
 
-  dropped throwaway database codemind_demo_e955c6d269b54eedb55319f56a10bde8
+  dropped throwaway database codemind_demo_a2ed48b533064ec6b95361658081f788
 
 [A6] DATABASE_URL is missing on migrate
     $ (DATABASE_URL unset) npm run db:migrate
@@ -120,13 +120,13 @@
 
 [B1 Defaults apply on a minimal insert]
     INSERT INTO project (name, root_path, language) VALUES ($1, '/repos/demo', 'php') RETURNING id, is_sample, node_count, edge_count, created_at
-      -> OK [{"id":"2bb07744-c977-4afa-9fdd-68ccf0122ce8","is_sample":false,"node_count":0,"edge_count":0,"created_at":"2026-09-28T09:57:10.146Z"}]
+      -> OK [{"id":"34b86d3e-2973-499f-a909-a84c3482f324","is_sample":false,"node_count":0,"edge_count":0,"created_at":"2026-09-28T10:15:24.107Z"}]
     INSERT INTO file (project_id, path, kind) VALUES ($1, 'README.md', 'doc') RETURNING id, redacted
-      -> OK [{"id":"6a59302a-d40b-49ee-8484-e3dc2933060c","redacted":false}]
+      -> OK [{"id":"12549247-097a-4d53-9e96-6ff44899d4bc","redacted":false}]
 
 [B2 Duplicate project name is rejected]
     INSERT INTO project (name, root_path, language) VALUES ($1, '/repos/demo', 'typescript') RETURNING id
-      -> OK [{"id":"d7f7310e-0a4f-49ad-8b3c-d8bc736510bd"}]
+      -> OK [{"id":"82a0720a-c7c1-4a04-9d84-46fea2a9f4ff"}]
     INSERT INTO project (name, root_path, language) VALUES ($1, '/repos/demo', 'typescript') RETURNING id
       -> REJECTED sqlstate=23505 constraint=project_name_key: duplicate key value violates unique constraint "project_name_key"
 
@@ -136,27 +136,27 @@
 
 [B4 Duplicate path within a project is rejected]
     INSERT INTO project (name, root_path, language) VALUES ($1, '/repos/demo', 'typescript') RETURNING id
-      -> OK [{"id":"b5851104-05f5-4c83-b383-30c9ee396a90"}]
+      -> OK [{"id":"9e8d9a7a-db72-48e4-9e20-299adc4ac105"}]
     INSERT INTO file (project_id, path, kind) VALUES ($1, $2, 'source') RETURNING id
-      -> OK [{"id":"22d0ef5e-05fd-4307-b4a2-49f93c0311c3"}]
+      -> OK [{"id":"695e58ce-521c-40be-84ab-ecf056eacd45"}]
     INSERT INTO file (project_id, path, kind) VALUES ($1, $2, 'source') RETURNING id
       -> REJECTED sqlstate=23505 constraint=file_project_path_key: duplicate key value violates unique constraint "file_project_path_key"
 
 [B5 Same path in two projects is accepted]
     INSERT INTO project (name, root_path, language) VALUES ($1, '/repos/demo', 'typescript') RETURNING id
-      -> OK [{"id":"95d0dac9-81a3-4092-bec1-bdefd67588ac"}]
+      -> OK [{"id":"95f56ec8-455b-4396-8e23-d171c64143e6"}]
     INSERT INTO file (project_id, path, kind) VALUES ($1, $2, 'source') RETURNING id
-      -> OK [{"id":"d00f117e-8135-43bb-b13b-21aa74b307f2"}]
+      -> OK [{"id":"2823c7ff-4598-4cb7-aa9a-c1112e6fa3ae"}]
     INSERT INTO project (name, root_path, language) VALUES ($1, '/repos/demo', 'typescript') RETURNING id
-      -> OK [{"id":"1d051c9c-4a25-4db9-a24c-cc32ff50c0d8"}]
+      -> OK [{"id":"d1a56fb6-b491-46dd-9caa-3687ff19acdd"}]
     INSERT INTO file (project_id, path, kind) VALUES ($1, $2, 'source') RETURNING id
-      -> OK [{"id":"9fe25ee9-ceb8-457b-b723-1fc53e9952f6"}]
+      -> OK [{"id":"e971f654-e5a3-49de-b1e9-3689ddbbeb28"}]
 
 [B6 Deleting a project deletes its files]
     INSERT INTO project (name, root_path, language) VALUES ($1, '/repos/demo', 'typescript') RETURNING id
-      -> OK [{"id":"6142214f-2113-4031-9c93-bdac717aed10"}]
+      -> OK [{"id":"4cb5218b-75e8-450b-941c-4af37ec8b5a1"}]
     INSERT INTO file (project_id, path, kind) VALUES ($1, $2, 'source') RETURNING id
-      -> OK [{"id":"3217aa81-e6f2-4e45-9b89-bc9699b2ce7c"}]
+      -> OK [{"id":"01794c86-c66b-4d26-902a-8a9430d642b4"}]
     DELETE FROM project WHERE id = $1
       -> OK (1 row)
     SELECT count(*) AS files_left FROM file WHERE id = $1
@@ -164,27 +164,27 @@
 
 [B7 Invalid span is rejected]
     INSERT INTO project (name, root_path, language) VALUES ($1, '/repos/demo', 'typescript') RETURNING id
-      -> OK [{"id":"9b78e00d-eedc-44b4-b078-7c00ec7f60a1"}]
+      -> OK [{"id":"531fd64c-9aca-4286-97e1-cad511832f9b"}]
     INSERT INTO file (project_id, path, kind) VALUES ($1, $2, 'source') RETURNING id
-      -> OK [{"id":"1b3dd3f4-694e-42ff-9517-90cf87c25a13"}]
+      -> OK [{"id":"c7c17797-b7b8-4646-a83c-d155419945ac"}]
     INSERT INTO symbol (file_id, name, kind, start_line, end_line) VALUES ($1, 'handle', 'method', $2, $3) RETURNING id
       -> REJECTED sqlstate=23514 constraint=symbol_span_valid: new row for relation "symbol" violates check constraint "symbol_span_valid"
 
 [B8 Non-positive start line is rejected]
     INSERT INTO project (name, root_path, language) VALUES ($1, '/repos/demo', 'typescript') RETURNING id
-      -> OK [{"id":"5a97c912-678b-45d7-96fa-46b9473e79d7"}]
+      -> OK [{"id":"fa256150-1b19-49b8-bb87-ce3f242ff4a0"}]
     INSERT INTO file (project_id, path, kind) VALUES ($1, $2, 'source') RETURNING id
-      -> OK [{"id":"5c69c996-92ad-42b2-83bb-62ba04c1c1bb"}]
+      -> OK [{"id":"ee26bb4e-7308-4941-a972-ff1660155cb5"}]
     INSERT INTO symbol (file_id, name, kind, start_line, end_line) VALUES ($1, 'handle', 'method', $2, $3) RETURNING id
       -> REJECTED sqlstate=23514 constraint=symbol_start_line_positive: new row for relation "symbol" violates check constraint "symbol_start_line_positive"
 
 [B9 Deleting a file deletes its symbols]
     INSERT INTO project (name, root_path, language) VALUES ($1, '/repos/demo', 'typescript') RETURNING id
-      -> OK [{"id":"99567f39-37b0-456a-acdd-47b9fa2e85ba"}]
+      -> OK [{"id":"06f49658-f2ba-4038-a43b-2d3945b3f47f"}]
     INSERT INTO file (project_id, path, kind) VALUES ($1, $2, 'source') RETURNING id
-      -> OK [{"id":"c3ac9735-22f8-4032-90e8-3e9f8960858b"}]
+      -> OK [{"id":"da5d2ba8-a28a-4fcf-82e9-768d38d571b0"}]
     INSERT INTO symbol (file_id, name, kind, start_line, end_line) VALUES ($1, 'handle', 'method', $2, $3) RETURNING id
-      -> OK [{"id":"be66d6c1-8c24-46ad-a927-da8a6180bcb3"}]
+      -> OK [{"id":"ed3b5110-2eed-47f3-90a9-936fbf4c5420"}]
     DELETE FROM file WHERE id = $1
       -> OK (1 row)
     SELECT count(*) AS symbols_left FROM symbol WHERE id = $1
@@ -192,113 +192,113 @@
 
 [B10 Edge without resolution is rejected]
     INSERT INTO project (name, root_path, language) VALUES ($1, '/repos/demo', 'typescript') RETURNING id
-      -> OK [{"id":"256e5d68-e5fc-4161-a89f-336c61f088a6"}]
+      -> OK [{"id":"ac352e5c-e4a2-48b4-87ea-dbb74f8ce986"}]
     INSERT INTO file (project_id, path, kind) VALUES ($1, $2, 'source') RETURNING id
-      -> OK [{"id":"a55eaec0-6504-4e2f-961d-591a90eeee04"}]
+      -> OK [{"id":"f3d85325-4d72-45e5-9e8a-a92d9fc09140"}]
     INSERT INTO symbol (file_id, name, kind, start_line, end_line) VALUES ($1, 'handle', 'method', $2, $3) RETURNING id
-      -> OK [{"id":"6da91abc-1a59-4c31-92c3-d9563be3b308"}]
+      -> OK [{"id":"db1ee229-690b-4c83-818d-9c7f19cb4496"}]
     INSERT INTO symbol (file_id, name, kind, start_line, end_line) VALUES ($1, 'handle', 'method', $2, $3) RETURNING id
-      -> OK [{"id":"0a09fbbb-7c47-4044-8a28-d1add30ce318"}]
+      -> OK [{"id":"47214cff-9f79-47b0-a851-04274870259c"}]
     INSERT INTO edge (project_id, source_symbol_id, target_symbol_id, kind, resolution, extractor) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
       -> REJECTED sqlstate=23502: null value in column "resolution" of relation "edge" violates not-null constraint
 
 [B11 Empty extractor is rejected]
     INSERT INTO project (name, root_path, language) VALUES ($1, '/repos/demo', 'typescript') RETURNING id
-      -> OK [{"id":"2fa9556c-12d2-48e9-a307-3495c9256de3"}]
+      -> OK [{"id":"27573f2f-4aed-4241-8459-bb0f6048bf8d"}]
     INSERT INTO file (project_id, path, kind) VALUES ($1, $2, 'source') RETURNING id
-      -> OK [{"id":"429b77a3-0b35-4440-ad43-dcdf937bfa35"}]
+      -> OK [{"id":"979c0c12-cb96-4aad-9008-2e5a3e03bd4a"}]
     INSERT INTO symbol (file_id, name, kind, start_line, end_line) VALUES ($1, 'handle', 'method', $2, $3) RETURNING id
-      -> OK [{"id":"81a3f1ac-a1a6-483f-abf0-27e8b7cf4b72"}]
+      -> OK [{"id":"075d0639-7a0a-46fd-91ed-a26ddd0aa519"}]
     INSERT INTO symbol (file_id, name, kind, start_line, end_line) VALUES ($1, 'handle', 'method', $2, $3) RETURNING id
-      -> OK [{"id":"31135150-2740-4da7-a248-52faa060e998"}]
+      -> OK [{"id":"17d93cbc-98b9-4780-9c86-eca2d8e0bd15"}]
     INSERT INTO edge (project_id, source_symbol_id, target_symbol_id, kind, resolution, extractor) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
       -> REJECTED sqlstate=23514 constraint=edge_extractor_not_empty: new row for relation "edge" violates check constraint "edge_extractor_not_empty"
 
 [B12 Endpoint with both a symbol and a file is rejected]
     INSERT INTO project (name, root_path, language) VALUES ($1, '/repos/demo', 'typescript') RETURNING id
-      -> OK [{"id":"6bd21eb7-63d6-4537-a712-ea0f29a3639d"}]
+      -> OK [{"id":"64b0209d-9dc7-4085-bfa1-9f82666ddd27"}]
     INSERT INTO file (project_id, path, kind) VALUES ($1, $2, 'source') RETURNING id
-      -> OK [{"id":"2bef99ee-11c4-4e6a-842d-576f68565696"}]
+      -> OK [{"id":"3d3b5900-4480-4534-8065-8ef9d888addb"}]
     INSERT INTO symbol (file_id, name, kind, start_line, end_line) VALUES ($1, 'handle', 'method', $2, $3) RETURNING id
-      -> OK [{"id":"149b9b64-9a9b-4e07-9583-16e460095183"}]
+      -> OK [{"id":"07281dc4-2394-4612-98c6-197fc140069e"}]
     INSERT INTO symbol (file_id, name, kind, start_line, end_line) VALUES ($1, 'handle', 'method', $2, $3) RETURNING id
-      -> OK [{"id":"1e4fb56d-902e-417e-b3f8-1ecc4b732ff6"}]
+      -> OK [{"id":"1814a6d6-e987-48ad-8039-d087ef8f4c3d"}]
     INSERT INTO edge (project_id, source_symbol_id, source_file_id, target_symbol_id, kind, resolution, extractor) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id
       -> REJECTED sqlstate=23514 constraint=edge_source_exactly_one: new row for relation "edge" violates check constraint "edge_source_exactly_one"
 
 [B13 Endpoint with neither a symbol nor a file is rejected]
     INSERT INTO project (name, root_path, language) VALUES ($1, '/repos/demo', 'typescript') RETURNING id
-      -> OK [{"id":"09e957d2-cd57-4a95-86ae-8ebe4b96ba59"}]
+      -> OK [{"id":"7681ca43-a55e-48ca-8c00-83550a7da053"}]
     INSERT INTO file (project_id, path, kind) VALUES ($1, $2, 'source') RETURNING id
-      -> OK [{"id":"373c7e05-4151-44a6-aee4-1c5647dda259"}]
+      -> OK [{"id":"3889c02d-bdd5-4a84-90a7-f000d959fe43"}]
     INSERT INTO symbol (file_id, name, kind, start_line, end_line) VALUES ($1, 'handle', 'method', $2, $3) RETURNING id
-      -> OK [{"id":"07f68a49-b1fd-48a6-8d6d-92ec7acf21e4"}]
+      -> OK [{"id":"8cc32ae6-2415-4a0b-8955-44e73ce0271d"}]
     INSERT INTO symbol (file_id, name, kind, start_line, end_line) VALUES ($1, 'handle', 'method', $2, $3) RETURNING id
-      -> OK [{"id":"17af5ce9-f0c0-4a58-a119-186e69be2327"}]
+      -> OK [{"id":"6b1b629d-dff6-4ca1-bc16-572ee0d7edd2"}]
     INSERT INTO edge (project_id, source_symbol_id, kind, resolution, extractor) VALUES ($1, $2, $3, $4, $5) RETURNING id
       -> REJECTED sqlstate=23514 constraint=edge_target_exactly_one: new row for relation "edge" violates check constraint "edge_target_exactly_one"
 
 [B14 Endpoint pointing to a missing row is rejected]
     INSERT INTO project (name, root_path, language) VALUES ($1, '/repos/demo', 'typescript') RETURNING id
-      -> OK [{"id":"a384555d-760f-4d79-8428-aea25aa84ef6"}]
+      -> OK [{"id":"0c6904c9-2c53-4d99-affe-0f401f384548"}]
     INSERT INTO file (project_id, path, kind) VALUES ($1, $2, 'source') RETURNING id
-      -> OK [{"id":"da25db8b-a012-4c83-9af0-ddef7eeda7e2"}]
+      -> OK [{"id":"e3f425e1-177e-44c6-900d-8ecebd38010e"}]
     INSERT INTO symbol (file_id, name, kind, start_line, end_line) VALUES ($1, 'handle', 'method', $2, $3) RETURNING id
-      -> OK [{"id":"87c83a6a-6ab5-4175-8ddb-31f156f3e704"}]
+      -> OK [{"id":"ad53abbf-99f5-4774-b3d0-0e1e465066da"}]
     INSERT INTO symbol (file_id, name, kind, start_line, end_line) VALUES ($1, 'handle', 'method', $2, $3) RETURNING id
-      -> OK [{"id":"436c0979-ba6c-4f1d-a8b8-aadda8520494"}]
+      -> OK [{"id":"87ed2191-d70d-4290-9b08-345e3899185f"}]
     INSERT INTO edge (project_id, source_symbol_id, target_symbol_id, kind, resolution, extractor) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
       -> REJECTED sqlstate=23503 constraint=edge_source_symbol_id_fkey: insert or update on table "edge" violates foreign key constraint "edge_source_symbol_id_fkey"
 
 [B15 File-to-symbol edge is accepted]
     INSERT INTO project (name, root_path, language) VALUES ($1, '/repos/demo', 'typescript') RETURNING id
-      -> OK [{"id":"f1754877-c438-43fc-9eae-e09805d11e02"}]
+      -> OK [{"id":"47090ee5-5069-483f-b071-0650ae294a6b"}]
     INSERT INTO file (project_id, path, kind) VALUES ($1, $2, 'source') RETURNING id
-      -> OK [{"id":"675d092e-ba76-4d77-b80c-ea790f461edb"}]
+      -> OK [{"id":"409ddfd8-b3f2-40b2-aad3-4b5a30a63af9"}]
     INSERT INTO symbol (file_id, name, kind, start_line, end_line) VALUES ($1, 'handle', 'method', $2, $3) RETURNING id
-      -> OK [{"id":"aaf5551e-d418-4946-879e-47eeb17fff5d"}]
+      -> OK [{"id":"ef85e938-555f-4242-bc91-b6e43f6352f4"}]
     INSERT INTO symbol (file_id, name, kind, start_line, end_line) VALUES ($1, 'handle', 'method', $2, $3) RETURNING id
-      -> OK [{"id":"f0814522-ddda-4782-bcde-e55cc6d51fd9"}]
+      -> OK [{"id":"430eb83c-35af-4444-a102-b6442a995f58"}]
     INSERT INTO edge (project_id, source_file_id, target_symbol_id, kind, resolution, extractor) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
-      -> OK [{"id":"a0d3492e-9c6a-4852-ac06-beb8041d8b53"}]
+      -> OK [{"id":"b31ce56a-14a8-4a77-b951-339c52ca8af6"}]
 
 [B16 Weight at the bounds is accepted]
     INSERT INTO project (name, root_path, language) VALUES ($1, '/repos/demo', 'typescript') RETURNING id
-      -> OK [{"id":"bcc51dfc-c0d2-443a-8718-62d3c09320b2"}]
+      -> OK [{"id":"0e5f647f-0f5a-4c9e-8b33-384c2b2fd2b8"}]
     INSERT INTO file (project_id, path, kind) VALUES ($1, $2, 'source') RETURNING id
-      -> OK [{"id":"7ea60a63-1b62-4706-9e13-95a57a9e4779"}]
+      -> OK [{"id":"d05ad5d8-9daa-4731-b1d3-3010daa44bcb"}]
     INSERT INTO symbol (file_id, name, kind, start_line, end_line) VALUES ($1, 'handle', 'method', $2, $3) RETURNING id
-      -> OK [{"id":"a2b57276-8aef-47d5-95ab-4300aaf3d17e"}]
+      -> OK [{"id":"24d3b2d6-7268-4448-9937-7c35eb7e878d"}]
     INSERT INTO symbol (file_id, name, kind, start_line, end_line) VALUES ($1, 'handle', 'method', $2, $3) RETURNING id
-      -> OK [{"id":"9f3fe615-ec9c-49a3-b9c8-7fc76c779fa8"}]
+      -> OK [{"id":"55239969-3a87-45d0-9740-830905b43726"}]
     INSERT INTO edge (project_id, source_file_id, target_symbol_id, kind, resolution, extractor, weight) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id
-      -> OK [{"id":"cd0685db-01d8-4fa4-a02b-9b5bf2199bc4"}]
+      -> OK [{"id":"61f0c613-1c82-4248-9732-83db80c2c5ed"}]
     INSERT INTO edge (project_id, source_file_id, target_symbol_id, kind, resolution, extractor, weight) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id
-      -> OK [{"id":"32acd173-2f76-4a56-b4fc-90366d6777b6"}]
+      -> OK [{"id":"6892dc3f-fa4a-45ea-8782-92c13dc941f9"}]
 
 [B17 Weight outside 0..1 is rejected]
     INSERT INTO project (name, root_path, language) VALUES ($1, '/repos/demo', 'typescript') RETURNING id
-      -> OK [{"id":"b29b88d8-86eb-4342-90e7-8a1e780b05c2"}]
+      -> OK [{"id":"f33ee41f-c828-4619-b6ea-225111c544e3"}]
     INSERT INTO file (project_id, path, kind) VALUES ($1, $2, 'source') RETURNING id
-      -> OK [{"id":"5b035995-eddd-4458-8ad4-f19c8e3bb776"}]
+      -> OK [{"id":"18c895eb-ef57-4fbd-9647-51c0b152bc6c"}]
     INSERT INTO symbol (file_id, name, kind, start_line, end_line) VALUES ($1, 'handle', 'method', $2, $3) RETURNING id
-      -> OK [{"id":"d910a9ad-e15d-4ca4-8720-d148624a97df"}]
+      -> OK [{"id":"d75bf1c6-f75d-4620-a026-4b27795f2033"}]
     INSERT INTO symbol (file_id, name, kind, start_line, end_line) VALUES ($1, 'handle', 'method', $2, $3) RETURNING id
-      -> OK [{"id":"0179a761-9340-4b1b-a1d9-5fdcb5c10b37"}]
+      -> OK [{"id":"2e01538d-e099-4f3e-86cd-58680a96f669"}]
     INSERT INTO edge (project_id, source_symbol_id, target_symbol_id, kind, resolution, extractor, weight) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id
       -> REJECTED sqlstate=23514 constraint=edge_weight_range: new row for relation "edge" violates check constraint "edge_weight_range"
 
 [B18 Deleting a symbol deletes its edges]
     INSERT INTO project (name, root_path, language) VALUES ($1, '/repos/demo', 'typescript') RETURNING id
-      -> OK [{"id":"0c798543-9248-45dd-bec1-ad318551f3a6"}]
+      -> OK [{"id":"594476ae-f817-43f8-99eb-0c8ebcd6398a"}]
     INSERT INTO file (project_id, path, kind) VALUES ($1, $2, 'source') RETURNING id
-      -> OK [{"id":"cb65f193-7774-4499-b12f-f5b34f8c72bf"}]
+      -> OK [{"id":"7c024dfa-9425-44cd-a7a7-f817e601fd3d"}]
     INSERT INTO symbol (file_id, name, kind, start_line, end_line) VALUES ($1, 'handle', 'method', $2, $3) RETURNING id
-      -> OK [{"id":"9c496b8e-1394-4679-be23-1d82fffabd28"}]
+      -> OK [{"id":"6ff1bb5b-d820-4d7b-90ea-e35709f107ac"}]
     INSERT INTO symbol (file_id, name, kind, start_line, end_line) VALUES ($1, 'handle', 'method', $2, $3) RETURNING id
-      -> OK [{"id":"f088c2d2-2f38-4750-b6f2-b643bedde3db"}]
+      -> OK [{"id":"ce89eb66-2d68-4fa0-abe6-dfb89d6e046a"}]
     INSERT INTO edge (project_id, source_symbol_id, target_symbol_id, kind, resolution, extractor) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
-      -> OK [{"id":"43125ff3-40aa-4b07-a05a-d9d792a29fd9"}]
+      -> OK [{"id":"7f2bea6e-4e66-41f4-914f-ad7a816f5b42"}]
     DELETE FROM symbol WHERE id = $1
       -> OK (1 row)
     SELECT count(*) AS edges_left FROM edge WHERE id = $1
@@ -306,17 +306,17 @@
 
 [B19 Deleting a file deletes its edges]
     INSERT INTO project (name, root_path, language) VALUES ($1, '/repos/demo', 'typescript') RETURNING id
-      -> OK [{"id":"7bc8476b-513f-441d-93bd-9c259e08738b"}]
+      -> OK [{"id":"f615f98b-3fa9-4a93-adfe-231c8ac03fdf"}]
     INSERT INTO file (project_id, path, kind) VALUES ($1, $2, 'source') RETURNING id
-      -> OK [{"id":"3c588cab-277e-4ede-bca8-c3217e2694db"}]
+      -> OK [{"id":"aa0f30bf-6fba-4bb7-a206-2b3067aac98d"}]
     INSERT INTO symbol (file_id, name, kind, start_line, end_line) VALUES ($1, 'handle', 'method', $2, $3) RETURNING id
-      -> OK [{"id":"b7ba2ee6-2ac3-475d-9405-1c294d105575"}]
+      -> OK [{"id":"72040287-2b6a-4949-95a8-9a4743478690"}]
     INSERT INTO symbol (file_id, name, kind, start_line, end_line) VALUES ($1, 'handle', 'method', $2, $3) RETURNING id
-      -> OK [{"id":"8be3c325-6c79-4713-a4a5-1d78d07c39db"}]
+      -> OK [{"id":"6ce4e67e-0a50-446c-9556-fcd025434226"}]
     INSERT INTO file (project_id, path, kind) VALUES ($1, $2, 'source') RETURNING id
-      -> OK [{"id":"f4ffe2ce-82e3-40c9-82ff-29b21087c1e0"}]
+      -> OK [{"id":"2d4fb894-217b-4870-99b6-9d3956fb21bd"}]
     INSERT INTO edge (project_id, source_file_id, target_file_id, kind, resolution, extractor) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
-      -> OK [{"id":"8a563b6d-dc43-44a9-abc3-2c1e9c784875"}]
+      -> OK [{"id":"24141f23-3ad1-48e6-85e6-5f8818ee9c49"}]
     DELETE FROM file WHERE id = $1
       -> OK (1 row)
     SELECT count(*) AS edges_left FROM edge WHERE id = $1
@@ -324,15 +324,15 @@
 
 [B20 Deleting a project deletes its edges even when the endpoints survive]
     INSERT INTO project (name, root_path, language) VALUES ($1, '/repos/demo', 'typescript') RETURNING id
-      -> OK [{"id":"dd09cf0e-a91e-4e50-9df0-35b1a5839e08"}]
+      -> OK [{"id":"9062c1da-daad-426c-9a32-748ea7473a89"}]
     INSERT INTO project (name, root_path, language) VALUES ($1, '/repos/demo', 'typescript') RETURNING id
-      -> OK [{"id":"8b59cf1c-75f6-41e5-ae38-dbbe9e1622bc"}]
+      -> OK [{"id":"3f5ec6a7-7507-4d64-b6ac-9f882deece35"}]
     INSERT INTO file (project_id, path, kind) VALUES ($1, $2, 'source') RETURNING id
-      -> OK [{"id":"2dd9b235-2be6-4e3d-b592-198692af95fc"}]
+      -> OK [{"id":"217be4cd-6d35-4d9e-9281-ffd628c8369c"}]
     INSERT INTO file (project_id, path, kind) VALUES ($1, $2, 'source') RETURNING id
-      -> OK [{"id":"316af068-120c-4190-98f6-a671cefb7da1"}]
+      -> OK [{"id":"bbb68c4f-f35a-4195-ac9c-488da54f7f75"}]
     INSERT INTO edge (project_id, source_file_id, target_file_id, kind, resolution, extractor) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
-      -> OK [{"id":"f1634fa3-bfc8-4df6-89f0-72fc55918464"}]
+      -> OK [{"id":"6429fd5c-4244-4a71-896a-b32f9bbc0852"}]
     DELETE FROM project WHERE id = $1
       -> OK (1 row)
     SELECT (SELECT count(*) FROM edge WHERE id = $1) AS edges_left, (SELECT count(*) FROM file WHERE id IN ($2, $3)) AS project_b_files_left
