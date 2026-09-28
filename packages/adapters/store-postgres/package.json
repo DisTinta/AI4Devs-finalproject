@@ -6,9 +6,14 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "dependencies": {
-    "@codemind/core": "*"
+    "@codemind/core": "*",
+    "node-pg-migrate": "^9.0.0",
+    "pg": "^8.23.0"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.23.1"
   }
 }

@@ -701,8 +701,11 @@ erDiagram
     FILE ||--o{ SYMBOL : declares
     FILE ||--o{ FILE_COMMIT : touched_in
     COMMIT ||--o{ FILE_COMMIT : touches
-    SYMBOL ||--o{ EDGE : source
-    SYMBOL ||--o{ EDGE : target
+    PROJECT ||--o{ EDGE : scopes
+    SYMBOL |o--o{ EDGE : source
+    SYMBOL |o--o{ EDGE : target
+    FILE |o--o{ EDGE : source
+    FILE |o--o{ EDGE : target
     CLAIM ||--|{ EVIDENCE : supported_by
     FILE ||--o{ EVIDENCE : located_in
 
@@ -744,13 +747,15 @@ erDiagram
 
     EDGE {
         uuid id PK
-        uuid project_id FK "not null"
-        uuid source_id FK "SYMBOL o FILE — not null"
-        uuid target_id FK "not null"
+        uuid project_id FK "not null, on delete cascade"
+        uuid source_symbol_id FK "nullable — exactamente uno de source_symbol_id / source_file_id"
+        uuid source_file_id FK "nullable"
+        uuid target_symbol_id FK "nullable — exactamente uno de target_symbol_id / target_file_id"
+        uuid target_file_id FK "nullable"
         text kind "enum: calls, imports, extends, implements, tested_by, co_changed, describes"
         text resolution "enum: exact, heuristic — not null"
-        text extractor "not null — qué componente creó la arista"
-        float weight "co_changed: frecuencia 0..1"
+        text extractor "not null, no vacío — qué componente creó la arista"
+        float weight "nullable, check 0..1 — co_changed: frecuencia"
     }
 
     COMMIT {
@@ -842,6 +847,8 @@ La tabla central del grafo. Dos campos la hacen especial:
 - **`resolution`** (`exact` | `heuristic`) es obligatorio y decisivo. Solo las aristas `exact` pueden sustentar una afirmación de tipo `FACT`. Una llamada resuelta por convención de Laravel —una facade, un binding del contenedor— es `heuristic` y degrada la afirmación a `INFERENCE`. Es la traducción a esquema de la honestidad epistémica del producto. Se eligió un enum de dos valores en lugar de una puntuación continua porque una puntuación obligaría a fijar umbrales que no se pueden justificar con datos y daría una precisión aparente que el sistema no tiene.
 - **`extractor`** permite auditar el origen de cada arista, y es lo que hace comparables los dos analizadores en la Tabla 2 de [2.6](#26-tests).
 
+Cada extremo de la arista apunta a un `SYMBOL` **o** a un `FILE` (una importación o un `describes` desde un documento no tienen símbolo). En lugar de una columna polimórfica sin clave foránea, cada extremo tiene dos claves foráneas anulables —`source_symbol_id` / `source_file_id` y `target_symbol_id` / `target_file_id`— y un `CHECK (num_nonnulls(...) = 1)` exige exactamente una por extremo. Así la integridad referencial y el borrado en cascada los garantiza la base de datos. La base de datos **no** comprueba que los extremos pertenezcan al mismo proyecto que `edge.project_id`: es un riesgo aceptado en L1 y la coherencia es responsabilidad de los analizadores que escriben el grafo ([ADR](docs/adr/20260928-edge-endpoints-as-fk-pairs.md)).
+
 #### COMMIT
 
 `author_hash` almacena el autor **seudonimizado**, no su nombre ni su correo: el historial de Git contiene datos personales y el producto no necesita identidades para funcionar. `pr_number` se extrae del mensaje del commit cuando está presente.
@@ -920,6 +927,11 @@ CREATE INDEX ON file        USING hnsw (embedding vector_cosine_ops);
 CREATE INDEX ON symbol      USING hnsw (embedding vector_cosine_ops);
 CREATE INDEX ON cache_entry USING hnsw (question_embedding vector_cosine_ops);
 ```
+
+> **Pendiente (DIS-13):** los dos índices de travesía de `edge` se escribieron sobre `source_id` /
+> `target_id`. Desde DIS-11 cada extremo son dos columnas (`source_symbol_id` / `source_file_id`,
+> `target_symbol_id` / `target_file_id`, ver el [ADR](docs/adr/20260928-edge-endpoints-as-fk-pairs.md)),
+> así que DIS-13 debe redefinirlos sobre esas columnas.
 
 ---
 

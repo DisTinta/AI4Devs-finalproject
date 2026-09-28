@@ -70,18 +70,25 @@ Verified against `package.json` (root and per package). If a command is not here
   `CMD_DOCS_COVERAGE` in `.claude/sdd-harness.env` points here. `packages/web` is out of scope (React
   UI, not the API surface). As the public surface grows, undocumented exports fail this gate.
 - CLI: `npm run cli` (root) — `tsx packages/cli/src/index.ts`.
-- Migrations / rollback / seed / verify are **placeholders**: `npm run db:migrate`, `db:rollback`,
-  `db:seed`, `seed:build`, `verify` print a "pending Ticket …" message and exit 0. They do nothing yet.
+- Migrations: `npm run db:migrate` (apply all pending) / `npm run db:rollback` (revert the latest
+  one) — `tsx packages/adapters/store-postgres/src/migrate.ts up|down`, node-pg-migrate with SQL
+  files `NNNN_name.up.sql` / `NNNN_name.down.sql` in `packages/adapters/store-postgres/migrations/`
+  (bookkeeping table `pgmigrations`). Both need `DATABASE_URL` (non-zero exit without it); locally
+  `postgres://codemind:codemind@localhost:5432/codemind` with the compose defaults.
+- Seed / verify are **placeholders**: `npm run db:seed`, `seed:build`, `verify` print a
+  "pending Ticket …" message and exit 0. They do nothing yet.
 - Local stack: `docker compose up -d` starts Postgres (`pgvector/pgvector:pg16`) on `5432`. On
   Windows, `make up` needs Git Bash/WSL; in native PowerShell run the `npm` scripts directly.
 
 ## Testing
 
 - Framework: Vitest (root `vitest.config.ts`; no per-package vitest config yet).
-- Test locations: `tests/{unit,integration,e2e,a11y}` (currently only `.gitkeep` +
-  `tests/a11y/smoke.example.tsx`) and co-located package sources. Real suites are not written yet.
-- No test-database isolation exists yet. CI and `.env.example` point `DATABASE_URL` at the same
-  Postgres; the isolation strategy is not implemented (Ticket 3).
+- Test locations: `tests/{unit,integration,e2e,a11y}` and co-located package sources. The first real
+  suite is `tests/integration/store/` (schema migrations and constraints, against real Postgres).
+- DB integration tests need `DATABASE_URL`. Unset locally → they are **skipped with a warning**
+  (so a green run may have skipped them); unset in CI (`CI` set) → they fail. Isolation is minimal
+  until DIS-22: lifecycle tests use a throwaway database each; constraint tests run in
+  `BEGIN`/`ROLLBACK` with per-test unique values. Do not migrate/roll back the shared DB from a test.
 - Test data comes from `fixtures/` (`acme-shop`, `task-api`, `history`, `build-history.mjs`) and
   `seeds/graph-dump.sql`. `fixtures/**` is excluded from Vitest collection.
 
@@ -141,8 +148,8 @@ What the model does NOT know by default about this project: non-obvious behaviou
 services that must be started first, quirks of the local environment.
 
 - **Some CI gates run against stubs, on purpose.** `lint`, `lint:architecture` and `typecheck` are
-  real and must pass. `db:migrate`/`db:rollback` are stubs that exit 0 (CI's apply/rollback/apply
-  sequence is a no-op until Ticket 3). Mutation testing skips itself until the first test exists.
+  real and must pass, and so is CI's `db:migrate` → `db:rollback` → `db:migrate` step. Mutation
+  testing now runs (test files exist) but `packages/core` has no mutants yet, so the score is `n/a`.
   These are intentional scaffolding, not bugs — do not "fix" a stub by faking behaviour.
 - **The infra packages are stubs, not empty.** All 9 workspaces (`core`, `analyzers/{php,typescript}`,
   `adapters/{store-postgres,llm,git}`, `api`, `cli`, `web`) have a `package.json` and a `src/index.ts`,
@@ -150,8 +157,8 @@ services that must be started first, quirks of the local environment.
   They resolve in `npm ls`; do not expect real behaviour from them yet.
 - **Vitest can report success with no tests** (`passWithNoTests: true`). A green suite is not
   evidence that behaviour is covered.
-- **The repo is mid-build (Entrega 2).** `db:migrate`/`db:seed`/`seed:build`/`verify` are
-  placeholders; `make up` runs them but they no-op. Do not assume a working end-to-end flow exists.
+- **The repo is mid-build (Entrega 2).** `db:seed`/`seed:build`/`verify` are placeholders and
+  the schema only has the L1 graph tables (`project`, `file`, `symbol`, `edge`); `make up` runs them but they no-op. Do not assume a working end-to-end flow exists.
 - **OpenSpec native skills are not under `ai-specs/`.** After `openspec init`, `/opsx:*` skills live
   in `.claude/skills/openspec-*` and `.cursor/skills/openspec-*`. Do not delete them on sync; they
   coexist with kit skills.
