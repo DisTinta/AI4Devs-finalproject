@@ -87,15 +87,19 @@ Verified against `package.json` (root and per package). If a command is not here
 
 ## Branch and ticket conventions
 
-- Branch naming: `feature/<slug>` (current: `feature/entrega-2-CRN`).
-- Ticket id: work is tracked in **Linear**, team `Distinta-AI4Devs`, key **`DIS`** (configured
-  2026-09-27). The ticket id is `DIS-n` (matches `[A-Z][A-Z0-9]+-[0-9]+`, `base-standards.md` §2)
-  and is the commit scope. Projects: `CODEMIND — Entrega 2` / `CODEMIND — Entrega 3`, milestones
-  M1–M9. Hierarchy: parent issue = user story `CM-HU-*`, sub-issue = one work slice `CM-HU-*.k`;
-  the `CM-HU-* → DIS-n` map is in `docs/ai-sessions/03-planificacion-historias-de-usuario.md` §6.
-  **OpenSpec (`/opsx:propose`) is fed from one sub-issue** moved to Todo, never from the parent story.
-  Linear is the live backlog source; older "Ticket N" references are internal notes, not ticket ids.
-- Base branch: `main`.
+- Ticket id: **Linear** team `Distinta-AI4Devs`, key **`DIS`** → ids are `DIS-n` (e.g. `DIS-123`).
+  Matches `[A-Z][A-Z0-9]+-[0-9]+` (`base-standards.md` §2); use as the commit scope. Not `COD`.
+  Projects: `CODEMIND — Entrega 2` / `CODEMIND — Entrega 3`, milestones M1–M9. Hierarchy: parent =
+  user story `CM-HU-*`, sub-issue = one work slice `CM-HU-*.k`; map in
+  `docs/ai-sessions/03-planificacion-historias-de-usuario.md` §6. Linear is the live backlog;
+  older "Ticket N" notes are not ticket ids.
+- **OpenSpec (`/opsx:propose`) is fed from the sub-issue (`DIS-n`)**, never from the parent user story.
+- Branch naming for a change: `feature/DIS-n-slug` (merge into delivery branch
+  `feature/entrega-2-CRN`). Ultimate base branch: `main`.
+- **Linear status via MCP** (agents, per sub-issue `DIS-n`):
+  1. Starting work → set status to **In Progress**.
+  2. Verification succeeds → set **In Review** or **Done**, and leave a comment linking the
+     OpenSpec change.
 
 ## Operational constraints
 
