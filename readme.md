@@ -804,7 +804,7 @@ erDiagram
         uuid id PK
         uuid project_id FK "not null, on delete cascade"
         text question "not null"
-        text capability "enum: explain, impact, drift — drift previsto (F6)"
+        text capability "enum: explain, impact, drift — not null, drift previsto (F6)"
         int input_tokens
         int output_tokens
         int baseline_tokens "coste que habría tenido el contexto bruto"
