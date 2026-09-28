@@ -11,7 +11,7 @@
 - Driver: [`2026-09-28-demo.mjs`](./2026-09-28-demo.mjs), independent of the Vitest suite. The
   column contract is checked against the table **parsed live from `specs/graph-schema/spec.md`**, not
   against the test's hand transcription. Full verbatim output:
-  [`2026-09-28-demo-output.log`](./2026-09-28-demo-output.log).
+  [`2026-09-28-demo-output.txt`](./2026-09-28-demo-output.txt).
 
 ## Demonstrated
 
@@ -49,7 +49,7 @@
 
 ## Evidence
 
-Verbatim excerpts (full output in [`2026-09-28-demo-output.log`](./2026-09-28-demo-output.log)):
+Verbatim excerpts (full output in [`2026-09-28-demo-output.txt`](./2026-09-28-demo-output.txt)):
 
 ```text
 [A1] Migrate an empty database
