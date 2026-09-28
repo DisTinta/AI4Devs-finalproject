@@ -8,7 +8,12 @@ change `schema-graph-l1`, Linear DIS-11 / CM-HU-01.1).
 
 ## Why?
 
-<!-- filled in by the human: the business rationale is not yours to generate -->
+Codemind still has no real store schema: `db:migrate` / `db:rollback` are stubs that exit 0, so
+CI’s apply → roll back → apply step proves nothing. Every later M1 slice (history/claim tables in
+DIS-12, indexes/triggers in DIS-13, the integration harness in DIS-22, and the `StorePort`
+adapter) needs a reversible migration runner and the four L1 graph tables (`project`, `file`,
+`symbol`, `edge`) with integrity enforced by PostgreSQL, not by application hope. This PR is
+DIS-11 / CM-HU-01.1: the first concrete piece of the knowledge graph on disk.
 
 ## How to test it?
 
