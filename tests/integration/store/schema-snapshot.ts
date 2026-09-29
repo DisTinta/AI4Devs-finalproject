@@ -138,9 +138,16 @@ export async function snapshotSchema(databaseUrl: string): Promise<SchemaSnapsho
 /** Contract shape of a secondary index: what the spec fixes, independent of its name and formatting. */
 export interface IndexShape {
   table: string;
+  /** Key columns, in order (`INCLUDE` columns are not key columns: see `included`). */
   columns: string[];
+  /** `INCLUDE` (non-key) columns, in order; empty when there are none. */
+  included: string[];
+  unique: boolean;
   method: string;
-  /** Operator classes, only for non-btree indexes (the btree ones are the column type's default). */
+  /**
+   * Key-column operator classes. Null for a btree index whose key columns all use their type's
+   * default class; otherwise every key column's class, in order.
+   */
   opclasses: string[] | null;
   /** Partial-index predicate without outer parentheses and type casts, or null. */
   predicate: string | null;
@@ -170,18 +177,32 @@ export async function secondaryIndexShapes(databaseUrl: string): Promise<IndexSh
     const { rows } = await client.query<{
       table: string;
       columns: string[];
+      included: string[];
+      unique: boolean;
       method: string;
       opclasses: string[];
+      allDefaultOpclasses: boolean;
       predicate: string | null;
     }>(`
       SELECT t.relname AS "table",
+             -- indkey lists the key columns first (indnkeyatts of them), then the INCLUDE columns.
              ARRAY(SELECT a.attname FROM unnest(ix.indkey::int2[]) WITH ORDINALITY k(attnum, ord)
                    JOIN pg_attribute a ON a.attrelid = ix.indrelid AND a.attnum = k.attnum
+                   WHERE k.ord <= ix.indnkeyatts
                    ORDER BY k.ord)::text[] AS "columns",
+             ARRAY(SELECT a.attname FROM unnest(ix.indkey::int2[]) WITH ORDINALITY k(attnum, ord)
+                   JOIN pg_attribute a ON a.attrelid = ix.indrelid AND a.attnum = k.attnum
+                   WHERE k.ord > ix.indnkeyatts
+                   ORDER BY k.ord)::text[] AS "included",
+             ix.indisunique AS "unique",
              am.amname AS "method",
+             -- indclass has one entry per key column only.
              ARRAY(SELECT oc.opcname FROM unnest(ix.indclass::oid[]) WITH ORDINALITY o(oid, ord)
                    JOIN pg_opclass oc ON oc.oid = o.oid
                    ORDER BY o.ord)::text[] AS "opclasses",
+             NOT EXISTS (SELECT 1 FROM unnest(ix.indclass::oid[]) o(oid)
+                         JOIN pg_opclass oc ON oc.oid = o.oid
+                         WHERE NOT oc.opcdefault) AS "allDefaultOpclasses",
              pg_get_expr(ix.indpred, ix.indrelid) AS "predicate"
       FROM pg_index ix
       JOIN pg_class i ON i.oid = ix.indexrelid
@@ -199,8 +220,10 @@ export async function secondaryIndexShapes(databaseUrl: string): Promise<IndexSh
       .map((row) => ({
         table: row.table,
         columns: row.columns,
+        included: row.included,
+        unique: row.unique,
         method: row.method,
-        opclasses: row.method === 'btree' ? null : row.opclasses,
+        opclasses: row.method === 'btree' && row.allDefaultOpclasses ? null : row.opclasses,
         predicate: normalisePredicate(row.predicate),
       }))
       .sort(

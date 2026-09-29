@@ -76,6 +76,17 @@ async function insertCitingClaim(
   return claimId;
 }
 
+/**
+ * Whether the claim's `updated_at` is exactly this transaction's `now()`, compared in SQL at full
+ * microsecond precision (pg's `Date` would cut both sides to milliseconds).
+ */
+async function updatedAtIsNow(client: Client, claimId: string): Promise<boolean> {
+  const { rows } = await client.query<{ exact: boolean }>('SELECT updated_at = now() AS exact FROM claim WHERE id = $1', [
+    claimId,
+  ]);
+  return rows[0].exact;
+}
+
 async function claimState(client: Client, claimId: string): Promise<{ status: string; updated_at: Date }> {
   const { rows } = await client.query<{ status: string; updated_at: Date }>(
     'SELECT status, updated_at FROM claim WHERE id = $1',
@@ -102,9 +113,9 @@ describeWithDatabase('graph-schema: stale invalidation on content change', () =>
 
       const claim = await claimState(client, claimId);
       expect(claim.status).toBe('stale');
-      // Exactly the transaction time (now()), as the spec says; a fixed date or clock_timestamp() fails.
-      const { rows } = await client.query<{ now: Date }>('SELECT now() AS now');
-      expect(claim.updated_at).toEqual(rows[0].now);
+      // Exactly the transaction time (now()), as the spec says; a fixed date, clock_timestamp() or
+      // statement_timestamp() fails, since the UPDATE runs several statements after BEGIN.
+      expect(await updatedAtIsNow(client, claimId)).toBe(true);
       expect(claim.updated_at.getTime()).toBeGreaterThan(PAST.getTime());
     });
   });
@@ -196,6 +207,31 @@ describeWithDatabase('graph-schema: stale invalidation on content change', () =>
       await setContentHash(client, fileB, 'b2');
 
       expect((await claimState(client, claimId)).status).toBe('stale');
+    });
+  });
+
+  // The row trigger fires once per changed file within one statement: the claim citing A and B is
+  // reached twice (the second firing finds it already stale and skips it), the one citing B once.
+  it('One statement that changes several files marks every claim citing them stale', async () => {
+    await withRollback(async (client) => {
+      const projectId = await insertProject(client);
+      const fileA = await insertFile(client, projectId, 'a1');
+      const fileB = await insertFile(client, projectId, 'b1');
+      const fileC = await insertFile(client, projectId, 'c1');
+      const claimOnAB = await insertCitingClaim(client, projectId, [fileA, fileB]);
+      const claimOnB = await insertCitingClaim(client, projectId, [fileB]);
+      const claimOnC = await insertCitingClaim(client, projectId, [fileC]);
+
+      const result = await client.query(`UPDATE file SET content_hash = content_hash || '-v2' WHERE id = ANY($1)`, [
+        [fileA, fileB],
+      ]);
+
+      expect(result.rowCount).toBe(2);
+      for (const claimId of [claimOnAB, claimOnB]) {
+        expect((await claimState(client, claimId)).status).toBe('stale');
+        expect(await updatedAtIsNow(client, claimId)).toBe(true);
+      }
+      expect(await claimState(client, claimOnC)).toEqual({ status: 'current', updated_at: PAST });
     });
   });
 

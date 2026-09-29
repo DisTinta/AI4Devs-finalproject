@@ -149,10 +149,13 @@ const ALL_ENUMS: Record<string, string[]> = { ...L1_ENUMS, ...HISTORY_ENUMS };
 
 // Transcribed by hand from the "Query and vector indexes" table of
 // openspec/changes/schema-indexes-stale/specs/graph-schema/spec.md (key columns in order, method,
-// opclass for HNSW, predicate). Sorted like secondaryIndexShapes(): by table, then columns.
+// opclass for HNSW, predicate; none unique, none with INCLUDE columns). Sorted like
+// secondaryIndexShapes(): by table, then columns.
 const btree = (table: string, columns: string[], predicate: string | null = null): IndexShape => ({
   table,
   columns,
+  included: [],
+  unique: false,
   method: 'btree',
   opclasses: null,
   predicate,
@@ -160,6 +163,8 @@ const btree = (table: string, columns: string[], predicate: string | null = null
 const hnswCosine = (table: string, column: string): IndexShape => ({
   table,
   columns: [column],
+  included: [],
+  unique: false,
   method: 'hnsw',
   opclasses: ['vector_cosine_ops'],
   predicate: null,

@@ -65,7 +65,9 @@ contract.
 After migration, the schema SHALL provide exactly the secondary indexes below, and no other.
 "Secondary" means every index except those implied by primary keys and unique constraints. Each
 row fixes the table, the key columns in order, the
-access method and, for a partial index, its predicate. Index names are not part of this contract.
+access method and, for a partial index, its predicate. None of these indexes is unique, none has
+`INCLUDE` (non-key) columns, and every btree key column uses its type's default operator class.
+Index names are not part of this contract.
 
 | Table | Key columns (in order) | Method | Predicate | Purpose |
 |---|---|---|---|---|
@@ -93,6 +95,8 @@ access method and, for a partial index, its predicate. Index names are not part 
 - **THEN** for every row of the table above, the database has an index on that table with exactly
   those key columns in that order, that access method (and operator class for the HNSW rows) and
   that predicate
+- **AND** none of them is unique or has `INCLUDE` columns, and no btree one uses a non-default
+  operator class
 - **AND** no other secondary index exists
 
 #### Scenario: Every cascading foreign key is indexed
@@ -168,6 +172,15 @@ same name as a schema table.
 - **GIVEN** a `current` claim with evidence citing file A and file B
 - **WHEN** only file B's `content_hash` changes
 - **THEN** the claim has `status = 'stale'`
+
+#### Scenario: One statement that changes several files marks every claim citing them stale
+
+- **GIVEN** a `current` claim citing files A and B, a `current` claim citing only file B, and a
+  `current` claim citing only file C, all with an `updated_at` in the past
+- **WHEN** a single `UPDATE` statement changes the `content_hash` of both A and B
+- **THEN** the claims citing A and B, and only B, have `status = 'stale'` and an `updated_at` equal
+  to the transaction time (`now()`)
+- **AND** the claim citing only C still has `status = 'current'` and an unchanged `updated_at`
 
 #### Scenario: A content hash rewritten by another trigger still marks the claims that cite it stale
 
