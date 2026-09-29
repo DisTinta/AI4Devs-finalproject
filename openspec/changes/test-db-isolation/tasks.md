@@ -138,7 +138,7 @@
 ## 8. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
 - [x] 8.1 Confirm no user interface or user workflow is affected: this is test tooling only. Record "not applicable", with that reason, in the step 6 report
-- [x] 8.2 After pushing, confirm in the PR's CI run (`ci.yml` → `Tests`) that `tests/integration/helpers/harness.spec.ts` ran and was not skipped (DoD "CI lo ejecuta"). Link the run in the step 6 report (2026-09-29: PR #8, run 36542843056, harness.spec.ts 15 passed; refreshed at head `54e1dc8`: run 36550844924, harness.spec.ts 21 passed, 106 total)
+- [x] 8.2 After pushing, confirm in the PR's CI run (`ci.yml` → `Tests`) that `tests/integration/helpers/harness.spec.ts` ran and was not skipped (DoD "CI lo ejecuta"). Link the run in the step 6 report (2026-09-29: PR #8, run 36542843056, harness.spec.ts 15 passed; refreshed at head `54e1dc8`: run 36550844924, harness.spec.ts 21 passed, 106 total; at head `3bd4d15`: run 36553556701, harness.spec.ts 22 passed, 107 total)
 
 ## 9. Update Technical Documentation (MANDATORY)
 
