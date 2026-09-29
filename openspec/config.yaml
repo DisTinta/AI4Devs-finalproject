@@ -32,6 +32,9 @@ context: |
   - Never put secrets or real PII in specs, fixtures, or prompts.
   - Do not run /init; memory files point at docs/base-standards.md on purpose.
   - Edit ai-specs/ as canonical source; sync to .claude/.cursor via sync-artifacts.
+  - Linear tickets: before propose/apply, load the sub-issue AND its parent via MCP
+    (docs/project-context.md → Branch and ticket conventions). Parent frames; sub bounds.
+    Never propose from the parent alone. If they disagree on scope, stop and ask.
 
 # rules: injected ONLY for the matching artifact id
 rules:
@@ -39,6 +42,8 @@ rules:
     - State business why, in-scope, and explicit out-of-scope (non-goals).
     - Reference docs/project-context.md for commands and constraints; do not invent stack facts.
     - Call out privacy/auth/logging impact if the change touches personal data.
+    - If the change comes from a Linear DIS-n, fetch that sub-issue and its parent before writing;
+      scope the proposal from the sub only; use the parent for AC/technical context/non-goals.
 
   specs:
     - Use RFC-2119 language (MUST / SHOULD / MAY) for requirements.
@@ -62,6 +67,7 @@ operations:
     guidance:
       - Prefer /openspec-implement or /opsx:apply with the same hooks; do not edit openspec/specs/ during apply unless syncing deliberately.
       - Run focused tests (CMD_TEST_FILTER) before the full suite when available.
+      - Same Linear rule as propose: load sub-issue + parent via MCP; do not widen the slice to the whole HU.
   archive:
     guidance:
       - Archive only after /show-spec-working and /adversarial-review (or equivalent evidence).
