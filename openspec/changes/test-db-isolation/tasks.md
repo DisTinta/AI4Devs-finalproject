@@ -79,7 +79,7 @@
 ## 5. Backend: Review and Update Existing Tests (MANDATORY)
 
 - [x] 5.1 Confirm `git diff --stat feature/entrega-2-CRN -- tests/integration/store` shows only `support.ts` (scenario "Existing store specs pass unchanged", second half). The constraint and migration specs are not edited (non-goal)
-- [x] 5.2 Confirm no assertion was weakened. Confirm every `#### Scenario:` in `specs/test-db-isolation/spec.md` has a test or a recorded check (21 scenarios)
+- [x] 5.2 Confirm no assertion was weakened. Confirm every `#### Scenario:` in `specs/test-db-isolation/spec.md` has a test or a recorded check (24 scenarios)
 - [x] 5.3 After `/verify-against-spec` (2026-09-29), by author decision:
   - Spec:
     - overrides are "any column other than `id`", and edge endpoints go through `source` / `target`;
@@ -93,6 +93,18 @@
     - new tests "A savepoint inside the harness transaction passes the check", "The shared database is migrated before the first test" and "The test client is unavailable outside a running test".
   - Evidence: the demo driver re-run at 21/21.
   - Accepted as is: U5 (xids in the message), U7 (non-`25P02` errors are rethrown), U9 (mixed edges, no scenario) and U11 (demo driver kept as evidence).
+- [x] 5.4 After `/adversarial-review` (2026-09-29, PASS WITH GAPS), by author decision:
+  - Major 1: "The shared database is migrated before the first test" now runs a child Vitest against a fresh throwaway database (D5). Forced failure F1: removing the harness `beforeAll` turns it red.
+  - Major 2: `beforeEach` / `beforeAll` also run in parallel.
+    - Documented in the TSDoc, `project-context.md` and D3 risks.
+    - The `db()` message names the test body and a nested `beforeEach`.
+    - New test and scenario "Setup in a nested beforeEach runs inside the test transaction".
+    - A note on DIS-23.
+  - Minor 3: report 6 and task 8.2 refreshed for the final head and its CI run.
+  - Question 4: a PR comment lists the spec relaxations of `5d206ac` for the author's sign-off.
+  - Minor 6: `endTestTransaction` rethrows the first error. Scenario "A failing check query is reported as itself"; forced failure F2.
+  - Minor 7: `undefined` overrides keep the default (`definedOnly`). Scenario "Overrides set to undefined keep the factory default"; forced failure F3.
+  - Minor 5 unchanged (already accepted). The demo driver re-ran at 24/24, with a fresh database for the migration scenario.
 
 ## 6. Backend: Run Tests and Verify Data State (MANDATORY)
 

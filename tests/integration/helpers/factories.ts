@@ -68,6 +68,11 @@ export type EdgeEndpoint = { symbol_id: string; file_id?: never } | { file_id: s
 
 type EndpointColumns = 'source_symbol_id' | 'source_file_id' | 'target_symbol_id' | 'target_file_id';
 
+/** Drops the keys whose value is `undefined`, so an `undefined` override keeps the factory default. */
+function definedOnly<Values extends object>(overrides: Values): Partial<Values> {
+  return Object.fromEntries(Object.entries(overrides).filter(([, value]) => value !== undefined)) as Partial<Values>;
+}
+
 async function insertRow<Row>(client: Client, table: string, values: Record<string, unknown>): Promise<Row> {
   const columns = Object.keys(values);
   const placeholders = columns.map((_, index) => `$${index + 1}`);
@@ -84,7 +89,7 @@ export function createProject(client: Client, overrides: Partial<Omit<ProjectRow
     name: unique('project'),
     root_path: '/repos/sample',
     language: 'typescript',
-    ...overrides,
+    ...definedOnly(overrides),
   });
 }
 
@@ -97,7 +102,7 @@ export function createFile(
   return insertRow<FileRow>(client, 'file', {
     path: `${unique('src/file')}.ts`,
     kind: 'source',
-    ...overrides,
+    ...definedOnly(overrides),
     ...required,
   });
 }
@@ -113,7 +118,7 @@ export function createSymbol(
     kind: 'method',
     start_line: 1,
     end_line: 5,
-    ...overrides,
+    ...definedOnly(overrides),
     ...required,
   });
 }
@@ -129,7 +134,7 @@ export function createEdge(
     kind: 'calls',
     resolution: 'exact',
     extractor: 'test-factory',
-    ...overrides,
+    ...definedOnly(overrides),
     project_id,
     source_symbol_id: source.symbol_id ?? null,
     source_file_id: source.file_id ?? null,

@@ -86,24 +86,30 @@ export async function beginTestTransaction(): Promise<TestTransaction> {
  * A transaction aborted by a failed statement (a test asserting a constraint error) rejects every
  * query with SQLSTATE `25P02`; the session is still inside a transaction block, so it passes too.
  * Limit: a `COMMIT` + `BEGIN` followed by a failed statement looks the same and is not detected.
+ *
+ * If the check query fails for another reason (for example a lost connection), the rollback and
+ * the close are still attempted, and the first error is the one rethrown.
  */
 export async function endTestTransaction(transaction: TestTransaction): Promise<void> {
   let currentXid: string | null = null;
+  let firstError: unknown;
   try {
     const { rows } = await transaction.client.query<{ xid: string | null }>(
       'SELECT pg_current_xact_id_if_assigned()::text AS xid',
     );
     currentXid = rows[0].xid;
   } catch (error) {
-    if ((error as { code?: string }).code !== IN_FAILED_TRANSACTION) throw error;
-    currentXid = transaction.xid;
-  } finally {
+    if ((error as { code?: string }).code === IN_FAILED_TRANSACTION) currentXid = transaction.xid;
+    else firstError = error;
+  }
+  for (const release of [() => transaction.client.query('ROLLBACK'), () => transaction.client.end()]) {
     try {
-      await transaction.client.query('ROLLBACK');
-    } finally {
-      await transaction.client.end();
+      await release();
+    } catch (error) {
+      firstError ??= error;
     }
   }
+  if (firstError !== undefined) throw firstError;
   if (currentXid !== transaction.xid) {
     throw new Error(
       `Harness transaction was committed or ended early (opened as ${transaction.xid}, ` +
@@ -112,14 +118,26 @@ export async function endTestTransaction(transaction: TestTransaction): Promise<
   }
 }
 
+/** Error of `db()` when no harness test is running (the message starts with the fixed sentence). */
+export const DB_OUTSIDE_TEST_MESSAGE =
+  'db() is only available while a harness test is running. Set up data in the test body or in a ' +
+  "beforeEach of a nested describe: Vitest 1.x runs one suite's own hooks in parallel, so a " +
+  'beforeEach or beforeAll next to useTransactionPerTest() cannot rely on its transaction.';
+
 /**
  * Gives every test of the enclosing `describe` its own transaction, reverted when the test ends,
  * and returns `db()`: the client of the running test's transaction. It also migrates the shared
  * database once (`beforeAll`). A test fails if its transaction was committed or ended under it.
  *
- * Code under test must not `COMMIT` or `ROLLBACK` on `db()`. Clean up in the test body, not in an
- * `afterEach` that uses `db()`: Vitest 1.x runs `afterEach` hooks in parallel by default
- * (`sequence.hooks = 'parallel'`), so such a hook would race the harness `ROLLBACK`.
+ * Code under test must not `COMMIT` or `ROLLBACK` on `db()`.
+ *
+ * Hook order: Vitest 1.x runs the hooks of one suite in parallel by default
+ * (`sequence.hooks = 'parallel'`), and a parent suite's hooks before a nested suite's.
+ * - Set up data in the test body, or in a `beforeEach` of a **nested** `describe`: it runs after the
+ *   harness has opened the transaction. A `beforeEach` in the same `describe` calls `db()` too early
+ *   and fails; a `beforeAll` there races the shared migration.
+ * - Clean up in the test body, never in an `afterEach` that uses `db()`: it would race the harness
+ *   `ROLLBACK` (and the rollback removes the rows anyway).
  */
 export function useTransactionPerTest(): () => Client {
   let current: TestTransaction | undefined;
@@ -135,7 +153,7 @@ export function useTransactionPerTest(): () => Client {
   });
 
   return () => {
-    if (!current) throw new Error('db() is only available while a harness test is running.');
+    if (!current) throw new Error(DB_OUTSIDE_TEST_MESSAGE);
     return current.client;
   };
 }

@@ -109,8 +109,17 @@ Verified against `package.json` (root and per package). If a command is not here
   - A `SAVEPOINT` is fine, and so is a statement that fails (an aborted transaction).
   - How an adapter that opens its own transaction (`saveGraph`) cooperates with that client is
     decided in DIS-23.
-- **Clean up in the test body, not in an `afterEach` that uses `db()`.** Vitest 1.6 runs
-  `afterEach` hooks in parallel (`sequence.hooks = 'parallel'`, the default here).
+- **Hook order: Vitest 1.6 runs all hooks of one suite in parallel.** This is
+  `sequence.hooks = 'parallel'`, the default here, and it applies to `beforeAll`, `beforeEach` and
+  `afterEach` alike. A parent suite's hooks do run before a nested suite's.
+  - Set up data in the test body, or in a `beforeEach` of a **nested** `describe`, which runs
+    after the harness has opened the transaction.
+  - A `beforeEach` next to `useTransactionPerTest()` calls `db()` too early. It fails with
+    "db() is only available while a harness test is running…".
+  - A `beforeAll` there races the shared migration.
+  - Clean up in the test body, never in an `afterEach` that uses `db()`. The rollback removes the
+    rows anyway.
+- **Factory overrides set to `undefined` are ignored:** the default applies.
 - The older store specs keep their own style, not migrated:
   - lifecycle tests use a throwaway database each;
   - constraint tests run in `withRollback` with per-test unique values.

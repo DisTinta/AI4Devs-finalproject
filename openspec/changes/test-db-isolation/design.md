@@ -104,7 +104,10 @@ scenarios be tested directly, without a test that fails on purpose.
   asserts a constraint error produces, every query fails with SQLSTATE `25P02`, so step 1 cannot
   read the id.
   - `25P02` means the session is still inside the transaction block, so it counts as the same
-    transaction. Any other error is rethrown.
+    transaction.
+  - Any other error is kept: the rollback and the close are still attempted, and the first error
+    is rethrown, so a failing rollback on a dead connection cannot hide the cause. This came from
+    `/adversarial-review`.
   - This was found during apply: without it, every harness test asserting a SQL error would fail.
   - Limit: `COMMIT` + `BEGIN` followed by a failed statement looks the same, and is not detected.
 - `useTransactionPerTest()` is called inside a `describe`:
@@ -167,8 +170,24 @@ Alternatives considered:
   the row type's columns (`Partial<Omit<XRow, 'id'>>`), and the values go as parameters (`$n`).
   The column names are never user input.
 - There is no graph builder or `createGraph`: that would anticipate DIS-23's `saveGraph` shape.
+- Overrides whose value is `undefined` are dropped before the merge (`definedOnly`), so
+  `{ language: undefined }` keeps the default instead of sending `NULL`. This came from
+  `/adversarial-review`. Dropping the key after the merge, which was tried first, removes the
+  default too, and the "undefined overrides" test caught it.
 
 ### D5 — Example spec and "rows are gone after the test ends"
+
+**"Migrated before the first test" runs against a fresh database.** A check on the shared
+database cannot fail: CI runs `db:migrate` before the tests, and the store specs migrate the same
+database in parallel. `/adversarial-review` found this, and the test changed:
+
+- It creates a throwaway database with no migrations (`createThrowawayDatabase`, as in
+  `migrations.spec.ts`) and asserts that `pgmigrations` does not exist yet.
+- It runs a child Vitest with `DATABASE_URL` pointing at that database, on a temp spec that
+  opts in with no migration step of its own. The child's first test asserts the full migration
+  list.
+- It drops the database in `finally`.
+- Forced failure: removing the harness `beforeAll` turns the test red.
 
 `harness.spec.ts` uses `describeWithDatabase` + `useTransactionPerTest()`.
 
@@ -244,6 +263,12 @@ JSON. This file does not use `describeWithDatabase` (it needs no DB itself), but
     harness `ROLLBACK`, whatever the registration order.
   - → **Decision (author, A):** keep the Vitest default. The `db.ts` TSDoc says: clean up in the
     test body, never in an `afterEach` that uses `db()`.
+  - **The same applies to `beforeEach` and `beforeAll`** (`/adversarial-review`). A `beforeEach`
+    next to `useTransactionPerTest()` calls `db()` before the transaction exists. A `beforeAll`
+    races the migration.
+    → Supported setup: the test body, or a `beforeEach` of a nested `describe`, because Vitest
+    runs a parent's hooks before a child's. A test proves the nested case. The `db()` error
+    message names both places, and DIS-23 has a note.
   - `vitest.config.ts` gets no `sequence` option, in line with the non-goal on its settings.
 - **Snake_case keys vs a camelCase lint rule.** → Check `eslint.config.mjs` during
   implementation. If a naming rule objects, disable it for `factories.ts` only, with a comment.

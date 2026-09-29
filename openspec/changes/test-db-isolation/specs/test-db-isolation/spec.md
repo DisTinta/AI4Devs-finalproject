@@ -57,7 +57,10 @@ during the test or after it.
   the spec needs no migration step of its own.
 - The client of the running test's transaction SHALL only be available while that test runs.
   Asking for it at any other time (for example in a `beforeAll`) MUST fail with an error that says
-  so.
+  so, and that names the supported places to set up data: the test body, or a `beforeEach` of a
+  nested describe block.
+- Setup code in a `beforeEach` of a describe block nested inside the opted-in one SHALL run inside
+  the test's transaction.
 - The harness SHALL expose, as its API:
   - the opt-in for a describe block, which returns the accessor for that client;
   - the two lifecycle functions that open a test transaction and end it with the end-of-test
@@ -66,15 +69,24 @@ during the test or after it.
 
 #### Scenario: The shared database is migrated before the first test
 
-- **WHEN** a spec opts into the harness without any migration step of its own
-- **AND** its first test runs
-- **THEN** every migration of the store adapter is already recorded as applied
+- **WHEN** `DATABASE_URL` points at a fresh database with no migration applied
+- **AND** a spec opts into the harness without any migration step of its own, and its first test
+  runs
+- **THEN** every migration of the store adapter is already recorded as applied in that database
 
 #### Scenario: The test client is unavailable outside a running test
 
 - **WHEN** a spec that opts into the harness asks for the test client in a `beforeAll`
 - **THEN** the request fails with an error saying the client is only available while a harness
   test is running
+- **AND** the error names the test body and a nested `beforeEach` as the places to set up data
+
+#### Scenario: Setup in a nested beforeEach runs inside the test transaction
+
+- **WHEN** a describe block nested inside the opted-in one writes a `project` row through the test
+  client in its `beforeEach`
+- **THEN** the test reads that row through the test client
+- **AND** a separate connection finds no row with that id
 
 #### Scenario: A test reads back the row it wrote
 
@@ -113,6 +125,8 @@ transaction was committed or ended early, so its rows may have persisted.
 
 - A `SAVEPOINT` keeps the transaction the harness opened, so it passes the check.
 - A transaction aborted by a failed statement is still open, so it passes the check too.
+- If the check itself fails for another reason (for example a lost connection), the harness MUST
+  still attempt the rollback and the close, and MUST report the check's own error, not a later one.
 - Known limit: a `COMMIT`, then a new `BEGIN`, then a failed statement looks the same as an
   aborted harness transaction. The harness does not detect it, and the rows committed before that
   `BEGIN` may persist.
@@ -135,6 +149,13 @@ transaction was committed or ended early, so its rows may have persisted.
   transaction on the same connection
 - **THEN** the harness end-of-test check fails
 - **AND** its error message states that the harness transaction was committed or ended early
+
+#### Scenario: A failing check query is reported as itself
+
+- **WHEN** the end-of-test check query fails with an error other than an aborted transaction
+- **AND** the rollback that follows fails too
+- **THEN** the harness still attempts the rollback and closes the connection
+- **AND** the error it reports is the check query's error
 
 #### Scenario: An untouched harness transaction passes the check
 
@@ -168,6 +189,7 @@ The harness SHALL provide one factory per L1 graph table: `project`, `file`, `sy
   that already exist in the database (for example a loaded seed).
 - Any column other than `id` MAY be overridden by the caller, and the stored row MUST carry the
   overridden value.
+  - An override whose value is `undefined` is ignored: the factory default applies.
   - An edge's four endpoint columns are not overrides. The caller gives each of `source` and
     `target` as either a symbol id or a file id, never both, and the factory sets the matching
     column and leaves the other `NULL`.
@@ -201,6 +223,11 @@ The harness SHALL provide one factory per L1 graph table: `project`, `file`, `sy
 - **WHEN** a test creates a project with `language` overridden to `php` and `is_sample` to `true`,
   and a symbol with `kind` overridden to `class`
 - **THEN** reading the rows back returns `php`, `true` and `class`
+
+#### Scenario: Overrides set to undefined keep the factory default
+
+- **WHEN** a test creates a project with `language` and `root_path` overridden to `undefined`
+- **THEN** the stored row has `language = 'typescript'` and `root_path = '/repos/sample'`
 
 #### Scenario: Default values are synthetic
 

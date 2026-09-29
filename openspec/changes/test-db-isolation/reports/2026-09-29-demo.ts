@@ -12,7 +12,9 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { expect, it } from 'vitest';
 import { MIGRATIONS_DIR } from '../../../../packages/adapters/store-postgres/src/migrate';
-import { beginTestTransaction, connect, endTestTransaction } from '../../../../tests/integration/helpers/db';
+import { Client } from 'pg';
+import { beginTestTransaction, connect, databaseUrl, endTestTransaction } from '../../../../tests/integration/helpers/db';
+import { createThrowawayDatabase } from '../../../../tests/integration/store/schema-snapshot';
 import { createEdge, createFile, createProject, createSymbol } from '../../../../tests/integration/helpers/factories';
 
 const repoRoot = process.cwd();
@@ -107,7 +109,7 @@ async function main(): Promise<void> {
   writeFileSync(
     join(work, 'hook.spec.ts'),
     `import { writeFileSync } from 'node:fs';
-import { beforeAll, it } from 'vitest';
+import { beforeAll, beforeEach, describe, it } from 'vitest';
 import { connect, describeWithDatabase, useTransactionPerTest } from '${helpersDir}/db';
 import { createProject } from '${helpersDir}/factories';
 
@@ -121,10 +123,6 @@ describeWithDatabase('demo: useTransactionPerTest', () => {
     } catch (error) {
       seen.outsideTest = (error as Error).message;
     }
-  });
-  it('first test sees migrations', async () => {
-    const { rows } = await db().query('SELECT name FROM pgmigrations ORDER BY name');
-    seen.migrations = rows.map((row) => row.name);
   });
   it('reads back', async () => {
     const project = await createProject(db(), { root_path: '/repos/demo' });
@@ -141,6 +139,19 @@ describeWithDatabase('demo: useTransactionPerTest', () => {
   it('writes, then ends', async () => {
     seen.writtenThenEnded = (await createProject(db())).id;
   });
+  describe('nested', () => {
+    let seededId = '';
+    beforeEach(async () => {
+      seededId = (await createProject(db())).id;
+    });
+    it('sees the nested seed', async () => {
+      const { rows } = await db().query('SELECT id FROM project WHERE id = $1', [seededId]);
+      const other = await connect();
+      const elsewhere = await other.query('SELECT count(*)::int AS n FROM project WHERE id = $1', [seededId]);
+      await other.end();
+      seen.nested = { id: seededId, readInTest: rows.length, countElsewhere: elsewhere.rows[0].n };
+    });
+  });
   it('dump', () => writeFileSync('${observedFile}', JSON.stringify(seen)));
 });
 `,
@@ -150,7 +161,7 @@ describeWithDatabase('demo: useTransactionPerTest', () => {
   log(`      child: exit ${hook.status}; ${summary(hook.out)}`);
   const seen = JSON.parse(readFileSync(join(work, 'observed.json'), 'utf8')) as {
     outsideTest: string;
-    migrations: string[];
+    nested: { id: string; readInTest: number; countElsewhere: number };
     readBack: { written: string; read: { id: string; root_path: string }[] };
     invisible: { id: string; countElsewhere: number };
     writtenThenEnded: string;
@@ -159,15 +170,55 @@ describeWithDatabase('demo: useTransactionPerTest', () => {
     .filter((name) => name.endsWith('.up.sql'))
     .map((name) => name.replace(/\.up\.sql$/, ''))
     .sort();
-  check(
-    'The shared database is migrated before the first test',
-    JSON.stringify(seen.migrations) === JSON.stringify(expectedMigrations),
-    `pgmigrations seen by the first test = ${seen.migrations.join(', ')}; migration files = ${expectedMigrations.join(', ')}`,
-  );
+  const fresh = await createThrowawayDatabase(databaseUrl as string);
+  const freshWork = mkdtempSync(join(tmpdir(), 'test-db-isolation-fresh-'));
+  try {
+    const probe = async (): Promise<string | null> => {
+      const client = new Client({ connectionString: fresh.url });
+      await client.connect();
+      const { rows } = await client.query<{ table: string | null }>("SELECT to_regclass('pgmigrations')::text AS table");
+      await client.end();
+      return rows[0].table;
+    };
+    const tableBefore = await probe();
+    const freshObserved = join(freshWork, 'observed.json').replace(/\\/g, '/');
+    writeFileSync(
+      join(freshWork, 'fresh.spec.ts'),
+      `import { writeFileSync } from 'node:fs';
+import { it } from 'vitest';
+import { describeWithDatabase, useTransactionPerTest } from '${helpersDir}/db';
+describeWithDatabase('demo: fresh database', () => {
+  const db = useTransactionPerTest();
+  it('first test', async () => {
+    const { rows } = await db().query('SELECT name FROM pgmigrations ORDER BY name');
+    writeFileSync('${freshObserved}', JSON.stringify(rows.map((row) => row.name)));
+  });
+});
+`,
+    );
+    log('\n$ DATABASE_URL=<fresh throwaway db> npx vitest run --root <tmp>   (fresh.spec.ts: no migration step)');
+    const freshRun = run(`npx vitest run --root "${freshWork}"`, { DATABASE_URL: fresh.url });
+    log(`      child: exit ${freshRun.status}; ${summary(freshRun.out)}`);
+    const seenByFirstTest = JSON.parse(readFileSync(join(freshWork, 'observed.json'), 'utf8')) as string[];
+    check(
+      'The shared database is migrated before the first test',
+      tableBefore === null && JSON.stringify(seenByFirstTest) === JSON.stringify(expectedMigrations),
+      `fresh db pgmigrations before the child = ${tableBefore}; seen by its first test = ${seenByFirstTest.join(', ')}; migration files = ${expectedMigrations.join(', ')}`,
+    );
+  } finally {
+    rmSync(freshWork, { recursive: true, force: true });
+    await fresh.drop();
+  }
   check(
     'The test client is unavailable outside a running test',
-    seen.outsideTest === 'db() is only available while a harness test is running.',
+    seen.outsideTest.startsWith('db() is only available while a harness test is running.') &&
+      seen.outsideTest.includes('nested describe'),
     `db() in beforeAll → ${seen.outsideTest}`,
+  );
+  check(
+    'Setup in a nested beforeEach runs inside the test transaction',
+    seen.nested.readInTest === 1 && seen.nested.countElsewhere === 0,
+    `seeded ${seen.nested.id}: rows read in the test = ${seen.nested.readInTest}; separate connection count(*) = ${seen.nested.countElsewhere}`,
   );
   check(
     'A test reads back the row it wrote',
@@ -254,6 +305,23 @@ describeWithDatabase('demo: code under test commits db()', () => {
     `end error = ${savepointError}; count(*) afterwards = ${savepointCount}`,
   );
 
+  const calls: string[] = [];
+  const brokenClient = {
+    query: async (sql: string) => {
+      calls.push(sql.startsWith('SELECT') ? 'check query' : sql);
+      throw new Error(sql === 'ROLLBACK' ? 'rollback failed' : 'check query failed');
+    },
+    end: async () => {
+      calls.push('end');
+    },
+  } as unknown as Client;
+  const brokenError = await endError({ client: brokenClient, xid: '1' });
+  check(
+    'A failing check query is reported as itself',
+    brokenError === 'check query failed' && calls.join(',') === 'check query,ROLLBACK,end',
+    `calls = ${calls.join(' → ')}; reported error = ${brokenError}`,
+  );
+
   const aborted = await beginTestTransaction();
   const abortedId = (await createProject(aborted.client)).id;
   const failure = await aborted.client.query('SELECT 1 / 0').catch((error: { code?: string }) => error.code);
@@ -307,6 +375,13 @@ describeWithDatabase('demo: code under test commits db()', () => {
     'Overridden columns are stored',
     JSON.stringify(overridden) === JSON.stringify([{ language: 'php', is_sample: true, kind: 'class' }]),
     JSON.stringify(overridden),
+  );
+
+  const undefinedOverrides = await createProject(client, { language: undefined, root_path: undefined });
+  check(
+    'Overrides set to undefined keep the factory default',
+    undefinedOverrides.language === 'typescript' && undefinedOverrides.root_path === '/repos/sample',
+    `language ${undefinedOverrides.language}; root_path ${undefinedOverrides.root_path}`,
   );
 
   check(
@@ -374,5 +449,5 @@ it('show-spec-working: test-db-isolation', { timeout: 600_000 }, async () => {
     writeFileSync(resolve(__dirname, '2026-09-29-demo-output.txt'), `${transcript.join('\n')}\n`);
   }
   expect(results.filter((result) => !result.ok)).toEqual([]);
-  expect(results).toHaveLength(21);
+  expect(results).toHaveLength(24);
 });
