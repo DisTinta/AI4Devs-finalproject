@@ -312,8 +312,10 @@ found that it catches and the single-row tests miss, so it has no forced failure
 - `npm run typecheck`: exit 0.
 - `npm run lint`: 0 errors. It still shows 4 warnings (`no-empty-object-type` in
   `packages/core/src/ports/*`), and those were already there before these edits.
-- The demo driver (`2026-09-28-demo.mjs`) was not re-run. It still covers the first 18
-  scenarios.
+- The demo driver (`2026-09-28-demo.mjs`) now exercises the multi-row scenario (B9). It also
+  exits 1 when a `#### Scenario:` of the delta spec is not exercised by name. The re-run gives
+  `19 scenarios exercised, 19 match the spec, 0 do not` and `COVERAGE: 19 … 0 missing`, and the
+  state was restored identical. Renaming B9 makes it fail with `1 missing` (exit 1).
 - Shared DB afterwards:
   - `pgmigrations`: `0001`, `0002`, `0003`;
   - 0 `project` rows;

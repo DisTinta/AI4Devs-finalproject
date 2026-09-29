@@ -609,6 +609,8 @@ Cinco cosas que aprendí, incluyendo las que salieron mal.
 
 **7. Retirada de `CODEMIND-ROADMAP.md` (post-harness).** Era brújula temporal pre-kit. Tras instalar `sdd-harness-kit` y migrar lo vigente a `docs/project-context.md` (fuentes de verdad, decisiones cerradas, norma síncrona de este `prompts.md`), el fichero se eliminó. Los literales de prompts y de `docs/ai-sessions/` que aún lo nombran se dejan intactos a propósito: reconstruirlos rompería la norma de no falsificar transcripciones. **Lección:** un documento «hasta que exista X» debe tener fecha de caducidad explícita y un destino de migración; si no, acaba como segunda fuente de verdad en conflicto con el harness.
 
+**8. Decisión de producto (29 sep 2026): se conserva el índice `file (project_id, content_hash)` (DIS-13).** La tercera `/adversarial-review` señaló que la búsqueda de ficheros sin cambios va por `(project_id, path)`, que ya cubre `file_project_path_key`. Según eso, ninguna consulta definida usa hoy el índice por hash, y añade coste de escritura al indexar. Lo mantuve porque `readme.md` §3.2 lo pide: quitarlo es una decisión de producto, no algo que se resuelva en una pasada de arreglos. **Lección:** un hallazgo válido de un revisor automático no autoriza a cambiar el contrato del producto; se anota y se decide en su sitio.
+
 ---
 
 *A partir de aquí, empezaremos a construir el proyecto y las conversaciones completas archivadas estarán en `docs/ai-sessions/`.*

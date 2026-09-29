@@ -292,6 +292,23 @@ async function partB() {
     const s = await report('after only B changed', cl);
     record(id, name, s.status === 'stale', 'stale');
   });
+  await scenario('One statement that changes several files marks every claim citing them stale', async (id, name) => {
+    const p = await project();
+    const a = await file(p, 'a1'); const b = await file(p, 'b1'); const f = await file(p, 'c1');
+    const onAB = await claim(p, [a, b]); const onB = await claim(p, [b]); const onC = await claim(p, [f]);
+    const r = await c.query(`UPDATE file SET content_hash = content_hash || '-v2' WHERE id = ANY($1)`, [[a, b]]);
+    log(`    > UPDATE file SET content_hash = content_hash || '-v2' WHERE id = ANY($1)   [<A>, <B>] → ${r.rowCount} rows`);
+    const exact = async (cl) => (await one('SELECT updated_at = now() AS exact FROM claim WHERE id = $1', [cl])).exact;
+    const sAB = await report('claim citing A and B', onAB);
+    const sB = await report('claim citing only B', onB);
+    const sC = await report('claim citing only C', onC);
+    const exactAB = await exact(onAB); const exactB = await exact(onB);
+    log(`    updated_at = now() (compared in SQL, µs): A+B ${exactAB}, B ${exactB}`);
+    record(id, name,
+      r.rowCount === 2 && sAB.status === 'stale' && sB.status === 'stale' && exactAB && exactB &&
+        sC.status === 'current' && sC.updated_at === PAST,
+      'one statement, two files: the A+B and B claims stale at now(); the C claim current, updated_at untouched');
+  });
   await scenario('A content hash rewritten by another trigger still marks the claims that cite it stale', async (id, name) => {
     const p = await project(); const f = await file(p, 'h1'); const cl = await claim(p, [f]);
     const helper = `demo_rewrite_hash_${randomUUID().replaceAll('-', '')}`;
@@ -349,6 +366,13 @@ const after = await sharedState();
 log(`\nSTATE AFTER: ${JSON.stringify(after)}`);
 log(`STATE RESTORED (identical): ${JSON.stringify(before) === JSON.stringify(after)}`);
 const failed = results.filter((r) => !r.ok);
+// Every "#### Scenario:" of the delta spec must be exercised by name, so the demo cannot fall
+// behind the spec again without failing.
+const specScenarios = [...readFileSync(SPEC, 'utf8').matchAll(/^#### Scenario: (.+?)\s*$/gm)].map((m) => m[1]);
+const exercised = new Set(results.map((r) => r.scenario));
+const missing = specScenarios.filter((s) => !exercised.has(s));
 log(`\nSUMMARY: ${results.length} scenarios exercised, ${results.length - failed.length} match the spec, ${failed.length} do not`);
+log(`COVERAGE: ${specScenarios.length} scenarios in the spec, ${specScenarios.length - missing.length} exercised, ${missing.length} missing`);
 for (const f of failed) log(`  FAILED ${f.id} ${f.scenario}: ${f.detail}`);
-process.exit(failed.length ? 1 : 0);
+for (const m of missing) log(`  MISSING ${m}`);
+process.exit(failed.length || missing.length ? 1 : 0);
