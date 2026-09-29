@@ -4,18 +4,18 @@
 // config (the file is not a *.spec/*.test, so the repo's `npx vitest run` never collects it).
 // Run from the repository root with a migrated database:
 //   DATABASE_URL=postgres://codemind:codemind@localhost:5432/codemind npx vitest run \
-//     --config openspec/changes/test-db-isolation/reports/2026-09-29-demo.vitest.config.ts
+//     --config openspec/changes/archive/2026-09-29-test-db-isolation/reports/2026-09-29-demo.vitest.config.ts
 // The transcript is written next to this file as 2026-09-29-demo-output.txt.
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { expect, it } from 'vitest';
-import { MIGRATIONS_DIR } from '../../../../packages/adapters/store-postgres/src/migrate';
+import { MIGRATIONS_DIR } from '../../../../../packages/adapters/store-postgres/src/migrate';
 import { Client } from 'pg';
-import { beginTestTransaction, connect, databaseUrl, endTestTransaction } from '../../../../tests/integration/helpers/db';
-import { createThrowawayDatabase } from '../../../../tests/integration/store/schema-snapshot';
-import { createEdge, createFile, createProject, createSymbol } from '../../../../tests/integration/helpers/factories';
+import { beginTestTransaction, connect, databaseUrl, endTestTransaction } from '../../../../../tests/integration/helpers/db';
+import { createThrowawayDatabase } from '../../../../../tests/integration/store/schema-snapshot';
+import { createEdge, createFile, createProject, createSymbol } from '../../../../../tests/integration/helpers/factories';
 
 const repoRoot = process.cwd();
 const helpersDir = resolve(repoRoot, 'tests/integration/helpers').replace(/\\/g, '/');

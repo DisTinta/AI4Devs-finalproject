@@ -30,10 +30,10 @@ the driver itself runs inside Vitest with its own config,
 
 ```
 DATABASE_URL=postgres://codemind:codemind@localhost:5432/codemind npx vitest run \
-  --config openspec/changes/test-db-isolation/reports/2026-09-29-demo.vitest.config.ts
+  --config openspec/changes/archive/2026-09-29-test-db-isolation/reports/2026-09-29-demo.vitest.config.ts
 ```
 
-Result: `✓ openspec/changes/test-db-isolation/reports/2026-09-29-demo.ts (1 test) 113254ms`,
+Result: `✓ openspec/changes/archive/2026-09-29-test-db-isolation/reports/2026-09-29-demo.ts (1 test) 113254ms`,
 `Test Files 1 passed (1)`. Full transcript: [`2026-09-29-demo-output.txt`](./2026-09-29-demo-output.txt).
 
 ## Demonstrated

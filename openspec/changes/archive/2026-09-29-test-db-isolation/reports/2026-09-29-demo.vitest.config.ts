@@ -3,6 +3,6 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    include: ['openspec/changes/test-db-isolation/reports/2026-09-29-demo.ts'],
+    include: ['openspec/changes/archive/2026-09-29-test-db-isolation/reports/2026-09-29-demo.ts'],
   },
 });
