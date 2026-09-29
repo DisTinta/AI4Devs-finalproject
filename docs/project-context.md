@@ -90,13 +90,46 @@ Verified against `package.json` (root and per package). If a command is not here
 - Framework: Vitest (root `vitest.config.ts`; no per-package vitest config yet).
 - Test locations: `tests/{unit,integration,e2e,a11y}` and co-located package sources. The first real
   suite is `tests/integration/store/` (schema migrations and constraints, against real Postgres).
-- DB integration tests need `DATABASE_URL`. Unset locally → they are **skipped with a warning**
-  (so a green run may have skipped them); unset in CI (`CI` set) → they fail. Isolation is minimal
-  until DIS-22: lifecycle tests use a throwaway database each; constraint tests run in
-  `BEGIN`/`ROLLBACK` with per-test unique values. Only three files
-  (`graph-schema-constraints.spec.ts`, `history-claims-constraints.spec.ts`, `indexes-stale.spec.ts`)
-  migrate the shared DB,
-  always through `migrateSharedDatabase()` in `support.ts`; no test rolls it back.
+- DB integration tests need `DATABASE_URL`. If it is unset:
+  - locally, they are **skipped with a warning**, so a green run may have skipped them;
+  - in CI (`CI` set), they fail.
+
+  The only gate is in `tests/integration/helpers/db.ts`, and `store/support.ts` re-exports it.
+- **Integration harness (DIS-22), `tests/integration/helpers/`.** New DB specs use it.
+  - Inside a `describeWithDatabase`, call `const db = useTransactionPerTest()`. It migrates the
+    shared DB once and gives each test its own transaction, reverted when the test ends.
+  - `db()` is that test's `pg` client.
+  - `factories.ts` has `createProject` / `createFile` / `createSymbol` / `createEdge`:
+    - keys are snake_case columns;
+    - defaults are synthetic and unique per call, so they never assume an empty DB;
+    - an edge endpoint is `{ symbol_id }` or `{ file_id }`.
+  - The first spec using it is `helpers/harness.spec.ts`.
+- **Code under test must not `COMMIT` or `ROLLBACK` on `db()`.** The harness then fails the test
+  with "Harness transaction was committed or ended early".
+  - A `SAVEPOINT` is fine, and so is a statement that fails (an aborted transaction).
+  - How an adapter that opens its own transaction (`saveGraph`) cooperates with that client is
+    decided in DIS-23.
+- **Hook order: Vitest 1.6 runs all hooks of one suite in parallel.** This is
+  `sequence.hooks = 'parallel'`, the default here, and it applies to `beforeAll`, `beforeEach` and
+  `afterEach` alike. A parent suite's hooks do run before a nested suite's.
+  - Set up data in the test body, or in a `beforeEach` of a **nested** `describe`, which runs
+    after the harness has opened the transaction.
+  - A `beforeEach` next to `useTransactionPerTest()` calls `db()` too early. It fails with
+    "db() is only available while a harness test is running…".
+  - A `beforeAll` there races the shared migration.
+  - Clean up in the test body, never in an `afterEach` that uses `db()`. The rollback removes the
+    rows anyway.
+- **Factory overrides set to `undefined` are ignored:** the default applies.
+- **No concurrent tests under the harness.** `it.concurrent`, `describe.concurrent` and
+  `sequence.concurrent` are not supported. The second test to start fails with
+  "useTransactionPerTest() does not support concurrent tests…".
+- The older store specs keep their own style, not migrated:
+  - lifecycle tests use a throwaway database each;
+  - constraint tests run in `withRollback` with per-test unique values.
+
+  Four files migrate the shared DB, always through `migrateSharedDatabase()`:
+  `graph-schema-constraints.spec.ts`, `history-claims-constraints.spec.ts`,
+  `indexes-stale.spec.ts` and `helpers/harness.spec.ts`. No test rolls it back.
 - Test data comes from `fixtures/` (`acme-shop`, `task-api`, `history`, `build-history.mjs`) and
   `seeds/graph-dump.sql`. `fixtures/**` is excluded from Vitest collection.
 
@@ -184,7 +217,8 @@ services that must be started first, quirks of the local environment.
   holds the lock throws "Another migration is already running" (verified in DIS-12). Tests that
   migrate the shared DB in parallel use `migrateSharedDatabase()`, which retries only on that error.
 - **DB integration specs are kept out of jobs that have no Postgres.** With `CI` set and no
-  `DATABASE_URL`, `tests/integration/store/support.ts` throws on import (by design). The Frontend
+  `DATABASE_URL`, `tests/integration/helpers/db.ts` throws on import, and so does
+  `store/support.ts` through it (by design). The Frontend
   workflow therefore runs `npx vitest run --exclude 'tests/integration/**'`, and Stryker uses
   `vitest.stryker.config.ts`, which excludes the same folder. New integration suites go under
   `tests/integration/` so they stay excluded. Locally, an aborted Stryker run leaves

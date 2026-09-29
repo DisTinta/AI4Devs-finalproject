@@ -1,26 +1,15 @@
 import { spawnSync } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
-import { Client } from 'pg';
-import { describe, expect } from 'vitest';
-import { migrateUp } from '../../../packages/adapters/store-postgres/src/migrate';
+import type { Client } from 'pg';
+import { expect } from 'vitest';
+import { connect, databaseUrl, describeWithDatabase, migrateSharedDatabase } from '../helpers/db';
+import { unique } from '../helpers/factories';
+
+// The DATABASE_URL gate, the connection and the shared migration live in ../helpers/db.ts, and
+// unique() in ../helpers/factories.ts; they are re-exported so the store specs keep importing them here.
+export { databaseUrl, describeWithDatabase, migrateSharedDatabase, unique };
 
 /** Repository root (Vitest runs from it), so npm scripts run exactly as a developer or CI runs them. */
 export const repoRoot = process.cwd();
-
-export const databaseUrl = process.env.DATABASE_URL;
-
-if (!databaseUrl && process.env.CI) {
-  throw new Error('DATABASE_URL must be set in CI: the store integration tests cannot be skipped there.');
-}
-if (!databaseUrl) {
-  console.warn(
-    'WARNING: DATABASE_URL is not set — skipping store integration tests that need PostgreSQL. ' +
-      'Run `docker compose up -d` and export DATABASE_URL to run them.',
-  );
-}
-
-/** `describe` when a database is configured, `describe.skip` otherwise (never skipped in CI). */
-export const describeWithDatabase = databaseUrl ? describe : describe.skip;
 
 export interface ScriptResult {
   status: number | null;
@@ -62,42 +51,12 @@ export function runNpmScript(script: string, env: Record<string, string | undefi
   return runCommand(`npm run --silent ${script}`, env);
 }
 
-const MIGRATION_LOCK_BUSY = 'Another migration is already running';
-const SHARED_MIGRATION_CAP_MS = 45_000;
-const SHARED_MIGRATION_PAUSE_MS = 250;
-
-/**
- * Migrates the shared `DATABASE_URL` database for the constraints files, which Vitest runs in
- * parallel. node-pg-migrate's advisory lock does not wait by default (lock mode `'fail'`), so a run
- * that finds another one holding the lock is retried after a short pause, up to a cap below the
- * 60 s `beforeAll` timeout. Any other error is rethrown at once.
- */
-export async function migrateSharedDatabase(): Promise<void> {
-  const deadline = Date.now() + SHARED_MIGRATION_CAP_MS;
-  for (;;) {
-    try {
-      await migrateUp(databaseUrl as string);
-      return;
-    } catch (error) {
-      const lockBusy = error instanceof Error && error.message.includes(MIGRATION_LOCK_BUSY);
-      if (!lockBusy || Date.now() >= deadline) throw error;
-      await new Promise((resolve) => setTimeout(resolve, SHARED_MIGRATION_PAUSE_MS));
-    }
-  }
-}
-
-/** A value unique to the calling test, so parallel files and open transactions never collide. */
-export function unique(label: string): string {
-  return `${label}-${randomUUID()}`;
-}
-
 /**
  * Runs `work` on its own client inside `BEGIN` … `ROLLBACK`, so no row survives the test.
  * The rollback also runs when `work` throws.
  */
 export async function withRollback<T>(work: (client: Client) => Promise<T>): Promise<T> {
-  const client = new Client({ connectionString: databaseUrl });
-  await client.connect();
+  const client = await connect();
   try {
     await client.query('BEGIN');
     return await work(client);
