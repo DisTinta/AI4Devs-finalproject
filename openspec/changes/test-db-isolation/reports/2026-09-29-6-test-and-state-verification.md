@@ -70,6 +70,7 @@ All commands ran locally against the compose Postgres (`pgvector/pgvector:pg16`)
 | F2 (5.4) | `firstError ??= error` → `firstError = error` (the rollback error wins) | "A failing check query is reported as itself" failed |
 | F3 (5.4, in `factories.ts`) | `definedOnly` returns the overrides unfiltered | "Overrides set to undefined keep the factory default" failed |
 | F4 (5.5) | The opt-in's `afterEach` runs `ROLLBACK` + `end()` without `endTestTransaction` | "A test that commits the test client fails" failed (the child: `Tests 1 passed (1)`) |
+| F5 (5.6) | `DB_OUTSIDE_TEST_MESSAGE` loses its "Set up data in the test body or in a beforeEach of a nested describe" part | "The test client is unavailable outside a running test" failed |
 
 After each one, the file was restored from a scratchpad copy, and `cmp` confirmed it identical.
 After F1, 0 `codemind_migrations_*` databases were left.

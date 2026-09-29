@@ -64,6 +64,8 @@ during the test or after it.
 - The tests of an opted-in block MUST run one at a time: concurrent tests are not supported. A
   test that starts while another test of the block still holds the harness transaction MUST fail
   at once, with an error saying so. It MUST NOT share or end the other test's transaction.
+  This rule has no scenario or automated test, by author decision. It was checked once by hand
+  with a concurrent block (report 6), and it is tracked as debt on DIS-23.
 - The harness SHALL expose, as its API:
   - the opt-in for a describe block, which returns the accessor for that client;
   - the two lifecycle functions that open a test transaction and end it with the end-of-test
@@ -130,6 +132,8 @@ transaction was committed or ended early, so its rows may have persisted.
 - A transaction aborted by a failed statement is still open, so it passes the check too.
 - If the check itself fails for another reason (for example a lost connection), the harness MUST
   still attempt the rollback and the close, and MUST report the check's own error, not a later one.
+- If the code under test closed the test client, the check cannot run. The harness then reports
+  the client's own error, not the "committed or ended early" message. Either way, the test fails.
 - Known limit: a `COMMIT`, then a new `BEGIN`, then a failed statement looks the same as an
   aborted harness transaction. The harness does not detect it, and the rows committed before that
   `BEGIN` may persist.

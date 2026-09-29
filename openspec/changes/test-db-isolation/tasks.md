@@ -110,6 +110,13 @@
   - Minor (concurrency): the opt-in claims a per-test slot synchronously and fails fast (`CONCURRENT_TESTS_MESSAGE`). Covered by the TSDoc, the spec rule and D3 risks, with no scenario test (author decision). A scratch `describe.concurrent` run is recorded in report 6. It showed that checking `current` alone was too late.
   - Minor (`CI=false`): left as is (author decision).
   - The PR sign-off on the spec relaxations is the author's step before archiving.
+- [x] 5.6 After the third `/adversarial-review` (2026-09-29, PASS WITH GAPS, no Major), by author decision:
+  - "The test client is unavailable outside a running test" now asserts that the message names the test body and a nested `beforeEach`.
+  - The stale comment in `vitest.stryker.config.ts` now points at `helpers/db.ts`.
+  - The concurrency rule is recorded in the spec as a manual check, and as debt on DIS-23 (Linear).
+  - The spec states that a client closed by the code under test reports its own error.
+  - The two-way `helpers` ↔ `store` imports stay as they are, to avoid touching `store/` (non-goal).
+  - The author confirmed that the PR #8 sign-off comment is theirs (2026-09-29).
 
 ## 6. Backend: Run Tests and Verify Data State (MANDATORY)
 

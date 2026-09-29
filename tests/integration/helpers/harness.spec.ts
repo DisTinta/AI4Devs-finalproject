@@ -240,6 +240,8 @@ describeWithDatabase('test-db-isolation: the test client outside a running test'
     expect(errorInBeforeAll).toBeInstanceOf(Error);
     expect((errorInBeforeAll as Error).message).toBe(DB_OUTSIDE_TEST_MESSAGE);
     expect(DB_OUTSIDE_TEST_MESSAGE).toMatch(/^db\(\) is only available while a harness test is running\./);
+    expect(DB_OUTSIDE_TEST_MESSAGE).toContain('test body');
+    expect(DB_OUTSIDE_TEST_MESSAGE).toContain('beforeEach of a nested describe');
   });
 });
 
