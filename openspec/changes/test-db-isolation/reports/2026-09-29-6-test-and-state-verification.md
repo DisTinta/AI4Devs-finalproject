@@ -109,9 +109,15 @@ After each one, `db.ts` was restored from a scratchpad copy, and `cmp` confirmed
 
 ## CI (step 8.2)
 
-- Pending the PR's CI run: link to be added when it is available.
+- PR https://github.com/DisTinta/AI4Devs-finalproject/pull/8. The CI run is
+  https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/36542843056 (job `quality`,
+  pass, 1m19s).
+- In its `Tests` step, `tests/integration/helpers/harness.spec.ts` shows ✓ with 15 tests (none
+  skipped), and `tests/integration/helpers/gate.spec.ts` ✓ with 2 tests, out of `Test Files 6
+  passed (6)`.
+- This meets the DoD "CI lo ejecuta".
 
 ## Outcome
 
-- Status: PASS (local). The CI confirmation (8.2) is pending the push.
+- Status: PASS, locally and in CI (PR #8).
 - Blocking issues: none.

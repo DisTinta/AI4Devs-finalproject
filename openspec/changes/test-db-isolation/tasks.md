@@ -108,7 +108,7 @@
 ## 8. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
 - [x] 8.1 Confirm no user interface or user workflow is affected: this is test tooling only. Record "not applicable", with that reason, in the step 6 report
-- [ ] 8.2 After pushing, confirm in the PR's CI run (`ci.yml` → `Tests`) that `tests/integration/helpers/harness.spec.ts` ran and was not skipped (DoD "CI lo ejecuta"). Link the run in the step 6 report
+- [x] 8.2 After pushing, confirm in the PR's CI run (`ci.yml` → `Tests`) that `tests/integration/helpers/harness.spec.ts` ran and was not skipped (DoD "CI lo ejecuta"). Link the run in the step 6 report (2026-09-29: PR #8, run 36542843056, harness.spec.ts 15 passed)
 
 ## 9. Update Technical Documentation (MANDATORY)
 
@@ -120,4 +120,4 @@
 - [x] 9.3 ADR: none planned (test tooling, easy to revert). Write one via `/adr-new` only if the author asks at review
 - [x] 9.4 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules
 - [x] 9.5 Leave a Linear comment in Spanish on DIS-23 describing the adapter `COMMIT` vs harness transaction risk: DIS-22 only guarantees an injectable transactional client; `SAVEPOINT` / an injected executor in `saveGraph` belong to DIS-23
-- [ ] 9.6 Prepare the PR description (`/pr-describe`) against `feature/entrega-2-CRN`. After verification, set DIS-22 to In Review in Linear, with a comment in Spanish linking the PR
+- [x] 9.6 Prepare the PR description (`/pr-describe`) against `feature/entrega-2-CRN`. After verification, set DIS-22 to In Review in Linear, with a comment in Spanish linking the PR (2026-09-29: PR https://github.com/DisTinta/AI4Devs-finalproject/pull/8; DIS-22 In Review)
