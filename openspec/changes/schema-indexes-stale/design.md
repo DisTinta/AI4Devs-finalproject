@@ -303,6 +303,29 @@ Comparing `indexdef` text would tie the test to PostgreSQL's formatting.
   project in parallel. Mitigation for the writers (DIS-23 / DIS-10): one re-index per project at a
   time, updating files in a stable order (`ORDER BY id`), and retry on SQLSTATE `40P01`. Found by
   the adversarial review (2026-09-28).
+- **[An invalidation can be lost for evidence the trigger cannot see]** The trigger's `EXISTS`
+  only sees `evidence` visible to the statement that changes the hash. Found by the fifth
+  adversarial review (2026-09-29). There are two cases:
+  - **Race.** T1 inserts a claim and evidence citing file F and has not committed yet. T2 changes
+    F's `content_hash` and commits. T2 does not see T1's evidence, so the claim stays `current`.
+    Nothing makes T2 wait: the evidence FK check takes `FOR KEY SHARE` on F, and an update of
+    `content_hash` (not part of any unique key) takes `FOR NO KEY UPDATE`. These locks do not
+    conflict.
+  - **Stale inference, no concurrency needed.** A claim inferred while F was `h1` gets its evidence
+    written after F moved to `h2`. It is born `current` over content that no longer exists, and
+    `evidence` stores no hash to detect it later.
+
+  Accepted for DIS-13: this change adds no column. The spec states the limit ("The guarantee
+  covers the evidence rows that are visible…"). The writers (DIS-23 / DIS-10) must do one of two
+  things:
+  - in the transaction that inserts evidence, lock the file with `SELECT content_hash FROM file
+    WHERE id = $1 FOR UPDATE`, and insert only if the hash is still the one the inference read
+    (otherwise mark the claim `stale` or re-infer);
+  - or, in a later migration, record the cited `content_hash` on `evidence`, so a mismatch can be
+    detected.
+
+  No race test: it would depend on timing, and the rule belongs to the writers. Noted on DIS-23
+  and DIS-10.
 - **[`updated_at` now has two writers]** The writers set it, and the trigger sets it on
   invalidation. The two uses do not conflict, and the readme records both.
 - **[Existing lifecycle tests change again]** They are rewritten, not weakened. "Roll back only

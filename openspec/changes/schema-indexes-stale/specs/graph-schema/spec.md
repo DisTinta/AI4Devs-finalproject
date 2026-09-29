@@ -118,6 +118,10 @@ The invalidation MUST depend only on the old and new values of `content_hash`. I
 on which columns the `UPDATE` names: a hash changed by another trigger still counts. It MUST NOT
 depend on the session's `search_path` either, including a session temporary table that has the
 same name as a schema table.
+The guarantee covers the `evidence` rows that are visible to the statement that changes the hash:
+rows committed before it, or written earlier in the same transaction. It does not cover `evidence`
+that a concurrent transaction has not yet committed, or evidence written after the change but
+inferred from the old content. Guarding against those is the writers' job.
 
 #### Scenario: Changing a file's content hash marks the claims that cite it stale
 

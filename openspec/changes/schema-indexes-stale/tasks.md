@@ -77,8 +77,15 @@
 - [x] 5.7 After the fourth `/adversarial-review` (2026-09-29):
   - `readme.md` §3.2 and the trigger comment in `0003` say that clearing a hash to `NULL` also invalidates.
   - Add the scenario and test "An upsert that changes a file's content hash marks the claims that cite it stale", and the demo's B10.
-  - Note on DIS-13 the limit of `unindexedCascadingForeignKeys`, left as it is.
+  - Note on DIS-13 the limit of `unindexedCascadingForeignKeys`, left as it is (Linear comment `a041b467-19b9-47c1-8721-7ed2002cf322`, 2026-09-29).
   - Re-run the store suite and the demo (report 6, addendum 5).
+
+- [x] 5.8 After the fifth `/adversarial-review` (2026-09-29):
+  - State the visibility limit of the invalidation in the spec requirement, `design.md` (risk) and `readme.md` §3.2, with the writers' rule (`SELECT … FOR UPDATE` on `file` and a hash re-check before inserting evidence, or `evidence.content_hash` in a later migration). No race test and no new column.
+  - Note it on DIS-23 and DIS-10.
+  - Make `secondaryIndexShapes` report expression keys (`expr:…`).
+  - Fix the verify steps of the PR description (83 passed, 20 scenarios).
+  - Re-run the store suite and forced failures N and J (report 6, addendum 6).
 
 ## 6. Backend: Run Tests and Verify Data State (MANDATORY)
 

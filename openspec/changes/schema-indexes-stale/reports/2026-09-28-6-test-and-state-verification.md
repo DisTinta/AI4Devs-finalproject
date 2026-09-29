@@ -355,3 +355,58 @@ The author left these out:
   - `pgmigrations`: `0001`, `0002`, `0003`;
   - 0 `project` rows;
   - no leftover throwaway database.
+
+## Addendum 6 — re-run after the fifth `/adversarial-review` (2026-09-29)
+
+The review verdict was PASS WITH GAPS, with 1 Major, 2 Minors and 2 Questions. The author decided
+the scope (task 5.8).
+
+- **Major: an invalidation can be lost** for evidence the trigger's statement cannot see:
+  - evidence of a concurrent, uncommitted transaction;
+  - evidence inferred from the old content and written after the change.
+
+  Documented, not fixed in the schema, because DIS-13 adds no column:
+  - the "Stale invalidation" requirement states the limit;
+  - `design.md` records the risk, including the lock analysis: the FK's `FOR KEY SHARE` and the
+    update's `FOR NO KEY UPDATE` do not conflict;
+  - `readme.md` §3.2 states the writers' rule: `SELECT content_hash FROM file WHERE id = $1 FOR
+    UPDATE` and a hash re-check before inserting evidence, or `evidence.content_hash` in a later
+    migration.
+
+  It is noted on DIS-23 and DIS-10. There is no race test on purpose, because it would depend on
+  timing. No scenario was added and no SQL changed.
+- **Minor: expression keys.** `secondaryIndexShapes` used to join `indkey` to `pg_attribute`,
+  which drops `attnum = 0` silently. Now it reads every position with `pg_get_indexdef(index,
+  position, true)` and reports an expression as `expr:<text>`. Checked on the shared DB inside
+  `BEGIN … ROLLBACK`, on `CREATE INDEX … ON edge (project_id, (source_file_id IS NULL))`: the old
+  query returns `{project_id}` and the new one returns `{project_id,"expr:(source_file_id IS
+  NULL)"}`.
+- **Minor: PR description.** The verify steps said 81 passed and 18 scenarios. They now say 83 and
+  20, and the PR body on GitHub was updated.
+- **Questions.**
+  - Clearing a hash invalidates: the author confirmed it (PR description, D5).
+  - The Linear note of 5.7 is comment `a041b467-19b9-47c1-8721-7ed2002cf322` on DIS-13, and its id
+    is now in `tasks.md`.
+
+**Forced failures.** Each broken file was restored from a scratch copy (`cmp` identical). They run
+on the index test's throwaway DB.
+
+- N. `edge_project_id_idx ON edge (project_id, (source_file_id IS NULL))`: "Migrated schema has
+  the query and vector indexes" fails with `+ "expr:(source_file_id IS NULL)"`.
+  - A first attempt used `(kind::text)`, and the migration itself rejected it: the cast from the
+    enum to text is not immutable. So that failure did not test the helper, and was replaced.
+- J, re-run, since `included` is now read through `pg_get_indexdef`: the same test still fails on
+  `included`.
+
+**Results:**
+
+- `npx vitest run tests/integration/store`: 4 files, **83 passed**, 0 failed, 0 skipped.
+- `npm run typecheck`: exit 0.
+- `npm run lint`: 0 errors, with the same 4 warnings as before.
+- The demo was not re-run: no scenario, SQL or index changed, and it does not use
+  `secondaryIndexShapes`.
+- Shared DB:
+  - `pgmigrations`: `0001`, `0002`, `0003`;
+  - 0 `project` rows;
+  - 30 indexes in `public`;
+  - no leftover throwaway database.

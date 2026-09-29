@@ -39,12 +39,13 @@ and the indexes are present in `pg_indexes`.
    - The rollback reverts **only** `0003_indexes-stale`.
    - The final state has 17 secondary indexes, the trigger `file_content_hash_marks_claims_stale`
      and the function `mark_claims_stale_on_content_change`.
-5. `npx vitest run tests/integration/store` → 81 passed (4 files).
+5. `npx vitest run tests/integration/store` → 83 passed (4 files).
 6. `npm run lint && npm run typecheck && npm run lint:architecture && npm run docs:coverage`: all
    exit 0, and the existing warnings are unchanged.
 7. Independent demonstration against the real scripts and database:
    `node openspec/changes/schema-indexes-stale/reports/2026-09-28-demo.mjs`
-   → `18 scenarios exercised, 18 match the spec`.
+   → `20 scenarios exercised, 20 match the spec` and `COVERAGE: 20 scenarios in the spec, 20
+   exercised, 0 missing`.
 
 Evidence from the agent's run, in `openspec/changes/schema-indexes-stale/reports/`:
 
@@ -151,6 +152,24 @@ Fixes after the fourth `/adversarial-review` (PASS WITH GAPS, no Blockers, no Ma
   re-indexer is expected to use. The demo covers it too (20/20).
 - **Left out on purpose:** `unindexedCascadingForeignKeys` still accepts any index with the FK
   first. Tightening it is noted on DIS-13, for the ticket that adds the next FK.
+
+Fixes after the fifth `/adversarial-review` (PASS WITH GAPS, 1 Major):
+
+- **The Major: an invalidation can be lost.** The trigger only sees `evidence` visible to the
+  statement that changes the hash. It misses two cases:
+  - evidence that a concurrent transaction has not committed yet (the FK's `FOR KEY SHARE` and the
+    update's `FOR NO KEY UPDATE` do not conflict);
+  - evidence inferred from the old content and written after the change.
+
+  DIS-13 adds no column, so this is documented, not fixed. The spec states the limit, `design.md`
+  records the risk, and `readme.md` §3.2 states the writers' rule: lock the file with
+  `SELECT … FOR UPDATE` and re-check its hash before inserting evidence, or record the cited hash
+  on `evidence` in a later migration. Noted on DIS-23 and DIS-10. There is no race test, because
+  it would depend on timing.
+- **`secondaryIndexShapes` sees expression keys** (reported as `expr:…`). Before, they were
+  dropped silently, so `edge (project_id, (source_file_id IS NULL))` passed as
+  `edge (project_id)`.
+- **This description's verify steps** now show 83 tests and 20 scenarios.
 
 Evidence quality:
 
