@@ -309,6 +309,19 @@ async function partB() {
         sC.status === 'current' && sC.updated_at === PAST,
       'one statement, two files: the A+B and B claims stale at now(); the C claim current, updated_at untouched');
   });
+  await scenario("An upsert that changes a file's content hash marks the claims that cite it stale", async (id, name) => {
+    const p = await project(); const f = await file(p, 'h1'); const cl = await claim(p, [f]);
+    const { path } = await one('SELECT path FROM file WHERE id = $1', [f]);
+    const up = await one(`INSERT INTO file (project_id, path, kind, content_hash) VALUES ($1, $2, 'source', 'h2')
+      ON CONFLICT (project_id, path) DO UPDATE SET content_hash = EXCLUDED.content_hash RETURNING id, content_hash`, [p, path]);
+    log(`    > INSERT INTO file … ON CONFLICT (project_id, path) DO UPDATE SET content_hash = EXCLUDED.content_hash   [<project>, <path>] → id ${up.id === f ? 'unchanged' : 'NEW'}, content_hash=${up.content_hash}`);
+    const files = Number((await one('SELECT count(*) FROM file WHERE project_id = $1', [p])).count);
+    const s = await report('after', cl);
+    const exact = (await one('SELECT updated_at = now() AS exact FROM claim WHERE id = $1', [cl])).exact;
+    log(`    file rows in project: ${files}; updated_at = now() (SQL, µs): ${exact}`);
+    record(id, name, up.id === f && up.content_hash === 'h2' && files === 1 && s.status === 'stale' && exact,
+      'same file row, new hash; claim stale at now()');
+  });
   await scenario('A content hash rewritten by another trigger still marks the claims that cite it stale', async (id, name) => {
     const p = await project(); const f = await file(p, 'h1'); const cl = await claim(p, [f]);
     const helper = `demo_rewrite_hash_${randomUUID().replaceAll('-', '')}`;

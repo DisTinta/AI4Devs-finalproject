@@ -9,7 +9,7 @@ Adds migration `0003_indexes-stale`. It creates 17 secondary indexes:
 
 It also adds a trigger. When a file's `content_hash` changes, the trigger marks `stale` the claims
 that cite it. `snapshotSchema` now captures indexes, triggers and functions, so the lifecycle
-tests catch anything a down section leaves behind. Integration tests cover all 19 scenarios of the
+tests catch anything a down section leaves behind. Integration tests cover all 20 scenarios of the
 `graph-schema` delta, from OpenSpec change `schema-indexes-stale` (Linear DIS-13 / CM-HU-01.3).
 
 ## Why?
@@ -140,6 +140,17 @@ Fixes after the third `/adversarial-review` (PASS WITH GAPS, no Blockers, no Maj
 - **Left out on purpose:**
   - dropping `file (project_id, content_hash)` is a product decision, from `readme.md`;
   - dropping `status` from `claim_stale_idx` is cosmetic.
+
+Fixes after the fourth `/adversarial-review` (PASS WITH GAPS, no Blockers, no Majors):
+
+- **Clearing a hash (`h → NULL`) marks the citing claims `stale`.** The author accepted this on
+  purpose after the second adversarial review (`design.md` D5). `readme.md` §3.2 and the trigger
+  comment now say it too, for the writers of DIS-23.
+- **New scenario "An upsert that changes a file's content hash marks the claims that cite it
+  stale".** It covers `INSERT … ON CONFLICT (project_id, path) DO UPDATE`, the path the
+  re-indexer is expected to use. The demo covers it too (20/20).
+- **Left out on purpose:** `unindexedCascadingForeignKeys` still accepts any index with the FK
+  first. Tightening it is noted on DIS-13, for the ticket that adds the next FK.
 
 Evidence quality:
 

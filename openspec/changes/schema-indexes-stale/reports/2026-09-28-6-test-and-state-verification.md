@@ -316,6 +316,41 @@ found that it catches and the single-row tests miss, so it has no forced failure
   exits 1 when a `#### Scenario:` of the delta spec is not exercised by name. The re-run gives
   `19 scenarios exercised, 19 match the spec, 0 do not` and `COVERAGE: 19 … 0 missing`, and the
   state was restored identical. Renaming B9 makes it fail with `1 missing` (exit 1).
+
+## Addendum 5 — re-run after the fourth `/adversarial-review` (2026-09-29)
+
+The review verdict was PASS WITH GAPS: no Blockers, no Majors, 3 Minors and 2 Questions. The author
+chose to fix these three (task 5.7):
+
+- **Minors 1–2.** `readme.md` §3.2 ("Invalidación en la base de datos") and the trigger comment in
+  `0003` now say that clearing `content_hash` to `NULL` also marks claims `stale`. Only comments
+  change: the function and trigger SQL are identical, and so is `pg_get_functiondef`.
+- **Upsert (Question 1).** New scenario and test: "An upsert that changes a file's content hash
+  marks the claims that cite it stale". The test runs `INSERT … ON CONFLICT (project_id, path) DO
+  UPDATE SET content_hash = EXCLUDED.content_hash`. It checks that the `file` id is the same, that
+  there is 1 file row and the hash is `h2`, and that the claim is `stale` with `updated_at = now()`.
+  - It passed on its first run. It is a characterisation test: an `AFTER UPDATE` row trigger
+    already fires on the `DO UPDATE` path.
+  - To see it fail with no code change, run it with `PGOPTIONS="-c session_replication_role=replica"`,
+    which turns off ordinary triggers for the session. It then fails with `expected 'current' to be
+    'stale'`, while the file-row assertions still pass.
+
+The author left these out:
+
+- **Minor 3.** `unindexedCascadingForeignKeys` accepts any index that has the FK first: invalid,
+  partial with any predicate, or any access method. The limit is kept and noted on DIS-13, to be
+  tightened (`indisvalid`, btree, a predicate that is empty or the FK's `IS NOT NULL`) by the ticket
+  that adds the next FK.
+- **Question 2.** "Clearing a hash marks claims stale" was accepted on purpose by the author after
+  the second adversarial review (D5). It is stated in the PR.
+
+**Results:**
+
+- `npx vitest run tests/integration/store`: 4 files, **83 passed**, 0 failed, 0 skipped.
+- Demo: `20 scenarios exercised, 20 match the spec, 0 do not` and `COVERAGE: 20 … 0 missing`. The
+  state was restored identical.
+- `npm run lint`: 0 errors. The 4 warnings in `packages/core/src/ports/*` were already there.
+- `npm run typecheck`: exit 0.
 - Shared DB afterwards:
   - `pgmigrations`: `0001`, `0002`, `0003`;
   - 0 `project` rows;

@@ -51,7 +51,7 @@
 ## 5. Backend: Review and Update Existing Tests (MANDATORY)
 
 - [x] 5.1 Identify the existing tests affected by `0003`: the lifecycle tests of `migrations.spec.ts` (step 4), and every snapshot equality, which now includes indexes, triggers and functions. Confirm the constraints files need no change
-- [x] 5.2 Confirm no assertion was weakened. Confirm every `#### Scenario:` in `specs/graph-schema/spec.md` of this change has a test (19 after the third adversarial review; 18 after the second, 16 after the first, 14 before)
+- [x] 5.2 Confirm no assertion was weakened. Confirm every `#### Scenario:` in `specs/graph-schema/spec.md` of this change has a test (20 after the fourth adversarial review; 19 after the third, 18 after the second, 16 after the first, 14 before)
 
 - [x] 5.3 After `/verify-against-spec` (2026-09-28): drop `OF content_hash` from the trigger (the `WHEN` guard alone decides) and pin `SET search_path = public` on the function in `0003`. In the spec, set `updated_at` to the transaction time (`now()`) and require exactly the listed secondary indexes. Re-run the store suite and the trigger forced failures (report 6 addendum)
 
@@ -73,6 +73,12 @@
   - Make `secondaryIndexShapes` report `unique`, `INCLUDE` columns and non-default btree opclasses, with the spec sentence.
   - Record the `public` schema assumption and the orphaned-claim non-goal (DIS-23) in `design.md`.
   - Re-run the store suite and the relevant forced failures (report 6, addendum 4).
+
+- [x] 5.7 After the fourth `/adversarial-review` (2026-09-29):
+  - `readme.md` §3.2 and the trigger comment in `0003` say that clearing a hash to `NULL` also invalidates.
+  - Add the scenario and test "An upsert that changes a file's content hash marks the claims that cite it stale", and the demo's B10.
+  - Note on DIS-13 the limit of `unindexedCascadingForeignKeys`, left as it is.
+  - Re-run the store suite and the demo (report 6, addendum 5).
 
 ## 6. Backend: Run Tests and Verify Data State (MANDATORY)
 

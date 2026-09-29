@@ -51,7 +51,8 @@ $$;
 
 -- Fires on every UPDATE of file, not only when content_hash is in the SET list (UPDATE OF would miss
 -- a hash rewritten by a BEFORE trigger); the WHEN guard alone decides. IS DISTINCT FROM: same-value
--- writes do not count, and a first hash set on NULL does.
+-- writes do not count; a first hash set on NULL counts, and so does clearing a hash to NULL (the
+-- content is no longer known). It also fires on the UPDATE path of INSERT ... ON CONFLICT DO UPDATE.
 CREATE TRIGGER file_content_hash_marks_claims_stale
   AFTER UPDATE ON file
   FOR EACH ROW
