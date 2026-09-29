@@ -149,6 +149,9 @@ After F1, 0 `codemind_migrations_*` databases were left.
 - **At head `3bd4d15`** (task 5.5), CI run
   https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/36553556701 (job `quality`, pass,
   1m17s): `harness.spec.ts` ✓ 22 tests, `gate.spec.ts` ✓ 2 tests, `Tests 107 passed (107)`.
+- **At head `95cf399`** (task 5.6, the final pass), CI run
+  https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/36555079035 (job `quality`, pass,
+  1m16s).
 
 ## Outcome
 
