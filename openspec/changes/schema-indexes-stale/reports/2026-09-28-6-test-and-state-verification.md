@@ -235,3 +235,86 @@ changes:
   - non-extension functions: `mark_claims_stale_on_content_change` only;
   - no leftover throwaway database;
   - `pgmigrations`: `0001`, `0002`, `0003`.
+
+## Addendum 4 — re-run after the third `/adversarial-review` (2026-09-29)
+
+The review verdict was PASS WITH GAPS: no Blockers, no Majors, and 6 Minors, fixed here (task 5.6).
+Two Questions were left out on purpose:
+
+- dropping `file (project_id, content_hash)` is a product decision, because `readme.md` §3.2 asks
+  for it;
+- dropping `status` from `claim_stale_idx` is cosmetic, and the spec table fixes it.
+
+**Trigger `EXPLAIN` (non-normative, `design.md` D5).**
+
+- Setup: on the shared DB, inside `BEGIN … ROLLBACK`, 1 project, 2 000 files, 20 000 claims (10 %
+  `stale`) and 20 000 evidence rows (10 per file), then `ANALYZE` of the three tables.
+- Method: `SET LOCAL plan_cache_mode = force_generic_plan`, then the function's `UPDATE` as a
+  prepared statement with `$1` for `NEW.id`, run with `EXPLAIN ANALYZE`.
+
+```text
+Update on claim
+  ->  Nested Loop  (actual rows=10 loops=1)
+        ->  HashAggregate  Group Key: e.claim_id
+              ->  Index Scan using evidence_file_id_idx on evidence e  Index Cond: (file_id = $1)
+        ->  Index Scan using claim_pkey on claim  (loops=10)  Index Cond: (id = e.claim_id)
+              Filter: (status = 'current'::claim_status)
+```
+
+The planner turns the `EXISTS` into a semi-join that starts from `evidence`. It never scans
+`claim`. The `UPDATE … FROM evidence` form gives the same index path, so the function is left
+unchanged and no index is added.
+
+**Changes.**
+
+- `indexes-stale.spec.ts`:
+  - `updated_at = now()` is now compared in SQL, at microsecond precision (`updatedAtIsNow`);
+  - new scenario and test: "One statement that changes several files marks every claim citing them
+    stale". The test updates two files with `WHERE id = ANY($1)`: the claim citing A and B, and
+    the one citing B, go `stale` with `updated_at = now()`, and the claim citing C is untouched.
+- `schema-snapshot.ts` → `secondaryIndexShapes`:
+  - now reports `unique` (`indisunique`);
+  - keeps key columns (`indnkeyatts`) separate from `included`;
+  - lists btree opclasses whenever one is not the default (`opcdefault`).
+- `migrations.spec.ts`: the expected shapes gain `unique: false` and `included: []`.
+- Spec: the "Query and vector indexes" requirement and its scenario now say that no index is
+  unique, none has `INCLUDE` columns, and btree ones use the default opclass. There are now 19
+  scenarios.
+- `design.md`:
+  - D5 records the `EXPLAIN` and the one-schema (`public`) assumption;
+  - a new non-goal covers the claim left `current` with no evidence after its cited file is
+    deleted (owner DIS-23).
+- `tasks.md`: 3.4 and 4.4 now say how the files were actually restored (from a scratch copy, `cmp`
+  identical).
+
+**Forced failures.** Each broken file was restored from a scratch copy (`cmp` identical). The
+index breaks run on the throwaway DB of the index test. For the trigger breaks, the shared DB was
+rolled back and re-applied before and after each one.
+
+- I. `CREATE UNIQUE INDEX evidence_claim_id_idx`: "Migrated schema has the query and vector
+  indexes" fails with `- "unique": false` / `+ "unique": true`.
+- J. `edge (source_file_id) INCLUDE (kind)`: the same test fails on `included`. The old helper
+  returned `[source_file_id, kind]` as key columns, and passed.
+- K. `file (project_id, content_hash text_pattern_ops)`: the same test fails with
+  `- "opclasses": null` / `+ ["uuid_ops", "text_pattern_ops"]`.
+- L. `updated_at = clock_timestamp()` in the function: 2 tests fail, "Changing a file's content
+  hash marks the claims that cite it stale" and "One statement that changes several files…". Both
+  fail with `expected false to be true`. The other 10 pass.
+- M. `updated_at = statement_timestamp()`: the same 2 fail, and 10 pass.
+
+The multi-row test adds coverage but pins no rule of its own. No mutation of the function was
+found that it catches and the single-row tests miss, so it has no forced failure.
+
+**Results:**
+
+- `npx vitest run tests/integration/store`: 4 files, **82 passed**, 0 failed, 0 skipped (about
+  68 s).
+- `npm run typecheck`: exit 0.
+- `npm run lint`: 0 errors. It still shows 4 warnings (`no-empty-object-type` in
+  `packages/core/src/ports/*`), and those were already there before these edits.
+- The demo driver (`2026-09-28-demo.mjs`) was not re-run. It still covers the first 18
+  scenarios.
+- Shared DB afterwards:
+  - `pgmigrations`: `0001`, `0002`, `0003`;
+  - 0 `project` rows;
+  - no leftover throwaway database.

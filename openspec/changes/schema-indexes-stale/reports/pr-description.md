@@ -9,7 +9,7 @@ Adds migration `0003_indexes-stale`. It creates 17 secondary indexes:
 
 It also adds a trigger. When a file's `content_hash` changes, the trigger marks `stale` the claims
 that cite it. `snapshotSchema` now captures indexes, triggers and functions, so the lifecycle
-tests catch anything a down section leaves behind. Integration tests cover all 18 scenarios of the
+tests catch anything a down section leaves behind. Integration tests cover all 19 scenarios of the
 `graph-schema` delta, from OpenSpec change `schema-indexes-stale` (Linear DIS-13 / CM-HU-01.3).
 
 ## Why?
@@ -120,6 +120,26 @@ Fixes after the second `/adversarial-review` (it returned PASS WITH GAPS, with o
   - G (the link dropped) fails "Claims citing only other files…";
   - H (`pg_temp` dropped) fails the temp-table scenario;
   - E (`OF content_hash` put back) still fails after the `BEFORE` test moved to a throwaway DB.
+
+Fixes after the third `/adversarial-review` (PASS WITH GAPS, no Blockers, no Majors, 6 Minors):
+
+- **The trigger's `UPDATE claim` does not scan `claim`.** A generic-plan `EXPLAIN ANALYZE` was
+  run on 2 000 files and 20 000 claims, and the plan starts from `evidence_file_id_idx`, then
+  looks up `claim_pkey`. The SQL was not rewritten and no index was added.
+- **`updated_at = now()` is compared in SQL**, at microsecond precision. `clock_timestamp()` and
+  `statement_timestamp()` now fail (L, M).
+- **New scenario "One statement that changes several files marks every claim citing them
+  stale"**, tested with `UPDATE file … WHERE id = ANY($1)`.
+- **`secondaryIndexShapes` sees `unique`, `INCLUDE` columns and non-default btree opclasses.**
+  The spec now says none of the indexes is unique or has `INCLUDE` columns. Forced failures I, J
+  and K each fail the index test.
+- **`design.md`:**
+  - D5 records the one-schema (`public`) assumption;
+  - a new non-goal: a claim left `current` with no evidence after its only cited file is deleted
+    (DIS-23).
+- **Left out on purpose:**
+  - dropping `file (project_id, content_hash)` is a product decision, from `readme.md`;
+  - dropping `status` from `claim_stale_idx` is cosmetic.
 
 Evidence quality:
 

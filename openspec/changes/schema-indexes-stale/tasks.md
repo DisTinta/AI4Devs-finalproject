@@ -26,7 +26,9 @@
   - remove the `WHEN` guard → "Writing the same content hash again leaves claims current" fails;
   - remove `status = 'current'` → "A claim already stale is not touched" fails.
 
-  Restore with `git checkout`, then roll back and re-apply. Record both for the step 7 report
+  Restore `0003` from a scratch copy and confirm it is identical with `cmp` (the migration was
+  still untracked, so `git checkout` could not restore it). Then roll back and re-apply. Record
+  both for the step 7 report
 - [x] 3.5 REFACTOR: review `0003` for naming consistency with D2 and exact up/down symmetry, with the suite green
 
 ## 4. Store adapter: migration lifecycle for three migrations (TDD)
@@ -42,13 +44,14 @@
   - omit one `DROP INDEX` from the `0003` down section → "Roll back only the latest migration" fails;
   - omit `DROP FUNCTION` → a lifecycle test fails.
 
-  Restore with `git checkout`. Record both for the step 7 report
+  Restore `0003` from a scratch copy and confirm it is identical with `cmp`, as in 3.4. Record
+  both for the step 7 report
 - [x] 4.5 Run `npx vitest run tests/integration/store` twice, to confirm no parallel flakiness now that three files migrate the shared DB
 
 ## 5. Backend: Review and Update Existing Tests (MANDATORY)
 
 - [x] 5.1 Identify the existing tests affected by `0003`: the lifecycle tests of `migrations.spec.ts` (step 4), and every snapshot equality, which now includes indexes, triggers and functions. Confirm the constraints files need no change
-- [x] 5.2 Confirm no assertion was weakened. Confirm every `#### Scenario:` in `specs/graph-schema/spec.md` of this change has a test (18 scenarios after the second adversarial review; 16 after the first, 14 before)
+- [x] 5.2 Confirm no assertion was weakened. Confirm every `#### Scenario:` in `specs/graph-schema/spec.md` of this change has a test (19 after the third adversarial review; 18 after the second, 16 after the first, 14 before)
 
 - [x] 5.3 After `/verify-against-spec` (2026-09-28): drop `OF content_hash` from the trigger (the `WHEN` guard alone decides) and pin `SET search_path = public` on the function in `0003`. In the spec, set `updated_at` to the transaction time (`now()`) and require exactly the listed secondary indexes. Re-run the store suite and the trigger forced failures (report 6 addendum)
 
@@ -62,6 +65,14 @@
   - Move the `BEFORE`-trigger test to a throwaway DB.
   - Filter `secondaryIndexShapes` by `contype IN ('p','u','x')`.
   - Record forced failures G, H and E, re-run (report 6, addendum 3).
+
+- [x] 5.6 After the third `/adversarial-review` (2026-09-29):
+  - Capture the `EXPLAIN` of the trigger's `UPDATE claim` as a generic plan (it must not scan `claim`).
+  - Assert `updated_at = now()` in SQL.
+  - Add the scenario and test "One statement that changes several files marks every claim citing them stale".
+  - Make `secondaryIndexShapes` report `unique`, `INCLUDE` columns and non-default btree opclasses, with the spec sentence.
+  - Record the `public` schema assumption and the orphaned-claim non-goal (DIS-23) in `design.md`.
+  - Re-run the store suite and the relevant forced failures (report 6, addendum 4).
 
 ## 6. Backend: Run Tests and Verify Data State (MANDATORY)
 

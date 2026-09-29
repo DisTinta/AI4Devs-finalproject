@@ -38,6 +38,13 @@ See `proposal.md` — Why. Current state that shapes the approach:
 
 - Measuring query plans or latency (CM-HU-02.3).
 - Changing `migrate.ts`, the npm scripts or the helpers' behaviour beyond the snapshot.
+- Handling the claim left without evidence when a cited file is deleted. Deleting a `file` cascades
+  away its `evidence` (DIS-12 D3) and fires no invalidation. A claim that cited only that file
+  stays `current` with no evidence at all, so `status = 'current'` alone does not prove that a
+  claim has live citations. The state is pinned in the main spec by the DIS-12 scenario "Deleting a
+  cited file deletes the evidence but keeps the claim". Readers must also check that evidence
+  exists. Writers must update files in place instead of deleting and re-inserting them. Both are
+  owned by DIS-23 (added 2026-09-29, third adversarial review).
 
 ## Decisions
 
@@ -175,7 +182,18 @@ CREATE TRIGGER file_content_hash_marks_claims_stale
   transaction start time. `clock_timestamp()` was rejected, for consistency with the column
   defaults. The tests
   therefore set `updated_at` to a past value first and assert it moved.
-- **The lookup** goes through `evidence_file_id_idx`, then the claim primary key.
+- **The lookup** goes through `evidence_file_id_idx`, then the claim primary key. Checked
+  2026-09-29 with `EXPLAIN ANALYZE` of the function's `UPDATE`. The check ran as a prepared
+  statement under `plan_cache_mode = force_generic_plan`, on 2 000 files, 20 000 claims and 20 000
+  evidence rows, analysed and rolled back. The plan is: Index Scan on `evidence_file_id_idx`,
+  HashAggregate on `claim_id`, and a Nested Loop into an Index Scan on `claim_pkey` with the
+  `status` filter. There is no scan of `claim`, so neither a rewrite to `UPDATE … FROM evidence`
+  nor a new index is needed (report 6, addendum 4).
+- **One schema, `public`.** The `search_path` names `public` literally, and the migrations create
+  every object unqualified in the migrate session's default schema, which is `public`. This holds
+  while Codemind has exactly one schema. `snapshotSchema` and the index helpers also read `public`
+  only. Moving the tables to another schema would need a new migration that changes the
+  function's `search_path` as well.
 - **No `INSERT` or `DELETE` trigger.**
   - A new file has no evidence yet, so there is nothing to mark on insert.
   - Deleting a file cascades away its evidence (DIS-12 D3).
