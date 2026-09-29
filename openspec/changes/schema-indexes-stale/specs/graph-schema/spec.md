@@ -182,6 +182,15 @@ same name as a schema table.
   to the transaction time (`now()`)
 - **AND** the claim citing only C still has `status = 'current'` and an unchanged `updated_at`
 
+#### Scenario: An upsert that changes a file's content hash marks the claims that cite it stale
+
+- **GIVEN** a `current` claim with evidence citing a file, and an `updated_at` in the past
+- **WHEN** `INSERT … ON CONFLICT (project_id, path) DO UPDATE SET content_hash = EXCLUDED.content_hash`
+  runs with that file's project and path and a different hash
+- **THEN** no new `file` row exists, and the file has the new hash
+- **AND** the claim has `status = 'stale'` and an `updated_at` equal to the transaction time
+  (`now()`)
+
 #### Scenario: A content hash rewritten by another trigger still marks the claims that cite it stale
 
 - **GIVEN** a `current` claim with evidence citing a file, and a `BEFORE UPDATE` trigger on

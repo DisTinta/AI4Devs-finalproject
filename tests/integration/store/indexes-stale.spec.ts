@@ -235,6 +235,32 @@ describeWithDatabase('graph-schema: stale invalidation on content change', () =>
     });
   });
 
+  // The re-indexer's expected write path (DIS-23): an upsert on the (project_id, path) key. An AFTER
+  // UPDATE row trigger fires on the DO UPDATE path, so the existing row's hash change invalidates.
+  it("An upsert that changes a file's content hash marks the claims that cite it stale", async () => {
+    await withRollback(async (client) => {
+      const projectId = await insertProject(client);
+      const fileId = await insertFile(client, projectId, 'h1');
+      const claimId = await insertCitingClaim(client, projectId, [fileId]);
+      const { rows: before } = await client.query<{ path: string }>('SELECT path FROM file WHERE id = $1', [fileId]);
+
+      const { rows } = await client.query<{ id: string; content_hash: string }>(
+        `INSERT INTO file (project_id, path, kind, content_hash) VALUES ($1, $2, 'source', 'h2')
+         ON CONFLICT (project_id, path) DO UPDATE SET content_hash = EXCLUDED.content_hash
+         RETURNING id, content_hash`,
+        [projectId, before[0].path],
+      );
+
+      expect(rows).toEqual([{ id: fileId, content_hash: 'h2' }]);
+      const { rows: files } = await client.query<{ count: string }>('SELECT count(*) FROM file WHERE project_id = $1', [
+        projectId,
+      ]);
+      expect(files[0].count).toBe('1');
+      expect((await claimState(client, claimId)).status).toBe('stale');
+      expect(await updatedAtIsNow(client, claimId)).toBe(true);
+    });
+  });
+
   // Pins the WHEN-only trigger (no "UPDATE OF content_hash"): a column-specific trigger would not
   // fire here, because the statement does not name content_hash. The helper trigger is DDL on file,
   // so it runs on a throwaway database; it rewrites only this test's file and goes with the ROLLBACK.
