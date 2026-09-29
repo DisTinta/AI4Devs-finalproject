@@ -39,6 +39,17 @@ All commands ran locally against the compose Postgres (`pgvector/pgvector:pg16`)
 - **Refresh at head `54e1dc8`**, after `/verify-against-spec` (task 5.3) and `/adversarial-review`
   (task 5.4): `npx vitest run` passes 6 files, **106 tests**. That is 83 store tests, plus 21 in
   `harness.spec.ts` and 2 in `gate.spec.ts`. Lint 0 errors, typecheck OK, architecture 0 errors.
+- **Refresh after the second `/adversarial-review`** (task 5.5): `npx vitest run` passes 6 files,
+  **107 tests** (22 in `harness.spec.ts`). Lint 0 errors, typecheck OK, architecture 0 errors,
+  `openspec validate --strict` valid. The demo driver ran 25/25.
+- **Concurrency guard, scratch check (no scenario test, by author decision).** A scratch
+  `describe.concurrent` spec, outside the repo, has two `useTransactionPerTest()` tests that each
+  run `pg_sleep(0.3)` on `db()`.
+  - With the first guard (`if (current) throw`), both passed: they shared one client and leaked a
+    transaction.
+  - With the synchronous per-test slot: `Tests 1 failed | 1 passed (2)`, with
+    `useTransactionPerTest() does not support concurrent tests: …`.
+  - Afterwards, 0 `idle in transaction` sessions on `codemind`.
 - `npm run lint`: 0 errors, 4 warnings. All four are the pre-existing
   `no-empty-object-type` warnings in `packages/core/src/ports/*`, not touched by this change.
 - `npm run typecheck`: OK.
@@ -58,6 +69,7 @@ All commands ran locally against the compose Postgres (`pgvector/pgvector:pg16`)
 | F1 (5.4) | Remove `beforeAll(migrateSharedDatabase, 60_000)` from `useTransactionPerTest` | "The shared database is migrated before the first test" failed (the child's first test on the fresh database: `1 failed`) |
 | F2 (5.4) | `firstError ??= error` → `firstError = error` (the rollback error wins) | "A failing check query is reported as itself" failed |
 | F3 (5.4, in `factories.ts`) | `definedOnly` returns the overrides unfiltered | "Overrides set to undefined keep the factory default" failed |
+| F4 (5.5) | The opt-in's `afterEach` runs `ROLLBACK` + `end()` without `endTestTransaction` | "A test that commits the test client fails" failed (the child: `Tests 1 passed (1)`) |
 
 After each one, the file was restored from a scratchpad copy, and `cmp` confirmed it identical.
 After F1, 0 `codemind_migrations_*` databases were left.
@@ -84,12 +96,13 @@ After F1, 0 `codemind_migrations_*` databases were left.
   So `gate.spec.ts` asserts at file level: 2 files skipped, no `passed`, no `failed`, exit 0.
   The child also runs with `NO_COLOR=1`, so the summary lines match as plain text.
 
-### Scenario coverage (24 in `specs/test-db-isolation/spec.md`, at head `54e1dc8`)
+### Scenario coverage (25 in `specs/test-db-isolation/spec.md`, after task 5.5)
 
-- 22 have a test named after them, in `harness.spec.ts` (21 tests; "Rows are gone after the test
+- 23 have a test named after them, in `harness.spec.ts` (22 tests; "Rows are gone after the test
   ends" is a pair of tests) and `gate.spec.ts` (2).
 - The first version of this report counted 18 scenarios. `/verify-against-spec` added 3
-  (task 5.3), and `/adversarial-review` added 3 more (task 5.4).
+  (task 5.3), the first `/adversarial-review` added 3 more (task 5.4), and the second added 1
+  (task 5.5).
 - "Database tests run when a database is configured": a recorded check (4.3).
   `npx vitest run tests/integration/helpers` with `DATABASE_URL`: 2 files, 17 passed, 0 skipped.
 - "Existing store specs pass unchanged": a recorded check (1.3 + 5.1). 83/83 passed, and

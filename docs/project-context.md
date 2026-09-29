@@ -120,6 +120,9 @@ Verified against `package.json` (root and per package). If a command is not here
   - Clean up in the test body, never in an `afterEach` that uses `db()`. The rollback removes the
     rows anyway.
 - **Factory overrides set to `undefined` are ignored:** the default applies.
+- **No concurrent tests under the harness.** `it.concurrent`, `describe.concurrent` and
+  `sequence.concurrent` are not supported. The second test to start fails with
+  "useTransactionPerTest() does not support concurrent tests…".
 - The older store specs keep their own style, not migrated:
   - lifecycle tests use a throwaway database each;
   - constraint tests run in `withRollback` with per-test unique values.

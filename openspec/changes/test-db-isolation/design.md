@@ -270,6 +270,19 @@ JSON. This file does not use `describeWithDatabase` (it needs no DB itself), but
     runs a parent's hooks before a child's. A test proves the nested case. The `db()` error
     message names both places, and DIS-23 has a note.
   - `vitest.config.ts` gets no `sequence` option, in line with the non-goal on its settings.
+- **The commit check was proven only on the lifecycle functions** (second `/adversarial-review`).
+  → A child Vitest now runs a spec that commits `db()` under `useTransactionPerTest()`, and
+  asserts that the test fails with "committed or ended early". Forced failure F4: an `afterEach`
+  that rolls back without `endTestTransaction` turns it red.
+- **Concurrent tests would share one `current`** (second `/adversarial-review`). → The opt-in
+  claims a slot for the test synchronously (`context.task.id`), before any await, and a test
+  that starts while the slot is taken fails with `CONCURRENT_TESTS_MESSAGE`. An `afterEach` only
+  releases its own test's slot.
+  - A first version checked `current` instead. A scratch `describe.concurrent` run showed that
+    both tests passed that check before the first `await` returned, so they silently shared one
+    client and leaked a transaction.
+  - By author decision there is no scenario test for this; the scratch run is recorded in
+    report 6.
 - **Snake_case keys vs a camelCase lint rule.** → Check `eslint.config.mjs` during
   implementation. If a naming rule objects, disable it for `factories.ts` only, with a comment.
 - **The child-Vitest gate tests are slow** (two spawns, a few seconds each). → Accepted. They are

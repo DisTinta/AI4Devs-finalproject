@@ -307,3 +307,34 @@ describeWithDatabase('test-db-isolation: migration by the harness', () => {
     }
   });
 });
+
+describeWithDatabase('test-db-isolation: the end-of-test check through the opt-in', () => {
+  it('A test that commits the test client fails', { timeout: 60_000 }, () => {
+    // The wiring users get from useTransactionPerTest(): a child spec whose only test commits db()
+    // must fail through the opt-in's afterEach. The commit writes nothing, so nothing persists.
+    const work = mkdtempSync(join(tmpdir(), 'harness-hook-commit-'));
+    try {
+      const helpers = __dirname.replace(/\\/g, '/');
+      writeFileSync(
+        join(work, 'commits.spec.ts'),
+        [
+          "import { it } from 'vitest';",
+          `import { describeWithDatabase, useTransactionPerTest } from '${helpers}/db';`,
+          "describeWithDatabase('child', () => {",
+          '  const db = useTransactionPerTest();',
+          "  it('commits the test client', async () => {",
+          "    await db().query('COMMIT');",
+          '  });',
+          '});',
+        ].join('\n'),
+      );
+      const result = runCommand(`npx vitest run --root "${work}"`, { NO_COLOR: '1', FORCE_COLOR: undefined });
+      const output = result.stdout + result.stderr;
+      expect(result.status, output).not.toBe(0);
+      expect(output).toMatch(/Tests\s+1 failed \(1\)/);
+      expect(output).toContain('Harness transaction was committed or ended early');
+    } finally {
+      rmSync(work, { recursive: true, force: true });
+    }
+  });
+});

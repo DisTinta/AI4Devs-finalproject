@@ -79,7 +79,7 @@
 ## 5. Backend: Review and Update Existing Tests (MANDATORY)
 
 - [x] 5.1 Confirm `git diff --stat feature/entrega-2-CRN -- tests/integration/store` shows only `support.ts` (scenario "Existing store specs pass unchanged", second half). The constraint and migration specs are not edited (non-goal)
-- [x] 5.2 Confirm no assertion was weakened. Confirm every `#### Scenario:` in `specs/test-db-isolation/spec.md` has a test or a recorded check (24 scenarios)
+- [x] 5.2 Confirm no assertion was weakened. Confirm every `#### Scenario:` in `specs/test-db-isolation/spec.md` has a test or a recorded check (25 scenarios)
 - [x] 5.3 After `/verify-against-spec` (2026-09-29), by author decision:
   - Spec:
     - overrides are "any column other than `id`", and edge endpoints go through `source` / `target`;
@@ -105,6 +105,11 @@
   - Minor 6: `endTestTransaction` rethrows the first error. Scenario "A failing check query is reported as itself"; forced failure F2.
   - Minor 7: `undefined` overrides keep the default (`definedOnly`). Scenario "Overrides set to undefined keep the factory default"; forced failure F3.
   - Minor 5 unchanged (already accepted). The demo driver re-ran at 24/24, with a fresh database for the migration scenario.
+- [x] 5.5 After the second `/adversarial-review` (2026-09-29, PASS WITH GAPS), by author decision:
+  - Major: new scenario and test "A test that commits the test client fails". A child Vitest commits `db()` under `useTransactionPerTest()`. Forced failure F4: an `afterEach` without `endTestTransaction` turns it red.
+  - Minor (concurrency): the opt-in claims a per-test slot synchronously and fails fast (`CONCURRENT_TESTS_MESSAGE`). Covered by the TSDoc, the spec rule and D3 risks, with no scenario test (author decision). A scratch `describe.concurrent` run is recorded in report 6. It showed that checking `current` alone was too late.
+  - Minor (`CI=false`): left as is (author decision).
+  - The PR sign-off on the spec relaxations is the author's step before archiving.
 
 ## 6. Backend: Run Tests and Verify Data State (MANDATORY)
 

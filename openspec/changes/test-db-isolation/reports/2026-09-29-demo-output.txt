@@ -1,7 +1,7 @@
 
 $ env -u DATABASE_URL -u CI npx vitest run tests/integration/helpers/harness.spec.ts tests/integration/store/graph-schema-constraints.spec.ts
 PASS  Database tests are skipped locally without a database
-      observed: exit 0; Test Files  2 skipped (2) | Tests  21 skipped (45) | WARNING: DATABASE_URL is not set — skipping database integration tests that need PostgreSQL. Run `docker compose up -d` and export DATABASE_URL to run them.
+      observed: exit 0; Test Files  2 skipped (2) | Tests  22 skipped (46) | WARNING: DATABASE_URL is not set — skipping database integration tests that need PostgreSQL. Run `docker compose up -d` and export DATABASE_URL to run them.
 
 $ env -u DATABASE_URL CI=true npx vitest run tests/integration/helpers/harness.spec.ts tests/integration/store/graph-schema-constraints.spec.ts
 PASS  Database tests fail in CI without a database
@@ -9,7 +9,7 @@ PASS  Database tests fail in CI without a database
 
 $ npx vitest run tests/integration/helpers/harness.spec.ts   (DATABASE_URL set)
 PASS  Database tests run when a database is configured
-      observed: exit 0; Test Files  1 passed (1) | Tests  21 passed (21)
+      observed: exit 0; Test Files  1 passed (1) | Tests  22 passed (22)
 
 $ npx vitest run --root <tmp>   (hook.spec.ts: uses useTransactionPerTest + createProject)
       child: exit 0; Test Files  1 passed (1) | Tests  5 passed (5)
@@ -21,23 +21,25 @@ PASS  The shared database is migrated before the first test
 PASS  The test client is unavailable outside a running test
       observed: db() in beforeAll → db() is only available while a harness test is running. Set up data in the test body or in a beforeEach of a nested describe: Vitest 1.x runs one suite's own hooks in parallel, so a beforeEach or beforeAll next to useTransactionPerTest() cannot rely on its transaction.
 PASS  Setup in a nested beforeEach runs inside the test transaction
-      observed: seeded 4b430421-071d-4a29-8d60-608cb80a8805: rows read in the test = 1; separate connection count(*) = 0
+      observed: seeded 8a71a4d3-ce3b-48ed-ae8f-30beb0e75dca: rows read in the test = 1; separate connection count(*) = 0
 PASS  A test reads back the row it wrote
-      observed: [{"id":"9151e73e-d7a3-41b2-a73c-a21ef73ca65b","root_path":"/repos/demo"}]
+      observed: [{"id":"e8870e26-8e72-4b2a-a231-3faaadb7874b","root_path":"/repos/demo"}]
 PASS  Rows are invisible to other connections while the test runs
-      observed: separate connection count(*) for cc79f79c-ae80-4958-997c-1823c74b637a during the test = 0
+      observed: separate connection count(*) for 4f2ed152-63b6-4955-8ef5-ad2e38bdfd59 during the test = 0
 PASS  Rows are gone after the test ends
       observed: after the child run, count(*) per written id from this process = 0, 0, 0
 PASS  The transaction is reverted when the test body throws
-      observed: count(*) for 0e186005-94e9-498f-aded-9889bca5a007 = 0
+      observed: count(*) for 083d18cf-5aee-4778-84a3-5919a86e6297 = 0
 
 $ npx vitest run --root <tmp>   (hook.spec.ts: COMMIT on db())
 PASS  Committing the harness transaction is reported
-      observed: exit 1; → Harness transaction was committed or ended early (opened as 9220, now none); rows written by this test may have persisted. | Test Files  1 failed (1) | Tests  1 failed (1) | Error: Harness transaction was committed or ended early (opened as 9220, now none); rows written by this test may have persisted. | 115|       `Harness transaction was committed or ended early (opened as ${t…
+      observed: exit 1; → Harness transaction was committed or ended early (opened as 9683, now none); rows written by this test may have persisted. | Test Files  1 failed (1) | Tests  1 failed (1) | Error: Harness transaction was committed or ended early (opened as 9683, now none); rows written by this test may have persisted. | 115|       `Harness transaction was committed or ended early (opened as ${t…
+PASS  A test that commits the test client fails
+      observed: same child run (COMMIT on db() under useTransactionPerTest): exit 1; → Harness transaction was committed or ended early (opened as 9683, now none); rows written by this test may have persisted. | Test Files  1 failed (1) | Tests  1 failed (1) | Error: Harness transaction was committed or ended early (opened as 9683, now none); rows written by this test may have persisted. | 115|       `Harness transaction was committed or ended early (opened as ${t…
 PASS  Rolling back the harness transaction is reported
-      observed: Harness transaction was committed or ended early (opened as 9221, now none); rows written by this test may have persisted.
+      observed: Harness transaction was committed or ended early (opened as 9684, now none); rows written by this test may have persisted.
 PASS  Committing and opening a new transaction is reported
-      observed: Harness transaction was committed or ended early (opened as 9222, now 9223); rows written by this test may have persisted.
+      observed: Harness transaction was committed or ended early (opened as 9685, now 9686); rows written by this test may have persisted.
 PASS  An untouched harness transaction passes the check
       observed: end error = null; count(*) afterwards = 0
 PASS  A savepoint inside the harness transaction passes the check
@@ -49,15 +51,15 @@ PASS  An aborted harness transaction passes the check
 PASS  Each factory creates a row with defaults
       observed: rows readable back (project, file, symbol, symbol, edge) = 1, 1, 1, 1, 1; edge calls/exact/test-factory
 PASS  Default unique values never collide
-      observed: names project-d60ed456-6dbc-4217-918c-f526fc6a107c / project-980a54af-52fd-4b00-a4b5-ec9df1daa51f; paths src/file-7ca872cd-086a-49f0-9795-bdfab4d91919.ts / src/file-f896ba1d-841f-48dc-97a9-51695a925a5d.ts
+      observed: names project-3c420a24-4538-422b-8277-0a16c377f36b / project-db9c7d53-ac02-4cb7-95ce-b6194338ac99; paths src/file-55216bf1-3861-4cb4-890a-b5478f1e18e2.ts / src/file-ec3e44d1-8248-422b-8eda-9fc4e18416b4.ts
 PASS  Overridden columns are stored
       observed: [{"language":"php","is_sample":true,"kind":"class"}]
 PASS  Overrides set to undefined keep the factory default
       observed: language typescript; root_path /repos/sample
 PASS  Default values are synthetic
-      observed: root_path /repos/sample; name project-d60ed456-6dbc-4217-918c-f526fc6a107c; path src/file-7ca872cd-086a-49f0-9795-bdfab4d91919.ts; symbol handle
+      observed: root_path /repos/sample; name project-3c420a24-4538-422b-8277-0a16c377f36b; path src/file-55216bf1-3861-4cb4-890a-b5478f1e18e2.ts; symbol handle
 PASS  An edge can connect files as well as symbols
-      observed: {"source_file_id":"3a1a4ae2-7a24-426b-a819-5012231a6299","target_file_id":"a6659a0d-a71b-478b-ba72-dfe76f085ab4","source_symbol_id":null,"target_symbol_id":null}
+      observed: {"source_file_id":"d56083ca-ccc3-4bef-9d01-2a417e77027e","target_file_id":"d4182b49-113a-46a9-b09b-c45a3a72a291","source_symbol_id":null,"target_symbol_id":null}
 
 $ npx tsc --noEmit --strict --module esnext --moduleResolution bundler --skipLibCheck <tmp>/xor-valid.ts   (source: { symbol_id })
       (D4 extra) exit 0
@@ -68,4 +70,4 @@ $ npx vitest run tests/integration/store  &&  git diff --stat feature/entrega-2-
 PASS  Existing store specs pass unchanged
       observed: exit 0; Test Files  4 passed (4) | Tests  83 passed (83); changed under store/: tests/integration/store/support.ts | 59 ++++++--------------------------------
 
-24/24 scenarios demonstrated
+25/25 scenarios demonstrated

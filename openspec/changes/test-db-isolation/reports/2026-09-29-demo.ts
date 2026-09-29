@@ -270,6 +270,11 @@ describeWithDatabase('demo: code under test commits db()', () => {
     committed.status !== 0 && committed.out.includes(ENDED_EARLY),
     `exit ${committed.status}; ${summary(committed.out)}`,
   );
+  check(
+    'A test that commits the test client fails',
+    committed.status !== 0 && /Tests\s+1 failed \(1\)/.test(committed.out) && committed.out.includes(ENDED_EARLY),
+    `same child run (COMMIT on db() under useTransactionPerTest): exit ${committed.status}; ${summary(committed.out)}`,
+  );
 
   const rolledBack = await beginTestTransaction();
   await rolledBack.client.query('ROLLBACK');
@@ -449,5 +454,5 @@ it('show-spec-working: test-db-isolation', { timeout: 600_000 }, async () => {
     writeFileSync(resolve(__dirname, '2026-09-29-demo-output.txt'), `${transcript.join('\n')}\n`);
   }
   expect(results.filter((result) => !result.ok)).toEqual([]);
-  expect(results).toHaveLength(24);
+  expect(results).toHaveLength(25);
 });

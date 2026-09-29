@@ -35,8 +35,8 @@ DIS-11 (done) and blocks DIS-23.
 
 1. `docker compose up -d`, and wait until `docker compose ps` shows Postgres `healthy`.
 2. `export DATABASE_URL=postgres://codemind:codemind@localhost:5432/codemind`, then `npm run db:migrate`.
-3. `npx vitest run tests/integration/helpers tests/integration/store` → 6 files, 106 passed.
-4. `npx vitest run tests/integration/helpers/harness.spec.ts --reporter=verbose` → 21 passed.
+3. `npx vitest run tests/integration/helpers tests/integration/store` → 6 files, 107 passed.
+4. `npx vitest run tests/integration/helpers/harness.spec.ts --reporter=verbose` → 22 passed.
 5. `env -u DATABASE_URL -u CI npx vitest run tests/integration/helpers`:
    - it prints the warning `DATABASE_URL is not set — skipping database integration tests`;
    - `harness.spec.ts` is skipped;
@@ -71,6 +71,7 @@ DIS-11 (done) and blocks DIS-23.
   coverage.
 - **Hook order** also covers `beforeEach` / `beforeAll` (Risks, `/adversarial-review`). Supported
   setup is the test body, or a `beforeEach` of a nested `describe`, and the `db()` message says so.
+- **The commit check is also proven through the opt-in's `afterEach`**, in a child Vitest (Risks). **Concurrent tests fail fast**: the opt-in claims a per-test slot synchronously.
 - **The migration test uses a fresh throwaway database** (D5). On the shared database the check
   could not fail.
 - **`withRollback` does not get the commit check** (D6). The existing specs keep their exact
@@ -93,6 +94,7 @@ DIS-11 (done) and blocks DIS-23.
 | Rows are gone after the test ends | `tests/integration/helpers/harness.spec.ts:57` + `:61` (write, then check, in order) |
 | The transaction is reverted when the test body throws | `tests/integration/helpers/harness.spec.ts:70` (through the lifecycle functions the hook calls, as the spec states) |
 | Committing the harness transaction is reported | `tests/integration/helpers/harness.spec.ts:87` |
+| A test that commits the test client fails | `tests/integration/helpers/harness.spec.ts:312` (child Vitest: `COMMIT` on `db()` under `useTransactionPerTest()`) |
 | Rolling back the harness transaction is reported | `tests/integration/helpers/harness.spec.ts:93` |
 | Committing and opening a new transaction is reported | `tests/integration/helpers/harness.spec.ts:99` |
 | A failing check query is reported as itself | `tests/integration/helpers/harness.spec.ts:107` |
@@ -108,8 +110,8 @@ DIS-11 (done) and blocks DIS-23.
 | Existing store specs pass unchanged | The store suite runs: 83/83. The "unchanged" half is a recorded check on the diff, by author decision (the spec says so): `git diff --stat feature/entrega-2-CRN -- tests/integration/store` lists only `support.ts` |
 
 Two scenarios are recorded checks, not tests. The author accepted this after `/verify-against-spec`,
-and the spec states it. All 24 scenarios were also exercised independently by the demo driver:
-`reports/2026-09-29-show-spec-working.md`, 24/24.
+and the spec states it. All 25 scenarios were also exercised independently by the demo driver:
+`reports/2026-09-29-show-spec-working.md`, 25/25.
 
 ## Origin
 

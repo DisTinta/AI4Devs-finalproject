@@ -61,6 +61,9 @@ during the test or after it.
   nested describe block.
 - Setup code in a `beforeEach` of a describe block nested inside the opted-in one SHALL run inside
   the test's transaction.
+- The tests of an opted-in block MUST run one at a time: concurrent tests are not supported. A
+  test that starts while another test of the block still holds the harness transaction MUST fail
+  at once, with an error saying so. It MUST NOT share or end the other test's transaction.
 - The harness SHALL expose, as its API:
   - the opt-in for a describe block, which returns the accessor for that client;
   - the two lifecycle functions that open a test transaction and end it with the end-of-test
@@ -136,6 +139,13 @@ transaction was committed or ended early, so its rows may have persisted.
 - **WHEN** code running inside a harness transaction commits it
 - **THEN** the harness end-of-test check fails
 - **AND** its error message states that the harness transaction was committed or ended early
+
+#### Scenario: A test that commits the test client fails
+
+- **WHEN** a spec opts into the harness, and its only test runs `COMMIT` on the test client
+- **THEN** that test fails through the harness's own after-test step, and the run exits with a
+  non-zero code
+- **AND** the output states that the harness transaction was committed or ended early
 
 #### Scenario: Rolling back the harness transaction is reported
 

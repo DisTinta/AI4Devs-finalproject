@@ -124,6 +124,11 @@ export const DB_OUTSIDE_TEST_MESSAGE =
   "beforeEach of a nested describe: Vitest 1.x runs one suite's own hooks in parallel, so a " +
   'beforeEach or beforeAll next to useTransactionPerTest() cannot rely on its transaction.';
 
+/** Error of a harness test that starts while another test's transaction is still open. */
+export const CONCURRENT_TESTS_MESSAGE =
+  'useTransactionPerTest() does not support concurrent tests: another test of this block still ' +
+  'holds the harness transaction. Remove .concurrent from these tests.';
+
 /**
  * Gives every test of the enclosing `describe` its own transaction, reverted when the test ends,
  * and returns `db()`: the client of the running test's transaction. It also migrates the shared
@@ -138,17 +143,33 @@ export const DB_OUTSIDE_TEST_MESSAGE =
  *   and fails; a `beforeAll` there races the shared migration.
  * - Clean up in the test body, never in an `afterEach` that uses `db()`: it would race the harness
  *   `ROLLBACK` (and the rollback removes the rows anyway).
+ *
+ * Tests of the block must run one at a time: `db()` holds one transaction. Concurrent tests
+ * (`it.concurrent`, `describe.concurrent`, `sequence.concurrent`) are not supported, and the second
+ * test to start fails at once instead of silently sharing or ending another test's transaction.
  */
 export function useTransactionPerTest(): () => Client {
   let current: TestTransaction | undefined;
+  // The test that holds the slot. It is claimed synchronously, before any await, so a second test
+  // starting concurrently sees it taken; an afterEach only releases the slot its own test claimed.
+  let owner: string | undefined;
 
   beforeAll(migrateSharedDatabase, 60_000);
-  beforeEach(async () => {
-    current = await beginTestTransaction();
+  beforeEach(async (context) => {
+    if (owner !== undefined) throw new Error(CONCURRENT_TESTS_MESSAGE);
+    owner = context.task.id;
+    try {
+      current = await beginTestTransaction();
+    } catch (error) {
+      owner = undefined;
+      throw error;
+    }
   });
-  afterEach(async () => {
+  afterEach(async (context) => {
+    if (owner !== context.task.id) return;
     const transaction = current;
     current = undefined;
+    owner = undefined;
     if (transaction) await endTestTransaction(transaction);
   });
 
