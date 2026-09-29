@@ -28,7 +28,7 @@ When the user is ready to implement, they must start the apply workflow explicit
 
 **Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `schemas`, `view`). Once selected, treat `--store <id>` as sticky for the rest of the workflow. Every unscoped example of those commands below is shorthand: before running it, append the flag. For example, run `openspec status --change "<name>" --json --store "<id>"`, not the unscoped form shown below. Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
 
-**Input**: The user's request should include a change name (kebab-case) OR a description of what they want to build.
+**Input**: The user's request should include a change name (kebab-case) OR a description of what they want to build. In this repo, the usual input is a Linear **sub-issue** id (`DIS-n`).
 
 **Steps**
 
@@ -40,6 +40,18 @@ When the user is ready to implement, they must start the apply workflow explicit
    From their description, derive a kebab-case name (e.g., "add user authentication" → `add-user-auth`).
 
    **IMPORTANT**: Do NOT proceed without understanding what the user wants to build.
+
+   **Linear (this repo — see `docs/project-context.md` → Branch and ticket conventions):**
+   - When the request names or implies a Linear ticket, treat it as a **sub-issue** (`DIS-n` /
+     `CM-HU-*.k`). Fetch it via Linear MCP **and** fetch its **parent** issue (`parentId` /
+     relations) before writing any artifact.
+   - The parent supplies framing: Enhanced user story, acceptance criteria, technical context,
+     Reality map, HU-level non-goals. Read it so the change does not invent or miss context.
+   - The sub-issue supplies bounds: DoD, slice non-goals, dependencies, OpenSpec candidacy. Name
+     the change and scope the artifacts from the sub-issue only — never propose from the parent
+     alone.
+   - If parent and sub disagree on scope, stop and ask. Do not silently widen the sub to the whole
+     HU.
 
    If the request contains ambiguity that would materially affect scope, externally observable behavior, compatibility, or acceptance criteria, ask the user before creating the change. For minor details, make a reasonable assumption and record it in the planning artifacts.
 

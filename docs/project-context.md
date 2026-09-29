@@ -141,7 +141,17 @@ Verified against `package.json` (root and per package). If a command is not here
   user story `CM-HU-*`, sub-issue = one work slice `CM-HU-*.k`; map in
   `docs/ai-sessions/03-planificacion-historias-de-usuario.md` §6. Linear is the live backlog;
   older "Ticket N" notes are not ticket ids.
-- **OpenSpec (`/opsx:propose`) is fed from the sub-issue (`DIS-n`)**, never from the parent user story.
+- **OpenSpec is fed from the sub-issue, after reading the parent.**
+  1. `/opsx:propose` (and apply) take the **sub-issue** (`DIS-n` / `CM-HU-*.k`) as the unit of
+     work: change name, DoD, non-goals of the slice, and PR/Linear status. Never propose from the
+     parent user story alone — that would expand the change to the whole HU.
+  2. **Before** creating or applying a change, the agent MUST load via Linear MCP: the sub-issue
+     **and** its parent (`parentId` / relations). The parent holds the HU framing the agent needs
+     so it does not invent scope: Enhanced user story, acceptance criteria, technical context,
+     Reality map and HU-level non-goals.
+  3. Use the parent to frame and constrain; use the sub-issue to bound. If parent and sub disagree,
+     stop and ask — do not silently widen the sub to match the parent, and do not drop a parent AC
+     that the sub's DoD clearly inherits.
 - Branch naming for a change: `feature/DIS-n-slug` (merge into delivery branch
   `feature/entrega-2-CRN`). Ultimate base branch: `main`.
 - **Linear status via MCP** (agents, per sub-issue `DIS-n`):
