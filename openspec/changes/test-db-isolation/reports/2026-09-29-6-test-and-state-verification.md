@@ -36,6 +36,9 @@ All commands ran locally against the compose Postgres (`pgvector/pgvector:pg16`)
 - Targeted, run 2: 6 files, **100 passed**, 62.7 s. There was no flakiness across the two runs.
 - Required suite `npx vitest run`: 6 files, **100 passed**. That is 83 store tests, plus 15 in
   `harness.spec.ts` and 2 in `gate.spec.ts`.
+- **Refresh at head `54e1dc8`**, after `/verify-against-spec` (task 5.3) and `/adversarial-review`
+  (task 5.4): `npx vitest run` passes 6 files, **106 tests**. That is 83 store tests, plus 21 in
+  `harness.spec.ts` and 2 in `gate.spec.ts`. Lint 0 errors, typecheck OK, architecture 0 errors.
 - `npm run lint`: 0 errors, 4 warnings. All four are the pre-existing
   `no-empty-object-type` warnings in `packages/core/src/ports/*`, not touched by this change.
 - `npm run typecheck`: OK.
@@ -52,8 +55,12 @@ All commands ran locally against the compose Postgres (`pgvector/pgvector:pg16`)
 | A (2.4) | Skip the xid comparison in `endTestTransaction` | 3 failed: "Committing … reported", "Rolling back … reported", "Committing and opening a new transaction is reported" |
 | B (2.4) | `ROLLBACK` → `COMMIT` in `endTestTransaction` | 3 failed: "Rows are gone after the test ends (checks)", "The transaction is reverted when the test body throws", "An untouched harness transaction passes the check" |
 | G (4.2) | `describeWithDatabase = describe` (gate removed) | "Database tests are skipped locally without a database" failed |
+| F1 (5.4) | Remove `beforeAll(migrateSharedDatabase, 60_000)` from `useTransactionPerTest` | "The shared database is migrated before the first test" failed (the child's first test on the fresh database: `1 failed`) |
+| F2 (5.4) | `firstError ??= error` → `firstError = error` (the rollback error wins) | "A failing check query is reported as itself" failed |
+| F3 (5.4, in `factories.ts`) | `definedOnly` returns the overrides unfiltered | "Overrides set to undefined keep the factory default" failed |
 
-After each one, `db.ts` was restored from a scratchpad copy, and `cmp` confirmed it identical.
+After each one, the file was restored from a scratchpad copy, and `cmp` confirmed it identical.
+After F1, 0 `codemind_migrations_*` databases were left.
 
 - **Deviation in B.** Task 2.4 planned to "drop the `ROLLBACK`". But `client.end()` then aborts
   the open transaction anyway, so that edit is masked and proves nothing. `ROLLBACK` → `COMMIT`
@@ -77,10 +84,12 @@ After each one, `db.ts` was restored from a scratchpad copy, and `cmp` confirmed
   So `gate.spec.ts` asserts at file level: 2 files skipped, no `passed`, no `failed`, exit 0.
   The child also runs with `NO_COLOR=1`, so the summary lines match as plain text.
 
-### Scenario coverage (18 in `specs/test-db-isolation/spec.md`)
+### Scenario coverage (24 in `specs/test-db-isolation/spec.md`, at head `54e1dc8`)
 
-- 16 have a test named after them, in `harness.spec.ts` (15 tests; "Rows are gone after the test
+- 22 have a test named after them, in `harness.spec.ts` (21 tests; "Rows are gone after the test
   ends" is a pair of tests) and `gate.spec.ts` (2).
+- The first version of this report counted 18 scenarios. `/verify-against-spec` added 3
+  (task 5.3), and `/adversarial-review` added 3 more (task 5.4).
 - "Database tests run when a database is configured": a recorded check (4.3).
   `npx vitest run tests/integration/helpers` with `DATABASE_URL`: 2 files, 17 passed, 0 skipped.
 - "Existing store specs pass unchanged": a recorded check (1.3 + 5.1). 83/83 passed, and
@@ -116,6 +125,13 @@ After each one, `db.ts` was restored from a scratchpad copy, and `cmp` confirmed
   skipped), and `tests/integration/helpers/gate.spec.ts` ✓ with 2 tests, out of `Test Files 6
   passed (6)`.
 - This meets the DoD "CI lo ejecuta".
+- **At head `54e1dc8`** (task 5.4), CI run
+  https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/36550844924 (job `quality`, pass,
+  1m18s):
+  - `✓ tests/integration/helpers/harness.spec.ts (21 tests)`
+  - `✓ tests/integration/helpers/gate.spec.ts (2 tests)`
+  - `Tests 106 passed (106)`
+- The intermediate head `5d206ac` passed in run 36546124218.
 
 ## Outcome
 
