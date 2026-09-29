@@ -1,0 +1,56 @@
+
+$ env -u DATABASE_URL -u CI npx vitest run tests/integration/helpers/harness.spec.ts tests/integration/store/graph-schema-constraints.spec.ts
+PASS  Database tests are skipped locally without a database
+      observed: exit 0; Test Files  2 skipped (2) | Tests  15 skipped (39) | WARNING: DATABASE_URL is not set — skipping database integration tests that need PostgreSQL. Run `docker compose up -d` and export DATABASE_URL to run them.
+
+$ env -u DATABASE_URL CI=true npx vitest run tests/integration/helpers/harness.spec.ts tests/integration/store/graph-schema-constraints.spec.ts
+PASS  Database tests fail in CI without a database
+      observed: exit 1; Test Files  2 failed (2) | Tests  no tests | Error: DATABASE_URL must be set in CI: the database integration tests cannot be skipped there. | 12|   throw new Error('DATABASE_URL must be set in CI: the database integr…
+
+$ npx vitest run tests/integration/helpers/harness.spec.ts   (DATABASE_URL set)
+PASS  Database tests run when a database is configured
+      observed: exit 0; Test Files  1 passed (1) | Tests  15 passed (15)
+
+$ npx vitest run --root <tmp>   (hook.spec.ts: uses useTransactionPerTest + createProject)
+      child: exit 0; Test Files  1 passed (1) | Tests  4 passed (4)
+PASS  A test reads back the row it wrote
+      observed: [{"id":"af2ebe9f-e881-45db-8b9b-7a57de3f4540","root_path":"/repos/demo"}]
+PASS  Rows are invisible to other connections while the test runs
+      observed: separate connection count(*) for b59e7cbe-4c19-4703-a199-ffa0ef4ee712 during the test = 0
+PASS  Rows are gone after the test ends
+      observed: after the child run, count(*) per written id from this process = 0, 0, 0
+PASS  The transaction is reverted when the test body throws
+      observed: count(*) for fd06a0cd-9574-4eb1-a1c1-dacaa157ae2e = 0
+
+$ npx vitest run --root <tmp>   (hook.spec.ts: COMMIT on db())
+PASS  Committing the harness transaction is reported
+      observed: exit 1; → Harness transaction was committed or ended early (opened as 8338, now none); rows written by this test may have persisted. | Test Files  1 failed (1) | Tests  1 failed (1) | Error: Harness transaction was committed or ended early (opened as 8338, now none); rows written by this test may have persisted. | 109|       `Harness transaction was committed or ended early (opened as ${t…
+PASS  Rolling back the harness transaction is reported
+      observed: Harness transaction was committed or ended early (opened as 8339, now none); rows written by this test may have persisted.
+PASS  Committing and opening a new transaction is reported
+      observed: Harness transaction was committed or ended early (opened as 8340, now 8341); rows written by this test may have persisted.
+PASS  An untouched harness transaction passes the check
+      observed: end error = null; count(*) afterwards = 0
+PASS  An aborted harness transaction passes the check
+      observed: failed statement SQLSTATE 22012; end error = null; count(*) afterwards = 0
+PASS  Each factory creates a row with defaults
+      observed: rows readable back (project, file, symbol, symbol, edge) = 1, 1, 1, 1, 1; edge calls/exact/test-factory
+PASS  Default unique values never collide
+      observed: names project-c0edb415-f683-439e-ab50-e2fad37f1a55 / project-81cf0b5b-fa98-457c-9870-f8801b90960e; paths src/file-106dbfac-897c-4c73-98a7-76ac8f30a2eb.ts / src/file-0fbb027d-417b-4dd9-aa01-98e8c7ca0681.ts
+PASS  Overridden columns are stored
+      observed: [{"language":"php","is_sample":true,"kind":"class"}]
+PASS  Default values are synthetic
+      observed: root_path /repos/sample; name project-c0edb415-f683-439e-ab50-e2fad37f1a55; path src/file-106dbfac-897c-4c73-98a7-76ac8f30a2eb.ts; symbol handle
+PASS  An edge can connect files as well as symbols
+      observed: {"source_file_id":"2ca1af0e-25b1-4531-a05e-8f3e6b10ea94","target_file_id":"672647e9-1467-414b-a57f-5e225ce9ec3a","source_symbol_id":null,"target_symbol_id":null}
+
+$ npx tsc --noEmit --strict --module esnext --moduleResolution bundler --skipLibCheck <tmp>/xor-valid.ts   (source: { symbol_id })
+      (D4 extra) exit 0
+$ npx tsc --noEmit --strict --module esnext --moduleResolution bundler --skipLibCheck <tmp>/xor-both.ts    (source: { symbol_id, file_id })
+      (D4 extra) exit 2; <tmp>/xor-both.ts(4,41): error TS2322: Type '{ symbol_id: string; file_id: string; }' is not assignable to type 'EdgeEndpoint'.
+
+$ npx vitest run tests/integration/store  &&  git diff --stat feature/entrega-2-CRN -- tests/integration/store
+PASS  Existing store specs pass unchanged
+      observed: exit 0; Test Files  4 passed (4) | Tests  83 passed (83); changed under store/: tests/integration/store/support.ts | 59 ++++++--------------------------------
+
+18/18 scenarios demonstrated
