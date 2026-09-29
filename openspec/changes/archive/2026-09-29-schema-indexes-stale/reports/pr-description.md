@@ -43,11 +43,11 @@ and the indexes are present in `pg_indexes`.
 6. `npm run lint && npm run typecheck && npm run lint:architecture && npm run docs:coverage`: all
    exit 0, and the existing warnings are unchanged.
 7. Independent demonstration against the real scripts and database:
-   `node openspec/changes/schema-indexes-stale/reports/2026-09-28-demo.mjs`
+   `node openspec/changes/archive/2026-09-29-schema-indexes-stale/reports/2026-09-28-demo.mjs`
    → `20 scenarios exercised, 20 match the spec` and `COVERAGE: 20 scenarios in the spec, 20
    exercised, 0 missing`.
 
-Evidence from the agent's run, in `openspec/changes/schema-indexes-stale/reports/`:
+Evidence from the agent's run, in `openspec/changes/archive/2026-09-29-schema-indexes-stale/reports/`:
 
 - `2026-09-28-6-test-and-state-verification.md` (with the `EXPLAIN` check and the forced failures);
 - `2026-09-28-7-manual-interface-testing.md`;

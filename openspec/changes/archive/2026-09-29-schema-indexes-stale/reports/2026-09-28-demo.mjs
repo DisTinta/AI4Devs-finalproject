@@ -16,7 +16,7 @@ const require = createRequire(`${process.cwd()}/package.json`);
 const { Client } = require('pg');
 const SHARED = process.env.DATABASE_URL;
 const MIGRATIONS_DIR = 'packages/adapters/store-postgres/migrations';
-const SPEC = 'openspec/changes/schema-indexes-stale/specs/graph-schema/spec.md';
+const SPEC = 'openspec/changes/archive/2026-09-29-schema-indexes-stale/specs/graph-schema/spec.md';
 const log = (...a) => console.log(...a);
 const results = [];
 const record = (id, scenario, ok, detail) => {

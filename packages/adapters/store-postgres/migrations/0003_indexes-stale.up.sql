@@ -1,5 +1,5 @@
 -- DIS-13 (CM-HU-01.3): query and vector indexes, and stale invalidation on content change.
--- Contract: openspec/changes/schema-indexes-stale/specs/graph-schema/spec.md
+-- Contract: openspec/specs/graph-schema/spec.md
 -- ("Query and vector indexes", "Stale invalidation on content change"). No table, column or enum.
 
 -- Traversal by endpoint (design.md D3): each endpoint is two nullable FKs (0001), so each column gets

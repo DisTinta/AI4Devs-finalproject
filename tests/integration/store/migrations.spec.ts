@@ -148,7 +148,7 @@ const HISTORY_ENUMS: Record<string, string[]> = {
 const ALL_ENUMS: Record<string, string[]> = { ...L1_ENUMS, ...HISTORY_ENUMS };
 
 // Transcribed by hand from the "Query and vector indexes" table of
-// openspec/changes/schema-indexes-stale/specs/graph-schema/spec.md (key columns in order, method,
+// openspec/specs/graph-schema/spec.md (key columns in order, method,
 // opclass for HNSW, predicate; none unique, none with INCLUDE columns). Sorted like
 // secondaryIndexShapes(): by table, then columns.
 const btree = (table: string, columns: string[], predicate: string | null = null): IndexShape => ({

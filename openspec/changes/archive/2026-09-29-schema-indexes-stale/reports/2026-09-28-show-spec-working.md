@@ -26,7 +26,7 @@
   - The driver imports `node-pg-migrate`, which is declared only in
     `packages/adapters/store-postgres/package.json`. It resolves from the repo root because npm
     workspaces hoist it to the root `node_modules`. Run it from the repo root after `npm ci`.
-- Command: `DATABASE_URL=postgres://codemind:codemind@localhost:5432/codemind node openspec/changes/schema-indexes-stale/reports/2026-09-28-demo.mjs`
+- Command: `DATABASE_URL=postgres://codemind:codemind@localhost:5432/codemind node openspec/changes/archive/2026-09-29-schema-indexes-stale/reports/2026-09-28-demo.mjs`
   → exit 0, `SUMMARY: 20 scenarios exercised, 20 match the spec, 0 do not` and
   `COVERAGE: 20 scenarios in the spec, 20 exercised, 0 missing`.
   - The driver reads every `#### Scenario:` of the delta spec and exits 1 if one is not exercised
