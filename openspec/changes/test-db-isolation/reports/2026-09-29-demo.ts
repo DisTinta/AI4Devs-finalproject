@@ -7,10 +7,11 @@
 //     --config openspec/changes/test-db-isolation/reports/2026-09-29-demo.vitest.config.ts
 // The transcript is written next to this file as 2026-09-29-demo-output.txt.
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { expect, it } from 'vitest';
+import { MIGRATIONS_DIR } from '../../../../packages/adapters/store-postgres/src/migrate';
 import { beginTestTransaction, connect, endTestTransaction } from '../../../../tests/integration/helpers/db';
 import { createEdge, createFile, createProject, createSymbol } from '../../../../tests/integration/helpers/factories';
 
@@ -97,7 +98,7 @@ async function main(): Promise<void> {
   const configured = run('npx vitest run tests/integration/helpers/harness.spec.ts', {});
   check(
     'Database tests run when a database is configured',
-    configured.status === 0 && /Tests\s+15 passed \(15\)/.test(configured.out) && !/skipped/.test(configured.out),
+    configured.status === 0 && /Tests\s+\d+ passed \(\d+\)/.test(configured.out) && !/skipped/.test(configured.out),
     `exit ${configured.status}; ${summary(configured.out)}`,
   );
 
@@ -106,13 +107,25 @@ async function main(): Promise<void> {
   writeFileSync(
     join(work, 'hook.spec.ts'),
     `import { writeFileSync } from 'node:fs';
-import { it } from 'vitest';
+import { beforeAll, it } from 'vitest';
 import { connect, describeWithDatabase, useTransactionPerTest } from '${helpersDir}/db';
 import { createProject } from '${helpersDir}/factories';
 
 const seen: Record<string, unknown> = {};
 describeWithDatabase('demo: useTransactionPerTest', () => {
   const db = useTransactionPerTest();
+  beforeAll(() => {
+    try {
+      db();
+      seen.outsideTest = 'no error';
+    } catch (error) {
+      seen.outsideTest = (error as Error).message;
+    }
+  });
+  it('first test sees migrations', async () => {
+    const { rows } = await db().query('SELECT name FROM pgmigrations ORDER BY name');
+    seen.migrations = rows.map((row) => row.name);
+  });
   it('reads back', async () => {
     const project = await createProject(db(), { root_path: '/repos/demo' });
     const { rows } = await db().query('SELECT id, root_path FROM project WHERE id = $1', [project.id]);
@@ -136,10 +149,26 @@ describeWithDatabase('demo: useTransactionPerTest', () => {
   const hook = run(`npx vitest run --root "${work}"`, {});
   log(`      child: exit ${hook.status}; ${summary(hook.out)}`);
   const seen = JSON.parse(readFileSync(join(work, 'observed.json'), 'utf8')) as {
+    outsideTest: string;
+    migrations: string[];
     readBack: { written: string; read: { id: string; root_path: string }[] };
     invisible: { id: string; countElsewhere: number };
     writtenThenEnded: string;
   };
+  const expectedMigrations = readdirSync(MIGRATIONS_DIR)
+    .filter((name) => name.endsWith('.up.sql'))
+    .map((name) => name.replace(/\.up\.sql$/, ''))
+    .sort();
+  check(
+    'The shared database is migrated before the first test',
+    JSON.stringify(seen.migrations) === JSON.stringify(expectedMigrations),
+    `pgmigrations seen by the first test = ${seen.migrations.join(', ')}; migration files = ${expectedMigrations.join(', ')}`,
+  );
+  check(
+    'The test client is unavailable outside a running test',
+    seen.outsideTest === 'db() is only available while a harness test is running.',
+    `db() in beforeAll → ${seen.outsideTest}`,
+  );
   check(
     'A test reads back the row it wrote',
     seen.readBack.read.length === 1 &&
@@ -211,6 +240,18 @@ describeWithDatabase('demo: code under test commits db()', () => {
     'An untouched harness transaction passes the check',
     untouchedError === null && untouchedCount === 0,
     `end error = ${untouchedError}; count(*) afterwards = ${untouchedCount}`,
+  );
+
+  const savepoint = await beginTestTransaction();
+  const savepointId = (await createProject(savepoint.client)).id;
+  await savepoint.client.query('SAVEPOINT inner_work');
+  await savepoint.client.query('RELEASE SAVEPOINT inner_work');
+  const savepointError = await endError(savepoint);
+  const savepointCount = await countElsewhere('project', savepointId);
+  check(
+    'A savepoint inside the harness transaction passes the check',
+    savepointError === null && savepointCount === 0,
+    `end error = ${savepointError}; count(*) afterwards = ${savepointCount}`,
   );
 
   const aborted = await beginTestTransaction();
@@ -333,5 +374,5 @@ it('show-spec-working: test-db-isolation', { timeout: 600_000 }, async () => {
     writeFileSync(resolve(__dirname, '2026-09-29-demo-output.txt'), `${transcript.join('\n')}\n`);
   }
   expect(results.filter((result) => !result.ok)).toEqual([]);
-  expect(results).toHaveLength(18);
+  expect(results).toHaveLength(21);
 });

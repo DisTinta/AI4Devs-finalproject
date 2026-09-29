@@ -79,7 +79,20 @@
 ## 5. Backend: Review and Update Existing Tests (MANDATORY)
 
 - [x] 5.1 Confirm `git diff --stat feature/entrega-2-CRN -- tests/integration/store` shows only `support.ts` (scenario "Existing store specs pass unchanged", second half). The constraint and migration specs are not edited (non-goal)
-- [x] 5.2 Confirm no assertion was weakened. Confirm every `#### Scenario:` in `specs/test-db-isolation/spec.md` has a test or a recorded check (18 scenarios)
+- [x] 5.2 Confirm no assertion was weakened. Confirm every `#### Scenario:` in `specs/test-db-isolation/spec.md` has a test or a recorded check (21 scenarios)
+- [x] 5.3 After `/verify-against-spec` (2026-09-29), by author decision:
+  - Spec:
+    - overrides are "any column other than `id`", and edge endpoints go through `source` / `target`;
+    - add the defaults table;
+    - add the `COMMIT` + `BEGIN` + failed-statement limit;
+    - reword the "skipped locally" THEN to file level;
+    - add the gate wording ("database integration tests"), the harness API list, the migration in `beforeAll` and the client being unavailable outside a test;
+    - state that "body throws" is proven via the lifecycle functions, and that "run when configured" and the diff half of "specs unchanged" are recorded checks.
+  - Tests:
+    - "An untouched harness transaction passes the check" drops its `SAVEPOINT`;
+    - new tests "A savepoint inside the harness transaction passes the check", "The shared database is migrated before the first test" and "The test client is unavailable outside a running test".
+  - Evidence: the demo driver re-run at 21/21.
+  - Accepted as is: U5 (xids in the message), U7 (non-`25P02` errors are rethrown), U9 (mixed edges, no scenario) and U11 (demo driver kept as evidence).
 
 ## 6. Backend: Run Tests and Verify Data State (MANDATORY)
 

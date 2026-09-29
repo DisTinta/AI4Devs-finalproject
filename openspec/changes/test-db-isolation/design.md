@@ -181,8 +181,12 @@ Alternatives considered:
 - The alternative, an `afterAll` check, would report the failure against no test.
 
 "Body throws" and the commit-check scenarios call `beginTestTransaction` / `endTestTransaction`
-directly, on their own transaction, not the hook's. There are four commit-check scenarios:
-`COMMIT`, `ROLLBACK`, `COMMIT` + `BEGIN`, and untouched.
+directly, on their own transaction, not the hook's. There are six end-of-test check scenarios:
+`COMMIT`, `ROLLBACK`, `COMMIT` + `BEGIN`, untouched, savepoint and aborted.
+
+- The hook's `afterEach` only delegates to `endTestTransaction`, so "body throws" is proven on the
+  two lifecycle functions. Author decision after `/verify-against-spec`: no child Vitest run that
+  fails on purpose. The spec states this.
 
 - The `COMMIT` and `COMMIT` + `BEGIN` scenarios commit a transaction that **wrote nothing**, so
   nothing persists even though they commit.

@@ -1,5 +1,7 @@
+import { readdirSync } from 'node:fs';
 import type { Client } from 'pg';
-import { expect, it } from 'vitest';
+import { beforeAll, expect, it } from 'vitest';
+import { MIGRATIONS_DIR } from '../../../packages/adapters/store-postgres/src/migrate';
 import { beginTestTransaction, connect, describeWithDatabase, endTestTransaction, useTransactionPerTest } from './db';
 import { createEdge, createFile, createProject, createSymbol } from './factories';
 
@@ -25,6 +27,15 @@ async function countProjectElsewhere(id: string): Promise<number> {
 describeWithDatabase('test-db-isolation: one reverted transaction per test', () => {
   const db = useTransactionPerTest();
   let idWrittenByPreviousTest: string | undefined;
+
+  it('The shared database is migrated before the first test', async () => {
+    const expected = readdirSync(MIGRATIONS_DIR)
+      .filter((name) => name.endsWith('.up.sql'))
+      .map((name) => name.replace(/\.up\.sql$/, ''))
+      .sort();
+    const { rows } = await db().query<{ name: string }>('SELECT name FROM pgmigrations ORDER BY name');
+    expect(rows.map((row) => row.name)).toEqual(expected);
+  });
 
   it('A test reads back the row it wrote', async () => {
     const id = await insertProject(db());
@@ -91,6 +102,13 @@ describeWithDatabase('test-db-isolation: the end-of-test check', () => {
   });
 
   it('An untouched harness transaction passes the check', async () => {
+    const transaction = await beginTestTransaction();
+    const id = await insertProject(transaction.client);
+    await expect(endTestTransaction(transaction)).resolves.toBeUndefined();
+    expect(await countProjectElsewhere(id)).toBe(0);
+  });
+
+  it('A savepoint inside the harness transaction passes the check', async () => {
     const transaction = await beginTestTransaction();
     const id = await insertProject(transaction.client);
     await transaction.client.query('SAVEPOINT inner_work');
@@ -180,5 +198,23 @@ describeWithDatabase('test-db-isolation: L1 factories', () => {
       source_symbol_id: null,
       target_symbol_id: null,
     });
+  });
+});
+
+describeWithDatabase('test-db-isolation: the test client outside a running test', () => {
+  const db = useTransactionPerTest();
+  let errorInBeforeAll: unknown;
+
+  beforeAll(() => {
+    try {
+      db();
+    } catch (error) {
+      errorInBeforeAll = error;
+    }
+  });
+
+  it('The test client is unavailable outside a running test', () => {
+    expect(errorInBeforeAll).toBeInstanceOf(Error);
+    expect((errorInBeforeAll as Error).message).toBe('db() is only available while a harness test is running.');
   });
 });

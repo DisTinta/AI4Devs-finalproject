@@ -17,6 +17,8 @@ decide in exactly one place what happens when it is missing.
 - `DATABASE_URL` unset and `CI` set: the run MUST fail.
 - The store specs and the harness specs MUST use this same gate: the same implementation, not a
   copy of it.
+- The warning and the CI error SHALL refer to "database integration tests". They cover the harness
+  specs as well as the store specs, and replace the earlier "store integration tests" wording.
 
 The two gate scenarios below run one harness spec (`tests/integration/helpers/harness.spec.ts`)
 and one store spec (`tests/integration/store/graph-schema-constraints.spec.ts`) together, in a
@@ -26,7 +28,7 @@ separate test run. One file from each side is enough, because both reach the sam
 
 - **WHEN** the harness spec and the store spec above run with `DATABASE_URL` unset and `CI`
   unset
-- **THEN** every test in both files is reported as skipped
+- **THEN** both files are reported as skipped, and no test is reported as passed or failed
 - **AND** the output contains the warning that explains how to set `DATABASE_URL`
 - **AND** the run exits with code 0
 
@@ -41,12 +43,38 @@ separate test run. One file from each side is enough, because both reach the sam
 - **WHEN** the integration suite runs with `DATABASE_URL` pointing at a migrated database
 - **THEN** the harness example tests run and pass (none of them is skipped)
 
+This scenario is checked by running the suite itself, locally and in CI. It is a recorded check,
+not an automated test.
+
 ### Requirement: One reverted transaction per test
 
 A test that opts into the harness SHALL run inside its own database transaction. The transaction
 is opened before the test body and reverted after it, whether the body passes or throws. The rows
 the test writes MUST be visible to that test. They MUST NOT be visible to any other connection,
 during the test or after it.
+
+- Before the first test of a spec that opts in, the harness SHALL migrate the shared database, so
+  the spec needs no migration step of its own.
+- The client of the running test's transaction SHALL only be available while that test runs.
+  Asking for it at any other time (for example in a `beforeAll`) MUST fail with an error that says
+  so.
+- The harness SHALL expose, as its API:
+  - the opt-in for a describe block, which returns the accessor for that client;
+  - the two lifecycle functions that open a test transaction and end it with the end-of-test
+    check (the opt-in calls them before and after each test);
+  - a function that opens a new, separate connection to `DATABASE_URL`.
+
+#### Scenario: The shared database is migrated before the first test
+
+- **WHEN** a spec opts into the harness without any migration step of its own
+- **AND** its first test runs
+- **THEN** every migration of the store adapter is already recorded as applied
+
+#### Scenario: The test client is unavailable outside a running test
+
+- **WHEN** a spec that opts into the harness asks for the test client in a `beforeAll`
+- **THEN** the request fails with an error saying the client is only available while a harness
+  test is running
 
 #### Scenario: A test reads back the row it wrote
 
@@ -72,12 +100,22 @@ during the test or after it.
 - **THEN** the transaction is still reverted
 - **AND** a separate connection finds no row with that id
 
+This scenario is exercised through the two lifecycle functions that the opt-in calls around each
+test, not through a test that fails on purpose. The opt-in's after-test step only delegates to the
+end function.
+
 ### Requirement: A committed harness transaction fails the test
 
 When a test ends, the harness SHALL check that the test's transaction is still the one it opened
 and is still open. If it is not, for example because the code under test ran `COMMIT` on the
 harness connection, the harness MUST fail that test. The error message MUST say that the harness
 transaction was committed or ended early, so its rows may have persisted.
+
+- A `SAVEPOINT` keeps the transaction the harness opened, so it passes the check.
+- A transaction aborted by a failed statement is still open, so it passes the check too.
+- Known limit: a `COMMIT`, then a new `BEGIN`, then a failed statement looks the same as an
+  aborted harness transaction. The harness does not detect it, and the rows committed before that
+  `BEGIN` may persist.
 
 #### Scenario: Committing the harness transaction is reported
 
@@ -103,6 +141,13 @@ transaction was committed or ended early, so its rows may have persisted.
 - **WHEN** a test writes rows and leaves the harness transaction open
 - **THEN** the harness end-of-test check passes and the transaction is reverted
 
+#### Scenario: A savepoint inside the harness transaction passes the check
+
+- **WHEN** a test writes a row, then creates and releases a savepoint inside the harness
+  transaction
+- **THEN** the harness end-of-test check passes
+- **AND** the transaction is reverted, so a separate connection finds no row with that id
+
 #### Scenario: An aborted harness transaction passes the check
 
 - **WHEN** a test writes a row and then runs a statement that fails, which leaves the harness
@@ -121,7 +166,19 @@ The harness SHALL provide one factory per L1 graph table: `project`, `file`, `sy
 - Defaults that must be unique (`project.name`, the pair `file (project_id, path)`) MUST be unique
   per call. So factories never collide with each other, with parallel test files, or with rows
   that already exist in the database (for example a loaded seed).
-- Any column MAY be overridden by the caller, and the stored row MUST carry the overridden value.
+- Any column other than `id` MAY be overridden by the caller, and the stored row MUST carry the
+  overridden value.
+  - An edge's four endpoint columns are not overrides. The caller gives each of `source` and
+    `target` as either a symbol id or a file id, never both, and the factory sets the matching
+    column and leaves the other `NULL`.
+- The defaults are:
+
+  | Table | Defaults |
+  |---|---|
+  | `project` | `name` unique per call (`project-…`), `root_path = '/repos/sample'`, `language = 'typescript'` |
+  | `file` | `path` unique per call (`src/file-….ts`), `kind = 'source'` |
+  | `symbol` | `name = 'handle'`, `kind = 'method'`, `start_line = 1`, `end_line = 5` |
+  | `edge` | `kind = 'calls'`, `resolution = 'exact'`, `extractor = 'test-factory'` |
 - Factory defaults MUST be synthetic: fixed placeholders plus a random unique suffix. They are
   never real names, email addresses or host paths.
 
@@ -172,3 +229,6 @@ existing store spec files MUST pass without being edited.
   database after this change
 - **THEN** every test passes
 - **AND** no file under `tests/integration/store/` other than the support module has changed
+
+The second part is a property of the diff. It is a recorded check against the delivery branch,
+not a runtime assertion.
