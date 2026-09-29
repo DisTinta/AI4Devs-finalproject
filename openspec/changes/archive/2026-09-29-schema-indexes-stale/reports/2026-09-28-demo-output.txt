@@ -1,0 +1,267 @@
+STATE BEFORE: {"migrations":["0001_graph-l1","0002_history-claims","0003_indexes-stale"],"counts":{"cache_entry":0,"claim":0,"commit":0,"edge":0,"evidence":0,"file":0,"file_commit":0,"project":0,"query_log":0,"symbol":0},"indexes":30,"databases":["codemind","postgres","template0","template1"]}
+
+=== Part A — lifecycle and indexes (npm scripts, throwaway databases) ===
+
+    reference DB (0001 + 0002 only, via runner): tables 10, enums 11, indexes 13, triggers (none), functions (none), extensions vector; pgmigrations: 0001_graph-l1, 0002_history-claims
+
+[A1] Roll back only the latest migration   (throwaway codemind_demo_7983a88ff85141ffb46f38d3e605050f)
+    $ DATABASE_URL=<throwaway> npm run db:migrate
+      | > Migrating files:
+      | > - 0001_graph-l1
+      | > - 0002_history-claims
+      | > - 0003_indexes-stale
+      | ### MIGRATION 0001_graph-l1 (UP) ###
+      | ### MIGRATION 0002_history-claims (UP) ###
+      | ### MIGRATION 0003_indexes-stale (UP) ###
+      exit=0
+    after migrate: tables 10, enums 11, indexes 30, triggers file_content_hash_marks_claims_stale, functions mark_claims_stale_on_content_change, extensions vector
+    $ DATABASE_URL=<throwaway> npm run db:rollback
+      | > Migrating files:
+      | > - 0003_indexes-stale
+      | ### MIGRATION 0003_indexes-stale (DOWN) ###
+      exit=0
+    after rollback: tables 10, enums 11, indexes 13, triggers (none), functions (none), extensions vector; pgmigrations: 0001_graph-l1, 0002_history-claims; snapshot == reference: true
+  => MATCHES spec: exit 0; 0003's indexes/trigger/function gone; ten tables kept; identical to the 0001+0002 reference
+
+[A2] Roll back the L1 graph migration   (continue: reach "only L1 applied", then roll back)
+    $ DATABASE_URL=<throwaway> npm run db:rollback
+      | > Migrating files:
+      | > - 0002_history-claims
+      | ### MIGRATION 0002_history-claims (DOWN) ###
+      exit=0
+    pgmigrations: 0001_graph-l1
+    $ DATABASE_URL=<throwaway> npm run db:rollback
+      | > Migrating files:
+      | > - 0001_graph-l1
+      | ### MIGRATION 0001_graph-l1 (DOWN) ###
+      exit=0
+    after rollback: tables 0, enums 0, indexes 0, triggers (none), functions (none), extensions vector
+  => MATCHES spec: exit 0; L1 tables and enums gone
+
+[A3] Roll back both migrations leaves an empty schema   (fresh throwaway codemind_demo_50c7c85599764d9694a2044ffc372fa3)
+    $ DATABASE_URL=<throwaway> npm run db:migrate
+      | > Migrating files:
+      | > - 0001_graph-l1
+      | > - 0002_history-claims
+      | > - 0003_indexes-stale
+      | ### MIGRATION 0001_graph-l1 (UP) ###
+      | ### MIGRATION 0002_history-claims (UP) ###
+      | ### MIGRATION 0003_indexes-stale (UP) ###
+      exit=0
+    $ DATABASE_URL=<throwaway> npm run db:rollback
+      | > Migrating files:
+      | > - 0003_indexes-stale
+      | ### MIGRATION 0003_indexes-stale (DOWN) ###
+      exit=0
+    precondition — pgmigrations: 0001_graph-l1, 0002_history-claims
+    $ DATABASE_URL=<throwaway> npm run db:rollback
+      | > Migrating files:
+      | > - 0002_history-claims
+      | ### MIGRATION 0002_history-claims (DOWN) ###
+      exit=0
+    $ DATABASE_URL=<throwaway> npm run db:rollback
+      | > Migrating files:
+      | > - 0001_graph-l1
+      | ### MIGRATION 0001_graph-l1 (DOWN) ###
+      exit=0
+    after two rollbacks: tables 0, enums 0, indexes 0, triggers (none), functions (none), extensions vector
+  => MATCHES spec: exits 0/0; no table, no enum; vector kept
+
+[A4] Roll back every migration leaves an empty schema   (fresh throwaway codemind_demo_4f98c8da03cd4e6295b7c8f6050f475e)
+    $ DATABASE_URL=<throwaway> npm run db:migrate
+      | > Migrating files:
+      | > - 0001_graph-l1
+      | > - 0002_history-claims
+      | > - 0003_indexes-stale
+      | ### MIGRATION 0001_graph-l1 (UP) ###
+      | ### MIGRATION 0002_history-claims (UP) ###
+      | ### MIGRATION 0003_indexes-stale (UP) ###
+      exit=0
+    $ DATABASE_URL=<throwaway> npm run db:rollback
+      | > Migrating files:
+      | > - 0003_indexes-stale
+      | ### MIGRATION 0003_indexes-stale (DOWN) ###
+      exit=0
+    $ DATABASE_URL=<throwaway> npm run db:rollback
+      | > Migrating files:
+      | > - 0002_history-claims
+      | ### MIGRATION 0002_history-claims (DOWN) ###
+      exit=0
+    $ DATABASE_URL=<throwaway> npm run db:rollback
+      | > Migrating files:
+      | > - 0001_graph-l1
+      | ### MIGRATION 0001_graph-l1 (DOWN) ###
+      exit=0
+    3 rollbacks, exits 0/0/0; tables 0, enums 0, indexes 0, triggers (none), functions (none), extensions vector; pgmigrations: (none)
+  => MATCHES spec: 3 calls, all exit 0; no table, enum, index, trigger or function; nothing recorded; vector kept
+
+[A5] Apply, roll back and apply again   (fresh throwaway codemind_demo_9977827354104447b981b90a9e37c0e0)
+    $ DATABASE_URL=<throwaway> npm run db:migrate
+      | > Migrating files:
+      | > - 0001_graph-l1
+      | > - 0002_history-claims
+      | > - 0003_indexes-stale
+      | ### MIGRATION 0001_graph-l1 (UP) ###
+      | ### MIGRATION 0002_history-claims (UP) ###
+      | ### MIGRATION 0003_indexes-stale (UP) ###
+      exit=0
+    $ DATABASE_URL=<throwaway> npm run db:rollback
+      | > Migrating files:
+      | > - 0003_indexes-stale
+      | ### MIGRATION 0003_indexes-stale (DOWN) ###
+      exit=0
+    $ DATABASE_URL=<throwaway> npm run db:migrate
+      | > Migrating files:
+      | > - 0003_indexes-stale
+      | ### MIGRATION 0003_indexes-stale (UP) ###
+      exit=0
+    one rollback: second == first (incl. indexes, triggers, functions): true
+    $ DATABASE_URL=<throwaway> npm run db:rollback
+      | > Migrating files:
+      | > - 0003_indexes-stale
+      | ### MIGRATION 0003_indexes-stale (DOWN) ###
+      exit=0
+    $ DATABASE_URL=<throwaway> npm run db:rollback
+      | > Migrating files:
+      | > - 0002_history-claims
+      | ### MIGRATION 0002_history-claims (DOWN) ###
+      exit=0
+    $ DATABASE_URL=<throwaway> npm run db:rollback
+      | > Migrating files:
+      | > - 0001_graph-l1
+      | ### MIGRATION 0001_graph-l1 (DOWN) ###
+      exit=0
+    $ DATABASE_URL=<throwaway> npm run db:migrate
+      | > Migrating files:
+      | > - 0001_graph-l1
+      | > - 0002_history-claims
+      | > - 0003_indexes-stale
+      | ### MIGRATION 0001_graph-l1 (UP) ###
+      | ### MIGRATION 0002_history-claims (UP) ###
+      | ### MIGRATION 0003_indexes-stale (UP) ###
+      exit=0
+    full cycle (3 rollbacks): second == first: true; tables 10, enums 11, indexes 30, triggers file_content_hash_marks_claims_stale, functions mark_claims_stale_on_content_change, extensions vector
+  => MATCHES spec: identical after one rollback and after a full cycle, indexes/triggers/functions included
+
+[A6] Migrated schema has the query and vector indexes   (same DB, migrated)
+    spec rows parsed: 17; secondary indexes in catalog: 17
+      cache_entry(project_id) btree
+      cache_entry(question_embedding) hnsw vector_cosine_ops
+      claim(project_id) btree
+      claim(project_id, status) btree WHERE status = 'stale'
+      edge(project_id) btree
+      edge(source_file_id, kind) btree WHERE source_file_id IS NOT NULL
+      edge(source_symbol_id, kind) btree WHERE source_symbol_id IS NOT NULL
+      edge(target_file_id, kind) btree WHERE target_file_id IS NOT NULL
+      edge(target_symbol_id, kind) btree WHERE target_symbol_id IS NOT NULL
+      evidence(claim_id) btree
+      evidence(file_id) btree
+      file(embedding) hnsw vector_cosine_ops
+      file(project_id, content_hash) btree
+      file_commit(commit_id) btree
+      query_log(project_id) btree
+      symbol(embedding) hnsw vector_cosine_ops
+      symbol(file_id) btree
+    missing: (none); extra: (none)
+  => MATCHES spec: 17 spec rows, 17 indexes, 0 missing, 0 extra
+
+[A7] Every cascading foreign key is indexed
+      indexed   cache_entry.project_id
+      indexed   claim.project_id
+      indexed   commit.project_id
+      indexed   edge.project_id
+      indexed   edge.source_file_id
+      indexed   edge.source_symbol_id
+      indexed   edge.target_file_id
+      indexed   edge.target_symbol_id
+      indexed   evidence.claim_id
+      indexed   evidence.file_id
+      indexed   file.project_id
+      indexed   file_commit.commit_id
+      indexed   file_commit.file_id
+      indexed   query_log.project_id
+      indexed   symbol.file_id
+  => MATCHES spec: 15 cascading FKs, all lead an index
+
+=== Part B — stale invalidation (shared DB, BEGIN … ROLLBACK per scenario) ===
+
+[B1] Changing a file's content hash marks the claims that cite it stale
+    before: status=current updated_at=2000-01-01T00:00:00.000Z
+    > UPDATE file SET content_hash = $2 WHERE id = $1   [<id>, h2]
+    after: status=stale updated_at=2026-09-29T06:16:52.946Z
+    transaction now(): 2026-09-29T06:16:52.946Z
+  => MATCHES spec: stale; updated_at moved from 2000-01-01T00:00:00.000Z to the transaction time 2026-09-29T06:16:52.946Z
+
+[B2] Claims citing only other files stay current
+    > UPDATE file SET content_hash = $2 WHERE id = $1   [<id>, b2]
+    claim citing only A, after B changed: status=current updated_at=2000-01-01T00:00:00.000Z
+    claim citing B, after B changed: status=stale updated_at=2026-09-29T06:16:52.988Z
+  => MATCHES spec: the claim on A still current with updated_at untouched; the claim on B stale
+
+[B3] Updating other columns of a file leaves its claims current
+    > UPDATE file SET loc = $2, redacted = true WHERE id = $1   [<id>, 120]
+    after: status=current updated_at=2000-01-01T00:00:00.000Z
+  => MATCHES spec: still current, updated_at untouched
+
+[B4] Writing the same content hash again leaves claims current
+    > UPDATE file SET content_hash = $2 WHERE id = $1   [<id>, h1]
+    after: status=current updated_at=2000-01-01T00:00:00.000Z
+  => MATCHES spec: still current, updated_at untouched
+
+[B5] Setting a first content hash marks the claims that cite it stale
+    > UPDATE file SET content_hash = $2 WHERE id = $1   [<id>, h1]
+    after NULL → h1: status=stale updated_at=2026-09-29T06:16:53.051Z
+  => MATCHES spec: stale
+
+[B6] Clearing a content hash marks the claims that cite it stale
+    > UPDATE file SET content_hash = $2 WHERE id = $1   [<id>, ]
+    after h1 → NULL: status=stale updated_at=2026-09-29T06:16:53.068Z
+  => MATCHES spec: stale
+
+[B7] A claim already stale is not touched
+    > UPDATE file SET content_hash = $2 WHERE id = $1   [<id>, h2]
+    after: status=stale updated_at=2000-01-01T00:00:00.000Z
+  => MATCHES spec: still stale, updated_at untouched
+
+[B8] A claim citing several files becomes stale when one of them changes
+    > UPDATE file SET content_hash = $2 WHERE id = $1   [<id>, b2]
+    after only B changed: status=stale updated_at=2026-09-29T06:16:53.104Z
+  => MATCHES spec: stale
+
+[B9] One statement that changes several files marks every claim citing them stale
+    > UPDATE file SET content_hash = content_hash || '-v2' WHERE id = ANY($1)   [<A>, <B>] → 2 rows
+    claim citing A and B: status=stale updated_at=2026-09-29T06:16:53.124Z
+    claim citing only B: status=stale updated_at=2026-09-29T06:16:53.124Z
+    claim citing only C: status=current updated_at=2000-01-01T00:00:00.000Z
+    updated_at = now() (compared in SQL, µs): A+B true, B true
+  => MATCHES spec: one statement, two files: the A+B and B claims stale at now(); the C claim current, updated_at untouched
+
+[B10] An upsert that changes a file's content hash marks the claims that cite it stale
+    > INSERT INTO file … ON CONFLICT (project_id, path) DO UPDATE SET content_hash = EXCLUDED.content_hash   [<project>, <path>] → id unchanged, content_hash=h2
+    after: status=stale updated_at=2026-09-29T06:16:53.164Z
+    file rows in project: 1; updated_at = now() (SQL, µs): true
+  => MATCHES spec: same file row, new hash; claim stale at now()
+
+[B11] A content hash rewritten by another trigger still marks the claims that cite it stale
+    (throwaway BEFORE UPDATE trigger demo_rewrite_hash_a768f4aeddf741ef9c05a329a518b294 rewrites this file's content_hash; dropped by ROLLBACK)
+    > UPDATE file SET loc = $2 WHERE id = $1   [<id>, 42]
+    after (content_hash now 'rewritten'): status=stale updated_at=2026-09-29T06:16:53.188Z
+  => MATCHES spec: hash rewritten by the other trigger; claim stale
+
+[B12] Invalidation works whatever the session's search_path
+    > SET LOCAL search_path = pg_catalog   (session now: pg_catalog)
+    > UPDATE public.file SET content_hash = $2 WHERE id = $1   [<id>, h2]
+    after: status=stale
+  => MATCHES spec: update succeeded; claim stale
+
+[B13] A session temporary table named claim does not intercept invalidation
+    > CREATE TEMP TABLE claim ON COMMIT DROP AS SELECT … FROM public.claim   (session temp table shadows the name)
+    > UPDATE public.file SET content_hash = $2 WHERE id = $1   [<id>, h2]
+    after: public.claim status=stale; pg_temp.claim status=current
+  => MATCHES spec: the schema table's claim stale; the temp table untouched
+
+STATE AFTER: {"migrations":["0001_graph-l1","0002_history-claims","0003_indexes-stale"],"counts":{"cache_entry":0,"claim":0,"commit":0,"edge":0,"evidence":0,"file":0,"file_commit":0,"project":0,"query_log":0,"symbol":0},"indexes":30,"databases":["codemind","postgres","template0","template1"]}
+STATE RESTORED (identical): true
+
+SUMMARY: 20 scenarios exercised, 20 match the spec, 0 do not
+COVERAGE: 20 scenarios in the spec, 20 exercised, 0 missing

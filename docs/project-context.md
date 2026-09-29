@@ -75,9 +75,10 @@ Verified against `package.json` (root and per package). If a command is not here
 - Migrations: `npm run db:migrate` (apply all pending) / `npm run db:rollback` (revert the latest
   one) — `tsx packages/adapters/store-postgres/src/migrate.ts up|down`, node-pg-migrate with SQL
   files `NNNN_name.up.sql` / `NNNN_name.down.sql` in `packages/adapters/store-postgres/migrations/`
-  (bookkeeping table `pgmigrations`). Two migrations exist: `0001_graph-l1` (project, file,
-  symbol, edge) and `0002_history-claims` (commit, file_commit, claim, evidence, query_log,
-  cache_entry). Each `db:rollback` reverts **one** migration, the latest. Both need `DATABASE_URL` (non-zero exit without it); locally
+  (bookkeeping table `pgmigrations`). Three migrations exist: `0001_graph-l1` (project, file,
+  symbol, edge), `0002_history-claims` (commit, file_commit, claim, evidence, query_log,
+  cache_entry) and `0003_indexes-stale` (secondary and HNSW indexes, and the trigger that marks
+  claims `stale` when a file's `content_hash` changes). Each `db:rollback` reverts **one** migration, the latest. Both need `DATABASE_URL` (non-zero exit without it); locally
   `postgres://codemind:codemind@localhost:5432/codemind` with the compose defaults.
 - Seed / verify are **placeholders**: `npm run db:seed`, `seed:build`, `verify` print a
   "pending Ticket …" message and exit 0. They do nothing yet.
@@ -92,8 +93,9 @@ Verified against `package.json` (root and per package). If a command is not here
 - DB integration tests need `DATABASE_URL`. Unset locally → they are **skipped with a warning**
   (so a green run may have skipped them); unset in CI (`CI` set) → they fail. Isolation is minimal
   until DIS-22: lifecycle tests use a throwaway database each; constraint tests run in
-  `BEGIN`/`ROLLBACK` with per-test unique values. Only the two constraints files
-  (`graph-schema-constraints.spec.ts`, `history-claims-constraints.spec.ts`) migrate the shared DB,
+  `BEGIN`/`ROLLBACK` with per-test unique values. Only three files
+  (`graph-schema-constraints.spec.ts`, `history-claims-constraints.spec.ts`, `indexes-stale.spec.ts`)
+  migrate the shared DB,
   always through `migrateSharedDatabase()` in `support.ts`; no test rolls it back.
 - Test data comes from `fixtures/` (`acme-shop`, `task-api`, `history`, `build-history.mjs`) and
   `seeds/graph-dump.sql`. `fixtures/**` is excluded from Vitest collection.
@@ -188,10 +190,13 @@ services that must be started first, quirks of the local environment.
   `tests/integration/` so they stay excluded. Locally, an aborted Stryker run leaves
   `.stryker-tmp/` behind (gitignored). A later `npx vitest run` then collects the tests in that
   sandbox, so delete the folder by hand.
-- **`tests/integration/store/schema-snapshot.ts` does not capture indexes, triggers, functions,
-  sequences or views** — only columns, constraints, enums and extensions. Enough for migrations
-  0001 and 0002, which have none of them; DIS-13 (indexes/triggers) must extend it before reusing it in a
-  reversibility test.
+- **What `snapshotSchema` (`tests/integration/store/schema-snapshot.ts`) compares.** Columns,
+  constraints, enums, extensions, indexes (`pg_indexes.indexdef`, including primary-key and unique
+  ones), user triggers and functions. It does **not** capture sequences or views. It excludes the
+  functions an extension owns (`pg_depend.deptype = 'e'`): pgvector installs 118 of them in
+  `public`. A new migration that adds a sequence or a view must extend the helper before a
+  reversibility test can see it. The partial-index predicate of the index contract test is
+  normalised (outer parentheses and `::type` casts stripped).
 - **OpenSpec native skills are not under `ai-specs/`.** After `openspec init`, `/opsx:*` skills live
   in `.claude/skills/openspec-*` and `.cursor/skills/openspec-*`. Do not delete them on sync; they
   coexist with kit skills.
