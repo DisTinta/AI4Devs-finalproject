@@ -138,7 +138,10 @@ export async function snapshotSchema(databaseUrl: string): Promise<SchemaSnapsho
 /** Contract shape of a secondary index: what the spec fixes, independent of its name and formatting. */
 export interface IndexShape {
   table: string;
-  /** Key columns, in order (`INCLUDE` columns are not key columns: see `included`). */
+  /**
+   * Key columns, in order (`INCLUDE` columns are not key columns: see `included`). An expression
+   * key is reported as `expr:<expression>`, so it never matches a plain column.
+   */
   columns: string[];
   /** `INCLUDE` (non-key) columns, in order; empty when there are none. */
   included: string[];
@@ -186,12 +189,16 @@ export async function secondaryIndexShapes(databaseUrl: string): Promise<IndexSh
     }>(`
       SELECT t.relname AS "table",
              -- indkey lists the key columns first (indnkeyatts of them), then the INCLUDE columns.
-             ARRAY(SELECT a.attname FROM unnest(ix.indkey::int2[]) WITH ORDINALITY k(attnum, ord)
-                   JOIN pg_attribute a ON a.attrelid = ix.indrelid AND a.attnum = k.attnum
+             -- An expression key has attnum 0 and no pg_attribute row, so every position is read with
+             -- pg_get_indexdef(index, position) instead, and an expression is kept as "expr:<text>":
+             -- a join on pg_attribute would drop it silently.
+             ARRAY(SELECT CASE WHEN k.attnum = 0 THEN 'expr:' ELSE '' END
+                          || pg_get_indexdef(ix.indexrelid, k.ord::int, true)
+                   FROM unnest(ix.indkey::int2[]) WITH ORDINALITY k(attnum, ord)
                    WHERE k.ord <= ix.indnkeyatts
                    ORDER BY k.ord)::text[] AS "columns",
-             ARRAY(SELECT a.attname FROM unnest(ix.indkey::int2[]) WITH ORDINALITY k(attnum, ord)
-                   JOIN pg_attribute a ON a.attrelid = ix.indrelid AND a.attnum = k.attnum
+             ARRAY(SELECT pg_get_indexdef(ix.indexrelid, k.ord::int, true)
+                   FROM unnest(ix.indkey::int2[]) WITH ORDINALITY k(attnum, ord)
                    WHERE k.ord > ix.indnkeyatts
                    ORDER BY k.ord)::text[] AS "included",
              ix.indisunique AS "unique",
