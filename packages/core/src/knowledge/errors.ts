@@ -50,6 +50,27 @@ export class InvalidGraph extends DomainError {
   }
 }
 
+/** A read argument the store checks before querying. */
+export type StoreQueryArgument = 'name' | 'kinds' | 'hops';
+
+/** A read was called with an invalid argument; nothing was sent to the database. */
+export class InvalidStoreQuery extends DomainError {
+  /** Stable code. */
+  readonly code = 'INVALID_STORE_QUERY';
+
+  /**
+   * @param argument The argument at fault.
+   * @param reason What is wrong with it.
+   */
+  constructor(
+    readonly argument: StoreQueryArgument,
+    reason: string,
+  ) {
+    super(`Invalid store query: ${argument} ${reason}`);
+    this.name = 'InvalidStoreQuery';
+  }
+}
+
 function describeViolation(violation: GraphViolation): string {
   const where = violation.field ? `${violation.element}.${violation.field}` : violation.element;
   return `${where}: ${violation.message}`;

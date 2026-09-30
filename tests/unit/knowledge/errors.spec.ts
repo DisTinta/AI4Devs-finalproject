@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DomainError, ProjectNameTaken, ProjectNotFound } from '@codemind/core';
+import { DomainError, InvalidStoreQuery, ProjectNameTaken, ProjectNotFound } from '@codemind/core';
 
 // The codes are the stable contract a transport maps (design D1); messages name the offending value.
 describe('domain errors', () => {
@@ -25,5 +25,17 @@ describe('domain errors', () => {
     expect(error.name).toBe('ProjectNameTaken');
     expect(error.projectName).toBe('sample-project');
     expect(error.message).toBe('Project name already taken: sample-project');
+  });
+
+  it('InvalidStoreQuery carries its stable code and the argument', () => {
+    // Arrange / Act
+    const error = new InvalidStoreQuery('hops', 'must be an integer from 1 to 3 (got 4)');
+
+    // Assert
+    expect(error).toBeInstanceOf(DomainError);
+    expect(error.code).toBe('INVALID_STORE_QUERY');
+    expect(error.name).toBe('InvalidStoreQuery');
+    expect(error.argument).toBe('hops');
+    expect(error.message).toBe('Invalid store query: hops must be an integer from 1 to 3 (got 4)');
   });
 });

@@ -109,7 +109,8 @@ Verified against `package.json` (root and per package). If a command is not here
   - A `SAVEPOINT` is fine, and so is a statement that fails (an aborted transaction).
   - The store (DIS-23) cooperates through its connection mode: in tests build it with
     `createPostgresStore({ transaction: db() })`. Every write then runs in `SAVEPOINT store_write`
-    and a failed write rolls back to it, so the test can keep querying `db()`. In production it is
+    and a failed write rolls back to it, so the test can keep querying `db()`. Reads (DIS-24) send
+    one plain statement, with no savepoint. In production it is
     `createPostgresStore({ pool })`, which opens and commits its own transaction per write. A test
     that needs a real commit (`graph-write-pool.spec.ts`) uses a unique project name and deletes the
     project in `finally`; the schema cascades the rest.
@@ -255,8 +256,8 @@ services that must be started first, quirks of the local environment.
   `adapters/{store-postgres,llm,git}`, `api`, `cli`, `web`) have a `package.json` and a `src/index.ts`,
   but the analyzer/adapter ones are empty stubs (dependency-cruiser flags them as `no-orphans` warns).
   They resolve in `npm ls`; do not expect real behaviour from them yet. Exception: `store-postgres`
-  implements the write side of `StorePort` (`createProject`, `saveGraph`, DIS-23). Graph reads
-  arrive with DIS-24.
+  implements `StorePort`: writes (`createProject`, `saveGraph`, DIS-23) and reads (`getProject`,
+  `listProjects`, `findSymbols`, `neighbors`, DIS-24).
 - **`saveGraph` takes a full snapshot of the project.** Files are upserted in place by
   `(project_id, path)` and keep their ids, so `file_commit`, `evidence` and the stale trigger keep
   working. Files missing from the snapshot are deleted; right before, in the same transaction,
@@ -267,11 +268,29 @@ services that must be started first, quirks of the local environment.
   `redacted` always follow the snapshot. It validates the graph in core first (`InvalidGraph`,
   before `ProjectNotFound`) and never changes `project.framework`, which is fixed at
   `createProject`.
+- **Graph reads are per project and hold ids only until the next reindex** (DIS-24).
+  - Every read filters by `project_id` first. An unknown project, or an id that is not a
+    hyphenated UUID, fails with `ProjectNotFound`, and the malformed id fails without SQL. Blank
+    search terms, terms containing a NUL character (Postgres rejects NUL as text), empty kind lists and `hops` outside 1..`MAX_HOPS` (3) fail with
+    `InvalidStoreQuery`, also without SQL.
+  - Symbol ids change on every `saveGraph`, while file ids survive while the path stays. Name a
+    symbol across reindexes by its `SymbolRef` (`file`, `name`, `startLine`), which every symbol
+    result carries.
+  - `neighbors` is one `WITH RECURSIVE` statement over mixed nodes (symbol and file seeds and
+    results). It follows edges source → target only (no direction parameter yet, see DIS-89),
+    returns each node once at its minimum distance, and never returns the seeds. Consumers that
+    want only symbols filter by `type`. Reached nodes are also filtered by project, so even an
+    edge pointing into another project (which the writer never produces) returns nothing foreign.
+  - Names and paths sort in byte order (`COLLATE "C"`), not by the database locale: `Zeta` before
+    `alpha`. The local database is `en_US.utf8`, so dropping the collation changes the order.
+  - `findSymbols` is a case-insensitive, literal substring match (`ILIKE` with `\`, `%`, `_`
+    escaped).
 - **Vitest can report success with no tests** (`passWithNoTests: true`). A green suite is not
   evidence that behaviour is covered.
 - **The repo is mid-build (Entrega 2).** `db:seed`/`seed:build`/`verify` are placeholders that
   no-op. The schema has migrations `0001`–`0003`, but only the L1 graph and history
-  (`project`, `file`, `symbol`, `edge`, `commit`, `file_commit`) have a writer so far.
+  (`project`, `file`, `symbol`, `edge`, `commit`, `file_commit`) have a writer so far, and only
+  `project`, `file`, `symbol` and `edge` have a reader.
   `db:migrate` / `db:rollback` are real and need `DATABASE_URL`: `make up` gets it from `.env`,
   because the Makefile includes and exports `.env`. Plain `npm run db:*` does not read `.env`.
   Do not assume a working end-to-end flow exists.

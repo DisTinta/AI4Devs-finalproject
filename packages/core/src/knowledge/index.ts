@@ -4,5 +4,7 @@ export * from './graph-symbol.js';
 export * from './graph-edge.js';
 export * from './graph-commit.js';
 export * from './graph.js';
+export * from './graph-read.js';
 export * from './errors.js';
 export * from './validate-graph.js';
+export * from './read-arguments.js';
