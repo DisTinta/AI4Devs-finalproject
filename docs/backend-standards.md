@@ -17,6 +17,8 @@ alwaysApply: true
 - **Vitest** as the test runner, **Playwright** for end-to-end
   _(Playwright is a target; not yet a dependency — remove this note when installed)_
 - **ESLint** + `tsc --noEmit` + **dependency-cruiser** for the dependency rule
+- **simple-git** only inside `packages/adapters/git`, behind `GitPort`; it shells out to the `git`
+  binary, so `git` must be on `PATH` wherever the adapter or its tests run
 
 ## 2. Layered architecture
 
