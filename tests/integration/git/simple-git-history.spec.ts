@@ -11,7 +11,7 @@ import { describeWithDatabase, useTransactionPerTest } from '../helpers/db';
 import { unique } from '../helpers/factories';
 import { file } from '../../support/sample-graph';
 
-// Spec: openspec/changes/git-history-extraction/specs/git-history/spec.md. Each test is one scenario,
+// Spec: openspec/specs/git-history/spec.md (archived change: 2026-09-30-git-history-extraction). Each test is one scenario,
 // named after it. acme-shop's `.git` is rebuilt once here (only this spec rebuilds a fixture); the
 // other repositories are temporary, under the OS temp dir, with synthetic identities only.
 

@@ -5,7 +5,7 @@
 // Run from the repository root, after `node fixtures/build-history.mjs` and `npx tsc --build`
 // (the adapter resolves `@codemind/core` to its dist), with a migrated database:
 //   DATABASE_URL=postgres://codemind:codemind@localhost:5432/codemind \
-//     npx tsx openspec/changes/git-history-extraction/reports/2026-09-30-demo.mts
+//     npx tsx openspec/changes/archive/2026-09-30-git-history-extraction/reports/2026-09-30-demo.mts
 // The transcript is saved next to this file as 2026-09-30-demo-output.txt.
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -13,8 +13,8 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import pg from 'pg';
 import { extractPrNumber, NotAGitRepository, pseudonymiseAuthor } from '@codemind/core';
-import { authorHashSaltFromEnv, createSimpleGitHistory } from '../../../../packages/adapters/git/src/index';
-import { createPostgresStore } from '../../../../packages/adapters/store-postgres/src/index';
+import { authorHashSaltFromEnv, createSimpleGitHistory } from '../../../../../packages/adapters/git/src/index';
+import { createPostgresStore } from '../../../../../packages/adapters/store-postgres/src/index';
 
 const SALT = 'demo-salt-2026-09-30';
 const ACME_SHOP = resolve('fixtures/acme-shop');

@@ -1,10 +1,13 @@
+# git-history Specification
+
 ## Purpose
 
 How the domain reads a repository's Git history through `GitPort`: commits, the files each commit
-touched with their line counts, and the pull-request number, with every author pseudonymised so that
-no contributor's name or e-mail ever reaches the knowledge-graph store.
+touched with their line counts, and the pull-request number, with every author pseudonymised and
+identity trailers removed, so that no contributor's name or e-mail reaches the structured fields of
+the knowledge-graph store (free text of message bodies is stored as written).
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: History reading
 
