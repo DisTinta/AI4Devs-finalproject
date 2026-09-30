@@ -134,7 +134,9 @@ SELECT p.id AS project_id, s.id, f.path, s.name, s.kind, s.start_line, s.end_lin
 ```
 
 `$2` is the term with `\`, `%` and `_` escaped (`\\`, `\%`, `\_`) in TypeScript; `ILIKE` gives the
-case-insensitive comparison. Filtering starts at `file.project_id` (unique index
+case-insensitive comparison. Case folding follows the database `LC_CTYPE` (`en_US.utf8` locally),
+so non-ASCII letters such as `É` / `é` fold only where that locale folds them; this is accepted
+and not pinned by a test (second adversarial review, destination D). Filtering starts at `file.project_id` (unique index
 `file_project_path_key` leads with it), then `symbol_file_id_idx`.
 
 *Alternative rejected:* `position(lower($2) in lower(name)) > 0` — no escaping needed, but it
@@ -273,13 +275,21 @@ Deferred findings of the adversarial review (2026-09-30), with their destination
 - **C — Traversal performance measurement** against the readme target (100 000 edges, 2 hops,
   under 200 ms). Path enumeration grows with fan-out^hops (see Risks). Same DIS-24 checklist
   comment (`57fb31d7`).
-- **B — Runtime `null` arguments from untyped callers** (`seeds: null`, `name: null`) throw a
-  `TypeError` in the adapter, not a domain error. Owned by DIS-27's input validation (comment
-  `8a545b0c` on DIS-27).
+- **C — Walking through a foreign node** (second review). The walk checks each edge's
+  `project_id` but not the node it stands on: with corrupt edges (A→X with X of another project,
+  then X→Y) `Y` is returned and its distance depends on X; X itself is filtered out. Same DIS-24
+  checklist comment (`57fb31d7`).
+- **C — Seed and walk project filters tested on their own** (second review). Each is only proven
+  together with the other; on valid data they back each other up. Same DIS-24 checklist comment
+  (`57fb31d7`).
+- **B — Runtime `null` arguments and out-of-enum kinds from untyped callers.** `seeds: null` /
+  `name: null` throw a `TypeError`; a kind outside the enum fails the SQL cast with `22P02` and
+  aborts a caller-owned transaction. Owned by DIS-27's input validation (comment `8a545b0c` on
+  DIS-27).
 
 Fixed in the change (§13): a NUL character in the search term (`InvalidStoreQuery('name')`) and
 the missing byte-order test of `listProjects`. Recorded only (destination D): the visited-path
-check is performance only (D6).
+check is performance only (D6), and non-ASCII case folding follows the database `LC_CTYPE` (D5).
 
 ## Open Questions
 

@@ -152,3 +152,15 @@ Commands (same `DATABASE_URL`): `npx vitest run tests/integration/store/graph-re
   success. The PR description's scenario table was regenerated with the test line numbers of
   `f7f5ce3`.
 
+## Second adversarial review (2026-09-30) — destinations
+
+Verdict PASS WITH GAPS, no Blocker or Major. Fixed (A): the PR description's scenario table
+line numbers and the CI evidence of `f7f5ce3` (above). Deferred, confirmed by the author:
+
+- C — walking through a foreign node with corrupt edges, and testing the seed and walk project
+  filters on their own: added to the DIS-24 checklist comment `57fb31d7`;
+- B — out-of-enum kinds (`22P02`), next to the runtime `null` arguments: DIS-27 note `8a545b0c`;
+- D — non-ASCII `ILIKE` case folding follows the database `LC_CTYPE`: recorded in design D5.
+
+No code changed for these; `design.md` Follow-ups lists each with its destination.
+
