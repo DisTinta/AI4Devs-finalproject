@@ -164,6 +164,36 @@ Verified against `package.json` (root and per package). If a command is not here
      Spanish in the same sentence. Identifiers may stay as-is (`DIS-11`, `schema-graph-l1`,
      file paths, command names). Code, commits, OpenSpec artifacts, ADRs and PR technical body
      remain English.
+- **Tracking deferred findings** (after `/adversarial-review`, `/verify-against-spec`, or any
+  author decision to leave a gap open). A finding that is **not** fixed in the current change
+  MUST leave the change with an owner and a place that stays queryable. A note only in an
+  archived `design.md`, or only on a ticket that is about to close, is not enough.
+
+  Every deferred Minor/Major (and every accepted product risk that still needs a follow-up)
+  is classified as exactly one of:
+
+  | Destination | When | Where it lives |
+  |---|---|---|
+  | **A. Fix now** | Product invariant, or a hole this change introduces | `/opsx:update` + delta in the same change |
+  | **B. Successor ticket** | A later sub-issue already owns it (e.g. DIS-24, DIS-10) | Spanish Linear comment on that ticket **and** a Follow-ups line in `design.md` with the id |
+  | **C. Explicit debt** | No near-term owner on the roadmap | Prefer **one** Linear issue `Deuda: <change-id>` (checklist). Lighter option, author-approved: **one** Spanish checklist comment on the current ticket (readable after Done) **and** the same list in `design.md` Follow-ups. Never one issue per minor. |
+  | **D. Accepted forever** | Conscious, permanent risk | Spec / non-goals and `design.md` only; **no** Linear issue |
+
+  Without a destination, the change is not ready to archive.
+
+  **Archive ritual** (three checks):
+  1. **Inbound:** notes from earlier changes *into* this ticket — close them or reassign.
+  2. **Outbound:** every review gap has A/B/C/D with a Linear link or an explicit “accepted”.
+  3. **PR / Linear In Review:** short table of remaining gaps and links in the Spanish status
+     comment.
+
+  **Do not:** open one Linear issue per stylistic or process minor (e.g. “RED was not observed”,
+  “spec not yet committed”); leave the gap **only** on the closing ticket’s comment without
+  `design.md` Follow-ups; invent retrospective issues for the whole OpenSpec archive. The rule
+  applies from adoption forward; older archives are cleaned when that ticket is touched again.
+
+  Agents enforce the classification via the `adversarial-review` skill; humans confirm Linear
+  creates/comments before the agent opens issues.
 
 ## Operational constraints
 
