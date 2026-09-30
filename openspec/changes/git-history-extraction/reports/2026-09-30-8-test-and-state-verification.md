@@ -121,3 +121,6 @@ PR #11 (https://github.com/DisTinta/AI4Devs-finalproject/pull/11), head `fe252c1
   | `authorHash: email` | "The returned history holds no name or e-mail" (a fixture e-mail in the serialised history) |
 
 - State after: `project/file/commit/file_commit` 0/0/0/0, `git status --porcelain fixtures` empty.
+- CI on the delta: PR #11 head `a0fae0c`, `ci.yml` run 36758833219 — success (1m59s), `frontend` —
+  success. `Tests`: 16 files, 232 passed; `simple-git-history.spec.ts` ran 15 tests, database block
+  included. Mutation: all core files 89.90 % (unchanged: the delta touched no production code).
