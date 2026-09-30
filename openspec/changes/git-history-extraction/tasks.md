@@ -101,4 +101,4 @@
 - [x] 13.4 RED → GREEN (Minor): integration test "The adapter trims the salt it receives"
 - [x] 13.5 Prove the new tests can fail (scratch copy, restore, `cmp`): drop the upper bound; go back to `\x1e`/`\x1f` framing; use the untrimmed salt in the adapter
 - [x] 13.6 Debt and hand-offs: one C checklist comment in Spanish on DIS-35; one B comment in Spanish on DIS-85 (log in memory)
-- [ ] 13.7 Verify: `npx vitest run`, `npm run typecheck`, `npm run lint`, `npm run lint:architecture`, `npm run docs:coverage`, `npx stryker run`; 25 scenarios ↔ 25 tests; append a "Post-review delta" section to the step 8 report; refresh the PR description (keeping the author's Why); commit, push, CI green
+- [x] 13.7 Verify: `npx vitest run`, `npm run typecheck`, `npm run lint`, `npm run lint:architecture`, `npm run docs:coverage`, `npx stryker run`; 25 scenarios ↔ 25 tests; append a "Post-review delta" section to the step 8 report; refresh the PR description (keeping the author's Why); commit, push, CI green

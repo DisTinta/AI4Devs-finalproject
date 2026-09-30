@@ -161,3 +161,7 @@ Verdict PASS WITH GAPS (three Majors); fixed per the author's decisions.
 - Debt and hand-offs: one C checklist comment in Spanish on DIS-35 (weak salt-message test; git
   errors swallowed as `NotAGitRepository` / empty history); one B comment on DIS-85 (log in memory).
 - State after: `project/file/commit/file_commit` 0/0/0/0, `git status --porcelain fixtures` empty.
+- CI on the post-review delta: PR #11 head `f74b8df`, `ci.yml` run 36762016013 — success (1m51s),
+  `frontend` — success. `Tests`: 16 files, 237 passed; `simple-git-history.spec.ts` ran 18 tests on
+  the Ubuntu runner, database block included (the index-injected odd paths work there too).
+  Mutation: all core files 90.09 %.
