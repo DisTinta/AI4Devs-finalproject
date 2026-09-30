@@ -77,7 +77,14 @@ exists for them yet, so no user workflow is affected.
 
 ## CI evidence (step 10.2)
 
-Pending: to be linked after the branch is pushed.
+PR [#10](https://github.com/DisTinta/AI4Devs-finalproject/pull/10), head `83a929f`:
+
+- `CI` run [36741967202](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/36741967202):
+  success. The `quality` job's `Tests` step ran `tests/integration/store/graph-read.spec.ts`
+  (27 tests) and `tests/unit/knowledge/read-arguments.spec.ts` (15 tests), neither skipped;
+  12 test files passed.
+- `Frontend` run [36741967187](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/36741967187):
+  success.
 
 ## Outcome
 
@@ -110,5 +117,6 @@ Commands (same `DATABASE_URL`): `npx vitest run tests/integration/store/graph-re
   none extra).
 - Data state after the delta: `project` / `file` / `symbol` / `edge` = 0 / 0 / 0 / 0, equal to the
   baseline.
-- Unchanged: 10.2 (CI evidence), 11.4 (Purpose at archive), 11.7 (PR and Linear).
+- Unchanged at the time of the delta: 10.2 (CI evidence), 11.4 (Purpose at archive), 11.7 (PR and
+  Linear).
 
