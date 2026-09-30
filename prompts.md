@@ -30,6 +30,9 @@
 13. [Tablas de historial, afirmaciones, uso y caché (DIS-12)](#13-tablas-de-historial-afirmaciones-uso-y-caché-dis-12)
 14. [Índices, parcial `stale`, HNSW y trigger de invalidación (DIS-13)](#14-índices-parcial-stale-hnsw-y-trigger-de-invalidación-dis-13)
 15. [Arnés de integración: transacción por test y factories (DIS-22)](#15-arnés-de-integración-transacción-por-test-y-factories-dis-22)
+16. [Contrato `StorePort` y escritura transaccional del grafo L1 (DIS-23)](#16-contrato-storeport-y-escritura-transaccional-del-grafo-l1-dis-23)
+17. [Lecturas del grafo: símbolos por nombre y vecinos a N saltos (DIS-24)](#17-lecturas-del-grafo-símbolos-por-nombre-y-vecinos-a-n-saltos-dis-24)
+18. [Extractor de Git con autores seudonimizados (DIS-35)](#18-extractor-de-git-con-autores-seudonimizados-dis-35)
 
 ---
 
