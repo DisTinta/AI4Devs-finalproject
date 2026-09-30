@@ -15,11 +15,16 @@ directory is `repoPath`, as a `GitHistory` with:
 - `commits`: every commit reachable from `HEAD`, exactly once, newest first, each with its `sha`, its
   sanitised `message`, its `authorHash` and its `committedAt` (the committer date);
 - `fileCommits`: one link per file a non-merge commit touched, with the repository-relative path
-  using `/` as separator and the commit's `sha`.
+  using `/` as separator, exactly as the repository stores it (never quoted or escaped), and the
+  commit's `sha`.
 
 Every `sha` of `fileCommits` SHALL be the `sha` of an element of `commits`. The result SHALL be
 accepted by the graph validation of `graph-store` once its paths are in `files`. Reading SHALL NOT
 modify the repository.
+
+Characters that Git allows inside names, e-mails, messages or paths (control characters such as
+`\x1e` and `\x1f`, quotes, tabs, backslashes) SHALL NOT shift one commit's values into another field
+or another commit: each value SHALL arrive in its own field, intact.
 
 #### Scenario: The acme-shop history is read completely
 
@@ -52,6 +57,23 @@ modify the repository.
 - **THEN** the merge commit is one of `commits`, and no element of `fileCommits` has its `sha`
 - **AND** the branch commit that changed the file has its link
 
+#### Scenario: Control characters in names and messages stay in their field
+
+- **GIVEN** a commit whose author name contains `\x1f` twice (e-mail `ana@x.test`) and whose message
+  is `feat: sep \x1e and \x1f (#5)` followed by a body line
+- **WHEN** the history is read
+- **THEN** there is exactly one commit; its `message` equals the commit's raw message, control
+  characters included; its `authorHash` is the hash of `ana@x.test`; its `committedAt` is a valid
+  date; its `prNumber` is 5; and its file link has the committed path
+- **AND** the serialised history contains neither `ana@x.test` nor the author name
+
+#### Scenario: Paths Git would quote arrive verbatim
+
+- **GIVEN** a commit adding the paths `q"uote.txt` and `t<TAB>tab.txt`
+- **WHEN** the history is read
+- **THEN** `fileCommits` has links with exactly those two paths, with no surrounding quotes or
+  escape sequences
+
 ### Requirement: Author pseudonymisation
 
 Each commit's `authorHash` SHALL be a keyed hash, with the configured salt as key, of the author's
@@ -60,7 +82,12 @@ empty), encoded as 64 lowercase hexadecimal characters.
 
 - The same author and salt SHALL always yield the same `authorHash`; different salts SHALL yield
   different ones.
-- No field of a `GitHistory` SHALL contain an author's or committer's name or e-mail.
+- `authorHash` SHALL never hold a raw identity, and no other structured value of a `GitHistory`
+  (`head`, `sha`, `committedAt`, `prNumber`, `fileCommits`) SHALL contain the author's or
+  committer's name or e-mail.
+- `message` SHALL contain none of the identity trailers of *Message sanitisation*. Free text
+  elsewhere in a message body — other trailers such as `Helped-by:` or `Cc:`, or names and e-mails
+  written in prose — is kept verbatim and is outside this capability (no content scrubbing).
 
 #### Scenario: Commits of one author share a hash
 
@@ -114,6 +141,13 @@ used: the key of the author hash is the trimmed value, so `' s '` and `'s'` yiel
 - **THEN** all three fail with an error whose message names `AUTHOR_HASH_SALT`, and no Git process
   has run
 
+#### Scenario: The adapter trims the salt it receives
+
+- **GIVEN** a repository with one commit
+- **WHEN** its history is read by an adapter created with the salt `' s '` and by one created with
+  `'s'`
+- **THEN** both reads give the same `authorHash`
+
 ### Requirement: Message sanitisation
 
 A commit's `message` SHALL be its full message with every trailer line that identifies a person
@@ -138,7 +172,9 @@ A commit's `prNumber` SHALL be taken from its subject (first line) only:
 - the number `N` of a subject starting with `Merge pull request #N`; otherwise
 - absent.
 
-`N` SHALL be a non-negative decimal integer.
+`N` SHALL be a decimal integer from 0 to 2147483647 (2^31 − 1), the range the graph store's
+`pr_number` column holds. A number outside that range SHALL be treated as no number: `prNumber` is
+absent, and the commit is still stored.
 
 #### Scenario: A squash-style number is extracted
 
@@ -153,6 +189,16 @@ A commit's `prNumber` SHALL be taken from its subject (first line) only:
 #### Scenario: A message without a number has none
 
 - **WHEN** the PR number of `chore: y`, and of `chore: y` with body line `see (#9)`, is extracted
+- **THEN** it is absent in both cases
+
+#### Scenario: The largest storable number is extracted
+
+- **WHEN** the PR number of `feat: x (#2147483647)` is extracted
+- **THEN** it is 2147483647
+
+#### Scenario: A number beyond 32 bits is dropped
+
+- **WHEN** the PR number of `feat: x (#2147483648)`, and of `feat: x (#3000000000)`, is extracted
 - **THEN** it is absent in both cases
 
 #### Scenario: The acme-shop PR numbers are extracted
@@ -200,8 +246,9 @@ but is not its top-level directory. Nothing SHALL be returned.
 ### Requirement: Persisted history holds no personal data
 
 A `GitHistory`, saved through `StorePort.saveGraph` together with the files it references, SHALL
-persist its commits and file–commit links with no author or committer name or e-mail in any stored
-row.
+persist its commits and file–commit links with the guarantees of *Author pseudonymisation*: no
+author or committer name or e-mail in `author_hash` or any other structured column, and no identity
+trailer in `message`. Free text of a message body is stored as read (see *Author pseudonymisation*).
 
 #### Scenario: The acme-shop history is persisted without names or e-mails
 

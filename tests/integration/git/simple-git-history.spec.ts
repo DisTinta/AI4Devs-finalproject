@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { NotAGitRepository } from '@codemind/core';
+import { NotAGitRepository, pseudonymiseAuthor } from '@codemind/core';
 import type { KnowledgeGraph } from '@codemind/core';
 import { createSimpleGitHistory } from '../../../packages/adapters/git/src/index';
 import { createPostgresStore } from '../../../packages/adapters/store-postgres/src/index';
@@ -146,6 +146,67 @@ describe('git history', () => {
       expect(commits.map((c) => c.sha)).toContain(mergeSha);
       expect(fileCommits.filter((link) => link.sha === mergeSha)).toEqual([]);
       expect(fileCommits).toContainEqual(expect.objectContaining({ file: 'side.txt', sha: sideSha }));
+    });
+  });
+
+  describe('salt', () => {
+    it('The adapter trims the salt it receives', async () => {
+      // Arrange
+      const repository = emptyRepository();
+      writeFileSync(join(repository, 'a.txt'), 'a\n');
+      git(repository, 'add', '.');
+      git(repository, 'commit', '-q', '-m', 'feat: a');
+
+      // Act
+      const padded = await createSimpleGitHistory({ authorHashSalt: ' s ' }).readHistory(repository);
+      const plain = await createSimpleGitHistory({ authorHashSalt: 's' }).readHistory(repository);
+
+      // Assert
+      expect(padded.commits[0].authorHash).toBe(plain.commits[0].authorHash);
+    });
+  });
+
+  describe('log framing', () => {
+    it('Control characters in names and messages stay in their field', async () => {
+      // Arrange: control characters git allows in a name and a message (the old field separators).
+      const repository = emptyRepository();
+      writeFileSync(join(repository, 'a.txt'), 'a\n');
+      git(repository, 'add', '.');
+      const name = 'Ana\x1fX\x1fY';
+      const message = 'feat: sep \x1e and \x1f (#5)\n\nbody line';
+      git(repository, '-c', `user.name=${name}`, '-c', 'user.email=ana@x.test', 'commit', '-q', '--cleanup=verbatim', '-m', message);
+      const sha = git(repository, 'rev-parse', 'HEAD');
+
+      // Act
+      const result = await history.readHistory(repository);
+
+      // Assert
+      expect(result.commits).toHaveLength(1);
+      const [commit] = result.commits;
+      expect(commit.message).toBe(message);
+      expect(commit.authorHash).toBe(pseudonymiseAuthor({ name, email: 'ana@x.test' }, SALT));
+      expect(Number.isNaN(commit.committedAt?.getTime())).toBe(false);
+      expect(commit.prNumber).toBe(5);
+      expect(result.fileCommits).toEqual([{ file: 'a.txt', sha, linesAdded: 1, linesRemoved: 0 }]);
+      const serialised = JSON.stringify(result);
+      expect(serialised).not.toContain('ana@x.test');
+      expect(serialised).not.toContain(JSON.stringify(name).slice(1, -1));
+    });
+
+    it('Paths Git would quote arrive verbatim', async () => {
+      // Arrange: paths Windows cannot create on disk go straight into the index.
+      const repository = emptyRepository();
+      const blob = execFileSync('git', ['hash-object', '-w', '--stdin'], { cwd: repository, input: 'a\nb\n', encoding: 'utf8' }).trim();
+      const paths = ['q"uote.txt', 't\ttab.txt'];
+      for (const path of paths) git(repository, '-c', 'core.protectNTFS=false', 'update-index', '--add', '--cacheinfo', `100644,${blob},${path}`);
+      git(repository, '-c', 'core.protectNTFS=false', 'commit', '-q', '-m', 'feat: odd paths');
+
+      // Act
+      const { fileCommits } = await history.readHistory(repository);
+
+      // Assert
+      expect(fileCommits.map((link) => link.file).sort()).toEqual([...paths].sort());
+      expect(fileCommits.every((link) => link.linesAdded === 2 && link.linesRemoved === 0)).toBe(true);
     });
   });
 

@@ -124,3 +124,40 @@ PR #11 (https://github.com/DisTinta/AI4Devs-finalproject/pull/11), head `fe252c1
 - CI on the delta: PR #11 head `a0fae0c`, `ci.yml` run 36758833219 — success (1m59s), `frontend` —
   success. `Tests`: 16 files, 232 passed; `simple-git-history.spec.ts` ran 15 tests, database block
   included. Mutation: all core files 89.90 % (unchanged: the delta touched no production code).
+
+## Post-review delta (adversarial-review, 2026-09-30)
+
+Verdict PASS WITH GAPS (three Majors); fixed per the author's decisions.
+
+- Spec/design/proposal: PR number range 0..2147483647 (Major 1); `git log -z` framing, values in
+  their own field, raw paths (Major 2; design D4 steps 4–5 revised); privacy SHALL scoped to
+  `authorHash`, structured values and identity trailers, free-text body as non-goal (Major 3);
+  adapter salt trim scenario; `.mailmap` accepted. 20 → 25 scenarios; `openspec validate --strict`
+  green.
+- Probe before the rewrite (git 2.45.1, throwaway repositories): with `-z`, an author name with
+  `\x1f` and a message with `\x1e`/`\x1f` arrive intact; `q"uote.txt` and `t<TAB>tab.txt` arrive raw
+  (without `-z`: `"q\"uote.txt"`, `"t\ttab.txt"`); merges and empty messages go straight to the next
+  sha. Windows git refuses those paths in the index unless `core.protectNTFS=false`, which the test
+  sets for its own commit only.
+- RED before GREEN: "A number beyond 32 bits is dropped" failed with `expected 2147483648 to be
+  undefined`; "Control characters in names and messages stay in their field" failed with the
+  `TypeError` the review predicted (`Cannot read properties of undefined (reading 'split')`);
+  "Paths Git would quote arrive verbatim" failed with the quoted paths. "The adapter trims the salt
+  it receives" pins existing behaviour (green at once).
+- Forced failures, each on a scratch copy restored and confirmed with `cmp`:
+
+  | Mutation | Test that failed |
+  |---|---|
+  | `Number.isSafeInteger(number)` instead of `number <= PR_NUMBER_MAX` | "A number beyond 32 bits is dropped" |
+  | `parse-log.ts` back to the `\x1e`/`\x1f` version | both `log framing` tests |
+  | `options.authorHashSalt` (untrimmed) passed to `parseLog` | "The adapter trims the salt it receives" |
+
+- Commands: `npx vitest run tests/integration/git tests/unit` → 7 files, 82 passed;
+  `npx vitest run` → 16 files, 237 passed (61.0 s); no-database run (`CI=true`, integration
+  excluded) → 6 files, 64 passed; `npm run typecheck` green; `npm run lint` 0 errors (2 pre-existing
+  warnings); `npm run lint:architecture` 0 errors (6 pre-existing warnings); `npm run docs:coverage`
+  no warning; `npx stryker run` → all core files 90.09 %, `author-hash.ts` 100 % (10),
+  `commit-message.ts` 100 % (26). 25 scenarios ↔ 25 tests with the same name.
+- Debt and hand-offs: one C checklist comment in Spanish on DIS-35 (weak salt-message test; git
+  errors swallowed as `NotAGitRepository` / empty history); one B comment on DIS-85 (log in memory).
+- State after: `project/file/commit/file_commit` 0/0/0/0, `git status --porcelain fixtures` empty.

@@ -261,7 +261,7 @@ services that must be started first, quirks of the local environment.
 
 - **Some CI gates run against stubs, on purpose.** `lint`, `lint:architecture` and `typecheck` are
   real and must pass, and so is CI's `db:migrate` → `db:rollback` → `db:migrate` step. Mutation
-  testing has real mutants since DIS-23 (`packages/core/src/knowledge/`, 86.82 % at DIS-23 merge, 89.90 % with DIS-35; threshold
+  testing has real mutants since DIS-23 (`packages/core/src/knowledge/`, 86.82 % at DIS-23 merge, 90.09 % with DIS-35; threshold
   `MIN_MUTATION_SCORE=70`).
   These are intentional scaffolding, not bugs — do not "fix" a stub by faking behaviour.
 - **The infra packages are stubs, not empty.** All 9 workspaces (`core`, `analyzers/{php,typescript}`,
@@ -271,14 +271,18 @@ services that must be started first, quirks of the local environment.
   implements `StorePort`: writes (`createProject`, `saveGraph`, DIS-23) and reads (`getProject`,
   `listProjects`, `findSymbols`, `neighbors`, DIS-24); `adapters/git` implements `GitPort`
   (`createSimpleGitHistory`, DIS-35).
-- **`GitPort.readHistory` never lets an identity out** (DIS-35). Authors become `authorHash`
-  (HMAC-SHA256 keyed by `AUTHOR_HASH_SALT` of the trimmed, lower-cased e-mail, or of the name when
-  the e-mail is blank; rule in core, `knowledge/author-hash.ts`) and messages lose their identity
-  trailers (`Co-authored-by`, `Signed-off-by`, … `knowledge/commit-message.ts`). `prNumber` comes
-  from the subject only (last `(#N)`, else `Merge pull request #N`). The log is read in one
-  `git log --numstat --no-renames` pass: a rename is a delete plus an add, so links can name paths
-  that are no longer in the snapshot, and `saveGraph` rejects a link whose file is not in `files` —
-  the caller (DIS-85) must drop them first.
+- **`GitPort.readHistory` never lets an identity out of its structured fields** (DIS-35). Authors
+  become `authorHash` (HMAC-SHA256 keyed by the trimmed `AUTHOR_HASH_SALT` of the trimmed,
+  lower-cased e-mail as `.mailmap` maps it, or of the name when the e-mail is blank; rule in core,
+  `knowledge/author-hash.ts`) and messages lose their seven identity trailers (`Co-authored-by`,
+  `Signed-off-by`, … `knowledge/commit-message.ts`). Other free text of a message body
+  (`Helped-by:`, `Cc:`, e-mails in prose) is stored as written: a declared non-goal. `prNumber`
+  comes from the subject only (last `(#N)`, else `Merge pull request #N`) and only in
+  0..2147483647 (`PR_NUMBER_MAX`, the range of the 32-bit `pr_number` column). The log is read in
+  one `git log -z --numstat --no-renames` pass: NUL framing, so control characters in names or
+  messages cannot shift fields and paths arrive raw (never C-quoted). A rename is a delete plus an
+  add, so links can name paths that are no longer in the snapshot, and `saveGraph` rejects a link
+  whose file is not in `files` — the caller (DIS-85) must drop them first.
 - **`repoPath` must be a repository's top-level directory.** The fixtures sit inside the Codemind
   repository, so without their own `.git` plain `git` would silently read Codemind's history. The
   adapter compares `git rev-parse --show-toplevel` with `repoPath` by real path and throws

@@ -16,6 +16,16 @@ describe('pull request number', () => {
     expect(extractPrNumber('chore: y\n\nsee (#9)')).toBeUndefined();
   });
 
+  it('The largest storable number is extracted', () => {
+    expect(extractPrNumber('feat: x (#2147483647)')).toBe(2147483647);
+  });
+
+  it('A number beyond 32 bits is dropped', () => {
+    expect(extractPrNumber('feat: x (#2147483648)')).toBeUndefined();
+    expect(extractPrNumber('feat: x (#3000000000)')).toBeUndefined();
+    expect(extractPrNumber('Merge pull request #2147483648 from org/branch')).toBeUndefined();
+  });
+
   it('reads the subject only, also with CRLF line ends', () => {
     expect(extractPrNumber('feat: x (#4)\r\n\r\nrefs (#9)')).toBe(4);
     expect(extractPrNumber('chore: y\r\nMerge pull request #5 from org/branch')).toBeUndefined();

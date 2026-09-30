@@ -66,8 +66,11 @@ would make personal data cross the port and travel through the domain, which is 
   `toLowerCase()`. Uses `node:crypto` (`createHmac`), which is deterministic and I/O-free; core
   already compiles with `types: ["node"]` and `core-no-infra` forbids only adapters and transport.
 - `extractPrNumber(message: string): number | undefined` — subject = text before the first `\n`;
-  last match of `/\(#(\d+)\)/g`, else `/^Merge pull request #(\d+)\b/`; `Number.parseInt`, only if
-  `Number.isSafeInteger`.
+  last match of `/\(#(\d+)\)/g`, else `/^Merge pull request #(\d+)\b/`; the number only if it is at
+  most `PR_NUMBER_MAX` = 2147483647, the largest value of the store's 32-bit `pr_number` column
+  (*revised after adversarial review*: the first version accepted any safe integer, so a subject
+  like `(#3000000000)` passed graph validation and then failed the whole `saveGraph` with a raw
+  Postgres "integer out of range" error).
 - `stripIdentityTrailers(message: string): string` — drop lines matching
   `/^\s*(co-authored-by|signed-off-by|reviewed-by|acked-by|reported-by|tested-by|suggested-by):/i`,
   then trim trailing whitespace/blank lines. Lines are split on `\n` with a trailing `\r` tolerated.
@@ -109,13 +112,23 @@ repoPath: string) }`, message `Not a Git repository: <path>`. Same pattern as `P
 3. **Empty repository** — `git rev-parse --verify --quiet HEAD` failing → return the empty history.
 4. **Log** — a single `git.raw([...])`:
    `-c core.quotepath=false -c i18n.logOutputEncoding=UTF-8 log HEAD --no-renames --numstat
-   --no-color --format=<RS>%H<US>%aN<US>%aE<US>%cI<US>%B<US>` where `<RS>` = `%x1e` and `<US>` = `%x1f`
-   (control characters never appear in names, e-mails or messages). `%aN`/`%aE` honour `.mailmap`.
-   Default order is newest first; merge commits appear with no numstat (no links), as `git log` does.
-5. **Parse** — split records on `\x1e`; per record: fields split on `\x1f`; numstat lines
-   `added\tremoved\tpath`; `-\t-\tpath` → binary, no counts. Hash the identity immediately and keep
-   only the hash; message → `stripIdentityTrailers`; `prNumber` → `extractPrNumber` on the raw
-   message (subject is kept by stripping anyway).
+   --no-color -z --format=%H%x00%aN%x00%aE%x00%cI%x00%B`. With `-z` every value is terminated by
+   NUL, the one byte Git forbids in commit messages, names and e-mails, and numstat paths are
+   printed raw instead of C-quoted. `%aN`/`%aE` honour `.mailmap` (see Post-review delta). Default
+   order is newest first; merge commits appear with no numstat (no links), as `git log` does.
+5. **Parse** — split the output on NUL into tokens (checked on git 2.45 with a probe repository):
+   each commit is five tokens in fixed positions (sha, name, e-mail, committer date, raw message),
+   followed by zero or more numstat tokens `added\tremoved\tpath` (the first one prefixed by the
+   `\n` Git writes after the format; the path may itself contain tabs); the next commit starts at
+   the next token that is not a numstat token, and the output ends with an empty token. `-\t-\tpath`
+   → binary, no counts. A record that does not fit (a sha that is not 40/64 hex characters, missing
+   fields, an invalid date, an unexpected token) makes the read throw instead of returning a shifted
+   history; the error names no value of the log. Hash the identity immediately and keep only the
+   hash; message → `stripIdentityTrailers`; `prNumber` → `extractPrNumber` on the raw message.
+   *Revised after adversarial review:* the first version framed records and fields with `\x1e`/`\x1f`,
+   which Git allows inside messages and names: a `\x1f` in an author name shifted every field and
+   could put the raw e-mail into `message`, and quoted paths (`"q\"uote.txt"`) never matched the
+   analyzer's paths.
 6. `head` = sha of the first record.
 
 *Why `simple-git` over `child_process` directly:* chosen in readme §2.2; it handles process spawning,
@@ -221,5 +234,40 @@ Documented here, deliberately without a scenario:
   to a repository root is accepted too, because both sides are compared as real paths (D4.2).
 - **Public exports**: `IDENTITY_TRAILERS`, `AuthorIdentity`, `pseudonymiseAuthor`, `extractPrNumber`
   and `stripIdentityTrailers` are part of `@codemind/core`'s public API, for DIS-36/DIS-85 and tests.
-- **Log separators**: a commit message containing the control characters `\x1e` or `\x1f` would break
-  the record split. Git messages practically never contain them; accepted, not handled.
+- **Log separators**: superseded by the Post-review delta below (`-z`).
+
+## Post-review delta (adversarial-review, 2026-09-30)
+
+Verdict PASS WITH GAPS, three Majors, fixed here with the author's decisions:
+
+- **Major 1 — `pr_number` range (A).** `extractPrNumber` returns a number only in 0..2147483647
+  (`PR_NUMBER_MAX`); outside, `prNumber` is absent and the commit is still stored (D2, spec
+  scenarios "The largest storable number is extracted" and "A number beyond 32 bits is dropped").
+- **Major 2 — log framing (A).** The log is read with `-z` (D4 steps 4–5); control characters stay
+  in their field and odd paths arrive verbatim (spec scenarios "Control characters in names and
+  messages stay in their field" and "Paths Git would quote arrive verbatim").
+- **Major 3 — privacy promise (A, spec wording).** The strong guarantee is `authorHash` (never a raw
+  identity), the other structured values, and the removal of the seven identity trailers. Free text
+  in a message body (`Helped-by:`, `Cc:`, e-mails in prose) is kept verbatim: explicit non-goal in
+  proposal and spec, no content scrubbing.
+- **Minor — adapter trims the salt (A).** Scenario "The adapter trims the salt it receives".
+
+**`.mailmap` (D, accepted).** `%aN`/`%aE` apply the repository's `.mailmap`, so the identity hashed
+is the mapped one: a `.mailmap` can merge several identities of one person into one pseudonym, or
+split them. This is the desired behaviour — it is how the repository itself declares who is who —
+and needs no ticket.
+
+## Follow-ups
+
+- **Spec edited after implementation, with the author's explicit approval.** The spec changed twice
+  after the code: after `/verify-against-spec` (the three contradictions of the Post-verify delta)
+  and after `/adversarial-review` (Majors 1–3 above). Both were approved by the author before the
+  edit; the history is kept as is.
+- **C — one debt list, comment in Spanish on DIS-35:**
+  - the "salt not in the error message" test is weak; the honest check is
+    `message === MISSING_SALT_MESSAGE`;
+  - `.catch` turns every git failure into `NotAGitRepository` or an empty history (git missing from
+    `PATH`, "dubious ownership" / `safe.directory`, corrupt repository).
+- **B — comment in Spanish on DIS-85:** the whole log is loaded in memory (`git.raw`), with no
+  streaming or limit; to revisit when indexing large repositories.
+- Odd paths (quotes, tabs, backslashes) are closed by `-z`, so they are not debt.
