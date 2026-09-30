@@ -15,12 +15,12 @@ minimum distance; names and paths sort in byte order.
 1. `docker compose up -d` and wait until Postgres is healthy.
 2. `export DATABASE_URL=postgres://codemind:codemind@localhost:5432/codemind`
 3. `npm run db:migrate` (migrations `0001`–`0003`; this PR adds none).
-4. `npx vitest run tests/unit/knowledge tests/integration/store` → 10 files, 160 tests passed.
-5. `npx vitest run` → 12 files, 184 tests passed.
+4. `npx vitest run tests/unit/knowledge tests/integration/store` → 10 files, 162 tests passed.
+5. `npx vitest run` → 12 files, 186 tests passed.
 6. `npm run typecheck`, `npm run lint`, `npm run lint:architecture`, `npm run docs:coverage` → exit 0
    (lint: 3 pre-existing warnings on the empty ports; architecture: 8 pre-existing `no-orphans`
    warnings).
-7. `npx stryker run` → 88.10 % for `packages/core/src/knowledge/` (threshold `MIN_MUTATION_SCORE=70`).
+7. `npx stryker run` → 87.86 % for `packages/core/src/knowledge/` (threshold `MIN_MUTATION_SCORE=70`).
 8. Check the shared database is back to its baseline: `project`, `file`, `symbol` and `edge` have
    the same row counts as before step 4.
 
@@ -44,6 +44,11 @@ minimum distance; names and paths sort in byte order.
   project row survives even when every node is filtered out.
 - **Byte-order sorting (`COLLATE "C"`)** (`design.md` D4). The order does not depend on the
   database locale.
+- **A search term containing a NUL character is rejected in core** (`design.md` D3, adversarial
+  review): Postgres would reject it as text with `22021` and abort a caller-owned transaction.
+- **Deferred findings** (`design.md` Follow-ups): a pool-mode read regression test and the
+  traversal performance measurement are tracked on DIS-24; runtime `null` arguments belong to
+  DIS-27's input validation.
 - **Kind values outside the enum are not validated in core** (`design.md` D3, Risks). The SQL cast
   fails with `22P02`; the TypeScript types prevent it.
 

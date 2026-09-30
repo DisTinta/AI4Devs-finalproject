@@ -9,12 +9,14 @@ import type { SymbolSearchOptions } from './graph-read.js';
 export const MAX_HOPS = 3;
 
 /**
- * Checks a symbol search: the term must not be blank, and `kinds`, when given, must not be empty.
+ * Checks a symbol search: the term must not be blank nor contain a NUL character (no stored name
+ * can contain one, and the database rejects it as text), and `kinds`, when given, must not be empty.
  *
  * @throws InvalidStoreQuery naming `name` or `kinds`.
  */
 export function assertValidSymbolSearch(name: string, options: SymbolSearchOptions = {}): void {
   if (name.trim() === '') throw new InvalidStoreQuery('name', 'must not be blank');
+  if (name.includes('\u0000')) throw new InvalidStoreQuery('name', 'must not contain a NUL character');
   if (options.kinds?.length === 0) throw new InvalidStoreQuery('kinds', 'must not be empty when given');
 }
 

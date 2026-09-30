@@ -120,3 +120,28 @@ Commands (same `DATABASE_URL`): `npx vitest run tests/integration/store/graph-re
 - Unchanged at the time of the delta: 10.2 (CI evidence), 11.4 (Purpose at archive), 11.7 (PR and
   Linear).
 
+## Post-review delta (adversarial-review, 2026-09-30) — tasks §13
+
+- Correction to the 6.4 wording (task 13.5): the first forced failure removed the visited-path
+  check **together with** the `min(depth)` grouping; the failure came from the grouping. With only
+  the visited check removed, the depth bound and the grouping still give the same result, so the
+  check is performance only (design D6) and no test can isolate it.
+- 13.1 RED: a search term containing a NUL character reached Postgres and failed with
+  "invalid byte sequence for encoding" (`22021`) in "Invalid read arguments are rejected before
+  querying"; the two new unit cases in `read-arguments.spec.ts` failed too.
+- 13.2 GREEN: `assertValidSymbolSearch` rejects a term containing `\u0000` with
+  `InvalidStoreQuery('name')`; `tests/unit/knowledge` + `graph-read.spec.ts` 58 passed.
+- 13.3: "Projects are listed by name" also creates `…-Zeta` and asserts `-Zeta`, `-alpha`,
+  `-beta` (no assertion removed or loosened).
+- 13.4 forced failures (each restored from a scratch copy and confirmed with `cmp`):
+  - NUL check removed → "Invalid read arguments are rejected before querying" fails;
+  - `COLLATE "C"` removed from `LIST_PROJECTS` → "Projects are listed by name" fails.
+- 13.6: Follow-ups section added to `design.md`; DIS-24 checklist comment `57fb31d7` (pool-mode
+  read test, performance measurement), DIS-27 note `8a545b0c` (runtime `null` arguments).
+- 13.7: targeted (`tests/unit/knowledge tests/integration/store`) 10 files / 162 passed; full suite
+  12 files / 186 passed, 0 failed (70.20 s); `npm run typecheck` OK; `npm run lint` 0 errors
+  (3 pre-existing warnings); `npm run lint:architecture` and `npm run docs:coverage` exit 0;
+  `npx stryker run` all files 87.86 %, `read-arguments.ts` 90.24 % (37 killed, 4 survived: reason
+  strings). Scenario traceability 27 ↔ 27. Data state after: `project` / `file` / `symbol` /
+  `edge` = 0 / 0 / 0 / 0.
+

@@ -248,13 +248,15 @@ identity (file path, name, start line), which every symbol result carries.
 The store MUST reject invalid read arguments with the domain error `InvalidStoreQuery`, which
 names the argument at fault, before querying the database:
 
-- a symbol search term that is empty or only whitespace;
+- a symbol search term that is empty or only whitespace, or that contains a NUL character (no
+  stored name can contain one, and the database rejects it as text);
 - a `hops` that is not an integer from 1 to 3 (the maximum traversal depth);
 - a list of symbol kinds or edge kinds that is given but empty.
 
 #### Scenario: Invalid read arguments are rejected before querying
 
-- **WHEN** symbols are searched with the term `"  "` and with an empty list of symbol kinds,
+- **WHEN** symbols are searched with the term `"  "`, with a term containing a NUL character and
+  with an empty list of symbol kinds,
   neighbours are requested with `hops` 0, 4 and 1.5, and neighbours are requested with an empty
   list of edge kinds
 - **THEN** each call fails with `InvalidStoreQuery` naming the term, the kinds or `hops`

@@ -27,6 +27,10 @@ describe('read-argument validation', () => {
     expect(rejectedArgument(() => assertValidSymbolSearch(term))).toBe('name');
   });
 
+  it.each(['a\u0000b', '\u0000'])('rejects the search term %j, which contains a NUL character', (term) => {
+    expect(rejectedArgument(() => assertValidSymbolSearch(term))).toBe('name');
+  });
+
   it('rejects an empty list of symbol kinds', () => {
     expect(rejectedArgument(() => assertValidSymbolSearch('price', { kinds: [] }))).toBe('kinds');
   });

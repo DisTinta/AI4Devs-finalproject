@@ -271,7 +271,7 @@ services that must be started first, quirks of the local environment.
 - **Graph reads are per project and hold ids only until the next reindex** (DIS-24).
   - Every read filters by `project_id` first. An unknown project, or an id that is not a
     hyphenated UUID, fails with `ProjectNotFound`, and the malformed id fails without SQL. Blank
-    search terms, empty kind lists and `hops` outside 1..`MAX_HOPS` (3) fail with
+    search terms, terms containing a NUL character (Postgres rejects NUL as text), empty kind lists and `hops` outside 1..`MAX_HOPS` (3) fail with
     `InvalidStoreQuery`, also without SQL.
   - Symbol ids change on every `saveGraph`, while file ids survive while the path stays. Name a
     symbol across reindexes by its `SymbolRef` (`file`, `name`, `startLine`), which every symbol

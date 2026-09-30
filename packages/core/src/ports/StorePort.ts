@@ -54,7 +54,8 @@ export interface StorePort {
    * `_` and `\` match themselves), optionally narrowed to `options.kinds`. Ordered by file path,
    * start line, name.
    *
-   * @throws InvalidStoreQuery when `name` is blank or `options.kinds` is empty, before querying.
+   * @throws InvalidStoreQuery when `name` is blank or contains a NUL character, or `options.kinds`
+   *   is empty, before querying.
    * @throws ProjectNotFound when `projectId` is no project's id or is not a hyphenated UUID.
    */
   findSymbols(projectId: string, name: string, options?: SymbolSearchOptions): Promise<StoredSymbol[]>;

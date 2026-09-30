@@ -189,11 +189,13 @@ describeWithDatabase('graph store reads (DIS-24)', () => {
     });
 
     it('Projects are listed by name', async () => {
-      // Arrange: the shared database may hold other projects, so only these two are asserted.
+      // Arrange: the shared database may hold other projects, so only these three are asserted.
+      // `-Zeta` sorts first in byte order (spec); the local locale (en_US.utf8) would put it last.
       const { writer, reader } = stores();
       const prefix = unique('graph-read-list');
       const betaId = await writer.createProject(newProject({ name: `${prefix}-beta` }));
       const alphaId = await projectWith(writer, sampleGraph(), newProject({ name: `${prefix}-alpha` }));
+      const zetaId = await writer.createProject(newProject({ name: `${prefix}-Zeta` }));
 
       // Act
       const projects = await reader.listProjects();
@@ -201,12 +203,13 @@ describeWithDatabase('graph store reads (DIS-24)', () => {
       // Assert
       const ours = projects.filter((project) => project.name.startsWith(prefix));
       expect(ours.map((project) => [project.id, project.name])).toEqual([
+        [zetaId, `${prefix}-Zeta`],
         [alphaId, `${prefix}-alpha`],
         [betaId, `${prefix}-beta`],
       ]);
-      expect(ours[0]).toMatchObject({ indexedCommit: SHA.second, nodeCount: 5, edgeCount: 4 });
-      expect(ours[1]).toMatchObject({ nodeCount: 0, edgeCount: 0 });
-      expect(ours[1]).not.toHaveProperty('indexedCommit');
+      expect(ours[1]).toMatchObject({ indexedCommit: SHA.second, nodeCount: 5, edgeCount: 4 });
+      expect(ours[2]).toMatchObject({ nodeCount: 0, edgeCount: 0 });
+      expect(ours[2]).not.toHaveProperty('indexedCommit');
       const names = projects.map((project) => project.name);
       expect(names).toEqual([...names].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)));
     });
@@ -631,6 +634,7 @@ describeWithDatabase('graph store reads (DIS-24)', () => {
       const projectId = randomUUID();
       const calls: Array<[string, () => Promise<unknown>]> = [
         ['name', () => reader.findSymbols(projectId, '  ')],
+        ['name', () => reader.findSymbols(projectId, 'a\u0000b')],
         ['kinds', () => reader.findSymbols(projectId, 'price', { kinds: [] })],
         ['hops', () => reader.neighbors(projectId, [], 0)],
         ['hops', () => reader.neighbors(projectId, [], 4)],

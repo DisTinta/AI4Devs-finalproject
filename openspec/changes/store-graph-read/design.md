@@ -81,8 +81,10 @@ target, so this contract does not break.
 
 - `errors.ts`: `InvalidStoreQuery extends DomainError`, `code = 'INVALID_STORE_QUERY'`,
   `argument: 'name' | 'kinds' | 'hops'`, human message.
-- `read-arguments.ts`: `MAX_HOPS = 3`; `assertValidSymbolSearch(name, options)` (non-blank term,
-  `kinds` absent or non-empty); `assertValidTraversal(hops, kinds)` (`Number.isInteger(hops)`,
+- `read-arguments.ts`: `MAX_HOPS = 3`; `assertValidSymbolSearch(name, options)` (non-blank term
+  without NUL characters, `kinds` absent or non-empty; the NUL rule was added at the adversarial
+  review: Postgres rejects NUL in a text parameter with `22021`, which would surface as a raw
+  error and, in `{ transaction }` mode, abort the caller's transaction); `assertValidTraversal(hops, kinds)` (`Number.isInteger(hops)`,
   `1 <= hops <= MAX_HOPS`, `kinds` absent or non-empty). First violation throws; reads have at most
   two arguments to check, so collecting every violation (as `InvalidGraph` does) adds nothing.
 - Kind values are not re-validated at runtime: they are typed unions, and the enum casts in SQL
@@ -195,7 +197,10 @@ SELECT p.id AS project_id, n.*
   another cross-project edge could lead back, and that is not defended further.
 - **Cycles:** each path carries the nodes it visited; a step to a visited node is pruned. With
   `depth < hops` and `hops <= 3`, the walk is finite even without the path check; the path check
-  keeps it from re-expanding a cycle inside the depth budget.
+  keeps it from re-expanding a cycle inside the depth budget. Its role is **performance only**
+  (adversarial review, 2026-09-30): the observable results — each node once, minimum distance,
+  never past `hops` — come from the depth bound and `GROUP BY … min(depth)`, so no test can tell
+  the path check apart, and removing it alone changes no result.
 - **Minimum distance, once:** `GROUP BY … min(depth)`; seeds removed in `reached`.
 - **Index use:** the two `UNION ALL` branches of the lateral each match one partial index
   (`edge_source_symbol_kind_idx`, `edge_source_file_kind_idx`) instead of an `OR` across both.
@@ -256,6 +261,25 @@ statement.
 
 No migration. Additive port methods; `createProject` / `saveGraph` unchanged. Rollback is
 reverting the commit.
+
+## Follow-ups
+
+Deferred findings of the adversarial review (2026-09-30), with their destination
+(`docs/project-context.md` → Tracking deferred findings):
+
+- **C — Pool-mode read regression test.** Every automated read test uses `{ transaction: db() }`;
+  the production `pool.query` path was only exercised by the manual script of report 9. Tracked
+  in one Spanish checklist comment on DIS-24 (comment `57fb31d7`).
+- **C — Traversal performance measurement** against the readme target (100 000 edges, 2 hops,
+  under 200 ms). Path enumeration grows with fan-out^hops (see Risks). Same DIS-24 checklist
+  comment (`57fb31d7`).
+- **B — Runtime `null` arguments from untyped callers** (`seeds: null`, `name: null`) throw a
+  `TypeError` in the adapter, not a domain error. Owned by DIS-27's input validation (comment
+  `8a545b0c` on DIS-27).
+
+Fixed in the change (§13): a NUL character in the search term (`InvalidStoreQuery('name')`) and
+the missing byte-order test of `listProjects`. Recorded only (destination D): the visited-path
+check is performance only (D6).
 
 ## Open Questions
 

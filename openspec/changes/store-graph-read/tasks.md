@@ -101,3 +101,15 @@
 
   Record the three results
 - [x] 12.8 Verify the delta: `npx vitest run tests/unit/knowledge tests/integration/store`, then `npx vitest run`, `npm run typecheck`, `npm run lint`; confirm 27 scenarios ↔ 27 tests; append a "Post-audit delta" section to `reports/2026-09-30-8-test-and-state-verification.md` with the 12.7 results. Update the DIS-24 gotcha in `docs/project-context.md` with byte-order sorting and the reached-node project filter. Do not touch 10.2, 11.4 or 11.7
+
+## 13. Post-review delta (adversarial-review, 2026-09-30)
+
+- [x] 13.1 RED: add a term containing a NUL character (`'a\u0000b'`) to "Invalid read arguments are rejected before querying" in `tests/integration/store/graph-read.spec.ts` (expects `InvalidStoreQuery` naming `name`, counter still 0) and to the blank-term cases of `tests/unit/knowledge/read-arguments.spec.ts`. Run and see both fail (the integration call reaches Postgres and fails with `22021`)
+- [x] 13.2 GREEN: `assertValidSymbolSearch` in `packages/core/src/knowledge/read-arguments.ts` rejects a term containing `\u0000` with `InvalidStoreQuery('name', …)`; update its TSDoc and the `StorePort.findSymbols` TSDoc. Run 13.1 green
+- [x] 13.3 Strengthen "Projects are listed by name" (no new scenario): create a third project `${prefix}-Zeta` and assert the order `-Zeta`, `-alpha`, `-beta` (byte order; `en_US.utf8` would put `-alpha` first). No existing assertion removed or loosened
+- [x] 13.4 Prove the tests can fail, restoring from a scratch copy and confirming with `cmp` each time: remove the NUL check → 13.1 fails; remove `COLLATE "C"` from `LIST_PROJECTS` → 13.3 fails. Record both results
+- [x] 13.5 Destination D (visited-path check): design D6 already states it is performance only; append a note to `reports/2026-09-30-8-test-and-state-verification.md` correcting the 6.4 wording (that forced failure removed the check together with the `min(depth)` grouping; the failure came from the grouping)
+- [x] 13.6 Destination C and B: add a `## Follow-ups` section to `design.md` listing (C) a pool-mode read regression test and (C) the traversal performance measurement against the readme target (100 000 edges, 200 ms), both in one Spanish checklist comment on DIS-24, and (B) runtime `null` arguments from untyped callers (`TypeError`) on DIS-27. Post the DIS-24 checklist comment and the DIS-27 note (Spanish) and link both in the Follow-ups section
+- [x] 13.7 Verify the delta: `npx vitest run tests/unit/knowledge tests/integration/store`, then `npx vitest run`, `npm run typecheck`, `npm run lint`, `npx stryker run` (score for `read-arguments.ts`); confirm 27 scenarios ↔ 27 tests; append a "Post-review delta" section to the step 8 report with the 13.4 results. Run `/update-docs`; add the decision prompt to `prompts.md` §17
+- [ ] 13.8 Commit, push (gh as DisTinta, then back), and record the new head's CI evidence in the step 8 report (refreshes 10.2); refresh the PR description's test counts if they changed. Then archive (11.4) only when the author asks
+
