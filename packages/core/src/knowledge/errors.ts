@@ -71,6 +71,18 @@ export class InvalidStoreQuery extends DomainError {
   }
 }
 
+/** A history read named a path that is not the top-level directory of a Git repository. */
+export class NotAGitRepository extends DomainError {
+  /** Stable code. */
+  readonly code = 'NOT_A_GIT_REPOSITORY';
+
+  /** @param repoPath The path that is missing, outside any repository or not a repository root. */
+  constructor(readonly repoPath: string) {
+    super(`Not a Git repository: ${repoPath}`);
+    this.name = 'NotAGitRepository';
+  }
+}
+
 function describeViolation(violation: GraphViolation): string {
   const where = violation.field ? `${violation.element}.${violation.field}` : violation.element;
   return `${where}: ${violation.message}`;

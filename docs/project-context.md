@@ -118,7 +118,7 @@ Verified against `package.json` (root and per package). If a command is not here
   Vitest aliases it to `packages/core/src/index.ts` (`vitest.config.ts`, inherited by
   `vitest.stryker.config.ts`), and `tests/tsconfig.json` has the matching `paths` entry. Outside
   Vitest (`tsx` scripts), it resolves through `node_modules` to `packages/core/dist/`, so run
-  `npx tsc --build` first or you run stale core code. `store-postgres` has a project reference to
+  `npx tsc --build` first or you run stale core code. `store-postgres` and `adapters/git` have a project reference to
   core.
 - `tests/support/` holds helpers shared by unit and integration tests, such as `sample-graph.ts`,
   a synthetic `KnowledgeGraph` builder.
@@ -145,6 +145,13 @@ Verified against `package.json` (root and per package). If a command is not here
   `indexes-stale.spec.ts` and `helpers/harness.spec.ts`. No test rolls it back.
 - Test data comes from `fixtures/` (`acme-shop`, `task-api`, `history`, `build-history.mjs`) and
   `seeds/graph-dump.sql`. `fixtures/**` is excluded from Vitest collection.
+- **Git history tests (DIS-35), `tests/integration/git/simple-git-history.spec.ts`.** Its
+  `beforeAll` rebuilds `fixtures/acme-shop/.git` with `node fixtures/build-history.mjs acme-shop`
+  (deterministic: same `HEAD` every time); it is the only spec that rebuilds a fixture, so two specs
+  never race on it. Other cases use throwaway repositories under the OS temp dir with synthetic
+  identities (`git -c user.name=… -c user.email=…`). They need `git` on `PATH`. Only the persistence
+  test needs Postgres (`describeWithDatabase`); the rest run without it. Salt-helper unit tests live
+  in `tests/unit/git/`.
 
 ## Branch and ticket conventions
 
@@ -212,6 +219,11 @@ Verified against `package.json` (root and per package). If a command is not here
 
 - Never commit `.env` or any secret. Copy `.env.example` → `.env` for local values. Do not put real
   LLM keys in the repo.
+- `AUTHOR_HASH_SALT` (DIS-35) keys the pseudonymisation of commit authors. It is required: the git
+  adapter refuses to start without it (no unsalted fallback). Never commit a value; changing it
+  changes every `author_hash`. Only the composition root reads it, with
+  `authorHashSaltFromEnv(process.env)`; `createSimpleGitHistory({ authorHashSalt })` takes it as a
+  parameter.
 - LLM behaviour follows **Closed product decisions** above (optional credentials, evaluation mode).
 - `ALLOWED_REPOS_DIR` empty = indexing disabled (fixtures-only mode). Indexing only runs inside that
   root.
@@ -249,15 +261,29 @@ services that must be started first, quirks of the local environment.
 
 - **Some CI gates run against stubs, on purpose.** `lint`, `lint:architecture` and `typecheck` are
   real and must pass, and so is CI's `db:migrate` → `db:rollback` → `db:migrate` step. Mutation
-  testing has real mutants since DIS-23 (`packages/core/src/knowledge/`, 86.82 % at merge; threshold
+  testing has real mutants since DIS-23 (`packages/core/src/knowledge/`, 86.82 % at DIS-23 merge, 89.90 % with DIS-35; threshold
   `MIN_MUTATION_SCORE=70`).
   These are intentional scaffolding, not bugs — do not "fix" a stub by faking behaviour.
 - **The infra packages are stubs, not empty.** All 9 workspaces (`core`, `analyzers/{php,typescript}`,
   `adapters/{store-postgres,llm,git}`, `api`, `cli`, `web`) have a `package.json` and a `src/index.ts`,
   but the analyzer/adapter ones are empty stubs (dependency-cruiser flags them as `no-orphans` warns).
-  They resolve in `npm ls`; do not expect real behaviour from them yet. Exception: `store-postgres`
+  They resolve in `npm ls`; do not expect real behaviour from them yet. Exceptions: `store-postgres`
   implements `StorePort`: writes (`createProject`, `saveGraph`, DIS-23) and reads (`getProject`,
-  `listProjects`, `findSymbols`, `neighbors`, DIS-24).
+  `listProjects`, `findSymbols`, `neighbors`, DIS-24); `adapters/git` implements `GitPort`
+  (`createSimpleGitHistory`, DIS-35).
+- **`GitPort.readHistory` never lets an identity out** (DIS-35). Authors become `authorHash`
+  (HMAC-SHA256 keyed by `AUTHOR_HASH_SALT` of the trimmed, lower-cased e-mail, or of the name when
+  the e-mail is blank; rule in core, `knowledge/author-hash.ts`) and messages lose their identity
+  trailers (`Co-authored-by`, `Signed-off-by`, … `knowledge/commit-message.ts`). `prNumber` comes
+  from the subject only (last `(#N)`, else `Merge pull request #N`). The log is read in one
+  `git log --numstat --no-renames` pass: a rename is a delete plus an add, so links can name paths
+  that are no longer in the snapshot, and `saveGraph` rejects a link whose file is not in `files` —
+  the caller (DIS-85) must drop them first.
+- **`repoPath` must be a repository's top-level directory.** The fixtures sit inside the Codemind
+  repository, so without their own `.git` plain `git` would silently read Codemind's history. The
+  adapter compares `git rev-parse --show-toplevel` with `repoPath` by real path and throws
+  `NotAGitRepository` otherwise. Do not replace this with simple-git's
+  `checkIsRepo(IS_REPO_ROOT)`: it tests "`--git-dir` is `.git`" and rejects linked worktrees.
 - **`saveGraph` takes a full snapshot of the project.** Files are upserted in place by
   `(project_id, path)` and keep their ids, so `file_commit`, `evidence` and the stale trigger keep
   working. Files missing from the snapshot are deleted; right before, in the same transaction,
@@ -290,7 +316,8 @@ services that must be started first, quirks of the local environment.
 - **The repo is mid-build (Entrega 2).** `db:seed`/`seed:build`/`verify` are placeholders that
   no-op. The schema has migrations `0001`–`0003`, but only the L1 graph and history
   (`project`, `file`, `symbol`, `edge`, `commit`, `file_commit`) have a writer so far, and only
-  `project`, `file`, `symbol` and `edge` have a reader.
+  `project`, `file`, `symbol` and `edge` have a reader. The git history reader (DIS-35) produces
+  `commit`/`file_commit` rows, but nothing calls it yet outside tests (indexing is DIS-85).
   `db:migrate` / `db:rollback` are real and need `DATABASE_URL`: `make up` gets it from `.env`,
   because the Makefile includes and exports `.env`. Plain `npm run db:*` does not read `.env`.
   Do not assume a working end-to-end flow exists.

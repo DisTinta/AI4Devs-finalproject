@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DomainError, InvalidStoreQuery, ProjectNameTaken, ProjectNotFound } from '@codemind/core';
+import { DomainError, InvalidStoreQuery, NotAGitRepository, ProjectNameTaken, ProjectNotFound } from '@codemind/core';
 
 // The codes are the stable contract a transport maps (design D1); messages name the offending value.
 describe('domain errors', () => {
@@ -37,5 +37,17 @@ describe('domain errors', () => {
     expect(error.name).toBe('InvalidStoreQuery');
     expect(error.argument).toBe('hops');
     expect(error.message).toBe('Invalid store query: hops must be an integer from 1 to 3 (got 4)');
+  });
+
+  it('NotAGitRepository carries its stable code and the path', () => {
+    // Arrange / Act
+    const error = new NotAGitRepository('/tmp/not-a-repo');
+
+    // Assert
+    expect(error).toBeInstanceOf(DomainError);
+    expect(error.code).toBe('NOT_A_GIT_REPOSITORY');
+    expect(error.name).toBe('NotAGitRepository');
+    expect(error.repoPath).toBe('/tmp/not-a-repo');
+    expect(error.message).toBe('Not a Git repository: /tmp/not-a-repo');
   });
 });

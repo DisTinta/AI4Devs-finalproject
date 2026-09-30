@@ -1,3 +1,4 @@
-// @codemind/adapter-git — simple-git wrapper
-// TODO Ticket 5 — implement GitPort adapter (commits, co-change, PR numbers)
-export {};
+// @codemind/adapter-git — GitPort over simple-git, with pseudonymised authors.
+export { authorHashSaltFromEnv } from './config.js';
+export { createSimpleGitHistory } from './simple-git-history.js';
+export type { SimpleGitHistoryOptions } from './simple-git-history.js';
