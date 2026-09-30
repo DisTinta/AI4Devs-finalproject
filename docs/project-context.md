@@ -107,8 +107,20 @@ Verified against `package.json` (root and per package). If a command is not here
 - **Code under test must not `COMMIT` or `ROLLBACK` on `db()`.** The harness then fails the test
   with "Harness transaction was committed or ended early".
   - A `SAVEPOINT` is fine, and so is a statement that fails (an aborted transaction).
-  - How an adapter that opens its own transaction (`saveGraph`) cooperates with that client is
-    decided in DIS-23.
+  - The store (DIS-23) cooperates through its connection mode: in tests build it with
+    `createPostgresStore({ transaction: db() })`. Every write then runs in `SAVEPOINT store_write`
+    and a failed write rolls back to it, so the test can keep querying `db()`. In production it is
+    `createPostgresStore({ pool })`, which opens and commits its own transaction per write. A test
+    that needs a real commit (`graph-write-pool.spec.ts`) uses a unique project name and deletes the
+    project in `finally`; the schema cascades the rest.
+- **`@codemind/core` resolves to its sources in tests** (DIS-23, the first cross-package import).
+  Vitest aliases it to `packages/core/src/index.ts` (`vitest.config.ts`, inherited by
+  `vitest.stryker.config.ts`), and `tests/tsconfig.json` has the matching `paths` entry. Outside
+  Vitest (`tsx` scripts), it resolves through `node_modules` to `packages/core/dist/`, so run
+  `npx tsc --build` first or you run stale core code. `store-postgres` has a project reference to
+  core.
+- `tests/support/` holds helpers shared by unit and integration tests, such as `sample-graph.ts`,
+  a synthetic `KnowledgeGraph` builder.
 - **Hook order: Vitest 1.6 runs all hooks of one suite in parallel.** This is
   `sequence.hooks = 'parallel'`, the default here, and it applies to `beforeAll`, `beforeEach` and
   `afterEach` alike. A parent suite's hooks do run before a nested suite's.
@@ -236,16 +248,30 @@ services that must be started first, quirks of the local environment.
 
 - **Some CI gates run against stubs, on purpose.** `lint`, `lint:architecture` and `typecheck` are
   real and must pass, and so is CI's `db:migrate` → `db:rollback` → `db:migrate` step. Mutation
-  testing now runs (test files exist) but `packages/core` has no mutants yet, so the score is `n/a`.
+  testing has real mutants since DIS-23 (`packages/core/src/knowledge/`, 86.82 % at merge; threshold
+  `MIN_MUTATION_SCORE=70`).
   These are intentional scaffolding, not bugs — do not "fix" a stub by faking behaviour.
 - **The infra packages are stubs, not empty.** All 9 workspaces (`core`, `analyzers/{php,typescript}`,
   `adapters/{store-postgres,llm,git}`, `api`, `cli`, `web`) have a `package.json` and a `src/index.ts`,
   but the analyzer/adapter ones are empty stubs (dependency-cruiser flags them as `no-orphans` warns).
-  They resolve in `npm ls`; do not expect real behaviour from them yet.
+  They resolve in `npm ls`; do not expect real behaviour from them yet. Exception: `store-postgres`
+  implements the write side of `StorePort` (`createProject`, `saveGraph`, DIS-23). Graph reads
+  arrive with DIS-24.
+- **`saveGraph` takes a full snapshot of the project.** Files are upserted in place by
+  `(project_id, path)` and keep their ids, so `file_commit`, `evidence` and the stale trigger keep
+  working. Files missing from the snapshot are deleted; right before, in the same transaction,
+  the `current` claims with evidence citing them become `stale` (the trigger fires only on UPDATE,
+  and the delete cascades the evidence). Symbols and edges are replaced wholesale.
+  Commits and `file_commit` rows are only ever added to: on upsert, an optional value the snapshot
+  omits keeps the stored one (`COALESCE`), while a file's `kind`, `loc`, `content_hash` and
+  `redacted` always follow the snapshot. It validates the graph in core first (`InvalidGraph`,
+  before `ProjectNotFound`) and never changes `project.framework`, which is fixed at
+  `createProject`.
 - **Vitest can report success with no tests** (`passWithNoTests: true`). A green suite is not
   evidence that behaviour is covered.
 - **The repo is mid-build (Entrega 2).** `db:seed`/`seed:build`/`verify` are placeholders that
-  no-op, and the schema only has the L1 graph tables (`project`, `file`, `symbol`, `edge`).
+  no-op. The schema has migrations `0001`–`0003`, but only the L1 graph and history
+  (`project`, `file`, `symbol`, `edge`, `commit`, `file_commit`) have a writer so far.
   `db:migrate` / `db:rollback` are real and need `DATABASE_URL`: `make up` gets it from `.env`,
   because the Makefile includes and exports `.env`. Plain `npm run db:*` does not read `.env`.
   Do not assume a working end-to-end flow exists.
