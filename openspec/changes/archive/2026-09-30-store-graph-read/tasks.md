@@ -81,7 +81,7 @@
 - [x] 11.1 Update `docs/project-context.md`: the store read path (four reads, no savepoint on reads, one-statement traversal, `MAX_HOPS`, symbol ids valid only until the next `saveGraph`)
 - [x] 11.2 Update `readme.md` §3.2 / task list only where it states traversal behaviour this change now fixes (recursive traversal with depth limit and cycle detection, source → target). No other product text
 - [x] 11.3 ADR: none planned (reads are additive and local to the adapter). Write one via `/adr-new` only if the author asks at review
-- [ ] 11.4 At archive, widen the Purpose of `openspec/specs/graph-store/spec.md` from "the write side" to write and read sides (the delta cannot carry a Purpose for an existing capability)
+- [x] 11.4 At archive, widen the Purpose of `openspec/specs/graph-store/spec.md` from "the write side" to write and read sides (the delta cannot carry a Purpose for an existing capability)
 - [x] 11.5 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules
 - [x] 11.6 Leave a Linear comment in Spanish on DIS-27 and DIS-89: the read contract, mixed nodes, source → target only (direction still pending for DIS-89), `MAX_HOPS`, `SymbolRef` in every symbol result and id validity. On DIS-27, state explicitly that the store returns mixed nodes and that `expand` filters to symbols (`type === 'symbol'`)
 - [x] 11.7 Prepare the PR description (`/pr-describe`) against `feature/entrega-2-CRN`. After verification, set DIS-24 to In Review in Linear, with a comment in Spanish linking the PR and the change
