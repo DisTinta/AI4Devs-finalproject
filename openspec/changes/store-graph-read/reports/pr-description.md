@@ -65,28 +65,28 @@ Spec: `openspec/changes/store-graph-read/specs/graph-store/spec.md`. Tests in
 | Reading an unknown project fails | `tests/integration/store/graph-read.spec.ts:165` |
 | Listing with no project returns an empty list | `tests/integration/store/graph-read.spec.ts:179` |
 | Projects are listed by name | `tests/integration/store/graph-read.spec.ts:191` |
-| Symbols are found by a case-insensitive fragment of the name | `tests/integration/store/graph-read.spec.ts:216` |
-| The search can be narrowed by kind | `tests/integration/store/graph-read.spec.ts:248` |
-| Wildcard characters in the term match literally | `tests/integration/store/graph-read.spec.ts:262` |
-| A search with no match returns an empty list | `tests/integration/store/graph-read.spec.ts:291` |
-| Searching an unknown project fails | `tests/integration/store/graph-read.spec.ts:303` |
-| A cycle yields each node once with its minimum distance | `tests/integration/store/graph-read.spec.ts:316` |
-| The traversal stops at the hop limit | `tests/integration/store/graph-read.spec.ts:339` |
-| The minimum distance wins when a node is reachable by several paths | `tests/integration/store/graph-read.spec.ts:355` |
-| Edges are followed from source to target only | `tests/integration/store/graph-read.spec.ts:368` |
-| The traversal crosses files and symbols | `tests/integration/store/graph-read.spec.ts:381` |
-| A file can be a seed | `tests/integration/store/graph-read.spec.ts:426` |
-| Only the requested edge kinds are followed | `tests/integration/store/graph-read.spec.ts:445` |
-| Seeds are never returned | `tests/integration/store/graph-read.spec.ts:458` |
-| Unknown and empty seeds give no neighbours | `tests/integration/store/graph-read.spec.ts:474` |
-| The traversal is one statement | `tests/integration/store/graph-read.spec.ts:494` |
-| Traversing an unknown project fails | `tests/integration/store/graph-read.spec.ts:511` |
-| A symbol search never returns another project's symbols | `tests/integration/store/graph-read.spec.ts:526` |
-| A traversal never reaches another project | `tests/integration/store/graph-read.spec.ts:545` |
-| A cross-project edge never returns another project's node | `tests/integration/store/graph-read.spec.ts:562` |
-| A symbol id from before a reindex names nothing after it | `tests/integration/store/graph-read.spec.ts:586` |
-| A file id stays valid across a reindex that keeps its path | `tests/integration/store/graph-read.spec.ts:605` |
-| Invalid read arguments are rejected before querying | `tests/integration/store/graph-read.spec.ts:628` |
+| Symbols are found by a case-insensitive fragment of the name | `tests/integration/store/graph-read.spec.ts:219` |
+| The search can be narrowed by kind | `tests/integration/store/graph-read.spec.ts:251` |
+| Wildcard characters in the term match literally | `tests/integration/store/graph-read.spec.ts:265` |
+| A search with no match returns an empty list | `tests/integration/store/graph-read.spec.ts:294` |
+| Searching an unknown project fails | `tests/integration/store/graph-read.spec.ts:306` |
+| A cycle yields each node once with its minimum distance | `tests/integration/store/graph-read.spec.ts:319` |
+| The traversal stops at the hop limit | `tests/integration/store/graph-read.spec.ts:342` |
+| The minimum distance wins when a node is reachable by several paths | `tests/integration/store/graph-read.spec.ts:358` |
+| Edges are followed from source to target only | `tests/integration/store/graph-read.spec.ts:371` |
+| The traversal crosses files and symbols | `tests/integration/store/graph-read.spec.ts:384` |
+| A file can be a seed | `tests/integration/store/graph-read.spec.ts:429` |
+| Only the requested edge kinds are followed | `tests/integration/store/graph-read.spec.ts:448` |
+| Seeds are never returned | `tests/integration/store/graph-read.spec.ts:461` |
+| Unknown and empty seeds give no neighbours | `tests/integration/store/graph-read.spec.ts:477` |
+| The traversal is one statement | `tests/integration/store/graph-read.spec.ts:497` |
+| Traversing an unknown project fails | `tests/integration/store/graph-read.spec.ts:514` |
+| A symbol search never returns another project's symbols | `tests/integration/store/graph-read.spec.ts:529` |
+| A traversal never reaches another project | `tests/integration/store/graph-read.spec.ts:548` |
+| A cross-project edge never returns another project's node | `tests/integration/store/graph-read.spec.ts:565` |
+| A symbol id from before a reindex names nothing after it | `tests/integration/store/graph-read.spec.ts:589` |
+| A file id stays valid across a reindex that keeps its path | `tests/integration/store/graph-read.spec.ts:608` |
+| Invalid read arguments are rejected before querying | `tests/integration/store/graph-read.spec.ts:631` |
 
 ## Origin
 

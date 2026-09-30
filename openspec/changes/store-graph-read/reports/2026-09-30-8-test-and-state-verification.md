@@ -144,4 +144,11 @@ Commands (same `DATABASE_URL`): `npx vitest run tests/integration/store/graph-re
   `npx stryker run` all files 87.86 %, `read-arguments.ts` 90.24 % (37 killed, 4 survived: reason
   strings). Scenario traceability 27 ↔ 27. Data state after: `project` / `file` / `symbol` /
   `edge` = 0 / 0 / 0 / 0.
+- 13.8 CI evidence for head `f7f5ce3` (refreshes 10.2): `CI` run
+  [36744576706](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/36744576706)
+  success — `graph-read.spec.ts` (27 tests) and `read-arguments.spec.ts` (17 tests) ran, neither
+  skipped, 12 test files passed; `Frontend` run
+  [36744576661](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/36744576661)
+  success. The PR description's scenario table was regenerated with the test line numbers of
+  `f7f5ce3`.
 
