@@ -74,7 +74,7 @@
 ## 10. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
 - [x] 10.1 Confirm no user interface or user workflow is affected (no route, no CLI, no web change). Record "not applicable", with that reason, in the step 8 report
-- [ ] 10.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run (`ci.yml` → `Tests`) that `simple-git-history.spec.ts` ran, including the database block, and was not skipped; confirm the fixture rebuild works on the Ubuntu runner. Link the run in the step 8 report
+- [x] 10.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run (`ci.yml` → `Tests`) that `simple-git-history.spec.ts` ran, including the database block, and was not skipped; confirm the fixture rebuild works on the Ubuntu runner. Link the run in the step 8 report
 
 ## 11. Update Technical Documentation (MANDATORY)
 
@@ -84,4 +84,4 @@
 - [x] 11.4 ADR: none planned (design D7). Write one via `/adr-new` only if the author asks at review
 - [x] 11.5 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules
 - [x] 11.6 Leave a Linear comment in Spanish on DIS-36 (co-change) and DIS-85 (orchestration): the `GitHistory` shape, that links to paths outside the snapshot must be dropped before `saveGraph`, `--no-renames`, and that the CLI must read the salt with `authorHashSaltFromEnv(process.env)` at boot
-- [ ] 11.7 Prepare the PR description (`/pr-describe`) against `feature/entrega-2-CRN`. After verification, set DIS-35 to In Review in Linear, with a comment in Spanish linking the PR and the change
+- [x] 11.7 Prepare the PR description (`/pr-describe`) against `feature/entrega-2-CRN`. After verification, set DIS-35 to In Review in Linear, with a comment in Spanish linking the PR and the change

@@ -82,7 +82,20 @@ Not applicable: the change adds no HTTP route, CLI command or web screen; the ne
 
 - (none: the change has no browser UI)
 
+## CI evidence (step 10.2)
+
+PR #11 (https://github.com/DisTinta/AI4Devs-finalproject/pull/11), head `fe252c1`, `ci.yml` job
+`quality` run 36756128150 — success (1m43s); `frontend.yml` — success (33s).
+
+- `Tests` step: 16 files, 229 tests passed. `tests/integration/git/simple-git-history.spec.ts`
+  ran 12 tests, none skipped, including the `git history persistence` block on the job's Postgres;
+  its `beforeAll` rebuilt `fixtures/acme-shop/.git` on the Ubuntu runner. `tests/unit/git/salt-config.spec.ts`
+  ran 5 tests.
+- `Mutation testing on critical paths`: all core files 89.90 %; `author-hash.ts` 100 % (10),
+  `commit-message.ts` 100 % (22). Stryker lists the `salt-config` tests as covering 0 mutants:
+  expected, they exercise the adapter, which is not mutated.
+
 ## Outcome
 
 - Status: PASS
-- Blocking issues: none. CI evidence (step 10.2) pending until the branch is pushed.
+- Blocking issues: none.
