@@ -2,7 +2,7 @@
 name: adversarial-review
 description: Use before archiving a change, or when the user asks for a hostile review, a second opinion, or a pre-merge audit. Tries to refute that the change is done, and returns an explicit verdict.
 author: sdd-harness-kit
-version: 1.0.0
+version: 1.1.0
 argument-hint: [change-id or pull request reference]
 context: fork
 agent: Explore
@@ -67,6 +67,13 @@ FAIL — at least one Blocker
 ### Recommended next steps before archiving
 1. ...
 ```
+
+For **PASS WITH GAPS** (and any deferred Minor/Major the author does not fix in this
+change): classify every deferred finding as **A / B / C / D** per
+`docs/project-context.md` → *Tracking deferred findings*. Do not recommend archiving
+until each gap has a destination. Prefer one Linear debt issue (C) or a hand-off
+comment on a successor ticket (B); do not invent one Linear issue per minor. Process
+debt (e.g. “RED was not observed”, “spec not yet committed”) is not a Linear issue.
 
 ## Guardrails
 

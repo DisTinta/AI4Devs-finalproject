@@ -614,6 +614,8 @@ Cinco cosas que aprendí, incluyendo las que salieron mal.
 
 **8. Decisión de producto (29 sep 2026): se conserva el índice `file (project_id, content_hash)` (DIS-13).** La tercera `/adversarial-review` señaló que la búsqueda de ficheros sin cambios va por `(project_id, path)`, que ya cubre `file_project_path_key`. Según eso, ninguna consulta definida usa hoy el índice por hash, y añade coste de escritura al indexar. Lo mantuve porque `readme.md` §3.2 lo pide: quitarlo es una decisión de producto, no algo que se resuelva en una pasada de arreglos. **Lección:** un hallazgo válido de un revisor automático no autoriza a cambiar el contrato del producto; se anota y se decide en su sitio.
 
+**9. Tracking de gaps tras adversarial (30 sep 2026).** Tras varios PASS WITH GAPS, el riesgo era dejar Minors solo en un `design.md` archivado o en un comentario de un ticket que se cierra. Quedó norma en `docs/project-context.md` (*Tracking deferred findings*) y en el skill `adversarial-review`: cada gap diferido es A/B/C/D; sin destino no se archiva. En DIS-23 se eligió la variante ligera de C: un comentario-checklist en el propio ticket más Follow-ups en `design.md`, no una issue por Minor. **Lección:** lo que no se arregla en el change tiene que salir con dueño consultable; el board no hace falta hincharlo si el comentario y el design duplican la lista.
+
 ---
 
 *A partir de aquí, empezaremos a construir el proyecto y las conversaciones completas archivadas estarán en `docs/ai-sessions/`.*
@@ -2059,3 +2061,95 @@ en la 2.0. La autora eligió la opción A: mantener el default y limpiar en el c
 lugar de fijar `sequence.hooks: 'stack'`. Durante el apply salió además un caso no previsto: una
 transacción abortada (`25P02`) hacía fallar la comprobación de fin de test. Se corrigió y se
 añadió el escenario a la spec.
+
+---
+
+# 16. Contrato `StorePort` y escritura transaccional del grafo L1 (DIS-23)
+
+### Prompt 1 — Propuesta OpenSpec desde la sub-issue
+
+Comando literal en Claude Code, rama `feature/entrega-2-CRN`. El agente leyó con el MCP de Linear
+DIS-23, su padre DIS-15 (CM-HU-02) y los seis comentarios que dejaron en DIS-23 los cambios DIS-12,
+DIS-13 y DIS-22:
+
+````
+/opsx:propose DIS-23
+````
+
+**Por qué funcionó.** Los comentarios de Linear ya fijaban las restricciones del escritor: upsert por
+`(project_id, path)` sin borrar y reinsertar, un orden estable de ficheros frente a `40P01`, nada de
+filas entre proyectos y cooperar con la transacción del arnés. El agente las convirtió en requisitos
+y en fallos forzados, y no tuvo que inventarlas.
+
+**Ajuste humano.** Antes de escribir los artefactos, el agente preguntó dos cosas que cambiaban el
+comportamiento observable. La autora eligió:
+- un snapshot completo, en el que los ficheros ausentes se borran;
+- `createProject` como método aparte, con `ProjectNotFound` en `saveGraph`.
+
+### Prompt 2 — Afinado del change antes del apply
+
+Texto literal enviado:
+
+````
+Afina store-graph-write (solo artefactos; sin código).
+
+1) BLOQUEANTE — framework:
+   Añade non-goal: saveGraph NO actualiza project.framework;
+   se fija en createProject (DIS-85 puede pasarlo al crear / otra op).
+   Quita cualquier ambigüedad residual. No añadas framework a KnowledgeGraph.
+
+2) Nits:
+   - Spec: ProjectNotFound también si projectId no es UUID.
+   - Spec: escenario de validación cubre loc / lines_added / lines_removed / pr_number negativos.
+   - Spec: extractor ausente O cadena vacía → InvalidGraph.
+   - design D7: define el grafo mínimo del test de pool.
+   - tasks: parte 6.1 en 6.1a (pasos upsert/delete files + symbols/edges) y 6.1b (commits + metadata + cierre txn).
+
+Al terminar: openspec validate store-graph-write --strict y resume el diff.
+````
+
+**Ajuste humano.** El agente aplicó todo, pero al contar los valores del escenario de validación
+escribió «ocho» cuando eran siete. El error salió en el apply, al escribir el test, y se corrigió en
+la spec.
+
+Durante el apply salieron otras tres cosas:
+- `createProject` también necesitaba el `SAVEPOINT`, porque un nombre duplicado abortaba la
+  transacción del arnés.
+- `indexed_at` usa `clock_timestamp()`, porque `now()` es la hora de inicio de la transacción del
+  llamante.
+- El guard de capas del kit bloqueaba el valor de enum `'fastify'` en core. La autora eligió afinar
+  el regex para que detecte solo imports. El agente no puede editar `.claude/sdd-harness.env`, así que
+  ese cambio lo aplica la autora.
+
+### Prompt 3 — Decisión sobre la revisión adversarial
+
+Tras `/adversarial-review store-graph-write` (veredicto PASS WITH GAPS, un Major), texto literal
+enviado:
+
+````
+Major: lo arreglamos DENTRO de store-graph-write.
+Antes de DELETE_ABSENT_FILES, en la misma transacción, marcar stale
+los claim current con evidence en los ficheros a borrar.
+Escenario + test nuevos. Sin migración de trigger DELETE por ahora
+(si la propones como mejora, aparte).
+
+Minors: no los implementes ahora salvo el texto de tareas 1.1 y 7.2
+si tocas tasks.md en el update. El resto → follow-ups / documentar.
+
+Symbol ids inestables: intencionado; no cambiar.
+
+Siguiente: /opsx:update con el escenario, luego solo el delta TDD.
+No archives hasta 10.2 y 11.6.
+````
+
+**Por qué funcionó.** La revisión encontró un hueco que ningún test cubría: el trigger de `stale`
+solo dispara en `UPDATE`, y borrar un fichero arrastra su evidencia y deja la afirmación como
+`current`. La decisión separó qué se arregla ahora (el Major, en el adaptador, sin migración) de qué
+se documenta (los Minors). Así, el delta quedó en un escenario, una query y un test.
+
+**Ajuste humano.** La autora mantuvo la aserción sobre `c2` (una afirmación que cita solo el fichero
+que se conserva sigue `current`), que prueba que el `UPDATE` no afecta a otras afirmaciones. Para los
+follow-ups (tarea 13.6) se eligió la opción menos invasiva: **un comentario-checklist en DIS-23**,
+más la sección Follow-ups en `design.md` — no una issue Linear por Minor ni una issue de deuda
+nueva. La norma general de destinos A–D quedó en `docs/project-context.md` y en el skill
+`adversarial-review`.

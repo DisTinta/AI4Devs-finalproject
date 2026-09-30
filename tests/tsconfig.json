@@ -10,7 +10,9 @@
     "noEmit": true,
     "declaration": false,
     "declarationMap": false,
-    "sourceMap": false
+    "sourceMap": false,
+    // Same target as the Vitest alias (DIS-23 design D6): tests type-check against core sources.
+    "paths": { "@codemind/core": ["../packages/core/src/index.ts"] }
   },
   "include": ["**/*.ts"]
 }
