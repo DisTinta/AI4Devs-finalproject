@@ -186,3 +186,13 @@ Origin: the second `/adversarial-review` (PASS WITH GAPS, no Major). Fixed now, 
   both times. `typecheck`, `docs:coverage` exit 0; `lint` 0 errors, 3 pre-existing warnings.
 - Linear: comment `0d22803f` on DIS-23 extended with the four new debt items and the absorbed DIS-22
   note (`dc537bdf`); hand-off on DIS-85 (comment `8efe98b2`): `saveGraph` needs the complete snapshot.
+
+## CI evidence (task 10.2)
+
+- PR #9 (https://github.com/DisTinta/AI4Devs-finalproject/pull/9), head `9488789`.
+- CI run https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/36726481341 (job `quality`,
+  pass, 1m40s). Step `Tests` (`npx vitest run`): `tests/integration/store/graph-write.spec.ts` 20
+  tests, `tests/unit/knowledge/validate-graph.spec.ts` 11 tests,
+  `tests/integration/store/graph-write-pool.spec.ts` 1 test, all ran and passed, none skipped;
+  10 files, 141 tests passed. Stryker in the same job: mutation score 86.82 % (threshold 70).
+- Frontend run https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/36726481178: pass.

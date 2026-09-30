@@ -78,7 +78,7 @@
 ## 10. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
 - [x] 10.1 Confirm no user interface or user workflow is affected (no route, no CLI, no web change). Record "not applicable", with that reason, in the step 8 report
-- [ ] 10.2 After pushing, confirm in the PR's CI run (`ci.yml` → `Tests`) that `graph-write.spec.ts`, `graph-write-pool.spec.ts` and `validate-graph.spec.ts` ran and were not skipped. Link the run in the step 8 report
+- [x] 10.2 After pushing, confirm in the PR's CI run (`ci.yml` → `Tests`) that `graph-write.spec.ts`, `graph-write-pool.spec.ts` and `validate-graph.spec.ts` ran and were not skipped. Link the run in the step 8 report
 
 ## 11. Update Technical Documentation (MANDATORY)
 
@@ -87,7 +87,7 @@
 - [x] 11.3 ADR: none planned (the transaction ownership and snapshot semantics are local to the adapter and easy to revert). Write one via `/adr-new` only if the author asks at review
 - [x] 11.4 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules
 - [x] 11.5 Leave a Linear comment in Spanish on DIS-24 (reads) and DIS-85 (orchestration): the port shape, symbol identity `(file, name, startLine)`, snapshot semantics, `{ transaction }` mode, and the evidence-writer lock rule that remains open (DIS-13 note)
-- [ ] 11.6 Prepare the PR description (`/pr-describe`) against `feature/entrega-2-CRN`. After verification, set DIS-23 to In Review in Linear, with a comment in Spanish linking the PR and the change
+- [x] 11.6 Prepare the PR description (`/pr-describe`) against `feature/entrega-2-CRN`. After verification, set DIS-23 to In Review in Linear, with a comment in Spanish linking the PR and the change
 
 ## 12. Post-audit delta (verify-against-spec, 2026-09-30)
 
