@@ -1,0 +1,51 @@
+== Requirement: History reading
+PASS | The acme-shop history is read completely
+       observed: {"commits":32,"distinctShas":32,"head":"4f028db4d51a3321031f3a24b3f36240410ed38c","repoHead":"4f028db4d51a3321031f3a24b3f36240410ed38c","newestFirst":true,"fixCommittedAt":"2024-05-02T14:49:00.000Z","fixFiles":["app/Services/PriceCalculator.php","config/shop.php"]}
+PASS | A repository without commits yields an empty history
+       observed: {"commits":[],"fileCommits":[]}
+== Requirement: Author pseudonymisation
+PASS | Commits of one author share a hash
+       observed: {"sameInBothReads":true,"all64Hex":true,"distinctHashes":3,"oneHashPerAuthor":true,"sample":"f873529833fb9b31c7bf953bc5140c1466b41473e358849834c44dab09bfa5a2"}
+PASS | A different salt changes every hash
+       observed: {"commitsWithSharedHash":0}
+PASS | E-mail case and surrounding whitespace do not change the hash
+       observed: {"padded":"a2f13c5f57e117d7e50cb20771307772b735aeffeca979085161895104e73ef6","plain":"a2f13c5f57e117d7e50cb20771307772b735aeffeca979085161895104e73ef6"}
+PASS | An empty e-mail falls back to the normalised name
+       observed: {"noEmail":"ee3f2d1ad387120ca382dba746d0ee967889c3228f8d8b4492033bc339cfabff","blankEmail":"ee3f2d1ad387120ca382dba746d0ee967889c3228f8d8b4492033bc339cfabff","nameOnly":"ee3f2d1ad387120ca382dba746d0ee967889c3228f8d8b4492033bc339cfabff","withEmail":"a2f13c5f57e117d7e50cb20771307772b735aeffeca979085161895104e73ef6"}
+== Requirement: Salt is mandatory
+PASS | A missing or blank salt is rejected
+       observed: {"envMissing":"AUTHOR_HASH_SALT is required to pseudonymise commit authors; set it in .env (see .env.example)","envBlank":"AUTHOR_HASH_SALT is required to pseudonymise commit authors; set it in .env (see .env.example)","factoryBlank":"AUTHOR_HASH_SALT is required to pseudonymise commit authors; set it in .env (see .env.example)"}
+== Requirement: Message sanitisation
+warning: in the working copy of 'x.txt', LF will be replaced by CRLF the next time Git touches it
+PASS | Identity trailers are removed from the message
+       observed: {"rawMessage":"feat: x (#7)\n\nCo-authored-by: Jane Doe <jane@x.test>\nSigned-off-by: Jane Doe <jane@x.test>","storedMessage":"feat: x (#7)","prNumber":7}
+== Requirement: Pull request number
+PASS | A squash-style number is extracted
+       observed: {"input":"fix: a (#3) and b (#61)","prNumber":61}
+PASS | A merge-commit number is extracted
+       observed: {"input":"Merge pull request #12 from org/branch","prNumber":12}
+PASS | A message without a number has none
+       observed: {"chore: y":"undefined","chore: y + body (#9)":"undefined"}
+PASS | The acme-shop PR numbers are extracted
+       observed: {"prTagged":17,"numbers":[61,55,53,51,48,45,42,39,36,33,30,27,24,21,18,15,12],"fixPrNumber":61}
+== Requirement: Line counts
+warning: in the working copy of 'notes.txt', LF will be replaced by CRLF the next time Git touches it
+PASS | Text and binary files are counted correctly
+       observed: {"text":{"file":"notes.txt","sha":"a94383228b1101dff1c644968979e4e1e6d973c1","linesAdded":3,"linesRemoved":0},"binary":{"file":"image.bin","sha":"a94383228b1101dff1c644968979e4e1e6d973c1"}}
+== Requirement: Not a repository
+PASS | A directory without Git is rejected
+       observed: {"gitSeesRepo":false,"rejected":true,"isNotAGitRepository":true,"code":"NOT_A_GIT_REPOSITORY","repoPath":"C:\\Users\\cristina\\AppData\\Local\\Temp\\codemind-demo-dosqOb"}
+warning: in the working copy of 'src/a.txt', LF will be replaced by CRLF the next time Git touches it
+PASS | A subdirectory of a repository is rejected
+       observed: {"rejected":true,"isNotAGitRepository":true,"code":"NOT_A_GIT_REPOSITORY","repoPath":"C:\\Users\\cristina\\AppData\\Local\\Temp\\codemind-demo-bcNZso\\src"}
+PASS | A non-existent path is rejected
+       observed: {"rejected":true,"isNotAGitRepository":true,"code":"NOT_A_GIT_REPOSITORY","repoPath":"C:\\Users\\cristina\\AppData\\Local\\Temp\\codemind-demo-NwBqm2\\does-not-exist"}
+warning: in the working copy of 'a.txt', LF will be replaced by CRLF the next time Git touches it
+PASS | (boundary) accepts the top-level directory of a linked worktree
+       observed: {"messages":["feat: a"]}
+== Requirement: Persisted history holds no personal data
+PASS | The acme-shop history is persisted without names or e-mails
+       observed: {"saveReport":{"files":53,"filesDeleted":0,"symbols":0,"edges":0,"commits":32,"fileCommits":59},"commitRows":32,"withPrNumber":17,"distinctAuthorHash":3,"fix":{"pr_number":61,"committed_at":"2024-05-02T14:49:00.000Z","links":[{"path":"app/Services/PriceCalculator.php","added":9,"removed":5},{"path":"config/shop.php","added":1,"removed":1}]},"identitiesChecked":6,"identitiesFoundInRows":[],"containsAcmeTestDomain":false}
+       restore: project 27df024f-3312-4fe5-bc95-f822ebddcc21 deleted, its commit rows left = 0
+== temporary directories removed: 8
+== ALL SCENARIOS PASS
