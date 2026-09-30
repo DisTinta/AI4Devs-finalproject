@@ -1291,7 +1291,7 @@ Crear el esquema de PostgreSQL con pgvector, los índices para travesía del gra
 3. Índices de travesía sobre `EDGE`: uno parcial por columna de extremo (`source_symbol_id`, `source_file_id`, `target_symbol_id`, `target_file_id`, cada uno con `kind`), porque desde DIS-11 cada extremo son dos FK (ver el [ADR](docs/adr/20260928-edge-endpoints-as-fk-pairs.md) y §3.2 → Índices).
 4. Restricción `fact_only_from_l1`: impide `type = 'FACT'` cuando `layer = 'L2'`.
 5. Restricción `l2_requires_provenance`: exige `provenance` no nulo en la capa inferida.
-6. Consulta recursiva (`WITH RECURSIVE`) de travesía a N saltos, con límite de profundidad y detección de ciclos.
+6. Consulta recursiva (`WITH RECURSIVE`) de travesía a N saltos, con límite de profundidad y detección de ciclos. Implementada en DIS-24 como `StorePort.neighbors`: una sola sentencia, siempre filtrada por proyecto, que sigue las aristas de origen a destino y devuelve cada nodo (símbolo o fichero) una vez con su distancia mínima. La travesía inversa queda para DIS-89.
 7. Trigger que marca `status = 'stale'` en las afirmaciones cuya evidencia apunta a un fichero cuyo `content_hash` ha cambiado.
 8. Índice parcial sobre afirmaciones `stale` para que la re-inferencia perezosa sea eficiente.
 9. Script `seed:build` que indexa los dos repositorios de muestra y genera `seeds/graph-dump.sql`, versionado en el repositorio.
