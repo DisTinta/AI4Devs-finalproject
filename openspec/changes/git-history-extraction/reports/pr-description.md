@@ -9,7 +9,7 @@ in core, and `NotAGitRepository` rejects any path that is not a repository's top
 
 ## Why?
 
-<!-- filled in by the human: the business rationale is not yours to generate -->
+The L1 store can persist commits and file–commit links (DIS-23), but nothing reads them from a repository: GitPort and @codemind/adapter-git are empty stubs. Indexing (DIS-85) and co-change edges (DIS-36) are blocked on a history extractor that the domain can call, and that — per readme §2.5 — never lets a contributor's name or e-mail reach the store. This is DIS-35 (CM-HU-03.1), a slice of CM-HU-03 (DIS-25).
 
 ## How to test it?
 
@@ -17,9 +17,9 @@ in core, and `NotAGitRepository` rejects any path that is not a repository's top
 2. `export DATABASE_URL=postgres://codemind:codemind@localhost:5432/codemind`
 3. `npm run db:migrate` (migrations `0001`–`0003`; this PR adds none).
 4. `npm ci` (adds `simple-git` to `@codemind/adapter-git`); `git` must be on `PATH`.
-5. `npx vitest run tests/unit/knowledge tests/unit/git tests/integration/git` → 7 files, 74 tests
+5. `npx vitest run tests/unit/knowledge tests/unit/git tests/integration/git` → 7 files, 77 tests
    passed. The git spec rebuilds `fixtures/acme-shop/.git` itself in `beforeAll`.
-6. `npx vitest run` → 16 files, 229 tests passed.
+6. `npx vitest run` → 16 files, 232 tests passed.
 7. `npm run typecheck`, `npm run lint`, `npm run lint:architecture`, `npm run docs:coverage` → exit 0
    (lint: 2 pre-existing warnings on the empty `AnalyzerPort` / `LlmPort`; architecture: 6
    pre-existing `no-orphans` warnings, down from 8).
@@ -55,27 +55,30 @@ in core, and `NotAGitRepository` rejects any path that is not a repository's top
 
 ## Traceability
 
-Spec: `openspec/changes/git-history-extraction/specs/git-history/spec.md` (17 scenarios).
+Spec: `openspec/changes/git-history-extraction/specs/git-history/spec.md` (20 scenarios: 17 at first apply, 3 added after `/verify-against-spec`).
 
 | Scenario in the specification | Test that covers it |
 |---|---|
 | The acme-shop history is read completely | `tests/integration/git/simple-git-history.spec.ts:61` |
 | A repository without commits yields an empty history | `tests/integration/git/simple-git-history.spec.ts:96` |
-| Commits of one author share a hash | `tests/integration/git/simple-git-history.spec.ts:106` |
-| A different salt changes every hash | `tests/integration/git/simple-git-history.spec.ts:122` |
+| Reading does not modify the repository | `tests/integration/git/simple-git-history.spec.ts:104` |
+| A merge commit is listed without file links | `tests/integration/git/simple-git-history.spec.ts:127` |
+| Commits of one author share a hash | `tests/integration/git/simple-git-history.spec.ts:166` |
+| The returned history holds no name or e-mail | `tests/integration/git/simple-git-history.spec.ts:153` |
+| A different salt changes every hash | `tests/integration/git/simple-git-history.spec.ts:182` |
 | E-mail case and surrounding whitespace do not change the hash | `tests/unit/knowledge/author-hash.spec.ts:8` |
 | An empty e-mail falls back to the normalised name | `tests/unit/knowledge/author-hash.spec.ts:17` |
 | A missing or blank salt is rejected | `tests/unit/git/salt-config.spec.ts:7` |
-| Identity trailers are removed from the message | `tests/integration/git/simple-git-history.spec.ts:145` |
+| Identity trailers are removed from the message | `tests/integration/git/simple-git-history.spec.ts:205` |
 | A squash-style number is extracted | `tests/unit/knowledge/commit-message.spec.ts:6` |
 | A merge-commit number is extracted | `tests/unit/knowledge/commit-message.spec.ts:10` |
 | A message without a number has none | `tests/unit/knowledge/commit-message.spec.ts:14` |
-| The acme-shop PR numbers are extracted | `tests/integration/git/simple-git-history.spec.ts:134` |
-| Text and binary files are counted correctly | `tests/integration/git/simple-git-history.spec.ts:166` |
-| A directory without Git is rejected | `tests/integration/git/simple-git-history.spec.ts:188` |
-| A subdirectory of a repository is rejected | `tests/integration/git/simple-git-history.spec.ts:199` |
-| A non-existent path is rejected | `tests/integration/git/simple-git-history.spec.ts:212` |
-| The acme-shop history is persisted without names or e-mails | `tests/integration/git/simple-git-history.spec.ts:227` |
+| The acme-shop PR numbers are extracted | `tests/integration/git/simple-git-history.spec.ts:194` |
+| Text and binary files are counted correctly | `tests/integration/git/simple-git-history.spec.ts:226` |
+| A directory without Git is rejected | `tests/integration/git/simple-git-history.spec.ts:248` |
+| A subdirectory of a repository is rejected | `tests/integration/git/simple-git-history.spec.ts:259` |
+| A non-existent path is rejected | `tests/integration/git/simple-git-history.spec.ts:272` |
+| The acme-shop history is persisted without names or e-mails | `tests/integration/git/simple-git-history.spec.ts:287` |
 
 Boundary test outside the scenarios: "accepts the top-level directory of a linked worktree"
 (`tests/integration/git/simple-git-history.spec.ts:80`), added with the D4.2 revision.

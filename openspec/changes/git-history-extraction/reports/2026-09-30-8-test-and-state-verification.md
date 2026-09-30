@@ -99,3 +99,25 @@ PR #11 (https://github.com/DisTinta/AI4Devs-finalproject/pull/11), head `fe252c1
 
 - Status: PASS
 - Blocking issues: none.
+
+## Post-verify delta (verify-against-spec, 2026-09-30)
+
+- Spec only, no production change: "Message sanitisation" now states that indented trailers are
+  removed and trailing whitespace is always trimmed; "Salt is mandatory" states that the salt is
+  trimmed before use (design D2/D5 and the code already did so). Three scenarios added for clauses
+  that were MUST without one: 17 → 20.
+- New tests in `tests/integration/git/simple-git-history.spec.ts`: "Reading does not modify the
+  repository" (`:104`), "A merge commit is listed without file links" (`:127`), "The returned history
+  holds no name or e-mail" (`:153`, runs without a database).
+- Commands: `npx vitest run tests/unit tests/integration/git` → 7 files, 77 passed;
+  `npx vitest run` → 16 files, 232 passed (64.7 s); `npm run typecheck` green; `npm run lint`
+  0 errors (the 2 pre-existing warnings). 20 scenarios ↔ 20 tests with the same name (`grep -rnF`).
+- Forced failures, each on a scratch copy restored and confirmed with `cmp`:
+
+  | Mutation | Test that failed |
+  |---|---|
+  | `git update-ref refs/codemind/probe HEAD` inside `readHistory` | "Reading does not modify the repository" (snapshot differs) |
+  | `-m` added to `LOG_ARGUMENTS` (merge diffs) | "A merge commit is listed without file links" (`side.txt` linked to the merge) |
+  | `authorHash: email` | "The returned history holds no name or e-mail" (a fixture e-mail in the serialised history) |
+
+- State after: `project/file/commit/file_commit` 0/0/0/0, `git status --porcelain fixtures` empty.

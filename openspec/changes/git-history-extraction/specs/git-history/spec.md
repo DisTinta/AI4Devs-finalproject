@@ -37,6 +37,21 @@ modify the repository.
 - **WHEN** its history is read
 - **THEN** the result is `{ head: undefined, commits: [], fileCommits: [] }` and no error is raised
 
+#### Scenario: Reading does not modify the repository
+
+- **GIVEN** a repository with commits and an uncommitted change in its working tree
+- **WHEN** its history is read
+- **THEN** its `HEAD`, its refs, its `git status` output and the modification time of its index are
+  the same as before the read
+
+#### Scenario: A merge commit is listed without file links
+
+- **GIVEN** a repository whose `HEAD` is a merge commit (`git merge --no-ff`) of a branch that
+  changed one file
+- **WHEN** its history is read
+- **THEN** the merge commit is one of `commits`, and no element of `fileCommits` has its `sha`
+- **AND** the branch commit that changed the file has its link
+
 ### Requirement: Author pseudonymisation
 
 Each commit's `authorHash` SHALL be a keyed hash, with the configured salt as key, of the author's
@@ -52,6 +67,13 @@ empty), encoded as 64 lowercase hexadecimal characters.
 - **GIVEN** the acme-shop history read twice with the same salt
 - **THEN** every commit has the same `authorHash` in both reads, each is 64 lowercase hex characters,
   and there are exactly 3 distinct values, one per author
+
+#### Scenario: The returned history holds no name or e-mail
+
+- **GIVEN** the acme-shop history, read without any database
+- **WHEN** the whole returned `GitHistory` is serialised
+- **THEN** it contains none of the fixture's author or committer names or e-mails, nor the string
+  `@acme.test`
 
 #### Scenario: A different salt changes every hash
 
@@ -76,6 +98,9 @@ The adapter SHALL receive the salt as an explicit value when it is created and S
 environment itself. A separate helper SHALL read the salt from the `AUTHOR_HASH_SALT` environment
 variable on behalf of the composition root, which is outside this capability.
 
+The salt SHALL be trimmed of surrounding whitespace, by the helper and by the adapter, before it is
+used: the key of the author hash is the trimmed value, so `' s '` and `'s'` yield the same hashes.
+
 - The helper MUST fail when `AUTHOR_HASH_SALT` is missing, empty or whitespace-only.
 - Creating the adapter MUST fail when the salt it receives is empty or whitespace-only.
 - Both failures MUST happen before any Git process runs, with an error whose message names
@@ -92,9 +117,11 @@ variable on behalf of the composition root, which is outside this capability.
 ### Requirement: Message sanitisation
 
 A commit's `message` SHALL be its full message with every trailer line that identifies a person
-removed: lines starting, case-insensitively, with `Co-authored-by:`, `Signed-off-by:`,
-`Reviewed-by:`, `Acked-by:`, `Reported-by:`, `Tested-by:` or `Suggested-by:`. Trailing blank lines
-left by the removal SHALL be trimmed. Other lines SHALL be kept verbatim.
+removed: lines starting, case-insensitively and after any leading whitespace, with
+`Co-authored-by:`, `Signed-off-by:`, `Reviewed-by:`, `Acked-by:`, `Reported-by:`, `Tested-by:` or
+`Suggested-by:`. Trailing whitespace of the resulting message (including the blank lines the removal
+leaves) SHALL be trimmed, whether or not a trailer was removed. Every other line SHALL be kept
+verbatim, line ends included.
 
 #### Scenario: Identity trailers are removed from the message
 

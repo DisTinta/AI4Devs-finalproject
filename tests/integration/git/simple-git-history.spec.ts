@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -100,9 +100,69 @@ describe('git history', () => {
       // Act / Assert
       await expect(history.readHistory(repository)).resolves.toEqual({ head: undefined, commits: [], fileCommits: [] });
     });
+
+    it('Reading does not modify the repository', async () => {
+      // Arrange: a commit plus an uncommitted change, so `status` has something to report.
+      const repository = emptyRepository();
+      writeFileSync(join(repository, 'a.txt'), 'a\n');
+      git(repository, 'add', '.');
+      git(repository, 'commit', '-q', '-m', 'feat: a');
+      writeFileSync(join(repository, 'a.txt'), 'a\nb\n');
+      // `--no-optional-locks` keeps status itself from refreshing (rewriting) the index.
+      const snapshot = (): Record<string, unknown> => ({
+        head: git(repository, 'rev-parse', 'HEAD'),
+        refs: git(repository, 'for-each-ref'),
+        status: git(repository, '--no-optional-locks', 'status', '--porcelain'),
+        indexMtime: statSync(join(repository, '.git', 'index')).mtimeMs,
+      });
+      const before = snapshot();
+
+      // Act
+      await history.readHistory(repository);
+
+      // Assert
+      expect(snapshot()).toEqual(before);
+    });
+
+    it('A merge commit is listed without file links', async () => {
+      // Arrange: `main` ← `--no-ff` merge of `side`, which changed one file.
+      const repository = emptyRepository();
+      writeFileSync(join(repository, 'base.txt'), 'base\n');
+      git(repository, 'add', '.');
+      git(repository, 'commit', '-q', '-m', 'feat: base');
+      git(repository, 'switch', '-q', '-c', 'side');
+      writeFileSync(join(repository, 'side.txt'), 'side\n');
+      git(repository, 'add', '.');
+      git(repository, 'commit', '-q', '-m', 'feat: side');
+      const sideSha = git(repository, 'rev-parse', 'HEAD');
+      git(repository, 'switch', '-q', 'main');
+      git(repository, 'merge', '-q', '--no-ff', '-m', 'Merge branch side', 'side');
+      const mergeSha = git(repository, 'rev-parse', 'HEAD');
+
+      // Act
+      const { commits, fileCommits } = await history.readHistory(repository);
+
+      // Assert
+      expect(commits.map((c) => c.sha)).toContain(mergeSha);
+      expect(fileCommits.filter((link) => link.sha === mergeSha)).toEqual([]);
+      expect(fileCommits).toContainEqual(expect.objectContaining({ file: 'side.txt', sha: sideSha }));
+    });
   });
 
   describe('author pseudonymisation', () => {
+    it('The returned history holds no name or e-mail', async () => {
+      // Arrange: every author and committer identity of the fixture, read from git itself.
+      const identities = [...new Set(git(ACME_SHOP, 'log', '--format=%aN%n%aE%n%cN%n%cE').split('\n').filter((v) => v !== ''))];
+
+      // Act
+      const serialised = JSON.stringify(await history.readHistory(ACME_SHOP)).toLowerCase();
+
+      // Assert
+      expect(identities.length).toBeGreaterThan(0);
+      for (const identity of identities) expect(serialised).not.toContain(identity.toLowerCase());
+      expect(serialised).not.toContain('@acme.test');
+    });
+
     it('Commits of one author share a hash', async () => {
       // Act
       const first = await history.readHistory(ACME_SHOP);

@@ -189,3 +189,37 @@ the `git-history` spec.
 
 No schema or data migration. Deploy = merge; rollback = revert the commit. Operators must add
 `AUTHOR_HASH_SALT` to `.env` before DIS-85 wires the adapter; until then nothing calls it.
+
+## Post-verify delta (verify-against-spec, 2026-09-30)
+
+`/verify-against-spec` found three places where the code and this design disagreed with the spec's
+wording. The spec was changed to match the code (no production change):
+
+- **The salt is trimmed** (D5): the HMAC key is the trimmed value, in the helper and in the adapter,
+  so a stray space in `.env` cannot silently change every hash.
+- **Indented identity trailers are removed** (D2, `^\s*`): an indented `signed-off-by:` line still
+  carries a name and an e-mail.
+- **Trailing whitespace is always trimmed** (D2, `trimEnd()`), not only after a removal. Git already
+  strips trailing blank lines from messages, so this changes nothing observable in practice.
+
+Three clauses that were MUST without a scenario got one, each with its test: *Reading does not
+modify the repository*, *A merge commit is listed without file links*, *The returned history holds
+no name or e-mail* (in memory, without a database). The spec now has 20 scenarios.
+
+Documented here, deliberately without a scenario:
+
+- **"No Git process before a salt failure"** is guaranteed by construction: the factory validates the
+  salt synchronously and throws before any `GitPort` exists, and the helper runs no process at all.
+  Counting spawned processes would need a module mock of `simple-git`, a heavier test than the rule.
+- **"The error does not contain the salt value"** can only be checked with a blank salt, because a
+  non-blank salt never raises that error. The message is a constant (`MISSING_SALT_MESSAGE`), which is
+  the real guarantee.
+- **Unsafe PR numbers are dropped** (D2): a `(#N)` whose value is not a safe integer gives no
+  `prNumber` rather than an inexact one.
+- **Renames** are read as a delete plus an add (`--no-renames`, proposal non-goal; see Risks).
+- **Repository root**: the root of a linked worktree is accepted (boundary test), and a symbolic link
+  to a repository root is accepted too, because both sides are compared as real paths (D4.2).
+- **Public exports**: `IDENTITY_TRAILERS`, `AuthorIdentity`, `pseudonymiseAuthor`, `extractPrNumber`
+  and `stripIdentityTrailers` are part of `@codemind/core`'s public API, for DIS-36/DIS-85 and tests.
+- **Log separators**: a commit message containing the control characters `\x1e` or `\x1f` would break
+  the record split. Git messages practically never contain them; accepted, not handled.
