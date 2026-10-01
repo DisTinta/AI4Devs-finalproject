@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { NotAGitRepository, pseudonymiseAuthor } from '@codemind/core';
+import { coChangeEdges, NotAGitRepository, pseudonymiseAuthor } from '@codemind/core';
 import type { KnowledgeGraph } from '@codemind/core';
 import { createSimpleGitHistory } from '../../../packages/adapters/git/src/index';
 import { createPostgresStore } from '../../../packages/adapters/store-postgres/src/index';
@@ -11,12 +11,14 @@ import { describeWithDatabase, useTransactionPerTest } from '../helpers/db';
 import { unique } from '../helpers/factories';
 import { file } from '../../support/sample-graph';
 
-// Spec: openspec/specs/git-history/spec.md (archived change: 2026-09-30-git-history-extraction). Each test is one scenario,
-// named after it. acme-shop's `.git` is rebuilt once here (only this spec rebuilds a fixture); the
-// other repositories are temporary, under the OS temp dir, with synthetic identities only.
+// Spec: openspec/specs/git-history/spec.md (archived change: 2026-09-30-git-history-extraction) and
+// openspec/changes/co-change-edges/specs/git-history/spec.md. Each test is one scenario, named after
+// it. The `.git` of both fixtures is rebuilt once here (only this spec rebuilds fixtures); the other
+// repositories are temporary, under the OS temp dir, with synthetic identities only.
 
 const SALT = 'integration-test-salt';
 const ACME_SHOP = resolve('fixtures/acme-shop');
+const TASK_API = resolve('fixtures/task-api');
 const temporaryDirectories: string[] = [];
 
 /** A new empty directory under the OS temp dir, removed after the spec. */
@@ -43,12 +45,12 @@ function emptyRepository(): string {
 }
 
 beforeAll(() => {
-  const rebuild = spawnSync(process.execPath, ['fixtures/build-history.mjs', 'acme-shop'], {
+  const rebuild = spawnSync(process.execPath, ['fixtures/build-history.mjs'], {
     encoding: 'utf8',
-    timeout: 45_000,
+    timeout: 90_000,
   });
-  if (rebuild.status !== 0) throw new Error(`acme-shop rebuild failed: ${rebuild.stderr}`);
-}, 60_000);
+  if (rebuild.status !== 0) throw new Error(`fixture rebuild failed: ${rebuild.stderr}`);
+}, 120_000);
 
 afterAll(() => {
   for (const directory of temporaryDirectories) rmSync(directory, { recursive: true, force: true });
@@ -382,5 +384,41 @@ describeWithDatabase('git history persistence', () => {
     expect(identities.length).toBeGreaterThan(0);
     for (const identity of [...new Set(identities)]) expect(stored).not.toContain(identity.toLowerCase());
     expect(stored).not.toContain('@acme.test');
+  });
+});
+
+describeWithDatabase('co-change persistence', () => {
+  const db = useTransactionPerTest();
+
+  it('The documented fixture pairs are persisted', async () => {
+    // Arrange
+    const store = createPostgresStore({ transaction: db() });
+    const history = createSimpleGitHistory({ authorHashSalt: SALT });
+    const fixtures = [
+      { root: ACME_SHOP, language: 'php', source: 'app/Services/DiscountService.php', target: 'app/Services/ShippingService.php', weight: 1 },
+      { root: TASK_API, language: 'typescript', source: 'src/schemas/task.schema.ts', target: 'src/services/task.service.ts', weight: 0.75 },
+    ] as const;
+
+    for (const fixture of fixtures) {
+      const projectId = await store.createProject({ name: unique('co-change'), rootPath: fixture.root, language: fixture.language });
+      const { head, commits, fileCommits } = await history.readHistory(fixture.root);
+      const paths = [...new Set(fileCommits.map((link) => link.file))];
+      const edges = coChangeEdges(fileCommits, new Set(paths));
+      const graph: KnowledgeGraph = { indexedCommit: head, files: paths.map((path) => file(path)), symbols: [], edges, commits, fileCommits };
+
+      // Act
+      await store.saveGraph(projectId, graph);
+
+      // Assert
+      const { rows } = await db().query(
+        `SELECT s.path AS source, t.path AS target, e.kind, e.resolution, e.extractor, e.weight
+           FROM edge e JOIN file s ON s.id = e.source_file_id JOIN file t ON t.id = e.target_file_id
+          WHERE e.project_id = $1 AND e.kind = 'co_changed'`,
+        [projectId],
+      );
+      expect(rows, fixture.root).toEqual([
+        { source: fixture.source, target: fixture.target, kind: 'co_changed', resolution: 'heuristic', extractor: 'git', weight: fixture.weight },
+      ]);
+    }
   });
 });

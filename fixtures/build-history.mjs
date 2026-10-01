@@ -110,6 +110,8 @@ async function buildOne(name, cfg) {
     git(dir, ['config', 'commit.gpgsign', 'false']);
     git(dir, ['config', 'core.autocrlf', 'false']);
 
+    /** Content of each path as the last commit that touched it left it. */
+    const committed = new Map();
     commits.forEach((commit, i) => {
       const [authorName, authorEmail] = parseAuthor(commit.author);
       let revision = 0;
@@ -118,16 +120,26 @@ async function buildOne(name, cfg) {
         const { path: rel, before } = normaliseEntry(entry);
         const abs = resolve(dir, rel);
         const final = finalContent.get(rel);
+        // Every file a commit lists must really change in it (the co-change signal): a write that
+        // would leave the file as the previous commit left it gets the marker; a final touch
+        // cannot (it must equal the tracked content), so that case is a manifest error.
+        const current = committed.get(rel) ?? null; // what the previous commits left, if any
+        let content;
         if (lastTouch.get(rel) === i) {
-          writeFileSync(abs, final); // final touch: exact tracked content
+          content = final; // final touch: exact tracked content
+          if (content === current) throw new Error(`${name}: commit ${i} lists ${rel} but its final touch changes nothing`);
         } else if (before) {
           // semantic commit: use the declared snapshot as "before" content
           const snapshotAbs = resolve(historyDir, before);
           if (!existsSync(snapshotAbs)) throw new Error(`snapshot missing: ${snapshotAbs}`);
-          writeFileSync(abs, readFileSync(snapshotAbs, 'utf8'));
+          content = readFileSync(snapshotAbs, 'utf8');
         } else {
-          writeFileSync(abs, final + markerFor(rel, i)); // filler: marker-only diff
+          content = final + markerFor(rel, i); // filler: marker-only diff
         }
+        if (content === current) content += markerFor(rel, i); // re-touch with no semantic change
+        if (content === current) throw new Error(`${name}: commit ${i} lists ${rel} but changes nothing`);
+        writeFileSync(abs, content);
+        committed.set(rel, content);
         paths.push(rel);
         revision++;
       }

@@ -1,0 +1,33 @@
+constants: MIN_CO_CHANGES=2 MAX_FILES_PER_COMMIT=100
+
+## Requirement: Co-change edges
+PASS | Files changed together form a weighted edge
+       observed: [{"source":{"file":"a.ts"},"target":{"file":"b.ts"},"kind":"co_changed","resolution":"heuristic","extractor":"git","weight":0.75}]
+PASS | A single shared commit is not enough
+       observed: []
+PASS | Each pair yields one edge from the smaller path
+       observed: ["Z.ts->m.ts","Z.ts->z.ts","m.ts->z.ts"]
+PASS | A path outside the snapshot yields no edge but still counts
+       observed: [{"source":{"file":"a.ts"},"target":{"file":"b.ts"},"kind":"co_changed","resolution":"heuristic","extractor":"git","weight":0.6666666666666666}]
+PASS | A commit with more than 100 files is ignored
+       observed: [{"source":{"file":"a.ts"},"target":{"file":"b.ts"},"kind":"co_changed","resolution":"heuristic","extractor":"git","weight":1}]
+PASS | A commit with exactly 100 files is counted
+       observed: {"edges":4951,"ab":{"source":{"file":"a.ts"},"target":{"file":"b.ts"},"kind":"co_changed","resolution":"heuristic","extractor":"git","weight":0.5},"ac":{"source":{"file":"a.ts"},"target":{"file":"c.ts"},"kind":"co_changed","resolution":"heuristic","extractor":"git","weight":0.5}}
+PASS | An empty history yields no edges
+       observed: []
+PASS | Duplicate links in one commit count once
+       observed: [{"source":{"file":"a.ts"},"target":{"file":"b.ts"},"kind":"co_changed","resolution":"heuristic","extractor":"git","weight":0.6666666666666666}]
+PASS | Author hash and line counts do not affect co-change
+       observed: {"a":[{"source":{"file":"a.ts"},"target":{"file":"b.ts"},"kind":"co_changed","resolution":"heuristic","extractor":"git","weight":1}],"b":[{"source":{"file":"a.ts"},"target":{"file":"b.ts"},"kind":"co_changed","resolution":"heuristic","extractor":"git","weight":1}]}
+
+## Requirement: Co-change edges persist with the snapshot
+PASS | The documented fixture pairs are persisted
+       observed: {"acme-shop":{"saved":{"files":53,"filesDeleted":0,"symbols":0,"edges":1,"commits":32,"fileCommits":59},"rows":[{"source":"app/Services/DiscountService.php","target":"app/Services/ShippingService.php","kind":"co_changed","resolution":"heuristic","extractor":"git","weight":1}]},"task-api":{"saved":{"files":38,"filesDeleted":0,"symbols":0,"edges":1,"commits":28,"fileCommits":43},"rows":[{"source":"src/schemas/task.schema.ts","target":"src/services/task.service.ts","kind":"co_changed","resolution":"heuristic","extractor":"git","weight":0.75}]}}
+
+## Error path (graph-store validation, ticket AC 5)
+PASS | co_changed edge to a file outside `files` is rejected, nothing written
+       observed: {"name":"InvalidGraph","code":"INVALID_GRAPH","message":"Invalid graph: edges[0].target: file \"app/Services/ShippingService.php\" is not in the graph","rowsAfter":1}
+
+cleanup: deleted 2 demo projects, 0 left
+
+ALL PASS
