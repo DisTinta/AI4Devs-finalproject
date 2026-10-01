@@ -11,7 +11,7 @@ links.
 
 ## Why?
 
-<!-- filled in by the human: the business rationale is not yours to generate -->
+GitPort.readHistory (DIS-35) already delivers every commit and the files it touched, but nothing turns that history into the co_changed edges the graph schema has had since DIS-21. Without them the impact report (DIS-94) cannot show the historical coupling [git] that static analysis misses — above all in PHP/Laravel, where DiscountService.php and ShippingService.php change together with no static edge between them. This is DIS-36 (CM-HU-03.2), a slice of CM-HU-03 (DIS-25).
 
 ## How to test it?
 

@@ -47,7 +47,7 @@
 ## 6. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
 - [x] 6.1 Confirm no user interface or user workflow is affected (no route, no CLI, no web change). Record "not applicable", with that reason, in the step 8 report
-- [ ] 6.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run (`ci.yml` → `Tests`) that `co-change.spec.ts` and the `co-change persistence` block ran and were not skipped, and that rebuilding both fixtures works on the Ubuntu runner. Link the run in the step 8 report
+- [x] 6.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run (`ci.yml` → `Tests`) that `co-change.spec.ts` and the `co-change persistence` block ran and were not skipped, and that rebuilding both fixtures works on the Ubuntu runner. Link the run in the step 8 report
 
 ## 7. Update Technical Documentation (MANDATORY)
 
@@ -56,4 +56,4 @@
 - [x] 7.3 ADR: none planned (design D8). Write one via `/adr-new` only if the author asks at review
 - [x] 7.4 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
 - [x] 7.5 Leave a Linear comment in Spanish on DIS-85 (compose `co_changed` edges into the same snapshot as the analyzers' edges; `knownPaths` = snapshot paths) and on DIS-94 (one canonical edge per pair: query both endpoints; weight semantics)
-- [ ] 7.6 Prepare the PR description (`/pr-describe`) against `feature/entrega-2-CRN`. After verification, set DIS-36 to In Review in Linear, with a comment in Spanish linking the PR and the change
+- [x] 7.6 Prepare the PR description (`/pr-describe`) against `feature/entrega-2-CRN`. After verification, set DIS-36 to In Review in Linear, with a comment in Spanish linking the PR and the change

@@ -101,7 +101,18 @@ The integration test exposed that the built task-api history shared only one com
 ## End-to-end testing (tasks.md group 6)
 
 Not applicable: no route, CLI command or web change; the interface is a core function plus the
-existing `saveGraph`. CI evidence: pending the push (task 6.2).
+existing `saveGraph`. CI evidence: see below.
+
+## CI evidence (task 6.2)
+
+- PR: https://github.com/DisTinta/AI4Devs-finalproject/pull/12 (base `feature/entrega-2-CRN`)
+- Run: https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/36911462548 (workflow `CI`,
+  job `quality`, step `Tests` = `npx vitest run`), head `77a61b65561522e6380c73be95096b9d1db47f92`,
+  conclusion **success** (2m4s). `frontend` also passed.
+- On the Ubuntu runner: `tests/integration/git/simple-git-history.spec.ts` 19 tests passed (its
+  `beforeAll` rebuilt both fixtures; the `co-change persistence` block ran against the CI Postgres)
+  and `tests/unit/knowledge/co-change.spec.ts` 11 tests passed; none skipped. Suite: 17 files, 249
+  tests passed — same totals as locally.
 
 ## UI evidence (if applicable)
 
