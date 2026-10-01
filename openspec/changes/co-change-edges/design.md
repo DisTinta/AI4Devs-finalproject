@@ -164,3 +164,31 @@ Verified: acme-shop rebuilds to the same `HEAD` sha (`4f028db`, byte-identical h
 gains exactly the two missing links (#15 → `task.schema.ts`, #31 → `task.service.ts`) and every file
 of every `commits.mjs` entry now appears in its real commit, in both fixtures. No existing git test
 changed.
+
+**Testing D9 (post-review, 2026-10-01).** The adversarial review found the guarantee unspecified and
+its error paths untested. The builder now exports `buildOne(name, { dir, manifest })`, runs `main()`
+only when executed as a CLI, and resolves `manifest` relative to `fixtures/` or as an absolute path
+(imported through a file URL). `tests/integration/git/build-history.spec.ts` builds throwaway
+fixtures under the OS temp dir (needs `git`, no database) for the three scenarios of *Fixture
+histories record every listed file*. The refactor must not change behaviour: both fixtures rebuild
+to the same `HEAD`.
+
+## Follow-ups (adversarial-review, 2026-10-01)
+
+Accepted debt, recorded once here and in one Spanish checklist comment on DIS-36; no separate issues.
+
+- [ ] **The `authorHash` half of «Author hash and line counts do not affect co-change» cannot fail.**
+  `coChangeEdges` never receives commits, so the guarantee holds by construction; the test only
+  catches a future signature change that reads them. Annotation only.
+- [ ] **The pair key (`a` + NUL + `b`) is not validated.** A path containing NUL would split into the
+  wrong endpoints. Git never emits such a path; a guard or a structured key belongs to a later
+  change.
+- [ ] **The git spec's `beforeAll` rebuilds both fixtures for all its tests.** A task-api rebuild
+  failure also fails the DIS-35 tests that only need acme-shop. Non-blocking; split the rebuild per
+  block if it bites.
+
+**Process notes for the archive.** The spec, design, tasks and code landed in one commit (`e8c0405`),
+so history cannot show the spec was not edited after the code; the spec edits of this change were
+made before apply (two added scenarios) and in this post-review delta, both recorded here. Five
+scenarios (tasks 1.3, 1.4) were green on their first run; their ability to fail rests on Stryker and
+the forced failures of the step 8 report.

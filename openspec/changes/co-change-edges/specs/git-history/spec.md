@@ -104,3 +104,42 @@ caller that also has other edges SHALL save them in that same snapshot.
 - **AND** the task-api project has exactly one `co_changed` edge, with extractor `git` and
   resolution `heuristic`, from `src/schemas/task.schema.ts` to `src/services/task.service.ts`,
   weight 0.75
+
+### Requirement: Fixture histories record every listed file
+
+The fixture history builder (`node fixtures/build-history.mjs`) SHALL make every file that a
+manifest entry lists change in that entry's commit, so that the built `git log` holds every
+file–commit link the manifest documents:
+
+- A non-final touch whose content would equal what the previous commits left SHALL get the
+  throwaway `hist:rN` marker, so the file still changes.
+- When a listed file cannot change in its commit — a final touch whose tracked content equals what
+  the previous commits left, or a re-touch of a file type that takes no marker (`.json`) — the build
+  SHALL fail with an error naming the fixture, the commit index and the path. No link SHALL be
+  dropped silently.
+- Whether the build succeeds or fails, the fixture's tracked source files SHALL keep their original
+  content.
+
+#### Scenario: A re-touch with no new content still records the file
+
+- **GIVEN** a temporary fixture with a tracked file `x.ts` and a manifest whose commits 0 and 1 both
+  list `x.ts` with the same `before` snapshot, and whose commit 2 lists `x.ts` plainly
+- **WHEN** its history is built
+- **THEN** the built repository has 3 commits and each of them changes `x.ts`
+- **AND** `x.ts` in the working tree has its original content
+
+#### Scenario: A final touch that changes nothing fails the build
+
+- **GIVEN** a temporary fixture whose manifest's commit 0 lists `x.ts` with a `before` snapshot equal
+  to `x.ts`'s tracked content, and whose commit 1 (its last touch) lists `x.ts` plainly
+- **WHEN** its history is built
+- **THEN** the build fails with an error naming the fixture, `commit 1` and `x.ts`
+- **AND** `x.ts` in the working tree has its original content
+
+#### Scenario: A re-touch that cannot be marked fails the build
+
+- **GIVEN** a temporary fixture whose manifest's commits 0 and 1 both list `c.json` with the same
+  `before` snapshot, and whose commit 2 lists `c.json` plainly
+- **WHEN** its history is built
+- **THEN** the build fails with an error naming the fixture, `commit 1` and `c.json`
+- **AND** `c.json` in the working tree has its original content

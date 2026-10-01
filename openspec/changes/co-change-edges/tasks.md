@@ -57,3 +57,13 @@
 - [x] 7.4 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
 - [x] 7.5 Leave a Linear comment in Spanish on DIS-85 (compose `co_changed` edges into the same snapshot as the analyzers' edges; `knownPaths` = snapshot paths) and on DIS-94 (one canonical edge per pair: query both endpoints; weight semantics)
 - [x] 7.6 Prepare the PR description (`/pr-describe`) against `feature/entrega-2-CRN`. After verification, set DIS-36 to In Review in Linear, with a comment in Spanish linking the PR and the change
+
+## 8. Post-review delta (adversarial-review, 2026-10-01)
+
+- [x] 8.1 Artifacts per the author's decisions: spec requirement *Fixture histories record every listed file* with 3 scenarios (10 → 13), design D9 testing note, Follow-ups and process notes, proposal capability and impact. `openspec validate co-change-edges --strict` green
+- [x] 8.2 Refactor `fixtures/build-history.mjs` without changing behaviour: export `buildOne(name, { dir, manifest })`, run `main()` only when executed as a CLI, resolve `manifest` relative to `fixtures/` or as an absolute path (imported via file URL). Rebuild both fixtures and confirm identical `HEAD`s (acme-shop `4f028db…`, task-api `8339707…`)
+- [x] 8.3 RED → GREEN: create `tests/integration/git/build-history.spec.ts` (throwaway fixtures under `os.tmpdir()`, synthetic author in the manifest, removed in `afterAll`) with "A re-touch with no new content still records the file", "A final touch that changes nothing fails the build" and "A re-touch that cannot be marked fails the build"; each also checks the tracked file keeps its original content
+- [x] 8.4 Prove the tests can fail, on a scratch copy restored and confirmed with `cmp`: drop the final-touch `throw` → "A final touch that changes nothing fails the build" fails; drop the second `throw` → "A re-touch that cannot be marked fails the build" fails; drop the marker re-touch → "A re-touch with no new content still records the file" fails
+- [x] 8.5 Verify: 13 scenarios ↔ 13 tests with the same name (grep); `npx vitest run`, `npm run typecheck`, `npm run lint`, `npm run lint:architecture`, `npm run docs:coverage`; `git status --porcelain fixtures` shows only the intended builder change
+- [x] 8.6 One Linear comment in Spanish on DIS-36 with the Follow-ups checklist (design.md → Follow-ups); no separate issues
+- [ ] 8.7 Append a "Post-review delta" section to `reports/2026-10-01-8-test-and-state-verification.md` (forced failures, totals); update the PR description's traceability table; commit and push to PR #12; confirm CI green

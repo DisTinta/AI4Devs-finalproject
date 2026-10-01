@@ -156,7 +156,9 @@ Verified against `package.json` (root and per package). If a command is not here
 - **`build-history.mjs` guarantees every file a commit lists really changes in it** (DIS-36). A
   re-touch that would leave the content as the previous commit left it gets the `hist:rN` marker;
   a final touch that changes nothing (or a `.json` re-touch) fails the build. Without this, Git
-  silently drops the link and the co-change ground truth of `fixtures/README.md` breaks.
+  silently drops the link and the co-change ground truth of `fixtures/README.md` breaks. The
+  script exports `buildOne` (it runs `main()` only as a CLI), and
+  `tests/integration/git/build-history.spec.ts` tests it on throwaway fixtures under the OS temp dir.
 - **An aborted Stryker run leaves `.stryker-tmp/sandbox-*`, and Vitest collects it.** The copy
   runs its own fixture rebuild in parallel and its tests fail. Delete `.stryker-tmp/` by hand
   before running the suite.

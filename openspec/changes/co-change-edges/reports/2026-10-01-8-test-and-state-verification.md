@@ -114,6 +114,30 @@ existing `saveGraph`. CI evidence: see below.
   and `tests/unit/knowledge/co-change.spec.ts` 11 tests passed; none skipped. Suite: 17 files, 249
   tests passed — same totals as locally.
 
+## Post-review delta (adversarial-review, 2026-10-01)
+
+Verdict PASS WITH GAPS. The Major (the D9 fixture builder guarantee had no scenario or test) is fixed;
+the Minors are recorded in design.md → Follow-ups and one Linear comment on DIS-36.
+
+- Spec: requirement *Fixture histories record every listed file*, 3 scenarios (10 → 13);
+  `openspec validate co-change-edges --strict` green.
+- Builder refactor without behaviour change: `buildOne` exported, `main()` only as a CLI, manifest
+  path relative or absolute. Both fixtures rebuild to the same `HEAD` (acme-shop `4f028db`,
+  task-api `8339707`).
+- New `tests/integration/git/build-history.spec.ts`: 3 tests on throwaway fixtures, green on first
+  run (the behaviour existed since D9). Forced failures on a scratch copy, restored and confirmed
+  with `cmp` each time:
+
+  | Mutation of `fixtures/build-history.mjs` | Failing test |
+  |---|---|
+  | drop the final-touch `throw` | A final touch that changes nothing fails the build |
+  | drop the "changes nothing" `throw` | A re-touch that cannot be marked fails the build |
+  | drop the marker re-touch | A re-touch with no new content still records the file |
+
+- 13 scenarios ↔ 13 tests with the same name. Full suite: 18 files, 252 passed. typecheck and
+  docs:coverage OK; lint and lint:architecture only the pre-existing warnings.
+  `git status --porcelain fixtures`: only the intended builder change.
+
 ## UI evidence (if applicable)
 
 - (none — the change has no browser UI)

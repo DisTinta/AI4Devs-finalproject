@@ -18,9 +18,9 @@ GitPort.readHistory (DIS-35) already delivers every commit and the files it touc
 1. `docker compose up -d` and wait until Postgres is healthy.
 2. `export DATABASE_URL=postgres://codemind:<password>@localhost:5432/codemind` (the value from `.env`).
 3. `npm run db:migrate` (migrations `0001`–`0003`; this PR adds none).
-4. `npx vitest run tests/unit/knowledge tests/integration/git` → 7 files, 89 tests passed. The git
+4. `npx vitest run tests/unit/knowledge tests/integration/git` → 8 files, 92 tests passed. The git
    spec rebuilds both fixtures' `.git` itself in `beforeAll`.
-5. `npx vitest run` → 17 files, 249 tests passed.
+5. `npx vitest run` → 18 files, 252 tests passed.
 6. `npm run typecheck`, `npm run lint`, `npm run lint:architecture`, `npm run docs:coverage` → exit 0.
    Lint shows 2 pre-existing warnings on the empty `AnalyzerPort` / `LlmPort`, and architecture
    shows 6 pre-existing `no-orphans` warnings.
@@ -54,7 +54,12 @@ GitPort.readHistory (DIS-35) already delivers every commit and the files it touc
 - **Fixture builder fix (D9, scope expansion approved by the author).** `build-history.mjs` used to
   write unchanged content, so Git dropped the link: #15's schema re-touch and #31's
   byte-identical `r40` service snapshot. A non-final no-op re-touch now gets the `hist:rN` marker. A
-  final touch that changes nothing fails the build. acme-shop rebuilds to the same `HEAD`.
+  final touch that changes nothing fails the build. acme-shop rebuilds to the same `HEAD`. After the
+  adversarial review the guarantee became a spec requirement, and `buildOne` is exported (`main()`
+  runs only as a CLI) so `tests/integration/git/build-history.spec.ts` can test it on throwaway fixtures.
+- **Accepted follow-ups** (design.md → Follow-ups, Linear comment on DIS-36): the `authorHash` half of
+  one scenario cannot fail by construction; the NUL pair-key separator is unvalidated; the git spec's
+  `beforeAll` rebuilds both fixtures for all its tests.
 - **No ADR** (D8): the change is local to one module and cheap to revert.
 
 ## Traceability
@@ -71,9 +76,12 @@ GitPort.readHistory (DIS-35) already delivers every commit and the files it touc
 | Duplicate links in one commit count once | `tests/unit/knowledge/co-change.spec.ts:114` |
 | Author hash and line counts do not affect co-change | `tests/unit/knowledge/co-change.spec.ts:132` |
 | The documented fixture pairs are persisted | `tests/integration/git/simple-git-history.spec.ts:393` |
+| A re-touch with no new content still records the file | `tests/integration/git/build-history.spec.ts:57` |
+| A final touch that changes nothing fails the build | `tests/integration/git/build-history.spec.ts:75` |
+| A re-touch that cannot be marked fails the build | `tests/integration/git/build-history.spec.ts:90` |
 
-Spec: `openspec/changes/co-change-edges/specs/git-history/spec.md`, 10 scenarios ↔ 10 tests with the
-same name. Two extra boundary tests (`co-change.spec.ts:159`, `:178`) pin the ordering rule against
+Spec: `openspec/changes/co-change-edges/specs/git-history/spec.md`, 13 scenarios ↔ 13 tests with the
+same name (3 added after the adversarial review for the fixture builder guarantee, design D9). Two extra boundary tests (`co-change.spec.ts:159`, `:178`) pin the ordering rule against
 mutants. Evidence lives in `openspec/changes/co-change-edges/reports/`: step 8 and 9 reports, the
 show-spec-working report and the demo transcript. Linear: DIS-36 (parent DIS-25).
 

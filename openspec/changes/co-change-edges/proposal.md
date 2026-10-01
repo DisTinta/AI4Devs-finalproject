@@ -52,7 +52,8 @@ introduces no per-person analysis (non-goal of DIS-25). No logging.
 ### Modified Capabilities
 
 - `git-history`: adds the requirement that the domain derives weighted `co_changed` edges from a
-  read history, and that they persist through `saveGraph`.
+  read history, and that they persist through `saveGraph`. Post-review: adds the fixture builder
+  guarantee that every file a manifest entry lists really changes in its commit (design D9).
 
 ## Impact
 
@@ -65,4 +66,6 @@ introduces no per-person analysis (non-goal of DIS-25). No logging.
   is worth recording. Commands per `docs/project-context.md`.
 - Fixtures (apply delta, design D9, approved 2026-10-01): `fixtures/build-history.mjs` makes every
   file a commit lists really change in it, so the built task-api history matches `fixtures/README.md`.
+  Post-review: it exports `buildOne` and runs `main()` only as a CLI, tested by
+  `tests/integration/git/build-history.spec.ts` (new).
 - Dependencies: none.
