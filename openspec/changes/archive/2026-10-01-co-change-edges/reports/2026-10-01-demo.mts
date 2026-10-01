@@ -6,15 +6,15 @@
 // Run from the repository root, after `node fixtures/build-history.mjs` and `npx tsc --build`, with a
 // migrated database:
 //   DATABASE_URL=postgres://codemind:<password>@localhost:5432/codemind \
-//     npx tsx openspec/changes/co-change-edges/reports/2026-10-01-demo.mts
+//     npx tsx openspec/changes/archive/2026-10-01-co-change-edges/reports/2026-10-01-demo.mts
 // The transcript is saved next to this file as 2026-10-01-demo-output.txt.
 import { resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import pg from 'pg';
 import { coChangeEdges, MAX_FILES_PER_COMMIT, MIN_CO_CHANGES } from '@codemind/core';
 import type { GraphEdge, GraphFileCommit, KnowledgeGraph } from '@codemind/core';
-import { createSimpleGitHistory } from '../../../../packages/adapters/git/src/index';
-import { createPostgresStore } from '../../../../packages/adapters/store-postgres/src/index';
+import { createSimpleGitHistory } from '../../../../../packages/adapters/git/src/index';
+import { createPostgresStore } from '../../../../../packages/adapters/store-postgres/src/index';
 
 let failures = 0;
 

@@ -137,6 +137,9 @@ the Minors are recorded in design.md → Follow-ups and one Linear comment on DI
 - 13 scenarios ↔ 13 tests with the same name. Full suite: 18 files, 252 passed. typecheck and
   docs:coverage OK; lint and lint:architecture only the pre-existing warnings.
   `git status --porcelain fixtures`: only the intended builder change.
+- CI: https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/36913400770 on `0f60bc6`,
+  conclusion **success**; step `Tests`: 18 files, 252 passed (the +1 file / +3 tests are
+  `build-history.spec.ts`). `frontend` also passed.
 
 ## UI evidence (if applicable)
 

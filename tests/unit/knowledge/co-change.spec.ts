@@ -3,8 +3,8 @@ import { coChangeEdges } from '@codemind/core';
 import type { GraphEdge, GraphFileCommit } from '@codemind/core';
 import { commit, fileCommit } from '../../support/sample-graph';
 
-// Spec: openspec/changes/co-change-edges/specs/git-history/spec.md → "Co-change edges". Each test is
-// one scenario, named after it.
+// Spec: openspec/specs/git-history/spec.md → "Co-change edges" (archived change:
+// 2026-10-01-co-change-edges). Each test is one scenario, named after it.
 
 /** The `co_changed` edge the rule produces between two files. */
 function coChanged(source: string, target: string, weight: number): GraphEdge {

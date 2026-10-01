@@ -5,8 +5,8 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 
-// Spec: openspec/changes/co-change-edges/specs/git-history/spec.md → "Fixture histories record every
-// listed file". Each test is one scenario, named after it. Fixtures are throwaway directories under
+// Spec: openspec/specs/git-history/spec.md → "Fixture histories record every listed file" (archived
+// change: 2026-10-01-co-change-edges). Each test is one scenario, named after it. Fixtures are throwaway directories under
 // the OS temp dir with a synthetic author; the real fixtures are never touched here.
 
 type ManifestEntry = string | { path: string; before: string };

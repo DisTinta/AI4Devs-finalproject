@@ -11,8 +11,8 @@ import { describeWithDatabase, useTransactionPerTest } from '../helpers/db';
 import { unique } from '../helpers/factories';
 import { file } from '../../support/sample-graph';
 
-// Spec: openspec/specs/git-history/spec.md (archived change: 2026-09-30-git-history-extraction) and
-// openspec/changes/co-change-edges/specs/git-history/spec.md. Each test is one scenario, named after
+// Spec: openspec/specs/git-history/spec.md (archived changes: 2026-09-30-git-history-extraction and
+// 2026-10-01-co-change-edges). Each test is one scenario, named after
 // it. The `.git` of both fixtures is rebuilt once here (only this spec rebuilds fixtures); the other
 // repositories are temporary, under the OS temp dir, with synthetic identities only.
 

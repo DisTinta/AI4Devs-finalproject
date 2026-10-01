@@ -66,4 +66,4 @@
 - [x] 8.4 Prove the tests can fail, on a scratch copy restored and confirmed with `cmp`: drop the final-touch `throw` → "A final touch that changes nothing fails the build" fails; drop the second `throw` → "A re-touch that cannot be marked fails the build" fails; drop the marker re-touch → "A re-touch with no new content still records the file" fails
 - [x] 8.5 Verify: 13 scenarios ↔ 13 tests with the same name (grep); `npx vitest run`, `npm run typecheck`, `npm run lint`, `npm run lint:architecture`, `npm run docs:coverage`; `git status --porcelain fixtures` shows only the intended builder change
 - [x] 8.6 One Linear comment in Spanish on DIS-36 with the Follow-ups checklist (design.md → Follow-ups); no separate issues
-- [ ] 8.7 Append a "Post-review delta" section to `reports/2026-10-01-8-test-and-state-verification.md` (forced failures, totals); update the PR description's traceability table; commit and push to PR #12; confirm CI green
+- [x] 8.7 Append a "Post-review delta" section to `reports/2026-10-01-8-test-and-state-verification.md` (forced failures, totals); update the PR description's traceability table; commit and push to PR #12; confirm CI green
