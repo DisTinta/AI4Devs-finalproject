@@ -9,4 +9,5 @@ export * from './errors.js';
 export * from './author-hash.js';
 export * from './commit-message.js';
 export * from './validate-graph.js';
+export * from './co-change.js';
 export * from './read-arguments.js';

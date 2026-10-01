@@ -28,12 +28,14 @@
  * -----
  *   node fixtures/build-history.mjs            # both fixtures
  *   node fixtures/build-history.mjs task-api   # one fixture
+ *
+ * `buildOne` is exported for tests that build throwaway fixtures; `main` runs only from the CLI.
  */
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -54,10 +56,6 @@ function git(dir, args, env = {}) {
 }
 
 /**
- * @param {string} name
- * @param {{dir: string, manifest: string}} cfg
- */
-/**
  * Normalise a file entry from the manifest. Entries may be:
  *   - a plain string: 'config/shop.php'
  *   - an object:      { path: 'config/shop.php', before: 'snapshots/r61/config/shop.php' }
@@ -71,12 +69,19 @@ function normaliseEntry(entry) {
   return { path: entry.path, before: entry.before ?? null };
 }
 
-async function buildOne(name, cfg) {
+/**
+ * Replays one manifest into a fresh `.git` inside `cfg.dir`. `cfg.manifest` is a path relative to
+ * this directory or absolute; its `before` snapshots are relative to the manifest's directory.
+ * @param {string} name
+ * @param {{dir: string, manifest: string}} cfg
+ */
+export async function buildOne(name, cfg) {
   const { dir } = cfg;
   if (!existsSync(dir)) throw new Error(`Fixture directory missing: ${dir}`);
 
   /** @type {Array<{date: string, author: string, message: string, files: Array<string|{path:string,before?:string}>}>} */
-  const commits = (await import(cfg.manifest)).default;
+  const manifestPath = resolve(HERE, cfg.manifest);
+  const commits = (await import(pathToFileURL(manifestPath).href)).default;
 
   // Every file path referenced anywhere, snapshotted at its final (tracked) content.
   const finalContent = new Map();
@@ -102,7 +107,7 @@ async function buildOne(name, cfg) {
   };
 
   // Resolve the history directory (where snapshots live).
-  const historyDir = dirname(resolve(HERE, cfg.manifest));
+  const historyDir = dirname(manifestPath);
 
   try {
     rmSync(join(dir, '.git'), { recursive: true, force: true });
@@ -110,6 +115,8 @@ async function buildOne(name, cfg) {
     git(dir, ['config', 'commit.gpgsign', 'false']);
     git(dir, ['config', 'core.autocrlf', 'false']);
 
+    /** Content of each path as the last commit that touched it left it. */
+    const committed = new Map();
     commits.forEach((commit, i) => {
       const [authorName, authorEmail] = parseAuthor(commit.author);
       let revision = 0;
@@ -118,16 +125,26 @@ async function buildOne(name, cfg) {
         const { path: rel, before } = normaliseEntry(entry);
         const abs = resolve(dir, rel);
         const final = finalContent.get(rel);
+        // Every file a commit lists must really change in it (the co-change signal): a write that
+        // would leave the file as the previous commit left it gets the marker; a final touch
+        // cannot (it must equal the tracked content), so that case is a manifest error.
+        const current = committed.get(rel) ?? null; // what the previous commits left, if any
+        let content;
         if (lastTouch.get(rel) === i) {
-          writeFileSync(abs, final); // final touch: exact tracked content
+          content = final; // final touch: exact tracked content
+          if (content === current) throw new Error(`${name}: commit ${i} lists ${rel} but its final touch changes nothing`);
         } else if (before) {
           // semantic commit: use the declared snapshot as "before" content
           const snapshotAbs = resolve(historyDir, before);
           if (!existsSync(snapshotAbs)) throw new Error(`snapshot missing: ${snapshotAbs}`);
-          writeFileSync(abs, readFileSync(snapshotAbs, 'utf8'));
+          content = readFileSync(snapshotAbs, 'utf8');
         } else {
-          writeFileSync(abs, final + markerFor(rel, i)); // filler: marker-only diff
+          content = final + markerFor(rel, i); // filler: marker-only diff
         }
+        if (content === current) content += markerFor(rel, i); // re-touch with no semantic change
+        if (content === current) throw new Error(`${name}: commit ${i} lists ${rel} but changes nothing`);
+        writeFileSync(abs, content);
+        committed.set(rel, content);
         paths.push(rel);
         revision++;
       }
@@ -172,7 +189,9 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error(err.message);
-  process.exit(1);
-});
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    console.error(err.message);
+    process.exit(1);
+  });
+}

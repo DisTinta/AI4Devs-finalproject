@@ -145,13 +145,23 @@ Verified against `package.json` (root and per package). If a command is not here
   `indexes-stale.spec.ts` and `helpers/harness.spec.ts`. No test rolls it back.
 - Test data comes from `fixtures/` (`acme-shop`, `task-api`, `history`, `build-history.mjs`) and
   `seeds/graph-dump.sql`. `fixtures/**` is excluded from Vitest collection.
-- **Git history tests (DIS-35), `tests/integration/git/simple-git-history.spec.ts`.** Its
-  `beforeAll` rebuilds `fixtures/acme-shop/.git` with `node fixtures/build-history.mjs acme-shop`
-  (deterministic: same `HEAD` every time); it is the only spec that rebuilds a fixture, so two specs
-  never race on it. Other cases use throwaway repositories under the OS temp dir with synthetic
-  identities (`git -c user.name=… -c user.email=…`). They need `git` on `PATH`. Only the persistence
-  test needs Postgres (`describeWithDatabase`); the rest run without it. Salt-helper unit tests live
-  in `tests/unit/git/`.
+- **Git history tests (DIS-35, DIS-36), `tests/integration/git/simple-git-history.spec.ts`.** Its
+  `beforeAll` rebuilds the `.git` of both fixtures with `node fixtures/build-history.mjs`
+  (deterministic: same `HEAD` every time); it is the only spec that rebuilds fixtures, so two specs
+  never race on them. Other cases use throwaway repositories under the OS temp dir with synthetic
+  identities (`git -c user.name=… -c user.email=…`). They need `git` on `PATH`. Only the two
+  persistence blocks (`git history persistence`, `co-change persistence`) need Postgres
+  (`describeWithDatabase`); the rest run without it. Salt-helper unit tests live in
+  `tests/unit/git/`; the co-change rule's in `tests/unit/knowledge/co-change.spec.ts`.
+- **`build-history.mjs` guarantees every file a commit lists really changes in it** (DIS-36). A
+  re-touch that would leave the content as the previous commit left it gets the `hist:rN` marker;
+  a final touch that changes nothing (or a `.json` re-touch) fails the build. Without this, Git
+  silently drops the link and the co-change ground truth of `fixtures/README.md` breaks. The
+  script exports `buildOne` (it runs `main()` only as a CLI), and
+  `tests/integration/git/build-history.spec.ts` tests it on throwaway fixtures under the OS temp dir.
+- **An aborted Stryker run leaves `.stryker-tmp/sandbox-*`, and Vitest collects it.** The copy
+  runs its own fixture rebuild in parallel and its tests fail. Delete `.stryker-tmp/` by hand
+  before running the suite.
 
 ## Branch and ticket conventions
 
@@ -261,7 +271,7 @@ services that must be started first, quirks of the local environment.
 
 - **Some CI gates run against stubs, on purpose.** `lint`, `lint:architecture` and `typecheck` are
   real and must pass, and so is CI's `db:migrate` → `db:rollback` → `db:migrate` step. Mutation
-  testing has real mutants since DIS-23 (`packages/core/src/knowledge/`, 86.82 % at DIS-23 merge, 90.09 % with DIS-35; threshold
+  testing has real mutants since DIS-23 (`packages/core/src/knowledge/`, 86.82 % at DIS-23 merge, 90.09 % with DIS-35, 92.23 % with DIS-36; threshold
   `MIN_MUTATION_SCORE=70`).
   These are intentional scaffolding, not bugs — do not "fix" a stub by faking behaviour.
 - **The infra packages are stubs, not empty.** All 9 workspaces (`core`, `analyzers/{php,typescript}`,
@@ -283,6 +293,16 @@ services that must be started first, quirks of the local environment.
   messages cannot shift fields and paths arrive raw (never C-quoted). A rename is a delete plus an
   add, so links can name paths that are no longer in the snapshot, and `saveGraph` rejects a link
   whose file is not in `files` — the caller (DIS-85) must drop them first.
+- **`co_changed` edges come from a pure core rule, `coChangeEdges(fileCommits, knownPaths)`**
+  (DIS-36, `knowledge/co-change.ts`). One edge per unordered pair of files sharing at least
+  `MIN_CO_CHANGES` (2) commits, `weight` = shared / commits touching either (Jaccard), `resolution`
+  `heuristic`, `extractor` `git`. Commits with more than `MAX_FILES_PER_COMMIT` (100) files are
+  ignored entirely; line counts and author data are never used. The pair is stored **once**, from
+  the path smaller in byte order to the other, and `neighbors` follows source → target only, so a
+  consumer that wants the symmetric relation (DIS-94) must query both endpoints until DIS-89 adds
+  reverse traversal. `knownPaths` must be the snapshot's `files` paths (paths outside it still count
+  in the denominators), and because `saveGraph` replaces all edges, `co_changed` edges must be saved
+  in the **same** snapshot as the analyzers' edges (DIS-85).
 - **`repoPath` must be a repository's top-level directory.** The fixtures sit inside the Codemind
   repository, so without their own `.git` plain `git` would silently read Codemind's history. The
   adapter compares `git rev-parse --show-toplevel` with `repoPath` by real path and throws
@@ -321,7 +341,8 @@ services that must be started first, quirks of the local environment.
   no-op. The schema has migrations `0001`–`0003`, but only the L1 graph and history
   (`project`, `file`, `symbol`, `edge`, `commit`, `file_commit`) have a writer so far, and only
   `project`, `file`, `symbol` and `edge` have a reader. The git history reader (DIS-35) produces
-  `commit`/`file_commit` rows, but nothing calls it yet outside tests (indexing is DIS-85).
+  `commit`/`file_commit` rows and the co-change rule (DIS-36) `co_changed` edges, but nothing calls
+  them yet outside tests (indexing is DIS-85).
   `db:migrate` / `db:rollback` are real and need `DATABASE_URL`: `make up` gets it from `.env`,
   because the Makefile includes and exports `.env`. Plain `npm run db:*` does not read `.env`.
   Do not assume a working end-to-end flow exists.

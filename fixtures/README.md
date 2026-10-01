@@ -59,7 +59,10 @@ and messages — no wall-clock dependency). `npm run seed:build` (Ticket 3, task
 must run this before indexing. This choice keeps the real `simple-git` extractor
 (readme §2.2) exercised against a real repository, stays text-diffable, and adds
 no binary blob. The rebuilder snapshots and restores the source tree, so it never
-mutates the tracked fixture files.
+mutates the tracked fixture files. Every file a manifest entry lists really changes
+in that commit: a re-touch with no new content gets a `hist:rN` marker, and an
+entry that cannot change its file fails the build — so the co-change pairs below
+hold in the real `git log`, not only in the manifest.
 
 **Declared limitation — commit content.** Five commits with semantic load carry
 a real diff, anchored by snapshot files in `history/snapshots/`:
