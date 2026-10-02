@@ -12,7 +12,8 @@ class), and syntax errors and duplicate symbols reported as `diagnostics` instea
 After an adversarial review (FAIL), this PR also fixes `fileKindOf` matching the file name as a
 directory (`bin/test`, `docs`), anonymous-class methods inheriting the outer class name, functions
 declared inside methods being emitted, and symbols colliding on file, name and start line (keep the
-first, one diagnostic per dropped symbol; design D9).
+first, one diagnostic per dropped symbol; design D9). A second adversarial review (PASS WITH GAPS)
+added tests that pin the D9 key to the start line and prove the kept duplicate is the first one.
 
 ## Why?
 
@@ -27,8 +28,8 @@ reinventing one.
 
 1. `npm ci` — confirm no native build step runs (`tree-sitter-php`'s `node-gyp-build` install
    script is skipped by the repo's `allowScripts` policy).
-2. `npx vitest run tests/unit/knowledge/file-kind.spec.ts tests/unit/analyzers/php` — 29 tests
-   green (16 + 13).
+2. `npx vitest run tests/unit/knowledge/file-kind.spec.ts tests/unit/analyzers/php` — 30 tests
+   green (16 + 14).
 3. `npx vitest run` — full suite green (no `DATABASE_URL` needed for the new tests).
 4. `npm run lint && npm run typecheck && npm run lint:architecture && npm run docs:coverage` —
    all green (pre-existing warnings only).
@@ -53,8 +54,8 @@ reinventing one.
 
 | Scenario in the specification | Test that covers it |
 |---|---|
-| The acme-shop analysis is a valid deterministic graph | `tests/unit/analyzers/php/structure.spec.ts:249` |
-| The analyzer reads only the content it receives | `tests/unit/analyzers/php/structure.spec.ts:268` |
+| The acme-shop analysis is a valid deterministic graph | `tests/unit/analyzers/php/structure.spec.ts:263` |
+| The analyzer reads only the content it receives | `tests/unit/analyzers/php/structure.spec.ts:282` |
 | Paths are classified by the canonical rule | `tests/unit/knowledge/file-kind.spec.ts:8` |
 | The acme-shop files are classified | `tests/unit/analyzers/php/structure.spec.ts:42` |
 | Line count of a file | `tests/unit/knowledge/file-kind.spec.ts:17` |
@@ -66,11 +67,11 @@ reinventing one.
 | A trait is encoded as a class | `tests/unit/analyzers/php/structure.spec.ts:154` |
 | Anonymous classes yield only their methods | `tests/unit/analyzers/php/structure.spec.ts:165` |
 | Duplicate symbols are dropped with a diagnostic | `tests/unit/analyzers/php/structure.spec.ts:180` |
-| A syntax error does not stop the analysis | `tests/unit/analyzers/php/structure.spec.ts:231` |
+| A syntax error does not stop the analysis | `tests/unit/analyzers/php/structure.spec.ts:245` |
 
-Minor findings of the adversarial review are accepted as explicit debt: DIS-96
-(`Deuda: analyzer-port-and-php-structure`), `design.md` → Follow-ups, and a checklist comment on
-DIS-47.
+Every gap left by the adversarial reviews has a destination (`design.md` → Follow-ups): explicit
+debt in DIS-96 (`Deuda: analyzer-port-and-php-structure`, also a checklist comment on DIS-47), path
+format validation handed off to DIS-85, and the root-file `config` asymmetry accepted (design D2).
 
 ## Origin
 

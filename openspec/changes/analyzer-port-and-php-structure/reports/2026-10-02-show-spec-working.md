@@ -24,7 +24,7 @@ a scratch script (`npx tsx`, deleted after use), never by reading the code.
 | A trait is encoded as a class | `analyze()` filtered to `tests/CreatesApplication.php` | `class CreatesApplication` (`signature: 'trait CreatesApplication'`) + `CreatesApplication::createApplication` | Yes — exact | §Evidence #9 |
 | Anonymous classes yield only their methods | `analyze()` filtered to the 5 real migrations | 0 `class` symbols, 10 `method` symbols (`up`/`down` × 5), no prefix | Yes — exact | §Evidence #10 |
 | Symbol spans include modifiers and attributes | `analyze()` on inline `app/Base.php` + `app/Model.php` (re-run 2026-10-02, after the adversarial review) | `class Base` 2–4 `abstract class Base`; `Base::run` 3–3 `abstract public function run(): void`; `class Model` 2–6 `#[Entity] class Model`; `Model::save` 4–5 `#[Column] public function save(): void`; no diagnostics | Yes — exact | §Evidence #12 |
-| Duplicate symbols are dropped with a diagnostic | `analyze()` on inline `app/Dup.php` (two `new class { function run(){} }` on line 1); `validateGraph()` on the wrapped result (re-run 2026-10-02, design D9) | one `method run` at line 1; one diagnostic `{ path: 'app/Dup.php', line: 1, message: 'duplicate symbol "run"; kept the first' }`; `validateGraph` → `[]` | Yes — exact | §Evidence #13 |
+| Duplicate symbols are dropped with a diagnostic | `analyze()` on inline `app/Dup.php` (`new class { function run($x){} }` then `new class { function run(){} }`, both on line 1); `validateGraph()` on the wrapped result (re-run 2026-10-02 after the scenario revision, design D9) | one `method run` at line 1 with signature `function run($x)` (the first is kept); one diagnostic `{ path: 'app/Dup.php', line: 1, message: 'duplicate symbol "run"; kept the first' }`; `validateGraph` → `[]` | Yes — exact | §Evidence #13 |
 | A syntax error does not stop the analysis | `analyze()` on inline `app/Broken.php` + `app/Ok.php` | `Broken.php` in `files`, no symbol, one diagnostic with a non-empty message; `Ok.php` keeps its `class Ok` symbol | Yes — exact | §Evidence #11 |
 
 All 14 `#### Scenario:` of `specs/code-analysis/spec.md` demonstrated. The first pass covered 12; the
@@ -193,11 +193,13 @@ modifiers/attributes symbols: [
 modifiers/attributes diagnostics: []
 ```
 
-#### 13. Duplicate symbols are dropped with a diagnostic (second run)
+#### 13. Duplicate symbols are dropped with a diagnostic (second run, revised scenario)
+
+Input: `<?php $a = new class { function run($x){} }; $b = new class { function run(){} };`
 
 ```
 Dup.php symbols: [
- { "file": "app/Dup.php", "name": "run", "kind": "method", "signature": "function run()", "startLine": 1, "endLine": 1 }
+ { "file": "app/Dup.php", "name": "run", "kind": "method", "signature": "function run($x)", "startLine": 1, "endLine": 1 }
 ]
 Dup.php diagnostics: [
  { "path": "app/Dup.php", "line": 1, "message": "duplicate symbol \"run\"; kept the first" }

@@ -158,6 +158,28 @@ Re-run of the gates after the fixes:
   tests) and `file-kind.spec.ts` (16 tests) ran and passed, not skipped. `Frontend` run
   https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37038796880 — passed.
 
+## Second adversarial review fixes (2026-10-02, PASS WITH GAPS)
+
+Each fix proven able to fail by a deliberate mutation of `keepFirst` in `php-analyzer.ts` (backup in
+the scratchpad, restored and confirmed with `cmp`, `git diff` clean):
+
+- Task 6.8 (`3c185b4`), new boundary test "keeps same-named methods of two anonymous classes on
+  different lines, with no diagnostic". Mutation: key `` `${symbol.startLine}:${symbol.name}` `` →
+  `symbol.name`. RED:
+  `AssertionError: expected [ 'method run 2' ] to deeply equal [ 'method run 2', 'method run 3' ]`
+  (1 failed, 13 passed). GREEN after restore: 14 passed.
+- Task 6.9 (`8d81c15` planning, `4a2c8e9` test): scenario "Duplicate symbols are dropped with a
+  diagnostic" now gives the first `run` the signature `function run($x)` and asserts it is the one
+  kept. Mutation: iterate `[...found].reverse()` (keep the last). RED: kept signature
+  `function run()` instead of `function run($x)` (1 failed, 13 passed). GREEN after restore: 14
+  passed.
+- Full suite: 131 passed, 99 skipped, 0 failed. Targeted: `file-kind.spec.ts` 16, `structure.spec.ts`
+  14. `npm run typecheck` clean; `eslint` on the changed tests clean.
+- Outbound destinations: duplicate input paths → C (DIS-96); path format validation → B (DIS-85,
+  hand-off comment); root-file `config` asymmetry → D (design D2).
+- Fixture checksum unchanged (`167c762e26cdc3ad7b71484c19aa6135dc6c2a8d`), `git status --porcelain
+  fixtures` empty.
+
 ## Outcome
 
 - Status: PASS
