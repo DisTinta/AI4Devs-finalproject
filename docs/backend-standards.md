@@ -19,6 +19,8 @@ alwaysApply: true
 - **ESLint** + `tsc --noEmit` + **dependency-cruiser** for the dependency rule
 - **simple-git** only inside `packages/adapters/git`, behind `GitPort`; it shells out to the `git`
   binary, so `git` must be on `PATH` wherever the adapter or its tests run
+- **Tree-sitter via WASM** (`web-tree-sitter` + `tree-sitter-php`'s WASM grammar) only inside
+  `packages/analyzers/php`, behind `AnalyzerPort`
 
 ## 2. Layered architecture
 

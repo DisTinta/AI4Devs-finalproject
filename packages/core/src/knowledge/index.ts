@@ -1,5 +1,6 @@
 export * from './project.js';
 export * from './graph-file.js';
+export * from './file-kind.js';
 export * from './graph-symbol.js';
 export * from './graph-edge.js';
 export * from './graph-commit.js';
