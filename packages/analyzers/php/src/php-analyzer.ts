@@ -45,6 +45,25 @@ function diagnosticFor(path: string, root: Node): AnalyzerDiagnostic {
   return { path, message, line: broken.startPosition.row + 1 };
 }
 
+/**
+ * Keeps the first symbol of each (name, startLine) of one file, in walk order, and reports each later
+ * one as a diagnostic instead of emitting it; names are never changed (design D9).
+ */
+function keepFirst(path: string, found: GraphSymbol[], diagnostics: AnalyzerDiagnostic[]): GraphSymbol[] {
+  const seen = new Set<string>();
+  const kept: GraphSymbol[] = [];
+  for (const symbol of found) {
+    const key = `${symbol.startLine}:${symbol.name}`;
+    if (seen.has(key)) {
+      diagnostics.push({ path, line: symbol.startLine, message: `duplicate symbol "${symbol.name}"; kept the first` });
+    } else {
+      seen.add(key);
+      kept.push(symbol);
+    }
+  }
+  return kept;
+}
+
 /** Creates the PHP `AnalyzerPort`: parses `.php` content with Tree-sitter (design D4, D5). */
 export function createPhpAnalyzer(): AnalyzerPort {
   let parserPromise: Promise<PhpParser> | undefined;
@@ -59,7 +78,7 @@ export function createPhpAnalyzer(): AnalyzerPort {
     const tree = parser.parse(file.content);
     try {
       if (tree.rootNode.hasError) diagnostics.push(diagnosticFor(file.path, tree.rootNode));
-      else symbols.push(...extractSymbols(file.path, tree.rootNode));
+      else symbols.push(...keepFirst(file.path, extractSymbols(file.path, tree.rootNode), diagnostics));
     } finally {
       tree.delete();
     }

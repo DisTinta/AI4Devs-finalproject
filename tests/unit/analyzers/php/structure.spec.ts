@@ -176,6 +176,26 @@ describe('php analyzer', () => {
         expect(names.sort(), path).toEqual(['down', 'up']);
       }
     });
+
+    it('Duplicate symbols are dropped with a diagnostic', async () => {
+      const result = await analyzer.analyze({
+        files: [
+          {
+            path: 'app/Dup.php',
+            content: '<?php $a = new class { function run(){} }; $b = new class { function run(){} };',
+          },
+        ],
+      });
+
+      expect(result.symbols).toEqual([
+        expect.objectContaining({ file: 'app/Dup.php', kind: 'method', name: 'run', startLine: 1 }),
+      ]);
+      expect(result.diagnostics).toEqual([
+        { path: 'app/Dup.php', line: 1, message: 'duplicate symbol "run"; kept the first' },
+      ]);
+      const graph: KnowledgeGraph = { files: result.files, symbols: result.symbols, edges: result.edges, commits: [], fileCommits: [] };
+      expect(validateGraph(graph)).toEqual([]);
+    });
   });
 
   // Adversarial review (2026-10-02): nesting cases the acme-shop fixtures do not exercise.

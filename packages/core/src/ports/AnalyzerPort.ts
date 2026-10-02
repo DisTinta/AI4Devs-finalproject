@@ -16,13 +16,16 @@ export interface AnalyzerInput {
   files: SourceFile[];
 }
 
-/** One file that could not be parsed. */
+/**
+ * One problem found in a file: the file could not be parsed, or one of its symbols was dropped
+ * because it shares file, name and start line with one already emitted (the first is kept).
+ */
 export interface AnalyzerDiagnostic {
-  /** Path of the file that failed to parse, as given in the input. */
+  /** Path of the file the problem is in, as given in the input. */
   path: string;
-  /** Non-empty description of the failure. */
+  /** Non-empty description of the problem. */
   message: string;
-  /** 1-based line of the first error, when known. */
+  /** 1-based line of the first parse error, or the start line of the dropped symbol, when known. */
   line?: number;
 }
 
@@ -40,7 +43,10 @@ export interface AnalysisResult {
   symbols: GraphSymbol[];
   /** Always empty in this capability: edges are added by a later change. */
   edges: GraphEdge[];
-  /** One entry per file in `files` that could not be parsed. */
+  /**
+   * One entry per file in `files` that could not be parsed, and one per symbol dropped as a
+   * duplicate; a file may have several. Ordered by `path`.
+   */
   diagnostics: AnalyzerDiagnostic[];
 }
 
@@ -51,7 +57,8 @@ export interface AnalysisResult {
 export interface AnalyzerPort {
   /**
    * Analyses `input.files` and resolves to their `GraphFile`s, the `GraphSymbol`s they declare, and
-   * one `AnalyzerDiagnostic` per file that could not be parsed.
+   * `AnalyzerDiagnostic`s for the files that could not be parsed and the symbols dropped as
+   * duplicates (never renamed).
    *
    * The analyzer SHALL use only the content it receives: it never reads the analysed repository's
    * files, opens a network connection, or executes or installs anything from it. A file that fails

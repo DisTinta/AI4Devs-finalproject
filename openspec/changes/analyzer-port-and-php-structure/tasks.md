@@ -43,9 +43,9 @@
 - [x] 6.2 RED → GREEN: test "The acme-shop analysis is a valid deterministic graph" (two runs `toEqual`, ordering, `edges` `[]`, `validateGraph()` returns `[]` on `{ files, symbols, edges, commits: [], fileCommits: [] }`)
 - [x] 6.3 Prove the key tests can fail, restoring from a scratch copy and confirming with `cmp` each time: include the doc comment in the span → "PriceCalculator symbols have exact spans" fails; keep symbols of a file with `hasError` → "A syntax error does not stop the analysis" fails; drop the final sort and reverse the input → "The acme-shop analysis is a valid deterministic graph" fails. Record the three results for the step 8 report
 - [x] 6.4 REFACTOR with the suite green: `web-tree-sitter` imported only by `parser.ts`, no other analyzer imported, TSDoc on every export
-- [ ] 6.5 Update the TSDoc of `AnalyzerDiagnostic`, `AnalysisResult.diagnostics` and `AnalyzerPort.analyze` per design D9: diagnostics cover parse failures and dropped duplicate symbols, a file may have several. No type changes. Run `npm run typecheck`
-- [ ] 6.6 RED → GREEN: test "Duplicate symbols are dropped with a diagnostic" (inline `app/Dup.php`). Implement keep-first per file in `php-analyzer.ts` over `extractSymbols`' output, before the D6 sort; one diagnostic per dropped symbol; no invented names
-- [ ] 6.7 Re-run "The acme-shop analysis is a valid deterministic graph" and "Anonymous classes yield only their methods": `validateGraph` returns `[]` and the migrations keep their 10 `up`/`down` with no diagnostic
+- [x] 6.5 Update the TSDoc of `AnalyzerDiagnostic`, `AnalysisResult.diagnostics` and `AnalyzerPort.analyze` per design D9: diagnostics cover parse failures and dropped duplicate symbols, a file may have several. No type changes. Run `npm run typecheck`
+- [x] 6.6 RED → GREEN: test "Duplicate symbols are dropped with a diagnostic" (inline `app/Dup.php`). Implement keep-first per file in `php-analyzer.ts` over `extractSymbols`' output, before the D6 sort; one diagnostic per dropped symbol; no invented names
+- [x] 6.7 Re-run "The acme-shop analysis is a valid deterministic graph" and "Anonymous classes yield only their methods": `validateGraph` returns `[]` and the migrations keep their 10 `up`/`down` with no diagnostic
 
 ## 7. Backend: Review and Update Existing Tests (MANDATORY)
 
