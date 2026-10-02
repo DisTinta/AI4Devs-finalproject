@@ -152,7 +152,11 @@ Re-run of the gates after the fixes:
   `tests/`.
 - Fixture state before and after: `git status --porcelain fixtures` empty, `git ls-files -s
   fixtures/acme-shop | sha1sum` = `167c762e26cdc3ad7b71484c19aa6135dc6c2a8d`, unchanged.
-- CI evidence for the new tests (task 10.2): pending the push of this pass.
+- CI evidence for the new tests (task 10.2), head `804f223`: `CI` run
+  https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37038796913 — passed; `npm ci`
+  installed clean (`added 530 packages ... in 9s`, no native build step); `structure.spec.ts` (13
+  tests) and `file-kind.spec.ts` (16 tests) ran and passed, not skipped. `Frontend` run
+  https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37038796880 — passed.
 
 ## Outcome
 

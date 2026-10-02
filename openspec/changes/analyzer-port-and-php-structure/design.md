@@ -201,6 +201,25 @@ validation".
 
 None: no schema change, no data. Rollback = revert the commits; nothing persists analyzer output yet.
 
+## Follow-ups
+
+Minor findings of the adversarial review (2026-10-02), accepted as explicit debt; tracked as a
+checklist comment on DIS-47:
+
+- `parserPromise ??=` in `php-analyzer.ts` also caches a rejected promise: one failed grammar load
+  makes the analyzer instance reject on every later call. Reset it on rejection.
+- Input paths are not validated: duplicate paths give two `GraphFile`s with the same path, and `\`,
+  `''` or a leading `/` are accepted silently. Diagnose or reject (or leave to the ingestion owner,
+  CM-HU-05a / DIS-85, if it validates repository paths).
+- "A syntax error does not stop the analysis" asserts `loc` only with `toBeDefined()` and never the
+  diagnostic's `line`; assert both exactly.
+- The no-I/O rule rests on the Ghost test alone; add a dependency-cruiser rule banning `node:fs` (and
+  network modules) in `packages/analyzers/**`.
+- The D6 tie-break (`endLine` descending, then `name`) is not asserted directly, and Stryker does not
+  mutate `packages/analyzers/**`; add a test where two symbols start on one line.
+- Process: the scenario "Symbol spans include modifiers and attributes" was added after the
+  implementation and its RED was never observed (task 5.6).
+
 ## Open Questions
 
 - Exact message text of syntax diagnostics (`Syntax error near …`) — not asserted by the spec beyond
