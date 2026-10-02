@@ -106,6 +106,15 @@ restored from a scratchpad backup and the restoration confirmed with `cmp`.
 
 - (none — this change has no browser UI; see task 10.1)
 
+## CI evidence (task 10.2)
+
+PR [#13](https://github.com/DisTinta/AI4Devs-finalproject/pull/13) against `feature/entrega-2-CRN`.
+`quality` run: https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37032703808 — passed.
+`npm ci` installed clean (`added 530 packages ... in 12s`, no native build step, no `node-gyp rebuild`
+/ MSVC output in the log). Both `tests/unit/analyzers/php/structure.spec.ts` (9 tests) and
+`tests/unit/knowledge/file-kind.spec.ts` (14 tests) ran and passed — not skipped. `frontend` run:
+https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37032703759 — passed.
+
 ## End-to-end testing (task 10.1)
 
 Not applicable: this change adds no user interface, no HTTP route and no CLI command. The interface

@@ -67,7 +67,7 @@
 ## 10. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
 - [x] 10.1 Confirm no user interface or user workflow is affected (no route, no CLI, no web change). Record "not applicable", with that reason, in the step 8 report
-- [ ] 10.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that `npm ci` installed without native build steps and that `structure.spec.ts` and `file-kind.spec.ts` ran and were not skipped. Link the run in the step 8 report
+- [x] 10.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that `npm ci` installed without native build steps and that `structure.spec.ts` and `file-kind.spec.ts` ran and were not skipped. Link the run in the step 8 report
 
 ## 11. Update Technical Documentation (MANDATORY)
 
