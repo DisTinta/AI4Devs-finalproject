@@ -86,3 +86,16 @@ describe('file classification rule coverage', () => {
     expect(fileKindOf('a.config.ts/real.ts')).toBe('source');
   });
 });
+
+// Adversarial review (2026-10-02): directory-segment checks must not match the file name itself
+// (design D2: "every segment except the file name").
+describe('file classification excludes the file name from directory-segment checks', () => {
+  it('does not classify an extensionless file named "test" as test', () => {
+    expect(fileKindOf('bin/test')).toBe('source');
+    expect(fileKindOf('test')).toBe('source');
+  });
+
+  it('does not classify a root file named "docs" as doc', () => {
+    expect(fileKindOf('docs')).toBe('source');
+  });
+});

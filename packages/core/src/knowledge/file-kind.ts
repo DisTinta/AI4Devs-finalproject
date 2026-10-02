@@ -9,13 +9,13 @@ function nameOf(path: string): string {
   return path.slice(path.lastIndexOf('/') + 1);
 }
 
-function isTest(segments: string[], name: string): boolean {
-  if (segments.some((segment) => TEST_SEGMENTS.has(segment))) return true;
+function isTest(directories: string[], name: string): boolean {
+  if (directories.some((segment) => TEST_SEGMENTS.has(segment))) return true;
   return /\.test\.|\.spec\.|Test\.php$/.test(name);
 }
 
-function isDoc(segments: string[], name: string): boolean {
-  if (segments.includes('docs')) return true;
+function isDoc(directories: string[], name: string): boolean {
+  if (directories.includes('docs')) return true;
   return name.endsWith('.md');
 }
 
@@ -29,13 +29,15 @@ function isConfig(segments: string[], name: string): boolean {
 
 /**
  * Classifies `path` into exactly one `FileKind` by the canonical, language-independent rule: `test`,
- * then `doc`, then `config`, then `source`, first match wins. Separator is always `/`.
+ * then `doc`, then `config`, then `source`, first match wins. Separator is always `/`. Directory-segment
+ * checks (`tests`, `docs`) exclude the file name; `config` looks at the first segment, which may be it.
  */
 export function fileKindOf(path: string): FileKind {
   const segments = path.split('/');
+  const directories = segments.slice(0, -1);
   const name = nameOf(path);
-  if (isTest(segments, name)) return 'test';
-  if (isDoc(segments, name)) return 'doc';
+  if (isTest(directories, name)) return 'test';
+  if (isDoc(directories, name)) return 'doc';
   if (isConfig(segments, name)) return 'config';
   return 'source';
 }
