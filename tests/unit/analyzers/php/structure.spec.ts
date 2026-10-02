@@ -182,13 +182,13 @@ describe('php analyzer', () => {
         files: [
           {
             path: 'app/Dup.php',
-            content: '<?php $a = new class { function run(){} }; $b = new class { function run(){} };',
+            content: '<?php $a = new class { function run($x){} }; $b = new class { function run(){} };',
           },
         ],
       });
 
       expect(result.symbols).toEqual([
-        expect.objectContaining({ file: 'app/Dup.php', kind: 'method', name: 'run', startLine: 1 }),
+        expect.objectContaining({ file: 'app/Dup.php', kind: 'method', name: 'run', startLine: 1, signature: 'function run($x)' }),
       ]);
       expect(result.diagnostics).toEqual([
         { path: 'app/Dup.php', line: 1, message: 'duplicate symbol "run"; kept the first' },
