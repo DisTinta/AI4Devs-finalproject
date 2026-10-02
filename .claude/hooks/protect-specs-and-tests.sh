@@ -10,6 +10,8 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 INPUT=$(cat)
 FILE=$(field "$INPUT" '.tool_input.file_path')
 [[ -n "$FILE" ]] || exit 0
+# Normalize slashes for Windows (Git Bash): the case patterns below match on '/'.
+FILE="${FILE//\\//}"
 
 # Path traversal.
 case "$FILE" in

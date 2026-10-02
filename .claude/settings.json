@@ -21,8 +21,8 @@
             "type": "command",
             "command": "node",
             "args": [
-              ".claude/hooks/invoke.cjs",
-              ".claude/hooks/session-context.sh"
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/invoke.cjs",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/session-context.sh"
             ],
             "timeout": 20,
             "statusMessage": "Loading project context..."
@@ -37,8 +37,8 @@
             "type": "command",
             "command": "node",
             "args": [
-              ".claude/hooks/invoke.cjs",
-              ".claude/hooks/block-secrets.sh"
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/invoke.cjs",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/block-secrets.sh"
             ],
             "timeout": 10
           }
@@ -53,8 +53,8 @@
             "type": "command",
             "command": "node",
             "args": [
-              ".claude/hooks/invoke.cjs",
-              ".claude/hooks/block-secret-reads.sh"
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/invoke.cjs",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/block-secret-reads.sh"
             ],
             "timeout": 10
           }
@@ -67,8 +67,8 @@
             "type": "command",
             "command": "node",
             "args": [
-              ".claude/hooks/invoke.cjs",
-              ".claude/hooks/block-dangerous-bash.sh"
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/invoke.cjs",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/block-dangerous-bash.sh"
             ],
             "timeout": 10
           }
@@ -81,8 +81,8 @@
             "type": "command",
             "command": "node",
             "args": [
-              ".claude/hooks/invoke.cjs",
-              ".claude/hooks/protect-specs-and-tests.sh"
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/invoke.cjs",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/protect-specs-and-tests.sh"
             ],
             "timeout": 10
           }
@@ -95,8 +95,8 @@
             "type": "command",
             "command": "node",
             "args": [
-              ".claude/hooks/invoke.cjs",
-              ".claude/hooks/docs-gate.sh"
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/invoke.cjs",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/docs-gate.sh"
             ],
             "timeout": 20
           }
@@ -111,8 +111,8 @@
             "type": "command",
             "command": "node",
             "args": [
-              ".claude/hooks/invoke.cjs",
-              ".claude/hooks/post-edit-quality.sh"
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/invoke.cjs",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/post-edit-quality.sh"
             ],
             "timeout": 180,
             "statusMessage": "Formatting and static analysis..."
@@ -126,8 +126,8 @@
             "type": "command",
             "command": "node",
             "args": [
-              ".claude/hooks/invoke.cjs",
-              ".claude/hooks/validate-tasks.sh"
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/invoke.cjs",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/validate-tasks.sh"
             ],
             "timeout": 20,
             "statusMessage": "Validating tasks.md..."
@@ -142,8 +142,8 @@
             "type": "command",
             "command": "node",
             "args": [
-              ".claude/hooks/invoke.cjs",
-              ".claude/hooks/verify-tests.sh"
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/invoke.cjs",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/verify-tests.sh"
             ],
             "timeout": 600,
             "statusMessage": "Running the test suite..."
