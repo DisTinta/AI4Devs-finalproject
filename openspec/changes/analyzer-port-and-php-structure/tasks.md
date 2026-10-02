@@ -46,6 +46,8 @@
 - [x] 6.5 Update the TSDoc of `AnalyzerDiagnostic`, `AnalysisResult.diagnostics` and `AnalyzerPort.analyze` per design D9: diagnostics cover parse failures and dropped duplicate symbols, a file may have several. No type changes. Run `npm run typecheck`
 - [x] 6.6 RED → GREEN: test "Duplicate symbols are dropped with a diagnostic" (inline `app/Dup.php`). Implement keep-first per file in `php-analyzer.ts` over `extractSymbols`' output, before the D6 sort; one diagnostic per dropped symbol; no invented names
 - [x] 6.7 Re-run "The acme-shop analysis is a valid deterministic graph" and "Anonymous classes yield only their methods": `validateGraph` returns `[]` and the migrations keep their 10 `up`/`down` with no diagnostic
+- [x] 6.8 Second adversarial review, boundary just past D9: two anonymous classes with `run` on different lines keep both symbols, no diagnostic. RED observed with the `keepFirst` key mutated to `symbol.name`, GREEN after restore (`3c185b4`)
+- [ ] 6.9 RED → GREEN: update the test "Duplicate symbols are dropped with a diagnostic" to the revised scenario (first `run` is `function run($x){}`) and assert the kept symbol's signature is `function run($x)`. Prove it can fail by mutating `keepFirst` to keep the last duplicate
 
 ## 7. Backend: Review and Update Existing Tests (MANDATORY)
 

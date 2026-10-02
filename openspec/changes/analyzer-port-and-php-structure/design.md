@@ -72,7 +72,9 @@ the file system.
 - `fileKindOf(path): FileKind` — the canonical rule of the spec, implemented as an ordered list of
   four predicates over the `/`-split segments and the file name; first match wins. Directory-segment
   checks (`tests`, `docs`) look at every segment except the file name; `config` looks at the first
-  segment only.
+  segment only, which may be the file name. The resulting asymmetry is accepted (adversarial review
+  2026-10-02): a root file named `config` is `config`, while root files named `test` or `docs` are
+  `source`.
 - `countLines(content): number` — `0` for `''`; otherwise the number of `\n`, plus one if the content
   does not end in `\n`. `\r\n` needs no special case (it contains one `\n`).
 - `describeFile(path, content): GraphFile` — `{ path, kind: fileKindOf(path), loc: countLines(content) }`.
@@ -208,9 +210,13 @@ DIS-96 (`Deuda: analyzer-port-and-php-structure`) and as a checklist comment on 
 
 - `parserPromise ??=` in `php-analyzer.ts` also caches a rejected promise: one failed grammar load
   makes the analyzer instance reject on every later call. Reset it on rejection.
-- Input paths are not validated: duplicate paths give two `GraphFile`s with the same path, and `\`,
-  `''` or a leading `/` are accepted silently. Diagnose or reject (or leave to the ingestion owner,
-  CM-HU-05a / DIS-85, if it validates repository paths).
+- (C) Duplicate input paths: the analyzer does not deduplicate them. Two inputs with one `.php`
+  path give two `GraphFile`s with the same path and, since `keepFirst` runs per input, can also
+  break the symbol-uniqueness SHALL (same file, name and start line). CM-HU-05a must not pass
+  duplicate paths. Tracked in DIS-96.
+- (B → DIS-85) Path format validation (`\`, `''`, a leading `/`) belongs to the ingestion use case
+  `index-repository`, which owns the repository paths; not implemented in `analyzer-php`. Hand-off
+  comment on DIS-85.
 - "A syntax error does not stop the analysis" asserts `loc` only with `toBeDefined()` and never the
   diagnostic's `line`; assert both exactly.
 - The no-I/O rule rests on the Ghost test alone; add a dependency-cruiser rule banning `node:fs` (and

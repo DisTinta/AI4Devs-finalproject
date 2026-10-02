@@ -179,8 +179,9 @@ apart.
 #### Scenario: Duplicate symbols are dropped with a diagnostic
 
 - **WHEN** `app/Dup.php` with content
-  `<?php $a = new class { function run(){} }; $b = new class { function run(){} };` is analysed
-- **THEN** its symbols are exactly one `method run` with start line 1
+  `<?php $a = new class { function run($x){} }; $b = new class { function run(){} };` is analysed
+- **THEN** its symbols are exactly one `method run` with start line 1 and signature
+  `function run($x)` (the first in tree-walk order is the one kept)
 - **AND** `diagnostics` has exactly one entry: `path` `app/Dup.php`, `line` 1, `message`
   `duplicate symbol "run"; kept the first`
 - **AND** wrapping the result in a graph with `commits: []` and `fileCommits: []` makes the graph
