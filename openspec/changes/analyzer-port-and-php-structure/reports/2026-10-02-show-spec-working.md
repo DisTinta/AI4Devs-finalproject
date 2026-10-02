@@ -16,7 +16,7 @@ a scratch script (`npx tsx`, deleted after use), never by reading the code.
 | Line count of a file | `countLines(content)` on `'', 'a', 'a\n', 'a\nb\n', 'a\r\nb'` | `0, 1, 1, 2, 2` | Yes — exact | §Evidence #2 |
 | A described file has no contentHash or redacted | `describeFile(path, content)` | `{path, kind, loc}`, no extra keys | Yes — exact | §Evidence #3 |
 | The acme-shop analysis is a valid deterministic graph | `analyzer.analyze()` twice on the real 53 files; `validateGraph()` on the wrapped result | `first === second` (deep), `files`/`symbols` sorted, `edges: []`, `validateGraph` → `[]` | Yes — exact | §Evidence #4 |
-| The analyzer reads only the content it receives | (covered inside the same real-fixture run: nothing in the analyzer touches disk beyond the content handed to it) | determinism holds across two independent in-memory runs | Yes | §Evidence #4 |
+| The analyzer reads only the content it receives | `analyze({ files: [{ path: 'app/Ghost.php', content: '<?php class Ghost {}' }] })` with `app/Ghost.php` absent from disk (no `app/` directory exists at the repo root) | `fs.existsSync('app/Ghost.php')` → `false` before and after; result still has `files: [{path, kind:'source', loc:1}]` and a `class Ghost` symbol, derived purely from `content` | Yes — exact | §Evidence #4b |
 | The acme-shop files are classified | `analyzer.analyze({ files })` on the real 53 files | `{config:7, doc:2, source:36, test:8}`; `routes/api.php`, `routes/web.php`, `config/app.php` present, 0 symbols each | Yes — exact | §Evidence #5 |
 | PriceCalculator symbols have exact spans | `analyze()` then filter by file | class 16–44; `__construct` 18–23; `compute` 25–35 (`public function compute(Order $order): Money`); `taxableBase` 38–43 | Yes — exact | §Evidence #6 |
 | Every named class of acme-shop is listed | regex scan of the real fixture (35 `class` declarations) vs. the analyzer's `class`-kind symbols (36 = 35 + the trait, D2); `artisan` symbols | 35 expected classes, 36 actual `class` symbols (consistent: the scenario asserts the 35 are present, not an exact total), `artisan` → 0 symbols | Yes | §Evidence #7 |
@@ -71,6 +71,26 @@ edges: []
 validateGraph(graph): []
 ```
 
+#### 4b. The analyzer reads only the content it receives (non-existent path)
+
+```
+exists on disk before analyze: false
+exists on disk after analyze: false
+{
+ "files": [
+  { "path": "app/Ghost.php", "kind": "source", "loc": 1 }
+ ],
+ "symbols": [
+  { "file": "app/Ghost.php", "name": "Ghost", "kind": "class", "signature": "class Ghost", "startLine": 1, "endLine": 1 }
+ ],
+ "edges": [],
+ "diagnostics": []
+}
+```
+
+Full transcript (script + output) kept at
+`2026-10-02-ghost-php-rerun-transcript.md` in this same `reports/` directory.
+
 #### 5. The acme-shop files are classified
 
 ```
@@ -102,6 +122,7 @@ config/app.php present: true symbols: 0
 ```
 expected named classes (regex scan): 35
 actual class-kind symbols total (includes the trait, D2): 36
+missing named classes: []
 artisan symbols (should be none): 0
 ```
 
@@ -115,8 +136,11 @@ artisan symbols (should be none): 0
 ]
 ```
 
-(`app/Status.php`, the enum, produced no entries at all — omitted from the array above as the empty
-result it is.)
+```
+Status.php symbols: []
+```
+
+(`app/Status.php`, the enum, produced no entries at all.)
 
 #### 9. A trait is encoded as a class
 
@@ -170,11 +194,19 @@ content for the edge cases (E4/E5) and the real `fixtures/acme-shop` tree for th
 exactly as `tests/unit/analyzers/php/structure.spec.ts` and `tests/unit/knowledge/file-kind.spec.ts`
 already assert in CI.
 
+A prior pass of this report had conflated "The analyzer reads only the content it receives" with the
+determinism scenario (#4), which only proved determinism across two in-memory runs of files that
+already exist on disk — not that the analyzer ignores the filesystem. That gap was closed by re-running
+the scenario in isolation with a path (`app/Ghost.php`) absent from disk (§Evidence #4b; full transcript
+in `2026-10-02-ghost-php-rerun-transcript.md`). The "missing named classes" and `Status.php symbols`
+checks (§Evidence #7, #8) were also made explicit rather than left implicit in prose.
+
 ## Handoff
 
 **The change is demonstrably working.** Every scenario in `specs/code-analysis/spec.md` was run
 against the real `AnalyzerPort` implementation and the real `fixtures/acme-shop` tree (plus inline
 content for the edge cases), and every result matched the spec's `THEN` clause exactly — the same
 assertions the automated suite makes, confirmed here by direct execution rather than by reading the
-test file. No screenshot was produced or left at the repository root: this change has no browser UI
-(task 10.1).
+test file. The "content only, no disk I/O" claim was isolated and proven directly with a non-existent
+path (§Evidence #4b). No screenshot was produced or left at the repository root: this change has no
+browser UI (task 10.1).
