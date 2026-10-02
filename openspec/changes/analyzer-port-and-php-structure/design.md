@@ -203,8 +203,8 @@ None: no schema change, no data. Rollback = revert the commits; nothing persists
 
 ## Follow-ups
 
-Minor findings of the adversarial review (2026-10-02), accepted as explicit debt; tracked as a
-checklist comment on DIS-47:
+Minor findings of the adversarial review (2026-10-02), accepted as explicit debt; tracked in
+DIS-96 (`Deuda: analyzer-port-and-php-structure`) and as a checklist comment on DIS-47:
 
 - `parserPromise ??=` in `php-analyzer.ts` also caches a rejected promise: one failed grammar load
   makes the analyzer instance reject on every later call. Reset it on rejection.
