@@ -19,6 +19,7 @@
 - [x] 3.1 RED: create `tests/unit/knowledge/file-kind.spec.ts` (template: `tests/unit/knowledge/validate-graph.spec.ts`) with "Paths are classified by the canonical rule", "Line count of a file" and "A described file has no contentHash or redacted", plus boundary cases (`a/__tests__/x.ts`, `src/x.spec.ts` → `test`; `src/docs.ts` → `source`; `.github/ci.yml`, `vite.config.ts` → `config`; `docs/x.json` → `doc`, first match wins). Run and see it fail
 - [x] 3.2 GREEN: create `packages/core/src/knowledge/file-kind.ts` with `fileKindOf`, `countLines` and `describeFile`; export from `knowledge/index.ts`. Run 3.1 green
 - [x] 3.3 REFACTOR with the suite green (naming, TSDoc on every export). Run `npx stryker run` and record the mutation score of `file-kind.ts` (threshold `MIN_MUTATION_SCORE=70`); add tests for surviving mutants that reflect spec rules
+- [x] 3.4 Adversarial review boundary cases (design D2: directory-segment checks exclude the file name): `bin/test`, `test` and `docs` → `source`. RED seen, then GREEN (`f93171c`)
 
 ## 4. Analyzer: parser and file listing (TDD, design D5, D6, D7)
 
@@ -33,6 +34,8 @@
 - [x] 5.3 RED → GREEN: test "Interfaces and top-level functions are listed, enums are not" (inline contents). Implement `interface_declaration`, `function_definition` outside a type, and skipping `enum_declaration` with its subtree
 - [x] 5.4 RED → GREEN: test "A trait is encoded as a class". Implement `trait_declaration` → `class` with the `trait …` signature
 - [x] 5.5 RED → GREEN: test "Anonymous classes yield only their methods" (5 migrations, 0 `class`, 10 bare `up`/`down`, closures produce nothing). Implement `anonymous_class` and closure / arrow-function handling
+- [x] 5.6 Test "Symbol spans include modifiers and attributes" (inline `app/Base.php`, `app/Model.php`). Added after the implementation: RED was not observed, the implementation already satisfied it (process debt, `7154923`)
+- [x] 5.7 Adversarial review nesting cases: a method of an anonymous class inside a named class keeps its bare name; a function declared inside a method body produces no symbol. RED seen, then GREEN (`8d04415`)
 
 ## 6. Analyzer: diagnostics and contract validity (TDD, design D1, D6)
 
@@ -40,11 +43,14 @@
 - [x] 6.2 RED → GREEN: test "The acme-shop analysis is a valid deterministic graph" (two runs `toEqual`, ordering, `edges` `[]`, `validateGraph()` returns `[]` on `{ files, symbols, edges, commits: [], fileCommits: [] }`)
 - [x] 6.3 Prove the key tests can fail, restoring from a scratch copy and confirming with `cmp` each time: include the doc comment in the span → "PriceCalculator symbols have exact spans" fails; keep symbols of a file with `hasError` → "A syntax error does not stop the analysis" fails; drop the final sort and reverse the input → "The acme-shop analysis is a valid deterministic graph" fails. Record the three results for the step 8 report
 - [x] 6.4 REFACTOR with the suite green: `web-tree-sitter` imported only by `parser.ts`, no other analyzer imported, TSDoc on every export
+- [ ] 6.5 Update the TSDoc of `AnalyzerDiagnostic`, `AnalysisResult.diagnostics` and `AnalyzerPort.analyze` per design D9: diagnostics cover parse failures and dropped duplicate symbols, a file may have several. No type changes. Run `npm run typecheck`
+- [ ] 6.6 RED → GREEN: test "Duplicate symbols are dropped with a diagnostic" (inline `app/Dup.php`). Implement keep-first per file in `php-analyzer.ts` over `extractSymbols`' output, before the D6 sort; one diagnostic per dropped symbol; no invented names
+- [ ] 6.7 Re-run "The acme-shop analysis is a valid deterministic graph" and "Anonymous classes yield only their methods": `validateGraph` returns `[]` and the migrations keep their 10 `up`/`down` with no diagnostic
 
 ## 7. Backend: Review and Update Existing Tests (MANDATORY)
 
 - [x] 7.1 Identify tests affected by the change: anything relying on `AnalyzerPort` being empty or on `@codemind/analyzer-php` exporting nothing. Confirm with `git diff --stat feature/entrega-2-CRN -- tests` that only the two new spec files changed
-- [x] 7.2 Update affected tests without weakening their assertions. Confirm the 12 `#### Scenario:` of `specs/code-analysis/spec.md` map 1:1 to tests with exactly the same name (grep each title in `tests/`; no scenario without a test, no scenario with two), and that every SHALL requirement has at least one of them. Mapping: 3.1 (3), 4.2 (1), 4.3 (1), 5.1–5.5 (5), 6.1 (1), 6.2 (1)
+- [ ] 7.2 Update affected tests without weakening their assertions. Confirm the 14 `#### Scenario:` of `specs/code-analysis/spec.md` map 1:1 to tests with exactly the same name (grep each title in `tests/`; no scenario without a test, no scenario with two), and that every SHALL requirement has at least one of them. Mapping: 3.1 (3), 4.2 (1), 4.3 (1), 5.1–5.6 (6), 6.1 (1), 6.2 (1), 6.6 (1)
 
 ## 8. Backend: Run Tests and Verify Data State (MANDATORY)
 
@@ -67,7 +73,7 @@
 ## 10. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
 - [x] 10.1 Confirm no user interface or user workflow is affected (no route, no CLI, no web change). Record "not applicable", with that reason, in the step 8 report
-- [x] 10.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that `npm ci` installed without native build steps and that `structure.spec.ts` and `file-kind.spec.ts` ran and were not skipped. Link the run in the step 8 report
+- [ ] 10.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that `npm ci` installed without native build steps and that `structure.spec.ts` and `file-kind.spec.ts` ran and were not skipped. Link the run in the step 8 report
 
 ## 11. Update Technical Documentation (MANDATORY)
 

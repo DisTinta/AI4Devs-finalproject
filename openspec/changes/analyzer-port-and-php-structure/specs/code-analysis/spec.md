@@ -17,7 +17,8 @@ diagnostics }` built from the existing graph types:
   `contentHash` or `redacted`;
 - `symbols`: the `GraphSymbol`s declared in those files;
 - `edges`: always empty in this capability (edges are added by a later change);
-- `diagnostics`: one `{ path, message, line? }` per file that could not be parsed.
+- `diagnostics`: one `{ path, message, line? }` per file that could not be parsed, and one per symbol
+  dropped as a duplicate (see Symbol extraction); a file MAY have more than one.
 
 The result SHALL be accepted by the graph validation of `graph-store` once wrapped in a graph with no
 commits and no file–commit links. The result SHALL be deterministic: the same input SHALL produce an
@@ -115,7 +116,11 @@ declares one).
 A trait SHALL be emitted as a `class` symbol named by its short name whose `signature` starts with
 `trait`, and its methods as `Trait::method`; the symbol kinds of the schema SHALL NOT be extended.
 An anonymous class SHALL produce no class symbol; its methods SHALL be emitted with their bare name
-(no prefix). Two symbols of one result SHALL never share file, name and start line.
+(no prefix). Two symbols of one result SHALL never share file, name and start line: when a symbol
+would share them with one already emitted for that file, in tree-walk order, it SHALL NOT be
+emitted, and one diagnostic SHALL be added with the file's `path`, `line` equal to that start line
+and `message` `duplicate symbol "<name>"; kept the first`. Symbols SHALL NOT be renamed to tell them
+apart.
 
 #### Scenario: PriceCalculator symbols have exact spans
 
@@ -170,6 +175,16 @@ An anonymous class SHALL produce no class symbol; its methods SHALL be emitted w
 - **THEN** they have no `class` symbol and exactly 10 `method` symbols, `up` and `down` in each file,
   with no prefix
 - **AND** the closures passed to `Schema::create` produce no symbol
+
+#### Scenario: Duplicate symbols are dropped with a diagnostic
+
+- **WHEN** `app/Dup.php` with content
+  `<?php $a = new class { function run(){} }; $b = new class { function run(){} };` is analysed
+- **THEN** its symbols are exactly one `method run` with start line 1
+- **AND** `diagnostics` has exactly one entry: `path` `app/Dup.php`, `line` 1, `message`
+  `duplicate symbol "run"; kept the first`
+- **AND** wrapping the result in a graph with `commits: []` and `fileCommits: []` makes the graph
+  validation return no error
 
 ### Requirement: Syntax errors do not stop the analysis
 

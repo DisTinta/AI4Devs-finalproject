@@ -21,7 +21,8 @@ lists files and symbols with exact spans. Edges come next (DIS-49), on top of th
   `index.ts` exports `createPhpAnalyzer(): AnalyzerPort`): parses `*.php` content with Tree-sitter and
   emits classes, interfaces, methods and functions with spans and signatures. Traits are encoded as
   `class` with a `signature` starting with `trait`; anonymous classes yield no class symbol, only
-  their methods unprefixed. A syntax error becomes a `diagnostic`, never an exception.
+  their methods unprefixed. A syntax error becomes a `diagnostic`, never an exception. A symbol
+  colliding with another on file, name and start line is dropped with a `diagnostic`, never renamed.
 - **New dependency** `web-tree-sitter` plus the PHP grammar compiled to WASM, only in
   `@codemind/analyzer-php`. Native `tree-sitter` + `tree-sitter-php` is a documented fallback used
   only if WASM fails the acceptance scenarios.

@@ -57,8 +57,8 @@ export interface AnalyzerPort {
 
 All five types live in `ports/AnalyzerPort.ts` (like `GitHistory` next to `GitPort`) and are exported
 from `ports/index.ts`. `Promise` because the WASM runtime initialises asynchronously; a native
-implementation would satisfy it too. `analyze` never rejects on bad source: parse failures are data
-(`diagnostics`). It MAY reject only on an internal failure (the grammar cannot be loaded), with the
+implementation would satisfy it too. `analyze` never rejects on bad source: parse failures and dropped
+duplicate symbols are data (`diagnostics`, possibly several per file; D9). It MAY reject only on an internal failure (the grammar cannot be loaded), with the
 underlying error.
 
 *Alternative:* `analyze(repoPath)` reading the disk itself. Rejected: it gives the analyzer an I/O
@@ -88,7 +88,7 @@ Decided in the ticket (D2/D3), recorded in the spec and the ADR:
 - A trait is a `class` symbol whose `signature` starts with `trait`; consumers that care can tell it
   apart by the signature until a future story adds a `trait` kind (enum + migration).
 - An anonymous class has no stable name; inventing one (`<anonymous>`, `class@line`) would leak into
-  citations. Its methods keep their bare name; identity stays unique through `file + name + startLine`.
+  citations. Its methods keep their bare name; identity stays unique through `file + name + startLine`; when two collide on one line, D9 applies.
 - Enums are skipped with their methods (spec): no kind to encode them, no fixture to test them.
 
 ### D4 — `web-tree-sitter` + the WASM grammar shipped by `tree-sitter-php`
@@ -127,7 +127,8 @@ verbatim by `/adr-new`.
 - `php-analyzer.ts` — `createPhpAnalyzer(): AnalyzerPort`: memoises the `loadPhpParser()` promise
   per instance; for each input file `describeFile`; only `.php` paths are parsed; `rootNode.hasError`
   → one diagnostic (`line` = first `ERROR` or missing node row + 1, `message` naming it), no symbols;
-  every tree is `delete()`d after use; final sort (D6). `edges: []`.
+  symbols colliding on (name, startLine) within a file → dropped with a diagnostic (D9), before the
+  D6 sort; every tree is `delete()`d after use; final sort (D6). `edges: []`.
 - `index.ts` — re-exports `createPhpAnalyzer`.
 
 No module of this package imports another analyzer (`analyzers-are-siblings`).
@@ -159,6 +160,24 @@ native, the revert criterion, and the trait → `class` encoding. Context, decis
 and consequences are transcribed from the "ADR D4 — razonamiento de la autora" section of DIS-47
 (wording may be adjusted, content not), in English per base-standards.
 
+### D9 — Duplicate symbols: keep the first, report the rest
+
+Author's decision after the adversarial review (2026-10-02). The bare method names of anonymous
+classes (D3) can collide on (file, name, startLine) — two `new class { function run(){} }` on one
+line — and `validateGraph` rejects such a graph. Rule: within a file, in tree-walk order, the first
+symbol with a given (name, startLine) is kept; each later one is not emitted and adds one diagnostic
+`{ path, line: startLine, message: 'duplicate symbol "<name>"; kept the first' }`. The file's other
+symbols are kept. Applied in `php-analyzer.ts` over `extractSymbols`' output, before the D6 sort, so
+"first" means source order, not sort order.
+
+Consequence: `diagnostics` is no longer only parse failures, and a file may have several. The TSDoc of
+`AnalyzerDiagnostic`, `AnalysisResult.diagnostics` and `AnalyzerPort.analyze` says so; no type
+changes.
+
+*Alternatives:* an invented disambiguating name (`run#2`, `class@line`) — rejected for the reason of
+D3, invented names leak into citations; keeping both — rejected, it breaks "accepted by graph
+validation".
+
 ## Risks / Trade-offs
 
 - [The PHP WASM grammar's ABI does not match `web-tree-sitter` 0.27] → task 1.2 smoke-parses
@@ -172,6 +191,8 @@ and consequences are transcribed from the "ADR D4 — razonamiento de la autora"
   with one typo.
 - [~30 MB unpacked for `tree-sitter-php`, mostly unused prebuilds] → accepted; dev-machine and CI
   cache cost only. Revisit if image size matters (CM-HU deployment).
+- [Dropping a duplicate loses a real method from the graph] → the diagnostic names it; only
+  same-line collisions, none in acme-shop.
 - [WASM memory leaks if trees are not deleted] → `tree.delete()` in a `finally` per file.
 - [Fixture `.git` or stray untracked files change the walk] → walk skips `.git`; the E1 test asserts
   53 entries, so an extra file fails loudly.
