@@ -19,14 +19,24 @@ function signatureOf(node: Node): string {
 }
 
 /**
+ * The type declaration a node sits in while walking: `inType` once inside any class, interface,
+ * trait or anonymous class; `name` only when that innermost type is named (so an anonymous class
+ * nested in a named one clears it).
+ */
+interface Enclosing {
+  inType: boolean;
+  name: string | undefined;
+}
+
+/**
  * Walks the syntax tree rooted at `root` (a parsed file's `rootNode`) and returns every symbol it
- * declares. Implemented incrementally in section 5: classes and methods so far; interfaces,
- * functions, traits (as `class`) and anonymous classes follow.
+ * declares: named classes, traits (as `class`), interfaces, methods (`Type::method`, bare inside an
+ * anonymous class) and functions declared outside any type. Enums are skipped with their subtree.
  */
 export function extractSymbols(path: string, root: Node): GraphSymbol[] {
   const symbols: GraphSymbol[] = [];
 
-  const walk = (node: Node, enclosing: string | undefined): void => {
+  const walk = (node: Node, enclosing: Enclosing): void => {
     if (node.type === 'enum_declaration') return; // skipped with its subtree (spec: no kind to encode it)
 
     let nextEnclosing = enclosing;
@@ -37,23 +47,25 @@ export function extractSymbols(path: string, root: Node): GraphSymbol[] {
       const kind = node.type === 'interface_declaration' ? 'interface' : 'class';
       if (name) {
         symbols.push({ file: path, name, kind, signature: signatureOf(node), ...spanOf(node) });
-        nextEnclosing = name;
+        nextEnclosing = { inType: true, name };
       }
+    } else if (node.type === 'anonymous_class') {
+      nextEnclosing = { inType: true, name: undefined };
     } else if (node.type === 'method_declaration') {
       const shortName = node.childForFieldName('name')?.text;
       if (shortName) {
-        const name = enclosing ? `${enclosing}::${shortName}` : shortName;
+        const name = enclosing.name ? `${enclosing.name}::${shortName}` : shortName;
         symbols.push({ file: path, name, kind: 'method', signature: signatureOf(node), ...spanOf(node) });
       }
     } else if (node.type === 'function_definition') {
       const shortName = node.childForFieldName('name')?.text;
-      if (shortName) {
+      if (shortName && !enclosing.inType) {
         symbols.push({ file: path, name: shortName, kind: 'function', signature: signatureOf(node), ...spanOf(node) });
       }
     }
     for (const child of node.children) walk(child, nextEnclosing);
   };
 
-  walk(root, undefined);
+  walk(root, { inType: false, name: undefined });
   return symbols;
 }

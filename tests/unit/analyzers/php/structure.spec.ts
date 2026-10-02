@@ -178,6 +178,35 @@ describe('php analyzer', () => {
     });
   });
 
+  // Adversarial review (2026-10-02): nesting cases the acme-shop fixtures do not exercise.
+  describe('symbol extraction boundary cases', () => {
+    it('names a method of an anonymous class nested in a named class by its bare name', async () => {
+      const result = await analyzer.analyze({
+        files: [
+          {
+            path: 'app/Foo.php',
+            content: '<?php\nclass Foo {\n    function make() {\n        return new class {\n            function run() {}\n        };\n    }\n}\n',
+          },
+        ],
+      });
+
+      expect(result.symbols.map((s) => `${s.kind} ${s.name}`)).toEqual(['class Foo', 'method Foo::make', 'method run']);
+    });
+
+    it('emits no function symbol for a function declared inside a method body', async () => {
+      const result = await analyzer.analyze({
+        files: [
+          {
+            path: 'app/Bar.php',
+            content: '<?php\nclass Bar {\n    function make() {\n        function helperInside() {}\n    }\n}\n',
+          },
+        ],
+      });
+
+      expect(result.symbols.map((s) => `${s.kind} ${s.name}`)).toEqual(['class Bar', 'method Bar::make']);
+    });
+  });
+
   describe('diagnostics', () => {
     it('A syntax error does not stop the analysis', async () => {
       const result = await analyzer.analyze({
