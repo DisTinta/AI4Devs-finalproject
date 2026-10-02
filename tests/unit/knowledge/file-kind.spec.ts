@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { countLines, describeFile, fileKindOf } from '@codemind/core';
 
-// Spec: openspec/changes/analyzer-port-and-php-structure/specs/code-analysis/spec.md → "File
+// Spec: openspec/specs/code-analysis/spec.md → "File
 // classification". Each test is one scenario, named after it.
 
 describe('file classification', () => {

@@ -5,7 +5,7 @@ import { validateGraph } from '@codemind/core';
 import type { AnalysisResult, KnowledgeGraph, SourceFile } from '@codemind/core';
 import { createPhpAnalyzer } from '../../../../packages/analyzers/php/src/index';
 
-// Spec: openspec/changes/analyzer-port-and-php-structure/specs/code-analysis/spec.md → "Analysis
+// Spec: openspec/specs/code-analysis/spec.md → "Analysis
 // contract", "File classification" and "Symbol extraction". Each test is one scenario, named after
 // it. `fixtures/acme-shop` is read-only input here: no test writes to it (PH-22).
 
