@@ -71,6 +71,39 @@ describe('php analyzer', () => {
       expect(compute?.signature).toBe('public function compute(Order $order): Money');
     });
 
+    it('Symbol spans include modifiers and attributes', async () => {
+      const result = await analyzer.analyze({
+        files: [
+          { path: 'app/Base.php', content: '<?php\nabstract class Base {\n    abstract public function run(): void;\n}\n' },
+          {
+            path: 'app/Model.php',
+            content: '<?php\n#[Entity]\nclass Model {\n    #[Column]\n    public function save(): void {}\n}\n',
+          },
+        ],
+      });
+
+      expect(result.symbols.filter((s) => s.file === 'app/Base.php')).toEqual([
+        expect.objectContaining({ kind: 'class', name: 'Base', signature: 'abstract class Base', startLine: 2, endLine: 4 }),
+        expect.objectContaining({
+          kind: 'method',
+          name: 'Base::run',
+          signature: 'abstract public function run(): void',
+          startLine: 3,
+          endLine: 3,
+        }),
+      ]);
+      expect(result.symbols.filter((s) => s.file === 'app/Model.php')).toEqual([
+        expect.objectContaining({ kind: 'class', name: 'Model', signature: '#[Entity] class Model', startLine: 2, endLine: 6 }),
+        expect.objectContaining({
+          kind: 'method',
+          name: 'Model::save',
+          signature: '#[Column] public function save(): void',
+          startLine: 4,
+          endLine: 5,
+        }),
+      ]);
+    });
+
     it('Every named class of acme-shop is listed', () => {
       // A named class declaration, built from the fixture's own source: `class Name` (optionally
       // `abstract`/`final`) at the start of a line. A `new class …` expression never matches this

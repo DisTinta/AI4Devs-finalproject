@@ -127,6 +127,17 @@ An anonymous class SHALL produce no class symbol; its methods SHALL be emitted w
   comments on lines 10–15 and 37 are outside the spans)
 - **AND** the signature of `PriceCalculator::compute` is `public function compute(Order $order): Money`
 
+#### Scenario: Symbol spans include modifiers and attributes
+
+- **WHEN** `app/Base.php` with content `<?php\nabstract class Base {\n    abstract public function run(): void;\n}\n`
+  is analysed
+- **THEN** its symbols are `class Base` 2–4 with signature `abstract class Base`, and
+  `method Base::run` 3–3 with signature `abstract public function run(): void`
+- **WHEN** `app/Model.php` with content
+  `<?php\n#[Entity]\nclass Model {\n    #[Column]\n    public function save(): void {}\n}\n` is analysed
+- **THEN** its symbols are `class Model` 2–6 with signature `#[Entity] class Model`, and
+  `method Model::save` 4–5 with signature `#[Column] public function save(): void`
+
 #### Scenario: Every named class of acme-shop is listed
 
 - **GIVEN** the content of the 53 tracked files of `fixtures/acme-shop`
