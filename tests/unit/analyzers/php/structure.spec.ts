@@ -225,6 +225,20 @@ describe('php analyzer', () => {
 
       expect(result.symbols.map((s) => `${s.kind} ${s.name}`)).toEqual(['class Bar', 'method Bar::make']);
     });
+
+    it('keeps same-named methods of two anonymous classes on different lines, with no diagnostic', async () => {
+      const result = await analyzer.analyze({
+        files: [
+          {
+            path: 'app/TwoRuns.php',
+            content: '<?php\n$a = new class { function run() {} };\n$b = new class { function run() {} };\n',
+          },
+        ],
+      });
+
+      expect(result.symbols.map((s) => `${s.kind} ${s.name} ${s.startLine}`)).toEqual(['method run 2', 'method run 3']);
+      expect(result.diagnostics).toEqual([]);
+    });
   });
 
   describe('diagnostics', () => {
