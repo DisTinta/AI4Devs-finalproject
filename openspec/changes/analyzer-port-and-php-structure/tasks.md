@@ -50,7 +50,7 @@
 ## 7. Backend: Review and Update Existing Tests (MANDATORY)
 
 - [x] 7.1 Identify tests affected by the change: anything relying on `AnalyzerPort` being empty or on `@codemind/analyzer-php` exporting nothing. Confirm with `git diff --stat feature/entrega-2-CRN -- tests` that only the two new spec files changed
-- [ ] 7.2 Update affected tests without weakening their assertions. Confirm the 14 `#### Scenario:` of `specs/code-analysis/spec.md` map 1:1 to tests with exactly the same name (grep each title in `tests/`; no scenario without a test, no scenario with two), and that every SHALL requirement has at least one of them. Mapping: 3.1 (3), 4.2 (1), 4.3 (1), 5.1–5.6 (6), 6.1 (1), 6.2 (1), 6.6 (1)
+- [x] 7.2 Update affected tests without weakening their assertions. Confirm the 14 `#### Scenario:` of `specs/code-analysis/spec.md` map 1:1 to tests with exactly the same name (grep each title in `tests/`; no scenario without a test, no scenario with two), and that every SHALL requirement has at least one of them. Mapping: 3.1 (3), 4.2 (1), 4.3 (1), 5.1–5.6 (6), 6.1 (1), 6.2 (1), 6.6 (1)
 
 ## 8. Backend: Run Tests and Verify Data State (MANDATORY)
 

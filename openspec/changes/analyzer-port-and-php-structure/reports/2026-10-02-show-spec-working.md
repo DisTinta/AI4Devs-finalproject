@@ -23,9 +23,14 @@ a scratch script (`npx tsx`, deleted after use), never by reading the code.
 | Interfaces and top-level functions are listed, enums are not | `analyze()` on the three E4 inline files | `interface Payable` + `Payable::pay`; `function helper`; `Status.php` → no symbols | Yes — exact | §Evidence #8 |
 | A trait is encoded as a class | `analyze()` filtered to `tests/CreatesApplication.php` | `class CreatesApplication` (`signature: 'trait CreatesApplication'`) + `CreatesApplication::createApplication` | Yes — exact | §Evidence #9 |
 | Anonymous classes yield only their methods | `analyze()` filtered to the 5 real migrations | 0 `class` symbols, 10 `method` symbols (`up`/`down` × 5), no prefix | Yes — exact | §Evidence #10 |
+| Symbol spans include modifiers and attributes | `analyze()` on inline `app/Base.php` + `app/Model.php` (re-run 2026-10-02, after the adversarial review) | `class Base` 2–4 `abstract class Base`; `Base::run` 3–3 `abstract public function run(): void`; `class Model` 2–6 `#[Entity] class Model`; `Model::save` 4–5 `#[Column] public function save(): void`; no diagnostics | Yes — exact | §Evidence #12 |
+| Duplicate symbols are dropped with a diagnostic | `analyze()` on inline `app/Dup.php` (two `new class { function run(){} }` on line 1); `validateGraph()` on the wrapped result (re-run 2026-10-02, design D9) | one `method run` at line 1; one diagnostic `{ path: 'app/Dup.php', line: 1, message: 'duplicate symbol "run"; kept the first' }`; `validateGraph` → `[]` | Yes — exact | §Evidence #13 |
 | A syntax error does not stop the analysis | `analyze()` on inline `app/Broken.php` + `app/Ok.php` | `Broken.php` in `files`, no symbol, one diagnostic with a non-empty message; `Ok.php` keeps its `class Ok` symbol | Yes — exact | §Evidence #11 |
 
-All 12 `#### Scenario:` of `specs/code-analysis/spec.md` demonstrated.
+All 14 `#### Scenario:` of `specs/code-analysis/spec.md` demonstrated. The first pass covered 12; the
+scenarios "Symbol spans include modifiers and attributes" (added after implementation) and
+"Duplicate symbols are dropped with a diagnostic" (design D9, after the adversarial review) were
+exercised in a second run on 2026-10-02 (§Evidence #12–#14).
 
 ## Evidence
 
@@ -176,6 +181,48 @@ migrations: 5 class symbols among them: 0 method symbols: 10
 }
 ```
 
+#### 12. Symbol spans include modifiers and attributes (second run)
+
+```
+modifiers/attributes symbols: [
+ { "file": "app/Base.php", "name": "Base", "kind": "class", "signature": "abstract class Base", "startLine": 2, "endLine": 4 },
+ { "file": "app/Base.php", "name": "Base::run", "kind": "method", "signature": "abstract public function run(): void", "startLine": 3, "endLine": 3 },
+ { "file": "app/Model.php", "name": "Model", "kind": "class", "signature": "#[Entity] class Model", "startLine": 2, "endLine": 6 },
+ { "file": "app/Model.php", "name": "Model::save", "kind": "method", "signature": "#[Column] public function save(): void", "startLine": 4, "endLine": 5 }
+]
+modifiers/attributes diagnostics: []
+```
+
+#### 13. Duplicate symbols are dropped with a diagnostic (second run)
+
+```
+Dup.php symbols: [
+ { "file": "app/Dup.php", "name": "run", "kind": "method", "signature": "function run()", "startLine": 1, "endLine": 1 }
+]
+Dup.php diagnostics: [
+ { "path": "app/Dup.php", "line": 1, "message": "duplicate symbol \"run\"; kept the first" }
+]
+Dup.php validateGraph: []
+```
+
+#### 14. Adversarial review boundary cases (second run, not separate scenarios)
+
+```
+nested symbols: [
+ "app/Bar.php class Bar",
+ "app/Bar.php method Bar::make",
+ "app/Foo.php class Foo",
+ "app/Foo.php method Foo::make",
+ "app/Foo.php method run"
+]
+fileKindOf [bin/test, test, docs, config/app.php]: [ "source", "source", "source", "config" ]
+```
+
+The second run used a scratch script in the session scratchpad (outside the repo), run with `tsx`
+against the freshly built `dist/` of `@codemind/analyzer-php` and `@codemind/core`. Fixture state
+before and after: `git status --porcelain fixtures` empty, `git ls-files -s fixtures/acme-shop |
+sha1sum` = `167c762e26cdc3ad7b71484c19aa6135dc6c2a8d`, unchanged.
+
 ## State
 
 - Before:
@@ -189,7 +236,7 @@ migrations: 5 class symbols among them: 0 method symbols: 10
 
 ## Not demonstrated
 
-None. All 12 scenarios of the delta spec were exercised against the real interface, with inline
+None. All 14 scenarios of the delta spec were exercised against the real interface, with inline
 content for the edge cases (E4/E5) and the real `fixtures/acme-shop` tree for the happy-path scenarios,
 exactly as `tests/unit/analyzers/php/structure.spec.ts` and `tests/unit/knowledge/file-kind.spec.ts`
 already assert in CI.

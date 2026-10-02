@@ -121,6 +121,39 @@ Not applicable: this change adds no user interface, no HTTP route and no CLI com
 is `createPhpAnalyzer()`, exercised directly in the Manual Interface Testing report (step 9). There is
 no user workflow to drive end to end.
 
+## Adversarial review fixes (2026-10-02, second pass)
+
+The adversarial review returned FAIL (two blockers, two majors). Fixes, each RED seen before GREEN
+except where noted:
+
+- `fileKindOf` checked the file name as a directory segment (`bin/test`, `test`, `docs` misclassified)
+  → `f93171c`, task 3.4.
+- Method of an anonymous class nested in a named class got the outer prefix (`Foo::run`); a function
+  declared inside a method was emitted → `8d04415`, task 5.7.
+- Duplicate symbols on (file, name, startLine) broke graph validation → author decision design D9,
+  `19a156c` (planning), `600106e` (code), tasks 6.5–6.7.
+- Scenario "Symbol spans include modifiers and attributes" committed on its own (`7154923`, task 5.6).
+  **RED was not observed** for it: it was added after the implementation, which already satisfied it.
+  Recorded as process debt.
+
+Re-run of the gates after the fixes:
+
+- Targeted tests (×2): 29 passed, 0 failed, 0 skipped both times (`file-kind.spec.ts` 16,
+  `structure.spec.ts` 13).
+- Full suite (`npx vitest run`): 130 passed, 99 skipped (no `DATABASE_URL`), 0 failed — 13 files
+  passed, 7 skipped. +6 tests over the first pass, exactly the added ones; no existing test changed.
+- `npm run lint`: 0 errors, the same pre-existing `LlmPort.ts` warning. `npm run typecheck`: clean.
+  `npm run lint:architecture`: 0 errors, the same 4 pre-existing `no-orphans` warnings.
+  `npm run docs:coverage`: clean.
+- `npx stryker run`: **93.02 %** overall; `file-kind.ts` **96.00 %** (72 killed, 3 survived, all
+  equivalent: the `name.includes('.')` / `''` extension default on line 24 and the
+  `content.endsWith('\n')` branch on line 52, unchanged by the fixes).
+- Scenario mapping (task 7.2): the 14 `#### Scenario:` titles each match exactly one `it(...)` in
+  `tests/`.
+- Fixture state before and after: `git status --porcelain fixtures` empty, `git ls-files -s
+  fixtures/acme-shop | sha1sum` = `167c762e26cdc3ad7b71484c19aa6135dc6c2a8d`, unchanged.
+- CI evidence for the new tests (task 10.2): pending the push of this pass.
+
 ## Outcome
 
 - Status: PASS
