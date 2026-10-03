@@ -16,15 +16,15 @@ El grafo ya sabía qué importa, hereda o enruta un proyecto PHP, pero no seguí
 
 ## How to test it?
 
-1. `npx vitest run tests/unit/analyzers/php` — 48 tests green, 19 of them in the new `calls.spec.ts`.
-2. `npx vitest run` — full suite green: 195 passed, 99 skipped (the skipped ones are the DB
+1. `npx vitest run tests/unit/analyzers/php` — 50 tests green, 21 of them in the new `calls.spec.ts`.
+2. `npx vitest run` — full suite green: 197 passed, 99 skipped (the skipped ones are the DB
    integration specs without `DATABASE_URL`, as before).
 3. `npm run lint && npm run typecheck && npm run lint:architecture && npm run docs:coverage` — all
    green, with only the warnings that were already there (`LlmPort.ts` empty interface, 4
    `no-orphans` stubs).
 4. `npx stryker run` — 94.08 % for `packages/core/src` (threshold 70 %). Stryker only mutates core,
    and the only core change here is a JSDoc.
-5. `npx vitest run --exclude 'tests/integration/**'` with no `DATABASE_URL` — 169 passed.
+5. `npx vitest run --exclude 'tests/integration/**'` with no `DATABASE_URL` — 171 passed.
 6. Against the Table 2 seed of `fixtures/README.md`: sites 1, 2, 3, 5 and 11 are `exact`; sites 4, 6,
    7, 8, 9, 10 and 12 have no edge. The details are in
    `openspec/changes/php-declared-type-calls/reports/2026-10-03-6-manual-interface-testing.md`.
@@ -55,6 +55,16 @@ El grafo ya sabía qué importa, hereda o enruta un proyecto PHP, pero no seguí
   - Static properties are not typed receivers.
   - The spec gains 3 scenarios covering these cases, plus intersection types, `__callStatic`,
     variable names, plain functions and locals.
+- **Fixes after `/adversarial-review`, PASS WITH GAPS** (design D8, audit decision, same PR):
+  - Methods are now indexed by the type declaration that contains them. An own-type call can no
+    longer reach a same-named class elsewhere in the file: two `class A` in an `if/else` used to give
+    a false `exact` edge, reproduced first by a failing test.
+  - The duplicate-caller guard now has a test that fails without it.
+  - The dead `new static` / `new parent` branch is removed; resolution already gives no edge.
+  - acme-shop pins exactly **47** `calls` (45 from method bodies + 2 routes) as a ceiling against new
+    false positives.
+  - Case-sensitive name matching is an accepted limitation, stated in the spec: it can only cause
+    false negatives.
 - **The route test in `edges.spec.ts` filters `calls` by source `routes/api.php` on purpose.** It
   used to assert that all `calls` of acme-shop were exactly the two route edges. Method bodies now
   produce `calls` too, so it checks the route edges only, still with exact equality. The
@@ -67,15 +77,15 @@ El grafo ya sabía qué importa, hereda o enruta un proyecto PHP, pero no seguí
 |---|---|
 | Analysis contract → The acme-shop analysis is a valid deterministic graph | `tests/unit/analyzers/php/structure.spec.ts:247` |
 | Analysis contract → The analyzer reads only the content it receives | `tests/unit/analyzers/php/structure.spec.ts:270` |
-| Declared-type calls → The constructor-injected services of acme-shop are exact calls | `tests/unit/analyzers/php/calls.spec.ts:254` |
-| Declared-type calls → The heuristic call sites of acme-shop have no exact edge | `tests/unit/analyzers/php/calls.spec.ts:282` |
+| Declared-type calls → The constructor-injected services of acme-shop are exact calls | `tests/unit/analyzers/php/calls.spec.ts:290` |
+| Declared-type calls → The heuristic call sites of acme-shop have no exact edge | `tests/unit/analyzers/php/calls.spec.ts:323` |
 | Declared-type calls → Instantiation, static and own-type calls | `tests/unit/analyzers/php/calls.spec.ts:50` |
 | Declared-type calls → A call through an interface-typed property targets the interface method | `tests/unit/analyzers/php/calls.spec.ts:70` |
 | Declared-type calls → Receivers without a usable declared type produce no edge | `tests/unit/analyzers/php/calls.spec.ts:86` |
-| Declared-type calls → Calls inside a type or function declared in a method body produce no edge | `tests/unit/analyzers/php/calls.spec.ts:179` |
-| Declared-type calls → Traits are never targets and only classes are instantiated | `tests/unit/analyzers/php/calls.spec.ts:196` |
-| Declared-type calls → Static, intersection-typed, local, variable and magic receivers produce no edge | `tests/unit/analyzers/php/calls.spec.ts:224` |
-| Declared-type calls → A file with a syntax error originates no call edge | `tests/unit/analyzers/php/calls.spec.ts:241` |
+| Declared-type calls → Calls inside a type or function declared in a method body produce no edge | `tests/unit/analyzers/php/calls.spec.ts:215` |
+| Declared-type calls → Traits are never targets and only classes are instantiated | `tests/unit/analyzers/php/calls.spec.ts:232` |
+| Declared-type calls → Static, intersection-typed, local, variable and magic receivers produce no edge | `tests/unit/analyzers/php/calls.spec.ts:260` |
+| Declared-type calls → A file with a syntax error originates no call edge | `tests/unit/analyzers/php/calls.spec.ts:277` |
 
 Three forced failures, each restored and checked with `cmp`, show the key tests can fail. The details
 are in the step 5 report.

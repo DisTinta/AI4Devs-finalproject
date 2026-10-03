@@ -77,7 +77,12 @@ interface or a trait. Any other call — on a parameter, a local variable, an un
 or intersection-typed property, a static property, a property not declared in the caller's type,
 `parent::`, `static::`,
 `?->`, `new static`, a variable class or method name, or a function — SHALL produce no
-edge. A call that would be a target of more than one form, or that appears more than once in the same
+edge. An own-type call (`$this->m(...)`, `self::m(...)`, `new self(...)`) SHALL target only a method
+declared in the body of the very declaration that contains the caller, never one of another type of
+the same name declared elsewhere in the file. Class and method names SHALL be compared
+case-sensitively, although PHP treats them case-insensitively: a call written with a different case
+than the declaration MAY yield no edge (a false negative), never a wrong one. A call that would be a
+target of more than one form, or that appears more than once in the same
 method, SHALL yield a single edge. A file that could not be parsed, or that declares more than one
 `namespace`, SHALL originate no such edge. No `calls` edge of this requirement SHALL be `heuristic`.
 
@@ -93,6 +98,8 @@ method, SHALL yield a single edge. A file that could not be parsed, or that decl
   `DiscountService::loyaltyPercent` and `DiscountService::volumeBonus`
 - **AND** the two `calls` edges of `routes/api.php` are still present: from `GET /orders` to
   `OrderController::index` and from `GET /orders/{order}` to `OrderController::show`
+- **AND** the result has exactly 47 `calls` edges: those 2 from `routes/api.php` and 45 from method
+  bodies
 
 #### Scenario: The heuristic call sites of acme-shop have no exact edge
 

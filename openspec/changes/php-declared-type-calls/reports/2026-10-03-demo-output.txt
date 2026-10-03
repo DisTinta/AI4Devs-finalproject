@@ -48,6 +48,8 @@ acme-shop input: 53 files
       "OrderController::show"
     ]
   },
+  "totalCalls": 47,
+  "routeCalls": 2,
   "allExactPhpTreesitterLaravel": true
 }
 => PASS

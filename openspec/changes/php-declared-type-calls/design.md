@@ -154,6 +154,39 @@ The verification found behaviour the spec did not allow; fixed before archiving,
 - **Static properties are not typed receivers.** `$this->p` never reads a static property, so
   `typedPropertiesOf` skips `static` declarations (promoted parameters cannot be static).
 
+### D8 — Fixes after the adversarial review (audit decision 2026-10-03, same PR #15)
+
+The review returned PASS WITH GAPS; fixed before archiving:
+
+- **Methods are indexed by declaration, not by file and name.** Own-type calls used to look up
+  `file + Type::m`, so with two `class A` in one file (e.g. in `if/else`) `$this->g()` in the first
+  could reach `g` of the second: a false `exact` edge, reproduced RED. `indexMethods` now keys a
+  method by the type declaration whose span contains it (`methodKey(type, m)`: file, type name, type
+  start line, method). `CallFact` carries `callerTypeLine` instead of `callerTypeKind`; the caller's
+  kind comes from `indexTypeKinds` like any resolved target. Routes use the same index, with the
+  `SymbolRef` that `resolveTarget` already returns.
+- **Duplicate-caller guard is tested.** A second method `D::f` on another line, dropped by the index
+  (first wins), must not lend its calls to the kept `D::f`; removing the `startLine` check now fails
+  "calls of a duplicate method are never attributed to the kept one" (forced failure, step 10).
+- **Dead `new static` / `new parent` branch removed.** Both fall through to the `new` form and resolve
+  to no type of the input (`Namespace\static`), so "no edge" is proven by resolution, not by a
+  special case.
+- **acme-shop ceiling.** The positive acme-shop scenario now asserts exactly 47 `calls` (45 from
+  method bodies + 2 routes). The 11 edges named in the scenario are pinned one by one; the other 36
+  — `Money` factories and arithmetic → `Money::__construct`/`assertSameCurrency`, `Money` statics
+  from models and services, `CouponValidator::isRedeemable` → `percentFor`,
+  `StoreOrderRequest::lines` → `validated`, `OrderObserver::created` → `OrderPlaced::__construct`, and
+  the unit tests' `new X()`/`Money::*`/own helpers — are covered only by the count (listed in the step 6
+  report), so any new false positive breaks it.
+- **Case-sensitive names (accepted limitation).** PHP class and method names are case-insensitive;
+  the analyzer compares them case-sensitively, so `clock::now()` or `$this->TICK()` yields no edge — a
+  false negative, never a false positive. Stated in the spec; not handed to DIS-61.
+
+**Process note.** The spec was tightened after implementation twice (D7, D8), each time making the rule
+stricter, never looser, and each time with the reproducing test written first. The RED of each fix is
+recorded in `tasks.md` (sections 9 and 10); test and fix share a commit, so history alone does not show
+it. Tasks 2.2–2.7 went green on first run; their ability to fail is shown by the forced failures of 3.5.
+
 ## Risks / Trade-offs
 
 - **"Exact" assumes no override.** `$this->discounts->discountFor()` is dispatched at run time to a

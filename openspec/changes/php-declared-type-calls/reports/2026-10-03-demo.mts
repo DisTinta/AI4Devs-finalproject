@@ -89,10 +89,14 @@ const acmeAgain = await analyzer.analyze({ files });
     'GET /orders/{order}': ['OrderController::show'],
   };
   const observed = Object.fromEntries(Object.keys(expected).map((source) => [source, targetsFrom(acme, source).sort()]));
+  const totalCalls = calls(acme).length;
+  const routeCalls = calls(acme).filter((e) => 'symbol' in e.source && e.source.symbol?.file === 'routes/api.php').length;
   const ok =
     Object.entries(expected).every(([source, targets]) => targets.every((t) => observed[source].includes(t))) &&
-    Object.keys(expected).every((source) => allExact(callsFrom(acme, source)));
-  check('The constructor-injected services of acme-shop are exact calls', { observed, allExactPhpTreesitterLaravel: ok }, ok);
+    Object.keys(expected).every((source) => allExact(callsFrom(acme, source))) &&
+    totalCalls === 47 &&
+    routeCalls === 2;
+  check('The constructor-injected services of acme-shop are exact calls', { observed, totalCalls, routeCalls, allExactPhpTreesitterLaravel: ok }, ok);
 }
 {
   const observed = {

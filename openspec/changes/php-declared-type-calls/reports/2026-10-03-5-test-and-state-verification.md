@@ -35,7 +35,7 @@
   analyzer code is outside Stryker's scope; its tests are shown able to fail by the forced failures
   below.
 - Notes: tests 2.2–2.7 went green on first run because 2.1's implementation already covered every
-  form. They had no separate RED; the forced failures stand in for it.
+  form. They had no separate RED; the forced failures below and those of `tasks.md` 10.3 stand in for it.
 
 ### Forced failures (task 3.5)
 Each file was backed up to the scratchpad, mutated, run, restored, and checked byte-identical with
