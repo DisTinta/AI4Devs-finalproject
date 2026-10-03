@@ -84,6 +84,7 @@ Not applicable: the change adds no route, CLI command or web screen; the only in
 - `packages/core` diff still empty, so Stryker was not re-run (it mutates core only; 93.89 % above).
 - Fixture: porcelain empty, checksum `167c762e26cdc3ad7b71484c19aa6135dc6c2a8d`, unchanged.
 - Demo driver: `ALL 36 SCENARIOS PASS` (`./2026-10-03-demo-output.txt`).
+- CI on `2bc4004`: run [37142532018](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37142532018), `quality` pass (28 files, 418/418), `frontend` pass.
 
 ## UI evidence (if applicable)
 
