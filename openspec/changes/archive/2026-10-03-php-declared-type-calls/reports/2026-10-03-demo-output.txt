@@ -1,0 +1,158 @@
+$ npx tsx openspec/changes/php-declared-type-calls/reports/2026-10-03-demo.mts
+acme-shop input: 53 files
+
+### The acme-shop analysis is a valid deterministic graph
+{
+  "equalOnRerun": true,
+  "edges": 152,
+  "callsEdges": 47,
+  "edgesInCompareEdgesOrder": true,
+  "duplicateKindSourceTarget": 0,
+  "validateGraphErrors": []
+}
+=> PASS
+
+### The analyzer reads only the content it receives
+{
+  "files": [
+    "app/Ghost.php"
+  ],
+  "symbols": [
+    "class Ghost"
+  ]
+}
+=> PASS
+
+### The constructor-injected services of acme-shop are exact calls
+{
+  "observed": {
+    "PriceCalculator::compute": [
+      "DiscountService::discountFor",
+      "ShippingService::shippingFor",
+      "TaxService::taxFor"
+    ],
+    "PriceCalculator::taxableBase": [
+      "DiscountService::discountFor"
+    ],
+    "DiscountService::discountFor": [
+      "CouponValidator::percentFor",
+      "DiscountApplied::__construct",
+      "DiscountService::loyaltyPercent",
+      "DiscountService::volumeBonus",
+      "Money::zero"
+    ],
+    "GET /orders": [
+      "OrderController::index"
+    ],
+    "GET /orders/{order}": [
+      "OrderController::show"
+    ]
+  },
+  "totalCalls": 47,
+  "routeCalls": 2,
+  "allExactPhpTreesitterLaravel": true
+}
+=> PASS
+
+### The heuristic call sites of acme-shop have no exact edge
+{
+  "site 8 OrderController::show targets": [],
+  "site 9 CheckoutController::store targets": [],
+  "site 7 ShippingService::shippingFor targets": [
+    "Money::fromCents",
+    "Money::fromFloat",
+    "Money::zero"
+  ],
+  "any edge to CarrierGateway::__call": false,
+  "site 10 OrderObserver::created targets": [
+    "OrderPlaced::__construct"
+  ],
+  "site 4 PriceCalculator::compute target files": [
+    "app/Services/DiscountService.php",
+    "app/Services/ShippingService.php",
+    "app/Services/TaxService.php"
+  ],
+  "site 6 DiscountService::discountFor target files": [
+    "app/Events/DiscountApplied.php",
+    "app/Services/CouponValidator.php",
+    "app/Services/DiscountService.php",
+    "app/Services/DiscountService.php",
+    "app/Support/Money.php"
+  ],
+  "AppServiceProvider::register targets": [],
+  "site 12 edges from routes/web.php": 0
+}
+=> PASS
+
+### Instantiation, static and own-type calls
+{
+  "targets": [
+    "Clock::__construct",
+    "Clock::now",
+    "Job::__construct",
+    "Job::tick"
+  ],
+  "allExact": true
+}
+=> PASS
+
+### A call through an interface-typed property targets the interface method
+{
+  "targets": [
+    "Rates::rateFor"
+  ],
+  "allExact": true
+}
+=> PASS
+
+### Receivers without a usable declared type produce no edge
+{
+  "badRunSymbolPresent": true,
+  "callsFromBadRun": []
+}
+=> PASS
+
+### Calls inside a type or function declared in a method body produce no edge
+{
+  "innerGSymbolPresent": true,
+  "callsEdges": []
+}
+=> PASS
+
+### Traits are never targets and only classes are instantiated
+{
+  "Uses::run": [
+    "Made::build"
+  ],
+  "Ticks::tick": [
+    "Clock::now"
+  ],
+  "allExact": true
+}
+=> PASS
+
+### Static, intersection-typed, local, variable and magic receivers produce no edge
+{
+  "Odd::run": [
+    "Clock::__construct"
+  ],
+  "allExact": true
+}
+=> PASS
+
+### A file with a syntax error originates no call edge
+{
+  "edgesFromBroken": 0,
+  "diagnostics": [
+    {
+      "path": "app/Broken.php",
+      "message": "syntax error",
+      "line": 1
+    }
+  ],
+  "validateGraphErrors": []
+}
+=> PASS
+
+ALL SCENARIOS PASS
+exit=0

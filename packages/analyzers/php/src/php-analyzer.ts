@@ -7,7 +7,8 @@ import type {
   SourceFile,
 } from '@codemind/core';
 import { describeFile, docMentionEdges, sortUniqueEdges } from '@codemind/core';
-import { buildPhpEdges, type PlacedRouteFact } from './edges.js';
+import { collectCalls } from './calls.js';
+import { buildPhpEdges, type PlacedCallFact, type PlacedRouteFact } from './edges.js';
 import { collectFacts, type PhpFileFacts } from './names.js';
 import { loadPhpParser, type Node, type PhpParser } from './parser.js';
 import { collectRoutes } from './routes.js';
@@ -78,6 +79,7 @@ export function createPhpAnalyzer(): AnalyzerPort {
     symbols: GraphSymbol[],
     facts: PhpFileFacts[],
     routes: PlacedRouteFact[],
+    calls: PlacedCallFact[],
     diagnostics: AnalyzerDiagnostic[],
   ): void => {
     const tree = parser.parse(file.content);
@@ -90,6 +92,7 @@ export function createPhpAnalyzer(): AnalyzerPort {
         symbols.push(...keepFirst(file.path, [...extractSymbols(file.path, tree.rootNode), ...fileRoutes.symbols], diagnostics));
         facts.push(fileFacts);
         routes.push(...fileRoutes.facts.map((routeFact) => ({ ...routeFact, path: file.path })));
+        calls.push(...collectCalls(tree.rootNode).map((callFact) => ({ ...callFact, path: file.path })));
       }
     } finally {
       tree.delete();
@@ -102,18 +105,19 @@ export function createPhpAnalyzer(): AnalyzerPort {
       const symbols: GraphSymbol[] = [];
       const facts: PhpFileFacts[] = [];
       const routes: PlacedRouteFact[] = [];
+      const calls: PlacedCallFact[] = [];
       const diagnostics: AnalyzerDiagnostic[] = [];
       const phpFiles = input.files.filter((file) => file.path.endsWith('.php'));
 
       if (phpFiles.length > 0) {
         const parser = await getParser();
-        for (const file of phpFiles) analyzeOne(file, parser, symbols, facts, routes, diagnostics);
+        for (const file of phpFiles) analyzeOne(file, parser, symbols, facts, routes, calls, diagnostics);
       }
 
       symbols.sort(bySymbolOrder);
       diagnostics.sort(byPath);
 
-      const edges = sortUniqueEdges([...buildPhpEdges(facts, routes, symbols), ...docMentionEdges(input.files, symbols)]);
+      const edges = sortUniqueEdges([...buildPhpEdges(facts, routes, calls, symbols), ...docMentionEdges(input.files, symbols)]);
 
       return { files, symbols, edges, diagnostics };
     },

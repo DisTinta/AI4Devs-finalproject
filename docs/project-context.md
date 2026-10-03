@@ -398,3 +398,14 @@ services that must be started first, quirks of the local environment.
   pure, language-independent rules in core, reused as-is by the TypeScript analyzer (DIS-30) with no
   changes to `packages/core`.
   The type gate is `npm run typecheck` (also in CI). A finer per-file check is a later chore.
+- **Calls inside method bodies are `exact` only when the receiver type is declared** (DIS-52). The
+  PHP analyzer emits `calls` (`exact`, `php-treesitter-laravel`) from a method `Type::m` for
+  `$this->p->m()` (property `p` of the same type, promoted or declared, with a single named type — not
+  nullable/union/intersection), `X::m()`, `new X()` → `X::__construct`, and `$this->m()` / `self::m()`
+  / `new self()` on the own type. The target must be **declared in that type itself**: no inherited
+  methods, no `__call`/`__callStatic` fallback (so the Laravel traps — `Pricing` facade,
+  `CarrierGateway::flatRateFor`, `RecalculateTotals::dispatch` — stay without an edge until
+  CM-HU-04b/DIS-61 adds them as `heuristic`). A trait is never a target, and `new` targets a class
+  only. Calls inside closures/arrow functions/anonymous classes (e.g. the bindings in
+  `AppServiceProvider::register`) or inside a named class/function declared in a method body, static
+  properties, typed parameters, locals, `parent::`, `static::`, `new static`, `?->` give no edge. acme-shop yields 47 `calls`, 2 of them routes.

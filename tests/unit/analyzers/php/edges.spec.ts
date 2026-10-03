@@ -214,7 +214,8 @@ describe('php analyzer edges', () => {
 
       const index = acmeSymbol('app/Http/Controllers/OrderController.php', 'OrderController::index');
       const show = acmeSymbol('app/Http/Controllers/OrderController.php', 'OrderController::show');
-      const callsEdges = acmeShop.edges.filter((e) => e.kind === 'calls');
+      // Only the route `calls`: declared-type calls in method bodies are covered by calls.spec.ts.
+      const callsEdges = acmeShop.edges.filter((e) => e.kind === 'calls' && 'symbol' in e.source && e.source.symbol?.file === 'routes/api.php');
       expect(callsEdges).toEqual([
         {
           source: { symbol: { file: 'routes/api.php', name: 'GET /orders', startLine: 12 } },
