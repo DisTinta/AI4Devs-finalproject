@@ -162,6 +162,42 @@ describe('php analyzer declared-type calls', () => {
       expect(edges).toEqual([]);
     });
 
+    it('own-type calls resolve within the caller own declaration, never a same-named one', async () => {
+      const result = await analyzer.analyze({
+        files: [
+          file(
+            'app/Twice.php',
+            [
+              '<?php namespace App;',
+              'if (true) {',
+              '  class A { public function f(): void { $this->g(); self::g(); new self(); } }',
+              '} else {',
+              '  class A { public function __construct() {} public function f(): void {} public function g(): void {} }',
+              '}',
+            ].join('\n'),
+          ),
+        ],
+      });
+
+      expect(result.symbols.filter((s) => s.name === 'A::g')).toHaveLength(1);
+      expect(result.edges.filter((e) => e.kind === 'calls')).toEqual([]);
+    });
+
+    it('calls of a duplicate method are never attributed to the kept one', async () => {
+      const result = await analyzer.analyze({
+        files: [
+          CLOCK,
+          file(
+            'app/Dup.php',
+            ['<?php namespace App; use App\\Support\\Clock;', 'class D {', '  public function f(): void {}', '  public function f(): void { Clock::now(); }', '}'].join('\n'),
+          ),
+        ],
+      });
+
+      expect(result.symbols.filter((s) => s.name === 'D::f').map((s) => s.startLine)).toEqual([3, 4]);
+      expect(result.edges.filter((e) => e.kind === 'calls')).toEqual([]);
+    });
+
     it('a file with two namespace declarations originates no call edge', async () => {
       const result = await analyzer.analyze({
         files: [
@@ -277,6 +313,11 @@ describe('php analyzer declared-type calls', () => {
       ),
     ];
     for (const edge of expected) expect(acmeShop.edges).toContainEqual(edge);
+
+    // Ceiling against new false positives: 45 method-body edges plus the 2 of routes/api.php.
+    const callsEdges = acmeShop.edges.filter((e) => e.kind === 'calls');
+    expect(callsEdges).toHaveLength(47);
+    expect(callsEdges.filter((e) => 'symbol' in e.source && e.source.symbol?.file === 'routes/api.php')).toHaveLength(2);
   });
 
   it('The heuristic call sites of acme-shop have no exact edge', () => {

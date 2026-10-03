@@ -13,8 +13,8 @@ export interface CallFact {
   caller: { name: string; startLine: number };
   /** Short name of the type the caller method is declared in. */
   callerType: string;
-  /** What that type is: an own-type call never targets a trait (spec "Declared-type calls"). */
-  callerTypeKind: 'class' | 'interface' | 'trait';
+  /** 1-based start line of that type's declaration: own-type calls resolve within it (design D8). */
+  callerTypeLine: number;
   form: CallForm;
   /**
    * Raw class name, as written: the scope of `X::m()`, the class of `new X()`, or the declared type of
@@ -37,12 +37,6 @@ const OPAQUE_NODE_TYPES = new Set(['anonymous_function', 'arrow_function', 'anon
  * own methods are not collected either (spec: a type or function declared in a method body is opaque).
  */
 const NESTED_DECLARATION_TYPES = new Set([...TYPE_DECLARATION_TYPES, 'function_definition']);
-
-const TYPE_KINDS: Readonly<Record<string, CallFact['callerTypeKind']>> = {
-  class_declaration: 'class',
-  interface_declaration: 'interface',
-  trait_declaration: 'trait',
-};
 
 const isStatic = (member: Node): boolean => member.children.some((child) => child.type === 'static_modifier');
 
@@ -110,7 +104,7 @@ function targetOf(node: Node, properties: ReadonlyMap<string, string>): Pick<Cal
     const className = node.namedChildren[0];
     if (!className || !NAME_NODE_TYPES.has(className.type)) return undefined;
     if (className.text === 'self') return { form: 'own', rawClass: '', method: '__construct' };
-    if (className.text === 'static' || className.text === 'parent') return undefined; // late binding (design D1)
+    // `new static` / `new parent` fall through: `static` and `parent` resolve to no type of the input.
     return { form: 'new', rawClass: className.text, method: '__construct' };
   }
   return undefined;
@@ -126,7 +120,7 @@ function targetOf(node: Node, properties: ReadonlyMap<string, string>): Pick<Cal
 export function collectCalls(root: Node): CallFact[] {
   const facts: CallFact[] = [];
 
-  type Enclosing = Pick<CallFact, 'caller' | 'callerType' | 'callerTypeKind'>;
+  type Enclosing = Pick<CallFact, 'caller' | 'callerType' | 'callerTypeLine'>;
 
   const walkBody = (node: Node, enclosing: Enclosing, properties: ReadonlyMap<string, string>): void => {
     if (OPAQUE_NODE_TYPES.has(node.type) || NESTED_DECLARATION_TYPES.has(node.type)) return;
@@ -147,7 +141,7 @@ export function collectCalls(root: Node): CallFact[] {
         const methodBody = member.childForFieldName('body');
         if (!methodName || !methodBody) continue;
         const caller = { name: `${typeName}::${methodName}`, startLine: member.startPosition.row + 1 };
-        walkBody(methodBody, { caller, callerType: typeName, callerTypeKind: TYPE_KINDS[node.type] }, properties);
+        walkBody(methodBody, { caller, callerType: typeName, callerTypeLine: node.startPosition.row + 1 }, properties);
       }
       return;
     }
