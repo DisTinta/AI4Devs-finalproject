@@ -78,7 +78,12 @@ describe('php analyzer Laravel heuristic calls', () => {
       'app/Providers/RatesProvider.php',
       "<?php namespace App\\Providers; use App\\Services\\Rates; use Illuminate\\Support\\ServiceProvider; class RatesProvider extends ServiceProvider { public function register(): void { $this->app->singleton('rates', fn ($app) => new Rates()); } }",
     );
-    const result = await analyzer.analyze({ files: [RATES, RATES_FACADE, provider, CLIENT] });
+    // `Rates` declares `__construct` here, so walking the closure would yield `register` → `Rates::__construct`.
+    const ratesWithConstructor = file(
+      'app/Services/Rates.php',
+      '<?php namespace App\\Services; class Rates { public function __construct() {} public function quote(): int { return 1; } }',
+    );
+    const result = await analyzer.analyze({ files: [ratesWithConstructor, RATES_FACADE, provider, CLIENT] });
 
     expect(callsFrom(result, 'app/Client.php', 'Client::run')).toEqual([
       heuristicCall(symbolOf(result, 'app/Client.php', 'Client::run'), symbolOf(result, 'app/Services/Rates.php', 'Rates::quote')),
@@ -230,6 +235,55 @@ describe('php analyzer Laravel heuristic calls', () => {
       });
       expect(symbolOf(result, 'app/Holder.php', 'Inner::getFacadeAccessor')).toBeDefined();
       expect(callsFrom(result, 'app/Holder.php', 'Holder::run')).toEqual([]);
+    });
+
+    it('the accessor of a facade class declared in a trait method body is never read', async () => {
+      const result = await analyzer.analyze({
+        files: [
+          RATES,
+          RATES_PROVIDER,
+          file(
+            'app/Holder.php',
+            "<?php namespace App; use Illuminate\\Support\\Facades\\Facade; trait Holder { public function make(): void { class Inner extends Facade { protected static function getFacadeAccessor(): string { return 'rates'; } } } }",
+          ),
+          file('app/Caller.php', '<?php namespace App; class Caller { public function run(): void { Inner::quote(); } }'),
+        ],
+      });
+      expect(callsFrom(result, 'app/Caller.php', 'Caller::run')).toEqual([]);
+    });
+
+    it('the bindings of a provider declared in an enum method body are never read', async () => {
+      const result = await analyzer.analyze({
+        files: [
+          RATES,
+          RATES_FACADE,
+          CLIENT,
+          file(
+            'app/Providers/Holder.php',
+            "<?php namespace App\\Providers; use App\\Services\\Rates; use Illuminate\\Support\\ServiceProvider; enum Holder { case A; public function make(): void { class RatesProvider extends ServiceProvider { public function register(): void { $this->app->bind('rates', Rates::class); } } } }",
+          ),
+        ],
+      });
+      expect(callsFrom(result, 'app/Client.php', 'Client::run')).toEqual([]);
+    });
+
+    it('the bindings of a provider dropped as a duplicate symbol are never read', async () => {
+      const result = await analyzer.analyze({
+        files: [
+          RATES,
+          RATES_FACADE,
+          CLIENT,
+          file('app/Services/OtherRates.php', '<?php namespace App\\Services; class OtherRates { public function quote(): int { return 2; } }'),
+          file(
+            'app/Providers/RatesProvider.php',
+            "<?php namespace App\\Providers; use App\\Services\\{Rates, OtherRates}; use Illuminate\\Support\\ServiceProvider; if (true) { class RatesProvider extends ServiceProvider { public function register(): void { $this->app->bind('rates', Rates::class); } } } else { class RatesProvider extends ServiceProvider { public function register(): void { $this->app->bind('rates', OtherRates::class); } } }",
+          ),
+        ],
+      });
+      expect(result.diagnostics.map((d) => d.message)).toContain('duplicate symbol "RatesProvider"; kept the first');
+      expect(callsFrom(result, 'app/Client.php', 'Client::run')).toEqual([
+        heuristicCall(symbolOf(result, 'app/Client.php', 'Client::run'), symbolOf(result, 'app/Services/Rates.php', 'Rates::quote')),
+      ]);
     });
 
     it('a facade class never falls back to its own __callStatic', async () => {

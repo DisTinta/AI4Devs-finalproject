@@ -38,8 +38,32 @@ const OPAQUE_NODE_TYPES = new Set([
   'class_declaration',
   'interface_declaration',
   'trait_declaration',
+  'enum_declaration',
   'function_definition',
 ]);
+
+/**
+ * Nodes the file-level walk of the Laravel collectors never enters: closures, arrow functions and
+ * anonymous classes, and the bodies of interfaces, traits and enums. A class is handled where it is
+ * found and its body is never walked further, so a class declared inside any method body is never
+ * read — the same opaque set as `collectCalls`, plus enums (whose subtree has no symbol).
+ */
+/**
+ * A predicate that is `true` for a `class_declaration` whose short name and start line an earlier one
+ * of the same walk already had: the analyzer keeps only the first such symbol and drops the others as
+ * duplicates (`keepFirst`), so their accessor or bindings must not count either.
+ */
+export function firstDeclarationOnly(): (node: Node) => boolean {
+  const seen = new Set<string>();
+  return (node) => {
+    const key = `${node.startPosition.row}\0${node.childForFieldName('name')?.text ?? ''}`;
+    if (seen.has(key)) return true;
+    seen.add(key);
+    return false;
+  };
+}
+
+export const LARAVEL_WALK_STOP = new Set(['anonymous_function', 'arrow_function', 'anonymous_class', 'interface_declaration', 'trait_declaration', 'enum_declaration']);
 
 const isThis = (node: Node | null): boolean => node?.type === 'variable_name' && node.text === '$this';
 
@@ -106,11 +130,14 @@ function bindingOf(node: Node): Pick<BindingFact, 'key' | 'rawConcrete'> | undef
  * Collects every binding written directly in the body of a method `register` of a named class of a
  * parsed file (spec "Laravel heuristic calls"; design D2), in document order. Only
  * `$this->app->bind|singleton|scoped(KEY, CONCRETE)` with exactly two positional arguments counts; a
- * closure is read only to take the class it instantiates, never searched for calls. Whether the class
- * is a service provider is decided by {@link buildBindingTable}.
+ * closure is read only to take the class it instantiates, never searched for calls. The file walk stops
+ * at {@link LARAVEL_WALK_STOP} and never enters a class body, so a class in an interface, trait or enum
+ * or in any method body is never read, and a class repeated with the same name and start line counts
+ * once (as `keepFirst`). Whether the class is a service provider is decided by {@link buildBindingTable}.
  */
 export function collectBindings(root: Node): BindingFact[] {
   const facts: BindingFact[] = [];
+  const isRepeat = firstDeclarationOnly();
 
   const walkBody = (node: Node, provider: Pick<BindingFact, 'providerType' | 'providerTypeLine'>): void => {
     if (OPAQUE_NODE_TYPES.has(node.type)) return;
@@ -120,9 +147,10 @@ export function collectBindings(root: Node): BindingFact[] {
   };
 
   const walk = (node: Node): void => {
-    if (node.type === 'anonymous_function' || node.type === 'arrow_function' || node.type === 'anonymous_class') return;
+    if (LARAVEL_WALK_STOP.has(node.type)) return;
     if (node.type === 'class_declaration') {
       const providerType = node.childForFieldName('name')?.text;
+      if (isRepeat(node)) return;
       for (const member of node.childForFieldName('body')?.namedChildren ?? []) {
         if (!providerType || member.type !== 'method_declaration' || member.childForFieldName('name')?.text !== 'register') continue;
         const body = member.childForFieldName('body');

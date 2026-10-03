@@ -2,7 +2,7 @@ import type { SymbolRef } from '@codemind/core';
 import type { PhpFileFacts } from '../names.js';
 import type { Node } from '../parser.js';
 import type { BindingKey, BindingTable } from './container.js';
-import { bindingKeyOf, concreteFor, directlyExtends, normaliseKey } from './container.js';
+import { bindingKeyOf, concreteFor, directlyExtends, firstDeclarationOnly, LARAVEL_WALK_STOP, normaliseKey } from './container.js';
 
 /** FQN a facade class must directly extend (spec "Laravel heuristic calls", rule 1). */
 export const FACADE_FQN = 'Illuminate\\Support\\Facades\\Facade';
@@ -36,14 +36,18 @@ function accessorKeyOf(body: Node | null): BindingKey | undefined {
 /**
  * Collects, for every named class of a parsed file that declares `getFacadeAccessor` with a body of a
  * single `return` of a plain string literal or `X::class`, that key (spec "Laravel heuristic calls";
- * design D2). Classes inside closures, arrow functions or anonymous classes, and classes declared in a
- * method body, are skipped. Whether the class is a facade is decided by {@link indexFacades}.
+ * design D2). The walk stops at {@link LARAVEL_WALK_STOP} and never enters a class body, so classes in
+ * closures, anonymous classes, interfaces, traits, enums or any method body are skipped, and a class
+ * repeated with the same name and start line counts once (as `keepFirst`). Whether the class is a
+ * facade is decided by {@link indexFacades}.
  */
 export function collectFacadeAccessors(root: Node): FacadeAccessorFact[] {
   const facts: FacadeAccessorFact[] = [];
+  const isRepeat = firstDeclarationOnly();
   const walk = (node: Node): void => {
-    if (node.type === 'anonymous_function' || node.type === 'arrow_function' || node.type === 'anonymous_class') return;
+    if (LARAVEL_WALK_STOP.has(node.type)) return;
     if (node.type === 'class_declaration') {
+      if (isRepeat(node)) return;
       const type = node.childForFieldName('name')?.text;
       const accessor = (node.childForFieldName('body')?.namedChildren ?? []).find(
         (member) => member.type === 'method_declaration' && member.childForFieldName('name')?.text === 'getFacadeAccessor',

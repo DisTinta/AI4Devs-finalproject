@@ -108,7 +108,9 @@ const acmeAgain = await analyzer.analyze({ files });
     'app/Providers/RatesProvider.php',
     "<?php namespace App\\Providers; use App\\Services\\Rates; use Illuminate\\Support\\ServiceProvider; class RatesProvider extends ServiceProvider { public function register(): void { $this->app->singleton('rates', fn ($app) => new Rates()); } }",
   );
-  const r = await analyzer.analyze({ files: [RATES, RATES_FACADE, provider, CLIENT] });
+  // `Rates` declares `__construct`: walking the closure would yield `register` -> `Rates::__construct`.
+  const ratesWithConstructor = f('app/Services/Rates.php', '<?php namespace App\\Services; class Rates { public function __construct() {} public function quote(): int { return 1; } }');
+  const r = await analyzer.analyze({ files: [ratesWithConstructor, RATES_FACADE, provider, CLIENT] });
   const observed = { 'Client::run': shown(r, 'Client::run'), 'RatesProvider::register': shown(r, 'RatesProvider::register') };
   check(
     'A closure binding resolves a facade and originates no edge',

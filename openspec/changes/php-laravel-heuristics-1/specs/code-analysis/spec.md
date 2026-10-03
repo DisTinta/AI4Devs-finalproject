@@ -45,9 +45,12 @@ SHALL NOT count as declared. A facade class whose parent is not directly `Facade
 trait SHALL never be `F`, `T`, `X` or `C`. `self::m(...)`, `static::m(...)`, `parent::m(...)` and any
 call excluded by "Declared-type calls" (local variables, parameters, nullable, union or intersection
 types, `?->`, variable class or method names, functions) SHALL produce no edge under this requirement.
-The `getFacadeAccessor` and the `register` bindings of a class declared inside a method body, a
-closure, an arrow function or an anonymous class SHALL NOT be read, as for the calls of
-"Declared-type calls". Keys, class and method names SHALL be compared case-sensitively. A file that could not be parsed, or
+The `getFacadeAccessor` and the `register` bindings of a class declared inside a method body (of a
+class, interface, trait or enum), a closure, an arrow function or an anonymous class SHALL NOT be
+read, as for the calls of "Declared-type calls"; nor those of a class dropped as a duplicate symbol
+(see Symbol extraction). A `getFacadeAccessor` or a closure body that holds anything besides its
+single `return` — a comment included — and a string key with a leading `\` add nothing: accepted
+false negatives, never a guessed edge. Keys, class and method names SHALL be compared case-sensitively. A file that could not be parsed, or
 that declares more than one `namespace`, SHALL contribute no call, facade or binding to this
 requirement.
 
@@ -86,8 +89,10 @@ source and target; calls of the same method that resolve to the same target SHAL
 
 #### Scenario: A closure binding resolves a facade and originates no edge
 
-- **WHEN** `app/Services/Rates.php`, `app/Facades/RatesFacade.php` and `app/Client.php` (as above) and
-  `app/Providers/RatesProvider.php` with content
+- **WHEN** `app/Facades/RatesFacade.php` and `app/Client.php` (as above), `app/Services/Rates.php` with
+  content
+  `<?php namespace App\Services; class Rates { public function __construct() {} public function quote(): int { return 1; } }`
+  and `app/Providers/RatesProvider.php` with content
   `<?php namespace App\Providers; use App\Services\Rates; use Illuminate\Support\ServiceProvider; class RatesProvider extends ServiceProvider { public function register(): void { $this->app->singleton('rates', fn ($app) => new Rates()); } }`
   are analysed together
 - **THEN** `Client::run` is the source of exactly one `calls` edge, `heuristic`, to `Rates::quote`

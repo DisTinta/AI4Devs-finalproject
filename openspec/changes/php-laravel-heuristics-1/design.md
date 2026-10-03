@@ -140,6 +140,45 @@ precedence over a heuristic one" guards it.
 The decisions are local to `packages/analyzers/php`, cheap to revert and already recorded in the spec
 and here. The signed scope decisions (closures, implicit bindings) live in the proposal and Linear.
 
+### D8 — How the spec evolved after implementation (audit decisions 2026-10-03)
+
+The delta spec was revised four times after code existed. Each revision is a deliberate normative
+change, not a rewrite to fit the code:
+
+1. **Two spec errors found by the tests (tasks 5.1, 5.2).**
+   - The precedence scenario declared `class Mixed`, which does not parse in PHP 8; it is now `Both`.
+   - The acme-shop scenario forbade *any* edge into `Pricing.php`, although `imports` edges there are
+     correct; it now forbids `calls` edges only.
+2. **Limits of the binding table made explicit after `/verify-against-spec` (§12).** The author
+   decided to accept these false negatives rather than widen the code:
+   - plain string keys only (no escapes, interpolation or empty string);
+   - exactly two positional arguments;
+   - bindings in `if`/loops of `register()` do count.
+
+   The spec now states those boundaries. None of them can produce a wrong edge.
+3. **Two more accepted false negatives after `/adversarial-review` (§13).** A comment beside the
+   single `return`, and a string key with a leading `\`, add nothing.
+4. **One code fix in the other direction (§12, §13).** The spec already said that a class declared in
+   a method body is never read. The collectors broke that rule: `collectFacadeAccessors` entered class
+   bodies, both collectors entered interface/trait/enum bodies, and both read classes dropped as
+   duplicates. The code was fixed to match the spec, each case shown RED first. Without the fix it
+   produced invented edges.
+
+## Follow-ups
+
+- **(C) Conscious debt, recorded in one Spanish checklist comment on DIS-61:** the JSDoc of
+  `AnalysisResult.edges` (`packages/core/src/ports/AnalyzerPort.ts:45-47`) does not list Laravel
+  `heuristic` `calls`. Core stays untouched by decision, because the port is language-agnostic; the
+  rule lives in `docs/project-context.md` and the spec.
+- **(B) DIS-63:** `fixtures/README.md:267` names site 7's target `CarrierGateway::flatRateFor`, the
+  conceptual call site, while the graph points to `CarrierGateway::__call`. The note is left for
+  DIS-63, which works on the remaining batch sites (fixtures are read-only here, PH-22).
+- **Separate PR:** fix the malformed `* text=eol=lf` in `.gitattributes` (repository-wide
+  renormalisation).
+- **Observed, not in scope:** `collectCalls` (DIS-52) does not stop at `enum_declaration` either.
+  It is harmless today, because `extractSymbols` skips the whole enum subtree, so no caller symbol
+  exists there.
+
 ## Risks / Trade-offs
 
 - **Grammar shapes are assumed, not yet checked**: `X::class` as `class_constant_access_expression`,
@@ -166,5 +205,10 @@ and here. The signed scope decisions (closures, implicit bindings) live in the p
 - **acme-shop count (6 `heuristic`) depends on `OrderPricingTest::test_final_price_applies_discount_before_tax`**
   being a method symbol and `tests/Feature/OrderPricingTest.php` having one namespace — true today;
   checked by the acme-shop scenario.
+- **Comments and leading backslashes are not normalised.** A comment beside the single `return` of
+  `getFacadeAccessor()` or of a binding closure counts as a second statement, so the key or the
+  concrete is not read. A string key `'\App\Services\Rates'` never matches the FQN `App\Services\Rates`
+  of a `::class` key. Both are false negatives, never a wrong edge. Accepted by the author after
+  `/adversarial-review` (2026-10-03, §13) and stated in the spec.
 - **Mutation gate** covers `packages/core/src/**` only; this change adds no core logic, so the score is
   unchanged. The forced failures of the tasks stand in for mutation on the analyzer.
