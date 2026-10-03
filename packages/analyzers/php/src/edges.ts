@@ -3,6 +3,11 @@ import type { GraphEdge, GraphSymbol, SymbolRef } from '@codemind/core';
 import type { CallFact } from './calls.js';
 import type { PhpFileFacts } from './names.js';
 import { resolveClassName, resolveTarget } from './names.js';
+import { buildBindingTable } from './laravel/container.js';
+import type { BindingTable, PlacedBindingFact } from './laravel/container.js';
+import { indexFacades, resolveFacadeCall } from './laravel/facades.js';
+import type { FacadeIndex, PlacedFacadeAccessorFact } from './laravel/facades.js';
+import { resolveMagicCall } from './laravel/magic-call.js';
 import type { RouteFact } from './routes.js';
 
 /** One {@link RouteFact} together with the path of the file it was found in. */
@@ -10,6 +15,12 @@ export type PlacedRouteFact = RouteFact & { path: string };
 
 /** One {@link CallFact} together with the path of the file it was found in. */
 export type PlacedCallFact = CallFact & { path: string };
+
+/** The per-file Laravel facts the heuristic `calls` need (spec "Laravel heuristic calls"; design D2), placed by path. */
+export interface LaravelFacts {
+  bindings: readonly PlacedBindingFact[];
+  accessors: readonly PlacedFacadeAccessorFact[];
+}
 
 /** What a class, interface or trait declaration is (a trait is encoded as a `class` symbol). */
 type TypeKind = 'class' | 'interface' | 'trait';
@@ -127,15 +138,43 @@ function buildRouteEdges(
  * method handled by `__call`/`__callStatic` or only inherited is never a target. A trait is never a
  * target type, and an instantiation (`new X`) targets a class only. Own-type calls resolve within the
  * caller's own declaration, never a same-named type of the same file (design D8). Not deduplicated.
+ * Takes the calls already resolved by {@link resolveCalls}.
  */
-function buildCallEdges(
+function buildCallEdges(resolved: readonly ResolvedCall[], methods: ReadonlyMap<string, SymbolRef>): GraphEdge[] {
+  const edges: GraphEdge[] = [];
+  for (const { call, source, targetType, targetKind } of resolved) {
+    if (targetKind === 'trait') continue;
+    if (call.form === 'new' && targetKind !== 'class') continue;
+    const target = methods.get(methodKey(targetType, call.method));
+    if (!target) continue;
+    edges.push({ source: { symbol: source }, target: { symbol: target }, kind: 'calls', resolution: 'exact', extractor: PHP_EXTRACTOR });
+  }
+  return edges;
+}
+
+/** A call fact whose caller symbol and target type declaration are known (design D2 of DIS-52, D4). */
+interface ResolvedCall {
+  call: PlacedCallFact;
+  /** The caller method symbol. */
+  source: SymbolRef;
+  /** The declaration the call names: the caller's own for `this`/`self`, else the resolved class. */
+  targetType: TypeDeclaration;
+  targetKind: TypeKind;
+}
+
+/**
+ * Every call of `calls` whose file has a single namespace, whose caller method was kept, and whose
+ * target type resolves to exactly one class, interface or trait of the input. Own-type calls resolve
+ * within the caller's own declaration (design D8 of DIS-52).
+ */
+function resolveCalls(
   calls: readonly PlacedCallFact[],
   factsByPath: ReadonlyMap<string, PhpFileFacts>,
   fqnTable: ReadonlyMap<string, SymbolRef[]>,
   typeKinds: ReadonlyMap<string, TypeKind>,
   methods: ReadonlyMap<string, SymbolRef>,
-): GraphEdge[] {
-  const edges: GraphEdge[] = [];
+): ResolvedCall[] {
+  const resolved: ResolvedCall[] = [];
   for (const call of calls) {
     const fact = factsByPath.get(call.path);
     if (!fact || fact.namespaces > 1) continue;
@@ -143,15 +182,61 @@ function buildCallEdges(
     const callerMethod = call.caller.name.slice(call.callerType.length + 2);
     const source = methods.get(methodKey(callerType, callerMethod));
     if (!source || source.startLine !== call.caller.startLine) continue; // caller dropped as a duplicate
-    const targetType = call.form === 'own' ? callerType : resolveTarget(resolveClassName(call.rawClass, fact), fqnTable);
+    const targetType = call.form === 'this' || call.form === 'self' ? callerType : resolveTarget(resolveClassName(call.rawClass, fact), fqnTable);
     const targetKind = targetType && typeKinds.get(`${targetType.file}\0${targetType.name}\0${targetType.startLine}`);
-    if (!targetType || targetKind === undefined || targetKind === 'trait') continue;
-    if (call.form === 'new' && targetKind !== 'class') continue;
-    const target = methods.get(methodKey(targetType, call.method));
+    if (!targetType || targetKind === undefined) continue;
+    resolved.push({ call, source, targetType, targetKind });
+  }
+  return resolved;
+}
+
+/**
+ * The `heuristic` `calls` edges of the calls whose target method is not declared in their target type
+ * (spec "Laravel heuristic calls"; design D4): on a facade class, the method of the class its accessor
+ * key is bound to; otherwise the `__call` / `__callStatic` declared in that type.
+ * Unordered and not deduplicated; `buildPhpEdges` filters them against the `exact` edges (design D5).
+ */
+function buildHeuristicCallEdges(
+  resolved: readonly ResolvedCall[],
+  methods: ReadonlyMap<string, SymbolRef>,
+  facades: FacadeIndex,
+  bindings: BindingTable,
+): GraphEdge[] {
+  const declared = (type: TypeDeclaration, name: string): SymbolRef | undefined => methods.get(methodKey(type, name));
+  const edges: GraphEdge[] = [];
+  for (const { call, source, targetType, targetKind } of resolved) {
+    if (declared(targetType, call.method)) continue; // declared: an `exact` call, or none
+    const typeKey = `${targetType.file}\0${targetType.name}\0${targetType.startLine}`;
+    const target =
+      call.form === 'static' && facades.has(typeKey)
+        ? resolveFacadeCall(facades.get(typeKey), call.method, bindings, declared)
+        : resolveMagicCall(call.form, targetKind === 'class', (name) => declared(targetType, name));
     if (!target) continue;
-    edges.push({ source: { symbol: source }, target: { symbol: target }, kind: 'calls', resolution: 'exact', extractor: PHP_EXTRACTOR });
+    edges.push({ source: { symbol: source }, target: { symbol: target }, kind: 'calls', resolution: 'heuristic', extractor: PHP_EXTRACTOR });
   }
   return edges;
+}
+
+/** The identity of an edge for deduplication: its `kind`, source and target, as `sortUniqueEdges` compares them. */
+function edgeKey(edge: GraphEdge): string {
+  const endpoint = (end: GraphEdge['source']): string =>
+    end.file !== undefined ? JSON.stringify(['file', end.file]) : JSON.stringify(['symbol', end.symbol.file, end.symbol.name, end.symbol.startLine]);
+  return `${edge.kind}\0${endpoint(edge.source)}\0${endpoint(edge.target)}`;
+}
+
+/**
+ * Appends to `edges` each of `heuristic` whose `kind`, source and target no edge of `edges` already
+ * has (design D5): an `exact` edge always wins over a `heuristic` one, whatever the later sort does,
+ * and two heuristic candidates with the same identity yield one edge.
+ */
+function appendUnshadowed(edges: GraphEdge[], heuristic: readonly GraphEdge[]): void {
+  const seen = new Set(edges.map(edgeKey));
+  for (const edge of heuristic) {
+    const key = edgeKey(edge);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    edges.push(edge);
+  }
 }
 
 /** The `tested_by` edges from a class `X` to a test class `XTest` that references it (spec "Test coverage edges"). */
@@ -188,18 +273,21 @@ function buildTestedByEdges(
 }
 
 /**
- * Derives the `imports`, `extends`, `implements`, route and declared-type `calls`, and `tested_by`
- * edges of a set of parsed PHP files (spec "PHP name resolution", "Code relation edges", "Array-action
- * routes", "Declared-type calls" and "Test coverage edges"), from their {@link PhpFileFacts}, their
- * {@link RouteFact}s, their {@link CallFact}s and the analyzer's final, deduplicated `symbols`. A file
- * that declares more than one namespace originates none of these edges (design D2). Unordered and not
- * deduplicated; the caller sorts with `sortUniqueEdges`.
+ * Derives the `imports`, `extends`, `implements`, route, declared-type and Laravel heuristic `calls`,
+ * and `tested_by` edges of a set of parsed PHP files (spec "PHP name resolution", "Code relation
+ * edges", "Array-action routes", "Declared-type calls", "Laravel heuristic calls" and "Test coverage
+ * edges"), from their {@link PhpFileFacts}, their {@link RouteFact}s, their {@link CallFact}s and the
+ * analyzer's final, deduplicated `symbols`. A file that declares more than one namespace originates
+ * none of these edges (design D2). No `heuristic` edge shares `kind`, source and target with another
+ * edge, `exact` ones winning (design D5 of php-laravel-heuristics-1); otherwise unordered and not
+ * deduplicated, and the caller sorts with `sortUniqueEdges`.
  */
 export function buildPhpEdges(
   facts: readonly PhpFileFacts[],
   routes: readonly PlacedRouteFact[],
   calls: readonly PlacedCallFact[],
   symbols: readonly GraphSymbol[],
+  laravel: LaravelFacts,
 ): GraphEdge[] {
   const byDeclaration = indexByDeclaration(symbols);
   const fqnTable = buildFqnTable(facts, byDeclaration);
@@ -234,8 +322,18 @@ export function buildPhpEdges(
   }
 
   edges.push(...buildRouteEdges(routes, factsByPath, fqnTable, methods));
-  edges.push(...buildCallEdges(calls, factsByPath, fqnTable, typeKinds, methods));
+  const resolvedCalls = resolveCalls(calls, factsByPath, fqnTable, typeKinds, methods);
+  edges.push(...buildCallEdges(resolvedCalls, methods));
   edges.push(...buildTestedByEdges(facts, byDeclaration, fqnTable));
+
+  // Every `exact` edge is in `edges` by now: the heuristic ones are filtered against them (design D5).
+  const classOf = (raw: string, fact: PhpFileFacts): SymbolRef | undefined => {
+    const target = resolveTarget(resolveClassName(raw, fact), fqnTable);
+    return target && typeKinds.get(`${target.file}\0${target.name}\0${target.startLine}`) === 'class' ? target : undefined;
+  };
+  const bindingTable = buildBindingTable(laravel.bindings, factsByPath, classOf);
+  const facades = indexFacades(facts, laravel.accessors, (file, name, startLine) => byDeclaration.has(`${file}\0${name}\0${startLine}`));
+  appendUnshadowed(edges, buildHeuristicCallEdges(resolvedCalls, methods, facades, bindingTable));
 
   return edges;
 }
