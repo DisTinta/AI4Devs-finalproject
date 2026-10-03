@@ -86,6 +86,23 @@ Not applicable: the change adds no route, CLI command or web screen; the only in
 - Demo driver: `ALL 36 SCENARIOS PASS` (`./2026-10-03-demo-output.txt`).
 - CI on `2bc4004`: run [37142532018](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37142532018), `quality` pass (28 files, 418/418), `frontend` pass.
 
+## Re-verification after `/adversarial-review` fixes (tasks §13)
+
+- Changes: duplicate-route guard in `buildRouteEdges` (code); comments skipped in `$listen` elements
+  (code); two named scenarios ("A $listen element is read entry by entry", "Laravel registrations of a
+  class declared in a function body are never read"); `routes/web.php` assertion reformulated; spec
+  sentence on nested targets. The delta now has 38 scenarios. Debt: DIS-99.
+- Forced failures, each restored with `Get-FileHash` equal: (h) all-or-nothing `$listen` → 2/126;
+  (j) `function_definition` out of `LARAVEL_WALK_STOP` → 4/126; (k) comments not skipped → 2/126;
+  (l) duplicate-route guard removed → 1/126. The first try of (j) found its anchor twice and wrote
+  nothing, as the script must; a longer anchor was used.
+- `npx vitest run tests/unit/analyzers/php`: 7 files, 126 passed.
+- `npx vitest run`: 21 files passed, 7 skipped; 273 passed, 99 skipped (424).
+- lint 0 errors (same warning), typecheck, `lint:architecture` (same 4 warnings), `docs:coverage`
+  clean; `openspec validate --strict` valid; core diff empty (Stryker not re-run); fixture checksum
+  `167c762e…` unchanged.
+- Demo driver: `ALL 38 SCENARIOS PASS`.
+
 ## UI evidence (if applicable)
 
 - (none: the change has no browser UI)

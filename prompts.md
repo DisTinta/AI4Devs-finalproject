@@ -2805,6 +2805,17 @@ recomendaciones del modelo (tareas §12):
 - hacer que los colectores de Laravel no lean clases declaradas dentro de una función top-level;
 - añadir a la spec la excepción de la regla 4 en «PHP name resolution».
 
+Después, `/adversarial-review` dio PASS WITH GAPS. La autora aprobó cinco de las seis propuestas (§13):
+- quitar la arista inventada de una ruta duplicada;
+- ignorar los comentarios dentro de `$listen`;
+- dar escenario con nombre a dos reglas de §12;
+- abrir la deuda DIS-99;
+- añadir a la spec la frase sobre los destinos anidados.
+
+Corrigió la sexta: el modelo proponía recuperar el assert «`routes/web.php` no origina aristas», pero
+contradice el sitio 12. Pidió reformularlo al comportamiento actual: la única arista de ese fichero es
+la `heuristic` de `POST /checkout`.
+
 Tropiezos del propio modelo, registrados en `tasks.md`:
 1. El fallo forzado (f), que deja pasar las arrow functions, no rompió el escenario de eventos, porque
    su `event()` apuntaba a un evento sin listeners válidos. Se añadió un caso extra con listener real,

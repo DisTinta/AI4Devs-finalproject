@@ -7,7 +7,7 @@
   `fileKindOf` / `countLines` / `describeFile` for the "File classification" scenarios. The change adds
   no HTTP route, CLI command or browser UI, so there is nothing to drive with Playwright.
 - Driver: `./2026-10-03-demo.mts`. It calls the real interface directly, independently of the repo's
-  specs, with one block per `#### Scenario:` of the delta spec (36, in the delta's order). Each block
+  specs, with one block per `#### Scenario:` of the delta spec (38, in the delta's order). Each block
   prints the observed value and PASS/FAIL against the THEN. The transcript is in
   `./2026-10-03-demo-output.txt`.
 
@@ -29,7 +29,7 @@
 | Names resolve by fully-qualified name, never by short name (MODIFIED after review: trait use exception for rule 4) | acme-shop result | `PriceCalculatorTest` and `Controller` have no `extends` edge; 0 edges target a file outside the input; `Order.php` imports only `Money` (no `HasFactory`), `tests/TestCase.php` imports nothing (no `CreatesApplication`) | Yes | transcript § 12 |
 | Aliases, group imports and ambiguous names | inline `Prices`/`Taxes`, `A`, two `AppOneDup`, `B` | `implements` `A -> Prices`, `A -> Taxes`; no `extends` from `B` (ambiguous name) | Yes | transcript § 13 |
 | The API routes of acme-shop point at their controller actions (MODIFIED) | acme-shop result | `GET /orders` 12–12, `GET /orders/{order}` 13–13, both `exact` to `OrderController::index` / `::show` | Yes | transcript § 14 |
-| The string route of acme-shop is a heuristic call (new) | acme-shop result | `route POST /checkout` 13–15 with the exact collapsed signature; its only edge is `calls` → `CheckoutController::store`, `heuristic`, `php-treesitter-laravel` | Yes | transcript § 15 |
+| The string route of acme-shop is a heuristic call (new) | acme-shop result | `route POST /checkout` 13–15 with the exact collapsed signature; its only edge is `calls` → `CheckoutController::store`, `heuristic`, `php-treesitter-laravel`, and it is the only edge sourced anywhere in `routes/web.php` (nothing from the file or the closure route, nothing `exact`) | Yes | transcript § 15 |
 | A route to an action outside the input has no edge (error case) | inline `routes/api.php` with `Ghost` | one route `POST /ghost` with the specified signature, 0 edges | Yes | transcript § 16 |
 | A multi-line array-action route spans its whole statement (new) | inline `routes/api.php` over four lines | `route POST /ghost 3-4` | Yes | transcript § 17 |
 | Malformed string actions produce no route (new, error case) | inline `routes/web.php` with `/a` … `/h` (source printed verbatim in the transcript) | only `route GET /a 2-2`; 0 edges, 0 diagnostics: no route for no `@`, interpolation, leading `\`, escape sequence, two `@`, empty class or method part | Yes | transcript § 18 |
@@ -45,12 +45,14 @@
 | The Laravel call sites of acme-shop are heuristic calls (MODIFIED) | acme-shop result | exactly 11 `heuristic` `calls`, all `php-treesitter-laravel`: the 6 of DIS-61 plus `created`/`updated` → `RecalculateTotals::handle`, `created` → `SendOrderConfirmation::handle`, `discountFor` → `RecordDiscountAudit::handle`, `POST /checkout` → `CheckoutController::store`; 0 `calls` into `Pricing.php` (5 `imports` stay); `OrderController::index`, `AppServiceProvider::register` and `EventServiceProvider.php` originate none; `validateGraph` → `[]` | Yes | transcript § 28 |
 | Jobs and events reach their handlers (new) | inline `Paid`, `Refunded`, `Notify`, `EventProvider`, `Sync`, `Work`, `Ghost`, `Emitter` | `Emitter::run` exists; exactly `Work::handle (heuristic)` and `Notify::handle (heuristic)` — nothing for `Refunded` (no listener), `Missing` (outside the input), `Sync` (no `handle`) or `Ghost` (no binding) | Yes | transcript § 29 |
 | Only Dispatchable jobs and EventServiceProvider listeners are followed (new, error case) | inline `Paid`, `Audit`, `OtherProvider` (a plain `ServiceProvider`), `Base`, `Child`, `Bare`, `Caller` | `Caller::run` exists and has 0 `calls` | Yes | transcript § 30 |
-| A facade without a binding or outside the input has no edge (error case) | inline `Rates`, `RatesFacade`, `Ghost`, `RatesProvider`, `Client` | `Client::run` → only `Rates::quote (heuristic)` | Yes | transcript § 31 |
-| A closure binding resolves a facade and originates no edge | same, `Rates` with `__construct`, `singleton('rates', fn … => new Rates())` | `Client::run` → `Rates::quote (heuristic)`; `RatesProvider::register` → none | Yes | transcript § 32 |
-| An ambiguous binding key resolves no facade (error case) | the five files plus `OtherRates`, `OtherProvider` | `Client::run` → none | Yes | transcript § 33 |
-| __call and __callStatic of the receiving class | inline `Magic`, `Plain`, `Child`, `User` | `User::run` → `Magic::__call (heuristic)`, `Magic::__callStatic (heuristic)`, `Magic::known (exact)`; `Magic::relay` → `Magic::__call (heuristic)` | Yes | transcript § 34 |
-| An exact edge takes precedence over a heuristic one | inline `Rates`, `RatesFacade`, `RatesProvider`, `Both` | `Both::run` → exactly `Rates::quote (exact)` | Yes | transcript § 35 |
-| A provider with a syntax error contributes no binding (error case) | the five files, `RatesProvider.php` broken | `Client::run` → none; one `syntax error` diagnostic | Yes | transcript § 36 |
+| A $listen element is read entry by entry (new after review) | inline `Paid`, `Notify`, `Audit`, `EventProvider` whose value is `/* listeners */ [Notify::class, 'App\Listeners\Audit', [Audit::class, 'handle']]`, `Emitter` | `Emitter::run` → exactly `Notify::handle (heuristic)`: the string and the pair add nothing, the comment changes nothing, `Notify` is kept | Yes | transcript § 31 |
+| Laravel registrations of a class declared in a function body are never read (new after review, error case) | inline `Rates`, `RatesFacade`, `Paid`, `Notify`, `RatesProvider` and `EventProvider` each declared inside `function boot()`, `Client` | both providers are class symbols; `Client::run` exists and has 0 `calls` | Yes | transcript § 32 |
+| A facade without a binding or outside the input has no edge (error case) | inline `Rates`, `RatesFacade`, `Ghost`, `RatesProvider`, `Client` | `Client::run` → only `Rates::quote (heuristic)` | Yes | transcript § 33 |
+| A closure binding resolves a facade and originates no edge | same, `Rates` with `__construct`, `singleton('rates', fn … => new Rates())` | `Client::run` → `Rates::quote (heuristic)`; `RatesProvider::register` → none | Yes | transcript § 34 |
+| An ambiguous binding key resolves no facade (error case) | the five files plus `OtherRates`, `OtherProvider` | `Client::run` → none | Yes | transcript § 35 |
+| __call and __callStatic of the receiving class | inline `Magic`, `Plain`, `Child`, `User` | `User::run` → `Magic::__call (heuristic)`, `Magic::__callStatic (heuristic)`, `Magic::known (exact)`; `Magic::relay` → `Magic::__call (heuristic)` | Yes | transcript § 36 |
+| An exact edge takes precedence over a heuristic one | inline `Rates`, `RatesFacade`, `RatesProvider`, `Both` | `Both::run` → exactly `Rates::quote (exact)` | Yes | transcript § 37 |
+| A provider with a syntax error contributes no binding (error case) | the five files, `RatesProvider.php` broken | `Client::run` → none; one `syntax error` diagnostic | Yes | transcript § 38 |
 
 ## Evidence
 
@@ -94,13 +96,15 @@ acme-shop input: 53 files
 ### 28. The Laravel call sites of acme-shop are heuristic calls => PASS
 ### 29. Jobs and events reach their handlers => PASS
 ### 30. Only Dispatchable jobs and EventServiceProvider listeners are followed => PASS
-### 31. A facade without a binding or outside the input has no edge => PASS
-### 32. A closure binding resolves a facade and originates no edge => PASS
-### 33. An ambiguous binding key resolves no facade => PASS
-### 34. __call and __callStatic of the receiving class => PASS
-### 35. An exact edge takes precedence over a heuristic one => PASS
-### 36. A provider with a syntax error contributes no binding => PASS
-ALL 36 SCENARIOS PASS
+### 31. A $listen element is read entry by entry => PASS
+### 32. Laravel registrations of a class declared in a function body are never read => PASS
+### 33. A facade without a binding or outside the input has no edge => PASS
+### 34. A closure binding resolves a facade and originates no edge => PASS
+### 35. An ambiguous binding key resolves no facade => PASS
+### 36. __call and __callStatic of the receiving class => PASS
+### 37. An exact edge takes precedence over a heuristic one => PASS
+### 38. A provider with a syntax error contributes no binding => PASS
+ALL 38 SCENARIOS PASS
 ```
 
 Every inline case that expects "no edge" also checks that its caller symbol exists, so an empty result
@@ -119,11 +123,11 @@ No screenshots: the change has no browser UI.
 
 ## Not demonstrated
 
-Nothing. All 36 scenarios of the delta were exercised through the real interface and matched their THEN
+Nothing. All 38 scenarios of the delta were exercised through the real interface and matched their THEN
 exactly.
 
 ## Handoff
 
-The change is **demonstrably working**: the 36 scenarios of `php-laravel-heuristics-2a` pass through
+The change is **demonstrably working**: the 38 scenarios of `php-laravel-heuristics-2a` pass through
 `createPhpAnalyzer()` and the core file rules, the error cases included, with the fixture left
 byte-identical. No screenshot or other file was left at the repository root.

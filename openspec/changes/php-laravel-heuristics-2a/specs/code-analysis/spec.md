@@ -222,7 +222,9 @@ SHALL emit one `calls` edge from the route symbol to the method symbol `<C>::<m>
 `heuristic` and `extractor` `php-treesitter-laravel`: the class is named by a string, following
 Laravel's `Controller@method` convention, not by a class reference.
 
-Otherwise the route symbol SHALL be emitted with no edge. A file that declares more than one
+Otherwise the route symbol SHALL be emitted with no edge. A route statement whose symbol is dropped as a
+duplicate (same name and line as an earlier route of the file, see Symbol extraction) SHALL originate
+no edge: only the first statement's action can be the target of the kept symbol. A file that declares more than one
 `namespace` SHALL still produce its `route` symbols, but no route `calls` edge of either form, as for
 every other edge of such a file (see "PHP name resolution"). A string action with an escape sequence,
 with interpolation, without `@`, with more than one `@`, with an empty part or with a leading `\`,
@@ -249,6 +251,8 @@ produce no `route` symbol.
   `php-treesitter-laravel`, to `CheckoutController::store` in
   `app/Http/Controllers/CheckoutController.php`
 - **AND** the closure route `Route::get('/', …)` of `routes/web.php` produces no symbol
+- **AND** that `heuristic` edge is the only edge whose source is in `routes/web.php`: the file itself and
+  the closure route originate none, and none is `exact`
 
 #### Scenario: A route to an action outside the input has no edge
 
@@ -488,8 +492,12 @@ name (a variable, a string, `new $cls`, `new self`, `new static`) or is a named 
 `getFacadeAccessor`, the `register` bindings and the `$listen` property of a class declared inside a
 method body (of a class, interface, trait or enum), a top-level function body, a closure, an arrow
 function or an anonymous class SHALL NOT be read, as for the calls of "Declared-type calls"; nor those of a class dropped as a
-duplicate symbol (see Symbol extraction). A `getFacadeAccessor` or a closure body that holds anything
-besides its single `return` — a comment included — and a string key with a leading `\` add nothing:
+duplicate symbol (see Symbol extraction). This nesting rule applies to registrations only: the
+classes rules 4 and 5 resolve as targets (`X`, `E` and `L`) count wherever they are declared, nested
+classes included, as for the targets of "Declared-type calls". A comment anywhere inside a `$listen`
+element or inside the arguments of `event(...)` changes nothing. A `getFacadeAccessor` or a closure
+body that holds anything besides its single `return` — a comment included — and a string key with a
+leading `\` add nothing:
 accepted false negatives, never a guessed edge. Keys, class and method names SHALL be compared
 case-sensitively. A file that could not be parsed, or that declares more than one `namespace`, SHALL
 contribute no call, facade, binding or listener to this requirement.
@@ -552,6 +560,32 @@ source and target; calls of the same method that resolve to the same target SHAL
   `<?php namespace App; use App\Events\Paid; use App\Jobs\{Child, Bare}; class Caller { public function run($e): void { event(new Paid()); event($e); event('paid'); Child::dispatch(); Bare::dispatch(); $f = fn () => event(new Paid()); } }`
   are analysed together
 - **THEN** `Caller::run` is the source of no `calls` edge
+
+#### Scenario: A $listen element is read entry by entry
+
+- **WHEN** `app/Events/Paid.php` (as above), `app/Listeners/Notify.php` (as above),
+  `app/Listeners/Audit.php` with content
+  `<?php namespace App\Listeners; class Audit { public function handle(): void {} }`,
+  `app/Providers/EventProvider.php` with content
+  `<?php namespace App\Providers; use App\Events\Paid; use App\Listeners\{Notify, Audit}; use Illuminate\Foundation\Support\Providers\EventServiceProvider; class EventProvider extends EventServiceProvider { protected $listen = [Paid::class => /* listeners */ [Notify::class, 'App\Listeners\Audit', [Audit::class, 'handle']]]; }`
+  and `app/Emitter.php` with content
+  `<?php namespace App; use App\Events\Paid; class Emitter { public function run(): void { event(new Paid()); } }`
+  are analysed together
+- **THEN** `Emitter::run` is the source of exactly one `calls` edge, `heuristic`, to `Notify::handle`:
+  the string and the pair add nothing, the comment changes nothing, and neither drops `Notify`
+
+#### Scenario: Laravel registrations of a class declared in a function body are never read
+
+- **WHEN** `app/Services/Rates.php`, `app/Facades/RatesFacade.php` and `app/Events/Paid.php` (as above),
+  `app/Listeners/Notify.php` (as above), `app/Providers/RatesProvider.php` with content
+  `<?php namespace App\Providers; use App\Services\Rates; use Illuminate\Support\ServiceProvider; function boot(): void { class RatesProvider extends ServiceProvider { public function register(): void { $this->app->bind('rates', Rates::class); } } }`,
+  `app/Providers/EventProvider.php` with content
+  `<?php namespace App\Providers; use App\Events\Paid; use App\Listeners\Notify; use Illuminate\Foundation\Support\Providers\EventServiceProvider; function boot(): void { class EventProvider extends EventServiceProvider { protected $listen = [Paid::class => [Notify::class]]; } }`
+  and `app/Client.php` with content
+  `<?php namespace App; use App\Events\Paid; use App\Facades\RatesFacade; class Client { public function run(): void { RatesFacade::quote(); event(new Paid()); } }`
+  are analysed together
+- **THEN** the result has the class symbols `RatesProvider` and `EventProvider`, and `Client::run` is
+  the source of no `calls` edge
 
 #### Scenario: A facade without a binding or outside the input has no edge
 

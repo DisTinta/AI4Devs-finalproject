@@ -1,7 +1,7 @@
 // show-spec-working driver for openspec change php-laravel-heuristics-2a (DIS-97). It exercises the
 // real interface — `createPhpAnalyzer().analyze({ files })`, plus the core file rules for "File
 // classification" — independently of the repo's specs: one block per scenario of
-// specs/code-analysis/spec.md (36, in the delta's order), each printing the observed value and
+// specs/code-analysis/spec.md (38, in the delta's order), each printing the observed value and
 // PASS/FAIL against the scenario's THEN. Fixtures are read, never written.
 // Run from the repository root:
 //   npx tsx openspec/changes/php-laravel-heuristics-2a/reports/2026-10-03-demo.mts
@@ -269,6 +269,7 @@ const acme = await analyzer.analyze({ files });
     symbols: span(acme, 'routes/web.php'),
     signature: route?.signature,
     edges: fromRoute.map((e) => `${e.kind} -> ${label(e.target)} (${e.resolution}, ${e.extractor}) in ${fileOf(e.target)}`),
+    'every edge sourced in routes/web.php': acme.edges.filter((e) => fileOf(e.source) === 'routes/web.php').map((e) => `${label(e.source)} -${e.kind}-> ${label(e.target)} (${e.resolution})`),
   };
   check(
     'The string route of acme-shop is a heuristic call',
@@ -277,6 +278,7 @@ const acme = await analyzer.analyze({ files });
       symbols: ['route POST /checkout 13-15'],
       signature: "Route::post('/checkout', 'App\\Http\\Controllers\\CheckoutController@store') ->middleware('cart.not_empty') ->name('checkout.store')",
       edges: ['calls -> CheckoutController::store (heuristic, php-treesitter-laravel) in app/Http/Controllers/CheckoutController.php'],
+      'every edge sourced in routes/web.php': ['POST /checkout -calls-> CheckoutController::store (heuristic)'],
     }),
   );
 }
@@ -562,6 +564,55 @@ const acme = await analyzer.analyze({ files });
   });
   const observed = { 'Caller::run symbol': hasSymbol(r, 'Caller::run'), 'Caller::run': shown(r, 'Caller::run') };
   check('Only Dispatchable jobs and EventServiceProvider listeners are followed', observed, isDeepStrictEqual(observed, { 'Caller::run symbol': true, 'Caller::run': [] }));
+}
+const NOTIFY = f('app/Listeners/Notify.php', '<?php namespace App\\Listeners; class Notify { public function handle(): void {} }');
+{
+  const r = await analyzer.analyze({
+    files: [
+      PAID,
+      NOTIFY,
+      f('app/Listeners/Audit.php', '<?php namespace App\\Listeners; class Audit { public function handle(): void {} }'),
+      f(
+        'app/Providers/EventProvider.php',
+        "<?php namespace App\\Providers; use App\\Events\\Paid; use App\\Listeners\\{Notify, Audit}; use Illuminate\\Foundation\\Support\\Providers\\EventServiceProvider; class EventProvider extends EventServiceProvider { protected $listen = [Paid::class => /* listeners */ [Notify::class, 'App\\Listeners\\Audit', [Audit::class, 'handle']]]; }",
+      ),
+      f('app/Emitter.php', '<?php namespace App; use App\\Events\\Paid; class Emitter { public function run(): void { event(new Paid()); } }'),
+    ],
+  });
+  const observed = { 'Emitter::run': shown(r, 'Emitter::run') };
+  check('A $listen element is read entry by entry', observed, isDeepStrictEqual(observed, { 'Emitter::run': ['Notify::handle (heuristic)'] }));
+}
+{
+  const r = await analyzer.analyze({
+    files: [
+      RATES,
+      RATES_FACADE,
+      PAID,
+      NOTIFY,
+      f(
+        'app/Providers/RatesProvider.php',
+        "<?php namespace App\\Providers; use App\\Services\\Rates; use Illuminate\\Support\\ServiceProvider; function boot(): void { class RatesProvider extends ServiceProvider { public function register(): void { $this->app->bind('rates', Rates::class); } } }",
+      ),
+      f(
+        'app/Providers/EventProvider.php',
+        '<?php namespace App\\Providers; use App\\Events\\Paid; use App\\Listeners\\Notify; use Illuminate\\Foundation\\Support\\Providers\\EventServiceProvider; function boot(): void { class EventProvider extends EventServiceProvider { protected $listen = [Paid::class => [Notify::class]]; } }',
+      ),
+      f(
+        'app/Client.php',
+        '<?php namespace App; use App\\Events\\Paid; use App\\Facades\\RatesFacade; class Client { public function run(): void { RatesFacade::quote(); event(new Paid()); } }',
+      ),
+    ],
+  });
+  const observed = {
+    'class symbols': r.symbols.filter((s) => s.kind === 'class' && s.file.startsWith('app/Providers/')).map((s) => s.name),
+    'Client::run symbol': hasSymbol(r, 'Client::run'),
+    'Client::run': shown(r, 'Client::run'),
+  };
+  check(
+    'Laravel registrations of a class declared in a function body are never read',
+    observed,
+    isDeepStrictEqual(observed, { 'class symbols': ['EventProvider', 'RatesProvider'], 'Client::run symbol': true, 'Client::run': [] }),
+  );
 }
 {
   const r = await analyzer.analyze({ files: [RATES, RATES_FACADE, GHOST, RATES_PROVIDER, CLIENT] });

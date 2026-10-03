@@ -19,8 +19,8 @@ Ticket: DIS-97 (CM-HU-04b.2a), primera mitad de DIS-63.
 
 ## ¿Cómo probarlo?
 
-1. `npx vitest run tests/unit/analyzers/php`: 7 ficheros, 120 tests en verde.
-2. `npx vitest run`: 267 en verde y 99 omitidos (los bloques de base de datos sin `DATABASE_URL`).
+1. `npx vitest run tests/unit/analyzers/php`: 7 ficheros, 126 tests en verde.
+2. `npx vitest run`: 273 en verde y 99 omitidos (los bloques de base de datos sin `DATABASE_URL`).
 3. `npm run lint`: 0 errores; el único aviso ya existía, en `packages/core/src/ports/LlmPort.ts`.
 4. `npm run typecheck`, `npm run lint:architecture` (0 errores; los mismos 4 avisos `no-orphans` de los stubs) y `npm run docs:coverage`: limpios.
 5. `npx stryker run`: 93,89 % en `packages/core/src` (umbral 70 %), igual que en DIS-61. Stryker solo muta core, que no tiene diff.
@@ -41,6 +41,13 @@ Ticket: DIS-97 (CM-HU-04b.2a), primera mitad de DIS-63.
   - Un fichero de rutas con varios `namespace` conserva sus símbolos `route`, pero no tiene ninguna arista de ruta. Solo cambia la spec.
   - Los colectores de Laravel (bindings, accessors de facade y `$listen`) ya no leen clases declaradas dentro del cuerpo de una función top-level: `function_definition` entra en `LARAVEL_WALK_STOP`. Es una corrección de código: tres casos en RED antes del GREEN. Venía de DIS-61 y generaba aristas inventadas.
   - MODIFIED de «PHP name resolution»: el `use` de un trait sigue sin participar en la resolución, salvo en la regla 4, que lo resuelve para reconocer `Dispatchable`. Sus dos escenarios no cambian.
+- **Ajustes tras `/adversarial-review`** (PASS WITH GAPS; design D11 y Follow-ups, tareas §13):
+  - Una ruta duplicada en la misma línea (el símbolo que `keepFirst` descarta) ya no cuelga su arista del símbolo que se conserva. Antes inventaba `GET /a → Shop::other`, y ya pasaba con las rutas de array. Corrección de código con RED previo.
+  - Un comentario entre la clave y el valor de un elemento de `$listen` ya no hace perder el elemento. Corrección de código con RED previo. Se comprobó con el parser que los comentarios dentro de la lista y dentro de `event(...)` ya funcionaban.
+  - Dos escenarios nuevos con nombre: «A $listen element is read entry by entry» y «Laravel registrations of a class declared in a function body are never read».
+  - El assert perdido sobre `routes/web.php` no se recupera tal cual, porque contradiría el sitio 12. Se reformula así: la única arista con origen en ese fichero es la `heuristic` de `POST /checkout`.
+  - Los destinos de las reglas 4 y 5 cuentan aunque estén en clases anidadas: el corte por anidamiento afecta solo a los registros. Queda una frase en la spec.
+  - La TSDoc de `AnalysisResult.edges` en core sigue sin listar las `heuristic`: queda como deuda en DIS-99.
 
 ## Trazabilidad
 
@@ -63,7 +70,7 @@ Ticket: DIS-97 (CM-HU-04b.2a), primera mitad de DIS-63.
 | Array-action routes → The string route of acme-shop is a heuristic call | `tests/unit/analyzers/php/laravel/string-routes.spec.ts:53` |
 | Array-action routes → A route to an action outside the input has no edge | `tests/unit/analyzers/php/edges.spec.ts:238` |
 | Array-action routes → A multi-line array-action route spans its whole statement | `tests/unit/analyzers/php/laravel/string-routes.spec.ts:45` |
-| Array-action routes → Malformed string actions produce no route | `tests/unit/analyzers/php/laravel/string-routes.spec.ts:74` |
+| Array-action routes → Malformed string actions produce no route | `tests/unit/analyzers/php/laravel/string-routes.spec.ts:76` |
 | Declared-type calls → The constructor-injected services of acme-shop are exact calls | `tests/unit/analyzers/php/calls.spec.ts:300` |
 | Declared-type calls → The heuristic call sites of acme-shop have no exact edge | `tests/unit/analyzers/php/calls.spec.ts:334` |
 | Declared-type calls → Instantiation, static and own-type calls | `tests/unit/analyzers/php/calls.spec.ts:51` |
@@ -74,16 +81,18 @@ Ticket: DIS-97 (CM-HU-04b.2a), primera mitad de DIS-63.
 | Declared-type calls → Static, intersection-typed, local, variable and magic receivers produce no edge | `tests/unit/analyzers/php/calls.spec.ts:261` |
 | Declared-type calls → A file with a syntax error originates no call edge | `tests/unit/analyzers/php/calls.spec.ts:287` |
 | Laravel heuristic calls → The Laravel call sites of acme-shop are heuristic calls | `tests/unit/analyzers/php/laravel/heuristic-calls.spec.ts:143` |
-| Laravel heuristic calls → Jobs and events reach their handlers | `tests/unit/analyzers/php/laravel/jobs-events.spec.ts:165` |
-| Laravel heuristic calls → Only Dispatchable jobs and EventServiceProvider listeners are followed | `tests/unit/analyzers/php/laravel/jobs-events.spec.ts:179` |
+| Laravel heuristic calls → Jobs and events reach their handlers | `tests/unit/analyzers/php/laravel/jobs-events.spec.ts:169` |
+| Laravel heuristic calls → Only Dispatchable jobs and EventServiceProvider listeners are followed | `tests/unit/analyzers/php/laravel/jobs-events.spec.ts:183` |
+| Laravel heuristic calls → A $listen element is read entry by entry | `tests/unit/analyzers/php/laravel/jobs-events.spec.ts:206` |
+| Laravel heuristic calls → Laravel registrations of a class declared in a function body are never read | `tests/unit/analyzers/php/laravel/heuristic-calls.spec.ts:186` |
 | Laravel heuristic calls → A facade without a binding or outside the input has no edge | `tests/unit/analyzers/php/laravel/heuristic-calls.spec.ts:70` |
 | Laravel heuristic calls → A closure binding resolves a facade and originates no edge | `tests/unit/analyzers/php/laravel/heuristic-calls.spec.ts:78` |
 | Laravel heuristic calls → An ambiguous binding key resolves no facade | `tests/unit/analyzers/php/laravel/heuristic-calls.spec.ts:96` |
-| Laravel heuristic calls → __call and __callStatic of the receiving class | `tests/unit/analyzers/php/laravel/heuristic-calls.spec.ts:336` |
+| Laravel heuristic calls → __call and __callStatic of the receiving class | `tests/unit/analyzers/php/laravel/heuristic-calls.spec.ts:359` |
 | Laravel heuristic calls → An exact edge takes precedence over a heuristic one | `tests/unit/analyzers/php/laravel/heuristic-calls.spec.ts:125` |
 | Laravel heuristic calls → A provider with a syntax error contributes no binding | `tests/unit/analyzers/php/laravel/heuristic-calls.spec.ts:115` |
 
-Los 36 escenarios del delta tienen un test con el mismo nombre. Hay 8 fallos forzados con su resultado en `reports/2026-10-03-8-test-and-state-verification.md`.
+Los 38 escenarios del delta tienen un test con el mismo nombre. Hay 11 fallos forzados con su resultado en `reports/2026-10-03-8-test-and-state-verification.md`.
 
 ## Origen
 

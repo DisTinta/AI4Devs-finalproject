@@ -196,6 +196,45 @@ four recommendations as given:
 "Declared-type calls" only excludes types and functions declared *in a method body*. A class declared
 in a top-level function still gets symbols, and its own method calls can still be `exact`, as before.
 
+### D11 — Fixes after `/adversarial-review` (PASS WITH GAPS; author decision 2026-10-03, tasks §13)
+
+1. **Duplicate route on one line → invented edge (code fix).** `keepFirst` dropped the second
+   `GET /a` symbol, but its `RouteFact` still produced an edge from the kept symbol to the second
+   action (`GET /a → Shop::other`), for array and string actions alike (already true before this
+   change for arrays). `buildRouteEdges` now uses only the first fact of each route name and line. RED
+   first; forced failure (l) removes the guard.
+2. **Comment between the key and the value of a `$listen` element → element dropped (code fix).**
+   Checked with the parser: `E::class => /* c */ [L::class]` puts a `comment` among the named children
+   of `array_element_initializer`. A comment inside the value list, or inside `event(...)`'s arguments,
+   already worked, because it lands outside the nodes that are read. Comments are now skipped in
+   `listenElementsOf`, for elements and for entries. RED first; forced failure (k).
+3. **§12 rules without a scenario.** "A $listen element is read entry by entry" and "Laravel
+   registrations of a class declared in a function body are never read" are now named scenarios, each
+   with an end-to-end test of that name; forced failures (h) and (j) break them. 12.2 (multi-namespace
+   routes) stays covered by its extra case, and 12.4 (rule 4 exception) by "Jobs and events reach their
+   handlers".
+4. **`routes/web.php` file assertion.** It was not restored as it stood: "the file originates no edge"
+   contradicts `POST /checkout → CheckoutController::store`. It is reformulated in the string-route
+   scenario: that `heuristic` edge is the only edge whose source is in `routes/web.php` — nothing from
+   the file itself or the closure route, and nothing `exact`.
+5. **Targets declared in nested classes count.** The nesting rule cuts *registrations* only (accessor,
+   bindings, `$listen`). `X`, `E` and `L` resolve wherever they are declared, as targets of
+   "Declared-type calls" do. A spec sentence states it, and an extra case pins a job declared in a
+   function body.
+
+## Follow-ups
+
+Destination of each `/adversarial-review` finding (A fixed in this change, B moved to another issue,
+C debt issue, D accepted and recorded):
+
+- Duplicate route on one line → **A**, D11.1.
+- Comment inside a `$listen` element → **A**, D11.2. Comments in the value list and in `event(...)` were
+  already fine.
+- §12 rules without a named scenario → **A**, D11.3.
+- `routes/web.php` file assertion → **A**, reformulated, D11.4.
+- Stale TSDoc of `AnalysisResult.edges` in core → **C**, DIS-99 (`Deuda: php-laravel-heuristics-2a`).
+- Jobs and listeners declared in nested classes → **D**, spec sentence, D11.5.
+
 ## Risks / Trade-offs
 
 - [String `<C>` is never resolved through `use`] → a short string action (`'CheckoutController@store'`

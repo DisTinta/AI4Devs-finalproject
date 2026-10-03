@@ -174,6 +174,9 @@ acme-shop input: 53 files
   "signature": "Route::post('/checkout', 'App\\Http\\Controllers\\CheckoutController@store') ->middleware('cart.not_empty') ->name('checkout.store')",
   "edges": [
     "calls -> CheckoutController::store (heuristic, php-treesitter-laravel) in app/Http/Controllers/CheckoutController.php"
+  ],
+  "every edge sourced in routes/web.php": [
+    "POST /checkout -calls-> CheckoutController::store (heuristic)"
   ]
 }
 => PASS
@@ -352,7 +355,26 @@ acme-shop input: 53 files
 }
 => PASS
 
-### 31. A facade without a binding or outside the input has no edge
+### 31. A $listen element is read entry by entry
+{
+  "Emitter::run": [
+    "Notify::handle (heuristic)"
+  ]
+}
+=> PASS
+
+### 32. Laravel registrations of a class declared in a function body are never read
+{
+  "class symbols": [
+    "EventProvider",
+    "RatesProvider"
+  ],
+  "Client::run symbol": true,
+  "Client::run": []
+}
+=> PASS
+
+### 33. A facade without a binding or outside the input has no edge
 {
   "Client::run": [
     "Rates::quote (heuristic)"
@@ -360,7 +382,7 @@ acme-shop input: 53 files
 }
 => PASS
 
-### 32. A closure binding resolves a facade and originates no edge
+### 34. A closure binding resolves a facade and originates no edge
 {
   "Client::run": [
     "Rates::quote (heuristic)"
@@ -369,13 +391,13 @@ acme-shop input: 53 files
 }
 => PASS
 
-### 33. An ambiguous binding key resolves no facade
+### 35. An ambiguous binding key resolves no facade
 {
   "Client::run": []
 }
 => PASS
 
-### 34. __call and __callStatic of the receiving class
+### 36. __call and __callStatic of the receiving class
 {
   "User::run": [
     "Magic::__call (heuristic)",
@@ -388,7 +410,7 @@ acme-shop input: 53 files
 }
 => PASS
 
-### 35. An exact edge takes precedence over a heuristic one
+### 37. An exact edge takes precedence over a heuristic one
 {
   "Both::run": [
     "Rates::quote (exact)"
@@ -396,7 +418,7 @@ acme-shop input: 53 files
 }
 => PASS
 
-### 36. A provider with a syntax error contributes no binding
+### 38. A provider with a syntax error contributes no binding
 {
   "Client::run": [],
   "diagnostics": [
@@ -409,4 +431,4 @@ acme-shop input: 53 files
 }
 => PASS
 
-ALL 36 SCENARIOS PASS
+ALL 38 SCENARIOS PASS
