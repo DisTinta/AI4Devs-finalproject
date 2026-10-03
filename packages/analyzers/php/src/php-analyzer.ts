@@ -10,6 +10,7 @@ import { describeFile, docMentionEdges, sortUniqueEdges } from '@codemind/core';
 import { collectCalls } from './calls.js';
 import { buildPhpEdges, type LaravelFacts, type PlacedCallFact, type PlacedRouteFact } from './edges.js';
 import { collectBindings, type PlacedBindingFact } from './laravel/container.js';
+import { collectListeners, type PlacedListenFact } from './laravel/events.js';
 import { collectFacadeAccessors, type PlacedFacadeAccessorFact } from './laravel/facades.js';
 import { collectFacts, type PhpFileFacts } from './names.js';
 import { loadPhpParser, type Node, type PhpParser } from './parser.js';
@@ -82,7 +83,7 @@ export function createPhpAnalyzer(): AnalyzerPort {
     facts: PhpFileFacts[],
     routes: PlacedRouteFact[],
     calls: PlacedCallFact[],
-    laravel: { bindings: PlacedBindingFact[]; accessors: PlacedFacadeAccessorFact[] },
+    laravel: { bindings: PlacedBindingFact[]; accessors: PlacedFacadeAccessorFact[]; listeners: PlacedListenFact[] },
     diagnostics: AnalyzerDiagnostic[],
   ): void => {
     const tree = parser.parse(file.content);
@@ -98,6 +99,7 @@ export function createPhpAnalyzer(): AnalyzerPort {
         calls.push(...collectCalls(tree.rootNode).map((callFact) => ({ ...callFact, path: file.path })));
         laravel.bindings.push(...collectBindings(tree.rootNode).map((binding) => ({ ...binding, path: file.path })));
         laravel.accessors.push(...collectFacadeAccessors(tree.rootNode).map((accessor) => ({ ...accessor, path: file.path })));
+        laravel.listeners.push(...collectListeners(tree.rootNode).map((listen) => ({ ...listen, path: file.path })));
       }
     } finally {
       tree.delete();
@@ -111,7 +113,11 @@ export function createPhpAnalyzer(): AnalyzerPort {
       const facts: PhpFileFacts[] = [];
       const routes: PlacedRouteFact[] = [];
       const calls: PlacedCallFact[] = [];
-      const laravel = { bindings: [] as PlacedBindingFact[], accessors: [] as PlacedFacadeAccessorFact[] } satisfies LaravelFacts;
+      const laravel = {
+        bindings: [] as PlacedBindingFact[],
+        accessors: [] as PlacedFacadeAccessorFact[],
+        listeners: [] as PlacedListenFact[],
+      } satisfies LaravelFacts;
       const diagnostics: AnalyzerDiagnostic[] = [];
       const phpFiles = input.files.filter((file) => file.path.endsWith('.php'));
 

@@ -68,7 +68,7 @@ export const LARAVEL_WALK_STOP = new Set(['anonymous_function', 'arrow_function'
 const isThis = (node: Node | null): boolean => node?.type === 'variable_name' && node.text === '$this';
 
 /** The raw class name of `X::class`, or `undefined` for any other expression. */
-function classConstantOf(node: Node | undefined): string | undefined {
+export function classConstantOf(node: Node | undefined): string | undefined {
   if (node?.type !== 'class_constant_access_expression') return undefined;
   const [scope, constant] = node.namedChildren;
   if (!scope || !NAME_NODE_TYPES.has(scope.type) || constant?.type !== 'name' || constant.text !== 'class') return undefined;

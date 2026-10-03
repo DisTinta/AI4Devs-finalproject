@@ -31,10 +31,11 @@ describe('php analyzer', () => {
         const expectedLoc = content === '' ? 0 : (content.endsWith('\n') ? content.slice(0, -1) : content).split('\n').length;
         expect(file.loc, file.path).toBe(expectedLoc);
       }
-      for (const path of ['routes/web.php', 'config/app.php']) {
-        expect(acmeShop.files.find((f) => f.path === path), path).toBeDefined();
-        expect(acmeShop.symbols.some((s) => s.file === path), path).toBe(false);
-      }
+      expect(acmeShop.files.find((f) => f.path === 'config/app.php')).toBeDefined();
+      expect(acmeShop.symbols.some((s) => s.file === 'config/app.php')).toBe(false);
+      // routes/web.php: only the route of its string action; its closure route produces none.
+      expect(acmeShop.files.find((f) => f.path === 'routes/web.php')).toBeDefined();
+      expect(acmeShop.symbols.filter((s) => s.file === 'routes/web.php').map((s) => `${s.kind} ${s.name}`)).toEqual(['route POST /checkout']);
       expect(acmeShop.files.find((f) => f.path === 'routes/api.php')).toBeDefined();
       expect(acmeShop.symbols.filter((s) => s.file === 'routes/api.php').map((s) => s.kind)).toEqual(['route', 'route']);
     });
