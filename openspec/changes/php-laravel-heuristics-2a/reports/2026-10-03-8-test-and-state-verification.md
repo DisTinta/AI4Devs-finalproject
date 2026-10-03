@@ -102,6 +102,7 @@ Not applicable: the change adds no route, CLI command or web screen; the only in
   clean; `openspec validate --strict` valid; core diff empty (Stryker not re-run); fixture checksum
   `167c762e…` unchanged.
 - Demo driver: `ALL 38 SCENARIOS PASS`.
+- CI on `3b928c5`: run [37144201955](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37144201955), `quality` pass (28 files, 424/424), `frontend` pass.
 
 ## UI evidence (if applicable)
 
