@@ -8,7 +8,8 @@ import type { PhpFileFacts } from '../../../../../packages/analyzers/php/src/nam
 import { loadPhpParser } from '../../../../../packages/analyzers/php/src/parser';
 import type { PhpParser } from '../../../../../packages/analyzers/php/src/parser';
 
-// Spec: openspec/changes/php-laravel-heuristics-2a/specs/code-analysis/spec.md → "Laravel heuristic
+// Spec: openspec/specs/code-analysis/spec.md (change archived as
+// openspec/changes/archive/2026-10-03-php-laravel-heuristics-2a) → "Laravel heuristic
 // calls", rules 4 (job dispatch) and 5 (event dispatch). Each `it` named after a scenario is that
 // scenario; the others are extra cases of the same rules. The acme-shop sites are asserted in
 // heuristic-calls.spec.ts. No test writes to `fixtures/` (PH-22).

@@ -7,7 +7,7 @@ import { readFixtureFiles } from '../../../../support/read-fixture-files';
 
 // Spec: openspec/specs/code-analysis/spec.md → "Laravel heuristic calls" (change archived as
 // openspec/changes/archive/2026-10-03-php-laravel-heuristics-1; jobs and events added by
-// openspec/changes/php-laravel-heuristics-2a, tested in jobs-events.spec.ts).
+// openspec/changes/archive/2026-10-03-php-laravel-heuristics-2a, tested in jobs-events.spec.ts).
 // Each `it` named after a scenario is that scenario; the others are extra cases of the same rule.
 // `fixtures/acme-shop` is read-only input here: no test writes to it (PH-22).
 

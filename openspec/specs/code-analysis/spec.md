@@ -90,9 +90,11 @@ terminator).
   `config/shop.php`, `composer.json`, `phpunit.xml`, `.env.example`, `.gitignore`) and 36 are
   `source` (including `artisan`)
 - **AND** every file's `loc` equals the line count of its content
-- **AND** `routes/web.php` and `config/app.php` appear in `files` and produce no symbols (valid PHP
-  with no class, interface or function declaration and no array-action route), and the only symbols
-  of `routes/api.php` are its two `route` symbols
+- **AND** `config/app.php` appears in `files` and produces no symbols (valid PHP with no class,
+  interface or function declaration and no route)
+- **AND** `routes/web.php` appears in `files` and its only symbol is the `route` `POST /checkout` of
+  its string action (its closure route produces none), and the only symbols of `routes/api.php` are
+  its two `route` symbols
 
 #### Scenario: Line count of a file
 
@@ -115,7 +117,8 @@ Only files whose path ends in `.php` SHALL be parsed for symbols; every other fi
 - one `interface` symbol per interface, named by its short name;
 - one `function` symbol per named function declared outside any class, named by its short name;
 - one `method` symbol per method, named `Type::method` when the enclosing type is named;
-- one `route` symbol per array-action route, as defined in "Array-action routes".
+- one `route` symbol per route statement (array- or string-action form), as defined in "Array-action
+  routes".
 
 A symbol's span SHALL be the lines of its declaration, including its modifiers and attributes
 (`#[...]`) and excluding any preceding doc comment. Its `signature` SHALL be the declaration's header
@@ -227,10 +230,12 @@ written in a parsed PHP file SHALL be resolved to a fully-qualified name as PHP 
 - any other name is the file's namespace joined with the name.
 
 `use function` and `use const` imports, and `use` inside a class body (trait use), SHALL NOT take
-part in resolution. A resolved name SHALL be a target only when exactly one class, interface or trait
-symbol of the same result has that fully-qualified name; otherwise no edge SHALL be emitted for it.
-Names SHALL be compared case-sensitively. A file that declares more than one `namespace` SHALL
-originate no edge that depends on name resolution.
+part in resolution. The only exception is rule 4 of "Laravel heuristic calls", which resolves the trait names a class uses in its
+own body, with the rules above, to recognise `Illuminate\Foundation\Bus\Dispatchable`. A resolved
+name SHALL be a target only when exactly one class, interface or trait symbol of the same result has
+that fully-qualified name; otherwise no edge SHALL be emitted for it. Names SHALL be compared
+case-sensitively. A file that declares more than one `namespace` SHALL originate no edge that depends
+on name resolution.
 
 #### Scenario: Names resolve by fully-qualified name, never by short name
 
@@ -291,23 +296,47 @@ originate no edge of any kind and SHALL contribute no symbol as a target.
 
 ### Requirement: Array-action routes
 
-A top-level statement of a parsed PHP file of the form `Route::<verb>('<uri>', [X::class, '<m>'])`,
-optionally followed by any chained method calls (e.g. `->name(…)`, `->middleware(…)`), where `<verb>` is one of
-`get`, `post`, `put`, `patch`, `delete` or `options`, `<uri>` and `<m>` are string literals without
-interpolation, and `Route` is either not imported or imported as `Illuminate\Support\Facades\Route`,
+Despite its name, this requirement covers both route action forms: array actions and string actions
+(`'Controller@method'`). The name is kept so that the delta merges into the existing requirement.
+
+A top-level statement of a parsed PHP file of the form `Route::<verb>('<uri>', <action>)`, optionally
+followed by any chained method calls (e.g. `->name(…)`, `->middleware(…)`), where `<verb>` is one of
+`get`, `post`, `put`, `patch`, `delete` or `options`, `<uri>` is a string literal without
+interpolation, `Route` is either not imported or imported as `Illuminate\Support\Facades\Route`, and
+`<action>` has one of these two forms:
+
+1. **Array action**: `[X::class, '<m>']`, where `<m>` is a string literal without interpolation;
+2. **String action**: `'<C>@<m>'`, a *plain string literal* — single- or double-quoted, with no
+   escape sequence and no interpolation — whose content holds exactly one `@`, with a non-empty
+   `<C>` before it that does not start with `\` and a non-empty `<m>` after it;
+
 SHALL produce one `route` symbol:
 
 - `name`: `<VERB> <uri>`, the verb in upper case and the URI exactly as written (e.g.
   `GET /orders/{order}`);
-- span: the lines of the statement;
+- span: every line of the statement, from its first line to its last, chained calls included;
 - `signature`: the statement's text without its terminating `;`, every run of whitespace collapsed to
   one space and trimmed.
 
-When `X` resolves (see "PHP name resolution") to a class of the input that declares a method `<m>`,
-the analyzer SHALL emit one `calls` edge from the route symbol to the method symbol `X::<m>`, with
-`resolution` `exact` and `extractor` `php-treesitter-laravel`; otherwise the route symbol SHALL be
-emitted with no edge. String actions (`'Controller@method'`), closures, other verbs or `Route`
-methods, and route statements nested in a closure or a group SHALL produce no `route` symbol.
+For an array action, when `X` resolves (see "PHP name resolution") to a class of the input that
+declares a method `<m>`, the analyzer SHALL emit one `calls` edge from the route symbol to the method
+symbol `X::<m>`, with `resolution` `exact` and `extractor` `php-treesitter-laravel`.
+
+For a string action, `<C>` SHALL be taken as a fully-qualified class name exactly as written: it is
+never resolved through the file's `use` imports and never prefixed with a namespace. When `<C>` is the
+fully-qualified name of exactly one class of the input that declares a method `<m>`, the analyzer
+SHALL emit one `calls` edge from the route symbol to the method symbol `<C>::<m>`, with `resolution`
+`heuristic` and `extractor` `php-treesitter-laravel`: the class is named by a string, following
+Laravel's `Controller@method` convention, not by a class reference.
+
+Otherwise the route symbol SHALL be emitted with no edge. A route statement whose symbol is dropped as a
+duplicate (same name and line as an earlier route of the file, see Symbol extraction) SHALL originate
+no edge: only the first statement's action can be the target of the kept symbol. A file that declares more than one
+`namespace` SHALL still produce its `route` symbols, but no route `calls` edge of either form, as for
+every other edge of such a file (see "PHP name resolution"). A string action with an escape sequence,
+with interpolation, without `@`, with more than one `@`, with an empty part or with a leading `\`,
+closures, other verbs or `Route` methods, and route statements nested in a closure or a group SHALL
+produce no `route` symbol.
 
 #### Scenario: The API routes of acme-shop point at their controller actions
 
@@ -317,8 +346,20 @@ methods, and route statements nested in a closure or a group SHALL produce no `r
   `route` `GET /orders/{order}` with span 13–13
 - **AND** there is a `calls` edge, `exact`, from `GET /orders` to `OrderController::index` and from
   `GET /orders/{order}` to `OrderController::show`, both in `app/Http/Controllers/OrderController.php`
-- **AND** `routes/web.php`, with a closure route and the string action
-  `'App\Http\Controllers\CheckoutController@store'`, has no `route` symbol and originates no edge
+
+#### Scenario: The string route of acme-shop is a heuristic call
+
+- **GIVEN** the content of the 53 tracked files of `fixtures/acme-shop`
+- **WHEN** they are analysed
+- **THEN** `routes/web.php` has exactly one symbol, `route` `POST /checkout` with span 13–15 and
+  signature
+  `Route::post('/checkout', 'App\Http\Controllers\CheckoutController@store') ->middleware('cart.not_empty') ->name('checkout.store')`
+- **AND** `POST /checkout` is the source of exactly one edge: a `calls` edge, `heuristic`, extractor
+  `php-treesitter-laravel`, to `CheckoutController::store` in
+  `app/Http/Controllers/CheckoutController.php`
+- **AND** the closure route `Route::get('/', …)` of `routes/web.php` produces no symbol
+- **AND** that `heuristic` edge is the only edge whose source is in `routes/web.php`: the file itself and
+  the closure route originate none, and none is `exact`
 
 #### Scenario: A route to an action outside the input has no edge
 
@@ -327,6 +368,24 @@ methods, and route statements nested in a closure or a group SHALL produce no `r
   alone
 - **THEN** it has one `route` symbol `POST /ghost` whose signature is
   `Route::post('/ghost', [Ghost::class, 'run'])->name('ghost')`, and `edges` is empty
+
+#### Scenario: A multi-line array-action route spans its whole statement
+
+- **WHEN** `routes/api.php` with content
+  `<?php\nuse App\Http\Ghost;\nRoute::post('/ghost', [Ghost::class, 'run'])\n    ->name('ghost');\n`
+  (`\n` being a line break) is analysed alone
+- **THEN** its only symbol is the `route` `POST /ghost` with span 3–4
+
+#### Scenario: Malformed string actions produce no route
+
+- **WHEN** `routes/web.php` with content
+  `<?php\nRoute::get('/a', 'App\Ghost@run');\nRoute::get('/b', 'NoAt');\nRoute::get('/c', "App\X@{$m}");\nRoute::get('/d', '\App\Ghost@run');\nRoute::get('/e', 'App\\Ghost@run');\nRoute::get('/f', 'App\Ghost@run@x');\nRoute::get('/g', '@run');\nRoute::get('/h', 'App\Ghost@');\n`
+  (`\n` being a line break; every other backslash is written as is in the PHP source) is analysed
+  alone
+- **THEN** its only symbol is the `route` `GET /a` with span 2–2, and `edges` is empty (`App\Ghost` is
+  not a class of the input)
+- **AND** none of `GET /b` to `GET /h` is a symbol: no `@`, interpolation, leading `\`, escape
+  sequence, two `@`, empty class part and empty method part respectively
 
 ### Requirement: Declared-type calls
 
@@ -389,11 +448,12 @@ calls".
   a symbol of `app/Services/PriceCalculator.php` or `app/Facades/Pricing.php`
 - **AND** no `exact` `calls` edge goes from `ShippingService::shippingFor` to a symbol of
   `app/Services/CarrierGateway.php`, `CarrierGateway::__call` included
-- **AND** no `calls` edge goes from `OrderObserver::created` to `RecalculateTotals::handle`, from
-  `PriceCalculator::compute` to a symbol of `app/Models/Order.php`, or from
-  `DiscountService::discountFor` to a symbol under `app/Listeners/`
-- **AND** `AppServiceProvider::register`, whose instantiations are all inside arrow functions, and
-  `routes/web.php` originate no `calls` edge
+- **AND** no `exact` `calls` edge goes from `OrderObserver::created` or `OrderObserver::updated` to
+  `RecalculateTotals::handle`, or from `OrderObserver::created` or `DiscountService::discountFor` to a
+  symbol under `app/Listeners/`
+- **AND** no `calls` edge goes from `PriceCalculator::compute` to a symbol of `app/Models/Order.php`
+- **AND** `AppServiceProvider::register`, whose instantiations are all inside arrow functions,
+  originates no `calls` edge, and no symbol of `routes/web.php` is the source of an `exact` edge
 
 #### Scenario: Instantiation, static and own-type calls
 
@@ -485,7 +545,16 @@ rules applies:
    caller's own declaration; `T` does not declare `m` and declares `__call`. The target is `T::__call`.
 3. **`__callStatic`**: `X::m(...)` with an explicit class name, where `X` resolves to a class of the
    input that is not a facade class, does not declare `m` and declares `__callStatic`. The target is
-   `X::__callStatic`.
+   `X::__callStatic`. Rule 4 takes precedence over this rule.
+4. **Job dispatch**: `X::m(...)` with an explicit class name, where `m` is `dispatch`,
+   `dispatchSync`, `dispatchIf`, `dispatchUnless` or `dispatchAfterResponse`, and `X` resolves to a
+   class of the input that is not a facade class, that uses in its own body (`use T;`, alone or in a
+   list) a trait whose name resolves in `X`'s file to `Illuminate\Foundation\Bus\Dispatchable`, that
+   does not declare `m`, and that declares `handle`. The target is `X::handle`.
+5. **Event dispatch**: a call to the function written `event` or `\event` whose first argument is
+   positional and is `new E(...)`, where `E` is a class name that resolves to a class of the input.
+   For each listener class `L` that the listener map gives for `E`, when `L` declares `handle`, the
+   target is `L::handle`: one edge per such listener.
 
 The **binding table** maps a key to concrete classes. It is built from every call
 `$this->app->bind(KEY, CONCRETE)`, `$this->app->singleton(KEY, CONCRETE)` or
@@ -505,19 +574,40 @@ target. A key with no entry SHALL resolve to no target: a key written as `X::cla
 implicit binding to `X`. The table SHALL only be used to resolve facades: the calls and instantiations
 inside a binding's closure or arrow function SHALL originate no edge.
 
-A method that `F`, `T` or `X` only inherits — `__call`, `__callStatic` or `getFacadeAccessor` included —
-SHALL NOT count as declared. A facade class whose parent is not directly `Facade`, an interface or a
-trait SHALL never be `F`, `T`, `X` or `C`. `self::m(...)`, `static::m(...)`, `parent::m(...)` and any
-call excluded by "Declared-type calls" (local variables, parameters, nullable, union or intersection
-types, `?->`, variable class or method names, functions) SHALL produce no edge under this requirement.
-The `getFacadeAccessor` and the `register` bindings of a class declared inside a method body (of a
-class, interface, trait or enum), a closure, an arrow function or an anonymous class SHALL NOT be
-read, as for the calls of "Declared-type calls"; nor those of a class dropped as a duplicate symbol
-(see Symbol extraction). A `getFacadeAccessor` or a closure body that holds anything besides its
-single `return` — a comment included — and a string key with a leading `\` add nothing: accepted
-false negatives, never a guessed edge. Keys, class and method names SHALL be compared case-sensitively. A file that could not be parsed, or
-that declares more than one `namespace`, SHALL contribute no call, facade or binding to this
-requirement.
+The **listener map** maps an event class to listener classes. It is built from the non-static
+property `$listen` declared in the body of a class of the input that directly extends a name resolving
+to `Illuminate\Foundation\Support\Providers\EventServiceProvider`, when its default value is an array
+literal. The array is read element by element, and each element entry by entry. An element whose key
+is `E::class` and whose value is an array literal maps `E` to each entry of that value written
+`L::class`, with `E` and every `L` resolved in the provider's file; `E` and `L` SHALL be classes of
+the input. Any other entry of the value — a string, a `[L::class, 'method']` pair,
+`L::class . '@method'`, a spread — adds nothing, and does not discard the valid entries of the same
+element. An element whose key is not `X::class` (a string key, a spread) or whose value is not an
+array literal adds nothing. The same event mapped to the same listener by more than one entry, element
+or provider yields a single listener. The listener map SHALL only be used by rule 5: it
+originates no edge of its own.
+
+A method that `F`, `T` or `X` only inherits — `__call`, `__callStatic`, `getFacadeAccessor`,
+`dispatch` or `handle` included — SHALL NOT count as declared, and a `Dispatchable` trait used only by
+a parent class SHALL NOT count as used by `X`. A facade class whose parent is not directly `Facade`, an
+event provider whose parent is not directly `EventServiceProvider`, an interface or a trait SHALL never
+be `F`, `T`, `X`, `C`, `E` or `L`. `self::m(...)`, `static::m(...)`, `parent::m(...)` and any call
+excluded by "Declared-type calls" (local variables, parameters, nullable, union or intersection types,
+`?->`, variable class or method names, functions other than `event` under rule 5) SHALL produce no edge
+under this requirement; so SHALL `event(...)` whose first argument is not `new E(...)` with a class
+name (a variable, a string, `new $cls`, `new self`, `new static`) or is a named argument. The
+`getFacadeAccessor`, the `register` bindings and the `$listen` property of a class declared inside a
+method body (of a class, interface, trait or enum), a top-level function body, a closure, an arrow
+function or an anonymous class SHALL NOT be read, as for the calls of "Declared-type calls"; nor those of a class dropped as a
+duplicate symbol (see Symbol extraction). This nesting rule applies to registrations only: the
+classes rules 4 and 5 resolve as targets (`X`, `E` and `L`) count wherever they are declared, nested
+classes included, as for the targets of "Declared-type calls". A comment anywhere inside a `$listen`
+element or inside the arguments of `event(...)` changes nothing. A `getFacadeAccessor` or a closure
+body that holds anything besides its single `return` — a comment included — and a string key with a
+leading `\` add nothing:
+accepted false negatives, never a guessed edge. Keys, class and method names SHALL be compared
+case-sensitively. A file that could not be parsed, or that declares more than one `namespace`, SHALL
+contribute no call, facade, binding or listener to this requirement.
 
 A `heuristic` edge SHALL NOT be emitted when the result has an `exact` edge with the same `kind`,
 source and target; calls of the same method that resolve to the same target SHALL yield a single edge.
@@ -530,12 +620,79 @@ source and target; calls of the same method that resolve to the same target SHAL
   `OrderController::show`, `CheckoutController::store`, `SendOrderConfirmation::handle`,
   `RecalculateTotals::handle` and `OrderPricingTest::test_final_price_applies_discount_before_tax` to
   `PriceCalculator::compute`, and from `ShippingService::shippingFor` to `CarrierGateway::__call`
-- **AND** the result has exactly 6 `calls` edges with `resolution` `heuristic`
+- **AND** from `OrderObserver::created` and `OrderObserver::updated` to `RecalculateTotals::handle`
+  (job dispatch), from `DiscountService::discountFor` to `RecordDiscountAudit::handle` and from
+  `OrderObserver::created` to `SendOrderConfirmation::handle` (event dispatch)
+- **AND** the result has exactly 11 `calls` edges with `resolution` `heuristic`: those 10 and the one
+  from `POST /checkout` to `CheckoutController::store` (see "Array-action routes")
 - **AND** no `calls` edge has a symbol of `app/Facades/Pricing.php` as target (its `imports` edges stay)
 - **AND** neither `OrderController::index` nor `AppServiceProvider::register` is the source of a
-  `calls` edge
+  `calls` edge, and `EventServiceProvider` is the source of none
 - **AND** wrapping the result in a graph with `commits: []` and `fileCommits: []` makes the graph
   validation return no error
+
+#### Scenario: Jobs and events reach their handlers
+
+- **WHEN** `app/Events/Paid.php` with content `<?php namespace App\Events; class Paid {}`,
+  `app/Events/Refunded.php` with content `<?php namespace App\Events; class Refunded {}`,
+  `app/Listeners/Notify.php` with content
+  `<?php namespace App\Listeners; class Notify { public function handle(): void {} }`,
+  `app/Providers/EventProvider.php` with content
+  `<?php namespace App\Providers; use App\Events\Paid; use App\Listeners\Notify; use Illuminate\Foundation\Support\Providers\EventServiceProvider; class EventProvider extends EventServiceProvider { protected $listen = [Paid::class => [Notify::class]]; }`,
+  `app/Jobs/Sync.php` with content
+  `<?php namespace App\Jobs; use Illuminate\Foundation\Bus\Dispatchable; class Sync { use Dispatchable; }`,
+  `app/Jobs/Work.php` with content
+  `<?php namespace App\Jobs; use Illuminate\Foundation\Bus\Dispatchable; class Work { use Dispatchable; public function handle(): void {} }`,
+  `app/Facades/Ghost.php` with content
+  `<?php namespace App\Facades; use Illuminate\Support\Facades\Facade; class Ghost extends Facade { protected static function getFacadeAccessor(): string { return 'ghost'; } }`
+  and `app/Emitter.php` with content
+  `<?php namespace App; use App\Events\{Paid, Refunded}; use App\Facades\Ghost; use App\Jobs\{Sync, Work}; class Emitter { public function run(): void { event(new Paid()); event(new Refunded()); event(new \App\Events\Missing()); Sync::dispatch(); Work::dispatchSync(); Ghost::quote(); } }`
+  are analysed together
+- **THEN** `Emitter::run` is the source of exactly two `calls` edges, both `heuristic`: to
+  `Notify::handle` and to `Work::handle`
+
+#### Scenario: Only Dispatchable jobs and EventServiceProvider listeners are followed
+
+- **WHEN** `app/Events/Paid.php` (as above), `app/Listeners/Audit.php` with content
+  `<?php namespace App\Listeners; class Audit { public function handle(): void {} }`,
+  `app/Providers/OtherProvider.php` with content
+  `<?php namespace App\Providers; use App\Events\Paid; use App\Listeners\Audit; use Illuminate\Support\ServiceProvider; class OtherProvider extends ServiceProvider { protected $listen = [Paid::class => [Audit::class]]; }`,
+  `app/Jobs/Base.php` with content
+  `<?php namespace App\Jobs; use Illuminate\Foundation\Bus\Dispatchable; class Base { use Dispatchable; }`,
+  `app/Jobs/Child.php` with content
+  `<?php namespace App\Jobs; class Child extends Base { public function handle(): void {} }`,
+  `app/Jobs/Bare.php` with content
+  `<?php namespace App\Jobs; class Bare { public function handle(): void {} }` and `app/Caller.php`
+  with content
+  `<?php namespace App; use App\Events\Paid; use App\Jobs\{Child, Bare}; class Caller { public function run($e): void { event(new Paid()); event($e); event('paid'); Child::dispatch(); Bare::dispatch(); $f = fn () => event(new Paid()); } }`
+  are analysed together
+- **THEN** `Caller::run` is the source of no `calls` edge
+
+#### Scenario: A $listen element is read entry by entry
+
+- **WHEN** `app/Events/Paid.php` (as above), `app/Listeners/Notify.php` (as above),
+  `app/Listeners/Audit.php` with content
+  `<?php namespace App\Listeners; class Audit { public function handle(): void {} }`,
+  `app/Providers/EventProvider.php` with content
+  `<?php namespace App\Providers; use App\Events\Paid; use App\Listeners\{Notify, Audit}; use Illuminate\Foundation\Support\Providers\EventServiceProvider; class EventProvider extends EventServiceProvider { protected $listen = [Paid::class => /* listeners */ [Notify::class, 'App\Listeners\Audit', [Audit::class, 'handle']]]; }`
+  and `app/Emitter.php` with content
+  `<?php namespace App; use App\Events\Paid; class Emitter { public function run(): void { event(new Paid()); } }`
+  are analysed together
+- **THEN** `Emitter::run` is the source of exactly one `calls` edge, `heuristic`, to `Notify::handle`:
+  the string and the pair add nothing, the comment changes nothing, and neither drops `Notify`
+
+#### Scenario: Laravel registrations of a class declared in a function body are never read
+
+- **WHEN** `app/Services/Rates.php`, `app/Facades/RatesFacade.php` and `app/Events/Paid.php` (as above),
+  `app/Listeners/Notify.php` (as above), `app/Providers/RatesProvider.php` with content
+  `<?php namespace App\Providers; use App\Services\Rates; use Illuminate\Support\ServiceProvider; function boot(): void { class RatesProvider extends ServiceProvider { public function register(): void { $this->app->bind('rates', Rates::class); } } }`,
+  `app/Providers/EventProvider.php` with content
+  `<?php namespace App\Providers; use App\Events\Paid; use App\Listeners\Notify; use Illuminate\Foundation\Support\Providers\EventServiceProvider; function boot(): void { class EventProvider extends EventServiceProvider { protected $listen = [Paid::class => [Notify::class]]; } }`
+  and `app/Client.php` with content
+  `<?php namespace App; use App\Events\Paid; use App\Facades\RatesFacade; class Client { public function run(): void { RatesFacade::quote(); event(new Paid()); } }`
+  are analysed together
+- **THEN** the result has the class symbols `RatesProvider` and `EventProvider`, and `Client::run` is
+  the source of no `calls` edge
 
 #### Scenario: A facade without a binding or outside the input has no edge
 

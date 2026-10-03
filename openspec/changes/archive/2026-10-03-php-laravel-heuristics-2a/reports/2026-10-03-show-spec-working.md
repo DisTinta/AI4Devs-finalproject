@@ -59,7 +59,7 @@
 Command, from the repository root:
 
 ```
-npx tsx openspec/changes/php-laravel-heuristics-2a/reports/2026-10-03-demo.mts > openspec/changes/php-laravel-heuristics-2a/reports/2026-10-03-demo-output.txt
+npx tsx openspec/changes/archive/2026-10-03-php-laravel-heuristics-2a/reports/2026-10-03-demo.mts > openspec/changes/archive/2026-10-03-php-laravel-heuristics-2a/reports/2026-10-03-demo-output.txt
 ```
 
 Exit code 0. Summary lines of the transcript (full observed values in `./2026-10-03-demo-output.txt`):

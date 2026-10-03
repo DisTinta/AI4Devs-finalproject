@@ -25,7 +25,7 @@ Ticket: DIS-97 (CM-HU-04b.2a), primera mitad de DIS-63.
 4. `npm run typecheck`, `npm run lint:architecture` (0 errores; los mismos 4 avisos `no-orphans` de los stubs) y `npm run docs:coverage`: limpios.
 5. `npx stryker run`: 93,89 % en `packages/core/src` (umbral 70 %), igual que en DIS-61. Stryker solo muta core, que no tiene diff.
 6. `git diff --stat origin/feature/entrega-2-CRN -- packages/core`: vacío.
-7. Recorrido de los 12 sitios de la Tabla 2 sobre acme-shop: `openspec/changes/php-laravel-heuristics-2a/reports/2026-10-03-9-manual-interface-testing.md`. Los sitios 1, 2, 3, 5 y 11 son `exact`; 6–10 y 12, `heuristic`; el 4 no tiene arista porque es de DIS-98.
+7. Recorrido de los 12 sitios de la Tabla 2 sobre acme-shop: `openspec/changes/archive/2026-10-03-php-laravel-heuristics-2a/reports/2026-10-03-9-manual-interface-testing.md`. Los sitios 1, 2, 3, 5 y 11 son `exact`; 6–10 y 12, `heuristic`; el 4 no tiene arista porque es de DIS-98.
 
 ## Decisiones / compromisos
 
