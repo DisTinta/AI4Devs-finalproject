@@ -36,7 +36,7 @@
 Command, from the repository root:
 
 ```
-npx tsx openspec/changes/php-laravel-heuristics-1/reports/2026-10-03-demo.mts > openspec/changes/php-laravel-heuristics-1/reports/2026-10-03-demo-output.txt
+npx tsx openspec/changes/archive/2026-10-03-php-laravel-heuristics-1/reports/2026-10-03-demo.mts > openspec/changes/archive/2026-10-03-php-laravel-heuristics-1/reports/2026-10-03-demo-output.txt
 ```
 
 Exit code `0`. The last line of the transcript is `ALL 18 SCENARIOS PASS`. The full output, with

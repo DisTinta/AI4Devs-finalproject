@@ -19,10 +19,10 @@ diagnostics }` built from the existing graph types:
   `contentHash` or `redacted`;
 - `symbols`: the `GraphSymbol`s declared in those files;
 - `edges`: the `GraphEdge`s between those files and symbols defined by the requirements "Code
-  relation edges", "Array-action routes", "Declared-type calls", "Test coverage edges" and
-  "Documentation mention edges"; every edge SHALL have a non-empty `extractor`, a `resolution`, no
-  `weight`, and both endpoints present in `files` or `symbols` of the same result; no two edges SHALL
-  share `kind`, source and target;
+  relation edges", "Array-action routes", "Declared-type calls", "Laravel heuristic calls", "Test
+  coverage edges" and "Documentation mention edges"; every edge SHALL have a non-empty `extractor`, a
+  `resolution`, no `weight`, and both endpoints present in `files` or `symbols` of the same result; no
+  two edges SHALL share `kind`, source and target;
 - `diagnostics`: one `{ path, message, line? }` per file that could not be parsed, and one per symbol
   dropped as a duplicate (see Symbol extraction); a file MAY have more than one.
 
@@ -362,7 +362,9 @@ case-sensitively, although PHP treats them case-insensitively: a call written wi
 than the declaration MAY yield no edge (a false negative), never a wrong one. A call that would be a
 target of more than one form, or that appears more than once in the same
 method, SHALL yield a single edge. A file that could not be parsed, or that declares more than one
-`namespace`, SHALL originate no such edge. No `calls` edge of this requirement SHALL be `heuristic`.
+`namespace`, SHALL originate no such edge. No `calls` edge of this requirement SHALL be `heuristic`;
+calls this requirement leaves without an edge MAY get a `heuristic` one under "Laravel heuristic
+calls".
 
 #### Scenario: The constructor-injected services of acme-shop are exact calls
 
@@ -376,16 +378,16 @@ method, SHALL yield a single edge. A file that could not be parsed, or that decl
   `DiscountService::loyaltyPercent` and `DiscountService::volumeBonus`
 - **AND** the two `calls` edges of `routes/api.php` are still present: from `GET /orders` to
   `OrderController::index` and from `GET /orders/{order}` to `OrderController::show`
-- **AND** the result has exactly 47 `calls` edges: those 2 from `routes/api.php` and 45 from method
-  bodies
+- **AND** the result has exactly 47 `calls` edges with `resolution` `exact`: those 2 from
+  `routes/api.php` and 45 from method bodies
 
 #### Scenario: The heuristic call sites of acme-shop have no exact edge
 
 - **GIVEN** the content of the 53 tracked files of `fixtures/acme-shop`
 - **WHEN** they are analysed
-- **THEN** no `calls` edge goes from `OrderController::show` or `CheckoutController::store` to a
-  symbol of `app/Services/PriceCalculator.php` or `app/Facades/Pricing.php`
-- **AND** no `calls` edge goes from `ShippingService::shippingFor` to a symbol of
+- **THEN** no `exact` `calls` edge goes from `OrderController::show` or `CheckoutController::store` to
+  a symbol of `app/Services/PriceCalculator.php` or `app/Facades/Pricing.php`
+- **AND** no `exact` `calls` edge goes from `ShippingService::shippingFor` to a symbol of
   `app/Services/CarrierGateway.php`, `CarrierGateway::__call` included
 - **AND** no `calls` edge goes from `OrderObserver::created` to `RecalculateTotals::handle`, from
   `PriceCalculator::compute` to a symbol of `app/Models/Order.php`, or from
@@ -451,7 +453,9 @@ method, SHALL yield a single edge. A file that could not be parsed, or that decl
   and `app/Odd.php` with content
   `<?php namespace App; use App\Support\{Clock, Magic}; function helper(): void {} class Odd { private static Clock $s; private Clock&\Countable $i; public function run(string $cls, string $m): void { $this->s->now(); $this->i->now(); Magic::anything(); $cls::now(); new $cls(); $this->$m(); helper(); $local = new Clock(); $local->now(); } }`
   are analysed together
-- **THEN** `Odd::run` is the source of exactly one `calls` edge, `exact`, to `Clock::__construct`
+- **THEN** `Odd::run` is the source of exactly one `exact` `calls` edge, to `Clock::__construct`
+- **AND** of exactly one `heuristic` `calls` edge, to `Magic::__callStatic` (see "Laravel heuristic
+  calls"), and of no other `calls` edge
 
 #### Scenario: A file with a syntax error originates no call edge
 
@@ -460,6 +464,143 @@ method, SHALL yield a single edge. A file that could not be parsed, or that decl
   are analysed together
 - **THEN** no edge has `app/Broken.php`, or a symbol of it, as source
 - **AND** the graph validation of the wrapped result returns no error
+
+### Requirement: Laravel heuristic calls
+
+A call written in the body of a method of a named class, interface or trait of a parsed PHP file —
+under the same placement rules as "Declared-type calls": not inside a closure, an arrow function, an
+anonymous class, or a named class, interface, trait or function declared in that body — that yields no
+`exact` edge under "Declared-type calls" SHALL produce one `calls` edge from that method symbol to a
+method symbol, with `resolution` `heuristic` and `extractor` `php-treesitter-laravel`, when one of these
+rules applies:
+
+1. **Facade**: `F::m(...)`, where `F` resolves (see "PHP name resolution") to a class of the input that
+   directly extends a name resolving to `Illuminate\Support\Facades\Facade` (a *facade class*), `F` does
+   not declare `m`, and `F` declares a method `getFacadeAccessor` whose body is a single `return` of a
+   plain string literal (defined below) or of `X::class`. That value is the *key* (`X::class` resolved to its fully-qualified
+   name in `F`'s file). When the binding table has exactly one concrete class `C` for the key, and `C`
+   declares `m`, the target is `C::m`.
+2. **`__call`**: `$this->p->m(...)`, where `p` is a typed property usable by form 1 of "Declared-type
+   calls" whose type resolves to a class `T` of the input, or `$this->m(...)`, where `T` is the
+   caller's own declaration; `T` does not declare `m` and declares `__call`. The target is `T::__call`.
+3. **`__callStatic`**: `X::m(...)` with an explicit class name, where `X` resolves to a class of the
+   input that is not a facade class, does not declare `m` and declares `__callStatic`. The target is
+   `X::__callStatic`.
+
+The **binding table** maps a key to concrete classes. It is built from every call
+`$this->app->bind(KEY, CONCRETE)`, `$this->app->singleton(KEY, CONCRETE)` or
+`$this->app->scoped(KEY, CONCRETE)` written in the method `register` of a class of the input that
+directly extends a name resolving to `Illuminate\Support\ServiceProvider` — anywhere in that body,
+inside `if`, loops or other statements included, but not inside a closure, an arrow function, an
+anonymous class, or a class or function declared in it. The call SHALL have exactly two positional
+arguments: a call with a named argument, or with fewer or more arguments, adds nothing. `KEY` SHALL be
+a plain string literal or `X::class` (resolved to its fully-qualified name in the provider's file),
+where a *plain string literal* is a single- or double-quoted string with non-empty content and no
+escape sequence or interpolation; any other string adds nothing. `CONCRETE` SHALL be
+`X::class`, an arrow function whose body is `new X(...)`, or an anonymous function whose body is a
+single `return new X(...)`; `X` SHALL resolve to a class of the input. Any other form adds nothing to
+the table: such bindings are false negatives, never a guessed edge. A key with two or more distinct
+concrete classes is ambiguous and SHALL resolve to no
+target. A key with no entry SHALL resolve to no target: a key written as `X::class` is never an
+implicit binding to `X`. The table SHALL only be used to resolve facades: the calls and instantiations
+inside a binding's closure or arrow function SHALL originate no edge.
+
+A method that `F`, `T` or `X` only inherits — `__call`, `__callStatic` or `getFacadeAccessor` included —
+SHALL NOT count as declared. A facade class whose parent is not directly `Facade`, an interface or a
+trait SHALL never be `F`, `T`, `X` or `C`. `self::m(...)`, `static::m(...)`, `parent::m(...)` and any
+call excluded by "Declared-type calls" (local variables, parameters, nullable, union or intersection
+types, `?->`, variable class or method names, functions) SHALL produce no edge under this requirement.
+The `getFacadeAccessor` and the `register` bindings of a class declared inside a method body (of a
+class, interface, trait or enum), a closure, an arrow function or an anonymous class SHALL NOT be
+read, as for the calls of "Declared-type calls"; nor those of a class dropped as a duplicate symbol
+(see Symbol extraction). A `getFacadeAccessor` or a closure body that holds anything besides its
+single `return` — a comment included — and a string key with a leading `\` add nothing: accepted
+false negatives, never a guessed edge. Keys, class and method names SHALL be compared case-sensitively. A file that could not be parsed, or
+that declares more than one `namespace`, SHALL contribute no call, facade or binding to this
+requirement.
+
+A `heuristic` edge SHALL NOT be emitted when the result has an `exact` edge with the same `kind`,
+source and target; calls of the same method that resolve to the same target SHALL yield a single edge.
+
+#### Scenario: The Laravel call sites of acme-shop are heuristic calls
+
+- **GIVEN** the content of the 53 tracked files of `fixtures/acme-shop`
+- **WHEN** they are analysed
+- **THEN** there are `calls` edges, `heuristic`, extractor `php-treesitter-laravel`: from
+  `OrderController::show`, `CheckoutController::store`, `SendOrderConfirmation::handle`,
+  `RecalculateTotals::handle` and `OrderPricingTest::test_final_price_applies_discount_before_tax` to
+  `PriceCalculator::compute`, and from `ShippingService::shippingFor` to `CarrierGateway::__call`
+- **AND** the result has exactly 6 `calls` edges with `resolution` `heuristic`
+- **AND** no `calls` edge has a symbol of `app/Facades/Pricing.php` as target (its `imports` edges stay)
+- **AND** neither `OrderController::index` nor `AppServiceProvider::register` is the source of a
+  `calls` edge
+- **AND** wrapping the result in a graph with `commits: []` and `fileCommits: []` makes the graph
+  validation return no error
+
+#### Scenario: A facade without a binding or outside the input has no edge
+
+- **WHEN** `app/Services/Rates.php` with content
+  `<?php namespace App\Services; class Rates { public function quote(): int { return 1; } }`,
+  `app/Facades/RatesFacade.php` with content
+  `<?php namespace App\Facades; use Illuminate\Support\Facades\Facade; class RatesFacade extends Facade { protected static function getFacadeAccessor(): string { return 'rates'; } }`,
+  `app/Facades/Ghost.php` with content
+  `<?php namespace App\Facades; use Illuminate\Support\Facades\Facade; class Ghost extends Facade { protected static function getFacadeAccessor(): string { return 'ghost'; } }`,
+  `app/Providers/RatesProvider.php` with content
+  `<?php namespace App\Providers; use App\Services\Rates; use Illuminate\Support\ServiceProvider; class RatesProvider extends ServiceProvider { public function register(): void { $this->app->bind('rates', Rates::class); } }`
+  and `app/Client.php` with content
+  `<?php namespace App; use App\Facades\{RatesFacade, Ghost}; use Illuminate\Support\Facades\Log; class Client { public function run(): void { RatesFacade::quote(); RatesFacade::missing(); Ghost::quote(); Log::info('x'); } }`
+  are analysed together
+- **THEN** `Client::run` is the source of exactly one `calls` edge, `heuristic`, to `Rates::quote`
+
+#### Scenario: A closure binding resolves a facade and originates no edge
+
+- **WHEN** `app/Facades/RatesFacade.php` and `app/Client.php` (as above), `app/Services/Rates.php` with
+  content
+  `<?php namespace App\Services; class Rates { public function __construct() {} public function quote(): int { return 1; } }`
+  and `app/Providers/RatesProvider.php` with content
+  `<?php namespace App\Providers; use App\Services\Rates; use Illuminate\Support\ServiceProvider; class RatesProvider extends ServiceProvider { public function register(): void { $this->app->singleton('rates', fn ($app) => new Rates()); } }`
+  are analysed together
+- **THEN** `Client::run` is the source of exactly one `calls` edge, `heuristic`, to `Rates::quote`
+- **AND** `RatesProvider::register` is the source of no `calls` edge
+
+#### Scenario: An ambiguous binding key resolves no facade
+
+- **WHEN** the five files of "A facade without a binding or outside the input has no edge",
+  `app/Services/OtherRates.php` with content
+  `<?php namespace App\Services; class OtherRates { public function quote(): int { return 2; } }` and
+  `app/Providers/OtherProvider.php` with content
+  `<?php namespace App\Providers; use App\Services\OtherRates; use Illuminate\Support\ServiceProvider; class OtherProvider extends ServiceProvider { public function register(): void { $this->app->bind('rates', OtherRates::class); } }`
+  are analysed together
+- **THEN** `Client::run` is the source of no `calls` edge
+
+#### Scenario: __call and __callStatic of the receiving class
+
+- **WHEN** `app/Support/Magic.php` with content
+  `<?php namespace App\Support; class Magic { public function __call(string $n, array $a): mixed { return null; } public static function __callStatic(string $n, array $a): mixed { return null; } public function known(): void {} public function relay(): void { $this->rate(); } }`,
+  `app/Support/Plain.php` with content `<?php namespace App\Support; class Plain {}`,
+  `app/Support/Child.php` with content `<?php namespace App\Support; class Child extends Magic {}` and
+  `app/User.php` with content
+  `<?php namespace App; use App\Support\{Magic, Plain, Child}; class User { public function __construct(private Magic $m, private Plain $p, private Child $c) {} public function run(): void { Magic::anything(); $this->m->rate(); $this->m->known(); $this->p->rate(); $this->c->rate(); Plain::anything(); } }`
+  are analysed together
+- **THEN** `User::run` is the source of exactly three `calls` edges: to `Magic::__callStatic`,
+  `heuristic`; to `Magic::__call`, `heuristic`; and to `Magic::known`, `exact`
+- **AND** `Magic::relay` is the source of exactly one `calls` edge, `heuristic`, to `Magic::__call`
+
+#### Scenario: An exact edge takes precedence over a heuristic one
+
+- **WHEN** `app/Services/Rates.php`, `app/Facades/RatesFacade.php` and
+  `app/Providers/RatesProvider.php` of "A facade without a binding or outside the input has no edge"
+  and `app/Both.php` with content
+  `<?php namespace App; use App\Facades\RatesFacade; use App\Services\Rates; class Both { public function __construct(private Rates $r) {} public function run(): void { $this->r->quote(); RatesFacade::quote(); } }`
+  are analysed together
+- **THEN** `Both::run` is the source of exactly one `calls` edge, `exact`, to `Rates::quote`
+
+#### Scenario: A provider with a syntax error contributes no binding
+
+- **WHEN** the five files of "A facade without a binding or outside the input has no edge" are
+  analysed together, with `app/Providers/RatesProvider.php` changed to
+  `<?php namespace App\Providers; use App\Services\Rates; use Illuminate\Support\ServiceProvider; class RatesProvider extends ServiceProvider { public function register(): void { $this->app->bind('rates', Rates::class); } public function x( }`
+- **THEN** `Client::run` is the source of no `calls` edge
 
 ### Requirement: Test coverage edges
 

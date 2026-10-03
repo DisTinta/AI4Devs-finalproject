@@ -3,14 +3,14 @@
 // block per scenario of specs/code-analysis/spec.md (7 ADDED, 2 + 9 MODIFIED), each printing the
 // observed value and PASS/FAIL against the scenario's THEN. Fixtures are read, never written.
 // Run from the repository root:
-//   npx tsx openspec/changes/php-laravel-heuristics-1/reports/2026-10-03-demo.mts
+//   npx tsx openspec/changes/archive/2026-10-03-php-laravel-heuristics-1/reports/2026-10-03-demo.mts
 // The transcript is saved next to this file as 2026-10-03-demo-output.txt.
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { compareEdges, validateGraph } from '@codemind/core';
 import type { AnalysisResult, GraphEdge, SourceFile } from '@codemind/core';
-import { createPhpAnalyzer } from '../../../../packages/analyzers/php/src/index';
+import { createPhpAnalyzer } from '../../../../../packages/analyzers/php/src/index';
 
 let failures = 0;
 let section = 0;

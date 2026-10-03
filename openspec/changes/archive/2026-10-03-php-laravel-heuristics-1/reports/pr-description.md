@@ -26,7 +26,7 @@ Cambio: `openspec/changes/php-laravel-heuristics-1/` · Ticket: [DIS-61](https:/
 
 ## ¿Por qué?
 
-<!-- lo rellena la autora: el motivo de negocio no lo genera la IA -->
+Con solo las `calls` exactas, el impacto de cambiar `PriceCalculator::compute` no alcanzaba a quien llega por la facade `Pricing` ni a `ShippingService` vía `__call`. La pregunta de referencia de acme-shop (Q2) se quedaba a medias: faltaban controladores, listener y job. Esta entrega hace visibles esas rutas como `heuristic` —útiles para impacto, nunca presentadas como hecho— sin inventar bindings implícitos ni aristas desde los closures del contenedor.
 
 ## ¿Cómo probarlo?
 

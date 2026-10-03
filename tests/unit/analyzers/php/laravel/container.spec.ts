@@ -8,7 +8,7 @@ import { loadPhpParser } from '../../../../../packages/analyzers/php/src/parser'
 import type { PhpParser } from '../../../../../packages/analyzers/php/src/parser';
 
 // Unit cases of the binding table of "Laravel heuristic calls" (design D2–D4 of
-// openspec/changes/php-laravel-heuristics-1): not spec scenarios. The table is a lookup for facades
+// openspec/changes/archive/2026-10-03-php-laravel-heuristics-1): not spec scenarios. The table is a lookup for facades
 // only; the scenarios that observe it through edges live in heuristic-calls.spec.ts.
 
 const X = '<?php namespace App\\Services; class X {} class Y {} interface I {}';
