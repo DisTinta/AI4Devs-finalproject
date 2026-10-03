@@ -403,9 +403,23 @@ services that must be started first, quirks of the local environment.
   `$this->p->m()` (property `p` of the same type, promoted or declared, with a single named type — not
   nullable/union/intersection), `X::m()`, `new X()` → `X::__construct`, and `$this->m()` / `self::m()`
   / `new self()` on the own type. The target must be **declared in that type itself**: no inherited
-  methods, no `__call`/`__callStatic` fallback (so the Laravel traps — `Pricing` facade,
-  `CarrierGateway::flatRateFor`, `RecalculateTotals::dispatch` — stay without an edge until
-  CM-HU-04b/DIS-61 adds them as `heuristic`). A trait is never a target, and `new` targets a class
-  only. Calls inside closures/arrow functions/anonymous classes (e.g. the bindings in
+  methods and no `__call`/`__callStatic` fallback for `exact`. A trait is never a target, and `new`
+  targets a class only. Calls inside closures/arrow functions/anonymous classes (e.g. the bindings in
   `AppServiceProvider::register`) or inside a named class/function declared in a method body, static
-  properties, typed parameters, locals, `parent::`, `static::`, `new static`, `?->` give no edge. acme-shop yields 47 `calls`, 2 of them routes.
+  properties, typed parameters, locals, `parent::`, `static::`, `new static`, `?->` give no edge.
+- **Facades and `__call` are `heuristic` `calls`, never `exact`** (DIS-61). When no `exact` target
+  exists: `F::m()` on a class that *directly* extends `Illuminate\Support\Facades\Facade` resolves its
+  own `getFacadeAccessor()` key (`'pricing'` or `X::class`) through a **binding table** built only
+  from `$this->app->bind|singleton|scoped(KEY, CONCRETE)` in `register()` of a class directly
+  extending `Illuminate\Support\ServiceProvider` (CONCRETE: `X::class`, or a closure/arrow function
+  returning `new X(...)`); exactly one concrete class declaring `m` → `heuristic` edge to it. No
+  binding, an ambiguous key, `app()->bind`/`App::bind`/`boot()`/`$bindings`, or an accessor `X::class`
+  with no binding (never an implicit binding) → no edge. `$this->p->m()` / `$this->m()` on a class
+  declaring `__call` → `T::__call`; `X::m()` on a non-facade class declaring `__callStatic` →
+  `X::__callStatic` (inherited magic methods do not count). The binding closures still originate no
+  edge (signed non-goal: the table is a lookup only). A `heuristic` edge is dropped when an `exact` one
+  has the same kind/source/target — filtered explicitly in `buildPhpEdges`, since `sortUniqueEdges`
+  ignores `resolution`. acme-shop yields 47 `exact` `calls` (2 of them routes) + 6 `heuristic` (sites
+  7–9 of the batch plus three other `Pricing::compute` callers; site 7 lands on `CarrierGateway::__call`,
+  as `flatRateFor` has no symbol). Eloquent, string routes, jobs, events and the unresolved counter are
+  DIS-63.
