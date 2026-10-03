@@ -1,21 +1,21 @@
-## What changes?
-<!-- One to three sentences. The AI can generate this from the diff. -->
+## ¿Qué cambia?
+<!-- Una a tres frases. La IA puede generarlo a partir del diff. -->
 
-## Why?
-<!-- The business reason. The AI does NOT generate this: it is yours. Link the ticket. -->
+## ¿Por qué?
+<!-- El motivo de negocio. La IA NO lo genera: es tuyo. Enlaza el ticket. -->
 
-## How to test it?
-<!-- Numbered steps, runnable as written. -->
+## ¿Cómo probarlo?
+<!-- Pasos numerados, ejecutables tal cual. -->
 1.
 2.
 
-## Decisions / trade-offs
-<!-- Only if there were any. Alternatives considered and discarded, and why. -->
+## Decisiones / compromisos
+<!-- Solo si los hubo. Alternativas consideradas y descartadas, y por qué. -->
 
-## Traceability
-| Scenario in the specification | Test that covers it |
+## Trazabilidad
+| Escenario de la especificación | Test que lo cubre |
 |---|---|
 |  |  |
 
-## Origin
+## Origen
 <!-- human | human+copilot | agent | agent+human-review -->

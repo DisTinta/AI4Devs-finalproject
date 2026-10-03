@@ -3,9 +3,11 @@ import type { Node } from './parser.js';
 /**
  * How a call names its target (spec "Declared-type calls", design D1): through a typed property of
  * the caller's own type, an explicit class name (`X::m()`), an instantiation (`new X()`), or the
- * caller's own type (`$this->m()`, `self::m()`, `new self()`).
+ * caller's own type, either through `$this` (`this`: `$this->m()`) or through `self` (`self`:
+ * `self::m()`, `new self()`). Both own-type forms resolve alike; only `this` can fall back to `__call`
+ * (spec "Laravel heuristic calls").
  */
-export type CallForm = 'property' | 'static' | 'new' | 'own';
+export type CallForm = 'property' | 'static' | 'new' | 'this' | 'self';
 
 /** One call written in the body of a method of a named type, before any name resolution (design D1). */
 export interface CallFact {
@@ -18,7 +20,7 @@ export interface CallFact {
   form: CallForm;
   /**
    * Raw class name, as written: the scope of `X::m()`, the class of `new X()`, or the declared type of
-   * the property for `property`; `''` for `own`. Resolve with `resolveClassName` before use.
+   * the property for `property`; `''` for `this` and `self`. Resolve with `resolveClassName` before use.
    */
   rawClass: string;
   /** Short name of the target method (`__construct` for an instantiation). */
@@ -87,7 +89,7 @@ function targetOf(node: Node, properties: ReadonlyMap<string, string>): Pick<Cal
     const name = node.childForFieldName('name');
     if (name?.type !== 'name') return undefined;
     const object = node.childForFieldName('object');
-    if (isThis(object)) return { form: 'own', rawClass: '', method: name.text };
+    if (isThis(object)) return { form: 'this', rawClass: '', method: name.text };
     if (object?.type !== 'member_access_expression' || !isThis(object.childForFieldName('object'))) return undefined;
     const property = object.childForFieldName('name');
     const rawType = property?.type === 'name' ? properties.get(property.text) : undefined;
@@ -97,13 +99,13 @@ function targetOf(node: Node, properties: ReadonlyMap<string, string>): Pick<Cal
     const name = node.childForFieldName('name');
     const scope = node.childForFieldName('scope');
     if (name?.type !== 'name' || !scope) return undefined;
-    if (scope.type === 'relative_scope') return scope.text === 'self' ? { form: 'own', rawClass: '', method: name.text } : undefined;
+    if (scope.type === 'relative_scope') return scope.text === 'self' ? { form: 'self', rawClass: '', method: name.text } : undefined;
     return NAME_NODE_TYPES.has(scope.type) ? { form: 'static', rawClass: scope.text, method: name.text } : undefined;
   }
   if (node.type === 'object_creation_expression') {
     const className = node.namedChildren[0];
     if (!className || !NAME_NODE_TYPES.has(className.type)) return undefined;
-    if (className.text === 'self') return { form: 'own', rawClass: '', method: '__construct' };
+    if (className.text === 'self') return { form: 'self', rawClass: '', method: '__construct' };
     // `new static` / `new parent` fall through: `static` and `parent` resolve to no type of the input.
     return { form: 'new', rawClass: className.text, method: '__construct' };
   }

@@ -1,7 +1,8 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { coChangeEdges, NotAGitRepository, pseudonymiseAuthor } from '@codemind/core';
 import type { KnowledgeGraph } from '@codemind/core';
@@ -13,13 +14,19 @@ import { file } from '../../support/sample-graph';
 
 // Spec: openspec/specs/git-history/spec.md (archived changes: 2026-09-30-git-history-extraction and
 // 2026-10-01-co-change-edges). Each test is one scenario, named after
-// it. The `.git` of both fixtures is rebuilt once here (only this spec rebuilds fixtures); the other
-// repositories are temporary, under the OS temp dir, with synthetic identities only.
+// it. Both fixtures are copied under the OS temp dir and their history is built there, once: the
+// builder rewrites tracked files while it commits, so building in `fixtures/` would race with the
+// specs that read those files (PH-22). The other repositories are temporary too, with synthetic
+// identities only.
 
 const SALT = 'integration-test-salt';
-const ACME_SHOP = resolve('fixtures/acme-shop');
-const TASK_API = resolve('fixtures/task-api');
 const temporaryDirectories: string[] = [];
+/** The built copy of `fixtures/acme-shop`, set in `beforeAll`. */
+let ACME_SHOP = '';
+/** The built copy of `fixtures/task-api`, set in `beforeAll`. */
+let TASK_API = '';
+
+type BuildOne = (name: string, cfg: { dir: string; manifest: string }) => Promise<void>;
 
 /** A new empty directory under the OS temp dir, removed after the spec. */
 function temporaryDirectory(): string {
@@ -44,12 +51,22 @@ function emptyRepository(): string {
   return directory;
 }
 
-beforeAll(() => {
-  const rebuild = spawnSync(process.execPath, ['fixtures/build-history.mjs'], {
-    encoding: 'utf8',
-    timeout: 90_000,
-  });
-  if (rebuild.status !== 0) throw new Error(`fixture rebuild failed: ${rebuild.stderr}`);
+/**
+ * A copy of `fixtures/<name>` (without its `.git`) under the OS temp dir, with the history of
+ * `fixtures/history/<name>.commits.mjs` built in it by the fixture builder. The real fixture is only
+ * read.
+ */
+async function builtFixtureCopy(name: string, buildOne: BuildOne): Promise<string> {
+  const dir = join(temporaryDirectory(), name);
+  cpSync(resolve('fixtures', name), dir, { recursive: true, filter: (source) => basename(source) !== '.git' });
+  await buildOne(name, { dir, manifest: resolve('fixtures/history', `${name}.commits.mjs`) });
+  return dir;
+}
+
+beforeAll(async () => {
+  const { buildOne } = (await import(pathToFileURL(resolve('fixtures/build-history.mjs')).href)) as { buildOne: BuildOne };
+  ACME_SHOP = await builtFixtureCopy('acme-shop', buildOne);
+  TASK_API = await builtFixtureCopy('task-api', buildOne);
 }, 120_000);
 
 afterAll(() => {

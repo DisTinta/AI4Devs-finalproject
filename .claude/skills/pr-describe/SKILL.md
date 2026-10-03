@@ -16,6 +16,11 @@ allowed-tools: Read Grep Glob Bash(git *)
 
 Write the description following `.github/pull_request_template.md`.
 
+**Language.** Check `docs/base-standards.md` §2 for a pull-request language exception. On this
+project the title and the description are written in **Spanish** (headings included). Keep in their
+original form the Conventional Commits prefix of the title, identifiers, paths, code, commands and
+spec scenario names, since those must match the test names.
+
 ### What changes?
 One to three sentences, derived from the diff and the commits.
 

@@ -270,8 +270,17 @@ describe('php analyzer declared-type calls', () => {
       ],
     });
 
+    // `Magic::anything()` gets a heuristic edge to `Magic::__callStatic` (spec "Laravel heuristic calls").
+    const run = symbolOf(result, 'app/Odd.php', 'Odd::run');
     expect(callsFrom(result, 'app/Odd.php', 'Odd::run')).toEqual([
-      exactCall(symbolOf(result, 'app/Odd.php', 'Odd::run'), symbolOf(result, 'app/Support/Clock.php', 'Clock::__construct')),
+      exactCall(run, symbolOf(result, 'app/Support/Clock.php', 'Clock::__construct')),
+      {
+        source: { symbol: run },
+        target: { symbol: symbolOf(result, 'app/Support/Magic.php', 'Magic::__callStatic') },
+        kind: 'calls',
+        resolution: 'heuristic',
+        extractor: EXTRACTOR,
+      },
     ]);
   });
 
@@ -315,8 +324,9 @@ describe('php analyzer declared-type calls', () => {
     ];
     for (const edge of expected) expect(acmeShop.edges).toContainEqual(edge);
 
-    // Ceiling against new false positives: 45 method-body edges plus the 2 of routes/api.php.
-    const callsEdges = acmeShop.edges.filter((e) => e.kind === 'calls');
+    // Ceiling against new false positives: 45 method-body edges plus the 2 of routes/api.php, all
+    // `exact` (the `heuristic` ones belong to "Laravel heuristic calls").
+    const callsEdges = acmeShop.edges.filter((e) => e.kind === 'calls' && e.resolution === 'exact');
     expect(callsEdges).toHaveLength(47);
     expect(callsEdges.filter((e) => 'symbol' in e.source && e.source.symbol?.file === 'routes/api.php')).toHaveLength(2);
   });
@@ -324,16 +334,24 @@ describe('php analyzer declared-type calls', () => {
   it('The heuristic call sites of acme-shop have no exact edge', () => {
     const targetsOf = (path: string, name: string): string[] =>
       callsFrom(acmeShop, path, name).map((e) => ('symbol' in e.target && e.target.symbol ? e.target.symbol.file : ''));
+    const exactTargetsOf = (path: string, name: string): string[] =>
+      callsFrom(acmeShop, path, name)
+        .filter((e) => e.resolution === 'exact')
+        .map((e) => ('symbol' in e.target && e.target.symbol ? e.target.symbol.file : ''));
 
+    // Sites 7, 8 and 9: no `exact` edge (their `heuristic` ones belong to "Laravel heuristic calls").
     for (const [path, name] of [
       ['app/Http/Controllers/OrderController.php', 'OrderController::show'],
       ['app/Http/Controllers/CheckoutController.php', 'CheckoutController::store'],
     ]) {
-      expect(targetsOf(path, name)).not.toContain('app/Services/PriceCalculator.php');
-      expect(targetsOf(path, name)).not.toContain('app/Facades/Pricing.php');
+      expect(exactTargetsOf(path, name)).not.toContain('app/Services/PriceCalculator.php');
+      expect(exactTargetsOf(path, name)).not.toContain('app/Facades/Pricing.php');
     }
-    expect(targetsOf('app/Services/ShippingService.php', 'ShippingService::shippingFor')).not.toContain('app/Services/CarrierGateway.php');
-    expect(acmeShop.edges.some((e) => e.kind === 'calls' && 'symbol' in e.target && e.target.symbol?.name === 'CarrierGateway::__call')).toBe(false);
+    expect(exactTargetsOf('app/Services/ShippingService.php', 'ShippingService::shippingFor')).not.toContain('app/Services/CarrierGateway.php');
+    expect(
+      acmeShop.edges.some((e) => e.kind === 'calls' && e.resolution === 'exact' && 'symbol' in e.target && e.target.symbol?.name === 'CarrierGateway::__call'),
+    ).toBe(false);
+    // Sites 4, 6, 10 and 12, and the provider closures: still no `calls` edge at all.
     expect(callsFrom(acmeShop, 'app/Observers/OrderObserver.php', 'OrderObserver::created').map((e) => 'symbol' in e.target && e.target.symbol?.name)).not.toContain(
       'RecalculateTotals::handle',
     );
