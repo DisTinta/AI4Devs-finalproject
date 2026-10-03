@@ -269,7 +269,7 @@ originate no edge of any kind and SHALL contribute no symbol as a target.
 ### Requirement: Array-action routes
 
 A top-level statement of a parsed PHP file of the form `Route::<verb>('<uri>', [X::class, '<m>'])`,
-optionally followed by chained method calls (`->name(…)`, `->middleware(…)`), where `<verb>` is one of
+optionally followed by any chained method calls (e.g. `->name(…)`, `->middleware(…)`), where `<verb>` is one of
 `get`, `post`, `put`, `patch`, `delete` or `options`, `<uri>` and `<m>` are string literals without
 interpolation, and `Route` is either not imported or imported as `Illuminate\Support\Facades\Route`,
 SHALL produce one `route` symbol:
