@@ -65,10 +65,14 @@ Walk, mirroring `extractSymbols`' `Enclosing`:
   current type and builds its **typed property map** `propertyName → rawType` from direct
   `property_declaration` members and from `property_promotion_parameter`s of its `__construct`. A type
   is usable only when the `type` field is a single `named_type` (not `optional_type`, `union_type`,
-  `intersection_type`, `primitive_type`); otherwise the property is absent from the map.
-- Entering a `method_declaration` of a named type sets the current caller (`Type::m`, start line).
+  `intersection_type`, `primitive_type`); otherwise the property is absent from the map. A
+  `property_declaration` with a `static_modifier` is skipped (D7).
+- Entering a `method_declaration` of a named type sets the current caller (`Type::m`, start line)
+  and the caller type's kind (`class` / `interface` / `trait`, from the declaration node, D7).
 - Entering `anonymous_function`, `arrow_function` or `anonymous_class` **stops** the walk of that
   subtree (no facts from it; spec: no edge from closures, arrow functions or anonymous classes).
+  So does entering a named `class_declaration`, `interface_declaration`, `trait_declaration` or
+  `function_definition` inside a method body (D7).
 - Inside a caller:
   - `member_call_expression` whose `object` is `member_access_expression($this, name p)` and `name`
     is a `name` → `property` fact if `p` is in the typed property map (raw type kept), else nothing;
@@ -130,6 +134,26 @@ edges and the exact equality.
 
 Additive, analyzer-local, cheap to revert; the classification rule is in the spec. No ADR.
 
+### D7 — Fixes after `/verify-against-spec` (audit decision 2026-10-03, same PR #15)
+
+The verification found behaviour the spec did not allow; fixed before archiving, with RED tests first:
+
+- **Nested named declarations are opaque.** A named class/interface/trait or function declared in a
+  method body was walked as part of that method: its calls were attributed to the outer method, and
+  `$this->x()` inside `Inner::g` resolved against the **outer** type — a false `exact` edge
+  (`Outer::run` → `Outer::tick`). `walkBody` now stops at those nodes, like at closures; their own
+  methods are not collected either (the top-level `walk` never descends into method bodies).
+- **Traits are never targets.** A trait is encoded as a `class` symbol, so it was in the FQN table and
+  `T::m()`, `new T()`, `private T $p` produced `exact` edges to trait methods. `PhpTypeFact` gains
+  `trait: boolean`; `indexTypeKinds` maps every kept type symbol to `class` / `interface` / `trait`,
+  and `CallFact` carries `callerTypeKind` for own-type calls. `buildCallEdges` drops any trait target
+  (own-type calls inside a trait included: `$this` there is the using class, unknown statically).
+- **Instantiation targets a class only.** `new I()` on an interface declaring `__construct` gave an
+  edge; the `new` form now requires the target kind `class`. `new self` is an own-type call: its
+  target kind is the caller's (never an interface with a body; trait filtered as above).
+- **Static properties are not typed receivers.** `$this->p` never reads a static property, so
+  `typedPropertiesOf` skips `static` declarations (promoted parameters cannot be static).
+
 ## Risks / Trade-offs
 
 - **"Exact" assumes no override.** `$this->discounts->discountFor()` is dispatched at run time to a
@@ -138,7 +162,8 @@ Additive, analyzer-local, cheap to revert; the classification rule is in the spe
 - **False negatives by design**: inherited methods, typed parameters, locals and closures produce no
   edge. Impact analysis may miss callers; DIS-61/DIS-63 add heuristic coverage later.
 - **`own` calls into a trait** method used by the class are not resolved (the method is declared in
-  the trait, not in the class) — consistent with "declared in the type itself".
+  the trait, not in the class) — consistent with "declared in the type itself". Calls *from* a trait
+  method still reach explicit classes (`Clock::now()`), but never the trait itself (D7).
 - **Signed decision (audit, 2026-10-03)**: `new self(...)` produces a `calls` `exact` edge to
   `__construct` of the caller's own type when that type declares it in its own body (analogous to
   `self::m()`); `new static(...)` produces no edge (late binding, consistent with `static::m()` being

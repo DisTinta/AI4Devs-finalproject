@@ -81,3 +81,11 @@
 - [x] 8.4 Leave a Linear comment in Spanish on DIS-61 (facades/bindings/`__call`): declared-type `calls` are in; `__call`, facades and closures were deliberately left without an edge for it to cover as `heuristic`
 - [x] 8.5 Prepare the PR description (`/pr-describe`) against `feature/entrega-2-CRN`, keeping the author's Why. After verification, set DIS-52 to In Review in Linear with a comment in Spanish linking the PR and the change
   - PR #15 opened with the author's Why verbatim (`reports/pr-description.md`). DIS-52 → In Review with a comment linking the PR and the change.
+
+## 9. Fixes after `/verify-against-spec` (audit decision 2026-10-03, same PR #15, design D7)
+
+- [x] 9.1 RED: tests "Calls inside a type or function declared in a method body produce no edge", "Traits are never targets and only classes are instantiated" and "Static, intersection-typed, local, variable and magic receivers produce no edge" in `calls.spec.ts`; the interface scenario test tightened to all `calls` of the result. Run and see the three new tests fail
+  - RED seen: nested class gave 3 edges from `Outer::run` (incl. the false `Outer::run` → `Outer::tick`); traits/interface gave 5 edges from `Uses::run` (expected only `Made::build`); static property gave a second edge from `Odd::run`.
+- [x] 9.2 GREEN: `calls.ts` stops at named class/interface/trait/function declarations inside a method body, skips `static` properties, records `callerTypeKind`; `names.ts` `PhpTypeFact.trait`; `edges.ts` `indexTypeKinds`, no trait target in any form, `new` only to a class. `npx vitest run tests/unit/analyzers/php` 48/48; acme-shop still 47 `calls` (oracles of sites 1–3, 5, 11 and heuristic sites unchanged)
+- [x] 9.3 Spec (requirement text + 3 scenarios, interface scenario wording "exactly one in the result") and design D1/D7/Risks updated; `npx openspec validate php-declared-type-calls --strict` valid; 11 scenarios map 1:1 to tests
+- [x] 9.4 Re-run the show-spec-working driver (11/11 PASS, transcript regenerated), the full suite and gates; update the PR description (traceability rows, D7, note that the `edges.spec.ts` route test filters by `routes/api.php` source on purpose) and push to PR #15

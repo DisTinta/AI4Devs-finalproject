@@ -19,7 +19,10 @@
 | Instantiation, static and own-type calls | inline `Clock` + `Job` (with `new self()`, `new static()`) | `Job::run` → exactly `Clock::__construct`, `Clock::now`, `Job::__construct`, `Job::tick`, all `exact` (`new static()` adds none) | Yes | transcript § 5 |
 | A call through an interface-typed property targets the interface method | inline `Rates` + `Quote` | `Quote::total` → `Rates::rateFor`, `exact` | Yes | transcript § 6 |
 | Receivers without a usable declared type produce no edge (error / edge case) | inline `Clock`, `Plain`, `Bad` | `Bad::run` exists and has 0 `calls` | Yes | transcript § 7 |
-| A file with a syntax error originates no call edge (error case) | inline `Clock` + broken `app/Broken.php` | 0 edges from `Broken.php`, one diagnostic `syntax error` at line 1, `validateGraph` → `[]` | Yes | transcript § 8 |
+| Calls inside a type or function declared in a method body produce no edge (added after verify, D7) | inline `Clock` + `Outer` with nested `class Inner` and `function helper` | `Inner::g` symbol present; 0 `calls` in the result (no false `Outer::run` → `Outer::tick`) | Yes | transcript § 8 |
+| Traits are never targets and only classes are instantiated (added after verify, D7) | inline trait `Stamps`, interface `Made`, class `Uses`, trait `Ticks` | `Uses::run` → only `Made::build`; `Ticks::tick` → only `Clock::now`; all `exact` | Yes | transcript § 9 |
+| Static, intersection-typed, local, variable and magic receivers produce no edge (added after verify, D7) | inline `Clock`, `Magic` (`__callStatic`), `Odd` | `Odd::run` → only `Clock::__construct` (from `new Clock()`) | Yes | transcript § 10 |
+| A file with a syntax error originates no call edge (error case) | inline `Clock` + broken `app/Broken.php` | 0 edges from `Broken.php`, one diagnostic `syntax error` at line 1, `validateGraph` → `[]` | Yes | transcript § 11 |
 
 ## Evidence
 
@@ -54,7 +57,7 @@ Supporting runs, already recorded in the step 5 report:
 
 ## Not demonstrated
 
-None. All 8 scenarios of the delta spec were exercised against the real interface. Not applicable:
+None. All 11 scenarios (8 original + 3 added after `/verify-against-spec`, design D7) of the delta spec were exercised against the real interface. Not applicable:
 browser/E2E, because the change has no UI, and HTTP/CLI, because they do not exist yet for the
 analyzer (CM-HU-05a.3).
 

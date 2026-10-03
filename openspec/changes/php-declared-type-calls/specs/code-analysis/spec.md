@@ -53,14 +53,15 @@ Loading its own parser is the only file it MAY read.
 ### Requirement: Declared-type calls
 
 A call written in the body of a method of a named class, interface or trait of a parsed PHP file —
-and not inside a closure, an arrow function or an anonymous class nested in that body — SHALL produce
-one `calls` edge from that method symbol (`Type::method`) to a method symbol, with `resolution`
-`exact` and `extractor` `php-treesitter-laravel`, when it has one of these forms:
+and not inside a closure, an arrow function, an anonymous class, or a named class, interface, trait
+or function declared in that body — SHALL produce one `calls` edge from that method symbol
+(`Type::method`) to a method symbol, with `resolution` `exact` and `extractor`
+`php-treesitter-laravel`, when it has one of these forms:
 
-1. **Typed property**: `$this->p->m(...)`, where `p` is a property declared in the caller's own type,
-   either as a property declaration or as a promoted constructor parameter, with a single named type
-   (not nullable, not a union, not an intersection) that resolves (see "PHP name resolution") to a
-   class or interface `X` of the input; the target is `X::m`.
+1. **Typed property**: `$this->p->m(...)`, where `p` is a non-static property declared in the
+   caller's own type, either as a property declaration or as a promoted constructor parameter, with a
+   single named type (not nullable, not a union, not an intersection) that resolves (see "PHP name
+   resolution") to a class or interface `X` of the input; the target is `X::m`.
 2. **Explicit static call**: `X::m(...)` where `X` is a class name that resolves to a class or
    interface `X` of the input; the target is `X::m`.
 3. **Instantiation**: `new X(...)` where `X` is a class name that resolves to a class `X` of the
@@ -70,8 +71,11 @@ one `calls` edge from that method symbol (`Type::method`) to a method symbol, wi
 
 The target SHALL be emitted only when the method is declared in the body of that type itself; a
 method that type inherits, or that it handles through `__call` or `__callStatic`, SHALL NOT be a
-target. Any other call — on a parameter, a local variable, an untyped, nullable, union or
-intersection-typed property, a property not declared in the caller's type, `parent::`, `static::`,
+target. A trait SHALL never be the target type, in any form (its methods run as part of the class
+that uses it); an instantiation (`new X(...)`, `new self(...)`) SHALL target a class only, never an
+interface or a trait. Any other call — on a parameter, a local variable, an untyped, nullable, union
+or intersection-typed property, a static property, a property not declared in the caller's type,
+`parent::`, `static::`,
 `?->`, `new static`, a variable class or method name, or a function — SHALL produce no
 edge. A call that would be a target of more than one form, or that appears more than once in the same
 method, SHALL yield a single edge. A file that could not be parsed, or that declares more than one
@@ -122,7 +126,7 @@ method, SHALL yield a single edge. A file that could not be parsed, or that decl
   `app/Quote.php` with content
   `<?php namespace App; use App\Contracts\Rates; class Quote { public function __construct(private readonly Rates $rates) {} public function total(): int { return $this->rates->rateFor('ES'); } }`
   are analysed together
-- **THEN** there is one `calls` edge, `exact`, from `Quote::total` to `Rates::rateFor`
+- **THEN** the result has exactly one `calls` edge, `exact`, from `Quote::total` to `Rates::rateFor`
 
 #### Scenario: Receivers without a usable declared type produce no edge
 
@@ -131,6 +135,38 @@ method, SHALL yield a single edge. A file that could not be parsed, or that decl
   `<?php namespace App; use App\Support\{Clock, Plain}; class Bad { private ?Clock $a; private Clock|int $b; private $c; public function run(Clock $p): void { $this->a->now(); $this->b->now(); $this->c->now(); $this->clock->now(); $p->now(); $this->missing(); Log::info('x'); Clock::missing(); new Plain(); $f = fn () => new Clock(); } }`
   are analysed together
 - **THEN** `Bad::run` is the source of no `calls` edge
+
+#### Scenario: Calls inside a type or function declared in a method body produce no edge
+
+- **WHEN** `app/Support/Clock.php` (as above) and `app/Outer.php` with content
+  `<?php namespace App; use App\Support\Clock; class Outer { public function run(): void { class Inner { public function g(): void { $this->tick(); Clock::now(); new Clock(); } } function helper(): int { return Clock::now(); } } public function tick(): void {} }`
+  are analysed together
+- **THEN** the result has a method symbol `Inner::g`, and no `calls` edge at all: neither
+  `Outer::run` nor `Inner::g` is the source of one, in particular no edge from `Outer::run` to
+  `Outer::tick`
+
+#### Scenario: Traits are never targets and only classes are instantiated
+
+- **WHEN** `app/Support/Clock.php` (as above), `app/Concerns/Stamps.php` with content
+  `<?php namespace App\Concerns; trait Stamps { public function __construct() {} public static function make(): void {} public function stamp(): void {} }`,
+  `app/Contracts/Made.php` with content
+  `<?php namespace App\Contracts; interface Made { public function __construct(); public static function build(): void; }`,
+  `app/Uses.php` with content
+  `<?php namespace App; use App\Concerns\Stamps; use App\Contracts\Made; class Uses { private Stamps $s; public function run(): void { Stamps::make(); new Stamps(); $this->s->stamp(); new Made(); Made::build(); } }`
+  and `app/Concerns/Ticks.php` with content
+  `<?php namespace App\Concerns; use App\Support\Clock; trait Ticks { public function tick(): void { Clock::now(); $this->tock(); self::tock(); new self(); } public function tock(): void {} }`
+  are analysed together
+- **THEN** `Uses::run` is the source of exactly one `calls` edge, `exact`, to `Made::build`
+- **AND** `Ticks::tick` is the source of exactly one `calls` edge, `exact`, to `Clock::now`
+
+#### Scenario: Static, intersection-typed, local, variable and magic receivers produce no edge
+
+- **WHEN** `app/Support/Clock.php` (as above), `app/Support/Magic.php` with content
+  `<?php namespace App\Support; class Magic { public static function __callStatic(string $n, array $a): mixed { return null; } }`
+  and `app/Odd.php` with content
+  `<?php namespace App; use App\Support\{Clock, Magic}; function helper(): void {} class Odd { private static Clock $s; private Clock&\Countable $i; public function run(string $cls, string $m): void { $this->s->now(); $this->i->now(); Magic::anything(); $cls::now(); new $cls(); $this->$m(); helper(); $local = new Clock(); $local->now(); } }`
+  are analysed together
+- **THEN** `Odd::run` is the source of exactly one `calls` edge, `exact`, to `Clock::__construct`
 
 #### Scenario: A file with a syntax error originates no call edge
 

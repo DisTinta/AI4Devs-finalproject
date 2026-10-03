@@ -171,6 +171,67 @@ const acmeAgain = await analyzer.analyze({ files });
     files: [
       CLOCK,
       {
+        path: 'app/Outer.php',
+        content:
+          '<?php namespace App; use App\\Support\\Clock; class Outer { public function run(): void { class Inner { public function g(): void { $this->tick(); Clock::now(); new Clock(); } } function helper(): int { return Clock::now(); } } public function tick(): void {} }',
+      },
+    ],
+  });
+  const observed = { innerGSymbolPresent: r.symbols.some((s) => s.name === 'Inner::g'), callsEdges: calls(r).map((e) => `${label(e.source)} -> ${label(e.target)}`) };
+  check('Calls inside a type or function declared in a method body produce no edge', observed, observed.innerGSymbolPresent && observed.callsEdges.length === 0);
+}
+{
+  const r = await analyzer.analyze({
+    files: [
+      CLOCK,
+      {
+        path: 'app/Concerns/Stamps.php',
+        content: '<?php namespace App\\Concerns; trait Stamps { public function __construct() {} public static function make(): void {} public function stamp(): void {} }',
+      },
+      { path: 'app/Contracts/Made.php', content: '<?php namespace App\\Contracts; interface Made { public function __construct(); public static function build(): void; }' },
+      {
+        path: 'app/Uses.php',
+        content:
+          '<?php namespace App; use App\\Concerns\\Stamps; use App\\Contracts\\Made; class Uses { private Stamps $s; public function run(): void { Stamps::make(); new Stamps(); $this->s->stamp(); new Made(); Made::build(); } }',
+      },
+      {
+        path: 'app/Concerns/Ticks.php',
+        content:
+          '<?php namespace App\\Concerns; use App\\Support\\Clock; trait Ticks { public function tick(): void { Clock::now(); $this->tock(); self::tock(); new self(); } public function tock(): void {} }',
+      },
+    ],
+  });
+  const observed = { 'Uses::run': targetsFrom(r, 'Uses::run'), 'Ticks::tick': targetsFrom(r, 'Ticks::tick'), allExact: allExact(calls(r)) };
+  check(
+    'Traits are never targets and only classes are instantiated',
+    observed,
+    isDeepStrictEqual(observed, { 'Uses::run': ['Made::build'], 'Ticks::tick': ['Clock::now'], allExact: true }),
+  );
+}
+{
+  const r = await analyzer.analyze({
+    files: [
+      CLOCK,
+      { path: 'app/Support/Magic.php', content: '<?php namespace App\\Support; class Magic { public static function __callStatic(string $n, array $a): mixed { return null; } }' },
+      {
+        path: 'app/Odd.php',
+        content:
+          "<?php namespace App; use App\\Support\\{Clock, Magic}; function helper(): void {} class Odd { private static Clock $s; private Clock&\\Countable $i; public function run(string $cls, string $m): void { $this->s->now(); $this->i->now(); Magic::anything(); $cls::now(); new $cls(); $this->$m(); helper(); $local = new Clock(); $local->now(); } }",
+      },
+    ],
+  });
+  const observed = { 'Odd::run': targetsFrom(r, 'Odd::run'), allExact: allExact(callsFrom(r, 'Odd::run')) };
+  check(
+    'Static, intersection-typed, local, variable and magic receivers produce no edge',
+    observed,
+    isDeepStrictEqual(observed, { 'Odd::run': ['Clock::__construct'], allExact: true }),
+  );
+}
+{
+  const r = await analyzer.analyze({
+    files: [
+      CLOCK,
+      {
         path: 'app/Broken.php',
         content: '<?php namespace App; use App\\Support\\Clock; class Broken { public function run(): void { new Clock(); } public function x( }',
       },

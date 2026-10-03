@@ -110,6 +110,34 @@ acme-shop input: 53 files
 }
 => PASS
 
+### Calls inside a type or function declared in a method body produce no edge
+{
+  "innerGSymbolPresent": true,
+  "callsEdges": []
+}
+=> PASS
+
+### Traits are never targets and only classes are instantiated
+{
+  "Uses::run": [
+    "Made::build"
+  ],
+  "Ticks::tick": [
+    "Clock::now"
+  ],
+  "allExact": true
+}
+=> PASS
+
+### Static, intersection-typed, local, variable and magic receivers produce no edge
+{
+  "Odd::run": [
+    "Clock::__construct"
+  ],
+  "allExact": true
+}
+=> PASS
+
 ### A file with a syntax error originates no call edge
 {
   "edgesFromBroken": 0,

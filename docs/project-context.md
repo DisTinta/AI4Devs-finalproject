@@ -405,6 +405,7 @@ services that must be started first, quirks of the local environment.
   / `new self()` on the own type. The target must be **declared in that type itself**: no inherited
   methods, no `__call`/`__callStatic` fallback (so the Laravel traps — `Pricing` facade,
   `CarrierGateway::flatRateFor`, `RecalculateTotals::dispatch` — stay without an edge until
-  CM-HU-04b/DIS-61 adds them as `heuristic`). Calls inside closures/arrow functions/anonymous classes
-  (e.g. the bindings in `AppServiceProvider::register`), typed parameters, locals, `parent::`,
-  `static::`, `new static`, `?->` give no edge. acme-shop yields 47 `calls`, 2 of them routes.
+  CM-HU-04b/DIS-61 adds them as `heuristic`). A trait is never a target, and `new` targets a class
+  only. Calls inside closures/arrow functions/anonymous classes (e.g. the bindings in
+  `AppServiceProvider::register`) or inside a named class/function declared in a method body, static
+  properties, typed parameters, locals, `parent::`, `static::`, `new static`, `?->` give no edge. acme-shop yields 47 `calls`, 2 of them routes.
