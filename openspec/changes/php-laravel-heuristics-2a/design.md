@@ -165,6 +165,37 @@ on the result.
 
 Local to `packages/analyzers/php`, cheap to revert, recorded in the spec and here.
 
+### D9 — How the spec evolved after `/verify-against-spec` (author decision 2026-10-03, tasks §12)
+
+The review found one ambiguity and three behaviours the spec did not state. The author accepted the
+four recommendations as given:
+
+1. **(A) `$listen` is read per entry.** The spec said that elements of another form "add nothing",
+   without saying whether an invalid entry discards its whole element. The code already kept the valid
+   `L::class` entries; the spec now says so, because Laravel accepts mixed lists and `L1` in
+   `[L1::class, 'App\L2']` is a real listener, so keeping it invents no edge. All-or-nothing was
+   rejected: it only adds false negatives. Spec only. A new unit case pins it, and forced failure (h)
+   (all-or-nothing) proves that case can fail.
+2. **(B) Routes in a multi-namespace file.** The route symbol is kept and no route `calls` edge is
+   emitted, of either form. A string action is never resolved through the file's names, so "PHP name
+   resolution" did not cover it; "Array-action routes" now states it, consistently with every other
+   edge of such a file. Spec only. The existing string-routes extra case already asserts it.
+3. **(C) Classes in a top-level function body.** The Laravel collectors did not stop at
+   `function_definition`, so a provider, facade or event provider declared inside a function was read
+   and produced invented edges. This came from DIS-61's walk. Such a class only exists once the function
+   runs, so it is no static registration. Code fixed: `function_definition` added to
+   `LARAVEL_WALK_STOP` (see D10), with three cases shown RED first. Spec text extended.
+4. **(D) Trait use and rule 4.** The base "PHP name resolution" said that trait use "SHALL NOT take part
+   in resolution", which rule 4 contradicts. It is now MODIFIED in the delta with the single exception
+   of rule 4. Its two scenarios are unchanged. Spec only.
+
+### D10 — Function bodies stop the Laravel walk
+
+`LARAVEL_WALK_STOP` now holds `function_definition` as well. The three collectors (`collectBindings`,
+`collectFacadeAccessors`, `collectListeners`) share it, so they agree. `collectCalls` is unchanged:
+"Declared-type calls" only excludes types and functions declared *in a method body*. A class declared
+in a top-level function still gets symbols, and its own method calls can still be `exact`, as before.
+
 ## Risks / Trade-offs
 
 - [String `<C>` is never resolved through `use`] → a short string action (`'CheckoutController@store'`

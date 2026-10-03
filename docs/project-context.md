@@ -438,7 +438,11 @@ services that must be started first, quirks of the local environment.
   → `X::handle` when `X` uses `Illuminate\Foundation\Bus\Dispatchable` **in its own body** (a parent's
   trait does not count) and declares `handle`; it wins over `__callStatic`. `event(new E(...))` /
   `\event(...)` → `L::handle` for each listener in the non-static `$listen` array of a class *directly*
-  extending `Illuminate\Foundation\Support\Providers\EventServiceProvider` (`E::class => [L::class]`
-  only; string keys, method pairs, `boot()` listeners and auto-discovery give nothing). acme-shop yields
+  extending `Illuminate\Foundation\Support\Providers\EventServiceProvider`, read **per entry**: each
+  `L::class` of an `E::class => [...]` value counts, while strings, method pairs and spreads are skipped
+  without discarding the rest; `boot()` listeners and auto-discovery give nothing. The Laravel
+  collectors (bindings, facade accessors, `$listen`) never read a class declared in a method **or
+  top-level function** body (`LARAVEL_WALK_STOP`), and a multi-namespace routes file keeps its route
+  symbols but no route edge. acme-shop yields
   47 `exact` `calls` (2 of them routes) + 11 `heuristic` (sites 6–10 and 12, plus five other callers).
   Eloquent attributes (site 4) and the unresolved-sites report are DIS-98.

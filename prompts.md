@@ -2797,7 +2797,15 @@ quedó escrito en la tarea 3.1a y se vio pasar de «símbolo no encontrado» a 7
 entraban las rutas, los jobs y los eventos. Las dudas de gramática (`'App\Http\…'` con una sola barra
 sale como un único `string_content`) se resolvieron con el parser del proyecto antes de escribir código.
 
-**Ajuste humano.** Ninguno durante la sesión. Tropiezos del propio modelo, registrados en `tasks.md`:
+**Ajuste humano.** Ninguno durante la implementación. Después, `/verify-against-spec` encontró
+una ambigüedad y tres comportamientos no especificados. La autora aprobó tal cual las cuatro
+recomendaciones del modelo (tareas §12):
+- leer `$listen` entrada a entrada, y que la spec lo diga;
+- declarar que un fichero de rutas con varios namespace conserva sus símbolos pero no tiene aristas;
+- hacer que los colectores de Laravel no lean clases declaradas dentro de una función top-level;
+- añadir a la spec la excepción de la regla 4 en «PHP name resolution».
+
+Tropiezos del propio modelo, registrados en `tasks.md`:
 1. El fallo forzado (f), que deja pasar las arrow functions, no rompió el escenario de eventos, porque
    su `event()` apuntaba a un evento sin listeners válidos. Se añadió un caso extra con listener real,
    que sí falla.

@@ -69,7 +69,9 @@ content it receives.
   `heuristic`); "Laravel heuristic calls" (rules 4 and 5 for jobs and events, the `event` function
   exception, acme-shop total 6 → 11); "Declared-type calls" (scenario "The heuristic call sites of
   acme-shop have no exact edge": sites 6, 10 and 12 now have a `heuristic` edge, so it asserts the
-  absence of `exact` ones there). "Analysis contract" is unchanged: it already lists "Array-action
+  absence of `exact` ones there); "PHP name resolution" (after `/verify-against-spec`: trait use still
+takes no part in resolution, except for rule 4, which resolves trait names to recognise
+`Dispatchable`; scenarios unchanged). "Analysis contract" is unchanged: it already lists "Array-action
   routes" and "Laravel heuristic calls" among the requirements that produce `edges`.
 
 ## Impact

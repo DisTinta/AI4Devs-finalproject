@@ -70,6 +70,21 @@
 Not applicable: the change adds no route, CLI command or web screen; the only interface is
 `createPhpAnalyzer()`, exercised in the step 9 report. CI evidence (10.2): PR #18, run [37140456041](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37140456041) on `4b6f230` — `quality` pass (28 files, 414/414 tests, database blocks included), `frontend` pass; `laravel/jobs-events.spec.ts` (20 tests) and `laravel/string-routes.spec.ts` (8 tests) ran, none skipped.
 
+## Re-verification after `/verify-against-spec` fixes (tasks §12)
+
+- Changes: (A) per-entry `$listen` stated in the spec, plus a unit case; (B) multi-namespace routes
+  stated in the spec; (C) `function_definition` added to `LARAVEL_WALK_STOP`, three cases RED then
+  GREEN; (D) MODIFIED "PHP name resolution" with the rule 4 exception. The delta now has 36 scenarios.
+- Forced failure (h): reading `$listen` all-or-nothing per element → the per-entry unit case failed
+  (1/120); restored, `Get-FileHash` equal.
+- `npx vitest run tests/unit/analyzers/php`: 7 files, 120 passed.
+- `npx vitest run`: 21 files passed, 7 skipped; 267 passed, 99 skipped (418).
+- `npm run lint` 0 errors (same pre-existing warning), `npm run typecheck`, `npm run lint:architecture`
+  (0 errors, same 4 warnings), `npm run docs:coverage`: clean. `openspec validate --strict`: valid.
+- `packages/core` diff still empty, so Stryker was not re-run (it mutates core only; 93.89 % above).
+- Fixture: porcelain empty, checksum `167c762e26cdc3ad7b71484c19aa6135dc6c2a8d`, unchanged.
+- Demo driver: `ALL 36 SCENARIOS PASS` (`./2026-10-03-demo-output.txt`).
+
 ## UI evidence (if applicable)
 
 - (none: the change has no browser UI)

@@ -144,6 +144,49 @@ apart.
 - **AND** wrapping the result in a graph with `commits: []` and `fileCommits: []` makes the graph
   validation return no error
 
+### Requirement: PHP name resolution
+
+Every class, interface and trait symbol of a parsed PHP file SHALL have a fully-qualified name: the
+file's `namespace` (none for the global namespace) joined with `\` to its short name. A class name
+written in a parsed PHP file SHALL be resolved to a fully-qualified name as PHP resolves class names:
+
+- a fully-qualified name (`\A\B`) is itself without the leading `\`;
+- an unqualified or qualified name whose first segment matches the alias of a top-level `use` import
+  of that file (the last segment of the imported name, or the name after `as`; including group
+  imports `use A\{B, C as D}`) is the imported name followed by the remaining segments;
+- any other name is the file's namespace joined with the name.
+
+`use function` and `use const` imports, and `use` inside a class body (trait use), SHALL NOT take
+part in resolution. The only exception is rule 4 of "Laravel heuristic calls", which resolves the trait names a class uses in its
+own body, with the rules above, to recognise `Illuminate\Foundation\Bus\Dispatchable`. A resolved
+name SHALL be a target only when exactly one class, interface or trait symbol of the same result has
+that fully-qualified name; otherwise no edge SHALL be emitted for it. Names SHALL be compared
+case-sensitively. A file that declares more than one `namespace` SHALL originate no edge that depends
+on name resolution.
+
+#### Scenario: Names resolve by fully-qualified name, never by short name
+
+- **GIVEN** the content of the 53 tracked files of `fixtures/acme-shop`
+- **WHEN** they are analysed
+- **THEN** `PriceCalculatorTest` in `tests/Unit/PriceCalculatorTest.php` (which imports
+  `PHPUnit\Framework\TestCase`) is the source of no `extends` edge, in particular none to the
+  `TestCase` of `tests/TestCase.php`
+- **AND** no edge targets a class outside the input: the imports of `Illuminate\…`, `Mockery` and
+  `PHPUnit\…`, and `Controller extends BaseController` (an alias of a vendor class), produce no edge
+- **AND** `use HasFactory;` in `app/Models/Order.php` and `use CreatesApplication;` in
+  `tests/TestCase.php` (trait use inside a class body) produce no `imports` edge
+
+#### Scenario: Aliases, group imports and ambiguous names
+
+- **WHEN** `app/Contracts/Prices.php` with content
+  `<?php namespace App\Contracts; interface Prices {} interface Taxes {}`, `app/A.php` with content
+  `<?php namespace App; use App\Contracts\{Prices as P, Taxes}; class A implements P, Taxes {}`,
+  `app/One/Dup.php` with content `<?php namespace App\One; class Dup {}`, `app/Two/Dup.php` with
+  content `<?php namespace App\One; class Dup {}` and `app/B.php` with content
+  `<?php namespace App; class B extends \App\One\Dup {}` are analysed
+- **THEN** there are `implements` edges from `A` to `Prices` and from `A` to `Taxes`
+- **AND** there is no `extends` edge from `B`, because `App\One\Dup` names two symbols
+
 ### Requirement: Array-action routes
 
 Despite its name, this requirement covers both route action forms: array actions and string actions
@@ -179,7 +222,9 @@ SHALL emit one `calls` edge from the route symbol to the method symbol `<C>::<m>
 `heuristic` and `extractor` `php-treesitter-laravel`: the class is named by a string, following
 Laravel's `Controller@method` convention, not by a class reference.
 
-Otherwise the route symbol SHALL be emitted with no edge. A string action with an escape sequence,
+Otherwise the route symbol SHALL be emitted with no edge. A file that declares more than one
+`namespace` SHALL still produce its `route` symbols, but no route `calls` edge of either form, as for
+every other edge of such a file (see "PHP name resolution"). A string action with an escape sequence,
 with interpolation, without `@`, with more than one `@`, with an empty part or with a leading `\`,
 closures, other verbs or `Route` methods, and route statements nested in a closure or a group SHALL
 produce no `route` symbol.
@@ -421,12 +466,14 @@ inside a binding's closure or arrow function SHALL originate no edge.
 The **listener map** maps an event class to listener classes. It is built from the non-static
 property `$listen` declared in the body of a class of the input that directly extends a name resolving
 to `Illuminate\Foundation\Support\Providers\EventServiceProvider`, when its default value is an array
-literal. Each element of that array of the form `E::class => [L1::class, L2::class, …]` (a key
-`X::class` and a value that is an array literal) maps `E` to each `Li`, with `E` and every `Li`
-resolved in the provider's file; `E` and `Li` SHALL be classes of the input. Any other element —
-a string key or value, a `[L::class, 'method']` pair, `L::class . '@method'`, a spread — and any
-element of another form add nothing. The same event mapped to the same listener by more than one
-element or provider yields a single listener. The listener map SHALL only be used by rule 5: it
+literal. The array is read element by element, and each element entry by entry. An element whose key
+is `E::class` and whose value is an array literal maps `E` to each entry of that value written
+`L::class`, with `E` and every `L` resolved in the provider's file; `E` and `L` SHALL be classes of
+the input. Any other entry of the value — a string, a `[L::class, 'method']` pair,
+`L::class . '@method'`, a spread — adds nothing, and does not discard the valid entries of the same
+element. An element whose key is not `X::class` (a string key, a spread) or whose value is not an
+array literal adds nothing. The same event mapped to the same listener by more than one entry, element
+or provider yields a single listener. The listener map SHALL only be used by rule 5: it
 originates no edge of its own.
 
 A method that `F`, `T` or `X` only inherits — `__call`, `__callStatic`, `getFacadeAccessor`,
@@ -439,8 +486,8 @@ excluded by "Declared-type calls" (local variables, parameters, nullable, union 
 under this requirement; so SHALL `event(...)` whose first argument is not `new E(...)` with a class
 name (a variable, a string, `new $cls`, `new self`, `new static`) or is a named argument. The
 `getFacadeAccessor`, the `register` bindings and the `$listen` property of a class declared inside a
-method body (of a class, interface, trait or enum), a closure, an arrow function or an anonymous class
-SHALL NOT be read, as for the calls of "Declared-type calls"; nor those of a class dropped as a
+method body (of a class, interface, trait or enum), a top-level function body, a closure, an arrow
+function or an anonymous class SHALL NOT be read, as for the calls of "Declared-type calls"; nor those of a class dropped as a
 duplicate symbol (see Symbol extraction). A `getFacadeAccessor` or a closure body that holds anything
 besides its single `return` — a comment included — and a string key with a leading `\` add nothing:
 accepted false negatives, never a guessed edge. Keys, class and method names SHALL be compared

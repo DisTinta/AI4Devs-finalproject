@@ -1,7 +1,7 @@
 // show-spec-working driver for openspec change php-laravel-heuristics-2a (DIS-97). It exercises the
 // real interface — `createPhpAnalyzer().analyze({ files })`, plus the core file rules for "File
 // classification" — independently of the repo's specs: one block per scenario of
-// specs/code-analysis/spec.md (34, in the delta's order), each printing the observed value and
+// specs/code-analysis/spec.md (36, in the delta's order), each printing the observed value and
 // PASS/FAIL against the scenario's THEN. Fixtures are read, never written.
 // Run from the repository root:
 //   npx tsx openspec/changes/php-laravel-heuristics-2a/reports/2026-10-03-demo.mts
@@ -205,6 +205,46 @@ const acme = await analyzer.analyze({ files });
       validateGraphErrors: [],
     }),
   );
+}
+
+// === MODIFIED: PHP name resolution (trait use: only rule 4 resolves it; added after review) ===
+{
+  const fromSymbol = (kind: string, file: string, name: string): string[] =>
+    acme.edges.filter((e) => e.kind === kind && 'symbol' in e.source && e.source.symbol?.file === file && e.source.symbol.name === name).map((e) => `${label(e.target)} in ${fileOf(e.target)}`);
+  const importsFrom = (file: string): string[] => acme.edges.filter((e) => e.kind === 'imports' && fileOf(e.source) === file && !('symbol' in e.source)).map((e) => label(e.target));
+  const targetFiles = new Set(acme.files.map((x) => x.path));
+  const observed = {
+    'PriceCalculatorTest extends': fromSymbol('extends', 'tests/Unit/PriceCalculatorTest.php', 'PriceCalculatorTest'),
+    'Controller extends': fromSymbol('extends', 'app/Http/Controllers/Controller.php', 'Controller'),
+    'edges targeting outside the input': acme.edges.filter((e) => !targetFiles.has(fileOf(e.target))).length,
+    'app/Models/Order.php imports': importsFrom('app/Models/Order.php'),
+    'tests/TestCase.php imports': importsFrom('tests/TestCase.php'),
+  };
+  check(
+    'Names resolve by fully-qualified name, never by short name',
+    observed,
+    observed['PriceCalculatorTest extends'].length === 0 &&
+      observed['Controller extends'].length === 0 &&
+      observed['edges targeting outside the input'] === 0 &&
+      !observed['app/Models/Order.php imports'].includes('HasFactory') &&
+      !observed['tests/TestCase.php imports'].includes('CreatesApplication'),
+  );
+}
+{
+  const r = await analyzer.analyze({
+    files: [
+      f('app/Contracts/Prices.php', '<?php namespace App\\Contracts; interface Prices {} interface Taxes {}'),
+      f('app/A.php', '<?php namespace App; use App\\Contracts\\{Prices as P, Taxes}; class A implements P, Taxes {}'),
+      f('app/One/Dup.php', '<?php namespace App\\One; class Dup {}'),
+      f('app/Two/Dup.php', '<?php namespace App\\One; class Dup {}'),
+      f('app/B.php', '<?php namespace App; class B extends \\App\\One\\Dup {}'),
+    ],
+  });
+  const observed = {
+    implements: r.edges.filter((e) => e.kind === 'implements').map((e) => `${label(e.source)} -> ${label(e.target)}`),
+    'B extends': r.edges.filter((e) => e.kind === 'extends' && label(e.source) === 'B').length,
+  };
+  check('Aliases, group imports and ambiguous names', observed, isDeepStrictEqual(observed, { implements: ['A -> Prices', 'A -> Taxes'], 'B extends': 0 }));
 }
 
 // === MODIFIED: Array-action routes (array and string actions) ================================

@@ -131,7 +131,29 @@ acme-shop input: 53 files
 }
 => PASS
 
-### 12. The API routes of acme-shop point at their controller actions
+### 12. Names resolve by fully-qualified name, never by short name
+{
+  "PriceCalculatorTest extends": [],
+  "Controller extends": [],
+  "edges targeting outside the input": 0,
+  "app/Models/Order.php imports": [
+    "Money"
+  ],
+  "tests/TestCase.php imports": []
+}
+=> PASS
+
+### 13. Aliases, group imports and ambiguous names
+{
+  "implements": [
+    "A -> Prices",
+    "A -> Taxes"
+  ],
+  "B extends": 0
+}
+=> PASS
+
+### 14. The API routes of acme-shop point at their controller actions
 {
   "symbols": [
     "route GET /orders 12-12",
@@ -144,7 +166,7 @@ acme-shop input: 53 files
 }
 => PASS
 
-### 13. The string route of acme-shop is a heuristic call
+### 15. The string route of acme-shop is a heuristic call
 {
   "symbols": [
     "route POST /checkout 13-15"
@@ -156,7 +178,7 @@ acme-shop input: 53 files
 }
 => PASS
 
-### 14. A route to an action outside the input has no edge
+### 16. A route to an action outside the input has no edge
 {
   "symbols": [
     "route POST /ghost | Route::post('/ghost', [Ghost::class, 'run'])->name('ghost')"
@@ -165,13 +187,13 @@ acme-shop input: 53 files
 }
 => PASS
 
-### 15. A multi-line array-action route spans its whole statement
+### 17. A multi-line array-action route spans its whole statement
 [
   "route POST /ghost 3-4"
 ]
 => PASS
 
-### 16. Malformed string actions produce no route
+### 18. Malformed string actions produce no route
 {
   "source": [
     "Route::get('/a', 'App\\Ghost@run');",
@@ -191,7 +213,7 @@ acme-shop input: 53 files
 }
 => PASS
 
-### 17. The constructor-injected services of acme-shop are exact calls
+### 19. The constructor-injected services of acme-shop are exact calls
 {
   "missing": [],
   "exactCalls": 47,
@@ -200,7 +222,7 @@ acme-shop input: 53 files
 }
 => PASS
 
-### 18. The heuristic call sites of acme-shop have no exact edge
+### 20. The heuristic call sites of acme-shop have no exact edge
 {
   "OrderController::show exact": [],
   "CheckoutController::store exact": [],
@@ -220,7 +242,7 @@ acme-shop input: 53 files
 }
 => PASS
 
-### 19. Instantiation, static and own-type calls
+### 21. Instantiation, static and own-type calls
 {
   "Job::run": [
     "Clock::__construct (exact)",
@@ -231,7 +253,7 @@ acme-shop input: 53 files
 }
 => PASS
 
-### 20. A call through an interface-typed property targets the interface method
+### 22. A call through an interface-typed property targets the interface method
 {
   "calls": [
     "Quote::total -> Rates::rateFor (exact)"
@@ -239,21 +261,21 @@ acme-shop input: 53 files
 }
 => PASS
 
-### 21. Receivers without a usable declared type produce no edge
+### 23. Receivers without a usable declared type produce no edge
 {
   "Bad::run symbol": true,
   "Bad::run": []
 }
 => PASS
 
-### 22. Calls inside a type or function declared in a method body produce no edge
+### 24. Calls inside a type or function declared in a method body produce no edge
 {
   "Inner::g symbol": true,
   "calls": 0
 }
 => PASS
 
-### 23. Traits are never targets and only classes are instantiated
+### 25. Traits are never targets and only classes are instantiated
 {
   "Uses::run": [
     "Made::build (exact)"
@@ -264,7 +286,7 @@ acme-shop input: 53 files
 }
 => PASS
 
-### 24. Static, intersection-typed, local, variable and magic receivers produce no edge
+### 26. Static, intersection-typed, local, variable and magic receivers produce no edge
 {
   "Odd::run": [
     "Clock::__construct (exact)",
@@ -273,7 +295,7 @@ acme-shop input: 53 files
 }
 => PASS
 
-### 25. A file with a syntax error originates no call edge
+### 27. A file with a syntax error originates no call edge
 {
   "edgesFromBroken": 0,
   "diagnostics": [
@@ -287,7 +309,7 @@ acme-shop input: 53 files
 }
 => PASS
 
-### 26. The Laravel call sites of acme-shop are heuristic calls
+### 28. The Laravel call sites of acme-shop are heuristic calls
 {
   "heuristicCalls": [
     "CheckoutController::store -> PriceCalculator::compute",
@@ -313,7 +335,7 @@ acme-shop input: 53 files
 }
 => PASS
 
-### 27. Jobs and events reach their handlers
+### 29. Jobs and events reach their handlers
 {
   "Emitter::run symbol": true,
   "Emitter::run": [
@@ -323,14 +345,14 @@ acme-shop input: 53 files
 }
 => PASS
 
-### 28. Only Dispatchable jobs and EventServiceProvider listeners are followed
+### 30. Only Dispatchable jobs and EventServiceProvider listeners are followed
 {
   "Caller::run symbol": true,
   "Caller::run": []
 }
 => PASS
 
-### 29. A facade without a binding or outside the input has no edge
+### 31. A facade without a binding or outside the input has no edge
 {
   "Client::run": [
     "Rates::quote (heuristic)"
@@ -338,7 +360,7 @@ acme-shop input: 53 files
 }
 => PASS
 
-### 30. A closure binding resolves a facade and originates no edge
+### 32. A closure binding resolves a facade and originates no edge
 {
   "Client::run": [
     "Rates::quote (heuristic)"
@@ -347,13 +369,13 @@ acme-shop input: 53 files
 }
 => PASS
 
-### 31. An ambiguous binding key resolves no facade
+### 33. An ambiguous binding key resolves no facade
 {
   "Client::run": []
 }
 => PASS
 
-### 32. __call and __callStatic of the receiving class
+### 34. __call and __callStatic of the receiving class
 {
   "User::run": [
     "Magic::__call (heuristic)",
@@ -366,7 +388,7 @@ acme-shop input: 53 files
 }
 => PASS
 
-### 33. An exact edge takes precedence over a heuristic one
+### 35. An exact edge takes precedence over a heuristic one
 {
   "Both::run": [
     "Rates::quote (exact)"
@@ -374,7 +396,7 @@ acme-shop input: 53 files
 }
 => PASS
 
-### 34. A provider with a syntax error contributes no binding
+### 36. A provider with a syntax error contributes no binding
 {
   "Client::run": [],
   "diagnostics": [
@@ -387,4 +409,4 @@ acme-shop input: 53 files
 }
 => PASS
 
-ALL 34 SCENARIOS PASS
+ALL 36 SCENARIOS PASS
