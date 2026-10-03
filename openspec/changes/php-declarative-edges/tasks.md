@@ -111,4 +111,5 @@
 - [x] 12.2 No ADR (design D9); confirm nothing in the implementation contradicted that
 - [x] 12.3 Run `/update-docs` and confirm the docs gate passes (`npm run docs:coverage`). Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
 - [x] 12.4 Leave a Linear comment in Spanish on DIS-30 (TypeScript analyzer): `docMentionEdges`, `DOC_MENTION_EXTRACTOR` and `sortUniqueEdges` in core, to reuse without touching core
-- [ ] 12.5 Prepare the PR description (`/pr-describe`) against `feature/entrega-2-CRN`, keeping the author's Why. After verification, set DIS-49 to In Review in Linear with a comment in Spanish linking the PR and the change
+- [x] 12.5 Prepare the PR description (`/pr-describe`) against `feature/entrega-2-CRN`, keeping the author's Why. After verification, set DIS-49 to In Review in Linear with a comment in Spanish linking the PR and the change
+  - PR #14 opened (Why left blank, marked, for the human). DIS-49 → In Review, comment posted linking the PR and summarizing verification.
