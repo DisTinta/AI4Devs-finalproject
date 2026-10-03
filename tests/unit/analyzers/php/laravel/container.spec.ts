@@ -125,6 +125,22 @@ describe('php analyzer binding table', () => {
     expect(table.size).toBe(0);
   });
 
+  it('bindings inside if and foreach of register() count', () => {
+    const table = providerTable("if ($this->app->isLocal()) { $this->app->bind('a', X::class); } foreach ([1] as $i) { $this->app->singleton('b', Y::class); }");
+    expect([...table]).toEqual([
+      ['a', [X_REF]],
+      ['b', [Y_REF]],
+    ]);
+  });
+
+  it('the bindings of a provider class declared in a method body are never read', () => {
+    const table = tableOf({
+      'app/Services/X.php': X,
+      'app/Providers/Outer.php': `${PROVIDER_HEAD} class Outer { public function make(): void { class P extends ServiceProvider { public function register(): void { $this->app->bind('k', X::class); } } } }`,
+    });
+    expect(table.size).toBe(0);
+  });
+
   it('a binding nested in a closure of register() adds nothing', () => {
     expect(providerTable("$f = function () { $this->app->bind('k', X::class); };").size).toBe(0);
   });

@@ -30,16 +30,16 @@ Cambio: `openspec/changes/php-laravel-heuristics-1/` · Ticket: [DIS-61](https:/
 
 ## ¿Cómo probarlo?
 
-1. `npx vitest run tests/unit/analyzers/php`: 82 tests en verde. Ficheros nuevos:
-   `laravel/heuristic-calls.spec.ts` (18 tests) y `laravel/container.spec.ts` (14 tests).
-2. `npx vitest run`: suite completa en verde, 229 pasados y 99 omitidos. Los omitidos son los specs de
+1. `npx vitest run tests/unit/analyzers/php`: 85 tests en verde. Ficheros nuevos:
+   `laravel/heuristic-calls.spec.ts` (19 tests) y `laravel/container.spec.ts` (16 tests).
+2. `npx vitest run`: suite completa en verde, 232 pasados y 99 omitidos. Los omitidos son los specs de
    integración con base de datos, que necesitan `DATABASE_URL`, como antes.
 3. `npm run lint && npm run typecheck && npm run lint:architecture && npm run docs:coverage`: todo
    en verde. Los únicos avisos son los que ya existían: la interfaz vacía de `LlmPort.ts` y
    los 4 stubs `no-orphans`.
 4. `npx stryker run`: 93.89 % para `packages/core/src` (umbral 70 %). Stryker solo muta core, y
    core no tiene diff en este PR.
-5. `npx vitest run --exclude 'tests/integration/**'` sin `DATABASE_URL`: 203 pasados.
+5. `npx vitest run --exclude 'tests/integration/**'` sin `DATABASE_URL`: 206 pasados.
 6. Comprobado contra el batch de `fixtures/README.md`:
    - los sitios 1, 2, 3, 5 y 11 son `exact`;
    - los sitios 7, 8 y 9 son `heuristic`, y el sitio 7 acaba en `CarrierGateway::__call`;
@@ -62,9 +62,30 @@ Cambio: `openspec/changes/php-laravel-heuristics-1/` · Ticket: [DIS-61](https:/
 - **Solo cuenta `$this->app->bind|singleton|scoped` en `register()`.** Quedan fuera `app()->bind`,
   `App::bind`, `boot()` y `$bindings`. Es un non-goal de la propuesta: esas formas producen falsos
   negativos, nunca una arista supuesta.
+- **Claves y llamadas aceptadas, fijadas en la spec tras `/verify-against-spec`.** Solo valen literales
+  de cadena «planos»: no vacíos, sin secuencias de escape ni interpolación. Además, la llamada debe tener
+  exactamente dos argumentos posicionales. `'a\\b'`, `''`, `bind(abstract: …)` o un tercer argumento no
+  añaden nada: son falsos negativos aceptados por la autora, y el código no se amplía. Los bindings
+  dentro de `if` o de bucles de `register()` sí cuentan.
+- **Las clases declaradas dentro de un método no se leen**, igual que en `collectCalls`. Antes,
+  `collectFacadeAccessors` sí entraba en ellas y `collectBindings` no; ahora ninguno de los dos lo
+  hace. Es el único cambio de código tras la verificación.
 - **`own` se divide en `this` y `self` (diseño D1).** Solo `$this->m()` puede recurrir a `__call`.
   Ambas formas siguen resolviéndose igual para las aristas `exact`.
 - Sin ADR (diseño D7): las decisiones son locales a `packages/analyzers/php` y baratas de revertir.
+
+**Alcance fuera de DIS-61 incluido en esta PR, a propósito:**
+
+- **Carrera de los tests de historial** (`2d3f46a`, `tasks.md` §11). La destapó el primer CI de esta
+  PR: los specs nuevos añaden lectores de acme-shop. Sin el arreglo, la PR no podía quedar en verde de
+  forma fiable, así que la autora decidió arreglarlo aquí.
+- **PRs en español** (`829db1d`). Es una regla del proyecto que salió durante esta PR: excepción en
+  `docs/base-standards.md` §2, plantilla de PR, skill `pr-describe` y nota de `project-context.md`. No
+  cambia código. Se deja aquí para no reescribir el historial de una rama ya publicada.
+  - Ese commit subió `docs/base-standards.md` y las tres copias de `pr-describe/SKILL.md` con CRLF. El
+    commit de la §12 las devuelve a LF sin cambiar su contenido.
+  - La causa de fondo es la línea mal escrita `* text=eol=lf` de `.gitattributes`. Se arreglará en una
+    PR aparte, porque obliga a renormalizar el repositorio.
 
 **Deuda conocida, dejada a propósito:**
 
@@ -83,7 +104,7 @@ Cambio: `openspec/changes/php-laravel-heuristics-1/` · Ticket: [DIS-61](https:/
 | A facade without a binding or outside the input has no edge | `tests/unit/analyzers/php/laravel/heuristic-calls.spec.ts:68` |
 | A closure binding resolves a facade and originates no edge | `tests/unit/analyzers/php/laravel/heuristic-calls.spec.ts:76` |
 | An ambiguous binding key resolves no facade | `tests/unit/analyzers/php/laravel/heuristic-calls.spec.ts:89` |
-| __call and __callStatic of the receiving class | `tests/unit/analyzers/php/laravel/heuristic-calls.spec.ts:218` |
+| __call and __callStatic of the receiving class | `tests/unit/analyzers/php/laravel/heuristic-calls.spec.ts:244` |
 | An exact edge takes precedence over a heuristic one | `tests/unit/analyzers/php/laravel/heuristic-calls.spec.ts:118` |
 | A provider with a syntax error contributes no binding | `tests/unit/analyzers/php/laravel/heuristic-calls.spec.ts:108` |
 | The acme-shop analysis is a valid deterministic graph | `tests/unit/analyzers/php/structure.spec.ts:247` |

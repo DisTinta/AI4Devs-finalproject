@@ -50,16 +50,20 @@ rejected, a second axis on top of `form` makes the switch in `buildCallEdges` ha
 - `laravel/container.ts` → `collectBindings(root)`: for every class declaration, the raw names of its
   `extends` clause are already in `PhpFileFacts.types`; the collector only walks the body of a method
   named `register` and records each `member_call_expression` whose object is `$this->app` and whose
-  name is `bind`, `singleton` or `scoped`, with exactly two arguments. It returns raw
-  `BindingFact { providerType, providerTypeLine, key, rawConcrete }`, where `key` is
-  `{ kind: 'string', value }` (single- or double-quoted literal with no interpolation, content taken
-  as written) or `{ kind: 'class', raw }` (`X::class`), and `rawConcrete` is the raw `X` of `X::class`,
+  name is `bind`, `singleton` or `scoped`, with exactly two positional arguments (a named argument or
+  any other count yields no fact). The walk enters `if`, loops and other statements of `register()`,
+  but not closures, arrow functions, anonymous classes, or classes and functions declared in it. It
+  returns raw `BindingFact { providerType, providerTypeLine, key, rawConcrete }`, where `key` is
+  `{ kind: 'string', value }` (a plain literal: single- or double-quoted, non-empty, with no escape
+  sequence or interpolation) or `{ kind: 'class', raw }` (`X::class`), and `rawConcrete` is the raw `X` of `X::class`,
   of an arrow function whose body is `new X(...)`, or of an anonymous function whose body is a single
   `return new X(...)`. Any other argument shape yields no fact. The collector reads into the closure
   **only** to take that class name; it never produces a `CallFact` (signed non-goal).
 - `laravel/facades.ts` → `collectFacadeAccessors(root)`: for every class declaration that declares
-  `getFacadeAccessor` with a body of exactly one `return` statement of a string literal or `X::class`,
-  a raw `FacadeAccessorFact { type, typeLine, key }`.
+  `getFacadeAccessor` with a body of exactly one `return` statement of a plain string literal or
+  `X::class`, a raw `FacadeAccessorFact { type, typeLine, key }`. Like `collectCalls` and
+  `collectBindings`, it never reads a class declared inside a method body (fix after
+  `/verify-against-spec`, tasks.md §12).
 
 Both run in `analyzeOne` next to `collectCalls`, and are placed with `path` like routes and calls.
 Whether the class actually extends `Facade` / `ServiceProvider` is decided at resolution time (D4),
@@ -70,9 +74,11 @@ not by the collector, so the collectors stay purely syntactic like `collectCalls
 A key is a plain string: a `string` key is its literal content; a `class` key is the fully-qualified
 name given by `resolveClassName(raw, facts)` of the file it is written in (provider file for bindings,
 facade file for accessors). So `'pricing'` matches `'pricing'`, and `Rates::class` in a provider
-matches `\App\Services\Rates::class` or `Rates::class` (same FQN) in a facade. A literal is compared
-as written, without escape decoding: `'App\\Services\\Rates'` does not match `Rates::class` (accepted
-false negative, see Risks).
+matches `\App\Services\Rates::class` or `Rates::class` (same FQN) in a facade. Only plain literals
+become keys: a literal with an escape sequence (`'App\\Services\\Rates'`), with interpolation, or
+empty (`''`) is **rejected** by the collector, so it adds no binding and resolves no facade. No escape
+decoding is ever done. This is an accepted false negative, see Risks; the spec states it since
+`/verify-against-spec` (tasks.md §12).
 
 ### D4 — Resolution: `laravel/facades.ts` and `laravel/magic-call.ts`, called from `edges.ts`
 
@@ -149,8 +155,9 @@ and here. The signed scope decisions (closures, implicit bindings) live in the p
   (`variable_name`, `{`), so a key is accepted only when its sole named child is one `string_content`
   (which also rejects escapes and the empty string); `arrow_function` and `anonymous_function` have a
   `body` field (an expression, resp. a `compound_statement`). The probe script was deleted after use.
-- **Escaped string keys** (`'App\\Services\\Rates'`) do not match a `::class` key → false negative,
-  never a wrong edge. Accepted; none in the fixture.
+- **Escaped, interpolated or empty string keys** (`'App\\Services\\Rates'`, `"k{$x}"`, `''`) are
+  rejected, and so are bindings with named arguments or with other than two arguments → false
+  negatives, never a wrong edge. Accepted (author decision 2026-10-03); none in the fixture.
 - **Other registration styles are missed** (`app()->bind`, `App::bind`, `$this->app['x'] = …`, bindings
   in `boot()`, `$bindings`/`$singletons` properties) → false negatives. Explicit non-goal of the
   proposal (audit 2026-10-03).

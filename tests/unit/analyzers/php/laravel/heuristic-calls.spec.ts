@@ -148,6 +148,17 @@ describe('php analyzer Laravel heuristic calls', () => {
     expect(acmeShop.edges.filter((e) => e.kind === 'calls' && e.resolution === 'heuristic')).toEqual(expected);
 
     expect(acmeShop.edges.some((e) => e.kind === 'calls' && 'symbol' in e.target && e.target.symbol?.file === 'app/Facades/Pricing.php')).toBe(false);
+    // Its `imports` edges stay: every file that `use`s the facade still imports it.
+    const pricingImporters = acmeShop.edges
+      .filter((e) => e.kind === 'imports' && 'symbol' in e.target && e.target.symbol?.file === 'app/Facades/Pricing.php')
+      .map((e) => ('file' in e.source ? e.source.file : ''));
+    expect(pricingImporters).toEqual([
+      'app/Http/Controllers/CheckoutController.php',
+      'app/Http/Controllers/OrderController.php',
+      'app/Jobs/RecalculateTotals.php',
+      'app/Listeners/SendOrderConfirmation.php',
+      'tests/Feature/OrderPricingTest.php',
+    ]);
     expect(callsFrom(acmeShop, 'app/Http/Controllers/OrderController.php', 'OrderController::index')).toEqual([]);
     expect(callsFrom(acmeShop, 'app/Providers/AppServiceProvider.php', 'AppServiceProvider::register')).toEqual([]);
     const graph = { files: acmeShop.files, symbols: acmeShop.symbols, edges: acmeShop.edges, commits: [], fileCommits: [] };
@@ -204,6 +215,21 @@ describe('php analyzer Laravel heuristic calls', () => {
         `${PROVIDER_HEAD} class RatesProvider extends ServiceProvider { public function register(): void { $this->app->bind('rates', Rates::class); } }`,
       );
       expect(edges).toEqual([]);
+    });
+
+    it('the accessor of a facade class declared in a method body is never read', async () => {
+      const result = await analyzer.analyze({
+        files: [
+          RATES,
+          RATES_PROVIDER,
+          file(
+            'app/Holder.php',
+            "<?php namespace App; use Illuminate\\Support\\Facades\\Facade; class Holder { public function make(): void { class Inner extends Facade { protected static function getFacadeAccessor(): string { return 'rates'; } } } public function run(): void { Inner::quote(); } }",
+          ),
+        ],
+      });
+      expect(symbolOf(result, 'app/Holder.php', 'Inner::getFacadeAccessor')).toBeDefined();
+      expect(callsFrom(result, 'app/Holder.php', 'Holder::run')).toEqual([]);
     });
 
     it('a facade class never falls back to its own __callStatic', async () => {

@@ -36,8 +36,8 @@ function accessorKeyOf(body: Node | null): BindingKey | undefined {
 /**
  * Collects, for every named class of a parsed file that declares `getFacadeAccessor` with a body of a
  * single `return` of a plain string literal or `X::class`, that key (spec "Laravel heuristic calls";
- * design D2). Classes inside closures, arrow functions or anonymous classes are skipped. Whether the
- * class is a facade is decided by {@link indexFacades}.
+ * design D2). Classes inside closures, arrow functions or anonymous classes, and classes declared in a
+ * method body, are skipped. Whether the class is a facade is decided by {@link indexFacades}.
  */
 export function collectFacadeAccessors(root: Node): FacadeAccessorFact[] {
   const facts: FacadeAccessorFact[] = [];
@@ -50,6 +50,7 @@ export function collectFacadeAccessors(root: Node): FacadeAccessorFact[] {
       );
       const key = accessor && accessorKeyOf(accessor.childForFieldName('body'));
       if (type && key) facts.push({ type, typeLine: node.startPosition.row + 1, key });
+      return; // a class declared inside one of its method bodies is never read (as `collectCalls`)
     }
     for (const child of node.children) walk(child);
   };
