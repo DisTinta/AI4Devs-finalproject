@@ -5,7 +5,8 @@ import type { AnalysisResult, GraphEdge, SourceFile, SymbolRef } from '@codemind
 import { createPhpAnalyzer } from '../../../../../packages/analyzers/php/src/index';
 import { readFixtureFiles } from '../../../../support/read-fixture-files';
 
-// Spec: openspec/changes/php-laravel-heuristics-1/specs/code-analysis/spec.md → "Laravel heuristic calls".
+// Spec: openspec/specs/code-analysis/spec.md → "Laravel heuristic calls" (change archived as
+// openspec/changes/archive/2026-10-03-php-laravel-heuristics-1).
 // Each `it` named after a scenario is that scenario; the others are extra cases of the same rule.
 // `fixtures/acme-shop` is read-only input here: no test writes to it (PH-22).
 
