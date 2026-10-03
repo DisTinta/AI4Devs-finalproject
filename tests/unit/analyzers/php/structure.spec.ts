@@ -1,34 +1,16 @@
-import { readdirSync, readFileSync } from 'node:fs';
-import { join, relative, resolve, sep } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { validateGraph } from '@codemind/core';
-import type { AnalysisResult, KnowledgeGraph, SourceFile } from '@codemind/core';
+import { compareEdges, validateGraph } from '@codemind/core';
+import type { AnalysisResult, KnowledgeGraph } from '@codemind/core';
 import { createPhpAnalyzer } from '../../../../packages/analyzers/php/src/index';
+import { readFixtureFiles } from '../../../support/read-fixture-files';
 
 // Spec: openspec/specs/code-analysis/spec.md → "Analysis
 // contract", "File classification" and "Symbol extraction". Each test is one scenario, named after
 // it. `fixtures/acme-shop` is read-only input here: no test writes to it (PH-22).
 
 const ACME_SHOP = resolve('fixtures/acme-shop');
-
-/** Every file under `root`, read-only, `.git` skipped, paths relative to `root` with `/`. */
-function readFixtureFiles(root: string): SourceFile[] {
-  const files: SourceFile[] = [];
-  const walk = (dir: string): void => {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (entry.name === '.git') continue;
-      const full = join(dir, entry.name);
-      if (entry.isDirectory()) {
-        walk(full);
-        continue;
-      }
-      const path = relative(root, full).split(sep).join('/');
-      files.push({ path, content: readFileSync(full, 'utf8') });
-    }
-  };
-  walk(root);
-  return files;
-}
 
 describe('php analyzer', () => {
   const analyzer = createPhpAnalyzer();
@@ -49,10 +31,12 @@ describe('php analyzer', () => {
         const expectedLoc = content === '' ? 0 : (content.endsWith('\n') ? content.slice(0, -1) : content).split('\n').length;
         expect(file.loc, file.path).toBe(expectedLoc);
       }
-      for (const path of ['routes/api.php', 'routes/web.php', 'config/app.php']) {
+      for (const path of ['routes/web.php', 'config/app.php']) {
         expect(acmeShop.files.find((f) => f.path === path), path).toBeDefined();
         expect(acmeShop.symbols.some((s) => s.file === path), path).toBe(false);
       }
+      expect(acmeShop.files.find((f) => f.path === 'routes/api.php')).toBeDefined();
+      expect(acmeShop.symbols.filter((s) => s.file === 'routes/api.php').map((s) => s.kind)).toEqual(['route', 'route']);
     });
   });
 
@@ -271,7 +255,11 @@ describe('php analyzer', () => {
         .sort((a, b) => (a.file === b.file ? a.startLine - b.startLine : a.file < b.file ? -1 : 1))
         .map((s) => `${s.file}:${s.startLine}`);
       expect(symbolOrder).toEqual(sortedByFileAndStart);
-      expect(acmeShop.edges).toEqual([]);
+
+      expect(acmeShop.edges.length).toBeGreaterThan(0);
+      expect(acmeShop.edges).toEqual([...acmeShop.edges].sort(compareEdges));
+      const edgeKeys = acmeShop.edges.map((e) => JSON.stringify([e.kind, e.source, e.target]));
+      expect(new Set(edgeKeys).size).toBe(edgeKeys.length);
 
       const graph: KnowledgeGraph = { files: acmeShop.files, symbols: acmeShop.symbols, edges: acmeShop.edges, commits: [], fileCommits: [] };
       expect(validateGraph(graph)).toEqual([]);
