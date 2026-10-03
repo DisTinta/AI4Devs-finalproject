@@ -98,6 +98,15 @@ Not applicable: this change adds no user interface, no HTTP route and no CLI com
 is `createPhpAnalyzer()`, exercised directly in the Manual Interface Testing report (step 10). There
 is no user workflow to drive end to end.
 
+## CI evidence (task 11.2)
+
+PR [#14](https://github.com/DisTinta/AI4Devs-finalproject/pull/14) against `feature/entrega-2-CRN`.
+`quality` run: https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37106980846 — passed
+(3m7s). `frontend` run: https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37106980931 —
+passed (11s). `edges.spec.ts` (15 tests), `doc-mentions.spec.ts` (16 tests) and `edge-order.spec.ts`
+(14 tests) all ran and passed in the `quality` job's `Tests` step — not skipped; the same job's
+mutation step also picked up all three files.
+
 ## Outcome
 
 - Status: PASS

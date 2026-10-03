@@ -102,7 +102,8 @@
 ## 11. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
 - [x] 11.1 Confirm no user interface or user workflow is affected (no route, no CLI, no web change). Record "not applicable", with that reason, in the step 9 report
-- [ ] 11.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that `edges.spec.ts`, `doc-mentions.spec.ts` and `edge-order.spec.ts` ran and were not skipped. Link the run in the step 9 report
+- [x] 11.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that `edges.spec.ts`, `doc-mentions.spec.ts` and `edge-order.spec.ts` ran and were not skipped. Link the run in the step 9 report
+  - PR #14, `quality` and `frontend` both passed; all 3 new spec files ran (45 tests) and were picked up by the mutation step. See step 9 report "CI evidence (task 11.2)".
 
 ## 12. Update Technical Documentation (MANDATORY)
 
