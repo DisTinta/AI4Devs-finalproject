@@ -43,7 +43,8 @@ export interface AnalysisResult {
   symbols: GraphSymbol[];
   /**
    * Every relation the analyzer resolves between `files` and `symbols` of this result (`imports`,
-   * `extends`, `implements`, a route's `calls`, `tested_by`, `describes`), with both endpoints
+   * `extends`, `implements`, a route's `calls`, declared-type `calls` between methods, `tested_by`,
+   * `describes`), with both endpoints
    * present in `files` or `symbols`, ordered by `compareEdges` (`kind`, then source endpoint, then
    * target endpoint), no two sharing `kind`, source and target.
    */
