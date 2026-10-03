@@ -1,83 +1,83 @@
-## What changes?
+## ¿Qué cambia?
 
-The PHP analyzer now emits `heuristic` `calls` edges (`php-treesitter-laravel`) for calls that the
-declared-type rule leaves without an edge, in two cases:
+El analizador PHP emite ahora aristas `calls` `heuristic` (`php-treesitter-laravel`) para las llamadas
+que la regla de tipo declarado deja sin arista, en dos casos:
 
-- **Facade.** `F::m()` on a class that directly extends `Illuminate\Support\Facades\Facade`. The
-  analyzer follows the key returned by its own `getFacadeAccessor()` through a binding table to `C::m`,
-  where `C` is the single class bound to that key. The table is built only from
-  `$this->app->bind|singleton|scoped` calls in `register()` of service providers.
-- **`__call` / `__callStatic`.** A call to a method the class does not declare goes to the `__call` /
-  `__callStatic` declared in the receiving class itself (`laravel/{container,facades,magic-call}.ts`,
-  `buildHeuristicCallEdges` in `edges.ts`).
+- **Facade.** `F::m()` sobre una clase que extiende directamente `Illuminate\Support\Facades\Facade`. El
+  analizador sigue la clave que devuelve su propio `getFacadeAccessor()` a través de una tabla de
+  bindings hasta `C::m`, donde `C` es la única clase vinculada a esa clave. La tabla se construye solo a
+  partir de las llamadas `$this->app->bind|singleton|scoped` en `register()` de los service providers.
+- **`__call` / `__callStatic`.** Una llamada a un método que la clase no declara va al `__call` /
+  `__callStatic` declarado en la propia clase receptora (`laravel/{container,facades,magic-call}.ts`,
+  `buildHeuristicCallEdges` en `edges.ts`).
 
-When a `heuristic` edge would share kind, source and target with an `exact` one, it is dropped
-explicitly. In acme-shop this gives 6 `heuristic` `calls`: sites 7–9 of the batch plus three other
-`Pricing::compute` callers. The 47 `exact` ones are unchanged, and `packages/core` has no diff.
+Cuando una arista `heuristic` compartiría tipo, origen y destino con una `exact`, se descarta
+explícitamente. En acme-shop esto da 6 `calls` `heuristic`: los sitios 7–9 del batch más otros tres
+llamantes de `Pricing::compute`. Las 47 `exact` no cambian, y `packages/core` no tiene diff.
 
-The PR also fixes a race between tests that already existed and that CI exposed on its first run:
-- `simple-git-history.spec.ts` used to rebuild the real fixtures' `.git` in place. While it commits,
-  the builder rewrites tracked files with older snapshots, and the analyzer specs read those same
-  files in parallel.
-- The spec now builds both histories in temp copies of the fixtures, so the real fixtures are only
-  read.
+El PR corrige también una condición de carrera entre tests que ya existía y que CI destapó en su primera ejecución:
+- `simple-git-history.spec.ts` reconstruía en su sitio el `.git` de los fixtures reales. Mientras hace
+  commits, el constructor reescribe ficheros versionados con instantáneas anteriores, y los specs del
+  analizador leen esos mismos ficheros en paralelo.
+- El spec construye ahora ambos historiales en copias temporales de los fixtures, así que los fixtures
+  reales solo se leen.
 
-Change: `openspec/changes/php-laravel-heuristics-1/` · Ticket: [DIS-61](https://linear.app/distinta-ai4devs/issue/DIS-61/cm-hu-04b1-facades-bindings-del-contenedor-call)
+Cambio: `openspec/changes/php-laravel-heuristics-1/` · Ticket: [DIS-61](https://linear.app/distinta-ai4devs/issue/DIS-61/cm-hu-04b1-facades-bindings-del-contenedor-call)
 
-## Why?
+## ¿Por qué?
 
-<!-- filled in by the human: the business rationale is not yours to generate -->
+<!-- lo rellena la autora: el motivo de negocio no lo genera la IA -->
 
-## How to test it?
+## ¿Cómo probarlo?
 
-1. `npx vitest run tests/unit/analyzers/php`: 82 tests green. New files:
-   `laravel/heuristic-calls.spec.ts` (18 tests) and `laravel/container.spec.ts` (14 tests).
-2. `npx vitest run`: full suite green, 229 passed and 99 skipped. The skipped ones are the DB
-   integration specs, which need `DATABASE_URL`, as before.
-3. `npm run lint && npm run typecheck && npm run lint:architecture && npm run docs:coverage`: all
-   green. The only warnings are the ones that were already there: the `LlmPort.ts` empty interface and
-   the 4 `no-orphans` stubs.
-4. `npx stryker run`: 93.89 % for `packages/core/src` (threshold 70 %). Stryker only mutates core, and
-   core has no diff in this PR.
-5. `npx vitest run --exclude 'tests/integration/**'` with no `DATABASE_URL`: 203 passed.
-6. Checked against the batch of `fixtures/README.md`:
-   - sites 1, 2, 3, 5 and 11 are `exact`;
-   - sites 7, 8 and 9 are `heuristic`, with site 7 landing on `CarrierGateway::__call`;
-   - sites 4, 6, 10 and 12 have no edge (they belong to DIS-63).
+1. `npx vitest run tests/unit/analyzers/php`: 82 tests en verde. Ficheros nuevos:
+   `laravel/heuristic-calls.spec.ts` (18 tests) y `laravel/container.spec.ts` (14 tests).
+2. `npx vitest run`: suite completa en verde, 229 pasados y 99 omitidos. Los omitidos son los specs de
+   integración con base de datos, que necesitan `DATABASE_URL`, como antes.
+3. `npm run lint && npm run typecheck && npm run lint:architecture && npm run docs:coverage`: todo
+   en verde. Los únicos avisos son los que ya existían: la interfaz vacía de `LlmPort.ts` y
+   los 4 stubs `no-orphans`.
+4. `npx stryker run`: 93.89 % para `packages/core/src` (umbral 70 %). Stryker solo muta core, y
+   core no tiene diff en este PR.
+5. `npx vitest run --exclude 'tests/integration/**'` sin `DATABASE_URL`: 203 pasados.
+6. Comprobado contra el batch de `fixtures/README.md`:
+   - los sitios 1, 2, 3, 5 y 11 son `exact`;
+   - los sitios 7, 8 y 9 son `heuristic`, y el sitio 7 acaba en `CarrierGateway::__call`;
+   - los sitios 4, 6, 10 y 12 no tienen arista (corresponden a DIS-63).
 
-   Details in `openspec/changes/php-laravel-heuristics-1/reports/2026-10-03-8-manual-interface-testing.md`.
-7. `npx vitest run tests/integration/git`: 20 passed, 2 skipped without `DATABASE_URL`. Afterwards
-   `git status --porcelain fixtures` is empty, and `fixtures/acme-shop/.git/HEAD` keeps its mtime: the
-   real fixtures are no longer rebuilt. In CI (with a database), `quality` passed with 380/380 tests.
+   Detalles en `openspec/changes/php-laravel-heuristics-1/reports/2026-10-03-8-manual-interface-testing.md`.
+7. `npx vitest run tests/integration/git`: 20 pasados, 2 omitidos sin `DATABASE_URL`. Después,
+   `git status --porcelain fixtures` sale vacío y `fixtures/acme-shop/.git/HEAD` conserva su mtime: los
+   fixtures reales ya no se reconstruyen. En CI (con base de datos), `quality` pasó con 380/380 tests.
 
-## Decisions / trade-offs
+## Decisiones / compromisos
 
-- **Explicit `exact` precedence (design D5).** `sortUniqueEdges` deduplicates without looking at
-  `resolution`. Relying on emitting the heuristics last and on the stable sort would couple the result
-  to how a core function breaks ties. Instead, `appendUnshadowed` filters each heuristic candidate
-  against the identities of the `exact` edges.
-- **The binding table is a lookup only.** Provider closures stay opaque and originate no edge. A key
-  with no binding, including an accessor `X::class`, resolves nothing: Laravel's autowiring is not
-  imitated. Both are non-goals signed by the author in the proposal.
-- **Only `$this->app->bind|singleton|scoped` in `register()` counts.** `app()->bind`, `App::bind`,
-  `boot()` and `$bindings` are left out. This is a proposal non-goal: those forms produce false
-  negatives, never a guessed edge.
-- **`own` split into `this` and `self` (design D1).** Only `$this->m()` can fall back to `__call`.
-  Both forms keep resolving alike for `exact` edges.
-- No ADR (design D7): the decisions are local to `packages/analyzers/php` and cheap to revert.
+- **Precedencia explícita de `exact` (diseño D5).** `sortUniqueEdges` deduplica sin mirar
+  `resolution`. Confiar en emitir las heurísticas al final y en la ordenación estable acoplaría el
+  resultado a cómo una función de core resuelve los empates. En su lugar, `appendUnshadowed` filtra
+  cada candidata heurística contra las identidades de las aristas `exact`.
+- **La tabla de bindings es solo de consulta.** Las closures de los providers siguen siendo opacas y no
+  originan aristas. Una clave sin binding, incluido un accessor `X::class`, no resuelve nada: no se
+  imita el autowiring de Laravel. Ambas cosas son non-goals firmados por la autora en la propuesta.
+- **Solo cuenta `$this->app->bind|singleton|scoped` en `register()`.** Quedan fuera `app()->bind`,
+  `App::bind`, `boot()` y `$bindings`. Es un non-goal de la propuesta: esas formas producen falsos
+  negativos, nunca una arista supuesta.
+- **`own` se divide en `this` y `self` (diseño D1).** Solo `$this->m()` puede recurrir a `__call`.
+  Ambas formas siguen resolviéndose igual para las aristas `exact`.
+- Sin ADR (diseño D7): las decisiones son locales a `packages/analyzers/php` y baratas de revertir.
 
-**Known debt, left on purpose:**
+**Deuda conocida, dejada a propósito:**
 
-- The JSDoc of `AnalysisResult.edges` (`packages/core/src/ports/AnalyzerPort.ts:45-47`) does not list
-  Laravel `heuristic` `calls`. The port is language-agnostic and core stays without diff by decision;
-  the rule is documented in `docs/project-context.md` and in the spec.
-- `fixtures/README.md:267` names site 7's target `CarrierGateway::flatRateFor`. That is the conceptual
-  call site; the graph points to `CarrierGateway::__call`, because `flatRateFor` has no symbol. The
-  fixtures are read-only (PH-22).
+- El JSDoc de `AnalysisResult.edges` (`packages/core/src/ports/AnalyzerPort.ts:45-47`) no menciona
+  las `calls` `heuristic` de Laravel. El puerto es agnóstico del lenguaje y core se queda sin diff por
+  decisión; la regla está documentada en `docs/project-context.md` y en la spec.
+- `fixtures/README.md:267` nombra el destino del sitio 7 como `CarrierGateway::flatRateFor`. Ese es el
+  sitio de llamada conceptual; el grafo apunta a `CarrierGateway::__call`, porque `flatRateFor` no tiene
+  símbolo. Los fixtures son de solo lectura (PH-22).
 
-## Traceability
+## Trazabilidad
 
-| Scenario in the specification | Test that covers it |
+| Escenario de la especificación | Test que lo cubre |
 |---|---|
 | The Laravel call sites of acme-shop are heuristic calls | `tests/unit/analyzers/php/laravel/heuristic-calls.spec.ts:136` |
 | A facade without a binding or outside the input has no edge | `tests/unit/analyzers/php/laravel/heuristic-calls.spec.ts:68` |
@@ -98,7 +98,7 @@ Change: `openspec/changes/php-laravel-heuristics-1/` · Ticket: [DIS-61](https:/
 | Static, intersection-typed, local, variable and magic receivers produce no edge | `tests/unit/analyzers/php/calls.spec.ts:261` |
 | A file with a syntax error originates no call edge | `tests/unit/analyzers/php/calls.spec.ts:287` |
 
-## Origin
+## Origen
 
 `agent+human-review`
 

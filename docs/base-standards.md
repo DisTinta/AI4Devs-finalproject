@@ -51,6 +51,12 @@ Everything specific to this project lives in:
   mirror the team's working language (the `validate-tasks` hook accepts English or Spanish headings).
   English is still recommended. Everything else — code, tests, commit messages, tickets, schemas,
   ADRs, API docs — stays English-only without exception.
+- **Project exception, pull requests:** on this project the title and description of every pull
+  request are written in **Spanish** (author decision, 2026-10-03). Keep in their original form the
+  Conventional Commits prefix of the title (`feat(DIS-61): …`), identifiers, paths, code, commands,
+  and spec scenario names (they must match the test names). Copies of a PR description stored in the
+  repository (`openspec/changes/**/reports/pr-description.md`) follow the PR. Linear has its own
+  Spanish rule (see `project-context.md`).
 
 ### Git branches and commit messages
 

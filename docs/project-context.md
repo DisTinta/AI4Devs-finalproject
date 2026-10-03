@@ -204,8 +204,9 @@ Verified against `package.json` (root and per package). If a command is not here
      English”):** every comment, status note, and human-facing update written **into Linear**
      MUST be **Spanish only** — one language per comment, no Spanglish, no mixing English and
      Spanish in the same sentence. Identifiers may stay as-is (`DIS-11`, `schema-graph-l1`,
-     file paths, command names). Code, commits, OpenSpec artifacts, ADRs and PR technical body
-     remain English.
+     file paths, command names). Code, commits, OpenSpec artifacts and ADRs remain English. Pull
+     requests (title and description) are Spanish too — see the PR exception in
+     `base-standards.md` §2.
 - **Tracking deferred findings** (after `/adversarial-review`, `/verify-against-spec`, or any
   author decision to leave a gap open). A finding that is **not** fixed in the current change
   MUST leave the change with an owner and a place that stays queryable. A note only in an
