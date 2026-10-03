@@ -13,7 +13,11 @@ El PR incluye también un commit aparte (`d685f37`) con cambios de la autora que
 
 ## ¿Por qué?
 
-<!-- filled in by the human: the business rationale is not yours to generate -->
+Tras DIS-61, el grafo de acme-shop seguía sin tres conexiones que en Laravel se hacen por convención: la ruta `POST /checkout` escrita como `'Controller@method'`, el job `RecalculateTotals` que se despacha desde `OrderObserver`, y los listeners que `EventServiceProvider::$listen` asocia a `OrderPlaced` y `DiscountApplied`. Por eso, al preguntar por el impacto de un cambio en el cálculo de precios o en el checkout, CODEMIND se dejaba un punto de entrada, una tarea en cola y dos listeners. Justo los sitios donde un cambio rompe cosas sin que se note.
+
+Esta HU las añade como aristas `heuristic`, nunca `exact`. El impacto ya las tiene en cuenta, pero ninguna explicación las presenta como un hecho comprobado por el compilador. Es la misma línea de DIS-61: un grafo honesto sobre lo que no puede saber vale más que uno completo que se inventa conexiones. Por eso las correcciones posteriores a las revisiones fueron todas en esa dirección: quitar aristas inventadas (la ruta duplicada, las clases declaradas dentro de funciones) antes que añadir otras dudosas.
+
+Con esto, los sitios 6, 10 y 12 de la Tabla 2 salen `heuristic`. Queda desbloqueada DIS-98 (Eloquent y el informe de no resueltos), que es lo último que falta para medir la Tabla 2 (DIS-79/80) y generar la semilla real (DIS-91).
 
 Ticket: DIS-97 (CM-HU-04b.2a), primera mitad de DIS-63.
 
