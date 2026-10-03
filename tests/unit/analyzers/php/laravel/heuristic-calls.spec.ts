@@ -183,6 +183,29 @@ describe('php analyzer Laravel heuristic calls', () => {
     expect(validateGraph(graph)).toEqual([]);
   });
 
+  it('Laravel registrations of a class declared in a function body are never read', async () => {
+    const paid = file('app/Events/Paid.php', '<?php namespace App\\Events; class Paid {}');
+    const notify = file('app/Listeners/Notify.php', '<?php namespace App\\Listeners; class Notify { public function handle(): void {} }');
+    const ratesProvider = file(
+      'app/Providers/RatesProvider.php',
+      "<?php namespace App\\Providers; use App\\Services\\Rates; use Illuminate\\Support\\ServiceProvider; function boot(): void { class RatesProvider extends ServiceProvider { public function register(): void { $this->app->bind('rates', Rates::class); } } }",
+    );
+    const eventProvider = file(
+      'app/Providers/EventProvider.php',
+      '<?php namespace App\\Providers; use App\\Events\\Paid; use App\\Listeners\\Notify; use Illuminate\\Foundation\\Support\\Providers\\EventServiceProvider; function boot(): void { class EventProvider extends EventServiceProvider { protected $listen = [Paid::class => [Notify::class]]; } }',
+    );
+    const client = file(
+      'app/Client.php',
+      '<?php namespace App; use App\\Events\\Paid; use App\\Facades\\RatesFacade; class Client { public function run(): void { RatesFacade::quote(); event(new Paid()); } }',
+    );
+    const result = await analyzer.analyze({ files: [RATES, RATES_FACADE, paid, notify, ratesProvider, eventProvider, client] });
+
+    symbolOf(result, 'app/Providers/RatesProvider.php', 'RatesProvider');
+    symbolOf(result, 'app/Providers/EventProvider.php', 'EventProvider');
+    symbolOf(result, 'app/Client.php', 'Client::run');
+    expect(callsFrom(result, 'app/Client.php', 'Client::run')).toEqual([]);
+  });
+
   describe('classes declared in a top-level function body (php-laravel-heuristics-2a, 12.3)', () => {
     it('the accessor of a facade declared in a function body is never read', async () => {
       const facadeInFunction = file(

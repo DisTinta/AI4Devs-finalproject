@@ -131,7 +131,13 @@ function buildRouteEdges(
   methods: ReadonlyMap<string, SymbolRef>,
 ): RouteEdges {
   const edges: RouteEdges = { exact: [], heuristic: [] };
+  const seen = new Set<string>();
   for (const route of routes) {
+    // A later route with the same name and line was dropped as a duplicate symbol (`keepFirst`): its
+    // action must not hang an edge on the kept route (tasks §13.1).
+    const routeKey = `${route.path}\0${route.routeName}\0${route.line}`;
+    if (seen.has(routeKey)) continue;
+    seen.add(routeKey);
     const fact = factsByPath.get(route.path);
     if (!fact || fact.namespaces > 1) continue;
     const targetClass =

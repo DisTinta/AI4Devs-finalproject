@@ -40,17 +40,27 @@ function listenArrayOf(member: Node): Node | undefined {
   return undefined;
 }
 
-/** The `E::class => [L::class, …]` elements of a `$listen` array; any other element is skipped. */
+/** The named children of `node` except comments, which tree-sitter keeps as named nodes anywhere (tasks §13.2). */
+const codeChildrenOf = (node: Node): Node[] => node.namedChildren.filter((child) => child.type !== 'comment');
+
+/**
+ * The `E::class => [L::class, …]` elements of a `$listen` array, read entry by entry: an entry of the
+ * value that is not `L::class` is skipped without dropping the others; any other element is skipped.
+ */
 function listenElementsOf(array: Node): Pick<ListenFact, 'rawEvent' | 'rawListeners'>[] {
   const elements: Pick<ListenFact, 'rawEvent' | 'rawListeners'>[] = [];
   for (const element of array.namedChildren) {
-    if (element.type !== 'array_element_initializer' || element.namedChildren.length !== 2) continue;
-    const [key, value] = element.namedChildren;
+    if (element.type !== 'array_element_initializer') continue;
+    const parts = codeChildrenOf(element);
+    if (parts.length !== 2) continue;
+    const [key, value] = parts;
     const rawEvent = classConstantOf(key);
     if (rawEvent === undefined || value.type !== 'array_creation_expression') continue;
     const rawListeners = value.namedChildren
-      .filter((child) => child.type === 'array_element_initializer' && child.namedChildren.length === 1)
-      .map((child) => classConstantOf(child.namedChildren[0]))
+      .filter((child) => child.type === 'array_element_initializer')
+      .map(codeChildrenOf)
+      .filter((entry) => entry.length === 1)
+      .map(([entry]) => classConstantOf(entry))
       .filter((raw): raw is string => raw !== undefined);
     elements.push({ rawEvent, rawListeners });
   }

@@ -63,12 +63,14 @@ describe('php analyzer string-action routes', () => {
     ]);
 
     // The only edge from the route; the closure route `Route::get('/', …)` produces no symbol at all.
-    expect(edgesFrom(acmeShop, 'routes/web.php', 'POST /checkout')).toEqual([
-      heuristicCall(
-        symbolOf(acmeShop, 'routes/web.php', 'POST /checkout'),
-        symbolOf(acmeShop, 'app/Http/Controllers/CheckoutController.php', 'CheckoutController::store'),
-      ),
-    ]);
+    const checkout = heuristicCall(
+      symbolOf(acmeShop, 'routes/web.php', 'POST /checkout'),
+      symbolOf(acmeShop, 'app/Http/Controllers/CheckoutController.php', 'CheckoutController::store'),
+    );
+    expect(edgesFrom(acmeShop, 'routes/web.php', 'POST /checkout')).toEqual([checkout]);
+    // And the only edge from anywhere in routes/web.php: the file itself (e.g. `imports`) and the
+    // closure route originate none, and none is `exact` (reformulates the assertion dropped in 3.1a).
+    expect(acmeShop.edges.filter((e) => ('symbol' in e.source ? e.source.symbol?.file : e.source.file) === 'routes/web.php')).toEqual([checkout]);
   });
 
   it('Malformed string actions produce no route', async () => {
@@ -126,6 +128,26 @@ describe('php analyzer string-action routes', () => {
     it('a string action whose method is not declared gives a route with no edge', async () => {
       const edges = await routeCalls("<?php Route::post('/s', 'App\\Http\\Controllers\\Shop@missing');");
       expect(edges).toEqual([]);
+    });
+
+    it('a route dropped as a duplicate symbol originates no edge, string or array (13.1)', async () => {
+      const shop = file(
+        'app/Http/Controllers/Shop.php',
+        '<?php namespace App\\Http\\Controllers; class Shop { public function store(): void {} public function other(): void {} }',
+      );
+      const result = await analyzer.analyze({
+        files: [
+          shop,
+          file('routes/web.php', "<?php Route::get('/a', 'App\\Http\\Controllers\\Shop@store'); Route::get('/a', 'App\\Http\\Controllers\\Shop@other');"),
+          file('routes/api.php', "<?php use App\\Http\\Controllers\\Shop; Route::get('/b', [Shop::class, 'store']); Route::get('/b', [Shop::class, 'other']);"),
+        ],
+      });
+
+      // The second route of each line is dropped by keepFirst; only the kept one may have an edge.
+      expect(result.diagnostics.map((d) => d.message)).toEqual(['duplicate symbol "GET /b"; kept the first', 'duplicate symbol "GET /a"; kept the first']);
+      expect(
+        result.edges.filter((e) => e.kind === 'calls').map((e) => `${'symbol' in e.source ? e.source.symbol?.name : ''} -> ${'symbol' in e.target ? e.target.symbol?.name : ''} ${e.resolution}`),
+      ).toEqual(['GET /b -> Shop::store exact', 'GET /a -> Shop::store heuristic']);
     });
 
     it('a routes file with two namespace declarations keeps its route symbol and originates no edge', async () => {

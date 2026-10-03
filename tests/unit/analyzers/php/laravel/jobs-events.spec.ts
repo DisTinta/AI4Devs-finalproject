@@ -134,6 +134,10 @@ describe('listener map (unit cases, not spec scenarios)', () => {
     expect(listenersOfE(provider("protected $listen = [E::class => [L1::class, 'App\\Listeners\\L2', [L2::class, 'handle'], L2::class . '@handle', ...self::MORE]];"))).toEqual(['L1']);
   });
 
+  it('comments inside a $listen element drop nothing (13.2)', () => {
+    expect(listenersOfE(provider('protected $listen = [E::class => /* audit */ [L1::class /* first */, L2::class]];'))).toEqual(['L1', 'L2']);
+  });
+
   it('a static $listen, string keys or values, method pairs, an interface and a spread add nothing', () => {
     expect(listenersOfE(provider('protected static $listen = [E::class => [L1::class]];'))).toEqual([]);
     expect(listenersOfE(provider("protected $listen = ['App\\Events\\E' => [L1::class]];"))).toEqual([]);
@@ -199,7 +203,31 @@ describe('php analyzer job and event dispatch', () => {
     expect(callsFrom(result, 'app/Caller.php', 'Caller::run')).toEqual([]);
   });
 
+  it('A $listen element is read entry by entry', async () => {
+    const audit = file('app/Listeners/Audit.php', '<?php namespace App\\Listeners; class Audit { public function handle(): void {} }');
+    const provider = file(
+      'app/Providers/EventProvider.php',
+      "<?php namespace App\\Providers; use App\\Events\\Paid; use App\\Listeners\\{Notify, Audit}; use Illuminate\\Foundation\\Support\\Providers\\EventServiceProvider; class EventProvider extends EventServiceProvider { protected $listen = [Paid::class => /* listeners */ [Notify::class, 'App\\Listeners\\Audit', [Audit::class, 'handle']]]; }",
+    );
+    const emitter = file('app/Emitter.php', '<?php namespace App; use App\\Events\\Paid; class Emitter { public function run(): void { event(new Paid()); } }');
+    const result = await analyzer.analyze({ files: [PAID, NOTIFY, audit, provider, emitter] });
+
+    expect(callsFrom(result, 'app/Emitter.php', 'Emitter::run')).toEqual([
+      heuristicCall(symbolOf(result, 'app/Emitter.php', 'Emitter::run'), symbolOf(result, 'app/Listeners/Notify.php', 'Notify::handle')),
+    ]);
+  });
+
   describe('extra cases of the event-dispatch rule', () => {
+    it('targets declared in a function body still count: a nested job reaches its handle (13.5)', async () => {
+      const result = await analyzer.analyze({
+        files: [
+          file('app/Jobs/Nested.php', `<?php namespace App\\Jobs; ${DISPATCHABLE} function boot(): void { class Nested { use Dispatchable; public function handle(): void {} } }`),
+          file('app/Caller.php', '<?php namespace App; use App\\Jobs\\Nested; class Caller { public function run(): void { Nested::dispatch(); } }'),
+        ],
+      });
+      expect(targets(callsFrom(result, 'app/Caller.php', 'Caller::run'))).toEqual([['heuristic', 'Nested::handle']]);
+    });
+
     const TWO_LISTENERS = file(
       'app/Providers/EventProvider.php',
       '<?php namespace App\\Providers; use App\\Events\\Paid; use App\\Listeners\\{Notify, Mute}; use Illuminate\\Foundation\\Support\\Providers\\EventServiceProvider; class EventProvider extends EventServiceProvider { protected $listen = [Paid::class => [Notify::class, Mute::class]]; }',
@@ -244,6 +272,10 @@ describe('php analyzer job and event dispatch', () => {
       symbolOf(result, 'app/Providers/EventProvider.php', 'EventProvider');
       symbolOf(result, 'app/Caller.php', 'Caller::run');
       expect(callsFrom(result, 'app/Caller.php', 'Caller::run')).toEqual([]);
+    });
+
+    it('a comment inside event(...) changes nothing (13.2)', async () => {
+      expect(await eventCalls('event(/* paid */ new Paid());')).toEqual([['heuristic', 'Notify::handle']]);
     });
 
     it('\\event(new E) counts like event(new E)', async () => {
