@@ -1,0 +1,196 @@
+acme-shop input: 53 files
+
+### 1. The Laravel call sites of acme-shop are heuristic calls
+{
+  "heuristicCalls": [
+    "CheckoutController::store -> PriceCalculator::compute",
+    "OrderController::show -> PriceCalculator::compute",
+    "RecalculateTotals::handle -> PriceCalculator::compute",
+    "SendOrderConfirmation::handle -> PriceCalculator::compute",
+    "ShippingService::shippingFor -> CarrierGateway::__call",
+    "OrderPricingTest::test_final_price_applies_discount_before_tax -> PriceCalculator::compute"
+  ],
+  "heuristicCount": 6,
+  "allPhpTreesitterLaravel": true,
+  "callsTargetingPricingPhp": 0,
+  "importsTargetingPricingPhp": 5,
+  "OrderController::index": [],
+  "AppServiceProvider::register": [],
+  "validateGraphErrors": []
+}
+=> PASS
+
+### 2. A facade without a binding or outside the input has no edge
+{
+  "Client::run": [
+    "Rates::quote (heuristic)"
+  ]
+}
+=> PASS
+
+### 3. A closure binding resolves a facade and originates no edge
+{
+  "Client::run": [
+    "Rates::quote (heuristic)"
+  ],
+  "RatesProvider::register": []
+}
+=> PASS
+
+### 4. An ambiguous binding key resolves no facade
+{
+  "Client::run": []
+}
+=> PASS
+
+### 5. __call and __callStatic of the receiving class
+{
+  "User::run": [
+    "Magic::__call (heuristic)",
+    "Magic::__callStatic (heuristic)",
+    "Magic::known (exact)"
+  ],
+  "Magic::relay": [
+    "Magic::__call (heuristic)"
+  ]
+}
+=> PASS
+
+### 6. An exact edge takes precedence over a heuristic one
+{
+  "Both::run": [
+    "Rates::quote (exact)"
+  ]
+}
+=> PASS
+
+### 7. A provider with a syntax error contributes no binding
+{
+  "Client::run": [],
+  "diagnostics": [
+    {
+      "path": "app/Providers/RatesProvider.php",
+      "message": "syntax error",
+      "line": 1
+    }
+  ]
+}
+=> PASS
+
+### 8. The acme-shop analysis is a valid deterministic graph
+{
+  "equalOnRerun": true,
+  "edges": 158,
+  "edgesInCompareEdgesOrder": true,
+  "duplicateKindSourceTarget": 0,
+  "validateGraphErrors": []
+}
+=> PASS
+
+### 9. The analyzer reads only the content it receives
+{
+  "files": [
+    "app/Ghost.php"
+  ],
+  "symbols": [
+    "class Ghost"
+  ]
+}
+=> PASS
+
+### 10. The constructor-injected services of acme-shop are exact calls
+{
+  "missing": [],
+  "exactCalls": 47,
+  "fromRoutesApi": 2,
+  "allPhpTreesitterLaravel": true
+}
+=> PASS
+
+### 11. The heuristic call sites of acme-shop have no exact edge
+{
+  "OrderController::show exact targets": [],
+  "CheckoutController::store exact targets": [],
+  "ShippingService::shippingFor exact targets": [
+    "app/Support/Money.php",
+    "app/Support/Money.php",
+    "app/Support/Money.php"
+  ],
+  "OrderObserver::created": [
+    "OrderPlaced::__construct (exact)"
+  ],
+  "compute -> app/Models/Order.php": 0,
+  "discountFor -> app/Listeners/": 0,
+  "AppServiceProvider::register": [],
+  "routes/web.php calls": 0
+}
+=> PASS
+
+### 12. Instantiation, static and own-type calls
+{
+  "Job::run": [
+    "Clock::__construct (exact)",
+    "Clock::now (exact)",
+    "Job::__construct (exact)",
+    "Job::tick (exact)"
+  ]
+}
+=> PASS
+
+### 13. A call through an interface-typed property targets the interface method
+{
+  "calls": [
+    "Quote::total -> Rates::rateFor (exact)"
+  ]
+}
+=> PASS
+
+### 14. Receivers without a usable declared type produce no edge
+{
+  "Bad::run symbol": true,
+  "Bad::run": []
+}
+=> PASS
+
+### 15. Calls inside a type or function declared in a method body produce no edge
+{
+  "Inner::g symbol": true,
+  "calls": 0
+}
+=> PASS
+
+### 16. Traits are never targets and only classes are instantiated
+{
+  "Uses::run": [
+    "Made::build (exact)"
+  ],
+  "Ticks::tick": [
+    "Clock::now (exact)"
+  ]
+}
+=> PASS
+
+### 17. Static, intersection-typed, local, variable and magic receivers produce no edge
+{
+  "Odd::run": [
+    "Clock::__construct (exact)",
+    "Magic::__callStatic (heuristic)"
+  ]
+}
+=> PASS
+
+### 18. A file with a syntax error originates no call edge
+{
+  "edgesFromBroken": 0,
+  "diagnostics": [
+    {
+      "path": "app/Broken.php",
+      "message": "syntax error",
+      "line": 1
+    }
+  ],
+  "validateGraphErrors": []
+}
+=> PASS
+
+ALL 18 SCENARIOS PASS
