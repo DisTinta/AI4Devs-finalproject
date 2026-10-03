@@ -1,13 +1,4 @@
-# code-analysis Specification
-
-## Purpose
-
-How the domain turns the content of a repository's files into the files and symbols of the
-knowledge graph through `AnalyzerPort`, without knowing the source language: every file gets a kind
-and a line count, and every class, interface, method and function gets its exact line span, so that
-later explanations can cite real lines.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Analysis contract
 
@@ -198,21 +189,7 @@ apart.
 - **AND** wrapping the result in a graph with `commits: []` and `fileCommits: []` makes the graph
   validation return no error
 
-### Requirement: Syntax errors do not stop the analysis
-
-A PHP file that cannot be parsed without errors SHALL still appear in `files` with its `kind` and
-`loc`, SHALL have no symbols, and SHALL add one diagnostic with its `path`, a non-empty `message`
-and, when known, the 1-based `line` of the first error. The analysis SHALL NOT reject because of it,
-and the other files of the same call SHALL keep their symbols.
-
-#### Scenario: A syntax error does not stop the analysis
-
-- **WHEN** `app/Broken.php` with content `<?php class Broken { public function x( }` and
-  `app/Ok.php` with a valid class `Ok` are analysed in the same call
-- **THEN** the analysis resolves; `app/Broken.php` is in `files` with kind `source` and its `loc`,
-  and has no symbol; `diagnostics` has exactly one entry, for `app/Broken.php`, with a non-empty
-  message
-- **AND** `app/Ok.php` has its `class Ok` symbol
+## ADDED Requirements
 
 ### Requirement: PHP name resolution
 

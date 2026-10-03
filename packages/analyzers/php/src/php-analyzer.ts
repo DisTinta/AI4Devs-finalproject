@@ -6,8 +6,11 @@ import type {
   GraphSymbol,
   SourceFile,
 } from '@codemind/core';
-import { describeFile } from '@codemind/core';
+import { describeFile, docMentionEdges, sortUniqueEdges } from '@codemind/core';
+import { buildPhpEdges, type PlacedRouteFact } from './edges.js';
+import { collectFacts, type PhpFileFacts } from './names.js';
 import { loadPhpParser, type Node, type PhpParser } from './parser.js';
+import { collectRoutes } from './routes.js';
 import { extractSymbols } from './symbols.js';
 
 const byPath = (a: { path: string }, b: { path: string }): number => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
@@ -73,12 +76,21 @@ export function createPhpAnalyzer(): AnalyzerPort {
     file: SourceFile,
     parser: PhpParser,
     symbols: GraphSymbol[],
+    facts: PhpFileFacts[],
+    routes: PlacedRouteFact[],
     diagnostics: AnalyzerDiagnostic[],
   ): void => {
     const tree = parser.parse(file.content);
     try {
-      if (tree.rootNode.hasError) diagnostics.push(diagnosticFor(file.path, tree.rootNode));
-      else symbols.push(...keepFirst(file.path, extractSymbols(file.path, tree.rootNode), diagnostics));
+      if (tree.rootNode.hasError) {
+        diagnostics.push(diagnosticFor(file.path, tree.rootNode));
+      } else {
+        const fileFacts = collectFacts(file.path, tree.rootNode);
+        const fileRoutes = collectRoutes(file.path, tree.rootNode, fileFacts);
+        symbols.push(...keepFirst(file.path, [...extractSymbols(file.path, tree.rootNode), ...fileRoutes.symbols], diagnostics));
+        facts.push(fileFacts);
+        routes.push(...fileRoutes.facts.map((routeFact) => ({ ...routeFact, path: file.path })));
+      }
     } finally {
       tree.delete();
     }
@@ -88,18 +100,22 @@ export function createPhpAnalyzer(): AnalyzerPort {
     async analyze(input: AnalyzerInput): Promise<AnalysisResult> {
       const files = input.files.map((file) => describeFile(file.path, file.content)).sort(byPath);
       const symbols: GraphSymbol[] = [];
+      const facts: PhpFileFacts[] = [];
+      const routes: PlacedRouteFact[] = [];
       const diagnostics: AnalyzerDiagnostic[] = [];
       const phpFiles = input.files.filter((file) => file.path.endsWith('.php'));
 
       if (phpFiles.length > 0) {
         const parser = await getParser();
-        for (const file of phpFiles) analyzeOne(file, parser, symbols, diagnostics);
+        for (const file of phpFiles) analyzeOne(file, parser, symbols, facts, routes, diagnostics);
       }
 
       symbols.sort(bySymbolOrder);
       diagnostics.sort(byPath);
 
-      return { files, symbols, edges: [], diagnostics };
+      const edges = sortUniqueEdges([...buildPhpEdges(facts, routes, symbols), ...docMentionEdges(input.files, symbols)]);
+
+      return { files, symbols, edges, diagnostics };
     },
   };
 }

@@ -41,7 +41,12 @@ export interface AnalysisResult {
    * symbol before the symbols it contains when two start on the same line), then `name`.
    */
   symbols: GraphSymbol[];
-  /** Always empty in this capability: edges are added by a later change. */
+  /**
+   * Every relation the analyzer resolves between `files` and `symbols` of this result (`imports`,
+   * `extends`, `implements`, a route's `calls`, `tested_by`, `describes`), with both endpoints
+   * present in `files` or `symbols`, ordered by `compareEdges` (`kind`, then source endpoint, then
+   * target endpoint), no two sharing `kind`, source and target.
+   */
   edges: GraphEdge[];
   /**
    * One entry per file in `files` that could not be parsed, and one per symbol dropped as a
