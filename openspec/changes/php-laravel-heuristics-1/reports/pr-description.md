@@ -15,6 +15,13 @@ When a `heuristic` edge would share kind, source and target with an `exact` one,
 explicitly. In acme-shop this gives 6 `heuristic` `calls`: sites 7–9 of the batch plus three other
 `Pricing::compute` callers. The 47 `exact` ones are unchanged, and `packages/core` has no diff.
 
+The PR also fixes a race between tests that already existed and that CI exposed on its first run:
+- `simple-git-history.spec.ts` used to rebuild the real fixtures' `.git` in place. While it commits,
+  the builder rewrites tracked files with older snapshots, and the analyzer specs read those same
+  files in parallel.
+- The spec now builds both histories in temp copies of the fixtures, so the real fixtures are only
+  read.
+
 Change: `openspec/changes/php-laravel-heuristics-1/` · Ticket: [DIS-61](https://linear.app/distinta-ai4devs/issue/DIS-61/cm-hu-04b1-facades-bindings-del-contenedor-call)
 
 ## Why?
@@ -39,6 +46,9 @@ Change: `openspec/changes/php-laravel-heuristics-1/` · Ticket: [DIS-61](https:/
    - sites 4, 6, 10 and 12 have no edge (they belong to DIS-63).
 
    Details in `openspec/changes/php-laravel-heuristics-1/reports/2026-10-03-8-manual-interface-testing.md`.
+7. `npx vitest run tests/integration/git`: 20 passed, 2 skipped without `DATABASE_URL`. Afterwards
+   `git status --porcelain fixtures` is empty, and `fixtures/acme-shop/.git/HEAD` keeps its mtime: the
+   real fixtures are no longer rebuilt. In CI (with a database), `quality` passed with 380/380 tests.
 
 ## Decisions / trade-offs
 

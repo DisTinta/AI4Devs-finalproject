@@ -94,7 +94,20 @@ Not applicable: the change adds no route, CLI command or web screen. The interfa
 `AnalyzerPort`, exercised in the step 8 report.
 
 ### CI evidence (task 9.2)
-Pending: requires pushing the branch and opening the PR (user-confirmed step).
+- PR #16 (https://github.com/DisTinta/AI4Devs-finalproject/pull/16).
+- First run, commit `3bd3266`: `quality` **failed**
+  (https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37129859924). "The
+  constructor-injected services of acme-shop are exact calls" reported `symbol not found:
+  … DiscountService::volumeBonus`. Cause: a pre-existing race. `simple-git-history.spec.ts` rebuilt
+  the real fixtures' `.git` in place, rewriting tracked files with older snapshots while the analyzer
+  specs read them in parallel. Fixed in this PR (tasks.md §11) by building the histories in temp copies.
+- Second run, commit `2d3f46a`: `quality` pass in 3m39s
+  (https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37130600572). 26/26 test files and
+  380/380 tests pass (CI has a database, so the integration specs run too). The log shows
+  `✓ tests/unit/analyzers/php/laravel/heuristic-calls.spec.ts (18 tests)`,
+  `✓ …/laravel/container.spec.ts (14 tests)`, `✓ …/php/calls.spec.ts (21 tests)` and
+  `✓ tests/integration/git/simple-git-history.spec.ts (19 tests)`: all ran, none skipped. `frontend`
+  pass (https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37130600564).
 
 ## UI evidence (if applicable)
 - (none: the change has no browser UI)
