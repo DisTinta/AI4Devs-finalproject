@@ -62,7 +62,16 @@ Each file was backed up to the scratchpad, mutated, run, restored, and checked b
 
 ## End-to-end testing (step 7)
 Not applicable: the change adds no route, CLI command or web screen. The interface is the in-process
-`AnalyzerPort`, exercised in the step 6 report. CI evidence: pending the push (task 7.2).
+`AnalyzerPort`, exercised in the step 6 report.
+
+### CI evidence (task 7.2)
+- PR #15 (https://github.com/DisTinta/AI4Devs-finalproject/pull/15), commit `449837d`.
+- `quality`: pass in 2m16s,
+  https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37112509888. The log shows
+  `✓ tests/unit/analyzers/php/calls.spec.ts (16 tests)`, run and not skipped. All 24 test files pass
+  (CI has a database, so the integration specs run too), and `calls.spec.ts` is picked up by the
+  "Mutation testing on critical paths" step.
+- `frontend`: pass, https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37112509965.
 
 ## UI evidence (if applicable)
 - (none: the change has no browser UI)

@@ -69,7 +69,8 @@
 ## 7. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
 - [x] 7.1 Confirm no user interface or user workflow is affected (no route, no CLI, no web change). Record "not applicable", with that reason, in the step 5 report
-- [ ] 7.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that `calls.spec.ts` ran and was not skipped. Link the run in the step 5 report
+- [x] 7.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that `calls.spec.ts` ran and was not skipped. Link the run in the step 5 report
+  - PR #15, `quality` (run 37112509888) and `frontend` passed; `calls.spec.ts` ran 16 tests, 24/24 test files passed. Linked in the step 5 report "CI evidence (task 7.2)".
 
 ## 8. Update Technical Documentation (MANDATORY)
 
@@ -78,4 +79,5 @@
 - [x] 8.3 Run `/update-docs` and confirm the docs gate passes (`npm run docs:coverage`). Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
   - `/update-docs`: gotcha added to `docs/project-context.md` (8.1); nothing else stale (checked data model, API spec, dependencies, `backend-standards.md`, ADRs, `fixtures/README.md`; planning docs in `docs/ai-sessions/` are history). `docs:coverage` clean. `prompts.md` §22 (3 literal prompts) + Índice entry 22.
 - [x] 8.4 Leave a Linear comment in Spanish on DIS-61 (facades/bindings/`__call`): declared-type `calls` are in; `__call`, facades and closures were deliberately left without an edge for it to cover as `heuristic`
-- [ ] 8.5 Prepare the PR description (`/pr-describe`) against `feature/entrega-2-CRN`, keeping the author's Why. After verification, set DIS-52 to In Review in Linear with a comment in Spanish linking the PR and the change
+- [x] 8.5 Prepare the PR description (`/pr-describe`) against `feature/entrega-2-CRN`, keeping the author's Why. After verification, set DIS-52 to In Review in Linear with a comment in Spanish linking the PR and the change
+  - PR #15 opened with the author's Why verbatim (`reports/pr-description.md`). DIS-52 → In Review with a comment linking the PR and the change.
