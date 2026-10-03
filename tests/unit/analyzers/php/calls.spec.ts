@@ -351,13 +351,24 @@ describe('php analyzer declared-type calls', () => {
     expect(
       acmeShop.edges.some((e) => e.kind === 'calls' && e.resolution === 'exact' && 'symbol' in e.target && e.target.symbol?.name === 'CarrierGateway::__call'),
     ).toBe(false);
-    // Sites 4, 6, 10 and 12, and the provider closures: still no `calls` edge at all.
-    expect(callsFrom(acmeShop, 'app/Observers/OrderObserver.php', 'OrderObserver::created').map((e) => 'symbol' in e.target && e.target.symbol?.name)).not.toContain(
-      'RecalculateTotals::handle',
-    );
+    // Site 10: no `exact` edge from either observer method to the job's `handle` (the `heuristic` ones
+    // belong to "Laravel heuristic calls", job dispatch).
+    for (const name of ['OrderObserver::created', 'OrderObserver::updated']) {
+      expect(
+        callsFrom(acmeShop, 'app/Observers/OrderObserver.php', name)
+          .filter((e) => e.resolution === 'exact')
+          .map((e) => 'symbol' in e.target && e.target.symbol?.name),
+      ).not.toContain('RecalculateTotals::handle');
+    }
+    // Site 6 (and `OrderObserver::created`'s event): no `exact` edge to a listener (the `heuristic`
+    // ones belong to "Laravel heuristic calls", event dispatch).
+    expect(exactTargetsOf('app/Services/DiscountService.php', 'DiscountService::discountFor').some((path) => path.startsWith('app/Listeners/'))).toBe(false);
+    expect(exactTargetsOf('app/Observers/OrderObserver.php', 'OrderObserver::created').some((path) => path.startsWith('app/Listeners/'))).toBe(false);
+    // Site 4 and the provider closures: still no `calls` edge at all.
     expect(targetsOf('app/Services/PriceCalculator.php', 'PriceCalculator::compute')).not.toContain('app/Models/Order.php');
-    expect(targetsOf('app/Services/DiscountService.php', 'DiscountService::discountFor').some((path) => path.startsWith('app/Listeners/'))).toBe(false);
     expect(callsFrom(acmeShop, 'app/Providers/AppServiceProvider.php', 'AppServiceProvider::register')).toEqual([]);
-    expect(acmeShop.edges.some((e) => e.kind === 'calls' && 'symbol' in e.source && e.source.symbol?.file === 'routes/web.php')).toBe(false);
+    // Site 12: the string route of routes/web.php has no `exact` edge (its `heuristic` one belongs to
+    // "Array-action routes").
+    expect(acmeShop.edges.some((e) => e.resolution === 'exact' && 'symbol' in e.source && e.source.symbol?.file === 'routes/web.php')).toBe(false);
   });
 });

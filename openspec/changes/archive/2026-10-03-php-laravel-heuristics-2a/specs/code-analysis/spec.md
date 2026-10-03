@@ -1,61 +1,4 @@
-# code-analysis Specification
-
-## Purpose
-
-How the domain turns the content of a repository's files into the files and symbols of the
-knowledge graph through `AnalyzerPort`, without knowing the source language: every file gets a kind
-and a line count, and every class, interface, method and function gets its exact line span, so that
-later explanations can cite real lines.
-
-## Requirements
-
-### Requirement: Analysis contract
-
-`AnalyzerPort.analyze(input)` SHALL take `{ files }`, where each file is `{ path, content }` with a
-repository-relative `path` using `/` as separator, and SHALL resolve to `{ files, symbols, edges,
-diagnostics }` built from the existing graph types:
-
-- `files`: exactly one `GraphFile` per input file, with its `path`, its `kind` and its `loc`, and no
-  `contentHash` or `redacted`;
-- `symbols`: the `GraphSymbol`s declared in those files;
-- `edges`: the `GraphEdge`s between those files and symbols defined by the requirements "Code
-  relation edges", "Array-action routes", "Declared-type calls", "Laravel heuristic calls", "Test
-  coverage edges" and "Documentation mention edges"; every edge SHALL have a non-empty `extractor`, a
-  `resolution`, no `weight`, and both endpoints present in `files` or `symbols` of the same result; no
-  two edges SHALL share `kind`, source and target;
-- `diagnostics`: one `{ path, message, line? }` per file that could not be parsed, and one per symbol
-  dropped as a duplicate (see Symbol extraction); a file MAY have more than one.
-
-The result SHALL be accepted by the graph validation of `graph-store` once wrapped in a graph with no
-commits and no file–commit links. The result SHALL be deterministic: the same input SHALL produce an
-equal result. `files` SHALL be ordered by `path`, and `symbols` by file `path`, then `startLine`, then
-the enclosing symbol before the symbols it contains, then `name`. `edges` SHALL be ordered by `kind`,
-then source endpoint, then target endpoint, where an endpoint is ordered by its file `path`, then a
-file endpoint before the symbol endpoints of that path, then symbol `name`, then `startLine`. Kinds,
-paths and names SHALL be compared by UTF-16 code unit, not by locale.
-
-The analyzer SHALL use only the content it receives: it SHALL NOT read the analysed repository's
-files, open a network connection, or execute or install anything from the analysed repository.
-Loading its own parser is the only file it MAY read.
-
-#### Scenario: The acme-shop analysis is a valid deterministic graph
-
-- **GIVEN** the content of the 53 tracked files of `fixtures/acme-shop` (the `.git` directory
-  excluded)
-- **WHEN** they are analysed twice with the same input
-- **THEN** both results are equal, `files` is ordered by `path`, `symbols` by `path` then
-  `startLine`, and `edges` is non-empty and in the order defined above, with no two edges sharing
-  `kind`, source and target
-- **AND** wrapping the result in a graph with `commits: []` and `fileCommits: []` makes the graph
-  validation return no error
-
-#### Scenario: The analyzer reads only the content it receives
-
-- **GIVEN** a file `app/Ghost.php` that does not exist on disk, whose content declares
-  `class Ghost`
-- **WHEN** it is analysed
-- **THEN** the result has one file `app/Ghost.php` and one `class` symbol `Ghost`, and no error is
-  raised
+## MODIFIED Requirements
 
 ### Requirement: File classification
 
@@ -201,22 +144,6 @@ apart.
 - **AND** wrapping the result in a graph with `commits: []` and `fileCommits: []` makes the graph
   validation return no error
 
-### Requirement: Syntax errors do not stop the analysis
-
-A PHP file that cannot be parsed without errors SHALL still appear in `files` with its `kind` and
-`loc`, SHALL have no symbols, and SHALL add one diagnostic with its `path`, a non-empty `message`
-and, when known, the 1-based `line` of the first error. The analysis SHALL NOT reject because of it,
-and the other files of the same call SHALL keep their symbols.
-
-#### Scenario: A syntax error does not stop the analysis
-
-- **WHEN** `app/Broken.php` with content `<?php class Broken { public function x( }` and
-  `app/Ok.php` with a valid class `Ok` are analysed in the same call
-- **THEN** the analysis resolves; `app/Broken.php` is in `files` with kind `source` and its `loc`,
-  and has no symbol; `diagnostics` has exactly one entry, for `app/Broken.php`, with a non-empty
-  message
-- **AND** `app/Ok.php` has its `class Ok` symbol
-
 ### Requirement: PHP name resolution
 
 Every class, interface and trait symbol of a parsed PHP file SHALL have a fully-qualified name: the
@@ -259,40 +186,6 @@ on name resolution.
   `<?php namespace App; class B extends \App\One\Dup {}` are analysed
 - **THEN** there are `implements` edges from `A` to `Prices` and from `A` to `Taxes`
 - **AND** there is no `extends` edge from `B`, because `App\One\Dup` names two symbols
-
-### Requirement: Code relation edges
-
-The analyzer SHALL emit, with `resolution` `exact` and `extractor` `php-treesitter-laravel`:
-
-- one `imports` edge from a parsed PHP file to the class, interface or trait symbol that each of its
-  top-level `use` imports resolves to;
-- one `extends` edge from a class symbol to the class its `extends` clause resolves to, and from an
-  interface symbol to each interface its `extends` clause resolves to;
-- one `implements` edge from a class symbol to each interface its `implements` clause resolves to.
-
-An anonymous class SHALL originate no edge (it has no symbol). A file that could not be parsed SHALL
-originate no edge of any kind and SHALL contribute no symbol as a target.
-
-#### Scenario: Inheritance and imports of acme-shop
-
-- **GIVEN** the content of the 53 tracked files of `fixtures/acme-shop`
-- **WHEN** they are analysed
-- **THEN** there are exactly 7 `extends` edges: from `OrderController` and from `CheckoutController`
-  to the `Controller` of `app/Http/Controllers/Controller.php` (same namespace, no `use`), and from
-  `CheckoutTest`, `OrderPricingTest`, `DiscountServiceTest`, `ShippingServiceTest` and
-  `TaxServiceTest` to the `TestCase` of `tests/TestCase.php`; and there is no `implements` edge
-- **AND** there are exactly 79 `imports` edges, among them one from the file `routes/api.php` to
-  `OrderController`, and exactly 6 from the file `tests/Unit/PriceCalculatorTest.php`, to
-  `PriceCalculator`, `DiscountService`, `TaxService`, `ShippingService`, `Order` and `Money`
-- **AND** every one of them has `resolution` `exact` and `extractor` `php-treesitter-laravel`
-
-#### Scenario: A file with a syntax error originates no edge
-
-- **WHEN** `app/Broken.php` with content `<?php namespace App; use App\Ok; class Broken extends Ok { public function x( }`
-  and `app/Ok.php` with content `<?php namespace App; class Ok {}` are analysed in the same call
-- **THEN** no edge has `app/Broken.php`, or a symbol of it, as source
-- **AND** `diagnostics` has one entry for `app/Broken.php`, and the graph validation of the wrapped
-  result returns no error
 
 ### Requirement: Array-action routes
 
@@ -758,59 +651,3 @@ source and target; calls of the same method that resolve to the same target SHAL
   analysed together, with `app/Providers/RatesProvider.php` changed to
   `<?php namespace App\Providers; use App\Services\Rates; use Illuminate\Support\ServiceProvider; class RatesProvider extends ServiceProvider { public function register(): void { $this->app->bind('rates', Rates::class); } public function x( }`
 - **THEN** `Client::run` is the source of no `calls` edge
-
-### Requirement: Test coverage edges
-
-A class `XTest` declared in a file of kind `test` SHALL produce one `tested_by` edge from the class
-symbol `X` to the class symbol `XTest`, with `resolution` `exact` and `extractor`
-`php-treesitter-laravel`, when the file that declares `XTest` contains a class name (in a `use`
-import, an `extends` or `implements` clause, a type, `new X`, `X::class` or a static call) that
-resolves to the fully-qualified name of a class `X` of the input whose short name is `XTest` without
-its `Test` suffix. A test class with no such reference SHALL produce no `tested_by` edge.
-
-#### Scenario: The unit tests of acme-shop cover their classes
-
-- **GIVEN** the content of the 53 tracked files of `fixtures/acme-shop`
-- **WHEN** they are analysed
-- **THEN** there are exactly 4 `tested_by` edges, `exact`: from `PriceCalculator` to
-  `PriceCalculatorTest`, from `DiscountService` to `DiscountServiceTest`, from `ShippingService` to
-  `ShippingServiceTest` and from `TaxService` to `TaxServiceTest`
-- **AND** `CheckoutTest` and `OrderPricingTest` are the target of no `tested_by` edge
-
-#### Scenario: A test class that does not reference its subject has no edge
-
-- **WHEN** `app/Foo.php` with content `<?php namespace App; class Foo {}` and `tests/Unit/FooTest.php`
-  with content `<?php namespace Tests\Unit; class FooTest { public function test_it(): void {} }` are
-  analysed
-- **THEN** there is no `tested_by` edge
-
-### Requirement: Documentation mention edges
-
-A file of kind `doc` SHALL produce one `describes` edge from the file to a symbol, with `resolution`
-`heuristic`, when the symbol's `name` appears in the file inside an inline code span (text between a
-pair of backticks on one line) or a fenced code block (lines between two lines starting with three
-backticks), as a whole identifier (a maximal run of ASCII letters, digits and `_` not starting with a
-digit) or as two such identifiers joined by `::`. The comparison SHALL be case-sensitive. A name
-held by more than one symbol of the result SHALL produce no edge; `route` symbols SHALL never match.
-Text outside code spans and fenced blocks SHALL NOT produce edges. The rule SHALL live in the domain,
-independent of any analyzer, and the `extractor` of every `describes` edge SHALL be `doc-mention`,
-the same for every analyzer.
-
-#### Scenario: The acme-shop README describes the symbols it names in code
-
-- **GIVEN** the content of the 53 tracked files of `fixtures/acme-shop`
-- **WHEN** they are analysed
-- **THEN** the `describes` edges from `README.md` go exactly to `Order`, `OrderLine`, `Product`,
-  `Customer`, `Coupon`, `PriceCalculator`, `DiscountService`, `TaxService`, `ShippingService`,
-  `CouponValidator`, `CarrierGateway`, `Pricing`, `Money`, `CreatesApplication` and
-  `PriceCalculator::compute`, all with `resolution` `heuristic` and `extractor` `doc-mention`
-- **AND** `docs/pricing.md`, which names no symbol inside code, originates no edge (its prose
-  "Order of operations" and "Pricing rules" does not count)
-
-#### Scenario: Prose and ambiguous names produce no describes edge
-
-- **WHEN** the domain rule is applied to a doc `docs/a.md` with content
-  "Order of operations: see `Order` and `Line` and `Total::sum`." and to the symbols `class Order`
-  (`app/Order.php`), `class Line` in `app/A/Line.php` and `class Line` in `app/B/Line.php`, and
-  `method Total::sum` (`app/Total.php`)
-- **THEN** it returns exactly two `describes` edges from `docs/a.md`: to `Order` and to `Total::sum`

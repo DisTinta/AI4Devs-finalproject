@@ -388,8 +388,9 @@ services that must be started first, quirks of the local environment.
   `.claude/sdd-harness.env`: a bare `tsc --noEmit <file>` ignores `tsconfig.base.json` (falls back
   to commonjs / node10 resolution, no `skipLibCheck`) and fails on every test that imports `vitest`.
 - **The PHP analyzer now emits edges** (DIS-49): `imports` (file → class/interface/trait, one per
-  top-level `use`), `extends`, `implements`, a route's `calls` (array-action routes only:
-  `Route::<verb>('<uri>', [X::class, '<m>'])`, a new `route` symbol named `<VERB> <uri>`), `tested_by`
+  top-level `use`), `extends`, `implements`, a route's `calls` (array-action routes
+  `Route::<verb>('<uri>', [X::class, '<m>'])`, a new `route` symbol named `<VERB> <uri>`; string
+  actions `'C@m'` were added as `heuristic` by DIS-97, see below), `tested_by`
   (class `X` → test class `XTest` that references it) — all `resolution: 'exact'`, `extractor:
   'php-treesitter-laravel'` — and `describes` (doc file → symbol, `resolution: 'heuristic'`,
   `extractor: 'doc-mention'`, matched only inside backticks/fenced code blocks, never in prose).
@@ -425,7 +426,23 @@ services that must be started first, quirks of the local environment.
   `X::__callStatic` (inherited magic methods do not count). The binding closures still originate no
   edge (signed non-goal: the table is a lookup only). A `heuristic` edge is dropped when an `exact` one
   has the same kind/source/target — filtered explicitly in `buildPhpEdges`, since `sortUniqueEdges`
-  ignores `resolution`. acme-shop yields 47 `exact` `calls` (2 of them routes) + 6 `heuristic` (sites
-  7–9 of the batch plus three other `Pricing::compute` callers; site 7 lands on `CarrierGateway::__call`,
-  as `flatRateFor` has no symbol). Eloquent, string routes, jobs, events and the unresolved counter are
-  DIS-63.
+  ignores `resolution`. Site 7 of the batch lands on `CarrierGateway::__call`, as `flatRateFor` has no
+  symbol.
+- **String routes, job dispatch and event dispatch are `heuristic` too** (DIS-97). A
+  `Route::<verb>('<uri>', '<C>@<m>')` statement gets a `route` symbol like an array action; `<C>` is
+  looked up **verbatim** as a fully-qualified name (no `use`, no `RouteServiceProvider` prefix), so
+  only a class of the input declaring `<m>` gets the `heuristic` edge; a literal with an escape
+  sequence (`'A\\B@m'`), interpolation, no or two `@`, an empty part or a leading `\` is no route at
+  all. Array actions stay `exact`. Every route symbol spans its **whole statement**, chained calls
+  included (`routes/web.php` `POST /checkout` is 13–15). `X::dispatch|dispatchSync|dispatchIf|dispatchUnless|dispatchAfterResponse()`
+  → `X::handle` when `X` uses `Illuminate\Foundation\Bus\Dispatchable` **in its own body** (a parent's
+  trait does not count) and declares `handle`; it wins over `__callStatic`. `event(new E(...))` /
+  `\event(...)` → `L::handle` for each listener in the non-static `$listen` array of a class *directly*
+  extending `Illuminate\Foundation\Support\Providers\EventServiceProvider`, read **per entry**: each
+  `L::class` of an `E::class => [...]` value counts, while strings, method pairs and spreads are skipped
+  without discarding the rest; `boot()` listeners and auto-discovery give nothing. The Laravel
+  collectors (bindings, facade accessors, `$listen`) never read a class declared in a method **or
+  top-level function** body (`LARAVEL_WALK_STOP`), and a multi-namespace routes file keeps its route
+  symbols but no route edge. acme-shop yields
+  47 `exact` `calls` (2 of them routes) + 11 `heuristic` (sites 6–10 and 12, plus five other callers).
+  Eloquent attributes (site 4) and the unresolved-sites report are DIS-98.

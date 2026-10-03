@@ -1,0 +1,434 @@
+acme-shop input: 53 files
+
+### 1. Paths are classified by the canonical rule
+{
+  "tests/Unit/TaxServiceTest.php": "test",
+  "tests/unit/task.service.test.ts": "test",
+  "docs/api.md": "doc",
+  "tsconfig.json": "config",
+  "src/config/env.ts": "source",
+  "app/Services/TaxService.php": "source"
+}
+=> PASS
+
+### 2. The acme-shop files are classified
+{
+  "files": 53,
+  "byKind": {
+    "config": 7,
+    "doc": 2,
+    "source": 36,
+    "test": 8
+  },
+  "locMismatches": [],
+  "config/app.php symbols": [],
+  "routes/web.php symbols": [
+    "route POST /checkout 13-15"
+  ],
+  "routes/api.php symbol kinds": [
+    "route",
+    "route"
+  ]
+}
+=> PASS
+
+### 3. Line count of a file
+[
+  0,
+  1,
+  1,
+  2,
+  2
+]
+=> PASS
+
+### 4. A described file has no contentHash or redacted
+{
+  "path": "app/Services/TaxService.php",
+  "kind": "source",
+  "loc": 2
+}
+=> PASS
+
+### 5. PriceCalculator symbols have exact spans
+{
+  "symbols": [
+    "class PriceCalculator 16-44",
+    "method PriceCalculator::__construct 18-23",
+    "method PriceCalculator::compute 25-35",
+    "method PriceCalculator::taxableBase 38-43"
+  ],
+  "computeSignature": "public function compute(Order $order): Money"
+}
+=> PASS
+
+### 6. Symbol spans include modifiers and attributes
+[
+  "class Base 2-4 | abstract class Base",
+  "method Base::run 3-3 | abstract public function run(): void",
+  "class Model 2-6 | #[Entity] class Model",
+  "method Model::save 4-5 | #[Column] public function save(): void"
+]
+=> PASS
+
+### 7. Every named class of acme-shop is listed
+{
+  "declaredClasses": 35,
+  "missing": [],
+  "nonPhpWithSymbols": []
+}
+=> PASS
+
+### 8. Interfaces and top-level functions are listed, enums are not
+[
+  "app/Payable.php: interface Payable",
+  "app/Payable.php: method Payable::pay | public function pay(): void",
+  "app/helpers.php: function helper"
+]
+=> PASS
+
+### 9. A trait is encoded as a class
+{
+  "symbols": [
+    "class CreatesApplication | trait CreatesApplication",
+    "method CreatesApplication::createApplication | public function createApplication(): Application"
+  ],
+  "diagnostics": []
+}
+=> PASS
+
+### 10. Anonymous classes yield only their methods
+{
+  "classes": 0,
+  "methods": [
+    "method down",
+    "method down",
+    "method down",
+    "method down",
+    "method down",
+    "method up",
+    "method up",
+    "method up",
+    "method up",
+    "method up"
+  ]
+}
+=> PASS
+
+### 11. Duplicate symbols are dropped with a diagnostic
+{
+  "symbols": [
+    "method run 1 | function run($x)"
+  ],
+  "diagnostics": [
+    {
+      "path": "app/Dup.php",
+      "line": 1,
+      "message": "duplicate symbol \"run\"; kept the first"
+    }
+  ],
+  "validateGraphErrors": []
+}
+=> PASS
+
+### 12. Names resolve by fully-qualified name, never by short name
+{
+  "PriceCalculatorTest extends": [],
+  "Controller extends": [],
+  "edges targeting outside the input": 0,
+  "app/Models/Order.php imports": [
+    "Money"
+  ],
+  "tests/TestCase.php imports": []
+}
+=> PASS
+
+### 13. Aliases, group imports and ambiguous names
+{
+  "implements": [
+    "A -> Prices",
+    "A -> Taxes"
+  ],
+  "B extends": 0
+}
+=> PASS
+
+### 14. The API routes of acme-shop point at their controller actions
+{
+  "symbols": [
+    "route GET /orders 12-12",
+    "route GET /orders/{order} 13-13"
+  ],
+  "calls": [
+    "GET /orders -> OrderController::index (exact) in app/Http/Controllers/OrderController.php",
+    "GET /orders/{order} -> OrderController::show (exact) in app/Http/Controllers/OrderController.php"
+  ]
+}
+=> PASS
+
+### 15. The string route of acme-shop is a heuristic call
+{
+  "symbols": [
+    "route POST /checkout 13-15"
+  ],
+  "signature": "Route::post('/checkout', 'App\\Http\\Controllers\\CheckoutController@store') ->middleware('cart.not_empty') ->name('checkout.store')",
+  "edges": [
+    "calls -> CheckoutController::store (heuristic, php-treesitter-laravel) in app/Http/Controllers/CheckoutController.php"
+  ],
+  "every edge sourced in routes/web.php": [
+    "POST /checkout -calls-> CheckoutController::store (heuristic)"
+  ]
+}
+=> PASS
+
+### 16. A route to an action outside the input has no edge
+{
+  "symbols": [
+    "route POST /ghost | Route::post('/ghost', [Ghost::class, 'run'])->name('ghost')"
+  ],
+  "edges": 0
+}
+=> PASS
+
+### 17. A multi-line array-action route spans its whole statement
+[
+  "route POST /ghost 3-4"
+]
+=> PASS
+
+### 18. Malformed string actions produce no route
+{
+  "source": [
+    "Route::get('/a', 'App\\Ghost@run');",
+    "Route::get('/b', 'NoAt');",
+    "Route::get('/c', \"App\\X@{$m}\");",
+    "Route::get('/d', '\\App\\Ghost@run');",
+    "Route::get('/e', 'App\\\\Ghost@run');",
+    "Route::get('/f', 'App\\Ghost@run@x');",
+    "Route::get('/g', '@run');",
+    "Route::get('/h', 'App\\Ghost@');"
+  ],
+  "symbols": [
+    "route GET /a 2-2"
+  ],
+  "edges": 0,
+  "diagnostics": 0
+}
+=> PASS
+
+### 19. The constructor-injected services of acme-shop are exact calls
+{
+  "missing": [],
+  "exactCalls": 47,
+  "fromRoutesApi": 2,
+  "allPhpTreesitterLaravel": true
+}
+=> PASS
+
+### 20. The heuristic call sites of acme-shop have no exact edge
+{
+  "OrderController::show exact": [],
+  "CheckoutController::store exact": [],
+  "ShippingService::shippingFor exact": [
+    "Money::fromCents in app/Support/Money.php",
+    "Money::fromFloat in app/Support/Money.php",
+    "Money::zero in app/Support/Money.php"
+  ],
+  "OrderObserver::created exact": [
+    "OrderPlaced::__construct in app/Events/OrderPlaced.php"
+  ],
+  "OrderObserver::updated exact": [],
+  "DiscountService::discountFor exact into app/Listeners/": [],
+  "PriceCalculator::compute any -> app/Models/Order.php": 0,
+  "AppServiceProvider::register": [],
+  "routes/web.php exact": 0
+}
+=> PASS
+
+### 21. Instantiation, static and own-type calls
+{
+  "Job::run": [
+    "Clock::__construct (exact)",
+    "Clock::now (exact)",
+    "Job::__construct (exact)",
+    "Job::tick (exact)"
+  ]
+}
+=> PASS
+
+### 22. A call through an interface-typed property targets the interface method
+{
+  "calls": [
+    "Quote::total -> Rates::rateFor (exact)"
+  ]
+}
+=> PASS
+
+### 23. Receivers without a usable declared type produce no edge
+{
+  "Bad::run symbol": true,
+  "Bad::run": []
+}
+=> PASS
+
+### 24. Calls inside a type or function declared in a method body produce no edge
+{
+  "Inner::g symbol": true,
+  "calls": 0
+}
+=> PASS
+
+### 25. Traits are never targets and only classes are instantiated
+{
+  "Uses::run": [
+    "Made::build (exact)"
+  ],
+  "Ticks::tick": [
+    "Clock::now (exact)"
+  ]
+}
+=> PASS
+
+### 26. Static, intersection-typed, local, variable and magic receivers produce no edge
+{
+  "Odd::run": [
+    "Clock::__construct (exact)",
+    "Magic::__callStatic (heuristic)"
+  ]
+}
+=> PASS
+
+### 27. A file with a syntax error originates no call edge
+{
+  "edgesFromBroken": 0,
+  "diagnostics": [
+    {
+      "path": "app/Broken.php",
+      "message": "syntax error",
+      "line": 1
+    }
+  ],
+  "validateGraphErrors": []
+}
+=> PASS
+
+### 28. The Laravel call sites of acme-shop are heuristic calls
+{
+  "heuristicCalls": [
+    "CheckoutController::store -> PriceCalculator::compute",
+    "OrderController::show -> PriceCalculator::compute",
+    "RecalculateTotals::handle -> PriceCalculator::compute",
+    "SendOrderConfirmation::handle -> PriceCalculator::compute",
+    "OrderObserver::created -> RecalculateTotals::handle",
+    "OrderObserver::created -> SendOrderConfirmation::handle",
+    "OrderObserver::updated -> RecalculateTotals::handle",
+    "DiscountService::discountFor -> RecordDiscountAudit::handle",
+    "ShippingService::shippingFor -> CarrierGateway::__call",
+    "POST /checkout -> CheckoutController::store",
+    "OrderPricingTest::test_final_price_applies_discount_before_tax -> PriceCalculator::compute"
+  ],
+  "heuristicCount": 11,
+  "allPhpTreesitterLaravel": true,
+  "callsTargetingPricingPhp": 0,
+  "importsTargetingPricingPhp": 5,
+  "OrderController::index": [],
+  "AppServiceProvider::register": [],
+  "calls from EventServiceProvider.php": 0,
+  "validateGraphErrors": []
+}
+=> PASS
+
+### 29. Jobs and events reach their handlers
+{
+  "Emitter::run symbol": true,
+  "Emitter::run": [
+    "Work::handle (heuristic)",
+    "Notify::handle (heuristic)"
+  ]
+}
+=> PASS
+
+### 30. Only Dispatchable jobs and EventServiceProvider listeners are followed
+{
+  "Caller::run symbol": true,
+  "Caller::run": []
+}
+=> PASS
+
+### 31. A $listen element is read entry by entry
+{
+  "Emitter::run": [
+    "Notify::handle (heuristic)"
+  ]
+}
+=> PASS
+
+### 32. Laravel registrations of a class declared in a function body are never read
+{
+  "class symbols": [
+    "EventProvider",
+    "RatesProvider"
+  ],
+  "Client::run symbol": true,
+  "Client::run": []
+}
+=> PASS
+
+### 33. A facade without a binding or outside the input has no edge
+{
+  "Client::run": [
+    "Rates::quote (heuristic)"
+  ]
+}
+=> PASS
+
+### 34. A closure binding resolves a facade and originates no edge
+{
+  "Client::run": [
+    "Rates::quote (heuristic)"
+  ],
+  "RatesProvider::register": []
+}
+=> PASS
+
+### 35. An ambiguous binding key resolves no facade
+{
+  "Client::run": []
+}
+=> PASS
+
+### 36. __call and __callStatic of the receiving class
+{
+  "User::run": [
+    "Magic::__call (heuristic)",
+    "Magic::__callStatic (heuristic)",
+    "Magic::known (exact)"
+  ],
+  "Magic::relay": [
+    "Magic::__call (heuristic)"
+  ]
+}
+=> PASS
+
+### 37. An exact edge takes precedence over a heuristic one
+{
+  "Both::run": [
+    "Rates::quote (exact)"
+  ]
+}
+=> PASS
+
+### 38. A provider with a syntax error contributes no binding
+{
+  "Client::run": [],
+  "diagnostics": [
+    {
+      "path": "app/Providers/RatesProvider.php",
+      "message": "syntax error",
+      "line": 1
+    }
+  ]
+}
+=> PASS
+
+ALL 38 SCENARIOS PASS

@@ -5,15 +5,25 @@ import type { Node } from './parser.js';
 const ROUTE_VERBS = new Set(['get', 'post', 'put', 'patch', 'delete', 'options']);
 const LARAVEL_ROUTE_FACADE = 'Illuminate\\Support\\Facades\\Route';
 
-/** One array-action route found at the top level of a file (design D3). */
+/**
+ * How a route names its action (spec "Array-action routes"): `[X::class, 'm']`, or the string
+ * `'C@m'` of Laravel's `Controller@method` convention.
+ */
+export type RouteForm = 'array' | 'string';
+
+/** One route found at the top level of a file (design D3 of DIS-47; D1 of php-laravel-heuristics-2a). */
 export interface RouteFact {
   /** The route symbol's own name, e.g. `GET /orders`. */
   routeName: string;
-  /** 1-based line of the route statement (the route symbol's span). */
+  /** 1-based first line of the route statement (the route symbol's start line). */
   line: number;
-  /** Raw class name written in `X::class`, resolved like any other name in the file. */
+  form: RouteForm;
+  /**
+   * Class name of the action: for `array`, the raw name written in `X::class`, resolved like any
+   * other name in the file; for `string`, the part before `@`, a fully-qualified name used verbatim.
+   */
   rawClass: string;
-  /** The short method name, the array's second string element. */
+  /** The short method name: the array's second string element, or the part after `@`. */
   method: string;
 }
 
@@ -52,9 +62,23 @@ function positionalArgumentsOf(call: Node): [Node, Node] | undefined {
   return [expressions[0], expressions[1]];
 }
 
-/** The `[X::class, 'method']` action array: the raw class name and the method name, or `undefined`. */
-function actionOf(node: Node): { rawClass: string; method: string } | undefined {
-  if (node.type !== 'array_creation_expression') return undefined;
+/**
+ * The `'C@m'` string action: a plain literal (no escape sequence, no interpolation) holding exactly one
+ * `@`, with non-empty parts and no leading `\` in `C`; `undefined` otherwise.
+ */
+function stringActionOf(node: Node): Pick<RouteFact, 'form' | 'rawClass' | 'method'> | undefined {
+  const text = nonInterpolatedTextOf(node);
+  if (text === undefined) return undefined;
+  const parts = text.split('@');
+  if (parts.length !== 2) return undefined;
+  const [rawClass, method] = parts;
+  if (rawClass === '' || method === '' || rawClass.startsWith('\\')) return undefined;
+  return { form: 'string', rawClass, method };
+}
+
+/** The route action: `[X::class, 'method']` or `'C@method'` (see {@link stringActionOf}), or `undefined`. */
+function actionOf(node: Node): Pick<RouteFact, 'form' | 'rawClass' | 'method'> | undefined {
+  if (node.type !== 'array_creation_expression') return stringActionOf(node);
   const elements = node.namedChildren.filter((child) => child.type === 'array_element_initializer').map((element) => element.namedChildren[0]);
   if (elements.length !== 2 || !elements[0] || !elements[1]) return undefined;
   const [classElement, methodElement] = elements;
@@ -63,7 +87,7 @@ function actionOf(node: Node): { rawClass: string; method: string } | undefined 
   if (!classNameNode || constantNode?.text !== 'class') return undefined;
   const method = nonInterpolatedTextOf(methodElement);
   if (method === undefined) return undefined;
-  return { rawClass: classNameNode.text, method };
+  return { form: 'array', rawClass: classNameNode.text, method };
 }
 
 /** The statement's source, its terminating `;` excluded, whitespace collapsed to one space and trimmed. */
@@ -73,9 +97,10 @@ function routeSignatureOf(statement: Node): string {
 }
 
 /**
- * Collects the array-action routes of a parsed file (spec "Array-action routes"): a direct
- * `expression_statement` child of `root`, optionally wrapped in chained calls, whose innermost call
- * is `Route::<verb>('<uri>', [X::class, '<m>'])`. `Route` must be unimported or imported as
+ * Collects the routes of a parsed file (spec "Array-action routes"): a direct `expression_statement`
+ * child of `root`, optionally wrapped in chained calls, whose innermost call is
+ * `Route::<verb>('<uri>', [X::class, '<m>'])` or `Route::<verb>('<uri>', '<C>@<m>')`; each route symbol
+ * spans the whole statement. `Route` must be unimported or imported as
  * `Illuminate\Support\Facades\Route` ({@link PhpFileFacts.imports}); nested statements (closures,
  * groups) are never visited, since only `root`'s direct children are inspected.
  */
@@ -106,8 +131,9 @@ export function collectRoutes(path: string, root: Node, facts: PhpFileFacts): Ph
 
     const line = statement.startPosition.row + 1;
     const routeName = `${verb.toUpperCase()} ${uri}`;
-    symbols.push({ file: path, name: routeName, kind: 'route', startLine: line, endLine: line, signature: routeSignatureOf(statement) });
-    routeFacts.push({ routeName, line, rawClass: action.rawClass, method: action.method });
+    const endLine = statement.endPosition.row + 1; // chained calls on later lines are part of the route
+    symbols.push({ file: path, name: routeName, kind: 'route', startLine: line, endLine, signature: routeSignatureOf(statement) });
+    routeFacts.push({ routeName, line, ...action });
   }
 
   return { symbols, facts: routeFacts };

@@ -5,9 +5,11 @@ import type { Node } from './parser.js';
  * the caller's own type, an explicit class name (`X::m()`), an instantiation (`new X()`), or the
  * caller's own type, either through `$this` (`this`: `$this->m()`) or through `self` (`self`:
  * `self::m()`, `new self()`). Both own-type forms resolve alike; only `this` can fall back to `__call`
- * (spec "Laravel heuristic calls").
+ * (spec "Laravel heuristic calls"). `event` is Laravel's `event(new E(...))` helper: it names the
+ * event class `E`, has no exact meaning, and is resolved to `E`'s listeners only (rule 5; design D5 of
+ * php-laravel-heuristics-2a).
  */
-export type CallForm = 'property' | 'static' | 'new' | 'this' | 'self';
+export type CallForm = 'property' | 'static' | 'new' | 'this' | 'self' | 'event';
 
 /** One call written in the body of a method of a named type, before any name resolution (design D1). */
 export interface CallFact {
@@ -19,11 +21,12 @@ export interface CallFact {
   callerTypeLine: number;
   form: CallForm;
   /**
-   * Raw class name, as written: the scope of `X::m()`, the class of `new X()`, or the declared type of
-   * the property for `property`; `''` for `this` and `self`. Resolve with `resolveClassName` before use.
+   * Raw class name, as written: the scope of `X::m()`, the class of `new X()` (also inside
+   * `event(new X())`), or the declared type of the property for `property`; `''` for `this` and
+   * `self`. Resolve with `resolveClassName` before use.
    */
   rawClass: string;
-  /** Short name of the target method (`__construct` for an instantiation). */
+  /** Short name of the target method (`__construct` for an instantiation, `''` for `event`). */
   method: string;
 }
 
@@ -83,6 +86,26 @@ function typedPropertiesOf(body: Node): Map<string, string> {
 
 const isThis = (node: Node | null): boolean => node?.type === 'variable_name' && node.text === '$this';
 
+/** Class names `new` can name that are no class of the input. */
+const RELATIVE_CLASS_NAMES = new Set(['self', 'static', 'parent']);
+
+/**
+ * The event class of `event(new E(...))` / `\event(new E(...))`: the first argument is positional and an
+ * instantiation of a class name; `undefined` for anything else (a variable, a string, `new $cls`,
+ * `new self`, a named argument, another function, `Foo\event`).
+ */
+function eventClassOf(node: Node): string | undefined {
+  const fn = node.childForFieldName('function');
+  if (!fn || !((fn.type === 'name' && fn.text === 'event') || (fn.type === 'qualified_name' && fn.text === '\\event'))) return undefined;
+  const first = node.childForFieldName('arguments')?.namedChildren.find((child) => child.type === 'argument');
+  if (!first || first.childForFieldName('name')) return undefined;
+  const instantiation = first.namedChildren[0];
+  if (instantiation?.type !== 'object_creation_expression') return undefined;
+  const className = instantiation.namedChildren[0];
+  if (!className || !NAME_NODE_TYPES.has(className.type) || RELATIVE_CLASS_NAMES.has(className.text)) return undefined;
+  return className.text;
+}
+
 /** The target a call node names, without the caller (design D1), or `undefined` when it names none. */
 function targetOf(node: Node, properties: ReadonlyMap<string, string>): Pick<CallFact, 'form' | 'rawClass' | 'method'> | undefined {
   if (node.type === 'member_call_expression') {
@@ -108,6 +131,10 @@ function targetOf(node: Node, properties: ReadonlyMap<string, string>): Pick<Cal
     if (className.text === 'self') return { form: 'self', rawClass: '', method: '__construct' };
     // `new static` / `new parent` fall through: `static` and `parent` resolve to no type of the input.
     return { form: 'new', rawClass: className.text, method: '__construct' };
+  }
+  if (node.type === 'function_call_expression') {
+    const rawClass = eventClassOf(node);
+    return rawClass === undefined ? undefined : { form: 'event', rawClass, method: '' };
   }
   return undefined;
 }

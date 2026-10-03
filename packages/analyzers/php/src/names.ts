@@ -15,6 +15,11 @@ export interface PhpTypeFact {
   extends: string[];
   /** Raw names of the interfaces it implements (classes only). */
   implements: string[];
+  /**
+   * Raw names of the traits used in its own body (`use T;`, `use A, B;`), classes only; a parent's
+   * traits are not listed (design D3 of php-laravel-heuristics-2a).
+   */
+  uses: string[];
 }
 
 /**
@@ -101,12 +106,24 @@ function typeFactOf(node: Node): PhpTypeFact | undefined {
       trait: false,
       extends: namesOf(node.children.find((c) => c.type === 'base_clause') ?? null),
       implements: [],
+      uses: [],
     };
   }
-  const extendsNames = node.type === 'class_declaration' ? namesOf(node.children.find((c) => c.type === 'base_clause') ?? null) : [];
-  const implementsNames =
-    node.type === 'class_declaration' ? namesOf(node.children.find((c) => c.type === 'class_interface_clause') ?? null) : [];
-  return { name, startLine, kind: 'class', trait: node.type === 'trait_declaration', extends: extendsNames, implements: implementsNames };
+  const isClass = node.type === 'class_declaration';
+  const extendsNames = isClass ? namesOf(node.children.find((c) => c.type === 'base_clause') ?? null) : [];
+  const implementsNames = isClass ? namesOf(node.children.find((c) => c.type === 'class_interface_clause') ?? null) : [];
+  const uses = isClass ? traitUsesOf(node.childForFieldName('body')) : [];
+  return { name, startLine, kind: 'class', trait: node.type === 'trait_declaration', extends: extendsNames, implements: implementsNames, uses };
+}
+
+/** Raw trait names of every `use_declaration` member of a class body; a `use_list` conflict block is not a name. */
+function traitUsesOf(body: Node | null): string[] {
+  const names: string[] = [];
+  for (const member of body?.namedChildren ?? []) {
+    if (member.type !== 'use_declaration') continue;
+    for (const child of member.namedChildren) if (child.type === 'name' || child.type === 'qualified_name') names.push(child.text);
+  }
+  return names;
 }
 
 const TYPE_DECLARATION_TYPES = new Set(['class_declaration', 'interface_declaration', 'trait_declaration']);

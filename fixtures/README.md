@@ -264,7 +264,7 @@ Columns: source symbol → target symbol · expected resolution · reason.
 | 4 | `PriceCalculator::compute` → `Order::$subtotal` (accessor) | heuristic | Eloquent magic attribute (`__get`) |
 | 5 | `DiscountService::discountFor` → `CouponValidator::percentFor` | exact | typed injected dependency |
 | 6 | `DiscountService::discountFor` → `event(DiscountApplied)` listeners | heuristic | listener edge only in `EventServiceProvider::$listen` |
-| 7 | `ShippingService::shippingFor` → `CarrierGateway::flatRateFor` | heuristic | undeclared method via `__call` |
+| 7 | `ShippingService::shippingFor` → `CarrierGateway::flatRateFor` (graph target: `CarrierGateway::__call`) | heuristic | undeclared method via `__call`; `flatRateFor` exists only as a PHPDoc `@method`, so it has no symbol and the edge lands on `__call` |
 | 8 | `OrderController::show` → `PriceCalculator::compute` | heuristic | `Pricing` facade + `'pricing'` binding |
 | 9 | `CheckoutController::store` → `PriceCalculator::compute` | heuristic | `Pricing` facade |
 | 10 | `OrderObserver::created` → `RecalculateTotals::handle` | heuristic | job dispatched through the queue |

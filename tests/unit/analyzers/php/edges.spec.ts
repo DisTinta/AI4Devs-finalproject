@@ -232,9 +232,7 @@ describe('php analyzer edges', () => {
           extractor: EXTRACTOR,
         },
       ]);
-
-      expect(acmeShop.symbols.some((s) => s.file === 'routes/web.php')).toBe(false);
-      expect(acmeShop.edges.some((e) => ('symbol' in e.source && e.source.symbol?.file === 'routes/web.php') || ('file' in e.source && e.source.file === 'routes/web.php'))).toBe(false);
+      // routes/web.php (string action) is covered by laravel/string-routes.spec.ts.
     });
 
     it('A route to an action outside the input has no edge', async () => {

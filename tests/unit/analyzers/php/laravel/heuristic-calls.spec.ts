@@ -6,7 +6,8 @@ import { createPhpAnalyzer } from '../../../../../packages/analyzers/php/src/ind
 import { readFixtureFiles } from '../../../../support/read-fixture-files';
 
 // Spec: openspec/specs/code-analysis/spec.md → "Laravel heuristic calls" (change archived as
-// openspec/changes/archive/2026-10-03-php-laravel-heuristics-1).
+// openspec/changes/archive/2026-10-03-php-laravel-heuristics-1; jobs and events added by
+// openspec/changes/archive/2026-10-03-php-laravel-heuristics-2a, tested in jobs-events.spec.ts).
 // Each `it` named after a scenario is that scenario; the others are extra cases of the same rule.
 // `fixtures/acme-shop` is read-only input here: no test writes to it (PH-22).
 
@@ -143,15 +144,26 @@ describe('php analyzer Laravel heuristic calls', () => {
     const at = (path: string, name: string): SymbolRef => symbolOf(acmeShop, path, name);
     const compute = at('app/Services/PriceCalculator.php', 'PriceCalculator::compute');
 
+    const recalculate = at('app/Jobs/RecalculateTotals.php', 'RecalculateTotals::handle');
+    const created = at('app/Observers/OrderObserver.php', 'OrderObserver::created');
+
+    // In `edges` order. Facades and `__call` (DIS-61); job dispatch, event dispatch and the string
+    // route of routes/web.php (DIS-97).
     const expected = [
       heuristicCall(at('app/Http/Controllers/CheckoutController.php', 'CheckoutController::store'), compute),
       heuristicCall(at('app/Http/Controllers/OrderController.php', 'OrderController::show'), compute),
-      heuristicCall(at('app/Jobs/RecalculateTotals.php', 'RecalculateTotals::handle'), compute),
+      heuristicCall(recalculate, compute),
       heuristicCall(at('app/Listeners/SendOrderConfirmation.php', 'SendOrderConfirmation::handle'), compute),
+      heuristicCall(created, recalculate),
+      heuristicCall(created, at('app/Listeners/SendOrderConfirmation.php', 'SendOrderConfirmation::handle')),
+      heuristicCall(at('app/Observers/OrderObserver.php', 'OrderObserver::updated'), recalculate),
+      heuristicCall(at('app/Services/DiscountService.php', 'DiscountService::discountFor'), at('app/Listeners/RecordDiscountAudit.php', 'RecordDiscountAudit::handle')),
       heuristicCall(at('app/Services/ShippingService.php', 'ShippingService::shippingFor'), at('app/Services/CarrierGateway.php', 'CarrierGateway::__call')),
+      heuristicCall(at('routes/web.php', 'POST /checkout'), at('app/Http/Controllers/CheckoutController.php', 'CheckoutController::store')),
       heuristicCall(at('tests/Feature/OrderPricingTest.php', 'OrderPricingTest::test_final_price_applies_discount_before_tax'), compute),
     ];
     expect(acmeShop.edges.filter((e) => e.kind === 'calls' && e.resolution === 'heuristic')).toEqual(expected);
+    expect(acmeShop.edges.some((e) => e.kind === 'calls' && 'symbol' in e.source && e.source.symbol?.file === 'app/Providers/EventServiceProvider.php')).toBe(false);
 
     expect(acmeShop.edges.some((e) => e.kind === 'calls' && 'symbol' in e.target && e.target.symbol?.file === 'app/Facades/Pricing.php')).toBe(false);
     // Its `imports` edges stay: every file that `use`s the facade still imports it.
@@ -169,6 +181,54 @@ describe('php analyzer Laravel heuristic calls', () => {
     expect(callsFrom(acmeShop, 'app/Providers/AppServiceProvider.php', 'AppServiceProvider::register')).toEqual([]);
     const graph = { files: acmeShop.files, symbols: acmeShop.symbols, edges: acmeShop.edges, commits: [], fileCommits: [] };
     expect(validateGraph(graph)).toEqual([]);
+  });
+
+  it('Laravel registrations of a class declared in a function body are never read', async () => {
+    const paid = file('app/Events/Paid.php', '<?php namespace App\\Events; class Paid {}');
+    const notify = file('app/Listeners/Notify.php', '<?php namespace App\\Listeners; class Notify { public function handle(): void {} }');
+    const ratesProvider = file(
+      'app/Providers/RatesProvider.php',
+      "<?php namespace App\\Providers; use App\\Services\\Rates; use Illuminate\\Support\\ServiceProvider; function boot(): void { class RatesProvider extends ServiceProvider { public function register(): void { $this->app->bind('rates', Rates::class); } } }",
+    );
+    const eventProvider = file(
+      'app/Providers/EventProvider.php',
+      '<?php namespace App\\Providers; use App\\Events\\Paid; use App\\Listeners\\Notify; use Illuminate\\Foundation\\Support\\Providers\\EventServiceProvider; function boot(): void { class EventProvider extends EventServiceProvider { protected $listen = [Paid::class => [Notify::class]]; } }',
+    );
+    const client = file(
+      'app/Client.php',
+      '<?php namespace App; use App\\Events\\Paid; use App\\Facades\\RatesFacade; class Client { public function run(): void { RatesFacade::quote(); event(new Paid()); } }',
+    );
+    const result = await analyzer.analyze({ files: [RATES, RATES_FACADE, paid, notify, ratesProvider, eventProvider, client] });
+
+    symbolOf(result, 'app/Providers/RatesProvider.php', 'RatesProvider');
+    symbolOf(result, 'app/Providers/EventProvider.php', 'EventProvider');
+    symbolOf(result, 'app/Client.php', 'Client::run');
+    expect(callsFrom(result, 'app/Client.php', 'Client::run')).toEqual([]);
+  });
+
+  describe('classes declared in a top-level function body (php-laravel-heuristics-2a, 12.3)', () => {
+    it('the accessor of a facade declared in a function body is never read', async () => {
+      const facadeInFunction = file(
+        'app/Facades/RatesFacade.php',
+        "<?php namespace App\\Facades; use Illuminate\\Support\\Facades\\Facade; function boot(): void { class RatesFacade extends Facade { protected static function getFacadeAccessor(): string { return 'rates'; } } }",
+      );
+      const client = file('app/Client.php', '<?php namespace App; use App\\Facades\\RatesFacade; class Client { public function run(): void { RatesFacade::quote(); } }');
+      const result = await analyzer.analyze({ files: [RATES, facadeInFunction, RATES_PROVIDER, client] });
+
+      symbolOf(result, 'app/Facades/RatesFacade.php', 'RatesFacade'); // the nested class is a symbol of the input
+      expect(callsFrom(result, 'app/Client.php', 'Client::run')).toEqual([]);
+    });
+
+    it('the bindings of a provider declared in a function body are never read', async () => {
+      const providerInFunction = file(
+        'app/Providers/RatesProvider.php',
+        "<?php namespace App\\Providers; use App\\Services\\Rates; use Illuminate\\Support\\ServiceProvider; function boot(): void { class RatesProvider extends ServiceProvider { public function register(): void { $this->app->bind('rates', Rates::class); } } }",
+      );
+      const result = await analyzer.analyze({ files: [RATES, RATES_FACADE, providerInFunction, CLIENT] });
+
+      symbolOf(result, 'app/Providers/RatesProvider.php', 'RatesProvider');
+      expect(callsFrom(result, 'app/Client.php', 'Client::run')).toEqual([]);
+    });
   });
 
   describe('extra cases of the facade rule', () => {
