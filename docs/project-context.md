@@ -381,4 +381,20 @@ services that must be started first, quirks of the local environment.
 - **The post-edit hook does not type-check file by file.** `CMD_STATIC_FILE` is empty in
   `.claude/sdd-harness.env`: a bare `tsc --noEmit <file>` ignores `tsconfig.base.json` (falls back
   to commonjs / node10 resolution, no `skipLibCheck`) and fails on every test that imports `vitest`.
+- **The PHP analyzer now emits edges** (DIS-49): `imports` (file → class/interface/trait, one per
+  top-level `use`), `extends`, `implements`, a route's `calls` (array-action routes only:
+  `Route::<verb>('<uri>', [X::class, '<m>'])`, a new `route` symbol named `<VERB> <uri>`), `tested_by`
+  (class `X` → test class `XTest` that references it) — all `resolution: 'exact'`, `extractor:
+  'php-treesitter-laravel'` — and `describes` (doc file → symbol, `resolution: 'heuristic'`,
+  `extractor: 'doc-mention'`, matched only inside backticks/fenced code blocks, never in prose).
+  Names resolve by **fully-qualified name only**, case-sensitive, from the file's own `namespace` and
+  top-level `use` imports (never by short name): a name with no unique match in the input — a vendor
+  class, an ambiguous short name held by two symbols — yields no edge, never a guessed one. A file
+  declaring more than one `namespace` originates no name-based edge at all (its facts are discarded).
+  `docs/pricing.md` therefore gets no `describes` edge (it never names a symbol inside code, only in
+  prose headings): DIS-94's acceptance criteria assuming one is corrected there, not here (signed
+  decision, fixtures unchanged). `compareEdges`/`sortUniqueEdges` (`packages/core/src/knowledge/edge-order.ts`)
+  and `docMentionEdges`/`DOC_MENTION_EXTRACTOR` (`packages/core/src/knowledge/doc-mentions.ts`) are
+  pure, language-independent rules in core, reused as-is by the TypeScript analyzer (DIS-30) with no
+  changes to `packages/core`.
   The type gate is `npm run typecheck` (also in CI). A finer per-file check is a later chore.
