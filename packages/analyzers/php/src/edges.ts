@@ -55,6 +55,21 @@ function buildFqnTable(facts: readonly PhpFileFacts[], byDeclaration: ReadonlyMa
   return table;
 }
 
+/** What each class, interface or trait symbol of the result is, keyed by file, name and start line. */
+function indexTypeKinds(
+  facts: readonly PhpFileFacts[],
+  byDeclaration: ReadonlyMap<string, GraphSymbol>,
+): Map<string, CallFact['callerTypeKind']> {
+  const kinds = new Map<string, CallFact['callerTypeKind']>();
+  for (const fact of facts) {
+    for (const type of fact.types) {
+      const key = `${fact.path}\0${type.name}\0${type.startLine}`;
+      if (byDeclaration.has(key)) kinds.set(key, type.trait ? 'trait' : type.kind);
+    }
+  }
+  return kinds;
+}
+
 /** The `calls` edges from array-action routes to the method symbols their action resolves to. */
 function buildRouteEdges(
   routes: readonly PlacedRouteFact[],
@@ -84,12 +99,14 @@ function buildRouteEdges(
 /**
  * The `calls` edges of the calls written in method bodies whose target type is declared (spec
  * "Declared-type calls", design D2): the target method must be declared in that type itself, so a
- * method handled by `__call`/`__callStatic` or only inherited is never a target. Not deduplicated.
+ * method handled by `__call`/`__callStatic` or only inherited is never a target. A trait is never a
+ * target type, and an instantiation (`new X`) targets a class only. Not deduplicated.
  */
 function buildCallEdges(
   calls: readonly PlacedCallFact[],
   factsByPath: ReadonlyMap<string, PhpFileFacts>,
   fqnTable: ReadonlyMap<string, SymbolRef[]>,
+  typeKinds: ReadonlyMap<string, CallFact['callerTypeKind']>,
   methods: ReadonlyMap<string, SymbolRef>,
 ): GraphEdge[] {
   const edges: GraphEdge[] = [];
@@ -98,9 +115,18 @@ function buildCallEdges(
     if (!fact || fact.namespaces > 1) continue;
     const source = methods.get(`${call.path}\0${call.caller.name}`);
     if (!source || source.startLine !== call.caller.startLine) continue; // caller dropped as a duplicate
-    const targetType =
-      call.form === 'own' ? { file: call.path, name: call.callerType } : resolveTarget(resolveClassName(call.rawClass, fact), fqnTable);
-    if (!targetType) continue;
+    let targetType: { file: string; name: string } | undefined;
+    let targetKind: CallFact['callerTypeKind'] | undefined;
+    if (call.form === 'own') {
+      targetType = { file: call.path, name: call.callerType };
+      targetKind = call.callerTypeKind;
+    } else {
+      const resolved = resolveTarget(resolveClassName(call.rawClass, fact), fqnTable);
+      targetType = resolved;
+      targetKind = resolved && typeKinds.get(`${resolved.file}\0${resolved.name}\0${resolved.startLine}`);
+    }
+    if (!targetType || targetKind === undefined || targetKind === 'trait') continue;
+    if (call.form === 'new' && targetKind !== 'class') continue;
     const target = methods.get(`${targetType.file}\0${targetType.name}::${call.method}`);
     if (!target) continue;
     edges.push({ source: { symbol: source }, target: { symbol: target }, kind: 'calls', resolution: 'exact', extractor: PHP_EXTRACTOR });
@@ -159,6 +185,7 @@ export function buildPhpEdges(
   const fqnTable = buildFqnTable(facts, byDeclaration);
   const factsByPath = new Map(facts.map((fact) => [fact.path, fact]));
   const methods = indexMethods(symbols);
+  const typeKinds = indexTypeKinds(facts, byDeclaration);
   const edges: GraphEdge[] = [];
 
   for (const fact of facts) {
@@ -187,7 +214,7 @@ export function buildPhpEdges(
   }
 
   edges.push(...buildRouteEdges(routes, factsByPath, fqnTable, methods));
-  edges.push(...buildCallEdges(calls, factsByPath, fqnTable, methods));
+  edges.push(...buildCallEdges(calls, factsByPath, fqnTable, typeKinds, methods));
   edges.push(...buildTestedByEdges(facts, byDeclaration, fqnTable));
 
   return edges;

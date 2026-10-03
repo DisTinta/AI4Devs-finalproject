@@ -9,6 +9,8 @@ export interface PhpTypeFact {
   startLine: number;
   /** `interface` for an `interface_declaration`; `class` for a class or a trait (design D2). */
   kind: 'class' | 'interface';
+  /** `true` for a `trait_declaration` (encoded as a `class`): a trait is never a call target. */
+  trait: boolean;
   /** Raw name of the class it extends (classes), or the interfaces it extends (interfaces). */
   extends: string[];
   /** Raw names of the interfaces it implements (classes only). */
@@ -92,12 +94,19 @@ function typeFactOf(node: Node): PhpTypeFact | undefined {
   if (!name) return undefined;
   const startLine = node.startPosition.row + 1;
   if (node.type === 'interface_declaration') {
-    return { name, startLine, kind: 'interface', extends: namesOf(node.children.find((c) => c.type === 'base_clause') ?? null), implements: [] };
+    return {
+      name,
+      startLine,
+      kind: 'interface',
+      trait: false,
+      extends: namesOf(node.children.find((c) => c.type === 'base_clause') ?? null),
+      implements: [],
+    };
   }
   const extendsNames = node.type === 'class_declaration' ? namesOf(node.children.find((c) => c.type === 'base_clause') ?? null) : [];
   const implementsNames =
     node.type === 'class_declaration' ? namesOf(node.children.find((c) => c.type === 'class_interface_clause') ?? null) : [];
-  return { name, startLine, kind: 'class', extends: extendsNames, implements: implementsNames };
+  return { name, startLine, kind: 'class', trait: node.type === 'trait_declaration', extends: extendsNames, implements: implementsNames };
 }
 
 const TYPE_DECLARATION_TYPES = new Set(['class_declaration', 'interface_declaration', 'trait_declaration']);

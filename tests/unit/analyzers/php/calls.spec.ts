@@ -78,7 +78,7 @@ describe('php analyzer declared-type calls', () => {
       ],
     });
 
-    expect(callsFrom(result, 'app/Quote.php', 'Quote::total')).toEqual([
+    expect(result.edges.filter((e) => e.kind === 'calls')).toEqual([
       exactCall(symbolOf(result, 'app/Quote.php', 'Quote::total'), symbolOf(result, 'app/Contracts/Rates.php', 'Rates::rateFor')),
     ]);
   });
@@ -174,6 +174,68 @@ describe('php analyzer declared-type calls', () => {
       });
       expect(callsFrom(result, 'app/Two.php', 'A::run')).toEqual([]);
     });
+  });
+
+  it('Calls inside a type or function declared in a method body produce no edge', async () => {
+    const result = await analyzer.analyze({
+      files: [
+        CLOCK,
+        file(
+          'app/Outer.php',
+          '<?php namespace App; use App\\Support\\Clock; class Outer { public function run(): void { class Inner { public function g(): void { $this->tick(); Clock::now(); new Clock(); } } function helper(): int { return Clock::now(); } } public function tick(): void {} }',
+        ),
+      ],
+    });
+
+    expect(symbolOf(result, 'app/Outer.php', 'Inner::g')).toBeDefined();
+    expect(callsFrom(result, 'app/Outer.php', 'Outer::run')).toEqual([]);
+    expect(callsFrom(result, 'app/Outer.php', 'Inner::g')).toEqual([]);
+    expect(result.edges.filter((e) => e.kind === 'calls')).toEqual([]);
+  });
+
+  it('Traits are never targets and only classes are instantiated', async () => {
+    const result = await analyzer.analyze({
+      files: [
+        CLOCK,
+        file(
+          'app/Concerns/Stamps.php',
+          '<?php namespace App\\Concerns; trait Stamps { public function __construct() {} public static function make(): void {} public function stamp(): void {} }',
+        ),
+        file('app/Contracts/Made.php', '<?php namespace App\\Contracts; interface Made { public function __construct(); public static function build(): void; }'),
+        file(
+          'app/Uses.php',
+          '<?php namespace App; use App\\Concerns\\Stamps; use App\\Contracts\\Made; class Uses { private Stamps $s; public function run(): void { Stamps::make(); new Stamps(); $this->s->stamp(); new Made(); Made::build(); } }',
+        ),
+        file(
+          'app/Concerns/Ticks.php',
+          '<?php namespace App\\Concerns; use App\\Support\\Clock; trait Ticks { public function tick(): void { Clock::now(); $this->tock(); self::tock(); new self(); } public function tock(): void {} }',
+        ),
+      ],
+    });
+
+    expect(callsFrom(result, 'app/Uses.php', 'Uses::run')).toEqual([
+      exactCall(symbolOf(result, 'app/Uses.php', 'Uses::run'), symbolOf(result, 'app/Contracts/Made.php', 'Made::build')),
+    ]);
+    expect(callsFrom(result, 'app/Concerns/Ticks.php', 'Ticks::tick')).toEqual([
+      exactCall(symbolOf(result, 'app/Concerns/Ticks.php', 'Ticks::tick'), symbolOf(result, 'app/Support/Clock.php', 'Clock::now')),
+    ]);
+  });
+
+  it('Static, intersection-typed, local, variable and magic receivers produce no edge', async () => {
+    const result = await analyzer.analyze({
+      files: [
+        CLOCK,
+        file('app/Support/Magic.php', '<?php namespace App\\Support; class Magic { public static function __callStatic(string $n, array $a): mixed { return null; } }'),
+        file(
+          'app/Odd.php',
+          "<?php namespace App; use App\\Support\\{Clock, Magic}; function helper(): void {} class Odd { private static Clock $s; private Clock&\\Countable $i; public function run(string $cls, string $m): void { $this->s->now(); $this->i->now(); Magic::anything(); $cls::now(); new $cls(); $this->$m(); helper(); $local = new Clock(); $local->now(); } }",
+        ),
+      ],
+    });
+
+    expect(callsFrom(result, 'app/Odd.php', 'Odd::run')).toEqual([
+      exactCall(symbolOf(result, 'app/Odd.php', 'Odd::run'), symbolOf(result, 'app/Support/Clock.php', 'Clock::__construct')),
+    ]);
   });
 
   it('A file with a syntax error originates no call edge', async () => {

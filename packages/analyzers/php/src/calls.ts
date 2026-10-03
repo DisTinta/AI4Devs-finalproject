@@ -13,6 +13,8 @@ export interface CallFact {
   caller: { name: string; startLine: number };
   /** Short name of the type the caller method is declared in. */
   callerType: string;
+  /** What that type is: an own-type call never targets a trait (spec "Declared-type calls"). */
+  callerTypeKind: 'class' | 'interface' | 'trait';
   form: CallForm;
   /**
    * Raw class name, as written: the scope of `X::m()`, the class of `new X()`, or the declared type of
@@ -30,6 +32,20 @@ const TYPE_DECLARATION_TYPES = new Set(['class_declaration', 'interface_declarat
 /** Subtrees whose calls belong to no method symbol (spec: closures, arrow functions, anonymous classes). */
 const OPAQUE_NODE_TYPES = new Set(['anonymous_function', 'arrow_function', 'anonymous_class']);
 
+/**
+ * Named declarations nested in a method body: their calls are not the enclosing method's, and their
+ * own methods are not collected either (spec: a type or function declared in a method body is opaque).
+ */
+const NESTED_DECLARATION_TYPES = new Set([...TYPE_DECLARATION_TYPES, 'function_definition']);
+
+const TYPE_KINDS: Readonly<Record<string, CallFact['callerTypeKind']>> = {
+  class_declaration: 'class',
+  interface_declaration: 'interface',
+  trait_declaration: 'trait',
+};
+
+const isStatic = (member: Node): boolean => member.children.some((child) => child.type === 'static_modifier');
+
 /** The raw class name of a `type` field when it is a single named type; `undefined` for any other type. */
 function namedTypeOf(type: Node | null): string | undefined {
   if (!type || type.type !== 'named_type') return undefined;
@@ -42,14 +58,15 @@ function variableNameOf(node: Node | null): string | undefined {
 }
 
 /**
- * The properties of a type body declared with a single named type, by name: property declarations
- * and the promoted parameters of its `__construct`. Nullable, union, intersection, primitive and
- * missing types leave the property out.
+ * The instance properties of a type body declared with a single named type, by name: property
+ * declarations and the promoted parameters of its `__construct`. Static properties, and nullable,
+ * union, intersection, primitive and missing types, leave the property out.
  */
 function typedPropertiesOf(body: Node): Map<string, string> {
   const properties = new Map<string, string>();
   for (const member of body.namedChildren) {
     if (member.type === 'property_declaration') {
+      if (isStatic(member)) continue; // `$this->p` never reaches a static property
       const rawType = namedTypeOf(member.childForFieldName('type'));
       if (rawType === undefined) continue;
       for (const element of member.namedChildren) {
@@ -102,17 +119,20 @@ function targetOf(node: Node, properties: ReadonlyMap<string, string>): Pick<Cal
 /**
  * Collects every call written in the body of a method of a named class, interface or trait of a parsed
  * file (spec "Declared-type calls", design D1), in document order. Calls inside a closure, an arrow
- * function or an anonymous class, and calls outside any method, are not collected. Facts are raw:
+ * function, an anonymous class, or a named type or function declared in a method body, and calls
+ * outside any method, are not collected. Facts are raw:
  * names are resolved, and targets looked up, by `buildPhpEdges`.
  */
 export function collectCalls(root: Node): CallFact[] {
   const facts: CallFact[] = [];
 
-  const walkBody = (node: Node, caller: CallFact['caller'], callerType: string, properties: ReadonlyMap<string, string>): void => {
-    if (OPAQUE_NODE_TYPES.has(node.type)) return;
+  type Enclosing = Pick<CallFact, 'caller' | 'callerType' | 'callerTypeKind'>;
+
+  const walkBody = (node: Node, enclosing: Enclosing, properties: ReadonlyMap<string, string>): void => {
+    if (OPAQUE_NODE_TYPES.has(node.type) || NESTED_DECLARATION_TYPES.has(node.type)) return;
     const target = targetOf(node, properties);
-    if (target) facts.push({ caller, callerType, ...target });
-    for (const child of node.children) walkBody(child, caller, callerType, properties);
+    if (target) facts.push({ ...enclosing, ...target });
+    for (const child of node.children) walkBody(child, enclosing, properties);
   };
 
   const walk = (node: Node): void => {
@@ -127,7 +147,7 @@ export function collectCalls(root: Node): CallFact[] {
         const methodBody = member.childForFieldName('body');
         if (!methodName || !methodBody) continue;
         const caller = { name: `${typeName}::${methodName}`, startLine: member.startPosition.row + 1 };
-        walkBody(methodBody, caller, typeName, properties);
+        walkBody(methodBody, { caller, callerType: typeName, callerTypeKind: TYPE_KINDS[node.type] }, properties);
       }
       return;
     }
