@@ -183,6 +183,31 @@ describe('php analyzer Laravel heuristic calls', () => {
     expect(validateGraph(graph)).toEqual([]);
   });
 
+  describe('classes declared in a top-level function body (php-laravel-heuristics-2a, 12.3)', () => {
+    it('the accessor of a facade declared in a function body is never read', async () => {
+      const facadeInFunction = file(
+        'app/Facades/RatesFacade.php',
+        "<?php namespace App\\Facades; use Illuminate\\Support\\Facades\\Facade; function boot(): void { class RatesFacade extends Facade { protected static function getFacadeAccessor(): string { return 'rates'; } } }",
+      );
+      const client = file('app/Client.php', '<?php namespace App; use App\\Facades\\RatesFacade; class Client { public function run(): void { RatesFacade::quote(); } }');
+      const result = await analyzer.analyze({ files: [RATES, facadeInFunction, RATES_PROVIDER, client] });
+
+      symbolOf(result, 'app/Facades/RatesFacade.php', 'RatesFacade'); // the nested class is a symbol of the input
+      expect(callsFrom(result, 'app/Client.php', 'Client::run')).toEqual([]);
+    });
+
+    it('the bindings of a provider declared in a function body are never read', async () => {
+      const providerInFunction = file(
+        'app/Providers/RatesProvider.php',
+        "<?php namespace App\\Providers; use App\\Services\\Rates; use Illuminate\\Support\\ServiceProvider; function boot(): void { class RatesProvider extends ServiceProvider { public function register(): void { $this->app->bind('rates', Rates::class); } } }",
+      );
+      const result = await analyzer.analyze({ files: [RATES, RATES_FACADE, providerInFunction, CLIENT] });
+
+      symbolOf(result, 'app/Providers/RatesProvider.php', 'RatesProvider');
+      expect(callsFrom(result, 'app/Client.php', 'Client::run')).toEqual([]);
+    });
+  });
+
   describe('extra cases of the facade rule', () => {
     /** The `calls` edges from `Client::run`, which calls `RatesFacade::quote()`, given the facade and provider sources. */
     async function facadeCalls(facade: string, provider: string, extraFiles: SourceFile[] = []): Promise<GraphEdge[]> {

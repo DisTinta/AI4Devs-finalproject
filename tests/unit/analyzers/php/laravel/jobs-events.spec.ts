@@ -130,6 +130,10 @@ describe('listener map (unit cases, not spec scenarios)', () => {
     ).toEqual([]);
   });
 
+  it('a $listen element is read per entry: invalid entries add nothing, valid ones of the same element still count (12.1)', () => {
+    expect(listenersOfE(provider("protected $listen = [E::class => [L1::class, 'App\\Listeners\\L2', [L2::class, 'handle'], L2::class . '@handle', ...self::MORE]];"))).toEqual(['L1']);
+  });
+
   it('a static $listen, string keys or values, method pairs, an interface and a spread add nothing', () => {
     expect(listenersOfE(provider('protected static $listen = [E::class => [L1::class]];'))).toEqual([]);
     expect(listenersOfE(provider("protected $listen = ['App\\Events\\E' => [L1::class]];"))).toEqual([]);
@@ -226,6 +230,20 @@ describe('php analyzer job and event dispatch', () => {
 
     it('event(new E) inside an arrow function or a closure gives no edge, even with a listener', async () => {
       expect(await eventCalls('$f = fn () => event(new Paid()); $g = function () { event(new Paid()); };')).toEqual([]);
+    });
+
+    it('the $listen of an event provider declared in a function body is never read (12.3)', async () => {
+      const providerInFunction = file(
+        'app/Providers/EventProvider.php',
+        '<?php namespace App\\Providers; use App\\Events\\Paid; use App\\Listeners\\Notify; use Illuminate\\Foundation\\Support\\Providers\\EventServiceProvider; function boot(): void { class EventProvider extends EventServiceProvider { protected $listen = [Paid::class => [Notify::class]]; } }',
+      );
+      const result = await analyzer.analyze({
+        files: [PAID, NOTIFY, providerInFunction, file('app/Caller.php', '<?php namespace App; use App\\Events\\Paid; class Caller { public function run(): void { event(new Paid()); } }')],
+      });
+
+      symbolOf(result, 'app/Providers/EventProvider.php', 'EventProvider');
+      symbolOf(result, 'app/Caller.php', 'Caller::run');
+      expect(callsFrom(result, 'app/Caller.php', 'Caller::run')).toEqual([]);
     });
 
     it('\\event(new E) counts like event(new E)', async () => {

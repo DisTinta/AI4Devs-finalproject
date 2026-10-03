@@ -43,12 +43,6 @@ const OPAQUE_NODE_TYPES = new Set([
 ]);
 
 /**
- * Nodes the file-level walk of the Laravel collectors never enters: closures, arrow functions and
- * anonymous classes, and the bodies of interfaces, traits and enums. A class is handled where it is
- * found and its body is never walked further, so a class declared inside any method body is never
- * read — the same opaque set as `collectCalls`, plus enums (whose subtree has no symbol).
- */
-/**
  * A predicate that is `true` for a `class_declaration` whose short name and start line an earlier one
  * of the same walk already had: the analyzer keeps only the first such symbol and drops the others as
  * duplicates (`keepFirst`), so their accessor or bindings must not count either.
@@ -63,7 +57,22 @@ export function firstDeclarationOnly(): (node: Node) => boolean {
   };
 }
 
-export const LARAVEL_WALK_STOP = new Set(['anonymous_function', 'arrow_function', 'anonymous_class', 'interface_declaration', 'trait_declaration', 'enum_declaration']);
+/**
+ * Nodes the file-level walk of the Laravel collectors never enters: closures, arrow functions and
+ * anonymous classes, the bodies of interfaces, traits and enums, and top-level function bodies. A
+ * class is handled where it is found and its body is never walked further, so a class declared inside
+ * any method or function body is never read: it only exists once that code runs, so its accessor,
+ * bindings or `$listen` are no static registration (design D10 of php-laravel-heuristics-2a).
+ */
+export const LARAVEL_WALK_STOP = new Set([
+  'anonymous_function',
+  'arrow_function',
+  'anonymous_class',
+  'interface_declaration',
+  'trait_declaration',
+  'enum_declaration',
+  'function_definition',
+]);
 
 const isThis = (node: Node | null): boolean => node?.type === 'variable_name' && node.text === '$this';
 
