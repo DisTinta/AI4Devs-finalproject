@@ -98,7 +98,8 @@
 
 - [x] 10.1 Confirm no user interface or user workflow is affected (no route, no CLI, no web change). Record "not applicable", with that reason, in the step 8 report
   - Recorded as not applicable in the step 8 report: no route, CLI or web change.
-- [ ] 10.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that `string-routes.spec.ts` and `jobs-events.spec.ts` ran and were not skipped. Link the run in the step 8 report
+- [x] 10.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that `string-routes.spec.ts` and `jobs-events.spec.ts` ran and were not skipped. Link the run in the step 8 report
+  - Pushed with DisTinta and switched back. PR #18, run 37140456041: `quality` pass (414/414), `frontend` pass; both new spec files ran (20 + 8 tests). Linked in the step 8 report.
 
 ## 11. Update Technical Documentation (MANDATORY)
 
@@ -112,4 +113,5 @@
   - `/update-docs`: data model, API spec, dependencies, standards and ADRs unaffected; `docs/project-context.md` (two bullets) and `fixtures/README.md` updated; `fixtures/README.md` trap rows 5–7 (lines 174–176) still describe the sites correctly. Known follow-up, unchanged by decision: the TSDoc of `AnalysisResult.edges` in core does not list Laravel `heuristic` calls (core stays without diff). `docs:coverage` clean. `prompts.md` §24 (3 literal prompts) + Índice entry 24.
 - [x] 11.5 Leave a Linear comment in Spanish on DIS-98 (CM-HU-04b.2b): string routes, jobs and events are in as `heuristic` (11 in acme-shop); the resolver seams for its unresolved report are those of design D6
   - Comment left on DIS-98 (Spanish): what is in, the resolver seams of design D6, and the `calls.spec.ts` site-4 clause it will have to narrow.
-- [ ] 11.6 Prepare the PR description (`/pr-describe`) against `feature/entrega-2-CRN`, in Spanish, leaving the Why for the author. After verification, set DIS-97 to In Review in Linear with a comment in Spanish linking the PR and the change
+- [x] 11.6 Prepare the PR description (`/pr-describe`) against `feature/entrega-2-CRN`, in Spanish, leaving the Why for the author. After verification, set DIS-97 to In Review in Linear with a comment in Spanish linking the PR and the change
+  - `reports/pr-description.md` (Spanish, Why left for the author, 34-row traceability) used for PR #18 against `feature/entrega-2-CRN`. The PR also carries `d685f37`, the author's own `sdd-harness-kit` link edits (`readme.md` §2.3, `prompts.md` §0.2), included by her decision. DIS-97 set to In Review with a comment in Spanish.

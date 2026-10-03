@@ -68,8 +68,7 @@
 ## End-to-end testing (step 10.1)
 
 Not applicable: the change adds no route, CLI command or web screen; the only interface is
-`createPhpAnalyzer()`, exercised in the step 9 report. CI evidence (10.2) is pending until the branch is
-pushed.
+`createPhpAnalyzer()`, exercised in the step 9 report. CI evidence (10.2): PR #18, run [37140456041](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37140456041) on `4b6f230` — `quality` pass (28 files, 414/414 tests, database blocks included), `frontend` pass; `laravel/jobs-events.spec.ts` (20 tests) and `laravel/string-routes.spec.ts` (8 tests) ran, none skipped.
 
 ## UI evidence (if applicable)
 
