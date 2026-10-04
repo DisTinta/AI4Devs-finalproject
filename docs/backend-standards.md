@@ -41,7 +41,10 @@ A vertical slice is always implemented in this order, and in these files:
 Every package keeps its sources under `src/` (compiled output goes to `dist/`); the paths above
 reflect that. An analyzer implements `AnalyzerPort` and **must not import another analyzer**: language
 independence is what makes each one testable in isolation. CI enforces this (`analyzers-are-siblings`
-in `.dependency-cruiser.cjs`), alongside the `core`-imports-no-infrastructure rule.
+in `.dependency-cruiser.cjs`), alongside the `core`-imports-no-infrastructure rule. An analyzer also
+reads only the content it is given: `analyzers-no-io` forbids it from importing Node file-system,
+network or process modules (`fs`, `net`, `http`, `child_process`, `worker_threads`, …); file and
+network access belong in an adapter.
 
 ## 3. Hard rules
 

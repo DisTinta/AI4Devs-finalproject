@@ -237,10 +237,10 @@ describe('php analyzer', () => {
 
       const broken = result.files.find((f) => f.path === 'app/Broken.php');
       expect(broken).toMatchObject({ kind: 'source' });
-      expect(broken?.loc).toBeDefined();
+      expect(broken?.loc).toBe(1);
       expect(result.symbols.some((s) => s.file === 'app/Broken.php')).toBe(false);
       expect(result.diagnostics).toHaveLength(1);
-      expect(result.diagnostics[0]).toMatchObject({ path: 'app/Broken.php' });
+      expect(result.diagnostics[0]).toMatchObject({ path: 'app/Broken.php', line: 1 });
       expect(result.diagnostics[0]?.message.length).toBeGreaterThan(0);
       expect(result.symbols).toContainEqual(expect.objectContaining({ kind: 'class', name: 'Ok', file: 'app/Ok.php' }));
     });
@@ -278,6 +278,99 @@ describe('php analyzer', () => {
         expect.objectContaining({ kind: 'class', name: 'Ghost', file: 'app/Ghost.php' }),
       ]);
       expect(result.diagnostics).toEqual([]);
+    });
+
+    it('Symbols that start on one line are ordered by span, then name', async () => {
+      const result = await analyzer.analyze({
+        files: [
+          {
+            path: 'app/tie.php',
+            content: '<?php function z() { function a() {}\n}\nfunction b() {} function a2() {}\n\nfunction c() {} function d() {\n}\n',
+          },
+        ],
+      });
+
+      // Line 5: siblings, neither contains the other; `d` ends later, so it comes first (`endLine`
+      // descending, not containment).
+      expect(result.symbols.map((s) => [s.kind, s.name, s.startLine, s.endLine])).toEqual([
+        ['function', 'z', 1, 2],
+        ['function', 'a', 1, 1],
+        ['function', 'a2', 3, 3],
+        ['function', 'b', 3, 3],
+        ['function', 'd', 5, 6],
+        ['function', 'c', 5, 5],
+      ]);
+    });
+
+    it('Duplicate input paths keep the first', async () => {
+      const result = await analyzer.analyze({
+        files: [
+          { path: 'app/A.php', content: '<?php class A {}' },
+          { path: 'README.md', content: '# Readme' },
+          { path: 'app/A.php', content: '<?php class A {}' },
+          { path: 'app/A.php', content: '<?php class B {}' },
+          { path: 'README.md', content: '# Other' },
+          { path: 'app/a.php', content: '<?php class Lower {}' },
+        ],
+      });
+
+      expect(result.files.map((f) => [f.path, f.loc])).toEqual([
+        ['README.md', 1],
+        ['app/A.php', 1],
+        ['app/a.php', 1],
+      ]);
+      expect(result.symbols.map((s) => [s.kind, s.name, s.file])).toEqual([
+        ['class', 'A', 'app/A.php'],
+        ['class', 'Lower', 'app/a.php'],
+      ]);
+      // Compared as a set: the spec does not order diagnostics of one path. `toEqual` on plain
+      // `{ path, message }` objects also fails if any entry carries a `line`.
+      const byPathThenMessage = (a: { path: string; message: string }, b: { path: string; message: string }): number =>
+        a.path === b.path ? (a.message < b.message ? -1 : a.message > b.message ? 1 : 0) : a.path < b.path ? -1 : 1;
+      expect([...result.diagnostics].sort(byPathThenMessage)).toEqual([
+        { path: 'README.md', message: 'duplicate path "README.md"; kept the first' },
+        { path: 'app/A.php', message: 'duplicate path "app/A.php"; kept the first' },
+        { path: 'app/A.php', message: 'duplicate path "app/A.php"; kept the first' },
+      ]);
+
+      const graph: KnowledgeGraph = { files: result.files, symbols: result.symbols, edges: result.edges, commits: [], fileCommits: [] };
+      expect(validateGraph(graph)).toEqual([]);
+    });
+  });
+
+  describe('analysis contract boundary cases', () => {
+    it('a discarded duplicate contributes no edge, although its content alone would', async () => {
+      const php = { path: 'app/B.php', content: '<?php class B {}' };
+      const mentioning = { path: 'README.md', content: 'Uses `B`.' };
+
+      const alone = await analyzer.analyze({ files: [php, mentioning] });
+      expect(alone.edges.map((e) => e.kind)).toEqual(['describes']);
+
+      const discarded = await analyzer.analyze({ files: [php, { path: 'README.md', content: '# Readme' }, mentioning] });
+      expect(discarded.edges).toEqual([]);
+      expect(discarded.diagnostics).toEqual([{ path: 'README.md', message: 'duplicate path "README.md"; kept the first' }]);
+    });
+
+    it('paths that differ by ./, separator or whitespace are distinct inputs', async () => {
+      const result = await analyzer.analyze({
+        files: [
+          { path: 'app/A.php', content: '<?php class A1 {}' },
+          { path: './app/A.php', content: '<?php class A2 {}' },
+          { path: 'app\\A.php', content: '<?php class A3 {}' },
+          // Leading space: a trailing one would end the path in `.php ` and skip parsing.
+          { path: ' app/A.php', content: '<?php class A4 {}' },
+        ],
+      });
+
+      expect(result.files).toHaveLength(4);
+      expect(result.symbols.map((s) => s.name).sort()).toEqual(['A1', 'A2', 'A3', 'A4']);
+      expect(result.diagnostics).toEqual([]);
+    });
+
+    it('the order of the inputs does not affect the result', async () => {
+      const reversed = await analyzer.analyze({ files: [...readFixtureFiles(ACME_SHOP)].reverse() });
+
+      expect(reversed).toEqual(acmeShop);
     });
   });
 });

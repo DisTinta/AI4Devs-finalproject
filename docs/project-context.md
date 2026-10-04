@@ -465,3 +465,18 @@ services that must be started first, quirks of the local environment.
   files. Inside those patterns an only-inherited `m` (facade) or `handle` (job) is listed: the analyzer
   does not follow inheritance. It lives in the PHP adapter, **not** in `AnalyzerPort` (author decision D1 on DIS-63). acme-shop
   reports `[]`.
+- **Repeated input paths keep the first; a failed grammar load is retried; analyzers cannot import
+  I/O modules** (DIS-96). When several inputs share a `path` (compared exactly: no normalisation, so
+  `app/a.php` and `app/A.php` are distinct), the PHP analyzer analyses only the first in input order and
+  discards the rest **before** parsing and indexing, each with a diagnostic
+  `duplicate path "<path>"; kept the first` (no `line`), for any kind of file; the `AnalyzerPort`
+  JSDoc states it. Callers (DIS-85) should still not send duplicates. A rejected grammar load is
+  forgotten, so the next `analyze` on the same instance loads it again. The dependency-cruiser rule
+  `analyzers-no-io` forbids `packages/analyzers/**` from importing `fs`, `net`, `tls`, `dgram`, `dns`,
+  `http`, `https`, `http2`, `child_process`, `worker_threads`, `cluster`, `vm`, `wasi`, `inspector`
+  and `sqlite` (with or without `node:`); the only gaps are global `fetch` and `createRequire(...)`,
+  which are not imports: only code review guards them (the Ghost scenario only proves the given path
+  is not read). Symbols on one line are ordered by `endLine` descending, then `name` (not by
+  containment: a later-ending sibling comes first). `tests/unit/analyzers/php/parser-load.spec.ts` is the first `vi.mock` of the repository: reset
+  the mock and restore its delegating default in a `beforeEach` (Vitest 1.6 `mockClear` keeps queued
+  `…Once` values; `mockReset` drops the default implementation).
