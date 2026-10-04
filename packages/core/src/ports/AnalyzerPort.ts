@@ -46,11 +46,17 @@ export interface AnalysisResult {
    */
   symbols: GraphSymbol[];
   /**
-   * Every relation the analyzer resolves between `files` and `symbols` of this result (`imports`,
-   * `extends`, `implements`, a route's `calls`, declared-type `calls` between methods, `tested_by`,
-   * `describes`), with both endpoints
-   * present in `files` or `symbols`, ordered by `compareEdges` (`kind`, then source endpoint, then
-   * target endpoint), no two sharing `kind`, source and target.
+   * Every relation the analyzer resolves between `files` and `symbols` of this result: `imports`,
+   * `extends` and `implements` (`exact`); a route's `calls` to its action (`exact` for an array
+   * action, `heuristic` for a `'Controller@method'` string action); `calls` between methods
+   * resolved through declared types, by a typed property, an explicit class name, `new X` (its
+   * `__construct`) or the caller's own type (`exact`); `calls` that follow framework conventions
+   * when no `exact` target exists (`heuristic`; for the PHP analyzer, Laravel facades through
+   * container bindings, `__call`, `__callStatic`, job and event dispatch, and Eloquent attribute
+   * reads); `tested_by` (`exact`); and `describes` from a documentation file to the symbols it
+   * names inside code spans or fenced code blocks (`heuristic`). Every edge has both endpoints
+   * present in `files` or `symbols`; edges are ordered by `compareEdges` (`kind`, then source
+   * endpoint, then target endpoint), and no two share `kind`, source and target.
    */
   edges: GraphEdge[];
   /**
