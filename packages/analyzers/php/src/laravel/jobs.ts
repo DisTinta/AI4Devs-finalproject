@@ -10,6 +10,16 @@ export const DISPATCHABLE_FQN = 'Illuminate\\Foundation\\Bus\\Dispatchable';
 const DISPATCH_METHODS = new Set(['dispatch', 'dispatchSync', 'dispatchIf', 'dispatchUnless', 'dispatchAfterResponse']);
 
 /**
+ * Whether `X::m(...)` is a job dispatch rule 4 recognises (spec "Laravel heuristic calls", rule 4): `m` is
+ * one of {@link DISPATCH_METHODS} and `X` (`type`, declared in the file of `facts`) uses in its own body
+ * a trait resolving to {@link DISPATCHABLE_FQN}. Shared by {@link resolveJobDispatch} and the unresolved
+ * report (`job-no-handle`; design D4 of php-laravel-heuristics-2b).
+ */
+export function isJobDispatch(method: string, type: PhpTypeFact, facts: PhpFileFacts): boolean {
+  return DISPATCH_METHODS.has(method) && type.uses.some((raw) => resolveClassName(raw, facts) === DISPATCHABLE_FQN);
+}
+
+/**
  * The `handle` method a `X::m(...)` job dispatch reaches (spec "Laravel heuristic calls", rule 4; design
  * D4 of php-laravel-heuristics-2a): `m` is one of {@link DISPATCH_METHODS}, `X` (`type`, declared in the
  * file of `facts`) uses in its own body a trait resolving to {@link DISPATCHABLE_FQN}, and declares
@@ -22,7 +32,5 @@ export function resolveJobDispatch(
   facts: PhpFileFacts,
   declaredMethod: DeclaredMethodLookup,
 ): SymbolRef | undefined {
-  if (!DISPATCH_METHODS.has(method)) return undefined;
-  if (!type.uses.some((raw) => resolveClassName(raw, facts) === DISPATCHABLE_FQN)) return undefined;
-  return declaredMethod('handle');
+  return isJobDispatch(method, type, facts) ? declaredMethod('handle') : undefined;
 }

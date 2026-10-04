@@ -444,5 +444,24 @@ services that must be started first, quirks of the local environment.
   collectors (bindings, facade accessors, `$listen`) never read a class declared in a method **or
   top-level function** body (`LARAVEL_WALK_STOP`), and a multi-namespace routes file keeps its route
   symbols but no route edge. acme-shop yields
-  47 `exact` `calls` (2 of them routes) + 11 `heuristic` (sites 6–10 and 12, plus five other callers).
-  Eloquent attributes (site 4) and the unresolved-sites report are DIS-98.
+  47 `exact` `calls` (2 of them routes) + 11 `heuristic` (sites 6–10 and 12, plus five other callers)
+  before DIS-98.
+- **Eloquent attribute reads are `heuristic` `calls`; the PHP analyzer reports unresolved Laravel
+  sites** (DIS-98). A read `$r->a` (not an assignment target, not `?->`, not `$r->a()`, `a` a plain
+  name) whose receiver is `$this` in a model, `$this->p` with a typed property, or a **method
+  parameter** with a single named type (not `?T`, not `= null`, not variadic) of a class *directly*
+  extending `Illuminate\Database\Eloquent\Model` → that model's own `get{Studly(a)}Attribute`, else its
+  own method `a`; columns give nothing, and so does a target equal to the caller (a getter `status()`
+  returning `$this->status`). `++`/`--`, `unset`, destructuring and `foreach` targets are writes (no
+  edge); `isset($p->a)` and `$p->a[] = …` are reads. A parameter keeps its declared type through the whole
+  body (reassignment or `catch` shadowing is an accepted false positive). Parameters are used **only
+  for reads**: `$order->lineCount()` is still no edge. In a chain only the typed link counts (`$order->customer->loyalty_tier` →
+  `Order::customer`); the type of a read is never inferred. acme-shop yields 47 `exact` + **17**
+  `heuristic` `calls` (site 4 → `Order::getSubtotalAttribute`, plus five more reads). `createPhpAnalyzer()`
+  returns a `PhpAnalyzer` whose result is `PhpAnalysisResult` = `AnalysisResult` + `unresolved`
+  (`{ path, line, source, reason }`, reasons `facade-unresolved`, `event-no-listener`,
+  `job-no-handle`, `route-action-missing`; sorted, deduplicated): recognised Laravel patterns with no
+  edge only — not columns, types outside the input, undeclared methods, closures or multi-namespace
+  files. Inside those patterns an only-inherited `m` (facade) or `handle` (job) is listed: the analyzer
+  does not follow inheritance. It lives in the PHP adapter, **not** in `AnalyzerPort` (author decision D1 on DIS-63). acme-shop
+  reports `[]`.

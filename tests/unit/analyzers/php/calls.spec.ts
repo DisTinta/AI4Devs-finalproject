@@ -332,8 +332,6 @@ describe('php analyzer declared-type calls', () => {
   });
 
   it('The heuristic call sites of acme-shop have no exact edge', () => {
-    const targetsOf = (path: string, name: string): string[] =>
-      callsFrom(acmeShop, path, name).map((e) => ('symbol' in e.target && e.target.symbol ? e.target.symbol.file : ''));
     const exactTargetsOf = (path: string, name: string): string[] =>
       callsFrom(acmeShop, path, name)
         .filter((e) => e.resolution === 'exact')
@@ -364,8 +362,9 @@ describe('php analyzer declared-type calls', () => {
     // ones belong to "Laravel heuristic calls", event dispatch).
     expect(exactTargetsOf('app/Services/DiscountService.php', 'DiscountService::discountFor').some((path) => path.startsWith('app/Listeners/'))).toBe(false);
     expect(exactTargetsOf('app/Observers/OrderObserver.php', 'OrderObserver::created').some((path) => path.startsWith('app/Listeners/'))).toBe(false);
-    // Site 4 and the provider closures: still no `calls` edge at all.
-    expect(targetsOf('app/Services/PriceCalculator.php', 'PriceCalculator::compute')).not.toContain('app/Models/Order.php');
+    // Site 4: no `exact` edge (its `heuristic` one belongs to "Laravel heuristic calls", Eloquent
+    // attributes). The provider closures: still no `calls` edge at all.
+    expect(exactTargetsOf('app/Services/PriceCalculator.php', 'PriceCalculator::compute')).not.toContain('app/Models/Order.php');
     expect(callsFrom(acmeShop, 'app/Providers/AppServiceProvider.php', 'AppServiceProvider::register')).toEqual([]);
     // Site 12: the string route of routes/web.php has no `exact` edge (its `heuristic` one belongs to
     // "Array-action routes").
