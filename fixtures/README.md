@@ -261,7 +261,7 @@ Columns: source symbol → target symbol · expected resolution · reason.
 | 1 | `PriceCalculator::compute` → `DiscountService::discountFor` | exact | constructor-injected typed property |
 | 2 | `PriceCalculator::compute` → `TaxService::taxFor` | exact | constructor-injected typed property |
 | 3 | `PriceCalculator::compute` → `ShippingService::shippingFor` | exact | constructor-injected typed property |
-| 4 | `PriceCalculator::compute` → `Order::$subtotal` (accessor) | heuristic | Eloquent magic attribute (`__get`) |
+| 4 | `PriceCalculator::compute` → `Order::$subtotal` (accessor; graph target: `Order::getSubtotalAttribute`) | heuristic | Eloquent magic attribute (`__get`); the read `$order->subtotal` on the typed parameter lands on the declared accessor `getSubtotalAttribute` |
 | 5 | `DiscountService::discountFor` → `CouponValidator::percentFor` | exact | typed injected dependency |
 | 6 | `DiscountService::discountFor` → `event(DiscountApplied)` listeners | heuristic | listener edge only in `EventServiceProvider::$listen` |
 | 7 | `ShippingService::shippingFor` → `CarrierGateway::flatRateFor` (graph target: `CarrierGateway::__call`) | heuristic | undeclared method via `__call`; `flatRateFor` exists only as a PHPDoc `@method`, so it has no symbol and the edge lands on `__call` |
