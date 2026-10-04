@@ -80,7 +80,7 @@ analyzer yet.
 
 ## CI
 
-Pending push: link to the PR's CI run to be added (task 10.2).
+PR #20 (https://github.com/DisTinta/AI4Devs-finalproject/pull/20). Run CI 37193003777 (https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37193003777): `quality` success, 31/31 test files and 462/462 tests, none skipped (the database-backed tests run in CI); `parser-load.spec.ts` ran its 2 tests; the dependency rule step ran with `analyzers-no-io`: 0 errors, the same 4 warnings. Frontend run 37193003765 success.
 
 ## UI evidence (if applicable)
 

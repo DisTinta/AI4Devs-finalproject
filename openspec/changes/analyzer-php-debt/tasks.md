@@ -96,7 +96,8 @@
 
 - [x] 10.1 Confirm no user interface or user workflow is affected (no route, no CLI, no web change). Record "not applicable", with that reason, in the step 8 report
   - Recorded as not applicable in the step 8 report: no route, CLI or web change.
-- [ ] 10.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that `parser-load.spec.ts` ran and was not skipped, and that `lint:architecture` ran with the new rule. Link the run in the step 8 report
+- [x] 10.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that `parser-load.spec.ts` ran and was not skipped, and that `lint:architecture` ran with the new rule. Link the run in the step 8 report
+  - Pushed with DisTinta and switched back. PR #20; run CI 37193003777: `quality` success, 31/31 files and 462/462 tests, none skipped; `parser-load.spec.ts` ran (2 tests); dependency rule 0 errors with `analyzers-no-io`. Frontend 37193003765 success. Linked in the step 8 report.
 
 ## 11. Update Technical Documentation (MANDATORY)
 
@@ -110,7 +111,8 @@
   - `/update-docs`: data model, API spec (TypeDoc into git-ignored `docs/api`), dependencies and ADRs unaffected; `docs/project-context.md` (gotcha) and `docs/backend-standards.md` §2 (`analyzers-no-io` next to `analyzers-are-siblings`) updated. `docs:coverage` clean. `prompts.md` §26 (3 prompts) + Índice entry 26.
 - [x] 11.5 Linear (Spanish): tick the DIS-96 checklist items in a comment (never edit an `[original]` block); leave a comment on DIS-85 saying the analyzer now diagnoses duplicate paths (keeps the first) and that the use case should still not pass them
   - Comment on DIS-96 (Spanish) with the six checklist items ticked and their tests, left as a new comment (the description, `[original]` included, untouched); comment on DIS-85 (Spanish): the analyzer keeps the first of a repeated path with a `duplicate path` diagnostic, and the use case should still not pass duplicates.
-- [ ] 11.6 Prepare the PR description (`/pr-describe`) against `feature/entrega-2-CRN`, in Spanish, leaving the Why for the author. After verification, set DIS-96 to In Review in Linear with a comment in Spanish linking the PR and the change
+- [x] 11.6 Prepare the PR description (`/pr-describe`) against `feature/entrega-2-CRN`, in Spanish, leaving the Why for the author. After verification, set DIS-96 to In Review in Linear with a comment in Spanish linking the PR and the change
+  - `reports/pr-description.md` (Spanish, Why left for the author, 6-row traceability) used for PR #20 against `feature/entrega-2-CRN`. DIS-96 set to In Review with a Spanish comment linking the PR and the change.
 
 ## 12. Fixes after `/show-spec-working`, `/verify-against-spec` and `/adversarial-review` (2026-10-04, before the PR)
 
