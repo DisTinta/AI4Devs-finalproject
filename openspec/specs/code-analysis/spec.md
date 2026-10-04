@@ -451,7 +451,8 @@ calls".
 - **AND** no `exact` `calls` edge goes from `OrderObserver::created` or `OrderObserver::updated` to
   `RecalculateTotals::handle`, or from `OrderObserver::created` or `DiscountService::discountFor` to a
   symbol under `app/Listeners/`
-- **AND** no `calls` edge goes from `PriceCalculator::compute` to a symbol of `app/Models/Order.php`
+- **AND** no `exact` `calls` edge goes from `PriceCalculator::compute` to a symbol of
+  `app/Models/Order.php`
 - **AND** `AppServiceProvider::register`, whose instantiations are all inside arrow functions,
   originates no `calls` edge, and no symbol of `routes/web.php` is the source of an `exact` edge
 
@@ -527,12 +528,12 @@ calls".
 
 ### Requirement: Laravel heuristic calls
 
-A call written in the body of a method of a named class, interface or trait of a parsed PHP file —
-under the same placement rules as "Declared-type calls": not inside a closure, an arrow function, an
-anonymous class, or a named class, interface, trait or function declared in that body — that yields no
-`exact` edge under "Declared-type calls" SHALL produce one `calls` edge from that method symbol to a
-method symbol, with `resolution` `heuristic` and `extractor` `php-treesitter-laravel`, when one of these
-rules applies:
+A call — or, for rule 6, a property read — written in the body of a method of a named class, interface
+or trait of a parsed PHP file — under the same placement rules as "Declared-type calls": not inside a
+closure, an arrow function, an anonymous class, or a named class, interface, trait or function declared
+in that body — that yields no `exact` edge under "Declared-type calls" SHALL produce one `calls` edge
+from that method symbol to a method symbol, with `resolution` `heuristic` and `extractor`
+`php-treesitter-laravel`, when one of these rules applies:
 
 1. **Facade**: `F::m(...)`, where `F` resolves (see "PHP name resolution") to a class of the input that
    directly extends a name resolving to `Illuminate\Support\Facades\Facade` (a *facade class*), `F` does
@@ -555,6 +556,39 @@ rules applies:
    positional and is `new E(...)`, where `E` is a class name that resolves to a class of the input.
    For each listener class `L` that the listener map gives for `E`, when `L` declares `handle`, the
    target is `L::handle`: one edge per such listener.
+6. **Eloquent attribute**: a *read* `$r->a`, where `a` is written as a plain name and the receiver
+   `$r` has one of these forms, whose type is a *model class* `M`:
+   - `$this`, when the caller's own declaration is `M`;
+   - `$this->p`, where `p` is a typed property usable by form 1 of "Declared-type calls" whose type
+     resolves to `M`;
+   - a parameter of the caller method declared with a single named type that resolves to `M`: not
+     nullable (neither `?M` nor a default value `null`), not a union or an intersection, not variadic.
+
+   The target is `M::get{Studly(a)}Attribute` when `M` declares it; otherwise `M::a` when `M` declares
+   it (a relation, or a Laravel 9+ `Attribute` accessor whose camelCase name equals `a`, i.e. single-word
+   keys); otherwise there is no target (a column). A target that is the caller method itself — a getter
+   `status()` that returns `$this->status` — yields no edge: Laravel returns the column before it looks
+   at a method, and the edge would point at its own source. `Studly(a)` splits `a` at every `_` and
+   `-`, upper-cases the first character of each non-empty part and joins them (`coupon_code` →
+   `CouponCode`, `subtotal` → `Subtotal`).
+
+   A parameter keeps its declared type in the whole body of the method, even after it is reassigned
+   (`$order = $order->customer;`) or shadowed by a `catch` variable of the same name: a read after that
+   MAY get a wrong `heuristic` edge. This is an accepted false positive; parameter types are never
+   tracked through the body.
+
+A **model class** is a class of the input that directly extends a name resolving to
+`Illuminate\Database\Eloquent\Model`. A **read** is a property access written with `->` that is not
+written to. These are writes, never reads: the left-hand side of an assignment (`=`, `=&` or a compound
+assignment such as `+=` or `??=`); the operand of `++` or `--`, prefix or postfix; an argument of
+`unset(...)`; a target of a destructuring assignment (`[$p->a] = …`, `list($p->a) = …`); and the target
+of a `foreach` (`as $p->a`, `as $k => $p->a`). `isset($p->a)` and an indirect modification such as
+`$p->a[] = …` are reads: Laravel runs the accessor or the relation in both (`__isset` reaches
+`getAttribute`; an indirect modification goes through `__get`). A nullsafe access `?->` is not a read,
+and `$r->a(...)` is a method call, not a read. In a chain only the link whose receiver has one of the
+forms of rule 6 is a read of that rule: in `$order->subtotal->amount()` it is `$order->subtotal`, and in
+`$order->customer->loyalty_tier` it is `$order->customer`. The type of a read is never inferred, so the
+next link of a chain yields no edge.
 
 The **binding table** maps a key to concrete classes. It is built from every call
 `$this->app->bind(KEY, CONCRETE)`, `$this->app->singleton(KEY, CONCRETE)` or
@@ -587,30 +621,36 @@ array literal adds nothing. The same event mapped to the same listener by more t
 or provider yields a single listener. The listener map SHALL only be used by rule 5: it
 originates no edge of its own.
 
-A method that `F`, `T` or `X` only inherits — `__call`, `__callStatic`, `getFacadeAccessor`,
-`dispatch` or `handle` included — SHALL NOT count as declared, and a `Dispatchable` trait used only by
-a parent class SHALL NOT count as used by `X`. A facade class whose parent is not directly `Facade`, an
-event provider whose parent is not directly `EventServiceProvider`, an interface or a trait SHALL never
-be `F`, `T`, `X`, `C`, `E` or `L`. `self::m(...)`, `static::m(...)`, `parent::m(...)` and any call
-excluded by "Declared-type calls" (local variables, parameters, nullable, union or intersection types,
-`?->`, variable class or method names, functions other than `event` under rule 5) SHALL produce no edge
-under this requirement; so SHALL `event(...)` whose first argument is not `new E(...)` with a class
-name (a variable, a string, `new $cls`, `new self`, `new static`) or is a named argument. The
+A method that `F`, `T`, `X` or `M` only inherits — `__call`, `__callStatic`, `getFacadeAccessor`,
+`dispatch`, `handle`, an accessor or a relation included — SHALL NOT count as declared, and a
+`Dispatchable` trait used only by a parent class SHALL NOT count as used by `X`. A facade class whose
+parent is not directly `Facade`, an event provider whose parent is not directly `EventServiceProvider`,
+a model class whose parent is not directly `Model`, an interface or a trait SHALL never be `F`, `T`,
+`X`, `C`, `E`, `L` or `M`. `self::m(...)`, `static::m(...)`, `parent::m(...)` and any call excluded by
+"Declared-type calls" (local variables, parameters, nullable, union or intersection types, `?->`,
+variable class or method names, functions other than `event` under rule 5) SHALL produce no edge under
+this requirement; so SHALL `event(...)` whose first argument is not `new E(...)` with a class name (a
+variable, a string, `new $cls`, `new self`, `new static`) or is a named argument. Parameters are used by
+rule 6 only, and only for reads: a method call on a parameter (`$order->lineCount()`) SHALL still
+produce no edge. A read whose receiver is a local variable, a static property, `$this->p` with an
+untyped, nullable, union or intersection property, or any other expression, and a read with a variable
+or computed name (`$r->$a`, `$r->{'a'}`), SHALL produce no edge. The
 `getFacadeAccessor`, the `register` bindings and the `$listen` property of a class declared inside a
 method body (of a class, interface, trait or enum), a top-level function body, a closure, an arrow
 function or an anonymous class SHALL NOT be read, as for the calls of "Declared-type calls"; nor those of a class dropped as a
 duplicate symbol (see Symbol extraction). This nesting rule applies to registrations only: the
-classes rules 4 and 5 resolve as targets (`X`, `E` and `L`) count wherever they are declared, nested
-classes included, as for the targets of "Declared-type calls". A comment anywhere inside a `$listen`
+classes rules 4, 5 and 6 resolve as targets (`X`, `E`, `L` and `M`) count wherever they are declared,
+nested classes included, as for the targets of "Declared-type calls". A comment anywhere inside a `$listen`
 element or inside the arguments of `event(...)` changes nothing. A `getFacadeAccessor` or a closure
 body that holds anything besides its single `return` — a comment included — and a string key with a
 leading `\` add nothing:
 accepted false negatives, never a guessed edge. Keys, class and method names SHALL be compared
 case-sensitively. A file that could not be parsed, or that declares more than one `namespace`, SHALL
-contribute no call, facade, binding or listener to this requirement.
+contribute no call, read, facade, binding or listener to this requirement.
 
 A `heuristic` edge SHALL NOT be emitted when the result has an `exact` edge with the same `kind`,
-source and target; calls of the same method that resolve to the same target SHALL yield a single edge.
+source and target; calls and reads of the same method that resolve to the same target SHALL yield a
+single edge.
 
 #### Scenario: The Laravel call sites of acme-shop are heuristic calls
 
@@ -623,13 +663,52 @@ source and target; calls of the same method that resolve to the same target SHAL
 - **AND** from `OrderObserver::created` and `OrderObserver::updated` to `RecalculateTotals::handle`
   (job dispatch), from `DiscountService::discountFor` to `RecordDiscountAudit::handle` and from
   `OrderObserver::created` to `SendOrderConfirmation::handle` (event dispatch)
-- **AND** the result has exactly 11 `calls` edges with `resolution` `heuristic`: those 10 and the one
-  from `POST /checkout` to `CheckoutController::store` (see "Array-action routes")
+- **AND** from `PriceCalculator::compute` (site 4, a parameter, `PriceCalculator.php:27`),
+  `PriceCalculator::taxableBase` (a parameter, `:40`) and `OrderController::show` (a parameter, in a
+  chain, `OrderController.php:23`) to `Order::getSubtotalAttribute`; from `DiscountService::loyaltyPercent`
+  (a parameter, in a chain, `DiscountService.php:53`) to `Order::customer`; and from
+  `Order::getSubtotalAttribute` (`Order.php:47`) and `Order::lineCount` (`Order.php:55`), both through
+  `$this`, to `Order::lines` (Eloquent attributes)
+- **AND** the result has exactly 17 `calls` edges with `resolution` `heuristic`: those 16 and the one
+  from `POST /checkout` to `CheckoutController::store` (see "Array-action routes"), and still exactly
+  47 with `resolution` `exact`
+- **AND** those 6 Eloquent edges are the only `calls` edges whose target is a symbol under
+  `app/Models/`: the column reads (`$order->coupon_code` in `DiscountService.php:37`, `id`, `status`,
+  `shipping_country` in `TaxService.php:23` and `ShippingService.php:31`, `loyalty_tier`,
+  `unit_price_cents`, `quantity`, `price_cents`) yield none, and neither does `$order->subtotal = …` in
+  `tests/Unit/PriceCalculatorTest.php:36` (a write on a local variable, so no receiver of rule 6; the
+  write rule itself is shown by "Eloquent reads reach accessors and relations, never columns or writes"
+  and "Writes never read an Eloquent attribute; isset and indirect modification do")
 - **AND** no `calls` edge has a symbol of `app/Facades/Pricing.php` as target (its `imports` edges stay)
 - **AND** neither `OrderController::index` nor `AppServiceProvider::register` is the source of a
   `calls` edge, and `EventServiceProvider` is the source of none
 - **AND** wrapping the result in a graph with `commits: []` and `fileCommits: []` makes the graph
   validation return no error
+
+#### Scenario: Eloquent reads reach accessors and relations, never columns or writes
+
+- **WHEN** `app/Models/Post.php` with content
+  `<?php namespace App\Models; use Illuminate\Database\Eloquent\Model; class Post extends Model { public function author() {} public function getTitleUpperAttribute() {} }`,
+  `app/Plain.php` with content `<?php namespace App; class Plain { public function author() {} }` and
+  `app/Reader.php` with content
+  `<?php namespace App; use App\Models\Post; class Reader { public function run(Post $p, Plain $q, ?Post $n): void { $p->title_upper; $p->author->name; $p->body; $p->author = 1; $q->author; $n->author; $p?->author; $p->author(); } }`
+  are analysed together
+- **THEN** `Reader::run` is the source of exactly two `calls` edges, both `heuristic`: to
+  `Post::getTitleUpperAttribute` and to `Post::author`
+- **AND** the column `body`, the second link `->name`, the write, the non-model `Plain`, the nullable
+  `?Post`, the nullsafe `?->` and the method call `$p->author()` on a parameter add none
+
+#### Scenario: Writes never read an Eloquent attribute; isset and indirect modification do
+
+- **WHEN** `app/Models/Box.php` with content
+  `<?php namespace App\Models; use Illuminate\Database\Eloquent\Model; class Box extends Model { public function inc() {} public function dec() {} public function preinc() {} public function predec() {} public function gone() {} public function pair() {} public function listed() {} public function each() {} public function keyed() {} public function checked() {} public function pushed() {} }`
+  and `app/Packer.php` with content
+  `<?php namespace App; use App\Models\Box; class Packer { public function run(Box $b, array $xs): void { $b->inc++; $b->dec--; ++$b->preinc; --$b->predec; unset($b->gone); [$b->pair] = $xs; list($b->listed) = $xs; foreach ($xs as $b->each) {} foreach ($xs as $k => $b->keyed) {} isset($b->checked); $b->pushed[] = 1; } }`
+  are analysed together
+- **THEN** `Packer::run` is the source of exactly two `calls` edges, both `heuristic`: to `Box::checked`
+  and to `Box::pushed`
+- **AND** none of the nine writes (`++` and `--` in both positions, `unset`, the two destructuring
+  targets and the two `foreach` targets) adds an edge, each having its own target
 
 #### Scenario: Jobs and events reach their handlers
 
@@ -814,3 +893,87 @@ the same for every analyzer.
   (`app/Order.php`), `class Line` in `app/A/Line.php` and `class Line` in `app/B/Line.php`, and
   `method Total::sum` (`app/Total.php`)
 - **THEN** it returns exactly two `describes` edges from `docs/a.md`: to `Order` and to `Total::sum`
+
+### Requirement: PHP unresolved report
+
+The result of the PHP analyzer SHALL carry, besides the fields of "Analysis contract", a field
+`unresolved`: the list of Laravel call sites and route statements that the analyzer recognises but for
+which it emits no edge. It is specific to the PHP analyzer and SHALL NOT be part of the analysis
+contract shared by every analyzer. The PHP analyzer's result SHALL satisfy "Analysis contract", with
+`unresolved` as an additional field: a consumer that uses the analyzer through `AnalyzerPort` sees only
+the four common fields, and `unresolved` SHALL NOT change `files`, `symbols`, `edges` or `diagnostics`.
+The package `@codemind/analyzer-php` SHALL export, as types, `PhpAnalyzer` (an `AnalyzerPort` whose
+`analyze` resolves to a `PhpAnalysisResult`), `PhpAnalysisResult` (`AnalysisResult` plus
+`unresolved: UnresolvedSite[]`), `UnresolvedSite` and `UnresolvedReason`, and `createPhpAnalyzer()`
+SHALL return a `PhpAnalyzer`. Each entry SHALL be `{ path, line, source, reason }`, where `path` is
+the file of the site, `line` the 1-based line where the call starts (for a route, the first line of its
+statement), `source` the caller method symbol (for a route, the `route` symbol), and `reason` one of:
+
+- `facade-unresolved`: a call `F::m(...)` where `F` is a facade class that does not declare `m` (rule 1
+  of "Laravel heuristic calls") and rule 1 gives no target: `F` has no usable `getFacadeAccessor`, the
+  key has no binding, the key is ambiguous, or the bound class `C` does not declare `m` in its own body
+  (a method `C` only inherits does not count, so such a call is listed);
+- `event-no-listener`: a call `event(new E(...))` of rule 5 where `E` is a class of the input and rule 5
+  gives no target: the listener map gives `E` no listener, or none of its listeners declares `handle`;
+- `job-no-handle`: a call `X::m(...)` that meets every condition of rule 4 except that `X` does not
+  declare `handle` in its own body (a `handle` `X` only inherits does not count, so such a call is
+  listed), and to which no other rule gives an edge (`X` does not declare `__callStatic`);
+- `route-action-missing`: a `route` symbol, of either action form, that originates no `calls` edge —
+  its class is not a class of the input, or does not declare the method.
+
+Only the sites that "Laravel heuristic calls" and "Array-action routes" would consider SHALL be
+listed: calls placed where those requirements read none (closures, arrow functions, anonymous classes,
+nested declarations), files that could not be parsed or that declare more than one `namespace`, and
+duplicate symbols contribute no entry. Eloquent column reads, calls and events naming a type outside
+the input (`Log::info(...)`, `event(new Ghost())` with `Ghost` outside the input), calls outside the
+four patterns above to a method a class only inherits (`$this->belongsTo(...)`, a parent's method
+called on a class that is not a facade), and undeclared methods of a class that declares no `__call` /
+`__callStatic` SHALL NOT be listed: they are not recognised Laravel patterns without a target. Within
+the four patterns, an inherited method never resolves: Laravel would reach it through inheritance, the
+analyzer does not follow it, and the site is listed under its reason. A site with any `calls` edge, `exact`
+or `heuristic`, SHALL NOT be listed.
+
+`unresolved` SHALL be ordered by `path`, then `line`, then the `name` of `source`, then `reason`,
+compared by UTF-16 code unit, and SHALL hold no two entries with the same `path`, `line`, `source` and
+`reason`. The report SHALL NOT change `files`, `symbols`, `edges` or `diagnostics`, and the same input
+SHALL produce an equal report.
+
+#### Scenario: Unresolved Laravel sites are reported
+
+- **WHEN** the eight files of "Jobs and events reach their handlers" (`app/Events/Paid.php`,
+  `app/Events/Refunded.php`, `app/Listeners/Notify.php`, `app/Providers/EventProvider.php`,
+  `app/Jobs/Sync.php`, `app/Jobs/Work.php`, `app/Facades/Ghost.php` and `app/Emitter.php`, each on a
+  single line) and `routes/web.php` with content
+  `<?php\nRoute::get('/a', 'App\Ghost@run');\nRoute::get('/b', 'NoAt');\nRoute::get('/c', "App\X@{$m}");\nRoute::get('/d', '\App\Ghost@run');\n`
+  (`\n` being a line break; every other backslash is written as is in the PHP source) are analysed
+  together
+- **THEN** `unresolved` is exactly, in this order:
+  1. `{ path: 'app/Emitter.php', line: 1, source: Emitter::run, reason: 'event-no-listener' }`
+     (`event(new Refunded())`);
+  2. `{ path: 'app/Emitter.php', line: 1, source: Emitter::run, reason: 'facade-unresolved' }`
+     (`Ghost::quote()`, key `'ghost'` without binding);
+  3. `{ path: 'app/Emitter.php', line: 1, source: Emitter::run, reason: 'job-no-handle' }`
+     (`Sync::dispatch()`);
+  4. `{ path: 'routes/web.php', line: 2, source: GET /a, reason: 'route-action-missing' }`
+- **AND** `event(new \App\Events\Missing())` (outside the input), `event(new Paid())` and
+  `Work::dispatchSync()` (resolved), and `/b`, `/c` and `/d` (no route symbol) have no entry
+
+#### Scenario: acme-shop has no unresolved site
+
+- **GIVEN** the content of the 53 tracked files of `fixtures/acme-shop`
+- **WHEN** they are analysed
+- **THEN** `unresolved` is empty: the five `Pricing::compute` facade calls placed in method bodies, the
+  two `event(...)` and the two `dispatch` calls and the three route symbols all have an edge, the
+  `Pricing::compute` inside an arrow function in `OrderController.php:35` is not a site, and
+  `Log::info` names a type outside the input
+
+#### Scenario: The unresolved report is deterministic and without duplicates
+
+- **WHEN** the files of "Unresolved Laravel sites are reported", with `app/Emitter.php` changed to
+  `<?php namespace App; use App\Facades\Ghost; use App\Jobs\Sync; class Emitter { public function run(): void { Ghost::quote(); Sync::dispatch(); Ghost::quote(); Ghost::other(); } }`,
+  are analysed twice with the same input
+- **THEN** both `unresolved` lists are equal
+- **AND** each is exactly, in this order: `{ path: 'app/Emitter.php', line: 1, source: Emitter::run,
+  reason: 'facade-unresolved' }` once (for the three `Ghost` calls), `{ path: 'app/Emitter.php',
+  line: 1, source: Emitter::run, reason: 'job-no-handle' }` and
+  `{ path: 'routes/web.php', line: 2, source: GET /a, reason: 'route-action-missing' }`

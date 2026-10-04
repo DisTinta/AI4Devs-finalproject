@@ -96,7 +96,8 @@
 
 - [x] 10.1 Confirm no user interface or user workflow is affected (no route, no CLI, no web change). Record "not applicable", with that reason, in the step 8 report
   - Recorded as not applicable in the step 8 report: no route, CLI or web change.
-- [ ] 10.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that `eloquent.spec.ts` and `unresolved.spec.ts` ran and were not skipped. Link the run in the step 8 report
+- [x] 10.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that `eloquent.spec.ts` and `unresolved.spec.ts` ran and were not skipped. Link the run in the step 8 report
+  - Pushed with DisTinta and switched back. PR #19; run CI 37188098486: `quality` success, 30/30 files and 455/455 tests, none skipped (the two new spec files are among the 30; the reporter prints totals only); Frontend 37188098505 success. Linked in the step 8 report.
 
 ## 11. Update Technical Documentation (MANDATORY)
 
@@ -108,8 +109,10 @@
   - No ADR: everything stays in `packages/analyzers/php`; keeping the report out of the port is the author's D1 on DIS-63, recorded in Linear. Nothing in the implementation contradicted design D8.
 - [x] 11.4 Run `/update-docs` and confirm the docs gate passes (`npm run docs:coverage`). Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
   - `/update-docs`: data model, API spec, dependencies, standards and ADRs unaffected; `docs/project-context.md` (new DIS-98 bullet) and `fixtures/README.md` (site 4 row) updated; the core TSDoc of `AnalysisResult.edges` stays as known debt DIS-99 (core without diff). `docs:coverage` clean. `prompts.md` §25 (3 literal prompts) + Índice entry 25.
-- [ ] 11.5 Leave a Linear comment in Spanish on DIS-79 and DIS-91 (blocked by DIS-98): Eloquent reads are in as `heuristic` (17 in acme-shop) and `PhpAnalysisResult.unresolved` is available from the PHP adapter, outside the port
-- [ ] 11.6 Prepare the PR description (`/pr-describe`) against `feature/entrega-2-CRN`, in Spanish, leaving the Why for the author. After verification, set DIS-98 to In Review in Linear with a comment in Spanish linking the PR and the change
+- [x] 11.5 Leave a Linear comment in Spanish on DIS-79 and DIS-91 (blocked by DIS-98): Eloquent reads are in as `heuristic` (17 in acme-shop) and `PhpAnalysisResult.unresolved` is available from the PHP adapter, outside the port
+  - Comments left on DIS-79 and DIS-91 (Spanish) with the PR link: 47 + 17, `PhpAnalysisResult.unresolved` outside `AnalyzerPort` with the four type exports; for DIS-91, keep only the four common fields when dumping.
+- [x] 11.6 Prepare the PR description (`/pr-describe`) against `feature/entrega-2-CRN`, in Spanish, leaving the Why for the author. After verification, set DIS-98 to In Review in Linear with a comment in Spanish linking the PR and the change
+  - `reports/pr-description.md` (Spanish, Why left for the author, 25-row traceability) used for PR #19 against `feature/entrega-2-CRN`. DIS-98 set to In Review with the PR attached and a Spanish comment (no gaps left; spec sync and archive pending on this branch).
 
 ## 12. Fixes after `/verify-against-spec` and `/adversarial-review` (2026-10-04, before the PR)
 

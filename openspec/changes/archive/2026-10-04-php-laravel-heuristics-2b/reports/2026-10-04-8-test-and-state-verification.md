@@ -50,7 +50,7 @@
   19. (u) `PhpAnalyzer.analyze` not returning an `AnalysisResult` → `npm run typecheck`: `error TS2430: Interface 'PhpAnalyzer' incorrectly extends interface 'AnalyzerPort'`.
 - Stryker was not re-run after §12: `packages/core` is still untouched, so its mutants and score (94.87 %) are unaffected.
 - End-to-end testing (step 10.1): **not applicable**. The change adds no HTTP route, CLI command or web screen; the only interface is `createPhpAnalyzer().analyze()`, exercised in step 9.
-- CI (step 10.2): pending push; to be linked here.
+- CI (step 10.2): PR [#19](https://github.com/DisTinta/AI4Devs-finalproject/pull/19), head `5d503d3`. Run [CI 37188098486](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37188098486): `quality` success, 30/30 test files and 455/455 tests passed, none skipped (CI provides the database, so the 7 integration files ran as well). The paths filter lists `tests/unit/analyzers/php/laravel/eloquent.spec.ts` and `unresolved.spec.ts` as added; they are 2 of those 30 files. The reporter prints totals only, so there are no per-file lines. Run [Frontend 37188098505](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37188098505): success.
 
 ## Data state verification
 - No DB entity impacted: the analyzer reads content in memory and writes nothing.

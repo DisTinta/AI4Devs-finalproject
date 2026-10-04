@@ -6,7 +6,7 @@ import type { PhpAnalysisResult, PhpAnalyzer, UnresolvedReason, UnresolvedSite }
 import { readFixtureFiles } from '../../../../support/read-fixture-files';
 
 // Spec: openspec/specs/code-analysis/spec.md → "PHP unresolved report" (change
-// openspec/changes/php-laravel-heuristics-2b). Each `it` named after a scenario is that scenario; the
+// openspec/changes/archive/2026-10-04-php-laravel-heuristics-2b). Each `it` named after a scenario is that scenario; the
 // others are extra cases of the same requirement. The expected lines depend on the inputs being written
 // exactly as the scenarios state (single-line PHP files; routes/web.php with real line breaks): if a
 // line differs, check the input, never the expectation (author note on DIS-98).

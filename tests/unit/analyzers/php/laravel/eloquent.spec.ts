@@ -4,7 +4,7 @@ import { createPhpAnalyzer } from '../../../../../packages/analyzers/php/src/ind
 import { studly } from '../../../../../packages/analyzers/php/src/laravel/eloquent';
 
 // Spec: openspec/specs/code-analysis/spec.md → "Laravel heuristic calls", rule 6 (Eloquent
-// attributes; change openspec/changes/php-laravel-heuristics-2b). The acme-shop scenario is in
+// attributes; change openspec/changes/archive/2026-10-04-php-laravel-heuristics-2b). The acme-shop scenario is in
 // heuristic-calls.spec.ts. Each `it` named after a scenario is that scenario; the others are extra
 // cases of the same rule. No test reads or writes `fixtures/acme-shop` here (PH-22).
 
