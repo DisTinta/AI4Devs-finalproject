@@ -50,6 +50,21 @@ module.exports = {
       to: { path: '^packages/analyzers/(?!$1)([^/]+)/' },
     },
     {
+      name: 'analyzers-no-io',
+      comment:
+        'An analyzer reads only the content it receives (code-analysis, "Analysis contract"): no ' +
+        'file system, network, process spawning or code execution. Loading its own parser goes through ' +
+        'node:module and node:path, which stay allowed. The only gaps: global fetch and createRequire(...) ' +
+        'are not imports, so only code review guards them.',
+      severity: 'error',
+      from: { path: '^packages/analyzers/' },
+      to: {
+        dependencyTypes: ['core'],
+        path:
+          '^(node:)?(fs|net|tls|dgram|dns|http|https|http2|child_process|worker_threads|cluster|vm|wasi|inspector|sqlite)(/|$)',
+      },
+    },
+    {
       name: 'api-no-sql',
       comment:
         'The HTTP layer validates, delegates and serializes. Data access lives in store-postgres.',

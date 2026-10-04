@@ -12,13 +12,17 @@ export interface SourceFile {
 
 /** Input to `AnalyzerPort.analyze`. */
 export interface AnalyzerInput {
-  /** Every file to analyse; order does not affect the result (see `AnalysisResult`'s ordering). */
+  /**
+   * Every file to analyse. Order does not affect the result (see `AnalysisResult`'s ordering), except
+   * that when several inputs share a path only the first is analysed.
+   */
   files: SourceFile[];
 }
 
 /**
- * One problem found in a file: the file could not be parsed, or one of its symbols was dropped
- * because it shares file, name and start line with one already emitted (the first is kept).
+ * One problem found in a file: the file could not be parsed, one of its symbols was dropped because
+ * it shares file, name and start line with one already emitted (the first is kept), or one input was
+ * discarded as a duplicate path (one per input discarded as a duplicate path, no `line`).
  */
 export interface AnalyzerDiagnostic {
   /** Path of the file the problem is in, as given in the input. */
@@ -34,11 +38,11 @@ export interface AnalyzerDiagnostic {
  * `symbols` feed directly into a `KnowledgeGraph`.
  */
 export interface AnalysisResult {
-  /** One `GraphFile` per input file, ordered by `path`. */
+  /** One `GraphFile` per distinct input path, ordered by `path`. */
   files: GraphFile[];
   /**
-   * Every symbol declared across `files`, ordered by file `path`, then `startLine` (enclosing
-   * symbol before the symbols it contains when two start on the same line), then `name`.
+   * Every symbol declared across `files`, ordered by file `path`, then `startLine`, then `endLine`
+   * descending (so an enclosing symbol precedes the symbols it contains), then `name`.
    */
   symbols: GraphSymbol[];
   /**
@@ -50,8 +54,9 @@ export interface AnalysisResult {
    */
   edges: GraphEdge[];
   /**
-   * One entry per file in `files` that could not be parsed, and one per symbol dropped as a
-   * duplicate; a file may have several. Ordered by `path`.
+   * One entry per file in `files` that could not be parsed, one per symbol dropped as a duplicate,
+   * and one per input discarded as a duplicate path (no `line`); a file may have several. Ordered by
+   * `path`.
    */
   diagnostics: AnalyzerDiagnostic[];
 }
@@ -63,8 +68,9 @@ export interface AnalysisResult {
 export interface AnalyzerPort {
   /**
    * Analyses `input.files` and resolves to their `GraphFile`s, the `GraphSymbol`s they declare, and
-   * `AnalyzerDiagnostic`s for the files that could not be parsed and the symbols dropped as
-   * duplicates (never renamed).
+   * `AnalyzerDiagnostic`s for the files that could not be parsed, the symbols dropped as duplicates
+   * (never renamed), and one per input discarded as a duplicate path (no `line`; the first input of
+   * each path is the one analysed).
    *
    * The analyzer SHALL use only the content it receives: it never reads the analysed repository's
    * files, opens a network connection, or executes or installs anything from it. A file that fails

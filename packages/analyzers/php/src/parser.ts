@@ -15,7 +15,8 @@ export interface PhpParser {
 /**
  * Loads the PHP grammar (`tree-sitter-php.wasm`, the full grammar: PHP embedded in text) through
  * `web-tree-sitter`: `Parser.init()` then `Language.load()`. `createPhpAnalyzer` memoises the
- * returned promise per analyzer instance, so call this at most once per instance.
+ * returned promise per analyzer instance and forgets it when it rejects, so a later call of that
+ * instance loads the grammar again.
  */
 export async function loadPhpParser(): Promise<PhpParser> {
   const require = createRequire(import.meta.url);

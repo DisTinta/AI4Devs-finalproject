@@ -66,13 +66,37 @@ function keepFirst(path: string, found: GraphSymbol[], diagnostics: AnalyzerDiag
 }
 
 /**
+ * Keeps the first input of each `path`, in input order, and reports each later one as a diagnostic
+ * with no line; paths are compared exactly, never normalised. Runs before any parsing or indexing, so
+ * a discarded input contributes nothing else to the result.
+ */
+function uniqueInputs(files: SourceFile[], diagnostics: AnalyzerDiagnostic[]): SourceFile[] {
+  const seen = new Set<string>();
+  const kept: SourceFile[] = [];
+  for (const file of files) {
+    if (seen.has(file.path)) {
+      diagnostics.push({ path: file.path, message: `duplicate path "${file.path}"; kept the first` });
+    } else {
+      seen.add(file.path);
+      kept.push(file);
+    }
+  }
+  return kept;
+}
+
+/**
  * Creates the PHP `AnalyzerPort`: parses `.php` content with Tree-sitter (design D4, D5). Its result also
  * carries the unresolved Laravel sites (`PhpAnalysisResult`; design D5 of php-laravel-heuristics-2b),
  * and it is still assignable to `AnalyzerPort`.
  */
 export function createPhpAnalyzer(): PhpAnalyzer {
   let parserPromise: Promise<PhpParser> | undefined;
-  const getParser = (): Promise<PhpParser> => (parserPromise ??= loadPhpParser());
+  // A rejected load is forgotten, so the next call loads the grammar again (it never poisons the instance).
+  const getParser = (): Promise<PhpParser> =>
+    (parserPromise ??= loadPhpParser().catch((error: unknown) => {
+      parserPromise = undefined;
+      throw error;
+    }));
 
   const analyzeOne = (
     file: SourceFile,
@@ -106,7 +130,9 @@ export function createPhpAnalyzer(): PhpAnalyzer {
 
   return {
     async analyze(input: AnalyzerInput): Promise<PhpAnalysisResult> {
-      const files = input.files.map((file) => describeFile(file.path, file.content)).sort(byPath);
+      const diagnostics: AnalyzerDiagnostic[] = [];
+      const inputs = uniqueInputs(input.files, diagnostics);
+      const files = inputs.map((file) => describeFile(file.path, file.content)).sort(byPath);
       const symbols: GraphSymbol[] = [];
       const facts: PhpFileFacts[] = [];
       const routes: PlacedRouteFact[] = [];
@@ -116,8 +142,7 @@ export function createPhpAnalyzer(): PhpAnalyzer {
         accessors: [] as PlacedFacadeAccessorFact[],
         listeners: [] as PlacedListenFact[],
       } satisfies LaravelFacts;
-      const diagnostics: AnalyzerDiagnostic[] = [];
-      const phpFiles = input.files.filter((file) => file.path.endsWith('.php'));
+      const phpFiles = inputs.filter((file) => file.path.endsWith('.php'));
 
       if (phpFiles.length > 0) {
         const parser = await getParser();
@@ -128,7 +153,7 @@ export function createPhpAnalyzer(): PhpAnalyzer {
       diagnostics.sort(byPath);
 
       const php = buildPhpEdges(facts, routes, calls, symbols, laravel);
-      const edges = sortUniqueEdges([...php.edges, ...docMentionEdges(input.files, symbols)]);
+      const edges = sortUniqueEdges([...php.edges, ...docMentionEdges(inputs, symbols)]);
 
       return { files, symbols, edges, diagnostics, unresolved: sortUniqueUnresolved(php.unresolved) };
     },
