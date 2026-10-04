@@ -1,17 +1,11 @@
-import type {
-  AnalysisResult,
-  AnalyzerDiagnostic,
-  AnalyzerInput,
-  AnalyzerPort,
-  GraphSymbol,
-  SourceFile,
-} from '@codemind/core';
+import type { AnalyzerDiagnostic, AnalyzerInput, GraphSymbol, SourceFile } from '@codemind/core';
 import { describeFile, docMentionEdges, sortUniqueEdges } from '@codemind/core';
 import { collectCalls } from './calls.js';
 import { buildPhpEdges, type LaravelFacts, type PlacedCallFact, type PlacedRouteFact } from './edges.js';
 import { collectBindings, type PlacedBindingFact } from './laravel/container.js';
 import { collectListeners, type PlacedListenFact } from './laravel/events.js';
 import { collectFacadeAccessors, type PlacedFacadeAccessorFact } from './laravel/facades.js';
+import { sortUniqueUnresolved, type PhpAnalysisResult, type PhpAnalyzer } from './laravel/unresolved.js';
 import { collectFacts, type PhpFileFacts } from './names.js';
 import { loadPhpParser, type Node, type PhpParser } from './parser.js';
 import { collectRoutes } from './routes.js';
@@ -71,8 +65,12 @@ function keepFirst(path: string, found: GraphSymbol[], diagnostics: AnalyzerDiag
   return kept;
 }
 
-/** Creates the PHP `AnalyzerPort`: parses `.php` content with Tree-sitter (design D4, D5). */
-export function createPhpAnalyzer(): AnalyzerPort {
+/**
+ * Creates the PHP `AnalyzerPort`: parses `.php` content with Tree-sitter (design D4, D5). Its result also
+ * carries the unresolved Laravel sites (`PhpAnalysisResult`; design D5 of php-laravel-heuristics-2b),
+ * and it is still assignable to `AnalyzerPort`.
+ */
+export function createPhpAnalyzer(): PhpAnalyzer {
   let parserPromise: Promise<PhpParser> | undefined;
   const getParser = (): Promise<PhpParser> => (parserPromise ??= loadPhpParser());
 
@@ -107,7 +105,7 @@ export function createPhpAnalyzer(): AnalyzerPort {
   };
 
   return {
-    async analyze(input: AnalyzerInput): Promise<AnalysisResult> {
+    async analyze(input: AnalyzerInput): Promise<PhpAnalysisResult> {
       const files = input.files.map((file) => describeFile(file.path, file.content)).sort(byPath);
       const symbols: GraphSymbol[] = [];
       const facts: PhpFileFacts[] = [];
@@ -129,9 +127,10 @@ export function createPhpAnalyzer(): AnalyzerPort {
       symbols.sort(bySymbolOrder);
       diagnostics.sort(byPath);
 
-      const edges = sortUniqueEdges([...buildPhpEdges(facts, routes, calls, symbols, laravel), ...docMentionEdges(input.files, symbols)]);
+      const php = buildPhpEdges(facts, routes, calls, symbols, laravel);
+      const edges = sortUniqueEdges([...php.edges, ...docMentionEdges(input.files, symbols)]);
 
-      return { files, symbols, edges, diagnostics };
+      return { files, symbols, edges, diagnostics, unresolved: sortUniqueUnresolved(php.unresolved) };
     },
   };
 }

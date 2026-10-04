@@ -3,14 +3,16 @@ import type { GraphEdge, GraphSymbol, SymbolRef } from '@codemind/core';
 import type { CallFact } from './calls.js';
 import type { PhpFileFacts, PhpTypeFact } from './names.js';
 import { resolveClassName, resolveTarget } from './names.js';
-import { buildBindingTable } from './laravel/container.js';
+import { buildBindingTable, directlyExtends } from './laravel/container.js';
 import type { BindingTable, PlacedBindingFact } from './laravel/container.js';
 import { indexFacades, resolveFacadeCall } from './laravel/facades.js';
 import type { FacadeIndex, PlacedFacadeAccessorFact } from './laravel/facades.js';
+import { ELOQUENT_MODEL_FQN, resolveEloquentAttribute } from './laravel/eloquent.js';
 import { buildListenerMap, resolveEventDispatch } from './laravel/events.js';
 import type { ListenerMap, PlacedListenFact } from './laravel/events.js';
-import { resolveJobDispatch } from './laravel/jobs.js';
+import { isJobDispatch, resolveJobDispatch } from './laravel/jobs.js';
 import { resolveMagicCall } from './laravel/magic-call.js';
+import type { UnresolvedSite } from './laravel/unresolved.js';
 import type { RouteFact } from './routes.js';
 
 /** One {@link RouteFact} together with the path of the file it was found in. */
@@ -129,6 +131,7 @@ function buildRouteEdges(
   fqnTable: ReadonlyMap<string, SymbolRef[]>,
   typeKinds: ReadonlyMap<string, TypeKind>,
   methods: ReadonlyMap<string, SymbolRef>,
+  unresolved: UnresolvedSite[],
 ): RouteEdges {
   const edges: RouteEdges = { exact: [], heuristic: [] };
   const seen = new Set<string>();
@@ -139,16 +142,21 @@ function buildRouteEdges(
     if (seen.has(routeKey)) continue;
     seen.add(routeKey);
     const fact = factsByPath.get(route.path);
-    if (!fact || fact.namespaces > 1) continue;
+    if (!fact || fact.namespaces > 1) continue; // a multi-namespace file reports nothing (design D6 of php-laravel-heuristics-2b)
+    const routeSymbol: SymbolRef = { file: route.path, name: route.routeName, startLine: route.line };
     const targetClass =
       route.form === 'array' ? resolveTarget(resolveClassName(route.rawClass, fact), fqnTable) : resolveTarget(route.rawClass, fqnTable);
-    if (!targetClass) continue;
-    if (route.form === 'string' && typeKinds.get(`${targetClass.file}\0${targetClass.name}\0${targetClass.startLine}`) !== 'class') continue;
-    const method = methods.get(methodKey(targetClass, route.method));
-    if (!method) continue;
+    const isClass =
+      targetClass !== undefined &&
+      (route.form === 'array' || typeKinds.get(`${targetClass.file}\0${targetClass.name}\0${targetClass.startLine}`) === 'class');
+    const method = targetClass && isClass ? methods.get(methodKey(targetClass, route.method)) : undefined;
+    if (!method) {
+      unresolved.push({ path: route.path, line: route.line, source: routeSymbol, reason: 'route-action-missing' });
+      continue;
+    }
     const resolution = route.form === 'array' ? 'exact' : 'heuristic';
     edges[resolution].push({
-      source: { symbol: { file: route.path, name: route.routeName, startLine: route.line } },
+      source: { symbol: routeSymbol },
       target: { symbol: method },
       kind: 'calls',
       resolution,
@@ -169,7 +177,8 @@ function buildRouteEdges(
 function buildCallEdges(resolved: readonly ResolvedCall[], methods: ReadonlyMap<string, SymbolRef>): GraphEdge[] {
   const edges: GraphEdge[] = [];
   for (const { call, source, targetType, targetKind } of resolved) {
-    if (call.form === 'event' || targetKind === 'trait') continue; // `event(...)` has no exact meaning
+    // `event(...)` and property reads (`attribute`) have no exact meaning
+    if (call.form === 'event' || call.form === 'attribute' || targetKind === 'trait') continue;
     if (call.form === 'new' && targetKind !== 'class') continue;
     const target = methods.get(methodKey(targetType, call.method));
     if (!target) continue;
@@ -208,7 +217,8 @@ function resolveCalls(
     const callerMethod = call.caller.name.slice(call.callerType.length + 2);
     const source = methods.get(methodKey(callerType, callerMethod));
     if (!source || source.startLine !== call.caller.startLine) continue; // caller dropped as a duplicate
-    const targetType = call.form === 'this' || call.form === 'self' ? callerType : resolveTarget(resolveClassName(call.rawClass, fact), fqnTable);
+    const ownType = call.form === 'this' || call.form === 'self' || (call.form === 'attribute' && call.rawClass === '');
+    const targetType = ownType ? callerType : resolveTarget(resolveClassName(call.rawClass, fact), fqnTable);
     const targetKind = targetType && typeKinds.get(`${targetType.file}\0${targetType.name}\0${targetType.startLine}`);
     if (!targetType || targetKind === undefined) continue;
     resolved.push({ call, source, targetType, targetKind });
@@ -232,23 +242,29 @@ function buildHeuristicCallEdges(
   facades: FacadeIndex,
   bindings: BindingTable,
   typeFactOf: TypeFactLookup,
+  unresolved: UnresolvedSite[],
 ): GraphEdge[] {
   const declared = (type: TypeDeclaration, name: string): SymbolRef | undefined => methods.get(methodKey(type, name));
   const edges: GraphEdge[] = [];
   for (const { call, source, targetType, targetKind } of resolved) {
-    if (call.form === 'event') continue; // resolved by `buildEventEdges`
+    if (call.form === 'event' || call.form === 'attribute') continue; // resolved by `buildEventEdges` / `buildAttributeEdges`
     if (declared(targetType, call.method)) continue; // declared: an `exact` call, or none
     const typeKey = `${targetType.file}\0${targetType.name}\0${targetType.startLine}`;
     const declaredInTarget = (name: string): SymbolRef | undefined => declared(targetType, name);
-    const job = (): SymbolRef | undefined => {
-      const found = call.form === 'static' && targetKind === 'class' ? typeFactOf(targetType) : undefined;
-      return found && resolveJobDispatch(call.method, found.type, found.facts, declaredInTarget);
-    };
-    const target =
-      call.form === 'static' && facades.has(typeKey)
-        ? resolveFacadeCall(facades.get(typeKey), call.method, bindings, declared)
-        : (job() ?? resolveMagicCall(call.form, targetKind === 'class', declaredInTarget));
-    if (!target) continue;
+    const isFacadeCall = call.form === 'static' && facades.has(typeKey);
+    const found = call.form === 'static' && targetKind === 'class' ? typeFactOf(targetType) : undefined;
+    const target = isFacadeCall
+      ? resolveFacadeCall(facades.get(typeKey), call.method, bindings, declared)
+      : ((found && resolveJobDispatch(call.method, found.type, found.facts, declaredInTarget)) ??
+        resolveMagicCall(call.form, targetKind === 'class', declaredInTarget));
+    if (!target) {
+      // A recognised Laravel pattern left without an edge (spec "PHP unresolved report"; design D4 of
+      // php-laravel-heuristics-2b). A job with `__callStatic` has an edge, so it never gets here.
+      const isJob = found !== undefined && isJobDispatch(call.method, found.type, found.facts);
+      const reason = isFacadeCall ? 'facade-unresolved' : isJob ? 'job-no-handle' : undefined;
+      if (reason) unresolved.push({ path: call.path, line: call.line, source, reason });
+      continue;
+    }
     edges.push({ source: { symbol: source }, target: { symbol: target }, kind: 'calls', resolution: 'heuristic', extractor: PHP_EXTRACTOR });
   }
   return edges;
@@ -259,14 +275,46 @@ function buildHeuristicCallEdges(
  * design D5 of php-laravel-heuristics-2a): one per listener of the class `E` that declares `handle`.
  * Unordered and not deduplicated, like {@link buildHeuristicCallEdges}.
  */
-function buildEventEdges(resolved: readonly ResolvedCall[], methods: ReadonlyMap<string, SymbolRef>, listeners: ListenerMap): GraphEdge[] {
+function buildEventEdges(
+  resolved: readonly ResolvedCall[],
+  methods: ReadonlyMap<string, SymbolRef>,
+  listeners: ListenerMap,
+  unresolved: UnresolvedSite[],
+): GraphEdge[] {
   const edges: GraphEdge[] = [];
   for (const { call, source, targetType, targetKind } of resolved) {
     if (call.form !== 'event' || targetKind !== 'class') continue;
     const event: SymbolRef = { file: targetType.file, name: targetType.name, startLine: targetType.startLine };
-    for (const handle of resolveEventDispatch(event, listeners, (listener) => methods.get(methodKey(listener, 'handle')))) {
+    const handles = resolveEventDispatch(event, listeners, (listener) => methods.get(methodKey(listener, 'handle')));
+    if (handles.length === 0) unresolved.push({ path: call.path, line: call.line, source, reason: 'event-no-listener' });
+    for (const handle of handles) {
       edges.push({ source: { symbol: source }, target: { symbol: handle }, kind: 'calls', resolution: 'heuristic', extractor: PHP_EXTRACTOR });
     }
+  }
+  return edges;
+}
+
+/**
+ * The `heuristic` `calls` edges of the property reads `$r->a` on a model class (spec "Laravel heuristic
+ * calls", rule 6; design D1–D2 of php-laravel-heuristics-2b): to the model's own
+ * `get{Studly(a)}Attribute`, else its own method `a`; a column yields none. The model must directly
+ * extend {@link ELOQUENT_MODEL_FQN}. Unordered and not deduplicated, like {@link buildHeuristicCallEdges}.
+ */
+function buildAttributeEdges(
+  resolved: readonly ResolvedCall[],
+  methods: ReadonlyMap<string, SymbolRef>,
+  factsByPath: ReadonlyMap<string, PhpFileFacts>,
+): GraphEdge[] {
+  const edges: GraphEdge[] = [];
+  for (const { call, source, targetType, targetKind } of resolved) {
+    if (call.form !== 'attribute' || targetKind !== 'class') continue;
+    const facts = factsByPath.get(targetType.file);
+    const isModel = facts !== undefined && directlyExtends(facts, targetType.name, targetType.startLine, ELOQUENT_MODEL_FQN);
+    const target = resolveEloquentAttribute(call.method, isModel, (name) => methods.get(methodKey(targetType, name)));
+    // A getter `status()` returning `$this->status`: Laravel returns the column, and the edge would be a self-loop.
+    const isCaller = target !== undefined && target.file === source.file && target.name === source.name && target.startLine === source.startLine;
+    if (!target || isCaller) continue;
+    edges.push({ source: { symbol: source }, target: { symbol: target }, kind: 'calls', resolution: 'heuristic', extractor: PHP_EXTRACTOR });
   }
   return edges;
 }
@@ -334,7 +382,9 @@ function buildTestedByEdges(
  * analyzer's final, deduplicated `symbols`. A file that declares more than one namespace originates
  * none of these edges (design D2). No `heuristic` edge shares `kind`, source and target with another
  * edge, `exact` ones winning (design D5 of php-laravel-heuristics-1); otherwise unordered and not
- * deduplicated, and the caller sorts with `sortUniqueEdges`.
+ * deduplicated, and the caller sorts with `sortUniqueEdges`. Also returns the recognised Laravel sites
+ * left without an edge (spec "PHP unresolved report"; design D4 of php-laravel-heuristics-2b),
+ * unordered and not deduplicated: the caller sorts them with `sortUniqueUnresolved`.
  */
 export function buildPhpEdges(
   facts: readonly PhpFileFacts[],
@@ -342,13 +392,14 @@ export function buildPhpEdges(
   calls: readonly PlacedCallFact[],
   symbols: readonly GraphSymbol[],
   laravel: LaravelFacts,
-): GraphEdge[] {
+): { edges: GraphEdge[]; unresolved: UnresolvedSite[] } {
   const byDeclaration = indexByDeclaration(symbols);
   const fqnTable = buildFqnTable(facts, byDeclaration);
   const factsByPath = new Map(facts.map((fact) => [fact.path, fact]));
   const methods = indexMethods(symbols);
   const typeKinds = indexTypeKinds(facts, byDeclaration);
   const edges: GraphEdge[] = [];
+  const unresolved: UnresolvedSite[] = [];
 
   for (const fact of facts) {
     if (fact.namespaces > 1) continue;
@@ -375,7 +426,7 @@ export function buildPhpEdges(
     }
   }
 
-  const routeEdges = buildRouteEdges(routes, factsByPath, fqnTable, typeKinds, methods);
+  const routeEdges = buildRouteEdges(routes, factsByPath, fqnTable, typeKinds, methods, unresolved);
   edges.push(...routeEdges.exact);
   const resolvedCalls = resolveCalls(calls, factsByPath, fqnTable, typeKinds, methods);
   edges.push(...buildCallEdges(resolvedCalls, methods));
@@ -396,9 +447,10 @@ export function buildPhpEdges(
   const listenerMap = buildListenerMap(laravel.listeners, factsByPath, classOf);
   appendUnshadowed(edges, [
     ...routeEdges.heuristic,
-    ...buildHeuristicCallEdges(resolvedCalls, methods, facades, bindingTable, typeFactOf),
-    ...buildEventEdges(resolvedCalls, methods, listenerMap),
+    ...buildHeuristicCallEdges(resolvedCalls, methods, facades, bindingTable, typeFactOf, unresolved),
+    ...buildEventEdges(resolvedCalls, methods, listenerMap, unresolved),
+    ...buildAttributeEdges(resolvedCalls, methods, factsByPath),
   ]);
 
-  return edges;
+  return { edges, unresolved };
 }

@@ -7,7 +7,8 @@ import { readFixtureFiles } from '../../../../support/read-fixture-files';
 
 // Spec: openspec/specs/code-analysis/spec.md → "Laravel heuristic calls" (change archived as
 // openspec/changes/archive/2026-10-03-php-laravel-heuristics-1; jobs and events added by
-// openspec/changes/archive/2026-10-03-php-laravel-heuristics-2a, tested in jobs-events.spec.ts).
+// openspec/changes/archive/2026-10-03-php-laravel-heuristics-2a, tested in jobs-events.spec.ts;
+// Eloquent attributes added by openspec/changes/php-laravel-heuristics-2b, tested in eloquent.spec.ts).
 // Each `it` named after a scenario is that scenario; the others are extra cases of the same rule.
 // `fixtures/acme-shop` is read-only input here: no test writes to it (PH-22).
 
@@ -146,23 +147,38 @@ describe('php analyzer Laravel heuristic calls', () => {
 
     const recalculate = at('app/Jobs/RecalculateTotals.php', 'RecalculateTotals::handle');
     const created = at('app/Observers/OrderObserver.php', 'OrderObserver::created');
+    const subtotal = at('app/Models/Order.php', 'Order::getSubtotalAttribute');
+    const lines = at('app/Models/Order.php', 'Order::lines');
 
     // In `edges` order. Facades and `__call` (DIS-61); job dispatch, event dispatch and the string
-    // route of routes/web.php (DIS-97).
+    // route of routes/web.php (DIS-97); Eloquent attributes (DIS-98).
     const expected = [
       heuristicCall(at('app/Http/Controllers/CheckoutController.php', 'CheckoutController::store'), compute),
+      heuristicCall(at('app/Http/Controllers/OrderController.php', 'OrderController::show'), subtotal),
       heuristicCall(at('app/Http/Controllers/OrderController.php', 'OrderController::show'), compute),
       heuristicCall(recalculate, compute),
       heuristicCall(at('app/Listeners/SendOrderConfirmation.php', 'SendOrderConfirmation::handle'), compute),
+      heuristicCall(subtotal, lines),
+      heuristicCall(at('app/Models/Order.php', 'Order::lineCount'), lines),
       heuristicCall(created, recalculate),
       heuristicCall(created, at('app/Listeners/SendOrderConfirmation.php', 'SendOrderConfirmation::handle')),
       heuristicCall(at('app/Observers/OrderObserver.php', 'OrderObserver::updated'), recalculate),
       heuristicCall(at('app/Services/DiscountService.php', 'DiscountService::discountFor'), at('app/Listeners/RecordDiscountAudit.php', 'RecordDiscountAudit::handle')),
+      heuristicCall(at('app/Services/DiscountService.php', 'DiscountService::loyaltyPercent'), at('app/Models/Order.php', 'Order::customer')),
+      heuristicCall(compute, subtotal),
+      heuristicCall(at('app/Services/PriceCalculator.php', 'PriceCalculator::taxableBase'), subtotal),
       heuristicCall(at('app/Services/ShippingService.php', 'ShippingService::shippingFor'), at('app/Services/CarrierGateway.php', 'CarrierGateway::__call')),
       heuristicCall(at('routes/web.php', 'POST /checkout'), at('app/Http/Controllers/CheckoutController.php', 'CheckoutController::store')),
       heuristicCall(at('tests/Feature/OrderPricingTest.php', 'OrderPricingTest::test_final_price_applies_discount_before_tax'), compute),
     ];
     expect(acmeShop.edges.filter((e) => e.kind === 'calls' && e.resolution === 'heuristic')).toEqual(expected);
+    expect(acmeShop.edges.filter((e) => e.kind === 'calls' && e.resolution === 'exact')).toHaveLength(47);
+    // The six Eloquent edges are the only `calls` into app/Models/: column reads (`coupon_code`, `id`,
+    // `status`, `shipping_country`, `loyalty_tier`, `unit_price_cents`, `quantity`, `price_cents`) and
+    // the write `$order->subtotal = …` of tests/Unit/PriceCalculatorTest.php yield none.
+    expect(
+      acmeShop.edges.filter((e) => e.kind === 'calls' && 'symbol' in e.target && e.target.symbol?.file.startsWith('app/Models/')),
+    ).toEqual(expected.filter((e) => 'symbol' in e.target && e.target.symbol?.file.startsWith('app/Models/')));
     expect(acmeShop.edges.some((e) => e.kind === 'calls' && 'symbol' in e.source && e.source.symbol?.file === 'app/Providers/EventServiceProvider.php')).toBe(false);
 
     expect(acmeShop.edges.some((e) => e.kind === 'calls' && 'symbol' in e.target && e.target.symbol?.file === 'app/Facades/Pricing.php')).toBe(false);
