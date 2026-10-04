@@ -69,7 +69,13 @@ and the gate run above already showed the same score with and without the commen
 ## End-to-end testing (step 5)
 
 - Not applicable: no route, CLI or web change; no user workflow is affected.
-- CI: pending push (task 5.2).
+- CI (task 5.2): PR [#21](https://github.com/DisTinta/AI4Devs-finalproject/pull/21), commit `2f677da`.
+  Run [CI 37196812322](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37196812322):
+  `quality` success, 31/31 test files and 462/462 tests passed (the database-backed suites run in CI),
+  dependency rule 0 errors / 4 warnings, Stryker 94.87 % (≥ 70; same 507 mutants, timeout count varies
+  by machine as noted above). Run
+  [Frontend 37196812321](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37196812321):
+  success.
 
 ## UI evidence (if applicable)
 

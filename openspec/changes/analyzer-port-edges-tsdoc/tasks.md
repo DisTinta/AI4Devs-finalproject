@@ -53,7 +53,8 @@
 
 - [x] 5.1 Confirm no user interface or user workflow is affected (no route, no CLI, no web change). Record "not applicable", with that reason, in the step 3 report
   - Recorded as not applicable in the step 3 report: no route, CLI or web change.
-- [ ] 5.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm the PR's CI run is green and link it in the step 3 report
+- [x] 5.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm the PR's CI run is green and link it in the step 3 report
+  - Pushed with DisTinta and switched back to Cristina-JumpMath. PR #21 against `feature/entrega-2-CRN`; run CI 37196812322: `quality` success, 31/31 files and 462/462 tests, dependency rule 0 errors, Stryker 94.87 %; Frontend 37196812321 success. Linked in the step 3 report.
 
 ## 6. Update Technical Documentation (MANDATORY)
 
@@ -63,7 +64,8 @@
   - `prompts.md` §27 (3 literal prompts: propose, the D2/4.2 adjustment, apply) + Índice entry 27, in the same edit pass.
 - [x] 6.3 Linear (Spanish): tick the DIS-99 checklist item in a new comment (never edit the description); leave the description untouched
   - New Spanish comment on DIS-99 with the checklist item ticked (Eloquent reads of DIS-98 included) and the evidence; the description untouched.
-- [ ] 6.4 Prepare the PR description (`/pr-describe`) against `feature/entrega-2-CRN`, in Spanish, leaving the Why for the author. After verification, set DIS-99 to In Review in Linear with a comment in Spanish linking the PR and the change
+- [x] 6.4 Prepare the PR description (`/pr-describe`) against `feature/entrega-2-CRN`, in Spanish, leaving the Why for the author. After verification, set DIS-99 to In Review in Linear with a comment in Spanish linking the PR and the change
+  - `reports/pr-description.md` (Spanish, Why transcribed from the DIS-99 description) used for PR #21 against `feature/entrega-2-CRN`. DIS-99 set to In Review with a Spanish comment linking the PR and the change.
 
 ## 7. Fixes after `/show-spec-working`, `/verify-against-spec` and `/adversarial-review` (2026-10-04, before the PR)
 
