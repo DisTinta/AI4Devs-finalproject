@@ -8,7 +8,7 @@ La nueva regla de dependency-cruiser `analyzers-no-io` impide importar en `packa
 
 ## ¿Por qué?
 
-<!-- filled in by the human: the business rationale is not yours to generate -->
+La revisión adversarial de DIS-47 dejó dos defectos reales en el analizador PHP, aceptados como deuda. Uno: si la gramática fallaba al cargar una sola vez, esa instancia del analizador quedaba envenenada y rechazaba todas las llamadas siguientes. Otro: dos entradas con la misma ruta producían dos `GraphFile` con un mismo path y podían repetir símbolos, así que `validateGraph` rechazaba el grafo. DIS-85 está a punto de alimentar el analizador con repositorios reales, y ahí un fallo puntual de carga o un caso de uso que se equivoque con las rutas no puede tumbar el indexado ni romper el contrato de `AnalyzerPort`. Por eso esta PR cierra los dos defectos antes: el analizador se queda con la primera ruta repetida y lo avisa con un diagnostic, y vuelve a cargar la gramática en la siguiente llamada. También convierte en evidencia comprobable lo que hasta ahora solo se suponía: una regla de arquitectura contra I/O en `packages/analyzers/**`, aserciones exactas en el escenario de error de sintaxis, el desempate de orden fijado con un test y el RED que faltaba del escenario de spans.
 
 ## ¿Cómo probarlo?
 
