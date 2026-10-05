@@ -78,8 +78,9 @@ again with `\n`. The `jwt`, `aws-access-key-id` and `generic-high-entropy` rules
 
 Spans are collected per line as half-open `[start, end)` intervals tagged with their rule, rule by rule
 in priority order. A candidate that overlaps an already claimed interval on the same line (or a line
-covered by a `private-key` block) is discarded. After all rules, each line's spans are replaced from
-right to left with `REDACTION_MARKER`.
+covered by a `private-key` block) is discarded. After all rules, each covered line is rebuilt once,
+with `REDACTION_MARKER` in place of each span (see the correction below; first written as a
+right-to-left replacement per span).
 
 - `jwt` and `aws-access-key-id`: global regexes, exactly as in the spec table, run per line. Neither
   has nested quantifiers; the JWT segments exclude `.`, so each `+` is bounded by a separator.
@@ -96,6 +97,39 @@ right to left with `REDACTION_MARKER`.
 - A regex discarded for overlap resumes after its own match (standard global-regex behaviour), so a
   lower-priority match starting inside a discarded one is not found. Accepted: it would overlap the
   same secret area anyway.
+
+**Correction (found by `/adversarial-review`, 2026-10-05).** The linearity claim above covered the
+regexes only. It was never checked for the work around them, and three parts of it were quadratic in
+the number of matches on one line:
+
+1. **Overlap test.** Every candidate was compared with every claim so far.
+2. **`private-key` closing search.** Every header without a closing searched the rest of its line
+   again for the same closing. The body run and the indent of the following line were also recomputed
+   for each header.
+3. **Replacement.** Every claim rebuilt its whole line with `slice`. The review did not name this one;
+   it showed up when the first two fixes alone left the times almost unchanged.
+
+Measured before the fix:
+
+- JWT case (`eyJa.` repeated on one line): 50k / 100k / 200k repetitions took 8.8 s / 24.1 s / 75.9 s
+  in the review.
+- 16k headers without a closing on one line: 11.2 s.
+- New tests, at their sizes: 100k JWT repetitions 25.9 s, 20k AWS keys 12.5 s, 20k headers 15.7 s.
+- After fixes 1 and 2 only: 21.9 s, 11.2 s and 12.3 s.
+
+What changed:
+
+- Claims live in a per-line index (`Claims`). Each line keeps the intervals it covers, sorted by
+  `from`, and a multi-line `private-key` claim covers every line from its start to its end. Claims
+  never overlap, so an overlap test only checks the last interval starting before the candidate's end,
+  found by binary search.
+- For each header line, the scanner remembers the closings already searched for in vain (from an
+  earlier header's end, so also from any later one) and the body run with the next line's indent. The
+  cache is reset when the line changes.
+- Each covered line is rendered once from its sorted intervals, instead of once per claim.
+
+After the fix the same inputs take 48 / 83 / 154 ms (JWT 50k / 100k / 200k), 66 ms (20k AWS keys)
+and 84 ms (16k headers). The four timed tests in `secret-scanner.spec.ts` keep it that way (2 s each).
 
 ### D4 — `private-key` blocks
 
@@ -208,9 +242,14 @@ means deleting a module nobody consumes yet.
   DIS-85 (Follow-ups).
 - [`commit.message` may carry a secret] → decision handed to DIS-85 (Follow-ups).
 - [Local `node_modules` makes AC2 differ between machines] → D7.
-- [Adversarial long lines] → D3 keeps every rule linear; an extra case runs a ~200 000-character line
-  of repeated `secret` and asserts the call returns (no timing threshold, Vitest's default timeout is
-  the guard).
+- [The PEM body test is loose: single-word lines (`end`, `else`) are valid base64 and `nombre: valor`
+  passes as a `Name: value` header, so after a header with no closing such lines are emptied] →
+  accepted (D, author decision 2026-10-05): it over-redacts and never leaks; recorded as a known
+  limitation in `docs/project-context.md`.
+- [Adversarial long lines] → D3 keeps every rule linear. The first version had a single untimed case
+  (repeated `secret`) and missed three quadratic paths (see the D3 correction). Four timed cases (2 s
+  each, elapsed time asserted) now cover repeated keywords, JWTs, AWS keys and headers without a
+  closing, each above 100k characters.
 
 ## Migration Plan
 
@@ -227,4 +266,9 @@ Destination B (successor ticket), written as Spanish Linear comments at archive 
 - **DIS-86**: read `ALLOWED_REPOS_DIR` at the CLI composition root and pass it to `confinePath`; write
   every `AuditEvent` with the CLI's structured logger (covers the parent AC "the structured log
   contains a `secret_redacted` event"); `ForbiddenPathError.message` carries the requested path, which
-  may contain an OS user name: log it with that in mind (privacy check 2026-10-05, Low).
+  may contain an OS user name: log it with that in mind (privacy check 2026-10-05, Low); trim
+  `ALLOWED_REPOS_DIR` when reading it, because `confinePath` trims the root only for the blank check and
+  `' /repos'` would resolve relative to the working directory (`/adversarial-review` Minor, 2026-10-05).
+- **DIS-87**: `gitleaks` must cover `-----BEGIN PGP PRIVATE KEY BLOCK-----`. The `private-key` rule does
+  not match it, and secrets outside the four rules are out of scope for this change
+  (`/adversarial-review` question, author decision 2026-10-05).

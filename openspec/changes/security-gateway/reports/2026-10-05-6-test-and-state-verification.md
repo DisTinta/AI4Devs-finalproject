@@ -192,3 +192,98 @@ PR [#22](https://github.com/DisTinta/AI4Devs-finalproject/pull/22), head `cb4e6a
     (`path-policy.ts:42:18`, `:42:26`, `secret-scanner.ts:122:14`). Core moves from the local 95.56 %
     only through timeouts in other modules (20 in CI vs 11 locally); `index/` is identical.
 - `frontend`: [run 37289394697](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37289394697), pass (43 s).
+
+## Fixes after `/adversarial-review` (two Majors, linear time; design D3 correction)
+
+`/adversarial-review` gave PASS WITH GAPS. It reported two Majors: the spec's "linear … including
+adversarial input" SHALL was broken. Author decision: fix both in this PR before archiving.
+
+### RED
+
+Four timed cases in `tests/unit/index/secret-scanner.spec.ts`. Each is one line of more than 100k
+characters, with every literal built by concatenation. Each test has `{ timeout: 2000 }` and also
+asserts `elapsed < 2000 ms`, because Vitest cannot interrupt a synchronous call. Run on the code
+before the fix:
+
+| Case | Size | Before the fix |
+| -- | -- | -- |
+| repeated keywords (`secret`) | 35k repetitions, 210k chars | passed (2 ms): already linear |
+| repeated JWT (`eyJa.`) | 100k repetitions, 500k chars | **failed**, 25 880 ms |
+| repeated AWS keys | 20k keys, 420k chars | **failed**, 12 460 ms |
+| headers without a closing | 20k headers, ~560k chars | **failed**, 15 717 ms |
+
+### GREEN, and a third quadratic path
+
+The first fix followed the review: a per-line interval index for the overlap test, and remembering
+the closings not found on a header line. It left the three tests red: 21 863 ms, 11 169 ms and
+12 287 ms. The dominant cost was a path the review did not name: the replacement rebuilt the whole
+line with `slice` once per claim. With each covered line rendered once from its sorted intervals,
+`tests/unit/index` passes 42/42 in 1.76 s.
+
+### Times before and after
+
+Measured with a scratch script in the session scratchpad (not in the repository) on the same inputs:
+
+| Input | Before (review) | Before (this run) | After |
+| -- | -- | -- | -- |
+| JWT, 50k repetitions (250k chars) | 8.8 s | 9 170 ms | 48 ms |
+| JWT, 100k repetitions (500k chars) | 24.1 s | 26 872 ms | 83 ms |
+| JWT, 200k repetitions (1M chars) | 75.9 s | — | 154 ms |
+| AWS keys, 20k (420k chars) | — | 14 369 ms | 66 ms |
+| AWS keys, 40k (840k chars) | — | 36 162 ms | 97 ms |
+| Headers without a closing, 16k (448k chars) | 11.2 s | 11 357 ms | 84 ms |
+| Headers without a closing, 20k (560k chars) | — | — | 87 ms |
+| Repeated keywords, 35k | — | 2 ms | 3 ms |
+
+Doubling the input now roughly doubles the time (JWT: 83 → 154 ms).
+
+### Mutation after the fix
+
+`npx stryker run` (12:27–12:31): **95.39 %** for core (745/781) and **98.18 %** for `index/` (269/274):
+`path-policy.ts` 94.44 %, `secret-scanner.ts` 98.74 %.
+
+The first run after the fix left six new survivors in `secret-scanner.ts`. Three were not
+equivalent: `:101`, the cache reset when the line changes (`false`, `===`, empty block). A header on
+a later line would reuse the "closing not found" set and the body run of an earlier line. They were
+killed by "what a header line learned about closings and body is not reused on a later line", with
+the kill confirmed by forced failures (mutated, run, restored, checked with `cmp`).
+
+Survivors in `index/` now, all equivalent:
+
+- `path-policy.ts:42:18` and `:42:26`: as above; `rel === ''` is redundant.
+- `secret-scanner.ts:97:20`, UnaryOperator, `cachedLine = -1` → `+1`: the first iteration always
+  has `lineIndex` 0, so the cache is reset either way.
+- `secret-scanner.ts:134:14`, ArithmeticOperator, `indent + closing.length` → `-`: the same survivor
+  as before (it was line 122).
+- `secret-scanner.ts:263:11`, ConditionalExpression, `column !== Infinity` → `true`:
+  `slice(Infinity)` returns `''`, so the rendered line is the same.
+
+### Suite and gates after the fix
+
+- `tests/unit/index`: 43 passed, twice (1.72 s, 1.50 s).
+- `npx vitest run`: `Tests  354 passed | 99 skipped (505)`. The 52 unlabelled tests are the same
+  pending database tests; the 4 new ones are the timed cases (3) and the cache case (1).
+- No-database run: `Tests  328 passed (328)`.
+- Gates: lint 0 errors (same pre-existing warning), typecheck exit 0, `lint:architecture` 0 errors
+  (same 4 warnings), `docs:coverage` clean.
+- Fixtures: `git status --porcelain fixtures` empty, checksum `b97101fe…` (unchanged).
+- `openspec validate security-gateway --strict`: valid.
+
+### Other review findings (author decisions, 2026-10-05; no new issue)
+
+- **PEM body test is loose** (question): kept as is. It is documented as a known limitation in
+  `docs/project-context.md` and accepted in design.md Risks (D): it over-redacts and never leaks.
+- **PGP private key blocks** (question): out of scope, since the ticket excludes secrets outside the
+  four rules. `gitleaks` must cover them: one line in the DIS-87 follow-up (design.md Follow-ups).
+- **`confinePath` root with spaces** (Minor): handed to DIS-86, which trims `ALLOWED_REPOS_DIR` when
+  reading it (design.md Follow-ups, task 9.6).
+- **Untimed linearity test** (Minor): fixed by the four timed cases above.
+
+### Process note: the spec was committed after the code
+
+The planning artifacts (`openspec/changes/security-gateway/`) were first committed in `cb4e6aa`,
+after the implementation commit `6907905`, so git history cannot show what the spec said before
+apply. The spec was changed twice before apply, both through `/opsx:update` at the author's request
+(prompts.md §28, Prompt 2): the line model, the UTF-16 column and the adversarial-input clause of the
+linearity SHALL. During apply only `design.md` (D5, D7, D11–D13 and this D3 correction), `proposal.md`
+(Impact) and `tasks.md` changed; the spec did not. No further action, per the author.

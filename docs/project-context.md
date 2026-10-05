@@ -492,11 +492,17 @@ services that must be started first, quirks of the local environment.
   units of the original line. `private-key` forms are checked c (closing on the header line), a
   (closing **directly after** the PEM body run: base64, `Name: value`, one empty line after such a
   header), b (otherwise: the block ends with the body run or the header; the first non-body line and
-  a later `END` are left alone). A single-word line such as `texto` is valid base64, so it counts as
-PEM body. The span runs from the header's first dash to the block end; text
+  a later `END` are left alone). **Known limitation, accepted (DIS-84):** the PEM body test is loose.
+  A single-word line (`texto`, `end`, `else`, `fi`) is valid base64, and a YAML/HTTP-style line
+  `nombre: valor` passes as a `Name: value` header. So after a header with no closing, such lines are
+  emptied. It over-redacts and never leaks. The span runs from the header's first dash to the block end; text
   before and after it on the end lines is kept, inner lines become empty. The AWS `\b` does not match
   after `_` (`X_AKIA…` is not redacted). `generic-high-entropy` is matched by maximal identifier run
-  plus a sticky tail, not by the literal spec regex, which is quadratic on repeated keywords. Events
+  plus a sticky tail, not by the literal spec regex, which is quadratic on repeated keywords. The
+  work around the regexes must stay linear too: overlap tests go through a per-line sorted interval
+  index, each header line remembers the closings it did not find, and each line is rebuilt once. The
+  first version did none of this and took 76 s on a 1 MB line of JWTs. The four timed tests (2 s each) in
+  `tests/unit/index/secret-scanner.spec.ts` guard this. Events
   never carry the value; core never logs them. `confinePath(requested, allowedRoot)` accepts iff
   `path.relative(root, resolved)` is `''`, or is not `..`, does not start with `..` + separator and
   is not absolute: `/repos/..x` is a valid child, `/repos-evil` is not. A blank root throws

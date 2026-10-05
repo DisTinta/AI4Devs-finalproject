@@ -78,3 +78,14 @@
 - [x] 9.5 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the author's Why transcribed. After verification, set DIS-84 to In Review in Linear with a comment in Spanish linking the PR and the change
   - PR #22 opened against `feature/entrega-2-CRN` with the author's Why copied verbatim from the author's message (`reports/pr-description.md`). DIS-84 → In Review with a Spanish comment linking the PR and the change.
 - [ ] 9.6 At archive time, leave the Follow-ups of design.md as Spanish Linear comments on DIS-85 and DIS-86
+
+## 10. Fixes after `/adversarial-review` (PASS WITH GAPS; author decision 2026-10-05, same PR #22, design D3 correction)
+
+- [x] 10.1 RED: four timed cases (2 s, elapsed time asserted), one line of more than 100k characters each, literals by concatenation: repeated keywords, JWTs, AWS keys and headers without a closing. Run on the unfixed code
+  - JWT 25 880 ms, AWS 12 460 ms, headers 15 717 ms failed; repeated keywords passed (already linear).
+- [x] 10.2 GREEN: per-line sorted interval index (`Claims`) for overlap tests, multi-line claims on every line they cover; closings not found and the body run cached per header line; each covered line rendered once
+  - The first two alone left 21 863 / 11 169 / 12 287 ms: the per-claim line rebuild was the main cost. After rendering once: 42/42 in 1.76 s.
+- [x] 10.3 Stryker: kill new non-equivalent survivors; re-measure the Major cases before/after
+  - Cache reset (`:101`, 3 mutants) killed by "what a header line learned about closings and body is not reused on a later line". Final 95.39 % core (745/781), 98.18 % `index/` (269/274), 5 equivalent survivors. Times in the step 6 report.
+- [x] 10.4 Record the review's other findings as decided by the author: PEM body limitation in `docs/project-context.md` and design.md Risks; PGP → DIS-87 follow-up; root trim → DIS-86 follow-up; process note in the step 6 report
+- [ ] 10.5 Commit test and fix separately, push (gh DisTinta, then back to Cristina-JumpMath), CI green. Then a new `/adversarial-review` on the two Majors before archiving
