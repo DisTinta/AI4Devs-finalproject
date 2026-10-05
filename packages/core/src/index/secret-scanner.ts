@@ -38,6 +38,11 @@ export const MIN_SECRET_LENGTH = 20;
 
 const PRIVATE_KEY_HEADER = /-----BEGIN ([A-Z ]*)PRIVATE KEY-----/g;
 const PRIVATE_KEY_CLOSING = /-----END ([A-Z ]*)PRIVATE KEY-----/g;
+/**
+ * A closing ends with five dashes, and a header starts with five: the next header may begin on those
+ * same dashes. The header search therefore resumes this many characters before a block's end.
+ */
+const SHARED_DASHES = 5;
 const JWT = /(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+(?![A-Za-z0-9_-])/g;
 const AWS_ACCESS_KEY_ID = /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g;
 const PEM_BASE64 = /^[A-Za-z0-9+/=]+$/;
@@ -112,7 +117,7 @@ function claimPrivateKeys(lines: Line[], claims: Claims): void {
     const sameLine = closings.find(header[1]!, headerEnd);
     if (sameLine !== -1) {
       claims.add({ ...block, endLine: lineIndex, endCol: sameLine + closing.length });
-      from = sameLine + closing.length;
+      from = sameLine + closing.length - SHARED_DASHES;
       continue;
     }
 
@@ -122,7 +127,7 @@ function claimPrivateKeys(lines: Line[], claims: Claims): void {
     if (next && next.text.startsWith(closing, indent)) {
       claims.add({ ...block, endLine: afterRun, endCol: indent + closing.length });
       lineIndex = afterRun;
-      from = indent + closing.length;
+      from = indent + closing.length - SHARED_DASHES;
     } else if (afterRun > lineIndex + 1) {
       const lastBody = afterRun - 1;
       claims.add({ ...block, endLine: lastBody, endCol: lines[lastBody]!.text.length });
@@ -130,7 +135,7 @@ function claimPrivateKeys(lines: Line[], claims: Claims): void {
       from = 0;
     } else {
       claims.add({ ...block, endLine: lineIndex, endCol: headerEnd });
-      from = headerEnd;
+      from = headerEnd - SHARED_DASHES;
     }
   }
 }
@@ -240,6 +245,8 @@ interface Covered {
   to: number;
   /** Whether the claim starts on this line: the marker and the claim's one event go here. */
   marker: boolean;
+  /** 0-based column of the claim's event (the first dash of a header); used only where `marker` is set. */
+  column: number;
   /** The rule that claimed it. */
   rule: SecretRule;
 }
@@ -266,7 +273,11 @@ class Claims {
     for (let line = claim.startLine; line <= claim.endLine; line++) {
       const from = line === claim.startLine ? claim.startCol : 0;
       const to = line === claim.endLine ? claim.endCol : Number.POSITIVE_INFINITY;
-      (this.byLine[line] ??= []).push({ from, to, marker: line === claim.startLine, rule: claim.rule });
+      const covered = (this.byLine[line] ??= []);
+      // A header sharing its first dashes with the previous closing: those dashes stay in the previous
+      // span, so this one starts where that one ends and the spans never overlap (design D3).
+      const previousEnd = covered.length > 0 ? covered[covered.length - 1]!.to : 0;
+      covered.push({ from: Math.max(from, previousEnd), to, marker: line === claim.startLine, rule: claim.rule, column: claim.startCol });
     }
   }
 
@@ -290,11 +301,11 @@ class Claims {
       const line = lines[index]!;
       const parts: string[] = [];
       let column = 0;
-      for (const { from, to, marker, rule } of covered) {
+      for (const { from, to, marker, rule, column: eventColumn } of covered) {
         parts.push(line.text.slice(column, from));
         if (marker) {
           parts.push(REDACTION_MARKER);
-          events.push({ type: 'secret_redacted', file, line: index + 1, column: from + 1, rule });
+          events.push({ type: 'secret_redacted', file, line: index + 1, column: eventColumn + 1, rule });
         }
         column = to;
       }
@@ -332,7 +343,7 @@ class LinePass {
 
   /** Accepts `[from, to)` of this line for this pass's rule. */
   add(from: number, to: number): void {
-    this.accepted.push({ from, to, marker: true, rule: this.rule });
+    this.accepted.push({ from, to, marker: true, rule: this.rule, column: from });
   }
 
   /** Merges the accepted intervals into the line's list. */
