@@ -759,3 +759,22 @@ Author decision: make the measure robust (option 1).
   warnings), `docs:coverage` clean, `openspec validate --strict` valid.
 - Every one of the 13 scenarios maps to exactly one test title.
 - Fixtures: unchanged (`b97101fe…`).
+
+### Stability on CI (task 10.10)
+
+Head `47f990f`, run [37353312437](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37353312437).
+The `quality` job ran three times on the same commit (two re-runs with `gh run rerun --job`). All
+three passed, each with `Tests  519 passed | 1 skipped (520)`. Ratios printed in each log (fastest
+of five alternating runs, n / 4n):
+
+| Attempt | Job | Four rules (min n / 4n) | Ratio | Shared-dash chain (min n / 4n) | Ratio |
+| -- | -- | -- | -- | -- | -- |
+| 1 | [111909316466](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37353312437/job/111909316466) | 89.0 / 428.1 ms | 4.81 | 72.3 / 289.9 ms | 4.01 |
+| 2 | [111911902391](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37353312437/job/111911902391) | 112.2 / 470.7 ms | 4.20 | 100.8 / 328.1 ms | 3.25 |
+| 3 | [111914600887](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37353312437/job/111914600887) | 57.7 / 246.2 ms | 4.26 | 57.9 / 239.6 ms | 4.14 |
+
+The single runs vary a lot on the runner. For example, in attempt 1 the shared-dash runs at `n`
+ranged from 72 to 184 ms. The minimum absorbs that spread, and every ratio stays between 3.25 and
+4.81, far from the limit of 8 and from the ~16 of a quadratic path. `frontend`
+([run 37353312466](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37353312466)) was
+green.
