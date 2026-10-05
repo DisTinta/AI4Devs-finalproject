@@ -369,14 +369,55 @@ describe('secret scanner boundaries', () => {
     expect(result.events).toHaveLength(1);
   });
 
+  it('what a header line learned about closings and body is not reused on a later line', () => {
+    const singleLine = '"' + pemHeader() + '\\nab\\n' + pemFooter() + '"';
+    const content = [pemHeader(), 'texto normal', singleLine].join('\n');
+    const result = redactSecrets({ path: 'x', content });
+    expect(result.file.content.split('\n')).toEqual([REDACTION_MARKER, 'texto normal', `"${REDACTION_MARKER}"`]);
+    expect(result.events.map((e) => e.line)).toEqual([1, 3]);
+  });
+
   it('a Name: value header must start the line', () => {
     const content = [pemHeader(), "echo 'Note: x';", pemFooter()].join('\n');
     expect(redactSecrets({ path: 'x', content }).file.content.split('\n')).toEqual([REDACTION_MARKER, "echo 'Note: x';", pemFooter()]);
   });
 
-  it('a very long line of repeated keywords is scanned', () => {
-    const content = `$${'secret'.repeat(35_000)} = 'short';`;
-    expect(redactSecrets({ path: 'x', content }).redacted).toBe(false);
+  // Linear time on adversarial input (spec "Secret redaction"; design D3). Each line is above 100k
+  // characters, sized so the quadratic version took more than 10 s. Vitest cannot interrupt a
+  // synchronous call, so the elapsed time is also asserted, with the same generous 2 s bound.
+  const LINEAR_BUDGET_MS = 2000;
+  const timed = (content: string): { ms: number; events: number } => {
+    const start = performance.now();
+    const { events } = redactSecrets({ path: 'x', content });
+    return { ms: performance.now() - start, events: events.length };
+  };
+
+  it('a very long line of repeated keywords is scanned in linear time', { timeout: LINEAR_BUDGET_MS }, () => {
+    const content = `$${('sec' + 'ret').repeat(35_000)} = 'short';`;
+    const { ms, events } = timed(content);
+    expect(events).toBe(0);
+    expect(ms).toBeLessThan(LINEAR_BUDGET_MS);
+  });
+
+  it('a very long line of repeated JWTs is scanned in linear time', { timeout: LINEAR_BUDGET_MS }, () => {
+    const content = ('ey' + 'Ja.').repeat(100_000);
+    const { ms, events } = timed(content);
+    expect(events).toBeGreaterThan(0);
+    expect(ms).toBeLessThan(LINEAR_BUDGET_MS);
+  });
+
+  it('a very long line of repeated AWS keys is scanned in linear time', { timeout: LINEAR_BUDGET_MS }, () => {
+    const content = ('AK' + 'IA' + 'Z'.repeat(16) + ' ').repeat(20_000);
+    const { ms, events } = timed(content);
+    expect(events).toBe(20_000);
+    expect(ms).toBeLessThan(LINEAR_BUDGET_MS);
+  });
+
+  it('a very long line of private key headers without a closing is scanned in linear time', { timeout: LINEAR_BUDGET_MS }, () => {
+    const content = (pemHeader() + ' ').repeat(20_000);
+    const { ms, events } = timed(content);
+    expect(events).toBe(20_000);
+    expect(ms).toBeLessThan(LINEAR_BUDGET_MS);
   });
 });
 
