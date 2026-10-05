@@ -606,22 +606,27 @@ if (!parsed.success) {
 
 La detección se ejecuta **antes de indexar**, no antes de enviar al modelo. Un secreto que nunca entra en la base de datos no puede filtrarse por una consulta posterior.
 
+Core aplica cuatro reglas por prioridad (`private-key`, `jwt`, `aws-access-key-id`, `generic-high-entropy`) y sustituye solo el tramo del secreto, sin cambiar el número de líneas. Los eventos se devuelven como datos; core no escribe en ningún log, eso lo hace el transporte (CLI o API) con su logger estructurado.
+
 ```ts
-if (await secretScanner.detect(span.text)) {
-  span.text = '[REDACTED: possible secret]';
-  span.redacted = true;
-  audit.log('secret_redacted', { file: span.file, line: span.startLine });
-}
+const { file: safe, redacted, events } = redactSecrets(file); // contenido con '[REDACTED: possible secret]'
+// events: [{ type: 'secret_redacted', file, line, column, rule }] — nunca el valor, un prefijo ni un hash
+for (const event of events) logger.info(event);
 ```
 
 #### 4. Validación de entrada y prevención de *path traversal*
 
 Todos los endpoints validan con Zod antes de que los datos lleguen al dominio. Las rutas de repositorio se normalizan y se comprueba que resuelven dentro del directorio permitido.
 
+La comprobación usa `path.relative`, no `startsWith`: con `startsWith`, `/repos-evil` pasaría por estar dentro de `/repos`. `ALLOWED_REPOS_DIR` lo lee solo la raíz de composición; si está vacío, el indexado queda deshabilitado.
+
 ```ts
-const resolved = path.resolve(rootPath);
-if (!resolved.startsWith(path.resolve(process.env.ALLOWED_REPOS_DIR!))) {
-  throw new ForbiddenPathError(rootPath);
+// core: confinePath(requested, allowedRoot)
+const root = path.resolve(allowedRoot);          // IndexingDisabled si allowedRoot está vacío
+const resolved = path.resolve(root, requested);
+const rel = path.relative(root, resolved);
+if (rel !== '' && (rel === '..' || rel.startsWith('..' + path.sep) || path.isAbsolute(rel))) {
+  throw new ForbiddenPathError(requested);
 }
 ```
 
