@@ -62,14 +62,14 @@ export function redactSecrets(file: SourceFile): RedactionResult {
   const lines: Line[] = file.content.split('\n').map((raw) =>
     raw.endsWith('\r') ? { text: raw.slice(0, -1), cr: '\r' } : { text: raw, cr: '' },
   );
-  const claims: Claim[] = [];
+  const claims = new Claims();
   claimPrivateKeys(lines, claims);
   claimLineMatches(lines, claims, 'jwt', JWT);
   claimLineMatches(lines, claims, 'aws-access-key-id', AWS_ACCESS_KEY_ID);
   claimHighEntropyValues(lines, claims);
 
-  const ordered = [...claims].sort(compareClaims);
-  for (const claim of [...ordered].reverse()) replace(lines, claim);
+  const ordered = [...claims.all].sort(compareClaims);
+  claims.render(lines);
 
   const events: AuditEvent[] = ordered.map((claim) => ({
     type: 'secret_redacted',
@@ -89,10 +89,20 @@ export function redactSecrets(file: SourceFile): RedactionResult {
  * `private-key` blocks, checked in the order c (closing on the header line), a (closing directly after
  * the PEM body run), b (anything else: the block ends with the body run, or with the header).
  */
-function claimPrivateKeys(lines: Line[], claims: Claim[]): void {
+function claimPrivateKeys(lines: Line[], claims: Claims): void {
   let lineIndex = 0;
   let from = 0;
+  // Per header line, both cached so many headers on one line stay linear (design D3): the closings
+  // already searched for in vain, and the body run (with the indent of the line after it).
+  let cachedLine = -1;
+  let missingClosings = new Set<string>();
+  let run: { afterRun: number; indent: number } | undefined;
   while (lineIndex < lines.length) {
+    if (cachedLine !== lineIndex) {
+      cachedLine = lineIndex;
+      missingClosings = new Set();
+      run = undefined;
+    }
     const text = lines[lineIndex]!.text;
     PRIVATE_KEY_HEADER.lastIndex = from;
     const header = PRIVATE_KEY_HEADER.exec(text);
@@ -106,30 +116,39 @@ function claimPrivateKeys(lines: Line[], claims: Claim[]): void {
     const closing = `-----END ${header[1]}PRIVATE KEY-----`;
     const block = { rule: 'private-key' as const, startLine: lineIndex, startCol };
 
-    const sameLine = text.indexOf(closing, headerEnd);
+    // Not found from an earlier header's end means not found from this later one either.
+    const sameLine = missingClosings.has(closing) ? -1 : text.indexOf(closing, headerEnd);
     if (sameLine !== -1) {
-      claims.push({ ...block, endLine: lineIndex, endCol: sameLine + closing.length });
+      claims.add({ ...block, endLine: lineIndex, endCol: sameLine + closing.length });
       from = sameLine + closing.length;
       continue;
     }
+    missingClosings.add(closing);
 
-    const afterRun = bodyRunEnd(lines, lineIndex + 1);
+    run ??= bodyRunAndIndent(lines, lineIndex + 1);
+    const { afterRun, indent } = run;
     const next = lines[afterRun];
-    const indent = next ? next.text.length - next.text.trimStart().length : 0;
     if (next && next.text.startsWith(closing, indent)) {
-      claims.push({ ...block, endLine: afterRun, endCol: indent + closing.length });
+      claims.add({ ...block, endLine: afterRun, endCol: indent + closing.length });
       lineIndex = afterRun;
       from = indent + closing.length;
     } else if (afterRun > lineIndex + 1) {
       const lastBody = afterRun - 1;
-      claims.push({ ...block, endLine: lastBody, endCol: lines[lastBody]!.text.length });
+      claims.add({ ...block, endLine: lastBody, endCol: lines[lastBody]!.text.length });
       lineIndex = afterRun;
       from = 0;
     } else {
-      claims.push({ ...block, endLine: lineIndex, endCol: headerEnd });
+      claims.add({ ...block, endLine: lineIndex, endCol: headerEnd });
       from = headerEnd;
     }
   }
+}
+
+/** The body run from `start`, and the leading-whitespace length of the line right after it (0 if none). */
+function bodyRunAndIndent(lines: Line[], start: number): { afterRun: number; indent: number } {
+  const afterRun = bodyRunEnd(lines, start);
+  const next = lines[afterRun];
+  return { afterRun, indent: next ? next.text.length - next.text.trimStart().length : 0 };
 }
 
 /** Index of the first line at or after `start` that is not PEM body (or `lines.length`). */
@@ -147,7 +166,7 @@ function bodyRunEnd(lines: Line[], start: number): number {
   return index;
 }
 
-function claimHighEntropyValues(lines: Line[], claims: Claim[]): void {
+function claimHighEntropyValues(lines: Line[], claims: Claims): void {
   lines.forEach((line, index) => {
     for (const run of line.text.matchAll(IDENTIFIER_RUN)) {
       if (!SECRET_KEYWORD.test(run[0])) continue;
@@ -159,9 +178,9 @@ function claimHighEntropyValues(lines: Line[], claims: Claim[]): void {
       // The overlap test uses the whole match; only the quoted value is replaced.
       const matchEnd = tail.index + tail[0].length;
       const whole: Claim = { rule: 'generic-high-entropy', startLine: index, startCol: run.index, endLine: index, endCol: matchEnd };
-      if (claims.some((claim) => overlaps(claim, whole))) continue;
+      if (claims.overlaps(index, run.index, matchEnd)) continue;
       const valueEnd = matchEnd - 1;
-      claims.push({ ...whole, startCol: valueEnd - value.length, endCol: valueEnd });
+      claims.add({ ...whole, startCol: valueEnd - value.length, endCol: valueEnd });
     }
   });
 }
@@ -178,42 +197,88 @@ function shannonEntropy(value: string): number {
   return entropy;
 }
 
-function claimLineMatches(lines: Line[], claims: Claim[], rule: SecretRule, pattern: RegExp): void {
+function claimLineMatches(lines: Line[], claims: Claims, rule: SecretRule, pattern: RegExp): void {
   lines.forEach((line, index) => {
     for (const match of line.text.matchAll(pattern)) {
       const start = match.index;
-      claimIfFree(claims, { rule, startLine: index, startCol: start, endLine: index, endCol: start + match[0].length });
+      const end = start + match[0].length;
+      if (!claims.overlaps(index, start, end)) claims.add({ rule, startLine: index, startCol: start, endLine: index, endCol: end });
     }
   });
 }
 
-function claimIfFree(claims: Claim[], candidate: Claim): void {
-  if (!claims.some((claim) => overlaps(claim, candidate))) claims.push(candidate);
+/** A half-open column interval `[from, to)` of one line covered by a claim. */
+interface Covered {
+  from: number;
+  to: number;
+  /** Whether the claim starts on this line: the marker is written here. */
+  marker: boolean;
 }
 
-/** Whether a multi-line `claim` and a single-line `candidate` share at least one character. */
-function overlaps(claim: Claim, candidate: Claim): boolean {
-  const line = candidate.startLine;
-  if (line < claim.startLine || line > claim.endLine) return false;
-  const from = line === claim.startLine ? claim.startCol : 0;
-  const to = line === claim.endLine ? claim.endCol : Number.POSITIVE_INFINITY;
-  return candidate.startCol < to && from < candidate.endCol;
+/**
+ * The claimed spans, and for each line the intervals they cover, sorted by `from`. A multi-line claim
+ * covers every line from its start to its end. Claims never overlap, so an overlap test only has to
+ * look at the last interval starting before the candidate's end: a binary search, which keeps
+ * redaction linear in the number of matches (design D3).
+ */
+class Claims {
+  /** Every claim, in the order it was added. */
+  readonly all: Claim[] = [];
+  private readonly byLine = new Map<number, Covered[]>();
+
+  add(claim: Claim): void {
+    this.all.push(claim);
+    for (let line = claim.startLine; line <= claim.endLine; line++) {
+      const from = line === claim.startLine ? claim.startCol : 0;
+      const to = line === claim.endLine ? claim.endCol : Number.POSITIVE_INFINITY;
+      let covered = this.byLine.get(line);
+      if (!covered) this.byLine.set(line, (covered = []));
+      covered.splice(firstStartingAtOrAfter(covered, from), 0, { from, to, marker: line === claim.startLine });
+    }
+  }
+
+  /** Whether `[start, end)` of `line` shares at least one character with a claim. */
+  overlaps(line: number, start: number, end: number): boolean {
+    const covered = this.byLine.get(line);
+    if (!covered) return false;
+    const last = covered[firstStartingAtOrAfter(covered, end) - 1];
+    return last !== undefined && last.to > start;
+  }
+
+  /**
+   * Rewrites every covered line once: the text between intervals is kept, each interval becomes the
+   * marker on its claim's start line and nothing elsewhere. Building a line once (not once per claim)
+   * keeps many claims on one line linear (design D3).
+   */
+  render(lines: Line[]): void {
+    for (const [index, covered] of this.byLine) {
+      const line = lines[index]!;
+      const parts: string[] = [];
+      let column = 0;
+      for (const { from, to, marker } of covered) {
+        parts.push(line.text.slice(column, from));
+        if (marker) parts.push(REDACTION_MARKER);
+        column = to;
+      }
+      if (column !== Number.POSITIVE_INFINITY) parts.push(line.text.slice(column));
+      line.text = parts.join('');
+    }
+  }
+}
+
+/** Index of the first interval whose `from` is at least `column` (`covered.length` if none). */
+function firstStartingAtOrAfter(covered: Covered[], column: number): number {
+  let low = 0;
+  let high = covered.length;
+  while (low < high) {
+    const mid = (low + high) >>> 1;
+    if (covered[mid]!.from < column) low = mid + 1;
+    else high = mid;
+  }
+  return low;
 }
 
 /** By `line`, then `column`. Claims never overlap, so two never start at the same place and the spec's `rule` tie-break never applies. */
 function compareClaims(a: Claim, b: Claim): number {
   return a.startLine - b.startLine || a.startCol - b.startCol;
-}
-
-/** Replaces one claim; claims to its right on the same lines must already be replaced. */
-function replace(lines: Line[], claim: Claim): void {
-  const first = lines[claim.startLine]!;
-  if (claim.startLine === claim.endLine) {
-    first.text = first.text.slice(0, claim.startCol) + REDACTION_MARKER + first.text.slice(claim.endCol);
-    return;
-  }
-  const last = lines[claim.endLine]!;
-  last.text = last.text.slice(claim.endCol);
-  for (let index = claim.startLine + 1; index < claim.endLine; index++) lines[index]!.text = '';
-  first.text = first.text.slice(0, claim.startCol) + REDACTION_MARKER;
 }
