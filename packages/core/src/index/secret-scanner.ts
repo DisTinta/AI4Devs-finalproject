@@ -37,6 +37,7 @@ export const MIN_SECRET_ENTROPY = 3.5;
 export const MIN_SECRET_LENGTH = 20;
 
 const PRIVATE_KEY_HEADER = /-----BEGIN ([A-Z ]*)PRIVATE KEY-----/g;
+const PRIVATE_KEY_CLOSING = /-----END ([A-Z ]*)PRIVATE KEY-----/g;
 const JWT = /(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+(?![A-Za-z0-9_-])/g;
 const AWS_ACCESS_KEY_ID = /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g;
 const PEM_BASE64 = /^[A-Za-z0-9+/=]+$/;
@@ -62,22 +63,13 @@ export function redactSecrets(file: SourceFile): RedactionResult {
   const lines: Line[] = file.content.split('\n').map((raw) =>
     raw.endsWith('\r') ? { text: raw.slice(0, -1), cr: '\r' } : { text: raw, cr: '' },
   );
-  const claims = new Claims();
+  const claims = new Claims(lines.length);
   claimPrivateKeys(lines, claims);
   claimLineMatches(lines, claims, 'jwt', JWT);
   claimLineMatches(lines, claims, 'aws-access-key-id', AWS_ACCESS_KEY_ID);
   claimHighEntropyValues(lines, claims);
 
-  const ordered = [...claims.all].sort(compareClaims);
-  claims.render(lines);
-
-  const events: AuditEvent[] = ordered.map((claim) => ({
-    type: 'secret_redacted',
-    file: file.path,
-    line: claim.startLine + 1,
-    column: claim.startCol + 1,
-    rule: claim.rule,
-  }));
+  const events = claims.apply(lines, file.path);
   return {
     file: { path: file.path, content: lines.map((line) => line.text + line.cr).join('\n') },
     redacted: events.length > 0,
@@ -92,15 +84,15 @@ export function redactSecrets(file: SourceFile): RedactionResult {
 function claimPrivateKeys(lines: Line[], claims: Claims): void {
   let lineIndex = 0;
   let from = 0;
-  // Per header line, both cached so many headers on one line stay linear (design D3): the closings
-  // already searched for in vain, and the body run (with the indent of the line after it).
+  // Per header line, built at most once so many headers on one line stay linear (design D3): the
+  // index of the line's closings, and the body run (with the indent of the line after it).
   let cachedLine = -1;
-  let missingClosings = new Set<string>();
+  let closings: ClosingIndex | undefined;
   let run: { afterRun: number; indent: number } | undefined;
   while (lineIndex < lines.length) {
     if (cachedLine !== lineIndex) {
       cachedLine = lineIndex;
-      missingClosings = new Set();
+      closings = undefined;
       run = undefined;
     }
     const text = lines[lineIndex]!.text;
@@ -116,14 +108,13 @@ function claimPrivateKeys(lines: Line[], claims: Claims): void {
     const closing = `-----END ${header[1]}PRIVATE KEY-----`;
     const block = { rule: 'private-key' as const, startLine: lineIndex, startCol };
 
-    // Not found from an earlier header's end means not found from this later one either.
-    const sameLine = missingClosings.has(closing) ? -1 : text.indexOf(closing, headerEnd);
+    closings ??= new ClosingIndex(text);
+    const sameLine = closings.find(header[1]!, headerEnd);
     if (sameLine !== -1) {
       claims.add({ ...block, endLine: lineIndex, endCol: sameLine + closing.length });
       from = sameLine + closing.length;
       continue;
     }
-    missingClosings.add(closing);
 
     run ??= bodyRunAndIndent(lines, lineIndex + 1);
     const { afterRun, indent } = run;
@@ -141,6 +132,39 @@ function claimPrivateKeys(lines: Line[], claims: Claims): void {
       claims.add({ ...block, endLine: lineIndex, endCol: headerEnd });
       from = headerEnd;
     }
+  }
+}
+
+/**
+ * Where each label's closing appears on one line, found in a single scan. `find` is the same as
+ * `text.indexOf(closing, from)` while `from` never decreases between calls for a label, as it does
+ * for headers met left to right: a pointer per label only moves forward, so the total work is linear
+ * in the line (design D3).
+ */
+class ClosingIndex {
+  private readonly positions = new Map<string, number[]>();
+  private readonly next = new Map<string, number>();
+
+  constructor(text: string) {
+    PRIVATE_KEY_CLOSING.lastIndex = 0;
+    for (let match = PRIVATE_KEY_CLOSING.exec(text); match; match = PRIVATE_KEY_CLOSING.exec(text)) {
+      const label = match[1]!;
+      let list = this.positions.get(label);
+      if (!list) this.positions.set(label, (list = []));
+      list.push(match.index);
+      // Resume one character later, not after the match: closings may share dashes, as indexOf allows.
+      PRIVATE_KEY_CLOSING.lastIndex = match.index + 1;
+    }
+  }
+
+  /** Start of the first closing of `label` at or after `from`, or -1. */
+  find(label: string, from: number): number {
+    const list = this.positions.get(label);
+    if (!list) return -1;
+    let index = this.next.get(label) ?? 0;
+    while (index < list.length && list[index]! < from) index++;
+    this.next.set(label, index);
+    return index < list.length ? list[index]! : -1;
   }
 }
 
@@ -168,6 +192,7 @@ function bodyRunEnd(lines: Line[], start: number): number {
 
 function claimHighEntropyValues(lines: Line[], claims: Claims): void {
   lines.forEach((line, index) => {
+    const pass = claims.pass(index, 'generic-high-entropy');
     for (const run of line.text.matchAll(IDENTIFIER_RUN)) {
       if (!SECRET_KEYWORD.test(run[0])) continue;
       ASSIGNED_VALUE.lastIndex = run.index + run[0].length;
@@ -177,11 +202,11 @@ function claimHighEntropyValues(lines: Line[], claims: Claims): void {
       if (shannonEntropy(value) < MIN_SECRET_ENTROPY) continue;
       // The overlap test uses the whole match; only the quoted value is replaced.
       const matchEnd = tail.index + tail[0].length;
-      const whole: Claim = { rule: 'generic-high-entropy', startLine: index, startCol: run.index, endLine: index, endCol: matchEnd };
-      if (claims.overlaps(index, run.index, matchEnd)) continue;
+      if (pass.overlaps(run.index, matchEnd)) continue;
       const valueEnd = matchEnd - 1;
-      claims.add({ ...whole, startCol: valueEnd - value.length, endCol: valueEnd });
+      pass.add(valueEnd - value.length, valueEnd);
     }
+    pass.finish();
   });
 }
 
@@ -199,11 +224,13 @@ function shannonEntropy(value: string): number {
 
 function claimLineMatches(lines: Line[], claims: Claims, rule: SecretRule, pattern: RegExp): void {
   lines.forEach((line, index) => {
+    const pass = claims.pass(index, rule);
     for (const match of line.text.matchAll(pattern)) {
       const start = match.index;
       const end = start + match[0].length;
-      if (!claims.overlaps(index, start, end)) claims.add({ rule, startLine: index, startCol: start, endLine: index, endCol: end });
+      if (!pass.overlaps(start, end)) pass.add(start, end);
     }
+    pass.finish();
   });
 }
 
@@ -211,74 +238,117 @@ function claimLineMatches(lines: Line[], claims: Claims, rule: SecretRule, patte
 interface Covered {
   from: number;
   to: number;
-  /** Whether the claim starts on this line: the marker is written here. */
+  /** Whether the claim starts on this line: the marker and the claim's one event go here. */
   marker: boolean;
+  /** The rule that claimed it. */
+  rule: SecretRule;
 }
 
 /**
- * The claimed spans, and for each line the intervals they cover, sorted by `from`. A multi-line claim
- * covers every line from its start to its end. Claims never overlap, so an overlap test only has to
- * look at the last interval starting before the candidate's end: a binary search, which keeps
- * redaction linear in the number of matches (design D3).
+ * For each line, the intervals the claims cover, sorted by `from` and disjoint; these intervals are
+ * the only record of a claim. A multi-line claim covers every line from its start to its end, with
+ * `marker` set only on its start line. Nothing is ever inserted in the middle of a list:
+ * `private-key` claims arrive in order and are appended, and each later rule works a line in one
+ * {@link LinePass} that is merged in once. Lines and intervals are both in order, so one walk yields
+ * the rewritten text and the events, already sorted (design D3).
  */
 class Claims {
-  /** Every claim, in the order it was added. */
-  readonly all: Claim[] = [];
-  private readonly byLine = new Map<number, Covered[]>();
+  /** Covered intervals per line index; `undefined` for a line with no claim. */
+  readonly byLine: (Covered[] | undefined)[];
 
+  /** @param lineCount Number of lines of the content. */
+  constructor(lineCount: number) {
+    this.byLine = new Array<Covered[] | undefined>(lineCount);
+  }
+
+  /** Adds a `private-key` claim. Such claims come in increasing position, so each line list stays sorted. */
   add(claim: Claim): void {
-    this.all.push(claim);
     for (let line = claim.startLine; line <= claim.endLine; line++) {
       const from = line === claim.startLine ? claim.startCol : 0;
       const to = line === claim.endLine ? claim.endCol : Number.POSITIVE_INFINITY;
-      let covered = this.byLine.get(line);
-      if (!covered) this.byLine.set(line, (covered = []));
-      covered.splice(firstStartingAtOrAfter(covered, from), 0, { from, to, marker: line === claim.startLine });
+      (this.byLine[line] ??= []).push({ from, to, marker: line === claim.startLine, rule: claim.rule });
     }
   }
 
-  /** Whether `[start, end)` of `line` shares at least one character with a claim. */
-  overlaps(line: number, start: number, end: number): boolean {
-    const covered = this.byLine.get(line);
-    if (!covered) return false;
-    const last = covered[firstStartingAtOrAfter(covered, end) - 1];
-    return last !== undefined && last.to > start;
+  /** Starts one rule's pass over `line`; candidates must then come in non-decreasing start. */
+  pass(line: number, rule: SecretRule): LinePass {
+    return new LinePass(this, line, rule, this.byLine[line] ?? []);
   }
 
   /**
-   * Rewrites every covered line once: the text between intervals is kept, each interval becomes the
-   * marker on its claim's start line and nothing elsewhere. Building a line once (not once per claim)
-   * keeps many claims on one line linear (design D3).
+   * Rewrites every covered line once and returns the events. The text between intervals is kept; each
+   * interval becomes the marker on its claim's start line and nothing elsewhere. One event per
+   * interval with `marker`, so a multi-line claim gives one, at its start. Walking lines, then each
+   * line's sorted intervals, emits the events by `line` then `column` with no sort; claims never
+   * overlap, so the spec's `rule` tie-break never applies.
    */
-  render(lines: Line[]): void {
-    for (const [index, covered] of this.byLine) {
+  apply(lines: Line[], file: string): AuditEvent[] {
+    const events: AuditEvent[] = [];
+    for (let index = 0; index < lines.length; index++) {
+      const covered = this.byLine[index];
+      if (!covered) continue;
       const line = lines[index]!;
       const parts: string[] = [];
       let column = 0;
-      for (const { from, to, marker } of covered) {
+      for (const { from, to, marker, rule } of covered) {
         parts.push(line.text.slice(column, from));
-        if (marker) parts.push(REDACTION_MARKER);
+        if (marker) {
+          parts.push(REDACTION_MARKER);
+          events.push({ type: 'secret_redacted', file, line: index + 1, column: from + 1, rule });
+        }
         column = to;
       }
       if (column !== Number.POSITIVE_INFINITY) parts.push(line.text.slice(column));
       line.text = parts.join('');
     }
+    return events;
   }
 }
 
-/** Index of the first interval whose `from` is at least `column` (`covered.length` if none). */
-function firstStartingAtOrAfter(covered: Covered[], column: number): number {
-  let low = 0;
-  let high = covered.length;
-  while (low < high) {
-    const mid = (low + high) >>> 1;
-    if (covered[mid]!.from < column) low = mid + 1;
-    else high = mid;
+/**
+ * One rule's single-line candidates on one line, in non-decreasing start. Each is checked against the
+ * intervals of earlier rules (a pointer that only moves forward) and the last one this pass accepted.
+ * `finish` merges the accepted ones into the line's list: linear, with no sort and no insertion.
+ */
+class LinePass {
+  private pointer = 0;
+  private readonly accepted: Covered[] = [];
+
+  constructor(
+    private readonly claims: Claims,
+    private readonly line: number,
+    private readonly rule: SecretRule,
+    private readonly earlier: readonly Covered[],
+  ) {}
+
+  /** Whether `[start, end)` shares at least one character with an earlier rule or this pass. */
+  overlaps(start: number, end: number): boolean {
+    while (this.pointer < this.earlier.length && this.earlier[this.pointer]!.to <= start) this.pointer++;
+    const next = this.earlier[this.pointer];
+    if (next !== undefined && next.from < end) return true;
+    const last = this.accepted[this.accepted.length - 1];
+    return last !== undefined && last.from < end && last.to > start;
   }
-  return low;
+
+  /** Accepts `[from, to)` of this line for this pass's rule. */
+  add(from: number, to: number): void {
+    this.accepted.push({ from, to, marker: true, rule: this.rule });
+  }
+
+  /** Merges the accepted intervals into the line's list. */
+  finish(): void {
+    if (this.accepted.length === 0) return;
+    this.claims.byLine[this.line] = mergeCovered(this.earlier, this.accepted);
+  }
 }
 
-/** By `line`, then `column`. Claims never overlap, so two never start at the same place and the spec's `rule` tie-break never applies. */
-function compareClaims(a: Claim, b: Claim): number {
-  return a.startLine - b.startLine || a.startCol - b.startCol;
+/** Merges two sorted, mutually disjoint interval lists into one sorted list. */
+function mergeCovered(a: readonly Covered[], b: readonly Covered[]): Covered[] {
+  const merged: Covered[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < a.length && j < b.length) merged.push(a[i]!.from < b[j]!.from ? a[i++]! : b[j++]!);
+  while (i < a.length) merged.push(a[i++]!);
+  while (j < b.length) merged.push(b[j++]!);
+  return merged;
 }
