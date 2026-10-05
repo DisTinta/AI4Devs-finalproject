@@ -10,6 +10,7 @@
     "progress"
   ],
   "coverageAnalysis": "perTest",
+  "disableTypeChecks": "packages/core/src/**/*.ts",
   "mutate": [
     "packages/core/src/**/*.ts",
     "!packages/core/src/**/*.d.ts"

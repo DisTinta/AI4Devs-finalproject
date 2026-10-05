@@ -10,7 +10,8 @@ export default defineConfig({
     },
   },
   test: {
-    exclude: ['fixtures/**', 'node_modules/**'],
+    // `.stryker-tmp/` holds Stryker sandboxes; an aborted run leaves one behind with a full copy of the suite.
+    exclude: ['fixtures/**', 'node_modules/**', '.stryker-tmp/**'],
     passWithNoTests: true,
   },
 });

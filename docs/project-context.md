@@ -171,9 +171,10 @@ Verified against `package.json` (root and per package). If a command is not here
   silently drops the link and the co-change ground truth of `fixtures/README.md` breaks. The
   script exports `buildOne` (it runs `main()` only as a CLI), and
   `tests/integration/git/build-history.spec.ts` tests it on throwaway fixtures under the OS temp dir.
-- **An aborted Stryker run leaves `.stryker-tmp/sandbox-*`, and Vitest collects it.** The copy
-  runs its own fixture rebuild in parallel and its tests fail. Delete `.stryker-tmp/` by hand
-  before running the suite.
+- **An aborted Stryker run leaves `.stryker-tmp/sandbox-*`.** Since DIS-84 `vitest.config.ts`
+  excludes `.stryker-tmp/**` (before that, Vitest collected the copy, which rebuilt fixtures in
+  parallel and failed; a sandbox also links `fixtures/task-api/node_modules`, so thousands of
+  third-party specs ran). The folder is still worth deleting by hand to free disk space.
 
 ## Branch and ticket conventions
 
@@ -284,7 +285,7 @@ services that must be started first, quirks of the local environment.
 
 - **Some CI gates run against stubs, on purpose.** `lint`, `lint:architecture` and `typecheck` are
   real and must pass, and so is CI's `db:migrate` → `db:rollback` → `db:migrate` step. Mutation
-  testing has real mutants since DIS-23 (`packages/core/src/knowledge/`, 86.82 % at DIS-23 merge, 90.09 % with DIS-35, 92.23 % with DIS-36; threshold
+  testing has real mutants since DIS-23 (`packages/core/src/knowledge/`, 86.82 % at DIS-23 merge, 90.09 % with DIS-35, 92.23 % with DIS-36; `packages/core/src/index/` since DIS-84, 95.11 % for all of core; threshold
   `MIN_MUTATION_SCORE=70`).
   These are intentional scaffolding, not bugs — do not "fix" a stub by faking behaviour.
 - **The infra packages are stubs, not empty.** All 9 workspaces (`core`, `analyzers/{php,typescript}`,
@@ -372,8 +373,8 @@ services that must be started first, quirks of the local environment.
   workflow therefore runs `npx vitest run --exclude 'tests/integration/**'`, and Stryker uses
   `vitest.stryker.config.ts`, which excludes the same folder. New integration suites go under
   `tests/integration/` so they stay excluded. Locally, an aborted Stryker run leaves
-  `.stryker-tmp/` behind (gitignored). A later `npx vitest run` then collects the tests in that
-  sandbox, so delete the folder by hand.
+  `.stryker-tmp/` behind (gitignored); since DIS-84 `vitest.config.ts` excludes it, so the suite no
+  longer collects that sandbox (see the Stryker gotcha under Testing).
 - **What `snapshotSchema` (`tests/integration/store/schema-snapshot.ts`) compares.** Columns,
   constraints, enums, extensions, indexes (`pg_indexes.indexdef`, including primary-key and unique
   ones), user triggers and functions. It does **not** capture sequences or views. It excludes the
@@ -480,3 +481,44 @@ services that must be started first, quirks of the local environment.
   containment: a later-ending sibling comes first). `tests/unit/analyzers/php/parser-load.spec.ts` is the first `vi.mock` of the repository: reset
   the mock and restore its delegating default in a `beforeEach` (Vitest 1.6 `mockClear` keeps queued
   `…Once` values; `mockReset` drops the default implementation).
+- **The security gateway is pure core: `redactSecrets` returns events, `confinePath` is lexical**
+  (DIS-84, `packages/core/src/index/`). Rules, highest priority first: `private-key`, `jwt`,
+  `aws-access-key-id`, `generic-high-entropy` (secret-like key, quoted value of ≥ 20 characters,
+  Shannon entropy ≥ 3.5; only the value is replaced). A span claimed by a higher rule is never
+  reported again by a lower one (`fixtures/task-api/src/config/env.ts` matches both AWS and generic:
+  one `aws-access-key-id` event). Content is split on `\n`; every rule but `private-key` matches
+  within one line; a trailing `\r` is kept, also on lines that become empty. Only the span becomes
+  `[REDACTED: possible secret]`, the line count never changes, and `column` is 1-based in UTF-16
+  units of the original line. `private-key` forms are checked c (closing on the header line), a
+  (closing **directly after** the PEM body run: base64, `Name: value`, one empty line after such a
+  header), b (otherwise: the block ends with the body run or the header; the first non-body line and
+  a later `END` are left alone). **Known limitation, accepted (DIS-84):** the PEM body test is loose.
+  A single-word line (`texto`, `end`, `else`, `fi`) is valid base64, and a YAML/HTTP-style line
+  `nombre: valor` passes as a `Name: value` header. So after a header with no closing, such lines are
+  emptied. It over-redacts and never leaks. After every `private-key` block the header search resumes on
+  its last five characters (`SHARED_DASHES`), because a header may begin on the trailing dashes of the
+  previous closing; those dashes stay in the earlier span and the event keeps the header's first-dash
+  column (design D3). The span runs from the header's first dash to the block end; text
+  before and after it on the end lines is kept, inner lines become empty. The AWS `\b` does not match
+  after `_` (`X_AKIA…` is not redacted). `generic-high-entropy` is matched by maximal identifier run
+  plus a sticky tail, not by the literal spec regex, which is quadratic on repeated keywords. The
+  work around the regexes must stay linear too (design D3). Intervals per line are the only record
+  of a claim. They are appended or merged, never inserted with `splice` or sorted. Overlap tests use
+  a forward-only pointer. Each header line indexes its closings once, by label. One walk rebuilds each
+  line and emits the events already in order. The first version took 76 s on a 1 MB line of JWTs.
+  Headers with distinct labels and alternating JWT/AWS lines also went quadratic until the second
+  review. The scenario "Redaction time grows linearly on adversarial lines"
+  guards this. It has eleven timed cases in `tests/unit/index/secret-scanner.linear.spec.ts` (2 s each,
+  inputs of at most ~5 MB) and two `n`/`4n` scaling checks in `secret-scanner.scaling.spec.ts` (fastest
+  of five alternating runs per size, ratio below 8, times always printed; design D15).
+  `vitest.stryker.config.ts` excludes both files, because instrumented code blows a wall-clock budget
+  (design D14). A mutant that only
+  slows the scanner therefore survives Stryker, and only `npx vitest run` catches it. Events
+  never carry the value; core never logs them. `confinePath(requested, allowedRoot)` accepts iff
+  `path.relative(root, resolved)` is `''`, or is not `..`, does not start with `..` + separator and
+  is not absolute: `/repos/..x` is a valid child, `/repos-evil` is not. A blank root throws
+  `IndexingDisabled` first. `ALLOWED_REPOS_DIR` is read only at the composition root (DIS-86), and
+  the lexical check must be repeated on the `realpath` before reading (DIS-85).
+  `readFixtureFiles(root, ignoredDirs = ['.git'])` skips entries by name (Stryker's sandbox links
+  `fixtures/task-api/node_modules` instead of copying it); the secret oracle test passes
+  `['.git', 'node_modules']` because that folder exists locally but not in CI.
