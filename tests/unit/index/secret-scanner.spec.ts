@@ -401,7 +401,7 @@ describe('secret scanner boundaries', () => {
   // A header whose leading dashes are the trailing dashes of the previous block's closing (design D3).
   const SECOND_BODY = 'U0VD' + 'UkVU' + 'S0VZ' + 'TUFU' + 'RVJJ' + 'QUw=';
 
-  it('a single-line block sharing its dashes with the previous closing is redacted whole', () => {
+  it('A single-line block sharing its dashes with the previous closing is redacted whole', () => {
     const first = pemHeader() + '\\nQUFB\\n' + pemFooter().slice(0, -5);
     const second = pemHeader('RSA ') + '\\n' + SECOND_BODY + '\\n' + pemFooter('RSA ');
     const content = `"${first}${second}"`;

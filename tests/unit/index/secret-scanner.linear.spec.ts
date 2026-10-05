@@ -89,6 +89,15 @@ describe('Redaction time grows linearly on adversarial lines', () => {
     expect(ms).toBeLessThan(LINEAR_BUDGET_MS);
   });
 
+  it('one header over a 40k-line PEM body run is scanned in linear time', { timeout: LINEAR_BUDGET_MS }, () => {
+    const lines = [pemHeader()];
+    for (let i = 0; i < 40_000; i++) lines.push(i % 2 === 0 ? 'MIIBOgIBAAJBAKj34GkxFhD90vcNLYLInFEX6Ppy1tPf9Cnz' : 'Proc-Type: 4,ENCRYPTED');
+    lines.push('echo 1;');
+    const { ms, events } = timed(lines.join('\n'));
+    expect(events).toBe(1);
+    expect(ms).toBeLessThan(LINEAR_BUDGET_MS);
+  });
+
   it('a very long line of single-line blocks sharing their dashes is scanned in linear time', { timeout: LINEAR_BUDGET_MS }, () => {
     // Each header begins on the last five dashes of the previous closing (design D3).
     const content = pemHeader() + ('\\nQUFB\\n' + pemFooter().slice(0, -5) + pemHeader()).repeat(20_000) + '\\nQUFB\\n' + pemFooter();
@@ -108,23 +117,36 @@ describe('Redaction time grows linearly on adversarial lines', () => {
     expect(ms).toBeLessThan(LINEAR_BUDGET_MS);
   });
 
-  it('four times the input takes less than eight times as long', { timeout: 4 * LINEAR_BUDGET_MS }, () => {
-    // Linear ≈ 4x, quadratic ≈ 16x. n is sized so one call takes at least ~50 ms locally (timer noise),
-    // and 4n stays under ~5 MB (above that the garbage collector skews the ratio; design D3).
+  // Linear ≈ 4x, quadratic ≈ 16x. n is sized so one call takes at least ~50 ms locally (timer noise),
+  // and 4n stays under ~5 MB (above that the garbage collector skews the ratio; design D3).
+  const scaling = (build: (n: number) => string, n: number): void => {
     const median = (content: string): number => {
       const runs = [0, 1, 2].map(() => timed(content).ms).sort((a, b) => a - b);
       return runs[1]!;
     };
-    const small = allRules(10_000);
-    const large = allRules(40_000);
+    const small = build(n);
+    const large = build(4 * n);
     timed(small); // warm-up, so the JIT does not count against n
     const tSmall = median(small);
     const tLarge = median(large);
     expect(large.length).toBeLessThan(5_000_000);
     expect(tLarge / tSmall).toBeLessThan(8);
     expect(tLarge).toBeLessThan(LINEAR_BUDGET_MS);
+  };
+
+  it('four times the input takes less than eight times as long', { timeout: 4 * LINEAR_BUDGET_MS }, () => {
+    scaling(allRules, 10_000);
+  });
+
+  it('four times the shared-dash chain takes less than eight times as long', { timeout: 4 * LINEAR_BUDGET_MS }, () => {
+    scaling(sharedDashChain, 20_000);
   });
 });
+
+/** `n + 1` single-line blocks on one line, each header beginning on the previous closing's last five dashes. */
+function sharedDashChain(n: number): string {
+  return pemHeader() + ('\\nQUFB\\n' + pemFooter().slice(0, -5) + pemHeader()).repeat(n) + '\\nQUFB\\n' + pemFooter();
+}
 
 const DISTINCT = 'aB3dE5gH7jK9mN1pQ2sT4vW6yZ8';
 
