@@ -81,11 +81,22 @@ describe('Redaction time grows linearly on adversarial lines', () => {
   });
 
   it('many lines of PEM body runs and consecutive form a blocks are scanned in linear time', { timeout: LINEAR_BUDGET_MS }, () => {
-    // One header over 40k body lines (base64 and `Name: value`, a single form b block), then 10k form a blocks.
+    // Ten headers, each over 4k body lines (base64 and `Name: value`: ten form b blocks), then 10k form a blocks.
     const content = multiLine(40_000);
     const { ms, events } = timed(content);
     expect(content.length).toBeLessThan(5_000_000);
-    expect(events).toBe(1 + 10_000);
+    expect(events).toBe(10 + 10_000);
+    expect(ms).toBeLessThan(LINEAR_BUDGET_MS);
+  });
+
+  it('a very long line of single-line blocks sharing their dashes is scanned in linear time', { timeout: LINEAR_BUDGET_MS }, () => {
+    // Each header begins on the last five dashes of the previous closing (design D3).
+    const content = pemHeader() + ('\\nQUFB\\n' + pemFooter().slice(0, -5) + pemHeader()).repeat(20_000) + '\\nQUFB\\n' + pemFooter();
+    const start = performance.now();
+    const result = redactSecrets({ path: 'x', content });
+    const ms = performance.now() - start;
+    expect(result.events).toHaveLength(20_001);
+    expect(result.file.content).toBe(REDACTION_MARKER.repeat(20_001));
     expect(ms).toBeLessThan(LINEAR_BUDGET_MS);
   });
 
@@ -123,10 +134,13 @@ function allRules(n: number): string {
   return unit.repeat(n);
 }
 
-/** A header over `n` PEM body lines, a plain line, then `n / 4` consecutive multiline blocks. */
+/** Ten headers, each over `n / 10` PEM body lines, a plain line, then `n / 4` consecutive multiline blocks. */
 function multiLine(n: number): string {
-  const lines = [pemHeader()];
-  for (let i = 0; i < n; i++) lines.push(i % 2 === 0 ? 'MIIBOgIBAAJBAKj34GkxFhD90vcNLYLInFEX6Ppy1tPf9Cnz' : 'Proc-Type: 4,ENCRYPTED');
+  const lines: string[] = [];
+  for (let header = 0; header < 10; header++) {
+    lines.push(pemHeader());
+    for (let i = 0; i < n / 10; i++) lines.push(i % 2 === 0 ? 'MIIBOgIBAAJBAKj34GkxFhD90vcNLYLInFEX6Ppy1tPf9Cnz' : 'Proc-Type: 4,ENCRYPTED');
+  }
   lines.push('echo 1;');
   for (let i = 0; i < n / 4; i++) {
     lines.push(pemHeader('RSA '), 'MIIBOgIBAAJBAKj34GkxFhD90vcNLYLInFEX6Ppy1tPf9Cnz', 'KUpRKfFLfRYC9AIKjbJTWit+CqvjWYzvQwECAwEAAQ==', pemFooter('RSA '));

@@ -398,6 +398,40 @@ describe('secret scanner boundaries', () => {
     expect(result.events).toHaveLength(1);
   });
 
+  // A header whose leading dashes are the trailing dashes of the previous block's closing (design D3).
+  const SECOND_BODY = 'U0VD' + 'UkVU' + 'S0VZ' + 'TUFU' + 'RVJJ' + 'QUw=';
+
+  it('a single-line block sharing its dashes with the previous closing is redacted whole', () => {
+    const first = pemHeader() + '\\nQUFB\\n' + pemFooter().slice(0, -5);
+    const second = pemHeader('RSA ') + '\\n' + SECOND_BODY + '\\n' + pemFooter('RSA ');
+    const content = `"${first}${second}"`;
+    const result = redactSecrets({ path: 'x', content });
+    expect(result.file.content).toBe(`"${REDACTION_MARKER}${REDACTION_MARKER}"`);
+    expect(result.events.map((e) => [e.line, e.column])).toEqual([
+      [1, 2],
+      [1, 1 + first.length + 1],
+    ]);
+  });
+
+  it('a multiline block whose header shares its dashes with the previous closing line is redacted whole', () => {
+    const lines = [pemHeader(), 'QUFBQUFB', pemFooter().slice(0, -5) + pemHeader('RSA '), SECOND_BODY, pemFooter('RSA ')];
+    const result = redactSecrets({ path: 'x', content: lines.join('\n') });
+    expect(result.file.content.split('\n')).toEqual([REDACTION_MARKER, '', REDACTION_MARKER, '', '']);
+    expect(result.file.content).not.toContain(SECOND_BODY.slice(0, 8));
+    expect(result.events.map((e) => [e.line, e.column])).toEqual([
+      [1, 1],
+      [3, pemFooter().length - 5 + 1],
+    ]);
+  });
+
+  it('a block whose header shares its dashes with an unclosed header is redacted whole', () => {
+    const unclosed = pemHeader('EC ');
+    const content = `"${unclosed}${pemHeader().slice(5)}\\n${SECOND_BODY}\\n${pemFooter()}"`;
+    const result = redactSecrets({ path: 'x', content });
+    expect(result.file.content).toBe(`"${REDACTION_MARKER}${REDACTION_MARKER}"`);
+    expect(result.events.map((e) => e.column)).toEqual([2, 2 + unclosed.length - 5]);
+  });
+
   it('a Name: value header must start the line', () => {
     const content = [pemHeader(), "echo 'Note: x';", pemFooter()].join('\n');
     expect(redactSecrets({ path: 'x', content }).file.content.split('\n')).toEqual([REDACTION_MARKER, "echo 'Note: x';", pemFooter()]);
