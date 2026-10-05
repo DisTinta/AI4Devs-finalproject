@@ -34,9 +34,9 @@ Ticket: [DIS-84](https://linear.app/distinta-ai4devs/issue/DIS-84/cm-hu-05a1-gat
 ## ¿Cómo probarlo?
 
 1. `npm ci`
-2. `npx vitest run tests/unit/index`: 3 ficheros, 56 tests en verde. En Linux, «A path on another Windows drive is forbidden» sale como skipped.
-3. `npx vitest run`: 367 passed y 99 skipped (518 en total). Los 52 que faltan en la suma son `pending`. Los 151 sin ejecutar son tests de integración que necesitan `DATABASE_URL`, y el desglose está en el informe del paso 6.
-4. `npx vitest run --exclude 'tests/integration/**'` sin `DATABASE_URL`: 23 ficheros, 341 tests.
+2. `npx vitest run tests/unit/index`: 3 ficheros, 58 tests en verde. En Linux, «A path on another Windows drive is forbidden» sale como skipped.
+3. `npx vitest run`: 369 passed y 99 skipped (520 en total). Los 52 que faltan en la suma son `pending`. Los 151 sin ejecutar son tests de integración que necesitan `DATABASE_URL`, y el desglose está en el informe del paso 6.
+4. `npx vitest run --exclude 'tests/integration/**'` sin `DATABASE_URL`: 23 ficheros, 343 tests.
 5. `npm run lint && npm run typecheck && npm run lint:architecture && npm run docs:coverage`
 6. `npx stryker run`: 95.11 % en core (817/859) y 95.45 % en `packages/core/src/index/` (336/352). Hay 16 supervivientes:
    - 15 equivalentes;
@@ -45,7 +45,7 @@ Ticket: [DIS-84](https://linear.app/distinta-ai4devs/issue/DIS-84/cm-hu-05a1-gat
    La clasificación, con el motivo de cada uno, está en el informe del paso 6.
 7. Evidencia:
    - Prueba manual sobre los dos fixtures y `confinePath`, repetida sobre el código final: `openspec/changes/security-gateway/reports/2026-10-05-7-manual-interface-testing.md`.
-   - Verificación, fallos provocados, tablas de escalado, supervivientes de mutación y las cuatro `/adversarial-review`: `reports/2026-10-05-6-test-and-state-verification.md`.
+   - Verificación, fallos provocados, tablas de escalado, supervivientes de mutación y las cinco `/adversarial-review`: `reports/2026-10-05-6-test-and-state-verification.md`.
 
 ## Decisiones / compromisos
 
@@ -65,7 +65,7 @@ Todas están en `openspec/changes/security-gateway/design.md`.
     - cada regla recorre una línea con un puntero que solo avanza y fusiona los resultados una vez;
     - un único recorrido reconstruye el texto y emite los eventos ya ordenados.
   - Todas las proporciones al duplicar la entrada quedan en 2.31 o menos.
-- **D3, guiones compartidos.** Una cabecera puede empezar sobre los 5 últimos guiones del cierre anterior. Antes no se encontraba y el cuerpo de esa clave se colaba en el índice. Ahora la búsqueda se reanuda 5 caracteres antes del final de cada bloque. Los guiones compartidos se quedan en el tramo anterior y el evento conserva la columna del primer guion de su cabecera.
+- **D3, guiones compartidos.** Una cabecera puede empezar sobre los 5 últimos guiones del cierre anterior, o de una cabecera sin cierre. Antes no se encontraba y el cuerpo de esa clave se colaba en el índice. Ahora la búsqueda se reanuda 5 caracteres antes del final de cada bloque. Los guiones compartidos se quedan en el tramo anterior y el evento conserva la columna del primer guion de su cabecera. La spec lo dice ahora en «Private key blocks» y «Redaction audit events», con su propio escenario. El recorte que impide que dos tramos se solapen es una invariante defensiva que no se nota en el resultado (`slice` con `from < column` devuelve `''`).
 - **D4, `private-key`.** Las formas se comprueban en el orden c, a, b. La forma a solo aplica si el `END` va justo después de las líneas de cuerpo PEM. La regla de cuerpo es laxa: una línea de una sola palabra cuenta como base64. Queda aceptado como limitación conocida, porque oculta de más y nunca filtra.
 - **D5, orden de eventos.** Por `line` y `column`, sin ordenar al final: salen del recorrido de líneas e intervalos. El desempate por `rule` nunca puede darse.
 - **D6, `confinePath` léxica.** No resuelve enlaces simbólicos. DIS-85 debe volver a llamarla con el `realpath`, y DIS-86 recorta `ALLOWED_REPOS_DIR` al leerlo.
@@ -87,11 +87,12 @@ Todas están en `openspec/changes/security-gateway/design.md`.
 |---|---|
 | The acme-shop planted secret is redacted | `tests/unit/index/secret-scanner.spec.ts:17` |
 | The fixtures produce no false positive | `tests/unit/index/secret-scanner.spec.ts:49` |
-| Redaction time grows linearly on adversarial lines | `tests/unit/index/secret-scanner.linear.spec.ts:10` (`describe`: diez familias de entrada con límite de tiempo y la comprobación n/4n) |
+| Redaction time grows linearly on adversarial lines | `tests/unit/index/secret-scanner.linear.spec.ts:10` (`describe`: once casos con límite de tiempo y dos comprobaciones n/4n) |
 | A private key without a closing keeps the following code | `tests/unit/index/secret-scanner.spec.ts:72` |
 | A single-line private key keeps the surrounding JSON | `tests/unit/index/secret-scanner.spec.ts:93` |
 | A multiline private key inside a string keeps the code around it | `tests/unit/index/secret-scanner.spec.ts:116` |
 | A header followed by prose redacts only the header | `tests/unit/index/secret-scanner.spec.ts:131` |
+| A single-line block sharing its dashes with the previous closing is redacted whole | `tests/unit/index/secret-scanner.spec.ts:404` |
 | Every rule produces one ordered event per span | `tests/unit/index/secret-scanner.spec.ts:147` |
 | Paths inside the root are accepted | `tests/unit/index/path-policy.spec.ts:35` |
 | Paths outside the root are forbidden | `tests/unit/index/path-policy.spec.ts:43` |

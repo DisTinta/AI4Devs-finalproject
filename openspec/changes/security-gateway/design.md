@@ -179,7 +179,12 @@ found. A second key's body then reached the index unredacted: a leak. The search
 `SHARED_DASHES` (5) characters before the end of every `private-key` claim (forms a, b without a
 body, and c). The shared dashes stay in the earlier span. `Claims.add` clamps the new span's start to
 where the previous span on that line ends, so the spans never overlap and each line is still rebuilt
-once. The event keeps the column of the first dash of the new header, as the spec says. So for a block
+once. The clamp is a defensive invariant: it does not show in the output. Without it the later
+interval would start inside the earlier one, but `Claims.apply` copies the gap with
+`line.text.slice(column, from)`, and `slice` with `from < column` returns `''`. Text and events
+are therefore identical, and Stryker's mutant that removes it (`covered.length > 0` → `false`) is
+equivalent. The clamp stays so that any later code that slices `[from, to)` directly keeps working
+(fifth review, 2026-10-05; the spec now states the non-overlap). The event keeps the column of the first dash of the new header, as the spec says. So for a block
 that shares dashes, the event column lies before the span's start; `Covered.column` carries it
 separately from `from`. Tests:
 
@@ -255,7 +260,10 @@ AC3 (i)–(iv) → the four "Private key blocks" scenarios; AC4 → "Paths insid
 missing or blank root disables indexing". The linear-time clause of "Secret redaction" → "Redaction
 time grows linearly on adversarial lines" (added 2026-10-05 after the third `/adversarial-review`).
 Its test is the `describe` block of that name in `tests/unit/index/secret-scanner.linear.spec.ts`,
-which holds one timed case per input family and the `n`/`4n` scaling check.
+which holds one timed case per input family and two `n`/`4n` scaling checks (the four-rules line
+and the shared-dash chain). The shared-dash case of "Private key blocks" → "A single-line block sharing
+its dashes with the previous closing is redacted whole" (added after the fifth review). Its test is the
+existing extra case, renamed to the scenario's exact title.
 
 ### D11 — Stryker adds `// @ts-nocheck` only to the mutated files
 

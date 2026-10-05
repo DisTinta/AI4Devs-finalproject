@@ -643,3 +643,75 @@ Functional, killed in this cycle:
 - The step 7 demo took 167 s with `fixtures/task-api/node_modules` included. Per file, `redactSecrets`
   took 5.9 s in total for 6 715 files and 91 MB (the slowest, an 11.6 MB binary, took 631 ms). The
   rest is the demo script reading and keeping every file, not the scanner.
+
+### CI evidence for the fourth cycle
+
+`4278da4`, `45b3744` and `7766de3` were pushed together, so the CI ran once, on `7766de3`.
+`45b3744` (the fix) is part of that run.
+
+- `quality`: [run 37346886599](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37346886599),
+  green. `secret-scanner.spec.ts` 39 tests (73 ms), `secret-scanner.linear.spec.ts` 11 tests (1 545 ms
+  for the whole file), `path-policy.spec.ts` 6 tests with 1 skipped;
+  `Tests  517 passed | 1 skipped (518)`. Mutation step in CI: 94.64 % for core.
+- `frontend`: [run 37346886460](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37346886460),
+  green.
+
+## Fifth `/adversarial-review` (shared-dash fix only, HEAD `7766de3`): PASS WITH GAPS
+
+No leak, no ordering error and no non-linear case. After removing the markers, no character of any
+key body remained, for any input. Doubling ratios were 1.63 to 2.26. Findings:
+
+- **Major:** the spec said the span starts at the header's first dash and that the event column is
+  the span start; neither held for shared dashes.
+- **Minors:**
+  - the clamp is untested;
+  - the shared-dash chain is missing from the scenario 12 list and from the n/4n check;
+  - the single-header 40k-line body case was lost when the multi-line case was widened;
+  - task 10.5 pointed to a non-existent 10.8, and the CI of the fourth cycle was not recorded.
+
+## Fifth cycle (author decision 2026-10-05, same PR, no issue; no code change)
+
+- **Spec, through `/opsx:update`:**
+  - "Private key blocks" states that a header may begin on the last dashes of the previous block
+    (closing or unclosed header), that it is still found, and that the shared dashes stay in the
+    earlier span, so spans never overlap and the event keeps its header's first-dash column.
+  - "Redaction audit events" says the same about `column`.
+  - New scenario "A single-line block sharing its dashes with the previous closing is redacted whole".
+    Its test is the existing extra case, renamed to that exact title (its body is unchanged).
+  - Scenario 12 lists the shared-dash chain.
+  - The spec has 13 scenarios, each with exactly one test of the same title.
+    `openspec validate --strict` is valid. There are no key-shaped values in `openspec/`.
+- **The clamp** stays as a defensive invariant (design D3). It does not show in the output, because
+  `slice(column, from)` with `from < column` returns `''`. Stryker's `secret-scanner.ts:279:27`
+  (`covered.length > 0` → `false`) is already classified above as equivalent for that reason.
+- **Tests:**
+  - New: "one header over a 40k-line PEM body run is scanned in linear time" (one event), next to
+    the ten-header case.
+  - The scaling helper is shared. New: "four times the shared-dash chain takes less than eight times
+    as long" (20k and 80k blocks, 1.1 and 4.4 MB).
+  - The linear spec ran 3 times: 13/13 each time.
+- **Forced failures** against the new n/4n check (backed up, mutated, run, restored, `cmp`):
+
+  | Mutant | Result |
+  | -- | -- |
+  | Closing index without its forward pointer | **failed**, ratio 11.79 |
+  | Closing index and body run rebuilt for every header (`cachedLine !== lineIndex` → `true`) | did not finish within the 500 s limit |
+  | No closing index at all (`text.indexOf(closing, headerEnd)` per header) | **passed** |
+
+  The last one passes because in the chain each closing comes right after its header, so `indexOf`
+  stops at once. The rest of the linear spec catches it in 5 tests:
+  - distinct labels 4 301 ms;
+  - distinct labels closed once 3 318 ms;
+  - headers without a closing 3 970 ms;
+  - all four rules 33 271 ms;
+  - the four-rules n/4n check, ratio 15.68.
+- **Task 10.5** no longer points to 10.8, and the fourth cycle's CI is recorded above.
+
+After this cycle (code unchanged, so Stryker and the review were not repeated):
+
+- `tests/unit/index`: 3 files, **58 passed**, twice (5.51 s, 5.59 s).
+- `npx vitest run`: `Tests  369 passed | 99 skipped (520)`.
+- No-database run: `Tests  343 passed (343)`.
+- Gates: lint 0 errors (same warning), typecheck exit 0, `lint:architecture` 0 errors (same 4
+  warnings), `docs:coverage` clean.
+- Fixtures: unchanged (`b97101fe…`).

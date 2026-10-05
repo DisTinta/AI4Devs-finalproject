@@ -74,7 +74,9 @@ defines which text matches, not how it is implemented).
   - one line alternating JWTs and AWS access key ids;
   - one line alternating all four rules, with real `generic-high-entropy` matches;
   - many lines: headers followed by long PEM body runs (base64 and `Name: value` lines), and many
-    consecutive form a blocks
+    consecutive form a blocks;
+  - one line of single-line blocks, each header beginning on the last five dashes of the previous
+    closing
 - **WHEN** each one is redacted
 - **THEN** each call returns within 2 seconds
 - **AND** for an input built from the same pieces at sizes `n` and `4n`, the median of three runs at
@@ -103,6 +105,12 @@ written on the header line; the lines strictly inside the span SHALL become empt
 last lines of the span, the text before the first dash of the header and the text after the end of
 the block SHALL be kept. Exactly one event SHALL be emitted per block, with the `line` and `column` of
 the first dash of the header.
+
+A header MAY begin on the last dashes of the previous block on the same line: of its closing, or of
+an unclosed header. Such a header SHALL still be found. The shared dashes SHALL stay in the earlier
+span, so the later span SHALL start where the earlier one ends and no two spans SHALL overlap. The
+later block's event SHALL still carry the `column` of the first dash of its header, which then lies
+inside the earlier span.
 
 #### Scenario: A private key without a closing keeps the following code
 
@@ -149,12 +157,24 @@ the first dash of the header.
 - **AND** `events` is exactly
   `[{ type: 'secret_redacted', file: 'doc.md', line: 1, column: 1, rule: 'private-key' }]`
 
+#### Scenario: A single-line block sharing its dashes with the previous closing is redacted whole
+
+- **GIVEN** one line holding a quote, a single-line block (header, escaped body, closing), a second
+  single-line block with the label `RSA ` whose header begins on the last five dashes of that
+  closing, and a closing quote (literals built by concatenation in the test)
+- **WHEN** it is redacted
+- **THEN** the content is the quote, the marker twice and the quote: no character of either body
+  remains
+- **AND** `events` has two `private-key` events on line 1: column 2 for the first header, and for the
+  second the column of its header's first dash, five columns before the end of the first span
+
 ### Requirement: Redaction audit events
 
 An audit event SHALL be a JSON-serialisable value of a union discriminated by `type`. A redaction SHALL
 produce exactly one event `{ type: 'secret_redacted', file, line, column, rule }` per distinct
 replaced span, where `file` is the file `path`, `line` and `column` are 1-based (`column` counted in UTF-16 code units of the original line) and locate the start of
-the span in the original content, and `rule` is the highest-priority rule that matched it. Events SHALL
+the span in the original content (for a `private-key` header that shares its first dashes with the
+previous span, the first dash of that header; see "Private key blocks"), and `rule` is the highest-priority rule that matched it. Events SHALL
 be ordered by `line`, then `column`, then `rule`. An event SHALL NOT contain the redacted value, a
 prefix of it or a hash of it. Redaction SHALL NOT write events to any log: it only returns them.
 
