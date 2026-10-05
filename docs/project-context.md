@@ -499,10 +499,15 @@ services that must be started first, quirks of the local environment.
   before and after it on the end lines is kept, inner lines become empty. The AWS `\b` does not match
   after `_` (`X_AKIA…` is not redacted). `generic-high-entropy` is matched by maximal identifier run
   plus a sticky tail, not by the literal spec regex, which is quadratic on repeated keywords. The
-  work around the regexes must stay linear too: overlap tests go through a per-line sorted interval
-  index, each header line remembers the closings it did not find, and each line is rebuilt once. The
-  first version did none of this and took 76 s on a 1 MB line of JWTs. The four timed tests (2 s each) in
-  `tests/unit/index/secret-scanner.spec.ts` guard this. Events
+  work around the regexes must stay linear too (design D3). Intervals per line are the only record
+  of a claim. They are appended or merged, never inserted with `splice` or sorted. Overlap tests use
+  a forward-only pointer. Each header line indexes its closings once, by label. One walk rebuilds each
+  line and emits the events already in order. The first version took 76 s on a 1 MB line of JWTs.
+  Headers with distinct labels and alternating JWT/AWS lines also went quadratic until the second
+  review. Seven timed tests (2 s each, inputs of at most ~5 MB) in
+  `tests/unit/index/secret-scanner.linear.spec.ts` guard this. `vitest.stryker.config.ts` excludes
+  that file, because instrumented code blows a wall-clock budget (design D14). A mutant that only
+  slows the scanner therefore survives Stryker, and only `npx vitest run` catches it. Events
   never carry the value; core never logs them. `confinePath(requested, allowedRoot)` accepts iff
   `path.relative(root, resolved)` is `''`, or is not `..`, does not start with `..` + separator and
   is not absolute: `/repos/..x` is a valid child, `/repos-evil` is not. A blank root throws

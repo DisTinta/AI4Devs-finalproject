@@ -98,38 +98,69 @@ right-to-left replacement per span).
   lower-priority match starting inside a discarded one is not found. Accepted: it would overlap the
   same secret area anyway.
 
-**Correction (found by `/adversarial-review`, 2026-10-05).** The linearity claim above covered the
-regexes only. It was never checked for the work around them, and three parts of it were quadratic in
-the number of matches on one line:
+**Correction (found by `/adversarial-review`, 2026-10-05, two rounds).** The linearity claim above
+covered the regexes only. It was never checked for the work around them, and four parts of that work
+grew faster than linear in the number of matches on one line:
 
 1. **Overlap test.** Every candidate was compared with every claim so far.
 2. **`private-key` closing search.** Every header without a closing searched the rest of its line
-   again for the same closing. The body run and the indent of the following line were also recomputed
-   for each header.
-3. **Replacement.** Every claim rebuilt its whole line with `slice`. The review did not name this one;
-   it showed up when the first two fixes alone left the times almost unchanged.
+   again with `indexOf`. The body run and the indent of the following line were also recomputed for
+   each header.
+3. **Replacement.** Every claim rebuilt its whole line with `slice`. The first review did not name
+   this one; it showed up when fixes 1 and 2 alone left the times almost unchanged.
+4. **Interval insertion and final sort** (second review). The first fix kept a per-line interval list
+   sorted with `splice`, which is O(k) per insertion when a later rule lands between the claims of an
+   earlier one. The first fix also cached "closing not found" per exact closing text. With a distinct
+   label on every header the cache never hit, so the search stayed quadratic. Finally, all claims were
+   sorted at the end to order the events, which is n log n.
 
-Measured before the fix:
+Measured before each fix (one line):
 
-- JWT case (`eyJa.` repeated on one line): 50k / 100k / 200k repetitions took 8.8 s / 24.1 s / 75.9 s
-  in the review.
-- 16k headers without a closing on one line: 11.2 s.
-- New tests, at their sizes: 100k JWT repetitions 25.9 s, 20k AWS keys 12.5 s, 20k headers 15.7 s.
-- After fixes 1 and 2 only: 21.9 s, 11.2 s and 12.3 s.
+- First round, in the review: JWT (`eyJa.` repeated) 50k / 100k / 200k took 8.8 / 24.1 / 75.9 s;
+  16k identical headers without a closing took 11.2 s. In the tests: 100k JWTs 25.9 s, 20k AWS keys
+  12.5 s, 20k headers 15.7 s. After fixes 1 and 2 only: 21.9 s, 11.2 s and 12.3 s.
+- Second round, in the tests: 20k headers with distinct labels 4.8 s; the same closed once at the end
+  3.5 s; JWTs and AWS keys alternating on 5.1 MB 12.2 s. In the review: 40k distinct labels (1.3 MB)
+  took 19.8 s, and the alternating case took 7.4 s at 4.8 MB.
+- After fix 4 without the event walk (sort still in place): alternating 5.1 / 10.2 / 20.4 MB took 317 /
+  675 / 2 210 ms (median of 5), a ratio of 3.27 at the last step. With V8's young generation raised to
+  128 MB it was 1.38, which pointed at allocation pressure rather than a quadratic step.
 
-What changed:
+What the code does now:
 
-- Claims live in a per-line index (`Claims`). Each line keeps the intervals it covers, sorted by
-  `from`, and a multi-line `private-key` claim covers every line from its start to its end. Claims
-  never overlap, so an overlap test only checks the last interval starting before the candidate's end,
-  found by binary search.
-- For each header line, the scanner remembers the closings already searched for in vain (from an
-  earlier header's end, so also from any later one) and the body run with the next line's indent. The
-  cache is reset when the line changes.
-- Each covered line is rendered once from its sorted intervals, instead of once per claim.
+- **Intervals are the only record of a claim.** `Claims.byLine` is an array indexed by line. Each entry
+  is the line's covered intervals `{ from, to, marker, rule }`, sorted and disjoint. A multi-line
+  `private-key` claim puts one interval on every line it covers, with `marker` only on its start line.
+- **No insertion in the middle.** `private-key` claims arrive in increasing position and are appended.
+  Each later rule works a line in one `LinePass`, which receives candidates in non-decreasing start
+  order. A candidate is checked against the earlier rules' intervals, through a pointer that only
+  moves forward, and against the last interval this pass accepted. At the end of the line the accepted
+  intervals are merged into the list with one linear merge: no `splice`, no sort.
+- **Closings.** For each header line, `ClosingIndex` scans the line's `-----END …PRIVATE KEY-----`
+  once with a regex that captures the label the same way as the header regex. It resumes one character
+  after each match, so closings that share dashes are all found, as with `indexOf`. Positions are
+  grouped by label, in increasing order. Headers are met left to right with increasing `headerEnd`, so
+  one pointer per label that only moves forward answers every search. The body run and the next
+  line's indent are computed at most once per header line. Both caches are reset when the line changes.
+- **One walk for text and events.** `Claims.apply` walks the lines in order, and within each line its
+  sorted intervals. It rebuilds the line once and emits one event per interval with `marker`, so a
+  multi-line block gives one event, at its start. The events come out ordered by `line`, then
+  `column`, with no sort. There is no claim array and no `[...claims].sort`.
 
-After the fix the same inputs take 48 / 83 / 154 ms (JWT 50k / 100k / 200k), 66 ms (20k AWS keys)
-and 84 ms (16k headers). The four timed tests in `secret-scanner.spec.ts` keep it that way (2 s each).
+After the fixes, median of 5, default garbage collector, each step doubling the input:
+
+| Case | n | 2n | 4n | Ratios |
+| -- | -- | -- | -- | -- |
+| Headers, distinct labels (20k / 40k / 80k) | 38.8 ms | 70.5 ms | 160.3 ms | 1.82, 2.27 |
+| Distinct labels, closed once at the end | 28.4 ms | 52.8 ms | 100.0 ms | 1.86, 1.89 |
+| JWT/AWS alternating (5.1 / 10.2 / 20.4 MB) | 420.3 ms | 675.5 ms | 1 558.1 ms | 1.61, 2.31 |
+| JWT (100k / 200k / 400k) | 43.8 ms | 72.5 ms | 132.5 ms | 1.65, 1.83 |
+| AWS keys (20k / 40k / 80k) | 21.0 ms | 33.7 ms | 69.3 ms | 1.61, 2.06 |
+| Identical headers (20k / 40k / 80k) | 34.4 ms | 52.5 ms | 117.6 ms | 1.53, 2.24 |
+| Repeated keywords (35k / 70k / 140k) | 0.9 ms | 1.3 ms | 2.7 ms | 1.49, 2.11 |
+
+Every ratio is 2.31 or less. Seven timed tests in `secret-scanner.spec.ts` (2 s each, elapsed time
+asserted, each input at most ~5 MB) keep it that way. The 20 MB sizes are only for measuring.
 
 ### D4 — `private-key` blocks
 
@@ -223,6 +254,23 @@ are unchanged. `git add --renormalize .` changed no other file: every tracked te
 in the index. It is outside the plan because it is repository hygiene unrelated to the gateway, and it
 goes in its own commit (`chore: fix .gitattributes eol rule`) so the PR can be reviewed or reverted
 without it.
+
+### D14 — The timed linear-time tests do not run under Stryker
+
+Found in apply (2026-10-05), on the second round of linearity fixes. Stryker's initial test run executes
+the suite on code instrumented for per-test coverage, with 15 runner processes in parallel. There, "a
+very long line alternating JWTs and AWS keys is scanned in linear time" (5.1 MB) took 2 517 ms against
+its 2 s budget, while outside Stryker it takes about 420 ms. Instrumentation counters and machine load
+make wall-clock budgets meaningless on mutated code, so the dry run failed and no mutant ran.
+
+The seven timed cases moved, unchanged, to `tests/unit/index/secret-scanner.linear.spec.ts`, and
+`vitest.stryker.config.ts` excludes that file next to `tests/integration/**`. `mergeConfig` appends to
+the base `exclude` (`fixtures/**`, `node_modules/**`, `.stryker-tmp/**`): checked by printing both
+resolved configs. The file still runs in `npx vitest run` locally and in the CI Vitest step. Mutants that
+change only the running time, not the result, are therefore invisible to Stryker; the step 6 report
+lists them and shows, with forced failures, that this file catches them. It is outside the plan because
+the plan had no timed tests. Alternatives rejected: a smaller alternating input (still fragile under CI
+load, and the author asked for ~5 MB), and skipping on a Stryker global (ties the tests to the tool).
 
 ### D10 — No ADR
 

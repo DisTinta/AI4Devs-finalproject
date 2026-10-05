@@ -287,3 +287,119 @@ apply. The spec was changed twice before apply, both through `/opsx:update` at t
 (prompts.md §28, Prompt 2): the line model, the UTF-16 column and the adversarial-input clause of the
 linearity SHALL. During apply only `design.md` (D5, D7, D11–D13 and this D3 correction), `proposal.md`
 (Impact) and `tasks.md` changed; the spec did not. No further action, per the author.
+
+## Second linearity cycle (second `/adversarial-review`: FAIL, one Blocker)
+
+The second review found the first fix incomplete:
+
+- **Blocker:** the closing cache keyed on the exact closing text, so headers with distinct labels
+  stayed quadratic.
+- **Major:** the timed header test repeated one label, the only case the cache covered.
+- **Minor:** `splice` insertion was quadratic when a later rule lands between an earlier rule's
+  claims.
+
+Tasks 10.1 and 10.3 were unticked. Author decision: fix all three in this PR, with no issue.
+
+### RED (code before this cycle)
+
+| Timed case (one line) | Size | Time |
+| -- | -- | -- |
+| 20k headers, distinct labels, no closing | 641k chars | **failed**, 4 786 ms |
+| Same, closed once at the end (label of header 10 000) | 641k chars | **failed**, 3 472 ms |
+| JWT and AWS keys alternating | 5.1 MB | **failed**, 12 242 ms |
+
+### GREEN
+
+The code changed in two steps:
+
+1. A `ClosingIndex` per header line (one scan, one pointer per label) and a `LinePass` per rule and
+   line (forward-only pointer, linear merge, no `splice`).
+2. Intervals became the only record of a claim. There is no claim array and no final sort, and one
+   walk over the lines rebuilds the text and emits the events.
+
+The AC1–AC3 tests were not touched and pass. Design D3 has the full correction.
+
+### Scaling (median of 5, default garbage collector)
+
+| Case | n | 2n | 4n | Ratios |
+| -- | -- | -- | -- | -- |
+| Headers, distinct labels (20k / 40k / 80k) | 38.8 ms | 70.5 ms | 160.3 ms | 1.82, 2.27 |
+| Distinct labels, closed once at the end | 28.4 ms | 52.8 ms | 100.0 ms | 1.86, 1.89 |
+| JWT/AWS alternating (5.1 / 10.2 / 20.4 MB) | 420.3 ms | 675.5 ms | 1 558.1 ms | 1.61, 2.31 |
+| JWT (100k / 200k / 400k) | 43.8 ms | 72.5 ms | 132.5 ms | 1.65, 1.83 |
+| AWS keys (20k / 40k / 80k) | 21.0 ms | 33.7 ms | 69.3 ms | 1.61, 2.06 |
+| Identical headers (20k / 40k / 80k) | 34.4 ms | 52.5 ms | 117.6 ms | 1.53, 2.24 |
+| Repeated keywords (35k / 70k / 140k) | 0.9 ms | 1.3 ms | 2.7 ms | 1.49, 2.11 |
+
+Every ratio is 2.31 or less: the first exit criterion. Before step 2 (with the sort in place), the
+alternating case gave 317 / 675 / 2 210 ms (ratio 3.27 at the last step), and 1.38 with the V8 young
+generation raised to 128 MB. Recorded in D3. A first single-run measurement of AWS keys gave 2.58;
+over 7 runs the median ratios were 1.44 to 1.80, so it was noise.
+
+### Stryker and the timed tests (design D14)
+
+The first full run after the fix failed its dry run. Under instrumentation and 15 parallel runners,
+the 5.1 MB alternating case took 2 517 ms against its 2 s budget (about 420 ms outside Stryker). The
+seven timed cases moved, unchanged and byte-identical, to
+`tests/unit/index/secret-scanner.linear.spec.ts`, which `vitest.stryker.config.ts` now excludes.
+
+- Resolved excludes, printed from both configs:
+  - base: `["fixtures/**","node_modules/**",".stryker-tmp/**"]`;
+  - Stryker: the same three plus `"tests/integration/**"` and the linear spec.
+- `npx vitest run tests/unit/index` runs 3 files (49 tests); with the Stryker config it runs 2 files.
+
+Final `npx stryker run` (13:35–13:39): **95.18 %** for core (809/850) and **95.63 %** for `index/`
+(328/343): `path-policy.ts` 94.44 %, `secret-scanner.ts` 95.77 %. The first run without the timed
+tests had 22 survivors in `index/`. They fall into three groups.
+
+**Equivalent (14):**
+
+- `path-policy.ts:42:18` and `:42:26`: `rel === ''` is redundant (as before).
+- `secret-scanner.ts:89:20`, `cachedLine = -1` → `+1`: the first iteration has `lineIndex` 0, so
+  the caches are reset either way.
+- `:125:14`, `indent + closing.length` → `-`: the closing line is re-scanned from 0, and before the
+  closing's end there is only indent and the closing itself.
+- `:165:12`, `index < list.length` → `true` and `<=`: `list[length]` is `undefined`, and
+  `undefined < from` is `false`, so the loop stops at the same index.
+- `:261:19`, `new Array(lineCount)` → `new Array()`: assigning by index grows the array, and reads of
+  missing lines give `undefined` either way.
+- `:287:25`, `index < lines.length` → `<=`: `byLine[lines.length]` is `undefined`, so the extra
+  iteration does nothing.
+- `:301:11`, `column !== Infinity` → `true`: `slice(Infinity)` is `''`.
+- `:330:34`, `last.from < end` → `true` and `<=`: the accepted intervals of a pass start before every
+  later candidate's end, so the clause is always true.
+- `:330:53`, `last.to > start` → `>=`: a candidate never starts exactly where the previous accepted
+  span ends. A span ends at a quote or a token boundary, never at the start of a run or a match.
+- `:340:9`, `accepted.length === 0` → `false`: merging with an empty list copies the same intervals
+  (still linear).
+- `:350:52`, `<` → `<=` in the merge: the two lists are disjoint with non-empty intervals, so two
+  `from` values are never equal.
+
+**Only observable in time (1)**, covered by the linear spec outside Stryker:
+
+- `secret-scanner.ts:93:9`, `cachedLine !== lineIndex` → `true`: the closing index and the body run
+  are rebuilt for every header. The result is the same, but the cost is quadratic. Forced failure:
+  `secret-scanner.spec.ts` passed 36/36, and `secret-scanner.linear.spec.ts` failed 3 of 7 (distinct
+  labels, distinct labels closed once, and headers without a closing).
+
+**Functional (7)**, each killed by a new case and confirmed by a forced failure (mutate, run, restore,
+`cmp`):
+
+- `:165:35`, `<` → `<=`: a closing that starts right at the header's end is missed. Killed by "a
+  closing right after its header on the same line closes it".
+- `:167:12`, `true` and `<=`, and `:167:49`, `-1` → `+1` (was NoCoverage): a closing earlier on the
+  line than the header was taken as found. Covered by "a closing earlier on the line does not close a
+  later header"; the mutants loop until the worker runs out of memory, so the run fails.
+- `:329:32`, `length - 1` → `+ 1`, `:330:12`, `false`, and `:330:34`, `>=`: without the same-pass
+  check, a key-like run inside a redacted value starts a second `generic-high-entropy` match. Killed
+  by "a key-like run inside a redacted value does not start a second generic match".
+
+### Suite and gates after this cycle
+
+- `tests/unit/index`: 3 files, **49 passed**, twice (3.81 s, 1.81 s).
+- `npx vitest run`: `Tests  360 passed | 99 skipped (511)` (27 files passed, 7 skipped). The 52
+  unlabelled tests are the same pending database tests.
+- No-database run: `Tests  334 passed (334)` (23 files).
+- Gates: lint 0 errors (same pre-existing warning), typecheck exit 0, `lint:architecture` 0 errors
+  (same 4 warnings), `docs:coverage` clean, `openspec validate --strict` valid.
+- Fixtures: `git status --porcelain fixtures` empty, checksum `b97101fe…` (unchanged).
