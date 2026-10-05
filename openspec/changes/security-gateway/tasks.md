@@ -65,7 +65,8 @@
 ## 8. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
 - [x] 8.1 Confirm no user interface or user workflow is affected (no route, no CLI, no web change). Record "not applicable", with that reason, in the step 6 report
-- [ ] 8.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that `secret-scanner.spec.ts` and `path-policy.spec.ts` ran (the Windows-only test skipped) and that "The fixtures produce no false positive" passed without `node_modules`. Link the run in the step 6 report
+- [x] 8.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that `secret-scanner.spec.ts` and `path-policy.spec.ts` ran (the Windows-only test skipped) and that "The fixtures produce no false positive" passed without `node_modules`. Link the run in the step 6 report
+  - PR #22, `quality` run 37289394636 and `frontend` run 37289394697 passed. `secret-scanner.spec.ts` 33/33 (oracle included, no `node_modules` in CI), `path-policy.spec.ts` 6 with the Windows test skipped; 500 passed / 1 skipped. Linked in the step 6 report "CI evidence (task 8.2)".
 
 ## 9. Update Technical Documentation (MANDATORY)
 
@@ -74,5 +75,6 @@
 - [x] 9.3 No ADR (design D10); confirm nothing in the implementation contradicted that
 - [x] 9.4 Run `/update-docs` and confirm the docs gate passes (`npm run docs:coverage`). Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
   - `/update-docs`: besides 9.1/9.2, the second `.stryker-tmp/` note (DB integration gotcha) no longer says to delete by hand, and the mutation-score line names `index/` and 95.56 %. Checked, no change: data model, API spec, dependencies, ADRs, standards, `fixtures/README.md`, `docs/ai-sessions/` (history). `docs:coverage` exit 0. `prompts.md` §28 (3 literal prompts) + Índice entry 28.
-- [ ] 9.5 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the author's Why transcribed. After verification, set DIS-84 to In Review in Linear with a comment in Spanish linking the PR and the change
+- [x] 9.5 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the author's Why transcribed. After verification, set DIS-84 to In Review in Linear with a comment in Spanish linking the PR and the change
+  - PR #22 opened against `feature/entrega-2-CRN` with the author's Why copied verbatim from the author's message (`reports/pr-description.md`). DIS-84 → In Review with a Spanish comment linking the PR and the change.
 - [ ] 9.6 At archive time, leave the Follow-ups of design.md as Spanish Linear comments on DIS-85 and DIS-86

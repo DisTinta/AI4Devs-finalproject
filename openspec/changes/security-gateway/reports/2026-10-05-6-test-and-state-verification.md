@@ -173,3 +173,22 @@ None: the change has no browser UI.
 
 - Status: PASS
 - Blocking issues: none
+
+## CI evidence (task 8.2)
+
+PR [#22](https://github.com/DisTinta/AI4Devs-finalproject/pull/22), head `cb4e6aa`.
+
+- `quality`: [run 37289394636](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37289394636), pass (4 min 31 s).
+  - `npx vitest run` with the Postgres service: `Test Files  33 passed (33)`,
+    `Tests  500 passed | 1 skipped (501)`. With `DATABASE_URL` set, the 151 database tests that are
+    skipped or pending locally ran here; the only skipped test is the Windows-only one.
+  - `tests/unit/index/secret-scanner.spec.ts`: 33 tests, all passed, including "The fixtures produce
+    no false positive". `fixtures/task-api/node_modules` does not exist in CI: it is gitignored
+    (`fixtures/task-api/.gitignore`), not tracked, and not an npm workspace, so the root `npm ci`
+    does not create it.
+  - `tests/unit/index/path-policy.spec.ts`: 6 tests, 1 skipped ("A path on another Windows drive is
+    forbidden", `it.runIf(process.platform === 'win32')`).
+  - Mutation step: 96.61 % for all of core; `index/` 98.84 %, the same 3 survivors
+    (`path-policy.ts:42:18`, `:42:26`, `secret-scanner.ts:122:14`). Core moves from the local 95.56 %
+    only through timeouts in other modules (20 in CI vs 11 locally); `index/` is identical.
+- `frontend`: [run 37289394697](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37289394697), pass (43 s).
