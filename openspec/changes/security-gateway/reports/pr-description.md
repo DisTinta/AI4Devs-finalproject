@@ -7,7 +7,7 @@ Core gana el módulo `packages/core/src/index/`, con dos funciones puras:
 - `redactSecrets` sustituye por `[REDACTED: possible secret]` las claves privadas, los JWT, las claves de acceso de AWS y los valores de alta entropía asignados a claves con nombre de secreto. Conserva el resto de cada línea y el número de líneas, y devuelve un evento `secret_redacted` por tramo, sin el secreto.
 - `confinePath` resuelve una ruta de repositorio dentro de la raíz permitida con `path.relative`, sin usar `startsWith`. Lanza `IndexingDisabled` si la raíz está vacía y `ForbiddenPathError` si la ruta queda fuera.
 
-Core no lee el entorno ni escribe en ningún log. La PR incluye también cuatro arreglos de herramientas que salieron durante la implementación (D11–D14).
+Core no lee el entorno ni escribe en ningún log. La PR incluye también cinco arreglos de herramientas y tests que salieron durante la implementación (D11–D15).
 
 Ticket: [DIS-84](https://linear.app/distinta-ai4devs/issue/DIS-84/cm-hu-05a1-gateway-de-seguridad-en-core-secret-scanner-path-policy) (sub-issue de DIS-64).
 
@@ -34,9 +34,9 @@ Ticket: [DIS-84](https://linear.app/distinta-ai4devs/issue/DIS-84/cm-hu-05a1-gat
 ## ¿Cómo probarlo?
 
 1. `npm ci`
-2. `npx vitest run tests/unit/index`: 3 ficheros, 58 tests en verde. En Linux, «A path on another Windows drive is forbidden» sale como skipped.
+2. `npx vitest run tests/unit/index`: 4 ficheros, 58 tests en verde. En Linux, «A path on another Windows drive is forbidden» sale como skipped.
 3. `npx vitest run`: 369 passed y 99 skipped (520 en total). Los 52 que faltan en la suma son `pending`. Los 151 sin ejecutar son tests de integración que necesitan `DATABASE_URL`, y el desglose está en el informe del paso 6.
-4. `npx vitest run --exclude 'tests/integration/**'` sin `DATABASE_URL`: 23 ficheros, 343 tests.
+4. `npx vitest run --exclude 'tests/integration/**'` sin `DATABASE_URL`: 24 ficheros, 343 tests.
 5. `npm run lint && npm run typecheck && npm run lint:architecture && npm run docs:coverage`
 6. `npx stryker run`: 95.11 % en core (817/859) y 95.45 % en `packages/core/src/index/` (336/352). Hay 16 supervivientes:
    - 15 equivalentes;
@@ -75,6 +75,7 @@ Todas están en `openspec/changes/security-gateway/design.md`.
   - D12: `vitest.config.ts` excluye `.stryker-tmp/**`.
   - D13: `.gitattributes` pasa a `* text=auto eol=lf`, en su propio commit, `4c3b177`.
   - D14: los tests con límite de tiempo viven en `secret-scanner.linear.spec.ts`, excluido de Stryker, porque el código instrumentado no cabe en un presupuesto de reloj (2 517 ms dentro de Stryker, frente a ~420 ms fuera).
+  - D15: las dos comprobaciones n/4n fallaron una vez en CI (9.10 y 8.13, run 37350620815). Ahora viven en `secret-scanner.scaling.spec.ts`, también excluido de Stryker. Usan la ejecución más rápida de cinco, alternando n y 4n, e imprimen siempre sus tiempos. Los fallos provocados dan entre 15.53 y 20.24.
 - **Privacidad.** `/privacy-ethics-check` da PASS WITH GAPS, con dos hallazgos Low:
   - el correo sintético de la cuenta de servicio de AC3: aceptado;
   - el mensaje de `ForbiddenPathError` incluye la ruta pedida: pasa a DIS-86.
@@ -87,7 +88,7 @@ Todas están en `openspec/changes/security-gateway/design.md`.
 |---|---|
 | The acme-shop planted secret is redacted | `tests/unit/index/secret-scanner.spec.ts:17` |
 | The fixtures produce no false positive | `tests/unit/index/secret-scanner.spec.ts:49` |
-| Redaction time grows linearly on adversarial lines | `tests/unit/index/secret-scanner.linear.spec.ts:10` (`describe`: once casos con límite de tiempo y dos comprobaciones n/4n) |
+| Redaction time grows linearly on adversarial lines | `tests/unit/index/secret-scanner.linear.spec.ts:10` (`describe`: once casos con límite de tiempo) y `secret-scanner.scaling.spec.ts` (sus dos comprobaciones n/4n) |
 | A private key without a closing keeps the following code | `tests/unit/index/secret-scanner.spec.ts:72` |
 | A single-line private key keeps the surrounding JSON | `tests/unit/index/secret-scanner.spec.ts:93` |
 | A multiline private key inside a string keeps the code around it | `tests/unit/index/secret-scanner.spec.ts:116` |

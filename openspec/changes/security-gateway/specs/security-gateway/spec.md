@@ -79,8 +79,9 @@ defines which text matches, not how it is implemented).
     closing
 - **WHEN** each one is redacted
 - **THEN** each call returns within 2 seconds
-- **AND** for an input built from the same pieces at sizes `n` and `4n`, the median of three runs at
-  `4n` is less than 8 times the median at `n`
+- **AND** for an input built from the same pieces at sizes `n` and `4n`, after one warm-up call per
+  size and five runs of each size alternating `n`, `4n`, `n`, `4n`…, the fastest run at `4n` is less
+  than 8 times the fastest run at `n`
 
 ### Requirement: Private key blocks
 

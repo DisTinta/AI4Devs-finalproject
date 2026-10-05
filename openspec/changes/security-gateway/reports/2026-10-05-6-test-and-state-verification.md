@@ -715,3 +715,47 @@ After this cycle (code unchanged, so Stryker and the review were not repeated):
 - Gates: lint 0 errors (same warning), typecheck exit 0, `lint:architecture` 0 errors (same 4
   warnings), `docs:coverage` clean.
 - Fixtures: unchanged (`b97101fe…`).
+
+## Sixth cycle: the n/4n checks failed on CI (design D15)
+
+The CI run [37350620815](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37350620815) on
+`0379123` failed both scaling checks, with ratios of 9.10 (four rules) and 8.13 (shared-dash chain)
+against a limit of 8. Every other test passed, the eleven timed 2 s cases included:
+`Tests  2 failed | 517 passed | 1 skipped (520)`. `frontend`
+([run 37350620735](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37350620735)) was
+green. `secret-scanner.ts` was unchanged since `7766de3`, where the four-rules check had passed.
+Author decision: make the measure robust (option 1).
+
+**What changed**
+
+- The two checks moved to `tests/unit/index/secret-scanner.scaling.spec.ts`, which
+  `vitest.stryker.config.ts` also excludes. `npx vitest run tests/unit/index` runs 4 files and 58
+  tests; with the Stryker config it runs 2 files and 45 tests.
+- The measure: a warm-up call per size, then five runs of each size alternating `n` and `4n`, and
+  the fastest of each size, with the ratio required to stay below 8.
+- The ten times and the ratio are always printed (`[scaling] …` lines).
+- The shared-dash chain now uses `n` = 22k, the largest with `4n` under 5 MB (4.84 MB). Its fastest
+  run at `n` is about 45 ms.
+- The spec scenario was updated through `/opsx:update`, D15 was added, and DIS-84 has a Spanish
+  comment.
+
+**Ratios with the new measure, locally:** five runs in a row gave 4.29 / 4.02 / 4.11 / 4.35 / 4.20
+(four rules) and 4.04 / 3.93 / 4.18 / 3.99 / 3.96 (shared-dash chain).
+
+**Forced failures with the new measure** (backed up, mutated, run, restored, `cmp`):
+
+| Mutant | Check | Fastest n / 4n | Ratio |
+| -- | -- | -- | -- |
+| Closing index without its forward pointer | shared-dash chain | 287.4 / 4 464.3 ms | **15.53**, failed |
+| Closing index and body run rebuilt for every header | four rules | 2 077.2 / 32 924.4 ms | **15.85**, failed |
+| Linear merge replaced by a splice insertion | four rules | 934.6 / 18 918.2 ms | **20.24**, failed |
+
+**Suite and gates after the sixth cycle** (code unchanged):
+
+- `tests/unit/index`: 4 files, **58 passed**, twice.
+- `npx vitest run`: `Tests  369 passed | 99 skipped (520)` (28 files passed, 7 skipped).
+- No-database run: `Tests  343 passed (343)` (24 files).
+- Gates: lint 0 errors (same warning), typecheck exit 0, `lint:architecture` 0 errors (same 4
+  warnings), `docs:coverage` clean, `openspec validate --strict` valid.
+- Every one of the 13 scenarios maps to exactly one test title.
+- Fixtures: unchanged (`b97101fe…`).

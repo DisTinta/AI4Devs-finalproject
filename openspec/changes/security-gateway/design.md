@@ -165,12 +165,14 @@ After the fixes, median of 5, default garbage collector, each step doubling the 
 | Repeated keywords (35k / 70k / 140k) | 0.9 ms | 1.3 ms | 2.7 ms | 1.49, 2.11 |
 
 Every ratio is 2.31 or less. The scenario "Redaction time grows linearly on adversarial lines" pins it
-(`tests/unit/index/secret-scanner.linear.spec.ts`). It has nine timed cases, one per input family, each
-with a 2 s budget, the elapsed time asserted, and an input of at most ~5 MB. It also has a scaling
-check: on the four-rules line, the median of three runs at `4n` must be less than 8 times the median
-at `n` (10k / 40k units, 1 / 3.9 MB). The scaling check catches quadratic paths with a small constant
-that a fixed budget misses: forcing the per-line cache reset, or a splice-based merge, gives ~17. The
-20 MB sizes are only for measuring.
+(`tests/unit/index/secret-scanner.linear.spec.ts`). That file has eleven timed cases, one per input
+family, each with a 2 s budget, the elapsed time asserted, and an input of at most ~5 MB. Two
+`n`/`4n` scaling checks live in `tests/unit/index/secret-scanner.scaling.spec.ts`: the four-rules
+line (10k / 40k units, 1 / 3.9 MB) and the shared-dash chain (22k / 88k blocks, 1.2 / 4.8 MB). Each
+compares the fastest of five alternating runs per size and requires a ratio below 8 (D15). The
+scaling checks catch quadratic paths with a small constant that a fixed budget misses. Under the
+final measure, the per-line cache reset gives 15.85, a splice-based merge 20.24, and the closing
+index without its forward pointer 15.53. The 20 MB sizes are only for measuring.
 
 **Shared dashes (fourth `/adversarial-review`, 2026-10-05).** A closing ends with five dashes and a
 header starts with five, so a header can begin on the last five dashes of the previous block's
@@ -260,8 +262,9 @@ AC3 (i)–(iv) → the four "Private key blocks" scenarios; AC4 → "Paths insid
 missing or blank root disables indexing". The linear-time clause of "Secret redaction" → "Redaction
 time grows linearly on adversarial lines" (added 2026-10-05 after the third `/adversarial-review`).
 Its test is the `describe` block of that name in `tests/unit/index/secret-scanner.linear.spec.ts`,
-which holds one timed case per input family and two `n`/`4n` scaling checks (the four-rules line
-and the shared-dash chain). The shared-dash case of "Private key blocks" → "A single-line block sharing
+which holds one timed case per input family. The scenario's `n`/`4n` clause is tested by the two
+checks in `secret-scanner.scaling.spec.ts` (`describe` "Redaction time grows linearly on adversarial
+lines: n/4n scaling"; D15). The shared-dash case of "Private key blocks" → "A single-line block sharing
 its dashes with the previous closing is redacted whole" (added after the fifth review). Its test is the
 existing extra case, renamed to the scenario's exact title.
 
@@ -314,6 +317,33 @@ change only the running time, not the result, are therefore invisible to Stryker
 lists them and shows, with forced failures, that this file catches them. It is outside the plan because
 the plan had no timed tests. Alternatives rejected: a smaller alternating input (still fragile under CI
 load, and the author asked for ~5 MB), and skipping on a Stryker global (ties the tests to the tool).
+
+### D15 — The n/4n scaling checks: their own file, alternating runs, fastest of five
+
+Found on CI (2026-10-05). Run [37350620815](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37350620815)
+on `0379123` failed both scaling checks, with ratios of 9.10 (four rules) and 8.13 (shared-dash chain)
+against a limit of 8. Locally they gave 3.35 and about 4, and `secret-scanner.ts` had not changed
+since a run where the four-rules check passed. Probable cause (the log printed no times): both checks
+ran in `secret-scanner.linear.spec.ts` right after its 3–5 MB cases, in the same process. A major
+garbage-collector pause, or CPU taken by test files running at the same time on the runner, fell
+inside the `4n` measure, and a median of three did not absorb it. This is the same effect seen at
+20 MB in D3.
+
+Change:
+
+- The two checks moved to `tests/unit/index/secret-scanner.scaling.spec.ts`, so the large inputs of
+  the linear spec no longer share their heap. That file is also excluded in `vitest.stryker.config.ts`
+  (D14).
+- The measure: one warm-up call per size, then five runs of each size alternating `n`, `4n`, `n`,
+  `4n`…, and the fastest run of each size, with a ratio limit of 8. The minimum drops pauses. A
+  separate file does not stop other files from running at the same time on the runner, so
+  alternating spreads any slowdown over both sizes.
+- The ten times and the ratio are always printed, pass or fail, so the CI log keeps them.
+- The spec's scenario text was updated to this measure through `/opsx:update`.
+
+It is outside the plan because the scaling checks were added during apply (third review). The
+shared-dash chain uses `n` = 22k, the largest that keeps `4n` under 5 MB; its fastest run at `n` is
+about 45 ms locally, just under the ~50 ms target.
 
 ### D10 — No ADR
 

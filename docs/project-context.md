@@ -508,9 +508,11 @@ services that must be started first, quirks of the local environment.
   line and emits the events already in order. The first version took 76 s on a 1 MB line of JWTs.
   Headers with distinct labels and alternating JWT/AWS lines also went quadratic until the second
   review. The scenario "Redaction time grows linearly on adversarial lines"
-  (`tests/unit/index/secret-scanner.linear.spec.ts`) guards this. It has nine timed cases (2 s each,
-  inputs of at most ~5 MB) and an `n`/`4n` scaling check (ratio below 8). `vitest.stryker.config.ts` excludes
-  that file, because instrumented code blows a wall-clock budget (design D14). A mutant that only
+  guards this. It has eleven timed cases in `tests/unit/index/secret-scanner.linear.spec.ts` (2 s each,
+  inputs of at most ~5 MB) and two `n`/`4n` scaling checks in `secret-scanner.scaling.spec.ts` (fastest
+  of five alternating runs per size, ratio below 8, times always printed; design D15).
+  `vitest.stryker.config.ts` excludes both files, because instrumented code blows a wall-clock budget
+  (design D14). A mutant that only
   slows the scanner therefore survives Stryker, and only `npx vitest run` catches it. Events
   never carry the value; core never logs them. `confinePath(requested, allowedRoot)` accepts iff
   `path.relative(root, resolved)` is `''`, or is not `..`, does not start with `..` + separator and
