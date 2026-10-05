@@ -62,6 +62,24 @@ defines which text matches, not how it is implemented).
 - **AND** every other file, including `package-lock.json` with its `integrity` `sha512-…` values,
   comes out with identical content, `redacted: false` and no event
 
+#### Scenario: Redaction time grows linearly on adversarial lines
+
+- **GIVEN** adversarial inputs of up to about 5 MB, every secret-shaped literal built by concatenation:
+  - one line of a secret-like keyword repeated;
+  - one line of JWT-like tokens repeated;
+  - one line of AWS access key ids repeated;
+  - one line of `private-key` headers without a closing, all with the same label;
+  - one line of headers without a closing, each with a distinct label;
+  - the same, closed once at the end by one of those labels;
+  - one line alternating JWTs and AWS access key ids;
+  - one line alternating all four rules, with real `generic-high-entropy` matches;
+  - many lines: headers followed by long PEM body runs (base64 and `Name: value` lines), and many
+    consecutive form a blocks
+- **WHEN** each one is redacted
+- **THEN** each call returns within 2 seconds
+- **AND** for an input built from the same pieces at sizes `n` and `4n`, the median of three runs at
+  `4n` is less than 8 times the median at `n`
+
 ### Requirement: Private key blocks
 
 A line SHALL be **PEM body** when, with surrounding whitespace removed, it matches

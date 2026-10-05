@@ -403,3 +403,93 @@ tests had 22 survivors in `index/`. They fall into three groups.
 - Gates: lint 0 errors (same pre-existing warning), typecheck exit 0, `lint:architecture` 0 errors
   (same 4 warnings), `docs:coverage` clean, `openspec validate --strict` valid.
 - Fixtures: `git status --porcelain fixtures` empty, checksum `b97101fe…` (unchanged).
+
+### CI evidence for this cycle
+
+PR #22, head `31ba78c`: `quality` [run 37304673799](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37304673799) and `frontend` [run 37304673808](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37304673808), both green.
+
+- `secret-scanner.spec.ts` 36 tests (77 ms), `secret-scanner.linear.spec.ts` 7 tests (407 ms for the
+  whole file), `path-policy.spec.ts` 6 tests with the Windows-only one skipped;
+  `Tests  510 passed | 1 skipped (511)`.
+- The 5.1 MB alternating case took at most **407 ms** on the GitHub runner. The default reporter
+  prints only per-file times, and that file holds all seven timed cases, so 407 ms is an upper
+  bound against the 2 s budget. Locally the case takes about 420 ms.
+- Mutation step in CI: 95.41 % for core; `index/` 95.63 %, the same 15 survivors as locally.
+
+## Third `/adversarial-review` (linear time only, HEAD `31ba78c`): PASS WITH GAPS
+
+Verbatim output of the review, with heading levels lowered by one so it nests under this section:
+
+### Adversarial review: linear-time clause of `redactSecrets` (HEAD 31ba78c, `feature/DIS-84-security-gateway`)
+
+I could not refute the linear-time claim. All 63 adversarial shapes I tried scale linearly, both on one line and across many lines. The gaps I did find are in how the requirement is specified and tested, not in the code.
+
+**How I measured.** I ran the real `C:/Users/cristina/Desktop/AI4Dev/00-TFM/Codemind/packages/core/src/index/secret-scanner.ts` (the working tree matches 31ba78c) under Node 24 with in-memory input fed via stdin. No files were written. I built every secret-shaped literal by concatenation. For each case I grew the input until one call took at least 15–40 ms, then took the median time at n, 2n, 4n (and 8n for re-runs).
+
+**How to read the ratios.** I took "a ratio near 4 is a failure" to mean the time ratio for each doubling of the input. Linear code gives about 2; quadratic code gives about 4. Over a 4x span, linear gives about 4 and quadratic about 16.
+
+**Control.** I checked that this setup can actually see quadratic growth. Running the literal spec regex from the code comment (lines 46–47) on `("tok"+"en").repeat(k)` gave doubling ratios of 4.14, 3.61 and 4.45. So it does.
+
+#### Results (doubling ratios t(2n)/t(n), t(4n)/t(2n))
+| Rule | Cases tried | Ratios seen |
+|---|---|---|
+| private-key a | blocks repeated over many lines; closing with the wrong indent or wrong label | 1.59–2.15 |
+| private-key b | header-only lines; body with no closing; body of name-value lines with blank lines in between; `a: <header>` lines (body lines that are also header lines); a header line followed by thousands of body lines | 1.70–2.38 |
+| private-key c | header and closing pairs on one line; closing before header; many headers then all closings | 1.73–2.00 |
+| private-key header/closing regexes | 20k distinct labels on one line; one label repeated; long label with no `PRIVATE KEY` after it; `BEGIN`/`END` with no trailing dashes; 5M dashes; long `END` labels | 1.50–2.26 |
+| jwt | `eyJ` followed by a long run with no dot; `.eyJa` chains; two-segment repeats; long seg1 and seg2 with no seg3; a class character right after a token; valid tokens repeated | 1.35–2.41 (one 2.93 at a tiny n; 2.05/1.86/1.94 on re-run at 16x the size) |
+| aws-access-key-id | `AKIA` repeated; `AKIA` followed by a long run; ASIA/AKIA nested; valid keys repeated | 1.50–2.37 |
+| generic-high-entropy | keyword run repeated; keyword followed by 10M spaces or quotes; `token=` chains; unterminated value; mismatched closing quote; `token' = '` chain; values made of keywords; long low-entropy values; `=>` / `api_key` forms; valid matches repeated; CRLF lines | 1.30–2.40 |
+| Combinations | all rules on one line (with and without a closing); all rules across many lines with CRLF; jwt, aws and generic inside a PEM body; overlapping claims; rules packed together with no separators | 1.41–2.24 |
+
+I also read the code and found no hidden quadratic step. The private-key loop runs `bodyRunAndIndent` once per header line, and every long body run is either claimed or ends in a closing, so the loop jumps past it (lines 119–130). `ClosingIndex` pointers only move forward. A `generic-high-entropy` value cannot contain a quote, so the assigned-value check after each keyword reads a separate stretch of text. `LinePass` and `mergeCovered` are each a single pass.
+
+#### Findings
+| Severity | File:line | Finding | Why it matters |
+|---|---|---|---|
+| Minor | `openspec/changes/security-gateway/specs/security-gateway/spec.md:36` | The linear-time clause is a SHALL with no scenario of its own. A search for a linear, adversarial or long scenario finds nothing. | Axis 1: a requirement with no scenario. `secret-scanner.linear.spec.ts` points back to the requirement text, not to a scenario. |
+| Minor | `tests/unit/index/secret-scanner.linear.spec.ts:13-79` | The tests check a fixed 2000 ms limit on one size each. They do not compare times as the input grows. | A slowdown that is quadratic but has a small constant, or only shows at sizes larger than these, still passes. The tests do catch a revert to the literal spec regex (the comment on lines 10–12 says that version took more than 10 s). They would not catch, for example, dropping the per-line cache (`run ??=`, line 119) on inputs whose body runs are short. |
+| Minor | `tests/unit/index/secret-scanner.linear.spec.ts` (whole file) | Every timed case is a single line. There is no multi-line case (private-key b body runs, name-value body lines, case a jumping lines), no `generic-high-entropy` case with real matches (the keyword case at line 21 yields 0 events), and no case with all four rules together. | The multi-line paths (`bodyRunEnd`, `Claims.add` across lines, lines 172–191 and 265–271) have no timing test. They are linear today (ratios 1.70–2.38 above), but a regression there would go unnoticed. |
+
+#### Verdict
+**PASS WITH GAPS.** No Blockers or Majors. My measurements back the linear-time clause, but the existing tests and spec do not fully pin it down.
+
+#### Recommended next steps before archiving
+1. Add a scenario under "Secret redaction" for the linear-time clause and point `secret-scanner.linear.spec.ts` at it. (Fix in this change; if deferred: **A**, process debt.)
+2. Make at least one timed test compare sizes, for example assert t(4n)/t(n) < 8 with a median of a few runs. Also add one multi-line case (a header followed by many body or name-value lines) and one all-rules case. (Fix in this change, or **C**: one Linear debt issue that groups the two test-gap Minors.)
+3. Keep the 2 s limit as a backstop: it is what catches a revert to the literal regex.
+
+## Third cycle: the third review's gaps (author decision 2026-10-05, same PR, no issue)
+
+1. **Scenario.** `/opsx:update` added "Redaction time grows linearly on adversarial lines" under
+   "Secret redaction". It covers the same input families as the linear spec, and the spec now has 12
+   scenarios. The test is the `describe` block of that name in `secret-scanner.linear.spec.ts`
+   (grep count 1), and design D9 records the mapping. DIS-84 has a Spanish comment explaining the
+   change. `openspec validate --strict` is valid.
+2. **Scaling check.** "four times the input takes less than eight times as long": on the four-rules
+   line, the median of 3 runs at 10k units (980k chars, about 113–129 ms locally) is compared with the
+   median at 40k units (3.9 MB), after a warm-up, with `t(4n)/t(n) < 8`. The 2 s budget stays as a
+   backstop. Locally the ratio was 3.35 (linear is about 4). Forced failures, each file backed up,
+   mutated by script, restored and checked with `cmp`:
+   - `cachedLine !== lineIndex` → `true`: ratio **16.98**, failed;
+   - the linear merge replaced by a splice insertion: ratio **16.97**, failed.
+3. **Two more timed cases.**
+   - Many lines: one header over 40k PEM body lines (base64 alternating with `Proc-Type: …`), a plain
+     line, then 10k consecutive form a blocks (3 MB, 10 001 events).
+   - One line of 40k units alternating JWT, AWS key, a real `generic-high-entropy` assignment and a
+     header without a closing (3.9 MB, 160 000 events).
+
+   Both are linear: medians of 5 gave 99.8 / 178.4 / 398.5 ms for the multi-line case at n / 2n / 4n
+   (ratios 1.79, 2.23), and 129.3 / 229.6 ms for the four-rules line at n / 2n (ratio 1.78). So
+   `secret-scanner.ts` was not touched (empty diff) and Stryker was not re-run: the last score,
+   95.18 % for core and 95.63 % for `index/`, still applies.
+
+After this cycle:
+
+- `tests/unit/index`: 3 files, **52 passed**, twice (4.72 s, 4.37 s). The linear spec ran 3 more
+  times on its own, 10/10 each time.
+- `npx vitest run`: `Tests  363 passed | 99 skipped (514)`.
+- No-database run: `Tests  337 passed (337)`.
+- Gates: lint 0 errors (same warning), typecheck exit 0, `lint:architecture` 0 errors (same 4
+  warnings), `docs:coverage` clean.
+- Fixtures: unchanged (`b97101fe…`).

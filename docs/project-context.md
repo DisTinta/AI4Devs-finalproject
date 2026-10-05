@@ -504,8 +504,9 @@ services that must be started first, quirks of the local environment.
   a forward-only pointer. Each header line indexes its closings once, by label. One walk rebuilds each
   line and emits the events already in order. The first version took 76 s on a 1 MB line of JWTs.
   Headers with distinct labels and alternating JWT/AWS lines also went quadratic until the second
-  review. Seven timed tests (2 s each, inputs of at most ~5 MB) in
-  `tests/unit/index/secret-scanner.linear.spec.ts` guard this. `vitest.stryker.config.ts` excludes
+  review. The scenario "Redaction time grows linearly on adversarial lines"
+  (`tests/unit/index/secret-scanner.linear.spec.ts`) guards this. It has nine timed cases (2 s each,
+  inputs of at most ~5 MB) and an `n`/`4n` scaling check (ratio below 8). `vitest.stryker.config.ts` excludes
   that file, because instrumented code blows a wall-clock budget (design D14). A mutant that only
   slows the scanner therefore survives Stryker, and only `npx vitest run` catches it. Events
   never carry the value; core never logs them. `confinePath(requested, allowedRoot)` accepts iff

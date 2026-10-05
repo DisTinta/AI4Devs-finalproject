@@ -40,7 +40,7 @@
 
 - [x] 5.1 Identify tests affected by the change: the 6 `readFixtureFiles` callers (signature unchanged for them). Confirm with `git diff --stat origin/feature/entrega-2-CRN -- tests` that only `tests/support/read-fixture-files.ts` changed besides the two new specs
   - Only `tests/support/read-fixture-files.ts` changed (8+/5-); untracked: `tests/unit/index/` (the two new specs).
-- [x] 5.2 Update affected tests without weakening their assertions (none expected). Confirm that every `#### Scenario:` of `openspec/changes/security-gateway/specs/security-gateway/spec.md` (11 scenarios) maps 1:1 to a test with exactly the same name (grep each title in `tests/`; no scenario without a test, no scenario with two)
+- [x] 5.2 Update affected tests without weakening their assertions (none expected). Confirm that every `#### Scenario:` of `openspec/changes/security-gateway/specs/security-gateway/spec.md` (11 scenarios at the time; 12 after the 2026-10-05 update, see 10.6) maps 1:1 to a test with exactly the same name (grep each title in `tests/`; no scenario without a test, no scenario with two)
   - No existing assertion touched. The 11 scenario titles each match exactly one `it('…'` (grep count 1 each).
 
 ## 6. Backend: Run Tests and Verify Data State (MANDATORY)
@@ -91,4 +91,5 @@
 - [x] 10.4 Record the review's other findings as decided by the author: PEM body limitation in `docs/project-context.md` and design.md Risks; PGP → DIS-87 follow-up; root trim → DIS-86 follow-up; process note in the step 6 report
 - [x] 10.4b Second review (FAIL: Blocker, Major, Minor). RED with three more timed cases (distinct labels, distinct labels closed once, JWT/AWS alternating at 5.1 MB): 4 786 / 3 472 / 12 242 ms failed. GREEN with `ClosingIndex` (one scan per line, pointer per label), `LinePass` (forward pointer, linear merge, no `splice`), intervals as the only claim record, and one walk for text and events (no sort). Scaling table: every ratio 2.31 or less
 - [x] 10.4c Timed cases moved unchanged to `secret-scanner.linear.spec.ts` and excluded in `vitest.stryker.config.ts` (design D14); merged excludes checked. Stryker 95.18 % core (809/850), 95.63 % `index/` (328/343): 14 equivalent, 1 time-only (caught by the linear spec), 7 functional killed by three new cases
+- [x] 10.6 Third review (PASS WITH GAPS, three Minors): scenario "Redaction time grows linearly on adversarial lines" via `/opsx:update` (12 scenarios, D9, Linear comment); n/4n scaling check (ratio < 8; forced failures 16.98 and 16.97); multi-line and four-rules timed cases, both linear, no code change
 - [ ] 10.5 Commit test and fix separately, push (gh DisTinta, then back to Cristina-JumpMath), CI green. Then a new `/adversarial-review` on the two Majors before archiving

@@ -159,8 +159,13 @@ After the fixes, median of 5, default garbage collector, each step doubling the 
 | Identical headers (20k / 40k / 80k) | 34.4 ms | 52.5 ms | 117.6 ms | 1.53, 2.24 |
 | Repeated keywords (35k / 70k / 140k) | 0.9 ms | 1.3 ms | 2.7 ms | 1.49, 2.11 |
 
-Every ratio is 2.31 or less. Seven timed tests in `secret-scanner.spec.ts` (2 s each, elapsed time
-asserted, each input at most ~5 MB) keep it that way. The 20 MB sizes are only for measuring.
+Every ratio is 2.31 or less. The scenario "Redaction time grows linearly on adversarial lines" pins it
+(`tests/unit/index/secret-scanner.linear.spec.ts`). It has nine timed cases, one per input family, each
+with a 2 s budget, the elapsed time asserted, and an input of at most ~5 MB. It also has a scaling
+check: on the four-rules line, the median of three runs at `4n` must be less than 8 times the median
+at `n` (10k / 40k units, 1 / 3.9 MB). The scaling check catches quadratic paths with a small constant
+that a fixed budget misses: forcing the per-line cache reset, or a splice-based merge, gives ~17. The
+20 MB sizes are only for measuring.
 
 ### D4 — `private-key` blocks
 
@@ -220,7 +225,10 @@ are split (each scenario ↔ one test): AC1 → "The acme-shop planted secret is
 fixtures produce no false positive"; AC3 main → "Every rule produces one ordered event per span";
 AC3 (i)–(iv) → the four "Private key blocks" scenarios; AC4 → "Paths inside the root are accepted",
 "Paths outside the root are forbidden", "A path on another Windows drive is forbidden"; AC5 → "A
-missing or blank root disables indexing".
+missing or blank root disables indexing". The linear-time clause of "Secret redaction" → "Redaction
+time grows linearly on adversarial lines" (added 2026-10-05 after the third `/adversarial-review`).
+Its test is the `describe` block of that name in `tests/unit/index/secret-scanner.linear.spec.ts`,
+which holds one timed case per input family and the `n`/`4n` scaling check.
 
 ### D11 — Stryker adds `// @ts-nocheck` only to the mutated files
 
