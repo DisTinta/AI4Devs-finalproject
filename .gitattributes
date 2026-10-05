@@ -1,7 +1,7 @@
 # Normaliza los finales de línea: se trabaja en Windows y el repositorio
 # se lee y ejecuta en Linux y macOS. Sin esto, la mitad de los diffs
 # aparecen como «fichero entero modificado» al cruzar de sistema.
-* text=eol=lf
+* text=auto eol=lf
 
 # Binarios: nunca convertir.
 *.png  binary
