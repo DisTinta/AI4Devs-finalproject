@@ -20,7 +20,7 @@ See `proposal.md` → Why. Current state that shapes the approach:
   exists (not in CI) and contains real JWTs.
 - Stryker mutates `packages/core/src/**`: all the new code counts towards the threshold of 70.
 - Verified 2026-10-05 with a scratch script over the ticket literals: AC3 columns 9, 12, 11, 35;
-  key `<K>` length 32, entropy 5.0; `AKIAM3VXTQ9CZJY6WNKP` entropy 4.12; service-account column 19;
+  key `<K>` length 32, entropy 5.0; the planted key of `fixtures/task-api` (see `fixtures/README.md`) entropy 4.12; service-account column 19;
   heredoc column 7; `services.php` line 21 column 44; `env.ts` line 7 column 34.
 
 ## Goals / Non-Goals
@@ -94,9 +94,14 @@ right-to-left replacement per span).
   of the value. The span is the value only. Alternative rejected: running the literal regex — correct
   but not linear on adversarial input.
 - Shannon entropy over UTF-16 code units: `-Σ p·log2 p`, compared `>= MIN_SECRET_ENTROPY`.
-- A regex discarded for overlap resumes after its own match (standard global-regex behaviour), so a
-  lower-priority match starting inside a discarded one is not found. Accepted: it would overlap the
-  same secret area anyway.
+- `jwt` and `aws-access-key-id`: a match discarded for overlap still moves the global regex past it,
+  so a match of the same rule that would start inside it is not looked for. `generic-high-entropy`
+  works run by run: when a candidate is discarded, the scan goes on with the next identifier run, which
+  may lie inside the discarded match (for example a key-like run inside its quoted value). A match
+  starting there is still claimed if it overlaps no claim. This differs from the literal spec regex,
+  which would resume after the whole discarded match. It can only hide more text, never less
+  (corrected 2026-10-05 after the fourth `/adversarial-review`: the first wording said both behaved
+  like the regex).
 
 **Correction (found by `/adversarial-review`, 2026-10-05, two rounds).** The linearity claim above
 covered the regexes only. It was never checked for the work around them, and four parts of that work
@@ -167,6 +172,26 @@ at `n` (10k / 40k units, 1 / 3.9 MB). The scaling check catches quadratic paths 
 that a fixed budget misses: forcing the per-line cache reset, or a splice-based merge, gives ~17. The
 20 MB sizes are only for measuring.
 
+**Shared dashes (fourth `/adversarial-review`, 2026-10-05).** A closing ends with five dashes and a
+header starts with five, so a header can begin on the last five dashes of the previous block's
+closing, or of an unclosed header. The search resumed after the block end, so such a header was never
+found. A second key's body then reached the index unredacted: a leak. The search now resumes
+`SHARED_DASHES` (5) characters before the end of every `private-key` claim (forms a, b without a
+body, and c). The shared dashes stay in the earlier span. `Claims.add` clamps the new span's start to
+where the previous span on that line ends, so the spans never overlap and each line is still rebuilt
+once. The event keeps the column of the first dash of the new header, as the spec says. So for a block
+that shares dashes, the event column lies before the span's start; `Covered.column` carries it
+separately from `from`. Tests:
+
+- RED cases for form c (both blocks on one line), form a (the second header on the first block's
+  `END` line) and an unclosed header followed by a closed one, each checking the whole redacted
+  content;
+- a timed case chaining 20 000 single-line blocks that share their dashes (1.1 MB, one marker per
+  block).
+
+Scaling (median of 5) stays linear: chain 63 / 101 / 177 ms at 20k / 40k / 80k blocks; form a chain
+180 / 326 / 627 ms.
+
 ### D4 — `private-key` blocks
 
 For each line, find headers left to right. For a header at `(line h, column c)`:
@@ -181,15 +206,17 @@ For each line, find headers left to right. For a header at `(line h, column c)`:
 3. Line `h` keeps the text before column `c` and gets the marker; lines strictly between become empty;
    the last line keeps the text after the block end (for a one-line block, the marker sits between both
    kept parts). One event at `(h, c)`.
-4. Scanning resumes after the block end, so a second key later on the same last line is found;
+4. Scanning resumes on the last five characters of the block (`SHARED_DASHES`). A second key later on
+   the same last line is found, including one whose header begins on the closing's trailing dashes (D3,
+   "Shared dashes");
    lines inside the block are not evaluated by any lower-priority rule.
 
 ### D5 — Events
 
-Built from the claimed spans, sorted by `line`, `column`, then `rule` (string order). Claims never
-overlap, so two never start at the same place: the `rule` tie-break never applies and the code sorts
-by `line` and `column` only (found in apply, 2026-10-05: Stryker reported the tie-break as unreachable,
-`NoCoverage`). Only the
+Ordered by `line`, then `column`, then `rule`, as the spec says. Claims never overlap, so two never
+start at the same place and the `rule` tie-break never applies. Stryker reported it as unreachable
+(`NoCoverage`) in apply, 2026-10-05. There is no sort: `Claims.apply` walks the lines in order, and
+within each line its sorted intervals, and emits one event per interval that starts a claim (D3). Only the
 coordinates and the rule are copied; the matched text never leaves the scanner function. `redacted`
 is `events.length > 0`. Nothing is logged (PH-09, ticket decision 2026-10-04, option A).
 
@@ -303,9 +330,12 @@ means deleting a module nobody consumes yet.
   accepted (D, author decision 2026-10-05): it over-redacts and never leaks; recorded as a known
   limitation in `docs/project-context.md`.
 - [Adversarial long lines] → D3 keeps every rule linear. The first version had a single untimed case
-  (repeated `secret`) and missed three quadratic paths (see the D3 correction). Four timed cases (2 s
-  each, elapsed time asserted) now cover repeated keywords, JWTs, AWS keys and headers without a
-  closing, each above 100k characters.
+  (repeated `secret`) and missed several quadratic paths (see the D3 correction). The scenario "Redaction
+  time grows linearly on adversarial lines" now pins it. It has ten timed cases (2 s each, elapsed time
+  asserted, inputs of at most ~5 MB): keywords, JWTs, AWS keys, headers with one label, headers with
+  distinct labels with and without a closing, JWT/AWS alternating, all four rules alternating, many
+  PEM body lines with form a blocks, and blocks sharing their dashes. It also has an `n`/`4n` scaling
+  check (ratio below 8).
 
 ## Migration Plan
 
@@ -327,4 +357,6 @@ Destination B (successor ticket), written as Spanish Linear comments at archive 
   `' /repos'` would resolve relative to the working directory (`/adversarial-review` Minor, 2026-10-05).
 - **DIS-87**: `gitleaks` must cover `-----BEGIN PGP PRIVATE KEY BLOCK-----`. The `private-key` rule does
   not match it, and secrets outside the four rules are out of scope for this change
-  (`/adversarial-review` question, author decision 2026-10-05).
+  (`/adversarial-review` question, author decision 2026-10-05). The two planted fixture keys are
+  intentional: `.gitleaksignore` (or an allowlist) must cover them; `openspec/` no longer holds their
+  values (fourth review, 2026-10-05).

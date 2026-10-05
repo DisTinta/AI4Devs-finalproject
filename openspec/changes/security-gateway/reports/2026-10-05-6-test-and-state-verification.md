@@ -493,3 +493,153 @@ After this cycle:
 - Gates: lint 0 errors (same warning), typecheck exit 0, `lint:architecture` 0 errors (same 4
   warnings), `docs:coverage` clean.
 - Fixtures: unchanged (`b97101fe…`).
+
+### CI evidence for the third cycle
+
+PR #22, head `391b7c7`: `quality` [run 37319772811](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37319772811)
+and `frontend` [run 37319772830](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37319772830), both green.
+
+- `secret-scanner.spec.ts`: 36 tests (56 ms).
+- `secret-scanner.linear.spec.ts`: 10 tests (2 061 ms for the whole file, the n/4n check included).
+- `path-policy.spec.ts`: 6 tests with the Windows-only one skipped.
+- `Tests  513 passed | 1 skipped (514)`. Mutation step in CI: 94.71 % for core.
+
+## Fourth `/adversarial-review` (whole change, HEAD `391b7c7`): PASS WITH GAPS
+
+Verbatim output, heading levels lowered by one:
+
+### Adversarial review
+
+**Scope:** HEAD `391b7c7` compared with `origin/feature/entrega-2-CRN`. Your local `feature/entrega-2-CRN` is behind origin and does not contain PR #21, so I used origin. That gives 24 files.
+
+**What I checked:**
+- The spec (12 scenarios), D1–D14, `tasks.md`, the step 6 and step 7 reports and the PR #22 body.
+- All of `packages/core/src/index/`, the three specs in `tests/unit/index/` and the `readFixtureFiles` change.
+- Stryker, Vitest, `.gitattributes`, and the `docs/project-context.md` and readme §2.5 diffs.
+- The git history of the spec against the code.
+- CI for `391b7c7`: `quality` 37319772811 and `frontend` 37319772830, both green.
+
+I ran the real `secret-scanner.ts` in memory with `node --experimental-transform-types` and wrote no files. I tried: empty content, `\n` only, CRLF and a lone trailing `\r`, a body run to end of file, two headers where one becomes multi-line, a header inside a `Name: value` line, form a then form c then an AWS key on one line, closings and headers that share dashes, and a discarded `generic-high-entropy` match. Every case behaved as the spec says except the two findings below. Linearity was already measured by the third review, so I did not measure it again.
+
+#### Findings
+| Severity | File:line | Finding | Why it matters |
+|---|---|---|---|
+| Minor | `packages/core/src/index/secret-scanner.ts:115`, `:125` | After a form c or form a closing, the header search restarts after the closing's last dash. A header whose leading dashes are that closing's trailing dashes is never found. I confirmed it: content `[H, 'MIIBOg==', F.slice(0,-5)+H2, '<base64>', F2]` (H/H2 = header strings, F/F2 = closing strings, all built by concatenation) gives one event, and the second key's body line `U0VDUkVUS0VZTUFURVJJQUw=` comes out **unredacted**. The usual join of two PEM strings (10 dashes in between) is handled correctly. | This lets real key material into the index. The input has to be odd (5 dashes shared), but the spec says nothing about headers that overlap an earlier block of the same rule, and D4.4 ("resumes after the block end") hides the gap. |
+| Minor | `secret-scanner.ts:196-205` against `design.md:97-99` | D3 says a discarded match is skipped as a whole, so a lower-priority match starting inside it is not found. The `generic-high-entropy` loop does not do that: it just moves to the next identifier. I confirmed it: `$token = '<AKIA…>.password'= "<DISTINCT>"` (literals built by concatenation) gives an `aws-access-key-id` event at column 11 **and** a `generic-high-entropy` event at column 44. The literal-regex behaviour D3 describes would give only the first. | The code hides more than the design describes (it fails safe, not leaky). Still, D3 says something about the code that is not true. |
+| Minor | `design.md:189-192` (D5), `:305-308` (Risks) | D5 still says "the code sorts by `line` and `column` only", but the D3 correction removed the sort. The last Risks bullet still says "Four timed cases". It is nine, plus the scaling check. | The archived design contradicts itself. |
+| Minor | `docs/project-context.md:288`, `reports/pr-description.md:41`, PR #22 body | These still give the first Stryker run's figures (95.56 % for core, 98.84 % for `index/`, 3 survivors) and "2 files, 39 tests". Current figures are 95.18 % / 95.63 %, 15 survivors, 3 files and 52 tests. The traceability table lacks scenario 12 and `secret-scanner.linear.spec.ts`. D14 and the three linearity cycles are not mentioned. | The merge record and the onboarding doc show stale numbers. |
+| Minor | `tasks.md:80` (9.6) | Task 9.6 sends the Follow-ups only to DIS-85 and DIS-86. The DIS-87 follow-up (PGP / `gitleaks`, `design.md:328-330`) was added later and has no task. | One deferred finding has no route at archive time. |
+| Minor | `specs/security-gateway/spec.md:49`, `design.md:24` | The two planted fixture keys appear verbatim in openspec artifacts. The spec one moves to `openspec/specs/` when you archive. D8 builds such literals by concatenation so that `gitleaks` (DIS-87) does not flag them, but that only covers the tests. | DIS-87's scan will flag openspec/ unless the allowlist covers it. |
+| Minor | `reports/2026-10-05-7-manual-interface-testing.md` (last touched `cb4e6aa`) | The step 7 manual run predates the scanner rewrites in `c280718` and `f99696c`. It was not run again on the current code. The fixtures oracle test covers the same output automatically. | The step 7 evidence describes code that no longer exists. |
+| Minor | `reports/2026-10-05-6-...md:407-417`, `tasks.md:95` (10.5) | The latest CI evidence in the report is for `31ba78c`. The runs for `391b7c7` are green but not recorded, and 10.5 is unticked. | Process debt only. |
+| Question | `spec.md:76-77` against `secret-scanner.linear.spec.ts:126-135` | The scenario says "headers followed by long PEM body runs" (plural). The test has one header over 40k body lines; every later block has only 2 body lines. The n/4n check only uses the four-rules input. | Is the wording meant as written, or should the spec text be narrowed to match the test? |
+
+**Axis 1 (spec and tasks):** each of the 12 scenarios matches exactly one test title (`it`, or `describe` for scenario 12, as D9 records). Checking the history, the spec was changed after the code once, in `391b7c7`. That change only adds scenario 12. It came out of a review and is recorded in step 6 §Third cycle. No other scenario text changed between `cb4e6aa` and HEAD. The process note at report `:282` covers the spec being committed after the code.
+
+**Axis 2 (hostile input):**
+- `confinePath` checked out: blank root raises before the path is looked at, `..x` is accepted, `/repos-evil` is rejected, drive change is rejected on Windows.
+- Repeated or concurrent calls are safe. The module-level regexes have `lastIndex` state, but every call resets it and the code is synchronous with no `await`.
+
+**Axis 3 (blast radius):**
+- Nothing outside `@codemind/core` uses the new exports yet, and typecheck passes, so the barrel `export *` causes no name clash.
+- `readFixtureFiles` keeps its default for the 6 existing callers.
+- No migrations.
+
+**Axis 4 (evidence quality):**
+- "The fixtures produce no false positive" is the key test. If the overlap check is dropped, a second `generic-high-entropy` event appears in `env.ts` and the test fails (forced failure in 3.8).
+- The n/4n check fails at about 17× when the per-line cache reset is forced (`:93` → `true`) or a splice merge is used.
+- The only existing test file changed is `tests/support/read-fixture-files.ts`. It gains an optional parameter, and no assertion is touched. That is justified by D7.
+
+#### Verdict
+**PASS WITH GAPS.** No Blockers or Majors. Every gap needs a destination before you archive.
+
+#### Recommended next steps before archiving
+1. **Shared-dash header** (finding 1): either restart the header search at the closing's start + 1 and add a test, or record it as **D** (accepted) in design Risks and the project-context gotcha, with a note on DIS-87 that `gitleaks` must catch it (**B**).
+2. **D3 text** (finding 2): fix the D3 sentence to describe what the `generic-high-entropy` loop really does, in this change. If deferred: **A**.
+3. **Stale docs and PR description** (findings 3 and 4): fix D5, the Risks bullet, `project-context.md:288`, `reports/pr-description.md` and the PR #22 body (scores, counts, scenario 12, D14) in this change. If deferred: **A**.
+4. **Task 9.6** (finding 5): add DIS-87 to it, so the PGP follow-up becomes a Spanish comment there (**B**).
+5. **Verbatim keys** (finding 6): **B**, a hand-off comment on DIS-87 asking for an allowlist covering `openspec/**` (or the two planted keys), or reword them as `<AKIA… planted key>`.
+6. **Old step 7 run** (finding 7): run the step 7 script again on HEAD and add the output, or note in the report that the oracle test replaces it. **A**, process debt.
+7. **CI evidence and 10.5** (finding 8): record runs 37319772811 and 37319772830 for `391b7c7` in step 6 and tick 10.5. **A**.
+8. **Scenario 12 wording** (Question): answer it. If you narrow the spec wording, use `/opsx:update`. Otherwise **D**.
+
+There is no need for a Linear debt issue (**C**): each gap is fixed in this change, goes to DIS-87 or is process debt.
+
+## Fourth cycle: the fourth review's gaps (author decision 2026-10-05, same PR, no issue)
+
+**Finding 1, shared dashes (a leak), fixed in TDD.**
+
+- RED: three cases in `secret-scanner.spec.ts` check the whole redacted content, not only the
+  events:
+  - form c, two blocks on one line;
+  - form a, the second header on the first block's `END` line;
+  - an unclosed header followed by a closed one.
+
+  On the old code the second key's body stayed in the text.
+- GREEN: the header search resumes `SHARED_DASHES` (5) characters before the end of every
+  `private-key` claim. The shared dashes stay in the earlier span: `Claims.add` clamps the new span to
+  start where the previous one ends, so spans never overlap. The event keeps the column of the first
+  dash of the new header, carried in `Covered.column`. Written in design D3, "Shared dashes".
+- Forced failures (backed up, mutated, run, restored, `cmp`): dropping `- SHARED_DASHES` at each of
+  the three resume points makes its own case fail (form b without a body, form c, form a).
+- New timed case: "a very long line of single-line blocks sharing their dashes is scanned in linear
+  time", 20 000 chained blocks, 1.1 MB, one marker per block. On the pre-fix scanner it failed with
+  10 001 events instead of 20 001.
+- Scaling, median of 5, at n / 2n / 4n:
+
+  | Case | Medians | Ratios |
+  | -- | -- | -- |
+  | Single-line chain (20k / 40k / 80k blocks) | 63 / 101 / 177 ms | 1.59, 1.76 |
+  | Form a chain | 180 / 326 / 627 ms | 1.81, 1.93 |
+  | Ten headers with long body runs | 135 / 237 / 501 ms | 1.76, 2.11 |
+
+**Finding 9, scenario 12 wording.** The spec was left as is. The multi-line timed case now has ten
+headers, each over a 4k-line PEM body run, then 10k form a blocks (10 010 events).
+
+**Findings 2–8.**
+
+- D3 now describes the `generic-high-entropy` overlap behaviour as it really is.
+- D5 describes the event walk, with no sort. The Risks bullet lists the ten timed cases and the
+  scaling check.
+- `docs/project-context.md` has the final score and the shared-dash rule.
+- `reports/pr-description.md` and the PR #22 body have the final figures, scenario 12, D14 and the
+  linearity cycles.
+- Task 9.6 includes DIS-87 (PGP, and `gitleaks` must not flag the two planted keys).
+- The planted key values are replaced by references, in the spec (through `/opsx:update`) and in
+  design.md. `grep -rnE "(AKIA|ASIA)[A-Z0-9]{16}" openspec/` finds 0 matches.
+- Step 7 was run again on the final code; its report is updated.
+- The CI of `391b7c7` is recorded above and task 10.5 is ticked.
+
+**Final Stryker run** (19:03–19:07): **95.11 %** for core (817/859) and **95.45 %** for `index/`
+(336/352): `path-policy.ts` 94.44 %, `secret-scanner.ts` 95.57 %. 16 survivors in `index/`.
+
+Equivalent (15):
+
+- The 14 listed for the second cycle, with line numbers shifted by the new code: `path-policy.ts:42`
+  ×2, and `secret-scanner.ts` `:94`, `:130`, `:170:12` ×2, `:268`, `:298`, `:312`, `:341:34` ×2,
+  `:341:53`, `:351` and `:361`.
+- `:279:27`, `covered.length > 0` → `false`: without the clamp the new span overlaps the previous
+  one. When rendering, `slice(column, from)` with `from < column` is `''`, so text and events are
+  identical.
+
+Only observable in time (1):
+
+- `:98:9`, `cachedLine !== lineIndex` → `true`, caught by the linear spec (scaling ratio about 17).
+
+Functional, killed in this cycle:
+
+- `:138:14`, `headerEnd - SHARED_DASHES` → `+`: killed by "a block whose header shares its dashes
+  with an unclosed header is redacted whole".
+
+**Suite and gates after the fourth cycle:**
+
+- `tests/unit/index`: 3 files, **56 passed**, twice (4.70 s, 4.79 s). With the Stryker config, 2 files
+  and 45 tests.
+- `npx vitest run`: `Tests  367 passed | 99 skipped (518)`.
+- No-database run: `Tests  341 passed (341)`.
+- Gates: lint 0 errors (same warning), typecheck exit 0, `lint:architecture` 0 errors (same 4
+  warnings), `docs:coverage` clean, `openspec validate --strict` valid.
+- Fixtures: unchanged (`b97101fe…`).
+- The step 7 demo took 167 s with `fixtures/task-api/node_modules` included. Per file, `redactSecrets`
+  took 5.9 s in total for 6 715 files and 91 MB (the slowest, an 11.6 MB binary, took 631 ms). The
+  rest is the demo script reading and keeping every file, not the scanner.

@@ -285,7 +285,7 @@ services that must be started first, quirks of the local environment.
 
 - **Some CI gates run against stubs, on purpose.** `lint`, `lint:architecture` and `typecheck` are
   real and must pass, and so is CI's `db:migrate` → `db:rollback` → `db:migrate` step. Mutation
-  testing has real mutants since DIS-23 (`packages/core/src/knowledge/`, 86.82 % at DIS-23 merge, 90.09 % with DIS-35, 92.23 % with DIS-36; `packages/core/src/index/` since DIS-84, 95.56 % for all of core; threshold
+  testing has real mutants since DIS-23 (`packages/core/src/knowledge/`, 86.82 % at DIS-23 merge, 90.09 % with DIS-35, 92.23 % with DIS-36; `packages/core/src/index/` since DIS-84, 95.11 % for all of core; threshold
   `MIN_MUTATION_SCORE=70`).
   These are intentional scaffolding, not bugs — do not "fix" a stub by faking behaviour.
 - **The infra packages are stubs, not empty.** All 9 workspaces (`core`, `analyzers/{php,typescript}`,
@@ -495,7 +495,10 @@ services that must be started first, quirks of the local environment.
   a later `END` are left alone). **Known limitation, accepted (DIS-84):** the PEM body test is loose.
   A single-word line (`texto`, `end`, `else`, `fi`) is valid base64, and a YAML/HTTP-style line
   `nombre: valor` passes as a `Name: value` header. So after a header with no closing, such lines are
-  emptied. It over-redacts and never leaks. The span runs from the header's first dash to the block end; text
+  emptied. It over-redacts and never leaks. After every `private-key` block the header search resumes on
+  its last five characters (`SHARED_DASHES`), because a header may begin on the trailing dashes of the
+  previous closing; those dashes stay in the earlier span and the event keeps the header's first-dash
+  column (design D3). The span runs from the header's first dash to the block end; text
   before and after it on the end lines is kept, inner lines become empty. The AWS `\b` does not match
   after `_` (`X_AKIA…` is not redacted). `generic-high-entropy` is matched by maximal identifier run
   plus a sticky tail, not by the literal spec regex, which is quadratic on repeated keywords. The

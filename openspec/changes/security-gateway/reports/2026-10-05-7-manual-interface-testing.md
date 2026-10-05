@@ -70,6 +70,24 @@ script (`rmSync`).
 - `git status --porcelain fixtures`: empty
 - `git ls-files -s fixtures | sha1sum`: `b97101fedecb07b21ca67c6156224d81bc13a3e8` (unchanged)
 
+## Re-run on the final code (2026-10-05, after the fourth review)
+
+The same script was run again, unchanged except for a timer, on the scanner after commits
+`c280718`, `f99696c` and the shared-dash fix (`git diff --stat -- packages/core`: one file, 18
+insertions, 7 deletions on top of `391b7c7`). The output is the same as above:
+
+- **acme-shop:** 53 files, 1 redacted, the same event (line 21, column 44, `aws-access-key-id`) and
+  the same redacted line.
+- **task-api:** 39 files, 1 redacted, the same event (line 7, column 34) and the same redacted line.
+- **task-api with its local `node_modules`:** 6 715 files, 13 redacted, rules `generic-high-entropy`,
+  `jwt` and `aws-access-key-id` (167 s for the whole script; `redactSecrets` itself takes 5.9 s, see
+  the step 6 report).
+- **`confinePath`:** the same results and errors: the child is accepted, `…\\etc` and `…-evil\\x`
+  raise `ForbiddenPathError`, and `''` and `undefined` raise `IndexingDisabled`. The OS user name is
+  masked here as `<user>`.
+
+Fixtures before and after: `git status --porcelain fixtures` empty, checksum `b97101fe…`.
+
 ## Outcome
 
 - Status: PASS

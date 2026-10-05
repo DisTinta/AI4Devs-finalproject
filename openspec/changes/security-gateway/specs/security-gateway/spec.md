@@ -46,7 +46,7 @@ defines which text matches, not how it is implemented).
   identical byte for byte, and the number of lines is unchanged (30)
 - **AND** `redacted` is `true` and `events` is exactly
   `[{ type: 'secret_redacted', file: 'config/services.php', line: 21, column: 44, rule: 'aws-access-key-id' }]`
-- **AND** the JSON serialisation of `events` contains neither `AKIAQSTCFM2KN7BXPWZR` nor any substring
+- **AND** the JSON serialisation of `events` contains neither the planted key of `fixtures/acme-shop` (see `fixtures/README.md`) nor any substring
   of it of 8 or more characters
 
 #### Scenario: The fixtures produce no false positive
