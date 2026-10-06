@@ -127,7 +127,8 @@
 
 - [x] 10.1 Confirm no user interface or user workflow is affected (no route, no CLI command, no web change: the CLI is DIS-86). Record "not applicable", with that reason, in the step 8 report
   - Recorded in the step 8 report.
-- [ ] 10.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that the four new spec files ran (the integration ones with Postgres and Git) and passed. Link the run in the step 8 report
+- [x] 10.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that the four new spec files ran (the integration ones with Postgres and Git) and passed. Link the run in the step 8 report
+  - `quality` run 37508118785 on `2e036b8`: pass, 555 passed / 1 skipped (Windows-only case); `index-repository.spec.ts` 21, `git-source-tree.spec.ts` 9, `framework-detect.spec.ts` 3, `acme-shop.spec.ts` 2 (Postgres + Git), all passed; core Stryker 96.00 %. `frontend` run 37508118844 pass (no web change). Linked in the step 8 report "CI evidence (task 10.2)".
 
 ## 11. Update Technical Documentation (MANDATORY)
 
@@ -139,5 +140,6 @@
   - `/update-docs`: `readme.md` package tree gains `core/index/` and `SourceTreePort`, and the FILE section says `content_hash` is over the redacted content. Checked, no change: data model (no migration), API spec (no route), dependencies (none), standards, `fixtures/README.md`, `docs/TESTING.md`. `docs:coverage` exit 0. `prompts.md` §29 (3 literal prompts) + Índice entry 29.
 - [x] 11.4 Leave the Spanish Linear comment on DIS-86 with the composition contract (design Follow-ups)
   - Spanish comment on DIS-86 with the composition contract, the error list, progress phases and the Low privacy finding (destination B).
-- [ ] 11.5 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the author's Why transcribed and the Stryker score. After verification, set DIS-85 to In Review in Linear with a comment in Spanish linking the PR and the change
+- [x] 11.5 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the author's Why transcribed and the Stryker score. After verification, set DIS-85 to In Review in Linear with a comment in Spanish linking the PR and the change
+  - PR #23 (https://github.com/DisTinta/AI4Devs-finalproject/pull/23) opened against `feature/entrega-2-CRN` with the author's Why copied verbatim (`reports/pr-description.md`, commit `2e036b8`). In Review in Linear once CI is green.
 - [ ] 11.6 At archive time, run the archive ritual: close or reassign the 10 inbound notes of DIS-85 (DIS-12, DIS-23 ×2, DIS-35 ×2, DIS-36, DIS-47, DIS-84, DIS-96 ×2), and classify every review gap (A/B/C/D)

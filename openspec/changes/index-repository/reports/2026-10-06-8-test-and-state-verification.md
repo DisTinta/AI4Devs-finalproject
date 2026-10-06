@@ -130,8 +130,23 @@ the adapter, no dependency or lockfile change.
 
 ## End-to-end testing (task 10.1)
 
-Not applicable: no route, CLI command or web change (the CLI command is DIS-86). CI evidence (10.2) is
-added after the push.
+Not applicable: no route, CLI command or web change (the CLI command is DIS-86).
+
+## CI evidence (task 10.2)
+
+PR #23 (https://github.com/DisTinta/AI4Devs-finalproject/pull/23), head `2e036b8`:
+
+- `quality` run 37508118785 (https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37508118785),
+  5 m 39 s, **pass**. Postgres service `pgvector/pgvector:pg16`, `DATABASE_URL` set,
+  `db:migrate` → `db:rollback` → `db:migrate`. Vitest: 39 files, 555 passed, 1 skipped (the
+  Windows-only `path-policy` case). The four new spec files ran and passed:
+  - `tests/unit/index/index-repository.spec.ts` (21 tests)
+  - `tests/integration/git/git-source-tree.spec.ts` (9 tests, real Git)
+  - `tests/unit/index/framework-detect.spec.ts` (3 tests)
+  - `tests/integration/index/acme-shop.spec.ts` (2 tests, Postgres + Git, 2.8 s)
+
+  Stryker over all of `packages/core/src`: 96.00 % (974 killed, 34 timeout, 41 survived).
+- `frontend` run 37508118844, **pass** in 5 s: no change under `packages/web`, nothing to run.
 
 ## UI evidence
 
