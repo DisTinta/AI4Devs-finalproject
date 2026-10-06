@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DomainError, InvalidStoreQuery, NotAGitRepository, ProjectNameTaken, ProjectNotFound } from '@codemind/core';
+import { DomainError, EmptyRepository, InvalidStoreQuery, NotAGitRepository, ProjectNameTaken, ProjectNotFound } from '@codemind/core';
 
 // The codes are the stable contract a transport maps (design D1); messages name the offending value.
 describe('domain errors', () => {
@@ -49,5 +49,17 @@ describe('domain errors', () => {
     expect(error.name).toBe('NotAGitRepository');
     expect(error.repoPath).toBe('/tmp/not-a-repo');
     expect(error.message).toBe('Not a Git repository: /tmp/not-a-repo');
+  });
+
+  it('EmptyRepository carries its stable code and the path, and means no commit', () => {
+    // Arrange / Act
+    const error = new EmptyRepository('/tmp/fresh-repo');
+
+    // Assert
+    expect(error).toBeInstanceOf(DomainError);
+    expect(error.code).toBe('EMPTY_REPOSITORY');
+    expect(error.name).toBe('EmptyRepository');
+    expect(error.repoPath).toBe('/tmp/fresh-repo');
+    expect(error.message).toBe('Git repository has no commit: /tmp/fresh-repo');
   });
 });
