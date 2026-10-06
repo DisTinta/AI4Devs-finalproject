@@ -46,10 +46,12 @@
 - [x] 4.6 RED → GREEN: test "Malformed, repeated and binary entries never reach the analyzer" — create `packages/core/src/index/source-path.ts` (`selectIndexableFiles`, D6) and the orphan-link filter (D8)
 - [x] 4.7 RED → GREEN: test "A secret in a commit message is redacted" (D2; key built by concatenation)
 - [x] 4.8 RED → GREEN: test "An explicit framework wins over detection"
-- [ ] 4.8b RED → GREEN: test "The analyzer only receives redacted content" (requirement "Secrets never reach the store", added by `/opsx:update` on 2026-10-06): promote the redaction part of the 4.9 extra case "hashes the redacted content…" to this scenario and remove it from the extras, so no test is duplicated. The behaviour already exists, so RED is shown by running the test against mutation (2) of 4.10
-- [ ] 4.9 Extra cases (not scenarios): `contentHash` of a known string equals its SHA-256; report `events` sorted by path across files; `skipped` sorted by path then reason; `edges.exact + edges.heuristic = edges.total`; co-change weights computed with the unfiltered links (a dropped path still lowers a weight); a path with a `..` segment is `invalid-path`; a throwing `onProgress` propagates
-- [ ] 4.10 Prove key tests can fail: back up each file to the scratchpad, mutate with a node script whose anchor must match, run, restore and confirm with `cmp`: (1) skip the real-path confinement → "A symbolic link escaping…" fails; (2) analyze the unredacted files → "The analyzer only receives redacted content" fails; (3) call `createProject` before `assertValidGraph` → "An invalid graph creates no project" fails. Record the results for the step 7 report
-  - Each anchor matched once; each file restored and confirmed with `cmp`. (1) real-path confinement removed → "A symbolic link escaping the allowed root is rejected before reading" fails; (2) analyzer given the unredacted files → extra case "hashes the redacted content…" fails (re-run against the acme-shop scenario in 5.2); (3) `createProject` before `assertValidGraph` → "An invalid graph creates no project" fails. 18/18 green after restore.
+- [x] 4.8b RED → GREEN: test "The analyzer only receives redacted content" (requirement "Secrets never reach the store", added by `/opsx:update` on 2026-10-06): promote the redaction part of the 4.9 extra case "hashes the redacted content…" to this scenario and remove it from the extras, so no test is duplicated. The behaviour already exists, so RED is shown by running the test against mutation (2) of 4.10
+  - RED (2026-10-06) with mutation (2) of 4.10 applied (analyzer given `indexable.files`): "The analyzer only receives redacted content" fails on `expect(received?.content).toContain(REDACTION_MARKER)` (received content still held the synthetic key). Restored with `cmp`; 19/19 green. The extra case of 4.9 keeps only the hash and commit checks, so no test is duplicated.
+- [x] 4.9 Extra cases (not scenarios): `contentHash` of a known string equals its SHA-256; report `events` sorted by path across files; `skipped` sorted by path then reason; `edges.exact + edges.heuristic = edges.total`; co-change weights computed with the unfiltered links (a dropped path still lowers a weight); a path with a `..` segment is `invalid-path`; a throwing `onProgress` propagates
+  - Extra case renamed "hashes the redacted content with SHA-256 and keeps a commit without message as is": hash of `abc` (FIPS 180-2 vector) and of the expected redacted text; its `redacted`/analyzer assertions moved to the 4.8b scenario.
+- [x] 4.10 Prove key tests can fail: back up each file to the scratchpad, mutate with a node script whose anchor must match, run, restore and confirm with `cmp`: (1) skip the real-path confinement → "A symbolic link escaping…" fails; (2) analyze the unredacted files → "The analyzer only receives redacted content" fails; (3) call `createProject` before `assertValidGraph` → "An invalid graph creates no project" fails. Record the results for the step 7 report
+  - Re-run 2026-10-06 after 4.8b; each anchor matched once, each file restored and confirmed with `cmp`: (1) real-path confinement removed → "A symbolic link escaping the allowed root is rejected before reading" fails; (2) analyzer given the unredacted files → "The analyzer only receives redacted content" fails; (3) `createProject` before `assertValidGraph` → "An invalid graph creates no project" fails. Each mutation fails exactly one test (1 failed | 18 passed); 19/19 green after restore.
 - [x] 4.11 REFACTOR with the suite green: JSDoc on every export; core imports only `node:path`, `node:crypto` and its own modules; `npm run lint:architecture`, `npm run docs:coverage`, `npm run typecheck`, `npm run lint` green
 
 ## 5. Integration: acme-shop end to end (design D11)
@@ -70,8 +72,33 @@
 
 - [x] 7.1 Identify tests affected by the change: `tests/integration/git/simple-git-history.spec.ts` (helpers moved in 2.2) and `tests/unit/knowledge/errors.spec.ts`. Confirm with `git diff --stat origin/feature/entrega-2-CRN -- tests` that nothing else changed besides the new specs
   - Only `tests/unit/knowledge/errors.spec.ts` changed among tracked tests (+13/-1: the import line gains `EmptyRepository`, plus one new case); `simple-git-history.spec.ts` unchanged and green after the helper move. New: the four spec files of this change.
-- [ ] 7.2 Update affected tests without weakening their assertions (none expected). Confirm that every `#### Scenario:` of `openspec/changes/index-repository/specs/repository-indexing/spec.md` (22) maps 1:1 to a test with exactly the same name (grep each title in `tests/`; no scenario without a test, no scenario with two)
+- [x] 7.2 Update affected tests without weakening their assertions (none expected). Confirm that every `#### Scenario:` of `openspec/changes/index-repository/specs/repository-indexing/spec.md` (22) maps 1:1 to a test with exactly the same name (grep each title in `tests/`; no scenario without a test, no scenario with two)
   - No assertion touched. Each of the 21 scenario titles matches exactly one `it(` (grep count 1 each).
+  - Grep of the 22 titles (2026-10-06), count of `it('<title>'` in `tests/` and file:
+    ```
+    1  Only the files tracked at HEAD are read  [tests/integration/git/git-source-tree.spec.ts ]
+    1  A path that is not a repository root is rejected  [tests/integration/git/git-source-tree.spec.ts ]
+    1  A repository with no commit is rejected  [tests/integration/git/git-source-tree.spec.ts ]
+    1  Symbolic links and submodules are skipped and reported  [tests/integration/git/git-source-tree.spec.ts ]
+    1  Content that is not UTF-8 is skipped and reported  [tests/integration/git/git-source-tree.spec.ts ]
+    1  The real path follows symbolic links  [tests/integration/git/git-source-tree.spec.ts ]
+    1  Progress phases are reported once and in order  [tests/unit/index/index-repository.spec.ts ]
+    1  A path outside the allowed root is rejected before reading  [tests/unit/index/index-repository.spec.ts ]
+    1  Indexing is disabled without an allowed root  [tests/unit/index/index-repository.spec.ts ]
+    1  A symbolic link escaping the allowed root is rejected before reading  [tests/unit/index/index-repository.spec.ts ]
+    1  An allowed root that does not exist disables indexing  [tests/unit/index/index-repository.spec.ts ]
+    1  A failure reading the source tree writes nothing  [tests/unit/index/index-repository.spec.ts ]
+    1  A failure reading the history writes nothing  [tests/unit/index/index-repository.spec.ts ]
+    1  An invalid graph creates no project  [tests/unit/index/index-repository.spec.ts ]
+    1  A taken project name saves no graph  [tests/unit/index/index-repository.spec.ts ]
+    1  Malformed, repeated and binary entries never reach the analyzer  [tests/unit/index/index-repository.spec.ts ]
+    1  The planted secret of acme-shop never reaches the database  [tests/integration/index/acme-shop.spec.ts ]
+    1  The analyzer only receives redacted content  [tests/unit/index/index-repository.spec.ts ]
+    1  A secret in a commit message is redacted  [tests/unit/index/index-repository.spec.ts ]
+    1  The framework is detected from the root manifest  [tests/unit/index/framework-detect.spec.ts ]
+    1  An explicit framework wins over detection  [tests/unit/index/index-repository.spec.ts ]
+    1  acme-shop is indexed completely  [tests/integration/index/acme-shop.spec.ts ]
+    ```
 
 ## 8. Backend: Run Tests and Verify Data State (MANDATORY)
 

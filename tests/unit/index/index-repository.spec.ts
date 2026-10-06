@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { EmptyRepository, ForbiddenPathError, INDEX_PHASES, IndexingDisabled, InvalidGraph, NotAGitRepository, ProjectNameTaken, REDACTION_MARKER, indexRepository } from '@codemind/core';
@@ -307,6 +308,31 @@ describe('index repository', () => {
     expect(w.saved[0].fileCommits).toEqual([{ file: 'app/A.php', sha: SHA }]);
   });
 
+  it('The analyzer only receives redacted content', async () => {
+    // Arrange: a synthetic AWS access key id, built here so no secret-shaped literal is committed.
+    const key = 'AK' + 'IA' + 'Z7Q2W4E6R8T0Y1U3';
+    const w = world({
+      tree: {
+        files: [
+          { path: 'config/aws.php', content: `<?php return ['key' => '${key}'];\n` },
+          { path: 'app/Clean.php', content: '<?php final class Clean {}\n' },
+        ],
+        skipped: [],
+      },
+    });
+
+    // Act
+    await indexRepository(w.deps, input());
+
+    // Assert
+    const received = w.analyzed[0].find((file) => file.path === 'config/aws.php');
+    expect(received?.content).toContain(REDACTION_MARKER);
+    for (let start = 0; start + 8 <= key.length; start++) expect(received?.content).not.toContain(key.slice(start, start + 8));
+    const saved = new Map(w.saved[0].files.map((file) => [file.path, file]));
+    expect(saved.get('config/aws.php')?.redacted).toBe(true);
+    expect(saved.get('app/Clean.php')?.redacted).toBe(false);
+  });
+
   it('A secret in a commit message is redacted', async () => {
     // Arrange: a synthetic AWS access key id, built here so no secret-shaped literal is committed.
     const key = 'AK' + 'IA' + 'Z7Q2W4E6R8T0Y1U3';
@@ -348,8 +374,8 @@ describe('index repository', () => {
   });
 
   describe('extra cases', () => {
-    it('hashes the redacted content with SHA-256 and flags only redacted files', async () => {
-      // Arrange
+    it('hashes the redacted content with SHA-256 and keeps a commit without message as is', async () => {
+      // Arrange: SHA-256 of "abc" is the FIPS 180-2 test vector.
       const key = 'AK' + 'IA' + 'Z7Q2W4E6R8T0Y1U3';
       const w = world({
         tree: {
@@ -367,10 +393,9 @@ describe('index repository', () => {
 
       // Assert
       const [abc, aws] = w.saved[0].files;
-      expect(abc).toMatchObject({ path: 'abc.txt', redacted: false, contentHash: 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad' });
-      expect(aws.redacted).toBe(true);
-      expect(aws.contentHash).toMatch(/^[0-9a-f]{64}$/);
-      expect(w.analyzed[0][1].content).not.toContain(key);
+      expect(abc.contentHash).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+      const redacted = `<?php return ['key' => '${REDACTION_MARKER}'];\n`;
+      expect(aws.contentHash).toBe(createHash('sha256').update(redacted, 'utf8').digest('hex'));
       expect(w.saved[0].commits).toEqual([{ sha: SHA }]);
     });
 
