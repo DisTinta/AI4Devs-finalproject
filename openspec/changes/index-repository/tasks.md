@@ -102,32 +102,42 @@
 
 ## 8. Backend: Run Tests and Verify Data State (MANDATORY)
 
-- [ ] 8.1 Capture the pre-test baseline: `git status --porcelain fixtures` (empty), `git ls-files -s fixtures | sha1sum`, `SELECT count(*) FROM project` and `SELECT count(*) FROM commit` on the local database
-- [ ] 8.2 Run the targeted tests: `npx vitest run tests/unit/index tests/integration/index tests/integration/git`, twice
-- [ ] 8.3 Run the required broader suite and gates: `npx vitest run`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`, `npx stryker run --mutate "packages/core/src/index/**/*.ts"` (score ≥ `MIN_MUTATION_SCORE=70`; list surviving mutants and kill the meaningful ones with extra cases). Reproduce the no-database run with `npx vitest run --exclude 'tests/integration/**'` and no `DATABASE_URL`
-- [ ] 8.4 Verify the post-test state matches the baseline (same checksum, `git status --porcelain fixtures` empty, same `project` and `commit` counts: the harness rolled everything back). Restore and document if not
-- [ ] 8.5 Create the report `openspec/changes/index-repository/reports/YYYY-MM-DD-8-test-and-state-verification.md` from the template in `docs/openspec-tasks-mandatory-steps.md` §6. Include the baseline of 0.4, the forced failures of 4.10, the Stryker score and the privacy check of 6.1
-- [ ] 8.6 Mark complete only after the tests pass and the report exists
+- [x] 8.1 Capture the pre-test baseline: `git status --porcelain fixtures` (empty), `git ls-files -s fixtures | sha1sum`, `SELECT count(*) FROM project` and `SELECT count(*) FROM commit` on the local database
+- [x] 8.2 Run the targeted tests: `npx vitest run tests/unit/index tests/integration/index tests/integration/git`, twice
+- [x] 8.3 Run the required broader suite and gates: `npx vitest run`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`, `npx stryker run --mutate "packages/core/src/index/**/*.ts"` (score ≥ `MIN_MUTATION_SCORE=70`; list surviving mutants and kill the meaningful ones with extra cases). Reproduce the no-database run with `npx vitest run --exclude 'tests/integration/**'` and no `DATABASE_URL`
+  - Final code `ce50dae`: 39 files, 556 passed (63.04 s); no-DB run 26 files, 368 passed; lint 0 errors (1 pre-existing warning), typecheck, architecture (4 pre-existing warnings), docs:coverage green. Stryker `index/`: 94.48 % → 96.48 % after killing meaningful survivors (extra cases + `isValidPath`/`compareBytes` refactor, commit `ce50dae`); 3 equivalent survivors in new code, listed in the report.
+- [x] 8.4 Verify the post-test state matches the baseline (same checksum, `git status --porcelain fixtures` empty, same `project` and `commit` counts: the harness rolled everything back). Restore and document if not
+- [x] 8.5 Create the report `openspec/changes/index-repository/reports/YYYY-MM-DD-8-test-and-state-verification.md` from the template in `docs/openspec-tasks-mandatory-steps.md` §6. Include the baseline of 0.4, the forced failures of 4.10, the Stryker score and the privacy check of 6.1
+  - Report `reports/2026-10-06-8-test-and-state-verification.md`.
+- [x] 8.6 Mark complete only after the tests pass and the report exists
 
 ## 9. Backend: Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 9.1 Note the current state (8.1 indicators). The interface is the core API `indexRepository` with the real adapters (no CLI command uses it yet: DIS-86)
-- [ ] 9.2 Exercise the success path: a scratch script in the scratchpad (not in the repo), run with `npx tsx` after `npx tsc --build`, that copies acme-shop to a temporary root, rebuilds its history, opens a transaction on a `pg` client, indexes it with the real adapters, prints the report and the stored project, then **rolls back**
-- [ ] 9.3 Mutating operations: confirm after the script that the `project` and `commit` counts equal the 8.1 baseline (rollback restored the state); if a commit happened by mistake, delete the project by name (the schema cascades) and document it
-- [ ] 9.4 Exercise the error cases from the same script: `repoPath` `../etc`, blank root, a directory junction/symlink inside the root pointing outside it, a non-repository directory, a fresh `git init` repository, a repeated name; print each error's `name`, `code` and message, and check that no message or report contains the planted key
-- [ ] 9.5 Document every command and output in `openspec/changes/index-repository/reports/YYYY-MM-DD-9-manual-interface-testing.md` (mask the OS user name in paths)
-- [ ] 9.6 Verify the state matches the pre-test state (8.1 indicators)
+- [x] 9.1 Note the current state (8.1 indicators). The interface is the core API `indexRepository` with the real adapters (no CLI command uses it yet: DIS-86)
+- [x] 9.2 Exercise the success path: a scratch script in the scratchpad (not in the repo), run with `npx tsx` after `npx tsc --build`, that copies acme-shop to a temporary root, rebuilds its history, opens a transaction on a `pg` client, indexes it with the real adapters, prints the report and the stored project, then **rolls back**
+  - Scratch script `manual-index.mjs` (scratchpad), one `pg` transaction rolled back in `finally`; report `reports/2026-10-06-9-manual-interface-testing.md`.
+- [x] 9.3 Mutating operations: confirm after the script that the `project` and `commit` counts equal the 8.1 baseline (rollback restored the state); if a commit happened by mistake, delete the project by name (the schema cascades) and document it
+  - Inside the transaction 1 project, after `ROLLBACK` 0; `project`/`commit`/`file` rows 0/0/0 as the baseline.
+- [x] 9.4 Exercise the error cases from the same script: `repoPath` `../etc`, blank root, a directory junction/symlink inside the root pointing outside it, a non-repository directory, a fresh `git init` repository, a repeated name; print each error's `name`, `code` and message, and check that no message or report contains the planted key
+  - Seven error cases as specified, each with the expected error and phases; no message shows the junction target or an AWS key id.
+- [x] 9.5 Document every command and output in `openspec/changes/index-repository/reports/YYYY-MM-DD-9-manual-interface-testing.md` (mask the OS user name in paths)
+- [x] 9.6 Verify the state matches the pre-test state (8.1 indicators)
 
 ## 10. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
-- [ ] 10.1 Confirm no user interface or user workflow is affected (no route, no CLI command, no web change: the CLI is DIS-86). Record "not applicable", with that reason, in the step 8 report
+- [x] 10.1 Confirm no user interface or user workflow is affected (no route, no CLI command, no web change: the CLI is DIS-86). Record "not applicable", with that reason, in the step 8 report
+  - Recorded in the step 8 report.
 - [ ] 10.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that the four new spec files ran (the integration ones with Postgres and Git) and passed. Link the run in the step 8 report
 
 ## 11. Update Technical Documentation (MANDATORY)
 
-- [ ] 11.1 Update `docs/project-context.md`: the gotchas that say "nothing calls them yet (indexing is DIS-85)" and "the caller (DIS-85) must drop them first"; add a gotcha with the use-case order and phases, `SourceTreePort` reading `HEAD` via `ls-tree` (not the working tree), the caller-owned transaction (D9), and `createGitSourceTree` among the `adapters/git` exceptions in "The infra packages are stubs"
-- [ ] 11.2 No ADR (design D12); confirm nothing in the implementation contradicted that
-- [ ] 11.3 Run `/update-docs` and confirm the docs gate passes (`npm run docs:coverage`). Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
-- [ ] 11.4 Leave the Spanish Linear comment on DIS-86 with the composition contract (design Follow-ups)
+- [x] 11.1 Update `docs/project-context.md`: the gotchas that say "nothing calls them yet (indexing is DIS-85)" and "the caller (DIS-85) must drop them first"; add a gotcha with the use-case order and phases, `SourceTreePort` reading `HEAD` via `ls-tree` (not the working tree), the caller-owned transaction (D9), and `createGitSourceTree` among the `adapters/git` exceptions in "The infra packages are stubs"
+  - Gotchas updated: `adapters/git` also implements `SourceTreePort`; orphan links, `co_changed` in the same snapshot, duplicates and the real-path check now name `indexRepository`; "nothing calls them yet" now points at DIS-86; new gotcha with phases, errors, caller-owned transaction, `ls-tree`, timing and the acme-shop oracle limit; mutation line with 96.48 % for `index/`.
+- [x] 11.2 No ADR (design D12); confirm nothing in the implementation contradicted that
+  - No ADR: nothing in the implementation contradicted D12. The layer-guard change is a hook config tweak recorded under D3.
+- [x] 11.3 Run `/update-docs` and confirm the docs gate passes (`npm run docs:coverage`). Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
+  - `/update-docs`: `readme.md` package tree gains `core/index/` and `SourceTreePort`, and the FILE section says `content_hash` is over the redacted content. Checked, no change: data model (no migration), API spec (no route), dependencies (none), standards, `fixtures/README.md`, `docs/TESTING.md`. `docs:coverage` exit 0. `prompts.md` §29 (3 literal prompts) + Índice entry 29.
+- [x] 11.4 Leave the Spanish Linear comment on DIS-86 with the composition contract (design Follow-ups)
+  - Spanish comment on DIS-86 with the composition contract, the error list, progress phases and the Low privacy finding (destination B).
 - [ ] 11.5 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the author's Why transcribed and the Stryker score. After verification, set DIS-85 to In Review in Linear with a comment in Spanish linking the PR and the change
 - [ ] 11.6 At archive time, run the archive ritual: close or reassign the 10 inbound notes of DIS-85 (DIS-12, DIS-23 ×2, DIS-35 ×2, DIS-36, DIS-47, DIS-84, DIS-96 ×2), and classify every review gap (A/B/C/D)

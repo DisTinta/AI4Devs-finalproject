@@ -457,10 +457,11 @@ AI4Devs-finalproject/
 ├── packages/
 │   ├── core/                       # dominio — CERO dependencias de infraestructura
 │   │   ├── knowledge/              #   entidades L1/L2, afirmaciones, evidencia, reglas de tipado
+│   │   ├── index/                  #   caso de uso de indexado, gateway de seguridad, detección de framework
 │   │   ├── context/                #   Context Engine, ranking, presupuesto de tokens
 │   │   ├── verify/                 #   verificador de evidencias
 │   │   ├── cache/                  #   caché semántica
-│   │   └── ports/                  #   AnalyzerPort · LlmPort · StorePort · GitPort
+│   │   └── ports/                  #   AnalyzerPort · LlmPort · StorePort · GitPort · SourceTreePort
 │   │
 │   ├── analyzers/                  # adaptadores de lenguaje
 │   │   ├── php/                    #   Tree-sitter + reglas Laravel
@@ -839,7 +840,7 @@ Un repositorio indexado. `indexed_commit` es la clave de la incrementalidad: al 
 
 #### FILE
 
-`content_hash` (SHA-256) permite saltarse ficheros sin cambios en un reindexado, y es el disparador de la invalidación de afirmaciones. `kind` distingue fuente, test, documentación y configuración porque el Context Engine los pondera de forma distinta: para una pregunta de comportamiento, un test pesa más que un README. `redacted` marca ficheros de los que se eliminó un secreto. El grafo se guarda como una foto completa del proyecto: cada fichero se actualiza en su sitio por `(project_id, path)` y conserva su `id`, con lo que se mantienen su historial y las evidencias que lo citan; los ficheros que ya no están en la foto se borran (DIS-23).
+`content_hash` (SHA-256 del contenido ya redactado, para que el hash nunca dependa de un secreto) permite saltarse ficheros sin cambios en un reindexado, y es el disparador de la invalidación de afirmaciones. `kind` distingue fuente, test, documentación y configuración porque el Context Engine los pondera de forma distinta: para una pregunta de comportamiento, un test pesa más que un README. `redacted` marca ficheros de los que se eliminó un secreto. El grafo se guarda como una foto completa del proyecto: cada fichero se actualiza en su sitio por `(project_id, path)` y conserva su `id`, con lo que se mantienen su historial y las evidencias que lo citan; los ficheros que ya no están en la foto se borran (DIS-23).
 
 #### SYMBOL
 

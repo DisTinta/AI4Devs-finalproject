@@ -284,5 +284,10 @@ DIS-86.
   `EMPTY_REPOSITORY` to an exit code; an `ALLOWED_REPOS_DIR` that does not exist arrives as
   `IndexingDisabled`, the same as an empty one; `ForbiddenPathError` names the path as typed, never
   the resolved real path).
+- **B → DIS-86 (privacy, Low):** `NotAGitRepository` and `EmptyRepository` messages carry the
+  absolute repository path, which may hold an OS user name once the CLI prints or logs it; joins the
+  `ForbiddenPathError` follow-up from DIS-84. Left in the 11.4 comment on DIS-86 (2026-10-06).
+- **D (accepted):** commit-message free text beyond the four secret rules is stored as written
+  (DIS-35 non-goal); synthetic `.test` identity in `git-source-tree.spec.ts`.
 - **Inbound notes into DIS-85** (archive ritual): DIS-12, DIS-23 (×2), DIS-35 (×2), DIS-36, DIS-47,
   DIS-84, DIS-96 (×2) — each closed by a requirement of this change or reassigned.
