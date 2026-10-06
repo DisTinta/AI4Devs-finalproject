@@ -400,7 +400,8 @@ describe('index repository', () => {
     });
 
     it('orders events and skipped entries in byte order and counts edges by resolution', async () => {
-      // Arrange: U+FFFD sorts before U+1F600 in byte order, after it in UTF-16 code unit order (`<`).
+      // Arrange: U+FFFD sorts before U+1F600 in byte order, after it in UTF-16 code unit order (`<`);
+      // a path sorts before its extension; after an equal U+FFFF the next character still decides.
       const key = 'AK' + 'IA' + 'Z7Q2W4E6R8T0Y1U3';
       const secret = `'${key}'\n`;
       const w = world({
@@ -408,7 +409,10 @@ describe('index repository', () => {
           files: [
             { path: '😀.php', content: secret },
             { path: '�.php', content: secret },
+            { path: 'b.php.bak', content: secret },
             { path: 'b.php', content: secret },
+            { path: 'x￿b.php', content: secret },
+            { path: 'x￿a.php', content: secret },
             { path: 'a.php', content: secret + secret },
           ],
           skipped: [
@@ -420,6 +424,7 @@ describe('index repository', () => {
           ...plainAnalysis(files),
           edges: [
             { kind: 'imports', source: { file: 'a.php' }, target: { file: 'b.php' }, resolution: 'exact', extractor: 'test' },
+            { kind: 'extends', source: { file: 'a.php' }, target: { file: 'b.php' }, resolution: 'exact', extractor: 'test' },
             { kind: 'describes', source: { file: 'b.php' }, target: { file: 'a.php' }, resolution: 'heuristic', extractor: 'test' },
           ],
         }),
@@ -434,6 +439,9 @@ describe('index repository', () => {
         ['a.php', 1],
         ['a.php', 2],
         ['b.php', 1],
+        ['b.php.bak', 1],
+        ['x￿a.php', 1],
+        ['x￿b.php', 1],
         ['�.php', 1],
         ['😀.php', 1],
       ]);
@@ -441,7 +449,31 @@ describe('index repository', () => {
         { path: 'z/sub', reason: 'binary-content' },
         { path: 'z/sub', reason: 'submodule' },
       ]);
-      expect(report.edges).toEqual({ total: 2, exact: 1, heuristic: 1 });
+      expect(report.edges).toEqual({ total: 3, exact: 2, heuristic: 1 });
+    });
+
+    it('propagates a failure resolving the root that is not a missing path', async () => {
+      // Arrange
+      const failure = new Error('EACCES: permission denied');
+      const w = world({ realPathError: (requested) => (requested === ROOT ? failure : undefined) });
+
+      // Act / Assert
+      await expect(indexRepository(w.deps, input())).rejects.toBe(failure);
+      expect(w.phases).toEqual(['confine']);
+    });
+
+    it('keeps a file the analyzer returns without an input as it is', async () => {
+      // Arrange
+      const w = world({
+        analyze: (files) => ({ ...plainAnalysis(files), files: [...plainAnalysis(files).files, { path: 'generated.php', kind: 'source' }] }),
+        history: { head: SHA, commits: [{ sha: SHA }], fileCommits: [] },
+      });
+
+      // Act
+      await indexRepository(w.deps, input());
+
+      // Assert
+      expect(w.saved[0].files.find((file) => file.path === 'generated.php')).toEqual({ path: 'generated.php', kind: 'source' });
     });
 
     it('computes co-change weights with the unfiltered links', async () => {

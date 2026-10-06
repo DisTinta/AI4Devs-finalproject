@@ -41,8 +41,11 @@ export function selectIndexableFiles(files: readonly SourceFile[]): IndexableFil
   return { files: kept, skipped };
 }
 
-/** A repository-relative path with `/` separators and only real segments. */
+/**
+ * A repository-relative path with `/` separators and only real segments. The empty-segment rule also
+ * rejects the empty path, a leading `/` and a trailing `/`.
+ */
 function isValidPath(path: string): boolean {
-  if (path === '' || path.includes('\\') || path.startsWith('/') || CONTROL_CHARACTER.test(path)) return false;
+  if (path.includes('\\') || CONTROL_CHARACTER.test(path)) return false;
   return path.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..');
 }

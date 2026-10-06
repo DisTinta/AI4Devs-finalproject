@@ -182,14 +182,11 @@ function sortSkipped(entries: SkippedEntry[]): SkippedEntry[] {
  * differs from it above U+FFFF).
  */
 function compareBytes(a: string, b: string): number {
-  let i = 0;
-  let j = 0;
-  while (i < a.length && j < b.length) {
-    const x = a.codePointAt(i)!;
-    const y = b.codePointAt(j)!;
-    if (x !== y) return x - y;
-    i += x > 0xffff ? 2 : 1;
-    j += y > 0xffff ? 2 : 1;
+  const x = Array.from(a, (character) => character.codePointAt(0)!);
+  const y = Array.from(b, (character) => character.codePointAt(0)!);
+  const shared = Math.min(x.length, y.length);
+  for (let k = 0; k < shared; k++) {
+    if (x[k] !== y[k]) return x[k] - y[k];
   }
-  return (a.length - i) - (b.length - j);
+  return x.length - y.length;
 }
