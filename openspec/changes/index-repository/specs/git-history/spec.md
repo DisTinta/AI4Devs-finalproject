@@ -22,8 +22,8 @@ never verified), and a missing object of a partial clone is never fetched (the r
 git's error instead). Neither the repository's configuration nor the caller's git environment
 variables SHALL change the returned history: the root commit's files are always linked, renames and
 copies are never detected (a rename is a delete plus an add), paths are relative to the top-level
-directory and never quoted, commit text is read as UTF-8, and no mailmap named by configuration
-remaps an author. Git runs in the C locale.
+directory and never quoted, a commit's files keep git's default order and diff algorithm, commit
+text is read as UTF-8, and no mailmap named by configuration remaps an author. Git runs in the C locale.
 
 #### Scenario: Reading the history executes nothing from the repository
 
@@ -38,8 +38,9 @@ remaps an author. Git runs in the C locale.
 
 - **GIVEN** a repository whose root commit adds a file whose name has accented letters, and whose
   local configuration sets `log.showRoot=false`, `diff.renames=copies`, `diff.relative=true`,
-  `core.quotePath=true`, `i18n.logOutputEncoding=ISO-8859-1` and a `mailmap.file` that remaps the
-  author
+  `core.quotePath=true`, `i18n.logOutputEncoding=ISO-8859-1`, a `mailmap.file` that remaps the
+  author, a `diff.orderFile` that reverses the order of a commit's files and
+  `diff.algorithm=patience`
 - **WHEN** its history is read
 - **THEN** the result equals the history read from the same repository without that configuration,
   and the root commit links the accented path, verbatim

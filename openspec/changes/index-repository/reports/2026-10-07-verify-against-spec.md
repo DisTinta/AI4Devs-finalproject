@@ -105,6 +105,30 @@ Accepted Minor findings (no code change):
 - "Malformed, repeated and binary entries…" asserts "no `InvalidGraph`" against a fake `saveGraph`: the real store's validation runs in the acme-shop integration scenarios.
 - Questions: a shallow clone is read as what its objects hold (repository content); one `git cat-file` per blob stays with the DIS-35 batching debt.
 
+## Fourth review round (2026-10-07)
+
+Fifth `/verify-against-spec`: no confirmed contradiction; two probable ones (P1 `diff.algorithm`,
+P2 `diff.orderFile`) and weak partial-clone assertions. Fourth `/adversarial-review`: **PASS WITH
+GAPS, no Blocker, no Major**. Previous round committed first (`47529f5`, `c82a033`, 593/593).
+
+Fixed (narrow contradictions and trivial Minor findings):
+
+| Finding | Outcome | Test (red first) |
+|---|---|---|
+| P2 `diff.orderFile` reordered a commit's files (reproduced); P1 `diff.algorithm` | `-O/dev/null`, `--diff-algorithm=myers` in `LOG_ARGUMENTS` | config scenarios of both readers, now arming both keys |
+| "not a repository" regex matched anywhere, so a dubious-ownership path holding the words read as `NotAGitRepository` | Anchored to the start of git's `fatal:` line | `repository-root.spec.ts` |
+| Partial-clone tests accepted any `Error` | Assert git's `fatal:` and not a `DomainError` | both partial-clone scenarios |
+| `GIT_NO_LAZY_FETCH` needs git from the 2024-05 security releases | Git ≥ 2.45.1 (or 2.39.4–2.44.1) documented as a prerequisite | — (documentation) |
+
+Accepted Minor findings (no code change), with reason:
+
+- Replace refs (`core.useReplaceRefs=false`) and `mailmap.blob=` have no test of their own: one-line pins next to tested ones; `mailmap.file` is tested.
+- `.git/info/grafts` and shallow clones are read as what the repository holds, like a committed `.mailmap`.
+- The operator's global and system git configuration still applies: it belongs to whoever runs Codemind, not to the analysed repository; every key that matters is pinned by `-c` or a flag anyway.
+- A `.git` file or `objects/info/alternates` can point the object store outside `allowedRoot`: same attacker as the path window, added to the DIS-86 follow-up in design.md (B).
+- `hasCommits`'s last-resort error is unreachable (git's own `rev-parse --verify HEAD` speaks first); `GIT_ENV` is read once at import; `core.attributesFile=` turns off the operator's global attributes file (hardening).
+- The scenario "Progress phases…" says the source tree is "called once": it means `readFiles`; `realPath` runs twice by design (confinement), and the test pins the exact log.
+
 ## Accepted without a test
 
 - U4 — an error thrown by the progress callback stops indexing and propagates: accepted, documented on `IndexDependencies.onProgress`.
@@ -114,10 +138,10 @@ Accepted Minor findings (no code change):
 - U8 — `EmptyRepository` carries `repoPath` and a message with the path: accepted, same shape as `NotAGitRepository` (the Low privacy finding is routed to DIS-86).
 - M2 — "no transaction, no log": not verifiable without instrumenting the database and the process output; met by construction (the use case receives the store already bound to the caller's connection and imports no logger).
 
-## Checks (2026-10-07, after the third review round)
+## Checks (2026-10-07, after the fourth review round)
 
 ```
-npx vitest run          Test Files 41 passed (41) | Tests 593 passed (593)   (DATABASE_URL set, Postgres up)
+npx vitest run          Test Files 41 passed (41) | Tests 594 passed (594)   (DATABASE_URL set, Postgres up)
 npm run lint            exit 0 — 0 errors, 1 warning (existing no-empty-object-type in LlmPort.ts)
 npm run typecheck       exit 0
 npm run docs:coverage   exit 0

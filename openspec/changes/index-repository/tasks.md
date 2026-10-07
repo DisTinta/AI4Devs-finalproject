@@ -194,3 +194,15 @@
 - [x] 15.3 C1, C2, C3 — a `realpath` failure other than a missing path propagates; `hasCommits` lets git say why with `rev-parse --verify HEAD`; the junk `.git/HEAD` case moved out of the scenario into an extra case. Red first in the unit specs
 - [x] 15.4 Spec contradiction (mailmap) and U-A — `mailmap.file=`, `mailmap.blob=` and `core.useReplaceRefs=false` in `GIT_CONFIG`; the hostile config adds `i18n.logOutputEncoding=ISO-8859-1` and a remapping `mailmap.file` (red: author hashes changed); both deltas state the closed environment and the C locale
 - [x] 15.5 Trivial Minors — the top-level path loses only its trailing newline (no `trim`); broken-ref tests assert git's own words (`fatal: No such ref: HEAD`); `SourceTreePort` and `GitPort` JSDoc follow the spec. Non-trivial Minors and questions accepted with their reason in the report and design Risks
+
+## 16. Follow-up of the fifth /verify-against-spec and fourth /adversarial-review (2026-10-07)
+
+No Blocker, no Major. Narrow contradictions fixed; new Minor findings accepted with their reason (author criterion: trivial fixes only).
+
+- [x] 16.0 Commit the previous round locally (593/593 green): `47529f5`, `c82a033`
+- [x] 16.1 P2 `diff.orderFile` (reproduced) and P1 `diff.algorithm` — `LOG_ARGUMENTS` pins `-O/dev/null` and `--diff-algorithm=myers`; the hostile config adds both keys; scenario GIVENs updated. Red first (order of the root commit's files changed)
+- [x] 16.2 Anchored "not a repository" match (`^fatal: …`, multiline): a dubious-ownership message quoting a path with the same words now propagates. Red first (`repository-root.spec.ts`)
+- [x] 16.3 Partial-clone scenarios assert git's own error (`fatal:`, not a `DomainError`)
+- [x] 16.4 Git ≥ 2.45.1 (or 2.39.4–2.44.1) documented as a prerequisite in the readme and project-context
+- [x] 16.5 Accepted Minor findings, with reason, in the report and design: replace refs and `mailmap.blob=` untested; grafts and shallow clones as repository content; the operator's own git config applies; `.git` file / alternates added to the DIS-86 follow-up; `hasCommits`'s last-resort error unreachable; `GIT_ENV` read at import; "Progress phases…" says the source tree is called once (it means `readFiles`)
+

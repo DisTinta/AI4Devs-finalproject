@@ -306,6 +306,16 @@ ticket's recommendation (the author confirmed no ADR is needed).
   labels the files of one commit with the sha of the next] → accepted Minor (third adversarial
   review): fixing it means passing the sha through `SourceTreePort`, a port change; the CLI (DIS-86)
   indexes a repository nobody is committing to. Recorded in the verification report.
+- [`diff.orderFile` and `diff.algorithm` in the repository's config reorder or recount a commit's
+  numstat (P2 reproduced 2026-10-07)] → `LOG_ARGUMENTS` pins `-O/dev/null` and
+  `--diff-algorithm=myers` (fifth verification).
+- [`GIT_NO_LAZY_FETCH` is ignored by git older than the 2024-05 security releases] → Git ≥ 2.45.1
+  (or 2.39.4–2.44.1) is a documented prerequisite (readme 1.4, project-context); no runtime version
+  check (fourth adversarial review, accepted as documentation).
+- [`.git/info/grafts`, replace refs, a shallow clone] → grafts and a shallow clone are read as
+  what the repository holds (accepted, like a committed `.mailmap`); replace refs are off
+  (`core.useReplaceRefs=false`, untested: accepted). The operator's own global and system git
+  configuration still applies (it is the operator's, not the analysed repository's).
 - [One `git cat-file` process per blob] → also the throughput debt of the third adversarial review
   question; stays with the DIS-35 streaming/batching debt.
 - [The acme-shop oracle `/AKIA[A-Z0-9]{16}/` over `symbol.signature` does not exercise the analyzer
@@ -339,7 +349,12 @@ DIS-86.
   inside the tree are skipped by mode, never followed, so links inside the repository cannot widen
   the window. What remains is the repository path itself: if a directory on that path, inside
   `allowedRoot`, is swapped for a link between confinement and the git calls, git reads a different
-  repository. Exploiting it needs write access inside `allowedRoot`. The composition root (DIS-86)
+  repository. Correction (fourth adversarial review): the object store is not confined either. A
+  `.git` *file* (`gitdir: …`) or `objects/info/alternates` inside `allowedRoot` points git at
+  objects outside it, with no timing involved; confinement checks only the work tree's real path.
+  Same attacker (write access inside `allowedRoot`), same destination (B → DIS-86: confine
+  `rev-parse --absolute-git-dir` and the alternates, or document that `ALLOWED_REPOS_DIR` must only
+  hold trusted repositories). Exploiting it needs write access inside `allowedRoot`. The composition root (DIS-86)
   owns that directory and its permissions; Spanish comment there (2026-10-07).
 - **D (accepted):** commit-message free text beyond the four secret rules is stored as written
   (DIS-35 non-goal); synthetic `.test` identity in `git-source-tree.spec.ts`.
