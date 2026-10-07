@@ -306,16 +306,18 @@ npm run cli -- ask task-api "¿Cómo se validan las peticiones entrantes?"
 
 #### Camino completo — indexar tu propio repositorio o pregunta libre
 
-Requiere un LLM configurado (recomendado en desarrollo: **Ollama** local) y, para PHP/Laravel, PHP 8.2+ en el PATH:
+**Indexar no necesita LLM ni PHP**: el analizador PHP usa Tree-sitter (WebAssembly) y solo lee los objetos de Git del repositorio, sin ejecutar nada de él. Hacen falta `ALLOWED_REPOS_DIR`, `AUTHOR_HASH_SALT` y `DATABASE_URL`, y el repositorio tiene que estar **dentro** de `ALLOWED_REPOS_DIR` (la ruta puede ser absoluta dentro de él o relativa a él). Por ahora solo se indexa PHP (`--language php`); TypeScript responde «not available yet» hasta CM-HU-18. Preguntar (`ask`) sí requiere un LLM configurado (recomendado en desarrollo: **Ollama** local):
 
 ```bash
-# Ollama (ejemplo): LLM_BASE_URL=http://localhost:11434/v1  LLM_API_KEY=ollama  LLM_MODEL=… 
-# PHP/Laravel  → requiere PHP 8.2+ en el PATH
-# TypeScript   → nada extra, el analizador usa la API del compilador
+# Indexar: ALLOWED_REPOS_DIR=/ruta/a/repos  AUTHOR_HASH_SALT=…  DATABASE_URL=postgres://…
+npm run cli -- index mi-repo --name mi-proyecto --language php            # informe en texto
+npm run cli -- index mi-repo --name otro --language php --framework none --json   # informe en JSON
 
-npm run cli -- index /ruta/a/tu/repo --name mi-proyecto --language php
+# Preguntar — Ollama (ejemplo): LLM_BASE_URL=http://localhost:11434/v1  LLM_API_KEY=ollama  LLM_MODEL=…
 npm run cli -- ask mi-proyecto "¿Cómo funciona el módulo de pagos?"
 ```
+
+`index` escribe el progreso por fase y los eventos de redacción de secretos (JSON por línea) en stderr, y solo el informe en stdout. Sale con `0` si todo va bien, `1` ante un error de dominio, configuración o ejecución (por ejemplo, ruta fuera de `ALLOWED_REPOS_DIR` o nombre de proyecto repetido) y `2` ante un uso incorrecto; el error es una línea `{"error":{"code","message","details"}}` en stderr.
 
 #### Verificación de la instalación
 
@@ -333,8 +335,9 @@ Ejecuta una consulta contra cada repositorio de muestra y compara la salida con 
 | `LLM_BASE_URL` | no | Base URL compatible OpenAI. Por defecto en desarrollo: Ollama (`http://localhost:11434/v1`). Sin URL + sin key → solo evaluación |
 | `LLM_MODEL` | no | Modelo para generación (valor por defecto en `.env.example`) |
 | `LLM_MODEL_VERIFY` | no | Modelo económico para la verificación de evidencias en vivo |
-| `DATABASE_URL` | **sí** (scripts `db:*`) | Cadena de conexión de PostgreSQL. `.env.example` trae la del contenedor local; `make up` la toma de `.env` (el Makefile carga y exporta `.env`). Si ejecutas `npm run db:migrate` / `db:rollback` a mano, expórtala antes: sin ella salen con error |
-| `ALLOWED_REPOS_DIR` | no | Directorio raíz permitido para indexar (ver [2.5](#25-seguridad)) |
+| `DATABASE_URL` | **sí** (scripts `db:*` e `index`) | Cadena de conexión de PostgreSQL. `.env.example` trae la del contenedor local; `make up` la toma de `.env` (el Makefile carga y exporta `.env`). Si ejecutas `npm run db:migrate` / `db:rollback` a mano, expórtala antes: sin ella salen con error |
+| `ALLOWED_REPOS_DIR` | no (sí para indexar) | Directorio raíz permitido para indexar (ver [2.5](#25-seguridad)); vacío = indexado deshabilitado. Solo debe poder escribir en él el usuario que ejecuta Codemind, y solo debe contener repositorios de confianza (ver `docs/DEPLOYMENT.md`) |
+| `AUTHOR_HASH_SALT` | **sí** (para indexar) | Clave del seudónimo de los autores de commits (`author_hash`). No se versiona; cambiarla cambia todos los `author_hash` |
 | `DAILY_BUDGET_USD` | no | Techo de gasto diario si se usa un proveedor cloud de pago (irrelevante con Ollama local) |
 
 > **Decisión (5 sep 2026).** Antes: `LLM_API_KEY` obligatoria. Ahora: **opcional**; evaluación sin key; desarrollo libre con Ollama. Motivo: 0 € y 0 fricción para quien evalúa.
@@ -473,7 +476,7 @@ AI4Devs-finalproject/
 │   │   └── git/
 │   │
 │   ├── api/                        # Fastify, rutas, esquemas, rate limiting, modo demo
-│   ├── cli/                        # comandos
+│   ├── cli/                        # comandos (`index` real; raíz de composición del indexado)
 │   └── web/                        # React + Vite
 │
 ├── fixtures/                       # los 2 repositorios de muestra

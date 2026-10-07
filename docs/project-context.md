@@ -64,14 +64,22 @@ Verified against `package.json` (root and per package). If a command is not here
 - Lint: `npm run lint` (root) — ESLint flat config (`eslint.config.mjs`), `@eslint/js` +
   `typescript-eslint` recommended. Empty port interfaces are downgraded to warnings; `.cjs`, `dist`,
   `.claude`, `.cursor`, `fixtures` are ignored.
-- Mutation testing: `npx stryker run` (`stryker.config.json`, targets `packages/core/src`). CI guards
+- Mutation testing: `npx stryker run` (`stryker.config.json`, targets `packages/core/src` and, since
+  DIS-86, `packages/cli/src` minus its entry point `index.ts`). CI runs it when the `business` paths
+  filter of `ci.yml` matches (`packages/core/**`, `packages/cli/**`, `tests/**`, Stryker and lock
+  files), and guards
   it: it only runs once test files exist, otherwise it prints a warning and skips (Stryker's dry run
   fails with zero tests, and faking a test to force it green defeats the gate).
 - Docs coverage: `npm run docs:coverage` (or `npx typedoc --validation.notDocumented --logLevel Warn`)
   — TypeDoc over the backend packages via root `typedoc.json`. HTML lands in `docs/api/` (gitignored).
   `CMD_DOCS_COVERAGE` in `.claude/sdd-harness.env` points here. `packages/web` is out of scope (React
   UI, not the API surface). As the public surface grows, undocumented exports fail this gate.
-- CLI: `npm run cli` (root) — `tsx packages/cli/src/index.ts`.
+- CLI: `npm run cli` (root) — `tsx --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts`.
+  `tsconfig.run.json` maps `@codemind/core`, `adapter-git`, `adapter-store-postgres` and
+  `analyzer-php` to their `src/`, so the CLI never runs a stale or missing `dist/` (DIS-86 design
+  D10). Only `index` is real: `npm run cli -- index <path> --name <name> --language php
+  [--framework laravel|fastify|none] [--json]` (see the gotcha on the `index` command); `projects`,
+  `ask` and `impact` are stubs.
 - Migrations: `npm run db:migrate` (apply all pending) / `npm run db:rollback` (revert the latest
   one) — `tsx packages/adapters/store-postgres/src/migrate.ts up|down`, node-pg-migrate with SQL
   files `NNNN_name.up.sql` / `NNNN_name.down.sql` in `packages/adapters/store-postgres/migrations/`
@@ -114,12 +122,15 @@ Verified against `package.json` (root and per package). If a command is not here
     `createPostgresStore({ pool })`, which opens and commits its own transaction per write. A test
     that needs a real commit (`graph-write-pool.spec.ts`) uses a unique project name and deletes the
     project in `finally`; the schema cascades the rest.
-- **`@codemind/core` resolves to its sources in tests** (DIS-23, the first cross-package import).
-  Vitest aliases it to `packages/core/src/index.ts` (`vitest.config.ts`, inherited by
-  `vitest.stryker.config.ts`), and `tests/tsconfig.json` has the matching `paths` entry. Outside
-  Vitest (`tsx` scripts), it resolves through `node_modules` to `packages/core/dist/`, so run
-  `npx tsc --build` first or you run stale core code. `store-postgres` and `adapters/git` have a project reference to
-  core.
+- **Workspace packages resolve to their sources in tests** (DIS-23 for `@codemind/core`, the first
+  cross-package import; DIS-86 added `@codemind/adapter-git`, `@codemind/adapter-store-postgres` and
+  `@codemind/analyzer-php`, which the CLI imports by name). Vitest aliases each to its
+  `packages/*/src/index.ts` (`vitest.config.ts`, inherited by `vitest.stryker.config.ts`), and
+  `tests/tsconfig.json` has the matching `paths` entries. `npm run cli` does the same through
+  `packages/cli/tsconfig.run.json`. Any other `tsx` script resolves them through `node_modules` to
+  `packages/*/dist/`, so run `npx tsc --build` first or you run stale code. `store-postgres`,
+  `adapters/git` and `analyzers/php` have a project reference to core; `packages/cli` references all
+  four.
 - `tests/support/` holds helpers shared by unit and integration tests, such as `sample-graph.ts`,
   a synthetic `KnowledgeGraph` builder.
 - **Hook order: Vitest 1.6 runs all hooks of one suite in parallel.** This is
@@ -250,7 +261,11 @@ Verified against `package.json` (root and per package). If a command is not here
   parameter.
 - LLM behaviour follows **Closed product decisions** above (optional credentials, evaluation mode).
 - `ALLOWED_REPOS_DIR` empty = indexing disabled (fixtures-only mode). Indexing only runs inside that
-  root.
+  root. It must be a directory **only the user running Codemind can write to**, holding only trusted
+  repositories: whoever can write inside it can swap a directory of a repository path for a link
+  between the confinement check and git's read, or point git at objects outside the root with a
+  `.git` file (`gitdir:`) or `objects/info/alternates`. This residual risk is accepted, not closed
+  in code (DIS-85 follow-ups, DIS-86 design D7); see `docs/DEPLOYMENT.md`.
 - Specs and changes live under `openspec/` (initialized; `openspec/config.yaml` injects kit
   doctrine). Create or edit them only through the OpenSpec flow (`/opsx:*` or kit prompts/skills).
   Do not rewrite `openspec/specs/` during apply except a deliberate sync/archive.
@@ -392,6 +407,35 @@ services that must be started first, quirks of the local environment.
   yields no row, so only the recorded input catches an unredacted analyzer. The post-edit layer guard
   (`GUARD_HTTP_IN_BUSINESS`) matches transport imports, not the word `fastify`, which is a domain
   value in core.
+- **The CLI `index` command owns the transaction and the output contract** (DIS-86,
+  `packages/cli/src/commands/index-repository.ts`, `compose-index.ts`). `runIndexCommand(argv, deps)`
+  builds a fresh `commander` command per call (`exitOverride`, output to the injected streams,
+  `outputError` a no-op so `commander` never prints its own error text) and returns the exit code:
+  `0` success, help or version; `1` domain, configuration or runtime error; `2` usage
+  (`USAGE`, `UNSUPPORTED_LANGUAGE` — only `php`, `typescript` says "not available yet (CM-HU-18)" —,
+  `UNSUPPORTED_FRAMEWORK`). `index.ts` delegates to it when `argv[2] === 'index'`. Order: arguments,
+  then trimmed `ALLOWED_REPOS_DIR` + lexical `confinePath`, then `AUTHOR_HASH_SALT` and
+  `DATABASE_URL` (`MISSING_CONFIG`, `details.variable`), all before connecting; then one transaction
+  (`OpenTransaction`: default `pg.Client` with a 10 s connection timeout + `BEGIN`, a failed connect
+  or `BEGIN` → `DATABASE_UNAVAILABLE` without the URL), commit on success, rollback on any error
+  (a failing rollback never hides the first error), release always. stdout carries only the report
+  (text, or one JSON document with `--json`), written after the commit, so it stays empty on any
+  error; stderr carries `[n/6] <phase>`, one JSON line per `secret_redacted` event (`source` `file`
+  or `commit`, never the value) and, on failure, `{"error":{code,message,details}}` plus
+  `{"level":"error","event":"index_failed",code,exit}`. `toCliError` builds every message from the
+  code and the path or name **as typed** and never reuses a domain or unknown error's message
+  (`NotAGitRepository`/`EmptyRepository` hold the real absolute path); anything that is not a mapped
+  domain error is `INTERNAL`. Analyzer diagnostics and skipped paths are printed with
+  `escapeLiteral` (JSON plus ``–``, since `JSON.stringify` leaves DEL and C1 raw).
+  Tests: `deps.ports` (sourceTree, git, analyzer, `store(client)`) and `deps.openTransaction` are
+  test seams; unit tests use fakes (Stryker only runs unit tests), integration tests use the real
+  adapters with a `SAVEPOINT cli_index` factory on the harness client — needed because the harness
+  forbids `COMMIT`/`ROLLBACK` on `db()` and a rollback must undo a `createProject` that preceded a
+  failed `saveGraph` (the store's own per-write `store_write` savepoints do not). Workspace packages
+  the CLI imports by name resolve to `src/` in three places that must stay in sync: the Vitest alias,
+  `tests/tsconfig.json` `paths` and `packages/cli/tsconfig.run.json`; a missing entry silently falls
+  back to `dist/` through `"main"`. Trap: deleting `packages/*/dist` but not the build info makes a
+  plain `tsc --build` report "up to date" and emit nothing; restore with `npx tsc --build --force`.
 - **Vitest can report success with no tests** (`passWithNoTests: true`). A green suite is not
   evidence that behaviour is covered.
 - **The repo is mid-build (Entrega 2).** `db:seed`/`seed:build`/`verify` are placeholders that
@@ -399,7 +443,7 @@ services that must be started first, quirks of the local environment.
   (`project`, `file`, `symbol`, `edge`, `commit`, `file_commit`) have a writer so far, and only
   `project`, `file`, `symbol` and `edge` have a reader. The git history reader (DIS-35) produces
   `commit`/`file_commit` rows and the co-change rule (DIS-36) `co_changed` edges; `indexRepository`
-  (DIS-85) composes them, but nothing outside tests calls it yet (the CLI command is DIS-86).
+  (DIS-85) composes them, and the CLI `index` command (DIS-86) is its only caller outside tests.
   `db:migrate` / `db:rollback` are real and need `DATABASE_URL`: `make up` gets it from `.env`,
   because the Makefile includes and exports `.env`. Plain `npm run db:*` does not read `.env`.
   Do not assume a working end-to-end flow exists.
