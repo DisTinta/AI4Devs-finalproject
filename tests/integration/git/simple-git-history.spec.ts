@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { cpSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { coChangeEdges, NotAGitRepository, pseudonymiseAuthor } from '@codemind/core';
 import type { KnowledgeGraph } from '@codemind/core';
 import { createSimpleGitHistory } from '../../../packages/adapters/git/src/index';
+import { ACCENTED_PATH, armOutputConfig, armProgramTraps, buildHostileRepository } from './hostile-repository';
 import { createPostgresStore } from '../../../packages/adapters/store-postgres/src/index';
 import { describeWithDatabase, useTransactionPerTest } from '../helpers/db';
 import { unique } from '../helpers/factories';
@@ -118,6 +119,59 @@ describe('git history', () => {
 
       // Act / Assert
       await expect(history.readHistory(repository)).resolves.toEqual({ head: undefined, commits: [], fileCommits: [] });
+    });
+
+    it('A broken HEAD rejects the history read', async () => {
+      // Arrange: a committed repository whose branch ref holds text that is not a sha.
+      const repository = temporaryDirectory();
+      git(repository, 'init', '-q', '-b', 'main');
+      writeFileSync(join(repository, 'a.ts'), 'export {};\n');
+      git(repository, 'add', '.');
+      git(repository, 'commit', '-q', '-m', 'feat: a');
+      writeFileSync(join(repository, '.git', 'refs', 'heads', 'main'), 'not-a-sha\n');
+
+      // Act
+      const result = await createSimpleGitHistory({ authorHashSalt: SALT })
+        .readHistory(repository)
+        .then((history) => ({ history }), (error: unknown) => ({ error }));
+
+      // Assert
+      expect(result).not.toHaveProperty('history');
+      expect((result as { error: unknown }).error).toBeInstanceOf(Error);
+      expect((result as { error: unknown }).error).not.toBeInstanceOf(NotAGitRepository);
+      expect(((result as { error: Error }).error).message).toMatch(/HEAD/);
+    });
+
+    it('Reading the history executes nothing from the repository', async () => {
+      // Arrange
+      const outside = temporaryDirectory();
+      const repository = temporaryDirectory();
+      const signedSha = buildHostileRepository(repository);
+      const marker = armProgramTraps(repository, outside);
+
+      // Act
+      const history = await createSimpleGitHistory({ authorHashSalt: SALT }).readHistory(repository);
+
+      // Assert: the marker's content, so a failure names the program that ran.
+      expect(history.head).toBe(signedSha);
+      expect(existsSync(marker) ? readFileSync(marker, 'utf8') : '').toBe('');
+    });
+
+    it('Repository configuration does not change the history', async () => {
+      // Arrange
+      const repository = temporaryDirectory();
+      buildHostileRepository(repository);
+      const reader = createSimpleGitHistory({ authorHashSalt: SALT });
+      const clean = await reader.readHistory(repository);
+      armOutputConfig(repository);
+
+      // Act
+      const configured = await reader.readHistory(repository);
+
+      // Assert
+      expect(configured).toEqual(clean);
+      const root = configured.commits[configured.commits.length - 1].sha;
+      expect(configured.fileCommits.filter((link) => link.sha === root).map((link) => link.file)).toContain(ACCENTED_PATH);
     });
 
     it('Reading does not modify the repository', async () => {
