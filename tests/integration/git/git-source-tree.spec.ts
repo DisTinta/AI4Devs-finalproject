@@ -136,6 +136,21 @@ describe('git source tree', () => {
     expect(tree.skipped).toEqual([{ path: 'logo.bin', reason: 'binary-content' }]);
   });
 
+  it('drops a leading UTF-8 byte order mark when decoding', async () => {
+    // Arrange: EF BB BF, then plain text.
+    const repository = emptyRepository();
+    writeFileSync(join(repository, 'bom.php'), Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('<?php\n')]));
+    git(repository, 'add', '.');
+    git(repository, 'commit', '-q', '-m', 'feat: bom');
+
+    // Act
+    const tree = await sourceTree.readFiles(repository);
+
+    // Assert
+    expect(tree.files).toEqual([{ path: 'bom.php', content: '<?php\n' }]);
+    expect(tree.skipped).toEqual([]);
+  });
+
   it('The real path follows symbolic links', async () => {
     // Arrange: a junction needs no privilege on Windows; elsewhere a plain directory link.
     const target = temporaryDirectory();
