@@ -17,10 +17,10 @@ CM-HU-05a promete indexar un repositorio PHP/Laravel con un solo comando, pero h
 1. `docker compose up -d` y `export DATABASE_URL=postgres://codemind:codemind@localhost:5432/codemind`
 2. `npm install` y `npm run db:migrate`
 3. `npx vitest run tests/unit/cli tests/integration/cli` → 3 ficheros en verde (la integración indexa acme-shop varias veces, unos 30 s).
-4. `npx vitest run` → 44 ficheros, 641 tests en verde (7 oct 2026).
+4. `npx vitest run` → 44 ficheros, 645 tests en verde (7 oct 2026, tras las dos rondas de revisión).
 5. `npx vitest run --exclude 'tests/integration/**'` sin `DATABASE_URL` → 30 ficheros, 428 tests en verde.
 6. `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage` → sin errores. El aviso de lint (`LlmPort.ts`) y los 4 de arquitectura (`no-orphans`) ya estaban antes.
-7. `npx stryker run --mutate "packages/cli/src/**/*.ts,!packages/cli/src/index.ts"` → **91,85 %** (umbral 70): `render-report.ts`, `logger.ts` y `version.ts` 100 %, `index-repository.ts` 93,52 %, `compose-index.ts` 85,71 %. Los supervivientes son equivalentes o el camino feliz de la transacción por defecto, que necesita Postgres; están razonados en el informe del paso 9.
+7. `npx stryker run --mutate "packages/cli/src/**/*.ts,!packages/cli/src/index.ts"` → **91,74 %** (umbral 70): `render-report.ts`, `logger.ts`, `safe-json.ts` y `version.ts` 100 %, `index-repository.ts` 93,64 %, `compose-index.ts` 85,56 %. Los supervivientes son equivalentes o el camino feliz de la transacción por defecto, que necesita Postgres; están razonados en el informe del paso 9.
 8. Prueba manual con el CLI real (con todos los `dist/` apartados), por ejemplo:
    ```bash
    export ALLOWED_REPOS_DIR=/ruta/a/repos AUTHOR_HASH_SALT=demo
@@ -29,7 +29,7 @@ CM-HU-05a promete indexar un repositorio PHP/Laravel con un solo comando, pero h
    npm run cli -- index acme-shop --name x --language cobol           # exit 2, UNSUPPORTED_LANGUAGE
    ```
    Transcripción completa de 19 casos en `openspec/changes/cli-index-command/reports/2026-10-07-10-manual-interface-testing.md`.
-9. Demostración de los escenarios con el CLI real: `…/reports/2026-10-07-show-spec-working.md` (19 de 21 de punta a punta; los otros 2 necesitan un puerto que falle a propósito y los cubren los unitarios).
+9. Demostración de los escenarios con el CLI real: `…/reports/2026-10-07-show-spec-working.md` (21 de 25 de punta a punta, incluido un repositorio con un fichero `k<U+009B>2J.php` que guarda una clave; los otros 4 necesitan un puerto, un `COMMIT` o un `release` que fallen a propósito y los cubren los unitarios).
 
 ## Decisiones / compromisos
 
@@ -40,7 +40,11 @@ CM-HU-05a promete indexar un repositorio PHP/Laravel con un solo comando, pero h
 - **Costura `ports`** (D5): los unitarios usan puertos falsos, porque Stryker no ejecuta la integración.
 - **Mensajes construidos por el CLI** (D6): nunca se reutiliza el `message` de un error de dominio o desconocido; `NotAGitRepository` y `EmptyRepository` llevan la ruta real absoluta.
 - **Riesgo residual de confinamiento aceptado** (D7): la ventana entre confinar y leer, y un `.git` con `gitdir:` o `alternates` fuera de la raíz, exigen poder escribir dentro de `ALLOWED_REPOS_DIR`. Queda documentado en `docs/DEPLOYMENT.md` y `docs/project-context.md` que ese directorio solo lo escribe el usuario que ejecuta Codemind y solo contiene repositorios de confianza.
-- **Escape de C1** (D8): `JSON.stringify` deja pasar DEL y `\u0080`–`\u009f`, así que se escapan aparte.
+- **Escape de DEL y C1 en todas las salidas** (D8): `JSON.stringify` deja pasar DEL y `\u0080`–`\u009f`, así que `toTerminalSafeJson` los escapa en el informe de texto, el `--json`, el log y la línea de error. La revisión adversarial vio que solo se hacía en el informe de texto: core acepta una ruta con C1, así que un fichero así con un secreto llegaba al terminal con un CSI en crudo por la línea `secret_redacted`.
+- **Un `COMMIT` fallido no dice «nothing was saved»** (Risks): si falla el `COMMIT` o algo después de confirmar, el error es `INTERNAL` con `unexpected error; the project may have been saved`, porque el servidor puede haber confirmado antes de que se cayera la conexión.
+- **Un `release` fallido se ignora** (spec): a esas alturas el resultado ya está decidido y es cierto (tras confirmar: informe y exit 0; tras un fallo: se reporta ese fallo).
+- **`secret_redacted` solo tras confirmar** (Risks): las líneas describen lo que se guardó redactado; una indexación fallida no guarda nada y no escribe ninguna.
+- **Comportamiento que la spec no pide** (D11): la línea `redactions:`, el recuento de borrados, el `reason` de los descartados, `BEGIN` fallido → `DATABASE_UNAVAILABLE`, el timeout de 10 s, `-V`, etc. Se quedan y se documentan en el diseño, sin pasar a la spec; ningún test de escenario depende de ellos.
 - **`npm run cli` desde fuentes** (D10): `tsx --tsconfig packages/cli/tsconfig.run.json`. Se descartó `tsc --build && node dist`: con `dist/` borrado y el `tsbuildinfo` intacto, `tsc --build` dice «up to date» y no emite nada (comprobado), y además escribiría los errores de compilación en stdout.
 - **Dependencias nuevas de `packages/cli`**: `@codemind/adapter-git`, `@codemind/adapter-store-postgres` y `@codemind/analyzer-php` (del workspace: el CLI es la raíz de composición), y `pg` / `@types/pg`, que ya estaban en el lock con la misma versión (deduplicadas desde el adaptador de store). No se descarga ningún paquete nuevo.
 
@@ -48,27 +52,37 @@ CM-HU-05a promete indexar un repositorio PHP/Laravel con un solo comando, pero h
 
 | Escenario de la especificación | Test que lo cubre |
 |---|---|
-| Help and version exit with zero | `tests/unit/cli/index-command.spec.ts:148` |
-| An unsupported language is a usage error | `tests/unit/cli/index-command.spec.ts:171` |
-| An unsupported framework is a usage error | `tests/unit/cli/index-command.spec.ts:187` |
-| A missing or blank name is a usage error | `tests/unit/cli/index-command.spec.ts:201` |
-| Indexing is disabled before connecting without an allowed root | `tests/unit/cli/index-command.spec.ts:242` |
-| A path outside the allowed root is rejected before connecting | `tests/unit/cli/index-command.spec.ts:254` |
-| Missing configuration fails before connecting | `tests/unit/cli/index-command.spec.ts:270` |
-| A successful indexing commits and releases | `tests/unit/cli/index-command.spec.ts:317` |
-| A failed indexing rolls back and releases | `tests/unit/cli/index-command.spec.ts:330` |
-| A taken name rolls back and keeps the first project | `tests/integration/cli/index-command.spec.ts:209` |
-| An allowed root that does not exist is detected inside the transaction | `tests/integration/cli/index-command.spec.ts:235` |
-| An unreachable database is reported without its URL | `tests/integration/cli/index-command.spec.ts:285` |
-| acme-shop is indexed and its report printed | `tests/integration/cli/index-command.spec.ts:121` |
-| An explicit framework wins and --json prints the full report | `tests/integration/cli/index-command.spec.ts:170` |
-| On error stdout stays empty | `tests/unit/cli/index-command.spec.ts:290` |
-| Every redaction is logged without the secret | `tests/unit/cli/index-command.spec.ts:344` |
-| A failure is logged with its code and exit | `tests/unit/cli/index-command.spec.ts:300` |
-| A directory that is not a repository is reported by the path as typed | `tests/integration/cli/index-command.spec.ts:256` |
-| A repository without commits is reported by the path as typed | `tests/integration/cli/index-command.spec.ts:270` |
-| An unexpected error is reported as INTERNAL | `tests/unit/cli/index-command.spec.ts:372` |
+| Help and version exit with zero | `tests/unit/cli/index-command.spec.ts:153` |
+| An unsupported language is a usage error | `tests/unit/cli/index-command.spec.ts:176` |
+| An unsupported framework is a usage error | `tests/unit/cli/index-command.spec.ts:192` |
+| A missing or blank name is a usage error | `tests/unit/cli/index-command.spec.ts:207` |
+| Indexing is disabled before connecting without an allowed root | `tests/unit/cli/index-command.spec.ts:248` |
+| A path outside the allowed root is rejected before connecting | `tests/unit/cli/index-command.spec.ts:260` |
+| Missing configuration fails before connecting | `tests/unit/cli/index-command.spec.ts:276` |
+| A successful indexing commits and releases | `tests/unit/cli/index-command.spec.ts:323` |
+| A failed indexing rolls back and releases | `tests/unit/cli/index-command.spec.ts:336` |
+| A failure while or after committing says the project may have been saved | `tests/unit/cli/index-command.spec.ts:378` |
+| A failed release after a commit is ignored | `tests/unit/cli/index-command.spec.ts:392` |
+| A taken name rolls back and keeps the first project | `tests/integration/cli/index-command.spec.ts:221` |
+| An allowed root that does not exist is detected inside the transaction | `tests/integration/cli/index-command.spec.ts:247` |
+| An unreachable database is reported without its URL | `tests/integration/cli/index-command.spec.ts:297` |
+| acme-shop is indexed and its report printed | `tests/integration/cli/index-command.spec.ts:128` |
+| An explicit framework wins and --json prints the full report | `tests/integration/cli/index-command.spec.ts:179` |
+| On error stdout stays empty | `tests/unit/cli/index-command.spec.ts:296` |
+| Every redaction is logged without the secret | `tests/unit/cli/index-command.spec.ts:350` |
+| A failure is logged with its code and exit | `tests/unit/cli/index-command.spec.ts:306` |
+| A failed indexing logs no redaction | `tests/unit/cli/index-command.spec.ts:403` |
+| A directory that is not a repository is reported by the path as typed | `tests/integration/cli/index-command.spec.ts:268` |
+| A repository without commits is reported by the path as typed | `tests/integration/cli/index-command.spec.ts:282` |
+| An unexpected error is reported as INTERNAL | `tests/unit/cli/index-command.spec.ts:450` |
 | Diagnostics and skipped paths are escaped | `tests/unit/cli/render-report.spec.ts:32` |
+| Control characters are escaped in the log, the JSON report and the error | `tests/unit/cli/index-command.spec.ts:417` |
+
+Antes de cerrar se pasaron dos veces `/verify-against-spec` y `/adversarial-review`:
+- **Primera pasada:** 21 de 21 escenarios con test, con huecos en tres tests y comportamiento fuera de la spec; PASS WITH GAPS, un Major.
+- **Segunda pasada, sobre los arreglos:** 24 de 24 escenarios con test; PASS WITH GAPS, sin Major.
+
+Los arreglos (en TDD) y las decisiones de la autora están en el informe del paso 9 y en `design.md`.
 
 ## Origen
 

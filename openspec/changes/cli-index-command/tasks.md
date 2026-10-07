@@ -134,3 +134,24 @@
   - `/update-docs`: also fixed the stale "`@codemind/core` resolves to its sources in tests" gotcha (now four packages, `tsconfig.run.json` for `npm run cli`) and the `cli/` line of the readme package tree. Checked, no change: data model (no migration), API spec (no route; `docs/api` is generated), standards, `docs/TESTING.md`, `docs/DEMO.md`, `fixtures/README.md`. `docs:coverage` exit 0. `prompts.md` §30 (2 literal prompts) + Índice entry 30.
 - [ ] 12.6 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the author's Why transcribed, the new dependencies of `packages/cli` justified and the Stryker score. After verification, set DIS-86 to In Review in Linear with a comment in Spanish linking the PR and the change
 - [ ] 12.7 At archive time, run the archive ritual: close or reassign the 5 inbound notes of DIS-86 (DIS-84, DIS-85 ×3, DIS-96), noting for each where it was resolved (trim + composition root, transaction contract, structured log, path privacy, escaping, D7), and classify every review gap (A/B/C/D)
+
+## 13. Review round: /verify-against-spec and /adversarial-review
+
+- [x] 13.1 Run `/verify-against-spec` and `/adversarial-review` on the change; classify each finding (fix here, author decision, or process note)
+  - verify: all requirements implemented, 21/21 scenarios with a test; gaps 2.1–2.4 and 10 unspecified behaviours. adversarial: PASS WITH GAPS, one Major (DEL/C1 raw in the log, `--json` and error line), Minors, two questions. Table in the step 9 report.
+- [x] 13.2 Spec first: widen "Untrusted strings are printed escaped" to every output; `INTERNAL` message `unexpected error; the project may have been saved` when the commit or anything after it fails; redaction lines only after the commit. Three scenarios added (24 in total)
+- [x] 13.3 RED → GREEN for the two behaviour changes: `safe-json.ts` (`toTerminalSafeJson` in the logger, `--json` and the error line) and `CommitUncertain`; "A failed indexing logs no redaction" pins existing behaviour
+  - RED: raw `\u009b` in `--json` stdout; old `nothing was saved` message. GREEN: `tests/unit/cli` 36 passed.
+- [x] 13.4 Strengthen the weak tests: the acme-shop integration copy gets one commit whose message holds a concatenated key (the commit-log check is no longer 0 == 0, nor read from the unspecified `redactions:` line); `stdout === ''` for `--framework symfony`; newline-in-entry checked line by line; file `column: 19`
+  - Forced failures: skipping the first commit event fails the integration scenario; un-escaping `\n` in skipped paths fails the render scenario.
+- [x] 13.5 Record the author decisions in `design.md` (D8 widened, D11 behaviour beyond the spec, Risks: commit uncertainty, redaction logging, `codemind help index`)
+- [x] 13.6 Rerun the gates and the real CLI; update the step 9 and show-spec-working reports
+  - 44 files, 644 passed; lint/typecheck/architecture/docs green (pre-existing warnings only); Stryker `packages/cli` 91.74 % (222/13/7); real CLI on a repo with a C1 file name: escaped, no raw C1/DEL, no key; state back to baseline.
+- [x] 13.7 Linear: comment in Spanish on DIS-86 with the changed rules and figures
+- [x] 13.8 Second pass of `/verify-against-spec` (full spec) and `/adversarial-review` (uncommitted diff only); classify the findings
+  - verify: 24/24 scenarios with a test; partial 2.1 (a failed release after the commit), weaker checks 2.2/2.3, items 9–11 of block 3. adversarial: PASS WITH GAPS, no Major, five Minors and one question. Table in the step 9 report.
+- [x] 13.9 Spec: a failed release is ignored (author decision); scenario "A failed release after a commit is ignored" (25 in total), pinning existing behaviour — removing the `.catch` on `release()` fails it
+- [x] 13.10 Fixes without a rule change: de-duplicate the show-spec-working tail; `commit.gpgsign=false` on the integration commit; the `--json` integration scenario compares commit log lines with `report.commitEvents.length`; the control-characters scenario checks `source`, `line` and `rule`; "A failed indexing logs no redaction" shown through the real CLI
+- [x] 13.11 Design: the closed-stdout claim corrected (EPIPE is asynchronous, D11; author decision); a `COMMIT` rejected by the server is accepted as "may have been saved" (Risks); bidi/format characters out of scope (D8, archive classification); `-h`, swallowed rollback/release errors and stderr failures (D11)
+- [x] 13.12 Rerun the gates; update the step 9 report and the PR description; Linear comment for the release rule and the new figures
+  - 645 passed; Stryker 91.74 % (unchanged); a stop-hook run timed out once in `git-source-tree.spec.ts` under Stryker load, green alone (18/18) and in a full run right after.

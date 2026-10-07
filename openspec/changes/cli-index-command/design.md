@@ -171,11 +171,28 @@ trusted repositories. Revisit if indexing ever accepts repositories from untrust
 
 ### D8 — Escaping untrusted strings
 
-`render-report.ts` prints each diagnostic message and skipped path with `escapeLiteral(s)` =
-`JSON.stringify(s)` followed by replacing `[\u007f-\u009f]` with `\uXXXX`. `JSON.stringify` escapes
-quotes, backslash and C0 controls (`\u0000`–`\u001f`, so ESC and newlines) but leaves DEL and C1
-controls raw, and `\u009b` is a one-byte CSI on terminals that honour C1. Log and error lines are
-whole JSON objects, so they get the same JSON escaping; they never carry diagnostics.
+`safe-json.ts` exports `toTerminalSafeJson(value)` = `JSON.stringify(value)` followed by replacing
+`[\u007f-\u009f]` with `\uXXXX`. `JSON.stringify` escapes quotes, backslash and C0 controls
+(`\u0000`–`\u001f`, so ESC and newlines) but leaves DEL and C1 controls raw, and `\u009b` is a
+one-byte CSI on terminals that honour C1. The replacement only touches characters inside JSON
+strings (the structure is ASCII), so the result still parses to the same value.
+
+Every output goes through it: the text report prints each diagnostic message and skipped path with
+`escapeLiteral(s)` = `toTerminalSafeJson(s)`; the logger serialises each line with it; the `--json`
+report and the `{"error":…}` line use it too. Before the adversarial review of 2026-10-07 (Major)
+only the text report escaped DEL and C1, while the `secret_redacted` line (`file`), the `--json`
+report (`skipped[].path`, `diagnostics[].message`) and the `INVALID_GRAPH` violations went through
+plain `JSON.stringify`. The gap was real: core's `partitionSourceFiles` skips a path with C0 or DEL
+as `invalid-path` but keeps one with C1, so a tracked file named `k\u009b2J.php` holding a secret
+reached stderr with a raw CSI. The spec requirement "Untrusted strings are printed escaped" now
+covers every output, with the scenario "Control characters are escaped in the log, the JSON report
+and the error".
+
+Out of scope, as in the spec (C0, DEL and C1 only): bidi and format characters (U+202A–U+202E,
+U+2066–U+2069) and U+2028/U+2029 pass through raw, so a tracked file name with U+202E could visually
+reorder a path in the terminal ("Trojan Source"). They are not terminal control sequences; escaping
+them, or rejecting them (and C1) as `invalid-path` in core, is left for the archive gap
+classification (second adversarial review 2026-10-07, question).
 
 ### D9 — Mutation testing and dependencies
 
@@ -235,12 +252,66 @@ info (above) and leave them missing.
 No ADR: every decision is local to `packages/cli` (and its test and run wiring) and cheap to revert;
 D7 is recorded here and in the deployment docs.
 
+### D11 — Behaviour beyond the spec (author decision: recorded here, the spec stays as it is)
+
+/verify-against-spec (2026-10-07) listed behaviour the spec does not ask for. The author decided to
+keep it and record it here as implementation detail, not to add it to the spec. No test may depend
+on it to prove a scenario: the acme-shop integration scenario used to read the commit-event count
+from the `redactions:` line and now asserts the planted commit's event directly.
+
+- Text report: a `redactions: N in files, M in commit messages` line, the deleted-files count in
+  `files: N (X deleted)`, the `reason` of each skipped entry, and the `path` and `:line` of each
+  diagnostic (all printed with `escapeLiteral` where they come from the repository).
+- A failed `BEGIN` is `DATABASE_UNAVAILABLE`, like a failed connect (D4).
+- The default transaction waits 10 s for the connection (`CONNECTION_TIMEOUT_MS`, D4).
+- A connection error emitted after `connect` is swallowed by a no-op `error` listener; the pending
+  query still rejects with it, so the indexing fails and rolls back (D4).
+- An extra positional argument is a `USAGE` error (`allowExcessArguments(false)`), one of "every
+  other argument error".
+- `-V` works as `--version` and `-h` as `--help` (commander's default short flags).
+- A failed rollback is swallowed so the first error wins (extra unit case), and a failed release is
+  swallowed always; the spec states the release rule since the second review round (scenario "A
+  failed release after a commit is ignored").
+- If writing to stderr itself fails while reporting an error, or stdout or stderr emits `'error'`
+  later (EPIPE on a closed pipe such as `| head`: Node's `write` does not throw, it emits the event
+  asynchronously), nothing catches it and Node prints its own stack trace. The entry point registers
+  no `'error'` listener on `process.stdout`/`process.stderr`; there is no channel left to report on
+  (author decision, second review round).
+- The global program delegates `argv[2] === 'index'` to `runIndexCommand` and lists a placeholder
+  `index <path>` so `codemind --help` shows it (D1).
+- `CLI_VERSION` must equal `packages/cli/package.json` → `version`, and the help text is pinned by
+  an extra unit case.
+
 ## Risks / Trade-offs
 
 - [The `ports` seam is test-only surface on an exported function] → it is optional, documented as a
   seam, and defaults to the real adapters; the integration tests exercise the defaults.
-- [A `COMMIT` that fails after a successful indexing] → mapped like any error (rollback attempted,
-  exit `1`, empty stdout); the report is never printed for an uncommitted snapshot.
+- [A `COMMIT` that fails after a successful indexing, or an error thrown after a successful commit
+  (by the logger, the renderer or a `write` that throws at once)] → a failed `COMMIT` is ambiguous
+  (the server may have committed before the connection dropped), so `indexWithEnvironment` turns it
+  into `CommitUncertain`, and the command maps any error thrown after the commit returned to the same
+  class: `INTERNAL`, exit `1`, message `unexpected error; the project may have been saved` instead of
+  `nothing was saved`. A rerun then ends in `PROJECT_NAME_TAKEN`, which is the honest outcome. The
+  rollback is still attempted (a no-op if the server committed); the report is never printed for an
+  uncommitted snapshot. Author decision after /verify-against-spec (2.2) and the adversarial review
+  of 2026-10-07 (Minor); scenario "A failure while or after committing says the project may have been
+  saved". A closed stdout (EPIPE) is not this path: Node reports it asynchronously as an `'error'`
+  event (D11); the design said otherwise until the second adversarial review corrected it.
+- [Every `COMMIT` rejection is "may have been saved", including one the server reports with a
+  SQLSTATE (e.g. `40001`, or a deferred `23505`), after which Postgres has certainly rolled back] →
+  accepted: the message says "may", so it is never false, and today it cannot happen in practice —
+  no constraint is `DEFERRABLE` and the default isolation is READ COMMITTED, so no error is raised at
+  `COMMIT` time. Telling the two apart would need the driver's error class, which this change keeps
+  out of every message (second adversarial review 2026-10-07, Minor).
+- [`secret_redacted` lines are written only after the commit] → they describe what was stored
+  redacted, and a failed indexing stores nothing, so it writes none. Core returns the redaction
+  events inside the report, which a failed indexing never returns; logging them on failure would
+  need a callback from core, outside this change. Author decision after /verify-against-spec (2.1)
+  and the adversarial review of 2026-10-07 (Minor): the spec now says so, with the scenario "A failed
+  indexing logs no redaction".
+- [`codemind help index` shows the help of the global program's placeholder `index <path>`, with no
+  options] → its description points to `codemind index --help`, which prints the real help; accepted
+  (adversarial review 2026-10-07, question, run and checked).
 - [Progress lines already written before an error] → acceptable: stderr is the diagnostic channel;
   the contract only requires stdout to be empty.
 - [`INTERNAL` hides the original message, which makes field debugging harder] → privacy wins; the

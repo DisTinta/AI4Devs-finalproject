@@ -29,6 +29,10 @@
 | A failure is logged with its code and exit | every error case | `{"level":"error","event":"index_failed","code":…,"exit":…}` after each `{"error":…}` line | Yes | manual #6–#19 |
 | A directory that is not a repository is reported by the path as typed | `index no-repo` | exit 1, `"no-repo" is not the root of a git repository`; no real path | Yes | manual #16 |
 | A repository without commits is reported by the path as typed | `index vacio` | exit 1, `"vacio" has no commits`; no real path | Yes | manual #17 |
+| Control characters are escaped in the log, the JSON report and the error | `index c1repo` and `--json` (tracked `k<U+009B>2J.php` holding a key; review round) | `"file":"k\u009b2J.php"` on stderr; 0 raw C1/DEL bytes in stdout and stderr | Yes for the log and `--json`; the error line by the unit test | below (review round) |
+| A failure while or after committing says the project may have been saved | — | needs a `COMMIT` that fails on demand | Unit test | — |
+| A failed indexing logs no redaction | `index c1repo --name dis86-c1-taken` twice (second review round) | first run exit 0 with 2 `secret_redacted` lines; second run exit 1, `PROJECT_NAME_TAKEN`, 0 `secret_redacted` lines, stdout empty, no `AKIA…` | Yes | below (second review round) |
+| A failed release after a commit is ignored | — | needs a release that fails on demand | Unit test | — |
 | Diagnostics and skipped paths are escaped | `index weird2` (tree built with `git mktree`, holding `x<ESC>[31m.php`) | skipped entry printed as `"x\u001b[31m.php" (invalid-path)`; no raw ESC byte in stdout | Yes | below |
 
 ## Evidence
@@ -82,10 +86,54 @@ $ grep -c $'\033' stdout
 ```
 
 Observation: core's input hygiene treats C0 controls as `invalid-path` but accepts the C1 path
-`c<U+009B>2Jd.php` as a valid file (it is indexed: `files: 2`). The CLI never prints the indexed
-files, so that path does not reach the terminal here; the C1 branch of `escapeLiteral` is exercised by
-the unit scenario. Whether core should also reject C1 paths is outside this change (recorded for the
-archive gap classification).
+`c<U+009B>2Jd.php` as a valid file (it is indexed: `files: 2`). The text report never lists the
+indexed files, but the `secret_redacted` line names one when it holds a secret: that was the
+adversarial review's Major, fixed in the review round below. Whether core should also reject C1
+paths, and whether bidi and format characters (U+202A–U+202E, U+2066–U+2069, U+2028/U+2029) should
+be escaped too (design D8), are outside this change (recorded for the archive gap classification).
+
+Review round (after /verify-against-spec and /adversarial-review). A repository built with
+`git mktree` / `git commit-tree` in `<scratch>/c1root3/c1repo`: `a.php` and `k<U+009B>2J.php`
+(holding a concatenated AWS key id), one commit whose message holds the same key.
+
+```text
+$ git ls-tree -r HEAD --name-only -z | od -c
+0000000   a   .   p   h   p  \0   k 302 233   2   J   .   p   h   p  \0
+$ npm run -s cli -- index c1repo --name dis86-c1-text --language php     (and --json, dis86-c1-json)
+[text] EXIT=0      [json] EXIT=0
+stderr (both runs, through cat -v):
+[1/6] confine … [6/6] save
+{"level":"info","event":"secret_redacted","source":"file","file":"k\u009b2J.php","line":2,"column":19,"rule":"aws-access-key-id"}
+{"level":"info","event":"secret_redacted","source":"commit","commit":"28faad43e23c0e6f9819ba0e64ed80df5f0f3bff","line":1,"column":15,"rule":"aws-access-key-id"}
+raw C1/DEL bytes (LC_ALL=C grep -c $'\xc2[\x80-\x9f]\|\x7f'): 0 in stdout, 0 in stderr, both runs
+AKIA[A-Z0-9]{16}: 0 in stdout, 0 in stderr, both runs
+```
+
+Before the fix the same `file` field went through plain `JSON.stringify`, which writes U+009B raw.
+This run also shows a `"source":"commit"` line through the real CLI, which acme-shop cannot.
+Projects `dis86-c1-text` and `dis86-c1-json` deleted by name afterwards (`DELETE 2`); counts back to
+0/0/0.
+
+Second review round: a failed indexing logs no redaction, on the same repository.
+
+```text
+$ npm run -s cli -- index c1repo --name dis86-c1-taken --language php      (run 1)
+EXIT=0  stdout 332 bytes  secret_redacted lines on stderr: 2  AKIA…: 0
+$ npm run -s cli -- index c1repo --name dis86-c1-taken --language php      (run 2)
+EXIT=1  stdout 0 bytes  secret_redacted lines on stderr: 0  AKIA…: 0
+[1/6] confine
+[2/6] read
+[3/6] redact
+[4/6] analyze
+[5/6] history
+[6/6] save
+{"error":{"code":"PROJECT_NAME_TAKEN","message":"project name \"dis86-c1-taken\" is already taken","details":{}}}
+{"level":"error","event":"index_failed","code":"PROJECT_NAME_TAKEN","exit":1}
+```
+
+The second run redacted the same file and commit (`[3/6] redact`) but, failing before the commit,
+logged none of it. One `dis86-c1-taken` row afterwards, deleted by name (`DELETE 1`); counts back to
+0/0/0.
 
 ## State
 
@@ -100,12 +148,18 @@ archive gap classification).
   both need a port to throw an arbitrary error mid-indexing, which the real adapters do not do on
   demand. Shown by the unit tests with fake ports (`tests/unit/cli/index-command.spec.ts`), and the
   rollback of a real failure is visible in "A taken name…" (no second row).
-- The `"source":"commit"` log line: acme-shop's history holds no secret. Shown by the unit scenario
-  "Every redaction is logged without the secret".
+- The `"source":"commit"` log line: acme-shop's history holds no secret. Shown through the real
+  CLI by the review-round repository above, and by the unit scenario "Every redaction is logged
+  without the secret".
+- **A failure while or after committing says the project may have been saved** and **A failed
+  release after a commit is ignored** (review rounds): they need a `COMMIT` or a release that fails
+  on demand. Shown by the unit tests with fakes.
+- The `{"error":…}` part of **Control characters are escaped…**: it needs an analyzer that emits an
+  invalid graph. Shown by the unit test.
 
 ## Handoff
 
-The change is **demonstrably working** through the real CLI: 19 of 21 scenarios exercised end to end
-with the expected exit codes, streams and stored state; the remaining two are covered by unit tests
-with fakes, as explained above. No screenshot or other file was written at the repository root (the
-change has no browser UI).
+The change is **demonstrably working** through the real CLI: 21 of 25 scenarios exercised end to end
+with the expected exit codes, streams and stored state (after the two review rounds, which added
+four scenarios); the remaining four are covered by unit tests with fakes, as explained above. No
+screenshot or other file was written at the repository root (the change has no browser UI).

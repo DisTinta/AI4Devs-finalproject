@@ -421,12 +421,15 @@ services that must be started first, quirks of the local environment.
   (a failing rollback never hides the first error), release always. stdout carries only the report
   (text, or one JSON document with `--json`), written after the commit, so it stays empty on any
   error; stderr carries `[n/6] <phase>`, one JSON line per `secret_redacted` event (`source` `file`
-  or `commit`, never the value) and, on failure, `{"error":{code,message,details}}` plus
+  or `commit`, never the value; written only after the commit) and, on failure, `{"error":{code,message,details}}` plus
   `{"level":"error","event":"index_failed",code,exit}`. `toCliError` builds every message from the
   code and the path or name **as typed** and never reuses a domain or unknown error's message
   (`NotAGitRepository`/`EmptyRepository` hold the real absolute path); anything that is not a mapped
-  domain error is `INTERNAL`. Analyzer diagnostics and skipped paths are printed with
-  `escapeLiteral` (JSON plus ``–``, since `JSON.stringify` leaves DEL and C1 raw).
+  domain error is `INTERNAL` (`unexpected error; nothing was saved`, or `…; the project may have been
+  saved` when the `COMMIT` or anything after it fails: `CommitUncertain`). Every output goes through
+  `toTerminalSafeJson` (`safe-json.ts`: JSON plus `\u007f`–`\u009f` escaped, since `JSON.stringify`
+  leaves DEL and C1 raw and core keeps a path with C1): the text report (`escapeLiteral`), `--json`,
+  the log and the error line.
   Tests: `deps.ports` (sourceTree, git, analyzer, `store(client)`) and `deps.openTransaction` are
   test seams; unit tests use fakes (Stryker only runs unit tests), integration tests use the real
   adapters with a `SAVEPOINT cli_index` factory on the harness client — needed because the harness
