@@ -228,3 +228,10 @@ No Blocker, no Major. Narrow contradictions fixed; new Minor findings accepted w
 - [x] 19.2 `core.worktree` — the root check also requires `<dir>/.git` to be the repository's git directory or a `.git` file; red first (both readers)
 - [x] 19.3 M-8a — `GIT_ATTR_NOSYSTEM=1` in `GIT_ENV` (allowed through simple-git's `allowEnvironment`)
 - [x] 19.4 Accepted Minor recorded: non-UTF-8 paths decoded lossily (DIS-35 debt)
+
+## 20. Follow-up of the ninth /verify-against-spec and eighth /adversarial-review (2026-10-07, closing round)
+
+- [x] 20.0 Commit the previous round locally (600/600 green): `31b53ab`, `00152ef`
+- [x] 20.1 No contradiction, no Blocker, no Major. Trivial fix: the `.git` check maps only a missing entry to `NotAGitRepository` (injectable `lstat`, red first)
+- [x] 20.2 Accepted Minor findings recorded with their reason (N2 reading of "top-level"; junk `.git` file propagates; M-8a test pins a constant)
+- [x] 20.3 Push, wait for CI, update the report and the PR description with the final evidence; Spanish comment on DIS-85

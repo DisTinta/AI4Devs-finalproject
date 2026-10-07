@@ -392,7 +392,9 @@ DIS-86.
   objects outside it, with no timing involved; confinement checks only the work tree's real path.
   Same attacker (write access inside `allowedRoot`), same destination (B → DIS-86: confine
   `rev-parse --absolute-git-dir` and the alternates, or document that `ALLOWED_REPOS_DIR` must only
-  hold trusted repositories). Exploiting it needs write access inside `allowedRoot`. The composition root (DIS-86)
+  hold trusted repositories). The root check rejects a subdirectory that another repository's
+  `core.worktree` names (seventh round), but a `.git` file placed in that subdirectory and pointing
+  back at the enclosing git directory still passes: the same `.git` file class. Exploiting it needs write access inside `allowedRoot`. The composition root (DIS-86)
   owns that directory and its permissions; Spanish comment there (2026-10-07).
 - **D (accepted):** commit-message free text beyond the four secret rules is stored as written
   (DIS-35 non-goal); synthetic `.test` identity in `git-source-tree.spec.ts`.

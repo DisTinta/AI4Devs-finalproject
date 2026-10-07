@@ -178,17 +178,34 @@ Eighth `/verify-against-spec`: one contradiction (C-8a) and one Minor (M-8a). Se
 `/adversarial-review`: PASS WITH GAPS, no Blocker, no Major; two of its Minor findings conflict with
 a SHALL. Previous round committed first (`1762683`, `fcb8707`, 596/596).
 
-Fixed (red first, no spec change: the code now meets the existing SHALLs):
+Fixed (red first except M-8a, see below; no spec change: the code now meets the existing SHALLs):
 
 | Finding | Outcome | Test |
 |---|---|---|
 | C-8a / adversarial 3: a `HEAD` or branch ref holding a tree's sha listed the tree (`readFiles`) and read as an empty history (`readHistory`) | `hasCommits` probes `HEAD^{commit}`; git's own error propagates | "propagates git's error for a HEAD that names a tree…" (detached and on a branch, both readers); `has-commits.spec.ts` |
 | Adversarial 2: a repository's own `core.worktree` made a subdirectory a "root" that read the enclosing repository | Root check also requires `<dir>/.git` to be the git directory, or a `.git` file (linked worktree) | "a subdirectory made a work tree by the repository's core.worktree…" (both readers) |
-| M-8a: the system attributes file applied (Git for Windows `astextplain`); spec names two sources | `GIT_ATTR_NOSYSTEM=1` | `repository-root.spec.ts` |
+| M-8a: the system attributes file applied (Git for Windows `astextplain`); spec names two sources | `GIT_ATTR_NOSYSTEM=1` | `repository-root.spec.ts` pins the constant only; it is not behavioural (the system attributes path is fixed at git's install prefix). Correction from the eighth adversarial review: it was not a behavioural red/green cycle |
 
 Accepted Minor: a tracked path that is not valid UTF-8 is decoded lossily (two such paths can
 collapse into one `duplicate-path`); reading paths as bytes belongs with the DIS-35 streaming debt.
 Design Risks.
+
+## Eighth review round (2026-10-07) — closing round
+
+Ninth `/verify-against-spec`: **no contradiction** with either delta; two Minor items. Eighth
+`/adversarial-review`: **PASS WITH GAPS, no Blocker, no Major**. Previous round committed first
+(`31b53ab`, `00152ef`, 600/600).
+
+Fixed (trivial, no spec change): the new `.git` check turned every `lstat` failure into
+`NotAGitRepository`; only a missing entry does now, and any other error propagates (same rule as
+C1). Red first: `repository-root.spec.ts` with an injected `lstat` (`EACCES` → that error; `ENOENT` →
+`NotAGitRepository`); this also closes the untested-branch finding.
+
+Accepted Minor findings, with reason:
+
+- N2: "top-level directory" now also requires `<dir>/.git` to be the repository's own git directory or a `.git` file. That is the plain reading of "inside one but is not its top-level directory" (a directory another repository's `core.worktree` names is inside that repository). A `.git` file in such a subdirectory pointing back at the enclosing git directory still passes: same class as the `.git` file / alternates follow-up, B → DIS-86 (design.md).
+- A `.git` file with junk content makes git stop with `fatal: invalid gitfile format`: classified as "any other git failure", which propagates unchanged (the repository is broken, not absent). No code change.
+- M-8a's test pins the environment constant only (correction above).
 
 ## Accepted without a test
 
@@ -199,10 +216,10 @@ Design Risks.
 - U8 — `EmptyRepository` carries `repoPath` and a message with the path: accepted, same shape as `NotAGitRepository` (the Low privacy finding is routed to DIS-86).
 - M2 — "no transaction, no log": not verifiable without instrumenting the database and the process output; met by construction (the use case receives the store already bound to the caller's connection and imports no logger).
 
-## Checks (2026-10-07, after the seventh review round)
+## Checks (2026-10-07, after the closing review round)
 
 ```
-npx vitest run          Test Files 41 passed (41) | Tests 600 passed (600)   (DATABASE_URL set, Postgres up)
+npx vitest run          Test Files 41 passed (41) | Tests 601 passed (601)   (DATABASE_URL set, Postgres up)
 npm run lint            exit 0 — 0 errors, 1 warning (existing no-empty-object-type in LlmPort.ts)
 npm run typecheck       exit 0
 npm run docs:coverage   exit 0
