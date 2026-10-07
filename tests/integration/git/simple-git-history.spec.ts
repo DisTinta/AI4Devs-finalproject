@@ -396,6 +396,34 @@ describe('git history', () => {
       }
     });
 
+    it('A file marked not diffable by attributes carries no line counts', async () => {
+      // Arrange: two committed text files; then a local, uncommitted attributes file marks one -diff.
+      const repository = temporaryDirectory();
+      git(repository, 'init', '-q', '-b', 'main');
+      writeFileSync(join(repository, 'a.ts'), 'export const a = 1;\nexport const b = 2;\n');
+      writeFileSync(join(repository, 'b.ts'), 'export const c = 3;\n');
+      git(repository, 'add', '.');
+      git(repository, 'commit', '-q', '-m', 'feat: a and b');
+      const reader = createSimpleGitHistory({ authorHashSalt: SALT });
+      const clean = await reader.readHistory(repository);
+      mkdirSync(join(repository, '.git', 'info'), { recursive: true });
+      writeFileSync(join(repository, '.git', 'info', 'attributes'), 'a.ts -diff\n');
+
+      // Act
+      const marked = await reader.readHistory(repository);
+
+      // Assert
+      const link = (history: typeof clean, file: string) => history.fileCommits.find((entry) => entry.file === file)!;
+      expect(link(clean, 'a.ts')).toMatchObject({ linesAdded: 2, linesRemoved: 0 });
+      expect(link(marked, 'a.ts')).not.toHaveProperty('linesAdded');
+      expect(link(marked, 'a.ts')).not.toHaveProperty('linesRemoved');
+      const withoutCounts = (history: typeof clean) => ({
+        ...history,
+        fileCommits: history.fileCommits.map((entry) => (entry.file === 'a.ts' ? { file: entry.file, sha: entry.sha } : entry)),
+      });
+      expect(withoutCounts(marked)).toEqual(withoutCounts(clean));
+    });
+
     it('Reading the history never fetches a missing object', async () => {
       // Arrange
       const outside = temporaryDirectory();
