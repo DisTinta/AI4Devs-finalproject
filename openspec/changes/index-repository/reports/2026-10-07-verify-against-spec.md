@@ -153,6 +153,25 @@ it pins existing behaviour, there was no red/green cycle.
 P1, author decision: `--diff-algorithm=myers` stays as a pin with no test that tells it apart
 (the hostile files are too small for myers and patience to differ; no bigger fixture for this).
 
+## Sixth review round (2026-10-07)
+
+Seventh `/verify-against-spec`: one probable contradiction (C-7a, `attr.tree`) and two Minor items.
+Sixth `/adversarial-review`: two Major findings, the first contradicting the `git-history` SHALL,
+plus one Minor. Previous round committed first (`96b281e`, `c7dd406`, 595/595).
+
+Fixed (red first):
+
+| Finding | Outcome | Test |
+|---|---|---|
+| Major / C-7a: `attr.tree` in config, or an uncommitted work-tree `.gitattributes`, changed which attributes apply (line counts lost or regained) | `attr.tree=HEAD` in `GIT_CONFIG`; git floor raised to 2.45.1 or 2.43.4 / 2.44.1 (readme, project-context) | config scenarios of both readers arm `attr.tree` and an uncommitted `.gitattributes` with `* -diff`: red, then green |
+| Major: `git log HEAD` without `--` failed when the work tree held an entry named `HEAD` ("ambiguous argument", reproduced) | `LOG_ARGUMENTS` ends with `--` | "A work-tree entry named HEAD does not change the history" (new `git-history` scenario) |
+| M-7a: the attributes sentence named the wrong source | Now exact: `HEAD`'s committed `.gitattributes` and `.git/info/attributes`, never an uncommitted one nor a configured tree | — |
+
+Accepted Minor findings:
+
+- An uncommitted work-tree `.mailmap` remaps authors (git reads it from the work tree): same class as the committed `.mailmap` accepted in git-history-extraction; turning mailmap off changes the pseudonymised identity, out of scope. Design Risks; the `GIT_CONFIG` comment now says so.
+- M-7b: the "committed `.gitattributes`" half of the attributes sentence has no test of its own; the scenario's GIVEN uses `.git/info/attributes`, and the hostile config proves the uncommitted one is ignored.
+
 ## Accepted without a test
 
 - U4 — an error thrown by the progress callback stops indexing and propagates: accepted, documented on `IndexDependencies.onProgress`.
@@ -162,10 +181,10 @@ P1, author decision: `--diff-algorithm=myers` stays as a pin with no test that t
 - U8 — `EmptyRepository` carries `repoPath` and a message with the path: accepted, same shape as `NotAGitRepository` (the Low privacy finding is routed to DIS-86).
 - M2 — "no transaction, no log": not verifiable without instrumenting the database and the process output; met by construction (the use case receives the store already bound to the caller's connection and imports no logger).
 
-## Checks (2026-10-07, after the fifth review round)
+## Checks (2026-10-07, after the sixth review round)
 
 ```
-npx vitest run          Test Files 41 passed (41) | Tests 595 passed (595)   (DATABASE_URL set, Postgres up)
+npx vitest run          Test Files 41 passed (41) | Tests 596 passed (596)   (DATABASE_URL set, Postgres up)
 npm run lint            exit 0 — 0 errors, 1 warning (existing no-empty-object-type in LlmPort.ts)
 npm run typecheck       exit 0
 npm run docs:coverage   exit 0

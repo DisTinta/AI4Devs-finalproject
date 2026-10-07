@@ -325,6 +325,18 @@ ticket's recommendation (the author confirmed no ADR is needed).
   repository is read. Discarded alternative: read the drivers named in `HEAD`'s `.gitattributes`
   and pass `-c diff.<driver>.binary=false` for each; new logic that still misses
   `.git/info/attributes`, for a loss limited to line counts (author decision 2026-10-07).
+- [`attr.tree` in the repository's config, or an uncommitted work-tree `.gitattributes`, changes
+  which attributes apply, so every line count could vanish or reappear (sixth adversarial review,
+  Major)] → `GIT_CONFIG` pins `attr.tree=HEAD`: attributes come from `HEAD`'s committed
+  `.gitattributes` plus `.git/info/attributes`. `attr.tree` needs git 2.43, so the prerequisite
+  floor is git 2.45.1 or the 2024-05 maintenance releases 2.43.4 / 2.44.1.
+- [`git log HEAD` without `--` fails ("ambiguous argument") when the work tree holds an entry named
+  `HEAD`] → `LOG_ARGUMENTS` ends with `--` (sixth adversarial review, Major; predates this change,
+  from DIS-35).
+- [An uncommitted work-tree `.mailmap` remaps authors: git reads `.mailmap` from the work tree] →
+  accepted Minor (seventh verification): same class as the committed `.mailmap` accepted in
+  git-history-extraction; disabling it means changing the pseudonymised identity (`%aN`/`%aE` →
+  `%an`/`%ae`), a `git-history` behaviour change out of scope here.
 - [`--diff-algorithm=myers` has no test that tells it apart] → the hostile repository's files are
   too small for myers and patience to count differently; a bigger fixture only for this was
   declined (author decision 2026-10-07). The flag stays as a pin.

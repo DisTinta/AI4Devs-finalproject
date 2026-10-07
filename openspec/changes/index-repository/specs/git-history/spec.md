@@ -24,10 +24,12 @@ global and system configuration) nor the caller's git environment variables SHAL
 returned history: the root commit's files are always linked, renames and
 copies are never detected (a rename is a delete plus an add), paths are relative to the top-level
 directory and never quoted, a commit's files keep git's default order and diff algorithm, commit
-text is read as UTF-8, and no mailmap named by configuration remaps an author. Git runs in the C locale. Git attributes are not configuration: a file that a
-committed `.gitattributes` or the local `.git/info/attributes` marks as binary or not diffable
-carries no line counts, like any binary file under "Line counts", and the rest of the history is
-unchanged.
+text is read as UTF-8, and no mailmap named by configuration remaps an author. Git runs in the C locale. Attributes are read from the `.gitattributes`
+committed at `HEAD` and from the local `.git/info/attributes`, never from an uncommitted
+work-tree `.gitattributes` nor from a tree named by configuration. Git attributes are not
+configuration: a file that those attributes mark as binary or not diffable carries no line counts,
+like any binary file under "Line counts", and the rest of the history is unchanged. A work-tree
+entry named like a revision (such as `HEAD`) SHALL NOT change the history either.
 
 #### Scenario: Reading the history executes nothing from the repository
 
@@ -44,10 +46,18 @@ unchanged.
   local configuration sets `log.showRoot=false`, `diff.renames=copies`, `diff.relative=true`,
   `core.quotePath=true`, `i18n.logOutputEncoding=ISO-8859-1`, a `mailmap.file` that remaps the
   author, a `diff.orderFile` that reorders a commit's files, `diff.algorithm=patience`,
-  `core.bigFileThreshold=1` and `diff.ignoreSubmodules=all`
+  `core.bigFileThreshold=1`, `diff.ignoreSubmodules=all` and an `attr.tree` naming a tree whose
+  `.gitattributes` marks every path `-diff`, and whose work tree holds an uncommitted
+  `.gitattributes` with the same line
 - **WHEN** its history is read
 - **THEN** the result equals the history read from the same repository without that configuration,
   and the root commit links the accented path, verbatim
+
+#### Scenario: A work-tree entry named HEAD does not change the history
+
+- **GIVEN** a committed repository with an untracked file named `HEAD` at its top level
+- **WHEN** its history is read
+- **THEN** the result equals the history read without that file
 
 #### Scenario: A file marked not diffable by attributes carries no line counts
 

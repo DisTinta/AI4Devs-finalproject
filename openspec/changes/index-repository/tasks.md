@@ -101,6 +101,7 @@
     1  Repository configuration does not change the history  [tests/integration/git/simple-git-history.spec.ts ]
     1  Reading the history never fetches a missing object  [tests/integration/git/simple-git-history.spec.ts ]  (task 15.2)
     1  A file marked not diffable by attributes carries no line counts  [tests/integration/git/simple-git-history.spec.ts ]  (task 17.2)
+    1  A work-tree entry named HEAD does not change the history  [tests/integration/git/simple-git-history.spec.ts ]  (task 18.2)
     1  A .git directory or a bare repository is rejected  [tests/integration/git/simple-git-history.spec.ts ]  (task 15.1)
     repository-indexing, added 2026-10-07 (tasks 15.1, 15.2):
     1  A .git directory or a bare repository is not a repository root  [tests/integration/git/git-source-tree.spec.ts ]
@@ -213,3 +214,9 @@ No Blocker, no Major. Narrow contradictions fixed; new Minor findings accepted w
 - [x] 17.2 C2, author decision (accepted limit) — `git-history` sentence narrowed to what it covers (git's local, global and system configuration) and states that attributes marking a file binary or not diffable drop only its line counts; scenario "A file marked not diffable by attributes carries no line counts" with a test that is green from the start (it pins existing behaviour); design Risk with the discarded alternative
 - [x] 17.3 P1 — `--diff-algorithm=myers` kept as a pin without a distinguishing test (author decision); DIS-86 comment on the `.git` file / alternates follow-up (authorised)
 
+## 18. Follow-up of the seventh /verify-against-spec and sixth /adversarial-review (2026-10-07)
+
+- [x] 18.0 Commit the previous round locally (595/595 green): `96b281e`, `c7dd406`
+- [x] 18.1 Major / C-7a — `attr.tree=HEAD` in `GIT_CONFIG`; the hostile config arms `attr.tree` and an uncommitted `.gitattributes`; spec sentence on attributes made exact; git floor 2.45.1 or 2.43.4 / 2.44.1. Red first
+- [x] 18.2 Major — `LOG_ARGUMENTS` ends with `--`; scenario "A work-tree entry named HEAD does not change the history". Red first (`fatal: ambiguous argument 'HEAD'`)
+- [x] 18.3 Accepted Minor findings recorded with their reason: uncommitted `.mailmap`; no own test for the committed-`.gitattributes` half
