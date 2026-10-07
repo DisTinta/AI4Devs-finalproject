@@ -104,7 +104,13 @@ export function armOutputConfig(repository: string, outside: string): void {
   writeFileSync(mailmap, 'Someone Else <someone.else@example.test> <test.author@example.test>\n');
   const orderFile = join(outside, 'orderfile');
   writeFileSync(orderFile, `.gitattributes\n${ACCENTED_PATH}\na.php\nb.php\n`);
+  // A tree whose `.gitattributes` marks every path not diffable, for `attr.tree` to point at, and the
+  // same line in the work tree's uncommitted `.gitattributes`: either would drop every line count.
+  const notDiffable = execFileSync('git', ['hash-object', '-w', '--stdin'], { cwd: repository, input: '* -diff\n', encoding: 'utf8' }).trim();
+  const attributesTree = execFileSync('git', ['mktree'], { cwd: repository, input: `100644 blob ${notDiffable}\t.gitattributes\n`, encoding: 'utf8' }).trim();
+  writeFileSync(join(repository, '.gitattributes'), '* -diff\n');
   for (const [key, value] of [
+    ['attr.tree', attributesTree],
     ['diff.orderFile', slashed(orderFile)],
     ['diff.algorithm', 'patience'],
     ['core.bigFileThreshold', '1'],

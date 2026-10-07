@@ -11,8 +11,10 @@ import { NotAGitRepository } from '@codemind/core';
  * runs a program it names and never reads something else than what its objects hold: no fsmonitor,
  * a hooks directory that cannot exist (the null device), no global attributes file, no signature
  * verification (`log.showSignature` would call `gpg.program`), no replace refs, and no mailmap file
- * or blob named by configuration (a `.mailmap` committed in the tree is repository content and still
- * applies), and git's default big-file threshold (a lower one turns line counts into `-`). Filters and textconv drivers stay unused because no reader asks git to apply them
+ * or blob named by configuration (the work tree's `.mailmap`, committed or not, still applies: git
+ * reads it there), git's default big-file threshold (a lower one turns line counts into `-`), and
+ * attributes read from `HEAD`'s `.gitattributes` (`attr.tree=HEAD`, over a configured tree and over
+ * an uncommitted work-tree file; `.git/info/attributes` still applies). Filters and textconv drivers stay unused because no reader asks git to apply them
  * (`ls-tree`, `cat-file blob`, `log --numstat`).
  */
 export const GIT_CONFIG = [
@@ -26,6 +28,7 @@ export const GIT_CONFIG = [
   'mailmap.file=',
   'mailmap.blob=',
   'core.bigFileThreshold=512m',
+  'attr.tree=HEAD',
 ];
 
 /** Variables git needs to start and find its home and temporary directory, in any letter case. */

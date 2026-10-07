@@ -13,7 +13,8 @@ import type { GitHistory, GraphCommit, GraphFileCommit } from '@codemind/core';
  * `diff.relative`), the default diff algorithm (over `diff.algorithm`), no reordering of a commit's
  * files (`-O/dev/null` over `diff.orderFile`; Git for Windows maps `/dev/null` too, while the
  * Windows null device name fails), submodule changes always listed (over `diff.ignoreSubmodules`),
- * no colour, and an explicit format.
+ * no colour, and an explicit format. The final `--` ends the revisions, so a work-tree entry named
+ * `HEAD` cannot make the revision ambiguous.
  */
 export const LOG_ARGUMENTS = [
   'log',
@@ -30,6 +31,7 @@ export const LOG_ARGUMENTS = [
   '--no-color',
   '-z',
   '--format=%H%x00%aN%x00%aE%x00%cI%x00%B',
+  '--',
 ];
 
 /** A commit id: SHA-1 (40 hex) or SHA-256 (64 hex). */

@@ -396,6 +396,24 @@ describe('git history', () => {
       }
     });
 
+    it('A work-tree entry named HEAD does not change the history', async () => {
+      // Arrange: an untracked file called HEAD would make a bare `HEAD` revision ambiguous.
+      const repository = temporaryDirectory();
+      git(repository, 'init', '-q', '-b', 'main');
+      writeFileSync(join(repository, 'a.ts'), 'export {};\n');
+      git(repository, 'add', '.');
+      git(repository, 'commit', '-q', '-m', 'feat: a');
+      const reader = createSimpleGitHistory({ authorHashSalt: SALT });
+      const clean = await reader.readHistory(repository);
+      writeFileSync(join(repository, 'HEAD'), 'not a revision\n');
+
+      // Act
+      const withEntry = await reader.readHistory(repository);
+
+      // Assert
+      expect(withEntry).toEqual(clean);
+    });
+
     it('A file marked not diffable by attributes carries no line counts', async () => {
       // Arrange: two committed text files; then a local, uncommitted attributes file marks one -diff.
       const repository = temporaryDirectory();
