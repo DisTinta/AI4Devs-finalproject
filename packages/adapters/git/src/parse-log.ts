@@ -6,16 +6,32 @@ import type { GitHistory, GraphCommit, GraphFileCommit } from '@codemind/core';
  * first, as sha, author name, author e-mail, committer date and raw message, followed by the
  * per-file line counts. `-z` terminates every value with NUL — the one byte Git forbids in messages,
  * names and e-mails — and prints paths raw instead of C-quoted. Renames are reported as a delete
- * plus an add.
+ * plus an add. Every option that the analysed repository's configuration could change is pinned by
+ * an explicit flag, which wins over configuration: the root commit always gets its numstat
+ * (`--root` over `log.showRoot`), no rename or copy detection (`--no-renames` over `diff.renames`),
+ * no external diff or textconv program, paths from the top level (`--no-relative` over
+ * `diff.relative`), the default diff algorithm (over `diff.algorithm`), no reordering of a commit's
+ * files (`-O/dev/null` over `diff.orderFile`; Git for Windows maps `/dev/null` too, while the
+ * Windows null device name fails), submodule changes always listed (over `diff.ignoreSubmodules`),
+ * no colour, and an explicit format. The final `--` ends the revisions, so a work-tree entry named
+ * `HEAD` cannot make the revision ambiguous.
  */
 export const LOG_ARGUMENTS = [
   'log',
   'HEAD',
+  '--root',
   '--no-renames',
+  '--no-ext-diff',
+  '--no-textconv',
+  '--no-relative',
+  '--diff-algorithm=myers',
+  '-O/dev/null',
+  '--ignore-submodules=none',
   '--numstat',
   '--no-color',
   '-z',
   '--format=%H%x00%aN%x00%aE%x00%cI%x00%B',
+  '--',
 ];
 
 /** A commit id: SHA-1 (40 hex) or SHA-256 (64 hex). */

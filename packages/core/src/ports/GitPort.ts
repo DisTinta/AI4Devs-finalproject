@@ -5,7 +5,7 @@ import type { GraphCommit, GraphFileCommit } from '../knowledge/graph-commit.js'
  * name or e-mail: authors arrive only as `authorHash`.
  */
 export interface GitHistory {
-  /** Sha of `HEAD`; undefined when the repository has no commit. */
+  /** Sha of `HEAD`; undefined only when `HEAD` names no commit (an unborn or orphan branch). */
   head?: string;
   /**
    * Every commit reachable from `HEAD`, exactly once, newest first. Each has its `sha`, its message
@@ -30,7 +30,8 @@ export interface GitPort {
    * Reads the history of the repository whose top-level directory is `repoPath`.
    *
    * @throws NotAGitRepository when `repoPath` does not exist, is not inside a Git repository, or is
-   *   inside one but is not its top-level directory.
+   *   inside one but is not its top-level directory. Any other git failure, a broken `HEAD`
+   *   included, propagates unchanged.
    */
   readHistory(repoPath: string): Promise<GitHistory>;
 }

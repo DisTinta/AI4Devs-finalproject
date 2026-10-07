@@ -258,7 +258,7 @@ El paso 3 es el más característico: un sistema que sabe callarse.
 
 ### **1.4. Instrucciones de instalación:**
 
-Al ser el arranque local **la única evidencia de que el sistema funciona ante quien evalúa**, esta sección se trata como crítica. El camino corto no requiere nada más que **Docker y Node 20+**: ni PHP instalado, ni clonar repositorios ajenos, ni esperar un indexado, **ni una API key de LLM**.
+Al ser el arranque local **la única evidencia de que el sistema funciona ante quien evalúa**, esta sección se trata como crítica. El camino corto no requiere nada más que **Docker y Node 20+**: ni PHP instalado, ni clonar repositorios ajenos, ni esperar un indexado, **ni una API key de LLM**. Para indexar un repositorio hace falta además **Git 2.45.1 o posterior** (o las versiones de mantenimiento de mayo de 2024 2.43.4 y 2.44.1): las anteriores ignoran `GIT_NO_LAZY_FETCH`, que impide que un *partial clone* ejecute el programa de su remoto al leer un objeto que falta, o no leen `attr.tree`, que hace que los atributos salgan siempre del `.gitattributes` de `HEAD`.
 
 #### Camino corto — sistema operativo en tres comandos
 
@@ -457,10 +457,11 @@ AI4Devs-finalproject/
 ├── packages/
 │   ├── core/                       # dominio — CERO dependencias de infraestructura
 │   │   ├── knowledge/              #   entidades L1/L2, afirmaciones, evidencia, reglas de tipado
+│   │   ├── index/                  #   caso de uso de indexado, gateway de seguridad, detección de framework
 │   │   ├── context/                #   Context Engine, ranking, presupuesto de tokens
 │   │   ├── verify/                 #   verificador de evidencias
 │   │   ├── cache/                  #   caché semántica
-│   │   └── ports/                  #   AnalyzerPort · LlmPort · StorePort · GitPort
+│   │   └── ports/                  #   AnalyzerPort · LlmPort · StorePort · GitPort · SourceTreePort
 │   │
 │   ├── analyzers/                  # adaptadores de lenguaje
 │   │   ├── php/                    #   Tree-sitter + reglas Laravel
@@ -839,7 +840,7 @@ Un repositorio indexado. `indexed_commit` es la clave de la incrementalidad: al 
 
 #### FILE
 
-`content_hash` (SHA-256) permite saltarse ficheros sin cambios en un reindexado, y es el disparador de la invalidación de afirmaciones. `kind` distingue fuente, test, documentación y configuración porque el Context Engine los pondera de forma distinta: para una pregunta de comportamiento, un test pesa más que un README. `redacted` marca ficheros de los que se eliminó un secreto. El grafo se guarda como una foto completa del proyecto: cada fichero se actualiza en su sitio por `(project_id, path)` y conserva su `id`, con lo que se mantienen su historial y las evidencias que lo citan; los ficheros que ya no están en la foto se borran (DIS-23).
+`content_hash` (SHA-256 del contenido ya redactado, para que el hash nunca dependa de un secreto) permite saltarse ficheros sin cambios en un reindexado, y es el disparador de la invalidación de afirmaciones. `kind` distingue fuente, test, documentación y configuración porque el Context Engine los pondera de forma distinta: para una pregunta de comportamiento, un test pesa más que un README. `redacted` marca ficheros de los que se eliminó un secreto. El grafo se guarda como una foto completa del proyecto: cada fichero se actualiza en su sitio por `(project_id, path)` y conserva su `id`, con lo que se mantienen su historial y las evidencias que lo citan; los ficheros que ya no están en la foto se borran (DIS-23).
 
 #### SYMBOL
 

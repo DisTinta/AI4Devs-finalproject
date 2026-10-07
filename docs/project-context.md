@@ -285,7 +285,7 @@ services that must be started first, quirks of the local environment.
 
 - **Some CI gates run against stubs, on purpose.** `lint`, `lint:architecture` and `typecheck` are
   real and must pass, and so is CI's `db:migrate` → `db:rollback` → `db:migrate` step. Mutation
-  testing has real mutants since DIS-23 (`packages/core/src/knowledge/`, 86.82 % at DIS-23 merge, 90.09 % with DIS-35, 92.23 % with DIS-36; `packages/core/src/index/` since DIS-84, 95.11 % for all of core; threshold
+  testing has real mutants since DIS-23 (`packages/core/src/knowledge/`, 86.82 % at DIS-23 merge, 90.09 % with DIS-35, 92.23 % with DIS-36; `packages/core/src/index/` since DIS-84, 95.11 % for all of core; 96.48 % for `index/` with DIS-85; threshold
   `MIN_MUTATION_SCORE=70`).
   These are intentional scaffolding, not bugs — do not "fix" a stub by faking behaviour.
 - **The infra packages are stubs, not empty.** All 9 workspaces (`core`, `analyzers/{php,typescript}`,
@@ -294,7 +294,7 @@ services that must be started first, quirks of the local environment.
   They resolve in `npm ls`; do not expect real behaviour from them yet. Exceptions: `store-postgres`
   implements `StorePort`: writes (`createProject`, `saveGraph`, DIS-23) and reads (`getProject`,
   `listProjects`, `findSymbols`, `neighbors`, DIS-24); `adapters/git` implements `GitPort`
-  (`createSimpleGitHistory`, DIS-35).
+  (`createSimpleGitHistory`, DIS-35) and `SourceTreePort` (`createGitSourceTree`, DIS-85).
 - **`GitPort.readHistory` never lets an identity out of its structured fields** (DIS-35). Authors
   become `authorHash` (HMAC-SHA256 keyed by the trimmed `AUTHOR_HASH_SALT` of the trimmed,
   lower-cased e-mail as `.mailmap` maps it, or of the name when the e-mail is blank; rule in core,
@@ -306,7 +306,7 @@ services that must be started first, quirks of the local environment.
   one `git log -z --numstat --no-renames` pass: NUL framing, so control characters in names or
   messages cannot shift fields and paths arrive raw (never C-quoted). A rename is a delete plus an
   add, so links can name paths that are no longer in the snapshot, and `saveGraph` rejects a link
-  whose file is not in `files` — the caller (DIS-85) must drop them first.
+  whose file is not in `files` — `indexRepository` (DIS-85) drops them first.
 - **`co_changed` edges come from a pure core rule, `coChangeEdges(fileCommits, knownPaths)`**
   (DIS-36, `knowledge/co-change.ts`). One edge per unordered pair of files sharing at least
   `MIN_CO_CHANGES` (2) commits, `weight` = shared / commits touching either (Jaccard), `resolution`
@@ -316,7 +316,7 @@ services that must be started first, quirks of the local environment.
   consumer that wants the symmetric relation (DIS-94) must query both endpoints until DIS-89 adds
   reverse traversal. `knownPaths` must be the snapshot's `files` paths (paths outside it still count
   in the denominators), and because `saveGraph` replaces all edges, `co_changed` edges must be saved
-  in the **same** snapshot as the analyzers' edges (DIS-85).
+  in the **same** snapshot as the analyzers' edges; `indexRepository` (DIS-85) does both.
 - **`repoPath` must be a repository's top-level directory.** The fixtures sit inside the Codemind
   repository, so without their own `.git` plain `git` would silently read Codemind's history. The
   adapter compares `git rev-parse --show-toplevel` with `repoPath` by real path and throws
@@ -349,14 +349,57 @@ services that must be started first, quirks of the local environment.
     `alpha`. The local database is `en_US.utf8`, so dropping the collation changes the order.
   - `findSymbols` is a case-insensitive, literal substring match (`ILIKE` with `\`, `%`, `_`
     escaped).
+- **`indexRepository` writes nothing until the whole graph is valid** (DIS-85,
+  `packages/core/src/index/index-repository.ts`). Phases, each reported once to the optional
+  `onProgress` when it starts: `confine` (`confinePath` lexically, then `realPath` of root and repo
+  and `confinePath` again; a root that does not exist → `IndexingDisabled`; an escape through a link
+  → `ForbiddenPathError` naming the path **as requested**, never the real one), `read`
+  (`SourceTreePort.readFiles`, then `selectIndexableFiles`: invalid paths, exact duplicates and NUL
+  content are dropped and reported), `redact` (every file, before the analyzer; framework detection
+  from root manifests unless given), `analyze` (`contentHash` = SHA-256 of the **redacted** content),
+  `history` (no `head` → `EmptyRepository`; commit messages redacted into `commitEvents`; orphan
+  links dropped; `co_changed` edges from the unfiltered links), `save` (`validateGraph` plus a
+  violation for each path the analyzer returned but was not given, or was given but did not return,
+  as one `InvalidGraph`; then
+  `createProject`, then one `saveGraph`). It opens no transaction: the composition root (DIS-86)
+  passes `createPostgresStore({ transaction: client })` and commits or rolls back; with `{ pool }`
+  project and graph are two transactions. Core logs nothing; `IndexReport` is the only output.
+  `createGitSourceTree()` reads the **committed** tree with `git ls-tree -r -z --full-tree HEAD`
+  (`ls-files` would read the index) and one `git cat-file` per blob, so indexing acme-shop takes ~6 s
+  (`acme-shop.spec.ts` raises the test timeout to 60 s). Symlinks (`120000`), submodules (`160000`)
+  and non-UTF-8 blobs are skipped and reported; a leading BOM is dropped. Every git call of
+  `adapters/git` goes through `readerGit` with `GIT_CONFIG`, which disables the repository's
+  fsmonitor, hooks, global attributes file and `log.showSignature` (it ran `gpg.program`); simple-git
+  only accepts the first two with `allowUnsafeFsMonitor` / `allowUnsafeHooksPath`. Filters and
+  textconv have no off switch: never add a work-tree command (`status`, work-tree `diff`) to a
+  reader. Every git process gets `GIT_ENV`: a closed list of variables (PATH, home, temp) plus
+  `LC_ALL=C`/`LANGUAGE=C`, so messages are English everywhere; simple-git refuses a full
+  `process.env` that holds `EDITOR`. `LOG_ARGUMENTS` pins with flags what the repository's config
+  could change (`--root`, `--no-renames`, `--no-ext-diff`, `--no-textconv`, `--no-relative`).
+  `hasCommits` is false only for an unborn branch, orphan branches included (`symbolic-ref` names
+  it); `assertRepositoryRoot` maps only git's "not a git repository" and "must be run in a work
+  tree" (`.git` dir, bare repo) to `NotAGitRepository`, plus a missing path. A broken ref, git
+  missing, a refused ownership, `EACCES` or any other failure propagates unchanged. `GIT_ENV` also
+  sets `GIT_NO_LAZY_FETCH=1` (a partial clone's fetch ran the promisor's upload program; simple-git
+  needs `allowEnvironment`), and `GIT_CONFIG` empties `mailmap.file`/`mailmap.blob` and sets
+  `core.useReplaceRefs=false`. Git ≥ 2.45.1 (or the 2024-05 maintenance releases 2.43.4 / 2.44.1) is
+  a prerequisite: older git ignores `GIT_NO_LAZY_FETCH` or `attr.tree` (readme 1.4). `GIT_CONFIG`
+  pins `attr.tree=HEAD`; `GIT_ENV` adds `GIT_ATTR_NOSYSTEM=1`; `LOG_ARGUMENTS` ends with `--` (a
+  work-tree file named `HEAD`). `hasCommits` probes `HEAD^{commit}`; the root check also requires
+  `<dir>/.git` to be the repository's git dir or a `.git` file (beats a hostile `core.worktree`). `LOG_ARGUMENTS` also pins
+  `--diff-algorithm=myers` and `-O/dev/null` (Git for Windows maps it; the NUL device fails). The acme-shop secret test
+  checks every snapshot row (`row_to_json`) and the real analyzer's recorded input: the planted key
+  yields no row, so only the recorded input catches an unredacted analyzer. The post-edit layer guard
+  (`GUARD_HTTP_IN_BUSINESS`) matches transport imports, not the word `fastify`, which is a domain
+  value in core.
 - **Vitest can report success with no tests** (`passWithNoTests: true`). A green suite is not
   evidence that behaviour is covered.
 - **The repo is mid-build (Entrega 2).** `db:seed`/`seed:build`/`verify` are placeholders that
   no-op. The schema has migrations `0001`–`0003`, but only the L1 graph and history
   (`project`, `file`, `symbol`, `edge`, `commit`, `file_commit`) have a writer so far, and only
   `project`, `file`, `symbol` and `edge` have a reader. The git history reader (DIS-35) produces
-  `commit`/`file_commit` rows and the co-change rule (DIS-36) `co_changed` edges, but nothing calls
-  them yet outside tests (indexing is DIS-85).
+  `commit`/`file_commit` rows and the co-change rule (DIS-36) `co_changed` edges; `indexRepository`
+  (DIS-85) composes them, but nothing outside tests calls it yet (the CLI command is DIS-86).
   `db:migrate` / `db:rollback` are real and need `DATABASE_URL`: `make up` gets it from `.env`,
   because the Makefile includes and exports `.env`. Plain `npm run db:*` does not read `.env`.
   Do not assume a working end-to-end flow exists.
@@ -426,8 +469,8 @@ services that must be started first, quirks of the local environment.
   declaring `__call` → `T::__call`; `X::m()` on a non-facade class declaring `__callStatic` →
   `X::__callStatic` (inherited magic methods do not count). The binding closures still originate no
   edge (signed non-goal: the table is a lookup only). A `heuristic` edge is dropped when an `exact` one
-  has the same kind/source/target — filtered explicitly in `buildPhpEdges`, since `sortUniqueEdges`
-  ignores `resolution`. Site 7 of the batch lands on `CarrierGateway::__call`, as `flatRateFor` has no
+  has the same kind/source/target — filtered explicitly in `buildPhpEdges`; since DIS-85
+  `compareEdges` also ranks `exact` first on an equal key, so `sortUniqueEdges` keeps the exact one. Site 7 of the batch lands on `CarrierGateway::__call`, as `flatRateFor` has no
   symbol.
 - **String routes, job dispatch and event dispatch are `heuristic` too** (DIS-97). A
   `Route::<verb>('<uri>', '<C>@<m>')` statement gets a `route` symbol like an array action; `<C>` is
@@ -471,7 +514,7 @@ services that must be started first, quirks of the local environment.
   `app/a.php` and `app/A.php` are distinct), the PHP analyzer analyses only the first in input order and
   discards the rest **before** parsing and indexing, each with a diagnostic
   `duplicate path "<path>"; kept the first` (no `line`), for any kind of file; the `AnalyzerPort`
-  JSDoc states it. Callers (DIS-85) should still not send duplicates. A rejected grammar load is
+  JSDoc states it. `indexRepository` (DIS-85) drops duplicates before the analyzer anyway. A rejected grammar load is
   forgotten, so the next `analyze` on the same instance loads it again. The dependency-cruiser rule
   `analyzers-no-io` forbids `packages/analyzers/**` from importing `fs`, `net`, `tls`, `dgram`, `dns`,
   `http`, `https`, `http2`, `child_process`, `worker_threads`, `cluster`, `vm`, `wasi`, `inspector`
@@ -518,7 +561,7 @@ services that must be started first, quirks of the local environment.
   `path.relative(root, resolved)` is `''`, or is not `..`, does not start with `..` + separator and
   is not absolute: `/repos/..x` is a valid child, `/repos-evil` is not. A blank root throws
   `IndexingDisabled` first. `ALLOWED_REPOS_DIR` is read only at the composition root (DIS-86), and
-  the lexical check must be repeated on the `realpath` before reading (DIS-85).
+  `indexRepository` (DIS-85) repeats the check on the real paths before reading.
   `readFixtureFiles(root, ignoredDirs = ['.git'])` skips entries by name (Stryker's sandbox links
   `fixtures/task-api/node_modules` instead of copying it); the secret oracle test passes
   `['.git', 'node_modules']` because that folder exists locally but not in CI.

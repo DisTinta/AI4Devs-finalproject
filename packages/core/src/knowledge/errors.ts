@@ -83,6 +83,22 @@ export class NotAGitRepository extends DomainError {
   }
 }
 
+/**
+ * A repository read named a Git repository with no commit yet: `HEAD` names nothing, so there is
+ * neither a tree to read nor a commit to index at. "Empty" means "no commit", not "no files": a
+ * commit that tracks no file is not this error.
+ */
+export class EmptyRepository extends DomainError {
+  /** Stable code. */
+  readonly code = 'EMPTY_REPOSITORY';
+
+  /** @param repoPath The top-level directory of the repository that has no commit. */
+  constructor(readonly repoPath: string) {
+    super(`Git repository has no commit: ${repoPath}`);
+    this.name = 'EmptyRepository';
+  }
+}
+
 function describeViolation(violation: GraphViolation): string {
   const where = violation.field ? `${violation.element}.${violation.field}` : violation.element;
   return `${where}: ${violation.message}`;

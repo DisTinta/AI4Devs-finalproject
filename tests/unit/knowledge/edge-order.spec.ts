@@ -102,6 +102,24 @@ describe('compareEdges', () => {
 });
 
 describe('sortUniqueEdges', () => {
+  // openspec/specs/code-analysis/spec.md: no `heuristic` edge when an `exact` one has the same
+  // kind, source and target. Whatever the input order, the exact edge is the one kept.
+  it('keeps the exact edge when a heuristic one with the same kind, source and target comes first', () => {
+    const heuristic: GraphEdge = { ...fileEdge('calls', 'a.php', 'b.php'), resolution: 'heuristic' };
+    const exact = fileEdge('calls', 'a.php', 'b.php');
+
+    expect(sortUniqueEdges([heuristic, exact])).toEqual([exact]);
+    expect(sortUniqueEdges([exact, heuristic])).toEqual([exact]);
+  });
+
+  it('orders an exact edge before a heuristic one with the same kind, source and target', () => {
+    const heuristic: GraphEdge = { ...fileEdge('calls', 'a.php', 'b.php'), resolution: 'heuristic' };
+    const exact = fileEdge('calls', 'a.php', 'b.php');
+
+    expect(compareEdges(exact, heuristic)).toBeLessThan(0);
+    expect(compareEdges(heuristic, exact)).toBeGreaterThan(0);
+  });
+
   it('drops a later duplicate of the same kind, source and target', () => {
     const first = fileEdge('imports', 'a.php', 'b.php');
     const duplicate = fileEdge('imports', 'a.php', 'b.php');
