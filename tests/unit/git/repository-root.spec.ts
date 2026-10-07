@@ -58,6 +58,16 @@ describe('assertRepositoryRoot', () => {
     }
   });
 
+  it('propagates a file-system error checking the .git entry unchanged, and reads a missing one as NotAGitRepository', async () => {
+    // A git that answers the top level as the directory itself, so the .git check is reached.
+    const atTopLevel = () => ({ raw: async () => `${directory}\n` }) as unknown as SimpleGit;
+    const denied = Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' });
+    const missing = Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+
+    await expect(assertRepositoryRoot(directory, { git: atTopLevel, lstat: async () => Promise.reject(denied) })).rejects.toBe(denied);
+    await expect(assertRepositoryRoot(directory, { git: atTopLevel, lstat: async () => Promise.reject(missing) })).rejects.toBeInstanceOf(NotAGitRepository);
+  });
+
   it('propagates a file-system error resolving the path unchanged', async () => {
     const denied = Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' });
     const realpath = async (): Promise<string> => {

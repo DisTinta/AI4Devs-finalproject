@@ -103,6 +103,8 @@ export interface RepositoryRootDependencies {
   git?: (baseDir: string) => SimpleGit;
   /** Resolves a path to its real path. */
   realpath?: (path: string) => Promise<string>;
+  /** Reads a path's own status, without following a final link. */
+  lstat?: (path: string) => Promise<{ isFile(): boolean }>;
 }
 
 /**
@@ -136,7 +138,7 @@ export async function assertRepositoryRoot(repoPath: string, dependencies: Repos
   if (directory === undefined || topLevel === undefined || resolve(topLevel) !== resolve(directory)) {
     throw new NotAGitRepository(repoPath);
   }
-  if (!(await ownsItsGitDirectory(directory, git, real))) throw new NotAGitRepository(repoPath);
+  if (!(await ownsItsGitDirectory(directory, git, real, dependencies.lstat ?? lstat))) throw new NotAGitRepository(repoPath);
 }
 
 /**
@@ -145,8 +147,16 @@ export async function assertRepositoryRoot(repoPath: string, dependencies: Repos
  * subdirectory that a repository's own `core.worktree` declares as its work tree, which would
  * otherwise pass the top-level check and read the enclosing repository.
  */
-async function ownsItsGitDirectory(directory: string, git: (baseDir: string) => SimpleGit, real: (path: string) => Promise<string>): Promise<boolean> {
-  const dotGit = await lstat(join(directory, '.git')).catch(() => undefined);
+async function ownsItsGitDirectory(
+  directory: string,
+  git: (baseDir: string) => SimpleGit,
+  real: (path: string) => Promise<string>,
+  status: (path: string) => Promise<{ isFile(): boolean }>,
+): Promise<boolean> {
+  const dotGit = await status(join(directory, '.git')).catch((error: unknown) => {
+    if (isMissingPath(error)) return undefined;
+    throw error;
+  });
   if (dotGit === undefined) return false;
   if (dotGit.isFile()) return true;
   const gitDirectory = await git(directory).raw(['rev-parse', '--absolute-git-dir']);
