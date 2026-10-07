@@ -71,8 +71,14 @@ key and synthetic literals built by concatenation. `/privacy-ethics-check` runs 
 
 ### Modified Capabilities
 
-(none — `code-analysis`, `git-history`, `graph-store` and `security-gateway` are consumed as they
-are; no requirement of theirs changes)
+- `git-history` (added 2026-10-07, after `/adversarial-review`): two ADDED requirements. A broken
+  `HEAD` propagates git's error instead of reading as an empty history; and reading the history
+  executes nothing from the repository and does not let the repository's own configuration change
+  the result (the reader used to run a repository's `gpg.program` through `log.showSignature`).
+
+`code-analysis`, `graph-store` and `security-gateway` are consumed as they are; no requirement of
+theirs changes. The `compareEdges` tie-break only enforces the existing `code-analysis` rule "An
+exact edge takes precedence over a heuristic one" whatever the input order (tasks 11.6, 13.1).
 
 ## Impact
 

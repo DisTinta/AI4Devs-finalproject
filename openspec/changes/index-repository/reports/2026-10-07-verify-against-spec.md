@@ -59,6 +59,24 @@ Author decisions and outcome:
 | 6 | Window between confinement and the git calls | B → DIS-86 | Files come from the object database and inner links are never followed, so only the repository path itself can be swapped; design Follow-up and Spanish comment on DIS-86 | — |
 | P | Does reading execute nothing? | Harden and test | **Real hole found**: with `log.showSignature=true` and `gpg.program` in the repository's config, `readHistory` ran that program. `GIT_CONFIG` now sets `core.fsmonitor=false`, `core.hooksPath=<null device>`, `core.attributesFile=`, `log.showSignature=false` for every git call (`readerGit`; simple-git needs `allowUnsafeFsMonitor` / `allowUnsafeHooksPath`). Filters and textconv have no off switch and stay unused by the commands the readers run | scenario "Reading executes nothing from the repository": red without hardening (`trap.sh --keyid-format=long --status-fd=1 --verify …`), green with it; a temporary `git status` in `readFiles` makes it fail (the clean filter ran), file restored identical |
 
+## Second review round (2026-10-07)
+
+Third `/verify-against-spec`: two contradictions (U-a, U-b). Second `/adversarial-review`: PASS WITH
+GAPS (four Minor, two questions). The previous round was committed locally first (`62817d6`,
+`b88b4c4`, `bbfe6ea`, 571/571). Author decisions:
+
+| # | Finding | Outcome | Test |
+|---|---|---|---|
+| a | `git-history` changed, but the proposal said it did not | Delta with two ADDED requirements (broken `HEAD` propagates; reading the history executes nothing and repository config does not change it); proposal corrected | 3 scenarios in `simple-git-history.spec.ts`; the first two red against the adapter of `3985502` |
+| b | The root check turned every git failure into `NotAGitRepository` | Only git's "not a git repository" maps to it; everything else propagates. Git runs with `GIT_ENV` (`LC_ALL=C`, `LANGUAGE=C`, closed variable list). Narrowing exposed that simple-git refuses a full environment holding `EDITOR`: the old catch-all would have shown it as "not a Git repository" | `tests/unit/git/repository-root.spec.ts` (fake git: not a repo, dubious ownership, `EACCES`, `ENOENT`, other; environment), red first. No localised red possible: this machine's git has no translations |
+| c | `hasCommits` threw a bare error | Spec: "any other git failure propagates unchanged"; message "HEAD names no commit and no branch" | `has-commits.spec.ts`, red first |
+| d | Repository config could change the history (`log.showRoot=false`) | Flags in `LOG_ARGUMENTS`: `--root`, `--no-renames` (the `git-history` policy), `--no-ext-diff`, `--no-textconv`, `--no-relative`; `GIT_CONFIG` keeps quoting and encoding | trap scenarios with `log.showRoot=false`, `diff.renames=copies`, `diff.relative=true`, `core.quotePath=true` and an accented path, compared with a clean read: red (root commit lost its links), then green |
+| e | Broken ref only tested through `readFiles` | Scenario "A broken HEAD propagates git's error" reads the history too | `git-source-tree.spec.ts` |
+| f | Trap scenario omitted textconv; "every hook" | GIVEN corrected | — |
+| g | "every path" never asserted | Unit case with two missing and one extra path | `index-repository.spec.ts` |
+| h | Orphan branch read as `EmptyRepository` | Spec: "`HEAD` names no commit → `EmptyRepository`" (only `HEAD` is indexed); scenario added | "A HEAD on an orphan branch is rejected as empty" (green at once: the behaviour already existed) |
+| i | CI evidence predates the fixes | Updated after the push | — |
+
 ## Accepted without a test
 
 - U4 — an error thrown by the progress callback stops indexing and propagates: accepted, documented on `IndexDependencies.onProgress`.
@@ -68,16 +86,14 @@ Author decisions and outcome:
 - U8 — `EmptyRepository` carries `repoPath` and a message with the path: accepted, same shape as `NotAGitRepository` (the Low privacy finding is routed to DIS-86).
 - M2 — "no transaction, no log": not verifiable without instrumenting the database and the process output; met by construction (the use case receives the store already bound to the caller's connection and imports no logger).
 
-## Checks (2026-10-07, after the adversarial-review fixes)
+## Checks (2026-10-07, after the second review round)
 
 ```
-npx vitest run          Test Files 40 passed (40) | Tests 571 passed (571)   (DATABASE_URL set, Postgres up)
+npx vitest run          Test Files 41 passed (41) | Tests 584 passed (584)   (DATABASE_URL set, Postgres up)
 npm run lint            exit 0 — 0 errors, 1 warning (existing no-empty-object-type in LlmPort.ts)
 npm run typecheck       exit 0
-npm run lint:architecture  0 errors, 4 warnings (existing no-orphans)
 npm run docs:coverage   exit 0
-npx stryker run --mutate packages/core/src/index/index-repository.ts   99.08 % (survivor: line 182 'utf8', equivalent)
-PHP analyzer suite      npx vitest run tests/unit/analyzers → 10 files, 164 tests passed
+openspec validate index-repository --strict   valid
 ```
 
 ## CI evidence

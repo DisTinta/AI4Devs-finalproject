@@ -372,8 +372,13 @@ services that must be started first, quirks of the local environment.
   fsmonitor, hooks, global attributes file and `log.showSignature` (it ran `gpg.program`); simple-git
   only accepts the first two with `allowUnsafeFsMonitor` / `allowUnsafeHooksPath`. Filters and
   textconv have no off switch: never add a work-tree command (`status`, work-tree `diff`) to a
-  reader. `hasCommits` is false only for an unborn branch (`symbolic-ref` names it); a broken ref or
-  a git failure propagates, never `EmptyRepository`. The acme-shop secret test
+  reader. Every git process gets `GIT_ENV`: a closed list of variables (PATH, home, temp) plus
+  `LC_ALL=C`/`LANGUAGE=C`, so messages are English everywhere; simple-git refuses a full
+  `process.env` that holds `EDITOR`. `LOG_ARGUMENTS` pins with flags what the repository's config
+  could change (`--root`, `--no-renames`, `--no-ext-diff`, `--no-textconv`, `--no-relative`).
+  `hasCommits` is false only for an unborn branch, orphan branches included (`symbolic-ref` names
+  it); `assertRepositoryRoot` maps only git's "not a git repository" to `NotAGitRepository`. A
+  broken ref, git missing, a refused ownership or any other git failure propagates unchanged. The acme-shop secret test
   checks every snapshot row (`row_to_json`) and the real analyzer's recorded input: the planted key
   yields no row, so only the recorded input catches an unredacted analyzer. The post-edit layer guard
   (`GUARD_HTTP_IN_BUSINESS`) matches transport imports, not the word `fastify`, which is a domain

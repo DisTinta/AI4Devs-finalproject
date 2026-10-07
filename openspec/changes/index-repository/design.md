@@ -281,6 +281,17 @@ ticket's recommendation (the author confirmed no ADR is needed).
   `log --numstat`. A future reader that runs a work-tree command (`status`, `diff` against the work
   tree) would run them: the scenario "Reading executes nothing from the repository" catches it
   (shown by adding a temporary `git status`, 2026-10-07).
+- [The repository's configuration can also change what `git log` prints (`log.showRoot=false` drops
+  the root commit's links, `diff.renames`, `diff.relative`, `core.quotePath`)] → `LOG_ARGUMENTS`
+  pins each with a flag, which wins over configuration (`--root`, `--no-renames`, `--no-ext-diff`,
+  `--no-textconv`, `--no-relative`, `--no-color`, `-z`, an explicit `--format`); `GIT_CONFIG` keeps
+  `core.quotepath=false` and `i18n.logOutputEncoding=UTF-8` (second adversarial review, d).
+- [Git's messages depend on the system language, and `NotAGitRepository` is recognised by git's
+  "not a git repository"] → every git process runs with `GIT_ENV` (`LC_ALL=C`, `LANGUAGE=C`, plus a
+  closed list of variables; simple-git refuses a full environment holding `EDITOR`). Any other git
+  failure propagates unchanged (b). The git installed on the authoring machine has no translations,
+  so no localised red could be shown; `tests/unit/git/repository-root.spec.ts` pins the
+  environment.
 - [The acme-shop oracle `/AKIA[A-Z0-9]{16}/` over `symbol.signature` does not exercise the analyzer
   path: the planted key lives in a config array that yields no symbol, so an analyzer fed unredacted
   content would still pass it (seen in apply, mutation (2) of task 4.10)] → the guarantee is covered by

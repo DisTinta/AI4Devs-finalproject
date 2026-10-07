@@ -28,10 +28,13 @@ The source tree port SHALL offer two operations:
 
 `readFiles(root)` SHALL reject with `NotAGitRepository` under the same rule as reading the history:
 `root` does not exist, is not inside a Git repository, or is inside one but is not its top-level
-directory. It SHALL reject with `EmptyRepository` (code `EMPTY_REPOSITORY`) when the repository has no
-commit. `EmptyRepository` SHALL mean "no commit", not "no files": a repository whose `HEAD` commit
-tracks no file resolves to `{ files: [], skipped: [] }`. Reading SHALL never modify the repository
-nor execute anything from it.
+directory. It SHALL reject with `EmptyRepository` (code `EMPTY_REPOSITORY`) when `HEAD` names no
+commit (an unborn branch, even when other branches have commits: only `HEAD` is indexed).
+`EmptyRepository` SHALL mean "`HEAD` names no commit", not "no files": a repository whose `HEAD`
+commit tracks no file resolves to `{ files: [], skipped: [] }`. Any other git failure (git missing,
+a refused repository ownership, a broken `HEAD` or ref, a permission error) propagates unchanged.
+Reading SHALL never modify the repository nor execute anything from it, and the repository's own
+configuration SHALL NOT change what is read.
 
 #### Scenario: Only the files tracked at HEAD are read
 
@@ -54,6 +57,19 @@ nor execute anything from it.
 - **GIVEN** a freshly initialised repository with no commit
 - **WHEN** `readFiles` reads its root
 - **THEN** the call rejects with `EmptyRepository`, whose `code` is `EMPTY_REPOSITORY`
+
+#### Scenario: A HEAD on an orphan branch is rejected as empty
+
+- **GIVEN** a repository with commits on `main` and `HEAD` on a branch created with
+  `git checkout --orphan`, with no commit of its own
+- **WHEN** `readFiles` reads its root
+- **THEN** the call rejects with `EmptyRepository`
+
+#### Scenario: A broken HEAD propagates git's error
+
+- **GIVEN** a committed repository whose branch ref holds text that is not a sha
+- **WHEN** `readFiles` reads its root and the history reader reads its history
+- **THEN** both reject with git's error, neither with `EmptyRepository` nor with an empty history
 
 #### Scenario: Symbolic links and submodules are skipped and reported
 
@@ -80,12 +96,14 @@ nor execute anything from it.
 
 #### Scenario: Reading executes nothing from the repository
 
-- **GIVEN** a repository whose local configuration names programs that write a marker file outside
-  it: a `core.fsmonitor` command, a `core.hooksPath` directory holding every hook, a
-  `filter.<x>.clean` and `filter.<x>.smudge` applied to every path by `.gitattributes`, and
-  `log.showSignature` with a `gpg.program`
+- **GIVEN** a repository with a file whose name has accented letters, whose local configuration
+  names programs that write a marker file outside it (a `core.fsmonitor` command, a `core.hooksPath`
+  directory of hooks, a `filter.<x>.clean` and `filter.<x>.smudge` and a `diff.<x>.textconv`
+  applied to every path by `.gitattributes`, and `log.showSignature` with a `gpg.program`) and that
+  sets `log.showRoot=false`, `diff.renames=copies`, `diff.relative=true` and `core.quotePath=true`
 - **WHEN** `readFiles` reads its root and the history reader reads its history
 - **THEN** both resolve and the marker file does not exist
+- **AND** both results equal those read from the same repository without that configuration
 
 ### Requirement: Indexing order and no partial write
 
