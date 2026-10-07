@@ -3,10 +3,16 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   resolve: {
-    // Tests run against the workspace sources, never a stale `dist/` (DIS-23 design D6).
+    // Tests run against the workspace sources, never a stale `dist/` (DIS-23 design D6). The adapters
+    // and the PHP analyzer are listed too since the CLI imports them by name (DIS-86 design D10).
     // `vitest.stryker.config.ts` inherits this alias through `mergeConfig`.
     alias: {
       '@codemind/core': fileURLToPath(new URL('./packages/core/src/index.ts', import.meta.url)),
+      '@codemind/adapter-git': fileURLToPath(new URL('./packages/adapters/git/src/index.ts', import.meta.url)),
+      '@codemind/adapter-store-postgres': fileURLToPath(
+        new URL('./packages/adapters/store-postgres/src/index.ts', import.meta.url),
+      ),
+      '@codemind/analyzer-php': fileURLToPath(new URL('./packages/analyzers/php/src/index.ts', import.meta.url)),
     },
   },
   test: {
