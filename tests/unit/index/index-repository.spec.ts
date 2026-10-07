@@ -483,6 +483,39 @@ describe('index repository', () => {
       expect(w.saved).toEqual([]);
     });
 
+    it('rejects a file the analyzer did not return with InvalidGraph naming its path, before createProject', async () => {
+      // Arrange: the analyzer drops one of the two files it was given.
+      const w = world({
+        tree: {
+          files: [
+            { path: 'app/A.php', content: '<?php\n' },
+            { path: 'app/Lost.php', content: '<?php\n' },
+          ],
+          skipped: [],
+        },
+        analyze: (files) => plainAnalysis(files.filter((file) => file.path !== 'app/Lost.php')),
+        history: { head: SHA, commits: [{ sha: SHA }], fileCommits: [{ file: 'app/Lost.php', sha: SHA }] },
+      });
+      let report: unknown;
+
+      // Act
+      const error = await indexRepository(w.deps, input()).then(
+        (resolved) => {
+          report = resolved;
+        },
+        (caught: unknown) => caught,
+      );
+
+      // Assert
+      expect(report).toBeUndefined();
+      expect(error).toBeInstanceOf(InvalidGraph);
+      expect((error as InvalidGraph).violations).toEqual([expect.objectContaining({ element: 'files', field: 'path' })]);
+      expect((error as InvalidGraph).message).toContain('"app/Lost.php"');
+      expect(w.phases.at(-1)).toBe('save');
+      expect(w.log).not.toContain('createProject');
+      expect(w.saved).toEqual([]);
+    });
+
     it('saves one exact edge when an exact and a heuristic edge share kind, source and target', async () => {
       // Arrange: the code-analysis dedup rule; the heuristic edge comes first on purpose.
       const edge = { kind: 'calls', source: { file: 'a.php' }, target: { file: 'b.php' }, extractor: 'test' } as const;

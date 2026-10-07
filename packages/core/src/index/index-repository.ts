@@ -75,17 +75,25 @@ export async function indexRepository(deps: IndexDependencies, input: IndexInput
   progress('analyze');
   const analysis = await deps.analyzer.analyze({ files: redactedFiles });
   const byPath = new Map(redactions.map((redaction) => [redaction.file.path, redaction]));
-  // A file the analyzer was not given has no redaction to vouch for it: a broken analyzer contract,
-  // rejected in `save` like an edge to a symbol the analyzer does not return.
-  const unanalysed: GraphViolation[] = [];
+  // The returned paths must be exactly the given ones: an extra file has no redaction to vouch for
+  // it, a missing one would vanish from the snapshot. Either breaks the analyzer contract and is
+  // rejected in `save`, like an edge to a symbol the analyzer does not return.
+  const pathViolations: GraphViolation[] = [];
+  const returned = new Set<string>();
   const files = analysis.files.map((file, i) => {
+    returned.add(file.path);
     const redaction = byPath.get(file.path);
     if (redaction === undefined) {
-      unanalysed.push({ element: `files[${i}]`, field: 'path', message: `file "${file.path}" was not given to the analyzer` });
+      pathViolations.push({ element: `files[${i}]`, field: 'path', message: `file "${file.path}" was not given to the analyzer` });
       return file;
     }
     return { ...file, redacted: redaction.redacted, contentHash: sha256(redaction.file.content) };
   });
+  for (const path of byPath.keys()) {
+    if (!returned.has(path)) {
+      pathViolations.push({ element: 'files', field: 'path', message: `file "${path}" was given to the analyzer but not returned` });
+    }
+  }
 
   progress('history');
   const history = await deps.git.readHistory(realRepo);
@@ -105,7 +113,7 @@ export async function indexRepository(deps: IndexDependencies, input: IndexInput
   };
 
   progress('save');
-  const violations = [...unanalysed, ...validateGraph(graph)];
+  const violations = [...pathViolations, ...validateGraph(graph)];
   if (violations.length > 0) throw new InvalidGraph(violations);
   const projectId = await deps.store.createProject({ name: input.name, rootPath: realRepo, language: input.language, framework });
   const saved = await deps.store.saveGraph(projectId, graph);

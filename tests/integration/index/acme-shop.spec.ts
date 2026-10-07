@@ -182,4 +182,58 @@ describeWithDatabase('acme-shop indexing', () => {
     const { rows: named } = await db().query('SELECT count(*)::int AS n FROM project WHERE name = $1', [name]);
     expect(named[0].n).toBe(0);
   }, INDEXING_TIMEOUT_MS);
+
+  it('A file the analyzer did not return creates no project', async () => {
+    // Arrange: the real analyzer, minus one file it was given that no symbol or edge refers to, so
+    // only the returned-paths rule can reject it.
+    const phases: IndexPhase[] = [];
+    const calls: string[] = [];
+    let dropped = '';
+    const analyzer = createPhpAnalyzer();
+    const store = createPostgresStore({ transaction: db() });
+    const name = unique('acme-shop-lost-file');
+    const deps: IndexDependencies = {
+      sourceTree: createGitSourceTree(),
+      analyzer: {
+        analyze: async (input) => {
+          const result = await analyzer.analyze(input);
+          const referenced = new Set([
+            ...result.symbols.map((symbol) => symbol.file),
+            ...result.edges.flatMap((edge) => [edge.source, edge.target].map((end) => end.file ?? end.symbol!.file)),
+          ]);
+          dropped = result.files.find((file) => !referenced.has(file.path))!.path;
+          return { ...result, files: result.files.filter((file) => file.path !== dropped) };
+        },
+      },
+      git: createSimpleGitHistory({ authorHashSalt: 'test-salt' }),
+      store: {
+        ...store,
+        createProject: (project) => {
+          calls.push('createProject');
+          return store.createProject(project);
+        },
+      },
+      onProgress: (phase) => phases.push(phase),
+    };
+    const { rows: before } = await db().query('SELECT count(*)::int AS n FROM project');
+    let report: IndexReport | undefined;
+
+    // Act
+    const error = await indexRepository(deps, { repoPath: 'acme-shop', allowedRoot: ALLOWED_ROOT, name, language: 'php' }).then(
+      (resolved) => {
+        report = resolved;
+      },
+      (caught: unknown) => caught,
+    );
+
+    // Assert
+    expect(dropped).not.toBe('');
+    expect(report).toBeUndefined();
+    expect(error).toBeInstanceOf(InvalidGraph);
+    expect((error as InvalidGraph).message).toContain(`"${dropped}"`);
+    expect(phases.at(-1)).toBe('save');
+    expect(calls).toEqual([]);
+    const { rows: after } = await db().query('SELECT count(*)::int AS n FROM project');
+    expect(after[0].n).toBe(before[0].n);
+  }, INDEXING_TIMEOUT_MS);
 });
