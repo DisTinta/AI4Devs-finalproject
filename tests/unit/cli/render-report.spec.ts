@@ -4,7 +4,7 @@ import type { IndexReport } from '@codemind/core';
 import { createLogger } from '../../../packages/cli/src/logger';
 import { escapeLiteral, renderProgress, renderReport } from '../../../packages/cli/src/render-report';
 
-// Spec: openspec/changes/cli-index-command/specs/cli-indexing/spec.md → "Untrusted strings are
+// Spec: openspec/specs/cli-indexing/spec.md → "Untrusted strings are
 // printed escaped". The `it` named after the scenario is that scenario; the rest are extra cases.
 
 /** A report with every count set and no entries; tests override what they need. */

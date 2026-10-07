@@ -12,7 +12,7 @@ import type { OpenTransaction } from '../../../packages/cli/src/compose-index';
 import { describeWithDatabase, useTransactionPerTest } from '../helpers/db';
 import { unique } from '../helpers/factories';
 
-// Spec: openspec/changes/cli-index-command/specs/cli-indexing/spec.md. Each `it` is the scenario it
+// Spec: openspec/specs/cli-indexing/spec.md. Each `it` is the scenario it
 // is named after. `fixtures/acme-shop` is copied (without `.git`) under a temporary directory `T`,
 // the allowed root, and its history is built there once, never in `fixtures/`. The command runs with
 // the real adapters; its transaction is a savepoint on the harness client (design D4), so every row

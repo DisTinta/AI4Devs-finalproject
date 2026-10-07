@@ -334,3 +334,26 @@ from the `redactions:` line and now asserts the planted commit's event directly.
 No data migration. Deploy = merge; rollback = revert the commit (the stub comes back, nothing is
 stored differently). Operators must set `ALLOWED_REPOS_DIR`, `AUTHOR_HASH_SALT` and `DATABASE_URL`
 (documented in `.env.example`, `readme.md`, `docs/DEPLOYMENT.md`).
+
+## Follow-ups
+
+- **C → DIS-100 (`Deuda: index-repository`, 2026-10-07):** core's `partitionSourceFiles` skips a
+  path with C0 or DEL as `invalid-path` but keeps one with C1, and bidi/format characters
+  (U+202A–U+202E, U+2066–U+2069, U+2028/U+2029) pass everywhere. The CLI escapes C0, DEL and C1 on
+  every output (D8), so nothing reaches the terminal raw, but such a path is stored as is and a
+  U+202E can reorder a displayed path. Options: `invalid-path` in core, or escaping bidi/format in
+  `toTerminalSafeJson`. Spanish checklist comment on DIS-100.
+- **D (accepted):** the residual confinement risk (D7: the re-resolution window, a `.git` file with
+  `gitdir:`, `objects/info/alternates`), documented in `docs/DEPLOYMENT.md`,
+  `docs/project-context.md`, `readme.md` and `.env.example`; EPIPE or a failing stderr ends in
+  Node's stack trace (D11); a `COMMIT` rejected with a SQLSTATE is "may have been saved", `codemind
+  help index` shows the placeholder, and `INTERNAL` hides the original message (Risks).
+- **Process notes, not classified:** the "RED → GREEN" wording of tasks 3.3–6.7 and the spec file
+  committed after the implementation (step 9 report, review-round section).
+- **Inbound notes into DIS-86** (archive ritual, done 2026-10-07, each answered in its thread):
+  DIS-84 (trimmed `ALLOWED_REPOS_DIR` at the composition root, structured `secret_redacted` log,
+  path privacy) and DIS-85 (composition contract: own transaction, environment, validation,
+  progress, error mapping, path privacy) closed by requirements of this change; DIS-85 (path
+  re-resolution window) and DIS-85 (`gitdir:` / alternates) → D, D7; DIS-96 via DIS-85 (escape the
+  analyzer's diagnostics) closed by D8 and widened to every output, with the remaining core part →
+  DIS-100.

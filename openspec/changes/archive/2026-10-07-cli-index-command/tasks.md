@@ -118,7 +118,8 @@
 
 - [x] 11.1 The interface is a CLI, already driven end to end through the real entry point in step 10; no web or HTTP change. Record "covered by step 10; no browser UI", with that reason, in the step 9 report
   - Recorded in the step 9 report: covered by step 10 through the real entry point; no browser UI.
-- [ ] 11.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that the three new spec files ran (the integration one with Postgres and Git) and passed, and that the mutation step ran and covers `packages/cli` (`business` filter, 9.3b). Link the run in the step 9 report
+- [x] 11.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that the three new spec files ran (the integration one with Postgres and Git) and passed, and that the mutation step ran and covers `packages/cli` (`business` filter, 9.3b). Link the run in the step 9 report
+  - Run 37667562708 on `d9ed31a` passed: the three CLI spec files ran (integration with Postgres and Git), 644 passed + 1 skipped; mutation covered `packages/cli` at 91.74 %. Linked in the step 9 report.
 
 ## 12. Update Technical Documentation (MANDATORY)
 
@@ -132,8 +133,10 @@
   - No ADR: every decision stayed local to `packages/cli` and its test/run wiring; nothing contradicted D10.
 - [x] 12.5 Run `/update-docs` and confirm the docs gate passes (`npm run docs:coverage`). Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
   - `/update-docs`: also fixed the stale "`@codemind/core` resolves to its sources in tests" gotcha (now four packages, `tsconfig.run.json` for `npm run cli`) and the `cli/` line of the readme package tree. Checked, no change: data model (no migration), API spec (no route; `docs/api` is generated), standards, `docs/TESTING.md`, `docs/DEMO.md`, `fixtures/README.md`. `docs:coverage` exit 0. `prompts.md` §30 (2 literal prompts) + Índice entry 30.
-- [ ] 12.6 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the author's Why transcribed, the new dependencies of `packages/cli` justified and the Stryker score. After verification, set DIS-86 to In Review in Linear with a comment in Spanish linking the PR and the change
-- [ ] 12.7 At archive time, run the archive ritual: close or reassign the 5 inbound notes of DIS-86 (DIS-84, DIS-85 ×3, DIS-96), noting for each where it was resolved (trim + composition root, transaction contract, structured log, path privacy, escaping, D7), and classify every review gap (A/B/C/D)
+- [x] 12.6 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the author's Why transcribed, the new dependencies of `packages/cli` justified and the Stryker score. After verification, set DIS-86 to In Review in Linear with a comment in Spanish linking the PR and the change
+  - `reports/pr-description.md` (Spanish, the author's Why, the dependencies, Stryker); PR #24 against `feature/entrega-2-CRN`, body updated after the review rounds; DIS-86 In Review with Spanish comments linking the PR and the change.
+- [x] 12.7 At archive time, run the archive ritual: close or reassign the 5 inbound notes of DIS-86 (DIS-84, DIS-85 ×3, DIS-96), noting for each where it was resolved (trim + composition root, transaction contract, structured log, path privacy, escaping, D7), and classify every review gap (A/B/C/D)
+  - Inbound: the 5 notes answered in their threads on DIS-86 (closed, or D7). Outbound: C → DIS-100 (C1, bidi and format characters in core paths), the rest D; design.md → Follow-ups.
 
 ## 13. Review round: /verify-against-spec and /adversarial-review
 

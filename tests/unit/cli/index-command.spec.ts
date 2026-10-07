@@ -9,7 +9,7 @@ import { defaultPorts } from '../../../packages/cli/src/compose-index';
 import type { IndexPorts, OpenTransaction } from '../../../packages/cli/src/compose-index';
 import { CLI_VERSION } from '../../../packages/cli/src/version';
 
-// Spec: openspec/changes/cli-index-command/specs/cli-indexing/spec.md. Each `it` named after a
+// Spec: openspec/specs/cli-indexing/spec.md. Each `it` named after a
 // scenario is that scenario; the others are extra cases. The ports, the store and the transaction
 // are in-memory fakes recording into one shared log, so the order of commit, rollback, release and
 // the first write to stdout can be asserted. The real `indexRepository` runs between them.

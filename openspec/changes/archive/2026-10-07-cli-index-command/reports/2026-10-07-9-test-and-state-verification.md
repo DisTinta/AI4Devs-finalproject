@@ -178,6 +178,20 @@ Results:
 - State: fixtures clean, `project` 0, `commit` 0, `file` 0 (demo project `dis86-c1-taken` deleted
   by name).
 
+## CI (task 11.2)
+
+PR #24, head `d9ed31a` (both review rounds): `quality` run
+https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37667562708 passed in 6 min 43 s, and
+`frontend` passed.
+
+- The three new spec files ran: `tests/unit/cli/index-command.spec.ts` (32),
+  `tests/unit/cli/render-report.spec.ts` (5) and `tests/integration/cli/index-command.spec.ts` (7,
+  with Postgres and Git). Suite: 44 files, 644 passed, 1 skipped (the platform-specific case in
+  `tests/unit/index/path-policy.spec.ts`).
+- The mutation step ran (`business` filter: `packages/cli/**` changed) and covers `packages/cli`:
+  **91.74 %** (222 killed, 13 survived, 7 no coverage), the same as locally; 95.31 % over every
+  mutated file.
+
 ## Outcome
 
 - Status: PASS
