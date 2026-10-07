@@ -1,4 +1,4 @@
-import type { EdgeEndpoint, GraphEdge } from './graph-edge.js';
+import type { EdgeEndpoint, EdgeResolution, GraphEdge } from './graph-edge.js';
 
 /** Compares two strings by UTF-16 code unit, never by locale. */
 function compareUtf16(a: string, b: string): number {
@@ -31,7 +31,9 @@ function compareEndpoints(a: EdgeEndpoint, b: EdgeEndpoint): number {
 
 /**
  * Orders two edges by `kind`, then `source` endpoint, then `target` endpoint, per the "Analysis
- * contract" requirement. Kinds, paths and names are compared by UTF-16 code unit, not by locale.
+ * contract" requirement; an `exact` edge then sorts before a `heuristic` one with the same key, so
+ * {@link sortUniqueEdges} keeps the exact one. Kinds, paths and names are compared by UTF-16 code
+ * unit, not by locale.
  */
 export function compareEdges(a: GraphEdge, b: GraphEdge): number {
   const kindComparison = compareUtf16(a.kind, b.kind);
@@ -40,7 +42,15 @@ export function compareEdges(a: GraphEdge, b: GraphEdge): number {
   const sourceComparison = compareEndpoints(a.source, b.source);
   if (sourceComparison !== 0) return sourceComparison;
 
-  return compareEndpoints(a.target, b.target);
+  const targetComparison = compareEndpoints(a.target, b.target);
+  if (targetComparison !== 0) return targetComparison;
+
+  return resolutionRank(a.resolution) - resolutionRank(b.resolution);
+}
+
+/** `exact` before `heuristic`. */
+function resolutionRank(resolution: EdgeResolution): number {
+  return resolution === 'exact' ? 0 : 1;
 }
 
 /** A string key equal for two endpoints exactly when they are the same file or the same symbol. */
@@ -52,7 +62,8 @@ function endpointKey(endpoint: EdgeEndpoint): string {
 
 /**
  * Sorts `edges` by {@link compareEdges} and drops every later edge that shares `kind`, `source` and
- * `target` with one already kept. Does not mutate `edges`.
+ * `target` with one already kept, so an `exact` edge wins over a `heuristic` one with the same key.
+ * Does not mutate `edges`.
  */
 export function sortUniqueEdges(edges: readonly GraphEdge[]): GraphEdge[] {
   const sorted = [...edges].sort(compareEdges);
