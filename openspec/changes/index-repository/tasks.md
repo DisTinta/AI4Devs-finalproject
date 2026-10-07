@@ -90,6 +90,7 @@
     1  A failure reading the source tree writes nothing  [tests/unit/index/index-repository.spec.ts ]
     1  A failure reading the history writes nothing  [tests/unit/index/index-repository.spec.ts ]
     1  An invalid graph creates no project  [tests/unit/index/index-repository.spec.ts ]
+    1  A file the analyzer did not receive creates no project  [tests/integration/index/acme-shop.spec.ts ]  (added 2026-10-07, task 12.1)
     1  A taken project name saves no graph  [tests/unit/index/index-repository.spec.ts ]
     1  Malformed, repeated and binary entries never reach the analyzer  [tests/unit/index/index-repository.spec.ts ]
     1  The planted secret of acme-shop never reaches the database  [tests/integration/index/acme-shop.spec.ts ]
@@ -143,3 +144,13 @@
 - [x] 11.5 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the author's Why transcribed and the Stryker score. After verification, set DIS-85 to In Review in Linear with a comment in Spanish linking the PR and the change
   - PR #23 (https://github.com/DisTinta/AI4Devs-finalproject/pull/23) opened against `feature/entrega-2-CRN` with the author's Why copied verbatim (`reports/pr-description.md`, commit `2e036b8`). In Review in Linear once CI is green.
 - [ ] 11.6 At archive time, run the archive ritual: close or reassign the 10 inbound notes of DIS-85 (DIS-12, DIS-23 ×2, DIS-35 ×2, DIS-36, DIS-47, DIS-84, DIS-96 ×2), and classify every review gap (A/B/C/D)
+
+## 12. Follow-up of /verify-against-spec (2026-10-07, author decisions)
+
+- [x] 12.1 U1 — spec (`/opsx:update`): a file the analyzer returns without having been given it makes indexing reject with `InvalidGraph` naming that path, in `save`, before `createProject`; new scenario "A file the analyzer did not receive creates no project". RED → GREEN: integration test of that name in `tests/integration/index/acme-shop.spec.ts` (real store, no new project row) and unit extra case "rejects a file the analyzer did not receive with InvalidGraph naming its path, before createProject" (replaces "keeps a file the analyzer returns without an input as it is"), plus extra case "saves every file with redacted and a 64-hex contentHash"
+  - RED seen for both with the fix stashed (`expected { …(14) } to be an instance of InvalidGraph`); green with it. Design D4 mapping updated.
+- [x] 12.2 U3 — `compareEdges` ranks `exact` before `heuristic` on an equal key, so `sortUniqueEdges` keeps the exact edge whatever the input order (code-analysis rule). Spec and design D8 clarified: "every edge" / `edges.total` are the saved edges after that deduplication. RED → GREEN: two cases in `tests/unit/knowledge/edge-order.spec.ts` and extra case "saves one exact edge when an exact and a heuristic edge share kind, source and target"
+  - RED seen: `compareEdges` returned 0 and the heuristic edge was kept when it came first.
+- [x] 12.3 U2 — spec clarified (a leading UTF-8 BOM is dropped when decoding; `contentHash` over the content without it). Test "drops a leading UTF-8 byte order mark when decoding" in `git-source-tree.spec.ts`, shown to fail with `ignoreBOM: true` and restored
+- [x] 12.4 Tests M1 (`rootPath` is the real path), M3 (`rev-parse HEAD` and `status --porcelain` unchanged), W1/W3 (`row_to_json` of every snapshot table + the real analyzer's input; fails with the redaction removed, two mutations, file restored identical), M4 (JSON round trip, `toStrictEqual`), W2 (`'elsewhere'` without separators)
+- [x] 12.5 Record U4–U8 and M2 as accepted without a test in `reports/2026-10-07-verify-against-spec.md`; run `npx vitest run`, `npm run lint`, `npm run typecheck`; re-run `/verify-against-spec` (no contradiction)

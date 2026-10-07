@@ -21,7 +21,7 @@ See `proposal.md` → Why. Current state that shapes the approach:
 - `StoreConnection = { pool } | { transaction }`: with `{ transaction }` every write is a `SAVEPOINT`
   and nothing is committed (the integration harness relies on it).
 - Pure helpers ready to compose: `coChangeEdges(fileCommits, knownPaths)`, `sortUniqueEdges(edges)`,
-  `assertValidGraph(graph)`.
+  `validateGraph(graph)` / `assertValidGraph(graph)`.
 
 ## Goals / Non-Goals
 
@@ -157,7 +157,9 @@ Author decision (2026-10-06), rationale as given:
 
 Mapping (spec, requirement "Indexing order and no partial write"): detection belongs to `redact`;
 `history` includes the empty check, the message redaction, the link filter and the co-change edges;
-`save` includes `assertValidGraph`, `createProject` and `saveGraph`. `onProgress(phase)` is called
+`save` includes the graph validation (`validateGraph`, plus one violation per file the analyzer
+returned without having been given it, all raised as one `InvalidGraph`, added after
+/verify-against-spec on 2026-10-07), `createProject` and `saveGraph`. `onProgress(phase)` is called
 **when the phase starts**, so a rejection inside `confine` is preceded by exactly one `confine`
 call: the spy can then tell which phase failed. A throwing callback propagates (the caller's bug,
 not swallowed).
@@ -202,7 +204,10 @@ input path).
 `knownPaths` = the paths of `analysis.files`. `coChangeEdges` receives the history's **unfiltered**
 `fileCommits` (dropped paths still count in the Jaccard denominators, DIS-36 note); the saved graph
 receives only the links whose `file` is in `knownPaths`. Edges = `sortUniqueEdges([...analysis.edges, ...coChange])`.
-`co_changed` never collides with an analyzer kind, so no `exact`/`heuristic` precedence is needed.
+`co_changed` never collides with an analyzer kind. Between analyzer edges, `compareEdges` ranks an
+`exact` edge before a `heuristic` one with the same `kind`, source and target, so `sortUniqueEdges`
+keeps the exact one whatever the input order (the `code-analysis` rule; before /verify-against-spec it
+kept whichever came first).
 
 ### D9 — The caller owns the transaction
 

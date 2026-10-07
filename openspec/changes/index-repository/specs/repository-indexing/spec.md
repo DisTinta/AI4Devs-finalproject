@@ -15,7 +15,8 @@ The source tree port SHALL offer two operations:
   link. A path that does not exist SHALL reject with `NotAGitRepository` naming that path.
 - `readFiles(root)` SHALL resolve to `{ files, skipped }`, where `files` are the files tracked in the
   commit `HEAD` names, each `{ path, content }` with `path` repository-relative with `/` separators
-  and `content` decoded as UTF-8, and `skipped` lists `{ path, reason }` for each tracked entry it
+  and `content` decoded as UTF-8 (a leading UTF-8 byte order mark is dropped when decoding, so
+  `contentHash` is computed over the content without it), and `skipped` lists `{ path, reason }` for each tracked entry it
   did not return. It SHALL read the content stored in that commit, never the working tree: untracked,
   ignored and locally modified files SHALL NOT change the result.
 
@@ -104,10 +105,14 @@ and no later phase SHALL start or be reported:
   the target of a symbolic link is not revealed.
 
 Nothing SHALL be written to the store before the `save` phase, and within it the graph
-SHALL be validated before the project is created, so an invalid graph leaves no project behind. The
+SHALL be validated before the project is created, so an invalid graph leaves no project behind. A
+file the analyzer returns that was not in its input SHALL make the graph invalid, like an edge to a
+symbol the analyzer does not return: indexing SHALL reject with `InvalidGraph`, whose message names
+that path, in the `save` phase and before `createProject`. The
 project SHALL be created with `rootPath` set to the real repository path, and the graph SHALL be
-saved in **one** call holding every file, symbol, edge (the analyzer's and the `co_changed` ones),
-commit and file–commit link: a complete snapshot. Indexing SHALL NOT open, commit or roll back a
+saved in **one** call holding every file, symbol, edge (the analyzer's and the `co_changed` ones,
+after the deduplication of `code-analysis`: an `exact` edge wins over a `heuristic` one with the same
+`kind`, source and target), commit and file–commit link: a complete snapshot. Indexing SHALL NOT open, commit or roll back a
 transaction, and SHALL NOT write to any log.
 
 #### Scenario: Progress phases are reported once and in order
@@ -174,6 +179,14 @@ transaction, and SHALL NOT write to any log.
 - **WHEN** the repository is indexed
 - **THEN** it rejects with `InvalidGraph`, the progress spy's last phase is `save`, and neither
   `createProject` nor `saveGraph` was called
+
+#### Scenario: A file the analyzer did not receive creates no project
+
+- **GIVEN** a fake analyzer that returns a file that was not in its input
+- **WHEN** the repository is indexed
+- **THEN** it rejects with `InvalidGraph`, whose message names that file's path
+- **AND** the progress spy's last phase is `save`, and `createProject` was not called
+- **AND** the database holds no new project
 
 #### Scenario: A taken project name saves no graph
 
@@ -295,7 +308,7 @@ report SHALL state it and whether it was `detected` or `explicit`.
 A successful indexing SHALL resolve to a report holding: `projectId`; `indexedCommit` (the history's
 `head`); `framework` and `frameworkSource` (`detected` or `explicit`); `files`, `filesDeleted`,
 `symbols`, `commits` and `fileCommits` as counted by the snapshot write; `edges` as
-`{ total, exact, heuristic }` over the saved edges, with `exact + heuristic = total`; `events`;
+`{ total, exact, heuristic }` over the saved edges (after that deduplication), with `exact + heuristic = total`; `events`;
 `commitEvents`; the analyzer's `diagnostics`; and `skipped`, ordered by path in byte order, then by
 reason. The report SHALL be plain JSON-serialisable data.
 

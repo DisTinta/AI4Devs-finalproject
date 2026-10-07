@@ -358,16 +358,17 @@ services that must be started first, quirks of the local environment.
   content are dropped and reported), `redact` (every file, before the analyzer; framework detection
   from root manifests unless given), `analyze` (`contentHash` = SHA-256 of the **redacted** content),
   `history` (no `head` → `EmptyRepository`; commit messages redacted into `commitEvents`; orphan
-  links dropped; `co_changed` edges from the unfiltered links), `save` (`assertValidGraph`, then
+  links dropped; `co_changed` edges from the unfiltered links), `save` (`validateGraph` plus a
+  violation for each file the analyzer returned without being given it, as one `InvalidGraph`; then
   `createProject`, then one `saveGraph`). It opens no transaction: the composition root (DIS-86)
   passes `createPostgresStore({ transaction: client })` and commits or rolls back; with `{ pool }`
   project and graph are two transactions. Core logs nothing; `IndexReport` is the only output.
   `createGitSourceTree()` reads the **committed** tree with `git ls-tree -r -z --full-tree HEAD`
   (`ls-files` would read the index) and one `git cat-file` per blob, so indexing acme-shop takes ~6 s
   (`acme-shop.spec.ts` raises the test timeout to 60 s). Symlinks (`120000`), submodules (`160000`)
-  and non-UTF-8 blobs are skipped and reported; a leading BOM is dropped. The acme-shop secret oracle
-  over `symbol.signature` cannot see the analyzer path (its planted key yields no symbol): the unit
-  scenario "The analyzer only receives redacted content" guards it. The post-edit layer guard
+  and non-UTF-8 blobs are skipped and reported; a leading BOM is dropped. The acme-shop secret test
+  checks every snapshot row (`row_to_json`) and the real analyzer's recorded input: the planted key
+  yields no row, so only the recorded input catches an unredacted analyzer. The post-edit layer guard
   (`GUARD_HTTP_IN_BUSINESS`) matches transport imports, not the word `fastify`, which is a domain
   value in core.
 - **Vitest can report success with no tests** (`passWithNoTests: true`). A green suite is not
@@ -447,8 +448,8 @@ services that must be started first, quirks of the local environment.
   declaring `__call` → `T::__call`; `X::m()` on a non-facade class declaring `__callStatic` →
   `X::__callStatic` (inherited magic methods do not count). The binding closures still originate no
   edge (signed non-goal: the table is a lookup only). A `heuristic` edge is dropped when an `exact` one
-  has the same kind/source/target — filtered explicitly in `buildPhpEdges`, since `sortUniqueEdges`
-  ignores `resolution`. Site 7 of the batch lands on `CarrierGateway::__call`, as `flatRateFor` has no
+  has the same kind/source/target — filtered explicitly in `buildPhpEdges`; since DIS-85
+  `compareEdges` also ranks `exact` first on an equal key, so `sortUniqueEdges` keeps the exact one. Site 7 of the batch lands on `CarrierGateway::__call`, as `flatRateFor` has no
   symbol.
 - **String routes, job dispatch and event dispatch are `heuristic` too** (DIS-97). A
   `Route::<verb>('<uri>', '<C>@<m>')` statement gets a `route` symbol like an array action; `<C>` is
