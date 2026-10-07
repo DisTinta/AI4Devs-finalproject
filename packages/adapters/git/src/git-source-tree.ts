@@ -1,9 +1,8 @@
 import { realpath } from 'node:fs/promises';
-import { simpleGit } from 'simple-git';
 import type { SimpleGit } from 'simple-git';
 import { EmptyRepository, NotAGitRepository } from '@codemind/core';
 import type { SkippedEntry, SourceFile, SourceTree, SourceTreePort } from '@codemind/core';
-import { assertRepositoryRoot, GIT_CONFIG, hasCommits } from './repository.js';
+import { assertRepositoryRoot, hasCommits, readerGit } from './repository.js';
 
 /** One entry of `git ls-tree`: its mode, object id and repository-relative path. */
 interface TreeEntry {
@@ -41,7 +40,7 @@ export function createGitSourceTree(): SourceTreePort {
     },
     async readFiles(root: string): Promise<SourceTree> {
       await assertRepositoryRoot(root);
-      const git = simpleGit({ baseDir: root, config: GIT_CONFIG });
+      const git = readerGit(root);
       if (!(await hasCommits(git))) throw new EmptyRepository(root);
       const files: SourceFile[] = [];
       const skipped: SkippedEntry[] = [];

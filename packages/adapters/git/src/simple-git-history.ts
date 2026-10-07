@@ -1,8 +1,7 @@
-import { simpleGit } from 'simple-git';
 import type { GitHistory, GitPort } from '@codemind/core';
 import { requireSalt } from './config.js';
 import { LOG_ARGUMENTS, parseLog } from './parse-log.js';
-import { assertRepositoryRoot, GIT_CONFIG, hasCommits } from './repository.js';
+import { assertRepositoryRoot, hasCommits, readerGit } from './repository.js';
 
 /** Configuration of the `simple-git` history reader. */
 export interface SimpleGitHistoryOptions {
@@ -21,7 +20,7 @@ export function createSimpleGitHistory(options: SimpleGitHistoryOptions): GitPor
   return {
     async readHistory(repoPath: string): Promise<GitHistory> {
       await assertRepositoryRoot(repoPath);
-      const git = simpleGit({ baseDir: repoPath, config: GIT_CONFIG });
+      const git = readerGit(repoPath);
       if (!(await hasCommits(git))) return { head: undefined, commits: [], fileCommits: [] };
       return parseLog(await git.raw(LOG_ARGUMENTS), salt);
     },

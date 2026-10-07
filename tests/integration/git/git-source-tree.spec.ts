@@ -1,10 +1,10 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { EmptyRepository, NotAGitRepository } from '@codemind/core';
-import { createGitSourceTree } from '../../../packages/adapters/git/src/index';
+import { createGitSourceTree, createSimpleGitHistory } from '../../../packages/adapters/git/src/index';
 
 // Spec: openspec/changes/index-repository/specs/repository-indexing/spec.md, requirement "Source tree
 // contract". Each test named after a scenario is that scenario. Every repository is a throwaway one
@@ -70,6 +70,30 @@ describe('git source tree', () => {
     const read = sourceTree.readFiles(repository);
     await expect(read).rejects.toBeInstanceOf(EmptyRepository);
     await expect(read).rejects.toMatchObject({ code: 'EMPTY_REPOSITORY', repoPath: repository });
+  });
+
+  it('propagates a broken HEAD as a git error, never as EmptyRepository', async () => {
+    // Arrange: a committed repository whose branch ref holds garbage, and one whose .git/HEAD does.
+    const brokenRef = emptyRepository();
+    writeFileSync(join(brokenRef, 'a.php'), '<?php\n');
+    git(brokenRef, 'add', '.');
+    git(brokenRef, 'commit', '-q', '-m', 'feat: a');
+    writeFileSync(join(brokenRef, '.git', 'refs', 'heads', 'main'), 'not-a-sha\n');
+    const junkHead = emptyRepository();
+    writeFileSync(join(junkHead, 'a.php'), '<?php\n');
+    git(junkHead, 'add', '.');
+    git(junkHead, 'commit', '-q', '-m', 'feat: a');
+    writeFileSync(join(junkHead, '.git', 'HEAD'), 'garbage\n');
+
+    // Act
+    const fromBrokenRef = await sourceTree.readFiles(brokenRef).catch((caught: unknown) => caught);
+    const fromJunkHead = await sourceTree.readFiles(junkHead).catch((caught: unknown) => caught);
+
+    // Assert: git's own error for the ref; for a junk HEAD git no longer sees a repository at all.
+    expect(fromBrokenRef).toBeInstanceOf(Error);
+    expect(fromBrokenRef).not.toBeInstanceOf(EmptyRepository);
+    expect((fromBrokenRef as Error).message).toMatch(/HEAD/);
+    expect(fromJunkHead).toBeInstanceOf(NotAGitRepository);
   });
 
   it('Only the files tracked at HEAD are read', async () => {
@@ -149,6 +173,69 @@ describe('git source tree', () => {
     // Assert
     expect(tree.files).toEqual([{ path: 'bom.php', content: '<?php\n' }]);
     expect(tree.skipped).toEqual([]);
+  });
+
+  it('Reading executes nothing from the repository', async () => {
+    // Arrange: every program the repository's own configuration names appends to a marker file
+    // outside it. The traps are armed after the commits, so committing never fires them.
+    const outside = temporaryDirectory();
+    const marker = join(outside, 'executed.txt').replace(/\\/g, '/');
+    const trap = join(outside, 'trap.sh').replace(/\\/g, '/');
+    writeFileSync(trap, `#!/bin/sh\necho "$0 $*" >> "${marker}"\ncat\n`);
+    chmodSync(trap, 0o755);
+    const hooks = join(outside, 'hooks');
+    mkdirSync(hooks);
+    for (const hook of ['pre-commit', 'post-checkout', 'post-merge', 'post-index-change', 'reference-transaction', 'fsmonitor-watchman']) {
+      writeFileSync(join(hooks, hook), `#!/bin/sh\necho "hook $0" >> "${marker}"\n`);
+      chmodSync(join(hooks, hook), 0o755);
+    }
+    const repository = emptyRepository();
+    writeFileSync(join(repository, 'a.php'), '<?php\n');
+    writeFileSync(join(repository, '.gitattributes'), '* filter=trap diff=trap\n');
+    git(repository, 'add', '.');
+    git(repository, 'commit', '-q', '-m', 'feat: a');
+    writeFileSync(join(repository, 'a.php'), '<?php // touched\n');
+    // A commit carrying a PGP signature header, so that verifying signatures would call gpg.program.
+    const tree = git(repository, 'rev-parse', 'HEAD^{tree}');
+    const parent = git(repository, 'rev-parse', 'HEAD');
+    const signed = [
+      `tree ${tree}`,
+      `parent ${parent}`,
+      'author Test Author <test.author@example.test> 1700000000 +0000',
+      'committer Test Author <test.author@example.test> 1700000000 +0000',
+      'gpgsig -----BEGIN PGP SIGNATURE-----',
+      ' ',
+      ' iQEzBAABCAAdFiEEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      ' -----END PGP SIGNATURE-----',
+      '',
+      'feat: signed',
+      '',
+    ].join('\n');
+    const signedSha = execFileSync('git', ['hash-object', '-t', 'commit', '-w', '--stdin'], { cwd: repository, input: signed, encoding: 'utf8' }).trim();
+    git(repository, 'update-ref', 'refs/heads/main', signedSha);
+    for (const [key, value] of [
+      ['core.fsmonitor', trap],
+      ['core.hooksPath', hooks.replace(/\\/g, '/')],
+      ['filter.trap.clean', trap],
+      ['filter.trap.smudge', trap],
+      ['filter.trap.required', 'true'],
+      ['diff.trap.textconv', trap],
+      ['log.showSignature', 'true'],
+      ['gpg.program', trap],
+    ]) {
+      git(repository, 'config', key, value);
+    }
+    rmSync(marker, { force: true });
+
+    // Act
+    const tree_ = await sourceTree.readFiles(repository);
+    const history = await createSimpleGitHistory({ authorHashSalt: 'test-salt' }).readHistory(repository);
+
+    // Assert
+    expect(tree_.files.map((file) => file.path)).toEqual(['.gitattributes', 'a.php']);
+    expect(history.head).toBe(signedSha);
+    // The marker's content, not just its existence, so a failure names the program that ran.
+    expect(existsSync(marker) ? readFileSync(marker, 'utf8') : '').toBe('');
   });
 
   it('The real path follows symbolic links', async () => {
