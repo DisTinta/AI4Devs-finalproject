@@ -70,6 +70,12 @@ Verified against `package.json` (root and per package). If a command is not here
   files), and guards
   it: it only runs once test files exist, otherwise it prints a warning and skips (Stryker's dry run
   fails with zero tests, and faking a test to force it green defeats the gate).
+- CI docs-only skip: the `scope` job of `ci.yml` skips the whole `quality` job when a push to an open
+  PR only touches `openspec/**`, `docs/**` or `*.md` (diff of that push, `before..after`) and
+  `quality` was green or skipped on the previous head — e.g. the `/opsx:archive` commit. It always
+  runs on PR open/reopen, on `main`, after a force-push or a non-green previous head. A skipped job
+  counts as passed for required checks. Keep test-file edits (even comments, such as spec paths in
+  test headers) out of the archive commit, or it runs in full.
 - Docs coverage: `npm run docs:coverage` (or `npx typedoc --validation.notDocumented --logLevel Warn`)
   — TypeDoc over the backend packages via root `typedoc.json`. HTML lands in `docs/api/` (gitignored).
   `CMD_DOCS_COVERAGE` in `.claude/sdd-harness.env` points here. `packages/web` is out of scope (React

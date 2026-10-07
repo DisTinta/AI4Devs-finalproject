@@ -6,8 +6,48 @@ on:
 permissions:
   contents: read
   pull-requests: read
+  checks: read
 jobs:
+  # Decides whether `quality` runs. A push to an open PR that only touches documentation
+  # (openspec/**, docs/**, *.md) skips it, as long as `quality` was green (or itself skipped) on the
+  # previous head: e.g. the /opsx:archive commit. A job skipped by `if:` counts as passed for
+  # required checks. paths-filter cannot do this: on pull_request it always diffs the whole PR.
+  # Never skipped: PR opened/reopened, pushes to main, force-pushes, or a previous head that was not
+  # green — so a docs-only push can never hide an earlier failure.
+  scope:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.decide.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: decide
+        env:
+          EVENT: ${{ github.event_name }}
+          ACTION: ${{ github.event.action }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.pull_request.head.sha }}
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          code=true
+          if [ "$EVENT" = pull_request ] && [ "$ACTION" = synchronize ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            changed=$(git diff --name-only "$BEFORE" "$AFTER")
+            code_files=$(printf '%s\n' "$changed" | grep -vE '^(openspec/|docs/)|\.md$' | grep . || true)
+            previous=$(gh api "repos/$REPO/commits/$BEFORE/check-runs?check_name=quality" --jq '.check_runs[0].conclusion' 2>/dev/null || true)
+            if [ -n "$changed" ] && [ -z "$code_files" ] && { [ "$previous" = success ] || [ "$previous" = skipped ]; }; then
+              code=false
+            fi
+            echo "Changed since $BEFORE:"; printf '%s\n' "$changed"
+            echo "Previous quality: ${previous:-unknown}"
+          fi
+          echo "code=$code" | tee -a "$GITHUB_OUTPUT"
+
   quality:
+    needs: scope
+    if: needs.scope.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
