@@ -516,6 +516,36 @@ describe('index repository', () => {
       expect(w.saved).toEqual([]);
     });
 
+    it('names every missing and every extra path in one InvalidGraph', async () => {
+      // Arrange: two given files left out and one file never given.
+      const w = world({
+        tree: {
+          files: [
+            { path: 'app/A.php', content: '<?php\n' },
+            { path: 'app/Lost1.php', content: '<?php\n' },
+            { path: 'app/Lost2.php', content: '<?php\n' },
+          ],
+          skipped: [],
+        },
+        analyze: (files) => {
+          const kept = plainAnalysis(files.filter((file) => file.path === 'app/A.php'));
+          return { ...kept, files: [...kept.files, { path: 'app/Extra.php', kind: 'source' }] };
+        },
+        history: { head: SHA, commits: [{ sha: SHA }], fileCommits: [] },
+      });
+
+      // Act
+      const error = await indexRepository(w.deps, input()).catch((caught: unknown) => caught);
+
+      // Assert
+      expect(error).toBeInstanceOf(InvalidGraph);
+      expect((error as InvalidGraph).violations).toHaveLength(3);
+      for (const path of ['app/Lost1.php', 'app/Lost2.php', 'app/Extra.php']) {
+        expect((error as InvalidGraph).message).toContain(`"${path}"`);
+      }
+      expect(w.log).not.toContain('createProject');
+    });
+
     it('saves one exact edge when an exact and a heuristic edge share kind, source and target', async () => {
       // Arrange: the code-analysis dedup rule; the heuristic edge comes first on purpose.
       const edge = { kind: 'calls', source: { file: 'a.php' }, target: { file: 'b.php' }, extractor: 'test' } as const;
