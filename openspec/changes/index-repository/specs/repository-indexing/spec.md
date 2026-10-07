@@ -110,7 +110,8 @@ the system language.
   directory of hooks, a `filter.<x>.clean` and `filter.<x>.smudge` and a `diff.<x>.textconv`
   applied to every path by `.gitattributes`, and `log.showSignature` with a `gpg.program`) and that
   sets `log.showRoot=false`, `diff.renames=copies`, `diff.relative=true`, `core.quotePath=true`,
-  `diff.orderFile` and `diff.algorithm=patience`
+  `diff.orderFile`, `diff.algorithm=patience`, `core.bigFileThreshold=1` and
+  `diff.ignoreSubmodules=all`
 - **WHEN** `readFiles` reads its root and the history reader reads its history
 - **THEN** both resolve and the marker file does not exist
 - **AND** both results equal those read from the same repository without that configuration

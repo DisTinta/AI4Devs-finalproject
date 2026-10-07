@@ -39,8 +39,8 @@ text is read as UTF-8, and no mailmap named by configuration remaps an author. G
 - **GIVEN** a repository whose root commit adds a file whose name has accented letters, and whose
   local configuration sets `log.showRoot=false`, `diff.renames=copies`, `diff.relative=true`,
   `core.quotePath=true`, `i18n.logOutputEncoding=ISO-8859-1`, a `mailmap.file` that remaps the
-  author, a `diff.orderFile` that reverses the order of a commit's files and
-  `diff.algorithm=patience`
+  author, a `diff.orderFile` that reorders a commit's files, `diff.algorithm=patience`,
+  `core.bigFileThreshold=1` and `diff.ignoreSubmodules=all`
 - **WHEN** its history is read
 - **THEN** the result equals the history read from the same repository without that configuration,
   and the root commit links the accented path, verbatim

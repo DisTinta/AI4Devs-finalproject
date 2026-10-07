@@ -115,7 +115,7 @@ Fixed (narrow contradictions and trivial Minor findings):
 
 | Finding | Outcome | Test (red first) |
 |---|---|---|
-| P2 `diff.orderFile` reordered a commit's files (reproduced); P1 `diff.algorithm` | `-O/dev/null`, `--diff-algorithm=myers` in `LOG_ARGUMENTS` | config scenarios of both readers, now arming both keys |
+| P2 `diff.orderFile` reordered a commit's files (reproduced); P1 `diff.algorithm` | `-O/dev/null`, `--diff-algorithm=myers` in `LOG_ARGUMENTS` | config scenarios of both readers, now arming both keys. Correction (sixth verification): only P2 was red; the hostile files are too small for myers and patience to differ, so the `diff.algorithm` arm cannot fail and the flag is a pin without a red test |
 | "not a repository" regex matched anywhere, so a dubious-ownership path holding the words read as `NotAGitRepository` | Anchored to the start of git's `fatal:` line | `repository-root.spec.ts` |
 | Partial-clone tests accepted any `Error` | Assert git's `fatal:` and not a `DomainError` | both partial-clone scenarios |
 | `GIT_NO_LAZY_FETCH` needs git from the 2024-05 security releases | Git ≥ 2.45.1 (or 2.39.4–2.44.1) documented as a prerequisite | — (documentation) |
@@ -128,6 +128,22 @@ Accepted Minor findings (no code change), with reason:
 - A `.git` file or `objects/info/alternates` can point the object store outside `allowedRoot`: same attacker as the path window, added to the DIS-86 follow-up in design.md (B).
 - `hasCommits`'s last-resort error is unreachable (git's own `rev-parse --verify HEAD` speaks first); `GIT_ENV` is read once at import; `core.attributesFile=` turns off the operator's global attributes file (hardening).
 - The scenario "Progress phases…" says the source tree is "called once": it means `readFiles`; `realPath` runs twice by design (confinement), and the test pins the exact log.
+
+## Fifth review round (2026-10-07) — in progress, stopped for an author decision
+
+Sixth `/verify-against-spec` and fifth `/adversarial-review` at `6960dc8`. Fixed (red first):
+
+| Finding | Outcome | Test |
+|---|---|---|
+| Major / C1: `core.bigFileThreshold` in the repository's config turned numstat into `-` and dropped line counts (reproduced) | `core.bigFileThreshold=512m` (git's default) in `GIT_CONFIG` | config scenarios of both readers arm `core.bigFileThreshold=1`: red, then green |
+| C3: `diff.ignoreSubmodules=all` could hide gitlink rows | `--ignore-submodules=none` in `LOG_ARGUMENTS` | armed in the same scenarios (no gitlink in the hostile repository, so not red by itself) |
+| M-b: GIVEN said the order file "reverses" | "reorders" | — |
+| M-a: report claimed P1 red | corrected above | — |
+
+Open, needs an author decision (C2): a committed `.gitattributes` with `diff=<driver>` plus
+`diff.<driver>.binary=true` in the repository's local config, or a local `.git/info/attributes`
+with `-diff`, makes numstat print `-` and drops the line counts. No `-c` key can pin an unknown
+driver name, and `--text` would also count real binary files, which "Line counts" forbids.
 
 ## Accepted without a test
 
