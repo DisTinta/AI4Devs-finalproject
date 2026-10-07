@@ -1,6 +1,6 @@
-import { realpath, stat } from 'node:fs/promises';
+import { lstat, realpath, stat } from 'node:fs/promises';
 import { devNull } from 'node:os';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { simpleGit } from 'simple-git';
 import type { SimpleGit } from 'simple-git';
 import { NotAGitRepository } from '@codemind/core';
@@ -38,7 +38,8 @@ const PASSED_VARIABLES = ['PATH', 'SYSTEMROOT', 'WINDIR', 'HOME', 'USERPROFILE',
  * The environment of every git process: only {@link PASSED_VARIABLES} from the caller's, plus the C
  * locale, so git's messages are English on every system and its answers can be recognised, plus
  * `GIT_NO_LAZY_FETCH`, so a partial clone never fetches a missing object (fetching would run the
- * promisor remote's upload program). simple-git replaces the whole environment when given one, and
+ * promisor remote's upload program), plus `GIT_ATTR_NOSYSTEM`, so the machine's system attributes
+ * file never applies. simple-git replaces the whole environment when given one, and
  * refuses variables such as `EDITOR`; passing a closed list also keeps `GIT_DIR` and `GIT_CONFIG_*`
  * of the caller away from the analysed repository.
  */
@@ -47,11 +48,12 @@ export const GIT_ENV: Record<string, string | undefined> = {
   LC_ALL: 'C',
   LANGUAGE: 'C',
   GIT_NO_LAZY_FETCH: '1',
+  GIT_ATTR_NOSYSTEM: '1',
 };
 
 /**
  * A `SimpleGit` for reading `baseDir` with {@link GIT_CONFIG} and {@link GIT_ENV}. simple-git
- * refuses `core.fsmonitor`, `core.hooksPath` and `GIT_NO_LAZY_FETCH` unless allowed: they are
+ * refuses `core.fsmonitor`, `core.hooksPath`, `GIT_NO_LAZY_FETCH` and `GIT_ATTR_NOSYSTEM` unless allowed: they are
  * allowed here only because the values are the fixed ones above, which turn those features off.
  */
 export function readerGit(baseDir: string): SimpleGit {
@@ -59,21 +61,23 @@ export function readerGit(baseDir: string): SimpleGit {
     baseDir,
     config: GIT_CONFIG,
     unsafe: { allowUnsafeFsMonitor: true, allowUnsafeHooksPath: true },
-    allowEnvironment: ['GIT_NO_LAZY_FETCH'],
+    allowEnvironment: ['GIT_NO_LAZY_FETCH', 'GIT_ATTR_NOSYSTEM'],
   }).env(GIT_ENV);
 }
 
 /**
- * False only for a repository whose `HEAD` names a branch with no commit yet (freshly `git init`-ed,
- * or an orphan branch). `rev-parse --verify --quiet` prints nothing both for that and for a broken
- * branch ref, so an empty answer is told apart by `symbolic-ref`, which names the unborn branch but
- * fails on a broken ref. When `HEAD` is neither, `rev-parse --verify` without `--quiet` makes git
- * say why. Any git failure propagates as git's own error.
+ * True when `HEAD` resolves to a commit; false only when `HEAD` names a branch with no commit yet
+ * (freshly `git init`-ed, or an orphan branch). `rev-parse --verify --quiet` prints nothing both for
+ * that and for a broken branch ref, so an empty answer is told apart by `symbolic-ref`, which names
+ * the unborn branch but fails on a broken ref. A `HEAD` that resolves to something other than a
+ * commit (a tree or a blob written into a ref), or to nothing without naming a branch, makes git say
+ * why through `rev-parse --verify HEAD^{commit}`. Any git failure propagates as git's own error.
  */
 export async function hasCommits(git: SimpleGit): Promise<boolean> {
-  if ((await git.raw(['rev-parse', '--verify', '--quiet', 'HEAD'])).trim() !== '') return true;
-  if ((await git.raw(['symbolic-ref', '--quiet', 'HEAD'])).trim() !== '') return false;
-  await git.raw(['rev-parse', '--verify', 'HEAD']);
+  if ((await git.raw(['rev-parse', '--verify', '--quiet', 'HEAD^{commit}'])).trim() !== '') return true;
+  const resolvesToSomething = (await git.raw(['rev-parse', '--verify', '--quiet', 'HEAD'])).trim() !== '';
+  if (!resolvesToSomething && (await git.raw(['symbolic-ref', '--quiet', 'HEAD'])).trim() !== '') return false;
+  await git.raw(['rev-parse', '--verify', 'HEAD^{commit}']);
   throw new Error('git could not resolve HEAD: HEAD names no commit and no branch');
 }
 
@@ -132,4 +136,19 @@ export async function assertRepositoryRoot(repoPath: string, dependencies: Repos
   if (directory === undefined || topLevel === undefined || resolve(topLevel) !== resolve(directory)) {
     throw new NotAGitRepository(repoPath);
   }
+  if (!(await ownsItsGitDirectory(directory, git, real))) throw new NotAGitRepository(repoPath);
+}
+
+/**
+ * Whether `directory`'s repository data is its own: `directory/.git` is that repository's git
+ * directory, or a `.git` file (a linked worktree's or a submodule's pointer). This rejects a
+ * subdirectory that a repository's own `core.worktree` declares as its work tree, which would
+ * otherwise pass the top-level check and read the enclosing repository.
+ */
+async function ownsItsGitDirectory(directory: string, git: (baseDir: string) => SimpleGit, real: (path: string) => Promise<string>): Promise<boolean> {
+  const dotGit = await lstat(join(directory, '.git')).catch(() => undefined);
+  if (dotGit === undefined) return false;
+  if (dotGit.isFile()) return true;
+  const gitDirectory = await git(directory).raw(['rev-parse', '--absolute-git-dir']);
+  return resolve(await real(gitDirectory.replace(/\r?\n$/, ''))) === resolve(await real(join(directory, '.git')));
 }

@@ -108,6 +108,49 @@ describe('git source tree', () => {
     expect((historyFromBrokenRef as { error: Error }).error.message).toMatch(/fatal: No such ref: HEAD/);
   });
 
+  it('propagates git\'s error for a HEAD that names a tree, never reading that tree', async () => {
+    // Arrange: a detached HEAD holding a tree's sha, and a branch ref holding one.
+    const detached = emptyRepository();
+    writeFileSync(join(detached, 'a.php'), '<?php\n');
+    git(detached, 'add', '.');
+    git(detached, 'commit', '-q', '-m', 'feat: a');
+    writeFileSync(join(detached, '.git', 'HEAD'), `${git(detached, 'rev-parse', 'HEAD^{tree}')}\n`);
+    const onBranch = emptyRepository();
+    writeFileSync(join(onBranch, 'a.php'), '<?php\n');
+    git(onBranch, 'add', '.');
+    git(onBranch, 'commit', '-q', '-m', 'feat: a');
+    writeFileSync(join(onBranch, '.git', 'refs', 'heads', 'main'), `${git(onBranch, 'rev-parse', 'HEAD^{tree}')}\n`);
+    const history = createSimpleGitHistory({ authorHashSalt: 'test-salt' });
+
+    // Act
+    const results = [];
+    for (const repository of [detached, onBranch]) {
+      results.push(await sourceTree.readFiles(repository).catch((caught: unknown) => caught));
+      results.push(await history.readHistory(repository).catch((caught: unknown) => caught));
+    }
+
+    // Assert: git's own error from both readers; never the tree's files, never an empty history.
+    for (const result of results) {
+      expect(result).toBeInstanceOf(Error);
+      expect(result).not.toBeInstanceOf(DomainError);
+      expect((result as Error).message).toMatch(/^(fatal|error): /m);
+    }
+  });
+
+  it('a subdirectory made a work tree by the repository\'s core.worktree is not a repository root', async () => {
+    // Arrange: the repository's own config declares its subdirectory as the work tree.
+    const repository = emptyRepository();
+    mkdirSync(join(repository, 'sub'));
+    writeFileSync(join(repository, 'sub', 'a.php'), '<?php\n');
+    git(repository, 'add', '.');
+    git(repository, 'commit', '-q', '-m', 'feat: a');
+    git(repository, 'config', 'core.worktree', join(repository, 'sub').replace(/\\/g, '/'));
+
+    // Act / Assert
+    await expect(sourceTree.readFiles(join(repository, 'sub'))).rejects.toBeInstanceOf(NotAGitRepository);
+    await expect(createSimpleGitHistory({ authorHashSalt: 'test-salt' }).readHistory(join(repository, 'sub'))).rejects.toBeInstanceOf(NotAGitRepository);
+  });
+
   it('A .git directory or a bare repository is not a repository root', async () => {
     // Arrange
     const repository = emptyRepository();

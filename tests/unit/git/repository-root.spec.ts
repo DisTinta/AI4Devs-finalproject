@@ -81,12 +81,16 @@ describe('git environment', () => {
   });
 
   it('passes no variable outside its closed list, such as GIT_DIR or EDITOR', () => {
-    const allowed = ['PATH', 'SYSTEMROOT', 'WINDIR', 'HOME', 'USERPROFILE', 'HOMEDRIVE', 'HOMEPATH', 'TEMP', 'TMP', 'TMPDIR', 'LC_ALL', 'LANGUAGE', 'GIT_NO_LAZY_FETCH'];
+    const allowed = ['PATH', 'SYSTEMROOT', 'WINDIR', 'HOME', 'USERPROFILE', 'HOMEDRIVE', 'HOMEPATH', 'TEMP', 'TMP', 'TMPDIR', 'LC_ALL', 'LANGUAGE', 'GIT_NO_LAZY_FETCH', 'GIT_ATTR_NOSYSTEM'];
 
     expect(Object.keys(GIT_ENV).filter((key) => !allowed.includes(key.toUpperCase()))).toEqual([]);
   });
 
   it('never lets a partial clone fetch a missing object', () => {
     expect(GIT_ENV.GIT_NO_LAZY_FETCH).toBe('1');
+  });
+
+  it("ignores the machine's system attributes file", () => {
+    expect(GIT_ENV.GIT_ATTR_NOSYSTEM).toBe('1');
   });
 });
