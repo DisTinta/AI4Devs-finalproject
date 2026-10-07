@@ -270,3 +270,39 @@ The change is **demonstrably working**: every scenario of `specs/repository-inde
 exercised against the real Git source tree, PHP analyzer, Git history reader and Postgres store, and
 each result matches its `THEN` exactly; the database and the working tree are back to their initial
 state. No screenshot or other file was left at the repository root.
+
+## Re-run on the final code (2026-10-07, `8acfcb7`)
+
+The change went through eight review rounds after the first demonstration, so the same driver ran
+again on the final code (`56a6cde`, whose `packages/` is identical to `8acfcb7`), after
+`npx tsc --build`, with Postgres up and 0 rows in every table. Two cases were added for the later
+rounds. Every earlier output is unchanged (same counts, same errors, same phases, same redaction
+events); only shas of throwaway commits differ.
+
+```
+repoPath acme-shop/.git (not a repository root) -> NotAGitRepository NOT_A_GIT_REPOSITORY "Not a Git repository: <ROOT>\acme-shop\.git"
+   phases: confine > read | port calls: realPath > realPath > readFiles | row counts unchanged: true
+
+=== Hostile config: the repository's own git config does not change what is indexed
+local config set: ["core.fsmonitor","log.showSignature","gpg.program","log.showRoot=false","core.bigFileThreshold=1","diff.renames=copies"] + untracked work-tree file named HEAD
+phases: confine > read > redact > analyze > history > save | report: {"files":2,"commits":2,"fileCommits":3}
+file_commit rows (path, message, lines_added, lines_removed): [{"path":"app/A.php","message":"feat: A x","lines_added":1,"lines_removed":1},{"path":"app/A.php","message":"feat: A and B","lines_added":2,"lines_removed":0},{"path":"app/B.php","message":"feat: A and B","lines_added":2,"lines_removed":0}]
+trap marker exists: false
+```
+
+Checks: the root commit keeps its links (`log.showRoot=false` ignored), line counts are present
+(`core.bigFileThreshold=1` ignored), the untracked `HEAD` file does not break the history read, and
+no trap ran. The hostile repository has no signed commit, so the `gpg.program` trap could not fire
+here; that path is covered by the scenario "Reading the history executes nothing from the
+repository".
+
+```
+projects created inside the transaction: 5
+ROLLBACK done | demo projects after ROLLBACK: 0
+counts after ROLLBACK: {"project":"0","file":"0","symbol":"0","edge":"0","commit":"0","file_commit":"0"}
+temp dirs removed
+```
+
+Independent `psql` check afterwards: `project` 0, `file` 0, `commit` 0, `file_commit` 0; `git status`
+clean. The change is **demonstrably working** on its final code.
+

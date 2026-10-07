@@ -19,7 +19,7 @@ import type {
   StorePort,
 } from '@codemind/core';
 
-// Spec: openspec/changes/index-repository/specs/repository-indexing/spec.md → "Indexing order and no
+// Spec: openspec/specs/repository-indexing/spec.md → "Indexing order and no
 // partial write", "Input hygiene before analysis", "Secrets never reach the store", "Framework
 // detection by manifest". Each `it` named after a scenario is that scenario. Every port is an
 // in-memory fake recording its calls in one shared log, so the order across ports can be asserted.

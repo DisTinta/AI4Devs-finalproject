@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { detectFramework } from '@codemind/core';
 import type { ProjectFramework, SourceFile } from '@codemind/core';
 
-// Spec: openspec/changes/index-repository/specs/repository-indexing/spec.md → "Framework detection by
+// Spec: openspec/specs/repository-indexing/spec.md → "Framework detection by
 // manifest". Each `it` named after a scenario is that scenario.
 
 /** A root `composer.json` with the given content. */

@@ -6,8 +6,8 @@ import type { SimpleGit } from 'simple-git';
 import { NotAGitRepository } from '@codemind/core';
 import { assertRepositoryRoot, GIT_ENV } from '../../../packages/adapters/git/src/repository';
 
-// Spec: openspec/changes/index-repository/specs/repository-indexing/spec.md → "Source tree contract"
-// and specs/git-history/spec.md → "A broken HEAD propagates git's error". Only git's own "not a git
+// Spec: openspec/specs/repository-indexing/spec.md → "Source tree contract"
+// and openspec/specs/git-history/spec.md → "A broken HEAD propagates git's error". Only git's own "not a git
 // repository" answer becomes `NotAGitRepository`; every other failure propagates unchanged. The git
 // process is a fake injected into `assertRepositoryRoot`, so no failure is simulated by changing the
 // machine (no uninstalling git, no ownership changes).

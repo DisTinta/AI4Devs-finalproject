@@ -13,8 +13,8 @@ import { describeWithDatabase, useTransactionPerTest } from '../helpers/db';
 import { unique } from '../helpers/factories';
 import { file } from '../../support/sample-graph';
 
-// Spec: openspec/specs/git-history/spec.md (archived changes: 2026-09-30-git-history-extraction and
-// 2026-10-01-co-change-edges). Each test is one scenario, named after
+// Spec: openspec/specs/git-history/spec.md (archived changes: 2026-09-30-git-history-extraction,
+// 2026-10-01-co-change-edges and 2026-10-07-index-repository). Each test is one scenario, named after
 // it. Both fixtures are copied under the OS temp dir and their history is built there, once: the
 // builder rewrites tracked files while it commits, so building in `fixtures/` would race with the
 // specs that read those files (PH-22). The other repositories are temporary too, with synthetic

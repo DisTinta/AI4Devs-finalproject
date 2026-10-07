@@ -13,7 +13,7 @@ import { createPostgresStore } from '../../../packages/adapters/store-postgres/s
 import { describeWithDatabase, useTransactionPerTest } from '../helpers/db';
 import { unique } from '../helpers/factories';
 
-// Spec: openspec/changes/index-repository/specs/repository-indexing/spec.md → "Index report" and
+// Spec: openspec/specs/repository-indexing/spec.md → "Index report" and
 // "Secrets never reach the store". Each test is one scenario, named after it. `fixtures/acme-shop` is
 // copied (without `.git`) under a temporary directory `T`, which is the allowed root, and its history
 // is built there once: never in `fixtures/` (PH-22). The store runs on the harness transaction, so

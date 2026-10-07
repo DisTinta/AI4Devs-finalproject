@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { SimpleGit } from 'simple-git';
 import { hasCommits } from '../../../packages/adapters/git/src/repository';
 
-// Spec: openspec/changes/index-repository/specs/repository-indexing/spec.md → "Source tree contract"
-// and specs/git-history/spec.md → "A broken HEAD propagates git's error": `EmptyRepository` means
+// Spec: openspec/specs/repository-indexing/spec.md → "Source tree contract"
+// and openspec/specs/git-history/spec.md → "A broken HEAD propagates git's error": `EmptyRepository` means
 // "`HEAD` names no commit" (an unborn branch). A `HEAD` that resolves to something else, and any git
 // failure, propagate git's own error. Git missing from PATH is simulated with a fake, never by
 // uninstalling anything.

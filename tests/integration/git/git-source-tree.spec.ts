@@ -7,7 +7,7 @@ import { DomainError, EmptyRepository, NotAGitRepository } from '@codemind/core'
 import { createGitSourceTree, createSimpleGitHistory } from '../../../packages/adapters/git/src/index';
 import { ACCENTED_PATH, armOutputConfig, armPartialCloneTrap, armProgramTraps, buildHostileRepository } from './hostile-repository';
 
-// Spec: openspec/changes/index-repository/specs/repository-indexing/spec.md, requirement "Source tree
+// Spec: openspec/specs/repository-indexing/spec.md, requirement "Source tree
 // contract". Each test named after a scenario is that scenario. Every repository is a throwaway one
 // under the OS temp dir, with a synthetic identity only.
 

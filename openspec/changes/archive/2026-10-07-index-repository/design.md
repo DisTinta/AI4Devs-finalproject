@@ -398,5 +398,16 @@ DIS-86.
   owns that directory and its permissions; Spanish comment there (2026-10-07).
 - **D (accepted):** commit-message free text beyond the four secret rules is stored as written
   (DIS-35 non-goal); synthetic `.test` identity in `git-source-tree.spec.ts`.
-- **Inbound notes into DIS-85** (archive ritual): DIS-12, DIS-23 (×2), DIS-35 (×2), DIS-36, DIS-47,
-  DIS-84, DIS-96 (×2) — each closed by a requirement of this change or reassigned.
+- **C → DIS-100 (`Deuda: index-repository`, 2026-10-07):** the whole log read in memory, one
+  `git cat-file` process per blob, no per-blob size cap, and lossy decoding of non-UTF-8 paths.
+  Earlier notes called these "DIS-35 debt"; DIS-35 is Done, so DIS-100 is their owner.
+- **B → DIS-10 (CM-HU-05b.1, 2026-10-07):** the reindex notes from DIS-12 (never empty the project
+  and reinsert; rely on the `(project_id, path)` upsert) and DIS-23 (`saveGraph` takes the complete
+  snapshot), Spanish comment there.
+- **B → DIS-86 (2026-10-07):** escape the analyzer's `diagnostics` (unescaped quotes, DIS-96 note)
+  when the CLI prints them, Spanish comment there.
+- **Inbound notes into DIS-85** (archive ritual, done 2026-10-07): DIS-84, DIS-47, DIS-96 (duplicate
+  paths), DIS-36, DIS-35 (handoff), DIS-23 (write contract) closed by requirements of this change;
+  DIS-35 (log in memory) → DIS-100; DIS-12 and DIS-23 (snapshot on reindex) → DIS-10; DIS-96 (quote
+  escaping) → DIS-86; DIS-13's evidence-lock warning inside the DIS-23 note does not apply (no
+  evidence is written here).
