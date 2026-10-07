@@ -231,3 +231,12 @@ openspec validate index-repository --strict   valid
 After the push of `d15d0d5` (2026-10-07): `quality` run 37598058350 passed, 562 passed / 1 skipped
 (the Windows-only case), `index-repository.spec.ts` 24, `acme-shop.spec.ts` 3, `git-source-tree.spec.ts`
 10, `edge-order.spec.ts` 16; core Stryker 96.07 %. `Frontend` run 37598058457 passed (no web change).
+
+## CI evidence (final)
+
+After the push of `8acfcb7`, the last commit with code (2026-10-07): `CI` run 37629233645 passed,
+41 files, 600 passed / 1 skipped (the Windows-only case); `index-repository.spec.ts` 26,
+`simple-git-history.spec.ts` 26, `git-source-tree.spec.ts` 18, `acme-shop.spec.ts` 4,
+`repository-root.spec.ts` 15, `has-commits.spec.ts` 5; core Stryker 96.11 %. `Frontend` run
+37629233682 passed.
+

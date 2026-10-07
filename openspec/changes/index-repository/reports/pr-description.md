@@ -31,13 +31,13 @@ proyecto a medio indexar.
 1. `docker compose up -d` y `export DATABASE_URL=postgres://codemind:codemind@localhost:5432/codemind`
 2. `npm run db:migrate`
 3. `npx vitest run tests/unit/index tests/integration/index tests/integration/git` → todos en verde (la integración de acme-shop tarda unos 6 s por indexado).
-4. `npx vitest run` → 39 ficheros, 563 tests en verde (7 oct 2026, tras los arreglos de `/verify-against-spec`).
+4. `npx vitest run` → 41 ficheros, 601 tests en verde (7 oct 2026, tras las rondas de revisión; necesita Git ≥ 2.45.1 o 2.43.4 / 2.44.1, ver readme 1.4).
 5. `npx vitest run --exclude 'tests/integration/**'` sin `DATABASE_URL` → 26 ficheros, 368 tests en verde.
 6. `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage` → sin errores. El aviso de lint (`LlmPort.ts`) y los 4 de arquitectura (`no-orphans`) ya estaban antes.
 7. `npx stryker run --mutate "packages/core/src/index/**/*.ts"` → **96,48 %** (umbral 70). Por fichero: `index-repository.ts` 98,88 %, `source-path.ts` 100 %, `framework-detect.ts` 96,23 %. Los 3 supervivientes del código nuevo son equivalentes y están listados en el informe del paso 8.
 8. Prueba manual con los adaptadores reales en una transacción que se revierte: `openspec/changes/index-repository/reports/2026-10-06-9-manual-interface-testing.md`.
 9. Demostración de punta a punta de los 23 escenarios con Git, analizador PHP y Postgres reales: `…/reports/2026-10-07-show-spec-working.md`.
-10. CI tras los arreglos (`d15d0d5`): `quality` [37598058350](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37598058350) en verde, 562 pasados y 1 omitido (el caso solo de Windows), Stryker de core **96,07 %**; `Frontend` [37598058457](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37598058457) en verde.
+10. CI del commit final con código (`8acfcb7`): `CI` [37629233645](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37629233645) en verde, 41 ficheros, 600 pasados y 1 omitido (el caso solo de Windows), Stryker de core **96,11 %**; `Frontend` [37629233682](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37629233682) en verde.
 
 ## Decisiones / compromisos
 
@@ -58,16 +58,34 @@ proyecto a medio indexar.
 - **Tests nuevos:** `rootPath` es la ruta real (M1); el repositorio queda intacto, con el mismo `HEAD` y `status --porcelain` (M3); el informe sobrevive a una ida y vuelta por JSON (M4); con `row_to_json` se revisan todas las tablas del snapshot y además lo que recibe el analizador real, y quitando la redacción el test falla (W1/W3); y la comprobación del destino del enlace funciona en cualquier plataforma (W2).
 - **Aceptado sin test:** U4–U8 y M2, cada uno con su línea en `…/reports/2026-10-07-verify-against-spec.md`. La segunda pasada de `/verify-against-spec` no encuentra ninguna contradicción.
 
+## Decisiones de las rondas de revisión posteriores (7 oct 2026)
+
+Ocho rondas de `/verify-against-spec` y `/adversarial-review`; las decisiones de la autora, ronda a ronda, están en `…/reports/2026-10-07-verify-against-spec.md`. Lo principal:
+
+- **El analizador devuelve exactamente las rutas que recibe** (ronda 1): si falta o sobra alguna, `InvalidGraph` en `save`, sin `createProject`, y el mensaje nombra cada ruta.
+- **Leer git no ejecuta nada del repositorio analizado.** Se encontraron y cerraron dos agujeros reales: `log.showSignature` + `gpg.program` ejecutaban un programa del repo, y el *lazy fetch* de un *partial clone* ejecutaba el `uploadpack` de su remoto. Todas las llamadas usan `readerGit`: `GIT_CONFIG` (fsmonitor, hooks, firmas, mailmap, replace refs, `core.bigFileThreshold`, `attr.tree=HEAD`) y un entorno cerrado `GIT_ENV` (locale C, `GIT_NO_LAZY_FETCH`, `GIT_ATTR_NOSYSTEM`).
+- **La config del repo no cambia el historial**: `git log` lleva fijados por flag `--root`, `--no-renames`, `--no-ext-diff`, `--no-textconv`, `--no-relative`, `--diff-algorithm=myers`, `-O/dev/null`, `--ignore-submodules=none` y termina con `--`.
+- **Nuevo delta de `git-history`**: un `HEAD` roto propaga el error de git; leer el historial no ejecuta nada; «Not a repository» gana el caso `.git`/bare.
+- **Errores**: solo «not a git repository», «must be run in a work tree» o una ruta que no existe dan `NotAGitRepository`; cualquier otro fallo (git ausente, *dubious ownership*, `EACCES`, ref roto, `HEAD` que no es un commit) se propaga tal cual. `EmptyRepository` significa «`HEAD` no nombra ningún commit» (incluida una rama huérfana).
+- **Límites aceptados con su motivo**: ficheros que los atributos marcan como binarios o no comparables salen sin recuentos de líneas (`.gitattributes` de `HEAD` o `.git/info/attributes`; se descartó pasar `-c diff.<driver>.binary=false` por cada driver); `--diff-algorithm=myers` fijado sin un test que lo distinga; rutas no UTF-8 decodificadas con pérdida (deuda de DIS-35).
+- **Requisito nuevo de entorno**: Git ≥ 2.45.1 (o 2.43.4 / 2.44.1).
+- **A DIS-86**: el hueco entre comprobar la ruta y leerla, y un fichero `.git` o `objects/info/alternates` que apunte fuera de `allowedRoot` (comentados en DIS-86).
+
 ## Trazabilidad
 
 | Escenario de la especificación | Test que lo cubre |
 |---|---|
-| Only the files tracked at HEAD are read | `tests/integration/git/git-source-tree.spec.ts:75` |
-| A path that is not a repository root is rejected | `tests/integration/git/git-source-tree.spec.ts:45` |
-| A repository with no commit is rejected | `tests/integration/git/git-source-tree.spec.ts:65` |
-| Symbolic links and submodules are skipped and reported | `tests/integration/git/git-source-tree.spec.ts:97` |
-| Content that is not UTF-8 is skipped and reported | `tests/integration/git/git-source-tree.spec.ts:123` |
-| The real path follows symbolic links | `tests/integration/git/git-source-tree.spec.ts:154` |
+| Only the files tracked at HEAD are read | `tests/integration/git/git-source-tree.spec.ts:205` |
+| A path that is not a repository root is rejected | `tests/integration/git/git-source-tree.spec.ts:46` |
+| A .git directory or a bare repository is not a repository root | `tests/integration/git/git-source-tree.spec.ts:154` |
+| A repository with no commit is rejected | `tests/integration/git/git-source-tree.spec.ts:66` |
+| A HEAD on an orphan branch is rejected as empty | `tests/integration/git/git-source-tree.spec.ts:76` |
+| A broken HEAD propagates git's error | `tests/integration/git/git-source-tree.spec.ts:89` |
+| Symbolic links and submodules are skipped and reported | `tests/integration/git/git-source-tree.spec.ts:227` |
+| Content that is not UTF-8 is skipped and reported | `tests/integration/git/git-source-tree.spec.ts:253` |
+| The real path follows symbolic links | `tests/integration/git/git-source-tree.spec.ts:307` |
+| Reading executes nothing from the repository | `tests/integration/git/git-source-tree.spec.ts:284` |
+| A partial clone never fetches a missing object | `tests/integration/git/git-source-tree.spec.ts:169` |
 | Progress phases are reported once and in order | `tests/unit/index/index-repository.spec.ts:121` |
 | A path outside the allowed root is rejected before reading | `tests/unit/index/index-repository.spec.ts:134` |
 | Indexing is disabled without an allowed root | `tests/unit/index/index-repository.spec.ts:147` |
@@ -77,6 +95,7 @@ proyecto a medio indexar.
 | A failure reading the history writes nothing | `tests/unit/index/index-repository.spec.ts:205` |
 | An invalid graph creates no project | `tests/unit/index/index-repository.spec.ts:225` |
 | A file the analyzer did not receive creates no project | `tests/integration/index/acme-shop.spec.ts:143` |
+| A file the analyzer did not return creates no project | `tests/integration/index/acme-shop.spec.ts:186` |
 | A taken project name saves no graph | `tests/unit/index/index-repository.spec.ts:252` |
 | Malformed, repeated and binary entries never reach the analyzer | `tests/unit/index/index-repository.spec.ts:266` |
 | The planted secret of acme-shop never reaches the database | `tests/integration/index/acme-shop.spec.ts:109` |
@@ -85,8 +104,18 @@ proyecto a medio indexar.
 | The framework is detected from the root manifest | `tests/unit/index/framework-detect.spec.ts:21` |
 | An explicit framework wins over detection | `tests/unit/index/index-repository.spec.ts:360` |
 | acme-shop is indexed completely | `tests/integration/index/acme-shop.spec.ts:75` |
+| (git-history) A broken HEAD rejects the history read | `tests/integration/git/simple-git-history.spec.ts:124` |
+| (git-history) Reading the history executes nothing from the repository | `tests/integration/git/simple-git-history.spec.ts:145` |
+| (git-history) Repository configuration does not change the history | `tests/integration/git/simple-git-history.spec.ts:160` |
+| (git-history) A work-tree entry named HEAD does not change the history | `tests/integration/git/simple-git-history.spec.ts:399` |
+| (git-history) A file marked not diffable by attributes carries no line counts | `tests/integration/git/simple-git-history.spec.ts:417` |
+| (git-history) Reading the history never fetches a missing object | `tests/integration/git/simple-git-history.spec.ts:445` |
+| (git-history) A directory without Git is rejected | `tests/integration/git/simple-git-history.spec.ts:468` |
+| (git-history) A subdirectory of a repository is rejected | `tests/integration/git/simple-git-history.spec.ts:479` |
+| (git-history) A non-existent path is rejected | `tests/integration/git/simple-git-history.spec.ts:492` |
+| (git-history) A .git directory or a bare repository is rejected | `tests/integration/git/simple-git-history.spec.ts:382` |
 
-23 escenarios, cada uno con exactamente un test del mismo nombre.
+39 escenarios (29 de `repository-indexing` y 10 de `git-history`), cada uno con exactamente un test del mismo nombre.
 
 ## Huecos pendientes
 
@@ -98,7 +127,7 @@ proyecto a medio indexar.
 | Con `createPostgresStore({ pool })`, proyecto y grafo van en dos transacciones | — | B → DIS-86 (contrato de composición) |
 | Notas entrantes de DIS-12, DIS-23 ×2, DIS-35 ×2, DIS-36, DIS-47, DIS-84 y DIS-96 ×2 | — | Se cierran en el ritual de archivo (tarea 11.6) |
 
-Informes: `openspec/changes/index-repository/reports/2026-10-06-8-test-and-state-verification.md` (tests, mutaciones forzadas, Stryker, guard de capa, privacidad), `…/2026-10-06-9-manual-interface-testing.md`, `…/2026-10-07-show-spec-working.md` y `…/2026-10-07-verify-against-spec.md`.
+Informes: `openspec/changes/index-repository/reports/2026-10-06-8-test-and-state-verification.md` (tests, mutaciones forzadas, Stryker, guard de capa, privacidad), `…/2026-10-06-9-manual-interface-testing.md`, `…/2026-10-07-show-spec-working.md` y `…/2026-10-07-verify-against-spec.md` (ocho rondas de revisión).
 
 ## Origen
 
