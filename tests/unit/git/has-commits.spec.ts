@@ -38,6 +38,6 @@ describe('hasCommits', () => {
   it('rejects when HEAD resolves to nothing and names no branch', async () => {
     const git = fakeGit({ 'rev-parse --verify --quiet HEAD': '', 'symbolic-ref --quiet HEAD': '' });
 
-    await expect(hasCommits(git)).rejects.toThrow(/HEAD/);
+    await expect(hasCommits(git)).rejects.toThrow('HEAD names no commit and no branch');
   });
 });
