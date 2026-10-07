@@ -19,11 +19,15 @@ unless one of the causes of "Not a repository" applies.
 Reading the history SHALL NOT run any program the analysed repository's own configuration names:
 no fsmonitor command, no hook, no filter or textconv driver, and no `gpg.program` (signatures are
 never verified), and a missing object of a partial clone is never fetched (the read fails with
-git's error instead). Neither the repository's configuration nor the caller's git environment
-variables SHALL change the returned history: the root commit's files are always linked, renames and
+git's error instead). Neither git's configuration (the repository's local configuration, and the
+global and system configuration) nor the caller's git environment variables SHALL change the
+returned history: the root commit's files are always linked, renames and
 copies are never detected (a rename is a delete plus an add), paths are relative to the top-level
 directory and never quoted, a commit's files keep git's default order and diff algorithm, commit
-text is read as UTF-8, and no mailmap named by configuration remaps an author. Git runs in the C locale.
+text is read as UTF-8, and no mailmap named by configuration remaps an author. Git runs in the C locale. Git attributes are not configuration: a file that a
+committed `.gitattributes` or the local `.git/info/attributes` marks as binary or not diffable
+carries no line counts, like any binary file under "Line counts", and the rest of the history is
+unchanged.
 
 #### Scenario: Reading the history executes nothing from the repository
 
@@ -44,6 +48,15 @@ text is read as UTF-8, and no mailmap named by configuration remaps an author. G
 - **WHEN** its history is read
 - **THEN** the result equals the history read from the same repository without that configuration,
   and the root commit links the accented path, verbatim
+
+#### Scenario: A file marked not diffable by attributes carries no line counts
+
+- **GIVEN** a repository with two committed text files, and a `.git/info/attributes` that marks one
+  of them `-diff`
+- **WHEN** its history is read
+- **THEN** that file's links carry neither `linesAdded` nor `linesRemoved`
+- **AND** everything else equals the history read from the same repository without that attributes
+  file
 
 #### Scenario: Reading the history never fetches a missing object
 

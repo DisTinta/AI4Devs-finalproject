@@ -314,8 +314,20 @@ ticket's recommendation (the author confirmed no ADR is needed).
   check (fourth adversarial review, accepted as documentation).
 - [`.git/info/grafts`, replace refs, a shallow clone] → grafts and a shallow clone are read as
   what the repository holds (accepted, like a committed `.mailmap`); replace refs are off
-  (`core.useReplaceRefs=false`, untested: accepted). The operator's own global and system git
-  configuration still applies (it is the operator's, not the analysed repository's).
+  (`core.useReplaceRefs=false`, untested: accepted). Global and system git configuration go
+  through the same `-c` and flag pins as the repository's local configuration (`git-history`
+  states all three levels).
+- [Git attributes mark a file binary or not diffable: a committed `.gitattributes` naming a diff
+  driver whose `diff.<driver>.binary=true` sits in the local config, or a local, uncommitted
+  `.git/info/attributes` with `-diff`; numstat then prints `-` and the file carries no line counts
+  (C2, fifth review round)] → accepted limit, written into `git-history`: such a file has no line
+  counts, like any binary file under "Line counts", and nothing runs and nothing outside the
+  repository is read. Discarded alternative: read the drivers named in `HEAD`'s `.gitattributes`
+  and pass `-c diff.<driver>.binary=false` for each; new logic that still misses
+  `.git/info/attributes`, for a loss limited to line counts (author decision 2026-10-07).
+- [`--diff-algorithm=myers` has no test that tells it apart] → the hostile repository's files are
+  too small for myers and patience to count differently; a bigger fixture only for this was
+  declined (author decision 2026-10-07). The flag stays as a pin.
 - [One `git cat-file` process per blob] → also the throughput debt of the third adversarial review
   question; stays with the DIS-35 streaming/batching debt.
 - [The acme-shop oracle `/AKIA[A-Z0-9]{16}/` over `symbol.signature` does not exercise the analyzer

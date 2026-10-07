@@ -100,6 +100,7 @@
     1  Reading the history executes nothing from the repository  [tests/integration/git/simple-git-history.spec.ts ]
     1  Repository configuration does not change the history  [tests/integration/git/simple-git-history.spec.ts ]
     1  Reading the history never fetches a missing object  [tests/integration/git/simple-git-history.spec.ts ]  (task 15.2)
+    1  A file marked not diffable by attributes carries no line counts  [tests/integration/git/simple-git-history.spec.ts ]  (task 17.2)
     1  A .git directory or a bare repository is rejected  [tests/integration/git/simple-git-history.spec.ts ]  (task 15.1)
     repository-indexing, added 2026-10-07 (tasks 15.1, 15.2):
     1  A .git directory or a bare repository is not a repository root  [tests/integration/git/git-source-tree.spec.ts ]
@@ -205,4 +206,10 @@ No Blocker, no Major. Narrow contradictions fixed; new Minor findings accepted w
 - [x] 16.3 Partial-clone scenarios assert git's own error (`fatal:`, not a `DomainError`)
 - [x] 16.4 Git ≥ 2.45.1 (or 2.39.4–2.44.1) documented as a prerequisite in the readme and project-context
 - [x] 16.5 Accepted Minor findings, with reason, in the report and design: replace refs and `mailmap.blob=` untested; grafts and shallow clones as repository content; the operator's own git config applies; `.git` file / alternates added to the DIS-86 follow-up; `hasCommits`'s last-resort error unreachable; `GIT_ENV` read at import; "Progress phases…" says the source tree is called once (it means `readFiles`)
+
+## 17. Follow-up of the sixth /verify-against-spec and fifth /adversarial-review (2026-10-07)
+
+- [x] 17.1 Major / C1 — `core.bigFileThreshold=512m` in `GIT_CONFIG` (red first: line counts became `-`); C3 — `--ignore-submodules=none` in `LOG_ARGUMENTS`; both keys armed in the hostile config; spec GIVENs updated; "reverses" → "reorders"; report corrected (only P2 was red in round 4) — committed as `2ff4c55`, `fc0fc55`
+- [x] 17.2 C2, author decision (accepted limit) — `git-history` sentence narrowed to what it covers (git's local, global and system configuration) and states that attributes marking a file binary or not diffable drop only its line counts; scenario "A file marked not diffable by attributes carries no line counts" with a test that is green from the start (it pins existing behaviour); design Risk with the discarded alternative
+- [x] 17.3 P1 — `--diff-algorithm=myers` kept as a pin without a distinguishing test (author decision); DIS-86 comment on the `.git` file / alternates follow-up (authorised)
 

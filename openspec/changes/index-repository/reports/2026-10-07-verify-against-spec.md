@@ -124,12 +124,12 @@ Accepted Minor findings (no code change), with reason:
 
 - Replace refs (`core.useReplaceRefs=false`) and `mailmap.blob=` have no test of their own: one-line pins next to tested ones; `mailmap.file` is tested.
 - `.git/info/grafts` and shallow clones are read as what the repository holds, like a committed `.mailmap`.
-- The operator's global and system git configuration still applies: it belongs to whoever runs Codemind, not to the analysed repository; every key that matters is pinned by `-c` or a flag anyway.
+- Global and system git configuration: the same `-c` and flag pins override them (superseded in the fifth round: `git-history` now names all three levels).
 - A `.git` file or `objects/info/alternates` can point the object store outside `allowedRoot`: same attacker as the path window, added to the DIS-86 follow-up in design.md (B).
 - `hasCommits`'s last-resort error is unreachable (git's own `rev-parse --verify HEAD` speaks first); `GIT_ENV` is read once at import; `core.attributesFile=` turns off the operator's global attributes file (hardening).
 - The scenario "Progress phases…" says the source tree is "called once": it means `readFiles`; `realPath` runs twice by design (confinement), and the test pins the exact log.
 
-## Fifth review round (2026-10-07) — in progress, stopped for an author decision
+## Fifth review round (2026-10-07)
 
 Sixth `/verify-against-spec` and fifth `/adversarial-review` at `6960dc8`. Fixed (red first):
 
@@ -140,10 +140,18 @@ Sixth `/verify-against-spec` and fifth `/adversarial-review` at `6960dc8`. Fixed
 | M-b: GIVEN said the order file "reverses" | "reorders" | — |
 | M-a: report claimed P1 red | corrected above | — |
 
-Open, needs an author decision (C2): a committed `.gitattributes` with `diff=<driver>` plus
-`diff.<driver>.binary=true` in the repository's local config, or a local `.git/info/attributes`
-with `-diff`, makes numstat print `-` and drops the line counts. No `-c` key can pin an unknown
-driver name, and `--text` would also count real binary files, which "Line counts" forbids.
+C2, author decision (option 1, accepted limit): a committed `.gitattributes` with `diff=<driver>`
+plus `diff.<driver>.binary=true` in the local config, or a local `.git/info/attributes` with
+`-diff`, makes numstat print `-` and drops that file's line counts. Only line counts are lost: nothing
+runs and nothing outside the repository is read. Neutralising it in code (`-c
+diff.<driver>.binary=false` per driver named in `HEAD`'s `.gitattributes`) was discarded: new logic
+that still misses `.git/info/attributes`. The `git-history` sentence now names what it covers
+(git's local, global and system configuration) and states the attributes case; scenario "A file
+marked not diffable by attributes carries no line counts". Its test was **green from the start**:
+it pins existing behaviour, there was no red/green cycle.
+
+P1, author decision: `--diff-algorithm=myers` stays as a pin with no test that tells it apart
+(the hostile files are too small for myers and patience to differ; no bigger fixture for this).
 
 ## Accepted without a test
 
@@ -154,10 +162,10 @@ driver name, and `--text` would also count real binary files, which "Line counts
 - U8 — `EmptyRepository` carries `repoPath` and a message with the path: accepted, same shape as `NotAGitRepository` (the Low privacy finding is routed to DIS-86).
 - M2 — "no transaction, no log": not verifiable without instrumenting the database and the process output; met by construction (the use case receives the store already bound to the caller's connection and imports no logger).
 
-## Checks (2026-10-07, after the fourth review round)
+## Checks (2026-10-07, after the fifth review round)
 
 ```
-npx vitest run          Test Files 41 passed (41) | Tests 594 passed (594)   (DATABASE_URL set, Postgres up)
+npx vitest run          Test Files 41 passed (41) | Tests 595 passed (595)   (DATABASE_URL set, Postgres up)
 npm run lint            exit 0 — 0 errors, 1 warning (existing no-empty-object-type in LlmPort.ts)
 npm run typecheck       exit 0
 npm run docs:coverage   exit 0
