@@ -18,10 +18,12 @@ unless one of the causes of "Not a repository" applies.
 
 Reading the history SHALL NOT run any program the analysed repository's own configuration names:
 no fsmonitor command, no hook, no filter or textconv driver, and no `gpg.program` (signatures are
-never verified). The repository's configuration SHALL NOT change the returned history either: the
-root commit's files are always linked, renames and copies are never detected (a rename is a delete
-plus an add), paths are relative to the top-level directory and never quoted, and commit text is
-read as UTF-8.
+never verified), and a missing object of a partial clone is never fetched (the read fails with
+git's error instead). Neither the repository's configuration nor the caller's git environment
+variables SHALL change the returned history: the root commit's files are always linked, renames and
+copies are never detected (a rename is a delete plus an add), paths are relative to the top-level
+directory and never quoted, commit text is read as UTF-8, and no mailmap named by configuration
+remaps an author. Git runs in the C locale.
 
 #### Scenario: Reading the history executes nothing from the repository
 
@@ -35,8 +37,48 @@ read as UTF-8.
 #### Scenario: Repository configuration does not change the history
 
 - **GIVEN** a repository whose root commit adds a file whose name has accented letters, and whose
-  local configuration sets `log.showRoot=false`, `diff.renames=copies`, `diff.relative=true` and
-  `core.quotePath=true`
+  local configuration sets `log.showRoot=false`, `diff.renames=copies`, `diff.relative=true`,
+  `core.quotePath=true`, `i18n.logOutputEncoding=ISO-8859-1` and a `mailmap.file` that remaps the
+  author
 - **WHEN** its history is read
 - **THEN** the result equals the history read from the same repository without that configuration,
   and the root commit links the accented path, verbatim
+
+#### Scenario: Reading the history never fetches a missing object
+
+- **GIVEN** a committed repository declared a partial clone of a promisor remote whose upload
+  program writes a marker file outside it, with the blob of a committed file removed
+- **WHEN** its history is read
+- **THEN** the call rejects with git's error and the marker file does not exist
+
+## MODIFIED Requirements
+
+### Requirement: Not a repository
+
+`readHistory` MUST reject with the domain error `NotAGitRepository` (code `NOT_A_GIT_REPOSITORY`,
+carrying the path) when `repoPath` does not exist, is not inside a Git repository, or is inside one
+but is not its top-level directory. Nothing SHALL be returned.
+
+#### Scenario: A directory without Git is rejected
+
+- **GIVEN** a temporary directory outside any Git repository
+- **WHEN** its history is read
+- **THEN** the call rejects with `NotAGitRepository` naming that path
+
+#### Scenario: A subdirectory of a repository is rejected
+
+- **GIVEN** a repository with a subdirectory `src`
+- **WHEN** the history of `<repo>/src` is read
+- **THEN** the call rejects with `NotAGitRepository`
+
+#### Scenario: A non-existent path is rejected
+
+- **GIVEN** a path under a temporary directory that does not exist
+- **WHEN** its history is read
+- **THEN** the call rejects with `NotAGitRepository` naming that path
+
+#### Scenario: A .git directory or a bare repository is rejected
+
+- **GIVEN** the `.git` directory of a committed repository, and a bare repository
+- **WHEN** the history of each is read
+- **THEN** each call rejects with `NotAGitRepository`

@@ -292,6 +292,22 @@ ticket's recommendation (the author confirmed no ADR is needed).
   failure propagates unchanged (b). The git installed on the authoring machine has no translations,
   so no localised red could be shown; `tests/unit/git/repository-root.spec.ts` pins the
   environment.
+- [A partial clone fetches a missing object from its promisor remote, running the remote's upload
+  program (reproduced 2026-10-07)] → `GIT_ENV` sets `GIT_NO_LAZY_FETCH=1` (allowed through
+  simple-git's `allowEnvironment`); the read fails with git's error (third adversarial review).
+- [A `.git` directory or a bare repository answers "must be run in a work tree", which the narrowed
+  root check of round b let through as a plain error] → mapped to `NotAGitRepository` with "not a git
+  repository"; a `realpath` failure other than a missing path propagates (C1).
+- [`mailmap.file` / `mailmap.blob` and replace refs in the repository's config change the read
+  history] → `GIT_CONFIG` empties both mailmap keys and sets `core.useReplaceRefs=false`; a committed
+  `.mailmap` stays repository content (accepted in git-history-extraction). A shallow clone is read
+  as what its objects hold (accepted: repository content).
+- [`HEAD` is resolved twice, by `readFiles` and by `readHistory`; a commit landing in between
+  labels the files of one commit with the sha of the next] → accepted Minor (third adversarial
+  review): fixing it means passing the sha through `SourceTreePort`, a port change; the CLI (DIS-86)
+  indexes a repository nobody is committing to. Recorded in the verification report.
+- [One `git cat-file` process per blob] → also the throughput debt of the third adversarial review
+  question; stays with the DIS-35 streaming/batching debt.
 - [The acme-shop oracle `/AKIA[A-Z0-9]{16}/` over `symbol.signature` does not exercise the analyzer
   path: the planted key lives in a config array that yields no symbol, so an analyzer fed unredacted
   content would still pass it (seen in apply, mutation (2) of task 4.10)] → the guarantee is covered by

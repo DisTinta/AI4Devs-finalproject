@@ -33,8 +33,11 @@ commit (an unborn branch, even when other branches have commits: only `HEAD` is 
 `EmptyRepository` SHALL mean "`HEAD` names no commit", not "no files": a repository whose `HEAD`
 commit tracks no file resolves to `{ files: [], skipped: [] }`. Any other git failure (git missing,
 a refused repository ownership, a broken `HEAD` or ref, a permission error) propagates unchanged.
-Reading SHALL never modify the repository nor execute anything from it, and the repository's own
-configuration SHALL NOT change what is read.
+Reading SHALL never modify the repository nor execute anything from it (a missing object of a
+partial clone is never fetched: the read fails with git's error instead), and neither the
+repository's own configuration nor the caller's git environment variables (such as `GIT_DIR` or
+`GIT_CONFIG_*`) SHALL change what is read. Git runs in the C locale, so its answers do not depend on
+the system language.
 
 #### Scenario: Only the files tracked at HEAD are read
 
@@ -49,6 +52,12 @@ configuration SHALL NOT change what is read.
 
 - **GIVEN** a path that does not exist, a directory outside any repository, and a subdirectory of a
   repository
+- **WHEN** `readFiles` reads each of them
+- **THEN** each call rejects with `NotAGitRepository`
+
+#### Scenario: A .git directory or a bare repository is not a repository root
+
+- **GIVEN** the `.git` directory of a committed repository, and a bare repository
 - **WHEN** `readFiles` reads each of them
 - **THEN** each call rejects with `NotAGitRepository`
 
@@ -104,6 +113,13 @@ configuration SHALL NOT change what is read.
 - **WHEN** `readFiles` reads its root and the history reader reads its history
 - **THEN** both resolve and the marker file does not exist
 - **AND** both results equal those read from the same repository without that configuration
+
+#### Scenario: A partial clone never fetches a missing object
+
+- **GIVEN** a committed repository declared a partial clone of a promisor remote whose upload
+  program writes a marker file outside it, with the blob of a tracked file removed
+- **WHEN** `readFiles` reads its root and the history reader reads its history
+- **THEN** both reject with git's error and the marker file does not exist
 
 ### Requirement: Indexing order and no partial write
 

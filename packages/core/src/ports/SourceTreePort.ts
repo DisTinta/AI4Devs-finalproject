@@ -29,7 +29,8 @@ export interface SourceTreePort {
    *
    * @throws NotAGitRepository when `root` does not exist, is not inside a Git repository, or is inside
    *   one but is not its top-level directory.
-   * @throws EmptyRepository when the repository has no commit.
+   * @throws EmptyRepository when `HEAD` names no commit (an unborn or orphan branch). Any other git
+   *   failure propagates unchanged.
    */
   readFiles(root: string): Promise<SourceTree>;
 }

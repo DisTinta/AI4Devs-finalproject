@@ -99,6 +99,11 @@
     1  A broken HEAD rejects the history read  [tests/integration/git/simple-git-history.spec.ts ]
     1  Reading the history executes nothing from the repository  [tests/integration/git/simple-git-history.spec.ts ]
     1  Repository configuration does not change the history  [tests/integration/git/simple-git-history.spec.ts ]
+    1  Reading the history never fetches a missing object  [tests/integration/git/simple-git-history.spec.ts ]  (task 15.2)
+    1  A .git directory or a bare repository is rejected  [tests/integration/git/simple-git-history.spec.ts ]  (task 15.1)
+    repository-indexing, added 2026-10-07 (tasks 15.1, 15.2):
+    1  A .git directory or a bare repository is not a repository root  [tests/integration/git/git-source-tree.spec.ts ]
+    1  A partial clone never fetches a missing object  [tests/integration/git/git-source-tree.spec.ts ]
     1  A taken project name saves no graph  [tests/unit/index/index-repository.spec.ts ]
     1  Malformed, repeated and binary entries never reach the analyzer  [tests/unit/index/index-repository.spec.ts ]
     1  The planted secret of acme-shop never reaches the database  [tests/integration/index/acme-shop.spec.ts ]
@@ -180,3 +185,12 @@
 - [x] 14.3 c — spec: "any other git failure propagates unchanged"; `hasCommits`'s own error says "HEAD names no commit and no branch" (`has-commits.spec.ts`, red first)
 - [x] 14.4 d, e — `LOG_ARGUMENTS` pins `--root`, `--no-renames` (the `git-history` policy), `--no-ext-diff`, `--no-textconv`, `--no-relative`; the hostile repository (`tests/integration/git/hostile-repository.ts`) adds `log.showRoot=false`, `diff.renames=copies`, `diff.relative=true`, `core.quotePath=true` and an accented path; "Reading executes nothing from the repository" and "Repository configuration does not change the history" compare with a clean read (red: the root commit lost its links). The broken-ref scenario also reads the history
 - [x] 14.5 f, g, h — trap scenario GIVEN lists textconv and "a hooks directory"; unit case "names every missing and every extra path in one InvalidGraph"; spec "`HEAD` names no commit → `EmptyRepository`" with scenario "A HEAD on an orphan branch is rejected as empty" (behaviour already in place, so green at once: a clarification, not a change)
+
+## 15. Follow-up of the third /verify-against-spec and /adversarial-review (2026-10-07, last round for Minor findings)
+
+- [x] 15.0 Commit the previous round locally (584/584 green): `2b65a87`, `3f4d3cd`, `a6a0046`, `8a82cd1`
+- [x] 15.1 Major 1 (regression of 14.2) — a `.git` directory or a bare repository answers "must be run in a work tree": mapped to `NotAGitRepository`. Spec scenarios in both deltas (`git-history` "Not a repository" as MODIFIED, copied verbatim plus the scenario). RED → GREEN in both integration specs and `repository-root.spec.ts`
+- [x] 15.2 Major 2 — lazy fetch of a partial clone ran the promisor remote's upload program (reproduced). `GIT_NO_LAZY_FETCH=1` in `GIT_ENV`; scenarios "A partial clone never fetches a missing object" and "Reading the history never fetches a missing object", red first (`upload-pack …` in the marker)
+- [x] 15.3 C1, C2, C3 — a `realpath` failure other than a missing path propagates; `hasCommits` lets git say why with `rev-parse --verify HEAD`; the junk `.git/HEAD` case moved out of the scenario into an extra case. Red first in the unit specs
+- [x] 15.4 Spec contradiction (mailmap) and U-A — `mailmap.file=`, `mailmap.blob=` and `core.useReplaceRefs=false` in `GIT_CONFIG`; the hostile config adds `i18n.logOutputEncoding=ISO-8859-1` and a remapping `mailmap.file` (red: author hashes changed); both deltas state the closed environment and the C locale
+- [x] 15.5 Trivial Minors — the top-level path loses only its trailing newline (no `trim`); broken-ref tests assert git's own words (`fatal: No such ref: HEAD`); `SourceTreePort` and `GitPort` JSDoc follow the spec. Non-trivial Minors and questions accepted with their reason in the report and design Risks

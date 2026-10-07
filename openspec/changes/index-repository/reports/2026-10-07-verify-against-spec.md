@@ -77,6 +77,34 @@ GAPS (four Minor, two questions). The previous round was committed locally first
 | h | Orphan branch read as `EmptyRepository` | Spec: "`HEAD` names no commit → `EmptyRepository`" (only `HEAD` is indexed); scenario added | "A HEAD on an orphan branch is rejected as empty" (green at once: the behaviour already existed) |
 | i | CI evidence predates the fixes | Updated after the push | — |
 
+## Third review round (2026-10-07, last round for Minor findings)
+
+Fourth `/verify-against-spec`: three conflicts with the delta wording (C1–C3) and one unspecified
+behaviour (U-A). Third `/adversarial-review`: two Major findings, both contradicting a SHALL, plus
+Minor findings and two questions. Previous round committed first (`2b65a87`…`8a82cd1`, 584/584).
+Criterion set by the author: contradictions, Blockers and Majors are fixed; new Minor findings are
+accepted with their reason unless trivial (under 5 lines, no spec change).
+
+Fixed:
+
+| Finding | Outcome | Test (red first) |
+|---|---|---|
+| Major 1: `<repo>/.git` and a bare repository surfaced "must be run in a work tree" as a plain error (regression of round b) | Mapped to `NotAGitRepository` | "A .git directory or a bare repository is not a repository root" / "… is rejected"; unit case |
+| Major 2: a partial clone's lazy fetch ran the promisor remote's upload program (reproduced: `upload-pack …` written three times) | `GIT_NO_LAZY_FETCH=1` in `GIT_ENV` | "A partial clone never fetches a missing object"; "Reading the history never fetches a missing object" |
+| Contradiction: `mailmap.file`/`mailmap.blob` in config remapped authors | Both emptied in `GIT_CONFIG`; `core.useReplaceRefs=false` too (question on replace refs) | "Repository configuration does not change the history" and the trap scenario, now with a remapping `mailmap.file` and `i18n.logOutputEncoding=ISO-8859-1` |
+| C1: `realpath` `EACCES` became `NotAGitRepository` | Only `ENOENT`/`ENOTDIR` map to it | `repository-root.spec.ts` (injected `realpath`) |
+| C2: `hasCommits` threw its own error | `rev-parse --verify HEAD` lets git say why; its error propagates | `has-commits.spec.ts` |
+| C3: junk `.git/HEAD` pinned inside a scenario-named test | Moved to an extra case (git itself sees no repository: "Not a repository") | — |
+| U-A: closed environment and C locale unspecified | Written into both deltas | `repository-root.spec.ts` |
+| Trivial: `trim` of the top-level path; weak `/HEAD/` assertions; stale port JSDoc | Trailing newline only; `fatal: No such ref: HEAD`; JSDoc updated | — |
+
+Accepted Minor findings (no code change):
+
+- `HEAD` resolved twice (`readFiles`, then `readHistory`): a commit landing in between would label the files of one commit with the next sha. Fixing it changes `SourceTreePort`; the CLI (DIS-86) indexes a repository nobody commits to during the run. Design Risks.
+- Hooks and fsmonitor traps are not sensitive with the current commands (they never trigger them): shown by a temporary `git status` in round P, which the scenario catches. Design Risks.
+- "Malformed, repeated and binary entries…" asserts "no `InvalidGraph`" against a fake `saveGraph`: the real store's validation runs in the acme-shop integration scenarios.
+- Questions: a shallow clone is read as what its objects hold (repository content); one `git cat-file` per blob stays with the DIS-35 batching debt.
+
 ## Accepted without a test
 
 - U4 — an error thrown by the progress callback stops indexing and propagates: accepted, documented on `IndexDependencies.onProgress`.
@@ -86,10 +114,10 @@ GAPS (four Minor, two questions). The previous round was committed locally first
 - U8 — `EmptyRepository` carries `repoPath` and a message with the path: accepted, same shape as `NotAGitRepository` (the Low privacy finding is routed to DIS-86).
 - M2 — "no transaction, no log": not verifiable without instrumenting the database and the process output; met by construction (the use case receives the store already bound to the caller's connection and imports no logger).
 
-## Checks (2026-10-07, after the second review round)
+## Checks (2026-10-07, after the third review round)
 
 ```
-npx vitest run          Test Files 41 passed (41) | Tests 584 passed (584)   (DATABASE_URL set, Postgres up)
+npx vitest run          Test Files 41 passed (41) | Tests 593 passed (593)   (DATABASE_URL set, Postgres up)
 npm run lint            exit 0 — 0 errors, 1 warning (existing no-empty-object-type in LlmPort.ts)
 npm run typecheck       exit 0
 npm run docs:coverage   exit 0

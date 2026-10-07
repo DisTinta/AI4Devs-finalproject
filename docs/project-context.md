@@ -377,8 +377,12 @@ services that must be started first, quirks of the local environment.
   `process.env` that holds `EDITOR`. `LOG_ARGUMENTS` pins with flags what the repository's config
   could change (`--root`, `--no-renames`, `--no-ext-diff`, `--no-textconv`, `--no-relative`).
   `hasCommits` is false only for an unborn branch, orphan branches included (`symbolic-ref` names
-  it); `assertRepositoryRoot` maps only git's "not a git repository" to `NotAGitRepository`. A
-  broken ref, git missing, a refused ownership or any other git failure propagates unchanged. The acme-shop secret test
+  it); `assertRepositoryRoot` maps only git's "not a git repository" and "must be run in a work
+  tree" (`.git` dir, bare repo) to `NotAGitRepository`, plus a missing path. A broken ref, git
+  missing, a refused ownership, `EACCES` or any other failure propagates unchanged. `GIT_ENV` also
+  sets `GIT_NO_LAZY_FETCH=1` (a partial clone's fetch ran the promisor's upload program; simple-git
+  needs `allowEnvironment`), and `GIT_CONFIG` empties `mailmap.file`/`mailmap.blob` and sets
+  `core.useReplaceRefs=false`. The acme-shop secret test
   checks every snapshot row (`row_to_json`) and the real analyzer's recorded input: the planted key
   yields no row, so only the recorded input catches an unredacted analyzer. The post-edit layer guard
   (`GUARD_HTTP_IN_BUSINESS`) matches transport imports, not the word `fastify`, which is a domain
