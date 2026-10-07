@@ -337,6 +337,20 @@ ticket's recommendation (the author confirmed no ADR is needed).
   accepted Minor (seventh verification): same class as the committed `.mailmap` accepted in
   git-history-extraction; disabling it means changing the pseudonymised identity (`%aN`/`%aE` →
   `%an`/`%ae`), a `git-history` behaviour change out of scope here.
+- [A `HEAD` or branch ref holding a tree's sha: `rev-parse --verify HEAD` accepts any object, so
+  `readFiles` listed the tree and `readHistory` returned an empty history (seventh adversarial
+  review, eighth verification)] → `hasCommits` probes `HEAD^{commit}`; anything else that resolves
+  makes git say why (`rev-parse --verify HEAD^{commit}`), and that error propagates.
+- [A repository's own `core.worktree` made a subdirectory pass the top-level check and read the
+  enclosing repository] → the root check also requires `directory/.git` to be the repository's git
+  directory, or a `.git` file (linked worktree, U6).
+- [The machine's system attributes file applied (Git for Windows ships `diff=astextplain` lines)] →
+  `GIT_ATTR_NOSYSTEM=1` in `GIT_ENV`, so attributes come only from `HEAD`'s `.gitattributes` and
+  `.git/info/attributes`, as `git-history` states.
+- [A tracked path whose bytes are not valid UTF-8 is decoded lossily (U+FFFD) by simple-git's text
+  output, so two such paths can collapse into one `duplicate-path`] → accepted Minor (seventh
+  adversarial review): only paths are affected, never content checks; reading `ls-tree` as bytes
+  belongs with the DIS-35 streaming debt.
 - [`--diff-algorithm=myers` has no test that tells it apart] → the hostile repository's files are
   too small for myers and patience to count differently; a bigger fixture only for this was
   declined (author decision 2026-10-07). The flag stays as a pin.

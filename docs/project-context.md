@@ -384,7 +384,9 @@ services that must be started first, quirks of the local environment.
   needs `allowEnvironment`), and `GIT_CONFIG` empties `mailmap.file`/`mailmap.blob` and sets
   `core.useReplaceRefs=false`. Git ≥ 2.45.1 (or the 2024-05 maintenance releases 2.43.4 / 2.44.1) is
   a prerequisite: older git ignores `GIT_NO_LAZY_FETCH` or `attr.tree` (readme 1.4). `GIT_CONFIG`
-  pins `attr.tree=HEAD`; `LOG_ARGUMENTS` ends with `--` (a work-tree file named `HEAD`). `LOG_ARGUMENTS` also pins
+  pins `attr.tree=HEAD`; `GIT_ENV` adds `GIT_ATTR_NOSYSTEM=1`; `LOG_ARGUMENTS` ends with `--` (a
+  work-tree file named `HEAD`). `hasCommits` probes `HEAD^{commit}`; the root check also requires
+  `<dir>/.git` to be the repository's git dir or a `.git` file (beats a hostile `core.worktree`). `LOG_ARGUMENTS` also pins
   `--diff-algorithm=myers` and `-O/dev/null` (Git for Windows maps it; the NUL device fails). The acme-shop secret test
   checks every snapshot row (`row_to_json`) and the real analyzer's recorded input: the planted key
   yields no row, so only the recorded input catches an unredacted analyzer. The post-edit layer guard

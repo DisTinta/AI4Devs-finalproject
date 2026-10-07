@@ -172,6 +172,24 @@ Accepted Minor findings:
 - An uncommitted work-tree `.mailmap` remaps authors (git reads it from the work tree): same class as the committed `.mailmap` accepted in git-history-extraction; turning mailmap off changes the pseudonymised identity, out of scope. Design Risks; the `GIT_CONFIG` comment now says so.
 - M-7b: the "committed `.gitattributes`" half of the attributes sentence has no test of its own; the scenario's GIVEN uses `.git/info/attributes`, and the hostile config proves the uncommitted one is ignored.
 
+## Seventh review round (2026-10-07)
+
+Eighth `/verify-against-spec`: one contradiction (C-8a) and one Minor (M-8a). Seventh
+`/adversarial-review`: PASS WITH GAPS, no Blocker, no Major; two of its Minor findings conflict with
+a SHALL. Previous round committed first (`1762683`, `fcb8707`, 596/596).
+
+Fixed (red first, no spec change: the code now meets the existing SHALLs):
+
+| Finding | Outcome | Test |
+|---|---|---|
+| C-8a / adversarial 3: a `HEAD` or branch ref holding a tree's sha listed the tree (`readFiles`) and read as an empty history (`readHistory`) | `hasCommits` probes `HEAD^{commit}`; git's own error propagates | "propagates git's error for a HEAD that names a tree…" (detached and on a branch, both readers); `has-commits.spec.ts` |
+| Adversarial 2: a repository's own `core.worktree` made a subdirectory a "root" that read the enclosing repository | Root check also requires `<dir>/.git` to be the git directory, or a `.git` file (linked worktree) | "a subdirectory made a work tree by the repository's core.worktree…" (both readers) |
+| M-8a: the system attributes file applied (Git for Windows `astextplain`); spec names two sources | `GIT_ATTR_NOSYSTEM=1` | `repository-root.spec.ts` |
+
+Accepted Minor: a tracked path that is not valid UTF-8 is decoded lossily (two such paths can
+collapse into one `duplicate-path`); reading paths as bytes belongs with the DIS-35 streaming debt.
+Design Risks.
+
 ## Accepted without a test
 
 - U4 — an error thrown by the progress callback stops indexing and propagates: accepted, documented on `IndexDependencies.onProgress`.
@@ -181,10 +199,10 @@ Accepted Minor findings:
 - U8 — `EmptyRepository` carries `repoPath` and a message with the path: accepted, same shape as `NotAGitRepository` (the Low privacy finding is routed to DIS-86).
 - M2 — "no transaction, no log": not verifiable without instrumenting the database and the process output; met by construction (the use case receives the store already bound to the caller's connection and imports no logger).
 
-## Checks (2026-10-07, after the sixth review round)
+## Checks (2026-10-07, after the seventh review round)
 
 ```
-npx vitest run          Test Files 41 passed (41) | Tests 596 passed (596)   (DATABASE_URL set, Postgres up)
+npx vitest run          Test Files 41 passed (41) | Tests 600 passed (600)   (DATABASE_URL set, Postgres up)
 npm run lint            exit 0 — 0 errors, 1 warning (existing no-empty-object-type in LlmPort.ts)
 npm run typecheck       exit 0
 npm run docs:coverage   exit 0

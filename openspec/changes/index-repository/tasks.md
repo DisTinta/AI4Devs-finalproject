@@ -220,3 +220,11 @@ No Blocker, no Major. Narrow contradictions fixed; new Minor findings accepted w
 - [x] 18.1 Major / C-7a — `attr.tree=HEAD` in `GIT_CONFIG`; the hostile config arms `attr.tree` and an uncommitted `.gitattributes`; spec sentence on attributes made exact; git floor 2.45.1 or 2.43.4 / 2.44.1. Red first
 - [x] 18.2 Major — `LOG_ARGUMENTS` ends with `--`; scenario "A work-tree entry named HEAD does not change the history". Red first (`fatal: ambiguous argument 'HEAD'`)
 - [x] 18.3 Accepted Minor findings recorded with their reason: uncommitted `.mailmap`; no own test for the committed-`.gitattributes` half
+
+## 19. Follow-up of the eighth /verify-against-spec and seventh /adversarial-review (2026-10-07)
+
+- [x] 19.0 Commit the previous round locally (596/596 green): `1762683`, `fcb8707`
+- [x] 19.1 C-8a — `hasCommits` probes `HEAD^{commit}` and lets git say why otherwise; red first (detached `HEAD` and branch ref holding a tree's sha, both readers)
+- [x] 19.2 `core.worktree` — the root check also requires `<dir>/.git` to be the repository's git directory or a `.git` file; red first (both readers)
+- [x] 19.3 M-8a — `GIT_ATTR_NOSYSTEM=1` in `GIT_ENV` (allowed through simple-git's `allowEnvironment`)
+- [x] 19.4 Accepted Minor recorded: non-UTF-8 paths decoded lossily (DIS-35 debt)
