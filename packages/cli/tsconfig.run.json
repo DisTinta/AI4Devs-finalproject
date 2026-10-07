@@ -1,0 +1,14 @@
+{
+  // Used only by the root `npm run cli` (tsx): resolves every workspace package the CLI imports to
+  // its sources, so running the CLI never depends on a built — possibly stale or missing — `dist/`
+  // (DIS-86 design D10). Not referenced by the root tsconfig, so `tsc --build` ignores it.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@codemind/core": ["../core/src/index.ts"],
+      "@codemind/adapter-git": ["../adapters/git/src/index.ts"],
+      "@codemind/adapter-store-postgres": ["../adapters/store-postgres/src/index.ts"],
+      "@codemind/analyzer-php": ["../analyzers/php/src/index.ts"]
+    }
+  }
+}

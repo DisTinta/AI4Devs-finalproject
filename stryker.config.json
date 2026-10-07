@@ -10,9 +10,11 @@
     "progress"
   ],
   "coverageAnalysis": "perTest",
-  "disableTypeChecks": "packages/core/src/**/*.ts",
+  "disableTypeChecks": "{packages/core,packages/cli}/src/**/*.ts",
   "mutate": [
     "packages/core/src/**/*.ts",
-    "!packages/core/src/**/*.d.ts"
+    "!packages/core/src/**/*.d.ts",
+    "packages/cli/src/**/*.ts",
+    "!packages/cli/src/index.ts"
   ]
 }

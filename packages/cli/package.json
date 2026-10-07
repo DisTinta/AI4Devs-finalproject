@@ -12,7 +12,14 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@codemind/adapter-git": "*",
+    "@codemind/adapter-store-postgres": "*",
+    "@codemind/analyzer-php": "*",
     "@codemind/core": "*",
-    "commander": "^12.1.0"
+    "commander": "^12.1.0",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.23.1"
   }
 }

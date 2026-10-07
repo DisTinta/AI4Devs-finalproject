@@ -5,5 +5,11 @@
     "rootDir": "src",
     "composite": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  "references": [
+    { "path": "../core" },
+    { "path": "../adapters/git" },
+    { "path": "../adapters/store-postgres" },
+    { "path": "../analyzers/php" }
+  ]
 }

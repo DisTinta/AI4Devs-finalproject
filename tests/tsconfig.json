@@ -11,8 +11,13 @@
     "declaration": false,
     "declarationMap": false,
     "sourceMap": false,
-    // Same target as the Vitest alias (DIS-23 design D6): tests type-check against core sources.
-    "paths": { "@codemind/core": ["../packages/core/src/index.ts"] }
+    // Same targets as the Vitest alias (DIS-23 design D6): tests type-check against the sources.
+    "paths": {
+      "@codemind/core": ["../packages/core/src/index.ts"],
+      "@codemind/adapter-git": ["../packages/adapters/git/src/index.ts"],
+      "@codemind/adapter-store-postgres": ["../packages/adapters/store-postgres/src/index.ts"],
+      "@codemind/analyzer-php": ["../packages/analyzers/php/src/index.ts"]
+    }
   },
   "include": ["**/*.ts"]
 }
