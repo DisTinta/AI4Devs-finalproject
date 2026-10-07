@@ -32,6 +32,9 @@ interface FakeOptions {
   createProjectError?: Error;
   commitError?: Error;
   rollbackError?: Error;
+  releaseError?: Error;
+  /** Thrown by the first write to stdout, as a closed pipe would. */
+  stdoutError?: Error;
   /** Use the default transaction factory (a real `pg.Client` on `DATABASE_URL`) instead of the fake. */
   defaultTransaction?: boolean;
 }
@@ -74,6 +77,7 @@ async function run(argv: string[], options: FakeOptions = {}): Promise<Run> {
       },
       release: async () => {
         log.push('release');
+        if (options.releaseError) throw options.releaseError;
       },
     };
   };
@@ -119,6 +123,7 @@ async function run(argv: string[], options: FakeOptions = {}): Promise<Run> {
     stdout: {
       write: (chunk: string) => {
         log.push('stdout');
+        if (options.stdoutError) throw options.stdoutError;
         stdout += chunk;
       },
     },
@@ -196,6 +201,7 @@ describe('index command: arguments', () => {
       details: { allowed: ['laravel', 'fastify', 'none'] },
     });
     expect(result.log).toEqual([]);
+    expect(result.stdout).toBe('');
   });
 
   it('A missing or blank name is a usage error', async () => {
@@ -362,11 +368,83 @@ describe('index command: transaction, report and log', () => {
       .map((line) => JSON.parse(line) as Record<string, unknown>)
       .filter((line) => line.event === 'secret_redacted');
     expect(redactions).toEqual([
-      { level: 'info', event: 'secret_redacted', source: 'file', file: 'config/keys.php', line: 2, column: expect.any(Number), rule: 'aws-access-key-id' },
+      { level: 'info', event: 'secret_redacted', source: 'file', file: 'config/keys.php', line: 2, column: 19, rule: 'aws-access-key-id' },
       { level: 'info', event: 'secret_redacted', source: 'commit', commit: SHA, line: 1, column: 15, rule: 'aws-access-key-id' },
     ]);
     expect(result.stdout).not.toContain(AWS_KEY);
     expect(result.stderr).not.toContain(AWS_KEY);
+  });
+
+  it('A failure while or after committing says the project may have been saved', async () => {
+    // Act
+    const commitFails = await run(VALID_ARGS, { commitError: new Error('connection lost during COMMIT') });
+    const stdoutFails = await run(VALID_ARGS, { stdoutError: new Error('EPIPE') });
+
+    // Assert
+    for (const result of [commitFails, stdoutFails]) {
+      expect(result.exit).toBe(1);
+      expect(errorOf(result)).toEqual({ code: 'INTERNAL', message: 'unexpected error; the project may have been saved', details: {} });
+      expect(result.log).toContain('release');
+    }
+    expect(stdoutFails.log.filter((entry) => entry !== 'stdout')).toEqual(['open', 'createProject', 'saveGraph', 'commit', 'release']);
+  });
+
+  it('A failed release after a commit is ignored', async () => {
+    // Act
+    const result = await run(VALID_ARGS, { releaseError: new Error('connection already closed') });
+
+    // Assert
+    expect(result.exit).toBe(0);
+    expect(result.stdout).toContain('Indexed project project-1');
+    expect(result.stderr).not.toContain('"error"');
+    expect(result.log.filter((entry) => entry !== 'stdout')).toEqual(['open', 'createProject', 'saveGraph', 'commit', 'release']);
+  });
+
+  it('A failed indexing logs no redaction', async () => {
+    // Arrange: a file holding the synthetic key, and a name that is already taken.
+    const tree: SourceTree = { files: [{ path: 'config/keys.php', content: `<?php\nreturn ['key' => '${AWS_KEY}'];\n` }], skipped: [] };
+
+    // Act
+    const result = await run(VALID_ARGS, { tree, createProjectError: new ProjectNameTaken('acme-shop') });
+
+    // Assert
+    expect(result.exit).toBe(1);
+    expect(errorOf(result).code).toBe('PROJECT_NAME_TAKEN');
+    expect(result.stderr).not.toContain('secret_redacted');
+    expect(result.stdout + result.stderr).not.toContain(AWS_KEY);
+  });
+
+  it('Control characters are escaped in the log, the JSON report and the error', async () => {
+    // Arrange: untrusted strings holding U+009B, the one-byte CSI. Core skips a path with C0 or DEL
+    // as `invalid-path` but keeps one with C1, so this file is indexed and its redaction logged.
+    const keyFile = 'k\u009b2J.php';
+    const tree: SourceTree = {
+      files: [{ path: keyFile, content: `<?php\nreturn ['key' => '${AWS_KEY}'];\n` }],
+      skipped: [{ path: 's\u009b.php', reason: 'invalid-path' }],
+    };
+    const analyze = (files: SourceFile[]): AnalysisResult => ({ ...plainAnalysis(files), diagnostics: [{ path: keyFile, message: 'bad\u009b' }] });
+    const ghost = (files: SourceFile[]): AnalysisResult => ({ ...plainAnalysis(files), files: [...plainAnalysis(files).files, { path: 'g\u009b.php', kind: 'source' }] });
+    const rawControl = /[\u007f-\u009f]/;
+
+    // Act
+    const json = await run([...VALID_ARGS, '--json'], { tree, analyze });
+    const invalid = await run(VALID_ARGS, { analyze: ghost });
+
+    // Assert
+    expect(json.exit).toBe(0);
+    for (const result of [json, invalid]) {
+      expect(result.stdout).not.toMatch(rawControl);
+      expect(result.stderr).not.toMatch(rawControl);
+    }
+    const redaction = json.stderrLines.filter((line) => line.includes('secret_redacted')).map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(redaction).toEqual([expect.objectContaining({ source: 'file', file: keyFile, line: 2, rule: 'aws-access-key-id' })]);
+    const report = JSON.parse(json.stdout) as { skipped: { path: string }[]; diagnostics: { message: string }[] };
+    expect(report.skipped.map((entry) => entry.path)).toEqual(['s\u009b.php']);
+    expect(report.diagnostics.map((entry) => entry.message)).toEqual(['bad\u009b']);
+    expect(invalid.exit).toBe(1);
+    const error = errorOf(invalid);
+    expect(error.code).toBe('INVALID_GRAPH');
+    expect(error.details.violations).toEqual([expect.objectContaining({ message: expect.stringContaining('g\u009b.php') })]);
   });
 
   it('An unexpected error is reported as INTERNAL', async () => {

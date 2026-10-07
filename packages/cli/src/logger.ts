@@ -1,3 +1,5 @@
+import { toTerminalSafeJson } from './safe-json.js';
+
 /** Where the CLI writes text: `process.stdout`, `process.stderr`, or an in-memory sink in tests. */
 export interface TextSink {
   /** Writes one chunk of text. */
@@ -16,15 +18,16 @@ export interface Logger {
 }
 
 /**
- * Creates a logger that writes JSON lines to `sink`. It never formats free text, so a field holding
- * an untrusted string is escaped by `JSON.stringify` like any other.
+ * Creates a logger that writes JSON lines to `sink`. It never formats free text, and every line goes
+ * through {@link toTerminalSafeJson}, so a field holding an untrusted string reaches the terminal
+ * with no raw control character.
  *
  * @param sink Where the lines go; the CLI passes stderr.
  * @returns The logger.
  */
 export function createLogger(sink: TextSink): Logger {
   const write = (level: 'info' | 'error', fields: LogFields): void => {
-    sink.write(`${JSON.stringify({ level, ...fields })}\n`);
+    sink.write(`${toTerminalSafeJson({ level, ...fields })}\n`);
   };
   return {
     info: (fields) => write('info', fields),

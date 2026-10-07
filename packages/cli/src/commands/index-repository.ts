@@ -1,11 +1,12 @@
 import { Command, CommanderError } from 'commander';
 import { PROJECT_FRAMEWORKS } from '@codemind/core';
 import type { ProjectFramework } from '@codemind/core';
-import { CliError, indexWithEnvironment, toCliError } from '../compose-index.js';
+import { CliError, CommitUncertain, indexWithEnvironment, toCliError } from '../compose-index.js';
 import type { Environment, IndexOptions, OpenTransaction, PortsFactory } from '../compose-index.js';
 import { createLogger } from '../logger.js';
 import type { TextSink } from '../logger.js';
 import { renderProgress, renderReport } from '../render-report.js';
+import { toTerminalSafeJson } from '../safe-json.js';
 import { CLI_VERSION } from '../version.js';
 
 /** Languages the command can index today; TypeScript waits for its analyzer (CM-HU-18). */
@@ -48,6 +49,7 @@ interface ParsedArguments {
 export async function runIndexCommand(argv: string[], deps: IndexCommandDeps): Promise<number> {
   const logger = createLogger(deps.stderr);
   let typed = { path: '', name: '' };
+  let committed = false;
   try {
     const parsed = parseArguments(argv, deps);
     if (parsed === 'done') return 0;
@@ -59,17 +61,19 @@ export async function runIndexCommand(argv: string[], deps: IndexCommandDeps): P
       openTransaction: deps.openTransaction,
       ports: deps.ports,
     });
+    committed = true;
     for (const event of report.events) {
       logger.info({ event: 'secret_redacted', source: 'file', file: event.file, line: event.line, column: event.column, rule: event.rule });
     }
     for (const event of report.commitEvents) {
       logger.info({ event: 'secret_redacted', source: 'commit', commit: event.commit, line: event.line, column: event.column, rule: event.rule });
     }
-    deps.stdout.write(parsed.json ? `${JSON.stringify(report)}\n` : renderReport(report));
+    deps.stdout.write(parsed.json ? `${toTerminalSafeJson(report)}\n` : renderReport(report));
     return 0;
   } catch (error) {
-    const failure = toCliError(error, typed);
-    deps.stderr.write(`${JSON.stringify({ error: { code: failure.code, message: failure.message, details: failure.details } })}\n`);
+    // Once the transaction committed, nothing that fails can be reported as "nothing was saved".
+    const failure = toCliError(committed ? new CommitUncertain() : error, typed);
+    deps.stderr.write(`${toTerminalSafeJson({ error: { code: failure.code, message: failure.message, details: failure.details } })}\n`);
     logger.error({ event: 'index_failed', code: failure.code, exit: failure.exit });
     return failure.exit;
   }

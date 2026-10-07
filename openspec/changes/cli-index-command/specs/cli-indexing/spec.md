@@ -103,6 +103,13 @@ indexing with the store bound to it, and then:
   saved;
 - always release the connection, whatever happened.
 
+When the commit itself fails, or anything fails after a successful commit, the command cannot tell
+whether the project was saved: it SHALL report `INTERNAL` with the message
+`unexpected error; the project may have been saved`, never `nothing was saved`. A failure to
+release the connection is the exception: it SHALL be ignored, since the outcome is already decided
+and reporting it would hide the real one (after a commit, the report is still printed and the exit
+is `0`; after a failure, that failure is reported).
+
 A failure to connect SHALL be `DATABASE_UNAVAILABLE` (exit `1`) and its output SHALL NOT contain the
 database URL, its user or its password. Failures detected by the indexing itself — including an
 allowed root that is not blank but does not exist (`INDEXING_DISABLED`) and a symbolic link escaping
@@ -119,6 +126,21 @@ the root (`FORBIDDEN_PATH`) — SHALL be reported with their codes after rolling
 - **GIVEN** fake ports whose analysis throws, and a fake transaction that records its calls
 - **WHEN** the command runs
 - **THEN** it exits with `1` and the transaction records `rollback` then `release`, never `commit`
+
+#### Scenario: A failure while or after committing says the project may have been saved
+
+- **GIVEN** fake ports whose indexing succeeds and a fake transaction whose commit throws; then a
+  fake transaction that commits and a stdout that throws when written
+- **WHEN** the command runs
+- **THEN** each run exits with `1` and writes `INTERNAL` with the message
+  `unexpected error; the project may have been saved`, and the transaction records `release`
+
+#### Scenario: A failed release after a commit is ignored
+
+- **GIVEN** fake ports whose indexing succeeds and a fake transaction that commits and whose release
+  throws
+- **WHEN** the command runs
+- **THEN** it exits with `0`, stdout holds the report, and stderr holds no `{"error":…}` line
 
 #### Scenario: A taken name rolls back and keeps the first project
 
@@ -196,7 +218,8 @@ The command SHALL write one JSON object per line to stderr:
 - on any failure, one `{"level":"error","event":"index_failed","code","exit"}` line besides the
   error line.
 
-No log line SHALL contain the redacted value.
+The redaction lines describe what was stored redacted, so they SHALL be written only after the
+transaction commits; a failed indexing writes none. No log line SHALL contain the redacted value.
 
 #### Scenario: Every redaction is logged without the secret
 
@@ -213,6 +236,14 @@ No log line SHALL contain the redacted value.
 - **WHEN** the command runs
 - **THEN** stderr holds `{"level":"error","event":"index_failed","code":"INDEXING_DISABLED","exit":1}`
   besides the `{"error":{…}}` line
+
+#### Scenario: A failed indexing logs no redaction
+
+- **GIVEN** fake ports where one file holds a synthetic AWS access key id built by concatenation in
+  the test, and a store whose project creation fails with `PROJECT_NAME_TAKEN`
+- **WHEN** the command runs
+- **THEN** it exits with `1`, stderr holds no `secret_redacted` line, and no line of stdout or stderr
+  contains the key
 
 ### Requirement: Errors in the project format without real paths
 
@@ -231,7 +262,7 @@ credential. The codes and exits SHALL be:
 | `PROJECT_NAME_TAKEN` | 1 | `project name "<name>" is already taken` |
 | `MISSING_CONFIG` | 1 | `<VARIABLE> is not set` (`details.variable`) |
 | `DATABASE_UNAVAILABLE` | 1 | `cannot connect to the database` |
-| `INTERNAL` | 1 | `unexpected error; nothing was saved` |
+| `INTERNAL` | 1 | `unexpected error; nothing was saved`, or `unexpected error; the project may have been saved` when the commit or anything after it fails |
 | `USAGE` | 2 | the reason of the usage error |
 | `UNSUPPORTED_LANGUAGE` | 2 | `<language>: not supported`, or `typescript: not available yet (CM-HU-18)` (`details.allowed`) |
 | `UNSUPPORTED_FRAMEWORK` | 2 | `<framework>: not supported` (`details.allowed`) |
@@ -262,10 +293,15 @@ domain errors above SHALL be `INTERNAL`, whose message SHALL NOT include the ori
 
 ### Requirement: Untrusted strings are printed escaped
 
-Analyzer diagnostics and skipped paths come from the analysed repository and are untrusted. The text
-report SHALL print each diagnostic message and each skipped path as a JSON string literal, so quotes
-are escaped and no control character — C0 (`\u0000`–`\u001f`, including newlines and ESC), DEL
-(`\u007f`) or C1 (`\u0080`–`\u009f`) — reaches the output raw.
+Analyzer diagnostics, skipped paths, the file paths of redaction events and the messages of graph
+violations come from the analysed repository and are untrusted. No control character — C0
+(`\u0000`–`\u001f`, including newlines and ESC), DEL (`\u007f`) or C1 (`\u0080`–`\u009f`) — SHALL
+reach stdout or stderr raw, in any output:
+
+- the text report SHALL print each diagnostic message and each skipped path as a JSON string
+  literal, so quotes are escaped and controls appear as `\uXXXX` or `\n`;
+- the `--json` report, every log line and the `{"error":…}` line SHALL be JSON whose strings escape
+  those controls the same way, so they still parse to the original values.
 
 #### Scenario: Diagnostics and skipped paths are escaped
 
@@ -275,3 +311,15 @@ are escaped and no control character — C0 (`\u0000`–`\u001f`, including newl
 - **THEN** the output contains no ESC character (`\u001b`), no C1 control character
   (`\u0080`–`\u009f`) and no newline inside an entry, and each message and path appears as a quoted,
   escaped literal (quotes as `\"`, controls as `\uXXXX` or `\n`)
+
+#### Scenario: Control characters are escaped in the log, the JSON report and the error
+
+- **GIVEN** fake ports where a file named `k\u009b2J.php` (core keeps a path with C1) holds a
+  synthetic AWS access key id,
+  a skipped path is `s\u009b.php` and the analyzer reports a diagnostic `bad\u009b`; then an analyzer
+  that adds a file `g\u009b.php` that is not in the source tree, so the graph is invalid
+- **WHEN** the command runs with `--json`, and then the second case without it
+- **THEN** neither stdout nor stderr of either run contains a raw DEL or C1 character; the
+  `secret_redacted` line parses to `file` = `k\u009b2J.php`; the JSON report parses to the
+  skipped path `s\u009b.php` and the diagnostic `bad\u009b`; and the `INVALID_GRAPH` error line parses
+  to a violation whose message holds `g\u009b.php`

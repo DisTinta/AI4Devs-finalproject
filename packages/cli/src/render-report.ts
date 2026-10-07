@@ -1,16 +1,16 @@
 import { INDEX_PHASES } from '@codemind/core';
 import type { IndexPhase, IndexReport } from '@codemind/core';
+import { toTerminalSafeJson } from './safe-json.js';
 
 /**
- * Quotes `value` as a JSON string literal that is also safe on a terminal. `JSON.stringify` escapes
- * quotes, backslashes and the C0 controls (newlines, ESC) but leaves DEL and the C1 controls raw,
- * and `\u009b` is a one-byte CSI on terminals that honour C1, so those are escaped too.
+ * Quotes `value` as a JSON string literal that is also safe on a terminal (see
+ * {@link toTerminalSafeJson}).
  *
  * @param value An untrusted string, such as a path or an analyzer message from the analysed repository.
  * @returns The quoted literal, with no raw control character.
  */
 export function escapeLiteral(value: string): string {
-  return JSON.stringify(value).replace(/[\u007f-\u009f]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
+  return toTerminalSafeJson(value);
 }
 
 /**

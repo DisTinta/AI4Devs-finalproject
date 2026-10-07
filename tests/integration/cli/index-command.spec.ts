@@ -33,6 +33,13 @@ beforeAll(async () => {
   ACME_SHOP = join(T, 'acme-shop');
   cpSync(resolve('fixtures/acme-shop'), ACME_SHOP, { recursive: true, filter: (source) => basename(source) !== '.git' });
   await buildOne('acme-shop', { dir: ACME_SHOP, manifest: resolve('fixtures/history/acme-shop.commits.mjs') });
+  // acme-shop's history has no secret in a commit message: one empty commit adds exactly one commit
+  // redaction event, so the commit-log check of the first scenario is not 0 == 0. The key is built
+  // by concatenation so no literal key sits in the repository.
+  const message = `chore: rotate ${'AKIA' + 'ABCDEFGHIJKLMNOP'}`;
+  execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', '-c', 'commit.gpgsign=false', 'commit', '-q', '--allow-empty', '-m', message], {
+    cwd: ACME_SHOP,
+  });
   mkdirSync(join(T, 'no-repo'));
   mkdirSync(join(T, 'vacio'));
   execFileSync('git', ['init', '-q'], { cwd: join(T, 'vacio') });
@@ -158,8 +165,10 @@ describeWithDatabase('cli index on acme-shop', () => {
         column: 44,
         rule: 'aws-access-key-id',
       });
-      const commitEvents = Number(/in files, (\d+) in commit messages/.exec(result.stdout)?.[1]);
-      expect(logLines(result).filter((line) => line.source === 'commit')).toHaveLength(commitEvents);
+      // The copy's history holds exactly one commit redaction event: the empty commit added above.
+      expect(logLines(result).filter((line) => line.source === 'commit')).toEqual([
+        { level: 'info', event: 'secret_redacted', source: 'commit', commit: gitInCopy('rev-parse', 'HEAD'), line: 1, column: 15, rule: 'aws-access-key-id' },
+      ]);
       expect(result.stdout).not.toMatch(AWS_KEY_ID);
       expect(result.stderr).not.toMatch(AWS_KEY_ID);
     },
@@ -199,6 +208,9 @@ describeWithDatabase('cli index on acme-shop', () => {
       );
       expect(report.framework).toBe('none');
       expect(report.frameworkSource).toBe('explicit');
+      // One commit log line per commit redaction event of the report itself (at least the planted one).
+      expect(report.commitEvents.length).toBeGreaterThan(0);
+      expect(logLines(result).filter((line) => line.source === 'commit')).toHaveLength(report.commitEvents.length);
       const project = await createPostgresStore({ transaction: db() }).getProject(report.projectId);
       expect(project.framework).toBe('none');
     },

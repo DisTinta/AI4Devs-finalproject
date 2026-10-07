@@ -52,6 +52,8 @@ describe('render-report', () => {
     expect(text).toContain('"c\\u009b2Jd.php"');
     const controls = [...text].filter((c) => c !== '\n' && (c.charCodeAt(0) < 0x20 || c.charCodeAt(0) === 0x7f));
     expect(controls).toEqual([]);
+    // No newline inside an entry: every line is the header, a field, or an entry opening with a quote.
+    for (const line of text.trimEnd().split('\n')) expect(line).toMatch(/^(Indexed project | {2}[a-z]+:| {4}")/);
   });
 
   it('numbers the six phases from 1 to 6 in the order they run', () => {

@@ -101,6 +101,17 @@ export class CliError extends Error {
   }
 }
 
+/**
+ * The commit failed, or something failed after a successful commit: the project may have been saved,
+ * so the CLI must not say "nothing was saved". Carries nothing of the original error.
+ */
+export class CommitUncertain extends CliError {
+  constructor() {
+    super('INTERNAL', 1, 'unexpected error; the project may have been saved');
+    this.name = 'CommitUncertain';
+  }
+}
+
 /** The database refused or did not answer the connection. Carries nothing of the driver's error. */
 export class DatabaseUnavailable extends Error {
   constructor() {
@@ -220,8 +231,8 @@ export function defaultOpenTransaction(connectionString: string): OpenTransactio
  * @param options The validated arguments.
  * @param environment The environment, the progress callback and the test seams.
  * @returns The report of the committed indexing.
- * @throws IndexingDisabled, ForbiddenPathError, CliError (`MISSING_CONFIG`), DatabaseUnavailable, or
- *   whatever the indexing throws, after rolling back.
+ * @throws IndexingDisabled, ForbiddenPathError, CliError (`MISSING_CONFIG`), DatabaseUnavailable,
+ *   CommitUncertain (the commit failed), or whatever the indexing throws, after rolling back.
  */
 export async function indexWithEnvironment(options: IndexOptions, environment: IndexEnvironment): Promise<IndexReport> {
   const { env } = environment;
@@ -249,7 +260,12 @@ export async function indexWithEnvironment(options: IndexOptions, environment: I
       },
       { repoPath: options.path, allowedRoot, name: options.name, language: options.language, framework: options.framework },
     );
-    await transaction.commit();
+    try {
+      await transaction.commit();
+    } catch {
+      // A failed COMMIT is ambiguous: the server may have committed before the connection dropped.
+      throw new CommitUncertain();
+    }
     return report;
   } catch (error) {
     // The first error wins: a rollback that fails too (a lost connection) must not hide it.
