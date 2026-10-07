@@ -10,7 +10,9 @@ import type { GitHistory, GraphCommit, GraphFileCommit } from '@codemind/core';
  * an explicit flag, which wins over configuration: the root commit always gets its numstat
  * (`--root` over `log.showRoot`), no rename or copy detection (`--no-renames` over `diff.renames`),
  * no external diff or textconv program, paths from the top level (`--no-relative` over
- * `diff.relative`), no colour, and an explicit format.
+ * `diff.relative`), the default diff algorithm (over `diff.algorithm`), no reordering of a commit's
+ * files (`-O/dev/null` over `diff.orderFile`; Git for Windows maps `/dev/null` too, while the
+ * Windows null device name fails), no colour, and an explicit format.
  */
 export const LOG_ARGUMENTS = [
   'log',
@@ -20,6 +22,8 @@ export const LOG_ARGUMENTS = [
   '--no-ext-diff',
   '--no-textconv',
   '--no-relative',
+  '--diff-algorithm=myers',
+  '-O/dev/null',
   '--numstat',
   '--no-color',
   '-z',

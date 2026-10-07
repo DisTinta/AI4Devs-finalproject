@@ -102,7 +102,11 @@ export function armProgramTraps(repository: string, outside: string): string {
 export function armOutputConfig(repository: string, outside: string): void {
   const mailmap = join(outside, 'mailmap');
   writeFileSync(mailmap, 'Someone Else <someone.else@example.test> <test.author@example.test>\n');
+  const orderFile = join(outside, 'orderfile');
+  writeFileSync(orderFile, `.gitattributes\n${ACCENTED_PATH}\na.php\nb.php\n`);
   for (const [key, value] of [
+    ['diff.orderFile', slashed(orderFile)],
+    ['diff.algorithm', 'patience'],
     ['log.showRoot', 'false'],
     ['diff.renames', 'copies'],
     ['diff.relative', 'true'],

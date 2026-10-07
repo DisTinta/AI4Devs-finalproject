@@ -78,7 +78,9 @@ export async function hasCommits(git: SimpleGit): Promise<boolean> {
  * with a work tree: outside any repository, or a `.git` directory or bare repository.
  */
 function isNotARepository(error: unknown): boolean {
-  return error instanceof Error && /not a git repository|must be run in a work tree/i.test(error.message);
+  // Anchored to the start of git's `fatal:` line: a path quoted later in another message (dubious
+  // ownership) may hold the same words.
+  return error instanceof Error && /^fatal: (not a git repository|this operation must be run in a work tree)/m.test(error.message);
 }
 
 /** Whether a file-system error says the path, or one of its parents, does not exist. */

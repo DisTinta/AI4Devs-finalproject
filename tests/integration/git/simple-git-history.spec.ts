@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { coChangeEdges, NotAGitRepository, pseudonymiseAuthor } from '@codemind/core';
+import { coChangeEdges, DomainError, NotAGitRepository, pseudonymiseAuthor } from '@codemind/core';
 import type { KnowledgeGraph } from '@codemind/core';
 import { createSimpleGitHistory } from '../../../packages/adapters/git/src/index';
 import { ACCENTED_PATH, armOutputConfig, armPartialCloneTrap, armProgramTraps, buildHostileRepository } from './hostile-repository';
@@ -414,6 +414,9 @@ describe('git history', () => {
       // Assert: the marker's content, so a failure names what ran.
       expect(existsSync(marker) ? readFileSync(marker, 'utf8') : '').toBe('');
       expect(result).not.toHaveProperty('history');
+      const { error } = result as { error: Error };
+      expect(error).not.toBeInstanceOf(DomainError);
+      expect(error.message).toMatch(/^fatal: /m);
     });
 
     it('A directory without Git is rejected', async () => {

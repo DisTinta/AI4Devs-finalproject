@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { EmptyRepository, NotAGitRepository } from '@codemind/core';
+import { DomainError, EmptyRepository, NotAGitRepository } from '@codemind/core';
 import { createGitSourceTree, createSimpleGitHistory } from '../../../packages/adapters/git/src/index';
 import { ACCENTED_PATH, armOutputConfig, armPartialCloneTrap, armProgramTraps, buildHostileRepository } from './hostile-repository';
 
@@ -140,8 +140,11 @@ describe('git source tree', () => {
 
     // Assert: git's error, and the marker's content so a failure names what ran.
     expect(existsSync(marker) ? readFileSync(marker, 'utf8') : '').toBe('');
-    expect(fromTree).toBeInstanceOf(Error);
-    expect(fromHistory).toBeInstanceOf(Error);
+    for (const error of [fromTree, fromHistory]) {
+      expect(error).toBeInstanceOf(Error);
+      expect(error).not.toBeInstanceOf(DomainError);
+      expect((error as Error).message).toMatch(/^fatal: /m);
+    }
   });
 
   it('a junk .git/HEAD is no repository to git, so it reads as NotAGitRepository', async () => {

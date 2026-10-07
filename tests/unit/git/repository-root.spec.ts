@@ -36,6 +36,10 @@ describe('assertRepositoryRoot', () => {
 
   it.each([
     ['a refused repository ownership', new Error("fatal: detected dubious ownership in repository at 'C:/repos/x'\n")],
+    [
+      'a refused ownership whose path holds the very words',
+      new Error("fatal: detected dubious ownership in repository at '/repos/not a git repository/must be run in a work tree'\n"),
+    ],
     ['a permission error', Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })],
     ['git missing from PATH', Object.assign(new Error('spawn git ENOENT'), { code: 'ENOENT' })],
     ['any other git failure', new Error('fatal: unable to read config file')],
