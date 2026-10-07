@@ -12,7 +12,7 @@ import { NotAGitRepository } from '@codemind/core';
  * a hooks directory that cannot exist (the null device), no global attributes file, no signature
  * verification (`log.showSignature` would call `gpg.program`), no replace refs, and no mailmap file
  * or blob named by configuration (a `.mailmap` committed in the tree is repository content and still
- * applies). Filters and textconv drivers stay unused because no reader asks git to apply them
+ * applies), and git's default big-file threshold (a lower one turns line counts into `-`). Filters and textconv drivers stay unused because no reader asks git to apply them
  * (`ls-tree`, `cat-file blob`, `log --numstat`).
  */
 export const GIT_CONFIG = [
@@ -25,6 +25,7 @@ export const GIT_CONFIG = [
   'core.useReplaceRefs=false',
   'mailmap.file=',
   'mailmap.blob=',
+  'core.bigFileThreshold=512m',
 ];
 
 /** Variables git needs to start and find its home and temporary directory, in any letter case. */

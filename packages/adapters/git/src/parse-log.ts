@@ -12,7 +12,8 @@ import type { GitHistory, GraphCommit, GraphFileCommit } from '@codemind/core';
  * no external diff or textconv program, paths from the top level (`--no-relative` over
  * `diff.relative`), the default diff algorithm (over `diff.algorithm`), no reordering of a commit's
  * files (`-O/dev/null` over `diff.orderFile`; Git for Windows maps `/dev/null` too, while the
- * Windows null device name fails), no colour, and an explicit format.
+ * Windows null device name fails), submodule changes always listed (over `diff.ignoreSubmodules`),
+ * no colour, and an explicit format.
  */
 export const LOG_ARGUMENTS = [
   'log',
@@ -24,6 +25,7 @@ export const LOG_ARGUMENTS = [
   '--no-relative',
   '--diff-algorithm=myers',
   '-O/dev/null',
+  '--ignore-submodules=none',
   '--numstat',
   '--no-color',
   '-z',

@@ -107,6 +107,8 @@ export function armOutputConfig(repository: string, outside: string): void {
   for (const [key, value] of [
     ['diff.orderFile', slashed(orderFile)],
     ['diff.algorithm', 'patience'],
+    ['core.bigFileThreshold', '1'],
+    ['diff.ignoreSubmodules', 'all'],
     ['log.showRoot', 'false'],
     ['diff.renames', 'copies'],
     ['diff.relative', 'true'],
