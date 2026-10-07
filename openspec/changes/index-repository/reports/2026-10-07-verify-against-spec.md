@@ -42,7 +42,22 @@ No contradiction with the spec; 23 scenarios, each green. Its housekeeping notes
 - The new scenario lived only in `describe('extra cases')`: the scenario is now the integration test (the only one that can check the database); the unit test is a named extra case.
 - U1-a, the unit test pinned the exact message wording (unspecified): now it pins `element` / `field` (the `GraphViolation` contract) and checks only that the message names the path.
 - U1-b, the branch that kept an unanalysed file only fed a later rejection: violations are now collected where the file is mapped (`index-repository.ts`), and the separate helper is gone.
-- U3-a, the `compareEdges` tie-break on `resolution` goes beyond the order written in `code-analysis` ("Analysis contract": kind, source, target). It only orders edges with equal keys, which `sortUniqueEdges` then collapses, and it is how the existing `code-analysis` dedup rule is met. Kept; note it in a `code-analysis` delta at archive time (task 11.6).
+- U3-a, the `compareEdges` tie-break on `resolution` goes beyond the order written in `code-analysis` ("Analysis contract": kind, source, target). It only orders edges with equal keys, which `sortUniqueEdges` then collapses, and it is how the existing `code-analysis` dedup rule is met. Kept. No `code-analysis` delta: see the adversarial review follow-up, #1.
+
+## Adversarial review follow-up (2026-10-07)
+
+Verdict of the first `/adversarial-review`: PASS WITH GAPS, six Minor findings and one question.
+Author decisions and outcome:
+
+| # | Finding | Decision | Outcome | Test |
+|---|---|---|---|---|
+| 1 | `compareEdges` tie-break changes `code-analysis` without a delta | Check first whether it only enforces an existing rule | It does: "no two edges SHALL share `kind`, source and target", the line-700 rule and its scenario "An exact edge takes precedence over a heuristic one" already require it, and the PHP analyzer filters before `sortUniqueEdges`, so its output is unchanged. No delta (it would duplicate that scenario). `AnalyzerPort` JSDoc and task 11.6 updated | PHP analyzer suite: 10 files, 164 tests green |
+| 2 | A file the analyzer was given but did not return vanished silently | Fix, same rule as U1 | Spec: one sentence ("the returned paths SHALL be exactly the received ones", `InvalidGraph` naming every missing or extra path) and scenario "A file the analyzer did not return creates no project". The port contract and the PHP analyzer were checked first (an unparseable file stays in `files`) | integration scenario (real store) and a unit extra case, both red before the fix |
+| 3 | Redaction events of a file that is not saved | Closed by #2 | A rejected indexing returns no report | same tests assert no report |
+| 4 | `hasCommits` turned any failure into "no commit" | Fix | Probe: `rev-parse --verify --quiet HEAD` is silent both for an unborn branch and a broken ref, so `symbolic-ref --quiet HEAD` tells them apart; every git failure propagates | `tests/unit/git/has-commits.spec.ts` (git missing via a fake); "propagates a broken HEAD as a git error, never as EmptyRepository" |
+| 5 | No per-blob size cap | Document only | design Risks: declared non-goal, DIS-35 streaming debt | — |
+| 6 | Window between confinement and the git calls | B → DIS-86 | Files come from the object database and inner links are never followed, so only the repository path itself can be swapped; design Follow-up and Spanish comment on DIS-86 | — |
+| P | Does reading execute nothing? | Harden and test | **Real hole found**: with `log.showSignature=true` and `gpg.program` in the repository's config, `readHistory` ran that program. `GIT_CONFIG` now sets `core.fsmonitor=false`, `core.hooksPath=<null device>`, `core.attributesFile=`, `log.showSignature=false` for every git call (`readerGit`; simple-git needs `allowUnsafeFsMonitor` / `allowUnsafeHooksPath`). Filters and textconv have no off switch and stay unused by the commands the readers run | scenario "Reading executes nothing from the repository": red without hardening (`trap.sh --keyid-format=long --status-fd=1 --verify …`), green with it; a temporary `git status` in `readFiles` makes it fail (the clean filter ran), file restored identical |
 
 ## Accepted without a test
 
@@ -53,14 +68,16 @@ No contradiction with the spec; 23 scenarios, each green. Its housekeeping notes
 - U8 — `EmptyRepository` carries `repoPath` and a message with the path: accepted, same shape as `NotAGitRepository` (the Low privacy finding is routed to DIS-86).
 - M2 — "no transaction, no log": not verifiable without instrumenting the database and the process output; met by construction (the use case receives the store already bound to the caller's connection and imports no logger).
 
-## Checks (2026-10-07, after the fixes)
+## Checks (2026-10-07, after the adversarial-review fixes)
 
 ```
-npx vitest run          Test Files 39 passed (39) | Tests 563 passed (563)   (DATABASE_URL set, Postgres up)
-npm run lint            exit 0 — 0 errors, 1 warning (existing no-empty-object-type on an empty port interface)
+npx vitest run          Test Files 40 passed (40) | Tests 571 passed (571)   (DATABASE_URL set, Postgres up)
+npm run lint            exit 0 — 0 errors, 1 warning (existing no-empty-object-type in LlmPort.ts)
 npm run typecheck       exit 0
-npx stryker run         All files 95.51 % — index-repository.ts 99.00 % (after pinning element/field), edge-order.ts 96.92 %
-                        (survivors pre-existing: edge-order.ts:25; index-repository.ts:174 'utf8', equivalent)
+npm run lint:architecture  0 errors, 4 warnings (existing no-orphans)
+npm run docs:coverage   exit 0
+npx stryker run --mutate packages/core/src/index/index-repository.ts   99.08 % (survivor: line 182 'utf8', equivalent)
+PHP analyzer suite      npx vitest run tests/unit/analyzers → 10 files, 164 tests passed
 ```
 
 ## CI evidence

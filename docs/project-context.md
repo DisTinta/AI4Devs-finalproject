@@ -359,14 +359,21 @@ services that must be started first, quirks of the local environment.
   from root manifests unless given), `analyze` (`contentHash` = SHA-256 of the **redacted** content),
   `history` (no `head` → `EmptyRepository`; commit messages redacted into `commitEvents`; orphan
   links dropped; `co_changed` edges from the unfiltered links), `save` (`validateGraph` plus a
-  violation for each file the analyzer returned without being given it, as one `InvalidGraph`; then
+  violation for each path the analyzer returned but was not given, or was given but did not return,
+  as one `InvalidGraph`; then
   `createProject`, then one `saveGraph`). It opens no transaction: the composition root (DIS-86)
   passes `createPostgresStore({ transaction: client })` and commits or rolls back; with `{ pool }`
   project and graph are two transactions. Core logs nothing; `IndexReport` is the only output.
   `createGitSourceTree()` reads the **committed** tree with `git ls-tree -r -z --full-tree HEAD`
   (`ls-files` would read the index) and one `git cat-file` per blob, so indexing acme-shop takes ~6 s
   (`acme-shop.spec.ts` raises the test timeout to 60 s). Symlinks (`120000`), submodules (`160000`)
-  and non-UTF-8 blobs are skipped and reported; a leading BOM is dropped. The acme-shop secret test
+  and non-UTF-8 blobs are skipped and reported; a leading BOM is dropped. Every git call of
+  `adapters/git` goes through `readerGit` with `GIT_CONFIG`, which disables the repository's
+  fsmonitor, hooks, global attributes file and `log.showSignature` (it ran `gpg.program`); simple-git
+  only accepts the first two with `allowUnsafeFsMonitor` / `allowUnsafeHooksPath`. Filters and
+  textconv have no off switch: never add a work-tree command (`status`, work-tree `diff`) to a
+  reader. `hasCommits` is false only for an unborn branch (`symbolic-ref` names it); a broken ref or
+  a git failure propagates, never `EmptyRepository`. The acme-shop secret test
   checks every snapshot row (`row_to_json`) and the real analyzer's recorded input: the planted key
   yields no row, so only the recorded input catches an unredacted analyzer. The post-edit layer guard
   (`GUARD_HTTP_IN_BUSINESS`) matches transport imports, not the word `fastify`, which is a domain

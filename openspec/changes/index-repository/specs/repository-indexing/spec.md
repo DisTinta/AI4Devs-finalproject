@@ -78,6 +78,15 @@ nor execute anything from it.
 - **THEN** the first resolves to the real path of the directory, and the second rejects with
   `NotAGitRepository`
 
+#### Scenario: Reading executes nothing from the repository
+
+- **GIVEN** a repository whose local configuration names programs that write a marker file outside
+  it: a `core.fsmonitor` command, a `core.hooksPath` directory holding every hook, a
+  `filter.<x>.clean` and `filter.<x>.smudge` applied to every path by `.gitattributes`, and
+  `log.showSignature` with a `gpg.program`
+- **WHEN** `readFiles` reads its root and the history reader reads its history
+- **THEN** both resolve and the marker file does not exist
+
 ### Requirement: Indexing order and no partial write
 
 Indexing a repository with input `{ repoPath, allowedRoot, name, language, framework? }` SHALL run
@@ -105,10 +114,11 @@ and no later phase SHALL start or be reported:
   the target of a symbolic link is not revealed.
 
 Nothing SHALL be written to the store before the `save` phase, and within it the graph
-SHALL be validated before the project is created, so an invalid graph leaves no project behind. A
-file the analyzer returns that was not in its input SHALL make the graph invalid, like an edge to a
-symbol the analyzer does not return: indexing SHALL reject with `InvalidGraph`, whose message names
-that path, in the `save` phase and before `createProject`. The
+SHALL be validated before the project is created, so an invalid graph leaves no project behind. The
+set of paths the analyzer returns SHALL be exactly the set it received; otherwise the graph is
+invalid, like an edge to a symbol the analyzer does not return, and indexing SHALL reject with
+`InvalidGraph`, whose message names every path that is missing or extra, in the `save` phase and
+before `createProject`. The
 project SHALL be created with `rootPath` set to the real repository path, and the graph SHALL be
 saved in **one** call holding every file, symbol, edge (the analyzer's and the `co_changed` ones,
 after the deduplication of `code-analysis`: an `exact` edge wins over a `heuristic` one with the same
@@ -185,6 +195,15 @@ transaction, and SHALL NOT write to any log.
 - **GIVEN** a fake analyzer that returns a file that was not in its input
 - **WHEN** the repository is indexed
 - **THEN** it rejects with `InvalidGraph`, whose message names that file's path
+- **AND** the progress spy's last phase is `save`, and `createProject` was not called
+- **AND** the database holds no new project
+
+#### Scenario: A file the analyzer did not return creates no project
+
+- **GIVEN** a fake analyzer that leaves out of its result one file of its input
+- **WHEN** the repository is indexed
+- **THEN** it rejects with `InvalidGraph`, whose message names that file's path, and no report is
+  returned
 - **AND** the progress spy's last phase is `save`, and `createProject` was not called
 - **AND** the database holds no new project
 

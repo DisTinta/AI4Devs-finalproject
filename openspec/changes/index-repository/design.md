@@ -158,7 +158,8 @@ Author decision (2026-10-06), rationale as given:
 Mapping (spec, requirement "Indexing order and no partial write"): detection belongs to `redact`;
 `history` includes the empty check, the message redaction, the link filter and the co-change edges;
 `save` includes the graph validation (`validateGraph`, plus one violation per file the analyzer
-returned without having been given it, all raised as one `InvalidGraph`, added after
+returned without having been given it and one per file it was given but did not return, all raised
+as one `InvalidGraph`, added after
 /verify-against-spec on 2026-10-07), `createProject` and `saveGraph`. `onProgress(phase)` is called
 **when the phase starts**, so a rejection inside `confine` is preceded by exactly one `confine`
 call: the spy can then tell which phase failed. A throwing callback propagates (the caller's bug,
@@ -267,6 +268,19 @@ ticket's recommendation (the author confirmed no ADR is needed).
 - [Case-variant paths `app/a.php` / `app/A.php`] → distinct for Git, the analyzer and the
   `(project_id, path)` key; kept as two files.
 - [`readHistory` loads the whole log in memory] → DIS-35 debt, unchanged.
+- [No per-blob size cap: every tracked blob is read whole into memory, decoded, redacted and
+  analysed, so one huge blob in a hostile repository can exhaust memory] → the per-file size limit
+  is a declared non-goal of the proposal and part of the DIS-35 streaming debt; no code change here
+  (adversarial review 2026-10-07, #5).
+- [A repository's local configuration can name programs git runs: fsmonitor, hooks, filters,
+  textconv, `gpg.program` through `log.showSignature`] → every reader passes `GIT_CONFIG`, which
+  turns off fsmonitor, points `core.hooksPath` at the null device, empties `core.attributesFile`
+  and sets `log.showSignature=false` (the last one closed a real hole: before it, `readHistory` ran
+  a repository's `gpg.program`). Filters and textconv have no global off switch; they stay unused
+  because the readers only run `rev-parse`, `symbolic-ref`, `ls-tree`, `cat-file blob` and
+  `log --numstat`. A future reader that runs a work-tree command (`status`, `diff` against the work
+  tree) would run them: the scenario "Reading executes nothing from the repository" catches it
+  (shown by adding a temporary `git status`, 2026-10-07).
 - [The acme-shop oracle `/AKIA[A-Z0-9]{16}/` over `symbol.signature` does not exercise the analyzer
   path: the planted key lives in a config array that yields no symbol, so an analyzer fed unredacted
   content would still pass it (seen in apply, mutation (2) of task 4.10)] → the guarantee is covered by
@@ -292,6 +306,14 @@ DIS-86.
 - **B → DIS-86 (privacy, Low):** `NotAGitRepository` and `EmptyRepository` messages carry the
   absolute repository path, which may hold an OS user name once the CLI prints or logs it; joins the
   `ForbiddenPathError` follow-up from DIS-84. Left in the 11.4 comment on DIS-86 (2026-10-06).
+- **B → DIS-86 (path re-resolution window, Low):** confinement checks the real repository path
+  once; `readFiles` and `readHistory` then hand that path to git, which resolves it again. Every
+  file is read from Git's object database (`ls-tree HEAD` + `cat-file blob`), and symbolic links
+  inside the tree are skipped by mode, never followed, so links inside the repository cannot widen
+  the window. What remains is the repository path itself: if a directory on that path, inside
+  `allowedRoot`, is swapped for a link between confinement and the git calls, git reads a different
+  repository. Exploiting it needs write access inside `allowedRoot`. The composition root (DIS-86)
+  owns that directory and its permissions; Spanish comment there (2026-10-07).
 - **D (accepted):** commit-message free text beyond the four secret rules is stored as written
   (DIS-35 non-goal); synthetic `.test` identity in `git-source-tree.spec.ts`.
 - **Inbound notes into DIS-85** (archive ritual): DIS-12, DIS-23 (×2), DIS-35 (×2), DIS-36, DIS-47,

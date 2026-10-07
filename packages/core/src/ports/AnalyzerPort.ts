@@ -56,7 +56,9 @@ export interface AnalysisResult {
    * reads); `tested_by` (`exact`); and `describes` from a documentation file to the symbols it
    * names inside code spans or fenced code blocks (`heuristic`). Every edge has both endpoints
    * present in `files` or `symbols`; edges are ordered by `compareEdges` (`kind`, then source
-   * endpoint, then target endpoint), and no two share `kind`, source and target.
+   * endpoint, then target endpoint), and no two share `kind`, source and target. On an equal key
+   * `compareEdges` ranks an `exact` edge before a `heuristic` one, so `sortUniqueEdges` keeps the
+   * exact one (the `code-analysis` rule "An exact edge takes precedence over a heuristic one").
    */
   edges: GraphEdge[];
   /**

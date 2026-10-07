@@ -91,6 +91,8 @@
     1  A failure reading the history writes nothing  [tests/unit/index/index-repository.spec.ts ]
     1  An invalid graph creates no project  [tests/unit/index/index-repository.spec.ts ]
     1  A file the analyzer did not receive creates no project  [tests/integration/index/acme-shop.spec.ts ]  (added 2026-10-07, task 12.1)
+    1  A file the analyzer did not return creates no project  [tests/integration/index/acme-shop.spec.ts ]  (added 2026-10-07, task 13.2)
+    1  Reading executes nothing from the repository  [tests/integration/git/git-source-tree.spec.ts ]  (added 2026-10-07, task 13.4)
     1  A taken project name saves no graph  [tests/unit/index/index-repository.spec.ts ]
     1  Malformed, repeated and binary entries never reach the analyzer  [tests/unit/index/index-repository.spec.ts ]
     1  The planted secret of acme-shop never reaches the database  [tests/integration/index/acme-shop.spec.ts ]
@@ -143,7 +145,7 @@
   - Spanish comment on DIS-86 with the composition contract, the error list, progress phases and the Low privacy finding (destination B).
 - [x] 11.5 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the author's Why transcribed and the Stryker score. After verification, set DIS-85 to In Review in Linear with a comment in Spanish linking the PR and the change
   - PR #23 (https://github.com/DisTinta/AI4Devs-finalproject/pull/23) opened against `feature/entrega-2-CRN` with the author's Why copied verbatim (`reports/pr-description.md`, commit `2e036b8`). In Review in Linear once CI is green.
-- [ ] 11.6 At archive time, run the archive ritual: close or reassign the 10 inbound notes of DIS-85 (DIS-12, DIS-23 ×2, DIS-35 ×2, DIS-36, DIS-47, DIS-84, DIS-96 ×2), and classify every review gap (A/B/C/D)
+- [ ] 11.6 At archive time, run the archive ritual: close or reassign the 10 inbound notes of DIS-85 (DIS-12, DIS-23 ×2, DIS-35 ×2, DIS-36, DIS-47, DIS-84, DIS-96 ×2), and classify every review gap (A/B/C/D). No `code-analysis` delta is needed for the `compareEdges` tie-break: `code-analysis` already requires it ("no two edges SHALL share `kind`, source and target", the line-700 rule and its scenario "An exact edge takes precedence over a heuristic one"), and the PHP analyzer's output is unchanged (it filters before `sortUniqueEdges`); the tie-break only makes the shared helper meet that rule whatever the input order
 
 ## 12. Follow-up of /verify-against-spec (2026-10-07, author decisions)
 
@@ -154,3 +156,12 @@
 - [x] 12.3 U2 — spec clarified (a leading UTF-8 BOM is dropped when decoding; `contentHash` over the content without it). Test "drops a leading UTF-8 byte order mark when decoding" in `git-source-tree.spec.ts`, shown to fail with `ignoreBOM: true` and restored
 - [x] 12.4 Tests M1 (`rootPath` is the real path), M3 (`rev-parse HEAD` and `status --porcelain` unchanged), W1/W3 (`row_to_json` of every snapshot table + the real analyzer's input; fails with the redaction removed, two mutations, file restored identical), M4 (JSON round trip, `toStrictEqual`), W2 (`'elsewhere'` without separators)
 - [x] 12.5 Record U4–U8 and M2 as accepted without a test in `reports/2026-10-07-verify-against-spec.md`; run `npx vitest run`, `npm run lint`, `npm run typecheck`; re-run `/verify-against-spec` (no contradiction)
+
+## 13. Follow-up of /adversarial-review (2026-10-07, author decisions)
+
+- [x] 13.1 #1 — check whether the `compareEdges` tie-break adds anything to `code-analysis`: it does not (the "no two edges share kind, source and target" contract, the line-700 rule and the scenario "An exact edge takes precedence over a heuristic one" already require it; the PHP analyzer filters before `sortUniqueEdges`). No delta; `AnalyzerPort` JSDoc and task 11.6 updated. PHP analyzer suite run: 10 files, 164 tests green
+- [x] 13.2 #2/#3 — spec (`/opsx:update`): the returned paths must be exactly the given ones, one sentence next to U1, `InvalidGraph` naming every missing or extra path; scenario "A file the analyzer did not return creates no project". Contract checked first: "exactly one `GraphFile` per distinct input path", and an unparseable PHP file stays in `files`. RED → GREEN: that scenario (integration, real store, no report returned) and the unit extra case "rejects a file the analyzer did not return…"
+  - RED seen for both (indexing resolved with a report); green after the check in `index-repository.ts`.
+- [x] 13.3 #4 — `hasCommits`: `rev-parse --verify --quiet HEAD` prints nothing both for an unborn branch and a broken ref (probe 2026-10-07), so an empty answer is told apart with `symbolic-ref --quiet HEAD`; every git failure propagates. RED → GREEN: `tests/unit/git/has-commits.spec.ts` (git missing via a fake, unborn, resolved, neither) and "propagates a broken HEAD as a git error, never as EmptyRepository" (broken branch ref → git error; junk `.git/HEAD` → `NotAGitRepository`); "A repository with no commit is rejected" still green
+- [x] 13.4 P — spec scenario "Reading executes nothing from the repository" (fsmonitor, hooks directory, clean/smudge filter, textconv, `log.showSignature` + `gpg.program`). RED without hardening: `readHistory` ran the repository's `gpg.program`. GREEN after `GIT_CONFIG` gained `core.fsmonitor=false`, `core.hooksPath=<null device>`, `core.attributesFile=`, `log.showSignature=false`, all through `readerGit` (simple-git needs `allowUnsafeFsMonitor` / `allowUnsafeHooksPath` for the first two). A temporary `git status` in `readFiles` makes the test fail (clean filter ran), file restored identical
+- [x] 13.5 #5 and #6 — design Risks line for the blob size (non-goal, DIS-35 debt); design Follow-up and Spanish comment on DIS-86 for the path re-resolution window (only the repository path; files come from the object database)
