@@ -170,7 +170,8 @@ describe('index repository', () => {
     expect(w.phases).toEqual(['confine']);
     expect(w.log).toEqual([`realPath ${ROOT}`, `realPath ${REPO}`]);
     expect((error as ForbiddenPathError).requestedPath).toBe('acme-shop');
-    expect((error as Error).message).not.toContain('/elsewhere');
+    // `elsewhere` without separators: '/elsewhere' never matches on Windows, where it is C:\elsewhere.
+    expect((error as Error).message).not.toContain('elsewhere');
     expect((error as Error).message).not.toContain(elsewhere);
   });
 
@@ -462,10 +463,79 @@ describe('index repository', () => {
       expect(w.phases).toEqual(['confine']);
     });
 
-    it('keeps a file the analyzer returns without an input as it is', async () => {
-      // Arrange
+    it('rejects a file the analyzer did not receive with InvalidGraph naming its path, before createProject', async () => {
+      // Arrange: the analyzer returns a file it was never given, like an edge to a symbol it does not return.
       const w = world({
         analyze: (files) => ({ ...plainAnalysis(files), files: [...plainAnalysis(files).files, { path: 'generated.php', kind: 'source' }] }),
+        history: { head: SHA, commits: [{ sha: SHA }], fileCommits: [] },
+      });
+
+      // Act
+      const error = await indexRepository(w.deps, input()).catch((caught: unknown) => caught);
+
+      // Assert
+      expect(error).toBeInstanceOf(InvalidGraph);
+      // Element and field follow the GraphViolation contract; only the wording is free.
+      expect((error as InvalidGraph).violations).toEqual([expect.objectContaining({ element: 'files[1]', field: 'path' })]);
+      expect((error as InvalidGraph).message).toContain('"generated.php"');
+      expect(w.phases.at(-1)).toBe('save');
+      expect(w.log).not.toContain('createProject');
+      expect(w.saved).toEqual([]);
+    });
+
+    it('saves one exact edge when an exact and a heuristic edge share kind, source and target', async () => {
+      // Arrange: the code-analysis dedup rule; the heuristic edge comes first on purpose.
+      const edge = { kind: 'calls', source: { file: 'a.php' }, target: { file: 'b.php' }, extractor: 'test' } as const;
+      const w = world({
+        tree: {
+          files: [
+            { path: 'a.php', content: '<?php\n' },
+            { path: 'b.php', content: '<?php\n' },
+          ],
+          skipped: [],
+        },
+        analyze: (files) => ({ ...plainAnalysis(files), edges: [{ ...edge, resolution: 'heuristic' }, { ...edge, resolution: 'exact' }] }),
+        history: { head: SHA, commits: [{ sha: SHA }], fileCommits: [] },
+      });
+
+      // Act
+      const report = await indexRepository(w.deps, input());
+
+      // Assert
+      expect(w.saved[0].edges).toEqual([{ ...edge, resolution: 'exact' }]);
+      expect(report.edges).toEqual({ total: 1, exact: 1, heuristic: 0 });
+    });
+
+    it('returns a report that survives a JSON round trip unchanged', async () => {
+      // Arrange: every collection of the report populated.
+      const key = 'AK' + 'IA' + 'Z7Q2W4E6R8T0Y1U3';
+      const w = world({
+        tree: { files: [{ path: 'config/keys.php', content: `<?php return '${key}';\n` }], skipped: [{ path: 'lib/link.php', reason: 'symlink' }] },
+        analyze: (files) => ({ ...plainAnalysis(files), diagnostics: [{ path: 'config/keys.php', line: 1, message: 'note' }] }),
+        history: { head: SHA, commits: [{ sha: SHA, message: `chore: ${key}` }], fileCommits: [] },
+      });
+
+      // Act
+      const report = await indexRepository(w.deps, input());
+
+      // Assert
+      expect(report.events).toHaveLength(1);
+      expect(report.commitEvents).toHaveLength(1);
+      expect(report.skipped).toHaveLength(1);
+      expect(JSON.parse(JSON.stringify(report))).toStrictEqual(report);
+    });
+
+    it('saves every file with redacted and a 64-hex contentHash', async () => {
+      // Arrange
+      const key = 'AK' + 'IA' + 'Z7Q2W4E6R8T0Y1U3';
+      const w = world({
+        tree: {
+          files: [
+            { path: 'app/A.php', content: '<?php\n' },
+            { path: 'config/keys.php', content: `<?php return '${key}';\n` },
+          ],
+          skipped: [],
+        },
         history: { head: SHA, commits: [{ sha: SHA }], fileCommits: [] },
       });
 
@@ -473,7 +543,11 @@ describe('index repository', () => {
       await indexRepository(w.deps, input());
 
       // Assert
-      expect(w.saved[0].files.find((file) => file.path === 'generated.php')).toEqual({ path: 'generated.php', kind: 'source' });
+      expect(w.saved[0].files).toHaveLength(2);
+      for (const file of w.saved[0].files) {
+        expect(typeof file.redacted, file.path).toBe('boolean');
+        expect(file.contentHash, file.path).toMatch(/^[0-9a-f]{64}$/);
+      }
     });
 
     it('computes co-change weights with the unfiltered links', async () => {

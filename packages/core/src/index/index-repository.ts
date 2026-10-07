@@ -4,7 +4,7 @@ import { sortUniqueEdges } from '../knowledge/edge-order.js';
 import type { KnowledgeGraph } from '../knowledge/graph.js';
 import type { GraphCommit } from '../knowledge/graph-commit.js';
 import type { ProjectFramework, ProjectLanguage } from '../knowledge/project.js';
-import { assertValidGraph } from '../knowledge/validate-graph.js';
+import { validateGraph } from '../knowledge/validate-graph.js';
 import type { AnalyzerPort } from '../ports/AnalyzerPort.js';
 import type { GitPort } from '../ports/GitPort.js';
 import type { SourceTreePort } from '../ports/SourceTreePort.js';
@@ -12,7 +12,8 @@ import type { StorePort } from '../ports/StorePort.js';
 import type { AuditEvent } from './audit-event.js';
 import { detectFramework } from './framework-detect.js';
 import type { CommitRedactionEvent, IndexPhase, IndexReport, SkippedEntry } from './index-report.js';
-import { EmptyRepository, NotAGitRepository } from '../knowledge/errors.js';
+import { EmptyRepository, InvalidGraph, NotAGitRepository } from '../knowledge/errors.js';
+import type { GraphViolation } from '../knowledge/errors.js';
 import { confinePath, ForbiddenPathError, IndexingDisabled } from './path-policy.js';
 import { redactSecrets } from './secret-scanner.js';
 import { selectIndexableFiles } from './source-path.js';
@@ -74,11 +75,16 @@ export async function indexRepository(deps: IndexDependencies, input: IndexInput
   progress('analyze');
   const analysis = await deps.analyzer.analyze({ files: redactedFiles });
   const byPath = new Map(redactions.map((redaction) => [redaction.file.path, redaction]));
-  const files = analysis.files.map((file) => {
+  // A file the analyzer was not given has no redaction to vouch for it: a broken analyzer contract,
+  // rejected in `save` like an edge to a symbol the analyzer does not return.
+  const unanalysed: GraphViolation[] = [];
+  const files = analysis.files.map((file, i) => {
     const redaction = byPath.get(file.path);
-    return redaction === undefined
-      ? file
-      : { ...file, redacted: redaction.redacted, contentHash: sha256(redaction.file.content) };
+    if (redaction === undefined) {
+      unanalysed.push({ element: `files[${i}]`, field: 'path', message: `file "${file.path}" was not given to the analyzer` });
+      return file;
+    }
+    return { ...file, redacted: redaction.redacted, contentHash: sha256(redaction.file.content) };
   });
 
   progress('history');
@@ -99,7 +105,8 @@ export async function indexRepository(deps: IndexDependencies, input: IndexInput
   };
 
   progress('save');
-  assertValidGraph(graph);
+  const violations = [...unanalysed, ...validateGraph(graph)];
+  if (violations.length > 0) throw new InvalidGraph(violations);
   const projectId = await deps.store.createProject({ name: input.name, rootPath: realRepo, language: input.language, framework });
   const saved = await deps.store.saveGraph(projectId, graph);
 
