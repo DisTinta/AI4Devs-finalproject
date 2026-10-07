@@ -62,3 +62,9 @@ npm run typecheck       exit 0
 npx stryker run         All files 95.51 % — index-repository.ts 99.00 % (after pinning element/field), edge-order.ts 96.92 %
                         (survivors pre-existing: edge-order.ts:25; index-repository.ts:174 'utf8', equivalent)
 ```
+
+## CI evidence
+
+After the push of `d15d0d5` (2026-10-07): `quality` run 37598058350 passed, 562 passed / 1 skipped
+(the Windows-only case), `index-repository.spec.ts` 24, `acme-shop.spec.ts` 3, `git-source-tree.spec.ts`
+10, `edge-order.spec.ts` 16; core Stryker 96.07 %. `Frontend` run 37598058457 passed (no web change).
