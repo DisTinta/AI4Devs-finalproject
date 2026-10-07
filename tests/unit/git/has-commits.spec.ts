@@ -7,12 +7,13 @@ import { hasCommits } from '../../../packages/adapters/git/src/repository';
 // propagates. Git missing from PATH is simulated with a fake, never by uninstalling anything.
 
 /** A fake `SimpleGit` whose `raw` answers per command, or rejects with `failure`. */
-function fakeGit(answers: Record<string, string>, failure?: Error): SimpleGit {
+function fakeGit(answers: Record<string, string | Error>, failure?: Error): SimpleGit {
   return {
     raw: async (args: string[]) => {
       if (failure) throw failure;
       const answer = answers[args.join(' ')];
       if (answer === undefined) throw new Error(`unexpected git ${args.join(' ')}`);
+      if (answer instanceof Error) throw answer;
       return answer;
     },
   } as unknown as SimpleGit;
@@ -35,9 +36,14 @@ describe('hasCommits', () => {
     await expect(hasCommits(git)).resolves.toBe(false);
   });
 
-  it('rejects when HEAD resolves to nothing and names no branch', async () => {
-    const git = fakeGit({ 'rev-parse --verify --quiet HEAD': '', 'symbolic-ref --quiet HEAD': '' });
+  it("rejects with git's own error when HEAD resolves to nothing and names no branch", async () => {
+    const gitsError = new Error('fatal: Needed a single revision');
+    const git = fakeGit({
+      'rev-parse --verify --quiet HEAD': '',
+      'symbolic-ref --quiet HEAD': '',
+      'rev-parse --verify HEAD': gitsError,
+    });
 
-    await expect(hasCommits(git)).rejects.toThrow('HEAD names no commit and no branch');
+    await expect(hasCommits(git)).rejects.toBe(gitsError);
   });
 });

@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 // A repository whose own configuration tries to run programs or to change what git prints, shared by
@@ -95,14 +95,47 @@ export function armProgramTraps(repository: string, outside: string): string {
   return marker;
 }
 
-/** Sets the local options that would change what `git log` prints if a reader let them. */
-export function armOutputConfig(repository: string): void {
+/**
+ * Sets the local options that would change what `git log` prints if a reader let them, including a
+ * mailmap file in `outside` that remaps the test author.
+ */
+export function armOutputConfig(repository: string, outside: string): void {
+  const mailmap = join(outside, 'mailmap');
+  writeFileSync(mailmap, 'Someone Else <someone.else@example.test> <test.author@example.test>\n');
   for (const [key, value] of [
     ['log.showRoot', 'false'],
     ['diff.renames', 'copies'],
     ['diff.relative', 'true'],
     ['core.quotePath', 'true'],
+    ['i18n.logOutputEncoding', 'ISO-8859-1'],
+    ['mailmap.file', slashed(mailmap)],
   ]) {
     git(repository, 'config', key, value);
   }
+}
+
+/**
+ * Turns the committed repository `repository` into a partial clone of a promisor remote whose upload
+ * program is a trap writing to a marker file in `outside`, and removes the loose blob of `path`, so
+ * reading that blob would make git fetch it by running the trap.
+ *
+ * @returns The marker file's path; it does not exist until the trap runs.
+ */
+export function armPartialCloneTrap(repository: string, outside: string, path: string): string {
+  const marker = slashed(join(outside, 'fetched.txt'));
+  const trap = slashed(join(outside, 'upload-pack.sh'));
+  writeFileSync(trap, `#!/bin/sh\necho "upload-pack $*" >> "${marker}"\nexit 1\n`);
+  chmodSync(trap, 0o755);
+  const blob = git(repository, 'rev-parse', `HEAD:${path}`);
+  for (const [key, value] of [
+    ['core.repositoryformatversion', '1'],
+    ['extensions.partialClone', 'origin'],
+    ['remote.origin.url', slashed(join(outside, 'nowhere'))],
+    ['remote.origin.promisor', 'true'],
+    ['remote.origin.uploadpack', trap],
+  ]) {
+    git(repository, 'config', key, value);
+  }
+  rmSync(join(repository, '.git', 'objects', blob.slice(0, 2), blob.slice(2)));
+  return marker;
 }

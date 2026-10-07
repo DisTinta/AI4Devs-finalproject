@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { coChangeEdges, NotAGitRepository, pseudonymiseAuthor } from '@codemind/core';
 import type { KnowledgeGraph } from '@codemind/core';
 import { createSimpleGitHistory } from '../../../packages/adapters/git/src/index';
-import { ACCENTED_PATH, armOutputConfig, armProgramTraps, buildHostileRepository } from './hostile-repository';
+import { ACCENTED_PATH, armOutputConfig, armPartialCloneTrap, armProgramTraps, buildHostileRepository } from './hostile-repository';
 import { createPostgresStore } from '../../../packages/adapters/store-postgres/src/index';
 import { describeWithDatabase, useTransactionPerTest } from '../helpers/db';
 import { unique } from '../helpers/factories';
@@ -139,7 +139,7 @@ describe('git history', () => {
       expect(result).not.toHaveProperty('history');
       expect((result as { error: unknown }).error).toBeInstanceOf(Error);
       expect((result as { error: unknown }).error).not.toBeInstanceOf(NotAGitRepository);
-      expect(((result as { error: Error }).error).message).toMatch(/HEAD/);
+      expect(((result as { error: Error }).error).message).toMatch(/fatal: No such ref: HEAD/);
     });
 
     it('Reading the history executes nothing from the repository', async () => {
@@ -163,7 +163,7 @@ describe('git history', () => {
       buildHostileRepository(repository);
       const reader = createSimpleGitHistory({ authorHashSalt: SALT });
       const clean = await reader.readHistory(repository);
-      armOutputConfig(repository);
+      armOutputConfig(repository, temporaryDirectory());
 
       // Act
       const configured = await reader.readHistory(repository);
@@ -379,6 +379,43 @@ describe('git history', () => {
   });
 
   describe('not a repository', () => {
+    it('A .git directory or a bare repository is rejected', async () => {
+      // Arrange
+      const repository = temporaryDirectory();
+      git(repository, 'init', '-q', '-b', 'main');
+      writeFileSync(join(repository, 'a.ts'), 'export {};\n');
+      git(repository, 'add', '.');
+      git(repository, 'commit', '-q', '-m', 'feat: a');
+      const bare = temporaryDirectory();
+      git(bare, 'init', '-q', '--bare');
+      const reader = createSimpleGitHistory({ authorHashSalt: SALT });
+
+      // Act / Assert
+      for (const path of [join(repository, '.git'), bare]) {
+        await expect(reader.readHistory(path), path).rejects.toBeInstanceOf(NotAGitRepository);
+      }
+    });
+
+    it('Reading the history never fetches a missing object', async () => {
+      // Arrange
+      const outside = temporaryDirectory();
+      const repository = temporaryDirectory();
+      git(repository, 'init', '-q', '-b', 'main');
+      writeFileSync(join(repository, 'a.ts'), 'export {};\n');
+      git(repository, 'add', '.');
+      git(repository, 'commit', '-q', '-m', 'feat: a');
+      const marker = armPartialCloneTrap(repository, outside, 'a.ts');
+
+      // Act
+      const result = await createSimpleGitHistory({ authorHashSalt: SALT })
+        .readHistory(repository)
+        .then((history) => ({ history }), (error: unknown) => ({ error }));
+
+      // Assert: the marker's content, so a failure names what ran.
+      expect(existsSync(marker) ? readFileSync(marker, 'utf8') : '').toBe('');
+      expect(result).not.toHaveProperty('history');
+    });
+
     it('A directory without Git is rejected', async () => {
       // Arrange: precondition, git itself sees no repository here.
       const directory = temporaryDirectory();

@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { EmptyRepository, NotAGitRepository } from '@codemind/core';
 import { createGitSourceTree, createSimpleGitHistory } from '../../../packages/adapters/git/src/index';
-import { ACCENTED_PATH, armOutputConfig, armProgramTraps, buildHostileRepository } from './hostile-repository';
+import { ACCENTED_PATH, armOutputConfig, armPartialCloneTrap, armProgramTraps, buildHostileRepository } from './hostile-repository';
 
 // Spec: openspec/changes/index-repository/specs/repository-indexing/spec.md, requirement "Source tree
 // contract". Each test named after a scenario is that scenario. Every repository is a throwaway one
@@ -87,33 +87,73 @@ describe('git source tree', () => {
   });
 
   it("A broken HEAD propagates git's error", async () => {
-    // Arrange: a committed repository whose branch ref holds garbage, and one whose .git/HEAD does.
+    // Arrange: a committed repository whose branch ref holds garbage.
     const brokenRef = emptyRepository();
     writeFileSync(join(brokenRef, 'a.php'), '<?php\n');
     git(brokenRef, 'add', '.');
     git(brokenRef, 'commit', '-q', '-m', 'feat: a');
     writeFileSync(join(brokenRef, '.git', 'refs', 'heads', 'main'), 'not-a-sha\n');
+
+    // Act
+    const fromBrokenRef = await sourceTree.readFiles(brokenRef).catch((caught: unknown) => caught);
+    const historyFromBrokenRef = await createSimpleGitHistory({ authorHashSalt: 'test-salt' })
+      .readHistory(brokenRef)
+      .then((history) => ({ history }), (error: unknown) => ({ error }));
+
+    // Assert: git's own words (C locale), from both readers; never an empty history.
+    expect(fromBrokenRef).toBeInstanceOf(Error);
+    expect(fromBrokenRef).not.toBeInstanceOf(EmptyRepository);
+    expect((fromBrokenRef as Error).message).toMatch(/fatal: No such ref: HEAD/);
+    expect(historyFromBrokenRef).not.toHaveProperty('history');
+    expect((historyFromBrokenRef as { error: Error }).error.message).toMatch(/fatal: No such ref: HEAD/);
+  });
+
+  it('A .git directory or a bare repository is not a repository root', async () => {
+    // Arrange
+    const repository = emptyRepository();
+    writeFileSync(join(repository, 'a.php'), '<?php\n');
+    git(repository, 'add', '.');
+    git(repository, 'commit', '-q', '-m', 'feat: a');
+    const bare = temporaryDirectory();
+    git(bare, 'init', '-q', '--bare');
+
+    // Act / Assert
+    for (const path of [join(repository, '.git'), bare]) {
+      await expect(sourceTree.readFiles(path), path).rejects.toBeInstanceOf(NotAGitRepository);
+    }
+  });
+
+  it('A partial clone never fetches a missing object', async () => {
+    // Arrange
+    const outside = temporaryDirectory();
+    const repository = emptyRepository();
+    writeFileSync(join(repository, 'a.php'), '<?php\n');
+    git(repository, 'add', '.');
+    git(repository, 'commit', '-q', '-m', 'feat: a');
+    const marker = armPartialCloneTrap(repository, outside, 'a.php');
+
+    // Act
+    const fromTree = await sourceTree.readFiles(repository).catch((caught: unknown) => caught);
+    const fromHistory = await createSimpleGitHistory({ authorHashSalt: 'test-salt' })
+      .readHistory(repository)
+      .catch((caught: unknown) => caught);
+
+    // Assert: git's error, and the marker's content so a failure names what ran.
+    expect(existsSync(marker) ? readFileSync(marker, 'utf8') : '').toBe('');
+    expect(fromTree).toBeInstanceOf(Error);
+    expect(fromHistory).toBeInstanceOf(Error);
+  });
+
+  it('a junk .git/HEAD is no repository to git, so it reads as NotAGitRepository', async () => {
+    // Arrange: git itself stops recognising the directory as a repository ("Not a repository").
     const junkHead = emptyRepository();
     writeFileSync(join(junkHead, 'a.php'), '<?php\n');
     git(junkHead, 'add', '.');
     git(junkHead, 'commit', '-q', '-m', 'feat: a');
     writeFileSync(join(junkHead, '.git', 'HEAD'), 'garbage\n');
 
-    // Act
-    const fromBrokenRef = await sourceTree.readFiles(brokenRef).catch((caught: unknown) => caught);
-    const fromJunkHead = await sourceTree.readFiles(junkHead).catch((caught: unknown) => caught);
-    const historyFromBrokenRef = await createSimpleGitHistory({ authorHashSalt: 'test-salt' })
-      .readHistory(brokenRef)
-      .then((history) => ({ history }), (error: unknown) => ({ error }));
-
-    // Assert: git's own error for the ref, from both readers (never an empty history); for a junk
-    // HEAD git no longer sees a repository at all.
-    expect(fromBrokenRef).toBeInstanceOf(Error);
-    expect(fromBrokenRef).not.toBeInstanceOf(EmptyRepository);
-    expect((fromBrokenRef as Error).message).toMatch(/HEAD/);
-    expect(historyFromBrokenRef).not.toHaveProperty('history');
-    expect((historyFromBrokenRef as { error: Error }).error.message).toMatch(/HEAD/);
-    expect(fromJunkHead).toBeInstanceOf(NotAGitRepository);
+    // Act / Assert
+    await expect(sourceTree.readFiles(junkHead)).rejects.toBeInstanceOf(NotAGitRepository);
   });
 
   it('Only the files tracked at HEAD are read', async () => {
@@ -204,7 +244,7 @@ describe('git source tree', () => {
     const cleanTree = await sourceTree.readFiles(repository);
     const cleanHistory = await history.readHistory(repository);
     const marker = armProgramTraps(repository, outside);
-    armOutputConfig(repository);
+    armOutputConfig(repository, outside);
 
     // Act
     const tree = await sourceTree.readFiles(repository);

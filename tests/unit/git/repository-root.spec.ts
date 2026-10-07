@@ -27,10 +27,11 @@ function failingGit(failure: Error): (baseDir: string) => SimpleGit {
 }
 
 describe('assertRepositoryRoot', () => {
-  it("turns git's 'not a git repository' answer into NotAGitRepository", async () => {
-    const answer = new Error('fatal: not a git repository (or any of the parent directories): .git\n');
-
-    await expect(assertRepositoryRoot(directory, failingGit(answer))).rejects.toBeInstanceOf(NotAGitRepository);
+  it.each([
+    ['not a git repository', 'fatal: not a git repository (or any of the parent directories): .git\n'],
+    ['a .git directory or a bare repository (no work tree)', 'fatal: this operation must be run in a work tree\n'],
+  ])("turns git's '%s' answer into NotAGitRepository", async (_label, message) => {
+    await expect(assertRepositoryRoot(directory, { git: failingGit(new Error(message)) })).rejects.toBeInstanceOf(NotAGitRepository);
   });
 
   it.each([
@@ -39,7 +40,27 @@ describe('assertRepositoryRoot', () => {
     ['git missing from PATH', Object.assign(new Error('spawn git ENOENT'), { code: 'ENOENT' })],
     ['any other git failure', new Error('fatal: unable to read config file')],
   ])('propagates %s unchanged', async (_label, failure) => {
-    await expect(assertRepositoryRoot(directory, failingGit(failure))).rejects.toBe(failure);
+    await expect(assertRepositoryRoot(directory, { git: failingGit(failure) })).rejects.toBe(failure);
+  });
+
+  it('reads a missing path or a file in the way as NotAGitRepository', async () => {
+    for (const code of ['ENOENT', 'ENOTDIR']) {
+      const missing = Object.assign(new Error(code), { code });
+      const realpath = async (): Promise<string> => {
+        throw missing;
+      };
+
+      await expect(assertRepositoryRoot('x', { realpath }), code).rejects.toBeInstanceOf(NotAGitRepository);
+    }
+  });
+
+  it('propagates a file-system error resolving the path unchanged', async () => {
+    const denied = Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' });
+    const realpath = async (): Promise<string> => {
+      throw denied;
+    };
+
+    await expect(assertRepositoryRoot('x', { realpath })).rejects.toBe(denied);
   });
 });
 
@@ -56,8 +77,12 @@ describe('git environment', () => {
   });
 
   it('passes no variable outside its closed list, such as GIT_DIR or EDITOR', () => {
-    const allowed = ['PATH', 'SYSTEMROOT', 'WINDIR', 'HOME', 'USERPROFILE', 'HOMEDRIVE', 'HOMEPATH', 'TEMP', 'TMP', 'TMPDIR', 'LC_ALL', 'LANGUAGE'];
+    const allowed = ['PATH', 'SYSTEMROOT', 'WINDIR', 'HOME', 'USERPROFILE', 'HOMEDRIVE', 'HOMEPATH', 'TEMP', 'TMP', 'TMPDIR', 'LC_ALL', 'LANGUAGE', 'GIT_NO_LAZY_FETCH'];
 
     expect(Object.keys(GIT_ENV).filter((key) => !allowed.includes(key.toUpperCase()))).toEqual([]);
+  });
+
+  it('never lets a partial clone fetch a missing object', () => {
+    expect(GIT_ENV.GIT_NO_LAZY_FETCH).toBe('1');
   });
 });
