@@ -9,6 +9,7 @@ import {
   seedId,
   symbolKey,
   uuidV5,
+  withOccurrence,
 } from '../../../packages/cli/src/seed/deterministic-ids';
 
 // Spec: openspec/changes/seed-build/specs/seed-build/spec.md → "Deterministic identifiers". The `it`
@@ -60,6 +61,13 @@ describe('deterministic ids', () => {
         name: 'go',
       }),
     ).toBe(`p${s}calls${s}exact${s}php${s}file${s}a.php${s}symbol${s}b.php${s}method${s}3${s}go`);
+  });
+
+  it("a unique edge's id is the UUID v5 of its key ending in #0", () => {
+    const key = edgeKey('p', 'calls', 'exact', 'php', { type: 'file', path: 'a.php' }, { type: 'file', path: 'b.php' });
+    expect(withOccurrence(key, 0)).toBe(`${key}${KEY_SEPARATOR}#0`);
+    expect(seedId(withOccurrence(key, 0))).toBe(uuidV5(SEED_ID_NAMESPACE, `${key}${KEY_SEPARATOR}#0`));
+    expect(seedId(withOccurrence(key, 0))).not.toBe(seedId(key));
   });
 
   it('keeps components apart: moving text across a boundary changes the key', () => {

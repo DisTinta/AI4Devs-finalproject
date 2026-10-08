@@ -139,8 +139,11 @@ and it locks the row for the build's duration).
   `[name, path, kind, start_line, symbolName]`; commit `[name, sha]`; edge `[name, kind, resolution,
   extractor, ...endpoint(source), ...endpoint(target)]` with endpoint `['file', path]` or
   `['symbol', path, kind, start_line, symbolName]`. Integers as decimal strings.
-- Duplicate edges (same full key): sorted by `weight` (`null` first, then numeric) and then by the
-  order of appearance, and suffixed `#0`, `#1`, … (the suffix joined with the separator). Two edges
+- Occurrence index on **every** edge key (author decision after `/verify-against-spec`): edges
+  equal in the rest of the key are sorted by `weight` (`null` first, then numeric) and then by the
+  order of appearance, and suffixed `#0`, `#1`, … (joined with the separator); a unique edge gets
+  `#0`. Why: if an identical edge appears later, the one that already existed keeps its id (`#0`)
+  and only `#1` is added; with a suffix on duplicates only, the first edge would change id. Two edges
   that tie on weight are identical in every rendered column, so whichever gets `#0` the output bytes
   are the same — which is why the order of appearance cannot leak into the file.
 - Every reference is remapped through an old-id → new-id map built per table; an unknown reference
@@ -282,6 +285,12 @@ Rollback: revert the commit; the placeholder seed and script come back.
   that commit (`…:seeds/graph-dump.sql:generic-api-key:366` and `:375`), which cannot hide a new
   commit. Local gitleaks 8.30.1: `dir .` and `git` over the PR range → no leaks
   (`reports/2026-10-08-verify-against-spec.md`, addendum).
+- **A — fixed in this change: occurrence index on unique edges (`/verify-against-spec`, §3.1).** The
+  code appended `#0` to every edge key while the spec and D4 added an index to duplicates only.
+  Author decision: the spec follows the code ("Deterministic identifiers" and D4 now say every edge
+  key ends with `#n`, `#0` when unique), for the stability reason in D4. Code and seed unchanged
+  (`git diff --exit-code seeds/` clean); extra case "a unique edge's id is the UUID v5 of its key
+  ending in #0" in `tests/unit/cli/seed-deterministic-ids.spec.ts`.
 
 - **Inbound note from DIS-98** (`unresolved` is outside `AnalyzerPort`; serialise only `files`,
   `symbols`, `edges`, `diagnostics`): not applicable — the seed is read back from the database, whose

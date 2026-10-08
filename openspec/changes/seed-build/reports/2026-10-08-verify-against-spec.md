@@ -77,3 +77,7 @@ After the fix — `gitleaks git --log-opts="origin/feature/entrega-2-CRN..HEAD" 
 ```
 
 Both exit 0. Also after the fix: `tests/unit/cli` + `tests/integration/cli` 92/92; seed regenerated twice with `git diff --exit-code seeds/` clean; `npm run lint` 0 errors.
+
+## Addendum — §3.1 resolved (occurrence index on every edge)
+
+Author decision: the spec follows the code. "Deterministic identifiers" and design D4 now say that every edge key ends with an occurrence index `#n` joined with the separator, `#0` when the key is unique; edges equal in the rest of the key are ranked by weight (missing first) and then by order of appearance. Reason (D4): if an identical edge appears later, the existing one keeps its id (`#0`) and only `#1` is added. The scenario "Identical edges get distinct ids whatever the row order" is unchanged. Extra case "a unique edge's id is the UUID v5 of its key ending in #0" (`tests/unit/cli/seed-deterministic-ids.spec.ts`), green. Code and seed unchanged: `npm run seed:build` → `git diff --exit-code seeds/` clean. `openspec validate seed-build --strict` → valid. Design → Follow-ups A.

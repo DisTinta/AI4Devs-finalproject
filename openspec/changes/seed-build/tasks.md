@@ -83,7 +83,7 @@
 ## 12. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
 - [x] 12.1 No user interface: the seed build is a development script, already driven end to end through `npm run seed:build` in step 11. Record "covered by step 11; no browser UI", with that reason, in the step 10 report
-- [ ] 12.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that the new spec files ran (the integration one with Postgres and Git) and passed, and that the mutation step covered `packages/cli`. Link the run in the step 10 report
+- [x] 12.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that the new spec files ran (the integration one with Postgres and Git) and passed, and that the mutation step covered `packages/cli`. Link the run in the step 10 report
 
 ## 13. Update Technical Documentation (MANDATORY)
 

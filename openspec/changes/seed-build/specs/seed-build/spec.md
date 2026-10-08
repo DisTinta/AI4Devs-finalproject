@@ -118,11 +118,13 @@ of them. The keys SHALL be:
 - file: name, path;
 - symbol: name, file path, kind, start line, symbol name;
 - commit: name, sha;
-- edge: name, kind, resolution, extractor, and for its source and its target the endpoint type
-  (`file` or `symbol`) followed by that endpoint's key without the project name.
+- edge: name, kind, resolution, extractor, for its source and its target the endpoint type
+  (`file` or `symbol`) followed by that endpoint's key without the project name, and always, last,
+  an occurrence index `#n`.
 
-Edges that share the whole key SHALL be ordered by weight (a missing weight first) and then by order
-of appearance, and SHALL get an occurrence index `#0`, `#1`, … appended to the key. Every reference
+Every edge key SHALL end with its occurrence index, joined with the separator. Edges equal in the
+rest of the key SHALL be ordered by weight (a missing weight first) and then by order of appearance,
+and SHALL get `#0`, `#1`, … in that order; an edge whose key is unique SHALL get `#0`. Every reference
 (`project_id`, `file_id`, `commit_id`, the endpoints of an edge) SHALL point to the derived id of
 the row it referenced.
 

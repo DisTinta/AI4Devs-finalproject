@@ -95,3 +95,9 @@ Not assessed: the plan the session runs on cannot be verified from the repositor
 
 - Status: PASS
 - Blocking issues: none
+
+## Addendum — CI on PR #29 (step 12.2)
+
+- First run (head `a864f85`): `quality`, `frontend`, `scope` green; `secrets` red (gitleaks `generic-api-key` on two `author_hash` values of the seed). Fixed in `9cff8ee`; see `2026-10-08-verify-against-spec.md`, addendum, and design → Follow-ups A.
+- Run on head `364e672`: all green — [CI run 37813351733](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37813351733) (`quality` 8m33s, `scope`, `secrets` 7s), [Frontend run 37813351731](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37813351731).
+- `quality`: the paths filter lists the five new spec files; Vitest 53 files passed (integration included, with Postgres and Git); mutation step on critical paths: all files 93.89 %, `packages/cli/src/seed` 91.00 %.
