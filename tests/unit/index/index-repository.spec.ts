@@ -309,6 +309,35 @@ describe('index repository', () => {
     expect(w.saved[0].fileCommits).toEqual([{ file: 'app/A.php', sha: SHA }]);
   });
 
+  it('C1, bidirectional and separator characters make a path invalid', async () => {
+    // Arrange: one file per forbidden code point, built from numbers so no invisible character is
+    // ever written into this source file.
+    const forbidden = [0x80, 0x9b, 0x9f, 0x61c, 0x200e, 0x200f, 0x202a, 0x202e, 0x2066, 0x2069, 0x2028, 0x2029];
+    const invalid = forbidden.map((codePoint) => `app/x${String.fromCodePoint(codePoint)}y.php`);
+    const ok: SourceFile = { path: 'ok.php', content: '<?php\n' };
+    const accented: SourceFile = { path: 'caf' + String.fromCodePoint(0xe9) + '.php', content: '<?php\n' };
+    const zeroWidth: SourceFile = { path: 'z' + String.fromCodePoint(0x200b) + '.php', content: '<?php\n' };
+    const w = world({
+      tree: {
+        files: [ok, ...invalid.map((path) => ({ path, content: '<?php\n' })), accented, zeroWidth],
+        skipped: [],
+      },
+      history: { head: SHA, commits: [{ sha: SHA, message: 'feat: a' }], fileCommits: [] },
+    });
+
+    // Act
+    const report = await indexRepository(w.deps, input());
+
+    // Assert
+    expect(w.analyzed).toEqual([[ok, accented, zeroWidth]]);
+    expect(report.skipped).toHaveLength(forbidden.length);
+    for (const path of invalid) expect(report.skipped).toContainEqual({ path, reason: 'invalid-path' });
+    const savedPaths = w.saved[0].files.map((file) => file.path);
+    for (const codePoint of forbidden) {
+      expect(savedPaths.some((path) => path.includes(String.fromCodePoint(codePoint)))).toBe(false);
+    }
+  });
+
   it('The analyzer only receives redacted content', async () => {
     // Arrange: a synthetic AWS access key id, built here so no secret-shaped literal is committed.
     const key = 'AK' + 'IA' + 'Z7Q2W4E6R8T0Y1U3';
