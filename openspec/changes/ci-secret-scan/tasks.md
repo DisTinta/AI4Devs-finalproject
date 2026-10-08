@@ -111,7 +111,7 @@
 - [x] 9.5 Docs: `fixtures/README.md` (allowlist by value, regeneration recipe), `docs/project-context.md` (CI bullet and the gotcha now about matched text, not line numbers), `readme.md` tree (`.gitleaks.toml`); design D7 marked as superseded for the tree section
   - `fixtures/README.md` section rewritten (model, unredacted check, regeneration recipe run as written: 13 tree values, history gives the 1 fingerprint of the file); project-context CI bullet and gotcha; readme tree lists `.gitleaks.toml`; D7 marked superseded; proposal What Changes / Non-goals / Impact.
 - [x] 9.6 Re-run C5(a) with the new behaviour (a line inserted above → still «no leaks found»; the matched text edited → red) and record it in a report; C1 on CI after the push
-  - C5(a) re-run: line inserted above gives «no leaks found»; one character of the matched text changed gives 2 findings at line 120; restored (sha256 identical). C1 on CI after the push.
+  - C5(a) re-run: line inserted above gives «no leaks found»; one character of the matched text changed gives 2 findings at line 120; restored (sha256 identical). C1 on the final head `426b7f1`: run 37768286114, `secrets` and `quality` green, both scans with `--config .gitleaks.toml`.
 - [x] 9.7 Deferred Minors of `/adversarial-review` as destination C: one Spanish checklist comment on DIS-87 and the same list in design Follow-ups; the lockfile limit documented in `fixtures/README.md`
   - Spanish checklist comment on DIS-87 (6 items) and design Follow-ups; lockfile and PEM-body limits documented in `fixtures/README.md`.
 - [x] 9.8 Reports: `reports/2026-10-08-adversarial-review.md` (findings, decisions, RED/GREEN evidence); `prompts.md` §32 and `reports/pr-description.md` updated

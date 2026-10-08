@@ -116,3 +116,10 @@ lines against the base, the `${{` lines of the job are in `env:` blocks or on th
   picked a `.json` file and `cd` failed); it only moved `.gitleaksignore` out and back — verified
   intact. The probe script now aborts on a failed `cd`.
 - Unredacted reports stayed in the scratchpad; `tree.json` deleted after use.
+
+## CI on the final head
+
+PR #26, head `426b7f1`, [run 37768286114](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37768286114): `secrets` success — `gitleaks_8.30.1_linux_x64.tar.gz: OK`,
+`8.30.1`, range `bc3e395..426b7f1`, both scans with `--config .gitleaks.toml`, tree «no leaks found»,
+git «9 commits scanned.» «no leaks found», no `npm ci`/`npm install`; `scope` success; `quality`
+success (1 min 38 s, ran in full because `ci.yml` changed); Frontend success.
