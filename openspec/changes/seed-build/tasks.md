@@ -92,7 +92,7 @@
 - [x] 13.3 `readme.md` §1.4: check the `seed:build` sentence (~345) is still true; do not rewrite the "2 projects" output (PH-02, DIS-92 / CM-HU-18.3)
 - [x] 13.4 No ADR (design D10); confirm nothing in the implementation contradicted that
 - [x] 13.5 Run `/update-docs` and confirm the docs gate passes (`npm run docs:coverage`, JSDoc on every export). Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
-- [ ] 13.6 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the author's Why transcribed and the Stryker score; after verification, set DIS-91 to In Review in Linear with a comment in Spanish linking the PR and the change
+- [x] 13.6 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the author's Why transcribed and the Stryker score; after verification, set DIS-91 to In Review in Linear with a comment in Spanish linking the PR and the change
 
 ## 14. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
