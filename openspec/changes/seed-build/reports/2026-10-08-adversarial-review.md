@@ -98,3 +98,16 @@ Verification after the fixes: full suite 53 files / 730 tests green; lint 0 erro
 3. Broad invalidation: B — hand-off comment on CM-HU-14.1 (PR policy on fingerprint mismatch).
 4. 12.2: link the `quality` run of the final head, then close 12.2.
 5. Unchanged from round 1: C («Deuda: seed-build») and D (archive note).
+
+## Addendum — Round 2 destinations and fixes (2026-10-08)
+
+| Finding (round 2) | Destination | Fix / record | Commit |
+|---|---|---|---|
+| Minor — ignored files under `fixtures/acme-shop` change the fingerprint | A | Probe with the nested `fixtures/acme-shop/.git` present: an ignored `fixtures/acme-shop/vendor/probe.txt` was created; `git clean -ndX fixtures/acme-shop` printed `Would remove fixtures/acme-shop/vendor/` (also `git status --ignored --porcelain fixtures/acme-shop` → `!! fixtures/acme-shop/vendor/`, `git check-ignore -v` → `fixtures/acme-shop/.gitignore:1:/vendor`); after removing it, `git clean -ndX fixtures/acme-shop` printed nothing. Precondition of every regeneration — `git status --porcelain fixtures` and `git clean -ndX fixtures/acme-shop` print nothing — written in design Risks ("untracked or ignored"), `docs/project-context.md` and task 11.1. Fingerprint code not changed. | `a284d6b` |
+| Minor — "everything that produces the rows" overclaims | A | "Every repository file that produces the rows" in design D6, the JSDoc of `collectFingerprintInputs` and the two related doc comments in `fingerprint.ts`, the spec, the proposal and `docs/project-context.md`; `AUTHOR_HASH_SALT` (PH-11) and the `git` binary version named as not covered. `42f44af` not rewritten. Since `fingerprint.ts` is an analyzer input, the seed was regenerated: only the `analyzer-fingerprint` line changes (`87774032…` → `6ad32999…`); two runs leave `git diff --exit-code seeds/` clean. | `a284d6b` |
+| Minor — the input set invalidates broadly | B | Spanish hand-off comment on DIS-44 (CM-HU-14.1), linking PR #29 and design D6: that ticket decides the CI policy on a fingerprint mismatch (warn, fail, or regenerate in CI). [Comment](https://linear.app/distinta-ai4devs/issue/DIS-44/cm-hu-141-verify-real-huella-comparacion-estructural-contra-golden-sin#comment-264a9e7e); design Follow-ups. | `a284d6b` (design) |
+| Question — 12.2 | — | Closed with the CI run of the final head (step 10 report, addendum). | — |
+
+After `a284d6b`: `tests/unit/cli` 79/79; precondition commands print nothing; gitleaks 8.30.1 `git` over the PR range and `dir .` → no leaks found.
+
+**Final state of the review: no Blocker and no Major.** Deferred: C («Deuda: seed-build» on DIS-91) and D (spec edited after implementation, `#0`; archive note).
