@@ -1,0 +1,8 @@
+# gitleaks ignore file (DIS-87). Only commit-bound fingerprints: a hito-2 finding whose value is
+# not in the working tree any more, so .gitleaks.toml cannot allow it by value. A fingerprint bound
+# to a commit cannot hide a new commit. Working-tree synthetic findings are allowed by exact value
+# in .gitleaks.toml (design D10 of openspec change ci-secret-scan); regeneration in
+# fixtures/README.md, section "CI secret scan".
+
+# Example PEM block in the security-gateway change spec as it stood in commit cb4e6aa
+cb4e6aa71c5cea7667a75fc475a1e92f4a0d4e22:openspec/changes/security-gateway/specs/security-gateway/spec.md:private-key:126

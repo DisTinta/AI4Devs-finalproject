@@ -444,7 +444,7 @@ flowchart TB
 | Context Engine | TypeScript | Anclaje de entidades, expansión por grafo, ranking híbrido, presupuesto de tokens |
 | Verificador de evidencias | TypeScript + LLM acotado | Validación sintáctica y semántica de cada cita |
 | Caché semántica | TypeScript + pgvector | Reutiliza respuestas de preguntas equivalentes; sostiene el modo demo |
-| Security Gateway | `gitleaks` + reglas propias | Secretos antes de indexar, sanitización, aislamiento por proyecto |
+| Security Gateway | Reglas propias en proceso + `gitleaks` en CI | Secretos antes de indexar, sanitización, aislamiento por proyecto; escaneo de secretos del repositorio en cada PR y cada push a `main` |
 | Persistencia | **PostgreSQL 16 + pgvector** | Nodos, aristas, embeddings, afirmaciones, evidencias, uso |
 
 **Sobre `drift`.** Es el comando de la funcionalidad F6, que es *should-have* y vive en la reserva del calendario: puede no entrar en esta versión. Aparece ya en el diagrama, en la CLI y en el enum `capability` de `QUERY_LOG` porque el punto de extensión conviene diseñarlo ahora —añadir un valor a un enum con datos dentro es una migración, no un cambio de código— pero se documenta como **previsto, no entregado**. La distinción no es cosmética: un README que anuncia un comando que el código no tiene es exactamente la divergencia entre documentación y código que F6 existe para detectar.
@@ -517,7 +517,7 @@ AI4Devs-finalproject/
 ├── .github/workflows/ci.yml
 ├── docker-compose.yml
 ├── Makefile
-├── .gitignore · .gitattributes
+├── .gitignore · .gitattributes · .gitleaks.toml · .gitleaksignore
 ├── readme.md
 └── prompts.md
 ```
@@ -540,7 +540,7 @@ En este proyecto, **«despliegue» (Entrega 3) significa artefacto reproducible*
 flowchart LR
     DEV["Local<br/>make up<br/>Postgres + pgvector"]
     GH["GitHub<br/>fork de la plantilla"]
-    CI["GitHub Actions<br/>lint · arquitectura · unit · integración · E2E · verify"]
+    CI["GitHub Actions<br/>lint · arquitectura · unit · integración · E2E · verify · secretos"]
     DB[("Postgres<br/>en Compose / CI")]
     LLM["LLM opcional<br/>Ollama u otro"]
 

@@ -196,9 +196,61 @@ anchored to symbols so it survives edits.
 gitleaks 8.30.1 as rule `aws-access-token` (entropy 4.12). HU1 must store it
 redacted.
 
-> **CI note (pending hito 2).** When the repository has a gitleaks CI step,
-> add a `.gitleaksignore` entry by fingerprint so the scanner does not flag
-> these known-synthetic secrets in the fixture directories.
+### CI secret scan (`.gitleaks.toml`, `.gitleaksignore`)
+
+The `secrets` job of `.github/workflows/ci.yml` (DIS-87) runs gitleaks 8.30.1 on
+every PR and every push to `main`, never skipped: `gitleaks dir .` over the
+working tree, then `gitleaks git` over the commits of the event
+(`base..head` on a PR, `before..sha` on a push; tree only when `before` is all
+zeros or unreachable). Both use `--redact`, so the log names file, line, rule
+and commit, never the value. Both pass `--config .gitleaks.toml` (a missing
+file fails the job) and read `.gitleaksignore` at the repository root.
+
+**Known synthetic findings of the working tree** — the planted secret of this
+fixture and of `task-api`, an old fake key quoted in a session log, the example
+PEM blocks of the `security-gateway` specs — are allowed in `.gitleaks.toml`
+by their **exact value** (default rules plus one `[[allowlists]]` entry with
+one anchored regex each). Any other value, on the same line or anywhere else,
+is still reported, and moving a line changes nothing. Editing the matched text
+of an allowed value (for a PEM block, any character between its `BEGIN` and
+`END` lines) turns CI red until the entry is regenerated. The entries carry no
+`paths`: gitleaks 8.30.1 applies global allowlist paths as a whole-file skip.
+
+**Historical findings** — hito-2 commits whose findings are no longer in the
+tree — are fingerprinted by commit in `.gitleaksignore`
+(`commit:path:rule:line`); they cannot hide a new commit.
+
+Check that a finding is synthetic before allowing it, with an **unredacted**
+local run (`--redact` hides exactly what you need to see); a real secret is
+rotated and removed, never allowed. To regenerate, keep every report outside
+the repository and delete it afterwards:
+
+```bash
+# 1. Tree findings with the default rules only (no allowlists), unredacted
+printf '[extend]\nuseDefault = true\n' > <scratch>/defaults.toml
+mv .gitleaksignore <scratch>/gitleaksignore.full   # gitleaks always reads it
+gitleaks dir . --config <scratch>/defaults.toml --no-banner -f json -r <scratch>/tree.json
+# 2. Historical findings left once the tree values are allowed
+gitleaks git . --config .gitleaks.toml --redact --no-banner \
+  --log-opts="origin/main..HEAD" -f json -r <scratch>/history.json
+mv <scratch>/gitleaksignore.full .gitleaksignore
+```
+
+For each synthetic tree finding, add to `.gitleaks.toml` an `[[allowlists]]`
+entry with a `description` and `regexes = ['''^<Secret>$''']`, where `<Secret>`
+is the finding's `Secret` with a backslash before each of `\.+*?()|[]{}^$-`,
+`\n` for each line break, `\x{2013}`-style escapes for non-ASCII characters, and
+one alphanumeric character of a short value in brackets (`A[K]IA…`) so the file
+does not match the rules itself. Read the JSON as UTF-8 (on Windows the default
+code page turns `–` into `â€“` and the regex no longer matches). Copy the
+`Fingerprint` of each historical finding into `.gitleaksignore`. Finally
+`gitleaks dir . --config .gitleaks.toml --redact` must print «no leaks found».
+
+**Limits.** gitleaks' default allowlist skips lockfiles
+(`package-lock.json`, `fixtures/task-api/package-lock.json`): a credential in
+a `resolved` URL there is not reported. In `git` mode only the added lines of
+each diff are scanned, so changing one body line of an existing PEM block is
+caught by the tree scan, not by the commit scan.
 
 ---
 
