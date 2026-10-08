@@ -142,3 +142,69 @@ jobs:
           else
             echo "WARNING: no test files yet — skipping mutation testing until tests exist (Ticket 1/2)."
           fi
+
+  # Secret scan with gitleaks (DIS-87). Its own job on purpose: it has no `needs: scope` and no `if`,
+  # because `scope` skips `quality` on docs-only pushes and a secret pasted into a `.md` is exactly
+  # what this job must catch. No `npm ci`: a fresh checkout has no node_modules or untracked files
+  # for `gitleaks dir` to trip on. Known synthetic findings are fingerprinted in `.gitleaksignore`
+  # (see fixtures/README.md). Event values reach the shell through `env:`, never inside `run:`.
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Official release binary, checked against the SHA-256 of the release checksums.txt, written
+      # here (never downloaded in the same step). Installed outside the checkout so `dir .` does not
+      # scan it.
+      - name: Install gitleaks 8.30.1 (pinned SHA-256)
+        id: install
+        env:
+          VERSION: 8.30.1
+          SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          cd "$RUNNER_TEMP"
+          tarball="gitleaks_${VERSION}_linux_x64.tar.gz"
+          curl -sSfL -o "$tarball" "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/${tarball}"
+          echo "${SHA256}  ${tarball}" | sha256sum -c -
+          tar -xzf "$tarball" gitleaks
+          ./gitleaks version
+
+      # PR: base..head. Push to main: before..sha, or tree only when `before` is all zeros (first
+      # push) or not a reachable commit (force-push). Never fails for lack of a range.
+      - name: Commit range of this event
+        id: range
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+        run: |
+          range=
+          if [ "$EVENT" = pull_request ]; then
+            range="$BASE..$HEAD"
+          elif [ "$EVENT" = push ]; then
+            if printf '%s' "$BEFORE" | grep -qE '^0+$' || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+              echo "No usable 'before' commit (${BEFORE:-none}): tree scan only"
+            else
+              range="$BEFORE..$SHA"
+            fi
+          else
+            echo "Event $EVENT has no commit range: tree scan only"
+          fi
+          echo "range=$range" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Scan working tree
+        run: |
+          "$RUNNER_TEMP/gitleaks" dir . --redact --no-banner -v
+
+      # Runs even when the tree scan failed, so one run reports both modes.
+      - name: Scan commits of the event
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.range.outputs.range != '' }}
+        env:
+          RANGE: ${{ steps.range.outputs.range }}
+        run: |
+          "$RUNNER_TEMP/gitleaks" git . --redact --no-banner -v --log-opts="$RANGE"

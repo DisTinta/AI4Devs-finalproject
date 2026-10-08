@@ -1,0 +1,24 @@
+# Planted synthetic secrets — fixtures harness (fixtures/README.md)
+fixtures/acme-shop/config/services.php:aws-access-token:21
+fixtures/task-api/src/config/env.ts:generic-api-key:7
+
+# Old fake fixture key quoted in a session log
+docs/ai-sessions/01-revision-fixtures-y-prompt-correccion.md:aws-access-token:116
+
+# Example PEM headers in security-gateway spec scenarios
+openspec/specs/security-gateway/spec.md:private-key:120
+openspec/specs/security-gateway/spec.md:private-key:144
+openspec/specs/security-gateway/spec.md:private-key:155
+openspec/changes/archive/2026-10-05-security-gateway/specs/security-gateway/spec.md:private-key:118
+openspec/changes/archive/2026-10-05-security-gateway/specs/security-gateway/spec.md:private-key:142
+openspec/changes/archive/2026-10-05-security-gateway/specs/security-gateway/spec.md:private-key:153
+
+# Historical findings in hito-2 commits (stable SHAs, history is never rewritten)
+cb4e6aa71c5cea7667a75fc475a1e92f4a0d4e22:openspec/changes/security-gateway/specs/security-gateway/spec.md:aws-access-token:49
+cb4e6aa71c5cea7667a75fc475a1e92f4a0d4e22:openspec/changes/security-gateway/specs/security-gateway/spec.md:private-key:91
+cb4e6aa71c5cea7667a75fc475a1e92f4a0d4e22:openspec/changes/security-gateway/specs/security-gateway/spec.md:private-key:115
+cb4e6aa71c5cea7667a75fc475a1e92f4a0d4e22:openspec/changes/security-gateway/specs/security-gateway/spec.md:private-key:126
+25387aaf8c5678d219005dab0b36a2ae11336dde:revision-fixtures-y-prompt-correccion.md:aws-access-token:114
+3b7a5c881cf739d77cb4c3bb4910554f60494c56:fixtures/README.md:aws-access-token:166
+8debc59598ddafe120c31326efedb62d032a44c2:fixtures/README.md:aws-access-token:188
+054f7baa5e115afa92e466f4f2e679355532175a:fixtures/task-api/src/config/env.ts:aws-access-token:12
