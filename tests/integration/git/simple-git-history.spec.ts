@@ -2,12 +2,17 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
+import { PassThrough } from 'node:stream';
 import { pathToFileURL } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { coChangeEdges, DomainError, NotAGitRepository, pseudonymiseAuthor } from '@codemind/core';
 import type { KnowledgeGraph } from '@codemind/core';
 import { createSimpleGitHistory } from '../../../packages/adapters/git/src/index';
-import { ACCENTED_PATH, armOutputConfig, armPartialCloneTrap, armProgramTraps, buildHostileRepository } from './hostile-repository';
+import { LOG_ARGUMENTS, parseLog } from '../../../packages/adapters/git/src/parse-log';
+import { GIT_CONFIG } from '../../../packages/adapters/git/src/repository';
+import type { GitProcess } from '../../../packages/adapters/git/src/repository';
+import { simpleGitHistoryWith } from '../../../packages/adapters/git/src/simple-git-history';
+import { ACCENTED_PATH, armOutputConfig, armPartialCloneTrap, armProgramTraps, buildHostileRepository, commitRawPaths } from './hostile-repository';
 import { createPostgresStore } from '../../../packages/adapters/store-postgres/src/index';
 import { describeWithDatabase, useTransactionPerTest } from '../helpers/db';
 import { unique } from '../helpers/factories';
@@ -281,6 +286,109 @@ describe('git history', () => {
       expect(fileCommits.map((link) => link.file).sort()).toEqual([...paths].sort());
       expect(fileCommits.every((link) => link.linesAdded === 2 && link.linesRemoved === 0)).toBe(true);
     });
+  });
+
+  describe('streamed reading', () => {
+    it('A link whose path is not UTF-8 is left out', async () => {
+      // Arrange: `a` 0xFF `.php`, written through Git's object commands only.
+      const repository = emptyRepository();
+      const sha = commitRawPaths(
+        repository,
+        [
+          { path: Buffer.from('ok.php'), content: '<?php\n' },
+          { path: Buffer.from([0x61, 0xff, 0x2e, 0x70, 0x68, 0x70]), content: '<?php // ff\n' },
+        ],
+        'feat: raw paths',
+      );
+
+      // Act
+      const { commits, fileCommits } = await history.readHistory(repository);
+
+      // Assert
+      expect(commits.map((commit) => commit.sha)).toEqual([sha]);
+      expect(fileCommits).toEqual([{ file: 'ok.php', sha, linesAdded: 1, linesRemoved: 0 }]);
+      expect(fileCommits.some((link) => link.file.includes(String.fromCodePoint(0xfffd)))).toBe(false);
+    });
+
+    it("rejects with git's error, never a partial history, when git fails part-way", async () => {
+      // Arrange: a three-commit repository.
+      const repository = emptyRepository();
+      for (const name of ['a', 'b', 'c']) {
+        writeFileSync(join(repository, `${name}.php`), `<?php // ${name}` + String.fromCharCode(10));
+        git(repository, 'add', '.');
+        git(repository, 'commit', '-q', '-m', `feat: ${name}`);
+      }
+      // `git log` runs for real; the process handed to the reader is a stand-in that delivers the
+      // first half of that output and then fails as git would.
+      let delivered = 0;
+      const failing = simpleGitHistoryWith({ authorHashSalt: SALT }, (root, args) => {
+        const whole = execFileSync('git', [...GIT_CONFIG.flatMap((entry) => ['-c', entry]), ...args], { cwd: root });
+        const stdout = new PassThrough();
+        const child = { stdout, stdin: new PassThrough(), kill: () => true } as unknown as GitProcess['child'];
+        const finished = new Promise<void>((_, reject) => {
+          delivered = Math.floor(whole.length / 2);
+          stdout.write(whole.subarray(0, delivered));
+          setImmediate(() => {
+            stdout.end();
+            reject(new Error('fatal: simulated failure part-way'));
+          });
+        });
+        return { child, finished };
+      });
+
+      // Act
+      const result = await failing.readHistory(repository).then(
+        (history) => ({ history }),
+        (error: unknown) => ({ error }),
+      );
+
+      // Assert
+      expect(delivered).toBeGreaterThan(0);
+      expect(result).not.toHaveProperty('history');
+      expect((result as { error: Error }).error.message).toBe('fatal: simulated failure part-way');
+    });
+
+    it('A long history read as a stream equals the history read whole', async () => {
+      // Arrange: 300 commits, each touching two files, with multi-byte characters in every message,
+      // written by one `git fast-import` so the setup stays fast. Each body adds ~400 bytes, so the
+      // output spans many pipe chunks and values are split across them.
+      const body = (index: number) => `body ${'é'.repeat(index % 40)} ${'ñ🚀'.repeat(60)}`;
+      const repository = emptyRepository();
+      const commands: Buffer[] = [];
+      const data = (text: string) => {
+        const bytes = Buffer.from(text, 'utf8');
+        return Buffer.concat([Buffer.from(`data ${bytes.length}\n`), bytes, Buffer.from('\n')]);
+      };
+      for (let index = 1; index <= 300; index++) {
+        commands.push(
+          Buffer.from(`commit refs/heads/main\nmark :${index}\n`),
+          Buffer.from(`author Ñandú Test <test.author@example.test> ${1_700_000_000 + index * 60} +0000\n`, 'utf8'),
+          Buffer.from(`committer Test Author <test.author@example.test> ${1_700_000_000 + index * 60} +0000\n`),
+          data(`feat: señal ${index} — ñandú 🚀 €\n\n${body(index)}\n`),
+          Buffer.from(index === 1 ? '' : `from :${index - 1}\n`),
+          Buffer.from(`M 100644 inline src/a${index % 7}.php\n`),
+          data(`<?php // ${index}\n`),
+          Buffer.from(`M 100644 inline docs/ñ${index % 5}.md\n`, 'utf8'),
+          data(`# ${index}\n`),
+          Buffer.from('\n'),
+        );
+      }
+      execFileSync('git', ['fast-import', '--quiet'], { cwd: repository, input: Buffer.concat(commands) });
+      const whole = execFileSync('git', [...GIT_CONFIG.flatMap((entry) => ['-c', entry]), ...LOG_ARGUMENTS], {
+        cwd: repository,
+        maxBuffer: 64 * 1024 * 1024,
+      });
+
+      // Act
+      const streamed = await history.readHistory(repository);
+
+      // Assert
+      expect(streamed.commits).toHaveLength(300);
+      expect(streamed.fileCommits).toHaveLength(600);
+      expect(whole.length).toBeGreaterThan(128 * 1024);
+      expect(streamed.commits[0].message).toBe(`feat: señal 300 — ñandú 🚀 €\n\n${body(300)}`);
+      expect(streamed).toEqual(parseLog(whole, SALT));
+    }, 60_000);
   });
 
   describe('author pseudonymisation', () => {
