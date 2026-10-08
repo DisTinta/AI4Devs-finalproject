@@ -196,9 +196,35 @@ anchored to symbols so it survives edits.
 gitleaks 8.30.1 as rule `aws-access-token` (entropy 4.12). HU1 must store it
 redacted.
 
-> **CI note (pending hito 2).** When the repository has a gitleaks CI step,
-> add a `.gitleaksignore` entry by fingerprint so the scanner does not flag
-> these known-synthetic secrets in the fixture directories.
+### CI secret scan (`.gitleaksignore`)
+
+The `secrets` job of `.github/workflows/ci.yml` (DIS-87) runs gitleaks 8.30.1 on
+every PR and every push to `main`, never skipped: `gitleaks dir .` over the
+working tree, then `gitleaks git` over the commits of the event
+(`base..head` on a PR, `before..sha` on a push; tree only when `before` is all
+zeros or unreachable). Both use `--redact`, so the log names file, line, rule
+and commit, never the value. Both read `.gitleaksignore` at the repository root.
+
+`.gitleaksignore` lists known-synthetic findings by **fingerprint**, grouped
+under `#` comments by reason: the planted secret of this fixture and of
+`task-api`, example PEM headers in the `security-gateway` specs, an old fake
+key quoted in a session log (`path:rule:line`), and the findings of hito-2
+commits that are no longer in the tree (`commit:path:rule:line`). A
+fingerprint carries the line number: editing a file above an ignored line
+moves it and turns CI red. To regenerate (copy the `Fingerprint` field of each
+finding):
+
+```bash
+# Tree section (path:rule:line)
+gitleaks dir . --redact -f json -r <tree-report.json>
+# Historical section (commit:path:rule:line), with an ignore file that holds
+# only the tree section, so only the commit-bound findings remain
+gitleaks git . --redact --log-opts="origin/main..HEAD" \
+  --gitleaks-ignore-path <ignore-with-tree-section-only> -f json -r <history-report.json>
+```
+
+Check that a finding is synthetic before fingerprinting it; a real secret is
+rotated and removed, never ignored.
 
 ---
 

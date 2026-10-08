@@ -76,6 +76,13 @@ Verified against `package.json` (root and per package). If a command is not here
   runs on PR open/reopen, on `main`, after a force-push or a non-green previous head. A skipped job
   counts as passed for required checks. Keep test-file edits (even comments, such as spec paths in
   test headers) out of the archive commit, or it runs in full.
+- CI secret scan (DIS-87): the `secrets` job of `ci.yml` runs gitleaks 8.30.1 (official binary,
+  pinned by SHA-256 in the workflow) on every PR and push to `main`. Own job: no `needs: scope`, no
+  `if`, never skipped — a docs-only push skips `quality` but not `secrets`. No `npm ci`. It runs
+  `gitleaks dir .` and `gitleaks git` over the event range (`base..head` on a PR, `before..sha` on a
+  push; tree only when `before` is all zeros or unreachable), both `--redact`. Known synthetic
+  findings are fingerprinted in `.gitleaksignore`; how to regenerate them is in `fixtures/README.md`
+  → "CI secret scan". Locally: `gitleaks dir . --redact` (gitleaks 8.30.1).
 - Docs coverage: `npm run docs:coverage` (or `npx typedoc --validation.notDocumented --logLevel Warn`)
   — TypeDoc over the backend packages via root `typedoc.json`. HTML lands in `docs/api/` (gitignored).
   `CMD_DOCS_COVERAGE` in `.claude/sdd-harness.env` points here. `packages/web` is out of scope (React
@@ -309,6 +316,13 @@ services that must be started first, quirks of the local environment.
   testing has real mutants since DIS-23 (`packages/core/src/knowledge/`, 86.82 % at DIS-23 merge, 90.09 % with DIS-35, 92.23 % with DIS-36; `packages/core/src/index/` since DIS-84, 95.11 % for all of core; 96.48 % for `index/` with DIS-85; threshold
   `MIN_MUTATION_SCORE=70`).
   These are intentional scaffolding, not bugs — do not "fix" a stub by faking behaviour.
+- **`.gitleaksignore` fingerprints carry line numbers** (DIS-87). Tree entries are
+  `path:rule:line`: editing above an ignored line (the planted fixture secrets, the PEM headers in
+  `openspec/specs/security-gateway/spec.md` and its archived copy, the session log in
+  `docs/ai-sessions/`) moves the finding and turns the `secrets` job red. Run `gitleaks dir . --redact`
+  before pushing such an edit and regenerate the fingerprint per `fixtures/README.md` → "CI secret
+  scan", after checking the finding is synthetic. Historical entries (`commit:path:rule:line`) are
+  stable because history is never rewritten.
 - **The infra packages are stubs, not empty.** All 9 workspaces (`core`, `analyzers/{php,typescript}`,
   `adapters/{store-postgres,llm,git}`, `api`, `cli`, `web`) have a `package.json` and a `src/index.ts`,
   but the analyzer/adapter ones are empty stubs (dependency-cruiser flags them as `no-orphans` warns).
