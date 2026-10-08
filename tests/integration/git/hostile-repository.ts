@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -150,4 +150,29 @@ export function armPartialCloneTrap(repository: string, outside: string, path: s
   }
   rmSync(join(repository, '.git', 'objects', blob.slice(0, 2), blob.slice(2)));
   return marker;
+}
+
+/** One file of {@link commitRawPaths}: its path as raw bytes, and its content. */
+export interface RawPathFile {
+  path: Buffer;
+  content: string;
+}
+
+/**
+ * Commits `files` on top of the current branch of `repository` (or as its root commit) through Git's
+ * object commands only, so a path whose bytes are not valid UTF-8 never touches the file system
+ * (Windows cannot hold such a name). Every path is a top-level name: `git mktree` is not recursive.
+ *
+ * @returns The sha of the new commit, which the current branch now names.
+ */
+export function commitRawPaths(repository: string, files: readonly RawPathFile[], message: string): string {
+  const records = files.map((file) => {
+    const blob = execFileSync('git', ['hash-object', '-w', '--stdin'], { cwd: repository, input: file.content, encoding: 'utf8' }).trim();
+    return Buffer.concat([Buffer.from(`100644 blob ${blob}\t`), file.path, Buffer.from([0])]);
+  });
+  const tree = execFileSync('git', ['mktree', '-z'], { cwd: repository, input: Buffer.concat(records), encoding: 'utf8' }).trim();
+  const parent = spawnSync('git', ['rev-parse', '--verify', '--quiet', 'HEAD'], { cwd: repository, encoding: 'utf8' }).stdout.trim();
+  const commit = git(repository, 'commit-tree', tree, ...(parent === '' ? [] : ['-p', parent]), '-m', message);
+  git(repository, 'update-ref', 'HEAD', commit);
+  return commit;
 }

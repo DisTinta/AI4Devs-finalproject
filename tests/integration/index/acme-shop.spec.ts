@@ -19,8 +19,12 @@ import { unique } from '../helpers/factories';
 // is built there once: never in `fixtures/` (PH-22). The store runs on the harness transaction, so
 // every row is reverted when the test ends.
 
-/** One indexing spawns a git process per blob plus the PHP parse: well above Vitest's 5 s default. */
-const INDEXING_TIMEOUT_MS = 60_000;
+/**
+ * One indexing reads every blob through one `git cat-file --batch` process, plus the PHP parse:
+ * ~1.5 s alone (it was ~6 s with one git process per blob), more while the whole suite runs in
+ * parallel, so the margin over Vitest's 5 s default stays.
+ */
+const INDEXING_TIMEOUT_MS = 20_000;
 
 type BuildOne = (name: string, cfg: { dir: string; manifest: string }) => Promise<void>;
 

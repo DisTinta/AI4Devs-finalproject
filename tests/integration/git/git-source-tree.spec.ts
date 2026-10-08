@@ -2,10 +2,14 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { PassThrough } from 'node:stream';
 import { afterAll, describe, expect, it } from 'vitest';
 import { DomainError, EmptyRepository, NotAGitRepository } from '@codemind/core';
 import { createGitSourceTree, createSimpleGitHistory } from '../../../packages/adapters/git/src/index';
-import { ACCENTED_PATH, armOutputConfig, armPartialCloneTrap, armProgramTraps, buildHostileRepository } from './hostile-repository';
+import { spawnReaderGit } from '../../../packages/adapters/git/src/repository';
+import type { GitProcess, GitSpawner } from '../../../packages/adapters/git/src/repository';
+import { gitSourceTreeWith } from '../../../packages/adapters/git/src/git-source-tree';
+import { ACCENTED_PATH, armOutputConfig, armPartialCloneTrap, armProgramTraps, buildHostileRepository, commitRawPaths } from './hostile-repository';
 
 // Spec: openspec/specs/repository-indexing/spec.md, requirement "Source tree
 // contract". Each test named after a scenario is that scenario. Every repository is a throwaway one
@@ -39,6 +43,28 @@ function emptyRepository(): string {
 afterAll(() => {
   for (const directory of temporaryDirectories) rmSync(directory, { recursive: true, force: true });
 });
+
+/**
+ * A source tree whose `cat-file --batch` process records every object id written to its stdin, so a
+ * test can prove that an entry was never read.
+ */
+function observingSourceTree(requested: string[]) {
+  const spawnGit: GitSpawner = (root, args) => {
+    const started = spawnReaderGit(root, args);
+    if (args[0] === 'cat-file' && args[1] === '--batch') {
+      const stdin = started.child.stdin;
+      const write = stdin.write.bind(stdin) as (chunk: string) => boolean;
+      Object.assign(stdin, {
+        write: (chunk: string) => {
+          requested.push(...String(chunk).split(String.fromCharCode(10)).filter((line) => line !== ''));
+          return write(chunk);
+        },
+      });
+    }
+    return started;
+  };
+  return gitSourceTreeWith(spawnGit);
+}
 
 describe('git source tree', () => {
   const sourceTree = createGitSourceTree();
@@ -304,6 +330,90 @@ describe('git source tree', () => {
     expect(tree.files.map((file) => file.path)).toContain(ACCENTED_PATH);
   });
 
+  it('A file over the size limit is skipped without being read', async () => {
+    // Arrange: ASCII text, so only the size can make a file skipped.
+    const repository = emptyRepository();
+    writeFileSync(join(repository, 'small.php'), '<?php\n');
+    writeFileSync(join(repository, 'edge.txt'), 'e'.repeat(1_048_576));
+    writeFileSync(join(repository, 'big.txt'), 'b'.repeat(1_048_577));
+    git(repository, 'add', '.');
+    git(repository, 'commit', '-q', '-m', 'feat: sizes');
+    const requested: string[] = [];
+
+    // Act
+    const tree = await observingSourceTree(requested).readFiles(repository);
+
+    // Assert: big.txt's object was never asked for, so its content was never read.
+    expect(requested).not.toContain(git(repository, 'rev-parse', 'HEAD:big.txt'));
+    expect(requested).toContain(git(repository, 'rev-parse', 'HEAD:edge.txt'));
+    expect(tree.files.map((file) => file.path).sort()).toEqual(['edge.txt', 'small.php']);
+    expect(tree.files.find((file) => file.path === 'edge.txt')?.content).toBe('e'.repeat(1_048_576));
+    expect(tree.skipped).toEqual([{ path: 'big.txt', reason: 'too-large' }]);
+  });
+
+  it('Paths that are not UTF-8 are skipped and never merged', async () => {
+    // Arrange: `a` 0xFF `.php` and `a` 0xFE `.php`, written through Git's object commands only.
+    const repository = emptyRepository();
+    commitRawPaths(
+      repository,
+      [
+        { path: Buffer.from('ok.php'), content: '<?php\n' },
+        { path: Buffer.from([0x61, 0xff, 0x2e, 0x70, 0x68, 0x70]), content: '<?php // ff\n' },
+        { path: Buffer.from([0x61, 0xfe, 0x2e, 0x70, 0x68, 0x70]), content: '<?php // fe\n' },
+      ],
+      'feat: raw paths',
+    );
+    const requested: string[] = [];
+
+    // Act
+    const tree = await observingSourceTree(requested).readFiles(repository);
+
+    // Assert: only ok.php's object was asked for; the two non-UTF-8 entries were never read.
+    expect(requested).toEqual([git(repository, 'rev-parse', 'HEAD:ok.php')]);
+    const lossy = 'a' + String.fromCodePoint(0xfffd) + '.php';
+    expect(tree.files).toEqual([{ path: 'ok.php', content: '<?php\n' }]);
+    expect(tree.skipped).toEqual([
+      { path: lossy, reason: 'non-utf8-path' },
+      { path: lossy, reason: 'non-utf8-path' },
+    ]);
+  });
+
+  it('Many files are read without one process per file', async () => {
+    // Arrange: the same reader shape over 1 and 500 tracked files, counting the git processes the
+    // adapter starts itself (the simple-git repository checks are a fixed number of calls).
+    const small = emptyRepository();
+    writeFileSync(join(small, 'f0.php'), '<?php // 0\n');
+    git(small, 'add', '.');
+    git(small, 'commit', '-q', '-m', 'feat: one file');
+    const large = emptyRepository();
+    for (let index = 0; index < 500; index++) writeFileSync(join(large, `f${index}.php`), `<?php // ${index}\n`);
+    git(large, 'add', '.');
+    git(large, 'commit', '-q', '-m', 'feat: 500 files');
+    const counts: number[] = [];
+    const countingTree = () => {
+      let started = 0;
+      counts.push(0);
+      const slot = counts.length - 1;
+      const spawnGit: GitSpawner = (root, args) => {
+        started++;
+        counts[slot] = started;
+        return spawnReaderGit(root, args);
+      };
+      return gitSourceTreeWith(spawnGit);
+    };
+
+    // Act
+    const fromSmall = await countingTree().readFiles(small);
+    const fromLarge = await countingTree().readFiles(large);
+
+    // Assert
+    expect(fromSmall.files).toHaveLength(1);
+    expect(fromLarge.files).toHaveLength(500);
+    expect(fromLarge.files.find((file) => file.path === 'f499.php')?.content).toBe('<?php // 499\n');
+    expect(counts[0]).toBeGreaterThan(0);
+    expect(counts[1]).toBe(counts[0]);
+  }, 60_000);
+
   it('The real path follows symbolic links', async () => {
     // Arrange: a junction needs no privilege on Windows; elsewhere a plain directory link.
     const target = temporaryDirectory();
@@ -322,6 +432,93 @@ describe('git source tree', () => {
   });
 
   describe('extra cases', () => {
+    it("rejects with git's error when the object of an entry that would be skipped is missing", async () => {
+      // Arrange: a symbolic link whose blob is removed; it would be skipped, but the repository is
+      // incomplete, so nothing is indexed from it.
+      const repository = emptyRepository();
+      writeFileSync(join(repository, 'a.php'), '<?php' + String.fromCharCode(10));
+      git(repository, 'add', '.');
+      const linkBlob = execFileSync('git', ['hash-object', '-w', '--stdin'], { cwd: repository, input: '../gone.php', encoding: 'utf8' }).trim();
+      git(repository, 'update-index', '--add', '--cacheinfo', `120000,${linkBlob},lib/link.php`);
+      git(repository, 'commit', '-q', '-m', 'feat: a and a link');
+      rmSync(join(repository, '.git', 'objects', linkBlob.slice(0, 2), linkBlob.slice(2)));
+
+      // Act
+      const error = await sourceTree.readFiles(repository).catch((caught: unknown) => caught);
+
+      // Assert
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toBe(`fatal: git cat-file ${linkBlob}: bad file`);
+    });
+
+    it("rejects with git's error when cat-file dies part-way through the batch", async () => {
+      // Arrange: the real `cat-file --batch` answers for two files, cut in the middle of the second
+      // blob and handed to the reader by a stand-in process that then fails as git would.
+      const repository = emptyRepository();
+      writeFileSync(join(repository, 'a.php'), '<?php // a' + String.fromCharCode(10));
+      writeFileSync(join(repository, 'b.php'), '<?php // b' + String.fromCharCode(10));
+      git(repository, 'add', '.');
+      git(repository, 'commit', '-q', '-m', 'feat: two files');
+      const ids = ['a.php', 'b.php'].map((path) => git(repository, 'rev-parse', `HEAD:${path}`));
+      const answers = execFileSync('git', ['cat-file', '--batch'], { cwd: repository, input: ids.join(String.fromCharCode(10)) + String.fromCharCode(10) });
+      const spawnGit: GitSpawner = (root, args) => {
+        if (args[1] !== '--batch') return spawnReaderGit(root, args);
+        const stdout = new PassThrough();
+        const stdin = new PassThrough();
+        stdin.resume();
+        const child = { stdout, stdin, exitCode: null, signalCode: null, kill: () => true } as unknown as GitProcess['child'];
+        const finished = new Promise<void>((_, reject) => {
+          stdout.write(answers.subarray(0, answers.length - 8));
+          stdout.end();
+          setImmediate(() => {
+            Object.assign(child, { exitCode: 128 });
+            reject(new Error('fatal: simulated failure part-way'));
+          });
+        });
+        return { child, finished };
+      };
+
+      // Act
+      const error = await gitSourceTreeWith(spawnGit)
+        .readFiles(repository)
+        .catch((caught: unknown) => caught);
+
+      // Assert: git's own message, not the reader's "ended after 1 of 2 objects".
+      expect((error as Error).message).toBe('fatal: simulated failure part-way');
+    });
+
+    it('rejects with git\'s error and stops cat-file when an object is missing mid-batch', async () => {
+      // Arrange: every `cat-file` runs in a second repository that holds only `a.php`'s blob (same
+      // content, same id), so the batch answers the first object and reports the second missing.
+      const repository = emptyRepository();
+      for (const name of ['a', 'b', 'c']) writeFileSync(join(repository, `${name}.php`), `<?php // ${name}\n`);
+      git(repository, 'add', '.');
+      git(repository, 'commit', '-q', '-m', 'feat: three files');
+      const partial = emptyRepository();
+      writeFileSync(join(partial, 'a.php'), '<?php // a\n');
+      git(partial, 'add', '.');
+      git(partial, 'commit', '-q', '-m', 'feat: one file');
+      const batches: GitProcess[] = [];
+      const spawnGit: GitSpawner = (root, args) => {
+        if (args[0] !== 'cat-file') return spawnReaderGit(root, args);
+        const started = spawnReaderGit(partial, args);
+        if (args[1] === '--batch') batches.push(started);
+        return started;
+      };
+
+      // Act
+      const error = await gitSourceTreeWith(spawnGit)
+        .readFiles(repository)
+        .catch((caught: unknown) => caught);
+
+      // Assert
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toMatch(/^fatal: git cat-file [0-9a-f]{40}: bad file$/);
+      expect(batches).toHaveLength(1);
+      const child = batches[0].child;
+      expect(child.exitCode !== null || child.signalCode !== null).toBe(true);
+    });
+
     it('reads a non-ASCII path and an executable file intact', async () => {
       // Arrange
       const repository = emptyRepository();
