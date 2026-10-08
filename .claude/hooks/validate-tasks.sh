@@ -40,6 +40,8 @@ printf '%s' "$BODY" | grep -qiE '^## .*(Manual .*Testing|Manual Interface|Prueba
   || missing+="  - Manual Interface Testing (AGENT MUST EXECUTE)"$'\n'
 printf '%s' "$BODY" | grep -qiE '^## .*(Documentation|Documentación)' \
   || missing+="  - Update Technical Documentation"$'\n'
+printf '%s' "$BODY" | grep -qiE '^## .*(Pre-merge Review|Revisión previa al merge)' \
+  || missing+="  - Pre-merge Review (AGENT MUST EXECUTE): /show-spec-working, /verify-against-spec, /adversarial-review, then archive"$'\n'
 if [[ -n "$missing" ]]; then
   PROBLEMS+="Mandatory steps missing in tasks.md (see docs/openspec-tasks-mandatory-steps.md):"$'\n'"$missing"
 fi

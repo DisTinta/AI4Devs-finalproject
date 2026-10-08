@@ -55,6 +55,7 @@ rules:
     - One task ≈ one agent turn; split epics.
     - Include TDD red→green→refactor where behaviour changes.
     - BRANCH_PREFIX in .claude/sdd-harness.env must match the branch naming in step 0.
+    - Last step, always - Pre-merge Review (MANDATORY - AGENT MUST EXECUTE) - with the PR open, run /show-spec-working, /verify-against-spec and /adversarial-review in that order; fix findings in this change and commit them to the same PR; then /opsx:archive and commit it to the same PR; the author merges after that (docs/openspec-tasks-mandatory-steps.md, Pre-merge Review).
 
 # Optional operation guidance (OpenSpec apply / archive)
 operations:
@@ -64,5 +65,5 @@ operations:
       - Run focused tests (CMD_TEST_FILTER) before the full suite when available.
   archive:
     guidance:
-      - Archive only after /show-spec-working and /adversarial-review (or equivalent evidence).
+      - Archive only after /show-spec-working, /verify-against-spec and /adversarial-review have run on the open PR and their fixes are committed to it; commit the archive to the same PR, before the merge.
       - Keep the completion summary factual; put process learnings in project-context or standards, not in the archive blurb.

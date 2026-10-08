@@ -38,6 +38,8 @@ All implementation task lists MUST include these, in this order:
 - **Manual Interface Testing** (MANDATORY) — **AGENT MUST EXECUTE**
 - **End-to-End Testing** (MANDATORY if the change reaches a user interface) — **AGENT MUST EXECUTE**
 - **Update Technical Documentation** (MANDATORY)
+- **Pre-merge Review** (MANDATORY) — **AGENT MUST EXECUTE** — always the **last** step, run once the
+  pull request is open (see section 3)
 
 ## 3. Verification requirements: the agent executes
 
@@ -91,6 +93,33 @@ user-facing behaviour that needs a real client.
    in that same `reports/` directory (e.g. `YYYY-MM-DD-<scenario-slug>.png`) and link them from the
    report. Never leave screenshot files at the repository root.
 
+### Pre-merge Review
+
+Every change closes with the same sequence. The order is fixed:
+
+```
+apply done → PR opened → /show-spec-working → /verify-against-spec → /adversarial-review
+  → fixes committed to the same PR → /opsx:archive → archive commit on the same PR → merge
+```
+
+1. **Precondition**: the pull request of the change is open. Pushing and opening it are outward-facing:
+   confirm with the author first.
+2. **Run the three checks in this order**: `/show-spec-working`, `/verify-against-spec`,
+   `/adversarial-review`. Each one writes its report under `openspec/changes/<change-name>/reports/`:
+   `YYYY-MM-DD-show-spec-working.md`, `YYYY-MM-DD-verify-against-spec.md`,
+   `YYYY-MM-DD-adversarial-review.md`. For a change with `skip_specs: true`, verify against
+   `proposal.md`, `design.md` and the acceptance criteria of the ticket. `/show-spec-working` may reuse
+   the evidence already produced by the manual and end-to-end steps (run links, transcripts) instead of
+   repeating it, unless a finding requires it.
+3. **Fix the findings in this change**, never in a new ticket or task. Every finding gets an A/B/C/D
+   destination in `design.md` → Follow-ups (`docs/project-context.md` → Tracking deferred findings).
+   Fixes that change behaviour follow TDD. Re-run the verification each fix invalidates (tests, CI run,
+   manual evidence) and add an addendum to the affected report.
+4. **Commit the fixes to the same pull request** (push confirmed with the author). Re-run a check when
+   its findings led to non-trivial fixes, until it returns no Blocker or Major.
+5. **Archive, then merge**: `/opsx:archive` only after the three checks are clean; commit the archive
+   to the same pull request. The author merges after the archive commit. The agent never merges.
+
 ## 4. Verification checklist
 
 Before finalising any `tasks.md`, verify:
@@ -104,6 +133,8 @@ Before finalising any `tasks.md`, verify:
 - [ ] Manual verification steps state `AGENT MUST EXECUTE` explicitly
 - [ ] Tasks that mutate data include the restoration step
 - [ ] The end-to-end step is present if a user interface is involved
+- [ ] The last step is Pre-merge Review: the three checks in order, fixes on the same PR, archive
+      commit before merge
 - [ ] Every `#### Scenario:` in the delta spec maps to at least one task
 
 ## 5. When this applies
@@ -209,6 +240,13 @@ is part of the title.
 - [ ] 10.1 Update the API specification if the contract changed
 - [ ] 10.2 Write an ADR if the change involved a non-trivial, hard-to-reverse decision
 - [ ] 10.3 Update the project context if a new gotcha appeared
+
+## 11. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
+- [ ] 11.1 Open the pull request (after confirming with the author)
+- [ ] 11.2 Run `/show-spec-working`, `/verify-against-spec` and `/adversarial-review`, in this order; one report each under `reports/`
+- [ ] 11.3 Fix every finding in this change and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates
+- [ ] 11.4 Commit the fixes to the same pull request
+- [ ] 11.5 `/opsx:archive`, and commit the archive to the same pull request; the author merges afterwards
 ```
 
 ## 8. Agent execution requirements
