@@ -517,7 +517,7 @@ AI4Devs-finalproject/
 ├── .github/workflows/ci.yml
 ├── docker-compose.yml
 ├── Makefile
-├── .gitignore · .gitattributes
+├── .gitignore · .gitattributes · .gitleaksignore
 ├── readme.md
 └── prompts.md
 ```

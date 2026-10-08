@@ -58,10 +58,10 @@ El cambio no tiene spec delta (`skip_specs: true`: chore de CI, como indica el `
 | Criterio de DIS-87 | Evidencia |
 |---|---|
 | C1 — Árbol actual en verde | [Run 37760219359](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37760219359): [`secrets`](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37760219359/job/113254533400) en verde (`8.30.1`, `sha256sum` OK, «no leaks found» en `dir` y en `git`, sin `npm`); `quality` en verde |
-| C2 — Secreto nuevo fuera de `fixtures/` → rojo | PR desechable, commit 1: _pendiente_ |
-| C3 — Secreto solo en Markdown, push docs-only → rojo | PR desechable, commit 3: _pendiente_ |
-| C4 — Secreto añadido y borrado en el mismo PR → rojo | PR desechable, commit 4: _pendiente_ |
-| C5(a) — Huella desplazada | `openspec/changes/ci-secret-scan/reports/2026-10-08-5-test-and-state-verification.md` → «C5(a)» |
+| C2 — Secreto nuevo fuera de `fixtures/` → rojo | PR desechable #27, commit 1 `b517885`: [run 37760684063](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37760684063/job/113256055294). `secrets` en rojo; los dos pasos nombran `packages/secret-probe.ts:1` y `generic-api-key`, con el valor `REDACTED` |
+| C3 — Secreto solo en Markdown, push docs-only → rojo | #27, commit 3 `c64074d`: [run 37761215621](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37761215621/job/113257802929). `scope` da `code=false` y `quality` se salta; falla el paso «Scan working tree» con `docs/secret-probe.md:3` y `generic-api-key`. El commit 2 dejó `quality` en verde ([run 37760985833](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37760985833)) |
+| C4 — Secreto añadido y borrado en el mismo PR → rojo | #27, commit 4 `68bda5e`: [run 37761381963](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37761381963/job/113258344810). «Scan working tree» da «no leaks found»; «Scan commits» falla y nombra `b517885` y `c64074d`. #27 se cerró sin merge y se borró la rama; los commits siguen en `refs/pull/27/head` |
+| C5(a) — Huella desplazada | `openspec/changes/ci-secret-scan/reports/2026-10-08-5-test-and-state-verification.md` → «C5(a)» (detalle de C2–C4 en `…/2026-10-08-7-end-to-end-testing.md`) |
 | C5(b) — Push sin `before` utilizable | Mismo informe → «C5(b)» (simulación local del paso, 4 casos) |
 | C6 — El rango del hito sale en verde | Mismo informe → «C6» |
 
