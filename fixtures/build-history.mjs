@@ -74,8 +74,11 @@ function normaliseEntry(entry) {
  * this directory or absolute; its `before` snapshots are relative to the manifest's directory.
  * @param {string} name
  * @param {{dir: string, manifest: string}} cfg
+ * @param {{log?: (line: string) => void}} [options] `log` receives the summary line (default
+ *   `console.log`); `npm run seed:build` passes a no-op so the fixture's absolute path never reaches
+ *   its output.
  */
-export async function buildOne(name, cfg) {
+export async function buildOne(name, cfg, { log = console.log } = {}) {
   const { dir } = cfg;
   if (!existsSync(dir)) throw new Error(`Fixture directory missing: ${dir}`);
 
@@ -169,7 +172,7 @@ export async function buildOne(name, cfg) {
 
   const count = commits.length;
   const authors = new Set(commits.map((c) => c.author)).size;
-  console.log(`${name}: ${count} commits, ${authors} authors -> ${join(dir, '.git')}`);
+  log(`${name}: ${count} commits, ${authors} authors -> ${join(dir, '.git')}`);
 }
 
 /** @param {string} spec e.g. "Marta Ibáñez <marta@acme.test>" */

@@ -1,0 +1,354 @@
+## Context
+
+See `proposal.md` → Why. The pieces exist and are consumed as they are:
+
+- `fixtures/build-history.mjs` exports `buildOne(name, { dir, manifest })`, which rebuilds a fixture's
+  `.git` deterministically (fixed authors, dates and messages) and restores the tracked sources in
+  `finally` (not on an interrupted process; Risks). It prints `<name>: N commits, N authors -> <absolute .git path>` with `console.log`.
+- `packages/cli/src/compose-index.ts` exports `indexWithEnvironment(options, environment)`: it trims
+  and checks `ALLOWED_REPOS_DIR`, `AUTHOR_HASH_SALT` and `DATABASE_URL`, opens a transaction through
+  an injectable `OpenTransaction` (`{ client, commit, rollback, release }`), runs `indexRepository`,
+  then `commit()`; any error → `rollback()`; `release()` always, in `finally`. A rejected `commit()`
+  becomes `CommitUncertain` (`INTERNAL`, "the project may have been saved"). It also exports
+  `defaultOpenTransaction(url)` (`pg.Client`, `BEGIN`, connection failure → `DatabaseUnavailable`),
+  `defaultPorts`, `toCliError`, `CliError`; `safe-json.ts` exports `toTerminalSafeJson`.
+- `indexRepository` creates the project with the real absolute `rootPath` and `isSample` unset;
+  `saveGraph` sets `indexed_at = clock_timestamp()`; every table's `id` defaults to
+  `gen_random_uuid()` (migrations `0001`–`0003`). `edge` has no unique key and `validate-graph.ts`
+  does not check edge uniqueness.
+- The store adapter (`createPostgresStore({ transaction })`) wraps each write in
+  `SAVEPOINT store_write`, so a caller's transaction stays usable after a failed write.
+- Resolution from sources (DIS-86 D10): `packages/cli/tsconfig.run.json`, the Vitest alias and
+  `tests/tsconfig.json` `paths` already cover `@codemind/adapter-store-postgres`; `stryker.config.json`
+  already mutates `packages/cli/src/**` (entry point `index.ts` excluded).
+
+The parent CM-HU-06 (DIS-88) suggested `pg_dump`; the enriched DIS-91, with the author's decisions,
+replaced it with a dump rendered in Node (D2). This is an implementation choice, not a scope change.
+
+## Goals / Non-Goals
+
+**Goals:**
+
+- Reuse the `index` composition root unchanged; no change in `packages/core`, `StorePort` or the
+  schema.
+- Every source of non-determinism (ids, clocks, real path, row order, time zone, line endings) is
+  neutralised in one pure renderer, testable without a database.
+- The database is never written: the only side effects are the fixture's gitignored `.git` and the
+  seed file.
+
+**Non-Goals:**
+
+- A general export/import facility for user projects (only the sample seed).
+- Loading the seed (DIS-92), checking the fingerprint (CM-HU-14.1).
+- Listing fingerprint inputs through Git (D6).
+
+## Decisions
+
+### D1 — Entry point: `runSeedBuild(deps) → Promise<number>`, not a `codemind` subcommand
+
+`packages/cli/src/seed-build.ts` exports `runSeedBuild(deps)` and, when run as a script, calls it with
+`process.env`, `process.stdout`, `process.stderr` and sets `process.exitCode` (pattern of
+`runIndexCommand`). Root script: `"seed:build": "tsx --tsconfig packages/cli/tsconfig.run.json
+packages/cli/src/seed-build.ts"`.
+
+`deps`: `env`, `stdout`, `stderr`, and optional test seams — `repoRoot` (default: three levels up
+from the module, the repository root; used for the fingerprint inputs, the manifest and
+`package-lock.json`), `fixturesRoot` (default `<repoRoot>/fixtures`; the allowed root),
+`outputPath` (default `<repoRoot>/seeds/graph-dump.sql`), `buildHistory(fixturesRoot)`,
+`openTransaction` (the base transaction, see D3) and `ports` (passed to `indexWithEnvironment`).
+
+Alternative rejected: a `codemind seed-build` subcommand. It is a development tool that writes into
+the repository; exposing it in the user CLI's help would invite running it outside a checkout.
+
+Order of work: (1) `AUTHOR_HASH_SALT` (via `authorHashSaltFromEnv`), then `DATABASE_URL` → 
+`MISSING_CONFIG`; (2) fingerprints (reads repository files; fails before touching the fixture);
+(3) `buildHistory`; (4) indexing + read-back (D3); (5) render (D4, D5); (6) atomic write (D7);
+(7) summary line. stdout is written only in step 7, so a failure leaves it empty.
+
+Streams: the build prints no progress — `indexWithEnvironment` receives a no-op `onProgress`. On
+success stdout is exactly the summary line and stderr is empty; on failure stdout is empty and stderr
+holds exactly the error line. The summary's `<output>` is `path.relative(repoRoot, outputPath)` with
+`/` separators when the output is inside `repoRoot` (the relative path neither starts with `..` nor
+is absolute — on Windows another drive yields an absolute path); otherwise only
+`path.basename(outputPath)`, so no output ever shows an absolute path.
+
+### D2 — Dump rendered in Node from the rows read back, not `pg_dump`
+
+`pg_dump` (a) cannot see rows that are never committed (D3), (b) writes the server and client version
+in its header (bytes differ across machines), (c) emits rows in heap order and (d) needs
+`docker compose exec` or client binaries on Windows. Reading the rows with SQL in the store adapter
+and rendering them in a pure function solves all four and makes the format testable without
+Postgres.
+
+`packages/adapters/store-postgres/src/export-seed.ts` exports
+`exportSeedRows(client: ClientBase, projectName: string): Promise<SeedRows>` (re-exported from the
+package index). It finds the project by name (`commit()` does not receive the `IndexReport`, so the
+id is unknown there) and returns plain rows of `project`, `file`, `symbol` (with its file's path),
+`edge`, `commit` (with `committed_at` as `Date`) and `file_commit`, with the database ids as read.
+No ordering is promised: the renderer sorts (D5). A missing project → error (becomes `INTERNAL`).
+It is not part of `StorePort`: development tooling, not domain; SQL stays in the adapter
+(`GUARD_DB_IN_HTTP` and the layer rule).
+
+### D3 — A transaction that never commits, wrapped around the base `OpenTransaction`
+
+`packages/cli/src/seed/seed-transaction.ts` exports
+`createSeedTransaction(base: OpenTransaction, read: (client) => Promise<T>)` →
+`{ openTransaction, rows(): T }`:
+
+- `openTransaction()` opens `base` and returns `{ client, commit, rollback, release }` where
+  `commit()` = `rows = await read(inner.client)`, then `await inner.rollback()` — never
+  `inner.commit()`; `rollback()` = `inner.rollback()`; `release()` = `inner.release()`.
+- `rows()` throws if `commit()` did not complete.
+
+The base is `defaultOpenTransaction(DATABASE_URL)` in production (its `DATABASE_UNAVAILABLE` mapping
+comes for free; its `release()` closes the client) and a savepoint factory over the harness client in
+integration tests (as in `tests/integration/cli/index-command.spec.ts`).
+
+`indexWithEnvironment` is called with `{ path: 'acme-shop', name: '__codemind_seed_build__',
+language: 'php' }`, `env: { ...env, ALLOWED_REPOS_DIR: fixturesRoot }`, a no-op `onProgress`, the
+wrapped `openTransaction` and the `ports` seam. Its contract then gives: indexing error → `rollback()` +
+`release()`; read-back error inside `commit()` → `CommitUncertain` after `rollback()` + `release()`.
+
+**Error mapping** (`seed-build.ts`): `CommitUncertain` and any error `toCliError` maps to `INTERNAL`
+are reported as `INTERNAL` with `seed build failed; nothing was written` — "may have been saved" is
+never true here, since nothing is ever committed. Every other code (`MISSING_CONFIG`,
+`DATABASE_UNAVAILABLE`, `PROJECT_NAME_TAKEN`, `INVALID_GRAPH`, `NOT_A_GIT_REPOSITORY`,
+`EMPTY_REPOSITORY`, `FORBIDDEN_PATH`) keeps `toCliError`'s message, with `acme-shop` as the typed path
+and `__codemind_seed_build__` as the typed name. Errors after the indexing (render, fingerprint, write)
+are `INTERNAL` with the same message. The line is written with `toTerminalSafeJson`.
+
+**D3a — Temporary name (author decision, DIS-91 D5).** Indexing under the constant
+`'__codemind_seed_build__'` and writing `name = 'acme-shop'` means an `acme-shop` already loaded by
+`db:seed` does not collide, and no `DELETE` is needed. Alternative rejected: deleting the existing
+`acme-shop` inside the rolled-back transaction (a `DELETE` on user-visible data, even if reverted,
+and it locks the row for the build's duration).
+
+### D4 — Deterministic ids: UUID v5 over prefixed natural keys (author decision, DIS-91)
+
+`packages/cli/src/seed/deterministic-ids.ts`:
+
+- `SEED_ID_NAMESPACE = 'c604f694-731a-4acd-b7f3-9c090f2a1fb3'` (generated once for this change;
+  changing it changes every id and therefore needs `codemind-seed-format` bumped).
+- `uuidV5(namespace, name)`: RFC 4122 §4.3 with SHA-1 from `node:crypto` (no dependency); checked
+  against the published vector `uuid5(NAMESPACE_DNS, 'python.org')` =
+  `886313e1-3b8a-5372-9b90-0c9aee199e5d`.
+- `KEY_SEPARATOR = '\u0000'`. NUL cannot occur in any component: Postgres rejects NUL in `text`, and
+  the other components are integers or enum labels. Documented in the JSDoc.
+- Keys, each starting with the seed's project name (`acme-shop`, never the temporary name), so
+  `task-api` (DIS-32) cannot collide: project `[name]`; file `[name, path]`; symbol
+  `[name, path, kind, start_line, symbolName]`; commit `[name, sha]`; edge `[name, kind, resolution,
+  extractor, ...endpoint(source), ...endpoint(target)]` with endpoint `['file', path]` or
+  `['symbol', path, kind, start_line, symbolName]`. Integers as decimal strings.
+- Occurrence index on **every** edge key (author decision after `/verify-against-spec`): edges
+  equal in the rest of the key are sorted by `weight` (`null` first, then numeric) and then by the
+  order of appearance, and suffixed `#0`, `#1`, … (joined with the separator); a unique edge gets
+  `#0`. Why: if an identical edge appears later, the one that already existed keeps its id (`#0`)
+  and only `#1` is added; with a suffix on duplicates only, the first edge would change id. Two edges
+  that tie on weight are identical in every rendered column, so whichever gets `#0` the output bytes
+  are the same — which is why the order of appearance cannot leak into the file.
+- Every reference is remapped through an old-id → new-id map built per table; an unknown reference
+  → error (`INTERNAL`): it would mean the export read an inconsistent snapshot.
+
+### D5 — Canonical rendering (author decision, DIS-91) and ordering
+
+`packages/cli/src/seed/render-dump.ts` exports `renderSeedDump(rows, fingerprints, projectName)`
+→ `string`, pure:
+
+- Header: `-- codemind-seed-format: 1`, `-- analyzer-fingerprint: sha256:…`,
+  `-- contract-fingerprint: sha256:…`, then one fixed comment line saying the file is generated by
+  `npm run seed:build`. No date, host or version.
+- Project row: `name` = `projectName`, `is_sample = true`, `root_path = 'fixtures/acme-shop'`
+  (`fixtures/<projectName>`), `created_at` and `indexed_at` = `committed_at` of the commit whose sha
+  is `indexed_commit` (missing → `INTERNAL`), `node_count` = files + symbols and `edge_count` = edges
+  **counted from the rendered rows**, so the counters always match the file.
+- Values: `Date` → `'<toISOString()>'` (UTC, milliseconds; independent of `TZ` and of the session,
+  since `pg` parses `timestamptz` with its offset); number → `String(n)` (shortest round trip;
+  a non-finite number → error); `null` → `NULL`; boolean → `true`/`false`; text → `'…'` with `'`
+  doubled, or `E'…'` when it contains a character in U+0000–U+001F (except LF) or U+007F, with `\`
+  doubled, `'` doubled and each such character as `\uXXXX`. Enum labels are text.
+- Columns written (no `embedding`): project `id, name, root_path, language, framework, is_sample,
+  indexed_commit, node_count, edge_count, indexed_at, created_at`; file `id, project_id, path, kind,
+  loc, content_hash, redacted`; symbol `id, file_id, name, kind, start_line, end_line, signature`;
+  edge `id, project_id, source_symbol_id, source_file_id, target_symbol_id, target_file_id, kind,
+  resolution, extractor, weight`; commit `id, project_id, sha, author_hash, message, committed_at,
+  pr_number`; file_commit `file_id, commit_id, lines_added, lines_removed`.
+- **No free text right before a high-entropy value (hash or sha).** gitleaks' `generic-api-key`
+  rule counts the comma as an assignment: with `message` right before `author_hash`, the messages
+  "… api routes" and "… primary key" made two salted `author_hash` values look like secrets (CI
+  `secrets` job of PR #29). Hence `author_hash` before `message` in `commit`. Checked against the
+  same rule: in `file`, `path` and `content_hash` have `kind` and `loc` between them, so it does
+  not trigger; `sha` follows a UUID and `indexed_commit` a boolean.
+- One `INSERT INTO <table> (<columns>) VALUES (<values>);` per row; a blank line between tables;
+  tables in FK order (project, file, symbol, edge, commit, file_commit).
+- Ordering: files by path; symbols by (path, start_line numeric, kind, name); commits by sha;
+  file_commit by (path, sha); edges by their full key string. Strings compared by code unit (`<`),
+  never `localeCompare`.
+- LF only, trailing LF, UTF-8 without BOM.
+
+### D6 — Fingerprints by content (author decision, DIS-91 D4)
+
+`packages/cli/src/seed/fingerprint.ts`:
+
+- `fingerprint(inputs: { path: string; content: string }[])` → `sha256:<hex>`: sort by path (code
+  unit), normalise `\r\n` → `\n` in the content, hash `path + '\0' + content + '\0'` for each.
+  Synthetic dependency inputs have path `deps:<name>@<version>` and empty content.
+- `collectFingerprintInputs(repoRoot)` → `{ analyzer, contract }`. Analyzer (name kept) = everything
+  that produces the seed's rows: recursive listing of `packages/analyzers/php/src/`,
+  `packages/core/src/index/`, `packages/core/src/knowledge/`, `packages/cli/src/seed/`,
+  `packages/adapters/git/src/`, `packages/adapters/store-postgres/src/` (the whole `src`, not single
+  files), `fixtures/history/` and `fixtures/acme-shop/`; the files `packages/cli/src/seed-build.ts`,
+  `packages/cli/src/compose-index.ts` and `fixtures/build-history.mjs`; plus `deps:tree-sitter-php@…`
+  and `deps:web-tree-sitter@…` from `package-lock.json` (`packages["node_modules/<name>"].version`;
+  missing → error). Any entry named `.git` is skipped (`fixtures/acme-shop/.git` exists after
+  `buildOne`). Contract (unchanged) = `packages/core/src/ports/AnalyzerPort.ts` +
+  `packages/adapters/store-postgres/migrations/*.up.sql`. Paths repository-relative with `/`.
+  `codemind-seed-format` stays `1`.
+- Justification (author): every repository file that produces the rows; invalidating too much is
+  `verify`'s
+  safe failure (CM-HU-14.1). Widened after `/adversarial-review`: commit `9cff8ee` changed the
+  renderer and 32 lines of the seed while both fingerprints stayed the same, so the first input set
+  (analyzer, `core/index`, `core/knowledge`) did not cover every file that shapes the rows.
+  It does not cover `AUTHOR_HASH_SALT` (PH-11, design D6) nor the version of the `git` binary. Wording narrowed after the second `/adversarial-review` round ("everything"
+  overclaimed).
+
+The listing reads the working tree, not `git ls-files`: simpler and with no Git dependency. An
+untracked file under those directories — `fixtures/` included — changes the fingerprint (Risks).
+
+### D7 — Atomic write
+
+The renderer's output is written to `<dir>/.<basename>.<pid>.tmp` in the output's directory, then
+`renameSync`d over the output (same volume, so the rename replaces the file atomically on POSIX and
+Windows). Any failure before or during the write unlinks the temporary file; the previous seed is
+never opened for writing.
+
+### D8 — `buildOne` gets an optional `log`
+
+`buildOne(name, cfg, { log = console.log } = {})`: existing callers (tests, the CLI usage of the
+script) are unchanged. `seed-build.ts`'s default `buildHistory` imports
+`<repoRoot>/fixtures/build-history.mjs` dynamically (`pathToFileURL`) and calls
+`buildOne('acme-shop', { dir: <fixturesRoot>/acme-shop, manifest:
+<repoRoot>/fixtures/history/acme-shop.commits.mjs }, { log: () => {} })`, so stdout never shows the
+fixture's absolute path. Alternative rejected: capturing `console.log` (global side effect).
+
+### D9 — Tests
+
+- Unit (`tests/unit/cli/`): `seed-deterministic-ids.spec.ts` (vector, prefix, duplicates),
+  `seed-render-dump.spec.ts` (canonical values, shuffled input), `seed-fingerprint.spec.ts` (pure
+  function + `collectFingerprintInputs` over a temporary tree), `seed-build.spec.ts` (fake
+  `buildHistory`, fake base transaction recording calls, fake ports; missing configuration, failed
+  indexing, failed read-back, temp file cleanup).
+- Integration (`tests/integration/cli/seed-build.spec.ts`): acme-shop copied without `.git` under the
+  OS temp dir as `fixturesRoot` (never `fixtures/`, PH-22), the real `buildHistory` on that copy,
+  output to a temporary file, real `repoRoot`. Harness savepoint base for the content,
+  reproducibility, time-zone and existing-`acme-shop` scenarios; the default base on `DATABASE_URL`
+  for "The database is unchanged after a build" (a separate connection sees only committed state);
+  `postgres://u:s3cret@127.0.0.1:1/db` for the unreachable database.
+- Time zone: the test sets `process.env.TZ` (Node resets its time-zone cache on assignment), first
+  asserts that `new Date(0).getTimezoneOffset()` changed (so the test cannot pass vacuously), and runs
+  `SET TIME ZONE 'America/Bogota'` on the harness client for the second run; restored afterwards.
+  Found during apply: Node resets the cache only on the **main thread**, and Vitest 1.6 runs test
+  files in worker threads, where the assignment has no effect (the guard assertion failed with `-60`).
+  `vitest.config.ts` → `poolMatchGlobs` runs `tests/integration/cli/seed-build.spec.ts` alone in the
+  `forks` pool (a child process whose main thread honours the assignment); every other file keeps
+  the default pool.
+
+### D10 — No ADR
+
+The decisions are local to a development tool and its file format, and reversible by regenerating
+the seed. The format version line (`codemind-seed-format: 1`) is the compatibility handle for DIS-92
+and CM-HU-14.1.
+
+## Risks / Trade-offs
+
+- [The empty `git diff` needs the author's `AUTHOR_HASH_SALT`] → documented in
+  `docs/project-context.md` (DIS-91 D6, PH-11); the salt is never written to the seed or the
+  fingerprint.
+- [A user project named `__codemind_seed_build__` makes the build fail with `PROJECT_NAME_TAKEN`] →
+  accepted: the name is reserved by convention and the error is explicit.
+- [Two concurrent uncommitted indexings with the same temporary name: the second waits on the unique
+  index] → only the seed-build spec file uses the name, and its tests run sequentially.
+- [An untracked **or ignored** file under a fingerprint directory — the packages listed in D6 or
+  `fixtures/history/` and `fixtures/acme-shop/` (its generated `.git` excluded) — changes the
+  fingerprint; ignored files (`vendor/`, `.env`, logs, per the fixture's `.gitignore`) never reach the
+  rows and leave `git status` clean] → the failure is a false "stale" in `verify`, the safe direction.
+  Precondition of every regeneration: `git status --porcelain fixtures` and
+  `git clean -ndX fixtures/acme-shop` both print nothing. Checked with the nested
+  `fixtures/acme-shop/.git` present: `git clean -ndX` lists an ignored `vendor/probe.txt` and prints
+  nothing once it is removed. The fingerprint code is not changed.
+- [Changing the analyzer without rerunning `seed:build`] → that is exactly what the fingerprint lets
+  CM-HU-14.1 detect; not checked in this change.
+- [A server parsing `\u` escapes in `E''` literals needs `UTF8` encoding for code points above
+  U+007F] → only U+0000–U+001F and U+007F are escaped, valid in every server encoding.
+- [`process.env.TZ` assignment not honoured on some platform] → the test's first assertion fails
+  loudly instead of passing vacuously.
+- [The real run writes `fixtures/acme-shop/.git`] → gitignored and the documented flow of
+  `fixtures/README.md`; `buildOne` restores the tracked sources when it finishes, but not if the
+  process is interrupted (Ctrl+C: Node's default SIGINT handler skips `finally`) nor with two runs at
+  once; the next run would then read marker content as final. Debt, see Follow-ups (C).
+
+## Migration Plan
+
+No schema change. Merge order: this change regenerates `seeds/graph-dump.sql`; DIS-92 then loads it.
+Rollback: revert the commit; the placeholder seed and script come back.
+
+## Follow-ups
+
+- **A — fixed in this change: gitleaks `generic-api-key` on the seed (CI `secrets` job, PR #29).**
+  Two salted `author_hash` values (lines 366 and 375 of the first committed seed) were reported
+  because `message` preceded them on the line. Fix: commit columns reordered (`author_hash` before
+  `message`, D5), test "never writes free text right before a hash (gitleaks generic-api-key)",
+  seed regenerated (two runs, `git diff --exit-code seeds/` clean). `.gitleaks.toml` untouched and no
+  path rule (gitleaks 8.30.1 skips the whole file for a path). The first seed stays in the PR's
+  history (commit `2efe8de4…`), which the job scans: `.gitleaksignore` gets two fingerprints bound to
+  that commit (`…:seeds/graph-dump.sql:generic-api-key:366` and `:375`), which cannot hide a new
+  commit. Local gitleaks 8.30.1: `dir .` and `git` over the PR range → no leaks
+  (`reports/2026-10-08-verify-against-spec.md`, addendum).
+- **A — fixed in this change: occurrence index on unique edges (`/verify-against-spec`, §3.1).** The
+  code appended `#0` to every edge key while the spec and D4 added an index to duplicates only.
+  Author decision: the spec follows the code ("Deterministic identifiers" and D4 now say every edge
+  key ends with `#n`, `#0` when unique), for the stability reason in D4. Code and seed unchanged
+  (`git diff --exit-code seeds/` clean); extra case "a unique edge's id is the UUID v5 of its key
+  ending in #0" in `tests/unit/cli/seed-deterministic-ids.spec.ts`.
+
+- **`/adversarial-review` (2026-10-08, `reports/2026-10-08-adversarial-review.md`), destinations:**
+  - **A — Major, fingerprint coverage:** the analyzer fingerprint now covers everything that produces
+    the rows (D6: `packages/cli/src/seed/`, `seed-build.ts`, `compose-index.ts`, the whole `src` of
+    the Git and store adapters, `fixtures/build-history.mjs`, `fixtures/history/`,
+    `fixtures/acme-shop/`, `.git` excluded); scenario "Each fingerprint covers exactly its declared
+    inputs" widened first (seen red), seed regenerated (only the `analyzer-fingerprint` line
+    changes: the contract inputs did not change).
+  - **A — Minor, the seed was never loaded:** extra integration case "the generated seed loads into
+    the schema" (savepoint on `db()`, existing `acme-shop` deleted and reverted, whole dump run,
+    per-table counts = `INSERT` counts, `node_count`/`edge_count` checked).
+  - **C — Minor, `buildOne` on Ctrl+C or concurrent runs:** Spanish checklist comment «Deuda:
+    seed-build» on DIS-91 (SIGINT handler or lock file in `fixtures/build-history.mjs`, and a check
+    that the tracked fixture tree is clean before the snapshot). The Risks line is corrected now.
+  - **A — Minor, duplicate scenario title:** renamed "An unreachable database is reported without its
+    URL by the seed build" (spec, test, task 7.7).
+  - **A — Minor, a case restating the implementation:** replaced by "a unique edge's id is the UUID v5
+    of its literal key ending in #0" in `seed-render-dump.spec.ts` (through `renderSeedDump`, key
+    written as literal text); a renderer without `#0` on unique edges makes it fail (checked).
+  - **A — Minor, a unit test writing into the checkout:** it now uses a `mkdtemp` repository root
+    under `os.tmpdir()`.
+  - **D — Minor, spec edited after implementation (`#0` on every edge):** accepted and documented
+    above; mentioned in the archive note.
+  - **Questions:** 12.2 reopened and closed with the CI run of the final head; the RED not observed
+    in 3.3–4.4 stays declared in the step 10 report.
+- **`/adversarial-review`, round 2 (no Blocker, no Major), destinations:**
+  - **A — Minor, ignored files under `fixtures/acme-shop` change the fingerprint:** Risks says
+    "untracked or ignored"; precondition of every regeneration in Risks, `docs/project-context.md` and
+    task 11.1: `git status --porcelain fixtures` and `git clean -ndX fixtures/acme-shop` print nothing.
+    Checked with the nested `.git` present (an ignored `vendor/probe.txt` is listed, nothing once
+    removed). The fingerprint code is not changed.
+  - **A — Minor, "everything that produces the rows" overclaims:** D6, the JSDoc of
+    `collectFingerprintInputs` (and the two related doc comments in `fingerprint.ts`), the spec,
+    the proposal and `docs/project-context.md` now say "every repository file that produces the rows"
+    and name `AUTHOR_HASH_SALT` (PH-11) and the `git` binary version as not covered. `42f44af` not
+    rewritten.
+  - **B — Minor, the input set invalidates broadly:** hand-off comment on DIS-44 (CM-HU-14.1), which
+    decides the CI policy on a fingerprint mismatch (warn, fail, or regenerate in CI):
+    https://linear.app/distinta-ai4devs/issue/DIS-44/cm-hu-141-verify-real-huella-comparacion-estructural-contra-golden-sin#comment-264a9e7e
+- **Inbound note from DIS-98** (`unresolved` is outside `AnalyzerPort`; serialise only `files`,
+  `symbols`, `edges`, `diagnostics`): not applicable — the seed is read back from the database, whose
+  schema has no place for it. Answered in its thread at archive (2026-10-08).
+- **Archive note (2026-10-08):** the three pre-merge checks ran on PR #29 and every finding has a destination (A fixed here; B DIS-44; C «Deuda: seed-build» on DIS-91; D below). D — the spec was edited after implementation to match the code: every edge key ends with an occurrence index, `#0` when unique (`cccfb79`, Follow-ups A above). Main spec `openspec/specs/seed-build/spec.md` created by the sync (8 requirements, 17 scenarios).

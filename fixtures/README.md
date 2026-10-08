@@ -55,8 +55,8 @@ node fixtures/build-history.mjs task-api   # one
 ```
 
 The generated `.git` is gitignored and fully regenerable (fixed authors, dates
-and messages — no wall-clock dependency). `npm run seed:build` (Ticket 3, task 9)
-must run this before indexing. This choice keeps the real `simple-git` extractor
+and messages — no wall-clock dependency). `npm run seed:build` runs it (for acme-shop only in
+Entrega 2) before indexing the fixture into `seeds/graph-dump.sql`. This choice keeps the real `simple-git` extractor
 (readme §2.2) exercised against a real repository, stays text-diffable, and adds
 no binary blob. The rebuilder snapshots and restores the source tree, so it never
 mutates the tracked fixture files. Every file a manifest entry lists really changes

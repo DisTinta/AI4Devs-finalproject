@@ -19,5 +19,8 @@ export default defineConfig({
     // `.stryker-tmp/` holds Stryker sandboxes; an aborted run leaves one behind with a full copy of the suite.
     exclude: ['fixtures/**', 'node_modules/**', '.stryker-tmp/**'],
     passWithNoTests: true,
+    // A worker thread ignores `process.env.TZ` assignments (only the main thread resets its time-zone
+    // cache), so the seed build's time-zone scenario runs in a forked process (DIS-91 design D9).
+    poolMatchGlobs: [['**/tests/integration/cli/seed-build.spec.ts', 'forks']],
   },
 });
