@@ -97,6 +97,7 @@
   - `prompts.md` §32 (3 literal prompts: propose with the two mid-turn messages, the `/opsx:update` request, the adjustments) + Índice entry 32, same edit; `gitleaks dir .` still clean.
 - [ ] 8.4 Linear (Spanish): comment on DIS-87 with the evidence links (C1–C6); a Spanish comment on DIS-84 noting that its PGP follow-up is covered by the default `private-key` rule in CI. After opening the PR, DIS-87 moves to In Review with a Spanish comment linking the PR. After the merge, if DIS-87 is not In Review (the Linear–GitHub integration moves it to Done), move it back to In Review with a Spanish comment: "pendiente de la checklist post-merge (check obligatorio `secrets`)". The author moves it to Done after confirming the checklist; the agent never moves it to Done
   - Done so far (2026-10-08): DIS-87 In Review with a Spanish comment linking PR #26; Spanish evidence comment on DIS-87 (C1–C6 links); Spanish comment on DIS-84 (PGP covered by the default `private-key` rule). Open until the merge: check DIS-87's state after it and move it back to In Review if needed
+  - Archived 2026-10-08 with this task open on purpose: the author merges only after the archive; the post-merge state check runs then
 
 ## 9. Fixes after `/adversarial-review` (2026-10-08, before the archive)
 
