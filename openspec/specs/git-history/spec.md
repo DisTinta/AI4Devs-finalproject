@@ -21,7 +21,10 @@ directory is `repoPath`, as a `GitHistory` with:
   sanitised `message`, its `authorHash` and its `committedAt` (the committer date);
 - `fileCommits`: one link per file a non-merge commit touched, with the repository-relative path
   using `/` as separator, exactly as the repository stores it (never quoted or escaped), and the
-  commit's `sha`.
+  commit's `sha`. A link whose path, as Git stores it, is not valid UTF-8 SHALL be left out (no
+  indexed file can have that path); its commit SHALL still be listed. Being left out of the history,
+  such a path is not one of its commit's files for the co-change edges either (it does not count
+  towards a commit's 100-file limit nor towards any file's commits).
 
 Every `sha` of `fileCommits` SHALL be the `sha` of an element of `commits`. The result SHALL be
 accepted by the graph validation of `graph-store` once its paths are in `files`. Reading SHALL NOT
@@ -30,6 +33,11 @@ modify the repository.
 Characters that Git allows inside names, e-mails, messages or paths (control characters such as
 `\x1e` and `\x1f`, quotes, tabs, backslashes) SHALL NOT shift one commit's values into another field
 or another commit: each value SHALL arrive in its own field, intact.
+
+The reader SHALL consume Git's output as it arrives and SHALL NOT hold the whole raw output in
+memory at once; the parsed result SHALL be the same as if the output had been read whole. When git
+fails part-way, `readHistory` SHALL reject with git's error and SHALL NOT resolve with a partial
+history.
 
 #### Scenario: The acme-shop history is read completely
 
@@ -78,6 +86,22 @@ or another commit: each value SHALL arrive in its own field, intact.
 - **WHEN** the history is read
 - **THEN** `fileCommits` has links with exactly those two paths, with no surrounding quotes or
   escape sequences
+
+#### Scenario: A link whose path is not UTF-8 is left out
+
+- **GIVEN** a commit, written through Git's object commands, that adds `ok.php` and a file whose path
+  bytes are `a` `0xFF` `.php`
+- **WHEN** the history is read
+- **THEN** the commit is listed, `fileCommits` has its link to `ok.php`, and no link of that commit
+  has a path containing U+FFFD
+
+#### Scenario: A long history read as a stream equals the history read whole
+
+- **GIVEN** a repository with 300 commits, each touching two files, whose messages hold multi-byte
+  UTF-8 characters
+- **WHEN** its history is read, and its `git log` output (with the reader's arguments) is captured
+  whole and parsed in one piece
+- **THEN** both results are deeply equal
 
 ### Requirement: Author pseudonymisation
 

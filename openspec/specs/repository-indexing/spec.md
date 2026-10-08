@@ -22,11 +22,18 @@ The source tree port SHALL offer two operations:
   did not return. It SHALL read the content stored in that commit, never the working tree: untracked,
   ignored and locally modified files SHALL NOT change the result.
 
-`readFiles` SHALL NOT return:
+`readFiles` SHALL NOT return the entries below. Each SHALL be reported in `skipped` with exactly one
+reason, the first that applies in this order:
 
-- a symbolic link (Git mode `120000`), reported with `reason: 'symlink'`;
-- a submodule (Git mode `160000`), reported with `reason: 'submodule'`;
-- a file whose bytes are not valid UTF-8, reported with `reason: 'binary-content'`.
+1. `non-utf8-path`: the entry's path, as Git stores it, is not valid UTF-8. Its content SHALL NOT be
+   read. The reported `path` is the path decoded with each invalid sequence replaced by U+FFFD, for
+   display only; two such entries SHALL each be reported, never merged and never reported as
+   `duplicate-path`;
+2. `symlink`: a symbolic link (Git mode `120000`);
+3. `submodule`: a submodule (Git mode `160000`);
+4. `too-large`: a file whose stored size is greater than 1 048 576 bytes (1 MiB). Its content SHALL
+   NOT be read; a file of exactly 1 048 576 bytes is read;
+5. `binary-content`: a file whose bytes are not valid UTF-8.
 
 `readFiles(root)` SHALL reject with `NotAGitRepository` under the same rule as reading the history:
 `root` does not exist, is not inside a Git repository, or is inside one but is not its top-level
@@ -34,12 +41,13 @@ directory. It SHALL reject with `EmptyRepository` (code `EMPTY_REPOSITORY`) when
 commit (an unborn branch, even when other branches have commits: only `HEAD` is indexed).
 `EmptyRepository` SHALL mean "`HEAD` names no commit", not "no files": a repository whose `HEAD`
 commit tracks no file resolves to `{ files: [], skipped: [] }`. Any other git failure (git missing,
-a refused repository ownership, a broken `HEAD` or ref, a permission error) propagates unchanged.
-Reading SHALL never modify the repository nor execute anything from it (a missing object of a
-partial clone is never fetched: the read fails with git's error instead), and neither the
-repository's own configuration nor the caller's git environment variables (such as `GIT_DIR` or
-`GIT_CONFIG_*`) SHALL change what is read. Git runs in the C locale, so its answers do not depend on
-the system language.
+a refused repository ownership, a broken `HEAD` or ref, a missing object, a permission error)
+propagates as an error; `readFiles` SHALL NOT resolve with a partial result. Reading SHALL never
+modify the repository nor execute anything from it (a missing object of a partial clone is never
+fetched: the read fails with git's error instead), and neither the repository's own configuration
+nor the caller's git environment variables (such as `GIT_DIR` or `GIT_CONFIG_*`) SHALL change what
+is read. Git runs in the C locale, so its answers do not depend on the system language. The number
+of git processes `readFiles` starts SHALL NOT grow with the number of tracked files.
 
 #### Scenario: Only the files tracked at HEAD are read
 
@@ -97,6 +105,33 @@ the system language.
 - **WHEN** `readFiles` reads its root
 - **THEN** `files` holds only the UTF-8 file and `skipped` contains
   `{ path: 'logo.bin', reason: 'binary-content' }`
+
+#### Scenario: A file over the size limit is skipped without being read
+
+- **GIVEN** a repository whose `HEAD` commit tracks `small.php`, `edge.txt` of exactly 1 048 576
+  bytes of ASCII text and `big.txt` of 1 048 577 bytes of ASCII text
+- **WHEN** `readFiles` reads its root
+- **THEN** `files` holds `small.php` and `edge.txt` with its full content, and `skipped` is exactly
+  `[{ path: 'big.txt', reason: 'too-large' }]`
+
+#### Scenario: Paths that are not UTF-8 are skipped and never merged
+
+- **GIVEN** a repository whose `HEAD` commit tracks `ok.php` and two files whose path bytes are
+  `a` `0xFF` `.php` and `a` `0xFE` `.php` (written into the commit through Git's object commands,
+  never through the file system)
+- **WHEN** `readFiles` reads its root
+- **THEN** `files` holds only `ok.php`
+- **AND** `skipped` holds exactly two entries, both
+  `{ path: 'a<U+FFFD>.php', reason: 'non-utf8-path' }`,
+  and no entry has `reason: 'duplicate-path'`
+
+#### Scenario: Many files are read without one process per file
+
+- **GIVEN** one repository whose `HEAD` commit tracks 1 small UTF-8 file and another whose `HEAD`
+  commit tracks 500
+- **WHEN** `readFiles` reads each root while the git processes it starts are counted
+- **THEN** both resolve with all their files, and reading the second started exactly as many git
+  processes as reading the first
 
 #### Scenario: The real path follows symbolic links
 
@@ -260,7 +295,9 @@ below and record it in the report's `skipped` with `{ path, reason }`. Each drop
 exactly one reason, the first that applies in this order:
 
 1. `invalid-path`: the path is empty, contains `\`, starts with `/`, contains a control character
-   (U+0000–U+001F or U+007F), or has an empty, `.` or `..` segment;
+   (C0 U+0000–U+001F, DEL U+007F or C1 U+0080–U+009F), contains a bidirectional formatting
+   character (U+061C, U+200E, U+200F, U+202A–U+202E, U+2066–U+2069) or a line or paragraph
+   separator (U+2028, U+2029), or has an empty, `.` or `..` segment;
 2. `duplicate-path`: a previous entry with a valid path has exactly the same path (compared without
    normalisation); the first one is kept;
 3. `binary-content`: the content contains a NUL character.
@@ -283,6 +320,17 @@ the left-out links SHALL still count in the `co_changed` weights.
   `invalid-path`, and `app/D.php` `binary-content`
 - **AND** the saved graph holds the commit and its link to `app/A.php` but no link to `app/gone.php`,
   and `saveGraph` did not reject with `InvalidGraph`
+
+#### Scenario: C1, bidirectional and separator characters make a path invalid
+
+- **GIVEN** a fake `readFiles` returning `ok.php` and one file for each of these characters inside
+  its name: U+0080, U+009B, U+009F, U+061C, U+200E, U+200F, U+202A, U+202E, U+2066, U+2069, U+2028
+  and U+2029; plus `café.php` (U+00E9, just above the C1 range) and `z<U+200B>.php` (a zero-width
+  space, not in the list)
+- **WHEN** the repository is indexed
+- **THEN** the analyzer received exactly `ok.php`, `café.php` and `z<U+200B>.php`
+- **AND** the report's `skipped` holds each of the twelve other files with `reason: 'invalid-path'`
+- **AND** no saved file's path holds any of those twelve characters
 
 ### Requirement: Secrets never reach the store
 
