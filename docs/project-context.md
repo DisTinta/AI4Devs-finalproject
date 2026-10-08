@@ -103,8 +103,11 @@ Verified against `package.json` (root and per package). If a command is not here
   cache_entry) and `0003_indexes-stale` (secondary and HNSW indexes, and the trigger that marks
   claims `stale` when a file's `content_hash` changes). Each `db:rollback` reverts **one** migration, the latest. Both need `DATABASE_URL` (non-zero exit without it); locally
   `postgres://codemind:codemind@localhost:5432/codemind` with the compose defaults.
-- Seed / verify are **placeholders**: `npm run db:seed`, `seed:build`, `verify` print a
-  "pending Ticket …" message and exit 0. They do nothing yet.
+- `npm run seed:build` (DIS-91) rebuilds acme-shop's history, indexes it without committing and
+  rewrites `seeds/graph-dump.sql`; needs `AUTHOR_HASH_SALT` (the author's development salt, from
+  `.env`, which npm scripts do not load: export it) and `DATABASE_URL` of a migrated database (see
+  Gotchas → seed). `npm run db:seed` and `verify` are still **placeholders**: they print a
+  "pending Ticket …" message and exit 0.
 - Local stack: `docker compose up -d` starts Postgres (`pgvector/pgvector:pg16`) on `5432`. On
   Windows, `make up` needs Git Bash/WSL; in native PowerShell run the `npm` scripts directly.
 
@@ -481,10 +484,37 @@ services that must be started first, quirks of the local environment.
   `tests/tsconfig.json` `paths` and `packages/cli/tsconfig.run.json`; a missing entry silently falls
   back to `dist/` through `"main"`. Trap: deleting `packages/*/dist` but not the build info makes a
   plain `tsc --build` report "up to date" and emit nothing; restore with `npx tsc --build --force`.
+- **The seed build never commits and must be byte-for-byte reproducible** (DIS-91,
+  `packages/cli/src/seed-build.ts`, `packages/cli/src/seed/`, `exportSeedRows` in
+  `packages/adapters/store-postgres/src/export-seed.ts`; a dev script, not a `codemind` subcommand).
+  `runSeedBuild` checks `AUTHOR_HASH_SALT` then `DATABASE_URL` (`MISSING_CONFIG`), computes the
+  fingerprints, runs `buildOne('acme-shop', …, { log: () => {} })` (the optional `log` keeps the
+  absolute `.git` path out of the output), then `indexWithEnvironment` with `fixtures/` as the allowed
+  root (the environment's `ALLOWED_REPOS_DIR` is ignored), the temporary project name
+  `__codemind_seed_build__`, a no-op `onProgress` and `createSeedTransaction(defaultOpenTransaction(url),
+  read)`: its `commit()` reads the rows back on the same client and then **rolls back** — no `COMMIT`,
+  no `DELETE`, an existing `acme-shop` is never touched. Any `INTERNAL` (including `CommitUncertain`)
+  prints `seed build failed; nothing was written`. Output contract: success → stdout exactly
+  `acme-shop: N files, N symbols, N edges, N commits -> <output>` (relative to the repo root, or the
+  file name only when outside it) and empty stderr; failure → empty stdout and exactly one
+  `{"error":…}` line. The file is written to `.<name>.<pid>.tmp` and renamed, so a failure never
+  touches the previous seed. Format (`render-dump.ts`): header `codemind-seed-format: 1` +
+  `analyzer-fingerprint` (every file of `packages/analyzers/php/src`, `packages/core/src/index`,
+  `packages/core/src/knowledge`, plus `deps:tree-sitter-php@…`/`deps:web-tree-sitter@…` from
+  `package-lock.json`) + `contract-fingerprint` (`AnalyzerPort.ts` + `migrations/*.up.sql`), both
+  SHA-256 over LF-normalised content in path order; ids are UUID v5 under `SEED_ID_NAMESPACE` of
+  NUL-separated natural keys prefixed by the project name (edge keys carry `#n`, twins ranked by
+  weight); `is_sample = true`, `root_path = 'fixtures/acme-shop'`, dates = the `HEAD` commit's; ISO
+  UTC timestamps, `String(n)` doubles, `E'…'` with `\uXXXX` for controls other than LF (a raw `\r`
+  would fight `eol=lf`). **Changing anything under the fingerprint inputs means rerunning
+  `seed:build` and committing the seed.** The empty `git diff` holds only with the same salt
+  (PH-11): another salt changes every `author_hash`. In Git Bash, `TZ=… npm …` is rewritten for
+  Windows programs; Vitest 1.6 worker threads ignore `process.env.TZ`, so
+  `tests/integration/cli/seed-build.spec.ts` runs in the `forks` pool (`poolMatchGlobs`).
 - **Vitest can report success with no tests** (`passWithNoTests: true`). A green suite is not
   evidence that behaviour is covered.
-- **The repo is mid-build (Entrega 2).** `db:seed`/`seed:build`/`verify` are placeholders that
-  no-op. The schema has migrations `0001`–`0003`, but only the L1 graph and history
+- **The repo is mid-build (Entrega 2).** `db:seed`/`verify` are placeholders that no-op;
+  `seed:build` is real (DIS-91). The schema has migrations `0001`–`0003`, but only the L1 graph and history
   (`project`, `file`, `symbol`, `edge`, `commit`, `file_commit`) have a writer so far, and only
   `project`, `file`, `symbol` and `edge` have a reader. The git history reader (DIS-35) produces
   `commit`/`file_commit` rows and the co-change rule (DIS-36) `co_changed` edges; `indexRepository`
