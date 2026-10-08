@@ -6,3 +6,8 @@
 
 # Example PEM block in the security-gateway change spec as it stood in commit cb4e6aa
 cb4e6aa71c5cea7667a75fc475a1e92f4a0d4e22:openspec/changes/security-gateway/specs/security-gateway/spec.md:private-key:126
+
+# DIS-91: salted author_hash (false positive) flagged because of the old commit column order
+# (message right before author_hash); fixed in the next commit (design D5 of openspec change seed-build).
+2efe8de473d1a3f99acd019601d4753a9cc569a0:seeds/graph-dump.sql:generic-api-key:366
+2efe8de473d1a3f99acd019601d4753a9cc569a0:seeds/graph-dump.sql:generic-api-key:375

@@ -267,6 +267,21 @@ describe('renderSeedDump', () => {
     expect(inserts(dump, 'symbol')).toEqual([]);
   });
 
+  it('never writes free text right before a hash (gitleaks generic-api-key)', () => {
+    // The rule counts the comma as an assignment: a message ending in "api routes" or "primary key"
+    // right before the high-entropy author_hash was reported as a secret (DIS-91 design D5).
+    const rows = sampleRows();
+    rows.commits[0].message = 'feat: web and api routes';
+    const dump = renderSeedDump(rows, FINGERPRINTS, 'acme-shop');
+    for (const line of inserts(dump, 'commit')) {
+      expect(line.startsWith('INSERT INTO commit (id, project_id, sha, author_hash, message, committed_at, pr_number) VALUES (')).toBe(true);
+    }
+    expect(inserts(dump, 'commit').join('\n')).toContain("'x1', 'feat: web and api routes', '2024-05-06T07:08:09.000Z', 61);");
+    for (const line of inserts(dump, 'file')) {
+      expect(line.startsWith('INSERT INTO file (id, project_id, path, kind, loc, content_hash, redacted) VALUES (')).toBe(true);
+    }
+  });
+
   it('rejects a reference to an unexported row', () => {
     const rows = sampleRows();
     rows.symbols[0].file_id = randomUUID();

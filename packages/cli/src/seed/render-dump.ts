@@ -135,8 +135,9 @@ export function renderSeedDump(rows: SeedRows, fingerprints: SeedFingerprints, p
         id: lookup(commitIds, c.id).id,
         project_id: projectId,
         sha: c.sha,
-        message: c.message,
+        // `author_hash` before `message`: no free text right before a hash (design D5, gitleaks).
         author_hash: c.author_hash,
+        message: c.message,
         committed_at: c.committed_at,
         pr_number: c.pr_number,
       }),

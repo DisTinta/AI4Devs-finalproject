@@ -167,8 +167,14 @@ and it locks the row for the build's duration).
   indexed_commit, node_count, edge_count, indexed_at, created_at`; file `id, project_id, path, kind,
   loc, content_hash, redacted`; symbol `id, file_id, name, kind, start_line, end_line, signature`;
   edge `id, project_id, source_symbol_id, source_file_id, target_symbol_id, target_file_id, kind,
-  resolution, extractor, weight`; commit `id, project_id, sha, message, author_hash, committed_at,
+  resolution, extractor, weight`; commit `id, project_id, sha, author_hash, message, committed_at,
   pr_number`; file_commit `file_id, commit_id, lines_added, lines_removed`.
+- **No free text right before a high-entropy value (hash or sha).** gitleaks' `generic-api-key`
+  rule counts the comma as an assignment: with `message` right before `author_hash`, the messages
+  "… api routes" and "… primary key" made two salted `author_hash` values look like secrets (CI
+  `secrets` job of PR #29). Hence `author_hash` before `message` in `commit`. Checked against the
+  same rule: in `file`, `path` and `content_hash` have `kind` and `loc` between them, so it does
+  not trigger; `sha` follows a UUID and `indexed_commit` a boolean.
 - One `INSERT INTO <table> (<columns>) VALUES (<values>);` per row; a blank line between tables;
   tables in FK order (project, file, symbol, edge, commit, file_commit).
 - Ordering: files by path; symbols by (path, start_line numeric, kind, name); commits by sha;
@@ -265,6 +271,17 @@ No schema change. Merge order: this change regenerates `seeds/graph-dump.sql`; D
 Rollback: revert the commit; the placeholder seed and script come back.
 
 ## Follow-ups
+
+- **A — fixed in this change: gitleaks `generic-api-key` on the seed (CI `secrets` job, PR #29).**
+  Two salted `author_hash` values (lines 366 and 375 of the first committed seed) were reported
+  because `message` preceded them on the line. Fix: commit columns reordered (`author_hash` before
+  `message`, D5), test "never writes free text right before a hash (gitleaks generic-api-key)",
+  seed regenerated (two runs, `git diff --exit-code seeds/` clean). `.gitleaks.toml` untouched and no
+  path rule (gitleaks 8.30.1 skips the whole file for a path). The first seed stays in the PR's
+  history (commit `2efe8de4…`), which the job scans: `.gitleaksignore` gets two fingerprints bound to
+  that commit (`…:seeds/graph-dump.sql:generic-api-key:366` and `:375`), which cannot hide a new
+  commit. Local gitleaks 8.30.1: `dir .` and `git` over the PR range → no leaks
+  (`reports/2026-10-08-verify-against-spec.md`, addendum).
 
 - **Inbound note from DIS-98** (`unresolved` is outside `AnalyzerPort`; serialise only `files`,
   `symbols`, `edges`, `diagnostics`): not applicable — the seed is read back from the database, whose

@@ -506,7 +506,8 @@ services that must be started first, quirks of the local environment.
   NUL-separated natural keys prefixed by the project name (edge keys carry `#n`, twins ranked by
   weight); `is_sample = true`, `root_path = 'fixtures/acme-shop'`, dates = the `HEAD` commit's; ISO
   UTC timestamps, `String(n)` doubles, `E'…'` with `\uXXXX` for controls other than LF (a raw `\r`
-  would fight `eol=lf`). **Changing anything under the fingerprint inputs means rerunning
+  would fight `eol=lf`); no free text right before a hash or sha (gitleaks' `generic-api-key` counts
+  the comma as an assignment), so `commit` writes `author_hash` before `message`. **Changing anything under the fingerprint inputs means rerunning
   `seed:build` and committing the seed.** The empty `git diff` holds only with the same salt
   (PH-11): another salt changes every `author_hash`. In Git Bash, `TZ=… npm …` is rewritten for
   Windows programs; Vitest 1.6 worker threads ignore `process.env.TZ`, so
