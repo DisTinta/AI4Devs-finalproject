@@ -146,8 +146,10 @@ jobs:
   # Secret scan with gitleaks (DIS-87). Its own job on purpose: it has no `needs: scope` and no `if`,
   # because `scope` skips `quality` on docs-only pushes and a secret pasted into a `.md` is exactly
   # what this job must catch. No `npm ci`: a fresh checkout has no node_modules or untracked files
-  # for `gitleaks dir` to trip on. Known synthetic findings are fingerprinted in `.gitleaksignore`
-  # (see fixtures/README.md). Event values reach the shell through `env:`, never inside `run:`.
+  # for `gitleaks dir` to trip on. Known synthetic findings are allowed by exact value in
+  # `.gitleaks.toml` (passed explicitly, so deleting it fails the job); historical ones are
+  # fingerprinted by commit in `.gitleaksignore` (see fixtures/README.md). Event values reach the
+  # shell through `env:`, never inside `run:`.
   secrets:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -199,7 +201,7 @@ jobs:
 
       - name: Scan working tree
         run: |
-          "$RUNNER_TEMP/gitleaks" dir . --redact --no-banner -v
+          "$RUNNER_TEMP/gitleaks" dir . --config .gitleaks.toml --redact --no-banner -v
 
       # Runs even when the tree scan failed, so one run reports both modes.
       - name: Scan commits of the event
@@ -207,4 +209,4 @@ jobs:
         env:
           RANGE: ${{ steps.range.outputs.range }}
         run: |
-          "$RUNNER_TEMP/gitleaks" git . --redact --no-banner -v --log-opts="$RANGE"
+          "$RUNNER_TEMP/gitleaks" git . --config .gitleaks.toml --redact --no-banner -v --log-opts="$RANGE"
