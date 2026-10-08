@@ -350,4 +350,5 @@ Rollback: revert the commit; the placeholder seed and script come back.
     https://linear.app/distinta-ai4devs/issue/DIS-44/cm-hu-141-verify-real-huella-comparacion-estructural-contra-golden-sin#comment-264a9e7e
 - **Inbound note from DIS-98** (`unresolved` is outside `AnalyzerPort`; serialise only `files`,
   `symbols`, `edges`, `diagnostics`): not applicable — the seed is read back from the database, whose
-  schema has no place for it. Answer in its thread at archive.
+  schema has no place for it. Answered in its thread at archive (2026-10-08).
+- **Archive note (2026-10-08):** the three pre-merge checks ran on PR #29 and every finding has a destination (A fixed here; B DIS-44; C «Deuda: seed-build» on DIS-91; D below). D — the spec was edited after implementation to match the code: every edge key ends with an occurrence index, `#0` when unique (`cccfb79`, Follow-ups A above). Main spec `openspec/specs/seed-build/spec.md` created by the sync (8 requirements, 17 scenarios).

@@ -83,7 +83,7 @@
 ## 12. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
 - [x] 12.1 No user interface: the seed build is a development script, already driven end to end through `npm run seed:build` in step 11. Record "covered by step 11; no browser UI", with that reason, in the step 10 report
-- [ ] 12.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that the new spec files ran (the integration one with Postgres and Git) and passed, and that the mutation step covered `packages/cli`. Link the run in the step 10 report
+- [x] 12.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that the new spec files ran (the integration one with Postgres and Git) and passed, and that the mutation step covered `packages/cli`. Link the run in the step 10 report
 
 ## 13. Update Technical Documentation (MANDATORY)
 
@@ -97,7 +97,7 @@
 ## 14. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
 - [x] 14.1 Open the pull request against `feature/entrega-2-CRN` (after confirming with the author; `gh` on the DisTinta account, back to Cristina-JumpMath afterwards)
-- [ ] 14.2 Run `/show-spec-working`, `/verify-against-spec` and `/adversarial-review`, in this order; one report each under `openspec/changes/seed-build/reports/` (`YYYY-MM-DD-show-spec-working.md`, `YYYY-MM-DD-verify-against-spec.md`, `YYYY-MM-DD-adversarial-review.md`)
-- [ ] 14.3 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report
-- [ ] 14.4 Commit the fixes to the same pull request (push confirmed with the author); re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
-- [ ] 14.5 `/opsx:archive`, answering the inbound DIS-98 note in its thread (design → Follow-ups), and commit the archive to the same pull request; the author merges afterwards
+- [x] 14.2 Run `/show-spec-working`, `/verify-against-spec` and `/adversarial-review`, in this order; one report each under `openspec/changes/seed-build/reports/` (`YYYY-MM-DD-show-spec-working.md`, `YYYY-MM-DD-verify-against-spec.md`, `YYYY-MM-DD-adversarial-review.md`)
+- [x] 14.3 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report
+- [x] 14.4 Commit the fixes to the same pull request (push confirmed with the author); re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
+- [x] 14.5 `/opsx:archive`, answering the inbound DIS-98 note in its thread (design → Follow-ups), and commit the archive to the same pull request; the author merges afterwards

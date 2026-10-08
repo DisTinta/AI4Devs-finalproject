@@ -101,3 +101,7 @@ Not assessed: the plan the session runs on cannot be verified from the repositor
 - First run (head `a864f85`): `quality`, `frontend`, `scope` green; `secrets` red (gitleaks `generic-api-key` on two `author_hash` values of the seed). Fixed in `9cff8ee`; see `2026-10-08-verify-against-spec.md`, addendum, and design → Follow-ups A.
 - Run on head `364e672`: all green — [CI run 37813351733](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37813351733) (`quality` 8m33s, `scope`, `secrets` 7s), [Frontend run 37813351731](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37813351731).
 - `quality`: the paths filter lists the five new spec files; Vitest 53 files passed (integration included, with Postgres and Git); mutation step on critical paths: all files 93.89 %, `packages/cli/src/seed` 91.00 %.
+
+## Addendum — CI of the final head (step 12.2 closed)
+
+Final head `e438112` (after the review fixes `9cff8ee`, `42f44af`, `a284d6b`): all green — [CI run 37826686440](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37826686440) (`quality` 9m43s with unit, integration on Postgres and Git — including "the generated seed loads into the schema" and the widened fingerprint scenario — and mutation; `scope`; `secrets` 6s) and [Frontend run 37826686552](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37826686552). The earlier run on `364e672` recorded above predates the review fixes.
