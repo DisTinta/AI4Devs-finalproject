@@ -325,7 +325,11 @@ services that must be started first, quirks of the local environment.
   comes from the subject only (last `(#N)`, else `Merge pull request #N`) and only in
   0..2147483647 (`PR_NUMBER_MAX`, the range of the 32-bit `pr_number` column). The log is read in
   one `git log -z --numstat --no-renames` pass: NUL framing, so control characters in names or
-  messages cannot shift fields and paths arrive raw (never C-quoted). A rename is a delete plus an
+  messages cannot shift fields and paths arrive raw (never C-quoted). It is **streamed** (DIS-100):
+  `LogParser` (`parse-log.ts`) splits on NUL as bytes as chunks arrive and keeps only the current
+  incomplete value, so the raw output is never held whole (the parsed `GitHistory` still is);
+  `parseLog` is the one-chunk wrapper. A numstat path that is not valid UTF-8 drops its link (no
+  indexed file can have it); its commit stays. A rename is a delete plus an
   add, so links can name paths that are no longer in the snapshot, and `saveGraph` rejects a link
   whose file is not in `files` — `indexRepository` (DIS-85) drops them first.
 - **`co_changed` edges come from a pure core rule, `coChangeEdges(fileCommits, knownPaths)`**
@@ -376,7 +380,9 @@ services that must be started first, quirks of the local environment.
   and `confinePath` again; a root that does not exist → `IndexingDisabled`; an escape through a link
   → `ForbiddenPathError` naming the path **as requested**, never the real one), `read`
   (`SourceTreePort.readFiles`, then `selectIndexableFiles`: invalid paths, exact duplicates and NUL
-  content are dropped and reported), `redact` (every file, before the analyzer; framework detection
+  content are dropped and reported; a path is invalid when it holds a C0, DEL or C1 control, a
+  bidirectional formatting character — U+061C, U+200E, U+200F, U+202A–U+202E, U+2066–U+2069 — or
+  U+2028/U+2029, `FORBIDDEN_PATH_CHARACTER`, DIS-100; zero-width characters are allowed), `redact` (every file, before the analyzer; framework detection
   from root manifests unless given), `analyze` (`contentHash` = SHA-256 of the **redacted** content),
   `history` (no `head` → `EmptyRepository`; commit messages redacted into `commitEvents`; orphan
   links dropped; `co_changed` edges from the unfiltered links), `save` (`validateGraph` plus a
@@ -385,11 +391,22 @@ services that must be started first, quirks of the local environment.
   `createProject`, then one `saveGraph`). It opens no transaction: the composition root (DIS-86)
   passes `createPostgresStore({ transaction: client })` and commits or rolls back; with `{ pool }`
   project and graph are two transactions. Core logs nothing; `IndexReport` is the only output.
-  `createGitSourceTree()` reads the **committed** tree with `git ls-tree -r -z --full-tree HEAD`
-  (`ls-files` would read the index) and one `git cat-file` per blob, so indexing acme-shop takes ~6 s
-  (`acme-shop.spec.ts` raises the test timeout to 60 s). Symlinks (`120000`), submodules (`160000`)
-  and non-UTF-8 blobs are skipped and reported; a leading BOM is dropped. Every git call of
-  `adapters/git` goes through `readerGit` with `GIT_CONFIG`, which disables the repository's
+  `createGitSourceTree()` reads the **committed** tree with `git ls-tree -r -z -l --full-tree HEAD`
+  (`ls-files` would read the index), read as bytes, and every kept blob through **one**
+  `git cat-file --batch` process (DIS-100; it was one process per blob, ~6 s for acme-shop, now
+  ~1.5 s per indexing; `acme-shop.spec.ts` timeout 20 s). Skip reasons, first that applies:
+  `non-utf8-path` (path bytes not UTF-8, decoded strictly; reported with U+FFFD for display, never
+  merged into a `duplicate-path`), `symlink` (`120000`), `submodule` (`160000`), `too-large`
+  (stored size over `MAX_BLOB_BYTES` = 1 MiB, from `ls-tree -l`, never loaded), `binary-content`
+  (non-UTF-8 blob); a leading BOM is dropped. Gotcha: for a **missing object** (corrupt repository,
+  partial clone) `ls-tree -l` prints the size `BAD` and `cat-file --batch` answers `<oid> missing`,
+  both with exit 0; the reader then runs one `git cat-file blob <oid>` to reject with git's own
+  `fatal:` error — for any missing entry, even one that would only be skipped. Every git call of `adapters/git` goes through `readerGit` (simple-git: the
+  repository checks) or `spawnReaderGit` (`repository.ts`, `node:child_process` without a shell: the
+  reads that need stdin or a byte stream; `GIT_CONFIG` as `-c` pairs, `GIT_ENV` as the environment;
+  tests wrap it through the internal `gitSourceTreeWith(spawnGit)` / `simpleGitHistoryWith(options,
+  spawnGit)`, which the package does not export, so no caller can bypass the pinned config) with
+  `GIT_CONFIG`, which disables the repository's
   fsmonitor, hooks, global attributes file and `log.showSignature` (it ran `gpg.program`); simple-git
   only accepts the first two with `allowUnsafeFsMonitor` / `allowUnsafeHooksPath`. Filters and
   textconv have no off switch: never add a work-tree command (`status`, work-tree `diff`) to a
@@ -433,9 +450,10 @@ services that must be started first, quirks of the local environment.
   (`NotAGitRepository`/`EmptyRepository` hold the real absolute path); anything that is not a mapped
   domain error is `INTERNAL` (`unexpected error; nothing was saved`, or `…; the project may have been
   saved` when the `COMMIT` or anything after it fails: `CommitUncertain`). Every output goes through
-  `toTerminalSafeJson` (`safe-json.ts`: JSON plus `\u007f`–`\u009f` escaped, since `JSON.stringify`
-  leaves DEL and C1 raw and core keeps a path with C1): the text report (`escapeLiteral`), `--json`,
-  the log and the error line.
+  `toTerminalSafeJson` (`safe-json.ts`: JSON plus DEL, C1, the bidi formatting characters and
+  U+2028/U+2029 escaped as `\uXXXX` — `TERMINAL_UNSAFE`, which `JSON.stringify` leaves raw; core
+  rejects such paths, but a rejected path is still printed in `skipped`, DIS-100): the text report
+  (`escapeLiteral`), `--json`, the log and the error line.
   Tests: `deps.ports` (sourceTree, git, analyzer, `store(client)`) and `deps.openTransaction` are
   test seams; unit tests use fakes (Stryker only runs unit tests), integration tests use the real
   adapters with a `SAVEPOINT cli_index` factory on the harness client — needed because the harness

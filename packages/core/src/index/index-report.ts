@@ -15,10 +15,19 @@ export type IndexPhase = (typeof INDEX_PHASES)[number];
 
 /**
  * Why a tracked entry was left out of an indexing: an invalid path, a repeated path (the first is
- * kept), content that is not text (not UTF-8, or holding a NUL character), a symbolic link or a
- * submodule.
+ * kept), content that is not text (not UTF-8, or holding a NUL character), a symbolic link, a
+ * submodule, a file larger than the source tree's size limit (never read), or a path that, as the
+ * repository stores it, is not valid UTF-8 (never read; its reported path is a lossy decoding, for
+ * display only).
  */
-export type SkipReason = 'duplicate-path' | 'invalid-path' | 'binary-content' | 'symlink' | 'submodule';
+export type SkipReason =
+  | 'duplicate-path'
+  | 'invalid-path'
+  | 'binary-content'
+  | 'symlink'
+  | 'submodule'
+  | 'too-large'
+  | 'non-utf8-path';
 
 /** A tracked entry left out of an indexing, with the reason. */
 export interface SkippedEntry {

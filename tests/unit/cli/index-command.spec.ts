@@ -6,6 +6,7 @@ import { EmptyRepository, NotAGitRepository, ProjectNameTaken } from '@codemind/
 import type { AnalysisResult, GitHistory, KnowledgeGraph, NewProject, SaveGraphResult, SourceFile, SourceTree, StorePort } from '@codemind/core';
 import { runIndexCommand } from '../../../packages/cli/src/commands/index-repository';
 import { defaultPorts } from '../../../packages/cli/src/compose-index';
+import { createLogger } from '../../../packages/cli/src/logger';
 import type { IndexPorts, OpenTransaction } from '../../../packages/cli/src/compose-index';
 import { CLI_VERSION } from '../../../packages/cli/src/version';
 
@@ -415,8 +416,9 @@ describe('index command: transaction, report and log', () => {
   });
 
   it('Control characters are escaped in the log, the JSON report and the error', async () => {
-    // Arrange: untrusted strings holding U+009B, the one-byte CSI. Core skips a path with C0 or DEL
-    // as `invalid-path` but keeps one with C1, so this file is indexed and its redaction logged.
+    // Arrange: untrusted strings holding U+009B, the one-byte CSI. Core skips a path with a C1
+    // control as `invalid-path`, so this file reaches the output only as a skipped entry: it is never
+    // redacted, analysed or logged.
     const keyFile = 'k\u009b2J.php';
     const tree: SourceTree = {
       files: [{ path: keyFile, content: `<?php\nreturn ['key' => '${AWS_KEY}'];\n` }],
@@ -437,14 +439,32 @@ describe('index command: transaction, report and log', () => {
       expect(result.stderr).not.toMatch(rawControl);
     }
     const redaction = json.stderrLines.filter((line) => line.includes('secret_redacted')).map((line) => JSON.parse(line) as Record<string, unknown>);
-    expect(redaction).toEqual([expect.objectContaining({ source: 'file', file: keyFile, line: 2, rule: 'aws-access-key-id' })]);
-    const report = JSON.parse(json.stdout) as { skipped: { path: string }[]; diagnostics: { message: string }[] };
-    expect(report.skipped.map((entry) => entry.path)).toEqual(['s\u009b.php']);
+    expect(redaction.filter((line) => line.file === keyFile)).toEqual([]);
+    const report = JSON.parse(json.stdout) as { skipped: { path: string; reason: string }[]; diagnostics: { message: string }[] };
+    expect(report.skipped).toEqual([
+      { path: keyFile, reason: 'invalid-path' },
+      { path: 's\u009b.php', reason: 'invalid-path' },
+    ]);
     expect(report.diagnostics.map((entry) => entry.message)).toEqual(['bad\u009b']);
     expect(invalid.exit).toBe(1);
     const error = errorOf(invalid);
     expect(error.code).toBe('INVALID_GRAPH');
     expect(error.details.violations).toEqual([expect.objectContaining({ message: expect.stringContaining('g\u009b.php') })]);
+  });
+
+  it("A redaction event's file path is escaped in its log line", () => {
+    // Arrange: core no longer indexes a path with a C1 control, so the event is built here, with the
+    // fields the command logs for a file redaction.
+    const lines: string[] = [];
+    const logger = createLogger({ write: (chunk: string) => lines.push(chunk) });
+
+    // Act
+    logger.info({ event: 'secret_redacted', source: 'file', file: 'k\u009b2J.php', line: 2, column: 15, rule: 'aws-access-key-id' });
+
+    // Assert
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).not.toMatch(/[\u007f-\u009f]/);
+    expect(JSON.parse(lines[0])).toMatchObject({ event: 'secret_redacted', file: 'k\u009b2J.php' });
   });
 
   it('An unexpected error is reported as INTERNAL', async () => {

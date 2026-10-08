@@ -8,7 +8,10 @@ export interface SourceTree {
    * repository-relative paths using `/` separators.
    */
   files: SourceFile[];
-  /** One entry per tracked entry not returned: symbolic links, submodules and content that is not UTF-8. */
+  /**
+   * One entry per tracked entry not returned: paths that are not valid UTF-8, symbolic links,
+   * submodules, files over the size limit and content that is not UTF-8.
+   */
   skipped: SkippedEntry[];
 }
 

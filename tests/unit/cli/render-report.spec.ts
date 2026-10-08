@@ -3,6 +3,7 @@ import { INDEX_PHASES } from '@codemind/core';
 import type { IndexReport } from '@codemind/core';
 import { createLogger } from '../../../packages/cli/src/logger';
 import { escapeLiteral, renderProgress, renderReport } from '../../../packages/cli/src/render-report';
+import { toTerminalSafeJson } from '../../../packages/cli/src/safe-json';
 
 // Spec: openspec/specs/cli-indexing/spec.md → "Untrusted strings are
 // printed escaped". The `it` named after the scenario is that scenario; the rest are extra cases.
@@ -54,6 +55,36 @@ describe('render-report', () => {
     expect(controls).toEqual([]);
     // No newline inside an entry: every line is the header, a field, or an entry opening with a quote.
     for (const line of text.trimEnd().split('\n')) expect(line).toMatch(/^(Indexed project | {2}[a-z]+:| {4}")/);
+  });
+
+  it('Bidirectional and separator characters in untrusted strings are escaped', () => {
+    // Arrange: a right-to-left override (U+202E, "Trojan Source"), a line separator (U+2028) and a
+    // left-to-right isolate (U+2066), written as escapes so this file holds none of them raw.
+    const evil = 'evil\u202egnp.php';
+    const separated = 'l\u2028s.php';
+    const message = 'bad\u2066';
+    const input = report({
+      diagnostics: [{ path: 'a.php', message }],
+      skipped: [
+        { path: evil, reason: 'invalid-path' },
+        { path: separated, reason: 'invalid-path' },
+      ],
+    });
+    const forbidden = /[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069\u2028\u2029]/;
+
+    // Act
+    const text = renderReport(input);
+    const json = toTerminalSafeJson(input);
+
+    // Assert
+    expect(text).not.toMatch(forbidden);
+    expect(json).not.toMatch(forbidden);
+    expect(text).toContain('"evil\\u202egnp.php"');
+    expect(text).toContain('"l\\u2028s.php"');
+    expect(text).toContain('"bad\\u2066"');
+    const parsed = JSON.parse(json) as { skipped: { path: string }[]; diagnostics: { message: string }[] };
+    expect(parsed.skipped.map((entry) => entry.path)).toEqual([evil, separated]);
+    expect(parsed.diagnostics.map((entry) => entry.message)).toEqual([message]);
   });
 
   it('numbers the six phases from 1 to 6 in the order they run', () => {

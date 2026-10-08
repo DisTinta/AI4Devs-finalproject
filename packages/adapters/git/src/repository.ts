@@ -1,3 +1,5 @@
+import { spawn } from 'node:child_process';
+import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from 'node:child_process';
 import { lstat, realpath, stat } from 'node:fs/promises';
 import { devNull } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -14,8 +16,10 @@ import { NotAGitRepository } from '@codemind/core';
  * or blob named by configuration (the work tree's `.mailmap`, committed or not, still applies: git
  * reads it there), git's default big-file threshold (a lower one turns line counts into `-`), and
  * attributes read from `HEAD`'s `.gitattributes` (`attr.tree=HEAD`, over a configured tree and over
- * an uncommitted work-tree file; `.git/info/attributes` still applies). Filters and textconv drivers stay unused because no reader asks git to apply them
- * (`ls-tree`, `cat-file blob`, `log --numstat`).
+ * an uncommitted work-tree file; `.git/info/attributes` still applies). Filters and textconv drivers
+ * stay unused because no reader asks git to apply them (`ls-tree`, `cat-file --batch`,
+ * `cat-file blob`, `log --numstat`). {@link readerGit} passes these to simple-git and
+ * {@link spawnReaderGit} as `-c` pairs, so both process paths share them.
  */
 export const GIT_CONFIG = [
   'core.quotepath=false',
@@ -63,6 +67,58 @@ export function readerGit(baseDir: string): SimpleGit {
     unsafe: { allowUnsafeFsMonitor: true, allowUnsafeHooksPath: true },
     allowEnvironment: ['GIT_NO_LAZY_FETCH', 'GIT_ATTR_NOSYSTEM'],
   }).env(GIT_ENV);
+}
+
+/** A git process started by `spawnReaderGit`. */
+export interface GitProcess {
+  /** The process; its stdin, stdout and stderr are pipes. */
+  child: ChildProcessWithoutNullStreams;
+  /**
+   * Resolves when git exits with code 0. Rejects with git's trimmed stderr (C locale) as an `Error`
+   * on any other exit, or with the start error unchanged (`ENOENT` when git is missing).
+   */
+  finished: Promise<void>;
+}
+
+/** Starts a git reader process in a repository; `spawnReaderGit` unless a test wraps it. */
+export type GitSpawner = (root: string, args: readonly string[]) => GitProcess;
+
+/** The `spawn` of `node:child_process`, narrowed to what `spawnReaderGit` uses. */
+export type SpawnProcess = (command: string, args: readonly string[], options: SpawnOptionsWithoutStdio) => ChildProcessWithoutNullStreams;
+
+/**
+ * Starts `git <args>` in `root` with the same {@link GIT_CONFIG} (as `-c` pairs before the
+ * subcommand) and {@link GIT_ENV} as {@link readerGit}, without a shell. It is the adapter's way to
+ * feed git's stdin and to read its stdout as a byte stream, which simple-git cannot do. `args` are
+ * constants of the adapter, never built from repository data.
+ *
+ * @param root The repository's top-level directory.
+ * @param args The git subcommand and its arguments.
+ * @param spawnProcess The process launcher; `node:child_process` `spawn` outside unit tests.
+ * @returns The process and a promise of its successful exit.
+ */
+export function spawnReaderGit(root: string, args: readonly string[], spawnProcess: SpawnProcess = spawn): GitProcess {
+  const child = spawnProcess('git', [...GIT_CONFIG.flatMap((entry) => ['-c', entry]), ...args], {
+    cwd: root,
+    env: GIT_ENV,
+    shell: false,
+    windowsHide: true,
+  });
+  // A write after git exited fails with EPIPE; the exit code already reports the failure.
+  child.stdin.on('error', () => undefined);
+  const stderr: Buffer[] = [];
+  child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk));
+  const finished = new Promise<void>((resolveFinished, rejectFinished) => {
+    child.once('error', rejectFinished);
+    child.once('close', (code: number | null, signal: NodeJS.Signals | null) => {
+      if (code === 0) resolveFinished();
+      else {
+        const message = Buffer.concat(stderr).toString('utf8').trim();
+        rejectFinished(new Error(message !== '' ? message : `git ${args[0]} exited with ${code === null ? `signal ${signal}` : `code ${code}`}`));
+      }
+    });
+  });
+  return { child, finished };
 }
 
 /**
