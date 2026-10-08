@@ -50,3 +50,21 @@
 5. **Minor, spec edited after implementation — D:** already in design Follow-ups A; mention it in the archive note.
 6. **Question 12.2:** wait for `quality` on the head after fixes and link that run before 14.4/14.5.
 7. Re-run `/verify-against-spec` after the fix in step 1 and add an addendum here (task 14.3).
+
+## Addendum — destinations and fixes (2026-10-08)
+
+Author decisions on every finding; fixes in commit `42f44af` unless stated.
+
+| Finding | Destination | Fix / record | Commit |
+|---|---|---|---|
+| Major — fingerprint coverage | A | `analyzer-fingerprint` (name kept) now covers everything that produces the rows: adds `packages/cli/src/seed/**`, `packages/cli/src/seed-build.ts`, `packages/cli/src/compose-index.ts`, `packages/adapters/git/src/**`, `packages/adapters/store-postgres/src/**`, `fixtures/build-history.mjs`, `fixtures/history/**`, `fixtures/acme-shop/**`; any `.git` entry skipped. `contract-fingerprint` and `codemind-seed-format: 1` unchanged. Scenario "Each fingerprint covers exactly its declared inputs" widened first and seen red (render-dump change did not alter the fingerprint), then green. Spec "Fingerprints", design D6 and Risks, proposal, `docs/project-context.md`, PR description and DIS-91 [enhanced] D4 updated. Seed regenerated: only the `analyzer-fingerprint` line changes (`aad3b195…` → `87774032…`); the contract inputs did not change, so neither did its line. | `42f44af` |
+| Minor — seed never loaded | A | Extra integration case "the generated seed loads into the schema": savepoint on `db()`, existing `acme-shop` deleted, whole dump executed without error, per-table counts of acme-shop (`project`, `file`, `symbol`, `edge`, `commit`, `file_commit`) equal to the `INSERT` counts, `node_count` = files + symbols, `edge_count` = edges; reverted. Green. | `42f44af` |
+| Minor — `buildOne` on Ctrl+C / concurrent runs | C | Spanish checklist comment «Deuda: seed-build» on DIS-91; design Risks and Context corrected ("restores the tracked sources when it finishes, but not if the process is interrupted nor with two runs at once"). | `42f44af` (design) |
+| Minor — duplicate scenario title | A | Renamed "An unreachable database is reported without its URL by the seed build" in the spec, the test and task 7.7. | `42f44af` |
+| Minor — case restating the implementation | A | Replaced by "a unique edge's id is the UUID v5 of its literal key ending in #0" in `seed-render-dump.spec.ts`: through `renderSeedDump`, key written as literal text. Forced failure: a renderer that skips `#0` on unique edges fails it (and two other render cases); file restored, `cmp` OK. | `42f44af` |
+| Minor — unit test writing into the checkout | A | The case now builds a minimal repository root with `mkdtemp` under `os.tmpdir()` and writes its output there. | `42f44af` |
+| Minor — spec edited after implementation | D | Accepted; documented in design Follow-ups A (`cccfb79`); to be mentioned in the archive note. | — |
+| Question — 12.2 on an old head | — | Task 12.2 reopened; closed with the CI run of the head after these fixes. | — |
+| Question — RED not seen in 3.3–4.4 | — | Stays declared in the step 10 report. | — |
+
+Verification after the fixes: full suite 53 files / 730 tests green; lint 0 errors; typecheck; `lint:architecture` 0 errors; `docs:coverage` clean; Stryker on `packages/cli/src/seed/**` + `seed-build.ts` 87.62 % (`fingerprint.ts` 81.52 %); seed rebuilt twice with `git diff --exit-code seeds/` clean, and the committed seed equals a fresh rebuild; gitleaks 8.30.1 `git --log-opts="origin/feature/entrega-2-CRN..HEAD"` (7 commits) and `dir .` → no leaks found.
