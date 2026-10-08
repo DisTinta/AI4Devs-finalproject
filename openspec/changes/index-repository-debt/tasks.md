@@ -75,7 +75,7 @@
 ## 10. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
 - [x] 10.1 Confirm no user interface is affected (no route, no web change; the CLI is covered by step 9). Record "not applicable", with that reason, in the step 8 report
-- [ ] 10.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that the changed spec files ran and passed (the integration ones with Git, including the non-UTF-8 path fixtures). Link the run in the step 8 report
+- [x] 10.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that the changed spec files ran and passed (the integration ones with Git, including the non-UTF-8 path fixtures). Link the run in the step 8 report
 
 ## 11. Update Technical Documentation (MANDATORY)
 
@@ -83,5 +83,5 @@
 - [x] 11.2 No ADR (decisions are local to `adapters/git` and one core rule); confirm nothing in the implementation contradicted that
 - [x] 11.3 Run `/update-docs` and confirm the docs gate passes (`npm run docs:coverage`). Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
 - [x] 11.4 Tick the five checklist items of DIS-100 (description checklist and the DIS-86 comment) only in a new Spanish comment, never editing the `[original]` block; every review finding not fixed gets an A/B/C/D destination in `design.md` → Follow-ups
-- [ ] 11.5 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the author's Why transcribed. After verification, set DIS-100 to In Review in Linear with a comment in Spanish linking the PR and the change
+- [x] 11.5 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the author's Why transcribed. After verification, set DIS-100 to In Review in Linear with a comment in Spanish linking the PR and the change
 - [x] 11.6 Run `/show-spec-working`, `/verify-against-spec` and `/adversarial-review` (reports `2026-10-08-show-spec-working.md`, `2026-10-08-verify-against-spec.md`, `2026-10-08-adversarial-review.md`); fix every finding in this change, TDD, and give each one an A/B/C/D destination in `design.md` → Follow-ups

@@ -137,3 +137,16 @@ object" requires. The reader now runs that one command on this failure path only
   (130–160, 256–305) 92.63 % — survivors listed in `2026-10-08-adversarial-review.md`.
 - Data state: `project` 0, `commit` 0; fixtures unchanged
   (`b97101fedecb07b21ca67c6156224d81bc13a3e8`, empty status).
+
+## CI (task 10.2)
+
+- PR [#25](https://github.com/DisTinta/AI4Devs-finalproject/pull/25), run
+  [37749093465](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37749093465) on
+  `64d1064`: `scope` and `quality` green (7 min 19 s); `Frontend` green.
+- CI's git is **2.55.0** (local 2.45.1): every changed spec ran and passed, including the ones that
+  depend on how git reports a missing object (`BAD` size, `missing` answer) and the non-UTF-8 paths
+  built with `git mktree`: `git-source-tree.spec.ts` 24, `simple-git-history.spec.ts` 29,
+  `spawn-reader-git.spec.ts` 3, `acme-shop.spec.ts` 4, `parse-log.spec.ts` 7,
+  `git-source-tree-parsers.spec.ts` 11, `spawn-reader-git` unit 4.
+- Totals in CI: 48 files, 681 passed, 1 skipped (`path-policy.spec.ts`, a platform-specific case
+  that was already skipped on Linux). CI's Stryker run: 95.31 % over its configured `mutate` set.
