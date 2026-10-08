@@ -26,4 +26,7 @@ When you are asked to implement a change from `openspec/changes/<id>/`:
      shortcut. The `protect-specs-and-tests` hook will ask for human confirmation when rewriting
      an already existing artifact for exactly that reason.
 8. When you finish the change, archive it: if active changes remain unarchived, the next proposal
-   will not have the correct context of what is already implemented.
+   will not have the correct context of what is already implemented. Archive only after the
+   Pre-merge Review of `docs/openspec-tasks-mandatory-steps.md` (PR open → `/show-spec-working` →
+   `/verify-against-spec` → `/adversarial-review` → fixes on the same PR), and commit the archive to
+   that PR before the merge.
