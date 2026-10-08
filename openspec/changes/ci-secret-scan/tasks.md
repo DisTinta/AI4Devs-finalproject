@@ -23,7 +23,7 @@
 - [x] 2.2 Static check of the workflow: parse it as YAML (`npx --yes js-yaml .github/workflows/ci.yml > /dev/null` or an equivalent already available; if no tool exists, stop and ask), and confirm `git diff origin/feature/entrega-2-CRN -- .github/workflows/ci.yml` only adds the `secrets` job; and run `awk '/^  secrets:/{f=1} f&&/^  [a-z_-]+:$/&&!/secrets/{f=0} f' .github/workflows/ci.yml | grep -n '\${{'`: every `${{` of the job `secrets` is inside an `env:` block or on an `if:` line; none inside a `run:`
   - js-yaml parse OK; 0 removed lines in the diff; 0 `run:` blocks with `${{`; `awk|grep` → lines 30–34 and 58 in `env:`, 56 on `if:`.
 - [x] 2.3 C5(b) by local simulation of the step (design D9; a push to `main` with an all-zero `before` is not reproducible without touching `main`): extract the shell with a YAML parser from the written `.github/workflows/ci.yml` (`jobs.secrets.steps[id=range].run`) into a scratchpad file, never retyped by hand; record the extraction command and the `sha256sum` of the extracted script. Run it in Git Bash with `EVENT=push` and `BEFORE` = forty zeros, then an unreachable SHA, then `HEAD~1` with `SHA=HEAD`, and with `EVENT=pull_request` plus two real SHAs; record the four outputs (empty range + log line ×2, `a..b` ×2) for the step 5 report
-  - Extracted with js-yaml (`sha256` `74399cfd…5ecc`), run with `bash --noprofile --norc -eo pipefail`: zeros and unreachable `before` → `range=` + log line, exit 0; real parent and PR → `a..b`. Step 5 report.
+  - Extracted with js-yaml (`sha256` `74399cfd…5ecc`), run with `bash -e` (the runner's shell for this job, seen in the C1 log; also with `-eo pipefail`, same outputs): zeros and unreachable `before` → `range=` + log line, exit 0; real parent and PR → `a..b`. Step 5 report.
 
 ## 3. Docs (DIS-87 `[enhanced]` → Documentación)
 
@@ -60,9 +60,12 @@
 
 ## 6. Manual Interface Testing — this PR in CI (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 6.1 Commit (`chore(DIS-87): …`, English) and, after confirming with the author, push the branch (switch `gh` to DisTinta, `git -c credential.helper='!gh auth git-credential' push -u origin feature/DIS-87-ci-secret-scan`, switch back to Cristina-JumpMath)
-- [ ] 6.2 Open the PR in Spanish against `feature/entrega-2-CRN` (description from `/pr-describe`, Why transcribed from DIS-87, with the post-merge checklist of 8.2), after confirming with the author; same `gh` account switch
-- [ ] 6.3 C1: the `secrets` run on the PR is green; its log shows `8.30.1`, the `sha256sum` OK line, «no leaks found» in both scans, and no `npm ci` / `npm install`. `quality` green too. Link the run in the step 5 report
+- [x] 6.1 Commit (`chore(DIS-87): …`, English) and, after confirming with the author, push the branch (switch `gh` to DisTinta, `git -c credential.helper='!gh auth git-credential' push -u origin feature/DIS-87-ci-secret-scan`, switch back to Cristina-JumpMath)
+  - Commits `e2a05af`, `cf5bb9e`, `513c3dd`, `2135f9e`; token absent from every commit and file (`git grep`/`grep` → 0). Pushed with DisTinta, switched back to Cristina-JumpMath.
+- [x] 6.2 Open the PR in Spanish against `feature/entrega-2-CRN` (description from `/pr-describe`, Why transcribed from DIS-87, with the post-merge checklist of 8.2), after confirming with the author; same `gh` account switch
+  - [PR #26](https://github.com/DisTinta/AI4Devs-finalproject/pull/26) against `feature/entrega-2-CRN`, body = `reports/pr-description.md` (Why transcribed from DIS-87, post-merge checklist «sin regla de protección»). DIS-87 → In Review with a Spanish comment. Switched back.
+- [x] 6.3 C1: the `secrets` run on the PR is green; its log shows `8.30.1`, the `sha256sum` OK line, «no leaks found» in both scans, and no `npm ci` / `npm install`. `quality` green too. Link the run in the step 5 report
+  - C1 green: run 37760219359, `secrets` pass (8.30.1, `sha256sum` OK, both scans «no leaks found», no `npm`), `quality` pass. Linked in the step 5 report.
 
 ## 7. End-to-End Testing — throwaway PR for C2–C4 (MANDATORY - AGENT MUST EXECUTE)
 

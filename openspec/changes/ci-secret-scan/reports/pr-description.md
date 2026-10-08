@@ -57,7 +57,7 @@ El cambio no tiene spec delta (`skip_specs: true`: chore de CI, como indica el `
 
 | Criterio de DIS-87 | Evidencia |
 |---|---|
-| C1 — Árbol actual en verde | Run de CI de este PR: _pendiente_ |
+| C1 — Árbol actual en verde | [Run 37760219359](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37760219359): [`secrets`](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37760219359/job/113254533400) en verde (`8.30.1`, `sha256sum` OK, «no leaks found» en `dir` y en `git`, sin `npm`); `quality` en verde |
 | C2 — Secreto nuevo fuera de `fixtures/` → rojo | PR desechable, commit 1: _pendiente_ |
 | C3 — Secreto solo en Markdown, push docs-only → rojo | PR desechable, commit 3: _pendiente_ |
 | C4 — Secreto añadido y borrado en el mismo PR → rojo | PR desechable, commit 4: _pendiente_ |

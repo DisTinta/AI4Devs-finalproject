@@ -80,7 +80,8 @@ sha256sum range-step.sh
 74399cfd29406aa8b8544cb9925a24ee0b6c1a74e30c8e6fde269b7cfa955ecc
 ```
 
-Run with the options of the Actions default shell (`bash --noprofile --norc -eo pipefail`) and
+Run with `bash -e` — the shell the runner actually uses for this job (`shell: /usr/bin/bash -e {0}`
+in the C1 log; first run used `bash --noprofile --norc -eo pipefail`, same four outputs) — and
 `GITHUB_OUTPUT` pointing at a scratch file:
 
 ```
@@ -165,7 +166,11 @@ first. Re-run exactly as written: tree 13 findings / 9 unique, historical 10 / 8
 
 ## CI evidence
 
-- C1 (`secrets` on the PR of this change): pending — added in task 6.3.
+- C1 — PR #26, run [37760219359](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37760219359):
+  `secrets` [pass, 6 s](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37760219359/job/113254533400),
+  `scope` pass, `quality` pass (1 min 30 s), Frontend pass. `secrets` log:
+  `gitleaks_8.30.1_linux_x64.tar.gz: OK`, `8.30.1`, `range=bc3e395…..2135f9e…`, tree scan «no leaks
+  found», git scan «4 commits scanned.» «no leaks found». No `npm ci` / `npm install` in the job.
 
 ## Outcome
 

@@ -3651,6 +3651,9 @@ ejecuta el runner, más su `sha256sum` como huella verificable.
 
 **Ajuste humano.** Ninguno sobre el contenido. Durante el `/opsx:apply ci-secret-scan` el modelo hizo
 un cambio de diseño menor y lo anotó en D5: el binario se descarga y extrae en `$RUNNER_TEMP`, porque
-extraído en la raíz del checkout `gitleaks dir .` lo habría escaneado a él mismo. La simulación de
-C5(b) se ejecutó con las opciones de la shell por defecto de Actions (`bash --noprofile --norc -eo
-pipefail`).
+extraído en la raíz del checkout `gitleaks dir .` lo habría escaneado a él mismo. El modelo
+simuló C5(b) primero con `bash --noprofile --norc -eo pipefail`, creyendo que era la shell por
+defecto de Actions; el log de C1 mostró que el runner usa `bash -e {0}` y se repitió con esa shell
+(mismos resultados). Al escribir la descripción del PR comprobó que `--gitleaks-ignore-path` no
+impide leer el `.gitleaksignore` de la raíz y corrigió la receta de regeneración de
+`fixtures/README.md`.
