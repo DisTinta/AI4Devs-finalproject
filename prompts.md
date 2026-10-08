@@ -3657,3 +3657,14 @@ defecto de Actions; el log de C1 mostró que el runner usa `bash -e {0}` y se re
 (mismos resultados). Al escribir la descripción del PR comprobó que `--gitleaks-ignore-path` no
 impide leer el `.gitleaksignore` de la raíz y corrigió la receta de regeneración de
 `fixtures/README.md`.
+
+Revisión final (la autora pidió `/show-spec-working`, `/verify-against-spec` y `/adversarial-review`,
+con los arreglos en TDD). `/verify-against-spec` encontró que DIS-87 había vuelto a In Progress: la
+integración Linear–GitHub lo movió al cerrar el PR desechable #27, que llevaba `DIS-87` en el título
+y en la rama. `/adversarial-review` encontró un Major real: una huella `path:rule:line` escondía
+cualquier secreto en esa línea. El modelo lo comprobó en local y preguntó con opciones cerradas;
+respuesta elegida: «Allowlist por valor (Recomendada)». El RED (sondas con otros valores sintéticos,
+que pasaban) precedió al arreglo. El GREEN necesitó dos correcciones: gitleaks 8.30.1 trata los
+`paths` de una allowlist global como saltarse el fichero entero, incluso con `condition = "AND"`, y el
+generador había leído el JSON de gitleaks en cp1252, que estropea el «–» de los specs. Los Minors
+quedaron como deuda C en DIS-87.
