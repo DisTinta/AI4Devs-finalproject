@@ -199,7 +199,7 @@ The seed SHALL start with the header lines `-- codemind-seed-format: 1`,
 inputs, taken in path order, each one as its repository-relative path and its content with line
 endings normalised to LF:
 
-- analyzer — everything that produces the seed's rows: every file under
+- analyzer — every repository file that produces the seed's rows: every file under
   `packages/analyzers/php/src/`, `packages/core/src/index/`, `packages/core/src/knowledge/`,
   `packages/cli/src/seed/`, `packages/adapters/git/src/`, `packages/adapters/store-postgres/src/`,
   `fixtures/history/` and `fixtures/acme-shop/`; the files `packages/cli/src/seed-build.ts`,

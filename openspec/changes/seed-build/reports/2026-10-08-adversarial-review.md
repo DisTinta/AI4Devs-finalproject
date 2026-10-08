@@ -68,3 +68,33 @@ Author decisions on every finding; fixes in commit `42f44af` unless stated.
 | Question — RED not seen in 3.3–4.4 | — | Stays declared in the step 10 report. | — |
 
 Verification after the fixes: full suite 53 files / 730 tests green; lint 0 errors; typecheck; `lint:architecture` 0 errors; `docs:coverage` clean; Stryker on `packages/cli/src/seed/**` + `seed-build.ts` 87.62 % (`fingerprint.ts` 81.52 %); seed rebuilt twice with `git diff --exit-code seeds/` clean, and the committed seed equals a fresh rebuild; gitleaks 8.30.1 `git --log-opts="origin/feature/entrega-2-CRN..HEAD"` (7 commits) and `dir .` → no leaks found.
+
+## Addendum — Round 2 (2026-10-08)
+
+- Head reviewed: `34f7c73` (fixes in `42f44af`). Read-only subagent; transcribed.
+- Question: does `42f44af` close the Major on fingerprint coverage, and do its fixes add a Blocker or Major?
+
+**What was checked.** `git show 42f44af` (packages, tests, seed, spec delta, tasks); `fingerprint.ts` in full; design D6 and Risks; the `project-context.md` diff. In `seed-build.ts` the fingerprints are computed before `buildHistory`, so they read the fixture in its final state. Imports outside the new inputs: `compose-index.ts` imports `render-report.ts` only for `escapeLiteral` in error messages; `packages/core/src/index.ts` is re-exports; `core/src/ports/*` exports no runtime value; `simple-git` is used only for repository checks (`log --numstat`/`cat-file` go through `spawnReaderGit`). Committed header reproduced: `collectFingerprintInputs('.')` on the clean checkout → `sha256:87774032…` over 128 inputs, equal to `seeds/graph-dump.sql` line 2; all 125 file inputs tracked. The new load case: the dump has no `BEGIN`/`COMMIT`/`SET`/`TRUNCATE`; the `DELETE` cascades; counts compared per table; reverted by `ROLLBACK TO SAVEPOINT`. The widened "covers exactly" test fails if any of the 8 directories or 3 files is dropped, if the `.git` skip is removed, or if an analyzer input moves to the contract fingerprint. The replacement `#0` case goes through `renderSeedDump` with a hand-written key. The unit test now writes under `mkdtemp(os.tmpdir())`. Only test files new in this PR changed.
+
+**Round-1 Major: resolved.** `ANALYZER_DIRECTORIES` and `ANALYZER_FILES` cover the renderer, the seed composition, the Git and store adapters, the history rebuilder, its manifests and the fixture; a change like `9cff8ee` now changes the analyzer fingerprint, and the test covers it.
+
+### Findings
+
+| Severity | File:line | Finding | Why it matters |
+|---|---|---|---|
+| Minor | `fingerprint.ts` (working-tree listing); `fixtures/acme-shop/.gitignore` (`/vendor`, `/node_modules`, `.env`, `*.log`, `database/database.sqlite`); design Risks | `fixtures/acme-shop/` is listed from the working tree, including files Git ignores. They never reach the rows (the seed is indexed from the rebuilt Git history) but they change the fingerprint while `git status` stays clean. The Risks mitigation ("rerunning on a clean tree fixes it") does not hold for ignored files. | A `composer install` or a copied `.env` in the fixture would commit a fingerprint no clean checkout reproduces; `verify` would report a false "stale" for everyone else. Safe direction, no effect today: Minor. Fix: `git ls-files` or skip `git check-ignore` hits; at least say "untracked or ignored" in Risks. |
+| Minor | `fingerprint.ts` doc comments; design D6 "Justification"; commit title of `42f44af` | "Everything that produces the seed's rows" overclaims: `AUTHOR_HASH_SALT` shapes every `author_hash` and the `git` binary shapes `log --numstat`; neither is fingerprinted (the salt on purpose and documented; the `git` version not mentioned). | A seed rebuilt with another salt or another `git` keeps the same fingerprint. Say "every repository file that produces the rows" so CM-HU-14.1 does not rely on more than the fingerprint gives. |
+| Minor | `fingerprint.ts` input lists | The input set is broad: `packages/adapters/store-postgres/src/**` includes the read/query code of later API tickets and `compose-index.ts` is also `codemind index`. Once CM-HU-14.1 checks the fingerprint in CI, every PR touching them must regenerate the seed (Postgres + the author's salt). | Accepted by the author (safe failure), but a cost for later tickets; belongs on CM-HU-14.1 so it chooses the CI policy knowingly. |
+| Question | `tasks.md` 12.2; `gh pr checks 29` | At `34f7c73`, `quality` was still pending; `frontend`, `scope`, `secrets` passed. | The load case and the widened fingerprint test have not yet run on CI. |
+
+### Verdict
+
+**PASS WITH GAPS.** No Blocker and no Major. The three Minors and the Question need destinations.
+
+### Recommended next steps
+
+1. Ignored files in `fixtures/acme-shop`: A (Risks "untracked or ignored" + "`git clean -ndX fixtures/acme-shop` must be empty" in the `seed:build` instructions) or B (hand-off on CM-HU-14.1 to list with `git ls-files`).
+2. "Everything" overclaims: A — reword D6, the doc comment and `project-context.md` to "every repository file that produces the rows", naming the salt and the `git` binary as not covered.
+3. Broad invalidation: B — hand-off comment on CM-HU-14.1 (PR policy on fingerprint mismatch).
+4. 12.2: link the `quality` run of the final head, then close 12.2.
+5. Unchanged from round 1: C («Deuda: seed-build») and D (archive note).

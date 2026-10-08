@@ -73,7 +73,7 @@
 
 ## 11. Backend: Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE)
 
-- [x] 11.1 Note the current state (10.1 indicators). Load the author's `.env` into the shell without printing it (`set -a; . ./.env; set +a`) so `AUTHOR_HASH_SALT` is the development salt
+- [x] 11.1 Precondition of every regeneration (added after the second `/adversarial-review` round): `git status --porcelain fixtures` and `git clean -ndX fixtures/acme-shop` both print nothing (ignored files under the fixture change the fingerprint). Note the current state (10.1 indicators). Load the author's `.env` into the shell without printing it (`set -a; . ./.env; set +a`) so `AUTHOR_HASH_SALT` is the development salt
 - [x] 11.2 Exercise the success path with the real entry point: `npm run seed:build`; record exit code, stdout (exactly one line ending in `-> seeds/graph-dump.sql`, no absolute path) and stderr (empty); inspect the head of `seeds/graph-dump.sql` (format line, two fingerprints) and its `project` row
 - [x] 11.3 Reproducibility, the DoD of DIS-91: `git add seeds/graph-dump.sql` (stage only, no commit), run `npm run seed:build` again, and `git diff --exit-code seeds/` must be clean; repeat once with `TZ=America/Bogota`. Confirm the local `project` ids equal the baseline (nothing committed). The regenerated seed is the intended mutation of this change and stays; `fixtures/acme-shop/.git` is gitignored
 - [x] 11.4 Exercise the error cases: empty `AUTHOR_HASH_SALT`, empty `DATABASE_URL`, `DATABASE_URL` to port 1, `ALLOWED_REPOS_DIR` set to another directory (must still succeed); for each failure check exit `1`, stdout empty, one error line, `seeds/graph-dump.sql` unchanged (`sha1sum`), no `.tmp` left in `seeds/`, and no URL, password or absolute path in any output

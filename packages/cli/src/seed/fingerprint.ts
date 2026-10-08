@@ -12,15 +12,15 @@ export interface FingerprintInput {
 
 /** The inputs of the two header fingerprints (DIS-91 design D6). */
 export interface FingerprintInputs {
-  /** Everything that produces the seed's rows, plus the resolved parser versions. */
+  /** Every repository file that produces the seed's rows, plus the resolved parser versions. */
   analyzer: FingerprintInput[];
   /** The analyzer port and the `.up.sql` migrations. */
   contract: FingerprintInput[];
 }
 
 /**
- * Directories whose every file feeds the analyzer fingerprint: everything that produces the seed's
- * rows — the analyzer, the indexing core, the history and store adapters, the seed renderer and the
+ * Directories whose every file feeds the analyzer fingerprint: every repository file that produces
+ * the seed's rows — the analyzer, the indexing core, the history and store adapters, the seed renderer and the
  * sample fixture with its history manifest (DIS-91 design D4). Paths with a `.git` segment are skipped
  * (`fixtures/acme-shop/.git` exists after the history rebuild).
  */
@@ -61,8 +61,8 @@ export function fingerprint(inputs: FingerprintInput[]): string {
 }
 
 /**
- * Reads the fingerprint inputs from the working tree at `repoRoot`. Analyzer: everything that produces
- * the seed's rows — every file under the analyzer directories (skipping any `.git` entry) and the
+ * Reads the fingerprint inputs from the working tree at `repoRoot`. Analyzer: every repository file
+ * that produces the seed's rows (not `AUTHOR_HASH_SALT`, PH-11, nor the version of the `git` binary) — every file under the analyzer directories (skipping any `.git` entry) and the
  * analyzer files — plus one `deps:<name>@<version>` entry per parser dependency resolved in
  * `package-lock.json`. Contract: the analyzer port and every `.up.sql` migration. Each list is sorted
  * by path.

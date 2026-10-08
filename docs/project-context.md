@@ -499,7 +499,8 @@ services that must be started first, quirks of the local environment.
   file name only when outside it) and empty stderr; failure → empty stdout and exactly one
   `{"error":…}` line. The file is written to `.<name>.<pid>.tmp` and renamed, so a failure never
   touches the previous seed. Format (`render-dump.ts`): header `codemind-seed-format: 1` +
-  `analyzer-fingerprint` (everything that produces the rows: every file of
+  `analyzer-fingerprint` (every repository file that produces the rows — not `AUTHOR_HASH_SALT` nor
+  the `git` binary version —: every file of
   `packages/analyzers/php/src`, `packages/core/src/index`, `packages/core/src/knowledge`,
   `packages/cli/src/seed`, `packages/adapters/git/src`, `packages/adapters/store-postgres/src`,
   `fixtures/history`, `fixtures/acme-shop` — any `.git` entry skipped —, the files
@@ -512,7 +513,9 @@ services that must be started first, quirks of the local environment.
   UTC timestamps, `String(n)` doubles, `E'…'` with `\uXXXX` for controls other than LF (a raw `\r`
   would fight `eol=lf`); no free text right before a hash or sha (gitleaks' `generic-api-key` counts
   the comma as an assignment), so `commit` writes `author_hash` before `message`. **Changing anything under the fingerprint inputs means rerunning
-  `seed:build` and committing the seed.** The empty `git diff` holds only with the same salt
+  `seed:build` and committing the seed.** Before regenerating, `git status --porcelain fixtures` and
+  `git clean -ndX fixtures/acme-shop` must both print nothing: ignored files under the fixture
+  (`vendor/`, `.env`, logs) change the fingerprint but not the rows. The empty `git diff` holds only with the same salt
   (PH-11): another salt changes every `author_hash`. In Git Bash, `TZ=… npm …` is rewritten for
   Windows programs; Vitest 1.6 worker threads ignore `process.env.TZ`, so
   `tests/integration/cli/seed-build.spec.ts` runs in the `forks` pool (`poolMatchGlobs`).

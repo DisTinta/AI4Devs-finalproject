@@ -203,10 +203,13 @@ and it locks the row for the build's duration).
   `buildOne`). Contract (unchanged) = `packages/core/src/ports/AnalyzerPort.ts` +
   `packages/adapters/store-postgres/migrations/*.up.sql`. Paths repository-relative with `/`.
   `codemind-seed-format` stays `1`.
-- Justification (author): everything that produces the rows; invalidating too much is `verify`'s
+- Justification (author): every repository file that produces the rows; invalidating too much is
+  `verify`'s
   safe failure (CM-HU-14.1). Widened after `/adversarial-review`: commit `9cff8ee` changed the
   renderer and 32 lines of the seed while both fingerprints stayed the same, so the first input set
-  (analyzer, `core/index`, `core/knowledge`) did not cover everything that shapes the rows.
+  (analyzer, `core/index`, `core/knowledge`) did not cover every file that shapes the rows.
+  It does not cover `AUTHOR_HASH_SALT` (PH-11, design D6) nor the version of the `git` binary. Wording narrowed after the second `/adversarial-review` round ("everything"
+  overclaimed).
 
 The listing reads the working tree, not `git ls-files`: simpler and with no Git dependency. An
 untracked file under those directories — `fixtures/` included — changes the fingerprint (Risks).
@@ -264,9 +267,14 @@ and CM-HU-14.1.
   accepted: the name is reserved by convention and the error is explicit.
 - [Two concurrent uncommitted indexings with the same temporary name: the second waits on the unique
   index] → only the seed-build spec file uses the name, and its tests run sequentially.
-- [An untracked file under a fingerprint directory — the packages listed in D6 or `fixtures/history/`
-  and `fixtures/acme-shop/` (its generated `.git` excluded) — changes the fingerprint] → the failure is
-  a false "stale" in `verify`, the safe direction; rerunning `seed:build` on a clean tree fixes it.
+- [An untracked **or ignored** file under a fingerprint directory — the packages listed in D6 or
+  `fixtures/history/` and `fixtures/acme-shop/` (its generated `.git` excluded) — changes the
+  fingerprint; ignored files (`vendor/`, `.env`, logs, per the fixture's `.gitignore`) never reach the
+  rows and leave `git status` clean] → the failure is a false "stale" in `verify`, the safe direction.
+  Precondition of every regeneration: `git status --porcelain fixtures` and
+  `git clean -ndX fixtures/acme-shop` both print nothing. Checked with the nested
+  `fixtures/acme-shop/.git` present: `git clean -ndX` lists an ignored `vendor/probe.txt` and prints
+  nothing once it is removed. The fingerprint code is not changed.
 - [Changing the analyzer without rerunning `seed:build`] → that is exactly what the fingerprint lets
   CM-HU-14.1 detect; not checked in this change.
 - [A server parsing `\u` escapes in `E''` literals needs `UTF8` encoding for code points above
@@ -326,6 +334,20 @@ Rollback: revert the commit; the placeholder seed and script come back.
     above; mentioned in the archive note.
   - **Questions:** 12.2 reopened and closed with the CI run of the final head; the RED not observed
     in 3.3–4.4 stays declared in the step 10 report.
+- **`/adversarial-review`, round 2 (no Blocker, no Major), destinations:**
+  - **A — Minor, ignored files under `fixtures/acme-shop` change the fingerprint:** Risks says
+    "untracked or ignored"; precondition of every regeneration in Risks, `docs/project-context.md` and
+    task 11.1: `git status --porcelain fixtures` and `git clean -ndX fixtures/acme-shop` print nothing.
+    Checked with the nested `.git` present (an ignored `vendor/probe.txt` is listed, nothing once
+    removed). The fingerprint code is not changed.
+  - **A — Minor, "everything that produces the rows" overclaims:** D6, the JSDoc of
+    `collectFingerprintInputs` (and the two related doc comments in `fingerprint.ts`), the spec,
+    the proposal and `docs/project-context.md` now say "every repository file that produces the rows"
+    and name `AUTHOR_HASH_SALT` (PH-11) and the `git` binary version as not covered. `42f44af` not
+    rewritten.
+  - **B — Minor, the input set invalidates broadly:** hand-off comment on DIS-44 (CM-HU-14.1), which
+    decides the CI policy on a fingerprint mismatch (warn, fail, or regenerate in CI):
+    https://linear.app/distinta-ai4devs/issue/DIS-44/cm-hu-141-verify-real-huella-comparacion-estructural-contra-golden-sin#comment-264a9e7e
 - **Inbound note from DIS-98** (`unresolved` is outside `AnalyzerPort`; serialise only `files`,
   `symbols`, `edges`, `diagnostics`): not applicable — the seed is read back from the database, whose
   schema has no place for it. Answer in its thread at archive.
