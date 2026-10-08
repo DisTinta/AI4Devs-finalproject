@@ -41,7 +41,7 @@ or its credentials, or the text `may have been saved`.
   `MISSING_CONFIG` and `details.variable` = `AUTHOR_HASH_SALT` or `DATABASE_URL`; the history is not
   rebuilt, no database connection is opened, and the previous seed file is unchanged
 
-#### Scenario: An unreachable database is reported without its URL
+#### Scenario: An unreachable database is reported without its URL by the seed build
 
 - **GIVEN** a valid salt and `DATABASE_URL=postgres://u:s3cret@127.0.0.1:1/db`, and a previous seed
   file with known content
@@ -199,10 +199,13 @@ The seed SHALL start with the header lines `-- codemind-seed-format: 1`,
 inputs, taken in path order, each one as its repository-relative path and its content with line
 endings normalised to LF:
 
-- analyzer: every file under `packages/analyzers/php/src/`, `packages/core/src/index/` and
-  `packages/core/src/knowledge/`, plus one synthetic input per parser dependency,
-  `deps:tree-sitter-php@<version>` and `deps:web-tree-sitter@<version>`, with the versions resolved
-  in `package-lock.json`;
+- analyzer — everything that produces the seed's rows: every file under
+  `packages/analyzers/php/src/`, `packages/core/src/index/`, `packages/core/src/knowledge/`,
+  `packages/cli/src/seed/`, `packages/adapters/git/src/`, `packages/adapters/store-postgres/src/`,
+  `fixtures/history/` and `fixtures/acme-shop/`; the files `packages/cli/src/seed-build.ts`,
+  `packages/cli/src/compose-index.ts` and `fixtures/build-history.mjs`; and one synthetic input per
+  parser dependency, `deps:tree-sitter-php@<version>` and `deps:web-tree-sitter@<version>`, with the
+  versions resolved in `package-lock.json`. Any path with a `.git` segment is excluded;
 - contract: `packages/core/src/ports/AnalyzerPort.ts` and every
   `packages/adapters/store-postgres/migrations/*.up.sql`.
 
@@ -225,12 +228,14 @@ are listed, or on any other file.
 
 #### Scenario: Each fingerprint covers exactly its declared inputs
 
-- **GIVEN** a repository tree holding every declared input and a file outside them
-  (`packages/api/src/x.ts`)
-- **WHEN** a file changes under each analyzer input directory, in `AnalyzerPort.ts` and in one
-  `.up.sql` migration, and then the outside file changes
+- **GIVEN** a repository tree holding every declared input and files outside them
+  (`packages/api/src/x.ts`, `packages/cli/src/index.ts`, `fixtures/task-api/src/app.ts`, a `.down.sql`
+  migration, and `fixtures/acme-shop/.git/`)
+- **WHEN** a file changes under each analyzer input directory and in each analyzer input file, in
+  `AnalyzerPort.ts` and in one `.up.sql` migration, and then every outside file changes and a file is
+  added under `fixtures/acme-shop/.git/`
 - **THEN** each analyzer change alters only the analyzer fingerprint, each contract change alters only
-  the contract fingerprint, and the outside change alters neither
+  the contract fingerprint, and the outside changes alter neither
 
 ### Requirement: A failed build never leaves a broken seed
 

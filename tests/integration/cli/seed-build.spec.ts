@@ -219,6 +219,47 @@ describeWithDatabase('seed build on the harness transaction', () => {
   );
 
   it(
+    'the generated seed loads into the schema',
+    async () => {
+      // Extra case (not a scenario): the whole dump runs as-is against the migrated schema, inside a
+      // savepoint that also removes any existing acme-shop, and is reverted afterwards.
+      const run = await build({ client: db() });
+      expect(run.exit).toBe(0);
+      await db().query('SAVEPOINT load_seed');
+      try {
+        await db().query("DELETE FROM project WHERE name = 'acme-shop'");
+        await db().query(run.dump);
+        const project = await db().query<{ id: string; node_count: number; edge_count: number }>(
+          "SELECT id, node_count, edge_count FROM project WHERE name = 'acme-shop'",
+        );
+        expect(project.rows).toHaveLength(1);
+        const { id, node_count: nodeCount, edge_count: edgeCount } = project.rows[0];
+        const count = async (sql: string): Promise<number> =>
+          (await db().query<{ n: number }>(sql, [id])).rows[0].n;
+        const loaded = {
+          project: 1,
+          file: await count('SELECT count(*)::int AS n FROM file WHERE project_id = $1'),
+          symbol: await count('SELECT count(*)::int AS n FROM symbol s JOIN file f ON f.id = s.file_id WHERE f.project_id = $1'),
+          edge: await count('SELECT count(*)::int AS n FROM edge WHERE project_id = $1'),
+          commit: await count('SELECT count(*)::int AS n FROM commit WHERE project_id = $1'),
+          file_commit: await count(
+            'SELECT count(*)::int AS n FROM file_commit fc JOIN file f ON f.id = fc.file_id WHERE f.project_id = $1',
+          ),
+        };
+        const written = Object.fromEntries(
+          Object.keys(loaded).map((table) => [table, inserts(run.dump, table).length]),
+        );
+        expect(loaded).toEqual(written);
+        expect(nodeCount).toBe(loaded.file + loaded.symbol);
+        expect(edgeCount).toBe(loaded.edge);
+      } finally {
+        await db().query('ROLLBACK TO SAVEPOINT load_seed');
+      }
+    },
+    BUILD_TIMEOUT_MS,
+  );
+
+  it(
     'The allowed repositories directory of the environment is ignored',
     async () => {
       // Arrange
@@ -268,7 +309,7 @@ describeWithDatabase('seed build on its own connection', () => {
   );
 
   it(
-    'An unreachable database is reported without its URL',
+    'An unreachable database is reported without its URL by the seed build',
     async () => {
       // Arrange
       const output = join(T, 'out', 'unreachable.sql');

@@ -20,6 +20,17 @@ const TREE: Record<string, string> = {
   'packages/core/src/index/index-repository.ts': 'index\n',
   'packages/core/src/knowledge/graph.ts': 'knowledge\n',
   'packages/core/src/knowledge/nested/deep.ts': 'deep\n',
+  'packages/cli/src/seed/render-dump.ts': 'render\n',
+  'packages/cli/src/seed-build.ts': 'seed build\n',
+  'packages/cli/src/compose-index.ts': 'compose\n',
+  'packages/cli/src/index.ts': 'cli entry, outside\n',
+  'packages/adapters/git/src/simple-git-history.ts': 'git\n',
+  'packages/adapters/store-postgres/src/save-graph.ts': 'save\n',
+  'fixtures/build-history.mjs': 'rebuilder\n',
+  'fixtures/history/acme-shop.commits.mjs': 'manifest\n',
+  'fixtures/acme-shop/app/Order.php': 'order\n',
+  'fixtures/acme-shop/.git/HEAD': 'ref: refs/heads/main\n',
+  'fixtures/task-api/src/app.ts': 'task-api, outside\n',
   'packages/core/src/ports/AnalyzerPort.ts': 'port\n',
   'packages/adapters/store-postgres/migrations/0001_a.up.sql': 'up1\n',
   'packages/adapters/store-postgres/migrations/0001_a.down.sql': 'down1\n',
@@ -92,6 +103,14 @@ describe('fingerprint', () => {
       ['packages/analyzers/php/src/php-analyzer.ts', 'analyzer'],
       ['packages/core/src/index/index-repository.ts', 'analyzer'],
       ['packages/core/src/knowledge/nested/deep.ts', 'analyzer'],
+      ['packages/cli/src/seed/render-dump.ts', 'analyzer'],
+      ['packages/cli/src/seed-build.ts', 'analyzer'],
+      ['packages/cli/src/compose-index.ts', 'analyzer'],
+      ['packages/adapters/git/src/simple-git-history.ts', 'analyzer'],
+      ['packages/adapters/store-postgres/src/save-graph.ts', 'analyzer'],
+      ['fixtures/build-history.mjs', 'analyzer'],
+      ['fixtures/history/acme-shop.commits.mjs', 'analyzer'],
+      ['fixtures/acme-shop/app/Order.php', 'analyzer'],
       ['packages/core/src/ports/AnalyzerPort.ts', 'contract'],
       ['packages/adapters/store-postgres/migrations/0002_b.up.sql', 'contract'],
     ];
@@ -109,12 +128,21 @@ describe('fingerprint', () => {
       expect(after[which], path).not.toBe(before[which]);
       expect(after[other], path).toBe(before[other]);
     }
+    // Outside every input: another package, the CLI entry point, another fixture, a .down.sql and the
+    // fixture's generated .git (any path with a .git segment is excluded).
+    const outside = [
+      'packages/api/src/x.ts',
+      'packages/cli/src/index.ts',
+      'fixtures/task-api/src/app.ts',
+      'packages/adapters/store-postgres/migrations/0001_a.down.sql',
+      'fixtures/acme-shop/.git/HEAD',
+    ];
     const before = both();
-    write('packages/api/src/x.ts', 'changed\n');
-    write('packages/adapters/store-postgres/migrations/0001_a.down.sql', 'changed\n');
+    for (const path of outside) write(path, 'changed\n');
+    write('fixtures/acme-shop/.git/objects/ab/cdef', 'new object\n');
     expect(both()).toEqual(before);
-    write('packages/api/src/x.ts', TREE['packages/api/src/x.ts']);
-    write('packages/adapters/store-postgres/migrations/0001_a.down.sql', TREE['packages/adapters/store-postgres/migrations/0001_a.down.sql']);
+    for (const path of outside) write(path, TREE[path]);
+    rmSync(join(root, 'fixtures/acme-shop/.git/objects'), { recursive: true, force: true });
   });
 
   it('keeps path, content and the next input apart', () => {
@@ -129,7 +157,15 @@ describe('fingerprint', () => {
     expect(inputs.analyzer.map((i) => i.path)).toEqual([
       'deps:tree-sitter-php@0.24.2',
       'deps:web-tree-sitter@0.27.0',
+      'fixtures/acme-shop/app/Order.php',
+      'fixtures/build-history.mjs',
+      'fixtures/history/acme-shop.commits.mjs',
+      'packages/adapters/git/src/simple-git-history.ts',
+      'packages/adapters/store-postgres/src/save-graph.ts',
       'packages/analyzers/php/src/php-analyzer.ts',
+      'packages/cli/src/compose-index.ts',
+      'packages/cli/src/seed-build.ts',
+      'packages/cli/src/seed/render-dump.ts',
       'packages/core/src/index/index-repository.ts',
       'packages/core/src/knowledge/graph.ts',
       'packages/core/src/knowledge/nested/deep.ts',

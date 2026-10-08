@@ -50,7 +50,7 @@
 - [x] 7.4 RED → GREEN: test "An existing acme-shop project does not block the build" (create `acme-shop` on `db()` with the store first)
 - [x] 7.5 RED → GREEN: test "The allowed repositories directory of the environment is ignored"
 - [x] 7.6 RED → GREEN: test "The database is unchanged after a build" (default base on `DATABASE_URL`; project ids read through a separate client before and after; no `__codemind_seed_build__` remains)
-- [x] 7.7 RED → GREEN: test "An unreachable database is reported without its URL"
+- [x] 7.7 RED → GREEN: test "An unreachable database is reported without its URL by the seed build"
 - [x] 7.8 Run `tests/integration/cli/seed-build.spec.ts` twice to check for flakiness (Windows temp realpath, Git timing, time zone)
 
 ## 8. Privacy and ethics check
@@ -83,7 +83,7 @@
 ## 12. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
 - [x] 12.1 No user interface: the seed build is a development script, already driven end to end through `npm run seed:build` in step 11. Record "covered by step 11; no browser UI", with that reason, in the step 10 report
-- [x] 12.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that the new spec files ran (the integration one with Postgres and Git) and passed, and that the mutation step covered `packages/cli`. Link the run in the step 10 report
+- [ ] 12.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that the new spec files ran (the integration one with Postgres and Git) and passed, and that the mutation step covered `packages/cli`. Link the run in the step 10 report
 
 ## 13. Update Technical Documentation (MANDATORY)
 

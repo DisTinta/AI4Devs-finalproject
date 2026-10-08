@@ -3,8 +3,8 @@
 See `proposal.md` → Why. The pieces exist and are consumed as they are:
 
 - `fixtures/build-history.mjs` exports `buildOne(name, { dir, manifest })`, which rebuilds a fixture's
-  `.git` deterministically (fixed authors, dates and messages) and always restores the tracked
-  sources. It prints `<name>: N commits, N authors -> <absolute .git path>` with `console.log`.
+  `.git` deterministically (fixed authors, dates and messages) and restores the tracked sources in
+  `finally` (not on an interrupted process; Risks). It prints `<name>: N commits, N authors -> <absolute .git path>` with `console.log`.
 - `packages/cli/src/compose-index.ts` exports `indexWithEnvironment(options, environment)`: it trims
   and checks `ALLOWED_REPOS_DIR`, `AUTHOR_HASH_SALT` and `DATABASE_URL`, opens a transaction through
   an injectable `OpenTransaction` (`{ client, commit, rollback, release }`), runs `indexRepository`,
@@ -192,17 +192,24 @@ and it locks the row for the build's duration).
 - `fingerprint(inputs: { path: string; content: string }[])` → `sha256:<hex>`: sort by path (code
   unit), normalise `\r\n` → `\n` in the content, hash `path + '\0' + content + '\0'` for each.
   Synthetic dependency inputs have path `deps:<name>@<version>` and empty content.
-- `collectFingerprintInputs(repoRoot)` → `{ analyzer, contract }`: recursive listing of
-  `packages/analyzers/php/src/`, `packages/core/src/index/`, `packages/core/src/knowledge/`, plus
-  `deps:tree-sitter-php@…` and `deps:web-tree-sitter@…` from `package-lock.json`
-  (`packages["node_modules/<name>"].version`; missing → error); contract =
-  `packages/core/src/ports/AnalyzerPort.ts` + `packages/adapters/store-postgres/migrations/*.up.sql`.
-  Paths repository-relative with `/`.
-- Justification (author): everything that shapes the rows; invalidating too much is `verify`'s safe
-  failure (CM-HU-14.1).
+- `collectFingerprintInputs(repoRoot)` → `{ analyzer, contract }`. Analyzer (name kept) = everything
+  that produces the seed's rows: recursive listing of `packages/analyzers/php/src/`,
+  `packages/core/src/index/`, `packages/core/src/knowledge/`, `packages/cli/src/seed/`,
+  `packages/adapters/git/src/`, `packages/adapters/store-postgres/src/` (the whole `src`, not single
+  files), `fixtures/history/` and `fixtures/acme-shop/`; the files `packages/cli/src/seed-build.ts`,
+  `packages/cli/src/compose-index.ts` and `fixtures/build-history.mjs`; plus `deps:tree-sitter-php@…`
+  and `deps:web-tree-sitter@…` from `package-lock.json` (`packages["node_modules/<name>"].version`;
+  missing → error). Any entry named `.git` is skipped (`fixtures/acme-shop/.git` exists after
+  `buildOne`). Contract (unchanged) = `packages/core/src/ports/AnalyzerPort.ts` +
+  `packages/adapters/store-postgres/migrations/*.up.sql`. Paths repository-relative with `/`.
+  `codemind-seed-format` stays `1`.
+- Justification (author): everything that produces the rows; invalidating too much is `verify`'s
+  safe failure (CM-HU-14.1). Widened after `/adversarial-review`: commit `9cff8ee` changed the
+  renderer and 32 lines of the seed while both fingerprints stayed the same, so the first input set
+  (analyzer, `core/index`, `core/knowledge`) did not cover everything that shapes the rows.
 
 The listing reads the working tree, not `git ls-files`: simpler and with no Git dependency. An
-untracked file under those directories changes the fingerprint (Risks).
+untracked file under those directories — `fixtures/` included — changes the fingerprint (Risks).
 
 ### D7 — Atomic write
 
@@ -257,8 +264,9 @@ and CM-HU-14.1.
   accepted: the name is reserved by convention and the error is explicit.
 - [Two concurrent uncommitted indexings with the same temporary name: the second waits on the unique
   index] → only the seed-build spec file uses the name, and its tests run sequentially.
-- [An untracked file under a fingerprint directory changes the fingerprint] → the failure is a false
-  "stale" in `verify`, the safe direction; rerunning `seed:build` on a clean tree fixes it.
+- [An untracked file under a fingerprint directory — the packages listed in D6 or `fixtures/history/`
+  and `fixtures/acme-shop/` (its generated `.git` excluded) — changes the fingerprint] → the failure is
+  a false "stale" in `verify`, the safe direction; rerunning `seed:build` on a clean tree fixes it.
 - [Changing the analyzer without rerunning `seed:build`] → that is exactly what the fingerprint lets
   CM-HU-14.1 detect; not checked in this change.
 - [A server parsing `\u` escapes in `E''` literals needs `UTF8` encoding for code points above
@@ -266,7 +274,9 @@ and CM-HU-14.1.
 - [`process.env.TZ` assignment not honoured on some platform] → the test's first assertion fails
   loudly instead of passing vacuously.
 - [The real run writes `fixtures/acme-shop/.git`] → gitignored and the documented flow of
-  `fixtures/README.md`; `buildOne` always restores the tracked sources.
+  `fixtures/README.md`; `buildOne` restores the tracked sources when it finishes, but not if the
+  process is interrupted (Ctrl+C: Node's default SIGINT handler skips `finally`) nor with two runs at
+  once; the next run would then read marker content as final. Debt, see Follow-ups (C).
 
 ## Migration Plan
 
@@ -292,6 +302,30 @@ Rollback: revert the commit; the placeholder seed and script come back.
   (`git diff --exit-code seeds/` clean); extra case "a unique edge's id is the UUID v5 of its key
   ending in #0" in `tests/unit/cli/seed-deterministic-ids.spec.ts`.
 
+- **`/adversarial-review` (2026-10-08, `reports/2026-10-08-adversarial-review.md`), destinations:**
+  - **A — Major, fingerprint coverage:** the analyzer fingerprint now covers everything that produces
+    the rows (D6: `packages/cli/src/seed/`, `seed-build.ts`, `compose-index.ts`, the whole `src` of
+    the Git and store adapters, `fixtures/build-history.mjs`, `fixtures/history/`,
+    `fixtures/acme-shop/`, `.git` excluded); scenario "Each fingerprint covers exactly its declared
+    inputs" widened first (seen red), seed regenerated (only the `analyzer-fingerprint` line
+    changes: the contract inputs did not change).
+  - **A — Minor, the seed was never loaded:** extra integration case "the generated seed loads into
+    the schema" (savepoint on `db()`, existing `acme-shop` deleted and reverted, whole dump run,
+    per-table counts = `INSERT` counts, `node_count`/`edge_count` checked).
+  - **C — Minor, `buildOne` on Ctrl+C or concurrent runs:** Spanish checklist comment «Deuda:
+    seed-build» on DIS-91 (SIGINT handler or lock file in `fixtures/build-history.mjs`, and a check
+    that the tracked fixture tree is clean before the snapshot). The Risks line is corrected now.
+  - **A — Minor, duplicate scenario title:** renamed "An unreachable database is reported without its
+    URL by the seed build" (spec, test, task 7.7).
+  - **A — Minor, a case restating the implementation:** replaced by "a unique edge's id is the UUID v5
+    of its literal key ending in #0" in `seed-render-dump.spec.ts` (through `renderSeedDump`, key
+    written as literal text); a renderer without `#0` on unique edges makes it fail (checked).
+  - **A — Minor, a unit test writing into the checkout:** it now uses a `mkdtemp` repository root
+    under `os.tmpdir()`.
+  - **D — Minor, spec edited after implementation (`#0` on every edge):** accepted and documented
+    above; mentioned in the archive note.
+  - **Questions:** 12.2 reopened and closed with the CI run of the final head; the RED not observed
+    in 3.3–4.4 stays declared in the step 10 report.
 - **Inbound note from DIS-98** (`unresolved` is outside `AnalyzerPort`; serialise only `files`,
   `symbols`, `edges`, `diagnostics`): not applicable — the seed is read back from the database, whose
   schema has no place for it. Answer in its thread at archive.

@@ -12,14 +12,31 @@ export interface FingerprintInput {
 
 /** The inputs of the two header fingerprints (DIS-91 design D6). */
 export interface FingerprintInputs {
-  /** The PHP analyzer, the indexing core and the resolved parser versions. */
+  /** Everything that produces the seed's rows, plus the resolved parser versions. */
   analyzer: FingerprintInput[];
   /** The analyzer port and the `.up.sql` migrations. */
   contract: FingerprintInput[];
 }
 
-/** Directories whose every file feeds the analyzer fingerprint. */
-const ANALYZER_DIRECTORIES = ['packages/analyzers/php/src', 'packages/core/src/index', 'packages/core/src/knowledge'];
+/**
+ * Directories whose every file feeds the analyzer fingerprint: everything that produces the seed's
+ * rows — the analyzer, the indexing core, the history and store adapters, the seed renderer and the
+ * sample fixture with its history manifest (DIS-91 design D4). Paths with a `.git` segment are skipped
+ * (`fixtures/acme-shop/.git` exists after the history rebuild).
+ */
+const ANALYZER_DIRECTORIES = [
+  'packages/analyzers/php/src',
+  'packages/core/src/index',
+  'packages/core/src/knowledge',
+  'packages/cli/src/seed',
+  'packages/adapters/git/src',
+  'packages/adapters/store-postgres/src',
+  'fixtures/history',
+  'fixtures/acme-shop',
+];
+
+/** Single files that feed the analyzer fingerprint, for the same reason. */
+const ANALYZER_FILES = ['packages/cli/src/seed-build.ts', 'packages/cli/src/compose-index.ts', 'fixtures/build-history.mjs'];
 
 /** Parser packages whose resolved version feeds the analyzer fingerprint. */
 const PARSER_DEPENDENCIES = ['tree-sitter-php', 'web-tree-sitter'];
@@ -44,9 +61,11 @@ export function fingerprint(inputs: FingerprintInput[]): string {
 }
 
 /**
- * Reads the fingerprint inputs from the working tree at `repoRoot`: every file under the analyzer
- * directories plus one `deps:<name>@<version>` entry per parser dependency resolved in
- * `package-lock.json`; and the analyzer port plus every `.up.sql` migration. Each list is sorted by path.
+ * Reads the fingerprint inputs from the working tree at `repoRoot`. Analyzer: everything that produces
+ * the seed's rows — every file under the analyzer directories (skipping any `.git` entry) and the
+ * analyzer files — plus one `deps:<name>@<version>` entry per parser dependency resolved in
+ * `package-lock.json`. Contract: the analyzer port and every `.up.sql` migration. Each list is sorted
+ * by path.
  *
  * @param repoRoot The repository root.
  * @returns The analyzer and contract inputs.
@@ -61,7 +80,11 @@ export function collectFingerprintInputs(repoRoot: string): FingerprintInputs {
     if (version === undefined) throw new Error(`fingerprint: package-lock.json does not resolve ${name}`);
     return { path: `deps:${name}@${version}`, content: '' };
   });
-  const analyzer = [...deps, ...ANALYZER_DIRECTORIES.flatMap((directory) => filesUnder(repoRoot, directory))];
+  const analyzer = [
+    ...deps,
+    ...ANALYZER_DIRECTORIES.flatMap((directory) => filesUnder(repoRoot, directory)),
+    ...ANALYZER_FILES.map((path) => read(repoRoot, path)),
+  ];
   const migrations = readdirSync(join(repoRoot, MIGRATIONS_DIRECTORY))
     .filter((name) => name.endsWith('.up.sql'))
     .map((name) => read(repoRoot, `${MIGRATIONS_DIRECTORY}/${name}`));
@@ -72,6 +95,7 @@ export function collectFingerprintInputs(repoRoot: string): FingerprintInputs {
 /** Every file under `directory`, recursively (no `recursive` option: `Dirent.parentPath` needs Node 20.12). */
 function filesUnder(repoRoot: string, directory: string): FingerprintInput[] {
   return readdirSync(join(repoRoot, directory), { withFileTypes: true }).flatMap((entry) => {
+    if (entry.name === '.git') return [];
     const path = `${directory}/${entry.name}`;
     if (entry.isDirectory()) return filesUnder(repoRoot, path);
     return entry.isFile() ? [read(repoRoot, path)] : [];

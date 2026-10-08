@@ -2,12 +2,14 @@ import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import type { SeedRows } from '@codemind/adapter-store-postgres';
 import {
+  SEED_ID_NAMESPACE,
   commitKey,
   edgeKey,
   fileKey,
   projectKey,
   seedId,
   symbolKey,
+  uuidV5,
   withOccurrence,
 } from '../../../packages/cli/src/seed/deterministic-ids';
 import { renderSeedDump } from '../../../packages/cli/src/seed/render-dump';
@@ -280,6 +282,16 @@ describe('renderSeedDump', () => {
     for (const line of inserts(dump, 'file')) {
       expect(line.startsWith('INSERT INTO file (id, project_id, path, kind, loc, content_hash, redacted) VALUES (')).toBe(true);
     }
+  });
+
+  it("a unique edge's id is the UUID v5 of its literal key ending in #0", () => {
+    // The key is written out by hand, not with the key builders, so a change in how the renderer
+    // builds edge keys (for instance no #0 on a unique edge) makes this fail.
+    const dump = renderSeedDump(sampleRows(), FINGERPRINTS, 'acme-shop');
+    const id = uuidV5(SEED_ID_NAMESPACE, 'acme-shop\u0000calls\u0000exact\u0000php\u0000symbol\u0000app/Order.php\u0000method\u000010\u0000total\u0000symbol\u0000app/Calc.php\u0000method\u00002\u0000price\u0000#0');
+    const calls = inserts(dump, 'edge').filter((l) => l.includes("'calls'"));
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toContain(`VALUES ('${id}', `);
   });
 
   it('rejects a reference to an unexported row', () => {

@@ -26,6 +26,36 @@ interface FakeOptions {
   createProjectError?: Error;
   exportError?: Error;
   outputPath?: string;
+  /** Repository root for the fingerprints and the summary path; defaults to this checkout (read only). */
+  repoRoot?: string;
+}
+
+/**
+ * A minimal repository tree under the OS temp dir with every fingerprint input the build reads, so a
+ * test can point `repoRoot` at it and write its output inside it without touching the checkout.
+ */
+function scratchRepository(): string {
+  const root = mkdtempSync(join(tmpdir(), 'codemind-seed-repo-'));
+  const directories = [
+    'packages/analyzers/php/src',
+    'packages/core/src/index',
+    'packages/core/src/knowledge',
+    'packages/cli/src/seed',
+    'packages/adapters/git/src',
+    'packages/adapters/store-postgres/src',
+    'packages/adapters/store-postgres/migrations',
+    'packages/core/src/ports',
+    'fixtures/history',
+    'fixtures/acme-shop',
+    'seeds',
+  ];
+  for (const directory of directories) mkdirSync(join(root, directory), { recursive: true });
+  for (const file of ['packages/cli/src/seed-build.ts', 'packages/cli/src/compose-index.ts', 'fixtures/build-history.mjs', 'packages/core/src/ports/AnalyzerPort.ts']) {
+    writeFileSync(join(root, file), '');
+  }
+  const packages = { 'node_modules/tree-sitter-php': { version: '0.24.2' }, 'node_modules/web-tree-sitter': { version: '0.27.0' } };
+  writeFileSync(join(root, 'package-lock.json'), JSON.stringify({ packages }));
+  return root;
 }
 
 interface Run {
@@ -112,7 +142,7 @@ async function run(options: FakeOptions = {}): Promise<Run> {
     env: options.env ?? VALID_ENV,
     stdout: { write: (chunk: string) => void (stdout += chunk) },
     stderr: { write: (chunk: string) => void (stderr += chunk) },
-    repoRoot: resolve('.'),
+    repoRoot: options.repoRoot ?? resolve('.'),
     fixturesRoot: dir,
     outputPath: options.outputPath ?? output,
     buildHistory: async () => void log.push('buildHistory'),
@@ -221,12 +251,12 @@ describe('runSeedBuild', () => {
   });
 
   it('names an output inside the repository by its relative path', async () => {
-    const inside = join(resolve('.'), 'openspec', 'changes', 'seed-build', `.unit-seed-${process.pid}.sql`);
+    const repoRoot = scratchRepository();
     try {
-      const result = await run({ outputPath: inside });
-      expect(result.stdout).toBe(`acme-shop: 1 files, 0 symbols, 0 edges, 1 commits -> openspec/changes/seed-build/.unit-seed-${process.pid}.sql\n`);
+      const result = await run({ repoRoot, outputPath: join(repoRoot, 'seeds', 'graph-dump.sql') });
+      expect(result.stdout).toBe('acme-shop: 1 files, 0 symbols, 0 edges, 1 commits -> seeds/graph-dump.sql\n');
     } finally {
-      rmSync(inside, { force: true });
+      rmSync(repoRoot, { recursive: true, force: true });
     }
   });
 

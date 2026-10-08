@@ -499,9 +499,13 @@ services that must be started first, quirks of the local environment.
   file name only when outside it) and empty stderr; failure → empty stdout and exactly one
   `{"error":…}` line. The file is written to `.<name>.<pid>.tmp` and renamed, so a failure never
   touches the previous seed. Format (`render-dump.ts`): header `codemind-seed-format: 1` +
-  `analyzer-fingerprint` (every file of `packages/analyzers/php/src`, `packages/core/src/index`,
-  `packages/core/src/knowledge`, plus `deps:tree-sitter-php@…`/`deps:web-tree-sitter@…` from
-  `package-lock.json`) + `contract-fingerprint` (`AnalyzerPort.ts` + `migrations/*.up.sql`), both
+  `analyzer-fingerprint` (everything that produces the rows: every file of
+  `packages/analyzers/php/src`, `packages/core/src/index`, `packages/core/src/knowledge`,
+  `packages/cli/src/seed`, `packages/adapters/git/src`, `packages/adapters/store-postgres/src`,
+  `fixtures/history`, `fixtures/acme-shop` — any `.git` entry skipped —, the files
+  `packages/cli/src/seed-build.ts`, `packages/cli/src/compose-index.ts`, `fixtures/build-history.mjs`,
+  plus `deps:tree-sitter-php@…`/`deps:web-tree-sitter@…` from `package-lock.json`) +
+  `contract-fingerprint` (`AnalyzerPort.ts` + `migrations/*.up.sql`), both
   SHA-256 over LF-normalised content in path order; ids are UUID v5 under `SEED_ID_NAMESPACE` of
   NUL-separated natural keys prefixed by the project name (edge keys carry `#n`, twins ranked by
   weight); `is_sample = true`, `root_path = 'fixtures/acme-shop'`, dates = the `HEAD` commit's; ISO

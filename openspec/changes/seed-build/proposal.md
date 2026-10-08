@@ -34,8 +34,10 @@ real path (which contains the OS user name), and `indexRepository` creates proje
   `created_at` and `indexed_at` = the `HEAD` commit's date; canonical values (UTC ISO-8601
   timestamps with milliseconds, shortest round-trip doubles, literal `NULL`); rows in natural-key
   order; explicit-column `INSERT`s, LF line endings.
-- **Fingerprint header**: `-- analyzer-fingerprint: sha256:…` (PHP analyzer, `core/index`,
-  `core/knowledge`, resolved versions of `tree-sitter-php` and `web-tree-sitter`) and
+- **Fingerprint header**: `-- analyzer-fingerprint: sha256:…` (everything that produces the seed's
+  rows: the PHP analyzer, `core/index`, `core/knowledge`, the seed renderer and its composition, the
+  Git and store adapters, the history rebuilder, its manifests and the acme-shop fixture, plus the
+  resolved versions of `tree-sitter-php` and `web-tree-sitter`) and
   `-- contract-fingerprint: sha256:…` (`AnalyzerPort.ts`, the `.up.sql` migrations), content-based
   and line-ending independent.
 - **Atomic write**: the dump goes to a temporary file in `seeds/` and is renamed over
