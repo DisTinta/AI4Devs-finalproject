@@ -103,7 +103,8 @@ fails for lack of a range (C5(b)).
 plus the historical group, with its `#` headers. Regenerated right before committing: tree section
 from `gitleaks dir . --redact -f json` (`Fingerprint` field); historical section from
 `gitleaks git . --redact --log-opts="origin/main..HEAD" --gitleaks-ignore-path <file with the tree
-section only> -f json`. If the result differs from DIS-87 (an edit moved a line, a new hito commit
+section only> -f json`, both with the root `.gitleaksignore` moved aside: gitleaks always reads it, even
+with `--gitleaks-ignore-path` (found during the apply; `fixtures/README.md` gives the full recipe). If the result differs from DIS-87 (an edit moved a line, a new hito commit
 added a finding), the regenerated set wins and the difference is reported in a Spanish Linear comment.
 
 **D8 — Evidence plan for C2–C4.** One draft PR from a throwaway branch `chore/DIS-87-secret-probe`

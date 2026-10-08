@@ -211,16 +211,22 @@ under `#` comments by reason: the planted secret of this fixture and of
 key quoted in a session log (`path:rule:line`), and the findings of hito-2
 commits that are no longer in the tree (`commit:path:rule:line`). A
 fingerprint carries the line number: editing a file above an ignored line
-moves it and turns CI red. To regenerate (copy the `Fingerprint` field of each
-finding):
+moves it and turns CI red. A shifted line shows up as a new finding in
+`gitleaks dir . --redact`: replace the old line number with the new one. To
+regenerate a whole section (copy the `Fingerprint` field of each finding),
+move the root `.gitleaksignore` aside first — gitleaks always reads it, even
+with `--gitleaks-ignore-path` — and put it back afterwards:
 
 ```bash
+mv .gitleaksignore <scratch>/gitleaksignore.full
 # Tree section (path:rule:line)
 gitleaks dir . --redact -f json -r <tree-report.json>
-# Historical section (commit:path:rule:line), with an ignore file that holds
-# only the tree section, so only the commit-bound findings remain
+# Historical section (commit:path:rule:line), with an ignore file outside the
+# repository that holds only the tree section, so only the commit-bound
+# findings remain
 gitleaks git . --redact --log-opts="origin/main..HEAD" \
   --gitleaks-ignore-path <ignore-with-tree-section-only> -f json -r <history-report.json>
+mv <scratch>/gitleaksignore.full .gitleaksignore
 ```
 
 Check that a finding is synthetic before fingerprinting it; a real secret is

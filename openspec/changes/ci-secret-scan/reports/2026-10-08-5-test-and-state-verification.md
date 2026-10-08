@@ -124,6 +124,13 @@ The probe line shifts all three PEM headers of that spec (120 → 121, 144 → 1
 expected `…:private-key:121` among them. `git status --porcelain openspec/specs` is empty after the
 restore.
 
+## Regeneration recipe of `fixtures/README.md`, re-checked
+
+gitleaks always reads the root `.gitleaksignore`, even with `--gitleaks-ignore-path` (with the file
+in place, the historical command returned «no leaks found»). The recipe now moves the file aside
+first. Re-run exactly as written: tree 13 findings / 9 unique, historical 10 / 8 unique, union = the
+17 lines of `.gitleaksignore` (`MATCH`); file restored with identical SHA-256.
+
 ## Test results
 
 - Task 3.5: `gitleaks dir . --redact` with the new docs and the change artifacts in place → «no

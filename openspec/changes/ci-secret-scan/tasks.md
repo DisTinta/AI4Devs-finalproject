@@ -28,7 +28,7 @@
 ## 3. Docs (DIS-87 `[enhanced]` → Documentación)
 
 - [x] 3.1 `fixtures/README.md`: replace «CI note (pending hito 2)» with how the scan runs (job `secrets`, `dir` + event range, `--redact`) and how to regenerate each fingerprint section (commands of design D7; copy the `Fingerprint` field). Placeholders only, no secret value
-  - «CI note (pending hito 2)» replaced by the subsection «CI secret scan (`.gitleaksignore`)» with both regeneration commands (placeholders only).
+  - «CI note (pending hito 2)» replaced by the subsection «CI secret scan (`.gitleaksignore`)» with both regeneration commands (placeholders only). Fixed while writing the PR description: gitleaks always reads the root `.gitleaksignore`, even with `--gitleaks-ignore-path`, so the recipe now moves it aside first; re-run as written → tree 9 + historical 8 = the 17 lines of the file (design D7 updated).
 - [x] 3.2 `docs/project-context.md`: a CI bullet for `secrets` next to «CI docs-only skip» (own job, no `needs: scope`, never skipped, no `npm ci`, pinned 8.30.1 by SHA-256) and the gotcha «`.gitleaksignore` fingerprints carry line numbers: editing above an ignored line turns CI red; regenerate per `fixtures/README.md`»
   - CI bullet after «CI docs-only skip» and gotcha «`.gitleaksignore` fingerprints carry line numbers».
 - [x] 3.3 `readme.md`: §2.2 Security Gateway row → own rules in process + `gitleaks` in CI; add «secretos» to the CI node of the diagram
