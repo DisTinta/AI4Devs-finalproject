@@ -1,5 +1,10 @@
 # Test and State Verification Report
 
+> **Superseded in part (2026-10-08, after `/adversarial-review`, design D10).** The tree entries of
+> `.gitleaksignore` described below were replaced by value-only allowlists in `.gitleaks.toml`;
+> `.gitleaksignore` keeps 1 commit-bound entry. C5(a) and C6 were re-run with the final
+> configuration: see `2026-10-08-adversarial-review.md`.
+
 - Date: 2026-10-08
 - Change: ci-secret-scan (DIS-87)
 - Step: 5 — Run Tests and Verify Data State (with the local evidence of tasks 0.4, 1.2, 2.2, 2.3, 3.4)
@@ -54,6 +59,11 @@ INF 292 commits scanned.
 INF scanned ~6312596 bytes (6.31 MB) in 4.93s
 INF no leaks found                                   (exit 0)
 ```
+
+292 versus the 318 commits of DIS-87: `git rev-list --count origin/main..bc3e395` = 318, of which 25
+are merges (`--merges`) and 293 are not. gitleaks does not walk merge commits, and one non-merge
+commit, `780194d` (`docs(DIS-99): archive analyzer-port-edges-tsdoc change`), only renames files and
+adds no line: 293 − 1 = 292.
 
 ## Workflow static check (task 2.2)
 
@@ -114,6 +124,9 @@ openspec/specs/security-gateway/spec.md:private-key:121
 openspec/specs/security-gateway/spec.md:private-key:145
 openspec/specs/security-gateway/spec.md:private-key:156
 ## 3. regenerate tree fingerprints per fixtures/README.md (replace the moved lines)
+#    recipe used: the single-line shortcut of fixtures/README.md (replace the old line number with
+#    the one `gitleaks dir` reports), applied with sed to the three moved lines:
+#    s#…spec.md:private-key:120$#…:121#; s#…:144$#…:145#; s#…:155$#…:156#
 ## 4. rescan
 INF no leaks found
 ## 5. restore

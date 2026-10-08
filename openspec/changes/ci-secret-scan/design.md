@@ -21,7 +21,8 @@ See proposal.md (Why, What Changes). Current state that shapes the approach:
 **Goals:**
 
 - A `secrets` check that runs on every CI event, independent of `scope`, and fails on any finding
-  not fingerprinted in `.gitleaksignore`, in the tree or in the commits of the event range.
+  not allowed by exact value in `.gitleaks.toml` or fingerprinted by commit in `.gitleaksignore`,
+  in the tree or in the commits of the event range (design D10).
 - Both scans report even when the other one failed, so one run shows the whole picture.
 - Every acceptance criterion of DIS-87 (C1–C6) backed by a CI run link or pasted local output.
 
@@ -95,17 +96,23 @@ workflow file (a second trigger block to keep in sync with `ci.yml`).
 **D6 — Range step.** On `pull_request`: `range=$BASE..$HEAD` (both SHAs are fetched by
 `fetch-depth: 0`; the checkout is the merge ref, whose parents are the base and head). On `push`:
 if `BEFORE` matches `^0+$` or `git cat-file -e "$BEFORE^{commit}"` fails (first push, force-push to a
-commit no longer present) → `range=` and log `no usable 'before' commit: tree scan only`; otherwise
+commit no longer present) → `range=` and log `No usable 'before' commit (<before or none>): tree scan only`; otherwise
 `range=$BEFORE..$SHA`. Any other event → `range=` with the same kind of log line. The step never
 fails for lack of a range (C5(b)).
 
-**D7 — `.gitleaksignore` content.** The 17 lines of DIS-87 `[enhanced]` §3, in its three tree groups
+**D7 — `.gitleaksignore` content (tree section superseded by D10).** The 17 lines of DIS-87 `[enhanced]` §3, in its three tree groups
 plus the historical group, with its `#` headers. Regenerated right before committing: tree section
 from `gitleaks dir . --redact -f json` (`Fingerprint` field); historical section from
 `gitleaks git . --redact --log-opts="origin/main..HEAD" --gitleaks-ignore-path <file with the tree
 section only> -f json`, both with the root `.gitleaksignore` moved aside: gitleaks always reads it, even
 with `--gitleaks-ignore-path` (found during the apply; `fixtures/README.md` gives the full recipe). If the result differs from DIS-87 (an edit moved a line, a new hito commit
 added a finding), the regenerated set wins and the difference is reported in a Spanish Linear comment.
+Two rules written in `fixtures/README.md` alongside the recipe (added during the apply, accepted by
+`/verify-against-spec` as design choices): a single shifted line can be fixed by replacing its old
+line number with the one `gitleaks dir . --redact` now reports (what C5(a) did), without
+regenerating the section; and a finding is checked to be synthetic before it is fingerprinted — a
+real secret is rotated and removed, never ignored (the reason D2 rejects allowlists, applied to the
+file itself).
 
 **D8 — Evidence plan for C2–C4.** One draft PR from a throwaway branch `chore/DIS-87-secret-probe`
 created from the head of `feature/DIS-87-ci-secret-scan`, **with that branch as the PR base**, so the
@@ -138,11 +145,33 @@ Git Bash with `EVENT=push` and `BEFORE` = forty zeros, then an unreachable SHA, 
 and with `EVENT=pull_request` and two real SHAs; the four outputs are recorded. C6: `gitleaks git . --redact --log-opts="origin/main..HEAD"` and `gitleaks dir . --redact`
 with the final ignore → «no leaks found» both.
 
+**D10 — Value-bound allowlist instead of tree fingerprints (author, 2026-10-08, after
+`/adversarial-review`).** A `path:rule:line` fingerprint carries no part of the secret: it hid *any*
+secret of the same rule on that line, in `dir` and in `git` mode (shown locally: a different AWS key
+on `fixtures/acme-shop/config/services.php:21` gave «no leaks found»). The tree findings move to
+`.gitleaks.toml`: `[extend] useDefault = true` plus one `[[allowlists]]` entry per unique value (13),
+each with `regexes` = the exact secret (anchored `^…$`; target `secret`, which equals the whole match
+for `private-key`). No `paths`: the first GREEN run showed that gitleaks 8.30.1 applies a global
+allowlist's `paths` as a whole-file skip in `dir` mode even with `condition = "AND"`, which would have
+hidden the whole file. In the file the values are escaped (a backslash before each regex
+metacharacter, one bracketed character in short values, `\x{…}` for non-ASCII so the file stays
+ASCII) so the config does not match the rules itself. A different value on the same line, or a real key inside one of the
+long PEM matches of the specs, now turns the job red; moving a line no longer does. Both scans pass
+`--config .gitleaks.toml` explicitly, so deleting the file fails the job instead of silently falling
+back to the defaults. `.gitleaksignore` keeps only commit-bound fingerprints, which cannot hide new
+commits: 1 entry (`cb4e6aa…:private-key:126`), because the other 7 historical findings carry the
+same synthetic values that `.gitleaks.toml` now allows. Limit kept: `git` mode scans only the added
+lines of a diff, so changing one body line of an existing PEM block is caught by the tree scan, not by
+the commit scan. Rejected: a guard that pins the hash of each ignored line (tree only; a commit in
+the range with a real key on that line would still pass in `git` mode); documenting the gap only.
+Trade-off: the PEM entries are long (they are whole matched blocks of spec text), and editing the
+matched text in those specs turns the job red until the entry is regenerated.
+
 ## Risks / Trade-offs
 
-- [Fingerprints carry line numbers: any edit above an ignored line in those files turns CI red]
-  → Documented as a gotcha in `docs/project-context.md` and with the regeneration commands in
-  `fixtures/README.md`; the red check is the intended signal (a human re-checks the line).
+- [Superseded by D10] Tree fingerprints carried line numbers and hid any secret on that line. Now the
+  allowlist is bound to the exact value: editing the matched text (not moving it) turns CI red, which
+  is the intended signal; regeneration is in `fixtures/README.md`.
 - [This change's own docs and artifacts could add a finding (e.g. an example key in prose)] →
   Placeholders only (`<sha256>`, `<random>`); `gitleaks dir . --redact` runs on the branch before
   every push; the PR's own `secrets` run is C1.
@@ -156,6 +185,10 @@ with the final ignore → «no leaks found» both.
   run] → The next push or the push to `main` scans its own range; acceptable.
 - [The throwaway token stays reachable at `refs/pull/N/head`] → Synthetic, random, never reused,
   `--redact` keeps it out of logs.
+- [The Linear–GitHub integration links any PR whose title or branch carries `DIS-87`; closing the
+  throwaway PR #27 moved DIS-87 from In Review back to In Progress (10:08, found by
+  `/verify-against-spec`)] → State set back to In Review with a Spanish comment; check the state
+  after closing any PR linked to the ticket.
 - [Required check: if `secrets` is required and a PR predates this job, it waits for a check that
   never reports] → Add the required check only after this PR merges; rebase/push older PRs.
 - [C5(b) is proven by local simulation, not by a CI run on `main`] → Not reproducible without
@@ -176,3 +209,23 @@ job and `.gitleaksignore` (and the required check); nothing else depends on them
 - Whether `main` and `feature/entrega-2-CRN` have branch protection (API returned 404 with the active
   account). Does not change what is built: task 8.2 only queries it (read-only GET with the DisTinta
   account) and records the result; the author acts on it from the post-merge checklist.
+
+## Follow-ups
+
+Deferred Minors of `/adversarial-review` (2026-10-08), destination **C** (explicit debt): a Spanish
+checklist comment on DIS-87, the same list here. None is a hole this change introduces; each is a
+limit of the scan or of the repository's settings.
+
+- [ ] A PR can weaken its own scan: editing `.gitleaks.toml`, `.gitleaksignore` or the `secrets` job
+  passes in that same PR. Mitigation today: human review (no branch protection, no CODEOWNERS).
+- [ ] Add a CODEOWNERS entry for `.gitleaks.toml`, `.gitleaksignore` and `.github/workflows/ci.yml`
+  (needs branch protection to bite).
+- [ ] Direct pushes to `feature/entrega-2-CRN` (or any branch other than `main`) are not scanned: the
+  workflow triggers on `pull_request` and on `push` to `main` only.
+- [ ] A secret introduced only while resolving a merge conflict: `gitleaks git` reads `git log -p`,
+  which shows no diff for merge commits. Not tested; the tree scan catches it while it is in the tree.
+- [ ] gitleaks' default allowlist skips lockfiles (documented in `fixtures/README.md`): a credential
+  in a `resolved` URL of `package-lock.json` is not reported.
+- [ ] `git` mode scans only added lines: a body-line change inside an existing PEM block is caught by
+  the tree scan, not by the commit scan (documented in `fixtures/README.md`).
+

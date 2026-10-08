@@ -20,10 +20,15 @@ fixture keys) both point at this ticket. Parent: DIS-64 (CM-HU-05a), whose non-g
   the workflow, then runs `gitleaks dir .` (working tree) and `gitleaks git` over the event range:
   `base.sha..head.sha` on a PR, `before..sha` on a push to `main`, tree-only when `before` is all
   zeros or unreachable. Both with `--redact`.
-- **New `.gitleaksignore` at the repository root.** 9 tree fingerprints (`path:rule:line`: the two
-  planted fixture secrets, the old fake fixture key quoted in a session log, six example PEM headers
-  in the `security-gateway` specs) and 8 historical fingerprints (`commit:path:rule:line`) from
-  hito-2 commits in `origin/main..HEAD`, grouped under `#` comments by reason.
+- **New `.gitleaksignore` at the repository root** with the commit-bound fingerprints
+  (`commit:path:rule:line`) of hito-2 findings whose value `.gitleaks.toml` does not allow: 8 in
+  the first version, 1 once the tree values are allowed by value (the other 7 historical findings
+  carry the same synthetic values).
+- **New `.gitleaks.toml`** (after `/adversarial-review`, author decision 2026-10-08): extends the
+  default rules and allows the known synthetic tree findings (the two planted fixture secrets, the
+  old fake key quoted in a session log, the example PEM blocks in the `security-gateway` specs) by
+  **exact value** (anchored regex), not by line. A first version listed them in `.gitleaksignore`
+  as `path:rule:line`, which hid any secret of the same rule on that line (design D10).
 - **Docs.** `fixtures/README.md` replaces «CI note (pending hito 2)» with how the scan runs and how to
   regenerate each fingerprint section; `docs/project-context.md` gets a CI bullet for `secrets` and a
   gotcha (fingerprints carry line numbers); `readme.md` §2.2 Security Gateway row and the CI node of
@@ -35,9 +40,10 @@ fixture keys) both point at this ticket. Parent: DIS-64 (CM-HU-05a), whose non-g
 
 - No in-process scanning during indexing (DIS-84, done with its own rules); no change to
   `packages/**`, tests, migrations or the `security-gateway` spec.
-- No custom rules and no `.gitleaks.toml` (the default `private-key` rule of 8.30.1 already detects
-  `-----BEGIN PGP PRIVATE KEY BLOCK-----`); no path allowlist (it would silence a real future key in
-  specs).
+- No custom rules (the default `private-key` rule of 8.30.1 already detects
+  `-----BEGIN PGP PRIVATE KEY BLOCK-----`); no path-only allowlist (it would silence a real future key
+  in specs). `.gitleaks.toml` is used only to extend the defaults with value-bound allowlists
+  (design D10; this non-goal was narrowed by the author after `/adversarial-review`).
 - No rewriting of content that triggers a finding (it would touch archived specs, protected) and no
   history rewrite.
 - Findings in commits no CI range walks (already on `main`, e.g. the `curl` examples of `64a9d6a4`)
@@ -70,9 +76,10 @@ data involved.
 
 - CI: `.github/workflows/ci.yml` (new job `secrets`; existing jobs untouched). This PR touches
   `ci.yml`, so the `runtime` paths filter makes `quality` run in full.
-- Repository root: new `.gitleaksignore`.
-- Docs: `fixtures/README.md`, `docs/project-context.md`, `readme.md`; `prompts.md` gets this change's
-  prompts with its Índice entry.
+- Repository root: new `.gitleaks.toml` and `.gitleaksignore`.
+- Docs: `fixtures/README.md`, `docs/project-context.md`, `readme.md` (§2.2 row, CI node of the diagram,
+  and `.gitleaks.toml` and `.gitleaksignore` in the repository tree); `prompts.md` gets this
+  change's prompts with its Índice entry.
 - Dependencies: none in `package.json`; a pinned external binary downloaded in CI from the official
   `gitleaks/gitleaks` GitHub release, checked by SHA-256.
 - GitHub settings (manual, post-merge): `secrets` as a required check on `main` and on
