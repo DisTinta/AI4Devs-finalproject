@@ -99,3 +99,41 @@ Unreachable through `llmConfigFromEnv`.
 | An evaluation configuration does not type-check against the client (261) | `openai-compatible-llm.spec.ts:131` | green |
 | *(no scenario)* body-read connection failure → `network` (199) | — | absent |
 | *(no scenario)* key only in `Authorization` (240); same rule for embeddings (144) | — | absent |
+
+---
+
+## Addendum — round 2 (after the round-1 fixes)
+
+- Audited: HEAD `90d18b4`, then `f50a7f5` (two docs-only commits in between: `.env.example`, PR description).
+- Evidence: `npx vitest run tests/unit/llm` 42/42 (`llm-unavailable` 7, `llm-config` 10, `openai-compatible-llm` 25);
+  `tsc -p tests/tsconfig.json` clean.
+- **All 26 scenarios have a passing test.** Every round-1 finding is closed or has a destination: 2.1 (code and
+  scenario), 2.3 (`.env.example` in `02477d9`: shipped values empty, comments follow spec lines 16–18,
+  `LLM_EMBED_MODEL` and a commented `LLM_TIMEOUT_MS` with the `dimension-mismatch` warning), 2.4 (extra tests),
+  3.1, 3.3, 3.4, 3.6, 3.7 (spec or code changed), the smaller note (signal inside the `try`).
+
+### Missing or partial
+
+1. The spec's Purpose still says "validated at boot" while the requirement now says "validated when read".
+2. The extra test for an invalid hand-built `timeoutMs` asserts only `instanceof LlmUnavailable`, not the reason.
+
+### Unspecified behaviour
+
+1. An invalid hand-built `timeoutMs` surfaces as `network` (the `RangeError` of `AbortSignal.timeout` is not an
+   abort); unreachable through `llmConfigFromEnv`.
+2. HTTP redirects are followed (`fetch` without `redirect`): a 301/302/303 turns the POST into a GET to another
+   URL and a 2xx there is accepted; the spec says "one `POST`" and only 2xx.
+3. `LLM_BASE_URL` accepts `http:x`, a query or fragment (`http://h/v1?k=1` → `…?k=1/chat/completions`) and
+   userinfo (which Node's `fetch` refuses, so every request fails as `network`).
+4. The body of a non-2xx response is neither read nor cancelled.
+5. The two out-of-scope commits (`0057fb3`, `b21adce`) are in the PR description but have no destination in
+   `design.md` → Follow-ups.
+
+Also low impact: the message texts of `LlmUnavailable` and `LlmConfigError` are not in the spec; `isAbort` treats
+any `AbortError`/`TimeoutError` as ours (only one signal exists). Documentation drift: the `.gitleaks.toml`
+description names lines 246/367; the key now sits at spec line 290 and test line 527 (the rule matches the exact
+value, so it still works).
+
+Specific checks: no dependency outside the manifest; header rule implemented and tested; result shapes match the
+spec; "An evaluation configuration does not type-check against the client" is only enforced when
+`npm run typecheck` runs (CI and locally).
