@@ -71,7 +71,7 @@
 
 ## 10. Update Technical Documentation (MANDATORY)
 
-- [ ] 10.1 `.env.example`: Ollama example (`LLM_BASE_URL=http://localhost:11434/v1`, `LLM_API_KEY=` empty, `LLM_MODEL=<chat model>`, `LLM_EMBED_MODEL=nomic-embed-text` with a comment that it fails with `dimension-mismatch` until DIS-46, `# LLM_TIMEOUT_MS=120000`); keep the evaluation default (URL and key empty) as the shipped values. If reading `.env.example` is denied, stop and ask the author
+- [x] 10.1 `.env.example`: Ollama example (`LLM_BASE_URL=http://localhost:11434/v1`, `LLM_API_KEY=` empty, `LLM_MODEL=<chat model>`, `LLM_EMBED_MODEL=nomic-embed-text` with a comment that it fails with `dimension-mismatch` until DIS-46, `# LLM_TIMEOUT_MS=120000`); keep the evaluation default (URL and key empty) as the shipped values. If reading `.env.example` is denied, stop and ask the author
 - [x] 10.2 `readme.md` §1.4: rows for `LLM_EMBED_MODEL` and `LLM_TIMEOUT_MS`; the `LLM_API_KEY` and `LLM_BASE_URL` rows say that `LLM_BASE_URL` decides the mode and that Ollama needs no key; the Ollama `ask` example drops `LLM_API_KEY=ollama`
 - [x] 10.3 `docs/backend-standards.md` §1: remove the *target* note on Zod (keep Playwright's)
 - [x] 10.4 `docs/project-context.md`: closed decision 2 (`LLM_BASE_URL` decides the mode; evaluation only with URL and key empty); the "infra packages are stubs" gotcha lists `adapters/llm` as implemented (`createOpenAiCompatibleLlm`, `llmConfigFromEnv`, DIS-17); a short LLM adapter gotcha (no `cause` by design, `EMBEDDING_DIMENSIONS` vs `vector(1536)`, `nomic-embed-text` fails until DIS-46); the alias list in Testing includes `@codemind/adapter-llm`
