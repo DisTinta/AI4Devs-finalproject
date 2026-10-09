@@ -76,6 +76,7 @@ describe('seedProjects', () => {
         name: 'acme-shop',
         language: 'php',
         framework: 'laravel',
+        isSample: true,
         fileCount: 2,
         symbolCount: 3,
         edgeCount: 2,
@@ -94,6 +95,21 @@ describe('seedProjects', () => {
     const projects = seedProjects(renderSeedDump(rows(), FINGERPRINTS, "o'shop"));
 
     expect(projects.map((p) => p.name)).toEqual(["o'shop"]);
+  });
+
+  it('reads is_sample: true only when the row says true; false or a missing column are not samples', () => {
+    const sql = [
+      "INSERT INTO project (id, name, language, is_sample) VALUES ('a', 'a', 'php', true);",
+      "INSERT INTO project (id, name, language, is_sample) VALUES ('b', 'b', 'php', false);",
+      "INSERT INTO project (id, name, language) VALUES ('c', 'c', 'php');",
+      '',
+    ].join('\n');
+
+    expect(seedProjects(sql).map((p) => [p.name, p.isSample])).toEqual([
+      ['a', true],
+      ['b', false],
+      ['c', false],
+    ]);
   });
 
   it('ignores header comments and blank lines', () => {
@@ -130,7 +146,7 @@ describe('seedProjects', () => {
     ].join('\n');
 
     expect(seedProjects(sql)).toEqual([
-      { id: 'p', name: 'x', language: 'php', framework: null, fileCount: 1, symbolCount: 1, edgeCount: 1, commitCount: 0 },
+      { id: 'p', name: 'x', language: 'php', framework: null, isSample: false, fileCount: 1, symbolCount: 1, edgeCount: 1, commitCount: 0 },
     ]);
   });
 

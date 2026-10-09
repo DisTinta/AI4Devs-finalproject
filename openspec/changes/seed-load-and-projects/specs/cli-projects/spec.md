@@ -25,8 +25,9 @@ SHALL be exactly `no projects`.
 On failure, stdout SHALL stay empty and stderr SHALL hold exactly one line,
 `{"error":{"code","message","details"}}`: `MISSING_CONFIG`, `DATABASE_UNAVAILABLE`, `USAGE` for any
 positional argument or unknown option, or `INTERNAL` with the message
-`unexpected error; nothing was changed`. `--help` SHALL print the help to stdout and exit with `0`,
-without reading the environment or opening a connection. `USAGE` SHALL exit
+`unexpected error; nothing was changed`. `--help` and `--version` SHALL print the help or the version
+to stdout, leave stderr empty and exit with `0`, without reading the environment or opening a
+connection, as the `index` command does. `USAGE` SHALL exit
 with `2` and every other failure with `1`; the argument parser SHALL NOT print text of its own. No
 output SHALL contain the database URL or its credentials.
 
@@ -52,10 +53,10 @@ output SHALL contain the database URL or its credentials.
 
 - **GIVEN** `DATABASE_URL` unset, then `'   '`; then `DATABASE_URL=postgres://u:s3cret@127.0.0.1:1/db`;
   then a valid configuration and the extra argument `extra`, then the unknown option `--json`; and
-  finally `--help` with `DATABASE_URL` unset
+  finally `--help`, then `--version`, with `DATABASE_URL` unset
 - **WHEN** `projects` runs
 - **THEN** the first two exit with `1` and `MISSING_CONFIG` without opening a connection; the third
   exits with `1` and `DATABASE_UNAVAILABLE` and no output contains the URL, `s3cret` or `u:`; the
   extra argument and the unknown option exit with `2` and `USAGE`; in each of these cases stdout is
-  empty and stderr holds exactly one error line; and `--help` exits with `0`, prints the help to
-  stdout, leaves stderr empty and opens no connection
+  empty and stderr holds exactly one error line; and `--help` and `--version` exit with `0`, print the
+  help and the version to stdout, leave stderr empty and open no connection

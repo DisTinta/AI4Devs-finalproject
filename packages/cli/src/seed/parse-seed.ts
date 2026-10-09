@@ -10,6 +10,8 @@ export interface SeedProject {
   language: string;
   /** Project framework, `null` when the seed writes `NULL`. */
   framework: string | null;
+  /** Whether the row sets `is_sample` to `true`; `false` when it sets anything else or omits it. */
+  isSample: boolean;
   /** `INSERT`s into `file` of the project. */
   fileCount: number;
   /** `INSERT`s into `symbol` whose `file_id` is a file of the project. */
@@ -51,7 +53,8 @@ export function seedProjects(sql: string): SeedProject[] {
     if (typeof id !== 'string' || typeof name !== 'string' || typeof language !== 'string' || typeof framework === 'number' || typeof framework === 'boolean') {
       throw new Error('seed reader: a project row lacks its id, name or language');
     }
-    projects.push({ id, name, language, framework, fileCount: 0, symbolCount: 0, edgeCount: 0, commitCount: 0 });
+    const isSample = row.get('is_sample') === true;
+    projects.push({ id, name, language, framework, isSample, fileCount: 0, symbolCount: 0, edgeCount: 0, commitCount: 0 });
   }
   const byId = new Map(projects.map((project) => [project.id, project]));
   const fileProject = new Map<string, SeedProject>();

@@ -19,7 +19,7 @@ const SEED = [
   '-- codemind-seed-format: 1',
   `-- analyzer-fingerprint: sha256:${'a'.repeat(64)}`,
   '',
-  `INSERT INTO project (id, name, root_path, language, framework) VALUES ('${ACME_ID}', 'acme-shop', 'fixtures/acme-shop', 'php', 'laravel');`,
+  `INSERT INTO project (id, name, root_path, language, framework, is_sample) VALUES ('${ACME_ID}', 'acme-shop', 'fixtures/acme-shop', 'php', 'laravel', true);`,
   '',
 ].join('\n');
 const ACME: LoadedSample = { name: 'acme-shop', language: 'php', framework: 'laravel', nodeCount: 174, edgeCount: 170 };
@@ -118,6 +118,8 @@ describe('runSeedLoad', () => {
       [SEED.replace('codemind-seed-format: 1', 'codemind-seed-format: 2'), 'format'],
       [`${valid}\nINSERT INTO file (id, project_id) VALUES ('f', '${ACME_ID}');\n`, 'no-project'],
       [`${SEED}DROP TABLE project;\n`, 'format'],
+      [SEED.replace("'laravel', true);", "'laravel', false);"), 'not-sample'],
+      [`${SEED}INSERT INTO project (id, name, root_path, language, framework, is_sample) VALUES ('b', 'other', 'fixtures/other', 'php', NULL, false);\n`, 'not-sample'],
     ];
     for (const [seed, reason] of cases) {
       // Act
@@ -142,6 +144,25 @@ describe('runSeedLoad', () => {
     expect(result.stderr).toBe('');
     expect(result.log).toEqual(['open', 'load', 'commit', 'release']);
     expect(result.loads).toEqual([{ sql: SEED, projectNames: ['acme-shop'] }]);
+  });
+
+  it('accepts a seed whose every project is a sample', async () => {
+    const result = await run({ seed: `${SEED}INSERT INTO project (id, name, root_path, language, framework, is_sample) VALUES ('b', 'other', 'fixtures/other', 'php', NULL, true);\n` });
+
+    expect(result.exit).toBe(0);
+    expect(result.loads[0]?.projectNames).toEqual(['acme-shop', 'other']);
+  });
+
+  it('prints the samples in code-unit order, whatever order the store returns', async () => {
+    // U+FFFD sorts after U+1F600 by code point and by bytes, but before it by UTF-16 code units.
+    const astral = String.fromCodePoint(0x1f600);
+    const bmp = String.fromCodePoint(0xfffd);
+    const sample = (name: string): LoadedSample => ({ name, language: 'php', nodeCount: 1, edgeCount: 0 });
+
+    const result = await run({ loaded: [sample(bmp), sample('b'), sample(astral), sample('a')] });
+
+    const names = result.stdout.split('\n').slice(1, -1).map((line) => line.trim().split('  ')[0]);
+    expect(names).toEqual(['a', 'b', astral, bmp]);
   });
 
   it('counts two loaded samples in the plural and prints - for a missing framework', async () => {
@@ -248,6 +269,26 @@ describe('runSeedLoad', () => {
 
     expect(exit).toBe(0);
     expect(stdout.startsWith('1 project loaded\n')).toBe(true);
+  });
+
+  it('names a seed outside the repository by its file name only', async () => {
+    const elsewhere = mkdtempSync(join(tmpdir(), 'codemind-seed-elsewhere-'));
+    let captured = '';
+    try {
+      const exit = await runSeedLoad({
+        env: VALID_ENV,
+        stdout: { write: () => undefined },
+        stderr: { write: (chunk: string) => void (captured += chunk) },
+        repoRoot: dir,
+        seedPath: join(elsewhere, 'other-seed.sql'),
+      });
+
+      expect(exit).toBe(1);
+      expect((JSON.parse(captured) as { error: { message: string } }).error.message).toBe('other-seed.sql is not a loadable codemind seed (missing)');
+      expect(captured).not.toContain(elsewhere);
+    } finally {
+      rmSync(elsewhere, { recursive: true, force: true });
+    }
   });
 
   it('names a missing seed inside the repository by its relative path, never an absolute one', async () => {

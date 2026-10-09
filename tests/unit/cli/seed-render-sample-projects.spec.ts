@@ -48,29 +48,44 @@ function rows(framework: string | null = 'laravel'): SeedRows {
   };
 }
 
-function shuffled(input: SeedRows): SeedRows {
+/** A deterministic Fisher–Yates shuffle driven by a small linear congruential generator. */
+function shuffle<T>(items: T[], seed: number): T[] {
+  const result = [...items];
+  let state = seed;
+  for (let i = result.length - 1; i > 0; i -= 1) {
+    state = (state * 1103515245 + 12345) % 2147483648;
+    // The high bits: the low bits of this generator cycle with a short period.
+    const j = Math.floor((state / 2147483648) * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+/** The same graph with every table shuffled by `seed`. */
+function shuffled(input: SeedRows, seed: number): SeedRows {
   return {
     ...input,
-    files: [...input.files].reverse(),
-    symbols: [...input.symbols].reverse(),
-    edges: [...input.edges].reverse(),
-    commits: [...input.commits].reverse(),
-    fileCommits: [...input.fileCommits].reverse(),
+    files: shuffle(input.files, seed),
+    symbols: shuffle(input.symbols, seed + 1),
+    edges: shuffle(input.edges, seed + 2),
+    commits: shuffle(input.commits, seed + 3),
+    fileCommits: shuffle(input.fileCommits, seed + 4),
   };
 }
 
 describe('renderSampleProjects', () => {
   it('The constant does not depend on row order', () => {
-    // Arrange
+    // Arrange: the same graph under other random ids, its tables shuffled with several seeds.
     const first = rows();
-    const second = shuffled(rows());
+    const others = [1, 7, 42, 1000].map((seed) => shuffled(rows(), seed));
 
     // Act
     const a = renderSampleProjects(first, 'acme-shop');
-    const b = renderSampleProjects(second, 'acme-shop');
+    const texts = others.map((other) => renderSampleProjects(other, 'acme-shop'));
 
     // Assert
-    expect(b).toBe(a);
+    expect(new Set(others.map((other) => other.symbols.map((s) => s.name).join(','))).size).toBeGreaterThan(1);
+    for (const text of texts) expect(text).toBe(a);
   });
 
   it('writes exactly the template, with the derived id and the counts of the rows', () => {

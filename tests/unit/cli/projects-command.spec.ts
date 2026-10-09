@@ -107,6 +107,13 @@ describe('runProjectsCommand', () => {
     expect(help.stdout).toContain('Usage: codemind projects');
     expect(help.stderr).toBe('');
     expect(help.log).toEqual([]);
+
+    // Version, with no configuration at all, as the `index` command does.
+    const version = await run(['projects', '--version'], { env: {} });
+    expect(version.exit).toBe(0);
+    expect(version.stdout).toMatch(/^\d+\.\d+\.\d+/);
+    expect(version.stderr).toBe('');
+    expect(version.log).toEqual([]);
   }, 20_000);
 
   it('prints one line per project and rolls the read back, never committing', async () => {
@@ -126,7 +133,7 @@ describe('runProjectsCommand', () => {
     expect(result.log).toEqual(['open', 'list', 'rollback', 'release']);
   });
 
-  it('names the missing variable, strips the parser prefix from usage errors, and prints help and version', async () => {
+  it('names the missing variable, strips the parser prefix from usage errors, and describes the command', async () => {
     expect(errorOf(await run(['projects'], { env: {} })).message).toBe('DATABASE_URL is not set');
 
     const usage = errorOf(await run(['projects', 'extra']));
@@ -134,11 +141,6 @@ describe('runProjectsCommand', () => {
 
     const help = await run(['projects', '--help'], { env: {} });
     expect(help.stdout).toContain('List every stored project, sample or indexed, with its counts');
-
-    const version = await run(['projects', '--version'], { env: {} });
-    expect(version.exit).toBe(0);
-    expect(version.stdout).toMatch(/^\d+\.\d+\.\d+/);
-    expect(version.log).toEqual([]);
   });
 
   it('prints no projects for an empty listing', async () => {

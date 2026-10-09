@@ -77,6 +77,45 @@ async function counts(client: Client, projectId: string): Promise<Counts> {
   };
 }
 
+/** Every table a project owns, with how to order its rows; `file_commit` has no id of its own. */
+const TABLES: [string, string][] = [
+  ['project', 'id'],
+  ['file', 'id'],
+  ['symbol', 'id'],
+  ['edge', 'id'],
+  ['commit', 'id'],
+  ['file_commit', 'file_id, commit_id'],
+  ['claim', 'id'],
+  ['evidence', 'id'],
+  ['query_log', 'id'],
+  ['cache_entry', 'id'],
+];
+
+/** Every row of every table, with all its columns, in a stable order: equal snapshots mean equal databases. */
+async function snapshot(client: Client): Promise<Record<string, unknown>> {
+  const result: Record<string, unknown> = {};
+  for (const [table, order] of TABLES) {
+    const { rows } = await client.query(`SELECT * FROM ${table} ORDER BY ${order}`);
+    result[table] = rows;
+  }
+  return result;
+}
+
+/** Gives `projectId` one row in each table the domain does not write yet, so their survival is visible. */
+async function addHistoryRows(client: Client, projectId: string): Promise<void> {
+  const claim = await client.query<{ id: string }>(
+    `INSERT INTO claim (project_id, subject, predicate, layer, type) VALUES ($1, 's', 'p', 'L1', 'FACT') RETURNING id`,
+    [projectId],
+  );
+  const file = await client.query<{ id: string }>('SELECT id FROM file WHERE project_id = $1 ORDER BY id LIMIT 1', [projectId]);
+  await client.query(
+    `INSERT INTO evidence (claim_id, file_id, start_line, end_line, verification) VALUES ($1, $2, 1, 1, 'cited')`,
+    [claim.rows[0].id, file.rows[0].id],
+  );
+  await client.query(`INSERT INTO query_log (project_id, question, capability) VALUES ($1, 'q', 'explain')`, [projectId]);
+  await client.query(`INSERT INTO cache_entry (project_id, question_normalized) VALUES ($1, 'q')`, [projectId]);
+}
+
 describeWithDatabase('db:seed (integration)', () => {
   const db = useTransactionPerTest();
 
@@ -116,8 +155,8 @@ describeWithDatabase('db:seed (integration)', () => {
     const store = createPostgresStore({ transaction: db() });
     const mine = await store.createProject({ name: unique('mine'), rootPath: '/repos/mine', language: 'php' });
     await store.saveGraph(mine, sampleGraph());
-    const acmeBefore = await counts(db(), ACME_ID);
-    const mineBefore = { project: await store.getProject(mine), counts: await counts(db(), mine) };
+    await addHistoryRows(db(), mine);
+    const before = await snapshot(db());
 
     // Act
     const second = await load(db());
@@ -127,9 +166,9 @@ describeWithDatabase('db:seed (integration)', () => {
     expect(second.exit).toBe(0);
     expect(second.stdout).toBe(first.stdout);
     expect(second.stderr).toBe('');
-    expect(await counts(db(), ACME_ID)).toEqual(acmeBefore);
-    expect(await store.getProject(mine)).toEqual(mineBefore.project);
-    expect(await counts(db(), mine)).toEqual(mineBefore.counts);
+    // Same rows, same ids, same content in every table: the samples are reloaded with their deterministic
+    // ids and the user's project, with its claim, evidence, query log and cache rows, is untouched.
+    expect(await snapshot(db())).toEqual(before);
     const { rows } = await db().query<{ id: string }>("SELECT id FROM project WHERE name = 'acme-shop'");
     expect(rows).toEqual([{ id: ACME_ID }]);
   });
@@ -140,8 +179,12 @@ describeWithDatabase('db:seed (integration)', () => {
     const store = createPostgresStore({ transaction: db() });
     const id = await store.createProject({ name: 'acme-shop', rootPath: '/repos/acme', language: 'php' });
     await store.saveGraph(id, sampleGraph());
-    const other = await store.createProject({ name: unique('other'), rootPath: '/repos/other', language: 'php' });
-    const before = { acme: await store.getProject(id), other: await store.getProject(other), counts: await counts(db(), id) };
+    await store.createProject({ name: unique('other'), rootPath: '/repos/other', language: 'php' });
+    // A sample from an earlier load: the load deletes it before failing, so only the rollback can bring it back.
+    const oldSample = await store.createProject({ name: unique('old-sample'), rootPath: 'fixtures/old', language: 'php', isSample: true });
+    await store.saveGraph(oldSample, sampleGraph());
+    await addHistoryRows(db(), id);
+    const before = await snapshot(db());
 
     // Act
     const result = await load(db());
@@ -158,11 +201,9 @@ describeWithDatabase('db:seed (integration)', () => {
         details: { name: 'acme-shop' },
       },
     });
-    expect(await store.getProject(id)).toEqual(before.acme);
-    expect(await store.getProject(other)).toEqual(before.other);
-    expect(await counts(db(), id)).toEqual(before.counts);
-    const { rows } = await db().query<{ count: string }>('SELECT count(*) FROM project');
-    expect(rows[0].count).toBe('2');
+    // Rolled back: every row of every table is as before, the deleted earlier sample included.
+    expect(await snapshot(db())).toEqual(before);
+    expect((await store.getProject(oldSample)).isSample).toBe(true);
   });
 
   it('An unreachable database is reported without its URL by the seed load', async () => {

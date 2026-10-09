@@ -11,6 +11,7 @@ import type { TextSink } from './logger.js';
 import { escapeLiteral } from './render-report.js';
 import { displayPath } from './seed-build.js';
 import { seedProjects } from './seed/parse-seed.js';
+import type { SeedProject } from './seed/parse-seed.js';
 import { toTerminalSafeJson } from './safe-json.js';
 
 /** Message of every `INTERNAL` failure before the commit: the transaction was rolled back. */
@@ -76,18 +77,22 @@ export async function runSeedLoad(deps: SeedLoadDeps): Promise<number> {
 /**
  * The summary `db:seed` prints: the count line and one line per sample project.
  *
- * @param loaded The sample projects after the load, ordered by name.
+ * @param loaded The sample projects after the load, in any order: they are printed by name in code-unit
+ *   order.
  * @returns The lines, each ending in a line feed.
  */
 export function summary(loaded: LoadedSample[]): string {
   const count = loaded.length === 1 ? '1 project loaded' : `${loaded.length} projects loaded`;
-  const lines = loaded.map(
+  const lines = [...loaded].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)).map(
     (p) => `  ${p.name}  ${p.language}/${p.framework ?? '-'}  ${p.nodeCount} nodes · ${p.edgeCount} edges`,
   );
   return [count, ...lines].map((line) => `${line}\n`).join('');
 }
 
-/** Reads and checks the seed before any connection: present, not empty, format 1, at least one project. */
+/**
+ * Reads and checks the seed before any connection: present, not empty, format 1, at least one project,
+ * every project a sample.
+ */
 function readSeed(seedPath: string, shown: string): SeedToLoad {
   let sql: string;
   try {
@@ -102,17 +107,19 @@ function readSeed(seedPath: string, shown: string): SeedToLoad {
     header.push(line.trimEnd());
   }
   if (!header.includes(FORMAT_LINE)) throw invalidSeed(shown, 'format');
-  let projectNames: string[];
+  let projects: SeedProject[];
   try {
-    projectNames = seedProjects(sql).map((project) => project.name);
+    projects = seedProjects(sql);
   } catch {
     throw invalidSeed(shown, 'format');
   }
-  if (projectNames.length === 0) throw invalidSeed(shown, 'no-project');
-  return { sql, projectNames };
+  if (projects.length === 0) throw invalidSeed(shown, 'no-project');
+  // A non-sample project loaded by the seed would survive the next `db:seed` and collide with its own name.
+  if (projects.some((project) => !project.isSample)) throw invalidSeed(shown, 'not-sample');
+  return { sql, projectNames: projects.map((project) => project.name) };
 }
 
-function invalidSeed(shown: string, reason: 'missing' | 'empty' | 'format' | 'no-project'): CliError {
+function invalidSeed(shown: string, reason: 'missing' | 'empty' | 'format' | 'no-project' | 'not-sample'): CliError {
   return new CliError('INVALID_SEED', 1, `${shown} is not a loadable codemind seed (${reason})`, { reason });
 }
 

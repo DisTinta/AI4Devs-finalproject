@@ -11,12 +11,24 @@ never duplicates them, and the user's own projects are never touched.
 `npm run db:seed` SHALL take no arguments. It SHALL read `DATABASE_URL` from the environment,
 trimmed; a value that is unset, empty or only whitespace SHALL fail with `MISSING_CONFIG` and
 `details.variable` = `DATABASE_URL`. It SHALL NOT require `AUTHOR_HASH_SALT` nor any other variable.
-It SHALL read the seed file `seeds/graph-dump.sql` of the repository. A seed file that does not
-exist, is empty, or does not contain the line `-- codemind-seed-format: 1` among its header comment
-lines SHALL fail with `INVALID_SEED`. A seed file with a valid header but no `INSERT INTO project`
-statement, or with a statement the seed reader cannot read, SHALL also fail with `INVALID_SEED`.
+It SHALL read the seed file `seeds/graph-dump.sql` of the repository. The seed's header SHALL be the
+leading block of lines that start with `--`; its lines, and every line of the file, SHALL be read
+ignoring trailing spaces and a trailing carriage return, so a seed checked out with CRLF line endings
+loads like one with LF. The seed SHALL fail with `INVALID_SEED` and `details.reason`, one of this
+closed list, when:
+
+- `missing` — the file does not exist;
+- `empty` — it is empty or holds only whitespace;
+- `format` — its header has no line `-- codemind-seed-format: 1`, or it holds a statement the seed
+  reader cannot read;
+- `no-project` — it holds no `INSERT INTO project` statement;
+- `not-sample` — any `INSERT INTO project` statement does not set `is_sample` to `true` (every
+  project the seed inserts must be a sample).
+
+The message of an `INVALID_SEED` failure SHALL be `<seed> is not a loadable codemind seed (<reason>)`.
 These checks SHALL happen before any database connection is opened, so a successful load always
-loads at least one project and never reports `0 projects loaded`.
+loads at least one project, every project it loads is a sample, and it never reports
+`0 projects loaded`.
 
 The exit code SHALL be `0` on success and `1` on any failure. On success, stdout SHALL be exactly:
 a first line `1 project loaded` when one sample project was loaded, or `N projects loaded` for any
@@ -46,10 +58,14 @@ the repository root.
 - **GIVEN** a valid `DATABASE_URL` and a seed file that does not exist, then one that is empty, then
   one without the line `-- codemind-seed-format: 1`, then one with `-- codemind-seed-format: 2`, then
   one with a valid header and no `INSERT INTO project`, then one with a valid header and a statement
-  the seed reader cannot read
+  the seed reader cannot read, then one whose project row sets `is_sample` to `false`, then one with
+  two projects of which only the second sets `is_sample` to `false`
 - **WHEN** the seed load runs
 - **THEN** each run exits with `1`, stdout is empty (never `0 projects loaded`), stderr holds one
-  error line with code `INVALID_SEED`, and no database connection is opened
+  error line with code `INVALID_SEED`, `details.reason` = `missing`, `empty`, `format`, `format`,
+  `no-project`, `format`, `not-sample` and `not-sample` respectively, and the message
+  `<seed> is not a loadable codemind seed (<reason>)` with `<seed>` named as above; and no database
+  connection is opened
 
 #### Scenario: An unreachable database is reported without its URL by the seed load
 

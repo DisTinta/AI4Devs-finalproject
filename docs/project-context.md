@@ -536,8 +536,12 @@ services that must be started first, quirks of the local environment.
   or `packages/cli/src/compose-index.ts`.**
 - **Seed load (`db:seed`, DIS-92, `packages/cli/src/seed-load.ts` + `loadSeed` in
   `packages/adapters/store-postgres/src/load-seed.ts`; a dev script, not a `codemind` subcommand).**
-  It checks `DATABASE_URL` and the seed (missing, empty, no `-- codemind-seed-format: 1`, unreadable
-  statement or no project → `INVALID_SEED`) before connecting; then, in one transaction: deletes every
+  It checks `DATABASE_URL` and the seed before connecting: `INVALID_SEED` with `details.reason`
+  `missing`, `empty`, `format` (no `-- codemind-seed-format: 1` in the leading `--` block, or an
+  unreadable statement), `no-project`, or `not-sample` (**every** `INSERT INTO project` must set
+  `is_sample = true`: a non-sample project loaded by the seed would survive the next `db:seed` and
+  collide with its own name). Header and statements are read ignoring trailing spaces and CR, so a
+  CRLF checkout loads. Then, in one transaction: deletes every
   `is_sample = true` project, fails with `PROJECT_NAME_TAKEN` if a non-sample project holds a seed
   project's name (checked with a `SELECT`, not from the server's localised `23505` detail), executes
   the seed and commits. Non-sample projects are never touched. **Each `db:seed` / `make up` deletes by

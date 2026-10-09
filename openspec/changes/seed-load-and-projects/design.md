@@ -67,24 +67,32 @@ and transaction, without `BEGIN`/`COMMIT` of its own:
    transaction is rolled back.
 3. `client.query(seed.sql)` — simple query protocol, several statements (the seed holds only
    `INSERT`s with literals and comments).
-4. `SELECT name, language, framework, node_count, edge_count FROM project WHERE is_sample ORDER BY
-   name COLLATE "C"` → `LoadedSample[]`.
+4. `SELECT name, language, framework, node_count, edge_count FROM project WHERE is_sample` →
+   `LoadedSample[]`. `runSeedLoad` sorts them by name in code-unit order before printing (the spec's
+   order; `COLLATE "C"` is byte order, which differs above U+FFFF — verify-against-spec 2.4).
 
 Exported from the package index. Not part of `StorePort`: it is development tooling, like
 `exportSeedRows`; the domain never loads seeds.
 
 `packages/cli/src/seed-load.ts` exports `runSeedLoad(deps) → Promise<number>` with
-`deps = { env, stdout, stderr, repoRoot?, seedPath?, openTransaction? }` (defaults: the repository
+`deps = { env, stdout, stderr, repoRoot?, seedPath?, openTransaction?, load? }` (`load` is a test seam
+for `loadSeed`; defaults: the repository
 root as in `seed-build.ts`, `<repoRoot>/seeds/graph-dump.sql`, `defaultOpenTransaction(url)`), and
 runs itself when it is the entry module (pattern of `seed-build.ts`). Order:
 
 1. `DATABASE_URL` trimmed → `MISSING_CONFIG` (`details.variable`).
-2. Read the seed file: missing → `INVALID_SEED` `details.reason = "missing"`; empty → `"empty"`;
-   its leading `--` comment lines without exactly `-- codemind-seed-format: 1` → `"format"`. Message
-   `<seed> is not a loadable codemind seed (<reason>)`, `<seed>` by `displayPath`.
+2. Read the seed file: missing → `INVALID_SEED` `details.reason = "missing"`; empty or only
+   whitespace → `"empty"`; the header is the leading block of lines starting with `--`, each compared
+   ignoring trailing spaces and `\r` (so a CRLF checkout loads); no `-- codemind-seed-format: 1`
+   among them → `"format"`. Message `<seed> is not a loadable codemind seed (<reason>)`, `<seed>` by
+   `displayPath`. The reasons are the spec's closed list.
 3. `projectNames` from the seed with `seedProjects(sql)` (D7): a statement it cannot read →
-   `INVALID_SEED` `"format"`; no `INSERT INTO project` → `INVALID_SEED` `"no-project"`. Still before
-   connecting, so a success always loads at least one project.
+   `INVALID_SEED` `"format"`; no `INSERT INTO project` → `"no-project"`; **any** project row whose
+   `is_sample` is not `true` → `"not-sample"`. Still before connecting, so a success always loads at
+   least one project and only samples. Why every row, not one: a non-sample project loaded by the
+   seed is not deleted by the next `db:seed` (which deletes only samples) and then collides with its
+   own name (`PROJECT_NAME_TAKEN`), which breaks idempotency (author's decision after
+   verify-against-spec 2.1).
 4. Open the transaction, `loadSeed`, `commit`, release; print the summary only after the commit.
    Any error before the commit → `rollback`, `release`. A rejected `commit` is reported with its own
    `CliError('INTERNAL', 1, 'unexpected error; the seed may have been loaded')`; `seed-load.ts` does
@@ -154,12 +162,14 @@ step); a hand-written constant with only a coherence test (not "generated", as D
 ### D4 — `projects` reads in a transaction it always rolls back
 
 `packages/cli/src/commands/projects.ts` exports `runProjectsCommand(argv, deps)` with
-`deps = { env, stdout, stderr, openTransaction? }`, delegated from `packages/cli/src/index.ts` when
+`deps = { env, stdout, stderr, openTransaction?, listProjects? }` (`listProjects` is a test seam for the
+store's listing), delegated from `packages/cli/src/index.ts` when
 `process.argv[2] === 'projects'` (like `index`); the global `program` keeps a `projects` entry only
 for `--help`. Fresh `commander` command per call with `exitOverride`, silenced output and
 `allowExcessArguments(false)`, so `projects extra` or an unknown option such as `--json` → `USAGE`,
-exit `2`, one error line. `--help` prints the help to stdout and exits `0` before the environment is
-read or a connection opened.
+exit `2`, one error line. `--help` and `--version` print the help or the version to stdout and exit
+`0` before the environment is read or a connection opened, as `index` does (author's decision after
+verify-against-spec 3.1).
 
 Reading: `openTransaction ?? defaultOpenTransaction(url)`, `createPostgresStore({ transaction:
 tx.client }).listProjects()`, then always `rollback` and `release`. Reusing the transaction factory
@@ -183,9 +193,11 @@ counts exist only in the web constant. Deviation from DIS-88's criterion recorde
 ### D7 — One seed parser for the CLI and the coherence test
 
 `packages/cli/src/seed/parse-seed.ts` exports `seedProjects(sql)` →
-`{ id, name, language, framework, fileCount, symbolCount, edgeCount, commitCount }[]`, reading only
+`{ id, name, language, framework, isSample, fileCount, symbolCount, edgeCount, commitCount }[]`
+(`isSample` is `true` only when the row sets `is_sample` to `true`), reading only
 the canonical format 1 written by `render-dump.ts`: one statement per line, explicit column lists,
-literal values (`'…'` with `''`, `E'…'`, `NULL`, numbers, booleans). Columns are located by the
+literal values (`'…'` with `''`, `E'…'`, `NULL`, numbers, booleans); a `\r` before a line feed is
+read as whitespace, so CRLF seeds read like LF ones. Columns are located by the
 statement's own column list, not by position; `symbol` rows are attributed through their `file_id`.
 `db:seed` uses its names (D1 step 3); the coherence test compares it with `SAMPLE_PROJECTS`. A
 statement it cannot read throws (`INVALID_SEED` `"format"` in `db:seed`). It is not an SQL parser:
@@ -251,3 +263,30 @@ Found during apply (the pre-merge review adds its own findings below):
   marked fails the build", `git-source-tree.spec.ts` › "A broken HEAD propagates git's error"); both pass
   alone and in the next full run (step 11 report). Pre-existing, timing-dependent; tracked in the
   Spanish checklist comment «Deuda C … tests de Git intermitentes bajo carga» on DIS-92.
+
+`/verify-against-spec` (2026-10-09, report `2026-10-09-verify-against-spec.md`), with the author's decisions on
+2.1 and 3.1–3.3:
+
+- **2.1 — A.** A seed whose project row is not a sample would load and print `0 projects loaded`. Now **every**
+  `INSERT INTO project` must set `is_sample = true`, or `INVALID_SEED` `details.reason = "not-sample"` before
+  connecting (spec seed-load, D1 step 3, `seedProjects` reads `isSample`); the invalid-seed scenario gained two
+  cases. Forced failure (7) of the addendum proves the test.
+- **2.2 — A.** "Loading again …" now compares a full snapshot (every row and column of the ten project tables,
+  ordered), with claim, evidence, query-log and cache rows given to the user's project; forced failure (6).
+- **2.3 — A.** "A user project named acme-shop …" now holds an earlier sample that the load deletes before failing;
+  the full snapshot proves the rollback brings it back; forced failure (5).
+- **2.4 — A.** The summary sorts by name in code-unit order in `runSeedLoad` (D1 step 4); unit case with U+1F600
+  and U+FFFD.
+- **2.5 — A.** Unit case for a seed outside the repository root (named by its file name).
+- **3.1 — A.** `projects --version` added to the cli-projects spec and its scenario, as `index` does.
+- **3.2 — A.** The closed list of `details.reason` and the `INVALID_SEED` message are in the seed-load spec.
+- **3.3 — A.** The spec defines the header (leading `--` block) and the tolerance to trailing spaces and CR for the
+  whole file; D1 no longer says "exactly"; `seed-parse.spec.ts` already covers a CRLF seed.
+- **3.4 — A.** The test seams `SeedLoadDeps.load` and `ProjectsCommandDeps.listProjects` are recorded in D1/D4.
+- **3.5 — D (accepted).** The global `codemind --help` lists `projects` (D4); `index.ts` runs at import and is
+  outside unit tests and Stryker, as for `index`; checked by hand: `npm run cli -- --help` shows
+  `projects  List every stored project (see `codemind projects --help`)`.
+- **3.6 — D (accepted).** Tests pin the help description and the parser's `USAGE` text on purpose (mutation
+  testing); the spec fixes only the codes.
+- **Weaker test — A.** "The constant does not depend on row order" now shuffles every table with four seeds (a
+  guard checks the orders differ) instead of reversing them.
