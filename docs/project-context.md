@@ -37,9 +37,11 @@ Agents must not reopen these or invent a different hosting/vendor without an exp
 
 1. **Evidence is local only.** No hosted web demo. No “Option B” video. Evaluators run `make up` +
    `docs/DEMO.md` + `npm run verify` (golden/cache, no live LLM required).
-2. **Hybrid LLM + Ollama.** `LLM_API_KEY` / `LLM_BASE_URL` are optional. Empty → evaluation mode
-   (cache/golden only, 0 €). Set → free-form answers; default local path is Ollama (OpenAI-compatible
-   base URL). A paid cloud vendor is not required.
+2. **Hybrid LLM + Ollama.** `LLM_API_KEY` / `LLM_BASE_URL` are optional, and `LLM_BASE_URL` decides
+   the mode (DIS-17): both empty → evaluation mode (cache/golden only, 0 €); URL set → free-form
+   answers, with the key optional (Ollama runs with `LLM_API_KEY` empty). A key without a URL fails
+   at boot. Default local path is Ollama (OpenAI-compatible base URL). A paid cloud vendor is not
+   required.
 3. **“Deployment” (Entrega 3)** means reproducible Compose + CI + `verify`, not a public PaaS/VPS.
 
 Ollama need not be installed until the Context Engine / live-LLM work; `.env.example` already matches
@@ -146,12 +148,13 @@ Verified against `package.json` (root and per package). If a command is not here
     project in `finally`; the schema cascades the rest.
 - **Workspace packages resolve to their sources in tests** (DIS-23 for `@codemind/core`, the first
   cross-package import; DIS-86 added `@codemind/adapter-git`, `@codemind/adapter-store-postgres` and
-  `@codemind/analyzer-php`, which the CLI imports by name). Vitest aliases each to its
+  `@codemind/analyzer-php`, which the CLI imports by name; DIS-17 added `@codemind/adapter-llm`, which
+  its tests import by name). Vitest aliases each to its
   `packages/*/src/index.ts` (`vitest.config.ts`, inherited by `vitest.stryker.config.ts`), and
   `tests/tsconfig.json` has the matching `paths` entries. `npm run cli` does the same through
   `packages/cli/tsconfig.run.json`. Any other `tsx` script resolves them through `node_modules` to
   `packages/*/dist/`, so run `npx tsc --build` first or you run stale code. `store-postgres`,
-  `adapters/git` and `analyzers/php` have a project reference to core; `packages/cli` references all
+  `adapters/git`, `adapters/llm` and `analyzers/php` have a project reference to core; `packages/cli` references all
   four.
 - `tests/support/` holds helpers shared by unit and integration tests, such as `sample-graph.ts`,
   a synthetic `KnowledgeGraph` builder.
@@ -340,7 +343,20 @@ services that must be started first, quirks of the local environment.
   They resolve in `npm ls`; do not expect real behaviour from them yet. Exceptions: `store-postgres`
   implements `StorePort`: writes (`createProject`, `saveGraph`, DIS-23) and reads (`getProject`,
   `listProjects`, `findSymbols`, `neighbors`, DIS-24); `adapters/git` implements `GitPort`
-  (`createSimpleGitHistory`, DIS-35) and `SourceTreePort` (`createGitSourceTree`, DIS-85).
+  (`createSimpleGitHistory`, DIS-35) and `SourceTreePort` (`createGitSourceTree`, DIS-85);
+  `adapters/llm` implements `LlmPort` in live mode (`llmConfigFromEnv`, `createOpenAiCompatibleLlm`,
+  DIS-17; the evaluation-mode adapter is DIS-18).
+- **The LLM adapter never puts endpoint or runtime text into an error** (DIS-17,
+  `packages/adapters/llm/src/`). Every failure is `LlmUnavailable` (core, `packages/core/src/llm/`)
+  with a closed `reason` (`http-status`, `invalid-response`, `network`, `timeout`, `not-configured`,
+  `dimension-mismatch`) and only numbers, plus `systemCode` for `network` when the runtime's
+  `cause.code` matches `^E[A-Z]+$`: no `cause`, no response body, so a key echoed by a server cannot
+  leak. Timeouts are classified by error name both on `fetch` and on the body read (a stalled body is
+  `timeout`). `embed()` rejects any vector whose length is not `EMBEDDING_DIMENSIONS` (1536, the
+  `vector(1536)` columns): Ollama's `nomic-embed-text` (768) always fails with `dimension-mismatch`
+  until DIS-46 picks the model and migrates the columns. `llmConfigFromEnv(env)` is the only reader
+  of the `LLM_*` variables; no composition root calls it yet (DIS-29 / CM-HU-12). Tests fake `fetch`
+  (`tests/unit/llm/`); the adapter is outside Stryker's `mutate`.
 - **`GitPort.readHistory` never lets an identity out of its structured fields** (DIS-35). Authors
   become `authorHash` (HMAC-SHA256 keyed by the trimmed `AUTHOR_HASH_SALT` of the trimmed,
   lower-cased e-mail as `.mailmap` maps it, or of the name when the e-mail is blank; rule in core,

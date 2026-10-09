@@ -130,7 +130,7 @@ Desarrolladores que trabajan sobre código que no escribieron: incorporaciones a
 
 | Situación | Qué puede hacer quien evalúa |
 |---|---|
-| Sin `LLM_API_KEY` / sin endpoint LLM | Preguntas sugeridas y `npm run verify` desde caché/golden (**0 $**, sin cuenta de proveedor) |
+| Sin endpoint LLM (`LLM_BASE_URL` y `LLM_API_KEY` vacías) | Preguntas sugeridas y `npm run verify` desde caché/golden (**0 $**, sin cuenta de proveedor) |
 | Con LLM (p. ej. Ollama local o API cloud) | Pregunta libre e indexado de un repositorio propio |
 
 > **Decisión (5 sep 2026).** Antes: Camino A (demo alojada) + Camino B (local). Ahora: solo el local, con evaluación sin key. Motivo: fricción cero para el evaluador y sin servidor propio.
@@ -313,7 +313,7 @@ npm run cli -- ask task-api "¿Cómo se validan las peticiones entrantes?"
 npm run cli -- index mi-repo --name mi-proyecto --language php            # informe en texto
 npm run cli -- index mi-repo --name otro --language php --framework none --json   # informe en JSON
 
-# Preguntar — Ollama (ejemplo): LLM_BASE_URL=http://localhost:11434/v1  LLM_API_KEY=ollama  LLM_MODEL=…
+# Preguntar — Ollama (ejemplo, sin clave): LLM_BASE_URL=http://localhost:11434/v1  LLM_MODEL=…
 npm run cli -- ask mi-proyecto "¿Cómo funciona el módulo de pagos?"
 ```
 
@@ -331,10 +331,12 @@ Ejecuta una consulta contra cada repositorio de muestra y compara la salida con 
 
 | Variable | Obligatoria | Descripción |
 |---|---|---|
-| `LLM_API_KEY` | no | Credencial del endpoint LLM. Vacía → **modo evaluación** (solo caché / verify). Con Ollama suele bastar un valor placeholder (`ollama`) |
-| `LLM_BASE_URL` | no | Base URL compatible OpenAI. Por defecto en desarrollo: Ollama (`http://localhost:11434/v1`). Sin URL + sin key → solo evaluación |
-| `LLM_MODEL` | no | Modelo para generación (valor por defecto en `.env.example`) |
-| `LLM_MODEL_VERIFY` | no | Modelo económico para la verificación de evidencias en vivo |
+| `LLM_API_KEY` | no | Credencial del endpoint LLM; si está, se envía como `Authorization: Bearer …`. Opcional en modo vivo: con Ollama se deja **vacía**. Con clave pero sin `LLM_BASE_URL`, el arranque falla |
+| `LLM_BASE_URL` | no | Base URL compatible OpenAI (`http`/`https`); **decide el modo**: con URL → modo vivo; sin URL ni clave → **modo evaluación** (solo caché / verify). En desarrollo: Ollama (`http://localhost:11434/v1`) |
+| `LLM_MODEL` | sí en modo vivo | Modelo para generación; con `LLM_BASE_URL` y sin `LLM_MODEL`, el arranque falla |
+| `LLM_MODEL_VERIFY` | no | Modelo económico para la verificación de evidencias en vivo; sin él se usa `LLM_MODEL` |
+| `LLM_EMBED_MODEL` | no | Modelo de embeddings; sin él, los embeddings no están disponibles (sin usar `LLM_MODEL`). Sus vectores deben tener 1536 dimensiones, las de `vector(1536)` del esquema: `nomic-embed-text` (768) falla hasta que CM-HU-19 elija el modelo |
+| `LLM_TIMEOUT_MS` | no | Tiempo máximo por petición al LLM, en ms (entero de 1 a 2147483647). Por defecto `120000`, para el arranque en frío de Ollama |
 | `DATABASE_URL` | **sí** (scripts `db:*` e `index`) | Cadena de conexión de PostgreSQL. `.env.example` trae la del contenedor local; `make up` la toma de `.env` (el Makefile carga y exporta `.env`). Si ejecutas `npm run db:migrate` / `db:rollback` a mano, expórtala antes: sin ella salen con error |
 | `ALLOWED_REPOS_DIR` | no (sí para indexar) | Directorio raíz permitido para indexar (ver [2.5](#25-seguridad)); vacío = indexado deshabilitado. Solo debe poder escribir en él el usuario que ejecuta Codemind, y solo debe contener repositorios de confianza (ver `docs/DEPLOYMENT.md`) |
 | `AUTHOR_HASH_SALT` | **sí** (para indexar) | Clave del seudónimo de los autores de commits (`author_hash`). No se versiona; cambiarla cambia todos los `author_hash` |
