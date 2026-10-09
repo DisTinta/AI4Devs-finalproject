@@ -53,3 +53,37 @@
 5. Raw names in the `db:seed` summary: with 1.
 6. Record destinations in `design.md` → Follow-ups; re-run `/verify-against-spec` only if 1 changes a spec; then
    archive.
+
+## Addendum — fixes after this review (2026-10-09)
+
+Author's decisions: Major → A, reader Minor → A, with precisions; the other Minors → A; the Question → D (accepted).
+Destinations are recorded in `design.md` → Follow-ups.
+
+- **Major + summary Minor.** New `terminalSafeText` (`packages/cli/src/safe-json.ts`): a printable value is printed
+  as it is; one holding a C0 control or a `TERMINAL_UNSAFE` character is printed as its terminal-safe JSON literal.
+  Applied to `name`, `language` and `framework` in `formatProjectLine` and in the `db:seed` summary. Spec sentence in
+  cli-projects and seed-load. Extra cases RED → GREEN: `\n` and ESC in the name and the framework (`projects`), and
+  `\n`, ESC and U+202E in name, language and framework (`db:seed`); a printable name with spaces and `ñ` stays raw.
+- **Reader Minor.** The seed reader accepts only `--` comments, blank lines and readable `INSERT`s into the six
+  renderer tables; any other statement, an `INSERT` into another table, or a child row whose `project_id`/`file_id`
+  is not in the seed → `INVALID_SEED` `"format"` before connecting. Spec `format` reason and design D7 (why: `db:seed`
+  executes the whole text, so the reader is the only filter of "non-sample projects are never modified"). Extra cases
+  in `seed-parse.spec.ts` (DELETE, UPDATE, DROP, SET, COPY, `claim`, `pgmigrations`, foreign file/symbol/edge/commit/
+  file-commit rows, a child row without its owner column); `seed-load.spec.ts` shows a seed with a child row of a
+  foreign project opens no connection. The old extra case "counts only rows of the project: … ignored" became
+  "counts the rows of each project in the six tables of the renderer" (the ignored rows are now rejected), and the
+  `no-project` case of the invalid-seed scenario uses a header-only seed (its orphan `file` row is now `format`).
+- **Race Minor.** `loadSeed` checks the name only against `NOT is_sample` projects.
+- **JSDoc Minor.** `loadSeed` documents byte order (`COLLATE "C"`); callers sort for display.
+- **Forced failures**, each failing its test and restored byte for byte: (8) `projects` prints the name raw;
+  (9) `db:seed` prints the framework raw; (10) the reader accepts any table; (11) the reader skips a child row of a
+  foreign project.
+- **Re-run:** `lint` 0 errors, `typecheck`, `lint:architecture` 0 errors, `docs:coverage` green; `npx vitest run`
+  61 files / 804 tests passed. One earlier full run failed `git-source-tree.spec.ts` › "A partial clone never fetches
+  a missing object", outside this diff; it passes alone twice (24/24) and in the next full run; added to the C-debt
+  checklist comment on DIS-92. Stryker on the new CLI files plus `safe-json.ts`: 93.95 %; `safe-json.ts` 95.24 %
+  after a printable-name case killed `< 0x20` → `<= 0x20` (remaining survivors equivalent).
+- No scenario was added or renamed, so the scenario → test map of `/verify-against-spec` still holds; the specs
+  gained requirement text only, each backed by the cases above.
+- `packages/cli/src/seed/parse-seed.ts` and `packages/adapters/store-postgres/src/load-seed.ts` are fingerprint
+  inputs: the seed and the constant are regenerated as the last commit.

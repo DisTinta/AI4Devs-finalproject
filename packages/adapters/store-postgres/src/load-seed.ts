@@ -43,15 +43,18 @@ interface LoadedSampleRow {
  *
  * @param client A connected client with an open transaction owned by the caller.
  * @param seed The seed's SQL and the names of the projects it inserts.
- * @returns The sample projects after the load, ordered by name in code-unit order.
+ * @returns The sample projects after the load, ordered by name in byte order (`COLLATE "C"`); callers
+ *   sort for display.
  * @throws ProjectNameTaken when a project that is not a sample has the name of a seed project,
  *   before the seed is executed.
  */
 export async function loadSeed(client: ClientBase, seed: SeedToLoad): Promise<LoadedSample[]> {
   await client.query('DELETE FROM project WHERE is_sample = true');
   // Checked before executing: the error needs the name, and the `detail` of a `23505` is localised.
+  // Only non-sample projects: a sample committed by a concurrent `db:seed` is not "a user project"; that
+  // race reaches `23505` and ends as `INTERNAL` (design D1).
   const taken = await client.query<{ name: string }>(
-    'SELECT name FROM project WHERE name = ANY($1::text[]) ORDER BY name COLLATE "C" LIMIT 1',
+    'SELECT name FROM project WHERE NOT is_sample AND name = ANY($1::text[]) ORDER BY name COLLATE "C" LIMIT 1',
     [seed.projectNames],
   );
   const name = taken.rows[0]?.name;

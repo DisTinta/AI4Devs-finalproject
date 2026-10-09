@@ -5,7 +5,7 @@ import { createPostgresStore } from '@codemind/adapter-store-postgres';
 import { CliError, DatabaseUnavailable, defaultOpenTransaction } from '../compose-index.js';
 import type { Environment, OpenTransaction } from '../compose-index.js';
 import type { TextSink } from '../logger.js';
-import { toTerminalSafeJson } from '../safe-json.js';
+import { terminalSafeText, toTerminalSafeJson } from '../safe-json.js';
 import { CLI_VERSION } from '../version.js';
 
 /** Message of every unexpected failure: the command only reads, so nothing was changed. */
@@ -66,16 +66,17 @@ export async function runProjectsCommand(argv: string[], deps: ProjectsCommandDe
 /**
  * One line of the listing: `<name>  <id>  <language>/<framework>  <nodes> nodes · <edges> edges
  * <indexedAt>[ sample]`, two spaces between fields, `-` without framework, `not indexed` without
- * `indexedAt`.
+ * `indexedAt`. A name, language or framework holding a control or a terminal-unsafe character is
+ * printed as its escaped literal ({@link terminalSafeText}).
  *
  * @param project A stored project.
  * @returns The line, without its line feed.
  */
 export function formatProjectLine(project: Project): string {
   const fields = [
-    project.name,
+    terminalSafeText(project.name),
     project.id,
-    `${project.language}/${project.framework ?? '-'}`,
+    `${terminalSafeText(project.language)}/${project.framework === undefined ? '-' : terminalSafeText(project.framework)}`,
     `${project.nodeCount} nodes · ${project.edgeCount} edges`,
     project.indexedAt?.toISOString() ?? 'not indexed',
   ];

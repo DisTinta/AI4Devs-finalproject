@@ -203,6 +203,12 @@ statement's own column list, not by position; `symbol` rows are attributed throu
 statement it cannot read throws (`INVALID_SEED` `"format"` in `db:seed`). It is not an SQL parser:
 it only accepts what the renderer writes, which its unit tests pin with `renderSeedDump` output.
 
+It is also the only filter of what `db:seed` executes: `db:seed` runs the whole text, so the reader is what
+keeps the guarantee "projects that are not samples are never modified". It accepts nothing but `--` comments,
+blank lines and readable `INSERT`s into the six tables the renderer writes; a `file`, `edge` or `commit` row
+must name a project of the seed and a `symbol` or `file_commit` row a file of it, else `INVALID_SEED`
+`"format"` before connecting (author's decision after `/adversarial-review`).
+
 ### D8 — Coherence and lint/type checks of the constant
 
 `tests/unit/seed/sample-projects-coherence.spec.ts` imports
@@ -290,3 +296,18 @@ Found during apply (the pre-merge review adds its own findings below):
   testing); the spec fixes only the codes.
 - **Weaker test — A.** "The constant does not depend on row order" now shuffles every table with four seeds (a
   guard checks the orders differ) instead of reversing them.
+
+`/adversarial-review` (2026-10-09, report `2026-10-09-adversarial-review.md`), with the author's decisions:
+
+- **Major (raw names in `projects`) — A.** `formatProjectLine` and the `db:seed` summary print `name`, `language`
+  and `framework` through `terminalSafeText` (`packages/cli/src/safe-json.ts`): the value as it is when printable,
+  its terminal-safe JSON literal when it holds a C0 control or a `TERMINAL_UNSAFE` character. Spec sentence in
+  cli-projects and seed-load; extra RED → GREEN cases with `\n` and ESC in the name and the framework.
+- **Minor (raw names in the `db:seed` summary) — A,** with the Major.
+- **Minor (race in the name check) — A.** `loadSeed` checks only `NOT is_sample` projects, so a sample committed by
+  a concurrent `db:seed` reaches `23505` → `INTERNAL`, as D1 says.
+- **Minor (reader accepts any table and foreign child rows) — A.** See D7: only the renderer's six tables, and every
+  child row must belong to the seed, else `INVALID_SEED` `"format"` before connecting. Extra cases in
+  `seed-parse.spec.ts`; `seed-load.spec.ts` proves a seed with a child row of a foreign project opens no connection.
+- **Minor (`loadSeed` JSDoc on ordering) — A.** It says byte order (`COLLATE "C"`); callers sort for display.
+- **Question (DIS-91 tests modified) — D (accepted).** Justified by the MODIFIED requirement and design → Risks.

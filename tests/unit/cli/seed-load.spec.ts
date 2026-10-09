@@ -116,7 +116,8 @@ describe('runSeedLoad', () => {
       ['', 'empty'],
       [SEED.replace('-- codemind-seed-format: 1\n', ''), 'format'],
       [SEED.replace('codemind-seed-format: 1', 'codemind-seed-format: 2'), 'format'],
-      [`${valid}\nINSERT INTO file (id, project_id) VALUES ('f', '${ACME_ID}');\n`, 'no-project'],
+      // Header only: a child row without its project would be `format` (a row outside the seed).
+      [`${valid}\n`, 'no-project'],
       [`${SEED}DROP TABLE project;\n`, 'format'],
       [SEED.replace("'laravel', true);", "'laravel', false);"), 'not-sample'],
       [`${SEED}INSERT INTO project (id, name, root_path, language, framework, is_sample) VALUES ('b', 'other', 'fixtures/other', 'php', NULL, false);\n`, 'not-sample'],
@@ -144,6 +145,31 @@ describe('runSeedLoad', () => {
     expect(result.stderr).toBe('');
     expect(result.log).toEqual(['open', 'load', 'commit', 'release']);
     expect(result.loads).toEqual([{ sql: SEED, projectNames: ['acme-shop'] }]);
+  });
+
+  it('rejects a seed with a child row of a project outside it before connecting', async () => {
+    const foreign = `${SEED}INSERT INTO file (id, project_id) VALUES ('f', 'a-user-project');` + String.fromCharCode(10);
+
+    const result = await run({ seed: foreign });
+
+    expect(result.exit).toBe(1);
+    expect(errorOf(result).details).toEqual({ reason: 'format' });
+    expect(result.log).toEqual([]);
+  });
+
+  it('escapes names, languages and frameworks holding a control or a terminal-unsafe character', async () => {
+    const NL = String.fromCharCode(10);
+    const ESC = String.fromCharCode(27);
+    const RLO = String.fromCharCode(0x202e);
+    const loaded: LoadedSample[] = [{ name: `evil${NL}name${ESC}[2J`, language: `ph${RLO}p` as LoadedSample['language'], framework: `lara${ESC}vel` as LoadedSample['framework'], nodeCount: 1, edgeCount: 0 }];
+
+    const result = await run({ loaded });
+
+    const lines = result.stdout.split(NL);
+    expect(lines).toHaveLength(3);
+    expect(lines[1]).toBe(`  ${JSON.stringify(loaded[0].name)}  "ph${String.fromCharCode(92)}u202ep"/${JSON.stringify(loaded[0].framework)}  1 nodes · 0 edges`);
+    expect(result.stdout).not.toContain(ESC);
+    expect(result.stdout).not.toContain(RLO);
   });
 
   it('accepts a seed whose every project is a sample', async () => {

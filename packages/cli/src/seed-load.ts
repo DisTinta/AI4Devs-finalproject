@@ -12,7 +12,7 @@ import { escapeLiteral } from './render-report.js';
 import { displayPath } from './seed-build.js';
 import { seedProjects } from './seed/parse-seed.js';
 import type { SeedProject } from './seed/parse-seed.js';
-import { toTerminalSafeJson } from './safe-json.js';
+import { terminalSafeText, toTerminalSafeJson } from './safe-json.js';
 
 /** Message of every `INTERNAL` failure before the commit: the transaction was rolled back. */
 export const SEED_LOAD_FAILED = 'seed load failed; the database is unchanged';
@@ -84,7 +84,9 @@ export async function runSeedLoad(deps: SeedLoadDeps): Promise<number> {
 export function summary(loaded: LoadedSample[]): string {
   const count = loaded.length === 1 ? '1 project loaded' : `${loaded.length} projects loaded`;
   const lines = [...loaded].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)).map(
-    (p) => `  ${p.name}  ${p.language}/${p.framework ?? '-'}  ${p.nodeCount} nodes · ${p.edgeCount} edges`,
+    (p) =>
+      `  ${terminalSafeText(p.name)}  ${terminalSafeText(p.language)}/${p.framework === undefined ? '-' : terminalSafeText(p.framework)}  ` +
+      `${p.nodeCount} nodes · ${p.edgeCount} edges`,
   );
   return [count, ...lines].map((line) => `${line}\n`).join('');
 }

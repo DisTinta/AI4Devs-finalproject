@@ -161,6 +161,26 @@ describe('runProjectsCommand', () => {
 });
 
 describe('formatProjectLine', () => {
+  it('escapes a name, language or framework holding a control or a terminal-unsafe character, and only those', () => {
+    const NL = String.fromCharCode(10);
+    const ESC = String.fromCharCode(27);
+    const line = formatProjectLine(
+      project({ name: `two${NL}lines`, framework: `x${ESC}[31m` as Project['framework'], language: 'php' }),
+    );
+
+    expect(line).toBe(
+      `${JSON.stringify(`two${NL}lines`)}  00000000-0000-4000-8000-000000000001  php/${JSON.stringify(`x${ESC}[31m`)}  0 nodes · 0 edges  not indexed`,
+    );
+    expect(line).not.toContain(NL);
+    expect(line).not.toContain(ESC);
+  });
+
+  it('prints printable values as they are, spaces and non-ASCII letters included', () => {
+    expect(formatProjectLine(project({ name: 'my shop ñ', framework: 'laravel' }))).toBe(
+      'my shop ñ  00000000-0000-4000-8000-000000000001  php/laravel  0 nodes · 0 edges  not indexed',
+    );
+  });
+
   it('fills the template with two spaces between fields', () => {
     expect(formatProjectLine(project({ framework: 'fastify', nodeCount: 3, edgeCount: 2, indexedAt: new Date('2025-02-03T04:05:06.007Z') }))).toBe(
       'mine  00000000-0000-4000-8000-000000000001  php/fastify  3 nodes · 2 edges  2025-02-03T04:05:06.007Z',

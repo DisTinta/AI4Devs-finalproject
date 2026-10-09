@@ -133,21 +133,41 @@ describe('seedProjects', () => {
     expect(seedProjects(dump).map((p) => [p.name, p.fileCount, p.symbolCount])).toEqual([['acme-shop', 2, 3]]);
   });
 
-  it('counts only rows of the project: a symbol of an unknown file and another table are ignored', () => {
-    const sql = [
+  /** A small valid seed in the renderer's six tables, plus `extra` statements appended. */
+  const sixTables = (...extra: string[]): string =>
+    [
       "INSERT INTO project (id, name, language, framework) VALUES ('p', 'x', 'php', NULL);",
       "INSERT INTO file (id, project_id) VALUES ('f', 'p');",
       "INSERT INTO symbol (id, file_id) VALUES ('s1', 'f');",
-      "INSERT INTO symbol (id, file_id) VALUES ('s2', 'elsewhere');",
-      "INSERT INTO claim (id, project_id) VALUES ('c', 'p');",
-      "INSERT INTO commit (id, project_id) VALUES ('k', 'other');",
       "INSERT INTO edge (id, project_id) VALUES ('e', 'p');",
+      "INSERT INTO commit (id, project_id) VALUES ('k', 'p');",
+      "INSERT INTO file_commit (file_id, commit_id) VALUES ('f', 'k');",
+      ...extra,
       '',
-    ].join('\n');
+    ].join(String.fromCharCode(10));
 
-    expect(seedProjects(sql)).toEqual([
-      { id: 'p', name: 'x', language: 'php', framework: null, isSample: false, fileCount: 1, symbolCount: 1, edgeCount: 1, commitCount: 0 },
+  it('counts the rows of each project in the six tables of the renderer', () => {
+    expect(seedProjects(sixTables())).toEqual([
+      { id: 'p', name: 'x', language: 'php', framework: null, isSample: false, fileCount: 1, symbolCount: 1, edgeCount: 1, commitCount: 1 },
     ]);
+  });
+
+  it.each([
+    ['a DELETE', 'DELETE FROM project;'],
+    ['an UPDATE', "UPDATE project SET name = 'y';"],
+    ['a DROP', 'DROP TABLE project;'],
+    ['a SET', "SET search_path = 'public';"],
+    ['a COPY', 'COPY project FROM STDIN;'],
+    ['an INSERT into another table', "INSERT INTO claim (id, project_id) VALUES ('c', 'p');"],
+    ['an INSERT into the migrations table', "INSERT INTO pgmigrations (id, name) VALUES (99, 'x');"],
+    ['a file of a project outside the seed', "INSERT INTO file (id, project_id) VALUES ('f2', 'user-project');"],
+    ['a symbol of a file outside the seed', "INSERT INTO symbol (id, file_id) VALUES ('s2', 'user-file');"],
+    ['an edge of a project outside the seed', "INSERT INTO edge (id, project_id) VALUES ('e2', 'user-project');"],
+    ['a commit of a project outside the seed', "INSERT INTO commit (id, project_id) VALUES ('k2', 'user-project');"],
+    ['a file-commit link of a file outside the seed', "INSERT INTO file_commit (file_id, commit_id) VALUES ('user-file', 'k');"],
+    ['a child row without its owner column', "INSERT INTO file (id, path) VALUES ('f3', 'a.php');"],
+  ])('rejects %s, so no statement can touch rows outside the seed', (_case, statement) => {
+    expect(() => seedProjects(sixTables(statement))).toThrow(/^seed reader: /);
   });
 
   it.each([

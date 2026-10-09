@@ -540,7 +540,12 @@ services that must be started first, quirks of the local environment.
   `missing`, `empty`, `format` (no `-- codemind-seed-format: 1` in the leading `--` block, or an
   unreadable statement), `no-project`, or `not-sample` (**every** `INSERT INTO project` must set
   `is_sample = true`: a non-sample project loaded by the seed would survive the next `db:seed` and
-  collide with its own name). Header and statements are read ignoring trailing spaces and CR, so a
+  collide with its own name). `db:seed` executes the whole text, so the seed reader is the only filter:
+  it accepts only `--` comments, blank lines and `INSERT`s into `project`, `file`, `symbol`, `edge`,
+  `commit`, `file_commit`, each child row belonging to a project or file of the seed (else `format`).
+  `projects` and the `db:seed` summary print a name, language or framework holding a control or
+  bidi/separator character as its escaped JSON literal (`terminalSafeText` in
+  `packages/cli/src/safe-json.ts`). Header and statements are read ignoring trailing spaces and CR, so a
   CRLF checkout loads. Then, in one transaction: deletes every
   `is_sample = true` project, fails with `PROJECT_NAME_TAKEN` if a non-sample project holds a seed
   project's name (checked with a `SELECT`, not from the server's localised `23505` detail), executes

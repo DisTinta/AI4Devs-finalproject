@@ -19,8 +19,11 @@ closed list, when:
 
 - `missing` — the file does not exist;
 - `empty` — it is empty or holds only whitespace;
-- `format` — its header has no line `-- codemind-seed-format: 1`, or it holds a statement the seed
-  reader cannot read;
+- `format` — its header has no line `-- codemind-seed-format: 1`; or it holds anything other than
+  `--` comments, blank lines and readable `INSERT` statements into `project`, `file`, `symbol`,
+  `edge`, `commit` and `file_commit` (a `DELETE`, `UPDATE`, `DROP`, `SET`, `COPY` or an `INSERT` into
+  another table is rejected); or a `file`, `edge` or `commit` row names no project of the seed, or a
+  `symbol` or `file_commit` row names no file of the seed;
 - `no-project` — it holds no `INSERT INTO project` statement;
 - `not-sample` — any `INSERT INTO project` statement does not set `is_sample` to `true` (every
   project the seed inserts must be a sample).
@@ -35,7 +38,10 @@ a first line `1 project loaded` when one sample project was loaded, or `N projec
 other count `N`; followed by one line per loaded sample project, ordered by name (code-unit order),
 with the template `  <name>  <language>/<framework>  <node_count> nodes · <edge_count> edges`: two
 spaces of indentation, two spaces between fields, no column padding, `-` in place of a missing
-framework, and the counts stored in the project row. stderr SHALL be empty.
+framework, and the counts stored in the project row. A name, language or framework holding a
+control character (U+0000–U+001F, U+007F–U+009F) or a bidirectional or line-separator character
+SHALL be printed as its JSON string literal with those characters escaped; any other value as it is.
+stderr SHALL be empty.
 
 On failure, stdout SHALL stay empty and stderr SHALL hold exactly one line,
 `{"error":{"code","message","details"}}`, and nothing else, with one of the codes `MISSING_CONFIG`,

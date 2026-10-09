@@ -19,8 +19,12 @@ project, in the order of the store's listing (name ascending), with the template
 `<name>  <id>  <language>/<framework>  <nodeCount> nodes · <edgeCount> edges  <indexedAt>[ sample]`:
 two spaces between fields, no column padding, `-` in place of a missing framework, `<indexedAt>` as
 an ISO-8601 UTC timestamp with milliseconds or the text `not indexed` when the project was never
-indexed, and the suffix ` sample` (one space) only for a sample project. With no project, stdout
-SHALL be exactly `no projects`.
+indexed, and the suffix ` sample` (one space) only for a sample project. A `<name>`, `<language>` or
+`<framework>` holding a control character (U+0000–U+001F, U+007F–U+009F) or a bidirectional or
+line-separator character SHALL be printed as its JSON string literal with those characters escaped
+(the `index` command's escaping), so each project stays on one line and nothing raw reaches the
+terminal; any other value SHALL be printed as it is. With no project, stdout SHALL be exactly
+`no projects`.
 
 On failure, stdout SHALL stay empty and stderr SHALL hold exactly one line,
 `{"error":{"code","message","details"}}`: `MISSING_CONFIG`, `DATABASE_UNAVAILABLE`, `USAGE` for any

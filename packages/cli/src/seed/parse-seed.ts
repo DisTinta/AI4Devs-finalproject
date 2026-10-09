@@ -22,6 +22,12 @@ export interface SeedProject {
   commitCount: number;
 }
 
+/**
+ * The tables the renderer writes, the only ones a seed may insert into. A project row owns itself; a
+ * file, edge or commit row must name a project of the seed; a symbol or file-commit row a file of it.
+ */
+const SEED_TABLES: ReadonlySet<string> = new Set(['project', 'file', 'symbol', 'edge', 'commit', 'file_commit']);
+
 /** A literal value of a seed statement. */
 type SeedValue = string | number | boolean | null;
 
@@ -37,9 +43,15 @@ interface SeedStatement {
  * are `'…'` (with `''`), `E'…'`, `NULL`, `true`, `false` or numbers — so it is a reader of that
  * format, not an SQL parser. Columns are located by each statement's own column list.
  *
+ * It is also the only filter of what `db:seed` executes (DIS-92 design D7): it accepts nothing but
+ * `INSERT`s into the six tables the renderer writes, and every file, edge and commit row must name a
+ * project of the seed, every symbol and file-commit row a file of the seed, so no statement can touch
+ * a row outside the seed — in particular a project that is not a sample.
+ *
  * @param sql The seed file's content.
  * @returns One entry per `INSERT INTO project`, in the order of the seed.
- * @throws Error when a statement cannot be read, or a project row lacks its id, name or language.
+ * @throws Error when a statement cannot be read or targets another table, a project row lacks its id,
+ *   name or language, or a child row names no project or file of the seed.
  */
 export function seedProjects(sql: string): SeedProject[] {
   const statements = readStatements(sql);
@@ -59,8 +71,9 @@ export function seedProjects(sql: string): SeedProject[] {
   const byId = new Map(projects.map((project) => [project.id, project]));
   const fileProject = new Map<string, SeedProject>();
   for (const { table, row } of statements) {
+    if (table === 'project' || table === 'symbol' || table === 'file_commit') continue;
     const project = byId.get(String(row.get('project_id')));
-    if (project === undefined) continue;
+    if (project === undefined) throw new Error(`seed reader: a ${table} row names no project of the seed`);
     if (table === 'file') {
       project.fileCount += 1;
       fileProject.set(String(row.get('id')), project);
@@ -71,9 +84,10 @@ export function seedProjects(sql: string): SeedProject[] {
     }
   }
   for (const { table, row } of statements) {
-    if (table !== 'symbol') continue;
+    if (table !== 'symbol' && table !== 'file_commit') continue;
     const project = fileProject.get(String(row.get('file_id')));
-    if (project !== undefined) project.symbolCount += 1;
+    if (project === undefined) throw new Error(`seed reader: a ${table} row names no file of the seed`);
+    if (table === 'symbol') project.symbolCount += 1;
   }
   return projects;
 }
@@ -87,6 +101,7 @@ function readStatements(sql: string): SeedStatement[] {
     if (reader.done()) return statements;
     reader.expect('INSERT INTO ');
     const table = reader.identifier();
+    if (!SEED_TABLES.has(table)) reader.fail();
     reader.expect(' (');
     const columns: string[] = [reader.identifier()];
     while (reader.tryExpect(', ')) columns.push(reader.identifier());

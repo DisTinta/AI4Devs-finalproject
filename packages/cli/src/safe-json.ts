@@ -18,3 +18,24 @@ const TERMINAL_UNSAFE = /[\u007f-\u009f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2
 export function toTerminalSafeJson(value: unknown): string {
   return JSON.stringify(value).replace(TERMINAL_UNSAFE, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
 }
+
+/**
+ * A text field for a plain-text line (DIS-92): returned as it is when it is printable, and as the
+ * terminal-safe JSON string literal of {@link toTerminalSafeJson} (quotes included) when it holds a C0
+ * control (newline, ESC…) or a {@link TERMINAL_UNSAFE} character, so a stored value can neither break
+ * the line nor reach the terminal raw.
+ *
+ * @param value A text read from the database.
+ * @returns The text, or its escaped literal.
+ */
+export function terminalSafeText(value: string): string {
+  return needsEscape(value) ? toTerminalSafeJson(value) : value;
+}
+
+function needsEscape(value: string): boolean {
+  for (let i = 0; i < value.length; i += 1) {
+    if (value.charCodeAt(i) < 0x20) return true;
+  }
+  // `search` ignores the `lastIndex` of the global expression.
+  return value.search(TERMINAL_UNSAFE) !== -1;
+}
