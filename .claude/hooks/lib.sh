@@ -47,6 +47,7 @@ BRANCH_PREFIX="feature/"
 # Escape hatches (documented in docs/es/CONFIG.md / docs/es/GUIA-PASO-A-PASO.md)
 KIT_SKIP_STOP_TESTS="0"
 KIT_ALLOW_WIP="0"
+KIT_PROTECT_SPECS="1"
 
 # Loads KEY="value" or KEY=value without executing the file as shell.
 # Rejects lines with command substitution, backticks or $(...).
@@ -75,7 +76,7 @@ load_env_safe() {
       CMD_MUTATION|CMD_DOCS_COVERAGE|CMD_DEV|CMD_MIGRATE|SOURCE_EXTENSIONS|PATH_SOURCE|\
       PATH_TESTS|PATH_BUSINESS|PATH_HTTP|PATH_MIGRATIONS|PATH_ADR|GUARD_HTTP_IN_BUSINESS|\
       GUARD_DB_IN_HTTP|GUARD_DANGEROUS_CMD|LAYER_ORDER|MIN_MUTATION_SCORE|BRANCH_PREFIX|\
-      KIT_SKIP_STOP_TESTS|KIT_ALLOW_WIP)
+      KIT_SKIP_STOP_TESTS|KIT_ALLOW_WIP|KIT_PROTECT_SPECS)
         printf -v "$key" '%s' "$val"
         ;;
     esac

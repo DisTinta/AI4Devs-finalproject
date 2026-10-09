@@ -596,6 +596,16 @@ services that must be started first, quirks of the local environment.
 - **The post-edit hook does not type-check file by file.** `CMD_STATIC_FILE` is empty in
   `.claude/sdd-harness.env`: a bare `tsc --noEmit <file>` ignores `tsconfig.base.json` (falls back
   to commonjs / node10 resolution, no `skipLibCheck`) and fails on every test that imports `vitest`.
+- **`KIT_PROTECT_SPECS` is a local patch to the kit's hooks.** `KIT_PROTECT_SPECS` in
+  `.claude/sdd-harness.env` switches the confirmations of `protect-specs-and-tests.sh` (rewriting
+  existing OpenSpec artifacts, existing tests, versioned migrations, kit doctrine): `"1"` asks, `"0"`
+  stops asking. It is edited by hand and applies on the next tool call; never turn the hook off by
+  removing it from `.claude/settings.json`. The `.env` deny, the `..` deny and the confirmation on
+  `sdd-harness.env` stay on whatever its value; `block-dangerous-bash.sh` denies shell writes to
+  `sdd-harness.env` (also reads with a `>` redirect, e.g. `2>/dev/null`); with `"0"`,
+  `session-context.sh` warns at session start. Commit it only as `"1"`. A kit update replaces
+  `lib.sh`, `protect-specs-and-tests.sh`, `block-dangerous-bash.sh` and `session-context.sh`:
+  re-apply the patch afterwards (commit `chore(harness): add KIT_PROTECT_SPECS switch…`).
 - **The PHP analyzer now emits edges** (DIS-49): `imports` (file → class/interface/trait, one per
   top-level `use`), `extends`, `implements`, a route's `calls` (array-action routes
   `Route::<verb>('<uri>', [X::class, '<m>'])`, a new `route` symbol named `<VERB> <uri>`; string

@@ -18,6 +18,19 @@ case "$FILE" in
   *..*) deny "Path with '..' rejected: ${FILE}" ;;
 esac
 
+# Environment and secrets — always on, whatever KIT_PROTECT_SPECS says.
+#    The kit contract is asked about (not denied): it goes BEFORE the *.env pattern,
+#    which would otherwise capture it first and leave the confirmation branch dead.
+case "$FILE" in
+  */.claude/sdd-harness.env|.claude/sdd-harness.env)
+    ask "You are about to modify the SDD Harness Kit configuration. Confirm the change." ;;
+  *.env|*.env.*|*/.env|.env)
+    deny "Environment files are not edited from the agent: ${FILE}" ;;
+esac
+
+# Manual switch in sdd-harness.env: "0" turns off the confirmations below.
+[[ "$KIT_PROTECT_SPECS" == "0" ]] && exit 0
+
 # 1. openspec/: the distinction that matters is CREATE versus REWRITE.
 #    Creating the artifacts of a proposal is the normal flow (propose phase).
 #    Rewriting an artifact that already exists can be legitimate —rule 7 of
@@ -71,15 +84,5 @@ if [[ -n "$PATH_MIGRATIONS" ]] && under "$FILE" "$PATH_MIGRATIONS" && [[ -f "$FI
     ask "You are modifying an already-versioned migration (${FILE}). The correct approach is to create a new migration. Confirm if you really want to edit it."
   fi
 fi
-
-# 4. Environment and secrets.
-#    The kit contract is asked about (not denied): it goes BEFORE the *.env pattern,
-#    which would otherwise capture it first and leave the confirmation branch dead.
-case "$FILE" in
-  */.claude/sdd-harness.env|.claude/sdd-harness.env)
-    ask "You are about to modify the SDD Harness Kit configuration. Confirm the change." ;;
-  *.env|*.env.*|*/.env|.env)
-    deny "Environment files are not edited from the agent: ${FILE}" ;;
-esac
 
 exit 0
