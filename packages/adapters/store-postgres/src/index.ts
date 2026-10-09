@@ -11,3 +11,4 @@ export {
   type SeedRows,
   type SeedSymbolRow,
 } from './export-seed.js';
+export { loadSeed, type LoadedSample, type SeedToLoad } from './load-seed.js';
