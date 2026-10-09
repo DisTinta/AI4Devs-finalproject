@@ -97,12 +97,12 @@
 - [x] 14.3 No ADR (design D9); confirm nothing in the implementation contradicted that
 - [x] 14.4 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
 - [x] 14.5 If any change after 7.2 touched a fingerprint input, rerun 7.2 so the regeneration is the last commit; `git diff --exit-code seeds/ packages/web/src/data/` after a second `npm run seed:build` is clean
-- [ ] 14.6 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the author's Why transcribed and the Stryker score; after verification, set DIS-92 to In Review in Linear with a comment in Spanish linking the PR and the change
+- [x] 14.6 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the author's Why transcribed and the Stryker score; after verification, set DIS-92 to In Review in Linear with a comment in Spanish linking the PR and the change
 
 ## 15. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
 - [x] 15.1 Open the pull request against `feature/entrega-2-CRN` (after confirming with the author; `gh` on the DisTinta account, back to Cristina-JumpMath afterwards)
-- [ ] 15.2 Run `/show-spec-working`, `/verify-against-spec` and `/adversarial-review`, in this order; one report each under `openspec/changes/seed-load-and-projects/reports/` (`YYYY-MM-DD-show-spec-working.md`, `YYYY-MM-DD-verify-against-spec.md`, `YYYY-MM-DD-adversarial-review.md`)
-- [ ] 15.3 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report; if a fix touches a fingerprint input, regenerate the seed and the constant again as the last commit (14.5)
-- [ ] 15.4 Commit the fixes to the same pull request (push confirmed with the author); re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
+- [x] 15.2 Run `/show-spec-working`, `/verify-against-spec` and `/adversarial-review`, in this order; one report each under `openspec/changes/seed-load-and-projects/reports/` (`YYYY-MM-DD-show-spec-working.md`, `YYYY-MM-DD-verify-against-spec.md`, `YYYY-MM-DD-adversarial-review.md`)
+- [x] 15.3 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report; if a fix touches a fingerprint input, regenerate the seed and the constant again as the last commit (14.5)
+- [x] 15.4 Commit the fixes to the same pull request (push confirmed with the author); re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
 - [ ] 15.5 `/opsx:archive`, and commit the archive to the same pull request; the author merges afterwards

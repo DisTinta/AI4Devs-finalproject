@@ -45,7 +45,7 @@ de sus decisiones:
 5. `make up` (Git Bash): la parte de `db:seed` imprime las mismas dos líneas del paso 2.
 6. Con `AUTHOR_HASH_SALT` del `.env` de la autora y `git status --porcelain fixtures` vacío,
    `npm run seed:build` deja `git diff --exit-code seeds/ packages/web/src/data/` limpio.
-7. `npx vitest run` (784 tests), `npm run lint`, `npm run typecheck`, `npm run lint:architecture`,
+7. `npx vitest run` (804 tests), `npm run lint`, `npm run typecheck`, `npm run lint:architecture`,
    `npm run docs:coverage`.
 
 Evidencia:
@@ -79,7 +79,33 @@ Detalle en `openspec/changes/seed-load-and-projects/design.md`:
   - `lint:architecture` da un aviso `no-orphans` sobre la constante hasta que DIS-60 la importe
     (follow-up B).
 
-Mutación (Stryker sobre los ficheros nuevos de la CLI): **94,28 %** (umbral 70 %).
+### Rondas de revisión (detalle en `design.md` → Follow-ups y en los addenda de los informes)
+
+- **`/show-spec-working`:** 17 de los 20 escenarios se ejercitaron en las entradas reales
+  (`db:seed`, `projects`, `seed:build`), con los fallos de escritura provocados de verdad
+  (`attrib +R`); los tres restantes los cubren tests unitarios o se demostraron en parte.
+- **`/verify-against-spec`** (decisiones de la autora):
+  - Una semilla con algún proyecto que no es muestra falla con `INVALID_SEED` `not-sample` antes de
+    conectar.
+  - `projects --version` está especificado, y la lista cerrada de `details.reason`, el mensaje y la
+    tolerancia a CRLF pasan a la spec.
+  - Los tests de integración comparan instantáneas completas de la base, y el rollback devuelve una
+    muestra previa.
+  - El resumen se ordena por unidades de código.
+- **`/adversarial-review`** (PASS WITH GAPS; Major y Minors resueltos aquí):
+  - `projects` y el resumen de `db:seed` escapan el nombre, el lenguaje y el framework cuando traen un
+    control o un carácter peligroso para el terminal.
+  - El lector de la semilla solo acepta `INSERT` a las seis tablas del renderizador, con filas hijas
+    que pertenecen a la semilla, porque `db:seed` ejecuta el texto entero.
+  - La comprobación de nombre ignora las muestras, para que la carrera entre dos `db:seed` acabe en
+    `INTERNAL`.
+- **Deuda C:** tres tests de Git fuera del diff fallan de forma intermitente con mucha carga. Están
+  en un comentario-checklist en DIS-92.
+- Tras cada ronda que tocó entradas de la huella, la semilla y la constante se regeneraron como
+  último commit (solo cambia `analyzer-fingerprint`).
+
+Mutación (Stryker sobre los ficheros nuevos de la CLI y `safe-json.ts`): **93,95 %** (umbral 70 %).
+Suite completa: 804 tests.
 
 ## Trazabilidad
 
@@ -87,24 +113,24 @@ Mutación (Stryker sobre los ficheros nuevos de la CLI): **94,28 %** (umbral 70 
 |---|---|
 | seed-load · Missing database configuration fails before connecting | `tests/unit/cli/seed-load.spec.ts:98` |
 | seed-load · An invalid seed file fails before connecting | `tests/unit/cli/seed-load.spec.ts:112` |
-| seed-load · An unreachable database is reported without its URL by the seed load | `tests/integration/cli/seed-load.spec.ts:168` |
-| seed-load · The seed is loaded into an empty database | `tests/integration/cli/seed-load.spec.ts:83` |
-| seed-load · Loading again changes nothing and keeps the user's projects | `tests/integration/cli/seed-load.spec.ts:112` |
-| seed-load · A user project named acme-shop is left intact | `tests/integration/cli/seed-load.spec.ts:137` |
+| seed-load · An unreachable database is reported without its URL by the seed load | `tests/integration/cli/seed-load.spec.ts:209` |
+| seed-load · The seed is loaded into an empty database | `tests/integration/cli/seed-load.spec.ts:122` |
+| seed-load · Loading again changes nothing and keeps the user's projects | `tests/integration/cli/seed-load.spec.ts:151` |
+| seed-load · A user project named acme-shop is left intact | `tests/integration/cli/seed-load.spec.ts:176` |
 | cli-projects · Sample and user projects are listed | `tests/integration/cli/projects-command.spec.ts:64` |
 | cli-projects · An empty database lists no projects | `tests/integration/cli/projects-command.spec.ts:98` |
 | cli-projects · Configuration, connection and usage errors | `tests/unit/cli/projects-command.spec.ts:75` |
 | seed-build · Missing configuration fails before anything else | `tests/unit/cli/seed-build.spec.ts:192` |
-| seed-build · An unreachable database is reported without its URL by the seed build | `tests/integration/cli/seed-build.spec.ts:356` |
-| seed-build · The allowed repositories directory of the environment is ignored | `tests/integration/cli/seed-build.spec.ts:307` |
+| seed-build · An unreachable database is reported without its URL by the seed build | `tests/integration/cli/seed-build.spec.ts:355` |
+| seed-build · The allowed repositories directory of the environment is ignored | `tests/integration/cli/seed-build.spec.ts:306` |
 | seed-build · A failed indexing leaves the previous seed intact | `tests/unit/cli/seed-build.spec.ts:216` |
 | seed-build · A failed read-back is not reported as saved | `tests/unit/cli/seed-build.spec.ts:230` |
 | seed-build · A failed write of the constant leaves both files intact | `tests/unit/cli/seed-build.spec.ts:244` |
 | seed-build · A failed write of the seed after the constant is a partial write | `tests/unit/cli/seed-build.spec.ts:291` |
-| seed-build · The sample-project constant is generated | `tests/integration/cli/seed-build.spec.ts:150` |
-| seed-build · The constant does not depend on row order | `tests/unit/cli/seed-render-sample-projects.spec.ts:63` |
+| seed-build · The sample-project constant is generated | `tests/integration/cli/seed-build.spec.ts:149` |
+| seed-build · The constant does not depend on row order | `tests/unit/cli/seed-render-sample-projects.spec.ts:77` |
 | seed-build · The versioned constant matches the versioned seed | `tests/unit/seed/sample-projects-coherence.spec.ts:12` |
-| seed-build · The generated constant passes lint and type checks | `tests/unit/seed/sample-projects-lint.spec.ts:29` |
+| seed-build · The generated constant passes lint and type checks | `tests/unit/seed/sample-projects-lint.spec.ts:28` |
 
 ## Origen
 

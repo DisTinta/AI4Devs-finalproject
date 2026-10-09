@@ -122,3 +122,5 @@ projects is an absolute path holding the OS user name. Not assessed: the AI tool
 - Mutation step (`npx stryker run`, which mutates `packages/core` and `packages/cli`): 94.69 % overall; new files
   `projects.ts` 92.77 %, `parse-seed.ts` 96.09 %, `render-sample-projects.ts` 100 %, `seed-build.ts` 87.88 %,
   `seed-load.ts` 97.35 %.
+- After the verify-against-spec and adversarial-review fixes, CI run 37918231211 on head `e8506cb` (PR #30):
+  `quality` pass (8 m 16 s), `scope` pass, `secrets` pass; `Frontend` run 37918231203 pass.
