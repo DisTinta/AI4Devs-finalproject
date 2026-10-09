@@ -163,6 +163,11 @@ hand-built `LiveLlmConfig` with an invalid `timeoutMs` ends as an `LlmUnavailabl
 escapes a request (verify-against-spec, smaller note); it surfaces as `network` (the `RangeError` is not
 an abort), a programming error unreachable through `llmConfigFromEnv`, accepted as such.
 
+undici's connect timeout (`UND_ERR_CONNECT_TIMEOUT`, a fixed 10 s) is deliberately **not** in that list:
+it fires before the configured timeout, while the connection is being opened, so it is a `network`
+failure (with `systemCode` `UND_ERR_CONNECT_TIMEOUT`): a host that cannot be reached reports `network`
+after ~10 s whatever `LLM_TIMEOUT_MS` says (adversarial review round 2, question).
+
 Redirects are not followed (`redirect: 'manual'`, verify-against-spec round 2): following one turns the
 POST into a GET to another URL, may carry `Authorization` along, and would accept a 2xx from an endpoint
 nobody configured. A 3xx is reported as `http-status`; `LLM_BASE_URL` must point at the final endpoint.
@@ -173,7 +178,8 @@ paths are appended to the URL), so a misconfiguration fails at boot instead of o
 failure of `response.text()` to `invalid-response`; the spec defines `network` as "the connection
 failed", so a body cut is now `network`. `embed([])` returns `{ vectors: [], usage:
 { inputTokens: 0 } }` before touching `fetch`; `embed()` without `embedModel` throws
-`not-configured` before touching `fetch`. Vectors are ordered by `index`; a `data` list whose indexes
+`not-configured` before touching `fetch`. Vectors are ordered by `index` (the schema only asks for a number; the adapter checks the
+rest itself); a `data` list whose indexes
 are not exactly `0..n-1` for `n` input texts (a missing, duplicated or out-of-range index) is
 `invalid-response`.
 
@@ -289,6 +295,19 @@ Findings of the second `/verify-against-spec` round (addendum of the same report
 - **A — drift** the `.gitleaks.toml` description now names the current lines.
 
 Findings of `/adversarial-review` (report `reports/2026-10-09-adversarial-review.md`):
+
+Second `/adversarial-review` round (addendum of the same report): PASS WITH GAPS, no Blocker or Major.
+
+- **A — index guard test:** the schema now only asks `index` to be a number, so the adapter's own check is
+  what rejects `-1` and `0.5` (the extra test reaches it).
+- **A — own-error code:** extra test with the code on the error itself (`UND_ERR_SOCKET` on a rejection,
+  `UND_ERR_BODY_TIMEOUT` on a body error).
+- **A — PR description and tasks 13.2/14.1:** regenerated; 13.2 ticked with the CI run once green.
+- **A — step 11 addendum** for the adversarial rounds.
+- **A — `.gitleaks.toml` drift:** the description no longer lists line numbers.
+- **A — question, `UND_ERR_CONNECT_TIMEOUT`:** stays `network` with `systemCode` (D6).
+
+First `/adversarial-review` round:
 
 - **A — Major, undici timeout ceiling:** `LLM_TIMEOUT_MS` capped at 300000 and undici's header/body
   timeout codes classified as `timeout` (author decision; D5, D6, new scenario "A runtime header or body

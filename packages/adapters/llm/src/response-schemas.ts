@@ -12,6 +12,7 @@ export const chatCompletionResponse = z.object({
 
 /** The part of an `embeddings` response the adapter reads; unknown fields are ignored. */
 export const embeddingsResponse = z.object({
-  data: z.array(z.object({ index: z.number().int().nonnegative(), embedding: z.array(z.number()) })),
+  // `index` is checked against the input count by the adapter itself (exactly `0..n-1`, each once).
+  data: z.array(z.object({ index: z.number(), embedding: z.array(z.number()) })),
   usage: z.object({ prompt_tokens: tokenCount }).nullish(),
 });

@@ -331,7 +331,7 @@ describe('OpenAI-compatible embeddings', () => {
     }
   });
 
-  // Extra case (not a spec scenario): the index rule holds in the adapter itself, not only in the schema.
+  // Extra case (not a spec scenario): the index rule is the adapter's own check (the schema only asks for a number).
   it('rejects a negative or fractional index', async () => {
     for (const index of [-1, 0.5]) {
       // Arrange
@@ -597,6 +597,35 @@ describe('OpenAI-compatible failures', () => {
         expect(error.reason).toBe('timeout');
         expect(error).not.toHaveProperty('systemCode');
       }
+    }
+  });
+
+  // Extra case (not a spec scenario): the code may sit on the error itself, not only on its cause.
+  it('reads the runtime code from the error itself too', async () => {
+    // Arrange
+    const ownCodeRejection: Reply = async () => {
+      throw Object.assign(new TypeError('fetch failed'), { code: 'UND_ERR_SOCKET' });
+    };
+    const ownCodeBody: Reply = async () =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('{"choices":'));
+            setTimeout(() => controller.error(Object.assign(new TypeError('terminated'), { code: 'UND_ERR_BODY_TIMEOUT' })), 5);
+          },
+        }),
+        { status: 200 },
+      );
+
+    // Act
+    const socket = await bothFail(ownCodeRejection);
+    const timeout = await bothFail(ownCodeBody);
+
+    // Assert
+    for (const error of socket) expect(error).toMatchObject({ reason: 'network', systemCode: 'UND_ERR_SOCKET' });
+    for (const error of timeout) {
+      expect(error.reason).toBe('timeout');
+      expect(error).not.toHaveProperty('systemCode');
     }
   });
 
