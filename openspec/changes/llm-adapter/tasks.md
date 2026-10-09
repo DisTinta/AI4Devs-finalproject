@@ -62,7 +62,7 @@
 ## 8. Backend: Review and Update Existing Tests (MANDATORY)
 
 - [x] 8.1 Identify tests affected by the change: anything importing `LlmPort` or `@codemind/core`'s index (`grep -rn "LlmPort\|adapter-llm" tests packages`); confirm with `git diff --stat origin/feature/entrega-2-CRN -- tests` that only `tests/unit/llm/` and `tests/tsconfig.json` changed
-- [x] 8.2 Update affected tests without weakening their assertions. Confirm that each of the 22 `#### Scenario:` of `specs/llm-adapter/spec.md` maps 1:1 to a test with exactly the same name (grep each title in `tests/`; no scenario without a test, no scenario with two)
+- [x] 8.2 Update affected tests without weakening their assertions. Confirm that each of the 29 `#### Scenario:` of `specs/llm-adapter/spec.md` maps 1:1 to a test with exactly the same name (grep each title in `tests/`; no scenario without a test, no scenario with two)
 
 ## 9. Docs and gates before verification
 
@@ -113,6 +113,7 @@
 - [x] 15.3.2 CI `secrets`: the synthetic key `centinela-secreta-123` flagged as `generic-api-key`; checked unredacted, allowed by exact value in `.gitleaks.toml` (`fixtures/README.md` → "CI secret scan"); `gitleaks dir` and `gitleaks git` over the PR range print «no leaks found»
 - [x] 15.3.3 Out of scope, author request: `testTimeout`/`hookTimeout` 20 s in `vitest.config.ts` for the load-dependent Git integration timeouts on Windows (separate commit `test(harness)`); full suite green twice
 - [x] 15.3.4 verify-against-spec round 2: Purpose says "validated when read"; redirects not followed (`redirect: 'manual'`, new scenario "A redirect is not followed", 27 scenarios); `LLM_BASE_URL` rejects user info, query and fragment; non-2xx body cancelled; invalid hand-built `timeoutMs` pinned as `network`; out-of-scope commits recorded as D in design Follow-ups; RED seen for the three behaviour changes; `tests/unit/llm` 44 passed, full suite 673 passed
+- [x] 15.3.5 adversarial-review (author decisions): `LLM_TIMEOUT_MS` capped at 300000 (undici's default header/body timeout) and `UND_ERR_HEADERS_TIMEOUT`/`UND_ERR_BODY_TIMEOUT` classified as `timeout`; `systemCode` also accepts `^UND_ERR_[A-Z_]+$`; adapter-level index guard; two new scenarios (29); real-runtime addendum in show-spec-working (real socket cut → `UND_ERR_SOCKET`, redirect not followed); DIS-29 hand-off comment (B); unbounded body D; RED seen for the three behaviour changes
 - [ ] 15.3 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report
 - [ ] 15.4 Commit the fixes to the same pull request (push confirmed with the author); re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
 - [ ] 15.5 `/opsx:archive`, and commit the archive to the same pull request; the author merges afterwards

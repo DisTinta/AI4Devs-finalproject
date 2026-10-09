@@ -148,3 +148,45 @@ tests typecheck OK
 The change is **demonstrably working**: 21 of 22 scenarios were exercised end to end through the built adapter,
 the real `fetch` and real HTTP (two of them against the real Ollama), and the remaining one was exercised for two
 of its three cases. No screenshot was produced and none was left at the repository root.
+
+---
+
+## Addendum — real-runtime evidence after the review rounds (2026-10-09)
+
+The first run predates `26c3629` (cut body, `usage`), `b0b2e23` (redirects, base URL, cancelled body) and the
+adversarial-review fixes (undici codes, timeout cap). Re-run with the **built** adapter (`npx tsc --build`), Node
+v24.11.1's **real** `fetch` (undici) and a **real** local `node:http` server, driver in the session scratchpad
+(deleted afterwards). `hits` lists what the server received.
+
+| Scenario | Result | Matches spec |
+|---|---|---|
+| A redirect is not followed | `http-status` `302`, one request each, no hit on the target path | Yes |
+| A connection cut while reading the body is a network failure (real `socket.destroy()` mid-body) | `network`, `systemCode` `UND_ERR_SOCKET` | Yes |
+| A runtime socket failure carries its code | same real cut: `UND_ERR_SOCKET` carried | Yes |
+| A null usage reports zero tokens | completion `0/0`, embeddings `inputTokens` `0` | Yes |
+| A partial usage counts the missing field as zero | `12/0` | Yes |
+| A usage field of the wrong type is an invalid response | `invalid-response` (completion `"12"`, embeddings `-1`) | Yes |
+| A malformed timeout or URL fails naming the variable (new values) | user info, query, fragment → `LLM_BASE_URL`; `300001` → `LLM_TIMEOUT_MS`; `300000` accepted | Yes |
+| A non-2xx status is reported with the status | `500`, body cancelled (never read) | Yes |
+
+Not demonstrated with the real runtime: "A runtime header or body timeout is a timeout" — undici's own
+`UND_ERR_HEADERS_TIMEOUT`/`UND_ERR_BODY_TIMEOUT` fire only after 300 s by default; covered by the unit test with
+the exact Node shape (`TypeError('fetch failed')` with `cause.code`).
+
+```
+redirect: complete                   {"error":{"reason":"http-status","status":302,"hasSystemCode":false},"hits":["POST /redirect/v1/chat/completions"]}
+redirect: embed                      {"error":{"reason":"http-status","status":302,"hasSystemCode":false},"hits":["POST /redirect/v1/embeddings"]}
+real socket cut mid-body: complete   {"error":{"reason":"network","systemCode":"UND_ERR_SOCKET","hasSystemCode":true},"hits":["POST /cut/v1/chat/completions"]}
+real socket cut mid-body: embed      {"error":{"reason":"network","systemCode":"UND_ERR_SOCKET","hasSystemCode":true},"hits":["POST /cut/v1/embeddings"]}
+usage null: complete                 {"ok":{"text":"hola","model":"chat-x","usage":{"inputTokens":0,"outputTokens":0}},"hits":["POST /usagenull/v1/chat/completions"]}
+usage null: embed                    {"ok":{"vectors":1,"usage":{"inputTokens":0}},"hits":["POST /usagenull/v1/embeddings"]}
+usage partial: complete              {"ok":{"text":"hola","model":"chat-x","usage":{"inputTokens":12,"outputTokens":0}},"hits":["POST /usagepartial/v1/chat/completions"]}
+usage wrong type: complete           {"error":{"reason":"invalid-response","hasSystemCode":false},"hits":["POST /usagebad/v1/chat/completions"]}
+usage wrong type: embed              {"error":{"reason":"invalid-response","hasSystemCode":false},"hits":["POST /usagebad/v1/embeddings"]}
+500 (body cancelled, not read)       {"error":{"reason":"http-status","status":500,"hasSystemCode":false},"hits":["POST /status500/v1/chat/completions"]}
+LLM_BASE_URL=http://user:pw@localhost:11434/v1 LLM_CONFIG_INVALID LLM_BASE_URL
+LLM_BASE_URL=http://localhost:11434/v1?k=1     LLM_CONFIG_INVALID LLM_BASE_URL
+LLM_BASE_URL=http://localhost:11434/v1#x       LLM_CONFIG_INVALID LLM_BASE_URL
+LLM_TIMEOUT_MS=300000                          300000
+LLM_TIMEOUT_MS=300001                          LLM_CONFIG_INVALID LLM_TIMEOUT_MS
+```
