@@ -14,10 +14,8 @@ describe('LlmUnavailable', () => {
     expect(error.name).toBe('LlmUnavailable');
     expect(error.reason).toBe('not-configured');
     expect(error.message).toBe('LLM unavailable: not-configured');
-    expect(error.status).toBeUndefined();
-    expect(error.expected).toBeUndefined();
-    expect(error.received).toBeUndefined();
-    expect(error.systemCode).toBeUndefined();
+    for (const detail of ['status', 'expected', 'received', 'systemCode']) expect(error).not.toHaveProperty(detail);
+    expect(JSON.parse(JSON.stringify(error))).toEqual({ reason: 'not-configured', code: 'LLM_UNAVAILABLE', name: 'LlmUnavailable' });
   });
 
   it('keeps the HTTP status of an http-status failure', () => {
@@ -27,6 +25,7 @@ describe('LlmUnavailable', () => {
     // Assert
     expect(error.status).toBe(500);
     expect(error.message).toBe('LLM unavailable: http-status 500');
+    expect(JSON.parse(JSON.stringify(error))).toMatchObject({ reason: 'http-status', status: 500 });
   });
 
   it('keeps both dimensions of a dimension mismatch', () => {

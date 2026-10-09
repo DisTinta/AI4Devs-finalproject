@@ -6,7 +6,7 @@ development endpoint, so the rest of CODEMIND never knows the vendor and never l
 
 ## ADDED Requirements
 
-### Requirement: LLM configuration is classified and validated at boot
+### Requirement: LLM configuration is classified and validated when read
 
 The LLM configuration SHALL be read from the environment variables `LLM_BASE_URL`, `LLM_API_KEY`,
 `LLM_MODEL`, `LLM_MODEL_VERIFY`, `LLM_EMBED_MODEL` and `LLM_TIMEOUT_MS`. Every value SHALL be
@@ -23,7 +23,8 @@ decide the mode:
   than 2147483647 (the largest delay a Node timer honours; above it Node fires after 1 ms) →
   configuration error naming `LLM_TIMEOUT_MS`; absent → a request timeout of 120000 ms.
 
-In mode `evaluation` no other variable is checked.
+In mode `evaluation` no other variable is checked. The configuration SHALL be validated when it is read;
+reading it at boot is the composition root's job (DIS-29 / CM-HU-12).
 
 A configuration error SHALL have the stable code `LLM_CONFIG_INVALID` and SHALL carry the name of
 the variable at fault. Its message SHALL name that variable and SHALL NOT contain the value of any
@@ -79,8 +80,8 @@ A completion request SHALL carry a purpose, `answer` or `verify`. A completion w
 SHALL use `LLM_MODEL`. A completion with purpose `verify` SHALL use `LLM_MODEL_VERIFY` when it is
 present and `LLM_MODEL` otherwise. Embeddings SHALL use `LLM_EMBED_MODEL` only: when it is absent,
 completions SHALL keep working and every embedding request SHALL fail with `LLM_UNAVAILABLE` and
-reason `not-configured` without sending any HTTP request; `LLM_MODEL` SHALL NOT be used for
-embeddings.
+reason `not-configured` without sending any HTTP request, even for an empty list of texts;
+`LLM_MODEL` SHALL NOT be used for embeddings.
 
 #### Scenario: The verify purpose falls back to the generation model
 
@@ -107,10 +108,14 @@ without trailing `/`. The request SHALL carry `Content-Type: application/json` a
 the selected `model` and the `messages` (each with a `role` among `system`, `user` and `assistant`,
 and a `content`), and SHALL NOT ask for streaming. The request SHALL carry
 `Authorization: Bearer <LLM_API_KEY>` when a key is configured and SHALL NOT carry any
-`Authorization` header otherwise. A response SHALL be accepted only when its status is 2xx and its
-body is JSON with a non-empty `choices` whose first element has a string `message.content`. The
-result SHALL be that text, the model used, and `usage` with `inputTokens` = `usage.prompt_tokens`
-and `outputTokens` = `usage.completion_tokens`; when the response has no `usage`, both SHALL be `0`.
+`Authorization` header otherwise. The value of `LLM_API_KEY` SHALL NOT appear in the URL nor in the
+body. A response SHALL be accepted only when its status is 2xx and its body is JSON with a non-empty
+`choices` whose first element has a string `message.content`; the other elements of `choices` are not
+checked. The result SHALL be that text, the model used, and `usage` with `inputTokens` =
+`usage.prompt_tokens` and `outputTokens` = `usage.completion_tokens`. A `usage` that is absent or
+`null`, and a field of `usage` that is absent or `null`, SHALL count as `0`; a field of `usage` that is
+present and is not a non-negative integer (a string, a negative or a fractional number) SHALL make the
+response not accepted.
 
 #### Scenario: Without a key the completion is sent without Authorization
 
@@ -138,6 +143,31 @@ and `outputTokens` = `usage.completion_tokens`; when the response has no `usage`
 - **WHEN** a completion is requested
 - **THEN** the result is text `hola` with `inputTokens` `0` and `outputTokens` `0`
 
+#### Scenario: A null usage reports zero tokens
+
+- **GIVEN** a live configuration with `LLM_EMBED_MODEL=embed-z` and an endpoint that answers a
+  completion with 200, text `hola` and `"usage": null`, and embeddings for `["a"]` with 200, one vector
+  of 1536 components (`index` 0) and `"usage": null`
+- **WHEN** a completion and embeddings for `["a"]` are requested
+- **THEN** the completion is text `hola` with `inputTokens` `0` and `outputTokens` `0`, and the
+  embeddings hold the vector with `inputTokens` `0`
+
+#### Scenario: A partial usage counts the missing field as zero
+
+- **GIVEN** a live configuration and an endpoint that answers a completion with 200, text `hola` and,
+  in turn, `"usage": { "prompt_tokens": 12 }` and
+  `"usage": { "prompt_tokens": 12, "completion_tokens": null }`
+- **WHEN** a completion is requested against each answer
+- **THEN** each result is text `hola` with `inputTokens` `12` and `outputTokens` `0`
+
+#### Scenario: A usage field of the wrong type is an invalid response
+
+- **GIVEN** a live configuration with `LLM_EMBED_MODEL=embed-z` and an endpoint that answers with 200
+  and a valid text or vector but, in turn, `prompt_tokens` `"12"`, `-1` and `1.5`, and, for the
+  completion, `completion_tokens` `"3"`
+- **WHEN** a completion and embeddings for `["a"]` are requested against each answer
+- **THEN** every request fails with `LLM_UNAVAILABLE` and reason `invalid-response`
+
 ### Requirement: Embedding request, order and dimension
 
 Embeddings for a non-empty list of texts SHALL be one `POST` to `<base>/embeddings` with
@@ -147,11 +177,13 @@ SHALL be accepted only when its status is 2xx and its body is JSON with a `data`
 one numeric vector per input text, each with its `index`. The result SHALL return the vectors in the
 order of the input texts (by `index`, not by position in `data`; the indexes SHALL be exactly
 `0..n-1` for `n` texts, each once, or the response is not accepted) and `usage.inputTokens` =
-`usage.prompt_tokens`, or `0` when the response has no `usage`. Every vector SHALL have exactly
+`usage.prompt_tokens`, with the same rule as completions: `usage` or `usage.prompt_tokens` absent or
+`null` counts as `0`, and a `usage.prompt_tokens` that is present and is not a non-negative integer
+makes the response not accepted. Every vector SHALL have exactly
 1536 components, the dimension of the schema's embedding columns; otherwise the request SHALL fail
 with `LLM_UNAVAILABLE`, reason `dimension-mismatch`, the expected dimension and the received one.
-Embeddings for an empty list SHALL return no vectors and `inputTokens` `0` without sending any HTTP
-request.
+When `LLM_EMBED_MODEL` is configured, embeddings for an empty list SHALL return no vectors and
+`inputTokens` `0` without sending any HTTP request.
 
 #### Scenario: Embeddings are returned in input order
 
@@ -196,11 +228,14 @@ request.
 Every failure of a completion or embedding request SHALL be reported as `LLM_UNAVAILABLE` with one
 reason of this closed list: `http-status` (a non-2xx status, which the error SHALL carry),
 `invalid-response` (a body that is not JSON, or JSON that does not have the accepted shape),
-`network` (the request could not be sent or the connection failed), `timeout` (no complete response
-— status, headers and whole body — within the configured timeout; the request SHALL be aborted).
-Nothing else SHALL escape a request. A `network` error SHALL carry `systemCode` when the runtime
-reports a system error code matching `^E[A-Z]+$` (for example `ECONNREFUSED`), and no `systemCode`
-otherwise; no other text of the underlying failure SHALL be carried.
+`network` (the request could not be sent, or the connection failed, including while the body was
+being read), `timeout` (no complete response — status, headers and whole body — within the configured
+timeout; the request SHALL be aborted). Nothing else SHALL escape a request. A `network` error SHALL
+carry `systemCode` when the runtime reports a system error code matching `^E[A-Z]+$` (for example
+`ECONNREFUSED`), on the error or on its cause, and SHALL have no `systemCode` property otherwise; no
+other text of the underlying failure SHALL be carried. A detail that does not apply to a failure
+(`status`, `expected`, `received`, `systemCode`) SHALL be absent from the error, not present with an
+empty value.
 
 #### Scenario: A non-2xx status is reported with the status
 
@@ -225,7 +260,16 @@ otherwise; no other text of the underlying failure SHALL be carried.
   (`connect failed: secret`), then with no code at all
 - **WHEN** a completion and embeddings for `["a"]` are requested against each failure
 - **THEN** every request fails with `LLM_UNAVAILABLE` and reason `network`; `systemCode` is
-  `ECONNREFUSED` for the first failure and absent for the other two
+  `ECONNREFUSED` for the first failure and absent (no such property) for the other two
+
+#### Scenario: A connection cut while reading the body is a network failure
+
+- **GIVEN** a live configuration with `LLM_EMBED_MODEL=embed-z` and an endpoint that sends status 200
+  and its headers, then cuts the connection before the body ends (without any abort), first with a
+  system error code `ECONNRESET` and then without a code
+- **WHEN** a completion and embeddings for `["a"]` are requested against each endpoint
+- **THEN** every request fails with `LLM_UNAVAILABLE` and reason `network`; `systemCode` is
+  `ECONNRESET` for the first endpoint and absent (no such property) for the second
 
 #### Scenario: A request that exceeds the timeout is aborted
 
@@ -255,12 +299,14 @@ its string form. An error SHALL NOT copy the raw body of the endpoint's response
 ### Requirement: Only a live configuration builds the HTTP client
 
 The OpenAI-compatible client SHALL be constructible only from a configuration in mode `live`; passing
-a configuration in mode `evaluation` SHALL be rejected by the type check, so no code path can build
-an HTTP client from an evaluation configuration.
+a configuration in mode `evaluation` SHALL be rejected by the type check, so no code that type-checks
+can build an HTTP client from an evaluation configuration (a runtime guard is not required). The
+client SHALL report its mode as `live`; the `evaluation` mode belongs to the evaluation adapter
+(DIS-18).
 
 #### Scenario: An evaluation configuration does not type-check against the client
 
 - **GIVEN** a configuration value in mode `evaluation`
 - **WHEN** code passes it to the HTTP client's constructor and the project's type check runs
 - **THEN** the type check reports that call as an error, while the same call with a live
-  configuration type-checks
+  configuration type-checks and the client it builds reports mode `live`

@@ -27,10 +27,10 @@ export function createOpenAiCompatibleLlm(config: LiveLlmConfig, options: OpenAi
   async function post<T>(path: string, body: object, schema: z.ZodType<T>): Promise<T> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (config.apiKey !== undefined) headers.Authorization = `Bearer ${config.apiKey}`;
-    const signal = AbortSignal.timeout(config.timeoutMs);
-
     let response: Response;
     try {
+      // Inside the `try`: an invalid `timeoutMs` (hand-built config) must not escape as a RangeError.
+      const signal = AbortSignal.timeout(config.timeoutMs);
       response = await fetchImpl(`${config.baseUrl}${path}`, { method: 'POST', headers, body: JSON.stringify(body), signal });
     } catch (error) {
       if (isAbort(error)) throw new LlmUnavailable('timeout');
@@ -42,7 +42,9 @@ export function createOpenAiCompatibleLlm(config: LiveLlmConfig, options: OpenAi
     try {
       raw = await response.text();
     } catch (error) {
-      throw new LlmUnavailable(isAbort(error) ? 'timeout' : 'invalid-response');
+      // The body stopped: our timeout, or the connection was cut mid-body (design D6).
+      if (isAbort(error)) throw new LlmUnavailable('timeout');
+      throw new LlmUnavailable('network', systemCodeOf(error));
     }
     let json: unknown;
     try {
@@ -93,10 +95,16 @@ function isAbort(error: unknown): boolean {
   return error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError');
 }
 
-/** The runtime's system error code (`ECONNREFUSED`…) from a `fetch` rejection; never free text (design D4). */
+/**
+ * The runtime's system error code (`ECONNREFUSED`, `ECONNRESET`…) of a failed request, from the error
+ * itself or from its `cause` (where Node's `fetch` puts the socket error); never free text (design D4).
+ */
 function systemCodeOf(error: unknown): { systemCode?: string } {
-  const code: unknown = error instanceof Error && isRecord(error.cause) ? error.cause.code : undefined;
-  return typeof code === 'string' && /^E[A-Z]+$/.test(code) ? { systemCode: code } : {};
+  for (const candidate of [error, isRecord(error) ? error.cause : undefined]) {
+    const code: unknown = isRecord(candidate) ? candidate.code : undefined;
+    if (typeof code === 'string' && /^E[A-Z]+$/.test(code)) return { systemCode: code };
+  }
+  return {};
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

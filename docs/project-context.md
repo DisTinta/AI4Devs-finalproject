@@ -349,10 +349,12 @@ services that must be started first, quirks of the local environment.
 - **The LLM adapter never puts endpoint or runtime text into an error** (DIS-17,
   `packages/adapters/llm/src/`). Every failure is `LlmUnavailable` (core, `packages/core/src/llm/`)
   with a closed `reason` (`http-status`, `invalid-response`, `network`, `timeout`, `not-configured`,
-  `dimension-mismatch`) and only numbers, plus `systemCode` for `network` when the runtime's
-  `cause.code` matches `^E[A-Z]+$`: no `cause`, no response body, so a key echoed by a server cannot
-  leak. Timeouts are classified by error name both on `fetch` and on the body read (a stalled body is
-  `timeout`). `embed()` rejects any vector whose length is not `EMBEDDING_DIMENSIONS` (1536, the
+  `dimension-mismatch`) and only numbers, plus `systemCode` for `network` when the error's or its
+  cause's `code` matches `^E[A-Z]+$`; a detail that does not apply is an absent property. No `cause`,
+  no response body, so a key echoed by a server cannot leak. Failures are classified by error name
+  both on `fetch` and on the body read: a stalled body is `timeout`, a body cut mid-way is `network`.
+  `usage` (or one of its fields) absent or `null` counts as `0`; a present field that is not a
+  non-negative integer is `invalid-response`; only `choices[0]` is validated. `embed()` rejects any vector whose length is not `EMBEDDING_DIMENSIONS` (1536, the
   `vector(1536)` columns): Ollama's `nomic-embed-text` (768) always fails with `dimension-mismatch`
   until DIS-46 picks the model and migrates the columns. `llmConfigFromEnv(env)` is the only reader
   of the `LLM_*` variables; no composition root calls it yet (DIS-29 / CM-HU-12). Tests fake `fetch`

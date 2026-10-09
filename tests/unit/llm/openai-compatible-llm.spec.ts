@@ -133,10 +133,117 @@ describe('OpenAI-compatible completions', () => {
     const evaluation = llmConfigFromEnv({});
     const { fetch } = fakeFetch(json(HOLA));
 
-    // Act / Assert: `npm run typecheck` fails if the directive below stops being needed.
+    // Act / Assert: `npm run typecheck` fails if the directive below stops being needed. The call is
+    // never run: the spec asks for a type-level check only, not a runtime guard.
     // @ts-expect-error -- only a LiveLlmConfig builds the HTTP client (design D6).
-    expect(() => createOpenAiCompatibleLlm(evaluation, { fetch })).not.toThrow();
+    const neverCalled = (): unknown => createOpenAiCompatibleLlm(evaluation, { fetch });
+    expect(typeof neverCalled).toBe('function');
     expect(createOpenAiCompatibleLlm(live({ LLM_BASE_URL: OLLAMA, LLM_MODEL: 'chat-x' }), { fetch }).mode).toBe('live');
+  });
+
+  it('A null usage reports zero tokens', async () => {
+    // Arrange
+    const { fetch } = fakeFetch(json({ choices: [{ message: { content: 'hola' } }], usage: null }));
+    const embeddings = fakeFetch(json({ data: [{ index: 0, embedding: vector(0.1) }], usage: null }));
+    const config = live({ ...EMBED_ENV });
+
+    // Act
+    const completion = await createOpenAiCompatibleLlm(config, { fetch }).complete(ASK);
+    const embedded = await createOpenAiCompatibleLlm(config, { fetch: embeddings.fetch }).embed(['a']);
+
+    // Assert
+    expect(completion).toEqual({ text: 'hola', model: 'chat-x', usage: { inputTokens: 0, outputTokens: 0 } });
+    expect(embedded).toEqual({ vectors: [vector(0.1)], usage: { inputTokens: 0 } });
+  });
+
+  it('A partial usage counts the missing field as zero', async () => {
+    for (const usage of [{ prompt_tokens: 12 }, { prompt_tokens: 12, completion_tokens: null }]) {
+      // Arrange
+      const { fetch } = fakeFetch(json({ choices: [{ message: { content: 'hola' } }], usage }));
+      const llm = createOpenAiCompatibleLlm(live({ LLM_BASE_URL: OLLAMA, LLM_MODEL: 'chat-x' }), { fetch });
+
+      // Act
+      const result = await llm.complete(ASK);
+
+      // Assert
+      expect(result).toEqual({ text: 'hola', model: 'chat-x', usage: { inputTokens: 12, outputTokens: 0 } });
+    }
+  });
+
+  it('A usage field of the wrong type is an invalid response', async () => {
+    // Arrange
+    const completionUsages = [{ prompt_tokens: '12' }, { prompt_tokens: -1 }, { prompt_tokens: 1.5 }, { completion_tokens: '3' }];
+    const embeddingUsages = [{ prompt_tokens: '12' }, { prompt_tokens: -1 }, { prompt_tokens: 1.5 }];
+    const config = live({ ...EMBED_ENV });
+
+    for (const usage of completionUsages) {
+      // Act
+      const { fetch } = fakeFetch(json({ choices: [{ message: { content: 'hola' } }], usage }));
+      const error = await failure(createOpenAiCompatibleLlm(config, { fetch }).complete(ASK));
+
+      // Assert
+      expect(error.reason).toBe('invalid-response');
+    }
+    for (const usage of embeddingUsages) {
+      // Act
+      const { fetch } = fakeFetch(json({ data: [{ index: 0, embedding: vector(0.1) }], usage }));
+      const error = await failure(createOpenAiCompatibleLlm(config, { fetch }).embed(['a']));
+
+      // Assert
+      expect(error.reason).toBe('invalid-response');
+    }
+  });
+
+  // Extra cases (not spec scenarios).
+  it('validates only the first choice', async () => {
+    // Arrange
+    const { fetch } = fakeFetch(json({ choices: [{ message: { content: 'hola' } }, { message: { content: null } }, 'x'] }));
+    const llm = createOpenAiCompatibleLlm(live({ LLM_BASE_URL: OLLAMA, LLM_MODEL: 'chat-x' }), { fetch });
+
+    // Act / Assert
+    expect((await llm.complete(ASK)).text).toBe('hola');
+  });
+
+  it('sends the key only in the Authorization header', async () => {
+    // Arrange
+    const key = 'clave-solo-cabecera';
+    const { fetch, requests } = fakeFetch(json(HOLA), json({ data: [{ index: 0, embedding: vector(0.1) }] }));
+    const llm = createOpenAiCompatibleLlm(live({ ...EMBED_ENV, LLM_API_KEY: key }), { fetch });
+
+    // Act
+    await llm.complete(ASK);
+    await llm.embed(['a']);
+
+    // Assert: same Authorization rule for embeddings, and the key nowhere else.
+    expect(requests.map((request) => request.headers.get('Authorization'))).toEqual([`Bearer ${key}`, `Bearer ${key}`]);
+    for (const request of requests) {
+      expect(request.url).not.toContain(key);
+      expect(JSON.stringify(request.body)).not.toContain(key);
+    }
+  });
+
+  it('sends embeddings without Authorization when there is no key', async () => {
+    // Arrange
+    const { fetch, requests } = fakeFetch(json({ data: [{ index: 0, embedding: vector(0.1) }] }));
+    const llm = createOpenAiCompatibleLlm(live({ ...EMBED_ENV }), { fetch });
+
+    // Act
+    await llm.embed(['a']);
+
+    // Assert
+    expect(requests[0]?.headers.has('Authorization')).toBe(false);
+  });
+
+  it('turns an invalid hand-built timeout into an LlmUnavailable', async () => {
+    // Arrange
+    const { fetch } = fakeFetch(json(HOLA));
+    const llm = createOpenAiCompatibleLlm({ ...live({ LLM_BASE_URL: OLLAMA, LLM_MODEL: 'chat-x' }), timeoutMs: -1 }, { fetch });
+
+    // Act
+    const error = await failure(llm.complete(ASK));
+
+    // Assert
+    expect(error).toBeInstanceOf(LlmUnavailable);
   });
 });
 
@@ -260,6 +367,20 @@ describe('OpenAI-compatible embeddings', () => {
     expect(requests).toHaveLength(1);
     expect(requests.some((request) => request.url.endsWith('/embeddings'))).toBe(false);
   });
+
+  // Extra case (not a spec scenario): the not-configured rule wins over the empty-list rule.
+  it('is not-configured for an empty list without an embedding model', async () => {
+    // Arrange
+    const { fetch, requests } = fakeFetch(json(HOLA));
+    const llm = createOpenAiCompatibleLlm(live({ LLM_BASE_URL: OLLAMA, LLM_MODEL: 'chat-x' }), { fetch });
+
+    // Act
+    const error = await failure(llm.embed([]));
+
+    // Assert
+    expect(error.reason).toBe('not-configured');
+    expect(requests).toHaveLength(0);
+  });
 });
 
 function text(body: string, status = 200): Reply {
@@ -291,6 +412,24 @@ const stallsBody: Reply = async (init) =>
     }),
     { status: 200 },
   );
+
+/**
+ * Sends status 200 and its headers, then errors the body without any abort, like a connection reset
+ * mid-body (Node's stream error carries the socket `code` in its `cause`).
+ */
+function cutsBody(code?: string): Reply {
+  return async () =>
+    new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode('{"choices":'));
+          const cause = Object.assign(new Error('socket hang up'), code === undefined ? {} : { code });
+          setTimeout(() => controller.error(new TypeError('terminated', { cause })), 5);
+        },
+      }),
+      { status: 200 },
+    );
+}
 
 /** Runs a completion and an embedding request against the same reply and returns both errors. */
 async function bothFail(reply: Reply, env: Record<string, string> = {}): Promise<LlmUnavailable[]> {
@@ -347,7 +486,28 @@ describe('OpenAI-compatible failures', () => {
       // Assert
       for (const error of errors) {
         expect(error.reason).toBe('network');
-        expect(error.systemCode).toBe(systemCode);
+        if (systemCode === undefined) expect(error).not.toHaveProperty('systemCode');
+        else expect(error.systemCode).toBe(systemCode);
+      }
+    }
+  });
+
+  it('A connection cut while reading the body is a network failure', async () => {
+    // Arrange
+    const cases: Array<[Reply, string | undefined]> = [
+      [cutsBody('ECONNRESET'), 'ECONNRESET'],
+      [cutsBody(), undefined],
+    ];
+
+    for (const [reply, systemCode] of cases) {
+      // Act
+      const errors = await bothFail(reply);
+
+      // Assert
+      for (const error of errors) {
+        expect(error.reason).toBe('network');
+        if (systemCode === undefined) expect(error).not.toHaveProperty('systemCode');
+        else expect(error.systemCode).toBe(systemCode);
       }
     }
   });

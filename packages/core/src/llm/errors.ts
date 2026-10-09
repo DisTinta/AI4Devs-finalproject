@@ -29,14 +29,15 @@ export interface LlmUnavailableDetails {
 export class LlmUnavailable extends DomainError {
   /** Stable code. */
   readonly code = 'LLM_UNAVAILABLE';
+  // `declare`: a detail that does not apply is absent (no own property), not present as `undefined`.
   /** The non-2xx HTTP status, for `http-status`. */
-  readonly status?: number;
+  declare readonly status?: number;
   /** The expected embedding dimension, for `dimension-mismatch`. */
-  readonly expected?: number;
+  declare readonly expected?: number;
   /** The received embedding dimension, for `dimension-mismatch`. */
-  readonly received?: number;
+  declare readonly received?: number;
   /** The system error code, for `network`. */
-  readonly systemCode?: string;
+  declare readonly systemCode?: string;
 
   /**
    * @param reason Why the request failed.
@@ -48,10 +49,9 @@ export class LlmUnavailable extends DomainError {
   ) {
     super(`LLM unavailable: ${describe(reason, details)}`);
     this.name = 'LlmUnavailable';
-    this.status = details.status;
-    this.expected = details.expected;
-    this.received = details.received;
-    this.systemCode = details.systemCode;
+    for (const key of ['status', 'expected', 'received', 'systemCode'] as const) {
+      if (details[key] !== undefined) Object.defineProperty(this, key, { value: details[key], enumerable: true });
+    }
   }
 }
 

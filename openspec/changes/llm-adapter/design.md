@@ -74,7 +74,9 @@ migration, owned by CM-HU-19 (DIS-46).
 'not-configured' | 'dimension-mismatch'`), optional `status`, `expected`, `received`, and optional
 `systemCode` (only with reason `network`, see D4). The message is built only from the reason, those
 numbers and `systemCode` (e.g. `LLM unavailable: http-status 500`,
-`LLM unavailable: network ECONNREFUSED`). It lives in
+`LLM unavailable: network ECONNREFUSED`). A detail that does not apply is **absent** (no own property),
+not present with `undefined`, so `'systemCode' in error` and `JSON.stringify` tell the truth
+(verify-against-spec 3.7). It lives in
 core because the domain (DIS-18 budget, DIS-29 `UNKNOWN`, CM-HU-12 status mapping) branches on it,
 like `ProjectNotFound`.
 
@@ -85,8 +87,9 @@ like `ProjectNotFound`.
 
 `LlmUnavailable` is never given a `cause`, and no part of a response body, of a `fetch` rejection
 message or of a Zod issue is copied into it. Only the reason, the HTTP status, the dimensions and,
-for `network`, a `systemCode` reach the error. `systemCode` is copied from the rejection's
-`cause.code` (Node's `fetch` wraps the socket error there) only when it matches `/^E[A-Z]+$/`
+for `network`, a `systemCode` reach the error. `systemCode` is copied from the error's own `code`
+or its `cause.code` (Node's `fetch` wraps the socket error in `cause`; a body stream error may carry the
+code itself) only when it matches `/^E[A-Z]+$/`
 (`ECONNREFUSED`, `ENOTFOUND`, `ETIMEDOUT`…); anything else is dropped. A closed alphabet of capital
 letters cannot carry a key, and it is the piece of information that tells "Ollama is not running"
 from "wrong host". The key is read once into the live configuration and only used to build the
@@ -140,15 +143,22 @@ Per request: `POST` with `Content-Type: application/json`, `Authorization: Beare
 | `fetch` rejects otherwise | `network` (+ `systemCode`, D4) |
 | status not 2xx | `http-status` (+ `status`) |
 | `response.text()` rejects with an error named `AbortError` or `TimeoutError` (headers arrived, body did not finish in time) | `timeout` |
-| `response.text()` rejects otherwise, `JSON.parse` throws, or `safeParse` fails | `invalid-response` |
+| `response.text()` rejects otherwise (the connection was cut while the body was read) | `network` (+ `systemCode`, same helper as for `fetch`, D4) |
+| `JSON.parse` throws, or `safeParse` fails | `invalid-response` |
 | embeddings whose `index` values are not exactly `0..n-1`, each once | `invalid-response` |
 | a vector of length ≠ `EMBEDDING_DIMENSIONS` | `dimension-mismatch` |
 
 Classification goes by the error's `name`, in both places where the signal can fire: `fetch` itself
 and the body read. `AbortSignal.timeout` keeps running after the headers arrive, so a server that
 sends `200` and stalls the body is aborted during `response.text()`; classifying by `name` there too
-is what makes that case `timeout` and not `invalid-response`. The body is read once
-(`response.text()`, then `JSON.parse` in a `try`). `embed([])` returns `{ vectors: [], usage:
+is what makes that case `timeout` and not `network`. The body is read once (`response.text()`, then
+`JSON.parse` in a `try`). The signal itself is created inside the same `try` as `fetch`, so even a
+hand-built `LiveLlmConfig` with an invalid `timeoutMs` ends as an `LlmUnavailable` and nothing else
+escapes a request (verify-against-spec, smaller note).
+
+*Revised after verify-against-spec (author decision):* the first version mapped every non-timeout
+failure of `response.text()` to `invalid-response`; the spec defines `network` as "the connection
+failed", so a body cut is now `network`. `embed([])` returns `{ vectors: [], usage:
 { inputTokens: 0 } }` before touching `fetch`; `embed()` without `embedModel` throws
 `not-configured` before touching `fetch`. Vectors are ordered by `index`; a `data` list whose indexes
 are not exactly `0..n-1` for `n` input texts (a missing, duplicated or out-of-range index) is
@@ -160,15 +170,27 @@ global `fetch` is the same engine.
 
 ### D7 — Zod schemas for the two responses, only in the adapter
 
-`packages/adapters/llm/src/response-schemas.ts` holds `chatCompletionResponse`
-(`choices: [{ message: { content: string } }, ...]` non-empty, optional `usage` with non-negative
-integer `prompt_tokens` / `completion_tokens`) and `embeddingsResponse` (`data: { index:
-non-negative integer; embedding: number[] }[]`, optional `usage.prompt_tokens`). Unknown fields are
-ignored (servers add their own). `zod` is installed in `packages/adapters/llm` only (`^4`, current
+`packages/adapters/llm/src/response-schemas.ts` holds `chatCompletionResponse` and
+`embeddingsResponse`. Unknown fields are ignored (servers add their own).
+
+- `choices`: a non-empty array whose **first** element has a string `message.content`; the other
+  elements are not validated (`[first, ...rest]` with `rest` unknown).
+- `usage` (both endpoints): absent or `null` → `0`; each field (`prompt_tokens`, `completion_tokens`)
+  absent or `null` → `0`; a field present and not a non-negative integer → the parse fails →
+  `invalid-response`. Lenient where servers differ (Ollama and others omit or null fields), strict
+  where a value is present but wrong, since a wrong count would be stored as cost later (DIS-18).
+- `data`: `{ index: non-negative integer; embedding: number[] }[]`.
+
+*Revised after verify-against-spec (author decision):* the first version required both usage fields
+whenever `usage` was present and rejected `usage: null`. `zod` is installed in `packages/adapters/llm` only (`^4`, current
 4.6.x; Zod 4 supports TypeScript ≥ 5.5 with `strict`, which the repository already uses). This is
 the first use of Zod in the repository, so the *target* note in `docs/backend-standards.md` §1 goes.
 
 ### D8 — Tests at the HTTP boundary, through the package name
+
+The public `fetch` option of `createOpenAiCompatibleLlm` is this test seam; it is part of the exported
+signature on purpose (a composition root may also inject an instrumented `fetch`), and is not a spec
+behaviour (verify-against-spec 3.2, destination D).
 
 `tests/unit/llm/llm-config.spec.ts` (requirement "LLM configuration…", pattern
 `salt-config.spec.ts`) and `tests/unit/llm/openai-compatible-llm.spec.ts` (the other requirements),
@@ -214,6 +236,26 @@ and its Ollama example leaves `LLM_API_KEY` empty; existing `.env` files with `L
 keep working (a key is simply sent). Rollback is reverting the commits.
 
 ## Follow-ups
+
+Findings of `/verify-against-spec` (report `reports/2026-10-09-verify-against-spec.md`):
+
+- **A — 2.1** body read cut → `network`: code, D6 and a new scenario (author decision).
+- **A — 2.2** "validated at boot": the spec now says "validated when read"; boot reading is the
+  composition root's job (DIS-29 / CM-HU-12).
+- **A — 2.3** `.env.example`: the author pastes the LLM block written from the spec (task 10.1).
+- **A — 2.4** two extra tests: the key only in `Authorization` (not in URL or body); embeddings follow
+  the same `Authorization` rule.
+- **A — 3.1** `mode: 'live'` added to the spec (requirement "Only a live configuration builds the HTTP
+  client").
+- **D — 3.2** the `fetch` option is a deliberate seam (D8).
+- **A — 3.3** `usage` relaxed and only `choices[0]` validated (author decision; D7, three scenarios).
+- **A — 3.4** `embed([])` without `LLM_EMBED_MODEL` is `not-configured`: spec text and an extra test.
+- **D — 3.5** order of configuration checks, one error at a time: design D5, not spec behaviour.
+- **A — 3.6** spec softened to "no code that type-checks"; the `.not.toThrow()` assertion removed.
+- **A — 3.7** absent details are absent properties; the network scenario asserts `not.toHaveProperty`.
+- **A — smaller note** `AbortSignal.timeout` created inside the `try` (D6).
+- **A — CI `secrets`** gitleaks flagged the synthetic test key `centinela-secreta-123` (`generic-api-key`,
+  spec line 246 and the key-leak test); checked unredacted, allowed by exact value in `.gitleaks.toml`.
 
 - **B — DIS-46 (CM-HU-19):** choose the embedding model; migrate `vector(1536)` if its dimension
   differs, update `EMBEDDING_DIMENSIONS`; correct DIS-5's non-goal. Note already on DIS-46.
