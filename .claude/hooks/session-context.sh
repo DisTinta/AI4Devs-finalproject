@@ -22,7 +22,12 @@ if [[ -d "$PROJECT_DIR/openspec/changes" ]]; then
     --include='tasks.md' 2>/dev/null | wc -l | tr -d ' ')
 fi
 
-CONTEXT="Repository state
+PROTECT_WARNING=""
+[[ "$KIT_PROTECT_SPECS" == "0" ]] && \
+  PROTECT_WARNING="⚠ protect-specs: OFF (sdd-harness.env, KIT_PROTECT_SPECS=\"0\"). Existing specs, tests and migrations can be rewritten without confirmation.
+"
+
+CONTEXT="${PROTECT_WARNING}Repository state
 - Configured stack: ${STACK}
 - Branch: ${BRANCH} (expected prefix: ${BRANCH_PREFIX})
 - Last commit: ${LAST_COMMIT}

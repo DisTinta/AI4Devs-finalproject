@@ -13,7 +13,7 @@ alwaysApply: true
 - **npm workspaces** monorepo: one package per responsibility
 - **PostgreSQL** behind a repository port; SQL lives in the adapter, never in the domain
 - **Zod** for every schema: request validation, response serialisation and LLM output parsing
-  _(target; not yet a dependency — remove this note when installed)_
+  (a dependency of `packages/adapters/llm` since DIS-17; `packages/api` adds it with CM-HU-12)
 - **Vitest** as the test runner, **Playwright** for end-to-end
   _(Playwright is a target; not yet a dependency — remove this note when installed)_
 - **ESLint** + `tsc --noEmit` + **dependency-cruiser** for the dependency rule
@@ -122,11 +122,13 @@ network access belong in an adapter.
 ## 8. LLM adapter
 
 - The model sits behind `LlmPort`; the adapter targets an **OpenAI-compatible** endpoint (Ollama is
-  the local reference). No paid vendor is hardcoded; the endpoint, key and model come from
-  `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`.
-- **Evaluation mode:** with empty credentials the adapter makes **no model calls** and serves only the
-  cache / golden answers. This is the default for evaluation and CI — the system must be fully
-  exercisable with zero external calls and zero cost.
+  the local reference). No paid vendor is hardcoded; the endpoint, key and models come from
+  `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` / `LLM_MODEL_VERIFY` / `LLM_EMBED_MODEL`, read only by
+  `llmConfigFromEnv` and validated at boot (§9). `LLM_BASE_URL` decides the mode; the key is optional
+  (Ollama needs none) and is sent only as `Authorization`, never in an error.
+- **Evaluation mode:** with `LLM_BASE_URL` and `LLM_API_KEY` both empty the adapter makes **no model
+  calls** and serves only the cache / golden answers. This is the default for evaluation and CI — the
+  system must be fully exercisable with zero external calls and zero cost.
 - **Budget ceiling:** when a paid provider is used, `DAILY_BUDGET_USD` caps spend. On exhaustion the
   adapter degrades to cache-only with a warning; the transport surfaces this as `429` (see §6).
 - Model output is untrusted input: parse it with Zod `safeParse`, discard what fails, and never

@@ -6,7 +6,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "dependencies": {
-    "@codemind/core": "*"
+    "@codemind/core": "*",
+    "zod": "^4.6.5"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
