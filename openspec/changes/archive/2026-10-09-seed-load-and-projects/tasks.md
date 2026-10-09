@@ -105,4 +105,4 @@
 - [x] 15.2 Run `/show-spec-working`, `/verify-against-spec` and `/adversarial-review`, in this order; one report each under `openspec/changes/seed-load-and-projects/reports/` (`YYYY-MM-DD-show-spec-working.md`, `YYYY-MM-DD-verify-against-spec.md`, `YYYY-MM-DD-adversarial-review.md`)
 - [x] 15.3 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report; if a fix touches a fingerprint input, regenerate the seed and the constant again as the last commit (14.5)
 - [x] 15.4 Commit the fixes to the same pull request (push confirmed with the author); re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
-- [ ] 15.5 `/opsx:archive`, and commit the archive to the same pull request; the author merges afterwards
+- [x] 15.5 `/opsx:archive`, and commit the archive to the same pull request; the author merges afterwards
