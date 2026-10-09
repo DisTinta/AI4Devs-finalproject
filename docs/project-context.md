@@ -92,9 +92,11 @@ Verified against `package.json` (root and per package). If a command is not here
 - CLI: `npm run cli` (root) — `tsx --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts`.
   `tsconfig.run.json` maps `@codemind/core`, `adapter-git`, `adapter-store-postgres` and
   `analyzer-php` to their `src/`, so the CLI never runs a stale or missing `dist/` (DIS-86 design
-  D10). Only `index` is real: `npm run cli -- index <path> --name <name> --language php
-  [--framework laravel|fastify|none] [--json]` (see the gotcha on the `index` command); `projects`,
-  `ask` and `impact` are stubs.
+  D10). `index` and `projects` are real: `npm run cli -- index <path> --name <name> --language php
+  [--framework laravel|fastify|none] [--json]` (see the gotcha on the `index` command) and
+  `npm run cli -- projects` (DIS-92: every stored project, one line each, read through
+  `StorePort.listProjects` in a transaction it always rolls back; needs `DATABASE_URL`); `ask` and
+  `impact` are stubs.
 - Migrations: `npm run db:migrate` (apply all pending) / `npm run db:rollback` (revert the latest
   one) — `tsx packages/adapters/store-postgres/src/migrate.ts up|down`, node-pg-migrate with SQL
   files `NNNN_name.up.sql` / `NNNN_name.down.sql` in `packages/adapters/store-postgres/migrations/`
@@ -104,10 +106,12 @@ Verified against `package.json` (root and per package). If a command is not here
   claims `stale` when a file's `content_hash` changes). Each `db:rollback` reverts **one** migration, the latest. Both need `DATABASE_URL` (non-zero exit without it); locally
   `postgres://codemind:codemind@localhost:5432/codemind` with the compose defaults.
 - `npm run seed:build` (DIS-91) rebuilds acme-shop's history, indexes it without committing and
-  rewrites `seeds/graph-dump.sql`; needs `AUTHOR_HASH_SALT` (the author's development salt, from
-  `.env`, which npm scripts do not load: export it) and `DATABASE_URL` of a migrated database (see
-  Gotchas → seed). `npm run db:seed` and `verify` are still **placeholders**: they print a
-  "pending Ticket …" message and exit 0.
+  rewrites `packages/web/src/data/sample-projects.ts` and then `seeds/graph-dump.sql`; needs
+  `AUTHOR_HASH_SALT` (the author's development salt, from `.env`, which npm scripts do not load:
+  export it) and `DATABASE_URL` of a migrated database (see Gotchas → seed). `npm run db:seed`
+  (DIS-92) loads the seed: needs only `DATABASE_URL`, replaces every sample project in one
+  transaction and prints `1 project loaded` plus one line per sample (see Gotchas → seed load).
+  `verify` is still a **placeholder**: it prints a "pending Ticket …" message and exits 0.
 - Local stack: `docker compose up -d` starts Postgres (`pgvector/pgvector:pg16`) on `5432`. On
   Windows, `make up` needs Git Bash/WSL; in native PowerShell run the `npm` scripts directly.
 
@@ -519,10 +523,44 @@ services that must be started first, quirks of the local environment.
   (PH-11): another salt changes every `author_hash`. In Git Bash, `TZ=… npm …` is rewritten for
   Windows programs; Vitest 1.6 worker threads ignore `process.env.TZ`, so
   `tests/integration/cli/seed-build.spec.ts` runs in the `forks` pool (`poolMatchGlobs`).
+  Since DIS-92 the build also writes the web's sample-project constant
+  `packages/web/src/data/sample-projects.ts` (`SAMPLE_PROJECTS`: id, name, language, framework and
+  the file, symbol, edge and commit counts), **before** the seed, each with `writeAtomically`; a seed
+  write that fails after the constant is `PARTIAL_WRITE` (rerun `seed:build`), and
+  `seed build failed; nothing was written` covers only failures before any write. Every test that
+  runs a successful build MUST pass a temporary `sampleProjectsPath` (and `outputPath`): the default
+  is the versioned file in the checkout. `tests/unit/seed/sample-projects-coherence.spec.ts` fails
+  when the constant and the seed disagree. **Regenerating the seed and the constant is the last
+  commit before a PR, repeated after any later change (review rounds included) under
+  `packages/adapters/store-postgres/src/`, `packages/cli/src/seed/`, `packages/cli/src/seed-build.ts`
+  or `packages/cli/src/compose-index.ts`.**
+- **Seed load (`db:seed`, DIS-92, `packages/cli/src/seed-load.ts` + `loadSeed` in
+  `packages/adapters/store-postgres/src/load-seed.ts`; a dev script, not a `codemind` subcommand).**
+  It checks `DATABASE_URL` and the seed before connecting: `INVALID_SEED` with `details.reason`
+  `missing`, `empty`, `format` (no `-- codemind-seed-format: 1` in the leading `--` block, or an
+  unreadable statement), `no-project`, or `not-sample` (**every** `INSERT INTO project` must set
+  `is_sample = true`: a non-sample project loaded by the seed would survive the next `db:seed` and
+  collide with its own name). `db:seed` executes the whole text, so the seed reader is the only filter:
+  it accepts only `--` comments, blank lines and `INSERT`s into `project`, `file`, `symbol`, `edge`,
+  `commit`, `file_commit`, each child row belonging to a project or file of the seed (else `format`).
+  `projects` and the `db:seed` summary print a name, language or framework holding a control or
+  bidi/separator character as its escaped JSON literal (`terminalSafeText` in
+  `packages/cli/src/safe-json.ts`). Header and statements are read ignoring trailing spaces and CR, so a
+  CRLF checkout loads. Then, in one transaction: deletes every
+  `is_sample = true` project, fails with `PROJECT_NAME_TAKEN` if a non-sample project holds a seed
+  project's name (checked with a `SELECT`, not from the server's localised `23505` detail), executes
+  the seed and commits. Non-sample projects are never touched. **Each `db:seed` / `make up` deletes by
+  `CASCADE` the `query_log`, `claim`, `evidence` and `cache_entry` rows of the sample projects**
+  (design D2; no writer exists yet, DIS-26 will reload its cache inside `db:seed`). Its summary is
+  the `make up` text: `1 project loaded` and `  acme-shop  php/laravel  174 nodes · 170 edges`,
+  **which differs from the illustrative `2 projects loaded` block of `readme.md` §1.4 until
+  CM-HU-18** (PH-02). After a local `make up`, the database holds a committed acme-shop with the seed's
+  deterministic ids: integration tests that need no acme-shop, or that compare against seed ids, clear
+  the projects they depend on inside their harness transaction first.
 - **Vitest can report success with no tests** (`passWithNoTests: true`). A green suite is not
   evidence that behaviour is covered.
-- **The repo is mid-build (Entrega 2).** `db:seed`/`verify` are placeholders that no-op;
-  `seed:build` is real (DIS-91). The schema has migrations `0001`–`0003`, but only the L1 graph and history
+- **The repo is mid-build (Entrega 2).** `verify` is a placeholder that no-ops; `seed:build`
+  (DIS-91) and `db:seed` (DIS-92) are real. The schema has migrations `0001`–`0003`, but only the L1 graph and history
   (`project`, `file`, `symbol`, `edge`, `commit`, `file_commit`) have a writer so far, and only
   `project`, `file`, `symbol` and `edge` have a reader. The git history reader (DIS-35) produces
   `commit`/`file_commit` rows and the co-change rule (DIS-36) `co_changed` edges; `indexRepository`

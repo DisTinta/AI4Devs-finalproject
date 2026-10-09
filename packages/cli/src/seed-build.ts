@@ -11,6 +11,7 @@ import type { TextSink } from './logger.js';
 import { toTerminalSafeJson } from './safe-json.js';
 import { collectFingerprintInputs, fingerprint } from './seed/fingerprint.js';
 import { renderSeedDump } from './seed/render-dump.js';
+import { renderSampleProjects } from './seed/render-sample-projects.js';
 import { createSeedTransaction } from './seed/seed-transaction.js';
 
 /** The sample project the seed holds (Entrega 2: acme-shop only, PH-02). */
@@ -42,6 +43,11 @@ export interface SeedBuildDeps {
   fixturesRoot?: string;
   /** Seed file. Defaults to `<repoRoot>/seeds/graph-dump.sql`. */
   outputPath?: string;
+  /**
+   * The web's sample-project constant, written before the seed (DIS-92 design D3). Defaults to
+   * `<repoRoot>/packages/web/src/data/sample-projects.ts`; tests always pass a temporary path.
+   */
+  sampleProjectsPath?: string;
   /** Rebuilds the sample's history under `fixturesRoot`. Defaults to `buildOne` of `fixtures/build-history.mjs`. */
   buildHistory?: (fixturesRoot: string, repoRoot: string) => Promise<void>;
   /** The base transaction the seed transaction wraps. Defaults to `defaultOpenTransaction(DATABASE_URL)`. */
@@ -55,9 +61,12 @@ export interface SeedBuildDeps {
 /**
  * Runs `npm run seed:build` (DIS-91): checks the configuration, computes the fingerprints, rebuilds
  * acme-shop's history, indexes it under {@link SEED_BUILD_PROJECT_NAME} in a transaction that reads
- * the rows back and always rolls back, renders the seed deterministically and replaces the seed file
- * atomically. Prints no progress. On success stdout gets exactly one summary line and stderr nothing;
- * on failure stdout gets nothing and stderr exactly one `{"error":{…}}` line.
+ * the rows back and always rolls back, renders the seed and the web's sample-project constant
+ * deterministically and replaces the constant, then the seed file, each atomically (DIS-92 design D3).
+ * Prints no progress. On success stdout gets exactly one summary line and stderr nothing;
+ * on failure stdout gets nothing and stderr exactly one `{"error":{…}}` line: `PARTIAL_WRITE` when the
+ * constant was written and the seed was not, `INTERNAL` for any other unexpected failure, which always
+ * happens before any file is written.
  *
  * @param deps The environment, the streams and the optional test seams.
  * @returns The exit code: `0` success, `1` any failure.
@@ -76,6 +85,7 @@ export async function runSeedBuild(deps: SeedBuildDeps): Promise<number> {
     const repoRoot = deps.repoRoot ?? DEFAULT_REPO_ROOT;
     const fixturesRoot = deps.fixturesRoot ?? join(repoRoot, 'fixtures');
     const outputPath = deps.outputPath ?? join(repoRoot, 'seeds', 'graph-dump.sql');
+    const sampleProjectsPath = deps.sampleProjectsPath ?? join(repoRoot, 'packages', 'web', 'src', 'data', 'sample-projects.ts');
 
     const inputs = collectFingerprintInputs(repoRoot);
     const fingerprints = { analyzer: fingerprint(inputs.analyzer), contract: fingerprint(inputs.contract) };
@@ -95,7 +105,14 @@ export async function runSeedBuild(deps: SeedBuildDeps): Promise<number> {
       },
     );
     const rows = seed.rows();
-    writeAtomically(outputPath, renderSeedDump(rows, fingerprints, SEED_PROJECT));
+    const seedText = renderSeedDump(rows, fingerprints, SEED_PROJECT);
+    // The constant first, so the seed `db:seed` loads is the last file to change (DIS-92 design D3).
+    writeAtomically(sampleProjectsPath, renderSampleProjects(rows, SEED_PROJECT));
+    try {
+      writeAtomically(outputPath, seedText);
+    } catch {
+      throw partialWrite(displayPath(repoRoot, sampleProjectsPath), displayPath(repoRoot, outputPath));
+    }
     deps.stdout.write(
       `${SEED_PROJECT}: ${rows.files.length} files, ${rows.symbols.length} symbols, ${rows.edges.length} edges, ` +
         `${rows.commits.length} commits -> ${displayPath(repoRoot, outputPath)}\n`,
@@ -115,6 +132,13 @@ export async function runSeedBuild(deps: SeedBuildDeps): Promise<number> {
     deps.stderr.write(`${toTerminalSafeJson(line)}\n`);
     return 1;
   }
+}
+
+/** The seed file failed after the constant was written: only the constant changed. */
+function partialWrite(constant: string, seed: string): CliError {
+  return new CliError('PARTIAL_WRITE', 1, `seed build failed after writing ${constant}; ${seed} was not written — run npm run seed:build again`, {
+    written: [constant],
+  });
 }
 
 function missingConfig(variable: string): CliError {
