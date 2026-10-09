@@ -116,4 +116,4 @@
 - [x] 15.3.5 adversarial-review (author decisions): `LLM_TIMEOUT_MS` capped at 300000 (undici's default header/body timeout) and `UND_ERR_HEADERS_TIMEOUT`/`UND_ERR_BODY_TIMEOUT` classified as `timeout`; `systemCode` also accepts `^UND_ERR_[A-Z_]+$`; adapter-level index guard; two new scenarios (29); real-runtime addendum in show-spec-working (real socket cut → `UND_ERR_SOCKET`, redirect not followed); DIS-29 hand-off comment (B); unbounded body D; RED seen for the three behaviour changes
 - [x] 15.3 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report
 - [x] 15.4 Commit the fixes to the same pull request (push confirmed with the author); re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
-- [ ] 15.5 `/opsx:archive`, and commit the archive to the same pull request; the author merges afterwards
+- [x] 15.5 `/opsx:archive`, and commit the archive to the same pull request; the author merges afterwards
