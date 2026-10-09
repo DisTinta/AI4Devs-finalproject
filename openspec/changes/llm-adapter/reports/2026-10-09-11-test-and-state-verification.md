@@ -104,6 +104,23 @@ Verdict: **PASS WITH GAPS** (two Low findings, both with a destination). Allowed
 Not assessed: the session's tooling plan (an API/CLI session on the author's own TFM repository, no third-party
 personal data in context).
 
+## Addendum — verify-against-spec round 1 (2026-10-09)
+
+- Spec: 26 scenarios (4 new: "A null usage reports zero tokens", "A partial usage counts the missing field
+  as zero", "A usage field of the wrong type is an invalid response", "A connection cut while reading the
+  body is a network failure"); each maps 1:1 to a test of the same name.
+- RED before code: 7 failing tests (the two usage scenarios, the body-cut scenario, the network scenario now
+  asserting an absent `systemCode`, the absent-details assertion of `LlmUnavailable`, first-choice-only and the
+  invalid hand-built timeout). The wrong-type, key-only-in-`Authorization`, embeddings-header and
+  `embed([])`-without-model tests pinned behaviour that already held.
+- `npx vitest run tests/unit/llm`: 42 passed. Full suite (after the timeout commit): 53 files / 671 tests passed,
+  124 skipped, twice in a row (73.8 s, 72.1 s).
+- Gates: lint, typecheck, docs:coverage green; lint:architecture 0 errors, 3 pre-existing warnings.
+- Mutation `packages/core/src/llm/**`: 96.30 % (1 survivor: details made non-enumerable would vanish from JSON)
+  → assertion added → **100 %** (27/27).
+- gitleaks 8.30.1: `gitleaks dir . --config .gitleaks.toml --redact` and `gitleaks git` over
+  `origin/feature/entrega-2-CRN..HEAD`: «no leaks found» after the exact-value allowlist entry.
+
 ## Outcome
 
 - Status: PASS (tests, gates, mutation; privacy check PASS WITH GAPS, two Low findings with destination)
