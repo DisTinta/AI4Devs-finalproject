@@ -246,7 +246,8 @@ Found during apply (the pre-merge review adds its own findings below):
   sample`; spec and design D1 updated with the author's choice during apply.
 - **B — DIS-60.** `npm run lint:architecture` reports `no-orphans` (warning) for
   `packages/web/src/data/sample-projects.ts` until `ProjectPickerPage` imports it. Spanish comment on DIS-60.
-- **To classify with the author at the pre-merge review.** Under heavy load, one full `npx vitest run`
+- **C — explicit debt, checklist comment on DIS-92 (author's choice, lighter option).** Under heavy load, one full `npx vitest run`
   failed two Git integration tests outside this diff (`build-history.spec.ts` › "A re-touch that cannot be
   marked fails the build", `git-source-tree.spec.ts` › "A broken HEAD propagates git's error"); both pass
-  alone and in the next full run (step 11 report). Pre-existing, timing-dependent; no owner yet.
+  alone and in the next full run (step 11 report). Pre-existing, timing-dependent; tracked in the
+  Spanish checklist comment «Deuda C … tests de Git intermitentes bajo carga» on DIS-92.
