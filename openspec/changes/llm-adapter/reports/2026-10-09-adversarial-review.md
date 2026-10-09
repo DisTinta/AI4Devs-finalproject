@@ -40,3 +40,30 @@
 
 **PASS WITH GAPS** — no Blocker, one Major (undici timeout ceiling) plus Minors, each to be fixed in this change or
 given a destination. Destinations: `design.md` → Follow-ups (adversarial-review block).
+
+---
+
+## Round 2 (HEAD `0309961`)
+
+Scope: the fix commit and everything since round 1 (spec at 29 scenarios, design Follow-ups, tasks, show-spec-working
+addendum, adapter and core sources, the three test files); `npx vitest run tests/unit/llm` 47/47; DIS-29 hand-off
+comment read in Linear.
+
+| Severity | Where | Finding |
+|---|---|---|
+| Minor | `openai-compatible-llm.spec.ts` "rejects a negative or fractional index", adapter index check | `-1` and `0.5` were rejected by the schema first, so the adapter's own check was never reached; removing it kept every test green while the follow-up claimed it fixed. |
+| Minor | `codesOf`, test helpers | Every helper put `code` on the `cause`; "the error, or its cause" had no test for the error itself. |
+| Minor | `reports/pr-description.md` | Stale: 26 scenarios, 42 tests, `^E[A-Z]+$` only, timeout up to 2147483647; tasks 13.2/14.1 still open while the follow-up said done. |
+| Minor | step 11 report | No addendum for the adversarial round (RED, totals, gates). |
+| Minor | `.gitleaks.toml` | The allowlist description names stale line numbers again. |
+| Question | D6 | `UND_ERR_CONNECT_TIMEOUT` (fixed 10 s) is `network` with `systemCode`, not `timeout`: intended? |
+
+Checked clean: the round-1 Major is fixed (cap enforced, `300000` accepted, `300001` rejected; undici header/body
+timeouts are `timeout` on both paths before the `systemCode` extraction); the new scenario tests catch removing
+`isRuntimeTimeout` from either path, dropping either code and reverting the `systemCode` pattern; `UND_ERR_*` cannot
+carry the key (anchored, `[A-Z_]`); 29 scenarios map 1:1; spec edits ship with code and tests and are recorded as
+author decisions; only the new `llm-config.spec.ts` had test values changed; `LlmPort` has no consumer; no migration;
+docs match; the DIS-29 hand-off and the D for the unbounded body exist.
+
+**Verdict: PASS WITH GAPS** — no Blocker or Major; five Minors and one Question, all fixed or answered in this change
+(destinations in `design.md` → Follow-ups, second adversarial round).

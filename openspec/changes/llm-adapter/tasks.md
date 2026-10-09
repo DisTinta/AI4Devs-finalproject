@@ -103,7 +103,7 @@
 
 ## 14. Pull request preparation
 
-- [ ] 14.1 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the author's Why transcribed, the `zod` justification and the Stryker score; after verification, set DIS-17 to In Review in Linear with a comment in Spanish linking the PR and the change
+- [x] 14.1 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the author's Why transcribed, the `zod` justification and the Stryker score; after verification, set DIS-17 to In Review in Linear with a comment in Spanish linking the PR and the change
 
 ## 15. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 

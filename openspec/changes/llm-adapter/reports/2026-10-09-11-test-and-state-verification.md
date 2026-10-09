@@ -121,6 +121,26 @@ personal data in context).
 - gitleaks 8.30.1: `gitleaks dir . --config .gitleaks.toml --redact` and `gitleaks git` over
   `origin/feature/entrega-2-CRN..HEAD`: «no leaks found» after the exact-value allowlist entry.
 
+## Addendum — verify-against-spec round 2 and adversarial review rounds 1–2 (2026-10-09)
+
+- Spec: 29 scenarios, each mapped 1:1 to a test of the same name.
+- verify round 2 (`b0b2e23`): RED before code for "A malformed timeout or URL fails naming the variable" (user
+  info, query, fragment), "A redirect is not followed" and the extra "cancels the body of a non-2xx response";
+  the invalid hand-built `timeoutMs` already gave `network` (now pinned).
+- adversarial round 1 (`1a99bd6`): RED before code for "A malformed timeout or URL fails naming the variable"
+  (`300001`), "A runtime socket failure carries its code" and "A runtime header or body timeout is a timeout"
+  (the fake rejections use Node's exact shape, `TypeError('fetch failed')` with `cause.code`). The extra
+  negative/fractional index test passed at once (the schema rejected it then).
+- adversarial round 2: the schema now only asks `index` to be a number; removing the adapter's own index check
+  makes "rejects a negative or fractional index" fail (checked, then restored). New extra test: the runtime code
+  read from the error itself (`UND_ERR_SOCKET`, `UND_ERR_BODY_TIMEOUT`), which pinned behaviour that already held.
+- `npx vitest run tests/unit/llm`: 48 passed. Full suite: 53 files / 677 tests passed, 124 skipped (database
+  specs, no `DATABASE_URL`).
+- Gates: `typecheck` 0 errors; `lint` clean; `lint:architecture` 0 errors (3 pre-existing warnings);
+  `docs:coverage` green; `gitleaks dir` «no leaks found».
+- Mutation: `packages/core/src/llm` unchanged since the round-1 run (100 %, 27/27); not re-run. The adapter is
+  outside Stryker's `mutate` (design D8).
+
 ## Outcome
 
 - Status: PASS (tests, gates, mutation; privacy check PASS WITH GAPS, two Low findings with destination)

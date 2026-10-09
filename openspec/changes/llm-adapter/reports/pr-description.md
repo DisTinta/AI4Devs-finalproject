@@ -31,7 +31,7 @@ uso) y DIS-59 (API).
 ## ¿Cómo probarlo?
 
 1. `npm ci`
-2. `npx vitest run tests/unit/llm` → 42 tests verdes (26 escenarios de la spec, más los extras).
+2. `npx vitest run tests/unit/llm` → 48 tests verdes (29 escenarios de la spec, más los extras).
 3. `npm run typecheck` → verde; incluye `tests/`, así que comprueba el `// @ts-expect-error` del
    escenario «An evaluation configuration does not type-check against the client».
 4. `npm run lint && npm run lint:architecture && npm run docs:coverage`
@@ -53,13 +53,18 @@ Todas en `openspec/changes/llm-adapter/design.md`:
   migración son de DIS-46 (nota dejada allí).
 - **D3/D4.** Un único `LlmUnavailable` con `reason` cerrado, **sin `cause`** ni cuerpo de respuesta: la
   clave no puede filtrarse por construcción. Para `network` se conserva solo un `systemCode` que cumpla
-  `^E[A-Z]+$` (p. ej. `ECONNREFUSED`). Se pierde el error original al depurar; se acepta.
+  `^E[A-Z]+$` (p. ej. `ECONNREFUSED`) o `^UND_ERR_[A-Z_]+$` (p. ej. `UND_ERR_SOCKET`, el código real de un
+  socket cortado en Node): identificadores fijos, nunca texto libre. Se pierde el error original al depurar;
+  se acepta.
 - **D5.** `LLM_BASE_URL` decide el modo; `LlmConfigError` (`LLM_CONFIG_INVALID`) nombra una variable
-  cada vez y nunca su valor; `LLM_TIMEOUT_MS` va de 1 a 2147483647 (límite de los temporizadores de
-  Node).
+  cada vez y nunca su valor; `LLM_TIMEOUT_MS` va de 1 a 300000, porque el `fetch` de Node (undici) corta
+  cualquier petición a los 300 s por su cuenta (decisión de la autora tras `/adversarial-review`).
+  `LLM_BASE_URL` rechaza credenciales, query y fragmento.
 - **D6.** Los fallos se clasifican por nombre de error tanto en `fetch` como en la lectura del
   cuerpo: un cuerpo que se queda a medias es `timeout`, y uno cortado a mitad es `network` (decisión de
-  la autora tras `/verify-against-spec`). Sin SDK de vendor ni reintentos.
+  la autora tras `/verify-against-spec`); los timeouts propios de undici (`UND_ERR_HEADERS_TIMEOUT`,
+  `UND_ERR_BODY_TIMEOUT`) también son `timeout`. Las redirecciones no se siguen (`redirect: 'manual'`): un
+  3xx es `http-status`. Sin SDK de vendor ni reintentos.
 - **D7.** `zod` 4.6.5 solo en `packages/adapters/llm` (verificado en npmjs); `packages/api` lo
   añadirá en CM-HU-12. `usage` ausente o `null` (o un campo suyo) cuenta como 0; un campo presente que no
   sea un entero no negativo es `invalid-response`; solo se valida `choices[0]` (decisión de la autora).
@@ -76,27 +81,30 @@ Todas en `openspec/changes/llm-adapter/design.md`:
 | `A key without a URL fails without showing the key` | `tests/unit/llm/llm-config.spec.ts:46` |
 | `A URL without a model fails` | `tests/unit/llm/llm-config.spec.ts:57` |
 | `A malformed timeout or URL fails naming the variable` | `tests/unit/llm/llm-config.spec.ts:77` |
-| `A valid timeout overrides the default` | `tests/unit/llm/llm-config.spec.ts:105` |
-| `The verify purpose falls back to the generation model` | `tests/unit/llm/openai-compatible-llm.spec.ts:108` |
-| `Without an embedding model, embeddings fail and completions work` | `tests/unit/llm/openai-compatible-llm.spec.ts:355` |
-| `Without a key the completion is sent without Authorization` | `tests/unit/llm/openai-compatible-llm.spec.ts:82` |
-| `With a key the completion is sent and parsed` | `tests/unit/llm/openai-compatible-llm.spec.ts:59` |
-| `A completion without usage reports zero tokens` | `tests/unit/llm/openai-compatible-llm.spec.ts:96` |
-| `A null usage reports zero tokens` | `tests/unit/llm/openai-compatible-llm.spec.ts:144` |
-| `A partial usage counts the missing field as zero` | `tests/unit/llm/openai-compatible-llm.spec.ts:159` |
-| `A usage field of the wrong type is an invalid response` | `tests/unit/llm/openai-compatible-llm.spec.ts:173` |
-| `Embeddings are returned in input order` | `tests/unit/llm/openai-compatible-llm.spec.ts:258` |
-| `Embeddings without usage report zero tokens` | `tests/unit/llm/openai-compatible-llm.spec.ts:309` |
-| `Embeddings for no texts send nothing` | `tests/unit/llm/openai-compatible-llm.spec.ts:328` |
-| `A vector of another dimension is rejected` | `tests/unit/llm/openai-compatible-llm.spec.ts:341` |
-| `Embeddings with missing or duplicated indexes are an invalid response` | `tests/unit/llm/openai-compatible-llm.spec.ts:283` |
-| `A non-2xx status is reported with the status` | `tests/unit/llm/openai-compatible-llm.spec.ts:442` |
-| `A body that is not JSON or has another shape is an invalid response` | `tests/unit/llm/openai-compatible-llm.spec.ts:455` |
-| `A network failure is reported as network` | `tests/unit/llm/openai-compatible-llm.spec.ts:474` |
-| `A connection cut while reading the body is a network failure` | `tests/unit/llm/openai-compatible-llm.spec.ts:495` |
-| `A request that exceeds the timeout is aborted` | `tests/unit/llm/openai-compatible-llm.spec.ts:515` |
-| `Errors never contain the key` | `tests/unit/llm/openai-compatible-llm.spec.ts:525` |
-| `An evaluation configuration does not type-check against the client` | `tests/unit/llm/openai-compatible-llm.spec.ts:131` |
+| `A valid timeout overrides the default` | `tests/unit/llm/llm-config.spec.ts:111` |
+| `The verify purpose falls back to the generation model` | `tests/unit/llm/openai-compatible-llm.spec.ts:110` |
+| `Without an embedding model, embeddings fail and completions work` | `tests/unit/llm/openai-compatible-llm.spec.ts:399` |
+| `Without a key the completion is sent without Authorization` | `tests/unit/llm/openai-compatible-llm.spec.ts:84` |
+| `With a key the completion is sent and parsed` | `tests/unit/llm/openai-compatible-llm.spec.ts:61` |
+| `A completion without usage reports zero tokens` | `tests/unit/llm/openai-compatible-llm.spec.ts:98` |
+| `A null usage reports zero tokens` | `tests/unit/llm/openai-compatible-llm.spec.ts:146` |
+| `A partial usage counts the missing field as zero` | `tests/unit/llm/openai-compatible-llm.spec.ts:161` |
+| `A usage field of the wrong type is an invalid response` | `tests/unit/llm/openai-compatible-llm.spec.ts:175` |
+| `Embeddings are returned in input order` | `tests/unit/llm/openai-compatible-llm.spec.ts:283` |
+| `Embeddings without usage report zero tokens` | `tests/unit/llm/openai-compatible-llm.spec.ts:353` |
+| `Embeddings for no texts send nothing` | `tests/unit/llm/openai-compatible-llm.spec.ts:372` |
+| `A vector of another dimension is rejected` | `tests/unit/llm/openai-compatible-llm.spec.ts:385` |
+| `Embeddings with missing or duplicated indexes are an invalid response` | `tests/unit/llm/openai-compatible-llm.spec.ts:308` |
+| `A non-2xx status is reported with the status` | `tests/unit/llm/openai-compatible-llm.spec.ts:486` |
+| `A redirect is not followed` | `tests/unit/llm/openai-compatible-llm.spec.ts:499` |
+| `A body that is not JSON or has another shape is an invalid response` | `tests/unit/llm/openai-compatible-llm.spec.ts:517` |
+| `A network failure is reported as network` | `tests/unit/llm/openai-compatible-llm.spec.ts:536` |
+| `A connection cut while reading the body is a network failure` | `tests/unit/llm/openai-compatible-llm.spec.ts:557` |
+| `A runtime socket failure carries its code` | `tests/unit/llm/openai-compatible-llm.spec.ts:577` |
+| `A runtime header or body timeout is a timeout` | `tests/unit/llm/openai-compatible-llm.spec.ts:590` |
+| `A request that exceeds the timeout is aborted` | `tests/unit/llm/openai-compatible-llm.spec.ts:632` |
+| `Errors never contain the key` | `tests/unit/llm/openai-compatible-llm.spec.ts:642` |
+| `An evaluation configuration does not type-check against the client` | `tests/unit/llm/openai-compatible-llm.spec.ts:133` |
 
 ## Notas
 
@@ -111,7 +119,9 @@ Todas en `openspec/changes/llm-adapter/design.md`:
     `hookTimeout` a 20 s en `vitest.config.ts`, porque dos tests de integración de Git superaban los 5 s
     por carga en la suite completa en Windows (solos pasan). Sin cambios en los tests; suite completa
     verde dos veces seguidas.
-- Suite completa: 671 tests verdes y 124 omitidos en local (los de base de datos, sin `DATABASE_URL`);
+- **Traspasos a DIS-29** (comentario en Linear): no registrar ni serializar la configuración (lleva la
+  clave), clave con caracteres no válidos en una cabecera, mensajes vacíos y lotes.
+- Suite completa: 677 tests verdes y 124 omitidos en local (los de base de datos, sin `DATABASE_URL`);
   en CI corren con Postgres.
 
 ## Origen
