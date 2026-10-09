@@ -106,3 +106,19 @@ projects is an absolute path holding the OS user name. Not assessed: the AI tool
 
 - Status: PASS
 - Blocking issues: none
+
+## Addendum — CI evidence for PR #30 (task 13.2)
+
+- Run: https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37909988252 (head `0c641f1` of PR #30:
+  commits up to the PR description). Jobs: `secrets` pass (8 s), `scope` pass (6 s), `quality` pass (9 m 4 s);
+  `frontend` (run 37909988239) pass (49 s).
+- `quality` ran every new spec file, the integration ones against the CI Postgres (not skipped):
+  `tests/integration/cli/seed-load.spec.ts` (4 tests), `tests/integration/cli/projects-command.spec.ts` (2),
+  `tests/integration/cli/seed-build.spec.ts` (9), `tests/unit/cli/seed-load.spec.ts` (13),
+  `tests/unit/cli/projects-command.spec.ts` (7), `tests/unit/cli/seed-parse.spec.ts` (18),
+  `tests/unit/cli/seed-render-sample-projects.spec.ts` (4), `tests/unit/cli/seed-build.spec.ts` (15),
+  `tests/unit/seed/sample-projects-coherence.spec.ts` (1), `tests/unit/seed/sample-projects-lint.spec.ts` (1).
+  Totals: 61 files, 783 passed, 1 skipped (pre-existing, `tests/unit/index/path-policy.spec.ts`).
+- Mutation step (`npx stryker run`, which mutates `packages/core` and `packages/cli`): 94.69 % overall; new files
+  `projects.ts` 92.77 %, `parse-seed.ts` 96.09 %, `render-sample-projects.ts` 100 %, `seed-build.ts` 87.88 %,
+  `seed-load.ts` 97.35 %.

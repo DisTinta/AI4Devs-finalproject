@@ -88,7 +88,7 @@
 ## 13. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
 - [x] 13.1 No user interface reads the constant yet (DIS-60): the commands were driven end to end in step 12. Record "covered by step 12; no browser UI", with that reason, in the step 11 report
-- [ ] 13.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that the new spec files ran (the integration ones with Postgres) and passed, and that the mutation step covered `packages/cli`. Link the run in the step 11 report
+- [x] 13.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that the new spec files ran (the integration ones with Postgres) and passed, and that the mutation step covered `packages/cli`. Link the run in the step 11 report
 
 ## 14. Update Technical Documentation (MANDATORY)
 
