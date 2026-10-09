@@ -331,6 +331,25 @@ describe('OpenAI-compatible embeddings', () => {
     }
   });
 
+  // Extra case (not a spec scenario): the index rule holds in the adapter itself, not only in the schema.
+  it('rejects a negative or fractional index', async () => {
+    for (const index of [-1, 0.5]) {
+      // Arrange
+      const data = [
+        { index, embedding: vector(0.1) },
+        { index: 0, embedding: vector(0.2) },
+      ];
+      const { fetch } = fakeFetch(json({ data }));
+      const llm = createOpenAiCompatibleLlm(live(EMBED_ENV), { fetch });
+
+      // Act
+      const error = await failure(llm.embed(['a', 'b']));
+
+      // Assert
+      expect(error.reason).toBe('invalid-response');
+    }
+  });
+
   it('Embeddings without usage report zero tokens', async () => {
     // Arrange
     const { fetch } = fakeFetch(
@@ -551,6 +570,32 @@ describe('OpenAI-compatible failures', () => {
         expect(error.reason).toBe('network');
         if (systemCode === undefined) expect(error).not.toHaveProperty('systemCode');
         else expect(error.systemCode).toBe(systemCode);
+      }
+    }
+  });
+
+  it('A runtime socket failure carries its code', async () => {
+    for (const reply of [networkFailure('UND_ERR_SOCKET'), cutsBody('UND_ERR_SOCKET')]) {
+      // Act
+      const errors = await bothFail(reply);
+
+      // Assert
+      for (const error of errors) {
+        expect(error.reason).toBe('network');
+        expect(error.systemCode).toBe('UND_ERR_SOCKET');
+      }
+    }
+  });
+
+  it('A runtime header or body timeout is a timeout', async () => {
+    for (const reply of [networkFailure('UND_ERR_HEADERS_TIMEOUT'), cutsBody('UND_ERR_BODY_TIMEOUT')]) {
+      // Act
+      const errors = await bothFail(reply);
+
+      // Assert
+      for (const error of errors) {
+        expect(error.reason).toBe('timeout');
+        expect(error).not.toHaveProperty('systemCode');
       }
     }
   });

@@ -350,7 +350,10 @@ services that must be started first, quirks of the local environment.
   `packages/adapters/llm/src/`). Every failure is `LlmUnavailable` (core, `packages/core/src/llm/`)
   with a closed `reason` (`http-status`, `invalid-response`, `network`, `timeout`, `not-configured`,
   `dimension-mismatch`) and only numbers, plus `systemCode` for `network` when the error's or its
-  cause's `code` matches `^E[A-Z]+$`; a detail that does not apply is an absent property. No `cause`,
+  cause's `code` matches `^E[A-Z]+$` or `^UND_ERR_[A-Z_]+$` (undici's `UND_ERR_HEADERS_TIMEOUT` /
+  `UND_ERR_BODY_TIMEOUT` are `timeout` instead); a detail that does not apply is an absent property.
+  `LLM_TIMEOUT_MS` is capped at 300000: undici's default header/body timeouts behind Node's `fetch`
+  end any request at 300 s anyway. No `cause`,
   no response body, so a key echoed by a server cannot leak. Failures are classified by error name
   both on `fetch` and on the body read: a stalled body is `timeout`, a body cut mid-way is `network`.
   `usage` (or one of its fields) absent or `null` counts as `0`; a present field that is not a

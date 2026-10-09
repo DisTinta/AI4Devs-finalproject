@@ -89,10 +89,13 @@ like `ProjectNotFound`.
 message or of a Zod issue is copied into it. Only the reason, the HTTP status, the dimensions and,
 for `network`, a `systemCode` reach the error. `systemCode` is copied from the error's own `code`
 or its `cause.code` (Node's `fetch` wraps the socket error in `cause`; a body stream error may carry the
-code itself) only when it matches `/^E[A-Z]+$/`
-(`ECONNREFUSED`, `ENOTFOUND`, `ETIMEDOUT`…); anything else is dropped. A closed alphabet of capital
-letters cannot carry a key, and it is the piece of information that tells "Ollama is not running"
-from "wrong host". The key is read once into the live configuration and only used to build the
+code itself) only when it matches `/^E[A-Z]+$/` (`ECONNREFUSED`, `ENOTFOUND`, `ETIMEDOUT`…) or
+`/^UND_ERR_[A-Z_]+$/` (`UND_ERR_SOCKET`, `UND_ERR_CONNECT_TIMEOUT`…), both anchored; anything else is
+dropped. Both are fixed identifiers of the runtime (the OS error names and undici's error codes), never
+free text: a closed alphabet of capital letters and `_` cannot carry a key. They are the piece of
+information that tells "Ollama is not running" from "wrong host" or "connection cut". The `UND_ERR_*`
+pattern was added after `/adversarial-review` (author decision): a real mid-body socket cut in Node
+gives `UND_ERR_SOCKET`, never an `E…` code, so without it `systemCode` would almost never be filled. The key is read once into the live configuration and only used to build the
 `Authorization` header. This makes the "key never leaks" requirement hold for any error a server or
 the runtime can produce, instead of depending on scrubbing every string.
 
@@ -109,10 +112,12 @@ enough to act, and an error holding a server body is exactly where a reflected k
 - Order of checks: trim everything; both URL and key absent → evaluation; key without URL →
   `LLM_BASE_URL`; URL not parsable by `new URL()` or protocol not `http:`/`https:` → `LLM_BASE_URL`;
   `LLM_MODEL` absent → `LLM_MODEL`; `LLM_TIMEOUT_MS` present and not `/^[0-9]+$/` with a value in
-  `1..2147483647` → `LLM_TIMEOUT_MS`. The upper bound is the largest delay a Node timer accepts
-  (2³¹ − 1 ms); above it Node warns and fires after 1 ms, so `9999999999` would silently become an
-  immediate timeout. The bound is checked on the parsed number, so no precision is lost for longer
-  digit strings (they are above the bound anyway). The first failure is thrown (boot fails on one variable at a time, like the CLI's
+  `1..300000` → `LLM_TIMEOUT_MS`. The upper bound is the default `headersTimeout` and `bodyTimeout`
+  (300 s) of the undici agent behind Node's global `fetch`, which this adapter does not replace: above
+  it Node ends the request by itself at 300 s, before the configured timeout, so a larger value would
+  promise something the runtime does not do. (The first version allowed up to 2³¹ − 1 ms, the Node timer
+  limit; `/adversarial-review` showed undici's lower ceiling; author decision.) The bound is checked on
+  the parsed number, so long digit strings are simply above it. The first failure is thrown (boot fails on one variable at a time, like the CLI's
   `MISSING_CONFIG`).
 - `baseUrl` is stored without trailing `/` so the endpoints are `${baseUrl}/chat/completions` and
   `${baseUrl}/embeddings`. `verifyModel` is already resolved (`LLM_MODEL_VERIFY` or `LLM_MODEL`), so
@@ -139,6 +144,7 @@ Per request: `POST` with `Content-Type: application/json`, `Authorization: Beare
 
 | What happens | `reason` |
 |---|---|
+| `fetch` or `response.text()` rejects with an error whose own or `cause` code is `UND_ERR_HEADERS_TIMEOUT` or `UND_ERR_BODY_TIMEOUT` (undici's own timeouts; checked before the `systemCode` extraction) | `timeout`, no `systemCode` |
 | `fetch` rejects with an error named `AbortError` or `TimeoutError` | `timeout` |
 | `fetch` rejects otherwise | `network` (+ `systemCode`, D4) |
 | status not 2xx, 3xx included (`redirect: 'manual'`: Node returns the 3xx itself) | `http-status` (+ `status`); the body is cancelled, never read |
@@ -223,6 +229,11 @@ rule (`docs/project-context.md` closed decision 2, updated by this change and co
   DIS-46 owns the model choice and the migration. No Entrega 2 consumer of `embed()` is planned.
 - [120 s default timeout makes a dead endpoint slow to report] → Configurable with `LLM_TIMEOUT_MS`;
   the default favours Ollama's cold start, the real development case.
+- [A completion that needs more than 300 s cannot be waited for] → `LLM_TIMEOUT_MS` is capped at
+  300000 by undici's own limits (D5); a longer wait would need a dedicated dispatcher (an `undici`
+  dependency), not justified while answers are short and non-streaming.
+- [A 2xx body is read whole with no size limit] → Accepted (D): bounded in time by the timeout; the
+  endpoint is configured by the operator, not chosen by a user. Revisit with streaming.
 - [No `cause` makes production failures harder to diagnose] → The reason, status and, for network
   failures, a closed-alphabet `systemCode` are kept; a future logger in the composition root can log
   them without the body.
@@ -276,6 +287,25 @@ Findings of the second `/verify-against-spec` round (addendum of the same report
   (only "no key, no values" is); `isAbort` treats any `AbortError`/`TimeoutError` as the request's own, which
   holds while there is a single signal.
 - **A — drift** the `.gitleaks.toml` description now names the current lines.
+
+Findings of `/adversarial-review` (report `reports/2026-10-09-adversarial-review.md`):
+
+- **A — Major, undici timeout ceiling:** `LLM_TIMEOUT_MS` capped at 300000 and undici's header/body
+  timeout codes classified as `timeout` (author decision; D5, D6, new scenario "A runtime header or body
+  timeout is a timeout").
+- **A — `UND_ERR_*` in `systemCode`** (author decision; D4, new scenario "A runtime socket failure carries
+  its code").
+- **A — index guard:** extra tests for `index` `-1` and `0.5`, and `inInputOrder` rejects any index that is
+  not a non-negative integer by itself, not only through the schema.
+- **A — stale show-spec-working:** addendum with the real `fetch` for the redirect, cut-body, base-URL,
+  `usage` and undici behaviours.
+- **D — unbounded 2xx body:** Risks above.
+- **B — DIS-29 (composition root), one comment:** `LiveLlmConfig.apiKey` is a plain property, so the
+  composition root must never log or serialise the configuration; a key with characters `fetch` rejects in
+  a header fails every request as `network` (validate it there or here if it shows up); empty `messages`
+  and per-request input limits (batching) are the caller's job.
+- **A — tasks:** 8.2 count, 13.2 CI evidence, 14.1.
+- **D — out-of-scope commits:** already recorded above.
 
 - **A — CI `secrets`** gitleaks flagged the synthetic test key `centinela-secreta-123` (`generic-api-key`,
   spec line 246 and the key-leak test); checked unredacted, allowed by exact value in `.gitleaks.toml`.

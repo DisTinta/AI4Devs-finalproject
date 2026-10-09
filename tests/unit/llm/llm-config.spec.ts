@@ -78,7 +78,7 @@ describe('LLM configuration', () => {
     // Arrange
     const valid = { LLM_BASE_URL: OLLAMA, LLM_MODEL: 'chat-x' };
     const cases: Array<[Record<string, string>, string, string]> = [
-      ...['abc', '0', '-5', '1.5', '9999999999'].map(
+      ...['abc', '0', '-5', '1.5', '9999999999', '300001'].map(
         (value): [Record<string, string>, string, string] => [{ ...valid, LLM_TIMEOUT_MS: value }, 'LLM_TIMEOUT_MS', value],
       ),
       ...[
@@ -129,7 +129,7 @@ describe('LLM configuration', () => {
       LLM_MODEL: ' chat-x ',
       LLM_MODEL_VERIFY: ' verify-y ',
       LLM_EMBED_MODEL: ' embed-z ',
-      LLM_TIMEOUT_MS: ' 2147483647 ',
+      LLM_TIMEOUT_MS: ' 300000 ',
     });
 
     // Assert
@@ -140,7 +140,7 @@ describe('LLM configuration', () => {
       model: 'chat-x',
       verifyModel: 'verify-y',
       embedModel: 'embed-z',
-      timeoutMs: 2147483647,
+      timeoutMs: 300000,
     });
   });
 
@@ -148,7 +148,7 @@ describe('LLM configuration', () => {
     expect(llmConfigFromEnv({ LLM_TIMEOUT_MS: 'abc', LLM_MODEL: '' })).toEqual({ mode: 'evaluation' });
   });
 
-  it('rejects a timeout just above the timer limit', () => {
+  it('rejects a timeout far above the undici limit', () => {
     expect(configError({ LLM_BASE_URL: OLLAMA, LLM_MODEL: 'chat-x', LLM_TIMEOUT_MS: '2147483648' }).variable).toBe(
       'LLM_TIMEOUT_MS',
     );

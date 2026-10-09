@@ -71,8 +71,11 @@ export function llmConfigFromEnv(env: Record<string, string | undefined>): LlmCo
   return config;
 }
 
-/** Largest delay a Node timer honours (2³¹ − 1 ms); above it Node fires after 1 ms. */
-const MAX_TIMEOUT_MS = 2_147_483_647;
+/**
+ * Largest useful timeout: the default `headersTimeout` and `bodyTimeout` (300 s) of the undici agent
+ * behind Node's `fetch`, which ends any request by itself at that point (design D5).
+ */
+const MAX_TIMEOUT_MS = 300_000;
 
 function readTimeout(value: string | undefined): number {
   if (value === undefined) return DEFAULT_LLM_TIMEOUT_MS;

@@ -20,8 +20,9 @@ decide the mode:
 - mode `live` and `LLM_BASE_URL` not an absolute `http` or `https` URL, or one with user info, a query
   or a fragment (the endpoint paths are appended to it) → configuration error naming `LLM_BASE_URL`;
 - mode `live` and `LLM_TIMEOUT_MS` present but not a positive integer in decimal digits no greater
-  than 2147483647 (the largest delay a Node timer honours; above it Node fires after 1 ms) →
-  configuration error naming `LLM_TIMEOUT_MS`; absent → a request timeout of 120000 ms.
+  than 300000 (the default `headersTimeout` and `bodyTimeout` of the undici agent behind Node's `fetch`:
+  above it Node ends the request by itself at 300 s, before the configured timeout) → configuration
+  error naming `LLM_TIMEOUT_MS`; absent → a request timeout of 120000 ms.
 
 In mode `evaluation` no other variable is checked. The configuration SHALL be validated when it is read;
 reading it at boot is the composition root's job (DIS-29 / CM-HU-12).
@@ -62,11 +63,12 @@ variable.
 #### Scenario: A malformed timeout or URL fails naming the variable
 
 - **GIVEN** an otherwise valid live configuration with `LLM_TIMEOUT_MS` set to `abc`, then `0`, then
-  `-5`, then `1.5`, then `9999999999`; and then a valid `LLM_TIMEOUT_MS` with `LLM_BASE_URL` set to
+  `-5`, then `1.5`, then `9999999999`, then `300001`; and then a valid `LLM_TIMEOUT_MS` with
+  `LLM_BASE_URL` set to
   `localhost:11434`, then `ftp://x`, then `http://user:pw@localhost:11434/v1`, then
   `http://localhost:11434/v1?k=1`, then `http://localhost:11434/v1#x`
 - **WHEN** the LLM configuration is read
-- **THEN** each read fails with `LLM_CONFIG_INVALID` naming `LLM_TIMEOUT_MS` (the first five) or
+- **THEN** each read fails with `LLM_CONFIG_INVALID` naming `LLM_TIMEOUT_MS` (the first six) or
   `LLM_BASE_URL` (the last five), and no message contains the rejected value
 
 #### Scenario: A valid timeout overrides the default
@@ -232,10 +234,13 @@ reason of this closed list: `http-status` (a non-2xx status, which the error SHA
 `invalid-response` (a body that is not JSON, or JSON that does not have the accepted shape),
 `network` (the request could not be sent, or the connection failed, including while the body was
 being read), `timeout` (no complete response — status, headers and whole body — within the configured
-timeout; the request SHALL be aborted). Nothing else SHALL escape a request. A `network` error SHALL
-carry `systemCode` when the runtime reports a system error code matching `^E[A-Z]+$` (for example
-`ECONNREFUSED`), on the error or on its cause, and SHALL have no `systemCode` property otherwise; no
-other text of the underlying failure SHALL be carried. A detail that does not apply to a failure
+timeout; the request SHALL be aborted). A failure whose error, or its cause, has the code
+`UND_ERR_HEADERS_TIMEOUT` or `UND_ERR_BODY_TIMEOUT` (the runtime's own header or body timeout), while
+sending the request or while reading the body, SHALL also be `timeout`, without `systemCode`. Nothing
+else SHALL escape a request. A `network` error SHALL carry `systemCode` when the error, or its cause,
+has a code matching `^E[A-Z]+$` (for example `ECONNREFUSED`) or `^UND_ERR_[A-Z_]+$` (for example
+`UND_ERR_SOCKET`), and SHALL have no `systemCode` property otherwise; no other text of the underlying
+failure SHALL be carried. A detail that does not apply to a failure
 (`status`, `expected`, `received`, `systemCode`) SHALL be absent from the error, not present with an
 empty value.
 
@@ -280,6 +285,24 @@ empty value.
 - **WHEN** a completion and embeddings for `["a"]` are requested against each endpoint
 - **THEN** every request fails with `LLM_UNAVAILABLE` and reason `network`; `systemCode` is
   `ECONNRESET` for the first endpoint and absent (no such property) for the second
+
+#### Scenario: A runtime socket failure carries its code
+
+- **GIVEN** a live configuration with `LLM_EMBED_MODEL=embed-z` and, in turn, an endpoint whose request
+  is rejected as `TypeError('fetch failed')` with a cause of code `UND_ERR_SOCKET`, and an endpoint that
+  sends status 200 and its headers and then fails the body with the same shape
+- **WHEN** a completion and embeddings for `["a"]` are requested against each endpoint
+- **THEN** every request fails with `LLM_UNAVAILABLE`, reason `network` and `systemCode` `UND_ERR_SOCKET`
+
+#### Scenario: A runtime header or body timeout is a timeout
+
+- **GIVEN** a live configuration with `LLM_EMBED_MODEL=embed-z` and, in turn, an endpoint whose request
+  is rejected as `TypeError('fetch failed')` with a cause of code `UND_ERR_HEADERS_TIMEOUT`, and an
+  endpoint that sends status 200 and its headers and then fails the body as `TypeError('terminated')`
+  with a cause of code `UND_ERR_BODY_TIMEOUT`
+- **WHEN** a completion and embeddings for `["a"]` are requested against each endpoint
+- **THEN** every request fails with `LLM_UNAVAILABLE` and reason `timeout`, and no error has a
+  `systemCode` property
 
 #### Scenario: A request that exceeds the timeout is aborted
 

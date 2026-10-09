@@ -24,7 +24,7 @@ development environment. The evaluation adapter and the daily budget are DIS-18 
   `llmConfigFromEnv(env)` returns `EvaluationLlmConfig` or `LiveLlmConfig`. `LLM_BASE_URL` decides the
   mode: URL and key both empty → `evaluation`; URL set → `live`, with the key optional (Ollama needs
   none). A key without URL, a URL without `LLM_MODEL`, a URL that is not `http`/`https` or a
-  `LLM_TIMEOUT_MS` that is not a positive integer up to 2147483647 fails with `LlmConfigError`
+  `LLM_TIMEOUT_MS` that is not a positive integer up to 300000 fails with `LlmConfigError`
   (`LLM_CONFIG_INVALID`), which names the variable and never its value. `LLM_MODEL_VERIFY` falls back
   to `LLM_MODEL`; `LLM_EMBED_MODEL` has no fallback.
 - **OpenAI-compatible HTTP client** (`packages/adapters/llm/src/openai-compatible-llm.ts`):

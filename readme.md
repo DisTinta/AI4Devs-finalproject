@@ -336,7 +336,7 @@ Ejecuta una consulta contra cada repositorio de muestra y compara la salida con 
 | `LLM_MODEL` | sí en modo vivo | Modelo para generación; con `LLM_BASE_URL` y sin `LLM_MODEL`, el arranque falla |
 | `LLM_MODEL_VERIFY` | no | Modelo económico para la verificación de evidencias en vivo; sin él se usa `LLM_MODEL` |
 | `LLM_EMBED_MODEL` | no | Modelo de embeddings; sin él, los embeddings no están disponibles (sin usar `LLM_MODEL`). Sus vectores deben tener 1536 dimensiones, las de `vector(1536)` del esquema: `nomic-embed-text` (768) falla hasta que CM-HU-19 elija el modelo |
-| `LLM_TIMEOUT_MS` | no | Tiempo máximo por petición al LLM, en ms (entero de 1 a 2147483647). Por defecto `120000`, para el arranque en frío de Ollama |
+| `LLM_TIMEOUT_MS` | no | Tiempo máximo por petición al LLM, en ms (entero de 1 a 300000: por encima, el `fetch` de Node corta la petición por su cuenta a los 300 s). Por defecto `120000`, para el arranque en frío de Ollama |
 | `DATABASE_URL` | **sí** (scripts `db:*` e `index`) | Cadena de conexión de PostgreSQL. `.env.example` trae la del contenedor local; `make up` la toma de `.env` (el Makefile carga y exporta `.env`). Si ejecutas `npm run db:migrate` / `db:rollback` a mano, expórtala antes: sin ella salen con error |
 | `ALLOWED_REPOS_DIR` | no (sí para indexar) | Directorio raíz permitido para indexar (ver [2.5](#25-seguridad)); vacío = indexado deshabilitado. Solo debe poder escribir en él el usuario que ejecuta Codemind, y solo debe contener repositorios de confianza (ver `docs/DEPLOYMENT.md`) |
 | `AUTHOR_HASH_SALT` | **sí** (para indexar) | Clave del seudónimo de los autores de commits (`author_hash`). No se versiona; cambiarla cambia todos los `author_hash` |

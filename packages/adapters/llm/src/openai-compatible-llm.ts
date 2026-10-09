@@ -40,7 +40,7 @@ export function createOpenAiCompatibleLlm(config: LiveLlmConfig, options: OpenAi
         redirect: 'manual',
       });
     } catch (error) {
-      if (isAbort(error)) throw new LlmUnavailable('timeout');
+      if (isAbort(error) || isRuntimeTimeout(error)) throw new LlmUnavailable('timeout');
       throw new LlmUnavailable('network', systemCodeOf(error));
     }
     if (!response.ok) {
@@ -53,8 +53,8 @@ export function createOpenAiCompatibleLlm(config: LiveLlmConfig, options: OpenAi
     try {
       raw = await response.text();
     } catch (error) {
-      // The body stopped: our timeout, or the connection was cut mid-body (design D6).
-      if (isAbort(error)) throw new LlmUnavailable('timeout');
+      // The body stopped: a timeout (ours or the runtime's), or the connection was cut mid-body (design D6).
+      if (isAbort(error) || isRuntimeTimeout(error)) throw new LlmUnavailable('timeout');
       throw new LlmUnavailable('network', systemCodeOf(error));
     }
     let json: unknown;
@@ -106,16 +106,26 @@ function isAbort(error: unknown): boolean {
   return error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError');
 }
 
-/**
- * The runtime's system error code (`ECONNREFUSED`, `ECONNRESET`…) of a failed request, from the error
- * itself or from its `cause` (where Node's `fetch` puts the socket error); never free text (design D4).
- */
+/** undici's own header and body timeouts, which Node's `fetch` reports as `fetch failed` / `terminated`. */
+const RUNTIME_TIMEOUT_CODES: ReadonlySet<string> = new Set(['UND_ERR_HEADERS_TIMEOUT', 'UND_ERR_BODY_TIMEOUT']);
+
+/** An OS error name (`ECONNREFUSED`) or an undici error code (`UND_ERR_SOCKET`): fixed identifiers, never free text. */
+const SYSTEM_CODE = /^(?:E[A-Z]+|UND_ERR_[A-Z_]+)$/;
+
+/** The `code` of the error itself and of its `cause` (where Node's `fetch` puts the socket error). */
+function codesOf(error: unknown): unknown[] {
+  return [error, isRecord(error) ? error.cause : undefined].map((candidate) => (isRecord(candidate) ? candidate.code : undefined));
+}
+
+/** Whether the runtime ended the request on its own header or body timeout (design D6). */
+function isRuntimeTimeout(error: unknown): boolean {
+  return codesOf(error).some((code) => typeof code === 'string' && RUNTIME_TIMEOUT_CODES.has(code));
+}
+
+/** The runtime's error code of a failed request, when it is a fixed identifier (design D4). */
 function systemCodeOf(error: unknown): { systemCode?: string } {
-  for (const candidate of [error, isRecord(error) ? error.cause : undefined]) {
-    const code: unknown = isRecord(candidate) ? candidate.code : undefined;
-    if (typeof code === 'string' && /^E[A-Z]+$/.test(code)) return { systemCode: code };
-  }
-  return {};
+  const code = codesOf(error).find((candidate): candidate is string => typeof candidate === 'string' && SYSTEM_CODE.test(candidate));
+  return code === undefined ? {} : { systemCode: code };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -126,7 +136,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function inInputOrder(data: readonly { index: number; embedding: number[] }[], count: number): number[][] {
   const vectors: number[][] = [];
   for (const { index, embedding } of data) {
-    if (index >= count || vectors[index] !== undefined) throw new LlmUnavailable('invalid-response');
+    const known = Number.isInteger(index) && index >= 0 && index < count;
+    if (!known || vectors[index] !== undefined) throw new LlmUnavailable('invalid-response');
     vectors[index] = embedding;
   }
   if (data.length !== count) throw new LlmUnavailable('invalid-response');
