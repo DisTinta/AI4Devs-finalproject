@@ -141,6 +141,15 @@ personal data in context).
 - Mutation: `packages/core/src/llm` unchanged since the round-1 run (100 %, 27/27); not re-run. The adapter is
   outside Stryker's `mutate` (design D8).
 
+## CI evidence (step 13.2)
+
+- PR #31, head `15361c2`, run https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/37973335946: `quality`
+  pass (11m10s), `secrets` pass, `scope` pass; `frontend` pass (run 37973336157).
+- `quality` → Tests: `tests/unit/llm/openai-compatible-llm.spec.ts` (31 tests), `tests/unit/llm/llm-config.spec.ts`
+  (10), `tests/unit/llm/llm-unavailable.spec.ts` (7) all green, with the integration specs against Postgres.
+- `quality` → Mutation testing: `packages/core/src/llm` **100 %** (27 killed, 0 survived); all files 94.68 %
+  (threshold 70).
+
 ## Outcome
 
 - Status: PASS (tests, gates, mutation; privacy check PASS WITH GAPS, two Low findings with destination)

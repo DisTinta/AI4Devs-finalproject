@@ -198,7 +198,8 @@ global `fetch` is the same engine.
   absent or `null` → `0`; a field present and not a non-negative integer → the parse fails →
   `invalid-response`. Lenient where servers differ (Ollama and others omit or null fields), strict
   where a value is present but wrong, since a wrong count would be stored as cost later (DIS-18).
-- `data`: `{ index: non-negative integer; embedding: number[] }[]`.
+- `data`: `{ index: number; embedding: number[] }[]`; the adapter itself checks that the indexes are exactly
+  `0..n-1`, each once (D6).
 
 *Revised after verify-against-spec (author decision):* the first version required both usage fields
 whenever `usage` was present and rejected `usage: null`. `zod` is installed in `packages/adapters/llm` only (`^4`, current
@@ -306,6 +307,14 @@ Second `/adversarial-review` round (addendum of the same report): PASS WITH GAPS
 - **A — step 11 addendum** for the adversarial rounds.
 - **A — `.gitleaks.toml` drift:** the description no longer lists line numbers.
 - **A — question, `UND_ERR_CONNECT_TIMEOUT`:** stays `network` with `systemCode` (D6).
+
+Final `/verify-against-spec` round (code matches the spec, 29/29):
+
+- **A — drift** `.env.example` timeout range (fixed by the author, `15361c2`) and the `data` line of D7.
+- **D — 3.2** cancelling the body of a non-2xx response is design-only (D6): it frees the connection and is
+  not observable through the port.
+- **D — 3.7** every trailing `/` of `LLM_BASE_URL` is stripped, not just one: consistent with "without
+  trailing `/`" (D5).
 
 First `/adversarial-review` round:
 

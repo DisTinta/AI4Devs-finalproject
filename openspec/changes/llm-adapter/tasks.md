@@ -99,7 +99,7 @@
 ## 13. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
 - [x] 13.1 No user interface uses the adapter yet (DIS-29 / CM-HU-12): record "not applicable; adapter exercised against a real Ollama in step 12" in the step 11 report
-- [ ] 13.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that `tests/unit/llm/` ran and passed and that the mutation step covered `packages/core/src/llm`. Link the run in the step 11 report
+- [x] 13.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that `tests/unit/llm/` ran and passed and that the mutation step covered `packages/core/src/llm`. Link the run in the step 11 report
 
 ## 14. Pull request preparation
 
@@ -108,12 +108,12 @@
 ## 15. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
 - [x] 15.1 Open the pull request against `feature/entrega-2-CRN` (after confirming with the author; `gh` on the DisTinta account, back to Cristina-JumpMath afterwards)
-- [ ] 15.2 Run `/show-spec-working`, `/verify-against-spec` and `/adversarial-review`, in this order; one report each under `openspec/changes/llm-adapter/reports/` (`YYYY-MM-DD-show-spec-working.md`, `YYYY-MM-DD-verify-against-spec.md`, `YYYY-MM-DD-adversarial-review.md`)
+- [x] 15.2 Run `/show-spec-working`, `/verify-against-spec` and `/adversarial-review`, in this order; one report each under `openspec/changes/llm-adapter/reports/` (`YYYY-MM-DD-show-spec-working.md`, `YYYY-MM-DD-verify-against-spec.md`, `YYYY-MM-DD-adversarial-review.md`)
 - [x] 15.3.1 verify-against-spec round 1 (author decisions): body cut → `network` (new scenario), `usage` relaxed and only `choices[0]` validated (three new scenarios), spec says "validated when read", `mode: 'live'` in the spec, absent error details, `AbortSignal.timeout` inside the `try`, extra tests (key only in `Authorization`, embeddings header rule, `embed([])` without model, first choice only, invalid hand-built timeout); RED seen for the seven behaviour changes; 26 scenarios, 1:1 with tests; Stryker 100 % (27/27)
 - [x] 15.3.2 CI `secrets`: the synthetic key `centinela-secreta-123` flagged as `generic-api-key`; checked unredacted, allowed by exact value in `.gitleaks.toml` (`fixtures/README.md` → "CI secret scan"); `gitleaks dir` and `gitleaks git` over the PR range print «no leaks found»
 - [x] 15.3.3 Out of scope, author request: `testTimeout`/`hookTimeout` 20 s in `vitest.config.ts` for the load-dependent Git integration timeouts on Windows (separate commit `test(harness)`); full suite green twice
 - [x] 15.3.4 verify-against-spec round 2: Purpose says "validated when read"; redirects not followed (`redirect: 'manual'`, new scenario "A redirect is not followed", 27 scenarios); `LLM_BASE_URL` rejects user info, query and fragment; non-2xx body cancelled; invalid hand-built `timeoutMs` pinned as `network`; out-of-scope commits recorded as D in design Follow-ups; RED seen for the three behaviour changes; `tests/unit/llm` 44 passed, full suite 673 passed
 - [x] 15.3.5 adversarial-review (author decisions): `LLM_TIMEOUT_MS` capped at 300000 (undici's default header/body timeout) and `UND_ERR_HEADERS_TIMEOUT`/`UND_ERR_BODY_TIMEOUT` classified as `timeout`; `systemCode` also accepts `^UND_ERR_[A-Z_]+$`; adapter-level index guard; two new scenarios (29); real-runtime addendum in show-spec-working (real socket cut → `UND_ERR_SOCKET`, redirect not followed); DIS-29 hand-off comment (B); unbounded body D; RED seen for the three behaviour changes
-- [ ] 15.3 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report
-- [ ] 15.4 Commit the fixes to the same pull request (push confirmed with the author); re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
+- [x] 15.3 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report
+- [x] 15.4 Commit the fixes to the same pull request (push confirmed with the author); re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
 - [ ] 15.5 `/opsx:archive`, and commit the archive to the same pull request; the author merges afterwards

@@ -137,3 +137,21 @@ value, so it still works).
 Specific checks: no dependency outside the manifest; header rule implemented and tested; result shapes match the
 spec; "An evaluation configuration does not type-check against the client" is only enforced when
 `npm run typecheck` runs (CI and locally).
+
+---
+
+## Addendum — final round (HEAD `a1c20a4`)
+
+- Read-only run; totals taken from the step 11 addendum (`tests/unit/llm` 48 passed, full suite 677, typecheck 0
+  errors); 48 matches the test count at HEAD.
+- **Every requirement is implemented and every one of the 29 scenarios has a test (29/29 green).** No code gap.
+- Tests that assert less than their scenario (not defects): the timeout scenario implies the abort through fakes that
+  reject only on abort; "A redirect is not followed" proves `redirect: 'manual'` and 302 → `http-status` with a fake
+  (real behaviour in the show-spec-working addendum); the type-level scenario is proven by `npm run typecheck`, not by
+  vitest.
+- Documents contradicting the spec: `.env.example` still said "1 a 2147483647" at `a1c20a4` — corrected by the
+  author in `15361c2`; `design.md` D7 still described the schema's `index` as a non-negative integer — corrected.
+- Unspecified behaviour: all previously decided (D) except 3.2 (non-2xx body cancelled) and 3.7 (every trailing `/`
+  stripped), now recorded as D in `design.md` → Follow-ups. Out-of-scope commits `0057fb3` and `b21adce` stay D
+  (the 20 s Vitest timeout applies to the whole suite).
+- Verdict: the code matches the spec.
