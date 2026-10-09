@@ -141,7 +141,7 @@ Per request: `POST` with `Content-Type: application/json`, `Authorization: Beare
 |---|---|
 | `fetch` rejects with an error named `AbortError` or `TimeoutError` | `timeout` |
 | `fetch` rejects otherwise | `network` (+ `systemCode`, D4) |
-| status not 2xx | `http-status` (+ `status`) |
+| status not 2xx, 3xx included (`redirect: 'manual'`: Node returns the 3xx itself) | `http-status` (+ `status`); the body is cancelled, never read |
 | `response.text()` rejects with an error named `AbortError` or `TimeoutError` (headers arrived, body did not finish in time) | `timeout` |
 | `response.text()` rejects otherwise (the connection was cut while the body was read) | `network` (+ `systemCode`, same helper as for `fetch`, D4) |
 | `JSON.parse` throws, or `safeParse` fails | `invalid-response` |
@@ -154,7 +154,14 @@ sends `200` and stalls the body is aborted during `response.text()`; classifying
 is what makes that case `timeout` and not `network`. The body is read once (`response.text()`, then
 `JSON.parse` in a `try`). The signal itself is created inside the same `try` as `fetch`, so even a
 hand-built `LiveLlmConfig` with an invalid `timeoutMs` ends as an `LlmUnavailable` and nothing else
-escapes a request (verify-against-spec, smaller note).
+escapes a request (verify-against-spec, smaller note); it surfaces as `network` (the `RangeError` is not
+an abort), a programming error unreachable through `llmConfigFromEnv`, accepted as such.
+
+Redirects are not followed (`redirect: 'manual'`, verify-against-spec round 2): following one turns the
+POST into a GET to another URL, may carry `Authorization` along, and would accept a 2xx from an endpoint
+nobody configured. A 3xx is reported as `http-status`; `LLM_BASE_URL` must point at the final endpoint.
+`LLM_BASE_URL` also rejects user info (Node's `fetch` refuses it) and a query or fragment (the endpoint
+paths are appended to the URL), so a misconfiguration fails at boot instead of on every request.
 
 *Revised after verify-against-spec (author decision):* the first version mapped every non-timeout
 failure of `response.text()` to `invalid-response`; the spec defines `network` as "the connection
@@ -254,6 +261,22 @@ Findings of `/verify-against-spec` (report `reports/2026-10-09-verify-against-sp
 - **A — 3.6** spec softened to "no code that type-checks"; the `.not.toThrow()` assertion removed.
 - **A — 3.7** absent details are absent properties; the network scenario asserts `not.toHaveProperty`.
 - **A — smaller note** `AbortSignal.timeout` created inside the `try` (D6).
+Findings of the second `/verify-against-spec` round (addendum of the same report):
+
+- **A — 2.1** the spec's Purpose says "validated when read".
+- **A — 2.2 / 3.1** the invalid hand-built `timeoutMs` test asserts reason `network`; recorded in D6.
+- **A — 3.2** redirects are not followed (`redirect: 'manual'`, new scenario "A redirect is not followed").
+- **A — 3.3** `LLM_BASE_URL` rejects user info, a query and a fragment (values added to the malformed-URL
+  scenario).
+- **A — 3.4** the body of a non-2xx response is cancelled.
+- **D — 3.5** out-of-scope commits on this branch, by author decision: `0057fb3 chore(harness)` (the
+  `KIT_PROTECT_SPECS` switch) and `b21adce test(harness)` (Vitest `testTimeout`/`hookTimeout` 20 s for the
+  load-dependent Git integration timeouts on Windows); listed in the PR description.
+- **D — low impact** the message texts of `LlmUnavailable` and `LlmConfigError` are not part of the spec
+  (only "no key, no values" is); `isAbort` treats any `AbortError`/`TimeoutError` as the request's own, which
+  holds while there is a single signal.
+- **A — drift** the `.gitleaks.toml` description now names the current lines.
+
 - **A — CI `secrets`** gitleaks flagged the synthetic test key `centinela-secreta-123` (`generic-api-key`,
   spec line 246 and the key-leak test); checked unredacted, allowed by exact value in `.gitleaks.toml`.
 

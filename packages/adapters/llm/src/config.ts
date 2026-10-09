@@ -81,10 +81,12 @@ function readTimeout(value: string | undefined): number {
   return timeoutMs;
 }
 
+/** An absolute `http`/`https` URL the endpoint paths can be appended to: no user info, query or fragment. */
 function isHttpUrl(value: string): boolean {
   try {
-    const { protocol } = new URL(value);
-    return protocol === 'http:' || protocol === 'https:';
+    const url = new URL(value);
+    const http = url.protocol === 'http:' || url.protocol === 'https:';
+    return http && url.username === '' && url.password === '' && !value.includes('?') && !value.includes('#');
   } catch {
     return false;
   }

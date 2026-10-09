@@ -8,6 +8,7 @@ import { createOpenAiCompatibleLlm, llmConfigFromEnv, type LiveLlmConfig } from 
 interface RecordedRequest {
   url: string;
   method: string;
+  redirect: RequestRedirect | undefined;
   headers: Headers;
   body: Record<string, unknown>;
 }
@@ -21,6 +22,7 @@ function fakeFetch(...replies: Reply[]): { fetch: typeof fetch; requests: Record
     requests.push({
       url: String(input),
       method: init.method ?? 'GET',
+      redirect: init.redirect,
       headers: new Headers(init.headers),
       body: typeof init.body === 'string' ? (JSON.parse(init.body) as Record<string, unknown>) : {},
     });
@@ -242,8 +244,31 @@ describe('OpenAI-compatible completions', () => {
     // Act
     const error = await failure(llm.complete(ASK));
 
+    // Assert: the RangeError of AbortSignal.timeout is not an abort (design D6).
+    expect(error.reason).toBe('network');
+  });
+
+  it('cancels the body of a non-2xx response', async () => {
+    // Arrange
+    let cancelled = false;
+    const reply: Reply = async () =>
+      new Response(
+        new ReadableStream({
+          cancel() {
+            cancelled = true;
+          },
+        }),
+        { status: 500 },
+      );
+    const { fetch } = fakeFetch(reply);
+    const llm = createOpenAiCompatibleLlm(live({ LLM_BASE_URL: OLLAMA, LLM_MODEL: 'chat-x' }), { fetch });
+
+    // Act
+    const error = await failure(llm.complete(ASK));
+
     // Assert
-    expect(error).toBeInstanceOf(LlmUnavailable);
+    expect(error.status).toBe(500);
+    expect(cancelled).toBe(true);
   });
 });
 
@@ -450,6 +475,24 @@ describe('OpenAI-compatible failures', () => {
         expect(error.status).toBe(status);
       }
     }
+  });
+
+  it('A redirect is not followed', async () => {
+    // Arrange
+    const redirect: Reply = async () => new Response(null, { status: 302, headers: { Location: '/elsewhere' } });
+    const { fetch, requests } = fakeFetch(redirect);
+    const llm = createOpenAiCompatibleLlm(live({ ...EMBED_ENV }), { fetch });
+
+    // Act
+    const errors = [await failure(llm.complete(ASK)), await failure(llm.embed(['a']))];
+
+    // Assert
+    for (const error of errors) {
+      expect(error.reason).toBe('http-status');
+      expect(error.status).toBe(302);
+    }
+    expect(requests).toHaveLength(2);
+    for (const request of requests) expect(request.redirect).toBe('manual');
   });
 
   it('A body that is not JSON or has another shape is an invalid response', async () => {

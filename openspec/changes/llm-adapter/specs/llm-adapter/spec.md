@@ -1,7 +1,7 @@
 ## Purpose
 
 Puts every language model behind one port: an OpenAI-compatible client for completions and
-embeddings, configured from the environment and validated at boot, with Ollama (no key) as the real
+embeddings, configured from the environment and validated when read, with Ollama (no key) as the real
 development endpoint, so the rest of CODEMIND never knows the vendor and never leaks its key.
 
 ## ADDED Requirements
@@ -17,8 +17,8 @@ decide the mode:
 - `LLM_BASE_URL` present → mode `live`; `LLM_API_KEY` is optional in this mode;
 - `LLM_API_KEY` present and `LLM_BASE_URL` absent → configuration error naming `LLM_BASE_URL`;
 - mode `live` and `LLM_MODEL` absent → configuration error naming `LLM_MODEL`;
-- mode `live` and `LLM_BASE_URL` not an absolute `http` or `https` URL → configuration error naming
-  `LLM_BASE_URL`;
+- mode `live` and `LLM_BASE_URL` not an absolute `http` or `https` URL, or one with user info, a query
+  or a fragment (the endpoint paths are appended to it) → configuration error naming `LLM_BASE_URL`;
 - mode `live` and `LLM_TIMEOUT_MS` present but not a positive integer in decimal digits no greater
   than 2147483647 (the largest delay a Node timer honours; above it Node fires after 1 ms) →
   configuration error naming `LLM_TIMEOUT_MS`; absent → a request timeout of 120000 ms.
@@ -63,10 +63,11 @@ variable.
 
 - **GIVEN** an otherwise valid live configuration with `LLM_TIMEOUT_MS` set to `abc`, then `0`, then
   `-5`, then `1.5`, then `9999999999`; and then a valid `LLM_TIMEOUT_MS` with `LLM_BASE_URL` set to
-  `localhost:11434`, then `ftp://x`
+  `localhost:11434`, then `ftp://x`, then `http://user:pw@localhost:11434/v1`, then
+  `http://localhost:11434/v1?k=1`, then `http://localhost:11434/v1#x`
 - **WHEN** the LLM configuration is read
 - **THEN** each read fails with `LLM_CONFIG_INVALID` naming `LLM_TIMEOUT_MS` (the first five) or
-  `LLM_BASE_URL` (the last two), and no message contains the rejected value
+  `LLM_BASE_URL` (the last five), and no message contains the rejected value
 
 #### Scenario: A valid timeout overrides the default
 
@@ -111,7 +112,8 @@ and a `content`), and SHALL NOT ask for streaming. The request SHALL carry
 `Authorization` header otherwise. The value of `LLM_API_KEY` SHALL NOT appear in the URL nor in the
 body. A response SHALL be accepted only when its status is 2xx and its body is JSON with a non-empty
 `choices` whose first element has a string `message.content`; the other elements of `choices` are not
-checked. The result SHALL be that text, the model used, and `usage` with `inputTokens` =
+checked. Redirects SHALL NOT be followed, for completions and embeddings alike: a 3xx answer is a non-2xx
+status, reported as such, and no second request is sent. The result SHALL be that text, the model used, and `usage` with `inputTokens` =
 `usage.prompt_tokens` and `outputTokens` = `usage.completion_tokens`. A `usage` that is absent or
 `null`, and a field of `usage` that is absent or `null`, SHALL count as `0`; a field of `usage` that is
 present and is not a non-negative integer (a string, a negative or a fractional number) SHALL make the
@@ -243,6 +245,14 @@ empty value.
   401, then 429, then 500
 - **WHEN** a completion and embeddings for `["a"]` are requested against each answer
 - **THEN** every request fails with `LLM_UNAVAILABLE`, reason `http-status` and the received status
+
+#### Scenario: A redirect is not followed
+
+- **GIVEN** a live configuration with `LLM_EMBED_MODEL=embed-z` and an endpoint that answers every request
+  with 302 and `Location` pointing to another path that would answer 200
+- **WHEN** a completion and embeddings for `["a"]` are requested
+- **THEN** both fail with `LLM_UNAVAILABLE`, reason `http-status` and status `302`, and each sent exactly one
+  request, which asked not to follow redirects
 
 #### Scenario: A body that is not JSON or has another shape is an invalid response
 

@@ -81,7 +81,13 @@ describe('LLM configuration', () => {
       ...['abc', '0', '-5', '1.5', '9999999999'].map(
         (value): [Record<string, string>, string, string] => [{ ...valid, LLM_TIMEOUT_MS: value }, 'LLM_TIMEOUT_MS', value],
       ),
-      ...['localhost:11434', 'ftp://x'].map(
+      ...[
+        'localhost:11434',
+        'ftp://x',
+        'http://user:pw@localhost:11434/v1',
+        'http://localhost:11434/v1?k=1',
+        'http://localhost:11434/v1#x',
+      ].map(
         (value): [Record<string, string>, string, string] => [
           { ...valid, LLM_TIMEOUT_MS: '50', LLM_BASE_URL: value },
           'LLM_BASE_URL',

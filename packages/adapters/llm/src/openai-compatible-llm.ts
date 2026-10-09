@@ -31,12 +31,23 @@ export function createOpenAiCompatibleLlm(config: LiveLlmConfig, options: OpenAi
     try {
       // Inside the `try`: an invalid `timeoutMs` (hand-built config) must not escape as a RangeError.
       const signal = AbortSignal.timeout(config.timeoutMs);
-      response = await fetchImpl(`${config.baseUrl}${path}`, { method: 'POST', headers, body: JSON.stringify(body), signal });
+      // `manual`: a 3xx comes back as itself (a non-2xx) instead of being followed (design D6).
+      response = await fetchImpl(`${config.baseUrl}${path}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+        signal,
+        redirect: 'manual',
+      });
     } catch (error) {
       if (isAbort(error)) throw new LlmUnavailable('timeout');
       throw new LlmUnavailable('network', systemCodeOf(error));
     }
-    if (!response.ok) throw new LlmUnavailable('http-status', { status: response.status });
+    if (!response.ok) {
+      // Never read: an error body may echo the key. Cancel it so the connection is released.
+      await response.body?.cancel().catch(() => undefined);
+      throw new LlmUnavailable('http-status', { status: response.status });
+    }
 
     let raw: string;
     try {
