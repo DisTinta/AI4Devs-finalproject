@@ -21,6 +21,10 @@ export default defineConfig({
     // `.stryker-tmp/` holds Stryker sandboxes; an aborted run leaves one behind with a full copy of the suite.
     exclude: ['fixtures/**', 'node_modules/**', '.stryker-tmp/**'],
     passWithNoTests: true,
+    // The Git integration specs spawn `git` many times per test; under the full suite's load on Windows
+    // a few of them took longer than the 5 s default (they pass alone). A slower machine is not a bug.
+    testTimeout: 20_000,
+    hookTimeout: 20_000,
     // A worker thread ignores `process.env.TZ` assignments (only the main thread resets its time-zone
     // cache), so the seed build's time-zone scenario runs in a forked process (DIS-91 design D9).
     poolMatchGlobs: [['**/tests/integration/cli/seed-build.spec.ts', 'forks']],
