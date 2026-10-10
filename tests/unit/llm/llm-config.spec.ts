@@ -153,4 +153,82 @@ describe('LLM configuration', () => {
       'LLM_TIMEOUT_MS',
     );
   });
+
+  it('The daily budget is read in live mode only', () => {
+    // Arrange
+    const live = { LLM_BASE_URL: OLLAMA, LLM_MODEL: 'llama3.2' };
+
+    // Act
+    const unset = llmConfigFromEnv(live);
+    const blank = llmConfigFromEnv({ ...live, DAILY_BUDGET_USD: '  ' });
+    const set = llmConfigFromEnv({ ...live, DAILY_BUDGET_USD: '2.5' });
+    const evaluation = llmConfigFromEnv({ DAILY_BUDGET_USD: 'abc' });
+
+    // Assert
+    expect(unset).toMatchObject({ mode: 'live' });
+    expect(unset).not.toHaveProperty('dailyBudgetUsd');
+    expect(blank).toMatchObject({ mode: 'live' });
+    expect(blank).not.toHaveProperty('dailyBudgetUsd');
+    expect(set).toMatchObject({ mode: 'live', dailyBudgetUsd: 2.5 });
+    expect(evaluation).toEqual({ mode: 'evaluation' });
+  });
+
+  it('A malformed daily budget fails naming the variable', () => {
+    // Arrange
+    const live = { LLM_BASE_URL: OLLAMA, LLM_MODEL: 'llama3.2' };
+
+    for (const value of ['abc', '0', '0.0', '-1', '1e3', '1.']) {
+      // Act
+      const error = configError({ ...live, DAILY_BUDGET_USD: value });
+
+      // Assert
+      expect(error.code).toBe('LLM_CONFIG_INVALID');
+      expect(error.variable).toBe('DAILY_BUDGET_USD');
+      expect(error.message).toContain('DAILY_BUDGET_USD');
+      expect(error.message).not.toContain(value);
+      expect(error).not.toHaveProperty('modelVariable');
+    }
+  });
+
+  it('With a ceiling every configured model needs a price', () => {
+    // Arrange
+    const ceiling = { LLM_BASE_URL: OLLAMA, DAILY_BUDGET_USD: '1' };
+    const cases: Array<[Record<string, string>, string]> = [
+      [{ ...ceiling, LLM_MODEL: 'llama3.2:3b' }, 'LLM_MODEL'],
+      [{ ...ceiling, LLM_MODEL: 'llama3.2', LLM_MODEL_VERIFY: 'sin-precio' }, 'LLM_MODEL_VERIFY'],
+      [{ ...ceiling, LLM_MODEL: 'llama3.2', LLM_EMBED_MODEL: 'sin-precio' }, 'LLM_EMBED_MODEL'],
+    ];
+
+    // Act
+    const priced = llmConfigFromEnv({ ...ceiling, LLM_MODEL: 'llama3.2' });
+
+    // Assert
+    expect(priced).toMatchObject({ mode: 'live', dailyBudgetUsd: 1 });
+    for (const [env, modelVariable] of cases) {
+      const error = configError(env);
+      expect(error.code).toBe('LLM_CONFIG_INVALID');
+      expect(error.variable).toBe('DAILY_BUDGET_USD');
+      expect(error.modelVariable).toBe(modelVariable);
+      expect(error.message).toContain('DAILY_BUDGET_USD');
+      expect(error.message).toContain(modelVariable);
+      expect(error.message).toContain('with a local Ollama leave DAILY_BUDGET_USD empty');
+      expect(error.message).not.toContain('llama3.2:3b');
+      expect(error.message).not.toContain('sin-precio');
+    }
+  });
+
+  it('Without a ceiling a model needs no price', () => {
+    // Act
+    const config = llmConfigFromEnv({
+      LLM_BASE_URL: OLLAMA,
+      DAILY_BUDGET_USD: '',
+      LLM_MODEL: 'llama3.2:3b',
+      LLM_MODEL_VERIFY: 'sin-precio',
+      LLM_EMBED_MODEL: 'sin-precio',
+    });
+
+    // Assert
+    expect(config).toMatchObject({ mode: 'live', model: 'llama3.2:3b' });
+    expect(config).not.toHaveProperty('dailyBudgetUsd');
+  });
 });
