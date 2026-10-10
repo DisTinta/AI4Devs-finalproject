@@ -139,6 +139,12 @@ Later heads (fixes from the pre-merge review):
 - `e629271` (verify-against-spec fixes): run [38050379469](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/38050379469), CI success.
 - Final head: see "CI on the final head" below.
 
+### CI on the final head
+
+Run [38051640275](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/38051640275) on head
+`9284392` (last code and test change, after both adversarial rounds): `scope`, `secrets` and
+`quality` success. The archive commit that follows changes only `openspec/`.
+
 ## Outcome
 
 - Status: PASS
