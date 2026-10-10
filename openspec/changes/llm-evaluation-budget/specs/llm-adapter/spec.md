@@ -19,8 +19,9 @@ value SHALL be trimmed; a value that is unset, empty or only whitespace SHALL co
   error naming `LLM_TIMEOUT_MS`; absent → a request timeout of 120000 ms;
 - mode `live` and `DAILY_BUDGET_USD` absent → no daily spend ceiling;
 - mode `live` and `DAILY_BUDGET_USD` present but not a positive decimal number in USD written with
-  digits and at most one decimal point (no sign, no exponent, greater than 0) → configuration error
-  naming `DAILY_BUDGET_USD`; otherwise it is the daily spend ceiling in USD;
+  digits and at most one decimal point (no sign, no exponent, greater than 0), or one too large to be
+  represented as a finite number → configuration error naming `DAILY_BUDGET_USD`; otherwise it is the
+  daily spend ceiling in USD;
 - mode `live`, a daily spend ceiling, and a configured model without an entry of its exact name in
   the cost table (checked in this order: `LLM_MODEL`, `LLM_MODEL_VERIFY` when present,
   `LLM_EMBED_MODEL` when present) → configuration error naming `DAILY_BUDGET_USD` and that model
@@ -91,7 +92,7 @@ model without a price SHALL also say that with a local Ollama `DAILY_BUDGET_USD`
 #### Scenario: A malformed daily budget fails naming the variable
 
 - **GIVEN** a live configuration with `LLM_MODEL=llama3.2` and `DAILY_BUDGET_USD` set to `abc`, then
-  `0`, then `0.0`, then `-1`, then `1e3`, then `1.`
+  `0`, then `0.0`, then `-1`, then `1e3`, then `1.`, then 400 digits `9` (beyond a finite number)
 - **WHEN** the LLM configuration is read
 - **THEN** each read fails with `LLM_CONFIG_INVALID` naming `DAILY_BUDGET_USD`, and no message
   contains the rejected value

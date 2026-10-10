@@ -130,7 +130,7 @@ not need yet is a write cost and a migration to review for nothing).
 ### D7 — Configuration: `DAILY_BUDGET_USD` and the price check in `llmConfigFromEnv`
 
 - `LiveLlmConfig.dailyBudgetUsd?: number`, read only after the mode is `live` (evaluation keeps
-  checking nothing). Parser in the style of `readTimeout`: `/^[0-9]+(\.[0-9]+)?$/` and `> 0`; else
+  checking nothing). Parser in the style of `readTimeout`: `/^[0-9]+(\.[0-9]+)?$/`, `> 0` and finite (`Number.isFinite`, verify 2.4); else
   `LlmConfigError('DAILY_BUDGET_USD')`.
 - With a ceiling, the models are checked in the order `model`, `verifyModel` (only when
   `LLM_MODEL_VERIFY` was set: when it falls back to `LLM_MODEL` it is the same name, already checked),
@@ -205,3 +205,31 @@ provided by the author in the session at that step only; it is never written to 
 No schema migration and no data change. `DAILY_BUDGET_USD` stays empty by default, so existing
 environments behave exactly as before. The seed is regenerated only for its fingerprint header (D9);
 `db:seed` loads the same rows. Rollback: revert the commits, seed included.
+
+## Follow-ups
+
+Findings of `/verify-against-spec` (report `reports/2026-10-10-verify-against-spec.md`):
+
+- **A — 2.4** a `DAILY_BUDGET_USD` too long for a double became `Infinity`, a ceiling that never trips:
+  the spec now requires a finite number (requirement text and the scenario "A malformed daily budget
+  fails naming the variable", value 400 × `9`); `readDailyBudget` checks `Number.isFinite` (D7).
+- **A — 2.2** the own-connections test now sums committed rows dated 2100 (exact `0.7`, project
+  deleted in `finally`); a pool path answering a constant fails it.
+- **A — 2.1** new test: `sumCostSince` sends exactly one `SELECT` and nothing else ("SHALL write
+  nothing").
+- **D — 2.3** the paid-entry rule (official pricing URL + date checked) stays a reviewed convention
+  in the `COST_TABLE` comment; no automated check (no paid entry exists).
+- **D — 2.5** the ceiling has no production effect until DIS-76 composes it and DIS-74 writes
+  `cost_usd`: already stated in proposal (Non-goals), D5 and `docs/project-context.md`.
+- **D — 3.1** `startOfUtcDay` / `startOfNextUtcDay` stay exported helpers (D5: boundary unit tests and
+  mutation coverage).
+- **D — 3.2** the clock is read on every call, so a long-lived wrapper follows the UTC day (D5, "each
+  call computes `since`"); it is the requirement's "before every … request … the current UTC day".
+- **D — 3.3, 3.4** `COST_TABLE` is frozen and inherited keys never count as priced (D4,
+  `Object.hasOwn`); both serve the exact-name rule.
+- **D — 3.5** embeddings pass no output tokens (D4); DIS-74 relies on it.
+- **D — 3.6** check-then-call is not atomic (D5, Risks; proposal Non-goals: "the call that crosses
+  the ceiling is allowed").
+- **D — 3.7** the exact `BudgetExhausted` message is pinned by a test so that only numbers and the ISO
+  reset time can appear in it (privacy).
+

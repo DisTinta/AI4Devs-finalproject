@@ -83,9 +83,27 @@ real database in step 12 (`2026-10-10-12-manual-interface-testing.md`).
 
 ## CI (13.2)
 
-Pending: linked after the push.
+PR #32, head `0840847`, run https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/38037651859
+(and `.../runs/38037651801` for `frontend`): `quality` pass (10 m 48 s), `scope`, `secrets`,
+`frontend` pass.
+
+- `Tests`: 68 files, 879 passed, 1 skipped (`tests/unit/index/path-policy.spec.ts`, not touched by
+  this change). Ran and passed: `tests/unit/llm/{llm-config,budget,llm-unavailable,evaluation-llm,
+  cost-table}.spec.ts`, `tests/integration/store/query-cost.spec.ts` (4 tests at that head),
+  `tests/integration/store/graph-read.spec.ts` (28).
+- Seed freshness: CI has no such step (steps: lint, dependency rule, type check, migrations apply
+  and roll back, tests, mutation); nothing to check.
+- `Mutation testing on critical paths`: `core/src/llm` 100 % (60 killed: `budget.ts` 13,
+  `cost-table.ts` 17, `errors.ts` 30), `knowledge/read-arguments.ts` 100 % (46); all files 94.97 %.
 
 ## Outcome
 
 - Status: PASS
 - Blocking issues: none
+
+## Addendum — after `/verify-against-spec` fixes (2026-10-10)
+
+Fixes A 2.1, 2.2, 2.4 (see `2026-10-10-verify-against-spec.md`): `npx vitest run` → 68 files,
+881 passed, 0 skipped (one new test); lint, typecheck, lint:architecture, docs:coverage exit 0.
+`query_log` and `project` back to 0 rows; `seeds/`, `packages/web/`, `fixtures/` unchanged (the fixes
+touch `packages/adapters/llm` and tests only, which are not seed fingerprint inputs).
