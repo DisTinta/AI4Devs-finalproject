@@ -461,7 +461,7 @@ describeWithDatabase('graph store reads (DIS-24)', () => {
       expect(labels(outgoing)).toEqual(['D@1']);
     });
 
-    it('follows outgoing edges from a file seed under both', async () => {
+    it('follows outgoing edges from a file seed under both, and incoming ones under in', async () => {
       const { writer, reader } = stores();
       const t = symbol('src/t.ts', 'T', 1);
       const projectId = await projectWith(writer, {
@@ -478,12 +478,21 @@ describeWithDatabase('graph store reads (DIS-24)', () => {
 
       const both = await reader.neighbors(projectId, seeds, 1, undefined, 'both');
       const incoming = await reader.neighbors(projectId, seeds, 1, undefined, 'in');
+      const incomingToB = await reader.neighbors(
+        projectId,
+        [{ type: 'file', id: await fileId(projectId, 'app/b.php') }],
+        1,
+        undefined,
+        'in',
+      );
 
       expect(labels(both)).toEqual(['file:app/b.php@1', 'T@1']);
       expect(incoming).toEqual([]);
+      expect(labels(incomingToB)).toEqual(['file:app/a.php@1']);
     });
 
-    it('yields each node once at its minimum distance through cycles under in and both', async () => {
+    // The result, not the pruning: `visited` only bounds the work, which DIS-28 owns (design Follow-ups).
+    it('returns each node once at its minimum distance on a cyclic graph under in and both', async () => {
       const { writer, reader } = stores();
       const projectId = await projectWith(writer, symbolGraph(['A', 'B', 'C'], [['A', 'B'], ['B', 'A'], ['B', 'C']]));
       const a = { type: 'symbol' as const, id: await symbolId(reader, projectId, 'A') };
