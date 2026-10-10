@@ -81,25 +81,25 @@
 
 ## 11. Backend: Run Tests and Verify Data State (MANDATORY)
 
-- [ ] 11.1 Capture the pre-test baseline: the 0.5 indicators, plus `SELECT count(*) FROM project`, `FROM symbol` and `FROM edge` on the local database (the integration tests write only inside rolled-back transactions)
-- [ ] 11.2 Run the targeted tests: `npx vitest run tests/unit/context tests/unit/store/in-memory-store.spec.ts tests/integration/store/graph-read.spec.ts`
-- [ ] 11.3 Run the required broader suite and gates: `npx vitest run`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`, `npx stryker run --mutate "packages/core/src/context/**/*.ts,packages/core/src/knowledge/read-arguments.ts"` (score ≥ `MIN_MUTATION_SCORE=70`; list surviving mutants and kill the meaningful ones)
-- [ ] 11.4 Verify the post-test state: the three counts equal to the baseline; `seeds/`, `packages/web/`, `fixtures/` unchanged since the step 10 commit; no `.stryker-tmp/` left behind. Restore and document if not
-- [ ] 11.5 Create the report `openspec/changes/context-engine-anchor-expand/reports/YYYY-MM-DD-11-test-and-state-verification.md` from the template in `docs/openspec-tasks-mandatory-steps.md` §6, including the 0.5 baseline, the seed diff of step 10, the Stryker score, the 1:1 scenario map of 7.2 and the privacy check of 6.1
-- [ ] 11.6 Mark complete only after the tests pass and the report exists
+- [x] 11.1 Capture the pre-test baseline: the 0.5 indicators, plus `SELECT count(*) FROM project`, `FROM symbol` and `FROM edge` on the local database (the integration tests write only inside rolled-back transactions)
+- [x] 11.2 Run the targeted tests: `npx vitest run tests/unit/context tests/unit/store/in-memory-store.spec.ts tests/integration/store/graph-read.spec.ts`
+- [x] 11.3 Run the required broader suite and gates: `npx vitest run`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`, `npx stryker run --mutate "packages/core/src/context/**/*.ts,packages/core/src/knowledge/read-arguments.ts"` (score ≥ `MIN_MUTATION_SCORE=70`; list surviving mutants and kill the meaningful ones)
+- [x] 11.4 Verify the post-test state: the three counts equal to the baseline; `seeds/`, `packages/web/`, `fixtures/` unchanged since the step 10 commit; no `.stryker-tmp/` left behind. Restore and document if not
+- [x] 11.5 Create the report `openspec/changes/context-engine-anchor-expand/reports/YYYY-MM-DD-11-test-and-state-verification.md` from the template in `docs/openspec-tasks-mandatory-steps.md` §6, including the 0.5 baseline, the seed diff of step 10, the Stryker score, the 1:1 scenario map of 7.2 and the privacy check of 6.1
+- [x] 11.6 Mark complete only after the tests pass and the report exists
 
 ## 12. Backend: Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 12.1 No CLI or HTTP entry point uses the Context Engine yet (DIS-39): exercise it through a throwaway `tsx` script in the session scratchpad (never committed) that calls `createPostgresStore` on the local database with the loaded acme-shop seed (`npm run db:seed` if `listProjects` does not show it; record the counts before and after, since `db:seed` writes), then `anchor` and `expand`
-- [ ] 12.2 Success path against the real seed: anchor `¿Cómo se calcula el precio final de un pedido?` and `¿Cómo se validan los cupones?`, print the anchored names; expand the first at 2 hops and print type, path/name and distance; check the nodes of the expansion scenario are present at distance 1; expand the class `DiscountService` (from `findSymbols`, with its real `fileId`) at 2 hops and check that file `app/Services/ShippingService.php` appears at distance 1 and `app/Services/DiscountService.php` does not
-- [ ] 12.3 `neighbors` with `'out'`, `'in'` and `'both'` from `PriceCalculator::compute` at 1 hop: `out` shows only callees, `in` adds the callers and `README.md`
-- [ ] 12.4 Error cases: unknown project id and `not-a-uuid` (`ProjectNotFound`), `hops` 4 (`InvalidStoreQuery` naming `hops`), direction `'sideways'` (`InvalidStoreQuery` naming `direction`), a question of stopwords only (`[]`)
-- [ ] 12.5 Nothing is written; confirm the 11.1 counts are unchanged, delete the scratchpad script and confirm `git status` shows no stray file
-- [ ] 12.6 Document every command and output in `openspec/changes/context-engine-anchor-expand/reports/YYYY-MM-DD-12-manual-interface-testing.md` (mask the OS user name in paths)
+- [x] 12.1 No CLI or HTTP entry point uses the Context Engine yet (DIS-39): exercise it through a throwaway `tsx` script in the session scratchpad (never committed) that calls `createPostgresStore` on the local database with the loaded acme-shop seed (`npm run db:seed` if `listProjects` does not show it; record the counts before and after, since `db:seed` writes), then `anchor` and `expand`
+- [x] 12.2 Success path against the real seed: anchor `¿Cómo se calcula el precio final de un pedido?` and `¿Cómo se validan los cupones?`, print the anchored names; expand the first at 2 hops and print type, path/name and distance; check the nodes of the expansion scenario are present at distance 1; expand the class `DiscountService` (from `findSymbols`, with its real `fileId`) at 2 hops and check that file `app/Services/ShippingService.php` appears at distance 1 and `app/Services/DiscountService.php` does not
+- [x] 12.3 `neighbors` with `'out'`, `'in'` and `'both'` from `PriceCalculator::compute` at 1 hop: `out` shows only callees, `in` adds the callers and `README.md`
+- [x] 12.4 Error cases: unknown project id and `not-a-uuid` (`ProjectNotFound`), `hops` 4 (`InvalidStoreQuery` naming `hops`), direction `'sideways'` (`InvalidStoreQuery` naming `direction`), a question of stopwords only (`[]`)
+- [x] 12.5 Nothing is written; confirm the 11.1 counts are unchanged, delete the scratchpad script and confirm `git status` shows no stray file
+- [x] 12.6 Document every command and output in `openspec/changes/context-engine-anchor-expand/reports/YYYY-MM-DD-12-manual-interface-testing.md` (mask the OS user name in paths)
 
 ## 13. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
-- [ ] 13.1 No user interface uses the Context Engine yet (DIS-39 / CM-HU-12): record "not applicable; exercised against the real database in step 12" in the step 11 report
+- [x] 13.1 No user interface uses the Context Engine yet (DIS-39 / CM-HU-12): record "not applicable; exercised against the real database in step 12" in the step 11 report
 - [ ] 13.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that `tests/unit/context/`, `tests/unit/store/in-memory-store.spec.ts` and `tests/integration/store/graph-read.spec.ts` ran and passed, that the seed-freshness check (if any) is green, and that the mutation step covered `packages/core/src/context`. Link the run in the step 11 report
 
 ## 14. Pull request preparation

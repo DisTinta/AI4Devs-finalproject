@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { anchor, ProjectNotFound, questionTerms } from '@codemind/core';
+import { anchor, ANCHOR_STOPWORDS, ProjectNotFound, questionTerms } from '@codemind/core';
 import { ACME_SHOP_PROJECT, acmeShopGraph } from '../../support/acme-shop-graph';
 import { createInMemoryStore } from '../../support/in-memory-store';
 import type { InMemoryStore } from '../../support/in-memory-store';
@@ -39,6 +39,33 @@ describe('Requirement: Question terms', () => {
     // Assert
     expect(fromAccented).toEqual(['cupon']);
     expect(fromPlain).toEqual(['cupon']);
+  });
+
+  // Not scenarios: boundaries of design D1, found by mutation testing.
+  it('keeps a token of exactly three characters that is not a stopword', () => {
+    expect(questionTerms('¿Y el tax?')).toEqual(['tax']);
+  });
+
+  it('drops the English function words of a question', () => {
+    expect(questionTerms('How does the order have our discount?')).toEqual(['order', 'discount', 'disco']);
+  });
+
+  it('drops exactly the documented stopwords, each on its own', () => {
+    // Pinned so that editing the exported list is a deliberate, reviewed change.
+    const spanish = [
+      'como', 'que', 'cual', 'cuales', 'cuando', 'donde', 'quien', 'quienes', 'cuanto', 'cuanta', 'por', 'para',
+      'con', 'sin', 'sobre', 'entre', 'desde', 'hasta', 'los', 'las', 'del', 'una', 'uno', 'unos', 'unas', 'son',
+      'esta', 'este', 'estos', 'estas', 'ese', 'esa', 'esos', 'esas', 'eso', 'esto', 'hay', 'muy', 'mas', 'pero',
+      'tambien', 'cada', 'todo', 'toda', 'todos', 'todas', 'sus', 'nos', 'les', 'ser', 'estan', 'hace', 'hacen',
+    ];
+    const english = [
+      'the', 'how', 'what', 'where', 'when', 'which', 'who', 'why', 'does', 'did', 'and', 'for', 'with', 'from',
+      'that', 'this', 'these', 'those', 'are', 'was', 'were', 'its', 'not', 'can', 'into', 'about', 'there',
+      'their', 'has', 'have', 'any', 'all', 'our', 'you', 'your',
+    ];
+
+    expect([...ANCHOR_STOPWORDS]).toEqual([...spanish, ...english]);
+    for (const word of [...spanish, ...english]) expect(questionTerms(word), word).toEqual([]);
   });
 });
 
