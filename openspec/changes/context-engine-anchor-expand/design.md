@@ -240,5 +240,14 @@ B successor ticket, C debt, D accepted with reason).
 | Minor: lengths in UTF-16 code units | A | `questionTerms` counts and slices by code point; test with astral letters |
 | Minor: spec rules edited after implementation have no scenario | D | Author decision, recorded in the verify addendum; extra tests in `anchor.spec.ts` guard them |
 | Minor: no runtime checks for untyped callers of `anchor`/`expand` | B — DIS-39 | Same decision as the DIS-24 reads: the untyped entry point validates with Zod before calling core |
-| Minor: no green CI on the head being archived | A | Final head's `quality` run linked in the step-11 report before archiving |
+| Minor: no green CI on the head being archived | A | Final head's `quality` run recorded in the step-11 report before archiving |
 | Question: uncommitted `.claude/settings.json` edit | — | Not part of this change; left uncommitted for the author |
+
+### adversarial-review, second round (2026-10-10)
+
+| Finding | Destination | Resolution |
+|---|---|---|
+| Minor: file seed under `'in'` never asserted with a result | A | Assertion added to "follows outgoing edges from a file seed under both, and incoming ones under in"; the guard mutated to `IN ('both')` fails it |
+| Minor: cycle test does not guard the `visited` pruning | D | Renamed and commented: it guards the result; `visited` only bounds work (DIS-28 hand-off) |
+| Minor: CI evidence circular between reports | A | Step-11 report holds the final head's run |
+| Question: local `KIT_PROTECT_SPECS="0"` | — | Author's local harness file, not committed |

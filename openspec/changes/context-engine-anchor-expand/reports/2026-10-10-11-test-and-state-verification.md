@@ -134,8 +134,10 @@ on head `e88fb4c`: `quality` pass (6m22s), `scope`, `secrets` and `frontend` pas
   all files 95.18 %.
 - No separate seed-freshness job exists; the seed diff is checked in step 10.
 
-The verify-against-spec fixes (`e629271`) trigger a new run; its result is recorded in the
-adversarial-review report.
+Later heads (fixes from the pre-merge review):
+
+- `e629271` (verify-against-spec fixes): run [38050379469](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/38050379469), CI success.
+- Final head: see "CI on the final head" below.
 
 ## Outcome
 

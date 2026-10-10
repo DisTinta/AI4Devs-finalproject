@@ -36,5 +36,21 @@ concurrent requests) are handled. Strongest test: `tests/unit/context/expand.spe
 | Minor: UTF-16 code units | A — fixed here | `questionTerms` counts and slices by code point (`[...token]`); test with astral letters |
 | Minor: spec edited after implementation | D — accepted | Author decision recorded in the verify addendum; the extra tests in `anchor.spec.ts` guard the rules |
 | Minor: no runtime checks in `anchor`/`expand` | B — DIS-39 | Same decision as the DIS-24 hand-off: TypeScript types bind core callers, and the untyped entry point (DIS-39) validates before calling; included in the DIS-39 note |
-| Minor: CI on head | A — closed | A green `quality` run on the final head is linked in the step-11 report before archiving |
+| Minor: CI on head | A | The green `quality` run on the final head is recorded in the step-11 report ("CI evidence") before archiving |
 | Question: `.claude/settings.json` | — | Left uncommitted; the author decides |
+
+## Second round (2026-10-10, head `e276dff`)
+
+Range `e629271..e276dff`. Both round-1 Majors hold: each of the four `$6` guards, mutated to drop
+`'both'`, fails a test; the DIS-28 and DIS-39 hand-offs match design Follow-ups; the code-point fix is
+correct and its test catches the old behaviour. No Blocker or Major.
+
+| Severity | Finding | Destination | Action |
+|---|---|---|---|
+| Minor | No file seed under `'in'` with a result: mutating the file-incoming guard to `IN ('both')` passed every test | A | Assertion added (`app/b.php` under `'in'` returns `file:app/a.php@1`); the mutation now fails a test |
+| Minor | The cycle test passes without the `visited` predicate: it guards the result, not the pruning | D | Test renamed ("returns each node once at its minimum distance on a cyclic graph…") and commented; `visited` only bounds work, which the DIS-28 hand-off owns |
+| Minor | CI evidence pointed between the two reports and covered an older head | A | Step-11 report records the run on the final head |
+| Question | Local harness configuration (`KIT_PROTECT_SPECS`) is `"0"` in the working tree | — | Author's local file, never committed with this change; the second round confirmed no spec changed in the range |
+
+**Verdict (second round): PASS WITH GAPS → all Minors fixed or accepted; ready to archive once the
+final head's CI is green.**
