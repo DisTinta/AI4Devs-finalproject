@@ -67,29 +67,39 @@ describeWithDatabase('query cost (DIS-18)', () => {
     });
 
     // Not a spec scenario: the read also works on the store's own connections ("own connections and
-    // caller-owned transaction"). The only test here that commits: its rows are dated in 2100, so no
-    // other row counts, and its project is deleted in `finally` (the schema cascades `query_log`).
+    // caller-owned transaction"). Nothing is committed: the pool has one connection, held inside a
+    // transaction that is rolled back, so the store's `pool.query` sees the uncommitted rows.
     it("reads the cost sum on the store's own connections", async () => {
       // Arrange
-      const pool = new Pool({ connectionString: databaseUrl });
-      const store = createPostgresStore({ pool });
-      let projectId: string | undefined;
+      const pool = new Pool({ connectionString: databaseUrl, max: 1 });
+      const setup = await pool.connect();
+      let released = false;
       try {
-        projectId = await store.createProject({ name: unique('query-cost-pool'), rootPath: '/repos/sample', language: 'php' });
-        for (const [cost, at] of [['0.4', '2100-01-01T00:00:00Z'], ['0.3', '2100-01-01T12:00:00Z'], ['9', '2099-12-31T23:59:59Z']]) {
-          await pool.query(
+        await setup.query('BEGIN');
+        await setup.query('DELETE FROM query_log');
+        const { rows } = await setup.query<{ id: string }>(
+          `INSERT INTO project (name, root_path, language) VALUES ($1, '/repos/sample', 'php') RETURNING id`,
+          [unique('query-cost-pool')],
+        );
+        for (const [cost, at] of [['0.4', '2026-10-09T00:00:00Z'], ['0.3', '2026-10-09T12:00:00Z'], ['9', '2026-10-08T23:59:59Z']]) {
+          await setup.query(
             `INSERT INTO query_log (project_id, question, capability, cost_usd, created_at) VALUES ($1, 'q', 'explain', $2, $3)`,
-            [projectId, cost, at],
+            [rows[0].id, cost, at],
           );
         }
+        setup.release();
+        released = true;
 
-        // Act
-        const total = await store.sumCostSince(new Date('2100-01-01T00:00:00Z'));
+        // Act: the pool's only connection is the one inside the open transaction.
+        const total = await createPostgresStore({ pool }).sumCostSince(SINCE);
 
         // Assert
         expect(total).toBe(0.7);
       } finally {
-        if (projectId !== undefined) await pool.query('DELETE FROM project WHERE id = $1', [projectId]);
+        // The same single connection either way; if set-up failed it was never released.
+        const cleanup = released ? await pool.connect() : setup;
+        await cleanup.query('ROLLBACK');
+        cleanup.release();
         await pool.end();
       }
     });

@@ -141,4 +141,31 @@ describe('Daily spend ceiling', () => {
     await expect(llm.complete(REQUEST)).rejects.toBe(failure);
     await expect(llm.embed(['a'])).rejects.toBe(failure);
   });
+
+  // Not a spec scenario (adversarial review): the decorator refuses a ceiling that could never trip
+  // (NaN, Infinity) or that always trips (0, negative), whoever composes it.
+  it('rejects a ceiling that is not a positive finite number', () => {
+    // Act / Assert
+    for (const dailyBudgetUsd of [Number.NaN, Number.POSITIVE_INFINITY, 0, -1]) {
+      expect(() => withDailyBudget(recordingLlm(), { store: spendSource(0), dailyBudgetUsd })).toThrow(
+        new RangeError(`dailyBudgetUsd must be a positive finite number (got ${dailyBudgetUsd})`),
+      );
+    }
+    expect(() => withDailyBudget(recordingLlm(), { store: spendSource(0), dailyBudgetUsd: 0.000001 })).not.toThrow();
+  });
+
+  // Not a spec scenario (adversarial review): a failure of the spend source rejects the request
+  // unchanged and the model is not called; mapping it is the composition root's job (DIS-76).
+  it('fails closed when the spend cannot be read', async () => {
+    // Arrange
+    const inner = recordingLlm();
+    const down = new Error('connection refused');
+    const llm = withDailyBudget(inner, { store: { sumCostSince: () => Promise.reject(down) }, dailyBudgetUsd: 1 });
+
+    // Act / Assert
+    await expect(llm.complete(REQUEST)).rejects.toBe(down);
+    await expect(llm.embed(['a'])).rejects.toBe(down);
+    expect(inner.calls).toEqual([]);
+  });
 });
+

@@ -30,6 +30,9 @@ export function startOfNextUtcDay(instant: Date): Date {
  * failure pass through unchanged. The wrapped model keeps the mode of `llm`.
  *
  * Check-then-call is not atomic: calls in flight can overshoot the ceiling; the next call is blocked.
+ * A failure of the store is not caught: it rejects the request, and the model is not called.
+ *
+ * @throws RangeError when `dailyBudgetUsd` is not a positive finite number.
  *
  * `createLlm` does not apply it. The composition root does:
  * `cfg.mode === 'live' && cfg.dailyBudgetUsd !== undefined ? withDailyBudget(createLlm(cfg), { store,
@@ -37,6 +40,10 @@ export function startOfNextUtcDay(instant: Date): Date {
  */
 export function withDailyBudget(llm: LlmPort, options: DailyBudgetOptions): LlmPort {
   const { store, dailyBudgetUsd, now = () => new Date() } = options;
+  // A NaN or infinite ceiling would never trip and a non-positive one would always trip.
+  if (!(dailyBudgetUsd > 0 && Number.isFinite(dailyBudgetUsd))) {
+    throw new RangeError(`dailyBudgetUsd must be a positive finite number (got ${dailyBudgetUsd})`);
+  }
 
   async function ensureBudgetLeft(): Promise<void> {
     const instant = now();
