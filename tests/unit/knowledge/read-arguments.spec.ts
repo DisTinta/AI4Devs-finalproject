@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { assertValidCostSince, assertValidSymbolSearch, assertValidTraversal, InvalidStoreQuery, MAX_HOPS } from '@codemind/core';
-import type { StoreQueryArgument } from '@codemind/core';
+import {
+  assertValidCostSince,
+  assertValidSymbolSearch,
+  assertValidTraversal,
+  InvalidStoreQuery,
+  MAX_HOPS,
+  TRAVERSAL_DIRECTIONS,
+} from '@codemind/core';
+import type { StoreQueryArgument, TraversalDirection } from '@codemind/core';
 
 // Spec: openspec/changes/store-graph-read/specs/graph-store/spec.md → "Validation of read
 // arguments". The store-level scenario (nothing sent to the database) is in
@@ -63,6 +70,36 @@ describe('read-argument validation', () => {
       'Invalid store query: kinds must not be empty when given',
     );
     expect(() => assertValidTraversal(2, [])).toThrow('Invalid store query: kinds must not be empty when given');
+  });
+});
+
+// Spec `graph-store` (DIS-27) → "Validation of read arguments": the traversal direction. The
+// store-level scenario is in tests/integration/store/graph-read.spec.ts.
+describe('traversal direction argument', () => {
+  it.each(['sideways', '', 'OUT', 'In'])('rejects the direction %j naming direction', (direction) => {
+    const untyped = direction as unknown as TraversalDirection;
+    expect(rejectedArgument(() => assertValidTraversal(2, undefined, untyped))).toBe('direction');
+  });
+
+  it('accepts every traversal direction, and none', () => {
+    expect(TRAVERSAL_DIRECTIONS).toEqual(['out', 'in', 'both']);
+    for (const direction of TRAVERSAL_DIRECTIONS) {
+      expect(() => assertValidTraversal(2, ['calls'], direction)).not.toThrow();
+    }
+    expect(() => assertValidTraversal(2, ['calls'], undefined)).not.toThrow();
+  });
+
+  it('checks hops and kinds before the direction', () => {
+    const untyped = 'sideways' as unknown as TraversalDirection;
+    expect(rejectedArgument(() => assertValidTraversal(0, undefined, untyped))).toBe('hops');
+    expect(rejectedArgument(() => assertValidTraversal(2, [], untyped))).toBe('kinds');
+  });
+
+  it('names the direction and the accepted values in the message', () => {
+    const untyped = 'sideways' as unknown as TraversalDirection;
+    expect(() => assertValidTraversal(2, undefined, untyped)).toThrow(
+      'Invalid store query: direction must be one of out, in, both (got sideways)',
+    );
   });
 });
 

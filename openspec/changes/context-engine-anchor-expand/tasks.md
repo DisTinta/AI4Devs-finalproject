@@ -54,16 +54,16 @@
 
 ## 6. Privacy and ethics check
 
-- [ ] 6.1 Run `/privacy-ethics-check` over the diff (the question is user text: never logged, only sent as search terms to the local store; no personal data in the acme-shop subset). Record the outcome in the step 11 report; fix any finding in this change or classify it (A/B/C/D, `docs/project-context.md` → Tracking deferred findings)
+- [x] 6.1 Run `/privacy-ethics-check` over the diff (the question is user text: never logged, only sent as search terms to the local store; no personal data in the acme-shop subset). Record the outcome in the step 11 report; fix any finding in this change or classify it (A/B/C/D, `docs/project-context.md` → Tracking deferred findings)
 
 ## 7. Backend: Review and Update Existing Tests (MANDATORY)
 
-- [ ] 7.1 Identify tests affected by the change: `grep -rn "neighbors(\|StoredSymbol\|StoreQueryArgument\|assertValidTraversal" tests packages`; the `StorePort` doubles cast with `as unknown as StorePort` need no change — confirm `npm run typecheck` agrees
-- [ ] 7.2 Update affected tests without weakening their assertions. Confirm that each `#### Scenario:` of `specs/context-engine/spec.md` (12) and `specs/graph-store/spec.md` (new and changed: 6) maps 1:1 to a test whose name is exactly the title (grep `it('<title>'` in `tests/`; no scenario without a test, no scenario with two; the `(in-memory double)` tests are listed apart)
+- [x] 7.1 Identify tests affected by the change: `grep -rn "neighbors(\|StoredSymbol\|StoreQueryArgument\|assertValidTraversal" tests packages`; the `StorePort` doubles cast with `as unknown as StorePort` need no change — confirm `npm run typecheck` agrees
+- [x] 7.2 Update affected tests without weakening their assertions. Confirm that each `#### Scenario:` of `specs/context-engine/spec.md` (12) and `specs/graph-store/spec.md` (new and changed: 6) maps 1:1 to a test whose name is exactly the title (grep `it('<title>'` in `tests/`; no scenario without a test, no scenario with two; the `(in-memory double)` tests are listed apart)
 
 ## 8. Docs and gates before verification
 
-- [ ] 8.1 `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage` green; JSDoc on every new export; `grep -rn "adapters\|store-postgres" packages/core/src/context` prints nothing
+- [x] 8.1 `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage` green; JSDoc on every new export; `grep -rn "adapters\|store-postgres" packages/core/src/context` prints nothing
 
 ## 9. Update Technical Documentation (MANDATORY)
 
