@@ -74,6 +74,62 @@ async function rejectionOf(call: () => Promise<unknown>): Promise<unknown> {
 }
 
 describe('in-memory StorePort double', () => {
+  describe('Requirement: Project lookup and listing', () => {
+    it('A project is read with its indexing metadata (in-memory double)', async () => {
+      // Arrange
+      const graph = { ...symbolGraph(['A', 'B'], [['A', 'B']]), indexedCommit: 'a'.repeat(40) };
+      const { store, projectIds } = createInMemoryStore({
+        projects: [{ project: { ...newProject('meta'), framework: 'laravel', isSample: true }, graph }],
+      });
+      const [id] = projectIds;
+
+      // Act
+      const project = await store.getProject(id);
+
+      // Assert
+      expect(project).toEqual({
+        id,
+        name: 'meta',
+        rootPath: '/repos/sample',
+        language: 'php',
+        framework: 'laravel',
+        isSample: true,
+        indexedCommit: 'a'.repeat(40),
+        nodeCount: 3,
+        edgeCount: 1,
+        createdAt: expect.any(Date),
+      });
+    });
+
+    it('Reading an unknown project fails (in-memory double)', async () => {
+      // Arrange
+      const { store } = single(graphOf([], []));
+
+      // Act / Assert
+      await expect(store.getProject(randomUUID())).rejects.toThrow(ProjectNotFound);
+      await expect(store.getProject('not-a-uuid')).rejects.toThrow(ProjectNotFound);
+    });
+
+    it('Projects are listed by name (in-memory double)', async () => {
+      // Arrange: byte order puts `Zeta` before `alpha`.
+      const { store, projectIds } = createInMemoryStore({
+        projects: [
+          { project: newProject('alpha'), graph: graphOf([], []) },
+          { project: newProject('Zeta'), graph: graphOf([], []) },
+          { project: newProject('beta'), graph: graphOf([], []) },
+        ],
+      });
+
+      // Act
+      const projects = await store.listProjects();
+
+      // Assert
+      expect(projects.map((p) => p.name)).toEqual(['Zeta', 'alpha', 'beta']);
+      expect(projects.map((p) => p.id)).toEqual([projectIds[1], projectIds[0], projectIds[2]]);
+      expect(projects[0]).toMatchObject({ isSample: false, nodeCount: 0, edgeCount: 0 });
+    });
+  });
+
   describe('Requirement: Symbol search by name', () => {
     it('Symbols are found by a case-insensitive fragment of the name (in-memory double)', async () => {
       // Arrange

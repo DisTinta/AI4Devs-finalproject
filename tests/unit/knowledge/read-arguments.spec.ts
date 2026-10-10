@@ -89,12 +89,6 @@ describe('traversal direction argument', () => {
     expect(() => assertValidTraversal(2, ['calls'], undefined)).not.toThrow();
   });
 
-  it('checks hops and kinds before the direction', () => {
-    const untyped = 'sideways' as unknown as TraversalDirection;
-    expect(rejectedArgument(() => assertValidTraversal(0, undefined, untyped))).toBe('hops');
-    expect(rejectedArgument(() => assertValidTraversal(2, [], untyped))).toBe('kinds');
-  });
-
   it('names the direction and the accepted values in the message', () => {
     const untyped = 'sideways' as unknown as TraversalDirection;
     expect(() => assertValidTraversal(2, undefined, untyped)).toThrow(

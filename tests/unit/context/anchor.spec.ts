@@ -144,6 +144,19 @@ describe('Requirement: Lexical anchoring', () => {
     expect(names.slice(0, 2)).toEqual(['PriceCalculator', 'PriceCalculator::compute']);
   });
 
+  it('anchor symbols carry what a symbol search returns, the file id included', async () => {
+    const { store, projectId, fileIds } = acmeShop();
+
+    const anchors = await anchor(store, projectId, '¿Cómo se calcula el precio final de un pedido?');
+
+    const compute = anchors.find((s) => s.name === 'PriceCalculator::compute');
+    const [searched] = (await store.findSymbols(projectId, 'PriceCalculator::compute')).filter(
+      (s) => s.name === 'PriceCalculator::compute',
+    );
+    expect(compute).toEqual(searched);
+    expect(compute?.fileId).toBe(fileIds[0].get('app/Services/PriceCalculator.php'));
+  });
+
   it('sends at most two searches per distinct token', async () => {
     const { store, projectId, calls } = acmeShop();
 

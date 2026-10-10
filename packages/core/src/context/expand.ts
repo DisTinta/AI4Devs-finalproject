@@ -14,7 +14,7 @@ export const EXPANSION_EDGE_KINDS: readonly EdgeKind[] = Object.freeze(['calls',
 /**
  * Expands an anchor into the nodes of the same project reachable from it in 1..`hops` steps, over
  * {@link EXPANSION_EDGE_KINDS} in both directions. The seeds are every anchor symbol and the file of
- * each (each file once). The result is the store's: symbols and files, each once with its minimum
+ * each, each symbol and each file once. The result is the store's: symbols and files, each once with its minimum
  * distance, no seed, in traversal order.
  *
  * `hops` is checked first, so an invalid value fails even for an empty anchor. An empty anchor then
@@ -36,7 +36,7 @@ export async function expand(
 ): Promise<Neighbor[]> {
   assertValidTraversal(hops);
   if (anchors.length === 0) return [];
-  const symbolSeeds: NodeRef[] = anchors.map((s) => ({ type: 'symbol', id: s.id }));
+  const symbolSeeds: NodeRef[] = [...new Set(anchors.map((s) => s.id))].map((id) => ({ type: 'symbol', id }));
   const fileSeeds: NodeRef[] = [...new Set(anchors.map((s) => s.fileId))].map((id) => ({ type: 'file', id }));
   return store.neighbors(projectId, [...symbolSeeds, ...fileSeeds], hops, [...EXPANSION_EDGE_KINDS], 'both');
 }

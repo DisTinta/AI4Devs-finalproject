@@ -74,7 +74,7 @@ describe('Requirement: Graph expansion of the anchor', () => {
     expect(labels(neighbors).filter((label) => label.startsWith('file:app/Services/DiscountService.php@'))).toEqual([]);
   });
 
-  it('The expansion never leaves the project', async () => {
+  it('The expansion never leaves the project (in-memory double)', async () => {
     // Arrange
     const loaded = createInMemoryStore({
       projects: [
@@ -146,9 +146,10 @@ describe('Requirement: Graph expansion of the anchor', () => {
     const anchors = await symbolsNamed(loaded, loaded.projectId, ['PriceCalculator']);
 
     await expect(expand(loaded.store, randomUUID(), anchors, 2)).rejects.toThrow(ProjectNotFound);
+    await expect(expand(loaded.store, 'not-a-uuid', anchors, 2)).rejects.toThrow(ProjectNotFound);
   });
 
-  it('sends one traversal, both ways, seeded with the anchors and each of their files once', async () => {
+  it('sends one traversal, both ways, seeded with each anchor symbol and each of their files once', async () => {
     const loaded = acmeShop();
     const anchors = await symbolsNamed(loaded, loaded.projectId, ['PriceCalculator', 'PriceCalculator::compute']);
     const sent: unknown[][] = [];
@@ -161,7 +162,7 @@ describe('Requirement: Graph expansion of the anchor', () => {
       },
     };
 
-    await expand(recording, loaded.projectId, anchors, 2);
+    await expand(recording, loaded.projectId, [...anchors, anchors[0]], 2);
 
     expect(sent).toEqual([
       [
