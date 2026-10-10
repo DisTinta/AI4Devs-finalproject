@@ -340,7 +340,7 @@ Ejecuta una consulta contra cada repositorio de muestra y compara la salida con 
 | `DATABASE_URL` | **sí** (scripts `db:*` e `index`) | Cadena de conexión de PostgreSQL. `.env.example` trae la del contenedor local; `make up` la toma de `.env` (el Makefile carga y exporta `.env`). Si ejecutas `npm run db:migrate` / `db:rollback` a mano, expórtala antes: sin ella salen con error |
 | `ALLOWED_REPOS_DIR` | no (sí para indexar) | Directorio raíz permitido para indexar (ver [2.5](#25-seguridad)); vacío = indexado deshabilitado. Solo debe poder escribir en él el usuario que ejecuta Codemind, y solo debe contener repositorios de confianza (ver `docs/DEPLOYMENT.md`) |
 | `AUTHOR_HASH_SALT` | **sí** (para indexar) | Clave del seudónimo de los autores de commits (`author_hash`). No se versiona; cambiarla cambia todos los `author_hash` |
-| `DAILY_BUDGET_USD` | no | Techo de gasto diario si se usa un proveedor cloud de pago (irrelevante con Ollama local) |
+| `DAILY_BUDGET_USD` | no | Techo de gasto diario en USD si se usa un proveedor cloud de pago: decimal positivo (`2.5`), solo en modo vivo; vacía = sin techo (lo normal con Ollama local). El gasto del día es la suma de `query_log.cost_usd` desde las 00:00 UTC; al alcanzarlo, el LLM deja de llamarse hasta el día UTC siguiente. Con techo, `LLM_MODEL`, `LLM_MODEL_VERIFY` y `LLM_EMBED_MODEL` deben tener precio en `COST_TABLE` (`packages/core/src/llm/cost-table.ts`); si no, el arranque falla |
 
 > **Decisión (5 sep 2026).** Antes: `LLM_API_KEY` obligatoria. Ahora: **opcional**; evaluación sin key; desarrollo libre con Ollama. Motivo: 0 € y 0 fricción para quien evalúa.
 
