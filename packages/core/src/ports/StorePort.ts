@@ -72,4 +72,13 @@ export interface StorePort {
    * @throws ProjectNotFound when `projectId` is no project's id or is not a hyphenated UUID.
    */
   neighbors(projectId: string, seeds: NodeRef[], hops: number, kinds?: EdgeKind[]): Promise<Neighbor[]>;
+
+  /**
+   * Sums `query_log.cost_usd` over every row created at or after `since`, across every project (the
+   * daily budget is global). Rows whose cost is unset are ignored; with no matching row the result is
+   * `0`. Reads only, as one statement.
+   *
+   * @throws InvalidStoreQuery naming `since` when it is not a valid date, before querying.
+   */
+  sumCostSince(since: Date): Promise<number>;
 }

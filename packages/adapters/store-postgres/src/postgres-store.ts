@@ -1,5 +1,6 @@
 import type { ClientBase, Pool, QueryResultRow } from 'pg';
 import {
+  assertValidCostSince,
   assertValidGraph,
   assertValidSymbolSearch,
   assertValidTraversal,
@@ -19,7 +20,7 @@ import type {
   SymbolSearchOptions,
 } from '@codemind/core';
 import { isWellFormedId } from './ids.js';
-import { FIND_SYMBOLS, INSERT_PROJECT, LIST_PROJECTS, NEIGHBORS, SELECT_PROJECT } from './queries.js';
+import { FIND_SYMBOLS, INSERT_PROJECT, LIST_PROJECTS, NEIGHBORS, SELECT_PROJECT, SUM_COST_SINCE } from './queries.js';
 import {
   escapeLikeTerm,
   toNeighbor,
@@ -175,6 +176,12 @@ export function createPostgresStore(connection: StoreConnection): StorePort {
         kinds ?? null,
       ]);
       return rows.filter((row) => row.node_type !== null).map(toNeighbor);
+    },
+
+    async sumCostSince(since: Date): Promise<number> {
+      assertValidCostSince(since);
+      const [{ total }] = await runQuery<{ total: string }>(connection, SUM_COST_SINCE, [since]);
+      return Number(total);
     },
   };
 }

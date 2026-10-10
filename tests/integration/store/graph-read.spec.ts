@@ -653,5 +653,21 @@ describeWithDatabase('graph store reads (DIS-24)', () => {
       }
       expect(statements()).toBe(0);
     });
+
+    it('An invalid instant for the cost sum is rejected before querying', async () => {
+      // Arrange
+      const { reader, statements } = stores();
+
+      // Act
+      const error = await reader.sumCostSince(new Date('x')).then(
+        () => undefined,
+        (rejection: unknown) => rejection,
+      );
+
+      // Assert
+      expect(error).toBeInstanceOf(InvalidStoreQuery);
+      expect((error as InvalidStoreQuery).argument).toBe('since');
+      expect(statements()).toBe(0);
+    });
   });
 });
