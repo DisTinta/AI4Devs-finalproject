@@ -118,3 +118,8 @@ typecheck, lint:architecture, docs:coverage exit 0. `query_log` and `project`: 0
 `packages/web/`, `fixtures/` unchanged: the fixes touch `packages/core/src/llm`, tests and docs, none a
 seed fingerprint input, so the seed commit `16c9dfb` stays valid.
 
+CI on the pushed fixes (head `e2d8315`): https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/38039488712
+— `quality` pass (16 m 2 s), `scope`, `secrets`, `frontend` (run 38039488711) pass. `Tests`: 882
+passed, 1 skipped (`path-policy.spec.ts`, untouched); `query-cost.spec.ts` (5) and `budget.spec.ts`
+(7) ran and passed. Mutation: `core/src/llm` 100 % (70 killed + 1 timeout), `budget.ts` 24/24.
+

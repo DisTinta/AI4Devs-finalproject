@@ -101,12 +101,12 @@
 
 ## 14. Pull request preparation
 
-- [ ] 14.1 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the author's Why transcribed (Linear DIS-18 "Decisiones de la autora"), the seed regeneration explained (D9) and the Stryker score; after verification, set DIS-18 to In Review in Linear with a comment in Spanish linking the PR and the change
+- [x] 14.1 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the author's Why transcribed (Linear DIS-18 "Decisiones de la autora"), the seed regeneration explained (D9) and the Stryker score; after verification, set DIS-18 to In Review in Linear with a comment in Spanish linking the PR and the change
 
 ## 15. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
 - [x] 15.1 Open the pull request against `feature/entrega-2-CRN` (after confirming with the author; `gh` on the DisTinta account, back to Cristina-JumpMath afterwards)
 - [x] 15.2 Run `/show-spec-working`, `/verify-against-spec` and `/adversarial-review`, in this order; one report each under `openspec/changes/llm-evaluation-budget/reports/` (`YYYY-MM-DD-show-spec-working.md`, `YYYY-MM-DD-verify-against-spec.md`, `YYYY-MM-DD-adversarial-review.md`)
 - [x] 15.3 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report; if a fix touches a fingerprint input, redo step 10 so the seed commit stays last
-- [ ] 15.4 Commit the fixes to the same pull request (push confirmed with the author); re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
-- [ ] 15.5 `/opsx:archive`, and commit the archive to the same pull request; the author merges afterwards
+- [x] 15.4 Commit the fixes to the same pull request (push confirmed with the author); re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
+- [x] 15.5 `/opsx:archive`, and commit the archive to the same pull request; the author merges afterwards
