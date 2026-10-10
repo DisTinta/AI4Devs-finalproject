@@ -46,6 +46,12 @@ describe('Requirement: Question terms', () => {
     expect(questionTerms('¿Y el tax?')).toEqual(['tax']);
   });
 
+  it('counts and cuts tokens by character, not by UTF-16 code unit', () => {
+    // Each of these letters is one character but two UTF-16 code units.
+    expect(questionTerms('\u{1D49C}\u{1D49C}')).toEqual([]);
+    expect(questionTerms('\u{1D49C}\u{1D49C}\u{1D49C}\u{1D49C}\u{1D49C}\u{1D49C}')).toEqual(['\u{1D49C}\u{1D49C}\u{1D49C}\u{1D49C}\u{1D49C}\u{1D49C}', '\u{1D49C}\u{1D49C}\u{1D49C}\u{1D49C}\u{1D49C}']);
+  });
+
   it('drops the English function words of a question', () => {
     expect(questionTerms('How does the order have our discount?')).toEqual(['order', 'discount', 'disco']);
   });

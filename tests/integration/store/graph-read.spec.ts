@@ -433,6 +433,69 @@ describeWithDatabase('graph store reads (DIS-24)', () => {
       expect(outgoing).toEqual([]);
     });
 
+    // Not scenarios: every lateral branch of the CTE under 'in' and 'both' (adversarial review, DIS-27).
+    it('follows every branch from a symbol seed: in, out and both', async () => {
+      const { writer, reader } = stores();
+      const s = symbol('src/s.ts', 'S', 1);
+      const caller = symbol('src/c.ts', 'C', 1);
+      const callee = symbol('src/d.ts', 'D', 1);
+      const projectId = await projectWith(writer, {
+        files: [file('README.md', { kind: 'doc' }), file('src/c.ts'), file('src/d.ts'), file('src/s.ts')],
+        symbols: [s, caller, callee],
+        edges: [
+          edge({ symbol: ref(caller) }, { symbol: ref(s) }),
+          edge({ symbol: ref(s) }, { symbol: ref(callee) }),
+          edge({ file: 'README.md' }, { symbol: ref(s) }, { kind: 'describes', resolution: 'heuristic' }),
+        ],
+        commits: [],
+        fileCommits: [],
+      });
+      const seeds = [{ type: 'symbol' as const, id: await symbolId(reader, projectId, 'S') }];
+
+      const both = await reader.neighbors(projectId, seeds, 1, undefined, 'both');
+      const incoming = await reader.neighbors(projectId, seeds, 1, undefined, 'in');
+      const outgoing = await reader.neighbors(projectId, seeds, 1, undefined, 'out');
+
+      expect(labels(both)).toEqual(['file:README.md@1', 'C@1', 'D@1']);
+      expect(labels(incoming)).toEqual(['file:README.md@1', 'C@1']);
+      expect(labels(outgoing)).toEqual(['D@1']);
+    });
+
+    it('follows outgoing edges from a file seed under both', async () => {
+      const { writer, reader } = stores();
+      const t = symbol('src/t.ts', 'T', 1);
+      const projectId = await projectWith(writer, {
+        files: [file('app/a.php'), file('app/b.php'), file('src/t.ts')],
+        symbols: [t],
+        edges: [
+          edge({ file: 'app/a.php' }, { file: 'app/b.php' }, { kind: 'co_changed', resolution: 'heuristic', weight: 1 }),
+          edge({ file: 'app/a.php' }, { symbol: ref(t) }, { kind: 'describes', resolution: 'heuristic' }),
+        ],
+        commits: [],
+        fileCommits: [],
+      });
+      const seeds = [{ type: 'file' as const, id: await fileId(projectId, 'app/a.php') }];
+
+      const both = await reader.neighbors(projectId, seeds, 1, undefined, 'both');
+      const incoming = await reader.neighbors(projectId, seeds, 1, undefined, 'in');
+
+      expect(labels(both)).toEqual(['file:app/b.php@1', 'T@1']);
+      expect(incoming).toEqual([]);
+    });
+
+    it('yields each node once at its minimum distance through cycles under in and both', async () => {
+      const { writer, reader } = stores();
+      const projectId = await projectWith(writer, symbolGraph(['A', 'B', 'C'], [['A', 'B'], ['B', 'A'], ['B', 'C']]));
+      const a = { type: 'symbol' as const, id: await symbolId(reader, projectId, 'A') };
+      const c = { type: 'symbol' as const, id: await symbolId(reader, projectId, 'C') };
+
+      const incoming = await reader.neighbors(projectId, [c], 3, undefined, 'in');
+      const both = await reader.neighbors(projectId, [a], 3, undefined, 'both');
+
+      expect(labels(incoming)).toEqual(['B@1', 'A@2']);
+      expect(labels(both)).toEqual(['B@1', 'C@2']);
+    });
+
     it('The traversal crosses files and symbols', async () => {
       // Arrange
       const { writer, reader } = stores();

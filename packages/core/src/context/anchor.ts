@@ -35,7 +35,8 @@ export const ANCHOR_STOPWORDS: ReadonlySet<string> = new Set([
 /**
  * The search terms of a question, deterministically: lower-cased, diacritics removed (canonical
  * decomposition, combining marks dropped), split on every character that is not a letter or a
- * digit; tokens shorter than {@link MIN_TOKEN_LENGTH} and {@link ANCHOR_STOPWORDS} dropped;
+ * digit; tokens shorter than {@link MIN_TOKEN_LENGTH} characters (code points) and
+ * {@link ANCHOR_STOPWORDS} dropped;
  * deduplicated in first-appearance order; each token of at least {@link PREFIX_MIN_LENGTH}
  * characters followed by its {@link PREFIX_LENGTH}-character prefix (itself deduplicated).
  *
@@ -46,9 +47,11 @@ export function questionTerms(question: string): string[] {
   const normalised = question.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
   const terms = new Set<string>();
   for (const token of normalised.split(/[^\p{L}\p{N}]+/u)) {
-    if (token.length < MIN_TOKEN_LENGTH || ANCHOR_STOPWORDS.has(token)) continue;
+    // Characters are code points: an astral letter is one character, never half a surrogate pair.
+    const characters = [...token];
+    if (characters.length < MIN_TOKEN_LENGTH || ANCHOR_STOPWORDS.has(token)) continue;
     terms.add(token);
-    if (token.length >= PREFIX_MIN_LENGTH) terms.add(token.slice(0, PREFIX_LENGTH));
+    if (characters.length >= PREFIX_MIN_LENGTH) terms.add(characters.slice(0, PREFIX_LENGTH).join(''));
   }
   return [...terms];
 }
