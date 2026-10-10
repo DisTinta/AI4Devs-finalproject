@@ -46,6 +46,7 @@ export function toProject(row: ProjectRow): Project {
 /** The symbol columns of a read row; all `NULL` when the row only proves the project exists. */
 export interface SymbolColumns {
   id: string | null;
+  file_id: string | null;
   path: string | null;
   name: string | null;
   kind: SymbolKind | null;
@@ -63,6 +64,7 @@ export interface SymbolSearchRow extends SymbolColumns {
 export function toStoredSymbol(row: SymbolColumns): StoredSymbol {
   return {
     id: row.id as string,
+    fileId: row.file_id as string,
     file: row.path as string,
     name: row.name as string,
     startLine: row.start_line as number,

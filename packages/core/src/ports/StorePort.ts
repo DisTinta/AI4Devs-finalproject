@@ -1,6 +1,12 @@
 import type { KnowledgeGraph, SaveGraphResult } from '../knowledge/graph.js';
 import type { EdgeKind } from '../knowledge/graph-edge.js';
-import type { Neighbor, NodeRef, StoredSymbol, SymbolSearchOptions } from '../knowledge/graph-read.js';
+import type {
+  Neighbor,
+  NodeRef,
+  StoredSymbol,
+  SymbolSearchOptions,
+  TraversalDirection,
+} from '../knowledge/graph-read.js';
 import type { NewProject, Project } from '../knowledge/project.js';
 
 /**
@@ -61,17 +67,24 @@ export interface StorePort {
   findSymbols(projectId: string, name: string, options?: SymbolSearchOptions): Promise<StoredSymbol[]>;
 
   /**
-   * Returns the project's nodes (symbols and files) reachable from `seeds` by following edges from
-   * source to target in 1..`hops` steps, only edges of `kinds` when given. Each node appears once,
-   * with its minimum distance; seeds never appear. Cycles do not repeat nodes. Ordered by distance,
-   * files before symbols, path, start line, name. Answered by a single database statement.
+   * Returns the project's nodes (symbols and files) reachable from `seeds` in 1..`hops` steps,
+   * following edges in `direction` (`'out'`, source to target, when not given; `'in'`, target to
+   * source; `'both'`, either way at each step), only edges of `kinds` when given. Each node appears
+   * once, with its minimum distance; seeds never appear. Cycles do not repeat nodes. Ordered by
+   * distance, files before symbols, path, start line, name. Answered by a single database statement.
    * Seeds that name no node of the project (unknown, foreign or malformed ids) contribute nothing.
    *
-   * @throws InvalidStoreQuery when `hops` is not an integer in 1..`MAX_HOPS` or `kinds` is empty,
-   *   before querying.
+   * @throws InvalidStoreQuery when `hops` is not an integer in 1..`MAX_HOPS`, `kinds` is empty or
+   *   `direction` is not a traversal direction, before querying.
    * @throws ProjectNotFound when `projectId` is no project's id or is not a hyphenated UUID.
    */
-  neighbors(projectId: string, seeds: NodeRef[], hops: number, kinds?: EdgeKind[]): Promise<Neighbor[]>;
+  neighbors(
+    projectId: string,
+    seeds: NodeRef[],
+    hops: number,
+    kinds?: EdgeKind[],
+    direction?: TraversalDirection,
+  ): Promise<Neighbor[]>;
 
   /**
    * Sums `query_log.cost_usd` over every row created at or after `since`, across every project (the

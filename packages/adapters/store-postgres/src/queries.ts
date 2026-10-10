@@ -123,10 +123,10 @@ export const SUM_COST_SINCE = `SELECT COALESCE(SUM(cost_usd), 0)::text AS total 
  * Filtering starts at `file.project_id`, then reaches symbols by `file_id`.
  */
 export const FIND_SYMBOLS = `
-  SELECT p.id AS project_id, s.id, s.path, s.name, s.kind, s.start_line, s.end_line, s.signature
+  SELECT p.id AS project_id, s.id, s.file_id, s.path, s.name, s.kind, s.start_line, s.end_line, s.signature
     FROM project p
     LEFT JOIN LATERAL (
-      SELECT sy.id, f.path, sy.name, sy.kind, sy.start_line, sy.end_line, sy.signature
+      SELECT sy.id, f.id AS file_id, f.path, sy.name, sy.kind, sy.start_line, sy.end_line, sy.signature
         FROM file f JOIN symbol sy ON sy.file_id = f.id
        WHERE f.project_id = p.id
          AND sy.name ILIKE '%' || $2 || '%' ESCAPE '\\'
@@ -139,13 +139,21 @@ export const FIND_SYMBOLS = `
 const EDGE_TARGET = `
   CASE WHEN e.target_symbol_id IS NOT NULL THEN 'symbol' ELSE 'file' END, COALESCE(e.target_symbol_id, e.target_file_id)`;
 
+/** Source of the edge `e` as a node: its type and its id. */
+const EDGE_SOURCE = `
+  CASE WHEN e.source_symbol_id IS NOT NULL THEN 'symbol' ELSE 'file' END, COALESCE(e.source_symbol_id, e.source_file_id)`;
+
 /**
  * The project's nodes reachable from the seeds (`$2` symbol ids, `$3` file ids) in 1..`$4` steps,
- * following edges source → target, only of kinds `$5` (`NULL` for all). One statement (design D6):
+ * following edges in direction `$6` (`out`: source → target; `in`: target → source; `both`: either
+ * way at each step), only of kinds `$5` (`NULL` for all). One statement (DIS-24 design D6, DIS-27
+ * design D4):
  * - `seed` keeps only seeds that are nodes of the project, so a foreign or unknown id reaches nothing;
  * - `walk` carries the nodes each path visited and never steps onto one again (cycles), stops at
- *   `$4`, and follows only edges of the project. Each lateral branch matches one partial endpoint
- *   index (`edge_source_symbol_kind_idx`, `edge_source_file_kind_idx`);
+ *   `$4`, and follows only edges of the project. Four lateral branches: the two `out` branches match
+ *   the current node as the edge's source and emit its target, the two `in` branches match it as the
+ *   target and emit the source; `$6` switches each pair on or off. Each branch matches one partial
+ *   endpoint index (`edge_{source,target}_{symbol,file}_kind_idx`);
  * - `reached` keeps each node once with its minimum distance, seeds excluded;
  * - the reached nodes are filtered by project inside the LEFT JOINed subquery, so an edge of the
  *   project pointing at another project's node (which the writer never produces) never returns
@@ -167,11 +175,23 @@ export const NEIGHBORS = `
       FROM walk w
       CROSS JOIN LATERAL (
         SELECT ${EDGE_TARGET} FROM edge e
-         WHERE w.node_type = 'symbol' AND e.source_symbol_id = w.node_id AND e.project_id = $1
+         WHERE $6::text IN ('out', 'both')
+           AND w.node_type = 'symbol' AND e.source_symbol_id = w.node_id AND e.project_id = $1
            AND ($5::edge_kind[] IS NULL OR e.kind = ANY($5::edge_kind[]))
         UNION ALL
         SELECT ${EDGE_TARGET} FROM edge e
-         WHERE w.node_type = 'file' AND e.source_file_id = w.node_id AND e.project_id = $1
+         WHERE $6::text IN ('out', 'both')
+           AND w.node_type = 'file' AND e.source_file_id = w.node_id AND e.project_id = $1
+           AND ($5::edge_kind[] IS NULL OR e.kind = ANY($5::edge_kind[]))
+        UNION ALL
+        SELECT ${EDGE_SOURCE} FROM edge e
+         WHERE $6::text IN ('in', 'both')
+           AND w.node_type = 'symbol' AND e.target_symbol_id = w.node_id AND e.project_id = $1
+           AND ($5::edge_kind[] IS NULL OR e.kind = ANY($5::edge_kind[]))
+        UNION ALL
+        SELECT ${EDGE_SOURCE} FROM edge e
+         WHERE $6::text IN ('in', 'both')
+           AND w.node_type = 'file' AND e.target_file_id = w.node_id AND e.project_id = $1
            AND ($5::edge_kind[] IS NULL OR e.kind = ANY($5::edge_kind[]))
       ) AS nx (node_type, node_id)
      WHERE w.depth < $4
@@ -186,7 +206,7 @@ export const NEIGHBORS = `
     FROM project p
     LEFT JOIN (
       SELECT r.node_type, r.node_id AS id, r.distance,
-             COALESCE(f.path, sf.path) AS path, f.kind AS file_kind,
+             s.file_id, COALESCE(f.path, sf.path) AS path, f.kind AS file_kind,
              s.name, s.kind, s.start_line, s.end_line, s.signature
         FROM reached r
         LEFT JOIN file f ON r.node_type = 'file' AND f.id = r.node_id

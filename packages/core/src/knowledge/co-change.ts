@@ -24,8 +24,8 @@ export const MAX_FILES_PER_COMMIT = 100;
  * the files they changed with. Line counts are ignored.
  *
  * The relation is symmetric and stored once: `source` is the path smaller in UTF-8 byte order.
- * `StorePort.neighbors` follows source → target only, so a consumer needing both directions queries
- * both endpoints. Edges are ordered by source path, then target path, in byte order.
+ * A consumer needing both directions traverses with `StorePort.neighbors(…, 'both')` (or `'in'`).
+ * Edges are ordered by source path, then target path, in byte order.
  *
  * `knownPaths` must be the paths of the snapshot's `files`, and the edges must be saved in the same
  * `saveGraph` snapshot as the project's other edges, which that call replaces wholesale.

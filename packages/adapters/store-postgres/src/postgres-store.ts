@@ -18,6 +18,7 @@ import type {
   StoredSymbol,
   StorePort,
   SymbolSearchOptions,
+  TraversalDirection,
 } from '@codemind/core';
 import { isWellFormedId } from './ids.js';
 import { FIND_SYMBOLS, INSERT_PROJECT, LIST_PROJECTS, NEIGHBORS, SELECT_PROJECT, SUM_COST_SINCE } from './queries.js';
@@ -164,8 +165,14 @@ export function createPostgresStore(connection: StoreConnection): StorePort {
       return rows.filter((row) => row.id !== null).map(toStoredSymbol);
     },
 
-    async neighbors(projectId: string, seeds: NodeRef[], hops: number, kinds?: EdgeKind[]): Promise<Neighbor[]> {
-      assertValidTraversal(hops, kinds);
+    async neighbors(
+      projectId: string,
+      seeds: NodeRef[],
+      hops: number,
+      kinds?: EdgeKind[],
+      direction?: TraversalDirection,
+    ): Promise<Neighbor[]> {
+      assertValidTraversal(hops, kinds, direction);
       // A malformed seed names no node; dropping it here keeps the uuid[] casts from failing.
       const seedIds = (type: NodeRef['type']): string[] =>
         seeds.filter((seed) => seed.type === type && isWellFormedId(seed.id)).map((seed) => seed.id);
@@ -174,6 +181,7 @@ export function createPostgresStore(connection: StoreConnection): StorePort {
         seedIds('file'),
         hops,
         kinds ?? null,
+        direction ?? 'out',
       ]);
       return rows.filter((row) => row.node_type !== null).map(toNeighbor);
     },
