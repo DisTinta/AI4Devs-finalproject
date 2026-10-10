@@ -7,7 +7,8 @@ export type LlmUnavailableReason =
   | 'network'
   | 'timeout'
   | 'not-configured'
-  | 'dimension-mismatch';
+  | 'dimension-mismatch'
+  | 'evaluation-mode';
 
 /** The numbers an {@link LlmUnavailable} may carry, depending on its reason. */
 export interface LlmUnavailableDetails {
@@ -62,4 +63,29 @@ function describe(reason: LlmUnavailableReason, details: LlmUnavailableDetails):
     return `${reason} (expected ${details.expected}, received ${details.received})`;
   }
   return reason;
+}
+
+/**
+ * The daily spend ceiling is reached: the request was not sent to the model. It carries only numbers
+ * and the reset time, never text from the database or the model, and never has a `cause`.
+ */
+export class BudgetExhausted extends DomainError {
+  /** Stable code. */
+  readonly code = 'BUDGET_EXHAUSTED';
+
+  /**
+   * @param spentUsd The spend of the current UTC day, in USD.
+   * @param dailyBudgetUsd The daily spend ceiling, in USD.
+   * @param resetsAt When the ceiling resets: the start of the next UTC day.
+   */
+  constructor(
+    readonly spentUsd: number,
+    readonly dailyBudgetUsd: number,
+    readonly resetsAt: Date,
+  ) {
+    super(
+      `Daily LLM budget exhausted: spent ${spentUsd} USD of ${dailyBudgetUsd} USD; resets at ${resetsAt.toISOString()}`,
+    );
+    this.name = 'BudgetExhausted';
+  }
 }

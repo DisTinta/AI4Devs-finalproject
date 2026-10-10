@@ -51,7 +51,7 @@ export class InvalidGraph extends DomainError {
 }
 
 /** A read argument the store checks before querying. */
-export type StoreQueryArgument = 'name' | 'kinds' | 'hops';
+export type StoreQueryArgument = 'name' | 'kinds' | 'hops' | 'since';
 
 /** A read was called with an invalid argument; nothing was sent to the database. */
 export class InvalidStoreQuery extends DomainError {

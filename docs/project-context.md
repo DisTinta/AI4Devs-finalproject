@@ -344,12 +344,13 @@ services that must be started first, quirks of the local environment.
   implements `StorePort`: writes (`createProject`, `saveGraph`, DIS-23) and reads (`getProject`,
   `listProjects`, `findSymbols`, `neighbors`, DIS-24); `adapters/git` implements `GitPort`
   (`createSimpleGitHistory`, DIS-35) and `SourceTreePort` (`createGitSourceTree`, DIS-85);
-  `adapters/llm` implements `LlmPort` in live mode (`llmConfigFromEnv`, `createOpenAiCompatibleLlm`,
-  DIS-17; the evaluation-mode adapter is DIS-18).
+  `adapters/llm` implements `LlmPort` (`llmConfigFromEnv`, `createOpenAiCompatibleLlm`, DIS-17;
+  `createEvaluationLlm` and the selector `createLlm`, DIS-18), and `store-postgres` also implements
+  `sumCostSince` (DIS-18).
 - **The LLM adapter never puts endpoint or runtime text into an error** (DIS-17,
   `packages/adapters/llm/src/`). Every failure is `LlmUnavailable` (core, `packages/core/src/llm/`)
   with a closed `reason` (`http-status`, `invalid-response`, `network`, `timeout`, `not-configured`,
-  `dimension-mismatch`) and only numbers, plus `systemCode` for `network` when the error's or its
+  `dimension-mismatch`; `evaluation-mode` since DIS-18) and only numbers, plus `systemCode` for `network` when the error's or its
   cause's `code` matches `^E[A-Z]+$` or `^UND_ERR_[A-Z_]+$` (undici's `UND_ERR_HEADERS_TIMEOUT` /
   `UND_ERR_BODY_TIMEOUT` are `timeout` instead); a detail that does not apply is an absent property.
   `LLM_TIMEOUT_MS` is capped at 300000: undici's default header/body timeouts behind Node's `fetch`
@@ -360,8 +361,22 @@ services that must be started first, quirks of the local environment.
   non-negative integer is `invalid-response`; only `choices[0]` is validated. `embed()` rejects any vector whose length is not `EMBEDDING_DIMENSIONS` (1536, the
   `vector(1536)` columns): Ollama's `nomic-embed-text` (768) always fails with `dimension-mismatch`
   until DIS-46 picks the model and migrates the columns. `llmConfigFromEnv(env)` is the only reader
-  of the `LLM_*` variables; no composition root calls it yet (DIS-29 / CM-HU-12). Tests fake `fetch`
-  (`tests/unit/llm/`); the adapter is outside Stryker's `mutate`.
+  of the `LLM_*` variables and `DAILY_BUDGET_USD`; no composition root calls it yet (DIS-29 /
+  CM-HU-12). Tests fake `fetch` (`tests/unit/llm/`); the adapter is outside Stryker's `mutate`.
+- **Evaluation mode and the daily ceiling** (DIS-18). `createLlm(config)` builds
+  `createEvaluationLlm` (mode `evaluation`, never touches `fetch`, every call fails with
+  `LlmUnavailable` reason `evaluation-mode`; `not-configured` still means live without
+  `LLM_EMBED_MODEL`) or the live client; it never applies the ceiling. The composition root wraps the
+  live model with core's `withDailyBudget(llm, { store, dailyBudgetUsd })` only when
+  `cfg.dailyBudgetUsd` is set: before every `complete`/`embed` it reads `StorePort.sumCostSince(start
+  of the UTC day)` and throws `BudgetExhausted` when `spent >= ceiling` (stateless, so a restart
+  cannot reset it). The ceiling **cannot trigger until DIS-74 writes `query_log.cost_usd`** (with
+  core's `costUsd`); until then the spend reads `0`. `withDailyBudget` throws `RangeError` for a
+  ceiling that is not a positive finite number, and a `sumCostSince` failure rejects unchanged without
+  calling the model (fail closed). With a ceiling, `llmConfigFromEnv` requires an
+  exact-name entry in `COST_TABLE` for `LLM_MODEL`, `LLM_MODEL_VERIFY` (when set) and
+  `LLM_EMBED_MODEL` (when set): `llama3.2:3b` is not `llama3.2`. `COST_TABLE` ships only the
+  `.env.example` Ollama models at 0; a paid entry needs its official pricing URL and the date checked.
 - **`GitPort.readHistory` never lets an identity out of its structured fields** (DIS-35). Authors
   become `authorHash` (HMAC-SHA256 keyed by the trimmed `AUTHOR_HASH_SALT` of the trimmed,
   lower-cased e-mail as `.mailmap` maps it, or of the name when the e-mail is blank; rule in core,
@@ -407,7 +422,9 @@ services that must be started first, quirks of the local environment.
   - Every read filters by `project_id` first. An unknown project, or an id that is not a
     hyphenated UUID, fails with `ProjectNotFound`, and the malformed id fails without SQL. Blank
     search terms, terms containing a NUL character (Postgres rejects NUL as text), empty kind lists and `hops` outside 1..`MAX_HOPS` (3) fail with
-    `InvalidStoreQuery`, also without SQL.
+    `InvalidStoreQuery`, also without SQL; so does an invalid `since` of `sumCostSince` (DIS-18), the
+    one global read (no project id): the sum of `query_log.cost_usd` from `since` across every
+    project, `NULL` ignored, `0` without rows.
   - Symbol ids change on every `saveGraph`, while file ids survive while the path stays. Name a
     symbol across reindexes by its `SymbolRef` (`file`, `name`, `startLine`), which every symbol
     result carries.

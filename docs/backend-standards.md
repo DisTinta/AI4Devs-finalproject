@@ -128,9 +128,17 @@ network access belong in an adapter.
   (Ollama needs none) and is sent only as `Authorization`, never in an error.
 - **Evaluation mode:** with `LLM_BASE_URL` and `LLM_API_KEY` both empty the adapter makes **no model
   calls** and serves only the cache / golden answers. This is the default for evaluation and CI — the
-  system must be fully exercisable with zero external calls and zero cost.
-- **Budget ceiling:** when a paid provider is used, `DAILY_BUDGET_USD` caps spend. On exhaustion the
-  adapter degrades to cache-only with a warning; the transport surfaces this as `429` (see §6).
+  system must be fully exercisable with zero external calls and zero cost. `createLlm(config)` builds
+  the evaluation model (`createEvaluationLlm`: no `fetch`, every call fails with `LlmUnavailable`
+  reason `evaluation-mode`) or the live client from the configuration's mode; use cases branch on
+  `mode` before calling.
+- **Budget ceiling:** when a paid provider is used, `DAILY_BUDGET_USD` caps spend. It is applied by the
+  core decorator `withDailyBudget`, which the composition root wraps over the live model only when a
+  ceiling is set (`createLlm` does not apply it): before every completion **and** every embedding it
+  reads the spend since 00:00 UTC with `StorePort.sumCostSince` (the sum of `query_log.cost_usd`,
+  never an in-memory counter) and, when `spent >= ceiling`, fails with `BudgetExhausted`
+  (`BUDGET_EXHAUSTED`) without calling the model. On exhaustion the use case degrades to cache-only
+  with a warning; the transport surfaces this as `429` (see §6).
 - Model output is untrusted input: parse it with Zod `safeParse`, discard what fails, and never
   interpret it as an instruction (see §3).
 

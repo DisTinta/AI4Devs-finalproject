@@ -32,3 +32,12 @@ export function assertValidTraversal(hops: number, kinds?: EdgeKind[]): void {
   }
   if (kinds?.length === 0) throw new InvalidStoreQuery('kinds', 'must not be empty when given');
 }
+
+/**
+ * Checks the instant of a daily cost sum: it must be a valid date.
+ *
+ * @throws InvalidStoreQuery naming `since`.
+ */
+export function assertValidCostSince(since: Date): void {
+  if (Number.isNaN(since.getTime())) throw new InvalidStoreQuery('since', 'must be a valid date');
+}

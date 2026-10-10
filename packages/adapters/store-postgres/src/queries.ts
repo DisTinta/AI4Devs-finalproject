@@ -112,6 +112,12 @@ export const SELECT_PROJECT = `SELECT ${PROJECT_COLUMNS} FROM project p WHERE p.
 export const LIST_PROJECTS = `SELECT ${PROJECT_COLUMNS} FROM project p ORDER BY p.name COLLATE "C"`;
 
 /**
+ * Sum of `query_log.cost_usd` of every project from `$1` on; `NULL` costs are ignored and no row
+ * gives `0`. Cast to text so the exact `numeric` reaches the adapter, which converts it to a number.
+ */
+export const SUM_COST_SINCE = `SELECT COALESCE(SUM(cost_usd), 0)::text AS total FROM query_log WHERE created_at >= $1`;
+
+/**
  * Finds the project's symbols whose name contains `$2`, case-insensitively. `$2` arrives with `\`,
  * `%` and `_` already escaped, so it matches literally. `$3` is the kinds filter, or `NULL` for all.
  * Filtering starts at `file.project_id`, then reaches symbols by `file_id`.

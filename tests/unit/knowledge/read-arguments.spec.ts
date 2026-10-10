@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assertValidSymbolSearch, assertValidTraversal, InvalidStoreQuery, MAX_HOPS } from '@codemind/core';
+import { assertValidCostSince, assertValidSymbolSearch, assertValidTraversal, InvalidStoreQuery, MAX_HOPS } from '@codemind/core';
 import type { StoreQueryArgument } from '@codemind/core';
 
 // Spec: openspec/changes/store-graph-read/specs/graph-store/spec.md → "Validation of read
@@ -57,5 +57,25 @@ describe('read-argument validation', () => {
 
   it('names the argument and the reason in the message', () => {
     expect(() => assertValidTraversal(4)).toThrow('Invalid store query: hops must be an integer from 1 to 3 (got 4)');
+    expect(() => assertValidSymbolSearch('  ')).toThrow('Invalid store query: name must not be blank');
+    expect(() => assertValidSymbolSearch('a\u0000b')).toThrow('Invalid store query: name must not contain a NUL character');
+    expect(() => assertValidSymbolSearch('price', { kinds: [] })).toThrow(
+      'Invalid store query: kinds must not be empty when given',
+    );
+    expect(() => assertValidTraversal(2, [])).toThrow('Invalid store query: kinds must not be empty when given');
+  });
+});
+
+// Spec `graph-store` (DIS-18) → "Validation of read arguments": the instant of the daily cost sum. The
+// store-level scenario is in tests/integration/store/graph-read.spec.ts.
+describe('daily cost sum argument', () => {
+  it('rejects an invalid date naming since', () => {
+    expect(rejectedArgument(() => assertValidCostSince(new Date('x')))).toBe('since');
+    expect(() => assertValidCostSince(new Date('x'))).toThrow('Invalid store query: since must be a valid date');
+  });
+
+  it('accepts a valid date, the epoch included', () => {
+    expect(() => assertValidCostSince(new Date('2026-10-09T00:00:00Z'))).not.toThrow();
+    expect(() => assertValidCostSince(new Date(0))).not.toThrow();
   });
 });
