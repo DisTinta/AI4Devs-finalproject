@@ -122,11 +122,14 @@ function readTimeout(value: string | undefined): number {
   return timeoutMs;
 }
 
-/** A positive decimal in USD: digits with at most one decimal point, no sign, no exponent. */
+/**
+ * A positive decimal in USD: digits with at most one decimal point, no sign, no exponent, and finite
+ * (a value too long for a double would become `Infinity`, a ceiling that never trips).
+ */
 function readDailyBudget(value: string | undefined): number | undefined {
   if (value === undefined) return undefined;
   const budgetUsd = /^[0-9]+(\.[0-9]+)?$/.test(value) ? Number(value) : Number.NaN;
-  if (!(budgetUsd > 0)) throw new LlmConfigError('DAILY_BUDGET_USD');
+  if (!(budgetUsd > 0 && Number.isFinite(budgetUsd))) throw new LlmConfigError('DAILY_BUDGET_USD');
   return budgetUsd;
 }
 

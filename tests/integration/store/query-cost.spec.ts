@@ -1,4 +1,4 @@
-import { Pool } from 'pg';
+import { Pool, type ClientBase } from 'pg';
 import { describe, expect, it } from 'vitest';
 import { BudgetExhausted, withDailyBudget, type LlmPort, type StorePort } from '@codemind/core';
 import { createPostgresStore } from '../../../packages/adapters/store-postgres/src/index';
@@ -67,20 +67,53 @@ describeWithDatabase('query cost (DIS-18)', () => {
     });
 
     // Not a spec scenario: the read also works on the store's own connections ("own connections and
-    // caller-owned transaction"). It writes nothing, so nothing to clean up.
+    // caller-owned transaction"). The only test here that commits: its rows are dated in 2100, so no
+    // other row counts, and its project is deleted in `finally` (the schema cascades `query_log`).
     it("reads the cost sum on the store's own connections", async () => {
       // Arrange
       const pool = new Pool({ connectionString: databaseUrl });
+      const store = createPostgresStore({ pool });
+      let projectId: string | undefined;
       try {
+        projectId = await store.createProject({ name: unique('query-cost-pool'), rootPath: '/repos/sample', language: 'php' });
+        for (const [cost, at] of [['0.4', '2100-01-01T00:00:00Z'], ['0.3', '2100-01-01T12:00:00Z'], ['9', '2099-12-31T23:59:59Z']]) {
+          await pool.query(
+            `INSERT INTO query_log (project_id, question, capability, cost_usd, created_at) VALUES ($1, 'q', 'explain', $2, $3)`,
+            [projectId, cost, at],
+          );
+        }
+
         // Act
-        const total = await createPostgresStore({ pool }).sumCostSince(SINCE);
+        const total = await store.sumCostSince(new Date('2100-01-01T00:00:00Z'));
 
         // Assert
-        expect(typeof total).toBe('number');
-        expect(total).toBeGreaterThanOrEqual(0);
+        expect(total).toBe(0.7);
       } finally {
+        if (projectId !== undefined) await pool.query('DELETE FROM project WHERE id = $1', [projectId]);
         await pool.end();
       }
+    });
+
+    // Not a spec scenario: "SHALL write nothing" — the read is exactly one SELECT.
+    it('sums the cost with a single SELECT and writes nothing', async () => {
+      // Arrange
+      const sent: string[] = [];
+      const client = db();
+      const query = client.query.bind(client) as (...args: unknown[]) => unknown;
+      const recording = {
+        query: (...args: unknown[]): unknown => {
+          sent.push(String(args[0]));
+          return query(...args);
+        },
+      } as unknown as ClientBase;
+
+      // Act
+      await createPostgresStore({ transaction: recording }).sumCostSince(SINCE);
+
+      // Assert
+      expect(sent).toHaveLength(1);
+      expect(sent[0]).toMatch(/^SELECT /);
+      expect(sent[0]).not.toMatch(/INSERT|UPDATE|DELETE|SAVEPOINT/i);
     });
   });
 

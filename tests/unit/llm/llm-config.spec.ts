@@ -177,7 +177,7 @@ describe('LLM configuration', () => {
     // Arrange
     const live = { LLM_BASE_URL: OLLAMA, LLM_MODEL: 'llama3.2' };
 
-    for (const value of ['abc', '0', '0.0', '-1', '1e3', '1.']) {
+    for (const value of ['abc', '0', '0.0', '-1', '1e3', '1.', '9'.repeat(400)]) {
       // Act
       const error = configError({ ...live, DAILY_BUDGET_USD: value });
 
