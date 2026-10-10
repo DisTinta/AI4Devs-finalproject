@@ -39,13 +39,13 @@ Desbloquea DIS-39 (explain), DIS-70 (verificación semántica), DIS-74 (uso; esc
 1. `npm ci`
 2. `docker compose up -d`, exportar `DATABASE_URL` (la de `.env.example`) y `npm run db:migrate`.
 3. `npx vitest run tests/unit/llm tests/integration/store/query-cost.spec.ts tests/integration/store/graph-read.spec.ts`
-   → 8 ficheros, 100 tests verdes (23 escenarios de la spec más los extras).
+   → 8 ficheros, 103 tests verdes (23 escenarios de la spec más los extras).
 4. `npm run typecheck` → verde; incluye `tests/`, así que comprueba el `// @ts-expect-error` del
    escenario «A live configuration does not type-check against the evaluation model».
 5. `npm run lint && npm run lint:architecture && npm run docs:coverage`
 6. `npx stryker run --mutate "packages/core/src/llm/**/*.ts,packages/core/src/knowledge/read-arguments.ts"`
-   → 100 % (106/106).
-7. `npx vitest run` → 68 ficheros, 880 tests verdes con la base de datos.
+   → 100 % (117/117).
+7. `npx vitest run` → 68 ficheros, 883 tests verdes con la base de datos.
 
 La prueba manual contra Postgres real (modo evaluación con 0 llamadas a `fetch`; techo alcanzado
 antes y después de un «reinicio»; errores de configuración sin valores) está en
@@ -58,6 +58,9 @@ antes y después de un «reinicio»; errores de configuración sin valores) est�
 - **`createLlm` no aplica el techo** (D3): el paquete del LLM no depende del store. La raíz de
   composición (DIS-76) hace `cfg.mode === 'live' && cfg.dailyBudgetUsd !== undefined ?
   withDailyBudget(createLlm(cfg), { store, dailyBudgetUsd: cfg.dailyBudgetUsd }) : createLlm(cfg)`.
+- **`withDailyBudget` valida su techo y falla en cerrado** (D10, revisión adversarial): lanza
+  `RangeError` si el techo no es un número positivo y finito, y si el store falla rechaza con ese error
+  sin llamar al modelo; el mapeo a HTTP es de DIS-76 (comentado allí).
 - **Comprobar y luego llamar no es atómico** (D5): llamadas concurrentes pueden pasarse del techo
   por el coste de las que están en vuelo; la siguiente se bloquea. El techo bloquea también
   `embed()`, a propósito. Hasta que DIS-74 escriba `cost_usd`, el gasto leído es 0.
@@ -71,6 +74,11 @@ antes y después de un «reinicio»; errores de configuración sin valores) est�
 - **Mutación**: los 4 mutantes vivos de la primera pasada eran mensajes de error de
   `read-arguments.ts` (código de DIS-24) que ningún test fijaba; se mataron con aserciones de
   mensaje, sin tocar código de producción.
+- **Revisiones**: `/show-spec-working` demuestra los 23 escenarios contra Postgres real y un endpoint
+  HTTP local. `/verify-against-spec` encontró un `DAILY_BUDGET_USD` que se convertía en `Infinity`
+  (arreglado, con delta de spec) y dos pruebas débiles (reforzadas). `/adversarial-review` da PASS WITH
+  GAPS, sin Blocker ni Major; los arreglos y el destino A/B/D de cada hallazgo están en `design.md` →
+  Follow-ups.
 - Sin ADR (D8): todas las decisiones son locales a los módulos LLM y store, y baratas de revertir.
 
 ## Trazabilidad
@@ -99,7 +107,7 @@ antes y después de un «reinicio»; errores de configuración sin valores) est�
 | The shipped table holds only the Ollama examples at zero | `tests/unit/llm/cost-table.spec.ts:51` |
 | A reached ceiling blocks completions and embeddings | `tests/unit/llm/budget.spec.ts:52` |
 | Below the ceiling the request reaches the model | `tests/unit/llm/budget.spec.ts:81` |
-| The ceiling survives a restart | `tests/integration/store/query-cost.spec.ts:88` |
+| The ceiling survives a restart | `tests/integration/store/query-cost.spec.ts:131` |
 
 ## Origen
 

@@ -107,3 +107,14 @@ Fixes A 2.1, 2.2, 2.4 (see `2026-10-10-verify-against-spec.md`): `npx vitest run
 881 passed, 0 skipped (one new test); lint, typecheck, lint:architecture, docs:coverage exit 0.
 `query_log` and `project` back to 0 rows; `seeds/`, `packages/web/`, `fixtures/` unchanged (the fixes
 touch `packages/adapters/llm` and tests only, which are not seed fingerprint inputs).
+
+## Addendum — after `/adversarial-review` fixes (2026-10-10)
+
+Fixes (see `2026-10-10-adversarial-review.md`): `withDailyBudget` input guard (RED seen), fail-closed
+test, pool test without commits, readme status. Stryker on `packages/core/src/llm/**/*.ts` and
+`read-arguments.ts`: 100 % (117 killed: `budget.ts` 24, `cost-table.ts` 17, `errors.ts` 30,
+`read-arguments.ts` 46), no `.stryker-tmp/`. `npx vitest run` → 68 files, 883 passed, 0 skipped. Lint,
+typecheck, lint:architecture, docs:coverage exit 0. `query_log` and `project`: 0 rows. `seeds/`,
+`packages/web/`, `fixtures/` unchanged: the fixes touch `packages/core/src/llm`, tests and docs, none a
+seed fingerprint input, so the seed commit `16c9dfb` stays valid.
+

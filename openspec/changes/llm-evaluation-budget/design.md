@@ -187,6 +187,15 @@ of `seeds/graph-dump.sql` (and nothing in `packages/web/src/data/sample-projects
 Any other change in the seed is a stop-and-ask, not something to commit. `AUTHOR_HASH_SALT` is
 provided by the author in the session at that step only; it is never written to any file.
 
+### D10 — `withDailyBudget` guards its own input and fails closed (adversarial review)
+
+`withDailyBudget` throws `RangeError` at construction when `dailyBudgetUsd` is not a positive finite
+number: `NaN` or `Infinity` would never trip, `0` or a negative value would always trip, and the
+decorator is a public core API that a composition could feed without `llmConfigFromEnv`. A failure
+of `store.sumCostSince` is not caught: the request rejects with that error and the model is not
+called (fail closed), the same contract as every other store read; mapping it is the error handler's
+job (DIS-76, commented there). Both are pinned by extra unit tests, not scenarios.
+
 ## Risks / Trade-offs
 
 - [Concurrent calls overshoot the ceiling] → accepted (D5); the next call after the rows are written
@@ -232,4 +241,29 @@ Findings of `/verify-against-spec` (report `reports/2026-10-10-verify-against-sp
   the ceiling is allowed").
 - **D — 3.7** the exact `BudgetExhausted` message is pinned by a test so that only numbers and the ISO
   reset time can appear in it (privacy).
+
+Findings of `/adversarial-review` (report `reports/2026-10-10-adversarial-review.md`, verdict PASS
+WITH GAPS, no Blocker or Major):
+
+- **A — readme** `readme.md` §1.4 now says the ceiling and the price check only act once DIS-76
+  composes them and DIS-74 writes `cost_usd`.
+- **A — input of `withDailyBudget`** `RangeError` for a non-positive or non-finite ceiling (D10).
+- **A — committed rows of the pool test** the own-connections test no longer commits: a one-connection
+  pool held inside a rolled-back transaction; no row can leak into `seed-load.spec.ts` snapshots, and
+  no 2100-dated row can be left behind.
+- **B — DIS-76** a `sumCostSince` failure rejects unchanged and the model is not called (D10, pinned by
+  a test); DIS-76's error handler maps it as an infrastructure error, and composes the ceiling only from
+  `llmConfigFromEnv`. Spanish comment on DIS-76 (2026-10-10).
+- **D — no upper bound in `SUM_COST_SINCE`** `query_log.created_at` defaults to the database's `now()`,
+  so a row of a later day exists only if the database clock is a day ahead; with the pool test no
+  longer committing, no test can leave one. Accepted; the spec keeps "at or after that instant".
+- **D — no index on `created_at`** already decided in D6 (one aggregate per call, single-user tool;
+  a later `0004` migration if `query_log` grows).
+- **D — price by model name only** a paid host serving a model named exactly like a 0-priced Ollama
+  entry would pass the check with a ceiling that never trips. Rejecting zero prices under a ceiling
+  would contradict the scenario "With a ceiling every configured model needs a price" (Ollama +
+  `llama3.2` with a ceiling is valid). The `.env.example` and readme say the ceiling is for paid
+  providers, whose models are added with their own prices.
+- **Process note (Question)** the planning files were committed after the first feature commits
+  (task 0.3 kept them untracked); next change: commit the planning artifacts first. No Linear issue.
 

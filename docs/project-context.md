@@ -371,7 +371,9 @@ services that must be started first, quirks of the local environment.
   `cfg.dailyBudgetUsd` is set: before every `complete`/`embed` it reads `StorePort.sumCostSince(start
   of the UTC day)` and throws `BudgetExhausted` when `spent >= ceiling` (stateless, so a restart
   cannot reset it). The ceiling **cannot trigger until DIS-74 writes `query_log.cost_usd`** (with
-  core's `costUsd`); until then the spend reads `0`. With a ceiling, `llmConfigFromEnv` requires an
+  core's `costUsd`); until then the spend reads `0`. `withDailyBudget` throws `RangeError` for a
+  ceiling that is not a positive finite number, and a `sumCostSince` failure rejects unchanged without
+  calling the model (fail closed). With a ceiling, `llmConfigFromEnv` requires an
   exact-name entry in `COST_TABLE` for `LLM_MODEL`, `LLM_MODEL_VERIFY` (when set) and
   `LLM_EMBED_MODEL` (when set): `llama3.2:3b` is not `llama3.2`. `COST_TABLE` ships only the
   `.env.example` Ollama models at 0; a paid entry needs its official pricing URL and the date checked.
