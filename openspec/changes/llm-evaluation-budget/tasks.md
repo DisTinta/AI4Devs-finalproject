@@ -61,7 +61,7 @@
 
 ## 9. Update Technical Documentation (MANDATORY)
 
-- [ ] 9.1 `.env.example`: rewrite the comment of `DAILY_BUDGET_USD` (do not add the variable): positive decimal in USD; sum of `query_log.cost_usd` of the UTC day; live mode only; empty = no ceiling; with a ceiling, `LLM_MODEL`, `LLM_MODEL_VERIFY` and `LLM_EMBED_MODEL` must have a price in `COST_TABLE`; reached → cache-only with a warning
+- [x] 9.1 `.env.example`: rewrite the comment of `DAILY_BUDGET_USD` (do not add the variable): positive decimal in USD; sum of `query_log.cost_usd` of the UTC day; live mode only; empty = no ceiling; with a ceiling, `LLM_MODEL`, `LLM_MODEL_VERIFY` and `LLM_EMBED_MODEL` must have a price in `COST_TABLE`; reached → cache-only with a warning
 - [x] 9.2 `readme.md` §1.4, row `DAILY_BUDGET_USD`: UTC daily sum of `query_log.cost_usd`, positive decimal, live mode only, empty = no ceiling; with a ceiling, `LLM_MODEL`, `LLM_MODEL_VERIFY` and `LLM_EMBED_MODEL` must have a price in `COST_TABLE`, otherwise boot fails
 - [x] 9.3 `docs/backend-standards.md` §8, "Budget ceiling": applied by the core decorator `withDailyBudget`, composed by the composition root over the live model only when a ceiling is set; `createLlm` does not apply it; threshold `>=`, UTC day; blocks embeddings too
 - [x] 9.4 `docs/project-context.md`: the LLM adapter gotcha and the line "the evaluation-mode adapter is DIS-18" now describe `createEvaluationLlm` (`evaluation-mode`), `createLlm`, `withDailyBudget` + `sumCostSince`, and that the ceiling cannot trigger until DIS-74 writes `cost_usd`
@@ -70,19 +70,19 @@
 
 ## 10. Seed: regenerate the analyzer fingerprint (design D9) — last commit of the series
 
-- [ ] 10.1 Preconditions: `git status --porcelain fixtures` and `git clean -ndX fixtures/acme-shop` both print nothing; `DATABASE_URL` points to a migrated local database (`npm run db:migrate`). When reaching this step, ask the author to provide `AUTHOR_HASH_SALT` in the session with `!` — never ask earlier, never write it to any file
-- [ ] 10.2 Run `npm run seed:build`
-- [ ] 10.3 Check the diff: in `seeds/graph-dump.sql` only the `analyzer-fingerprint` header line changes (the `contract-fingerprint` line and every row identical); `packages/web/src/data/sample-projects.ts` unchanged. If any other line changes, stop and tell the author; do not commit
-- [ ] 10.4 Commit the regenerated seed as the last commit of the series (`chore(DIS-18): regenerate the seed fingerprint`). If a later fix touches a fingerprint input (`packages/core/src/knowledge`, `packages/adapters/store-postgres/src`, …), repeat 10.1–10.4 so the seed commit stays last
+- [x] 10.1 Preconditions: `git status --porcelain fixtures` and `git clean -ndX fixtures/acme-shop` both print nothing; `DATABASE_URL` points to a migrated local database (`npm run db:migrate`). When reaching this step, ask the author to provide `AUTHOR_HASH_SALT` in the session with `!` — never ask earlier, never write it to any file
+- [x] 10.2 Run `npm run seed:build`
+- [x] 10.3 Check the diff: in `seeds/graph-dump.sql` only the `analyzer-fingerprint` header line changes (the `contract-fingerprint` line and every row identical); `packages/web/src/data/sample-projects.ts` unchanged. If any other line changes, stop and tell the author; do not commit
+- [x] 10.4 Commit the regenerated seed as the last commit of the series (`chore(DIS-18): regenerate the seed fingerprint`). If a later fix touches a fingerprint input (`packages/core/src/knowledge`, `packages/adapters/store-postgres/src`, …), repeat 10.1–10.4 so the seed commit stays last
 
 ## 11. Backend: Run Tests and Verify Data State (MANDATORY)
 
-- [ ] 11.1 Capture the pre-test baseline: the 0.5 indicators, plus `SELECT count(*) FROM query_log` on the local database (the integration tests insert rows only inside rolled-back transactions)
-- [ ] 11.2 Run the targeted tests: `npx vitest run tests/unit/llm tests/integration/store/query-cost.spec.ts tests/integration/store/graph-read.spec.ts`
-- [ ] 11.3 Run the required broader suite and gates: `npx vitest run`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`, `npx stryker run --mutate "packages/core/src/llm/**/*.ts,packages/core/src/knowledge/read-arguments.ts"` (score ≥ `MIN_MUTATION_SCORE=70`; list surviving mutants and kill the meaningful ones)
-- [ ] 11.4 Verify the post-test state: `query_log` count equal to the baseline; `seeds/`, `packages/web/`, `fixtures/` unchanged since the step 10 commit; no `.stryker-tmp/` left behind. Restore and document if not
-- [ ] 11.5 Create the report `openspec/changes/llm-evaluation-budget/reports/YYYY-MM-DD-11-test-and-state-verification.md` from the template in `docs/openspec-tasks-mandatory-steps.md` §6, including the 0.5 baseline, the seed diff of step 10, the Stryker score and the privacy check of 6.1
-- [ ] 11.6 Mark complete only after the tests pass and the report exists
+- [x] 11.1 Capture the pre-test baseline: the 0.5 indicators, plus `SELECT count(*) FROM query_log` on the local database (the integration tests insert rows only inside rolled-back transactions)
+- [x] 11.2 Run the targeted tests: `npx vitest run tests/unit/llm tests/integration/store/query-cost.spec.ts tests/integration/store/graph-read.spec.ts`
+- [x] 11.3 Run the required broader suite and gates: `npx vitest run`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`, `npx stryker run --mutate "packages/core/src/llm/**/*.ts,packages/core/src/knowledge/read-arguments.ts"` (score ≥ `MIN_MUTATION_SCORE=70`; list surviving mutants and kill the meaningful ones)
+- [x] 11.4 Verify the post-test state: `query_log` count equal to the baseline; `seeds/`, `packages/web/`, `fixtures/` unchanged since the step 10 commit; no `.stryker-tmp/` left behind. Restore and document if not
+- [x] 11.5 Create the report `openspec/changes/llm-evaluation-budget/reports/YYYY-MM-DD-11-test-and-state-verification.md` from the template in `docs/openspec-tasks-mandatory-steps.md` §6, including the 0.5 baseline, the seed diff of step 10, the Stryker score and the privacy check of 6.1
+- [x] 11.6 Mark complete only after the tests pass and the report exists
 
 ## 12. Backend: Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE)
 
@@ -96,7 +96,7 @@
 
 ## 13. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
-- [ ] 13.1 No user interface uses the LLM yet (DIS-39 / CM-HU-12): record "not applicable; exercised against the real database in step 12" in the step 11 report
+- [x] 13.1 No user interface uses the LLM yet (DIS-39 / CM-HU-12): record "not applicable; exercised against the real database in step 12" in the step 11 report
 - [ ] 13.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that `tests/unit/llm/` and `tests/integration/store/query-cost.spec.ts` ran and passed, that the seed-freshness check (if any) is green, and that the mutation step covered `packages/core/src/llm`. Link the run in the step 11 report
 
 ## 14. Pull request preparation

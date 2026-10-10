@@ -1,0 +1,91 @@
+# Test and State Verification Report
+
+- Date: 2026-10-10
+- Change: llm-evaluation-budget (DIS-18)
+- Step: 11 — Run tests and verify data state (with 6.1 privacy check and 13.1 UI note)
+
+## Commands executed
+
+- `npx vitest run` (baseline, step 0.5; and final run)
+- `npx vitest run tests/unit/llm tests/integration/store/query-cost.spec.ts tests/integration/store/graph-read.spec.ts`
+- `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`
+- `npx stryker run --mutate "packages/core/src/llm/**/*.ts,packages/core/src/knowledge/read-arguments.ts"` (twice)
+- `npm run db:migrate` (`No migrations to run!`), `npm run seed:build` (step 10)
+- `SELECT count(*) FROM query_log` before and after the runs
+
+`DATABASE_URL` was exported from `.env` in a subshell for every command, without printing it.
+
+## Test results
+
+- Baseline (0.5, before any change, DATABASE_URL not exported and Docker down): 53 files passed,
+  11 skipped; 677 tests passed, 124 skipped (853); 68.94 s. The skipped ones are the DB integration
+  tests (local gate without `DATABASE_URL`); the final run below has the database.
+- Targeted tests: 8 files, 100 passed, 0 failed, 0 skipped.
+- Required suite (`npx vitest run`, with Postgres): 68 files, 880 passed, 0 failed, 0 skipped;
+  141.46 s.
+- Gates: lint, typecheck, lint:architecture (0 errors; 3 pre-existing `no-orphans` warnings on
+  `packages/web/src/data/sample-projects.ts` and `packages/analyzers/typescript`), docs:coverage —
+  all exit 0.
+- Mutation (`MIN_MUTATION_SCORE=70`): first run 96.23 % (102 killed, 4 survived). The 4 survivors
+  were `StringLiteral` mutants of the error reasons in `read-arguments.ts` (pre-existing DIS-24
+  code: blank name, NUL name, empty symbol kinds, empty edge kinds), alive because no test pinned
+  the messages; killed with message assertions in `tests/unit/knowledge/read-arguments.spec.ts`
+  (commit `7ed2d03`). Second run: **100 %** — 106 killed, 0 survived, 0 no coverage
+  (`read-arguments.ts` 46, `budget.ts` 13, `cost-table.ts` 17, `errors.ts` 30); 2 min 3 s.
+- Scenario traceability (7.2): 23 `#### Scenario:` (19 `llm-adapter`, 4 `graph-store`), each
+  matched by exactly one test of the same name.
+- Notes:
+  - Tests born green because the previous GREEN task already covered them (1.3, 1.4, 3.3, 4.4, 5.3,
+    5.5, 2.4, 3.4) were each shown to fail with a temporary mutation of the code, then restored:
+    `in` instead of `Object.hasOwn` + an extra table entry (2 failures); `createLlm` dropping the
+    injected `fetch` (1 failure); `SUM_COST_SINCE` date filter disabled (2 failures); no `Number()`
+    conversion (4 failures).
+  - The type-level scenario (4.3) was shown RED by widening the parameter to `LlmConfig`:
+    `tsc -p tests/tsconfig.json` → `TS2578: Unused '@ts-expect-error' directive`. `npm run typecheck`
+    alone did not show it at that point because `tsc --build` failed first on the then-missing
+    `sumCostSince` and the `&&` chain stopped before the tests project.
+  - 5.7 refactor (tdd-refactorer, fresh context): no change warranted.
+  - No flaky test, no retry.
+
+## Data state verification
+
+- Pre-test baseline:
+  - `git status --porcelain seeds packages/web fixtures`: empty
+  - `seeds/graph-dump.sql` sha1 `f79d94e26d65cd79b39612408dc10b3db0b476b5`;
+    `analyzer-fingerprint: sha256:76dbca58428c24d95e4626bd759b313df16eb48700f6bb2cf557fe40df037cd9`;
+    `contract-fingerprint: sha256:95c72d6254a9ad2b8cbdfe70ee2200128270624e61a28f996b18c0c130847738`
+  - `packages/web/src/data/sample-projects.ts` sha1 `62a2b90897331e86c267f9aa8f0939f0598b8929`
+  - `query_log` rows: 0 (projects: 0)
+- Step 10 (seed, commit `16c9dfb`): `npm run seed:build` → `acme-shop: 53 files, 121 symbols, 170
+  edges, 32 commits`. Diff of `seeds/graph-dump.sql`: only the analyzer header line, now
+  `sha256:d93ea76f50fac4d89fa20b62fcfa8c0f1fee784de2b0480e74be0143235a6370`; contract line and every
+  row identical; new sha1 `3d0906e00beeb7c6d71b284fd8e3ecdfc6bfd667`. `sample-projects.ts`
+  unchanged (same sha1). `fixtures/` clean before and after.
+- Post-test validation:
+  - `query_log` rows: 0 (integration tests insert only inside rolled-back transactions)
+  - `seeds/`, `packages/web/`, `fixtures/`: unchanged since the step 10 commit
+  - `.stryker-tmp/`: absent
+- State restored: Yes
+- Restoration actions: none needed
+
+## Privacy / ethics check (6.1)
+
+Verdict PASS, no findings. `query_log` is read only as an aggregate (`SUM(cost_usd)`), no question
+text; `BudgetExhausted` carries numbers and the ISO reset time; `LlmConfigError` names variables only
+(tests assert the rejected values are absent); no log added; no dependency added; the evaluation model
+takes only `EvaluationLlmConfig` (no key) and never touches `fetch`. Secret/PII grep of the diff: no
+hits. Not assessed: the AI tooling plan of the session.
+
+## UI evidence
+
+None: no user interface uses the LLM yet (DIS-39 / CM-HU-12). Not applicable; exercised against the
+real database in step 12 (`2026-10-10-12-manual-interface-testing.md`).
+
+## CI (13.2)
+
+Pending: linked after the push.
+
+## Outcome
+
+- Status: PASS
+- Blocking issues: none
