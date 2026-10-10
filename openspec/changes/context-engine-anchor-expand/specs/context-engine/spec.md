@@ -13,11 +13,12 @@ network call:
 
 - The question SHALL be lower-cased and its diacritics removed (canonical decomposition, then the
   combining marks dropped), and split on every character that is not a letter or a digit.
-- Tokens with fewer than 3 letters SHALL be dropped, and so SHALL the tokens of a fixed list of
+- Token lengths SHALL be counted in characters (letters or digits).
+- Tokens with fewer than 3 characters SHALL be dropped, and so SHALL the tokens of a fixed list of
   Spanish and English stopwords.
-- The remaining tokens SHALL be deduplicated, keeping their first-appearance order.
-- For every token of 6 or more letters, its 5-letter prefix SHALL also be a term, right after the
-  token, so a Spanish inflection still meets an English identifier (`validan` → `valid`).
+- For every token of 6 or more characters, its 5-character prefix SHALL also be a term, right after
+  the token, so a Spanish inflection still meets an English identifier (`validan` → `valid`).
+- The terms SHALL be deduplicated, prefixes included, keeping their first-appearance order.
 
 #### Scenario: The terms of a question include the prefixes of long tokens
 

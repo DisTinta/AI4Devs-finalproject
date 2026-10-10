@@ -39,10 +39,11 @@ See proposal.md → Why. State this design starts from:
 ### D1 — Anchoring: literal term plus 5-letter prefix, by name only (author decision 1)
 
 `questionTerms` lower-cases, applies `normalize('NFD')` and drops `\p{M}`, splits on
-`/[^\p{L}\p{N}]+/u`, drops tokens with fewer than `MIN_TOKEN_LENGTH = 3` letters and the tokens in
+`/[^\p{L}\p{N}]+/u`, drops tokens with fewer than `MIN_TOKEN_LENGTH = 3` characters (letters or
+digits: author decision after verify-against-spec, so `utf8` or `404` remain terms) and the tokens in
 `ANCHOR_STOPWORDS` (a frozen `ReadonlySet<string>` of Spanish and English function words, stored
 already normalised: `como`, `que`, `donde`, `the`, `how`, …), deduplicates, and after each token of
-at least `PREFIX_MIN_LENGTH = 6` letters inserts `token.slice(0, PREFIX_LENGTH)` with
+at least `PREFIX_MIN_LENGTH = 6` characters inserts `token.slice(0, PREFIX_LENGTH)` with
 `PREFIX_LENGTH = 5` (deduplicated too). `anchor` runs `findSymbols` for each term, in term order, and
 merges by symbol id keeping first-seen order.
 
@@ -158,7 +159,7 @@ in the seed, so the subset cannot drift from the real index. It is an extra test
 | Spec | Test file | Runs against |
 |---|---|---|
 | `context-engine` → Question terms, Lexical anchoring | `tests/unit/context/anchor.spec.ts` | double + acme-shop subset |
-| `context-engine` → Graph expansion of the anchor | `tests/unit/context/expand.spec.ts` | double + acme-shop subset |
+| `context-engine` → Graph expansion of the anchor | `tests/unit/context/expand.spec.ts`; "The expansion never leaves the project" in `tests/integration/context/expand.spec.ts` | double + acme-shop subset; Postgres for isolation |
 | `graph-store` (MODIFIED and new scenarios) | `tests/integration/store/graph-read.spec.ts` | Postgres |
 | read scenarios of `graph-store` + the three `direction` scenarios | `tests/unit/store/in-memory-store.spec.ts` | double |
 
@@ -211,4 +212,21 @@ unaffected either way.
 
 ## Follow-ups
 
-(Filled during Pre-merge Review: one A/B/C/D destination per finding.)
+Destinations per `docs/project-context.md` → Tracking deferred findings (A fixed in this change,
+B successor ticket, C debt, D accepted with reason).
+
+### verify-against-spec (2026-10-10, `reports/2026-10-10-verify-against-spec.md`)
+
+| Finding | Destination | Resolution |
+|---|---|---|
+| 2.1 Spec counts letters, code counts characters | A | Author decision: the spec follows the code. Token lengths are in characters (letters or digits), and D1 says so too |
+| 2.2 No test pins `fileId` on `anchor()` results | A | Unit test "anchor symbols carry what a symbol search returns, the file id included" |
+| 2.2 "never logged" has no test | D | `context/` has no logger dependency and no `console`; grep plus the privacy check (step 11). Logging belongs to the DIS-39 entry points |
+| 2.3 `expand` with `not-a-uuid` and a non-empty anchor untested | A | Case added to "reports an unknown project for a non-empty anchor" |
+| 3.1 Terms deduplicated across prefixes, not in the spec | A | Spec bullet: the terms are deduplicated, prefixes included |
+| 3.2 New public constants not named in the spec | D | They are the tuning knobs of D1/D2 and DIS-28 will reuse them; specs stay behavioural |
+| 3.3 Direction error message echoes the caller's value | D | Same shape as the existing `hops` message. The error goes back to the caller and nothing here logs it |
+| 3.4 Unit test pins check order hops → kinds → direction | A | Test removed; the order is not part of the spec |
+| 3.5 Double's `getProject` / `listProjects` untested | A | Three `(in-memory double)` tests for project lookup and listing |
+| 3.6 Duplicate symbol seeds passed through | A | `expand` dedups symbol seeds by id; the traversal-arguments test passes a duplicate anchor |
+| Weak test: isolation cannot fail on the double | A | Scenario test moved to `tests/integration/context/expand.spec.ts` (Postgres, cross-project edges inserted by SQL); seen failing with the final project filter of `NEIGHBORS` removed. The unit copy is now `(in-memory double)` |

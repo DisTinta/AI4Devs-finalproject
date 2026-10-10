@@ -24,7 +24,7 @@ Ticket: [DIS-27](https://linear.app/distinta-ai4devs/issue/DIS-27/cm-hu-081-dobl
 
 1. `docker compose up -d` (Postgres con pgvector) y `npm ci`.
 2. Exporta `DATABASE_URL` (como en `.env`) y ejecuta `npm run db:migrate`.
-3. `npx vitest run tests/unit/context tests/unit/store/in-memory-store.spec.ts tests/unit/knowledge/read-arguments.spec.ts tests/integration/store/graph-read.spec.ts`: 6 ficheros, 104 tests en verde.
+3. `npx vitest run tests/unit/context tests/unit/store/in-memory-store.spec.ts tests/unit/knowledge/read-arguments.spec.ts tests/integration/store/graph-read.spec.ts tests/integration/context`: todo en verde.
 4. `npx vitest run`: 72 ficheros, 940 tests, ninguno saltado con `DATABASE_URL`.
 5. `npm run lint && npm run typecheck && npm run lint:architecture && npm run docs:coverage`.
 6. `npx stryker run --mutate "packages/core/src/context/**/*.ts,packages/core/src/knowledge/read-arguments.ts"`: 98,46 %, con 3 supervivientes equivalentes (explicados en el informe del paso 11).
@@ -64,7 +64,7 @@ Están en `openspec/changes/context-engine-anchor-expand/design.md`:
 | context-engine · Anchoring in an unknown project fails | `tests/unit/context/anchor.spec.ts:119` |
 | context-engine · The anchor expands to its tests, docs, callers and callees | `tests/unit/context/expand.spec.ts:36` |
 | context-engine · An anchor reaches the files co-changed with its own file | `tests/unit/context/expand.spec.ts:63` |
-| context-engine · The expansion never leaves the project | `tests/unit/context/expand.spec.ts:77` |
+| context-engine · The expansion never leaves the project | `tests/integration/context/expand.spec.ts:39` (Postgres) |
 | context-engine · An invalid hop count is rejected | `tests/unit/context/expand.spec.ts:103` |
 | context-engine · An empty anchor expands to nothing without traversing | `tests/unit/context/expand.spec.ts:119` |
 | graph-store · Symbols are found by a case-insensitive fragment of the name | `tests/integration/store/graph-read.spec.ts:222` |
@@ -92,8 +92,8 @@ Están en `openspec/changes/context-engine-anchor-expand/design.md`:
 | graph-store · An invalid traversal direction is rejected before querying | `tests/integration/store/graph-read.spec.ts:761` |
 | graph-store · An invalid instant for the cost sum is rejected before querying | `tests/integration/store/graph-read.spec.ts:778` |
 
-El doble en memoria ejecuta 22 de estos escenarios de lectura como `<título> (in-memory double)` en
-`tests/unit/store/in-memory-store.spec.ts`.
+El doble en memoria ejecuta 22 de estos escenarios de lectura (y la consulta y el listado de proyectos)
+como `<título> (in-memory double)` en `tests/unit/store/in-memory-store.spec.ts`.
 
 ## Origen
 
