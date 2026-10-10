@@ -230,3 +230,15 @@ B successor ticket, C debt, D accepted with reason).
 | 3.5 Double's `getProject` / `listProjects` untested | A | Three `(in-memory double)` tests for project lookup and listing |
 | 3.6 Duplicate symbol seeds passed through | A | `expand` dedups symbol seeds by id; the traversal-arguments test passes a duplicate anchor |
 | Weak test: isolation cannot fail on the double | A | Scenario test moved to `tests/integration/context/expand.spec.ts` (Postgres, cross-project edges inserted by SQL); seen failing with the final project filter of `NEIGHBORS` removed. The unit copy is now `(in-memory double)` |
+
+### adversarial-review (2026-10-10, `reports/2026-10-10-adversarial-review.md`)
+
+| Finding | Destination | Resolution |
+|---|---|---|
+| Major: `'both'` and `'in'` branches of the CTE barely tested on Postgres | A | Three extra cases in `graph-read.spec.ts` (symbol seed under `in`/`out`/`both`, file seed outgoing under `both`, cycles at 3 hops under `in` and `both`); each of the four `$6` guards, mutated to drop `'both'`, now fails a test |
+| Major: unbounded work per question (sequential `ILIKE` per term, no anchor cap, path enumeration in `walk`, no `statement_timeout`) | B — DIS-28, DIS-39 | Spanish hand-off comments on DIS-28 (cap terms and anchors, per-depth dedup or timeout, trigram index decision) and DIS-39 (bound the question at the entry point until then) |
+| Minor: lengths in UTF-16 code units | A | `questionTerms` counts and slices by code point; test with astral letters |
+| Minor: spec rules edited after implementation have no scenario | D | Author decision, recorded in the verify addendum; extra tests in `anchor.spec.ts` guard them |
+| Minor: no runtime checks for untyped callers of `anchor`/`expand` | B — DIS-39 | Same decision as the DIS-24 reads: the untyped entry point validates with Zod before calling core |
+| Minor: no green CI on the head being archived | A | Final head's `quality` run linked in the step-11 report before archiving |
+| Question: uncommitted `.claude/settings.json` edit | — | Not part of this change; left uncommitted for the author |

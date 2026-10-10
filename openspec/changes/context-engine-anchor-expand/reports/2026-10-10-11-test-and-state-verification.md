@@ -121,6 +121,22 @@ Not applicable: no user interface uses the Context Engine yet (DIS-39 / CM-HU-12
 against the real database in step 12 (`2026-10-10-12-manual-interface-testing.md`). The CI run is
 linked below once the pull request exists (13.2).
 
+## CI evidence (13.2)
+
+PR #33, run [38047837133](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/38047837133)
+on head `e88fb4c`: `quality` pass (6m22s), `scope`, `secrets` and `frontend` pass.
+
+- Tests: 72 files passed; 939 passed, 1 skipped (`tests/unit/index/path-policy.spec.ts`, an existing
+  platform skip unrelated to this change). `tests/integration/store/graph-read.spec.ts` (33),
+  `tests/unit/store/in-memory-store.spec.ts` (22), `tests/unit/context/anchor.spec.ts` (13) and
+  `tests/unit/context/expand.spec.ts` (9) ran and passed.
+- Mutation step: `context` 97.84 % (`anchor.ts` 97.46, `expand.ts` 100), `read-arguments.ts` 100 %;
+  all files 95.18 %.
+- No separate seed-freshness job exists; the seed diff is checked in step 10.
+
+The verify-against-spec fixes (`e629271`) trigger a new run; its result is recorded in the
+adversarial-review report.
+
 ## Outcome
 
 - Status: PASS

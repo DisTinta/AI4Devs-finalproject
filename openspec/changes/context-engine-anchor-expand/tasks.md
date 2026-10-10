@@ -100,7 +100,7 @@
 ## 13. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
 - [x] 13.1 No user interface uses the Context Engine yet (DIS-39 / CM-HU-12): record "not applicable; exercised against the real database in step 12" in the step 11 report
-- [ ] 13.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that `tests/unit/context/`, `tests/unit/store/in-memory-store.spec.ts` and `tests/integration/store/graph-read.spec.ts` ran and passed, that the seed-freshness check (if any) is green, and that the mutation step covered `packages/core/src/context`. Link the run in the step 11 report
+- [x] 13.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that `tests/unit/context/`, `tests/unit/store/in-memory-store.spec.ts` and `tests/integration/store/graph-read.spec.ts` ran and passed, that the seed-freshness check (if any) is green, and that the mutation step covered `packages/core/src/context`. Link the run in the step 11 report
 
 ## 14. Pull request preparation
 
