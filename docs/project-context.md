@@ -146,6 +146,19 @@ Verified against `package.json` (root and per package). If a command is not here
     `createPostgresStore({ pool })`, which opens and commits its own transaction per write. A test
     that needs a real commit (`graph-write-pool.spec.ts`) uses a unique project name and deletes the
     project in `finally`; the schema cascades the rest.
+- **In-memory `StorePort` double for unit tests** (DIS-27, `tests/support/in-memory-store.ts`).
+  `createInMemoryStore({ projects: [{ project, graph }] })` returns `{ store, projectIds, fileIds,
+  calls }`. It implements the reads (`getProject`, `listProjects`, `findSymbols`, `neighbors` with
+  `direction`), reuses core's argument checks, sorts in byte order (`Buffer.compare`), and counts
+  `findSymbols`/`neighbors` calls (before any check) so a test can assert "no search was sent".
+  Writes and `sumCostSince` throw. It runs the `graph-store` read scenarios in
+  `tests/unit/store/in-memory-store.spec.ts` (tests named `… (in-memory double)`). Known limit:
+  case-insensitivity uses `toLowerCase`, which can differ from `ILIKE` on non-ASCII names. It lives
+  in `tests/` on purpose: outside Stryker's `mutate` and core's `dist`.
+- **acme-shop test subset** (`tests/support/acme-shop-graph.ts`): a real slice of
+  `seeds/graph-dump.sql` (the `PriceCalculator` and `DiscountService` neighbourhoods, `CouponValidator`,
+  `docs/pricing.md`). `tests/unit/context/acme-shop-graph-coherence.spec.ts` fails if any file,
+  symbol or edge of it stops matching the seed; fix the subset by copying the values from the seed.
 - **Workspace packages resolve to their sources in tests** (DIS-23 for `@codemind/core`, the first
   cross-package import; DIS-86 added `@codemind/adapter-git`, `@codemind/adapter-store-postgres` and
   `@codemind/analyzer-php`, which the CLI imports by name; DIS-17 added `@codemind/adapter-llm`, which
@@ -398,9 +411,8 @@ services that must be started first, quirks of the local environment.
   `MIN_CO_CHANGES` (2) commits, `weight` = shared / commits touching either (Jaccard), `resolution`
   `heuristic`, `extractor` `git`. Commits with more than `MAX_FILES_PER_COMMIT` (100) files are
   ignored entirely; line counts and author data are never used. The pair is stored **once**, from
-  the path smaller in byte order to the other, and `neighbors` follows source → target only, so a
-  consumer that wants the symmetric relation (DIS-94) must query both endpoints until DIS-89 adds
-  reverse traversal. `knownPaths` must be the snapshot's `files` paths (paths outside it still count
+  the path smaller in byte order to the other, so a consumer that wants the symmetric relation
+  (DIS-94) traverses with `neighbors(…, 'both')` (or `'in'`), added by DIS-27. `knownPaths` must be the snapshot's `files` paths (paths outside it still count
   in the denominators), and because `saveGraph` replaces all edges, `co_changed` edges must be saved
   in the **same** snapshot as the analyzers' edges; `indexRepository` (DIS-85) does both.
 - **`repoPath` must be a repository's top-level directory.** The fixtures sit inside the Codemind
@@ -421,22 +433,36 @@ services that must be started first, quirks of the local environment.
 - **Graph reads are per project and hold ids only until the next reindex** (DIS-24).
   - Every read filters by `project_id` first. An unknown project, or an id that is not a
     hyphenated UUID, fails with `ProjectNotFound`, and the malformed id fails without SQL. Blank
-    search terms, terms containing a NUL character (Postgres rejects NUL as text), empty kind lists and `hops` outside 1..`MAX_HOPS` (3) fail with
-    `InvalidStoreQuery`, also without SQL; so does an invalid `since` of `sumCostSince` (DIS-18), the
+    search terms, terms containing a NUL character (Postgres rejects NUL as text), empty kind lists, `hops` outside 1..`MAX_HOPS` (3) and a
+    `direction` other than `out`/`in`/`both` (DIS-27) fail with `InvalidStoreQuery`, also without SQL; so does an invalid `since` of `sumCostSince` (DIS-18), the
     one global read (no project id): the sum of `query_log.cost_usd` from `since` across every
     project, `NULL` ignored, `0` without rows.
   - Symbol ids change on every `saveGraph`, while file ids survive while the path stays. Name a
     symbol across reindexes by its `SymbolRef` (`file`, `name`, `startLine`), which every symbol
-    result carries.
+    result carries. Every symbol result also carries `fileId` (DIS-27), the id of its file, with the
+    file-id validity; use it to seed a traversal from the symbol's file.
   - `neighbors` is one `WITH RECURSIVE` statement over mixed nodes (symbol and file seeds and
-    results). It follows edges source → target only (no direction parameter yet, see DIS-89),
-    returns each node once at its minimum distance, and never returns the seeds. Consumers that
+    results). Its optional fifth argument `direction` (DIS-27) is `'out'` by default (source →
+    target), `'in'` (target → source) or `'both'` (either way at each step); the statement has four
+    `LATERAL` branches switched by `$6`, never interpolated. It returns each node once at its minimum
+    distance, and never returns the seeds. Consumers that
     want only symbols filter by `type`. Reached nodes are also filtered by project, so even an
     edge pointing into another project (which the writer never produces) returns nothing foreign.
   - Names and paths sort in byte order (`COLLATE "C"`), not by the database locale: `Zeta` before
     `alpha`. The local database is `en_US.utf8`, so dropping the collation changes the order.
   - `findSymbols` is a case-insensitive, literal substring match (`ILIKE` with `\`, `%`, `_`
     escaped).
+- **The Context Engine is pure core over `StorePort`** (DIS-27, `packages/core/src/context/`).
+  `anchor(store, projectId, question)` searches symbol names (`findSymbols`, never signatures) with
+  `questionTerms(question)`: lower case, diacritics removed, split on non-letters/digits, tokens under
+  3 characters and `ANCHOR_STOPWORDS` (Spanish + English) dropped, plus the 5-letter prefix of every
+  token of 6+ characters, so `validan` reaches `CouponValidator`. A question without terms returns
+  `[]` without any search (so without checking the project). `expand(store, projectId, anchors, hops)`
+  checks `hops` first, returns `[]` for an empty anchor, and otherwise sends **one** `neighbors` call:
+  seeds = the anchor symbols plus each of their files once (the only way to reach `co_changed`),
+  kinds `calls`/`tested_by`/`describes`/`co_changed`, direction `'both'`. It returns symbols **and**
+  files (the doc reached by `describes` is a file); ranking, budget and `no-anchor` are DIS-28. The
+  question is never logged.
 - **`indexRepository` writes nothing until the whole graph is valid** (DIS-85,
   `packages/core/src/index/index-repository.ts`). Phases, each reported once to the optional
   `onProgress` when it starts: `confine` (`confinePath` lexically, then `realPath` of root and repo

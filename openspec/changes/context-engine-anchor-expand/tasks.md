@@ -67,10 +67,10 @@
 
 ## 9. Update Technical Documentation (MANDATORY)
 
-- [ ] 9.1 `docs/project-context.md`: Context Engine entry (`packages/core/src/context/`: `anchor`, `expand`; ranking and budget pending DIS-28), the `StorePort.neighbors` `direction` argument and `StoredSymbol.fileId`, and the in-memory double in `tests/support/in-memory-store.ts` (what it implements, its non-ASCII limit, the coherence test of the acme-shop subset)
-- [ ] 9.2 `openspec/specs` is updated only by `/opsx:archive`; check `readme.md` §2.2 / §2.3 for mentions of `core/context` or of a source-to-target-only traversal and align them if they contradict this change
-- [ ] 9.3 No ADR (design D10); confirm nothing in the implementation contradicted that
-- [ ] 9.4 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
+- [x] 9.1 `docs/project-context.md`: Context Engine entry (`packages/core/src/context/`: `anchor`, `expand`; ranking and budget pending DIS-28), the `StorePort.neighbors` `direction` argument and `StoredSymbol.fileId`, and the in-memory double in `tests/support/in-memory-store.ts` (what it implements, its non-ASCII limit, the coherence test of the acme-shop subset)
+- [x] 9.2 `openspec/specs` is updated only by `/opsx:archive`; check `readme.md` §2.2 / §2.3 for mentions of `core/context` or of a source-to-target-only traversal and align them if they contradict this change
+- [x] 9.3 No ADR (design D10); confirm nothing in the implementation contradicted that
+- [x] 9.4 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
 
 ## 10. Seed: regenerate the analyzer fingerprint (design D9) — last commit of the series
 
