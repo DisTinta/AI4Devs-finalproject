@@ -33,24 +33,24 @@
 
 ## 4. Domain: question terms and anchoring (TDD, design D1) — requirements "Question terms", "Lexical anchoring" (context-engine)
 
-- [ ] 4.1 Create `tests/unit/context/anchor.spec.ts`. RED: test "The terms of a question include the prefixes of long tokens". See it fail (module missing)
-- [ ] 4.2 GREEN: `packages/core/src/context/anchor.ts` with `questionTerms`, `ANCHOR_STOPWORDS`, `MIN_TOKEN_LENGTH`, `PREFIX_MIN_LENGTH`, `PREFIX_LENGTH`; `packages/core/src/context/index.ts`; export from `packages/core/src/index.ts`. JSDoc on every export
-- [ ] 4.3 RED → GREEN: test "Diacritics do not change the terms"
-- [ ] 4.4 RED → GREEN: test "A question is anchored on the symbols its words name" (`anchor(store, projectId, question)` over the double loaded with the acme-shop subset)
-- [ ] 4.5 RED → GREEN: test "A prefix anchors a Spanish verb on an English identifier"
-- [ ] 4.6 RED → GREEN: test "A question without terms anchors nothing and does not search" (double's `calls.findSymbols` is 0)
-- [ ] 4.7 RED → GREEN: test "A question whose terms match nothing anchors nothing"
-- [ ] 4.8 RED → GREEN: test "Anchoring in an unknown project fails". Extra cases, not scenarios: a question without terms in an unknown project gives `[]` (no project check); duplicate symbols across terms appear once; at most two searches per distinct token (count with the double)
+- [x] 4.1 Create `tests/unit/context/anchor.spec.ts`. RED: test "The terms of a question include the prefixes of long tokens". See it fail (module missing)
+- [x] 4.2 GREEN: `packages/core/src/context/anchor.ts` with `questionTerms`, `ANCHOR_STOPWORDS`, `MIN_TOKEN_LENGTH`, `PREFIX_MIN_LENGTH`, `PREFIX_LENGTH`; `packages/core/src/context/index.ts`; export from `packages/core/src/index.ts`. JSDoc on every export
+- [x] 4.3 RED → GREEN: test "Diacritics do not change the terms"
+- [x] 4.4 RED → GREEN: test "A question is anchored on the symbols its words name" (`anchor(store, projectId, question)` over the double loaded with the acme-shop subset)
+- [x] 4.5 RED → GREEN: test "A prefix anchors a Spanish verb on an English identifier"
+- [x] 4.6 RED → GREEN: test "A question without terms anchors nothing and does not search" (double's `calls.findSymbols` is 0)
+- [x] 4.7 RED → GREEN: test "A question whose terms match nothing anchors nothing"
+- [x] 4.8 RED → GREEN: test "Anchoring in an unknown project fails". Extra cases, not scenarios: a question without terms in an unknown project gives `[]` (no project check); duplicate symbols across terms appear once; at most two searches per distinct token (count with the double)
 
 ## 5. Domain: expansion (TDD, design D2) — requirement "Graph expansion of the anchor" (context-engine)
 
-- [ ] 5.1 Create `tests/unit/context/expand.spec.ts`. RED: test "The anchor expands to its tests, docs, callers and callees" (anchor taken from `findSymbols` on the double, so it carries real `fileId`s). See it fail
-- [ ] 5.2 GREEN: `packages/core/src/context/expand.ts` with `expand` and `EXPANSION_EDGE_KINDS`; export from `context/index.ts`. JSDoc on every export
-- [ ] 5.3 RED → GREEN: test "An anchor reaches the files co-changed with its own file" (anchor = the class `DiscountService` from `findSymbols` on the double, so it carries its real `fileId`; `app/Services/ShippingService.php` at distance 1, `app/Services/DiscountService.php` absent)
-- [ ] 5.4 RED → GREEN: test "The expansion never leaves the project" (double with two projects holding the same subset)
-- [ ] 5.5 RED → GREEN: test "An invalid hop count is rejected" (extra cases, not scenarios: invalid `hops` with an empty anchor still fails; an empty anchor in an unknown project gives `[]`; a non-empty anchor in an unknown project fails with `ProjectNotFound`)
-- [ ] 5.6 RED → GREEN: test "An empty anchor expands to nothing without traversing" (double's `calls.neighbors` is 0). Extra case, not a scenario: a non-empty anchor makes exactly one `neighbors` call with deduplicated file seeds and direction `'both'`
-- [ ] 5.7 REFACTOR with the suite green (`/tdd-refactor`) over `context/`, `read-arguments.ts`, `queries.ts` and the double; no behaviour change
+- [x] 5.1 Create `tests/unit/context/expand.spec.ts`. RED: test "The anchor expands to its tests, docs, callers and callees" (anchor taken from `findSymbols` on the double, so it carries real `fileId`s). See it fail
+- [x] 5.2 GREEN: `packages/core/src/context/expand.ts` with `expand` and `EXPANSION_EDGE_KINDS`; export from `context/index.ts`. JSDoc on every export
+- [x] 5.3 RED → GREEN: test "An anchor reaches the files co-changed with its own file" (anchor = the class `DiscountService` from `findSymbols` on the double, so it carries its real `fileId`; `app/Services/ShippingService.php` at distance 1, `app/Services/DiscountService.php` absent)
+- [x] 5.4 RED → GREEN: test "The expansion never leaves the project" (double with two projects holding the same subset)
+- [x] 5.5 RED → GREEN: test "An invalid hop count is rejected" (extra cases, not scenarios: invalid `hops` with an empty anchor still fails; an empty anchor in an unknown project gives `[]`; a non-empty anchor in an unknown project fails with `ProjectNotFound`)
+- [x] 5.6 RED → GREEN: test "An empty anchor expands to nothing without traversing" (double's `calls.neighbors` is 0). Extra case, not a scenario: a non-empty anchor makes exactly one `neighbors` call with deduplicated file seeds and direction `'both'`
+- [x] 5.7 REFACTOR with the suite green (`/tdd-refactor`) over `context/`, `read-arguments.ts`, `queries.ts` and the double; no behaviour change
 
 ## 6. Privacy and ethics check
 
