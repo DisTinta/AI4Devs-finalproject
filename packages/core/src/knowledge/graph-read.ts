@@ -22,6 +22,11 @@ export interface StoredFile {
 export interface StoredSymbol extends SymbolRef {
   /** Symbol id; valid only until the next `saveGraph` of the project. */
   id: string;
+  /**
+   * Id of the symbol's file: the same id a file result or a file seed uses, valid while a snapshot
+   * keeps the file's path (as `StoredFile.id`).
+   */
+  fileId: string;
   /** Kind of symbol. */
   kind: SymbolKind;
   /** Last line of the symbol. */
@@ -32,6 +37,15 @@ export interface StoredSymbol extends SymbolRef {
 
 /** A traversal seed: one symbol or one file, by id. */
 export type NodeRef = { type: 'symbol'; id: string } | { type: 'file'; id: string };
+
+/**
+ * The direction a traversal follows edges in: `out` from source to target, `in` from target to
+ * source, `both` either way at each step.
+ */
+export type TraversalDirection = 'out' | 'in' | 'both';
+
+/** Every traversal direction, for validation of untyped input. */
+export const TRAVERSAL_DIRECTIONS: readonly TraversalDirection[] = Object.freeze(['out', 'in', 'both']);
 
 /** A node of the graph: a file or a symbol, told apart by `type`. */
 export type GraphNode = ({ type: 'file' } & StoredFile) | ({ type: 'symbol' } & StoredSymbol);

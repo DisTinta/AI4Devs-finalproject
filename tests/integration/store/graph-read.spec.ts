@@ -11,13 +11,16 @@ import type {
   Neighbor,
   NewProject,
   StorePort,
+  TraversalDirection,
 } from '@codemind/core';
 import { createPostgresStore } from '../../../packages/adapters/store-postgres/src/index';
 import { describeWithDatabase, useTransactionPerTest } from '../helpers/db';
 import { unique } from '../helpers/factories';
 import { edge, file, ref, sampleGraph, SHA, symbol } from '../../support/sample-graph';
 
-// Spec: openspec/changes/store-graph-read/specs/graph-store/spec.md. Each test is one scenario,
+// Spec: openspec/changes/store-graph-read/specs/graph-store/spec.md, with the traversal direction and
+// the symbol's file id of openspec/changes/context-engine-anchor-expand/specs/graph-store/spec.md
+// (DIS-27). Each test is one scenario,
 // named after it. Both stores run on the harness transaction, so every row is reverted when the test
 // ends. Set-up happens in the test body (hook order, see useTransactionPerTest).
 
@@ -235,16 +238,19 @@ describeWithDatabase('graph store reads (DIS-24)', () => {
         ),
       );
 
+      const a = await fileId(projectId, 'src/a.ts');
+      const upper = await fileId(projectId, 'src/B.ts');
+
       // Act
       const found = await reader.findSymbols(projectId, 'price');
 
       // Assert
       expect(found).toEqual([
-        { id: expect.any(String), file: 'src/B.ts', name: 'basePrice', startLine: 1, endLine: 3, kind: 'method' },
-        { id: expect.any(String), file: 'src/a.ts', name: 'PriceCalculator', startLine: 3, endLine: 40, kind: 'class', signature: 'class PriceCalculator' },
-        { id: expect.any(String), file: 'src/a.ts', name: 'computePrice', startLine: 10, endLine: 12, kind: 'method' },
-        { id: expect.any(String), file: 'src/a.ts', name: 'PriceTwo', startLine: 20, endLine: 22, kind: 'method' },
-        { id: expect.any(String), file: 'src/a.ts', name: 'priceOne', startLine: 20, endLine: 22, kind: 'method' },
+        { id: expect.any(String), fileId: upper, file: 'src/B.ts', name: 'basePrice', startLine: 1, endLine: 3, kind: 'method' },
+        { id: expect.any(String), fileId: a, file: 'src/a.ts', name: 'PriceCalculator', startLine: 3, endLine: 40, kind: 'class', signature: 'class PriceCalculator' },
+        { id: expect.any(String), fileId: a, file: 'src/a.ts', name: 'computePrice', startLine: 10, endLine: 12, kind: 'method' },
+        { id: expect.any(String), fileId: a, file: 'src/a.ts', name: 'PriceTwo', startLine: 20, endLine: 22, kind: 'method' },
+        { id: expect.any(String), fileId: a, file: 'src/a.ts', name: 'priceOne', startLine: 20, endLine: 22, kind: 'method' },
       ]);
     });
 
@@ -330,6 +336,7 @@ describeWithDatabase('graph store reads (DIS-24)', () => {
       expect(neighbors[0]).toEqual({
         type: 'symbol',
         id: await symbolId(reader, projectId, 'B'),
+        fileId: await fileId(projectId, SRC),
         file: SRC,
         name: 'B',
         startLine: 11,
@@ -375,10 +382,55 @@ describeWithDatabase('graph store reads (DIS-24)', () => {
       const a = await symbolId(reader, projectId, 'A');
 
       // Act
-      const neighbors = await reader.neighbors(projectId, [{ type: 'symbol', id: a }], 2);
+      const byDefault = await reader.neighbors(projectId, [{ type: 'symbol', id: a }], 2);
+      const outgoing = await reader.neighbors(projectId, [{ type: 'symbol', id: a }], 2, undefined, 'out');
 
       // Assert
-      expect(labels(neighbors)).toEqual(['B@1']);
+      expect(labels(byDefault)).toEqual(['B@1']);
+      expect(labels(outgoing)).toEqual(['B@1']);
+    });
+
+    it('Incoming edges are followed with direction in', async () => {
+      // Arrange
+      const { writer, reader } = stores();
+      const s = symbol('src/s.ts', 'S', 1);
+      const projectId = await projectWith(writer, {
+        files: [file('README.md', { kind: 'doc' }), file('src/s.ts')],
+        symbols: [s],
+        edges: [edge({ file: 'README.md' }, { symbol: ref(s) }, { kind: 'describes', resolution: 'heuristic' })],
+        commits: [],
+        fileCommits: [],
+      });
+      const seeds = [{ type: 'symbol' as const, id: await symbolId(reader, projectId, 'S') }];
+
+      // Act
+      const incoming = await reader.neighbors(projectId, seeds, 1, ['describes'], 'in');
+      const outgoing = await reader.neighbors(projectId, seeds, 1, ['describes'], 'out');
+
+      // Assert
+      expect(labels(incoming)).toEqual(['file:README.md@1']);
+      expect(outgoing).toEqual([]);
+    });
+
+    it('Edges are followed both ways with direction both', async () => {
+      // Arrange
+      const { writer, reader } = stores();
+      const projectId = await projectWith(writer, {
+        files: [file('app/a.php'), file('app/b.php')],
+        symbols: [],
+        edges: [edge({ file: 'app/a.php' }, { file: 'app/b.php' }, { kind: 'co_changed', resolution: 'heuristic', weight: 1 })],
+        commits: [],
+        fileCommits: [],
+      });
+      const seeds = [{ type: 'file' as const, id: await fileId(projectId, 'app/b.php') }];
+
+      // Act
+      const both = await reader.neighbors(projectId, seeds, 1, ['co_changed'], 'both');
+      const outgoing = await reader.neighbors(projectId, seeds, 1, ['co_changed'], 'out');
+
+      // Assert
+      expect(labels(both)).toEqual(['file:app/a.php@1']);
+      expect(outgoing).toEqual([]);
     });
 
     it('The traversal crosses files and symbols', async () => {
@@ -502,13 +554,14 @@ describeWithDatabase('graph store reads (DIS-24)', () => {
         { type: 'symbol' as const, id: await symbolId(reader, projectId, 'A') },
         { type: 'file' as const, id: await fileId(projectId, SRC) },
       ];
-      const before = statements();
+      const directions: TraversalDirection[] = ['out', 'in', 'both'];
 
-      // Act
-      await reader.neighbors(projectId, seeds, 3);
-
-      // Assert
-      expect(statements() - before).toBe(1);
+      // Act / Assert
+      for (const direction of directions) {
+        const before = statements();
+        await reader.neighbors(projectId, seeds, 3, undefined, direction);
+        expect(statements() - before).toBe(1);
+      }
     });
 
     it('Traversing an unknown project fails', async () => {
@@ -583,6 +636,30 @@ describeWithDatabase('graph store reads (DIS-24)', () => {
       // Assert
       expect(neighbors).toEqual([]);
     });
+    // Not a scenario: backs the project filter of the two `in` branches (DIS-27 design D4).
+    it("An incoming cross-project edge never returns another project's node", async () => {
+      // Arrange: edges of the first project from the second project's symbol and file into `A`.
+      const { writer, reader } = stores();
+      const first = await projectWith(writer, symbolGraph(['A'], []));
+      const second = await projectWith(writer, symbolGraph(['X'], []));
+      const a = await symbolId(reader, first, 'A');
+      const x = await symbolId(reader, second, 'X');
+      const secondFile = await fileId(second, SRC);
+      await db().query(
+        `INSERT INTO edge (project_id, source_symbol_id, source_file_id, target_symbol_id, kind, resolution, extractor)
+         VALUES ($1, $2, NULL, $3, 'calls', 'exact', 'test-extractor'),
+                ($1, NULL, $4, $3, 'describes', 'heuristic', 'test-extractor')`,
+        [first, x, a, secondFile],
+      );
+
+      // Act
+      const incoming = await reader.neighbors(first, [{ type: 'symbol', id: a }], 1, undefined, 'in');
+      const both = await reader.neighbors(first, [{ type: 'symbol', id: a }], 1, undefined, 'both');
+
+      // Assert
+      expect(incoming).toEqual([]);
+      expect(both).toEqual([]);
+    });
   });
 
   describe('Requirement: Validity of ids returned by reads', () => {
@@ -625,6 +702,33 @@ describeWithDatabase('graph store reads (DIS-24)', () => {
       // Assert
       expect(labels(neighbors)).toEqual(['file:src/b.ts@1']);
     });
+    it('A symbol result carries the id of its file', async () => {
+      // Arrange
+      const { writer, reader } = stores();
+      const s = symbol('src/a.ts', 'S', 1);
+      const r = symbol('src/r.ts', 'R', 1);
+      const projectId = await projectWith(writer, {
+        files: [file('src/a.ts'), file('src/b.ts'), file('src/r.ts')],
+        symbols: [s, r],
+        edges: [
+          edge({ symbol: ref(r) }, { symbol: ref(s) }),
+          edge({ file: 'src/a.ts' }, { file: 'src/b.ts' }, { kind: 'co_changed', resolution: 'heuristic', weight: 1 }),
+        ],
+        commits: [],
+        fileCommits: [],
+      });
+      const [found] = await reader.findSymbols(projectId, 'S');
+      const rId = await symbolId(reader, projectId, 'R');
+
+      // Act
+      const [reached] = await reader.neighbors(projectId, [{ type: 'symbol', id: rId }], 1);
+      const fromFile = await reader.neighbors(projectId, [{ type: 'file', id: found.fileId }], 1, ['co_changed']);
+
+      // Assert
+      expect(found.fileId).toBe(await fileId(projectId, 'src/a.ts'));
+      expect(reached).toMatchObject({ type: 'symbol', name: 'S', fileId: found.fileId });
+      expect(labels(fromFile)).toEqual(['file:src/b.ts@1']);
+    });
   });
 
   describe('Requirement: Validation of read arguments', () => {
@@ -651,6 +755,23 @@ describeWithDatabase('graph store reads (DIS-24)', () => {
         expect(error).toBeInstanceOf(InvalidStoreQuery);
         expect((error as InvalidStoreQuery).argument).toBe(argument);
       }
+      expect(statements()).toBe(0);
+    });
+
+    it('An invalid traversal direction is rejected before querying', async () => {
+      // Arrange: a caller without types can pass any value.
+      const { reader, statements } = stores();
+      const sideways = 'sideways' as unknown as TraversalDirection;
+
+      // Act
+      const error = await reader.neighbors(randomUUID(), [], 2, undefined, sideways).then(
+        () => undefined,
+        (rejection: unknown) => rejection,
+      );
+
+      // Assert
+      expect(error).toBeInstanceOf(InvalidStoreQuery);
+      expect((error as InvalidStoreQuery).argument).toBe('direction');
       expect(statements()).toBe(0);
     });
 
