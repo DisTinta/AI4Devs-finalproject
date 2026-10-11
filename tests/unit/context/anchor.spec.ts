@@ -181,11 +181,15 @@ describe('Requirement: Lexical anchoring', () => {
     const question = [...letters].map((letter, i) => `${letter}${i < 26 ? 'q' : 'z'}wxvkmj`).join(' ');
     expect(new Set(question.split(' ')).size).toBe(30);
 
-    // Act
-    await anchor(store, projectId, question);
+    const searched: string[] = [];
+    const recording = { ...store, findSymbols: (id: string, term: string) => (searched.push(term), store.findSymbols(id, term)) };
 
-    // Assert
+    // Act
+    await anchor(recording, projectId, question);
+
+    // Assert: exactly the first 16 terms, in term order.
     expect(calls.findSymbols).toBeLessThanOrEqual(16);
+    expect(searched).toEqual(questionTerms(question).slice(0, 16));
   });
 
   it('The anchor keeps the symbols that match the most terms', async () => {

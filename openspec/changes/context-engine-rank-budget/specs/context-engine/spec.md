@@ -191,15 +191,16 @@ fitted to a token budget.
   `origin` (`anchor`, `exact` or `heuristic`).
 - A span's `text` SHALL be exactly its lines of the file's redacted content, each line as stored,
   joined by line feeds, with no trailing line feed. A file's last line is its number of lines, a
-  final line feed ending the last line rather than starting a new one.
+  final line feed ending the last line rather than starting a new one; an empty file has one empty
+  line.
 - Every file's content SHALL be redacted of secrets, as the indexing redacts them, before any span
   is cut or any token counted. Redaction keeps the number of lines, so line numbers stay valid.
 - `baselineTokens` SHALL be the sum, over the distinct files of the included spans, of the
   estimated tokens of each whole redacted file, each file once.
 - An `empty` pack SHALL carry `status: 'empty'`, a `reason`, no spans, `tokens` and
   `baselineTokens` 0, `tokenBudget`, `omitted` and `estimator: 'chars-div-4'`. The reason SHALL be
-  `no-anchor` when the anchor is empty (then nothing is traversed, the project is not read and no
-  file is read), and `over-budget` when there are candidates but no span fits.
+  `no-anchor` when the anchor is empty (then nothing is traversed, the project is not read, no file
+  is read and `omitted` is 0), and `over-budget` when there are candidates but no span fits.
 - Validation SHALL come first, before any store call: a workspace root that is not absolute MUST
   fail with `RangeError` naming `workspaceRoot`; an invalid `tokenBudget` MUST fail with
   `RangeError` naming `tokenBudget`; an invalid `hops` MUST fail with `InvalidStoreQuery` naming

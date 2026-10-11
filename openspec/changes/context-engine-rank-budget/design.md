@@ -105,21 +105,24 @@ GIN index in a migration.
    segment, no NUL or `\n`) → `RangeError` naming the argument, before spawning anything.
 2. Applies the same root checks as `readFiles` (top-level directory of a repository); a failure is
    `SourceUnavailable('not-a-repository', path)` instead of `NotAGitRepository`.
-3. One `git --literal-pathspecs ls-tree -z -l --full-tree <commit> -- <path>` gives mode, oid and
+3. One `rev-parse --verify --quiet <commit>^{commit}` checks the commit exists: exit 1 with no
+   output → `missing`; any other failure propagates as git's error (verify-against-spec, below).
+   Then one `git --literal-pathspecs ls-tree -z -l --full-tree <commit> -- <path>` gives mode, oid and
    size. `--literal-pathspecs` is git's top-level flag (same effect as `GIT_LITERAL_PATHSPECS=1`,
    no pathspec magic), passed in `args`: `GitSpawner` is `(root, args)` and `GIT_ENV` is shared by
    every process, so no per-call environment is needed and neither changes. `spawnReaderGit`'s
    JSDoc rule "`args` are constants of the adapter, never built from repository data" is widened to
    "constants, plus an object id validated against `OBJECT_ID` and a path validated by step 1,
-   always after `--`" (still no shell, `shell: false`). Unknown commit or no entry → `missing`;
-   mode other than `100644`/`100755` (tree, `120000`, `160000`) → `missing`; size >
+   always after `--`" (still no shell, `shell: false`). No entry → `missing`; mode other than
+   `100644`/`100755` (tree, `120000`, `160000`) → `missing`; an entry git cannot size (`BAD`, a
+   damaged repository or partial clone) propagates git's own error, as `readFiles` does; size >
    `MAX_BLOB_BYTES` → `too-large`, content never read.
 4. One `cat-file blob <oid>` (oid validated against `OBJECT_ID`) reads the bytes; strict UTF-8
    decode (the existing `decodeUtf8`) or `binary-content`; leading BOM dropped.
 
 Every spawn goes through the existing `spawnGit` (C locale, isolated configuration and environment,
 no filters, no fsmonitor, no hooks, no fetch), so the readFiles hygiene scenarios hold. Process
-count is constant per call (root checks + 2), independent of file size. `SourceUnavailable` is a
+count is constant per call (root checks + 3), independent of file size. `SourceUnavailable` is a
 `DomainError` in `knowledge/errors.ts`: `code = 'SOURCE_UNAVAILABLE'`, `reason:
 'not-indexed' | 'not-a-repository' | 'missing' | 'too-large' | 'binary-content'`, `path?: string`;
 its message names reason and path, never content.
@@ -188,7 +191,7 @@ buildContextPack(
    `core/src/index/path-policy.ts`) → else `RangeError` naming `workspaceRoot`; `tokenBudget`
    integer in `TOKEN_BUDGET_MIN..TOKEN_BUDGET_MAX` (1000..32000, default `TOKEN_BUDGET_DEFAULT`
    8000) → else `RangeError` naming `tokenBudget`; `assertValidTraversal(hops)` (default
-   `DEFAULT_CONTEXT_HOPS = 2`). The order among the three is not specified.
+   `DEFAULT_CONTEXT_HOPS = 2`). The code checks them in that order; the spec does not fix it.
 2. `anchor(...)`; empty → `empty` / `no-anchor` (no `neighbors`, no `getProject`, no `readFileAt`).
 3. `expand(...)`, then `getProject(projectId)` (`ProjectNotFound` if it vanished);
    `indexedCommit` unset → `SourceUnavailable('not-indexed')`, no read.
@@ -275,4 +278,25 @@ traversal, which returns the same nodes and distances.
 ## Follow-ups
 
 Destinations per `docs/project-context.md` → Tracking deferred findings (A fixed in this change,
-B successor ticket, C debt, D accepted with reason). Filled during pre-merge review.
+B successor ticket, C debt, D accepted with reason).
+
+### verify-against-spec (2026-10-11, `reports/2026-10-11-verify-against-spec.md`)
+
+| Finding | Destination | Resolution |
+|---|---|---|
+| 2.1 / 3.1 `readFileAt` reports some git failures as `missing` (`BAD` entry; failed `cat-file -e` probe) | A | `rev-parse --verify --quiet` decides "unknown commit" (exit 1, no output); any other failure and a `BAD` entry propagate git's error. Two tests seen failing first (D5) |
+| 2.2 Placement of a replacing span untested | A | «A whole file replaces the symbol spans it contains» gains a candidate ranked after the method; appending now fails it (mutation checked) |
+| 2.3 No test for "no log" | D | `context/` has no logger nor `console` (grep guard in the step-14 report); logging belongs to DIS-39's entry points, as in DIS-27 |
+| 2.3 64-character ids, `.` and NUL in paths, process count by file size untested | A | Extra cases in `git-source-tree.spec.ts` |
+| 2.3 Caller's git environment variables untested for `readFileAt` | D | Same launcher and fixed `GIT_ENV` as `readFiles`, whose hygiene scenario covers it |
+| 2.3 `hops` default, non-UUID project at pack level, CRLF kept untested | A | Extra cases in `context-pack.spec.ts` |
+| 3.2 An annotated tag id is accepted as a commit (peeled) | D | `indexedCommit` is always a commit id written by the indexer; peeling a tag cannot read anything the tag's commit does not hold |
+| 3.3 Empty file = one line not in the spec | A | Spec bullet added (Context pack) |
+| 3.4 Symbol lines past the end of the file are cut short | D | Cannot happen when reading the indexed commit (Risks); `slice` never invents lines |
+| 3.5 Validation order fixed in code, open in the spec | D | Each invalid argument fails before any store call, which is what the spec guarantees; D9 now states the code's order |
+| 3.6 `no-anchor` → `omitted: 0` not in the spec | A | Spec bullet updated |
+| 3.7 Public API beyond the spec | D | Constants and helpers named in D6–D9; DIS-39 needs the budget bounds and defaults for its Zod schema |
+| Weak: «An anchor that does not fit…» never checks the pack `status` | A | Extra pack-level case: `ok`, the neighbour, `omitted` 1 |
+| Weak: «A long question…» only asserts `≤ 16` | A | The test now records the searched terms: exactly the first 16, in order |
+| Weak: «Unreadable source…» checks one substring | A | Exact message asserted; the real adapter's messages are checked in `git-source-tree.spec.ts` |
+| Weak: «A method inside an included class…» on made-up spans | D | The `PriceCalculator.php` part is the integration scenario «The pack of the price question holds the calculator class once» |

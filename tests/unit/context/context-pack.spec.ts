@@ -237,9 +237,11 @@ describe('Requirement: Context pack', () => {
 
     // Act
     const rejection = await rejectionOf(() => buildContextPack(deps, { projectId: randomUUID(), question: Q1 }));
+    const malformed = await rejectionOf(() => buildContextPack(deps, { projectId: 'not-a-uuid', question: Q1 }));
 
     // Assert
     expect(rejection).toBeInstanceOf(ProjectNotFound);
+    expect(malformed).toBeInstanceOf(ProjectNotFound);
   });
 
   it('Unreadable source fails without its content', async () => {
@@ -253,7 +255,7 @@ describe('Requirement: Context pack', () => {
     // Assert
     expect(rejection).toBe(unreadable);
     expect((rejection as SourceUnavailable).path).toBe('app/Services/PriceCalculator.php');
-    expect((rejection as Error).message).not.toContain(' line ');
+    expect((rejection as Error).message).toBe('Source unavailable: binary-content: app/Services/PriceCalculator.php');
   });
 
   it('A project never indexed has no source to read', async () => {
@@ -341,6 +343,46 @@ describe('context pack details', () => {
     ]);
   });
 
+  it('expands at 2 hops when no hop count is given', async () => {
+    const { deps, projectId } = doubles();
+    const hops: number[] = [];
+    const store = { ...deps.store, neighbors: (...args: Parameters<typeof deps.store.neighbors>) => (hops.push(args[2]), deps.store.neighbors(...args)) };
+
+    await buildContextPack({ ...deps, store }, { projectId, question: Q1 });
+
+    expect(hops).toEqual([2]);
+  });
+
+  it('keeps each line as stored, carriage returns included', async () => {
+    const crlf = symbol('app/Crlf.php', 'Crlf', 1, { endLine: 2 });
+    const { deps, projectId } = ownProject(
+      { files: [file('app/Crlf.php', { loc: 2 })], symbols: [crlf], edges: [] },
+      { 'app/Crlf.php': 'one\r\ntwo\r\n' },
+    );
+
+    const pack = filled(await buildContextPack(deps, { projectId, question: 'crlf' }));
+
+    expect(pack.spans[0].text).toBe('one\r\ntwo\r');
+  });
+
+  it('gives an ok pack with the neighbours that fit when the anchor does not', async () => {
+    const big = symbol('app/Big.php', 'Big', 1, { endLine: 100 });
+    const small = symbol('app/Small.php', 'Small', 1, { endLine: 3 });
+    const { deps, projectId } = ownProject(
+      {
+        files: [file('app/Big.php', { loc: 100 }), file('app/Small.php', { loc: 3 })],
+        symbols: [big, small],
+        edges: [edge({ symbol: ref(big) }, { symbol: ref(small) })],
+      },
+      { 'app/Big.php': linesOf('app/Big.php', 100, 60), 'app/Small.php': linesOf('app/Small.php', 3) },
+    );
+
+    const pack = await buildContextPack(deps, { projectId, question: 'big', tokenBudget: 1000 });
+
+    expect(pack).toMatchObject({ status: 'ok', omitted: 1 });
+    expect(pack.spans.map((s) => s.symbol?.name)).toEqual(['Small']);
+  });
+
   it('accepts the largest budget', async () => {
     const { deps, projectId } = doubles();
 
@@ -367,19 +409,22 @@ describe('Requirement: Token budget (whole-file spans)', () => {
   it('A whole file replaces the symbol spans it contains', async () => {
     // Arrange: `Anchor` calls `shippingFor` (lines 22–34 of s.php) and its file is co-changed with
     // s.php, so s.php is a whole-file candidate ranked after the method. With a budget of 1000 the
-    // file fits only once the method's tokens are discounted.
+    // file fits only once the method's tokens are discounted. `Guide` (exact, in a doc file) ranks
+    // between the method and the file, so the file must take the method's place, not the last one.
     const anchorSymbol = symbol('app/a.php', 'Anchor', 1);
     const shippingFor = symbol('app/s.php', 'shippingFor', 22, { endLine: 34 });
+    const guide = symbol('docs/guide.md', 'Guide', 1);
     const { deps, projectId } = ownProject(
       {
-        files: [file('app/a.php', { loc: 3 }), file('app/s.php', { loc: 35 })],
-        symbols: [anchorSymbol, shippingFor],
+        files: [file('app/a.php', { loc: 3 }), file('app/s.php', { loc: 35 }), file('docs/guide.md', { kind: 'doc', loc: 3 })],
+        symbols: [anchorSymbol, shippingFor, guide],
         edges: [
           edge({ symbol: ref(anchorSymbol) }, { symbol: ref(shippingFor) }),
+          edge({ symbol: ref(anchorSymbol) }, { symbol: ref(guide) }),
           edge({ file: 'app/a.php' }, { file: 'app/s.php' }, { kind: 'co_changed', resolution: 'heuristic', weight: 1 }),
         ],
       },
-      { 'app/a.php': linesOf('app/a.php', 3), 'app/s.php': linesOf('app/s.php', 35, 99) },
+      { 'app/a.php': linesOf('app/a.php', 3), 'app/s.php': linesOf('app/s.php', 35, 99), 'docs/guide.md': linesOf('docs/guide.md', 3) },
     );
 
     // Act
@@ -389,8 +434,9 @@ describe('Requirement: Token budget (whole-file spans)', () => {
     expect(pack.spans.map((s) => [s.path, s.startLine, s.endLine, s.symbol?.name])).toEqual([
       ['app/a.php', 1, 3, 'Anchor'],
       ['app/s.php', 1, 35, undefined],
+      ['docs/guide.md', 1, 3, 'Guide'],
     ]);
-    expect(pack.tokens).toBe(pack.spans[0].tokens + pack.spans[1].tokens);
+    expect(pack.tokens).toBe(pack.spans.reduce((sum, s) => sum + s.tokens, 0));
     const method = estimateTokens(linesOf('app/s.php', 35, 99).split('\n').slice(21, 34).join('\n'));
     expect(pack.tokens + method).toBeGreaterThan(1000);
   });
