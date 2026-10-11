@@ -132,7 +132,7 @@
 
 ## 17. Pull request preparation
 
-- [x] 17.1 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the author's Why transcribed verbatim from Linear DIS-28 "Decisiones del refinamiento (aceptadas por la autora, 2026-10-10)", the ADR linked, the seed regeneration explained (D12) and the Stryker score; after verification, set DIS-28 to In Review in Linear with a comment in Spanish linking the PR and the change
+- [ ] 17.1 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the author's Why transcribed verbatim from Linear DIS-28 "Decisiones del refinamiento (aceptadas por la autora, 2026-10-10)", the ADR linked, the seed regeneration explained (D12) and the Stryker score; after verification, set DIS-28 to In Review in Linear with a comment in Spanish linking the PR and the change
 
 ## 18. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
