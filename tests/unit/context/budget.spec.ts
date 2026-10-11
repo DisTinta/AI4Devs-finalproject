@@ -112,6 +112,53 @@ describe('Requirement: Token budget', () => {
     expect(fitted.omitted).toBe(0);
   });
 
+  // Not scenarios: the boundaries of design D8, found by mutation testing.
+  it('includes a span that fills the budget exactly', () => {
+    const exact = span('exact', 'a', 1, 10, 1000);
+
+    expect(fitToTokenBudget([exact], 1000)).toEqual({ included: [exact], tokens: 1000, omitted: 0 });
+  });
+
+  it('replaces when the total after the replacement fills the budget exactly', () => {
+    const method = span('method', 'a', 10, 20, 100);
+    const whole = span('file', 'a', 1, 30, 1000);
+
+    expect(fitToTokenBudget([method, whole], 1000)).toEqual({ included: [whole], tokens: 1000, omitted: 0 });
+  });
+
+  it('drops a span identical to an included one', () => {
+    const first = span('first', 'a', 10, 20, 100);
+    const same = span('same', 'a', 10, 20, 100);
+
+    expect(fitToTokenBudget([first, same], 1000)).toEqual({ included: [first], tokens: 100, omitted: 0 });
+  });
+
+  it('treats spans sharing one line as overlapping, and adjacent ones as not', () => {
+    const first = span('10-20', 'a', 10, 20, 100);
+    const sharing = span('20-30', 'a', 20, 30, 100);
+    const sharingStart = span('1-10', 'a', 1, 10, 100);
+    const adjacent = span('21-30', 'a', 21, 30, 100);
+
+    expect(fitToTokenBudget([first, sharing, sharingStart, adjacent], 1000).included).toEqual([first, adjacent]);
+  });
+
+  it('replaces a span it holds whole while sharing its first line, or its last line', () => {
+    const inner = span('10-20', 'a', 10, 20, 100);
+    const sameStart = span('10-30', 'a', 10, 30, 200);
+    const innerB = span('10-20', 'b', 10, 20, 100);
+    const sameEnd = span('5-20', 'b', 5, 20, 150);
+
+    expect(fitToTokenBudget([inner, sameStart], 1000).included).toEqual([sameStart]);
+    expect(fitToTokenBudget([innerB, sameEnd], 1000).included).toEqual([sameEnd]);
+  });
+
+  it('includes a span of the same file that ends before an included one starts', () => {
+    const later = span('30-40', 'a', 30, 40, 100);
+    const earlier = span('10-20', 'a', 10, 20, 100);
+
+    expect(fitToTokenBudget([later, earlier], 1000).included).toEqual([later, earlier]);
+  });
+
   it('a whole span replaces what it contains only if the total after the replacement fits', () => {
     const method = span('method', 'a', 10, 20, 600);
     const other = span('other', 'b', 1, 5, 300);

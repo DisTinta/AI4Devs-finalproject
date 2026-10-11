@@ -78,6 +78,16 @@ describe('Requirement: Candidate ranking', () => {
     expect(ranked.map(label)).toEqual(['file:docs/Cálculo.md', 'file:docs/other.md']);
   });
 
+  it('matches a symbol candidate on its name alone, even when its path does not match', () => {
+    const symbolNode = (name: string, path: string) =>
+      ({ type: 'symbol', id: name, fileId: path, fileKind: 'source', file: path, name, startLine: 1, endLine: 2, kind: 'method', distance: 1, resolution: 'exact' }) as const;
+    const neighbors = [symbolNode('Other::run', 'app/Other.php'), symbolNode('Totals::calculate', 'app/Totals.php')];
+
+    const ranked = rankCandidates([], neighbors, ['calcu']);
+
+    expect(ranked.map(label)).toEqual(['Totals::calculate', 'Other::run']);
+  });
+
   it('puts a nearer candidate first, then exact before heuristic, then the file kind order', () => {
     const neighbors = [
       fileNode('far.ts', 'test', 2, 'exact'),

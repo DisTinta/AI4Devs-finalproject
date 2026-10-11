@@ -109,12 +109,12 @@
 
 ## 14. Backend: Run Tests and Verify Data State (MANDATORY)
 
-- [ ] 14.1 Capture the pre-test baseline: the 0.5 indicators, plus `SELECT count(*) FROM project`, `FROM symbol`, `FROM edge` and `FROM query_log` on the local database, and `git -C fixtures/acme-shop status --porcelain` (the integration tests write only inside rolled-back transactions or throwaway repos)
-- [ ] 14.2 Run the targeted tests: `npx vitest run tests/unit/context tests/unit/store/in-memory-store.spec.ts tests/integration/store/graph-read.spec.ts tests/integration/git/git-source-tree.spec.ts tests/integration/context`
-- [ ] 14.3 Run the required broader suite and gates: `npx vitest run`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`, `npx stryker run --mutate "packages/core/src/context/**/*.ts"` (score ≥ `MIN_MUTATION_SCORE=70`; list surviving mutants and kill the meaningful ones)
-- [ ] 14.4 Verify the post-test state: the counts equal to the baseline; `seeds/`, `packages/web/`, `fixtures/` unchanged since the step 13 commit; no throwaway repo left under the OS temp dir by the new tests; no `.stryker-tmp/` left behind. Restore and document if not
-- [ ] 14.5 Create the report `openspec/changes/context-engine-rank-budget/reports/YYYY-MM-DD-14-test-and-state-verification.md` from the template in `docs/openspec-tasks-mandatory-steps.md` §6, including the 0.5 baseline, the seed diff of step 13, the Stryker score, the 1:1 scenario map of 10.2, the `fast-check` seed used in CI and the privacy check of 9.1
-- [ ] 14.6 Mark complete only after the tests pass and the report exists
+- [x] 14.1 Capture the pre-test baseline: the 0.5 indicators, plus `SELECT count(*) FROM project`, `FROM symbol`, `FROM edge` and `FROM query_log` on the local database, and `git -C fixtures/acme-shop status --porcelain` (the integration tests write only inside rolled-back transactions or throwaway repos)
+- [x] 14.2 Run the targeted tests: `npx vitest run tests/unit/context tests/unit/store/in-memory-store.spec.ts tests/integration/store/graph-read.spec.ts tests/integration/git/git-source-tree.spec.ts tests/integration/context`
+- [x] 14.3 Run the required broader suite and gates: `npx vitest run`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`, `npx stryker run --mutate "packages/core/src/context/**/*.ts"` (score ≥ `MIN_MUTATION_SCORE=70`; list surviving mutants and kill the meaningful ones)
+- [x] 14.4 Verify the post-test state: the counts equal to the baseline; `seeds/`, `packages/web/`, `fixtures/` unchanged since the step 13 commit; no throwaway repo left under the OS temp dir by the new tests; no `.stryker-tmp/` left behind. Restore and document if not
+- [x] 14.5 Create the report `openspec/changes/context-engine-rank-budget/reports/YYYY-MM-DD-14-test-and-state-verification.md` from the template in `docs/openspec-tasks-mandatory-steps.md` §6, including the 0.5 baseline, the seed diff of step 13, the Stryker score, the 1:1 scenario map of 10.2, the `fast-check` seed used in CI and the privacy check of 9.1
+- [x] 14.6 Mark complete only after the tests pass and the report exists
 
 ## 15. Backend: Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE)
 
@@ -127,7 +127,7 @@
 
 ## 16. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
-- [ ] 16.1 No user interface uses the Context Engine yet (DIS-39 / CM-HU-12): record "not applicable; exercised against the real database and git in step 15" in the step 14 report
+- [x] 16.1 No user interface uses the Context Engine yet (DIS-39 / CM-HU-12): record "not applicable; exercised against the real database and git in step 15" in the step 14 report
 - [ ] 16.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that `tests/unit/context/`, `tests/unit/store/in-memory-store.spec.ts`, `tests/integration/store/graph-read.spec.ts`, `tests/integration/git/git-source-tree.spec.ts` and `tests/integration/context/` ran and passed, that the property test ran with the fixed seed, that the seed-freshness check (if any) is green, and that the mutation step covered `packages/core/src/context`. Link the run in the step 14 report
 
 ## 17. Pull request preparation

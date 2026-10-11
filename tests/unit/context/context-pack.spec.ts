@@ -304,6 +304,52 @@ describe('Requirement: Context pack', () => {
   });
 });
 
+// Not scenarios: details of design D9 found by mutation testing.
+describe('context pack details', () => {
+  it('a symbol span holds exactly its lines, joined by line feeds', async () => {
+    const one = symbol('app/One.php', 'One', 2, { endLine: 3 });
+    const { deps, projectId } = ownProject(
+      { files: [file('app/One.php', { loc: 4 })], symbols: [one], edges: [] },
+      { 'app/One.php': 'a\nb\nc\nd\n' },
+    );
+
+    const pack = filled(await buildContextPack(deps, { projectId, question: 'one' }));
+
+    expect(pack.spans[0].text).toBe('b\nc');
+  });
+
+  it('counts the last line of a file without a final line feed, and an empty file as one line', async () => {
+    const anchorSymbol = symbol('app/a.php', 'Anchor', 1, { endLine: 1 });
+    const { deps, projectId } = ownProject(
+      {
+        files: [file('app/a.php', { loc: 1 }), file('app/b.php', { loc: 2 }), file('app/c.php', { loc: 0 })],
+        symbols: [anchorSymbol],
+        edges: [
+          edge({ file: 'app/a.php' }, { file: 'app/b.php' }, { kind: 'co_changed', resolution: 'heuristic', weight: 1 }),
+          edge({ file: 'app/a.php' }, { file: 'app/c.php' }, { kind: 'co_changed', resolution: 'heuristic', weight: 1 }),
+        ],
+      },
+      { 'app/a.php': 'x\n', 'app/b.php': 'one\ntwo', 'app/c.php': '' },
+    );
+
+    const pack = filled(await buildContextPack(deps, { projectId, question: 'anchor' }));
+
+    expect(pack.spans.map((s) => [s.path, s.startLine, s.endLine, s.text])).toEqual([
+      ['app/a.php', 1, 1, 'x'],
+      ['app/b.php', 1, 2, 'one\ntwo'],
+      ['app/c.php', 1, 1, ''],
+    ]);
+  });
+
+  it('accepts the largest budget', async () => {
+    const { deps, projectId } = doubles();
+
+    const pack = await buildContextPack(deps, { projectId, question: Q1, tokenBudget: 32000 });
+
+    expect(pack.tokenBudget).toBe(32000);
+  });
+});
+
 describe('Requirement: Token budget (whole-file spans)', () => {
   it('A file node gives a whole-file span', async () => {
     // Arrange

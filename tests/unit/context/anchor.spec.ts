@@ -208,4 +208,21 @@ describe('Requirement: Lexical anchoring', () => {
     // Assert
     expect(anchors.map((s) => s.name)).toEqual([...items.slice(0, 31).map((s) => s.name), 'getTotal']);
   });
+
+  // Not a scenario: the cap's boundary, found by mutation testing.
+  it('keeps every symbol, in first-found order, when exactly MAX_ANCHORS are found', async () => {
+    const getters = Array.from({ length: 32 }, (_, i) => symbol('src/a.ts', `get${String(i).padStart(2, '0')}`, 10 * i + 1));
+    const { store, projectIds } = createInMemoryStore({
+      projects: [
+        {
+          project: { name: 'getters', rootPath: '/repos/getters', language: 'php' },
+          graph: { files: [file('src/a.ts')], symbols: [...getters].reverse(), edges: [], commits: [], fileCommits: [] },
+        },
+      ],
+    });
+
+    const anchors = await anchor(store, projectIds[0], 'get get02');
+
+    expect(anchors.map((s) => s.name)).toEqual(getters.map((s) => s.name));
+  });
 });
