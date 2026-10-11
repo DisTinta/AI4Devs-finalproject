@@ -73,7 +73,8 @@ test exercise one definition. The fields mirror the `claim` columns a writer sup
 `NaN` in `z.number()`.
 
 `provenanceSchema` (strict): `model` (non-empty), `promptHash` (`/^[0-9a-f]{64}$/`), `inputSpans`
-(≥ 1 of `{ fileId: uuid, startLine: int > 0, endLine: int >= startLine }`), `createdAt`
+(≥ 1 of `{ fileId: uuid, startLine: int > 0, endLine: int >= startLine }`, both ≤ `SPAN_LINE_MAX`
+= 2 147 483 647, the Postgres `integer`), `createdAt`
 (`z.iso.datetime({ offset: true })`).
 
 `knowledge/evidence.ts`: `EVIDENCE_VERIFICATIONS` and `evidenceSchema` (strict): `fileId` (uuid),
@@ -184,7 +185,9 @@ beyond the numbers.
 
 `typeStatement(chain: readonly [CitedSpan, ...CitedSpan[]]): 'FACT' | 'INFERENCE'`, with
 `CitedSpan = Pick<ContextSpan, 'origin'>`. The non-empty tuple makes an empty chain a compile error.
-`FACT` iff `chain.every(s => s.origin !== 'heuristic')`. `UNKNOWN` is not produced here: it is the
+`FACT` iff every span's origin is in `FACT_ORIGINS` (`anchor`, `exact`): the rule fails closed, so
+an origin it does not know is an `INFERENCE`. An empty chain throws `RangeError` at run time (the
+tuple only guards typed callers; `every` on `[]` would otherwise give `FACT`). `UNKNOWN` is not produced here: it is the
 answer policy of DIS-39. The function takes no `layer`, so the statement type cannot be bent to pass
 `fact_only_from_l1` (accepted decision 1).
 
@@ -267,3 +270,29 @@ in this change:
   `util.codePointLength`. Counterexample: `'a'.repeat(499) + '😀'` (501 UTF-16 units, 500 code points)
   passes `z.string().max(500)`. Spec, D6, the JSDoc of `limits.ts`, task 4.9 and its test now say
   code points; `MAX_MODEL_OUTPUT_BYTES` (UTF-8 bytes) is unchanged.
+
+`/verify-against-spec` (2026-10-11, report `reports/2026-10-11-verify-against-spec.md`); the author
+approved the proposed destinations:
+
+- A — run-time `typeStatement([])` returned `FACT` and its test pinned that (2.1, 3.1): now throws
+  `RangeError`; test changed (TDD, red first).
+- A — fail-open condition `origin !== 'heuristic'` (3.2): `FACT_ORIGINS` set, fail closed; new test
+  with an unknown origin (red first). D7 updated.
+- A — no test for a missing or `null` provenance field (2.3): extra case added.
+- A — the console test watched five methods (2.5): now every output method of `console`.
+- A — spec said "kind" for the field `type` (2.4): spec wording aligned.
+- A — line numbers accepted up to 2^53 (2.2): `SPAN_LINE_MAX` (2 147 483 647) on evidence and input
+  spans, test red first; spec states it. Touches `knowledge/`: seed regenerated again.
+- A, spec only — L1 `provenance: null` rejected (2.2): kept, specified ("absent, not `null`"), case
+  added that pins it.
+- C, owner DIS-39 — ` ` in text fields passes the schemas but Postgres rejects it (2.2): the
+  writer of the rows (DIS-39) handles it; noted in DIS-39 on Linear.
+- A, spec only — issue `code` is Zod's own for schema failures (3.8): kept (decided in D3), the set
+  and the "subcode is the stable classification" rule are now in the spec.
+- A, spec only — duplicate JSON keys (3.9): accepted, specified (the last value goes through every
+  check, so nothing escapes the quarantine).
+- A, spec only — UUID format, strict records, field lists, issue counts of the id checks, empty
+  `issues` for size/JSON, reversed span on `endLine`, public exports (3.3–3.7, 3.10, 3.11).
+- Accepted — `docs/backend-standards.md` §4 policy (3.12), reviewed by the author with this change;
+  seed fingerprint change (3.13).
+

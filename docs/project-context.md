@@ -507,10 +507,12 @@ services that must be started first, quirks of the local environment.
     `provenanceSchema` with the types inferred from them. They mirror `0002_history-claims`: an `L2`
     `FACT` neither type-checks nor validates, `L2` needs a provenance (`model`, `promptHash`,
     `inputSpans`, `createdAt`), `confidence` is `null` or in [0, 1]. `CLAIM_*` and
-    `EVIDENCE_VERIFICATIONS` equal the SQL enums (a test reads the migration). `knowledge/` is a
+    `EVIDENCE_VERIFICATIONS` equal the SQL enums (a test reads the migration). Line numbers are capped at
+    `SPAN_LINE_MAX` (2 147 483 647, the Postgres `integer`). `knowledge/` is a
     seed fingerprint input, so touching these files means `npm run seed:build`.
   - `packages/core/src/explain/typing-rules.ts`: `typeStatement(chain)` is `FACT` only when every cited
-    span's `origin` is `anchor`/`exact`. It reads the origin as the Context Engine gave it (a
+    span's `origin` is `anchor`/`exact` (fail closed: an unknown origin is `INFERENCE`; an empty
+    chain throws `RangeError`). It reads the origin as the Context Engine gave it (a
     replacing span carries the best origin) and never sees a `layer`; how a `FACT` is stored given
     `fact_only_from_l1` is DIS-39's open question.
   - `packages/core/src/explain/statement-schema.ts`: `parseModelOutput(text, knownEvidenceIds)` —

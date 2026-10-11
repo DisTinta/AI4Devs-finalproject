@@ -17,15 +17,25 @@ those the `claim` and `evidence` tables accept:
   SHALL each be declared once and SHALL equal, in order, the values of the matching database enums.
 - A claim of layer `L2` with type `FACT` SHALL NOT be representable: it SHALL fail to type-check and
   SHALL be rejected at run time (`fact_only_from_l1`).
+- A claim SHALL hold exactly: the project id, the subject and the predicate (strings), the object
+  (a string or `null`), the layer, the type, the status, the confidence and, as below, the
+  provenance. The claim id and the timestamps are assigned by the database and are not part of the
+  record. Any other field SHALL be rejected.
 - A claim of layer `L2` SHALL carry a provenance; without one it SHALL be rejected
-  (`l2_requires_provenance`). A claim of layer `L1` MAY carry one.
+  (`l2_requires_provenance`). A claim of layer `L1` MAY carry one; when it carries none, the field
+  SHALL be absent, not JSON `null`, so a writer handles a single form of "no provenance".
 - A claim's `confidence` SHALL be `null` or a number from 0 to 1, both included
   (`claim_confidence_range`).
 - A provenance SHALL hold exactly: the model name (non-empty), the prompt hash (64 lowercase
-  hexadecimal characters), the input spans (at least one; each a file id, a first line greater than 0
-  and a last line not before the first) and the creation instant (ISO 8601 with time zone). Any other
-  field, a missing field or JSON `null` SHALL be rejected.
-- An evidence SHALL have a first line greater than 0 and a last line not before the first.
+  hexadecimal characters), the input spans (at least one; each exactly a file id, a first line
+  greater than 0 and a last line not before the first) and the creation instant (ISO 8601 with time
+  zone). Any other field, a missing field or JSON `null` SHALL be rejected, at every level.
+- An evidence SHALL hold exactly: the file id, the first line (greater than 0), the last line (not
+  before the first), the verification and the excerpt (a string or `null`). The claim id is assigned
+  on insert and is not part of the record. Any other field SHALL be rejected.
+- Every id (project id, file id) SHALL be a UUID in the RFC 9562 format.
+- Every line number SHALL be at most 2 147 483 647, the range of the `integer` line columns.
+- A span whose last line is before its first SHALL be reported on its last line.
 
 The type of a statement (`FACT`, `INFERENCE`, `UNKNOWN`) SHALL NOT be derived from, nor constrain,
 the layer under which a claim is later stored: that mapping is outside this capability.
@@ -74,12 +84,15 @@ the layer under which a claim is later stored: that mapping is outside this capa
 
 A statement SHALL be typed from the spans it cites, never from what the model says about it. Each
 cited span carries the origin the Context Engine gave it, and the typing SHALL use that origin as
-given, without recomputing it: `anchor` (an anchor symbol of the question), `exact` (at least one of
+given, without recomputing it, and SHALL fail closed: a span whose origin is not `anchor` or
+`exact` (including an origin the rule does not know) makes the statement an `INFERENCE`. The
+origins are: `anchor` (an anchor symbol of the question), `exact` (at least one of
 the paths of minimum distance from an anchor uses only `exact` edges) or `heuristic` (otherwise). A
 span that replaced others in the context carries the best origin among itself and the spans it
 replaced, so an `exact` span may contain lines reached only heuristically. A statement SHALL be
 `FACT` when every cited span is `anchor` or `exact`, and `INFERENCE` when at least one is
-`heuristic`. A statement SHALL cite at least one span; typing an empty chain SHALL NOT be possible.
+`heuristic`. A statement SHALL cite at least one span; typing an empty chain SHALL NOT be possible:
+it SHALL fail to type-check and SHALL be rejected at run time with an error, never typed as a fact.
 
 #### Scenario: A chain of anchor and exact evidence is a fact
 
@@ -109,6 +122,11 @@ otherwise SHALL be discarded **whole** (no statement of it survives) with an aud
 4. No statement cites the same evidence id twice; duplicates SHALL NOT be removed (subcode
    `duplicate_evidence_id`).
 5. Every cited evidence id is one of the ids given to the model (subcode `unknown_evidence_id`).
+
+When checks 4 or 5 fail, the event SHALL carry one issue for the first repeated id of the first
+statement that has one (check 4), or one issue per unknown id (check 5). When checks 1 or 2 fail it
+SHALL carry no issue. A duplicate key inside the JSON text is not checked: the parser keeps its last
+value, and that value goes through every other check.
 
 The five limits SHALL be exported as named constants so that callers and tests use the same values.
 Character lengths SHALL be counted in Unicode code points (an astral character, such as an emoji,
@@ -186,13 +204,20 @@ counts as one); the minimum lengths (1 character) are measured the same way.
 ### Requirement: Audit event of a discarded output
 
 Every discarded output SHALL produce exactly one audit event, returned to the caller and never
-written to a log by the domain. The event SHALL carry the kind `schema_violation`, the stage
+written to a log by the domain. The event SHALL carry `type` `schema_violation`, the stage
 `l2_inference`, the subcode — exactly one value of the closed set `output_too_large`,
 `invalid_json`, `invalid_shape`, `limit_exceeded`, `empty_evidence`, `duplicate_evidence_id`,
-`unknown_evidence_id`, declared once — the size of the output in UTF-8 bytes, the SHA-256 of those bytes in
-lowercase hexadecimal, and the list of issues, each reduced to its path (field names of the schema
-and array indices) and its code. The event SHALL NOT contain the raw output nor any part of it: no
-value, no message produced by the validator, no name of an unexpected field.
+`unknown_evidence_id`, declared once — the size of the output in UTF-8 bytes, the SHA-256 of those
+bytes in lowercase hexadecimal, and the list of issues, each reduced to its path (field names of the
+schema and array indices) and its code. The code of an issue SHALL be the validator's own issue code
+for a schema failure (such as `unrecognized_keys`, `too_small`, `too_big`, `invalid_type`,
+`invalid_value`) and the subcode itself for the two evidence-id checks; the subcode, not the issue
+code, is the event's stable classification. The event SHALL NOT contain the raw output nor any part
+of it: no value, no message produced by the validator, no name of an unexpected field.
+
+The records, the typing rule, the quarantine function, its output and result shapes, the limits and
+the subcode set SHALL be exported from the domain package, so the explain use case (DIS-39) and its
+tests use the same definitions.
 
 #### Scenario: The event identifies the output without carrying it
 
