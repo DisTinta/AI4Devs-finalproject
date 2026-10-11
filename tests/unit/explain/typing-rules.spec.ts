@@ -30,6 +30,8 @@ describe('Requirement: Statement typing from the resolution of its evidence', ()
   it('does not accept an empty chain', () => {
     // @ts-expect-error a statement cites at least one span
     expect(() => typeStatement([])).toThrow(RangeError);
+    // @ts-expect-error a statement cites at least one span
+    expect(() => typeStatement([])).toThrow('a statement must cite at least one span to be typed');
   });
 
   // Not a scenario: the rule is fail-closed, so an origin it does not know is never a FACT.
