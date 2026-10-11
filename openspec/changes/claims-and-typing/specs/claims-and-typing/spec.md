@@ -10,7 +10,9 @@ none of its content, when it does not conform.
 ### Requirement: Claim and evidence records mirror the database checks
 
 The domain SHALL describe a claim and a piece of evidence with records whose valid values are exactly
-those the `claim` and `evidence` tables accept:
+those the `claim` and `evidence` tables accept, with one known exception: a text value holding the
+character U+0000 passes the records but Postgres rejects it in `text` and `jsonb`; the writer of the
+rows (DIS-39) owns that case.
 
 - The closed sets of claim layers (`L1`, `L2`), claim types (`FACT`, `INFERENCE`, `UNKNOWN`), claim
   statuses (`current`, `stale`) and evidence verifications (`none`, `cited`, `entailed`, `broken`)
@@ -93,6 +95,8 @@ replaced, so an `exact` span may contain lines reached only heuristically. A sta
 `FACT` when every cited span is `anchor` or `exact`, and `INFERENCE` when at least one is
 `heuristic`. A statement SHALL cite at least one span; typing an empty chain SHALL NOT be possible:
 it SHALL fail to type-check and SHALL be rejected at run time with an error, never typed as a fact.
+A chain with a missing position (a sparse array) SHALL be rejected the same way: every position
+SHALL hold a cited span.
 
 #### Scenario: A chain of anchor and exact evidence is a fact
 
@@ -215,8 +219,13 @@ for a schema failure (such as `unrecognized_keys`, `too_small`, `too_big`, `inva
 code, is the event's stable classification. The event SHALL NOT contain the raw output nor any part
 of it: no value, no message produced by the validator, no name of an unexpected field.
 
-The records, the typing rule, the quarantine function, its output and result shapes, the limits and
-the subcode set SHALL be exported from the domain package, so the explain use case (DIS-39) and its
+The size of the event SHALL be bounded whatever the output: it SHALL carry at most 20 issues (a
+named, exported constant), the first ones in the order they were found, and `issueCount`, the
+number of issues found before that cut (0 when checks 1 or 2 failed).
+
+The records (with the input-span schema and the line maximum), the typing rule, the quarantine
+function, its output and result shapes, the limits (including the issue cap) and the subcode set
+SHALL be exported from the domain package, so the explain use case (DIS-39) and its
 tests use the same definitions.
 
 #### Scenario: The event identifies the output without carrying it
@@ -225,6 +234,13 @@ tests use the same definitions.
 - **THEN** the event has kind `schema_violation`, stage `l2_inference`, subcode `invalid_shape`, the
   byte size and SHA-256 of that output, and one issue with path `statements.0`
 - **AND** its JSON serialisation contains neither `ignore previous instructions` nor `note` nor `ok`
+
+#### Scenario: The issues of an event are bounded
+
+- **WHEN** the output `{"answer":"a","statements":[{},{},…]}` with 21 000 empty statements (63 029
+  bytes, under the size limit) is checked
+- **THEN** it is discarded with subcode `invalid_shape`, its event carries exactly 20 issues and
+  `issueCount` 42 001, and the serialised event is under 4 096 bytes
 
 #### Scenario: Checking an output writes nothing to the console
 

@@ -145,7 +145,8 @@ interface SchemaViolationEvent {
   subcode: SchemaViolationSubcode;
   outputBytes: number;
   outputSha256: string; // hex SHA-256 of the UTF-8 bytes, node:crypto as in index-repository.ts
-  issues: { path: string; code: string }[];
+  issues: { path: string; code: string }[]; // at most MAX_EVENT_ISSUES (20), in the order found
+  issueCount: number; // issues found before that cut; 0 for output_too_large / invalid_json
 }
 ```
 
@@ -173,6 +174,7 @@ DIS-39 returns it from the explain use case and the transport logs it (PH-09).
 | `MAX_STATEMENTS` | 20 | More statements do not fit a context budget with useful citations, and each one costs the verifier (CM-HU-10) |
 | `MAX_STATEMENT_CHARS` | 500 | A statement is one checkable sentence (readme §2.5) |
 | `MAX_EVIDENCE_IDS_PER_STATEMENT` | 10 | More citations dilute verification without adding guarantee |
+| `MAX_EVENT_ISSUES` | 20 | Bounds the audit event, and so the log line, whatever the output (adversarial review: 21 000 empty statements gave 42 001 issues, 2.4 MB) |
 
 Character lengths are Unicode code points: Zod 4.6.5 measures a string's `.min`/`.max` in code points
 (`$ZodCheckMaxLength` in `node_modules/zod/v4/core/checks.js`, through `util.codePointLength`), which
@@ -186,8 +188,9 @@ beyond the numbers.
 `typeStatement(chain: readonly [CitedSpan, ...CitedSpan[]]): 'FACT' | 'INFERENCE'`, with
 `CitedSpan = Pick<ContextSpan, 'origin'>`. The non-empty tuple makes an empty chain a compile error.
 `FACT` iff every span's origin is in `FACT_ORIGINS` (`anchor`, `exact`): the rule fails closed, so
-an origin it does not know is an `INFERENCE`. An empty chain throws `RangeError` at run time (the
-tuple only guards typed callers; `every` on `[]` would otherwise give `FACT`). `UNKNOWN` is not produced here: it is the
+an origin it does not know is an `INFERENCE`. An empty chain, or one with a missing position (a
+sparse array), throws `RangeError` at run time: the tuple only guards typed callers, and `every`
+would give `FACT` for `[]` and skip holes; the rule walks the chain with an index loop. `UNKNOWN` is not produced here: it is the
 answer policy of DIS-39. The function takes no `layer`, so the statement type cannot be bent to pass
 `fact_only_from_l1` (accepted decision 1).
 
@@ -285,8 +288,9 @@ approved the proposed destinations:
   spans, test red first; spec states it. Touches `knowledge/`: seed regenerated again.
 - A, spec only — L1 `provenance: null` rejected (2.2): kept, specified ("absent, not `null`"), case
   added that pins it.
-- C, owner DIS-39 — ` ` in text fields passes the schemas but Postgres rejects it (2.2): the
-  writer of the rows (DIS-39) handles it; noted in DIS-39 on Linear.
+- B, owner DIS-39 — `\u0000` (U+0000) in text fields passes the schemas but Postgres rejects it
+  (2.2): the writer of the rows (DIS-39) handles it; noted in DIS-39 on Linear, and the spec names
+  the exception (adversarial review: B, not C, since a later ticket owns it).
 - A, spec only — issue `code` is Zod's own for schema failures (3.8): kept (decided in D3), the set
   and the "subcode is the stable classification" rule are now in the spec.
 - A, spec only — duplicate JSON keys (3.9): accepted, specified (the last value goes through every
@@ -296,3 +300,20 @@ approved the proposed destinations:
 - Accepted — `docs/backend-standards.md` §4 policy (3.12), reviewed by the author with this change;
   seed fingerprint change (3.13).
 
+`/adversarial-review` (2026-10-11, report `reports/2026-10-11-adversarial-review.md`, verdict PASS
+WITH GAPS); the author approved the proposed destinations:
+
+- A — Major: the event's `issues` had no bound (63 029-byte output → 42 001 issues, 2.4 MB):
+  `MAX_EVENT_ISSUES` (20) and `issueCount`; new requirement text and scenario "The issues of an
+  event are bounded" (red first). D4, D6 updated.
+- A — a sparse chain (`new Array(1)`) was typed `FACT`: index loop that throws `RangeError` on a
+  hole (red first); spec sentence extended; D7 updated.
+- B — the U+0000 exception is now named in the spec with its owner (DIS-39); destination C → B above.
+- A — a raw NUL byte in this file's Follow-ups was replaced by the text `\u0000`.
+- D — normative sentences without a `#### Scenario` (fail-closed unknown origin, run-time empty or
+  sparse chain, line maximum, L1 `null` provenance, reversed span on `endLine`): kept as normative
+  text; each is pinned by a test named as an extra case.
+- A, spec only — `inputSpanSchema`, `SPAN_LINE_MAX` and `MAX_EVENT_ISSUES` named in the spec's export
+  sentence.
+- Process — `KIT_PROTECT_SPECS="0"` is the author's local, uncommitted setting; never committed.
+  Tasks 2.3/3.3 green on arrival stay disclosed in the step 9 report.

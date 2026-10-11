@@ -48,7 +48,7 @@
 ## 6. Backend: Review and Update Existing Tests (MANDATORY)
 
 - [x] 6.1 Identify tests affected by the change: `grep -rn "@codemind/core" tests | grep -i "claim\|evidence\|explain"` and check that the new `export *` of `explain/` collides with no existing name (`npm run typecheck`)
-- [x] 6.2 Update affected tests without weakening their assertions. Confirm that each of the 21 `#### Scenario:` of `specs/claims-and-typing/spec.md` maps 1:1 to a test with exactly the same name (grep each title in `tests/`; no scenario without a test, no scenario with two)
+- [x] 6.2 Update affected tests without weakening their assertions. Confirm that each of the 22 `#### Scenario:` (21 planned, plus "The issues of an event are bounded" from the adversarial review) of `specs/claims-and-typing/spec.md` maps 1:1 to a test with exactly the same name (grep each title in `tests/`; no scenario without a test, no scenario with two)
 
 ## 7. Update Technical Documentation (MANDATORY)
 

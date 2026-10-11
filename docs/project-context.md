@@ -525,7 +525,7 @@ services that must be started first, quirks of the local environment.
     TypeDoc expands the enum's object type into undocumented properties and `docs:coverage` warns.
   - Gotcha: `SchemaViolationEvent` is **not** part of `AuditEvent` (`index/audit-event.ts`), whose
     `sortEvents` reads `file`. It carries subcode, byte size, SHA-256 and `{ path, code }` per issue —
-    never a Zod `message`, `keys` or value. Core returns it; the transport logs it (DIS-39).
+    never a Zod `message`, `keys` or value; at most `MAX_EVENT_ISSUES` (20) issues plus `issueCount`. Core returns it; the transport logs it (DIS-39).
 - **`indexRepository` writes nothing until the whole graph is valid** (DIS-85,
   `packages/core/src/index/index-repository.ts`). Phases, each reported once to the optional
   `onProgress` when it starts: `confine` (`confinePath` lexically, then `realPath` of root and repo
