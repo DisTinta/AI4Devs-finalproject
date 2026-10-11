@@ -291,6 +291,28 @@ describe('Requirement: Audit event of a discarded output', () => {
     expect(Buffer.byteLength(JSON.stringify(event), 'utf8')).toBeLessThan(4_096);
   });
 
+  // Not a scenario: the cut keeps the first issues in the order they were found, not any 20.
+  it('keeps the first issues in the order they were found', () => {
+    // Arrange
+    const unknown = (prefix: string): string[] =>
+      Array.from({ length: MAX_EVIDENCE_IDS_PER_STATEMENT }, (_, index) => `${prefix}${index}`);
+    const text = output([statement(unknown('A')), statement(unknown('B')), statement(unknown('C'))]);
+    const kept = [0, 1].flatMap((i) =>
+      Array.from({ length: MAX_EVIDENCE_IDS_PER_STATEMENT }, (_, j) => ({
+        path: `statements.${i}.evidenceIds.${j}`,
+        code: 'unknown_evidence_id',
+      })),
+    );
+
+    // Act
+    const event = discarded(text, ['E1']);
+
+    // Assert
+    expect(event.subcode).toBe('unknown_evidence_id');
+    expect(event.issueCount).toBe(3 * MAX_EVIDENCE_IDS_PER_STATEMENT);
+    expect(event.issues).toEqual(kept);
+  });
+
   // Not a scenario: the issue count of the checks that carry no issue, and of an uncut list.
   it('counts no issue for size and JSON failures and every issue of a short list', () => {
     // Act

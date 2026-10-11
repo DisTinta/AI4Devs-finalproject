@@ -42,6 +42,20 @@ describe('Requirement: Statement typing from the resolution of its evidence', ()
 
     // Act + Assert
     expect(() => typeStatement(sparse as unknown as Parameters<typeof typeStatement>[0])).toThrow(RangeError);
+    expect(() => typeStatement(sparse as unknown as Parameters<typeof typeStatement>[0])).toThrow(
+      'every position of a chain must hold a cited span',
+    );
+  });
+
+  // Not a scenario: a null position is rejected with the same error as a hole, never a TypeError.
+  it('does not accept a chain with a null position', () => {
+    // Arrange
+    const withNull = [{ origin: 'exact' }, null] as unknown as Parameters<typeof typeStatement>[0];
+
+    // Act + Assert
+    expect(() => typeStatement(withNull)).toThrow(
+      new RangeError('every position of a chain must hold a cited span'),
+    );
   });
 
   // Not a scenario: the rule is fail-closed, so an origin it does not know is never a FACT.
