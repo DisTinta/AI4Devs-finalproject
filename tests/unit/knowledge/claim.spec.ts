@@ -1,0 +1,179 @@
+import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import {
+  CLAIM_LAYERS,
+  CLAIM_STATUSES,
+  CLAIM_TYPES,
+  claimSchema,
+  EVIDENCE_VERIFICATIONS,
+  evidenceSchema,
+  provenanceSchema,
+} from '@codemind/core';
+import type { Claim, Provenance } from '@codemind/core';
+
+// Spec: openspec/changes/claims-and-typing/specs/claims-and-typing/spec.md → "Claim and evidence
+// records mirror the database checks". Each test is one scenario, named after it.
+
+const MIGRATION = fileURLToPath(
+  new URL('../../../packages/adapters/store-postgres/migrations/0002_history-claims.up.sql', import.meta.url),
+);
+const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
+const FILE_ID = '22222222-2222-4222-8222-222222222222';
+
+/** The columns of a valid claim other than its layer, type and provenance. */
+const COLUMNS = {
+  projectId: PROJECT_ID,
+  subject: 'PriceCalculator::compute',
+  predicate: 'applies',
+  object: 'the customer discount',
+  status: 'current',
+  confidence: null,
+} as const;
+
+/** A provenance that passes every rule. */
+function provenance(): Provenance {
+  return {
+    model: 'llama3.2',
+    promptHash: 'a'.repeat(64),
+    inputSpans: [{ fileId: FILE_ID, startLine: 25, endLine: 35 }],
+    createdAt: '2026-10-11T10:00:00Z',
+  };
+}
+
+describe('Requirement: Claim and evidence records mirror the database checks', () => {
+  it('An inferred fact is not representable', () => {
+    // Arrange
+    const common = { ...COLUMNS, provenance: provenance() };
+
+    // Act
+    // @ts-expect-error a FACT claim of layer L2 is not representable (fact_only_from_l1)
+    const inferredFact: Claim = { ...common, layer: 'L2', type: 'FACT' };
+    const observedFact: Claim = { ...common, layer: 'L1', type: 'FACT' };
+
+    // Assert
+    expect(claimSchema.safeParse(inferredFact).success).toBe(false);
+    expect(claimSchema.safeParse(observedFact).success).toBe(true);
+  });
+
+  it('An inferred claim without provenance is rejected', () => {
+    // Arrange
+    // @ts-expect-error an L2 claim always carries a provenance (l2_requires_provenance)
+    const withoutProvenance: Claim = { ...COLUMNS, layer: 'L2', type: 'INFERENCE' };
+    const nullProvenance = { ...inference(), provenance: null };
+
+    // Act
+    const results = [withoutProvenance, nullProvenance, inference()].map(
+      (value) => claimSchema.safeParse(value).success,
+    );
+
+    // Assert
+    expect(results).toEqual([false, false, true]);
+  });
+
+  it('Confidence outside its range is rejected', () => {
+    // Arrange
+    const confidences = [-0.01, 1.01, Number.NaN, 0, 1, null];
+
+    // Act
+    const results = confidences.map((confidence) => claimSchema.safeParse({ ...inference(), confidence }).success);
+
+    // Assert
+    expect(results).toEqual([false, false, false, true, true, true]);
+  });
+
+  it('The provenance shape is validated', () => {
+    // Arrange
+    const invalid = [
+      { ...provenance(), promptHash: 'g'.repeat(64) },
+      { ...provenance(), inputSpans: [] },
+      { ...provenance(), createdAt: '2026-10-11' },
+      { ...provenance(), extra: 'field' },
+    ];
+
+    // Act
+    const results = invalid.map((value) => provenanceSchema.safeParse(value).success);
+
+    // Assert
+    expect(results).toEqual([false, false, false, false]);
+    expect(provenanceSchema.safeParse(provenance()).success).toBe(true);
+  });
+
+  it('The evidence span mirrors the database checks', () => {
+    // Arrange
+    const spans = [
+      { startLine: 0, endLine: 3 },
+      { startLine: 5, endLine: 4 },
+      { startLine: 5, endLine: 5 },
+    ];
+
+    // Act
+    const results = spans.map(
+      (span) =>
+        evidenceSchema.safeParse({ fileId: FILE_ID, ...span, verification: 'none', excerpt: null }).success,
+    );
+
+    // Assert
+    expect(results).toEqual([false, false, true]);
+  });
+
+  it('The closed sets equal the database enums', () => {
+    // Arrange
+    const migration = readFileSync(MIGRATION, 'utf8');
+
+    // Act
+    const enums = {
+      claim_layer: enumValues(migration, 'claim_layer'),
+      claim_type: enumValues(migration, 'claim_type'),
+      claim_status: enumValues(migration, 'claim_status'),
+      evidence_verification: enumValues(migration, 'evidence_verification'),
+    };
+
+    // Assert
+    expect(enums).toEqual({
+      claim_layer: [...CLAIM_LAYERS],
+      claim_type: [...CLAIM_TYPES],
+      claim_status: [...CLAIM_STATUSES],
+      evidence_verification: [...EVIDENCE_VERIFICATIONS],
+    });
+  });
+
+  // Not scenarios: edges of the provenance rules, so that mutants of each rule are killed.
+  it('rejects every malformed provenance field and accepts an offset time', () => {
+    // Arrange
+    const invalid = [
+      { ...provenance(), promptHash: 'A'.repeat(64) },
+      { ...provenance(), promptHash: 'a'.repeat(63) },
+      { ...provenance(), promptHash: 'a'.repeat(65) },
+      { ...provenance(), model: '' },
+      { ...provenance(), inputSpans: [{ fileId: FILE_ID, startLine: 0, endLine: 3 }] },
+      { ...provenance(), inputSpans: [{ fileId: FILE_ID, startLine: 5, endLine: 4 }] },
+      { ...provenance(), inputSpans: [{ fileId: FILE_ID, startLine: 1.5, endLine: 4 }] },
+      { ...provenance(), inputSpans: [{ fileId: 'not-a-uuid', startLine: 1, endLine: 4 }] },
+      { ...provenance(), inputSpans: [{ fileId: FILE_ID, startLine: 1, endLine: 4, path: 'x' }] },
+    ];
+
+    // Act
+    const results = invalid.map((value) => provenanceSchema.safeParse(value).success);
+
+    // Assert
+    expect(results).toEqual(invalid.map(() => false));
+    expect(provenanceSchema.safeParse({ ...provenance(), createdAt: '2026-10-11T12:00:00+02:00' }).success).toBe(true);
+    expect(
+      provenanceSchema.safeParse({ ...provenance(), inputSpans: [{ fileId: FILE_ID, startLine: 5, endLine: 5 }] })
+        .success,
+    ).toBe(true);
+  });
+});
+
+/** A valid L2 inference with a valid provenance. */
+function inference(): Claim {
+  return { ...COLUMNS, layer: 'L2', type: 'INFERENCE', provenance: provenance() };
+}
+
+/** The values of `CREATE TYPE <name> AS ENUM (...)` in `sql`, in declaration order. */
+function enumValues(sql: string, name: string): string[] {
+  const match = new RegExp(`CREATE TYPE ${name} AS ENUM \\(([^)]*)\\)`).exec(sql);
+  if (!match) throw new Error(`enum ${name} not found in the migration`);
+  return [...match[1]!.matchAll(/'([^']*)'/g)].map((value) => value[1]!);
+}
