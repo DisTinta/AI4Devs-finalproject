@@ -67,13 +67,13 @@
 
 ## 9. Backend: Run Tests and Verify Data State (MANDATORY)
 
-- [ ] 9.1 Capture the pre-test baseline: the 0.5 indicators. No test of this change touches the database
-- [ ] 9.2 Run the targeted tests: `npx vitest run tests/unit/knowledge/claim.spec.ts tests/unit/explain`
-- [ ] 9.3 Run the required broader suite and gates: `npx vitest run`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`
-- [ ] 9.4 Run `npx stryker run --mutate "packages/core/src/explain/**/*.ts,packages/core/src/knowledge/claim.ts,packages/core/src/knowledge/evidence.ts"` (score ≥ `MIN_MUTATION_SCORE=70`). List surviving mutants; for each meaningful one, a RED → GREEN test (confirm a `z.strictObject` → `z.object` mutant is killed). If a new test touches only `tests/`, no seed regeneration is needed; if a fix touches `packages/core/src/knowledge`, redo step 8
-- [ ] 9.5 Verify the post-test state: `seeds/`, `packages/web/`, `fixtures/` unchanged since the step 8 commit; no `.stryker-tmp/` left behind. Restore and document if not
-- [ ] 9.6 Create the report `openspec/changes/claims-and-typing/reports/YYYY-MM-DD-9-test-and-state-verification.md` from the template in `docs/openspec-tasks-mandatory-steps.md` §6, including the 0.5 baseline, the lockfile diff of 1.1, the seed diff of step 8, the Stryker score and surviving mutants of 9.4, and the privacy check of 5.1
-- [ ] 9.7 Mark complete only after the tests pass and the report exists
+- [x] 9.1 Capture the pre-test baseline: the 0.5 indicators. No test of this change touches the database
+- [x] 9.2 Run the targeted tests: `npx vitest run tests/unit/knowledge/claim.spec.ts tests/unit/explain`
+- [x] 9.3 Run the required broader suite and gates: `npx vitest run`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`
+- [x] 9.4 Run `npx stryker run --mutate "packages/core/src/explain/**/*.ts,packages/core/src/knowledge/claim.ts,packages/core/src/knowledge/evidence.ts"` (score ≥ `MIN_MUTATION_SCORE=70`). List surviving mutants; for each meaningful one, a RED → GREEN test (confirm a `z.strictObject` → `z.object` mutant is killed). If a new test touches only `tests/`, no seed regeneration is needed; if a fix touches `packages/core/src/knowledge`, redo step 8
+- [x] 9.5 Verify the post-test state: `seeds/`, `packages/web/`, `fixtures/` unchanged since the step 8 commit; no `.stryker-tmp/` left behind. Restore and document if not
+- [x] 9.6 Create the report `openspec/changes/claims-and-typing/reports/YYYY-MM-DD-9-test-and-state-verification.md` from the template in `docs/openspec-tasks-mandatory-steps.md` §6, including the 0.5 baseline, the lockfile diff of 1.1, the seed diff of step 8, the Stryker score and surviving mutants of 9.4, and the privacy check of 5.1
+- [x] 9.7 Mark complete only after the tests pass and the report exists
 
 ## 10. Backend: Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE)
 
@@ -85,7 +85,7 @@
 
 ## 11. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
-- [ ] 11.1 No user interface uses these functions yet (DIS-39 / CM-HU-12): record "not applicable; exercised through `@codemind/core` in step 10" in the step 9 report
+- [x] 11.1 No user interface uses these functions yet (DIS-39 / CM-HU-12): record "not applicable; exercised through `@codemind/core` in step 10" in the step 9 report
 - [ ] 11.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that `tests/unit/knowledge/claim.spec.ts` and `tests/unit/explain/` ran and passed, that the seed-freshness check (if any) is green, and that the mutation step covered `packages/core/src/explain`. Link the run in the step 9 report
 
 ## 12. Pull request preparation
