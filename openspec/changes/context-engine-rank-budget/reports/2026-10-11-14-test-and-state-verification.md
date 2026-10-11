@@ -147,3 +147,23 @@ test file; `tests/unit/context/{anchor,budget,context-pack,rank,tokenizer,expand
 platform-specific skip). `CI` is set there, so the property test ran with seed `20261011`. The
 mutation step covered `packages/core/src/context` at 97.87 % (same as locally). The run of the final
 head is recorded after the pre-merge fixes.
+
+## Addendum — final head (step 18.3/18.4)
+
+Local, after the pre-merge fixes and the seed regeneration (`1a76f9b`, only the `analyzer-fingerprint`
+header line of `seeds/graph-dump.sql` changed, rows identical): `typecheck`, `lint` and `vitest run`
+green, 78 files, 1019 passed. `npx stryker run`: 95.30 % overall, `packages/core/src/context` 97.94 %
+(379 killed, 7 survived, 1 timeout). The 7 survivors are the same equivalent mutants listed above;
+the `budget.ts` one moved from line 77 to line 83 with the replacing-span change, same `some` →
+`every` mutation and same reasoning.
+
+CI: PR #34, head `1a76f9b`, run
+[38131798739](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/38131798739), job `quality`
+green in 10m49s (`scope`, `secrets` green too): 78 files, 1018 passed and 1 skipped (the same
+platform-specific skip in `tests/unit/index/path-policy.spec.ts`), property test with seed `20261011`,
+mutation step at 95.30 % overall and 97.94 % on `packages/core/src/context`.
+
+The adversarial re-run (`reports/2026-10-11-adversarial-review-rerun.md`, no Blocker or Major) added
+two test cases (annotated tag id in `git-source-tree.spec.ts`, the "itself" half of `keepBestRank` in
+`context-pack.spec.ts`); both files pass locally, 59/59. No fingerprint input changed, so the seed
+commit stays valid. The CI run of the head carrying them is linked on PR #34.

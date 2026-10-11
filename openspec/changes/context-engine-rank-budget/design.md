@@ -297,7 +297,7 @@ B successor ticket, C debt, D accepted with reason).
 | 2.3 64-character ids, `.` and NUL in paths, process count by file size untested | A | Extra cases in `git-source-tree.spec.ts` |
 | 2.3 Caller's git environment variables untested for `readFileAt` | D | Same launcher and fixed `GIT_ENV` as `readFiles`, whose hygiene scenario covers it |
 | 2.3 `hops` default, non-UUID project at pack level, CRLF kept untested | A | Extra cases in `context-pack.spec.ts` |
-| 3.2 An annotated tag id is accepted as a commit (peeled) | A | Superseded by the adversarial-review fix: `cat-file --batch-check` accepts only a commit, so a tag id is `missing` |
+| 3.2 An annotated tag id is accepted as a commit (peeled) | A | Superseded by the adversarial-review fix: `cat-file --batch-check` accepts only a commit, so a tag id is `missing`; the blob/tree test covers an annotated tag since the re-run |
 | 3.3 Empty file = one line not in the spec | A | Spec bullet added (Context pack) |
 | 3.4 Symbol lines past the end of the file are cut short | D | Cannot happen when reading the indexed commit (Risks); `slice` never invents lines |
 | 3.5 Validation order fixed in code, open in the spec | D | Each invalid argument fails before any store call, which is what the spec guarantees; D9 now states the code's order |
@@ -313,10 +313,20 @@ B successor ticket, C debt, D accepted with reason).
 | Finding | Destination | Resolution |
 |---|---|---|
 | Major: seed fingerprint stale after `2bbb2c9` (a fingerprint input) | A | Step 13 redone after the last code fix; the seed commit is again the last commit touching a fingerprint input |
-| Major: regression, a blob or tree id as `commit` gives git's raw error instead of `missing` | A | `commitExists` uses `cat-file --batch-check` (id on stdin, exit 0, no message parsing); test «reports an object id that names a blob or a tree, not a commit, as missing» seen failing first. A tag id is now `missing` too, which also closes verify-against-spec 3.2 |
+| Major: regression, a blob or tree id as `commit` gives git's raw error instead of `missing` | A | `commitExists` uses `cat-file --batch-check` (id on stdin, exit 0, no message parsing); test «reports an object id that names a blob, a tree or an annotated tag, not a commit, as missing» seen failing first. A tag id is now `missing` too, which also closes verify-against-spec 3.2 |
 | Major: latency and unbounded reads have no destination; Risks wording wrong | B — DIS-39 (author decision) | Risks rewritten with the re-measured figure (29 files, ~145 git processes, ~10.5 s). Spanish hand-off comment on DIS-39: batch read (`readFilesAt` over one `cat-file --batch`), one root and commit check per pack, a cap on files read |
 | Minor: a replacing span keeps its own origin and distance | A (author decision: the best of what it replaces) | Spec bullet and scenario «A replacing span keeps the best origin and distance of what it replaces» (seen failing first); `fitToTokenBudget` gains an optional `merge`, D8 |
 | Minor: the property test checks safety, not progress | A | Progress property added (a span that fits on its own is never left out of an empty pack); the "always empty" mutant now fails it |
 | Minor: fixes unpushed, no CI on the final head | A | Pushed with the fixes; the final head's run is recorded in the step-14 report |
 | Question: spec rules without a scenario (empty file, `no-anchor` → `omitted: 0`) | D | Same practice the author accepted in DIS-27; the empty-file rule has an extra test, `omitted: 0` is asserted by the scenario test's exact equality |
 
+
+### adversarial-review re-run (2026-10-11, `reports/2026-10-11-adversarial-review-rerun.md`)
+
+| Finding | Destination | Resolution |
+|---|---|---|
+| Minor: the tag-id claim has no test | A | The blob/tree test also reads an annotated tag id: «reports an object id that names a blob, a tree or an annotated tag, not a commit, as missing» |
+| Minor: the `keepBestRank` test leaves the "itself" half unpinned | A | New case «A replacing span keeps its own origin when it is better than the ones it replaces» (heuristic method at d=1, exact class at d=2 → `exact`, 1); dropping `replacing` from the merge fails it (mutation checked) |
+| Minor: DIS-39 hand-off comment miscounts the git processes | A | DIS-39 comment `cde3adeb…` corrected (in Spanish, with an edit note): 5 processes per `readFileAt` (the root check repeats on every call), ~145 for 29 files |
+| Question: CI evidence and the 18.3 tick not committed | A | Committed with these fixes |
+| Question: uncommitted `.gitignore` edit and untracked `proposal-codemind/` | D | Outside DIS-28; never staged in this change, left to the author |

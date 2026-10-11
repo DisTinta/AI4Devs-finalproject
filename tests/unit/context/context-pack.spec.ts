@@ -434,6 +434,39 @@ describe('Requirement: Token budget (whole-file spans)', () => {
     ]);
   });
 
+  it('A replacing span keeps its own origin when it is better than the ones it replaces', async () => {
+    // Arrange: `discountFor` is reached through a heuristic edge (d=1) and its class `DiscountService`
+    // exactly, through `Helper` (d=2). The class ranks after the method and replaces it: the
+    // distance comes from the method, the origin from the class itself.
+    const anchorSymbol = symbol('app/a.php', 'Anchor', 1);
+    const helper = symbol('app/h.php', 'Helper', 1);
+    const discountFor = symbol('app/Services/DiscountService.php', 'DiscountService::discountFor', 30, { endLine: 40 });
+    const discountService = symbol('app/Services/DiscountService.php', 'DiscountService', 21, { kind: 'class', endLine: 66 });
+    const { deps, projectId } = ownProject(
+      {
+        files: [file('app/a.php', { loc: 3 }), file('app/h.php', { loc: 3 }), file('app/Services/DiscountService.php', { loc: 66 })],
+        symbols: [anchorSymbol, helper, discountFor, discountService],
+        edges: [
+          edge({ symbol: ref(anchorSymbol) }, { symbol: ref(discountFor) }, { resolution: 'heuristic' }),
+          edge({ symbol: ref(anchorSymbol) }, { symbol: ref(helper) }),
+          edge({ symbol: ref(helper) }, { symbol: ref(discountService) }),
+        ],
+      },
+      {
+        'app/a.php': linesOf('app/a.php', 3),
+        'app/h.php': linesOf('app/h.php', 3),
+        'app/Services/DiscountService.php': linesOf('app/Services/DiscountService.php', 66),
+      },
+    );
+
+    // Act
+    const pack = filled(await buildContextPack(deps, { projectId, question: 'anchor' }));
+
+    // Assert
+    expect(pack.spans.find((s) => s.symbol?.name === 'DiscountService')).toMatchObject({ startLine: 21, endLine: 66, origin: 'exact', distance: 1 });
+    expect(pack.spans.some((s) => s.symbol?.name === 'DiscountService::discountFor')).toBe(false);
+  });
+
   it('A whole file replaces the symbol spans it contains', async () => {
     // Arrange: `Anchor` calls `shippingFor` (lines 22–34 of s.php) and its file is co-changed with
     // s.php, so s.php is a whole-file candidate ranked after the method. With a budget of 1000 the

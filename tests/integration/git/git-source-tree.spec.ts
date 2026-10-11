@@ -768,20 +768,23 @@ describe('git source tree', () => {
       expect((rejection as Error).message).toContain('no-such-subcommand');
     });
 
-    it('reports an object id that names a blob or a tree, not a commit, as missing', async () => {
+    it('reports an object id that names a blob, a tree or an annotated tag, not a commit, as missing', async () => {
       // Arrange
       const repository = emptyRepository();
       writeFileSync(join(repository, 'a.php'), '<?php' + String.fromCharCode(10));
       git(repository, 'add', '.');
       git(repository, 'commit', '-q', '-m', 'feat: a');
+      git(repository, 'tag', '-a', 'v1', '-m', 'v1');
       const blob = git(repository, 'rev-parse', 'HEAD:a.php');
       const tree = git(repository, 'rev-parse', 'HEAD^{tree}');
+      const tag = git(repository, 'rev-parse', 'v1');
 
       // Act
-      const rejections = await Promise.all([blob, tree].map((id) => rejectionOf(() => sourceTree.readFileAt(repository, id, 'a.php'))));
+      const rejections = await Promise.all([blob, tree, tag].map((id) => rejectionOf(() => sourceTree.readFileAt(repository, id, 'a.php'))));
 
       // Assert
       expect(rejections.map(unavailable)).toEqual([
+        { reason: 'missing', path: 'a.php' },
         { reason: 'missing', path: 'a.php' },
         { reason: 'missing', path: 'a.php' },
       ]);
