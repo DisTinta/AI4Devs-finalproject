@@ -75,11 +75,11 @@
 - [x] 7.11 RED → GREEN: "A relative root path is resolved against the workspace root" (expected root computed with `node:path` `join('/repo', 'fixtures/acme-shop')`, so the test holds on Windows and POSIX)
 - [x] 7.12 RED → GREEN: "The process working directory is never used" (`vi.spyOn(process, 'cwd')` to an unrelated absolute directory, `vi.restoreAllMocks()` in `afterEach`; packs deep-equal)
 - [x] 7.13 Create `tests/integration/context/context-pack.spec.ts`: Postgres with acme-shop indexed and its history rebuilt with `buildOne` (pattern of `tests/integration/cli/index-command.spec.ts`), real `createGitSourceTree()`, `workspaceRoot` from `import.meta.url`. RED → GREEN: "The pack of the price question holds the calculator class once" and "Every anchor symbol of the question enters the pack as an anchor"
-- [ ] 7.14 REFACTOR with the suite green (`/tdd-refactor`) over `context/`, `queries.ts`, `git-source-tree.ts` and the doubles; no behaviour change
+- [x] 7.14 REFACTOR with the suite green (`/tdd-refactor`) over `context/`, `queries.ts`, `git-source-tree.ts` and the doubles; no behaviour change
 
 ## 8. ADR
 
-- [ ] 8.1 `/adr-new` for design D1 ("span text is read from git at the indexed commit"), with the author's why transcribed verbatim from Linear DIS-28 decision 1 (as quoted in design D1) and the two rejected alternatives
+- [x] 8.1 `/adr-new` for design D1 ("span text is read from git at the indexed commit"), with the author's why transcribed verbatim from Linear DIS-28 decision 1 (as quoted in design D1) and the two rejected alternatives
 
 ## 9. Privacy and ethics check
 
@@ -96,8 +96,8 @@
 
 ## 12. Update Technical Documentation (MANDATORY)
 
-- [ ] 12.1 `docs/project-context.md`: Context Engine entry (rank, budget, tokenizer, context pack; caps; `workspaceRoot` and why not `process.cwd()`; `readFileAt` and `SourceUnavailable`; `Neighbor.resolution`, `StoredSymbol.fileKind`, node-wise CTE and the trigram threshold of D4; the source-tree double)
-- [ ] 12.2 readme §2.2 / §3.2: the declared estimator `chars-div-4` and that span text comes from git at `indexed_commit`; align any mention that contradicts this change. `openspec/specs` is updated only by `/opsx:archive`
+- [x] 12.1 `docs/project-context.md`: Context Engine entry (rank, budget, tokenizer, context pack; caps; `workspaceRoot` and why not `process.cwd()`; `readFileAt` and `SourceUnavailable`; `Neighbor.resolution`, `StoredSymbol.fileKind`, node-wise CTE and the trigram threshold of D4; the source-tree double)
+- [x] 12.2 readme §2.2 / §3.2: the declared estimator `chars-div-4` and that span text comes from git at `indexed_commit`; align any mention that contradicts this change. `openspec/specs` is updated only by `/opsx:archive`
 - [ ] 12.3 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
 
 ## 13. Seed: regenerate the analyzer fingerprint (design D12) — last commit of the series
