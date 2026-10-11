@@ -105,8 +105,9 @@ GIN index in a migration.
    segment, no NUL or `\n`) → `RangeError` naming the argument, before spawning anything.
 2. Applies the same root checks as `readFiles` (top-level directory of a repository); a failure is
    `SourceUnavailable('not-a-repository', path)` instead of `NotAGitRepository`.
-3. One `rev-parse --verify --quiet <commit>^{commit}` checks the commit exists: exit 1 with no
-   output → `missing`; any other failure propagates as git's error (verify-against-spec, below).
+3. One `cat-file --batch-check`, with the id on stdin, answers `<oid> <type> <size>` or
+   `<oid> missing` with exit 0: anything but `commit` (unknown id, blob, tree, tag) → `missing`; any
+   git failure propagates as git's error (verify-against-spec and adversarial-review, below).
    Then one `git --literal-pathspecs ls-tree -z -l --full-tree <commit> -- <path>` gives mode, oid and
    size. `--literal-pathspecs` is git's top-level flag (same effect as `GIT_LITERAL_PATHSPECS=1`,
    no pathspec magic), passed in `args`: `GitSpawner` is `(root, args)` and `GIT_ENV` is shared by
@@ -122,7 +123,8 @@ GIN index in a migration.
 
 Every spawn goes through the existing `spawnGit` (C locale, isolated configuration and environment,
 no filters, no fsmonitor, no hooks, no fetch), so the readFiles hygiene scenarios hold. Process
-count is constant per call (root checks + 3), independent of file size. `SourceUnavailable` is a
+count is constant per call: the two root checks of `assertRepositoryRoot` plus
+`cat-file --batch-check`, `ls-tree` and `cat-file blob`, independent of file size. `SourceUnavailable` is a
 `DomainError` in `knowledge/errors.ts`: `code = 'SOURCE_UNAVAILABLE'`, `reason:
 'not-indexed' | 'not-a-repository' | 'missing' | 'too-large' | 'binary-content'`, `path?: string`;
 its message names reason and path, never content.
@@ -253,9 +255,11 @@ stop-and-ask. `AUTHOR_HASH_SALT` is given by the author in the session at that s
 
 ## Risks / Trade-offs
 
-- [One-to-three git processes per distinct candidate file; a 2-hop neighbourhood of a hub may touch
-  dozens of files] → bounded by the caps and `hops ≤ 3`; measured in the manual step. Batching
-  (`readFilesAt` over one `cat-file --batch`) is a later optimisation behind the same port.
+- [Five git processes per distinct candidate file, and every candidate's file is read before the
+  budget applies; the anchor is capped but `neighbors` is not, so a hub's 2-hop neighbourhood can
+  touch dozens of files. Measured on the final code: Q1 reads 29 files with about 145 git processes,
+  about 10.5 s on Windows] → correct but slow for an interactive question; see Follow-ups →
+  adversarial-review (batch read, one root and commit check per pack, a cap on files read).
 - [The caps (16/32) cut recall on a large project] → exported constants; the anchor keeps the
   symbols that match most terms; tuning needs CM-HU-22 data.
 - [The estimator deviates from the provider's tokenizer, more for code than prose] → declared on
@@ -290,7 +294,7 @@ B successor ticket, C debt, D accepted with reason).
 | 2.3 64-character ids, `.` and NUL in paths, process count by file size untested | A | Extra cases in `git-source-tree.spec.ts` |
 | 2.3 Caller's git environment variables untested for `readFileAt` | D | Same launcher and fixed `GIT_ENV` as `readFiles`, whose hygiene scenario covers it |
 | 2.3 `hops` default, non-UUID project at pack level, CRLF kept untested | A | Extra cases in `context-pack.spec.ts` |
-| 3.2 An annotated tag id is accepted as a commit (peeled) | D | `indexedCommit` is always a commit id written by the indexer; peeling a tag cannot read anything the tag's commit does not hold |
+| 3.2 An annotated tag id is accepted as a commit (peeled) | A | Superseded by the adversarial-review fix: `cat-file --batch-check` accepts only a commit, so a tag id is `missing` |
 | 3.3 Empty file = one line not in the spec | A | Spec bullet added (Context pack) |
 | 3.4 Symbol lines past the end of the file are cut short | D | Cannot happen when reading the indexed commit (Risks); `slice` never invents lines |
 | 3.5 Validation order fixed in code, open in the spec | D | Each invalid argument fails before any store call, which is what the spec guarantees; D9 now states the code's order |
@@ -300,3 +304,16 @@ B successor ticket, C debt, D accepted with reason).
 | Weak: «A long question…» only asserts `≤ 16` | A | The test now records the searched terms: exactly the first 16, in order |
 | Weak: «Unreadable source…» checks one substring | A | Exact message asserted; the real adapter's messages are checked in `git-source-tree.spec.ts` |
 | Weak: «A method inside an included class…» on made-up spans | D | The `PriceCalculator.php` part is the integration scenario «The pack of the price question holds the calculator class once» |
+
+### adversarial-review (2026-10-11, `reports/2026-10-11-adversarial-review.md`)
+
+| Finding | Destination | Resolution |
+|---|---|---|
+| Major: seed fingerprint stale after `2bbb2c9` (a fingerprint input) | A | Step 13 redone after the last code fix; the seed commit is again the last commit touching a fingerprint input |
+| Major: regression, a blob or tree id as `commit` gives git's raw error instead of `missing` | A | `commitExists` uses `cat-file --batch-check` (id on stdin, exit 0, no message parsing); test «reports an object id that names a blob or a tree, not a commit, as missing» seen failing first. A tag id is now `missing` too, which also closes verify-against-spec 3.2 |
+| Major: latency and unbounded reads have no destination; Risks wording wrong | Pending author | Risks rewritten with the re-measured figure (29 files, ~145 git processes, ~10.5 s). Options: batch read in this change (new port method), or hand-off to DIS-39 |
+| Minor: a replacing span keeps its own origin and distance | Pending author | Product decision: keep the container's, or the best of the spans it replaces |
+| Minor: the property test checks safety, not progress | A | Progress property added (a span that fits on its own is never left out of an empty pack); the "always empty" mutant now fails it |
+| Minor: fixes unpushed, no CI on the final head | A | Pushed with the fixes; the final head's run is recorded in the step-14 report |
+| Question: spec rules without a scenario (empty file, `no-anchor` → `omitted: 0`) | D | Same practice the author accepted in DIS-27; the empty-file rule has an extra test, `omitted: 0` is asserted by the scenario test's exact equality |
+

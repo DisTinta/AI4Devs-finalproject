@@ -91,6 +91,8 @@ describe('Requirement: Token budget', () => {
         expect(fitted.tokens).toBe(fitted.included.reduce((sum, s) => sum + s.tokens, 0));
         expect(fitted.included.every((s) => spans.includes(s))).toBe(true);
         expect(fitted.included.length + fitted.omitted).toBeLessThanOrEqual(spans.length);
+        // Progress: a span that fits on its own is never left out of an empty pack.
+        if (spans.some((s) => s.tokens <= budget)) expect(fitted.included.length).toBeGreaterThan(0);
         for (const a of fitted.included) {
           for (const b of fitted.included) {
             if (a !== b && a.fileId === b.fileId) expect(a.endLine < b.startLine || b.endLine < a.startLine).toBe(true);
