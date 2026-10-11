@@ -90,7 +90,9 @@ export type SpawnProcess = (command: string, args: readonly string[], options: S
  * Starts `git <args>` in `root` with the same {@link GIT_CONFIG} (as `-c` pairs before the
  * subcommand) and {@link GIT_ENV} as {@link readerGit}, without a shell. It is the adapter's way to
  * feed git's stdin and to read its stdout as a byte stream, which simple-git cannot do. `args` are
- * constants of the adapter, never built from repository data.
+ * constants of the adapter, plus at most an object id checked against the full-id pattern and a
+ * repository-relative path checked by the caller, the path always after `--`; never anything else
+ * built from repository data.
  *
  * @param root The repository's top-level directory.
  * @param args The git subcommand and its arguments.

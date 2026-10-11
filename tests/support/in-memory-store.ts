@@ -3,7 +3,9 @@ import { assertValidSymbolSearch, assertValidTraversal, ProjectNotFound, symbolK
 import type {
   EdgeEndpoint,
   EdgeKind,
+  EdgeResolution,
   FileKind,
+  GraphNode,
   KnowledgeGraph,
   Neighbor,
   NewProject,
@@ -39,7 +41,7 @@ export interface InMemoryStore {
   /** For each loaded project, in the order given, its file ids by path. */
   fileIds: Array<Map<string, string>>;
   /** Calls received per read method, counted before any check (stand-in for "statements sent"). */
-  calls: { findSymbols: number; neighbors: number };
+  calls: { findSymbols: number; neighbors: number; getProject: number };
 }
 
 interface StoredFileRow {
@@ -57,6 +59,7 @@ interface StoredSymbolRow {
 interface StoredEdgeRow {
   projectId: string;
   kind: EdgeKind;
+  resolution: EdgeResolution;
   source: string;
   target: string;
 }
@@ -83,7 +86,7 @@ export function createInMemoryStore({ projects }: { projects: InMemoryProject[] 
   const files = new Map<string, StoredFileRow>();
   const symbols = new Map<string, StoredSymbolRow>();
   const edges: StoredEdgeRow[] = [];
-  const calls = { findSymbols: 0, neighbors: 0 };
+  const calls = { findSymbols: 0, neighbors: 0, getProject: 0 };
   const projectIds: string[] = [];
   const fileIds: Array<Map<string, string>> = [];
 
@@ -106,6 +109,7 @@ export function createInMemoryStore({ projects }: { projects: InMemoryProject[] 
         symbol: {
           id,
           fileId: idByPath.get(s.file) as string,
+          fileKind: graph.files.find((f) => f.path === s.file)?.kind as FileKind,
           file: s.file,
           name: s.name,
           startLine: s.startLine,
@@ -120,7 +124,7 @@ export function createInMemoryStore({ projects }: { projects: InMemoryProject[] 
         ? nodeKey('file', idByPath.get(e.file) as string)
         : nodeKey('symbol', idBySymbol.get(symbolKey(e.symbol)) as string);
     for (const e of graph.edges) {
-      edges.push({ projectId, kind: e.kind, source: endpoint(e.source), target: endpoint(e.target) });
+      edges.push({ projectId, kind: e.kind, resolution: e.resolution, source: endpoint(e.source), target: endpoint(e.target) });
     }
     projectRows.set(projectId, {
       id: projectId,
@@ -144,23 +148,31 @@ export function createInMemoryStore({ projects }: { projects: InMemoryProject[] 
   }
 
   /** The node of the project with key `key`, or `undefined`. */
-  function nodeOf(projectId: string, key: string): Neighbor | undefined {
+  function nodeOf(projectId: string, key: string): GraphNode | undefined {
     const [type, id] = key.split(':') as [NodeRef['type'], string];
     if (type === 'file') {
       const f = files.get(id);
-      return f?.projectId === projectId ? { type: 'file', id: f.id, path: f.path, kind: f.kind, distance: 0 } : undefined;
+      return f?.projectId === projectId ? { type: 'file', id: f.id, path: f.path, kind: f.kind } : undefined;
     }
     const row = symbols.get(id);
-    return row?.projectId === projectId ? { type: 'symbol', ...row.symbol, distance: 0 } : undefined;
+    return row?.projectId === projectId ? { type: 'symbol', ...row.symbol } : undefined;
   }
 
-  /** The keys one step away from `key` in `direction`, over the project's edges of `kinds`. */
-  function step(projectId: string, key: string, kinds: EdgeKind[] | undefined, direction: TraversalDirection): string[] {
-    const next: string[] = [];
+  /**
+   * The nodes one step away from `key` in `direction`, over the project's edges of `kinds`, each
+   * with the resolution of the edge that leads to it.
+   */
+  function step(
+    projectId: string,
+    key: string,
+    kinds: EdgeKind[] | undefined,
+    direction: TraversalDirection,
+  ): Array<{ key: string; resolution: EdgeResolution }> {
+    const next: Array<{ key: string; resolution: EdgeResolution }> = [];
     for (const e of edges) {
       if (e.projectId !== projectId || (kinds !== undefined && !kinds.includes(e.kind))) continue;
-      if (direction !== 'in' && e.source === key) next.push(e.target);
-      if (direction !== 'out' && e.target === key) next.push(e.source);
+      if (direction !== 'in' && e.source === key) next.push({ key: e.target, resolution: e.resolution });
+      if (direction !== 'out' && e.target === key) next.push({ key: e.source, resolution: e.resolution });
     }
     return next;
   }
@@ -189,6 +201,7 @@ export function createInMemoryStore({ projects }: { projects: InMemoryProject[] 
     sumCostSince: notImplemented,
 
     async getProject(projectId: string): Promise<Project> {
+      calls.getProject += 1;
       return { ...projectOf(projectId) };
     },
 
@@ -225,16 +238,24 @@ export function createInMemoryStore({ projects }: { projects: InMemoryProject[] 
           .map((seed) => nodeKey(seed.type, seed.id))
           .filter((key) => nodeOf(project.id, key) !== undefined),
       );
-      // Breadth-first: the first time a node is reached is its minimum distance.
+      // Breadth-first over (node, all-exact) states, as the Postgres walk (DIS-28 design D4): the
+      // first depth a node is reached is its minimum distance, and it is exact when some state at
+      // that depth came through `exact` edges only. A state seen before is not expanded again.
       const distance = new Map<string, number>([...seedKeys].map((key) => [key, 0]));
-      let frontier = [...seedKeys];
+      const exact = new Map<string, boolean>();
+      const seen = new Set<string>([...seedKeys].map((key) => `${key}|true`));
+      let frontier = [...seedKeys].map((key) => ({ key, allExact: true }));
       for (let depth = 1; depth <= hops && frontier.length > 0; depth += 1) {
-        const next: string[] = [];
-        for (const key of frontier) {
-          for (const reached of step(project.id, key, kinds, direction ?? 'out')) {
-            if (distance.has(reached)) continue;
-            distance.set(reached, depth);
-            next.push(reached);
+        const next: Array<{ key: string; allExact: boolean }> = [];
+        for (const state of frontier) {
+          for (const reached of step(project.id, state.key, kinds, direction ?? 'out')) {
+            const allExact = state.allExact && reached.resolution === 'exact';
+            if (!distance.has(reached.key)) distance.set(reached.key, depth);
+            if (distance.get(reached.key) === depth) exact.set(reached.key, (exact.get(reached.key) ?? false) || allExact);
+            const stateKey = `${reached.key}|${allExact}`;
+            if (seen.has(stateKey)) continue;
+            seen.add(stateKey);
+            next.push({ key: reached.key, allExact });
           }
         }
         frontier = next;
@@ -243,7 +264,7 @@ export function createInMemoryStore({ projects }: { projects: InMemoryProject[] 
       for (const [key, d] of distance) {
         if (seedKeys.has(key)) continue;
         const node = nodeOf(project.id, key);
-        if (node !== undefined) result.push({ ...node, distance: d });
+        if (node !== undefined) result.push({ ...node, distance: d, resolution: exact.get(key) ? 'exact' : 'heuristic' });
       }
       return result.sort(neighbourOrder);
     },

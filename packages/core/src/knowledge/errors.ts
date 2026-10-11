@@ -99,6 +99,35 @@ export class EmptyRepository extends DomainError {
   }
 }
 
+/**
+ * Why the code of a project cannot be read: the project was never indexed at a commit
+ * (`not-indexed`), its root is not a repository's top-level directory (`not-a-repository`), the
+ * commit or the path names no regular file (`missing`), the file is over the size limit
+ * (`too-large`), or its bytes are not UTF-8 (`binary-content`).
+ */
+export type SourceUnavailableReason = 'not-indexed' | 'not-a-repository' | 'missing' | 'too-large' | 'binary-content';
+
+/**
+ * The source of a project, or one of its files, cannot be read. It names the path but never carries
+ * the file's content, so it can be reported without leaking code.
+ */
+export class SourceUnavailable extends DomainError {
+  /** Stable code. */
+  readonly code = 'SOURCE_UNAVAILABLE';
+
+  /**
+   * @param reason Why the source cannot be read.
+   * @param path The repository-relative path asked for, when the failure is about one file.
+   */
+  constructor(
+    readonly reason: SourceUnavailableReason,
+    readonly path?: string,
+  ) {
+    super(path === undefined ? `Source unavailable: ${reason}` : `Source unavailable: ${reason}: ${path}`);
+    this.name = 'SourceUnavailable';
+  }
+}
+
 function describeViolation(violation: GraphViolation): string {
   const where = violation.field ? `${violation.element}.${violation.field}` : violation.element;
   return `${where}: ${violation.message}`;

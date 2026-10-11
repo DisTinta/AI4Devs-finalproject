@@ -1,3 +1,4 @@
+import type { EdgeResolution } from './graph-edge.js';
 import type { FileKind } from './graph-file.js';
 import type { SymbolKind, SymbolRef } from './graph-symbol.js';
 
@@ -27,6 +28,8 @@ export interface StoredSymbol extends SymbolRef {
    * keeps the file's path (as `StoredFile.id`).
    */
   fileId: string;
+  /** Kind of the symbol's file, as stored for that file (never recomputed). */
+  fileKind: FileKind;
   /** Kind of symbol. */
   kind: SymbolKind;
   /** Last line of the symbol. */
@@ -54,6 +57,11 @@ export type GraphNode = ({ type: 'file' } & StoredFile) | ({ type: 'symbol' } & 
 export type Neighbor = GraphNode & {
   /** Minimum number of edges from a seed, from 1. */
   distance: number;
+  /**
+   * `exact` when at least one path of minimum distance from a seed follows only `exact` edges,
+   * `heuristic` otherwise.
+   */
+  resolution: EdgeResolution;
 };
 
 /** Optional narrowing of a symbol search. */

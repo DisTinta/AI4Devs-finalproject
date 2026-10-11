@@ -123,10 +123,10 @@ export const SUM_COST_SINCE = `SELECT COALESCE(SUM(cost_usd), 0)::text AS total 
  * Filtering starts at `file.project_id`, then reaches symbols by `file_id`.
  */
 export const FIND_SYMBOLS = `
-  SELECT p.id AS project_id, s.id, s.file_id, s.path, s.name, s.kind, s.start_line, s.end_line, s.signature
+  SELECT p.id AS project_id, s.id, s.file_id, s.path, s.file_kind, s.name, s.kind, s.start_line, s.end_line, s.signature
     FROM project p
     LEFT JOIN LATERAL (
-      SELECT sy.id, f.id AS file_id, f.path, sy.name, sy.kind, sy.start_line, sy.end_line, sy.signature
+      SELECT sy.id, f.id AS file_id, f.path, f.kind AS file_kind, sy.name, sy.kind, sy.start_line, sy.end_line, sy.signature
         FROM file f JOIN symbol sy ON sy.file_id = f.id
        WHERE f.project_id = p.id
          AND sy.name ILIKE '%' || $2 || '%' ESCAPE '\\'
@@ -147,14 +147,18 @@ const EDGE_SOURCE = `
  * The project's nodes reachable from the seeds (`$2` symbol ids, `$3` file ids) in 1..`$4` steps,
  * following edges in direction `$6` (`out`: source → target; `in`: target → source; `both`: either
  * way at each step), only of kinds `$5` (`NULL` for all). One statement (DIS-24 design D6, DIS-27
- * design D4):
+ * design D4, DIS-28 design D4):
  * - `seed` keeps only seeds that are nodes of the project, so a foreign or unknown id reaches nothing;
- * - `walk` carries the nodes each path visited and never steps onto one again (cycles), stops at
- *   `$4`, and follows only edges of the project. Four lateral branches: the two `out` branches match
- *   the current node as the edge's source and emit its target, the two `in` branches match it as the
+ * - `walk` holds one row per (node, depth, all-exact) reached. `UNION`, not `UNION ALL`, drops every
+ *   row already produced, so the work grows with the nodes and not with the paths between them: at
+ *   most 2·(`$4`+1)·N rows, cycles included, with no per-path list of visited nodes. `all_exact`
+ *   says whether the path that produced the row followed only `exact` edges. It stops at `$4` and
+ *   follows only edges of the project. Four lateral branches: the two `out` branches match the
+ *   current node as the edge's source and emit its target, the two `in` branches match it as the
  *   target and emit the source; `$6` switches each pair on or off. Each branch matches one partial
  *   endpoint index (`edge_{source,target}_{symbol,file}_kind_idx`);
- * - `reached` keeps each node once with its minimum distance, seeds excluded;
+ * - `nearest` keeps each node's minimum distance, seeds excluded; `reached` adds its resolution:
+ *   `exact` when some row at that distance is all-exact;
  * - the reached nodes are filtered by project inside the LEFT JOINed subquery, so an edge of the
  *   project pointing at another project's node (which the writer never produces) never returns
  *   that node, and filtering every node out still leaves the project row (no false
@@ -168,45 +172,51 @@ export const NEIGHBORS = `
     UNION
     SELECT 'file'::text, f.id FROM file f WHERE f.project_id = $1 AND f.id = ANY($3::uuid[])
   ),
-  walk (node_type, node_id, depth, visited) AS (
-    SELECT node_type, node_id, 0, ARRAY[node_type || ':' || node_id] FROM seed
-    UNION ALL
-    SELECT nx.node_type, nx.node_id, w.depth + 1, w.visited || (nx.node_type || ':' || nx.node_id)
+  walk (node_type, node_id, depth, all_exact) AS (
+    SELECT node_type, node_id, 0, true FROM seed
+    UNION
+    SELECT nx.node_type, nx.node_id, w.depth + 1, w.all_exact AND nx.resolution = 'exact'
       FROM walk w
       CROSS JOIN LATERAL (
-        SELECT ${EDGE_TARGET} FROM edge e
+        SELECT ${EDGE_TARGET}, e.resolution FROM edge e
          WHERE $6::text IN ('out', 'both')
            AND w.node_type = 'symbol' AND e.source_symbol_id = w.node_id AND e.project_id = $1
            AND ($5::edge_kind[] IS NULL OR e.kind = ANY($5::edge_kind[]))
         UNION ALL
-        SELECT ${EDGE_TARGET} FROM edge e
+        SELECT ${EDGE_TARGET}, e.resolution FROM edge e
          WHERE $6::text IN ('out', 'both')
            AND w.node_type = 'file' AND e.source_file_id = w.node_id AND e.project_id = $1
            AND ($5::edge_kind[] IS NULL OR e.kind = ANY($5::edge_kind[]))
         UNION ALL
-        SELECT ${EDGE_SOURCE} FROM edge e
+        SELECT ${EDGE_SOURCE}, e.resolution FROM edge e
          WHERE $6::text IN ('in', 'both')
            AND w.node_type = 'symbol' AND e.target_symbol_id = w.node_id AND e.project_id = $1
            AND ($5::edge_kind[] IS NULL OR e.kind = ANY($5::edge_kind[]))
         UNION ALL
-        SELECT ${EDGE_SOURCE} FROM edge e
+        SELECT ${EDGE_SOURCE}, e.resolution FROM edge e
          WHERE $6::text IN ('in', 'both')
            AND w.node_type = 'file' AND e.target_file_id = w.node_id AND e.project_id = $1
            AND ($5::edge_kind[] IS NULL OR e.kind = ANY($5::edge_kind[]))
-      ) AS nx (node_type, node_id)
+      ) AS nx (node_type, node_id, resolution)
      WHERE w.depth < $4
-       AND NOT (nx.node_type || ':' || nx.node_id) = ANY(w.visited)
   ),
-  reached AS (
+  nearest AS (
     SELECT node_type, node_id, min(depth) AS distance FROM walk
      WHERE depth > 0 AND (node_type, node_id) NOT IN (SELECT node_type, node_id FROM seed)
      GROUP BY node_type, node_id
+  ),
+  reached AS (
+    SELECT n.node_type, n.node_id, n.distance, bool_or(w.all_exact) AS all_exact
+      FROM nearest n
+      JOIN walk w ON w.node_type = n.node_type AND w.node_id = n.node_id AND w.depth = n.distance
+     GROUP BY n.node_type, n.node_id, n.distance
   )
   SELECT p.id AS project_id, n.*
     FROM project p
     LEFT JOIN (
       SELECT r.node_type, r.node_id AS id, r.distance,
-             s.file_id, COALESCE(f.path, sf.path) AS path, f.kind AS file_kind,
+             CASE WHEN r.all_exact THEN 'exact' ELSE 'heuristic' END AS resolution,
+             s.file_id, COALESCE(f.path, sf.path) AS path, COALESCE(f.kind, sf.kind) AS file_kind,
              s.name, s.kind, s.start_line, s.end_line, s.signature
         FROM reached r
         LEFT JOIN file f ON r.node_type = 'file' AND f.id = r.node_id

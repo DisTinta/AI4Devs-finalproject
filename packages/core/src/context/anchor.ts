@@ -33,6 +33,17 @@ export const ANCHOR_STOPWORDS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * A text normalised as question terms are: lower-cased, diacritics removed (canonical
+ * decomposition, combining marks dropped). Ranking compares names and paths with terms this way.
+ *
+ * @param text Any text.
+ * @returns The normalised text.
+ */
+export function normaliseText(text: string): string {
+  return text.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+}
+
+/**
  * The search terms of a question, deterministically: lower-cased, diacritics removed (canonical
  * decomposition, combining marks dropped), split on every character that is not a letter or a
  * digit; tokens shorter than {@link MIN_TOKEN_LENGTH} characters (code points) and
@@ -44,7 +55,7 @@ export const ANCHOR_STOPWORDS: ReadonlySet<string> = new Set([
  * @returns The terms, possibly empty.
  */
 export function questionTerms(question: string): string[] {
-  const normalised = question.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+  const normalised = normaliseText(question);
   const terms = new Set<string>();
   for (const token of normalised.split(/[^\p{L}\p{N}]+/u)) {
     // Characters are code points: an astral letter is one character, never half a surrogate pair.
@@ -56,11 +67,20 @@ export function questionTerms(question: string): string[] {
   return [...terms];
 }
 
+/** Most terms of a question searched, in term order: a question sends at most this many searches. */
+export const MAX_QUESTION_TERMS = 16;
+
+/** Most symbols an anchor holds (DIS-28 design D6). */
+export const MAX_ANCHORS = 32;
+
 /**
- * Anchors a question in one project: the project's symbols whose name contains any term of
- * {@link questionTerms}, each once (first-found order, deduplicated by id). The searches run one
- * after another, at most one per term. A question without terms anchors nothing and searches
- * nothing, so it never checks the project; otherwise the first search reports an unknown project.
+ * Anchors a question in one project: the project's symbols whose name contains any of the first
+ * {@link MAX_QUESTION_TERMS} terms of {@link questionTerms}, each once (first-found order,
+ * deduplicated by id). The searches run one after another, at most one per term. When more than
+ * {@link MAX_ANCHORS} symbols are found, the anchor keeps those that match the most terms (ties by
+ * first-found order), still returned in first-found order. A question without terms anchors nothing
+ * and searches nothing, so it never checks the project; otherwise the first search reports an
+ * unknown project.
  *
  * @param store The graph store.
  * @param projectId The project to anchor in.
@@ -69,11 +89,17 @@ export function questionTerms(question: string): string[] {
  * @throws ProjectNotFound when the question has a term and `projectId` names no project.
  */
 export async function anchor(store: StorePort, projectId: string, question: string): Promise<StoredSymbol[]> {
-  const found = new Map<string, StoredSymbol>();
-  for (const term of questionTerms(question)) {
+  const found = new Map<string, { symbol: StoredSymbol; matches: number }>();
+  for (const term of questionTerms(question).slice(0, MAX_QUESTION_TERMS)) {
     for (const symbol of await store.findSymbols(projectId, term)) {
-      if (!found.has(symbol.id)) found.set(symbol.id, symbol);
+      const seen = found.get(symbol.id);
+      if (seen === undefined) found.set(symbol.id, { symbol, matches: 1 });
+      else seen.matches += 1;
     }
   }
-  return [...found.values()];
+  const all = [...found.values()];
+  if (all.length <= MAX_ANCHORS) return all.map((entry) => entry.symbol);
+  // A stable sort keeps first-found order among equal counts.
+  const kept = new Set([...all].sort((a, b) => b.matches - a.matches).slice(0, MAX_ANCHORS));
+  return all.filter((entry) => kept.has(entry)).map((entry) => entry.symbol);
 }

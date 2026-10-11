@@ -149,12 +149,21 @@ Verified against `package.json` (root and per package). If a command is not here
 - **In-memory `StorePort` double for unit tests** (DIS-27, `tests/support/in-memory-store.ts`).
   `createInMemoryStore({ projects: [{ project, graph }] })` returns `{ store, projectIds, fileIds,
   calls }`. It implements the reads (`getProject`, `listProjects`, `findSymbols`, `neighbors` with
-  `direction`), reuses core's argument checks, sorts in byte order (`Buffer.compare`), and counts
-  `findSymbols`/`neighbors` calls (before any check) so a test can assert "no search was sent".
+  `direction`, `resolution` and `fileKind` with the Postgres semantics, DIS-28), reuses core's
+  argument checks, sorts in byte order (`Buffer.compare`), and counts `findSymbols`/`neighbors`/
+  `getProject` calls (before any check) so a test can assert "no search was sent".
   Writes and `sumCostSince` throw. It runs the `graph-store` read scenarios in
   `tests/unit/store/in-memory-store.spec.ts` (tests named `… (in-memory double)`). Known limit:
   case-insensitivity uses `toLowerCase`, which can differ from `ILIKE` on non-ASCII names. It lives
   in `tests/` on purpose: outside Stryker's `mutate` and core's `dist`.
+- **In-memory `SourceTreePort` double** (DIS-28, `tests/support/in-memory-source-tree.ts`).
+  `createInMemorySourceTree(contents, failures?)` answers `readFileAt` from `{ root: { commit: {
+  path: content } } }`, rejects an absent entry with `SourceUnavailable('missing', path)`, injects
+  any other rejection per path, and records `calls.readFileAt` and every `{ root, commit, path }`
+  read. `readFiles`/`realPath` throw. Context pack unit tests pair it with the store double.
+- **Property tests use `fast-check`** (root devDependency since DIS-28,
+  `tests/unit/context/budget.spec.ts`): `numRuns ≥ 200`, and `seed` fixed only when `CI` is set
+  (`{ ...(process.env.CI ? { seed: 20261011 } : {}) }`), so CI replays and local runs explore.
 - **acme-shop test subset** (`tests/support/acme-shop-graph.ts`): a real slice of
   `seeds/graph-dump.sql` (the `PriceCalculator` and `DiscountService` neighbourhoods, `CouponValidator`,
   `docs/pricing.md`). `tests/unit/context/acme-shop-graph-coherence.spec.ts` fails if any file,
@@ -356,7 +365,8 @@ services that must be started first, quirks of the local environment.
   They resolve in `npm ls`; do not expect real behaviour from them yet. Exceptions: `store-postgres`
   implements `StorePort`: writes (`createProject`, `saveGraph`, DIS-23) and reads (`getProject`,
   `listProjects`, `findSymbols`, `neighbors`, DIS-24); `adapters/git` implements `GitPort`
-  (`createSimpleGitHistory`, DIS-35) and `SourceTreePort` (`createGitSourceTree`, DIS-85);
+  (`createSimpleGitHistory`, DIS-35) and `SourceTreePort` (`createGitSourceTree`, DIS-85; `readFileAt`,
+  DIS-28);
   `adapters/llm` implements `LlmPort` (`llmConfigFromEnv`, `createOpenAiCompatibleLlm`, DIS-17;
   `createEvaluationLlm` and the selector `createLlm`, DIS-18), and `store-postgres` also implements
   `sumCostSince` (DIS-18).
@@ -440,12 +450,18 @@ services that must be started first, quirks of the local environment.
   - Symbol ids change on every `saveGraph`, while file ids survive while the path stays. Name a
     symbol across reindexes by its `SymbolRef` (`file`, `name`, `startLine`), which every symbol
     result carries. Every symbol result also carries `fileId` (DIS-27), the id of its file, with the
-    file-id validity; use it to seed a traversal from the symbol's file.
+    file-id validity; use it to seed a traversal from the symbol's file. And `fileKind` (DIS-28), the
+    stored `kind` of its file (never recomputed with `fileKindOf`).
   - `neighbors` is one `WITH RECURSIVE` statement over mixed nodes (symbol and file seeds and
     results). Its optional fifth argument `direction` (DIS-27) is `'out'` by default (source →
     target), `'in'` (target → source) or `'both'` (either way at each step); the statement has four
     `LATERAL` branches switched by `$6`, never interpolated. It returns each node once at its minimum
-    distance, and never returns the seeds. Consumers that
+    distance, and never returns the seeds. Each result carries `resolution` (DIS-28): `exact` when
+    some minimum-distance path follows only `exact` edges, else `heuristic`. The walk deduplicates
+    by `(node, depth, all_exact)` with `UNION` (no per-path `visited` array), so it produces at most
+    2·(hops+1)·N rows: a 40-file `co_changed` clique at 3 hops went from 56 356 rows to ≤ 320, and no
+    `statement_timeout` is needed. No trigram index on `symbol.name`: revisit when a project passes
+    ~50 000 symbols or a search exceeds 50 ms (DIS-28 design D4). Consumers that
     want only symbols filter by `type`. Reached nodes are also filtered by project, so even an
     edge pointing into another project (which the writer never produces) returns nothing foreign.
   - Names and paths sort in byte order (`COLLATE "C"`), not by the database locale: `Zeta` before
@@ -461,8 +477,30 @@ services that must be started first, quirks of the local environment.
   checks `hops` first, returns `[]` for an empty anchor, and otherwise sends **one** `neighbors` call:
   seeds = the anchor symbols plus each of their files once (the only way to reach `co_changed`),
   kinds `calls`/`tested_by`/`describes`/`co_changed`, direction `'both'`. It returns symbols **and**
-  files (the doc reached by `describes` is a file); ranking, budget and `no-anchor` are DIS-28. The
-  question is never logged.
+  files (the doc reached by `describes` is a file). The question is never logged.
+  Since DIS-28 `anchor` searches at most `MAX_QUESTION_TERMS` (16) terms and keeps at most
+  `MAX_ANCHORS` (32) symbols (those matching most terms, returned in first-found order).
+  `buildContextPack({ store, source, workspaceRoot }, { projectId, question, tokenBudget = 8000,
+  hops = 2 })` turns anchor + expansion into the pack DIS-39 prompts with:
+  - `rankCandidates`: lexicographic key, no weights — distance, origin (`anchor` < `exact` <
+    `heuristic`), file kind (`test` < `source` < `doc` < `config`), lexical match of name/path,
+    input order.
+  - Span text is read with `SourceTreePort.readFileAt(root, project.indexedCommit, path)` (ADR
+    `docs/adr/20261011-span-text-read-from-git-at-indexed-commit.md`): the database holds no
+    content. Each file is read once per pack and redacted with `redactSecrets` before any span is
+    cut or token counted. A symbol gives its lines; a file node a whole-file span (no `symbol`).
+  - `fitToTokenBudget`: atomic spans, greedy with skip; spans of one file never overlap (a
+    contained or cutting-across candidate is dropped, not counted in `omitted`; a containing one
+    replaces what it contains). `estimateTokens` = `ceil(code points / 4)`, declared on every pack
+    as `estimator: 'chars-div-4'`.
+  - Results: `ok` with `tokens` ≤ `tokenBudget` and `baselineTokens` (whole redacted files, each
+    once), or `empty` with `no-anchor` (no traversal, no project read, no git read) or
+    `over-budget`. `tokenBudget` outside 1000..32000 and a relative `workspaceRoot` are `RangeError`
+    before any store call; a project without `indexedCommit` is `SourceUnavailable('not-indexed')`.
+  - **`workspaceRoot`, never `process.cwd()`**: the seed's `rootPath` is relative
+    (`fixtures/<name>`) and `npm -w packages/api run dev` runs with cwd `packages/api`, so a
+    relative root is joined to the injected absolute `workspaceRoot` (computing it in the API
+    composition is DIS-39). An absolute `rootPath` is used as is.
 - **`indexRepository` writes nothing until the whole graph is valid** (DIS-85,
   `packages/core/src/index/index-repository.ts`). Phases, each reported once to the optional
   `onProgress` when it starts: `confine` (`confinePath` lexically, then `realPath` of root and repo

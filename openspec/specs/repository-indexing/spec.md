@@ -11,7 +11,8 @@ report of what was indexed, skipped and redacted.
 
 ### Requirement: Source tree contract
 
-The source tree port SHALL offer two operations:
+The source tree port SHALL offer three operations: `realPath` and `readFiles`, below, and
+`readFileAt`, specified in "Reading one file at a commit":
 
 - `realPath(path)` SHALL resolve `path` to its canonical absolute path, following every symbolic
   link. A path that does not exist SHALL reject with `NotAGitRepository` naming that path.
@@ -431,3 +432,81 @@ reason. The report SHALL be plain JSON-serialisable data.
   edge is `co_changed`, and `report.commits` equals the copy's `git rev-list --count HEAD`
 - **AND** every saved file has a 64-character hexadecimal `content_hash`
 - **AND** the progress spy received each phase once, in order
+
+### Requirement: Reading one file at a commit
+
+The source tree port SHALL read the content of one file as a given commit stores it:
+`readFileAt(root, commit, path)` SHALL resolve to the content of `path` in `commit` of the repository
+whose top-level directory is `root`, decoded as UTF-8 (a leading UTF-8 byte order mark is dropped, as
+`readFiles` drops it). It SHALL read that commit, never the working tree nor `HEAD`.
+
+- `commit` MUST be a full object id (40 or 64 lowercase hexadecimal characters) and `path` MUST be a
+  non-empty repository-relative path with `/` separators, with no leading `/`, no empty, `.` or `..`
+  segment, and no NUL or line-feed character. Otherwise the call MUST fail with `RangeError` naming
+  the argument, before starting any git process.
+- It SHALL reject with `SourceUnavailable` (code `SOURCE_UNAVAILABLE`), carrying a reason and the
+  path and never any file content, when:
+  - `not-a-repository`: `root` is not the top-level directory of a Git repository, under the same
+    rule as `readFiles`;
+  - `missing`: `commit` names no commit of the repository, or `path` names no entry of that commit,
+    or names an entry that is not a regular file (a directory, a symbolic link, a submodule);
+  - `too-large`: the stored file is greater than 1 048 576 bytes; its content SHALL NOT be read, and
+    a file of exactly 1 048 576 bytes is read;
+  - `binary-content`: its bytes are not valid UTF-8.
+- Any other git failure propagates as an error.
+- As `readFiles`, it SHALL never modify the repository nor execute anything from it, and neither the
+  repository's configuration nor the caller's git environment variables SHALL change what is read.
+  The number of git processes it starts SHALL NOT depend on the size of the file.
+
+#### Scenario: A file is read as the given commit stores it
+
+- **GIVEN** a throwaway repository with a first commit where `a.php` holds `v1` preceded by a UTF-8
+  byte order mark, a second commit where it holds `v2`, and `a.php` then modified on disk without
+  committing
+- **WHEN** `readFileAt` reads `a.php` at the first commit and at the second
+- **THEN** it resolves to `v1` (without the byte order mark) and to `v2`
+
+#### Scenario: A path or commit that names no file is unavailable
+
+- **GIVEN** a committed repository with a directory `src`, a symbolic link `link.php` and a file
+  `a.php`
+- **WHEN** `readFileAt` reads `missing.php`, `src` and `link.php` at its commit, and `a.php` at a
+  well-formed object id that names no commit of the repository
+- **THEN** each call rejects with `SourceUnavailable` with reason `missing` and the path asked for
+
+#### Scenario: Content that is not UTF-8 is unavailable
+
+- **GIVEN** a committed repository tracking `logo.bin`, whose bytes are not valid UTF-8
+- **WHEN** `readFileAt` reads it
+- **THEN** the call rejects with `SourceUnavailable` with reason `binary-content`, and the error
+  holds none of the file's bytes
+
+#### Scenario: A file over the size limit is unavailable without being read
+
+- **GIVEN** a committed repository tracking `edge.txt` of exactly 1 048 576 bytes and `big.txt` of
+  1 048 577 bytes of ASCII text
+- **WHEN** `readFileAt` reads each
+- **THEN** `edge.txt` resolves to its full content, and `big.txt` rejects with `SourceUnavailable`
+  with reason `too-large`
+
+#### Scenario: A root that is not a repository is unavailable
+
+- **GIVEN** a directory outside any repository, and a subdirectory of a repository
+- **WHEN** `readFileAt` reads a file under each
+- **THEN** each call rejects with `SourceUnavailable` with reason `not-a-repository`
+
+#### Scenario: Malformed arguments are rejected before running git
+
+- **WHEN** `readFileAt` is called with commit `HEAD`, with a 7-character abbreviated id, with path
+  `../etc/passwd`, `/a.php`, `a//b.php` and a path holding a line feed, while the git processes it
+  starts are counted
+- **THEN** each call fails with `RangeError` naming `commit` or `path`
+- **AND** no git process was started
+
+#### Scenario: Reading one file executes nothing from the repository
+
+- **GIVEN** a repository whose local configuration names programs that write a marker file outside
+  it (a `core.fsmonitor` command, a `filter.<x>.smudge` and a `diff.<x>.textconv` applied to every
+  path by `.gitattributes`)
+- **WHEN** `readFileAt` reads a tracked file at its commit
+- **THEN** it resolves to the committed content and the marker file does not exist

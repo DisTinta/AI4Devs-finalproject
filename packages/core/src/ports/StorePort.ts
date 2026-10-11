@@ -57,8 +57,8 @@ export interface StorePort {
 
   /**
    * Finds the project's symbols whose name contains `name`, case-insensitively and literally (`%`,
-   * `_` and `\` match themselves), optionally narrowed to `options.kinds`. Ordered by file path,
-   * start line, name.
+   * `_` and `\` match themselves), optionally narrowed to `options.kinds`. Each carries the id and
+   * the stored kind of its file. Ordered by file path, start line, name.
    *
    * @throws InvalidStoreQuery when `name` is blank or contains a NUL character, or `options.kinds`
    *   is empty, before querying.
@@ -70,8 +70,10 @@ export interface StorePort {
    * Returns the project's nodes (symbols and files) reachable from `seeds` in 1..`hops` steps,
    * following edges in `direction` (`'out'`, source to target, when not given; `'in'`, target to
    * source; `'both'`, either way at each step), only edges of `kinds` when given. Each node appears
-   * once, with its minimum distance; seeds never appear. Cycles do not repeat nodes. Ordered by
-   * distance, files before symbols, path, start line, name. Answered by a single database statement.
+   * once, with its minimum distance and its resolution (`exact` when some minimum-distance path
+   * follows only `exact` edges); seeds never appear. Cycles do not repeat nodes. Ordered by
+   * distance, files before symbols, path, start line, name. Answered by a single database statement
+   * whose work grows with the nodes reached, not with the paths between them.
    * Seeds that name no node of the project (unknown, foreign or malformed ids) contribute nothing.
    *
    * @throws InvalidStoreQuery when `hops` is not an integer in 1..`MAX_HOPS`, `kinds` is empty or

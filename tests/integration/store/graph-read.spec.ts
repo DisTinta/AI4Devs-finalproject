@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { InvalidStoreQuery, ProjectNotFound } from '@codemind/core';
 import type {
   EdgeKind,
+  EdgeResolution,
   GraphEdge,
   GraphFile,
   GraphSymbol,
@@ -14,6 +15,7 @@ import type {
   TraversalDirection,
 } from '@codemind/core';
 import { createPostgresStore } from '../../../packages/adapters/store-postgres/src/index';
+import { NEIGHBORS } from '../../../packages/adapters/store-postgres/src/queries';
 import { describeWithDatabase, useTransactionPerTest } from '../helpers/db';
 import { unique } from '../helpers/factories';
 import { edge, file, ref, sampleGraph, SHA, symbol } from '../../support/sample-graph';
@@ -62,9 +64,37 @@ function symbolGraph(names: string[], edges: Array<[string, string, EdgeKind?]>)
   };
 }
 
+/** A symbol graph like {@link symbolGraph} whose `calls` edges carry the given resolution. */
+function resolvedGraph(names: string[], edges: Array<[string, string, EdgeResolution]>): KnowledgeGraph {
+  const graph = symbolGraph(names, []);
+  const byName = new Map(graph.symbols.map((s) => [s.name, s]));
+  const at = (name: string): GraphEdge['source'] => ({ symbol: ref(byName.get(name) as GraphSymbol) });
+  return { ...graph, edges: edges.map(([source, target, resolution]) => edge(at(source), at(target), { resolution })) };
+}
+
+/** Each symbol neighbour as `<name>@<distance>:<resolution>`, in result order. */
+function resolutions(neighbors: Neighbor[]): string[] {
+  return neighbors.map((n) => `${n.type === 'file' ? n.path : n.name}@${n.distance}:${n.resolution}`);
+}
+
 /** Each neighbour as `<name>@<distance>` (symbols) or `file:<path>@<distance>`, in result order. */
 function labels(neighbors: Neighbor[]): string[] {
   return neighbors.map((n) => (n.type === 'file' ? `file:${n.path}@${n.distance}` : `${n.name}@${n.distance}`));
+}
+
+/** The first node of an `EXPLAIN (FORMAT JSON)` plan whose `Node Type` is `type`, depth first. */
+function planNode(plan: unknown, type: string): Record<string, unknown> | undefined {
+  if (Array.isArray(plan)) {
+    for (const item of plan) {
+      const found = planNode(item, type);
+      if (found) return found;
+    }
+    return undefined;
+  }
+  if (plan === null || typeof plan !== 'object') return undefined;
+  const node = plan as Record<string, unknown>;
+  if (node['Node Type'] === type) return node;
+  return planNode(node['Plan'], type) ?? planNode(node['Plans'], type);
 }
 
 /** A project input with a unique name. */
@@ -246,11 +276,11 @@ describeWithDatabase('graph store reads (DIS-24)', () => {
 
       // Assert
       expect(found).toEqual([
-        { id: expect.any(String), fileId: upper, file: 'src/B.ts', name: 'basePrice', startLine: 1, endLine: 3, kind: 'method' },
-        { id: expect.any(String), fileId: a, file: 'src/a.ts', name: 'PriceCalculator', startLine: 3, endLine: 40, kind: 'class', signature: 'class PriceCalculator' },
-        { id: expect.any(String), fileId: a, file: 'src/a.ts', name: 'computePrice', startLine: 10, endLine: 12, kind: 'method' },
-        { id: expect.any(String), fileId: a, file: 'src/a.ts', name: 'PriceTwo', startLine: 20, endLine: 22, kind: 'method' },
-        { id: expect.any(String), fileId: a, file: 'src/a.ts', name: 'priceOne', startLine: 20, endLine: 22, kind: 'method' },
+        { id: expect.any(String), fileId: upper, file: 'src/B.ts', fileKind: 'source', name: 'basePrice', startLine: 1, endLine: 3, kind: 'method' },
+        { id: expect.any(String), fileId: a, file: 'src/a.ts', fileKind: 'source', name: 'PriceCalculator', startLine: 3, endLine: 40, kind: 'class', signature: 'class PriceCalculator' },
+        { id: expect.any(String), fileId: a, file: 'src/a.ts', fileKind: 'source', name: 'computePrice', startLine: 10, endLine: 12, kind: 'method' },
+        { id: expect.any(String), fileId: a, file: 'src/a.ts', fileKind: 'source', name: 'PriceTwo', startLine: 20, endLine: 22, kind: 'method' },
+        { id: expect.any(String), fileId: a, file: 'src/a.ts', fileKind: 'source', name: 'priceOne', startLine: 20, endLine: 22, kind: 'method' },
       ]);
     });
 
@@ -309,6 +339,30 @@ describeWithDatabase('graph store reads (DIS-24)', () => {
       expect(found).toEqual([]);
     });
 
+    it('A symbol result carries the kind of its file', async () => {
+      // Arrange
+      const { writer, reader } = stores();
+      const projectId = await projectWith(
+        writer,
+        graphOf(
+          [file('app/Services/PriceCalculator.php'), file('tests/Unit/PriceCalculatorTest.php', { kind: 'test' })],
+          [
+            symbol('app/Services/PriceCalculator.php', 'PriceCalculator', 16, { kind: 'class' }),
+            symbol('tests/Unit/PriceCalculatorTest.php', 'PriceCalculatorTest', 9, { kind: 'class' }),
+          ],
+        ),
+      );
+
+      // Act
+      const found = await reader.findSymbols(projectId, 'PriceCalculator');
+
+      // Assert
+      expect(found.map((s) => [s.name, s.fileKind])).toEqual([
+        ['PriceCalculator', 'source'],
+        ['PriceCalculatorTest', 'test'],
+      ]);
+    });
+
     it('Searching an unknown project fails', async () => {
       // Arrange
       const { reader, statements } = stores();
@@ -342,7 +396,9 @@ describeWithDatabase('graph store reads (DIS-24)', () => {
         startLine: 11,
         endLine: 13,
         kind: 'method',
+        fileKind: 'source',
         distance: 1,
+        resolution: 'exact',
       });
     });
 
@@ -546,6 +602,7 @@ describeWithDatabase('graph store reads (DIS-24)', () => {
         path: 'src/c.ts',
         kind: 'doc',
         distance: 2,
+        resolution: 'exact',
       });
       expect(neighbors[4]).toMatchObject({ type: 'symbol', file: 'src/t.ts', name: 'T', startLine: 7 });
     });
@@ -634,6 +691,103 @@ describeWithDatabase('graph store reads (DIS-24)', () => {
         await reader.neighbors(projectId, seeds, 3, undefined, direction);
         expect(statements() - before).toBe(1);
       }
+    });
+
+    it('A node reached by an exact shortest path is exact', async () => {
+      // Arrange
+      const { writer, reader } = stores();
+      const projectId = await projectWith(
+        writer,
+        resolvedGraph(['A', 'B', 'C', 'D'], [['A', 'B', 'exact'], ['B', 'D', 'exact'], ['A', 'C', 'heuristic'], ['C', 'D', 'exact']]),
+      );
+      const a = await symbolId(reader, projectId, 'A');
+
+      // Act
+      const neighbors = await reader.neighbors(projectId, [{ type: 'symbol', id: a }], 2);
+
+      // Assert
+      expect(resolutions(neighbors)).toEqual(['B@1:exact', 'C@1:heuristic', 'D@2:exact']);
+    });
+
+    it('A node reached only through heuristic edges is heuristic', async () => {
+      // Arrange
+      const { writer, reader } = stores();
+      const projectId = await projectWith(writer, resolvedGraph(['A', 'B', 'C'], [['A', 'B', 'heuristic'], ['B', 'C', 'exact']]));
+      const a = await symbolId(reader, projectId, 'A');
+
+      // Act
+      const neighbors = await reader.neighbors(projectId, [{ type: 'symbol', id: a }], 2);
+
+      // Assert
+      expect(resolutions(neighbors)).toEqual(['B@1:heuristic', 'C@2:heuristic']);
+    });
+
+    it('A shorter heuristic path wins over a longer exact one', async () => {
+      // Arrange
+      const { writer, reader } = stores();
+      const projectId = await projectWith(
+        writer,
+        resolvedGraph(['A', 'B', 'C'], [['A', 'C', 'heuristic'], ['A', 'B', 'exact'], ['B', 'C', 'exact']]),
+      );
+      const a = await symbolId(reader, projectId, 'A');
+
+      // Act
+      const neighbors = await reader.neighbors(projectId, [{ type: 'symbol', id: a }], 2);
+
+      // Assert
+      expect(resolutions(neighbors)).toEqual(['B@1:exact', 'C@1:heuristic']);
+    });
+
+    it('carries the stored kind of the file of a symbol neighbour', async () => {
+      // Arrange
+      const { writer, reader } = stores();
+      const s = symbol('src/s.ts', 'S', 1);
+      const t = symbol('tests/s.spec.ts', 'S test', 1);
+      const projectId = await projectWith(writer, {
+        files: [file('src/s.ts'), file('tests/s.spec.ts', { kind: 'test' })],
+        symbols: [s, t],
+        edges: [edge({ symbol: ref(s) }, { symbol: ref(t) }, { kind: 'tested_by' })],
+        commits: [],
+        fileCommits: [],
+      });
+      const sId = await symbolId(reader, projectId, 'S');
+
+      // Act
+      const neighbors = await reader.neighbors(projectId, [{ type: 'symbol', id: sId }], 1);
+
+      // Assert
+      expect(neighbors).toEqual([expect.objectContaining({ name: 'S test', fileKind: 'test', resolution: 'exact' })]);
+    });
+
+    it('The traversal work grows with nodes, not paths', async () => {
+      // Arrange: 40 files joined pairwise by `co_changed`, a clique where paths grow as 39·38·37 at 3
+      // hops but nodes stay 40.
+      const { writer, reader } = stores();
+      const paths = Array.from({ length: 40 }, (_, i) => `app/f${String(i).padStart(2, '0')}.php`);
+      const edges = paths.flatMap((source, i) =>
+        paths
+          .slice(i + 1)
+          .map((target) => edge({ file: source }, { file: target }, { kind: 'co_changed', resolution: 'heuristic', weight: 1 })),
+      );
+      const projectId = await projectWith(writer, { files: paths.map((p) => file(p)), symbols: [], edges, commits: [], fileCommits: [] });
+      const first = await fileId(projectId, paths[0]);
+
+      // Act
+      const neighbors = await reader.neighbors(projectId, [{ type: 'file', id: first }], 3, ['co_changed'], 'both');
+      const { rows } = await db().query<{ 'QUERY PLAN': unknown }>(`EXPLAIN (ANALYZE, FORMAT JSON) ${NEIGHBORS}`, [
+        projectId,
+        [],
+        [first],
+        3,
+        ['co_changed'],
+        'both',
+      ]);
+
+      // Assert
+      expect(labels(neighbors)).toEqual(paths.slice(1).map((p) => `file:${p}@1`));
+      const walk = planNode(rows[0]['QUERY PLAN'], 'Recursive Union');
+      expect(walk).toBeDefined();
+      expect(walk?.['Actual Rows'] as number).toBeLessThanOrEqual(2 * 4 * 40);
     });
 
     it('Traversing an unknown project fails', async () => {

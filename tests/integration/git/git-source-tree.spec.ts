@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { afterAll, describe, expect, it } from 'vitest';
-import { DomainError, EmptyRepository, NotAGitRepository } from '@codemind/core';
+import { DomainError, EmptyRepository, NotAGitRepository, SourceUnavailable } from '@codemind/core';
 import { createGitSourceTree, createSimpleGitHistory } from '../../../packages/adapters/git/src/index';
 import { spawnReaderGit } from '../../../packages/adapters/git/src/repository';
 import type { GitProcess, GitSpawner } from '../../../packages/adapters/git/src/repository';
@@ -566,4 +566,277 @@ describe('git source tree', () => {
       expect(tree.files).toEqual([{ path: 'a.php', content: '<?php\n' }]);
     });
   });
+
+  // Spec: openspec/changes/context-engine-rank-budget/specs/repository-indexing/spec.md, requirement
+  // "Reading one file at a commit" (DIS-28).
+  describe('Requirement: Reading one file at a commit', () => {
+    it('A file is read as the given commit stores it', async () => {
+      // Arrange: v1 behind a UTF-8 byte order mark, then v2, then an uncommitted edit.
+      const repository = emptyRepository();
+      writeFileSync(join(repository, 'a.php'), Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('v1')]));
+      git(repository, 'add', '.');
+      git(repository, 'commit', '-q', '-m', 'feat: v1');
+      const first = git(repository, 'rev-parse', 'HEAD');
+      writeFileSync(join(repository, 'a.php'), 'v2');
+      git(repository, 'commit', '-q', '-am', 'feat: v2');
+      const second = git(repository, 'rev-parse', 'HEAD');
+      writeFileSync(join(repository, 'a.php'), 'modified, not committed');
+
+      // Act
+      const atFirst = await sourceTree.readFileAt(repository, first, 'a.php');
+      const atSecond = await sourceTree.readFileAt(repository, second, 'a.php');
+
+      // Assert
+      expect([atFirst, atSecond]).toEqual(['v1', 'v2']);
+    });
+
+    it('A path or commit that names no file is unavailable', async () => {
+      // Arrange: a directory, a symbolic link (straight into the index, as above) and a file.
+      const repository = emptyRepository();
+      mkdirSync(join(repository, 'src'));
+      writeFileSync(join(repository, 'src', 'b.php'), '<?php\n');
+      writeFileSync(join(repository, 'a.php'), '<?php\n');
+      git(repository, 'add', '.');
+      const linkBlob = execFileSync('git', ['hash-object', '-w', '--stdin'], { cwd: repository, input: 'a.php', encoding: 'utf8' }).trim();
+      git(repository, 'update-index', '--add', '--cacheinfo', `120000,${linkBlob},link.php`);
+      git(repository, 'commit', '-q', '-m', 'feat: a, src and link');
+      const head = git(repository, 'rev-parse', 'HEAD');
+      const unknown = 'f'.repeat(40);
+
+      // Act
+      const reads = [
+        ['missing.php', head],
+        ['src', head],
+        ['link.php', head],
+        ['a.php', unknown],
+      ].map(([path, commit]) => rejectionOf(() => sourceTree.readFileAt(repository, commit, path)));
+      const rejections = await Promise.all(reads);
+
+      // Assert
+      expect(rejections.map(unavailable)).toEqual([
+        { reason: 'missing', path: 'missing.php' },
+        { reason: 'missing', path: 'src' },
+        { reason: 'missing', path: 'link.php' },
+        { reason: 'missing', path: 'a.php' },
+      ]);
+    });
+
+    it('Content that is not UTF-8 is unavailable', async () => {
+      // Arrange: 0xC3 0x28 is an invalid two-byte UTF-8 sequence.
+      const repository = emptyRepository();
+      writeFileSync(join(repository, 'logo.bin'), Buffer.from([0x89, 0xc3, 0x28, 0x00, 0xff]));
+      git(repository, 'add', '.');
+      git(repository, 'commit', '-q', '-m', 'feat: logo');
+
+      // Act
+      const rejection = await rejectionOf(() => sourceTree.readFileAt(repository, git(repository, 'rev-parse', 'HEAD'), 'logo.bin'));
+
+      // Assert
+      expect(unavailable(rejection)).toEqual({ reason: 'binary-content', path: 'logo.bin' });
+      expect((rejection as Error).message).not.toMatch(/[\u0080-￿]/);
+    });
+
+    it('A file over the size limit is unavailable without being read', async () => {
+      // Arrange: ASCII text, so only the size can make a file unavailable.
+      const repository = emptyRepository();
+      writeFileSync(join(repository, 'edge.txt'), 'a'.repeat(1_048_576));
+      writeFileSync(join(repository, 'big.txt'), 'b'.repeat(1_048_577));
+      git(repository, 'add', '.');
+      git(repository, 'commit', '-q', '-m', 'feat: edge and big');
+      const head = git(repository, 'rev-parse', 'HEAD');
+      const started: string[][] = [];
+      const counted = gitSourceTreeWith((root, args) => {
+        started.push([...args]);
+        return spawnReaderGit(root, args);
+      });
+
+      // Act
+      const edge = await counted.readFileAt(repository, head, 'edge.txt');
+      started.length = 0;
+      const big = await rejectionOf(() => counted.readFileAt(repository, head, 'big.txt'));
+
+      // Assert
+      expect(edge).toBe('a'.repeat(1_048_576));
+      expect(unavailable(big)).toEqual({ reason: 'too-large', path: 'big.txt' });
+      // The content is read by `cat-file blob` only; the commit check (`--batch-check`) reads no file.
+      expect(started.filter((args) => args[0] === 'cat-file' && args[1] === 'blob')).toEqual([]);
+    });
+
+    it('A root that is not a repository is unavailable', async () => {
+      // Arrange
+      const outside = temporaryDirectory();
+      const repository = emptyRepository();
+      mkdirSync(join(repository, 'sub'));
+      writeFileSync(join(repository, 'sub', 'a.php'), '<?php\n');
+      git(repository, 'add', '.');
+      git(repository, 'commit', '-q', '-m', 'feat: sub');
+      const head = git(repository, 'rev-parse', 'HEAD');
+
+      // Act
+      const rejections = await Promise.all([
+        rejectionOf(() => sourceTree.readFileAt(outside, head, 'a.php')),
+        rejectionOf(() => sourceTree.readFileAt(join(repository, 'sub'), head, 'a.php')),
+      ]);
+
+      // Assert
+      expect(rejections.map(unavailable)).toEqual([
+        { reason: 'not-a-repository', path: 'a.php' },
+        { reason: 'not-a-repository', path: 'a.php' },
+      ]);
+    });
+
+    it('Malformed arguments are rejected before running git', async () => {
+      // Arrange: a root that does not exist, so a root check that ran first would answer
+      // `SourceUnavailable`, not `RangeError`.
+      const missingRoot = join(temporaryDirectory(), 'nowhere');
+      const head = 'a'.repeat(40);
+      let spawned = 0;
+      const counted = gitSourceTreeWith((root, args) => {
+        spawned += 1;
+        return spawnReaderGit(root, args);
+      });
+      const calls: Array<[string, string, 'commit' | 'path']> = [
+        ['HEAD', 'a.php', 'commit'],
+        ['abc1234', 'a.php', 'commit'],
+        [head, '../etc/passwd', 'path'],
+        [head, '/a.php', 'path'],
+        [head, 'a//b.php', 'path'],
+        [head, `a${String.fromCharCode(10)}b.php`, 'path'],
+      ];
+
+      // Act
+      const rejections = await Promise.all(calls.map(([commit, path]) => rejectionOf(() => counted.readFileAt(missingRoot, commit, path))));
+
+      // Assert
+      rejections.forEach((rejection, i) => {
+        expect(rejection).toBeInstanceOf(RangeError);
+        expect((rejection as Error).message.startsWith(calls[i][2])).toBe(true);
+      });
+      expect(spawned).toBe(0);
+    });
+
+    it('Reading one file executes nothing from the repository', async () => {
+      // Arrange
+      const outside = temporaryDirectory();
+      const repository = temporaryDirectory();
+      buildHostileRepository(repository);
+      const head = git(repository, 'rev-parse', 'HEAD');
+      const clean = await sourceTree.readFileAt(repository, head, ACCENTED_PATH);
+      const marker = armProgramTraps(repository, outside);
+
+      // Act
+      const read = await sourceTree.readFileAt(repository, head, ACCENTED_PATH);
+
+      // Assert
+      expect(existsSync(marker) ? readFileSync(marker, 'utf8') : '').toBe('');
+      expect(read).toBe(clean);
+    });
+
+    // Not scenarios: bullets of the requirement found untested by verify-against-spec.
+    it("propagates git's error when the file's object is missing, never reporting it as missing", async () => {
+      // Arrange: the blob of a.php is removed, so `ls-tree -l` cannot size it (a damaged repository).
+      const repository = emptyRepository();
+      writeFileSync(join(repository, 'a.php'), '<?php // gone' + String.fromCharCode(10));
+      git(repository, 'add', '.');
+      git(repository, 'commit', '-q', '-m', 'feat: a');
+      const blob = git(repository, 'rev-parse', 'HEAD:a.php');
+      rmSync(join(repository, '.git', 'objects', blob.slice(0, 2), blob.slice(2)));
+
+      // Act
+      const rejection = await rejectionOf(() => sourceTree.readFileAt(repository, git(repository, 'rev-parse', 'HEAD'), 'a.php'));
+
+      // Assert
+      expect(rejection).toBeInstanceOf(Error);
+      expect(rejection).not.toBeInstanceOf(SourceUnavailable);
+    });
+
+    it("propagates git's error when the commit cannot be checked, never reporting it as missing", async () => {
+      // Arrange: every git process is redirected to an unknown subcommand, so git fails with its own
+      // message before telling whether the commit exists.
+      const repository = emptyRepository();
+      writeFileSync(join(repository, 'a.php'), '<?php' + String.fromCharCode(10));
+      git(repository, 'add', '.');
+      git(repository, 'commit', '-q', '-m', 'feat: a');
+      const broken = gitSourceTreeWith((root) => spawnReaderGit(root, ['no-such-subcommand']));
+
+      // Act
+      const rejection = await rejectionOf(() => broken.readFileAt(repository, 'f'.repeat(40), 'a.php'));
+
+      // Assert
+      expect(rejection).toBeInstanceOf(Error);
+      expect(rejection).not.toBeInstanceOf(SourceUnavailable);
+      expect((rejection as Error).message).toContain('no-such-subcommand');
+    });
+
+    it('reports an object id that names a blob, a tree or an annotated tag, not a commit, as missing', async () => {
+      // Arrange
+      const repository = emptyRepository();
+      writeFileSync(join(repository, 'a.php'), '<?php' + String.fromCharCode(10));
+      git(repository, 'add', '.');
+      git(repository, 'commit', '-q', '-m', 'feat: a');
+      git(repository, 'tag', '-a', 'v1', '-m', 'v1');
+      const blob = git(repository, 'rev-parse', 'HEAD:a.php');
+      const tree = git(repository, 'rev-parse', 'HEAD^{tree}');
+      const tag = git(repository, 'rev-parse', 'v1');
+
+      // Act
+      const rejections = await Promise.all([blob, tree, tag].map((id) => rejectionOf(() => sourceTree.readFileAt(repository, id, 'a.php'))));
+
+      // Assert
+      expect(rejections.map(unavailable)).toEqual([
+        { reason: 'missing', path: 'a.php' },
+        { reason: 'missing', path: 'a.php' },
+        { reason: 'missing', path: 'a.php' },
+      ]);
+    });
+
+    it('accepts a 64-character object id and rejects "." segments and NUL in the path', async () => {
+      const repository = emptyRepository();
+      writeFileSync(join(repository, 'a.php'), '<?php' + String.fromCharCode(10));
+      git(repository, 'add', '.');
+      git(repository, 'commit', '-q', '-m', 'feat: a');
+
+      const sha256 = await rejectionOf(() => sourceTree.readFileAt(repository, 'a'.repeat(64), 'a.php'));
+      const dot = await rejectionOf(() => sourceTree.readFileAt(repository, 'a'.repeat(40), 'src/./a.php'));
+      const nul = await rejectionOf(() => sourceTree.readFileAt(repository, 'a'.repeat(40), `a${String.fromCharCode(0)}.php`));
+
+      expect(unavailable(sha256)).toEqual({ reason: 'missing', path: 'a.php' });
+      expect(dot).toBeInstanceOf(RangeError);
+      expect(nul).toBeInstanceOf(RangeError);
+    });
+
+    it('starts the same git processes whatever the size of the file', async () => {
+      const repository = emptyRepository();
+      writeFileSync(join(repository, 'small.txt'), 'a');
+      writeFileSync(join(repository, 'large.txt'), 'b'.repeat(1_000_000));
+      git(repository, 'add', '.');
+      git(repository, 'commit', '-q', '-m', 'feat: small and large');
+      const head = git(repository, 'rev-parse', 'HEAD');
+      const started: string[] = [];
+      const counted = gitSourceTreeWith((root, args) => {
+        started.push(args.join(' '));
+        return spawnReaderGit(root, args);
+      });
+
+      await counted.readFileAt(repository, head, 'small.txt');
+      const forSmall = started.length;
+      started.length = 0;
+      await counted.readFileAt(repository, head, 'large.txt');
+
+      expect(started.length).toBe(forSmall);
+    });
+  });
 });
+
+/** The rejection of `call`, or `undefined` when it resolves. */
+async function rejectionOf(call: () => Promise<unknown>): Promise<unknown> {
+  return call().then(
+    () => undefined,
+    (rejection: unknown) => rejection,
+  );
+}
+
+/** A `SourceUnavailable` as `{ reason, path }`; anything else as itself, so a mismatch shows it. */
+function unavailable(rejection: unknown): unknown {
+  return rejection instanceof SourceUnavailable ? { reason: rejection.reason, path: rejection.path } : rejection;
+}

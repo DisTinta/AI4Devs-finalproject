@@ -363,7 +363,8 @@ case-insensitively, and MAY narrow them to a non-empty list of symbol kinds.
 
 - The term SHALL match literally: `%`, `_` and `\` in the term match those characters only.
 - Each result SHALL carry the symbol's id, its kind, start and end line, signature (or unset), the
-  id of its file, and its natural identity: the path of its file, its name and its start line.
+  id and the kind of its file, and its natural identity: the path of its file, its name and its
+  start line. The file kind SHALL be the kind stored for that file, not recomputed.
 - Results SHALL be ordered by file path, then start line, then name (paths and names in byte
   order).
 - A project with no matching symbol SHALL give an empty list.
@@ -399,6 +400,13 @@ case-insensitively, and MAY narrow them to a non-empty list of symbol kinds.
 - **THEN** both calls fail with `ProjectNotFound`
 - **AND** no statement was sent to the database for the `not-a-uuid` call
 
+#### Scenario: A symbol result carries the kind of its file
+
+- **WHEN** a project holds symbol `PriceCalculatorTest` in a file of kind `test` and symbol
+  `PriceCalculator` in a file of kind `source`, and the term `PriceCalculator` is searched
+- **THEN** `PriceCalculatorTest` carries file kind `test` and `PriceCalculator` carries file kind
+  `source`
+
 ### Requirement: Bounded neighbour traversal
 
 The store SHALL return the nodes of one project reachable from a set of seed nodes in at least 1
@@ -416,10 +424,15 @@ the direction SHALL be `out`.
   NOT appear in the result, even when reachable from another seed.
 - Cycles in the graph MUST NOT make the traversal loop, repeat a node or exceed `hops`, in any
   direction.
-- Each result SHALL carry its type (`symbol` or `file`), its id and its distance. A symbol result
-  SHALL also carry its kind, span, signature (or unset), the id of its file and its natural
-  identity (file path, name, start line), as a symbol search does; a file result SHALL carry its
-  path and kind.
+- Each result SHALL carry its type (`symbol` or `file`), its id, its distance and its resolution. A
+  symbol result SHALL also carry its kind, span, signature (or unset), the id and kind of its file
+  and its natural identity (file path, name, start line), as a symbol search does; a file result
+  SHALL carry its path and kind.
+- The resolution of a result SHALL be `exact` when at least one of its paths of minimum distance
+  follows only `exact` edges, and `heuristic` otherwise.
+- The work of a traversal SHALL grow with the nodes of the project, not with the paths between
+  them: the rows the traversal produces SHALL be at most 2·(`hops`+1) times the number of nodes it
+  can reach, seeds included.
 - Results SHALL be ordered by distance, then files before symbols, then path, then start line,
   then name (paths and names in byte order).
 - The traversal SHALL be answered by a single database statement, whatever `hops`, the direction
@@ -515,6 +528,33 @@ the direction SHALL be `out`.
   `not-a-uuid`
 - **THEN** both calls fail with `ProjectNotFound`
 - **AND** no statement was sent to the database for the `not-a-uuid` call
+
+
+#### Scenario: A node reached by an exact shortest path is exact
+
+- **WHEN** symbols have edges `A calls B` (exact), `B calls D` (exact), `A calls C` (heuristic) and
+  `C calls D` (exact), and the neighbours of `A` are requested at 2 hops
+- **THEN** `D` appears once, at distance 2, with resolution `exact`, and `C` with resolution
+  `heuristic`
+
+#### Scenario: A node reached only through heuristic edges is heuristic
+
+- **WHEN** symbols have edges `A calls B` (heuristic) and `B calls C` (exact), and the neighbours of
+  `A` are requested at 2 hops
+- **THEN** `B` and `C` both have resolution `heuristic`
+
+#### Scenario: A shorter heuristic path wins over a longer exact one
+
+- **WHEN** symbols have edges `A calls C` (heuristic), `A calls B` (exact) and `B calls C` (exact),
+  and the neighbours of `A` are requested at 2 hops
+- **THEN** `C` appears at distance 1 with resolution `heuristic`
+
+#### Scenario: The traversal work grows with nodes, not paths
+
+- **WHEN** a project holds 40 files joined pairwise by `co_changed` edges, and the neighbours of one
+  of them are requested at 3 hops with kinds `co_changed` and direction `both`
+- **THEN** each of the other 39 files appears exactly once, at distance 1
+- **AND** the database's execution plan shows the traversal produced at most 2·4·40 rows
 
 ### Requirement: Project isolation of reads
 

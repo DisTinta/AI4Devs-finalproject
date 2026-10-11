@@ -109,6 +109,9 @@ async function run(argv: string[], options: FakeOptions = {}): Promise<Run> {
         if (options.readFilesError) throw options.readFilesError;
         return options.tree ?? { files: [{ path: 'app/A.php', content: '<?php\n' }], skipped: [] };
       },
+      readFileAt: async () => {
+        throw new Error('readFileAt is not used by indexing');
+      },
     },
     analyzer: { analyze: async (input) => (options.analyze ?? plainAnalysis)(input.files) },
     git: {
