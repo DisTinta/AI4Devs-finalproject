@@ -51,7 +51,9 @@ ADR nuevo: [`docs/adr/20261011-span-text-read-from-git-at-indexed-commit.md`](..
 - **D6. Topes.** 16 términos y 32 anclas: los números son un supuesto de este design (el ticket solo nombra
   las constantes). El ancla real de Q1 en la semilla tiene 11 símbolos.
 - **D8. Solapes.** Un candidato que corta un span incluido, aunque contenga otro, se descarta (supuesto: los
-  spans del analizador están anidados). El span que sustituye ocupa el lugar del primero que reemplaza.
+  spans del analizador están anidados). El span que sustituye ocupa el lugar del primero que reemplaza y
+  conserva la menor distancia y el mejor origen de lo que sustituye (decisión de la autora tras la
+  revisión adversarial).
 - **D12. Semilla.** `knowledge/`, `store-postgres/src` y `adapters/git/src` forman parte de la huella del
   analizador; el commit `chore(DIS-28): regenerate the seed fingerprint` solo cambia esa cabecera.
 
@@ -74,14 +76,15 @@ traversal» no cambian). Las copias del doble, `… (in-memory double)`, están 
 | Escenario de la especificación | Test que lo cubre |
 |---|---|
 | context-engine · A long question sends a bounded number of searches | `tests/unit/context/anchor.spec.ts:177` |
-| context-engine · The anchor keeps the symbols that match the most terms | `tests/unit/context/anchor.spec.ts:191` |
+| context-engine · The anchor keeps the symbols that match the most terms | `tests/unit/context/anchor.spec.ts:195` |
 | context-engine · The neighbourhood of the price question is ranked by distance, origin, file kind and lexical match | `tests/unit/context/rank.spec.ts:31` |
 | context-engine · Tokens are a quarter of the characters, rounded up | `tests/unit/context/tokenizer.spec.ts:8` |
 | context-engine · The budget is never exceeded and no span is truncated | `tests/unit/context/budget.spec.ts:16` |
 | context-engine · Generated candidates never exceed the budget | `tests/unit/context/budget.spec.ts:70` |
 | context-engine · A method inside an included class is not counted twice | `tests/unit/context/budget.spec.ts:29` |
-| context-engine · A file node gives a whole-file span | `tests/unit/context/context-pack.spec.ts:354` |
-| context-engine · A whole file replaces the symbol spans it contains | `tests/unit/context/context-pack.spec.ts:367` |
+| context-engine · A file node gives a whole-file span | `tests/unit/context/context-pack.spec.ts:396` |
+| context-engine · A whole file replaces the symbol spans it contains | `tests/unit/context/context-pack.spec.ts:437` |
+| context-engine · A replacing span keeps the best origin and distance of what it replaces | `tests/unit/context/context-pack.spec.ts:409` |
 | context-engine · A candidate that contains one span and cuts across another is dropped | `tests/unit/context/budget.spec.ts:56` |
 | context-engine · An anchor that does not fit leaves room for its neighbours | `tests/unit/context/budget.spec.ts:43` |
 | context-engine · The pack of the price question holds the calculator class once | `tests/integration/context/context-pack.spec.ts:88` |
@@ -95,10 +98,10 @@ traversal» no cambian). Las copias del doble, `… (in-memory double)`, están 
 | context-engine · A relative workspace root is rejected | `tests/unit/context/context-pack.spec.ts:204` |
 | context-engine · A pack with an invalid hop count is rejected | `tests/unit/context/context-pack.spec.ts:217` |
 | context-engine · A pack for an unknown project fails | `tests/unit/context/context-pack.spec.ts:234` |
-| context-engine · Unreadable source fails without its content | `tests/unit/context/context-pack.spec.ts:245` |
-| context-engine · A project never indexed has no source to read | `tests/unit/context/context-pack.spec.ts:259` |
-| context-engine · A relative root path is resolved against the workspace root | `tests/unit/context/context-pack.spec.ts:272` |
-| context-engine · The process working directory is never used | `tests/unit/context/context-pack.spec.ts:287` |
+| context-engine · Unreadable source fails without its content | `tests/unit/context/context-pack.spec.ts:247` |
+| context-engine · A project never indexed has no source to read | `tests/unit/context/context-pack.spec.ts:261` |
+| context-engine · A relative root path is resolved against the workspace root | `tests/unit/context/context-pack.spec.ts:274` |
+| context-engine · The process working directory is never used | `tests/unit/context/context-pack.spec.ts:289` |
 | graph-store · A symbol result carries the kind of its file | `tests/integration/store/graph-read.spec.ts:342` |
 | graph-store · A node reached by an exact shortest path is exact | `tests/integration/store/graph-read.spec.ts:696` |
 | graph-store · A node reached only through heuristic edges is heuristic | `tests/integration/store/graph-read.spec.ts:712` |
@@ -108,9 +111,9 @@ traversal» no cambian). Las copias del doble, `… (in-memory double)`, están 
 | repository-indexing · A path or commit that names no file is unavailable | `tests/integration/git/git-source-tree.spec.ts:593` |
 | repository-indexing · Content that is not UTF-8 is unavailable | `tests/integration/git/git-source-tree.spec.ts:624` |
 | repository-indexing · A file over the size limit is unavailable without being read | `tests/integration/git/git-source-tree.spec.ts:639` |
-| repository-indexing · A root that is not a repository is unavailable | `tests/integration/git/git-source-tree.spec.ts:664` |
-| repository-indexing · Malformed arguments are rejected before running git | `tests/integration/git/git-source-tree.spec.ts:687` |
-| repository-indexing · Reading one file executes nothing from the repository | `tests/integration/git/git-source-tree.spec.ts:717` |
+| repository-indexing · A root that is not a repository is unavailable | `tests/integration/git/git-source-tree.spec.ts:665` |
+| repository-indexing · Malformed arguments are rejected before running git | `tests/integration/git/git-source-tree.spec.ts:688` |
+| repository-indexing · Reading one file executes nothing from the repository | `tests/integration/git/git-source-tree.spec.ts:718` |
 
 ## Origen
 

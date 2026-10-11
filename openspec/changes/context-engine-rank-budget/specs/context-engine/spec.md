@@ -124,7 +124,8 @@ rank order, so that the sum of the tokens of the included spans never exceeds th
   be dropped, even when it also contains other included spans. A candidate whose lines contain every
   included span of its file it overlaps (at least one) SHALL replace them, and SHALL be included only
   if the total after the replacement fits the budget; the replacing span SHALL take the place of the
-  first span it replaces.
+  first span it replaces, and SHALL carry the smallest distance and the best origin (`anchor`, then
+  `exact`, then `heuristic`) among itself and the spans it replaces.
 - `omitted` SHALL count the candidates skipped because they did not fit; dropped candidates SHALL
   NOT be counted.
 - The included spans SHALL be in rank order, except for the placement of a replacing span above.
@@ -162,6 +163,12 @@ rank order, so that the sum of the tokens of the included spans never exceeds th
   tokens are discounted
 - **THEN** the pack holds a single span of that file, from line 1 to its last line, in the place
   the method's span had, and the total is the file span's tokens
+
+#### Scenario: A replacing span keeps the best origin and distance of what it replaces
+
+- **WHEN** the method `DiscountService::discountFor` (exact, distance 1) is included and then the
+  class `DiscountService` (heuristic, distance 2), whose lines contain it, fits
+- **THEN** the pack holds one span with the class's lines and symbol, origin `exact` and distance 1
 
 #### Scenario: A candidate that contains one span and cuts across another is dropped
 

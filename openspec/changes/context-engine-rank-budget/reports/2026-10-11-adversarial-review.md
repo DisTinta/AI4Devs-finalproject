@@ -46,3 +46,16 @@ end of this file records what was done.
 4. Origin of a replacing span (D, or B to DIS-39): author's product decision.
 5. Weak property test (A or D): add a progress property, or record as D.
 6. CI on the final head: push once the author confirms, link the run, then 18.4 and 18.5.
+
+## Addendum (2026-10-11, main session)
+
+- Blob/tree id regression fixed with `cat-file --batch-check` (test seen failing first); a tag id is
+  now `missing` too. `git-source-tree.spec.ts` 36/36.
+- Progress property added to the budget's property test; the "always empty" mutant fails it.
+- Author decisions: latency → B, Spanish hand-off comment on DIS-39 (batch read, one root and commit
+  check per pack, a cap on files read), Risks rewritten with the re-measured figure (29 files, ~145 git
+  processes, ~10.5 s on Windows); a replacing span keeps the best origin and smallest distance of what
+  it replaces → A, new spec bullet and scenario «A replacing span keeps the best origin and distance of
+  what it replaces» (seen failing first), `tests/unit/context` 71/71.
+- The seed is regenerated after the last code fix and the fixes are pushed; the final head's CI run is
+  linked in the step-14 report.

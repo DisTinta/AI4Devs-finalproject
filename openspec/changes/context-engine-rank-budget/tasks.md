@@ -88,7 +88,7 @@
 ## 10. Backend: Review and Update Existing Tests (MANDATORY)
 
 - [x] 10.1 Identify tests affected by the change: `grep -rn "Neighbor\|StoredSymbol\|SourceTreePort\|neighbors(\|findSymbols(" tests packages`; doubles cast with `as unknown as` need no change — confirm `npm run typecheck` agrees
-- [x] 10.2 Update affected tests without weakening their assertions. Confirm each `#### Scenario:` of the three delta specs maps 1:1 to a test whose name is exactly the title (`context-engine`: 31, of which 26 new; `graph-store`: 23, of which 5 new; `repository-indexing`: 21, of which 7 new; grep `it('<title>'` in `tests/`; `(in-memory double)` copies listed apart)
+- [x] 10.2 Update affected tests without weakening their assertions. Confirm each `#### Scenario:` of the three delta specs maps 1:1 to a test whose name is exactly the title (`context-engine`: 32, of which 27 new; `graph-store`: 23, of which 5 new; `repository-indexing`: 21, of which 7 new; grep `it('<title>'` in `tests/`; `(in-memory double)` copies listed apart)
 
 ## 11. Docs and gates before verification
 
