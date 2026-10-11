@@ -658,7 +658,8 @@ describe('git source tree', () => {
       // Assert
       expect(edge).toBe('a'.repeat(1_048_576));
       expect(unavailable(big)).toEqual({ reason: 'too-large', path: 'big.txt' });
-      expect(started.filter((args) => args[0] === 'cat-file')).toEqual([]);
+      // The content is read by `cat-file blob` only; the commit check (`--batch-check`) reads no file.
+      expect(started.filter((args) => args[0] === 'cat-file' && args[1] === 'blob')).toEqual([]);
     });
 
     it('A root that is not a repository is unavailable', async () => {
@@ -765,6 +766,25 @@ describe('git source tree', () => {
       expect(rejection).toBeInstanceOf(Error);
       expect(rejection).not.toBeInstanceOf(SourceUnavailable);
       expect((rejection as Error).message).toContain('no-such-subcommand');
+    });
+
+    it('reports an object id that names a blob or a tree, not a commit, as missing', async () => {
+      // Arrange
+      const repository = emptyRepository();
+      writeFileSync(join(repository, 'a.php'), '<?php' + String.fromCharCode(10));
+      git(repository, 'add', '.');
+      git(repository, 'commit', '-q', '-m', 'feat: a');
+      const blob = git(repository, 'rev-parse', 'HEAD:a.php');
+      const tree = git(repository, 'rev-parse', 'HEAD^{tree}');
+
+      // Act
+      const rejections = await Promise.all([blob, tree].map((id) => rejectionOf(() => sourceTree.readFileAt(repository, id, 'a.php'))));
+
+      // Assert
+      expect(rejections.map(unavailable)).toEqual([
+        { reason: 'missing', path: 'a.php' },
+        { reason: 'missing', path: 'a.php' },
+      ]);
     });
 
     it('accepts a 64-character object id and rejects "." segments and NUL in the path', async () => {

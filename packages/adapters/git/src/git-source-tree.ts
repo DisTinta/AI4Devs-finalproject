@@ -148,23 +148,18 @@ function assertValidObjectId(oid: string): void {
 }
 
 /**
- * Whether `commit` names a commit of the repository. `rev-parse --verify --quiet` exits with code 1
- * and prints nothing when it does not; any other failure (git missing, an unreadable object store)
- * propagates as git's own error, never as a missing commit.
+ * Whether `commit` names a commit of the repository. `cat-file --batch-check` reads the id from
+ * stdin (never from the command line) and answers `<oid> <type> <size>` or `<oid> missing` with exit
+ * code 0, so an unknown id, a blob, a tree or a tag all read as "no commit" without parsing git's
+ * error messages; any git failure propagates as git's own error.
  */
 async function commitExists(spawnGit: GitSpawner, root: string, commit: string): Promise<boolean> {
-  const probe = spawnGit(root, ['rev-parse', '--verify', '--quiet', `${commit}^{commit}`]);
-  try {
-    await readAll(probe);
-    return true;
-  } catch (error) {
-    if (error instanceof Error && error.message === UNKNOWN_REVISION) return false;
-    throw error;
-  }
+  const probe = spawnGit(root, ['cat-file', '--batch-check']);
+  probe.child.stdin.write(`${commit}
+`);
+  const answer = (await readAll(probe)).toString('latin1').trim();
+  return answer.split(' ')[1] === 'commit';
 }
-
-/** What `spawnReaderGit` reports for `rev-parse --verify --quiet` naming nothing: exit 1, no stderr. */
-const UNKNOWN_REVISION = 'git rev-parse exited with code 1';
 
 /**
  * The entry of `path` in `commit` (a commit known to exist), or `undefined` when it has no such
