@@ -83,22 +83,22 @@
 
 ## 9. Privacy and ethics check
 
-- [ ] 9.1 Run `/privacy-ethics-check` over the diff: code and possible secrets travel towards the model (redaction before counting, D2; no log of question or span text; `SourceUnavailable` messages without content) and the new dependency `fast-check` (D11). Record the outcome in the step 13 report; fix any finding in this change or classify it (A/B/C/D)
+- [x] 9.1 Run `/privacy-ethics-check` over the diff: code and possible secrets travel towards the model (redaction before counting, D2; no log of question or span text; `SourceUnavailable` messages without content) and the new dependency `fast-check` (D11). Record the outcome in the step 13 report; fix any finding in this change or classify it (A/B/C/D)
 
 ## 10. Backend: Review and Update Existing Tests (MANDATORY)
 
-- [ ] 10.1 Identify tests affected by the change: `grep -rn "Neighbor\|StoredSymbol\|SourceTreePort\|neighbors(\|findSymbols(" tests packages`; doubles cast with `as unknown as` need no change — confirm `npm run typecheck` agrees
-- [ ] 10.2 Update affected tests without weakening their assertions. Confirm each `#### Scenario:` of the three delta specs maps 1:1 to a test whose name is exactly the title (`context-engine`: 31, of which 26 new; `graph-store`: 23, of which 5 new; `repository-indexing`: 21, of which 7 new; grep `it('<title>'` in `tests/`; `(in-memory double)` copies listed apart)
+- [x] 10.1 Identify tests affected by the change: `grep -rn "Neighbor\|StoredSymbol\|SourceTreePort\|neighbors(\|findSymbols(" tests packages`; doubles cast with `as unknown as` need no change — confirm `npm run typecheck` agrees
+- [x] 10.2 Update affected tests without weakening their assertions. Confirm each `#### Scenario:` of the three delta specs maps 1:1 to a test whose name is exactly the title (`context-engine`: 31, of which 26 new; `graph-store`: 23, of which 5 new; `repository-indexing`: 21, of which 7 new; grep `it('<title>'` in `tests/`; `(in-memory double)` copies listed apart)
 
 ## 11. Docs and gates before verification
 
-- [ ] 11.1 `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage` green; JSDoc on every new export; `grep -rn "adapters\|store-postgres\|process.cwd" packages/core/src/context` prints nothing; no `console` nor logger in `packages/core/src/context`
+- [x] 11.1 `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage` green; JSDoc on every new export; `grep -rn "adapters\|store-postgres\|process.cwd" packages/core/src/context` prints nothing; no `console` nor logger in `packages/core/src/context`
 
 ## 12. Update Technical Documentation (MANDATORY)
 
 - [x] 12.1 `docs/project-context.md`: Context Engine entry (rank, budget, tokenizer, context pack; caps; `workspaceRoot` and why not `process.cwd()`; `readFileAt` and `SourceUnavailable`; `Neighbor.resolution`, `StoredSymbol.fileKind`, node-wise CTE and the trigram threshold of D4; the source-tree double)
 - [x] 12.2 readme §2.2 / §3.2: the declared estimator `chars-div-4` and that span text comes from git at `indexed_commit`; align any mention that contradicts this change. `openspec/specs` is updated only by `/opsx:archive`
-- [ ] 12.3 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
+- [x] 12.3 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
 
 ## 13. Seed: regenerate the analyzer fingerprint (design D12) — last commit of the series
 
