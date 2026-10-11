@@ -113,7 +113,7 @@ export function gitSourceTreeWith(spawnGit: GitSpawner): SourceTreePort {
         throw new SourceUnavailable('missing', path);
       }
       if (entry.size !== undefined && entry.size > MAX_BLOB_BYTES) throw new SourceUnavailable('too-large', path);
-      if (!OBJECT_ID.test(entry.oid)) throw new Error('git ls-tree printed an invalid object id for a tracked file');
+      assertValidObjectId(entry.oid);
       const content = decodeUtf8(await readAll(spawnGit(root, ['cat-file', 'blob', entry.oid])));
       if (content === undefined) throw new SourceUnavailable('binary-content', path);
       return content;
@@ -139,6 +139,11 @@ function assertReadableArguments(commit: string, path: string): void {
   ) {
     throw new RangeError('path must be a repository-relative path with no empty, "." or ".." segment');
   }
+}
+
+/** Throws when `oid` is not a well-formed object id: `ls-tree` is expected to print one for every entry it lists. */
+function assertValidObjectId(oid: string): void {
+  if (!OBJECT_ID.test(oid)) throw new Error('git ls-tree printed an invalid object id for a tracked file');
 }
 
 /**
@@ -262,7 +267,7 @@ async function missingObjectError(spawnGit: GitSpawner, root: string, oid: strin
 async function readBlobs(spawnGit: GitSpawner, root: string, entries: readonly TreeEntry[]): Promise<Buffer[]> {
   if (entries.length === 0) return [];
   for (const entry of entries) {
-    if (!OBJECT_ID.test(entry.oid)) throw new Error(`git ls-tree printed an invalid object id for a tracked file`);
+    assertValidObjectId(entry.oid);
   }
   const git = spawnGit(root, CAT_FILE_ARGUMENTS);
   const answers = new BatchAnswers(entries);
