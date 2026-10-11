@@ -8,6 +8,9 @@ alwaysApply: false
 
 When you are asked to implement a change from `openspec/changes/<id>/`:
 
+0. Check that `reports/` holds a `*-spec-audit.md` with its findings resolved. If not, run the
+   `spec-auditor` review of `docs/base-standards.md` §7.1 first and fix the artifacts before any
+   code. A change is not ready to apply until it has been audited.
 1. Read, in this order and without exception: `proposal.md`, `design.md`, `specs/**/*.md`, `tasks.md`.
 2. Before writing code, produce the `Requirement → Scenario → test file` table.
    If a scenario cannot be translated into a verifiable test, stop: the specification has a

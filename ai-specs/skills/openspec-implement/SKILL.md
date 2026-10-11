@@ -44,6 +44,12 @@ Before writing any code, check `tasks.md` against the checklist in
 mandatory verification steps are present and labelled, and mutating operations include state
 restoration. If the list is not compliant, fix the list first and say so.
 
+Then check that `openspec/changes/$ARGUMENTS/reports/` holds a `*-spec-audit.md` whose findings are
+all resolved (`docs/base-standards.md` §7.1). If it is missing, run the `spec-auditor` subagent over
+the change, save its report there, fix the artifacts it flags — product or scope decisions go to the
+author — and only then continue. The `spec-audit-gate` hook denies code and test edits until the
+report exists.
+
 ### Step 3 — Map scenarios to tests
 
 Produce this table before writing code:

@@ -26,6 +26,9 @@ PROTECT_WARNING=""
 [[ "$KIT_PROTECT_SPECS" == "0" ]] && \
   PROTECT_WARNING="⚠ protect-specs: OFF (sdd-harness.env, KIT_PROTECT_SPECS=\"0\"). Existing specs, tests and migrations can be rewritten without confirmation.
 "
+[[ "$KIT_SPEC_AUDIT_GATE" == "0" ]] && \
+  PROTECT_WARNING+="⚠ spec-audit-gate: OFF (sdd-harness.env, KIT_SPEC_AUDIT_GATE=\"0\"). Code and tests can be written for a change the spec-auditor has not reviewed.
+"
 
 CONTEXT="${PROTECT_WARNING}Repository state
 - Configured stack: ${STACK}
@@ -54,6 +57,8 @@ Workflow reminders
 - Business logic lives in ${PATH_BUSINESS:-the layer indicated in project-context}.
 - OpenSpec: CREATING artifacts in propose/sync is normal. REWRITING existing specs
   to fit a code shortcut is forbidden (rule 7 / protect-specs).
+  Between propose and apply the spec-auditor reviews the change and its findings are
+  fixed; its report goes to reports/*-spec-audit.md (§7.1 / spec-audit-gate).
   Marking tasks in tasks.md and writing reports/ is always free.
 - Secrets: never paste tokens or read .env into the context. Use /privacy-ethics-check
   if the unit touches PII, auth or logging of personal data.
