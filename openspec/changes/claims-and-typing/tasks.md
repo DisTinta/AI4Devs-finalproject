@@ -77,11 +77,11 @@
 
 ## 10. Backend: Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 10.1 No CLI or HTTP entry point uses these functions yet (DIS-39): exercise them through a throwaway `tsx` script in the session scratchpad (never committed) importing from `@codemind/core`
-- [ ] 10.2 Success path: a conforming output with known ids `E1`, `E2` is accepted; `typeStatement` over `anchor`+`exact` gives `FACT` and over `exact`+`heuristic` gives `INFERENCE`; a valid `L2` `INFERENCE` claim with provenance passes `claimSchema`
-- [ ] 10.3 Error paths: one discarded output per subcode (`output_too_large`, `invalid_json`, `invalid_shape`, `limit_exceeded`, `empty_evidence`, `duplicate_evidence_id`, `unknown_evidence_id`); print each event and confirm it holds no fragment of its input; an `L2` `FACT` claim is rejected
-- [ ] 10.4 Delete the scratchpad script; confirm `git status` shows no stray file
-- [ ] 10.5 Document every command and output in `openspec/changes/claims-and-typing/reports/YYYY-MM-DD-10-manual-interface-testing.md` (mask the OS user name in paths)
+- [x] 10.1 No CLI or HTTP entry point uses these functions yet (DIS-39): exercise them through a throwaway `tsx` script in the session scratchpad (never committed) importing from `@codemind/core`
+- [x] 10.2 Success path: a conforming output with known ids `E1`, `E2` is accepted; `typeStatement` over `anchor`+`exact` gives `FACT` and over `exact`+`heuristic` gives `INFERENCE`; a valid `L2` `INFERENCE` claim with provenance passes `claimSchema`
+- [x] 10.3 Error paths: one discarded output per subcode (`output_too_large`, `invalid_json`, `invalid_shape`, `limit_exceeded`, `empty_evidence`, `duplicate_evidence_id`, `unknown_evidence_id`); print each event and confirm it holds no fragment of its input; an `L2` `FACT` claim is rejected
+- [x] 10.4 Delete the scratchpad script; confirm `git status` shows no stray file
+- [x] 10.5 Document every command and output in `openspec/changes/claims-and-typing/reports/YYYY-MM-DD-10-manual-interface-testing.md` (mask the OS user name in paths)
 
 ## 11. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
