@@ -34,11 +34,11 @@ Durante el apply, la autora decidió medir las longitudes en **code points**. El
 ## ¿Cómo probarlo?
 
 1. `docker compose up -d` y `npm ci`.
-2. `npx vitest run tests/unit/knowledge/claim.spec.ts tests/unit/explain`: 28 tests en verde.
-3. Exporta `DATABASE_URL` (en local, `postgres://codemind:codemind@localhost:5432/codemind`), ejecuta `npm run db:migrate` y después `npx vitest run`: 81 ficheros y 1046 tests, ninguno saltado.
+2. `npx vitest run tests/unit/knowledge/claim.spec.ts tests/unit/explain`: 40 tests en verde.
+3. Exporta `DATABASE_URL` (en local, `postgres://codemind:codemind@localhost:5432/codemind`), ejecuta `npm run db:migrate` y después `npx vitest run`: 81 ficheros y 1057 tests, ninguno saltado.
 4. `npm run lint && npm run typecheck && npm run lint:architecture && npm run docs:coverage`. `docs:coverage` no da avisos; los 3 avisos `no-orphans` de dependency-cruiser ya existían.
-5. `npx stryker run --mutate "packages/core/src/explain/**/*.ts,packages/core/src/knowledge/claim.ts,packages/core/src/knowledge/evidence.ts"` da **95,68 %**. Los 6 supervivientes (3 equivalentes de codificación y 3 estáticos que rompen la carga del módulo) están explicados en [`reports/2026-10-11-9-test-and-state-verification.md`](./2026-10-11-9-test-and-state-verification.md).
-6. Semilla: `git show 7f05017 -- seeds/graph-dump.sql` solo cambia la línea `analyzer-fingerprint`, porque `knowledge/` forma parte de la huella (design D9).
+5. `npx stryker run --mutate "packages/core/src/explain/**/*.ts,packages/core/src/knowledge/claim.ts,packages/core/src/knowledge/evidence.ts"` da **96,23 %**. Los 6 supervivientes (3 equivalentes de codificación y 3 estáticos que rompen la carga del módulo) están explicados en [`reports/2026-10-11-9-test-and-state-verification.md`](./2026-10-11-9-test-and-state-verification.md).
+6. Semilla: `git show 5805c80 -- seeds/graph-dump.sql` solo cambia la línea `analyzer-fingerprint` (última regeneración, tras el tope de líneas), porque `knowledge/` forma parte de la huella (design D9).
 7. Prueba manual con un script que importa `@codemind/core`: [`reports/2026-10-11-10-manual-interface-testing.md`](./2026-10-11-10-manual-interface-testing.md). Cubre el camino feliz, un descarte por cada uno de los 7 subcódigos, sin fugas de contenido, y que `L2 FACT` se rechaza.
 
 ## Decisiones / compromisos
@@ -53,7 +53,16 @@ Las decisiones técnicas están en `openspec/changes/claims-and-typing/design.md
 - **D8:** sin ADR.
 - **D9:** se regenera la semilla.
 
-`spec-auditor` (3 Major y 4 Minor) y una segunda revisión se aplicaron antes del apply; están en Follow-ups.
+`spec-auditor` (3 Major y 4 Minor) y una segunda revisión se aplicaron antes del apply. En la revisión previa al merge, todos los hallazgos se corrigieron en este PR, con TDD cuando cambiaban comportamiento. Cada destino está en Follow-ups:
+- `/show-spec-working`: 21/21 escenarios demostrados.
+- `/verify-against-spec`:
+  - `typeStatement([])` daba `FACT` en ejecución; ahora lanza `RangeError`, y la regla falla en cerrado;
+  - las líneas tienen tope en el `integer` de Postgres, `SPAN_LINE_MAX`, y por eso la semilla se regeneró otra vez;
+  - la spec recoge ahora el comportamiento que no estaba escrito.
+- `/adversarial-review`: PASS WITH GAPS.
+  - El Major: el evento podía crecer a 2,4 MB a partir de una salida de 63 KB. Se resolvió con `MAX_EVENT_ISSUES` (20), `issueCount` y un escenario nuevo, con lo que la spec pasa a 22 escenarios.
+  - Una cadena con huecos o con `null` se tipaba `FACT`; ahora lanza `RangeError`.
+  - Se eliminó un byte NUL de `design.md`.
 
 ## Trazabilidad
 
@@ -67,19 +76,20 @@ Las decisiones técnicas están en `openspec/changes/claims-and-typing/design.md
 | The closed sets equal the database enums | `tests/unit/knowledge/claim.spec.ts:120` |
 | A chain of anchor and exact evidence is a fact | `tests/unit/explain/typing-rules.spec.ts:10` |
 | Any heuristic evidence makes an inference | `tests/unit/explain/typing-rules.spec.ts:18` |
-| A conforming output is accepted | `tests/unit/explain/statement-schema.spec.ts:50` |
-| An extra field discards the whole output | `tests/unit/explain/statement-schema.spec.ts:68` |
-| An unknown evidence id discards the whole output | `tests/unit/explain/statement-schema.spec.ts:84` |
-| A statement without evidence discards the whole output | `tests/unit/explain/statement-schema.spec.ts:96` |
-| A repeated evidence id discards the whole output | `tests/unit/explain/statement-schema.spec.ts:105` |
-| Malformed JSON discards the output | `tests/unit/explain/statement-schema.spec.ts:114` |
-| The output size limit accepts its bound and rejects one byte more | `tests/unit/explain/statement-schema.spec.ts:123` |
-| The answer length limit accepts its bound and rejects one more | `tests/unit/explain/statement-schema.spec.ts:140` |
-| The statement count limit accepts its bound and rejects one more | `tests/unit/explain/statement-schema.spec.ts:155` |
-| The statement length limit accepts its bound and rejects one more | `tests/unit/explain/statement-schema.spec.ts:170` |
-| The citations limit accepts its bound and rejects one more | `tests/unit/explain/statement-schema.spec.ts:185` |
-| The event identifies the output without carrying it | `tests/unit/explain/statement-schema.spec.ts:252` |
-| Checking an output writes nothing to the console | `tests/unit/explain/statement-schema.spec.ts:276` |
+| A conforming output is accepted | `tests/unit/explain/statement-schema.spec.ts:51` |
+| An extra field discards the whole output | `tests/unit/explain/statement-schema.spec.ts:69` |
+| An unknown evidence id discards the whole output | `tests/unit/explain/statement-schema.spec.ts:85` |
+| A statement without evidence discards the whole output | `tests/unit/explain/statement-schema.spec.ts:97` |
+| A repeated evidence id discards the whole output | `tests/unit/explain/statement-schema.spec.ts:106` |
+| Malformed JSON discards the output | `tests/unit/explain/statement-schema.spec.ts:115` |
+| The output size limit accepts its bound and rejects one byte more | `tests/unit/explain/statement-schema.spec.ts:124` |
+| The answer length limit accepts its bound and rejects one more | `tests/unit/explain/statement-schema.spec.ts:141` |
+| The statement count limit accepts its bound and rejects one more | `tests/unit/explain/statement-schema.spec.ts:156` |
+| The statement length limit accepts its bound and rejects one more | `tests/unit/explain/statement-schema.spec.ts:171` |
+| The citations limit accepts its bound and rejects one more | `tests/unit/explain/statement-schema.spec.ts:186` |
+| The event identifies the output without carrying it | `tests/unit/explain/statement-schema.spec.ts:253` |
+| The issues of an event are bounded | `tests/unit/explain/statement-schema.spec.ts:278` |
+| Checking an output writes nothing to the console | `tests/unit/explain/statement-schema.spec.ts:333` |
 
 ## Origen
 

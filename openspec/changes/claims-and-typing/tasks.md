@@ -86,7 +86,7 @@
 ## 11. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
 - [x] 11.1 No user interface uses these functions yet (DIS-39 / CM-HU-12): record "not applicable; exercised through `@codemind/core` in step 10" in the step 9 report
-- [ ] 11.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that `tests/unit/knowledge/claim.spec.ts` and `tests/unit/explain/` ran and passed, that the seed-freshness check (if any) is green, and that the mutation step covered `packages/core/src/explain`. Link the run in the step 9 report
+- [x] 11.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that `tests/unit/knowledge/claim.spec.ts` and `tests/unit/explain/` ran and passed, that the seed-freshness check (if any) is green, and that the mutation step covered `packages/core/src/explain`. Link the run in the step 9 report
 
 ## 12. Pull request preparation
 
@@ -97,5 +97,5 @@
 - [x] 13.1 Open the pull request against `feature/entrega-2-CRN` (after confirming with the author; `gh` on the DisTinta account, back to Cristina-JumpMath afterwards)
 - [x] 13.2 Run `/show-spec-working`, `/verify-against-spec` and `/adversarial-review`, in this order; one report each under `openspec/changes/claims-and-typing/reports/` (`YYYY-MM-DD-show-spec-working.md`, `YYYY-MM-DD-verify-against-spec.md`, `YYYY-MM-DD-adversarial-review.md`)
 - [x] 13.3 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report; if a fix touches a fingerprint input, redo step 8 so the seed commit stays last
-- [ ] 13.4 Commit the fixes to the same pull request (push confirmed with the author); re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
+- [x] 13.4 Commit the fixes to the same pull request (push confirmed with the author); re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
 - [ ] 13.5 `/opsx:archive`, and commit the archive to the same pull request; the author merges afterwards

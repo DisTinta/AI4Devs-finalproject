@@ -119,3 +119,17 @@ tests (no fingerprint input: the seed of `5805c80` stays current).
   and fail the suite.
 - No `.stryker-tmp/` left behind.
 
+## CI evidence (task 11.2)
+
+PR #36, head `7eb5af0`, run https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/38148647202
+(job `quality` https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/38148647202/job/114497256209,
+12 min 15 s) and the `frontend`, `scope` and `secrets` checks: all four pass.
+
+- Tests: `tests/unit/explain/statement-schema.spec.ts` (19), `tests/unit/knowledge/claim.spec.ts` (12)
+  and `tests/unit/explain/typing-rules.spec.ts` (6) ran and passed; 81 files, 1056 passed, 1 skipped
+  (1057). The skip is in `tests/unit/index/path-policy.spec.ts`, unrelated to this change.
+- Mutation step ("Mutation testing on critical paths") covered the new code: `explain` 97.37 %
+  (`statement-schema.ts` 96.67 %, `typing-rules.ts` 100 %), `claim.ts` 100 %, `evidence.ts` 100 %.
+  On CI the three static `claim.ts` mutants are killed, which confirms they were false survivors of
+  the local scoped run. All files 95.45 %.
+
