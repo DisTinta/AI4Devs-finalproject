@@ -166,4 +166,7 @@ mutation step at 95.30 % overall and 97.94 % on `packages/core/src/context`.
 The adversarial re-run (`reports/2026-10-11-adversarial-review-rerun.md`, no Blocker or Major) added
 two test cases (annotated tag id in `git-source-tree.spec.ts`, the "itself" half of `keepBestRank` in
 `context-pack.spec.ts`); both files pass locally, 59/59. No fingerprint input changed, so the seed
-commit stays valid. The CI run of the head carrying them is linked on PR #34.
+commit stays valid. CI on that head (`758b76c`): run
+[38132911038](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/38132911038), `quality` green
+in 8m31s (`scope`, `secrets` and the separate Frontend run green too), 78 files passed, mutation step
+95.30 % overall and 97.94 % on `packages/core/src/context`.

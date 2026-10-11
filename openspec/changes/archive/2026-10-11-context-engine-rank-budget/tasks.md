@@ -132,7 +132,7 @@
 
 ## 17. Pull request preparation
 
-- [ ] 17.1 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the author's Why transcribed verbatim from Linear DIS-28 "Decisiones del refinamiento (aceptadas por la autora, 2026-10-10)", the ADR linked, the seed regeneration explained (D12) and the Stryker score; after verification, set DIS-28 to In Review in Linear with a comment in Spanish linking the PR and the change
+- [x] 17.1 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the author's Why transcribed verbatim from Linear DIS-28 "Decisiones del refinamiento (aceptadas por la autora, 2026-10-10)", the ADR linked, the seed regeneration explained (D12) and the Stryker score; after verification, set DIS-28 to In Review in Linear with a comment in Spanish linking the PR and the change
 
 ## 18. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
@@ -140,4 +140,4 @@
 - [x] 18.2 Run `/show-spec-working`, `/verify-against-spec` and `/adversarial-review`, in this order; one report each under `openspec/changes/context-engine-rank-budget/reports/` (`YYYY-MM-DD-show-spec-working.md`, `YYYY-MM-DD-verify-against-spec.md`, `YYYY-MM-DD-adversarial-review.md`)
 - [x] 18.3 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report; if a fix touches a fingerprint input, redo step 13 so the seed commit stays last
 - [x] 18.4 Commit the fixes to the same pull request (push confirmed with the author); re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
-- [ ] 18.5 `/opsx:archive`, and commit the archive to the same pull request; the author merges afterwards
+- [x] 18.5 `/opsx:archive`, and commit the archive to the same pull request; the author merges afterwards

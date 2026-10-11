@@ -33,7 +33,7 @@ del ticket:
 4. `npx vitest run`: 78 ficheros, 1010 tests, ninguno saltado con `DATABASE_URL`.
 5. `CI=1 npx vitest run tests/unit/context/budget.spec.ts`: el test de propiedad con la semilla fija `20261011`.
 6. `npm run lint && npm run typecheck && npm run lint:architecture && npm run docs:coverage` (los 3 avisos `no-orphans` ya existían).
-7. `npx stryker run --mutate "packages/core/src/context/**/*.ts"`: 97,87 %, con 7 supervivientes equivalentes explicados en [`reports/2026-10-11-14-test-and-state-verification.md`](./2026-10-11-14-test-and-state-verification.md).
+7. `npx stryker run --mutate "packages/core/src/context/**/*.ts"`: 97,94 % en la cabeza final (95,30 % en total), con 7 supervivientes equivalentes explicados en [`reports/2026-10-11-14-test-and-state-verification.md`](./2026-10-11-14-test-and-state-verification.md).
 8. Semilla: `git show 87169c0 -- seeds/graph-dump.sql` cambia solo la línea `analyzer-fingerprint`.
 9. Prueba manual contra la semilla real y git: [`reports/2026-10-11-15-manual-interface-testing.md`](./2026-10-11-15-manual-interface-testing.md)
    (`npm run db:seed`, paquetes de Q1 con 8000 y 1000 tokens, `neighbors` con `resolution` y los errores; la base de datos se restaura al final).
