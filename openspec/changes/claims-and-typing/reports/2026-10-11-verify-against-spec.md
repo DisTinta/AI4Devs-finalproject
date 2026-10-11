@@ -133,3 +133,38 @@ don't fully match the database. Block 3 has 13 items.
 | Checking an output writes nothing to the console | `statement-schema.spec.ts:276` | green (only 5 methods watched, 2.5) |
 
 Nothing was fixed by the check itself. Destinations of each finding: `design.md` → Follow-ups.
+
+## Addendum — after the adversarial-review fixes (2026-10-11, HEAD `7334994`)
+
+Re-run by `/verify-against-spec` (forked, read-only; the main session saved it). It re-checked every
+finding of this report and of `reports/2026-10-11-adversarial-review.md` against `7e4fb2d..7334994`.
+It did not run the tests; the main session had run the full suite at `7334994` just before (81 files,
+1055 passed, gates clean), recorded in the step 9 report addendum.
+
+**Overall:** 22 scenarios, each with a test of the same name; no requirement red.
+
+Closed: empty chain (2.1/3.1), fail-open typing (3.2), line range (2.2), L1 `null` provenance
+(specified), U+0000 (named B exception, owner DIS-39), missing/`null` provenance field (2.3),
+console methods (2.5), unspecified behaviour 3.3–3.10 (now specified), the adversarial Major
+(`MAX_EVENT_ISSUES` + `issueCount`), the sparse chain, the raw NUL byte (0 NUL bytes in every file of
+the change), extra exports `inputSpanSchema`/`SPAN_LINE_MAX`/`MAX_EVENT_ISSUES` (now named).
+
+Still open or new:
+
+1. The test of "The issues of an event are bounded" checks how many issues are kept, not which: a
+   mutant `issues.slice(-MAX_EVENT_ISSUES)` would pass (the spec says "the first ones in the order
+   they were found").
+2. The sparse-chain `RangeError` message is not pinned (likely Stryker survivor).
+3. The scenario "The event identifies the output without carrying it" still says "kind
+   `schema_violation`" (the requirement text says `type`): rest of 2.4.
+4. Unspecified: a `null` element of the chain throws `TypeError` (not the documented `RangeError`); `{}`
+   is typed `INFERENCE` (fail closed). Decide: specify "an error", or widen the guard to `span == null`.
+5. Unspecified, accept as detail: an explicit `undefined` element is rejected like a hole;
+   `issueCount` for `duplicate_evidence_id` is always 1.
+6. Public exports not named in the spec's export sentence (`SchemaViolationEvent`, its issue and
+   subcode types, `CitedSpan`, `StatementType`, `provenanceSchema`, `Provenance`, `Claim*`,
+   `EvidenceVerification`): decide whether to name `SchemaViolationEvent` or accept the broad reading.
+7. Process: `KIT_PROTECT_SPECS="0"` is still in the author's working tree, uncommitted.
+
+Destinations are recorded in `design.md` → Follow-ups once decided.
+

@@ -146,7 +146,8 @@ interface SchemaViolationEvent {
   outputBytes: number;
   outputSha256: string; // hex SHA-256 of the UTF-8 bytes, node:crypto as in index-repository.ts
   issues: { path: string; code: string }[]; // at most MAX_EVENT_ISSUES (20), in the order found
-  issueCount: number; // issues found before that cut; 0 for output_too_large / invalid_json
+  issueCount: number; // issues found before that cut; 0 for output_too_large / invalid_json;
+                      // always 1 for duplicate_evidence_id (only the first repetition is reported)
 }
 ```
 
@@ -189,7 +190,7 @@ beyond the numbers.
 `CitedSpan = Pick<ContextSpan, 'origin'>`. The non-empty tuple makes an empty chain a compile error.
 `FACT` iff every span's origin is in `FACT_ORIGINS` (`anchor`, `exact`): the rule fails closed, so
 an origin it does not know is an `INFERENCE`. An empty chain, or one with a missing position (a
-sparse array), throws `RangeError` at run time: the tuple only guards typed callers, and `every`
+sparse array), or an explicit `undefined`/`null` position, throws the same `RangeError` at run time: the tuple only guards typed callers, and `every`
 would give `FACT` for `[]` and skip holes; the rule walks the chain with an index loop. `UNKNOWN` is not produced here: it is the
 answer policy of DIS-39. The function takes no `layer`, so the statement type cannot be bent to pass
 `fact_only_from_l1` (accepted decision 1).
@@ -317,3 +318,17 @@ WITH GAPS); the author approved the proposed destinations:
   sentence.
 - Process — `KIT_PROTECT_SPECS="0"` is the author's local, uncommitted setting; never committed.
   Tasks 2.3/3.3 green on arrival stay disclosed in the step 9 report.
+
+`/verify-against-spec` re-run (addendum in `reports/2026-10-11-verify-against-spec.md`) and Stryker
+95.60 %; the author approved the proposed destinations:
+
+- A — which 20 issues are kept was not asserted (a `slice(-20)` mutant passed): extra case with 30
+  unknown ids pins the first 20 in order and `issueCount` 30.
+- A — the sparse-chain message was not pinned (Stryker survivor): pinned.
+- A — the scenario still said "kind `schema_violation`": now `type`.
+- A — a `null` position threw `TypeError`: the guard is `span == null`, so `undefined`, `null` and a
+  hole get the same `RangeError` (test red first); spec and D7 updated.
+- D — an explicit `undefined` rejected like a hole, and `issueCount` 1 for `duplicate_evidence_id`:
+  accepted as detail, written in D4/D7.
+- A, spec only — `SchemaViolationEvent` with its issue and subcode types named in the export
+  sentence; the other public types are covered by "records", "typing rule" and "result shape".

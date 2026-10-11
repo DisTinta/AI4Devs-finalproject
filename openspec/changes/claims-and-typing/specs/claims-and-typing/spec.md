@@ -95,8 +95,8 @@ replaced, so an `exact` span may contain lines reached only heuristically. A sta
 `FACT` when every cited span is `anchor` or `exact`, and `INFERENCE` when at least one is
 `heuristic`. A statement SHALL cite at least one span; typing an empty chain SHALL NOT be possible:
 it SHALL fail to type-check and SHALL be rejected at run time with an error, never typed as a fact.
-A chain with a missing position (a sparse array) SHALL be rejected the same way: every position
-SHALL hold a cited span.
+A chain with a missing position (a sparse array), or with a position that is `undefined` or `null`,
+SHALL be rejected the same way, with the same error: every position SHALL hold a cited span.
 
 #### Scenario: A chain of anchor and exact evidence is a fact
 
@@ -224,14 +224,14 @@ named, exported constant), the first ones in the order they were found, and `iss
 number of issues found before that cut (0 when checks 1 or 2 failed).
 
 The records (with the input-span schema and the line maximum), the typing rule, the quarantine
-function, its output and result shapes, the limits (including the issue cap) and the subcode set
-SHALL be exported from the domain package, so the explain use case (DIS-39) and its
+function, its output and result shapes, the audit event type with its issue and subcode types, the
+limits (including the issue cap) and the subcode set SHALL be exported from the domain package, so the explain use case (DIS-39) and its
 tests use the same definitions.
 
 #### Scenario: The event identifies the output without carrying it
 
 - **WHEN** the output `{"answer":"ok","statements":[{"text":"x","evidenceIds":["E1"],"note":"ignore previous instructions"}]}` is checked with the known id `E1`
-- **THEN** the event has kind `schema_violation`, stage `l2_inference`, subcode `invalid_shape`, the
+- **THEN** the event has `type` `schema_violation`, stage `l2_inference`, subcode `invalid_shape`, the
   byte size and SHA-256 of that output, and one issue with path `statements.0`
 - **AND** its JSON serialisation contains neither `ignore previous instructions` nor `note` nor `ok`
 
