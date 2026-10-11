@@ -118,12 +118,12 @@
 
 ## 15. Backend: Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 15.1 No CLI or HTTP entry point uses the Context Engine yet (DIS-39): exercise it through a throwaway `tsx` script in the session scratchpad (never committed) that calls `createPostgresStore` on the local database with the loaded acme-shop seed (`npm run db:seed` if `listProjects` does not show it; record the counts before and after, since `db:seed` writes), `createGitSourceTree()` and `buildContextPack` with `workspaceRoot` = the repository root (absolute)
-- [ ] 15.2 Success path against the real seed: the pack of `¿Cómo se calcula el precio final de un pedido?` at 8000 and at 1000 tokens; print per span path, lines, symbol, origin, distance, tokens, plus `tokens`, `baselineTokens`, `omitted`, `estimator`; check the 16–44 span of `PriceCalculator.php`, `tokens ≤ tokenBudget`, and the saving `baselineTokens` vs `tokens`. Time the call and count git processes
-- [ ] 15.3 `¿Cómo se validan los cupones?` at 8000; `neighbors` from `PriceCalculator::compute` at 2 hops showing `resolution` and `fileKind`
-- [ ] 15.4 Error cases: `¿Dónde vive el ornitorrinco?` (`no-anchor`), `tokenBudget` 999 and `workspaceRoot` `repo` (`RangeError`), `hops` 4 (`InvalidStoreQuery`), an unknown project id (`ProjectNotFound`); `readFileAt` on a missing path (`SourceUnavailable` / `missing`)
-- [ ] 15.5 Nothing is written; confirm the 14.1 counts are unchanged, delete the scratchpad script and confirm `git status` shows no stray file
-- [ ] 15.6 Document every command and output in `openspec/changes/context-engine-rank-budget/reports/YYYY-MM-DD-15-manual-interface-testing.md` (mask the OS user name in paths; print no span text holding anything but sample code)
+- [x] 15.1 No CLI or HTTP entry point uses the Context Engine yet (DIS-39): exercise it through a throwaway `tsx` script in the session scratchpad (never committed) that calls `createPostgresStore` on the local database with the loaded acme-shop seed (`npm run db:seed` if `listProjects` does not show it; record the counts before and after, since `db:seed` writes), `createGitSourceTree()` and `buildContextPack` with `workspaceRoot` = the repository root (absolute)
+- [x] 15.2 Success path against the real seed: the pack of `¿Cómo se calcula el precio final de un pedido?` at 8000 and at 1000 tokens; print per span path, lines, symbol, origin, distance, tokens, plus `tokens`, `baselineTokens`, `omitted`, `estimator`; check the 16–44 span of `PriceCalculator.php`, `tokens ≤ tokenBudget`, and the saving `baselineTokens` vs `tokens`. Time the call and count git processes
+- [x] 15.3 `¿Cómo se validan los cupones?` at 8000; `neighbors` from `PriceCalculator::compute` at 2 hops showing `resolution` and `fileKind`
+- [x] 15.4 Error cases: `¿Dónde vive el ornitorrinco?` (`no-anchor`), `tokenBudget` 999 and `workspaceRoot` `repo` (`RangeError`), `hops` 4 (`InvalidStoreQuery`), an unknown project id (`ProjectNotFound`); `readFileAt` on a missing path (`SourceUnavailable` / `missing`)
+- [x] 15.5 Nothing is written; confirm the 14.1 counts are unchanged, delete the scratchpad script and confirm `git status` shows no stray file
+- [x] 15.6 Document every command and output in `openspec/changes/context-engine-rank-budget/reports/YYYY-MM-DD-15-manual-interface-testing.md` (mask the OS user name in paths; print no span text holding anything but sample code)
 
 ## 16. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
