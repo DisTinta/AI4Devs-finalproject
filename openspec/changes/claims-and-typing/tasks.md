@@ -43,20 +43,20 @@
 
 ## 5. Privacy and ethics check
 
-- [ ] 5.1 Run `/privacy-ethics-check` over the diff (event content: no raw output, no Zod `message`/`keys`/`input`; hash for correlation only; `zod` resolved from the existing lockfile entry). Record the outcome in the step 9 report; fix any finding in this change or classify it (A/B/C/D, `docs/project-context.md` → Tracking deferred findings)
+- [x] 5.1 Run `/privacy-ethics-check` over the diff (event content: no raw output, no Zod `message`/`keys`/`input`; hash for correlation only; `zod` resolved from the existing lockfile entry). Record the outcome in the step 9 report; fix any finding in this change or classify it (A/B/C/D, `docs/project-context.md` → Tracking deferred findings)
 
 ## 6. Backend: Review and Update Existing Tests (MANDATORY)
 
-- [ ] 6.1 Identify tests affected by the change: `grep -rn "@codemind/core" tests | grep -i "claim\|evidence\|explain"` and check that the new `export *` of `explain/` collides with no existing name (`npm run typecheck`)
-- [ ] 6.2 Update affected tests without weakening their assertions. Confirm that each of the 21 `#### Scenario:` of `specs/claims-and-typing/spec.md` maps 1:1 to a test with exactly the same name (grep each title in `tests/`; no scenario without a test, no scenario with two)
+- [x] 6.1 Identify tests affected by the change: `grep -rn "@codemind/core" tests | grep -i "claim\|evidence\|explain"` and check that the new `export *` of `explain/` collides with no existing name (`npm run typecheck`)
+- [x] 6.2 Update affected tests without weakening their assertions. Confirm that each of the 21 `#### Scenario:` of `specs/claims-and-typing/spec.md` maps 1:1 to a test with exactly the same name (grep each title in `tests/`; no scenario without a test, no scenario with two)
 
 ## 7. Update Technical Documentation (MANDATORY)
 
-- [ ] 7.1 `docs/backend-standards.md` §1: Zod is also a dependency of `packages/core` since DIS-38 (domain schemas: claim records, model-output quarantine). §4: scope "Schemas live in `packages/api/schemas` and are the only description of a payload's shape" to HTTP payloads, and add that domain validation schemas (records, model-output quarantine) live in `packages/core` and are built with `z.strictObject()` (design D2)
-- [ ] 7.2 `readme.md` §2.5 (2): replace the illustrative `InferredRuleSchema` / `audit.log` snippet with the real contract (strict schema, whole output discarded, subcodes, event with size + SHA-256 + `{path, code}` only, returned by core and logged by the transport); §3.2 CLAIM: the provenance shape (`model`, `promptHash`, `inputSpans`, `createdAt`) is validated by `provenanceSchema`; the statement type comes from the typing rule and FACT persistence is decided in DIS-39
-- [ ] 7.3 `docs/project-context.md`: add the `explain/` area of core (typing rule, quarantine, limits) and the gotcha that `SchemaViolationEvent` is not part of `AuditEvent`
-- [ ] 7.4 No ADR (design D8); confirm nothing in the implementation contradicted that
-- [ ] 7.5 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
+- [x] 7.1 `docs/backend-standards.md` §1: Zod is also a dependency of `packages/core` since DIS-38 (domain schemas: claim records, model-output quarantine). §4: scope "Schemas live in `packages/api/schemas` and are the only description of a payload's shape" to HTTP payloads, and add that domain validation schemas (records, model-output quarantine) live in `packages/core` and are built with `z.strictObject()` (design D2)
+- [x] 7.2 `readme.md` §2.5 (2): replace the illustrative `InferredRuleSchema` / `audit.log` snippet with the real contract (strict schema, whole output discarded, subcodes, event with size + SHA-256 + `{path, code}` only, returned by core and logged by the transport); §3.2 CLAIM: the provenance shape (`model`, `promptHash`, `inputSpans`, `createdAt`) is validated by `provenanceSchema`; the statement type comes from the typing rule and FACT persistence is decided in DIS-39
+- [x] 7.3 `docs/project-context.md`: add the `explain/` area of core (typing rule, quarantine, limits) and the gotcha that `SchemaViolationEvent` is not part of `AuditEvent`
+- [x] 7.4 No ADR (design D8); confirm nothing in the implementation contradicted that
+- [x] 7.5 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
 
 ## 8. Seed: regenerate the analyzer fingerprint (design D9) — last commit of the series
 

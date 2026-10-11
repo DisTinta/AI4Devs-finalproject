@@ -45,11 +45,21 @@ refinamiento") are the frame: D1–D7 below implement them.
 `knowledge/claim.ts` declares `CLAIM_LAYERS`, `CLAIM_TYPES`, `CLAIM_STATUSES` as `as const` arrays
 (core convention) and `claimSchema` as `z.discriminatedUnion('layer', [l1, l2])`:
 
-- `l1`: `type: z.enum(CLAIM_TYPES)`, `provenance: provenanceSchema.optional()`;
-- `l2`: `type: z.enum(CLAIM_TYPES).exclude(['FACT'])`, `provenance: provenanceSchema` (required);
+- `l1`: `type: z.literal(CLAIM_TYPES)`, `provenance: provenanceSchema.optional()`;
+- `l2`: `type: z.literal(INFERRED_CLAIM_TYPES)` (`['INFERENCE', 'UNKNOWN']`, typed
+  `readonly Exclude<ClaimType, 'FACT'>[]`), `provenance: provenanceSchema` (required);
 - common: `projectId` (uuid), `subject`, `predicate` (strings; the columns are `NOT NULL` and accept
   `''`, so no length rule is added), `object` (string or `null`), `status: z.enum(CLAIM_STATUSES)`,
   `confidence: z.number().min(0).max(1).nullable()`.
+
+**Closed sets use `z.literal([...])`, not `z.enum`** (found at task 7.5). `z.enum(ARRAY)` types the
+schema as `ZodEnum<{ FACT: 'FACT', … }>`, and TypeDoc reports each key of that object as an
+undocumented property of the exported schema (13 `docs:coverage` warnings; the gate had none before).
+`z.literal(ARRAY)` accepts the same values with the same issue code (`invalid_value`) and its public
+type is a union of literals. The sets are still declared once, as the `as const` arrays (core
+convention, `EDGE_RESOLUTIONS`), and `docs/backend-standards.md` §4 is reworded to say so. Hiding the
+schema behind `z.ZodType<Claim>` was tried and rejected: the inferred type then points at an
+unexported constant, which TypeDoc also warns about.
 
 **Strictness, every schema of this change:** every object schema, at every nesting level (claim
 branches, provenance, its input spans, evidence, the model output, each statement), is built with
