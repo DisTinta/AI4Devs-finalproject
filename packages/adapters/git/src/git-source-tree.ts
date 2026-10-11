@@ -108,10 +108,11 @@ export function gitSourceTreeWith(spawnGit: GitSpawner): SourceTreePort {
         if (error instanceof NotAGitRepository) throw new SourceUnavailable('not-a-repository', path);
         throw error;
       }
+      if (!(await commitExists(spawnGit, root, commit))) throw new SourceUnavailable('missing', path);
       const entry = await entryAt(spawnGit, root, commit, path);
-      if (entry === undefined || !REGULAR_FILE_MODES.has(entry.mode) || entry.missing) {
-        throw new SourceUnavailable('missing', path);
-      }
+      if (entry === undefined || !REGULAR_FILE_MODES.has(entry.mode)) throw new SourceUnavailable('missing', path);
+      // A tracked object git cannot read is a damaged repository, not a missing file: git says why.
+      if (entry.missing) throw await missingObjectError(spawnGit, root, entry.oid);
       if (entry.size !== undefined && entry.size > MAX_BLOB_BYTES) throw new SourceUnavailable('too-large', path);
       assertValidObjectId(entry.oid);
       const content = decodeUtf8(await readAll(spawnGit(root, ['cat-file', 'blob', entry.oid])));
@@ -147,24 +148,32 @@ function assertValidObjectId(oid: string): void {
 }
 
 /**
- * The entry of `path` in `commit`, or `undefined` when the commit has no such entry. One
- * `ls-tree -l` with literal pathspecs (no `:(glob)` or other magic) lists it with its mode and size;
- * `<commit>^{commit}` refuses an id that names something other than a commit. When `ls-tree` fails,
- * a `cat-file -e` tells an unknown commit (`undefined`) from any other git failure (propagated).
+ * Whether `commit` names a commit of the repository. `rev-parse --verify --quiet` exits with code 1
+ * and prints nothing when it does not; any other failure (git missing, an unreadable object store)
+ * propagates as git's own error, never as a missing commit.
+ */
+async function commitExists(spawnGit: GitSpawner, root: string, commit: string): Promise<boolean> {
+  const probe = spawnGit(root, ['rev-parse', '--verify', '--quiet', `${commit}^{commit}`]);
+  try {
+    await readAll(probe);
+    return true;
+  } catch (error) {
+    if (error instanceof Error && error.message === UNKNOWN_REVISION) return false;
+    throw error;
+  }
+}
+
+/** What `spawnReaderGit` reports for `rev-parse --verify --quiet` naming nothing: exit 1, no stderr. */
+const UNKNOWN_REVISION = 'git rev-parse exited with code 1';
+
+/**
+ * The entry of `path` in `commit` (a commit known to exist), or `undefined` when it has no such
+ * entry. One `ls-tree -l` with literal pathspecs (no `:(glob)` or other magic) lists it with its
+ * mode and size. Any git failure propagates.
  */
 async function entryAt(spawnGit: GitSpawner, root: string, commit: string, path: string): Promise<TreeEntry | undefined> {
   const listing = spawnGit(root, ['--literal-pathspecs', 'ls-tree', '-z', '-l', '--full-tree', `${commit}^{commit}`, '--', path]);
-  try {
-    return parseTree(await readAll(listing)).find((entry) => entry.path === path);
-  } catch (error) {
-    const probe = spawnGit(root, ['cat-file', '-e', `${commit}^{commit}`]);
-    const known = await readAll(probe).then(
-      () => true,
-      () => false,
-    );
-    if (known) throw error;
-    return undefined;
-  }
+  return parseTree(await readAll(listing)).find((entry) => entry.path === path);
 }
 
 /** The first reason, in the contract's order, that leaves an entry unread; `undefined` to read it. */

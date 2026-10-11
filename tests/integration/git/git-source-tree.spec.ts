@@ -730,6 +730,78 @@ describe('git source tree', () => {
       expect(existsSync(marker) ? readFileSync(marker, 'utf8') : '').toBe('');
       expect(read).toBe(clean);
     });
+
+    // Not scenarios: bullets of the requirement found untested by verify-against-spec.
+    it("propagates git's error when the file's object is missing, never reporting it as missing", async () => {
+      // Arrange: the blob of a.php is removed, so `ls-tree -l` cannot size it (a damaged repository).
+      const repository = emptyRepository();
+      writeFileSync(join(repository, 'a.php'), '<?php // gone' + String.fromCharCode(10));
+      git(repository, 'add', '.');
+      git(repository, 'commit', '-q', '-m', 'feat: a');
+      const blob = git(repository, 'rev-parse', 'HEAD:a.php');
+      rmSync(join(repository, '.git', 'objects', blob.slice(0, 2), blob.slice(2)));
+
+      // Act
+      const rejection = await rejectionOf(() => sourceTree.readFileAt(repository, git(repository, 'rev-parse', 'HEAD'), 'a.php'));
+
+      // Assert
+      expect(rejection).toBeInstanceOf(Error);
+      expect(rejection).not.toBeInstanceOf(SourceUnavailable);
+    });
+
+    it("propagates git's error when the commit cannot be checked, never reporting it as missing", async () => {
+      // Arrange: every git process is redirected to an unknown subcommand, so git fails with its own
+      // message before telling whether the commit exists.
+      const repository = emptyRepository();
+      writeFileSync(join(repository, 'a.php'), '<?php' + String.fromCharCode(10));
+      git(repository, 'add', '.');
+      git(repository, 'commit', '-q', '-m', 'feat: a');
+      const broken = gitSourceTreeWith((root) => spawnReaderGit(root, ['no-such-subcommand']));
+
+      // Act
+      const rejection = await rejectionOf(() => broken.readFileAt(repository, 'f'.repeat(40), 'a.php'));
+
+      // Assert
+      expect(rejection).toBeInstanceOf(Error);
+      expect(rejection).not.toBeInstanceOf(SourceUnavailable);
+      expect((rejection as Error).message).toContain('no-such-subcommand');
+    });
+
+    it('accepts a 64-character object id and rejects "." segments and NUL in the path', async () => {
+      const repository = emptyRepository();
+      writeFileSync(join(repository, 'a.php'), '<?php' + String.fromCharCode(10));
+      git(repository, 'add', '.');
+      git(repository, 'commit', '-q', '-m', 'feat: a');
+
+      const sha256 = await rejectionOf(() => sourceTree.readFileAt(repository, 'a'.repeat(64), 'a.php'));
+      const dot = await rejectionOf(() => sourceTree.readFileAt(repository, 'a'.repeat(40), 'src/./a.php'));
+      const nul = await rejectionOf(() => sourceTree.readFileAt(repository, 'a'.repeat(40), `a${String.fromCharCode(0)}.php`));
+
+      expect(unavailable(sha256)).toEqual({ reason: 'missing', path: 'a.php' });
+      expect(dot).toBeInstanceOf(RangeError);
+      expect(nul).toBeInstanceOf(RangeError);
+    });
+
+    it('starts the same git processes whatever the size of the file', async () => {
+      const repository = emptyRepository();
+      writeFileSync(join(repository, 'small.txt'), 'a');
+      writeFileSync(join(repository, 'large.txt'), 'b'.repeat(1_000_000));
+      git(repository, 'add', '.');
+      git(repository, 'commit', '-q', '-m', 'feat: small and large');
+      const head = git(repository, 'rev-parse', 'HEAD');
+      const started: string[] = [];
+      const counted = gitSourceTreeWith((root, args) => {
+        started.push(args.join(' '));
+        return spawnReaderGit(root, args);
+      });
+
+      await counted.readFileAt(repository, head, 'small.txt');
+      const forSmall = started.length;
+      started.length = 0;
+      await counted.readFileAt(repository, head, 'large.txt');
+
+      expect(started.length).toBe(forSmall);
+    });
   });
 });
 
