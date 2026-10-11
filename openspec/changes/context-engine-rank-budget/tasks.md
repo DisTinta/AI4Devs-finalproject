@@ -102,10 +102,10 @@
 
 ## 13. Seed: regenerate the analyzer fingerprint (design D12) — last commit of the series
 
-- [ ] 13.1 Preconditions: `git status --porcelain fixtures` and `git clean -ndX fixtures/acme-shop` both print nothing; `DATABASE_URL` points to a migrated local database (`npm run db:migrate`). When reaching this step, ask the author to provide `AUTHOR_HASH_SALT` in the session with `!` — never ask earlier, never write it to any file
-- [ ] 13.2 Run `npm run seed:build`
-- [ ] 13.3 Check the diff: in `seeds/graph-dump.sql` only the `analyzer-fingerprint` header line changes (the `contract-fingerprint` line and every row identical); `packages/web/src/data/sample-projects.ts` unchanged. If any other line changes, stop and tell the author; do not commit
-- [ ] 13.4 Commit the regenerated seed as the last commit of the series (`chore(DIS-28): regenerate the seed fingerprint`). If a later fix touches a fingerprint input (`packages/core/src/knowledge`, `packages/adapters/store-postgres/src`, `packages/adapters/git/src`, …), repeat 13.1–13.4 so the seed commit stays last
+- [x] 13.1 Preconditions: `git status --porcelain fixtures` and `git clean -ndX fixtures/acme-shop` both print nothing; `DATABASE_URL` points to a migrated local database (`npm run db:migrate`). When reaching this step, ask the author to provide `AUTHOR_HASH_SALT` in the session with `!` — never ask earlier, never write it to any file
+- [x] 13.2 Run `npm run seed:build`
+- [x] 13.3 Check the diff: in `seeds/graph-dump.sql` only the `analyzer-fingerprint` header line changes (the `contract-fingerprint` line and every row identical); `packages/web/src/data/sample-projects.ts` unchanged. If any other line changes, stop and tell the author; do not commit
+- [x] 13.4 Commit the regenerated seed as the last commit of the series (`chore(DIS-28): regenerate the seed fingerprint`). If a later fix touches a fingerprint input (`packages/core/src/knowledge`, `packages/adapters/store-postgres/src`, `packages/adapters/git/src`, …), repeat 13.1–13.4 so the seed commit stays last
 
 ## 14. Backend: Run Tests and Verify Data State (MANDATORY)
 
