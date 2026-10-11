@@ -733,6 +733,20 @@ services that must be started first, quirks of the local environment.
   `session-context.sh` warns at session start. Commit it only as `"1"`. A kit update replaces
   `lib.sh`, `protect-specs-and-tests.sh`, `block-dangerous-bash.sh` and `session-context.sh`:
   re-apply the patch afterwards (commit `chore(harness): add KIT_PROTECT_SPECS switch…`).
+- **The spec audit gate is a local patch to the kit too.** `base-standards.md` §7.1 makes the
+  `spec-auditor` review mandatory between propose and apply, and `.claude/hooks/spec-audit-gate.sh`
+  (PreToolUse `Edit|Write`) enforces it: an edit under `PATH_SOURCE` (`packages/`) or `PATH_TESTS`
+  (`tests/`) is denied while the branch's active change has no
+  `openspec/changes/<change>/reports/*spec-audit*.md`. The branch's change is the active one whose
+  name closes the branch name (`feature/DIS-38-claims-and-typing` → `claims-and-typing`), or the only
+  active one; with several active changes and no match it lets the edit pass. `openspec/`, `docs/`
+  and the rest stay free, so the report and the artifact fixes can always be written. Its switch
+  `KIT_SPEC_AUDIT_GATE` in `sdd-harness.env` behaves like `KIT_PROTECT_SPECS` (by hand, warning at
+  session start with `"0"`, commit only as `"1"`). A kit update replaces `lib.sh`,
+  `session-context.sh`, `settings.json`, `base-standards.md`, `openspec-implement`, the `spec-auditor`
+  agent (ticket check, open decisions, verdict, Linear tools, `opus`) and the Cursor rule
+  `20-openspec.mdc`: re-apply the patch afterwards (commit `chore(harness): gate the apply on a
+  spec-auditor review…`).
 - **The PHP analyzer now emits edges** (DIS-49): `imports` (file → class/interface/trait, one per
   top-level `use`), `extends`, `implements`, a route's `calls` (array-action routes
   `Route::<verb>('<uri>', [X::class, '<m>'])`, a new `route` symbol named `<VERB> <uri>`; string
