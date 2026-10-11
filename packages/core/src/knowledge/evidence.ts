@@ -19,7 +19,7 @@ export const evidenceSchema = z
     fileId: z.uuid(),
     startLine: z.int().min(1),
     endLine: z.int(),
-    verification: z.enum(EVIDENCE_VERIFICATIONS),
+    verification: z.literal(EVIDENCE_VERIFICATIONS),
     excerpt: z.string().nullable(),
   })
   .refine((evidence) => evidence.endLine >= evidence.startLine, { path: ['endLine'] });

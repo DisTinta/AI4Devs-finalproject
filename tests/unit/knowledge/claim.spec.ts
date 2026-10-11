@@ -138,6 +138,17 @@ describe('Requirement: Claim and evidence records mirror the database checks', (
     });
   });
 
+  // Not a scenario: every type but FACT stays open to an inferred claim.
+  it('accepts an inferred claim of every type but FACT', () => {
+    // Act
+    const results = (['INFERENCE', 'UNKNOWN'] as const).map(
+      (type) => claimSchema.safeParse({ ...inference(), type }).success,
+    );
+
+    // Assert
+    expect(results).toEqual([true, true]);
+  });
+
   // Not scenarios: edges of the provenance rules, so that mutants of each rule are killed.
   it('rejects every malformed provenance field and accepts an offset time', () => {
     // Arrange

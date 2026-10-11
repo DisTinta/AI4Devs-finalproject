@@ -53,27 +53,31 @@ const claimColumns = {
   subject: z.string(),
   predicate: z.string(),
   object: z.string().nullable(),
-  status: z.enum(CLAIM_STATUSES),
+  status: z.literal(CLAIM_STATUSES),
   // claim_confidence_range: NULL, or from 0 to 1 inclusive; Zod rejects NaN.
   confidence: z.number().min(0).max(1).nullable(),
 };
 
+/** The types an inferred (`L2`) claim may have: every type but `FACT` (`fact_only_from_l1`). */
+const INFERRED_CLAIM_TYPES: readonly Exclude<ClaimType, 'FACT'>[] = ['INFERENCE', 'UNKNOWN'];
+
 /**
  * A claim as a writer supplies it to the `claim` table. An `L1` claim may be of any type and may carry
  * a provenance; an `L2` claim is never a `FACT` (`fact_only_from_l1`) and always carries one
- * (`l2_requires_provenance`).
+ * (`l2_requires_provenance`). Closed sets are `z.literal([...])` rather than `z.enum`: same values and
+ * issue code, and a public type that is a union of literals.
  */
 export const claimSchema = z.discriminatedUnion('layer', [
   z.strictObject({
     ...claimColumns,
     layer: z.literal('L1'),
-    type: z.enum(CLAIM_TYPES),
+    type: z.literal(CLAIM_TYPES),
     provenance: provenanceSchema.optional(),
   }),
   z.strictObject({
     ...claimColumns,
     layer: z.literal('L2'),
-    type: z.enum(CLAIM_TYPES).exclude(['FACT']),
+    type: z.literal(INFERRED_CLAIM_TYPES),
     provenance: provenanceSchema,
   }),
 ]);
