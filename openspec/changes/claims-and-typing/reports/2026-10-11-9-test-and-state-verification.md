@@ -83,3 +83,23 @@ through `@codemind/core` in step 10.
 ## Outcome
 - Status: PASS
 - Blocking issues: none
+
+## Addendum — after the verify-against-spec fixes (2026-10-11)
+
+The fixes of `reports/2026-10-11-verify-against-spec.md` (commits `e672529`, `d6399f6`, `f6ca6d1`)
+changed `typing-rules.ts`, `claim.ts` and `evidence.ts`, so the affected checks were re-run:
+
+- Full suite with `DATABASE_URL`: 81 files, 1052 passed, 0 failed, 0 skipped. Lint, typecheck,
+  `docs:coverage` (0 warnings) and `lint:architecture` (exit 0, the 3 pre-existing `no-orphans`)
+  clean.
+- Stryker on the same files: 95.21 % (139 killed, 7 survived). The new survivor, the message of the
+  empty-chain `RangeError` emptied (`typing-rules.ts:28`), was killed by pinning the message
+  (`f6ca6d1`, test only). The other 6 are the equivalent `'utf8'` and static `claim.ts` mutants
+  classified above.
+- Seed: `SPAN_LINE_MAX` touched `packages/core/src/knowledge`, so `seed:build` was run again by the
+  author with `!` (same output: 53 files, 121 symbols, 170 edges, 32 commits). Only line 2 changed,
+  analyzer-fingerprint `aa432b0d…` → `0e8048c2…`; contract fingerprint, every row and
+  `sample-projects.ts` unchanged; `fixtures/` clean (commit `5805c80`, the last commit touching a
+  fingerprint input).
+- No `.stryker-tmp/` left behind.
+
