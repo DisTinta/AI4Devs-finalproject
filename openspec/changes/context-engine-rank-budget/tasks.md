@@ -38,27 +38,27 @@
 
 ## 4. Domain: anchoring caps (TDD, design D6) — context-engine MODIFIED "Lexical anchoring"
 
-- [ ] 4.1 Before coding, count Q1's real anchor on the seed (`findSymbols` per term over the loaded database, throwaway scratchpad script) and confirm it is under 32; if not, stop and ask the author about `MAX_ANCHORS`
-- [ ] 4.2 RED → GREEN in `tests/unit/context/anchor.spec.ts`: "A long question sends a bounded number of searches" (`MAX_QUESTION_TERMS = 16`, double's `calls.findSymbols`)
-- [ ] 4.3 RED → GREEN: "The anchor keeps the symbols that match the most terms" (`MAX_ANCHORS = 32`; 40 `get…` symbols on the double)
-- [ ] 4.4 Confirm the five existing anchoring tests stay green and unchanged
+- [x] 4.1 Before coding, count Q1's real anchor on the seed (`findSymbols` per term over the loaded database, throwaway scratchpad script) and confirm it is under 32; if not, stop and ask the author about `MAX_ANCHORS`
+- [x] 4.2 RED → GREEN in `tests/unit/context/anchor.spec.ts`: "A long question sends a bounded number of searches" (`MAX_QUESTION_TERMS = 16`, double's `calls.findSymbols`)
+- [x] 4.3 RED → GREEN: "The anchor keeps the symbols that match the most terms" (`MAX_ANCHORS = 32`; 40 `get…` symbols on the double)
+- [x] 4.4 Confirm the five existing anchoring tests stay green and unchanged
 
 ## 5. Domain: token estimate and ranking (TDD, design D3, D7) — context-engine ADDED "Token estimate", "Candidate ranking"
 
-- [ ] 5.1 Create `tests/unit/context/tokenizer.spec.ts`. RED: "Tokens are a quarter of the characters, rounded up". See it fail
-- [ ] 5.2 GREEN: `packages/core/src/context/tokenizer.ts` with `estimateTokens` and `TOKEN_ESTIMATOR = 'chars-div-4'`; export from `context/index.ts`. JSDoc on every export
-- [ ] 5.3 Create `tests/unit/context/rank.spec.ts`. RED: "The neighbourhood of the price question is ranked by distance, origin, file kind and lexical match" (anchor injected, expansion from `expand` on the double at 1 hop, terms from `questionTerms`; exact full-order comparison). See it fail. If, once green-able, the subset gives an order different from the scenario's, stop and ask the author
-- [ ] 5.4 GREEN: `packages/core/src/context/rank.ts` with `rankCandidates`, `Candidate`, `ContextOrigin`; the shared normalisation helper extracted in `anchor.ts`. JSDoc on every export. Extra cases, not scenarios: same key keeps input order; a file candidate matches on its path
+- [x] 5.1 Create `tests/unit/context/tokenizer.spec.ts`. RED: "Tokens are a quarter of the characters, rounded up". See it fail
+- [x] 5.2 GREEN: `packages/core/src/context/tokenizer.ts` with `estimateTokens` and `TOKEN_ESTIMATOR = 'chars-div-4'`; export from `context/index.ts`. JSDoc on every export
+- [x] 5.3 Create `tests/unit/context/rank.spec.ts`. RED: "The neighbourhood of the price question is ranked by distance, origin, file kind and lexical match" (anchor injected, expansion from `expand` on the double at 1 hop, terms from `questionTerms`; exact full-order comparison). See it fail. If, once green-able, the subset gives an order different from the scenario's, stop and ask the author
+- [x] 5.4 GREEN: `packages/core/src/context/rank.ts` with `rankCandidates`, `Candidate`, `ContextOrigin`; the shared normalisation helper extracted in `anchor.ts`. JSDoc on every export. Extra cases, not scenarios: same key keeps input order; a file candidate matches on its path
 
 ## 6. Domain: token budget (TDD, design D8) — context-engine ADDED "Token budget"
 
-- [ ] 6.1 Add `fast-check` as a root devDependency (`npm install -D fast-check`); record the version for the privacy check (step 9)
-- [ ] 6.2 Create `tests/unit/context/budget.spec.ts`. RED: "The budget is never exceeded and no span is truncated". See it fail
-- [ ] 6.3 GREEN: `packages/core/src/context/budget.ts` with `fitToTokenBudget`, `TOKEN_BUDGET_MIN` / `TOKEN_BUDGET_MAX` / `TOKEN_BUDGET_DEFAULT`, `DEFAULT_CONTEXT_HOPS`; no name shared with `llm/budget.ts` (`npm run typecheck` fails on a duplicate `export *`). JSDoc on every export
-- [ ] 6.4 RED → GREEN: "A method inside an included class is not counted twice" (`omitted` 0)
-- [ ] 6.5 RED → GREEN: "An anchor that does not fit leaves room for its neighbours"
-- [ ] 6.5b RED → GREEN: "A candidate that contains one span and cuts across another is dropped"
-- [ ] 6.6 RED → GREEN: "Generated candidates never exceed the budget" (`fc.assert`, `numRuns ≥ 200`, fixed `seed` under `CI`; properties of D8). Extra case, not a scenario: a partial overlap is dropped and not counted in `omitted`
+- [x] 6.1 Add `fast-check` as a root devDependency (`npm install -D fast-check`); record the version for the privacy check (step 9)
+- [x] 6.2 Create `tests/unit/context/budget.spec.ts`. RED: "The budget is never exceeded and no span is truncated". See it fail
+- [x] 6.3 GREEN: `packages/core/src/context/budget.ts` with `fitToTokenBudget`, `TOKEN_BUDGET_MIN` / `TOKEN_BUDGET_MAX` / `TOKEN_BUDGET_DEFAULT`, `DEFAULT_CONTEXT_HOPS`; no name shared with `llm/budget.ts` (`npm run typecheck` fails on a duplicate `export *`). JSDoc on every export
+- [x] 6.4 RED → GREEN: "A method inside an included class is not counted twice" (`omitted` 0)
+- [x] 6.5 RED → GREEN: "An anchor that does not fit leaves room for its neighbours"
+- [x] 6.5b RED → GREEN: "A candidate that contains one span and cuts across another is dropped"
+- [x] 6.6 RED → GREEN: "Generated candidates never exceed the budget" (`fc.assert`, `numRuns ≥ 200`, fixed `seed` under `CI`; properties of D8). Extra case, not a scenario: a partial overlap is dropped and not counted in `omitted`
 
 ## 7. Domain: context pack (TDD, design D2, D9) — context-engine ADDED "Context pack", plus the two whole-file budget scenarios
 

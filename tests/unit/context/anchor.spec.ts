@@ -4,6 +4,7 @@ import { anchor, ANCHOR_STOPWORDS, ProjectNotFound, questionTerms } from '@codem
 import { ACME_SHOP_PROJECT, acmeShopGraph } from '../../support/acme-shop-graph';
 import { createInMemoryStore } from '../../support/in-memory-store';
 import type { InMemoryStore } from '../../support/in-memory-store';
+import { file, symbol } from '../../support/sample-graph';
 
 // Spec: openspec/changes/context-engine-anchor-expand/specs/context-engine/spec.md → "Question terms"
 // and "Lexical anchoring". Each test is one scenario, named after it. Anchoring runs over the
@@ -169,5 +170,42 @@ describe('Requirement: Lexical anchoring', () => {
     await anchor(store, projectId, 'precio precio Precio final');
 
     expect(calls.findSymbols).toBe(3);
+  });
+
+  // Spec: openspec/changes/context-engine-rank-budget/specs/context-engine/spec.md → "Lexical
+  // anchoring" (MODIFIED, DIS-28): the caps on terms and anchor symbols.
+  it('A long question sends a bounded number of searches', async () => {
+    // Arrange: 30 distinct tokens of 8 letters, none a stopword (60 terms with their prefixes).
+    const { store, projectId, calls } = acmeShop();
+    const letters = 'abcdefghijklmnopqrstuvwxyzabcd';
+    const question = [...letters].map((letter, i) => `${letter}${i < 26 ? 'q' : 'z'}wxvkmj`).join(' ');
+    expect(new Set(question.split(' ')).size).toBe(30);
+
+    // Act
+    await anchor(store, projectId, question);
+
+    // Assert
+    expect(calls.findSymbols).toBeLessThanOrEqual(16);
+  });
+
+  it('The anchor keeps the symbols that match the most terms', async () => {
+    // Arrange: 39 `getItemNN` symbols and `getTotal` last in search order, so a plain cut at 32
+    // would lose it.
+    const items = Array.from({ length: 39 }, (_, i) => symbol('src/a.ts', `getItem${String(i).padStart(2, '0')}`, 10 * i + 1));
+    const total = symbol('src/a.ts', 'getTotal', 1000);
+    const { store, projectIds } = createInMemoryStore({
+      projects: [
+        {
+          project: { name: 'getters', rootPath: '/repos/getters', language: 'php' },
+          graph: { files: [file('src/a.ts')], symbols: [...items, total], edges: [], commits: [], fileCommits: [] },
+        },
+      ],
+    });
+
+    // Act
+    const anchors = await anchor(store, projectIds[0], 'get total');
+
+    // Assert
+    expect(anchors.map((s) => s.name)).toEqual([...items.slice(0, 31).map((s) => s.name), 'getTotal']);
   });
 });
