@@ -406,6 +406,34 @@ describe('Requirement: Token budget (whole-file spans)', () => {
     expect(readme).not.toHaveProperty('symbol');
   });
 
+  it('A replacing span keeps the best origin and distance of what it replaces', async () => {
+    // Arrange: the anchor calls `DiscountService::discountFor` (exact, d=1), which reaches its class
+    // `DiscountService` through a heuristic edge (d=2); the class's lines contain the method.
+    const anchorSymbol = symbol('app/a.php', 'Anchor', 1);
+    const discountFor = symbol('app/Services/DiscountService.php', 'DiscountService::discountFor', 30, { endLine: 40 });
+    const discountService = symbol('app/Services/DiscountService.php', 'DiscountService', 21, { kind: 'class', endLine: 66 });
+    const { deps, projectId } = ownProject(
+      {
+        files: [file('app/a.php', { loc: 3 }), file('app/Services/DiscountService.php', { loc: 66 })],
+        symbols: [anchorSymbol, discountFor, discountService],
+        edges: [
+          edge({ symbol: ref(anchorSymbol) }, { symbol: ref(discountFor) }),
+          edge({ symbol: ref(discountFor) }, { symbol: ref(discountService) }, { resolution: 'heuristic' }),
+        ],
+      },
+      { 'app/a.php': linesOf('app/a.php', 3), 'app/Services/DiscountService.php': linesOf('app/Services/DiscountService.php', 66) },
+    );
+
+    // Act
+    const pack = filled(await buildContextPack(deps, { projectId, question: 'anchor' }));
+
+    // Assert
+    expect(pack.spans.map((s) => [s.symbol?.name, s.startLine, s.endLine, s.origin, s.distance])).toEqual([
+      ['Anchor', 1, 3, 'anchor', 0],
+      ['DiscountService', 21, 66, 'exact', 1],
+    ]);
+  });
+
   it('A whole file replaces the symbol spans it contains', async () => {
     // Arrange: `Anchor` calls `shippingFor` (lines 22–34 of s.php) and its file is co-changed with
     // s.php, so s.php is a whole-file candidate ranked after the method. With a budget of 1000 the

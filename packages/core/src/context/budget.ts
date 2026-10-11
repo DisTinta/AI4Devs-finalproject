@@ -57,9 +57,15 @@ function overlaps(a: CutSpan, b: CutSpan): boolean {
  *
  * @param spans The candidates' spans, in rank order.
  * @param tokenBudget The most tokens the included spans may add up to.
+ * @param merge What a replacing span becomes, given the spans it replaces; by default itself. Its
+ *   lines and tokens must stay those of the replacing span.
  * @returns The included spans, their total and the count of skipped ones.
  */
-export function fitToTokenBudget<T extends CutSpan>(spans: readonly T[], tokenBudget: number): FittedSpans<T> {
+export function fitToTokenBudget<T extends CutSpan>(
+  spans: readonly T[],
+  tokenBudget: number,
+  merge: (replacing: T, replaced: readonly T[]) => T = (replacing) => replacing,
+): FittedSpans<T> {
   const included: T[] = [];
   let tokens = 0;
   let omitted = 0;
@@ -84,7 +90,7 @@ export function fitToTokenBudget<T extends CutSpan>(spans: readonly T[], tokenBu
     }
     const position = included.indexOf(overlapping[0]);
     const kept = included.filter((other) => !overlapping.includes(other));
-    kept.splice(position, 0, span);
+    kept.splice(position, 0, merge(span, overlapping));
     included.splice(0, included.length, ...kept);
     tokens += span.tokens - replaced;
   }

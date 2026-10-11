@@ -184,7 +184,7 @@ export async function buildContextPack(
   for (const candidate of rankCandidates(anchors, neighbors, questionTerms(question))) {
     spans.push(await cut(candidate, read));
   }
-  const fitted = fitToTokenBudget(spans, tokenBudget);
+  const fitted = fitToTokenBudget(spans, tokenBudget, keepBestRank);
   if (fitted.included.length === 0) {
     return { ...common, status: 'empty', reason: 'over-budget', spans: [], tokens: 0, baselineTokens: 0, omitted: fitted.omitted };
   }
@@ -198,6 +198,19 @@ export async function buildContextPack(
     baselineTokens,
     omitted: fitted.omitted,
   };
+}
+
+const ORIGIN_ORDER: readonly ContextOrigin[] = ['anchor', 'exact', 'heuristic'];
+
+/**
+ * A replacing span with the smallest distance and the best origin among itself and the spans it
+ * replaces, so lines the question named (or reached exactly) keep saying so (DIS-28 design D8).
+ */
+function keepBestRank(replacing: CandidateSpan, replaced: readonly CandidateSpan[]): CandidateSpan {
+  const all = [replacing, ...replaced];
+  const distance = Math.min(...all.map((candidate) => candidate.span.distance));
+  const origin = ORIGIN_ORDER[Math.min(...all.map((candidate) => ORIGIN_ORDER.indexOf(candidate.span.origin)))];
+  return { ...replacing, span: { ...replacing.span, distance, origin } };
 }
 
 /** The span of a candidate: a symbol's lines, or a whole file (line 1 to its last line). */
