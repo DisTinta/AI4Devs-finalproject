@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SPAN_LINE_MAX } from './evidence.js';
 
 // Claim records that mirror the `claim` table of `0002_history-claims` and its checks (DIS-38 design
 // D1): the types are inferred from the schemas, so a value the database rejects is either a compile
@@ -26,8 +27,8 @@ export type ClaimStatus = (typeof CLAIM_STATUSES)[number];
 export const inputSpanSchema = z
   .strictObject({
     fileId: z.uuid(),
-    startLine: z.int().min(1),
-    endLine: z.int(),
+    startLine: z.int().min(1).max(SPAN_LINE_MAX),
+    endLine: z.int().max(SPAN_LINE_MAX),
   })
   .refine((span) => span.endLine >= span.startLine, { path: ['endLine'] });
 

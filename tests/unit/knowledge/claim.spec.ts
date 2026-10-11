@@ -158,6 +158,48 @@ describe('Requirement: Claim and evidence records mirror the database checks', (
     expect(span.error?.issues.map((issue) => issue.path)).toEqual([['inputSpans', 0, 'endLine']]);
   });
 
+  // Not a scenario: a provenance with a field missing or set to JSON null is rejected.
+  it('rejects a provenance with a missing or null field', () => {
+    // Arrange
+    const withoutCreatedAt: Record<string, unknown> = { ...provenance() };
+    delete withoutCreatedAt.createdAt;
+    const nullModel = { ...provenance(), model: null };
+
+    // Act
+    const results = [withoutCreatedAt, nullModel].map((value) => provenanceSchema.safeParse(value).success);
+
+    // Assert
+    expect(results).toEqual([false, false]);
+  });
+
+  // Not a scenario: line numbers stay within the Postgres `integer` the columns use.
+  it('bounds span lines to the Postgres integer range', () => {
+    // Arrange
+    const max = 2_147_483_647;
+    const evidenceAt = (endLine: number): boolean =>
+      evidenceSchema.safeParse({ fileId: FILE_ID, startLine: 1, endLine, verification: 'none', excerpt: null })
+        .success;
+    const spanAt = (endLine: number): boolean =>
+      provenanceSchema.safeParse({ ...provenance(), inputSpans: [{ fileId: FILE_ID, startLine: 1, endLine }] })
+        .success;
+
+    // Act
+    const results = [evidenceAt(max), evidenceAt(max + 1), spanAt(max), spanAt(max + 1)];
+
+    // Assert
+    expect(results).toEqual([true, false, true, false]);
+  });
+
+  // Not a scenario: an observed claim has a provenance or none, never JSON null (one form of "none").
+  it('rejects a null provenance on an observed claim', () => {
+    // Act
+    const withNull = claimSchema.safeParse({ ...COLUMNS, layer: 'L1', type: 'FACT', provenance: null }).success;
+    const without = claimSchema.safeParse({ ...COLUMNS, layer: 'L1', type: 'FACT' }).success;
+
+    // Assert
+    expect([withNull, without]).toEqual([false, true]);
+  });
+
   // Not a scenario: every type but FACT stays open to an inferred claim.
   it('accepts an inferred claim of every type but FACT', () => {
     // Act

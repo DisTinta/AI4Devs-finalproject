@@ -25,9 +25,22 @@ describe('Requirement: Statement typing from the resolution of its evidence', ()
     expect(heuristicOnly).toBe('INFERENCE');
   });
 
-  // Not a scenario: an uncited statement cannot be typed (non-empty tuple, design D7).
+  // Not a scenario: an uncited statement cannot be typed, neither by the type (non-empty tuple) nor
+  // at run time, where a caller that bypasses the types must not get a FACT without evidence.
   it('does not accept an empty chain', () => {
     // @ts-expect-error a statement cites at least one span
-    expect(() => typeStatement([])).not.toThrow();
+    expect(() => typeStatement([])).toThrow(RangeError);
+  });
+
+  // Not a scenario: the rule is fail-closed, so an origin it does not know is never a FACT.
+  it('does not make a fact of an unknown origin', () => {
+    // Arrange
+    const unknownOrigin = { origin: 'guessed' } as unknown as Parameters<typeof typeStatement>[0][0];
+
+    // Act
+    const type = typeStatement([{ origin: 'exact' }, unknownOrigin]);
+
+    // Assert
+    expect(type).toBe('INFERENCE');
   });
 });

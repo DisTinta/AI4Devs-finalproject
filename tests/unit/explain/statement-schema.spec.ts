@@ -275,7 +275,27 @@ describe('Requirement: Audit event of a discarded output', () => {
 
   it('Checking an output writes nothing to the console', () => {
     // Arrange
-    const methods = (['log', 'info', 'warn', 'error', 'debug'] as const).map((method) =>
+    const methods = (
+      [
+        'log',
+        'info',
+        'warn',
+        'error',
+        'debug',
+        'trace',
+        'dir',
+        'dirxml',
+        'table',
+        'assert',
+        'count',
+        'group',
+        'groupCollapsed',
+        'groupEnd',
+        'time',
+        'timeEnd',
+        'timeLog',
+      ] as const
+    ).map((method) =>
       vi.spyOn(console, method).mockImplementation(() => undefined),
     );
     const outputs = [

@@ -12,12 +12,19 @@ export type CitedSpan = Pick<ContextSpan, 'origin'>;
 /** The type the rule gives a statement; `UNKNOWN` is an answer policy, not a typing result. */
 export type StatementType = 'FACT' | 'INFERENCE';
 
+/** The origins that can back a fact; any other origin, known or not, makes an inference. */
+const FACT_ORIGINS: ReadonlySet<string> = new Set(['anchor', 'exact']);
+
 /**
  * Types a statement from the spans it cites: `FACT` when every span was reached as an anchor or by
- * exact edges, `INFERENCE` when at least one was reached only through a heuristic edge.
+ * exact edges, `INFERENCE` otherwise (a span reached only through a heuristic edge, or an origin the
+ * rule does not know: it fails closed).
  *
  * @param chain The cited spans; at least one, so an uncited statement cannot be typed.
+ * @throws {RangeError} When `chain` is empty: a caller that bypasses the types gets no FACT without
+ *   evidence.
  */
 export function typeStatement(chain: readonly [CitedSpan, ...CitedSpan[]]): StatementType {
-  return chain.every((span) => span.origin !== 'heuristic') ? 'FACT' : 'INFERENCE';
+  if (chain.length === 0) throw new RangeError('a statement must cite at least one span to be typed');
+  return chain.every((span) => FACT_ORIGINS.has(span.origin)) ? 'FACT' : 'INFERENCE';
 }
