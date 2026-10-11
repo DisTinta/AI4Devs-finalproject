@@ -1,7 +1,7 @@
 import { once } from 'node:events';
 import { realpath } from 'node:fs/promises';
 import type { Writable } from 'node:stream';
-import { EmptyRepository, NotAGitRepository } from '@codemind/core';
+import { EmptyRepository, NotAGitRepository, SourceUnavailable } from '@codemind/core';
 import type { SkippedEntry, SourceFile, SourceTree, SourceTreePort } from '@codemind/core';
 import { assertRepositoryRoot, hasCommits, readerGit, spawnReaderGit } from './repository.js';
 import type { GitProcess, GitSpawner } from './repository.js';
@@ -100,7 +100,66 @@ export function gitSourceTreeWith(spawnGit: GitSpawner): SourceTreePort {
       });
       return { files, skipped };
     },
+    async readFileAt(root: string, commit: string, path: string): Promise<string> {
+      assertReadableArguments(commit, path);
+      try {
+        await assertRepositoryRoot(root);
+      } catch (error) {
+        if (error instanceof NotAGitRepository) throw new SourceUnavailable('not-a-repository', path);
+        throw error;
+      }
+      const entry = await entryAt(spawnGit, root, commit, path);
+      if (entry === undefined || !REGULAR_FILE_MODES.has(entry.mode) || entry.missing) {
+        throw new SourceUnavailable('missing', path);
+      }
+      if (entry.size !== undefined && entry.size > MAX_BLOB_BYTES) throw new SourceUnavailable('too-large', path);
+      if (!OBJECT_ID.test(entry.oid)) throw new Error('git ls-tree printed an invalid object id for a tracked file');
+      const content = decodeUtf8(await readAll(spawnGit(root, ['cat-file', 'blob', entry.oid])));
+      if (content === undefined) throw new SourceUnavailable('binary-content', path);
+      return content;
+    },
   };
+}
+
+/** Git modes of a regular file: the only entries `readFileAt` reads. */
+const REGULAR_FILE_MODES: ReadonlySet<string> = new Set(['100644', '100755']);
+
+/**
+ * Checks `readFileAt`'s arguments before any git process starts: a full object id, and a
+ * repository-relative path with no empty, `.` or `..` segment, no leading `/`, no NUL or line feed.
+ * Both then reach git only as arguments after `--`, never through a shell.
+ */
+function assertReadableArguments(commit: string, path: string): void {
+  if (!OBJECT_ID.test(commit)) throw new RangeError('commit must be a full object id (40 or 64 lowercase hexadecimal characters)');
+  const segments = path.split('/');
+  if (
+    path === '' ||
+    /[\0\n]/.test(path) ||
+    segments.some((segment) => segment === '' || segment === '.' || segment === '..')
+  ) {
+    throw new RangeError('path must be a repository-relative path with no empty, "." or ".." segment');
+  }
+}
+
+/**
+ * The entry of `path` in `commit`, or `undefined` when the commit has no such entry. One
+ * `ls-tree -l` with literal pathspecs (no `:(glob)` or other magic) lists it with its mode and size;
+ * `<commit>^{commit}` refuses an id that names something other than a commit. When `ls-tree` fails,
+ * a `cat-file -e` tells an unknown commit (`undefined`) from any other git failure (propagated).
+ */
+async function entryAt(spawnGit: GitSpawner, root: string, commit: string, path: string): Promise<TreeEntry | undefined> {
+  const listing = spawnGit(root, ['--literal-pathspecs', 'ls-tree', '-z', '-l', '--full-tree', `${commit}^{commit}`, '--', path]);
+  try {
+    return parseTree(await readAll(listing)).find((entry) => entry.path === path);
+  } catch (error) {
+    const probe = spawnGit(root, ['cat-file', '-e', `${commit}^{commit}`]);
+    const known = await readAll(probe).then(
+      () => true,
+      () => false,
+    );
+    if (known) throw error;
+    return undefined;
+  }
 }
 
 /** The first reason, in the contract's order, that leaves an entry unread; `undefined` to read it. */

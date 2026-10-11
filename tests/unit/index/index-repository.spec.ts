@@ -71,6 +71,11 @@ function world(options: FakeOptions = {}): World {
       if (options.readFilesError) throw options.readFilesError;
       return options.tree ?? { files: [{ path: 'app/A.php', content: '<?php\n' }], skipped: [] };
     },
+    async readFileAt(root) {
+      // Indexing never reads one file at a commit (DIS-28); logged so a call would show up.
+      log.push(`readFileAt ${root}`);
+      throw new Error('readFileAt is not used by indexing');
+    },
   };
   const analyzer: AnalyzerPort = {
     async analyze(input) {

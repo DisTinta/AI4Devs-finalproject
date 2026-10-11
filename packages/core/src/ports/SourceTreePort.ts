@@ -36,4 +36,20 @@ export interface SourceTreePort {
    *   failure propagates unchanged.
    */
   readFiles(root: string): Promise<SourceTree>;
+  /**
+   * Reads one file as `commit` stores it, never the working tree nor `HEAD`, decoded as UTF-8 (a
+   * leading byte order mark dropped). Uses the same size limit and the same isolation as
+   * {@link readFiles}: nothing from the repository runs, and the git processes started do not depend
+   * on the size of the file.
+   *
+   * @param root The top-level directory of the repository.
+   * @param commit A full object id (40 or 64 lowercase hexadecimal characters).
+   * @param path A repository-relative path with `/` separators: no leading `/`, no empty, `.` or
+   *   `..` segment, no NUL or line feed.
+   * @throws RangeError naming `commit` or `path` when it is malformed, before starting git.
+   * @throws SourceUnavailable with reason `not-a-repository`, `missing` (no such commit, no such
+   *   entry, or an entry that is not a regular file), `too-large` or `binary-content`, naming the
+   *   path. Any other git failure propagates unchanged.
+   */
+  readFileAt(root: string, commit: string, path: string): Promise<string>;
 }

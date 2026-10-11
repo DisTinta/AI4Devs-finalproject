@@ -139,6 +139,9 @@ async function run(options: FakeOptions = {}): Promise<Run> {
         if (options.indexError) throw options.indexError;
         return { files: [{ path: 'app/A.php', content: '<?php\n' }], skipped: [] };
       },
+      readFileAt: async () => {
+        throw new Error('readFileAt is not used by the seed build');
+      },
     },
     analyzer: { analyze: async (input) => plainAnalysis(input.files) },
     git: { readHistory: async () => ({ head: SHA, commits: [{ sha: SHA, message: 'feat: a' }], fileCommits: [] }) },
