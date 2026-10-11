@@ -41,7 +41,7 @@ export interface InMemoryStore {
   /** For each loaded project, in the order given, its file ids by path. */
   fileIds: Array<Map<string, string>>;
   /** Calls received per read method, counted before any check (stand-in for "statements sent"). */
-  calls: { findSymbols: number; neighbors: number };
+  calls: { findSymbols: number; neighbors: number; getProject: number };
 }
 
 interface StoredFileRow {
@@ -86,7 +86,7 @@ export function createInMemoryStore({ projects }: { projects: InMemoryProject[] 
   const files = new Map<string, StoredFileRow>();
   const symbols = new Map<string, StoredSymbolRow>();
   const edges: StoredEdgeRow[] = [];
-  const calls = { findSymbols: 0, neighbors: 0 };
+  const calls = { findSymbols: 0, neighbors: 0, getProject: 0 };
   const projectIds: string[] = [];
   const fileIds: Array<Map<string, string>> = [];
 
@@ -201,6 +201,7 @@ export function createInMemoryStore({ projects }: { projects: InMemoryProject[] 
     sumCostSince: notImplemented,
 
     async getProject(projectId: string): Promise<Project> {
+      calls.getProject += 1;
       return { ...projectOf(projectId) };
     },
 

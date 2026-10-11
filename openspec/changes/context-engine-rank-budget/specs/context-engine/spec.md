@@ -228,9 +228,9 @@ fitted to a token budget.
 
 - **WHEN** acme-shop is indexed in the database and the pack of `¿Cómo se calcula el precio final
   de un pedido?` is built with a budget of 8000
-- **THEN** the spans of `PriceCalculatorTest`, `RecalculateTotals::handle` and
+- **THEN** the spans holding the lines of `PriceCalculatorTest`, `RecalculateTotals::handle` and
   `OrderPricingTest::test_final_price_applies_discount_before_tax` have origin `anchor` and
-  distance 0
+  distance 0 (a method is held by its class's span when the class is an anchor too)
 
 #### Scenario: Whole files are counted once for the baseline
 

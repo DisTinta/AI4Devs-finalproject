@@ -62,19 +62,19 @@
 
 ## 7. Domain: context pack (TDD, design D2, D9) — context-engine ADDED "Context pack", plus the two whole-file budget scenarios
 
-- [ ] 7.1 Create `tests/unit/context/context-pack.spec.ts` (store and source doubles, acme-shop subset, file contents in the source double). RED: "A question without anchor gives an empty pack without reading". See it fail
-- [ ] 7.2 GREEN: `packages/core/src/context/context-pack.ts` with `buildContextPack`, `ContextPack`, `ContextSpan` per design D9; export from `context/index.ts`. JSDoc on every export
-- [ ] 7.3 RED → GREEN: "Whole files are counted once for the baseline" (extra case: each distinct file read once, from the double's counter)
-- [ ] 7.4 RED → GREEN: "A file node gives a whole-file span" and "A whole file replaces the symbol spans it contains" (two tests)
-- [ ] 7.5 RED → GREEN: "A pack where nothing fits is empty and over budget"
-- [ ] 7.6 RED → GREEN: "Secrets are redacted before counting" (AWS key built at run time, as `tests/unit/cli/index-command.spec.ts` does)
-- [ ] 7.7 RED → GREEN: "Every pack declares its estimator"
-- [ ] 7.8 RED → GREEN: "An invalid token budget is rejected before the store" and "A relative workspace root is rejected" (double's counters all 0)
-- [ ] 7.9 RED → GREEN: "A pack with an invalid hop count is rejected" and "A pack for an unknown project fails"
-- [ ] 7.10 RED → GREEN: "Unreadable source fails without its content" and "A project never indexed has no source to read" (`calls.readFileAt` 0)
-- [ ] 7.11 RED → GREEN: "A relative root path is resolved against the workspace root" (expected root computed with `node:path` `join('/repo', 'fixtures/acme-shop')`, so the test holds on Windows and POSIX)
-- [ ] 7.12 RED → GREEN: "The process working directory is never used" (`vi.spyOn(process, 'cwd')` to an unrelated absolute directory, `vi.restoreAllMocks()` in `afterEach`; packs deep-equal)
-- [ ] 7.13 Create `tests/integration/context/context-pack.spec.ts`: Postgres with acme-shop indexed and its history rebuilt with `buildOne` (pattern of `tests/integration/cli/index-command.spec.ts`), real `createGitSourceTree()`, `workspaceRoot` from `import.meta.url`. RED → GREEN: "The pack of the price question holds the calculator class once" and "Every anchor symbol of the question enters the pack as an anchor"
+- [x] 7.1 Create `tests/unit/context/context-pack.spec.ts` (store and source doubles, acme-shop subset, file contents in the source double). RED: "A question without anchor gives an empty pack without reading". See it fail
+- [x] 7.2 GREEN: `packages/core/src/context/context-pack.ts` with `buildContextPack`, `ContextPack`, `ContextSpan` per design D9; export from `context/index.ts`. JSDoc on every export
+- [x] 7.3 RED → GREEN: "Whole files are counted once for the baseline" (extra case: each distinct file read once, from the double's counter)
+- [x] 7.4 RED → GREEN: "A file node gives a whole-file span" and "A whole file replaces the symbol spans it contains" (two tests)
+- [x] 7.5 RED → GREEN: "A pack where nothing fits is empty and over budget"
+- [x] 7.6 RED → GREEN: "Secrets are redacted before counting" (AWS key built at run time, as `tests/unit/cli/index-command.spec.ts` does)
+- [x] 7.7 RED → GREEN: "Every pack declares its estimator"
+- [x] 7.8 RED → GREEN: "An invalid token budget is rejected before the store" and "A relative workspace root is rejected" (double's counters all 0)
+- [x] 7.9 RED → GREEN: "A pack with an invalid hop count is rejected" and "A pack for an unknown project fails"
+- [x] 7.10 RED → GREEN: "Unreadable source fails without its content" and "A project never indexed has no source to read" (`calls.readFileAt` 0)
+- [x] 7.11 RED → GREEN: "A relative root path is resolved against the workspace root" (expected root computed with `node:path` `join('/repo', 'fixtures/acme-shop')`, so the test holds on Windows and POSIX)
+- [x] 7.12 RED → GREEN: "The process working directory is never used" (`vi.spyOn(process, 'cwd')` to an unrelated absolute directory, `vi.restoreAllMocks()` in `afterEach`; packs deep-equal)
+- [x] 7.13 Create `tests/integration/context/context-pack.spec.ts`: Postgres with acme-shop indexed and its history rebuilt with `buildOne` (pattern of `tests/integration/cli/index-command.spec.ts`), real `createGitSourceTree()`, `workspaceRoot` from `import.meta.url`. RED → GREEN: "The pack of the price question holds the calculator class once" and "Every anchor symbol of the question enters the pack as an anchor"
 - [ ] 7.14 REFACTOR with the suite green (`/tdd-refactor`) over `context/`, `queries.ts`, `git-source-tree.ts` and the doubles; no behaviour change
 
 ## 8. ADR
