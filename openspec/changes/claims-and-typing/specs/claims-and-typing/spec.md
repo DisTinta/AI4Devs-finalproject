@@ -111,7 +111,8 @@ otherwise SHALL be discarded **whole** (no statement of it survives) with an aud
 5. Every cited evidence id is one of the ids given to the model (subcode `unknown_evidence_id`).
 
 The five limits SHALL be exported as named constants so that callers and tests use the same values.
-Character lengths SHALL be counted as string length (UTF-16 code units).
+Character lengths SHALL be counted in Unicode code points (an astral character, such as an emoji,
+counts as one); the minimum lengths (1 character) are measured the same way.
 
 #### Scenario: A conforming output is accepted
 

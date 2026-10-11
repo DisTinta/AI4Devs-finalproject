@@ -163,7 +163,10 @@ DIS-39 returns it from the explain use case and the transport logs it (PH-09).
 | `MAX_STATEMENT_CHARS` | 500 | A statement is one checkable sentence (readme §2.5) |
 | `MAX_EVIDENCE_IDS_PER_STATEMENT` | 10 | More citations dilute verification without adding guarantee |
 
-Lengths are `string.length` (Zod's `.max`), i.e. UTF-16 code units; documented on the constants.
+Character lengths are Unicode code points: Zod 4.6.5 measures a string's `.min`/`.max` in code points
+(`$ZodCheckMaxLength` in `node_modules/zod/v4/core/checks.js`, through `util.codePointLength`), which
+is coherent with the token estimator of DIS-28 (`context/tokenizer.ts`, where an astral character
+counts as one). Documented on the constants.
 "Provisional" means they may change after the Table 1 measurements (CM-HU-22) without a spec change
 beyond the numbers.
 
@@ -206,6 +209,8 @@ import them from there.
 ## Risks / Trade-offs
 
 - [The limits are guesses] → named constants, boundary tests on each, revisited with CM-HU-22 data.
+- [A Zod version that goes back to measuring string lengths in UTF-16 code units] → the extra case
+  of task 4.9 (499 + an emoji accepted, 500 + an emoji rejected) detects it.
 - [Zod 4 issue codes or `path` shapes change in a minor release] → the event tests pin `code` and
   `path` for each subcode; a Zod upgrade that changes them fails the suite.
 - [`z.discriminatedUnion` error for a wrong `type` under `L2` reports `invalid_value`, not a CHECK
@@ -229,7 +234,8 @@ apply (destination A):
 - Major: `docs/backend-standards.md` §4 contradicted by schemas in core → task 7.1 amends §4 (D2).
 - Major: strictness API unstated (Zod 4 `z.object()` strips) → `z.strictObject()` everywhere (D1),
   pinned by tasks 4.3 and 9.4.
-- Minor: UTF-16 counting had no distinguishing case → extra case in task 4.9.
+- Minor: the character count had no distinguishing case → extra case in task 4.9 (which then showed
+  that Zod counts code points; see below).
 - Minor: issue `code` of steps 4–5 unpinned → D3; asserted in tasks 4.4 and 4.6.
 - Minor: "Easy to revert" wording → D8.
 - Minor: task 9.3 bundled gates with mutant killing → split into 9.3 and 9.4.
@@ -241,3 +247,13 @@ in this change before apply (destination A):
 - The subcodes were not a closed set in the spec → stated in "Audit event of a discarded output".
 - The spec's definition of `exact`/`heuristic` was looser than the real one, and the best-origin rule
   of replacing spans was not acknowledged → spec requirement "Statement typing…" and D7.
+
+Found during apply (task 4.9, 2026-10-11), decided by the author (option 1); destination A, resolved
+in this change:
+
+- The premise of D6 and of the spec ("lengths are `string.length`, UTF-16 code units, as Zod's `.max`
+  does") was false. `node_modules/zod/v4/core/checks.js:273` (`$ZodCheckMaxLength`) counts
+  `input.length` and, when that exceeds the maximum, recounts in code points with
+  `util.codePointLength`. Counterexample: `'a'.repeat(499) + '😀'` (501 UTF-16 units, 500 code points)
+  passes `z.string().max(500)`. Spec, D6, the JSDoc of `limits.ts`, task 4.9 and its test now say
+  code points; `MAX_MODEL_OUTPUT_BYTES` (UTF-8 bytes) is unchanged.
