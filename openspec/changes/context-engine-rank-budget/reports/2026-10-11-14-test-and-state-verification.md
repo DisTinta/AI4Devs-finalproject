@@ -134,3 +134,16 @@ against the real database and git in step 15. The CI run is linked in step 16.2.
 
 - Status: PASS
 - Blocking issues: none
+
+## Addendum — CI evidence (step 16.2)
+
+PR #34, head `27f90d7`, run
+[38127673931](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/38127673931), job `quality`
+green in 10m33s (`frontend`, `scope`, `secrets` green too). The paths filter selected every changed
+test file; `tests/unit/context/{anchor,budget,context-pack,rank,tokenizer,expand,acme-shop-graph-coherence}`,
+`tests/integration/context/{context-pack,expand}`, `tests/integration/store/graph-read.spec.ts` (42),
+`tests/integration/git/git-source-tree.spec.ts` (31) and `tests/unit/store/in-memory-store.spec.ts`
+(30) passed: 78 files, 1009 passed and 1 skipped (`tests/unit/index/path-policy.spec.ts`, the existing
+platform-specific skip). `CI` is set there, so the property test ran with seed `20261011`. The
+mutation step covered `packages/core/src/context` at 97.87 % (same as locally). The run of the final
+head is recorded after the pre-merge fixes.
