@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { InvalidStoreQuery, ProjectNotFound } from '@codemind/core';
 import type {
   EdgeKind,
+  EdgeResolution,
   GraphEdge,
   GraphSymbol,
   KnowledgeGraph,
@@ -50,6 +51,19 @@ function symbolGraph(names: string[], edges: Array<[string, string, EdgeKind?]>)
 /** Each neighbour as `<name>@<distance>` (symbols) or `file:<path>@<distance>`, in result order. */
 function labels(neighbors: Neighbor[]): string[] {
   return neighbors.map((n) => (n.type === 'file' ? `file:${n.path}@${n.distance}` : `${n.name}@${n.distance}`));
+}
+
+/** A symbol graph like {@link symbolGraph} whose `calls` edges carry the given resolution. */
+function resolvedGraph(names: string[], edges: Array<[string, string, EdgeResolution]>): KnowledgeGraph {
+  const graph = symbolGraph(names, []);
+  const byName = new Map(graph.symbols.map((s) => [s.name, s]));
+  const at = (name: string): GraphEdge['source'] => ({ symbol: ref(byName.get(name) as GraphSymbol) });
+  return { ...graph, edges: edges.map(([source, target, resolution]) => edge(at(source), at(target), { resolution })) };
+}
+
+/** Each neighbour as `<name or path>@<distance>:<resolution>`, in result order. */
+function resolutions(neighbors: Neighbor[]): string[] {
+  return neighbors.map((n) => `${n.type === 'file' ? n.path : n.name}@${n.distance}:${n.resolution}`);
 }
 
 /** A double with one project holding `graph`, and that project's id. */
@@ -154,11 +168,11 @@ describe('in-memory StorePort double', () => {
 
       // Assert
       expect(found).toEqual([
-        { id: expect.any(String), fileId: upper, file: 'src/B.ts', name: 'basePrice', startLine: 1, endLine: 3, kind: 'method' },
-        { id: expect.any(String), fileId: a, file: 'src/a.ts', name: 'PriceCalculator', startLine: 3, endLine: 40, kind: 'class', signature: 'class PriceCalculator' },
-        { id: expect.any(String), fileId: a, file: 'src/a.ts', name: 'computePrice', startLine: 10, endLine: 12, kind: 'method' },
-        { id: expect.any(String), fileId: a, file: 'src/a.ts', name: 'PriceTwo', startLine: 20, endLine: 22, kind: 'method' },
-        { id: expect.any(String), fileId: a, file: 'src/a.ts', name: 'priceOne', startLine: 20, endLine: 22, kind: 'method' },
+        { id: expect.any(String), fileId: upper, file: 'src/B.ts', fileKind: 'source', name: 'basePrice', startLine: 1, endLine: 3, kind: 'method' },
+        { id: expect.any(String), fileId: a, file: 'src/a.ts', fileKind: 'source', name: 'PriceCalculator', startLine: 3, endLine: 40, kind: 'class', signature: 'class PriceCalculator' },
+        { id: expect.any(String), fileId: a, file: 'src/a.ts', fileKind: 'source', name: 'computePrice', startLine: 10, endLine: 12, kind: 'method' },
+        { id: expect.any(String), fileId: a, file: 'src/a.ts', fileKind: 'source', name: 'PriceTwo', startLine: 20, endLine: 22, kind: 'method' },
+        { id: expect.any(String), fileId: a, file: 'src/a.ts', fileKind: 'source', name: 'priceOne', startLine: 20, endLine: 22, kind: 'method' },
       ]);
     });
 
@@ -222,6 +236,28 @@ describe('in-memory StorePort double', () => {
       await expect(store.findSymbols(randomUUID(), 'price')).rejects.toThrow(ProjectNotFound);
       await expect(store.findSymbols('not-a-uuid', 'price')).rejects.toThrow(ProjectNotFound);
     });
+
+    it('A symbol result carries the kind of its file (in-memory double)', async () => {
+      // Arrange
+      const { store, projectId } = single(
+        graphOf(
+          [file('app/Services/PriceCalculator.php'), file('tests/Unit/PriceCalculatorTest.php', { kind: 'test' })],
+          [
+            symbol('app/Services/PriceCalculator.php', 'PriceCalculator', 16, { kind: 'class' }),
+            symbol('tests/Unit/PriceCalculatorTest.php', 'PriceCalculatorTest', 9, { kind: 'class' }),
+          ],
+        ),
+      );
+
+      // Act
+      const found = await store.findSymbols(projectId, 'PriceCalculator');
+
+      // Assert
+      expect(found.map((s) => [s.name, s.fileKind])).toEqual([
+        ['PriceCalculator', 'source'],
+        ['PriceCalculatorTest', 'test'],
+      ]);
+    });
   });
 
   describe('Requirement: Bounded neighbour traversal', () => {
@@ -244,7 +280,9 @@ describe('in-memory StorePort double', () => {
         startLine: 11,
         endLine: 13,
         kind: 'method',
+        fileKind: 'source',
         distance: 1,
+        resolution: 'exact',
       });
     });
 
@@ -365,6 +403,7 @@ describe('in-memory StorePort double', () => {
         path: 'src/c.ts',
         kind: 'doc',
         distance: 2,
+        resolution: 'exact',
       });
       expect(neighbors[4]).toMatchObject({ type: 'symbol', file: 'src/t.ts', name: 'T', startLine: 7 });
     });
@@ -444,6 +483,62 @@ describe('in-memory StorePort double', () => {
         ProjectNotFound,
       );
       await expect(store.neighbors('not-a-uuid', [], 2)).rejects.toThrow(ProjectNotFound);
+    });
+
+    it('A node reached by an exact shortest path is exact (in-memory double)', async () => {
+      // Arrange
+      const loaded = single(
+        resolvedGraph(['A', 'B', 'C', 'D'], [['A', 'B', 'exact'], ['B', 'D', 'exact'], ['A', 'C', 'heuristic'], ['C', 'D', 'exact']]),
+      );
+      const a = await symbolId(loaded, loaded.projectId, 'A');
+
+      // Act
+      const neighbors = await loaded.store.neighbors(loaded.projectId, [{ type: 'symbol', id: a }], 2);
+
+      // Assert
+      expect(resolutions(neighbors)).toEqual(['B@1:exact', 'C@1:heuristic', 'D@2:exact']);
+    });
+
+    it('A node reached only through heuristic edges is heuristic (in-memory double)', async () => {
+      // Arrange
+      const loaded = single(resolvedGraph(['A', 'B', 'C'], [['A', 'B', 'heuristic'], ['B', 'C', 'exact']]));
+      const a = await symbolId(loaded, loaded.projectId, 'A');
+
+      // Act
+      const neighbors = await loaded.store.neighbors(loaded.projectId, [{ type: 'symbol', id: a }], 2);
+
+      // Assert
+      expect(resolutions(neighbors)).toEqual(['B@1:heuristic', 'C@2:heuristic']);
+    });
+
+    it('A shorter heuristic path wins over a longer exact one (in-memory double)', async () => {
+      // Arrange
+      const loaded = single(resolvedGraph(['A', 'B', 'C'], [['A', 'C', 'heuristic'], ['A', 'B', 'exact'], ['B', 'C', 'exact']]));
+      const a = await symbolId(loaded, loaded.projectId, 'A');
+
+      // Act
+      const neighbors = await loaded.store.neighbors(loaded.projectId, [{ type: 'symbol', id: a }], 2);
+
+      // Assert
+      expect(resolutions(neighbors)).toEqual(['B@1:exact', 'C@1:heuristic']);
+    });
+
+    it('The traversal work grows with nodes, not paths (in-memory double)', async () => {
+      // Arrange: the double has no execution plan; only the result is checked.
+      const paths = Array.from({ length: 40 }, (_, i) => `app/f${String(i).padStart(2, '0')}.php`);
+      const edges = paths.flatMap((source, i) =>
+        paths
+          .slice(i + 1)
+          .map((target) => edge({ file: source }, { file: target }, { kind: 'co_changed', resolution: 'heuristic', weight: 1 })),
+      );
+      const loaded = single({ files: paths.map((p) => file(p)), symbols: [], edges, commits: [], fileCommits: [] });
+      const first = loaded.fileIds[0].get(paths[0]) as string;
+
+      // Act
+      const neighbors = await loaded.store.neighbors(loaded.projectId, [{ type: 'file', id: first }], 3, ['co_changed'], 'both');
+
+      // Assert
+      expect(labels(neighbors)).toEqual(paths.slice(1).map((p) => `file:${p}@1`));
     });
   });
 

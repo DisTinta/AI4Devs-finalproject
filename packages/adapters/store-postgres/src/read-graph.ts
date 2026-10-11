@@ -1,4 +1,5 @@
 import type {
+  EdgeResolution,
   FileKind,
   Neighbor,
   Project,
@@ -48,6 +49,8 @@ export interface SymbolColumns {
   id: string | null;
   file_id: string | null;
   path: string | null;
+  /** Stored kind of the symbol's file (of the file itself, for a file node of a traversal). */
+  file_kind: FileKind | null;
   name: string | null;
   kind: SymbolKind | null;
   start_line: number | null;
@@ -65,6 +68,7 @@ export function toStoredSymbol(row: SymbolColumns): StoredSymbol {
   return {
     id: row.id as string,
     fileId: row.file_id as string,
+    fileKind: row.file_kind as FileKind,
     file: row.path as string,
     name: row.name as string,
     startLine: row.start_line as number,
@@ -84,14 +88,15 @@ export interface NeighborRow extends SymbolColumns {
   project_id: string;
   node_type: 'symbol' | 'file' | null;
   distance: number | null;
-  file_kind: FileKind | null;
+  resolution: EdgeResolution | null;
 }
 
 /** Maps a traversal row whose node is present to a `Neighbor`. */
 export function toNeighbor(row: NeighborRow): Neighbor {
   const distance = row.distance as number;
+  const resolution = row.resolution as EdgeResolution;
   if (row.node_type === 'file') {
-    return { type: 'file', id: row.id as string, path: row.path as string, kind: row.file_kind as FileKind, distance };
+    return { type: 'file', id: row.id as string, path: row.path as string, kind: row.file_kind as FileKind, distance, resolution };
   }
-  return { type: 'symbol', ...toStoredSymbol(row), distance };
+  return { type: 'symbol', ...toStoredSymbol(row), distance, resolution };
 }
