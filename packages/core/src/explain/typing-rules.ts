@@ -21,10 +21,18 @@ const FACT_ORIGINS: ReadonlySet<string> = new Set(['anchor', 'exact']);
  * rule does not know: it fails closed).
  *
  * @param chain The cited spans; at least one, so an uncited statement cannot be typed.
- * @throws {RangeError} When `chain` is empty: a caller that bypasses the types gets no FACT without
- *   evidence.
+ * @throws {RangeError} When `chain` is empty or has a missing position: a caller that bypasses the
+ *   types gets no FACT without evidence.
  */
 export function typeStatement(chain: readonly [CitedSpan, ...CitedSpan[]]): StatementType {
   if (chain.length === 0) throw new RangeError('a statement must cite at least one span to be typed');
-  return chain.every((span) => FACT_ORIGINS.has(span.origin)) ? 'FACT' : 'INFERENCE';
+  let fact = true;
+  // An index loop, not `every`: `every` skips the holes of a sparse array, which would type a
+  // statement whose chain has a missing position.
+  for (let i = 0; i < chain.length; i++) {
+    const span = chain[i];
+    if (span === undefined) throw new RangeError('every position of a chain must hold a cited span');
+    if (!FACT_ORIGINS.has(span.origin)) fact = false;
+  }
+  return fact ? 'FACT' : 'INFERENCE';
 }

@@ -34,6 +34,16 @@ describe('Requirement: Statement typing from the resolution of its evidence', ()
     expect(() => typeStatement([])).toThrow('a statement must cite at least one span to be typed');
   });
 
+  // Not a scenario: a sparse chain has a length but no span in its hole, so it is not typed either.
+  it('does not accept a chain with a missing position', () => {
+    // Arrange
+    const sparse = new Array<{ origin: 'exact' }>(2);
+    sparse[1] = { origin: 'exact' };
+
+    // Act + Assert
+    expect(() => typeStatement(sparse as unknown as Parameters<typeof typeStatement>[0])).toThrow(RangeError);
+  });
+
   // Not a scenario: the rule is fail-closed, so an origin it does not know is never a FACT.
   it('does not make a fact of an unknown origin', () => {
     // Arrange

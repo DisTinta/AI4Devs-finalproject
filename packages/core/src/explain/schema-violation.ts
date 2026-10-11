@@ -37,6 +37,8 @@ export interface SchemaViolationEvent {
   outputBytes: number;
   /** SHA-256 of the output's UTF-8 bytes, lowercase hexadecimal; for correlation, not anonymisation. */
   outputSha256: string;
-  /** Where it failed; empty when the output was too large or not JSON. */
+  /** Where it failed, at most `MAX_EVENT_ISSUES`, in the order found; empty when the output was too large or not JSON. */
   issues: SchemaViolationIssue[];
+  /** How many issues were found before the cut to `MAX_EVENT_ISSUES`; 0 when the output was too large or not JSON. */
+  issueCount: number;
 }

@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import {
   MAX_ANSWER_CHARS,
+  MAX_EVENT_ISSUES,
   MAX_EVIDENCE_IDS_PER_STATEMENT,
   MAX_MODEL_OUTPUT_BYTES,
   MAX_STATEMENT_CHARS,
@@ -96,7 +97,7 @@ function unknownEvidenceIds(output: ModelOutput, known: ReadonlySet<string>): Sc
   );
 }
 
-/** The result of discarding `text`, with its size and hash and only the given issues. */
+/** The result of discarding `text`, with its size and hash and at most `MAX_EVENT_ISSUES` of the given issues. */
 function discard(text: string, subcode: SchemaViolationSubcode, issues: SchemaViolationIssue[]): ModelOutputResult {
   return {
     ok: false,
@@ -106,7 +107,8 @@ function discard(text: string, subcode: SchemaViolationSubcode, issues: SchemaVi
       subcode,
       outputBytes: Buffer.byteLength(text, 'utf8'),
       outputSha256: createHash('sha256').update(text, 'utf8').digest('hex'),
-      issues,
+      issues: issues.slice(0, MAX_EVENT_ISSUES),
+      issueCount: issues.length,
     },
   };
 }

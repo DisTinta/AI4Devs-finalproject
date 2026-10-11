@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   MAX_ANSWER_CHARS,
+  MAX_EVENT_ISSUES,
   MAX_EVIDENCE_IDS_PER_STATEMENT,
   MAX_MODEL_OUTPUT_BYTES,
   MAX_STATEMENT_CHARS,
@@ -265,12 +266,46 @@ describe('Requirement: Audit event of a discarded output', () => {
       outputBytes: Buffer.byteLength(text, 'utf8'),
       outputSha256: createHash('sha256').update(text, 'utf8').digest('hex'),
       issues: [{ path: 'statements.0', code: 'unrecognized_keys' }],
+      issueCount: 1,
     });
     // Forbidding `ok` is safe: the event, unlike the result that wraps it, has no `ok` field.
     const serialised = JSON.stringify(event);
     for (const fragment of ['ignore previous instructions', 'note', 'ok']) {
       expect(serialised).not.toContain(fragment);
     }
+  });
+
+  it('The issues of an event are bounded', () => {
+    // Arrange
+    const text = JSON.stringify({ answer: 'a', statements: Array.from({ length: 21_000 }, () => ({})) });
+
+    // Act
+    const event = discarded(text);
+
+    // Assert
+    expect(Buffer.byteLength(text, 'utf8')).toBe(63_029);
+    expect(event.subcode).toBe('invalid_shape');
+    expect(event.issues).toHaveLength(MAX_EVENT_ISSUES);
+    expect(MAX_EVENT_ISSUES).toBe(20);
+    expect(event.issueCount).toBe(42_001);
+    expect(Buffer.byteLength(JSON.stringify(event), 'utf8')).toBeLessThan(4_096);
+  });
+
+  // Not a scenario: the issue count of the checks that carry no issue, and of an uncut list.
+  it('counts no issue for size and JSON failures and every issue of a short list', () => {
+    // Act
+    const counts = [
+      discarded(padTo(output(), MAX_MODEL_OUTPUT_BYTES + 1)),
+      discarded('{"answer":'),
+      discarded(output([statement(['E7', 'E8', 'E9'])])),
+    ].map((event) => [event.issueCount, event.issues.length]);
+
+    // Assert
+    expect(counts).toEqual([
+      [0, 0],
+      [0, 0],
+      [3, 3],
+    ]);
   });
 
   it('Checking an output writes nothing to the console', () => {

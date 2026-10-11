@@ -14,5 +14,8 @@ export const MAX_STATEMENTS = 20;
 /** Longest statement `text`, in Unicode code points: a statement is one checkable sentence (readme §2.5). */
 export const MAX_STATEMENT_CHARS = 500;
 
+/** Most issues one audit event carries: bounds the event, and so the log line, whatever the output (`issueCount` keeps the total). */
+export const MAX_EVENT_ISSUES = 20;
+
 /** Most evidence ids one statement may cite: more citations dilute verification without adding guarantee. */
 export const MAX_EVIDENCE_IDS_PER_STATEMENT = 10;
