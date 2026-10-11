@@ -175,14 +175,20 @@ Required order:
 
 1. Run `spec-auditor` over `openspec/changes/<change>/` as the closing step of the propose, whether
    it ran through `opsx:propose`, `opsx:ff` or the kit's prompts.
+   Pass it the Linear sub-issue id (it loads the sub-issue and its parent itself) or, if it cannot
+   reach Linear, the ticket text.
 2. Save its full report as `openspec/changes/<change>/reports/<YYYY-MM-DD>-spec-audit.md`. The
-   subagent is read-only, so the main session writes the file.
-3. Fix the artifacts it flags, under rule 7 (`opsx:update` or an equivalent edit). A finding that
-   needs a product or scope decision goes to the author; the agent does not settle it alone. Close the
+   subagent is read-only, so the main session writes the file. The report opens with the verdict:
+   `APPROVED` or `CHANGES REQUIRED`.
+3. On `CHANGES REQUIRED`, apply its "Corrections to apply" to the artifacts under rule 7
+   (`opsx:update` or an equivalent edit), and to the ticket without touching its `[original]` block.
+   A finding that needs a product or scope decision goes to the author; the agent does not settle it
+   alone. No finding becomes a new issue or task: it widens the change's own artifacts. Close the
    report with a section that says, per finding, how it was resolved: fixed, rejected with the reason,
-   or decided by the author.
-4. Only then present the change as ready and start the apply. An apply step (`opsx:apply`,
-   `/openspec-implement`) that finds no audit report runs steps 1–3 first, without touching code.
+   or decided by the author. Then run the auditor again and append its verdict.
+4. Start the apply only on an `APPROVED` verdict, or on blocking findings the author explicitly
+   accepted (recorded in the closing section). An apply step (`opsx:apply`, `/openspec-implement`)
+   that finds no audit report runs steps 1–3 first, without touching code.
 
 The `spec-audit-gate` hook enforces it: an edit under `PATH_SOURCE` or `PATH_TESTS` is denied while
 the branch's active change has no `reports/*spec-audit*.md`. The switch `KIT_SPEC_AUDIT_GATE` in

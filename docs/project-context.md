@@ -718,7 +718,8 @@ services that must be started first, quirks of the local environment.
   and the rest stay free, so the report and the artifact fixes can always be written. Its switch
   `KIT_SPEC_AUDIT_GATE` in `sdd-harness.env` behaves like `KIT_PROTECT_SPECS` (by hand, warning at
   session start with `"0"`, commit only as `"1"`). A kit update replaces `lib.sh`,
-  `session-context.sh`, `settings.json`, `base-standards.md`, `openspec-implement` and the Cursor rule
+  `session-context.sh`, `settings.json`, `base-standards.md`, `openspec-implement`, the `spec-auditor`
+  agent (ticket check, open decisions, verdict, Linear tools, `opus`) and the Cursor rule
   `20-openspec.mdc`: re-apply the patch afterwards (commit `chore(harness): gate the apply on a
   spec-auditor review…`).
 - **The PHP analyzer now emits edges** (DIS-49): `imports` (file → class/interface/trait, one per
