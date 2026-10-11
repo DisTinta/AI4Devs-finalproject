@@ -138,6 +138,26 @@ describe('Requirement: Claim and evidence records mirror the database checks', (
     });
   });
 
+  // Not a scenario: a reversed span is reported on its last line, for the writer's error message.
+  it('reports a reversed span on endLine', () => {
+    // Act
+    const evidence = evidenceSchema.safeParse({
+      fileId: FILE_ID,
+      startLine: 5,
+      endLine: 4,
+      verification: 'none',
+      excerpt: null,
+    });
+    const span = provenanceSchema.safeParse({
+      ...provenance(),
+      inputSpans: [{ fileId: FILE_ID, startLine: 5, endLine: 4 }],
+    });
+
+    // Assert
+    expect(evidence.error?.issues.map((issue) => issue.path)).toEqual([['endLine']]);
+    expect(span.error?.issues.map((issue) => issue.path)).toEqual([['inputSpans', 0, 'endLine']]);
+  });
+
   // Not a scenario: every type but FACT stays open to an inferred claim.
   it('accepts an inferred claim of every type but FACT', () => {
     // Act

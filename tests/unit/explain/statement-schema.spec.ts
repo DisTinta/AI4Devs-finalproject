@@ -216,6 +216,20 @@ describe('Requirement: Model output quarantine', () => {
     expect(subcodes).toEqual(['invalid_shape', 'duplicate_evidence_id', 'invalid_shape', 'output_too_large']);
   });
 
+  // Not scenarios: `empty_evidence` only when every issue is an empty `evidenceIds` (design D3).
+  it('keeps empty_evidence for failures made only of empty evidence', () => {
+    // Arrange
+    const emptyAndExtra = output([{ ...statement([]), note: 'x' }]);
+    const emptyAnswer = output([statement()], '');
+    const twoEmpty = output([statement([]), statement([])]);
+
+    // Act
+    const subcodes = [emptyAndExtra, emptyAnswer, twoEmpty].map((text) => discarded(text).subcode);
+
+    // Assert
+    expect(subcodes).toEqual(['invalid_shape', 'invalid_shape', 'empty_evidence']);
+  });
+
   // Not a scenario: lengths are Unicode code points (design D6), so an emoji counts as one.
   it('counts statement length in Unicode code points', () => {
     // Arrange
