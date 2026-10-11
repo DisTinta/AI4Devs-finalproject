@@ -501,6 +501,31 @@ services that must be started first, quirks of the local environment.
     (`fixtures/<name>`) and `npm -w packages/api run dev` runs with cwd `packages/api`, so a
     relative root is joined to the injected absolute `workspaceRoot` (computing it in the API
     composition is DIS-39). An absolute `rootPath` is used as is.
+- **Claims, typing and the model-output quarantine are pure core** (DIS-38). Zod is a dependency of
+  `@codemind/core` since then (same `^4.6.5` as `adapters/llm`).
+  - `packages/core/src/knowledge/{claim,evidence}.ts`: `claimSchema` / `evidenceSchema` /
+    `provenanceSchema` with the types inferred from them. They mirror `0002_history-claims`: an `L2`
+    `FACT` neither type-checks nor validates, `L2` needs a provenance (`model`, `promptHash`,
+    `inputSpans`, `createdAt`), `confidence` is `null` or in [0, 1]. `CLAIM_*` and
+    `EVIDENCE_VERIFICATIONS` equal the SQL enums (a test reads the migration). Line numbers are capped at
+    `SPAN_LINE_MAX` (2 147 483 647, the Postgres `integer`). `knowledge/` is a
+    seed fingerprint input, so touching these files means `npm run seed:build`.
+  - `packages/core/src/explain/typing-rules.ts`: `typeStatement(chain)` is `FACT` only when every cited
+    span's `origin` is `anchor`/`exact` (fail closed: an unknown origin is `INFERENCE`; an empty
+    chain throws `RangeError`). It reads the origin as the Context Engine gave it (a
+    replacing span carries the best origin) and never sees a `layer`; how a `FACT` is stored given
+    `fact_only_from_l1` is DIS-39's open question.
+  - `packages/core/src/explain/statement-schema.ts`: `parseModelOutput(text, knownEvidenceIds)` —
+    size (`MAX_MODEL_OUTPUT_BYTES`, UTF-8) → JSON → strict schema (no `type` field; limits in
+    `explain/limits.ts`, character lengths in **code points**, as Zod 4.6.5 measures them) → repeated
+    ids → unknown ids. Any failure discards the whole output with a `SchemaViolationEvent`.
+  - Gotcha: **every object schema is `z.strictObject()`**; Zod 4's `z.object()` strips unknown keys
+    silently, which would let `"type":"FACT"` vanish instead of discarding the output.
+  - Gotcha: closed sets inside exported core schemas use `z.literal(ARRAY)`, not `z.enum(ARRAY)`:
+    TypeDoc expands the enum's object type into undocumented properties and `docs:coverage` warns.
+  - Gotcha: `SchemaViolationEvent` is **not** part of `AuditEvent` (`index/audit-event.ts`), whose
+    `sortEvents` reads `file`. It carries subcode, byte size, SHA-256 and `{ path, code }` per issue —
+    never a Zod `message`, `keys` or value; at most `MAX_EVENT_ISSUES` (20) issues plus `issueCount`. Core returns it; the transport logs it (DIS-39).
 - **`indexRepository` writes nothing until the whole graph is valid** (DIS-85,
   `packages/core/src/index/index-repository.ts`). Phases, each reported once to the optional
   `onProgress` when it starts: `confine` (`confinePath` lexically, then `realPath` of root and repo

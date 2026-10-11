@@ -13,7 +13,8 @@ alwaysApply: true
 - **npm workspaces** monorepo: one package per responsibility
 - **PostgreSQL** behind a repository port; SQL lives in the adapter, never in the domain
 - **Zod** for every schema: request validation, response serialisation and LLM output parsing
-  (a dependency of `packages/adapters/llm` since DIS-17; `packages/api` adds it with CM-HU-12)
+  (a dependency of `packages/adapters/llm` since DIS-17 and of `packages/core` since DIS-38;
+  `packages/api` adds it with CM-HU-12)
 - **Vitest** as the test runner, **Playwright** for end-to-end
   _(Playwright is a target; not yet a dependency — remove this note when installed)_
 - **ESLint** + `tsc --noEmit` + **dependency-cruiser** for the dependency rule
@@ -71,9 +72,17 @@ network access belong in an adapter.
 
 ## 4. Validation
 
-- Schemas live in `packages/api/schemas` and are the only description of a payload's shape.
-- Closed sets of domain values are declared once as a Zod enum and the TypeScript type is
-  derived from it with `z.infer`. Never maintain the list twice.
+- HTTP payload schemas live in `packages/api/schemas` and are the only description of a payload's
+  shape.
+- Domain validation schemas (records that mirror table checks, such as `claimSchema`, and the
+  quarantine of model output, `modelOutputSchema`) live in `packages/core`, next to the rule they
+  enforce. Every object schema there is built with `z.strictObject()`: Zod 4's `z.object()` strips
+  unknown keys silently.
+- Closed sets of domain values are declared once — an `as const` array in `packages/core`, from which
+  the TypeScript type and the Zod schema (`z.literal(ARRAY)`) are derived, or a Zod enum with the
+  type derived by `z.infer`. Never maintain the list twice. In core, prefer `z.literal(ARRAY)` over
+  `z.enum(ARRAY)` inside exported schemas: TypeDoc expands the enum's object type into undocumented
+  properties and `docs:coverage` warns.
 - Error messages are part of the contract with the client: one shape for every error,
   `{ error: { code, message, details } }`, and the code is stable.
 

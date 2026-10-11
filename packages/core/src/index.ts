@@ -3,3 +3,4 @@ export * from './knowledge/index.js';
 export * from './index/index.js';
 export * from './llm/index.js';
 export * from './context/index.js';
+export * from './explain/index.js';
