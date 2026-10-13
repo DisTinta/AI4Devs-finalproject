@@ -1,7 +1,9 @@
 import { isAbsolute, join } from 'node:path';
+import { z } from 'zod';
 import { redactSecrets } from '../index/secret-scanner.js';
 import { SourceUnavailable } from '../knowledge/errors.js';
 import type { FileKind } from '../knowledge/graph-file.js';
+import type { StoredSymbol } from '../knowledge/graph-read.js';
 import type { SymbolKind } from '../knowledge/graph-symbol.js';
 import { assertValidTraversal } from '../knowledge/read-arguments.js';
 import type { SourceTreePort } from '../ports/SourceTreePort.js';
@@ -107,7 +109,16 @@ export interface ContextPackRequest {
   tokenBudget?: number;
   /** Integer from 1 to `MAX_HOPS`; `DEFAULT_CONTEXT_HOPS` when absent. */
   hops?: number;
+  /**
+   * The anchor already computed for `question` (DIS-39 design D9), as the symbol search returns it;
+   * when given, the pack uses it and does not search symbols again. Each symbol must carry a
+   * well-formed file id.
+   */
+  anchors?: StoredSymbol[];
 }
+
+/** A well-formed file id, checked as the claim records check ids (core cannot import the adapter's). */
+const FILE_ID = z.uuid();
 
 /** A candidate's span, cut and estimated, with what the pack reports about it. */
 interface CandidateSpan extends CutSpan {
@@ -139,8 +150,8 @@ function linesOf(content: string): string[] {
  * @param dependencies The store, the source reader and the absolute workspace root.
  * @param request The project, the question, the budget and the hops.
  * @returns The pack.
- * @throws RangeError naming `workspaceRoot` when it is not absolute, or `tokenBudget` when it is not
- *   an integer in range.
+ * @throws RangeError naming `workspaceRoot` when it is not absolute, `tokenBudget` when it is not
+ *   an integer in range, or `anchors` when a given anchor symbol has no well-formed file id.
  * @throws InvalidStoreQuery naming `hops` when it is not an integer from 1 to `MAX_HOPS`.
  * @throws ProjectNotFound when the question has a term and `projectId` names no project.
  * @throws SourceUnavailable with reason `not-indexed` when the project has no indexed commit, or as
@@ -157,9 +168,12 @@ export async function buildContextPack(
     throw new RangeError(`tokenBudget must be an integer from ${TOKEN_BUDGET_MIN} to ${TOKEN_BUDGET_MAX}`);
   }
   assertValidTraversal(hops);
+  if (request.anchors !== undefined && !request.anchors.every((given) => FILE_ID.safeParse(given?.fileId).success)) {
+    throw new RangeError('anchors must each carry a well-formed file id');
+  }
   const common: Omit<PackCommon, 'omitted'> = { tokenBudget, estimator: TOKEN_ESTIMATOR };
 
-  const anchors = await anchor(store, projectId, question);
+  const anchors = request.anchors ?? (await anchor(store, projectId, question));
   if (anchors.length === 0) {
     return { ...common, status: 'empty', reason: 'no-anchor', spans: [], tokens: 0, baselineTokens: 0, omitted: 0 };
   }

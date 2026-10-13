@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { isAbsolute, join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { buildContextPack, estimateTokens, InvalidStoreQuery, ProjectNotFound, REDACTION_MARKER, SourceUnavailable } from '@codemind/core';
-import type { ContextPack, FilledContextPack, KnowledgeGraph, NewProject } from '@codemind/core';
+import { anchor, buildContextPack, estimateTokens, InvalidStoreQuery, ProjectNotFound, REDACTION_MARKER, SourceUnavailable } from '@codemind/core';
+import type { ContextPack, FilledContextPack, KnowledgeGraph, NewProject, StoredSymbol } from '@codemind/core';
 import { ACME_SHOP_PROJECT, acmeShopGraph } from '../../support/acme-shop-graph';
 import { createInMemoryStore } from '../../support/in-memory-store';
 import { createInMemorySourceTree } from '../../support/in-memory-source-tree';
@@ -303,6 +303,51 @@ describe('Requirement: Context pack', () => {
     });
     expect(withoutIds(actual)).toEqual(withoutIds(expected));
     expect(spied.reads.map((r) => r.root)).toEqual(plain.reads.map((r) => r.root));
+  });
+
+  it('A given anchor is used without searching again', async () => {
+    // Arrange
+    const { deps, projectId, calls } = doubles();
+    const anchors = await anchor(deps.store, projectId, Q1);
+    const searches = calls.findSymbols;
+
+    // Act
+    const given = await buildContextPack(deps, { projectId, question: Q1, anchors });
+    const searchesWhileBuilding = calls.findSymbols - searches;
+    const searched = await buildContextPack(deps, { projectId, question: Q1 });
+
+    // Assert
+    expect(searchesWhileBuilding).toBe(0);
+    expect(given).toEqual(searched);
+    expect(await buildContextPack(deps, { projectId, question: Q1, anchors: [] })).toMatchObject({
+      status: 'empty',
+      reason: 'no-anchor',
+    });
+  });
+
+  it('A given anchor symbol without a file id is rejected', async () => {
+    // Arrange
+    const { deps, projectId, calls } = doubles();
+    const [first] = await anchor(deps.store, projectId, Q1);
+    const before = { ...calls };
+    const withoutFileId = { ...first! } as Partial<StoredSymbol>;
+    delete withoutFileId.fileId;
+
+    // Act
+    const errors = await Promise.all(
+      [withoutFileId, { ...first!, fileId: 'not-a-uuid' }].map((symbolWithout) =>
+        rejectionOf(() =>
+          buildContextPack(deps, { projectId, question: Q1, anchors: [symbolWithout as StoredSymbol] }),
+        ),
+      ),
+    );
+
+    // Assert
+    for (const error of errors) {
+      expect(error).toBeInstanceOf(RangeError);
+      expect((error as RangeError).message).toContain('anchors');
+    }
+    expect(calls).toEqual(before);
   });
 });
 
