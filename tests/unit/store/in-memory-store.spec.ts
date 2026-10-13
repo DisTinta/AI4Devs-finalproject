@@ -722,6 +722,10 @@ describe('in-memory StorePort double', () => {
       const invalid = [
         { ...untyped, claim: { ...untyped.claim, provenance } as unknown as Claim },
         { ...claimItem(projectId, fileId, 1, 2), evidence: [] },
+        {
+          ...claimItem(projectId, fileId, 1, 2),
+          evidence: [...claimItem(projectId, fileId, 1, 2).evidence, { ...claimItem(projectId, fileId, 5, 4).evidence[0]! }],
+        },
         claimItem(otherId, fileId, 1, 2),
         claimItem(projectId, foreignFile, 1, 2),
       ];
@@ -733,7 +737,7 @@ describe('in-memory StorePort double', () => {
 
       // Assert
       expect(errors.every((e) => e instanceof InvalidStoreQuery)).toBe(true);
-      expect(errors.map((e) => (e as InvalidStoreQuery).argument)).toEqual(['claims', 'claims', 'claims', 'claims']);
+      expect(errors.map((e) => (e as InvalidStoreQuery).argument)).toEqual(['claims', 'claims', 'claims', 'claims', 'claims']);
       expect(loaded.storedClaims()).toEqual([]);
     });
   });

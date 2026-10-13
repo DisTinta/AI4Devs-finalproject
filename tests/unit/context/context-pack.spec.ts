@@ -341,7 +341,7 @@ describe('Requirement: Context pack', () => {
 
     // Act
     const errors = await Promise.all(
-      [withoutFileId, { ...first!, fileId: 'not-a-uuid' }].map((symbolWithout) =>
+      [withoutFileId, { ...first!, fileId: 'not-a-uuid' }, null].map((symbolWithout) =>
         rejectionOf(() =>
           buildContextPack(deps, { projectId, question: Q1, anchors: [symbolWithout as StoredSymbol] }),
         ),

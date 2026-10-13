@@ -162,6 +162,8 @@ describe('Requirement: Explain request', () => {
       expect(error).toBeInstanceOf(InvalidExplainRequest);
       expect((error as InvalidExplainRequest).field).toBe('question');
       expect((error as InvalidExplainRequest).code).toBe('INVALID_EXPLAIN_REQUEST');
+      expect((error as InvalidExplainRequest).name).toBe('InvalidExplainRequest');
+      expect((error as InvalidExplainRequest).message).toBe('Invalid explain request: question');
     }
     expect(d.loaded.calls).toMatchObject({ findSymbols: 0, neighbors: 0, getProject: 0, findClaimsOverlapping: 0 });
     expect(d.sourceCalls).toEqual({ readFileAt: 0, readFilesAt: 0 });
@@ -415,6 +417,33 @@ describe('Requirement: Precedence and UNKNOWN answers', () => {
     }
   });
 
+  // Not a scenario: the budget and hops of the request reach the pack.
+  it('builds the pack with the hops and budget of the request', async () => {
+    // Arrange
+    const d = doubles({ script: citingIds('ok', [['E1']]) });
+    const packWith = async (request: { hops?: number; tokenBudget?: number }) => {
+      const pack = await buildContextPack(
+        { store: d.loaded.store, source: d.deps.source, workspaceRoot: WORKSPACE },
+        { projectId: d.projectId, question: Q1, ...request },
+      );
+      return pack.spans.map((span) => [span.path, span.startLine, span.endLine]);
+    };
+    const sentSpans = (i: number) =>
+      (JSON.parse(d.model.requests[i]!.messages[1]!.content) as { evidence: Array<{ path: string; startLine: number; endLine: number }> }).evidence.map(
+        (e) => [e.path, e.startLine, e.endLine],
+      );
+
+    // Act
+    await explain(d.deps, { projectId: d.projectId, question: Q1, hops: 1 });
+    await explain(d.deps, { projectId: d.projectId, question: Q1, tokenBudget: 1000 });
+
+    // Assert
+    expect(await packWith({ hops: 1 })).not.toEqual(await packWith({}));
+    expect(await packWith({ tokenBudget: 1000 })).not.toEqual(await packWith({}));
+    expect(sentSpans(0)).toEqual(await packWith({ hops: 1 }));
+    expect(sentSpans(1)).toEqual(await packWith({ tokenBudget: 1000 }));
+  });
+
   it('The question is anchored once', async () => {
     // Arrange
     const reference = doubles();
@@ -606,7 +635,10 @@ describe('Requirement: Persistence failure', () => {
     expect(pack.spans[0]!.text).toContain(SENTINEL);
     expect(answer).toMatchObject({ kind: 'answered', persisted: false, answer: 'La respuesta.', priorClaims: [] });
     if (answer.kind !== 'answered') return;
-    expect(answer.statements.map((s) => s.evidenceIds)).toEqual([['E1', 'E2'], ['E1']]);
+    expect(answer.statements.map((s) => [s.evidenceIds, s.status, s.verification])).toEqual([
+      [['E1', 'E2'], 'current', 'none'],
+      [['E1'], 'current', 'none'],
+    ]);
     expect(answer.evidence.map((e) => [e.id, e.path, e.startLine])).toEqual([
       ['E1', pack.spans[0]!.path, pack.spans[0]!.startLine],
       ['E2', pack.spans[1]!.path, pack.spans[1]!.startLine],
