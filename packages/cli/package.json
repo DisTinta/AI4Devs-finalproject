@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@codemind/adapter-git": "*",
+    "@codemind/adapter-llm": "*",
     "@codemind/adapter-store-postgres": "*",
     "@codemind/analyzer-php": "*",
     "@codemind/core": "*",

@@ -9,6 +9,7 @@
   "references": [
     { "path": "../core" },
     { "path": "../adapters/git" },
+    { "path": "../adapters/llm" },
     { "path": "../adapters/store-postgres" },
     { "path": "../analyzers/php" }
   ]

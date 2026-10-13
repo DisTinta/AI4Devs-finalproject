@@ -92,13 +92,14 @@ Verified against `package.json` (root and per package). If a command is not here
   `CMD_DOCS_COVERAGE` in `.claude/sdd-harness.env` points here. `packages/web` is out of scope (React
   UI, not the API surface). As the public surface grows, undocumented exports fail this gate.
 - CLI: `npm run cli` (root) — `tsx --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts`.
-  `tsconfig.run.json` maps `@codemind/core`, `adapter-git`, `adapter-store-postgres` and
-  `analyzer-php` to their `src/`, so the CLI never runs a stale or missing `dist/` (DIS-86 design
-  D10). `index` and `projects` are real: `npm run cli -- index <path> --name <name> --language php
+  `tsconfig.run.json` maps `@codemind/core`, `adapter-git`, `adapter-llm`, `adapter-store-postgres`
+  and `analyzer-php` to their `src/`, so the CLI never runs a stale or missing `dist/` (DIS-86 design
+  D10). `index`, `projects` and `ask` are real: `npm run cli -- index <path> --name <name> --language php
   [--framework laravel|fastify|none] [--json]` (see the gotcha on the `index` command) and
   `npm run cli -- projects` (DIS-92: every stored project, one line each, read through
-  `StorePort.listProjects` in a transaction it always rolls back; needs `DATABASE_URL`); `ask` and
-  `impact` are stubs.
+  `StorePort.listProjects` in a transaction it always rolls back; needs `DATABASE_URL`) and
+  `npm run cli -- ask <project> "<question>"` (DIS-40, see the gotcha on the `ask` command);
+  `impact` is a stub.
 - Migrations: `npm run db:migrate` (apply all pending) / `npm run db:rollback` (revert the latest
   one) — `tsx packages/adapters/store-postgres/src/migrate.ts up|down`, node-pg-migrate with SQL
   files `NNNN_name.up.sql` / `NNNN_name.down.sql` in `packages/adapters/store-postgres/migrations/`
@@ -181,13 +182,13 @@ Verified against `package.json` (root and per package). If a command is not here
 - **Workspace packages resolve to their sources in tests** (DIS-23 for `@codemind/core`, the first
   cross-package import; DIS-86 added `@codemind/adapter-git`, `@codemind/adapter-store-postgres` and
   `@codemind/analyzer-php`, which the CLI imports by name; DIS-17 added `@codemind/adapter-llm`, which
-  its tests import by name). Vitest aliases each to its
+  its tests import by name and, since DIS-40, the CLI too). Vitest aliases each to its
   `packages/*/src/index.ts` (`vitest.config.ts`, inherited by `vitest.stryker.config.ts`), and
   `tests/tsconfig.json` has the matching `paths` entries. `npm run cli` does the same through
   `packages/cli/tsconfig.run.json`. Any other `tsx` script resolves them through `node_modules` to
   `packages/*/dist/`, so run `npx tsc --build` first or you run stale code. `store-postgres`,
   `adapters/git`, `adapters/llm` and `analyzers/php` have a project reference to core; `packages/cli` references all
-  four.
+  five (core and the four adapters/analyzers).
 - `tests/support/` holds helpers shared by unit and integration tests, such as `sample-graph.ts`,
   a synthetic `KnowledgeGraph` builder.
 - **Hook order: Vitest 1.6 runs all hooks of one suite in parallel.** This is
@@ -732,6 +733,23 @@ services that must be started first, quirks of the local environment.
   CM-HU-18** (PH-02). After a local `make up`, the database holds a committed acme-shop with the seed's
   deterministic ids: integration tests that need no acme-shop, or that compare against seed ids, clear
   the projects they depend on inside their harness transaction first.
+- **The CLI `ask` command** (DIS-40, `packages/cli/src/commands/ask.ts`): `ask <project> <question>`,
+  the transport of `explain`. Check order, all before any connection: the arguments (`USAGE`, exit
+  `2`, fixed messages that never quote an argument; a question starting with `-` goes after `--`),
+  the question as `explain` checks it (`INVALID_EXPLAIN_REQUEST`, exit `2`), `DATABASE_URL`
+  (`MISSING_CONFIG`) and `llmConfigFromEnv` (`LLM_CONFIG_INVALID`, naming the variable only).
+  Then a `pg.Pool` of its own (`application_name: 'codemind-ask'`, no transaction held while the
+  model answers; each claim write commits on its own connection), probed with one `connect()`
+  (`DATABASE_UNAVAILABLE`), always ended before it returns. `<project>` is the **name**, matched
+  exactly (no trim, no case folding) through `listProjects`; an id is not accepted
+  (`PROJECT_NOT_FOUND`). A live `LLM_*` with `DAILY_BUDGET_USD` is wrapped in `withDailyBudget`.
+  stdout holds only the answer (statements `[FACT]`/`[INFERENCE]`, `[stale]`, cited spans, excerpts
+  cut to 5 lines, prior claims, `note: claims not saved` last when not stored) or
+  `UNKNOWN (<reason>)`; every untrusted text is escaped line by line. stderr holds the answer's
+  events as JSON lines and, on failure, one `{"error":{…}}` line; the question never reaches it.
+  Exit `0` for an answer or an `UNKNOWN`, `1` configuration, connection, domain or `INTERNAL`
+  (`unexpected error`), `2` usage. **Until DIS-21 (answer cache), `ask` in evaluation mode (no
+  `LLM_BASE_URL` nor `LLM_API_KEY`) answers `UNKNOWN (llm-required)` even for the sample questions.**
 - **Vitest can report success with no tests** (`passWithNoTests: true`). A green suite is not
   evidence that behaviour is covered.
 - **The repo is mid-build (Entrega 2).** `verify` is a placeholder that no-ops; `seed:build`

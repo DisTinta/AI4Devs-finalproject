@@ -7,6 +7,7 @@
     "paths": {
       "@codemind/core": ["../core/src/index.ts"],
       "@codemind/adapter-git": ["../adapters/git/src/index.ts"],
+      "@codemind/adapter-llm": ["../adapters/llm/src/index.ts"],
       "@codemind/adapter-store-postgres": ["../adapters/store-postgres/src/index.ts"],
       "@codemind/analyzer-php": ["../analyzers/php/src/index.ts"]
     }
