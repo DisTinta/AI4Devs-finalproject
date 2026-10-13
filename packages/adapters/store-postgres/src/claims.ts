@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { ClientBase } from 'pg';
 import { InvalidStoreQuery, ProjectNotFound } from '@codemind/core';
-import type { ClaimItem, SavedClaim, StoredClaim, StoredEvidence } from '@codemind/core';
+import type { ClaimItem, ClaimStatus, SavedClaim, StoredClaim, StoredEvidence } from '@codemind/core';
 import { CHECK_CLAIM_FILES, INSERT_CLAIMS, INSERT_EVIDENCE } from './queries.js';
 
 // The claim write and the row mapping of the overlap read (DIS-39 design D7, D11). The ids are
@@ -11,18 +11,30 @@ import { CHECK_CLAIM_FILES, INSERT_CLAIMS, INSERT_EVIDENCE } from './queries.js'
 /**
  * Writes the validated claims of one answer on `client`, which is already inside the transaction or
  * savepoint of the call: checks the project and the ownership of every cited file, inserts the
- * claims, then their evidence (the `saveEvidence` step).
+ * claims, then their evidence (the `saveEvidence` step). When `readAtCommit` is given and is not the
+ * commit the project is indexed at, read under the same lock, every claim is written `stale`.
  *
  * @throws ProjectNotFound when the project does not exist.
  * @throws InvalidStoreQuery naming `claims` when an evidence cites a file of another project.
  */
-export async function writeClaims(client: ClientBase, projectId: string, items: ClaimItem[]): Promise<SavedClaim[]> {
+export async function writeClaims(
+  client: ClientBase,
+  projectId: string,
+  items: ClaimItem[],
+  readAtCommit?: string,
+): Promise<SavedClaim[]> {
   const fileIds = [...new Set(items.flatMap((item) => item.evidence.map((e) => e.fileId.toLowerCase())))];
-  const { rows } = await client.query<{ owned: number }>(CHECK_CLAIM_FILES, [projectId, fileIds]);
+  const { rows } = await client.query<{ owned: number; indexed_commit: string | null }>(CHECK_CLAIM_FILES, [projectId, fileIds]);
   if (rows.length === 0) throw new ProjectNotFound(projectId);
   if (rows[0].owned !== fileIds.length) throw new InvalidStoreQuery('claims', 'must cite only files of the project');
+  // Code the project no longer indexes: the claims are true of an older commit (DIS-39).
+  const outdated = readAtCommit !== undefined && readAtCommit !== rows[0].indexed_commit;
 
-  const saved = items.map((item) => ({ claimId: randomUUID(), evidenceIds: item.evidence.map(() => randomUUID()) }));
+  const saved = items.map((item) => ({
+    claimId: randomUUID(),
+    evidenceIds: item.evidence.map(() => randomUUID()),
+    status: (outdated ? 'stale' : item.claim.status) as ClaimStatus,
+  }));
   const claims = items.map((item) => item.claim);
   await client.query(INSERT_CLAIMS, [
     projectId,
@@ -33,7 +45,7 @@ export async function writeClaims(client: ClientBase, projectId: string, items: 
     claims.map((claim) => claim.layer),
     claims.map((claim) => claim.type),
     claims.map((claim) => claim.confidence),
-    claims.map((claim) => claim.status),
+    saved.map((entry) => entry.status),
     claims.map((claim) => (claim.provenance === undefined ? null : JSON.stringify(claim.provenance))),
   ]);
 

@@ -105,7 +105,9 @@ export interface StorePort {
    * and evidence passes its record schema, every item has at least one evidence and every claim's
    * project id equals `projectId` (in any letter case), before any statement; then, inside the write,
    * the project exists and every cited file belongs to it. Every claim and evidence of the call is
-   * written, or none. An empty list resolves `[]` without writing, after the project check. On its own
+   * written, or none. When `readAtCommit` is given and is not the project's indexed commit at the
+   * moment of the write (read under the same lock), every claim is written `stale`, whatever its
+   * record says, and each result says so (DIS-39). An empty list resolves `[]` without writing, after the project check. On its own
    * connections the write commits before returning; on a caller-owned transaction it neither commits
    * nor rolls it back, and on failure undoes only its own writes.
    *
@@ -116,7 +118,7 @@ export interface StorePort {
    * @throws ClaimWriteFailed when the database fails once the write has started, rollback included;
    *   it carries no text of the database error. A failure to obtain a connection propagates unchanged.
    */
-  saveClaims(projectId: string, items: ClaimItem[]): Promise<SavedClaim[]>;
+  saveClaims(projectId: string, items: ClaimItem[], readAtCommit?: string): Promise<SavedClaim[]>;
 
   /**
    * Reads the project's claims with at least one evidence on the file of one of `spans` whose lines

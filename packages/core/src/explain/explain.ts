@@ -87,7 +87,8 @@ export async function explain(dependencies: ExplainDependencies, request: Explai
   );
   const priorClaims = prior.map(toPriorClaim);
   try {
-    const saved = await store.saveClaims(projectId, items);
+    // The pack's commit: claims read at code the project no longer indexes are written stale.
+    const saved = await store.saveClaims(projectId, items, pack.commit);
     return storedAnswer(parsed.output.answer, statements, saved, priorClaims);
   } catch (error) {
     if (!(error instanceof ClaimWriteFailed)) throw error;
@@ -120,13 +121,25 @@ function storedAnswer(
     kind: 'answered',
     persisted: true,
     answer,
-    statements: statements.map((statement, i) => ({
-      text: statement.text,
-      type: statement.type,
-      status: 'current',
-      verification: 'none',
-      evidenceIds: saved[i].evidenceIds,
-    })),
+    statements: statements.map((statement, i) =>
+      saved[i].status === 'stale'
+        ? {
+            text: statement.text,
+            // As for a prior claim: a stale statement is never shown as a fact (design D11).
+            type: 'INFERENCE' as const,
+            status: 'stale' as const,
+            warning: 'stale-evidence' as const,
+            verification: 'none' as const,
+            evidenceIds: saved[i].evidenceIds,
+          }
+        : {
+            text: statement.text,
+            type: statement.type,
+            status: 'current' as const,
+            verification: 'none' as const,
+            evidenceIds: saved[i].evidenceIds,
+          },
+    ),
     evidence: statements.flatMap((statement, i) =>
       statement.spans.map((span, j) => evidenceEntry(saved[i].evidenceIds[j], span)),
     ),

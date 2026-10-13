@@ -32,6 +32,12 @@ under, in the order given.
 - The write SHALL cooperate with a caller-owned transaction as `saveGraph` does: on its own
   connections it commits before returning; on a caller-owned transaction it neither commits nor rolls
   it back, and on failure undoes only its own writes and leaves that transaction usable.
+- The caller MAY give the commit its evidence was read at. When it is given and it is not the
+  project's indexed commit at the moment of the write (read under the same lock that checks the
+  files), every claim of the call SHALL be written with status `stale`, whatever status its record
+  holds, and the result SHALL say so for each claim: a claim inferred from code the project no longer
+  indexes is never stored `current`. A cited file the re-index deleted still fails the ownership
+  check.
 - The in-memory store double used by unit tests SHALL behave the same way and SHALL let a test inject
   a failure at the write of a given evidence.
 
@@ -72,6 +78,19 @@ under, in the order given.
 - **AND** when claims are saved with evidence citing a file of another project, the call fails with
   `InvalidStoreQuery` naming `claims`, nothing was written, and a following query on the caller's
   transaction succeeds
+
+#### Scenario: Claims read at an older commit are written stale
+
+- **GIVEN** a project indexed at commit `C2` with file `a.php`
+- **WHEN** a `current` claim is saved with evidence on `a.php` read at `C1`, and another read at `C2`
+- **THEN** the first is stored `stale` and its result says `stale`, and the second is stored
+  `current` and its result says `current`
+
+#### Scenario: Claims read at an older commit are written stale (in-memory double)
+
+- **GIVEN** the in-memory store with a project indexed at `C2`
+- **WHEN** a `current` claim is saved read at `C1`, and another read at `C2`
+- **THEN** the first is stored `stale` and the second `current`, and each result says so
 
 #### Scenario: Saving claims on the store's own connections commits
 

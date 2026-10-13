@@ -16,7 +16,9 @@ absolute workspace root and the clock. Before any call to the store, the source 
 - the request MUST be an object holding only `projectId`, `question`, `tokenBudget` and `hops`; a
   request that is not an object, or that holds any other field, is rejected naming `request`;
 - `projectId` MUST be a string; its form is not checked here, because anchoring reports a malformed
-  or unknown id as `ProjectNotFound`;
+  or unknown id as `ProjectNotFound` whenever it searches; a question without search terms (only
+  stop words, short tokens or punctuation) answers `no-anchor` without checking the project, as the
+  context pack does;
 - the question MUST be a string of 1 to 1 000 Unicode code points (`MAX_QUESTION_CHARS`, an exported
   constant) that is not only whitespace; an astral character, such as an emoji, counts as one;
 - `tokenBudget` and `hops`, when given, MUST be integers in their ranges;
@@ -196,9 +198,9 @@ evidence ids name (the typing rule of `claims-and-typing`), store one claim per 
 evidence, and answer with:
 
 - `kind: 'answered'`, `persisted: true`, the model's `answer`, `events: []`, the prior claims, and
-  `statements`, each with its `text`, its `type` (`FACT` or `INFERENCE`), `status: 'current'`,
-  `verification: 'none'` and `evidenceIds`, the ids of its evidence rows in the order the model cited
-  them;
+  `statements`, each with its `text`, its `type` (`FACT` or `INFERENCE`), its `status` (`current`,
+  or `stale` when the claims were written stale, below), `verification: 'none'` and `evidenceIds`,
+  the ids of its evidence rows in the order the model cited them;
 - `evidence`, one entry per citation, in statement order then citation order, each with the id of
   its stored evidence row, its file id, file path, first and last line and excerpt.
 
@@ -213,6 +215,12 @@ stored as an `L2` `INFERENCE` claim whose provenance keeps `FACT`, and is answer
 
 Each cited span SHALL give one evidence row of that claim, with the span's file id, first and last
 line, verification `none` and, as excerpt, the span's redacted text.
+
+Explain SHALL give the store the commit the pack was read at. When the project was re-indexed at
+another commit while the answer was being produced, the store writes the claims `stale`
+(`graph-store`, "Claim write"); the answer then shows each statement with `status: 'stale'`,
+`warning: 'stale-evidence'` and, as for a prior claim, never as `FACT` (a `FACT` statement is shown as
+`INFERENCE`), while its provenance keeps the statement type.
 
 #### Scenario: An answer with evidence is typed, stored and returned
 
@@ -242,6 +250,16 @@ line, verification `none` and, as excerpt, the span's redacted text.
 - **THEN** the answer's evidence holds three entries, for the spans of `E1`, `E2` and `E1` in that
   order, each with a distinct stored evidence id
 - **AND** the statements' evidence ids are the first two ids and the third id
+
+#### Scenario: An answer written after a re-index is stored stale
+
+- **GIVEN** acme-shop loaded in the in-memory store, and a live model during whose call the project is
+  re-indexed at another commit
+- **WHEN** the price question is explained with an output whose first statement cites only the
+  anchor span of the calculator and whose second cites a `heuristic` span
+- **THEN** the answer is `answered` with `persisted: true`, and both statements have
+  `status: 'stale'` and `warning: 'stale-evidence'`, the first shown as `INFERENCE`
+- **AND** both stored claims are `stale`, with statement types `FACT` and `INFERENCE`
 
 #### Scenario: The subject of a claim is the symbol of its first cited span
 

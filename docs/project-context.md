@@ -567,7 +567,9 @@ services that must be started first, quirks of the local environment.
     `mapWriteError`: every database failure once the write started becomes `ClaimWriteFailed`, no
     cause, no database text; a connect failure propagates). `findClaimsOverlapping(projectId, spans)`
     returns at most `MAX_PRIOR_CLAIMS` (20), newest first, project-scoped, inclusive overlap; prior
-    claims show a stale `FACT` as `INFERENCE` with `warning: 'stale-evidence'`.
+    claims show a stale `FACT` as `INFERENCE` with `warning: 'stale-evidence'`. `explain` passes the
+    pack's `commit` as `readAtCommit`: when a re-index moved the project's indexed commit during the
+    answer, the claims are written `stale` and the answer's statements are shown stale too.
   - Gotcha: claims are written with `created_at = clock_timestamp()`, not the column default
     `now()` (the transaction start), so "newest first" holds for claims written in one transaction.
 - **`indexRepository` writes nothing until the whole graph is valid** (DIS-85,

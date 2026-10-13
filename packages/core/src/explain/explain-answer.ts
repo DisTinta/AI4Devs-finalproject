@@ -25,10 +25,12 @@ export interface AnswerEvidence {
 export interface AnswerStatement {
   /** The statement as the model wrote it. */
   text: string;
-  /** `FACT` or `INFERENCE`, by the typing rule. */
+  /** `FACT` or `INFERENCE`, by the typing rule; never `FACT` when stale. */
   type: StatementType;
-  /** Always `current`: the statement was just made. */
-  status: 'current';
+  /** `current`, or `stale` when the project was re-indexed while the answer was produced. */
+  status: ClaimStatus;
+  /** Present only when stale. */
+  warning?: 'stale-evidence';
   /** Always `none`: citations are not verified yet (DIS-68). */
   verification: 'none';
   /** The ids of its evidence, in the order the model cited them. */

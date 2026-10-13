@@ -71,6 +71,8 @@ export interface FilledContextPack extends PackCommon {
   tokens: number;
   /** Estimated tokens of the whole redacted files of the spans, each file once. */
   baselineTokens: number;
+  /** The indexed commit every file of the pack was read at (DIS-39). */
+  commit: string;
 }
 
 /** A pack with no span: the question anchors nothing, or no span fits the budget. */
@@ -209,6 +211,7 @@ export async function buildContextPack(
     tokens: fitted.tokens,
     baselineTokens,
     omitted: fitted.omitted,
+    commit,
   };
 }
 

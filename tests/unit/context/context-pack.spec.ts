@@ -356,6 +356,18 @@ describe('Requirement: Context pack', () => {
     expect(calls).toEqual(before);
   });
 
+  it('A pack names the commit it was read at', async () => {
+    // Arrange
+    const { deps, projectId, batchReads } = doubles();
+
+    // Act
+    const pack = filled(await buildContextPack(deps, { projectId, question: Q1 }));
+
+    // Assert
+    expect(pack.commit).toBe(COMMIT);
+    expect(batchReads.map((read) => read.commit)).toEqual([COMMIT]);
+  });
+
   it('The files of a pack are read in one batch', async () => {
     // Arrange: three anchored symbols in three files.
     const { deps, projectId, sourceCalls, batchReads } = ownProject(

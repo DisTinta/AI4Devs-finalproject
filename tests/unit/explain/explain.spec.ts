@@ -627,6 +627,68 @@ describe('Requirement: Answer with typed statements', () => {
   });
 });
 
+describe('Requirement: Answer with typed statements (re-index)', () => {
+  it('An answer written after a re-index is stored stale', async () => {
+    // Arrange: the model's call stands for the time a re-index needs to move the indexed commit.
+    let reindex = (): void => undefined;
+    const d = doubles({
+      script: (prompt) => {
+        reindex();
+        const calculator = prompt.evidence.find((e) => e.path === 'app/Services/PriceCalculator.php')!;
+        const other = prompt.evidence.find((e) => e.id !== calculator.id && heuristicPaths.has(`${e.path}:${e.startLine}`))!;
+        return modelOutput('ok', [
+          { text: 'compute calcula el precio.', evidenceIds: [calculator.id] },
+          { text: 'otra pieza interviene.', evidenceIds: [other.id] },
+        ]);
+      },
+    });
+    const pack = await packOf(d);
+    const heuristicPaths = new Set(pack.spans.filter((s) => s.origin === 'heuristic').map((s) => `${s.path}:${s.startLine}`));
+    expect(pack.spans.find((s) => s.path === 'app/Services/PriceCalculator.php')?.origin).toBe('anchor');
+    reindex = () => d.loaded.setIndexedCommit(d.projectId, 'd'.repeat(40));
+
+    // Act
+    const answer = await explain(d.deps, { projectId: d.projectId, question: Q1 });
+
+    // Assert
+    expect(answer).toMatchObject({ kind: 'answered', persisted: true });
+    if (answer.kind !== 'answered') return;
+    expect(answer.statements.map((s) => [s.type, s.status, s.warning])).toEqual([
+      ['INFERENCE', 'stale', 'stale-evidence'],
+      ['INFERENCE', 'stale', 'stale-evidence'],
+    ]);
+    const stored = d.loaded.storedClaims();
+    expect(stored.map((claim) => claim.status)).toEqual(['stale', 'stale']);
+    expect(stored.map((claim) => (claim.provenance as { statementType?: string }).statementType)).toEqual(['FACT', 'INFERENCE']);
+  });
+
+  // Not a scenario: without a re-index the statements stay current, without a warning.
+  it('keeps the statements current when the indexed commit did not move', async () => {
+    // Arrange
+    const d = doubles({ script: citingIds('ok', [['E1']]) });
+
+    // Act
+    const answer = await explain(d.deps, { projectId: d.projectId, question: Q1 });
+
+    // Assert
+    expect(answer.kind === 'answered' && answer.statements.map((s) => [s.status, 'warning' in s])).toEqual([['current', false]]);
+  });
+
+  // Not a scenario (Minor 4 of the adversarial review): a question without search terms answers
+  // no-anchor without checking the project, as the context pack does.
+  it('answers no-anchor for a question without terms, whatever the project id', async () => {
+    // Arrange
+    const d = doubles();
+
+    // Act
+    const answer = await explain(d.deps, { projectId: 'nope', question: '¿qué?' });
+
+    // Assert
+    expect(answer).toMatchObject({ kind: 'unknown', reason: 'no-anchor' });
+    expect(d.loaded.calls.findSymbols).toBe(0);
+  });
+});
+
 describe('Requirement: Persistence failure', () => {
   it('A failed write still answers, unsaved and without leaking', async () => {
     // Arrange: the first span's file holds the sentinel; the second claim's evidence cites it.

@@ -66,6 +66,8 @@ export interface InMemoryStore {
   seedClaim(seed: SeedClaim): string;
   /** Every stored claim, in write order. */
   storedClaims(): StoredClaim[];
+  /** Moves the project's indexed commit, as a re-index would. */
+  setIndexedCommit(projectId: string, commit: string): void;
 }
 
 /** A claim to seed: its record, its evidence and the instant it was written (ISO 8601). */
@@ -291,7 +293,7 @@ export function createInMemoryStore({
       return [...projectRows.values()].sort((a, b) => byteOrder(a.name, b.name)).map((p) => ({ ...p }));
     },
 
-    async saveClaims(projectId: string, items: ClaimItem[]): Promise<SavedClaim[]> {
+    async saveClaims(projectId: string, items: ClaimItem[], readAtCommit?: string): Promise<SavedClaim[]> {
       calls.saveClaims += 1;
       // Same order as the Postgres adapter (DIS-39 design D7): id form, records, project, files.
       if (!UUID.test(projectId)) throw new ProjectNotFound(projectId);
@@ -301,6 +303,7 @@ export function createInMemoryStore({
       if (!items.every((item) => item.evidence.every((e) => ownsFile(e.fileId)))) {
         throw new InvalidStoreQuery('claims', 'must cite only files of the project');
       }
+      const outdated = readAtCommit !== undefined && readAtCommit !== project.indexedCommit;
       // Built aside and committed at the end, so an injected failure leaves nothing (all or nothing).
       const rows: StoredClaimRow[] = items.map((item, i) => {
         const id = randomUUID();
@@ -308,10 +311,11 @@ export function createInMemoryStore({
           if (failClaimWrite?.claim === i && failClaimWrite.evidence === j) throw new ClaimWriteFailed();
           return { ...e, fileId: e.fileId.toLowerCase(), id: randomUUID(), path: files.get(e.fileId.toLowerCase())!.path };
         });
-        return { projectId: project.id, claim: { ...item.claim, projectId: project.id, id, createdAt: nextStamp(), evidence } };
+        const status = outdated ? 'stale' : item.claim.status;
+        return { projectId: project.id, claim: { ...item.claim, projectId: project.id, status, id, createdAt: nextStamp(), evidence } as StoredClaim };
       });
       claimRows.push(...rows);
-      return rows.map((row) => ({ claimId: row.claim.id, evidenceIds: row.claim.evidence.map((e) => e.id) }));
+      return rows.map((row) => ({ claimId: row.claim.id, evidenceIds: row.claim.evidence.map((e) => e.id), status: row.claim.status }));
     },
 
     async findClaimsOverlapping(projectId: string, spans: ClaimSpan[]): Promise<StoredClaim[]> {
@@ -395,5 +399,11 @@ export function createInMemoryStore({
     },
   };
 
-  return { store, projectIds, fileIds, calls, seedClaim, storedClaims: () => claimRows.map((row) => row.claim) };
+  /** Moves the indexed commit of a loaded project. */
+  function setIndexedCommit(projectId: string, commit: string): void {
+    const project = projectOf(projectId);
+    projectRows.set(project.id, { ...project, indexedCommit: commit });
+  }
+
+  return { store, projectIds, fileIds, calls, seedClaim, setIndexedCommit, storedClaims: () => claimRows.map((row) => row.claim) };
 }

@@ -221,6 +221,26 @@ describeWithDatabase('graph store claim operations (DIS-39)', () => {
       expect(await rowCounts(projectId)).toEqual({ claims: 0, evidence: 0 });
     });
 
+    it('Claims read at an older commit are written stale', async () => {
+      // Arrange
+      const { store } = stores();
+      const { projectId, fileId } = await projectWith('a.php');
+      const a = fileId.get('a.php')!;
+      const c1 = '1'.repeat(40);
+      const c2 = '2'.repeat(40);
+      await db().query('UPDATE project SET indexed_commit = $2 WHERE id = $1', [projectId, c2]);
+
+      // Act
+      const [old] = await store.saveClaims(projectId, [claimItem(projectId, [[a, 1, 2]])], c1);
+      const [fresh] = await store.saveClaims(projectId, [claimItem(projectId, [[a, 3, 4]])], c2);
+
+      // Assert
+      expect([old!.status, fresh!.status]).toEqual(['stale', 'current']);
+      const { rows } = await db().query<{ id: string; status: string }>('SELECT id, status FROM claim WHERE project_id = $1', [projectId]);
+      const status = new Map(rows.map((row) => [row.id, row.status]));
+      expect([status.get(old!.claimId), status.get(fresh!.claimId)]).toEqual(['stale', 'current']);
+    });
+
     it("Saving claims on the store's own connections commits", async () => {
       // Arrange
       const pool = new Pool({ connectionString: databaseUrl });

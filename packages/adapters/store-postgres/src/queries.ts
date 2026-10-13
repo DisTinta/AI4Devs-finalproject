@@ -228,13 +228,14 @@ export const NEIGHBORS = `
    ORDER BY n.distance, n.node_type = 'symbol', n.path COLLATE "C", n.start_line, n.name COLLATE "C"`;
 
 /**
- * Checks, inside a claim write, that the project exists and how many of the distinct file ids `$2`
- * belong to it (DIS-39 design D7). Starts from the project row, so no row means no project. The
+ * Checks, inside a claim write, that the project exists, how many of the distinct file ids `$2`
+ * belong to it, and which commit it is indexed at (DIS-39 design D7). Starts from the project row, so no row means no project. The
  * project row is locked `FOR SHARE`: a concurrent graph write of the project, which locks it
  * `FOR UPDATE`, waits until the claims are written, so a checked file cannot vanish in between.
  */
 export const CHECK_CLAIM_FILES = `
-  SELECT (SELECT count(*) FROM file f WHERE f.project_id = p.id AND f.id = ANY($2::uuid[]))::int AS owned
+  SELECT (SELECT count(*) FROM file f WHERE f.project_id = p.id AND f.id = ANY($2::uuid[]))::int AS owned,
+         p.indexed_commit
     FROM project p WHERE p.id = $1 FOR SHARE OF p`;
 
 /**

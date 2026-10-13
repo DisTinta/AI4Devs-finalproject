@@ -183,7 +183,8 @@ evidence (the `saveEvidence` step, where the failure of the atomicity scenario i
   release included); on a caller-owned transaction, once `SAVEPOINT store_write` has succeeded (the
   rollback to it and `RELEASE` included). A failing `SAVEPOINT` (a client outside a transaction
   block, `25P01`, or a caller transaction already aborted, `25P02`) is a programming error of the
-  caller and propagates unchanged, not as `ClaimWriteFailed`. A failure of `pool.connect()` propagates unchanged (scenario "A store
+  caller and propagates unchanged, not as `ClaimWriteFailed`. The author confirmed this carve-out as a
+  decision on 2026-10-13 (adversarial review, question), and the `graph-store` delta states it. A failure of `pool.connect()` propagates unchanged (scenario "A store
   that cannot give a connection fails with its own error": an ended pool). Domain errors raised
   inside pass through the mapper unchanged; every other error becomes `new ClaimWriteFailed()`
   (`knowledge/errors.ts`, code `CLAIM_WRITE_FAILED`, no `cause`, a fixed message): `pg` errors carry
@@ -193,6 +194,15 @@ evidence (the `saveEvidence` step, where the failure of the atomicity scenario i
   2026-10-13): a concurrent `saveGraph` of the same project, which locks it `FOR UPDATE`, waits until
   the claims are written, so a file checked as owned cannot be deleted between the check and the
   evidence insert. Claims of different projects do not wait on each other.
+- **Commit check (adversarial review, Major 1; author decision 2026-10-13: write stale).**
+  `saveClaims(projectId, items, readAtCommit?)`: `CHECK_CLAIM_FILES` also reads
+  `project.indexed_commit` under the same `FOR SHARE`; when `readAtCommit` is given and differs, every
+  claim of the call is written `stale` and `SavedClaim.status` says so. `explain` passes `pack.commit`
+  (the ok pack now names the commit it read), and shows such statements as it shows a stale prior
+  claim: `status: 'stale'`, `warning: 'stale-evidence'`, never `FACT`; the provenance keeps the
+  statement type. Rejected: failing with `ClaimWriteFailed` (`persisted: false`), which would drop an
+  answer already paid for. A cited file the re-index deleted still fails the ownership check
+  (`InvalidStoreQuery`), which propagates.
 - A failed rollback is mapped too: on a pool, when the write first raised a domain error and the
   `ROLLBACK` then fails, the call rejects with `ClaimWriteFailed` (the rollback failure is the error
   then), as it already did on a caller-owned transaction (verify-against-spec, 2026-10-13).
@@ -411,3 +421,21 @@ No migration and no data change. Rollback is reverting the commits; the seed com
     `assertValidClaim*` and the tests the rest.
   - Unspecified 6, `assertValidObjectId` in `distinctRegularFiles` — **D, accepted**: the same defensive
     check `readFileAt` makes, so a batch fails as each single read would.
+- **adversarial-review (2026-10-13), destinations** (report `reports/2026-10-13-adversarial-review.md`):
+  - Major 1, a re-index between the pack read and the write — **A, fixed** (author decision: write
+    stale), D7 "Commit check", scenarios in the `explain`, `graph-store` and `context-engine` deltas,
+    TDD.
+  - Major 2, the seed fingerprint after `06eaa11` — **A**: step 12 redone after the last commit that
+    touches a fingerprint input (tasks 18.3c, 12).
+  - Minor 3, CI on the real head — **A**: pushed after the author confirms; the step 13 report gets the
+    run of the final head.
+  - Minor 4, a question without terms in an unknown project — **A, specified** (author decision: spec
+    wording): the `explain` delta says it answers `no-anchor` without checking the project; a
+    non-scenario test pins it.
+  - Minor 5, the deleted-file case of the race — **D, accepted**: `InvalidStoreQuery` propagates (the
+    ownership check is the guarantee that no evidence cites a foreign or missing file).
+  - Minor 6, duplicate claims on a repeated question — **B, DIS-21** (the answer cache sits before the
+    model call); Spanish comment on DIS-21.
+  - Minor 7, `toStoredClaim` trusts the stored row — **D, accepted** with the ADR's exception: the only
+    writer validates every record (`saveClaims`).
+  - Question, the `SAVEPOINT` carve-out — confirmed by the author (D7).

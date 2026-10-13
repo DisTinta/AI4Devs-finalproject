@@ -231,7 +231,7 @@ export function createPostgresStore(connection: StoreConnection): StorePort {
       return rows.filter((row) => row.node_type !== null).map(toNeighbor);
     },
 
-    async saveClaims(projectId: string, items: ClaimItem[]): Promise<SavedClaim[]> {
+    async saveClaims(projectId: string, items: ClaimItem[], readAtCommit?: string): Promise<SavedClaim[]> {
       // Order of design D7: the id form, then the records, before any statement; then, inside the
       // write, the project and the ownership of the cited files.
       if (!isWellFormedId(projectId)) throw new ProjectNotFound(projectId);
@@ -241,7 +241,7 @@ export function createPostgresStore(connection: StoreConnection): StorePort {
         await runProjectQuery(connection, projectId, SELECT_PROJECT, []);
         return [];
       }
-      return atomically(connection, (client) => writeClaims(client, projectId, items), toClaimWriteError);
+      return atomically(connection, (client) => writeClaims(client, projectId, items, readAtCommit), toClaimWriteError);
     },
 
     async findClaimsOverlapping(projectId: string, spans: ClaimSpan[]): Promise<StoredClaim[]> {

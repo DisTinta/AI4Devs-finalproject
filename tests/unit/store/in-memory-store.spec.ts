@@ -745,6 +745,26 @@ describe('in-memory StorePort double', () => {
     });
   });
 
+  describe('Requirement: Claim write (commit check)', () => {
+    it('Claims read at an older commit are written stale (in-memory double)', async () => {
+      // Arrange
+      const loaded = createInMemoryStore({
+        projects: [{ project: newProject(), graph: { ...graphOf([file('a.php')], []), indexedCommit: 'c2'.repeat(20) } }],
+      });
+      const [projectId] = loaded.projectIds as [string];
+      const fileId = loaded.fileIds[0]!.get('a.php')!;
+
+      // Act
+      const [old] = await loaded.store.saveClaims(projectId, [claimItem(projectId, fileId, 1, 2)], 'c1'.repeat(20));
+      const [fresh] = await loaded.store.saveClaims(projectId, [claimItem(projectId, fileId, 3, 4)], 'c2'.repeat(20));
+
+      // Assert
+      expect([old!.status, fresh!.status]).toEqual(['stale', 'current']);
+      const stored = new Map(loaded.storedClaims().map((claim) => [claim.id, claim.status]));
+      expect([stored.get(old!.claimId), stored.get(fresh!.claimId)]).toEqual(['stale', 'current']);
+    });
+  });
+
   describe('Requirement: Claim retrieval by overlapping span', () => {
     it('Overlap is inclusive at both ends (in-memory double)', async () => {
       // Arrange

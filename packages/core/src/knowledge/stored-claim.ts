@@ -1,6 +1,6 @@
 import type { z } from 'zod';
 import { claimSchema, inputSpanSchema } from './claim.js';
-import type { Claim } from './claim.js';
+import type { Claim, ClaimStatus } from './claim.js';
 import { InvalidStoreQuery } from './errors.js';
 import { evidenceSchema } from './evidence.js';
 import type { Evidence } from './evidence.js';
@@ -29,6 +29,8 @@ export interface SavedClaim {
   claimId: string;
   /** The ids of its stored evidence, in the order of the item's evidence. */
   evidenceIds: string[];
+  /** The status it was stored with: `stale` when it was read at a commit the project no longer indexes. */
+  status: ClaimStatus;
 }
 
 /** A stored evidence: the record, the id it was stored under and the path of its file. */

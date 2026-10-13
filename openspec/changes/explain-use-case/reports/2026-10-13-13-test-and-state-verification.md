@@ -97,7 +97,13 @@ The author decided no cap on the files a pack reads.
 ### End-to-end (15.1)
 Not applicable: no user interface calls `explain` yet (DIS-40 CLI, CM-HU-12 HTTP, CM-HU-15 web); it
 was exercised through `@codemind/core` in step 14 (`reports/2026-10-13-14-manual-interface-testing.md`).
-CI evidence (15.2) is added after the push.
+CI evidence (15.2), PR #37, run [38419374863](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/38419374863)
+(head `cfaa6be`): every job green (`scope`, `secrets`, `frontend`, `quality` in 14 min 9 s). The `Tests`
+step ran 84 files, 1123 passed and 1 skipped (`tests/unit/index/path-policy.spec.ts`, a case skipped
+by platform, already on the base), with the new `tests/unit/explain/explain.spec.ts`,
+`tests/integration/explain/explain.spec.ts`, `tests/integration/store/claims-write.spec.ts` and the
+batch tests of `tests/integration/git/git-source-tree.spec.ts` among them. The mutation step mutated
+77 files including `packages/core/src/explain/` (`explain.ts` 96.55 %), all files 95.51 %.
 
 ## Data state verification
 - Pre-test baseline (0.4 and 13.1):
