@@ -28,14 +28,16 @@ Decisiones de la autora, transcritas del ticket (`[enhanced]`, 2026-10-13):
 
 **Durante el apply:** la autora eligió `llama3.2` para la ejecución live y pidió llevar Ollama a CPU, como en DIS-17.
 
+**Tras las revisiones previas al merge:** la autora decidió **mantener `-h`/`-V`**, como el resto de comandos `codemind`; la spec ahora los admite.
+
 ## ¿Cómo probarlo?
 
 1. `docker compose up -d` y `npm ci`.
 2. Exporta `DATABASE_URL` (en local, `postgres://codemind:codemind@localhost:5432/codemind`) y ejecuta `npm run db:migrate`.
-3. `npx vitest run tests/unit/cli tests/integration/cli`: 16 ficheros y 202 tests en verde.
-4. `npx vitest run`: 87 ficheros y 1169 tests, ninguno saltado.
+3. `npx vitest run tests/unit/cli tests/integration/cli`: 16 ficheros y 206 tests en verde.
+4. `npx vitest run`: 87 ficheros y 1173 tests, ninguno saltado.
 5. `npm run lint && npm run typecheck && npm run lint:architecture && npm run docs:coverage`. Los 3 avisos `no-orphans` ya existían.
-6. `npx stryker run --mutate "packages/cli/src/commands/ask.ts"`: **94,70 %** (umbral 70). Los supervivientes están clasificados en [`reports/2026-10-13-11-test-and-state-verification.md`](./2026-10-13-11-test-and-state-verification.md).
+6. `npx stryker run --mutate "packages/cli/src/commands/ask.ts"`: **94,46 %** (umbral 70). Los supervivientes están clasificados en [`reports/2026-10-13-11-test-and-state-verification.md`](./2026-10-13-11-test-and-state-verification.md).
 7. A mano, con la semilla (`npm run db:seed`) y sin `LLM_*`:
    - `npm run cli -- ask acme-shop "¿Cómo se calcula el precio final de un pedido?"` → `UNKNOWN (llm-required)` y el aviso de modo evaluación, exit `0`;
    - `npm run cli -- ask ACME-SHOP "q"` → `PROJECT_NOT_FOUND`, exit `1`;
@@ -44,6 +46,23 @@ Decisiones de la autora, transcritas del ticket (`[enhanced]`, 2026-10-13):
    Todos los casos, incluida la ejecución live, están en [`reports/2026-10-13-12-manual-interface-testing.md`](./2026-10-13-12-manual-interface-testing.md).
 
 **Ejecución live.** Ollama 0.40.2 con `llama3.2`, en CPU pura: en esta máquina CUDA y Vulkan fallan. El comando funciona de punta a punta y responde `UNKNOWN (invalid-model-output)`, con exit `0` y el evento `schema_violation` sin contenido. El modelo de 3B no produce el JSON estricto que pide `explain`. La respuesta tipada la cubre el escenario de integración con modelo guionizado.
+
+## Revisión previa al merge
+
+Los tres informes están en `reports/`: `show-spec-working`, `verify-against-spec` y `adversarial-review`. Este último dio **PASS WITH GAPS**, sin Blockers.
+
+Arreglado en este PR, cada punto con su destino en `design.md` → Follow-ups:
+- `-h`/`-V` quedan admitidos en la spec, con un test que además comprueba que no se lee ninguna variable de entorno.
+- Nuevo test de integración del camino real del pool: no hay ninguna sesión `idle in transaction` mientras el modelo responde, y el claim queda con commit propio.
+- El test de conexiones ya no puede aprobar en vacío: primero comprueba que las sesiones existen.
+- El presupuesto usa el reloj inyectado.
+- `formatUnknown` imprime el mensaje solo para `llm-required`, escapado.
+- Nuevos tests de bidi, C1 y separadores, y de la delegación de `index.ts`.
+- La spec ahora recoge lo que el código ya hacía: el nombre de sesión, la raíz relativa, un `close` que falla, la línea `evidence:` omitida, las líneas vacías, los paths y los mensajes fijos.
+
+Fuera de este PR: las afirmaciones previas que se acumulan al repetir una pregunta van a DIS-21.
+
+**CI:** el primer run falló solo en `secrets`: gitleaks detectó la clave sintética `SENTINEL-key-5d1e` del escenario de fuga de la clave. Se permite por su valor exacto en `.gitleaks.toml`, como el centinela de DIS-17.
 
 ## Formato de salida
 
@@ -114,27 +133,27 @@ Hasta DIS-21, en modo evaluación `ask` responde `UNKNOWN (llm-required)` tambi�
 
 | Escenario de la especificación | Test que lo cubre |
 |---|---|
-| `cli-ask` — Help and version print without reading the environment | `tests/unit/cli/ask-command.spec.ts:128` |
-| `cli-ask` — Usage errors never quote the arguments | `tests/unit/cli/ask-command.spec.ts:144` |
-| `cli-ask` — An invalid question is rejected before any connection | `tests/unit/cli/ask-command.spec.ts:161` |
-| `cli-ask` — Configuration errors fail before any connection | `tests/unit/cli/ask-command.spec.ts:179` |
-| `cli-ask` — An unreachable database fails without leaking the URL | `tests/integration/cli/ask-command.spec.ts:127` |
-| `cli-ask` — The connections are closed after a run | `tests/integration/cli/ask-command.spec.ts:139` |
-| `cli-ask` — A daily budget stops the model call | `tests/unit/cli/ask-command.spec.ts:248` |
-| `cli-ask` — The API key never reaches an output | `tests/unit/cli/ask-command.spec.ts:209` |
-| `cli-ask` — Only the exact name resolves the project | `tests/unit/cli/ask-command.spec.ts:307` |
-| `cli-ask` — A typed answer is printed with its evidence and stored | `tests/integration/cli/ask-command.spec.ts:147` |
-| `cli-ask` — Stale statements and prior claims are marked | `tests/unit/cli/ask-command.spec.ts:478` |
-| `cli-ask` — An unsaved answer is printed with a closing note | `tests/unit/cli/ask-command.spec.ts:505` |
-| `cli-ask` — A span cited twice is listed once | `tests/unit/cli/ask-command.spec.ts:410` |
-| `cli-ask` — Explain receives only the project id and the question | `tests/unit/cli/ask-command.spec.ts:517` |
-| `cli-ask` — Control characters are escaped line by line | `tests/unit/cli/ask-command.spec.ts:448` |
-| `cli-ask` — Excerpts are cut, tabs expanded and missing values shown | `tests/unit/cli/ask-command.spec.ts:352` |
-| `cli-ask` — Evaluation mode answers llm-required | `tests/integration/cli/ask-command.spec.ts:193` |
-| `cli-ask` — A question without anchor answers no-anchor | `tests/integration/cli/ask-command.spec.ts:209` |
-| `cli-ask` — A discarded model output answers invalid-model-output | `tests/integration/cli/ask-command.spec.ts:224` |
-| `cli-ask` — Model, budget and source failures keep their code | `tests/unit/cli/ask-command.spec.ts:545` |
-| `cli-ask` — An unexpected failure is internal and does not deny a write | `tests/unit/cli/ask-command.spec.ts:589` |
+| `cli-ask` — Help and version print without reading the environment | `tests/unit/cli/ask-command.spec.ts:130` |
+| `cli-ask` — Usage errors never quote the arguments | `tests/unit/cli/ask-command.spec.ts:161` |
+| `cli-ask` — An invalid question is rejected before any connection | `tests/unit/cli/ask-command.spec.ts:178` |
+| `cli-ask` — Configuration errors fail before any connection | `tests/unit/cli/ask-command.spec.ts:196` |
+| `cli-ask` — An unreachable database fails without leaking the URL | `tests/integration/cli/ask-command.spec.ts:111` |
+| `cli-ask` — The connections are closed after a run | `tests/integration/cli/ask-command.spec.ts:171` |
+| `cli-ask` — A daily budget stops the model call | `tests/unit/cli/ask-command.spec.ts:265` |
+| `cli-ask` — The API key never reaches an output | `tests/unit/cli/ask-command.spec.ts:226` |
+| `cli-ask` — Only the exact name resolves the project | `tests/unit/cli/ask-command.spec.ts:325` |
+| `cli-ask` — A typed answer is printed with its evidence and stored | `tests/integration/cli/ask-command.spec.ts:190` |
+| `cli-ask` — Stale statements and prior claims are marked | `tests/unit/cli/ask-command.spec.ts:520` |
+| `cli-ask` — An unsaved answer is printed with a closing note | `tests/unit/cli/ask-command.spec.ts:547` |
+| `cli-ask` — A span cited twice is listed once | `tests/unit/cli/ask-command.spec.ts:443` |
+| `cli-ask` — Explain receives only the project id and the question | `tests/unit/cli/ask-command.spec.ts:559` |
+| `cli-ask` — Control characters are escaped line by line | `tests/unit/cli/ask-command.spec.ts:490` |
+| `cli-ask` — Excerpts are cut, tabs expanded and missing values shown | `tests/unit/cli/ask-command.spec.ts:370` |
+| `cli-ask` — Evaluation mode answers llm-required | `tests/integration/cli/ask-command.spec.ts:288` |
+| `cli-ask` — A question without anchor answers no-anchor | `tests/integration/cli/ask-command.spec.ts:304` |
+| `cli-ask` — A discarded model output answers invalid-model-output | `tests/integration/cli/ask-command.spec.ts:319` |
+| `cli-ask` — Model, budget and source failures keep their code | `tests/unit/cli/ask-command.spec.ts:587` |
+| `cli-ask` — An unexpected failure is internal and does not deny a write | `tests/unit/cli/ask-command.spec.ts:631` |
 
 ## Origen
 

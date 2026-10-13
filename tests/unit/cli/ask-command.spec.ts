@@ -479,6 +479,7 @@ describe('formatUnknown', () => {
   it('prints the message only for llm-required, escaped', () => {
     const base: Omit<UnknownExplain, 'reason'> = { kind: 'unknown', answer: 'UNKNOWN', statements: [], evidence: [], events: [] };
     expect(formatUnknown({ ...base, reason: 'no-anchor', message: 'stray' })).toBe('UNKNOWN (no-anchor)\n');
+    expect(formatUnknown({ ...base, reason: 'llm-required' })).toBe('UNKNOWN (llm-required)\n');
     expect(formatUnknown({ ...base, reason: 'llm-required', message: 'set \u001b[2J LLM_*' })).toBe(
       'UNKNOWN (llm-required)\n"set \\u001b[2J LLM_*"\n',
     );

@@ -83,3 +83,33 @@ All with `DATABASE_URL` set to the migrated local database: no integration test 
 ## Outcome
 - Status: PASS
 - Blocking issues: none
+
+## Addendum — after the pre-merge review fixes (2026-10-13)
+
+The findings of `/verify-against-spec` and `/adversarial-review` were fixed in this change; each one
+has its A/B/C/D line in `design.md` → Follow-ups. Re-run after the fixes:
+
+- `npx vitest run tests/unit/cli tests/integration/cli`: 206 passed, 0 failed, 0 skipped.
+- `npx vitest run`: 1173 passed, 0 failed, 0 skipped (87 files).
+- `npm run lint`, `npm run typecheck`, `npm run docs:coverage`: exit 0, no warning;
+  `npm run lint:architecture`: the three pre-existing `no-orphans` warnings.
+- `npx stryker run --mutate "packages/cli/src/commands/ask.ts"`: **94.46 %** (273 killed, 6 survived,
+  10 no coverage). The one new survivor (`answer.message !== undefined` → `true` in `formatUnknown`)
+  got a unit case (`llm-required` without a message), which fails with the mutant applied by hand.
+  The others are the equivalent or integration-only mutants listed above (`projectId: ''`,
+  `config.mode === 'live'`, `writeErr`, the `CommanderError` check, `ASK_APPLICATION_NAME`, now killed
+  by the integration tests "The connections are closed after a run" and the new pool-path test, both
+  checked by hand).
+- New tests: unit "prints the message only for llm-required, escaped", "escapes bidirectional, C1 and
+  line-separator characters, and a path as a whole"; integration "the entry point hands ask over to
+  runAskCommand", "answers through the default pool without holding a transaction while the model
+  answers". Strengthened: "Help and version print without reading the environment" (`-h`, `-V`, an
+  environment that records reads), "A daily budget stops the model call" (`resetsAt` pinned), "The
+  connections are closed after a run" (sessions seen open first), "A typed answer is printed with its
+  evidence and stored" (each excerpt's first line). "An unreachable database fails without leaking the
+  URL" moved out of `describeWithDatabase`.
+- Data state: the pool-path test commits one project and deletes it in `finally`; `project` /
+  `claim` / `evidence` after the runs: 0 / 0 / 0.
+- CI: the first run of PR #38 failed only in `secrets` (gitleaks flagged the synthetic key
+  `SENTINEL-key-5d1e`); allowed by exact value in `.gitleaks.toml` (commit `cc6618d`), re-checked
+  locally with `gitleaks git` and `gitleaks dir` (no leaks).
