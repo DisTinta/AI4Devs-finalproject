@@ -17,7 +17,7 @@ import type {
 import { escapeLiteral } from './render-report.js';
 
 /** How long the default transaction waits for the database to accept the connection. */
-const CONNECTION_TIMEOUT_MS = 10_000;
+export const CONNECTION_TIMEOUT_MS = 10_000;
 
 /** The process environment, or the subset a test passes. */
 export type Environment = Record<string, string | undefined>;
