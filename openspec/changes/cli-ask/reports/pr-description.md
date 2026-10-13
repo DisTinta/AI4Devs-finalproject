@@ -62,6 +62,15 @@ Arreglado en este PR, cada punto con su destino en `design.md` → Follow-ups:
 
 Fuera de este PR: las afirmaciones previas que se acumulan al repetir una pregunta van a DIS-21.
 
+**Segunda revisión adversarial**, tras los arreglos: sin Blockers ni Majors. Se arreglaron tres Minors:
+- el test de delegación de `index.ts` no podía fallar y ahora sí, comprobado con una mutación a mano;
+- la preparación del test del pool queda dentro del `try`;
+- el texto sobre `KIT_PROTECT_SPECS` estaba desfasado.
+
+La autora acepta que las reglas añadidas a la spec queden cubiertas solo por tests (D).
+
+**CI tras los arreglos:** todo en verde ([run 38452346966](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/38452346966)).
+
 **CI:** el primer run falló solo en `secrets`: gitleaks detectó la clave sintética `SENTINEL-key-5d1e` del escenario de fuga de la clave. Se permite por su valor exacto en `.gitleaks.toml`, como el centinela de DIS-17.
 
 ## Formato de salida

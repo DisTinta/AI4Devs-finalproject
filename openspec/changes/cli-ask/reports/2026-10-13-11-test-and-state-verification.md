@@ -78,7 +78,7 @@ All with `DATABASE_URL` set to the migrated local database: no integration test 
 - None: the change has no browser UI. The terminal is the client and step 12
   (`./2026-10-13-12-manual-interface-testing.md`) drives it end to end; step 13.1 is not applicable
   beyond step 12.
-- CI run (13.2): pending the push.
+- CI run (13.2): [run 38452346966](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/38452346966) of PR #38 (after the review fixes): `secrets`, `scope`, `frontend` and `quality` pass; in `quality`, `tests/unit/cli/ask-command.spec.ts` (30 tests) and `tests/integration/cli/ask-command.spec.ts` (9 tests) ran and passed (87 files, 1172 passed, 1 pre-existing skip in `path-policy.spec.ts`).
 
 ## Outcome
 - Status: PASS

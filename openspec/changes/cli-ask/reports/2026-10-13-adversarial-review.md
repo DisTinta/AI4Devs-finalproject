@@ -92,3 +92,25 @@ has its A/B/C/D line in `design.md` → Follow-ups. Re-run after the fixes:
 - CI: the first run of PR #38 failed only in `secrets` (gitleaks flagged the synthetic key
   `SENTINEL-key-5d1e`); allowed by exact value in `.gitleaks.toml` (commit `cc6618d`), re-checked
   locally with `gitleaks git` and `gitleaks dir` (no leaks).
+
+## Addendum — second review (2026-10-13, after 65abe3b, db30338, c12ad9f)
+
+Re-run of `/adversarial-review` over `dad6aa2..c12ad9f` against this report, the verify report and
+`design.md` → Follow-ups. **Verdict: PASS WITH GAPS — no Blocker, no Major.** Both earlier Majors
+confirmed fixed: `-h`/`-V` (spec amended, four flags tested with an environment that records reads)
+and the pool path (the new test reads `pg_stat_activity` while the model answers and would fail with a
+transaction held or a `{ transaction }` client). The other first-review findings were confirmed fixed
+one by one (connections test, typed answer, budget clock, `formatUnknown`, paths and bidi/C1/separators,
+fixed messages and `details: {}`, unreachable-database test).
+
+| Severity | Finding | Resolution |
+|---|---|---|
+| Minor | The `index.ts` hand-off test only checked the usage line, which the global stub also prints (confirmed by running `commander` with only the stub). | A: it now asserts `runAskCommand`'s own description and that `ask` without a question exits `2` with one JSON `USAGE` line; with the hand-off removed by hand it fails. |
+| Minor | The pool-path test committed its project before the `try`: a failing setup would leave it behind. | A: setup inside the `try`, cleanup guarded on the created id, setup pool always ended. |
+| Minor | `design.md` still said `KIT_PROTECT_SPECS="0"`. | A: the author set it back to `"1"`; the text says so. |
+| Question | Rules added to the spec without their own scenario. | D (author's choice): each is pinned by a named test (see `design.md` → Follow-ups). |
+
+After these fixes: `npx vitest run tests/integration/cli/ask-command.spec.ts` 9 passed. CI of the
+pushed fixes (run 38452346966): `secrets`, `scope`, `frontend` and `quality` pass; in `quality`,
+`tests/unit/cli/ask-command.spec.ts` (30) and `tests/integration/cli/ask-command.spec.ts` (9) ran and
+passed (87 files, 1172 passed, 1 pre-existing skip in `path-policy.spec.ts`).

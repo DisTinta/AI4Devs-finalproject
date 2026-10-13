@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { cpSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
@@ -122,15 +122,25 @@ describe('ask without a database (integration)', () => {
 
   it('the entry point hands ask over to runAskCommand', () => {
     const run = (args: string[]) =>
-      execFileSync(process.execPath, [resolve(WORKSPACE_ROOT, 'node_modules/tsx/dist/cli.mjs'), '--tsconfig', 'packages/cli/tsconfig.run.json', 'packages/cli/src/index.ts', ...args], {
+      spawnSync(process.execPath, [resolve(WORKSPACE_ROOT, 'node_modules/tsx/dist/cli.mjs'), '--tsconfig', 'packages/cli/tsconfig.run.json', 'packages/cli/src/index.ts', ...args], {
         cwd: WORKSPACE_ROOT,
         encoding: 'utf8',
         env: { ...process.env, DATABASE_URL: '' },
       });
-    expect(run(['ask', '--help'])).toContain('Usage: codemind ask [options] <project> <question>');
+    // Only `runAskCommand` describes the command this way: the global entry's stub says "a project".
+    const help = run(['ask', '--help']);
+    expect(help.status).toBe(0);
+    expect(help.stdout).toContain('Usage: codemind ask [options] <project> <question>');
+    expect(help.stdout).toContain('Ask a question about a stored project');
+    // Only `runAskCommand` turns a usage error into exit 2 and one JSON line.
+    const usage = run(['ask']);
+    expect(usage.status).toBe(2);
+    expect(usage.stdout).toBe('');
+    expect(usage.stderr).toBe('{"error":{"code":"USAGE","message":"missing argument","details":{}}}\n');
     const global = run(['--help']);
-    expect(global.match(/^\s+ask <project> <question>/gm)).toHaveLength(1);
-    expect(global).toContain('Ask a question about a project (see');
+    expect(global.status).toBe(0);
+    expect(global.stdout.match(/^\s+ask <project> <question>/gm)).toHaveLength(1);
+    expect(global.stdout).toContain('Ask a question about a project (see');
   }, TIMEOUT_MS);
 });
 
@@ -243,13 +253,13 @@ describeWithDatabase('ask (integration)', () => {
       // copy and indexed at the seed commit), removed at the end with its claims. Kept short: other
       // integration files run in parallel, as in claims-write.spec.ts.
       const pool = new Pool({ connectionString: databaseUrl });
-      const setup = createPostgresStore({ pool });
-      const name = unique('ask-pool');
-      const projectId = await setup.createProject({ name, rootPath: acmeShop, language: 'php' });
-      await setup.saveGraph(projectId, { ...acmeShopGraph(), indexedCommit: SEED_COMMIT });
-      await pool.end();
       const client = await connect();
+      const name = unique('ask-pool');
+      let projectId: string | undefined;
       try {
+        const setup = createPostgresStore({ pool });
+        projectId = await setup.createProject({ name, rootPath: acmeShop, language: 'php' });
+        await setup.saveGraph(projectId, { ...acmeShopGraph(), indexedCommit: SEED_COMMIT });
         const during: Array<{ all: number; inTransaction: number }> = [];
         const scripted = createScriptedLlm('live', (prompt) =>
           modelOutput('Respuesta.', [{ text: 'Afirmación.', evidenceIds: [prompt.evidence[0]!.id] }]),
@@ -277,8 +287,9 @@ describeWithDatabase('ask (integration)', () => {
         expect(rows[0]!.n).toBe(1);
         expect(await askSessionsLeft()).toBe(0);
       } finally {
-        await client.query('DELETE FROM project WHERE id = $1', [projectId]);
+        if (projectId !== undefined) await client.query('DELETE FROM project WHERE id = $1', [projectId]);
         await client.end();
+        await pool.end();
       }
     },
     TIMEOUT_MS,

@@ -95,7 +95,7 @@
 ## 13. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
 - [x] 13.1 The change has no browser UI: the terminal is the client and step 12 drives it end to end; record "not applicable beyond step 12" in the step 11 report
-- [ ] 13.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that `tests/unit/cli/ask-command.spec.ts` and `tests/integration/cli/ask-command.spec.ts` ran and passed; link the run in the step 11 report
+- [x] 13.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that `tests/unit/cli/ask-command.spec.ts` and `tests/integration/cli/ask-command.spec.ts` ran and passed; link the run in the step 11 report
 
 ## 14. Update Technical Documentation (MANDATORY)
 
@@ -106,12 +106,12 @@
 
 ## 15. Pull request preparation
 
-- [ ] 15.1 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the author's Why transcribed (DIS-40 `[enhanced]` P1–P5 and any decision taken after the spec audit), the output format, the error table and the Stryker score; after verification, set DIS-40 to In Review in Linear with a comment in Spanish linking the PR and the change
+- [x] 15.1 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the author's Why transcribed (DIS-40 `[enhanced]` P1–P5 and any decision taken after the spec audit), the output format, the error table and the Stryker score; after verification, set DIS-40 to In Review in Linear with a comment in Spanish linking the PR and the change
 
 ## 16. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
 - [x] 16.1 Open the pull request against `feature/entrega-2-CRN` (after confirming with the author; `gh` on the DisTinta account, back to Cristina-JumpMath afterwards)
 - [x] 16.2 Run `/show-spec-working`, `/verify-against-spec` and `/adversarial-review`, in this order; one report each under `openspec/changes/cli-ask/reports/` (`YYYY-MM-DD-show-spec-working.md`, `YYYY-MM-DD-verify-against-spec.md`, `YYYY-MM-DD-adversarial-review.md`); `/show-spec-working` includes a real evaluation-mode run (`UNKNOWN (llm-required)`) and, with Ollama, a live one
 - [x] 16.3 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report
-- [ ] 16.4 Commit the fixes to the same pull request (push confirmed with the author); re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
+- [x] 16.4 Commit the fixes to the same pull request (push confirmed with the author); re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
 - [ ] 16.5 `/opsx:archive`, and commit the archive to the same pull request; the author merges afterwards (never before the archive commit)

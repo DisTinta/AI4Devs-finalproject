@@ -234,8 +234,8 @@ Each `#### Scenario:` of the delta maps to one `it` named after it.
 - [Parallel integration files (`ask-command.spec.ts`, `projects-command.spec.ts`) both
   `DELETE FROM project` and `loadSeed` with the fixed seed id] → they wait on each other's row locks
   inside their transactions; slower, not failing.
-- [`.claude/sdd-harness.env` has a local, uncommitted `KIT_PROTECT_SPECS="0"`] → not part of this
-  change; never staged.
+- [The harness env file had a local, uncommitted `KIT_PROTECT_SPECS="0"` during the apply] → not
+  part of this change; never staged. The author set it back to `"1"` before archiving.
 
 ## Migration Plan
 
@@ -281,7 +281,10 @@ issue, **C** new debt issue, **D** accepted, no change.
 - **A — no `ask` test for bidi, C1 or separators** (verify M3, adversarial). New `formatAnswer` test
   with U+202E, U+009B, U+2028, U+2029 (also in a path and an excerpt).
 - **A — `index.ts` hand-off untested** (verify M4, adversarial). New test that runs the real entry point
-  (`tsx` over `packages/cli/src/index.ts`): `ask --help` and the top-level help.
+  (`tsx` over `packages/cli/src/index.ts`): `ask --help` must print `runAskCommand`'s own description,
+  `ask` without a question must exit `2` with one JSON `USAGE` line, and the top-level help lists `ask`
+  once. The first version only checked the usage line, which the global stub prints too (second
+  review); with the hand-off removed by hand the test now fails.
 - **A — unreachable-database scenario skipped without a database** (verify). Moved out of
   `describeWithDatabase`.
 - **D — an empty statement text would print `1. [FACT] ` with a trailing space** (verify U5). Not
@@ -291,7 +294,20 @@ issue, **C** new debt issue, **D** accepted, no change.
 - **B — prior claims pile up when a question is repeated** (show-spec-working). DIS-21 (answer cache),
   as DIS-39's review already destined.
 - **D — process** (adversarial): the RED of 3.4–3.5, 4.1, 6.x and 7.x was not observed (written after
-  one GREEN; recorded in the step 11 report). The kit setting `KIT_PROTECT_SPECS="0"` is the author's
-  local, uncommitted edit of the harness env file, which the agent cannot touch (hook), so resetting it
-  before archiving is the author's call. 15.1 is checked once DIS-40 moves to In Review; 13.2 is
-  linked after the fixes are pushed.
+  one GREEN; recorded in the step 11 report). `KIT_PROTECT_SPECS` was the author's local edit of the
+  harness env file, which the agent cannot touch (hook); the author set it back to `"1"` before
+  archiving. 15.1 is checked once DIS-40 moves to In Review; 13.2 links the CI run of the fixes.
+
+Second adversarial review (2026-10-13, after the fixes; addendum in
+`reports/2026-10-13-adversarial-review.md`): no Blocker, no Major.
+
+- **A — the hand-off test could not fail.** Fixed as above.
+- **A — the pool-path test could leave a committed project if its setup failed.** The setup now runs
+  inside the `try`; the cleanup deletes only a created project and always ends the setup pool.
+- **A — stale text about `KIT_PROTECT_SPECS`.** Updated (risk list and process line above).
+- **D — rules added to the spec without their own scenario** (the `codemind-ask` session name, a
+  failing `close`, the relative `root_path`, empty lines, the message table, the top-level help). The
+  author accepted test-only coverage: each is pinned by a named test (`a failing close does not change
+  the outcome`, `resolves a sample's relative root path against the repository root`, `prints an inner
+  empty line …`, `The connections are closed after a run`, `Usage errors never quote the arguments`,
+  `Configuration errors fail before any connection`, `the entry point hands ask over to runAskCommand`).
