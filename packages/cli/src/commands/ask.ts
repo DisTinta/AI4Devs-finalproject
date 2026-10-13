@@ -85,13 +85,14 @@ export async function runAskCommand(argv: string[], deps: AskCommandDeps): Promi
     try {
       const project = (await store.listProjects()).find((candidate) => candidate.name === parsed.project);
       if (project === undefined) throw new CliError('PROJECT_NOT_FOUND', 1, 'project not found');
+      const now = deps.now ?? (() => new Date());
       const model = (deps.createLlm ?? createLlm)(config);
       const llm =
         config.mode === 'live' && config.dailyBudgetUsd !== undefined
-          ? withDailyBudget(model, { store, dailyBudgetUsd: config.dailyBudgetUsd })
+          ? withDailyBudget(model, { store, dailyBudgetUsd: config.dailyBudgetUsd, now })
           : model;
       const answer = await (deps.explain ?? coreExplain)(
-        { store, source: deps.source ?? createGitSourceTree(), llm, workspaceRoot: REPO_ROOT, now: deps.now ?? (() => new Date()) },
+        { store, source: deps.source ?? createGitSourceTree(), llm, workspaceRoot: REPO_ROOT, now },
         { projectId: project.id, question: parsed.question },
       );
       deps.stdout.write(answer.kind === 'unknown' ? formatUnknown(answer) : formatAnswer(answer));
@@ -136,14 +137,16 @@ export async function defaultOpenStore(databaseUrl: string): Promise<OpenedStore
 }
 
 /**
- * The text of an `UNKNOWN` answer: `UNKNOWN (<reason>)` and, when present, its message, each on its
- * own line.
+ * The text of an `UNKNOWN` answer: `UNKNOWN (<reason>)` and, for `llm-required` only, its message on
+ * the next line, escaped as any other text ({@link safeLines}).
  *
  * @param answer The `UNKNOWN` answer.
  * @returns The text, with its final line feed.
  */
 export function formatUnknown(answer: UnknownExplain): string {
-  return `UNKNOWN (${answer.reason})\n${answer.message === undefined ? '' : `${answer.message}\n`}`;
+  const lines = [`UNKNOWN (${answer.reason})`];
+  if (answer.reason === 'llm-required' && answer.message !== undefined) lines.push(...safeLines(answer.message));
+  return `${lines.join('\n')}\n`;
 }
 
 /** Most lines of an excerpt printed; the rest is counted in a `… (+k lines)` line. */
@@ -328,7 +331,7 @@ function parseArguments(argv: string[], deps: AskCommandDeps): AskArguments | 'd
   const command = new Command('codemind ask')
     .description('Ask a question about a stored project')
     .argument('<project>', 'project name, exactly as stored')
-    .argument('<question>', 'the question, 1 to 1,000 characters')
+    .argument('<question>', 'the question, 1 to 1,000 code points')
     .version(CLI_VERSION)
     .allowExcessArguments(false)
     .exitOverride()

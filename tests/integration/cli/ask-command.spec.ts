@@ -3,16 +3,18 @@ import { cpSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { Pool } from 'pg';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createGitSourceTree } from '@codemind/adapter-git';
 import { createPostgresStore, loadSeed } from '@codemind/adapter-store-postgres';
 import { buildContextPack } from '@codemind/core';
-import type { ContextSpan, FilledContextPack } from '@codemind/core';
-import { ASK_APPLICATION_NAME, runAskCommand } from '../../../packages/cli/src/commands/ask';
+import type { ContextSpan, FilledContextPack, LlmPort } from '@codemind/core';
+import { ASK_APPLICATION_NAME, defaultOpenStore, runAskCommand } from '../../../packages/cli/src/commands/ask';
 import type { AskCommandDeps } from '../../../packages/cli/src/commands/ask';
 import { seedProjects } from '../../../packages/cli/src/seed/parse-seed';
 import { connect, databaseUrl, describeWithDatabase, useTransactionPerTest } from '../helpers/db';
 import { unique } from '../helpers/factories';
+import { acmeShopGraph } from '../../support/acme-shop-graph';
 import { createScriptedLlm, modelOutput } from '../../support/scripted-llm';
 import type { PromptView, Script, ScriptedLlm } from '../../support/scripted-llm';
 
@@ -67,6 +69,20 @@ async function ask(argv: string[], deps: Partial<AskCommandDeps> & Pick<AskComma
   return { exit, stdout, stderr, stderrLines: stderr.split('\n').filter((line) => line !== '') };
 }
 
+/** The `codemind-ask` sessions open now, optionally only those in `state`. */
+async function askSessions(state?: string): Promise<number> {
+  const client = await connect();
+  try {
+    const { rows } = await client.query<{ n: number }>(
+      'SELECT count(*)::int AS n FROM pg_stat_activity WHERE application_name = $1 AND ($2::text IS NULL OR state = $2)',
+      [ASK_APPLICATION_NAME, state ?? null],
+    );
+    return rows[0]!.n;
+  } finally {
+    await client.end();
+  }
+}
+
 /** The sessions the command left open, polled for up to 2 s: a backend ends after `pool.end()` resolves. */
 async function askSessionsLeft(): Promise<number> {
   const client = await connect();
@@ -89,6 +105,34 @@ async function askSessionsLeft(): Promise<number> {
 function idOf(prompt: PromptView, span: ContextSpan): string {
   return prompt.evidence.find((e) => e.path === span.path && e.startLine === span.startLine && e.endLine === span.endLine)!.id;
 }
+
+// Needs no database: it runs wherever the suite runs.
+describe('ask without a database (integration)', () => {
+  it('An unreachable database fails without leaking the URL', async () => {
+    const url = 'postgres://u:s3cret@127.0.0.1:1/db';
+    const result = await ask(['ask', 'acme-shop', Q1], { env: { DATABASE_URL: url } });
+    expect(result.exit).toBe(1);
+    expect(result.stdout).toBe('');
+    expect(result.stderrLines).toHaveLength(1);
+    expect(JSON.parse(result.stderrLines[0]!)).toEqual({
+      error: { code: 'DATABASE_UNAVAILABLE', message: 'cannot connect to the database', details: {} },
+    });
+    for (const leak of [url, 's3cret', 'u:', '127.0.0.1']) expect(result.stderr).not.toContain(leak);
+  });
+
+  it('the entry point hands ask over to runAskCommand', () => {
+    const run = (args: string[]) =>
+      execFileSync(process.execPath, [resolve(WORKSPACE_ROOT, 'node_modules/tsx/dist/cli.mjs'), '--tsconfig', 'packages/cli/tsconfig.run.json', 'packages/cli/src/index.ts', ...args], {
+        cwd: WORKSPACE_ROOT,
+        encoding: 'utf8',
+        env: { ...process.env, DATABASE_URL: '' },
+      });
+    expect(run(['ask', '--help'])).toContain('Usage: codemind ask [options] <project> <question>');
+    const global = run(['--help']);
+    expect(global.match(/^\s+ask <project> <question>/gm)).toHaveLength(1);
+    expect(global).toContain('Ask a question about a project (see');
+  }, TIMEOUT_MS);
+});
 
 describeWithDatabase('ask (integration)', () => {
   const db = useTransactionPerTest();
@@ -124,20 +168,18 @@ describeWithDatabase('ask (integration)', () => {
     return { ...result, model };
   }
 
-  it('An unreachable database fails without leaking the URL', async () => {
-    const url = 'postgres://u:s3cret@127.0.0.1:1/db';
-    const result = await ask(['ask', 'acme-shop', Q1], { env: { DATABASE_URL: url } });
-    expect(result.exit).toBe(1);
-    expect(result.stdout).toBe('');
-    expect(result.stderrLines).toHaveLength(1);
-    expect(JSON.parse(result.stderrLines[0]!)).toEqual({
-      error: { code: 'DATABASE_UNAVAILABLE', message: 'cannot connect to the database', details: {} },
-    });
-    for (const leak of [url, 's3cret', 'u:', '127.0.0.1']) expect(result.stderr).not.toContain(leak);
-  });
-
   it('The connections are closed after a run', async () => {
-    const result = await ask(['ask', unique('missing'), Q1], { env: { DATABASE_URL: databaseUrl } });
+    // The default store, observed once it is open: its sessions carry the command's name.
+    let openSessions = 0;
+    const result = await ask(['ask', unique('missing'), Q1], {
+      env: { DATABASE_URL: databaseUrl },
+      openStore: async (url) => {
+        const opened = await defaultOpenStore(url);
+        openSessions = await askSessions();
+        return opened;
+      },
+    });
+    expect(openSessions).toBeGreaterThanOrEqual(1);
     expect(result.exit).toBe(1);
     expect(result.stdout).toBe('');
     expect(JSON.parse(result.stderrLines[0]!).error.code).toBe('PROJECT_NOT_FOUND');
@@ -179,13 +221,65 @@ describeWithDatabase('ask (integration)', () => {
       const inference = lines.indexOf('2. [INFERENCE] El controlador de checkout interviene en el cálculo.');
       expect(lines[inference + 1]).toBe('   evidence: app/Http/Controllers/CheckoutController.php:19-33');
       const section = lines.slice(lines.indexOf('evidence:') + 1);
+      // Each cited span is followed by the first line of its own excerpt, indented by 4 spaces.
+      const firstLine = (path: string, line: number) => `    ${readFileSync(join(acmeShop, path), 'utf8').split(/\r?\n/)[line - 1]}`;
       expect(section[0]).toBe('app/Services/PriceCalculator.php:16-44');
-      expect(section[1]!.startsWith('    ')).toBe(true);
-      expect(section).toContain('app/Http/Controllers/CheckoutController.php:19-33');
+      expect(section[1]).toBe(firstLine('app/Services/PriceCalculator.php', 16));
+      const checkout = section.indexOf('app/Http/Controllers/CheckoutController.php:19-33');
+      expect(checkout).toBeGreaterThan(1);
+      expect(section[checkout + 1]).toBe(firstLine('app/Http/Controllers/CheckoutController.php', 19));
       expect(result.stdout).not.toContain('prior claims:');
       expect(result.stdout).not.toContain('note:');
       expect(result.stderr).toBe('');
       expect((await claimCount()) - before).toBe(2);
+    },
+    TIMEOUT_MS,
+  );
+
+  it(
+    'answers through the default pool without holding a transaction while the model answers',
+    async () => {
+      // A project committed outside the harness transaction (the acme-shop subset, rooted at the
+      // copy and indexed at the seed commit), removed at the end with its claims. Kept short: other
+      // integration files run in parallel, as in claims-write.spec.ts.
+      const pool = new Pool({ connectionString: databaseUrl });
+      const setup = createPostgresStore({ pool });
+      const name = unique('ask-pool');
+      const projectId = await setup.createProject({ name, rootPath: acmeShop, language: 'php' });
+      await setup.saveGraph(projectId, { ...acmeShopGraph(), indexedCommit: SEED_COMMIT });
+      await pool.end();
+      const client = await connect();
+      try {
+        const during: Array<{ all: number; inTransaction: number }> = [];
+        const scripted = createScriptedLlm('live', (prompt) =>
+          modelOutput('Respuesta.', [{ text: 'Afirmación.', evidenceIds: [prompt.evidence[0]!.id] }]),
+        );
+        const llm: LlmPort = {
+          ...scripted.llm,
+          complete: async (request) => {
+            during.push({ all: await askSessions(), inTransaction: await askSessions('idle in transaction') });
+            return scripted.llm.complete(request);
+          },
+        };
+        const result = await ask(['ask', name, Q1], {
+          env: { DATABASE_URL: databaseUrl, LLM_BASE_URL: 'http://127.0.0.1:11434/v1', LLM_MODEL: 'qwen2.5-coder' },
+          createLlm: () => llm,
+        });
+        expect(result.exit).toBe(0);
+        expect(result.stderr).toBe('');
+        expect(result.stdout).not.toContain('note: claims not saved');
+        // While the model answered, the command's sessions existed and none held a transaction.
+        expect(during).toHaveLength(1);
+        expect(during[0]!.all).toBeGreaterThanOrEqual(1);
+        expect(during[0]!.inTransaction).toBe(0);
+        // The claim write committed on its own: another connection sees it.
+        const { rows } = await client.query<{ n: number }>('SELECT count(*)::int AS n FROM claim WHERE project_id = $1', [projectId]);
+        expect(rows[0]!.n).toBe(1);
+        expect(await askSessionsLeft()).toBe(0);
+      } finally {
+        await client.query('DELETE FROM project WHERE id = $1', [projectId]);
+        await client.end();
+      }
     },
     TIMEOUT_MS,
   );

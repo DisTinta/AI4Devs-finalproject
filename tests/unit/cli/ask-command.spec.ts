@@ -66,6 +66,8 @@ interface RunOptions {
   /** Replaces the scripted model's factory. */
   createLlm?: AskCommandDeps['createLlm'];
   explain?: AskCommandDeps['explain'];
+  /** The injected clock; 2026-10-13T10:00:00.000Z by default. */
+  now?: Date;
 }
 
 const LIVE_ENV = { DATABASE_URL, LLM_BASE_URL: 'http://127.0.0.1:11434/v1', LLM_MODEL: 'qwen2.5-coder:7b' };
@@ -100,7 +102,7 @@ async function run(argv: string[], options: RunOptions = {}): Promise<Run> {
     createLlm: options.createLlm ?? (() => model.llm),
     source: source.source,
     ...(options.explain !== undefined && { explain: options.explain }),
-    now: () => new Date('2026-10-13T10:00:00.000Z'),
+    now: () => options.now ?? new Date('2026-10-13T10:00:00.000Z'),
   });
   return { exit, stdout, stderr, stderrLines: stderr.split('\n').filter((line) => line !== ''), log, loaded, model, source };
 }
@@ -126,19 +128,34 @@ function expectClosed(result: Run): void {
 
 describe('runAskCommand: arguments', () => {
   it('Help and version print without reading the environment', async () => {
-    const help = await run(['ask', '--help'], { env: {} });
-    expect(help.exit).toBe(0);
-    expect(help.stdout).toContain('Usage: codemind ask');
-    expect(help.stdout).toContain('<project>');
-    expect(help.stdout).toContain('<question>');
-    expect(help.stderr).toBe('');
-    expect(help.log).toEqual([]);
-
-    const version = await run(['ask', '--version'], { env: {} });
-    expect(version.exit).toBe(0);
-    expect(version.stdout).toMatch(/^\d+\.\d+\.\d+\n$/);
-    expect(version.stderr).toBe('');
-    expect(version.log).toEqual([]);
+    // An environment that records every variable read.
+    const reads: string[] = [];
+    const env = new Proxy<Record<string, string | undefined>>(
+      {},
+      {
+        get: (_target, key) => {
+          reads.push(String(key));
+          return undefined;
+        },
+      },
+    );
+    for (const flag of ['--help', '-h']) {
+      const help = await run(['ask', flag], { env });
+      expect(help.exit).toBe(0);
+      expect(help.stdout).toContain('Usage: codemind ask');
+      expect(help.stdout).toContain('<project>');
+      expect(help.stdout).toContain('<question>');
+      expect(help.stderr).toBe('');
+      expect(help.log).toEqual([]);
+    }
+    for (const flag of ['--version', '-V']) {
+      const version = await run(['ask', flag], { env });
+      expect(version.exit).toBe(0);
+      expect(version.stdout).toMatch(/^\d+\.\d+\.\d+\n$/);
+      expect(version.stderr).toBe('');
+      expect(version.log).toEqual([]);
+    }
+    expect(reads).toEqual([]);
   });
 
   it('Usage errors never quote the arguments', async () => {
@@ -249,13 +266,14 @@ describe('runAskCommand: configuration and connection', () => {
     const result = await run(['ask', 'acme-shop', Q1], {
       env: { ...LIVE_ENV, LLM_MODEL: 'qwen2.5-coder', DAILY_BUDGET_USD: '1' },
       store: (store) => ({ ...store, sumCostSince: async () => 2 }),
+      // A clock far from the system's: the budget must read the injected one.
+      now: new Date('2030-01-01T10:00:00.000Z'),
     });
     expect(result.exit).toBe(1);
     const error = errorOf(result);
     expect(error.code).toBe('BUDGET_EXHAUSTED');
     expect(error.message).toBe('the daily LLM budget is exhausted');
-    expect(error.details).toMatchObject({ spentUsd: 2, dailyBudgetUsd: 1 });
-    expect(typeof error.details.resetsAt).toBe('string');
+    expect(error.details).toEqual({ spentUsd: 2, dailyBudgetUsd: 1, resetsAt: '2030-01-02T00:00:00.000Z' });
     expect(result.model.requests).toHaveLength(0);
     expectClosed(result);
   });
@@ -407,6 +425,21 @@ describe('formatAnswer', () => {
     expect(lines).toContain('    clean 3');
   });
 
+  it('escapes bidirectional, C1 and line-separator characters, and a path as a whole', () => {
+    const text = formatAnswer(
+      answered({
+        answer: 'clean\nbidi ‮ here\nc1 \u009b here\nsep   here',
+        evidence: [{ ...SPAN_A, path: 'app/‮A.php', excerpt: 'ok\n ' }],
+      }),
+    );
+    for (const raw of ['‮', '\u009b', ' ', ' ']) expect(text).not.toContain(raw);
+    const lines = text.split('\n');
+    expect(lines.slice(0, 4)).toEqual(['clean', '"bidi \\u202e here"', '"c1 \\u009b here"', '"sep \\u2028 here"']);
+    expect(lines).toContain('   evidence: "app/\\u202eA.php":1-8');
+    expect(lines).toContain('    ok');
+    expect(lines).toContain('    "\\u2029"');
+  });
+
   it('A span cited twice is listed once', () => {
     const A = { ...SPAN_B, id: 'a-1', path: 'app/A.php', fileId: 'fa', startLine: 1, endLine: 2, excerpt: 'a' };
     const B = { ...SPAN_B, id: 'b-1', path: 'app/B.php', fileId: 'fb', startLine: 7, endLine: 9, excerpt: 'b' };
@@ -440,6 +473,14 @@ describe('formatUnknown', () => {
     expect(formatUnknown({ ...base, reason: 'no-anchor' })).toBe('UNKNOWN (no-anchor)\n');
     expect(formatUnknown({ ...base, reason: 'llm-required', message: LLM_REQUIRED_MESSAGE })).toBe(
       `UNKNOWN (llm-required)\n${LLM_REQUIRED_MESSAGE}\n`,
+    );
+  });
+
+  it('prints the message only for llm-required, escaped', () => {
+    const base: Omit<UnknownExplain, 'reason'> = { kind: 'unknown', answer: 'UNKNOWN', statements: [], evidence: [], events: [] };
+    expect(formatUnknown({ ...base, reason: 'no-anchor', message: 'stray' })).toBe('UNKNOWN (no-anchor)\n');
+    expect(formatUnknown({ ...base, reason: 'llm-required', message: 'set \u001b[2J LLM_*' })).toBe(
+      'UNKNOWN (llm-required)\n"set \\u001b[2J LLM_*"\n',
     );
   });
 });
@@ -670,6 +711,6 @@ describe('runAskCommand: composition', () => {
     const help = await run(['ask', '--help'], { env: {} });
     expect(help.stdout).toContain('Ask a question about a stored project');
     expect(help.stdout).toContain('project name, exactly as stored');
-    expect(help.stdout).toContain('the question, 1 to 1,000 characters');
+    expect(help.stdout).toContain('the question, 1 to 1,000 code points');
   });
 });
