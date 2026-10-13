@@ -155,11 +155,11 @@
 
 ## 17. Pull request preparation
 
-- [ ] 17.1 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the author's Why transcribed (DIS-39 `[enhanced]` decisions, the propose decisions and the post-audit decisions), the 39a/39b/39c groups, the latency before/after, the seed regeneration and the Stryker score; after verification, set DIS-39 to In Review in Linear with a comment in Spanish linking the PR and the change
+- [x] 17.1 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the author's Why transcribed (DIS-39 `[enhanced]` decisions, the propose decisions and the post-audit decisions), the 39a/39b/39c groups, the latency before/after, the seed regeneration and the Stryker score; after verification, set DIS-39 to In Review in Linear with a comment in Spanish linking the PR and the change
 
 ## 18. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 18.1 Open the pull request against `feature/entrega-2-CRN` (after confirming with the author; `gh` on the DisTinta account, back to Cristina-JumpMath afterwards)
+- [x] 18.1 Open the pull request against `feature/entrega-2-CRN` (after confirming with the author; `gh` on the DisTinta account, back to Cristina-JumpMath afterwards)
 - [ ] 18.2 Run `/show-spec-working`, `/verify-against-spec` and `/adversarial-review`, in this order; one report each under `openspec/changes/explain-use-case/reports/` (`YYYY-MM-DD-show-spec-working.md`, `YYYY-MM-DD-verify-against-spec.md`, `YYYY-MM-DD-adversarial-review.md`)
 - [ ] 18.3 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report; if a fix touches a fingerprint input, redo step 12 so the seed commit stays last
 - [ ] 18.4 Commit the fixes to the same pull request (push confirmed with the author); re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
