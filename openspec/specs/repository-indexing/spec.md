@@ -11,8 +11,9 @@ report of what was indexed, skipped and redacted.
 
 ### Requirement: Source tree contract
 
-The source tree port SHALL offer three operations: `realPath` and `readFiles`, below, and
-`readFileAt`, specified in "Reading one file at a commit":
+The source tree port SHALL offer four operations: `realPath` and `readFiles`, below, `readFileAt`,
+specified in "Reading one file at a commit", and `readFilesAt`, specified in "Reading several files
+at a commit":
 
 - `realPath(path)` SHALL resolve `path` to its canonical absolute path, following every symbolic
   link. A path that does not exist SHALL reject with `NotAGitRepository` naming that path.
@@ -510,3 +511,92 @@ whose top-level directory is `root`, decoded as UTF-8 (a leading UTF-8 byte orde
   path by `.gitattributes`)
 - **WHEN** `readFileAt` reads a tracked file at its commit
 - **THEN** it resolves to the committed content and the marker file does not exist
+
+### Requirement: Reading several files at a commit
+
+The source tree port SHALL read several files of one commit in one call:
+`readFilesAt(root, commit, paths)` SHALL resolve to the contents of `paths`, in the order given, each
+exactly as `readFileAt(root, commit, path)` resolves it. A path given twice SHALL be returned twice.
+
+- Every argument SHALL be checked as `readFileAt` checks it, before starting any git process, the
+  commit first, even when `paths` is empty: a malformed `commit`, or any malformed path of `paths`,
+  MUST fail with `RangeError` naming `commit` or `path`.
+- When some path cannot be read, the call SHALL reject with the `SourceUnavailable` that
+  `readFileAt` would raise for the first such path in the order given (`not-a-repository`,
+  `missing`, `too-large` or `binary-content`), naming that path and never any file content. It SHALL
+  NOT resolve with a partial result. A requested regular file whose object git cannot read (a
+  damaged or missing object) propagates git's error, before any `missing` path, `too-large` or
+  `binary-content` reason is reported. Any other git failure propagates as an error. Only the entries of the requested paths are
+  checked: an entry elsewhere in the commit, even one whose object git cannot read, does not fail the
+  call.
+- An empty list SHALL resolve to an empty list without starting any git process.
+- As `readFileAt`, it SHALL never modify the repository nor execute anything from it, and neither the
+  repository's configuration nor the caller's git environment variables SHALL change what is read.
+  One call SHALL start at most six git processes, whatever the number of paths and the size of the
+  files, plus one only when git reports a damaged requested object.
+
+#### Scenario: Several files are read as the given commit stores them
+
+- **GIVEN** a throwaway repository with a first commit where `a.php` holds `v1` and `b.php` holds
+  `w1`, a second commit where `a.php` holds `v2`, and `a.php` then modified on disk without committing
+- **WHEN** `readFilesAt` reads `b.php`, `a.php` and `b.php` at the first commit, and `a.php` at the
+  second
+- **THEN** the first call resolves to `w1`, `v1`, `w1` and the second to `v2`
+
+#### Scenario: The first unreadable path rejects the whole batch
+
+- **GIVEN** a committed repository tracking `a.php`, `big.txt` of 1 048 577 bytes of ASCII text and
+  `logo.bin`, whose bytes are not valid UTF-8
+- **WHEN** `readFilesAt` reads `a.php`, `missing.php`, `big.txt` and `logo.bin` at its commit; then
+  `a.php`, `logo.bin` and `big.txt`; then `a.php` and `big.txt`; and then `a.php` under a directory
+  outside any repository
+- **THEN** the first call rejects with `SourceUnavailable` with reason `missing` and the path
+  `missing.php`, the second with reason `binary-content` and the path `logo.bin`, the third with
+  reason `too-large` and the path `big.txt`, and the fourth with reason `not-a-repository` and the
+  path `a.php`
+
+#### Scenario: An unreadable object outside the batch does not fail it
+
+- **GIVEN** a committed repository tracking `a.php` and `other.php`, declared a partial clone of a
+  promisor remote whose upload program writes a marker file outside it, with the blob of `other.php`
+  removed
+- **WHEN** `readFilesAt` reads `a.php` at its commit
+- **THEN** it resolves to the committed content of `a.php` and the marker file does not exist
+
+#### Scenario: A requested object git cannot read fails the batch with git's error
+
+- **GIVEN** a committed repository tracking `a.php` and `other.php`, declared a partial clone of a
+  promisor remote whose upload program writes a marker file outside it, with the blob of `other.php`
+  removed
+- **WHEN** `readFilesAt` reads `missing.php` and then `other.php` at its commit
+- **THEN** it rejects with git's error, not with `SourceUnavailable`, and the marker file does not
+  exist
+
+#### Scenario: Many files are read with a fixed number of git processes
+
+- **GIVEN** a committed repository tracking 50 small UTF-8 files
+- **WHEN** `readFilesAt` reads 1 of them and then all 50 while the git processes it starts are counted
+- **THEN** both calls resolve with every content asked for, and both started the same number of git
+  processes
+
+#### Scenario: Malformed batch arguments are rejected before running git
+
+- **WHEN** `readFilesAt` is called with commit `HEAD` and a valid path, with commit `HEAD` and an
+  empty list of paths, and with a valid commit and the paths `a.php` and `../etc/passwd`, while the
+  git processes it starts are counted
+- **THEN** the calls fail with `RangeError` naming `commit`, `commit` and `path`
+- **AND** no git process was started
+
+#### Scenario: An empty batch starts no git process
+
+- **WHEN** `readFilesAt` is called with an empty list of paths while the git processes it starts are
+  counted
+- **THEN** it resolves to an empty list and no git process was started
+
+#### Scenario: Reading a batch executes nothing from the repository
+
+- **GIVEN** a repository whose local configuration names programs that write a marker file outside
+  it (a `core.fsmonitor` command, a `filter.<x>.smudge` and a `diff.<x>.textconv` applied to every
+  path by `.gitattributes`)
+- **WHEN** `readFilesAt` reads two tracked files at its commit
+- **THEN** it resolves to their committed contents and the marker file does not exist

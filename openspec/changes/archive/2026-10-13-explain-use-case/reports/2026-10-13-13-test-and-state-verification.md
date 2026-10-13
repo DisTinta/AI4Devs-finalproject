@@ -134,6 +134,9 @@ batch tests of `tests/integration/git/git-source-tree.spec.ts` among them. The m
 - Mutation re-run on the same set of files: **94.83 %** (521 killed, 11 timeout, 27 survived, 2 no
   coverage; `explain.ts` 96.67 %). The survivors are the same classes as above (static, equivalent,
   pre-existing `errors.ts` classes).
-- The seed is regenerated after `87784e3` (the last commit touching a fingerprint input) and the CI
-  run of the final head is recorded once pushed.
+- The seed was regenerated after `87784e3` (the last commit touching a fingerprint input) in
+  `53d9365`: only the `analyzer-fingerprint` line changes (`4fc1535b…` → `9e9f7966…`).
+- CI of the final head `53d9365`, run [38426305471](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/38426305471):
+  every job green (`quality` 13 min 28 s); 85 files, 1133 passed and 1 skipped (the platform-skipped
+  `path-policy` case of the base); mutation over 77 files, all 95.51 %, `explain.ts` 96.67 %.
 
