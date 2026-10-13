@@ -126,3 +126,14 @@ batch tests of `tests/integration/git/git-source-tree.spec.ts` among them. The m
 ## Outcome
 - Status: PASS
 - Blocking issues: none
+
+## Addendum — after the pre-merge reviews (2026-10-13)
+
+- Fixes of `/verify-against-spec` (`06eaa11`) and `/adversarial-review` (`87784e3`): full suite 85 files,
+  1134 passed, 0 skipped; targeted set 43 files, 611 passed; lint, typecheck, docs:coverage clean.
+- Mutation re-run on the same set of files: **94.83 %** (521 killed, 11 timeout, 27 survived, 2 no
+  coverage; `explain.ts` 96.67 %). The survivors are the same classes as above (static, equivalent,
+  pre-existing `errors.ts` classes).
+- The seed is regenerated after `87784e3` (the last commit touching a fingerprint input) and the CI
+  run of the final head is recorded once pushed.
+
