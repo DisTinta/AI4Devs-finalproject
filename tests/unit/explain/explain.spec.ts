@@ -164,7 +164,7 @@ describe('Requirement: Explain request', () => {
       expect((error as InvalidExplainRequest).code).toBe('INVALID_EXPLAIN_REQUEST');
     }
     expect(d.loaded.calls).toMatchObject({ findSymbols: 0, neighbors: 0, getProject: 0, findClaimsOverlapping: 0 });
-    expect(d.sourceCalls.readFileAt).toBe(0);
+    expect(d.sourceCalls).toEqual({ readFileAt: 0, readFilesAt: 0 });
     expect(d.model.requests).toHaveLength(0);
   });
 
@@ -258,7 +258,7 @@ describe('Requirement: Precedence and UNKNOWN answers', () => {
     }
     for (const d of [live, evaluation]) {
       expect(d.model.requests).toHaveLength(0);
-      expect(d.sourceCalls.readFileAt).toBe(0);
+      expect(d.sourceCalls).toEqual({ readFileAt: 0, readFilesAt: 0 });
       expect(d.loaded.calls.findClaimsOverlapping).toBe(0);
       expect(d.loaded.storedClaims()).toEqual([]);
     }
@@ -283,7 +283,7 @@ describe('Requirement: Precedence and UNKNOWN answers', () => {
     });
     expect(LLM_REQUIRED_MESSAGE).toBe('evaluation mode (cache-only): set LLM_* to enable free-form asks');
     expect(d.model.requests).toHaveLength(0);
-    expect(d.sourceCalls.readFileAt).toBe(0);
+    expect(d.sourceCalls).toEqual({ readFileAt: 0, readFilesAt: 0 });
     expect(d.loaded.calls).toMatchObject({ neighbors: 0, getProject: 0, findClaimsOverlapping: 0 });
     expect(d.loaded.storedClaims()).toEqual([]);
   });

@@ -76,6 +76,10 @@ function world(options: FakeOptions = {}): World {
       log.push(`readFileAt ${root}`);
       throw new Error('readFileAt is not used by indexing');
     },
+    async readFilesAt(root) {
+      log.push(`readFilesAt ${root}`);
+      throw new Error('readFilesAt is not used by indexing');
+    },
   };
   const analyzer: AnalyzerPort = {
     async analyze(input) {

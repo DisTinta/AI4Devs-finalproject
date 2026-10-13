@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { BatchAnswers, EarlyEnd, MissingObject, parseTree } from '../../../packages/adapters/git/src/git-source-tree';
+import {
+  BatchAnswerError,
+  BatchAnswers,
+  EarlyEnd,
+  MissingObject,
+  parseBatchCheck,
+  parseTree,
+  parseUnsizedTree,
+} from '../../../packages/adapters/git/src/git-source-tree';
 import type { TreeEntry } from '../../../packages/adapters/git/src/git-source-tree';
 
 // Design D2 and D3 of openspec/changes/index-repository-debt: the byte-level parsers of the source
@@ -121,5 +129,57 @@ describe('BatchAnswers', () => {
     answers.push(Buffer.from(`ob 3${NL}abc${NL}`));
 
     expect(answers.end().map((blob) => blob.toString('utf8'))).toEqual(['abc']);
+  });
+});
+
+// DIS-39 design D10: the unsized `ls-tree -r -z` record and the `cat-file --batch-check` answer that
+// `readFilesAt` parses.
+
+/** One `ls-tree -z` record without `-l`: `<mode> SP <type> SP <oid> TAB <path> NUL`. */
+function unsizedRecord(mode: string, type: string, oid: string, path: Buffer | string): Buffer {
+  const pathBytes = typeof path === 'string' ? Buffer.from(path, 'utf8') : path;
+  return Buffer.concat([Buffer.from(`${mode} ${type} ${oid}${TAB}`), pathBytes, Buffer.from([0])]);
+}
+
+describe('parseUnsizedTree', () => {
+  it('reads mode, type, oid and path of each record, as bytes', () => {
+    const output = Buffer.concat([
+      unsizedRecord('100644', 'blob', OID_A, 'dir/a b.php'),
+      unsizedRecord('160000', 'commit', OID_B, 'vendor/sub'),
+      unsizedRecord('100755', 'blob', OID_B, Buffer.from([0x61, 0xff])),
+    ]);
+
+    expect(parseUnsizedTree(output)).toEqual([
+      { mode: '100644', type: 'blob', oid: OID_A, path: 'dir/a b.php' },
+      { mode: '160000', type: 'commit', oid: OID_B, path: 'vendor/sub' },
+      { mode: '100755', type: 'blob', oid: OID_B, path: undefined },
+    ]);
+  });
+
+  it('keeps a tab inside a path and returns no entry for an empty listing', () => {
+    expect(parseUnsizedTree(unsizedRecord('100644', 'blob', OID_A, `a${TAB}b.php`))).toEqual([
+      { mode: '100644', type: 'blob', oid: OID_A, path: `a${TAB}b.php` },
+    ]);
+    expect(parseUnsizedTree(Buffer.alloc(0))).toEqual([]);
+  });
+});
+
+describe('parseBatchCheck', () => {
+  it('reads the size of each blob and marks a missing object', () => {
+    const output = Buffer.from(`${OID_A} blob 12${NL}${OID_B} missing${NL}`);
+
+    expect(parseBatchCheck(output, [OID_A, OID_B])).toEqual([
+      { oid: OID_A, size: 12 },
+      { oid: OID_B, missing: true },
+    ]);
+  });
+
+  it('rejects an answer for another object, of another type, or a missing or extra line', () => {
+    expect(() => parseBatchCheck(Buffer.from(`${OID_B} blob 12${NL}`), [OID_A])).toThrow(BatchAnswerError);
+    expect(() => parseBatchCheck(Buffer.from(`${OID_A} tree 12${NL}`), [OID_A])).toThrow(BatchAnswerError);
+    expect(() => parseBatchCheck(Buffer.from(`${OID_A} blob x${NL}`), [OID_A])).toThrow(BatchAnswerError);
+    expect(() => parseBatchCheck(Buffer.from(`${OID_A} blob 1${NL}`), [OID_A, OID_B])).toThrow(BatchAnswerError);
+    expect(() => parseBatchCheck(Buffer.from(`${OID_A} blob 1${NL}${OID_B} blob 2${NL}`), [OID_A])).toThrow(BatchAnswerError);
+    expect(parseBatchCheck(Buffer.alloc(0), [])).toEqual([]);
   });
 });

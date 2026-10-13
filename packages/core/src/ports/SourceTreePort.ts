@@ -52,4 +52,21 @@ export interface SourceTreePort {
    *   path. Any other git failure propagates unchanged.
    */
   readFileAt(root: string, commit: string, path: string): Promise<string>;
+  /**
+   * Reads several files of one commit in one call (DIS-39 design D10): resolves to the contents of
+   * `paths`, in the order given (a path given twice is returned twice), each exactly as
+   * {@link readFileAt} resolves it. Starts at most six git processes whatever the number of paths and
+   * the size of the files, plus one only when git reports a damaged requested object; an empty list
+   * starts none. Only the entries of the requested paths are checked.
+   *
+   * @param root The top-level directory of the repository.
+   * @param commit A full object id (40 or 64 lowercase hexadecimal characters).
+   * @param paths Repository-relative paths, each as {@link readFileAt} accepts it.
+   * @throws RangeError naming `commit` or `path` when one is malformed, the commit first, before
+   *   starting git, even when `paths` is empty.
+   * @throws SourceUnavailable as {@link readFileAt} would raise it for the first unreadable path in the
+   *   order given, naming that path; never a partial result. A requested object git cannot read
+   *   propagates git's error before any per-path reason. Any other git failure propagates unchanged.
+   */
+  readFilesAt(root: string, commit: string, paths: readonly string[]): Promise<string[]>;
 }

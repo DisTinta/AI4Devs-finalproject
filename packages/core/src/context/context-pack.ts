@@ -21,8 +21,9 @@ import { expand } from './expand.js';
 import { candidateFileKind, rankCandidates, type Candidate, type ContextOrigin } from './rank.js';
 import { estimateTokens, TOKEN_ESTIMATOR, type TokenEstimator } from './tokenizer.js';
 
-// The context pack of a question (DIS-28 design D9): anchor, expand, rank, read each candidate's file
-// from git at the project's indexed commit, redact it, cut spans and fit them to the token budget.
+// The context pack of a question (DIS-28 design D9): anchor, expand, rank, read every candidate's file
+// from git at the project's indexed commit in one batch (DIS-39 design D9), redact it, cut spans and
+// fit them to the token budget.
 // Neither the question nor any span text is logged. The repository root of a seed project is
 // relative and resolves against the injected workspace root, never the process working directory.
 
@@ -145,7 +146,7 @@ function linesOf(content: string): string[] {
  *
  * Arguments are checked before any store call. A question that anchors nothing gives an empty
  * `no-anchor` pack without traversing, reading the project or reading any file; a pack where no span
- * fits is `over-budget`. Each distinct file is read at most once.
+ * fits is `over-budget`. Each distinct file is read at most once, all of them in one batched read.
  *
  * @param dependencies The store, the source reader and the absolute workspace root.
  * @param request The project, the question, the budget and the hops.
@@ -183,27 +184,24 @@ export async function buildContextPack(
   const commit = project.indexedCommit;
   const root = isAbsolute(project.rootPath) ? project.rootPath : join(workspaceRoot, project.rootPath);
 
-  const files = new Map<string, ReadFile>();
-  const read = async (path: string): Promise<ReadFile> => {
-    let file = files.get(path);
-    if (file === undefined) {
-      const content = redactSecrets({ path, content: await source.readFileAt(root, commit, path) }).file.content;
-      file = { content, lines: linesOf(content) };
-      files.set(path, file);
-    }
-    return file;
-  };
-
-  const spans: CandidateSpan[] = [];
-  for (const candidate of rankCandidates(anchors, neighbors, questionTerms(question))) {
-    spans.push(await cut(candidate, read));
-  }
+  // Every candidate's file in one batched read (DIS-39 design D9), each distinct path once, in rank
+  // order, so the first unreadable path in rank order is the one that rejects.
+  const candidates = rankCandidates(anchors, neighbors, questionTerms(question));
+  const paths = [...new Set(candidates.map(pathOf))];
+  const contents = await source.readFilesAt(root, commit, paths);
+  const files = new Map<string, ReadFile>(
+    paths.map((path, i) => {
+      const content = redactSecrets({ path, content: contents[i] }).file.content;
+      return [path, { content, lines: linesOf(content) }];
+    }),
+  );
+  const spans = candidates.map((candidate) => cut(candidate, files.get(pathOf(candidate)) as ReadFile));
   const fitted = fitToTokenBudget(spans, tokenBudget, keepBestRank);
   if (fitted.included.length === 0) {
     return { ...common, status: 'empty', reason: 'over-budget', spans: [], tokens: 0, baselineTokens: 0, omitted: fitted.omitted };
   }
-  const paths = new Set(fitted.included.map((included) => included.span.path));
-  const baselineTokens = [...paths].reduce((sum, path) => sum + estimateTokens(files.get(path)?.content ?? ''), 0);
+  const included = new Set(fitted.included.map((span) => span.span.path));
+  const baselineTokens = [...included].reduce((sum, path) => sum + estimateTokens(files.get(path)?.content ?? ''), 0);
   return {
     ...common,
     status: 'ok',
@@ -227,11 +225,16 @@ function keepBestRank(replacing: CandidateSpan, replaced: readonly CandidateSpan
   return { ...replacing, span: { ...replacing.span, distance, origin } };
 }
 
-/** The span of a candidate: a symbol's lines, or a whole file (line 1 to its last line). */
-async function cut(candidate: Candidate, read: (path: string) => Promise<ReadFile>): Promise<CandidateSpan> {
+/** The repository-relative path of a candidate's file. */
+function pathOf(candidate: Candidate): string {
+  return candidate.node.type === 'file' ? candidate.node.path : candidate.node.file;
+}
+
+/** The span of a candidate in its read file: a symbol's lines, or a whole file (line 1 to its last line). */
+function cut(candidate: Candidate, file: ReadFile): CandidateSpan {
   const { node } = candidate;
-  const path = node.type === 'file' ? node.path : node.file;
-  const { lines } = await read(path);
+  const path = pathOf(candidate);
+  const { lines } = file;
   const startLine = node.type === 'file' ? 1 : node.startLine;
   const endLine = node.type === 'file' ? lines.length : node.endLine;
   const text = lines.slice(startLine - 1, endLine).join('\n');

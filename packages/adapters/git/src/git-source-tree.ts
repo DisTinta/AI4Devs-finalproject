@@ -119,7 +119,76 @@ export function gitSourceTreeWith(spawnGit: GitSpawner): SourceTreePort {
       if (content === undefined) throw new SourceUnavailable('binary-content', path);
       return content;
     },
+    async readFilesAt(root: string, commit: string, paths: readonly string[]): Promise<string[]> {
+      // DIS-39 design D10: the commit first, then every path, before any process.
+      assertValidCommit(commit);
+      for (const path of paths) assertValidPath(path);
+      if (paths.length === 0) return [];
+      const [first] = paths;
+      try {
+        await assertRepositoryRoot(root);
+      } catch (error) {
+        if (error instanceof NotAGitRepository) throw new SourceUnavailable('not-a-repository', first);
+        throw error;
+      }
+      if (!(await commitExists(spawnGit, root, commit))) throw new SourceUnavailable('missing', first);
+      // The whole tree, without `-l` and without pathspecs: the command line stays bounded whatever the
+      // number of paths, and no object outside the batch is read or sized.
+      const listing = await readAll(spawnGit(root, ['ls-tree', '-r', '-z', '--full-tree', `${commit}^{commit}`]));
+      const byPath = new Map<string, UnsizedTreeEntry>();
+      for (const entry of parseUnsizedTree(listing)) if (entry.path !== undefined) byPath.set(entry.path, entry);
+      const requested = distinctRegularFiles(paths, byPath);
+      const sizes = await objectSizes(spawnGit, root, requested.map((entry) => entry.oid));
+      // A requested object git cannot read is a damaged repository: git says why, before any path.
+      const damaged = sizes.find((answer) => answer.missing);
+      if (damaged !== undefined) throw await missingObjectError(spawnGit, root, damaged.oid);
+      const sizeOf = new Map(sizes.map((answer) => [answer.oid, answer.size as number]));
+      const readable: TreeEntry[] = requested
+        .filter((entry) => (sizeOf.get(entry.oid) as number) <= MAX_BLOB_BYTES)
+        .map((entry) => ({
+          mode: entry.mode,
+          oid: entry.oid,
+          size: sizeOf.get(entry.oid),
+          missing: false,
+          path: entry.path,
+          displayPath: entry.path as string,
+        }));
+      const blobs = await readBlobs(spawnGit, root, readable);
+      const contentOf = new Map(readable.map((entry, i) => [entry.oid, decodeUtf8(blobs[i])]));
+      return paths.map((path) => {
+        const entry = byPath.get(path);
+        if (entry === undefined || !REGULAR_FILE_MODES.has(entry.mode)) throw new SourceUnavailable('missing', path);
+        if ((sizeOf.get(entry.oid) as number) > MAX_BLOB_BYTES) throw new SourceUnavailable('too-large', path);
+        const content = contentOf.get(entry.oid);
+        if (content === undefined) throw new SourceUnavailable('binary-content', path);
+        return content;
+      });
+    },
   };
+}
+
+/** The entries of the regular files among `paths`, once per object id, in first-request order. */
+function distinctRegularFiles(paths: readonly string[], byPath: ReadonlyMap<string, UnsizedTreeEntry>): UnsizedTreeEntry[] {
+  const entries = new Map<string, UnsizedTreeEntry>();
+  for (const path of paths) {
+    const entry = byPath.get(path);
+    if (entry !== undefined && REGULAR_FILE_MODES.has(entry.mode) && !entries.has(entry.oid)) {
+      assertValidObjectId(entry.oid);
+      entries.set(entry.oid, entry);
+    }
+  }
+  return [...entries.values()];
+}
+
+/**
+ * The size of each object, or whether git cannot read it, through one `cat-file --batch-check` over
+ * the ids on stdin (never the command line); no process when there is none.
+ */
+async function objectSizes(spawnGit: GitSpawner, root: string, oids: readonly string[]): Promise<BatchCheckAnswer[]> {
+  if (oids.length === 0) return [];
+  const probe = spawnGit(root, ['cat-file', '--batch-check']);
+  probe.child.stdin.write(oids.map((oid) => `${oid}\n`).join(''));
+  return parseBatchCheck(await readAll(probe), oids);
 }
 
 /** Git modes of a regular file: the only entries `readFileAt` reads. */
@@ -131,7 +200,17 @@ const REGULAR_FILE_MODES: ReadonlySet<string> = new Set(['100644', '100755']);
  * Both then reach git only as arguments after `--`, never through a shell.
  */
 function assertReadableArguments(commit: string, path: string): void {
+  assertValidCommit(commit);
+  assertValidPath(path);
+}
+
+/** Throws a `RangeError` naming `commit` when it is not a full object id. */
+function assertValidCommit(commit: string): void {
   if (!OBJECT_ID.test(commit)) throw new RangeError('commit must be a full object id (40 or 64 lowercase hexadecimal characters)');
+}
+
+/** Throws a `RangeError` naming `path` when it is not a repository-relative path git can take after `--`. */
+function assertValidPath(path: string): void {
   const segments = path.split('/');
   if (
     path === '' ||
@@ -218,6 +297,55 @@ export function parseTree(output: Buffer): TreeEntry[] {
     });
   }
   return entries;
+}
+
+/** One entry of `git ls-tree -r -z` without `-l`. Exported for the adapter's unit tests only, not by the package. */
+export interface UnsizedTreeEntry {
+  mode: string;
+  type: string;
+  oid: string;
+  /** The path, or `undefined` when its bytes are not valid UTF-8. */
+  path: string | undefined;
+}
+
+/**
+ * Parses NUL-terminated `<mode> SP <type> SP <oid> TAB <path>` records (`ls-tree` without `-l`, DIS-39
+ * design D10) as bytes. {@link parseTree} assumes the sized format, so it is not reused here.
+ */
+export function parseUnsizedTree(output: Buffer): UnsizedTreeEntry[] {
+  const entries: UnsizedTreeEntry[] = [];
+  let start = 0;
+  for (let end = output.indexOf(0, start); end !== -1; start = end + 1, end = output.indexOf(0, start)) {
+    const record = output.subarray(start, end);
+    const tab = record.indexOf(0x09);
+    const [mode, type, oid] = record.subarray(0, tab).toString('latin1').split(' ');
+    entries.push({ mode, type, oid, path: decodePath(record.subarray(tab + 1)) });
+  }
+  return entries;
+}
+
+/** One answer of `cat-file --batch-check`: a blob and its size, or an object git cannot read. */
+export type BatchCheckAnswer = { oid: string; size: number; missing?: never } | { oid: string; missing: true; size?: never };
+
+/**
+ * Parses the `cat-file --batch-check` answers to `oids`, one line each and in order: `<oid> blob
+ * <size>` or `<oid> missing`. Exported for the adapter's unit tests only, not by the package.
+ *
+ * @throws BatchAnswerError on any other answer, or on a missing or extra line.
+ */
+export function parseBatchCheck(output: Buffer, oids: readonly string[]): BatchCheckAnswer[] {
+  const lines = output.toString('latin1').split('\n');
+  // Every answer ends with a line feed, so the last piece is empty (and the only one for no object).
+  if (lines.pop() !== '' || lines.length !== oids.length) {
+    throw new BatchAnswerError('git cat-file --batch-check answered a different number of objects');
+  }
+  return oids.map((oid, i) => {
+    const line = lines[i];
+    if (line === `${oid} missing`) return { oid, missing: true };
+    const match = /^(\S+) blob (\d+)$/.exec(line);
+    if (match === null || match[1] !== oid) throw new BatchAnswerError(`git cat-file --batch-check: unexpected answer for object ${oid}`);
+    return { oid, size: Number(match[2]) };
+  });
 }
 
 /** The path bytes as UTF-8, or `undefined` when they are not valid UTF-8. A leading U+FEFF is kept. */
