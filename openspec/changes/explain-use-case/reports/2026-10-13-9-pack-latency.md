@@ -40,5 +40,6 @@ of the whole tree, one `cat-file --batch-check` over the requested objects and o
 
 ## Decision on a cap of the files a pack reads
 
-Pending the author (task 9.11): she reads the median above and decides whether to cap the files a pack
-reads; the decision and its threshold go to `design.md` → Follow-ups.
+The author read the median above on 2026-10-13 and decided **no cap**: with six processes whatever
+the number of files and 580 ms for Q1, the latency that motivated a cap is gone. Recorded in
+`design.md` → Follow-ups.

@@ -356,4 +356,15 @@ No migration and no data change. Rollback is reverting the commits; the seed com
 
 ## Follow-ups
 
-(empty until review)
+- **Cap on the files a pack reads (task 9.11): none.** After the batched read, Q1 on acme-shop reads
+  29 files with 6 git processes in a median of 580 ms (10 825 ms and 145 processes before;
+  `reports/2026-10-13-9-pack-latency.md`). The author read the median on 2026-10-13 and decided not
+  to cap: the process count no longer grows with the files, so the threshold that would justify a cap
+  was not reached.
+- **Privacy check, L1 (Low) — B, DIS-41.** The question reaches the model unredacted; only the span
+  text is redacted by the pack. Sanitising the content sent to the model is DIS-41's scope; a Spanish
+  comment on DIS-41 records it.
+- **Privacy check, L2 (Low) — D, accepted.** No claim column holds the question (subject: symbol or
+  path; predicate: constant; object: the statement), but a model statement may paraphrase the
+  question and is stored as the object. Accepted: the statement is the answer, and the rule is that
+  the question itself is never stored.

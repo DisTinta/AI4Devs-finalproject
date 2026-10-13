@@ -103,17 +103,17 @@
 - [x] 9.8 RED → GREEN: test "Reading a batch executes nothing from the repository"
 - [x] 9.9 RED → GREEN: in `tests/unit/context/context-pack.spec.ts`, test "The files of a pack are read in one batch" — `buildContextPack` collects the candidates' distinct paths and calls `readFilesAt` once (design D9)
 - [x] 9.10 Update the existing pack tests to the batched read without weakening them: where they assert `calls.readFileAt === 0` (`context-pack.spec.ts` around lines 131, 201, 214, 271, and the explain test of 7.8), assert both `readFileAt` and `readFilesAt` are 0; where they assert files read, assert them through `batchReads`; confirm "Unreadable source fails without its content" and every other `context-engine` scenario pass; list each edit in the step 13 report
-- [ ] 9.11 Measure AFTER with the same script, unique name, rollback, cleanup and runs as 9.1; write `openspec/changes/explain-use-case/reports/YYYY-MM-DD-9-pack-latency.md` (before/after: files, git processes, time). Stop and show the author the median; she decides whether to cap the files a pack reads, and the decision and its threshold go to `design.md` → Follow-ups
+- [x] 9.11 Measure AFTER with the same script, unique name, rollback, cleanup and runs as 9.1; write `openspec/changes/explain-use-case/reports/YYYY-MM-DD-9-pack-latency.md` (before/after: files, git processes, time). Stop and show the author the median; she decides whether to cap the files a pack reads, and the decision and its threshold go to `design.md` → Follow-ups
 
 ## 10. Privacy and ethics check
 
-- [ ] 10.1 Run `/privacy-ethics-check` over the diff (prompt with repository content and the question; events and errors without content; `ClaimWriteFailed` without database text; no question in any claim column). Record the outcome in the step 13 report; fix any finding in this change or classify it (A/B/C/D, `docs/project-context.md` → Tracking deferred findings)
+- [x] 10.1 Run `/privacy-ethics-check` over the diff (prompt with repository content and the question; events and errors without content; `ClaimWriteFailed` without database text; no question in any claim column). Record the outcome in the step 13 report; fix any finding in this change or classify it (A/B/C/D, `docs/project-context.md` → Tracking deferred findings)
 
 ## 11. Backend: Review and Update Existing Tests (MANDATORY)
 
-- [ ] 11.1 Identify tests affected by the change: every implementer of `StorePort` and `SourceTreePort` in `tests/`, every test asserting `calls.readFileAt` of a pack, `claim.spec.ts` cases building `L2` claims, and the store specs touching `claim`/`evidence` (`history-claims-constraints.spec.ts`, `indexes-stale.spec.ts`)
-- [ ] 11.2 Update them without weakening their assertions; list every edited existing test with the reason in the step 13 report
-- [ ] 11.3 Confirm that each `#### Scenario:` of the five delta specs maps 1:1 to a test with exactly the same name (grep each title in `tests/`); for the MODIFIED requirements, the unchanged scenarios keep their existing tests
+- [x] 11.1 Identify tests affected by the change: every implementer of `StorePort` and `SourceTreePort` in `tests/`, every test asserting `calls.readFileAt` of a pack, `claim.spec.ts` cases building `L2` claims, and the store specs touching `claim`/`evidence` (`history-claims-constraints.spec.ts`, `indexes-stale.spec.ts`)
+- [x] 11.2 Update them without weakening their assertions; list every edited existing test with the reason in the step 13 report
+- [x] 11.3 Confirm that each `#### Scenario:` of the five delta specs maps 1:1 to a test with exactly the same name (grep each title in `tests/`); for the MODIFIED requirements, the unchanged scenarios keep their existing tests
 
 ## 12. Seed: regenerate the analyzer fingerprint (design D14) — last commit of the series
 
@@ -148,10 +148,10 @@
 
 ## 16. Update Technical Documentation (MANDATORY)
 
-- [ ] 16.1 ADR `docs/adr/20261013-fact-statements-stored-as-l2-inference.md` from `docs/adr/_template.md` (design D1): the author's why transcribed verbatim from DIS-39 `[enhanced]` D1, the rejected alternative (promotion to `L1`) and its reason, and the accepted exception to `docs/backend-standards.md` §5 (the `statementType` rule has no database `CHECK`); add it to the index in `docs/adr/README.md`
-- [ ] 16.2 `readme.md` §3.2 CLAIM: statement type kept in `provenance.statementType`, the layer/type rule, U+0000 rejected, `FACT` statements stored as `L2` `INFERENCE`; the explain flow (one pass, precedence, `UNKNOWN` reasons including `no-evidence`, prior claims capped at 20) where §2 describes it. §4 (`/ask`) stays for CM-HU-12; note there that `reason` now has five values
-- [ ] 16.3 `docs/project-context.md`: the `explain/` use case and its precedence; `StorePort` claim operations, `ClaimWriteFailed` and `MAX_PRIOR_CLAIMS`; `readFilesAt` and the pack's batched read with the 39c measurement; the in-memory doubles' new operations (`failClaimWrite`, the seeding helper, `readFilesAt`); the gotcha that `ExplainEvent` is not part of `AuditEvent`; the gotcha that claims are written with `clock_timestamp()`; `BudgetExhausted` propagates until DIS-21; rewrite the note that `db:seed` cascades the sample projects' `claim`/`evidence` rows and "no writer exists yet": now every `db:seed`/`make up` deletes the claims `explain` stored for a sample project
-- [ ] 16.4 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
+- [x] 16.1 ADR `docs/adr/20261013-fact-statements-stored-as-l2-inference.md` from `docs/adr/_template.md` (design D1): the author's why transcribed verbatim from DIS-39 `[enhanced]` D1, the rejected alternative (promotion to `L1`) and its reason, and the accepted exception to `docs/backend-standards.md` §5 (the `statementType` rule has no database `CHECK`); add it to the index in `docs/adr/README.md`
+- [x] 16.2 `readme.md` §3.2 CLAIM: statement type kept in `provenance.statementType`, the layer/type rule, U+0000 rejected, `FACT` statements stored as `L2` `INFERENCE`; the explain flow (one pass, precedence, `UNKNOWN` reasons including `no-evidence`, prior claims capped at 20) where §2 describes it. §4 (`/ask`) stays for CM-HU-12; note there that `reason` now has five values
+- [x] 16.3 `docs/project-context.md`: the `explain/` use case and its precedence; `StorePort` claim operations, `ClaimWriteFailed` and `MAX_PRIOR_CLAIMS`; `readFilesAt` and the pack's batched read with the 39c measurement; the in-memory doubles' new operations (`failClaimWrite`, the seeding helper, `readFilesAt`); the gotcha that `ExplainEvent` is not part of `AuditEvent`; the gotcha that claims are written with `clock_timestamp()`; `BudgetExhausted` propagates until DIS-21; rewrite the note that `db:seed` cascades the sample projects' `claim`/`evidence` rows and "no writer exists yet": now every `db:seed`/`make up` deletes the claims `explain` stored for a sample project
+- [x] 16.4 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
 
 ## 17. Pull request preparation
 
