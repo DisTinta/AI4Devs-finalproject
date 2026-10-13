@@ -117,33 +117,33 @@
 
 ## 12. Seed: regenerate the analyzer fingerprint (design D14) — last commit of the series
 
-- [ ] 12.1 Preconditions: `git status --porcelain fixtures` and `git clean -ndX fixtures/acme-shop` print nothing; `DATABASE_URL` points to a migrated local database (`npm run db:migrate`). When reaching this step, ask the author to provide `AUTHOR_HASH_SALT` in the session with `!` — never earlier, never written to any file
-- [ ] 12.2 Run `npm run seed:build`
-- [ ] 12.3 Review the diff: in `seeds/graph-dump.sql` only the `analyzer-fingerprint` header line changes (the `contract-fingerprint` line and every row identical); `packages/web/src/data/sample-projects.ts` unchanged. If anything else changes, stop and tell the author; do not commit
-- [ ] 12.4 Commit the regenerated seed after the last commit that touches a fingerprint input (`chore(DIS-39): regenerate the seed for the new analyzer fingerprint`); reports, docs and the archive may follow it. If a later fix touches a fingerprint input, repeat 12.1–12.4
+- [x] 12.1 Preconditions: `git status --porcelain fixtures` and `git clean -ndX fixtures/acme-shop` print nothing; `DATABASE_URL` points to a migrated local database (`npm run db:migrate`). When reaching this step, ask the author to provide `AUTHOR_HASH_SALT` in the session with `!` — never earlier, never written to any file
+- [x] 12.2 Run `npm run seed:build`
+- [x] 12.3 Review the diff: in `seeds/graph-dump.sql` only the `analyzer-fingerprint` header line changes (the `contract-fingerprint` line and every row identical); `packages/web/src/data/sample-projects.ts` unchanged. If anything else changes, stop and tell the author; do not commit
+- [x] 12.4 Commit the regenerated seed after the last commit that touches a fingerprint input (`chore(DIS-39): regenerate the seed for the new analyzer fingerprint`); reports, docs and the archive may follow it. If a later fix touches a fingerprint input, repeat 12.1–12.4
 
 ## 13. Backend: Run Tests and Verify Data State (MANDATORY)
 
-- [ ] 13.1 Capture the pre-test baseline: the 0.4 indicators (including `count(*) FROM project`, `claim`, `evidence`); integration tests run in rolled-back transactions, and the pool tests delete their project
-- [ ] 13.2 Run the targeted tests: `npx vitest run tests/unit/explain tests/unit/knowledge tests/unit/context tests/unit/store tests/unit/cli tests/unit/index tests/integration/store/claims-write.spec.ts tests/integration/explain tests/integration/git/git-source-tree.spec.ts tests/integration/context`
-- [ ] 13.3 Run the required broader suite and gates: `npx vitest run`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`
-- [ ] 13.4 Run `npx stryker run --mutate "packages/core/src/explain/**/*.ts,packages/core/src/knowledge/claim.ts,packages/core/src/knowledge/evidence.ts,packages/core/src/knowledge/stored-claim.ts,packages/core/src/knowledge/errors.ts,packages/core/src/context/context-pack.ts"` (score ≥ `MIN_MUTATION_SCORE=70`); for each meaningful survivor, a RED → GREEN test; if a fix touches a fingerprint input, redo step 12
-- [ ] 13.5 Verify the post-test state: same `project`/`claim`/`evidence` counts as 13.1; `seeds/`, `packages/web/`, `fixtures/` unchanged since the step 12 commit; no `.stryker-tmp/` left. Restore and document if not
-- [ ] 13.6 Create `openspec/changes/explain-use-case/reports/YYYY-MM-DD-13-test-and-state-verification.md` from the template of `docs/openspec-tasks-mandatory-steps.md` §6, with the 0.4 baseline, the edited existing tests (9.10, 11.2), the seed diff (12.3), the Stryker score and survivors (13.4), the privacy check (10.1) and the link to the 39c latency report
-- [ ] 13.7 Mark complete only after the tests pass and the report exists
+- [x] 13.1 Capture the pre-test baseline: the 0.4 indicators (including `count(*) FROM project`, `claim`, `evidence`); integration tests run in rolled-back transactions, and the pool tests delete their project
+- [x] 13.2 Run the targeted tests: `npx vitest run tests/unit/explain tests/unit/knowledge tests/unit/context tests/unit/store tests/unit/cli tests/unit/index tests/integration/store/claims-write.spec.ts tests/integration/explain tests/integration/git/git-source-tree.spec.ts tests/integration/context`
+- [x] 13.3 Run the required broader suite and gates: `npx vitest run`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`
+- [x] 13.4 Run `npx stryker run --mutate "packages/core/src/explain/**/*.ts,packages/core/src/knowledge/claim.ts,packages/core/src/knowledge/evidence.ts,packages/core/src/knowledge/stored-claim.ts,packages/core/src/knowledge/errors.ts,packages/core/src/context/context-pack.ts"` (score ≥ `MIN_MUTATION_SCORE=70`); for each meaningful survivor, a RED → GREEN test; if a fix touches a fingerprint input, redo step 12
+- [x] 13.5 Verify the post-test state: same `project`/`claim`/`evidence` counts as 13.1; `seeds/`, `packages/web/`, `fixtures/` unchanged since the step 12 commit; no `.stryker-tmp/` left. Restore and document if not
+- [x] 13.6 Create `openspec/changes/explain-use-case/reports/YYYY-MM-DD-13-test-and-state-verification.md` from the template of `docs/openspec-tasks-mandatory-steps.md` §6, with the 0.4 baseline, the edited existing tests (9.10, 11.2), the seed diff (12.3), the Stryker score and survivors (13.4), the privacy check (10.1) and the link to the 39c latency report
+- [x] 13.7 Mark complete only after the tests pass and the report exists
 
 ## 14. Backend: Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 14.1 No CLI or HTTP entry point calls `explain` yet (DIS-40, CM-HU-12): exercise it through a scratchpad `tsx` script (never committed) importing from `@codemind/core` and the real adapters, with a scripted live `LlmPort` and with the evaluation model built by `createLlm`. Precondition: if `fixtures/acme-shop/.git` is absent (it is generated and gitignored), run `node fixtures/build-history.mjs acme-shop` first, or the batched read fails with `not-a-repository`/`missing`. Use acme-shop from the local database; only if it is not loaded, run `npm run db:seed` and, after the step, restore the previous state (record the `project` count before and after)
-- [ ] 14.2 Success path: Q1 with the scripted model → `answered`, `persisted: true`, `FACT` and `INFERENCE` statements; read the stored `claim`/`evidence` rows back with SQL (`L2`, `INFERENCE`, `statementType`)
-- [ ] 14.3 Mutating operation and restore: the script runs inside one transaction it rolls back (store on `{ transaction }`); confirm the `claim`/`evidence` counts equal the baseline afterwards
-- [ ] 14.4 Error and `UNKNOWN` paths: `no-anchor` (live and evaluation), `llm-required`, `over-budget`, `invalid-model-output`, `no-evidence`, an invalid question, an unknown project; print each answer or error and confirm none holds the question, a span's text or the model's output where the spec forbids it
-- [ ] 14.5 Delete the scratchpad script; `git status` shows no stray file
-- [ ] 14.6 Document every command and output in `openspec/changes/explain-use-case/reports/YYYY-MM-DD-14-manual-interface-testing.md` (mask the OS user name in paths)
+- [x] 14.1 No CLI or HTTP entry point calls `explain` yet (DIS-40, CM-HU-12): exercise it through a scratchpad `tsx` script (never committed) importing from `@codemind/core` and the real adapters, with a scripted live `LlmPort` and with the evaluation model built by `createLlm`. Precondition: if `fixtures/acme-shop/.git` is absent (it is generated and gitignored), run `node fixtures/build-history.mjs acme-shop` first, or the batched read fails with `not-a-repository`/`missing`. Use acme-shop from the local database; only if it is not loaded, run `npm run db:seed` and, after the step, restore the previous state (record the `project` count before and after)
+- [x] 14.2 Success path: Q1 with the scripted model → `answered`, `persisted: true`, `FACT` and `INFERENCE` statements; read the stored `claim`/`evidence` rows back with SQL (`L2`, `INFERENCE`, `statementType`)
+- [x] 14.3 Mutating operation and restore: the script runs inside one transaction it rolls back (store on `{ transaction }`); confirm the `claim`/`evidence` counts equal the baseline afterwards
+- [x] 14.4 Error and `UNKNOWN` paths: `no-anchor` (live and evaluation), `llm-required`, `over-budget`, `invalid-model-output`, `no-evidence`, an invalid question, an unknown project; print each answer or error and confirm none holds the question, a span's text or the model's output where the spec forbids it
+- [x] 14.5 Delete the scratchpad script; `git status` shows no stray file
+- [x] 14.6 Document every command and output in `openspec/changes/explain-use-case/reports/YYYY-MM-DD-14-manual-interface-testing.md` (mask the OS user name in paths)
 
 ## 15. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
-- [ ] 15.1 No user interface calls `explain` yet (DIS-40 CLI, CM-HU-12 HTTP, CM-HU-15 web): record "not applicable; exercised through `@codemind/core` in step 14" in the step 13 report
+- [x] 15.1 No user interface calls `explain` yet (DIS-40 CLI, CM-HU-12 HTTP, CM-HU-15 web): record "not applicable; exercised through `@codemind/core` in step 14" in the step 13 report
 - [ ] 15.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that `tests/unit/explain`, `tests/integration/explain`, `tests/integration/store/claims-write.spec.ts` and the git batch tests ran and passed, and that the mutation step covered `packages/core/src/explain`. Link the run in the step 13 report
 
 ## 16. Update Technical Documentation (MANDATORY)
