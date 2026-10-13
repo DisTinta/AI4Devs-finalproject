@@ -66,3 +66,7 @@ regexes = ['''^\-\-\-\-\-BEGIN PRIVATE KEY\-\-\-\-\-`; `texto normal de la gu\x{
 [[allowlists]]
 description = "Synthetic LLM API key planted by the key-leak scenario of the llm-adapter change (DIS-17) - openspec/changes/llm-adapter/specs/llm-adapter/spec.md and tests/unit/llm/openai-compatible-llm.spec.ts, generic-api-key (lines not listed: they move with every edit; the regex matches the exact value)"
 regexes = ['''^c[e]ntinela\-secreta\-123$''']
+
+[[allowlists]]
+description = "Synthetic LLM API key planted by the key-leak scenario of the cli-ask change (DIS-40) - openspec/changes/cli-ask/specs/cli-ask/spec.md, openspec/changes/cli-ask/tasks.md and tests/unit/cli/ask-command.spec.ts, generic-api-key (lines not listed: they move with every edit; the regex matches the exact value)"
+regexes = ['''^S[E]NTINEL\-key\-5d1e$''']
