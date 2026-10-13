@@ -142,6 +142,9 @@ async function run(options: FakeOptions = {}): Promise<Run> {
       readFileAt: async () => {
         throw new Error('readFileAt is not used by the seed build');
       },
+      readFilesAt: async () => {
+        throw new Error('readFilesAt is not used by the seed build');
+      },
     },
     analyzer: { analyze: async (input) => plainAnalysis(input.files) },
     git: { readHistory: async () => ({ head: SHA, commits: [{ sha: SHA, message: 'feat: a' }], fileCommits: [] }) },

@@ -11,8 +11,8 @@ import {
 } from '@codemind/core';
 import type { SchemaViolationEvent } from '@codemind/core';
 
-// Spec: openspec/changes/claims-and-typing/specs/claims-and-typing/spec.md → "Model output quarantine"
-// and "Audit event of a discarded output". Each test is one scenario, named after it.
+// Spec: openspec/specs/claims-and-typing/spec.md → "Model output quarantine" (U+0000: DIS-39, change
+// explain-use-case) and "Audit event of a discarded output". Each test is one scenario, named after it.
 
 /** One statement of a model output as the model writes it. */
 interface RawStatement {
@@ -200,6 +200,27 @@ describe('Requirement: Model output quarantine', () => {
   });
 
   // Not scenarios: the subcode of mixed failures, the check order and the byte count.
+  it('A NUL character discards the whole output', () => {
+    // Arrange
+    const nulId = 'E1\u0000';
+    const outputs = [
+      output([statement(['E1'], 'compute aplica\u0000 el descuento')]),
+      output([statement()], 'El precio\u0000 se calcula en compute.'),
+      output([statement([nulId])]),
+    ];
+
+    // Act
+    const results = outputs.map((text) => parseModelOutput(text, new Set(['E1', nulId])));
+
+    // Assert
+    expect(results.map((result) => (result.ok ? 'accepted' : result.event.subcode))).toEqual([
+      'invalid_shape',
+      'invalid_shape',
+      'invalid_shape',
+    ]);
+    expect(results.some((result) => result.ok)).toBe(false);
+  });
+
   it('classifies mixed failures and checks duplicates before unknown ids', () => {
     // Arrange
     const tooBigAndExtra = output([{ ...statement(['E1'], 'a'.repeat(MAX_STATEMENT_CHARS + 1)), note: 'x' }]);

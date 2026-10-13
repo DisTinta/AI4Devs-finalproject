@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { isAbsolute, join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { buildContextPack, estimateTokens, InvalidStoreQuery, ProjectNotFound, REDACTION_MARKER, SourceUnavailable } from '@codemind/core';
-import type { ContextPack, FilledContextPack, KnowledgeGraph, NewProject } from '@codemind/core';
+import { anchor, buildContextPack, estimateTokens, InvalidStoreQuery, ProjectNotFound, REDACTION_MARKER, SourceUnavailable } from '@codemind/core';
+import type { ContextPack, FilledContextPack, KnowledgeGraph, NewProject, StoredSymbol } from '@codemind/core';
 import { ACME_SHOP_PROJECT, acmeShopGraph } from '../../support/acme-shop-graph';
 import { createInMemoryStore } from '../../support/in-memory-store';
 import { createInMemorySourceTree } from '../../support/in-memory-source-tree';
@@ -55,6 +55,7 @@ function doubles(options: DoubleOptions = {}) {
     projectId: loaded.projectIds[0],
     sourceCalls: source.calls,
     reads: source.reads,
+    batchReads: source.batchReads,
     deps: { store: loaded.store, source: source.source, workspaceRoot },
   };
 }
@@ -94,7 +95,7 @@ describe('Requirement: Context pack', () => {
     const priceA = symbol('app/F1.php', 'PriceA', 1);
     const priceB = symbol('app/F1.php', 'PriceB', 10);
     const priceC = symbol('app/F2.php', 'PriceC', 1);
-    const { deps, projectId, reads } = ownProject(
+    const { deps, projectId, batchReads } = ownProject(
       { files: [file('app/F1.php', { loc: 40 }), file('app/F2.php', { loc: 20 })], symbols: [priceA, priceB, priceC], edges: [] },
       { 'app/F1.php': linesOf('app/F1.php', 40, 99), 'app/F2.php': linesOf('app/F2.php', 20, 99) },
     );
@@ -105,7 +106,7 @@ describe('Requirement: Context pack', () => {
     // Assert
     expect(pack.spans.map((s) => s.symbol?.name)).toEqual(['PriceA', 'PriceB', 'PriceC']);
     expect(pack.baselineTokens).toBe(1500);
-    expect(reads.map((r) => r.path).sort()).toEqual(['app/F1.php', 'app/F2.php']);
+    expect(batchReads.flatMap((r) => r.paths).sort()).toEqual(['app/F1.php', 'app/F2.php']);
   });
 
   it('A question without anchor gives an empty pack without reading', async () => {
@@ -128,7 +129,7 @@ describe('Requirement: Context pack', () => {
     });
     expect(calls.neighbors).toBe(0);
     expect(calls.getProject).toBe(0);
-    expect(sourceCalls.readFileAt).toBe(0);
+    expect([sourceCalls.readFileAt, sourceCalls.readFilesAt]).toEqual([0, 0]);
   });
 
   it('A pack where nothing fits is empty and over budget', async () => {
@@ -198,7 +199,9 @@ describe('Requirement: Context pack', () => {
       expect(rejection).toBeInstanceOf(RangeError);
       expect((rejection as Error).message).toContain('tokenBudget');
     }
-    expect([calls.findSymbols, calls.neighbors, calls.getProject, sourceCalls.readFileAt]).toEqual([0, 0, 0, 0]);
+    expect([calls.findSymbols, calls.neighbors, calls.getProject, sourceCalls.readFileAt, sourceCalls.readFilesAt]).toEqual([
+      0, 0, 0, 0, 0,
+    ]);
   });
 
   it('A relative workspace root is rejected', async () => {
@@ -211,7 +214,9 @@ describe('Requirement: Context pack', () => {
     // Assert
     expect(rejection).toBeInstanceOf(RangeError);
     expect((rejection as Error).message).toContain('workspaceRoot');
-    expect([calls.findSymbols, calls.neighbors, calls.getProject, sourceCalls.readFileAt]).toEqual([0, 0, 0, 0]);
+    expect([calls.findSymbols, calls.neighbors, calls.getProject, sourceCalls.readFileAt, sourceCalls.readFilesAt]).toEqual([
+      0, 0, 0, 0, 0,
+    ]);
   });
 
   it('A pack with an invalid hop count is rejected', async () => {
@@ -268,7 +273,7 @@ describe('Requirement: Context pack', () => {
     // Assert
     expect(rejection).toBeInstanceOf(SourceUnavailable);
     expect((rejection as SourceUnavailable).reason).toBe('not-indexed');
-    expect(sourceCalls.readFileAt).toBe(0);
+    expect([sourceCalls.readFileAt, sourceCalls.readFilesAt]).toEqual([0, 0]);
   });
 
   it('A relative root path is resolved against the workspace root', async () => {
@@ -281,9 +286,9 @@ describe('Requirement: Context pack', () => {
     await buildContextPack(absolute.deps, { projectId: absolute.projectId, question: Q1 });
 
     // Assert: `join` gives `/repo/fixtures/acme-shop` on POSIX and its Windows form on Windows.
-    expect(new Set(relative.reads.map((r) => r.root))).toEqual(new Set([join('/repo', 'fixtures/acme-shop')]));
-    expect(new Set(absolute.reads.map((r) => r.root))).toEqual(new Set(['/elsewhere/acme-shop']));
-    expect(new Set(relative.reads.map((r) => r.commit))).toEqual(new Set([COMMIT]));
+    expect(relative.batchReads.map((r) => r.root)).toEqual([join('/repo', 'fixtures/acme-shop')]);
+    expect(absolute.batchReads.map((r) => r.root)).toEqual(['/elsewhere/acme-shop']);
+    expect(relative.batchReads.map((r) => r.commit)).toEqual([COMMIT]);
   });
 
   it('The process working directory is never used', async () => {
@@ -302,7 +307,85 @@ describe('Requirement: Context pack', () => {
       spans: pack.spans.map((span) => ({ ...span, fileId: undefined, symbol: span.symbol?.name })),
     });
     expect(withoutIds(actual)).toEqual(withoutIds(expected));
-    expect(spied.reads.map((r) => r.root)).toEqual(plain.reads.map((r) => r.root));
+    expect(spied.batchReads.map((r) => r.root)).toEqual(plain.batchReads.map((r) => r.root));
+    expect(spied.batchReads).toHaveLength(1);
+  });
+
+  it('A given anchor is used without searching again', async () => {
+    // Arrange
+    const { deps, projectId, calls } = doubles();
+    const anchors = await anchor(deps.store, projectId, Q1);
+    const searches = calls.findSymbols;
+
+    // Act
+    const given = await buildContextPack(deps, { projectId, question: Q1, anchors });
+    const searchesWhileBuilding = calls.findSymbols - searches;
+    const searched = await buildContextPack(deps, { projectId, question: Q1 });
+
+    // Assert
+    expect(searchesWhileBuilding).toBe(0);
+    expect(given).toEqual(searched);
+    expect(await buildContextPack(deps, { projectId, question: Q1, anchors: [] })).toMatchObject({
+      status: 'empty',
+      reason: 'no-anchor',
+    });
+  });
+
+  it('A given anchor symbol without a file id is rejected', async () => {
+    // Arrange
+    const { deps, projectId, calls } = doubles();
+    const [first] = await anchor(deps.store, projectId, Q1);
+    const before = { ...calls };
+    const withoutFileId = { ...first! } as Partial<StoredSymbol>;
+    delete withoutFileId.fileId;
+
+    // Act
+    const errors = await Promise.all(
+      [withoutFileId, { ...first!, fileId: 'not-a-uuid' }, null].map((symbolWithout) =>
+        rejectionOf(() =>
+          buildContextPack(deps, { projectId, question: Q1, anchors: [symbolWithout as StoredSymbol] }),
+        ),
+      ),
+    );
+
+    // Assert
+    for (const error of errors) {
+      expect(error).toBeInstanceOf(RangeError);
+      expect((error as RangeError).message).toContain('anchors');
+    }
+    expect(calls).toEqual(before);
+  });
+
+  it('A pack names the commit it was read at', async () => {
+    // Arrange
+    const { deps, projectId, batchReads } = doubles();
+
+    // Act
+    const pack = filled(await buildContextPack(deps, { projectId, question: Q1 }));
+
+    // Assert
+    expect(pack.commit).toBe(COMMIT);
+    expect(batchReads.map((read) => read.commit)).toEqual([COMMIT]);
+  });
+
+  it('The files of a pack are read in one batch', async () => {
+    // Arrange: three anchored symbols in three files.
+    const { deps, projectId, sourceCalls, batchReads } = ownProject(
+      {
+        files: [file('app/F1.php', { loc: 10 }), file('app/F2.php', { loc: 10 }), file('app/F3.php', { loc: 10 })],
+        symbols: [symbol('app/F1.php', 'PriceA', 1), symbol('app/F2.php', 'PriceB', 1), symbol('app/F3.php', 'PriceC', 1)],
+        edges: [],
+      },
+      { 'app/F1.php': linesOf('app/F1.php', 10), 'app/F2.php': linesOf('app/F2.php', 10), 'app/F3.php': linesOf('app/F3.php', 10) },
+    );
+
+    // Act
+    const pack = filled(await buildContextPack(deps, { projectId, question: 'price' }));
+
+    // Assert
+    expect(pack.spans).toHaveLength(3);
+    expect(sourceCalls).toEqual({ readFileAt: 0, readFilesAt: 1 });
+    expect([...batchReads[0]!.paths].sort()).toEqual(['app/F1.php', 'app/F2.php', 'app/F3.php']);
   });
 });
 

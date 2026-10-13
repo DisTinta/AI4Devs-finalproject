@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { textWithoutNul } from './text-without-nul.js';
 
 // Evidence records that mirror the `evidence` table of `0002_history-claims` and its checks
 // (DIS-38 design D1). The claim id is assigned on insert, so it is not part of the record.
@@ -23,7 +24,7 @@ export const evidenceSchema = z
     startLine: z.int().min(1).max(SPAN_LINE_MAX),
     endLine: z.int().max(SPAN_LINE_MAX),
     verification: z.literal(EVIDENCE_VERIFICATIONS),
-    excerpt: z.string().nullable(),
+    excerpt: textWithoutNul.nullable(),
   })
   .refine((evidence) => evidence.endLine >= evidence.startLine, { path: ['endLine'] });
 

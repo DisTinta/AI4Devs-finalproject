@@ -826,6 +826,198 @@ describe('git source tree', () => {
       expect(started.length).toBe(forSmall);
     });
   });
+  // DIS-39 (change explain-use-case, specs/repository-indexing/spec.md, design D10).
+  describe('Requirement: Reading several files at a commit', () => {
+    /** A source tree that counts the git processes it starts through the spawner. */
+    function countingTree(): { tree: ReturnType<typeof gitSourceTreeWith>; spawned: () => number } {
+      let spawned = 0;
+      const tree = gitSourceTreeWith((root, args) => {
+        spawned += 1;
+        return spawnReaderGit(root, args);
+      });
+      return { tree, spawned: () => spawned };
+    }
+
+    it('Several files are read as the given commit stores them', async () => {
+      // Arrange
+      const repository = emptyRepository();
+      writeFileSync(join(repository, 'a.php'), 'v1');
+      writeFileSync(join(repository, 'b.php'), 'w1');
+      git(repository, 'add', '.');
+      git(repository, 'commit', '-q', '-m', 'feat: v1');
+      const first = git(repository, 'rev-parse', 'HEAD');
+      writeFileSync(join(repository, 'a.php'), 'v2');
+      git(repository, 'commit', '-q', '-am', 'feat: v2');
+      const second = git(repository, 'rev-parse', 'HEAD');
+      writeFileSync(join(repository, 'a.php'), 'modified on disk');
+
+      // Act
+      const atFirst = await sourceTree.readFilesAt(repository, first, ['b.php', 'a.php', 'b.php']);
+      const atSecond = await sourceTree.readFilesAt(repository, second, ['a.php']);
+
+      // Assert
+      expect(atFirst).toEqual(['w1', 'v1', 'w1']);
+      expect(atSecond).toEqual(['v2']);
+    });
+
+    it('The first unreadable path rejects the whole batch', async () => {
+      // Arrange
+      const repository = emptyRepository();
+      writeFileSync(join(repository, 'a.php'), '<?php\n');
+      writeFileSync(join(repository, 'big.txt'), 'x'.repeat(1_048_577));
+      writeFileSync(join(repository, 'logo.bin'), Buffer.from([0xff, 0xfe, 0x00, 0x80]));
+      git(repository, 'add', '.');
+      git(repository, 'commit', '-q', '-m', 'feat: a, big and logo');
+      const head = git(repository, 'rev-parse', 'HEAD');
+      const outside = temporaryDirectory();
+
+      // Act
+      const rejections = [
+        await rejectionOf(() => sourceTree.readFilesAt(repository, head, ['a.php', 'missing.php', 'big.txt', 'logo.bin'])),
+        await rejectionOf(() => sourceTree.readFilesAt(repository, head, ['a.php', 'logo.bin', 'big.txt'])),
+        await rejectionOf(() => sourceTree.readFilesAt(repository, head, ['a.php', 'big.txt'])),
+        await rejectionOf(() => sourceTree.readFilesAt(outside, head, ['a.php'])),
+      ];
+
+      // Assert
+      expect(rejections.map(unavailable)).toEqual([
+        { reason: 'missing', path: 'missing.php' },
+        { reason: 'binary-content', path: 'logo.bin' },
+        { reason: 'too-large', path: 'big.txt' },
+        { reason: 'not-a-repository', path: 'a.php' },
+      ]);
+      for (const rejection of rejections) expect(JSON.stringify(rejection)).not.toContain('<?php');
+    });
+
+    it('An unreadable object outside the batch does not fail it', async () => {
+      // Arrange
+      const outside = temporaryDirectory();
+      const repository = emptyRepository();
+      writeFileSync(join(repository, 'a.php'), '<?php\n// a\n');
+      writeFileSync(join(repository, 'other.php'), '<?php\n// other\n');
+      git(repository, 'add', '.');
+      git(repository, 'commit', '-q', '-m', 'feat: a and other');
+      const head = git(repository, 'rev-parse', 'HEAD');
+      const marker = armPartialCloneTrap(repository, outside, 'other.php');
+
+      // Act
+      const read = await sourceTree.readFilesAt(repository, head, ['a.php']);
+
+      // Assert
+      expect(read).toEqual(['<?php\n// a\n']);
+      expect(existsSync(marker) ? readFileSync(marker, 'utf8') : '').toBe('');
+    });
+
+    it("A requested object git cannot read fails the batch with git's error", async () => {
+      // Arrange
+      const outside = temporaryDirectory();
+      const repository = emptyRepository();
+      writeFileSync(join(repository, 'a.php'), '<?php\n// a\n');
+      writeFileSync(join(repository, 'other.php'), '<?php\n// other\n');
+      git(repository, 'add', '.');
+      git(repository, 'commit', '-q', '-m', 'feat: a and other');
+      const head = git(repository, 'rev-parse', 'HEAD');
+      const marker = armPartialCloneTrap(repository, outside, 'other.php');
+
+      // Act
+      const rejection = await rejectionOf(() => sourceTree.readFilesAt(repository, head, ['missing.php', 'other.php']));
+
+      // Assert: git's error, before the per-path `missing` of the first path.
+      expect(rejection).toBeInstanceOf(Error);
+      expect(rejection).not.toBeInstanceOf(DomainError);
+      expect((rejection as Error).message).toMatch(/^fatal: /m);
+      expect(existsSync(marker) ? readFileSync(marker, 'utf8') : '').toBe('');
+    });
+
+    // Not a scenario: a well-formed commit the repository does not have is `missing` on the first path,
+    // as `readFileAt` reports it.
+    it('reports a commit the repository does not have as missing on the first path', async () => {
+      // Arrange
+      const repository = emptyRepository();
+      writeFileSync(join(repository, 'a.php'), '<?php\n');
+      git(repository, 'add', '.');
+      git(repository, 'commit', '-q', '-m', 'feat: a');
+
+      // Act
+      const rejection = await rejectionOf(() => sourceTree.readFilesAt(repository, 'f'.repeat(40), ['b.php', 'a.php']));
+
+      // Assert
+      expect(unavailable(rejection)).toEqual({ reason: 'missing', path: 'b.php' });
+    });
+
+    it('Many files are read with a fixed number of git processes', async () => {
+      // Arrange
+      const repository = emptyRepository();
+      const paths = Array.from({ length: 50 }, (_, i) => `f${String(i).padStart(2, '0')}.php`);
+      for (const path of paths) writeFileSync(join(repository, path), `<?php // ${path}\n`);
+      git(repository, 'add', '.');
+      git(repository, 'commit', '-q', '-m', 'feat: 50 files');
+      const head = git(repository, 'rev-parse', 'HEAD');
+      const one = countingTree();
+      const all = countingTree();
+
+      // Act
+      const readOne = await one.tree.readFilesAt(repository, head, paths.slice(0, 1));
+      const readAll = await all.tree.readFilesAt(repository, head, paths);
+
+      // Assert
+      expect(readOne).toEqual([`<?php // ${paths[0]}\n`]);
+      expect(readAll).toEqual(paths.map((path) => `<?php // ${path}\n`));
+      expect(all.spawned()).toBe(one.spawned());
+      // Two more run through simple-git for the repository checks: at most six in all.
+      expect(one.spawned()).toBeLessThanOrEqual(4);
+    });
+
+    it('Malformed batch arguments are rejected before running git', async () => {
+      // Arrange: a root that does not exist, so a root check that ran first would answer differently.
+      const missingRoot = join(temporaryDirectory(), 'nowhere');
+      const { tree, spawned } = countingTree();
+      const head = 'a'.repeat(40);
+
+      // Act
+      const rejections = [
+        await rejectionOf(() => tree.readFilesAt(missingRoot, 'HEAD', ['a.php'])),
+        await rejectionOf(() => tree.readFilesAt(missingRoot, 'HEAD', [])),
+        await rejectionOf(() => tree.readFilesAt(missingRoot, head, ['a.php', '../etc/passwd'])),
+      ];
+
+      // Assert
+      expect(rejections.every((rejection) => rejection instanceof RangeError)).toBe(true);
+      expect(rejections.map((rejection) => (rejection as Error).message.split(' ')[0])).toEqual(['commit', 'commit', 'path']);
+      expect(spawned()).toBe(0);
+    });
+
+    it('An empty batch starts no git process', async () => {
+      // Arrange: a root that does not exist, so even a repository check would fail.
+      const missingRoot = join(temporaryDirectory(), 'nowhere');
+      const { tree, spawned } = countingTree();
+
+      // Act
+      const read = await tree.readFilesAt(missingRoot, 'a'.repeat(40), []);
+
+      // Assert
+      expect(read).toEqual([]);
+      expect(spawned()).toBe(0);
+    });
+
+    it('Reading a batch executes nothing from the repository', async () => {
+      // Arrange
+      const outside = temporaryDirectory();
+      const repository = temporaryDirectory();
+      buildHostileRepository(repository);
+      const head = git(repository, 'rev-parse', 'HEAD');
+      const clean = await sourceTree.readFilesAt(repository, head, ['b.php', ACCENTED_PATH]);
+      const marker = armProgramTraps(repository, outside);
+
+      // Act
+      const read = await sourceTree.readFilesAt(repository, head, ['b.php', ACCENTED_PATH]);
+
+      // Assert
+      expect(existsSync(marker) ? readFileSync(marker, 'utf8') : '').toBe('');
+      expect(read).toEqual(clean);
+      expect(read).toEqual(['<?php\n// a\n', '# Señal\n']);
+    });
+  });
 });
 
 /** The rejection of `call`, or `undefined` when it resolves. */

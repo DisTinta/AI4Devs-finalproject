@@ -112,6 +112,9 @@ async function run(argv: string[], options: FakeOptions = {}): Promise<Run> {
       readFileAt: async () => {
         throw new Error('readFileAt is not used by indexing');
       },
+      readFilesAt: async () => {
+        throw new Error('readFilesAt is not used by indexing');
+      },
     },
     analyzer: { analyze: async (input) => (options.analyze ?? plainAnalysis)(input.files) },
     git: {

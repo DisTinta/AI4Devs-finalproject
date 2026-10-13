@@ -54,6 +54,7 @@
 37. [Context Engine: anclaje léxico, expansión en ambos sentidos y doble en memoria (DIS-27)](#37-context-engine-anclaje-léxico-expansión-en-ambos-sentidos-y-doble-en-memoria-dis-27)
 38. [Context Engine: ranking, presupuesto de tokens y paquete de contexto (DIS-28)](#38-context-engine-ranking-presupuesto-de-tokens-y-paquete-de-contexto-dis-28)
 39. [Afirmaciones tipadas y cuarentena de la salida del modelo (DIS-38)](#39-afirmaciones-tipadas-y-cuarentena-de-la-salida-del-modelo-dis-38)
+40. [Caso de uso `explain`, política `UNKNOWN` y persistencia de afirmaciones (DIS-39)](#40-caso-de-uso-explain-política-unknown-y-persistencia-de-afirmaciones-dis-39)
 
 ---
 
@@ -4226,3 +4227,23 @@ fallar el test.
 **Ajuste humano.** El hook de cierre no dejaba terminar el turno con la suite en rojo mientras se
 esperaba la decisión. El modelo aisló el caso en un `it.skip` sin commitear, lo dijo, y lo quitó al
 recibir la respuesta. No tocó la configuración local del kit, que es de la autora.
+
+---
+
+# 40. Caso de uso `explain`, política `UNKNOWN` y persistencia de afirmaciones (DIS-39)
+
+### Prompt 1 — Aplicar el change
+
+La sesión de apply arrancó con el comando, sin más texto:
+
+```
+/opsx:apply
+```
+
+**Por qué funcionó.** La issue enriquecida y el change ya cerraban cada decisión (D1, D5, D6, los
+códigos nuevos, el tope de 20 afirmaciones previas), así que el apply no tuvo que preguntar nada salvo
+lo que la tarea 9.11 reserva a la autora. La medida antes/después de 39c salió del mismo script con el
+mismo método: Q1 pasó de 145 procesos git y 10,8 s a 6 procesos y 0,58 s.
+
+**Ajuste humano.** En la parada de la tarea 9.11 el modelo presentó la mediana y dos opciones; la
+autora eligió **sin tope** de ficheros por paquete, y la decisión quedó en `design.md` → Follow-ups.

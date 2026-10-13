@@ -16,3 +16,5 @@ export * from './edge-order.js';
 export * from './doc-mentions.js';
 export * from './claim.js';
 export * from './evidence.js';
+export * from './text-without-nul.js';
+export * from './stored-claim.js';

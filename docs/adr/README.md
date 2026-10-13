@@ -9,3 +9,4 @@ Decisions that affect more than one module or cost more than a day to revert. Ne
 | 2026-09-28 | [node-pg-migrate with plain SQL migrations](./20260928-node-pg-migrate-sql-migrations.md) | Accepted |
 | 2026-10-02 | [PHP parsing: `web-tree-sitter` (WASM) over native `tree-sitter`, and trait → `class` encoding](./20261002-php-parser-web-tree-sitter.md) | Accepted |
 | 2026-10-11 | [Span text is read from git at the project's indexed commit](./20261011-span-text-read-from-git-at-indexed-commit.md) | Accepted |
+| 2026-10-13 | [A `FACT` statement is stored as an `L2` `INFERENCE` claim that keeps its type in the provenance](./20261013-fact-statements-stored-as-l2-inference.md) | Accepted |

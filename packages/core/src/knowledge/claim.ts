@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { SPAN_LINE_MAX } from './evidence.js';
+import { textWithoutNul, withoutNul } from './text-without-nul.js';
 
 // Claim records that mirror the `claim` table of `0002_history-claims` and its checks (DIS-38 design
 // D1): the types are inferred from the schemas, so a value the database rejects is either a compile
@@ -39,7 +40,7 @@ export const inputSpanSchema = z
  * time zone.
  */
 export const provenanceSchema = z.strictObject({
-  model: z.string().min(1),
+  model: withoutNul(z.string().min(1)),
   promptHash: z.string().regex(/^[0-9a-f]{64}$/),
   inputSpans: z.array(inputSpanSchema).min(1),
   createdAt: z.iso.datetime({ offset: true }),
@@ -48,25 +49,40 @@ export const provenanceSchema = z.strictObject({
 /** What produced an inferred claim. */
 export type Provenance = z.infer<typeof provenanceSchema>;
 
+/** The types a typed statement can have, kept in the provenance of the claim that stores it. */
+export const PROVENANCE_STATEMENT_TYPES = ['FACT', 'INFERENCE'] as const;
+
+/**
+ * The provenance of an `L2` `INFERENCE` claim: a provenance plus the type the typing rule gave the
+ * statement (DIS-39 design D1). A `FACT` statement is stored as an `L2` `INFERENCE` claim and keeps
+ * `FACT` here, so the layer stays the origin of the claim and the type of the statement is not lost.
+ */
+export const statementProvenanceSchema = provenanceSchema.extend({
+  statementType: z.literal(PROVENANCE_STATEMENT_TYPES),
+});
+
+/** The provenance of an `L2` `INFERENCE` claim, with the type of its statement. */
+export type StatementProvenance = z.infer<typeof statementProvenanceSchema>;
+
 /** The columns every claim has, whatever its layer. */
 const claimColumns = {
   projectId: z.uuid(),
-  subject: z.string(),
-  predicate: z.string(),
-  object: z.string().nullable(),
+  // No text holds U+0000, which Postgres rejects in `text` and `jsonb` (DIS-39 design D3).
+  subject: textWithoutNul,
+  predicate: textWithoutNul,
+  object: textWithoutNul.nullable(),
   status: z.literal(CLAIM_STATUSES),
   // claim_confidence_range: NULL, or from 0 to 1 inclusive; Zod rejects NaN.
   confidence: z.number().min(0).max(1).nullable(),
 };
 
-/** The types an inferred (`L2`) claim may have: every type but `FACT` (`fact_only_from_l1`). */
-const INFERRED_CLAIM_TYPES: readonly Exclude<ClaimType, 'FACT'>[] = ['INFERENCE', 'UNKNOWN'];
-
 /**
- * A claim as a writer supplies it to the `claim` table. An `L1` claim may be of any type and may carry
- * a provenance; an `L2` claim is never a `FACT` (`fact_only_from_l1`) and always carries one
- * (`l2_requires_provenance`). Closed sets are `z.literal([...])` rather than `z.enum`: same values and
- * issue code, and a public type that is a union of literals.
+ * A claim as a writer supplies it to the `claim` table, in three variants (DIS-39 design D2). An `L1`
+ * claim may be of any type and may carry a provenance without a statement type; an `L2` claim is
+ * never a `FACT` (`fact_only_from_l1`) and always carries a provenance (`l2_requires_provenance`):
+ * with the statement type when it is an `INFERENCE`, without it when it is `UNKNOWN`. The database
+ * does not check the statement type. Closed sets are `z.literal([...])` rather than `z.enum`: same
+ * values and issue code, and a public type that is a union of literals.
  */
 export const claimSchema = z.discriminatedUnion('layer', [
   z.strictObject({
@@ -75,12 +91,20 @@ export const claimSchema = z.discriminatedUnion('layer', [
     type: z.literal(CLAIM_TYPES),
     provenance: provenanceSchema.optional(),
   }),
-  z.strictObject({
-    ...claimColumns,
-    layer: z.literal('L2'),
-    type: z.literal(INFERRED_CLAIM_TYPES),
-    provenance: provenanceSchema,
-  }),
+  z.discriminatedUnion('type', [
+    z.strictObject({
+      ...claimColumns,
+      layer: z.literal('L2'),
+      type: z.literal('INFERENCE'),
+      provenance: statementProvenanceSchema,
+    }),
+    z.strictObject({
+      ...claimColumns,
+      layer: z.literal('L2'),
+      type: z.literal('UNKNOWN'),
+      provenance: provenanceSchema,
+    }),
+  ]),
 ]);
 
 /** A claim as a writer supplies it; a value of this type passes the checks of the `claim` table. */

@@ -50,10 +50,17 @@ export class InvalidGraph extends DomainError {
   }
 }
 
-/** A read argument the store checks before querying. */
-export type StoreQueryArgument = 'name' | 'kinds' | 'hops' | 'direction' | 'since';
+/**
+ * An argument the store checks: a read argument checked before querying, or the claims of a write
+ * (`claims`), checked before writing and, for the ownership of their files, by one query inside the
+ * write (DIS-39 design D7).
+ */
+export type StoreQueryArgument = 'name' | 'kinds' | 'hops' | 'direction' | 'since' | 'claims' | 'spans';
 
-/** A read was called with an invalid argument; nothing was sent to the database. */
+/**
+ * A store operation was called with an invalid argument. Nothing was written, and nothing was sent to
+ * the database except, for a claim write, the query that checks the ownership of the cited files.
+ */
 export class InvalidStoreQuery extends DomainError {
   /** Stable code. */
   readonly code = 'INVALID_STORE_QUERY';
@@ -68,6 +75,21 @@ export class InvalidStoreQuery extends DomainError {
   ) {
     super(`Invalid store query: ${argument} ${reason}`);
     this.name = 'InvalidStoreQuery';
+  }
+}
+
+/**
+ * The database failed once the write of an answer's claims had started (DIS-39 design D7). It carries
+ * no `cause` and no text of the database error: a Postgres error's message, `detail`, `hint` or
+ * `where` can quote a written value, such as an excerpt.
+ */
+export class ClaimWriteFailed extends DomainError {
+  /** Stable code. */
+  readonly code = 'CLAIM_WRITE_FAILED';
+
+  constructor() {
+    super('The claims could not be written');
+    this.name = 'ClaimWriteFailed';
   }
 }
 

@@ -152,7 +152,13 @@ Verified against `package.json` (root and per package). If a command is not here
   `direction`, `resolution` and `fileKind` with the Postgres semantics, DIS-28), reuses core's
   argument checks, sorts in byte order (`Buffer.compare`), and counts `findSymbols`/`neighbors`/
   `getProject` calls (before any check) so a test can assert "no search was sent".
-  Writes and `sumCostSince` throw. It runs the `graph-store` read scenarios in
+  Since DIS-39 it also implements `saveClaims` and `findClaimsOverlapping` (same validation as the
+  adapter, through core's `assertValidClaimItems` / `assertValidClaimSpans`), counted in `calls`;
+  `createInMemoryStore({ projects, failClaimWrite: { claim, evidence } })` makes `saveClaims` reject
+  with `ClaimWriteFailed` at that evidence before storing anything; `seedClaim({ claim, evidence,
+  createdAt })` stores a claim without the ownership check (a claim may cite another project's file);
+  `storedClaims()` lists them. Write instants are a counter after the latest seeded `createdAt`,
+  never `Date.now()`. Graph writes and `sumCostSince` throw. It runs the `graph-store` read scenarios in
   `tests/unit/store/in-memory-store.spec.ts` (tests named `… (in-memory double)`). Known limit:
   case-insensitivity uses `toLowerCase`, which can differ from `ILIKE` on non-ASCII names. It lives
   in `tests/` on purpose: outside Stryker's `mutate` and core's `dist`.
@@ -160,7 +166,11 @@ Verified against `package.json` (root and per package). If a command is not here
   `createInMemorySourceTree(contents, failures?)` answers `readFileAt` from `{ root: { commit: {
   path: content } } }`, rejects an absent entry with `SourceUnavailable('missing', path)`, injects
   any other rejection per path, and records `calls.readFileAt` and every `{ root, commit, path }`
-  read. `readFiles`/`realPath` throw. Context pack unit tests pair it with the store double.
+  read. Since DIS-39 it answers `readFilesAt` too (first failing path in order rejects the batch),
+  recorded in `calls.readFilesAt` and `batchReads`; the pack now reads only through it, so "no file
+  was read" means both counters are 0. `readFiles`/`realPath` throw. Context pack unit tests pair it
+  with the store double. `tests/support/scripted-llm.ts` is the `LlmPort` double of the explain tests:
+  it reads the evidence ids and spans from the prompt and builds the output from them.
 - **Property tests use `fast-check`** (root devDependency since DIS-28,
   `tests/unit/context/budget.spec.ts`): `numRuns ≥ 200`, and `seed` fixed only when `CI` is set
   (`{ ...(process.env.CI ? { seed: 20261011 } : {}) }`), so CI replays and local runs explore.
@@ -481,14 +491,20 @@ services that must be started first, quirks of the local environment.
   Since DIS-28 `anchor` searches at most `MAX_QUESTION_TERMS` (16) terms and keeps at most
   `MAX_ANCHORS` (32) symbols (those matching most terms, returned in first-found order).
   `buildContextPack({ store, source, workspaceRoot }, { projectId, question, tokenBudget = 8000,
-  hops = 2 })` turns anchor + expansion into the pack DIS-39 prompts with:
+  hops = 2, anchors? })` turns anchor + expansion into the pack DIS-39 prompts with (given `anchors`
+  skip the symbol search; each must carry a well-formed `fileId`, else `RangeError` naming `anchors`):
   - `rankCandidates`: lexicographic key, no weights — distance, origin (`anchor` < `exact` <
     `heuristic`), file kind (`test` < `source` < `doc` < `config`), lexical match of name/path,
     input order.
-  - Span text is read with `SourceTreePort.readFileAt(root, project.indexedCommit, path)` (ADR
-    `docs/adr/20261011-span-text-read-from-git-at-indexed-commit.md`): the database holds no
-    content. Each file is read once per pack and redacted with `redactSecrets` before any span is
-    cut or token counted. A symbol gives its lines; a file node a whole-file span (no `symbol`).
+  - Span text is read with **one** `SourceTreePort.readFilesAt(root, project.indexedCommit, paths)`
+    over the distinct paths of every candidate in rank order (ADR
+    `docs/adr/20261011-span-text-read-from-git-at-indexed-commit.md`; batched since DIS-39): the
+    database holds no content. The git adapter answers it with at most six processes (two repository
+    checks, the commit check, one `ls-tree -r -z` of the whole tree without sizes, one
+    `cat-file --batch-check` over the requested objects, one `cat-file --batch`): Q1 on acme-shop went
+    from 145 processes and 10.8 s to 6 and 0.58 s (`openspec/changes/explain-use-case/reports/`); no
+    cap on the files a pack reads (author decision). Each file is redacted with `redactSecrets` before
+    any span is cut or token counted. A symbol gives its lines; a file node a whole-file span (no `symbol`).
   - `fitToTokenBudget`: atomic spans, greedy with skip; spans of one file never overlap (a
     contained or cutting-across candidate is dropped, not counted in `omitted`; a containing one
     replaces what it contains). `estimateTokens` = `ceil(code points / 4)`, declared on every pack
@@ -509,12 +525,17 @@ services that must be started first, quirks of the local environment.
     `inputSpans`, `createdAt`), `confidence` is `null` or in [0, 1]. `CLAIM_*` and
     `EVIDENCE_VERIFICATIONS` equal the SQL enums (a test reads the migration). Line numbers are capped at
     `SPAN_LINE_MAX` (2 147 483 647, the Postgres `integer`). `knowledge/` is a
-    seed fingerprint input, so touching these files means `npm run seed:build`.
+    seed fingerprint input, so touching these files means `npm run seed:build`. Since DIS-39
+    `claimSchema` has three variants: `L1` (provenance without `statementType`), `L2` `INFERENCE`
+    (`statementProvenanceSchema`, `statementType` `FACT`/`INFERENCE` required) and `L2` `UNKNOWN`
+    (no `statementType`); the database does not check it (ADR
+    `docs/adr/20261013-fact-statements-stored-as-l2-inference.md`). Every text field rejects U+0000
+    (`textWithoutNul`, also used by the quarantine).
   - `packages/core/src/explain/typing-rules.ts`: `typeStatement(chain)` is `FACT` only when every cited
     span's `origin` is `anchor`/`exact` (fail closed: an unknown origin is `INFERENCE`; an empty
     chain throws `RangeError`). It reads the origin as the Context Engine gave it (a
-    replacing span carries the best origin) and never sees a `layer`; how a `FACT` is stored given
-    `fact_only_from_l1` is DIS-39's open question.
+    replacing span carries the best origin) and never sees a `layer`; a `FACT` statement is stored as
+    an `L2` `INFERENCE` claim with `provenance.statementType: 'FACT'` (DIS-39, ADR above).
   - `packages/core/src/explain/statement-schema.ts`: `parseModelOutput(text, knownEvidenceIds)` —
     size (`MAX_MODEL_OUTPUT_BYTES`, UTF-8) → JSON → strict schema (no `type` field; limits in
     `explain/limits.ts`, character lengths in **code points**, as Zod 4.6.5 measures them) → repeated
@@ -526,6 +547,31 @@ services that must be started first, quirks of the local environment.
   - Gotcha: `SchemaViolationEvent` is **not** part of `AuditEvent` (`index/audit-event.ts`), whose
     `sortEvents` reads `file`. It carries subcode, byte size, SHA-256 and `{ path, code }` per issue —
     never a Zod `message`, `keys` or value; at most `MAX_EVENT_ISSUES` (20) issues plus `issueCount`. Core returns it; the transport logs it (DIS-39).
+- **`explain` is the one-pass use case over the Context Engine** (DIS-39,
+  `packages/core/src/explain/explain.ts`). `explain({ store, source, llm, workspaceRoot, now },
+  { projectId, question, tokenBudget?, hops? })`, in this order: Zod request check
+  (`InvalidExplainRequest`, `field` only, never the value; question 1..`MAX_QUESTION_CHARS` = 1 000
+  code points, not blank) → `anchor` once → `no-anchor` → [DIS-21 cache slot] → `llm-required` in
+  evaluation mode (pack not built) → pack with the given anchor → `over-budget` →
+  `findClaimsOverlapping` (before the model) → one `complete({ purpose: 'answer' })` → quarantine
+  (`invalid-model-output`) → `no-evidence` when there is no statement → type, `saveClaims`. Answer:
+  `kind: 'unknown'` with `reason` (`UNKNOWN_REASONS`), or `kind: 'answered'` with `persisted`.
+  `ClaimWriteFailed` from `saveClaims` → `persisted: false`, the prompt ids `E1…En` and one
+  `{ type: 'claims_not_persisted', code: 'store-write-failed' }`; any other error propagates.
+  `BudgetExhausted` propagates until DIS-21 adds the cache-only degradation.
+  - Gotcha: `ExplainEvent` (`SchemaViolationEvent | ClaimsNotPersistedEvent`) is **not** part of
+    `AuditEvent`. Core never logs; the transport does.
+  - Claim columns: subject = symbol of the first cited span (its path otherwise), predicate
+    `CLAIM_PREDICATE_EXPLAINS` (`explains`), object = statement text; the question is never stored.
+  - `StorePort.saveClaims(projectId, items)` writes one answer atomically (`atomically` with a
+    `mapWriteError`: every database failure once the write started becomes `ClaimWriteFailed`, no
+    cause, no database text; a connect failure propagates). `findClaimsOverlapping(projectId, spans)`
+    returns at most `MAX_PRIOR_CLAIMS` (20), newest first, project-scoped, inclusive overlap; prior
+    claims show a stale `FACT` as `INFERENCE` with `warning: 'stale-evidence'`. `explain` passes the
+    pack's `commit` as `readAtCommit`: when a re-index moved the project's indexed commit during the
+    answer, the claims are written `stale` and the answer's statements are shown stale too.
+  - Gotcha: claims are written with `created_at = clock_timestamp()`, not the column default
+    `now()` (the transaction start), so "newest first" holds for claims written in one transaction.
 - **`indexRepository` writes nothing until the whole graph is valid** (DIS-85,
   `packages/core/src/index/index-repository.ts`). Phases, each reported once to the optional
   `onProgress` when it starts: `confine` (`confinePath` lexically, then `realPath` of root and repo
@@ -678,7 +724,9 @@ services that must be started first, quirks of the local environment.
   project's name (checked with a `SELECT`, not from the server's localised `23505` detail), executes
   the seed and commits. Non-sample projects are never touched. **Each `db:seed` / `make up` deletes by
   `CASCADE` the `query_log`, `claim`, `evidence` and `cache_entry` rows of the sample projects**
-  (design D2; no writer exists yet, DIS-26 will reload its cache inside `db:seed`). Its summary is
+  (design D2). Since DIS-39 `explain` writes `claim`/`evidence`, so every `db:seed` / `make up`
+  deletes the claims `explain` stored for a sample project (acme-shop); DIS-26 will reload its cache
+  inside `db:seed`. Its summary is
   the `make up` text: `1 project loaded` and `  acme-shop  php/laravel  174 nodes · 170 edges`,
   **which differs from the illustrative `2 projects loaded` block of `readme.md` §1.4 until
   CM-HU-18** (PH-02). After a local `make up`, the database holds a committed acme-shop with the seed's
@@ -688,8 +736,9 @@ services that must be started first, quirks of the local environment.
   evidence that behaviour is covered.
 - **The repo is mid-build (Entrega 2).** `verify` is a placeholder that no-ops; `seed:build`
   (DIS-91) and `db:seed` (DIS-92) are real. The schema has migrations `0001`–`0003`, but only the L1 graph and history
-  (`project`, `file`, `symbol`, `edge`, `commit`, `file_commit`) have a writer so far, and only
-  `project`, `file`, `symbol` and `edge` have a reader. The git history reader (DIS-35) produces
+  (`project`, `file`, `symbol`, `edge`, `commit`, `file_commit`) and, since DIS-39, `claim` and
+  `evidence` (through `StorePort.saveClaims`, called only by `explain`) have a writer so far, and only
+  `project`, `file`, `symbol`, `edge` and `claim`/`evidence` (`findClaimsOverlapping`) have a reader. The git history reader (DIS-35) produces
   `commit`/`file_commit` rows and the co-change rule (DIS-36) `co_changed` edges; `indexRepository`
   (DIS-85) composes them, and the CLI `index` command (DIS-86) is its only caller outside tests.
   `db:migrate` / `db:rollback` are real and need `DATABASE_URL`: `make up` gets it from `.env`,

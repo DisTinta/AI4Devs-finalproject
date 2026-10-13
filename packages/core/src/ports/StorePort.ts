@@ -8,6 +8,7 @@ import type {
   TraversalDirection,
 } from '../knowledge/graph-read.js';
 import type { NewProject, Project } from '../knowledge/project.js';
+import type { ClaimItem, ClaimSpan, SavedClaim, StoredClaim } from '../knowledge/stored-claim.js';
 
 /**
  * Persists the knowledge graph. The domain talks to this port and never sees SQL.
@@ -96,4 +97,39 @@ export interface StorePort {
    * @throws InvalidStoreQuery naming `since` when it is not a valid date, before querying.
    */
   sumCostSince(since: Date): Promise<number>;
+
+  /**
+   * Writes the claims of one answer, each with its evidence, in one atomic operation (DIS-39 design
+   * D7), and resolves to one entry per item, in the order given, with the id of the claim and the ids
+   * of its evidence in the order given. Checks, in this order: `projectId` well formed; every claim
+   * and evidence passes its record schema, every item has at least one evidence and every claim's
+   * project id equals `projectId` (in any letter case), before any statement; then, inside the write,
+   * the project exists and every cited file belongs to it. Every claim and evidence of the call is
+   * written, or none. When `readAtCommit` is given and is not the project's indexed commit at the
+   * moment of the write (read under the same lock), every claim is written `stale`, whatever its
+   * record says, and each result says so (DIS-39). An empty list resolves `[]` without writing, after the project check. On its own
+   * connections the write commits before returning; on a caller-owned transaction it neither commits
+   * nor rolls it back, and on failure undoes only its own writes.
+   *
+   * @throws ProjectNotFound when `projectId` is malformed (before any statement) or names no project.
+   * @throws InvalidStoreQuery naming `claims` when a record is invalid, an item has no evidence, a
+   *   claim names another project, or an evidence cites a file of another project; its message never
+   *   holds a record value.
+   * @throws ClaimWriteFailed when the database fails once the write has started, rollback included;
+   *   it carries no text of the database error. A failure to obtain a connection propagates unchanged.
+   */
+  saveClaims(projectId: string, items: ClaimItem[], readAtCommit?: string): Promise<SavedClaim[]>;
+
+  /**
+   * Reads the project's claims with at least one evidence on the file of one of `spans` whose lines
+   * overlap it inclusively (evidence first line ≤ span last line and evidence last line ≥ span first
+   * line): at most `MAX_PRIOR_CLAIMS`, the most recent ones, newest first (by the instant each was
+   * written, then by id, descending). Each claim appears once with all its evidence, ordered by first
+   * line and then by id. Scoped by project first: a claim of another project is never returned. An
+   * empty span list resolves `[]` after the project check. Writes nothing.
+   *
+   * @throws ProjectNotFound when `projectId` is malformed (before querying) or names no project.
+   * @throws InvalidStoreQuery naming `spans` when a span is not a valid input span, before querying.
+   */
+  findClaimsOverlapping(projectId: string, spans: ClaimSpan[]): Promise<StoredClaim[]>;
 }

@@ -11,9 +11,8 @@ none of its content, when it does not conform.
 ### Requirement: Claim and evidence records mirror the database checks
 
 The domain SHALL describe a claim and a piece of evidence with records whose valid values are exactly
-those the `claim` and `evidence` tables accept, with one known exception: a text value holding the
-character U+0000 passes the records but Postgres rejects it in `text` and `jsonb`; the writer of the
-rows (DIS-39) owns that case.
+those the `claim` and `evidence` tables accept, and that also satisfy the rules below that the
+database does not check (the statement type of a provenance, and the absence of U+0000).
 
 - The closed sets of claim layers (`L1`, `L2`), claim types (`FACT`, `INFERENCE`, `UNKNOWN`), claim
   statuses (`current`, `stale`) and evidence verifications (`none`, `cited`, `entailed`, `broken`)
@@ -32,7 +31,16 @@ rows (DIS-39) owns that case.
 - A provenance SHALL hold exactly: the model name (non-empty), the prompt hash (64 lowercase
   hexadecimal characters), the input spans (at least one; each exactly a file id, a first line
   greater than 0 and a last line not before the first) and the creation instant (ISO 8601 with time
-  zone). Any other field, a missing field or JSON `null` SHALL be rejected, at every level.
+  zone). The provenance of a claim of layer `L2` and type `INFERENCE` SHALL also hold the statement
+  type (`FACT` or `INFERENCE`); the standalone provenance record does not. Any other field, a missing
+  required field or JSON `null` SHALL be rejected, at every level.
+- The statement type of a provenance SHALL follow the claim's layer and type: it SHALL be present on
+  a claim of layer `L2` and type `INFERENCE`, and SHALL be absent on a claim of layer `L2` and type
+  `UNKNOWN` and on any claim of layer `L1`; otherwise the claim SHALL be rejected. The database does
+  not check this rule.
+- No text value of a record (the subject, the predicate, the object, the excerpt, the model name)
+  SHALL contain the character U+0000, which Postgres rejects in `text` and `jsonb`; a record holding
+  one SHALL be rejected.
 - An evidence SHALL hold exactly: the file id, the first line (greater than 0), the last line (not
   before the first), the verification and the excerpt (a string or `null`). The claim id is assigned
   on insert and is not part of the record. Any other field SHALL be rejected.
@@ -41,7 +49,8 @@ rows (DIS-39) owns that case.
 - A span whose last line is before its first SHALL be reported on its last line.
 
 The type of a statement (`FACT`, `INFERENCE`, `UNKNOWN`) SHALL NOT be derived from, nor constrain,
-the layer under which a claim is later stored: that mapping is outside this capability.
+the layer under which a claim is later stored: that mapping belongs to the `explain` capability,
+which records the statement type in the provenance.
 
 #### Scenario: An inferred fact is not representable
 
@@ -55,7 +64,7 @@ the layer under which a claim is later stored: that mapping is outside this capa
 - **WHEN** a claim with layer `L2` and type `INFERENCE` is validated without a provenance, and with a
   provenance of JSON `null`
 - **THEN** both are rejected
-- **AND** the same claim with a valid provenance is accepted
+- **AND** the same claim with a valid provenance holding the statement type `INFERENCE` is accepted
 
 #### Scenario: Confidence outside its range is rejected
 
@@ -82,6 +91,22 @@ the layer under which a claim is later stored: that mapping is outside this capa
 - **WHEN** the declared layers, types, statuses and verifications are compared with the values of
   `claim_layer`, `claim_type`, `claim_status` and `evidence_verification` in the claims migration
 - **THEN** each set equals its enum, value by value and in order
+
+#### Scenario: The statement type of a provenance follows layer and type
+
+- **WHEN** these claims, each otherwise valid, are validated: layer `L2` and type `INFERENCE` without
+  a statement type; layer `L2` and type `UNKNOWN` with the statement type `INFERENCE`; layer `L2` and
+  type `UNKNOWN` without one; layer `L1` with a provenance holding the statement type `FACT`; and
+  layer `L2` and type `INFERENCE` with the statement type `FACT`
+- **THEN** the first, the second and the fourth are rejected, and the third and the fifth are
+  accepted
+
+#### Scenario: A text holding U+0000 is rejected
+
+- **WHEN** a claim whose subject, then predicate, then object, then provenance model holds U+0000 is
+  validated, and an evidence whose excerpt holds it
+- **THEN** each is rejected
+- **AND** the same records without that character are accepted
 
 ### Requirement: Statement typing from the resolution of its evidence
 
@@ -121,7 +146,9 @@ otherwise SHALL be discarded **whole** (no statement of it survives) with an aud
 3. It matches the output schema exactly: an object with `answer` (a string of 1 to 2 000 characters)
    and `statements` (0 to 20 objects, each with `text`, a string of 1 to 500 characters, and
    `evidenceIds`, 1 to 10 strings). No other field is allowed at any level; in particular a `type`
-   field SHALL be rejected, because the type is decided by the typing rule. A failure caused only by
+   field SHALL be rejected, because the type is decided by the typing rule. No string of the output
+   (the answer, a statement text, an evidence id) SHALL contain the character U+0000. A failure
+   caused only by
    an empty `evidenceIds` SHALL have subcode `empty_evidence`; one caused only by values above a limit
    SHALL have subcode `limit_exceeded`; any other failure SHALL have subcode `invalid_shape`.
 4. No statement cites the same evidence id twice; duplicates SHALL NOT be removed (subcode
@@ -205,6 +232,13 @@ counts as one); the minimum lengths (1 character) are measured the same way.
 - **WHEN** conforming outputs whose statement cites 10 and 11 of them are checked
 - **THEN** the first is accepted and the second is discarded with subcode `limit_exceeded` and the
   issue path `statements.0.evidenceIds`
+
+#### Scenario: A NUL character discards the whole output
+
+- **GIVEN** the known evidence id `E1`
+- **WHEN** a conforming output whose statement `text` holds U+0000 is checked, one whose `answer`
+  holds it, and one citing an evidence id that holds it
+- **THEN** all three are discarded with subcode `invalid_shape`, and no statement of any is returned
 
 ### Requirement: Audit event of a discarded output
 

@@ -1,7 +1,9 @@
 import { isAbsolute, join } from 'node:path';
+import { z } from 'zod';
 import { redactSecrets } from '../index/secret-scanner.js';
 import { SourceUnavailable } from '../knowledge/errors.js';
 import type { FileKind } from '../knowledge/graph-file.js';
+import type { StoredSymbol } from '../knowledge/graph-read.js';
 import type { SymbolKind } from '../knowledge/graph-symbol.js';
 import { assertValidTraversal } from '../knowledge/read-arguments.js';
 import type { SourceTreePort } from '../ports/SourceTreePort.js';
@@ -19,8 +21,9 @@ import { expand } from './expand.js';
 import { candidateFileKind, rankCandidates, type Candidate, type ContextOrigin } from './rank.js';
 import { estimateTokens, TOKEN_ESTIMATOR, type TokenEstimator } from './tokenizer.js';
 
-// The context pack of a question (DIS-28 design D9): anchor, expand, rank, read each candidate's file
-// from git at the project's indexed commit, redact it, cut spans and fit them to the token budget.
+// The context pack of a question (DIS-28 design D9): anchor, expand, rank, read every candidate's file
+// from git at the project's indexed commit in one batch (DIS-39 design D9), redact it, cut spans and
+// fit them to the token budget.
 // Neither the question nor any span text is logged. The repository root of a seed project is
 // relative and resolves against the injected workspace root, never the process working directory.
 
@@ -68,6 +71,8 @@ export interface FilledContextPack extends PackCommon {
   tokens: number;
   /** Estimated tokens of the whole redacted files of the spans, each file once. */
   baselineTokens: number;
+  /** The indexed commit every file of the pack was read at (DIS-39). */
+  commit: string;
 }
 
 /** A pack with no span: the question anchors nothing, or no span fits the budget. */
@@ -107,7 +112,16 @@ export interface ContextPackRequest {
   tokenBudget?: number;
   /** Integer from 1 to `MAX_HOPS`; `DEFAULT_CONTEXT_HOPS` when absent. */
   hops?: number;
+  /**
+   * The anchor already computed for `question` (DIS-39 design D9), as the symbol search returns it;
+   * when given, the pack uses it and does not search symbols again. Each symbol must carry a
+   * well-formed file id.
+   */
+  anchors?: StoredSymbol[];
 }
+
+/** A well-formed file id, checked as the claim records check ids (core cannot import the adapter's). */
+const FILE_ID = z.uuid();
 
 /** A candidate's span, cut and estimated, with what the pack reports about it. */
 interface CandidateSpan extends CutSpan {
@@ -134,13 +148,13 @@ function linesOf(content: string): string[] {
  *
  * Arguments are checked before any store call. A question that anchors nothing gives an empty
  * `no-anchor` pack without traversing, reading the project or reading any file; a pack where no span
- * fits is `over-budget`. Each distinct file is read at most once.
+ * fits is `over-budget`. Each distinct file is read at most once, all of them in one batched read.
  *
  * @param dependencies The store, the source reader and the absolute workspace root.
  * @param request The project, the question, the budget and the hops.
  * @returns The pack.
- * @throws RangeError naming `workspaceRoot` when it is not absolute, or `tokenBudget` when it is not
- *   an integer in range.
+ * @throws RangeError naming `workspaceRoot` when it is not absolute, `tokenBudget` when it is not
+ *   an integer in range, or `anchors` when a given anchor symbol has no well-formed file id.
  * @throws InvalidStoreQuery naming `hops` when it is not an integer from 1 to `MAX_HOPS`.
  * @throws ProjectNotFound when the question has a term and `projectId` names no project.
  * @throws SourceUnavailable with reason `not-indexed` when the project has no indexed commit, or as
@@ -157,9 +171,12 @@ export async function buildContextPack(
     throw new RangeError(`tokenBudget must be an integer from ${TOKEN_BUDGET_MIN} to ${TOKEN_BUDGET_MAX}`);
   }
   assertValidTraversal(hops);
+  if (request.anchors !== undefined && !request.anchors.every((given) => FILE_ID.safeParse(given?.fileId).success)) {
+    throw new RangeError('anchors must each carry a well-formed file id');
+  }
   const common: Omit<PackCommon, 'omitted'> = { tokenBudget, estimator: TOKEN_ESTIMATOR };
 
-  const anchors = await anchor(store, projectId, question);
+  const anchors = request.anchors ?? (await anchor(store, projectId, question));
   if (anchors.length === 0) {
     return { ...common, status: 'empty', reason: 'no-anchor', spans: [], tokens: 0, baselineTokens: 0, omitted: 0 };
   }
@@ -169,27 +186,24 @@ export async function buildContextPack(
   const commit = project.indexedCommit;
   const root = isAbsolute(project.rootPath) ? project.rootPath : join(workspaceRoot, project.rootPath);
 
-  const files = new Map<string, ReadFile>();
-  const read = async (path: string): Promise<ReadFile> => {
-    let file = files.get(path);
-    if (file === undefined) {
-      const content = redactSecrets({ path, content: await source.readFileAt(root, commit, path) }).file.content;
-      file = { content, lines: linesOf(content) };
-      files.set(path, file);
-    }
-    return file;
-  };
-
-  const spans: CandidateSpan[] = [];
-  for (const candidate of rankCandidates(anchors, neighbors, questionTerms(question))) {
-    spans.push(await cut(candidate, read));
-  }
+  // Every candidate's file in one batched read (DIS-39 design D9), each distinct path once, in rank
+  // order, so the first unreadable path in rank order is the one that rejects.
+  const candidates = rankCandidates(anchors, neighbors, questionTerms(question));
+  const paths = [...new Set(candidates.map(pathOf))];
+  const contents = await source.readFilesAt(root, commit, paths);
+  const files = new Map<string, ReadFile>(
+    paths.map((path, i) => {
+      const content = redactSecrets({ path, content: contents[i] }).file.content;
+      return [path, { content, lines: linesOf(content) }];
+    }),
+  );
+  const spans = candidates.map((candidate) => cut(candidate, files.get(pathOf(candidate)) as ReadFile));
   const fitted = fitToTokenBudget(spans, tokenBudget, keepBestRank);
   if (fitted.included.length === 0) {
     return { ...common, status: 'empty', reason: 'over-budget', spans: [], tokens: 0, baselineTokens: 0, omitted: fitted.omitted };
   }
-  const paths = new Set(fitted.included.map((included) => included.span.path));
-  const baselineTokens = [...paths].reduce((sum, path) => sum + estimateTokens(files.get(path)?.content ?? ''), 0);
+  const included = new Set(fitted.included.map((span) => span.span.path));
+  const baselineTokens = [...included].reduce((sum, path) => sum + estimateTokens(files.get(path)?.content ?? ''), 0);
   return {
     ...common,
     status: 'ok',
@@ -197,6 +211,7 @@ export async function buildContextPack(
     tokens: fitted.tokens,
     baselineTokens,
     omitted: fitted.omitted,
+    commit,
   };
 }
 
@@ -213,11 +228,16 @@ function keepBestRank(replacing: CandidateSpan, replaced: readonly CandidateSpan
   return { ...replacing, span: { ...replacing.span, distance, origin } };
 }
 
-/** The span of a candidate: a symbol's lines, or a whole file (line 1 to its last line). */
-async function cut(candidate: Candidate, read: (path: string) => Promise<ReadFile>): Promise<CandidateSpan> {
+/** The repository-relative path of a candidate's file. */
+function pathOf(candidate: Candidate): string {
+  return candidate.node.type === 'file' ? candidate.node.path : candidate.node.file;
+}
+
+/** The span of a candidate in its read file: a symbol's lines, or a whole file (line 1 to its last line). */
+function cut(candidate: Candidate, file: ReadFile): CandidateSpan {
   const { node } = candidate;
-  const path = node.type === 'file' ? node.path : node.file;
-  const { lines } = await read(path);
+  const path = pathOf(candidate);
+  const { lines } = file;
   const startLine = node.type === 'file' ? 1 : node.startLine;
   const endLine = node.type === 'file' ? lines.length : node.endLine;
   const text = lines.slice(startLine - 1, endLine).join('\n');

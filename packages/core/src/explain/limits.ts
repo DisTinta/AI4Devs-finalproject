@@ -19,3 +19,9 @@ export const MAX_EVENT_ISSUES = 20;
 
 /** Most evidence ids one statement may cite: more citations dilute verification without adding guarantee. */
 export const MAX_EVIDENCE_IDS_PER_STATEMENT = 10;
+
+/**
+ * Longest question `explain` accepts, in Unicode code points (DIS-39, author decision 2026-10-13):
+ * bounds the prompt and the anchoring work whatever the caller sends.
+ */
+export const MAX_QUESTION_CHARS = 1_000;

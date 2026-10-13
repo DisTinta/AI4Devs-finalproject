@@ -279,9 +279,14 @@ fitted to a token budget.
 
 - Inputs: the project id, the question, `tokenBudget` (an integer from 1000 to 32000, 8000 when not
   given) and `hops` (an integer from 1 to 3, 2 when not given), plus the workspace root, an absolute
-  path the caller provides.
+  path the caller provides, and optionally the anchor already computed for that question (a list of
+  symbols as the symbol search returns them). When the anchor is given, the pack SHALL use it and
+  SHALL NOT search symbols again; each given anchor symbol MUST carry a well-formed file id, otherwise
+  the call MUST fail with `RangeError` naming `anchors` before any store call. A given empty anchor
+  gives a `no-anchor` pack.
 - An `ok` pack SHALL carry `status: 'ok'`, its `spans`, `tokens` (the sum of the spans' tokens),
-  `baselineTokens`, `tokenBudget`, `omitted` and `estimator: 'chars-div-4'`. Each span SHALL carry
+  `baselineTokens`, `tokenBudget`, `omitted`, `estimator: 'chars-div-4'` and `commit`, the indexed
+  commit its files were read at. Each span SHALL carry
   its file's path, id and kind, its start and end line, its symbol (id, name and kind) when it comes
   from a symbol, its redacted `text`, its `tokens`, its `distance` (0 for an anchor symbol) and its
   `origin` (`anchor`, `exact` or `heuristic`).
@@ -310,6 +315,8 @@ fitted to a token budget.
   joined to the workspace root by the platform's path rules when it is relative. The process
   working directory SHALL NOT be used.
 - Each distinct file SHALL be read at most once per pack, and only files of candidates SHALL be read.
+  The files of a pack SHALL be read with a single batched read of the source reader, never one read
+  per file.
 - Neither the question nor any span text SHALL be written to any log.
 
 #### Scenario: The pack of the price question holds the calculator class once
@@ -403,3 +410,28 @@ fitted to a token budget.
 - **WHEN** the same pack is built twice, once with the process working directory reported as an
   unrelated absolute directory
 - **THEN** both packs are identical
+
+#### Scenario: A given anchor is used without searching again
+
+- **WHEN** the acme-shop graph is loaded, the anchor of `¿Cómo se calcula el precio final de un
+  pedido?` is computed, and the pack of the same question is built with that anchor
+- **THEN** the pack equals the pack built without a given anchor
+- **AND** no symbol search was sent to the store while building it
+
+#### Scenario: A given anchor symbol without a file id is rejected
+
+- **WHEN** a pack is built with a given anchor whose only symbol has no file id
+- **THEN** the call fails with `RangeError` naming `anchors`
+- **AND** no call was sent to the store
+
+#### Scenario: A pack names the commit it was read at
+
+- **WHEN** acme-shop is loaded and the pack of `¿Cómo se calcula el precio final de un pedido?` is built
+- **THEN** the pack's `commit` is the project's indexed commit, the one every file of the pack was
+  read at
+
+#### Scenario: The files of a pack are read in one batch
+
+- **WHEN** the pack of a question whose candidates span three distinct files is built
+- **THEN** the source reader received exactly one batched read, naming each of the three files once,
+  and no single-file read

@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { InvalidStoreQuery, ProjectNotFound } from '@codemind/core';
+import { ClaimWriteFailed, InvalidStoreQuery, MAX_PRIOR_CLAIMS, ProjectNotFound } from '@codemind/core';
 import type {
+  Claim,
+  ClaimItem,
   EdgeKind,
   EdgeResolution,
   GraphEdge,
@@ -656,4 +658,233 @@ describe('in-memory StorePort double', () => {
       expect((error as InvalidStoreQuery).argument).toBe('direction');
     });
   });
+
+  // DIS-39 (change explain-use-case, specs/graph-store/spec.md): the claim write and the overlap
+  // read of the double, with the same validation order as the Postgres adapter.
+  describe('Requirement: Claim write', () => {
+    it('A failure while writing evidence leaves no claim (in-memory double)', async () => {
+      // Arrange
+      const loaded = createInMemoryStore({
+        projects: [{ project: newProject(), graph: graphOf([file('a.php')], []) }],
+        failClaimWrite: { claim: 1, evidence: 0 },
+      });
+      const [projectId] = loaded.projectIds as [string];
+      const fileId = loaded.fileIds[0]!.get('a.php')!;
+      const items = [claimItem(projectId, fileId, 3, 5), claimItem(projectId, fileId, 10, 12)];
+
+      // Act
+      const error = await loaded.store.saveClaims(projectId, items).catch((e: unknown) => e);
+
+      // Assert
+      expect(error).toBeInstanceOf(ClaimWriteFailed);
+      expect(loaded.storedClaims()).toEqual([]);
+      expect(await loaded.store.findClaimsOverlapping(projectId, [{ fileId, startLine: 1, endLine: 20 }])).toEqual([]);
+      expect(loaded.calls.saveClaims).toBe(1);
+    });
+
+    // Not a scenario: the double returns the ids it stored, in the order given, and reads them back.
+    it('returns the ids of the stored claims and evidence in order', async () => {
+      // Arrange
+      const loaded = createInMemoryStore({ projects: [{ project: newProject(), graph: graphOf([file('a.php')], []) }] });
+      const [projectId] = loaded.projectIds as [string];
+      const fileId = loaded.fileIds[0]!.get('a.php')!;
+      const first = claimItem(projectId, fileId, 3, 5);
+      first.evidence.push({ ...first.evidence[0]!, startLine: 1, endLine: 2 });
+
+      // Act
+      const second = claimItem(projectId.toUpperCase(), fileId, 10, 12);
+      const saved = await loaded.store.saveClaims(projectId.toUpperCase(), [first, second]);
+      const read = await loaded.store.findClaimsOverlapping(projectId, [{ fileId, startLine: 1, endLine: 20 }]);
+
+      // Assert
+      expect(saved.map((entry) => entry.evidenceIds.length)).toEqual([2, 1]);
+      expect(read.map((claim) => claim.id)).toEqual([saved[1]!.claimId, saved[0]!.claimId]);
+      // As the Postgres store: the project id comes back lower-cased, whatever case it was written in.
+      expect(read.map((claim) => claim.projectId)).toEqual([projectId, projectId]);
+      expect(read[1]!.evidence.map((e) => [e.id, e.path, e.startLine])).toEqual([
+        [saved[0]!.evidenceIds[1], 'a.php', 1],
+        [saved[0]!.evidenceIds[0], 'a.php', 3],
+      ]);
+    });
+
+    // Not a scenario: the double rejects what the adapter rejects, before writing.
+    it('rejects invalid claims, foreign files and empty evidence before writing', async () => {
+      // Arrange
+      const loaded = createInMemoryStore({
+        projects: [
+          { project: newProject('one'), graph: graphOf([file('a.php')], []) },
+          { project: newProject('two'), graph: graphOf([file('b.php')], []) },
+        ],
+      });
+      const [projectId, otherId] = loaded.projectIds as [string, string];
+      const fileId = loaded.fileIds[0]!.get('a.php')!;
+      const foreignFile = loaded.fileIds[1]!.get('b.php')!;
+      const untyped = claimItem(projectId, fileId, 1, 2);
+      const provenance: Record<string, unknown> = { ...untyped.claim.provenance };
+      delete provenance.statementType;
+      const invalid = [
+        { ...untyped, claim: { ...untyped.claim, provenance } as unknown as Claim },
+        { ...claimItem(projectId, fileId, 1, 2), evidence: [] },
+        {
+          ...claimItem(projectId, fileId, 1, 2),
+          evidence: [...claimItem(projectId, fileId, 1, 2).evidence, { ...claimItem(projectId, fileId, 5, 4).evidence[0]! }],
+        },
+        claimItem(otherId, fileId, 1, 2),
+        claimItem(projectId, foreignFile, 1, 2),
+      ];
+
+      // Act
+      const errors = await Promise.all(
+        invalid.map((item) => loaded.store.saveClaims(projectId, [item]).catch((e: unknown) => e)),
+      );
+
+      // Assert
+      expect(errors.every((e) => e instanceof InvalidStoreQuery)).toBe(true);
+      expect(errors.map((e) => (e as InvalidStoreQuery).argument)).toEqual(['claims', 'claims', 'claims', 'claims', 'claims']);
+      expect(loaded.storedClaims()).toEqual([]);
+    });
+  });
+
+  describe('Requirement: Claim write (commit check)', () => {
+    it('Claims read at an older commit are written stale (in-memory double)', async () => {
+      // Arrange
+      const loaded = createInMemoryStore({
+        projects: [{ project: newProject(), graph: { ...graphOf([file('a.php')], []), indexedCommit: 'c2'.repeat(20) } }],
+      });
+      const [projectId] = loaded.projectIds as [string];
+      const fileId = loaded.fileIds[0]!.get('a.php')!;
+
+      // Act
+      const [old] = await loaded.store.saveClaims(projectId, [claimItem(projectId, fileId, 1, 2)], 'c1'.repeat(20));
+      const [fresh] = await loaded.store.saveClaims(projectId, [claimItem(projectId, fileId, 3, 4)], 'c2'.repeat(20));
+
+      // Assert
+      expect([old!.status, fresh!.status]).toEqual(['stale', 'current']);
+      const stored = new Map(loaded.storedClaims().map((claim) => [claim.id, claim.status]));
+      expect([stored.get(old!.claimId), stored.get(fresh!.claimId)]).toEqual(['stale', 'current']);
+    });
+  });
+
+  describe('Requirement: Claim retrieval by overlapping span', () => {
+    it('Overlap is inclusive at both ends (in-memory double)', async () => {
+      // Arrange
+      const loaded = createInMemoryStore({
+        projects: [{ project: newProject(), graph: graphOf([file('F.php'), file('G.php')], []) }],
+      });
+      const [projectId] = loaded.projectIds as [string];
+      const f = loaded.fileIds[0]!.get('F.php')!;
+      const g = loaded.fileIds[0]!.get('G.php')!;
+      const ranges: Array<[string, number, number]> = [
+        [f, 10, 20],
+        [f, 20, 25],
+        [f, 21, 30],
+        [f, 1, 9],
+        [g, 10, 20],
+      ];
+      const ids = ranges.map(([fileId, start, end], i) =>
+        loaded.seedClaim({ ...claimItem(projectId, fileId, start, end), createdAt: instant(i) }),
+      );
+
+      // Act
+      const read = await loaded.store.findClaimsOverlapping(projectId, [{ fileId: f, startLine: 10, endLine: 20 }]);
+
+      // Assert
+      expect(read.map((claim) => claim.id)).toEqual([ids[1], ids[0]]);
+      expect(loaded.calls.findClaimsOverlapping).toBe(1);
+    });
+
+    it('Claims of another project are never returned (in-memory double)', async () => {
+      // Arrange
+      const loaded = createInMemoryStore({
+        projects: [
+          { project: newProject('one'), graph: graphOf([file('F.php')], []) },
+          { project: newProject('two'), graph: graphOf([file('G.php')], []) },
+        ],
+      });
+      const [projectId, otherId] = loaded.projectIds as [string, string];
+      const f = loaded.fileIds[0]!.get('F.php')!;
+      loaded.seedClaim({ ...claimItem(otherId, f, 10, 20), createdAt: instant(0) });
+
+      // Act
+      const read = await loaded.store.findClaimsOverlapping(projectId, [{ fileId: f, startLine: 10, endLine: 20 }]);
+
+      // Assert
+      expect(read).toEqual([]);
+    });
+
+    it('Unknown projects and invalid spans are rejected (in-memory double)', async () => {
+      // Arrange
+      const loaded = createInMemoryStore({ projects: [{ project: newProject(), graph: graphOf([file('F.php')], []) }] });
+      const [projectId] = loaded.projectIds as [string];
+      const f = loaded.fileIds[0]!.get('F.php')!;
+      const unknown = randomUUID();
+
+      // Act
+      const errors = await Promise.all([
+        loaded.store.saveClaims('not-a-uuid', [claimItem(projectId, f, 1, 2)]).catch((e: unknown) => e),
+        loaded.store
+          .findClaimsOverlapping('not-a-uuid', [{ fileId: f, startLine: 1, endLine: 2 }])
+          .catch((e: unknown) => e),
+        loaded.store.saveClaims(unknown, []).catch((e: unknown) => e),
+        loaded.store.findClaimsOverlapping(unknown, []).catch((e: unknown) => e),
+        loaded.store
+          .findClaimsOverlapping(projectId, [{ fileId: f, startLine: 5, endLine: 4 }])
+          .catch((e: unknown) => e),
+      ]);
+
+      // Assert
+      expect(errors.slice(0, 4).every((e) => e instanceof ProjectNotFound)).toBe(true);
+      expect(errors[4]).toBeInstanceOf(InvalidStoreQuery);
+      expect((errors[4] as InvalidStoreQuery).argument).toBe('spans');
+    });
+
+    // Not a scenario: newest first, capped, and empty inputs resolve empty in a known project.
+    it('returns at most the most recent claims, newest first, and nothing for empty inputs', async () => {
+      // Arrange
+      const loaded = createInMemoryStore({ projects: [{ project: newProject(), graph: graphOf([file('F.php')], []) }] });
+      const [projectId] = loaded.projectIds as [string];
+      const f = loaded.fileIds[0]!.get('F.php')!;
+      const seeded = Array.from({ length: MAX_PRIOR_CLAIMS }, (_, i) =>
+        loaded.seedClaim({ ...claimItem(projectId, f, 1, 2), createdAt: instant(i) }),
+      );
+      const [saved] = await loaded.store.saveClaims(projectId, [claimItem(projectId, f, 1, 2)]);
+
+      // Act
+      const read = await loaded.store.findClaimsOverlapping(projectId, [{ fileId: f, startLine: 1, endLine: 10 }]);
+
+      // Assert
+      expect(read.map((claim) => claim.id)).toEqual([saved!.claimId, ...seeded.slice(1).reverse()]);
+      expect(await loaded.store.saveClaims(projectId, [])).toEqual([]);
+      expect(await loaded.store.findClaimsOverlapping(projectId, [])).toEqual([]);
+    });
+  });
 });
+
+/** An L2 inference of `projectId` with one evidence on `fileId` lines `start`–`end`. */
+function claimItem(projectId: string, fileId: string, start: number, end: number): ClaimItem {
+  return {
+    claim: {
+      projectId,
+      subject: 'PriceCalculator::compute',
+      predicate: 'explains',
+      object: 'compute applies the discount',
+      layer: 'L2',
+      type: 'INFERENCE',
+      status: 'current',
+      confidence: null,
+      provenance: {
+        model: 'llama3.2',
+        promptHash: 'a'.repeat(64),
+        inputSpans: [{ fileId, startLine: start, endLine: end }],
+        createdAt: '2026-10-13T10:00:00Z',
+        statementType: 'INFERENCE',
+      },
+    },
+    evidence: [{ fileId, startLine: start, endLine: end, verification: 'none', excerpt: 'excerpt' }],
+  };
+}
+
+/** The `i`-th of a series of increasing instants, ISO 8601. */
+function instant(i: number): string {
+  return new Date(Date.UTC(2026, 9, 13, 10, 0, i)).toISOString();
+}
