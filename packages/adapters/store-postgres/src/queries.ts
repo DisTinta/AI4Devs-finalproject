@@ -226,3 +226,66 @@ export const NEIGHBORS = `
     ) n ON true
    WHERE p.id = $1
    ORDER BY n.distance, n.node_type = 'symbol', n.path COLLATE "C", n.start_line, n.name COLLATE "C"`;
+
+/**
+ * Checks, inside a claim write, that the project exists and how many of the distinct file ids `$2`
+ * belong to it (DIS-39 design D7). Starts from the project row, so no row means no project. The
+ * project row is locked `FOR SHARE`: a concurrent graph write of the project, which locks it
+ * `FOR UPDATE`, waits until the claims are written, so a checked file cannot vanish in between.
+ */
+export const CHECK_CLAIM_FILES = `
+  SELECT (SELECT count(*) FROM file f WHERE f.project_id = p.id AND f.id = ANY($2::uuid[]))::int AS owned
+    FROM project p WHERE p.id = $1 FOR SHARE OF p`;
+
+/**
+ * Inserts the claims of one answer from parallel arrays, with the ids the adapter generated.
+ * `created_at` is `clock_timestamp()`, the instant of the write, not the column default `now()`,
+ * which is the start of the transaction and would tie every claim written in one (design D7).
+ */
+export const INSERT_CLAIMS = `
+  INSERT INTO claim (id, project_id, subject, predicate, object, layer, type, confidence, status, provenance, created_at)
+  SELECT c.id, $1, c.subject, c.predicate, c.object, c.layer::claim_layer, c.type::claim_type, c.confidence,
+         c.status::claim_status, c.provenance, clock_timestamp()
+    FROM unnest($2::uuid[], $3::text[], $4::text[], $5::text[], $6::text[], $7::text[], $8::float8[], $9::text[], $10::jsonb[])
+         AS c(id, subject, predicate, object, layer, type, confidence, status, provenance)`;
+
+/** Inserts the evidence of the claims of one answer from parallel arrays (the `saveEvidence` step). */
+export const INSERT_EVIDENCE = `
+  INSERT INTO evidence (id, claim_id, file_id, start_line, end_line, verification, excerpt)
+  SELECT e.id, e.claim_id, e.file_id, e.start_line, e.end_line, e.verification::evidence_verification, e.excerpt
+    FROM unnest($1::uuid[], $2::uuid[], $3::uuid[], $4::int[], $5::int[], $6::text[], $7::text[])
+         AS e(id, claim_id, file_id, start_line, end_line, verification, excerpt)`;
+
+/**
+ * The most recent claims of project `$1` with an evidence overlapping, inclusively, one of the spans
+ * given as the parallel arrays `$2` (file ids), `$3` (first lines) and `$4` (last lines), at most `$5`
+ * of them, newest first, each with all its evidence ordered by first line and id (DIS-39 design D11).
+ * Starts from the project row and LEFT JOINs the matched claims: no row means no project, one row with
+ * a `NULL` id means no claim matched. Scoped by `c.project_id` before the overlap, so a claim of
+ * another project is never returned even when its evidence cites a file of this one.
+ */
+export const FIND_CLAIMS_OVERLAPPING = `
+  SELECT m.id, m.subject, m.predicate, m.object, m.layer, m.type, m.confidence, m.status, m.provenance,
+         m.created_at, m.evidence
+    FROM project p
+    LEFT JOIN LATERAL (
+      SELECT c.id, c.subject, c.predicate, c.object, c.layer::text AS layer, c.type::text AS type, c.confidence,
+             c.status::text AS status, c.provenance, c.created_at,
+             (SELECT json_agg(json_build_object(
+                       'id', e.id, 'fileId', e.file_id, 'path', f.path, 'startLine', e.start_line,
+                       'endLine', e.end_line, 'verification', e.verification, 'excerpt', e.excerpt)
+                     ORDER BY e.start_line, e.id)
+                FROM evidence e JOIN file f ON f.id = e.file_id
+               WHERE e.claim_id = c.id) AS evidence
+        FROM claim c
+       WHERE c.project_id = p.id
+         AND EXISTS (SELECT 1
+                       FROM evidence e
+                       JOIN unnest($2::uuid[], $3::int[], $4::int[]) AS s(file_id, start_line, end_line)
+                         ON s.file_id = e.file_id
+                      WHERE e.claim_id = c.id AND e.start_line <= s.end_line AND e.end_line >= s.start_line)
+       ORDER BY c.created_at DESC, c.id DESC
+       LIMIT $5
+    ) m ON true
+   WHERE p.id = $1
+   ORDER BY m.created_at DESC, m.id DESC`;

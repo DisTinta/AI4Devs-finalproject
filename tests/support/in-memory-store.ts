@@ -1,6 +1,18 @@
 import { randomUUID } from 'node:crypto';
-import { assertValidSymbolSearch, assertValidTraversal, ProjectNotFound, symbolKey } from '@codemind/core';
+import {
+  assertValidSymbolSearch,
+  assertValidTraversal,
+  assertValidClaimItems,
+  assertValidClaimSpans,
+  ClaimWriteFailed,
+  InvalidStoreQuery,
+  MAX_PRIOR_CLAIMS,
+  ProjectNotFound,
+  symbolKey,
+} from '@codemind/core';
 import type {
+  ClaimItem,
+  ClaimSpan,
   EdgeEndpoint,
   EdgeKind,
   EdgeResolution,
@@ -11,6 +23,9 @@ import type {
   NewProject,
   NodeRef,
   Project,
+  SavedClaim,
+  StoredClaim,
+  StoredEvidence,
   StoredSymbol,
   StorePort,
   SymbolSearchOptions,
@@ -19,7 +34,9 @@ import type {
 
 // An in-memory StorePort double for unit tests (DIS-27 design D6). It implements the reads the
 // Context Engine uses — getProject, listProjects, findSymbols, neighbors — with the semantics of the
-// graph-store spec, and reuses core's argument checks. Writes and the cost sum throw. It lives under
+// graph-store spec, and reuses core's argument checks. Since DIS-39 it also writes and reads claims
+// (`saveClaims`, `findClaimsOverlapping`, design D12), with an injectable write failure and a seeding
+// helper. The graph writes and the cost sum throw. It lives under
 // tests/ so it stays out of Stryker's mutate set and out of core's dist.
 //
 // Known limit: names are compared case-insensitively with `toLowerCase`, which can disagree with
@@ -40,9 +57,33 @@ export interface InMemoryStore {
   projectIds: string[];
   /** For each loaded project, in the order given, its file ids by path. */
   fileIds: Array<Map<string, string>>;
-  /** Calls received per read method, counted before any check (stand-in for "statements sent"). */
-  calls: { findSymbols: number; neighbors: number; getProject: number };
+  /** Calls received per method, counted before any check (stand-in for "statements sent"). */
+  calls: { findSymbols: number; neighbors: number; getProject: number; saveClaims: number; findClaimsOverlapping: number };
+  /**
+   * Stores a claim as given and returns its id, bypassing the checks of `saveClaims` (so a claim of
+   * one project may cite a file of another). Later writes are stamped after its `createdAt`.
+   */
+  seedClaim(seed: SeedClaim): string;
+  /** Every stored claim, in write order. */
+  storedClaims(): StoredClaim[];
 }
+
+/** A claim to seed: its record, its evidence and the instant it was written (ISO 8601). */
+export type SeedClaim = ClaimItem & { createdAt: string };
+
+/** Where `saveClaims` fails with `ClaimWriteFailed`: the zero-based claim and evidence of the call. */
+export interface ClaimWriteFailure {
+  claim: number;
+  evidence: number;
+}
+
+interface StoredClaimRow {
+  projectId: string;
+  claim: StoredClaim;
+}
+
+/** The base of the double's write instants: before any instant a test seeds. */
+const STAMP_BASE = Date.UTC(2000, 0, 1);
 
 interface StoredFileRow {
   id: string;
@@ -79,14 +120,24 @@ function nodeKey(type: NodeRef['type'], id: string): string {
 
 /**
  * Builds an in-memory store loaded with `projects`. Every project, file and symbol gets a fresh
- * hyphenated UUID; edges are resolved from the graph's paths and symbol identities.
+ * hyphenated UUID; edges are resolved from the graph's paths and symbol identities. With
+ * `failClaimWrite`, `saveClaims` rejects with `ClaimWriteFailed` when it reaches that evidence, after
+ * validating and before storing anything.
  */
-export function createInMemoryStore({ projects }: { projects: InMemoryProject[] }): InMemoryStore {
+export function createInMemoryStore({
+  projects,
+  failClaimWrite,
+}: {
+  projects: InMemoryProject[];
+  failClaimWrite?: ClaimWriteFailure;
+}): InMemoryStore {
   const projectRows = new Map<string, Project>();
   const files = new Map<string, StoredFileRow>();
   const symbols = new Map<string, StoredSymbolRow>();
   const edges: StoredEdgeRow[] = [];
-  const calls = { findSymbols: 0, neighbors: 0, getProject: 0 };
+  const claimRows: StoredClaimRow[] = [];
+  let lastStamp = STAMP_BASE;
+  const calls = { findSymbols: 0, neighbors: 0, getProject: 0, saveClaims: 0, findClaimsOverlapping: 0 };
   const projectIds: string[] = [];
   const fileIds: Array<Map<string, string>> = [];
 
@@ -191,6 +242,36 @@ export function createInMemoryStore({ projects }: { projects: InMemoryProject[] 
     return 0;
   }
 
+  /**
+   * The instant of the next write: strictly increasing, from a fixed base and always after the latest
+   * `createdAt` seeded (DIS-39 design D12). Never `Date.now()`, which ties within a millisecond.
+   */
+  function nextStamp(): string {
+    lastStamp += 1;
+    return new Date(lastStamp).toISOString();
+  }
+
+  /** Stores a claim as given, without the checks of `saveClaims` (a foreign file is allowed). */
+  function seedClaim({ claim, evidence, createdAt }: SeedClaim): string {
+    const id = randomUUID();
+    lastStamp = Math.max(lastStamp, Date.parse(createdAt));
+    claimRows.push({
+      projectId: claim.projectId.toLowerCase(),
+      claim: {
+        ...claim,
+        id,
+        createdAt: new Date(createdAt).toISOString(),
+        evidence: evidence.map((e) => ({
+          ...e,
+          fileId: e.fileId.toLowerCase(),
+          id: randomUUID(),
+          path: files.get(e.fileId.toLowerCase())?.path ?? '',
+        })),
+      },
+    });
+    return id;
+  }
+
   const notImplemented = (): never => {
     throw new Error('not implemented in the in-memory store double');
   };
@@ -207,6 +288,49 @@ export function createInMemoryStore({ projects }: { projects: InMemoryProject[] 
 
     async listProjects(): Promise<Project[]> {
       return [...projectRows.values()].sort((a, b) => byteOrder(a.name, b.name)).map((p) => ({ ...p }));
+    },
+
+    async saveClaims(projectId: string, items: ClaimItem[]): Promise<SavedClaim[]> {
+      calls.saveClaims += 1;
+      // Same order as the Postgres adapter (DIS-39 design D7): id form, records, project, files.
+      if (!UUID.test(projectId)) throw new ProjectNotFound(projectId);
+      assertValidClaimItems(projectId, items);
+      const project = projectOf(projectId);
+      const ownsFile = (fileId: string): boolean => files.get(fileId.toLowerCase())?.projectId === project.id;
+      if (!items.every((item) => item.evidence.every((e) => ownsFile(e.fileId)))) {
+        throw new InvalidStoreQuery('claims', 'must cite only files of the project');
+      }
+      // Built aside and committed at the end, so an injected failure leaves nothing (all or nothing).
+      const rows: StoredClaimRow[] = items.map((item, i) => {
+        const id = randomUUID();
+        const evidence = item.evidence.map((e, j) => {
+          if (failClaimWrite?.claim === i && failClaimWrite.evidence === j) throw new ClaimWriteFailed();
+          return { ...e, fileId: e.fileId.toLowerCase(), id: randomUUID(), path: files.get(e.fileId.toLowerCase())!.path };
+        });
+        return { projectId: project.id, claim: { ...item.claim, id, createdAt: nextStamp(), evidence } };
+      });
+      claimRows.push(...rows);
+      return rows.map((row) => ({ claimId: row.claim.id, evidenceIds: row.claim.evidence.map((e) => e.id) }));
+    },
+
+    async findClaimsOverlapping(projectId: string, spans: ClaimSpan[]): Promise<StoredClaim[]> {
+      calls.findClaimsOverlapping += 1;
+      if (!UUID.test(projectId)) throw new ProjectNotFound(projectId);
+      assertValidClaimSpans(spans);
+      const project = projectOf(projectId);
+      const overlaps = (e: StoredEvidence): boolean =>
+        spans.some(
+          (span) => span.fileId.toLowerCase() === e.fileId && e.startLine <= span.endLine && e.endLine >= span.startLine,
+        );
+      return claimRows
+        .filter((row) => row.projectId === project.id && row.claim.evidence.some(overlaps))
+        .map((row) => row.claim)
+        .sort((a, b) => byteOrder(b.createdAt, a.createdAt) || byteOrder(b.id, a.id))
+        .slice(0, MAX_PRIOR_CLAIMS)
+        .map((claim) => ({
+          ...claim,
+          evidence: [...claim.evidence].sort((a, b) => a.startLine - b.startLine || byteOrder(a.id, b.id)),
+        }));
     },
 
     async findSymbols(projectId: string, name: string, options: SymbolSearchOptions = {}): Promise<StoredSymbol[]> {
@@ -270,5 +394,5 @@ export function createInMemoryStore({ projects }: { projects: InMemoryProject[] 
     },
   };
 
-  return { store, projectIds, fileIds, calls };
+  return { store, projectIds, fileIds, calls, seedClaim, storedClaims: () => claimRows.map((row) => row.claim) };
 }

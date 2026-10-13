@@ -8,21 +8,23 @@ import {
   MAX_STATEMENT_CHARS,
   MAX_STATEMENTS,
 } from './limits.js';
+import { withoutNul } from '../knowledge/text-without-nul.js';
 import type { SchemaViolationEvent, SchemaViolationIssue, SchemaViolationSubcode } from './schema-violation.js';
 
 // The quarantine of a model output (DIS-38 design D3). The output is untrusted text: it is checked,
 // never interpreted, and any failure discards it whole. Every object is a strict object, because
 // Zod 4's `z.object()` strips unknown keys silently and a `type` or `note` field must discard the
-// output, not vanish. The model never decides a statement's type: there is no `type` field.
+// output, not vanish. The model never decides a statement's type: there is no `type` field. No string
+// may hold U+0000 (DIS-39 design D3): Postgres rejects it, and stripping it would rewrite the output.
 
 /** The output a model must return: an answer and the statements that back it, each citing evidence ids. */
 export const modelOutputSchema = z.strictObject({
-  answer: z.string().min(1).max(MAX_ANSWER_CHARS),
+  answer: withoutNul(z.string().min(1).max(MAX_ANSWER_CHARS)),
   statements: z
     .array(
       z.strictObject({
-        text: z.string().min(1).max(MAX_STATEMENT_CHARS),
-        evidenceIds: z.array(z.string()).min(1).max(MAX_EVIDENCE_IDS_PER_STATEMENT),
+        text: withoutNul(z.string().min(1).max(MAX_STATEMENT_CHARS)),
+        evidenceIds: z.array(withoutNul(z.string())).min(1).max(MAX_EVIDENCE_IDS_PER_STATEMENT),
       }),
     )
     .max(MAX_STATEMENTS),

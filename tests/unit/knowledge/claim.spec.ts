@@ -12,8 +12,9 @@ import {
 } from '@codemind/core';
 import type { Claim, Provenance } from '@codemind/core';
 
-// Spec: openspec/changes/claims-and-typing/specs/claims-and-typing/spec.md → "Claim and evidence
-// records mirror the database checks". Each test is one scenario, named after it.
+// Spec: openspec/specs/claims-and-typing/spec.md → "Claim and evidence records mirror the database
+// checks" (statement type and U+0000: DIS-39, change explain-use-case). Each test is one scenario,
+// named after it.
 
 const MIGRATION = fileURLToPath(
   new URL('../../../packages/adapters/store-postgres/migrations/0002_history-claims.up.sql', import.meta.url),
@@ -138,6 +139,60 @@ describe('Requirement: Claim and evidence records mirror the database checks', (
     });
   });
 
+  it('The statement type of a provenance follows layer and type', () => {
+    // Arrange
+    const withType = (statementType: 'FACT' | 'INFERENCE') => ({ ...provenance(), statementType });
+    const cases = [
+      { ...COLUMNS, layer: 'L2', type: 'INFERENCE', provenance: provenance() },
+      { ...COLUMNS, layer: 'L2', type: 'UNKNOWN', provenance: withType('INFERENCE') },
+      { ...COLUMNS, layer: 'L2', type: 'UNKNOWN', provenance: provenance() },
+      { ...COLUMNS, layer: 'L1', type: 'FACT', provenance: withType('FACT') },
+      { ...COLUMNS, layer: 'L2', type: 'INFERENCE', provenance: withType('FACT') },
+    ];
+
+    // Act
+    const results = cases.map((value) => claimSchema.safeParse(value).success);
+    // @ts-expect-error an L2 inference keeps the type of its statement in its provenance
+    const untyped: Claim = { ...COLUMNS, layer: 'L2', type: 'INFERENCE', provenance: provenance() };
+    const typedObserved: Claim = {
+      ...COLUMNS,
+      layer: 'L1',
+      type: 'FACT',
+      // @ts-expect-error an observed claim never carries a statement type
+      provenance: { ...provenance(), statementType: 'FACT' },
+    };
+
+    // Assert
+    expect(results).toEqual([false, false, true, false, true]);
+    expect([untyped, typedObserved].map((value) => claimSchema.safeParse(value).success)).toEqual([false, false]);
+  });
+
+  it('A text holding U+0000 is rejected', () => {
+    // Arrange
+    const nul = 'a\u0000b';
+    const claims = [
+      { ...inference(), subject: nul },
+      { ...inference(), predicate: nul },
+      { ...inference(), object: nul },
+      { ...inference(), provenance: { ...provenance(), model: nul, statementType: 'INFERENCE' } },
+    ];
+    const evidence = (excerpt: string) => ({ fileId: FILE_ID, startLine: 1, endLine: 2, verification: 'none', excerpt });
+
+    // Act
+    const rejected = [
+      ...claims.map((value) => claimSchema.safeParse(value).success),
+      evidenceSchema.safeParse(evidence(nul)).success,
+    ];
+    const accepted = [
+      claimSchema.safeParse({ ...inference(), subject: 'ab', predicate: 'ab', object: 'ab' }).success,
+      evidenceSchema.safeParse(evidence('ab')).success,
+    ];
+
+    // Assert
+    expect(rejected).toEqual([false, false, false, false, false]);
+    expect(accepted).toEqual([true, true]);
+  });
+
   // Not a scenario: a reversed span is reported on its last line, for the writer's error message.
   it('reports a reversed span on endLine', () => {
     // Act
@@ -203,8 +258,8 @@ describe('Requirement: Claim and evidence records mirror the database checks', (
   // Not a scenario: every type but FACT stays open to an inferred claim.
   it('accepts an inferred claim of every type but FACT', () => {
     // Act
-    const results = (['INFERENCE', 'UNKNOWN'] as const).map(
-      (type) => claimSchema.safeParse({ ...inference(), type }).success,
+    const results = [inference(), { ...COLUMNS, layer: 'L2', type: 'UNKNOWN', provenance: provenance() }].map(
+      (value) => claimSchema.safeParse(value).success,
     );
 
     // Assert
@@ -239,9 +294,9 @@ describe('Requirement: Claim and evidence records mirror the database checks', (
   });
 });
 
-/** A valid L2 inference with a valid provenance. */
+/** A valid L2 inference with a valid provenance holding the statement type `INFERENCE`. */
 function inference(): Claim {
-  return { ...COLUMNS, layer: 'L2', type: 'INFERENCE', provenance: provenance() };
+  return { ...COLUMNS, layer: 'L2', type: 'INFERENCE', provenance: { ...provenance(), statementType: 'INFERENCE' } };
 }
 
 /** The values of `CREATE TYPE <name> AS ENUM (...)` in `sql`, in declaration order. */

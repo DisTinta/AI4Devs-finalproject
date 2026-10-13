@@ -1,27 +1,45 @@
 import type { ClientBase, Pool, QueryResultRow } from 'pg';
 import {
+  assertValidClaimItems,
+  assertValidClaimSpans,
   assertValidCostSince,
   assertValidGraph,
   assertValidSymbolSearch,
   assertValidTraversal,
+  ClaimWriteFailed,
+  DomainError,
+  MAX_PRIOR_CLAIMS,
   ProjectNameTaken,
   ProjectNotFound,
 } from '@codemind/core';
 import type {
+  ClaimItem,
+  ClaimSpan,
   EdgeKind,
   KnowledgeGraph,
   Neighbor,
   NewProject,
   NodeRef,
   Project,
+  SavedClaim,
   SaveGraphResult,
+  StoredClaim,
   StoredSymbol,
   StorePort,
   SymbolSearchOptions,
   TraversalDirection,
 } from '@codemind/core';
+import { toStoredClaim, writeClaims, type ClaimRow } from './claims.js';
 import { isWellFormedId } from './ids.js';
-import { FIND_SYMBOLS, INSERT_PROJECT, LIST_PROJECTS, NEIGHBORS, SELECT_PROJECT, SUM_COST_SINCE } from './queries.js';
+import {
+  FIND_CLAIMS_OVERLAPPING,
+  FIND_SYMBOLS,
+  INSERT_PROJECT,
+  LIST_PROJECTS,
+  NEIGHBORS,
+  SELECT_PROJECT,
+  SUM_COST_SINCE,
+} from './queries.js';
 import {
   escapeLikeTerm,
   toNeighbor,
@@ -46,8 +64,19 @@ export type StoreConnection = { pool: Pool } | { transaction: ClientBase };
 const SAVEPOINT = 'store_write';
 const UNIQUE_VIOLATION = '23505';
 
-/** Runs `work` atomically on `connection` (design D3). */
-async function atomically<T>(connection: StoreConnection, work: (client: ClientBase) => Promise<T>): Promise<T> {
+/**
+ * Runs `work` atomically on `connection` (design D3). When `mapWriteError` is given (DIS-39 design D7),
+ * it maps every error raised once the write has started: on a pool, after `connect()` succeeded, from
+ * `BEGIN` to `COMMIT`, the rollback included; on a caller-owned transaction, after `SAVEPOINT`
+ * succeeded, the rollback to it and `RELEASE` included. A failure to connect, or a failing
+ * `SAVEPOINT` (a client outside a transaction block, or an aborted caller transaction), propagates
+ * unchanged.
+ */
+async function atomically<T>(
+  connection: StoreConnection,
+  work: (client: ClientBase) => Promise<T>,
+  mapWriteError: (error: unknown) => unknown = (error) => error,
+): Promise<T> {
   if ('pool' in connection) {
     const client = await connection.pool.connect();
     let broken: Error | undefined;
@@ -60,7 +89,7 @@ async function atomically<T>(connection: StoreConnection, work: (client: ClientB
       await client.query('ROLLBACK').catch((rollbackError: Error) => {
         broken = rollbackError;
       });
-      throw error;
+      throw mapWriteError(error);
     } finally {
       // A client whose rollback failed is in an unknown state: destroy it instead of pooling it.
       client.release(broken);
@@ -73,10 +102,23 @@ async function atomically<T>(connection: StoreConnection, work: (client: ClientB
     await client.query(`RELEASE SAVEPOINT ${SAVEPOINT}`);
     return result;
   } catch (error) {
-    await client.query(`ROLLBACK TO SAVEPOINT ${SAVEPOINT}`);
-    await client.query(`RELEASE SAVEPOINT ${SAVEPOINT}`);
-    throw error;
+    try {
+      await client.query(`ROLLBACK TO SAVEPOINT ${SAVEPOINT}`);
+      await client.query(`RELEASE SAVEPOINT ${SAVEPOINT}`);
+    } catch (rollbackError) {
+      throw mapWriteError(rollbackError);
+    }
+    throw mapWriteError(error);
   }
+}
+
+/**
+ * Maps an error of a claim write: a domain error raised by the write itself (an unknown project, a
+ * foreign file) passes unchanged; any other becomes `ClaimWriteFailed`, which carries no text of the
+ * database error (its `detail`, `hint` or `where` can quote an excerpt).
+ */
+function toClaimWriteError(error: unknown): unknown {
+  return error instanceof DomainError ? error : new ClaimWriteFailed();
 }
 
 /**
@@ -184,6 +226,35 @@ export function createPostgresStore(connection: StoreConnection): StorePort {
         direction ?? 'out',
       ]);
       return rows.filter((row) => row.node_type !== null).map(toNeighbor);
+    },
+
+    async saveClaims(projectId: string, items: ClaimItem[]): Promise<SavedClaim[]> {
+      // Order of design D7: the id form, then the records, before any statement; then, inside the
+      // write, the project and the ownership of the cited files.
+      if (!isWellFormedId(projectId)) throw new ProjectNotFound(projectId);
+      assertValidClaimItems(projectId, items);
+      if (items.length === 0) {
+        // The project check only, outside `atomically`, as `neighbors` does with no seed.
+        await runProjectQuery(connection, projectId, SELECT_PROJECT, []);
+        return [];
+      }
+      return atomically(connection, (client) => writeClaims(client, projectId, items), toClaimWriteError);
+    },
+
+    async findClaimsOverlapping(projectId: string, spans: ClaimSpan[]): Promise<StoredClaim[]> {
+      if (!isWellFormedId(projectId)) throw new ProjectNotFound(projectId);
+      assertValidClaimSpans(spans);
+      if (spans.length === 0) {
+        await runProjectQuery(connection, projectId, SELECT_PROJECT, []);
+        return [];
+      }
+      const rows = await runProjectQuery<ClaimRow>(connection, projectId, FIND_CLAIMS_OVERLAPPING, [
+        spans.map((span) => span.fileId),
+        spans.map((span) => span.startLine),
+        spans.map((span) => span.endLine),
+        MAX_PRIOR_CLAIMS,
+      ]);
+      return rows.filter((row) => row.id !== null).map((row) => toStoredClaim(projectId, row));
     },
 
     async sumCostSince(since: Date): Promise<number> {
