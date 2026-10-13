@@ -9,9 +9,11 @@ read the answer with each statement typed, its cited spans and the `stale` mark,
 ### Requirement: Ask command arguments
 
 The command SHALL be `ask <project> <question>`, with exactly two positional arguments and no
-options besides `--help` and `--version`. `--help` and `--version` SHALL print the help or the
-version to stdout, leave stderr empty and exit with `0`, without reading the environment or opening a
-connection. A missing argument, an extra argument or an unknown option SHALL fail with `USAGE` and
+options besides `--help` (`-h`) and `--version` (`-V`), as the other `codemind` commands.
+`--help`/`-h` and `--version`/`-V` SHALL print the help or the version to stdout, leave stderr
+empty and exit with `0`, without reading the environment or opening a connection. The top-level
+`codemind --help` SHALL list `ask` once. A missing argument, an extra argument or an unknown
+option SHALL fail with `USAGE` and
 exit `2`, with a message that names the kind of error and SHALL NOT quote any argument the user typed;
 the argument parser SHALL NOT print an error text of its own. A question that starts with `-` MAY be passed
 after `--`.
@@ -23,9 +25,9 @@ with `INVALID_EXPLAIN_REQUEST`, `details.field` = `question`, and exit `2`.
 #### Scenario: Help and version print without reading the environment
 
 - **GIVEN** `DATABASE_URL` and every `LLM_*` variable unset
-- **WHEN** `ask --help` runs, then `ask --version`
-- **THEN** each exits with `0`, prints the help or the version to stdout, leaves stderr empty and opens
-  no connection
+- **WHEN** `ask --help` runs, then `ask -h`, then `ask --version`, then `ask -V`
+- **THEN** each exits with `0`, prints the help or the version to stdout, leaves stderr empty, reads
+  no environment variable and opens no connection
 
 #### Scenario: Usage errors never quote the arguments
 
@@ -51,12 +53,14 @@ the `LLM_*` configuration (evaluation mode when neither `LLM_BASE_URL` nor `LLM_
 invalid one SHALL fail with `LLM_CONFIG_INVALID`, `details.variable` naming the variable at fault (and
 `details.modelVariable` when the configuration names it), never its value. Both checks SHALL happen
 before any connection is opened. A live configuration with `DAILY_BUDGET_USD` SHALL apply the daily
-spend ceiling to every model call.
+spend ceiling to every model call, on the same clock as the rest of the run.
 
 The command SHALL then open its own database connections, each write committing on its own (no
 transaction held open while the model answers), check that the database accepts a connection, and
 fail with `DATABASE_UNAVAILABLE` and the message `cannot connect to the database` when it does not.
-It SHALL close every connection before it returns, whatever happened. No output SHALL contain the
+Its sessions SHALL carry the `application_name` `codemind-ask` (unless `DATABASE_URL` sets its own),
+so they can be observed. It SHALL close every connection before it returns, whatever happened; a
+failure while closing SHALL NOT change the exit code or the output. No output SHALL contain the
 database URL, its credentials or `LLM_API_KEY`.
 
 #### Scenario: Configuration errors fail before any connection
@@ -107,7 +111,8 @@ database URL, its credentials or `LLM_API_KEY`.
 no trimming and no case folding. A name that matches no project SHALL fail with `PROJECT_NOT_FOUND`
 and exit `1`, before the model or the source is read; the message SHALL NOT contain the name. The
 matched project's id SHALL be the one `explain` receives. A project id is not accepted in place of
-the name.
+the name. A relative `root_path` (the samples') SHALL resolve against the repository root of the
+installation, not against the working directory.
 
 #### Scenario: Only the exact name resolves the project
 
@@ -131,7 +136,8 @@ order and nothing else:
    space and the first line of its text; each further line of the text indented by 3 spaces; the line
    `   warning: stale-evidence` when it carries that warning; and the line
    `   evidence: <path>:<startLine>-<endLine>` listing the spans of its evidence ids in citation
-   order, separated by `, `;
+   order, separated by `, ` (an id absent from the answer's evidence is skipped, and a statement
+   with no span left has no `evidence:` line);
 3. an empty line and `evidence:`, then each distinct cited span (same file and lines counted once),
    in first-citation order: the line `<path>:<startLine>-<endLine>` followed by its excerpt, each
    excerpt line indented by 4 spaces; an excerpt of more than 5 lines SHALL show its first 5 lines
@@ -141,6 +147,9 @@ order and nothing else:
    numbered from `1`, newest first, as a statement is printed, with its displayed type (`FACT`,
    `INFERENCE` or `UNKNOWN`), `(no text)` in place of a `null` text, and its evidence spans;
 5. only when the claims were not stored: an empty line and `note: claims not saved` as the last line.
+
+An empty line inside a statement text, a prior-claim text or an excerpt SHALL be printed as an empty
+line, without indentation.
 
 Every event the answer carries SHALL be written to stderr as one JSON line `{"level":"info",…event}`;
 with no events stderr SHALL stay empty. The command SHALL NOT print the question itself, and stderr
@@ -195,13 +204,14 @@ SHALL NOT contain it.
 
 ### Requirement: Ask terminal safety
 
-Every untrusted text printed to stdout (the answer, statement texts, prior-claim texts, paths and
+Every untrusted multi-line text printed to stdout (the answer, statement texts, prior-claim texts and
 excerpts) SHALL be split into lines at each line feed (with an optional preceding carriage return);
 in each line every tab SHALL be replaced by two spaces; and each resulting line SHALL then be
 printed as it is when it is printable, or as its terminal-safe JSON string literal (quotes included,
 the `projects` command's escaping) when it holds a control character (U+0000–U+001F, U+007F–U+009F)
-or a bidirectional or line-separator character. An excerpt SHALL be cut to its 5 lines before it is
-escaped. Besides the line feeds the format writes between lines, no control character
+or a bidirectional or line-separator character. A path is a single field: it SHALL be printed as it is
+when it is printable, or as its escaped literal as a whole. An excerpt SHALL be cut to its 5 lines
+before it is escaped. Besides the line feeds the format writes between lines, no control character
 (U+0000–U+001F, U+007F–U+009F), bidirectional formatting character or line or paragraph separator
 SHALL reach stdout raw; stderr lines are JSON with the same terminal-safe escaping.
 
@@ -228,7 +238,8 @@ SHALL reach stdout raw; stderr lines are JSON with the same terminal-safe escapi
 
 When `explain` answers `UNKNOWN`, the command SHALL exit with `0` and print to stdout exactly
 `UNKNOWN (<reason>)` and, for `llm-required`, the line
-`evaluation mode (cache-only): set LLM_* to enable free-form asks`; nothing else. Its events SHALL go
+`evaluation mode (cache-only): set LLM_* to enable free-form asks` (escaped as any other text);
+nothing else, whatever other field the answer carries. Its events SHALL go
 to stderr as in an answer. No claim SHALL be stored.
 
 #### Scenario: Evaluation mode answers llm-required
@@ -265,7 +276,15 @@ failures SHALL keep their code and exit with `1`: `PROJECT_NOT_FOUND`, `SOURCE_U
 (`details.spentUsd`, `details.dailyBudgetUsd`, `details.resetsAt` as ISO-8601). Any other failure,
 including a database error after the connection check, SHALL be `INTERNAL`, exit `1`, with the
 message `unexpected error`, which SHALL NOT claim that nothing was saved. The question SHALL NOT
-appear in any error line.
+appear in any error line. `details` SHALL always be present (`{}` when there
+is none). The messages are fixed: `USAGE` `missing argument`, `too many arguments`, `unknown
+option` or `invalid usage`; `INVALID_EXPLAIN_REQUEST` `invalid question`; `MISSING_CONFIG`
+`DATABASE_URL is not set`; `LLM_CONFIG_INVALID` `<variable> is missing or invalid; see .env.example`,
+or `<variable> is set but <modelVariable> has no price in COST_TABLE; see .env.example`;
+`DATABASE_UNAVAILABLE` `cannot connect to the database`; `PROJECT_NOT_FOUND` `project not found`;
+`SOURCE_UNAVAILABLE` `the project's source cannot be read`; `LLM_UNAVAILABLE` `the language model
+is unavailable`; `BUDGET_EXHAUSTED` `the daily LLM budget is exhausted`; `INTERNAL` `unexpected
+error`.
 
 #### Scenario: Model, budget and source failures keep their code
 

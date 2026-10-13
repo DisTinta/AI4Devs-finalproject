@@ -250,3 +250,48 @@ Every finding of the pre-merge review gets an A/B/C/D destination here.
   an HTTP header makes the request fail as `LlmUnavailable('network')` (DIS-29 handoff note). The
   error carries no key text, so `ask` prints `LLM_UNAVAILABLE` safely; a clearer message needs an
   adapter change, out of this change's scope (only test → cli).
+
+Pre-merge review (2026-10-13: `reports/2026-10-13-show-spec-working.md`, `…-verify-against-spec.md`,
+`…-adversarial-review.md`). Destinations: **A** fixed in this change, **B** moved to an existing
+issue, **C** new debt issue, **D** accepted, no change.
+
+- **A — `-h`/`-V` accepted** (verify U1, adversarial Major). The author chose to keep them, as every
+  other `codemind` command: the spec now allows `--help` (`-h`) and `--version` (`-V`), and the
+  scenario "Help and version print without reading the environment" runs all four flags with an
+  environment that records every read (none).
+- **A — the pool path was not tested** (verify M2, adversarial Major). New integration test "answers
+  through the default pool without holding a transaction while the model answers": a project
+  committed outside the harness (acme-shop subset at the seed commit, deleted at the end, as
+  `claims-write.spec.ts` does), the default `openStore`, a model that reads `pg_stat_activity` while
+  answering (≥ 1 `codemind-ask` session, 0 `idle in transaction`) and a claim another connection sees.
+- **A — vacuous connections test** (adversarial). "The connections are closed after a run" now checks
+  ≥ 1 `codemind-ask` session once the default store is open, then 0; removing `application_name`
+  fails it (checked by hand).
+- **A — typed answer asserted less than its scenario** (verify, adversarial). Each cited span's first
+  excerpt line is compared with the fixture file.
+- **A — the budget ran on the system clock** (adversarial). `withDailyBudget` receives the injected
+  `now`; the scenario pins `resetsAt` with a clock in 2030.
+- **A — `formatUnknown` printed `message` for any reason, unescaped** (verify U6, adversarial). Only
+  `llm-required` prints it, through `safeLines`; new unit test.
+- **A — behaviour the spec did not state** (verify U2–U5, U7–U9, M1; adversarial). The spec now states:
+  the `codemind-ask` session name; a relative `root_path` resolving against the installation's
+  repository root; a failing `close` not changing the outcome; the skipped `evidence:` line and
+  unknown ids; empty lines without indentation; a path escaped as a whole; the fixed error messages and
+  the always-present `details`; the top-level help listing `ask` once. The help text says "code points".
+- **A — no `ask` test for bidi, C1 or separators** (verify M3, adversarial). New `formatAnswer` test
+  with U+202E, U+009B, U+2028, U+2029 (also in a path and an excerpt).
+- **A — `index.ts` hand-off untested** (verify M4, adversarial). New test that runs the real entry point
+  (`tsx` over `packages/cli/src/index.ts`): `ask --help` and the top-level help.
+- **A — unreachable-database scenario skipped without a database** (verify). Moved out of
+  `describeWithDatabase`.
+- **D — an empty statement text would print `1. [FACT] ` with a trailing space** (verify U5). Not
+  reachable: `explain`'s statement schema rejects an empty text.
+- **D — two-digit numbering** (show-spec-working). From `10.`, continuation lines keep the 3-space
+  indent the spec sets; cosmetic.
+- **B — prior claims pile up when a question is repeated** (show-spec-working). DIS-21 (answer cache),
+  as DIS-39's review already destined.
+- **D — process** (adversarial): the RED of 3.4–3.5, 4.1, 6.x and 7.x was not observed (written after
+  one GREEN; recorded in the step 11 report). The kit setting `KIT_PROTECT_SPECS="0"` is the author's
+  local, uncommitted edit of the harness env file, which the agent cannot touch (hook), so resetting it
+  before archiving is the author's call. 15.1 is checked once DIS-40 moves to In Review; 13.2 is
+  linked after the fixes are pushed.
