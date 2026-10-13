@@ -188,7 +188,9 @@ describe('Requirement: Explain request', () => {
       expect(serialised).not.toContain('42');
       expect(serialised).not.toContain(Q1);
     }
-    expect(d.loaded.calls.findSymbols).toBe(0);
+    expect(d.loaded.calls).toEqual({ findSymbols: 0, neighbors: 0, getProject: 0, saveClaims: 0, findClaimsOverlapping: 0 });
+    expect(d.sourceCalls).toEqual({ readFileAt: 0, readFilesAt: 0 });
+    expect(d.model.requests).toHaveLength(0);
   });
 
   it('The question length limit accepts its bound and rejects one more', async () => {
@@ -234,11 +236,15 @@ describe('Requirement: Explain request', () => {
     const root = await rejection(explain({ ...d.deps, workspaceRoot: 'repo' }, { projectId: d.projectId, question: Q1 }));
 
     // Assert
+    expect(budget).toBeInstanceOf(InvalidExplainRequest);
+    expect(hops).toBeInstanceOf(InvalidExplainRequest);
     expect((budget as InvalidExplainRequest).field).toBe('tokenBudget');
     expect((hops as InvalidExplainRequest).field).toBe('hops');
     expect(root).toBeInstanceOf(RangeError);
     expect((root as RangeError).message).toContain('workspaceRoot');
-    expect(d.loaded.calls.findSymbols).toBe(0);
+    expect(d.loaded.calls).toEqual({ findSymbols: 0, neighbors: 0, getProject: 0, saveClaims: 0, findClaimsOverlapping: 0 });
+    expect(d.sourceCalls).toEqual({ readFileAt: 0, readFilesAt: 0 });
+    expect(d.model.requests).toHaveLength(0);
   });
 });
 

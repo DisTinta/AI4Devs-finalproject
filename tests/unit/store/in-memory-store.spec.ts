@@ -692,12 +692,15 @@ describe('in-memory StorePort double', () => {
       first.evidence.push({ ...first.evidence[0]!, startLine: 1, endLine: 2 });
 
       // Act
-      const saved = await loaded.store.saveClaims(projectId.toUpperCase(), [first, claimItem(projectId, fileId, 10, 12)]);
+      const second = claimItem(projectId.toUpperCase(), fileId, 10, 12);
+      const saved = await loaded.store.saveClaims(projectId.toUpperCase(), [first, second]);
       const read = await loaded.store.findClaimsOverlapping(projectId, [{ fileId, startLine: 1, endLine: 20 }]);
 
       // Assert
       expect(saved.map((entry) => entry.evidenceIds.length)).toEqual([2, 1]);
       expect(read.map((claim) => claim.id)).toEqual([saved[1]!.claimId, saved[0]!.claimId]);
+      // As the Postgres store: the project id comes back lower-cased, whatever case it was written in.
+      expect(read.map((claim) => claim.projectId)).toEqual([projectId, projectId]);
       expect(read[1]!.evidence.map((e) => [e.id, e.path, e.startLine])).toEqual([
         [saved[0]!.evidenceIds[1], 'a.php', 1],
         [saved[0]!.evidenceIds[0], 'a.php', 3],

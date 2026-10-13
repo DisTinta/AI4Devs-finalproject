@@ -68,14 +68,15 @@ const UNIQUE_VIOLATION = '23505';
  * Runs `work` atomically on `connection` (design D3). When `mapWriteError` is given (DIS-39 design D7),
  * it maps every error raised once the write has started: on a pool, after `connect()` succeeded, from
  * `BEGIN` to `COMMIT`, the rollback included; on a caller-owned transaction, after `SAVEPOINT`
- * succeeded, the rollback to it and `RELEASE` included. A failure to connect, or a failing
+ * succeeded, the rollback to it and `RELEASE` included. A failed rollback is mapped even when the
+ * write first raised a domain error: the rollback failure is the error then. A failure to connect, or a failing
  * `SAVEPOINT` (a client outside a transaction block, or an aborted caller transaction), propagates
  * unchanged.
  */
 async function atomically<T>(
   connection: StoreConnection,
   work: (client: ClientBase) => Promise<T>,
-  mapWriteError: (error: unknown) => unknown = (error) => error,
+  mapWriteError?: (error: unknown) => unknown,
 ): Promise<T> {
   if ('pool' in connection) {
     const client = await connection.pool.connect();
@@ -89,7 +90,9 @@ async function atomically<T>(
       await client.query('ROLLBACK').catch((rollbackError: Error) => {
         broken = rollbackError;
       });
-      throw mapWriteError(error);
+      if (mapWriteError === undefined) throw error;
+      // A failed rollback is a database failure of the write, whatever the first error was.
+      throw mapWriteError(broken ?? error);
     } finally {
       // A client whose rollback failed is in an unknown state: destroy it instead of pooling it.
       client.release(broken);
@@ -106,9 +109,9 @@ async function atomically<T>(
       await client.query(`ROLLBACK TO SAVEPOINT ${SAVEPOINT}`);
       await client.query(`RELEASE SAVEPOINT ${SAVEPOINT}`);
     } catch (rollbackError) {
-      throw mapWriteError(rollbackError);
+      throw mapWriteError === undefined ? rollbackError : mapWriteError(rollbackError);
     }
-    throw mapWriteError(error);
+    throw mapWriteError === undefined ? error : mapWriteError(error);
   }
 }
 

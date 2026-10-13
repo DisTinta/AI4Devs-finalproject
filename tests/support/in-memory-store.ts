@@ -259,6 +259,7 @@ export function createInMemoryStore({
       projectId: claim.projectId.toLowerCase(),
       claim: {
         ...claim,
+        projectId: claim.projectId.toLowerCase(),
         id,
         createdAt: new Date(createdAt).toISOString(),
         evidence: evidence.map((e) => ({
@@ -307,7 +308,7 @@ export function createInMemoryStore({
           if (failClaimWrite?.claim === i && failClaimWrite.evidence === j) throw new ClaimWriteFailed();
           return { ...e, fileId: e.fileId.toLowerCase(), id: randomUUID(), path: files.get(e.fileId.toLowerCase())!.path };
         });
-        return { projectId: project.id, claim: { ...item.claim, id, createdAt: nextStamp(), evidence } };
+        return { projectId: project.id, claim: { ...item.claim, projectId: project.id, id, createdAt: nextStamp(), evidence } };
       });
       claimRows.push(...rows);
       return rows.map((row) => ({ claimId: row.claim.id, evidenceIds: row.claim.evidence.map((e) => e.id) }));

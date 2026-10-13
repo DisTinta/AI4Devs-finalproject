@@ -23,7 +23,10 @@ under, in the order given.
   with the domain error `ClaimWriteFailed` (code `CLAIM_WRITE_FAILED`), which SHALL carry no `cause`
   and no text of the database error (its message, `detail`, `hint` or `where` may quote a written
   value, such as an excerpt). A failure to obtain a connection, before the write starts, propagates
-  unchanged and is not a `ClaimWriteFailed`.
+  unchanged and is not a `ClaimWriteFailed`; so does a failure to open the savepoint on a caller-owned
+  transaction (a client outside a transaction block, or a transaction the caller already aborted),
+  which is the caller's programming error. A failed rollback is a `ClaimWriteFailed` even when the
+  write first failed with a domain error.
 - An empty list SHALL resolve to an empty list without writing any row; the project is still
   checked, so a well-formed id that names no project fails with `ProjectNotFound`.
 - The write SHALL cooperate with a caller-owned transaction as `saveGraph` does: on its own
@@ -116,9 +119,9 @@ them: the most recent ones.
 
 - The result SHALL be scoped by project first: a claim of another project SHALL never be returned,
   even when its evidence cites the same lines of a file with the same id.
-- Each claim SHALL appear once, with its id, subject, predicate, object, layer, type, status,
-  provenance and all its evidence (id, file id, file path, first and last line, verification,
-  excerpt). Claims SHALL be ordered newest first: by the instant each was written, descending, then
+- Each claim SHALL appear once, with its id, its project id (lower case), subject, predicate,
+  object, layer, type, status, confidence, provenance, the instant it was written and all its
+  evidence (id, file id, file path, first and last line, verification, excerpt). Claims SHALL be ordered newest first: by the instant each was written, descending, then
   by id descending (the order of the claims of one answer is not the order of its statements);
   evidence by first line, then by id. The instant a claim was written SHALL be the time of its
   write, not the start of the transaction it was written in.

@@ -125,7 +125,11 @@ Alternative rejected: an `Explainer` class. Every other use case in core (`index
   language of the question (author decision, 2026-10-13: a Spanish question must not get an English
   answer), return only the JSON object `{ "answer": string, "statements": [{ "text": string,
   "evidenceIds": string[] }] }`, cite only the given ids, every statement cites at least one, no other
-  field. The instruction is an exported constant, so the test asserts it was sent.
+  field. The instruction is an exported constant, so the test asserts it was sent. Two more lines of
+  the contract were added at apply time and are part of the hashed prompt (verify-against-spec,
+  2026-10-13): each statement is one checkable sentence (readme §2.5, `MAX_STATEMENT_CHARS`), and when
+  the evidence does not answer the question the model returns an empty `statements` list — the
+  `no-evidence` path, instead of a plausible answer.
 - `user` message: `JSON.stringify({ question, evidence: [{ id, path, startLine, endLine, text }] })`.
   JSON gives the span text an unambiguous frame without inventing delimiters (DIS-41 adds the
   sanitisation on top).
@@ -185,6 +189,13 @@ evidence (the `saveEvidence` step, where the failure of the atomicity scenario i
   (`knowledge/errors.ts`, code `CLAIM_WRITE_FAILED`, no `cause`, a fixed message): `pg` errors carry
   `detail`/`where` that can quote an excerpt. `saveGraph` and `createProject` pass no mapper and keep
   their behaviour.
+- The ownership check locks the project row `FOR SHARE` (added at apply time, verify-against-spec
+  2026-10-13): a concurrent `saveGraph` of the same project, which locks it `FOR UPDATE`, waits until
+  the claims are written, so a file checked as owned cannot be deleted between the check and the
+  evidence insert. Claims of different projects do not wait on each other.
+- A failed rollback is mapped too: on a pool, when the write first raised a domain error and the
+  `ROLLBACK` then fails, the call rejects with `ClaimWriteFailed` (the rollback failure is the error
+  then), as it already did on a caller-owned transaction (verify-against-spec, 2026-10-13).
 - `StoreQueryArgument` gains `'claims'` and `'spans'`, and the JSDoc of `InvalidStoreQuery` and
   `StoreQueryArgument` stops saying "a read" (they now also cover a write whose ownership check sends
   one query). `SavedClaim = { claimId; evidenceIds }`.
@@ -368,3 +379,35 @@ No migration and no data change. Rollback is reverting the commits; the seed com
   path; predicate: constant; object: the statement), but a model statement may paraphrase the
   question and is stored as the object. Accepted: the statement is the answer, and the rule is that
   the question itself is never stored.
+- **verify-against-spec (2026-10-13), destinations** (report `reports/2026-10-13-verify-against-spec.md`):
+  - Missing 1, a failed rollback (pool and caller transaction) — **A, fixed**: on a pool a domain
+    error followed by a failed `ROLLBACK` gave the domain error; now `ClaimWriteFailed` on both paths
+    (TDD, `tests/unit/store/postgres-claim-write-errors.spec.ts`), design D7 and the `graph-store`
+    delta updated.
+  - Missing 2, "undoes only its own writes" — **A, fixed**: "A failure while writing evidence leaves
+    no claim" now saves a claim first on the same transaction and asserts it survives.
+  - Missing 3, unknown commit in a batch — **A, fixed**: non-scenario test "reports a commit the
+    repository does not have as missing on the first path".
+  - Missing 4, "at most six processes" not measured — **D, accepted**: the test counts the processes
+    of the spawner (4) and the two of `assertRepositoryRoot`, which runs through simple-git and is
+    called once per batch by the code, are added, as in DIS-28's measurement; the 39c latency report
+    uses the same count.
+  - Weak asserts — **A, fixed**: the malformed-request and budget/hops/root tests assert every store,
+    source and model call is 0 and `instanceof InvalidExplainRequest`; the integration "A fact is
+    stored…" asserts the stored hash equals the SHA-256 of the messages sent and the stored subject
+    of each claim. The unit subject scenario stays on the pure mapping (design D13: on Q1 the method
+    span is absorbed by its class span).
+  - Weak assert, the double's `ClaimWriteFailed` cannot carry database text — **D, accepted**: the
+    database variant "A failed write over the database still answers without leaking" covers the leak
+    path.
+  - Unspecified 1, two prompt lines — **A, documented** in D5 (they implement the `no-evidence` contract).
+  - Unspecified 2, `FOR SHARE` lock — **A, documented** in D7.
+  - Unspecified 3, failing `SAVEPOINT` — **A, specified** in the `graph-store` delta.
+  - Unspecified 4, `createdAt`, `confidence`, `projectId` in stored claims — **A, specified** in the
+    `graph-store` delta; the in-memory double now returns the project id lower-cased like the adapter
+    (TDD, `returns the ids of the stored claims and evidence in order`).
+  - Unspecified 5, wider public API of `@codemind/core` — **D, accepted**: core exports each module
+    through its `index.ts` (every export documented, `docs:coverage`); the adapter needs
+    `assertValidClaim*` and the tests the rest.
+  - Unspecified 6, `assertValidObjectId` in `distinctRegularFiles` — **D, accepted**: the same defensive
+    check `readFileAt` makes, so a batch fails as each single read would.

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { cpSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
@@ -88,7 +89,14 @@ describeWithDatabase('explain over the indexed acme-shop (DIS-39)', () => {
   }
 
   /** Explains Q1 with a model citing the calculator's anchor span, then a heuristic span. */
-  async function explainQ1(): Promise<{ answer: ExplainAnswer; pack: FilledContextPack; projectId: string; requests: number }> {
+  async function explainQ1(): Promise<{
+    answer: ExplainAnswer;
+    pack: FilledContextPack;
+    projectId: string;
+    requests: number;
+    sentHash: string;
+    cited: ContextSpan[];
+  }> {
     const { store, projectId, pack } = await indexed();
     const calculator = pack.spans.find((s) => s.path === 'app/Services/PriceCalculator.php' && s.startLine === 16 && s.endLine === 44);
     const heuristic = pack.spans.find((s) => s.origin === 'heuristic');
@@ -105,7 +113,8 @@ describeWithDatabase('explain over the indexed acme-shop (DIS-39)', () => {
       { projectId, question: Q1 },
     );
     expect(model.requests.map((request) => request.purpose)).toEqual(['answer']);
-    return { answer, pack, projectId, requests: model.requests.length };
+    const sentHash = createHash('sha256').update(JSON.stringify(model.requests[0]!.messages), 'utf8').digest('hex');
+    return { answer, pack, projectId, requests: model.requests.length, sentHash, cited: [calculator!, heuristic!] };
   }
 
   it(
@@ -140,10 +149,11 @@ describeWithDatabase('explain over the indexed acme-shop (DIS-39)', () => {
     'A fact is stored as an inferred claim that keeps its type',
     async () => {
       // Act
-      const { answer, pack, projectId } = await explainQ1();
+      const { answer, pack, projectId, sentHash, cited } = await explainQ1();
 
       // Assert
       const { rows } = await db().query<{
+        subject: string;
         layer: string;
         type: string;
         status: string;
@@ -151,7 +161,7 @@ describeWithDatabase('explain over the indexed acme-shop (DIS-39)', () => {
         predicate: string;
         object: string;
         provenance: { statementType: string; model: string; promptHash: string; inputSpans: unknown[]; createdAt: string };
-      }>('SELECT layer, type, status, confidence, predicate, object, provenance FROM claim WHERE project_id = $1', [projectId]);
+      }>('SELECT subject, layer, type, status, confidence, predicate, object, provenance FROM claim WHERE project_id = $1', [projectId]);
       expect(rows).toHaveLength(2);
       const byObject = new Map(rows.map((row) => [row.object, row]));
       const fact = byObject.get('PriceCalculator::compute calcula el precio final.')!;
@@ -159,13 +169,15 @@ describeWithDatabase('explain over the indexed acme-shop (DIS-39)', () => {
       for (const row of [fact, inference]) {
         expect(row).toMatchObject({ layer: 'L2', type: 'INFERENCE', status: 'current', confidence: null, predicate: 'explains' });
         expect(row.provenance.model).toBe(SCRIPTED_MODEL);
-        expect(row.provenance.promptHash).toMatch(/^[0-9a-f]{64}$/);
+        expect(row.provenance.promptHash).toBe(sentHash);
         expect(row.provenance.createdAt).toBe(NOW.toISOString());
         expect(row.provenance.inputSpans).toEqual(
           pack.spans.map((span) => ({ fileId: span.fileId, startLine: span.startLine, endLine: span.endLine })),
         );
       }
       expect([fact.provenance.statementType, inference.provenance.statementType]).toEqual(['FACT', 'INFERENCE']);
+      // The subject is the symbol of the first cited span (its path when it has none), as stored.
+      expect([fact.subject, inference.subject]).toEqual(cited.map((span) => span.symbol?.name ?? span.path));
       expect(answer.kind === 'answered' && answer.statements[0]!.type).toBe('FACT');
     },
     TIMEOUT_MS,

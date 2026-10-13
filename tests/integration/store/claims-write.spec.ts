@@ -169,6 +169,7 @@ describeWithDatabase('graph store claim operations (DIS-39)', () => {
       const { store } = stores();
       const { projectId, fileId } = await projectWith('a.php');
       const a = fileId.get('a.php')!;
+      const [earlier] = await store.saveClaims(projectId, [claimItem(projectId, [[a, 7, 8]], 'earlier')]);
       await rejectEvidence(SENTINEL);
 
       // Act
@@ -182,7 +183,10 @@ describeWithDatabase('graph store claim operations (DIS-39)', () => {
       expect(serialised).not.toContain(SENTINEL);
       expect(serialised).not.toContain('evidence rejected');
       expect('cause' in (error as object)).toBe(false);
-      expect(await rowCounts(projectId)).toEqual({ claims: 0, evidence: 0 });
+      // Only the call's own writes are undone: the caller's earlier claim survives.
+      expect(await rowCounts(projectId)).toEqual({ claims: 1, evidence: 1 });
+      const { rows } = await db().query('SELECT id FROM claim WHERE project_id = $1', [projectId]);
+      expect(rows).toEqual([{ id: earlier!.claimId }]);
     });
 
     it('Invalid claims are rejected before writing', async () => {

@@ -929,6 +929,22 @@ describe('git source tree', () => {
       expect(existsSync(marker) ? readFileSync(marker, 'utf8') : '').toBe('');
     });
 
+    // Not a scenario: a well-formed commit the repository does not have is `missing` on the first path,
+    // as `readFileAt` reports it.
+    it('reports a commit the repository does not have as missing on the first path', async () => {
+      // Arrange
+      const repository = emptyRepository();
+      writeFileSync(join(repository, 'a.php'), '<?php\n');
+      git(repository, 'add', '.');
+      git(repository, 'commit', '-q', '-m', 'feat: a');
+
+      // Act
+      const rejection = await rejectionOf(() => sourceTree.readFilesAt(repository, 'f'.repeat(40), ['b.php', 'a.php']));
+
+      // Assert
+      expect(unavailable(rejection)).toEqual({ reason: 'missing', path: 'b.php' });
+    });
+
     it('Many files are read with a fixed number of git processes', async () => {
       // Arrange
       const repository = emptyRepository();
