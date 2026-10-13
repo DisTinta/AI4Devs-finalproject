@@ -295,7 +295,7 @@ Ready. No indexing required — sample graphs are pre-built.
 
 #### El mismo flujo por CLI
 
-Sin necesidad de abrir la web. Las preguntas de muestra funcionan **sin LLM** (caché):
+Sin necesidad de abrir la web (`projects` y `ask` necesitan `DATABASE_URL`):
 
 ```bash
 npm run cli -- projects
@@ -303,6 +303,15 @@ npm run cli -- ask acme-shop "¿Cómo se calcula el precio final de un pedido?"
 npm run cli -- impact acme-shop "cambiar el cálculo de descuentos"
 npm run cli -- ask task-api "¿Cómo se validan las peticiones entrantes?"
 ```
+
+**Estado en Entrega 2:** la caché de preguntas de muestra llega con DIS-21, así que sin `LLM_*` (modo evaluación) `ask` responde a todas, también a las de muestra, con:
+
+```text
+UNKNOWN (llm-required)
+evaluation mode (cache-only): set LLM_* to enable free-form asks
+```
+
+`impact` sigue siendo un stub, y `task-api` aún no está en la semilla: `ask task-api …` responde `PROJECT_NOT_FOUND` (exit `1`) hasta CM-HU-18.
 
 #### Camino completo — indexar tu propio repositorio o pregunta libre
 
@@ -313,11 +322,32 @@ npm run cli -- ask task-api "¿Cómo se validan las peticiones entrantes?"
 npm run cli -- index mi-repo --name mi-proyecto --language php            # informe en texto
 npm run cli -- index mi-repo --name otro --language php --framework none --json   # informe en JSON
 
-# Preguntar — Ollama (ejemplo, sin clave): LLM_BASE_URL=http://localhost:11434/v1  LLM_MODEL=…
+# Preguntar — Ollama (ejemplo, sin clave): DATABASE_URL=postgres://…  LLM_BASE_URL=http://localhost:11434/v1  LLM_MODEL=…
 npm run cli -- ask mi-proyecto "¿Cómo funciona el módulo de pagos?"
 ```
 
 `index` escribe el progreso por fase y los eventos de redacción de secretos (JSON por línea) en stderr, y solo el informe en stdout. Sale con `0` si todo va bien, `1` ante un error de dominio, configuración o ejecución (por ejemplo, ruta fuera de `ALLOWED_REPOS_DIR` o nombre de proyecto repetido) y `2` ante un uso incorrecto; el error es una línea `{"error":{"code","message","details"}}` en stderr.
+
+`ask <proyecto> "<pregunta>"` busca el proyecto por su **nombre exacto** (sin recortar espacios ni ignorar mayúsculas) y escribe en stdout solo la respuesta: el texto del modelo, cada afirmación numerada y tipada (`[FACT]` o `[INFERENCE]`, más `[stale]` si está desactualizada) con sus evidencias `ruta:inicio-fin`, los extractos citados (como mucho 5 líneas cada uno), las afirmaciones previas sobre el mismo código si las hay y, al final, `note: claims not saved` si no pudieron guardarse. Por ejemplo:
+
+```text
+El precio final lo calcula PriceCalculator::compute.
+
+statements:
+1. [FACT] PriceCalculator::compute calcula el precio final.
+   evidence: app/Services/PriceCalculator.php:16-44
+
+evidence:
+app/Services/PriceCalculator.php:16-44
+    class PriceCalculator
+    {
+        public function __construct(
+            private readonly DiscountService $discounts,
+            private readonly TaxService $taxes,
+    … (+24 lines)
+```
+
+Sin respuesta posible imprime `UNKNOWN (<reason>)` (`no-anchor`, `llm-required`, `over-budget`, `invalid-model-output` o `no-evidence`). Los eventos (JSON por línea) y los errores van a stderr y nunca contienen la pregunta. Sale con `0` ante una respuesta o un `UNKNOWN`, `1` ante un error de configuración, conexión o dominio (por ejemplo `PROJECT_NOT_FOUND`, `LLM_UNAVAILABLE`, `BUDGET_EXHAUSTED`) y `2` ante un uso incorrecto o una pregunta inválida.
 
 #### Verificación de la instalación
 
