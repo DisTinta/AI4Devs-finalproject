@@ -128,7 +128,8 @@ Los tres informes están en `reports/`: `show-spec-working` (demostrado funciona
 
 Arreglado en este PR, cada punto con su destino en `design.md` → Follow-ups (las decisiones de ruta, marca falsa, corte casi vacío y tests de base compartida son de la autora):
 - La ruta del fichero, texto del repositorio que va junto a los marcadores, se evalúa con los patrones (el evento sale en la primera línea del span) y se neutraliza en el prompt.
-- `\r`, U+2028 y U+2029 parten la línea al buscar patrones; la numeración sigue contando `\n`.
+- `\r`, U+2028, U+2029 y los demás saltos de línea Unicode también parten la línea al buscar patrones; se busca en la línea entera y en cada parte, así que solo se añaden coincidencias, y la numeración sigue contando `\n`.
+- Tras la segunda ronda de revisiones (sin Blockers ni Majors): tests de que la ruta de la respuesta y la guardada no se neutralizan y de un marcador partido por un salto de línea; formas no cubiertas de la marca falsa aceptadas (D).
 - Un `[TRUNCATED:` escrito en el repositorio se neutraliza; la marca real no.
 - Los tres escenarios que miraban la respuesta comprueban también las evidencias guardadas, y el test de consola usa un span marcado y otro recortado distintos.
 - La spec recoge las dos líneas exactas del system prompt, el recálculo de tokens, la superficie exportada y el marcador partido por un salto de línea.
