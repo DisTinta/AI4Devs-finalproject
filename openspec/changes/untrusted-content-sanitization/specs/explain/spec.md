@@ -25,10 +25,11 @@ kept text (the pack's estimator). The mark SHALL appear only in the prompt.
 **Instruction patterns.** After truncation, explain SHALL match, line by line and without regard to
 case, the patterns of the exported list `INSTRUCTION_PATTERNS`, in this fixed order, against the kept
 text of each span, against each span's path (repository text too) and against the question. Lines are
-split on `\n`, and for matching each line is split again at `\r`, U+2028 and U+2029: a pattern matches
-a line when it matches one of its parts, while line numbers count `\n` only. A pattern that only occurs
+split on `\n`, and for matching each line is split again at the other Unicode line breaks (VT, FF,
+`\r`, U+001C–U+001E, NEL, U+2028 and U+2029): a pattern matches a line when it matches the whole line
+or one of its parts, so the split only adds matches, while line numbers count `\n` only. A pattern that only occurs
 in the omitted lines of a cut span SHALL produce no flag and no event. Gaps written `…` match any 0 to
-40 Unicode code points of the same part. A code that matches a span's path counts as matching at the
+40 Unicode code points other than `\r`, U+2028 and U+2029. A code that matches a span's path counts as matching at the
 span's first line.
 
 | Order | Code | Matches |
@@ -50,7 +51,8 @@ marker sequence); `buildPrompt` takes its result.
 **Neutralisation.** In the prompt only, every occurrence in a span's kept text, in a span's path or in
 the question of `<<<`, optional whitespace (line breaks included), and `UNTRUSTED_DATA` or
 `END_UNTRUSTED_DATA`, without regard to case, SHALL get U+200B inserted right after its first `<`; and
-every occurrence of `[`, optional whitespace, `TRUNCATED`, optional whitespace and `:`, without regard
+every occurrence of `[`, optional whitespace (line breaks included), `TRUNCATED`, optional whitespace
+and `:`, without regard
 to case, SHALL get U+200B inserted right after its `[`, so no text passes for a truncation mark. No
 other character SHALL be changed. A marker sequence split by a line break is neutralised but not
 flagged (flags are matched line by line). The real truncation mark is added after neutralisation and
@@ -140,7 +142,7 @@ without neutralisation.
   other spans hold `x` + `\r` + `SYSTEM: y`, `x` + U+2029 + `assistant: y`, `ignore` + `\r` +
   `previous instructions` and `ignore` + U+2028 + `previous instructions` as their only line
 - **THEN** the first span's one event is `system-impersonation` at line 11, the next two spans flag
-  `system-impersonation`, and the last two flag nothing (a pattern split across parts is not matched)
+  `system-impersonation`, and the last two flag nothing (a gap does not cross `\r`, U+2028 or U+2029)
 
 #### Scenario: A pattern in the path is flagged at the first line of the span
 

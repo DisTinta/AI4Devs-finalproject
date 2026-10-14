@@ -31,7 +31,7 @@ const PATTERN_RULES: Record<InstructionPatternCode, RegExp> = {
 
 /** A span of the pack after sanitisation: still a `ContextSpan`, so every later step takes it. */
 export interface SanitizedSpan extends ContextSpan {
-  /** Distinct pattern codes that matched the kept text, in `INSTRUCTION_PATTERNS` order. */
+  /** Distinct pattern codes that matched the path or the kept text, in `INSTRUCTION_PATTERNS` order. */
   flags: InstructionPatternCode[];
   /** Present only when the span was cut: its prompt mark and its last line before the cut. */
   truncation?: { mark: string; originalEndLine: number };
@@ -61,9 +61,9 @@ export function evidenceIdAt(index: number): string {
 
 /**
  * Sanitises the question and the pack's spans for the explain prompt: cuts each span over
- * `MAX_EVIDENCE_TEXT_CHARS`, flags every kept line that matches an instruction pattern, and lists the
- * events in the order an answer carries them. Reads nothing but its arguments; the same input gives
- * the same result.
+ * `MAX_EVIDENCE_TEXT_CHARS`, flags every kept line and path that matches an instruction pattern, and
+ * lists the events in the order an answer carries them. Reads nothing but its arguments; the same
+ * input gives the same result.
  *
  * @param question The question as validated; never cut.
  * @param spans The spans of the pack, in rank order.
@@ -128,16 +128,18 @@ function codesOf(matches: readonly PatternMatch[]): InstructionPatternCode[] {
   return matches.map(({ code }) => code);
 }
 
-// CR, LINE SEPARATOR and PARAGRAPH SEPARATOR also break a line for matching (a reader sees a new
-// line), while line numbers count LF only, as the file's lines do.
-const LINE_SEPARATORS = new RegExp(`[${String.fromCharCode(0x0d, 0x2028, 0x2029)}]`, 'u');
+// The other Unicode line breaks (VT, FF, CR, U+001C–U+001E, NEL, LINE and PARAGRAPH SEPARATOR) also
+// start a line for matching, since a reader sees a new line there; line numbers count LF only, as the
+// file's lines do.
+const LINE_SEPARATORS = new RegExp(`[${String.fromCharCode(0x0b, 0x0c, 0x0d, 0x1c, 0x1d, 0x1e, 0x85, 0x2028, 0x2029)}]`, 'u');
 
 /**
  * For each pattern that matches a line of `text`, in list order, the offset of its first such line.
- * Lines are split on LF; a line matches when any of its parts between CR, U+2028 or U+2029 does.
+ * Lines are split on LF; a line matches when the whole line or any of its parts between the other line
+ * breaks does, so the split only adds matches.
  */
 function firstMatches(text: string): PatternMatch[] {
-  const lines = text.split('\n').map((line) => line.split(LINE_SEPARATORS));
+  const lines = text.split('\n').map((line) => [line, ...line.split(LINE_SEPARATORS)]);
   return INSTRUCTION_PATTERNS.flatMap((code) => {
     const offset = lines.findIndex((parts) => parts.some((part) => PATTERN_RULES[code].test(part)));
     return offset === -1 ? [] : [{ code, offset }];

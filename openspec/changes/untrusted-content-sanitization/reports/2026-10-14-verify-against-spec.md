@@ -83,3 +83,26 @@ the limit is cut at a line boundary", "A single line over the limit is cut in co
 forged closing marker is neutralised and flagged" (M2); "Explaining writes nothing to the console"
 (M3); "Each pattern matches its forms and not the excluded ones" lacks a U+2028 / mid-line `\r` case
 (M1). No scenario is red or absent.
+
+## Addendum: re-run after the fixes (HEAD `9c8d770`)
+
+**Run by:** `/verify-against-spec` (read-only agent), against the spec as rewritten by `9c8d770`.
+
+| Id | State | Evidence |
+|---|---|---|
+| M1 (gaps miss `\r`, U+2028, U+2029) | Resolved | `sanitize.ts` `LINE_SEPARATORS` and the per-part matching; scenario "A line separator other than LF starts a line for matching" (`sanitize.spec.ts`) |
+| M2 (tests read the answer, not the store) | Resolved | `storedEvidence()` assertions in the three scenarios; the hand mutation in `claim-items.ts` fails all three |
+| M3 (one span both flagged and cut) | Resolved | `explain.spec.ts` "Explaining writes nothing to the console": `app/Flag.php` flagged, `app/Big.php` cut |
+| U1–U4 | Resolved, added to the spec | system lines quoted exactly; tokens of a cut span; exported surface; marker split by a line break |
+
+Also checked: the path is matched and neutralised (`sanitize.ts` `spanMatches`, `prompt.ts`), the
+forged `[TRUNCATED:` is neutralised, and every new behaviour is stated in the spec with a scenario.
+
+New findings, all Minor: **N1** no test that the answer's and the store's path stay unneutralised;
+**N2** no test of a marker split by a line break; **N3** the linked CI run predated the fixes; **N4**
+the spec did not say a forged mark's whitespace includes line breaks; plus four stale doc comments
+(`SanitizedSpan.flags`, `sanitizeForPrompt`, `ZERO_WIDTH_SPACE`, `buildPrompt`). The integration
+isolation of `03d51b4` is test-only and has its destination (A) in `design.md`.
+
+**Verdict:** no Blocker, no Major. N1–N4 and the comments were fixed after this re-run (destinations in
+`design.md` → Follow-ups, second round).

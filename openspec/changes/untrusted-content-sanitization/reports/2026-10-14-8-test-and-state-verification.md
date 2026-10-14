@@ -163,3 +163,8 @@ Low, accepted: the paths reach stderr through the CLI, as `secret_redacted` even
   `prompt.ts` `'utf8'` → `''` and `sanitize.ts` `'u'` → `''` on `LINE_SEPARATORS`, both equivalent).
   `prompt.ts` 98.25 %, `sanitize.ts` 99.15 %. No `.stryker-tmp/` left.
 - **State:** `project` 1 (acme-shop) / `claim` 0 / `evidence` 0, as left by step 9.
+- **Second round** (after the re-runs of the two reviews): whole-line-or-part matching, the other
+  Unicode line breaks, and two new tests (unneutralised answer and store path; a marker split by a
+  line break). Required suite with acme-shop seeded: **92 files, 1,215 passed**; gates exit 0;
+  mutation **98.86 %** (172 killed, 1 timeout, the same 2 equivalent survivors). State 1 / 0 / 0. The
+  CI run of the final commit is linked below once it passes.

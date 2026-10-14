@@ -64,3 +64,30 @@ the Minors above, each needing a destination before archiving.
 6. Process: fill `design.md` → Follow-ups (shared database interaction); link the CI run (10.2); note
    the RED not observed for 2.4, 2.7, 3.4, 4.2–4.6 and 4.8 as process debt in this report.
 7. Re-run `/verify-against-spec` after the fixes and add an addendum here.
+
+## Addendum: re-run after the fixes (HEAD `9c8d770`, PR #39)
+
+**Run by:** `/adversarial-review` (read-only agent) over `50e141a..9c8d770` (19 files). It checked the
+regex claims by running the patterns in `node -e`, and CI with `gh pr checks 39`.
+
+| Severity | Finding | Destination |
+|---|---|---|
+| Minor | The CR/U+2028/U+2029 split stopped `system\r: y` and `<<<\rUNTRUSTED_DATA` from matching, which matched before (`\s*` spanned them) | A: match the whole line or any part |
+| Minor | VT, FF, NEL and U+001C–U+001E are line breaks too, and were not split | A: added to `LINE_SEPARATORS` |
+| Minor | Forged marks of other shapes (`[TRUNCATED]`, `[TRUNCATED - …]`, fullwidth `［`, invisible characters) pass unchanged | D: the system message describes only the colon form, which is covered; look-alikes as D3 accepts for markers |
+| Minor (process) | `ask-command.spec.ts` and `seed-build.spec.ts` also empty the database, then read | D: recorded; none failed in the full runs |
+| Minor (process) | The CI run linked for 10.2 predated the fixes | A: the final commit's run is linked in the step 8 report |
+| Question | A code matching both the path and the text reports only the span's first line | D: as the spec says, one event per code and span |
+
+**Checked and clean** (agent): every repository string sent outside the markers is neutralised; the
+two neutralisation passes are independent and do not re-match their own output; the line-split
+assertions each need the split; `storedClaims()[].evidence` is built from the `saveClaims` input, so
+the stored-evidence assertions test what was written; the console test pairs type and path; the
+REPEATABLE READ connection cannot block on its own test, its rollback always runs, and `40001` is
+retried; the 60 s `lock_timeout` is under the 120 s test timeout; the name-scoped counts in
+`acme-shop.spec.ts` are a justified edit, not a weaker test; the new spec wording came after the fix
+commit, as the 13.3 loop records.
+
+**Verdict: PASS WITH GAPS**, no Blocker, no Major. The two earlier Majors are fixed and their tests
+would catch a regression; every remaining item has a destination in `design.md` → Follow-ups (second
+round).

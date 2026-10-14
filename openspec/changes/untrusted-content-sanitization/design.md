@@ -348,6 +348,33 @@ channel, the forged mark, the near-empty cut and the shared-database tests (2026
   fail in six full runs and are left as they are (D).
 - **D — the `u` flag of `LINE_SEPARATORS`** (mutation survivor after the fixes): equivalent, the class
   holds BMP characters only.
+
+Second round (re-runs of `/verify-against-spec` and `/adversarial-review` at `9c8d770`: no Blocker,
+no Major):
+
+- **A — the line split had removed matches** (adversarial). `system\r: y` and `<<<\rUNTRUSTED_DATA`
+  were flagged before the split and not after it. A pattern now matches the whole line or any part,
+  so the split only adds matches; gaps (`.`) still do not cross `\r`, U+2028 or U+2029, as the spec now
+  says.
+- **A — other Unicode line breaks** (adversarial). VT, FF, NEL and U+001C–U+001E split a line for
+  matching too.
+- **A — untested clauses** (verify N1, N2). New tests: the answer's and the store's path stay
+  unneutralised while the prompt's is neutralised; a marker split by a line break is neutralised and
+  not flagged (changing `\s*` to ` *` in `MARKER_SEQUENCE_SOURCE` fails it, checked by hand).
+- **A — wording** (verify N4, stale comments). The spec says a forged mark's whitespace includes line
+  breaks; the doc comments of `SanitizedSpan.flags`, `sanitizeForPrompt`, `ZERO_WIDTH_SPACE` and
+  `buildPrompt` name the path and forged marks.
+- **A — CI evidence predated the fixes** (verify N3, adversarial). The CI run of the final commit is
+  linked in the step 8 report.
+- **D — forged marks of other shapes** (adversarial): `[TRUNCATED]`, `[TRUNCATED - …]`, a fullwidth
+  `［` or an invisible character inside are not neutralised. The system message describes only the
+  `[TRUNCATED: …]` form, which is covered; the rest is the look-alike false negative D3 accepts for
+  the markers.
+- **D — a code that matches both the path and the text** (adversarial Question) reports the span's
+  first line only, as the spec says: one event per code and span.
+- **D — more specs share the "empty the database, then read" window** (adversarial): besides
+  `seed-load` and `projects-command`, `tests/integration/cli/ask-command.spec.ts` and
+  `tests/integration/cli/seed-build.spec.ts`. None failed in the full runs; left as they are.
 - **D — a cut that keeps only a short first line** (adversarial Question). When the first line fits
   and the second does not, only whole lines are kept (P5, D2's accepted edge): the author keeps the
   rule; revisable with the measurements of CM-HU-22.

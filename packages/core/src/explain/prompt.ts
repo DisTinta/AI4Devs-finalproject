@@ -32,7 +32,7 @@ export interface ExplainPrompt {
   promptHash: string;
 }
 
-/** U+200B ZERO WIDTH SPACE, inserted after the first `<` of a marker sequence. */
+/** U+200B ZERO WIDTH SPACE, inserted after the first `<` of a marker sequence and the `[` of a forged mark. */
 const ZERO_WIDTH_SPACE = String.fromCodePoint(0x200b);
 
 /** The first `<` of every marker sequence (the rest of the sequence is a lookahead). */
@@ -57,9 +57,10 @@ function wrap(id: string, text: string): string {
 
 /**
  * Builds the prompt of a sanitised question over the sanitised spans of its pack: span `i` (from 0)
- * gets the id `evidenceIdAt(i)`. The question and each span's text are neutralised and wrapped; a cut
- * span's mark goes inside its markers; `questionFlags` and an entry's `flags` appear only when there
- * are some.
+ * gets the id `evidenceIdAt(i)`. The question and each span's text are neutralised (marker sequences
+ * and forged truncation marks) and wrapped, and each span's path is neutralised; a cut span's real
+ * mark goes inside its markers, after neutralisation; `questionFlags` and an entry's `flags` appear
+ * only when there are some.
  *
  * @param sanitized The question and the spans of the pack after `sanitizeForPrompt`; the question
  *   goes to the model, never to a log.
