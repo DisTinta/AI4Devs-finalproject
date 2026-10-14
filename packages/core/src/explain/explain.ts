@@ -10,10 +10,12 @@ import type { StorePort } from '../ports/StorePort.js';
 import { toClaimItems } from './claim-items.js';
 import type { TypedStatement } from './claim-items.js';
 import type { AnswerEvidence, AnsweredExplain, ExplainAnswer, PriorClaim } from './explain-answer.js';
+import type { SanitizationEvent } from './explain-event.js';
 import { parseExplainRequest } from './explain-request.js';
 import type { ExplainRequest } from './explain-request.js';
 import { toPriorClaim } from './prior-claims.js';
 import { buildPrompt } from './prompt.js';
+import { sanitizeForPrompt } from './sanitize.js';
 import { parseModelOutput } from './statement-schema.js';
 import type { ModelOutput } from './statement-schema.js';
 import { typeStatement } from './typing-rules.js';
@@ -42,10 +44,12 @@ export interface ExplainDependencies {
  * Answers a question about one indexed project in a single pass: validates the request, anchors the
  * question once, answers `UNKNOWN` without building the pack when nothing anchors (`no-anchor`) or the
  * model is in evaluation mode (`llm-required`), builds the pack (`over-budget` when no span fits),
- * reads the prior claims of its spans, asks the model once, quarantines its output
+ * sanitises the question and the pack's spans (from then on the only spans: a span over the limit is
+ * cut), reads the prior claims of those spans, asks the model once, quarantines its output
  * (`invalid-model-output`, or `no-evidence` without statements), then types each statement and stores
- * it as a claim. When the store fails with `ClaimWriteFailed` the answer is still returned,
- * `persisted: false`, with the prompt ids.
+ * it as a claim. Every answer that reached the prompt carries the sanitisation events first. When the
+ * store fails with `ClaimWriteFailed` the answer is still returned, `persisted: false`, with the
+ * prompt ids.
  *
  * @param dependencies The store, the source reader, the model, the workspace root and the clock.
  * @param request The project, the question and the limits of the pack; checked before any call.
@@ -69,30 +73,33 @@ export async function explain(dependencies: ExplainDependencies, request: Explai
     { projectId, question, anchors, ...(tokenBudget !== undefined && { tokenBudget }), ...(hops !== undefined && { hops }) },
   );
   if (pack.status === 'empty') return unknown('over-budget');
+  const sanitized = sanitizeForPrompt(question, pack.spans);
+  // The only spans from here on: a cut span ends at its kept last line everywhere (DIS-41 design D5).
+  const spans = sanitized.spans;
 
   const prior = await store.findClaimsOverlapping(
     projectId,
-    pack.spans.map(({ fileId, startLine, endLine }) => ({ fileId, startLine, endLine })),
+    spans.map(({ fileId, startLine, endLine }) => ({ fileId, startLine, endLine })),
   );
-  const prompt = buildPrompt(question, pack.spans);
+  const prompt = buildPrompt(sanitized);
   const result = await llm.complete({ messages: prompt.messages, purpose: 'answer' });
   const parsed = parseModelOutput(result.text, new Set(prompt.evidenceIds.keys()));
-  if (!parsed.ok) return unknown('invalid-model-output', [parsed.event]);
-  if (parsed.output.statements.length === 0) return unknown('no-evidence');
+  if (!parsed.ok) return unknown('invalid-model-output', [...sanitized.events, parsed.event]);
+  if (parsed.output.statements.length === 0) return unknown('no-evidence', sanitized.events);
 
   const statements = typeStatements(parsed.output, prompt.evidenceIds);
   const items = toClaimItems(
-    { projectId, model: result.model, promptHash: prompt.promptHash, createdAt: now().toISOString(), packSpans: pack.spans },
+    { projectId, model: result.model, promptHash: prompt.promptHash, createdAt: now().toISOString(), packSpans: spans },
     statements,
   );
   const priorClaims = prior.map(toPriorClaim);
   try {
     // The pack's commit: claims read at code the project no longer indexes are written stale.
     const saved = await store.saveClaims(projectId, items, pack.commit);
-    return storedAnswer(parsed.output.answer, statements, saved, priorClaims);
+    return storedAnswer(parsed.output.answer, statements, saved, priorClaims, sanitized.events);
   } catch (error) {
     if (!(error instanceof ClaimWriteFailed)) throw error;
-    return unsavedAnswer(parsed.output.answer, parsed.output, statements, priorClaims);
+    return unsavedAnswer(parsed.output.answer, parsed.output, statements, priorClaims, sanitized.events);
   }
 }
 
@@ -110,12 +117,13 @@ function evidenceEntry(id: string, span: ContextSpan): AnswerEvidence {
   return { id, fileId: span.fileId, path: span.path, startLine: span.startLine, endLine: span.endLine, excerpt: span.text };
 }
 
-/** A stored answer: one evidence entry per citation, under its stored row id. */
+/** A stored answer: one evidence entry per citation, under its stored row id, and the sanitisation events. */
 function storedAnswer(
   answer: string,
   statements: readonly TypedStatement[],
   saved: readonly SavedClaim[],
   priorClaims: PriorClaim[],
+  events: SanitizationEvent[],
 ): AnsweredExplain {
   return {
     kind: 'answered',
@@ -144,16 +152,20 @@ function storedAnswer(
       statement.spans.map((span, j) => evidenceEntry(saved[i].evidenceIds[j], span)),
     ),
     priorClaims,
-    events: [],
+    events,
   };
 }
 
-/** An unsaved answer: the prompt ids, one evidence entry per distinct cited id in first-citation order. */
+/**
+ * An unsaved answer: the prompt ids, one evidence entry per distinct cited id in first-citation order,
+ * and the sanitisation events followed by `claims_not_persisted`.
+ */
 function unsavedAnswer(
   answer: string,
   output: ModelOutput,
   statements: readonly TypedStatement[],
   priorClaims: PriorClaim[],
+  events: SanitizationEvent[],
 ): AnsweredExplain {
   const evidence = new Map<string, AnswerEvidence>();
   output.statements.forEach((statement, i) =>
@@ -174,6 +186,6 @@ function unsavedAnswer(
     })),
     evidence: [...evidence.values()],
     priorClaims,
-    events: [{ type: 'claims_not_persisted', code: 'store-write-failed' }],
+    events: [...events, { type: 'claims_not_persisted', code: 'store-write-failed' }],
   };
 }

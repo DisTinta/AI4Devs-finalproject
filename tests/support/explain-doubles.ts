@@ -1,0 +1,111 @@
+import { expect } from 'vitest';
+import { buildContextPack } from '@codemind/core';
+import type { FilledContextPack, KnowledgeGraph, NewProject, StorePort } from '@codemind/core';
+import { ACME_SHOP_PROJECT, acmeShopGraph } from './acme-shop-graph';
+import { createInMemoryStore } from './in-memory-store';
+import type { ClaimWriteFailure } from './in-memory-store';
+import { createInMemorySourceTree } from './in-memory-source-tree';
+import type { SourceContents } from './in-memory-source-tree';
+import { createScriptedLlm, modelOutput } from './scripted-llm';
+import type { Script } from './scripted-llm';
+import { file, symbol } from './sample-graph';
+
+// The doubles of the explain use-case tests (DIS-39), shared by tests/unit/explain/explain.spec.ts and
+// explain-sanitization.spec.ts (DIS-41 design D8). The store and the source tree are the in-memory
+// doubles over the acme-shop subset, whose files get a synthetic content of their stored length; the
+// model is scripted from the ids of the prompt.
+
+export const Q1 = '¿Cómo se calcula el precio final de un pedido?';
+export const COMMIT = 'c'.repeat(40);
+export const WORKSPACE = '/workspace';
+export const NOW = new Date('2026-10-13T10:00:00.000Z');
+
+/** A synthetic content of `lines` lines for `path`, ending with a line feed. */
+export function linesOf(path: string, lines: number): string {
+  return Array.from({ length: lines }, (_, i) => `// ${path} line ${i + 1}`).join('\n') + '\n';
+}
+
+export interface DoubleOptions {
+  mode?: 'live' | 'evaluation';
+  script?: Script;
+  graph?: KnowledgeGraph;
+  project?: NewProject;
+  contents?: Record<string, string>;
+  failClaimWrite?: ClaimWriteFailure;
+  store?: (store: StorePort) => StorePort;
+}
+
+/** The doubles: acme-shop indexed at `COMMIT` by default, a scripted model, a shared call order. */
+export function doubles(options: DoubleOptions = {}) {
+  const graph = options.graph ?? { ...acmeShopGraph(), indexedCommit: COMMIT };
+  const project = options.project ?? { ...ACME_SHOP_PROJECT, rootPath: '/repos/acme-shop' };
+  const loaded = createInMemoryStore({ projects: [{ project, graph }], failClaimWrite: options.failClaimWrite });
+  const contents = options.contents ?? Object.fromEntries(graph.files.map((f) => [f.path, linesOf(f.path, f.loc ?? 1)]));
+  const tree: SourceContents = { [project.rootPath]: { [COMMIT]: contents } };
+  const source = createInMemorySourceTree(tree);
+  const order: string[] = [];
+  const model = createScriptedLlm(options.mode ?? 'live', options.script, order);
+  const base = options.store?.(loaded.store) ?? loaded.store;
+  const store: StorePort = {
+    ...base,
+    findClaimsOverlapping: (...args) => {
+      order.push('findClaimsOverlapping');
+      return base.findClaimsOverlapping(...args);
+    },
+    saveClaims: (...args) => {
+      order.push('saveClaims');
+      return base.saveClaims(...args);
+    },
+  };
+  return {
+    loaded,
+    projectId: loaded.projectIds[0]!,
+    order,
+    model,
+    sourceCalls: source.calls,
+    deps: { store, source: source.source, llm: model.llm, workspaceRoot: WORKSPACE, now: () => NOW },
+  };
+}
+
+/** The context pack explain builds for `question` over the same doubles. */
+export async function packOf(d: ReturnType<typeof doubles>, question = Q1): Promise<FilledContextPack> {
+  const pack = await buildContextPack({ store: d.loaded.store, source: d.deps.source, workspaceRoot: WORKSPACE }, {
+    projectId: d.projectId,
+    question,
+  });
+  expect(pack.status).toBe('ok');
+  return pack as FilledContextPack;
+}
+
+/** The rejection of `promise`, or a failure when it resolves. */
+export async function rejection(promise: Promise<unknown>): Promise<unknown> {
+  return promise.then(
+    () => {
+      throw new Error('expected a rejection');
+    },
+    (error: unknown) => error,
+  );
+}
+
+/** A script citing fixed prompt ids. */
+export function citingIds(answer: string, statements: string[][]): Script {
+  return () => modelOutput(answer, statements.map((evidenceIds, i) => ({ text: `statement ${i + 1}`, evidenceIds })));
+}
+
+/** A tiny project of its own with the given symbols and file contents, indexed at `COMMIT`. */
+export function ownGraph(files: KnowledgeGraph['files'], symbols: KnowledgeGraph['symbols']): KnowledgeGraph {
+  return { files, symbols, edges: [], commits: [], fileCommits: [], indexedCommit: COMMIT };
+}
+
+/** A project whose question `price` anchors three symbols in two files (three spans, in rank order). */
+export function threeSpans(options: DoubleOptions = {}, firstFile = linesOf('app/F1.php', 40)) {
+  return doubles({
+    ...options,
+    project: { name: 'own', rootPath: '/repos/own', language: 'php' },
+    graph: ownGraph(
+      [file('app/F1.php', { loc: 40 }), file('app/F2.php', { loc: 20 })],
+      [symbol('app/F1.php', 'PriceA', 1), symbol('app/F1.php', 'PriceB', 10), symbol('app/F2.php', 'PriceC', 1)],
+    ),
+    contents: { 'app/F1.php': firstFile, 'app/F2.php': linesOf('app/F2.php', 20) },
+  });
+}

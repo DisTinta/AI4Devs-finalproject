@@ -17,7 +17,11 @@ export interface AnswerEvidence {
   startLine: number;
   /** Last cited line, inclusive. */
   endLine: number;
-  /** The cited span's redacted text; `null` only for a prior claim stored without one. */
+  /**
+   * The cited span's redacted text, as the model read it: cut at its last kept line when the span was
+   * over `MAX_EVIDENCE_TEXT_CHARS`, without the truncation mark or neutralisation; `null` only for a
+   * prior claim stored without one.
+   */
   excerpt: string | null;
 }
 
@@ -65,7 +69,11 @@ interface AnsweredCommon {
   evidence: AnswerEvidence[];
   /** The stored claims over the same code, newest first. */
   priorClaims: PriorClaim[];
-  /** What happened on the way; empty when the claims were stored. */
+  /**
+   * What happened on the way: the sanitisation events (the question's, then each span's in evidence-id
+   * order), then `claims_not_persisted` when the claims were not stored; empty when nothing was
+   * flagged or cut and the claims were stored.
+   */
   events: ExplainEvent[];
 }
 
@@ -77,7 +85,8 @@ export interface StoredExplain extends AnsweredCommon {
 
 /**
  * An answer whose claims could not be stored: ids are the prompt ids (`E1`…), one evidence entry per
- * distinct cited id in first-citation order, and `events` holds the `claims_not_persisted` event.
+ * distinct cited id in first-citation order, and `events` holds the sanitisation events followed by
+ * the `claims_not_persisted` event.
  */
 export interface UnsavedExplain extends AnsweredCommon {
   /** The claims were not stored. */

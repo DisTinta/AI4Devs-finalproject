@@ -26,7 +26,10 @@ export interface UnknownExplain {
   statements: [];
   /** Always empty. */
   evidence: [];
-  /** The schema-violation event for `invalid-model-output`; empty otherwise. */
+  /**
+   * For an answer that reached the prompt (`invalid-model-output`, `no-evidence`), the sanitisation
+   * events, then the schema-violation event of `invalid-model-output`; empty otherwise.
+   */
   events: ExplainEvent[];
 }
 
@@ -37,7 +40,8 @@ export const LLM_REQUIRED_MESSAGE = 'evaluation mode (cache-only): set LLM_* to 
  * An `UNKNOWN` answer: no statement, no evidence, no model text; `message` only for `llm-required`.
  *
  * @param reason Why there is no answer.
- * @param events The events to carry (the schema-violation event of a discarded output).
+ * @param events The events to carry, in order: the sanitisation events of a prompt that was built,
+ *   then the schema-violation event of a discarded output.
  */
 export function unknown(reason: UnknownReason, events: ExplainEvent[] = []): UnknownExplain {
   return {
