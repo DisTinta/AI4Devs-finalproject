@@ -83,7 +83,7 @@
 
 - [x] 11.1 `readme.md` §2.5: under "Agente en cuarentena" or "Riesgos aceptados", how untrusted content is sanitised (markers, the four patterns with the accepted false positives, the 8,000 code-point cut, the events), still "defensa en profundidad, no una barrera"
 - [x] 11.2 `docs/project-context.md`: gotchas — prompt spans may be cut (`endLine` and excerpt of the kept part), the user message wraps text in markers that `scripted-llm` scripts see, `INSTRUCTION_PATTERNS` lives in `explain-event.ts`
-- [ ] 11.3 No ADR (design D9); state it in the PR description
+- [x] 11.3 No ADR (design D9); state it in the PR description
 - [x] 11.4 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
 
 ## 12. Pull request preparation
