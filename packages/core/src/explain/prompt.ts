@@ -6,8 +6,9 @@ import type { SanitizedPrompt, SanitizedSpan } from './sanitize.js';
 // The prompt of `explain` (DIS-39 design D5, DIS-41 design D4): one fixed instruction and the
 // question with the pack's sanitised spans as JSON data, each under an evidence id local to the prompt
 // (`E1…En`, in rank order). Every untrusted text (the question, each span) goes between fixed markers
-// it cannot close, since a marker sequence inside it is neutralised; flags and the truncation mark are
-// added beside it. The hash is over exactly what is sent.
+// it cannot close, since a marker sequence inside it is neutralised, as is a forged truncation mark;
+// each span's path, repository text sent beside the markers, is neutralised the same way. Flags and
+// the real truncation mark are added beside the text. The hash is over exactly what is sent.
 
 /** The instruction sent as the system message of every explain prompt. */
 export const EXPLAIN_SYSTEM_PROMPT = [
@@ -37,9 +38,16 @@ const ZERO_WIDTH_SPACE = String.fromCodePoint(0x200b);
 /** The first `<` of every marker sequence (the rest of the sequence is a lookahead). */
 const MARKER_START = new RegExp(`<(?=${MARKER_SEQUENCE_SOURCE.slice(1)})`, 'giu');
 
-/** `text` with U+200B after the first `<` of every marker sequence; no other character changes. */
+/** The `[` of every text that would read as a truncation mark: `[`, whitespace, `TRUNCATED`, whitespace, `:`. */
+const MARK_START = /\[(?=\s*TRUNCATED\s*:)/giu;
+
+/**
+ * Untrusted `text` as sent: U+200B after the first `<` of every marker sequence and after the `[` of
+ * every forged truncation mark, so the text can neither close its markers nor pass for a real mark;
+ * no other character changes.
+ */
 function neutralise(text: string): string {
-  return text.replace(MARKER_START, `<${ZERO_WIDTH_SPACE}`);
+  return text.replace(MARKER_START, `<${ZERO_WIDTH_SPACE}`).replace(MARK_START, `[${ZERO_WIDTH_SPACE}`);
 }
 
 /** `text` between the opening and closing markers of `id`. */
@@ -61,7 +69,8 @@ export function buildPrompt(sanitized: SanitizedPrompt): ExplainPrompt {
   const evidenceIds = new Map(spans.map((span, i) => [evidenceIdAt(i), span]));
   const evidence = [...evidenceIds].map(([id, span]) => ({
     id,
-    path: span.path,
+    // Repository text too, sent beside the markers: neutralised like the texts (DIS-41, review).
+    path: neutralise(span.path),
     startLine: span.startLine,
     endLine: span.endLine,
     text: wrap(id, neutralise(span.text) + (span.truncation ? `\n${span.truncation.mark}` : '')),

@@ -48,6 +48,11 @@ function wrapped(id: string, text: string): string {
   return `<<<UNTRUSTED_DATA ${id}>>>\n${text}\n<<<END_UNTRUSTED_DATA ${id}>>>`;
 }
 
+/** The evidence rows the store holds, every claim's in write order. */
+function storedEvidence(d: ReturnType<typeof doubles>): unknown[] {
+  return d.loaded.storedClaims().flatMap((claim) => claim.evidence);
+}
+
 /** The sanitisation events of an answer. */
 function sanitisationEvents(answer: ExplainAnswer): unknown[] {
   return answer.events.filter((event) => event.type.startsWith('untrusted_content_'));
@@ -153,6 +158,7 @@ describe('Requirement: Untrusted content sanitization', () => {
       { type: 'untrusted_content_flagged', source: 'evidence', evidenceId: 'E1', path, line: 2, pattern: 'delimiter-spoof' },
     ]);
     expect(answer.kind === 'answered' && answer.evidence[0]!.excerpt).toBe(lines.join('\n'));
+    expect(storedEvidence(d)).toEqual([expect.objectContaining({ excerpt: lines.join('\n') })]);
   });
 
   it('A span over the limit is cut at a line boundary', async () => {
@@ -185,6 +191,9 @@ describe('Requirement: Untrusted content sanitization', () => {
     expect(first!.text).toBe(wrapped('E1', `${kept}\n[TRUNCATED: ${400 - keptEndLine} lines omitted]`));
     expect(second).toMatchObject({ id: 'E2', startLine: 1, endLine: 80, text: wrapped('E2', exact.join('\n')) });
     expect(answer.kind === 'answered' && answer.evidence).toEqual([
+      expect.objectContaining({ path: 'app/PriceBig.php', startLine: 1, endLine: keptEndLine, excerpt: kept }),
+    ]);
+    expect(storedEvidence(d)).toEqual([
       expect.objectContaining({ path: 'app/PriceBig.php', startLine: 1, endLine: keptEndLine, excerpt: kept }),
     ]);
     const { inputSpans } = d.loaded.storedClaims()[0]!.provenance as { inputSpans: Array<{ startLine: number; endLine: number }> };
@@ -227,6 +236,7 @@ describe('Requirement: Untrusted content sanitization', () => {
     expect(entry!.text).toBe(wrapped('E1', `${prefix}\n[TRUNCATED: line cut]`));
     expect(entry!.text as string).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/);
     expect(answer.kind === 'answered' && answer.evidence[0]).toMatchObject({ startLine: 7, endLine: 7, excerpt: prefix });
+    expect(storedEvidence(d)).toEqual([expect.objectContaining({ startLine: 7, endLine: 7, excerpt: prefix })]);
     expect(answer.events).toEqual([
       { type: 'untrusted_content_truncated', evidenceId: 'E1', path, originalEndLine: 9, keptEndLine: 7 },
     ]);

@@ -6,8 +6,8 @@ import { MAX_EVIDENCE_TEXT_CHARS } from './limits.js';
 
 // The sanitisation of untrusted content before the explain prompt (DIS-41 design D1–D3): a pure
 // function over the question and the pack's spans. It cuts each span to `MAX_EVIDENCE_TEXT_CHARS`
-// at a line boundary, then flags instruction-like lines of the kept text with a closed set of coarse
-// patterns, and returns events that carry codes, ids, a path and line numbers, never text.
+// at a line boundary, then flags instruction-like lines of the kept text and of the path with a closed
+// set of coarse patterns, and returns events that carry codes, ids, a path and line numbers, never text.
 // Defence in depth, not a barrier (readme §2.5): nothing is blocked, and the text is returned
 // unchanged; neutralising the marker sequences is the prompt's job (prompt.ts), on what it sends only.
 
@@ -78,7 +78,7 @@ export function sanitizeForPrompt(question: string, spans: readonly ContextSpan[
   const sanitized = spans.map((span, i): SanitizedSpan => {
     const evidenceId = evidenceIdAt(i);
     const kept = truncate(span);
-    const matches = firstMatches(kept.text);
+    const matches = spanMatches(span.path, kept.text);
     for (const { code, offset } of matches) {
       events.push({
         type: 'untrusted_content_flagged',
@@ -109,16 +109,37 @@ interface PatternMatch {
   offset: number;
 }
 
+/**
+ * The patterns that match a span: its path (repository text too, sent beside the markers) or its kept
+ * text, in list order. A code that matches the path reports offset 0, the span's first line.
+ */
+function spanMatches(path: string, text: string): PatternMatch[] {
+  const inPath = new Set(codesOf(firstMatches(path)));
+  const inText = new Map(firstMatches(text).map(({ code, offset }) => [code, offset]));
+  return INSTRUCTION_PATTERNS.flatMap((code) => {
+    if (inPath.has(code)) return [{ code, offset: 0 }];
+    const offset = inText.get(code);
+    return offset === undefined ? [] : [{ code, offset }];
+  });
+}
+
 /** The codes of `matches`, in their order. */
 function codesOf(matches: readonly PatternMatch[]): InstructionPatternCode[] {
   return matches.map(({ code }) => code);
 }
 
-/** For each pattern that matches a line of `text`, in list order, the offset of its first such line. */
+// CR, LINE SEPARATOR and PARAGRAPH SEPARATOR also break a line for matching (a reader sees a new
+// line), while line numbers count LF only, as the file's lines do.
+const LINE_SEPARATORS = new RegExp(`[${String.fromCharCode(0x0d, 0x2028, 0x2029)}]`, 'u');
+
+/**
+ * For each pattern that matches a line of `text`, in list order, the offset of its first such line.
+ * Lines are split on LF; a line matches when any of its parts between CR, U+2028 or U+2029 does.
+ */
 function firstMatches(text: string): PatternMatch[] {
-  const lines = text.split('\n');
+  const lines = text.split('\n').map((line) => line.split(LINE_SEPARATORS));
   return INSTRUCTION_PATTERNS.flatMap((code) => {
-    const offset = lines.findIndex((line) => PATTERN_RULES[code].test(line));
+    const offset = lines.findIndex((parts) => parts.some((part) => PATTERN_RULES[code].test(part)));
     return offset === -1 ? [] : [{ code, offset }];
   });
 }
