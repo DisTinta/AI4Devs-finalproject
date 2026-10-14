@@ -19,7 +19,7 @@ export interface AnswerProvenance {
   promptHash: string;
   /** The clock's instant, ISO 8601 with a time zone. */
   createdAt: string;
-  /** Every span of the pack, which the model read. */
+  /** Every sanitised span of the pack, as the model read it (a cut span ends at its kept last line). */
   packSpans: readonly ContextSpan[];
 }
 
@@ -38,7 +38,8 @@ export interface TypedStatement {
  * first cited span (its path when it has no symbol, never the question), as predicate
  * {@link CLAIM_PREDICATE_EXPLAINS}, as object the text; layer `L2`, type `INFERENCE`, status
  * `current`, no confidence; the statement type in the provenance. One evidence per cited span, with
- * its redacted text as excerpt and verification `none`.
+ * its redacted text as excerpt (cut when the span was over the limit, without the truncation mark or
+ * neutralisation) and verification `none`.
  *
  * @param provenance What every claim of the answer shares.
  * @param statements The typed statements, in the model's order.

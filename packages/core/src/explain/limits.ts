@@ -25,3 +25,11 @@ export const MAX_EVIDENCE_IDS_PER_STATEMENT = 10;
  * bounds the prompt and the anchoring work whatever the caller sends.
  */
 export const MAX_QUESTION_CHARS = 1_000;
+
+/**
+ * Longest text of one prompt evidence, in Unicode code points (DIS-41, author decision P5,
+ * provisional): a longer span is cut at a line boundary before the prompt. About a quarter of
+ * `TOKEN_BUDGET_DEFAULT` with the `chars-div-4` estimate, so no single span fills the pack; revisable
+ * with the measurements of CM-HU-22.
+ */
+export const MAX_EVIDENCE_TEXT_CHARS = 8_000;

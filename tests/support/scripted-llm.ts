@@ -6,18 +6,24 @@ import type { CompletionRequest, CompletionResult, EmbeddingResult, LlmPort } fr
 // script may also throw, to stand for a model failure. An optional shared `order` list records the
 // call, so a test can check it came after the store's reads.
 
-/** One evidence entry of the prompt, as the user message carries it. */
+/**
+ * One evidence entry of the prompt, as the user message carries it. Since DIS-41 `text` is wrapped
+ * between `<<<UNTRUSTED_DATA <id>>>>` markers (and a cut span ends at its kept last line), so a script
+ * matches a span by path and lines, not by text.
+ */
 export interface PromptEvidence {
   id: string;
   path: string;
   startLine: number;
   endLine: number;
   text: string;
+  flags?: string[];
 }
 
-/** What the script receives: the question and the evidence of the prompt. */
+/** What the script receives: the question (wrapped in markers) and the evidence of the prompt. */
 export interface PromptView {
   question: string;
+  questionFlags?: string[];
   evidence: PromptEvidence[];
 }
 

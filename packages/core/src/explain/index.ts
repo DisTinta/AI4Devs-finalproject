@@ -5,6 +5,7 @@ export * from './statement-schema.js';
 export * from './explain-request.js';
 export * from './explain-event.js';
 export * from './explain-answer.js';
+export * from './sanitize.js';
 export * from './unknown-policy.js';
 export * from './prompt.js';
 export * from './claim-items.js';

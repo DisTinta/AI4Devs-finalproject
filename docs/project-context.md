@@ -171,7 +171,10 @@ Verified against `package.json` (root and per package). If a command is not here
   recorded in `calls.readFilesAt` and `batchReads`; the pack now reads only through it, so "no file
   was read" means both counters are 0. `readFiles`/`realPath` throw. Context pack unit tests pair it
   with the store double. `tests/support/scripted-llm.ts` is the `LlmPort` double of the explain tests:
-  it reads the evidence ids and spans from the prompt and builds the output from them.
+  it reads the evidence ids and spans from the prompt and builds the output from them. Since DIS-41 the
+  `question` and each evidence `text` it sees are wrapped in `<<<UNTRUSTED_DATA <id>>>>` markers, and a
+  cut span ends at its kept last line: match spans by path and lines, never by text.
+  `tests/support/explain-doubles.ts` holds the doubles both explain unit specs share.
 - **Property tests use `fast-check`** (root devDependency since DIS-28,
   `tests/unit/context/budget.spec.ts`): `numRuns ≥ 200`, and `seed` fixed only when `CI` is set
   (`{ ...(process.env.CI ? { seed: 20261011 } : {}) }`), so CI replays and local runs explore.
@@ -554,14 +557,26 @@ services that must be started first, quirks of the local environment.
   (`InvalidExplainRequest`, `field` only, never the value; question 1..`MAX_QUESTION_CHARS` = 1 000
   code points, not blank) → `anchor` once → `no-anchor` → [DIS-21 cache slot] → `llm-required` in
   evaluation mode (pack not built) → pack with the given anchor → `over-budget` →
-  `findClaimsOverlapping` (before the model) → one `complete({ purpose: 'answer' })` → quarantine
-  (`invalid-model-output`) → `no-evidence` when there is no statement → type, `saveClaims`. Answer:
+  `sanitizeForPrompt` (DIS-41) → `findClaimsOverlapping` (before the model) → one
+  `complete({ purpose: 'answer' })` → quarantine (`invalid-model-output`) → `no-evidence` when there
+  is no statement → type, `saveClaims`. Answer:
   `kind: 'unknown'` with `reason` (`UNKNOWN_REASONS`), or `kind: 'answered'` with `persisted`.
   `ClaimWriteFailed` from `saveClaims` → `persisted: false`, the prompt ids `E1…En` and one
   `{ type: 'claims_not_persisted', code: 'store-write-failed' }`; any other error propagates.
   `BudgetExhausted` propagates until DIS-21 adds the cache-only degradation.
-  - Gotcha: `ExplainEvent` (`SchemaViolationEvent | ClaimsNotPersistedEvent`) is **not** part of
-    `AuditEvent`. Core never logs; the transport does.
+  - Gotcha: `ExplainEvent` (`SchemaViolationEvent | ClaimsNotPersistedEvent | SanitizationEvent`) is
+    **not** part of `AuditEvent`. Core never logs; the transport does.
+  - Gotcha (DIS-41, `explain/sanitize.ts`): after `sanitizeForPrompt` the sanitised spans are the
+    only spans. A span over `MAX_EVIDENCE_TEXT_CHARS` (8 000 code points) is cut, so the prompt's
+    `endLine`, the claim's input spans, the evidence's last line and the excerpt are those of the kept
+    part, and may be shorter than the pack span. The user message wraps the question and every
+    evidence `text` in `<<<UNTRUSTED_DATA <id>>>>` markers, which `scripted-llm` scripts see; marker
+    sequences inside (and in each evidence `path`, also matched against the patterns), and any forged
+    `[TRUNCATED:`, are neutralised (U+200B) in the prompt only. `INSTRUCTION_PATTERNS` (the closed
+    code set) lives in `explain-event.ts`; the regexes and `MARKER_SEQUENCE_SOURCE` in
+    `sanitize.ts`. Sanitisation events come first in `events` of every answer that reached the
+    prompt; `tests/unit/cli/*ask*` and the integration "stderr is empty" checks hold only because
+    acme-shop matches no pattern and has no span over the limit.
   - Claim columns: subject = symbol of the first cited span (its path otherwise), predicate
     `CLAIM_PREDICATE_EXPLAINS` (`explains`), object = statement text; the question is never stored.
   - `StorePort.saveClaims(projectId, items)` writes one answer atomically (`atomically` with a

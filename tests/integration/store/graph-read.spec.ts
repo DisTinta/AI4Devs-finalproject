@@ -16,7 +16,7 @@ import type {
 } from '@codemind/core';
 import { createPostgresStore } from '../../../packages/adapters/store-postgres/src/index';
 import { NEIGHBORS } from '../../../packages/adapters/store-postgres/src/queries';
-import { describeWithDatabase, useTransactionPerTest } from '../helpers/db';
+import { connect, describeWithDatabase, useTransactionPerTest } from '../helpers/db';
 import { unique } from '../helpers/factories';
 import { edge, file, ref, sampleGraph, SHA, symbol } from '../../support/sample-graph';
 
@@ -210,15 +210,34 @@ describeWithDatabase('graph store reads (DIS-24)', () => {
 
   describe('Requirement: Project listing', () => {
     it('Listing with no project returns an empty list', async () => {
-      // Arrange: remove every project inside this test's transaction (reverted when it ends, D7).
-      const { reader } = stores();
-      await db().query('DELETE FROM project');
+      // Arrange: remove every project in a transaction of its own, always rolled back. It is
+      // REPEATABLE READ, unlike the harness's (which has already run a query, so its level is fixed):
+      // under READ COMMITTED the listing also saw a project another spec file committed between the
+      // DELETE and the read (DIS-41 review). A concurrent commit can abort the DELETE with a
+      // serialization failure (40001), the expected outcome at this level: it is retried.
+      const own = await connect();
+      try {
+        let projects: unknown;
+        for (let attempt = 1; ; attempt++) {
+          await own.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
+          try {
+            await own.query('DELETE FROM project');
 
-      // Act
-      const projects = await reader.listProjects();
+            // Act
+            projects = await createPostgresStore({ transaction: own }).listProjects();
+            break;
+          } catch (error) {
+            if ((error as { code?: string }).code !== '40001' || attempt === 3) throw error;
+          } finally {
+            await own.query('ROLLBACK');
+          }
+        }
 
-      // Assert
-      expect(projects).toEqual([]);
+        // Assert
+        expect(projects).toEqual([]);
+      } finally {
+        await own.end();
+      }
     });
 
     it('Projects are listed by name', async () => {

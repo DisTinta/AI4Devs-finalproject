@@ -187,9 +187,11 @@ describeWithDatabase('explain over the indexed acme-shop (DIS-39)', () => {
     'A failed write over the database still answers without leaking',
     async () => {
       // Arrange: every evidence insert of this transaction fails, quoting the excerpt and a sentinel.
-      // CREATE TRIGGER waits for parallel tests holding ROW EXCLUSIVE on evidence (design D13).
+      // CREATE TRIGGER waits for parallel tests holding ROW EXCLUSIVE on evidence (design D13): with a
+      // committed sample project, a spec that empties the database (`DELETE FROM project`) holds it
+      // through the file -> evidence cascade until it rolls back, so the bound is 60 s (DIS-41 review).
       const { store, projectId, pack } = await indexed();
-      await db().query(`SET LOCAL lock_timeout = '10s'`);
+      await db().query(`SET LOCAL lock_timeout = '60s'`);
       await db().query(`
         CREATE FUNCTION pg_temp.reject_every_evidence() RETURNS trigger LANGUAGE plpgsql AS $$
         BEGIN

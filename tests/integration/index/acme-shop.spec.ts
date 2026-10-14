@@ -169,7 +169,6 @@ describeWithDatabase('acme-shop indexing', () => {
       },
       onProgress: (phase) => phases.push(phase),
     };
-    const { rows: before } = await db().query('SELECT count(*)::int AS n FROM project');
 
     // Act
     const error = await indexRepository(deps, { repoPath: 'acme-shop', allowedRoot: ALLOWED_ROOT, name, language: 'php' }).catch(
@@ -181,8 +180,8 @@ describeWithDatabase('acme-shop indexing', () => {
     expect((error as InvalidGraph).message).toContain('app/Generated.php');
     expect(phases.at(-1)).toBe('save');
     expect(calls).toEqual([]);
-    const { rows: after } = await db().query('SELECT count(*)::int AS n FROM project');
-    expect(after[0].n).toBe(before[0].n);
+    // Scoped to this test's project name: a total count of the shared database also sees the projects
+    // other spec files commit meanwhile (DIS-41 review); `calls` above shows none was created anyway.
     const { rows: named } = await db().query('SELECT count(*)::int AS n FROM project WHERE name = $1', [name]);
     expect(named[0].n).toBe(0);
   }, INDEXING_TIMEOUT_MS);
@@ -219,7 +218,6 @@ describeWithDatabase('acme-shop indexing', () => {
       },
       onProgress: (phase) => phases.push(phase),
     };
-    const { rows: before } = await db().query('SELECT count(*)::int AS n FROM project');
     let report: IndexReport | undefined;
 
     // Act
@@ -237,7 +235,8 @@ describeWithDatabase('acme-shop indexing', () => {
     expect((error as InvalidGraph).message).toContain(`"${dropped}"`);
     expect(phases.at(-1)).toBe('save');
     expect(calls).toEqual([]);
-    const { rows: after } = await db().query('SELECT count(*)::int AS n FROM project');
-    expect(after[0].n).toBe(before[0].n);
+    // Scoped to this test's project name, as in the previous test (DIS-41 review).
+    const { rows: named } = await db().query('SELECT count(*)::int AS n FROM project WHERE name = $1', [name]);
+    expect(named[0].n).toBe(0);
   }, INDEXING_TIMEOUT_MS);
 });
