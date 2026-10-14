@@ -571,7 +571,8 @@ services that must be started first, quirks of the local environment.
     `endLine`, the claim's input spans, the evidence's last line and the excerpt are those of the kept
     part, and may be shorter than the pack span. The user message wraps the question and every
     evidence `text` in `<<<UNTRUSTED_DATA <id>>>>` markers, which `scripted-llm` scripts see; marker
-    sequences inside are neutralised (U+200B) in the prompt only. `INSTRUCTION_PATTERNS` (the closed
+    sequences inside (and in each evidence `path`, also matched against the patterns), and any forged
+    `[TRUNCATED:`, are neutralised (U+200B) in the prompt only. `INSTRUCTION_PATTERNS` (the closed
     code set) lives in `explain-event.ts`; the regexes and `MARKER_SEQUENCE_SOURCE` in
     `sanitize.ts`. Sanitisation events come first in `events` of every answer that reached the
     prompt; `tests/unit/cli/*ask*` and the integration "stderr is empty" checks hold only because

@@ -305,4 +305,57 @@ None: no schema, no data migration. Claims stored before keep their prompt hash 
 
 ## Follow-ups
 
-None yet.
+Pre-merge review (2026-10-14: `reports/2026-10-14-show-spec-working.md`, `…-verify-against-spec.md`,
+`…-adversarial-review.md`). Destinations: **A** fixed in this change, **B** moved to an existing
+issue, **C** new debt issue, **D** accepted, no change. The author chose the destination of the path
+channel, the forged mark, the near-empty cut and the shared-database tests (2026-10-14).
+
+- **A — the path reached the prompt unsanitised** (adversarial Major). The path is repository text
+  sent beside the markers: the patterns are matched on it too (a code that matches the path is
+  reported at the span's first line) and the prompt neutralises it like the texts; the answer and the
+  store keep it unchanged. Scenarios "A pattern in the path is flagged at the first line of the span"
+  and "A marker sequence in the path is neutralised".
+- **A — gaps and line starts missed `\r`, U+2028 and U+2029** (verify M1, adversarial Major). Each
+  `\n` line is split again at those characters for matching; line numbers still count `\n`. A pattern
+  split across parts is not matched, as one split across lines was not (an accepted false negative,
+  D3). Scenario "A line separator other than LF starts a line for matching".
+- **A — a forged truncation mark looked real** (adversarial Minor). The prompt neutralises `[`,
+  whitespace, `TRUNCATED`, whitespace, `:` with U+200B after the `[`; the real mark is added after
+  neutralisation. Scenario "A forged truncation mark is neutralised".
+- **A — three scenario tests checked the answer, not the stored evidence** (verify M2, adversarial).
+  They now also assert the store's evidence rows (`StoredClaim.evidence` already holds them, so the
+  double needed no new accessor); storing `span.text + 'x'` in `claim-items.ts` fails all three
+  (checked by hand).
+- **A — the console test used one span both flagged and cut** (verify M3). It now holds a flagged
+  span and a separate cut span.
+- **A — behaviour in the code but not in the spec** (verify U1–U4, adversarial). The spec now states
+  the two exact system lines, the recomputed tokens of a cut span, the exported surface
+  (`sanitizeForPrompt`, `evidenceIdAt`, `MARKER_SEQUENCE_SOURCE`, `buildPrompt` taking its result),
+  and that a marker split by a line break is neutralised but not flagged.
+- **A — integration specs that failed beside a committed sample project** (step 8 note, adversarial
+  process). `tests/integration/index/acme-shop.spec.ts` compared the total `project` count of the
+  shared database, which also sees projects other spec files commit meanwhile: both tests now count
+  their own project name (`calls` already shows `createProject` was never reached).
+  `tests/integration/explain/explain.spec.ts` "A failed write over the database still answers without
+  leaking" timed out (`55P03`) waiting for specs that empty the database: with a committed sample,
+  their `DELETE FROM project` holds ROW EXCLUSIVE on `evidence` through the `file → evidence` cascade
+  until they roll back; its `lock_timeout` is now 60 s (under its 120 s test timeout). A rerun also
+  failed `tests/integration/store/graph-read.spec.ts` "Listing with no project returns an empty list"
+  once, independent of the seed: a project another spec committed between its `DELETE FROM project`
+  and the listing (READ COMMITTED). It now runs in a REPEATABLE READ transaction of its own, always
+  rolled back, retried up to three times on a serialization failure (`40001`). Other specs that empty
+  the database and then read (`seed-load`, `projects-command`) share the same window; they did not
+  fail in six full runs and are left as they are (D).
+- **D — the `u` flag of `LINE_SEPARATORS`** (mutation survivor after the fixes): equivalent, the class
+  holds BMP characters only.
+- **D — a cut that keeps only a short first line** (adversarial Question). When the first line fits
+  and the second does not, only whole lines are kept (P5, D2's accepted edge): the author keeps the
+  rule; revisable with the measurements of CM-HU-22.
+- **B — the provenance does not record that a span was cut** (adversarial Question). Nothing
+  recomputes `promptHash` today; whether a reproducible provenance (the mark, the original range) is
+  needed belongs to the answer cache: comment on DIS-21.
+- **D — the 256 KiB vs 1 MiB scaling clause is satisfied trivially** (verify observation): the cut
+  caps the work, so only the 2,000 vs 8,000 clause measures the matcher; both stay, as the spec reads.
+- **D — RED not observed for some tasks** (adversarial process): 2.4, 2.7, 3.4, 4.2–4.6 and 4.8 passed
+  at once because earlier tasks had built the behaviour; the step 8 report records the hand mutations
+  that show the tests bite.

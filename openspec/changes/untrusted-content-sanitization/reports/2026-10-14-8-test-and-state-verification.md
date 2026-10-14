@@ -136,3 +136,30 @@ Low, accepted: the paths reach stderr through the CLI, as `secret_redacted` even
 - Status: PASS
 - Blocking issues: none. Follow-up candidate: the two integration specs that fail beside a committed
   sample project (see Notes).
+
+## Addendum: CI (10.2) and the pre-merge review fixes (13.3)
+
+- **CI (10.2).** PR #39, run `38581960328`
+  (https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/38581960328): `quality` passed in
+  16 min 12 s; Vitest 92 files, 1,207 passed and 1 skipped (`tests/unit/index/path-policy.spec.ts`,
+  platform-specific, existing), with `explain-sanitization.spec.ts` (10), `sanitize.spec.ts` (16),
+  `sanitize.scaling.spec.ts` (3), `sanitize.linear.spec.ts` (5) and `prompt.spec.ts` (1) all passed.
+  `frontend`, `scope` and `secrets` passed.
+- **Fixes** (each with its destination in `design.md` → Follow-ups): patterns on the path and its
+  neutralisation; `\r`, U+2028 and U+2029 split lines for matching; forged `[TRUNCATED:` neutralised;
+  the three scenario tests also assert the stored evidence rows (storing `span.text + 'x'` in
+  `claim-items.ts` fails all three, checked by hand); the console test holds a flagged span and a
+  separate cut span; the spec states U1–U4. RED observed for the new behaviour: line separators
+  (`expected [] to deeply equal ['system-impersonation']`), path flags (`['ignore-instructions']` vs
+  two codes), path and forged-mark neutralisation (both prompt tests failed first).
+- **Shared-database specs** (author's decision: fixed in this PR): `acme-shop.spec.ts` counts its own
+  project name; the explain trigger test waits up to 60 s for the lock; `graph-read.spec.ts` "Listing
+  with no project returns an empty list" runs in its own REPEATABLE READ transaction, retried on
+  `40001`.
+- **Required suite after the fixes:** with acme-shop seeded and committed, 92 files / 1,212 passed in
+  three full runs (one more run failed `graph-read` before its retry was added, `40001`, then fixed).
+  `lint`, `typecheck`, `lint:architecture` (3 existing warnings) and `docs:coverage` exit 0.
+- **Mutation after the fixes:** 98.85 % (171 killed, 1 timeout, 2 survived:
+  `prompt.ts` `'utf8'` → `''` and `sanitize.ts` `'u'` → `''` on `LINE_SEPARATORS`, both equivalent).
+  `prompt.ts` 98.25 %, `sanitize.ts` 99.15 %. No `.stryker-tmp/` left.
+- **State:** `project` 1 (acme-shop) / `claim` 0 / `evidence` 0, as left by step 9.
