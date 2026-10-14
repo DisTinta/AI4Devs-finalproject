@@ -168,3 +168,9 @@ Low, accepted: the paths reach stderr through the CLI, as `secret_redacted` even
   line break). Required suite with acme-shop seeded: **92 files, 1,215 passed**; gates exit 0;
   mutation **98.86 %** (172 killed, 1 timeout, the same 2 equivalent survivors). State 1 / 0 / 0. The
   CI run of the final commit is linked below once it passes.
+- **CI of the final code** (commit `b609575`, run `38593075548`,
+  https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/38593075548): `quality` passed in
+  12 min 51 s; Vitest 92 files, 1,214 passed and 1 skipped (`path-policy.spec.ts`, platform-specific),
+  with `explain-sanitization.spec.ts` (11), `sanitize.spec.ts` (19), `prompt.spec.ts` (4),
+  `sanitize.scaling.spec.ts` (3) and `sanitize.linear.spec.ts` (5) passed; `frontend`, `scope` and
+  `secrets` passed. The archive commit that follows changes no code.
