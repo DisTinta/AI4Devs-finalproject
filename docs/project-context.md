@@ -66,21 +66,34 @@ Verified against `package.json` (root and per package). If a command is not here
 - Lint: `npm run lint` (root) — ESLint flat config (`eslint.config.mjs`), `@eslint/js` +
   `typescript-eslint` recommended. Empty port interfaces are downgraded to warnings; `.cjs`, `dist`,
   `.claude`, `.cursor`, `fixtures` are ignored.
-- Mutation testing: `npx stryker run` (`stryker.config.json`, targets `packages/core/src` and, since
-  DIS-86, `packages/cli/src` minus its entry point `index.ts`). CI runs it when the `business` paths
-  filter of `ci.yml` matches (`packages/core/**`, `packages/cli/**`, `tests/**`, Stryker and lock
-  files), and guards
-  it: it only runs once test files exist, otherwise it prints a warning and skips (Stryker's dry run
-  fails with zero tests, and faking a test to force it green defeats the gate).
-- CI docs-only skip: the `scope` job of `ci.yml` skips the whole `quality` job when a push to an open
-  PR only touches `openspec/**`, `docs/**` or `*.md` (diff of that push, `before..after`) and
-  `quality` was green or skipped on the previous head — e.g. the `/opsx:archive` commit. It always
-  runs on PR open/reopen, on `main`, after a force-push or a non-green previous head. A skipped job
-  counts as passed for required checks. Keep test-file edits (even comments, such as spec paths in
-  test headers) out of the archive commit, or it runs in full.
+- Mutation testing: `npm run test:mutation` (`stryker run`; `stryker.config.json`, targets
+  `packages/core/src` and, since DIS-86, `packages/cli/src` minus its entry point `index.ts`). A
+  mutation score under 80 fails the run (`thresholds`: break 80, low 80, high 90; Stryker requires
+  break ≤ low ≤ high). It is
+  incremental (`"incremental": true`): the first run is full (~14 min in CI), later runs only re-test
+  mutants whose code or covering tests changed and reuse the rest from
+  `reports/stryker-incremental.json` (gitignored, one per checkout). `npm run test:mutation:full`
+  (`--force`) re-tests everything and rewrites that file: use it after changing dependencies or the
+  Vitest/Stryker config, which incremental mode does not detect. In CI it is its own `mutation` job,
+  parallel to `quality` and without Postgres; it runs when its `business` paths filter matches
+  (`packages/core/**`, `packages/cli/**`, `tests/**`, Stryker/Vitest config, `package*.json`,
+  `ci.yml`) and restores the report from the Actions cache (this branch, else the PR base branch;
+  the key hashes the lock file and the Stryker/Vitest configs). A PR runs `test:mutation`; a push to
+  a base branch runs `test:mutation:full` and saves the report the next PRs start from. It is
+  guarded: it only runs once test files exist, otherwise it prints a warning and skips (Stryker's
+  dry run fails with zero tests, and faking a test to force it green defeats the gate).
+- CI triggers: every PR, plus pushes to `main`, `feature/entrega-*` and `final-project-*` (the
+  delivery branches PRs merge into). A new push to a PR cancels the run of its previous head
+  (`concurrency`); pushes to a base branch always finish.
+- CI docs-only skip: the `scope` job of `ci.yml` skips the `quality` and `mutation` jobs when a push
+  to an open PR only touches `openspec/**`, `docs/**` or `*.md` (diff of that push, `before..after`)
+  and both were green or skipped on the previous head — e.g. the `/opsx:archive` commit. They always
+  run on PR open/reopen, on a push to a base branch, after a force-push or a non-green (or
+  cancelled) previous head. A skipped job counts as passed for required checks. Keep test-file edits
+  (even comments, such as spec paths in test headers) out of the archive commit, or it runs in full.
 - CI secret scan (DIS-87): the `secrets` job of `ci.yml` runs gitleaks 8.30.1 (official binary,
-  pinned by SHA-256 in the workflow) on every PR and push to `main`. Own job: no `needs: scope`, no
-  `if`, never skipped — a docs-only push skips `quality` but not `secrets`. No `npm ci`. It runs
+  pinned by SHA-256 in the workflow) on every CI run (see CI triggers). Own job: no `needs: scope`, no
+  `if`, never skipped — a docs-only push skips `quality` and `mutation` but not `secrets`. No `npm ci`. It runs
   `gitleaks dir .` and `gitleaks git` over the event range (`base..head` on a PR, `before..sha` on a
   push; tree only when `before` is all zeros or unreachable), both `--redact` and both with
   `--config .gitleaks.toml` (a missing file fails the job). Known synthetic findings are allowed by

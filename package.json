@@ -28,6 +28,8 @@
     "cli": "tsx --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts",
     "verify": "node -e \"console.log('pending — verify not implemented (Ticket 1/2)'); process.exit(0)\"",
     "test": "vitest run",
+    "test:mutation": "stryker run",
+    "test:mutation:full": "stryker run --force",
     "docs:coverage": "typedoc --validation.notDocumented --logLevel Warn"
   },
   "devDependencies": {

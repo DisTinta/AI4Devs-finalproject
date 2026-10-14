@@ -10,6 +10,12 @@
     "progress"
   ],
   "coverageAnalysis": "perTest",
+  "incremental": true,
+  "thresholds": {
+    "high": 90,
+    "low": 80,
+    "break": 80
+  },
   "disableTypeChecks": "{packages/core,packages/cli}/src/**/*.ts",
   "mutate": [
     "packages/core/src/**/*.ts",
