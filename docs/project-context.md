@@ -67,7 +67,9 @@ Verified against `package.json` (root and per package). If a command is not here
   `typescript-eslint` recommended. Empty port interfaces are downgraded to warnings; `.cjs`, `dist`,
   `.claude`, `.cursor`, `fixtures` are ignored.
 - Mutation testing: `npm run test:mutation` (`stryker run`; `stryker.config.json`, targets
-  `packages/core/src` and, since DIS-86, `packages/cli/src` minus its entry point `index.ts`). It is
+  `packages/core/src` and, since DIS-86, `packages/cli/src` minus its entry point `index.ts`). A
+  mutation score under 80 fails the run (`thresholds`: break 80, low 80, high 90; Stryker requires
+  break ≤ low ≤ high). It is
   incremental (`"incremental": true`): the first run is full (~14 min in CI), later runs only re-test
   mutants whose code or covering tests changed and reuse the rest from
   `reports/stryker-incremental.json` (gitignored, one per checkout). `npm run test:mutation:full`

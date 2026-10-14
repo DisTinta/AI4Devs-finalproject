@@ -179,7 +179,8 @@ jobs:
             stryker-${{ hashFiles('package-lock.json', 'stryker.config.json', 'vitest.config.ts', 'vitest.stryker.config.ts') }}-${{ github.head_ref || github.ref_name }}-
             stryker-${{ hashFiles('package-lock.json', 'stryker.config.json', 'vitest.config.ts', 'vitest.stryker.config.ts') }}-${{ github.base_ref }}-
 
-      # The hard gate is the mutation score, not coverage: requiring a coverage
+      # The hard gate is the mutation score (`thresholds.break` 80 in stryker.config.json: a lower
+      # score fails the job), not coverage: requiring a coverage
       # percentage fabricates empty tests. Coverage is published as a signal.
       # Skips cleanly until the first test exists: Stryker's dry run fails with
       # zero tests, and fabricating an empty test to force it green is exactly
