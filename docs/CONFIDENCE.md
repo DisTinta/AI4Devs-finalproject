@@ -51,7 +51,7 @@ function throws `RangeError`).
 
 The author fixed these values and reasons on 2026-10-15, after running the development questions
 below over `acme-shop` with `qwen2.5-coder` (Ollama, CPU) as answer model and verifier
-(`openspec/changes/confidence-score/reports/2026-10-15-9-weights-session.md`, archived with the change):
+(`openspec/changes/archive/2026-10-15-confidence-score/reports/2026-10-15-9-weights-session.md`):
 
 1. ¿Cómo aplica DiscountService los descuentos a un pedido?
 2. ¿Cómo calcula TaxService el impuesto de un pedido?

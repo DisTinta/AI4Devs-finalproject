@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { CONFIDENCE_WEIGHTS, EVIDENCE_SATURATION } from '@codemind/core';
 
-// Spec: openspec/changes/confidence-score/specs/confidence-score/spec.md → "Published weights"
-// (change confidence-score, DIS-72). Each test is one scenario, named after it.
+// Spec: openspec/specs/confidence-score/spec.md → "Published weights" (archived change:
+// 2026-10-15-confidence-score, DIS-72). Each test is one scenario, named after it.
 
 const DOCUMENT = fileURLToPath(new URL('../../../docs/CONFIDENCE.md', import.meta.url));
 

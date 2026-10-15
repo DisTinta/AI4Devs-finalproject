@@ -22,7 +22,7 @@ import { file, symbol } from '../../support/sample-graph';
 // events and logging". Each test is one scenario, named after it. Same doubles as explain.spec.ts;
 // `verificationContents` / `verificationFailures` change what the reads after the model call (the
 // verification read) see, at the same commit; `verify` scripts the semantic check's verifier.
-// The confidence scenarios are those of openspec/changes/confidence-score/specs/explain/spec.md (DIS-72).
+// The confidence scenarios come from the archived change 2026-10-15-confidence-score (DIS-72).
 
 const ROOT = '/repos/acme-shop';
 const CALCULATOR = 'app/Services/PriceCalculator.php';

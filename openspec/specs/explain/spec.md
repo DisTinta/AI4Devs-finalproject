@@ -109,7 +109,7 @@ An `UNKNOWN` answer SHALL have exactly `kind: 'unknown'`, `answer: 'UNKNOWN'`, `
 closed set `no-anchor`, `llm-required`, `over-budget`, `invalid-model-output`, `no-evidence`,
 `broken-evidence`, declared once in that order), `message` only for `llm-required`,
 `statements: []`, `evidence: []` and `events`. It SHALL NOT
-carry `persisted`, prior claims nor `usage`, SHALL NOT carry the model's answer text, and no claim or
+carry `persisted`, prior claims, `usage` nor `confidence`, SHALL NOT carry the model's answer text, and no claim or
 evidence SHALL be written for it.
 
 Errors SHALL propagate unchanged and write nothing: `ProjectNotFound`, `SourceUnavailable`, the
@@ -221,6 +221,12 @@ citations it could not check (`evidence-verification`, "Semantic citation check"
 - **WHEN** the price question is explained
 - **THEN** explain fails with that same error
 - **AND** the claim write received 0 calls
+
+#### Scenario: An unknown answer has no confidence
+
+- **WHEN** a question without an anchor is explained, and a question is explained with an output
+  whose every citation is `broken`
+- **THEN** each answer is `UNKNOWN` and has no `confidence` property
 
 ### Requirement: Untrusted content sanitization
 
@@ -510,7 +516,13 @@ Explain SHALL store one claim per remaining statement with its remaining evidenc
 - `evidence`, one entry per remaining citation, in statement order then citation order, each with the
   id of its stored evidence row, its file id, file path, first and last line and excerpt;
 - `usage`, `{ verification: { calls, cacheHits, inputTokens, outputTokens, costUsd } }`, the usage of
-  the semantic check of this answer, which counts no token of the `answer` call.
+  the semantic check of this answer, which counts no token of the `answer` call;
+- `confidence`, the confidence (`confidence-score`) of all the remaining statements together, each
+  with its remaining citations, every citation with its span's file id, first and last line, file
+  kind and origin and the verdict of its (statement, citation) pair, and the contradiction flag
+  `false`: no component produces contrary evidence yet (DIS-71).
+
+The confidence SHALL NOT depend on a statement's status: a `stale` statement counts with its citations and verdicts like a `current` one.
 
 All spans here are the sanitised spans (requirement "Untrusted content sanitization"): a cut span
 ends at its kept last line.
@@ -519,7 +531,7 @@ Each claim SHALL be stored with: the project id; as subject, the symbol name of 
 statement's **first** remaining evidence id in the order the model gave them, or that span's file path when it
 has no symbol; as predicate the exported constant `CLAIM_PREDICATE_EXPLAINS` (`explains`); as object
 the statement text; layer `L2`; type `INFERENCE`, whatever the statement's type; status `current`;
-`confidence` `null`; and a provenance with the model name the `answer` call reported, the prompt hash, as
+as `confidence` the confidence of that statement alone, computed as for the answer; and a provenance with the model name the `answer` call reported, the prompt hash, as
 input spans every sanitised span of the pack (file id, first and last line), the clock's instant in
 ISO 8601 with time zone, and the statement's type (by the entailment policy) as statement type. A
 statement typed `FACT` is therefore stored as an `L2` `INFERENCE` claim whose provenance keeps `FACT`,
@@ -552,11 +564,15 @@ another commit while the answer was being produced, the store writes the claims 
 #### Scenario: A fact is stored as an inferred claim that keeps its type
 
 - **WHEN** the answer of the previous scenario is stored
-- **THEN** both claims have layer `L2`, type `INFERENCE`, status `current`, `confidence` `null`,
-  predicate `explains` and the statement text as object, and their provenances hold the statement
-  types `FACT` and `INFERENCE`, the model name, the prompt hash, every span of the pack as input spans
-  and the clock's instant
-- **AND** the answer still shows the first statement as `FACT`
+- **THEN** both claims have layer `L2`, type `INFERENCE`, status `current`, predicate `explains` and
+  the statement text as object, and their provenances hold the statement types `FACT` and
+  `INFERENCE`, the model name, the prompt hash, every span of the pack as input spans and the clock's
+  instant
+- **AND** each stored claim's `confidence` is not `NULL`: it is the confidence of its own statement
+  with its citation `entailed`, strictly between 0 and 1, and the first claim's (an `anchor` span) is
+  higher than the second's (a `heuristic` span)
+- **AND** the answer still shows the first statement as `FACT`, and its `confidence` is the confidence
+  of both statements together
 
 #### Scenario: The evidence of a stored answer lists every citation in order
 
@@ -575,7 +591,8 @@ another commit while the answer was being produced, the store writes the claims 
 - **THEN** the answer is `answered` with `persisted: true`, and both statements have
   `status: 'stale'`, `warning: 'stale-evidence'` and verification `entailed`, the first shown as
   `INFERENCE`, and its events hold no `evidence_broken` event
-- **AND** both stored claims are `stale`, with statement types `FACT` and `INFERENCE`
+- **AND** both stored claims are `stale`, with statement types `FACT` and `INFERENCE`, and each with
+  the confidence of its own statement, as if it were `current`
 - **AND** the verification read was made at the pack's commit, not at the commit of the re-index
 
 #### Scenario: Cited spans are verified in one read at the pack's commit
@@ -680,12 +697,36 @@ another commit while the answer was being produced, the store writes the claims 
   wrapped model was asked once with the purpose `verify` and failed it with `BudgetExhausted`, and the
   scripted model received no `verify` request
 
+#### Scenario: An answer carries the confidence of its statements
+
+- **GIVEN** the pack and the output of "Citations that support their statement are entailed and
+  facts", and a verifier that answers `{"entails":true}` to every verification
+- **WHEN** a question is explained and the claims are stored, then again with another empty cache,
+  and then with the claim write failing with `ClaimWriteFailed` and a third empty cache
+- **THEN** the first answer's `confidence` is the confidence of S1 and S2 together, each citation with
+  its span's file id, lines, file kind and origin and verdict `entailed`, without contradiction
+- **AND** the claim items the store received hold, for S1 and for S2, the confidence of that statement
+  alone, computed the same way
+- **AND** the second answer's `confidence` is the same number as the first's (`Object.is`), and the
+  unsaved third answer carries that same `confidence`
+
+#### Scenario: The confidence follows the verifier's verdicts
+
+- **GIVEN** the pack and the output of the previous scenario
+- **WHEN** a question is explained with a verifier that answers `{"entails":false}` to (S2, `E2`) and
+  `{"entails":true}` to the other pairs
+- **THEN** the answer's `confidence` is the confidence of S1 and S2 with (S2, `E2`) `cited` and the other
+  citations `entailed`, lower than the `confidence` of the previous scenario's first answer
+- **AND** the stored claim of S2 has the confidence of S2 with those verdicts, and that of S1 the same
+  confidence as in the previous scenario
+
 ### Requirement: Persistence failure
 
 When, and only when, the store rejects the write of the claims with `ClaimWriteFailed`, explain SHALL
 still answer, with the same shape as a stored answer: `kind: 'answered'`, `persisted: false`, the
 model's `answer`, the verified statements (each with the type and the verification of the entailment
-policy), the prior claims, `evidence`, `usage` and `events`. Every evidence id of a statement, and
+policy), the prior claims, `evidence`, `usage`, `confidence` (computed as for a stored answer) and
+`events`. Every evidence id of a statement, and
 every evidence entry id, SHALL be the prompt's id (`E1`…) of a remaining citation; `evidence` SHALL
 hold one entry per distinct remaining cited prompt id, in first-citation order, and no entry for a
 `broken` one. Its events SHALL be the sanitisation events, then the `evidence_broken` events, then the
@@ -746,6 +787,8 @@ the write (`InvalidStoreQuery`, `ProjectNotFound`, anything else) SHALL propagat
   inputTokens: 200, outputTokens: 10, costUsd: 0 } }`
 - **AND** its events are exactly the `entailment_unverified` event of (0, `E2`) with reason
   `invalid-output`, followed by `{ type: 'claims_not_persisted', code: 'store-write-failed' }`
+- **AND** its `confidence` is the confidence of S1 with (S1, `E1`) `entailed` and (S1, `E2`) `cited`,
+  without contradiction
 
 ### Requirement: Prior claims
 

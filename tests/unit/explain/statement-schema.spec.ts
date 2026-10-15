@@ -13,8 +13,8 @@ import type { SchemaViolationEvent } from '@codemind/core';
 
 // Spec: openspec/specs/claims-and-typing/spec.md → "Model output quarantine" (U+0000: DIS-39, change
 // explain-use-case) and "Audit event of a discarded output". Each test is one scenario, named after it.
-// The fenced-output scenarios are those of openspec/changes/confidence-score/specs/claims-and-typing/spec.md
-// (DIS-72, design C9).
+// The fenced-output scenarios come from the archived change 2026-10-15-confidence-score (DIS-72,
+// design C9).
 
 /** One statement of a model output as the model writes it. */
 interface RawStatement {

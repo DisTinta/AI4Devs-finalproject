@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CONFIDENCE_WEIGHTS, EVIDENCE_SATURATION, confidence, confidenceSignals } from '@codemind/core';
 import type { ConfidenceCitation, ConfidenceVerdict, FileKind } from '@codemind/core';
 
-// Spec: openspec/changes/confidence-score/specs/confidence-score/spec.md (change confidence-score,
+// Spec: openspec/specs/confidence-score/spec.md (archived change: 2026-10-15-confidence-score,
 // DIS-72). Each test is one scenario, named after it.
 
 /** A cited span of the spec's examples, before its verdict is known. */
