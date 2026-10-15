@@ -241,6 +241,31 @@ describe('Requirement: Model output quarantine', () => {
     expect(parseModelOutput(text, new Set(['E1'])).ok).toBe(true);
   });
 
+  it('A fence with carriage returns is accepted', () => {
+    // Arrange
+    const text = output();
+    const wrapped = ['```json', text, '```'].join('\r\n');
+
+    // Act
+    const result = parseModelOutput(wrapped, new Set(['E1']));
+
+    // Assert
+    expect(result).toEqual(parseModelOutput(text, new Set(['E1'])));
+    expect(result.ok).toBe(true);
+  });
+
+  it('Other whitespace around a fence discards the output', () => {
+    // Arrange
+    const wrapped = fenced(output());
+    const candidates = ['\uFEFF' + wrapped, wrapped + '\u00A0'];
+
+    // Act
+    const events = candidates.map((candidate) => discarded(candidate));
+
+    // Assert
+    expect(events.map((event) => event.subcode)).toEqual(['invalid_json', 'invalid_json']);
+  });
+
   it('Text outside a fence discards the output', () => {
     // Arrange
     const wrapped = fenced(output());

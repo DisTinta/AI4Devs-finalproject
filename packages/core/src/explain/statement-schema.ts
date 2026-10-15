@@ -20,10 +20,11 @@ import type { SchemaViolationEvent, SchemaViolationIssue, SchemaViolationSubcode
 // some models fence their JSON; any other text around it still fails as `invalid_json`.
 
 /**
- * The whole trimmed output as one fence: a ```` ``` ```` line, optionally with the info string `json`
- * in any case, the body, and a closing ```` ``` ```` line. Anchored at both ends, one unbounded group.
+ * The whole output as one fence, with only JSON whitespace (space, tab, CR, LF) around it: a
+ * ```` ``` ```` line, optionally with the info string `json` in any case, the body, and a closing
+ * ```` ``` ```` line; line breaks `\n` or `\r\n`. Anchored at both ends, one unbounded group.
  */
-const FENCED_OUTPUT = /^```(?:json)?\r?\n([\s\S]*)\r?\n```$/i;
+const FENCED_OUTPUT = /^[ \t\r\n]*```(?:json)?\r?\n([\s\S]*)\r?\n```[ \t\r\n]*$/i;
 
 /** The output a model must return: an answer and the statements that back it, each citing evidence ids. */
 export const modelOutputSchema = z.strictObject({
@@ -82,7 +83,7 @@ export function parseModelOutput(text: string, knownEvidenceIds: ReadonlySet<str
 
 /** The body of the one fence that encloses the whole output, or the output itself when it is not so fenced. */
 function unfenced(text: string): string {
-  return FENCED_OUTPUT.exec(text.trim())?.[1] ?? text;
+  return FENCED_OUTPUT.exec(text)?.[1] ?? text;
 }
 
 /** `empty_evidence` when every issue is an empty `evidenceIds`, `limit_exceeded` when every issue is a limit, else `invalid_shape`. */
