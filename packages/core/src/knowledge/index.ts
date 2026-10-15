@@ -11,6 +11,7 @@ export * from './author-hash.js';
 export * from './commit-message.js';
 export * from './validate-graph.js';
 export * from './co-change.js';
+export * from './confidence.js';
 export * from './read-arguments.js';
 export * from './edge-order.js';
 export * from './doc-mentions.js';
