@@ -10,3 +10,4 @@ Decisions that affect more than one module or cost more than a day to revert. Ne
 | 2026-10-02 | [PHP parsing: `web-tree-sitter` (WASM) over native `tree-sitter`, and trait → `class` encoding](./20261002-php-parser-web-tree-sitter.md) | Accepted |
 | 2026-10-11 | [Span text is read from git at the project's indexed commit](./20261011-span-text-read-from-git-at-indexed-commit.md) | Accepted |
 | 2026-10-13 | [A `FACT` statement is stored as an `L2` `INFERENCE` claim that keeps its type in the provenance](./20261013-fact-statements-stored-as-l2-inference.md) | Accepted |
+| 2026-10-14 | [A `broken` citation is neither stored nor shown; it only leaves an `evidence_broken` event](./20261014-broken-citations-not-stored.md) | Accepted |

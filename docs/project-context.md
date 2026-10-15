@@ -188,6 +188,13 @@ Verified against `package.json` (root and per package). If a command is not here
   `question` and each evidence `text` it sees are wrapped in `<<<UNTRUSTED_DATA <id>>>>` markers, and a
   cut span ends at its kept last line: match spans by path and lines, never by text.
   `tests/support/explain-doubles.ts` holds the doubles both explain unit specs share.
+  Since DIS-68 `createInMemorySourceTree(contents, failures?, options?)` takes `options.after:
+  { when, contents, failures? }`: every read made while `when()` holds answers from those instead.
+  `doubles()` wires it as `verificationContents` / `verificationFailures` with
+  `when: () => order.includes('complete')`, so only the reads after the model call (the verification
+  read) see them, whatever `packOf` read before; a given `verificationContents` must hold every file
+  the verification reads (an absent one is `file-missing`). `doubles()` also returns `batchReads` and
+  `reads`: an answered explain makes two batched reads (the pack's, then the verification's).
 - **Property tests use `fast-check`** (root devDependency since DIS-28,
   `tests/unit/context/budget.spec.ts`): `numRuns ≥ 200`, and `seed` fixed only when `CI` is set
   (`{ ...(process.env.CI ? { seed: 20261011 } : {}) }`), so CI replays and local runs explore.
@@ -577,8 +584,19 @@ services that must be started first, quirks of the local environment.
   `ClaimWriteFailed` from `saveClaims` → `persisted: false`, the prompt ids `E1…En` and one
   `{ type: 'claims_not_persisted', code: 'store-write-failed' }`; any other error propagates.
   `BudgetExhausted` propagates until DIS-21 adds the cache-only degradation.
-  - Gotcha: `ExplainEvent` (`SchemaViolationEvent | ClaimsNotPersistedEvent | SanitizationEvent`) is
-    **not** part of `AuditEvent`. Core never logs; the transport does.
+  - Gotcha: `ExplainEvent` (`SchemaViolationEvent | ClaimsNotPersistedEvent | SanitizationEvent |
+    EvidenceBrokenEvent`) is **not** part of `AuditEvent`. Core never logs; the transport does.
+  - Gotcha (DIS-68, `core/verify/`): after typing, `explain` verifies the cited spans by re-reading
+    git at `pack.commit` from `pack.root` (one more batched read per answer, each cited path once;
+    uncited pack spans are not read), never at the project's current indexed commit. The expected
+    text comes from `context/span-text.ts` (`redactedLines`, `spanText`), the same rule the pack
+    cuts with: change it there only. A cut span maps to `cut: 'lines'` (one trailing `\r` dropped) or
+    `'line-cut'` (first `MAX_EVIDENCE_TEXT_CHARS` code points), told apart by
+    `TRUNCATION_LINE_CUT_MARK`. A broken citation is neither stored nor shown (ADR 20261014); it
+    leaves an `evidence_broken` event (`EVIDENCE_BROKEN_REASONS` lives in `explain-event.ts`), which
+    `ask` writes at level `error`; no statement left → `UNKNOWN (broken-evidence)`. New `evidence`
+    rows are `cited`; `broken` is never written. `verify/` may import no I/O built-in
+    (`verify-no-io`) nor `explain/index.js` (cycle).
   - Gotcha (DIS-41, `explain/sanitize.ts`): after `sanitizeForPrompt` the sanitised spans are the
     only spans. A span over `MAX_EVIDENCE_TEXT_CHARS` (8 000 code points) is cut, so the prompt's
     `endLine`, the claim's input spans, the evidence's last line and the excerpt are those of the kept
