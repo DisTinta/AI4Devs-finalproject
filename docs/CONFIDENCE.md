@@ -80,4 +80,10 @@ re-tuned against the measurement questions.
 - A set with no signal (every citation `cited`, no resolved span) is worth exactly 0.5.
 - `entailment` comes from the verifier, a model call: the value is reproducible for the same
   citations and verdicts (the per-pair verification cache keeps a verdict within a process).
+- Adding well-backed statements to an answer can raise the answer's value, since the value of a set
+  never falls when an entailed, resolved citation is added. Each claim keeps the value of its own
+  statement, so a weak statement stays visible in its claim.
+- A citation left `cited` because the verifier was unavailable or out of budget lowers the stored value
+  of its claim for good: the record does not tell a degraded verdict from a real one, and stored values
+  are not recomputed.
 - The weights are not re-tuned against the measurement questions.

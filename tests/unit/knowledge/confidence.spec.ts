@@ -72,6 +72,12 @@ describe('Confidence signals', () => {
     expect(first.crossConfirmation).toBe(0);
     expect(second.resolution).toBe(0.5);
     expect(third.resolution).toBe(0);
+    // Every citation of a span must be resolved; code and test must back the same statement.
+    const mixedOrigins = [{ citations: [cite(E1, 'entailed')] }, { citations: [cite({ ...E1, origin: 'heuristic' }, 'entailed')] }];
+    const splitCrossConfirmation = [{ citations: [cite(E1, 'entailed')] }, { citations: [cite(E2, 'entailed')] }];
+    expect(confidenceSignals(mixedOrigins, { contradiction: false }).resolution).toBe(0);
+    expect(confidenceSignals([...mixedOrigins].reverse(), { contradiction: false }).resolution).toBe(0);
+    expect(confidenceSignals(splitCrossConfirmation, { contradiction: false }).crossConfirmation).toBe(0);
   });
 
   it('A cited citation backs nothing', () => {
@@ -107,6 +113,23 @@ describe('Confidence value', () => {
     for (const weight of Object.values(CONFIDENCE_WEIGHTS)) expect(weight).toBeGreaterThan(0);
     expect(EVIDENCE_SATURATION).toBeGreaterThan(0);
     expect(Number.isInteger(EVIDENCE_SATURATION)).toBe(true);
+    // Distinct signal values, so a weight wired to another signal changes the value.
+    const doc: SpanFixture = { fileId: 'docs/pricing.md', startLine: 1, endLine: 20, fileKind: 'doc', origin: 'anchor' };
+    const distinct = [
+      { citations: [cite(E1, 'entailed'), cite(E2, 'entailed')] },
+      { citations: [cite(E3, 'cited'), cite({ ...E4, origin: 'heuristic' }, 'entailed'), cite(doc, 'entailed')] },
+    ];
+    expect(confidenceSignals(distinct, { contradiction: false })).toEqual({
+      evidence: 1,
+      diversity: 0.75,
+      crossConfirmation: 1,
+      resolution: 0.6,
+      entailment: 0.8,
+      contradiction: 0,
+    });
+    expect(confidence(distinct, { contradiction: false })).toBe(
+      sigmoid(w.evidence + 0.75 * w.diversity + w.crossConfirmation + 0.6 * w.resolution + 0.8 * w.entailment),
+    );
   });
 
   it('The value is reproducible and independent of order', () => {
@@ -210,5 +233,7 @@ describe('Confidence needs evidence', () => {
     // Act / Assert
     expect(() => confidenceSignals([], { contradiction: false })).toThrow(RangeError);
     expect(() => confidenceSignals(withEmptySecond, { contradiction: false })).toThrow(RangeError);
+    expect(() => confidence([], { contradiction: false })).toThrow(RangeError);
+    expect(() => confidence(withEmptySecond, { contradiction: false })).toThrow(RangeError);
   });
 });

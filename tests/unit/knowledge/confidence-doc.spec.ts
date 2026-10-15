@@ -53,6 +53,7 @@ describe('Published weights', () => {
       expect(rows[i].value).toBe(CONFIDENCE_WEIGHTS[signal]);
     });
     expect(rows[6].value).toBe(EVIDENCE_SATURATION);
+    expect(rows[6].signal).toBe('—');
     for (const row of rows) expect(row.reason).not.toBe('');
   });
 
@@ -62,14 +63,22 @@ describe('Published weights', () => {
 
     // Act
     const headings = markdown.split('\n').filter((line) => line.startsWith('## ')).map((line) => line.slice(3));
-    const limits = section(markdown, 'Limits');
+    // Line wrapping is not part of a statement.
+    const limits = section(markdown, 'Limits').replace(/\s+/g, ' ');
 
     // Assert
     expect(headings).toEqual(['Formula', 'Signals', 'Weights', 'Limits']);
-    expect(limits).toContain('DIS-71');
-    expect(limits).toContain('0.75');
-    expect(limits).toContain('0.5');
-    expect(limits).toContain('not calibrated');
-    expect(limits).toContain('not re-tuned against the measurement questions');
+    for (const statement of [
+      'The contradiction signal is 0 in every answer until DIS-71',
+      '`diversity` is at most 0.75',
+      'is worth exactly 0.5',
+      'The value is ordinal and not calibrated',
+      'reproducible for the same citations and verdicts',
+      "Adding well-backed statements to an answer can raise the answer's value",
+      'lowers the stored value of its claim for good',
+      'The weights are not re-tuned against the measurement questions',
+    ]) {
+      expect(limits).toContain(statement);
+    }
   });
 });

@@ -480,7 +480,11 @@ describe('Requirement: Answer with typed statements', () => {
 
     // Assert
     const [first, second, unsaved] = runs;
-    expect(runs.map((run) => run.answer.kind === 'answered' && run.answer.persisted)).toEqual([true, true, false]);
+    expect(runs.map((run) => [run.answer.kind, run.answer.kind === 'answered' && run.answer.persisted])).toEqual([
+      ['answered', true],
+      ['answered', true],
+      ['answered', false],
+    ]);
     if (first!.answer.kind !== 'answered' || second!.answer.kind !== 'answered' || unsaved!.answer.kind !== 'answered') return;
     const { pack, ids } = first!;
     const s1: [string, ConfidenceVerdict][] = [[ids.anchor, 'entailed']];
