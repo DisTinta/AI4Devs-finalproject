@@ -252,6 +252,21 @@ Kept by the author after the spec audit (2026-10-14, Q3), although the ticket di
 D2 already has `docs/adr/20261014-broken-citations-not-stored.md`. V1–V11 are local to core and cheap
 to revert. The ADR and its index line, written before this change, are committed on this branch.
 
+### V13 — Hardening after the pre-merge review (author, 2026-10-15)
+
+Decided by the author on the findings of `reports/2026-10-15-verify-against-spec.md` §3 and
+`reports/2026-10-15-adversarial-review.md`, fixed in this change with TDD and added to the
+`evidence-verification` delta:
+
+- A first, last or original last line that is not an integer gives `range-out-of-file` (`NaN` failed
+  every comparison and was `cited`; `slice` truncated a fraction).
+- A batched read that resolves to fewer or more contents than paths fails with an error instead of
+  reading as `file-missing`: the port promises never a partial result.
+- A cut span's citation carries `originalEndLine`, and the range check applies to it too, so a graph
+  range past the end of its file is `range-out-of-file` whatever the sanitisation kept. Before, a span
+  over `MAX_EVIDENCE_TEXT_CHARS` with that defect was cut to lines inside the file and read `cited`.
+  The pack is unchanged; the event keeps the kept last line, as the spec says.
+
 ## Risks / Trade-offs
 
 - [The fixture holds a file whose text the pack and the verifier see differently] → impossible by
@@ -262,8 +277,9 @@ to revert. The ADR and its index line, written before this change, are committed
 - [`truncation.mark` is a display string used to tell the cut kind] → one exported constant shared by
   `truncate` and the mapping (V4), and a unit test per kind.
 - [A graph symbol range reaches beyond its file] → `context-pack.ts` slices silently, so the pack
-  span is short and the verifier reports `range-out-of-file`. Under D1 this graph/code inconsistency
-  is the main real trigger of `broken` in production, and the manual test (10.3) reproduces it.
+  span is short and the verifier reports `range-out-of-file`, also for a span the sanitisation cut
+  (V13). Under D1 this graph/code inconsistency is the main real trigger of `broken` in production,
+  and the manual test (10.3) and show-spec-working reproduce it.
 - [The batch rejects `missing` because the commit itself is missing] → every citation becomes
   `file-missing` instead of the error propagating. Harmless under D1 (the pack just read that
   commit); relevant to DIS-42's reuse with another commit.
@@ -279,4 +295,19 @@ No data migration. Rows written before the change keep `verification = 'none'`; 
 
 ## Follow-ups
 
-(Filled during the Pre-merge Review: each finding with its A/B/C/D destination.)
+Pre-merge review of 2026-10-15 (`reports/2026-10-15-verify-against-spec.md`,
+`reports/2026-10-15-adversarial-review.md`). A: fixed in this change; B: handed to the issue that needs
+it; C: technical-debt issue; D: no action, with the reason.
+
+| Finding | Destination |
+|---|---|
+| Question — under D1 only `range-out-of-file` can fire inside `explain`; is one more batched read per answer worth it? | D — the author keeps it (2026-10-15): it is D1's trade-off, the read is bounded (≤ 6 git processes), it reports the real graph/code drift, and `verifyCitations` is ready for DIS-42 |
+| Question — retyping can raise a statement from `INFERENCE` to `FACT` when a broken `heuristic` citation is dropped | D — the author confirms D2/D3 (2026-10-15): a statement is shown only with the evidence that passed the check, typed by it |
+| Non-integer or `NaN` lines are `cited` (`syntactic.ts`) | A — `range-out-of-file`; spec scenario "Non-integer lines are out of the file" (V13) |
+| A short batched read reads as `file-missing` | A — error; spec scenario "A short batched read is an error" (V13) |
+| A graph range past end-of-file is hidden by the cut of a long span | A — the citation carries `originalEndLine`; spec scenario "A cut span whose original range leaves the file is broken" (V13), the author chose this fix over changing the pack |
+| A missing commit reads as `file-missing` for every citation | B — DIS-42, comment posted 2026-10-15: telling a missing commit from missing paths needs the port, and only a caller with another commit reaches it |
+| Weak assertions: second-run batch paths, `pack.root`, order of `UNKNOWN_REASONS`, `EVIDENCE_BROKEN_REASONS` and the check order | A — tests strengthened |
+| "The contents of the single reads are the ones checked" is not distinguishable with the double | D — true by construction: a rejected batch returns no content |
+| Specs first committed after the code (`2c29886` after `0e1aed0`) | D — process note: the spec audit of 2026-10-14 predates the apply and its Q1–Q4 match V4/V6/V10; recorded in report 9 |
+| The base branch's last CI run failed in `tests/integration/cli/seed-build.spec.ts` "The database is unchanged after a build" | D — outside this change (run 38604214188, before DIS-68); reported to the author |

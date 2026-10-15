@@ -101,3 +101,33 @@ or dependency change in the diff. No model call is added.
 
 - Status: PASS
 - Blocking issues: none
+
+## Addendum — after the pre-merge review (2026-10-15)
+
+Fixes decided by the author on the verify-against-spec and adversarial-review findings (design V13 and
+Follow-ups), each RED → GREEN:
+
+- "Non-integer lines are out of the file", "A short batched read is an error", "A cut span whose
+  original range leaves the file is broken" (new scenarios of `evidence-verification`), and the extra
+  `verify-answer.spec.ts` test "passes the original last line of a cut span, so a range past its file
+  breaks even when cut". All four failed before the fix.
+- Strengthened assertions (no behaviour change): both batches of "Valid citations are cited and each
+  path is read once"; a citation both out of range and mismatched (the range is checked first) and
+  `EVIDENCE_BROKEN_REASONS` in "A missing file or a range out of the file is broken"; `UNKNOWN_REASONS`
+  in "Every citation broken is unknown with broken evidence"; `pack.root` / `pack.commit` in "Cited spans
+  are verified in one read at the pack's commit"; the exact error message of the short read (a Stryker
+  survivor).
+
+Re-run:
+
+- `npx vitest run`: 1246 tests passed, 0 failed, 0 skipped (149.8 s).
+- `lint`, `typecheck`, `lint:architecture` (0 errors, the 3 known warnings), `docs:coverage`,
+  `openspec validate evidence-verifier-syntactic --strict`: clean.
+- Stryker: whole run 95.73; `verify/` 97.87 (`syntactic.ts` keeps the 3 equivalent survivors listed
+  above); `span-text.ts` 100.
+- State after: `project` 1, `claim` 0, `evidence` 0 — equal to the baseline.
+
+Process note (adversarial review): the delta specs, design and tasks were first committed in
+`2c29886`, after the code commit `0e1aed0`, so git history alone cannot show they were not edited to
+fit the code; the spec audit of 2026-10-14 (`2026-10-14-spec-audit.md`) predates the apply and its
+Q1–Q4 match V4/V6/V10. The V13 additions are the only spec edits after the apply, decided by the author.

@@ -44,11 +44,12 @@ Decisiones de la autora, transcritas del ticket (`[enhanced]`, 2026-10-14):
 
 1. `docker compose up -d` y `npm ci`.
 2. Exporta `DATABASE_URL` (en local, `postgres://codemind:codemind@localhost:5432/codemind`) y ejecuta `npm run db:migrate`.
-3. `npx vitest run tests/unit/verify tests/unit/explain tests/unit/context tests/unit/cli/ask-command.spec.ts tests/integration/explain tests/integration/cli/ask-command.spec.ts`: 240 tests en verde.
-4. `npx vitest run`: 96 ficheros y 1241 tests (antes 92 y 1215), ninguno saltado.
+3. `npx vitest run tests/unit/verify tests/unit/explain tests/unit/context tests/unit/cli/ask-command.spec.ts tests/integration/explain tests/integration/cli/ask-command.spec.ts`: 245 tests en verde.
+4. `npx vitest run`: 96 ficheros y 1246 tests (antes 92 y 1215), ninguno saltado.
 5. `npm run lint && npm run typecheck && npm run lint:architecture && npm run docs:coverage`. Los 3 avisos `no-orphans` ya existían.
-6. `npm run test:mutation -- --mutate "packages/core/src/verify/**/*.ts,packages/core/src/context/span-text.ts"`: **95,72** (umbral de CI 80); `verify/` 97,66 (`policy.ts` 100, `syntactic.ts` 96,67, `verify-answer.ts` 100) y `span-text.ts` 100. Los 3 supervivientes son equivalentes. Detalle en [`reports/2026-10-15-9-test-and-state-verification.md`](./2026-10-15-9-test-and-state-verification.md).
-7. A mano, con un modelo en vivo (o un stub OpenAI-compatible que cite `E1`):
+6. Tras la revisión previa al merge (design V13 y Follow-ups): las líneas no enteras dan `range-out-of-file`, una lectura en lote corta es un error y la cita de un span recortado lleva su `originalEndLine`, así que un rango del grafo que pasa del final del fichero se detecta aunque el saneado lo haya recortado.
+7. `npm run test:mutation -- --mutate "packages/core/src/verify/**/*.ts,packages/core/src/context/span-text.ts"`: **95,73** (umbral de CI 80); `verify/` 97,87 (`policy.ts` 100, `syntactic.ts` 96,97, `verify-answer.ts` 100) y `span-text.ts` 100. Los 3 supervivientes son equivalentes. Detalle en [`reports/2026-10-15-9-test-and-state-verification.md`](./2026-10-15-9-test-and-state-verification.md).
+8. A mano, con un modelo en vivo (o un stub OpenAI-compatible que cite `E1`):
    - `npm run cli -- ask acme-shop "¿Cómo se calcula el precio final de un pedido?"` → exit `0`, stderr vacío, y la fila nueva de `evidence` con `verification = 'cited'`.
    - En un repositorio indexado con `npm run cli -- index …`, `UPDATE symbol SET end_line = <líneas del fichero + 5>` en el símbolo anclado y `ask` → stdout `UNKNOWN (broken-evidence)` y stderr
      `{"level":"error","type":"evidence_broken","evidenceId":"E1","path":"src/Pricing.php","startLine":3,"endLine":14,"reason":"range-out-of-file"}`, sin fila `claim` nueva.
@@ -72,14 +73,17 @@ Decisiones de la autora, transcritas del ticket (`[enhanced]`, 2026-10-14):
 |---|---|
 | **evidence-verification** | |
 | Valid citations are cited and each path is read once | `tests/unit/verify/syntactic.spec.ts:40` |
-| A missing file or a range out of the file is broken | `tests/unit/verify/syntactic.spec.ts:62` |
-| Other read failures propagate | `tests/unit/verify/syntactic.spec.ts:92` |
-| No citation reads nothing | `tests/unit/verify/syntactic.spec.ts:121` |
-| A diverging excerpt is broken | `tests/unit/verify/syntactic.spec.ts:135` |
-| A redacted secret matches its redacted excerpt | `tests/unit/verify/syntactic.spec.ts:156` |
-| A cut CRLF span matches without its trailing carriage return | `tests/unit/verify/syntactic.spec.ts:172` |
-| A line-cut span matches the first code points of its line | `tests/unit/verify/syntactic.spec.ts:189` |
-| A last line without a final line feed matches | `tests/unit/verify/syntactic.spec.ts:227` |
+| A missing file or a range out of the file is broken | `tests/unit/verify/syntactic.spec.ts:65` |
+| Other read failures propagate | `tests/unit/verify/syntactic.spec.ts:99` |
+| Non-integer lines are out of the file | `tests/unit/verify/syntactic.spec.ts:128` |
+| A short batched read is an error | `tests/unit/verify/syntactic.spec.ts:148` |
+| No citation reads nothing | `tests/unit/verify/syntactic.spec.ts:167` |
+| A diverging excerpt is broken | `tests/unit/verify/syntactic.spec.ts:181` |
+| A redacted secret matches its redacted excerpt | `tests/unit/verify/syntactic.spec.ts:202` |
+| A cut CRLF span matches without its trailing carriage return | `tests/unit/verify/syntactic.spec.ts:218` |
+| A line-cut span matches the first code points of its line | `tests/unit/verify/syntactic.spec.ts:235` |
+| A cut span whose original range leaves the file is broken | `tests/unit/verify/syntactic.spec.ts:273` |
+| A last line without a final line feed matches | `tests/unit/verify/syntactic.spec.ts:289` |
 | A statement keeps only its valid citations and is retyped | `tests/unit/verify/policy.spec.ts:31` |
 | A statement with no valid citation is dropped | `tests/unit/verify/policy.spec.ts:42` |
 | Nothing is left when every citation is broken | `tests/unit/verify/policy.spec.ts:50` |
@@ -93,24 +97,24 @@ Decisiones de la autora, transcritas del ticket (`[enhanced]`, 2026-10-14):
 | An unknown project or an unindexed one fails without calling the model | `tests/unit/explain/explain.spec.ts:226` |
 | Model failures propagate without writing | `tests/unit/explain/explain.spec.ts:309` |
 | Every citation broken is unknown with broken evidence | `tests/unit/explain/explain-verification.spec.ts:80` |
-| A verification read failure propagates without writing | `tests/unit/explain/explain-verification.spec.ts:107` |
-| No verification read without statements | `tests/unit/explain/explain-verification.spec.ts:120` |
+| A verification read failure propagates without writing | `tests/unit/explain/explain-verification.spec.ts:108` |
+| No verification read without statements | `tests/unit/explain/explain-verification.spec.ts:121` |
 | The question is anchored once | `tests/unit/explain/explain.spec.ts:359` |
 | An answer with evidence is typed, stored and returned | `tests/integration/explain/explain.spec.ts:121` |
 | A fact is stored as an inferred claim that keeps its type | `tests/integration/explain/explain.spec.ts:152` |
 | The evidence of a stored answer lists every citation in order | `tests/unit/explain/explain.spec.ts:480` |
 | An answer written after a re-index is stored stale | `tests/unit/explain/explain.spec.ts:543` |
-| Cited spans are verified in one read at the pack's commit | `tests/unit/explain/explain-verification.spec.ts:141` |
-| A broken citation is neither stored nor shown | `tests/unit/explain/explain-verification.spec.ts:168` |
+| Cited spans are verified in one read at the pack's commit | `tests/unit/explain/explain-verification.spec.ts:142` |
+| A broken citation is neither stored nor shown | `tests/unit/explain/explain-verification.spec.ts:170` |
 | The subject of a claim is the symbol of its first cited span | `tests/unit/explain/explain.spec.ts:442` |
 | A failed write still answers, unsaved and without leaking | `tests/unit/explain/explain.spec.ts:608` |
 | A failed write over the database still answers without leaking | `tests/integration/explain/explain.spec.ts:190` |
-| An unsaved answer keeps only its verified citations | `tests/unit/explain/explain-verification.spec.ts:206` |
+| An unsaved answer keeps only its verified citations | `tests/unit/explain/explain-verification.spec.ts:208` |
 | Other write errors propagate | `tests/unit/explain/explain.spec.ts:635` |
 | Explaining writes nothing to the console | `tests/unit/explain/explain.spec.ts:733` |
 | Sanitisation events come first in every answer that reached the prompt | `tests/unit/explain/explain-sanitization.spec.ts:363` |
 | No sanitisation event without a prompt | `tests/unit/explain/explain-sanitization.spec.ts:398` |
-| Evidence broken events follow the sanitisation events and carry no content | `tests/unit/explain/explain-verification.spec.ts:237` |
+| Evidence broken events follow the sanitisation events and carry no content | `tests/unit/explain/explain-verification.spec.ts:239` |
 | **context-engine** | |
 | The pack of the price question holds the calculator class once | `tests/integration/context/context-pack.spec.ts:88` |
 | Every anchor symbol of the question enters the pack as an anchor | `tests/integration/context/context-pack.spec.ts:106` |

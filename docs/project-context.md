@@ -592,7 +592,7 @@ services that must be started first, quirks of the local environment.
     text comes from `context/span-text.ts` (`redactedLines`, `spanText`), the same rule the pack
     cuts with: change it there only. A cut span maps to `cut: 'lines'` (one trailing `\r` dropped) or
     `'line-cut'` (first `MAX_EVIDENCE_TEXT_CHARS` code points), told apart by
-    `TRUNCATION_LINE_CUT_MARK`. A broken citation is neither stored nor shown (ADR 20261014); it
+    `TRUNCATION_LINE_CUT_MARK`; a cut span also passes its `originalEndLine`, checked against the file too. A broken citation is neither stored nor shown (ADR 20261014); it
     leaves an `evidence_broken` event (`EVIDENCE_BROKEN_REASONS` lives in `explain-event.ts`), which
     `ask` writes at level `error`; no statement left → `UNKNOWN (broken-evidence)`. New `evidence`
     rows are `cited`; `broken` is never written. `verify/` may import no I/O built-in
