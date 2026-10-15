@@ -572,20 +572,23 @@ services that must be started first, quirks of the local environment.
     `sortEvents` reads `file`. It carries subcode, byte size, SHA-256 and `{ path, code }` per issue —
     never a Zod `message`, `keys` or value; at most `MAX_EVENT_ISSUES` (20) issues plus `issueCount`. Core returns it; the transport logs it (DIS-39).
 - **`explain` is the one-pass use case over the Context Engine** (DIS-39,
-  `packages/core/src/explain/explain.ts`). `explain({ store, source, llm, workspaceRoot, now },
-  { projectId, question, tokenBudget?, hops? })`, in this order: Zod request check
+  `packages/core/src/explain/explain.ts`). `explain({ store, source, llm, workspaceRoot, now,
+  verificationCache }, { projectId, question, tokenBudget?, hops? })`, in this order: Zod request check
   (`InvalidExplainRequest`, `field` only, never the value; question 1..`MAX_QUESTION_CHARS` = 1 000
   code points, not blank) → `anchor` once → `no-anchor` → [DIS-21 cache slot] → `llm-required` in
   evaluation mode (pack not built) → pack with the given anchor → `over-budget` →
   `sanitizeForPrompt` (DIS-41) → `findClaimsOverlapping` (before the model) → one
   `complete({ purpose: 'answer' })` → quarantine (`invalid-model-output`) → `no-evidence` when there
-  is no statement → type, `saveClaims`. Answer:
-  `kind: 'unknown'` with `reason` (`UNKNOWN_REASONS`), or `kind: 'answered'` with `persisted`.
+  is no statement → type → syntactic check → output policy (`broken-evidence` when nothing is
+  left) → semantic check (`verify` calls) → entailment policy → `saveClaims`. Answer:
+  `kind: 'unknown'` with `reason` (`UNKNOWN_REASONS`), or `kind: 'answered'` with `persisted` and
+  `usage.verification`.
   `ClaimWriteFailed` from `saveClaims` → `persisted: false`, the prompt ids `E1…En` and one
   `{ type: 'claims_not_persisted', code: 'store-write-failed' }`; any other error propagates.
-  `BudgetExhausted` propagates until DIS-21 adds the cache-only degradation.
+  The `LlmUnavailable` / `BudgetExhausted` of the `answer` call propagate (until DIS-21 adds the
+  cache-only degradation); those of a `verify` call do not: they leave the citations `cited` (DIS-70).
   - Gotcha: `ExplainEvent` (`SchemaViolationEvent | ClaimsNotPersistedEvent | SanitizationEvent |
-    EvidenceBrokenEvent`) is **not** part of `AuditEvent`. Core never logs; the transport does.
+    EvidenceBrokenEvent | EntailmentUnverifiedEvent`) is **not** part of `AuditEvent`. Core never logs; the transport does.
   - Gotcha (DIS-68, `core/verify/`): after typing, `explain` verifies the cited spans by re-reading
     git at `pack.commit` from `pack.root` (one more batched read per answer, each cited path once;
     uncited pack spans are not read), never at the project's current indexed commit. The expected
@@ -595,8 +598,28 @@ services that must be started first, quirks of the local environment.
     `TRUNCATION_LINE_CUT_MARK`; a cut span also passes its `originalEndLine`, checked against the file too. A broken citation is neither stored nor shown (ADR 20261014); it
     leaves an `evidence_broken` event (`EVIDENCE_BROKEN_REASONS` lives in `explain-event.ts`), which
     `ask` writes at level `error`; no statement left → `UNKNOWN (broken-evidence)`. New `evidence`
-    rows are `cited`; `broken` is never written. `verify/` may import no I/O built-in
-    (`verify-no-io`) nor `explain/index.js` (cycle).
+    rows are `entailed` or `cited` (DIS-70); `broken` is never written. `verify/` may import no I/O
+    built-in (`verify-no-io`) nor `explain/index.js` (cycle).
+  - Gotcha (DIS-70, `core/verify/semantic.ts`): after the output policy, every kept (statement,
+    citation) pair is checked by `verifyEntailment`: one `complete({ purpose: 'verify' })` per
+    distinct pair the cache does not hold, in sequence (never `Promise.all`), with only the wrapped
+    statement and excerpt (`verify-prompt.ts`, sharing `explain/untrusted-text.ts` with the explain
+    prompt). Fail closed: an output that is not exactly `{"entails": boolean}` (≤
+    `MAX_VERIFY_OUTPUT_BYTES`), an `LlmUnavailable` or a `BudgetExhausted` leaves the pair `cited`
+    with an `entailment_unverified` event (`ENTAILMENT_UNVERIFIED_REASONS` lives in
+    `explain-event.ts`, `ask` writes it at `info`); after the first unavailable/budget failure the
+    other uncached pairs are not attempted. Any other failure propagates. `FACT` needs the typing
+    rule's `FACT` **and** every citation `entailed` (`applyEntailment` in `verify/policy.ts`;
+    `typing-rules.ts` is unchanged). The cache key is the SHA-256 of the request's messages (the
+    model is not in it); `createInMemoryVerificationCache()` is an LRU of `MAX_VERIFICATION_CACHE_ENTRIES`
+    booleans, and `ask` creates **one per run** (one per process), so it only saves pairs repeated in
+    one answer; a long-lived process (API) would share it. `usage.verification` counts only `verify`
+    calls (DIS-74 aggregates the rest).
+  - Gotcha (DIS-70, test doubles): `tests/support/scripted-llm.ts` routes `purpose: 'verify'` to
+    `options.verify`, whose default entails every pair, so a test that does not set it gets
+    `entailed`; in the shared `order` an `answer` call pushes `complete` and a `verify` call `verify`.
+    Filter `requests` by `purpose` when counting model calls. `doubles()` gives `deps` a fresh
+    verification cache unless `verificationCache` is passed.
   - Gotcha (DIS-41, `explain/sanitize.ts`): after `sanitizeForPrompt` the sanitised spans are the
     only spans. A span over `MAX_EVIDENCE_TEXT_CHARS` (8 000 code points) is cut, so the prompt's
     `endLine`, the claim's input spans, the evidence's last line and the excerpt are those of the kept
@@ -788,11 +811,14 @@ services that must be started first, quirks of the local environment.
   model answers; each claim write commits on its own connection), probed with one `connect()`
   (`DATABASE_UNAVAILABLE`), always ended before it returns. `<project>` is the **name**, matched
   exactly (no trim, no case folding) through `listProjects`; an id is not accepted
-  (`PROJECT_NOT_FOUND`). A live `LLM_*` with `DAILY_BUDGET_USD` is wrapped in `withDailyBudget`.
+  (`PROJECT_NOT_FOUND`). A live `LLM_*` with `DAILY_BUDGET_USD` is wrapped in `withDailyBudget`
+  (which also gates every `verify` call). Each run passes `explain` a new in-memory verification
+  cache (DIS-70); it never prints a statement's verification nor the answer's `usage`.
   stdout holds only the answer (statements `[FACT]`/`[INFERENCE]`, `[stale]`, cited spans, excerpts
   cut to 5 lines, prior claims, `note: claims not saved` last when not stored) or
   `UNKNOWN (<reason>)`; every untrusted text is escaped line by line. stderr holds the answer's
-  events as JSON lines and, on failure, one `{"error":{…}}` line; the question never reaches it.
+  events as JSON lines (`evidence_broken` at `error`, every other one, `entailment_unverified`
+  included, at `info`) and, on failure, one `{"error":{…}}` line; the question never reaches it.
   Exit `0` for an answer or an `UNKNOWN`, `1` configuration, connection, domain or `INTERNAL`
   (`unexpected error`), `2` usage. **Until DIS-21 (answer cache), `ask` in evaluation mode (no
   `LLM_BASE_URL` nor `LLM_API_KEY`) answers `UNKNOWN (llm-required)` even for the sample questions.**

@@ -1,7 +1,15 @@
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { BudgetExhausted, InvalidStoreQuery, LLM_REQUIRED_MESSAGE, LlmUnavailable, ProjectNotFound, SourceUnavailable } from '@codemind/core';
+import {
+  BudgetExhausted,
+  InvalidStoreQuery,
+  LLM_REQUIRED_MESSAGE,
+  LlmUnavailable,
+  MAX_VERIFICATION_CACHE_ENTRIES,
+  ProjectNotFound,
+  SourceUnavailable,
+} from '@codemind/core';
 import type {
   AnsweredExplain,
   AnswerEvidence,
@@ -11,6 +19,7 @@ import type {
   LlmPort,
   StorePort,
   UnknownExplain,
+  VerificationCache,
 } from '@codemind/core';
 import type { LlmConfig } from '@codemind/adapter-llm';
 import { DatabaseUnavailable } from '../../../packages/cli/src/compose-index';
@@ -25,8 +34,9 @@ import { createScriptedLlm, modelOutput } from '../../support/scripted-llm';
 import { file, symbol } from '../../support/sample-graph';
 import type { Script, ScriptedLlm } from '../../support/scripted-llm';
 
-// Spec: openspec/changes/cli-ask/specs/cli-ask/spec.md (DIS-40). The `it` named after a scenario is
-// that scenario; the others are extra cases. The store is the in-memory double over the acme-shop
+// Spec: openspec/changes/cli-ask/specs/cli-ask/spec.md (DIS-40) and
+// openspec/changes/evidence-verifier-semantic/specs/cli-ask/spec.md (DIS-70). The `it` named after a
+// scenario is that scenario; the others are extra cases. The store is the in-memory double over the acme-shop
 // subset behind a fake `openStore` recording `open`/`close`; the model is scripted; the source tree
 // is the in-memory double, each file a synthetic content of its stored length.
 
@@ -349,8 +359,9 @@ const SPAN_A: AnswerEvidence = {
 const SPAN_B: AnswerEvidence = { id: 'ev-b', fileId: 'file-b', path: 'app/B.php', startLine: 3, endLine: 4, excerpt: '\tb1\n\tb2' };
 const SPAN_NULL: AnswerEvidence = { id: 'ev-n', fileId: 'file-n', path: 'app/N.php', startLine: 5, endLine: 6, excerpt: null };
 
+// A `FACT` is `entailed`: the only combination the entailment policy allows (DIS-70 D1).
 function statement(overrides: Partial<AnswerStatement> = {}): AnswerStatement {
-  return { text: 'A statement.', type: 'FACT', status: 'current', verification: 'cited', evidenceIds: [SPAN_A.id], ...overrides };
+  return { text: 'A statement.', type: 'FACT', status: 'current', verification: 'entailed', evidenceIds: [SPAN_A.id], ...overrides };
 }
 
 function answered(overrides: Partial<AnsweredExplain> = {}): AnsweredExplain {
@@ -362,6 +373,7 @@ function answered(overrides: Partial<AnsweredExplain> = {}): AnsweredExplain {
     evidence: [SPAN_A],
     priorClaims: [],
     events: [],
+    usage: { verification: { calls: 0, cacheHits: 0, inputTokens: 0, outputTokens: 0, costUsd: 0 } },
     ...overrides,
   } as AnsweredExplain;
 }
@@ -579,6 +591,32 @@ describe('runAskCommand: answers', () => {
     ]);
   });
 
+  it('An unverified entailment is logged as information', async () => {
+    const stored = answered({
+      statements: [statement({ type: 'INFERENCE', verification: 'cited' })],
+      events: [
+        { type: 'evidence_broken', evidenceId: 'E2', path: 'app/B.php', startLine: 3, endLine: 4, reason: 'excerpt-mismatch' },
+        { type: 'entailment_unverified', statementIndex: 0, evidenceId: 'E1', path: 'app/A.php', startLine: 1, endLine: 8, reason: 'invalid-output' },
+      ],
+    });
+    const result = await run(['ask', 'acme-shop', Q1], { explain: async () => stored });
+    expect(result.exit).toBe(0);
+    expect(result.stderrLines).toHaveLength(2);
+    expect(result.stderrLines[0]!.startsWith('{"level":"error","type":"evidence_broken",')).toBe(true);
+    expect(result.stderrLines[1]!.startsWith('{"level":"info","type":"entailment_unverified",')).toBe(true);
+    expect(Object.keys(JSON.parse(result.stderrLines[1]!) as object)).toEqual([
+      'level',
+      'type',
+      'statementIndex',
+      'evidenceId',
+      'path',
+      'startLine',
+      'endLine',
+      'reason',
+    ]);
+    for (const word of ['entailed', 'cited', 'usage']) expect(result.stdout).not.toContain(word);
+  });
+
   it('Every citation broken answers broken-evidence', async () => {
     const answer: UnknownExplain = {
       kind: 'unknown',
@@ -612,6 +650,32 @@ describe('runAskCommand: answers', () => {
     });
     expect(result.exit).toBe(0);
     expect(requests).toEqual([{ projectId: result.loaded.projectIds[0], question: Q1 }]);
+  });
+
+  it('Explain receives a new verification cache per run', async () => {
+    const caches: VerificationCache[] = [];
+    const calls: number[] = [];
+    for (let i = 0; i < 2; i++) {
+      let count = 0;
+      const result = await run(['ask', 'acme-shop', Q1], {
+        explain: async (deps) => {
+          count++;
+          caches.push(deps.verificationCache);
+          return answered();
+        },
+      });
+      expect(result.exit).toBe(0);
+      calls.push(count);
+    }
+    expect(calls).toEqual([1, 1]);
+    for (const cache of caches) expect(cache).toMatchObject({ get: expect.any(Function), set: expect.any(Function) });
+    expect(caches[0]).not.toBe(caches[1]);
+    // Empty, and bounded by the default bound: one key more than it evicts the first.
+    const [first] = caches as [VerificationCache];
+    expect(first.get('k0')).toBeUndefined();
+    for (let i = 0; i <= MAX_VERIFICATION_CACHE_ENTRIES; i++) first.set(`k${i}`, true);
+    expect(first.get('k0')).toBeUndefined();
+    expect(first.get('k1')).toBe(true);
   });
 
   it('a question starting with a dash is passed after --', async () => {
@@ -750,7 +814,7 @@ describe('runAskCommand: composition', () => {
       source: source.source,
     });
     expect(exit).toBe(0);
-    expect(model.requests).toHaveLength(1);
+    expect(model.requests.filter((request) => request.purpose === 'answer')).toHaveLength(1);
     expect(stdout.startsWith('ok\n')).toBe(true);
   });
 

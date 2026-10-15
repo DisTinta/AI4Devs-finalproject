@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 import type { LlmMessage } from '../llm/llm-request.js';
-import { evidenceIdAt, MARKER_SEQUENCE_SOURCE } from './sanitize.js';
+import { evidenceIdAt } from './sanitize.js';
 import type { SanitizedPrompt, SanitizedSpan } from './sanitize.js';
+import { neutralise, wrapUntrusted } from './untrusted-text.js';
 
 // The prompt of `explain` (DIS-39 design D5, DIS-41 design D4): one fixed instruction and the
 // question with the pack's sanitised spans as JSON data, each under an evidence id local to the prompt
@@ -32,29 +33,6 @@ export interface ExplainPrompt {
   promptHash: string;
 }
 
-/** U+200B ZERO WIDTH SPACE, inserted after the first `<` of a marker sequence and the `[` of a forged mark. */
-const ZERO_WIDTH_SPACE = String.fromCodePoint(0x200b);
-
-/** The first `<` of every marker sequence (the rest of the sequence is a lookahead). */
-const MARKER_START = new RegExp(`<(?=${MARKER_SEQUENCE_SOURCE.slice(1)})`, 'giu');
-
-/** The `[` of every text that would read as a truncation mark: `[`, whitespace, `TRUNCATED`, whitespace, `:`. */
-const MARK_START = /\[(?=\s*TRUNCATED\s*:)/giu;
-
-/**
- * Untrusted `text` as sent: U+200B after the first `<` of every marker sequence and after the `[` of
- * every forged truncation mark, so the text can neither close its markers nor pass for a real mark;
- * no other character changes.
- */
-function neutralise(text: string): string {
-  return text.replace(MARKER_START, `<${ZERO_WIDTH_SPACE}`).replace(MARK_START, `[${ZERO_WIDTH_SPACE}`);
-}
-
-/** `text` between the opening and closing markers of `id`. */
-function wrap(id: string, text: string): string {
-  return `<<<UNTRUSTED_DATA ${id}>>>\n${text}\n<<<END_UNTRUSTED_DATA ${id}>>>`;
-}
-
 /**
  * Builds the prompt of a sanitised question over the sanitised spans of its pack: span `i` (from 0)
  * gets the id `evidenceIdAt(i)`. The question and each span's text are neutralised (marker sequences
@@ -74,11 +52,11 @@ export function buildPrompt(sanitized: SanitizedPrompt): ExplainPrompt {
     path: neutralise(span.path),
     startLine: span.startLine,
     endLine: span.endLine,
-    text: wrap(id, neutralise(span.text) + (span.truncation ? `\n${span.truncation.mark}` : '')),
+    text: wrapUntrusted(id, neutralise(span.text) + (span.truncation ? `\n${span.truncation.mark}` : '')),
     ...(span.flags.length > 0 && { flags: span.flags }),
   }));
   const user = {
-    question: wrap('question', neutralise(question)),
+    question: wrapUntrusted('question', neutralise(question)),
     ...(questionFlags.length > 0 && { questionFlags }),
     evidence,
   };

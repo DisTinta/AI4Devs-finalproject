@@ -1,13 +1,13 @@
 import { expect } from 'vitest';
-import { buildContextPack } from '@codemind/core';
-import type { FilledContextPack, KnowledgeGraph, NewProject, StorePort } from '@codemind/core';
+import { buildContextPack, createInMemoryVerificationCache } from '@codemind/core';
+import type { FilledContextPack, KnowledgeGraph, NewProject, StorePort, VerificationCache } from '@codemind/core';
 import { ACME_SHOP_PROJECT, acmeShopGraph } from './acme-shop-graph';
 import { createInMemoryStore } from './in-memory-store';
 import type { ClaimWriteFailure } from './in-memory-store';
 import { createInMemorySourceTree } from './in-memory-source-tree';
 import type { SourceContents } from './in-memory-source-tree';
 import { createScriptedLlm, modelOutput } from './scripted-llm';
-import type { Script } from './scripted-llm';
+import type { Script, ScriptedLlmOptions } from './scripted-llm';
 import { file, symbol } from './sample-graph';
 
 // The doubles of the explain use-case tests (DIS-39), shared by tests/unit/explain/explain.spec.ts and
@@ -15,7 +15,9 @@ import { file, symbol } from './sample-graph';
 // doubles over the acme-shop subset, whose files get a synthetic content of their stored length; the
 // model is scripted from the ids of the prompt. Since DIS-68 (design V9) `verificationContents` and
 // `verificationFailures` answer the source reads made after the model call (the verification read),
-// so a test can change a file between the pack's read and the verification at the same commit.
+// so a test can change a file between the pack's read and the verification at the same commit. Since
+// DIS-70 (design S10) `deps` holds a fresh verification cache unless one is given, and the verifier and
+// the usage options go to the scripted model, whose default verifier entails every pair.
 
 export const Q1 = '¿Cómo se calcula el precio final de un pedido?';
 export const COMMIT = 'c'.repeat(40);
@@ -27,8 +29,10 @@ export function linesOf(path: string, lines: number): string {
   return Array.from({ length: lines }, (_, i) => `// ${path} line ${i + 1}`).join('\n') + '\n';
 }
 
-export interface DoubleOptions {
+export interface DoubleOptions extends ScriptedLlmOptions {
   mode?: 'live' | 'evaluation';
+  /** The verification cache of `deps`; a fresh in-memory one when absent. */
+  verificationCache?: VerificationCache;
   script?: Script;
   graph?: KnowledgeGraph;
   project?: NewProject;
@@ -64,7 +68,8 @@ export function doubles(options: DoubleOptions = {}) {
         }
       : {},
   );
-  const model = createScriptedLlm(options.mode ?? 'live', options.script, order);
+  const { verify, answerUsage, verifyUsage, verifyModel } = options;
+  const model = createScriptedLlm(options.mode ?? 'live', options.script, order, { verify, answerUsage, verifyUsage, verifyModel });
   const base = options.store?.(loaded.store) ?? loaded.store;
   const store: StorePort = {
     ...base,
@@ -85,7 +90,14 @@ export function doubles(options: DoubleOptions = {}) {
     sourceCalls: source.calls,
     batchReads: source.batchReads,
     reads: source.reads,
-    deps: { store, source: source.source, llm: model.llm, workspaceRoot: WORKSPACE, now: () => NOW },
+    deps: {
+      store,
+      source: source.source,
+      llm: model.llm,
+      workspaceRoot: WORKSPACE,
+      now: () => NOW,
+      verificationCache: options.verificationCache ?? createInMemoryVerificationCache(),
+    },
   };
 }
 

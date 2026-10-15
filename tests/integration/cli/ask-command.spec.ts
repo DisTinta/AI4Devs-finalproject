@@ -223,7 +223,8 @@ describeWithDatabase('ask (integration)', () => {
 
       // Assert
       expect(result.exit).toBe(0);
-      expect(result.model.requests).toHaveLength(1);
+      // DIS-70: the answer, then one `verify` per (statement, citation) pair; the default verifier entails.
+      expect(result.model.requests.map((request) => request.purpose)).toEqual(['answer', 'verify', 'verify']);
       const lines = result.stdout.split('\n');
       expect(lines[0]).toBe('El precio final lo calcula PriceCalculator::compute.');
       const fact = lines.indexOf('1. [FACT] PriceCalculator::compute calcula el precio final.');
@@ -242,6 +243,11 @@ describeWithDatabase('ask (integration)', () => {
       expect(result.stdout).not.toContain('note:');
       expect(result.stderr).toBe('');
       expect((await claimCount()) - before).toBe(2);
+      const { rows } = await db().query<{ verification: string }>(
+        'SELECT e.verification FROM evidence e JOIN claim c ON c.id = e.claim_id WHERE c.object = ANY($1::text[])',
+        [['PriceCalculator::compute calcula el precio final.', 'El controlador de checkout interviene en el cálculo.']],
+      );
+      expect(rows.map((row) => row.verification)).toEqual(['entailed', 'entailed']);
     },
     TIMEOUT_MS,
   );
@@ -267,6 +273,7 @@ describeWithDatabase('ask (integration)', () => {
         const llm: LlmPort = {
           ...scripted.llm,
           complete: async (request) => {
+            // Sampled on every model call: the `answer` and, since DIS-70, each `verify`.
             during.push({ all: await askSessions(), inTransaction: await askSessions('idle in transaction') });
             return scripted.llm.complete(request);
           },
@@ -278,10 +285,13 @@ describeWithDatabase('ask (integration)', () => {
         expect(result.exit).toBe(0);
         expect(result.stderr).toBe('');
         expect(result.stdout).not.toContain('note: claims not saved');
-        // While the model answered, the command's sessions existed and none held a transaction.
-        expect(during).toHaveLength(1);
-        expect(during[0]!.all).toBeGreaterThanOrEqual(1);
-        expect(during[0]!.inTransaction).toBe(0);
+        // While the model answered and verified, the command's sessions existed and none held a transaction.
+        expect(scripted.requests.map((request) => request.purpose)).toEqual(['answer', 'verify']);
+        expect(during).toHaveLength(2);
+        for (const sample of during) {
+          expect(sample.all).toBeGreaterThanOrEqual(1);
+          expect(sample.inTransaction).toBe(0);
+        }
         // The claim write committed on its own: another connection sees it.
         const { rows } = await client.query<{ n: number }>('SELECT count(*)::int AS n FROM claim WHERE project_id = $1', [projectId]);
         expect(rows[0]!.n).toBe(1);

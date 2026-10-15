@@ -126,8 +126,9 @@ installation, not against the working directory.
 ### Requirement: Ask answer output
 
 The command SHALL call `explain` once with the resolved project id, the question and `explain`'s
-default budget and hops. For an answered question it SHALL exit with `0` and print to stdout, in this
-order and nothing else:
+default budget and hops, and with a verification cache it SHALL create once per run, in memory and
+with its default bound (`evidence-verification`, "Verification cache"). For an answered question it
+SHALL exit with `0` and print to stdout, in this order and nothing else:
 
 1. the answer, one output line per line of the answer; one trailing line break of the answer or of
    a statement text SHALL NOT produce an empty line, and inner empty lines SHALL be printed as empty
@@ -150,26 +151,27 @@ order and nothing else:
 5. only when the claims were not stored: an empty line and `note: claims not saved` as the last line.
 
 An empty line inside a statement text, a prior-claim text or an excerpt SHALL be printed as an empty
-line, without indentation.
+line, without indentation. The command SHALL NOT print a statement's verification nor the answer's
+`usage`.
 
 Every event the answer carries SHALL be written to stderr as one JSON line, in the answer's order:
 `{"level":"error",…event}` for an `evidence_broken` event, which reports a system failure, and
-`{"level":"info",…event}` for every other event; with no events stderr SHALL stay empty. The level
-of an event SHALL NOT change the exit code. The command SHALL NOT print the question itself, and stderr
-SHALL NOT contain it.
+`{"level":"info",…event}` for every other event, `entailment_unverified` included; with no events
+stderr SHALL stay empty. The level of an event SHALL NOT change the exit code. The command SHALL NOT
+print the question itself, and stderr SHALL NOT contain it.
 
 #### Scenario: A typed answer is printed with its evidence and stored
 
 - **GIVEN** acme-shop seeded, a valid `DATABASE_URL`, and a live model that answers one statement
   citing only `anchor`/`exact` spans of `PriceCalculator.php` and one statement citing a `heuristic`
-  span
+  span, and that answers `{"entails":true}` to every verification
 - **WHEN** `ask acme-shop "¿Cómo se calcula el precio final de un pedido?"` runs
 - **THEN** it exits with `0`; stdout starts with the model's answer and holds `1. [FACT] …` followed
   by `   evidence: app/Services/PriceCalculator.php:16-44`, and `2. [INFERENCE] …` followed by an
   `evidence:` line naming the cited heuristic span's own `<path>:<startLine>-<endLine>` (on acme-shop,
   `app/Http/Controllers/CheckoutController.php:19-33`), and the evidence section with each cited
   span's excerpt; stdout has no `prior claims:` section and no `note:` line; stderr is empty; and
-  two new `claim` rows are stored
+  two new `claim` rows are stored, whose `evidence` rows have verification `entailed`
 
 #### Scenario: Stale statements and prior claims are marked
 
@@ -213,6 +215,24 @@ SHALL NOT contain it.
 - **WHEN** `ask acme-shop "¿Cómo se calcula el precio final de un pedido?"` runs
 - **THEN** `explain` is called exactly once, with the request `{ projectId: <acme-shop's id>,
   question: "¿Cómo se calcula el precio final de un pedido?" }` and no `tokenBudget` or `hops`
+
+#### Scenario: An unverified entailment is logged as information
+
+- **GIVEN** an answer, stored, with one statement, whose events are an `evidence_broken` event
+  followed by an `entailment_unverified` event
+- **WHEN** `ask` prints it
+- **THEN** it exits with `0`; stderr is exactly two lines, the first starting
+  `{"level":"error","type":"evidence_broken",` and the second starting
+  `{"level":"info","type":"entailment_unverified",`, and the second line's fields are exactly
+  `level`, `type`, `statementIndex`, `evidenceId`, `path`, `startLine`, `endLine` and `reason`
+- **AND** stdout holds no `entailed`, `cited` nor `usage`
+
+#### Scenario: Explain receives a new verification cache per run
+
+- **GIVEN** acme-shop stored and a recording `explain`
+- **WHEN** `ask acme-shop "¿Cómo se calcula el precio final de un pedido?"` runs twice
+- **THEN** each run called `explain` once, with dependencies holding a verification cache, and the two
+  runs received two distinct cache instances
 
 ### Requirement: Ask terminal safety
 

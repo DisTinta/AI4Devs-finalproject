@@ -36,8 +36,9 @@ import { modelOutput, SCRIPTED_MODEL } from '../../support/scripted-llm';
 import type { Script } from '../../support/scripted-llm';
 import { file, symbol } from '../../support/sample-graph';
 
-// Spec: openspec/changes/explain-use-case/specs/explain/spec.md (DIS-39). Each test named after a
-// scenario is that scenario; the three over a real index live in tests/integration/explain/. The
+// Spec: openspec/changes/explain-use-case/specs/explain/spec.md (DIS-39), as modified by
+// openspec/changes/evidence-verifier-semantic/specs/explain/spec.md (DIS-70: a `verify` request per
+// kept pair, `entailed` verification, usage). Each test named after a scenario is that scenario; the three over a real index live in tests/integration/explain/. The
 // store and the source tree are the in-memory doubles over the acme-shop subset, whose files get a
 // synthetic content of their stored length; the model is scripted from the ids of the prompt.
 
@@ -272,6 +273,7 @@ describe('Requirement: Precedence and UNKNOWN answers', () => {
       expect(answer).not.toHaveProperty('priorClaims');
       expect(answer.answer).toBe('UNKNOWN');
       expect(d.order).toEqual(['findClaimsOverlapping', 'complete']);
+      expect(d.model.requests.map((request) => request.purpose)).toEqual(['answer']);
       expect(d.loaded.storedClaims()).toEqual([]);
     }
   });
@@ -287,6 +289,7 @@ describe('Requirement: Precedence and UNKNOWN answers', () => {
     expect(answer).toEqual({ kind: 'unknown', answer: 'UNKNOWN', reason: 'no-evidence', statements: [], evidence: [], events: [] });
     expect(JSON.stringify(answer)).not.toContain('Se calcula sumando todo.');
     expect(d.order).toEqual(['findClaimsOverlapping', 'complete']);
+    expect(d.model.requests.map((request) => request.purpose)).toEqual(['answer']);
     expect(d.loaded.storedClaims()).toEqual([]);
   });
 
@@ -324,6 +327,7 @@ describe('Requirement: Precedence and UNKNOWN answers', () => {
     // Assert
     for (const { d, failure, error } of runs) {
       expect(error).toBe(failure);
+      expect(d.model.requests.map((request) => request.purpose)).toEqual(['answer']);
       expect(d.loaded.storedClaims()).toEqual([]);
       expect(d.loaded.calls.saveClaims).toBe(0);
     }
@@ -341,7 +345,7 @@ describe('Requirement: Precedence and UNKNOWN answers', () => {
       return pack.spans.map((span) => [span.path, span.startLine, span.endLine]);
     };
     const sentSpans = (i: number) =>
-      (JSON.parse(d.model.requests[i]!.messages[1]!.content) as { evidence: Array<{ path: string; startLine: number; endLine: number }> }).evidence.map(
+      (JSON.parse(d.model.requests.filter((request) => request.purpose === 'answer')[i]!.messages[1]!.content) as { evidence: Array<{ path: string; startLine: number; endLine: number }> }).evidence.map(
         (e) => [e.path, e.startLine, e.endLine],
       );
 
@@ -462,8 +466,8 @@ describe('Requirement: Answer with typed statements', () => {
     const items = toClaimItems(
       { projectId: '11111111-1111-4111-8111-111111111111', model: 'm', promptHash: 'a'.repeat(64), createdAt: NOW.toISOString(), packSpans: [method, doc] },
       [
-        { text: 'first', type: 'INFERENCE', spans: [method, doc] },
-        { text: 'second', type: 'INFERENCE', spans: [doc, method] },
+        { text: 'first', type: 'INFERENCE', spans: [method, doc], evidenceVerifications: ['entailed', 'cited'] },
+        { text: 'second', type: 'INFERENCE', spans: [doc, method], evidenceVerifications: ['cited', 'entailed'] },
       ],
     );
 
@@ -471,9 +475,10 @@ describe('Requirement: Answer with typed statements', () => {
     expect(items.map((item) => item.claim.subject)).toEqual(['PriceCalculator::compute', 'docs/pricing.md']);
     expect(items.map((item) => item.claim.predicate)).toEqual([CLAIM_PREDICATE_EXPLAINS, CLAIM_PREDICATE_EXPLAINS]);
     expect(CLAIM_PREDICATE_EXPLAINS).toBe('explains');
+    expect(items[0]!.evidence.map((e) => e.verification)).toEqual(['entailed', 'cited']);
     expect(items[1]!.evidence.map((e) => [e.fileId, e.startLine, e.endLine, e.excerpt, e.verification])).toEqual([
       [docId, 1, 41, '# Pricing', 'cited'],
-      [fileId, 25, 35, 'public function compute()', 'cited'],
+      [fileId, 25, 35, 'public function compute()', 'entailed'],
     ]);
   });
 
@@ -515,8 +520,8 @@ describe('Requirement: Answer with typed statements', () => {
     expect(answer).toMatchObject({ kind: 'answered', persisted: true, answer: 'La respuesta.', events: [], priorClaims: [] });
     const types = pack.spans.slice(0, 2).map((span) => (span.origin === 'heuristic' ? 'INFERENCE' : 'FACT'));
     expect(answer.statements.map((s) => [s.text, s.type, s.status, s.verification])).toEqual([
-      ['statement 1', types[0], 'current', 'cited'],
-      ['statement 2', types[1], 'current', 'cited'],
+      ['statement 1', types[0], 'current', 'entailed'],
+      ['statement 2', types[1], 'current', 'entailed'],
     ]);
     const claims = d.loaded.storedClaims();
     expect(claims.map((claim) => claim.object)).toEqual(['statement 1', 'statement 2']);
@@ -566,11 +571,13 @@ describe('Requirement: Answer with typed statements (re-index)', () => {
     expect(answer).toMatchObject({ kind: 'answered', persisted: true });
     if (answer.kind !== 'answered') return;
     expect(answer.statements.map((s) => [s.type, s.status, s.warning, s.verification])).toEqual([
-      ['INFERENCE', 'stale', 'stale-evidence', 'cited'],
-      ['INFERENCE', 'stale', 'stale-evidence', 'cited'],
+      ['INFERENCE', 'stale', 'stale-evidence', 'entailed'],
+      ['INFERENCE', 'stale', 'stale-evidence', 'entailed'],
     ]);
     expect(answer.events.filter((event) => event.type === 'evidence_broken')).toEqual([]);
+    expect(d.model.requests.map((request) => request.purpose)).toEqual(['answer', 'verify', 'verify']);
     const stored = d.loaded.storedClaims();
+    expect(stored.flatMap((claim) => claim.evidence.map((e) => e.verification))).toEqual(['entailed', 'entailed']);
     expect(stored.map((claim) => claim.status)).toEqual(['stale', 'stale']);
     expect(stored.map((claim) => (claim.provenance as { statementType?: string }).statementType)).toEqual(['FACT', 'INFERENCE']);
     // DIS-68: `packOf`, explain's pack and the verification read all at the pack's commit, never the re-index's.
@@ -619,9 +626,10 @@ describe('Requirement: Persistence failure', () => {
     expect(answer).toMatchObject({ kind: 'answered', persisted: false, answer: 'La respuesta.', priorClaims: [] });
     if (answer.kind !== 'answered') return;
     expect(answer.statements.map((s) => [s.evidenceIds, s.status, s.verification])).toEqual([
-      [['E1', 'E2'], 'current', 'cited'],
-      [['E1'], 'current', 'cited'],
+      [['E1', 'E2'], 'current', 'entailed'],
+      [['E1'], 'current', 'entailed'],
     ]);
+    expect(d.model.requests.map((request) => request.purpose)).toEqual(['answer', 'verify', 'verify', 'verify']);
     expect(answer.evidence.map((e) => [e.id, e.path, e.startLine])).toEqual([
       ['E1', pack.spans[0]!.path, pack.spans[0]!.startLine],
       ['E2', pack.spans[1]!.path, pack.spans[1]!.startLine],
@@ -724,7 +732,7 @@ describe('Requirement: Prior claims', () => {
       expect(prior.id).toMatch(/^[0-9a-f-]{36}$/);
     }
     expect(answer.priorClaims.filter((c) => c.status === 'current').every((c) => !('warning' in c))).toBe(true);
-    expect(d.order).toEqual(['findClaimsOverlapping', 'complete', 'saveClaims']);
+    expect(d.order).toEqual(['findClaimsOverlapping', 'complete', 'verify', 'saveClaims']);
     expect(d.loaded.calls.findClaimsOverlapping).toBe(1);
   });
 });
@@ -776,6 +784,8 @@ describe('Requirement: Explain events and logging', () => {
         }),
         'price',
       ],
+      // DIS-70: a verifier that answers an invalid output.
+      [doubles({ script: citingIds('ok', [['E1']]), verify: () => 'yes' }), Q1],
     ];
 
     // Act
@@ -796,6 +806,7 @@ describe('Requirement: Explain events and logging', () => {
       'persisted:true',
       'broken-evidence',
       'persisted:true',
+      'persisted:true',
     ]);
     expect(answers[9]!.events).toEqual([expect.objectContaining({ type: 'evidence_broken', path: 'app/P2.php', reason: 'file-missing' })]);
     expect(
@@ -804,6 +815,7 @@ describe('Requirement: Explain events and logging', () => {
       ['untrusted_content_flagged', 'app/Flag.php'],
       ['untrusted_content_truncated', 'app/Big.php'],
     ]);
+    expect(answers[10]!.events).toEqual([expect.objectContaining({ type: 'entailment_unverified', reason: 'invalid-output' })]);
     for (const spy of spies) expect(spy).not.toHaveBeenCalled();
   });
 });
