@@ -181,7 +181,17 @@ describe('verifyAnswer', () => {
     });
     expect(model.requests.map((request) => request.purpose)).toEqual(['verify', 'verify', 'verify', 'verify']);
     expect(model.requests.map((request) => request.messages)).toEqual(expected);
-    expect(JSON.stringify(expected[1])).toContain(spanOf.get('E2')!.truncation!.mark);
+    // One cut pair spelled out, independent of `buildVerifyMessages`: the span's own text, then its real mark.
+    const cut = spanOf.get('E2')!;
+    expect(JSON.parse(model.requests[1]!.messages[1]!.content)).toEqual({
+      statement: '<<<UNTRUSTED_DATA statement>>>\nS1\n<<<END_UNTRUSTED_DATA statement>>>',
+      evidence: {
+        path: 'app/Crlf.php',
+        startLine: 1,
+        endLine: cut.endLine,
+        text: `<<<UNTRUSTED_DATA evidence>>>\n${cut.text}\n${cut.truncation!.mark}\n<<<END_UNTRUSTED_DATA evidence>>>`,
+      },
+    });
   });
 
   it('puts the entailment_unverified events after the evidence_broken ones, indexed among the kept statements', async () => {

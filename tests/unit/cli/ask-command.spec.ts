@@ -1,7 +1,15 @@
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { BudgetExhausted, InvalidStoreQuery, LLM_REQUIRED_MESSAGE, LlmUnavailable, ProjectNotFound, SourceUnavailable } from '@codemind/core';
+import {
+  BudgetExhausted,
+  InvalidStoreQuery,
+  LLM_REQUIRED_MESSAGE,
+  LlmUnavailable,
+  MAX_VERIFICATION_CACHE_ENTRIES,
+  ProjectNotFound,
+  SourceUnavailable,
+} from '@codemind/core';
 import type {
   AnsweredExplain,
   AnswerEvidence,
@@ -11,6 +19,7 @@ import type {
   LlmPort,
   StorePort,
   UnknownExplain,
+  VerificationCache,
 } from '@codemind/core';
 import type { LlmConfig } from '@codemind/adapter-llm';
 import { DatabaseUnavailable } from '../../../packages/cli/src/compose-index';
@@ -644,7 +653,7 @@ describe('runAskCommand: answers', () => {
   });
 
   it('Explain receives a new verification cache per run', async () => {
-    const caches: unknown[] = [];
+    const caches: VerificationCache[] = [];
     const calls: number[] = [];
     for (let i = 0; i < 2; i++) {
       let count = 0;
@@ -661,6 +670,12 @@ describe('runAskCommand: answers', () => {
     expect(calls).toEqual([1, 1]);
     for (const cache of caches) expect(cache).toMatchObject({ get: expect.any(Function), set: expect.any(Function) });
     expect(caches[0]).not.toBe(caches[1]);
+    // Empty, and bounded by the default bound: one key more than it evicts the first.
+    const [first] = caches as [VerificationCache];
+    expect(first.get('k0')).toBeUndefined();
+    for (let i = 0; i <= MAX_VERIFICATION_CACHE_ENTRIES; i++) first.set(`k${i}`, true);
+    expect(first.get('k0')).toBeUndefined();
+    expect(first.get('k1')).toBe(true);
   });
 
   it('a question starting with a dash is passed after --', async () => {

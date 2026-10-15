@@ -273,10 +273,8 @@ describeWithDatabase('ask (integration)', () => {
         const llm: LlmPort = {
           ...scripted.llm,
           complete: async (request) => {
-            // The subject is the transaction while the model answers: the `verify` calls (DIS-70) are not counted.
-            if (request.purpose === 'answer') {
-              during.push({ all: await askSessions(), inTransaction: await askSessions('idle in transaction') });
-            }
+            // Sampled on every model call: the `answer` and, since DIS-70, each `verify`.
+            during.push({ all: await askSessions(), inTransaction: await askSessions('idle in transaction') });
             return scripted.llm.complete(request);
           },
         };
@@ -287,10 +285,13 @@ describeWithDatabase('ask (integration)', () => {
         expect(result.exit).toBe(0);
         expect(result.stderr).toBe('');
         expect(result.stdout).not.toContain('note: claims not saved');
-        // While the model answered, the command's sessions existed and none held a transaction.
-        expect(during).toHaveLength(1);
-        expect(during[0]!.all).toBeGreaterThanOrEqual(1);
-        expect(during[0]!.inTransaction).toBe(0);
+        // While the model answered and verified, the command's sessions existed and none held a transaction.
+        expect(scripted.requests.map((request) => request.purpose)).toEqual(['answer', 'verify']);
+        expect(during).toHaveLength(2);
+        for (const sample of during) {
+          expect(sample.all).toBeGreaterThanOrEqual(1);
+          expect(sample.inTransaction).toBe(0);
+        }
         // The claim write committed on its own: another connection sees it.
         const { rows } = await client.query<{ n: number }>('SELECT count(*)::int AS n FROM claim WHERE project_id = $1', [projectId]);
         expect(rows[0]!.n).toBe(1);

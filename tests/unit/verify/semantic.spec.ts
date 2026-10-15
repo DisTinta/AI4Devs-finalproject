@@ -284,6 +284,10 @@ describe('Requirement: Verification cache', () => {
       { ...S1E1, statement: `${S1E1.statement}!` },
       { ...S1E1, excerpt: `${S1E1.excerpt}!` },
       { ...S1E1, endLine: S1E1.endLine + 1 },
+      // Beyond the scenario: every other component of the key (spec "Verification cache").
+      { ...S1E1, path: `${S1E1.path}x` },
+      { ...S1E1, startLine: S1E1.startLine + 1 },
+      { ...S1E1, truncationMark: '[TRUNCATED: 1 line omitted]' },
     ];
 
     for (const other of changed) {
