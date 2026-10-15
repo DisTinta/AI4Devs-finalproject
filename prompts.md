@@ -58,6 +58,7 @@
 41. [Comando CLI `ask` con salida legible (DIS-40)](#41-comando-cli-ask-con-salida-legible-dis-40)
 42. [Sanitización mínima del contenido no confiable antes del prompt (DIS-41)](#42-sanitización-mínima-del-contenido-no-confiable-antes-del-prompt-dis-41)
 43. [Verificador sintáctico de citas (DIS-68)](#43-verificador-sintáctico-de-citas-dis-68)
+44. [Verificador semántico de citas, caché por par y uso de la verificación (DIS-70)](#44-verificador-semántico-de-citas-caché-por-par-y-uso-de-la-verificación-dis-70)
 
 ---
 
@@ -4337,3 +4338,28 @@ manuales y con Stryker que no eran vacíos, y los supervivientes con sentido (el
 de `llama3.2` para el paso 10: es determinista y sirvió también para provocar el `range-out-of-file`
 real (un símbolo cuyo rango pasa del final de su fichero), que `ask` escribió en stderr con nivel
 `error` y respondió `UNKNOWN (broken-evidence)`.
+
+# 44. Verificador semántico de citas, caché por par y uso de la verificación (DIS-70)
+
+### Prompt 1 — Aplicar el change
+
+La sesión de apply arrancó con el comando, sin más texto:
+
+```
+/opsx:apply
+```
+
+**Por qué funcionó.** Con un único change activo, el comando lo eligió solo. Las decisiones D1–D8 de la
+issue y las respuestas Q1–Q6 de la autora al spec-audit (design S13) fijaban la regla «`FACT` exige todas
+las citas `entailed`», la caché en memoria por proceso, el fallo cerrado a `cited` y el uso solo de las
+llamadas `verify`, así que el apply solo paró para elegir el modelo de la prueba en vivo. Muchos tests
+nuevos pasaron nada más escribirse (la tarea 6.3 cableó de una vez veredictos, uso y eventos), y se
+registraron como tests de caracterización; Stryker sobre `verify/` (94,12 % → 95,42 %) confirmó que no
+eran vacíos y dejó cuatro supervivientes con sentido (la LRU al re-guardar la clave más reciente, la
+lectura fallida que ocupaba hueco, el texto exacto del prompt del verificador y el fragmento sin marca de
+truncado), cerrados con tests en el mismo change.
+
+**Ajuste humano.** La autora eligió para el paso 11 un stub local compatible con OpenAI, fuera del
+repositorio, en lugar de Ollama: determinista, respondía `true` a un par y `false` al otro para obtener a
+la vez filas `entailed` y `cited`, y sirvió también para las rutas degradadas (salida `yes` →
+`invalid-output`; HTTP 503 → `llm-unavailable` con una sola petición `verify`).
