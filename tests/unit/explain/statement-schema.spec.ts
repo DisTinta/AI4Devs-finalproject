@@ -13,6 +13,8 @@ import type { SchemaViolationEvent } from '@codemind/core';
 
 // Spec: openspec/specs/claims-and-typing/spec.md → "Model output quarantine" (U+0000: DIS-39, change
 // explain-use-case) and "Audit event of a discarded output". Each test is one scenario, named after it.
+// The fenced-output scenarios come from the archived change 2026-10-15-confidence-score (DIS-72,
+// design C9).
 
 /** One statement of a model output as the model writes it. */
 interface RawStatement {
@@ -41,6 +43,11 @@ function discarded(text: string, known: Iterable<string> = ['E1']): SchemaViolat
   const result = parseModelOutput(text, new Set(known));
   if (result.ok) throw new Error('expected the output to be discarded');
   return result.event;
+}
+
+/** `text` wrapped in a Markdown code fence with the info string `info` (none when empty). */
+function fenced(text: string, info = 'json'): string {
+  return ['```' + info, text, '```'].join('\n');
 }
 
 afterEach(() => {
@@ -219,6 +226,80 @@ describe('Requirement: Model output quarantine', () => {
       'invalid_shape',
     ]);
     expect(results.some((result) => result.ok)).toBe(false);
+  });
+
+  it('A conforming output inside a json fence is accepted', () => {
+    // Arrange
+    const text = output();
+    const wrapped = [fenced(text), fenced(text, 'JSON'), fenced(text, ''), '\n' + fenced(text) + '  '];
+
+    // Act
+    const results = wrapped.map((candidate) => parseModelOutput(candidate, new Set(['E1'])));
+
+    // Assert
+    for (const result of results) expect(result).toEqual(parseModelOutput(text, new Set(['E1'])));
+    expect(parseModelOutput(text, new Set(['E1'])).ok).toBe(true);
+  });
+
+  it('A fence with carriage returns is accepted', () => {
+    // Arrange
+    const text = output();
+    const wrapped = ['```json', text, '```'].join('\r\n');
+
+    // Act
+    const result = parseModelOutput(wrapped, new Set(['E1']));
+
+    // Assert
+    expect(result).toEqual(parseModelOutput(text, new Set(['E1'])));
+    expect(result.ok).toBe(true);
+  });
+
+  it('Other whitespace around a fence discards the output', () => {
+    // Arrange
+    const wrapped = fenced(output());
+    const candidates = ['\uFEFF' + wrapped, wrapped + '\u00A0'];
+
+    // Act
+    const events = candidates.map((candidate) => discarded(candidate));
+
+    // Assert
+    expect(events.map((event) => event.subcode)).toEqual(['invalid_json', 'invalid_json']);
+  });
+
+  it('Text outside a fence discards the output', () => {
+    // Arrange
+    const wrapped = fenced(output());
+    const candidates = [`Aquí está la respuesta:\n${wrapped}`, `${wrapped}\nEspero que ayude.`, `${wrapped}\n${wrapped}`];
+
+    // Act
+    const events = candidates.map((candidate) => discarded(candidate));
+
+    // Assert
+    expect(events.map((event) => event.subcode)).toEqual(['invalid_json', 'invalid_json', 'invalid_json']);
+  });
+
+  it('An unclosed fence or another info string discards the output', () => {
+    // Arrange
+    const candidates = ['```json\n' + output(), fenced(output(), 'js')];
+
+    // Act
+    const events = candidates.map((candidate) => discarded(candidate));
+
+    // Assert
+    expect(events.map((event) => event.subcode)).toEqual(['invalid_json', 'invalid_json']);
+  });
+
+  it('The event of a fenced output identifies the raw output', () => {
+    // Arrange
+    const wrapped = fenced(output([{ ...statement(), note: 'x' }]));
+
+    // Act
+    const event = discarded(wrapped);
+
+    // Assert
+    expect(event.subcode).toBe('invalid_shape');
+    expect(event.outputBytes).toBe(Buffer.byteLength(wrapped, 'utf8'));
+    expect(event.outputSha256).toBe(createHash('sha256').update(wrapped, 'utf8').digest('hex'));
   });
 
   it('classifies mixed failures and checks duplicates before unknown ids', () => {

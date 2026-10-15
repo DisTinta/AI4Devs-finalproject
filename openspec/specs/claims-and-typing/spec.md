@@ -147,7 +147,14 @@ otherwise SHALL be discarded **whole** (no statement of it survives) with an aud
 
 1. Its size is at most 65 536 bytes in UTF-8; a larger output SHALL be rejected without being parsed
    (subcode `output_too_large`).
-2. It is valid JSON (subcode `invalid_json`).
+2. It is valid JSON (subcode `invalid_json`), either as the whole output or as the content of exactly
+   one Markdown code fence that encloses the whole output: an opening line of three backticks,
+   optionally followed by the info string `json` in any letter case; then the JSON; then a closing
+   line of three backticks. Each line break of the fence MAY be a line feed or a carriage return
+   followed by a line feed. Only JSON whitespace (space, tab, carriage return, line feed) MAY appear
+   before the opening line and after the closing one. Any other text outside the fence, any other
+   character around it (such as a byte-order mark or a non-breaking space), a second fence, a fence
+   that is not closed or another info string SHALL be discarded with subcode `invalid_json`.
 3. It matches the output schema exactly: an object with `answer` (a string of 1 to 2 000 characters)
    and `statements` (0 to 20 objects, each with `text`, a string of 1 to 500 characters, and
    `evidenceIds`, 1 to 10 strings). No other field is allowed at any level; in particular a `type`
@@ -159,6 +166,9 @@ otherwise SHALL be discarded **whole** (no statement of it survives) with an aud
 4. No statement cites the same evidence id twice; duplicates SHALL NOT be removed (subcode
    `duplicate_evidence_id`).
 5. Every cited evidence id is one of the ids given to the model (subcode `unknown_evidence_id`).
+
+Check 1 and the audit event SHALL use the output exactly as received, fence included: the fence is
+removed only to parse the JSON of check 2.
 
 When checks 4 or 5 fail, the event SHALL carry one issue for the first repeated id of the first
 statement that has one (check 4), or one issue per unknown id (check 5). When checks 1 or 2 fail it
@@ -244,6 +254,50 @@ counts as one); the minimum lengths (1 character) are measured the same way.
 - **WHEN** a conforming output whose statement `text` holds U+0000 is checked, one whose `answer`
   holds it, and one citing an evidence id that holds it
 - **THEN** all three are discarded with subcode `invalid_shape`, and no statement of any is returned
+
+#### Scenario: A conforming output inside a json fence is accepted
+
+- **GIVEN** the known evidence id `E1`
+- **WHEN** the conforming output of "A conforming output is accepted" is checked wrapped as
+  `` ```json `` + line break + output + line break + `` ``` ``, then wrapped the same way with the info
+  string `JSON`, then with no info string, then with a line break before the opening line and spaces
+  after the closing one
+- **THEN** each is accepted with the same answer and statements as the unwrapped output
+
+#### Scenario: A fence with carriage returns is accepted
+
+- **GIVEN** the known evidence id `E1`
+- **WHEN** the conforming output is checked wrapped in a `` ```json `` fence whose two line breaks are a
+  carriage return followed by a line feed
+- **THEN** it is accepted with the same answer and statements as the unwrapped output
+
+#### Scenario: Other whitespace around a fence discards the output
+
+- **GIVEN** the known evidence id `E1`
+- **WHEN** the fenced conforming output is checked preceded by a byte-order mark (U+FEFF), and followed
+  by a non-breaking space (U+00A0)
+- **THEN** each is discarded with subcode `invalid_json`
+
+#### Scenario: Text outside a fence discards the output
+
+- **GIVEN** the known evidence id `E1`
+- **WHEN** the fenced conforming output is checked preceded by `Aquí está la respuesta:`, then
+  followed by `Espero que ayude.`, then followed by a second fenced copy of itself
+- **THEN** each is discarded with subcode `invalid_json`
+
+#### Scenario: An unclosed fence or another info string discards the output
+
+- **GIVEN** the known evidence id `E1`
+- **WHEN** the conforming output is checked after an opening `` ```json `` line with no closing line,
+  and wrapped in a fence whose info string is `js`
+- **THEN** each is discarded with subcode `invalid_json`
+
+#### Scenario: The event of a fenced output identifies the raw output
+
+- **GIVEN** the known evidence id `E1`
+- **WHEN** an output whose statement carries `"note":"x"` is checked wrapped in a `` ```json `` fence
+- **THEN** it is discarded with subcode `invalid_shape`, and the event's byte size and SHA-256 are
+  those of the wrapped output as received, fence included
 
 ### Requirement: Audit event of a discarded output
 

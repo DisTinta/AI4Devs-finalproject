@@ -2,6 +2,7 @@ import { isAbsolute } from 'node:path';
 import { anchor } from '../context/anchor.js';
 import { buildContextPack } from '../context/context-pack.js';
 import type { ContextSpan } from '../context/context-pack.js';
+import { confidence } from '../knowledge/confidence.js';
 import { ClaimWriteFailed } from '../knowledge/errors.js';
 import type { SavedClaim } from '../knowledge/stored-claim.js';
 import type { LlmPort } from '../ports/LlmPort.js';
@@ -10,7 +11,7 @@ import type { StorePort } from '../ports/StorePort.js';
 import type { VerificationUsage } from '../verify/semantic.js';
 import type { VerificationCache } from '../verify/verification-cache.js';
 import { verifyAnswer } from '../verify/verify-answer.js';
-import { toClaimItems } from './claim-items.js';
+import { toClaimItems, toConfidenceStatement } from './claim-items.js';
 import type { TypedStatement, VerifiedStatement } from './claim-items.js';
 import type { AnswerEvidence, AnsweredExplain, ExplainAnswer, PriorClaim } from './explain-answer.js';
 import type { ExplainEvent } from './explain-event.js';
@@ -58,10 +59,12 @@ export interface ExplainDependencies {
  * citation) pair with the purpose `verify` (one call per distinct pair `verificationCache` does not
  * hold, in sequence), caps each statement's type by the entailment policy (`FACT` only when every
  * citation is `entailed`) and stores each kept statement as a claim whose evidence rows carry the
- * verdict of their pair. Every answer that reached the prompt carries the sanitisation events first,
- * then the `evidence_broken` events, then the `entailment_unverified` events; an answered one carries
- * the usage of the `verify` calls. When the store fails with `ClaimWriteFailed` the answer is still
- * returned, `persisted: false`, with the prompt ids.
+ * verdict of their pair and whose `confidence` is that of the statement alone (`docs/CONFIDENCE.md`).
+ * Every answer that reached the prompt carries the sanitisation events first, then the
+ * `evidence_broken` events, then the `entailment_unverified` events; an answered one carries the usage
+ * of the `verify` calls and the `confidence` of all its statements together, an `UNKNOWN` one none.
+ * When the store fails with `ClaimWriteFailed` the answer is still returned, `persisted: false`, with
+ * the prompt ids.
  *
  * @param dependencies The store, the source reader, the model, the workspace root, the clock and the
  *   verification cache.
@@ -109,6 +112,8 @@ export async function explain(dependencies: ExplainDependencies, request: Explai
   const events: ExplainEvent[] = [...sanitized.events, ...verified.events];
   if (verified.statements.length === 0) return unknown('broken-evidence', events);
   const statements = verified.statements;
+  // No component produces contrary evidence until DIS-71.
+  const answerConfidence = confidence(statements.map(toConfidenceStatement), { contradiction: false });
   const items = toClaimItems(
     { projectId, model: result.model, promptHash: prompt.promptHash, createdAt: now().toISOString(), packSpans: spans },
     statements,
@@ -117,10 +122,10 @@ export async function explain(dependencies: ExplainDependencies, request: Explai
   try {
     // The pack's commit: claims read at code the project no longer indexes are written stale.
     const saved = await store.saveClaims(projectId, items, pack.commit);
-    return storedAnswer(parsed.output.answer, statements, saved, priorClaims, events, verified.usage);
+    return storedAnswer(parsed.output.answer, statements, saved, priorClaims, events, verified.usage, answerConfidence);
   } catch (error) {
     if (!(error instanceof ClaimWriteFailed)) throw error;
-    return unsavedAnswer(parsed.output.answer, statements, priorClaims, events, verified.usage);
+    return unsavedAnswer(parsed.output.answer, statements, priorClaims, events, verified.usage, answerConfidence);
   }
 }
 
@@ -139,7 +144,10 @@ function evidenceEntry(id: string, span: ContextSpan): AnswerEvidence {
   return { id, fileId: span.fileId, path: span.path, startLine: span.startLine, endLine: span.endLine, excerpt: span.text };
 }
 
-/** A stored answer: one evidence entry per citation, under its stored row id, its events and its usage. */
+/**
+ * A stored answer: one evidence entry per citation, under its stored row id, its events, its usage and
+ * its confidence.
+ */
 function storedAnswer(
   answer: string,
   statements: readonly VerifiedStatement[],
@@ -147,6 +155,7 @@ function storedAnswer(
   priorClaims: PriorClaim[],
   events: ExplainEvent[],
   verification: VerificationUsage,
+  answerConfidence: number,
 ): AnsweredExplain {
   return {
     kind: 'answered',
@@ -177,12 +186,13 @@ function storedAnswer(
     priorClaims,
     events,
     usage: { verification },
+    confidence: answerConfidence,
   };
 }
 
 /**
  * An unsaved answer: the prompt ids, one evidence entry per distinct cited id in first-citation order,
- * its events followed by `claims_not_persisted`, and its usage.
+ * its events followed by `claims_not_persisted`, its usage and its confidence.
  */
 function unsavedAnswer(
   answer: string,
@@ -190,6 +200,7 @@ function unsavedAnswer(
   priorClaims: PriorClaim[],
   events: ExplainEvent[],
   verification: VerificationUsage,
+  answerConfidence: number,
 ): AnsweredExplain {
   const evidence = new Map<string, AnswerEvidence>();
   for (const statement of statements) {
@@ -212,5 +223,6 @@ function unsavedAnswer(
     priorClaims,
     events: [...events, { type: 'claims_not_persisted', code: 'store-write-failed' }],
     usage: { verification },
+    confidence: answerConfidence,
   };
 }

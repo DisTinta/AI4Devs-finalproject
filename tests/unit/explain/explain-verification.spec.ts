@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  confidence,
   createInMemoryVerificationCache,
   explain,
   LlmUnavailable,
@@ -8,7 +9,7 @@ import {
   UNKNOWN_REASONS,
   withDailyBudget,
 } from '@codemind/core';
-import type { ClaimItem, CompletionRequest, ContextSpan, FilledContextPack, LlmPort, StorePort } from '@codemind/core';
+import type { ClaimItem, CompletionRequest, ConfidenceVerdict, ContextSpan, FilledContextPack, LlmPort, StorePort } from '@codemind/core';
 import { acmeShopGraph } from '../../support/acme-shop-graph';
 import { COMMIT, doubles, linesOf, ownGraph, packOf, Q1, rejection } from '../../support/explain-doubles';
 import type { DoubleOptions } from '../../support/explain-doubles';
@@ -21,6 +22,7 @@ import { file, symbol } from '../../support/sample-graph';
 // events and logging". Each test is one scenario, named after it. Same doubles as explain.spec.ts;
 // `verificationContents` / `verificationFailures` change what the reads after the model call (the
 // verification read) see, at the same commit; `verify` scripts the semantic check's verifier.
+// The confidence scenarios come from the archived change 2026-10-15-confidence-score (DIS-72).
 
 const ROOT = '/repos/acme-shop';
 const CALCULATOR = 'app/Services/PriceCalculator.php';
@@ -71,6 +73,22 @@ function brokenEvent(pack: FilledContextPack, id: string, reason: string) {
 function unverifiedEvent(pack: FilledContextPack, statementIndex: number, id: string, reason: string) {
   const { path, startLine, endLine } = spanOf(pack, id);
   return { type: 'entailment_unverified', statementIndex, evidenceId: id, path, startLine, endLine, reason };
+}
+
+/**
+ * The confidence of statements citing the pack's spans of `statements` (each a list of prompt id and
+ * verdict), every citation with its span's file id, lines, file kind and origin, without contradiction.
+ */
+function confidenceOf(pack: FilledContextPack, statements: [string, ConfidenceVerdict][][]): number {
+  return confidence(
+    statements.map((citations) => ({
+      citations: citations.map(([id, verification]) => {
+        const { fileId, startLine, endLine, fileKind, origin } = spanOf(pack, id);
+        return { fileId, startLine, endLine, fileKind, origin, verification };
+      }),
+    })),
+    { contradiction: false },
+  );
 }
 
 /** The paths of the anchor and heuristic spans, once `acmeShop` resolved them; read by verifier scripts. */
@@ -190,6 +208,24 @@ describe('Requirement: Precedence and UNKNOWN answers', () => {
     // Assert
     expect(error).toBe(failure);
     expect(d.loaded.calls.saveClaims).toBe(0);
+  });
+
+  it('An unknown answer has no confidence', async () => {
+    // Arrange: a question nothing anchors, and an output whose every citation is broken.
+    const later = acmeShopContents();
+    const { d, pack, ids } = await acmeShop((ids) => [[ids.anchor], [ids.heuristic]], { verificationContents: later });
+    for (const id of [ids.anchor, ids.heuristic]) changeLine(later, spanOf(pack, id).path, spanOf(pack, id).startLine);
+    const noAnchor = doubles();
+
+    // Act
+    const answers = [
+      await explain(noAnchor.deps, { projectId: noAnchor.projectId, question: '¿Dónde vive el ornitorrinco?' }),
+      await explain(d.deps, { projectId: d.projectId, question: Q1 }),
+    ];
+
+    // Assert
+    expect(answers.map((answer) => answer.kind === 'unknown' && answer.reason)).toEqual(['no-anchor', 'broken-evidence']);
+    for (const answer of answers) expect('confidence' in answer).toBe(false);
   });
 });
 
@@ -428,6 +464,64 @@ describe('Requirement: Answer with typed statements', () => {
     expect(asked.map((request) => request.purpose)).toEqual(['answer', 'verify']);
     expect(budgeted.d.model.requests.map((request) => request.purpose)).toEqual(['answer']);
   });
+
+  it('An answer carries the confidence of its statements', async () => {
+    // Arrange: a stored run, a second stored run and a run whose claim write fails, each with its own empty cache.
+    const runs = [];
+    for (const failClaimWrite of [undefined, undefined, { claim: 0, evidence: 0 }]) {
+      const received: ClaimItem[][] = [];
+      const { d, pack, ids } = await acmeShop((ids) => [[ids.anchor], [ids.anchor, ids.heuristic]], {
+        failClaimWrite,
+        store: recordingItems(received),
+      });
+      const answer = await explain(d.deps, { projectId: d.projectId, question: Q1 });
+      runs.push({ pack, ids, answer, received });
+    }
+
+    // Assert
+    const [first, second, unsaved] = runs;
+    expect(runs.map((run) => [run.answer.kind, run.answer.kind === 'answered' && run.answer.persisted])).toEqual([
+      ['answered', true],
+      ['answered', true],
+      ['answered', false],
+    ]);
+    if (first!.answer.kind !== 'answered' || second!.answer.kind !== 'answered' || unsaved!.answer.kind !== 'answered') return;
+    const { pack, ids } = first!;
+    const s1: [string, ConfidenceVerdict][] = [[ids.anchor, 'entailed']];
+    const s2: [string, ConfidenceVerdict][] = [
+      [ids.anchor, 'entailed'],
+      [ids.heuristic, 'entailed'],
+    ];
+    expect(first!.answer.confidence).toBe(confidenceOf(pack, [s1, s2]));
+    expect(first!.received.map((items) => items.map((item) => item.claim.confidence))).toEqual([[confidenceOf(pack, [s1]), confidenceOf(pack, [s2])]]);
+    expect(Object.is(second!.answer.confidence, first!.answer.confidence)).toBe(true);
+    expect(Object.is(unsaved!.answer.confidence, first!.answer.confidence)).toBe(true);
+  });
+
+  it("The confidence follows the verifier's verdicts", async () => {
+    // Arrange: the verifier rejects (S2, heuristic) and accepts the other pairs.
+    const paths = {} as Paths;
+    const { d, pack, ids } = await acmeShop((ids) => [[ids.anchor], [ids.anchor, ids.heuristic]], {
+      verify: (view) => (isAbout(view, 'S2', paths.heuristic) ? '{"entails":false}' : '{"entails":true}'),
+    });
+    paths.heuristic = spanOf(pack, ids.heuristic).path;
+
+    // Act
+    const answer = await explain(d.deps, { projectId: d.projectId, question: Q1 });
+
+    // Assert
+    expect(answer).toMatchObject({ kind: 'answered', persisted: true });
+    if (answer.kind !== 'answered') return;
+    const s1: [string, ConfidenceVerdict][] = [[ids.anchor, 'entailed']];
+    const s2: [string, ConfidenceVerdict][] = [
+      [ids.anchor, 'entailed'],
+      [ids.heuristic, 'cited'],
+    ];
+    const allEntailed = confidenceOf(pack, [s1, [s2[0]!, [ids.heuristic, 'entailed']]]);
+    expect(answer.confidence).toBe(confidenceOf(pack, [s1, s2]));
+    expect(answer.confidence).toBeLessThan(allEntailed);
+    expect(d.loaded.storedClaims().map((claim) => claim.confidence)).toEqual([confidenceOf(pack, [s1]), confidenceOf(pack, [s2])]);
+  });
 });
 
 describe('Requirement: Persistence failure', () => {
@@ -481,6 +575,14 @@ describe('Requirement: Persistence failure', () => {
       unverifiedEvent(pack, 0, ids.heuristic, 'invalid-output'),
       { type: 'claims_not_persisted', code: 'store-write-failed' },
     ]);
+    expect(answer.confidence).toBe(
+      confidenceOf(pack, [
+        [
+          [ids.anchor, 'entailed'],
+          [ids.heuristic, 'cited'],
+        ],
+      ]),
+    );
   });
 });
 

@@ -16,6 +16,15 @@ import type { SchemaViolationEvent, SchemaViolationIssue, SchemaViolationSubcode
 // Zod 4's `z.object()` strips unknown keys silently and a `type` or `note` field must discard the
 // output, not vanish. The model never decides a statement's type: there is no `type` field. No string
 // may hold U+0000 (DIS-39 design D3): Postgres rejects it, and stripping it would rewrite the output.
+// One Markdown code fence enclosing the whole output is unwrapped before parsing (DIS-72 design C9):
+// some models fence their JSON; any other text around it still fails as `invalid_json`.
+
+/**
+ * The whole output as one fence, with only JSON whitespace (space, tab, CR, LF) around it: a
+ * ```` ``` ```` line, optionally with the info string `json` in any case, the body, and a closing
+ * ```` ``` ```` line; line breaks `\n` or `\r\n`. Anchored at both ends, one unbounded group.
+ */
+const FENCED_OUTPUT = /^[ \t\r\n]*```(?:json)?\r?\n([\s\S]*)\r?\n```[ \t\r\n]*$/i;
 
 /** The output a model must return: an answer and the statements that back it, each citing evidence ids. */
 export const modelOutputSchema = z.strictObject({
@@ -38,7 +47,8 @@ export type ModelOutputResult = { ok: true; output: ModelOutput } | { ok: false;
 
 /**
  * Checks a model output against the quarantine and returns it, or the audit event of its discarding.
- * Writes nothing to any log.
+ * The JSON is the whole output or the body of one Markdown code fence enclosing it; the size check and
+ * the event use the output as received. Writes nothing to any log.
  *
  * @param text The model's raw output; untrusted.
  * @param knownEvidenceIds The evidence ids given to the model in the prompt.
@@ -48,7 +58,7 @@ export function parseModelOutput(text: string, knownEvidenceIds: ReadonlySet<str
 
   let json: unknown;
   try {
-    json = JSON.parse(text);
+    json = JSON.parse(unfenced(text));
   } catch {
     // No issue entry: the parser's message may quote the output.
     return discard(text, 'invalid_json', []);
@@ -69,6 +79,11 @@ export function parseModelOutput(text: string, knownEvidenceIds: ReadonlySet<str
   if (unknown.length > 0) return discard(text, 'unknown_evidence_id', unknown);
 
   return { ok: true, output: parsed.data };
+}
+
+/** The body of the one fence that encloses the whole output, or the output itself when it is not so fenced. */
+function unfenced(text: string): string {
+  return FENCED_OUTPUT.exec(text)?.[1] ?? text;
 }
 
 /** `empty_evidence` when every issue is an empty `evidenceIds`, `limit_exceeded` when every issue is a limit, else `invalid_shape`. */

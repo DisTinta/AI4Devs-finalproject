@@ -546,7 +546,8 @@ services that must be started first, quirks of the local environment.
   - `packages/core/src/knowledge/{claim,evidence}.ts`: `claimSchema` / `evidenceSchema` /
     `provenanceSchema` with the types inferred from them. They mirror `0002_history-claims`: an `L2`
     `FACT` neither type-checks nor validates, `L2` needs a provenance (`model`, `promptHash`,
-    `inputSpans`, `createdAt`), `confidence` is `null` or in [0, 1]. `CLAIM_*` and
+    `inputSpans`, `createdAt`), `confidence` is `null` or in [0, 1] (`explain` writes a computed value
+    since DIS-72; claims written before keep `NULL`). `CLAIM_*` and
     `EVIDENCE_VERIFICATIONS` equal the SQL enums (a test reads the migration). Line numbers are capped at
     `SPAN_LINE_MAX` (2 147 483 647, the Postgres `integer`). `knowledge/` is a
     seed fingerprint input, so touching these files means `npm run seed:build`. Since DIS-39
@@ -561,7 +562,10 @@ services that must be started first, quirks of the local environment.
     replacing span carries the best origin) and never sees a `layer`; a `FACT` statement is stored as
     an `L2` `INFERENCE` claim with `provenance.statementType: 'FACT'` (DIS-39, ADR above).
   - `packages/core/src/explain/statement-schema.ts`: `parseModelOutput(text, knownEvidenceIds)` —
-    size (`MAX_MODEL_OUTPUT_BYTES`, UTF-8) → JSON → strict schema (no `type` field; limits in
+    size (`MAX_MODEL_OUTPUT_BYTES`, UTF-8) → JSON (the whole output, or the body of exactly one
+    Markdown code fence ` ``` ` / ` ```json ` enclosing it, with only JSON whitespace around it and LF
+    or CRLF line breaks, DIS-72 design C9; text outside the fence, a BOM or a non-breaking space is
+    still `invalid_json`; size and event use the raw text) → strict schema (no `type` field; limits in
     `explain/limits.ts`, character lengths in **code points**, as Zod 4.6.5 measures them) → repeated
     ids → unknown ids. Any failure discards the whole output with a `SchemaViolationEvent`.
   - Gotcha: **every object schema is `z.strictObject()`**; Zod 4's `z.object()` strips unknown keys
@@ -581,8 +585,8 @@ services that must be started first, quirks of the local environment.
   `complete({ purpose: 'answer' })` → quarantine (`invalid-model-output`) → `no-evidence` when there
   is no statement → type → syntactic check → output policy (`broken-evidence` when nothing is
   left) → semantic check (`verify` calls) → entailment policy → `saveClaims`. Answer:
-  `kind: 'unknown'` with `reason` (`UNKNOWN_REASONS`), or `kind: 'answered'` with `persisted` and
-  `usage.verification`.
+  `kind: 'unknown'` with `reason` (`UNKNOWN_REASONS`), or `kind: 'answered'` with `persisted`,
+  `usage.verification` and `confidence` (DIS-72; `UNKNOWN` has none).
   `ClaimWriteFailed` from `saveClaims` → `persisted: false`, the prompt ids `E1…En` and one
   `{ type: 'claims_not_persisted', code: 'store-write-failed' }`; any other error propagates.
   The `LlmUnavailable` / `BudgetExhausted` of the `answer` call propagate (until DIS-21 adds the
@@ -615,6 +619,22 @@ services that must be started first, quirks of the local environment.
     booleans, and `ask` creates **one per run** (one per process), so it only saves pairs repeated in
     one answer; a long-lived process (API) would share it. `usage.verification` counts only `verify`
     calls (DIS-74 aggregates the rest).
+  - Gotcha (DIS-72, `core/knowledge/confidence.ts`): `confidence(statements, { contradiction })` is
+    pure, order-independent and has its own input types (`ConfidenceCitation`: file id, lines,
+    `fileKind`, `origin` as a string, verdict), so `knowledge/` imports nothing from `explain/` or
+    `context/`; `explain/claim-items.ts` maps a `VerifiedStatement` with `toConfidenceStatement`.
+    Each claim stores the confidence of its statement alone and the answer carries the one of all its
+    statements; both pass `contradiction: false` until DIS-71. An empty set or a statement without
+    citation throws `RangeError`. `CONFIDENCE_WEIGHTS` / `EVIDENCE_SATURATION` are mirrored in the
+    table of `docs/CONFIDENCE.md` and `tests/unit/knowledge/confidence-doc.spec.ts` fails when they
+    differ: changing a weight means the code, the document (with the author's reason), the test run
+    and `npm run seed:build` (`knowledge/` is a fingerprint input). Tests compute expected values from
+    the exported constants, never hard-coded weights.
+  - Gotcha (DIS-72, local Ollama): serve it with `OLLAMA_CONTEXT_LENGTH=16384`. Its default context
+    cuts `explain`'s 5–7k-token prompt to about 2 000 tokens (`truncating input prompt` in its log),
+    the system prompt is lost and every answer is `invalid-model-output`. On CPU the full prompt takes
+    longer than `LLM_TIMEOUT_MS`'s 300 s maximum (also Node's own `fetch` limit), so a live `ask`
+    times out there; scripts can pass their own `fetch` and `timeoutMs` to `createLlm`.
   - Gotcha (DIS-70, test doubles): `tests/support/scripted-llm.ts` routes `purpose: 'verify'` to
     `options.verify`, whose default entails every pair, so a test that does not set it gets
     `entailed`; in the shared `order` an `answer` call pushes `complete` and a `verify` call `verify`.

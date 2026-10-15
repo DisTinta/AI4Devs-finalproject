@@ -7,8 +7,8 @@ import type { Client } from 'pg';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { createGitSourceTree } from '@codemind/adapter-git';
 import { createPostgresStore } from '@codemind/adapter-store-postgres';
-import { buildContextPack, createInMemoryVerificationCache, explain } from '@codemind/core';
-import type { ContextSpan, ExplainAnswer, FilledContextPack, StorePort } from '@codemind/core';
+import { buildContextPack, confidence, createInMemoryVerificationCache, explain } from '@codemind/core';
+import type { ConfidenceStatement, ContextSpan, ExplainAnswer, FilledContextPack, StorePort } from '@codemind/core';
 import { runIndexCommand } from '../../../packages/cli/src/commands/index-repository';
 import type { OpenTransaction } from '../../../packages/cli/src/compose-index';
 import { describeWithDatabase, useTransactionPerTest } from '../helpers/db';
@@ -29,6 +29,12 @@ const SENTINEL = 'SENTINEL-explain-9c2e';
 const TIMEOUT_MS = 120_000;
 /** The repository root, from this file's location, never from the process working directory. */
 const WORKSPACE_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+
+/** A statement citing `span` alone, `entailed`, as the confidence reads it (DIS-72). */
+function citingAlone(span: ContextSpan): ConfidenceStatement {
+  const { fileId, startLine, endLine, fileKind, origin } = span;
+  return { citations: [{ fileId, startLine, endLine, fileKind, origin, verification: 'entailed' }] };
+}
 
 type BuildOne = (name: string, cfg: { dir: string; manifest: string }) => Promise<void>;
 
@@ -178,7 +184,7 @@ describeWithDatabase('explain over the indexed acme-shop (DIS-39)', () => {
       const fact = byObject.get('PriceCalculator::compute calcula el precio final.')!;
       const inference = byObject.get('Otra parte del código interviene en el cálculo.')!;
       for (const row of [fact, inference]) {
-        expect(row).toMatchObject({ layer: 'L2', type: 'INFERENCE', status: 'current', confidence: null, predicate: 'explains' });
+        expect(row).toMatchObject({ layer: 'L2', type: 'INFERENCE', status: 'current', predicate: 'explains' });
         expect(row.provenance.model).toBe(SCRIPTED_MODEL);
         expect(row.provenance.promptHash).toBe(sentHash);
         expect(row.provenance.createdAt).toBe(NOW.toISOString());
@@ -190,6 +196,18 @@ describeWithDatabase('explain over the indexed acme-shop (DIS-39)', () => {
       // The subject is the symbol of the first cited span (its path when it has none), as stored.
       expect([fact.subject, inference.subject]).toEqual(cited.map((span) => span.symbol?.name ?? span.path));
       expect(answer.kind === 'answered' && answer.statements[0]!.type).toBe('FACT');
+      // DIS-72: each row's confidence is that of its own statement; the anchor span's beats the heuristic one's.
+      const [anchorStatement, heuristicStatement] = cited.map(citingAlone);
+      expect([fact.confidence, inference.confidence]).toEqual([
+        confidence([anchorStatement!], { contradiction: false }),
+        confidence([heuristicStatement!], { contradiction: false }),
+      ]);
+      for (const row of [fact, inference]) {
+        expect(row.confidence).toBeGreaterThan(0);
+        expect(row.confidence).toBeLessThan(1);
+      }
+      expect(fact.confidence).toBeGreaterThan(inference.confidence!);
+      expect(answer.kind === 'answered' && answer.confidence).toBe(confidence([anchorStatement!, heuristicStatement!], { contradiction: false }));
     },
     TIMEOUT_MS,
   );
