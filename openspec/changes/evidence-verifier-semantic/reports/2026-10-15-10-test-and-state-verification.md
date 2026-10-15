@@ -152,3 +152,32 @@
 
 - Status: PASS
 - Blocking issues: none
+
+## Addendum — CI of PR #42 (15.3)
+
+- Run: https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/38749021316 (commit `aef2698`):
+  `quality`, `mutation`, `scope`, `secrets` and `frontend` pass.
+- `quality`: 98 test files passed, 1275 tests passed and 1 skipped (1276); the skipped one is in
+  `tests/unit/index/path-policy.spec.ts`, a platform-dependent test that exists on the base branch. The
+  new spec files ran and passed: `tests/unit/verify/semantic.spec.ts` (10 tests) and
+  `tests/unit/verify/verification-cache.spec.ts` (4 tests).
+- `mutation`: final score 95.81 (break threshold 80); `verify/` 97.06 (297 killed, 9 survived):
+  `policy.ts` 100, `semantic.ts` 96.97, `syntactic.ts` 97.06, `verification-cache.ts` 96.30,
+  `verify-answer.ts` 94.92, `verify-prompt.ts` 100. In CI the five static mutants of
+  `VERIFY_SYSTEM_PROMPT` that survived locally are killed, as the manual check predicted; the 9
+  survivors left are the equivalent and DIS-68 ones listed above.
+
+## Addendum — pre-merge fixes (15.4)
+
+- Tests strengthened, no production code changed: `tests/unit/cli/ask-command.spec.ts` "Explain receives
+  a new verification cache per run" (default bound); `tests/integration/cli/ask-command.spec.ts`
+  "answers through the default pool without holding a transaction while the model answers" (samples the
+  `answer` and the `verify` call: `answer`, `verify`, no transaction in either); `tests/unit/verify/
+  semantic.spec.ts` "A changed statement or excerpt misses the cache" (path, first line, truncation mark);
+  `tests/unit/verify/verify-answer.spec.ts` pair order (one cut pair asserted literally).
+- Re-run: `npx vitest run` 98 files, 1276 tests passed (`DATABASE_URL` set); `lint`, `typecheck`,
+  `lint:architecture` (0 errors, the same 3 warnings), `docs:coverage` clean.
+- Spec attestation (adversarial-review Question): the four delta specs were last written at 12:26–12:50
+  on 2026-10-15, before the apply's first RED (3.1); the only later edit is the A fixes of 15.4 to
+  `specs/evidence-verification/spec.md` (U1, U3, U4 and the self-verification note), made after
+  every test of this change was green and without changing a scenario.

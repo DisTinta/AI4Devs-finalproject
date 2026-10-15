@@ -118,10 +118,10 @@
 
 ## 15. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 15.1 Open the pull request against `feature/entrega-2-CRN` (after confirming with the author; `gh` on the DisTinta account, back to Cristina-JumpMath afterwards)
-- [ ] 15.2 Set DIS-70 to In Review in Linear with a comment in Spanish linking the PR and the change
-- [ ] 15.3 First confirm in the PR's CI run that the new spec files ran and passed and the mutation job is ≥ 80, and link the run in an addendum to the step 10 report; then run `/show-spec-working`, `/verify-against-spec` and `/adversarial-review`, in this order; one report each under `openspec/changes/evidence-verifier-semantic/reports/` (`YYYY-MM-DD-show-spec-working.md`, `YYYY-MM-DD-verify-against-spec.md`, `YYYY-MM-DD-adversarial-review.md`); `/show-spec-working` may reuse the step 11 evidence and must show `evidence` rows `entailed` and `cited` from a real `ask` over acme-shop and the `usage.verification` of that answer
-- [ ] 15.4 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report
+- [x] 15.1 Open the pull request against `feature/entrega-2-CRN` (after confirming with the author; `gh` on the DisTinta account, back to Cristina-JumpMath afterwards)
+- [x] 15.2 Set DIS-70 to In Review in Linear with a comment in Spanish linking the PR and the change
+- [x] 15.3 First confirm in the PR's CI run that the new spec files ran and passed and the mutation job is ≥ 80, and link the run in an addendum to the step 10 report; then run `/show-spec-working`, `/verify-against-spec` and `/adversarial-review`, in this order; one report each under `openspec/changes/evidence-verifier-semantic/reports/` (`YYYY-MM-DD-show-spec-working.md`, `YYYY-MM-DD-verify-against-spec.md`, `YYYY-MM-DD-adversarial-review.md`); `/show-spec-working` may reuse the step 11 evidence and must show `evidence` rows `entailed` and `cited` from a real `ask` over acme-shop and the `usage.verification` of that answer
+- [x] 15.4 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report
 - [ ] 15.5 Commit the fixes to the same pull request (push confirmed with the author); re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
 - [ ] 15.6 Before the archive, update the Purpose of `openspec/specs/evidence-verification/spec.md` (a delta cannot change it) to cover the semantic check, the verification cache and the entailment policy
 - [ ] 15.7 `/opsx:archive`, and commit the archive to the same pull request; the author merges afterwards (never before the archive commit)

@@ -286,4 +286,26 @@ Rollback is reverting the PR: the schema already accepts every value.
 
 ## Follow-ups
 
-(Filled during the pre-merge review: one row per finding with its A/B/C/D destination.)
+Pre-merge review of 2026-10-15 (`reports/2026-10-15-verify-against-spec.md`,
+`reports/2026-10-15-adversarial-review.md`). A: fixed in this change; B: handed to the issue that needs
+it; C: technical-debt issue; D: no action, with the reason.
+
+| Finding | Destination |
+|---|---|
+| Major — no real model had received `VERIFY_SYSTEM_PROMPT` (only the stub) | A — the author chose to run it (2026-10-15): Ollama on CPU, the real `ask` with the stub's answer and the verifier forwarded to `qwen2.5-coder` gave clean `{"entails": …}` on every pair, `entailed` for a statement its excerpt shows and `cited` for a vague one; addendum to `reports/2026-10-15-show-spec-working.md` |
+| Real-model output: `llama3.2` put prose before a valid `{"entails": true}`, which became `invalid-output` | D — the author keeps the strict parse (2026-10-15): it fails closed, and the configured `qwen2.5-coder` follows the format; a verifier model has to return the bare JSON |
+| Real-model output: with `qwen2.5-coder` as the answer model, `explain` answered `UNKNOWN (invalid-model-output)` (`invalid_json`, 509 bytes) before any `verify` call | D — outside this change: the quarantine of the answer (DIS-39) is not modified here; reported to the author |
+| Question — without `LLM_MODEL_VERIFY` the answer model checks its own statements, and the model is not in the cache key | D — the author accepts it (2026-10-15); stated in the requirement "Semantic citation check" as a known consequence; the cache lives one process with a fixed configuration (D2) |
+| W1 — "Explain receives a new verification cache per run" did not check the default bound | A — the test now fills the cache to `MAX_VERIFICATION_CACHE_ENTRIES` + 1 and checks the first key is evicted |
+| W2 / adversarial Minor — the pool test sampled sessions only during the `answer` call | A — it samples every model call (`answer` and `verify`) and checks none holds a transaction |
+| W3 — the explain scenario cannot show the `answer` call's cost is excluded (both models unpriced) | D — `explain` never passes a cost table (design S1); the exclusion is shown at unit level by "The usage counts only the verifier's resolved calls" and by the tokens in the explain scenario |
+| U1 — the `costTable` parameter of `verifyEntailment` was not in the spec | A — added to the requirement "Semantic citation check" (author choice, 2026-10-15) |
+| U2 — exports beyond the spec (`verificationKey`, `buildVerifyMessages`, `applyEntailment`, the types) | D — the author keeps them public (2026-10-15): design S1 makes the check reusable by DIS-42 and DIS-71 without `explain` |
+| U3 — the strictness sentence of `VERIFY_SYSTEM_PROMPT` was not in the spec | A — added to the requirement (author decision Q1 already accepted it) |
+| U4 — the `RangeError` message names `maxEntries` beyond the spec | A — added to the requirement "Verification cache" |
+| Minor — "A changed statement or excerpt misses the cache" did not change the path, the first line or the truncation mark | A — three more cases in the test, no spec change |
+| Minor — the pair-order test of `verifyAnswer` built its expectation with `buildVerifyMessages` | A — one cut pair is now asserted literally |
+| Minor — claims stored before DIS-70 keep `statementType: 'FACT'` and show as `[FACT]` prior claims | D — development data only: no deployment holds claims (the local database had none before this change), and `ask` is the only writer |
+| Minor — no per-answer cap on `verify` calls; the daily budget reads a spend nothing writes yet | B — DIS-74, comment posted 2026-10-15 |
+| Minor — `.claude/sdd-harness.env` carries `KIT_PROTECT_SPECS="0"`; `tests/support/sample-graph.ts` shows modified with no diff | D — process: neither is staged; the env file is edited by hand only (the author restores it), the other is a stat-only change of a blob already stored with CRLF |
+| Question — specs and code were committed 8 s apart | D — attested in the step 10 addendum: the four delta specs were last written at 12:26–12:50, before the first RED of the apply; the only later edit is this review's A fixes to `evidence-verification` |
