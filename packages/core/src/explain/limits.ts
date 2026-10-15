@@ -5,6 +5,12 @@
 /** Largest model output, in UTF-8 bytes, that is parsed: bounds parse memory and time against a runaway or adversarial output. */
 export const MAX_MODEL_OUTPUT_BYTES = 65_536;
 
+/**
+ * Largest output of the semantic check's verifier, in UTF-8 bytes, that is parsed (DIS-70 design S4):
+ * the only accepted output is `{"entails": true|false}`, so anything longer is invalid without parsing it.
+ */
+export const MAX_VERIFY_OUTPUT_BYTES = 1_024;
+
 /** Longest `answer`, in Unicode code points: the answer is a summary; detail belongs in statements, which carry evidence. */
 export const MAX_ANSWER_CHARS = 2_000;
 

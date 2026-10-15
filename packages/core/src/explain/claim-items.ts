@@ -35,21 +35,35 @@ export interface TypedStatement {
   evidenceIds: readonly [string, ...string[]];
 }
 
+/** The verification of a statement or of one of its citations after the semantic check (DIS-70). */
+export type StatementVerification = 'entailed' | 'cited';
+
+/**
+ * A typed statement after the entailment policy (DIS-70 design S5): its type capped (`FACT` only when
+ * every citation is `entailed`), its verification, and the verdict of each citation.
+ */
+export interface VerifiedStatement extends TypedStatement {
+  /** `entailed` when every citation is `entailed`, `cited` otherwise. */
+  verification: StatementVerification;
+  /** The verdict of each citation, position by position with `spans`. */
+  evidenceVerifications: readonly [StatementVerification, ...StatementVerification[]];
+}
+
 /**
  * Maps the typed statements of one answer to the claims to store: as subject the symbol name of the
  * first cited span (its path when it has no symbol, never the question), as predicate
  * {@link CLAIM_PREDICATE_EXPLAINS}, as object the text; layer `L2`, type `INFERENCE`, status
- * `current`, no confidence; the statement type in the provenance. One evidence per cited span, with
- * its redacted text as excerpt (cut when the span was over the limit, without the truncation mark or
- * neutralisation) and verification `cited`: only citations that passed the syntactic check reach it
- * (DIS-68; DIS-70 passes the verdict per span once `entailed` exists).
+ * `current`, no confidence; the statement type (after the entailment policy) in the provenance. One
+ * evidence per cited span, with its redacted text as excerpt (cut when the span was over the limit,
+ * without the truncation mark or neutralisation) and as verification the verdict of its (statement,
+ * citation) pair, `entailed` or `cited`: only citations that passed the syntactic check reach it.
  *
  * @param provenance What every claim of the answer shares.
- * @param statements The typed statements, in the model's order.
+ * @param statements The verified statements, in the model's order.
  */
 export function toClaimItems(
   provenance: AnswerProvenance,
-  statements: readonly Pick<TypedStatement, 'text' | 'type' | 'spans'>[],
+  statements: readonly Pick<VerifiedStatement, 'text' | 'type' | 'spans' | 'evidenceVerifications'>[],
 ): ClaimItem[] {
   const inputSpans = provenance.packSpans.map(({ fileId, startLine, endLine }) => ({ fileId, startLine, endLine }));
   return statements.map((statement) => {
@@ -72,11 +86,11 @@ export function toClaimItems(
           statementType: statement.type,
         },
       },
-      evidence: statement.spans.map((span) => ({
+      evidence: statement.spans.map((span, j) => ({
         fileId: span.fileId,
         startLine: span.startLine,
         endLine: span.endLine,
-        verification: 'cited',
+        verification: statement.evidenceVerifications[j],
         excerpt: span.text,
       })),
     };

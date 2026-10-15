@@ -7,6 +7,7 @@ import type { LlmConfig } from '@codemind/adapter-llm';
 import { createPostgresStore } from '@codemind/adapter-store-postgres';
 import {
   BudgetExhausted,
+  createInMemoryVerificationCache,
   explain as coreExplain,
   InvalidExplainRequest,
   LlmUnavailable,
@@ -62,9 +63,10 @@ export interface AskCommandDeps {
 
 /**
  * Runs `ask <project> <question>` (DIS-40): resolves the project by its exact name, asks `explain`
- * once and prints the answer, or `UNKNOWN (<reason>)`, to stdout; the answer's events go to stderr as
- * JSON lines, `evidence_broken` at level `error` and every other event at `info`, whatever the exit
- * code. Every usage and configuration error is detected before any connection is opened
+ * once, with a new in-memory verification cache (DIS-70), and prints the answer, or
+ * `UNKNOWN (<reason>)`, to stdout, without the verification of a statement or the answer's usage; the
+ * answer's events go to stderr as JSON lines, `evidence_broken` at level `error` and every other event
+ * (`entailment_unverified` included) at `info`, whatever the exit code. Every usage and configuration error is detected before any connection is opened
  * (design D2), and every connection is closed before it returns. It never touches `process`: it
  * returns the exit code — `0` an answer, an `UNKNOWN` or the help; `1` a configuration, connection,
  * domain or unexpected error; `2` a usage error or an invalid question. On error stdout stays empty
@@ -93,12 +95,20 @@ export async function runAskCommand(argv: string[], deps: AskCommandDeps): Promi
           ? withDailyBudget(model, { store, dailyBudgetUsd: config.dailyBudgetUsd, now })
           : model;
       const answer = await (deps.explain ?? coreExplain)(
-        { store, source: deps.source ?? createGitSourceTree(), llm, workspaceRoot: REPO_ROOT, now },
+        {
+          store,
+          source: deps.source ?? createGitSourceTree(),
+          llm,
+          workspaceRoot: REPO_ROOT,
+          now,
+          // One cache per run, which is one per process: only pairs repeated within the answer hit it (DIS-70 D2).
+          verificationCache: createInMemoryVerificationCache(),
+        },
         { projectId: project.id, question: parsed.question },
       );
       deps.stdout.write(answer.kind === 'unknown' ? formatUnknown(answer) : formatAnswer(answer));
       const logger = createLogger(deps.stderr);
-      // A broken citation is a system failure (DIS-68); every other event is information.
+      // A broken citation is a system failure (DIS-68); every other event, `entailment_unverified` included, is information.
       for (const event of answer.events) (event.type === 'evidence_broken' ? logger.error : logger.info)({ ...event });
       return 0;
     } finally {

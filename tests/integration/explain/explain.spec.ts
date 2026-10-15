@@ -7,7 +7,7 @@ import type { Client } from 'pg';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { createGitSourceTree } from '@codemind/adapter-git';
 import { createPostgresStore } from '@codemind/adapter-store-postgres';
-import { buildContextPack, explain } from '@codemind/core';
+import { buildContextPack, createInMemoryVerificationCache, explain } from '@codemind/core';
 import type { ContextSpan, ExplainAnswer, FilledContextPack, StorePort } from '@codemind/core';
 import { runIndexCommand } from '../../../packages/cli/src/commands/index-repository';
 import type { OpenTransaction } from '../../../packages/cli/src/compose-index';
@@ -109,10 +109,18 @@ describeWithDatabase('explain over the indexed acme-shop (DIS-39)', () => {
       ]),
     );
     const answer = await explain(
-      { store, source: createGitSourceTree(), llm: model.llm, workspaceRoot: WORKSPACE_ROOT, now: () => NOW },
+      {
+        store,
+        source: createGitSourceTree(),
+        llm: model.llm,
+        workspaceRoot: WORKSPACE_ROOT,
+        now: () => NOW,
+        verificationCache: createInMemoryVerificationCache(),
+      },
       { projectId, question: Q1 },
     );
-    expect(model.requests.map((request) => request.purpose)).toEqual(['answer']);
+    // DIS-70: the answer, then one `verify` per (statement, citation) pair; the default verifier entails.
+    expect(model.requests.map((request) => request.purpose)).toEqual(['answer', 'verify', 'verify']);
     const sentHash = createHash('sha256').update(JSON.stringify(model.requests[0]!.messages), 'utf8').digest('hex');
     return { answer, pack, projectId, requests: model.requests.length, sentHash, cited: [calculator!, heuristic!] };
   }
@@ -124,12 +132,12 @@ describeWithDatabase('explain over the indexed acme-shop (DIS-39)', () => {
       const { answer, pack, requests } = await explainQ1();
 
       // Assert
-      expect(requests).toBe(1);
+      expect(requests).toBe(3);
       expect(answer).toMatchObject({ kind: 'answered', persisted: true });
       if (answer.kind !== 'answered') return;
       expect(answer.statements.map((s) => [s.type, s.status, s.verification])).toEqual([
-        ['FACT', 'current', 'cited'],
-        ['INFERENCE', 'current', 'cited'],
+        ['FACT', 'current', 'entailed'],
+        ['INFERENCE', 'current', 'entailed'],
       ]);
       // DIS-68: the real files of acme-shop verify `cited` through real git: no false `broken`.
       expect(answer.events).toEqual([]);
@@ -139,7 +147,7 @@ describeWithDatabase('explain over the indexed acme-shop (DIS-39)', () => {
         [ids],
       );
       expect(rows).toHaveLength(2);
-      expect(rows.map((row) => row.verification)).toEqual(['cited', 'cited']);
+      expect(rows.map((row) => row.verification)).toEqual(['entailed', 'entailed']);
       for (const entry of answer.evidence) {
         const span = pack.spans.find((s) => s.path === entry.path && s.startLine === entry.startLine)!;
         expect(rows.find((row) => row.id === entry.id)?.excerpt).toBe(span.text);
@@ -209,11 +217,19 @@ describeWithDatabase('explain over the indexed acme-shop (DIS-39)', () => {
 
       // Act
       const answer = await explain(
-        { store, source: createGitSourceTree(), llm: model.llm, workspaceRoot: WORKSPACE_ROOT, now: () => NOW },
+        {
+          store,
+          source: createGitSourceTree(),
+          llm: model.llm,
+          workspaceRoot: WORKSPACE_ROOT,
+          now: () => NOW,
+          verificationCache: createInMemoryVerificationCache(),
+        },
         { projectId, question: Q1 },
       );
 
       // Assert
+      expect(model.requests.map((request) => request.purpose)).toEqual(['answer', 'verify']);
       expect(answer).toMatchObject({ kind: 'answered', persisted: false });
       expect(answer.events).toEqual([{ type: 'claims_not_persisted', code: 'store-write-failed' }]);
       const events = JSON.stringify(answer.events);

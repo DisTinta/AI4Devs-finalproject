@@ -109,5 +109,43 @@ export interface EvidenceBrokenEvent {
   reason: EvidenceBrokenReason;
 }
 
+/**
+ * Why the semantic check left a citation `cited` without an answer from the verifier (DIS-70 design
+ * S7, decision D3): its output was not `{"entails": boolean}`; the model was unavailable; the daily
+ * budget was exhausted. A closed set, so no free text can leak.
+ */
+export const ENTAILMENT_UNVERIFIED_REASONS = ['invalid-output', 'llm-unavailable', 'budget-exhausted'] as const;
+
+/** A reason of {@link ENTAILMENT_UNVERIFIED_REASONS}. */
+export type EntailmentUnverifiedReason = (typeof ENTAILMENT_UNVERIFIED_REASONS)[number];
+
+/**
+ * A (statement, citation) pair of the answer could not be checked semantically: the citation stays
+ * `cited` and its statement is never a `FACT` because of it. One per such pair. It locates the
+ * statement and the cited span and carries no statement, excerpt, verifier output, prefix or hash of
+ * them.
+ */
+export interface EntailmentUnverifiedEvent {
+  /** Discriminant. */
+  type: 'entailment_unverified';
+  /** Position, from 0, of the statement in the answer's statements. */
+  statementIndex: number;
+  /** The evidence id of the span in the prompt (`E1…En`). */
+  evidenceId: string;
+  /** The cited span's repository-relative file path. */
+  path: string;
+  /** First cited line. */
+  startLine: number;
+  /** Last cited line (a cut span ends at its kept last line). */
+  endLine: number;
+  /** Why the citation was not checked. */
+  reason: EntailmentUnverifiedReason;
+}
+
 /** An event of an explain answer. */
-export type ExplainEvent = SchemaViolationEvent | ClaimsNotPersistedEvent | SanitizationEvent | EvidenceBrokenEvent;
+export type ExplainEvent =
+  | SchemaViolationEvent
+  | ClaimsNotPersistedEvent
+  | SanitizationEvent
+  | EvidenceBrokenEvent
+  | EntailmentUnverifiedEvent;
