@@ -124,6 +124,11 @@ it SHALL fail to type-check and SHALL be rejected at run time with an error, nev
 A chain with a missing position (a sparse array), or with a position that is `undefined` or `null`,
 SHALL be rejected the same way, with the same error: every position SHALL hold a cited span.
 
+This rule types the evidence chain only and SHALL NOT read any verification verdict. The type an
+answer of `explain` shows and stores is this type capped by the entailment policy of
+`evidence-verification`: a statement this rule types `FACT` is answered `FACT` only when every one of
+its citations is `entailed`.
+
 #### Scenario: A chain of anchor and exact evidence is a fact
 
 - **WHEN** a statement citing one `anchor` span and one `exact` span is typed
