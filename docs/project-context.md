@@ -563,7 +563,8 @@ services that must be started first, quirks of the local environment.
     an `L2` `INFERENCE` claim with `provenance.statementType: 'FACT'` (DIS-39, ADR above).
   - `packages/core/src/explain/statement-schema.ts`: `parseModelOutput(text, knownEvidenceIds)` —
     size (`MAX_MODEL_OUTPUT_BYTES`, UTF-8) → JSON (the whole output, or the body of exactly one
-    Markdown code fence ` ``` ` / ` ```json ` enclosing it, DIS-72 design C9; text outside the fence is
+    Markdown code fence ` ``` ` / ` ```json ` enclosing it, with only JSON whitespace around it and LF
+    or CRLF line breaks, DIS-72 design C9; text outside the fence, a BOM or a non-breaking space is
     still `invalid_json`; size and event use the raw text) → strict schema (no `type` field; limits in
     `explain/limits.ts`, character lengths in **code points**, as Zod 4.6.5 measures them) → repeated
     ids → unknown ids. Any failure discards the whole output with a `SchemaViolationEvent`.
