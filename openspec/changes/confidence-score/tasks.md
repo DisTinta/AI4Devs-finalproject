@@ -105,7 +105,7 @@ Added on 2026-10-15 by the author's decision (`proposal.md` → Why), after the 
 
 ## 13. Pull request preparation
 
-- [ ] 13.1 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the author's Why transcribed (DIS-72 `[enhanced]` D1–D4, the author's rulings on D5–D8 and Q1–Q3 from the spec audit, and the author's weight reasons of step 9) and the Stryker score
+- [x] 13.1 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the author's Why transcribed (DIS-72 `[enhanced]` D1–D4, the author's rulings on D5–D8 and Q1–Q3 from the spec audit, and the author's weight reasons of step 9) and the Stryker score
 
 ## 14. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
