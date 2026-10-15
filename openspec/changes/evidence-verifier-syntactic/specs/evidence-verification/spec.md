@@ -12,13 +12,15 @@ The syntactic check SHALL take the source reader, a repository root, a commit an
 citations, and SHALL return one verdict per citation, in the order given. A citation carries a
 repository-relative path, a first and a last line, its excerpt (the text the answer froze for those
 lines) and, optionally, how the sanitisation of `explain` cut it: `lines` (cut at a line boundary) or
-`line-cut` (cut inside its first line). A verdict SHALL be `cited`, or `broken` with exactly one
+`line-cut` (cut inside its first line), together with its original last line, the last line of the
+range before the cut. A verdict SHALL be `cited`, or `broken` with exactly one
 reason from the exported closed set `EVIDENCE_BROKEN_REASONS`, checked in this order:
 
 1. `file-missing`: the path does not exist at the commit (the source reader rejects it with
    `SourceUnavailable`, reason `missing`);
-2. `range-out-of-file`: the first line is below 1, the last line is below the first, or the last line
-   is beyond the file's last line (requirement "Expected text of a cited range");
+2. `range-out-of-file`: the first line, the last line or the original last line is not an integer,
+   the first line is below 1, the last line is below the first, or the last line or the original last
+   line is beyond the file's last line (requirement "Expected text of a cited range");
 3. `excerpt-mismatch`: the excerpt is not exactly the expected text of the range.
 
 The check SHALL read every distinct path of the citations exactly once, all of them in one batched
@@ -28,7 +30,9 @@ the check SHALL read each distinct path alone, once, to tell the missing paths f
 missing path gives `file-missing` to every citation of it. Any other rejection, of the batched read
 or of a single read (`SourceUnavailable` with another reason, a git failure, any other error), SHALL
 propagate unchanged. When the batched read rejected with reason `missing`, the contents of the single
-reads are the ones checked.
+reads are the ones checked. A batched read that resolves to a different number of contents than the
+paths it was given breaks the source reader's contract: the check SHALL fail with an error naming
+neither a path's content nor an excerpt, and SHALL NOT turn it into verdicts.
 
 The commit SHALL be a parameter of the check, never read from the project: the same citations and
 commit always give the same verdicts. The check SHALL write nothing to any log, and a verdict SHALL
@@ -61,6 +65,19 @@ carry no part of the file's content or of the excerpt.
   rejects with reason `missing` and the single read of another path rejects with reason
   `binary-content`
 - **THEN** the check fails with that same error each time
+
+#### Scenario: Non-integer lines are out of the file
+
+- **GIVEN** a source holding `app/B.php` with 20 lines at commit `C`
+- **WHEN** citations of `app/B.php` with lines `NaN`–`NaN` (empty excerpt), `1.5`–`3` and `1`–`2.5`
+  are checked at `C`
+- **THEN** the three verdicts are `broken` with `range-out-of-file`
+
+#### Scenario: A short batched read is an error
+
+- **GIVEN** a source reader whose batched read resolves to one content for two distinct paths
+- **WHEN** citations of both paths are checked
+- **THEN** the check fails with an error, and no single-file read was made
 
 #### Scenario: No citation reads nothing
 
@@ -112,6 +129,14 @@ exact, code unit by code unit, with no normalisation of whitespace, case, line b
 - **WHEN** it is checked at `C`
 - **THEN** its verdict is `cited`
 - **AND** a citation whose excerpt is one code point shorter is `broken` with `excerpt-mismatch`
+
+#### Scenario: A cut span whose original range leaves the file is broken
+
+- **GIVEN** a file of 12 lines at commit `C`, and a citation of lines 1–10 cut at a line boundary
+  whose excerpt is those lines and whose original last line is 15
+- **WHEN** it is checked at `C`
+- **THEN** its verdict is `broken` with `range-out-of-file`
+- **AND** the same citation with original last line 12 is `cited`
 
 #### Scenario: A last line without a final line feed matches
 

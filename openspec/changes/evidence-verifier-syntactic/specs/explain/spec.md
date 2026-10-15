@@ -149,7 +149,7 @@ evidence ids name (the typing rule of `claims-and-typing`), then verify the cita
 
 - the syntactic check of `evidence-verification` SHALL run once over the distinct cited evidence ids,
   in evidence-id order, each as a citation of its span's path, first and last line, its text as
-  excerpt and how the sanitisation cut it; at the commit the pack was read at (never the project's
+  excerpt and how the sanitisation cut it, with its last line before the cut; at the commit the pack was read at (never the project's
   indexed commit at the time of the check) and from the root the pack was read from. Spans of the pack
   that no statement cites SHALL NOT be checked nor read for it;
 - the output policy of `evidence-verification` SHALL then drop the `broken` citations and the

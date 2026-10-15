@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { explain, sanitizeForPrompt, SourceUnavailable } from '@codemind/core';
+import { explain, sanitizeForPrompt, SourceUnavailable, UNKNOWN_REASONS } from '@codemind/core';
 import type { ContextSpan, FilledContextPack } from '@codemind/core';
 import { acmeShopGraph } from '../../support/acme-shop-graph';
 import { COMMIT, doubles, linesOf, ownGraph, packOf, Q1, rejection } from '../../support/explain-doubles';
@@ -102,6 +102,7 @@ describe('Requirement: Precedence and UNKNOWN answers', () => {
     });
     expect(d.order).toEqual(['findClaimsOverlapping', 'complete']);
     expect(d.loaded.calls.saveClaims).toBe(0);
+    expect(UNKNOWN_REASONS).toEqual(['no-anchor', 'llm-required', 'over-budget', 'invalid-model-output', 'no-evidence', 'broken-evidence']);
   });
 
   it('A verification read failure propagates without writing', async () => {
@@ -160,7 +161,8 @@ describe('Requirement: Answer with typed statements', () => {
       [heuristicSpan!.path, heuristicSpan!.startLine, 'cited', heuristicSpan!.text],
     ]);
     // `packOf` read once and explain's pack once, before the model; then the verification alone.
-    expect(d.batchReads.slice(2)).toEqual([{ root: ROOT, commit: COMMIT, paths: [anchorSpan!.path, heuristicSpan!.path] }]);
+    expect(d.batchReads.slice(2)).toEqual([{ root: pack.root, commit: pack.commit, paths: [anchorSpan!.path, heuristicSpan!.path] }]);
+    expect([pack.root, pack.commit]).toEqual([ROOT, COMMIT]);
     expect(d.batchReads[2]?.paths).not.toContain(thirdSpan!.path);
     expect(d.reads).toEqual([]);
   });

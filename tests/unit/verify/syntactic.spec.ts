@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MAX_EVIDENCE_TEXT_CHARS, redactSecrets, REDACTION_MARKER, SourceUnavailable, verifyCitations } from '@codemind/core';
+import { EVIDENCE_BROKEN_REASONS, MAX_EVIDENCE_TEXT_CHARS, redactSecrets, REDACTION_MARKER, SourceUnavailable, verifyCitations } from '@codemind/core';
 import type { Citation } from '@codemind/core';
 import { createInMemorySourceTree } from '../../support/in-memory-source-tree';
 import type { SourceContents } from '../../support/in-memory-source-tree';
@@ -53,7 +53,10 @@ describe('Requirement: Syntactic citation check', () => {
 
     // Assert
     expect(verdicts).toEqual([{ verification: 'cited' }, { verification: 'cited' }, { verification: 'cited' }]);
-    expect(double.batchReads[0]).toEqual({ root: ROOT, commit: C, paths: ['app/A.php', 'app/B.php'] });
+    expect(double.batchReads).toEqual([
+      { root: ROOT, commit: C, paths: ['app/A.php', 'app/B.php'] },
+      { root: ROOT, commit: C, paths: ['app/A.php', 'app/B.php'] },
+    ]);
     expect(double.calls).toEqual({ readFileAt: 0, readFilesAt: 2 });
     expect(again).toEqual(verdicts);
     for (const spy of consoleSpies) expect(spy).not.toHaveBeenCalled();
@@ -69,6 +72,8 @@ describe('Requirement: Syntactic citation check', () => {
       { path: 'app/B.php', startLine: 0, endLine: 3, excerpt: linesOf(b, 1, 3) },
       { path: 'app/B.php', startLine: 9, endLine: 8, excerpt: '' },
       citation('app/B.php', b, 1, 20),
+      // Both out of the file and not its text: the range is checked first.
+      { path: 'app/B.php', startLine: 19, endLine: 21, excerpt: 'not the text' },
     ];
 
     // Act
@@ -81,7 +86,9 @@ describe('Requirement: Syntactic citation check', () => {
       { verification: 'broken', reason: 'range-out-of-file' },
       { verification: 'broken', reason: 'range-out-of-file' },
       { verification: 'cited' },
+      { verification: 'broken', reason: 'range-out-of-file' },
     ]);
+    expect(EVIDENCE_BROKEN_REASONS).toEqual(['file-missing', 'range-out-of-file', 'excerpt-mismatch']);
     expect(double.batchReads).toEqual([{ root: ROOT, commit: C, paths: ['app/Gone.php', 'app/B.php'] }]);
     expect(double.reads).toEqual([
       { root: ROOT, commit: C, path: 'app/Gone.php' },
@@ -116,6 +123,45 @@ describe('Requirement: Syntactic citation check', () => {
     for (const double of batchDoubles) expect(double.calls).toEqual({ readFileAt: 0, readFilesAt: 1 });
     expect(mixedError).toBe(binary);
     expect(mixed.reads.map((read) => read.path)).toEqual(['app/A.php', 'app/B.php']);
+  });
+
+  it('Non-integer lines are out of the file', async () => {
+    // Arrange
+    const b = numbered('app/B.php', 20);
+    const double = sourceOf({ 'app/B.php': b });
+
+    // Act
+    const verdicts = await verifyCitations(double.source, ROOT, C, [
+      { path: 'app/B.php', startLine: Number.NaN, endLine: Number.NaN, excerpt: '' },
+      { path: 'app/B.php', startLine: 1.5, endLine: 3, excerpt: linesOf(b, 1, 3) },
+      { path: 'app/B.php', startLine: 1, endLine: 2.5, excerpt: linesOf(b, 1, 2) },
+    ]);
+
+    // Assert
+    expect(verdicts).toEqual([
+      { verification: 'broken', reason: 'range-out-of-file' },
+      { verification: 'broken', reason: 'range-out-of-file' },
+      { verification: 'broken', reason: 'range-out-of-file' },
+    ]);
+  });
+
+  it('A short batched read is an error', async () => {
+    // Arrange: a reader that breaks its contract, one content for two paths.
+    const content = '<?php' + String.fromCharCode(10);
+    const double = sourceOf({ 'app/A.php': content, 'app/B.php': content });
+    const source = { ...double.source, readFilesAt: async () => [content] };
+
+    // Act
+    const error = await verifyCitations(source, ROOT, C, [
+      { path: 'app/A.php', startLine: 1, endLine: 1, excerpt: '<?php' },
+      { path: 'app/B.php', startLine: 1, endLine: 1, excerpt: '<?php' },
+    ]).catch((rejection: unknown) => rejection);
+
+    // Assert
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toBe('source reader returned 1 contents for 2 paths');
+    expect((error as Error).message).not.toContain('<?php');
+    expect(double.calls.readFileAt).toBe(0);
   });
 
   it('No citation reads nothing', async () => {
@@ -222,6 +268,22 @@ describe('Requirement: Expected text of a cited range', () => {
 
     // Assert
     expect(verdicts).toEqual([{ verification: 'cited' }, { verification: 'cited' }]);
+  });
+
+  it('A cut span whose original range leaves the file is broken', async () => {
+    // Arrange: 12 lines; the sanitisation kept lines 1–10 of a range that ended at 15 (or at 12).
+    const content = numbered('app/Cut.php', 12);
+    const double = sourceOf({ 'app/Cut.php': content });
+    const cut = { path: 'app/Cut.php', startLine: 1, endLine: 10, excerpt: linesOf(content, 1, 10), cut: 'lines' as const };
+
+    // Act
+    const verdicts = await verifyCitations(double.source, ROOT, C, [
+      { ...cut, originalEndLine: 15 },
+      { ...cut, originalEndLine: 12 },
+    ]);
+
+    // Assert
+    expect(verdicts).toEqual([{ verification: 'broken', reason: 'range-out-of-file' }, { verification: 'cited' }]);
   });
 
   it('A last line without a final line feed matches', async () => {

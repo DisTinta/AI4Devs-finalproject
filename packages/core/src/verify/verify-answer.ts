@@ -54,10 +54,13 @@ export async function verifyAnswer(
   return { statements: applyVerdicts(statements, broken), events };
 }
 
-/** The citation of a sanitised span: its range, its text as excerpt, and its cut (design V4). */
+/** The citation of a sanitised span: its range, its text as excerpt, its cut and its last line before the cut (design V4, V13). */
 function citationOf(span: SanitizedSpan): Citation {
   const { path, startLine, endLine, text, truncation } = span;
   const citation: Citation = { path, startLine, endLine, excerpt: text };
-  if (truncation !== undefined) citation.cut = truncation.mark === TRUNCATION_LINE_CUT_MARK ? 'line-cut' : 'lines';
+  if (truncation !== undefined) {
+    citation.cut = truncation.mark === TRUNCATION_LINE_CUT_MARK ? 'line-cut' : 'lines';
+    citation.originalEndLine = truncation.originalEndLine;
+  }
   return citation;
 }

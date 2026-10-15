@@ -102,6 +102,26 @@ describe('verifyAnswer', () => {
     ]);
   });
 
+  it('passes the original last line of a cut span, so a range past its file breaks even when cut', async () => {
+    // Arrange: 100 lines of 100 characters; the graph says the symbol ends at line 105, so the pack
+    // sliced lines 1–100 and the sanitisation cut them to the lines that fit the limit.
+    const content = Array.from({ length: 100 }, (_, i) => `${`// line ${i + 1}`.padEnd(100, '.')}\n`).join('');
+    const overrun: ContextSpan = { ...wholeFile('app/Over.php', content), endLine: 105 };
+    const spanOf = spanMap([overrun]);
+    const source = createInMemorySourceTree({ [ROOT]: { [C]: { 'app/Over.php': content } } });
+    const kept = spanOf.get('E1')!;
+
+    // Act
+    const verified = await verifyAnswer(source.source, ROOT, C, [statement('S1', ['E1'], spanOf)], spanOf);
+
+    // Assert: the kept lines fit the file; only the original range does not.
+    expect(kept.truncation?.originalEndLine).toBe(105);
+    expect(kept.endLine).toBeLessThan(100);
+    expect(verified.events).toEqual([
+      { type: 'evidence_broken', evidenceId: 'E1', path: 'app/Over.php', startLine: 1, endLine: kept.endLine, reason: 'range-out-of-file' },
+    ]);
+  });
+
   it('reads only the cited spans: an uncited span is not in the batch', async () => {
     // Arrange: E2 is in the pack but no statement cites it, and its file is not even readable.
     const a = '<?php\nclass A {}\n';

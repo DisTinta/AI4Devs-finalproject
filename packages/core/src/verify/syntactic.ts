@@ -24,6 +24,11 @@ export interface Citation {
   excerpt: string;
   /** How the sanitisation cut the span; absent when it was not cut. */
   cut?: CitationCut;
+  /**
+   * The last line of the range before the sanitisation cut it; absent when it was not cut. It must
+   * fit the file too, so a range past the end of its file breaks whatever the cut kept (DIS-68 V13).
+   */
+  originalEndLine?: number;
 }
 
 /** The verdict of one citation: `cited`, or `broken` with the first reason that applies. */
@@ -56,8 +61,12 @@ export async function verifyCitations(
 /** The verdict of `citation` over its file's redacted lines (`undefined` when the file is missing). */
 function verdictOf(lines: readonly string[] | undefined, citation: Citation): CitationVerdict {
   if (lines === undefined) return broken('file-missing');
-  const { startLine, endLine } = citation;
-  if (startLine < 1 || endLine < startLine || endLine > lines.length) return broken('range-out-of-file');
+  const { startLine, endLine, originalEndLine = endLine } = citation;
+  // `Number.isInteger` first: NaN fails every comparison and `slice` truncates a fraction (DIS-68 V13).
+  const integers = [startLine, endLine, originalEndLine].every(Number.isInteger);
+  if (!integers || startLine < 1 || endLine < startLine || Math.max(endLine, originalEndLine) > lines.length) {
+    return broken('range-out-of-file');
+  }
   return expectedText(lines, citation) === citation.excerpt ? { verification: 'cited' } : broken('excerpt-mismatch');
 }
 
@@ -105,7 +114,12 @@ async function readAll(
 ): Promise<(string | undefined)[]> {
   if (paths.length === 0) return [];
   try {
-    return await source.readFilesAt(root, commit, paths);
+    const contents = await source.readFilesAt(root, commit, paths);
+    // The port never returns a partial result: a short one is its bug, not a missing file (DIS-68 V13).
+    if (contents.length !== paths.length) {
+      throw new Error(`source reader returned ${contents.length} contents for ${paths.length} paths`);
+    }
+    return contents;
   } catch (error) {
     if (!isMissing(error)) throw error;
   }
