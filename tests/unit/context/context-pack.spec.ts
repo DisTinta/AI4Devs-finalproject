@@ -368,6 +368,22 @@ describe('Requirement: Context pack', () => {
     expect(batchReads.map((read) => read.commit)).toEqual([COMMIT]);
   });
 
+  it('A pack names the root it was read from', async () => {
+    // Arrange: an absolute root path, and the seed's relative `fixtures/acme-shop`.
+    const absolute = doubles({ workspaceRoot: '/repo', project: { ...ACME_SHOP_PROJECT, rootPath: '/elsewhere/acme-shop' } });
+    const relative = doubles({ workspaceRoot: '/repo' });
+
+    // Act
+    const first = filled(await buildContextPack(absolute.deps, { projectId: absolute.projectId, question: Q1 }));
+    const second = filled(await buildContextPack(relative.deps, { projectId: relative.projectId, question: Q1 }));
+
+    // Assert: `join` gives `/repo/fixtures/acme-shop` on POSIX and its Windows form on Windows.
+    expect(first.root).toBe('/elsewhere/acme-shop');
+    expect(second.root).toBe(join('/repo', 'fixtures/acme-shop'));
+    expect(absolute.batchReads.map((read) => read.root)).toEqual([first.root]);
+    expect(relative.batchReads.map((read) => read.root)).toEqual([second.root]);
+  });
+
   it('The files of a pack are read in one batch', async () => {
     // Arrange: three anchored symbols in three files.
     const { deps, projectId, sourceCalls, batchReads } = ownProject(

@@ -128,15 +128,18 @@ describeWithDatabase('explain over the indexed acme-shop (DIS-39)', () => {
       expect(answer).toMatchObject({ kind: 'answered', persisted: true });
       if (answer.kind !== 'answered') return;
       expect(answer.statements.map((s) => [s.type, s.status, s.verification])).toEqual([
-        ['FACT', 'current', 'none'],
-        ['INFERENCE', 'current', 'none'],
+        ['FACT', 'current', 'cited'],
+        ['INFERENCE', 'current', 'cited'],
       ]);
+      // DIS-68: the real files of acme-shop verify `cited` through real git: no false `broken`.
+      expect(answer.events).toEqual([]);
       const ids = answer.statements.flatMap((s) => s.evidenceIds);
-      const { rows } = await db().query<{ id: string; excerpt: string; start_line: number }>(
-        'SELECT id, excerpt, start_line FROM evidence WHERE id = ANY($1::uuid[])',
+      const { rows } = await db().query<{ id: string; excerpt: string; start_line: number; verification: string }>(
+        'SELECT id, excerpt, start_line, verification FROM evidence WHERE id = ANY($1::uuid[])',
         [ids],
       );
       expect(rows).toHaveLength(2);
+      expect(rows.map((row) => row.verification)).toEqual(['cited', 'cited']);
       for (const entry of answer.evidence) {
         const span = pack.spans.find((s) => s.path === entry.path && s.startLine === entry.startLine)!;
         expect(rows.find((row) => row.id === entry.id)?.excerpt).toBe(span.text);

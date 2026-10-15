@@ -7,10 +7,11 @@ import type { SavedClaim } from '../knowledge/stored-claim.js';
 import type { LlmPort } from '../ports/LlmPort.js';
 import type { SourceTreePort } from '../ports/SourceTreePort.js';
 import type { StorePort } from '../ports/StorePort.js';
+import { verifyAnswer } from '../verify/verify-answer.js';
 import { toClaimItems } from './claim-items.js';
 import type { TypedStatement } from './claim-items.js';
 import type { AnswerEvidence, AnsweredExplain, ExplainAnswer, PriorClaim } from './explain-answer.js';
-import type { SanitizationEvent } from './explain-event.js';
+import type { ExplainEvent } from './explain-event.js';
 import { parseExplainRequest } from './explain-request.js';
 import type { ExplainRequest } from './explain-request.js';
 import { toPriorClaim } from './prior-claims.js';
@@ -21,8 +22,8 @@ import type { ModelOutput } from './statement-schema.js';
 import { typeStatement } from './typing-rules.js';
 import { unknown } from './unknown-policy.js';
 
-// The explain use case (DIS-39 design D4): one pass from a question to typed, stored statements, or
-// an honest `UNKNOWN`. Each step is one `return` or one call, in the order of the `explain` spec, so
+// The explain use case (DIS-39 design D4): one pass from a question to typed, verified (DIS-68), stored
+// statements, or an honest `UNKNOWN`. Each step is one `return` or one call, in the order of the `explain` spec, so
 // every branch is observable through the calls the doubles count. Core returns events; it never logs
 // the question, a span's text or the model's output.
 
@@ -46,17 +47,20 @@ export interface ExplainDependencies {
  * model is in evaluation mode (`llm-required`), builds the pack (`over-budget` when no span fits),
  * sanitises the question and the pack's spans (from then on the only spans: a span over the limit is
  * cut), reads the prior claims of those spans, asks the model once, quarantines its output
- * (`invalid-model-output`, or `no-evidence` without statements), then types each statement and stores
- * it as a claim. Every answer that reached the prompt carries the sanitisation events first. When the
- * store fails with `ClaimWriteFailed` the answer is still returned, `persisted: false`, with the
- * prompt ids.
+ * (`invalid-model-output`, or `no-evidence` without statements), types each statement, verifies the
+ * cited spans against the code the pack read (its commit and root) in one batched read and drops the
+ * broken citations and the statements left with none (`broken-evidence` when none is left), then
+ * stores each kept statement as a claim with verification `cited`. Every answer that reached the
+ * prompt carries the sanitisation events first, then the `evidence_broken` events. When the store
+ * fails with `ClaimWriteFailed` the answer is still returned, `persisted: false`, with the prompt ids.
  *
  * @param dependencies The store, the source reader, the model, the workspace root and the clock.
  * @param request The project, the question and the limits of the pack; checked before any call.
  * @throws InvalidExplainRequest naming the field at fault, before any call.
  * @throws RangeError naming `workspaceRoot` when it is not absolute, before any call.
  * @throws ProjectNotFound, SourceUnavailable, LlmUnavailable, BudgetExhausted, and any failure of the
- *   prior-claims read or of the claim write other than `ClaimWriteFailed`, unchanged.
+ *   prior-claims read, of the verification reads (other than a missing file, which breaks its
+ *   citations) or of the claim write other than `ClaimWriteFailed`, unchanged.
  */
 export async function explain(dependencies: ExplainDependencies, request: ExplainRequest): Promise<ExplainAnswer> {
   const { store, source, llm, workspaceRoot, now } = dependencies;
@@ -87,7 +91,12 @@ export async function explain(dependencies: ExplainDependencies, request: Explai
   if (!parsed.ok) return unknown('invalid-model-output', [...sanitized.events, parsed.event]);
   if (parsed.output.statements.length === 0) return unknown('no-evidence', sanitized.events);
 
-  const statements = typeStatements(parsed.output, prompt.evidenceIds);
+  const typed = typeStatements(parsed.output, prompt.evidenceIds);
+  // Checked against the code the pack read (D1): its commit and its root, never the project's now.
+  const verified = await verifyAnswer(source, pack.root, pack.commit, typed, prompt.evidenceIds);
+  const events: ExplainEvent[] = [...sanitized.events, ...verified.events];
+  if (verified.statements.length === 0) return unknown('broken-evidence', events);
+  const statements = verified.statements;
   const items = toClaimItems(
     { projectId, model: result.model, promptHash: prompt.promptHash, createdAt: now().toISOString(), packSpans: spans },
     statements,
@@ -96,10 +105,10 @@ export async function explain(dependencies: ExplainDependencies, request: Explai
   try {
     // The pack's commit: claims read at code the project no longer indexes are written stale.
     const saved = await store.saveClaims(projectId, items, pack.commit);
-    return storedAnswer(parsed.output.answer, statements, saved, priorClaims, sanitized.events);
+    return storedAnswer(parsed.output.answer, statements, saved, priorClaims, events);
   } catch (error) {
     if (!(error instanceof ClaimWriteFailed)) throw error;
-    return unsavedAnswer(parsed.output.answer, parsed.output, statements, priorClaims, sanitized.events);
+    return unsavedAnswer(parsed.output.answer, statements, priorClaims, events);
   }
 }
 
@@ -107,8 +116,9 @@ export async function explain(dependencies: ExplainDependencies, request: Explai
 function typeStatements(output: ModelOutput, spanOf: ReadonlyMap<string, ContextSpan>): TypedStatement[] {
   return output.statements.map((statement) => {
     // The quarantine accepted only known ids and at least one per statement.
-    const spans = statement.evidenceIds.map((id) => spanOf.get(id) as ContextSpan) as [ContextSpan, ...ContextSpan[]];
-    return { text: statement.text, type: typeStatement(spans), spans };
+    const evidenceIds = [...statement.evidenceIds] as [string, ...string[]];
+    const spans = evidenceIds.map((id) => spanOf.get(id) as ContextSpan) as [ContextSpan, ...ContextSpan[]];
+    return { text: statement.text, type: typeStatement(spans), spans, evidenceIds };
   });
 }
 
@@ -123,7 +133,7 @@ function storedAnswer(
   statements: readonly TypedStatement[],
   saved: readonly SavedClaim[],
   priorClaims: PriorClaim[],
-  events: SanitizationEvent[],
+  events: ExplainEvent[],
 ): AnsweredExplain {
   return {
     kind: 'answered',
@@ -137,14 +147,14 @@ function storedAnswer(
             type: 'INFERENCE' as const,
             status: 'stale' as const,
             warning: 'stale-evidence' as const,
-            verification: 'none' as const,
+            verification: 'cited' as const,
             evidenceIds: saved[i].evidenceIds,
           }
         : {
             text: statement.text,
             type: statement.type,
             status: 'current' as const,
-            verification: 'none' as const,
+            verification: 'cited' as const,
             evidenceIds: saved[i].evidenceIds,
           },
     ),
@@ -162,27 +172,26 @@ function storedAnswer(
  */
 function unsavedAnswer(
   answer: string,
-  output: ModelOutput,
   statements: readonly TypedStatement[],
   priorClaims: PriorClaim[],
-  events: SanitizationEvent[],
+  events: ExplainEvent[],
 ): AnsweredExplain {
   const evidence = new Map<string, AnswerEvidence>();
-  output.statements.forEach((statement, i) =>
+  for (const statement of statements) {
     statement.evidenceIds.forEach((id, j) => {
-      if (!evidence.has(id)) evidence.set(id, evidenceEntry(id, statements[i].spans[j]));
-    }),
-  );
+      if (!evidence.has(id)) evidence.set(id, evidenceEntry(id, statement.spans[j]));
+    });
+  }
   return {
     kind: 'answered',
     persisted: false,
     answer,
-    statements: statements.map((statement, i) => ({
+    statements: statements.map((statement) => ({
       text: statement.text,
       type: statement.type,
       status: 'current',
-      verification: 'none',
-      evidenceIds: [...output.statements[i].evidenceIds],
+      verification: 'cited',
+      evidenceIds: [...statement.evidenceIds],
     })),
     evidence: [...evidence.values()],
     priorClaims,

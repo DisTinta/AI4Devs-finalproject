@@ -80,6 +80,19 @@ module.exports = {
       },
     },
     {
+      name: 'verify-no-io',
+      comment:
+        'The evidence verifier reads code only through SourceTreePort (evidence-verification; DIS-68 ' +
+        'design V10): no file system, network, process or code execution of its own.',
+      severity: 'error',
+      from: { path: '^packages/core/src/verify/' },
+      to: {
+        dependencyTypes: ['core'],
+        path:
+          '^(node:)?(fs|net|tls|dgram|dns|http|https|http2|child_process|worker_threads|cluster|vm|wasi|inspector|sqlite|process)(/|$)',
+      },
+    },
+    {
       name: 'api-no-sql',
       comment:
         'The HTTP layer validates, delegates and serializes. Data access lives in store-postgres.',

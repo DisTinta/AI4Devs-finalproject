@@ -29,6 +29,12 @@ const PATTERN_RULES: Record<InstructionPatternCode, RegExp> = {
   'delimiter-spoof': new RegExp(MARKER_SEQUENCE_SOURCE, 'iu'),
 };
 
+/**
+ * The truncation mark of a span cut inside its first line. Exported so the evidence verifier tells a
+ * line cut from a cut at a line boundary by the same constant `truncate` writes (DIS-68 design V4).
+ */
+export const TRUNCATION_LINE_CUT_MARK = '[TRUNCATED: line cut]';
+
 /** A span of the pack after sanitisation: still a `ContextSpan`, so every later step takes it. */
 export interface SanitizedSpan extends ContextSpan {
   /** Distinct pattern codes that matched the path or the kept text, in `INSTRUCTION_PATTERNS` order. */
@@ -176,7 +182,7 @@ function truncate(span: ContextSpan): Omit<SanitizedSpan, 'flags'> {
   const keptEndLine = lineCut ? span.startLine : span.startLine + newlines - 1;
   const omitted = span.endLine - keptEndLine;
   const mark = lineCut
-    ? '[TRUNCATED: line cut]'
+    ? TRUNCATION_LINE_CUT_MARK
     : `[TRUNCATED: ${omitted} ${omitted === 1 ? 'line' : 'lines'} omitted]`;
   return {
     ...span,

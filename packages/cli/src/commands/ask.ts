@@ -63,7 +63,8 @@ export interface AskCommandDeps {
 /**
  * Runs `ask <project> <question>` (DIS-40): resolves the project by its exact name, asks `explain`
  * once and prints the answer, or `UNKNOWN (<reason>)`, to stdout; the answer's events go to stderr as
- * JSON lines. Every usage and configuration error is detected before any connection is opened
+ * JSON lines, `evidence_broken` at level `error` and every other event at `info`, whatever the exit
+ * code. Every usage and configuration error is detected before any connection is opened
  * (design D2), and every connection is closed before it returns. It never touches `process`: it
  * returns the exit code — `0` an answer, an `UNKNOWN` or the help; `1` a configuration, connection,
  * domain or unexpected error; `2` a usage error or an invalid question. On error stdout stays empty
@@ -97,7 +98,8 @@ export async function runAskCommand(argv: string[], deps: AskCommandDeps): Promi
       );
       deps.stdout.write(answer.kind === 'unknown' ? formatUnknown(answer) : formatAnswer(answer));
       const logger = createLogger(deps.stderr);
-      for (const event of answer.events) logger.info({ ...event });
+      // A broken citation is a system failure (DIS-68); every other event is information.
+      for (const event of answer.events) (event.type === 'evidence_broken' ? logger.error : logger.info)({ ...event });
       return 0;
     } finally {
       await close().catch(() => undefined);

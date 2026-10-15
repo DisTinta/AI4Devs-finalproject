@@ -13,7 +13,9 @@ import { file, symbol } from './sample-graph';
 // The doubles of the explain use-case tests (DIS-39), shared by tests/unit/explain/explain.spec.ts and
 // explain-sanitization.spec.ts (DIS-41 design D8). The store and the source tree are the in-memory
 // doubles over the acme-shop subset, whose files get a synthetic content of their stored length; the
-// model is scripted from the ids of the prompt.
+// model is scripted from the ids of the prompt. Since DIS-68 (design V9) `verificationContents` and
+// `verificationFailures` answer the source reads made after the model call (the verification read),
+// so a test can change a file between the pack's read and the verification at the same commit.
 
 export const Q1 = '¿Cómo se calcula el precio final de un pedido?';
 export const COMMIT = 'c'.repeat(40);
@@ -31,6 +33,10 @@ export interface DoubleOptions {
   graph?: KnowledgeGraph;
   project?: NewProject;
   contents?: Record<string, string>;
+  /** The files as the reads after the model call see them; `contents` when absent. */
+  verificationContents?: Record<string, string>;
+  /** Path to the error the reads after the model call reject with. */
+  verificationFailures?: Record<string, unknown>;
   failClaimWrite?: ClaimWriteFailure;
   store?: (store: StorePort) => StorePort;
 }
@@ -42,8 +48,22 @@ export function doubles(options: DoubleOptions = {}) {
   const loaded = createInMemoryStore({ projects: [{ project, graph }], failClaimWrite: options.failClaimWrite });
   const contents = options.contents ?? Object.fromEntries(graph.files.map((f) => [f.path, linesOf(f.path, f.loc ?? 1)]));
   const tree: SourceContents = { [project.rootPath]: { [COMMIT]: contents } };
-  const source = createInMemorySourceTree(tree);
   const order: string[] = [];
+  const later = options.verificationContents !== undefined || options.verificationFailures !== undefined;
+  const source = createInMemorySourceTree(
+    tree,
+    {},
+    later
+      ? {
+          after: {
+            // `scripted-llm.ts` pushes `complete` into the shared order: only reads after the model see these.
+            when: () => order.includes('complete'),
+            contents: { [project.rootPath]: { [COMMIT]: options.verificationContents ?? contents } },
+            failures: options.verificationFailures,
+          },
+        }
+      : {},
+  );
   const model = createScriptedLlm(options.mode ?? 'live', options.script, order);
   const base = options.store?.(loaded.store) ?? loaded.store;
   const store: StorePort = {
@@ -63,6 +83,8 @@ export function doubles(options: DoubleOptions = {}) {
     order,
     model,
     sourceCalls: source.calls,
+    batchReads: source.batchReads,
+    reads: source.reads,
     deps: { store, source: source.source, llm: model.llm, workspaceRoot: WORKSPACE, now: () => NOW },
   };
 }

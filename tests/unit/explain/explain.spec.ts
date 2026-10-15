@@ -21,6 +21,7 @@ import type { Claim, ContextSpan, ExplainAnswer, ExplainRequest } from '@codemin
 import { acmeShopGraph } from '../../support/acme-shop-graph';
 import {
   citingIds,
+  COMMIT,
   doubles,
   linesOf,
   NOW,
@@ -471,8 +472,8 @@ describe('Requirement: Answer with typed statements', () => {
     expect(items.map((item) => item.claim.predicate)).toEqual([CLAIM_PREDICATE_EXPLAINS, CLAIM_PREDICATE_EXPLAINS]);
     expect(CLAIM_PREDICATE_EXPLAINS).toBe('explains');
     expect(items[1]!.evidence.map((e) => [e.fileId, e.startLine, e.endLine, e.excerpt, e.verification])).toEqual([
-      [docId, 1, 41, '# Pricing', 'none'],
-      [fileId, 25, 35, 'public function compute()', 'none'],
+      [docId, 1, 41, '# Pricing', 'cited'],
+      [fileId, 25, 35, 'public function compute()', 'cited'],
     ]);
   });
 
@@ -514,8 +515,8 @@ describe('Requirement: Answer with typed statements', () => {
     expect(answer).toMatchObject({ kind: 'answered', persisted: true, answer: 'La respuesta.', events: [], priorClaims: [] });
     const types = pack.spans.slice(0, 2).map((span) => (span.origin === 'heuristic' ? 'INFERENCE' : 'FACT'));
     expect(answer.statements.map((s) => [s.text, s.type, s.status, s.verification])).toEqual([
-      ['statement 1', types[0], 'current', 'none'],
-      ['statement 2', types[1], 'current', 'none'],
+      ['statement 1', types[0], 'current', 'cited'],
+      ['statement 2', types[1], 'current', 'cited'],
     ]);
     const claims = d.loaded.storedClaims();
     expect(claims.map((claim) => claim.object)).toEqual(['statement 1', 'statement 2']);
@@ -564,13 +565,16 @@ describe('Requirement: Answer with typed statements (re-index)', () => {
     // Assert
     expect(answer).toMatchObject({ kind: 'answered', persisted: true });
     if (answer.kind !== 'answered') return;
-    expect(answer.statements.map((s) => [s.type, s.status, s.warning])).toEqual([
-      ['INFERENCE', 'stale', 'stale-evidence'],
-      ['INFERENCE', 'stale', 'stale-evidence'],
+    expect(answer.statements.map((s) => [s.type, s.status, s.warning, s.verification])).toEqual([
+      ['INFERENCE', 'stale', 'stale-evidence', 'cited'],
+      ['INFERENCE', 'stale', 'stale-evidence', 'cited'],
     ]);
+    expect(answer.events.filter((event) => event.type === 'evidence_broken')).toEqual([]);
     const stored = d.loaded.storedClaims();
     expect(stored.map((claim) => claim.status)).toEqual(['stale', 'stale']);
     expect(stored.map((claim) => (claim.provenance as { statementType?: string }).statementType)).toEqual(['FACT', 'INFERENCE']);
+    // DIS-68: `packOf`, explain's pack and the verification read all at the pack's commit, never the re-index's.
+    expect(d.batchReads.map((read) => read.commit)).toEqual([COMMIT, COMMIT, COMMIT]);
   });
 
   // Not a scenario: without a re-index the statements stay current, without a warning.
@@ -615,8 +619,8 @@ describe('Requirement: Persistence failure', () => {
     expect(answer).toMatchObject({ kind: 'answered', persisted: false, answer: 'La respuesta.', priorClaims: [] });
     if (answer.kind !== 'answered') return;
     expect(answer.statements.map((s) => [s.evidenceIds, s.status, s.verification])).toEqual([
-      [['E1', 'E2'], 'current', 'none'],
-      [['E1'], 'current', 'none'],
+      [['E1', 'E2'], 'current', 'cited'],
+      [['E1'], 'current', 'cited'],
     ]);
     expect(answer.evidence.map((e) => [e.id, e.path, e.startLine])).toEqual([
       ['E1', pack.spans[0]!.path, pack.spans[0]!.startLine],
@@ -759,6 +763,19 @@ describe('Requirement: Explain events and logging', () => {
         }),
         'big',
       ],
+      // DIS-68: every citation broken (no file left at the verification read), and one broken citation
+      // of two (app/P2.php gone at the verification read).
+      [doubles({ script: citingIds('ok', [['E1']]), verificationContents: {} }), Q1],
+      [
+        doubles({
+          project: { name: 'own', rootPath: '/repos/own', language: 'php' },
+          graph: ownGraph([file('app/P1.php'), file('app/P2.php')], [symbol('app/P1.php', 'PriceA', 1), symbol('app/P2.php', 'PriceB', 1)]),
+          contents: { 'app/P1.php': linesOf('app/P1.php', 10), 'app/P2.php': linesOf('app/P2.php', 10) },
+          verificationContents: { 'app/P1.php': linesOf('app/P1.php', 10) },
+          script: citingIds('ok', [['E1', 'E2']]),
+        }),
+        'price',
+      ],
     ];
 
     // Act
@@ -777,7 +794,10 @@ describe('Requirement: Explain events and logging', () => {
       'persisted:true',
       'persisted:false',
       'persisted:true',
+      'broken-evidence',
+      'persisted:true',
     ]);
+    expect(answers[9]!.events).toEqual([expect.objectContaining({ type: 'evidence_broken', path: 'app/P2.php', reason: 'file-missing' })]);
     expect(
       answers[7]!.events.map((event) => [event.type, 'path' in event ? event.path : undefined]).sort(),
     ).toEqual([

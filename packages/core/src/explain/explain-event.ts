@@ -79,5 +79,35 @@ export interface UntrustedContentTruncatedEvent {
 /** An event of the sanitisation of untrusted content before the prompt. */
 export type SanitizationEvent = UntrustedContentFlaggedEvent | UntrustedContentTruncatedEvent;
 
+/**
+ * Why the syntactic check found a citation `broken` (DIS-68 design V7), in the order it checks them: the
+ * path is not at the commit; the range is not inside the file; the excerpt is not the range's text. A
+ * closed set, so no free text can leak.
+ */
+export const EVIDENCE_BROKEN_REASONS = ['file-missing', 'range-out-of-file', 'excerpt-mismatch'] as const;
+
+/** A reason of {@link EVIDENCE_BROKEN_REASONS}. */
+export type EvidenceBrokenReason = (typeof EVIDENCE_BROKEN_REASONS)[number];
+
+/**
+ * A cited evidence of the answer failed the syntactic check: it was dropped from the answer and never
+ * stored (ADR 20261014). A system failure, one per broken prompt id however many statements cite it.
+ * It locates the cited span and carries no file content, excerpt, prefix or hash of them.
+ */
+export interface EvidenceBrokenEvent {
+  /** Discriminant. */
+  type: 'evidence_broken';
+  /** The evidence id of the span in the prompt (`E1…En`). */
+  evidenceId: string;
+  /** The cited span's repository-relative file path. */
+  path: string;
+  /** First cited line. */
+  startLine: number;
+  /** Last cited line (a cut span ends at its kept last line). */
+  endLine: number;
+  /** Why the citation is broken. */
+  reason: EvidenceBrokenReason;
+}
+
 /** An event of an explain answer. */
-export type ExplainEvent = SchemaViolationEvent | ClaimsNotPersistedEvent | SanitizationEvent;
+export type ExplainEvent = SchemaViolationEvent | ClaimsNotPersistedEvent | SanitizationEvent | EvidenceBrokenEvent;
