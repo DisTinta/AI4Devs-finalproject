@@ -95,7 +95,7 @@ or dependency change in the diff. No model call is added.
 
 - None: the change has no browser UI; the terminal is the client and step 10 drives it end to end
   (11.1, not applicable beyond step 10).
-- CI run of the PR (11.2): pending, linked here after the push.
+- CI run of the PR (11.2): [run 38715548456](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/38715548456) on `000db86`, all jobs green (see the addendum below).
 
 ## Outcome
 
@@ -131,3 +131,18 @@ Process note (adversarial review): the delta specs, design and tasks were first 
 `2c29886`, after the code commit `0e1aed0`, so git history alone cannot show they were not edited to
 fit the code; the spec audit of 2026-10-14 (`2026-10-14-spec-audit.md`) predates the apply and its
 Q1–Q4 match V4/V6/V10. The V13 additions are the only spec edits after the apply, decided by the author.
+
+## Addendum — CI of PR #41 (11.2)
+
+The PR fired no workflow run until the author re-enabled GitHub Actions on 2026-10-15 (the `CI` and
+`Frontend` workflows themselves were `active`; the cause of the disablement is not visible from the
+session). An empty commit, `000db86` ("ci(DIS-68): re-run CI after Actions was re-enabled"), triggered
+[run 38715548456](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/38715548456):
+
+- Jobs `scope`, `secrets`, `quality` (2m1s) and `mutation` (6m2s): all green.
+- `quality` ran the four new spec files (`tests/unit/verify/{syntactic,policy,verify-answer}.spec.ts`,
+  13 + 3 + 5 tests, and `tests/unit/explain/explain-verification.spec.ts`, 7 tests): 96 files,
+  1245 passed, 1 skipped (`tests/unit/index/path-policy.spec.ts` "A path on another Windows drive is
+  forbidden", `runIf(win32)`, skipped on the Linux runner as before this change).
+- `mutation`: final score 95.78, break threshold 80; `verify/` 97.87.
+- The `seed-build.spec.ts` failure of the base branch's last run (38604214188) did not recur.

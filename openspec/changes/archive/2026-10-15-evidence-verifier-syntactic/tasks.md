@@ -94,7 +94,7 @@
 ## 11. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
 - [x] 11.1 The change has no browser UI: the terminal is the client and step 10 drives it end to end; record "not applicable beyond step 10" in the step 9 report
-- [ ] 11.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that the new spec files ran and passed and the mutation job is ≥ 80; link the run in the step 9 report
+- [x] 11.2 After pushing (switch `gh` to the DisTinta account first, back to Cristina-JumpMath afterwards), confirm in the PR's CI run that the new spec files ran and passed and the mutation job is ≥ 80; link the run in the step 9 report
 
 ## 12. Update Technical Documentation (MANDATORY)
 
@@ -112,5 +112,5 @@
 - [x] 14.1 Open the pull request against `feature/entrega-2-CRN` (after confirming with the author; `gh` on the DisTinta account, back to Cristina-JumpMath afterwards)
 - [x] 14.2 Run `/show-spec-working`, `/verify-against-spec` and `/adversarial-review`, in this order; one report each under `openspec/changes/evidence-verifier-syntactic/reports/` (`YYYY-MM-DD-show-spec-working.md`, `YYYY-MM-DD-verify-against-spec.md`, `YYYY-MM-DD-adversarial-review.md`); `/show-spec-working` may reuse the step 10 evidence and must show `verification = 'cited'` in the `evidence` rows of a real `ask` over acme-shop
 - [x] 14.3 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report
-- [ ] 14.4 Commit the fixes to the same pull request (push confirmed with the author); re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
-- [ ] 14.5 `/opsx:archive`, and commit the archive to the same pull request; the author merges afterwards (never before the archive commit)
+- [x] 14.4 Commit the fixes to the same pull request (push confirmed with the author); re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
+- [x] 14.5 `/opsx:archive`, and commit the archive to the same pull request; the author merges afterwards (never before the archive commit)
