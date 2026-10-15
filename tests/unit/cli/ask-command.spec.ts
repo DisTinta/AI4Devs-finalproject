@@ -374,6 +374,7 @@ function answered(overrides: Partial<AnsweredExplain> = {}): AnsweredExplain {
     priorClaims: [],
     events: [],
     usage: { verification: { calls: 0, cacheHits: 0, inputTokens: 0, outputTokens: 0, costUsd: 0 } },
+    confidence: 0.5,
     ...overrides,
   } as AnsweredExplain;
 }

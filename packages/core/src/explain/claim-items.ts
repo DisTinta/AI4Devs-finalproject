@@ -1,4 +1,6 @@
 import type { ContextSpan } from '../context/context-pack.js';
+import { confidence } from '../knowledge/confidence.js';
+import type { ConfidenceStatement } from '../knowledge/confidence.js';
 import type { ClaimItem } from '../knowledge/stored-claim.js';
 import type { StatementType } from './typing-rules.js';
 
@@ -50,10 +52,28 @@ export interface VerifiedStatement extends TypedStatement {
 }
 
 /**
+ * The confidence input of a verified statement (DIS-72 design C5): each citation with its span's file
+ * id, lines, file kind and origin, and the verdict of its (statement, citation) pair.
+ */
+export function toConfidenceStatement(statement: Pick<VerifiedStatement, 'spans' | 'evidenceVerifications'>): ConfidenceStatement {
+  return {
+    citations: statement.spans.map(({ fileId, startLine, endLine, fileKind, origin }, j) => ({
+      fileId,
+      startLine,
+      endLine,
+      fileKind,
+      origin,
+      verification: statement.evidenceVerifications[j],
+    })),
+  };
+}
+
+/**
  * Maps the typed statements of one answer to the claims to store: as subject the symbol name of the
  * first cited span (its path when it has no symbol, never the question), as predicate
  * {@link CLAIM_PREDICATE_EXPLAINS}, as object the text; layer `L2`, type `INFERENCE`, status
- * `current`, no confidence; the statement type (after the entailment policy) in the provenance. One
+ * `current`, as confidence that of the statement alone (`docs/CONFIDENCE.md`, without contradiction
+ * until DIS-71); the statement type (after the entailment policy) in the provenance. One
  * evidence per cited span, with its redacted text as excerpt (cut when the span was over the limit,
  * without the truncation mark or neutralisation) and as verification the verdict of its (statement,
  * citation) pair, `entailed` or `cited`: only citations that passed the syntactic check reach it.
@@ -77,7 +97,8 @@ export function toClaimItems(
         layer: 'L2',
         type: 'INFERENCE',
         status: 'current',
-        confidence: null,
+        // No component produces contrary evidence until DIS-71.
+        confidence: confidence([toConfidenceStatement(statement)], { contradiction: false }),
         provenance: {
           model: provenance.model,
           promptHash: provenance.promptHash,

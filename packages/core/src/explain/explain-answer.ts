@@ -93,6 +93,11 @@ interface AnsweredCommon {
   events: ExplainEvent[];
   /** What the verification of this answer cost; no token of the `answer` call. */
   usage: AnswerUsage;
+  /**
+   * The confidence of all the statements together, in (0, 1): computed from their kept citations'
+   * metadata and verdicts, never self-reported; ordinal and not calibrated (`docs/CONFIDENCE.md`).
+   */
+  confidence: number;
 }
 
 /** An answer whose claims were stored: ids are evidence row ids, one evidence entry per citation. */

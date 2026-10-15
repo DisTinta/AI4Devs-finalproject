@@ -6,6 +6,7 @@ import {
   buildContextPack,
   CLAIM_PREDICATE_EXPLAINS,
   ClaimWriteFailed,
+  confidence,
   EXPLAIN_SYSTEM_PROMPT,
   explain,
   InvalidExplainRequest,
@@ -44,6 +45,12 @@ import { file, symbol } from '../../support/sample-graph';
 
 const NO_ANCHOR = '¿Dónde vive el ornitorrinco?';
 const SENTINEL = 'SENTINEL-excerpt-41b9';
+
+/** The confidence of one statement citing `span` alone, `entailed`, without contradiction (DIS-72). */
+function aloneConfidence(span: ContextSpan): number {
+  const { fileId, startLine, endLine, fileKind, origin } = span;
+  return confidence([{ citations: [{ fileId, startLine, endLine, fileKind, origin, verification: 'entailed' }] }], { contradiction: false });
+}
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -531,7 +538,7 @@ describe('Requirement: Answer with typed statements', () => {
         layer: 'L2',
         type: 'INFERENCE',
         status: 'current',
-        confidence: null,
+        confidence: aloneConfidence(pack.spans[i]!),
         predicate: 'explains',
         provenance: {
           model: SCRIPTED_MODEL,
@@ -580,6 +587,9 @@ describe('Requirement: Answer with typed statements (re-index)', () => {
     expect(stored.flatMap((claim) => claim.evidence.map((e) => e.verification))).toEqual(['entailed', 'entailed']);
     expect(stored.map((claim) => claim.status)).toEqual(['stale', 'stale']);
     expect(stored.map((claim) => (claim.provenance as { statementType?: string }).statementType)).toEqual(['FACT', 'INFERENCE']);
+    // DIS-72: each stale claim carries the confidence of its own statement, as if it were current.
+    const citedSpans = stored.map((claim) => pack.spans.find((s) => s.fileId === claim.evidence[0]!.fileId && s.startLine === claim.evidence[0]!.startLine)!);
+    expect(stored.map((claim) => claim.confidence)).toEqual(citedSpans.map(aloneConfidence));
     // DIS-68: `packOf`, explain's pack and the verification read all at the pack's commit, never the re-index's.
     expect(d.batchReads.map((read) => read.commit)).toEqual([COMMIT, COMMIT, COMMIT]);
   });
