@@ -35,7 +35,9 @@ It SHALL compute six signals, each a number in [0, 1], and return them as `evide
 6. `contradiction` = 1 when the contradiction flag is `true`, 0 otherwise.
 
 The signals SHALL depend only on these fields: never on a statement's text, an excerpt, a status or
-the model's output.
+the model's output. The signal and value functions, the two constants and the types of their input,
+options and signals SHALL be exported from the domain package, so the use cases and the tests share
+them.
 
 #### Scenario: Signals of a set backed by code and test
 
@@ -57,6 +59,10 @@ the model's output.
   each computed as a set of its own
 - **THEN** the first has `diversity` 0.25 and `crossConfirmation` 0
 - **AND** the second has `resolution` 0.5, and the third `resolution` 0
+- **AND** a set of S1 citing E1 `entailed` and S2 citing E1 `entailed` but with origin `heuristic` has
+  `resolution` 0 (one span, not every citation of it resolved)
+- **AND** a set of S1 citing E1 `entailed` and S2 citing E2 `entailed` has `crossConfirmation` 0 (code
+  and test back different statements)
 
 #### Scenario: A cited citation backs nothing
 
@@ -92,6 +98,10 @@ than with `false`.
   strictly between 0 and 1
 - **AND** every weight of `CONFIDENCE_WEIGHTS` and `EVIDENCE_SATURATION` is greater than 0, and
   `EVIDENCE_SATURATION` is an integer
+- **AND** for S1 citing E1 `entailed` then E2 `entailed`, and S2 citing E3 `cited`, E4 with origin
+  `heuristic` `entailed` and `docs/pricing.md` lines 1–20 (`doc`, `anchor`) `entailed`, the signals are
+  `{ evidence: 1, diversity: 0.75, crossConfirmation: 1, resolution: 0.6, entailment: 0.8,
+  contradiction: 0 }` and the value equals σ(w₁ + 0.75·w₂ + w₃ + 0.6·w₄ + 0.8·w₅)
 
 #### Scenario: The value is reproducible and independent of order
 
@@ -153,15 +163,19 @@ and a non-empty reason. The values of the table and those of `CONFIDENCE_WEIGHTS
 document SHALL also explain the formula, the six signals as defined in requirement "Confidence
 signals", and the limits: the contradiction signal is 0 in every answer until a component produces
 contrary evidence, no citation has the `history` category yet (diversity at most 0.75), a set with no
-signal is worth 0.5, and the value is ordinal and not calibrated. The document SHALL state that the weights were fixed once
-on the development questions of the sample repositories and are never re-tuned against the
-measurement questions.
+signal is worth 0.5, the value is ordinal and not calibrated, the value is reproducible only for the
+same verdicts, an answer's value can rise when well-backed statements are added to it (each claim
+keeps its own value), and a verdict left `cited` because the verifier was unavailable lowers the
+stored value of its claim for good. The document SHALL state that the weights were fixed once on the
+development questions of the sample repositories, list those questions and the model used, and state
+that the weights are never re-tuned against the measurement questions.
 
 #### Scenario: The published weights are the code's weights
 
 - **WHEN** the weights table of `docs/CONFIDENCE.md` is read
 - **THEN** it has exactly seven rows, w₁…w₆ and `EVIDENCE_SATURATION`, each with a non-empty reason
 - **AND** each value equals the matching value of `CONFIDENCE_WEIGHTS` or `EVIDENCE_SATURATION`
+- **AND** the row of `EVIDENCE_SATURATION` names no signal
 
 #### Scenario: The confidence document states its limits
 
@@ -169,4 +183,6 @@ measurement questions.
 - **THEN** it has the sections `Formula`, `Signals`, `Weights` and `Limits`
 - **AND** its `Limits` section states that the contradiction signal is 0 until DIS-71, that the
   diversity is at most 0.75, that a set with no signal is worth 0.5, that the value is not
-  calibrated, and that the weights are not re-tuned against the measurement questions
+  calibrated, that it is reproducible only for the same verdicts, that added well-backed statements
+  can raise an answer's value, that an unavailable verifier lowers a stored value for good, and that
+  the weights are not re-tuned against the measurement questions

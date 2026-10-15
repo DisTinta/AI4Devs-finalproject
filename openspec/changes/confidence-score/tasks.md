@@ -39,11 +39,11 @@
 
 - [x] 5.1 Identify the tests affected by the change: `grep -rn "confidence\|answered(\|AnsweredExplain\|toClaimItems(" tests/`
 - [x] 5.2 Update, because the spec changed (not to make the suite pass), and without weakening any other assertion, one file per sub-task, each followed by its own `npx vitest run <file>`; list every edited existing test with the reason in the step 8 report:
-  - [ ] 5.2a `tests/unit/explain/explain.spec.ts`: the modified scenario "An answer written after a re-index is stored stale" (each stale claim carries its statement's confidence), and the non-scenario test "stores each statement as an L2 inference that keeps its statement type" (`confidence: null` → the computed value)
-  - [ ] 5.2b `tests/integration/explain/explain.spec.ts`: the modified scenario "A fact is stored as an inferred claim that keeps its type" (rows with non-`NULL` `confidence`, first above second; answer `confidence` over both statements)
-  - [ ] 5.2c `tests/unit/cli/ask-command.spec.ts`: the helper `answered()` gains `confidence` (the type requires it; `ask`'s output is unchanged)
-  - [ ] 5.2d Any other hit of 5.1 that builds an `AnsweredExplain` or asserts `confidence: null` on a claim `explain` writes (claims seeded by hand with `confidence: null` as prior claims stay as they are)
-  - [ ] 5.2e `tests/unit/explain/explain-verification.spec.ts`: the modified scenario "An unsaved answer carries its verification, usage and unverified events" (its `confidence` with (S1, `E1`) `entailed` and (S1, `E2`) `cited`)
+  - [x] 5.2a `tests/unit/explain/explain.spec.ts`: the modified scenario "An answer written after a re-index is stored stale" (each stale claim carries its statement's confidence), and the non-scenario test "stores each statement as an L2 inference that keeps its statement type" (`confidence: null` → the computed value)
+  - [x] 5.2b `tests/integration/explain/explain.spec.ts`: the modified scenario "A fact is stored as an inferred claim that keeps its type" (rows with non-`NULL` `confidence`, first above second; answer `confidence` over both statements)
+  - [x] 5.2c `tests/unit/cli/ask-command.spec.ts`: the helper `answered()` gains `confidence` (the type requires it; `ask`'s output is unchanged)
+  - [x] 5.2d Any other hit of 5.1 that builds an `AnsweredExplain` or asserts `confidence: null` on a claim `explain` writes (claims seeded by hand with `confidence: null` as prior claims stay as they are)
+  - [x] 5.2e `tests/unit/explain/explain-verification.spec.ts`: the modified scenario "An unsaved answer carries its verification, usage and unverified events" (its `confidence` with (S1, `E1`) `entailed` and (S1, `E2`) `cited`)
 - [x] 5.3 Re-run unchanged the existing tests of the other scenarios of the three modified requirements (the thirteen scenarios of "Precedence and UNKNOWN answers", "An answer with evidence is typed, stored and returned", "The evidence of a stored answer lists every citation in order", "Cited spans are verified in one read at the pack's commit", "A broken citation is neither stored nor shown", "The subject of a claim is the symbol of its first cited span", "Citations that support their statement are entailed and facts", "A valid but irrelevant citation is cited and never a fact", "A cached pair is not verified again by a second answer", "An invalid verifier output degrades its pair to cited", "An unavailable verifier degrades every uncached pair and the answer is stored", and the other four scenarios of "Persistence failure")
 - [x] 5.4 Confirm that each `#### Scenario:` of the two delta specs maps 1:1 to a test with exactly the same name (grep each title in `tests/`)
 
@@ -109,9 +109,14 @@ Added on 2026-10-15 by the author's decision (`proposal.md` → Why), after the 
 
 ## 14. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 14.1 Open the pull request against `feature/entrega-2-CRN` (after confirming with the author; `gh` on the DisTinta account, back to Cristina-JumpMath afterwards)
-- [ ] 14.2 Set DIS-72 to In Review in Linear with a comment in Spanish linking the PR and the change
+- [x] 14.1 Open the pull request against `feature/entrega-2-CRN` (after confirming with the author; `gh` on the DisTinta account, back to Cristina-JumpMath afterwards)
+- [x] 14.2 Set DIS-72 to In Review in Linear with a comment in Spanish linking the PR and the change
 - [ ] 14.3 First confirm in the PR's CI run that the new spec files ran and passed and the mutation job is ≥ 80, and link the run in an addendum to the step 8 report; then run `/show-spec-working`, `/verify-against-spec` and `/adversarial-review`, in this order; one report each under `openspec/changes/confidence-score/reports/` (`YYYY-MM-DD-show-spec-working.md`, `YYYY-MM-DD-verify-against-spec.md`, `YYYY-MM-DD-adversarial-review.md`); `/show-spec-working` may reuse the step 10 evidence and must show `claim` rows with non-`NULL` `confidence` from a real `ask` over acme-shop and the `answer.confidence` of that answer
-- [ ] 14.4 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report
+- [x] 14.4 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report
+  - [x] 14.4a `/opsx:update`: specs (`confidence-score` "Confidence signals", "Confidence value", "Published weights"; `claims-and-typing` "Model output quarantine"), design C9 and Follow-ups, these tasks
+  - [x] 14.4b RED → GREEN: "A fence with carriage returns is accepted" and "Other whitespace around a fence discards the output" (`statement-schema.ts`: only JSON whitespace around the fence)
+  - [x] 14.4c Strengthen the tests of V1, V2, V3, A1, A2, A3 (each new assertion seen failing against a deliberately broken variant, recorded in the addendum)
+  - [x] 14.4d `docs/CONFIDENCE.md` Limits: the A4 and A5 lines; `project-context.md` C9 gotcha (JSON whitespace)
+  - [x] 14.4e Rerun `npx vitest run`, the gates and Stryker on `confidence.ts` and `statement-schema.ts`; addenda to the step 8, verify-against-spec and adversarial-review reports
 - [ ] 14.5 Commit the fixes to the same pull request (push confirmed with the author); re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
 - [ ] 14.6 `/opsx:archive`, and commit the archive to the same pull request; the author merges afterwards (never before the archive commit)

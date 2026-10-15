@@ -10,9 +10,11 @@ otherwise SHALL be discarded **whole** (no statement of it survives) with an aud
 2. It is valid JSON (subcode `invalid_json`), either as the whole output or as the content of exactly
    one Markdown code fence that encloses the whole output: an opening line of three backticks,
    optionally followed by the info string `json` in any letter case; then the JSON; then a closing
-   line of three backticks. Only whitespace MAY appear before the opening line and after the closing
-   one. Any other text outside the fence, a second fence, a fence that is not closed or another info
-   string SHALL be discarded with subcode `invalid_json`.
+   line of three backticks. Each line break of the fence MAY be a line feed or a carriage return
+   followed by a line feed. Only JSON whitespace (space, tab, carriage return, line feed) MAY appear
+   before the opening line and after the closing one. Any other text outside the fence, any other
+   character around it (such as a byte-order mark or a non-breaking space), a second fence, a fence
+   that is not closed or another info string SHALL be discarded with subcode `invalid_json`.
 3. It matches the output schema exactly: an object with `answer` (a string of 1 to 2 000 characters)
    and `statements` (0 to 20 objects, each with `text`, a string of 1 to 500 characters, and
    `evidenceIds`, 1 to 10 strings). No other field is allowed at any level; in particular a `type`
@@ -121,6 +123,20 @@ counts as one); the minimum lengths (1 character) are measured the same way.
   string `JSON`, then with no info string, then with a line break before the opening line and spaces
   after the closing one
 - **THEN** each is accepted with the same answer and statements as the unwrapped output
+
+#### Scenario: A fence with carriage returns is accepted
+
+- **GIVEN** the known evidence id `E1`
+- **WHEN** the conforming output is checked wrapped in a `` ```json `` fence whose two line breaks are a
+  carriage return followed by a line feed
+- **THEN** it is accepted with the same answer and statements as the unwrapped output
+
+#### Scenario: Other whitespace around a fence discards the output
+
+- **GIVEN** the known evidence id `E1`
+- **WHEN** the fenced conforming output is checked preceded by a byte-order mark (U+FEFF), and followed
+  by a non-breaking space (U+00A0)
+- **THEN** each is discarded with subcode `invalid_json`
 
 #### Scenario: Text outside a fence discards the output
 

@@ -137,3 +137,43 @@ fenced (`proposal.md` → Why, design C9).
 - `npx vitest run tests/unit/knowledge tests/unit/explain`: 274 passed (the weights table test
   included).
 - Database after the session cleanup: `project` 1, `claim` 0, `evidence` 0, as the baseline.
+
+## Addendum — CI evidence (task 14.3, 2026-10-15)
+
+PR #43, run [38790861935](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/38790861935):
+every check passed (`scope`, `secrets`, `frontend`, `quality`, `mutation`).
+
+- `quality`: 100 files, 1295 passed, 1 skipped (1296). The new and changed spec files ran and passed:
+  `tests/unit/knowledge/confidence.spec.ts` (11), `tests/unit/knowledge/confidence-doc.spec.ts` (2),
+  `tests/unit/explain/statement-schema.spec.ts` (24). The skipped test is in
+  `tests/unit/index/path-policy.spec.ts`, which this change does not touch; it is platform-dependent
+  (it runs on the Windows machine, where the local suite reported 0 skipped).
+- `mutation`: final score 95.80 (break threshold 80); `confidence.ts` 97.06, `statement-schema.ts`
+  97.09, the same survivors as locally.
+
+## Addendum — review fixes (task 14.4, 2026-10-15)
+
+Findings of `2026-10-15-verify-against-spec.md` and `2026-10-15-adversarial-review.md`, destinations in
+`design.md` → Follow-ups, approved by the author ("si, adelante con el plan").
+
+- 14.4b: "A fence with carriage returns is accepted" passed at once (characterisation: the C9 pattern
+  already took `\r?\n`); "Other whitespace around a fence discards the output" RED (`trim()` accepted a
+  BOM and a non-breaking space) → GREEN (`FENCED_OUTPUT` allows only `[ \t\r\n]` around the fence,
+  no `trim()`).
+- 14.4c: strengthened tests, each seen failing against a deliberately broken variant, then restored:
+
+  | Finding | Broken variant | Result |
+  |---|---|---|
+  | V1 | `confidence()` swallows the `RangeError` | `expected function to throw an error, but it didn't` |
+  | A3a | `resolution` last write wins per span | first attempt passed (the `heuristic` citation came last); test extended to both orders → `expected 1 to be +0` |
+  | A3b | `crossConfirmation` set-wide | `expected 1 to be +0` |
+  | A2 | `w.resolution` multiplied by `entailment` | `expected 0.9292… to be 0.9223…` |
+  | V3 | `EVIDENCE_SATURATION` row names `evidence` | `expected 'evidence' to be '—'` |
+  | A1 | the unsaved run answers `UNKNOWN` | `[ [ 'answered', true ], … ]` mismatch |
+  | V2 | the new Limits sentences missing | `expected '…' to contain 'Adding well-backed statements…'` (RED before 14.4d) |
+
+- Suite: 100 files, 1298 passed. `lint`, `typecheck`, `docs:coverage` clean; `lint:architecture`
+  0 errors (the same 3 warnings).
+- Mutation: `confidence.ts` 97.06 (same 2 survivors), `statement-schema.ts` 97.17 (103 killed, the same
+  3 equivalent `'utf8'` survivors); global 95.65.
+- Data state: `project` 1, `claim` 0, `evidence` 0.

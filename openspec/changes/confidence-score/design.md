@@ -217,8 +217,12 @@ every answer was discarded `invalid_json`. The author asked to solve it in this 
 → Why).
 
 Before `JSON.parse`, the quarantine unwraps **one** fence when, and only when, the whole output
-(leading and trailing whitespace aside) is: a line holding three backticks optionally followed by
-`json` in any case, a line break, the body, a line break, and a line holding three backticks. The body
+(leading and trailing JSON whitespace aside: space, tab, carriage return, line feed; not the wider set
+`String.prototype.trim` removes, such as a byte-order mark or a non-breaking space) is: a line holding three backticks optionally followed by
+`json` in any case, a line break (`
+` or `
+`), the body, a line break, and a line holding three
+backticks. The body
 is then parsed and goes through checks 3–5 unchanged. Anything else (text before or after, two fences,
 an unclosed fence, another info string such as `js`) is not unwrapped, so `JSON.parse` fails and the
 output is discarded `invalid_json` as before: the quarantine stays fail-closed. The size check runs
@@ -268,4 +272,26 @@ again. The seed is rebuilt only because its fingerprint covers `knowledge/`; its
 
 ## Follow-ups
 
-None yet.
+Destinations: A fixed in this change, B moved to an existing ticket, C new debt, D accepted and
+documented. Findings of `reports/2026-10-15-verify-against-spec.md` (V, U) and
+`reports/2026-10-15-adversarial-review.md` (A), decided by the author on 2026-10-15 ("si, adelante con
+el plan"):
+
+| Id | Finding | Destination |
+|---|---|---|
+| V1 | "A set without citations has no confidence" did not call `confidence()` | A: the test calls both functions |
+| V2 | The limits test checked substrings only | A: it checks the document's sentences |
+| V3 | The `EVIDENCE_SATURATION` row's signal was not checked | A: scenario AND + test |
+| V4 | No confidence test uses a cut span | D: not observable; the value does not depend on a span's last line except for span identity, and the cut is applied before any citation is built |
+| V5 | 5.2a–e unticked | A |
+| U1 | `
+` around the fence unspecified | A: spec + scenario + test |
+| U2 | `trim()` decided the surrounding whitespace | A: only JSON whitespace (C9); spec + scenario + test |
+| U3 | New public exports | A for the confidence function, constants and types (spec "Confidence signals"); D for `toConfidenceStatement`, exported through the `explain/` barrel as the mapping of C5 |
+| U4 | `docs/CONFIDENCE.md` content beyond the spec | A: the questions, the model and the reproducibility limit are in "Published weights" |
+| A1 | An `UNKNOWN` third run would skip every assertion of "An answer carries the confidence of its statements" | A: `kind` asserted per run |
+| A2 | The formula test could not tell signals with equal values and weights apart | A: scenario AND with distinct signals |
+| A3 | Mixed-origin span and per-statement cross-confirmation had no discriminating test | A: two scenario ANDs + tests |
+| A4 | Added well-backed statements can raise an answer's value | D: Limits line (spec, `docs/CONFIDENCE.md`); each claim keeps its own value |
+| A5 | An unavailable verifier lowers a stored claim's value for good | D: Limits line (spec, `docs/CONFIDENCE.md`); recomputing stored values is out of scope (proposal → Non-goals) |
+| A6 | The specs were committed after the code | D: process evidence; the RED records of the step 8 report show the order |
