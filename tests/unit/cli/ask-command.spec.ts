@@ -350,7 +350,7 @@ const SPAN_B: AnswerEvidence = { id: 'ev-b', fileId: 'file-b', path: 'app/B.php'
 const SPAN_NULL: AnswerEvidence = { id: 'ev-n', fileId: 'file-n', path: 'app/N.php', startLine: 5, endLine: 6, excerpt: null };
 
 function statement(overrides: Partial<AnswerStatement> = {}): AnswerStatement {
-  return { text: 'A statement.', type: 'FACT', status: 'current', verification: 'none', evidenceIds: [SPAN_A.id], ...overrides };
+  return { text: 'A statement.', type: 'FACT', status: 'current', verification: 'cited', evidenceIds: [SPAN_A.id], ...overrides };
 }
 
 function answered(overrides: Partial<AnsweredExplain> = {}): AnsweredExplain {
@@ -554,6 +554,52 @@ describe('runAskCommand: answers', () => {
     expect(result.stdout).toContain('\nevidence:\n');
     expect(result.stdout.endsWith('\n\nnote: claims not saved\n')).toBe(true);
     expect(result.stderr).toBe('{"level":"info","type":"claims_not_persisted","code":"store-write-failed"}\n');
+  });
+
+  it('A broken citation is logged as an error', async () => {
+    const stored = answered({
+      events: [
+        { type: 'untrusted_content_truncated', evidenceId: 'E1', path: 'app/A.php', originalEndLine: 90, keptEndLine: 8 },
+        { type: 'evidence_broken', evidenceId: 'E2', path: 'app/B.php', startLine: 3, endLine: 4, reason: 'excerpt-mismatch' },
+      ],
+    });
+    const result = await run(['ask', 'acme-shop', Q1], { explain: async () => stored });
+    expect(result.exit).toBe(0);
+    expect(result.stderrLines).toHaveLength(2);
+    expect(result.stderrLines[0]!.startsWith('{"level":"info",')).toBe(true);
+    expect(result.stderrLines[1]!.startsWith('{"level":"error","type":"evidence_broken",')).toBe(true);
+    expect(Object.keys(JSON.parse(result.stderrLines[1]!) as object)).toEqual([
+      'level',
+      'type',
+      'evidenceId',
+      'path',
+      'startLine',
+      'endLine',
+      'reason',
+    ]);
+  });
+
+  it('Every citation broken answers broken-evidence', async () => {
+    const answer: UnknownExplain = {
+      kind: 'unknown',
+      answer: 'UNKNOWN',
+      reason: 'broken-evidence',
+      statements: [],
+      evidence: [],
+      events: ['E1', 'E2'].map((evidenceId) => ({
+        type: 'evidence_broken' as const,
+        evidenceId,
+        path: 'app/A.php',
+        startLine: 1,
+        endLine: 8,
+        reason: 'file-missing' as const,
+      })),
+    };
+    const result = await run(['ask', 'acme-shop', Q1], { explain: async () => answer });
+    expect(result.exit).toBe(0);
+    expect(result.stdout).toBe('UNKNOWN (broken-evidence)\n');
+    expect(result.stderrLines).toHaveLength(2);
+    for (const line of result.stderrLines) expect(line.startsWith('{"level":"error","type":"evidence_broken",')).toBe(true);
   });
 
   it('Explain receives only the project id and the question', async () => {

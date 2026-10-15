@@ -152,8 +152,10 @@ order and nothing else:
 An empty line inside a statement text, a prior-claim text or an excerpt SHALL be printed as an empty
 line, without indentation.
 
-Every event the answer carries SHALL be written to stderr as one JSON line `{"level":"info",…event}`;
-with no events stderr SHALL stay empty. The command SHALL NOT print the question itself, and stderr
+Every event the answer carries SHALL be written to stderr as one JSON line, in the answer's order:
+`{"level":"error",…event}` for an `evidence_broken` event, which reports a system failure, and
+`{"level":"info",…event}` for every other event; with no events stderr SHALL stay empty. The level
+of an event SHALL NOT change the exit code. The command SHALL NOT print the question itself, and stderr
 SHALL NOT contain it.
 
 #### Scenario: A typed answer is printed with its evidence and stored
@@ -195,6 +197,15 @@ SHALL NOT contain it.
 - **WHEN** `ask` prints it
 - **THEN** the first statement's line is `   evidence: <B>, <A>` and the second's
   `   evidence: <A>`; the evidence section lists `B` then `A`, each exactly once
+
+#### Scenario: A broken citation is logged as an error
+
+- **GIVEN** an answer, stored, with one statement, whose events are a sanitisation event followed by
+  an `evidence_broken` event
+- **WHEN** `ask` prints it
+- **THEN** it exits with `0`; stderr is exactly two lines, the first starting `{"level":"info",` and
+  the second starting `{"level":"error","type":"evidence_broken",`, and the second line's fields are
+  exactly `level`, `type`, `evidenceId`, `path`, `startLine`, `endLine` and `reason`
 
 #### Scenario: Explain receives only the project id and the question
 
@@ -265,6 +276,14 @@ to stderr as in an answer. No claim SHALL be stored.
 - **THEN** it exits with `0`, stdout is exactly `UNKNOWN (invalid-model-output)` and a line feed,
   stderr is one line starting `{"level":"info","type":"schema_violation",` that does not contain the
   sentinel, and no `claim` row is added
+
+#### Scenario: Every citation broken answers broken-evidence
+
+- **GIVEN** an `UNKNOWN` answer with reason `broken-evidence` whose events are two `evidence_broken`
+  events
+- **WHEN** `ask` prints it
+- **THEN** it exits with `0`, stdout is exactly `UNKNOWN (broken-evidence)` and a line feed, and
+  stderr is two lines, each starting `{"level":"error","type":"evidence_broken",`
 
 ### Requirement: Ask failures
 

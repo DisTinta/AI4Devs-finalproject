@@ -285,8 +285,9 @@ fitted to a token budget.
   the call MUST fail with `RangeError` naming `anchors` before any store call. A given empty anchor
   gives a `no-anchor` pack.
 - An `ok` pack SHALL carry `status: 'ok'`, its `spans`, `tokens` (the sum of the spans' tokens),
-  `baselineTokens`, `tokenBudget`, `omitted`, `estimator: 'chars-div-4'` and `commit`, the indexed
-  commit its files were read at. Each span SHALL carry
+  `baselineTokens`, `tokenBudget`, `omitted`, `estimator: 'chars-div-4'`, `commit`, the indexed
+  commit its files were read at, and `root`, the absolute repository root its files were read from
+  (resolved as below). Each span SHALL carry
   its file's path, id and kind, its start and end line, its symbol (id, name and kind) when it comes
   from a symbol, its redacted `text`, its `tokens`, its `distance` (0 for an anchor symbol) and its
   `origin` (`anchor`, `exact` or `heuristic`).
@@ -429,6 +430,14 @@ fitted to a token budget.
 - **WHEN** acme-shop is loaded and the pack of `¿Cómo se calcula el precio final de un pedido?` is built
 - **THEN** the pack's `commit` is the project's indexed commit, the one every file of the pack was
   read at
+
+#### Scenario: A pack names the root it was read from
+
+- **WHEN** the pack of the price question is built for a project whose root path is absolute, and
+  then for a project whose root path is relative
+- **THEN** the first pack's `root` is the project's root path and the second's is that root path
+  joined to the workspace root
+- **AND** each `root` is the root the batched read received
 
 #### Scenario: The files of a pack are read in one batch
 

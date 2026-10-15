@@ -5,9 +5,17 @@ import type { ExplainEvent } from './explain-event.js';
 
 /**
  * Why `explain` answers `UNKNOWN`, in pipeline order: the question anchors nothing; the model is in
- * evaluation mode; no span fits the budget; the model output was discarded; it had no statement.
+ * evaluation mode; no span fits the budget; the model output was discarded; it had no statement;
+ * every statement lost all its citations to the syntactic check (DIS-68).
  */
-export const UNKNOWN_REASONS = ['no-anchor', 'llm-required', 'over-budget', 'invalid-model-output', 'no-evidence'] as const;
+export const UNKNOWN_REASONS = [
+  'no-anchor',
+  'llm-required',
+  'over-budget',
+  'invalid-model-output',
+  'no-evidence',
+  'broken-evidence',
+] as const;
 
 /** Why `explain` answers `UNKNOWN`. */
 export type UnknownReason = (typeof UNKNOWN_REASONS)[number];
@@ -27,8 +35,9 @@ export interface UnknownExplain {
   /** Always empty. */
   evidence: [];
   /**
-   * For an answer that reached the prompt (`invalid-model-output`, `no-evidence`), the sanitisation
-   * events, then the schema-violation event of `invalid-model-output`; empty otherwise.
+   * For an answer that reached the prompt (`invalid-model-output`, `no-evidence`, `broken-evidence`),
+   * the sanitisation events, then the schema-violation event of `invalid-model-output` or the
+   * `evidence_broken` events of `broken-evidence`; empty otherwise.
    */
   events: ExplainEvent[];
 }
@@ -41,7 +50,8 @@ export const LLM_REQUIRED_MESSAGE = 'evaluation mode (cache-only): set LLM_* to 
  *
  * @param reason Why there is no answer.
  * @param events The events to carry, in order: the sanitisation events of a prompt that was built,
- *   then the schema-violation event of a discarded output.
+ *   then the schema-violation event of a discarded output or the `evidence_broken` events of
+ *   `broken-evidence`.
  */
 export function unknown(reason: UnknownReason, events: ExplainEvent[] = []): UnknownExplain {
   return {

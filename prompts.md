@@ -57,6 +57,7 @@
 40. [Caso de uso `explain`, política `UNKNOWN` y persistencia de afirmaciones (DIS-39)](#40-caso-de-uso-explain-política-unknown-y-persistencia-de-afirmaciones-dis-39)
 41. [Comando CLI `ask` con salida legible (DIS-40)](#41-comando-cli-ask-con-salida-legible-dis-40)
 42. [Sanitización mínima del contenido no confiable antes del prompt (DIS-41)](#42-sanitización-mínima-del-contenido-no-confiable-antes-del-prompt-dis-41)
+43. [Verificador sintáctico de citas (DIS-68)](#43-verificador-sintáctico-de-citas-dis-68)
 
 ---
 
@@ -4312,3 +4313,27 @@ fijaba), y se cerraron con tests en el mismo change.
 `db:seed` y dejarlo cargado al final. Esta vez el modelo devolvió JSON válido: la respuesta se tipó y
 guardó, con el evento `untrusted_content_flagged` (línea 7, sin `pwned`) y el
 `untrusted_content_truncated` (312 → 150) en stderr.
+
+---
+
+# 43. Verificador sintáctico de citas (DIS-68)
+
+### Prompt 1 — Aplicar el change
+
+La sesión de apply arrancó con el comando, sin más texto:
+
+```
+/opsx:apply evidence-verifier-syntactic
+```
+
+**Por qué funcionó.** Las decisiones D1–D7 de la issue y el design (V1–V12) fijaban el commit y la raíz
+de la relectura, la regla del texto esperado (una sola función compartida con el pack) y el evento
+`evidence_broken`, así que el apply solo paró en el modelo de la prueba en vivo. Varios tests pasaron
+nada más escribirse porque la regla extraída en la tarea 1.1 ya los cubría; se comprobó con mutaciones
+manuales y con Stryker que no eran vacíos, y los supervivientes con sentido (el fallo de lote que no es
+`missing`, U+FFFF, la cita sin corte más larga que el límite) se cerraron con tests en el mismo change.
+
+**Ajuste humano.** La autora eligió un stub local compatible con OpenAI, fuera del repositorio, en lugar
+de `llama3.2` para el paso 10: es determinista y sirvió también para provocar el `range-out-of-file`
+real (un símbolo cuyo rango pasa del final de su fichero), que `ask` escribió en stderr con nivel
+`error` y respondió `UNKNOWN (broken-evidence)`.

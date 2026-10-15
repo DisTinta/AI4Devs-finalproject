@@ -1,6 +1,5 @@
 import { isAbsolute, join } from 'node:path';
 import { z } from 'zod';
-import { redactSecrets } from '../index/secret-scanner.js';
 import { SourceUnavailable } from '../knowledge/errors.js';
 import type { FileKind } from '../knowledge/graph-file.js';
 import type { StoredSymbol } from '../knowledge/graph-read.js';
@@ -19,6 +18,7 @@ import {
 } from './budget.js';
 import { expand } from './expand.js';
 import { candidateFileKind, rankCandidates, type Candidate, type ContextOrigin } from './rank.js';
+import { redactedLines, spanText } from './span-text.js';
 import { estimateTokens, TOKEN_ESTIMATOR, type TokenEstimator } from './tokenizer.js';
 
 // The context pack of a question (DIS-28 design D9): anchor, expand, rank, read every candidate's file
@@ -73,6 +73,11 @@ export interface FilledContextPack extends PackCommon {
   baselineTokens: number;
   /** The indexed commit every file of the pack was read at (DIS-39). */
   commit: string;
+  /**
+   * The absolute repository root every file of the pack was read from: the project's root path, or
+   * that path joined to the workspace root when it is relative (DIS-68 design V6).
+   */
+  root: string;
 }
 
 /** A pack with no span: the question anchors nothing, or no span fits the budget. */
@@ -134,13 +139,6 @@ interface ReadFile {
   lines: string[];
 }
 
-/** The lines of a content: a final line feed ends the last line; an empty content has one line. */
-function linesOf(content: string): string[] {
-  const lines = content.split('\n');
-  if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop();
-  return lines;
-}
-
 /**
  * Builds the context pack of a question about one project: its anchor and their neighbourhood,
  * ranked, read from the repository at the project's indexed commit, redacted, cut into spans and
@@ -192,10 +190,7 @@ export async function buildContextPack(
   const paths = [...new Set(candidates.map(pathOf))];
   const contents = await source.readFilesAt(root, commit, paths);
   const files = new Map<string, ReadFile>(
-    paths.map((path, i) => {
-      const content = redactSecrets({ path, content: contents[i] }).file.content;
-      return [path, { content, lines: linesOf(content) }];
-    }),
+    paths.map((path, i) => [path, redactedLines(path, contents[i])]),
   );
   const spans = candidates.map((candidate) => cut(candidate, files.get(pathOf(candidate)) as ReadFile));
   const fitted = fitToTokenBudget(spans, tokenBudget, keepBestRank);
@@ -212,6 +207,7 @@ export async function buildContextPack(
     baselineTokens,
     omitted: fitted.omitted,
     commit,
+    root,
   };
 }
 
@@ -240,7 +236,7 @@ function cut(candidate: Candidate, file: ReadFile): CandidateSpan {
   const { lines } = file;
   const startLine = node.type === 'file' ? 1 : node.startLine;
   const endLine = node.type === 'file' ? lines.length : node.endLine;
-  const text = lines.slice(startLine - 1, endLine).join('\n');
+  const text = spanText(lines, startLine, endLine);
   const tokens = estimateTokens(text);
   const fileId = node.type === 'file' ? node.id : node.fileId;
   const span: ContextSpan = {

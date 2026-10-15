@@ -35,8 +35,11 @@ export interface AnswerStatement {
   status: ClaimStatus;
   /** Present only when stale. */
   warning?: 'stale-evidence';
-  /** Always `none`: citations are not verified yet (DIS-68). */
-  verification: 'none';
+  /**
+   * Always `cited`: every citation it keeps passed the syntactic check (DIS-68); DIS-70 widens it to
+   * `'cited' | 'entailed'` with the semantic check.
+   */
+  verification: 'cited';
   /** The ids of its evidence, in the order the model cited them. */
   evidenceIds: string[];
 }
@@ -71,8 +74,9 @@ interface AnsweredCommon {
   priorClaims: PriorClaim[];
   /**
    * What happened on the way: the sanitisation events (the question's, then each span's in evidence-id
-   * order), then `claims_not_persisted` when the claims were not stored; empty when nothing was
-   * flagged or cut and the claims were stored.
+   * order), then the `evidence_broken` events in evidence-id order, then `claims_not_persisted` when
+   * the claims were not stored; empty when nothing was flagged, cut or broken and the claims were
+   * stored.
    */
   events: ExplainEvent[];
 }
@@ -84,9 +88,10 @@ export interface StoredExplain extends AnsweredCommon {
 }
 
 /**
- * An answer whose claims could not be stored: ids are the prompt ids (`E1`…), one evidence entry per
- * distinct cited id in first-citation order, and `events` holds the sanitisation events followed by
- * the `claims_not_persisted` event.
+ * An answer whose claims could not be stored: ids are the prompt ids (`E1`…) of the verified
+ * citations, one evidence entry per distinct one in first-citation order (none for a broken id), and
+ * `events` holds the sanitisation events, then the `evidence_broken` events, then the
+ * `claims_not_persisted` event.
  */
 export interface UnsavedExplain extends AnsweredCommon {
   /** The claims were not stored. */

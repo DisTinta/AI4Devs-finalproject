@@ -31,6 +31,8 @@ export interface TypedStatement {
   type: StatementType;
   /** The cited spans, in the order the model cited them; at least one. */
   spans: readonly [ContextSpan, ...ContextSpan[]];
+  /** The prompt ids (`E1…En`) of `spans`, position by position (DIS-68 design V5). */
+  evidenceIds: readonly [string, ...string[]];
 }
 
 /**
@@ -39,12 +41,16 @@ export interface TypedStatement {
  * {@link CLAIM_PREDICATE_EXPLAINS}, as object the text; layer `L2`, type `INFERENCE`, status
  * `current`, no confidence; the statement type in the provenance. One evidence per cited span, with
  * its redacted text as excerpt (cut when the span was over the limit, without the truncation mark or
- * neutralisation) and verification `none`.
+ * neutralisation) and verification `cited`: only citations that passed the syntactic check reach it
+ * (DIS-68; DIS-70 passes the verdict per span once `entailed` exists).
  *
  * @param provenance What every claim of the answer shares.
  * @param statements The typed statements, in the model's order.
  */
-export function toClaimItems(provenance: AnswerProvenance, statements: readonly TypedStatement[]): ClaimItem[] {
+export function toClaimItems(
+  provenance: AnswerProvenance,
+  statements: readonly Pick<TypedStatement, 'text' | 'type' | 'spans'>[],
+): ClaimItem[] {
   const inputSpans = provenance.packSpans.map(({ fileId, startLine, endLine }) => ({ fileId, startLine, endLine }));
   return statements.map((statement) => {
     const [first] = statement.spans;
@@ -70,7 +76,7 @@ export function toClaimItems(provenance: AnswerProvenance, statements: readonly 
         fileId: span.fileId,
         startLine: span.startLine,
         endLine: span.endLine,
-        verification: 'none',
+        verification: 'cited',
         excerpt: span.text,
       })),
     };
