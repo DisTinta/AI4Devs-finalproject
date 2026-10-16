@@ -247,7 +247,8 @@ Verified against `package.json` (root and per package). If a command is not here
   These files migrate the shared DB, always through `migrateSharedDatabase()` (directly or through
   `useTransactionPerTest()`): `graph-schema-constraints.spec.ts`, `graph-write-pool.spec.ts`,
   `history-claims-constraints.spec.ts`, `indexes-stale.spec.ts`, `helpers/harness.spec.ts` and,
-  since DIS-76, `store/open-store.spec.ts` and `api/server.spec.ts`. No test rolls it back.
+  since DIS-76, `store/open-store.spec.ts` and `api/server.spec.ts`, and since DIS-78 `api/ask.spec.ts`
+  (through `useTransactionPerTest()`). No test rolls it back.
 - **API `inject` specs live in `tests/unit/api/`** (DIS-76), not under `tests/integration/`: they
   need no database and must run under Stryker, whose Vitest config excludes `tests/integration/**`.
   `tests/unit/api/support.ts` builds the app with `buildApp` and the doubles of `tests/support/`,
@@ -255,7 +256,11 @@ Verified against `package.json` (root and per package). If a command is not here
   (result or thrown error chosen per test, handler runs counted) before `ready()`, and wraps any
   port in a counting `Proxy`; it never imports `tests/integration/helpers/db.ts`. They import the
   API sources by relative path, as the CLI tests do (no Vitest alias for `@codemind/api`). The
-  process and database scenarios (`startApi`, `server.ts`) are in `tests/integration/api/`.
+  process and database scenarios (`startApi`, `server.ts`) are in `tests/integration/api/`. Since
+  DIS-78, `tests/unit/api/ask.spec.ts` drives `POST /ask` over the in-memory acme-shop subset (its
+  scenarios' "a use case that…" is the `explain` seam of `buildApp`), `route-errors.spec.ts` builds its own app for
+  a per-route error table, and `tests/integration/api/ask.spec.ts` runs `/ask` over the seed in
+  Postgres (template of `tests/integration/cli/ask-command.spec.ts`).
 - Test data comes from `fixtures/` (`acme-shop`, `task-api`, `history`, `build-history.mjs`) and
   `seeds/graph-dump.sql`. `fixtures/**` is excluded from Vitest collection.
 - **PH-22 — fixtures are an analyzer's input, never test-writable (DIS-47).** `createPhpAnalyzer()`
@@ -662,8 +667,8 @@ services that must be started first, quirks of the local environment.
     `typing-rules.ts` is unchanged). The cache key is the SHA-256 of the request's messages (the
     model is not in it); `createInMemoryVerificationCache()` is an LRU of `MAX_VERIFICATION_CACHE_ENTRIES`
     booleans, and `ask` creates **one per run** (one per process), so it only saves pairs repeated in
-    one answer; a long-lived process (API) would share it. `usage.verification` counts only `verify`
-    calls; DIS-74 adds the generation and the totals around it.
+    one answer; the API (DIS-78) keeps one per app, shared by its requests. `usage.verification`
+    counts only `verify` calls; DIS-74 adds the generation and the totals around it.
   - Gotcha (DIS-72, `core/knowledge/confidence.ts`): `confidence(statements, { contradiction })` is
     pure, order-independent and has its own input types (`ConfidenceCitation`: file id, lines,
     `fileKind`, `origin` as a string, verdict), so `knowledge/` imports nothing from `explain/` or
@@ -892,8 +897,15 @@ services that must be started first, quirks of the local environment.
   DIS-78 / DIS-9) add routes before `ready()`; routes declare Zod schemas only (own compilers in
   `plugins/zod-compiler.ts`, no type provider): request schemas with `z.strictObject`, response
   schemas with `z.object` (undeclared fields dropped). A non-Zod schema fails at `ready()`.
-  Every error goes through `plugins/error-handler.ts` (one table; a new domain code is one
-  `DOMAIN_ERRORS` entry; only `BUDGET_EXHAUSTED` → `429` today; an unmapped one is `500 INTERNAL`).
+  Every error goes through `plugins/error-handler.ts`: a domain code is looked up first in the
+  route's own table (`config: { domainErrors }`, DIS-78), then in the global `DOMAIN_ERRORS` (only
+  `BUDGET_EXHAUSTED` → `429`); an unmapped one is `500 INTERNAL`. A code that only means something
+  on one route (`PROJECT_NOT_FOUND` → `404` where a `projectId` is received) goes in that route's
+  table, never in the global one. `POST /api/projects/{projectId}/ask` (DIS-78, `routes/ask.ts`)
+  resolves the project with `getProject` before `explain`, keeps **one verification cache per app**
+  (created at registration, not per request), writes the answer's events to `request.log` and
+  returns only the public shape (`toPublicAnswer`: ids `ev-n`, `path` → `file`). `AppOptions.explain`
+  replaces the use case: a test seam only, as `AskCommandDeps.explain` in the CLI.
   `composition.ts` is the API's only reader of `env` (`apiConfigFromEnv` → `INVALID_CONFIG`, then
   `llmConfigFromEnv`, then the store). **No `pg` in `packages/api`** (`api-no-sql`): the store
   comes from `openPostgresStore(url, { applicationName: 'codemind-api' })` of

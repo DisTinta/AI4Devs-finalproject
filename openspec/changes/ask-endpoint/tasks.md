@@ -82,8 +82,8 @@
 
 ## 12. Update Technical Documentation (MANDATORY)
 
-- [ ] 12.1 `readme.md` §4 (the `/ask` block: path parameter, answered and `UNKNOWN` examples, evidence without per-evidence `verification`, `default: 8000` / `default: true` kept, error responses `400`/`404`/`429`/`503`; the error codes table with `PROJECT_NOT_FOUND`, `INVALID_EXPLAIN_REQUEST`, `LLM_UNAVAILABLE`, `SOURCE_UNAVAILABLE`; the stale "El contrato HTTP completo llega con CM-HU-12" comment) and §2.5 (6) (`details.cacheOnly: true`) — design U8
-- [ ] 12.2 `docs/project-context.md`: the API gotcha (`/ask`, the per-route domain error table, the verification cache per app, the `explain` seam of `buildApp`) and the Testing list (`tests/unit/api/ask.spec.ts`, `route-errors.spec.ts`, `tests/integration/api/ask.spec.ts`; the integration spec migrates the shared DB through the harness)
+- [x] 12.1 `readme.md` §4 (the `/ask` block: path parameter, answered and `UNKNOWN` examples, evidence without per-evidence `verification`, `default: 8000` / `default: true` kept, error responses `400`/`404`/`429`/`503`; the error codes table with `PROJECT_NOT_FOUND`, `INVALID_EXPLAIN_REQUEST`, `LLM_UNAVAILABLE`, `SOURCE_UNAVAILABLE`; the stale "El contrato HTTP completo llega con CM-HU-12" comment) and §2.5 (6) (`details.cacheOnly: true`) — design U8
+- [x] 12.2 `docs/project-context.md`: the API gotcha (`/ask`, the per-route domain error table, the verification cache per app, the `explain` seam of `buildApp`) and the Testing list (`tests/unit/api/ask.spec.ts`, `route-errors.spec.ts`, `tests/integration/api/ask.spec.ts`; the integration spec migrates the shared DB through the harness)
 - [ ] 12.3 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
 
 ## 13. Pull request preparation
