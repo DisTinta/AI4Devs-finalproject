@@ -1,6 +1,6 @@
 import { expect } from 'vitest';
 import { buildContextPack, createInMemoryVerificationCache } from '@codemind/core';
-import type { FilledContextPack, KnowledgeGraph, NewProject, StorePort, VerificationCache } from '@codemind/core';
+import type { CostTable, FilledContextPack, KnowledgeGraph, NewProject, StorePort, VerificationCache } from '@codemind/core';
 import { ACME_SHOP_PROJECT, acmeShopGraph } from './acme-shop-graph';
 import { createInMemoryStore } from './in-memory-store';
 import type { ClaimWriteFailure } from './in-memory-store';
@@ -17,7 +17,10 @@ import { file, symbol } from './sample-graph';
 // `verificationFailures` answer the source reads made after the model call (the verification read),
 // so a test can change a file between the pack's read and the verification at the same commit. Since
 // DIS-70 (design S10) `deps` holds a fresh verification cache unless one is given, and the verifier and
-// the usage options go to the scripted model, whose default verifier entails every pair.
+// the usage options go to the scripted model, whose default verifier entails every pair. Since DIS-74
+// (design U12) `now` scripts the clock (instants read in turn, the last one repeated; `[NOW]` by
+// default, so `clock.reads()` counts the reads), `failQueryLogWrite` injects a failure of the
+// `query_log` write, `costTable` reaches explain, and `saveQueryLog` joins the shared call order.
 
 export const Q1 = '¿Cómo se calcula el precio final de un pedido?';
 export const COMMIT = 'c'.repeat(40);
@@ -42,14 +45,33 @@ export interface DoubleOptions extends ScriptedLlmOptions {
   /** Path to the error the reads after the model call reject with. */
   verificationFailures?: Record<string, unknown>;
   failClaimWrite?: ClaimWriteFailure;
+  /** Called on each valid `saveQueryLog`; a value other than `undefined` is thrown instead of writing. */
+  failQueryLogWrite?: () => unknown;
+  /** The instants `deps.now` reads in turn, the last one repeated once the list is exhausted; `[NOW]` when absent. */
+  now?: readonly Date[];
+  /** The cost table of `deps`; absent (explain's default) when not given. */
+  costTable?: CostTable;
   store?: (store: StorePort) => StorePort;
+}
+
+/** A clock that reads `instants` in turn, the last one repeated, counting its reads. */
+export function scriptedClock(instants: readonly Date[] = [NOW]): { now: () => Date; reads: () => number } {
+  let reads = 0;
+  return {
+    now: () => new Date(instants[Math.min(reads++, instants.length - 1)]!.getTime()),
+    reads: () => reads,
+  };
 }
 
 /** The doubles: acme-shop indexed at `COMMIT` by default, a scripted model, a shared call order. */
 export function doubles(options: DoubleOptions = {}) {
   const graph = options.graph ?? { ...acmeShopGraph(), indexedCommit: COMMIT };
   const project = options.project ?? { ...ACME_SHOP_PROJECT, rootPath: '/repos/acme-shop' };
-  const loaded = createInMemoryStore({ projects: [{ project, graph }], failClaimWrite: options.failClaimWrite });
+  const loaded = createInMemoryStore({
+    projects: [{ project, graph }],
+    failClaimWrite: options.failClaimWrite,
+    failQueryLogWrite: options.failQueryLogWrite,
+  });
   const contents = options.contents ?? Object.fromEntries(graph.files.map((f) => [f.path, linesOf(f.path, f.loc ?? 1)]));
   const tree: SourceContents = { [project.rootPath]: { [COMMIT]: contents } };
   const order: string[] = [];
@@ -68,8 +90,15 @@ export function doubles(options: DoubleOptions = {}) {
         }
       : {},
   );
-  const { verify, answerUsage, verifyUsage, verifyModel } = options;
-  const model = createScriptedLlm(options.mode ?? 'live', options.script, order, { verify, answerUsage, verifyUsage, verifyModel });
+  const { verify, answerUsage, verifyUsage, verifyModel, answerModel } = options;
+  const model = createScriptedLlm(options.mode ?? 'live', options.script, order, {
+    verify,
+    answerUsage,
+    verifyUsage,
+    verifyModel,
+    answerModel,
+  });
+  const clock = scriptedClock(options.now);
   const base = options.store?.(loaded.store) ?? loaded.store;
   const store: StorePort = {
     ...base,
@@ -81,12 +110,17 @@ export function doubles(options: DoubleOptions = {}) {
       order.push('saveClaims');
       return base.saveClaims(...args);
     },
+    saveQueryLog: (...args) => {
+      order.push('saveQueryLog');
+      return base.saveQueryLog(...args);
+    },
   };
   return {
     loaded,
     projectId: loaded.projectIds[0]!,
     order,
     model,
+    clock,
     sourceCalls: source.calls,
     batchReads: source.batchReads,
     reads: source.reads,
@@ -95,8 +129,9 @@ export function doubles(options: DoubleOptions = {}) {
       source: source.source,
       llm: model.llm,
       workspaceRoot: WORKSPACE,
-      now: () => NOW,
+      now: clock.now,
       verificationCache: options.verificationCache ?? createInMemoryVerificationCache(),
+      ...(options.costTable !== undefined && { costTable: options.costTable }),
     },
   };
 }

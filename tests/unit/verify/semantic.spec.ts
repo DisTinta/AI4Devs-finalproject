@@ -3,6 +3,7 @@ import {
   BudgetExhausted,
   createInMemoryVerificationCache,
   LlmUnavailable,
+  MAX_VERIFY_CALLS_PER_ANSWER,
   VERIFY_SYSTEM_PROMPT,
   verificationKey,
   verifyEntailment,
@@ -25,6 +26,27 @@ function pair(statement: string, citation: typeof E1): EntailmentPair {
 const S1E1 = pair('S1: the calculator computes the price', E1);
 const S2E1 = pair('S2: the order total uses the calculator', E1);
 const S2E2 = pair('S2: the order total uses the calculator', E2);
+
+/** `count` distinct pairs on `E1`, the `i`-th with the statement `S<i>`. */
+function distinctPairs(count: number, prefix = 'S'): EntailmentPair[] {
+  return Array.from({ length: count }, (_, i) => pair(`${prefix}${i + 1}: a distinct statement`, E1));
+}
+
+/** A clock that reads `instants` in turn (the last one repeated), recording each read in `order`. */
+function scriptedClock(instants: Date[], order: string[] = []): { now: () => Date; reads: () => number } {
+  let reads = 0;
+  return {
+    now: () => {
+      order.push('clock');
+      const instant = instants[Math.min(reads, instants.length - 1)]!;
+      reads++;
+      return instant;
+    },
+    reads: () => reads,
+  };
+}
+
+const T0 = new Date('2026-10-16T10:00:00.000Z');
 
 /** U+200B, which neutralisation inserts after the `<` of a marker and the `[` of a forged mark. */
 const ZWSP = String.fromCodePoint(0x200b);
@@ -203,7 +225,9 @@ describe('Requirement: Semantic citation check', () => {
         },
       });
 
-      const result = await verifyEntailment(model.llm, cache, [S1E1, S2E1, S2E2]);
+      const clock = scriptedClock([T0]);
+
+      const result = await verifyEntailment(model.llm, cache, [S1E1, S2E1, S2E2], undefined, clock.now);
 
       expect(result.verdicts).toStrictEqual([
         { verification: 'cited', reason },
@@ -211,7 +235,7 @@ describe('Requirement: Semantic citation check', () => {
         { verification: 'entailed' },
       ]);
       expect(model.requests).toHaveLength(1);
-      expect(result.usage).toStrictEqual({ calls: 0, cacheHits: 1, inputTokens: 0, outputTokens: 0, costUsd: 0 });
+      expect(result.usage).toStrictEqual({ calls: 0, cacheHits: 1, inputTokens: 0, outputTokens: 0, costUsd: 0, latencyMs: 0 });
       expect(stored).toStrictEqual([]);
     }
   });
@@ -232,11 +256,13 @@ describe('Requirement: Semantic citation check', () => {
     inner.set(verificationKey(S1E1), true);
     const { cache, stored, reads } = recording(inner);
     const model = createScriptedLlm('evaluation');
+    const clock = scriptedClock([T0]);
 
-    const result = await verifyEntailment(model.llm, cache, [S1E1, S2E2]);
+    const result = await verifyEntailment(model.llm, cache, [S1E1, S2E2], undefined, clock.now);
 
     expect(result.verdicts).toStrictEqual([{ verification: 'cited' }, { verification: 'cited' }]);
-    expect(result.usage).toStrictEqual({ calls: 0, cacheHits: 0, inputTokens: 0, outputTokens: 0, costUsd: 0 });
+    expect(result.usage).toStrictEqual({ calls: 0, cacheHits: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, latencyMs: 0 });
+    expect(clock.reads()).toBe(0);
     expect(model.requests).toHaveLength(0);
     expect(reads).toStrictEqual([]);
     expect(stored).toStrictEqual([]);
@@ -253,9 +279,101 @@ describe('Requirement: Semantic citation check', () => {
       verifyModel: 'verifier-model',
     });
 
-    const result = await verifyEntailment(model.llm, cache, [S1E1, S2E1, S2E2, cached], table);
+    const clock = scriptedClock([T0]);
 
-    expect(result.usage).toStrictEqual({ calls: 3, cacheHits: 1, inputTokens: 300, outputTokens: 15, costUsd: 0.00033 });
+    const result = await verifyEntailment(model.llm, cache, [S1E1, S2E1, S2E2, cached], table, clock.now);
+
+    expect(result.usage).toStrictEqual({ calls: 3, cacheHits: 1, inputTokens: 300, outputTokens: 15, costUsd: 0.00033, latencyMs: 0 });
+  });
+
+  it('The verification latency is the wall time of the check', async () => {
+    const order: string[] = [];
+    let requestCount = 0;
+    const model = createScriptedLlm('live', undefined, order, {
+      verify: () => {
+        if (++requestCount === 2) throw new LlmUnavailable('timeout');
+        return '{"entails":true}';
+      },
+    });
+    const clock = scriptedClock([T0, new Date(T0.getTime() + 450)], order);
+
+    const result = await verifyEntailment(
+      model.llm,
+      createInMemoryVerificationCache(),
+      [S1E1, S2E1, S2E2],
+      undefined,
+      clock.now,
+    );
+
+    expect(clock.reads()).toBe(2);
+    expect(order).toStrictEqual(['clock', 'verify', 'verify', 'clock']);
+    expect(result.usage.calls).toBe(1);
+    expect(result.usage.latencyMs).toBe(450);
+  });
+
+  it('The verifier is called at most the call limit', async () => {
+    const pairs = distinctPairs(MAX_VERIFY_CALLS_PER_ANSWER + 1);
+    const model = createScriptedLlm('live');
+
+    const result = await verifyEntailment(model.llm, createInMemoryVerificationCache(), pairs);
+
+    const sent = verifyRequests(model.requests);
+    expect(sent).toHaveLength(MAX_VERIFY_CALLS_PER_ANSWER);
+    for (const [i, request] of sent.entries()) expect(request.statement).toContain(pairs[i]!.statement);
+    expect(result.verdicts.slice(0, MAX_VERIFY_CALLS_PER_ANSWER)).toStrictEqual(
+      Array.from({ length: MAX_VERIFY_CALLS_PER_ANSWER }, () => ({ verification: 'entailed' })),
+    );
+    expect(result.verdicts[MAX_VERIFY_CALLS_PER_ANSWER]).toStrictEqual({ verification: 'cited', reason: 'call-limit' });
+    expect(result.usage.calls).toBe(MAX_VERIFY_CALLS_PER_ANSWER);
+  });
+
+  it('A cached pair does not count toward the call limit', async () => {
+    const cachedPair = pair('C: a cached statement', E2);
+    const cache = createInMemoryVerificationCache();
+    cache.set(verificationKey(cachedPair), true);
+    const first = createScriptedLlm('live');
+
+    const withCached = await verifyEntailment(first.llm, cache, [...distinctPairs(MAX_VERIFY_CALLS_PER_ANSWER), cachedPair]);
+
+    expect(withCached.verdicts).toStrictEqual(
+      Array.from({ length: MAX_VERIFY_CALLS_PER_ANSWER + 1 }, () => ({ verification: 'entailed' })),
+    );
+    expect(verifyRequests(first.requests)).toHaveLength(MAX_VERIFY_CALLS_PER_ANSWER);
+    expect(withCached.usage.cacheHits).toBe(1);
+
+    const pairs = distinctPairs(MAX_VERIFY_CALLS_PER_ANSWER + 1, 'T');
+    let requestCount = 0;
+    const second = createScriptedLlm('live', undefined, undefined, {
+      verify: () => (++requestCount === 1 ? 'yes' : '{"entails":true}'),
+    });
+
+    const invalidFirst = await verifyEntailment(second.llm, createInMemoryVerificationCache(), pairs);
+
+    expect(verifyRequests(second.requests)).toHaveLength(MAX_VERIFY_CALLS_PER_ANSWER);
+    expect(invalidFirst.verdicts[0]).toStrictEqual({ verification: 'cited', reason: 'invalid-output' });
+    expect(invalidFirst.verdicts[MAX_VERIFY_CALLS_PER_ANSWER]).toStrictEqual({ verification: 'cited', reason: 'call-limit' });
+  });
+
+  it('A failed verifier keeps its reason past the call limit', async () => {
+    let requestCount = 0;
+    const model = createScriptedLlm('live', undefined, undefined, {
+      verify: () => {
+        if (++requestCount === MAX_VERIFY_CALLS_PER_ANSWER) throw new LlmUnavailable('timeout');
+        return '{"entails":true}';
+      },
+    });
+
+    const result = await verifyEntailment(
+      model.llm,
+      createInMemoryVerificationCache(),
+      distinctPairs(MAX_VERIFY_CALLS_PER_ANSWER + 2),
+    );
+
+    expect(verifyRequests(model.requests)).toHaveLength(MAX_VERIFY_CALLS_PER_ANSWER);
+    expect(result.verdicts.slice(MAX_VERIFY_CALLS_PER_ANSWER - 1)).toStrictEqual(
+      Array.from({ length: 3 }, () => ({ verification: 'cited', reason: 'llm-unavailable' })),
+    );
+    expect(result.verdicts.some((verdict) => 'reason' in verdict && verdict.reason === 'call-limit')).toBe(false);
   });
 });
 

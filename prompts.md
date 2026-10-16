@@ -60,6 +60,7 @@
 43. [Verificador sintáctico de citas (DIS-68)](#43-verificador-sintáctico-de-citas-dis-68)
 44. [Verificador semántico de citas, caché por par y uso de la verificación (DIS-70)](#44-verificador-semántico-de-citas-caché-por-par-y-uso-de-la-verificación-dis-70)
 45. [Confianza calculada, pesos publicados y salida del modelo con valla (DIS-72)](#45-confianza-calculada-pesos-publicados-y-salida-del-modelo-con-valla-dis-72)
+46. [Uso por consulta en `query_log` y tope de verificación (DIS-74)](#46-uso-por-consulta-en-query_log-y-tope-de-verificación-dis-74)
 
 ---
 
@@ -4417,3 +4418,28 @@ que la sesión de pesos usó un `fetch` propio en un script del scratchpad. Con 
 autora mantuvo los pesos iniciales con los motivos recomendados («si son los motivos que aconsejas,
 confío en ti»). Pidió además una tarea nueva (DIS-101) para documentar en el readme los tiempos con
 modelo real y el flujo de trabajo con IA.
+
+---
+
+# 46. Uso por consulta en `query_log` y tope de verificación (DIS-74)
+
+### Prompt 1 — Aplicar el change
+
+```
+/opsx:apply query-usage-log
+```
+
+**Por qué funcionó.** El change llegaba con el spec-audit aprobado (run 4) y las decisiones D1–D11 de la
+autora cerradas en el ticket y en la propuesta, así que el apply recorrió las secciones 0–15 por TDD sin
+reabrir ninguna decisión de producto. El diseño (U5) ya fijaba el medidor como decorador del modelo, lo
+que permitió escribir la fila también en los rechazos sin tocar las firmas de la verificación. Muchos
+escenarios de `explain` pasaron nada más escribirse porque el cableado de 7.4 ya los cubría; se
+registraron como tests de caracterización y Stryker (100 % en `usage.ts`, `usage-meter.ts` y
+`query-log.ts`; solo mutantes equivalentes en `explain.ts` y `semantic.ts`) confirmó que no eran vacíos.
+
+**Ajuste humano.** Dos tests de rollback llegaban a su precondición con un número fijo de `db:rollback`
+que la migración `0004` dejaba corto; la autora eligió prepararlos con `migrateUpTo` en lugar de añadir
+otro rollback (aserciones intactas). Para la prueba manual eligió `qwen2.5-coder` para responder y
+verificar. En CPU el `ask` del CLI agotó el tope de 300 s del adaptador sin dejar fila, como manda la
+spec, y la fila real se obtuvo con la misma composición en un script del scratchpad: 4 llamadas de
+verificación, el 32 % de la latencia, y un ahorro de −22,7 % que queda como dato para la Tabla 1.

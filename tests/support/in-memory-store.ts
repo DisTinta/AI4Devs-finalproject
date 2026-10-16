@@ -4,6 +4,7 @@ import {
   assertValidTraversal,
   assertValidClaimItems,
   assertValidClaimSpans,
+  assertValidQueryLogEntry,
   ClaimWriteFailed,
   InvalidStoreQuery,
   MAX_PRIOR_CLAIMS,
@@ -23,6 +24,7 @@ import type {
   NewProject,
   NodeRef,
   Project,
+  QueryLogEntry,
   SavedClaim,
   StoredClaim,
   StoredEvidence,
@@ -36,7 +38,8 @@ import type {
 // Context Engine uses — getProject, listProjects, findSymbols, neighbors — with the semantics of the
 // graph-store spec, and reuses core's argument checks. Since DIS-39 it also writes and reads claims
 // (`saveClaims`, `findClaimsOverlapping`, design D12), with an injectable write failure and a seeding
-// helper. The graph writes and the cost sum throw. It lives under
+// helper. Since DIS-74 it writes query log entries (`saveQueryLog`, design U4) and keeps them for
+// assertions, with an injectable write failure. The graph writes and the cost sum throw. It lives under
 // tests/ so it stays out of Stryker's mutate set and out of core's dist.
 //
 // Known limit: names are compared case-insensitively with `toLowerCase`, which can disagree with
@@ -58,7 +61,14 @@ export interface InMemoryStore {
   /** For each loaded project, in the order given, its file ids by path. */
   fileIds: Array<Map<string, string>>;
   /** Calls received per method, counted before any check (stand-in for "statements sent"). */
-  calls: { findSymbols: number; neighbors: number; getProject: number; saveClaims: number; findClaimsOverlapping: number };
+  calls: {
+    findSymbols: number;
+    neighbors: number;
+    getProject: number;
+    saveClaims: number;
+    findClaimsOverlapping: number;
+    saveQueryLog: number;
+  };
   /**
    * Stores a claim as given and returns its id, bypassing the checks of `saveClaims` (so a claim of
    * one project may cite a file of another). Later writes are stamped after its `createdAt`.
@@ -68,6 +78,8 @@ export interface InMemoryStore {
   storedClaims(): StoredClaim[];
   /** Moves the project's indexed commit, as a re-index would. */
   setIndexedCommit(projectId: string, commit: string): void;
+  /** Every query log entry `saveQueryLog` wrote, in write order. */
+  queryLog(): QueryLogEntry[];
 }
 
 /** A claim to seed: its record, its evidence and the instant it was written (ISO 8601). */
@@ -124,14 +136,18 @@ function nodeKey(type: NodeRef['type'], id: string): string {
  * Builds an in-memory store loaded with `projects`. Every project, file and symbol gets a fresh
  * hyphenated UUID; edges are resolved from the graph's paths and symbol identities. With
  * `failClaimWrite`, `saveClaims` rejects with `ClaimWriteFailed` when it reaches that evidence, after
- * validating and before storing anything.
+ * validating and before storing anything. With `failQueryLogWrite`, each `saveQueryLog` that passes
+ * its checks calls it and, when it returns a value other than `undefined`, throws that value instead
+ * of writing (DIS-74 design U4).
  */
 export function createInMemoryStore({
   projects,
   failClaimWrite,
+  failQueryLogWrite,
 }: {
   projects: InMemoryProject[];
   failClaimWrite?: ClaimWriteFailure;
+  failQueryLogWrite?: () => unknown;
 }): InMemoryStore {
   const projectRows = new Map<string, Project>();
   const files = new Map<string, StoredFileRow>();
@@ -139,7 +155,8 @@ export function createInMemoryStore({
   const edges: StoredEdgeRow[] = [];
   const claimRows: StoredClaimRow[] = [];
   let lastStamp = STAMP_BASE;
-  const calls = { findSymbols: 0, neighbors: 0, getProject: 0, saveClaims: 0, findClaimsOverlapping: 0 };
+  const queryLogRows: QueryLogEntry[] = [];
+  const calls = { findSymbols: 0, neighbors: 0, getProject: 0, saveClaims: 0, findClaimsOverlapping: 0, saveQueryLog: 0 };
   const projectIds: string[] = [];
   const fileIds: Array<Map<string, string>> = [];
 
@@ -293,6 +310,17 @@ export function createInMemoryStore({
       return [...projectRows.values()].sort((a, b) => byteOrder(a.name, b.name)).map((p) => ({ ...p }));
     },
 
+    async saveQueryLog(entry: QueryLogEntry): Promise<void> {
+      calls.saveQueryLog += 1;
+      // Same order as the Postgres adapter (DIS-74 design U3): id form, record, project.
+      if (!UUID.test(entry.projectId)) throw new ProjectNotFound(entry.projectId);
+      assertValidQueryLogEntry(entry);
+      projectOf(entry.projectId);
+      const failure = failQueryLogWrite?.();
+      if (failure !== undefined) throw failure;
+      queryLogRows.push({ ...entry });
+    },
+
     async saveClaims(projectId: string, items: ClaimItem[], readAtCommit?: string): Promise<SavedClaim[]> {
       calls.saveClaims += 1;
       // Same order as the Postgres adapter (DIS-39 design D7): id form, records, project, files.
@@ -405,5 +433,14 @@ export function createInMemoryStore({
     projectRows.set(project.id, { ...project, indexedCommit: commit });
   }
 
-  return { store, projectIds, fileIds, calls, seedClaim, setIndexedCommit, storedClaims: () => claimRows.map((row) => row.claim) };
+  return {
+    store,
+    projectIds,
+    fileIds,
+    calls,
+    seedClaim,
+    setIndexedCommit,
+    storedClaims: () => claimRows.map((row) => row.claim),
+    queryLog: () => queryLogRows.map((row) => ({ ...row })),
+  };
 }

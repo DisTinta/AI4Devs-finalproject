@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { EntailmentUnverifiedReason } from '../explain/explain-event.js';
-import { MAX_VERIFY_OUTPUT_BYTES } from '../explain/limits.js';
+import { MAX_VERIFY_CALLS_PER_ANSWER, MAX_VERIFY_OUTPUT_BYTES } from '../explain/limits.js';
 import { BudgetExhausted, LlmUnavailable } from '../llm/errors.js';
 import { COST_TABLE, costUsd } from '../llm/cost-table.js';
 import type { CostTable } from '../llm/cost-table.js';
@@ -31,6 +31,12 @@ export interface VerificationUsage {
   outputTokens: number;
   /** Sum of the cost of the resolved calls by the cost table, rounded to 6 decimals. */
   costUsd: number;
+  /**
+   * Wall-clock time of the check in whole milliseconds (DIS-74 D11): from the clock read when it starts
+   * to the clock read once every pair is resolved, a failed call's time included; 0 when the second
+   * read is earlier, and 0 in `evaluation` mode, where the clock is not read.
+   */
+  latencyMs: number;
 }
 
 /**
@@ -38,12 +44,16 @@ export interface VerificationUsage {
  * {@link verificationKey}) once, in the order of its first occurrence, from the cache or with one
  * `verify` call; only an accepted output is cached. After a call fails with `LlmUnavailable` or
  * `BudgetExhausted`, the uncached pairs left are `cited` with that reason, without calling the model.
+ * Once `MAX_VERIFY_CALLS_PER_ANSWER` calls were sent, the uncached pairs left are `cited` with
+ * `call-limit`, without calling the model; so the pairs the limit leaves are the last ones.
  * In `evaluation` mode every pair is `cited`, nothing is called and the cache is not touched.
  *
  * @param llm The model; its `verify` purpose selects the verifier.
  * @param cache The verdicts already known, by pair key.
  * @param pairs The pairs, in any order.
  * @param costTable The prices of the usage's `costUsd`; the shipped table unless a test prices a model.
+ * @param now The clock the latency is measured with, read twice in `live` mode only; the system clock
+ *   unless a caller shares its own.
  * @returns One verdict per pair, in the order given, and the usage.
  * @throws Any failure of a `verify` call other than `LlmUnavailable` and `BudgetExhausted`, unchanged.
  */
@@ -52,13 +62,16 @@ export async function verifyEntailment(
   cache: VerificationCache,
   pairs: readonly EntailmentPair[],
   costTable: CostTable = COST_TABLE,
+  now: () => Date = () => new Date(),
 ): Promise<{ verdicts: EntailmentVerdict[]; usage: VerificationUsage }> {
-  const usage: VerificationUsage = { calls: 0, cacheHits: 0, inputTokens: 0, outputTokens: 0, costUsd: 0 };
+  const usage: VerificationUsage = { calls: 0, cacheHits: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, latencyMs: 0 };
   // Without a verifier nothing is entailed, and the cache is neither read nor written.
   if (llm.mode === 'evaluation') return { verdicts: pairs.map(() => ({ verification: 'cited' })), usage };
+  const startedAt = now();
   const keys = pairs.map(verificationKey);
   const resolved = new Map<string, EntailmentVerdict>();
   let stopped: EntailmentUnverifiedReason | undefined;
+  let sent = 0;
   for (const [i, key] of keys.entries()) {
     if (resolved.has(key)) continue;
     const cached = cache.get(key);
@@ -72,6 +85,12 @@ export async function verifyEntailment(
       resolved.set(key, { verification: 'cited', reason: stopped });
       continue;
     }
+    // A call counts once sent, whatever its outcome (DIS-74 D2): the limit bounds the spend of one answer.
+    if (sent >= MAX_VERIFY_CALLS_PER_ANSWER) {
+      resolved.set(key, { verification: 'cited', reason: 'call-limit' });
+      continue;
+    }
+    sent++;
     let result: CompletionResult;
     try {
       result = await llm.complete({ messages: buildVerifyMessages(pairs[i]), purpose: 'verify' });
@@ -95,6 +114,7 @@ export async function verifyEntailment(
   }
   // Rounded once, as each call's cost is: a sum of rounded floats drifts in the last decimals.
   usage.costUsd = Math.round(usage.costUsd * 1e6) / 1e6;
+  usage.latencyMs = Math.max(0, now().getTime() - startedAt.getTime());
   return { verdicts: keys.map((key) => resolved.get(key) as EntailmentVerdict), usage };
 }
 

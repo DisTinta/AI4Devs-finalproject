@@ -21,8 +21,18 @@ const LIFECYCLE_TIMEOUT_MS = 120_000;
 const L1_TABLES = ['edge', 'file', 'project', 'symbol'];
 /** The migrations applied in the "only L1 graph + history" reference state. */
 const HISTORY_MIGRATIONS = ['0001_graph-l1', '0002_history-claims'];
+/** The migrations left applied once the latest one is rolled back. */
+const INDEX_MIGRATIONS = [...HISTORY_MIGRATIONS, '0003_indexes-stale'];
 /** Every migration, in order: what a fully migrated database records. */
-const ALL_MIGRATIONS = [...HISTORY_MIGRATIONS, '0003_indexes-stale'];
+const ALL_MIGRATIONS = [...INDEX_MIGRATIONS, '0004_query-log-verification'];
+/** The `query_log` columns the query log verification migration (0004) adds. */
+const QUERY_LOG_VERIFICATION_COLUMNS = [
+  'verify_input_tokens',
+  'verify_output_tokens',
+  'verify_cost_usd',
+  'verify_calls',
+  'verify_latency_ms',
+];
 const HISTORY_TABLES = ['cache_entry', 'claim', 'commit', 'evidence', 'file_commit', 'query_log'];
 const ALL_TABLES = [...L1_TABLES, ...HISTORY_TABLES].sort();
 
@@ -129,6 +139,11 @@ const HISTORY_COLUMNS: ColumnShape[] = [
   col('query_log', 'latency_ms', 'integer', false),
   col('query_log', 'cache_hit', 'boolean', true, 'false'),
   col('query_log', 'created_at', 'timestamp with time zone', true, 'now()'),
+  col('query_log', 'verify_input_tokens', 'integer', false),
+  col('query_log', 'verify_output_tokens', 'integer', false),
+  col('query_log', 'verify_cost_usd', 'numeric(10,6)', false),
+  col('query_log', 'verify_calls', 'integer', false),
+  col('query_log', 'verify_latency_ms', 'integer', false),
   col('cache_entry', 'id', 'uuid', true, 'gen_random_uuid()'),
   col('cache_entry', 'project_id', 'uuid', true),
   col('cache_entry', 'question_normalized', 'text', true),
@@ -429,14 +444,14 @@ describeWithDatabase('graph-schema: migration lifecycle', () => {
   );
 
   // Proves rollback reverts ONE migration per call (count: 1). The snapshot must EQUAL a database
-  // migrated with 0001 + 0002 only: an index left behind by 0003's down section would survive here,
-  // while a full rollback would drop it together with its table.
+  // migrated with 0001 + 0002 + 0003 only: a column left behind by 0004's down section would survive
+  // here, while a full rollback would drop it together with its table.
   it(
     'Roll back only the latest migration',
     async () => {
       const reference = await createThrowawayDatabase(databaseUrl as string);
       try {
-        await migrateUpTo(reference.url, HISTORY_MIGRATIONS);
+        await migrateUpTo(reference.url, INDEX_MIGRATIONS);
         expect(migrate().status).toBe(0);
 
         const result = rollback();
@@ -444,9 +459,16 @@ describeWithDatabase('graph-schema: migration lifecycle', () => {
         expect(result.status, result.stderr).toBe(0);
         const schema = await snapshotSchema(throwaway.url);
         expect(schema).toEqual(await snapshotSchema(reference.url));
+        expectColumnContract(
+          schema.columns,
+          HISTORY_COLUMNS.filter((c) => !(c.table === 'query_log' && QUERY_LOG_VERIFICATION_COLUMNS.includes(c.column))),
+        );
         expect(tablesOf(schema.columns)).toEqual(ALL_TABLES);
         expect(schema.enums).toEqual(ALL_ENUMS);
-        expect(await appliedMigrations(throwaway.url)).toEqual(HISTORY_MIGRATIONS);
+        expect(await secondaryIndexShapes(throwaway.url)).toEqual(EXPECTED_INDEXES);
+        expect(schema.triggers.map((t) => t.name)).toEqual(['file_content_hash_marks_claims_stale']);
+        expect(schema.functions.map((f) => f.name)).toEqual(['mark_claims_stale_on_content_change']);
+        expect(await appliedMigrations(throwaway.url)).toEqual(INDEX_MIGRATIONS);
       } finally {
         await reference.drop();
       }
@@ -457,10 +479,8 @@ describeWithDatabase('graph-schema: migration lifecycle', () => {
   it(
     'Roll back the L1 graph migration',
     async () => {
-      expect(migrate().status).toBe(0);
-      // Reach "only the L1 graph migration is applied".
-      expect(rollback().status).toBe(0);
-      expect(rollback().status).toBe(0);
+      // Reach "only the L1 graph migration is applied" directly, whatever migrations come later.
+      await migrateUpTo(throwaway.url, ['0001_graph-l1']);
       expect(await appliedMigrations(throwaway.url)).toEqual(['0001_graph-l1']);
 
       const result = rollback();
@@ -476,9 +496,9 @@ describeWithDatabase('graph-schema: migration lifecycle', () => {
   it(
     'Roll back both migrations leaves an empty schema',
     async () => {
-      expect(migrate().status).toBe(0);
-      // Reach "only the L1 graph migration and the history migration are applied".
-      expect(rollback().status).toBe(0);
+      // Reach "only the L1 graph migration and the history migration are applied" directly, whatever
+      // migrations come later.
+      await migrateUpTo(throwaway.url, HISTORY_MIGRATIONS);
       expect(await appliedMigrations(throwaway.url)).toEqual(HISTORY_MIGRATIONS);
 
       const first = rollback();

@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { ClaimWriteFailed, DomainError, EmptyRepository, InvalidStoreQuery, NotAGitRepository, ProjectNameTaken, ProjectNotFound } from '@codemind/core';
+import {
+  ClaimWriteFailed,
+  DomainError,
+  EmptyRepository,
+  InvalidStoreQuery,
+  NotAGitRepository,
+  ProjectNameTaken,
+  ProjectNotFound,
+  QueryLogWriteFailed,
+} from '@codemind/core';
 
 // The codes are the stable contract a transport maps (design D1); messages name the offending value.
 describe('domain errors', () => {
@@ -48,6 +57,19 @@ describe('domain errors', () => {
     expect(error.code).toBe('CLAIM_WRITE_FAILED');
     expect(error.name).toBe('ClaimWriteFailed');
     expect(error.message).toBe('The claims could not be written');
+    expect('cause' in error).toBe(false);
+    expect(Object.keys(error).sort()).toEqual(['code', 'name']);
+  });
+
+  it('QueryLogWriteFailed carries its stable code and no cause or database text', () => {
+    // Arrange / Act
+    const error = new QueryLogWriteFailed();
+
+    // Assert
+    expect(error).toBeInstanceOf(DomainError);
+    expect(error.code).toBe('QUERY_LOG_WRITE_FAILED');
+    expect(error.name).toBe('QueryLogWriteFailed');
+    expect(error.message).toBe('The query log entry could not be written');
     expect('cause' in error).toBe(false);
     expect(Object.keys(error).sort()).toEqual(['code', 'name']);
   });

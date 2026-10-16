@@ -370,7 +370,7 @@ Ejecuta una consulta contra cada repositorio de muestra y compara la salida con 
 | `DATABASE_URL` | **sí** (scripts `db:*` e `index`) | Cadena de conexión de PostgreSQL. `.env.example` trae la del contenedor local; `make up` la toma de `.env` (el Makefile carga y exporta `.env`). Si ejecutas `npm run db:migrate` / `db:rollback` a mano, expórtala antes: sin ella salen con error |
 | `ALLOWED_REPOS_DIR` | no (sí para indexar) | Directorio raíz permitido para indexar (ver [2.5](#25-seguridad)); vacío = indexado deshabilitado. Solo debe poder escribir en él el usuario que ejecuta Codemind, y solo debe contener repositorios de confianza (ver `docs/DEPLOYMENT.md`) |
 | `AUTHOR_HASH_SALT` | **sí** (para indexar) | Clave del seudónimo de los autores de commits (`author_hash`). No se versiona; cambiarla cambia todos los `author_hash` |
-| `DAILY_BUDGET_USD` | no | Techo de gasto diario en USD si se usa un proveedor cloud de pago: decimal positivo (`2.5`), solo en modo vivo; vacía = sin techo (lo normal con Ollama local). El gasto del día es la suma de `query_log.cost_usd` desde las 00:00 UTC; al alcanzarlo, el LLM deja de llamarse hasta el día UTC siguiente. Con techo, `LLM_MODEL`, `LLM_MODEL_VERIFY` y `LLM_EMBED_MODEL` deben tener precio en `COST_TABLE` (`packages/core/src/llm/cost-table.ts`); si no, la configuración del LLM es inválida. *Estado:* la validación y el techo ya existen (DIS-18), pero solo actúan cuando la raíz de composición los conecte (DIS-76) y DIS-74 escriba `cost_usd`; hasta entonces el gasto leído es 0 |
+| `DAILY_BUDGET_USD` | no | Techo de gasto diario en USD si se usa un proveedor cloud de pago: decimal positivo (`2.5`), solo en modo vivo; vacía = sin techo (lo normal con Ollama local). El gasto del día es la suma de `query_log.cost_usd` desde las 00:00 UTC; al alcanzarlo, el LLM deja de llamarse hasta el día UTC siguiente. Con techo, `LLM_MODEL`, `LLM_MODEL_VERIFY` y `LLM_EMBED_MODEL` deben tener precio en `COST_TABLE` (`packages/core/src/llm/cost-table.ts`); si no, la configuración del LLM es inválida. *Estado:* `ask` envuelve el modelo con el techo cuando hay `DAILY_BUDGET_USD`, y desde DIS-74 cada `explain` escribe su `cost_usd` en `query_log`, verificación incluida. El gasto de un `ask` en curso solo se ve al escribir su fila, así que cada `ask` en curso puede pasarse del techo como mucho en una llamada `answer` y `MAX_VERIFY_CALLS_PER_ANSWER` (20) llamadas `verify` (N ejecuciones simultáneas, N veces eso) |
 
 > **Decisión (5 sep 2026).** Antes: `LLM_API_KEY` obligatoria. Ahora: **opcional**; evaluación sin key; desarrollo libre con Ollama. Motivo: 0 € y 0 fricción para quien evalúa.
 
@@ -867,6 +867,11 @@ erDiagram
         int latency_ms
         boolean cache_hit "default false"
         timestamptz created_at
+        int verify_input_tokens "desglose de verificación (PH-27)"
+        int verify_output_tokens
+        numeric verify_cost_usd "precision 10,6"
+        int verify_calls "llamadas del verificador resueltas"
+        int verify_latency_ms "tiempo del chequeo semántico"
     }
 
     CACHE_ENTRY {
@@ -971,6 +976,8 @@ Cita concreta con span exacto y `excerpt` congelado, para poder detectar despué
 #### QUERY_LOG
 
 Sostiene la funcionalidad F5 y la Tabla 1 de [2.6](#26-tests). `baseline_tokens` es lo que hace posible mostrar el ahorro en la propia interfaz: se calcula qué habría costado enviar los ficheros completos en lugar de los spans seleccionados, y el dato viaja con la respuesta en lugar de recalcularse en el cliente. Es una estimación local, no el conteo del proveedor: `ceil(caracteres / 4)` sobre el contenido ya redactado, y cada paquete de contexto la declara como `estimator: 'chars-div-4'` (DIS-28, PH-16). La desviación frente al conteo real se mide en la Tabla 1 (CM-HU-22.2).
+
+Desde DIS-74 `explain` escribe **una fila por llamada**: en toda respuesta, también en las `UNKNOWN` (con los contadores a 0 si no hubo llamada al modelo y `baseline_tokens` vacío si no se construyó paquete), y en todo rechazo posterior a una llamada al modelo resuelta, con el gasto hasta el error. No hay fila cuando falla antes de cualquier llamada (petición inválida, proyecto inexistente, presupuesto agotado en la llamada `answer`). Los totales (`input_tokens`, `output_tokens`, `cost_usd`) incluyen la verificación, y las columnas `verify_*` la desglosan: tokens y coste del verificador (PH-27), `verify_calls` (llamadas resueltas; un par servido desde la caché no cuenta) y `verify_latency_ms` (el tiempo de pared del chequeo semántico, que la revisión de la Entrega 1 pidió medir por consulta). Así el techo diario ve todo el gasto. La pregunta se guarda **tal cual** (decisión D3: la base de datos es local y la Tabla 1 tiene que casar cada fila con su pregunta), nunca se escribe en un log ni en un evento. Si la fila no se puede escribir, la respuesta se devuelve igualmente con un evento `query_not_logged`. Cada `db:seed` / `make up` borra en cascada las filas de los proyectos de ejemplo y, con ellas, el gasto registrado de ese día para ellos.
 
 #### CACHE_ENTRY
 
@@ -1122,14 +1129,18 @@ paths:
                   inputTokens: 4812
                   outputTokens: 380
                   baselineTokens: 41200
+                  baselineEstimator: "chars-div-4"
                   savingsPct: 88.3
                   costUsd: 0.014
                   latencyMs: 2100
                   cacheHit: false
+                  generation: {inputTokens: 4212, outputTokens: 340, costUsd: 0.0116}
+                  verification: {calls: 4, cacheHits: 1, inputTokens: 600, outputTokens: 40, costUsd: 0.0024, latencyMs: 900}
         '429': {description: Límite de uso alcanzado o presupuesto diario agotado}
-      # Una respuesta UNKNOWN lleva `reason`, uno de cinco valores (DIS-39): no-anchor,
-      # llm-required, over-budget, invalid-model-output, no-evidence. El contrato HTTP
-      # completo llega con CM-HU-12.
+      # Una respuesta UNKNOWN lleva `reason`, uno de seis valores (DIS-39, DIS-68): no-anchor,
+      # llm-required, over-budget, invalid-model-output, no-evidence, broken-evidence. Los
+      # totales de `usage` incluyen la verificación (DIS-74). El contrato HTTP completo llega
+      # con CM-HU-12.
 
   /api/projects/{projectId}/impact:
     post:

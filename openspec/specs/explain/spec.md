@@ -21,7 +21,9 @@ absolute workspace root and the clock. Before any call to the store, the source 
   stop words, short tokens or punctuation) answers `no-anchor` without checking the project, as the
   context pack does;
 - the question MUST be a string of 1 to 1 000 Unicode code points (`MAX_QUESTION_CHARS`, an exported
-  constant) that is not only whitespace; an astral character, such as an emoji, counts as one;
+  constant) that is not only whitespace and holds no U+0000 (the question is stored in `query_log`,
+  requirement "Query log", and a database text cannot hold that character); an astral character,
+  such as an emoji, counts as one;
 - `tokenBudget` and `hops`, when given, MUST be integers in their ranges;
 - otherwise the call MUST fail with the domain error `InvalidExplainRequest` (code
   `INVALID_EXPLAIN_REQUEST`), whose `field` is one of `request`, `projectId`, `question`,
@@ -65,6 +67,13 @@ absolute workspace root and the clock. Before any call to the store, the source 
   `InvalidExplainRequest` naming `hops`, and with `RangeError` naming `workspaceRoot`
 - **AND** no call was sent to the store
 
+#### Scenario: A question holding U+0000 is rejected before the store
+
+- **WHEN** explain is called with the question `PriceCalculator\u0000compute`
+- **THEN** the call fails with `InvalidExplainRequest` naming `question`, and the error holds no part
+  of the question
+- **AND** no call was sent to the store, the source reader or the model
+
 ### Requirement: Precedence and UNKNOWN answers
 
 Explain SHALL decide its answer in this order, and each step SHALL make exactly the calls below:
@@ -97,6 +106,9 @@ Explain SHALL decide its answer in this order, and each step SHALL make exactly 
 13. Store and return the verified statements (requirements "Answer with typed statements" and
     "Persistence failure").
 
+Before returning any answer of the steps above, `UNKNOWN` included, explain SHALL send its
+`query_log` row to the store (requirement "Query log").
+
 The prior-claims read SHALL therefore be called 0 times for an invalid request, `no-anchor`,
 `llm-required` and `over-budget`, and once, before the model, for `invalid-model-output`,
 `no-evidence`, `broken-evidence` and an answer with statements. The model SHALL be called 0 times up
@@ -110,9 +122,10 @@ closed set `no-anchor`, `llm-required`, `over-budget`, `invalid-model-output`, `
 `broken-evidence`, declared once in that order), `message` only for `llm-required`,
 `statements: []`, `evidence: []` and `events`. It SHALL NOT
 carry `persisted`, prior claims, `usage` nor `confidence`, SHALL NOT carry the model's answer text, and no claim or
-evidence SHALL be written for it.
+evidence SHALL be written for it; only its `query_log` row is written.
 
-Errors SHALL propagate unchanged and write nothing: `ProjectNotFound`, `SourceUnavailable`, the
+Errors SHALL propagate unchanged and write no claim and no evidence (a `query_log` row is written
+before an error only when a model call resolved before it, requirement "Query log"): `ProjectNotFound`, `SourceUnavailable`, the
 `LlmUnavailable` and `BudgetExhausted` of the `answer` call, any failure of the prior-claims read
 (then the model SHALL NOT have been called), any failure of the verification reads that the syntactic
 check propagates, and any failure of a `verify` call that the semantic check propagates. An
@@ -202,6 +215,8 @@ citations it could not check (`evidence-verification`, "Semantic citation check"
 - **WHEN** the price question is explained
 - **THEN** explain fails with that same error
 - **AND** the claim write received 0 calls
+- **AND** no claim is written; the store received one query log row with the tokens and cost of the
+  `answer` call, 0 verification calls and a verification latency of 0 (requirement "Query log")
 
 #### Scenario: No verification read without statements
 
@@ -221,6 +236,8 @@ citations it could not check (`evidence-verification`, "Semantic citation check"
 - **WHEN** the price question is explained
 - **THEN** explain fails with that same error
 - **AND** the claim write received 0 calls
+- **AND** no claim is written; the store received one query log row with the tokens and cost of the
+  `answer` call (requirement "Query log")
 
 #### Scenario: An unknown answer has no confidence
 
@@ -501,7 +518,8 @@ evidence ids name (the typing rule of `claims-and-typing`), then verify the cita
   `entailment_unverified` event (requirement "Explain events and logging").
 
 Explain SHALL take, besides the store, the source reader, the model, the workspace root and the
-clock, a verification cache, which it SHALL only pass to the semantic check.
+clock, a verification cache, which it SHALL only pass to the semantic check, and optionally a cost
+table (requirement "Answer usage").
 
 Explain SHALL store one claim per remaining statement with its remaining evidence, and answer with:
 
@@ -515,8 +533,8 @@ Explain SHALL store one claim per remaining statement with its remaining evidenc
   remaining spans;
 - `evidence`, one entry per remaining citation, in statement order then citation order, each with the
   id of its stored evidence row, its file id, file path, first and last line and excerpt;
-- `usage`, `{ verification: { calls, cacheHits, inputTokens, outputTokens, costUsd } }`, the usage of
-  the semantic check of this answer, which counts no token of the `answer` call;
+- `usage`, the usage of the answer (requirement "Answer usage"), whose `verification` is the usage
+  of the semantic check of this answer, which counts no token of the `answer` call;
 - `confidence`, the confidence (`confidence-score`) of all the remaining statements together, each
   with its remaining citations, every citation with its span's file id, first and last line, file
   kind and origin and the verdict of its (statement, citation) pair, and the contradiction flag
@@ -532,8 +550,8 @@ statement's **first** remaining evidence id in the order the model gave them, or
 has no symbol; as predicate the exported constant `CLAIM_PREDICATE_EXPLAINS` (`explains`); as object
 the statement text; layer `L2`; type `INFERENCE`, whatever the statement's type; status `current`;
 as `confidence` the confidence of that statement alone, computed as for the answer; and a provenance with the model name the `answer` call reported, the prompt hash, as
-input spans every sanitised span of the pack (file id, first and last line), the clock's instant in
-ISO 8601 with time zone, and the statement's type (by the entailment policy) as statement type. A
+input spans every sanitised span of the pack (file id, first and last line), the instant of the
+clock's first read (requirement "Answer usage") in ISO 8601 with time zone, and the statement's type (by the entailment policy) as statement type. A
 statement typed `FACT` is therefore stored as an `L2` `INFERENCE` claim whose provenance keeps `FACT`,
 and is answered as `FACT`.
 
@@ -646,8 +664,9 @@ another commit while the answer was being produced, the store writes the claims 
   (S2, `E1`) and (S2, `E2`) in that order, each time
 - **AND** S1 is `FACT` and S2 `INFERENCE`, both with verification `entailed`; in both runs the claim
   items the store received hold three evidence rows with verification `entailed`
-- **AND** both answers' `usage` is `{ verification: { calls: 3, cacheHits: 0, inputTokens: 300,
-  outputTokens: 15, costUsd: 0 } }`, with nothing of the `answer` call's tokens
+- **AND** both answers' `usage.verification` is `{ calls: 3, cacheHits: 0, inputTokens: 300,
+  outputTokens: 15, costUsd: 0, latencyMs: 0 }`, with nothing of the `answer` call's tokens, and their
+  `usage.generation` is `{ inputTokens: 1000, outputTokens: 200, costUsd: 0 }`
 
 #### Scenario: A valid but irrelevant citation is cited and never a fact
 
@@ -668,8 +687,8 @@ another commit while the answer was being produced, the store writes the claims 
 - **WHEN** the same question is explained again over the same code with the same cache, and then with
   the same cache over the file of `E2` with one line inside `E2`'s range changed at the pack's commit
 - **THEN** the second answer made one `answer` request and no `verify` request, has the same types and
-  verifications, and its `usage` is `{ verification: { calls: 0, cacheHits: 3, inputTokens: 0,
-  outputTokens: 0, costUsd: 0 } }`
+  verifications, and its `usage.verification` is `{ calls: 0, cacheHits: 3, inputTokens: 0,
+  outputTokens: 0, costUsd: 0, latencyMs: 0 }`
 - **AND** the third answer made exactly one `verify` request, for (S2, `E2`), and counts 2 cache hits
 
 #### Scenario: An invalid verifier output degrades its pair to cited
@@ -720,6 +739,20 @@ another commit while the answer was being produced, the store writes the claims 
 - **AND** the stored claim of S2 has the confidence of S2 with those verdicts, and that of S1 the same
   confidence as in the previous scenario
 
+#### Scenario: Statements past the verify call limit stay inferences
+
+- **GIVEN** a pack of at least `MAX_VERIFY_CALLS_PER_ANSWER` + 1 spans, and a live model whose output
+  has `MAX_STATEMENTS` statements: the first citing two distinct spans, each of the others one further
+  distinct span, the last citing only an `anchor` span (`MAX_VERIFY_CALLS_PER_ANSWER` + 1 distinct
+  pairs in all, since `MAX_STATEMENTS` equals `MAX_VERIFY_CALLS_PER_ANSWER`), and that answers
+  `{"entails":true}` to every verification, with an empty cache
+- **WHEN** a question is explained
+- **THEN** the model received one `answer` request and exactly `MAX_VERIFY_CALLS_PER_ANSWER` `verify`
+  requests, and `usage.verification.calls` is `MAX_VERIFY_CALLS_PER_ANSWER`
+- **AND** the last statement is `INFERENCE` with verification `cited`, although its span is an
+  `anchor` span, and the events end with its `entailment_unverified` event with reason `call-limit`
+- **AND** every other statement has verification `entailed`
+
 ### Requirement: Persistence failure
 
 When, and only when, the store rejects the write of the claims with `ClaimWriteFailed`, explain SHALL
@@ -731,9 +764,11 @@ every evidence entry id, SHALL be the prompt's id (`E1`…) of a remaining citat
 hold one entry per distinct remaining cited prompt id, in first-citation order, and no entry for a
 `broken` one. Its events SHALL be the sanitisation events, then the `evidence_broken` events, then the
 `entailment_unverified` events, then one event `{ type: 'claims_not_persisted', code }`, whose `code`
-comes from the closed set `store-write-failed`, declared once. The event SHALL carry no message, no
+comes from the closed set `store-write-failed`, declared once, and then the `query_not_logged` event
+when its `query_log` row was not written (requirement "Query log"). The event SHALL carry no message, no
 detail, no cause, no part of the question and no part of the model's output. Any other rejection of
-the write (`InvalidStoreQuery`, `ProjectNotFound`, anything else) SHALL propagate as an error.
+the write (`InvalidStoreQuery`, `ProjectNotFound`, anything else) SHALL propagate as an error, after
+the `query_log` row of the calls that resolved is sent to the store (requirement "Query log").
 
 #### Scenario: A failed write still answers, unsaved and without leaking
 
@@ -783,8 +818,8 @@ the write (`InvalidStoreQuery`, `ProjectNotFound`, anything else) SHALL propagat
   whose output has S1 citing `E1` then `E2`, and that answers `{"entails":true}` to (S1, `E1`) and an
   invalid output to (S1, `E2`), reporting 100 input and 5 output tokens per verification
 - **WHEN** a question is explained
-- **THEN** S1 has verification `cited`; `usage` is `{ verification: { calls: 2, cacheHits: 0,
-  inputTokens: 200, outputTokens: 10, costUsd: 0 } }`
+- **THEN** S1 has verification `cited`; `usage.verification` is `{ calls: 2, cacheHits: 0,
+  inputTokens: 200, outputTokens: 10, costUsd: 0, latencyMs: 0 }`
 - **AND** its events are exactly the `entailment_unverified` event of (0, `E2`) with reason
   `invalid-output`, followed by `{ type: 'claims_not_persisted', code: 'store-write-failed' }`
 - **AND** its `confidence` is the confidence of S1 with (S1, `E1`) `entailed` and (S1, `E2`) `cited`,
@@ -830,8 +865,9 @@ stale claim SHALL never be displayed as `FACT`. Stale claims are not recomputed.
 ### Requirement: Explain events and logging
 
 The events of an answer SHALL be of the type `ExplainEvent`, the union of the schema-violation event,
-the `claims_not_persisted` event, the two sanitisation events, the `evidence_broken` event and the
-`entailment_unverified` event, separate from the audit events of indexing:
+the `claims_not_persisted` event, the two sanitisation events, the `evidence_broken` event, the
+`entailment_unverified` event and the `query_not_logged` event, separate from the audit events of
+indexing:
 
 - `{ type: 'untrusted_content_flagged', source: 'question', pattern }`, once per code that matched
   the question;
@@ -850,18 +886,26 @@ the `claims_not_persisted` event, the two sanitisation events, the `evidence_bro
   once per (statement, citation) pair the semantic check left `cited` with a reason, where
   `statementIndex` is the position, from 0, of the statement in the answer's `statements`,
   `evidenceId`, `path`, `startLine` and `endLine` are as for `evidence_broken`, and `reason` is one
-  code of `ENTAILMENT_UNVERIFIED_REASONS` (`evidence-verification`).
+  code of `ENTAILMENT_UNVERIFIED_REASONS` (`evidence-verification`);
+- `{ type: 'query_not_logged', code }`, once when the answer's `query_log` row was not written, where
+  `code` is one code of the exported closed set `QUERY_NOT_LOGGED_CODES` (`store-write-failed`,
+  `project-not-found`, `invalid-entry`), declared once (requirement "Query log").
 
 `pattern` SHALL be one code of `INSTRUCTION_PATTERNS`. The events of an answer SHALL be ordered: the
 question's flagged events, then for each span in evidence-id order its flagged events in the order of
 the list followed by its truncated event, then the `evidence_broken` events in evidence-id order, then
-the `entailment_unverified` events in statement order then citation order, and then the
-schema-violation event or the `claims_not_persisted` event, if any. An answer that did not reach step 6 of "Precedence and UNKNOWN
-answers" (`no-anchor`, `llm-required`, `over-budget`) SHALL carry no sanitisation event, and when the
+the `entailment_unverified` events in statement order then citation order, then the
+schema-violation event or the `claims_not_persisted` event, if any, and last the `query_not_logged`
+event, if any. An answer that did not reach step 6 of "Precedence and UNKNOWN
+answers" (`no-anchor`, `llm-required`, `over-budget`) SHALL carry no sanitisation event (only, when
+its row was not written, the `query_not_logged` event), and when the
 `answer` call fails the error propagates without events.
 
 Explain SHALL return its events and SHALL write nothing to any log; neither the question, nor a span's
-text, nor a statement, nor the output of any model call SHALL be written to any log, event or error. A
+text, nor a statement, nor the output of any model call SHALL be written to any log, event or error.
+The `question` column of the `query_log` row (requirement "Query log") is the one place the question
+is stored, as data of the local database, never as a log line. A `query_not_logged` event SHALL carry
+no message, no detail, no cause, no part of the question and no text of the store's error. A
 sanitisation event SHALL NOT hold any part of the text that matched or was cut, nor a prefix or a hash
 of it. An `evidence_broken` or `entailment_unverified` event SHALL NOT hold any part of the file's
 content, of the excerpt, of the statement or of the verifier's output, nor a prefix or a hash of them.
@@ -918,3 +962,251 @@ content, of the excerpt, of the statement or of the verifier's output, nor a pre
   evidenceId: 'E1', path, startLine, endLine, reason: 'invalid-output' }` with `E1`'s path and lines
   (S1 is the answer's first statement although it was the model's second), and nothing else
 - **AND** the serialised events hold neither sentinel nor any line of the spans' text
+
+### Requirement: Answer usage
+
+Every answered answer (`persisted: true` and `false`) SHALL carry `usage`, exactly:
+
+- `generation`: `{ inputTokens, outputTokens, costUsd }`, the tokens the `answer` call reported and its
+  cost by the cost table (`llm-adapter`, "Cost of a call from the cost table") for the model that call
+  reported, rounded to 6 decimals;
+- `verification`: the usage of the semantic check of this answer (`evidence-verification`, "Semantic
+  citation check"), priced with the same cost table and timed with explain's clock: its `calls` are the
+  verifier calls that resolved (a pair answered from the cache is no call) and its `latencyMs` the
+  wall-clock time of the check;
+- `inputTokens` and `outputTokens`: the generation's plus the verification's;
+- `costUsd`: the generation's cost plus the verification's, rounded to 6 decimals;
+- `baselineTokens`: the pack's `baselineTokens`, and `baselineEstimator`: the pack's estimator,
+  `chars-div-4`, which marks `baselineTokens` as a local estimate, not the provider's count (PH-16);
+- `savingsPct`: 0 when `baselineTokens` is 0; otherwise 100 × (1 − `inputTokens` / `baselineTokens`),
+  rounded to one decimal (a half rounds up, toward +∞; a result of −0 is 0). It is negative when the
+  answer used more tokens than the baseline, and is not clamped;
+- `latencyMs`: the whole milliseconds between the clock's first read and its second read, and at
+  least 1 (a call faster than the clock's resolution, or a clock read earlier the second time, gives
+  1; author decision, parent CM-HU-11 AC 5: `latency_ms` > 0);
+- `cacheHit`: `false` (the answer cache of DIS-21 does not exist yet).
+
+The cost table SHALL be the one explain was given, or the shipped cost table of `llm-adapter` when none
+was given. Explain SHALL read its clock exactly twice in a call that sends a `query_log` row to the store: once
+after the request is validated and before anchoring (that instant is also the provenance instant of
+every claim of the call), and once just before writing the row. Explain SHALL give the same clock to
+the semantic check, which, when it runs in `live` mode, reads it once when it starts and once when it returns, between explain's two
+reads (`evidence-verification`, "Semantic citation check").
+
+#### Scenario: An answer carries its total, generation and verification usage
+
+- **GIVEN** a cost table pricing `paid-model` at 3 USD per million input tokens and 15 USD per million
+  output tokens, a clock that reads t₀, t₀ + 200 ms, t₀ + 1 100 ms and then t₀ + 1 234 ms, a pack
+  whose `baselineTokens` is
+  40 000, and a live model reporting `paid-model` whose `answer` call reports 3 400 input and 260
+  output tokens and whose two `verify` calls report 600 input and 40 output tokens in total
+- **WHEN** a question is explained and the claims are stored, and again, with a new clock reading the
+  same instants, with the claim write failing with `ClaimWriteFailed`
+- **THEN** each answer's `usage` is exactly `{ inputTokens: 4000, outputTokens: 300, baselineTokens:
+  40000, baselineEstimator: 'chars-div-4', savingsPct: 90, costUsd: 0.0165, latencyMs: 1234,
+  cacheHit: false, generation: { inputTokens: 3400, outputTokens: 260, costUsd: 0.0141 },
+  verification: { calls: 2, cacheHits: 0, inputTokens: 600, outputTokens: 40, costUsd: 0.0024,
+  latencyMs: 900 } }`
+- **AND** the provenance of every stored claim holds the instant t₀
+
+#### Scenario: With the shipped cost table every cost is zero
+
+- **GIVEN** the calls of the previous scenario reporting the model `qwen2.5-coder`, and no cost table
+  given to explain
+- **WHEN** a question is explained
+- **THEN** `usage.costUsd`, `usage.generation.costUsd` and `usage.verification.costUsd` are 0, and the
+  token counts are those of the previous scenario
+
+#### Scenario: Savings follow the baseline, are zero without one and may be negative
+
+- **WHEN** the savings are computed for 4 000 input tokens against a baseline of 40 000, of 0 and of
+  3 200, for 4 812 against 41 200, and for 40 020 against 40 000
+- **THEN** they are 90, 0, −25, 88.3 and 0 (not −0)
+
+#### Scenario: The latency is at least one millisecond
+
+- **WHEN** a question without an anchor is explained with a clock that reads the same instant twice,
+  and again with a clock whose second read is 5 ms earlier than its first
+- **THEN** each time the store received one row whose latency is 1 ms
+
+### Requirement: Query log
+
+Explain SHALL record each call in one `query_log` row through the store it was given (`graph-store`,
+"Query log write"), on its own, outside the claim write, with capability `explain`, the question as
+the request gave it (the database stores it as UTF-8, so an unpaired UTF-16 surrogate is stored as
+U+FFFD), the cache flag `false` and the latency of requirement "Answer usage":
+
+- before returning an answered answer (stored or not), after the claim write: as tokens and cost the
+  answer's `usage` totals, as verification tokens, cost, calls and latency its `usage.verification`
+  ones, and as baseline tokens the pack's;
+- before returning an `UNKNOWN` answer: the tokens and cost of the calls that resolved (for
+  `invalid-model-output`, `no-evidence` and `broken-evidence`, the `answer` call; verification
+  tokens, cost, calls and latency 0, since no semantic check ran);
+  `baseline_tokens` the pack's (0 for `over-budget`), or none for `no-anchor` and `llm-required`,
+  which build no pack; every counter and cost 0 when no call was made;
+- before propagating an error raised after at least one model call resolved (the verification reads,
+  a `verify` call, the claim write other than `ClaimWriteFailed`, or anything later): the tokens and
+  cost of every call that resolved before the error, the `answer` call as generation and the `verify`
+  calls as verification, priced as in requirement "Answer usage", with the pack's baseline tokens;
+  as verification calls the `verify` calls that resolved before the error, and as verification
+  latency the semantic check's when the check returned before the error, none when the error was
+  raised inside the check (its time is unknown), and 0 when the check had not started.
+  The error SHALL then propagate unchanged, whatever happened to the row: a failure of the row write
+  never replaces it.
+
+A call resolves when the model returns a result (an output the quarantine or the verifier then
+rejects counts; a call that fails does not). No row SHALL be written when explain fails before any
+call resolved: an invalid request, the `ProjectNotFound` of anchoring or of the pack, the
+`SourceUnavailable` of the pack's read, a failure of the prior-claims read, or the `LlmUnavailable`
+and `BudgetExhausted` of the `answer` call.
+
+When the row write of a returned answer rejects with `QueryLogWriteFailed`, with `ProjectNotFound`
+(a `no-anchor` question with no search terms is answered without checking the project, requirement
+"Explain request"), or with `InvalidStoreQuery` (the entry fails the store's record schema, for
+example because the model reported more tokens, or the call cost more, than the row's columns hold),
+explain SHALL still return the answer, with the same fields, and append to its events
+`{ type: 'query_not_logged', code }` with `code` `store-write-failed`, `project-not-found` or
+`invalid-entry`. In each of these cases the call's spend is not recorded, so the daily spend does not
+see it. Any other rejection of the row
+write of a returned answer SHALL propagate as an error. A failure to obtain a connection for the row
+write is such an error: it propagates after the claims were stored, and that call's spend is not
+recorded (a known exposure, as a process stopped between the claim write and the row).
+
+#### Scenario: An answer leaves one query log row the daily spend sees
+
+- **GIVEN** acme-shop indexed in the database, the cost table, the clock and the model calls of
+  "An answer carries its total, generation and verification usage" over the price question, and the
+  cost of the rows of the current UTC day read before
+- **WHEN** the price question is explained
+- **THEN** `query_log` holds exactly one new row, with capability `explain`, the question as given,
+  `input_tokens` 4000, `output_tokens` 300, `baseline_tokens` the pack's `baselineTokens`, `cost_usd`
+  0.016500, `latency_ms` 1234, `cache_hit` false, `verify_input_tokens` 600, `verify_output_tokens`
+  40, `verify_cost_usd` 0.002400, `verify_calls` 2 and `verify_latency_ms` 900
+- **AND** the cost since the start of the current UTC day is the cost read before plus 0.0165
+- **AND** when the same question is explained again with the model wrapped by a daily budget whose
+  ceiling is at most the cost since the start of the current UTC day, explain fails with
+  `BudgetExhausted` and no new row is written
+
+#### Scenario: An unknown answer after the model call leaves a row with its usage
+
+- **GIVEN** the cost table of "An answer carries its total, generation and verification usage", and a
+  live model reporting `paid-model` whose `answer` call reports 500 input and 20 output tokens and
+  whose output is not JSON
+- **WHEN** the price question is explained
+- **THEN** the answer is exactly the `UNKNOWN` answer with reason `invalid-model-output` of
+  "Precedence and UNKNOWN answers", without `usage`
+- **AND** the store received one row with 500 input and 20 output tokens, the cost of that call,
+  verification tokens, cost, calls and latency 0, and the pack's `baselineTokens`
+
+#### Scenario: An unknown answer without a model call leaves a zero row
+
+- **WHEN** a question without an anchor is explained with a live model, the price question with an
+  evaluation model, and a question whose pack fits nothing with a live model
+- **THEN** each answer is `UNKNOWN` (`no-anchor`, `llm-required`, `over-budget`) with its events
+  unchanged, and the store received one row each, with every counter and cost 0, verification calls
+  and verification latency included
+- **AND** the baseline tokens of the first two rows are none and that of the third is 0
+
+#### Scenario: No row when explain fails before a model call resolves
+
+- **WHEN** explain is called with an empty question, with the price question in a well-formed UUID
+  that names no project, and with the price question and a live model whose `answer` call fails with
+  `BudgetExhausted`
+- **THEN** each call fails with its error (`InvalidExplainRequest`, `ProjectNotFound`,
+  `BudgetExhausted`)
+- **AND** the store received no row
+
+#### Scenario: A failure after the model calls leaves a row and keeps its error
+
+- **GIVEN** a live model whose output has S1 citing `E1` and `E2`, reporting 100 input and 10 output
+  tokens per call, that answers `{"entails":true}` to every verification, a claim write that
+  rejects with an `Error` that is not a `ClaimWriteFailed`, and a clock that reads t₀, t₀ + 100 ms,
+  t₀ + 400 ms and then t₀ + 500 ms
+- **WHEN** a question is explained, and again, with a new clock reading the same instants, with the
+  row write also rejecting with `QueryLogWriteFailed`
+- **THEN** each call fails with the claim write's error
+- **AND** the first time the store received one row with 300 input and 30 output tokens, 200 and 20 of
+  them as verification, 2 verification calls, a verification latency of 300 and a latency of 500
+
+#### Scenario: A verifier failure leaves a row with the calls that resolved
+
+- **GIVEN** a live model whose output has S1 citing `E1` and `E2`, reporting 100 input and 10 output
+  tokens per call, whose first `verify` call answers `{"entails":true}` and whose second fails with an
+  error that is neither `LlmUnavailable` nor `BudgetExhausted`
+- **WHEN** a question is explained
+- **THEN** explain fails with that same error, and the claim write received 0 calls
+- **AND** the store received one row with 200 input and 20 output tokens, 100 and 10 of them as
+  verification, 1 verification call and no verification latency
+
+#### Scenario: A failed query log write still answers and says so
+
+- **GIVEN** a row write that rejects with `QueryLogWriteFailed` whose message holds a sentinel text
+- **WHEN** a question is explained with an answer that is stored, with one whose claim write fails
+  with `ClaimWriteFailed`, and with an output that has no statement
+- **THEN** the answers are the stored answer, the unsaved answer and the `UNKNOWN` answer with reason
+  `no-evidence`, each with its fields unchanged and its events ending with
+  `{ type: 'query_not_logged', code: 'store-write-failed' }`, after the `claims_not_persisted` event
+  for the unsaved one
+- **AND** the serialised answers hold neither the sentinel nor the question
+
+#### Scenario: A row of an unknown project is not logged
+
+- **WHEN** the question `¿y si no?` (no search terms: every token is shorter than three characters) is
+  explained in a well-formed UUID that names no project,
+  and in the project id `not-a-uuid`
+- **THEN** each answer is `UNKNOWN` with reason `no-anchor` and its events are exactly
+  `[{ type: 'query_not_logged', code: 'project-not-found' }]`
+
+#### Scenario: An out-of-range query log entry still answers and says so
+
+- **GIVEN** a live model whose `answer` call reports 2 147 483 648 input tokens and whose output has a
+  statement with a valid citation, and then one whose `answer` call costs more than 9 999.999999 USD
+  by the cost table
+- **WHEN** the price question is explained with each
+- **THEN** each answer is the stored answer, with its `usage` reporting those tokens and that cost,
+  and its events end with `{ type: 'query_not_logged', code: 'invalid-entry' }`
+- **AND** the store received no row
+
+#### Scenario: Other query log write errors propagate
+
+- **WHEN** a question is explained with a stored answer and the row write rejects with an error that
+  is neither `QueryLogWriteFailed`, `ProjectNotFound` nor `InvalidStoreQuery`
+- **THEN** explain fails with that same error
+
+#### Scenario: A row without cited statements records no verification
+
+- **WHEN** the price question is explained with a live model whose output has no statement, and with
+  one whose every citation is `broken`
+- **THEN** the answers are `UNKNOWN` with reasons `no-evidence` and `broken-evidence`
+- **AND** each row has 0 verification calls and a verification latency of 0, and the clock was read
+  exactly twice each time
+
+#### Scenario: A row of an answer verified from the cache counts no verifier call
+
+- **GIVEN** the scenario "Citations that support their statement are entailed and facts" explained
+  once with a verification cache
+- **WHEN** the same question is explained again over the same code with the same cache
+- **THEN** the second answer made no `verify` request, and its row has 0 verification calls and as
+  verification latency its `usage.verification.latencyMs`
+
+#### Scenario: A row at the verify call limit counts the limit
+
+- **GIVEN** the pack and the model of "Statements past the verify call limit stay inferences"
+- **WHEN** a question is explained
+- **THEN** its row has `MAX_VERIFY_CALLS_PER_ANSWER` verification calls
+
+#### Scenario: Evaluation mode records no verification
+
+- **WHEN** the price question is explained with an evaluation model
+- **THEN** the answer is `UNKNOWN` with reason `llm-required`, and its row has 0 verification calls and
+  a verification latency of 0
+
+#### Scenario: An unavailable verifier midway counts only the calls made
+
+- **GIVEN** a live model whose output has S1 citing `E1` and `E2`, whose first `verify` call answers
+  `{"entails":true}` and whose second fails with `LlmUnavailable`, an empty cache, and a clock that
+  reads t₀, t₀ + 100 ms, t₀ + 700 ms and then t₀ + 800 ms
+- **WHEN** a question is explained
+- **THEN** the answer is `answered`, its `usage.verification.calls` is 1 and its
+  `usage.verification.latencyMs` is 600
+- **AND** its row has 1 verification call and a verification latency of 600, and a latency of 800

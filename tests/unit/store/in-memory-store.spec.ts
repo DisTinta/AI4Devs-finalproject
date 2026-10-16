@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { ClaimWriteFailed, InvalidStoreQuery, MAX_PRIOR_CLAIMS, ProjectNotFound } from '@codemind/core';
+import { ClaimWriteFailed, InvalidStoreQuery, MAX_PRIOR_CLAIMS, ProjectNotFound, QueryLogWriteFailed } from '@codemind/core';
 import type {
   Claim,
   ClaimItem,
@@ -11,6 +11,7 @@ import type {
   KnowledgeGraph,
   Neighbor,
   NewProject,
+  QueryLogEntry,
   TraversalDirection,
 } from '@codemind/core';
 import { createInMemoryStore } from '../../support/in-memory-store';
@@ -765,6 +766,37 @@ describe('in-memory StorePort double', () => {
     });
   });
 
+  describe('Requirement: Query log write', () => {
+    it('The in-memory double checks, keeps and fails query log entries', async () => {
+      // Arrange
+      const injected: { failure?: unknown } = {};
+      const loaded = createInMemoryStore({
+        projects: [{ project: newProject(), graph: graphOf([file('a.php')], []) }],
+        failQueryLogWrite: () => injected.failure,
+      });
+      const [projectId] = loaded.projectIds as [string];
+      const valid = queryLogEntry(projectId);
+
+      // Act
+      const first = await loaded.store.saveQueryLog(valid);
+      const negative = await rejectionOf(() => loaded.store.saveQueryLog({ ...valid, inputTokens: -1 }));
+      const malformed = await rejectionOf(() => loaded.store.saveQueryLog({ ...valid, projectId: 'not-a-uuid' }));
+      const unknown = await rejectionOf(() => loaded.store.saveQueryLog({ ...valid, projectId: randomUUID() }));
+      injected.failure = new QueryLogWriteFailed();
+      const failed = await rejectionOf(() => loaded.store.saveQueryLog(valid));
+
+      // Assert
+      expect(first).toBeUndefined();
+      expect(negative).toBeInstanceOf(InvalidStoreQuery);
+      expect((negative as InvalidStoreQuery).argument).toBe('entry');
+      expect(malformed).toBeInstanceOf(ProjectNotFound);
+      expect(unknown).toBeInstanceOf(ProjectNotFound);
+      expect(failed).toBe(injected.failure);
+      expect(loaded.queryLog()).toEqual([valid]);
+      expect(loaded.calls.saveQueryLog).toBe(5);
+    });
+  });
+
   describe('Requirement: Claim retrieval by overlapping span', () => {
     it('Overlap is inclusive at both ends (in-memory double)', async () => {
       // Arrange
@@ -881,6 +913,26 @@ function claimItem(projectId: string, fileId: string, start: number, end: number
       },
     },
     evidence: [{ fileId, startLine: start, endLine: end, verification: 'none', excerpt: 'excerpt' }],
+  };
+}
+
+/** A valid query log entry of `projectId`. */
+function queryLogEntry(projectId: string): QueryLogEntry {
+  return {
+    projectId,
+    question: '¿Cómo se calcula el precio?',
+    capability: 'explain',
+    inputTokens: 4000,
+    outputTokens: 300,
+    baselineTokens: 40000,
+    costUsd: 0.0165,
+    latencyMs: 1234,
+    cacheHit: false,
+    verifyInputTokens: 600,
+    verifyOutputTokens: 40,
+    verifyCostUsd: 0.0024,
+    verifyCalls: 2,
+    verifyLatencyMs: 900,
   };
 }
 

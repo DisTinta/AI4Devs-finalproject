@@ -22,6 +22,29 @@ export interface ClaimsNotPersistedEvent {
 }
 
 /**
+ * Why the `query_log` row of a call was not written (DIS-74 design U9): the database failed
+ * (`store-write-failed`); the row named no project (`project-not-found`: a `no-anchor` question with
+ * no search terms is answered without checking the project); or the row failed the store's record
+ * schema (`invalid-entry`: the model reported more tokens, or the call cost more, than its columns hold).
+ */
+export const QUERY_NOT_LOGGED_CODES = ['store-write-failed', 'project-not-found', 'invalid-entry'] as const;
+
+/** Why the `query_log` row of a call was not written. */
+export type QueryNotLoggedCode = (typeof QUERY_NOT_LOGGED_CODES)[number];
+
+/**
+ * The `query_log` row of a call could not be written: the answer was still returned, and its spend is
+ * invisible to the daily ceiling. It carries only its code: no message, no detail, no part of the
+ * question (the detail of a database error can quote it).
+ */
+export interface QueryNotLoggedEvent {
+  /** Discriminant. */
+  type: 'query_not_logged';
+  /** Why the row was not written. */
+  code: QueryNotLoggedCode;
+}
+
+/**
  * The instruction-like patterns the sanitisation of `explain` flags (DIS-41, author decision P4), in
  * the fixed order flags and events follow. A closed set: an event names a code, never the text.
  */
@@ -112,9 +135,10 @@ export interface EvidenceBrokenEvent {
 /**
  * Why the semantic check left a citation `cited` without an answer from the verifier (DIS-70 design
  * S7, decision D3): its output was not `{"entails": boolean}`; the model was unavailable; the daily
- * budget was exhausted. A closed set, so no free text can leak.
+ * budget was exhausted; the check had already sent `MAX_VERIFY_CALLS_PER_ANSWER` calls (DIS-74 D2). A
+ * closed set, so no free text can leak.
  */
-export const ENTAILMENT_UNVERIFIED_REASONS = ['invalid-output', 'llm-unavailable', 'budget-exhausted'] as const;
+export const ENTAILMENT_UNVERIFIED_REASONS = ['invalid-output', 'llm-unavailable', 'budget-exhausted', 'call-limit'] as const;
 
 /** A reason of {@link ENTAILMENT_UNVERIFIED_REASONS}. */
 export type EntailmentUnverifiedReason = (typeof ENTAILMENT_UNVERIFIED_REASONS)[number];
@@ -148,4 +172,5 @@ export type ExplainEvent =
   | ClaimsNotPersistedEvent
   | SanitizationEvent
   | EvidenceBrokenEvent
-  | EntailmentUnverifiedEvent;
+  | EntailmentUnverifiedEvent
+  | QueryNotLoggedEvent;
