@@ -403,3 +403,7 @@ Spec audit run 3 (CHANGES REQUIRED) — all **A**, fixed in this change's artifa
 (two more repeated-question unit tests send the repeat with `useCache: false`: C8, proposal Impact,
 tasks 6.9 and 9.2), P2 (the 5-character prefixes in C11), P3 (the source-reader count sentence of
 "Precedence and UNKNOWN answers"), P4 (C8 and proposal counts of the `http-ask` cache scenarios).
+
+Spec audit run 4 (APPROVED) — improvable findings, all **A**, folded by the main session on
+2026-10-17: Q1 (the count of edited tests in task 9.2), Q2 ("rare" removed from `answer-cache`
+"Question normalization").

@@ -1,4 +1,4 @@
-CHANGES REQUIRED
+APPROVED
 
 # Spec audit — evaluation-cache (DIS-21, parent DIS-16)
 
@@ -877,3 +877,223 @@ pasada)").
 | P2 | Design C11 and the DIS-21 description give the 5-character prefixes (`gesti`, `reemb`, `pedid`). |
 | P3 | `explain` "Precedence and UNKNOWN answers": the source reader receives no call for a cache hit; otherwise the pack's read plus the verification reads where they apply. |
 | P4 | Design C8 says three `http-ask` cache scenarios; the proposal's `http-ask` line names the refund scenario. |
+
+## Run 4
+
+Verdict: APPROVED
+
+# Spec audit, run 4: evaluation-cache (DIS-21, parent DIS-16)
+
+- **Date:** 2026-10-17
+- **What I read:**
+  - the change: `proposal.md`, `design.md`, `tasks.md` and the five deltas (`answer-cache`, `explain`, `graph-store`, `http-ask`, `cli-ask`);
+  - `reports/2026-10-17-spec-audit.md` (runs 1–3 and their resolution tables);
+  - Linear DIS-21 with its 3 comments (handovers from DIS-78, DIS-41 and DIS-39), and the parent DIS-16 (no comments);
+  - the main spec `openspec/specs/http-ask/spec.md` (requirement and scenario list, "Ask UNKNOWN response", "Ask error answers", "Ask in the OpenAPI document");
+  - the code `packages/core/src/explain/explain-answer.ts`;
+  - the tests `tests/unit/explain/explain.spec.ts:360-400`, `tests/unit/explain/explain-sanitization.spec.ts:55-104` and `tests/unit/explain/explain-verification.spec.ts:380-530`;
+  - a repo-wide grep of exact `order` / `calls` / `cacheHit: false` / `EXPLAIN_REQUEST_FIELDS` assertions;
+  - the `docs/adr/` listing.
+- **Delegated decisions, not reopened:** D1–D14 and the post-audit amendments of D3, D4, D5, D6, D8 and D14, including the second and third passes. The agent took them as lead engineer under ADR `20261016-autonomous-workflow-run-entrega-2`. The author reviews them later.
+
+**Questions for the author:** none.
+
+---
+
+### 0. Run 3 findings: resolution check
+
+| Finding | Status | Where |
+|---|---|---|
+| P1 | **Resolved** | Design C8 (lines 277-285) names both tests and says why `useCache: false` and not separate doubles. Proposal Impact (lines 107-110), task 6.9, task 9.2 and the DIS-21 "Ampliación de D6 (tercera pasada)" say the same. Checked against the code: the repeat calls are `explain.spec.ts:385` and `explain-sanitization.spec.ts:77`. A one-field edit keeps every assertion as strict as it is. The hops test still compares the two packs it sent. The sanitisation test still gets two stored claims, so `two === one` stays a real check of hash stability. |
+| P2 | **Resolved** | Design C11 (lines 312-315) gives `gesti`/`reemb`/`pedid` and the dropped words. DIS-21 "Ampliación de D14 (tercera pasada)" corrects the D14 bullet without rewriting it. |
+| P3 | **Resolved** | `explain` delta lines 124-127: the source reader gets no call for a cache hit; otherwise the pack's read, plus the verification reads where they apply. |
+| P4 | **Resolved** | Design C8 line 286 says "the three `http-ask` … scenarios". Proposal lines 78-80 name the refund `no-anchor` scenario (D14). |
+
+### 1. Scope against the ticket
+
+**Clean.** The run 3 fixes only change test call sites and wording.
+- Everything still follows from DIS-21's DoD, `[enhanced]` D1–D14 and the amendments.
+- The non-goals match the ticket: DIS-26, DIS-34, CM-HU-14.1, CM-HU-19, the DIS-9 caller, no migration.
+- Nothing widens the change to DIS-16's whole story.
+
+### 2. Inherited acceptance criteria
+
+**Clean.** Same mapping as in run 3:
+
+| DIS-16 AC | Covered by | Status |
+|---|---|---|
+| AC1 | explain "A cached question is answered from the cache in both modes"; answer-cache "Case, accent and punctuation variants share one key" | covered |
+| AC2 | explain "Evaluation mode without an entry answers llm-required and saves nothing" | covered |
+| AC3 | — | CM-HU-14.1, out of scope (correct) |
+| AC4 | "Turning the cache off…", "A live answer is saved once…" | covered |
+| AC5 | "A live answer is saved once…"; answer-cache "A stored response keeps the answer without its events" | covered |
+| AC6 | http-ask "The refund demo question answers no-anchor without the model over the seed" (D14) | covered |
+
+Every `[enhanced]` AC of DIS-21 has a requirement and a scenario. DIS-21 and DIS-16 do not disagree on scope.
+
+### 3. Missing scenarios
+
+**Clean.** No MUST/SHALL clause was added since run 3. The P3 rewording ("no call for a cache hit") is checked by the "A cached question … both modes" scenario: "the source reader … received 0 calls".
+
+### 4. Ambiguity
+
+None of fast / easy / secure / efficient / many / appropriate / robust has a vague meaning anywhere in the change. The two "many" in `explain` are exact ("as many … as one anchoring sends"; "however many statements cite it").
+
+- **Q2 (improvable).** `answer-cache` delta, "Question normalization", line 25 says "this includes rare pairs that differ only in an accent or in `ñ`". "Rare" is not measurable and adds nothing to the rule. **Fix:** "this includes pairs that differ only in an accent or in `ñ` (`año` and `ano`), an accepted collision (D1)".
+
+### 5. Open decisions
+
+**Clean.** I looked again for tests that call `explain` twice on one store, since that is where runs 2 and 3 found blocking gaps:
+- **Exact `d.order` assertions:** the repo has exactly five (`explain.spec.ts:306, 322, 769`; `explain-verification.spec.ts:165, 206`). All five are in design C8 with their new expected values. Line 769 really is `[…'complete', 'verify', 'saveClaims', 'saveQueryLog']`, which matches C8's "`findCacheEntry` first … `saveClaims`, `saveCacheEntry`, `saveQueryLog`".
+- **Whole-object `d.loaded.calls` assertions:** exactly three (`explain.spec.ts:106, 129, 183`), all listed. The other `calls).toEqual` matches are source-reader or sanitiser doubles, which the change does not touch.
+- **Other tests with several runs** in `explain-verification.spec.ts`, read again ("A cached pair is not verified again by a second answer", "An invalid verifier output degrades its pair to cited", "An unavailable verifier degrades…", "An answer carries the confidence…"): each run gets its own `acmeShop(...)` store and shares only the verification cache. None becomes an answer-cache hit.
+- **`cacheHit: false` literals in tests:** they are in `QueryLogEntry` / usage fixtures of miss paths. With `QueryLogParts.cacheHit?` defaulting to `false`, none changes.
+- **`EXPLAIN_REQUEST_FIELDS`:** no test asserts its value. `NAMED_FIELDS` (`explain-request.ts:53`) picks up `useCache` with no other change.
+
+### 6. Contradictions inside the change
+
+- **Q1 (improvable). The count in task 9.2 is stale after P1.**
+  - Task 9.2 says "the four of 6.9 and 7.1, the two repeated-question unit tests of 6.9 …".
+  - Since P1, task 6.9 names four tests by itself: two modified scenarios and two unit tests. 7.1 adds two more.
+  - So "the four of 6.9 and 7.1" now reads either as 6.9's four or as 2 + 2.
+  - Task 6.9 also ends with "record all four", while 7.1 records its own two.
+  - **Fix:** 9.2 → "the two modified scenarios of 6.9 and the two of 7.1, the two repeated-question unit tests of 6.9 (design C8), and the eight exact `order`/`calls` assertions of design C8, …".
+
+Otherwise **clean**:
+- proposal Impact, design C5/C8/C11, tasks 6.9 and 7.3, and the DIS-21 amendments agree;
+- the `explain` delta's step order, its count sentences and "Answer cache" agree.
+
+### 7. Contradictions with the project
+
+**Clean.**
+- **http-ask main spec:** the MODIFIED "Ask request validation" keeps all five main scenario names. "An invalid token budget, cache flag or extra key answers VALIDATION_ERROR" is already the main name (line 46). "Ask in the OpenAPI document" pins `useCache`'s type and `default` but not its description, so task 7.2's description change breaks nothing. The refund scenario's body is exactly the main "Ask UNKNOWN response" shape for a reason other than `llm-required` (lines 165-169).
+- **The rest:** no ADR in `docs/adr/` is contradicted, and `backend-standards.md` §4/§7 are respected (checked in earlier runs; nothing here changed).
+- **Autonomous-run ADR:** it is still not on this branch, as tasks 16.1 and 16.9 already say. It is not reopened.
+
+### 8. Contrast with the real code
+
+**Clean.**
+- `AnswerEvidence.excerpt: string | null`, "null only for a prior claim" (`explain-answer.ts:23-28`), and `PriorClaim.text: string | null` (`:58`) match the answer-cache read schema.
+- `confidence` is documented "in (0, 1)" (`explain-answer.ts:129`), so the schema's "greater than 0 and less than 1" cannot reject a real cacheable answer. This is the kind of gap B2 was, and it does not occur here.
+- `AnswerUsage.cacheHit: false` (`:99`) is still the literal that C2 widens.
+- The P1 call sites are where C8 says (`explain.spec.ts:384-385`, `explain-sanitization.spec.ts:76-77`).
+
+### 9. Task size
+
+**Clean.** Task 6.9 now edits four tests, each by adding one request field. It still fits in one turn.
+
+### 10. Mandatory steps
+
+**Clean.** Unchanged since run 3:
+- Step 0 is first and labelled.
+- MANDATORY labels are on 9, 11, 12, 13, 14 and 16; AGENT MUST EXECUTE is on 12, 13 and 16.
+- Report paths are named.
+- State is restored in 11.6, 12.5 and 12.7.
+- Manual step 12.4 covers success, invalid input and a missing resource.
+- Pre-merge Review is last, and the archive comes before the merge (16.9).
+
+### 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| answer-cache · Question normalization | Case, accent and punctuation variants share one key | 1.1, 1.2 |
+| | Identifiers, symbols and compatibility characters become plain words | 1.3 |
+| | A question of only punctuation has no key, and a key is stable | 1.3 |
+| answer-cache · Cacheable answers | Only stored current answers and no-evidence unknowns are cacheable | 2.2, 2.3 |
+| answer-cache · Stored response | A stored response keeps the answer without its events | 2.4 |
+| | A no-evidence unknown is stored without events | 2.4 |
+| | Invalid stored responses are rejected without leaking | 2.5 |
+| answer-cache · Answer of a cache hit | A hit carries the stored answer and the usage of this call | 2.6 |
+| | A cached unknown is answered without usage | 2.6 |
+| explain · Explain request (MOD) | A non-boolean cache flag is rejected before the store | 5.1 |
+| | 6 unchanged (+ 3 `calls` assertions) | 9.2, 9.3 |
+| explain · Precedence and UNKNOWN answers (MOD) | A question without anchor is not looked up in the cache | 6.3 |
+| | 14 unchanged (+ 5 `order` assertions) | 9.2, 9.3 |
+| explain · Untrusted content sanitization (main, not modified) | Untrusted text reaches the prompt wrapped and unchanged (repeat with `useCache: false`) | 6.9, 9.2 |
+| explain · (test that is not a scenario) | builds the pack with the hops and budget of the request (repeat with `useCache: false`) | 6.9, 9.2 |
+| explain · Explain events and logging (MOD) | 5 unchanged; `answer_not_cached` covered by the Answer cache scenarios | 5.2, 6.6; 9.3 |
+| explain · Answer usage (MOD) | 4 unchanged; hit usage covered by 2.6 / 6.1 | 6.2; 9.3 |
+| explain · Query log (MOD) | An answer leaves one query log row the daily spend sees (modified) | 6.9 |
+| | 14 unchanged | 9.3 |
+| explain · Answer with typed statements (MOD) | A valid but irrelevant citation is cited and never a fact (modified) | 6.9 |
+| | 15 unchanged | 9.3 |
+| explain · Answer cache (ADD) | A cached question is answered from the cache in both modes | 6.1, 6.2 |
+| | A hit over the database counts in its entry and its row | 6.8 |
+| | Evaluation mode without an entry answers llm-required and saves nothing | 6.3 |
+| | A live answer is saved once and a repeat is served from the cache | 6.4 |
+| | Turning the cache off calls the model and replaces the entry | 6.5a |
+| | An invalid entry is a miss and a live answer replaces it | 6.5a |
+| | A no-evidence unknown is cached and served without the model | 6.5a |
+| | Answers that are not cacheable are not saved | 6.5b |
+| | The cache key ignores the budget and the hops | 6.5b |
+| | The cache is scoped by project | 6.3 |
+| | A failed cache write still answers and says so without leaking | 6.6 |
+| | Other cache write errors propagate after the row | 6.6 |
+| | A hit whose row is not written still answers and says so | 6.6 |
+| | A failing cache lookup or hit record stops before the model | 6.3 |
+| | A cached question answers with the daily budget spent | 6.7 |
+| graph-store · Answer cache entries | A saved entry is found by its project and key | 4.1, 4.2 |
+| | Saving a key again replaces its entry | 4.3a |
+| | Concurrent saves of one key leave one entry | 4.4 |
+| | The most recent of duplicated entries is found | 4.3a |
+| | Touching an entry records the hit | 4.3a |
+| | Invalidating a project deletes only its entries | 4.3a |
+| | Invalid cache arguments are rejected before querying | 4.3b |
+| | Cache calls on an unknown project fail without writing | 4.3b |
+| | A failed cache write does not leak | 4.3b |
+| | A failed rollback of a cache write is a write failure | 4.5 |
+| | Cache writes on the store's own connections commit | 4.4 |
+| | A store that cannot give a connection fails cache writes with its own error | 4.5 |
+| | The in-memory double keeps, checks and fails cache entries | 3.1, 3.3 |
+| http-ask · Ask request validation (MOD) | Optional fields are forwarded as the use case expects | 7.1, 7.2 |
+| | 4 unchanged | 9.3 |
+| http-ask · Ask events and verification verdicts (MOD) | Requests to one API share verification verdicts (modified) | 7.1 |
+| | The answer's events are logged by level (unchanged) | 9.3 |
+| http-ask · Ask from the answer cache (ADD) | A cached question answers from the cache over the seed | 7.3 |
+| | A spent daily budget still answers a cached question | 7.3 |
+| | The refund demo question answers no-anchor without the model over the seed | 7.3 |
+| cli-ask · Ask from the answer cache (ADD) | Evaluation mode prints a cached answer | 8.1 |
+
+**No holes.** Both run 3 holes (P1) now map to tasks 6.9 and 9.2.
+
+---
+
+### New findings: summary
+
+| Id | Point | Severity | Subject |
+|---|---|---|---|
+| Q1 | 6 | improvable | Task 9.2's "the four of 6.9 and 7.1" is ambiguous now that 6.9 names four tests |
+| Q2 | 4 | improvable | answer-cache "Question normalization": "rare pairs" is not measurable |
+
+No blocking finding remains.
+
+---
+
+### Corrections to apply
+
+### `openspec/changes/evaluation-cache/tasks.md`
+
+- **9.2 (Q1).** Replace "the four of 6.9 and 7.1, the two repeated-question unit tests of 6.9 (design C8)," with "the two modified scenarios of 6.9 and the two of 7.1, the two repeated-question unit tests of 6.9 (design C8),".
+
+### `openspec/changes/evaluation-cache/specs/answer-cache/spec.md`
+
+- **"Question normalization", last sentence of the requirement text (Q2).** Replace "this includes rare pairs that differ only in an accent or in `ñ` (`año` and `ano`), an accepted collision." with "this includes pairs that differ only in an accent or in `ñ` (`año` and `ano`), an accepted collision (D1)."
+
+### `openspec/changes/evaluation-cache/design.md`
+
+- **Follow-ups (run 4).** Add: "Spec audit run 4 (APPROVED) — improvable findings, all **A**: Q1 (count in task 9.2), Q2 ('rare' in answer-cache 'Question normalization')."
+
+### Linear DIS-21
+
+Nothing to add: both findings are wording in the change's own artifacts. The `[original]` block is not touched.
+
+### Resolution of run 4 (main session, 2026-10-17)
+
+Verdict APPROVED: apply can start. The two improvable findings were folded into the artifacts
+(destination **A**, `design.md` → Follow-ups); nothing to add to Linear, as the auditor notes.
+
+| Finding | Resolution |
+|---|---|
+| Q1 | Task 9.2: "the two modified scenarios of 6.9 and the two of 7.1, the two repeated-question unit tests of 6.9 (design C8), and the eight exact `order`/`calls` assertions of design C8". |
+| Q2 | `answer-cache` "Question normalization": "pairs that differ only in an accent or in `ñ` (`año` and `ano`), an accepted collision (D1)". |
+

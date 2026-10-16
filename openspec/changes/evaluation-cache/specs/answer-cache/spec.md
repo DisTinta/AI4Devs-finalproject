@@ -22,7 +22,7 @@ The normalization SHALL be a pure function of the question: the same question SH
 same key, whatever the process, and normalizing a key SHALL give that same key. A question whose
 normalized form is empty has no key: it SHALL be neither looked up nor saved. Two questions that differ
 only in letter case, accents, punctuation, symbols or whitespace SHALL share one key; this includes
-rare pairs that differ only in an accent or in `ñ` (`año` and `ano`), an accepted collision.
+pairs that differ only in an accent or in `ñ` (`año` and `ano`), an accepted collision (D1).
 
 #### Scenario: Case, accent and punctuation variants share one key
 

@@ -68,7 +68,7 @@
 ## 9. Backend: Review and Update Existing Tests (MANDATORY)
 
 - [ ] 9.1 Identify the tests affected by the change: `grep -rn "cacheHit\|useCache\|EXPLAIN_REQUEST_FIELDS\|StorePort" tests/`, plus every type error `npm run typecheck` reports
-- [ ] 9.2 Update only the tests whose contract this change modified (the four of 6.9 and 7.1, the two repeated-question unit tests of 6.9 (design C8), and the eight exact `order`/`calls` assertions of design C8, extended with the cache calls, never filtered; a `StorePort` double gaining the four methods in 3.4 is a type fix, not an assertion change), without weakening any assertion; list every edited existing test with the reason in the step 11 report
+- [ ] 9.2 Update only the tests whose contract this change modified (the two modified scenarios of 6.9 and the two of 7.1, the two repeated-question unit tests of 6.9 (design C8), and the eight exact `order`/`calls` assertions of design C8, extended with the cache calls, never filtered; a `StorePort` double gaining the four methods in 3.4 is a type fix, not an assertion change), without weakening any assertion; list every edited existing test with the reason in the step 11 report
 - [ ] 9.3 Confirm each `#### Scenario:` of the five delta specs maps 1:1 to a test with exactly the same name (grep each title in `tests/`); the unchanged scenarios of the modified `explain` and `http-ask` requirements still map to their tests
 
 ## 10. Refactor
