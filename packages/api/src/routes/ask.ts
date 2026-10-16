@@ -114,7 +114,8 @@ export function toPublicAnswer(answer: ExplainAnswer): AskResponse {
 
 /**
  * Registers `POST /api/projects/{projectId}/ask` (DIS-78 design U3): validates the request, resolves
- * the project in the store (whatever the question), answers with `explain` and returns the public
+ * the project in the store (whatever the question), answers with `explain`, writes the answer's events
+ * to the request log (`evidence_broken` at `error`, the rest at `info`) and returns the public
  * form of the answer. One verification cache is created here and shared by every request of this
  * app (D9).
  *
@@ -137,6 +138,9 @@ export function registerAskRoute(app: FastifyInstance, options: AskRouteOptions 
       { ...app.deps, verificationCache },
       { projectId: project.id, question: body.question, ...(body.tokenBudget !== undefined && { tokenBudget: body.tokenBudget }) },
     );
+    // A broken citation is a system failure (DIS-68); every other event is information. Events hold
+    // codes, ids, paths and lines only, never the question nor a span's text (design U5).
+    for (const event of result.events) request.log[event.type === 'evidence_broken' ? 'error' : 'info']({ ...event }, 'explain event');
     return toPublicAnswer(result);
   });
 }

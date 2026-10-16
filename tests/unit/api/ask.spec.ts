@@ -30,7 +30,7 @@ import { ACME_SHOP_PROJECT, acmeShopGraph } from '../../support/acme-shop-graph'
 import { createInMemorySourceTree } from '../../support/in-memory-source-tree';
 import { createInMemoryStore } from '../../support/in-memory-store';
 import { createScriptedLlm } from '../../support/scripted-llm';
-import { counting, defaultDeps, errorBody } from './support';
+import { counting, defaultDeps, errorBody, logStream } from './support';
 import type { Counted } from './support';
 
 // Spec: openspec/changes/ask-endpoint/specs/http-ask/spec.md (DIS-78). Each `it` is the scenario it
@@ -504,5 +504,46 @@ describe('ask error answers', () => {
     expect(responses.map((response) => response.statusCode)).toEqual([200, 200, 429]);
     expect(responses[2]!.json().error.code).toBe('RATE_LIMITED');
     expect(recorded.requests).toHaveLength(2);
+  });
+});
+
+describe('ask events and verification verdicts', () => {
+  it("The answer's events are logged by level", async () => {
+    // Arrange
+    const { stream, lines } = logStream();
+    const events: ExplainEvent[] = [
+      { type: 'untrusted_content_flagged', source: 'question', pattern: 'ignore-instructions' },
+      { type: 'evidence_broken', evidenceId: 'E2', path: 'app/Gone.php', startLine: 3, endLine: 9, reason: 'file-missing' },
+      { type: 'entailment_unverified', statementIndex: 0, evidenceId: 'E1', path: 'app/A.php', startLine: 1, endLine: 2, reason: 'llm-unavailable' },
+    ];
+    const broken = events[1]!;
+    const answers: ExplainAnswer[] = [
+      answered([evidenceOf('E1', 'app/A.php')], [statementOf('a statement', ['E1'])], { events }),
+      unknownAnswer('broken-evidence', [broken]),
+    ];
+    const recorded = useCase(() => answers.shift()!);
+    const built = await askApp({ explain: recorded.explain, logger: { level: 'info', stream } });
+    const question = 'SENTINEL-question-4d1e price';
+
+    // Act
+    const first = await ask(built.app, built.projectId, { question });
+    const second = await ask(built.app, built.projectId, { question });
+
+    // Assert
+    expect([first.statusCode, second.statusCode]).toEqual([200, 200]);
+    const eventLines = lines.filter((line) => typeof line.type === 'string');
+    const [firstReqId, secondReqId] = [...new Set(eventLines.map((line) => line.reqId))];
+    const ofFirst = eventLines.filter((line) => line.reqId === firstReqId);
+    expect(ofFirst.map((line) => [line.type, line.level])).toEqual([
+      ['untrusted_content_flagged', 30],
+      ['evidence_broken', 50],
+      ['entailment_unverified', 30],
+    ]);
+    expect(ofFirst[1]).toMatchObject(broken);
+    const ofSecond = eventLines.filter((line) => line.reqId === secondReqId);
+    expect(ofSecond.map((line) => [line.type, line.level])).toEqual([['evidence_broken', 50]]);
+    expect(secondReqId).toBeDefined();
+    expect(firstReqId).not.toBe(secondReqId);
+    expect(lines.map((line) => JSON.stringify(line)).join('\n')).not.toContain('SENTINEL-question-4d1e');
   });
 });
