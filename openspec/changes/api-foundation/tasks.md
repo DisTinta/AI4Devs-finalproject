@@ -46,8 +46,8 @@
 
 ## 7. API: configuration and composition (TDD, design U7) — `api-foundation` → "Configuration from the environment", "Composition from the environment"
 
-- [ ] 7.1 RED: create `tests/unit/api/composition.spec.ts` with "Defaults apply to unset and empty variables" and "An invalid variable fails with its name and without its value". See them fail
-- [ ] 7.2 GREEN: `apiConfigFromEnv`, `ApiConfig`, `ApiConfigError` (exposes `code` and `variable`, no `details`) in `packages/api/src/composition.ts`
+- [x] 7.1 RED: create `tests/unit/api/composition.spec.ts` with "Defaults apply to unset and empty variables" and "An invalid variable fails with its name and without its value". See them fail
+- [x] 7.2 GREEN: `apiConfigFromEnv`, `ApiConfig`, `ApiConfigError` (exposes `code` and `variable`, no `details`) in `packages/api/src/composition.ts`
 - [ ] 7.3 RED → GREEN: "Configuration errors are raised before the store is opened", "Evaluation mode uses the model as built", "A daily budget stops the model call" and "The composed repository root is the repository's top directory" with `composeFromEnv` and `ComposeSeams` (seams `openStore`, `createLlm`, `source`, `now`)
 
 ## 8. API: start-up, process entry and package entry (TDD, design U6) — `api-foundation` → "Start-up failure", "Composition from the environment"
