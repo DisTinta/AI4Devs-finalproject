@@ -117,6 +117,23 @@ describe('single error format', () => {
     expect(response.json()).toEqual(errorBody('BAD_REQUEST', 'bad request'));
     expect(response.body).not.toContain('10.0.0.5');
   });
+
+  it('A body error on a route that does not exist answers NOT_FOUND', async () => {
+    // Arrange
+    ({ app } = await buildTestApp());
+    const headers = { 'content-type': 'application/json' };
+
+    // Act
+    const malformed = await app.inject({ method: 'POST', url: '/api/nope', headers, payload: '{' });
+    const tooLarge = await app.inject({ method: 'POST', url: '/api/nope', headers, payload: `{"q":"${'a'.repeat(70_000)}"}` });
+    const xml = await app.inject({ method: 'POST', url: '/api/nope', headers: { 'content-type': 'application/xml' }, payload: '<q/>' });
+
+    // Assert
+    for (const response of [malformed, tooLarge, xml]) {
+      expect(response.statusCode).toBe(404);
+      expect(response.json()).toEqual(errorBody('NOT_FOUND', 'route not found'));
+    }
+  });
 });
 
 describe('request validation by schema', () => {
@@ -232,6 +249,21 @@ describe('domain error mapping', () => {
     expect(response.statusCode).toBe(500);
     expect(response.json()).toEqual(errorBody('INTERNAL', 'unexpected error'));
     expect(response.body).not.toContain(id);
+  });
+
+  // Added by the pre-merge review: the error format holds even when a mapping cannot build its details.
+  it('answers INTERNAL in the error format when a domain mapping fails to build its details', async () => {
+    // Arrange
+    const { stream, lines } = logStream();
+    ({ app } = await buildTestApp({ logger: { level: 'info', stream }, error: () => new BudgetExhausted(1, 1, new Date('not a date')) }));
+
+    // Act
+    const response = await app.inject({ method: 'GET', url: '/api/test-throw' });
+
+    // Assert
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toEqual(errorBody('INTERNAL', 'unexpected error'));
+    expect(lines.filter((line) => line.level === 50)).toHaveLength(1);
   });
 });
 

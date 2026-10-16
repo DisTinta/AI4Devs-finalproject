@@ -36,6 +36,15 @@ message above), a value received in the request, a database URL, a host, a port 
   `{ "error": { "code": "NOT_FOUND", "message": "route not found", "details": {} } }`, and the
   `content-type` starts with `application/json`
 
+#### Scenario: A body error on a route that does not exist answers NOT_FOUND
+
+- **GIVEN** the app built with test doubles
+- **WHEN** `POST /api/nope` is sent the body `{` with `content-type: application/json`, then a JSON body
+  of 70 000 bytes, then the body `<q/>` with `content-type: application/xml`
+- **THEN** all three answer `404` with body exactly
+  `{ "error": { "code": "NOT_FOUND", "message": "route not found", "details": {} } }`, since no route
+  matches whatever the body is
+
 #### Scenario: A malformed or empty JSON body answers VALIDATION_ERROR
 
 - **GIVEN** a test route `POST /api/test-only`
@@ -215,7 +224,9 @@ whole seconds until the window resets, at least 1) and a `Retry-After` header wi
 without running the handler. Every request to a limited route counts, whatever its result.
 `/health` and every path under `/docs` are neither limited nor counted, and neither is a request that
 matches no route. The limit and the window come from the configuration (default 30 requests per
-60 000 ms).
+60 000 ms). A response of a limited route MAY carry the informational headers `x-ratelimit-limit`,
+`x-ratelimit-remaining` and `x-ratelimit-reset`; they hold only counts and seconds, never a request
+value.
 
 #### Scenario: The request beyond the limit answers RATE_LIMITED
 

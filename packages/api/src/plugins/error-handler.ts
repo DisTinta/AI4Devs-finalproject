@@ -16,6 +16,9 @@ interface ErrorAnswer {
 /** The answer of every error no other rule maps. */
 const INTERNAL: ErrorAnswer = { status: 500, code: 'INTERNAL', message: 'unexpected error', details: {} };
 
+/** The answer of a request that matches no route. */
+const NOT_FOUND: ErrorAnswer = { status: 404, code: 'NOT_FOUND', message: 'route not found', details: {} };
+
 /** The answer of a request that fails validation. */
 const VALIDATION_ERROR = { status: 400, code: 'VALIDATION_ERROR', message: 'invalid request' } as const;
 
@@ -64,14 +67,13 @@ export const DOMAIN_ERRORS: ReadonlyMap<string, DomainErrorMapping> = new Map([
  */
 export function installErrorHandler(app: FastifyInstance): void {
   app.setErrorHandler((error: FastifyError, request: FastifyRequest, reply: FastifyReply) => {
-    const answer = answerOf(error);
+    // A body error raised before the not-found handler runs still answers 404: no route matched.
+    const answer = request.is404 ? NOT_FOUND : answerOf(error);
     if (error instanceof RateLimited) void reply.header('retry-after', String(error.retryAfterSeconds));
     if (answer === INTERNAL) request.log.error({ err: error }, 'unexpected error');
     return send(reply, answer);
   });
-  app.setNotFoundHandler((_request, reply) =>
-    send(reply, { status: 404, code: 'NOT_FOUND', message: 'route not found', details: {} }),
-  );
+  app.setNotFoundHandler((_request, reply) => send(reply, NOT_FOUND));
 }
 
 /** The answer of `error`: the first rule of design U3 that matches it. */
