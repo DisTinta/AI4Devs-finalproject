@@ -168,3 +168,25 @@ after each step.
   `composition.ts` 97.01; the 3 survivors are the equivalent ones already listed above. No
   `.stryker-tmp/` left.
 - State: `project` → `1`, `codemind-%` sessions → `0`, as in the baseline.
+
+## Addendum — PR #45 CI run (17.3)
+
+- PR [#45](https://github.com/DisTinta/AI4Devs-finalproject/pull/45) against `feature/entrega-2-CRN`.
+  First CI run ([38944661703](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/38944661703))
+  failed `secrets`: gitleaks' `curl-auth-header` rule flagged the literal
+  `-H 'authorization: Bearer SENTINEL-hdr-demo'` example in
+  `openspec/changes/api-foundation/reports/2026-10-16-show-spec-working.md:75` as a real credential;
+  `mutation` was cancelled as a result. Fix attempt 1 (`c13ebb2`) rewrote the working-tree line, but
+  the git-mode scan still found the sentinel in the older commit (`25d5675`) that introduced it, since
+  it replays the PR's commit range. Fix attempt 2 (`4319225`) allowlisted the exact value
+  `SENTINEL-hdr-demo` in `.gitleaks.toml`, following the project's existing convention for synthetic
+  sentinels; verified locally with `gitleaks dir .` and `gitleaks git . --log-opts="origin/feature/entrega-2-CRN..HEAD"`
+  before pushing.
+- Second CI run ([38948418330](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/38948418330))
+  is green: `frontend`, `scope`, `secrets`, `quality` and `mutation` all pass. The new spec files
+  (`tests/unit/api/*`, `tests/integration/api/server.spec.ts`,
+  `tests/integration/store/open-store.spec.ts`) ran and passed as part of `quality`. The `mutation`
+  job (the whole-project Stryker run that includes `packages/api/src/**/*.ts` minus
+  `server.ts`/`start.ts`) scored **96.02 %** over 4288 mutants, well above the CI break threshold of
+  80, confirming the local forced-run figure of 96.81 % for `packages/api` alone from the step 12 run
+  above.
