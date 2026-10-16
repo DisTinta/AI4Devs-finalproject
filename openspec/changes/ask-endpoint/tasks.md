@@ -1,14 +1,14 @@
 ## 0. Setup: Create Feature Branch (MANDATORY - FIRST STEP)
 
-- [ ] 0.1 First action of the apply: confirm DIS-78 is In Progress in Linear (set it if not), with a short comment in Spanish naming the change `ask-endpoint` and the branch `feature/DIS-78-ask-endpoint`
-- [ ] 0.2 Feature branch `feature/DIS-78-ask-endpoint` (`BRANCH_PREFIX=feature/`, `docs/project-context.md` → Branch and ticket conventions), created from `feature/entrega-2-CRN` before `/opsx:propose`; confirm `git merge-base --is-ancestor origin/feature/entrega-2-CRN HEAD` and that `openspec/changes/ask-endpoint/` is on it. `git fetch`; if `origin/feature/entrega-2-CRN` moved, rebase before any code (never force-push a published branch)
-- [ ] 0.3 Verify the current branch (`git branch --show-current`) and `git status`; `.claude/sdd-harness.env` carries a local change that is never staged
-- [ ] 0.4 Baseline: run `npx vitest run` once, green, and record the totals for the step 9 report; in the local database record `SELECT count(*) FROM project`, `SELECT count(*) FROM claim`, `SELECT count(*) FROM query_log` and `SELECT max(created_at) FROM query_log`
+- [x] 0.1 First action of the apply: confirm DIS-78 is In Progress in Linear (set it if not), with a short comment in Spanish naming the change `ask-endpoint` and the branch `feature/DIS-78-ask-endpoint`
+- [x] 0.2 Feature branch `feature/DIS-78-ask-endpoint` (`BRANCH_PREFIX=feature/`, `docs/project-context.md` → Branch and ticket conventions), created from `feature/entrega-2-CRN` before `/opsx:propose`; confirm `git merge-base --is-ancestor origin/feature/entrega-2-CRN HEAD` and that `openspec/changes/ask-endpoint/` is on it. `git fetch`; if `origin/feature/entrega-2-CRN` moved, rebase before any code (never force-push a published branch)
+- [x] 0.3 Verify the current branch (`git branch --show-current`) and `git status`; `.claude/sdd-harness.env` carries a local change that is never staged
+- [x] 0.4 Baseline: run `npx vitest run` once, green, and record the totals for the step 9 report; in the local database record `SELECT count(*) FROM project`, `SELECT count(*) FROM claim`, `SELECT count(*) FROM query_log` and `SELECT max(created_at) FROM query_log`
 
 ## 1. API: per-route domain error table (TDD, design U4) — `api-foundation` → "Domain error mapping", "Single error format"
 
-- [ ] 1.1 RED: create `tests/unit/api/route-errors.spec.ts` with "A route's own mapping applies only to that route" (app from `buildApp` with `defaultDeps()` of `tests/unit/api/support.ts`; `GET /api/test-mapped` with `config.domainErrors` and `GET /api/test-throw` registered before `ready()`; `support.ts` unchanged). See it fail
-- [ ] 1.2 GREEN: in `packages/api/src/plugins/error-handler.ts`, `DomainErrorTable`, the `FastifyContextConfig.domainErrors` augmentation and the lookup of the route's table before `DOMAIN_ERRORS` (`answerOf(error, request)`); update the TSDoc of `DOMAIN_ERRORS`. `npx vitest run tests/unit/api` stays green (the DIS-76 scenarios unchanged)
+- [x] 1.1 RED: create `tests/unit/api/route-errors.spec.ts` with "A route's own mapping applies only to that route" (app from `buildApp` with `defaultDeps()` of `tests/unit/api/support.ts`; `GET /api/test-mapped` with `config.domainErrors` and `GET /api/test-throw` registered before `ready()`; `support.ts` unchanged). See it fail
+- [x] 1.2 GREEN: in `packages/api/src/plugins/error-handler.ts`, `DomainErrorTable`, the `FastifyContextConfig.domainErrors` augmentation and the lookup of the route's table before `DOMAIN_ERRORS` (`answerOf(error, request)`); update the TSDoc of `DOMAIN_ERRORS`. `npx vitest run tests/unit/api` stays green (the DIS-76 scenarios unchanged)
 
 ## 2. API: request schemas and route skeleton (TDD, design U1, U3, U6) — `http-ask` → "Ask request validation"
 

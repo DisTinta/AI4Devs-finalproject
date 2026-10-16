@@ -40,11 +40,25 @@ export interface DomainErrorMapping {
   details(error: DomainError): Record<string, unknown>;
 }
 
+/** Domain error mappings by the error's stable `code`. */
+export type DomainErrorTable = ReadonlyMap<string, DomainErrorMapping>;
+
+declare module 'fastify' {
+  interface FastifyContextConfig {
+    /**
+     * The route's own domain error table (DIS-78 design U4), consulted before {@link DOMAIN_ERRORS}
+     * and only for the requests of that route.
+     */
+    domainErrors?: DomainErrorTable;
+  }
+}
+
 /**
- * Domain errors by their stable `code` (design U3 step 3). A domain error whose code is absent is
- * answered `500` `INTERNAL`. DIS-78 adds the codes of `POST /ask` here.
+ * The global domain error table, by stable `code` (design U3 step 3): consulted after the table of
+ * the route that raised the error, when it declares one (DIS-78 design U4). A domain error whose code
+ * is in neither table is answered `500` `INTERNAL`.
  */
-export const DOMAIN_ERRORS: ReadonlyMap<string, DomainErrorMapping> = new Map([
+export const DOMAIN_ERRORS: DomainErrorTable = new Map([
   [
     'BUDGET_EXHAUSTED',
     {
@@ -68,7 +82,7 @@ export const DOMAIN_ERRORS: ReadonlyMap<string, DomainErrorMapping> = new Map([
 export function installErrorHandler(app: FastifyInstance): void {
   app.setErrorHandler((error: FastifyError, request: FastifyRequest, reply: FastifyReply) => {
     // A body error raised before the not-found handler runs still answers 404: no route matched.
-    const answer = request.is404 ? NOT_FOUND : answerOf(error);
+    const answer = request.is404 ? NOT_FOUND : answerOf(error, request);
     if (error instanceof RateLimited) void reply.header('retry-after', String(error.retryAfterSeconds));
     if (answer === INTERNAL) request.log.error({ err: error }, 'unexpected error');
     return send(reply, answer);
@@ -76,14 +90,14 @@ export function installErrorHandler(app: FastifyInstance): void {
   app.setNotFoundHandler((_request, reply) => send(reply, NOT_FOUND));
 }
 
-/** The answer of `error`: the first rule of design U3 that matches it. */
-function answerOf(error: FastifyError): ErrorAnswer {
+/** The answer of `error` raised by `request`: the first rule of design U3 that matches it. */
+function answerOf(error: FastifyError, request: FastifyRequest): ErrorAnswer {
   if (error instanceof SchemaValidationFailed) return { ...VALIDATION_ERROR, details: { issues: error.issues } };
   if (error instanceof RateLimited) {
     return { status: 429, code: 'RATE_LIMITED', message: 'too many requests', details: { retryAfterSeconds: error.retryAfterSeconds } };
   }
   if (error instanceof DomainError) {
-    const mapping = DOMAIN_ERRORS.get(error.code);
+    const mapping = request.routeOptions.config.domainErrors?.get(error.code) ?? DOMAIN_ERRORS.get(error.code);
     return mapping === undefined ? INTERNAL : { status: mapping.status, code: error.code, message: mapping.message, details: mapping.details(error) };
   }
   const bodyError = BODY_ERRORS.get(error.code);
