@@ -116,10 +116,11 @@ Verified against `package.json` (root and per package). If a command is not here
 - Migrations: `npm run db:migrate` (apply all pending) / `npm run db:rollback` (revert the latest
   one) — `tsx packages/adapters/store-postgres/src/migrate.ts up|down`, node-pg-migrate with SQL
   files `NNNN_name.up.sql` / `NNNN_name.down.sql` in `packages/adapters/store-postgres/migrations/`
-  (bookkeeping table `pgmigrations`). Three migrations exist: `0001_graph-l1` (project, file,
+  (bookkeeping table `pgmigrations`). Four migrations exist: `0001_graph-l1` (project, file,
   symbol, edge), `0002_history-claims` (commit, file_commit, claim, evidence, query_log,
-  cache_entry) and `0003_indexes-stale` (secondary and HNSW indexes, and the trigger that marks
-  claims `stale` when a file's `content_hash` changes). Each `db:rollback` reverts **one** migration, the latest. Both need `DATABASE_URL` (non-zero exit without it); locally
+  cache_entry), `0003_indexes-stale` (secondary and HNSW indexes, and the trigger that marks
+  claims `stale` when a file's `content_hash` changes) and `0004_query-log-verification` (DIS-74:
+  the five nullable `verify_*` columns of `query_log`). Each `db:rollback` reverts **one** migration, the latest. Both need `DATABASE_URL` (non-zero exit without it); locally
   `postgres://codemind:codemind@localhost:5432/codemind` with the compose defaults.
 - `npm run seed:build` (DIS-91) rebuilds acme-shop's history, indexes it without committing and
   rewrites `packages/web/src/data/sample-projects.ts` and then `seeds/graph-dump.sql`; needs
@@ -172,7 +173,10 @@ Verified against `package.json` (root and per package). If a command is not here
   with `ClaimWriteFailed` at that evidence before storing anything; `seedClaim({ claim, evidence,
   createdAt })` stores a claim without the ownership check (a claim may cite another project's file);
   `storedClaims()` lists them. Write instants are a counter after the latest seeded `createdAt`,
-  never `Date.now()`. Graph writes and `sumCostSince` throw. It runs the `graph-store` read scenarios in
+  never `Date.now()`. Since DIS-74 `saveQueryLog` checks like the adapter (id form, then
+  `assertValidQueryLogEntry`, then the project), keeps the rows (`queryLog()`, counted in
+  `calls.saveQueryLog`) and throws what `failQueryLogWrite()` returns when it is not `undefined`.
+  Graph writes and `sumCostSince` throw. It runs the `graph-store` read scenarios in
   `tests/unit/store/in-memory-store.spec.ts` (tests named `… (in-memory double)`). Known limit:
   case-insensitivity uses `toLowerCase`, which can differ from `ILIKE` on non-ASCII names. It lives
   in `tests/` on purpose: outside Stryker's `mutate` and core's `dist`.
@@ -427,8 +431,11 @@ services that must be started first, quirks of the local environment.
   live model with core's `withDailyBudget(llm, { store, dailyBudgetUsd })` only when
   `cfg.dailyBudgetUsd` is set: before every `complete`/`embed` it reads `StorePort.sumCostSince(start
   of the UTC day)` and throws `BudgetExhausted` when `spent >= ceiling` (stateless, so a restart
-  cannot reset it). The ceiling **cannot trigger until DIS-74 writes `query_log.cost_usd`** (with
-  core's `costUsd`); until then the spend reads `0`. `withDailyBudget` throws `RangeError` for a
+  cannot reset it). Since DIS-74 every `explain` writes its `query_log.cost_usd` (with core's
+  `costUsd`), verification included, so the ceiling sees `explain`'s whole spend. The spend of an `ask`
+  in flight is seen only when its row is written: one call can overshoot by one `answer` call plus
+  `MAX_VERIFY_CALLS_PER_ANSWER` (20) `verify` calls. Re-seeding (`db:seed`, `make up`) deletes the
+  sample projects' `query_log` rows by cascade and so resets that day's recorded spend for them. `withDailyBudget` throws `RangeError` for a
   ceiling that is not a positive finite number, and a `sumCostSince` failure rejects unchanged without
   calling the model (fail closed). With a ceiling, `llmConfigFromEnv` requires an
   exact-name entry in `COST_TABLE` for `LLM_MODEL`, `LLM_MODEL_VERIFY` (when set) and
@@ -577,22 +584,39 @@ services that must be started first, quirks of the local environment.
     never a Zod `message`, `keys` or value; at most `MAX_EVENT_ISSUES` (20) issues plus `issueCount`. Core returns it; the transport logs it (DIS-39).
 - **`explain` is the one-pass use case over the Context Engine** (DIS-39,
   `packages/core/src/explain/explain.ts`). `explain({ store, source, llm, workspaceRoot, now,
-  verificationCache }, { projectId, question, tokenBudget?, hops? })`, in this order: Zod request check
+  verificationCache, costTable? }, { projectId, question, tokenBudget?, hops? })`, in this order: Zod request check
   (`InvalidExplainRequest`, `field` only, never the value; question 1..`MAX_QUESTION_CHARS` = 1 000
-  code points, not blank) → `anchor` once → `no-anchor` → [DIS-21 cache slot] → `llm-required` in
+  code points, not blank, no U+0000 since DIS-74) → `anchor` once → `no-anchor` → [DIS-21 cache slot] → `llm-required` in
   evaluation mode (pack not built) → pack with the given anchor → `over-budget` →
   `sanitizeForPrompt` (DIS-41) → `findClaimsOverlapping` (before the model) → one
   `complete({ purpose: 'answer' })` → quarantine (`invalid-model-output`) → `no-evidence` when there
   is no statement → type → syntactic check → output policy (`broken-evidence` when nothing is
   left) → semantic check (`verify` calls) → entailment policy → `saveClaims`. Answer:
   `kind: 'unknown'` with `reason` (`UNKNOWN_REASONS`), or `kind: 'answered'` with `persisted`,
-  `usage.verification` and `confidence` (DIS-72; `UNKNOWN` has none).
+  `usage` (DIS-74: totals, `generation`, `verification`, `baselineTokens`, `savingsPct`, `latencyMs`,
+  `cacheHit: false`) and `confidence` (DIS-72; `UNKNOWN` has neither).
   `ClaimWriteFailed` from `saveClaims` → `persisted: false`, the prompt ids `E1…En` and one
   `{ type: 'claims_not_persisted', code: 'store-write-failed' }`; any other error propagates.
   The `LlmUnavailable` / `BudgetExhausted` of the `answer` call propagate (until DIS-21 adds the
   cache-only degradation); those of a `verify` call do not: they leave the citations `cited` (DIS-70).
   - Gotcha: `ExplainEvent` (`SchemaViolationEvent | ClaimsNotPersistedEvent | SanitizationEvent |
-    EvidenceBrokenEvent | EntailmentUnverifiedEvent`) is **not** part of `AuditEvent`. Core never logs; the transport does.
+    EvidenceBrokenEvent | EntailmentUnverifiedEvent | QueryNotLoggedEvent`) is **not** part of `AuditEvent`. Core never logs; the transport does.
+  - Gotcha (DIS-74, `core/explain/usage.ts`, `usage-meter.ts`): `explain` wraps the model it was given
+    in `meterLlm` (outside `withDailyBudget`, so a call the ceiling blocks never counts) and writes **one
+    `query_log` row per call** through `StorePort.saveQueryLog`, after the claim write and on its own:
+    on every return (`UNKNOWN` included; zero counters without a model call; `baseline_tokens` `NULL`
+    without a pack) and on every rejection after a resolved call (the spend so far, then the original
+    error, whatever happened to the row). No row when it fails before any call resolved. A row write
+    that fails with `QueryLogWriteFailed` or `ProjectNotFound` (a `no-anchor` question with no search
+    terms never checks the project) still returns the answer, with `{ type: 'query_not_logged', code }`
+    last in its events; any other write error propagates. Explain reads `now` twice when it writes a
+    row (start, which is also every claim's provenance instant, and just before the row); in live mode
+    the semantic check reads it twice more in between. `verify_calls` counts only resolved verifier
+    calls (cache hits never; a failed call's time is still in `verify_latency_ms`). The semantic check
+    makes at most `MAX_VERIFY_CALLS_PER_ANSWER` (20, `explain/limits.ts`) calls; uncached pairs past it
+    stay `cited` with reason `call-limit`, so the last statements lose `FACT`. `costTable` defaults to
+    `COST_TABLE`. The in-memory store double keeps the rows (`queryLog()`) and takes
+    `failQueryLogWrite`.
   - Gotcha (DIS-68, `core/verify/`): after typing, `explain` verifies the cited spans by re-reading
     git at `pack.commit` from `pack.root` (one more batched read per answer, each cited path once;
     uncited pack spans are not read), never at the project's current indexed commit. The expected
@@ -618,7 +642,7 @@ services that must be started first, quirks of the local environment.
     model is not in it); `createInMemoryVerificationCache()` is an LRU of `MAX_VERIFICATION_CACHE_ENTRIES`
     booleans, and `ask` creates **one per run** (one per process), so it only saves pairs repeated in
     one answer; a long-lived process (API) would share it. `usage.verification` counts only `verify`
-    calls (DIS-74 aggregates the rest).
+    calls; DIS-74 adds the generation and the totals around it.
   - Gotcha (DIS-72, `core/knowledge/confidence.ts`): `confidence(statements, { contradiction })` is
     pure, order-independent and has its own input types (`ConfidenceCitation`: file id, lines,
     `fileKind`, `origin` as a string, verdict), so `knowledge/` imports nothing from `explain/` or
