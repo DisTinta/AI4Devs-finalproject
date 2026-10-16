@@ -22,8 +22,8 @@
 
 - [x] 3.1 RED: "Evidence ids are renumbered in evidence order" (seam returning a canned answered `explain` result). See it fail
 - [x] 3.2 GREEN: first add `STATEMENT_VERIFICATIONS` (`as const`) to `packages/core/src/explain/claim-items.ts` and derive `StatementVerification` from it (same union; `npm run typecheck` and `npx vitest run tests/unit` stay green); then `askAnsweredSchema`, `askUnknownSchema`, `askUsageSchema`, `askResponseSchema` (plus `errorSchema` for `400`/`404`/`429`/`500`/`503`) in `schemas/ask.ts`; `toPublicAnswer` in `routes/ask.ts` (a statement id absent from `evidence` throws); exports in `packages/api/src/index.ts`: the six schemas, their inferred types and `registerAskRoute`
-- [ ] 3.3 RED → GREEN, one at a time: "Internal fields of the answer are not sent", "Another UNKNOWN reason carries no message"
-- [ ] 3.4 RED → GREEN: "A statement citing an unknown evidence id answers INTERNAL" (`toPublicAnswer` throws; the route answers `500 INTERNAL`)
+- [x] 3.3 RED → GREEN, one at a time: "Internal fields of the answer are not sent", "Another UNKNOWN reason carries no message"
+- [x] 3.4 RED → GREEN: "A statement citing an unknown evidence id answers INTERNAL" (`toPublicAnswer` throws; the route answers `500 INTERNAL`)
 
 ## 4. API: project resolution and error answers (TDD, design U3, U4) — `http-ask` → "Ask project resolution", "Ask error answers"
 

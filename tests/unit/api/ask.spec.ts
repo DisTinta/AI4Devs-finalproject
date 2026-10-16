@@ -22,7 +22,7 @@ import { ACME_SHOP_PROJECT, acmeShopGraph } from '../../support/acme-shop-graph'
 import { createInMemorySourceTree } from '../../support/in-memory-source-tree';
 import { createInMemoryStore } from '../../support/in-memory-store';
 import { createScriptedLlm } from '../../support/scripted-llm';
-import { counting, defaultDeps } from './support';
+import { counting, defaultDeps, errorBody } from './support';
 import type { Counted } from './support';
 
 // Spec: openspec/changes/ask-endpoint/specs/http-ask/spec.md (DIS-78). Each `it` is the scenario it
@@ -279,6 +279,14 @@ function answered(evidence: AnswerEvidence[], statements: AnswerStatement[], ext
   } as AnsweredExplain;
 }
 
+
+/** Every object key at any depth of `value`. */
+function keysOf(value: unknown): string[] {
+  if (Array.isArray(value)) return value.flatMap(keysOf);
+  if (value === null || typeof value !== 'object') return [];
+  return Object.entries(value).flatMap(([key, child]) => [key, ...keysOf(child)]);
+}
+
 describe('ask answered response', () => {
   it('Evidence ids are renumbered in evidence order', async () => {
     // Arrange
@@ -302,5 +310,74 @@ describe('ask answered response', () => {
     ]);
     expect(body.statements.map((statement: { evidenceIds: string[] }) => statement.evidenceIds)).toEqual([['ev-2', 'ev-1'], ['ev-3']]);
     for (const id of [x!, y!, z!]) expect(response.body).not.toContain(id);
+  });
+
+  it('Internal fields of the answer are not sent', async () => {
+    // Arrange
+    const priorClaim = {
+      id: '11111111-2222-4333-8444-555555555555',
+      text: 'SENTINEL-prior-claim-text',
+      type: 'INFERENCE' as const,
+      status: 'current' as const,
+      evidence: [evidenceOf('E9', 'app/Prior.php')],
+    };
+    const recorded = useCase(() =>
+      answered(
+        [evidenceOf('E1', 'app/Services/PriceCalculator.php')],
+        [{ text: 'stale statement', type: 'INFERENCE', status: 'stale', warning: 'stale-evidence', verification: 'cited', evidenceIds: ['E1'] }],
+        {
+          persisted: false,
+          priorClaims: [priorClaim],
+          events: [
+            { type: 'untrusted_content_flagged', source: 'question', pattern: 'ignore-instructions' },
+            { type: 'claims_not_persisted', code: 'store-write-failed' },
+          ],
+        },
+      ),
+    );
+    const built = await askApp({ explain: recorded.explain });
+
+    // Act
+    const response = await ask(built.app, built.projectId, { question: Q1 });
+
+    // Assert
+    expect(response.statusCode).toBe(200);
+    const keys = keysOf(response.json());
+    for (const key of ['fileId', 'priorClaims', 'events', 'persisted', 'kind', 'status', 'warning']) expect(keys).not.toContain(key);
+    expect(response.body).not.toContain(priorClaim.text);
+    expect(response.body).not.toContain(priorClaim.id);
+  });
+
+  it('A statement citing an unknown evidence id answers INTERNAL', async () => {
+    // Arrange
+    const recorded = useCase(() => answered([evidenceOf('X')], [statementOf('cites a missing id', ['Y'])]));
+    const built = await askApp({ explain: recorded.explain });
+
+    // Act
+    const response = await ask(built.app, built.projectId, { question: Q1 });
+
+    // Assert
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toEqual(errorBody('INTERNAL', 'unexpected error'));
+  });
+});
+
+describe('ask UNKNOWN response', () => {
+  it('Another UNKNOWN reason carries no message', async () => {
+    // Arrange
+    const broken: ExplainEvent = { type: 'evidence_broken', evidenceId: 'E1', path: 'app/Gone.php', startLine: 1, endLine: 2, reason: 'file-missing' };
+    const answers = [unknownAnswer('no-anchor'), unknownAnswer('broken-evidence', [broken])];
+    const recorded = useCase(() => answers.shift()!);
+    const built = await askApp({ explain: recorded.explain });
+
+    // Act
+    const first = await ask(built.app, built.projectId, { question: Q1 });
+    const second = await ask(built.app, built.projectId, { question: Q1 });
+
+    // Assert
+    expect(first.statusCode).toBe(200);
+    expect(first.json()).toEqual({ answer: 'UNKNOWN', reason: 'no-anchor', statements: [], evidence: [] });
+    expect(second.statusCode).toBe(200);
+    expect(second.json()).toEqual({ answer: 'UNKNOWN', reason: 'broken-evidence', statements: [], evidence: [] });
   });
 });
