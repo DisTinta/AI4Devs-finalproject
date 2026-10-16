@@ -34,7 +34,7 @@
 - [x] 4.3a RED → GREEN, one at a time: "Saving a key again replaces its entry", "The most recent of duplicated entries is found", "Touching an entry records the hit", "Invalidating a project deletes only its entries"
 - [x] 4.3b RED → GREEN, one at a time: "Invalid cache arguments are rejected before querying" (no statement observed with a query-counting client), "Cache calls on an unknown project fail without writing", "A failed cache write does not leak" (temporary trigger inside the test's transaction)
 - [x] 4.4 RED → GREEN: "Concurrent saves of one key leave one entry" and "Cache writes on the store's own connections commit" (pool, unique project name, project deleted in `finally`, as `graph-write-pool.spec.ts`)
-- [ ] 4.5 RED → GREEN: create `tests/unit/store/postgres-cache-write-errors.spec.ts` (template `postgres-query-log-write-errors.spec.ts`) with "A failed rollback of a cache write is a write failure" (including the failing `SAVEPOINT` case) and "A store that cannot give a connection fails cache writes with its own error"
+- [x] 4.5 RED → GREEN: create `tests/unit/store/postgres-cache-write-errors.spec.ts` (template `postgres-query-log-write-errors.spec.ts`) with "A failed rollback of a cache write is a write failure" (including the failing `SAVEPOINT` case) and "A store that cannot give a connection fails cache writes with its own error"
 
 ## 5. Core: explain request and events (TDD, design C6) — `explain` → "Explain request", "Explain events and logging"
 
