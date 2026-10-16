@@ -124,3 +124,14 @@ Estimación previa del agente, sin medir: entre 1x y 2x por ticket (más escritu
 subagente vuelve a leer estándares, spec y código; menos lectura porque no hay una conversación larga que
 se relea en cada turno). La autora contrasta además el porcentaje de su límite de uso con `/usage` antes
 y después.
+
+Valores de `/usage` antes del piloto (16-10-2026, plan de suscripción):
+
+| Indicador | Antes del piloto | Después del piloto |
+|---|---|---|
+| Sesión actual (ventana de 5 h) | 13 % | — |
+| Semana, todos los modelos (reinicio 18-10, 12:00) | 51 % | — |
+
+Diagnóstico de `/usage` sobre las últimas 24 h: el 98 % del uso vino de sesiones con muchos subagentes y
+el 81 % se consumió con más de 150k tokens de contexto. Por eso el workflow asigna modelo por paso:
+Opus para el razonamiento (ingeniero jefe, tests, revisión adversarial) y Sonnet para los pasos mecánicos.
