@@ -95,8 +95,11 @@ export interface AnswerUsage {
   costUsd: number;
   /** Wall-clock time of the call in whole milliseconds, at least 1. */
   latencyMs: number;
-  /** Whether the answer came from the answer cache: always `false` until DIS-21. */
-  cacheHit: false;
+  /**
+   * Whether the answer came from the answer cache (DIS-21): `true` for a hit, whose tokens and costs
+   * are 0; `false` for an answer of the model.
+   */
+  cacheHit: boolean;
   /** The usage of the `answer` call. */
   generation: GenerationUsage;
   /** The usage of the semantic check of this answer: only its `verify` calls. */

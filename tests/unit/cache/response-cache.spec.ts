@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isCacheable, parseStoredResponse, toStoredResponse, UNKNOWN_REASONS, unknown } from '@codemind/core';
+import { answerFromCache, isCacheable, parseStoredResponse, toStoredResponse, UNKNOWN_REASONS, unknown } from '@codemind/core';
 import type { ExplainAnswer, StoredExplain } from '@codemind/core';
 import { CACHED_FILE_ID, cachedAnswer, cachedNoEvidence } from '../../support/cached-answer';
 
@@ -120,5 +120,55 @@ describe('Requirement: Stored response', () => {
     // Assert
     expect(results).toEqual(invalid.map(() => undefined));
     expect(JSON.stringify(results)).not.toContain(SENTINEL);
+  });
+});
+
+describe('Requirement: Answer of a cache hit', () => {
+  it('A hit carries the stored answer and the usage of this call', () => {
+    // Arrange
+    const stored = cachedAnswer();
+    const withoutBaseline = cachedAnswer({ usage: { ...cachedAnswer().usage, baselineTokens: 0 } });
+
+    // Act
+    const hit = answerFromCache(stored, 7);
+    const hitWithoutBaseline = answerFromCache(withoutBaseline, 7);
+
+    // Assert
+    expect(hit.kind === 'answered' && hit.usage).toStrictEqual({
+      inputTokens: 0,
+      outputTokens: 0,
+      baselineTokens: 40000,
+      baselineEstimator: 'chars-div-4',
+      savingsPct: 100,
+      costUsd: 0,
+      latencyMs: 7,
+      cacheHit: true,
+      generation: { inputTokens: 0, outputTokens: 0, costUsd: 0 },
+      verification: { calls: 0, cacheHits: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, latencyMs: 0 },
+    });
+    expect(hitWithoutBaseline.kind === 'answered' && hitWithoutBaseline.usage).toMatchObject({ baselineTokens: 0, savingsPct: 0 });
+    for (const [answer, source] of [
+      [hit, stored],
+      [hitWithoutBaseline, withoutBaseline],
+    ] as const) {
+      expect(answer).toMatchObject({
+        kind: 'answered',
+        persisted: true,
+        answer: source.answer,
+        statements: source.statements,
+        evidence: source.evidence,
+        priorClaims: source.priorClaims,
+        confidence: source.confidence,
+      });
+      expect(answer.events).toStrictEqual([]);
+    }
+  });
+
+  it('A cached unknown is answered without usage', () => {
+    // Act
+    const hit = answerFromCache(cachedNoEvidence(), 7);
+
+    // Assert
+    expect(hit).toStrictEqual({ kind: 'unknown', answer: 'UNKNOWN', reason: 'no-evidence', statements: [], evidence: [], events: [] });
   });
 });

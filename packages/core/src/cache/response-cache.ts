@@ -1,9 +1,10 @@
 import { z } from 'zod';
 import { TOKEN_ESTIMATOR } from '../context/tokenizer.js';
 import { STATEMENT_VERIFICATIONS } from '../explain/claim-items.js';
-import type { ExplainAnswer, StoredExplain } from '../explain/explain-answer.js';
+import type { AnswerUsage, ExplainAnswer, StoredExplain } from '../explain/explain-answer.js';
 import { STATEMENT_TYPES } from '../explain/typing-rules.js';
 import type { UnknownExplain } from '../explain/unknown-policy.js';
+import { savingsPct } from '../explain/usage.js';
 import { CLAIM_TYPES } from '../knowledge/claim.js';
 
 // What the answer cache keeps and serves (DIS-21 design C2): which answers can be kept, the stored
@@ -152,4 +153,36 @@ export const storedResponseSchema: z.ZodType<StoredResponse> = z.discriminatedUn
 export function parseStoredResponse(value: unknown): StoredResponse | undefined {
   const parsed = storedResponseSchema.safeParse(value);
   return parsed.success ? parsed.data : undefined;
+}
+
+/**
+ * The usage of a cache hit (decision D7): no token and no cost, the stored baseline and its savings
+ * at 0 input tokens, this call's latency, and `cacheHit: true`.
+ */
+function hitUsage(stored: AnswerUsage, latencyMs: number): AnswerUsage {
+  return {
+    inputTokens: 0,
+    outputTokens: 0,
+    baselineTokens: stored.baselineTokens,
+    baselineEstimator: stored.baselineEstimator,
+    savingsPct: savingsPct(0, stored.baselineTokens),
+    costUsd: 0,
+    latencyMs,
+    cacheHit: true,
+    generation: { inputTokens: 0, outputTokens: 0, costUsd: 0 },
+    verification: { calls: 0, cacheHits: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, latencyMs: 0 },
+  };
+}
+
+/**
+ * The answer of a cache hit (decision D7): the stored response with `events: []` and, for an answered
+ * one, the usage of this call instead of the stored one. A stored `UNKNOWN` has no usage, as any
+ * `UNKNOWN`.
+ *
+ * @param stored A stored response accepted by {@link parseStoredResponse}.
+ * @param latencyMs The latency of this call (explain, "Answer usage").
+ */
+export function answerFromCache(stored: StoredResponse, latencyMs: number): ExplainAnswer {
+  if (stored.kind === 'unknown') return { ...stored, events: [] };
+  return { ...stored, events: [], usage: hitUsage(stored.usage, latencyMs) };
 }
