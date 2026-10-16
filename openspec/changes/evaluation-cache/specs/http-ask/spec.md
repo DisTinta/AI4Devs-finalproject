@@ -66,6 +66,39 @@ issue names the undeclared key, the client's own field name, never a field's val
   `{ projectId, question, useCache: true }`, where `projectId` is the stored project's id and
   `question` the question exactly as sent
 
+### Requirement: Ask events and verification verdicts
+
+The endpoint SHALL write each event of the use case's answer (answered or `UNKNOWN`) to the request
+log, in order, one line per event with the event's fields and the request's id: an `evidence_broken`
+event at level `error`, every other event at level `info`. No log line SHALL contain the question.
+The verdicts of the semantic check SHALL be shared by the requests of one running API: a (statement,
+citation) pair already checked by an earlier request of the same API SHALL NOT be sent to the model
+again while its verdict is kept: the API keeps the most recently used 10 000 verdicts (the use case's
+verification cache), and a verdict pushed out of it is checked again when next needed.
+
+#### Scenario: The answer's events are logged by level
+
+- **GIVEN** the app built with its log written to a test stream, a stored project and a use case that
+  answers with the events `untrusted_content_flagged` (source `question`), `evidence_broken` and
+  `entailment_unverified`, in that order
+- **WHEN** the question `SENTINEL-question-4d1e price` is sent
+- **THEN** three log lines carrying the request's `reqId` hold those events in order, the
+  `evidence_broken` one at level `error` (50) and the other two at level `info` (30), each with the
+  event's `type`; then, with a use case that answers `UNKNOWN` `broken-evidence` with one
+  `evidence_broken` event, one log line of that second request's `reqId` holds it at level `error`
+  (50); and no log line contains `SENTINEL-question-4d1e`
+
+#### Scenario: Requests to one API share verification verdicts
+
+- **GIVEN** the app built with an in-memory store and source tree holding a project, and a live
+  scripted model that answers one statement citing one span and accepts every verification
+- **WHEN** the same question is sent twice to that app, the second time with `"useCache": false`, and
+  then once with `"useCache": false` to a second app built with the same doubles (without it the
+  repeats would be answered from the answer cache, requirement "Ask from the answer cache")
+- **THEN** the first request makes one `answer` call and one `verify` call; the second makes one
+  `answer` call and no `verify` call, and its `usage.verification.cacheHits` is `1`; the request to
+  the second app makes one `answer` call and one `verify` call
+
 ## ADDED Requirements
 
 ### Requirement: Ask from the answer cache

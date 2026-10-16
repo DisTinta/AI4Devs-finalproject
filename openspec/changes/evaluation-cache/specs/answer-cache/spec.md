@@ -74,18 +74,21 @@ A response read back from the cache SHALL be accepted only when it has exactly o
   `status` `current`, `verification` `entailed` or `cited` and `evidenceIds` a non-empty list of
   strings, each the `id` of one entry of `evidence`; `evidence` a list of exactly
   `{ id, fileId, path, startLine, endLine, excerpt }` with integer lines, `startLine` at least 1,
-  `endLine` not below `startLine` and `excerpt` a string or `null`; `priorClaims` a list of exactly
-  `{ id, text, type, status, evidence }` plus `warning: 'stale-evidence'` only when `status` is
-  `stale`, `type` `FACT`, `INFERENCE` or `UNKNOWN`, `text` a string or `null`, and `evidence` entries as
-  above; `usage` exactly the fields of an answer's usage (`explain`, "Answer usage") with
-  non-negative numbers and `cacheHit` `false`; and `confidence` a number greater than 0 and less
-  than 1;
+  `endLine` not below `startLine` and `excerpt` a string (an answer's evidence always has its text;
+  `/ask` publishes it); `priorClaims` a list of exactly `{ id, text, type, status, evidence }` plus
+  `warning: 'stale-evidence'` only when `status` is `stale`, `type` `FACT`, `INFERENCE` or `UNKNOWN`,
+  `text` a string or `null`, and `evidence` entries as above except that `excerpt` may also be `null`
+  (a prior claim stored without one); `usage` exactly the fields of an answer's usage (`explain`,
+  "Answer usage"), with non-negative integers for the tokens, the calls, the cache hits and the
+  latencies, non-negative finite costs, `savingsPct` any finite number (it is negative when the answer
+  used more tokens than its baseline), `baselineEstimator` `chars-div-4` and `cacheHit` `false`; and
+  `confidence` a number greater than 0 and less than 1;
 - `UNKNOWN`: `kind` `unknown`, `answer` `UNKNOWN`, `reason` `no-evidence`, `statements` `[]` and
   `evidence` `[]`, and no other key.
 
 Any other value (`null`, a value that is not an object, another key such as `events` or `message`,
-`persisted: false`, a `stale` statement, a statement citing an id absent from `evidence`, a missing
-`usage`, an `UNKNOWN` with another reason) SHALL be rejected. A rejected response SHALL count as a
+`persisted: false`, a `stale` statement, a statement citing an id absent from `evidence`, an answer
+evidence whose `excerpt` is `null`, a missing `usage`, an `UNKNOWN` with another reason) SHALL be rejected. A rejected response SHALL count as a
 cache miss, not as an error, and the check SHALL hold no part of the response in any message.
 
 #### Scenario: A stored response keeps the answer without its events
@@ -94,6 +97,8 @@ cache miss, not as an error, and the check SHALL hold no part of the response in
   `query_not_logged` event
 - **WHEN** its stored response is built, serialised to JSON, parsed back and checked
 - **THEN** the check accepts it, and it equals the answer without the key `events`
+- **AND** the same answer with `usage.savingsPct` −25 and a prior claim whose evidence `excerpt` is
+  `null` is accepted too
 
 #### Scenario: A no-evidence unknown is stored without events
 
@@ -107,7 +112,8 @@ cache miss, not as an error, and the check SHALL hold no part of the response in
 - **GIVEN** a valid stored answered response whose answer text is a sentinel text
 - **WHEN** the check reads `null`, `"x"`, that response with the extra key `debug`, with `events: []`,
   with `persisted: false`, with its first statement `stale`, with a statement citing an id absent from
-  its evidence, without `usage`, with `usage.cacheHit` `true`, and the `UNKNOWN` responses with reason
+  its evidence, with an evidence `excerpt` `null`, without `usage`, with `usage.cacheHit` `true`, and
+  the `UNKNOWN` responses with reason
   `llm-required` and with a `message`
 - **THEN** each is rejected as a miss, without an error, and nothing the check reports holds the
   sentinel

@@ -51,7 +51,9 @@ that transaction usable.
 
 The in-memory store double used by unit tests SHALL implement the four calls with the same checks, in
 the same order, with the same errors; SHALL keep its entries (key, stored response, hit count, last hit
-instant) for a test to read and to seed, an invalid stored response included; SHALL count the calls;
+instant) for a test to read and to seed, an invalid stored response included; SHALL store and return
+a JSON round trip of each response (`JSON.parse(JSON.stringify(response))`), as the column does;
+SHALL count the calls;
 and SHALL let a test inject a failure of each call, raised as the error the test gives.
 
 #### Scenario: A saved entry is found by its project and key
@@ -136,6 +138,8 @@ and SHALL let a test inject a failure of each call, raised as the error the test
   connections, and again on a caller-owned transaction whose rollback to the savepoint fails
 - **THEN** each call rejects with `CacheWriteFailed`, which carries no `cause` and no text of either
   database error
+- **AND** with a caller-owned transaction whose `SAVEPOINT` rejects, a save rejects with that same
+  error, not with `CacheWriteFailed`
 
 #### Scenario: Cache writes on the store's own connections commit
 

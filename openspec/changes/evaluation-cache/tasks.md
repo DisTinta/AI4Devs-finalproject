@@ -13,26 +13,28 @@
 
 ## 2. Core: cacheability, stored response and hit (TDD, design C2) — `answer-cache` → "Cacheable answers", "Stored response", "Answer of a cache hit"
 
-- [ ] 2.1 Fixture: `tests/support/cached-answer.ts` builds a valid stored answered response (one `FACT` statement citing `app/Services/PriceCalculator.php` 16–44 of the acme-shop subset, one evidence entry, no prior claims, a full `usage` with `cacheHit: false`) and the `no-evidence` stored `UNKNOWN`
+- [ ] 2.1 Factory: `tests/support/cached-answer.ts` with `cachedAnswer(overrides?)` and `cachedNoEvidence()`, each returning a fresh object per call (`backend-standards.md` §7), builds a valid stored answered response (one `FACT` statement citing `app/Services/PriceCalculator.php` 16–44 of the acme-shop subset, one evidence entry, no prior claims, a full `usage` with `cacheHit: false`) and the `no-evidence` stored `UNKNOWN`
 - [ ] 2.2 RED: create `tests/unit/cache/response-cache.spec.ts` with "Only stored current answers and no-evidence unknowns are cacheable". See it fail
 - [ ] 2.3 GREEN: `packages/core/src/cache/response-cache.ts` with `isCacheable`; add `STATEMENT_TYPES` to `packages/core/src/explain/typing-rules.ts` and derive `StatementType` from it (`npm run typecheck` and `npx vitest run tests/unit` stay green)
 - [ ] 2.4 RED → GREEN: "A stored response keeps the answer without its events", "A no-evidence unknown is stored without events" (`toStoredResponse`, `storedResponseSchema`, `parseStoredResponse`)
-- [ ] 2.5 RED → GREEN: "Invalid stored responses are rejected without leaking" (strict objects, the evidence-id reference check, `cacheHit` literal `false`)
+- [ ] 2.5 RED → GREEN: "Invalid stored responses are rejected without leaking" (strict objects, the evidence-id reference check, answer evidence `excerpt` a string, `cacheHit` literal `false`; a negative `savingsPct` and a `null` prior-claim excerpt accepted, as the scenario of 2.4 checks)
 - [ ] 2.6 RED → GREEN: "A hit carries the stored answer and the usage of this call", "A cached unknown is answered without usage" (`answerFromCache`, `savingsPct` from `explain/usage.ts`; widen `AnswerUsage.cacheHit` to `boolean`); exports in `cache/index.ts`; `npm run lint:architecture` green (no cycle between `cache/` and `explain/`)
 
 ## 3. Core: store port and in-memory double (TDD, design C3, C5) — `graph-store` → "Answer cache entries"
 
 - [ ] 3.1 RED: in `tests/unit/store/in-memory-store.spec.ts`, "The in-memory double keeps, checks and fails cache entries". See it fail
 - [ ] 3.2 GREEN (port): `packages/core/src/knowledge/cache-entry.ts` (`CacheEntry`, `assertValidCacheKey`, `assertValidCacheResponse`, `assertValidEntryId`, `assertValidHitInstant`), `CacheWriteFailed` in `packages/core/src/knowledge/errors.ts`, the four methods on `StorePort` with TSDoc (checks, errors, transaction behaviour); exports in `packages/core/src/index.ts`
-- [ ] 3.3 GREEN (double): `findCacheEntry`, `saveCacheEntry`, `touchCacheEntry`, `invalidateCache` in `tests/support/in-memory-store.ts` with `calls.*`, `cacheEntries()`, `seedCacheEntry()` and `failCacheCall`; 3.1 green; every `StorePort` double in `tests/` that `npm run typecheck` reports gets the four methods (throwing, or delegating to the in-memory double) without changing what its tests assert
+- [ ] 3.3 GREEN (double): `findCacheEntry`, `saveCacheEntry`, `touchCacheEntry`, `invalidateCache` in `tests/support/in-memory-store.ts` with `calls.*`, `cacheEntries()`, `seedCacheEntry()`, `failCacheCall` and a JSON round trip of each stored response; 3.1 green
+- [ ] 3.4 Every other `StorePort` double in `tests/` that `npm run typecheck` reports gets the four methods without changing what its tests assert: a double given to `explain` delegates to the in-memory double (or answers a miss: `findCacheEntry` resolves `undefined`, `saveCacheEntry` resolves); only doubles never given to `explain` may throw. `doubles()` of `tests/support/explain-doubles.ts` forwards `failCacheCall` and records `findCacheEntry`, `touchCacheEntry` and `saveCacheEntry` in `order` under their own names (design C5)
 
 ## 4. Adapter: Postgres cache entries (TDD, design C4) — `graph-store` → "Answer cache entries"
 
 - [ ] 4.1 RED: create `tests/integration/store/cache-entry.spec.ts` (harness, `describeWithDatabase`, `useTransactionPerTest`, `createPostgresStore({ transaction: db() })`) with "A saved entry is found by its project and key". See it fail
 - [ ] 4.2 GREEN: the four methods and their SQL in `packages/adapters/store-postgres/src/postgres-store.ts` (`runProjectQuery` for the lookup; `atomically` + `toCacheWriteError` for the writes; the advisory lock, delete and insert of the save; the CTEs of touch and invalidate)
-- [ ] 4.3 RED → GREEN, one at a time: "Saving a key again replaces its entry", "The most recent of duplicated entries is found", "Touching an entry records the hit", "Invalidating a project deletes only its entries", "Invalid cache arguments are rejected before querying" (no statement observed with a query-counting client), "Cache calls on an unknown project fail without writing", "A failed cache write does not leak" (temporary trigger inside the test's transaction)
+- [ ] 4.3a RED → GREEN, one at a time: "Saving a key again replaces its entry", "The most recent of duplicated entries is found", "Touching an entry records the hit", "Invalidating a project deletes only its entries"
+- [ ] 4.3b RED → GREEN, one at a time: "Invalid cache arguments are rejected before querying" (no statement observed with a query-counting client), "Cache calls on an unknown project fail without writing", "A failed cache write does not leak" (temporary trigger inside the test's transaction)
 - [ ] 4.4 RED → GREEN: "Concurrent saves of one key leave one entry" and "Cache writes on the store's own connections commit" (pool, unique project name, project deleted in `finally`, as `graph-write-pool.spec.ts`)
-- [ ] 4.5 RED → GREEN: create `tests/unit/store/postgres-cache-write-errors.spec.ts` (template `postgres-query-log-write-errors.spec.ts`) with "A failed rollback of a cache write is a write failure" and "A store that cannot give a connection fails cache writes with its own error"
+- [ ] 4.5 RED → GREEN: create `tests/unit/store/postgres-cache-write-errors.spec.ts` (template `postgres-query-log-write-errors.spec.ts`) with "A failed rollback of a cache write is a write failure" (including the failing `SAVEPOINT` case) and "A store that cannot give a connection fails cache writes with its own error"
 
 ## 5. Core: explain request and events (TDD, design C6) — `explain` → "Explain request", "Explain events and logging"
 
@@ -45,15 +47,17 @@
 - [ ] 6.2 GREEN: the lookup and hit path in `answerQuestion` (`Outcome` gains the hit), `answerFromCache` and the hit row in `explain()` (`QueryLogParts.cacheHit`)
 - [ ] 6.3 RED → GREEN, one at a time: "Evaluation mode without an entry answers llm-required and saves nothing", "A question without anchor is not looked up in the cache", "A failing cache lookup or hit record stops before the model", "The cache is scoped by project"
 - [ ] 6.4 RED → GREEN: "A live answer is saved once and a repeat is served from the cache" (the save after the second clock read and before the row)
-- [ ] 6.5 RED → GREEN, one at a time: "Turning the cache off calls the model and replaces the entry", "An invalid entry is a miss and a live answer replaces it", "A no-evidence unknown is cached and served without the model", "Answers that are not cacheable are not saved", "The cache key ignores the budget and the hops"
-- [ ] 6.6 RED → GREEN: "A failed cache write still answers and says so without leaking" (`saveCache` → `answer_not_cached` before `query_not_logged`), "Other cache write errors propagate after the row"
+- [ ] 6.5a RED → GREEN, one at a time: "Turning the cache off calls the model and replaces the entry", "An invalid entry is a miss and a live answer replaces it", "A no-evidence unknown is cached and served without the model"
+- [ ] 6.5b RED → GREEN, one at a time: "Answers that are not cacheable are not saved", "The cache key ignores the budget and the hops"
+- [ ] 6.6 RED → GREEN, one at a time: "A failed cache write still answers and says so without leaking" (`saveCache` → `answer_not_cached` before `query_not_logged`), "Other cache write errors propagate after the row" (the row written as on the rejection path, never replacing the save's error), "A hit whose row is not written still answers and says so"
 - [ ] 6.7 RED → GREEN: "A cached question answers with the daily budget spent" (`withDailyBudget` over the double wrapped with a `sumCostSince` stub through the `store` hook)
 - [ ] 6.8 RED → GREEN: in `tests/integration/explain/explain.spec.ts`, "A hit over the database counts in its entry and its row"
-- [ ] 6.9 Update the TSDoc of `explain`, `answerQuestion`, `aggregateUsage`, `queryLogEntry`, `AnswerUsage.cacheHit` and the `UnknownExplain.events` comment (no more "until DIS-21"); `npx vitest run tests/unit/explain tests/integration/explain` green
+- [ ] 6.9 RED → GREEN: update the existing tests whose contract this change modifies, "An answer leaves one query log row the daily spend sees" (`tests/integration/explain/explain.spec.ts`) and "A valid but irrelevant citation is cited and never a fact" (`tests/unit/explain/explain-verification.spec.ts`), so their repeat call sends `useCache: false`, as the modified scenarios say; they fail without it once 6.4 is green; record both in the step 11 report
+- [ ] 6.10 Update the TSDoc of `explain`, `answerQuestion`, `aggregateUsage`, `queryLogEntry`, `AnswerUsage.cacheHit` and the `UnknownExplain.events` comment (no more "until DIS-21"); `npx vitest run tests/unit/explain tests/integration/explain` green
 
 ## 7. API: forward useCache and cache over the seed (TDD, design C7) — `http-ask` → "Ask request validation", "Ask from the answer cache"
 
-- [ ] 7.1 RED: update `tests/unit/api/ask.spec.ts` "Optional fields are forwarded as the use case expects" to the modified scenario (the one existing test whose contract this change modifies, D6; record it in the step 11 report). See it fail
+- [ ] 7.1 RED: update `tests/unit/api/ask.spec.ts` "Optional fields are forwarded as the use case expects" (D6) and "Requests to one API share verification verdicts" (repeats with `"useCache": false`) to the modified scenarios (existing tests whose contract this change modifies; record them in the step 11 report). See the first fail
 - [ ] 7.2 GREEN: forward `useCache` in `packages/api/src/routes/ask.ts`; update the `useCache` description in `packages/api/src/schemas/ask.ts`
 - [ ] 7.3 RED → GREEN, one at a time, in `tests/integration/api/ask.spec.ts`: "A cached question answers from the cache over the seed", "A spent daily budget still answers a cached question" (fixed clock on a day no other suite writes, the `query_log` row inserted inside the test's transaction)
 
@@ -64,7 +68,7 @@
 ## 9. Backend: Review and Update Existing Tests (MANDATORY)
 
 - [ ] 9.1 Identify the tests affected by the change: `grep -rn "cacheHit\|useCache\|EXPLAIN_REQUEST_FIELDS\|StorePort" tests/`, plus every type error `npm run typecheck` reports
-- [ ] 9.2 Update only the tests whose contract this change modified (7.1; a `StorePort` double gaining the four methods in 3.3 is a type fix, not an assertion change), without weakening any assertion; list every edited existing test with the reason in the step 11 report
+- [ ] 9.2 Update only the tests whose contract this change modified (the four of 6.9 and 7.1; a `StorePort` double gaining the four methods in 3.4 is a type fix, not an assertion change), without weakening any assertion; list every edited existing test with the reason in the step 11 report
 - [ ] 9.3 Confirm each `#### Scenario:` of the five delta specs maps 1:1 to a test with exactly the same name (grep each title in `tests/`); the unchanged scenarios of the modified `explain` and `http-ask` requirements still map to their tests
 
 ## 10. Refactor
@@ -87,7 +91,7 @@
 - [ ] 12.1 Preconditions: local database up and migrated (`docker compose up -d`, `npm run db:migrate`); record the 0.4 indicators; if acme-shop is not stored, `npm run db:seed` (record it, to restore the previous project set in 12.7); get acme-shop's id with `npm run cli -- projects`
 - [ ] 12.2 Seed one cache entry for acme-shop through the store: a short `tsx` script in the scratchpad (not committed) that calls `saveCacheEntry(acmeId, normalizeQuestion('¿Cómo se calcula el precio final de un pedido?'), <the fixture of 2.1>)` on `createPostgresStore({ pool })` (no live model needed); record the entry id
 - [ ] 12.3 CLI in evaluation mode (no `LLM_*`): `npm run cli -- ask acme-shop "COMO SE CALCULA EL PRECIO FINAL DE UN PEDIDO"` prints the cached answer (exit 0); `npm run cli -- ask acme-shop "¿Qué hace CouponValidator?"` prints `UNKNOWN (llm-required)` and the message; check `hit_count` 1 and `last_hit_at` set
-- [ ] 12.4 API in evaluation mode (`npm -w packages/api run dev`, `DATABASE_URL` exported): `curl -i` `POST /api/projects/<id>/ask` with the cached question (200 answered, `usage.cacheHit: true`, `costUsd: 0`), with `"useCache": false` (200 `UNKNOWN` `llm-required`), with an uncached question (200 `llm-required` exact body), with `"useCache": "yes"` (400 `VALIDATION_ERROR`); `GET /docs/json` shows the new `useCache` description
+- [ ] 12.4 API in evaluation mode (`npm -w packages/api run dev`, `DATABASE_URL` exported): `curl -i` `POST /api/projects/<id>/ask` with the cached question (200 answered, `usage.cacheHit: true`, `costUsd: 0`), with `"useCache": false` (200 `UNKNOWN` `llm-required`), with an uncached question (200 `llm-required` exact body), with `"useCache": "yes"` (400 `VALIDATION_ERROR`), to `/api/projects/<random UUID>/ask` (404 `PROJECT_NOT_FOUND`); `GET /docs/json` shows the new `useCache` description
 - [ ] 12.5 Budget: insert one `query_log` row of acme-shop dated now with `cost_usd` 1 and restart the API live against an unreachable model (`LLM_BASE_URL=http://127.0.0.1:1/v1`) with `DAILY_BUDGET_USD=0.000001`: the cached question answers `200` from the cache; with `"useCache": false` it answers `429` `BUDGET_EXHAUSTED` with `cacheOnly: true`; stop the server and delete that row at once (checked with a count)
 - [ ] 12.6 Invalidation: from the scratchpad script, `invalidateCache(acmeId)` resolves to 1 and acme-shop has no `cache_entry`; the cached question in evaluation mode answers `llm-required` again
 - [ ] 12.7 Restore the state: delete every `query_log` row created after the 12.1 `max(created_at)`, confirm `cache_entry` is back to the 12.1 count, delete the projects `db:seed` added in 12.1 if it ran; re-check the 0.4 indicators equal the 12.1 values; no `codemind-api` session left in `pg_stat_activity`
@@ -101,7 +105,7 @@
 ## 14. Update Technical Documentation (MANDATORY)
 
 - [ ] 14.1 `readme.md` §2.4 (evaluation-mode table: exact hit by normalized text, similarity only with CM-HU-19), §2.5 (6) (cached questions answer with the budget spent), §3 `CACHE_ENTRY` (exact key, one entry per project and key kept by the store, `question_embedding` unused until CM-HU-19), §4 (`useCache`, `usage.cacheHit`), and the line of §2.4/§4 that says the cache arrives with DIS-21 — design C10
-- [ ] 14.2 `docs/project-context.md`: the explain pipeline note (`[DIS-21 cache slot]` → the cache step), the `ask` CLI and API notes ("Until DIS-21…" → evaluation mode answers from the cache when an entry exists; golden entries arrive with DIS-26), the in-memory double's cache API and the new spec files in Testing (`cache-entry.spec.ts` migrates the shared DB through the harness)
+- [ ] 14.2 `docs/project-context.md`: the explain pipeline note (`[DIS-21 cache slot]` → the cache step; the `cacheHit: false` line; the line "until DIS-21 adds the cache-only degradation", design C10), the `ask` CLI and API notes ("Until DIS-21…" → evaluation mode answers from the cache when an entry exists; golden entries arrive with DIS-26), the in-memory double's cache API and the new spec files in Testing (`cache-entry.spec.ts` migrates the shared DB through the harness)
 - [ ] 14.3 Decide whether D3 (no unique key, one entry kept by the store) needs an ADR (`/adr-new`): it is reversible by a later migration without changing the port, so record "no ADR" with that reason in the step 11 report unless the review says otherwise
 - [ ] 14.4 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
 
@@ -111,7 +115,7 @@
 
 ## 16. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 16.1 Open the pull request against `feature/entrega-2-CRN` (authorised by the autonomous-run ADR; `gh` on the DisTinta account, back to Cristina-JumpMath afterwards)
+- [ ] 16.1 Open the pull request against `feature/entrega-2-CRN` (authorised by ADR `docs/adr/20261016-autonomous-workflow-run-entrega-2.md`, which relaxes `base-standards.md` §88/§90/§99 for this run; `gh` on the DisTinta account, back to Cristina-JumpMath afterwards)
 - [ ] 16.2 Set DIS-21 to In Review in Linear with a comment in Spanish linking the PR and the change
 - [ ] 16.3 Confirm in the PR's CI run that the new spec files ran and passed and the mutation job is ≥ 80, and link the run in an addendum to the step 11 report
 - [ ] 16.4 Run `/show-spec-working` (may reuse the step 12 evidence); report `openspec/changes/evaluation-cache/reports/YYYY-MM-DD-show-spec-working.md`
@@ -119,4 +123,4 @@
 - [ ] 16.6 Run `/adversarial-review`; report `openspec/changes/evaluation-cache/reports/YYYY-MM-DD-adversarial-review.md`
 - [ ] 16.7 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report
 - [ ] 16.8 Commit the fixes to the same pull request; re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
-- [ ] 16.9 `/opsx:archive`, and commit the archive to the same pull request; merge only after the archive commit and with CI green (autonomous-run ADR)
+- [ ] 16.9 `/opsx:archive`, and commit the archive to the same pull request; the agent merges, only after the archive commit and with CI green (ADR `docs/adr/20261016-autonomous-workflow-run-entrega-2.md` lets the agent merge in this run)

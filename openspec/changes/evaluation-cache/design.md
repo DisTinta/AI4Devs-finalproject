@@ -69,6 +69,11 @@ the later ones; the spec has a scenario).
 - *Alternative:* stop-word removal or stemming. Rejected: changes meaning (`no`), and is a similarity
   concern (CM-HU-19).
 - Accepted collision: pairs differing only in an accent or `ñ` (D1).
+- Not shared with `normaliseText`/`questionTerms` of `context/anchor.ts` (NFD + mark removal, split
+  on non-alphanumerics, stop words dropped, prefixes added): the two produce different outputs for
+  different jobs (search terms vs. one stable key) and the key must not change when the anchoring
+  heuristics are tuned. The common NFKD/NFD + `\p{M}` step is one line each; a shared helper would
+  couple the cache key to the anchor's evolution.
 
 ### C2 — Cacheability, stored response and hit (D4, D5, D7) — `packages/core/src/cache/response-cache.ts`
 
@@ -84,8 +89,14 @@ the later ones; the spec has a scenario).
   `StatementType` from it (same union, as DIS-78 did for `STATEMENT_VERIFICATIONS`); a
   `.superRefine` checks that every statement's `evidenceIds` names an `evidence[].id` (a broken
   reference would make `/ask` answer `500`, http-ask "A statement citing an unknown evidence id"),
-  `endLine ≥ startLine`, and `warning` present iff `status === 'stale'` on prior claims. `usage.cacheHit`
-  is `z.literal(false)`: a stored usage is always the original one.
+  `endLine ≥ startLine`, and `warning` present iff `status === 'stale'` on prior claims. Closed sets
+  go through `z.literal(ARRAY)` / `z.enum(ARRAY)` over the exported constants (`backend-standards.md`
+  §4). An answer's `evidence[].excerpt` is `z.string()` (a `null` would make `toPublicAnswer` of `/ask`
+  answer `500`); a prior claim's evidence `excerpt` is `z.string().nullable()`. In `usage`, tokens,
+  calls, cache hits and latencies are `z.int().min(0)`, costs `z.number().min(0)` (finite), and
+  `savingsPct` is `z.number()` (finite, **no** lower bound: it is negative when the answer used more
+  tokens than the baseline, `explain` "Answer usage"). `usage.cacheHit` is `z.literal(false)`: a
+  stored usage is always the original one.
 - `parseStoredResponse(value: unknown): StoredResponse | undefined` — `safeParse`; failure →
   `undefined` (a miss), no error, no message (D5: nothing of the response reaches an error).
 - `answerFromCache(stored, latencyMs): ExplainAnswer` — answered: `{ ...stored, events: [], usage:
@@ -125,7 +136,8 @@ store is shape-agnostic; core validates on read (C2).
   c.project_id = p.id AND c.question_normalized = $2 ORDER BY c.created_at DESC, c.id DESC LIMIT 1) e
   ON true WHERE p.id = $1` — one statement; no project row → `ProjectNotFound`; `e.id` null → miss.
 - `saveCacheEntry`: `atomically(connection, work, toCacheWriteError)` where `work` runs
-  `SELECT pg_advisory_xact_lock(hashtextextended($1 || ':' || $2, 0))` (key = project id + key, the
+  `SELECT pg_advisory_xact_lock(hashtextextended($1::text || ':' || $2::text, 0))` (explicit casts:
+  node-postgres sends untyped parameters; key = project id + key, the
   lock is released with the transaction; on a caller transaction it lasts until that transaction
   ends, which is the harness's per-test rollback — harmless), then
   `DELETE FROM cache_entry WHERE project_id = $1 AND question_normalized = $2`, then
@@ -133,7 +145,7 @@ store is shape-agnostic; core validates on read (C2).
   project WHERE id = $1` (`rowCount` 0 → `ProjectNotFound`, as `saveQueryLog`). The response is sent as
   `JSON.stringify(response)`.
   - *Alternative:* a unique index `(project_id, question_normalized)` + `ON CONFLICT DO UPDATE`.
-    Simpler SQL, but needs migration 0005 and its rollback tests, and binds CM-HU-19's similarity
+    One `INSERT … ON CONFLICT` statement instead of lock + delete + insert, but needs migration 0005 and its rollback tests, and binds CM-HU-19's similarity
     cache to a uniqueness it may not want. Rejected for now (D3); revisitable by a migration later.
   - *Alternative:* `SERIALIZABLE` transaction. Rejected: retry logic on serialization failures.
 - `touchCacheEntry`: inside `atomically`, one statement
@@ -143,7 +155,9 @@ store is shape-agnostic; core validates on read (C2).
   resolve (D3: replaced or invalidated meanwhile).
 - `invalidateCache`: inside `atomically`, the same CTE shape with `DELETE … RETURNING 1`, resolving to
   the deleted count.
-- `toCacheWriteError`: a `DomainError` passes; anything else → `new CacheWriteFailed()`.
+- `toCacheWriteError`: a `DomainError` passes; anything else → `new CacheWriteFailed()`. With the two
+  existing mappers it becomes the third of the same shape, so the refactor step (task 10.1) folds the
+  three into one factory `domainErrorOr(() => new X())` without changing behaviour.
 - The `0002` comment "no unique key… CM-HU-13 decides" stays true; the decision is recorded here and
   in `readme.md` §3.
 
@@ -155,7 +169,15 @@ seed duplicates and invalid responses), `calls.findCacheEntry/saveCacheEntry/tou
 invalidateCache` counted before any check (as the other counters), `cacheEntries(projectId?)` to
 read, `seedCacheEntry({ projectId, key, response, hitCount?, createdAt? })` to seed, and
 `failCacheCall?: { find?, save?, touch?, invalidate? }: () => unknown` (the `failQueryLogWrite`
-pattern) to inject failures. Ids come from the double's existing deterministic id source. Graph
+pattern) to inject failures. Ids come from `randomUUID()`, as the double's other rows; a test that
+needs an order seeds `createdAt`. The double stores and returns a JSON round trip of each response
+(`JSON.parse(JSON.stringify(response))`), as the `jsonb` column does, so no test passes by sharing a
+reference. `doubles()` of `tests/support/explain-doubles.ts` forwards `failCacheCall` and pushes
+`findCacheEntry`, `touchCacheEntry` and `saveCacheEntry` into its `order` list under their own names
+(existing exact-order assertions are checked in task 9.1 and filter them only if they break). Every
+other `StorePort` double that is given to `explain` delegates the four methods to the in-memory double
+(or answers a miss: `findCacheEntry` resolves `undefined`, `saveCacheEntry` resolves); only doubles
+never given to `explain` may throw. Graph
 writes and `sumCostSince` keep throwing; a test that needs `withDailyBudget` over the double wraps
 it with a `sumCostSince` stub (the `store` hook of `doubles()`).
 
@@ -176,10 +198,13 @@ it with a `sumCostSince` stub (the `store` hook of `doubles()`).
 - Save: after the second clock read and the aggregated usage, before `saveRow`, when
   `isCacheable(answer)` and `key !== ''` → `saveCacheEntry(projectId, key, toStoredResponse(answer))`
   through `saveCache()` mirroring `saveRow()`: `CacheWriteFailed` → `'store-write-failed'`,
-  `ProjectNotFound` → `'project-not-found'`, anything else rethrown **after** the row: implemented as
-  `const cacheCode = await saveCache(…).catch(error => { pending = error; })`, then `saveRow`, then
-  `if (pending) throw pending`, so the row with the spend is written (D8 + "Query log": spend after a
-  resolved call must reach the ceiling). The `no-evidence` `UNKNOWN` is saved on the same path (it is
+  `ProjectNotFound` → `'project-not-found'`; any other error is kept as `pending`, and then the row is
+  written exactly as on the rejection path (`store.saveQueryLog(row).catch(() => undefined)`,
+  `explain.ts:151`) and `pending` is thrown, so the row with the spend is written and a failure of the
+  row never replaces the save's error (D8 + "Query log"). Only when the save resolved or was mapped
+  does `saveRow` run, with its `query_not_logged` mapping; the events get `answer_not_cached`, then
+  `query_not_logged`. A hit's row goes through `saveRow` too: a failed row gives the hit the
+  `query_not_logged` event as its only event. The `no-evidence` `UNKNOWN` is saved on the same path (it is
   returned from `answerQuestion` as an `UNKNOWN` outcome after the model resolved).
 - Events: `ANSWER_NOT_CACHED_CODES = ['store-write-failed', 'project-not-found'] as const` and
   `AnswerNotCachedEvent` in `explain-event.ts`, in the `ExplainEvent` union; `withEvent` appends
@@ -208,8 +233,9 @@ it with a `sumCostSince` stub (the `store` hook of `doubles()`).
 
 - `tests/unit/cache/normalize.spec.ts` (`answer-cache` "Question normalization").
 - `tests/unit/cache/response-cache.spec.ts` ("Cacheable answers", "Stored response", "Answer of a
-  cache hit"); a valid stored answered response fixture is built once in
-  `tests/support/cached-answer.ts` (also used by the explain, API and CLI tests).
+  cache hit"); `tests/support/cached-answer.ts` is a factory (`cachedAnswer(overrides?)`,
+  `cachedNoEvidence()`) that returns a fresh object on each call (`backend-standards.md` §7: factories,
+  never a shared fixture), used by the explain, API and CLI tests.
 - `tests/unit/store/in-memory-store.spec.ts`: "The in-memory double keeps, checks and fails cache
   entries".
 - `tests/integration/store/cache-entry.spec.ts` (harness, `createPostgresStore({ transaction: db() })`;
@@ -223,8 +249,14 @@ it with a `sumCostSince` stub (the `store` hook of `doubles()`).
   `tests/unit/explain/explain.spec.ts` gets only the new scenarios of "Explain request" and
   "Precedence and UNKNOWN answers" if it is where their siblings live.
 - `tests/integration/explain/explain.spec.ts`: "A hit over the database counts in its entry and its row".
-- `tests/unit/api/ask.spec.ts`: the modified "Optional fields are forwarded as the use case expects"
-  (the one existing test whose contract changes, D6). `tests/integration/api/ask.spec.ts`: the two
+- Existing tests whose contract this change modifies (each named in the step 11 report): in
+  `tests/unit/api/ask.spec.ts`, "Optional fields are forwarded as the use case expects" (D6) and
+  "Requests to one API share verification verdicts"; in `tests/integration/explain/explain.spec.ts`,
+  "An answer leaves one query log row the daily spend sees"; in
+  `tests/unit/explain/explain-verification.spec.ts`, "A valid but irrelevant citation is cited and never
+  a fact". The last three ask the same question twice on one store: with the answer cache on by
+  default the repeat would be a hit, so the modified scenarios send it with `useCache: false` (they are
+  about the verification cache, the prior claims and the daily ceiling, not the answer cache). `tests/integration/api/ask.spec.ts`: the two
   `http-ask` "Ask from the answer cache" scenarios.
 - `tests/integration/cli/ask-command.spec.ts`: "Evaluation mode prints a cached answer".
 - Mutation: `npm run test:mutation` covers `packages/core/src` (and `cache/` with it); survivors in
@@ -244,8 +276,25 @@ SQL parameterised; every statement filters by `project_id`. Run `/privacy-ethics
 §2.5 (6) (cached questions answer with the budget spent), §3 `CACHE_ENTRY` (exact key, one entry per
 project and key kept by the store, `question_embedding` unused until CM-HU-19), §4 (`useCache`,
 `usage.cacheHit`); `docs/project-context.md` (explain pipeline note "[DIS-21 cache slot]" → the real
-step; the API and CLI `ask` notes "Until DIS-21…" → evaluation mode answers from the cache when an
+step; the `cacheHit: false` line of the usage note → `true` for a hit; the line "until DIS-21 adds the
+cache-only degradation" → a cached question is served before any model call, so it answers with the
+ceiling spent, while a miss still propagates `BudgetExhausted`/`LlmUnavailable` (D11); the API and CLI `ask` notes "Until DIS-21…" → evaluation mode answers from the cache when an
 entry exists, golden entries arrive with DIS-26; the in-memory double's cache API in Testing).
+
+### C11 — The refund demo question keeps `no-anchor` first (D14, spec audit Q1)
+
+The demo question Q6 `¿Cómo se gestionan los reembolsos de un pedido?` (`fixtures/README.md`) has the
+search terms `gestionan`/`gest`, `reembolsos`/`reem` and `pedido`/`pedi`; no symbol of the acme-shop
+seed contains any of them (checked against `seeds/graph-dump.sql`), so it answers `UNKNOWN`
+`no-anchor` at step 2, before the cache. Decision (agent as lead engineer): keep D2, `no-anchor`
+before the lookup. `no-anchor` already answers that question honestly, with no model call and at no
+cost, in both modes, which is what DIS-16 AC 6 asks the evaluator to see ("responde `UNKNOWN` sin
+LLM"); its "también está cacheada" is a means, not an observable, and a cache entry would only
+duplicate a deterministic answer. Looking the cache up before anchoring would also let a golden
+entry answer a project whose graph no longer anchors the question, and would send an unvalidated
+project id to the cache. The `no-evidence` caching (D4) stays for questions that anchor but have no
+basis in the code. DIS-26 records that Q6 needs no golden entry while it does not anchor. Recorded in
+the DIS-21 `[enhanced]` description as D14.
 
 ## Risks / Trade-offs
 
@@ -254,8 +303,9 @@ entry exists, golden entries arrive with DIS-26; the in-memory double's cache AP
   index can be added by a later migration without changing the port. Accepted (D).
 - **Advisory lock hash collisions** (C4) → two different (project, key) pairs may share a 64-bit hash
   and serialise each other's saves; correctness holds, only throughput is affected. Accepted (D).
-- **Normalization collisions** (`año`/`ano`, C1) → accepted product risk (D1); questions about code
-  rarely differ only in an accent. Accepted (D).
+- **Normalization collisions** (`año`/`ano`, C1) → accepted product risk (D1): a collision needs two
+  questions that differ only in an accent or `ñ`, and no two of the demo questions of
+  `fixtures/README.md` share a key. Accepted (D).
 - **A cached answer can outlive the code it cites** until the project is reindexed and DIS-9 calls
   `invalidateCache` → today the only way to change an indexed project is a new project (no reindex),
   so no stale hit can occur in this delivery; DIS-9 owns the call (B, PH-07).
@@ -287,3 +337,24 @@ destination here (`docs/project-context.md` → Tracking deferred findings).
 - **B — DIS-26** builds the acme-shop golden entries with `normalizeQuestion` + `toStoredResponse` and
   loads them in `db:seed`; **B — CM-HU-14.1** checks their fingerprint.
 - **D** — the accepted risks above.
+
+Spec audit (`reports/2026-10-17-spec-audit.md`), run 1 (CHANGES REQUIRED) — all **A**, fixed in this
+change's artifacts on 2026-10-17:
+
+- B1: three main-spec scenarios that ask the same question twice on one store are modified to send
+  the repeat with `useCache: false` (`explain` "Query log" and "Answer with typed statements",
+  `http-ask` "Ask events and verification verdicts"); proposal Impact, C8 and tasks 6.9, 7.1 and 9.2
+  name the four edited tests (M8).
+- B2: a stored `usage.savingsPct` may be negative; B3: an answer's evidence `excerpt` must be a string
+  (only prior-claim evidence may be `null`) — `answer-cache` "Stored response" and C2.
+- B4: a non-mapped cache save error is thrown after a row write that can never replace it (C6;
+  scenario "Other cache write errors propagate after the row" extended).
+- M1: new scenario "A hit whose row is not written still answers and says so". M2: the hit scenario
+  checks the two clock reads. M3: the empty-key rule is marked as a guard. M4: the failing `SAVEPOINT`
+  case added to the rollback scenario. M5: wording of C4 and Risks. M6: the double stores a JSON round
+  trip. M7, M11, M12: C5 and task 3.3. M9: `cached-answer.ts` is a factory. M10: C10 and task 14.2
+  list the two stale `project-context.md` lines. M13: casts in the advisory lock. M14: C1 explains why
+  the key does not reuse `anchor.ts`; the write-error mappers fold in task 10.1. M15: tasks 4.3 and
+  6.5 split. M16: manual step 12.4 adds the unknown-project call. M17 and Q2: tasks 16.1 and 16.9
+  cite the ADR and say who merges.
+- Q1: decided in C11 (D14).

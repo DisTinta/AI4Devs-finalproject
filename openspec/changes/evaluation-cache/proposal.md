@@ -68,12 +68,15 @@ by the agent as lead engineer in the autonomous run of Entrega 2 (ADR
 
 - `explain`: "Explain request" (`useCache`), "Precedence and UNKNOWN answers" (step 3, the cache
   lookup), "Explain events and logging" (`answer_not_cached`), "Answer usage" (`cacheHit` of a hit),
-  "Query log" (`cache_hit` of a hit); new requirement "Answer cache" (lookup, hit, save, failures).
+  "Query log" (`cache_hit` of a hit; the repeat of its daily-spend scenario sends `useCache: false`),
+  "Answer with typed statements" (the repeat of its irrelevant-citation scenario sends
+  `useCache: false`); new requirement "Answer cache" (lookup, hit, save, failures).
 - `graph-store`: new requirement "Answer cache entries" (`findCacheEntry`, `saveCacheEntry`,
   `touchCacheEntry`, `invalidateCache`, their checks, errors and transaction behaviour, and the
   in-memory double).
-- `http-ask`: "Ask request validation" (`useCache` forwarded and effective); new requirement "Ask from
-  the answer cache" (a hit over the seed, the spent budget).
+- `http-ask`: "Ask request validation" (`useCache` forwarded and effective), "Ask events and
+  verification verdicts" (its repeated requests send `useCache: false`); new requirement "Ask from the
+  answer cache" (a hit over the seed, the spent budget).
 - `cli-ask`: new requirement "Ask from the answer cache" (a cached answer printed in evaluation mode).
 
 ## Impact
@@ -91,8 +94,13 @@ by the agent as lead engineer in the autonomous run of Entrega 2 (ADR
   `tests/integration/store/cache-entry.spec.ts`, new scenarios in `tests/unit/explain/`,
   `tests/unit/store/in-memory-store.spec.ts`, `tests/integration/explain/explain.spec.ts`,
   `tests/unit/api/ask.spec.ts`, `tests/integration/api/ask.spec.ts` and
-  `tests/integration/cli/ask-command.spec.ts`. One existing test changes because its contract changes
-  (`http-ask` "Optional fields are forwarded as the use case expects": `useCache` is now forwarded, D6).
+  `tests/integration/cli/ask-command.spec.ts`. Four existing tests change because their contract
+  changes: `http-ask` "Optional fields are forwarded as the use case expects" (`useCache` is now
+  forwarded, D6), and three scenarios that ask the same question twice on the same store, whose repeat
+  would now be a cache hit and is sent with `useCache: false`: `explain` "An answer leaves one query
+  log row the daily spend sees" (`tests/integration/explain/explain.spec.ts`) and "A valid but
+  irrelevant citation is cited and never a fact" (`tests/unit/explain/explain-verification.spec.ts`),
+  and `http-ask` "Requests to one API share verification verdicts" (`tests/unit/api/ask.spec.ts`).
 - Dependencies: none new.
 - Security and privacy: the normalized question is stored only in `cache_entry.question_normalized`,
   the same local-database policy as `query_log.question` (DIS-74 D3); it never reaches a log, an
