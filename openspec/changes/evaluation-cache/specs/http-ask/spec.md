@@ -137,3 +137,13 @@ cached, a spent budget SHALL still answer `429` `BUDGET_EXHAUSTED` with `cacheOn
 - **THEN** the first answers `200` with `usage.cacheHit` `true`, and the second answers `429` with
   `error.code` `BUDGET_EXHAUSTED` and `error.details.cacheOnly` `true`
 - **AND** the model received no call
+
+#### Scenario: The refund demo question answers no-anchor without the model over the seed
+
+- **GIVEN** acme-shop loaded from `seeds/graph-dump.sql` into Postgres, and a model that counts its
+  calls, first in evaluation mode and then live
+- **WHEN** `POST /api/projects/<acme-shop's id>/ask` is sent
+  `{ "question": "¿Cómo se gestionan los reembolsos de un pedido?" }` with each model
+- **THEN** both answer `200` with the body exactly
+  `{ "answer": "UNKNOWN", "reason": "no-anchor", "statements": [], "evidence": [] }`
+- **AND** the model received no call, and acme-shop has no `cache_entry`

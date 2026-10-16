@@ -59,7 +59,7 @@
 
 - [ ] 7.1 RED: update `tests/unit/api/ask.spec.ts` "Optional fields are forwarded as the use case expects" (D6) and "Requests to one API share verification verdicts" (repeats with `"useCache": false`) to the modified scenarios (existing tests whose contract this change modifies; record them in the step 11 report). See the first fail
 - [ ] 7.2 GREEN: forward `useCache` in `packages/api/src/routes/ask.ts`; update the `useCache` description in `packages/api/src/schemas/ask.ts`
-- [ ] 7.3 RED → GREEN, one at a time, in `tests/integration/api/ask.spec.ts`: "A cached question answers from the cache over the seed", "A spent daily budget still answers a cached question" (fixed clock on a day no other suite writes, the `query_log` row inserted inside the test's transaction)
+- [ ] 7.3 RED → GREEN, one at a time, in `tests/integration/api/ask.spec.ts`: "A cached question answers from the cache over the seed", "A spent daily budget still answers a cached question" (fixed clock on a day no other suite writes, the `query_log` row inserted inside the test's transaction), "The refund demo question answers no-anchor without the model over the seed" (D14; a characterisation test if it passes at once)
 
 ## 8. CLI: cached answer in evaluation mode (TDD, design C7) — `cli-ask` → "Ask from the answer cache"
 
@@ -68,12 +68,12 @@
 ## 9. Backend: Review and Update Existing Tests (MANDATORY)
 
 - [ ] 9.1 Identify the tests affected by the change: `grep -rn "cacheHit\|useCache\|EXPLAIN_REQUEST_FIELDS\|StorePort" tests/`, plus every type error `npm run typecheck` reports
-- [ ] 9.2 Update only the tests whose contract this change modified (the four of 6.9 and 7.1; a `StorePort` double gaining the four methods in 3.4 is a type fix, not an assertion change), without weakening any assertion; list every edited existing test with the reason in the step 11 report
+- [ ] 9.2 Update only the tests whose contract this change modified (the four of 6.9 and 7.1, and the eight exact `order`/`calls` assertions of design C8, extended with the cache calls, never filtered; a `StorePort` double gaining the four methods in 3.4 is a type fix, not an assertion change), without weakening any assertion; list every edited existing test with the reason in the step 11 report
 - [ ] 9.3 Confirm each `#### Scenario:` of the five delta specs maps 1:1 to a test with exactly the same name (grep each title in `tests/`); the unchanged scenarios of the modified `explain` and `http-ask` requirements still map to their tests
 
 ## 10. Refactor
 
-- [ ] 10.1 With the suite green, refactor `packages/core/src/cache/**`, `packages/core/src/explain/explain.ts` and the adapter's cache methods for naming and duplication only (no behaviour change, no test edits); `npx vitest run tests/unit/cache tests/unit/explain tests/integration/store tests/integration/explain` stays green
+- [ ] 10.1 With the suite green, refactor `packages/core/src/cache/**`, `packages/core/src/explain/explain.ts` and the adapter's cache methods for naming and duplication only, folding the three write-error mappers of `postgres-store.ts` into one factory (design C4) (no behaviour change, no test edits; `tests/unit/store` and `tests/integration/store` stay green); `npx vitest run tests/unit/cache tests/unit/explain tests/integration/store tests/integration/explain` stays green
 
 ## 11. Backend: Run Tests and Verify Data State (MANDATORY)
 
@@ -111,11 +111,11 @@
 
 ## 15. Pull request preparation
 
-- [ ] 15.1 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the Why marked as the agent's decision (DIS-21 `[enhanced]` D1–D13), the Stryker score and "no new dependency, no migration"
+- [ ] 15.1 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the Why marked as the agent's decision (DIS-21 `[enhanced]` D1–D14 and the post-audit amendments), the Stryker score and "no new dependency, no migration"
 
 ## 16. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 16.1 Open the pull request against `feature/entrega-2-CRN` (authorised by ADR `docs/adr/20261016-autonomous-workflow-run-entrega-2.md`, which relaxes `base-standards.md` §88/§90/§99 for this run; `gh` on the DisTinta account, back to Cristina-JumpMath afterwards)
+- [ ] 16.1 Open the pull request against `feature/entrega-2-CRN` (authorised by ADR `docs/adr/20261016-autonomous-workflow-run-entrega-2.md`, which relaxes `base-standards.md` §88/§90/§99 for this run; it lives on `feature/DIS-101-readme-entrega-2`, and if it is not yet in `feature/entrega-2-CRN` when the PR opens, cite it by branch and name in the PR body; `gh` on the DisTinta account, back to Cristina-JumpMath afterwards)
 - [ ] 16.2 Set DIS-21 to In Review in Linear with a comment in Spanish linking the PR and the change
 - [ ] 16.3 Confirm in the PR's CI run that the new spec files ran and passed and the mutation job is ≥ 80, and link the run in an addendum to the step 11 report
 - [ ] 16.4 Run `/show-spec-working` (may reuse the step 12 evidence); report `openspec/changes/evaluation-cache/reports/YYYY-MM-DD-show-spec-working.md`
@@ -123,4 +123,4 @@
 - [ ] 16.6 Run `/adversarial-review`; report `openspec/changes/evaluation-cache/reports/YYYY-MM-DD-adversarial-review.md`
 - [ ] 16.7 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report
 - [ ] 16.8 Commit the fixes to the same pull request; re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
-- [ ] 16.9 `/opsx:archive`, and commit the archive to the same pull request; the agent merges, only after the archive commit and with CI green (ADR `docs/adr/20261016-autonomous-workflow-run-entrega-2.md` lets the agent merge in this run)
+- [ ] 16.9 `/opsx:archive`, and commit the archive to the same pull request; the agent merges, only after the archive commit and with CI green (ADR `docs/adr/20261016-autonomous-workflow-run-entrega-2.md` lets the agent merge in this run; cited by branch and name if not yet in the base branch)

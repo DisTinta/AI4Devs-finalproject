@@ -292,3 +292,310 @@ Every finding was resolved as lead engineer in this change's artifacts with `/op
 | M15 | Tasks 4.3 and 6.5 split into a/b. |
 | M16 | Manual step 12.4 adds `POST` to a random UUID → `404 PROJECT_NOT_FOUND`. |
 | M17 | See Q2. |
+
+## Run 2
+
+Verdict: CHANGES REQUIRED
+
+- Date: 2026-10-17
+- Inputs read: `proposal.md`, `design.md`, `tasks.md`, the five deltas (`answer-cache`, `explain`, `graph-store`, `http-ask`, `cli-ask`) and the run 1 report with its resolution table. Linear DIS-21 and parent DIS-16 were loaded with their comments: DIS-21 has 3 comments (handovers from DIS-78, DIS-41 and DIS-39) and DIS-16 has none.
+- Main specs: `openspec/specs/explain/spec.md`, `openspec/specs/http-ask/spec.md`.
+- Code and tests checked: `packages/core/src/explain/{explain,explain-answer}.ts`, `packages/cli/src/commands/ask.ts`, `tests/support/explain-doubles.ts`, `tests/unit/explain/{explain,explain-verification,explain-sanitization}.spec.ts`, `tests/unit/api/ask.spec.ts`, `tests/integration/cli/ask-command.spec.ts`, `seeds/graph-dump.sql`, `docs/adr/`.
+- D1–D14 and the post-audit amendments of D3, D5, D6 and D8 are treated as delegated decisions under the autonomous-run ADR, to be reviewed later by the author. They are not open questions.
+
+**Questions for the author:** none. Q1 is decided as D14; Q2 is resolved, with one caveat in N5.
+
+---
+
+### 0. Run 1 findings — resolution check
+
+| Finding | Status in the artifacts | Note |
+|---|---|---|
+| Q1 | Resolved | D14 is in the DIS-21 `[enhanced]` description and in design C11. The claim holds: `seeds/graph-dump.sql` has 0 matches for `reem`, `gest` or `pedi` (case-insensitive). A scenario pinning it is still missing: see N2. |
+| Q2 / M17 | Resolved, with a caveat | Tasks 16.1 and 16.9 cite the ADR and say who merges. The cited file is not on this branch: see N5. |
+| B1 | Resolved | `explain` "Query log" and "Answer with typed statements", and `http-ask` "Ask events and verification verdicts", are MODIFIED and copied in full (scenario counts match the main specs: 15, 16 and 2). Each repeat sends `useCache: false`. I checked the other scenarios that run `explain` twice. Each run builds its own `doubles()`/`acmeShop()`, so none is affected: `explain-verification.spec.ts:324-522, 954-991, 1149-1184, 1231-1267`, `explain-sanitization.spec.ts:363-396`. |
+| B2, B3 | Resolved | `answer-cache` "Stored response" lines 76-84 and 91; scenarios at lines 100-101 and 115; design C2 lines 94-98; task 2.5. |
+| B4 | Resolved | Design C6 lines 198-206 keeps the error as `pending` and writes the row with `.catch(() => undefined)`. The scenario at lines 1056-1058 covers the double failure. |
+| M1 | Resolved | "A hit whose row is not written still answers and says so" (task 6.6). |
+| M2 | Resolved | `explain` delta line 941. |
+| M3 | Resolved | `explain` delta lines 897-898. |
+| M4 | Resolved | `graph-store` delta lines 141-142, task 4.5. |
+| M5 | Resolved | Design lines 148 and 306-308. |
+| M6 | Resolved | `graph-store` delta lines 54-55, C5, task 3.3. |
+| M7 | Resolved | Task 3.4, C5. |
+| M8 | Resolved | Proposal lines 97-103. |
+| M9 | Resolved | C8, task 2.1. |
+| M10 | Resolved | C10, task 14.2. |
+| M11 | Resolved | C5 line 172. |
+| M12 | **Partly resolved** | `doubles()` now records the cache calls in `order`. But C5 line 177 ("filter them only if they break") leaves the exact-order assertions to the implementer, and they will break: see N1. |
+| M13 | Resolved | C4 line 139. |
+| M14 | Resolved, with a caveat | C1 gives the reason the key does not reuse `anchor.ts`. Folding the three error mappers is put in task 10.1, but 10.1's file scope does not cover them: see N7. |
+| M15 | Resolved | 4.3a/4.3b, 6.5a/6.5b. |
+| M16 | Resolved | Task 12.4. |
+
+---
+
+### 1. Scope against the ticket
+
+**Clean.** Everything follows from DIS-21 (DoD, `[enhanced]` D1–D14 and the amendments):
+
+- the `answer-cache` capability;
+- the four `StorePort` methods;
+- `useCache` in `explain` and `/ask`;
+- the cache placed before `llm-required`;
+- `invalidateCache` with no caller yet;
+- the CLI scenario;
+- the docs.
+
+The three MODIFIED requirements added for B1 only change the repeat calls, so they are not new scope. The non-goals match the ticket (DIS-26, DIS-34, CM-HU-14.1, CM-HU-19, DIS-9, no migration). Nothing widens the change to DIS-16's whole story.
+
+### 2. Inherited acceptance criteria
+
+| DIS-16 AC | Inherited by DIS-21 | Requirement → scenario | Status |
+|---|---|---|---|
+| AC1 hit with variants, `cacheHit`, cost 0, `hit_count` goes up | DoD 1 | explain "Answer cache" → "A cached question is answered from the cache in both modes"; answer-cache "Case, accent and punctuation variants share one key" | covered |
+| AC2 evaluation miss → `200` `llm-required` | DoD 2 | explain → "Evaluation mode without an entry answers llm-required and saves nothing"; http-ask main "Evaluation mode answers UNKNOWN llm-required over the seed" | covered |
+| AC3 fingerprint check | no (CM-HU-14.1) | — | out of scope, correct |
+| AC4 live, `useCache` true/false | [enhanced] AC 4 | "A live answer is saved once…", "Turning the cache off…" | covered |
+| AC5 live miss saved with the full response | [enhanced] AC 3 | "A live answer is saved once…"; answer-cache "A stored response keeps the answer without its events" | covered |
+| AC6 refund question answers `UNKNOWN` without the LLM | D14 says it is met by `no-anchor` coming before the cache | **no scenario pins it** | **N2 (blocking)** |
+
+DIS-21's own [enhanced] ACs (hit, evaluation miss, saved without duplicates, `useCache: false` and the budget ceiling, `invalidateCache`, invalid entry, failed save) each have a requirement and a scenario. The 429 for an uncached question is covered by the main http-ask scenario "A spent daily budget stops the model over the seed".
+
+- **N2 (blocking).** D14 decides that DIS-16 AC 6 holds because Q6 (`¿Cómo se gestionan los reembolsos de un pedido?`) does not anchor over the acme-shop seed, so it answers `UNKNOWN` `no-anchor` without the model. That rests on a manual check of `seeds/graph-dump.sql`, and no scenario pins it. If the seed changes and Q6 starts to anchor, AC 6 breaks silently. DIS-26 would then be told "no golden needed" on a false premise.
+  - **Fix:** add the scenario "The refund demo question answers no-anchor without the model over the seed" to http-ask "Ask from the answer cache" (integration over the seed, task 7.3).
+  - Its body: GIVEN acme-shop loaded from `seeds/graph-dump.sql`, and a model that counts its calls, once in evaluation mode and once live. WHEN `POST /ask` is sent `{ "question": "¿Cómo se gestionan los reembolsos de un pedido?" }` with each. THEN both answer `200` `{ "answer": "UNKNOWN", "reason": "no-anchor", "statements": [], "evidence": [] }`, the model received no call, and no `cache_entry` was looked up or written.
+
+### 3. Missing scenarios
+
+- **N3 (improvable): a hit is never saved again.** "Cacheable answers" defines cacheability over "an answer of `explain`". The answer of a hit is `persisted: true` with every statement `current`, so by that text it is cacheable. Design C6 places the save in `explain()` without saying the hit path skips it. If a hit were saved:
+  - its `hit_count` would go back to 0;
+  - its stored `usage.cacheHit` would be `true`, which the read check rejects, so every second read would be a miss.
+
+  The scenario "A cached question … both modes" (hit count 2) would catch it, but the rule should be written down. **Fix:** in explain "Answer cache" → **Save**, add "An answer served from the cache SHALL NOT be saved again." In design C6, add "the `{ hit }` outcome never reaches `saveCache()`".
+
+Otherwise **clean.** Every new MUST/SHALL clause in the five deltas has a scenario. That includes the new hit-row rule (M1), the double failure on save (B4) and the failing `SAVEPOINT` (M4).
+
+### 4. Ambiguity
+
+**Clean.** None of fast / easy / secure / efficient / many / appropriate / robust appears with a vague meaning in the deltas, the proposal, the design or the tasks. The run 1 occurrences (M5) were reworded.
+
+### 5. Open decisions
+
+- **N1 (blocking): existing exact-call assertions break, and the change does not say how to update them.**
+  - **The tension in the artifacts.** Design C5 (line 177) records the cache calls in `doubles().order` and adds four counters to the double's `calls`. It then says existing exact-order assertions "filter them only if they break". Task 9.2 allows edits only to "the four of 6.9 and 7.1", and `docs/openspec-tasks-mandatory-steps.md` §6.2 forbids weakening assertions.
+  - **The `order` assertions that will break.** Every live call after anchoring now does `findCacheEntry`, and every cacheable answer does `saveCacheEntry`:
+    - `tests/unit/explain/explain.spec.ts:306` — invalid-model-output ×3
+    - `tests/unit/explain/explain.spec.ts:322` — no-evidence, which is cacheable
+    - `tests/unit/explain/explain.spec.ts:769` — a stored answer
+    - `tests/unit/explain/explain-verification.spec.ts:165` — broken-evidence
+    - `tests/unit/explain/explain-verification.spec.ts:206` — one shared array for an invalid-model-output run and a no-evidence run, which will now differ
+  - **The `calls` assertions that will break.** `explain.spec.ts:106, 129, 183` use `toEqual` on the whole object with the six existing keys. The four new keys make them fail even though their values are 0.
+  - **Possibly more.** `QueryLogParts.cacheHit` (C6) is required at its call sites unless it is made optional. `tests/unit/explain/usage.spec.ts` then has to change too.
+  - **What the implementer would have to decide alone:** filter the new calls out, which weakens an exact assertion, or extend the expected arrays, which edits tests that 9.2 does not list.
+  - **Fix (decision to record):** extend, do not filter. These assertions pin the call order of "Precedence and UNKNOWN answers", which this change modifies (lookup at step 3, save before the row). Adding the cache calls makes them stricter. Expected values:
+    - `explain.spec.ts:306` and `explain-verification.spec.ts:165`: `['findCacheEntry', 'findClaimsOverlapping', 'complete', 'saveQueryLog']`
+    - `explain.spec.ts:322`: `['findCacheEntry', 'findClaimsOverlapping', 'complete', 'saveCacheEntry', 'saveQueryLog']`
+    - `explain.spec.ts:769`: `[…, 'saveClaims', 'saveCacheEntry', 'saveQueryLog']` with `'findCacheEntry'` first
+    - `explain-verification.spec.ts:206`: split into one expected array per run
+    - `explain.spec.ts:106, 129, 183`: add `findCacheEntry: 0, saveCacheEntry: 0, touchCacheEntry: 0, invalidateCache: 0`
+    - `QueryLogParts.cacheHit` becomes optional with default `false`, so `usage.spec.ts` does not change; otherwise list it.
+
+    Record this in design C5 (replace "filter them only if they break"), C8, proposal Impact → Tests, task 9.2 and the step 11 report.
+
+Otherwise **clean.** Formats, limits, error cases, empty and absent inputs, ordering and names are fixed. That includes the empty-key guard, the `null` response, duplicate rows, a touch after replacement, `savingsPct` < 0, a `null` prior-claim excerpt, and the order of events and errors on a failed save.
+
+### 6. Contradictions inside the change
+
+- **N4 (improvable): leftover D1–D13 references.** Since run 1 the ticket holds D14 and the amendments of D3, D5, D6 and D8, and design C11 cites D14. Several places still say D1–D13:
+  - `proposal.md:21` ("The decisions D1–D13 were taken…");
+  - `design.md:26-28` ("fixes D1–D13 … into units C1–C10"; C11 now exists);
+  - `design.md:329` (Open Questions: "D1–D13 are recorded");
+  - task 15.1 (PR Why "DIS-21 `[enhanced]` D1–D13").
+
+  **Fix:** write "D1–D14 and the post-audit amendments of D3, D5, D6 and D8" in all four places, and "C1–C11" in the design.
+- The run 1 contradictions (B1 part (a), B4, M8) are gone. Otherwise **clean.**
+
+### 7. Contradictions with the project
+
+- **N9 (improvable): main scenarios over the seed now assume an empty cache, and DIS-26 is not warned.** Two main `http-ask` scenarios ask the price question over `seeds/graph-dump.sql` and expect it not to come from the cache:
+  - "Evaluation mode answers UNKNOWN llm-required over the seed" (`openspec/specs/http-ask/spec.md:171-179`);
+  - "A spent daily budget stops the model over the seed" (`:234-245`).
+
+  They hold today because the seed has no `cache_entry`. Once DIS-26 loads the golden price answer through `db:seed`/`loadSeed`, both become cache hits and fail. **Fix:** add to design → Follow-ups a **B — DIS-26** line: "the golden load must not run inside `loadSeed` for these suites, or DIS-26 modifies the two http-ask seed scenarios to use an uncached anchored question (e.g. `¿Qué hace CouponValidator?`)".
+- **Clean otherwise:**
+  - the MODIFIED requirements are copied faithfully (step text of "Precedence…" checked against `openspec/specs/explain/spec.md:77-134`);
+  - graph-schema "Cache entry table" leaves uniqueness to this feature;
+  - closed sets are reused (`backend-standards.md` §4);
+  - `cached-answer.ts` is a factory (§7);
+  - no ADR in `docs/adr/` is contradicted.
+
+### 8. Contrast with the real code
+
+- **N1** (above) is the code-facing part of the open decision. `tests/support/explain-doubles.ts:103-117` only wraps three methods today, so every `order` assertion above was exact by construction.
+- **Checked and consistent:**
+  - the rejection-path row `.catch(() => undefined)` is at `explain.ts:151`, as C6 says;
+  - `saveRow` is at `explain.ts:176-187`;
+  - the cache slot is at `explain.ts:210-211`;
+  - the no-row guard `meter.resolvedCalls() > 0` is at `explain.ts:150`;
+  - `AnswerUsage.cacheHit: false` is at `explain-answer.ts:99` (C2 widens it);
+  - `AnswerEvidence.excerpt` is `string | null`, "null only for a prior claim" (`explain-answer.ts:23-28`), as B3 requires;
+  - `CLAIM_TYPES` includes `UNKNOWN` (`knowledge/claim.ts:16`), as answer-cache allows for prior claims;
+  - `STATEMENT_TYPES` does not exist yet (`typing-rules.ts:13`), so task 2.3 creates it;
+  - the CLI prints no usage (`packages/cli/src/commands/ask.ts:67, 198-204`), so the cli-ask claim "stdout is exactly the stdout of the first ask" holds;
+  - the CLI and API integration tests load the seed inside the per-test transaction (`ask-command.spec.ts:156-162`), and the pool test deletes its project in `finally` (`:299-300`), so committed cache entries cannot leak between tests.
+
+### 9. Task size
+
+- **N7 (improvable): task 10.1 does not cover the mapper fold.** Task 10.1 limits the refactor to `packages/core/src/cache/**`, `explain.ts` and "the adapter's cache methods". Design C4 (M14) asks the same step to fold `toClaimWriteError`, `toQueryLogWriteError` and `toCacheWriteError` into `domainErrorOr(...)`, and two of those are not cache methods. **Fix:** in 10.1 add "and the three write-error mappers of `postgres-store.ts` (design C4), with `tests/unit/store/postgres-*-write-errors.spec.ts` and `tests/integration/store` green".
+
+Otherwise **clean.** After the run 1 splits, every task fits in one turn. Task 6.6 (three scenarios, one with a double failure) is the largest and still fits.
+
+### 10. Mandatory steps
+
+- Step 0 is first and labelled. 0.1 sets the Linear state, as the project rule asks; 0.2–0.3 check the branch.
+- The MANDATORY labels are on 9, 11, 12, 13, 14 and 16, and AGENT MUST EXECUTE on 12, 13 and 16.
+- Report paths are named (11.7, 12.8, 16.4–16.6).
+- State restoration is in 11.6, 12.5 and 12.7.
+- Archive comes before merge (16.9).
+- **N5 (improvable): the cited ADR is not on this branch.** Tasks 16.1 and 16.9 cite `docs/adr/20261016-autonomous-workflow-run-entrega-2.md`, but `docs/adr/` here has only four 2026-10-1x ADRs and not that one. It lives on `feature/DIS-101-readme-entrega-2`. When this change is archived, its tasks will link to a file that is missing in the base branch, unless DIS-101 is merged first. **Fix:** in 16.1 write "(on `feature/DIS-101-readme-entrega-2`; if it is not yet merged into `feature/entrega-2-CRN` when the PR opens, cite it by branch and name in the PR body)". Do the same in 16.9.
+
+### 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| answer-cache · Question normalization | Case, accent and punctuation variants share one key | 1.1, 1.2 |
+| | Identifiers, symbols and compatibility characters become plain words | 1.3 |
+| | A question of only punctuation has no key, and a key is stable | 1.3 |
+| answer-cache · Cacheable answers | Only stored current answers and no-evidence unknowns are cacheable | 2.2, 2.3 |
+| answer-cache · Stored response | A stored response keeps the answer without its events | 2.4 |
+| | A no-evidence unknown is stored without events | 2.4 |
+| | Invalid stored responses are rejected without leaking | 2.5 |
+| answer-cache · Answer of a cache hit | A hit carries the stored answer and the usage of this call | 2.6 |
+| | A cached unknown is answered without usage | 2.6 |
+| explain · Explain request (MOD) | A non-boolean cache flag is rejected before the store (+6 unchanged) | 5.1; 9.3 (+ N1 for `explain.spec.ts:106,129,183`) |
+| explain · Precedence and UNKNOWN answers (MOD) | A question without anchor is not looked up in the cache (+14 unchanged) | 6.3; 9.3 (+ N1 for `:306,:322`, `explain-verification.spec.ts:165,:206`) |
+| explain · Explain events and logging (MOD) | 5 unchanged; `answer_not_cached` covered by the Answer cache scenarios | 5.2, 6.6; 9.3 |
+| explain · Answer usage (MOD) | 4 unchanged; hit usage via 2.6 / 6.1 | 6.2; 9.3 |
+| explain · Query log (MOD) | An answer leaves one query log row the daily spend sees (modified) | 6.9 |
+| | 14 unchanged | 9.3 |
+| explain · Answer with typed statements (MOD) | A valid but irrelevant citation is cited and never a fact (modified) | 6.9 |
+| | 15 unchanged | 9.3 |
+| explain · Answer cache (ADD) | A cached question is answered from the cache in both modes | 6.1, 6.2 |
+| | A hit over the database counts in its entry and its row | 6.8 |
+| | Evaluation mode without an entry answers llm-required and saves nothing | 6.3 |
+| | A live answer is saved once and a repeat is served from the cache | 6.4 |
+| | Turning the cache off calls the model and replaces the entry | 6.5a |
+| | An invalid entry is a miss and a live answer replaces it | 6.5a |
+| | A no-evidence unknown is cached and served without the model | 6.5a |
+| | Answers that are not cacheable are not saved | 6.5b |
+| | The cache key ignores the budget and the hops | 6.5b |
+| | The cache is scoped by project | 6.3 |
+| | A failed cache write still answers and says so without leaking | 6.6 |
+| | Other cache write errors propagate after the row | 6.6 |
+| | A hit whose row is not written still answers and says so | 6.6 |
+| | A failing cache lookup or hit record stops before the model | 6.3 |
+| | A cached question answers with the daily budget spent | 6.7 |
+| graph-store · Answer cache entries | A saved entry is found by its project and key | 4.1, 4.2 |
+| | Saving a key again replaces its entry | 4.3a |
+| | Concurrent saves of one key leave one entry | 4.4 |
+| | The most recent of duplicated entries is found | 4.3a |
+| | Touching an entry records the hit | 4.3a |
+| | Invalidating a project deletes only its entries | 4.3a |
+| | Invalid cache arguments are rejected before querying | 4.3b |
+| | Cache calls on an unknown project fail without writing | 4.3b |
+| | A failed cache write does not leak | 4.3b |
+| | A failed rollback of a cache write is a write failure | 4.5 |
+| | Cache writes on the store's own connections commit | 4.4 |
+| | A store that cannot give a connection fails cache writes with its own error | 4.5 |
+| | The in-memory double keeps, checks and fails cache entries | 3.1, 3.3 |
+| http-ask · Ask request validation (MOD) | Optional fields are forwarded as the use case expects (+4 unchanged) | 7.1, 7.2; 9.3 |
+| http-ask · Ask events and verification verdicts (MOD) | Requests to one API share verification verdicts (modified) | 7.1 |
+| | The answer's events are logged by level (unchanged) | 9.3 |
+| http-ask · Ask from the answer cache (ADD) | A cached question answers from the cache over the seed | 7.3 |
+| | A spent daily budget still answers a cached question | 7.3 |
+| | **(missing) The refund demo question answers no-anchor without the model over the seed** | **hole: N2** |
+| cli-ask · Ask from the answer cache (ADD) | Evaluation mode prints a cached answer | 8.1 |
+
+**One hole (N2): blocking.** Every scenario written in the deltas maps to a task. The hole is the scenario that D14 needs and that does not exist yet.
+
+---
+
+### New findings — summary
+
+| Id | Point | Severity | Subject |
+|---|---|---|---|
+| N1 | 5, 8 | **blocking** | Exact `order` / `calls` assertions in 8 existing explain tests break; filter-or-extend is left to the implementer, against task 9.2 |
+| N2 | 2, 11 | **blocking** | D14's claim for DIS-16 AC 6 (Q6 → `no-anchor` over the seed) has no scenario |
+| N3 | 3 | improvable | Say that a hit is never saved again |
+| N4 | 6 | improvable | Leftover "D1–D13" / "C1–C10" references |
+| N5 | 10 | improvable | The ADR cited in 16.1/16.9 is not on this branch |
+| N7 | 9 | improvable | Task 10.1 scope does not cover the mapper fold of C4 |
+| N9 | 7 | improvable | B follow-up for DIS-26: the main seed scenarios assume no golden entry |
+
+(N6 and N8 were dropped while auditing: N6 is covered by an existing main scenario, and N8 was merged into N3.)
+
+---
+
+### Corrections to apply
+
+### `openspec/changes/evaluation-cache/specs/http-ask/spec.md`
+
+- **ADDED "Ask from the answer cache" (N2).** Append the scenario:
+  > #### Scenario: The refund demo question answers no-anchor without the model over the seed
+  >
+  > - **GIVEN** acme-shop loaded from `seeds/graph-dump.sql` into Postgres, and a model that counts its calls, first in evaluation mode and then live
+  > - **WHEN** `POST /api/projects/<acme-shop's id>/ask` is sent `{ "question": "¿Cómo se gestionan los reembolsos de un pedido?" }` with each model
+  > - **THEN** both answer `200` with the body exactly `{ "answer": "UNKNOWN", "reason": "no-anchor", "statements": [], "evidence": [] }`
+  > - **AND** the model received no call, and acme-shop has no `cache_entry`
+
+### `openspec/changes/evaluation-cache/specs/explain/spec.md`
+
+- **ADDED "Answer cache" → Save (N3).** After "…with a hit count of 0.", add: "An answer served from the cache SHALL NOT be saved again."
+
+### `openspec/changes/evaluation-cache/design.md`
+
+- **Context, lines 26-28 (N4).** "fixes D1–D13" → "fixes D1–D14 and the post-audit amendments of D3, D5, D6 and D8"; "units C1–C10" → "units C1–C11".
+- **C5, line 177 (N1).** Replace "(existing exact-order assertions are checked in task 9.1 and filter them only if they break)" with: "existing exact assertions on `order` and on the double's `calls` are extended, never filtered. They pin the call order of 'Precedence and UNKNOWN answers', which this change modifies. The affected tests are `tests/unit/explain/explain.spec.ts:106, 129, 183, 306, 322, 769` and `tests/unit/explain/explain-verification.spec.ts:165, 206` (task 9.2)."
+- **C6 (N1, N3).**
+  - "`QueryLogParts` gains `cacheHit: boolean`" → "gains `cacheHit?: boolean`, `false` when absent".
+  - Add: "The `{ hit }` outcome never reaches `saveCache()`."
+- **C8 (N1).** Under "Existing tests whose contract this change modifies", add the eight assertions of C5 with their new expected values (see §5 N1).
+- **Open Questions, line 329 (N4).** "None: D1–D14 and the post-audit amendments are recorded in the DIS-21 `[enhanced]` description."
+- **Follow-ups (N9).** Add: "**B — DIS-26**: loading the golden entries must not turn the http-ask seed scenarios 'Evaluation mode answers UNKNOWN llm-required over the seed' and 'A spent daily budget stops the model over the seed' into cache hits. Either keep the golden load out of `loadSeed` for those suites, or modify the two scenarios to use an uncached anchored question."
+
+### `openspec/changes/evaluation-cache/proposal.md`
+
+- **Why, line 21 (N4).** "The decisions D1–D13" → "The decisions D1–D14 (and the post-audit amendments of D3, D5, D6 and D8)".
+- **Impact → Tests (N1).** After the four tests, add: "The exact call-order and call-count assertions of eight existing explain tests are extended with the cache calls (`explain.spec.ts:106, 129, 183, 306, 322, 769`; `explain-verification.spec.ts:165, 206`): the precedence they pin now includes the lookup and the save."
+
+### `openspec/changes/evaluation-cache/tasks.md`
+
+- **7.3 (N2).** Add the third scenario "The refund demo question answers no-anchor without the model over the seed".
+- **9.2 (N1).** "the four of 6.9 and 7.1" → "the four of 6.9 and 7.1, and the eight exact `order`/`calls` assertions of design C5, extended with the cache calls (never filtered)".
+- **10.1 (N7).** Add "and the three write-error mappers of `postgres-store.ts` folded into one factory (design C4); `tests/unit/store` and `tests/integration/store` stay green".
+- **15.1 (N4).** "D1–D13" → "D1–D14 and the post-audit amendments".
+- **16.1 and 16.9 (N5).** After the ADR path, add "(on `feature/DIS-101-readme-entrega-2`; if it is not yet in `feature/entrega-2-CRN` when the PR opens, cite it by branch and name in the PR body)".
+
+### Linear DIS-21 (do not touch the `[original]` block; Spanish text in the `[enhanced]` part, under «Decisiones tras la auditoría de specs»)
+
+- **Ampliación de D14 (N2), add:**
+  > «Un escenario de integración sobre la semilla fija esta decisión: la Q6 responde `UNKNOWN` `no-anchor` con `200`, sin llamada al modelo, en evaluación y en live (`http-ask` "Ask from the answer cache"). Si la semilla cambia y la Q6 llega a anclar, ese test falla, y DIS-26 tiene que volver a decidir si necesita golden.»
+- **Ampliación de D6 (N1), add:**
+  > «Además, ocho aserciones exactas de orden y de recuento de llamadas en `tests/unit/explain/explain.spec.ts` y `explain-verification.spec.ts` se amplían con las llamadas de la caché (búsqueda en el paso 3, guardado antes de la fila). No se filtran: fijan la precedencia que este cambio modifica.»
+
+### Resolution of run 2 (main session, 2026-10-17)
+
+Every finding resolved as lead engineer with `/opsx:update` (destination **A**; `design.md` →
+Follow-ups). Decisions added to the DIS-21 `[enhanced]` description ("Ampliación de D14/D6/D4
+(segunda pasada)").
+
+| Finding | Resolution |
+|---|---|
+| N1 | Extend, never filter: design C5 and C8 list the eight exact `order`/`calls` assertions and their new expected values; proposal Impact and task 9.2 name them; `QueryLogParts.cacheHit` is optional (`false` when absent), so `usage.spec.ts` does not change. |
+| N2 | New `http-ask` scenario "The refund demo question answers no-anchor without the model over the seed" (task 7.3) pins D14. |
+| N3 | `explain` "Answer cache" → Save: "An answer served from the cache SHALL NOT be saved again"; design C6. |
+| N4 | "D1–D14 and the post-audit amendments" and "C1–C11" in the proposal, design and task 15.1. |
+| N5 | Tasks 16.1 and 16.9 say the ADR lives on `feature/DIS-101-readme-entrega-2` and is cited by branch and name until it reaches the base branch. |
+| N7 | Task 10.1 covers the fold of the three write-error mappers. |
+| N9 | B follow-up for DIS-26 in design → Follow-ups and in the DIS-21 description. |

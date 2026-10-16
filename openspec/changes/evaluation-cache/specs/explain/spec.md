@@ -909,7 +909,8 @@ it cannot happen after anchoring, which needs a letter or digit token that the n
 - **Save.** A cacheable answer (`answer-cache`, "Cacheable answers") SHALL be saved as its stored
   response under its key, after the claim write and the clock's second read and before its
   `query_log` row, whatever `useCache` is; the save replaces any entry of the key, so the project keeps
-  exactly one entry for it, with a hit count of 0. An answer that is not cacheable SHALL NOT be saved
+  exactly one entry for it, with a hit count of 0. An answer served from the cache SHALL NOT be saved
+  again (its entry keeps its hit count). An answer that is not cacheable SHALL NOT be saved
   and SHALL leave any entry of the key as it is. Nothing is saved in evaluation mode, where no answer
   reaches the model.
 - **Failures.** A failure of the lookup or of the recording of a hit SHALL propagate unchanged, before

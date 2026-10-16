@@ -23,9 +23,9 @@ See proposal.md (Why). The current state the design builds on:
 - `/ask` (`packages/api/src/routes/ask.ts`) forwards `tokenBudget` only when sent and drops
   `useCache`; `toPublicAnswer` already publishes `usage.cacheHit`. The CLI `ask` passes no flag.
 
-The DIS-21 `[enhanced]` description fixes D1–D13 (agent as lead engineer, autonomous-run ADR
-`20261016-autonomous-workflow-run-entrega-2`, reviewable by the author). This design turns them into
-units C1–C10.
+The DIS-21 `[enhanced]` description fixes D1–D14 and the post-audit amendments of D3, D5, D6 and D8
+(agent as lead engineer, autonomous-run ADR `20261016-autonomous-workflow-run-entrega-2`, reviewable
+by the author). This design turns them into units C1–C11.
 
 ## Goals / Non-Goals
 
@@ -174,7 +174,9 @@ needs an order seeds `createdAt`. The double stores and returns a JSON round tri
 (`JSON.parse(JSON.stringify(response))`), as the `jsonb` column does, so no test passes by sharing a
 reference. `doubles()` of `tests/support/explain-doubles.ts` forwards `failCacheCall` and pushes
 `findCacheEntry`, `touchCacheEntry` and `saveCacheEntry` into its `order` list under their own names
-(existing exact-order assertions are checked in task 9.1 and filter them only if they break). Every
+(existing exact assertions on `order` and on the double's `calls` are extended with the cache calls,
+never filtered: they pin the call order of "Precedence and UNKNOWN answers", which this change
+modifies; see C8). Every
 other `StorePort` double that is given to `explain` delegates the four methods to the in-memory double
 (or answers a miss: `findCacheEntry` resolves `undefined`, `saveCacheEntry` resolves); only doubles
 never given to `explain` may throw. Graph
@@ -194,8 +196,10 @@ it with a `sumCostSince` stub (the `store` hook of `doubles()`).
 - `explain()` on `{ hit }`: latency from the second clock read; answer = `answerFromCache(hit,
   latency)`; row = `queryLogEntry({ …, cacheHit: true, generation: zero, verification: zero (latency
   0), baselineTokens: hit.kind === 'answered' ? hit.usage.baselineTokens : null })`. `QueryLogParts`
-  gains `cacheHit: boolean` (default call sites pass `false`).
-- Save: after the second clock read and the aggregated usage, before `saveRow`, when
+  gains `cacheHit?: boolean`, `false` when absent, so the existing call sites and
+  `tests/unit/explain/usage.spec.ts` do not change.
+- Save (the `{ hit }` outcome never reaches it, so a hit is never saved again and its entry keeps
+  its hit count): after the second clock read and the aggregated usage, before `saveRow`, when
   `isCacheable(answer)` and `key !== ''` → `saveCacheEntry(projectId, key, toStoredResponse(answer))`
   through `saveCache()` mirroring `saveRow()`: `CacheWriteFailed` → `'store-write-failed'`,
   `ProjectNotFound` → `'project-not-found'`; any other error is kept as `pending`, and then the row is
@@ -256,7 +260,20 @@ it with a `sumCostSince` stub (the `store` hook of `doubles()`).
   `tests/unit/explain/explain-verification.spec.ts`, "A valid but irrelevant citation is cited and never
   a fact". The last three ask the same question twice on one store: with the answer cache on by
   default the repeat would be a hit, so the modified scenarios send it with `useCache: false` (they are
-  about the verification cache, the prior claims and the daily ceiling, not the answer cache). `tests/integration/api/ask.spec.ts`: the two
+  about the verification cache, the prior claims and the daily ceiling, not the answer cache).
+  Eight exact call assertions of existing explain tests pin the precedence this change modifies and
+  are extended with the cache calls, never filtered (design C5; task 9.2):
+  - `tests/unit/explain/explain.spec.ts:306` and `tests/unit/explain/explain-verification.spec.ts:165`:
+    `['findCacheEntry', 'findClaimsOverlapping', 'complete', 'saveQueryLog']`;
+  - `explain.spec.ts:322` (no-evidence, cacheable): `['findCacheEntry', 'findClaimsOverlapping',
+    'complete', 'saveCacheEntry', 'saveQueryLog']`;
+  - `explain.spec.ts:769` (a stored answer): `'findCacheEntry'` first and `…, 'saveClaims',
+    'saveCacheEntry', 'saveQueryLog']` at the end;
+  - `explain-verification.spec.ts:206`: one expected array per run (the invalid-model-output run and
+    the no-evidence run now differ);
+  - `explain.spec.ts:106, 129, 183` (`calls` compared whole): add `findCacheEntry: 0,
+    saveCacheEntry: 0, touchCacheEntry: 0, invalidateCache: 0`.
+  The line numbers are those of the propose commit; the implementer re-locates them by test name. `tests/integration/api/ask.spec.ts`: the two
   `http-ask` "Ask from the answer cache" scenarios.
 - `tests/integration/cli/ask-command.spec.ts`: "Evaluation mode prints a cached answer".
 - Mutation: `npm run test:mutation` covers `packages/core/src` (and `cache/` with it); survivors in
@@ -326,7 +343,7 @@ Rollback is reverting the commits; entries already written stay in `cache_entry`
 
 ## Open Questions
 
-None: D1–D13 are recorded in the DIS-21 `[enhanced]` description.
+None: D1–D14 and the post-audit amendments are recorded in the DIS-21 `[enhanced]` description.
 
 ## Follow-ups
 
@@ -334,6 +351,12 @@ Every finding of the spec audit and the pre-merge checks is fixed in this change
 destination here (`docs/project-context.md` → Tracking deferred findings).
 
 - **B — DIS-9 (CM-HU-05b.2)** calls `invalidateCache(projectId)` at the end of every indexing (PH-07).
+- **B — DIS-26**: loading the golden entries must not turn the `http-ask` seed scenarios "Evaluation
+  mode answers UNKNOWN llm-required over the seed" and "A spent daily budget stops the model over the
+  seed" into cache hits: either keep the golden load out of `loadSeed` for those suites, or modify the
+  two scenarios to use an uncached anchored question (e.g. `¿Qué hace CouponValidator?`). Q6 needs no
+  golden entry while it does not anchor (D14; pinned by the `http-ask` scenario "The refund demo
+  question answers no-anchor without the model over the seed").
 - **B — DIS-26** builds the acme-shop golden entries with `normalizeQuestion` + `toStoredResponse` and
   loads them in `db:seed`; **B — CM-HU-14.1** checks their fingerprint.
 - **D** — the accepted risks above.
@@ -358,3 +381,10 @@ change's artifacts on 2026-10-17:
   6.5 split. M16: manual step 12.4 adds the unknown-project call. M17 and Q2: tasks 16.1 and 16.9
   cite the ADR and say who merges.
 - Q1: decided in C11 (D14).
+
+Spec audit run 2 (CHANGES REQUIRED) — all **A**, fixed in this change's artifacts on 2026-10-17:
+N1 (the eight exact `order`/`calls` assertions are extended, never filtered: C5, C8, proposal Impact,
+task 9.2; `QueryLogParts.cacheHit` optional), N2 (new `http-ask` scenario pinning D14 over the seed,
+task 7.3), N3 (a hit is never saved again: `explain` "Answer cache" → Save, C6), N4 (D1–D14 and
+C1–C11 everywhere), N5 (tasks 16.1/16.9 say where the ADR lives), N7 (task 10.1 covers the mapper
+fold), N9 (B follow-up for DIS-26 above).

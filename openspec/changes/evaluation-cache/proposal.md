@@ -18,8 +18,8 @@ DoD: tests of a hit with case and punctuation variants; a miss in evaluation mod
 `UNKNOWN` with `reason` and no model call; `invalidateCache` leaves the project without entries.
 
 It is the base the rest of CM-HU-13 needs: the golden answers of acme-shop (DIS-26) are cache entries,
-and the reindex of DIS-9 (Entrega 3) calls `invalidateCache` (PH-07). The decisions D1–D13 were taken
-by the agent as lead engineer in the autonomous run of Entrega 2 (ADR
+and the reindex of DIS-9 (Entrega 3) calls `invalidateCache` (PH-07). The decisions D1–D14 (and the post-audit amendments of D3, D5, D6 and
+D8) were taken by the agent as lead engineer in the autonomous run of Entrega 2 (ADR
 `20261016-autonomous-workflow-run-entrega-2`) and recorded in the DIS-21 `[enhanced]` description on
 2026-10-17; the author reviews them afterwards.
 
@@ -101,6 +101,9 @@ by the agent as lead engineer in the autonomous run of Entrega 2 (ADR
   log row the daily spend sees" (`tests/integration/explain/explain.spec.ts`) and "A valid but
   irrelevant citation is cited and never a fact" (`tests/unit/explain/explain-verification.spec.ts`),
   and `http-ask` "Requests to one API share verification verdicts" (`tests/unit/api/ask.spec.ts`).
+  The exact call-order and call-count assertions of eight existing explain tests are extended with
+  the cache calls (`tests/unit/explain/explain.spec.ts` and `explain-verification.spec.ts`, design
+  C8): the precedence they pin now includes the lookup and the save.
 - Dependencies: none new.
 - Security and privacy: the normalized question is stored only in `cache_entry.question_normalized`,
   the same local-database policy as `query_log.question` (DIS-74 D3); it never reaches a log, an
