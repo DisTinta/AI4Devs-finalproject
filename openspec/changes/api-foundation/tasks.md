@@ -12,9 +12,9 @@
 
 ## 2. Adapter: `openPostgresStore` (TDD, design U8) — `graph-store` → "Opening a pooled store from a URL"
 
-- [ ] 2.1 RED: create `tests/integration/store/open-store.spec.ts` with "An unreachable database fails without leaking the URL" (no database needed). See it fail
-- [ ] 2.2 GREEN: `packages/adapters/store-postgres/src/open-store.ts` (`openPostgresStore`, `OpenedStore`, `DatabaseUnavailable`) and its exports in the adapter's `index.ts`; TSDoc on every export
-- [ ] 2.3 RED → GREEN: "An opened store answers and closes its connections" and "The URL's application name wins" under `describeWithDatabase`, migrating with `migrateSharedDatabase()` and polling `pg_stat_activity` for up to 2 s (each a characterisation test if it passes at once, recorded in the step 12 report)
+- [x] 2.1 RED: create `tests/integration/store/open-store.spec.ts` with "An unreachable database fails without leaking the URL" (no database needed). See it fail
+- [x] 2.2 GREEN: `packages/adapters/store-postgres/src/open-store.ts` (`openPostgresStore`, `OpenedStore`, `DatabaseUnavailable`) and its exports in the adapter's `index.ts`; TSDoc on every export
+- [x] 2.3 RED → GREEN: "An opened store answers and closes its connections" and "The URL's application name wins" under `describeWithDatabase`, migrating with `migrateSharedDatabase()` and polling `pg_stat_activity` for up to 2 s (each a characterisation test if it passes at once, recorded in the step 12 report)
 
 ## 3. API: error format, validation and serialisation (TDD, design U2, U3) — `api-foundation` → "Single error format", "Request validation by schema", "Response serialisation by schema", "Domain error mapping"
 
