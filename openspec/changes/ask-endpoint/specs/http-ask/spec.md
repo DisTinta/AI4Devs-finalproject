@@ -22,7 +22,9 @@ source tree or the model. The rules:
 | body | `useCache` | optional boolean; accepted and without effect until the answer cache exists; the OpenAPI document publishes `default` `true` |
 | body | any other key (`hops` included) | rejected (`unrecognized_keys`) |
 
-No issue and no other part of the response SHALL contain a received value.
+No issue and no other part of the response SHALL contain a received value; an `unrecognized_keys`
+issue names the undeclared key, the client's own field name, never a field's value (as in
+`api-foundation`).
 
 #### Scenario: An invalid question answers VALIDATION_ERROR without asking
 
@@ -113,7 +115,9 @@ keys are exactly `answer`, `statements`, `evidence`, `confidence` and `usage`:
 The evidence ids SHALL be public ids `ev-1`, `ev-2`… numbered in evidence order, and each statement's
 `evidenceIds` SHALL name the public ids of the entries it cited, in its order. A use case answer
 whose statement cites an id absent from its evidence breaks the use case's contract and SHALL answer
-`500` `INTERNAL`; no id is dropped or invented. The body MUST NOT
+`500` `INTERNAL`; no id is dropped or invented. The text the endpoint passes through unchanged
+(`answer` and each statement's `text`, written by the model, and each `excerpt`, read from the
+repository) is sent as it is, whatever it mentions; outside that text, the body MUST NOT
 contain a database id, a file id, the use case's prompt ids (`E1`…), its prior claims, its events,
 whether the claims were stored, a statement's stale status or warning, or any provenance.
 
@@ -264,7 +268,8 @@ log, in order, one line per event with the event's fields and the request's id: 
 event at level `error`, every other event at level `info`. No log line SHALL contain the question.
 The verdicts of the semantic check SHALL be shared by the requests of one running API: a (statement,
 citation) pair already checked by an earlier request of the same API SHALL NOT be sent to the model
-again.
+again while its verdict is kept: the API keeps the most recently used 10 000 verdicts (the use case's
+verification cache), and a verdict pushed out of it is checked again when next needed.
 
 #### Scenario: The answer's events are logged by level
 

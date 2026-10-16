@@ -439,3 +439,15 @@ Ronda 2: APPROVED, sin bloqueantes. Las tres mejoras se incorporan igualmente (`
 - **N3 — corregido.** La antigua tarea 2.2 se divide en 2.2 (esquemas) y 2.3 (ruta y `buildApp`); las siguientes se renumeran (2.4, 2.5) y la referencia de 9.7 se ajusta.
 
 Veredicto final: **APPROVED** (ronda 2). Las correcciones de la ronda 2 son mejorables menores incorporadas por el agente tras el veredicto, sin cambio de alcance; no se lanza otra ronda.
+
+---
+
+## Adenda — aclaraciones de la revisión previa al merge (tarea 14.7)
+
+La revisión previa al merge (`2026-10-16-verify-against-spec.md`, `2026-10-16-adversarial-review.md`) dio lugar a tres aclaraciones de `specs/http-ask/spec.md`, aplicadas con `/opsx:update` y decididas por el agente como lead engineer (ADR de la ejecución autónoma). Ninguna cambia un escenario ni el comportamiento ya probado:
+
+- **AR1 — «Ask answered response».** La prohibición de ids internos (ids de base de datos, de fichero, ids de prompt `E1`…) se refiere a los campos que construye la ruta. El texto que la ruta pasa sin tocar (`answer` y el `text` de cada afirmación, escritos por el modelo, y cada `excerpt`, leído del repositorio) se envía tal cual, mencione lo que mencione. `design.md` U3 lo recoge.
+- **AR4 = V1 — «Ask request validation».** Una incidencia `unrecognized_keys` nombra la clave no declarada: es el nombre de campo del propio cliente, nunca el valor de un campo, igual que decidió `api-foundation` en DIS-76 (AR6).
+- **V4 — «Ask events and verification verdicts».** Un par ya comprobado no se vuelve a enviar al modelo mientras su veredicto se conserve: la API guarda los 10 000 veredictos usados más recientemente (la caché de verificación del caso de uso), y un veredicto expulsado se vuelve a comprobar cuando haga falta.
+
+`openspec validate ask-endpoint`: válido tras las tres ediciones.

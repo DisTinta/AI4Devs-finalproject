@@ -130,3 +130,18 @@ ran and passed and the `mutation` job ≥ 80 (task 11.2). Addendum pending.
 
 - Status: PASS
 - Blocking issues: none
+
+## Addendum — pre-merge review fixes (tasks 14.7–14.8)
+
+The review step changed `packages/api/src/routes/ask.ts` (V2: `message` sent only with
+`llm-required`) and `tests/unit/api/ask.spec.ts` (two new tests, V2 and AR2, and the events test
+strengthened, V7; all three are tests added by this change, none pre-existing). Re-run:
+
+- `npx vitest run`: `Test Files 117 passed (117)`, `Tests 1443 passed (1443)` (1441 + 2).
+- `npm run lint`: green. `npm run typecheck`: green. `npm run lint:architecture`: 0 errors, the same
+  3 `no-orphans` warnings. `npm run docs:coverage`: 0 warnings.
+- `npm run test:mutation -- --mutate "packages/api/src/routes/ask.ts"`: `routes/ask.ts` 99.19 %,
+  overall 95.69 % ≥ 80; the one survivor is the equivalent one of `toPublicAnswer` (see the adversarial
+  review addendum).
+- Data state after the runs: `count(project)` 1, `count(claim)` 0, `count(query_log)` 0,
+  `max(query_log.created_at)` `NULL` (equal to the baseline); `.stryker-tmp/` absent.

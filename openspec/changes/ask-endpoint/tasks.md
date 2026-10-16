@@ -95,9 +95,9 @@
 - [ ] 14.1 Open the pull request against `feature/entrega-2-CRN` (authorised by the autonomous-run ADR; `gh` on the DisTinta account, back to Cristina-JumpMath afterwards)
 - [ ] 14.2 Set DIS-78 to In Review in Linear with a comment in Spanish linking the PR and the change
 - [ ] 14.3 Confirm in the PR's CI run that the new spec files ran and passed and the mutation job is ≥ 80, and link the run in an addendum to the step 9 report
-- [ ] 14.4 Run `/show-spec-working` (may reuse the step 10 evidence); report `openspec/changes/ask-endpoint/reports/YYYY-MM-DD-show-spec-working.md`
-- [ ] 14.5 Run `/verify-against-spec`; report `openspec/changes/ask-endpoint/reports/YYYY-MM-DD-verify-against-spec.md`
-- [ ] 14.6 Run `/adversarial-review`; report `openspec/changes/ask-endpoint/reports/YYYY-MM-DD-adversarial-review.md`
-- [ ] 14.7 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report
-- [ ] 14.8 Commit the fixes to the same pull request; re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
+- [x] 14.4 Run `/show-spec-working` (may reuse the step 10 evidence); report `openspec/changes/ask-endpoint/reports/YYYY-MM-DD-show-spec-working.md`
+- [x] 14.5 Run `/verify-against-spec`; report `openspec/changes/ask-endpoint/reports/YYYY-MM-DD-verify-against-spec.md`
+- [x] 14.6 Run `/adversarial-review`; report `openspec/changes/ask-endpoint/reports/YYYY-MM-DD-adversarial-review.md`
+- [x] 14.7 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report
+- [x] 14.8 Commit the fixes to the same pull request; re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
 - [ ] 14.9 `/opsx:archive`, and commit the archive to the same pull request; merge only after the archive commit and with CI green (autonomous-run ADR)

@@ -129,6 +129,10 @@ reviewable by the author). This design turns them into units U1–U8.
 - One public id per evidence entry of `explain` (D3): a stored answer whose two statements cite the
   same span has two rows, so two entries `ev-1`, `ev-2` with the same span. This is the use case's
   shape, kept on purpose (see Risks).
+- The model's `answer` and statement texts and the repository's excerpts are passed through unchanged:
+  the transport never rewrites content, so a model text that mentions a prompt id (`E1`) or an excerpt
+  holding a UUID is sent as it is. The "no internal id" rule of the spec is about the fields the route
+  builds (pre-merge review AR1).
 
 `explain` is injectable only as a test seam (`options.explain`, default core's `explain`), as
 `AskCommandDeps.explain` in the CLI; `buildApp` takes it through `AppOptions.explain?` and passes it
@@ -223,6 +227,10 @@ so the route is behind the rate limit and in the OpenAPI document. Routes the te
 - **The verification cache lives as long as the process** (U3, D9) → bounded (10 000 entries, LRU)
   and keyed by prompt, statement, path, lines and excerpt, not by model: a model change within one
   running API reuses verdicts of the previous model. Restarting the API clears it. Accepted (D).
+  It is shared by every project and every client of the app as well: a verdict depends only on the
+  statement and the cited text, and `usage.verification.cacheHits` tells a client that the same pair
+  was checked before, which on an unauthenticated API bound to `127.0.0.1` reveals nothing it could
+  not ask itself. Accepted (D, pre-merge review AR7).
 - **`503` for `SOURCE_UNAVAILABLE` with reason `not-indexed`** is not strictly "temporary" → the
   project exists but cannot be answered until it is indexed; `503` with `reason` lets the client tell
   the cases apart. Accepted.
@@ -261,3 +269,47 @@ limit in tests), M5 (the budget scenario's clock day), M6 ("reaches or exceeds" 
 Spec audit run 2 (APPROVED) — N1 (how "not answered" and "answered twice" are observed: a call
 counter on the ports, the counting use-case seam), N2 (the exports of `index.ts`), N3 (task 2.2
 split): all **A**, fixed in this change's artifacts.
+
+Pre-merge review (`reports/2026-10-16-show-spec-working.md`, `-verify-against-spec.md`,
+`-adversarial-review.md`; ids AR = adversarial review, V = verify-against-spec):
+
+- **A — the "no internal id" rule read as covering the text passed through** (AR1, Question). Spec
+  clarified with `/opsx:update` ("Ask answered response"): the model's `answer` and statement texts
+  and the repository excerpts are sent as they are; the rule is about the fields the route builds
+  (U3). No code change.
+- **A — no test checked that `explain` gets the stored project's id** (AR2, Minor). Test "forwards
+  the stored project's id, not the id as sent in the path" (upper-case id sent, lower-case id
+  forwarded); it fails on the mutant that forwards the raw path parameter.
+- **A + B — `cacheOnly: true` before the answer cache exists** (AR3, Question). `readme.md` §2.5 (6)
+  no longer says the system answers "instead of failing": `/ask` answers `429` and only the paths
+  without a model call still answer. Serving cache hits under the ceiling belongs to DIS-21
+  (CM-HU-13): Spanish hand-off comment on DIS-21.
+- **A — an `unrecognized_keys` issue names the undeclared key** (AR4 = V1, Minor). Spec clarified
+  ("Ask request validation"): the key name is the client's own field name, never a field's value, as
+  in `api-foundation` (DIS-76 AR6).
+- **A — "message only for `llm-required`" was enforced by core only** (V2, Minor). Fixed with TDD in
+  `toPublicAnswer`: test "sends a message only with llm-required, even when the use case gives one
+  with another reason" (RED: the message was sent).
+- **A — the verification cache is bounded, the spec said a checked pair is never re-sent** (V4).
+  Spec clarified ("Ask events and verification verdicts"): while the verdict is kept, among the
+  10 000 most recently used.
+- **A — the events test checked every field on one line only** (V7). It now matches each of the
+  three lines against its event.
+- **D — staleness is not in the public statement** (AR5, Question): decided in D3 and in the spec's
+  MUST NOT list; the web client (CM-HU-14) works with `type` and `verification`.
+- **D — `503` for `SOURCE_UNAVAILABLE` `not-indexed`** (AR6, Question): already accepted under Risks.
+- **D — one verification cache across projects and clients** (AR7, Question): added to Risks.
+- **D — a body with a `__proto__` or `constructor.prototype` key answers `400` with `details` `{}`**
+  (AR8, Question): Fastify's JSON parser rejects it as an invalid body (the DIS-76 row "not valid
+  JSON").
+- **D — a route's table may only extend `BUDGET_EXHAUSTED` by convention** (V3): the `/ask` table
+  builds its entry from the global one, so the two cannot drift.
+- **D — a response that breaks its schema answers `500`** (V5): already specified by
+  `api-foundation` ("Response serialisation by schema").
+- **D — unspecified behaviour kept from the design** (V6): the `explain` seam of `buildApp` (U3), the
+  exports of `toPublicAnswer`, `ASK_DOMAIN_ERRORS`, the six schemas and `STATEMENT_VERIFICATIONS`
+  (U2–U4), the `explain event` log message (U5), the OpenAPI `pattern` and `maxItems: 0` (U1, U2).
+- **D — the integration tests count `complete` calls only** (V8): the scripted model's `embed` throws,
+  so an `embed` call would fail the request and the test.
+- **D — the forked review skills did not report back to the review step's agent** (AR9, process):
+  their output was read from their transcripts and recorded in the reports.
