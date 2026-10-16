@@ -30,7 +30,8 @@ The decisions D1–D9 were taken by the agent as lead engineer in the autonomous
   - strict body `{ question, tokenBudget?, useCache? }`: `question` 5–500 code points, not only
     whitespace, without U+0000 (D1); `tokenBudget` an integer within core's `TOKEN_BUDGET_MIN`–
     `TOKEN_BUDGET_MAX` (1000–32000), absent → `explain`'s default 8000; `useCache` a boolean,
-    accepted and not forwarded until DIS-21 (D2); `hops` and any other key rejected;
+    accepted and not forwarded until DIS-21 (D2); both published in OpenAPI with the `default` of §4
+    (8000, `true`); `hops` and any other key rejected;
   - `200` response: the answered shape (`answer`, `statements[{text,type,verification,evidenceIds}]`,
     `evidence[{id,file,startLine,endLine,excerpt}]`, `confidence`, `usage`) or the `UNKNOWN` shape
     (`answer`, `reason`, `message` only for `llm-required`, `statements: []`, `evidence: []`) (D3, D7).
@@ -38,7 +39,7 @@ The decisions D1–D9 were taken by the agent as lead engineer in the autonomous
   `fileId`, `priorClaims`, `events`, `persisted`, `kind`, `status` or `warning` in the body (D3).
 - Per-route domain error mapping (D4): a route may declare its own table of domain errors, which the
   error handler consults before the global `DOMAIN_ERRORS` table (unchanged). The table of `/ask`
-  (D5, D6): `PROJECT_NOT_FOUND` → `404`; `INVALID_EXPLAIN_REQUEST` → `400`; `LLM_UNAVAILABLE` →
+  (D5, D6): `PROJECT_NOT_FOUND` → `404`; `INVALID_EXPLAIN_REQUEST` → `400` (`invalid request`); `LLM_UNAVAILABLE` →
   `503`; `SOURCE_UNAVAILABLE` → `503`; `BUDGET_EXHAUSTED` → `429` with the DIS-76 details plus
   `cacheOnly: true`. Any other error stays `500` `INTERNAL`.
 - The answer's `events` are written to the request log (`evidence_broken` at `error`, the rest at
@@ -66,8 +67,10 @@ The decisions D1–D9 were taken by the agent as lead engineer in the autonomous
 
 - Code: `packages/api/src/schemas/ask.ts` and `packages/api/src/routes/ask.ts` (new);
   `packages/api/src/plugins/error-handler.ts` (per-route table lookup); `packages/api/src/app.ts`
-  (registers the route); `packages/api/src/index.ts` (exports). Core, the adapters and the CLI do not
-  change.
+  (registers the route); `packages/api/src/index.ts` (exports). Core gains one exported constant,
+  `STATEMENT_VERIFICATIONS` (`packages/core/src/explain/claim-items.ts`, the type
+  `StatementVerification` derived from it), so the API declares no closed set twice; `explain`, the
+  adapters and the CLI do not change.
 - Tests: `tests/unit/api/ask.spec.ts` (`inject` with in-memory doubles, runs under Stryker) and
   `tests/integration/api/ask.spec.ts` (`inject` over real Postgres with the acme-shop seed and its
   built history). No existing test changes.

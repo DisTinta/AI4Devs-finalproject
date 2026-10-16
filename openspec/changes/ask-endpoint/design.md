@@ -58,10 +58,14 @@ reviewable by the author). This design turns them into units U1–U8.
     checked) then `.refine(q => q.trim() !== '')` and `.refine(hasNoNul)`, both issue code `custom`
     with path `["question"]` (checked). `hasNoNul` is core's own check (`@codemind/core`,
     `knowledge/text-without-nul.ts`), the one `explain` uses, imported rather than rewritten.
-  - `tokenBudget`: `z.int().min(TOKEN_BUDGET_MIN).max(TOKEN_BUDGET_MAX).optional()`, both imported
-    from `@codemind/core` (backend-standards §4: one description, never a copied number). No
-    `.default()`: absent stays absent and `explain` applies `TOKEN_BUDGET_DEFAULT` (D2).
-  - `useCache`: `z.boolean().optional()`.
+  - `tokenBudget`: `z.int().min(TOKEN_BUDGET_MIN).max(TOKEN_BUDGET_MAX).optional().meta({ default:
+    TOKEN_BUDGET_DEFAULT })`, the three imported from `@codemind/core` (backend-standards §4: one
+    description, never a copied number). No `.default()`: absent stays absent and `explain` applies
+    `TOKEN_BUDGET_DEFAULT` (D2); `meta.default` is documentation only, so `/docs/json` keeps the
+    `default: 8000` of `readme.md` §4 (checked: `z.toJSONSchema` emits `default` and `parse({})`
+    returns `{}`).
+  - `useCache`: `z.boolean().optional().meta({ default: true })`, documentation only as above (the
+    `default: true` of §4).
   - `hops` is not declared, so the strict object rejects it (`unrecognized_keys`).
 - Fastify validates params before the body and stops at the first failing part, so a request with a
   bad id and a bad body reports only the id. Each scenario sends one fault at a time.
@@ -69,13 +73,21 @@ reviewable by the author). This design turns them into units U1–U8.
 ### U2 — Response schemas (D3, D7)
 
 - `askAnsweredSchema = z.object({ answer: z.string(), statements: z.array(z.object({ text, type:
-  z.enum(['FACT','INFERENCE']), verification: z.enum(['entailed','cited']), evidenceIds:
+  z.enum(PROVENANCE_STATEMENT_TYPES), verification: z.enum(STATEMENT_VERIFICATIONS), evidenceIds:
   z.array(z.string()) })), evidence: z.array(z.object({ id, file, startLine: z.int(), endLine: z.int(),
   excerpt: z.string() })), confidence: z.number(), usage: askUsageSchema })`, where `askUsageSchema`
   lists exactly the fields of core's `AnswerUsage` (`baselineEstimator` `z.literal(TOKEN_ESTIMATOR)`,
   `cacheHit` `z.boolean()`, `generation` and `verification` sub-objects).
+- Closed sets come from core, never copied (backend-standards §4): `PROVENANCE_STATEMENT_TYPES`
+  (`packages/core/src/knowledge/claim.ts:53`), `UNKNOWN_REASONS`, `TOKEN_ESTIMATOR`, and a new
+  `STATEMENT_VERIFICATIONS = ['entailed', 'cited'] as const` exported from
+  `packages/core/src/explain/claim-items.ts`, from which `StatementVerification` is derived
+  (`(typeof STATEMENT_VERIFICATIONS)[number]`, the same union: no behaviour change in core).
 - `askUnknownSchema = z.object({ answer: z.literal('UNKNOWN'), reason: z.enum(UNKNOWN_REASONS),
-  message: z.string().optional(), statements: z.tuple([]), evidence: z.tuple([]) })`.
+  message: z.string().optional(), statements: z.array(z.never()).max(0), evidence:
+  z.array(z.never()).max(0) })`. Not `z.tuple([])`: with `target: 'openapi-3.0'` it emits
+  `items: { anyOf: [] }`, an empty `anyOf` JSON Schema forbids; `z.array(z.never()).max(0)` emits
+  `items: { not: {} }, maxItems: 0` and accepts `[]` (both checked with `zod` 4.6).
 - `askResponseSchema = z.union([askUnknownSchema, askAnsweredSchema])` (OpenAPI `anyOf`). The
   serializer (`parse`) strips undeclared keys, which is a second barrier; the first is U3, which
   builds the public object explicitly, so nothing internal is ever handed to the serializer.
@@ -125,7 +137,9 @@ errors without building a graph.
   DomainErrorTable } }`; `answerOf(error, request)` looks the code up in
   `request.routeOptions.config.domainErrors` first, then in `DOMAIN_ERRORS`. `DOMAIN_ERRORS` and its
   entry are unchanged; its TSDoc stops saying "DIS-78 adds the codes of `POST /ask` here".
-- `ASK_DOMAIN_ERRORS` (in `routes/ask.ts`), messages identical to the CLI's `toFailure`:
+- `ASK_DOMAIN_ERRORS` (in `routes/ask.ts`), messages identical to the CLI's `toFailure` except
+  `INVALID_EXPLAIN_REQUEST`, which is `invalid request` (the message of every HTTP `400` validation
+  answer of the API) where the CLI says `invalid question`:
   - `PROJECT_NOT_FOUND` → `404`, `project not found`, `{}`;
   - `INVALID_EXPLAIN_REQUEST` → `400`, `invalid request`, `{ field }` (defence in depth: U1 is stricter
     than `explain`, so it should not be reached; `field` is a field name, never a value);
@@ -170,7 +184,7 @@ so the route is behind the rate limit and in the OpenAPI document. Routes the te
   `buildOne` in `beforeAll` (120 s timeout), `describeWithDatabase` + `useTransactionPerTest`, the seed
   loaded with `loadSeed` inside the test's transaction and `root_path` pointed at the copy, the store
   `createPostgresStore({ transaction: db() })`, the source `createGitSourceTree()`, the app from
-  `buildApp` with a high rate limit; then `inject`. The budget scenario uses a fixed clock on a date no
+  `buildApp` with `rateLimit: { max: 1000, windowMs: 60000 }`; then `inject`. The budget scenario uses a fixed clock on a date no
   other suite writes (`2031-01-15T12:00:00Z`), inserts one `query_log` row with that `created_at` and
   `cost_usd` 1.5, and wraps a counting live model with `withDailyBudget(model, { store, dailyBudgetUsd:
   1, now })`, so concurrent suites' rows (dated today) never enter the sum; expected `resetsAt` is
@@ -186,6 +200,8 @@ so the route is behind the rate limit and in the OpenAPI document. Routes the te
   (`llm-required`) next to the answered one, the evidence example without per-evidence
   `verification` (D3), the error responses `400`, `404`, `429` (`RATE_LIMITED`, `BUDGET_EXHAUSTED`
   with `cacheOnly`), `503`; the comment "El contrato HTTP completo llega con CM-HU-12" is replaced.
+  `default: 8000` (`tokenBudget`) and `default: true` (`useCache`) stay: the generated document now
+  publishes them too (U1).
   The error codes table gains `PROJECT_NOT_FOUND`, `INVALID_EXPLAIN_REQUEST`, `LLM_UNAVAILABLE`,
   `SOURCE_UNAVAILABLE` for `/ask`. §2.5 (6): the cache-only notice is `details.cacheOnly: true`.
 - `docs/project-context.md`: the API gotcha (the `/ask` route, the per-route domain error table, the
@@ -226,5 +242,13 @@ destination here (`docs/project-context.md` → Tracking deferred findings).
 
 - **D — the error messages of `/ask` duplicate the CLI's `toFailure` strings** (U4). Neither package
   depends on the other; a shared module would have to live in core, which never formats transport
-  messages. Both specs pin the strings, so a drift fails a test.
+  messages. Both specs pin the strings, so a drift fails a test. `INVALID_EXPLAIN_REQUEST` differs on
+  purpose (`invalid request` over HTTP, `invalid question` in the CLI).
 - **D — the process-wide verification cache is not keyed by model** (Risks).
+
+Spec audit (`reports/2026-10-16-spec-audit.md`), run 1 — all **A**, fixed in this change's artifacts:
+B1 (the `INVALID_EXPLAIN_REQUEST` message), B2 (`default` published by OpenAPI through `.meta`),
+B3 (closed sets from core, new `STATEMENT_VERIFICATIONS`), M1 (`dimension-mismatch` details), M2
+(events of an `UNKNOWN` logged), M3 (unknown evidence id → `500`, now a scenario), M4 (explicit rate
+limit in tests), M5 (the budget scenario's clock day), M6 ("reaches or exceeds" in the DIS-78 AC), M7
+(`z.array(z.never()).max(0)` instead of `z.tuple([])`), M8 (manual task 10.4 split).

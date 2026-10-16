@@ -18,8 +18,8 @@ source tree or the model. The rules:
 |---|---|---|
 | path | `projectId` | 8-4-4-4-12 hexadecimal digits separated by `-`, any letter case |
 | body | `question` | required string of 5 to 500 Unicode code points (an astral character counts as one), not only whitespace, without U+0000 |
-| body | `tokenBudget` | optional integer from 1000 to 32000 (the context pack's limits); when absent, the use case's default (8000) applies |
-| body | `useCache` | optional boolean; accepted and without effect until the answer cache exists |
+| body | `tokenBudget` | optional integer from 1000 to 32000 (the context pack's limits); when absent, the use case's default (8000) applies; the OpenAPI document publishes it as `default` |
+| body | `useCache` | optional boolean; accepted and without effect until the answer cache exists; the OpenAPI document publishes `default` `true` |
 | body | any other key (`hops` included) | rejected (`unrecognized_keys`) |
 
 No issue and no other part of the response SHALL contain a received value.
@@ -109,7 +109,9 @@ keys are exactly `answer`, `statements`, `evidence`, `confidence` and `usage`:
   { calls, cacheHits, inputTokens, outputTokens, costUsd, latencyMs } }`, the use case's usage.
 
 The evidence ids SHALL be public ids `ev-1`, `ev-2`… numbered in evidence order, and each statement's
-`evidenceIds` SHALL name the public ids of the entries it cited, in its order. The body MUST NOT
+`evidenceIds` SHALL name the public ids of the entries it cited, in its order. A use case answer
+whose statement cites an id absent from its evidence breaks the use case's contract and SHALL answer
+`500` `INTERNAL`; no id is dropped or invented. The body MUST NOT
 contain a database id, a file id, the use case's prompt ids (`E1`…), its prior claims, its events,
 whether the claims were stored, a statement's stale status or warning, or any provenance.
 
@@ -143,6 +145,14 @@ whether the claims were stored, a statement's stale status or warning, or any pr
 - **WHEN** a valid question is sent
 - **THEN** it answers `200` and the body contains none of the keys `fileId`, `priorClaims`, `events`,
   `persisted`, `kind`, `status`, `warning`, nor the prior claim's text or id
+
+#### Scenario: A statement citing an unknown evidence id answers INTERNAL
+
+- **GIVEN** the app built with doubles and a use case that answers with the evidence id `X` and one
+  statement citing `[Y]`
+- **WHEN** a valid question is sent
+- **THEN** it answers `500` with the body exactly
+  `{ "error": { "code": "INTERNAL", "message": "unexpected error", "details": {} } }`
 
 ### Requirement: Ask UNKNOWN response
 
@@ -193,14 +203,16 @@ SHALL answer `500` `INTERNAL`. The endpoint is limited by the API's rate limit b
 
 - **GIVEN** the app built with doubles, a stored project and a use case that rejects, in turn, with
   `InvalidExplainRequest` naming `question`, `LlmUnavailable` with reason `http-status` and status
-  `502`, `LlmUnavailable` with reason `network` and system code `ECONNREFUSED`, `SourceUnavailable`
+  `502`, `LlmUnavailable` with reason `network` and system code `ECONNREFUSED`, `LlmUnavailable`
+  with reason `dimension-mismatch`, `expected` 768 and `received` 1536, `SourceUnavailable`
   with reason `missing` and path `app/Gone.php`, `SourceUnavailable` with reason `not-indexed`, and
   `ProjectNotFound`
 - **WHEN** a valid question is sent each time
 - **THEN** the answers are, in order: `400` `INVALID_EXPLAIN_REQUEST` `invalid request`
   `{ "field": "question" }`; `503` `LLM_UNAVAILABLE` `the language model is unavailable`
   `{ "reason": "http-status", "status": 502 }`; `503` `LLM_UNAVAILABLE` with
-  `{ "reason": "network", "systemCode": "ECONNREFUSED" }`; `503` `SOURCE_UNAVAILABLE`
+  `{ "reason": "network", "systemCode": "ECONNREFUSED" }`; `503` `LLM_UNAVAILABLE` with
+  `{ "reason": "dimension-mismatch", "expected": 768, "received": 1536 }`; `503` `SOURCE_UNAVAILABLE`
   `the project's source cannot be read` `{ "reason": "missing", "path": "app/Gone.php" }`; `503`
   `SOURCE_UNAVAILABLE` with `{ "reason": "not-indexed" }`; `404` `PROJECT_NOT_FOUND`
   `project not found` `{}`; and no body contains the error's own message
@@ -215,13 +227,15 @@ SHALL answer `500` `INTERNAL`. The endpoint is limited by the API's rate limit b
 
 #### Scenario: A spent daily budget stops the model over the seed
 
-- **GIVEN** acme-shop loaded from `seeds/graph-dump.sql` into Postgres with its history built, a
-  `query_log` row of acme-shop dated today (UTC) with `cost_usd` 1.5, and a live model that counts its
-  calls wrapped by the daily ceiling with `dailyBudgetUsd` 1 over that store
+- **GIVEN** acme-shop loaded from `seeds/graph-dump.sql` into Postgres with its history built, the
+  app's clock fixed on a UTC day no other suite writes, a `query_log` row of acme-shop dated that day
+  with `cost_usd` 1.5, and a live model that counts its calls wrapped by the daily ceiling with
+  `dailyBudgetUsd` 1 over that store and clock (the ceiling applies when the day's spend reaches or
+  exceeds it)
 - **WHEN** `POST /api/projects/<acme-shop's id>/ask` is sent
   `{ "question": "¿Cómo se calcula el precio final de un pedido?" }`
 - **THEN** it answers `429` with `error.code` `BUDGET_EXHAUSTED` and `error.details` exactly
-  `{ "spentUsd": 1.5, "dailyBudgetUsd": 1, "resetsAt": <the next 00:00 UTC>, "cacheOnly": true }`,
+  `{ "spentUsd": 1.5, "dailyBudgetUsd": 1, "resetsAt": <00:00 UTC of the day after the clock's>, "cacheOnly": true }`,
   and the model received no call
 
 #### Scenario: Another error of the use case answers INTERNAL
@@ -257,7 +271,9 @@ again.
 - **WHEN** the question `SENTINEL-question-4d1e price` is sent
 - **THEN** three log lines carrying the request's `reqId` hold those events in order, the
   `evidence_broken` one at level `error` (50) and the other two at level `info` (30), each with the
-  event's `type`; and no log line contains `SENTINEL-question-4d1e`
+  event's `type`; then, with a use case that answers `UNKNOWN` `broken-evidence` with one
+  `evidence_broken` event, one log line of that second request's `reqId` holds it at level `error`
+  (50); and no log line contains `SENTINEL-question-4d1e`
 
 #### Scenario: Requests to one API share verification verdicts
 
@@ -283,8 +299,9 @@ the error responses `400`, `404`, `429`, `500` and `503` in the error format.
 - **THEN** `paths` has `/api/projects/{projectId}/ask` with a `post` operation whose parameters
   include `projectId` in `path`, required, of type `string` and format `uuid`; whose request body
   schema has `required` `["question"]`, `additionalProperties` `false`, `question` of type `string`
-  with `minLength` 5 and `maxLength` 500, `tokenBudget` of type `integer` with `minimum` 1000 and
-  `maximum` 32000, and `useCache` of type `boolean`; whose `200` response schema offers two shapes, one
+  with `minLength` 5 and `maxLength` 500, `tokenBudget` of type `integer` with `minimum` 1000,
+  `maximum` 32000 and `default` 8000, and `useCache` of type `boolean` with `default` `true`; whose
+  `200` response schema offers two shapes, one
   with the keys `answer`, `statements`, `evidence`, `confidence`, `usage` and one with `answer`,
   `reason`, `message`, `statements`, `evidence`; and whose responses include `400`, `404`, `429`,
   `500` and `503`
