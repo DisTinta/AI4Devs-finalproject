@@ -279,5 +279,64 @@ describeWithDatabase('graph store answer cache entries (DIS-21)', () => {
       expect('cause' in (error as object)).toBe(false);
       expect(await entriesOf(project.id)).toEqual([]);
     });
+
+    it('Concurrent saves of one key leave one entry', async () => {
+      // Arrange
+      const pool = new Pool({ connectionString: databaseUrl, max: 4 });
+      const observer = await connect();
+      const store = createPostgresStore({ pool });
+      let projectId: string | undefined;
+      try {
+        projectId = await store.createProject({ name: unique('cache-concurrent'), rootPath: '/repos/sample', language: 'php' });
+
+        // Act
+        const saves = await Promise.allSettled(
+          Array.from({ length: 6 }, (_, i) => store.saveCacheEntry(projectId!, KEY, i % 2 === 0 ? R1 : R2)),
+        );
+
+        // Assert
+        expect(saves.map((save) => save.status)).toEqual(Array.from({ length: 6 }, () => 'fulfilled'));
+        const { rows } = await observer.query<{ response: unknown }>(
+          'SELECT response FROM cache_entry WHERE project_id = $1 AND question_normalized = $2',
+          [projectId, KEY],
+        );
+        expect(rows).toHaveLength(1);
+        expect([R1, R2]).toContainEqual(rows[0]!.response);
+      } finally {
+        if (projectId !== undefined) await observer.query('DELETE FROM project WHERE id = $1', [projectId]);
+        await observer.end();
+        await pool.end();
+      }
+    });
+
+    it("Cache writes on the store's own connections commit", async () => {
+      // Arrange
+      const pool = new Pool({ connectionString: databaseUrl });
+      const observer = await connect();
+      const store = createPostgresStore({ pool });
+      let projectId: string | undefined;
+      try {
+        projectId = await store.createProject({ name: unique('cache-pool'), rootPath: '/repos/sample', language: 'php' });
+        const count = async (): Promise<Array<{ hit_count: number }>> =>
+          (await observer.query<{ hit_count: number }>('SELECT hit_count FROM cache_entry WHERE project_id = $1', [projectId]))
+            .rows;
+
+        // Act
+        await store.saveCacheEntry(projectId, KEY, R1);
+        const entry = await store.findCacheEntry(projectId, KEY);
+        await store.touchCacheEntry(projectId, entry!.id, new Date());
+        const afterTouch = await count();
+        const deleted = await store.invalidateCache(projectId);
+
+        // Assert
+        expect(afterTouch).toEqual([{ hit_count: 1 }]);
+        expect(deleted).toBe(1);
+        expect(await count()).toEqual([]);
+      } finally {
+        if (projectId !== undefined) await observer.query('DELETE FROM project WHERE id = $1', [projectId]);
+        await observer.end();
+        await pool.end();
+      }
+    });
   });
 });
