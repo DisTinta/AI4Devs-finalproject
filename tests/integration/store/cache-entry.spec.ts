@@ -174,5 +174,110 @@ describeWithDatabase('graph store answer cache entries (DIS-21)', () => {
       expect(await entriesOf(a.id)).toEqual([]);
       expect(await entriesOf(b.id)).toHaveLength(1);
     });
+
+    it('Invalid cache arguments are rejected before querying', async () => {
+      // Arrange
+      const { counted, statements } = stores();
+      const project = await createProject(db());
+      const id = project.id;
+      const SENTINEL = 'SENTINEL-cache-key-9b1c';
+      const before = statements();
+
+      // Act
+      const malformed = [
+        await rejection(counted.findCacheEntry('not-a-uuid', KEY)),
+        await rejection(counted.saveCacheEntry('not-a-uuid', KEY, R1)),
+        await rejection(counted.touchCacheEntry('not-a-uuid', randomUUID(), new Date())),
+        await rejection(counted.invalidateCache('not-a-uuid')),
+      ];
+      const invalid: Array<[unknown, string]> = [];
+      for (const key of ['', '   ', `${SENTINEL}\u0000`]) {
+        invalid.push([await rejection(counted.findCacheEntry(id, key)), 'question']);
+        invalid.push([await rejection(counted.saveCacheEntry(id, key, R1)), 'question']);
+      }
+      for (const response of [null, [], 'x']) {
+        invalid.push([await rejection(counted.saveCacheEntry(id, KEY, response as unknown as object)), 'response']);
+      }
+      invalid.push([await rejection(counted.touchCacheEntry(id, 'x', new Date())), 'entryId']);
+      invalid.push([await rejection(counted.touchCacheEntry(id, randomUUID(), new Date('x'))), 'at']);
+
+      // Assert
+      for (const error of malformed) expect(error).toBeInstanceOf(ProjectNotFound);
+      for (const [error, argument] of invalid) {
+        expect(error).toBeInstanceOf(InvalidStoreQuery);
+        expect((error as InvalidStoreQuery).argument).toBe(argument);
+        expect((error as Error).message).not.toContain(SENTINEL);
+        expect((error as Error).message).not.toContain(KEY);
+      }
+      expect(invalid.map(([, argument]) => argument)).toEqual([
+        'question',
+        'question',
+        'question',
+        'question',
+        'question',
+        'question',
+        'response',
+        'response',
+        'response',
+        'entryId',
+        'at',
+      ]);
+      expect(statements() - before).toBe(0);
+    });
+
+    it('Cache calls on an unknown project fail without writing', async () => {
+      // Arrange
+      const { store } = stores();
+      const unknown = randomUUID();
+
+      // Act
+      const errors = [
+        await rejection(store.findCacheEntry(unknown, KEY)),
+        await rejection(store.saveCacheEntry(unknown, KEY, R1)),
+        await rejection(store.touchCacheEntry(unknown, randomUUID(), new Date())),
+        await rejection(store.invalidateCache(unknown)),
+      ];
+
+      // Assert
+      for (const error of errors) expect(error).toBeInstanceOf(ProjectNotFound);
+      expect(await entriesOf(unknown)).toEqual([]);
+      const { rows } = await db().query<{ n: number }>('SELECT count(*)::int AS n FROM cache_entry WHERE project_id = $1', [unknown]);
+      expect(rows[0]!.n).toBe(0);
+    });
+
+    it('A failed cache write does not leak', async () => {
+      // Arrange
+      const { store } = stores();
+      const project = await createProject(db());
+      const SENTINEL = 'SENTINEL-cache-key-4e7a';
+      // CREATE TRIGGER waits for parallel tests holding ROW EXCLUSIVE on cache_entry; a stuck lock fails
+      // the test instead of hanging the suite.
+      await db().query(`SET LOCAL lock_timeout = '10s'`);
+      await db().query(`
+        CREATE FUNCTION pg_temp.reject_cache_entry() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN
+          IF NEW.question_normalized = '${SENTINEL}' THEN
+            RAISE EXCEPTION 'cache entry rejected: %', NEW.question_normalized
+              USING DETAIL = 'key ' || NEW.question_normalized, HINT = NEW.question_normalized;
+          END IF;
+          RETURN NEW;
+        END $$`);
+      await db().query(
+        `CREATE TRIGGER reject_cache_entry BEFORE INSERT ON cache_entry FOR EACH ROW EXECUTE FUNCTION pg_temp.reject_cache_entry()`,
+      );
+
+      // Act
+      const error = await rejection(store.saveCacheEntry(project.id, SENTINEL, R1));
+
+      // Assert
+      expect(error).toBeInstanceOf(CacheWriteFailed);
+      const serialised =
+        JSON.stringify(error) +
+        JSON.stringify(Object.getOwnPropertyNames(error).map((key) => (error as Record<string, unknown>)[key]));
+      expect(serialised).not.toContain(SENTINEL);
+      expect(serialised).not.toContain('cache entry rejected');
+      expect('cause' in (error as object)).toBe(false);
+      expect(await entriesOf(project.id)).toEqual([]);
+    });
   });
 });
