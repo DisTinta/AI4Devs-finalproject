@@ -120,4 +120,4 @@
 - [x] 17.6 Run `/adversarial-review`; report `openspec/changes/api-foundation/reports/YYYY-MM-DD-adversarial-review.md`
 - [x] 17.7 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report
 - [x] 17.8 Commit the fixes to the same pull request; re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
-- [ ] 17.9 Post the Follow-ups C checklist comment (`Deuda: api-foundation`, Spanish) on DIS-76; `/opsx:archive`, and commit the archive to the same pull request; merge only after the archive commit and with CI green (autonomous-run ADR)
+- [x] 17.9 Post the Follow-ups C checklist comment (`Deuda: api-foundation`, Spanish) on DIS-76; `/opsx:archive`, and commit the archive to the same pull request; merge only after the archive commit and with CI green (autonomous-run ADR)
