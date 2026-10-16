@@ -72,7 +72,7 @@ $ 3 x POST /api/nope (content-type: application/xml) | sort | uniq -c
 ### Logging
 
 ```text
-$ curl -H 'authorization: Bearer SENTINEL-hdr-demo' -H 'cookie: sid=SENTINEL-cookie-demo' /health  -> 200
+$ curl (authorization header value SENTINEL-hdr-demo, cookie header value sid=SENTINEL-cookie-demo) /health  -> 200
 $ curl -X POST -H 'content-type: application/json' --data '{"q":"SENTINEL-body-demo"' /api/nope
 {"error":{"code":"VALIDATION_ERROR","message":"invalid request","details":{}}} 400
 $ 70 000 x 'a' as JSON to POST /api/nope
