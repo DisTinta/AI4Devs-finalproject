@@ -1,5 +1,14 @@
 import { z } from 'zod';
-import { hasNoNul, TOKEN_BUDGET_DEFAULT, TOKEN_BUDGET_MAX, TOKEN_BUDGET_MIN } from '@codemind/core';
+import {
+  hasNoNul,
+  PROVENANCE_STATEMENT_TYPES,
+  STATEMENT_VERIFICATIONS,
+  TOKEN_BUDGET_DEFAULT,
+  TOKEN_BUDGET_MAX,
+  TOKEN_BUDGET_MIN,
+  TOKEN_ESTIMATOR,
+  UNKNOWN_REASONS,
+} from '@codemind/core';
 
 // The payload of `POST /api/projects/{projectId}/ask` (DIS-78 design U1, U2): the only description
 // of it. Limits and closed sets come from `@codemind/core`, never copied (backend-standards §4).
@@ -44,3 +53,79 @@ export const askBodySchema = z.strictObject({
 
 /** The body of `POST /api/projects/{projectId}/ask`. */
 export type AskBody = z.infer<typeof askBodySchema>;
+
+/** The usage of an answered question (`readme.md` §4): exactly the fields of core's `AnswerUsage`. */
+export const askUsageSchema = z.object({
+  inputTokens: z.int(),
+  outputTokens: z.int(),
+  baselineTokens: z.int(),
+  baselineEstimator: z.literal(TOKEN_ESTIMATOR),
+  savingsPct: z.number(),
+  costUsd: z.number(),
+  latencyMs: z.int(),
+  cacheHit: z.boolean(),
+  generation: z.object({ inputTokens: z.int(), outputTokens: z.int(), costUsd: z.number() }),
+  verification: z.object({
+    calls: z.int(),
+    cacheHits: z.int(),
+    inputTokens: z.int(),
+    outputTokens: z.int(),
+    costUsd: z.number(),
+    latencyMs: z.int(),
+  }),
+});
+
+/** The usage of an answered question. */
+export type AskUsage = z.infer<typeof askUsageSchema>;
+
+/**
+ * An answered question (D3): the answer, its typed statements citing public evidence ids, the cited
+ * evidence (`ev-1`, `ev-2`… in evidence order), the confidence and the usage. No internal field.
+ */
+export const askAnsweredSchema = z.object({
+  answer: z.string(),
+  statements: z.array(
+    z.object({
+      text: z.string(),
+      type: z.enum(PROVENANCE_STATEMENT_TYPES),
+      verification: z.enum(STATEMENT_VERIFICATIONS),
+      evidenceIds: z.array(z.string()),
+    }),
+  ),
+  evidence: z.array(
+    z.object({
+      id: z.string(),
+      file: z.string(),
+      startLine: z.int(),
+      endLine: z.int(),
+      excerpt: z.string(),
+    }),
+  ),
+  confidence: z.number(),
+  usage: askUsageSchema,
+});
+
+/** An answered question. */
+export type AskAnswered = z.infer<typeof askAnsweredSchema>;
+
+/**
+ * An honest `UNKNOWN` (D7): the reason, the message only for `llm-required`, and no statement nor
+ * evidence. `z.array(z.never()).max(0)` rather than `z.tuple([])`, whose OpenAPI 3.0 form is an empty
+ * `anyOf`.
+ */
+export const askUnknownSchema = z.object({
+  answer: z.literal('UNKNOWN'),
+  reason: z.enum(UNKNOWN_REASONS),
+  message: z.string().optional(),
+  statements: z.array(z.never()).max(0),
+  evidence: z.array(z.never()).max(0),
+});
+
+/** An honest `UNKNOWN`. */
+export type AskUnknown = z.infer<typeof askUnknownSchema>;
+
+/** The `200` body of `POST /api/projects/{projectId}/ask`: an `UNKNOWN` or an answered question. */
+export const askResponseSchema = z.union([askUnknownSchema, askAnsweredSchema]);
+
+/** The `200` body of `POST /api/projects/{projectId}/ask`. */
+export type AskResponse = z.infer<typeof askResponseSchema>;

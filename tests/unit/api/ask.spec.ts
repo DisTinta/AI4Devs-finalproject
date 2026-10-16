@@ -7,6 +7,10 @@ import type {
   ExplainDependencies,
   ExplainEvent,
   ExplainRequest,
+  AnswerEvidence,
+  AnswerStatement,
+  AnswerUsage,
+  AnsweredExplain,
   LlmPort,
   SourceTreePort,
   StorePort,
@@ -232,5 +236,71 @@ describe('ask request validation', () => {
       { projectId: built.projectId, question: Q1, tokenBudget: 1000 },
       { projectId: built.projectId, question: Q1, tokenBudget: 32_000 },
     ]);
+  });
+});
+
+/** The usage of a canned answer: every number distinct, so a copied field is told apart. */
+const USAGE: AnswerUsage = {
+  inputTokens: 120,
+  outputTokens: 30,
+  baselineTokens: 900,
+  baselineEstimator: 'chars-div-4',
+  savingsPct: 86.7,
+  costUsd: 0.0012,
+  latencyMs: 42,
+  cacheHit: false,
+  generation: { inputTokens: 100, outputTokens: 20, costUsd: 0.001 },
+  verification: { calls: 2, cacheHits: 1, inputTokens: 20, outputTokens: 10, costUsd: 0.0002, latencyMs: 7 },
+};
+
+/** An evidence entry of a canned answer with `id`, citing `path` lines 1–2 (its file id and excerpt named after the path). */
+function evidenceOf(id: string, path = `app/${id}.php`): AnswerEvidence {
+  return { id, fileId: `file-of-${path}`, path, startLine: 1, endLine: 2, excerpt: `excerpt of ${path}` };
+}
+
+/** A current statement of a canned answer citing `evidenceIds`. */
+function statementOf(text: string, evidenceIds: string[]): AnswerStatement {
+  return { text, type: 'FACT', status: 'current', verification: 'entailed', evidenceIds };
+}
+
+/** A stored answered `explain` result with `evidence` and `statements`. */
+function answered(evidence: AnswerEvidence[], statements: AnswerStatement[], extra: Partial<AnsweredExplain> = {}): AnsweredExplain {
+  return {
+    kind: 'answered',
+    persisted: true,
+    answer: 'The final price is computed by PriceCalculator.',
+    statements,
+    evidence,
+    priorClaims: [],
+    events: [],
+    usage: USAGE,
+    confidence: 0.73,
+    ...extra,
+  } as AnsweredExplain;
+}
+
+describe('ask answered response', () => {
+  it('Evidence ids are renumbered in evidence order', async () => {
+    // Arrange
+    const [x, y, z] = ['00000000-0000-4000-8000-00000000000a', 'E7', 'evidence-Z'];
+    const recorded = useCase(() => answered([evidenceOf(x!, 'app/X.php'), evidenceOf(y!, 'app/Y.php'), evidenceOf(z!, 'app/Z.php')], [
+      statementOf('first statement', [y!, x!]),
+      statementOf('second statement', [z!]),
+    ]));
+    const built = await askApp({ explain: recorded.explain });
+
+    // Act
+    const response = await ask(built.app, built.projectId, { question: Q1 });
+
+    // Assert
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.evidence.map((entry: { id: string; file: string }) => [entry.id, entry.file])).toEqual([
+      ['ev-1', 'app/X.php'],
+      ['ev-2', 'app/Y.php'],
+      ['ev-3', 'app/Z.php'],
+    ]);
+    expect(body.statements.map((statement: { evidenceIds: string[] }) => statement.evidenceIds)).toEqual([['ev-2', 'ev-1'], ['ev-3']]);
+    for (const id of [x!, y!, z!]) expect(response.body).not.toContain(id);
   });
 });

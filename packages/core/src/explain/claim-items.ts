@@ -37,8 +37,14 @@ export interface TypedStatement {
   evidenceIds: readonly [string, ...string[]];
 }
 
+/**
+ * The verifications of a statement or of one of its citations after the semantic check (DIS-70):
+ * `entailed` when the check found support, `cited` otherwise.
+ */
+export const STATEMENT_VERIFICATIONS = ['entailed', 'cited'] as const;
+
 /** The verification of a statement or of one of its citations after the semantic check (DIS-70). */
-export type StatementVerification = 'entailed' | 'cited';
+export type StatementVerification = (typeof STATEMENT_VERIFICATIONS)[number];
 
 /**
  * A typed statement after the entailment policy (DIS-70 design S5): its type capped (`FACT` only when
