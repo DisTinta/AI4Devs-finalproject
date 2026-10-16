@@ -15,6 +15,7 @@ import {
   LlmUnavailable,
   MAX_QUESTION_CHARS,
   ProjectNotFound,
+  QUERY_NOT_LOGGED_CODES,
   SourceUnavailable,
   toClaimItems,
 } from '@codemind/core';
@@ -79,9 +80,13 @@ describe('Requirement: Explain request', () => {
       expect((error as InvalidExplainRequest).name).toBe('InvalidExplainRequest');
       expect((error as InvalidExplainRequest).message).toBe('Invalid explain request: question');
     }
-    expect(d.loaded.calls).toMatchObject({ findSymbols: 0, neighbors: 0, getProject: 0, findClaimsOverlapping: 0 });
+    expect(d.loaded.calls).toMatchObject({ findSymbols: 0, neighbors: 0, getProject: 0, findClaimsOverlapping: 0, saveQueryLog: 0 });
     expect(d.sourceCalls).toEqual({ readFileAt: 0, readFilesAt: 0 });
     expect(d.model.requests).toHaveLength(0);
+  });
+
+  it('exports the closed set of query_not_logged codes (spec "Explain events and logging")', () => {
+    expect([...QUERY_NOT_LOGGED_CODES]).toEqual(['store-write-failed', 'project-not-found', 'invalid-entry']);
   });
 
   it('A question holding U+0000 is rejected before the store', async () => {

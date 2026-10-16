@@ -594,7 +594,7 @@ indexing:
   code of `ENTAILMENT_UNVERIFIED_REASONS` (`evidence-verification`);
 - `{ type: 'query_not_logged', code }`, once when the answer's `query_log` row was not written, where
   `code` is one code of the exported closed set `QUERY_NOT_LOGGED_CODES` (`store-write-failed`,
-  `project-not-found`), declared once (requirement "Query log").
+  `project-not-found`, `invalid-entry`), declared once (requirement "Query log").
 
 `pattern` SHALL be one code of `INSTRUCTION_PATTERNS`. The events of an answer SHALL be ordered: the
 question's flagged events, then for each span in evidence-id order its flagged events in the order of
@@ -767,11 +767,17 @@ call resolved: an invalid request, the `ProjectNotFound` of anchoring or of the 
 `SourceUnavailable` of the pack's read, a failure of the prior-claims read, or the `LlmUnavailable`
 and `BudgetExhausted` of the `answer` call.
 
-When the row write of a returned answer rejects with `QueryLogWriteFailed`, or with `ProjectNotFound`
+When the row write of a returned answer rejects with `QueryLogWriteFailed`, with `ProjectNotFound`
 (a `no-anchor` question with no search terms is answered without checking the project, requirement
-"Explain request"), explain SHALL still return the answer, with the same fields, and append to its
-events `{ type: 'query_not_logged', code }` with `code` `store-write-failed` or `project-not-found`.
-Any other rejection of the row write of a returned answer SHALL propagate as an error.
+"Explain request"), or with `InvalidStoreQuery` (the entry fails the store's record schema, for
+example because the model reported more tokens, or the call cost more, than the row's columns hold),
+explain SHALL still return the answer, with the same fields, and append to its events
+`{ type: 'query_not_logged', code }` with `code` `store-write-failed`, `project-not-found` or
+`invalid-entry`. In each of these cases the call's spend is not recorded, so the daily spend does not
+see it. Any other rejection of the row
+write of a returned answer SHALL propagate as an error. A failure to obtain a connection for the row
+write is such an error: it propagates after the claims were stored, and that call's spend is not
+recorded (a known exposure, as a process stopped between the claim write and the row).
 
 #### Scenario: An answer leaves one query log row the daily spend sees
 
@@ -858,10 +864,20 @@ Any other rejection of the row write of a returned answer SHALL propagate as an 
 - **THEN** each answer is `UNKNOWN` with reason `no-anchor` and its events are exactly
   `[{ type: 'query_not_logged', code: 'project-not-found' }]`
 
+#### Scenario: An out-of-range query log entry still answers and says so
+
+- **GIVEN** a live model whose `answer` call reports 2 147 483 648 input tokens and whose output has a
+  statement with a valid citation, and then one whose `answer` call costs more than 9 999.999999 USD
+  by the cost table
+- **WHEN** the price question is explained with each
+- **THEN** each answer is the stored answer, with its `usage` reporting those tokens and that cost,
+  and its events end with `{ type: 'query_not_logged', code: 'invalid-entry' }`
+- **AND** the store received no row
+
 #### Scenario: Other query log write errors propagate
 
-- **WHEN** a question is explained with a stored answer and the row write rejects with
-  `InvalidStoreQuery`
+- **WHEN** a question is explained with a stored answer and the row write rejects with an error that
+  is neither `QueryLogWriteFailed`, `ProjectNotFound` nor `InvalidStoreQuery`
 - **THEN** explain fails with that same error
 
 #### Scenario: A row without cited statements records no verification

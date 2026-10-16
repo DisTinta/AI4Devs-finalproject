@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LlmUnavailable, meterLlm } from '@codemind/core';
+import { createInMemoryVerificationCache, LlmUnavailable, meterLlm, verifyEntailment } from '@codemind/core';
 import type { CompletionRequest, CompletionResult, LlmPort } from '@codemind/core';
 
 // DIS-74 design U5: the meter explain wraps its model with, so the tokens and cost of every call that
@@ -82,6 +82,26 @@ describe('usage meter', () => {
 
     // Assert
     expect(meter.generation().costUsd).toBe(0.3);
+  });
+
+  it("counts the semantic check's calls as the check's own usage does (design Risks)", async () => {
+    // Arrange: an accepted, an invalid and a failed verify call, then a pair left unchecked.
+    const outputs: Array<CompletionResult | Error> = [
+      { text: '{"entails":true}', model: 'paid-model', usage: { inputTokens: 300, outputTokens: 20 } },
+      { text: 'yes', model: 'paid-model', usage: { inputTokens: 250, outputTokens: 30 } },
+      new LlmUnavailable('timeout'),
+    ];
+    const meter = meterLlm(modelAnswering(outputs), TABLE);
+    const pair = (statement: string) => ({ statement, path: 'app/A.php', startLine: 1, endLine: 2, excerpt: 'x' });
+
+    // Act
+    const { usage } = await verifyEntailment(meter.llm, createInMemoryVerificationCache(), ['S1', 'S2', 'S3', 'S4'].map(pair), TABLE);
+
+    // Assert
+    expect(usage.calls).toBe(2);
+    expect(meter.verifyCalls()).toBe(usage.calls);
+    expect(meter.verification()).toStrictEqual({ inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, costUsd: usage.costUsd });
+    expect(meter.verification()).toStrictEqual({ inputTokens: 550, outputTokens: 50, costUsd: 0.00240 });
   });
 
   it('keeps the mode and passes embed through', async () => {

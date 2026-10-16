@@ -3,7 +3,7 @@ import { anchor } from '../context/anchor.js';
 import { buildContextPack } from '../context/context-pack.js';
 import type { ContextSpan } from '../context/context-pack.js';
 import { confidence } from '../knowledge/confidence.js';
-import { ClaimWriteFailed, ProjectNotFound, QueryLogWriteFailed } from '../knowledge/errors.js';
+import { ClaimWriteFailed, InvalidStoreQuery, ProjectNotFound, QueryLogWriteFailed } from '../knowledge/errors.js';
 import type { QueryLogEntry } from '../knowledge/query-log.js';
 import type { SavedClaim } from '../knowledge/stored-claim.js';
 import { COST_TABLE } from '../llm/cost-table.js';
@@ -101,7 +101,7 @@ interface CallState {
  * return (`UNKNOWN` included, with zero counters when no model call was made) and on every rejection
  * raised after a model call resolved (the spend so far, then the original error, whatever happened to
  * the row). No row is written when explain fails before any call resolved. When the row of a returned
- * answer fails with `QueryLogWriteFailed` or `ProjectNotFound`, the answer is still returned with
+ * answer fails with `QueryLogWriteFailed`, `ProjectNotFound` or `InvalidStoreQuery`, the answer is still returned with
  * `query_not_logged` as its last event. Explain reads its clock twice in a call that writes a row (after
  * validating the request, which is also every claim's provenance instant, and just before the row); in
  * `live` mode the semantic check reads it twice more between them.
@@ -116,7 +116,7 @@ interface CallState {
  *   file, which breaks its citations), of a `verify` call other than LlmUnavailable and
  *   BudgetExhausted (which leave its citations `cited`), or of the claim write other than
  *   `ClaimWriteFailed`, unchanged; any failure of the row write of a returned answer other than
- *   `QueryLogWriteFailed` and `ProjectNotFound`, unchanged.
+ *   `QueryLogWriteFailed`, `ProjectNotFound` and `InvalidStoreQuery`, unchanged.
  */
 export async function explain(dependencies: ExplainDependencies, request: ExplainRequest): Promise<ExplainAnswer> {
   const { store, llm, now } = dependencies;
@@ -168,7 +168,8 @@ export async function explain(dependencies: ExplainDependencies, request: Explai
 
 /**
  * Writes the row of a returned answer (DIS-74 design U9): resolves to the `query_not_logged` code when
- * the store fails with `QueryLogWriteFailed` or `ProjectNotFound`, to `undefined` once written.
+ * the store fails with `QueryLogWriteFailed`, `ProjectNotFound` or `InvalidStoreQuery`, to `undefined`
+ * once written.
  *
  * @throws Any other failure of the write, unchanged.
  */
@@ -179,6 +180,8 @@ async function saveRow(store: StorePort, entry: QueryLogEntry): Promise<QueryNot
   } catch (error) {
     if (error instanceof QueryLogWriteFailed) return 'store-write-failed';
     if (error instanceof ProjectNotFound) return 'project-not-found';
+    // Counts the model reported can exceed the row's columns; the claims are already stored (F1).
+    if (error instanceof InvalidStoreQuery) return 'invalid-entry';
     throw error;
   }
 }

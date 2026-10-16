@@ -117,7 +117,10 @@ rechazar"):
   `explain/limits.ts`) `verify` calls per check; each uncached pair past the cap is `cited` with the
   new reason `call-limit`, appended to `ENTAILMENT_UNVERIFIED_REASONS` (D2).
 - New event `{ type: 'query_not_logged', code }` in `ExplainEvent`, `code` from the closed set
-  `QUERY_NOT_LOGGED_CODES` (`store-write-failed`, `project-not-found`).
+  `QUERY_NOT_LOGGED_CODES` (`store-write-failed`, `project-not-found`, `invalid-entry`). The
+  `invalid-entry` code was added after the pre-merge adversarial review (finding F1, author decision
+  2026-10-16, "Absorber como evento"): a model that reports token counts or a cost past the row's
+  columns made the row write fail with `InvalidStoreQuery` after the claims were stored.
 - No change to the CLI `ask` output: it prints no usage, and it already writes every non-`evidence_broken`
   event to stderr at `info` (`cli-ask`), `query_not_logged` included.
 
@@ -127,7 +130,11 @@ rechazar"):
 - The answer cache: `cacheHit` stays `false` until DIS-21.
 - Rows for `impact` and `drift` (DIS-90, CM-HU-20.2); aggregated `query_log` statistics (DIS-81).
 - Making the daily ceiling atomic, or writing one row per model call: the spend of an `ask` in flight
-  is seen only when its row is written; the D2 cap bounds the overshoot.
+  is seen only when its row is written; the D2 cap bounds the overshoot of each `ask` in flight, so N
+  concurrent `ask` runs may overshoot by up to N × (one `answer` + 20 `verify`) calls.
+- A connection failure of the final row write (adversarial review F2, author decision 2026-10-16,
+  "Documentar"): it propagates after the claims are stored, and that call's spend is not recorded,
+  the same exposure as a process stopped between the claim write and the row (design U8).
 - The cost of embeddings (CM-HU-19) and measuring the deviation of `baselineTokens` against the
   provider's tokenizer (CM-HU-22.2).
 - Changing the shape of `UnknownExplain`.

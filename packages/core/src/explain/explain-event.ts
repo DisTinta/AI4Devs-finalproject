@@ -23,10 +23,11 @@ export interface ClaimsNotPersistedEvent {
 
 /**
  * Why the `query_log` row of a call was not written (DIS-74 design U9): the database failed
- * (`store-write-failed`), or the row named no project (`project-not-found`: a `no-anchor` question with
- * no search terms is answered without checking the project).
+ * (`store-write-failed`); the row named no project (`project-not-found`: a `no-anchor` question with
+ * no search terms is answered without checking the project); or the row failed the store's record
+ * schema (`invalid-entry`: the model reported more tokens, or the call cost more, than its columns hold).
  */
-export const QUERY_NOT_LOGGED_CODES = ['store-write-failed', 'project-not-found'] as const;
+export const QUERY_NOT_LOGGED_CODES = ['store-write-failed', 'project-not-found', 'invalid-entry'] as const;
 
 /** Why the `query_log` row of a call was not written. */
 export type QueryNotLoggedCode = (typeof QUERY_NOT_LOGGED_CODES)[number];

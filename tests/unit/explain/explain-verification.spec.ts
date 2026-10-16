@@ -5,7 +5,6 @@ import {
   createInMemoryVerificationCache,
   explain,
   InvalidExplainRequest,
-  InvalidStoreQuery,
   LlmUnavailable,
   MAX_STATEMENTS,
   MAX_VERIFY_CALLS_PER_ANSWER,
@@ -210,10 +209,13 @@ describe('Requirement: Precedence and UNKNOWN answers', () => {
   it('A verifier failure other than unavailable or budget propagates without writing', async () => {
     // Arrange
     const failure = new TypeError('the verifier crashed');
-    const { d } = await acmeShop((ids) => [[ids.anchor]], {
+    const { d, pack } = await acmeShop((ids) => [[ids.anchor]], {
       verify: () => {
         throw failure;
       },
+      costTable: PAID_TABLE,
+      answerModel: 'paid-model',
+      verifyModel: 'paid-model',
       answerUsage: { inputTokens: 100, outputTokens: 10 },
       verifyUsage: { inputTokens: 7, outputTokens: 1 },
     });
@@ -221,12 +223,13 @@ describe('Requirement: Precedence and UNKNOWN answers', () => {
     // Act
     const error = await rejection(explain(d.deps, { projectId: d.projectId, question: Q1 }));
 
-    // Assert
+    // Assert: the failed verify call counts nothing; its time is unknown (raised inside the check).
     expect(error).toBe(failure);
     expect(d.loaded.calls.saveClaims).toBe(0);
     expect(d.loaded.storedClaims()).toEqual([]);
-    expect(d.loaded.queryLog()).toHaveLength(1);
-    expect(d.loaded.queryLog()[0]).toMatchObject({ inputTokens: 100, outputTokens: 10, costUsd: 0, verifyInputTokens: 0, verifyCalls: 0 });
+    expect(d.loaded.queryLog()).toStrictEqual([
+      { ...zeroRow(d.projectId, Q1, pack.baselineTokens), inputTokens: 100, outputTokens: 10, costUsd: 0.00045, verifyLatencyMs: null },
+    ]);
   });
 
   it('An unknown answer has no confidence', async () => {
@@ -786,6 +789,11 @@ describe('Requirement: Answer usage', () => {
   });
 });
 
+/** `value` without its ids (`id`, `evidenceIds`, `fileId`), which each in-memory store draws at random. */
+function withoutIds(value: unknown): unknown {
+  return JSON.parse(JSON.stringify(value, (key, field: unknown) => (['id', 'evidenceIds', 'fileId'].includes(key) ? undefined : field)));
+}
+
 /** A question no symbol anchors. */
 const NO_ANCHOR = '¿Dónde vive el ornitorrinco?';
 
@@ -843,7 +851,9 @@ describe('Requirement: Query log', () => {
     // Act
     const answer = await explain(d.deps, { projectId: d.projectId, question: Q1 });
 
-    // Assert
+    // Assert: exactly the answer of the same run without a cost table or a reported usage.
+    const reference = doubles({ script: () => 'not json' });
+    expect(answer).toStrictEqual(await explain(reference.deps, { projectId: reference.projectId, question: Q1 }));
     expect(answer).toMatchObject({ kind: 'unknown', answer: 'UNKNOWN', reason: 'invalid-model-output', statements: [], evidence: [] });
     expect(answer).not.toHaveProperty('usage');
     expect(d.loaded.queryLog()).toStrictEqual([
@@ -896,6 +906,9 @@ describe('Requirement: Query log (failures)', () => {
     for (const failQueryLogWrite of [undefined, () => new QueryLogWriteFailed()]) {
       const failure = new Error('the claim write crashed');
       const { d } = await acmeShop((ids) => [[ids.anchor, ids.heuristic]], {
+        costTable: PAID_TABLE,
+        answerModel: 'paid-model',
+        verifyModel: 'paid-model',
         answerUsage: { inputTokens: 100, outputTokens: 10 },
         verifyUsage: { inputTokens: 100, outputTokens: 10 },
         now: [T0, at(100), at(400), at(500)],
@@ -924,12 +937,13 @@ describe('Requirement: Query log (failures)', () => {
         inputTokens: 300,
         outputTokens: 30,
         baselineTokens: (await packOf(first!.d)).baselineTokens,
-        costUsd: 0,
+        // Priced as the answer usage is: 300 × 3 + 30 × 15 and 200 × 3 + 20 × 15 USD per million.
+        costUsd: 0.00135,
         latencyMs: 500,
         cacheHit: false,
         verifyInputTokens: 200,
         verifyOutputTokens: 20,
-        verifyCostUsd: 0,
+        verifyCostUsd: 0.0009,
         verifyCalls: 2,
         verifyLatencyMs: 300,
       },
@@ -946,11 +960,18 @@ describe('Requirement: Query log (failures)', () => {
     const unsaved = (await acmeShop(cite, { failQueryLogWrite, failClaimWrite: { claim: 0, evidence: 0 } })).d;
     const empty = doubles({ failQueryLogWrite, script: () => modelOutput('Nada.', []) });
     const reference = (await acmeShop(cite)).d;
+    const references = [
+      reference,
+      (await acmeShop(cite, { failClaimWrite: { claim: 0, evidence: 0 } })).d,
+      doubles({ script: () => modelOutput('Nada.', []) }),
+    ];
 
     // Act
     const answers = [];
     for (const d of [stored, unsaved, empty]) answers.push(await explain(d.deps, { projectId: d.projectId, question: Q1 }));
-    const normal = await explain(reference.deps, { projectId: reference.projectId, question: Q1 });
+    const expected = [];
+    for (const d of references) expected.push(await explain(d.deps, { projectId: d.projectId, question: Q1 }));
+    const normal = expected[0]!;
 
     // Assert
     expect(answers.map((answer) => (answer.kind === 'answered' ? answer.persisted : answer.reason))).toEqual([true, false, 'no-evidence']);
@@ -959,6 +980,10 @@ describe('Requirement: Query log (failures)', () => {
     expect(answers[0]!.events).toEqual([...normal.events, notLogged]);
     expect(answers[1]!.events.at(-2)).toEqual({ type: 'claims_not_persisted', code: 'store-write-failed' });
     expect(answers[2]!.events.slice(0, -1)).toEqual(normal.events.filter((event) => event.type !== 'entailment_unverified'));
+    // Every other field is that of the same answer whose row was written (stored row ids differ per run).
+    for (const [i, answer] of answers.entries()) {
+      expect(withoutIds({ ...answer, events: answer.events.slice(0, -1) })).toStrictEqual(withoutIds(expected[i]!));
+    }
     for (const d of [stored, unsaved, empty]) expect(d.loaded.queryLog()).toEqual([]);
     const serialised = JSON.stringify(answers);
     expect(serialised).not.toContain(sentinel);
@@ -1039,19 +1064,36 @@ describe('Requirement: Query log (paths)', () => {
         throw exhausted;
       },
     });
+    // The other failures before a call resolves (spec "Query log"): the pack's read, the prior-claims
+    // read and an unavailable model.
+    const unindexed = doubles({ graph: { ...acmeShopGraph(), indexedCommit: undefined } });
+    const priorFailure = new Error('read failed');
+    const prior = doubles({ store: (store) => ({ ...store, findClaimsOverlapping: () => Promise.reject(priorFailure) }) });
+    const unavailable = new LlmUnavailable('timeout');
+    const down = doubles({
+      script: () => {
+        throw unavailable;
+      },
+    });
 
     // Act
     const errors = [
       await rejection(explain(empty.deps, { projectId: empty.projectId, question: '' })),
       await rejection(explain(unknownProject.deps, { projectId: '9b2f8f2e-3c1a-4f5e-8d7c-6b5a4c3d2e1f', question: Q1 })),
       await rejection(explain(budget.deps, { projectId: budget.projectId, question: Q1 })),
+      await rejection(explain(unindexed.deps, { projectId: unindexed.projectId, question: Q1 })),
+      await rejection(explain(prior.deps, { projectId: prior.projectId, question: Q1 })),
+      await rejection(explain(down.deps, { projectId: down.projectId, question: Q1 })),
     ];
 
     // Assert
     expect(errors[0]).toBeInstanceOf(InvalidExplainRequest);
     expect(errors[1]).toBeInstanceOf(ProjectNotFound);
     expect(errors[2]).toBe(exhausted);
-    for (const d of [empty, unknownProject, budget]) expect(d.loaded.calls.saveQueryLog).toBe(0);
+    expect(errors[3]).toBeInstanceOf(SourceUnavailable);
+    expect(errors[4]).toBe(priorFailure);
+    expect(errors[5]).toBe(unavailable);
+    for (const d of [empty, unknownProject, budget, unindexed, prior, down]) expect(d.loaded.calls.saveQueryLog).toBe(0);
   });
 
   it('A verifier failure leaves a row with the calls that resolved', async () => {
@@ -1104,9 +1146,46 @@ describe('Requirement: Query log (paths)', () => {
     expect(d.loaded.queryLog()).toEqual([]);
   });
 
+  it('An out-of-range query log entry still answers and says so', async () => {
+    // Arrange: the in-memory store checks the entry with core's schema, as the Postgres adapter does.
+    // One run reports more tokens than an `integer` holds; the other costs more than `numeric(10,6)`.
+    const tooMany = 2_147_483_648;
+    const cite = (ids: Ids) => [[ids.anchor]];
+    const options: DoubleOptions[] = [
+      { answerUsage: { inputTokens: tooMany, outputTokens: 10 } },
+      {
+        costTable: { 'paid-model': { inputPerMTok: 10_000_000_000, outputPerMTok: 0 } },
+        answerModel: 'paid-model',
+        answerUsage: { inputTokens: 1_000, outputTokens: 10 },
+      },
+    ];
+
+    for (const option of options) {
+      const { d } = await acmeShop(cite, option);
+      const reference = (await acmeShop(cite)).d;
+
+      // Act
+      const answer = await explain(d.deps, { projectId: d.projectId, question: Q1 });
+      const written = await explain(reference.deps, { projectId: reference.projectId, question: Q1 });
+
+      // Assert: the stored answer of the same run whose row is written, but for its usage and the event.
+      expect(answer).toMatchObject({ kind: 'answered', persisted: true });
+      if (answer.kind !== 'answered' || written.kind !== 'answered') return;
+      expect(answer.events.at(-1)).toEqual({ type: 'query_not_logged', code: 'invalid-entry' });
+      const { usage, ...rest } = { ...answer, events: answer.events.slice(0, -1) };
+      const writtenRest = Object.fromEntries(Object.entries(written).filter(([key]) => key !== 'usage'));
+      expect(withoutIds(rest)).toStrictEqual(withoutIds(writtenRest));
+      expect(usage.generation).toMatchObject(option.answerUsage!);
+      expect(usage.costUsd).toBe(option.costTable ? 10_000_000 : 0);
+      expect(d.loaded.calls.saveQueryLog).toBe(1);
+      expect(d.loaded.queryLog()).toEqual([]);
+      expect(d.loaded.storedClaims()).toHaveLength(1);
+    }
+  });
+
   it('Other query log write errors propagate', async () => {
-    // Arrange
-    const failure = new InvalidStoreQuery('entry', 'must be a valid query log entry');
+    // Arrange: an error that is none of the three the answer absorbs.
+    const failure = new TypeError('the query log write crashed');
     const { d } = await acmeShop((ids) => [[ids.anchor]], { failQueryLogWrite: () => failure });
 
     // Act
@@ -1122,6 +1201,8 @@ describe('Requirement: Answer with typed statements (call limit)', () => {
   it('Statements past the verify call limit stay inferences', async () => {
     // Arrange
     const d = callLimitProject();
+    const pack = await packOf(d, 'price');
+    expect(spanOf(pack, 'E21').origin).toBe('anchor');
 
     // Act
     const answer = await explain(d.deps, { projectId: d.projectId, question: 'price' });
@@ -1173,15 +1254,16 @@ describe('Requirement: Query log (verifier calls and latency)', () => {
     const cite = (ids: Ids) => [[ids.anchor], [ids.anchor, ids.heuristic]];
     const first = (await acmeShop(cite, { verificationCache: cache })).d;
     await explain(first.deps, { projectId: first.projectId, question: Q1 });
-    const second = (await acmeShop(cite, { verificationCache: cache })).d;
+    const second = (await acmeShop(cite, { verificationCache: cache, now: [T0, at(10), at(35), at(50)] })).d;
 
     // Act
     const answer = await explain(second.deps, { projectId: second.projectId, question: Q1 });
 
-    // Assert
+    // Assert: the check still times itself (25 ms) although every pair came from the cache.
     expect(verifyRequests(second.model.requests)).toHaveLength(0);
     if (answer.kind !== 'answered') throw new Error('expected an answer');
-    expect(second.loaded.queryLog()[0]).toMatchObject({ verifyCalls: 0, verifyLatencyMs: answer.usage.verification.latencyMs });
+    expect(answer.usage.verification.latencyMs).toBe(25);
+    expect(second.loaded.queryLog()[0]).toMatchObject({ verifyCalls: 0, verifyLatencyMs: 25 });
   });
 
   it('A row at the verify call limit counts the limit', async () => {

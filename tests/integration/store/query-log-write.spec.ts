@@ -275,6 +275,20 @@ describeWithDatabase('graph store query log write (DIS-74)', () => {
       }
     });
 
+    it('stores an unpaired UTF-16 surrogate of the question as U+FFFD (spec explain "Query log")', async () => {
+      // Arrange
+      const { store } = stores();
+      const project = await createProject(db());
+      const question = `precio ${String.fromCharCode(0xd800)} final`;
+
+      // Act
+      await store.saveQueryLog(entry(project.id, { question }));
+
+      // Assert
+      const [row] = await rowsOf(project.id);
+      expect(row!.question).toBe(`precio ${String.fromCodePoint(0xfffd)} final`);
+    });
+
     it('A store that cannot give a connection fails the query log write with its own error', async () => {
       // Arrange
       const pool = new Pool({ connectionString: databaseUrl });
