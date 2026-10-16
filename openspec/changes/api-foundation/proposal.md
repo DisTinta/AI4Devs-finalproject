@@ -16,7 +16,7 @@ y componga los adaptadores reales desde el entorno, para que cada endpoint de ne
 declarar su esquema y delegar en core." The DoD: `GET /health` and `/docs` answer; a test `400` and a
 test `429` come out in the `Error` format; tests use `inject`.
 
-The decisions D1–D10 were taken by the agent as lead engineer in the autonomous run of Entrega 2 (ADR
+The decisions D1–D11 were taken by the agent as lead engineer in the autonomous run of Entrega 2 (ADR
 `20261016-autonomous-workflow-run-entrega-2`) and recorded in the DIS-76 `[enhanced]` description on
 2026-10-16; the author reviews them afterwards.
 
@@ -25,8 +25,8 @@ The decisions D1–D10 were taken by the agent as lead engineer in the autonomou
 - **BREAKING (dev entry):** `packages/api` moves to **Fastify 5** (`fastify ^5.12`; Fastify 4 is out
   of support since 2025-06-30 and the current `@fastify/swagger`, `@fastify/swagger-ui` and
   `@fastify/rate-limit` require 5). `npm -w packages/api run dev` now runs `src/server.ts`; importing
-  `src/index.ts` no longer starts a server. `npm run dev` without `DATABASE_URL` now exits with an
-  `INVALID_CONFIG` line instead of starting (`make up` exports `.env`, so it is unaffected).
+  `src/index.ts` no longer starts a server. `npm run dev` without `DATABASE_URL` now prints one
+  `INVALID_CONFIG` line and the API does not start (`make up` exports `.env`, so it is unaffected).
 - New `buildApp(deps, options)` (`packages/api/src/app.ts`): builds the instance without listening
   and without reading the environment, so tests drive it with `app.inject`.
 - One error handler: every error response is `{ error: { code, message, details } }` with a fixed

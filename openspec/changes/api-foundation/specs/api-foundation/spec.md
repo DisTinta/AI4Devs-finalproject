@@ -257,8 +257,8 @@ matches no route. The limit and the window come from the configuration (default 
 
 The API SHALL reject a request body larger than 64 KiB (65 536 bytes) with `413`
 `PAYLOAD_TOO_LARGE` (see "Single error format"). Its request log SHALL record, per request, the
-method, the URL, the status and the response time (besides the host, the client address and port,
-which the transport records), and MUST NOT record the request body or any other header. An error answered with `500` SHALL be logged at level `error` with the original error; the
+method, the URL, the status and the response time (besides the `host` header, the client address
+and port), and MUST NOT record the request body or any other header. An error answered with `500` SHALL be logged at level `error` with the original error; the
 response still never carries it.
 
 #### Scenario: The request log holds no body and a 500 logs its cause
@@ -267,8 +267,8 @@ response still never carries it.
   and a test route `GET /api/test-throw` that throws `new Error('boom-7f3a')`
 - **WHEN** `POST /api/test-only` is sent `{ "question": "SENTINEL-question-91b2" }` with the header
   `authorization: Bearer SENTINEL-hdr-55e1`, then `GET /api/test-throw` is sent
-- **THEN** no log line contains `SENTINEL-question-91b2` or `SENTINEL-hdr-55e1`, a log line records `POST`, `/api/test-only`
-  and status `200`, and one log line at level `error` contains `boom-7f3a`
+- **THEN** no log line contains `SENTINEL-question-91b2` or `SENTINEL-hdr-55e1`, the log lines sharing one `reqId` record `POST`, `/api/test-only` and status `200`, no log line has a
+  `version` field, and one log line at level `error` contains `boom-7f3a`
 
 ### Requirement: Configuration from the environment
 
@@ -301,6 +301,7 @@ any connection is opened.
 
 - **GIVEN** an otherwise valid environment with, in turn, `DATABASE_URL` unset, `DATABASE_URL` = `'  '`,
   `PORT` = `70000`, `PORT` = `0`, `PORT` = `3e3`, `RATE_LIMIT_MAX` = `0`, `RATE_LIMIT_MAX` = `abc`,
+  `RATE_LIMIT_MAX` = `1000001`, `RATE_LIMIT_WINDOW_MS` = `0`, `RATE_LIMIT_WINDOW_MS` = `1m`,
   `RATE_LIMIT_WINDOW_MS` = `86400001`
 - **WHEN** the configuration is read
 - **THEN** each fails with `INVALID_CONFIG` and `details.variable` naming that variable, and neither
@@ -383,8 +384,16 @@ The line MUST NOT contain the value of any variable, the database URL, its crede
 #### Scenario: Start-up errors map to their line
 
 - **GIVEN** the start-up errors `INVALID_CONFIG` for `PORT`, an LLM configuration error for
-  `LLM_BASE_URL`, the `DatabaseUnavailable` raised when opening `postgres://u:s3cret@127.0.0.1:1/db`,
-  and a listen error with system code `EADDRINUSE`
+  `LLM_BASE_URL`, a `DatabaseUnavailable` of the store adapter, and a listen error with system code
+  `EADDRINUSE`
 - **WHEN** each is turned into its start-up line
 - **THEN** they give `INVALID_CONFIG` with `{ "variable": "PORT" }`, `LLM_CONFIG_INVALID` with
-  `{ "variable": "LLM_BASE_URL" }`, `DATABASE_UNAVAILABLE` with `{}` and no `s3cret` or `127.0.0.1`, and `STARTUP_FAILED` with `{ "systemCode": "EADDRINUSE" }`
+  `{ "variable": "LLM_BASE_URL" }`, `DATABASE_UNAVAILABLE` with `{}`, and `STARTUP_FAILED` with `{ "systemCode": "EADDRINUSE" }`
+
+#### Scenario: A listen failure closes the store
+
+- **GIVEN** a reachable, migrated database, `DATABASE_URL` pointing to it, `HOST` = `127.0.0.1` and a
+  `PORT` already in use
+- **WHEN** the API is started from that environment
+- **THEN** it rejects with an error whose `code` is `EADDRINUSE`, and the database holds no session
+  with the application name `codemind-api` (polled for up to 2 s)

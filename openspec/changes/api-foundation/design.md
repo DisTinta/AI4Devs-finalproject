@@ -80,7 +80,10 @@ A schema that is not a Zod schema (no `safeParse` function) makes `validatorComp
 `ready()` instead of answering wrongly; the swagger `transform` passes it through unchanged. The routes
 of `@fastify/swagger-ui` declare no `body`/`querystring`/`params`/`headers`/`response` schema, so they
 never reach the compilers (see Risks). Issue paths keep only strings and numbers (a symbol key is
-dropped from the path).
+dropped from the path). The swagger `transform` converts `body`, `querystring`, `params` and
+`headers` with `io: 'input'` (a key with a default is optional for the client) and `response` with
+`io: 'output'`; a schema Zod cannot represent (a `.transform()`) makes `z.toJSONSchema` throw, so the
+app fails at `ready()`, as with a non-Zod schema.
 
 ### U3 — One error handler and its table (D3, D4)
 
@@ -216,9 +219,12 @@ which the spec pins ("The URL's application name wins").
 ### U9 — Limits and logs (D9)
 
 `bodyLimit` 65 536 bytes: a 1 000-code-point question, even with every character escaped as a
-`\uXXXX` sequence, stays under 13 KiB. The logger is Fastify's pino with its default serializers
-(request: method, URL, host, remote address and port; response: status; plus response time); no
-body is logged, so a question never reaches the log. `logger: false` by default in `buildApp` (tests);
+`\uXXXX` sequence, stays under 13 KiB. The logger is Fastify's pino with a custom `serializers.req`
+returning `{ method, url, host, remoteAddress, remotePort }` (Fastify 5's default also logs the
+`accept-version` header as `version`) and the default `res` serializer. Fastify writes
+`incoming request` (with `req`) and `request completed` (with `res.statusCode` and `responseTime`) as
+two lines joined by `reqId`; the default fields are confirmed against the installed Fastify in the RED
+step of task 6.1. No body is logged, so a question never reaches the log. `logger: false` by default in `buildApp` (tests);
 `startApi` passes `{ level: 'info' }`. A test passes `{ level: 'info', stream }` to assert on lines.
 
 ### U10 — Tests and quality (D10)
@@ -239,7 +245,8 @@ body is logged, so a question never reaches the log. `logger: false` by default 
   packages/api/tsconfig.run.json packages/api/src/server.ts`, no shell (Windows-safe), without
   `DATABASE_URL` (no database); and, under `describeWithDatabase`, "The API answers on its address
   and closes its connections" (`startApi` on a free port taken from `net`, `fetch`, `app.close()`,
-  then `pg_stat_activity` polled for up to 2 s as `tests/integration/cli/ask-command.spec.ts`).
+  then `pg_stat_activity` polled for up to 2 s as `tests/integration/cli/ask-command.spec.ts`) and "A
+  listen failure closes the store" (a `net` server holds the port).
 - `tests/integration/store/open-store.spec.ts`: the two database scenarios under
   `describeWithDatabase`, migrating with `migrateSharedDatabase()` (a fifth file that migrates the
   shared DB: `docs/project-context.md` → Testing is updated), sessions polled for up to 2 s; the
@@ -266,9 +273,10 @@ and are costly to revert. The "why" is the agent's decision under the autonomous
   the scenario follows at most one redirect.
 - [`127.0.0.1` vs `localhost`: on some systems `localhost` resolves to `::1` first] → browsers and
   `curl` fall back to IPv4; `HOST=::1` or `0.0.0.0` remains available; documented in the readme.
-- [`npm run dev` without `DATABASE_URL` now fails at once and `concurrently --kill-others-on-fail`
-  stops the web too] → intended (backend-standards §9, fail loudly); `make up` exports `.env`; the
-  readme says it.
+- [`npm run dev` without `DATABASE_URL`] → the API prints one `INVALID_CONFIG` line and does not
+  start; `tsx watch` keeps waiting for a change (it does not exit, so `concurrently` keeps the web
+  up); intended (backend-standards §9, fail loudly); `make up` exports `.env`; the readme says it.
+  The exit code `1` is checked with `tsx` without `watch` (task 13.4) and by the process test.
 - [Client IPs in request logs] → local process, stdout only, nothing persisted; noted in the privacy
   check.
 - [In-memory rate-limit counters reset on restart] → accepted: one local process; the spend ceiling is

@@ -20,10 +20,10 @@
 
 - [ ] 3.1 Test support first: `tests/unit/api/support.ts` (never importing `tests/integration/helpers/db.ts`) builds the app with `buildApp` and the doubles of `tests/support/` (`in-memory-store.ts`, `scripted-llm.ts`, `in-memory-source-tree.ts`), registers `POST /api/test-only` (body `z.strictObject({ question: z.string().min(5) })`, `200` response `z.object({ answer: z.string() })`, handler result chosen per test, call counter), `GET /api/test-query` (query `z.strictObject({ n: z.coerce.number().int().min(1) })`, call counter) and `GET /api/test-throw` (throws the error the test passes) before `ready()`; plus a counting `Proxy` over any port (design U10)
 - [ ] 3.2 RED: create `tests/unit/api/errors.spec.ts` with "An unknown route answers NOT_FOUND". See it fail
-- [ ] 3.3 GREEN: `packages/api/src/schemas/common.ts` (`errorSchema`), `packages/api/src/plugins/error-handler.ts` (handler, not-found handler, `DOMAIN_ERRORS` table empty for now), and the minimum `packages/api/src/app.ts` (`buildApp`, `AppDeps`, `AppOptions`, `bodyLimit` 65 536, `deps` decoration)
+- [ ] 3.3 GREEN: `packages/api/src/schemas/common.ts` (`errorSchema`), `packages/api/src/plugins/error-handler.ts` (handler, not-found handler, `DOMAIN_ERRORS` table empty for now), the minimum `packages/api/src/app.ts` (`buildApp`, `AppDeps`, `AppOptions`, `bodyLimit` 65 536, `deps` decoration), and the minimal `packages/api/src/plugins/zod-compiler.ts` (`validatorCompiler` with `safeParse`, `serializerCompiler` with `parse` + `JSON.stringify`) installed by `buildApp`, because `support.ts` registers Zod schemas that Fastify's default compilers cannot compile
 - [ ] 3.4a RED → GREEN, one at a time: "An unexpected error answers INTERNAL without its text", "A malformed or empty JSON body answers VALIDATION_ERROR" (confirm the installed Fastify's error codes for an invalid and an empty JSON body, design U3 step 4)
 - [ ] 3.4b RED → GREEN, one at a time: "A body over the limit answers PAYLOAD_TOO_LARGE", "An unsupported content type answers UNSUPPORTED_MEDIA_TYPE", "Another 4xx error answers BAD_REQUEST with its status", "A 400 that is not a body error answers BAD_REQUEST"
-- [ ] 3.5 RED → GREEN: "A field that fails its rule answers VALIDATION_ERROR with its issue", "An undeclared key answers VALIDATION_ERROR" and "A query string that fails its schema answers VALIDATION_ERROR" with `packages/api/src/plugins/zod-compiler.ts` (`validatorCompiler`, `SchemaValidationFailed`, the `TypeError` for a non-Zod schema of design U2 with its own unit test)
+- [ ] 3.5 RED → GREEN: "A field that fails its rule answers VALIDATION_ERROR with its issue", "An undeclared key answers VALIDATION_ERROR" and "A query string that fails its schema answers VALIDATION_ERROR" completing `zod-compiler.ts` (`SchemaValidationFailed` with `{ path, code, message }` issues, the `TypeError` for a non-Zod schema of design U2 with its own unit test)
 - [ ] 3.6 RED → GREEN: "Undeclared response fields are dropped" and "A result that breaks its response schema answers INTERNAL" (`serializerCompiler`; see design Risks if Fastify answers the serialisation failure outside the handler)
 - [ ] 3.7 RED → GREEN: "An exhausted budget answers 429 BUDGET_EXHAUSTED" (`BUDGET_EXHAUSTED` entry of `DOMAIN_ERRORS`) and "A domain error without a mapping answers INTERNAL" (characterisation test if it passes at once)
 
@@ -42,7 +42,7 @@
 
 ## 6. API: request logging (TDD, design U9) — `api-foundation` → "Request body limit and logging"
 
-- [ ] 6.1 RED → GREEN: in `tests/unit/api/errors.spec.ts`, "The request log holds no body and a 500 logs its cause" (`AppOptions.logger` with a test stream; `request.log.error` in the `INTERNAL` branch)
+- [ ] 6.1 RED → GREEN: in `tests/unit/api/errors.spec.ts`, "The request log holds no body and a 500 logs its cause" (`AppOptions.logger` with a test stream; custom `serializers.req` of design U9, after confirming the default `req` fields of the installed Fastify; `request.log.error` in the `INTERNAL` branch)
 
 ## 7. API: configuration and composition (TDD, design U7) — `api-foundation` → "Configuration from the environment", "Composition from the environment"
 
@@ -54,12 +54,13 @@
 
 - [ ] 8.1 RED → GREEN: create `tests/unit/api/startup-failure.spec.ts` with "Start-up errors map to their line"; `startupFailure` in `packages/api/src/startup-failure.ts` (`systemCode` pattern `^E[A-Z]+$`)
 - [ ] 8.2 RED → GREEN: create `tests/integration/api/server.spec.ts` with "The API answers on its address and closes its connections" under `describeWithDatabase` (`startApi` of `packages/api/src/start.ts` on a free port from `net`, `fetch` to `/health`, `app.close()`, then no `codemind-api` session in `pg_stat_activity`, polled for up to 2 s as `tests/integration/cli/ask-command.spec.ts`)
+- [ ] 8.2b RED → GREEN: in `tests/integration/api/server.spec.ts`, "A listen failure closes the store" under `describeWithDatabase` (a `net` server holds the port; `startApi` rejects with `EADDRINUSE`; no `codemind-api` session left, polled for up to 2 s)
 - [ ] 8.3 RED → GREEN: in `tests/integration/api/server.spec.ts`, "A missing DATABASE_URL stops the process with one line" (spawns `process.execPath` with the `tsx` CLI resolved from `node_modules`, `--tsconfig packages/api/tsconfig.run.json packages/api/src/server.ts`, no shell, an environment without `DATABASE_URL`); create `packages/api/src/server.ts` (design U6: stderr line, `process.exitCode = 1`, `SIGINT`/`SIGTERM` → `app.close()`)
 - [ ] 8.4 Rewrite `packages/api/src/index.ts` as re-exports only (design U6) with a TSDoc module comment; `dev` script → `tsx watch --tsconfig tsconfig.run.json src/server.ts`; `npm run docs:coverage` reports no undocumented export of `packages/api` or of the adapter
 
 ## 9. Quality gates configuration (design U10)
 
-- [ ] 9.1 `stryker.config.json`: `mutate` adds `packages/api/src/**/*.ts`, `!packages/api/src/server.ts` and `!packages/api/src/start.ts`; `disableTypeChecks` covers `packages/api`. `.github/workflows/ci.yml` `business` filter adds `packages/api/**`, with its comment updated
+- [ ] 9.1 `stryker.config.json`: `mutate` adds `packages/api/src/**/*.ts`, `!packages/api/src/server.ts` and `!packages/api/src/start.ts`; `disableTypeChecks` covers `packages/api`. `.github/workflows/ci.yml` `business` filter adds `packages/api/**`; update the comments that describe what Stryker mutates and why integration specs are excluded: the header of `vitest.stryker.config.ts` (it mutates core, cli and api; the excluded integration specs need Postgres) and the two comments in `ci.yml` (the `business` filter comment and the one above the mutation step)
 - [ ] 9.2 `npm run lint:architecture` green (`api-no-sql` holds: no `pg` import under `packages/api`); `grep -rn "from 'pg'" packages/api/src` prints nothing
 
 ## 10. Backend: Review and Update Existing Tests (MANDATORY)
@@ -88,7 +89,7 @@
 - [ ] 13.1 Preconditions: local database up and migrated (`docker compose up -d`, `npm run db:migrate`); record the 0.4 indicators
 - [ ] 13.2 Start the API with `DATABASE_URL` exported: `npm -w packages/api run dev`; check the log shows it listening on `http://127.0.0.1:3000`
 - [ ] 13.3 Success paths with `curl -i`: `GET /health` (200, `{"status":"ok"}`), `GET /docs` (200 HTML, after at most one redirect), `GET /docs/json` (200, `openapi` `3.0.3`, `/health` in `paths`, `components.schemas.Error`)
-- [ ] 13.4 Error paths: `GET /api/nope` (404 `NOT_FOUND`, exact body); `POST /health` (404); the start-up failures: no `DATABASE_URL` → one `INVALID_CONFIG` line and exit 1; `PORT=70000` → `INVALID_CONFIG` (`PORT`); `DATABASE_URL=postgres://u:s3cret@127.0.0.1:1/db` → `DATABASE_UNAVAILABLE` without the URL; the port already in use → `STARTUP_FAILED` with `EADDRINUSE`. The `429` cannot be reached with `curl` in this change (every real route is exempt and an unknown route is not counted): record that and point to the step 5 test output, then show 40 `GET /health` in a row from the same IP all answering `200`. Invalid input cannot be sent with `curl` either (no real route has a body or a query schema): record it and point to the `tests/unit/api/errors.spec.ts` output
+- [ ] 13.4 Error paths: `GET /api/nope` (404 `NOT_FOUND`, exact body); `POST /health` (404); the start-up failures, each run with `npx tsx --tsconfig packages/api/tsconfig.run.json packages/api/src/server.ts` (no `watch`: `tsx watch` does not exit) and `$?` recorded: no `DATABASE_URL` → one `INVALID_CONFIG` line and exit 1; `PORT=70000` → `INVALID_CONFIG` (`PORT`); `DATABASE_URL=postgres://u:s3cret@127.0.0.1:1/db` → `DATABASE_UNAVAILABLE` without the URL; the port already in use → `STARTUP_FAILED` with `EADDRINUSE`. The `429` cannot be reached with `curl` in this change (every real route is exempt and an unknown route is not counted): record that and point to the step 5 test output, then show 40 `GET /health` in a row from the same IP all answering `200`. Invalid input cannot be sent with `curl` either (no real route has a body or a query schema): record it and point to the `tests/unit/api/errors.spec.ts` output
 - [ ] 13.5 Stop the server with Ctrl+C (`SIGINT`) and check it exits and leaves no `codemind-api` session in `pg_stat_activity`
 - [ ] 13.6 Document every command, exit code and response in `openspec/changes/api-foundation/reports/YYYY-MM-DD-13-manual-interface-testing.md` (mask the OS user name in paths); nothing is mutated, so restoration is "none" once 13.5 holds
 
@@ -107,7 +108,7 @@
 
 ## 16. Pull request preparation
 
-- [ ] 16.1 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the justification of each new dependency (D1, D2), the Why marked as the agent's decision (DIS-76 `[enhanced]` D1–D10) and the Stryker score
+- [ ] 16.1 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the justification of each new dependency (D1, D2), the Why marked as the agent's decision (DIS-76 `[enhanced]` D1–D11) and the Stryker score
 
 ## 17. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
