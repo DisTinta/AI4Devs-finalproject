@@ -1,15 +1,15 @@
 ## 0. Setup: Create Feature Branch (MANDATORY - FIRST STEP)
 
-- [ ] 0.1 First action of the apply: confirm DIS-21 is In Progress in Linear (set it if not), with a short comment in Spanish naming the change `evaluation-cache` and the branch `feature/DIS-21-evaluation-cache`
-- [ ] 0.2 Feature branch `feature/DIS-21-evaluation-cache` (`BRANCH_PREFIX=feature/`, `docs/project-context.md` → Branch and ticket conventions), created from `feature/entrega-2-CRN` before `/opsx:propose`; confirm `git merge-base --is-ancestor origin/feature/entrega-2-CRN HEAD` and that `openspec/changes/evaluation-cache/` is on it. `git fetch`; if `origin/feature/entrega-2-CRN` moved, rebase before any code (never force-push a published branch)
-- [ ] 0.3 Verify the current branch (`git branch --show-current`) and `git status`; `.claude/sdd-harness.env` carries a local change that is never staged
-- [ ] 0.4 Baseline: run `npx vitest run` once, green, and record the totals for the step 11 report; in the local database record `SELECT count(*) FROM project`, `SELECT count(*) FROM claim`, `SELECT count(*) FROM query_log`, `SELECT count(*) FROM cache_entry` and `SELECT max(created_at) FROM query_log`
+- [x] 0.1 First action of the apply: confirm DIS-21 is In Progress in Linear (set it if not), with a short comment in Spanish naming the change `evaluation-cache` and the branch `feature/DIS-21-evaluation-cache`
+- [x] 0.2 Feature branch `feature/DIS-21-evaluation-cache` (`BRANCH_PREFIX=feature/`, `docs/project-context.md` → Branch and ticket conventions), created from `feature/entrega-2-CRN` before `/opsx:propose`; confirm `git merge-base --is-ancestor origin/feature/entrega-2-CRN HEAD` and that `openspec/changes/evaluation-cache/` is on it. `git fetch`; if `origin/feature/entrega-2-CRN` moved, rebase before any code (never force-push a published branch)
+- [x] 0.3 Verify the current branch (`git branch --show-current`) and `git status`; `.claude/sdd-harness.env` carries a local change that is never staged
+- [x] 0.4 Baseline: run `npx vitest run` once, green, and record the totals for the step 11 report; in the local database record `SELECT count(*) FROM project`, `SELECT count(*) FROM claim`, `SELECT count(*) FROM query_log`, `SELECT count(*) FROM cache_entry` and `SELECT max(created_at) FROM query_log`
 
 ## 1. Core: question normalization (TDD, design C1) — `answer-cache` → "Question normalization"
 
-- [ ] 1.1 RED: create `tests/unit/cache/normalize.spec.ts` with "Case, accent and punctuation variants share one key". See it fail (module missing)
-- [ ] 1.2 GREEN: `packages/core/src/cache/normalize.ts` (`normalizeQuestion`, TSDoc), `packages/core/src/cache/index.ts`, export from `packages/core/src/index.ts`
-- [ ] 1.3 RED → GREEN, one at a time: "Identifiers, symbols and compatibility characters become plain words", "A question of only punctuation has no key, and a key is stable" (characterisation tests if they pass at once, recorded in the step 11 report)
+- [x] 1.1 RED: create `tests/unit/cache/normalize.spec.ts` with "Case, accent and punctuation variants share one key". See it fail (module missing)
+- [x] 1.2 GREEN: `packages/core/src/cache/normalize.ts` (`normalizeQuestion`, TSDoc), `packages/core/src/cache/index.ts`, export from `packages/core/src/index.ts`
+- [x] 1.3 RED → GREEN, one at a time: "Identifiers, symbols and compatibility characters become plain words", "A question of only punctuation has no key, and a key is stable" (characterisation tests if they pass at once, recorded in the step 11 report)
 
 ## 2. Core: cacheability, stored response and hit (TDD, design C2) — `answer-cache` → "Cacheable answers", "Stored response", "Answer of a cache hit"
 
