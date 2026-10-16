@@ -14,7 +14,7 @@ alwaysApply: true
 - **PostgreSQL** behind a repository port; SQL lives in the adapter, never in the domain
 - **Zod** for every schema: request validation, response serialisation and LLM output parsing
   (a dependency of `packages/adapters/llm` since DIS-17 and of `packages/core` since DIS-38;
-  `packages/api` adds it with CM-HU-12)
+  and of `packages/api` since DIS-76, where it is the only schema language of the routes)
 - **Vitest** as the test runner, **Playwright** for end-to-end
   _(Playwright is a target; not yet a dependency — remove this note when installed)_
 - **ESLint** + `tsc --noEmit` + **dependency-cruiser** for the dependency rule
