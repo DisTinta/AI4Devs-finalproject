@@ -1,0 +1,315 @@
+## Context
+
+DIS-76 (`api-foundation`, archived 2026-10-16) left `packages/api` with `buildApp(deps, options)`:
+Zod compilers (`plugins/zod-compiler.ts`), one error handler with the global `DOMAIN_ERRORS` table
+(`plugins/error-handler.ts`, only `BUDGET_EXHAUSTED` → `429`), the OpenAPI document at `/docs`
+(`plugins/openapi.ts`), the rate limit by IP for every route registered after it
+(`plugins/rate-limit.ts`) and `GET /health`. `app.deps` holds `store`, `llm` (already wrapped by
+`withDailyBudget` in live mode with `DAILY_BUDGET_USD`), `source`, `now` and `workspaceRoot`. No
+business route exists.
+
+Core's `explain(dependencies, request)` answers a question in one pass and returns either an
+`AnsweredExplain` (`kind`, `persisted`, `answer`, `statements[{text,type,status,warning?,verification,
+evidenceIds}]`, `evidence[{id,fileId,path,startLine,endLine,excerpt}]`, `priorClaims`, `events`,
+`usage`, `confidence`) or an `UnknownExplain` (`answer: 'UNKNOWN'`, `reason`, `message` only for
+`llm-required`, `statements: []`, `evidence: []`, `events`). Its request schema is strict
+(`projectId`, `question` 1–1 000 code points, `tokenBudget`, `hops`); it throws `InvalidExplainRequest`,
+`ProjectNotFound`, `SourceUnavailable`, `LlmUnavailable`, `BudgetExhausted` and lets other failures
+through. It needs a `VerificationCache`. The CLI `ask` (`packages/cli/src/commands/ask.ts`) is the
+reference composition: one cache per run, events to stderr by level, fixed messages per error code.
+
+`readme.md` §4 is the public contract of `/ask`. The DIS-78 `[enhanced]` description fixes the
+decisions D1–D9 (agent as lead engineer, autonomous-run ADR `20261016-autonomous-workflow-run-entrega-2`,
+reviewable by the author). This design turns them into units U1–U8.
+
+## Goals / Non-Goals
+
+**Goals:**
+
+- `POST /api/projects/{projectId}/ask` validated by Zod, documented in `/docs`, rate limited, answering
+  the public shape of §4 (answered or `UNKNOWN`), with every failure in the error format.
+- A per-route domain error table, so `PROJECT_NOT_FOUND` is `404` only where a project id is
+  received, and the global table and its tests stay as they are.
+- Tests: `inject` unit tests with doubles (under Stryker) and an `inject` integration suite over the
+  acme-shop seed in Postgres.
+
+**Non-Goals:**
+
+- The answer cache and any effect of `useCache` (DIS-21 / CM-HU-13).
+- `hops`, prior claims, events, persistence, stale status/warning or per-evidence verification in the
+  response.
+- `/impact`, `/index`, authentication, streaming, an endpoint timeout, an HTTP project listing.
+- Any change to `explain`, to the adapters or to the CLI.
+
+## Decisions
+
+### U1 — Request schemas (D1, D2, D8)
+
+`packages/api/src/schemas/ask.ts`:
+
+- `askParamsSchema = z.object({ projectId })`, `projectId` =
+  `z.string().regex(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/).meta({ format: 'uuid' })`.
+  The character classes spell both cases instead of the `i` flag, because `z.toJSONSchema` publishes
+  the pattern without its flags and the document must accept what the route accepts (checked:
+  `zod` 4.6 emits `pattern` and `format: "uuid"` together). Any id of this form reaches the store, so a
+  well-formed unknown id is `404`, never `400` (D8).
+- `askBodySchema = z.strictObject({ question, tokenBudget, useCache })`:
+  - `question`: `z.string().min(5).max(500)` (Zod 4 counts code points: 5 emojis pass, 501 fail;
+    checked) then `.refine(q => q.trim() !== '')` and `.refine(hasNoNul)`, both issue code `custom`
+    with path `["question"]` (checked). `hasNoNul` is core's own check (`@codemind/core`,
+    `knowledge/text-without-nul.ts`), the one `explain` uses, imported rather than rewritten.
+  - `tokenBudget`: `z.int().min(TOKEN_BUDGET_MIN).max(TOKEN_BUDGET_MAX).optional().meta({ default:
+    TOKEN_BUDGET_DEFAULT })`, the three imported from `@codemind/core` (backend-standards §4: one
+    description, never a copied number). No `.default()`: absent stays absent and `explain` applies
+    `TOKEN_BUDGET_DEFAULT` (D2); `meta.default` is documentation only, so `/docs/json` keeps the
+    `default: 8000` of `readme.md` §4 (checked: `z.toJSONSchema` emits `default` and `parse({})`
+    returns `{}`).
+  - `useCache`: `z.boolean().optional().meta({ default: true })`, documentation only as above (the
+    `default: true` of §4).
+  - `hops` is not declared, so the strict object rejects it (`unrecognized_keys`).
+- Fastify validates params before the body and stops at the first failing part, so a request with a
+  bad id and a bad body reports only the id. Each scenario sends one fault at a time.
+
+### U2 — Response schemas (D3, D7)
+
+- `askAnsweredSchema = z.object({ answer: z.string(), statements: z.array(z.object({ text, type:
+  z.literal(PROVENANCE_STATEMENT_TYPES), verification: z.literal(STATEMENT_VERIFICATIONS), evidenceIds:
+  z.array(z.string()) })), evidence: z.array(z.object({ id, file, startLine: z.int(), endLine: z.int(),
+  excerpt: z.string() })), confidence: z.number(), usage: askUsageSchema })`, where `askUsageSchema`
+  lists exactly the fields of core's `AnswerUsage` (`baselineEstimator` `z.literal(TOKEN_ESTIMATOR)`,
+  `cacheHit` `z.boolean()`, `generation` and `verification` sub-objects).
+- Closed sets come from core, never copied (backend-standards §4): `PROVENANCE_STATEMENT_TYPES`
+  (`packages/core/src/knowledge/claim.ts:53`), `UNKNOWN_REASONS`, `TOKEN_ESTIMATOR` (each through
+  `z.literal(<set>)`, as core's own `claim.ts` does: same validation and same OpenAPI `enum` as
+  `z.enum`, without the per-value map `z.enum` adds to the exported type, which the docs gate reports
+  as undocumented properties — found at apply), and a new
+  `STATEMENT_VERIFICATIONS = ['entailed', 'cited'] as const` exported from
+  `packages/core/src/explain/claim-items.ts`, from which `StatementVerification` is derived
+  (`(typeof STATEMENT_VERIFICATIONS)[number]`, the same union: no behaviour change in core).
+- `askUnknownSchema = z.object({ answer: z.literal('UNKNOWN'), reason: z.literal(UNKNOWN_REASONS),
+  message: z.string().optional(), statements: z.array(z.never()).max(0), evidence:
+  z.array(z.never()).max(0) })`. Not `z.tuple([])`: with `target: 'openapi-3.0'` it emits
+  `items: { anyOf: [] }`, an empty `anyOf` JSON Schema forbids; `z.array(z.never()).max(0)` emits
+  `items: { not: {} }, maxItems: 0` and accepts `[]` (both checked with `zod` 4.6).
+- `askResponseSchema = z.union([askUnknownSchema, askAnsweredSchema])` (OpenAPI `anyOf`). The
+  serializer (`parse`) strips undeclared keys, which is a second barrier; the first is U3, which
+  builds the public object explicitly, so nothing internal is ever handed to the serializer.
+- The route's `schema.response` also declares `400`, `404`, `429`, `500` and `503` as `errorSchema`,
+  so the document lists them; the error handler's bodies already satisfy it.
+- `index.ts` exports the six schemas (`askParamsSchema`, `askBodySchema`, `askUsageSchema`,
+  `askAnsweredSchema`, `askUnknownSchema`, `askResponseSchema`), their inferred types and
+  `registerAskRoute`.
+
+### U3 — The route and the public answer (D3, D8, D9)
+
+`packages/api/src/routes/ask.ts`, `registerAskRoute(app, options?: { explain?: typeof explain })`:
+
+1. Creates **one** `createInMemoryVerificationCache()` when it registers the route (D9), captured by
+   the handler: every request of this app shares it; another app has its own.
+2. Registers `app.post('/api/projects/:projectId/ask', { schema: { params, body, response }, config:
+   { domainErrors: ASK_DOMAIN_ERRORS } }, handler)`.
+3. Handler: `const project = await app.deps.store.getProject(params.projectId)` (throws
+   `ProjectNotFound` → `404`, whatever the question; `explain` alone answers `no-anchor` without
+   looking at the project when the question has no search term, D8); then
+   `explain({ ...app.deps, verificationCache }, { projectId: project.id, question: body.question,
+   ...(body.tokenBudget !== undefined && { tokenBudget: body.tokenBudget }) })` — `project.id` is the
+   store's canonical id, so an upper-case id behaves as its lower-case form; `useCache` is not
+   forwarded (D2).
+4. Writes the answer's events to `request.log` (U5), then returns `toPublicAnswer(answer)`.
+
+`toPublicAnswer(answer: ExplainAnswer)` (exported for unit tests and Stryker):
+
+- `UNKNOWN`: `{ answer, reason, ...(message !== undefined && { message }), statements: [], evidence: [] }`.
+- answered: `publicId = new Map(answer.evidence.map((e, i) => [e.id, \`ev-${i + 1}\`]))`; evidence
+  `{ id: publicId, file: e.path, startLine, endLine, excerpt }` in order; statements
+  `{ text, type, verification, evidenceIds: ids.map(publicId) }`; `confidence`; `usage` copied field by
+  field. A statement id absent from `evidence` breaks `explain`'s contract: `toPublicAnswer` throws an
+  `Error` (→ `500` `INTERNAL`, logged), never drops or invents an id. An `excerpt` that is `null` (only
+  possible for prior claims) also fails the response schema → `500`.
+- One public id per evidence entry of `explain` (D3): a stored answer whose two statements cite the
+  same span has two rows, so two entries `ev-1`, `ev-2` with the same span. This is the use case's
+  shape, kept on purpose (see Risks).
+- The model's `answer` and statement texts and the repository's excerpts are passed through unchanged:
+  the transport never rewrites content, so a model text that mentions a prompt id (`E1`) or an excerpt
+  holding a UUID is sent as it is. The "no internal id" rule of the spec is about the fields the route
+  builds (pre-merge review AR1).
+
+`explain` is injectable only as a test seam (`options.explain`, default core's `explain`), as
+`AskCommandDeps.explain` in the CLI; `buildApp` takes it through `AppOptions.explain?` and passes it
+to `registerAskRoute`. It lets a unit test record the forwarded request and return canned answers or
+errors without building a graph.
+
+### U4 — Per-route domain error table (D4, D5, D6)
+
+- `plugins/error-handler.ts`: `DomainErrorTable = ReadonlyMap<string, DomainErrorMapping>`; module
+  augmentation `declare module 'fastify' { interface FastifyContextConfig { domainErrors?:
+  DomainErrorTable } }`; `answerOf(error, request)` looks the code up in
+  `request.routeOptions.config.domainErrors` first, then in `DOMAIN_ERRORS`. `DOMAIN_ERRORS` and its
+  entry are unchanged; its TSDoc stops saying "DIS-78 adds the codes of `POST /ask` here".
+- `ASK_DOMAIN_ERRORS` (in `routes/ask.ts`), messages identical to the CLI's `toFailure` except
+  `INVALID_EXPLAIN_REQUEST`, which is `invalid request` (the message of every HTTP `400` validation
+  answer of the API) where the CLI says `invalid question`:
+  - `PROJECT_NOT_FOUND` → `404`, `project not found`, `{}`;
+  - `INVALID_EXPLAIN_REQUEST` → `400`, `invalid request`, `{ field }` (defence in depth: U1 is stricter
+    than `explain`, so it should not be reached; `field` is a field name, never a value);
+  - `LLM_UNAVAILABLE` → `503`, `the language model is unavailable`, `{ reason }` plus `status`,
+    `expected`, `received`, `systemCode` when present (numbers and a system code only, never text);
+  - `SOURCE_UNAVAILABLE` → `503`, `the project's source cannot be read`, `{ reason }` plus `path` when
+    present (a repository-relative path of the indexed repo, not a request value);
+  - `BUDGET_EXHAUSTED` → the global entry's status and message, and `{ ...global.details(error),
+    cacheOnly: true }` (D6), built from `DOMAIN_ERRORS.get('BUDGET_EXHAUSTED')`, so the two cannot drift.
+- `503` for the model and the source: the request is valid and the dependency is temporarily
+  unavailable; a `500` would hide that it is retryable, a `502` would name a proxy the API is not.
+- The messages are duplicated from the CLI (no shared module: neither package depends on the other,
+  and core never formats transport messages). Accepted, recorded in Follow-ups as D.
+
+### U5 — Events to the request log
+
+For each event of the answer, in order: `request.log[event.type === 'evidence_broken' ? 'error' :
+'info']({ ...event }, 'explain event')`. Pino adds the `reqId`. Events carry codes, ids, paths and
+line numbers only (DIS-39 D8, DIS-41, DIS-68), never the question or a span's text, so the request
+log still holds no request value. Nothing is logged when there is no logger (tests without one).
+
+### U6 — Registration (D9 and DIS-76 U6)
+
+`buildApp` calls `registerAskRoute(app, { explain: options.explain })` after `registerHealthRoute`,
+so the route is behind the rate limit and in the OpenAPI document. Routes the tests add before
+`ready()` (`tests/unit/api/support.ts`) are unaffected.
+
+### U7 — Tests (D3–D9) and quality
+
+- `tests/unit/api/ask.spec.ts` (new, runs under Stryker, no database): app from `buildApp` with
+  `defaultDeps()` of `tests/unit/api/support.ts` overridden by an in-memory store holding the acme-shop
+  subset (`createInMemoryStore({ projects: [{ project: ACME_SHOP_PROJECT, graph: acmeShopGraph() }] })`),
+  a counting `Proxy` (`counting()` of `support.ts`) over the store, model and source tree, and, where a
+  scenario says "a use case that…", the `explain` seam. "Requests to one API share verification
+  verdicts" uses the real `explain` with the doubles of `tests/support/explain-doubles.ts` (`doubles()`),
+  a live scripted model, and counts the requests' `purpose`. `support.ts` is not modified.
+- `tests/unit/api/route-errors.spec.ts` (new): the `api-foundation` scenario "A route's own mapping
+  applies only to that route", with its own app from `buildApp` and two test routes registered before
+  `ready()`.
+- `tests/integration/api/ask.spec.ts` (new): the template of `tests/integration/cli/ask-command.spec.ts`
+  — `fixtures/acme-shop` copied without `.git` to a temp directory and its history built with
+  `buildOne` in `beforeAll` (120 s timeout), `describeWithDatabase` + `useTransactionPerTest`, the seed
+  loaded with `loadSeed` inside the test's transaction and `root_path` pointed at the copy, the store
+  `createPostgresStore({ transaction: db() })`, the source `createGitSourceTree()`, the app from
+  `buildApp` with `rateLimit: { max: 1000, windowMs: 60000 }`; then `inject`. The budget scenario uses a fixed clock on a date no
+  other suite writes (`2031-01-15T12:00:00Z`), inserts one `query_log` row with that `created_at` and
+  `cost_usd` 1.5, and wraps a counting live model with `withDailyBudget(model, { store, dailyBudgetUsd:
+  1, now })`, so concurrent suites' rows (dated today) never enter the sum; expected `resetsAt` is
+  `2031-01-16T00:00:00.000Z`.
+- Each `#### Scenario:` maps 1:1 to an `it` of the same name.
+- Stryker already mutates `packages/api/src/**` (minus `server.ts`, `start.ts`); the new code is
+  covered by the unit specs. Mutation score ≥ 80 (CI break threshold).
+- `npm run lint:architecture`: no `pg` in `packages/api` (the route only uses `StorePort`).
+
+### U8 — Documentation
+
+- `readme.md` §4: the `/ask` block gets the path parameter as published, the `UNKNOWN` example
+  (`llm-required`) next to the answered one, the evidence example without per-evidence
+  `verification` (D3), the error responses `400`, `404`, `429` (`RATE_LIMITED`, `BUDGET_EXHAUSTED`
+  with `cacheOnly`), `503`; the comment "El contrato HTTP completo llega con CM-HU-12" is replaced.
+  `default: 8000` (`tokenBudget`) and `default: true` (`useCache`) stay: the generated document now
+  publishes them too (U1).
+  The error codes table gains `PROJECT_NOT_FOUND`, `INVALID_EXPLAIN_REQUEST`, `LLM_UNAVAILABLE`,
+  `SOURCE_UNAVAILABLE` for `/ask`. §2.5 (6): the cache-only notice is `details.cacheOnly: true`.
+- `docs/project-context.md`: the API gotcha (the `/ask` route, the per-route domain error table, the
+  verification cache per app, the `explain` seam) and the Testing list (the new specs).
+- No ADR: the decisions are local to `packages/api` and cheap to revert (config rules of the
+  `design` artifact); the per-route table is recorded here and in the `api-foundation` delta.
+
+## Risks / Trade-offs
+
+- **Duplicate public ids for one span in a stored answer** (U3) → kept: it is the use case's shape,
+  each entry is a distinct stored evidence row, and the web screen can group by `file`/lines. Changing
+  it means deduplicating in the transport, which would diverge from `explain`'s contract; D3 decided
+  against it.
+- **The verification cache lives as long as the process** (U3, D9) → bounded (10 000 entries, LRU)
+  and keyed by prompt, statement, path, lines and excerpt, not by model: a model change within one
+  running API reuses verdicts of the previous model. Restarting the API clears it. Accepted (D).
+  It is shared by every project and every client of the app as well: a verdict depends only on the
+  statement and the cited text, and `usage.verification.cacheHits` tells a client that the same pair
+  was checked before, which on an unauthenticated API bound to `127.0.0.1` reveals nothing it could
+  not ask itself. Accepted (D, pre-merge review AR7).
+- **`503` for `SOURCE_UNAVAILABLE` with reason `not-indexed`** is not strictly "temporary" → the
+  project exists but cannot be answered until it is indexed; `503` with `reason` lets the client tell
+  the cases apart. Accepted.
+- **Fastify reports only the first failing request part** (U1) → documented; each scenario sends one
+  fault.
+- **A long model call holds the request** (no endpoint timeout, non-goal) → the LLM adapter has its
+  own timeout (`LlmUnavailable` `timeout` → `503`).
+
+## Migration Plan
+
+Additive: a new route and an optional per-route table. No migration, no new variable, no new
+dependency. Rollback is reverting the commit.
+
+## Open Questions
+
+None: D1–D9 are recorded in the DIS-78 `[enhanced]` description.
+
+## Follow-ups
+
+Every finding of the spec audit and the pre-merge checks is fixed in this change or gets an A/B/C/D
+destination here (`docs/project-context.md` → Tracking deferred findings).
+
+- **D — the error messages of `/ask` duplicate the CLI's `toFailure` strings** (U4). Neither package
+  depends on the other; a shared module would have to live in core, which never formats transport
+  messages. Both specs pin the strings, so a drift fails a test. `INVALID_EXPLAIN_REQUEST` differs on
+  purpose (`invalid request` over HTTP, `invalid question` in the CLI).
+- **D — the process-wide verification cache is not keyed by model** (Risks).
+
+Spec audit (`reports/2026-10-16-spec-audit.md`), run 1 — all **A**, fixed in this change's artifacts:
+B1 (the `INVALID_EXPLAIN_REQUEST` message), B2 (`default` published by OpenAPI through `.meta`),
+B3 (closed sets from core, new `STATEMENT_VERIFICATIONS`), M1 (`dimension-mismatch` details), M2
+(events of an `UNKNOWN` logged), M3 (unknown evidence id → `500`, now a scenario), M4 (explicit rate
+limit in tests), M5 (the budget scenario's clock day), M6 ("reaches or exceeds" in the DIS-78 AC), M7
+(`z.array(z.never()).max(0)` instead of `z.tuple([])`), M8 (manual task 10.4 split).
+
+Spec audit run 2 (APPROVED) — N1 (how "not answered" and "answered twice" are observed: a call
+counter on the ports, the counting use-case seam), N2 (the exports of `index.ts`), N3 (task 2.2
+split): all **A**, fixed in this change's artifacts.
+
+Pre-merge review (`reports/2026-10-16-show-spec-working.md`, `-verify-against-spec.md`,
+`-adversarial-review.md`; ids AR = adversarial review, V = verify-against-spec):
+
+- **A — the "no internal id" rule read as covering the text passed through** (AR1, Question). Spec
+  clarified with `/opsx:update` ("Ask answered response"): the model's `answer` and statement texts
+  and the repository excerpts are sent as they are; the rule is about the fields the route builds
+  (U3). No code change.
+- **A — no test checked that `explain` gets the stored project's id** (AR2, Minor). Test "forwards
+  the stored project's id, not the id as sent in the path" (upper-case id sent, lower-case id
+  forwarded); it fails on the mutant that forwards the raw path parameter.
+- **A + B — `cacheOnly: true` before the answer cache exists** (AR3, Question). `readme.md` §2.5 (6)
+  no longer says the system answers "instead of failing": `/ask` answers `429` and only the paths
+  without a model call still answer. Serving cache hits under the ceiling belongs to DIS-21
+  (CM-HU-13): Spanish hand-off comment on DIS-21.
+- **A — an `unrecognized_keys` issue names the undeclared key** (AR4 = V1, Minor). Spec clarified
+  ("Ask request validation"): the key name is the client's own field name, never a field's value, as
+  in `api-foundation` (DIS-76 AR6).
+- **A — "message only for `llm-required`" was enforced by core only** (V2, Minor). Fixed with TDD in
+  `toPublicAnswer`: test "sends a message only with llm-required, even when the use case gives one
+  with another reason" (RED: the message was sent).
+- **A — the verification cache is bounded, the spec said a checked pair is never re-sent** (V4).
+  Spec clarified ("Ask events and verification verdicts"): while the verdict is kept, among the
+  10 000 most recently used.
+- **A — the events test checked every field on one line only** (V7). It now matches each of the
+  three lines against its event.
+- **D — staleness is not in the public statement** (AR5, Question): decided in D3 and in the spec's
+  MUST NOT list; the web client (CM-HU-14) works with `type` and `verification`.
+- **D — `503` for `SOURCE_UNAVAILABLE` `not-indexed`** (AR6, Question): already accepted under Risks.
+- **D — one verification cache across projects and clients** (AR7, Question): added to Risks.
+- **D — a body with a `__proto__` or `constructor.prototype` key answers `400` with `details` `{}`**
+  (AR8, Question): Fastify's JSON parser rejects it as an invalid body (the DIS-76 row "not valid
+  JSON").
+- **D — a route's table may only extend `BUDGET_EXHAUSTED` by convention** (V3): the `/ask` table
+  builds its entry from the global one, so the two cannot drift.
+- **D — a response that breaks its schema answers `500`** (V5): already specified by
+  `api-foundation` ("Response serialisation by schema").
+- **D — unspecified behaviour kept from the design** (V6): the `explain` seam of `buildApp` (U3), the
+  exports of `toPublicAnswer`, `ASK_DOMAIN_ERRORS`, the six schemas and `STATEMENT_VERIFICATIONS`
+  (U2–U4), the `explain event` log message (U5), the OpenAPI `pattern` and `maxItems: 0` (U1, U2).
+- **D — the integration tests count `complete` calls only** (V8): the scripted model's `embed` throws,
+  so an `embed` call would fail the request and the test.
+- **D — the forked review skills did not report back to the review step's agent** (AR9, process):
+  their output was read from their transcripts and recorded in the reports.

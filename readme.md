@@ -692,7 +692,7 @@ Cada consulta lleva su `project_id` y toda consulta al almacén lo filtra. Ningu
 
 #### 6. Límite de uso y protección de la cuota
 
-*Rate limiting* por IP y, si el LLM es un proveedor cloud de pago, presupuesto diario global de gasto, para que un uso intensivo en local (o una futura exposición) no agote la cuota. Al alcanzar el techo, el sistema degrada a modo solo-caché con aviso, en lugar de fallar. Con Ollama local el presupuesto en USD no aplica.
+*Rate limiting* por IP y, si el LLM es un proveedor cloud de pago, presupuesto diario global de gasto, para que un uso intensivo en local (o una futura exposición) no agote la cuota. Al alcanzar el techo, el sistema deja de llamar al modelo y degrada a modo solo-caché con aviso, sin caerse: `POST /ask` responde `429 BUDGET_EXHAUSTED` con `details.cacheOnly: true` (DIS-78); lo que no necesita llamar al modelo (por ejemplo, un `UNKNOWN` `no-anchor`) sigue contestando, y las respuestas guardadas en caché lo harán cuando exista la caché de respuestas (CM-HU-13). Con Ollama local el presupuesto en USD no aplica.
 
 El límite (DIS-76) cuenta, en memoria, las peticiones de cada IP —la del socket: `X-Forwarded-For` y similares se ignoran— dentro de una ventana: **30 peticiones cada 60 s** por defecto (`RATE_LIMIT_MAX`, `RATE_LIMIT_WINDOW_MS`). La petición que lo supera recibe `429 RATE_LIMITED` con `details.retryAfterSeconds` y la cabecera `Retry-After`, sin llegar al dominio. Cuenta toda petición a una ruta limitada, también las rechazadas por validación; `/health`, `/docs` y todo lo que cuelga de `/docs/` no se limitan ni se cuentan, y tampoco una petición a una ruta que no existe (`404`). Los contadores se reinician al reiniciar la API (un único proceso local); el techo de gasto, en cambio, vive en la base de datos.
 
@@ -1096,6 +1096,7 @@ paths:
             schema:
               type: object
               required: [question]
+              additionalProperties: false
               properties:
                 question:    {type: string, minLength: 5, maxLength: 500}
                 tokenBudget: {type: integer, default: 8000, minimum: 1000, maximum: 32000}
@@ -1105,50 +1106,69 @@ paths:
               tokenBudget: 8000
       responses:
         '200':
-          description: Respuesta con evidencia verificada
+          description: Respuesta con evidencia verificada, o UNKNOWN con su motivo
           content:
             application/json:
-              example:
-                answer: "El precio final se calcula en PriceCalculator::compute()."
-                statements:
-                  - text: "Se aplica el descuento del cliente antes de los impuestos."
-                    type: "INFERENCE"
-                    verification: "entailed"
-                    evidenceIds: ["ev-1", "ev-2"]
-                  - text: "El método devuelve el importe redondeado a 2 decimales."
-                    type: "FACT"
-                    verification: "entailed"
-                    evidenceIds: ["ev-1"]
-                evidence:
-                  - id: "ev-1"
-                    file: "app/Services/PriceCalculator.php"
-                    startLine: 42
-                    endLine: 58
-                    verification: "entailed"
-                    excerpt: "public function compute(Order $order): Money {"
-                  - id: "ev-2"
-                    file: "tests/Unit/PricingTest.php"
-                    startLine: 91
-                    endLine: 104
-                    verification: "entailed"
-                    excerpt: "$this->assertEquals(90.75, $result->amount());"
-                confidence: 0.71
-                usage:
-                  inputTokens: 4812
-                  outputTokens: 380
-                  baselineTokens: 41200
-                  baselineEstimator: "chars-div-4"
-                  savingsPct: 88.3
-                  costUsd: 0.014
-                  latencyMs: 2100
-                  cacheHit: false
-                  generation: {inputTokens: 4212, outputTokens: 340, costUsd: 0.0116}
-                  verification: {calls: 4, cacheHits: 1, inputTokens: 600, outputTokens: 40, costUsd: 0.0024, latencyMs: 900}
-        '429': {description: Límite de uso alcanzado o presupuesto diario agotado}
-      # Una respuesta UNKNOWN lleva `reason`, uno de seis valores (DIS-39, DIS-68): no-anchor,
-      # llm-required, over-budget, invalid-model-output, no-evidence, broken-evidence. Los
-      # totales de `usage` incluyen la verificación (DIS-74). El contrato HTTP completo llega
-      # con CM-HU-12.
+              examples:
+                answered:
+                  value:
+                    answer: "El precio final se calcula en PriceCalculator::compute()."
+                    statements:
+                      - text: "Se aplica el descuento del cliente antes de los impuestos."
+                        type: "INFERENCE"
+                        verification: "cited"
+                        evidenceIds: ["ev-1", "ev-2"]
+                      - text: "El método devuelve el importe redondeado a 2 decimales."
+                        type: "FACT"
+                        verification: "entailed"
+                        evidenceIds: ["ev-1"]
+                    evidence:
+                      - id: "ev-1"
+                        file: "app/Services/PriceCalculator.php"
+                        startLine: 42
+                        endLine: 58
+                        excerpt: "public function compute(Order $order): Money {"
+                      - id: "ev-2"
+                        file: "tests/Unit/PricingTest.php"
+                        startLine: 91
+                        endLine: 104
+                        excerpt: "$this->assertEquals(90.75, $result->amount());"
+                    confidence: 0.71
+                    usage:
+                      inputTokens: 4812
+                      outputTokens: 380
+                      baselineTokens: 41200
+                      baselineEstimator: "chars-div-4"
+                      savingsPct: 88.3
+                      costUsd: 0.014
+                      latencyMs: 2100
+                      cacheHit: false
+                      generation: {inputTokens: 4212, outputTokens: 340, costUsd: 0.0116}
+                      verification: {calls: 4, cacheHits: 1, inputTokens: 600, outputTokens: 40, costUsd: 0.0024, latencyMs: 900}
+                unknown:
+                  value:
+                    answer: "UNKNOWN"
+                    reason: "llm-required"
+                    message: "evaluation mode (cache-only): set LLM_* to enable free-form asks"
+                    statements: []
+                    evidence: []
+        '400': {description: "VALIDATION_ERROR (petición fuera de esquema) o INVALID_EXPLAIN_REQUEST"}
+        '404': {description: "PROJECT_NOT_FOUND"}
+        '429': {description: "RATE_LIMITED, o BUDGET_EXHAUSTED con details.cacheOnly: true"}
+        '500': {description: "INTERNAL"}
+        '503': {description: "LLM_UNAVAILABLE o SOURCE_UNAVAILABLE"}
+      # Implementado en DIS-78 (CM-HU-12.2); el documento generado desde los esquemas Zod está en
+      # /docs/json. `question` se cuenta en code points, no puede ser solo espacios ni contener
+      # U+0000; `projectId` acepta mayúsculas y minúsculas (8-4-4-4-12 hexadecimal); `hops` u otra
+      # clave responde 400. Sin `tokenBudget` se aplica el valor por defecto (8000); `useCache` se
+      # acepta y no tiene efecto hasta la caché de respuestas (CM-HU-13). Los ids de evidencia son
+      # públicos (`ev-1`, `ev-2`… en el orden de `evidence`) y la verificación va en cada
+      # afirmación: `entailed` si el chequeo semántico confirma todas sus citas, `cited` si no. La
+      # respuesta nunca lleva ids de base de datos, `provenance`, reclamaciones previas ni eventos
+      # (estos van al log del servidor). Una respuesta UNKNOWN lleva `reason`, uno de seis valores
+      # (DIS-39, DIS-68): no-anchor, llm-required, over-budget, invalid-model-output, no-evidence,
+      # broken-evidence; `message` solo con llm-required, y sin `confidence` ni `usage`. Los
+      # totales de `usage` incluyen la verificación (DIS-74).
 
   /api/projects/{projectId}/impact:
     post:
@@ -1228,6 +1248,18 @@ La base HTTP (DIS-76) fija los códigos de error comunes a todos los endpoints. 
 | Límite de peticiones superado | 429 | `RATE_LIMITED` | `{ retryAfterSeconds }` (y cabecera `Retry-After`) |
 | Presupuesto diario del LLM agotado | 429 | `BUDGET_EXHAUSTED` | `{ spentUsd, dailyBudgetUsd, resetsAt }` |
 | Cualquier otro error | 500 | `INTERNAL` | `{}` (el error completo solo va al log del servidor) |
+
+Una ruta puede declarar su propia tabla de errores de dominio, que se consulta antes que la global y solo para sus peticiones (DIS-78). La de `POST /api/projects/{projectId}/ask` añade:
+
+| Situación | Estado | `code` | `message` | `details` |
+|---|---|---|---|---|
+| El proyecto no existe | 404 | `PROJECT_NOT_FOUND` | `project not found` | `{}` |
+| El caso de uso rechaza la petición | 400 | `INVALID_EXPLAIN_REQUEST` | `invalid request` | `{ field }` |
+| El modelo no está disponible | 503 | `LLM_UNAVAILABLE` | `the language model is unavailable` | `{ reason }` y, si los trae, `status`, `expected`, `received`, `systemCode` |
+| El código del proyecto no se puede leer | 503 | `SOURCE_UNAVAILABLE` | `the project's source cannot be read` | `{ reason }` y, si la trae, `path` (relativa al repositorio) |
+| Presupuesto diario del LLM agotado | 429 | `BUDGET_EXHAUSTED` | `the daily LLM budget is exhausted` | `{ spentUsd, dailyBudgetUsd, resetsAt, cacheOnly: true }` |
+
+Fuera de `/ask`, `PROJECT_NOT_FOUND` sigue respondiendo `500 INTERNAL`: solo es un `404` donde se recibe un `projectId`.
 
 Si la API no puede arrancar, escribe una sola línea `{"error":{code,message,details}}` en stderr y sale con `1`: `INVALID_CONFIG` (`details.variable`: `DATABASE_URL`, `PORT`, `HOST`, `RATE_LIMIT_MAX` o `RATE_LIMIT_WINDOW_MS`, ausente o inválida), `LLM_CONFIG_INVALID` (`details.variable` y, si falta el precio de un modelo, `details.modelVariable`), `DATABASE_UNAVAILABLE` (la base de datos no acepta la conexión) o `STARTUP_FAILED` (por ejemplo, el puerto ocupado: `details.systemCode` `EADDRINUSE`). Ojo: para `DATABASE_URL` ausente la API responde `INVALID_CONFIG`, mientras que el CLI responde `MISSING_CONFIG`. La línea nunca contiene el valor de una variable.
 

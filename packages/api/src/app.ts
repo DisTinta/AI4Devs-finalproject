@@ -1,10 +1,11 @@
 import Fastify from 'fastify';
 import type { FastifyInstance, FastifyRequest, FastifyServerOptions } from 'fastify';
-import type { LlmPort, SourceTreePort, StorePort } from '@codemind/core';
+import type { explain, LlmPort, SourceTreePort, StorePort } from '@codemind/core';
 import { installErrorHandler } from './plugins/error-handler.js';
 import { registerOpenApi } from './plugins/openapi.js';
 import { registerRateLimit } from './plugins/rate-limit.js';
 import { installZodCompilers } from './plugins/zod-compiler.js';
+import { registerAskRoute } from './routes/ask.js';
 import { registerHealthRoute } from './routes/health.js';
 
 /** Largest request body accepted, in bytes (64 KiB). */
@@ -30,6 +31,8 @@ export interface AppOptions {
   rateLimit: { max: number; windowMs: number };
   /** Fastify's logger options (an object, such as `{ level: 'info' }`); no logger when absent. */
   logger?: Exclude<FastifyServerOptions['logger'], boolean>;
+  /** The use case of `POST /api/projects/{projectId}/ask`; core's `explain` when absent. A test seam only. */
+  explain?: typeof explain;
 }
 
 declare module 'fastify' {
@@ -94,5 +97,6 @@ export async function buildApp(deps: AppDeps, options: AppOptions): Promise<Fast
   await registerOpenApi(app);
   await registerRateLimit(app, options.rateLimit);
   registerHealthRoute(app);
+  registerAskRoute(app, { explain: options.explain });
   return app;
 }
