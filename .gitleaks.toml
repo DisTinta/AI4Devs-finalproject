@@ -74,3 +74,7 @@ regexes = ['''^S[E]NTINEL\-key\-5d1e$''']
 [[allowlists]]
 description = "Synthetic LLM API key planted by the start-up failure scenario of the api-foundation change (DIS-76) - openspec/changes/api-foundation/specs/api-foundation/spec.md and tests/integration/api/server.spec.ts, generic-api-key (lines not listed: they move with every edit; the regex matches the exact value)"
 regexes = ['''^S[E]NTINEL\-key\-3c9d$''']
+
+[[allowlists]]
+description = "Synthetic authorization-header sentinel in the api-foundation show-spec-working report (DIS-76) - openspec/changes/api-foundation/reports/2026-10-16-show-spec-working.md, curl-auth-header (line moves with every edit; the regex matches the exact value, present in the git history of this branch)"
+regexes = ['''^S[E]NTINEL\-hdr\-demo$''']
