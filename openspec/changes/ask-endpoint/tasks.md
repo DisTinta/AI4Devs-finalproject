@@ -54,31 +54,31 @@
 
 ## 9. Backend: Run Tests and Verify Data State (MANDATORY)
 
-- [ ] 9.1 Capture the pre-test baseline: the 0.4 indicators
-- [ ] 9.2 Run the targeted tests: `npx vitest run tests/unit/api tests/integration/api`
-- [ ] 9.3 Run the required broader suite and gates: `npx vitest run`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`
-- [ ] 9.4 Run `npm run test:mutation -- --mutate "packages/api/src/**/*.ts,!packages/api/src/server.ts,!packages/api/src/start.ts"` (score ≥ 80, the CI break threshold); for each meaningful survivor, a RED → GREEN test
-- [ ] 9.5 Run `/privacy-ethics-check` over the diff (the question reaches the model only in live mode; error bodies and the request log without request values; events without question or span text; the public body without internal ids); record the result in the report
-- [ ] 9.6 Verify the post-test state: same `project`, `claim` and `query_log` counts as in 9.1 (the integration specs roll back); no `.stryker-tmp/` left. Restore and document if not
-- [ ] 9.7 Create `openspec/changes/ask-endpoint/reports/YYYY-MM-DD-9-test-and-state-verification.md` from the template of `docs/openspec-tasks-mandatory-steps.md` §6, with the baseline, the characterisation tests (2.4, 4.3, 6.1), the edited existing tests (7.2), the Stryker score and survivors (9.4) and the privacy check (9.5)
-- [ ] 9.8 Mark complete only after the tests pass and the report exists
+- [x] 9.1 Capture the pre-test baseline: the 0.4 indicators
+- [x] 9.2 Run the targeted tests: `npx vitest run tests/unit/api tests/integration/api`
+- [x] 9.3 Run the required broader suite and gates: `npx vitest run`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`
+- [x] 9.4 Run `npm run test:mutation -- --mutate "packages/api/src/**/*.ts,!packages/api/src/server.ts,!packages/api/src/start.ts"` (score ≥ 80, the CI break threshold); for each meaningful survivor, a RED → GREEN test
+- [x] 9.5 Run `/privacy-ethics-check` over the diff (the question reaches the model only in live mode; error bodies and the request log without request values; events without question or span text; the public body without internal ids); record the result in the report
+- [x] 9.6 Verify the post-test state: same `project`, `claim` and `query_log` counts as in 9.1 (the integration specs roll back); no `.stryker-tmp/` left. Restore and document if not
+- [x] 9.7 Create `openspec/changes/ask-endpoint/reports/YYYY-MM-DD-9-test-and-state-verification.md` from the template of `docs/openspec-tasks-mandatory-steps.md` §6, with the baseline, the characterisation tests (2.4, 4.3, 6.1), the edited existing tests (7.2), the Stryker score and survivors (9.4) and the privacy check (9.5)
+- [x] 9.8 Mark complete only after the tests pass and the report exists
 
 ## 10. Backend: Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 10.1 Preconditions: local database up and migrated (`docker compose up -d`, `npm run db:migrate`); record the 0.4 indicators; if acme-shop is not stored, `npm run db:seed` (record that it was loaded, to restore the previous project set in 10.6)
-- [ ] 10.2 Start the API in evaluation mode with `DATABASE_URL` exported and `RATE_LIMIT_MAX=8`: `npm -w packages/api run dev`; get acme-shop's id with `npm run cli -- projects`
-- [ ] 10.3 Success paths with `curl -i`: `POST /api/projects/<id>/ask` `{"question":"¿Cómo se calcula el precio final de un pedido?"}` (200, exact `llm-required` body); the same with the id in upper case; with `tokenBudget` 1000 and `useCache` false; `GET /docs/json` lists `/api/projects/{projectId}/ask`
-- [ ] 10.4a Error paths in evaluation mode: `question` `"abc"`, `tokenBudget` 50, `hops` 2, `/api/projects/not-a-uuid/ask` (400 `VALIDATION_ERROR`, no value echoed); a random UUID (404 exact body); the ninth request within the window (429 `RATE_LIMITED`, `Retry-After`)
-- [ ] 10.4b Restart the API live against an unreachable model (`LLM_BASE_URL=http://127.0.0.1:1/v1`, a `LLM_MODEL` priced in `COST_TABLE`): the same question answers `503` `LLM_UNAVAILABLE` `{ reason: "network", systemCode }`
-- [ ] 10.4c Insert one `query_log` row of acme-shop dated now with `cost_usd` 1 and restart with `DAILY_BUDGET_USD=0.000001`: the same question answers `429` `BUDGET_EXHAUSTED` with `cacheOnly: true`; stop the server and restore the state at once by deleting that row (checked with a count)
-- [ ] 10.5 Stop the server with Ctrl+C (`SIGINT`); no `codemind-api` session left in `pg_stat_activity`
-- [ ] 10.6 Restore the state: confirm the 10.4c row is gone, delete every `query_log` row created after the 10.1 `max(created_at)` (each answered `UNKNOWN` writes one), and the projects `db:seed` added in 10.1 if it ran; re-check the 0.4 indicators equal the 10.1 values
-- [ ] 10.7 Document every command, status and body in `openspec/changes/ask-endpoint/reports/YYYY-MM-DD-10-manual-interface-testing.md` (mask the OS user name in paths), with the restoration of 10.6
+- [x] 10.1 Preconditions: local database up and migrated (`docker compose up -d`, `npm run db:migrate`); record the 0.4 indicators; if acme-shop is not stored, `npm run db:seed` (record that it was loaded, to restore the previous project set in 10.6)
+- [x] 10.2 Start the API in evaluation mode with `DATABASE_URL` exported and `RATE_LIMIT_MAX=8`: `npm -w packages/api run dev`; get acme-shop's id with `npm run cli -- projects`
+- [x] 10.3 Success paths with `curl -i`: `POST /api/projects/<id>/ask` `{"question":"¿Cómo se calcula el precio final de un pedido?"}` (200, exact `llm-required` body); the same with the id in upper case; with `tokenBudget` 1000 and `useCache` false; `GET /docs/json` lists `/api/projects/{projectId}/ask`
+- [x] 10.4a Error paths in evaluation mode: `question` `"abc"`, `tokenBudget` 50, `hops` 2, `/api/projects/not-a-uuid/ask` (400 `VALIDATION_ERROR`, no value echoed); a random UUID (404 exact body); the ninth request within the window (429 `RATE_LIMITED`, `Retry-After`)
+- [x] 10.4b Restart the API live against an unreachable model (`LLM_BASE_URL=http://127.0.0.1:1/v1`, a `LLM_MODEL` priced in `COST_TABLE`): the same question answers `503` `LLM_UNAVAILABLE` `{ reason: "network", systemCode }`
+- [x] 10.4c Insert one `query_log` row of acme-shop dated now with `cost_usd` 1 and restart with `DAILY_BUDGET_USD=0.000001`: the same question answers `429` `BUDGET_EXHAUSTED` with `cacheOnly: true`; stop the server and restore the state at once by deleting that row (checked with a count)
+- [x] 10.5 Stop the server with Ctrl+C (`SIGINT`); no `codemind-api` session left in `pg_stat_activity`
+- [x] 10.6 Restore the state: confirm the 10.4c row is gone, delete every `query_log` row created after the 10.1 `max(created_at)` (each answered `UNKNOWN` writes one), and the projects `db:seed` added in 10.1 if it ran; re-check the 0.4 indicators equal the 10.1 values
+- [x] 10.7 Document every command, status and body in `openspec/changes/ask-endpoint/reports/YYYY-MM-DD-10-manual-interface-testing.md` (mask the OS user name in paths), with the restoration of 10.6
 
 ## 11. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
-- [ ] 11.1 The change has no browser UI (`packages/web` is untouched and does not call the API yet; CM-HU-14 will): record "not applicable beyond step 10" in the step 9 report
-- [ ] 11.2 Record in the step 9 report that the CI evidence (new spec files ran and passed, the mutation job ≥ 80) is collected in 14.3, once the PR exists
+- [x] 11.1 The change has no browser UI (`packages/web` is untouched and does not call the API yet; CM-HU-14 will): record "not applicable beyond step 10" in the step 9 report
+- [x] 11.2 Record in the step 9 report that the CI evidence (new spec files ran and passed, the mutation job ≥ 80) is collected in 14.3, once the PR exists
 
 ## 12. Update Technical Documentation (MANDATORY)
 
