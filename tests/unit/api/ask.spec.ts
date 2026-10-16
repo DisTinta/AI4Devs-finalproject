@@ -238,14 +238,16 @@ describe('ask request validation', () => {
       await ask(built.app, built.projectId, { question: Q1 }),
       await ask(built.app, built.projectId, { question: Q1, tokenBudget: 1000 }),
       await ask(built.app, built.projectId, { question: Q1, tokenBudget: 32_000, useCache: false }),
+      await ask(built.app, built.projectId, { question: Q1, useCache: true }),
     ];
 
     // Assert
-    expect(responses.map((response) => response.statusCode)).toEqual([200, 200, 200]);
+    expect(responses.map((response) => response.statusCode)).toEqual([200, 200, 200, 200]);
     expect(recorded.requests).toEqual([
       { projectId: built.projectId, question: Q1 },
       { projectId: built.projectId, question: Q1, tokenBudget: 1000 },
-      { projectId: built.projectId, question: Q1, tokenBudget: 32_000 },
+      { projectId: built.projectId, question: Q1, tokenBudget: 32_000, useCache: false },
+      { projectId: built.projectId, question: Q1, useCache: true },
     ]);
   });
 });
@@ -568,9 +570,10 @@ describe('ask events and verification verdicts', () => {
       // Act
       const one = await ask(first, d.projectId, { question: Q1 });
       const afterOne = purposes();
-      const two = await ask(first, d.projectId, { question: Q1 });
+      // The repeats skip the answer cache (DIS-21), or they would be answered without the model.
+      const two = await ask(first, d.projectId, { question: Q1, useCache: false });
       const afterTwo = purposes().slice(afterOne.length);
-      const three = await ask(second, d.projectId, { question: Q1 });
+      const three = await ask(second, d.projectId, { question: Q1, useCache: false });
       const afterThree = purposes().slice(afterOne.length + afterTwo.length);
 
       // Assert

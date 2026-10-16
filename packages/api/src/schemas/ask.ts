@@ -36,8 +36,8 @@ export type AskParams = z.infer<typeof askParamsSchema>;
 /**
  * The body of `POST /api/projects/{projectId}/ask` (D1, D2): a question of 5 to 500 code points that is
  * not only whitespace and holds no U+0000; an optional token budget within the context pack's limits
- * (absent: the use case's default); an optional cache flag, accepted and without effect until the
- * answer cache exists. Any other key is rejected. The `default`s are documentation only: an absent
+ * (absent: the use case's default); an optional cache flag (absent: the use case's default, `true`),
+ * forwarded to the use case only when sent (DIS-21). Any other key is rejected. The `default`s are documentation only: an absent
  * field stays absent.
  */
 export const askBodySchema = z.strictObject({
@@ -48,7 +48,15 @@ export const askBodySchema = z.strictObject({
     .refine((question) => question.trim() !== '', { message: 'question must not be only whitespace' })
     .refine(hasNoNul, { message: 'question must not contain U+0000' }),
   tokenBudget: z.int().min(TOKEN_BUDGET_MIN).max(TOKEN_BUDGET_MAX).optional().meta({ default: TOKEN_BUDGET_DEFAULT }),
-  useCache: z.boolean().optional().meta({ default: true }),
+  useCache: z
+    .boolean()
+    .optional()
+    .meta({
+      default: true,
+      description:
+        'Whether to answer from the answer cache of the project when it holds the question (exact match of its normalized form). ' +
+        'false skips the lookup and asks the model; the new answer still replaces the cached one.',
+    }),
 });
 
 /** The body of `POST /api/projects/{projectId}/ask`. */
