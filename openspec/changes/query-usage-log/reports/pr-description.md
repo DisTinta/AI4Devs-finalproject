@@ -35,12 +35,18 @@ D4–D7 eran valores por defecto propuestos en el ticket y el spec-audit los ace
 - Dos tests de rollback llegaban a su precondición con un número fijo de `db:rollback` que `0004` dejaba corto. La autora eligió prepararlos con `migrateUpTo`, sin tocar sus aserciones.
 - Prueba manual: la autora eligió `qwen2.5-coder` para responder y verificar.
 
+**Tras la revisión previa al merge** (`reports/2026-10-16-adversarial-review.md`, `reports/2026-10-16-verify-against-spec.md`):
+
+- **F1 — «Absorber como evento».** Si el modelo informa más tokens, o la llamada cuesta más, de lo que caben en las columnas, la fila no pasa el esquema. Antes `explain` rechazaba con `InvalidStoreQuery` después de guardar los claims. Ahora devuelve la respuesta con `query_not_logged` / `invalid-entry`, y la spec dice que ese gasto no queda registrado.
+- **F2 — «Documentar».** Un fallo de conexión al escribir la fila final rechaza después de guardar los claims. Queda como riesgo aceptado, igual que U8.
+- Los demás hallazgos se corrigieron en este PR: el test de consistencia medidor ↔ chequeo, tests reforzados y la redacción del límite para varios `ask` simultáneos. Destinos A/D en `design.md` → Follow-ups.
+
 ## ¿Cómo probarlo?
 
 1. `docker compose up -d` y `npm ci`.
 2. Exporta `DATABASE_URL` (en local, `postgres://codemind:codemind@localhost:5432/codemind`) y ejecuta `npm run db:migrate`, `npm run db:rollback` y `npm run db:migrate`: los tres salen con 0 y `0004_query-log-verification` queda aplicada.
 3. `npx vitest run tests/unit/explain tests/unit/verify tests/unit/knowledge tests/unit/store tests/unit/cli/ask-command.spec.ts tests/integration/store tests/integration/explain tests/integration/cli/ask-command.spec.ts`: 45 ficheros y 617 tests en verde.
-4. `npx vitest run`: 105 ficheros y 1347 tests (antes 100 y 1298), ninguno saltado con `DATABASE_URL` definido.
+4. `npx vitest run`: 105 ficheros y 1351 tests (antes 100 y 1298), ninguno saltado con `DATABASE_URL` definido.
 5. `npm run lint && npm run typecheck && npm run lint:architecture && npm run docs:coverage`. Los 3 avisos `no-orphans` ya existían.
 6. `npm run test:mutation -- --mutate "packages/core/src/explain/usage.ts,packages/core/src/explain/usage-meter.ts,packages/core/src/knowledge/query-log.ts,packages/core/src/explain/explain.ts,packages/core/src/verify/semantic.ts"`: `usage.ts` **100**, `usage-meter.ts` **100**, `query-log.ts` **100**, `explain.ts` **96,67**, `semantic.ts` **97,44**. Los 7 supervivientes son equivalentes (informe del paso 12) y el umbral de CI es 80.
 7. A mano, sin `LLM_*`: `npm run cli -- ask acme-shop "¿Cómo se calcula el precio final de un pedido?"` imprime `UNKNOWN (llm-required)` y deja una fila con los contadores a 0 y `baseline_tokens` `NULL`: `SELECT * FROM query_log ORDER BY created_at DESC LIMIT 1;`.
@@ -71,69 +77,70 @@ D4–D7 eran valores por defecto propuestos en el ticket y el spec-audit los ace
 | `evidence-verification` → The verifier is called at most the call limit | `tests/unit/verify/semantic.spec.ts:314` |
 | `evidence-verification` → A cached pair does not count toward the call limit | `tests/unit/verify/semantic.spec.ts:330` |
 | `evidence-verification` → A failed verifier keeps its reason past the call limit | `tests/unit/verify/semantic.spec.ts:357` |
-| `explain` → An empty, blank or missing question is rejected before the store | `tests/unit/explain/explain.spec.ts:60` |
-| `explain` → A malformed request is rejected before the store | `tests/unit/explain/explain.spec.ts:106` |
-| `explain` → The question length limit accepts its bound and rejects one more | `tests/unit/explain/explain.spec.ts:129` |
-| `explain` → The question length is counted in code points | `tests/unit/explain/explain.spec.ts:147` |
-| `explain` → An invalid token budget, hop count or workspace root is rejected before the store | `tests/unit/explain/explain.spec.ts:162` |
-| `explain` → A question holding U+0000 is rejected before the store | `tests/unit/explain/explain.spec.ts:87` |
-| `explain` → A question without anchor is unknown in both modes without building the pack | `tests/unit/explain/explain.spec.ts:185` |
-| `explain` → Evaluation mode answers llm-required without building the pack | `tests/unit/explain/explain.spec.ts:208` |
-| `explain` → A pack where nothing fits is unknown over budget | `tests/unit/explain/explain.spec.ts:232` |
-| `explain` → A discarded model output is unknown and carries its event | `tests/unit/explain/explain.spec.ts:272` |
-| `explain` → An output without statements is unknown with no evidence | `tests/unit/explain/explain.spec.ts:307` |
-| `explain` → A failing prior-claims read stops before the model | `tests/unit/explain/explain.spec.ts:322` |
-| `explain` → An unknown project or an unindexed one fails without calling the model | `tests/unit/explain/explain.spec.ts:253` |
-| `explain` → Model failures propagate without writing | `tests/unit/explain/explain.spec.ts:338` |
-| `explain` → Every citation broken is unknown with broken evidence | `tests/unit/explain/explain-verification.spec.ts:142` |
-| `explain` → A verification read failure propagates without writing | `tests/unit/explain/explain-verification.spec.ts:172` |
-| `explain` → No verification read without statements | `tests/unit/explain/explain-verification.spec.ts:192` |
-| `explain` → The question is anchored once | `tests/unit/explain/explain.spec.ts:389` |
-| `explain` → A verifier failure other than unavailable or budget propagates without writing | `tests/unit/explain/explain-verification.spec.ts:210` |
-| `explain` → An unknown answer has no confidence | `tests/unit/explain/explain-verification.spec.ts:232` |
+| `explain` → An empty, blank or missing question is rejected before the store | `tests/unit/explain/explain.spec.ts:61` |
+| `explain` → A malformed request is rejected before the store | `tests/unit/explain/explain.spec.ts:111` |
+| `explain` → The question length limit accepts its bound and rejects one more | `tests/unit/explain/explain.spec.ts:134` |
+| `explain` → The question length is counted in code points | `tests/unit/explain/explain.spec.ts:152` |
+| `explain` → An invalid token budget, hop count or workspace root is rejected before the store | `tests/unit/explain/explain.spec.ts:167` |
+| `explain` → A question holding U+0000 is rejected before the store | `tests/unit/explain/explain.spec.ts:92` |
+| `explain` → A question without anchor is unknown in both modes without building the pack | `tests/unit/explain/explain.spec.ts:190` |
+| `explain` → Evaluation mode answers llm-required without building the pack | `tests/unit/explain/explain.spec.ts:213` |
+| `explain` → A pack where nothing fits is unknown over budget | `tests/unit/explain/explain.spec.ts:237` |
+| `explain` → A discarded model output is unknown and carries its event | `tests/unit/explain/explain.spec.ts:277` |
+| `explain` → An output without statements is unknown with no evidence | `tests/unit/explain/explain.spec.ts:312` |
+| `explain` → A failing prior-claims read stops before the model | `tests/unit/explain/explain.spec.ts:327` |
+| `explain` → An unknown project or an unindexed one fails without calling the model | `tests/unit/explain/explain.spec.ts:258` |
+| `explain` → Model failures propagate without writing | `tests/unit/explain/explain.spec.ts:343` |
+| `explain` → Every citation broken is unknown with broken evidence | `tests/unit/explain/explain-verification.spec.ts:141` |
+| `explain` → A verification read failure propagates without writing | `tests/unit/explain/explain-verification.spec.ts:171` |
+| `explain` → No verification read without statements | `tests/unit/explain/explain-verification.spec.ts:191` |
+| `explain` → The question is anchored once | `tests/unit/explain/explain.spec.ts:394` |
+| `explain` → A verifier failure other than unavailable or budget propagates without writing | `tests/unit/explain/explain-verification.spec.ts:209` |
+| `explain` → An unknown answer has no confidence | `tests/unit/explain/explain-verification.spec.ts:235` |
 | `explain` → An answer with evidence is typed, stored and returned | `tests/integration/explain/explain.spec.ts:142` |
 | `explain` → A fact is stored as an inferred claim that keeps its type | `tests/integration/explain/explain.spec.ts:173` |
-| `explain` → The evidence of a stored answer lists every citation in order | `tests/unit/explain/explain.spec.ts:511` |
-| `explain` → An answer written after a re-index is stored stale | `tests/unit/explain/explain.spec.ts:574` |
-| `explain` → Cited spans are verified in one read at the pack's commit | `tests/unit/explain/explain-verification.spec.ts:252` |
-| `explain` → A broken citation is neither stored nor shown | `tests/unit/explain/explain-verification.spec.ts:280` |
-| `explain` → The subject of a claim is the symbol of its first cited span | `tests/unit/explain/explain.spec.ts:472` |
-| `explain` → Citations that support their statement are entailed and facts | `tests/unit/explain/explain-verification.spec.ts:321` |
-| `explain` → A valid but irrelevant citation is cited and never a fact | `tests/unit/explain/explain-verification.spec.ts:357` |
-| `explain` → A cached pair is not verified again by a second answer | `tests/unit/explain/explain-verification.spec.ts:383` |
-| `explain` → An invalid verifier output degrades its pair to cited | `tests/unit/explain/explain-verification.spec.ts:411` |
-| `explain` → An unavailable verifier degrades every uncached pair and the answer is stored | `tests/unit/explain/explain-verification.spec.ts:434` |
-| `explain` → An answer carries the confidence of its statements | `tests/unit/explain/explain-verification.spec.ts:488` |
-| `explain` → The confidence follows the verifier's verdicts | `tests/unit/explain/explain-verification.spec.ts:521` |
-| `explain` → Statements past the verify call limit stay inferences | `tests/unit/explain/explain-verification.spec.ts:1122` |
-| `explain` → A failed write still answers, unsaved and without leaking | `tests/unit/explain/explain.spec.ts:644` |
+| `explain` → The evidence of a stored answer lists every citation in order | `tests/unit/explain/explain.spec.ts:516` |
+| `explain` → An answer written after a re-index is stored stale | `tests/unit/explain/explain.spec.ts:579` |
+| `explain` → Cited spans are verified in one read at the pack's commit | `tests/unit/explain/explain-verification.spec.ts:255` |
+| `explain` → A broken citation is neither stored nor shown | `tests/unit/explain/explain-verification.spec.ts:283` |
+| `explain` → The subject of a claim is the symbol of its first cited span | `tests/unit/explain/explain.spec.ts:477` |
+| `explain` → Citations that support their statement are entailed and facts | `tests/unit/explain/explain-verification.spec.ts:324` |
+| `explain` → A valid but irrelevant citation is cited and never a fact | `tests/unit/explain/explain-verification.spec.ts:360` |
+| `explain` → A cached pair is not verified again by a second answer | `tests/unit/explain/explain-verification.spec.ts:386` |
+| `explain` → An invalid verifier output degrades its pair to cited | `tests/unit/explain/explain-verification.spec.ts:414` |
+| `explain` → An unavailable verifier degrades every uncached pair and the answer is stored | `tests/unit/explain/explain-verification.spec.ts:437` |
+| `explain` → An answer carries the confidence of its statements | `tests/unit/explain/explain-verification.spec.ts:491` |
+| `explain` → The confidence follows the verifier's verdicts | `tests/unit/explain/explain-verification.spec.ts:524` |
+| `explain` → Statements past the verify call limit stay inferences | `tests/unit/explain/explain-verification.spec.ts:1201` |
+| `explain` → A failed write still answers, unsaved and without leaking | `tests/unit/explain/explain.spec.ts:649` |
 | `explain` → A failed write over the database still answers without leaking | `tests/integration/explain/explain.spec.ts:306` |
-| `explain` → An unsaved answer keeps only its verified citations | `tests/unit/explain/explain-verification.spec.ts:548` |
-| `explain` → Other write errors propagate | `tests/unit/explain/explain.spec.ts:672` |
-| `explain` → An unsaved answer carries its verification, usage and unverified events | `tests/unit/explain/explain-verification.spec.ts:576` |
-| `explain` → Explaining writes nothing to the console | `tests/unit/explain/explain.spec.ts:770` |
+| `explain` → An unsaved answer keeps only its verified citations | `tests/unit/explain/explain-verification.spec.ts:551` |
+| `explain` → Other write errors propagate | `tests/unit/explain/explain.spec.ts:677` |
+| `explain` → An unsaved answer carries its verification, usage and unverified events | `tests/unit/explain/explain-verification.spec.ts:579` |
+| `explain` → Explaining writes nothing to the console | `tests/unit/explain/explain.spec.ts:775` |
 | `explain` → Sanitisation events come first in every answer that reached the prompt | `tests/unit/explain/explain-sanitization.spec.ts:363` |
 | `explain` → No sanitisation event without a prompt | `tests/unit/explain/explain-sanitization.spec.ts:398` |
-| `explain` → Evidence broken events follow the sanitisation events and carry no content | `tests/unit/explain/explain-verification.spec.ts:610` |
-| `explain` → Entailment unverified events follow the evidence broken events and carry no content | `tests/unit/explain/explain-verification.spec.ts:659` |
-| `explain` → An answer carries its total, generation and verification usage | `tests/unit/explain/explain-verification.spec.ts:753` |
-| `explain` → With the shipped cost table every cost is zero | `tests/unit/explain/explain-verification.spec.ts:988` |
+| `explain` → Evidence broken events follow the sanitisation events and carry no content | `tests/unit/explain/explain-verification.spec.ts:613` |
+| `explain` → Entailment unverified events follow the evidence broken events and carry no content | `tests/unit/explain/explain-verification.spec.ts:662` |
+| `explain` → An answer carries its total, generation and verification usage | `tests/unit/explain/explain-verification.spec.ts:756` |
+| `explain` → With the shipped cost table every cost is zero | `tests/unit/explain/explain-verification.spec.ts:1013` |
 | `explain` → Savings follow the baseline, are zero without one and may be negative | `tests/unit/explain/usage.spec.ts:21` |
-| `explain` → The latency is at least one millisecond | `tests/unit/explain/explain-verification.spec.ts:813` |
+| `explain` → The latency is at least one millisecond | `tests/unit/explain/explain-verification.spec.ts:821` |
 | `explain` → An answer leaves one query log row the daily spend sees | `tests/integration/explain/explain.spec.ts:224` |
-| `explain` → An unknown answer after the model call leaves a row with its usage | `tests/unit/explain/explain-verification.spec.ts:833` |
-| `explain` → An unknown answer without a model call leaves a zero row | `tests/unit/explain/explain-verification.spec.ts:859` |
-| `explain` → No row when explain fails before a model call resolves | `tests/unit/explain/explain-verification.spec.ts:1032` |
-| `explain` → A failure after the model calls leaves a row and keeps its error | `tests/unit/explain/explain-verification.spec.ts:893` |
-| `explain` → A verifier failure leaves a row with the calls that resolved | `tests/unit/explain/explain-verification.spec.ts:1057` |
-| `explain` → A failed query log write still answers and says so | `tests/unit/explain/explain-verification.spec.ts:940` |
-| `explain` → A row of an unknown project is not logged | `tests/unit/explain/explain-verification.spec.ts:1089` |
-| `explain` → Other query log write errors propagate | `tests/unit/explain/explain-verification.spec.ts:1107` |
-| `explain` → A row without cited statements records no verification | `tests/unit/explain/explain-verification.spec.ts:1150` |
-| `explain` → A row of an answer verified from the cache counts no verifier call | `tests/unit/explain/explain-verification.spec.ts:1170` |
-| `explain` → A row at the verify call limit counts the limit | `tests/unit/explain/explain-verification.spec.ts:1187` |
-| `explain` → Evaluation mode records no verification | `tests/unit/explain/explain-verification.spec.ts:1198` |
-| `explain` → An unavailable verifier midway counts only the calls made | `tests/unit/explain/explain-verification.spec.ts:1210` |
+| `explain` → An unknown answer after the model call leaves a row with its usage | `tests/unit/explain/explain-verification.spec.ts:841` |
+| `explain` → An unknown answer without a model call leaves a zero row | `tests/unit/explain/explain-verification.spec.ts:869` |
+| `explain` → No row when explain fails before a model call resolves | `tests/unit/explain/explain-verification.spec.ts:1057` |
+| `explain` → A failure after the model calls leaves a row and keeps its error | `tests/unit/explain/explain-verification.spec.ts:903` |
+| `explain` → A verifier failure leaves a row with the calls that resolved | `tests/unit/explain/explain-verification.spec.ts:1099` |
+| `explain` → A failed query log write still answers and says so | `tests/unit/explain/explain-verification.spec.ts:954` |
+| `explain` → A row of an unknown project is not logged | `tests/unit/explain/explain-verification.spec.ts:1131` |
+| `explain` → An out-of-range query log entry still answers and says so | `tests/unit/explain/explain-verification.spec.ts:1149` |
+| `explain` → Other query log write errors propagate | `tests/unit/explain/explain-verification.spec.ts:1186` |
+| `explain` → A row without cited statements records no verification | `tests/unit/explain/explain-verification.spec.ts:1231` |
+| `explain` → A row of an answer verified from the cache counts no verifier call | `tests/unit/explain/explain-verification.spec.ts:1251` |
+| `explain` → A row at the verify call limit counts the limit | `tests/unit/explain/explain-verification.spec.ts:1269` |
+| `explain` → Evaluation mode records no verification | `tests/unit/explain/explain-verification.spec.ts:1280` |
+| `explain` → An unavailable verifier midway counts only the calls made | `tests/unit/explain/explain-verification.spec.ts:1292` |
 | `graph-schema` → Roll back only the latest migration | `tests/integration/store/migrations.spec.ts:450` |
 | `graph-schema` → Roll back the L1 graph migration | `tests/integration/store/migrations.spec.ts:480` |
 | `graph-schema` → Roll back both migrations leaves an empty schema | `tests/integration/store/migrations.spec.ts:497` |
@@ -146,7 +153,7 @@ D4–D7 eran valores por defecto propuestos en el ticket y el spec-audit los ace
 | `graph-store` → A failed query log write does not leak | `tests/integration/store/query-log-write.spec.ts:220` |
 | `graph-store` → A failed rollback of the query log write is a write failure | `tests/unit/store/postgres-query-log-write-errors.spec.ts:58` |
 | `graph-store` → Saving a query log entry on the store's own connections commits | `tests/integration/store/query-log-write.spec.ts:253` |
-| `graph-store` → A store that cannot give a connection fails the query log write with its own error | `tests/integration/store/query-log-write.spec.ts:278` |
+| `graph-store` → A store that cannot give a connection fails the query log write with its own error | `tests/integration/store/query-log-write.spec.ts:292` |
 | `graph-store` → The in-memory double checks, keeps and fails query log entries | `tests/unit/store/in-memory-store.spec.ts:770` |
 
 ## Origen

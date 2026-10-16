@@ -107,3 +107,44 @@ Yes.
 ## Outcome
 - Status: PASS
 - Blocking issues: none
+
+## Addendum — CI evidence (17.3, 2026-10-16)
+
+PR [#44](https://github.com/DisTinta/AI4Devs-finalproject/pull/44), head `7ee73c3`, run
+[38892815466](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/38892815466): every job
+green (`scope`, `secrets`, `quality`, `mutation`, `frontend`).
+
+- The first run of the PR (`99f62ae`) failed `secrets`: gitleaks reported the synthetic test constant
+  `SECRET = 'sentinel-question-7f3a'` (`tests/unit/knowledge/query-log.spec.ts:14`) as
+  `generic-api-key`. Fixed in `7ee73c3`: the constant is now `SENTINEL`, and the finding of commit
+  `21df2e1` is fingerprinted in `.gitleaksignore`, as DIS-91 did. Local `gitleaks dir` and
+  `gitleaks git --log-opts 082a6fb..HEAD` report no leak.
+- New spec files ran and passed in `quality`: `tests/integration/store/query-log-write.spec.ts` (6),
+  `tests/unit/knowledge/query-log.spec.ts` (4), `tests/unit/explain/usage.spec.ts` (7),
+  `tests/unit/explain/usage-meter.spec.ts` (4), `tests/unit/store/postgres-query-log-write-errors.spec.ts` (2).
+  Totals: 105 files, 1 346 passed, 1 skipped (the platform-specific case of
+  `tests/unit/index/path-policy.spec.ts`, which already skips on Linux before this change).
+- Migration round trip (`npm run db:migrate && npm run db:rollback && npm run db:migrate`): `0004_query-log-verification`
+  applied (UP), rolled back (DOWN) and applied again, step green.
+- Mutation job: final score 95.96 ≥ 80; `usage.ts`, `usage-meter.ts`, `query-log.ts` 100, `explain.ts`
+  96.67, `semantic.ts` 97.44, matching the local run.
+
+## Addendum — after the pre-merge review fixes (17.4, 2026-10-16)
+
+- `npx vitest run`: 105 files, 1 351 passed, 0 failed (4 tests added: "An out-of-range query log entry
+  still answers and says so", the meter/check consistency test, the U+FFFD test, the
+  `QUERY_NOT_LOGGED_CODES` test). `lint`, `typecheck`, `lint:architecture`, `docs:coverage` exit 0.
+- Stryker (`--mutate "packages/core/src/explain/explain.ts,packages/core/src/explain/usage-meter.ts"`):
+  `explain.ts` 96.73 (the same 5 equivalent survivors), `usage-meter.ts` 100; overall 95.79 ≥ 80.
+- Existing tests strengthened (no assertion weakened): the two modified "propagates without writing"
+  scenarios now price the calls and assert the exact row (`verifyLatencyMs: null` for the verifier
+  failure); "An unknown answer after the model call leaves a row with its usage" compares the whole
+  answer with a reference run; "A failed query log write still answers and says so" compares every
+  field but random ids; "No row when explain fails before a model call resolves" covers six failures;
+  the cache-row test uses a 25 ms clock; the call-limit test asserts E21 is an anchor span; "An empty,
+  blank or missing question is rejected before the store" asserts `saveQueryLog: 0`; "Other query log
+  write errors propagate" uses a `TypeError` (spec changed, F1).
+- Process note (adversarial review Q5): the change folder was first committed together with the
+  code (`99f62ae`, 8 s after it), so git alone cannot show the spec came first; the spec audit report
+  records the order. In future changes, commit the change folder at `/opsx:propose` time.
+- Data state after the fix runs: project 1, claim 0, evidence 0, query_log 0 (unchanged).

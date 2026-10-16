@@ -433,8 +433,8 @@ services that must be started first, quirks of the local environment.
   of the UTC day)` and throws `BudgetExhausted` when `spent >= ceiling` (stateless, so a restart
   cannot reset it). Since DIS-74 every `explain` writes its `query_log.cost_usd` (with core's
   `costUsd`), verification included, so the ceiling sees `explain`'s whole spend. The spend of an `ask`
-  in flight is seen only when its row is written: one call can overshoot by one `answer` call plus
-  `MAX_VERIFY_CALLS_PER_ANSWER` (20) `verify` calls. Re-seeding (`db:seed`, `make up`) deletes the
+  in flight is seen only when its row is written: each `ask` in flight can overshoot by one `answer`
+  call plus `MAX_VERIFY_CALLS_PER_ANSWER` (20) `verify` calls, so N concurrent runs by N times that. Re-seeding (`db:seed`, `make up`) deletes the
   sample projects' `query_log` rows by cascade and so resets that day's recorded spend for them. `withDailyBudget` throws `RangeError` for a
   ceiling that is not a positive finite number, and a `sumCostSince` failure rejects unchanged without
   calling the model (fail closed). With a ceiling, `llmConfigFromEnv` requires an
@@ -607,9 +607,12 @@ services that must be started first, quirks of the local environment.
     on every return (`UNKNOWN` included; zero counters without a model call; `baseline_tokens` `NULL`
     without a pack) and on every rejection after a resolved call (the spend so far, then the original
     error, whatever happened to the row). No row when it fails before any call resolved. A row write
-    that fails with `QueryLogWriteFailed` or `ProjectNotFound` (a `no-anchor` question with no search
-    terms never checks the project) still returns the answer, with `{ type: 'query_not_logged', code }`
-    last in its events; any other write error propagates. Explain reads `now` twice when it writes a
+    that fails with `QueryLogWriteFailed`, `ProjectNotFound` (a `no-anchor` question with no search
+    terms never checks the project) or `InvalidStoreQuery` (`invalid-entry`: the model reported more
+    tokens, or the call cost more, than the row's columns hold; the LLM adapter does not cap them) still
+    returns the answer, with `{ type: 'query_not_logged', code }` last in its events; any other write
+    error propagates, a failure to get a connection included (claims already stored, spend not
+    recorded: accepted, adversarial review F2). Explain reads `now` twice when it writes a
     row (start, which is also every claim's provenance instant, and just before the row); in live mode
     the semantic check reads it twice more in between. `verify_calls` counts only resolved verifier
     calls (cache hits never; a failed call's time is still in `verify_latency_ms`). The semantic check

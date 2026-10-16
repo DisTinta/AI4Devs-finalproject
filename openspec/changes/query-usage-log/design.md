@@ -163,7 +163,8 @@ answered path its tokens and cost equal the meter's verification bucket, which a
    from the meter buckets, with `verifyCalls` the meter's count of resolved `verify` calls (0) and
    `verifyLatencyMs` the state of U15 (0: the semantic check never started).
 5. `await saveQueryLog(row)`: on `QueryLogWriteFailed` append `query_not_logged`
-   `store-write-failed`; on `ProjectNotFound` append `project-not-found`; rethrow anything else.
+   `store-write-failed`; on `ProjectNotFound` append `project-not-found`; on `InvalidStoreQuery`
+   append `invalid-entry`; rethrow anything else.
    Return.
 
 So the clock is read exactly twice when a row is written; the provenance instant moves from "when
@@ -181,12 +182,16 @@ row inside the claim operation was rejected: `UNKNOWN` answers and failure paths
 
 ### U9 — Failure of the row (D7, D9)
 
-On a return, only `QueryLogWriteFailed` and `ProjectNotFound` are absorbed into `query_not_logged`
-(`QUERY_NOT_LOGGED_CODES = ['store-write-failed', 'project-not-found']` in `explain-event.ts`, with
-`QueryNotLoggedEvent` in the `ExplainEvent` union). `ProjectNotFound` can only come from a `no-anchor`
-answer with a malformed or unknown project id (every other return path read the project), or from a
-project deleted mid-call. `InvalidStoreQuery` and anything else propagate: they are programming errors
-(explain builds a valid entry). On a rejection, any failure of the row is swallowed so the original
+On a return, only `QueryLogWriteFailed`, `ProjectNotFound` and `InvalidStoreQuery` are absorbed into
+`query_not_logged` (`QUERY_NOT_LOGGED_CODES = ['store-write-failed', 'project-not-found',
+'invalid-entry']` in `explain-event.ts`, with `QueryNotLoggedEvent` in the `ExplainEvent` union).
+`ProjectNotFound` can only come from a `no-anchor` answer with a malformed or unknown project id
+(every other return path read the project), or from a project deleted mid-call. `InvalidStoreQuery`
+comes from counts the model reported: the LLM adapter accepts any non-negative integer token count,
+so an endpoint can report more than an `integer` column holds, or a cost past `numeric(10,6)`
+(adversarial review F1; the first version let it propagate as a programming error, but it is raised
+after the claims are stored). Anything else propagates, a failure to obtain a connection included
+(F2, accepted). On a rejection, any failure of the row is swallowed so the original
 error is what the caller sees. `UnknownExplain` keeps its fields; only its `events` may now hold
 `query_not_logged`, and its TSDoc says so. The CLI writes it at `info` like every non-`evidence_broken`
 event (`cli-ask` unchanged).
@@ -279,8 +284,9 @@ down). The product decisions (D1–D3) are recorded in the ticket and the propos
 
 ## Risks / Trade-offs
 
-- [The ceiling still overshoots by the calls of one `ask` in flight] → the D2 limit bounds it to one
-  `answer` plus 20 `verify` calls; declared in Non-goals and in the `DAILY_BUDGET_USD` docs.
+- [The ceiling still overshoots by the calls of each `ask` in flight] → the D2 limit bounds each one to
+  one `answer` plus 20 `verify` calls, so N concurrent runs may overshoot N times that; declared in
+  Non-goals and in the `DAILY_BUDGET_USD` docs.
 - [The question is now persisted verbatim] → local database only, never logged, not in any event or
   error, `QueryLogWriteFailed` without database text; `/privacy-ethics-check` records it (D3).
 - [Every `StorePort` implementer must add `saveQueryLog`] → `typecheck` finds them; the step that
@@ -306,4 +312,24 @@ insert, so rolling back the migration means reverting the change. CI runs `db:mi
 ## Follow-ups
 
 Filled during the Pre-merge Review (A/B/C/D per finding, `docs/project-context.md` → Tracking
-deferred findings).
+deferred findings). Sources: `reports/2026-10-16-verify-against-spec.md` (VAS) and
+`reports/2026-10-16-adversarial-review.md` (AR). Every finding was fixed in this change or accepted; no
+Linear issue was opened.
+
+| Finding | Destination | Resolution |
+|---|---|---|
+| AR F1 — `InvalidStoreQuery` of the row write (token counts or cost past the columns) propagated after the claims were stored | **A** | Author decision 2026-10-16 ("Absorber como evento"): new code `invalid-entry` in `QUERY_NOT_LOGGED_CODES`; spec "Query log" updated, scenario "An out-of-range query log entry still answers and says so" (TDD, RED seen), "Other query log write errors propagate" now uses an error that is none of the three (U9 updated) |
+| VAS (2nd run) U4/U5 — `invalid-entry` absorbs every `InvalidStoreQuery` of the row write, and its spend is not recorded | **A** | Spec "Query log" reworded: the cause is "the entry fails the store's record schema, for example …", and the unrecorded spend is stated for the three absorbed failures |
+| VAS (2nd run) 2.1–2.3 — no cost-overflow case, `QUERY_NOT_LOGGED_CODES` not pinned, the new scenario compared only partly | **A** | The scenario's test also overflows the cost and compares each answer with the same run when the row is written (ids and usage aside); `explain.spec.ts` pins the exported set |
+| AR F2 — a connection failure of the final row write rejects after the claims are stored | **D** | Author decision 2026-10-16 ("Documentar"): proposal Non-goals, spec "Query log" and U9 state it; same exposure as U8 |
+| AR F3 — the meter/check consistency test promised under Risks did not exist | **A** | `usage-meter.spec.ts`: the meter's verification and `verifyCalls()` equal the check's usage over an accepted, an invalid and a failed call |
+| AR Q4 — the overshoot bound ignored concurrent `ask` runs | **A** | Reworded "per `ask` in flight, N concurrent runs N times" in Risks, proposal Non-goals, `docs/project-context.md` and the readme `DAILY_BUDGET_USD` row |
+| AR Q5 — the change folder was committed after the code | **D** | Process note: commit the change folder at `/opsx:propose` time in future changes; recorded in the step 12 report addendum |
+| VAS 2.1 — "no row before a call resolves" tested only for three failures | **A** | The scenario's test also covers the pack's `SourceUnavailable`, a failing prior-claims read and the `LlmUnavailable` of the `answer` call |
+| VAS 2.2 — rejection rows never priced | **A** | "A failure after the model calls leaves a row and keeps its error" and "A verifier failure other than unavailable or budget propagates without writing" run with a priced model and assert the cost |
+| VAS 2.3 — the U+FFFD storage of an unpaired surrogate untested | **A** | `query-log-write.spec.ts`: a lone surrogate is stored as U+FFFD |
+| VAS 4 — weak tests (exact `UNKNOWN` answer, unchanged fields of a not-logged answer, `null` verify latency, cache-row latency under a fixed clock, E21 not shown to be an anchor, `saveQueryLog` absent from a partial match) | **A** | Each strengthened: exact comparison with a reference run, field-by-field comparison without random ids, exact row with `verifyLatencyMs: null`, a clock giving 25 ms, an `anchor` assertion on E21, `saveQueryLog: 0` |
+| VAS 4 — "shipped cost table → zero" cannot tell the shipped table from no table | **D** | Inherent to the scenario: the shipped table prices every model at 0 and an unpriced model also costs 0 |
+| VAS U1 — new public exports of `@codemind/core` (`savingsPct`, `latencyMs`, `aggregateUsage`, `queryLogEntry`, `meterLlm`, their types) | **D** | Design U5/U6 name them; `explain/index.ts` exports them because the architecture lint forbids orphans and the unit tests import them from the package |
+| VAS U2 — `onSemanticStart` on `verifyAnswer` | **D** | Internal plumbing of design U15 (the rejection row's verification latency); optional, no behaviour of its own |
+| VAS U3 — `.gitleaksignore` entry for commit `21df2e1` | **D** | A synthetic sentinel named `SECRET` tripped `generic-api-key`; renamed in `7ee73c3`, the old commit fingerprinted as DIS-91 did |
