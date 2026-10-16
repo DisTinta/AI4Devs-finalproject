@@ -103,7 +103,18 @@ describe('Requirement: Explain request', () => {
     const serialised = JSON.stringify(error) + (error as Error).message;
     expect(serialised).not.toContain('PriceCalculator');
     expect(serialised).not.toContain('compute');
-    expect(d.loaded.calls).toEqual({ findSymbols: 0, neighbors: 0, getProject: 0, saveClaims: 0, findClaimsOverlapping: 0, saveQueryLog: 0 });
+    expect(d.loaded.calls).toEqual({
+      findSymbols: 0,
+      neighbors: 0,
+      getProject: 0,
+      saveClaims: 0,
+      findClaimsOverlapping: 0,
+      saveQueryLog: 0,
+      findCacheEntry: 0,
+      saveCacheEntry: 0,
+      touchCacheEntry: 0,
+      invalidateCache: 0,
+    });
     expect(d.sourceCalls).toEqual({ readFileAt: 0, readFilesAt: 0 });
     expect(d.model.requests).toHaveLength(0);
   });
@@ -126,7 +137,18 @@ describe('Requirement: Explain request', () => {
       expect(serialised).not.toContain('42');
       expect(serialised).not.toContain(Q1);
     }
-    expect(d.loaded.calls).toEqual({ findSymbols: 0, neighbors: 0, getProject: 0, saveClaims: 0, findClaimsOverlapping: 0, saveQueryLog: 0 });
+    expect(d.loaded.calls).toEqual({
+      findSymbols: 0,
+      neighbors: 0,
+      getProject: 0,
+      saveClaims: 0,
+      findClaimsOverlapping: 0,
+      saveQueryLog: 0,
+      findCacheEntry: 0,
+      saveCacheEntry: 0,
+      touchCacheEntry: 0,
+      invalidateCache: 0,
+    });
     expect(d.sourceCalls).toEqual({ readFileAt: 0, readFilesAt: 0 });
     expect(d.model.requests).toHaveLength(0);
   });
@@ -180,7 +202,18 @@ describe('Requirement: Explain request', () => {
     expect((hops as InvalidExplainRequest).field).toBe('hops');
     expect(root).toBeInstanceOf(RangeError);
     expect((root as RangeError).message).toContain('workspaceRoot');
-    expect(d.loaded.calls).toEqual({ findSymbols: 0, neighbors: 0, getProject: 0, saveClaims: 0, findClaimsOverlapping: 0, saveQueryLog: 0 });
+    expect(d.loaded.calls).toEqual({
+      findSymbols: 0,
+      neighbors: 0,
+      getProject: 0,
+      saveClaims: 0,
+      findClaimsOverlapping: 0,
+      saveQueryLog: 0,
+      findCacheEntry: 0,
+      saveCacheEntry: 0,
+      touchCacheEntry: 0,
+      invalidateCache: 0,
+    });
     expect(d.sourceCalls).toEqual({ readFileAt: 0, readFilesAt: 0 });
     expect(d.model.requests).toHaveLength(0);
   });
