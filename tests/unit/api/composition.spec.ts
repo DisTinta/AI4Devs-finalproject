@@ -234,4 +234,23 @@ describe('configuration and composition boundaries', () => {
   it('names its sessions codemind-api', () => {
     expect(API_APPLICATION_NAME).toBe('codemind-api');
   });
+
+  // Added by the pre-merge review: a model that cannot be built must not leave a store open.
+  it('builds the model before opening the store, so a model that cannot be built opens no connection', async () => {
+    // Arrange
+    const { openStore, opened } = recordingOpenStore();
+    const createLlm = (): LlmPort => {
+      throw new Error('model cannot be built');
+    };
+
+    // Act
+    const error = await composeFromEnv({ DATABASE_URL }, { openStore, createLlm }).then(
+      () => undefined,
+      (rejection: unknown) => rejection,
+    );
+
+    // Assert
+    expect((error as Error).message).toBe('model cannot be built');
+    expect(opened).toEqual([]);
+  });
 });

@@ -111,8 +111,8 @@ export interface ComposedApi {
 /**
  * Composes the API's dependencies from the environment (spec "Composition from the environment",
  * design U7), the only reader of `env` in the API: the configuration and the LLM configuration are
- * checked before the store is opened; in live mode with a daily ceiling, every model call goes
- * through `withDailyBudget` over that store and clock.
+ * checked, and the model and the source tree built, before the store is opened; in live mode with a
+ * daily ceiling, every model call goes through `withDailyBudget` over that store and clock.
  *
  * @param env The environment.
  * @param seams The test seams.
@@ -122,14 +122,15 @@ export interface ComposedApi {
 export async function composeFromEnv(env: Environment, seams: ComposeSeams = {}): Promise<ComposedApi> {
   const config = apiConfigFromEnv(env);
   const llmConfig = llmConfigFromEnv(env);
+  // Everything that can fail without a connection is built first, so a failure opens no store.
+  const model = (seams.createLlm ?? createLlm)(llmConfig);
+  const source = seams.source ?? createGitSourceTree();
+  const now = seams.now ?? (() => new Date());
   const openStore = seams.openStore ?? ((url: string) => openPostgresStore(url, { applicationName: API_APPLICATION_NAME }));
   const { store, close } = await openStore(config.databaseUrl);
-  const now = seams.now ?? (() => new Date());
-  const model = (seams.createLlm ?? createLlm)(llmConfig);
   const llm =
     llmConfig.mode === 'live' && llmConfig.dailyBudgetUsd !== undefined
       ? withDailyBudget(model, { store, dailyBudgetUsd: llmConfig.dailyBudgetUsd, now })
       : model;
-  const source = seams.source ?? createGitSourceTree();
   return { config, deps: { store, llm, source, now, workspaceRoot: REPO_ROOT }, close };
 }
