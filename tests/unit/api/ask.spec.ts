@@ -27,6 +27,7 @@ import type {
 import { buildApp } from '../../../packages/api/src/app';
 import type { AppDeps, AppOptions } from '../../../packages/api/src/app';
 import { ACME_SHOP_PROJECT, acmeShopGraph } from '../../support/acme-shop-graph';
+import { citingIds, doubles } from '../../support/explain-doubles';
 import { createInMemorySourceTree } from '../../support/in-memory-source-tree';
 import { createInMemoryStore } from '../../support/in-memory-store';
 import { createScriptedLlm } from '../../support/scripted-llm';
@@ -545,5 +546,40 @@ describe('ask events and verification verdicts', () => {
     expect(secondReqId).toBeDefined();
     expect(firstReqId).not.toBe(secondReqId);
     expect(lines.map((line) => JSON.stringify(line)).join('\n')).not.toContain('SENTINEL-question-4d1e');
+  });
+
+  it('Requests to one API share verification verdicts', async () => {
+    // Arrange: the real `explain` over the explain doubles, a live model citing the first span.
+    const d = doubles({ script: citingIds('The final price.', [['E1']]) });
+    const { store, source, llm, workspaceRoot, now } = d.deps;
+    const deps = { store, source, llm, workspaceRoot, now };
+    const purposes = () => d.model.requests.map((request) => request.purpose);
+    const appOf = async (): Promise<FastifyInstance> => {
+      const built = await buildApp(deps, { rateLimit: { max: 1_000_000, windowMs: 60_000 } });
+      await built.ready();
+      return built;
+    };
+    const first = await appOf();
+    const second = await appOf();
+
+    try {
+      // Act
+      const one = await ask(first, d.projectId, { question: Q1 });
+      const afterOne = purposes();
+      const two = await ask(first, d.projectId, { question: Q1 });
+      const afterTwo = purposes().slice(afterOne.length);
+      const three = await ask(second, d.projectId, { question: Q1 });
+      const afterThree = purposes().slice(afterOne.length + afterTwo.length);
+
+      // Assert
+      expect([one.statusCode, two.statusCode, three.statusCode]).toEqual([200, 200, 200]);
+      expect(afterOne).toEqual(['answer', 'verify']);
+      expect(afterTwo).toEqual(['answer']);
+      expect(two.json().usage.verification.cacheHits).toBe(1);
+      expect(afterThree).toEqual(['answer', 'verify']);
+    } finally {
+      await first.close();
+      await second.close();
+    }
   });
 });

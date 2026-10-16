@@ -34,7 +34,7 @@
 ## 5. API: events, verification verdicts and OpenAPI (TDD, design U3, U5) — `http-ask` → "Ask events and verification verdicts", "Ask in the OpenAPI document"
 
 - [x] 5.1 RED → GREEN: "The answer's events are logged by level" (`AppOptions.logger` with a test stream, as `tests/unit/api/errors.spec.ts`; events written with `request.log`, `evidence_broken` at `error`)
-- [ ] 5.2 RED → GREEN: "Requests to one API share verification verdicts" (real `explain` over `doubles()` of `tests/support/explain-doubles.ts`, live scripted model; count requests by `purpose`)
+- [x] 5.2 RED → GREEN: "Requests to one API share verification verdicts" (real `explain` over `doubles()` of `tests/support/explain-doubles.ts`, live scripted model; count requests by `purpose`)
 - [ ] 5.3 RED → GREEN: "The document lists ask with its parameter, body and responses" (`GET /docs/json`; `.meta({ default })` on `tokenBudget` and `useCache`; adjust the schemas' metadata only if the published document differs from the scenario)
 
 ## 6. Integration over the seed (TDD, design U7) — `http-ask` scenarios over Postgres
