@@ -1,4 +1,6 @@
+import { randomUUID } from 'node:crypto';
 import { afterEach, describe, expect, it } from 'vitest';
+import { BudgetExhausted, ProjectNotFound } from '@codemind/core';
 import type { FastifyInstance } from 'fastify';
 import { buildTestApp, errorBody, errorWithStatus } from './support';
 
@@ -172,5 +174,63 @@ describe('request validation by schema', () => {
     expect(error.details.issues[0].path).toEqual(['n']);
     expect(error.details.issues[0].code).toBe('too_small');
     expect(calls.testQuery).toBe(0);
+  });
+});
+
+describe('response serialisation by schema', () => {
+  it('Undeclared response fields are dropped', async () => {
+    // Arrange
+    ({ app } = await buildTestApp({ result: () => ({ answer: 'ok', provenance: 'x' }) }));
+
+    // Act
+    const response = await app.inject({ method: 'POST', url: '/api/test-only', payload: { question: 'hello' } });
+
+    // Assert
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ answer: 'ok' });
+  });
+
+  it('A result that breaks its response schema answers INTERNAL', async () => {
+    // Arrange
+    ({ app } = await buildTestApp({ result: () => ({ answer: 42 }) }));
+
+    // Act
+    const response = await app.inject({ method: 'POST', url: '/api/test-only', payload: { question: 'hello' } });
+
+    // Assert
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toEqual(errorBody('INTERNAL', 'unexpected error'));
+  });
+});
+
+describe('domain error mapping', () => {
+  it('An exhausted budget answers 429 BUDGET_EXHAUSTED', async () => {
+    // Arrange
+    ({ app } = await buildTestApp({ error: () => new BudgetExhausted(2.5, 2, new Date('2026-10-17T00:00:00Z')) }));
+
+    // Act
+    const response = await app.inject({ method: 'GET', url: '/api/test-throw' });
+
+    // Assert
+    expect(response.statusCode).toBe(429);
+    const body = response.json();
+    expect(Object.keys(body)).toEqual(['error']);
+    expect(body.error.code).toBe('BUDGET_EXHAUSTED');
+    expect(body.error.message).toBe('the daily LLM budget is exhausted');
+    expect(body.error.details).toEqual({ spentUsd: 2.5, dailyBudgetUsd: 2, resetsAt: '2026-10-17T00:00:00.000Z' });
+  });
+
+  it('A domain error without a mapping answers INTERNAL', async () => {
+    // Arrange
+    const id = randomUUID();
+    ({ app } = await buildTestApp({ error: () => new ProjectNotFound(id) }));
+
+    // Act
+    const response = await app.inject({ method: 'GET', url: '/api/test-throw' });
+
+    // Assert
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toEqual(errorBody('INTERNAL', 'unexpected error'));
+    expect(response.body).not.toContain(id);
   });
 });
