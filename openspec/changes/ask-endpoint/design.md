@@ -93,7 +93,9 @@ reviewable by the author). This design turns them into units U1–U8.
   builds the public object explicitly, so nothing internal is ever handed to the serializer.
 - The route's `schema.response` also declares `400`, `404`, `429`, `500` and `503` as `errorSchema`,
   so the document lists them; the error handler's bodies already satisfy it.
-- `index.ts` exports the five schemas and their inferred types.
+- `index.ts` exports the six schemas (`askParamsSchema`, `askBodySchema`, `askUsageSchema`,
+  `askAnsweredSchema`, `askUnknownSchema`, `askResponseSchema`), their inferred types and
+  `registerAskRoute`.
 
 ### U3 — The route and the public answer (D3, D8, D9)
 
@@ -252,3 +254,7 @@ B3 (closed sets from core, new `STATEMENT_VERIFICATIONS`), M1 (`dimension-mismat
 (events of an `UNKNOWN` logged), M3 (unknown evidence id → `500`, now a scenario), M4 (explicit rate
 limit in tests), M5 (the budget scenario's clock day), M6 ("reaches or exceeds" in the DIS-78 AC), M7
 (`z.array(z.never()).max(0)` instead of `z.tuple([])`), M8 (manual task 10.4 split).
+
+Spec audit run 2 (APPROVED) — N1 (how "not answered" and "answered twice" are observed: a call
+counter on the ports, the counting use-case seam), N2 (the exports of `index.ts`), N3 (task 2.2
+split): all **A**, fixed in this change's artifacts.

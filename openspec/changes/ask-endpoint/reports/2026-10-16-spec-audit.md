@@ -1,10 +1,15 @@
-CHANGES REQUIRED
+APPROVED
 
 # Spec audit — ask-endpoint (DIS-78)
 
-- Date: 2026-10-16
-- Auditor: spec-auditor subagent (run 1)
+Final verdict after two runs: APPROVED (run 2). Run 1 was CHANGES REQUIRED; each run is followed by how its findings were resolved.
 
+- Date: 2026-10-16
+- Auditor: spec-auditor subagent (runs 1 and 2)
+
+## Run 1
+
+CHANGES REQUIRED
 
 **Preguntas para la autora** (no bloquean; son para revisar después las decisiones delegadas por el ADR `20261016-autonomous-workflow-run-entrega-2`):
 - D7 añade `message` al `UNKNOWN`. El DoD literal dice «solo los campos de §4 más `reason`». La justificación (DIS-16 AC 2) es razonable, pero la decisión se aparta del texto del DoD.
@@ -206,3 +211,231 @@ Decididos por el agente como lead engineer (ADR `20261016-autonomous-workflow-ru
 - **M7 — corregido.** `z.tuple([])` emite `items: { anyOf: [] }` con `target: 'openapi-3.0'` (comprobado); U2 usa `z.array(z.never()).max(0)`, que emite `items: { not: {} }, maxItems: 0` y acepta `[]`.
 - **M8 — corregido.** La tarea 10.4 se divide en 10.4a, 10.4b y 10.4c, con la restauración de la fila insertada en 10.4c.
 - **Preguntas para la autora** — se mantienen D7 (`message` en `llm-required`, exigido por DIS-16 AC 2) y D3 (sin `verification` por evidencia; `readme.md` §4 se alinea en este change), registradas como revisables en el `[enhanced]` de DIS-78.
+
+---
+
+## Run 2
+
+APPROVED
+
+# Auditoría de especificación — ask-endpoint (DIS-78), ronda 2
+
+- Fecha: 2026-10-16
+- Auditor: subagente spec-auditor (ronda 2)
+- Fuentes leídas:
+  - DIS-78 completa: `[original]`, `[reality-map]` y `[enhanced]` con D1–D9 y la sección «Auditoría de especificación».
+  - DIS-59. Ninguna de las dos issues tiene comentarios.
+  - Los cinco artefactos del change y el informe de la ronda 1.
+  - `openspec/specs/api-foundation/spec.md` y `docs/openspec-tasks-mandatory-steps.md`.
+  - El código citado: `error-handler.ts`, `app.ts`, `tests/unit/api/support.ts`, `claim-items.ts`, `explain-answer.ts`, `budget.ts`, `verification-cache.ts`, `explain.ts`, `checks.js` de zod y los helpers `tests/support/*`.
+- Criterio: las decisiones D1–D9 y las resoluciones de la ronda 1 son decisiones que la autora delegó (ADR `20261016-autonomous-workflow-run-entrega-2`). No las trato como preguntas abiertas. El ADR no está en este árbol, así que su texto no está verificado.
+
+**Preguntas para la autora:** ninguna nueva. Las dos de la ronda 1 (D7 `message` y D3 sin `verification` por evidencia) están resueltas y registradas como revisables en el `[enhanced]` de DIS-78.
+
+No hay hallazgos bloqueantes. Hay tres mejorables nuevos (N1–N3), que se pueden aplicar en una pasada.
+
+---
+
+## Comprobación de las resoluciones de la ronda 1
+
+| Hallazgo | Resolución declarada | ¿Está en los artefactos? |
+|---|---|---|
+| B1 | `INVALID_EXPLAIN_REQUEST` → `invalid request` | Sí: spec «Ask error answers» (tabla y escenario), `design.md` U4 (l. 140-145) y Follow-ups (l. 245-246), tarea 4.2, proposal (l. 42) y D5 en Linear. |
+| B2 | `.meta({ default })` sin `.default()` | Sí: U1 (l. 61-68), tabla de «Ask request validation» (l. 21-22), escenario OpenAPI (`default` 8000 y `true`, l. 303-304), U8 (l. 203-204), tareas 5.3 y 12.1, proposal (l. 33-34) y D2 en Linear. |
+| B3 | Conjuntos cerrados tomados de core y nuevo `STATEMENT_VERIFICATIONS` | Sí: U2 (l. 75-85), tarea 3.2, proposal → Impact (l. 70-73) y D3 en Linear. `PROVENANCE_STATEMENT_TYPES` existe en `packages/core/src/knowledge/claim.ts:53`. `StatementVerification` sigue siendo una unión literal (`claim-items.ts:41`) que crea 3.2. `claim-items.js` se reexporta (`explain/index.ts:11`). |
+| M1 | Caso `dimension-mismatch` | Sí: escenario «Domain errors…» (l. 207, 215). |
+| M2 | Log de los eventos de un `UNKNOWN` | Sí: escenario «The answer's events are logged by level» (l. 273-276). |
+| M3 | Id de evidencia desconocido → `500` | Sí: frase normativa (l. 112-114), escenario nuevo (l. 149-155) y tarea 3.4 con su nombre. |
+| M4 | Límite de rate explícito en los tests | Sí: U7 (l. 187) y tarea 6.1. |
+| M5 | Día del reloj del escenario de presupuesto | Sí: escenario (l. 230-238), U7 (l. 187-191) y tarea 6.2. Contrastado: `sumCostSince(startOfUtcDay(instant))` y `>=` en `budget.ts:50-51`. |
+| M6 | «alcanza o supera» | Sí: escenario «reaches or exceeds» (l. 233-234) y criterio 5 de DIS-78. |
+| M7 | `z.array(z.never()).max(0)` | Sí: U2 (l. 86-90). |
+| M8 | Tarea 10.4 dividida | Sí: 10.4a, 10.4b y 10.4c. La restauración de 10.4c es inmediata y 10.6 la vuelve a comprobar. |
+
+Todas las resoluciones están aplicadas y no veo ninguna regresión que hayan introducido.
+
+---
+
+## 1. Alcance frente al ticket — limpio
+
+Todo sale de DIS-78 o de D1–D9:
+- esquemas;
+- ruta;
+- tabla de errores por ruta;
+- `cacheOnly`;
+- eventos al log;
+- caché de verificación por app;
+- documentación.
+
+La única línea que toca core (`STATEMENT_VERIFICATIONS`) es la que pide B3, y D3 la registra. No se extiende a `/impact`, `/index`, autenticación ni a la HU padre completa.
+
+## 2. Criterios heredados — limpio
+
+Los seis criterios del `[enhanced]` de DIS-78, que son los de DIS-59 refinados, tienen requisito y escenario:
+
+| Criterio | Escenario |
+|---|---|
+| `200` con las claves de §4 sobre la semilla | «An answered question returns only the public fields over the seed» |
+| `200` `UNKNOWN` `llm-required` | «Evaluation mode answers UNKNOWN llm-required over the seed» |
+| `400` | Los tres escenarios de validación |
+| `404` | «An unknown project…» |
+| `429` `RATE_LIMITED` y `BUDGET_EXHAUSTED` con `cacheOnly` | «The ask route is rate limited» y «A spent daily budget…» |
+| OpenAPI | «The document lists ask…» |
+
+La sub-issue y la padre no se contradicen en alcance.
+
+## 3. Escenarios que faltan — limpio, con un mejorable
+
+Todas las cláusulas SHALL o MUST tienen escenario.
+
+- **N1 (mejorable).** Dos escenarios afirman un efecto sin decir cómo se observa:
+  - «The ask route is rate limited» → «the question was answered exactly twice»;
+  - «An invalid token budget, cache flag or extra key…» → «the question was not answered».
+  
+  Ninguno de los dos dice «a use case that…», así que según U7 corren con el `explain` real sobre dobles, que no tiene contador propio. El implementador tendría que elegir el observable. **Corrección:** fijarlo como «the store received exactly two `getProject` calls» y «the store received no call». Así se usa el mismo `counting()` que en «An invalid question…».
+
+## 4. Ambigüedad — limpio
+
+He buscado *fast, easy, secure, efficient, many, appropriate, robust* (y también *high, large, reasonable*) en los cinco artefactos. Solo aparecen «Fastify» y «request body too large», que es un mensaje fijo. El «a high rate limit» de la ronda 1 ya no está.
+
+## 5. Decisiones abiertas — limpio, con un mejorable
+
+Los formatos, límites, mensajes, el orden de los ids, el reloj y el comportamiento ante entrada ausente están fijados.
+
+- **N2 (mejorable).** Las exportaciones de `packages/api/src/index.ts` no coinciden entre documentos:
+  - `proposal.md` (l. 48) dice «exports the new schemas and the route registrar»;
+  - `design.md` U2 (l. 96) dice «the five schemas and their inferred types», pero U1 y U2 definen seis (`askParamsSchema`, `askBodySchema`, `askAnsweredSchema`, `askUnknownSchema`, `askUsageSchema`, `askResponseSchema`) y no nombran `registerAskRoute`;
+  - la tarea 3.2 solo dice «exports».
+  
+  `docs:coverage` y la API pública fijan esos nombres. **Corrección:** en U2, «`index.ts` exports the six schemas (`askParamsSchema`, `askBodySchema`, `askUsageSchema`, `askAnsweredSchema`, `askUnknownSchema`, `askResponseSchema`), their inferred types and `registerAskRoute`», y repetir la lista en la tarea 3.2.
+
+## 6. Contradicciones dentro del cambio — limpio salvo N2
+
+- La proposal, el diseño y la spec coinciden en la tabla de errores, en los códigos, en `cacheOnly`, en la forma pública y en la no reenvío de `useCache`.
+- El presupuesto de peticiones de la prueba manual cuadra con `RATE_LIMIT_MAX=8`:
+  - 10.3 hace 3 peticiones a `/ask` (`/docs/json` no cuenta);
+  - 10.4a hace 5;
+  - la novena da `429`.
+
+## 7. Contradicciones con el proyecto — limpio
+
+- El delta `api-foundation` conserva literalmente los ocho escenarios de «Single error format» y los dos de «Domain error mapping» de la spec principal (`openspec/specs/api-foundation/spec.md:31-178`). Desarrolla la reserva que ya tenía l. 160-161 («the route … may add to `details` the notice…»).
+- backend-standards §4: tras B3 no queda ningún conjunto cerrado copiado. `UNKNOWN_REASONS`, `TOKEN_ESTIMATOR`, `TOKEN_BUDGET_*` y `hasNoNul` se importan de core.
+- `docs/project-context.md` («a new domain code is one `DOMAIN_ERRORS` entry») queda cubierto por la tarea 12.2.
+- Observación, no es hallazgo de este change: `StatementType` (`packages/core/src/explain/typing-rules.ts:13`) ya duplica en core `PROVENANCE_STATEMENT_TYPES`. Los dos conjuntos son idénticos, así que validar `AnswerStatement.type` con `z.enum(PROVENANCE_STATEMENT_TYPES)` es correcto.
+
+## 8. Contraste con el código real — limpio
+
+- `answerOf(error)` (`packages/api/src/plugins/error-handler.ts:80`) recibe hoy solo el error. U4 lo amplía a `answerOf(error, request)`. `installErrorHandler` (l. 71) ya tiene `request` a mano, así que el cambio es local.
+- El TSDoc de `DOMAIN_ERRORS` (l. 45, «DIS-78 adds the codes of `POST /ask` here») queda cubierto por la tarea 1.2.
+- `AppOptions` (`packages/api/src/app.ts:28-33`) aún no tiene `explain?`. Lo crea la tarea 2.2. `buildApp` (l. 96) registra `/health` después del rate limit, y U6 encaja ahí.
+- `tests/unit/api/support.ts`:
+  - `counting()` (l. 96) y `logStream()` (l. 130) existen;
+  - `buildTestApp` no admite opciones de `explain`, así que el diseño construye su propia app con `buildApp` y `support.ts` no cambia, como dice U7.
+- `doubles()` (`tests/support/explain-doubles.ts:67`), `ACME_SHOP_PROJECT` y `acmeShopGraph` (`tests/support/acme-shop-graph.ts:18, 80`), `createInMemoryStore` y el `purpose` del modelo con guion (`tests/support/scripted-llm.ts:86, 112`) existen.
+- Conteo en code points confirmado en `node_modules/zod/v4/core/checks.js:273, 296` (`util.codePointLength`). Los escenarios de 5 y 500 emojis son correctos.
+- D9 y «Requests to one API share verification verdicts»: la clave es el SHA-256 del mensaje de `verify` del par (`packages/core/src/verify/verification-cache.ts:37-39`), no del prompt de `answer`. Las afirmaciones previas que añade la segunda petición no cambian la clave y el escenario es estable.
+- `explain` escribe una fila `query_log` por llamada, también en `UNKNOWN` (`packages/core/src/explain/explain.ts:100, 151, 176`). Coincide con la restauración de 10.6 y con el *rollback* de 9.6.
+- Las razones usadas en los escenarios existen:
+  - `http-status`, `network` y `dimension-mismatch` en `packages/core/src/llm/errors.ts:5-10`;
+  - `missing` y `not-indexed` en `packages/core/src/knowledge/errors.ts:145`.
+
+## 9. Tamaño de tareas — limpio, con un mejorable
+
+- **N3 (mejorable).** La tarea 2.2 junta:
+  - `schemas/ask.ts` (parámetros y cuerpo);
+  - `routes/ask.ts` (registro, *seam*, caché por registro, `getProject` y `explain`);
+  - `AppOptions.explain?`;
+  - el registro en `buildApp`;
+  - el TSDoc de todo.
+  
+  Cabe en un turno, pero es la tarea más ancha del change. **Corrección opcional:** dividirla en 2.2a (`schemas/ask.ts`) y 2.2b (ruta y `buildApp`), cada una con la ejecución de `tests/unit/api`.
+
+Las demás tareas caben en un turno.
+
+## 10. Pasos obligatorios — limpio
+
+- El paso 0 es lo primero: 0.1 pone Linear en In Progress según la regla del proyecto y 0.2 crea la rama `feature/DIS-78-ask-endpoint`.
+- Están presentes y etiquetados como MANDATORY:
+  - 7 (tests existentes);
+  - 9 (tests y estado, con el informe `reports/YYYY-MM-DD-9-test-and-state-verification.md`);
+  - 10 (manual, AGENT MUST EXECUTE);
+  - 11 (E2E, «not applicable» justificado);
+  - 12 (documentación);
+  - 14 (pre-merge, último paso: las tres comprobaciones en orden, arreglos en el mismo PR y archive antes del merge).
+- Restauración de estado:
+  - 9.6;
+  - 10.4c (borrado inmediato y comprobado con un conteo);
+  - 10.6;
+  - 6.2 se apoya en el *rollback* de la transacción.
+- Que el agente abra el PR y haga el merge (14.1 y 14.9) se sale del documento base («The agent never merges»), pero lo autoriza el ADR de la ejecución autónoma, que trato como decisión delegada.
+
+## 11. Trazabilidad — sin huecos
+
+| Requisito | Escenario | Tarea |
+|---|---|---|
+| api-foundation · Single error format (MOD) | 8 escenarios existentes, sin cambios | 7.3 |
+| api-foundation · Domain error mapping (MOD) | «An exhausted budget answers 429 BUDGET_EXHAUSTED» (existente) | 7.3 |
+| | «A domain error without a mapping answers INTERNAL» (existente) | 7.3 |
+| | «A route's own mapping applies only to that route» | 1.1, 1.2 |
+| Ask request validation | «An invalid question answers VALIDATION_ERROR without asking» | 2.1, 2.2 |
+| | «A question at the length bounds is accepted» | 2.3 |
+| | «An invalid token budget, cache flag or extra key answers VALIDATION_ERROR» | 2.3 |
+| | «A malformed project id answers VALIDATION_ERROR» | 2.3 |
+| | «Optional fields are forwarded as the use case expects» | 2.4 |
+| Ask project resolution | «An unknown project answers PROJECT_NOT_FOUND» | 4.1, 4.2 |
+| | «An upper-case project id resolves the same project» | 6.2 |
+| Ask answered response | «An answered question returns only the public fields over the seed» | 6.1 |
+| | «Evidence ids are renumbered in evidence order» | 3.1, 3.2 |
+| | «Internal fields of the answer are not sent» | 3.3 |
+| | «A statement citing an unknown evidence id answers INTERNAL» | 3.4 |
+| Ask UNKNOWN response | «Evaluation mode answers UNKNOWN llm-required over the seed» | 6.2 |
+| | «Another UNKNOWN reason carries no message» | 3.3 |
+| Ask error answers | «Domain errors of the use case map to their answers» | 4.2, 4.3 |
+| | «An exhausted budget on ask answers 429 with the cache-only notice» | 4.2, 4.3 |
+| | «A spent daily budget stops the model over the seed» | 6.2 |
+| | «Another error of the use case answers INTERNAL» | 4.3 |
+| | «The ask route is rate limited» | 4.3 |
+| Ask events and verification verdicts | «The answer's events are logged by level» | 5.1 |
+| | «Requests to one API share verification verdicts» | 5.2 |
+| Ask in the OpenAPI document | «The document lists ask with its parameter, body and responses» | 5.3 |
+
+Todos los escenarios tienen tarea y todas las tareas de implementación tienen escenario. El hueco M3 de la ronda 1 está cerrado.
+
+---
+
+## Correcciones a aplicar (todas mejorables)
+
+### `openspec/changes/ask-endpoint/specs/http-ask/spec.md`
+- **Escenario «The ask route is rate limited» (N1):** THEN, cambiar «and the question was answered exactly twice» por «and the store received exactly two `getProject` calls».
+- **Escenario «An invalid token budget, cache flag or extra key answers VALIDATION_ERROR» (N1):** GIVEN, añadir «the store, model and source tree wrapped by a call counter». THEN, cambiar «and the question was not answered» por «and the store, the source tree and the model received no call».
+
+### `openspec/changes/ask-endpoint/design.md`
+- **U2, último punto (N2):** cambiar «`index.ts` exports the five schemas and their inferred types.» por «`index.ts` exports the six schemas (`askParamsSchema`, `askBodySchema`, `askUsageSchema`, `askAnsweredSchema`, `askUnknownSchema`, `askResponseSchema`), their inferred types and `registerAskRoute`.»
+- **Follow-ups:** añadir «Spec audit run 2 — N1 (observable of "answered"), N2 (exports of `index.ts`), N3 (task 2.2 split): all **A**, fixed in this change's artifacts.»
+
+### `openspec/changes/ask-endpoint/proposal.md`
+- **What Changes (N2):** cambiar «`packages/api/src/index.ts` exports the new schemas and the route registrar.» por «`packages/api/src/index.ts` exports the six new schemas, their inferred types and `registerAskRoute`.»
+
+### `openspec/changes/ask-endpoint/tasks.md`
+- **2.3 y 4.3 (N1):** añadir «(the "not answered" / "answered twice" checks count the store's calls through `counting()`)».
+- **3.2 (N2):** cambiar «exports in `packages/api/src/index.ts`» por «exports in `packages/api/src/index.ts`: the six schemas, their inferred types and `registerAskRoute`».
+- **2.2 (N3, opcional):** dividir en 2.2a «`packages/api/src/schemas/ask.ts` (`askParamsSchema`, `askBodySchema`; …); `npx vitest run tests/unit/api` stays green» y 2.2b «`packages/api/src/routes/ask.ts` (…), `AppOptions.explain?` and the call in `buildApp` after `registerHealthRoute`; TSDoc on every export».
+
+### Linear DIS-78 (parte `[enhanced]`, en español; el bloque `[original]` no se toca)
+- En la sección «Auditoría de especificación», añadir: «**Ronda 2** — sin bloqueantes. Se incorporan tres mejoras: N1, cada escenario dice cómo se observa que la pregunta no se contestó o se contestó dos veces (llamadas `getProject` al store); N2, `index.ts` exporta los seis esquemas, sus tipos y `registerAskRoute`; N3, la tarea 2.2 se divide en esquemas y ruta.»
+
+### Linear DIS-59
+- Sin cambios.
+
+---
+
+## Resolución de los hallazgos de la ronda 2
+
+Ronda 2: APPROVED, sin bloqueantes. Las tres mejoras se incorporan igualmente (`/opsx:update`), decididas por el agente como lead engineer, y quedan en el `[enhanced]` de DIS-78 («Ronda 2»):
+
+- **N1 — corregido, con otro observable para la cuenta de dos.** «An invalid token budget, cache flag or extra key…» envuelve el store, el modelo y el lector de código con un contador y exige que no reciban ninguna llamada. «The ask route is rate limited» usa un caso de uso que cuenta sus llamadas («called exactly twice»), no las `getProject` del store que propone el auditor: con `explain` real cada petición hace varias llamadas al store y la cuenta total no sería 2. Las tareas 2.4 y 4.3 dicen cómo se observa.
+- **N2 — corregido.** `design.md` U2, `proposal.md` y la tarea 3.2 listan las exportaciones de `index.ts`: los seis esquemas, sus tipos inferidos y `registerAskRoute`.
+- **N3 — corregido.** La antigua tarea 2.2 se divide en 2.2 (esquemas) y 2.3 (ruta y `buildApp`); las siguientes se renumeran (2.4, 2.5) y la referencia de 9.7 se ajusta.
+
+Veredicto final: **APPROVED** (ronda 2). Las correcciones de la ronda 2 son mejorables menores incorporadas por el agente tras el veredicto, sin cambio de alcance; no se lanza otra ronda.

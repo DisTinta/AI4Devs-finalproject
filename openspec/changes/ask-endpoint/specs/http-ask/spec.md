@@ -43,12 +43,14 @@ No issue and no other part of the response SHALL contain a received value.
 
 #### Scenario: An invalid token budget, cache flag or extra key answers VALIDATION_ERROR
 
-- **GIVEN** the app built with doubles and a stored project
+- **GIVEN** the app built with doubles and a stored project, the store, the model and the source tree
+  wrapped by a call counter
 - **WHEN** a valid question is sent, in turn, with `tokenBudget` `50`, `999`, `32001`, `8000.5` and
   `"8000"`, with `useCache` `"yes"`, with `hops` `2`, and with an extra key `x`
 - **THEN** each answers `400` `VALIDATION_ERROR` with one issue whose `code` is, in order,
   `too_small`, `too_small`, `too_big`, `invalid_type`, `invalid_type`, `invalid_type`,
-  `unrecognized_keys` and `unrecognized_keys`, and the question was not answered
+  `unrecognized_keys` and `unrecognized_keys`, and the store, the source tree and the model received
+  no call
 
 #### Scenario: A malformed project id answers VALIDATION_ERROR
 
@@ -249,10 +251,11 @@ SHALL answer `500` `INTERNAL`. The endpoint is limited by the API's rate limit b
 
 #### Scenario: The ask route is rate limited
 
-- **GIVEN** the app built with doubles, a stored project and a limit of 2 requests per 60 000 ms
+- **GIVEN** the app built with doubles, a stored project, a use case that counts its calls and a
+  limit of 2 requests per 60 000 ms
 - **WHEN** the IP `10.0.0.1` sends three valid questions
-- **THEN** the first two answer `200`, the third answers `429` `RATE_LIMITED`, and the question was
-  answered exactly twice
+- **THEN** the first two answer `200`, the third answers `429` `RATE_LIMITED`, and the use case was
+  called exactly twice
 
 ### Requirement: Ask events and verification verdicts
 

@@ -13,14 +13,15 @@
 ## 2. API: request schemas and route skeleton (TDD, design U1, U3, U6) — `http-ask` → "Ask request validation"
 
 - [ ] 2.1 RED: create `tests/unit/api/ask.spec.ts` with "An invalid question answers VALIDATION_ERROR without asking" (in-memory store with the acme-shop subset, store/model/source wrapped by `counting()`). See it fail (`404 NOT_FOUND`: no route)
-- [ ] 2.2 GREEN: `packages/api/src/schemas/ask.ts` (`askParamsSchema`, `askBodySchema`; `TOKEN_BUDGET_MIN`/`TOKEN_BUDGET_MAX`/`hasNoNul` imported from `@codemind/core`), `packages/api/src/routes/ask.ts` (`registerAskRoute` with the `explain` seam, the verification cache per registration, `getProject` then `explain`), `AppOptions.explain?` and the call in `buildApp` after `registerHealthRoute`; TSDoc on every export
-- [ ] 2.3 RED → GREEN, one at a time: "A question at the length bounds is accepted", "An invalid token budget, cache flag or extra key answers VALIDATION_ERROR", "A malformed project id answers VALIDATION_ERROR" (each a characterisation test if it passes at once, recorded in the step 9 report)
-- [ ] 2.4 RED → GREEN: "Optional fields are forwarded as the use case expects" (the `explain` seam records the requests; `useCache` never forwarded, `tokenBudget` only when sent, `projectId` the store's id)
+- [ ] 2.2 GREEN (schemas): `packages/api/src/schemas/ask.ts` (`askParamsSchema`, `askBodySchema`; `TOKEN_BUDGET_MIN`/`TOKEN_BUDGET_MAX`/`TOKEN_BUDGET_DEFAULT`/`hasNoNul` imported from `@codemind/core`); TSDoc on every export; `npm run typecheck` green
+- [ ] 2.3 GREEN (route): `packages/api/src/routes/ask.ts` (`registerAskRoute` with the `explain` seam, the verification cache per registration, `getProject` then `explain`), `AppOptions.explain?` and the call in `buildApp` after `registerHealthRoute`; TSDoc on every export; 2.1 green and `npx vitest run tests/unit/api` stays green
+- [ ] 2.4 RED → GREEN, one at a time: "A question at the length bounds is accepted", "An invalid token budget, cache flag or extra key answers VALIDATION_ERROR", "A malformed project id answers VALIDATION_ERROR" ("no call" observed with `counting()` on the store, model and source tree; each a characterisation test if it passes at once, recorded in the step 9 report)
+- [ ] 2.5 RED → GREEN: "Optional fields are forwarded as the use case expects" (the `explain` seam records the requests; `useCache` never forwarded, `tokenBudget` only when sent, `projectId` the store's id)
 
 ## 3. API: public response (TDD, design U2, U3) — `http-ask` → "Ask answered response", "Ask UNKNOWN response"
 
 - [ ] 3.1 RED: "Evidence ids are renumbered in evidence order" (seam returning a canned answered `explain` result). See it fail
-- [ ] 3.2 GREEN: first add `STATEMENT_VERIFICATIONS` (`as const`) to `packages/core/src/explain/claim-items.ts` and derive `StatementVerification` from it (same union; `npm run typecheck` and `npx vitest run tests/unit` stay green); then `askAnsweredSchema`, `askUnknownSchema`, `askUsageSchema`, `askResponseSchema` (plus `errorSchema` for `400`/`404`/`429`/`500`/`503`) in `schemas/ask.ts`; `toPublicAnswer` in `routes/ask.ts` (a statement id absent from `evidence` throws); exports in `packages/api/src/index.ts`
+- [ ] 3.2 GREEN: first add `STATEMENT_VERIFICATIONS` (`as const`) to `packages/core/src/explain/claim-items.ts` and derive `StatementVerification` from it (same union; `npm run typecheck` and `npx vitest run tests/unit` stay green); then `askAnsweredSchema`, `askUnknownSchema`, `askUsageSchema`, `askResponseSchema` (plus `errorSchema` for `400`/`404`/`429`/`500`/`503`) in `schemas/ask.ts`; `toPublicAnswer` in `routes/ask.ts` (a statement id absent from `evidence` throws); exports in `packages/api/src/index.ts`: the six schemas, their inferred types and `registerAskRoute`
 - [ ] 3.3 RED → GREEN, one at a time: "Internal fields of the answer are not sent", "Another UNKNOWN reason carries no message"
 - [ ] 3.4 RED → GREEN: "A statement citing an unknown evidence id answers INTERNAL" (`toPublicAnswer` throws; the route answers `500 INTERNAL`)
 
@@ -28,7 +29,7 @@
 
 - [ ] 4.1 RED: "An unknown project answers PROJECT_NOT_FOUND". See it fail (`500 INTERNAL` without the route's table)
 - [ ] 4.2 GREEN: `ASK_DOMAIN_ERRORS` in `routes/ask.ts` (`PROJECT_NOT_FOUND`, `INVALID_EXPLAIN_REQUEST` → `400` `invalid request`, `LLM_UNAVAILABLE`, `SOURCE_UNAVAILABLE`, `BUDGET_EXHAUSTED` built from the global entry plus `cacheOnly: true`), declared in the route's `config`
-- [ ] 4.3 RED → GREEN, one at a time: "Domain errors of the use case map to their answers", "An exhausted budget on ask answers 429 with the cache-only notice", "Another error of the use case answers INTERNAL", "The ask route is rate limited" (characterisation tests if they pass at once)
+- [ ] 4.3 RED → GREEN, one at a time: "Domain errors of the use case map to their answers", "An exhausted budget on ask answers 429 with the cache-only notice", "Another error of the use case answers INTERNAL", "The ask route is rate limited" ("called exactly twice" observed with the counting `explain` seam; characterisation tests if they pass at once)
 
 ## 5. API: events, verification verdicts and OpenAPI (TDD, design U3, U5) — `http-ask` → "Ask events and verification verdicts", "Ask in the OpenAPI document"
 
@@ -59,7 +60,7 @@
 - [ ] 9.4 Run `npm run test:mutation -- --mutate "packages/api/src/**/*.ts,!packages/api/src/server.ts,!packages/api/src/start.ts"` (score ≥ 80, the CI break threshold); for each meaningful survivor, a RED → GREEN test
 - [ ] 9.5 Run `/privacy-ethics-check` over the diff (the question reaches the model only in live mode; error bodies and the request log without request values; events without question or span text; the public body without internal ids); record the result in the report
 - [ ] 9.6 Verify the post-test state: same `project`, `claim` and `query_log` counts as in 9.1 (the integration specs roll back); no `.stryker-tmp/` left. Restore and document if not
-- [ ] 9.7 Create `openspec/changes/ask-endpoint/reports/YYYY-MM-DD-9-test-and-state-verification.md` from the template of `docs/openspec-tasks-mandatory-steps.md` §6, with the baseline, the characterisation tests (2.3, 4.3, 6.1), the edited existing tests (7.2), the Stryker score and survivors (9.4) and the privacy check (9.5)
+- [ ] 9.7 Create `openspec/changes/ask-endpoint/reports/YYYY-MM-DD-9-test-and-state-verification.md` from the template of `docs/openspec-tasks-mandatory-steps.md` §6, with the baseline, the characterisation tests (2.4, 4.3, 6.1), the edited existing tests (7.2), the Stryker score and survivors (9.4) and the privacy check (9.5)
 - [ ] 9.8 Mark complete only after the tests pass and the report exists
 
 ## 10. Backend: Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE)

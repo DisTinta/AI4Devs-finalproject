@@ -45,7 +45,7 @@ The decisions D1–D9 were taken by the agent as lead engineer in the autonomous
 - The answer's `events` are written to the request log (`evidence_broken` at `error`, the rest at
   `info`), as the CLI writes them to stderr.
 - One in-memory verification cache per app instance, shared by the requests of that instance (D9).
-- `packages/api/src/index.ts` exports the new schemas and the route registrar.
+- `packages/api/src/index.ts` exports the six new schemas, their inferred types and `registerAskRoute`.
 - Docs: `readme.md` §4 (the `/ask` example aligned with the public shape, without per-evidence
   `verification`; the error table with the new codes) and §2.5 (6) (the cache-only notice).
 
