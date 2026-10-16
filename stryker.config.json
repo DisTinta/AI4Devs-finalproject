@@ -16,11 +16,14 @@
     "low": 80,
     "break": 80
   },
-  "disableTypeChecks": "{packages/core,packages/cli}/src/**/*.ts",
+  "disableTypeChecks": "{packages/core,packages/cli,packages/api}/src/**/*.ts",
   "mutate": [
     "packages/core/src/**/*.ts",
     "!packages/core/src/**/*.d.ts",
     "packages/cli/src/**/*.ts",
-    "!packages/cli/src/index.ts"
+    "!packages/cli/src/index.ts",
+    "packages/api/src/**/*.ts",
+    "!packages/api/src/server.ts",
+    "!packages/api/src/start.ts"
   ]
 }

@@ -60,8 +60,8 @@
 
 ## 9. Quality gates configuration (design U10)
 
-- [ ] 9.1 `stryker.config.json`: `mutate` adds `packages/api/src/**/*.ts`, `!packages/api/src/server.ts` and `!packages/api/src/start.ts`; `disableTypeChecks` covers `packages/api`. `.github/workflows/ci.yml` `business` filter adds `packages/api/**`; update the comments that describe what Stryker mutates and why integration specs are excluded: the header of `vitest.stryker.config.ts` (it mutates core, cli and api; the excluded integration specs need Postgres) and the two comments in `ci.yml` (the `business` filter comment and the one above the mutation step)
-- [ ] 9.2 `npm run lint:architecture` green (`api-no-sql` holds: no `pg` import under `packages/api`); `grep -rn "from 'pg'" packages/api/src` prints nothing
+- [x] 9.1 `stryker.config.json`: `mutate` adds `packages/api/src/**/*.ts`, `!packages/api/src/server.ts` and `!packages/api/src/start.ts`; `disableTypeChecks` covers `packages/api`. `.github/workflows/ci.yml` `business` filter adds `packages/api/**`; update the comments that describe what Stryker mutates and why integration specs are excluded: the header of `vitest.stryker.config.ts` (it mutates core, cli and api; the excluded integration specs need Postgres) and the two comments in `ci.yml` (the `business` filter comment and the one above the mutation step)
+- [x] 9.2 `npm run lint:architecture` green (`api-no-sql` holds: no `pg` import under `packages/api`); `grep -rn "from 'pg'" packages/api/src` prints nothing
 
 ## 10. Backend: Review and Update Existing Tests (MANDATORY)
 
