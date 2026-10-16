@@ -2,7 +2,9 @@ import Fastify from 'fastify';
 import type { FastifyInstance, FastifyServerOptions } from 'fastify';
 import type { LlmPort, SourceTreePort, StorePort } from '@codemind/core';
 import { installErrorHandler } from './plugins/error-handler.js';
+import { registerOpenApi } from './plugins/openapi.js';
 import { installZodCompilers } from './plugins/zod-compiler.js';
+import { registerHealthRoute } from './routes/health.js';
 
 /** Largest request body accepted, in bytes (64 KiB). */
 export const BODY_LIMIT_BYTES = 65_536;
@@ -49,5 +51,7 @@ export async function buildApp(deps: AppDeps, options: AppOptions): Promise<Fast
   installZodCompilers(app);
   installErrorHandler(app);
   app.decorate('deps', Object.freeze({ ...deps }));
+  await registerOpenApi(app);
+  registerHealthRoute(app);
   return app;
 }

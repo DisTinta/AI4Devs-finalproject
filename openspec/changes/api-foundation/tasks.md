@@ -29,10 +29,10 @@
 
 ## 4. API: health and OpenAPI (TDD, design U5) — `api-foundation` → "Liveness route", "OpenAPI document at /docs"
 
-- [ ] 4.1 RED: create `tests/unit/api/health-docs.spec.ts` with "Health answers ok without touching the store" (store, model and source tree wrapped in the counting `Proxy`). See it fail (the old `index.ts` route is not in `buildApp`)
-- [ ] 4.2 GREEN: `packages/api/src/routes/health.ts` with `healthResponseSchema` in `schemas/common.ts`, registered by `buildApp`
-- [ ] 4.3 RED → GREEN: "The document lists health, the error schema and a route's body schema" with `packages/api/src/plugins/openapi.ts` (swagger with the `transform` of `zod-compiler.ts`, `components.schemas.Error`, swagger-ui at `/docs`; every `register` awaited in `buildApp`, design U6)
-- [ ] 4.4 RED → GREEN: "The viewer is served as HTML"
+- [x] 4.1 RED: create `tests/unit/api/health-docs.spec.ts` with "Health answers ok without touching the store" (store, model and source tree wrapped in the counting `Proxy`). See it fail (the old `index.ts` route is not in `buildApp`)
+- [x] 4.2 GREEN: `packages/api/src/routes/health.ts` with `healthResponseSchema` in `schemas/common.ts`, registered by `buildApp`
+- [x] 4.3 RED → GREEN: "The document lists health, the error schema and a route's body schema" with `packages/api/src/plugins/openapi.ts` (swagger with the `transform` of `zod-compiler.ts`, `components.schemas.Error`, swagger-ui at `/docs`; every `register` awaited in `buildApp`, design U6)
+- [x] 4.4 RED → GREEN: "The viewer is served as HTML"
 
 ## 5. API: rate limit by IP (TDD, design U4) — `api-foundation` → "Rate limit by IP"
 

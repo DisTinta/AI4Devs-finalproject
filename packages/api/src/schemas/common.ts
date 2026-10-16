@@ -14,3 +14,6 @@ export const errorSchema = z.object({
 
 /** The body of an error response. */
 export type ErrorBody = z.infer<typeof errorSchema>;
+
+/** The body of `GET /health`. */
+export const healthResponseSchema = z.object({ status: z.literal('ok') });
