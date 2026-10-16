@@ -129,9 +129,22 @@ Valores de `/usage` antes del piloto (16-10-2026, plan de suscripción):
 
 | Indicador | Antes del piloto | Después del piloto |
 |---|---|---|
-| Sesión actual (ventana de 5 h) | 13 % | — |
-| Semana, todos los modelos (reinicio 18-10, 12:00) | 51 % | — |
+| Sesión actual (ventana de 5 h) | 13 % | 24 % |
+| Semana, todos los modelos (reinicio 18-10, 12:00) | 51 % | 56 % |
 
 Diagnóstico de `/usage` sobre las últimas 24 h: el 98 % del uso vino de sesiones con muchos subagentes y
 el 81 % se consumió con más de 150k tokens de contexto. Por eso el workflow asigna modelo por paso:
 Opus para el razonamiento (ingeniero jefe, tests, revisión adversarial) y Sonnet para los pasos mecánicos.
+
+## Resultado del piloto (DIS-76)
+
+- **DIS-76** completó el ciclo entero en 3 h 33 min de reloj, con 7 agentes del workflow y 773 llamadas a
+  herramientas, hasta el commit de `/opsx:archive` en el PR #45 con CI en verde. El `spec-auditor` pidió
+  cambios tres veces y aprobó en la cuarta pasada.
+- **Coste:** unos 5 puntos del límite semanal (51 % → 56 %); unos 53 $ equivalentes de API en la sesión
+  (Opus 41 $, Sonnet 13 $). Por los registros locales, 137M de lectura y 3,7M de escritura de caché:
+  parecido a un ticket manual, con más escritura de caché (cada subagente vuelve a leer el proyecto).
+- **Bloqueo:** el clasificador de permisos del modo automático de Claude Code denegó `gh pr merge` por
+  «Merge Without Review». El merge lo hizo la autora. DIS-78 no arrancó porque depende de DIS-76.
+- **Decisión tras el piloto:** seguir en tandas que paren antes de agotar el límite semanal (unos 7 tickets
+  antes del reinicio del 18-10 y el resto después), para no dejar tickets a medias.
