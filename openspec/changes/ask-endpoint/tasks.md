@@ -39,8 +39,8 @@
 
 ## 6. Integration over the seed (TDD, design U7) — `http-ask` scenarios over Postgres
 
-- [ ] 6.1 RED: create `tests/integration/api/ask.spec.ts` (template `tests/integration/cli/ask-command.spec.ts`: acme-shop copy + `buildOne` in `beforeAll`, `describeWithDatabase`, `useTransactionPerTest`, seed loaded in the test's transaction, `createPostgresStore({ transaction: db() })`, `createGitSourceTree()`, `buildApp` with `rateLimit: { max: 1000, windowMs: 60000 }`) with "An answered question returns only the public fields over the seed". See it fail if the route is not yet complete; otherwise record it as a characterisation test
-- [ ] 6.2 RED → GREEN, one at a time: "Evaluation mode answers UNKNOWN llm-required over the seed", "An upper-case project id resolves the same project", "A spent daily budget stops the model over the seed" (fixed clock `2031-01-15T12:00:00Z`, one `query_log` row inserted at that instant inside the test's transaction, `withDailyBudget` over the transaction's store; the transaction rollback restores the data)
+- [x] 6.1 RED: create `tests/integration/api/ask.spec.ts` (template `tests/integration/cli/ask-command.spec.ts`: acme-shop copy + `buildOne` in `beforeAll`, `describeWithDatabase`, `useTransactionPerTest`, seed loaded in the test's transaction, `createPostgresStore({ transaction: db() })`, `createGitSourceTree()`, `buildApp` with `rateLimit: { max: 1000, windowMs: 60000 }`) with "An answered question returns only the public fields over the seed". See it fail if the route is not yet complete; otherwise record it as a characterisation test
+- [x] 6.2 RED → GREEN, one at a time: "Evaluation mode answers UNKNOWN llm-required over the seed", "An upper-case project id resolves the same project", "A spent daily budget stops the model over the seed" (fixed clock `2031-01-15T12:00:00Z`, one `query_log` row inserted at that instant inside the test's transaction, `withDailyBudget` over the transaction's store; the transaction rollback restores the data)
 
 ## 7. Backend: Review and Update Existing Tests (MANDATORY)
 
