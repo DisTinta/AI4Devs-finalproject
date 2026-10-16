@@ -599,3 +599,281 @@ Follow-ups). Decisions added to the DIS-21 `[enhanced]` description ("Ampliació
 | N5 | Tasks 16.1 and 16.9 say the ADR lives on `feature/DIS-101-readme-entrega-2` and is cited by branch and name until it reaches the base branch. |
 | N7 | Task 10.1 covers the fold of the three write-error mappers. |
 | N9 | B follow-up for DIS-26 in design → Follow-ups and in the DIS-21 description. |
+
+## Run 3
+
+Verdict: CHANGES REQUIRED
+
+- Date: 2026-10-17
+- **What I read:**
+  - the change: `proposal.md`, `design.md`, `tasks.md`, and the five deltas (`answer-cache`, `explain`, `graph-store`, `http-ask`, `cli-ask`);
+  - `reports/2026-10-17-spec-audit.md` (runs 1 and 2, with both resolution tables);
+  - Linear DIS-21 (with `[enhanced]` D1–D14, "Decisiones tras la auditoría de specs" and the second-pass amendments) and its 3 comments (handovers from DIS-78, DIS-41 and DIS-39);
+  - the parent DIS-16 (no comments);
+  - `docs/openspec-tasks-mandatory-steps.md`, `docs/project-context.md` (the explain/ask notes), `openspec/specs/explain/spec.md` (requirement list, "Prompt and evidence ids", "Untrusted content sanitization");
+  - the code: `packages/core/src/context/anchor.ts`;
+  - the tests: `tests/support/explain-doubles.ts`, `tests/unit/explain/{explain,explain-verification,explain-sanitization}.spec.ts`, `tests/unit/api/{ask.spec.ts,support.ts}`, `tests/unit/cli/ask-command.spec.ts`, `tests/integration/explain/explain.spec.ts`, `tests/integration/cli/ask-command.spec.ts`, `tests/integration/api/ask.spec.ts`;
+  - the `docs/adr/` listing.
+- **Treated as delegated decisions, not reopened:** D1–D14 and the post-audit amendments of D3, D4, D5, D6, D8 and D14. The agent took them as lead engineer under ADR `20261016-autonomous-workflow-run-entrega-2`, and the author reviews them later.
+
+**Questions for the author:** none.
+
+---
+
+### 0. Run 2 findings — resolution check
+
+| Finding | Status | Where |
+|---|---|---|
+| N1 | **Resolved for the eight assertions it named**, but the same kind of breakage exists in two tests run 2 did not see (P1) | design C5 lines 175-179 and C8 lines 264-276; proposal lines 104-106; task 9.2; DIS-21 "Ampliación de D6 (segunda pasada)"; `QueryLogParts.cacheHit?` in C6 line 199 |
+| N2 | Resolved | `http-ask` delta lines 141-149; task 7.3; D14 amendment. The claim holds: `anchor.ts` drops `como`, `los` and `de`/`un`/`se` (stop words or shorter than 3), so the terms are `gestionan`/`gesti`, `reembolsos`/`reemb`, `pedido`/`pedid`. The run 2 grep for the shorter `gest`/`reem`/`pedi` covers them (see P2 for the wording). |
+| N3 | Resolved | `explain` delta lines 912-913; C6 line 201 |
+| N4 | Resolved | proposal line 21; design lines 26-28 and 346; task 15.1 |
+| N5 | Resolved | tasks 16.1 and 16.9. The ADR is still missing from `docs/adr/` on this branch, as the tasks now say. |
+| N7 | Resolved | task 10.1 |
+| N9 | Resolved | design → Follow-ups lines 354-359; DIS-21 D14 amendment |
+
+---
+
+### 1. Scope against the ticket
+
+**Clean.**
+- Everything follows from DIS-21's DoD and `[enhanced]` D1–D14 and their amendments.
+- The run 2 additions add no new scope:
+  - the refund scenario pins D14;
+  - the extended assertions follow from the modified precedence;
+  - "a hit is never saved again" is the D4 amendment.
+- The non-goals still match the ticket: DIS-26, DIS-34, CM-HU-14.1, CM-HU-19, DIS-9, no migration.
+
+### 2. Inherited acceptance criteria
+
+**Clean.**
+
+| DIS-16 AC | Requirement → scenario | Status |
+|---|---|---|
+| AC1 hit with variants | explain "A cached question is answered from the cache in both modes"; answer-cache "Case, accent and punctuation variants share one key" | covered |
+| AC2 evaluation miss | explain "Evaluation mode without an entry answers llm-required and saves nothing" | covered |
+| AC3 fingerprint check | CM-HU-14.1 | out of scope, correct |
+| AC4 `useCache` true/false | "A live answer is saved once…", "Turning the cache off…" | covered |
+| AC5 save of a live miss | "A live answer is saved once…"; answer-cache "A stored response keeps the answer without its events" | covered |
+| AC6 refund question | http-ask "The refund demo question answers no-anchor without the model over the seed" (D14) | covered |
+
+DIS-21's own `[enhanced]` ACs all have a requirement and a scenario.
+
+### 3. Missing scenarios
+
+**Clean.** Every MUST/SHALL clause added since run 2 has a scenario:
+- "SHALL NOT be saved again" is checked by the hit-count 2 assertion of "A cached question … both modes" and by "A live answer is saved once…".
+- The refund pinning has its own scenario.
+
+### 4. Ambiguity
+
+None of fast / easy / secure / efficient / many / appropriate / robust appears with a vague meaning.
+
+- **P3 (improvable).** `explain` delta, "Precedence and UNKNOWN answers", lines 124-127: "The source reader SHALL receive the pack's batched read and, for `broken-evidence` and an answer with statements only, the verification reads …; none for a cache hit, `invalid-model-output` or `no-evidence`."
+  - **Problem:** "none" reads as "no verification read". A cache hit also gets no pack read. The "Answer cache" → Lookup paragraph says so ("without … reading the source"), but this count sentence does not.
+  - **Fix:** "The source reader SHALL receive no call for a cache hit (no pack is built). Otherwise it receives the pack's batched read and, for `broken-evidence` and an answer with statements only, the verification reads of step 11 after the model. `invalid-model-output` and `no-evidence` get no verification read."
+
+### 5. Open decisions
+
+- **P1 (blocking). Two more existing tests ask the same question twice on one store, and the change does not say how to update them.**
+  - **The tests:**
+    - `tests/unit/explain/explain.spec.ts:368-392` "builds the pack with the hops and budget of the request" (not a scenario).
+      - It calls `explain(d.deps, { …Q1, hops: 1 })` and then `explain(d.deps, { …Q1, tokenBudget: 1000 })` on the same `doubles()`.
+      - The first answer is stored with one `current` statement (the default verifier entails), so it is cacheable and gets saved.
+      - The key ignores `tokenBudget`/`hops` (the change's own rule, "The cache key ignores the budget and the hops"), so the second call is a hit.
+      - Then `d.model.requests.filter(answer)[1]` is `undefined`, and `sentSpans(1)` throws.
+    - `tests/unit/explain/explain-sanitization.spec.ts:62-99` "Untrusted text reaches the prompt wrapped and unchanged".
+      - It calls `explain(d.deps, { …question })` twice on the same `project(...)` doubles. The script `citingIds('ok', [['E1']])` makes the first answer stored and cacheable.
+      - The second call becomes a hit and writes no claim, so `d.loaded.storedClaims()` holds one claim.
+      - `two` is then `undefined`, and `expect(two).toBe(one)` fails.
+  - **Why it is blocking:**
+    - Task 9.2 allows edits only to "the four of 6.9 and 7.1, and the eight exact `order`/`calls` assertions of design C8".
+    - `docs/openspec-tasks-mandatory-steps.md` §6.2 forbids weakening assertions.
+    - So the implementer would have to choose alone between dropping the second call (which weakens the test), giving each call its own doubles, or sending `useCache: false`. This is the same open decision as N1. Run 2 checked only `explain-sanitization.spec.ts:363-396` and `explain-verification.spec.ts`.
+  - **What I checked and found unaffected** (each run builds its own doubles or store, or never reaches a cacheable answer):
+    - `explain.spec.ts:134-174, 447-475, 1131-1138`;
+    - `explain-sanitization.spec.ts:231, 288-299, 363-418`;
+    - `explain-verification.spec.ts:386-522, 954-991, 1149-1184, 1231-1267`;
+    - `tests/unit/api/ask.spec.ts`: `askApp()` is a fresh store in evaluation mode, and the use-case seams record requests;
+    - `tests/unit/cli/ask-command.spec.ts`: `run()` builds a new store each time (line 92);
+    - the integration explain, API and CLI specs: one ask per test, inside the harness transaction or a cleaned-up pool project.
+  - **Fix (decision to record):**
+    - On the repeat call of both tests, send `useCache: false`, as already done for the three B1 scenarios.
+    - Neither main scenario describes the repeat:
+      - the hops test is not a scenario;
+      - "Untrusted text reaches the prompt wrapped and unchanged" (`openspec/specs/explain/spec.md:307-317`) explains once, and its second call checks prompt-hash stability ("Prompt and evidence ids" → "the same question and pack SHALL give the same hash").
+    - So no spec delta is needed. Only test edits are needed, to be listed in C8, proposal Impact, task 9.2 (or 6.9) and the DIS-21 D6 amendment.
+    - Do not give them separate doubles: the hops test compares two packs built from one store, and the hash test compares two provenances of one store. `useCache: false` keeps both assertions as strict as they are.
+
+### 6. Contradictions inside the change
+
+- **P4 (improvable). Stale counts after N2.**
+  - **Design C8** lines 276-277: "`tests/integration/api/ask.spec.ts`: the two `http-ask` 'Ask from the answer cache' scenarios". There are now three.
+  - **Proposal → Capabilities** → `http-ask` line 79: "new requirement 'Ask from the answer cache' (a hit over the seed, the spent budget)". It leaves out the refund `no-anchor` scenario.
+  - **Fix:** in C8, "the three `http-ask` 'Ask from the answer cache' scenarios". In the proposal, "(a hit over the seed, the spent budget, the refund demo question answering `no-anchor` without the model, D14)".
+
+Otherwise **clean.**
+
+### 7. Contradictions with the project
+
+**Clean.**
+- The MODIFIED requirements are copied in full and only change what they say they change.
+- No ADR in `docs/adr/` is contradicted. The four 2026-10-1x ADRs say nothing about the answer cache.
+- `docs/project-context.md` lines 612, 620, 623 and 893 are the stale notes that C10 and task 14.2 already list.
+- `backend-standards.md` §4 (closed sets) and §7 (factories) are respected.
+
+The open relaxation of `docs/openspec-tasks-mandatory-steps.md` §3 (PR without confirmation, the agent merges) rests on the autonomous-run ADR. Tasks 16.1 and 16.9 cite it by branch and name. It is not reopened here.
+
+### 8. Contrast with the real code
+
+- **P1** (above) is the code-facing finding: `tests/unit/explain/explain.spec.ts:384-385` and `tests/unit/explain/explain-sanitization.spec.ts:76-77, 97-98`.
+- **P2 (improvable). Prefixes misquoted in D14 and design C11.**
+  - Design C11 (lines 303-305) and the DIS-21 D14 text give the search terms as `gestionan`/`gest`, `reembolsos`/`reem` and `pedido`/`pedi`.
+  - `anchor.ts:13-16, 57-66` adds a **5-character** prefix (`PREFIX_LENGTH = 5`), and only to tokens of at least 6 characters. So the terms are `gestionan`/`gesti`, `reembolsos`/`reemb`, `pedido`/`pedid`.
+  - The conclusion holds: the 4-character grep is a superset and found 0 matches. But the cited terms are wrong.
+  - **Fix:** correct the three prefixes in C11, and add an `[enhanced]` amendment (the D14 bullet itself is not the `[original]` block, but amend it rather than rewrite it, for traceability).
+- **Checked and consistent:**
+  - the `doubles()` wrapper only records `findClaimsOverlapping`, `saveClaims` and `saveQueryLog` today (`explain-doubles.ts:103-117`), as C5 says it must extend;
+  - `counting()` in `tests/unit/api/support.ts:96-109` is a `Proxy`, so the four new `StorePort` methods are counted with no change;
+  - the eight N1 line numbers still match the current tests (`explain.spec.ts:106, 129, 183, 306, 322, 769`; `explain-verification.spec.ts:165, 206`);
+  - `explain.spec.ts:83` and `:233` use `toMatchObject`, so the new counters do not break them.
+
+### 9. Task size
+
+**Clean.** P1 adds two one-line edits (a `useCache: false` each) to task 6.9 or 9.2, and both still fit in one turn.
+
+### 10. Mandatory steps
+
+**Clean.**
+- Step 0 is first and labelled (0.1 sets the Linear state, 0.2–0.3 the branch, 0.4 the baseline).
+- MANDATORY labels are on 9, 11, 12, 13, 14 and 16; AGENT MUST EXECUTE is on 12, 13 and 16.
+- Report paths and patterns are named (11.7, 12.8, 16.4–16.6).
+- State restoration is in 11.6, 12.5 and 12.7.
+- Manual step 12.4 covers the success path, invalid input and a missing resource.
+- Pre-merge Review is last, with archive before merge (16.9); the run's ADR is cited.
+
+### 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| answer-cache · Question normalization | Case, accent and punctuation variants share one key | 1.1, 1.2 |
+| | Identifiers, symbols and compatibility characters become plain words | 1.3 |
+| | A question of only punctuation has no key, and a key is stable | 1.3 |
+| answer-cache · Cacheable answers | Only stored current answers and no-evidence unknowns are cacheable | 2.2, 2.3 |
+| answer-cache · Stored response | A stored response keeps the answer without its events | 2.4 |
+| | A no-evidence unknown is stored without events | 2.4 |
+| | Invalid stored responses are rejected without leaking | 2.5 |
+| answer-cache · Answer of a cache hit | A hit carries the stored answer and the usage of this call | 2.6 |
+| | A cached unknown is answered without usage | 2.6 |
+| explain · Explain request (MOD) | A non-boolean cache flag is rejected before the store | 5.1 |
+| | 6 unchanged (+ N1 `calls` assertions) | 9.2, 9.3 |
+| explain · Precedence and UNKNOWN answers (MOD) | A question without anchor is not looked up in the cache | 6.3 |
+| | 14 unchanged (+ N1 `order` assertions) | 9.2, 9.3 |
+| explain · Untrusted content sanitization (main, not modified) | Untrusted text reaches the prompt wrapped and unchanged (**its test's repeat call breaks, P1**) | **hole: no task updates `explain-sanitization.spec.ts:76-98`** |
+| explain · (non-scenario test) | builds the pack with the hops and budget of the request (**P1**) | **hole: no task updates `explain.spec.ts:368-392`** |
+| explain · Explain events and logging (MOD) | 5 unchanged; `answer_not_cached` via the Answer cache scenarios | 5.2, 6.6; 9.3 |
+| explain · Answer usage (MOD) | 4 unchanged; hit usage via 2.6 / 6.1 | 6.2; 9.3 |
+| explain · Query log (MOD) | An answer leaves one query log row the daily spend sees (modified) | 6.9 |
+| | 14 unchanged | 9.3 |
+| explain · Answer with typed statements (MOD) | A valid but irrelevant citation is cited and never a fact (modified) | 6.9 |
+| | 15 unchanged | 9.3 |
+| explain · Answer cache (ADD) | A cached question is answered from the cache in both modes | 6.1, 6.2 |
+| | A hit over the database counts in its entry and its row | 6.8 |
+| | Evaluation mode without an entry answers llm-required and saves nothing | 6.3 |
+| | A live answer is saved once and a repeat is served from the cache | 6.4 |
+| | Turning the cache off calls the model and replaces the entry | 6.5a |
+| | An invalid entry is a miss and a live answer replaces it | 6.5a |
+| | A no-evidence unknown is cached and served without the model | 6.5a |
+| | Answers that are not cacheable are not saved | 6.5b |
+| | The cache key ignores the budget and the hops | 6.5b |
+| | The cache is scoped by project | 6.3 |
+| | A failed cache write still answers and says so without leaking | 6.6 |
+| | Other cache write errors propagate after the row | 6.6 |
+| | A hit whose row is not written still answers and says so | 6.6 |
+| | A failing cache lookup or hit record stops before the model | 6.3 |
+| | A cached question answers with the daily budget spent | 6.7 |
+| graph-store · Answer cache entries | A saved entry is found by its project and key | 4.1, 4.2 |
+| | Saving a key again replaces its entry | 4.3a |
+| | Concurrent saves of one key leave one entry | 4.4 |
+| | The most recent of duplicated entries is found | 4.3a |
+| | Touching an entry records the hit | 4.3a |
+| | Invalidating a project deletes only its entries | 4.3a |
+| | Invalid cache arguments are rejected before querying | 4.3b |
+| | Cache calls on an unknown project fail without writing | 4.3b |
+| | A failed cache write does not leak | 4.3b |
+| | A failed rollback of a cache write is a write failure | 4.5 |
+| | Cache writes on the store's own connections commit | 4.4 |
+| | A store that cannot give a connection fails cache writes with its own error | 4.5 |
+| | The in-memory double keeps, checks and fails cache entries | 3.1, 3.3 |
+| http-ask · Ask request validation (MOD) | Optional fields are forwarded as the use case expects | 7.1, 7.2 |
+| | 4 unchanged | 9.3 |
+| http-ask · Ask events and verification verdicts (MOD) | Requests to one API share verification verdicts (modified) | 7.1 |
+| | The answer's events are logged by level (unchanged) | 9.3 |
+| http-ask · Ask from the answer cache (ADD) | A cached question answers from the cache over the seed | 7.3 |
+| | A spent daily budget still answers a cached question | 7.3 |
+| | The refund demo question answers no-anchor without the model over the seed | 7.3 |
+| cli-ask · Ask from the answer cache (ADD) | Evaluation mode prints a cached answer | 8.1 |
+
+**Two holes, both from P1: blocking.** Every scenario written in the deltas maps to a task. The holes are two existing tests that this change breaks and that no task is allowed to edit.
+
+---
+
+### New findings — summary
+
+| Id | Point | Severity | Subject |
+|---|---|---|---|
+| P1 | 5, 8, 11 | **blocking** | Two more existing tests repeat a cacheable question on one store (`explain.spec.ts:368-392`, `explain-sanitization.spec.ts:62-99`). They break, and task 9.2 does not allow editing them. |
+| P2 | 8 | improvable | D14 / C11 quote 4-character prefixes; `anchor.ts` uses 5 (`gesti`, `reemb`, `pedid`) |
+| P3 | 4 | improvable | The source-reader count sentence does not say a cache hit makes no pack read |
+| P4 | 6 | improvable | C8 says "two" http-ask cache scenarios (now three); proposal Capabilities omits the refund scenario |
+
+---
+
+### Corrections to apply
+
+### `openspec/changes/evaluation-cache/design.md`
+
+- **C8, "Existing tests whose contract this change modifies" (P1).** After the eight-assertion list, add:
+  > "Two more existing tests ask the same cacheable question twice on one store, and their repeat would now be a cache hit. They send the repeat with `useCache: false`, because they are about the pack's options and the prompt hash, not the answer cache:
+  > - `tests/unit/explain/explain.spec.ts` 'builds the pack with the hops and budget of the request': the second call (`tokenBudget: 1000`) sends `useCache: false`;
+  > - `tests/unit/explain/explain-sanitization.spec.ts` 'Untrusted text reaches the prompt wrapped and unchanged': the second call sends `useCache: false`.
+  >
+  > Neither main scenario describes the repeat, so no spec delta is needed."
+- **C8, line 276-277 (P4).** "the two `http-ask` 'Ask from the answer cache' scenarios" → "the three `http-ask` 'Ask from the answer cache' scenarios".
+- **C11, lines 303-305 (P2).** "`gestionan`/`gest`, `reembolsos`/`reem` and `pedido`/`pedi`" → "`gestionan`/`gesti`, `reembolsos`/`reemb` and `pedido`/`pedid` (`PREFIX_LENGTH` 5 of `anchor.ts`; `como`, `los`, `se`, `de`, `un` are dropped)".
+- **Follow-ups (run 3).** Add: "Spec audit run 3 (CHANGES REQUIRED) — all **A**: P1 (two more repeated-question tests send the repeat with `useCache: false`: C8, proposal Impact, task 9.2), P2 (prefixes in C11), P3 (source-reader count sentence), P4 (C8 and proposal counts)."
+
+### `openspec/changes/evaluation-cache/proposal.md`
+
+- **Impact → Tests (P1).** After the sentence on the eight assertions, add: "Two more existing unit tests that repeat a cacheable question on one store send the repeat with `useCache: false`: 'builds the pack with the hops and budget of the request' (`explain.spec.ts`) and 'Untrusted text reaches the prompt wrapped and unchanged' (`explain-sanitization.spec.ts`)."
+- **Capabilities → `http-ask` (P4).** "(a hit over the seed, the spent budget)" → "(a hit over the seed, the spent budget, and the refund demo question answering `no-anchor` without the model, D14)".
+
+### `openspec/changes/evaluation-cache/specs/explain/spec.md`
+
+- **MODIFIED "Precedence and UNKNOWN answers", count paragraph (P3).** Replace "The source reader SHALL receive the pack's batched read and, for `broken-evidence` and an answer with statements only, the verification reads of step 11 after the model; none for a cache hit, `invalid-model-output` or `no-evidence`." with:
+  > "The source reader SHALL receive no call for a cache hit (no pack is built). Otherwise it receives the pack's batched read and, for `broken-evidence` and an answer with statements only, the verification reads of step 11 after the model. `invalid-model-output` and `no-evidence` get no verification read."
+
+### `openspec/changes/evaluation-cache/tasks.md`
+
+- **6.9 (P1).** Append: "; and, in the same way, the repeat call of `tests/unit/explain/explain.spec.ts` 'builds the pack with the hops and budget of the request' and of `tests/unit/explain/explain-sanitization.spec.ts` 'Untrusted text reaches the prompt wrapped and unchanged' sends `useCache: false` (design C8); they fail without it once 6.4 is green".
+- **9.2 (P1).** "the four of 6.9 and 7.1, and the eight exact `order`/`calls` assertions of design C8" → "the four of 6.9 and 7.1, the two repeated-question unit tests of 6.9 (design C8), and the eight exact `order`/`calls` assertions of design C8".
+
+### Linear DIS-21 (do not touch the `[original]` block; Spanish text in the `[enhanced]` part, under «Decisiones tras la auditoría de specs»)
+
+- **Ampliación de D6 (tercera pasada) (P1), add:**
+  > «Otros dos tests unitarios vigentes repiten una pregunta cacheable sobre el mismo store: "builds the pack with the hops and budget of the request" (`tests/unit/explain/explain.spec.ts`) y "Untrusted text reaches the prompt wrapped and unchanged" (`tests/unit/explain/explain-sanitization.spec.ts`). Con la caché activa, la repetición sería un acierto y los dos fallarían, así que la repetición se envía con `useCache: false`. Comprueban las opciones del pack y la estabilidad del hash del prompt, no la caché de respuestas. Ningún escenario principal describe esa repetición, así que la spec no cambia.»
+- **Ampliación de D14 (tercera pasada) (P2), add:**
+  > «Corrección: `anchor.ts` añade un prefijo de 5 caracteres (`PREFIX_LENGTH`), así que los términos de la Q6 son `gestionan`/`gesti`, `reembolsos`/`reemb` y `pedido`/`pedid`; `como`, `los`, `se`, `de` y `un` se descartan. La búsqueda de `gest`, `reem` y `pedi` en `seeds/graph-dump.sql` cubre estos términos, y la conclusión no cambia.»
+
+### Resolution of run 3 (main session, 2026-10-17)
+
+Every finding resolved as lead engineer with `/opsx:update` (destination **A**; `design.md` →
+Follow-ups). Decisions added to the DIS-21 `[enhanced]` description ("Ampliación de D6/D14 (tercera
+pasada)").
+
+| Finding | Resolution |
+|---|---|
+| P1 | The repeat call of "builds the pack with the hops and budget of the request" and of "Untrusted text reaches the prompt wrapped and unchanged" sends `useCache: false` (design C8, proposal Impact, tasks 6.9 and 9.2); no spec delta, since neither main scenario describes the repeat. |
+| P2 | Design C11 and the DIS-21 description give the 5-character prefixes (`gesti`, `reemb`, `pedid`). |
+| P3 | `explain` "Precedence and UNKNOWN answers": the source reader receives no call for a cache hit; otherwise the pack's read plus the verification reads where they apply. |
+| P4 | Design C8 says three `http-ask` cache scenarios; the proposal's `http-ask` line names the refund scenario. |

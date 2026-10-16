@@ -273,8 +273,17 @@ it with a `sumCostSince` stub (the `store` hook of `doubles()`).
     the no-evidence run now differ);
   - `explain.spec.ts:106, 129, 183` (`calls` compared whole): add `findCacheEntry: 0,
     saveCacheEntry: 0, touchCacheEntry: 0, invalidateCache: 0`.
-  The line numbers are those of the propose commit; the implementer re-locates them by test name. `tests/integration/api/ask.spec.ts`: the two
-  `http-ask` "Ask from the answer cache" scenarios.
+  The line numbers are those of the propose commit; the implementer re-locates them by test name.
+  Two more existing unit tests ask the same cacheable question twice on one store, and their repeat
+  would now be a cache hit. They send the repeat with `useCache: false`, because they are about the
+  pack's options and the prompt hash, not the answer cache (separate doubles would weaken them: each
+  compares two calls over one store):
+  - `tests/unit/explain/explain.spec.ts` "builds the pack with the hops and budget of the request":
+    the second call (`tokenBudget: 1000`) sends `useCache: false`;
+  - `tests/unit/explain/explain-sanitization.spec.ts` "Untrusted text reaches the prompt wrapped and
+    unchanged": the second call sends `useCache: false`.
+  Neither main scenario describes the repeat, so no spec delta is needed.
+- `tests/integration/api/ask.spec.ts`: the three `http-ask` "Ask from the answer cache" scenarios.
 - `tests/integration/cli/ask-command.spec.ts`: "Evaluation mode prints a cached answer".
 - Mutation: `npm run test:mutation` covers `packages/core/src` (and `cache/` with it); survivors in
   `normalize.ts` and `response-cache.ts` get a RED → GREEN test.
@@ -301,7 +310,8 @@ entry exists, golden entries arrive with DIS-26; the in-memory double's cache AP
 ### C11 — The refund demo question keeps `no-anchor` first (D14, spec audit Q1)
 
 The demo question Q6 `¿Cómo se gestionan los reembolsos de un pedido?` (`fixtures/README.md`) has the
-search terms `gestionan`/`gest`, `reembolsos`/`reem` and `pedido`/`pedi`; no symbol of the acme-shop
+search terms `gestionan`/`gesti`, `reembolsos`/`reemb` and `pedido`/`pedid` (`PREFIX_LENGTH` 5 of
+`anchor.ts`; `como`, `los`, `se`, `de` and `un` are dropped); no symbol of the acme-shop
 seed contains any of them (checked against `seeds/graph-dump.sql`), so it answers `UNKNOWN`
 `no-anchor` at step 2, before the cache. Decision (agent as lead engineer): keep D2, `no-anchor`
 before the lookup. `no-anchor` already answers that question honestly, with no model call and at no
@@ -388,3 +398,8 @@ task 9.2; `QueryLogParts.cacheHit` optional), N2 (new `http-ask` scenario pinnin
 task 7.3), N3 (a hit is never saved again: `explain` "Answer cache" → Save, C6), N4 (D1–D14 and
 C1–C11 everywhere), N5 (tasks 16.1/16.9 say where the ADR lives), N7 (task 10.1 covers the mapper
 fold), N9 (B follow-up for DIS-26 above).
+
+Spec audit run 3 (CHANGES REQUIRED) — all **A**, fixed in this change's artifacts on 2026-10-17: P1
+(two more repeated-question unit tests send the repeat with `useCache: false`: C8, proposal Impact,
+tasks 6.9 and 9.2), P2 (the 5-character prefixes in C11), P3 (the source-reader count sentence of
+"Precedence and UNKNOWN answers"), P4 (C8 and proposal counts of the `http-ask` cache scenarios).

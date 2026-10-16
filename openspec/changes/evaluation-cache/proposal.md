@@ -76,7 +76,8 @@ D8) were taken by the agent as lead engineer in the autonomous run of Entrega 2 
   in-memory double).
 - `http-ask`: "Ask request validation" (`useCache` forwarded and effective), "Ask events and
   verification verdicts" (its repeated requests send `useCache: false`); new requirement "Ask from the
-  answer cache" (a hit over the seed, the spent budget).
+  answer cache" (a hit over the seed, the spent budget, and the refund demo question answering
+  `no-anchor` without the model, D14).
 - `cli-ask`: new requirement "Ask from the answer cache" (a cached answer printed in evaluation mode).
 
 ## Impact
@@ -103,7 +104,10 @@ D8) were taken by the agent as lead engineer in the autonomous run of Entrega 2 
   and `http-ask` "Requests to one API share verification verdicts" (`tests/unit/api/ask.spec.ts`).
   The exact call-order and call-count assertions of eight existing explain tests are extended with
   the cache calls (`tests/unit/explain/explain.spec.ts` and `explain-verification.spec.ts`, design
-  C8): the precedence they pin now includes the lookup and the save.
+  C8): the precedence they pin now includes the lookup and the save. Two more existing unit tests
+  that repeat a cacheable question on one store send the repeat with `useCache: false`: "builds the
+  pack with the hops and budget of the request" (`explain.spec.ts`) and "Untrusted text reaches the
+  prompt wrapped and unchanged" (`explain-sanitization.spec.ts`).
 - Dependencies: none new.
 - Security and privacy: the normalized question is stored only in `cache_entry.question_normalized`,
   the same local-database policy as `query_log.question` (DIS-74 D3); it never reaches a log, an

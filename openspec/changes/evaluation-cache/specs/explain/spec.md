@@ -122,9 +122,9 @@ hit, `llm-required` and `over-budget`, and once, before the model, for `invalid-
 `no-evidence`, `broken-evidence` and an answer with statements. The model SHALL be called 0 times up
 to step 7 (a cache hit included), once with the purpose `answer` at step 8, and with the purpose `verify` only at step 12:
 0 times for `invalid-model-output`, `no-evidence` and `broken-evidence`. The source reader SHALL
-receive the pack's batched read and, for `broken-evidence` and an answer with statements only, the
-verification reads of step 11 after the model; none for a cache hit, `invalid-model-output` or
-`no-evidence`. The answer cache SHALL be looked up 0 times for an invalid request, `no-anchor` and a
+receive no call for a cache hit (no pack is built). Otherwise it SHALL receive the pack's batched
+read and, for `broken-evidence` and an answer with statements only, the verification reads of step
+11 after the model; `invalid-model-output` and `no-evidence` get no verification read. The answer cache SHALL be looked up 0 times for an invalid request, `no-anchor` and a
 request with `useCache: false`, and once otherwise.
 
 An `UNKNOWN` answer SHALL have exactly `kind: 'unknown'`, `answer: 'UNKNOWN'`, `reason` (one of the
