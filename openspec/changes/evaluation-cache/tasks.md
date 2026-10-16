@@ -43,8 +43,8 @@
 
 ## 6. Core: answer cache in explain (TDD, design C6) — `explain` → "Answer cache", "Precedence and UNKNOWN answers", "Answer usage", "Query log"
 
-- [ ] 6.1 RED: create `tests/unit/explain/explain-cache.spec.ts` (over `doubles()` of `tests/support/explain-doubles.ts` and the in-memory store with the acme-shop subset) with "A cached question is answered from the cache in both modes". See it fail
-- [ ] 6.2 GREEN: the lookup and hit path in `answerQuestion` (`Outcome` gains the hit), `answerFromCache` and the hit row in `explain()` (`QueryLogParts.cacheHit`)
+- [x] 6.1 RED: create `tests/unit/explain/explain-cache.spec.ts` (over `doubles()` of `tests/support/explain-doubles.ts` and the in-memory store with the acme-shop subset) with "A cached question is answered from the cache in both modes". See it fail
+- [x] 6.2 GREEN: the lookup and hit path in `answerQuestion` (`Outcome` gains the hit), `answerFromCache` and the hit row in `explain()` (`QueryLogParts.cacheHit`)
 - [ ] 6.3 RED → GREEN, one at a time: "Evaluation mode without an entry answers llm-required and saves nothing", "A question without anchor is not looked up in the cache", "A failing cache lookup or hit record stops before the model", "The cache is scoped by project"
 - [ ] 6.4 RED → GREEN: "A live answer is saved once and a repeat is served from the cache" (the save after the second clock read and before the row)
 - [ ] 6.5a RED → GREEN, one at a time: "Turning the cache off calls the model and replaces the entry", "An invalid entry is a miss and a live answer replaces it", "A no-evidence unknown is cached and served without the model"

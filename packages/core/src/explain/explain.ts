@@ -1,9 +1,12 @@
 import { isAbsolute } from 'node:path';
+import { normalizeQuestion } from '../cache/normalize.js';
+import { answerFromCache, isCacheable, parseStoredResponse, toStoredResponse } from '../cache/response-cache.js';
+import type { StoredResponse } from '../cache/response-cache.js';
 import { anchor } from '../context/anchor.js';
 import { buildContextPack } from '../context/context-pack.js';
 import type { ContextSpan } from '../context/context-pack.js';
 import { confidence } from '../knowledge/confidence.js';
-import { ClaimWriteFailed, InvalidStoreQuery, ProjectNotFound, QueryLogWriteFailed } from '../knowledge/errors.js';
+import { CacheWriteFailed, ClaimWriteFailed, InvalidStoreQuery, ProjectNotFound, QueryLogWriteFailed } from '../knowledge/errors.js';
 import type { QueryLogEntry } from '../knowledge/query-log.js';
 import type { SavedClaim } from '../knowledge/stored-claim.js';
 import { COST_TABLE } from '../llm/cost-table.js';
@@ -17,7 +20,7 @@ import { verifyAnswer } from '../verify/verify-answer.js';
 import { toClaimItems, toConfidenceStatement } from './claim-items.js';
 import type { TypedStatement, VerifiedStatement } from './claim-items.js';
 import type { AnswerEvidence, ExplainAnswer, PriorClaim, StoredExplain, UnsavedExplain } from './explain-answer.js';
-import type { ExplainEvent, QueryNotLoggedCode } from './explain-event.js';
+import type { AnswerNotCachedCode, ExplainEvent, QueryNotLoggedCode } from './explain-event.js';
 import { parseExplainRequest } from './explain-request.js';
 import type { ExplainRequest } from './explain-request.js';
 import { toPriorClaim } from './prior-claims.js';
@@ -62,12 +65,18 @@ export interface ExplainDependencies {
 /** An answered answer before its usage is attached: the usage needs the latency, read after it. */
 type UnpricedAnswer = Omit<StoredExplain, 'usage'> | Omit<UnsavedExplain, 'usage'>;
 
-/** What the pipeline of one call ends with: an `UNKNOWN` answer, or an answer and its verification usage. */
-type Outcome = { answer: UnknownExplain } | { answer: UnpricedAnswer; verification: VerificationUsage };
+/**
+ * What the pipeline of one call ends with: a stored response of the answer cache (a hit), an `UNKNOWN`
+ * answer, or an answer and its verification usage.
+ */
+type Outcome = { hit: StoredResponse } | { answer: UnknownExplain } | { answer: UnpricedAnswer; verification: VerificationUsage };
 
 /** What `explain` learns about the call while the pipeline runs, for its `query_log` row. */
 interface CallState {
-  /** The pack's `baselineTokens` once the pack is built; `null` before. */
+  /**
+   * The pack's `baselineTokens` once the pack is built, or the stored usage's for a cache hit of an
+   * answered response; `null` otherwise.
+   */
   baselineTokens: number | null;
   /**
    * The semantic check's latency for a rejection row (design U15): 0 until it starts, `null` while it
@@ -126,7 +135,9 @@ export async function explain(dependencies: ExplainDependencies, request: Explai
   const startedAt = now();
   const meter = meterLlm(llm, dependencies.costTable ?? COST_TABLE);
   const state: CallState = { baselineTokens: null, verifyLatencyMs: 0 };
-  const row = (verification: VerificationRowUsage, latency: number): QueryLogEntry =>
+  // The answer-cache key (DIS-21 design C1); empty only for a question without letters or digits.
+  const key = normalizeQuestion(parsed.question);
+  const row = (verification: VerificationRowUsage, latency: number, cacheHit = false): QueryLogEntry =>
     queryLogEntry({
       projectId: parsed.projectId,
       question: parsed.question,
@@ -134,6 +145,7 @@ export async function explain(dependencies: ExplainDependencies, request: Explai
       verification,
       baselineTokens: state.baselineTokens,
       latencyMs: latency,
+      cacheHit,
     });
   // The verification of a row no semantic check finished: the meter's resolved `verify` calls.
   const meteredVerification = (): VerificationRowUsage => ({
@@ -144,7 +156,7 @@ export async function explain(dependencies: ExplainDependencies, request: Explai
 
   let outcome: Outcome;
   try {
-    outcome = await answerQuestion({ ...dependencies, llm: meter.llm }, parsed, startedAt, state);
+    outcome = await answerQuestion({ ...dependencies, llm: meter.llm }, parsed, key, startedAt, state);
   } catch (error) {
     // Spend after a resolved call must reach the ceiling (decision D1); the row never masks the error.
     if (meter.resolvedCalls() > 0) {
@@ -153,9 +165,13 @@ export async function explain(dependencies: ExplainDependencies, request: Explai
     throw error;
   }
   const latency = latencyMs(startedAt, now());
-  if (!('verification' in outcome)) {
-    return withNotLoggedEvent(outcome.answer, await saveRow(store, row(meteredVerification(), latency)));
+  if ('hit' in outcome) {
+    // A hit made no model call: every counter of its row is 0; its baseline is the stored one (D7).
+    state.baselineTokens = outcome.hit.kind === 'answered' ? outcome.hit.usage.baselineTokens : null;
+    const hit = answerFromCache(outcome.hit, latency);
+    return withEvents(hit, undefined, await saveRow(store, row(meteredVerification(), latency, true)));
   }
+  if (!('verification' in outcome)) return finish(store, parsed.projectId, key, outcome.answer, row(meteredVerification(), latency));
   const usage = aggregateUsage({
     generation: meter.generation(),
     verification: outcome.verification,
@@ -163,7 +179,56 @@ export async function explain(dependencies: ExplainDependencies, request: Explai
     latencyMs: latency,
   });
   const answer = { ...outcome.answer, usage } as ExplainAnswer;
-  return withNotLoggedEvent(answer, await saveRow(store, row(usage.verification, latency)));
+  return finish(store, parsed.projectId, key, answer, row(usage.verification, latency));
+}
+
+/**
+ * Ends a call that did not hit the answer cache (DIS-21 design C6): saves a cacheable answer under
+ * `key`, then writes the call's row, and returns the answer with `answer_not_cached` and then
+ * `query_not_logged` appended when either write was not made. A save that fails with an error other
+ * than `CacheWriteFailed` or `ProjectNotFound` is thrown after the row was sent, as on any rejection
+ * after a model call resolved; a failure of that row never replaces it (D8).
+ */
+async function finish(
+  store: StorePort,
+  projectId: string,
+  key: string,
+  answer: ExplainAnswer,
+  entry: QueryLogEntry,
+): Promise<ExplainAnswer> {
+  let notCached: AnswerNotCachedCode | undefined;
+  if (key !== '' && isCacheable(answer)) {
+    try {
+      notCached = await saveCache(store, projectId, key, answer);
+    } catch (error) {
+      await store.saveQueryLog(entry).catch(() => undefined);
+      throw error;
+    }
+  }
+  return withEvents(answer, notCached, await saveRow(store, entry));
+}
+
+/**
+ * Saves the stored response of a cacheable answer (DIS-21 design C6): resolves to the
+ * `answer_not_cached` code when the store fails with `CacheWriteFailed` or `ProjectNotFound`, to
+ * `undefined` once saved.
+ *
+ * @throws Any other failure of the save, unchanged.
+ */
+async function saveCache(
+  store: StorePort,
+  projectId: string,
+  key: string,
+  answer: Parameters<typeof toStoredResponse>[0],
+): Promise<AnswerNotCachedCode | undefined> {
+  try {
+    await store.saveCacheEntry(projectId, key, toStoredResponse(answer));
+    return undefined;
+  } catch (error) {
+    if (error instanceof CacheWriteFailed) return 'store-write-failed';
+    if (error instanceof ProjectNotFound) return 'project-not-found';
+    throw error;
+  }
 }
 
 /**
@@ -186,9 +251,20 @@ async function saveRow(store: StorePort, entry: QueryLogEntry): Promise<QueryNot
   }
 }
 
-/** `answer` with `query_not_logged` appended to its events when `code` says the row was not written. */
-function withNotLoggedEvent<A extends ExplainAnswer>(answer: A, code: QueryNotLoggedCode | undefined): A {
-  return code === undefined ? answer : { ...answer, events: [...answer.events, { type: 'query_not_logged', code }] };
+/**
+ * `answer` with `answer_not_cached` and then `query_not_logged` appended to its events, each when its
+ * code says that write was not made.
+ */
+function withEvents<A extends ExplainAnswer>(
+  answer: A,
+  notCached: AnswerNotCachedCode | undefined,
+  notLogged: QueryNotLoggedCode | undefined,
+): A {
+  const events: ExplainEvent[] = [
+    ...(notCached === undefined ? [] : [{ type: 'answer_not_cached' as const, code: notCached }]),
+    ...(notLogged === undefined ? [] : [{ type: 'query_not_logged' as const, code: notLogged }]),
+  ];
+  return events.length === 0 ? answer : { ...answer, events: [...answer.events, ...events] };
 }
 
 /**
@@ -199,6 +275,7 @@ function withNotLoggedEvent<A extends ExplainAnswer>(answer: A, code: QueryNotLo
 async function answerQuestion(
   dependencies: ExplainDependencies,
   request: ExplainRequest,
+  key: string,
   startedAt: Date,
   state: CallState,
 ): Promise<Outcome> {
@@ -207,7 +284,16 @@ async function answerQuestion(
 
   const anchors = await anchor(store, projectId, question);
   if (anchors.length === 0) return { answer: unknown('no-anchor') };
-  // DIS-21: the answer cache is looked up here, after anchoring and before the evaluation-mode check.
+  // The answer cache (DIS-21 design C6, D2): after anchoring, before the evaluation-mode check, in
+  // both modes. An entry whose response fails the check is a miss, without an event.
+  if (request.useCache !== false && key !== '') {
+    const entry = await store.findCacheEntry(projectId, key);
+    const stored = entry === undefined ? undefined : parseStoredResponse(entry.response);
+    if (entry !== undefined && stored !== undefined) {
+      await store.touchCacheEntry(projectId, entry.id, startedAt);
+      return { hit: stored };
+    }
+  }
   if (llm.mode === 'evaluation') return { answer: unknown('llm-required') };
 
   const pack = await buildContextPack(

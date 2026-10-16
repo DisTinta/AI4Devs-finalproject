@@ -362,7 +362,7 @@ describe('Requirement: Precedence and UNKNOWN answers', () => {
     for (const { d, answer } of runs) {
       expect(answer).not.toHaveProperty('priorClaims');
       expect(answer.answer).toBe('UNKNOWN');
-      expect(d.order).toEqual(['findClaimsOverlapping', 'complete', 'saveQueryLog']);
+      expect(d.order).toEqual(['findCacheEntry', 'findClaimsOverlapping', 'complete', 'saveQueryLog']);
       expect(d.model.requests.map((request) => request.purpose)).toEqual(['answer']);
       expect(d.loaded.storedClaims()).toEqual([]);
     }
@@ -378,7 +378,7 @@ describe('Requirement: Precedence and UNKNOWN answers', () => {
     // Assert
     expect(answer).toEqual({ kind: 'unknown', answer: 'UNKNOWN', reason: 'no-evidence', statements: [], evidence: [], events: [] });
     expect(JSON.stringify(answer)).not.toContain('Se calcula sumando todo.');
-    expect(d.order).toEqual(['findClaimsOverlapping', 'complete', 'saveQueryLog']);
+    expect(d.order).toEqual(['findCacheEntry', 'findClaimsOverlapping', 'complete', 'saveCacheEntry', 'saveQueryLog']);
     expect(d.model.requests.map((request) => request.purpose)).toEqual(['answer']);
     expect(d.loaded.storedClaims()).toEqual([]);
   });
@@ -441,7 +441,7 @@ describe('Requirement: Precedence and UNKNOWN answers', () => {
 
     // Act
     await explain(d.deps, { projectId: d.projectId, question: Q1, hops: 1 });
-    await explain(d.deps, { projectId: d.projectId, question: Q1, tokenBudget: 1000 });
+    await explain(d.deps, { projectId: d.projectId, question: Q1, tokenBudget: 1000, useCache: false });
 
     // Assert
     expect(await packWith({ hops: 1 })).not.toEqual(await packWith({}));
@@ -825,7 +825,7 @@ describe('Requirement: Prior claims', () => {
       expect(prior.id).toMatch(/^[0-9a-f-]{36}$/);
     }
     expect(answer.priorClaims.filter((c) => c.status === 'current').every((c) => !('warning' in c))).toBe(true);
-    expect(d.order).toEqual(['findClaimsOverlapping', 'complete', 'verify', 'saveClaims', 'saveQueryLog']);
+    expect(d.order).toEqual(['findCacheEntry', 'findClaimsOverlapping', 'complete', 'verify', 'saveClaims', 'saveCacheEntry', 'saveQueryLog']);
     expect(d.loaded.calls.findClaimsOverlapping).toBe(1);
   });
 });

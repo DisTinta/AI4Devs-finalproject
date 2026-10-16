@@ -28,7 +28,7 @@ export type StoredResponse = StoredAnswer | StoredUnknown;
  *
  * @param answer The answer of `explain`.
  */
-export function isCacheable(answer: ExplainAnswer): boolean {
+export function isCacheable(answer: ExplainAnswer): answer is StoredExplain | UnknownExplain {
   if (answer.kind === 'unknown') return answer.reason === 'no-evidence';
   return answer.persisted && answer.statements.every((statement) => statement.status === 'current');
 }

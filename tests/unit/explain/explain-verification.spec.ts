@@ -162,7 +162,7 @@ describe('Requirement: Precedence and UNKNOWN answers', () => {
       ],
     });
     expect(answer).not.toHaveProperty('usage');
-    expect(d.order).toEqual(['findClaimsOverlapping', 'complete', 'saveQueryLog']);
+    expect(d.order).toEqual(['findCacheEntry', 'findClaimsOverlapping', 'complete', 'saveQueryLog']);
     expect(d.model.requests.map((request) => request.purpose)).toEqual(['answer']);
     expect(d.loaded.calls.saveClaims).toBe(0);
     expect(UNKNOWN_REASONS).toEqual(['no-anchor', 'llm-required', 'over-budget', 'invalid-model-output', 'no-evidence', 'broken-evidence']);
@@ -201,10 +201,12 @@ describe('Requirement: Precedence and UNKNOWN answers', () => {
 
     // Assert
     expect(runs.map((run) => run.answer.kind === 'unknown' && run.answer.reason)).toEqual(['invalid-model-output', 'no-evidence']);
-    for (const { d } of runs) {
-      expect(d.sourceCalls).toEqual({ readFileAt: 0, readFilesAt: 1 });
-      expect(d.order).toEqual(['findClaimsOverlapping', 'complete', 'saveQueryLog']);
-    }
+    for (const { d } of runs) expect(d.sourceCalls).toEqual({ readFileAt: 0, readFilesAt: 1 });
+    // A no-evidence UNKNOWN is cacheable (DIS-21): its run also saves the cache entry.
+    expect(runs.map(({ d }) => d.order)).toEqual([
+      ['findCacheEntry', 'findClaimsOverlapping', 'complete', 'saveQueryLog'],
+      ['findCacheEntry', 'findClaimsOverlapping', 'complete', 'saveCacheEntry', 'saveQueryLog'],
+    ]);
   });
   it('A verifier failure other than unavailable or budget propagates without writing', async () => {
     // Arrange
@@ -368,7 +370,7 @@ describe('Requirement: Answer with typed statements', () => {
 
     // Act
     const answer = await explain(d.deps, { projectId: d.projectId, question: Q1 });
-    const again = await explain(d.deps, { projectId: d.projectId, question: Q1 });
+    const again = await explain(d.deps, { projectId: d.projectId, question: Q1, useCache: false });
 
     // Assert
     expect(answer).toMatchObject({ kind: 'answered', persisted: true, events: [] });

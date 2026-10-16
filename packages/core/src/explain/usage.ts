@@ -98,6 +98,8 @@ export interface QueryLogParts {
   baselineTokens: number | null;
   /** The latency of the call, from {@link latencyMs}. */
   latencyMs: number;
+  /** Whether the answer came from the answer cache (DIS-21); `false` when absent. */
+  cacheHit?: boolean;
 }
 
 /**
@@ -117,7 +119,7 @@ export function queryLogEntry(parts: QueryLogParts): QueryLogEntry {
     baselineTokens: parts.baselineTokens,
     costUsd: roundCost(generation.costUsd + verification.costUsd),
     latencyMs: parts.latencyMs,
-    cacheHit: false,
+    cacheHit: parts.cacheHit ?? false,
     verifyInputTokens: verification.inputTokens,
     verifyOutputTokens: verification.outputTokens,
     verifyCostUsd: verification.costUsd,
