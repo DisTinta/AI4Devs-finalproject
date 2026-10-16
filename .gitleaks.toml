@@ -70,3 +70,7 @@ regexes = ['''^c[e]ntinela\-secreta\-123$''']
 [[allowlists]]
 description = "Synthetic LLM API key planted by the key-leak scenario of the cli-ask change (DIS-40) - openspec/changes/cli-ask/specs/cli-ask/spec.md, openspec/changes/cli-ask/tasks.md and tests/unit/cli/ask-command.spec.ts, generic-api-key (lines not listed: they move with every edit; the regex matches the exact value)"
 regexes = ['''^S[E]NTINEL\-key\-5d1e$''']
+
+[[allowlists]]
+description = "Synthetic LLM API key planted by the start-up failure scenario of the api-foundation change (DIS-76) - openspec/changes/api-foundation/specs/api-foundation/spec.md and tests/integration/api/server.spec.ts, generic-api-key (lines not listed: they move with every edit; the regex matches the exact value)"
+regexes = ['''^S[E]NTINEL\-key\-3c9d$''']
