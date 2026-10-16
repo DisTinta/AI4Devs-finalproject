@@ -152,3 +152,19 @@ after each step.
 - Blocking issues: none. Open item outside this step: task 15.3 (`.env.example`) is not done, because
   the permission settings of the session deny reading and editing that file; the four new variables
   are documented in `readme.md`.
+
+## Addendum — pre-merge review fixes (17.7)
+
+- New tests: "A body error on a route that does not exist answers NOT_FOUND" (new scenario, RED
+  `expected 400 to be 404` → GREEN), "builds the model before opening the store, so a model that
+  cannot be built opens no connection" (RED `expected [ Array(1) ] to deeply equal []` → GREEN) and
+  "answers INTERNAL in the error format when a domain mapping fails to build its details"
+  (characterisation, passed at once). No existing test edited.
+- `npx vitest run`: 114 files, **1410 passed**, 0 failed (133 s). `npm run lint`, `npm run typecheck`,
+  `npm run docs:coverage` clean; `npm run lint:architecture` 0 errors (the 3 pre-existing
+  `no-orphans` warnings outside this change).
+- `npx stryker run --mutate "packages/api/src/plugins/error-handler.ts,packages/api/src/composition.ts"`
+  (scratch incremental file): **98.03 %** (149 killed, 3 survived): `error-handler.ts` 98.82,
+  `composition.ts` 97.01; the 3 survivors are the equivalent ones already listed above. No
+  `.stryker-tmp/` left.
+- State: `project` → `1`, `codemind-%` sessions → `0`, as in the baseline.

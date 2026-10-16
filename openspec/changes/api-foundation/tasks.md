@@ -102,7 +102,7 @@
 
 - [x] 15.1 ADR `docs/adr/20261016-fastify-5-and-zod-json-schema.md` with `/adr-new` (design U11), the "why" marked as the agent's decision under the autonomous-run ADR
 - [x] 15.2 `readme.md`: variables table (`PORT`, `HOST`, `RATE_LIMIT_MAX`, `RATE_LIMIT_WINDOW_MS`; `DATABASE_URL` also required by the API); §1.4 (`npm run dev` needs `DATABASE_URL` exported or `make up`; the API listens on `127.0.0.1:3000`; open `http://localhost:3000/docs`); §2.5 point 6 (the limit's values and exemptions); §4 (the error codes table, the `429` codes, and the start-up codes: the API's `INVALID_CONFIG` vs the CLI's `MISSING_CONFIG` for `DATABASE_URL`)
-- [ ] 15.3 `.env.example`: the four new variables, empty, with a comment each
+- [x] 15.3 `.env.example`: the four new variables, empty, with a comment each
 - [x] 15.4 `docs/project-context.md`: Commands (the API `dev` entry `server.ts` and `tsconfig.run.json`; Stryker `mutate` with `packages/api/src` minus `server.ts` and `start.ts`), Testing (the API `inject` specs in `tests/unit/api/` and why; five files now migrate the shared DB, `open-store.spec.ts` added), Gotchas (the API composition, no `pg` in the API, `openPostgresStore`, `buildApp` without `listen`, the test routes helper); fix the stale lines "no composition root calls it yet (DIS-29 / CM-HU-12)" of the LLM adapter gotcha (now read by the CLI and the API) and "computing it in the API composition is DIS-39" of the `workspaceRoot` gotcha (done by DIS-76); `docs/backend-standards.md` §1 (Zod is a dependency of `packages/api`); `docs/DEPLOYMENT.md` if it mentions the listen address
 - [x] 15.5 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
 
@@ -115,9 +115,9 @@
 - [ ] 17.1 Open the pull request against `feature/entrega-2-CRN` (authorised by the autonomous-run ADR; `gh` on the DisTinta account, back to Cristina-JumpMath afterwards)
 - [ ] 17.2 Set DIS-76 to In Review in Linear with a comment in Spanish linking the PR and the change
 - [ ] 17.3 Confirm in the PR's CI run that the new spec files ran and passed and the mutation job is ≥ 80, and link the run in an addendum to the step 12 report
-- [ ] 17.4 Run `/show-spec-working` (may reuse the step 13 evidence); report `openspec/changes/api-foundation/reports/YYYY-MM-DD-show-spec-working.md`
-- [ ] 17.5 Run `/verify-against-spec`; report `openspec/changes/api-foundation/reports/YYYY-MM-DD-verify-against-spec.md`
-- [ ] 17.6 Run `/adversarial-review`; report `openspec/changes/api-foundation/reports/YYYY-MM-DD-adversarial-review.md`
-- [ ] 17.7 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report
-- [ ] 17.8 Commit the fixes to the same pull request; re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
+- [x] 17.4 Run `/show-spec-working` (may reuse the step 13 evidence); report `openspec/changes/api-foundation/reports/YYYY-MM-DD-show-spec-working.md`
+- [x] 17.5 Run `/verify-against-spec`; report `openspec/changes/api-foundation/reports/YYYY-MM-DD-verify-against-spec.md`
+- [x] 17.6 Run `/adversarial-review`; report `openspec/changes/api-foundation/reports/YYYY-MM-DD-adversarial-review.md`
+- [x] 17.7 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report
+- [x] 17.8 Commit the fixes to the same pull request; re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
 - [ ] 17.9 Post the Follow-ups C checklist comment (`Deuda: api-foundation`, Spanish) on DIS-76; `/opsx:archive`, and commit the archive to the same pull request; merge only after the archive commit and with CI green (autonomous-run ADR)

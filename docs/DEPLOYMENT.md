@@ -23,3 +23,18 @@ code (DIS-86 design D7); revisit it before indexing repositories uploaded by unt
 
 Exit codes: `0` success, `1` a domain, configuration or runtime error, `2` a usage error. Errors are
 one JSON line on stderr, `{"error":{"code","message","details"}}`; stdout carries only the report.
+
+## Running the API
+
+`npm run dev` (or `npx tsx --tsconfig packages/api/tsconfig.run.json packages/api/src/server.ts`)
+starts the API (DIS-76). It needs `DATABASE_URL`; `PORT`, `HOST`, `RATE_LIMIT_MAX` and
+`RATE_LIMIT_WINDOW_MS` are optional (see `.env.example` and `readme.md` §2.5). A start-up failure is
+one JSON line on stderr and exit `1`.
+
+**The API has no authentication.** It listens on `127.0.0.1` by default; `HOST=0.0.0.0` exposes it to
+the network, which is an explicit decision of whoever runs it.
+
+**The rate limit keys on the socket's address** (`trustProxy` is off, so `X-Forwarded-For` is
+ignored and cannot be spoofed). Behind a reverse proxy every client therefore shares the proxy's
+address and one counter. The counter is in memory, per process: several processes do not share it,
+and a restart resets it. `/health` and `/docs` are neither limited nor counted.

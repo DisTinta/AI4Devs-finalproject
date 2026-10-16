@@ -4475,3 +4475,25 @@ su valor exacto en `.gitleaks.toml` (como los de DIS-17 y DIS-40); `.env.example
 editar porque la configuración de permisos de la sesión lo bloquea, así que la tarea 15.3 queda abierta;
 la parada con `SIGINT` no se pudo enviar en Windows desde la shell del agente y su camino de cierre lo
 cubre el test de integración.
+
+### Prompt 2 — Revisiones previas al merge dentro del workflow autónomo
+
+El mismo script del workflow envió al paso siguiente este texto literal:
+
+```
+YOUR STEP 4/6 — pre-merge reviews.
+Run, in this order, the review tasks of the change's tasks.md: /show-spec-working, /verify-against-spec, /adversarial-review, and the security-reviewer agent if the diff touches auth, inputs from HTTP, rate limits, secrets or personal data. Save each report where tasks.md says. Every finding gets an A/B/C/D destination in design.md → Follow-ups and is fixed in this change when fixable (behaviour changes via TDD). Re-run a check whose findings led to non-trivial fixes until no Blocker/Major remain. Mark the tasks. Suite green. Commit.
+```
+
+**Por qué funcionó.** Ejecutar la API real con `curl` en vez de reutilizar solo el informe del paso 13
+destapó lo que los tests con `inject` no cubrían: un `POST` con cuerpo JSON roto o enorme a una ruta
+inexistente respondía `400`/`413` en lugar de `404`, porque Fastify parsea el cuerpo antes del
+manejador de «no encontrado». Se corrigió con un escenario nuevo en la spec y un ciclo RED → GREEN
+(`request.is404`). La lectura hostil de `composeFromEnv` encontró que el pool se abría antes de
+construir el modelo; reordenarlo cerró la fuga sin tocar ningún test existente.
+
+**Ajuste humano.** Ninguno: ejecución autónoma. Los skills bifurcados `verify-against-spec` y
+`adversarial-review` terminaron sin devolver su salida al agente orquestador, así que ambas
+revisiones las rehízo el agente del paso con las mismas listas de comprobación, y lo deja escrito en
+el informe de la revisión adversarial. `.env.example` sí se pudo editar en este paso y la tarea 15.3
+quedó cerrada.

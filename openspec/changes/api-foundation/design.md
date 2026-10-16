@@ -115,7 +115,9 @@ order, the first match (spec "Single error format"):
 
 Step 3 runs before step 4 so a domain error never reaches the generic mapping. Every message comes
 from this file; the error's own `message` is never reused (as `toFailure` of the CLI). The not-found
-handler answers `NOT_FOUND` directly. The shared shape is `errorSchema` in `schemas/common.ts`
+handler answers `NOT_FOUND` directly, and so does the error handler for any error of a request that matched no
+route (`request.is404`): Fastify parses the body before the not-found handler runs, so a malformed or
+oversized body to an unknown URL would otherwise answer `400` or `413` (pre-merge review AR1). The shared shape is `errorSchema` in `schemas/common.ts`
 (`z.object({ error: z.object({ code: z.string(), message: z.string(), details: z.record(z.string(),
 z.unknown()) }) })`), used for the OpenAPI component and to type the handler's payload.
 
@@ -195,7 +197,9 @@ healthResponseSchema }` (`z.object({ status: z.literal('ok') })`) so `/health` i
   `modelVariable`) for the start-up line, as the CLI's `toFailure` does
   (`packages/cli/src/commands/ask.ts:284-286`).
 - `composeFromEnv(env, seams = {})`: `apiConfigFromEnv`, then `llmConfigFromEnv` (throws
-  `LlmConfigError`), and only then `openStore(databaseUrl)` (default `openPostgresStore(url, {
+  `LlmConfigError`), then the model, the source tree and the clock (so nothing that can fail without a
+  connection runs after the store is open, pre-merge review AR2), and only then `openStore(databaseUrl)`
+  (default `openPostgresStore(url, {
   applicationName: 'codemind-api' })`); `llm = createLlm(cfg)` wrapped in `withDailyBudget(llm, {
   store, dailyBudgetUsd, now })` only when `cfg.mode === 'live' && cfg.dailyBudgetUsd !== undefined`;
   `source = seams.source ?? createGitSourceTree()`; `now = seams.now ?? (() => new Date())`;
@@ -312,3 +316,30 @@ destination here (`docs/project-context.md` → Tracking deferred findings).
   `CONNECTION_TIMEOUT_MS`** (`packages/cli/src/commands/ask.ts:37,134`, `compose-index.ts:20`),
   duplicated by `openPostgresStore` (spec audit 8.2). Reusing it is a DIS-76 non-goal; destination: a
   Spanish `Deuda: api-foundation` checklist comment on DIS-76 at archive time, plus this line.
+
+Pre-merge review (`reports/2026-10-16-show-spec-working.md`, `-verify-against-spec.md`,
+`-adversarial-review.md`; ids AR = adversarial review, V = verify-against-spec):
+
+- **A — body errors on an unknown route answered 400/413 instead of 404** (AR1 = V1, Major). Fixed in
+  this change: scenario "A body error on a route that does not exist answers NOT_FOUND" added, RED →
+  GREEN with `request.is404` in the error handler (U3).
+- **A — the store was opened before the model and the source tree were built** (AR2 = V3, Minor).
+  Fixed: `composeFromEnv` builds them first (U7); test "builds the model before opening the store, so a
+  model that cannot be built opens no connection".
+- **A — `.env.example` lacked the four API variables** (AR3 = V2, Minor; task 15.3). Fixed.
+- **A — the limit's keying, proxy and per-process reach and the lack of authentication were not in
+  `docs/DEPLOYMENT.md`** (AR4, Minor, security). Fixed: section "Running the API". The mechanism
+  itself (socket address, in-memory LRU of the plugin, one process) is **D**: specified for a single
+  local process.
+- **A — the `x-ratelimit-*` headers were in the design but not in the spec** (AR7, verify block 3).
+  Fixed: one sentence in "Rate limit by IP".
+- **D — a domain mapping that throws while building its details** (AR5, Question). Verified to answer
+  `500` `INTERNAL` in the error format; kept as a characterisation test.
+- **D — an `unrecognized_keys` issue names the undeclared key** (AR6, Question). The key is the
+  client's own field name, not a received value; the spec's rule is about values.
+- **D — unspecified behaviour kept from the design** (verify block 3): OpenAPI `info.description` and
+  server description (U5), the `TypeError` at `ready()` for a non-Zod schema (U2),
+  `pool.on('error')` (U8), the signal handling of `server.ts` (U6), the OpenAPI conversion of
+  `params` and `headers` (U2).
+- **D — the forked review skills returned no output to the orchestrator** (AR8, process). Both checks
+  were re-done by the review step's agent; recorded in the adversarial review report.
