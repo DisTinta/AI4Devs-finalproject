@@ -1,7 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
-import { LLM_REQUIRED_MESSAGE } from '@codemind/core';
+import {
+  BudgetExhausted,
+  InvalidExplainRequest,
+  LLM_REQUIRED_MESSAGE,
+  LlmUnavailable,
+  ProjectNotFound,
+  SourceUnavailable,
+} from '@codemind/core';
 import type {
   explain,
   ExplainAnswer,
@@ -400,5 +407,102 @@ describe('ask project resolution', () => {
       expect(response.body).not.toContain(unknownId);
     }
     expect(built.llm.calls()).toBe(0);
+  });
+});
+
+describe('ask error answers', () => {
+  it('Domain errors of the use case map to their answers', async () => {
+    // Arrange
+    const errors = [
+      new InvalidExplainRequest('question'),
+      new LlmUnavailable('http-status', { status: 502 }),
+      new LlmUnavailable('network', { systemCode: 'ECONNREFUSED' }),
+      new LlmUnavailable('dimension-mismatch', { expected: 768, received: 1536 }),
+      new SourceUnavailable('missing', 'app/Gone.php'),
+      new SourceUnavailable('not-indexed'),
+      new ProjectNotFound(randomUUID()),
+    ];
+    const pending = [...errors];
+    const recorded = useCase(() => {
+      throw pending.shift();
+    });
+    const built = await askApp({ explain: recorded.explain });
+
+    // Act
+    const responses = [];
+    for (let i = 0; i < errors.length; i++) responses.push(await ask(built.app, built.projectId, { question: Q1 }));
+
+    // Assert
+    expect(responses.map((response) => [response.statusCode, response.json()])).toEqual([
+      [400, { error: { code: 'INVALID_EXPLAIN_REQUEST', message: 'invalid request', details: { field: 'question' } } }],
+      [503, { error: { code: 'LLM_UNAVAILABLE', message: 'the language model is unavailable', details: { reason: 'http-status', status: 502 } } }],
+      [503, { error: { code: 'LLM_UNAVAILABLE', message: 'the language model is unavailable', details: { reason: 'network', systemCode: 'ECONNREFUSED' } } }],
+      [
+        503,
+        {
+          error: {
+            code: 'LLM_UNAVAILABLE',
+            message: 'the language model is unavailable',
+            details: { reason: 'dimension-mismatch', expected: 768, received: 1536 },
+          },
+        },
+      ],
+      [503, { error: { code: 'SOURCE_UNAVAILABLE', message: "the project's source cannot be read", details: { reason: 'missing', path: 'app/Gone.php' } } }],
+      [503, { error: { code: 'SOURCE_UNAVAILABLE', message: "the project's source cannot be read", details: { reason: 'not-indexed' } } }],
+      [404, errorBody('PROJECT_NOT_FOUND', 'project not found')],
+    ]);
+    responses.forEach((response, i) => expect(response.body).not.toContain(errors[i]!.message));
+  });
+
+  it('An exhausted budget on ask answers 429 with the cache-only notice', async () => {
+    // Arrange
+    const recorded = useCase(() => {
+      throw new BudgetExhausted(2.5, 2, new Date('2026-10-17T00:00:00Z'));
+    });
+    const built = await askApp({ explain: recorded.explain });
+
+    // Act
+    const response = await ask(built.app, built.projectId, { question: Q1 });
+
+    // Assert
+    expect(response.statusCode).toBe(429);
+    expect(response.json()).toEqual({
+      error: {
+        code: 'BUDGET_EXHAUSTED',
+        message: 'the daily LLM budget is exhausted',
+        details: { spentUsd: 2.5, dailyBudgetUsd: 2, resetsAt: '2026-10-17T00:00:00.000Z', cacheOnly: true },
+      },
+    });
+  });
+
+  it('Another error of the use case answers INTERNAL', async () => {
+    // Arrange
+    const recorded = useCase(() => {
+      throw new Error('pool failed at 10.0.0.5');
+    });
+    const built = await askApp({ explain: recorded.explain });
+
+    // Act
+    const response = await ask(built.app, built.projectId, { question: Q1 });
+
+    // Assert
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toEqual(errorBody('INTERNAL', 'unexpected error'));
+    expect(response.body).not.toContain('10.0.0.5');
+  });
+
+  it('The ask route is rate limited', async () => {
+    // Arrange
+    const recorded = useCase();
+    const built = await askApp({ explain: recorded.explain, rateLimit: { max: 2, windowMs: 60_000 } });
+
+    // Act
+    const responses = [];
+    for (let i = 0; i < 3; i++) responses.push(await ask(built.app, built.projectId, { question: Q1 }, '10.0.0.1'));
+
+    // Assert
+    expect(responses.map((response) => response.statusCode)).toEqual([200, 200, 429]);
+    expect(responses[2]!.json().error.code).toBe('RATE_LIMITED');
+    expect(recorded.requests).toHaveLength(2);
   });
 });
