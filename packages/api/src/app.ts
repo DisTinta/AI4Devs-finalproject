@@ -97,6 +97,6 @@ export async function buildApp(deps: AppDeps, options: AppOptions): Promise<Fast
   await registerOpenApi(app);
   await registerRateLimit(app, options.rateLimit);
   registerHealthRoute(app);
-  registerAskRoute(app, { ...(options.explain !== undefined && { explain: options.explain }) });
+  registerAskRoute(app, { explain: options.explain });
   return app;
 }

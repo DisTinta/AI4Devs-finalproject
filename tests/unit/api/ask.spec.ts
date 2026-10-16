@@ -19,12 +19,14 @@ import type {
   AnswerStatement,
   AnswerUsage,
   AnsweredExplain,
+  DomainError,
   LlmPort,
   SourceTreePort,
   StorePort,
   UnknownExplain,
 } from '@codemind/core';
 import { buildApp } from '../../../packages/api/src/app';
+import { ASK_DOMAIN_ERRORS, toPublicAnswer } from '../../../packages/api/src/routes/ask';
 import type { AppDeps, AppOptions } from '../../../packages/api/src/app';
 import { ACME_SHOP_PROJECT, acmeShopGraph } from '../../support/acme-shop-graph';
 import { citingIds, doubles } from '../../support/explain-doubles';
@@ -612,5 +614,119 @@ describe('ask in the OpenAPI document', () => {
     );
     expect(shapes).toHaveLength(2);
     expect(Object.keys(operation.responses)).toEqual(expect.arrayContaining(['400', '404', '429', '500', '503']));
+  });
+});
+
+// Below the spec scenarios: boundaries of the ask route (added after the step 9 mutation run, for its
+// meaningful survivors).
+describe('ask route boundaries', () => {
+  it('answers llm-required with its message and copies the usage of an answer field by field', async () => {
+    // Arrange
+    const answers: ExplainAnswer[] = [unknownAnswer('llm-required'), answered([evidenceOf('E1')], [statementOf('a statement', ['E1'])])];
+    const recorded = useCase(() => answers.shift()!);
+    const built = await askApp({ explain: recorded.explain });
+
+    // Act
+    const unknown = await ask(built.app, built.projectId, { question: Q1 });
+    const answer = await ask(built.app, built.projectId, { question: Q1 });
+
+    // Assert
+    expect(unknown.json()).toEqual({ answer: 'UNKNOWN', reason: 'llm-required', message: LLM_REQUIRED_MESSAGE, statements: [], evidence: [] });
+    expect(answer.json().usage).toEqual(USAGE);
+    expect(answer.json().confidence).toBe(0.73);
+  });
+
+  it('forwards no tokenBudget key at all when none is sent', async () => {
+    // Arrange
+    const recorded = useCase();
+    const built = await askApp({ explain: recorded.explain });
+
+    // Act
+    await ask(built.app, built.projectId, { question: Q1 });
+
+    // Assert
+    expect(Object.keys(recorded.requests[0]!).sort()).toEqual(['projectId', 'question']);
+  });
+
+  it('rejects a project id with anything before or after the UUID', async () => {
+    // Arrange
+    const built = await askApp();
+
+    // Act
+    const responses = [
+      await ask(built.app, `x${built.projectId}`, { question: Q1 }),
+      await ask(built.app, `${built.projectId}x`, { question: Q1 }),
+    ];
+
+    // Assert
+    expect(responses.map((response) => [response.statusCode, response.json().error.code])).toEqual([
+      [400, 'VALIDATION_ERROR'],
+      [400, 'VALIDATION_ERROR'],
+    ]);
+    expect(built.store.calls()).toBe(0);
+  });
+
+  it('names what is wrong with a blank question or one holding U+0000', async () => {
+    // Arrange
+    const built = await askApp();
+
+    // Act
+    const blank = await ask(built.app, built.projectId, { question: '       ' });
+    const withNul = await ask(built.app, built.projectId, { question: 'price\u0000calc' });
+
+    // Assert
+    expect(blank.json().error.details.issues).toEqual([{ path: ['question'], code: 'custom', message: 'question must not be only whitespace' }]);
+    expect(withNul.json().error.details.issues).toEqual([{ path: ['question'], code: 'custom', message: 'question must not contain U+0000' }]);
+  });
+
+  it('builds the details of a domain error only from the fields the error has', () => {
+    // Arrange
+    const details = (error: DomainError) => ASK_DOMAIN_ERRORS.get(error.code)!.details(error);
+
+    // Act
+    const bare = [details(new LlmUnavailable('timeout')), details(new SourceUnavailable('not-indexed'))];
+
+    // Assert
+    expect(bare.map((entry) => Object.keys(entry))).toEqual([['reason'], ['reason']]);
+    expect(Object.keys(details(new LlmUnavailable('dimension-mismatch', { expected: 768, received: 1536 })))).toEqual(['reason', 'expected', 'received']);
+  });
+
+  it('throws on a statement citing an evidence id absent from the answer, naming the broken contract', () => {
+    // Arrange
+    const broken = answered([evidenceOf('X')], [statementOf('cites a missing id', ['Y'])]);
+
+    // Act
+    const act = () => toPublicAnswer(broken);
+
+    // Assert
+    expect(act).toThrow('a statement cites an evidence id absent from the answer');
+  });
+
+  it("logs each event with the message 'explain event'", async () => {
+    // Arrange
+    const { stream, lines } = logStream();
+    const event: ExplainEvent = { type: 'claims_not_persisted', code: 'store-write-failed' };
+    const recorded = useCase(() => unknownAnswer('no-anchor', [event]));
+    const built = await askApp({ explain: recorded.explain, logger: { level: 'info', stream } });
+
+    // Act
+    await ask(built.app, built.projectId, { question: Q1 });
+
+    // Assert
+    expect(lines.filter((line) => line.type === 'claims_not_persisted').map((line) => line.msg)).toEqual(['explain event']);
+  });
+
+  it('publishes the empty statements and evidence of an UNKNOWN as arrays of at most 0 items', async () => {
+    // Arrange
+    const built = await askApp();
+
+    // Act
+    const document = (await built.app.inject({ method: 'GET', url: '/docs/json' })).json();
+
+    // Assert
+    const shapes = document.paths['/api/projects/{projectId}/ask'].post.responses['200'].content['application/json'].schema.anyOf;
+    const unknown = shapes.find((shape: { properties: object }) => 'reason' in shape.properties);
+    expect(unknown.properties.statements.maxItems).toBe(0);
+    expect(unknown.properties.evidence.maxItems).toBe(0);
   });
 });
