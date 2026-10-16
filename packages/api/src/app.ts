@@ -1,5 +1,5 @@
 import Fastify from 'fastify';
-import type { FastifyInstance, FastifyServerOptions } from 'fastify';
+import type { FastifyInstance, FastifyRequest, FastifyServerOptions } from 'fastify';
 import type { LlmPort, SourceTreePort, StorePort } from '@codemind/core';
 import { installErrorHandler } from './plugins/error-handler.js';
 import { registerOpenApi } from './plugins/openapi.js';
@@ -39,6 +39,45 @@ declare module 'fastify' {
   }
 }
 
+/** What the request log records of a request: never its body nor any header but `host` (design U9). */
+// A type alias, not an interface: Fastify's serialiser type needs an implicit index signature.
+export type LoggedRequest = {
+  /** The HTTP method. */
+  method: string;
+  /** The URL as requested, with its query string. */
+  url: string;
+  /** The `host` header. */
+  host: string;
+  /** The client address (the socket's, as `trustProxy` is off). */
+  remoteAddress: string;
+  /** The client port. */
+  remotePort: number | undefined;
+};
+
+/**
+ * The request serialiser of the log (design U9): Fastify's default without `version` (the
+ * `accept-version` header), so no request header but `host` reaches the log.
+ *
+ * @param request The request.
+ * @returns The logged fields.
+ */
+export function serializeRequest(request: FastifyRequest): LoggedRequest {
+  return {
+    method: request.method,
+    url: request.url,
+    host: request.host,
+    remoteAddress: request.ip,
+    remotePort: request.socket?.remotePort,
+  };
+}
+
+/** `logger` with {@link serializeRequest} added to its serialisers; `false` when there is none. */
+function withRequestSerializer(logger: AppOptions['logger']): FastifyServerOptions['logger'] {
+  if (logger === undefined || logger === false) return false;
+  const options = logger === true ? {} : logger;
+  return { ...options, serializers: { ...options.serializers, req: serializeRequest } };
+}
+
 /**
  * Builds the API without listening and without reading the environment (design U6), so tests drive
  * it with `inject`. The returned instance is not ready yet: routes may still be added before `ready()`.
@@ -48,7 +87,7 @@ declare module 'fastify' {
  * @returns The instance, not ready.
  */
 export async function buildApp(deps: AppDeps, options: AppOptions): Promise<FastifyInstance> {
-  const app = Fastify({ bodyLimit: BODY_LIMIT_BYTES, logger: options.logger ?? false });
+  const app = Fastify({ bodyLimit: BODY_LIMIT_BYTES, logger: withRequestSerializer(options.logger) });
   installZodCompilers(app);
   installErrorHandler(app);
   app.decorate('deps', Object.freeze({ ...deps }));

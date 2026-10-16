@@ -42,7 +42,7 @@
 
 ## 6. API: request logging (TDD, design U9) — `api-foundation` → "Request body limit and logging"
 
-- [ ] 6.1 RED → GREEN: in `tests/unit/api/errors.spec.ts`, "The request log holds no body and a 500 logs its cause" (`AppOptions.logger` with a test stream; custom `serializers.req` of design U9, added by `buildApp` to any logger options, after confirming the default `req` fields of the installed Fastify; `request.log.error` in the `INTERNAL` branch)
+- [x] 6.1 RED → GREEN: in `tests/unit/api/errors.spec.ts`, "The request log holds no body and a 500 logs its cause" (`AppOptions.logger` with a test stream; custom `serializers.req` of design U9, added by `buildApp` to any logger options, after confirming the default `req` fields of the installed Fastify; `request.log.error` in the `INTERNAL` branch)
 
 ## 7. API: configuration and composition (TDD, design U7) — `api-foundation` → "Configuration from the environment", "Composition from the environment"
 

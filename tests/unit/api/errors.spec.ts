@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { Writable } from 'node:stream';
 import { afterEach, describe, expect, it } from 'vitest';
 import { BudgetExhausted, ProjectNotFound } from '@codemind/core';
 import type { FastifyInstance } from 'fastify';
@@ -232,5 +233,45 @@ describe('domain error mapping', () => {
     expect(response.statusCode).toBe(500);
     expect(response.json()).toEqual(errorBody('INTERNAL', 'unexpected error'));
     expect(response.body).not.toContain(id);
+  });
+});
+
+describe('request body limit and logging', () => {
+  it('The request log holds no body and a 500 logs its cause', async () => {
+    // Arrange
+    const lines: Array<Record<string, unknown>> = [];
+    const stream = new Writable({
+      write(chunk: Buffer, _encoding, done) {
+        for (const line of chunk.toString('utf8').split('\n')) if (line !== '') lines.push(JSON.parse(line));
+        done();
+      },
+    });
+    ({ app } = await buildTestApp({ logger: { level: 'info', stream }, error: () => new Error('boom-7f3a') }));
+
+    // Act
+    const posted = await app.inject({
+      method: 'POST',
+      url: '/api/test-only',
+      // `accept-version` is what Fastify's default request serialiser logs as `version` (design U9).
+      headers: { authorization: 'Bearer SENTINEL-hdr-55e1', 'accept-version': 'SENTINEL-ver-0d4e' },
+      payload: { question: 'SENTINEL-question-91b2' },
+    });
+    await app.inject({ method: 'GET', url: '/api/test-throw' });
+
+    // Assert
+    expect(posted.statusCode).toBe(200);
+    const text = lines.map((line) => JSON.stringify(line)).join('\n');
+    expect(text).not.toContain('SENTINEL-question-91b2');
+    expect(text).not.toContain('SENTINEL-hdr-55e1');
+    const incoming = lines.find((line) => (line.req as { url?: string } | undefined)?.url === '/api/test-only');
+    expect(incoming).toBeDefined();
+    expect((incoming!.req as { method: string }).method).toBe('POST');
+    const sameRequest = lines.filter((line) => line.reqId === incoming!.reqId);
+    const completed = sameRequest.find((line) => line.msg === 'request completed');
+    expect((completed!.res as { statusCode: number }).statusCode).toBe(200);
+    expect(typeof completed!.responseTime).toBe('number');
+    expect(lines.some((line) => 'version' in line || 'version' in ((line.req as object | undefined) ?? {}))).toBe(false);
+    const errors = lines.filter((line) => line.level === 50);
+    expect(errors.some((line) => JSON.stringify(line).includes('boom-7f3a'))).toBe(true);
   });
 });
