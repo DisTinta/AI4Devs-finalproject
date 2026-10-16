@@ -9,9 +9,10 @@ the liveness route, and the composition and validation of the environment at sta
 ### Requirement: Single error format
 
 Every error response of the API SHALL have the JSON body `{ "error": { "code", "message", "details" } }`
-and no other top-level key, where `code` is a stable string from the table below, `message` is the
-fixed string of that code, and `details` is always a JSON object (`{}` when there is nothing to add).
-The `content-type` of an error response SHALL be `application/json`.
+and no other top-level key, where `code` is a stable string from the table below or, for a domain
+error, from the domain error table of the route that raised it (requirement "Domain error mapping"),
+`message` is the fixed string of that code, and `details` is always a JSON object (`{}` when there is
+nothing to add). The `content-type` of an error response SHALL be `application/json`.
 
 | Situation | Status | `code` | `message` | `details` |
 |---|---|---|---|---|
@@ -22,7 +23,7 @@ The `content-type` of an error response SHALL be `application/json`.
 | The body's content type has no parser | 415 | `UNSUPPORTED_MEDIA_TYPE` | `unsupported media type` | `{}` |
 | Any other error carrying a 4xx status (including a 400 or 404 thrown by a route) | that status | `BAD_REQUEST` | `bad request` | `{}` |
 | The rate limit is exceeded | 429 | `RATE_LIMITED` | `too many requests` | `{ retryAfterSeconds }` |
-| The daily LLM budget is exhausted | 429 | `BUDGET_EXHAUSTED` | `the daily LLM budget is exhausted` | `{ spentUsd, dailyBudgetUsd, resetsAt }` |
+| The daily LLM budget is exhausted | 429 | `BUDGET_EXHAUSTED` | `the daily LLM budget is exhausted` | `{ spentUsd, dailyBudgetUsd, resetsAt }` (a route's own table may add fields, never change these) |
 | Anything else | 500 | `INTERNAL` | `unexpected error` | `{}` |
 
 An error response MUST NOT contain the message of the error that caused it (unless it is the fixed
@@ -153,12 +154,16 @@ response schema SHALL answer `500` `INTERNAL`.
 
 ### Requirement: Domain error mapping
 
-The error handler SHALL map a domain error by its stable `code` through one table. This capability
-maps only `BUDGET_EXHAUSTED`, to `429` with `details` = `{ spentUsd, dailyBudgetUsd, resetsAt }`
-(`resetsAt` as an ISO 8601 UTC string), the numbers taken from the error. A domain error whose code is
-not in the table SHALL answer `500` `INTERNAL`. The status, code, message and these three `details`
-fields are fixed here; the route that serves cached answers (DIS-78, `POST /ask`) may add to
-`details` the notice that cached answers are still served (DIS-59), without changing them.
+The error handler SHALL map a domain error by its stable `code` through two tables: first the
+domain error table of the route that raised it, when that route declares one, then the global table.
+The global table maps only `BUDGET_EXHAUSTED`, to `429` with `details` =
+`{ spentUsd, dailyBudgetUsd, resetsAt }` (`resetsAt` as an ISO 8601 UTC string), the numbers taken
+from the error. A route's table SHALL apply only to the requests of that route, and SHALL build its
+details only from the error's fields. A domain error whose code is in neither table SHALL answer
+`500` `INTERNAL`. The status, code, message and these three `details` fields of `BUDGET_EXHAUSTED`
+are fixed: a route's table may map `BUDGET_EXHAUSTED` only to the same status, code, message and
+three fields, plus fields of its own (the route `POST /api/projects/{projectId}/ask` adds
+`cacheOnly: true`, capability `http-ask`).
 
 #### Scenario: An exhausted budget answers 429 BUDGET_EXHAUSTED
 
@@ -176,6 +181,21 @@ fields are fixed here; the route that serves cached answers (DIS-78, `POST /ask`
 - **THEN** the status is `500`, the body is exactly
   `{ "error": { "code": "INTERNAL", "message": "unexpected error", "details": {} } }` and does not
   contain the UUID
+
+#### Scenario: A route's own mapping applies only to that route
+
+- **GIVEN** the app with a test route `GET /api/test-mapped` that declares a domain error table
+  mapping `PROJECT_NOT_FOUND` to `404` `project not found` `{}` and `BUDGET_EXHAUSTED` to the global
+  answer plus `extra: true`, and the test route `GET /api/test-throw`, both throwing the same
+  `ProjectNotFound`, then the same `BudgetExhausted` with `spentUsd` 2.5, `dailyBudgetUsd` 2 and
+  `resetsAt` 2026-10-17T00:00:00Z
+- **WHEN** each route is requested for each error
+- **THEN** `GET /api/test-mapped` answers `404` with the body exactly
+  `{ "error": { "code": "PROJECT_NOT_FOUND", "message": "project not found", "details": {} } }`,
+  then `429` `BUDGET_EXHAUSTED` with `details` exactly
+  `{ "spentUsd": 2.5, "dailyBudgetUsd": 2, "resetsAt": "2026-10-17T00:00:00.000Z", "extra": true }`;
+  and `GET /api/test-throw` answers `500` `INTERNAL`, then `429` `BUDGET_EXHAUSTED` with `details`
+  exactly `{ "spentUsd": 2.5, "dailyBudgetUsd": 2, "resetsAt": "2026-10-17T00:00:00.000Z" }`
 
 ### Requirement: Liveness route
 
