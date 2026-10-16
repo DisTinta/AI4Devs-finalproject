@@ -1,14 +1,14 @@
 ## 0. Setup: Create Feature Branch (MANDATORY - FIRST STEP)
 
-- [ ] 0.1 First action of the apply: confirm DIS-76 is In Progress in Linear (set it if not), with a short comment in Spanish naming the change `api-foundation` and the branch `feature/DIS-76-api-foundation`
-- [ ] 0.2 Feature branch `feature/DIS-76-api-foundation` (`BRANCH_PREFIX=feature/`, `docs/project-context.md` → Branch and ticket conventions), created from `feature/entrega-2-CRN` during `/opsx:propose`; confirm `git merge-base --is-ancestor origin/feature/entrega-2-CRN HEAD` and that `openspec/changes/api-foundation/` is on it. `git fetch`; if `origin/feature/entrega-2-CRN` moved, rebase before any code (never force-push a published branch)
-- [ ] 0.3 Verify the current branch (`git branch --show-current`) and `git status`; `.claude/sdd-harness.env` carries a local change that is never staged
-- [ ] 0.4 Baseline: run `npx vitest run` once, green, and record the totals for the step 12 report; in the local database record `SELECT count(*) FROM project` and `SELECT count(*) FROM pg_stat_activity WHERE application_name LIKE 'codemind-%'`
+- [x] 0.1 First action of the apply: confirm DIS-76 is In Progress in Linear (set it if not), with a short comment in Spanish naming the change `api-foundation` and the branch `feature/DIS-76-api-foundation`
+- [x] 0.2 Feature branch `feature/DIS-76-api-foundation` (`BRANCH_PREFIX=feature/`, `docs/project-context.md` → Branch and ticket conventions), created from `feature/entrega-2-CRN` during `/opsx:propose`; confirm `git merge-base --is-ancestor origin/feature/entrega-2-CRN HEAD` and that `openspec/changes/api-foundation/` is on it. `git fetch`; if `origin/feature/entrega-2-CRN` moved, rebase before any code (never force-push a published branch)
+- [x] 0.3 Verify the current branch (`git branch --show-current`) and `git status`; `.claude/sdd-harness.env` carries a local change that is never staged
+- [x] 0.4 Baseline: run `npx vitest run` once, green, and record the totals for the step 12 report; in the local database record `SELECT count(*) FROM project` and `SELECT count(*) FROM pg_stat_activity WHERE application_name LIKE 'codemind-%'`
 
 ## 1. Dependencies and package scaffolding (design U1, U6)
 
-- [ ] 1.1 `packages/api/package.json`: `fastify ^5.12`, `@fastify/swagger ^9.9`, `@fastify/swagger-ui ^6.1`, `@fastify/rate-limit ^11.2`, `zod ^4.6.5`, `@codemind/adapter-llm`, `@codemind/adapter-store-postgres`, `@codemind/adapter-git` (`*`); `npm install` from the root; record the resolved versions for the PR's dependency justification
-- [ ] 1.2 `packages/api/tsconfig.json` gains `references` to `../core`, `../adapters/git`, `../adapters/llm`, `../adapters/store-postgres`; create `packages/api/tsconfig.run.json` (template `packages/cli/tsconfig.run.json`, design U6); `npm run typecheck` green with the current `index.ts` under Fastify 5
+- [x] 1.1 `packages/api/package.json`: `fastify ^5.12`, `@fastify/swagger ^9.9`, `@fastify/swagger-ui ^6.1`, `@fastify/rate-limit ^11.2`, `zod ^4.6.5`, `@codemind/adapter-llm`, `@codemind/adapter-store-postgres`, `@codemind/adapter-git` (`*`); `npm install` from the root; record the resolved versions for the PR's dependency justification
+- [x] 1.2 `packages/api/tsconfig.json` gains `references` to `../core`, `../adapters/git`, `../adapters/llm`, `../adapters/store-postgres`; create `packages/api/tsconfig.run.json` (template `packages/cli/tsconfig.run.json`, design U6); `npm run typecheck` green with the current `index.ts` under Fastify 5
 
 ## 2. Adapter: `openPostgresStore` (TDD, design U8) — `graph-store` → "Opening a pooled store from a URL"
 
