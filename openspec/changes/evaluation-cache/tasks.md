@@ -59,7 +59,7 @@
 
 - [x] 7.1 RED: update `tests/unit/api/ask.spec.ts` "Optional fields are forwarded as the use case expects" (D6) and "Requests to one API share verification verdicts" (repeats with `"useCache": false`) to the modified scenarios (existing tests whose contract this change modifies; record them in the step 11 report). See the first fail
 - [x] 7.2 GREEN: forward `useCache` in `packages/api/src/routes/ask.ts`; update the `useCache` description in `packages/api/src/schemas/ask.ts`
-- [ ] 7.3 RED → GREEN, one at a time, in `tests/integration/api/ask.spec.ts`: "A cached question answers from the cache over the seed", "A spent daily budget still answers a cached question" (fixed clock on a day no other suite writes, the `query_log` row inserted inside the test's transaction), "The refund demo question answers no-anchor without the model over the seed" (D14; a characterisation test if it passes at once)
+- [x] 7.3 RED → GREEN, one at a time, in `tests/integration/api/ask.spec.ts`: "A cached question answers from the cache over the seed", "A spent daily budget still answers a cached question" (fixed clock on a day no other suite writes, the `query_log` row inserted inside the test's transaction), "The refund demo question answers no-anchor without the model over the seed" (D14; a characterisation test if it passes at once)
 
 ## 8. CLI: cached answer in evaluation mode (TDD, design C7) — `cli-ask` → "Ask from the answer cache"
 

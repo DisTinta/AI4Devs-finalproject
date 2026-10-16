@@ -7,15 +7,17 @@ import { afterAll, afterEach, beforeAll, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { createGitSourceTree } from '@codemind/adapter-git';
 import { createPostgresStore, loadSeed } from '@codemind/adapter-store-postgres';
-import { withDailyBudget } from '@codemind/core';
+import { normalizeQuestion, withDailyBudget } from '@codemind/core';
 import type { LlmPort, StorePort } from '@codemind/core';
 import { buildApp } from '../../../packages/api/src/app';
 import { seedProjects } from '../../../packages/cli/src/seed/parse-seed';
 import { describeWithDatabase, useTransactionPerTest } from '../helpers/db';
+import { cachedAnswer } from '../../support/cached-answer';
 import { createScriptedLlm, modelOutput } from '../../support/scripted-llm';
 import type { ScriptedLlm } from '../../support/scripted-llm';
 
-// Spec: openspec/changes/ask-endpoint/specs/http-ask/spec.md (DIS-78), the scenarios over the seed.
+// Spec: openspec/changes/ask-endpoint/specs/http-ask/spec.md (DIS-78), the scenarios over the seed, and
+// openspec/changes/evaluation-cache/specs/http-ask/spec.md → "Ask from the answer cache" (DIS-21).
 // Each `it` is the scenario it is named after. As in tests/integration/cli/ask-command.spec.ts,
 // `fixtures/acme-shop` is copied (without `.git`) under a temporary directory and its history built
 // there with `buildOne`, whose `HEAD` is the seed's indexed commit; inside the harness transaction
@@ -220,6 +222,119 @@ describeWithDatabase('POST /api/projects/{projectId}/ask over the seed (integrat
       expect(error.code).toBe('BUDGET_EXHAUSTED');
       expect(error.details).toEqual({ spentUsd: 1.5, dailyBudgetUsd: 1, resetsAt: '2031-01-16T00:00:00.000Z', cacheOnly: true });
       expect(model.requests).toHaveLength(0);
+    },
+    TIMEOUT_MS,
+  );
+
+  /** The `cache_entry` rows of acme-shop: their hit counts. */
+  async function cacheEntriesOf(projectId: string): Promise<Array<{ hit_count: number }>> {
+    return (await db().query<{ hit_count: number }>('SELECT hit_count FROM cache_entry WHERE project_id = $1', [projectId])).rows;
+  }
+
+  // DIS-21 (change evaluation-cache), requirement "Ask from the answer cache".
+  it(
+    'A cached question answers from the cache over the seed',
+    async () => {
+      // Arrange: a first request with a live model saves the answer in the cache.
+      const { store, projectId } = await seeded();
+      const first = await (await appOver(store, calculatorModel().llm)).inject({
+        method: 'POST',
+        url: `/api/projects/${projectId}/ask`,
+        payload: { question: Q1 },
+      });
+      await app?.close();
+      const evaluation = createScriptedLlm('evaluation');
+      const target = await appOver(store, evaluation.llm);
+
+      // Act
+      const response = await target.inject({
+        method: 'POST',
+        url: `/api/projects/${projectId}/ask`,
+        payload: { question: 'COMO SE CALCULA EL PRECIO FINAL DE UN PEDIDO' },
+      });
+
+      // Assert
+      expect([first.statusCode, response.statusCode]).toEqual([200, 200]);
+      const body = response.json();
+      const original = first.json();
+      expect(Object.keys(body).sort()).toEqual(['answer', 'confidence', 'evidence', 'statements', 'usage']);
+      expect({ answer: body.answer, statements: body.statements, evidence: body.evidence }).toEqual({
+        answer: original.answer,
+        statements: original.statements,
+        evidence: original.evidence,
+      });
+      expect(body.usage).toMatchObject({ cacheHit: true, costUsd: 0, inputTokens: 0, outputTokens: 0 });
+      expect(evaluation.requests).toHaveLength(0);
+      expect(await cacheEntriesOf(projectId)).toEqual([{ hit_count: 1 }]);
+      // Both rows share the harness transaction's `now()`: the hit's row is the one with the flag.
+      const { rows } = await db().query<{ cache_hit: boolean }>(
+        'SELECT cache_hit FROM query_log WHERE project_id = $1 ORDER BY created_at, cache_hit',
+        [projectId],
+      );
+      expect(rows).toEqual([{ cache_hit: false }, { cache_hit: true }]);
+    },
+    TIMEOUT_MS,
+  );
+
+  it(
+    'A spent daily budget still answers a cached question',
+    async () => {
+      // Arrange: a UTC day no other suite writes, so only this row enters the day's spend.
+      const instant = new Date('2031-03-11T12:00:00Z');
+      const now = () => new Date(instant.getTime());
+      const { store, projectId } = await seeded();
+      await store.saveCacheEntry(projectId, normalizeQuestion(Q1), cachedAnswer());
+      await db().query(
+        "INSERT INTO query_log (project_id, question, capability, cost_usd, created_at) VALUES ($1, 'spent', 'explain', 1.5, $2)",
+        [projectId, instant],
+      );
+      const model = calculatorModel();
+      const target = await appOver(store, withDailyBudget(model.llm, { store, dailyBudgetUsd: 1, now }), now);
+
+      // Act
+      const cached = await target.inject({ method: 'POST', url: `/api/projects/${projectId}/ask`, payload: { question: Q1 } });
+      const skipped = await target.inject({
+        method: 'POST',
+        url: `/api/projects/${projectId}/ask`,
+        payload: { question: Q1, useCache: false },
+      });
+
+      // Assert
+      expect(cached.statusCode).toBe(200);
+      expect(cached.json().usage.cacheHit).toBe(true);
+      expect(skipped.statusCode).toBe(429);
+      expect(skipped.json().error.code).toBe('BUDGET_EXHAUSTED');
+      expect(skipped.json().error.details.cacheOnly).toBe(true);
+      expect(model.requests).toHaveLength(0);
+    },
+    TIMEOUT_MS,
+  );
+
+  it(
+    'The refund demo question answers no-anchor without the model over the seed',
+    async () => {
+      // Arrange
+      const { store, projectId } = await seeded();
+      const evaluation = createScriptedLlm('evaluation');
+      const live = calculatorModel();
+      const refund = '¿Cómo se gestionan los reembolsos de un pedido?';
+
+      // Act
+      const responses = [];
+      for (const model of [evaluation, live]) {
+        await app?.close();
+        const target = await appOver(store, model.llm);
+        responses.push(await target.inject({ method: 'POST', url: `/api/projects/${projectId}/ask`, payload: { question: refund } }));
+      }
+
+      // Assert
+      for (const response of responses) {
+        expect(response.statusCode).toBe(200);
+        expect(response.json()).toEqual({ answer: 'UNKNOWN', reason: 'no-anchor', statements: [], evidence: [] });
+      }
+      expect(evaluation.requests).toHaveLength(0);
+      expect(live.requests).toHaveLength(0);
+      expect(await cacheEntriesOf(projectId)).toEqual([]);
     },
     TIMEOUT_MS,
   );
