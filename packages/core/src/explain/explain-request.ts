@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { TOKEN_BUDGET_MAX, TOKEN_BUDGET_MIN } from '../context/budget.js';
 import { DomainError } from '../knowledge/errors.js';
 import { MAX_HOPS } from '../knowledge/read-arguments.js';
+import { hasNoNul } from '../knowledge/text-without-nul.js';
 import { MAX_QUESTION_CHARS } from './limits.js';
 
 // The input of `explain`, checked before any call to the store, the source reader or the model
@@ -28,7 +29,8 @@ export class InvalidExplainRequest extends DomainError {
 
 /**
  * The request of `explain`: the project, a question of 1 to `MAX_QUESTION_CHARS` code points that is
- * not only whitespace, and optionally the budget and hops of the context pack. No other field.
+ * not only whitespace and holds no U+0000 (every call writes it to `query_log`, whose `text` cannot hold
+ * it: DIS-74 decision D10), and optionally the budget and hops of the context pack. No other field.
  * `projectId` is only checked to be a string: anchoring reports a malformed or unknown id as
  * `ProjectNotFound`.
  */
@@ -38,7 +40,8 @@ export const explainRequestSchema = z.strictObject({
     .string()
     .min(1)
     .max(MAX_QUESTION_CHARS)
-    .refine((question) => question.trim() !== ''),
+    .refine((question) => question.trim() !== '')
+    .refine(hasNoNul),
   tokenBudget: z.int().min(TOKEN_BUDGET_MIN).max(TOKEN_BUDGET_MAX).optional(),
   hops: z.int().min(1).max(MAX_HOPS).optional(),
 });

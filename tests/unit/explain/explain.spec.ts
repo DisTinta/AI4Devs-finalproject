@@ -84,6 +84,25 @@ describe('Requirement: Explain request', () => {
     expect(d.model.requests).toHaveLength(0);
   });
 
+  it('A question holding U+0000 is rejected before the store', async () => {
+    // Arrange
+    const d = doubles();
+    const question = 'PriceCalculator\u0000compute';
+
+    // Act
+    const error = await rejection(explain(d.deps, { projectId: d.projectId, question }));
+
+    // Assert
+    expect(error).toBeInstanceOf(InvalidExplainRequest);
+    expect((error as InvalidExplainRequest).field).toBe('question');
+    const serialised = JSON.stringify(error) + (error as Error).message;
+    expect(serialised).not.toContain('PriceCalculator');
+    expect(serialised).not.toContain('compute');
+    expect(d.loaded.calls).toEqual({ findSymbols: 0, neighbors: 0, getProject: 0, saveClaims: 0, findClaimsOverlapping: 0, saveQueryLog: 0 });
+    expect(d.sourceCalls).toEqual({ readFileAt: 0, readFilesAt: 0 });
+    expect(d.model.requests).toHaveLength(0);
+  });
+
   it('A malformed request is rejected before the store', async () => {
     // Arrange
     const d = doubles();
@@ -102,7 +121,7 @@ describe('Requirement: Explain request', () => {
       expect(serialised).not.toContain('42');
       expect(serialised).not.toContain(Q1);
     }
-    expect(d.loaded.calls).toEqual({ findSymbols: 0, neighbors: 0, getProject: 0, saveClaims: 0, findClaimsOverlapping: 0 });
+    expect(d.loaded.calls).toEqual({ findSymbols: 0, neighbors: 0, getProject: 0, saveClaims: 0, findClaimsOverlapping: 0, saveQueryLog: 0 });
     expect(d.sourceCalls).toEqual({ readFileAt: 0, readFilesAt: 0 });
     expect(d.model.requests).toHaveLength(0);
   });
@@ -156,7 +175,7 @@ describe('Requirement: Explain request', () => {
     expect((hops as InvalidExplainRequest).field).toBe('hops');
     expect(root).toBeInstanceOf(RangeError);
     expect((root as RangeError).message).toContain('workspaceRoot');
-    expect(d.loaded.calls).toEqual({ findSymbols: 0, neighbors: 0, getProject: 0, saveClaims: 0, findClaimsOverlapping: 0 });
+    expect(d.loaded.calls).toEqual({ findSymbols: 0, neighbors: 0, getProject: 0, saveClaims: 0, findClaimsOverlapping: 0, saveQueryLog: 0 });
     expect(d.sourceCalls).toEqual({ readFileAt: 0, readFilesAt: 0 });
     expect(d.model.requests).toHaveLength(0);
   });
@@ -279,7 +298,7 @@ describe('Requirement: Precedence and UNKNOWN answers', () => {
     for (const { d, answer } of runs) {
       expect(answer).not.toHaveProperty('priorClaims');
       expect(answer.answer).toBe('UNKNOWN');
-      expect(d.order).toEqual(['findClaimsOverlapping', 'complete']);
+      expect(d.order).toEqual(['findClaimsOverlapping', 'complete', 'saveQueryLog']);
       expect(d.model.requests.map((request) => request.purpose)).toEqual(['answer']);
       expect(d.loaded.storedClaims()).toEqual([]);
     }
@@ -295,7 +314,7 @@ describe('Requirement: Precedence and UNKNOWN answers', () => {
     // Assert
     expect(answer).toEqual({ kind: 'unknown', answer: 'UNKNOWN', reason: 'no-evidence', statements: [], evidence: [], events: [] });
     expect(JSON.stringify(answer)).not.toContain('Se calcula sumando todo.');
-    expect(d.order).toEqual(['findClaimsOverlapping', 'complete']);
+    expect(d.order).toEqual(['findClaimsOverlapping', 'complete', 'saveQueryLog']);
     expect(d.model.requests.map((request) => request.purpose)).toEqual(['answer']);
     expect(d.loaded.storedClaims()).toEqual([]);
   });
@@ -742,7 +761,7 @@ describe('Requirement: Prior claims', () => {
       expect(prior.id).toMatch(/^[0-9a-f-]{36}$/);
     }
     expect(answer.priorClaims.filter((c) => c.status === 'current').every((c) => !('warning' in c))).toBe(true);
-    expect(d.order).toEqual(['findClaimsOverlapping', 'complete', 'verify', 'saveClaims']);
+    expect(d.order).toEqual(['findClaimsOverlapping', 'complete', 'verify', 'saveClaims', 'saveQueryLog']);
     expect(d.loaded.calls.findClaimsOverlapping).toBe(1);
   });
 });

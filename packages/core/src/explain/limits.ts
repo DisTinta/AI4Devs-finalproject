@@ -27,6 +27,16 @@ export const MAX_EVENT_ISSUES = 20;
 export const MAX_EVIDENCE_IDS_PER_STATEMENT = 10;
 
 /**
+ * Most `verify` calls the semantic check of one answer sends (DIS-74 decision D2, author 2026-10-16;
+ * provisional, revised with the Table 1 measurements per PH-27). Normal answers check about 5–15
+ * distinct pairs, so 20 cuts none of them; it bounds the worst case of `MAX_STATEMENTS` ×
+ * `MAX_EVIDENCE_IDS_PER_STATEMENT` (200 calls, about 460k input tokens) to about 46k input tokens and
+ * 2–3 minutes on Ollama CPU, and it matches `MAX_STATEMENTS`. Pairs answered from the cache never
+ * count; uncached pairs past the limit stay `cited` with the reason `call-limit`.
+ */
+export const MAX_VERIFY_CALLS_PER_ANSWER = 20;
+
+/**
  * Longest question `explain` accepts, in Unicode code points (DIS-39, author decision 2026-10-13):
  * bounds the prompt and the anchoring work whatever the caller sends.
  */

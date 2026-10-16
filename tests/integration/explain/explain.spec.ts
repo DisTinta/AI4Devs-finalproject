@@ -7,7 +7,14 @@ import type { Client } from 'pg';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { createGitSourceTree } from '@codemind/adapter-git';
 import { createPostgresStore } from '@codemind/adapter-store-postgres';
-import { buildContextPack, confidence, createInMemoryVerificationCache, explain } from '@codemind/core';
+import {
+  BudgetExhausted,
+  buildContextPack,
+  confidence,
+  createInMemoryVerificationCache,
+  explain,
+  withDailyBudget,
+} from '@codemind/core';
 import type { ConfidenceStatement, ContextSpan, ExplainAnswer, FilledContextPack, StorePort } from '@codemind/core';
 import { runIndexCommand } from '../../../packages/cli/src/commands/index-repository';
 import type { OpenTransaction } from '../../../packages/cli/src/compose-index';
@@ -208,6 +215,89 @@ describeWithDatabase('explain over the indexed acme-shop (DIS-39)', () => {
       }
       expect(fact.confidence).toBeGreaterThan(inference.confidence!);
       expect(answer.kind === 'answered' && answer.confidence).toBe(confidence([anchorStatement!, heuristicStatement!], { contradiction: false }));
+    },
+    TIMEOUT_MS,
+  );
+
+  // DIS-74 (change query-usage-log), spec explain → "Query log".
+  it(
+    'An answer leaves one query log row the daily spend sees',
+    async () => {
+      // Arrange: the cost table, the clock and the calls of "An answer carries its total, generation and
+      // verification usage"; the row is written on the harness transaction, reverted when the test ends.
+      const { store, projectId, pack } = await indexed();
+      const calculator = pack.spans.find((s) => s.path === 'app/Services/PriceCalculator.php' && s.origin === 'anchor')!;
+      const heuristic = pack.spans.find((s) => s.origin === 'heuristic')!;
+      const script = (prompt: PromptView) =>
+        modelOutput('El precio final lo calcula PriceCalculator::compute.', [
+          { text: 'PriceCalculator::compute calcula el precio final.', evidenceIds: [idOf(prompt, calculator)] },
+          { text: 'Otra parte del código interviene en el cálculo.', evidenceIds: [idOf(prompt, heuristic)] },
+        ]);
+      const calls = {
+        answerModel: 'paid-model',
+        verifyModel: 'paid-model',
+        answerUsage: { inputTokens: 3_400, outputTokens: 260 },
+        verifyUsage: { inputTokens: 300, outputTokens: 20 },
+      };
+      const t0 = new Date();
+      const instants = [0, 200, 1_100, 1_234].map((ms) => new Date(t0.getTime() + ms));
+      let reads = 0;
+      const deps = {
+        store,
+        source: createGitSourceTree(),
+        workspaceRoot: WORKSPACE_ROOT,
+        now: () => instants[Math.min(reads++, instants.length - 1)]!,
+        verificationCache: createInMemoryVerificationCache(),
+        costTable: { 'paid-model': { inputPerMTok: 3, outputPerMTok: 15 } },
+      };
+      const startOfDay = new Date(Date.UTC(t0.getUTCFullYear(), t0.getUTCMonth(), t0.getUTCDate()));
+      const before = await store.sumCostSince(startOfDay);
+      const rowsOf = () =>
+        db().query(
+          `SELECT capability, question, input_tokens, output_tokens, baseline_tokens, cost_usd, latency_ms, cache_hit,
+                  verify_input_tokens, verify_output_tokens, verify_cost_usd, verify_calls, verify_latency_ms
+             FROM query_log WHERE project_id = $1`,
+          [projectId],
+        );
+
+      // Act
+      const model = createScriptedLlm('live', script, undefined, calls);
+      await explain({ ...deps, llm: model.llm }, { projectId, question: Q1 });
+
+      // Assert
+      expect(model.requests.map((request) => request.purpose)).toEqual(['answer', 'verify', 'verify']);
+      expect((await rowsOf()).rows).toEqual([
+        {
+          capability: 'explain',
+          question: Q1,
+          input_tokens: 4000,
+          output_tokens: 300,
+          baseline_tokens: pack.baselineTokens,
+          cost_usd: '0.016500',
+          latency_ms: 1234,
+          cache_hit: false,
+          verify_input_tokens: 600,
+          verify_output_tokens: 40,
+          verify_cost_usd: '0.002400',
+          verify_calls: 2,
+          verify_latency_ms: 900,
+        },
+      ]);
+      const spent = await store.sumCostSince(startOfDay);
+      expect(spent).toBeCloseTo(before + 0.0165, 6);
+
+      // Act: the same question with the model behind a daily budget the day's spend already reaches.
+      reads = 0;
+      const budgeted = createScriptedLlm('live', script, undefined, calls);
+      const error = await explain(
+        { ...deps, llm: withDailyBudget(budgeted.llm, { store, dailyBudgetUsd: spent }) },
+        { projectId, question: Q1 },
+      ).catch((e: unknown) => e);
+
+      // Assert
+      expect(error).toBeInstanceOf(BudgetExhausted);
+      expect(budgeted.requests).toHaveLength(0);
+      expect((await rowsOf()).rows).toHaveLength(1);
     },
     TIMEOUT_MS,
   );

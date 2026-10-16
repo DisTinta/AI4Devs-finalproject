@@ -1,3 +1,4 @@
+import type { TokenEstimator } from '../context/tokenizer.js';
 import type { ClaimStatus, ClaimType } from '../knowledge/claim.js';
 import type { VerificationUsage } from '../verify/semantic.js';
 import type { StatementVerification } from './claim-items.js';
@@ -65,8 +66,39 @@ export interface PriorClaim {
   evidence: AnswerEvidence[];
 }
 
-/** What an answered explain cost beyond the `answer` call (DIS-70 design S7; DIS-74 aggregates the rest). */
+/** The tokens and cost of the `answer` call of one explain (DIS-74 decision D5). */
+export interface GenerationUsage {
+  /** The input tokens the `answer` call reported. */
+  inputTokens: number;
+  /** The output tokens the `answer` call reported. */
+  outputTokens: number;
+  /** Its cost by the cost table for the model it reported, rounded to 6 decimals. */
+  costUsd: number;
+}
+
+/**
+ * What an answered explain cost and saved (DIS-74 decisions D4, D5): totals are the generation plus
+ * the verification.
+ */
 export interface AnswerUsage {
+  /** Input tokens of the `answer` call and of the resolved `verify` calls. */
+  inputTokens: number;
+  /** Output tokens of the `answer` call and of the resolved `verify` calls. */
+  outputTokens: number;
+  /** The tokens of the raw context the pack replaced: its cited files whole (a local estimate). */
+  baselineTokens: number;
+  /** How `baselineTokens` was estimated: locally, not by the provider's tokenizer (PH-16). */
+  baselineEstimator: TokenEstimator;
+  /** 100 × (1 − `inputTokens` / `baselineTokens`), one decimal; 0 without a baseline; may be negative. */
+  savingsPct: number;
+  /** Cost in USD of the generation plus the verification, rounded to 6 decimals. */
+  costUsd: number;
+  /** Wall-clock time of the call in whole milliseconds, at least 1. */
+  latencyMs: number;
+  /** Whether the answer came from the answer cache: always `false` until DIS-21. */
+  cacheHit: false;
+  /** The usage of the `answer` call. */
+  generation: GenerationUsage;
   /** The usage of the semantic check of this answer: only its `verify` calls. */
   verification: VerificationUsage;
 }
@@ -87,11 +119,11 @@ interface AnsweredCommon {
    * What happened on the way: the sanitisation events (the question's, then each span's in evidence-id
    * order), then the `evidence_broken` events in evidence-id order, then the `entailment_unverified`
    * events in statement order then citation order, then `claims_not_persisted` when the claims were
-   * not stored; empty when nothing was flagged, cut, broken or left unverified and the claims were
-   * stored.
+   * not stored, then `query_not_logged` when the call's `query_log` row was not written (DIS-74);
+   * empty when nothing was flagged, cut, broken or left unverified and both writes succeeded.
    */
   events: ExplainEvent[];
-  /** What the verification of this answer cost; no token of the `answer` call. */
+  /** What this answer cost and saved: the `answer` call and the semantic check (DIS-74). */
   usage: AnswerUsage;
   /**
    * The confidence of all the statements together, in (0, 1): computed from their kept citations'

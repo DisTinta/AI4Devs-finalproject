@@ -10,4 +10,6 @@ export * from './unknown-policy.js';
 export * from './prompt.js';
 export * from './claim-items.js';
 export * from './prior-claims.js';
+export * from './usage.js';
+export * from './usage-meter.js';
 export * from './explain.js';

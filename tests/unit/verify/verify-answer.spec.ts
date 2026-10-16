@@ -54,13 +54,16 @@ function statement(text: string, ids: string[], spanOf: ReadonlyMap<string, Sani
   };
 }
 
-/** The collaborators of `verifyAnswer` over `source`: a live scripted model and a fresh cache. */
+/** The instant the collaborators' clock always reads, so the semantic check's latency is 0 (DIS-74). */
+const NOW = new Date('2026-10-16T10:00:00.000Z');
+
+/** The collaborators of `verifyAnswer` over `source`: a live scripted model, a fresh cache and a fixed clock. */
 function collaborators(source: SourceTreePort, verify?: VerifyScript) {
   const model = createScriptedLlm('live', undefined, undefined, { verify });
-  return { model, deps: { source, llm: model.llm, cache: createInMemoryVerificationCache() } };
+  return { model, deps: { source, llm: model.llm, cache: createInMemoryVerificationCache(), now: () => NOW } };
 }
 
-const ZERO_USAGE = { calls: 0, cacheHits: 0, inputTokens: 0, outputTokens: 0, costUsd: 0 };
+const ZERO_USAGE = { calls: 0, cacheHits: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, latencyMs: 0 };
 
 describe('verifyAnswer', () => {
   it('maps the cut of each sanitised span to its citation: none, lines and line-cut', async () => {

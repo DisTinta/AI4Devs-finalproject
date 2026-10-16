@@ -2,6 +2,7 @@ import type { TypedStatement, VerifiedStatement } from '../explain/claim-items.j
 import type { EntailmentUnverifiedEvent, EvidenceBrokenEvent } from '../explain/explain-event.js';
 import { TRUNCATION_LINE_CUT_MARK } from '../explain/sanitize.js';
 import type { SanitizedSpan } from '../explain/sanitize.js';
+import type { CostTable } from '../llm/cost-table.js';
 import type { LlmPort } from '../ports/LlmPort.js';
 import type { SourceTreePort } from '../ports/SourceTreePort.js';
 import { applyEntailment, applyVerdicts } from './policy.js';
@@ -24,6 +25,15 @@ export interface VerifyAnswerDependencies {
   llm: LlmPort;
   /** The verdicts already known, by pair key. */
   cache: VerificationCache;
+  /** The clock the semantic check times itself with (DIS-74 D11); the system clock when absent. */
+  now?: () => Date;
+  /** The prices of the semantic check's usage (DIS-74); the shipped cost table when absent. */
+  costTable?: CostTable;
+  /**
+   * Called just before the semantic check starts, never when nothing is left to check (DIS-74 design
+   * U15): from then on an error comes from inside the check, whose time is unknown.
+   */
+  onSemanticStart?: () => void;
 }
 
 /** The statements an answer keeps after verification, the events of its citations and the usage. */
@@ -41,7 +51,7 @@ export interface VerifiedAnswer {
 }
 
 /** The usage of a semantic check that made no call. */
-const ZERO_USAGE: VerificationUsage = { calls: 0, cacheHits: 0, inputTokens: 0, outputTokens: 0, costUsd: 0 };
+const ZERO_USAGE: VerificationUsage = { calls: 0, cacheHits: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, latencyMs: 0 };
 
 /**
  * Verifies the citations of the typed statements of one answer: checks each distinct cited evidence
@@ -52,7 +62,8 @@ const ZERO_USAGE: VerificationUsage = { calls: 0, cacheHits: 0, inputTokens: 0, 
  * and caps each statement's type by the entailment policy. Spans no statement cites are not read;
  * when nothing is left the model is not called.
  *
- * @param deps The reader of the repository, the model and the verification cache.
+ * @param deps The reader of the repository, the model, the verification cache and, optionally, the
+ *   clock and the cost table of the semantic check.
  * @param root The repository root the pack was read from.
  * @param commit The commit the pack was read at.
  * @param statements The typed statements, in the model's order.
@@ -86,7 +97,8 @@ export async function verifyAnswer(
     statement.evidenceIds.map((evidenceId) => ({ statementIndex, evidenceId, span: spanOf.get(evidenceId) as SanitizedSpan })),
   );
   const pairs = located.map(({ statementIndex, span }) => pairOf(kept[statementIndex].text, span));
-  const semantic = await verifyEntailment(deps.llm, deps.cache, pairs);
+  deps.onSemanticStart?.();
+  const semantic = await verifyEntailment(deps.llm, deps.cache, pairs, deps.costTable, deps.now);
   const unverified: EntailmentUnverifiedEvent[] = [];
   semantic.verdicts.forEach((verdict, i) => {
     if (verdict.verification === 'entailed' || verdict.reason === undefined) return;

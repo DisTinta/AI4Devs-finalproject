@@ -53,6 +53,8 @@ export interface ScriptedLlmOptions {
   verifyUsage?: CompletionUsage;
   /** The model a `verify` request reports; `SCRIPTED_MODEL` when absent. */
   verifyModel?: string;
+  /** The model an `answer` request reports; `SCRIPTED_MODEL` when absent (DIS-74). */
+  answerModel?: string;
 }
 
 /** The double and what it recorded. */
@@ -114,7 +116,11 @@ export function createScriptedLlm(
         const text = await verify(verifyView(request));
         return { text, model: options.verifyModel ?? SCRIPTED_MODEL, usage: { ...(options.verifyUsage ?? NO_USAGE) } };
       }
-      return { text: script(promptView(request)), model: SCRIPTED_MODEL, usage: { ...(options.answerUsage ?? NO_USAGE) } };
+      return {
+        text: script(promptView(request)),
+        model: options.answerModel ?? SCRIPTED_MODEL,
+        usage: { ...(options.answerUsage ?? NO_USAGE) },
+      };
     },
     async embed(): Promise<EmbeddingResult> {
       throw new Error('not used by explain');
