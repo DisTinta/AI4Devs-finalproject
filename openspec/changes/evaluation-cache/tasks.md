@@ -63,7 +63,7 @@
 
 ## 8. CLI: cached answer in evaluation mode (TDD, design C7) — `cli-ask` → "Ask from the answer cache"
 
-- [ ] 8.1 RED → GREEN: in `tests/integration/cli/ask-command.spec.ts`, "Evaluation mode prints a cached answer" (a characterisation test if it passes once explain is done: the CLI code does not change; record it in the step 11 report)
+- [x] 8.1 RED → GREEN: in `tests/integration/cli/ask-command.spec.ts`, "Evaluation mode prints a cached answer" (a characterisation test if it passes once explain is done: the CLI code does not change; record it in the step 11 report)
 
 ## 9. Backend: Review and Update Existing Tests (MANDATORY)
 
