@@ -583,3 +583,34 @@ describe('ask events and verification verdicts', () => {
     }
   });
 });
+
+describe('ask in the OpenAPI document', () => {
+  it('The document lists ask with its parameter, body and responses', async () => {
+    // Arrange
+    const built = await askApp();
+
+    // Act
+    const response = await built.app.inject({ method: 'GET', url: '/docs/json' });
+
+    // Assert
+    expect(response.statusCode).toBe(200);
+    const operation = response.json().paths['/api/projects/{projectId}/ask'].post;
+    const projectId = operation.parameters.find((parameter: { name: string }) => parameter.name === 'projectId');
+    expect(projectId).toMatchObject({ in: 'path', required: true, schema: { type: 'string', format: 'uuid' } });
+    const body = operation.requestBody.content['application/json'].schema;
+    expect(body.required).toEqual(['question']);
+    expect(body.additionalProperties).toBe(false);
+    expect(body.properties.question).toMatchObject({ type: 'string', minLength: 5, maxLength: 500 });
+    expect(body.properties.tokenBudget).toMatchObject({ type: 'integer', minimum: 1000, maximum: 32000, default: 8000 });
+    expect(body.properties.useCache).toMatchObject({ type: 'boolean', default: true });
+    const shapes = operation.responses['200'].content['application/json'].schema.anyOf;
+    expect(shapes.map((shape: { properties: object }) => Object.keys(shape.properties).sort())).toEqual(
+      expect.arrayContaining([
+        ['answer', 'confidence', 'evidence', 'statements', 'usage'],
+        ['answer', 'evidence', 'message', 'reason', 'statements'],
+      ]),
+    );
+    expect(shapes).toHaveLength(2);
+    expect(Object.keys(operation.responses)).toEqual(expect.arrayContaining(['400', '404', '429', '500', '503']));
+  });
+});
