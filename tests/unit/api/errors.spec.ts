@@ -116,3 +116,61 @@ describe('single error format', () => {
     expect(response.body).not.toContain('10.0.0.5');
   });
 });
+
+describe('request validation by schema', () => {
+  it('A field that fails its rule answers VALIDATION_ERROR with its issue', async () => {
+    // Arrange
+    let calls: { testOnly: number };
+    ({ app, calls } = await buildTestApp());
+
+    // Act
+    const response = await app.inject({ method: 'POST', url: '/api/test-only', payload: { question: 'abc' } });
+
+    // Assert
+    expect(response.statusCode).toBe(400);
+    const { error } = response.json();
+    expect(error.code).toBe('VALIDATION_ERROR');
+    expect(error.message).toBe('invalid request');
+    expect(error.details.issues).toHaveLength(1);
+    const [issue] = error.details.issues;
+    expect(Object.keys(issue).sort()).toEqual(['code', 'message', 'path']);
+    expect(issue.path).toEqual(['question']);
+    expect(issue.code).toBe('too_small');
+    expect(typeof issue.message).toBe('string');
+    expect(issue.message).not.toBe('');
+    expect(response.body).not.toContain('abc');
+    expect(calls.testOnly).toBe(0);
+  });
+
+  it('An undeclared key answers VALIDATION_ERROR', async () => {
+    // Arrange
+    ({ app } = await buildTestApp());
+
+    // Act
+    const response = await app.inject({ method: 'POST', url: '/api/test-only', payload: { question: 'hello', x: 1 } });
+
+    // Assert
+    expect(response.statusCode).toBe(400);
+    const { error } = response.json();
+    expect(error.code).toBe('VALIDATION_ERROR');
+    expect(error.details.issues.map((issue: { code: string }) => issue.code)).toContain('unrecognized_keys');
+  });
+
+  it('A query string that fails its schema answers VALIDATION_ERROR', async () => {
+    // Arrange
+    let calls: { testQuery: number };
+    ({ app, calls } = await buildTestApp());
+
+    // Act
+    const response = await app.inject({ method: 'GET', url: '/api/test-query?n=0' });
+
+    // Assert
+    expect(response.statusCode).toBe(400);
+    const { error } = response.json();
+    expect(error.code).toBe('VALIDATION_ERROR');
+    expect(error.details.issues).toHaveLength(1);
+    expect(error.details.issues[0].path).toEqual(['n']);
+    expect(error.details.issues[0].code).toBe('too_small');
+    expect(calls.testQuery).toBe(0);
+  });
+});

@@ -1,5 +1,6 @@
 import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ErrorBody } from '../schemas/common.js';
+import { SchemaValidationFailed } from './zod-compiler.js';
 
 /** How an error is answered: its status, code, fixed message and details. */
 interface ErrorAnswer {
@@ -43,6 +44,7 @@ export function installErrorHandler(app: FastifyInstance): void {
 
 /** The answer of `error`: the first rule of design U3 that matches it. */
 function answerOf(error: FastifyError): ErrorAnswer {
+  if (error instanceof SchemaValidationFailed) return { ...VALIDATION_ERROR, details: { issues: error.issues } };
   const bodyError = BODY_ERRORS.get(error.code);
   if (bodyError !== undefined) return bodyError;
   if (isClientError(error.statusCode)) return { status: error.statusCode, code: 'BAD_REQUEST', message: 'bad request', details: {} };
