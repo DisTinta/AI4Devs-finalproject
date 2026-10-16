@@ -38,8 +38,8 @@
 
 ## 5. Core: explain request and events (TDD, design C6) — `explain` → "Explain request", "Explain events and logging"
 
-- [ ] 5.1 RED → GREEN: "A non-boolean cache flag is rejected before the store" (`useCache` in `explainRequestSchema`, `EXPLAIN_REQUEST_FIELDS` gains `useCache`)
-- [ ] 5.2 GREEN (no test of its own, covered by 6.x): `ANSWER_NOT_CACHED_CODES` and `AnswerNotCachedEvent` in `packages/core/src/explain/explain-event.ts`, in the `ExplainEvent` union, with TSDoc; exports
+- [x] 5.1 RED → GREEN: "A non-boolean cache flag is rejected before the store" (`useCache` in `explainRequestSchema`, `EXPLAIN_REQUEST_FIELDS` gains `useCache`)
+- [x] 5.2 GREEN (no test of its own, covered by 6.x): `ANSWER_NOT_CACHED_CODES` and `AnswerNotCachedEvent` in `packages/core/src/explain/explain-event.ts`, in the `ExplainEvent` union, with TSDoc; exports
 
 ## 6. Core: answer cache in explain (TDD, design C6) — `explain` → "Answer cache", "Precedence and UNKNOWN answers", "Answer usage", "Query log"
 

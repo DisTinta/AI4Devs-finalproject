@@ -217,6 +217,32 @@ describe('Requirement: Explain request', () => {
     expect(d.sourceCalls).toEqual({ readFileAt: 0, readFilesAt: 0 });
     expect(d.model.requests).toHaveLength(0);
   });
+
+  // DIS-21 (change evaluation-cache, specs/explain/spec.md → "Explain request").
+  it('A non-boolean cache flag is rejected before the store', async () => {
+    // Arrange
+    const d = doubles();
+    const requests = [
+      { projectId: d.projectId, question: Q1, useCache: 'yes' },
+      { projectId: d.projectId, question: Q1, useCache: 1 },
+    ];
+
+    // Act
+    const errors = [];
+    for (const request of requests) errors.push(await rejection(explain(d.deps, request as unknown as ExplainRequest)));
+
+    // Assert
+    expect(errors.every((error) => error instanceof InvalidExplainRequest)).toBe(true);
+    expect(errors.map((error) => (error as InvalidExplainRequest).field)).toEqual(['useCache', 'useCache']);
+    for (const error of errors) {
+      const serialised = JSON.stringify(error) + (error as Error).message;
+      expect(serialised).not.toContain('yes');
+      expect(serialised).not.toMatch(/\b1\b/);
+    }
+    expect(Object.values(d.loaded.calls).every((count) => count === 0)).toBe(true);
+    expect(d.sourceCalls).toEqual({ readFileAt: 0, readFilesAt: 0 });
+    expect(d.model.requests).toHaveLength(0);
+  });
 });
 
 describe('Requirement: Precedence and UNKNOWN answers', () => {
