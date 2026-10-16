@@ -441,12 +441,20 @@ describeWithDatabase('graph-schema: history, claim, usage and cache tables', () 
 
         const log = await client.query(
           `INSERT INTO query_log (project_id, question, capability) VALUES ($1, 'Why?', 'explain')
-           RETURNING id, cache_hit, created_at`,
+           RETURNING id, cache_hit, created_at, verify_input_tokens, verify_output_tokens, verify_cost_usd,
+             verify_calls, verify_latency_ms`,
           [projectId],
         );
         expect(log.rows[0].id).toMatch(/^[0-9a-f-]{36}$/);
         expect(log.rows[0].cache_hit).toBe(false);
         expect(log.rows[0].created_at).toBeInstanceOf(Date);
+        expect(log.rows[0]).toMatchObject({
+          verify_input_tokens: null,
+          verify_output_tokens: null,
+          verify_cost_usd: null,
+          verify_calls: null,
+          verify_latency_ms: null,
+        });
 
         const entry = await client.query(
           `INSERT INTO cache_entry (project_id, question_normalized) VALUES ($1, 'why')

@@ -118,6 +118,16 @@ export const LIST_PROJECTS = `SELECT ${PROJECT_COLUMNS} FROM project p ORDER BY 
 export const SUM_COST_SINCE = `SELECT COALESCE(SUM(cost_usd), 0)::text AS total FROM query_log WHERE created_at >= $1`;
 
 /**
+ * Writes one `query_log` row of project `$1` (DIS-74 design U3). It selects from the project row, so it
+ * inserts no row when the project does not exist; `id` and `created_at` take their defaults.
+ */
+export const INSERT_QUERY_LOG = `
+  INSERT INTO query_log (project_id, question, capability, input_tokens, output_tokens, baseline_tokens,
+    cost_usd, latency_ms, cache_hit, verify_input_tokens, verify_output_tokens, verify_cost_usd,
+    verify_calls, verify_latency_ms)
+  SELECT p.id, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14 FROM project p WHERE p.id = $1`;
+
+/**
  * Finds the project's symbols whose name contains `$2`, case-insensitively. `$2` arrives with `\`,
  * `%` and `_` already escaped, so it matches literally. `$3` is the kinds filter, or `NULL` for all.
  * Filtering starts at `file.project_id`, then reaches symbols by `file_id`.

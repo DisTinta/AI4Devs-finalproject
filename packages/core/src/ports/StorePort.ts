@@ -8,6 +8,7 @@ import type {
   TraversalDirection,
 } from '../knowledge/graph-read.js';
 import type { NewProject, Project } from '../knowledge/project.js';
+import type { QueryLogEntry } from '../knowledge/query-log.js';
 import type { ClaimItem, ClaimSpan, SavedClaim, StoredClaim } from '../knowledge/stored-claim.js';
 
 /**
@@ -132,4 +133,24 @@ export interface StorePort {
    * @throws InvalidStoreQuery naming `spans` when a span is not a valid input span, before querying.
    */
   findClaimsOverlapping(projectId: string, spans: ClaimSpan[]): Promise<StoredClaim[]>;
+
+  /**
+   * Writes the usage of one query as one `query_log` row (DIS-74 design U3) and resolves once it is
+   * written. Each field goes to its column (`baselineTokens` and `verifyLatencyMs` `null` as `NULL`);
+   * `id` and `created_at` are the database defaults. Totals include the verification, so
+   * `sumCostSince` sees the whole cost. Checks, in this order: `entry.projectId` well formed; the
+   * entry passes its record schema (`assertValidQueryLogEntry`), before any statement; then, inside
+   * the write, the project exists. One parameterised statement writes the row. On its own connections
+   * the write commits before returning; on a caller-owned transaction it neither commits nor rolls it
+   * back, and on failure undoes only its own write.
+   *
+   * @throws ProjectNotFound when `entry.projectId` is malformed (before any statement) or names no
+   *   project (nothing is written).
+   * @throws InvalidStoreQuery naming `entry` when the entry breaks its record schema; its message never
+   *   holds a value of the entry.
+   * @throws QueryLogWriteFailed when the database fails once the write has started, rollback included;
+   *   it carries no text of the database error. A failure to obtain a connection, or to open the
+   *   savepoint on a caller-owned transaction, propagates unchanged.
+   */
+  saveQueryLog(entry: QueryLogEntry): Promise<void>;
 }

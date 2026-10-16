@@ -51,11 +51,11 @@ export class InvalidGraph extends DomainError {
 }
 
 /**
- * An argument the store checks: a read argument checked before querying, or the claims of a write
+ * An argument the store checks: a read argument checked before querying, the claims of a write
  * (`claims`), checked before writing and, for the ownership of their files, by one query inside the
- * write (DIS-39 design D7).
+ * write (DIS-39 design D7), or a query log entry (`entry`), checked before writing (DIS-74).
  */
-export type StoreQueryArgument = 'name' | 'kinds' | 'hops' | 'direction' | 'since' | 'claims' | 'spans';
+export type StoreQueryArgument = 'name' | 'kinds' | 'hops' | 'direction' | 'since' | 'claims' | 'spans' | 'entry';
 
 /**
  * A store operation was called with an invalid argument. Nothing was written, and nothing was sent to
@@ -90,6 +90,21 @@ export class ClaimWriteFailed extends DomainError {
   constructor() {
     super('The claims could not be written');
     this.name = 'ClaimWriteFailed';
+  }
+}
+
+/**
+ * The database failed once the write of a query log entry had started (DIS-74 design U3). It carries
+ * no `cause` and no text of the database error: a Postgres error's message, `detail`, `hint` or
+ * `where` can quote the question.
+ */
+export class QueryLogWriteFailed extends DomainError {
+  /** Stable code. */
+  readonly code = 'QUERY_LOG_WRITE_FAILED';
+
+  constructor() {
+    super('The query log entry could not be written');
+    this.name = 'QueryLogWriteFailed';
   }
 }
 

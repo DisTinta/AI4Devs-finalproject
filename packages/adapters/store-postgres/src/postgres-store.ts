@@ -4,6 +4,7 @@ import {
   assertValidClaimSpans,
   assertValidCostSince,
   assertValidGraph,
+  assertValidQueryLogEntry,
   assertValidSymbolSearch,
   assertValidTraversal,
   ClaimWriteFailed,
@@ -11,6 +12,7 @@ import {
   MAX_PRIOR_CLAIMS,
   ProjectNameTaken,
   ProjectNotFound,
+  QueryLogWriteFailed,
 } from '@codemind/core';
 import type {
   ClaimItem,
@@ -21,6 +23,7 @@ import type {
   NewProject,
   NodeRef,
   Project,
+  QueryLogEntry,
   SavedClaim,
   SaveGraphResult,
   StoredClaim,
@@ -35,6 +38,7 @@ import {
   FIND_CLAIMS_OVERLAPPING,
   FIND_SYMBOLS,
   INSERT_PROJECT,
+  INSERT_QUERY_LOG,
   LIST_PROJECTS,
   NEIGHBORS,
   SELECT_PROJECT,
@@ -122,6 +126,15 @@ async function atomically<T>(
  */
 function toClaimWriteError(error: unknown): unknown {
   return error instanceof DomainError ? error : new ClaimWriteFailed();
+}
+
+/**
+ * Maps an error of a query log write (DIS-74 design U3): a domain error raised by the write itself (an
+ * unknown project) passes unchanged; any other becomes `QueryLogWriteFailed`, which carries no text of
+ * the database error (its `detail`, `hint` or `where` can quote the question).
+ */
+function toQueryLogWriteError(error: unknown): unknown {
+  return error instanceof DomainError ? error : new QueryLogWriteFailed();
 }
 
 /**
@@ -264,6 +277,36 @@ export function createPostgresStore(connection: StoreConnection): StorePort {
       assertValidCostSince(since);
       const [{ total }] = await runQuery<{ total: string }>(connection, SUM_COST_SINCE, [since]);
       return Number(total);
+    },
+
+    async saveQueryLog(entry: QueryLogEntry): Promise<void> {
+      // Order of design U3: the id form, then the record, before any statement; then, inside the
+      // write, the project (zero rows inserted means no project, and nothing was written).
+      if (!isWellFormedId(entry.projectId)) throw new ProjectNotFound(entry.projectId);
+      assertValidQueryLogEntry(entry);
+      await atomically(
+        connection,
+        async (client) => {
+          const { rowCount } = await client.query(INSERT_QUERY_LOG, [
+            entry.projectId,
+            entry.question,
+            entry.capability,
+            entry.inputTokens,
+            entry.outputTokens,
+            entry.baselineTokens,
+            entry.costUsd,
+            entry.latencyMs,
+            entry.cacheHit,
+            entry.verifyInputTokens,
+            entry.verifyOutputTokens,
+            entry.verifyCostUsd,
+            entry.verifyCalls,
+            entry.verifyLatencyMs,
+          ]);
+          if (rowCount === 0) throw new ProjectNotFound(entry.projectId);
+        },
+        toQueryLogWriteError,
+      );
     },
   };
 }
