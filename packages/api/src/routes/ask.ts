@@ -72,7 +72,9 @@ export interface AskRouteOptions {
 export function toPublicAnswer(answer: ExplainAnswer): AskResponse {
   if (answer.kind === 'unknown') {
     const { reason, message } = answer;
-    return { answer: 'UNKNOWN', reason, ...(message !== undefined && { message }), statements: [], evidence: [] };
+    // The route enforces "message only for llm-required" itself, whatever the use case sends.
+    const sendsMessage = reason === 'llm-required' && message !== undefined;
+    return { answer: 'UNKNOWN', reason, ...(sendsMessage && { message }), statements: [], evidence: [] };
   }
   const publicIds = new Map(answer.evidence.map((entry, i) => [entry.id, `ev-${i + 1}`]));
   const publicId = (id: string): string => {

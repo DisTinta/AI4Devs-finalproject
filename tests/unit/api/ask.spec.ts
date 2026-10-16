@@ -542,7 +542,7 @@ describe('ask events and verification verdicts', () => {
       ['evidence_broken', 50],
       ['entailment_unverified', 30],
     ]);
-    expect(ofFirst[1]).toMatchObject(broken);
+    ofFirst.forEach((line, i) => expect(line).toMatchObject(events[i]!));
     const ofSecond = eventLines.filter((line) => line.reqId === secondReqId);
     expect(ofSecond.map((line) => [line.type, line.level])).toEqual([['evidence_broken', 50]]);
     expect(secondReqId).toBeDefined();
@@ -634,6 +634,34 @@ describe('ask route boundaries', () => {
     expect(unknown.json()).toEqual({ answer: 'UNKNOWN', reason: 'llm-required', message: LLM_REQUIRED_MESSAGE, statements: [], evidence: [] });
     expect(answer.json().usage).toEqual(USAGE);
     expect(answer.json().confidence).toBe(0.73);
+  });
+
+  it('sends a message only with llm-required, even when the use case gives one with another reason', async () => {
+    // Arrange (pre-merge review V2): the endpoint enforces "message only for llm-required" itself.
+    const recorded = useCase(() => ({ ...unknownAnswer('no-anchor'), message: 'SENTINEL-message' }));
+    const built = await askApp({ explain: recorded.explain });
+
+    // Act
+    const response = await ask(built.app, built.projectId, { question: Q1 });
+
+    // Assert
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ answer: 'UNKNOWN', reason: 'no-anchor', statements: [], evidence: [] });
+  });
+
+  it("forwards the stored project's id, not the id as sent in the path", async () => {
+    // Arrange (pre-merge review AR2): an upper-case id resolves the project; the use case gets its own id.
+    const recorded = useCase();
+    const built = await askApp({ explain: recorded.explain });
+    const sent = built.projectId.toUpperCase();
+
+    // Act
+    const response = await ask(built.app, sent, { question: Q1 });
+
+    // Assert
+    expect(sent).not.toBe(built.projectId);
+    expect(response.statusCode).toBe(200);
+    expect(recorded.requests.map((request) => request.projectId)).toEqual([built.projectId]);
   });
 
   it('forwards no tokenBudget key at all when none is sent', async () => {
