@@ -1,12 +1,17 @@
 import type { ClientBase, Pool, QueryResultRow } from 'pg';
 import {
+  assertValidCacheKey,
+  assertValidCacheResponse,
   assertValidClaimItems,
   assertValidClaimSpans,
   assertValidCostSince,
+  assertValidEntryId,
   assertValidGraph,
+  assertValidHitInstant,
   assertValidQueryLogEntry,
   assertValidSymbolSearch,
   assertValidTraversal,
+  CacheWriteFailed,
   ClaimWriteFailed,
   DomainError,
   MAX_PRIOR_CLAIMS,
@@ -15,6 +20,7 @@ import {
   QueryLogWriteFailed,
 } from '@codemind/core';
 import type {
+  CacheEntry,
   ClaimItem,
   ClaimSpan,
   EdgeKind,
@@ -35,14 +41,20 @@ import type {
 import { toStoredClaim, writeClaims, type ClaimRow } from './claims.js';
 import { isWellFormedId } from './ids.js';
 import {
+  DELETE_CACHE_KEY,
+  FIND_CACHE_ENTRY,
   FIND_CLAIMS_OVERLAPPING,
   FIND_SYMBOLS,
+  INSERT_CACHE_ENTRY,
   INSERT_PROJECT,
   INSERT_QUERY_LOG,
+  INVALIDATE_CACHE,
   LIST_PROJECTS,
+  LOCK_CACHE_KEY,
   NEIGHBORS,
   SELECT_PROJECT,
   SUM_COST_SINCE,
+  TOUCH_CACHE_ENTRY,
 } from './queries.js';
 import {
   escapeLikeTerm,
@@ -135,6 +147,34 @@ function toClaimWriteError(error: unknown): unknown {
  */
 function toQueryLogWriteError(error: unknown): unknown {
   return error instanceof DomainError ? error : new QueryLogWriteFailed();
+}
+
+/**
+ * Maps an error of an answer cache write (DIS-21 design C4): a domain error raised by the write itself
+ * (an unknown project) passes unchanged; any other becomes `CacheWriteFailed`, which carries no text
+ * of the database error (its `detail`, `hint` or `where` can quote the key or the response).
+ */
+function toCacheWriteError(error: unknown): unknown {
+  return error instanceof DomainError ? error : new CacheWriteFailed();
+}
+
+/**
+ * Runs one project-scoped cache write statement that reports whether the project exists and how many
+ * entries it changed (`TOUCH_CACHE_ENTRY`, `INVALIDATE_CACHE`), atomically and with the cache write
+ * errors, and resolves to that count.
+ *
+ * @throws ProjectNotFound when the project does not exist (nothing is changed).
+ */
+async function changeCacheEntries(connection: StoreConnection, projectId: string, sql: string, params: unknown[]): Promise<number> {
+  return atomically(
+    connection,
+    async (client) => {
+      const { rows } = await client.query<{ project: number; changed: number }>(sql, [projectId, ...params]);
+      if (rows[0]!.project === 0) throw new ProjectNotFound(projectId);
+      return rows[0]!.changed;
+    },
+    toCacheWriteError,
+  );
 }
 
 /**
@@ -307,6 +347,47 @@ export function createPostgresStore(connection: StoreConnection): StorePort {
         },
         toQueryLogWriteError,
       );
+    },
+
+    async findCacheEntry(projectId: string, questionNormalized: string): Promise<CacheEntry | undefined> {
+      // Order of design C3: the id form, then the key, before any statement; then the project.
+      if (!isWellFormedId(projectId)) throw new ProjectNotFound(projectId);
+      assertValidCacheKey(questionNormalized);
+      const [row] = await runProjectQuery<{ id: string | null; response: unknown }>(connection, projectId, FIND_CACHE_ENTRY, [
+        questionNormalized,
+      ]);
+      return row!.id === null ? undefined : { id: row!.id, response: row!.response };
+    },
+
+    async saveCacheEntry(projectId: string, questionNormalized: string, response: object): Promise<void> {
+      if (!isWellFormedId(projectId)) throw new ProjectNotFound(projectId);
+      assertValidCacheKey(questionNormalized);
+      assertValidCacheResponse(response);
+      await atomically(
+        connection,
+        async (client) => {
+          // One entry per (project, key) without a unique index (decision D3): saves of a pair are
+          // serialised, and each deletes the pair's entries before inserting its own.
+          await client.query(LOCK_CACHE_KEY, [projectId, questionNormalized]);
+          await client.query(DELETE_CACHE_KEY, [projectId, questionNormalized]);
+          const { rowCount } = await client.query(INSERT_CACHE_ENTRY, [projectId, questionNormalized, JSON.stringify(response)]);
+          if (rowCount === 0) throw new ProjectNotFound(projectId);
+        },
+        toCacheWriteError,
+      );
+    },
+
+    async touchCacheEntry(projectId: string, entryId: string, at: Date): Promise<void> {
+      if (!isWellFormedId(projectId)) throw new ProjectNotFound(projectId);
+      assertValidEntryId(entryId);
+      assertValidHitInstant(at);
+      // An entry replaced or invalidated since it was found changes nothing (decision D3).
+      await changeCacheEntries(connection, projectId, TOUCH_CACHE_ENTRY, [entryId, at]);
+    },
+
+    async invalidateCache(projectId: string): Promise<number> {
+      if (!isWellFormedId(projectId)) throw new ProjectNotFound(projectId);
+      return changeCacheEntries(connection, projectId, INVALIDATE_CACHE, []);
     },
   };
 }
