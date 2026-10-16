@@ -93,5 +93,86 @@ describeWithDatabase('graph store answer cache entries (DIS-21)', () => {
       expect(otherProject).toBeUndefined();
       expect(row).toMatchObject({ question_normalized: KEY, hit_count: 0, last_hit_at: null, question_embedding: null });
     });
+
+    it('Saving a key again replaces its entry', async () => {
+      // Arrange
+      const { store } = stores();
+      const project = await createProject(db());
+      await store.saveCacheEntry(project.id, KEY, R1);
+      const first = await store.findCacheEntry(project.id, KEY);
+      await store.touchCacheEntry(project.id, first!.id, new Date('2026-10-17T10:00:00.000Z'));
+      await store.saveCacheEntry(project.id, 'otra pregunta', R1);
+      const [, other] = await entriesOf(project.id);
+
+      // Act
+      await store.saveCacheEntry(project.id, KEY, R2);
+
+      // Assert
+      const entries = await entriesOf(project.id);
+      const ofKey = entries.filter((entry) => entry.question_normalized === KEY);
+      expect(ofKey).toHaveLength(1);
+      expect(ofKey[0]).toMatchObject({ response: R2, hit_count: 0, last_hit_at: null });
+      expect(entries.find((entry) => entry.question_normalized === 'otra pregunta')).toEqual(other);
+    });
+
+    it('The most recent of duplicated entries is found', async () => {
+      // Arrange
+      const { store } = stores();
+      const project = await createProject(db());
+      await db().query(
+        `INSERT INTO cache_entry (project_id, question_normalized, response, created_at)
+         VALUES ($1, $2, $3::jsonb, '2026-10-01T00:00:00Z'), ($1, $2, NULL, '2026-10-02T00:00:00Z')`,
+        [project.id, KEY, JSON.stringify(R1)],
+      );
+      const newest = (await entriesOf(project.id))[1]!;
+
+      // Act
+      const found = await store.findCacheEntry(project.id, KEY);
+
+      // Assert
+      expect(found).toEqual({ id: newest.id, response: null });
+    });
+
+    it('Touching an entry records the hit', async () => {
+      // Arrange
+      const { store } = stores();
+      const first = await createProject(db());
+      const second = await createProject(db());
+      await store.saveCacheEntry(first.id, KEY, R1);
+      await store.saveCacheEntry(second.id, KEY, R1);
+      const firstEntry = await store.findCacheEntry(first.id, KEY);
+      const secondEntry = await store.findCacheEntry(second.id, KEY);
+      const t1 = new Date('2026-10-17T10:00:00.000Z');
+      const t2 = new Date('2026-10-17T11:00:00.000Z');
+
+      // Act
+      await expect(store.touchCacheEntry(first.id, firstEntry!.id, t1)).resolves.toBeUndefined();
+      await expect(store.touchCacheEntry(first.id, firstEntry!.id, t2)).resolves.toBeUndefined();
+      await expect(store.touchCacheEntry(first.id, secondEntry!.id, t2)).resolves.toBeUndefined();
+      await expect(store.touchCacheEntry(first.id, randomUUID(), t2)).resolves.toBeUndefined();
+
+      // Assert
+      expect(await entriesOf(first.id)).toMatchObject([{ hit_count: 2, last_hit_at: t2 }]);
+      expect(await entriesOf(second.id)).toMatchObject([{ hit_count: 0, last_hit_at: null }]);
+    });
+
+    it('Invalidating a project deletes only its entries', async () => {
+      // Arrange
+      const { store } = stores();
+      const a = await createProject(db());
+      const b = await createProject(db());
+      await store.saveCacheEntry(a.id, KEY, R1);
+      await store.saveCacheEntry(a.id, 'otra pregunta', R2);
+      await store.saveCacheEntry(b.id, KEY, R1);
+
+      // Act
+      const firstCall = await store.invalidateCache(a.id);
+      const secondCall = await store.invalidateCache(a.id);
+
+      // Assert
+      expect([firstCall, secondCall]).toEqual([2, 0]);
+      expect(await entriesOf(a.id)).toEqual([]);
+      expect(await entriesOf(b.id)).toHaveLength(1);
+    });
   });
 });
