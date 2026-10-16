@@ -122,8 +122,10 @@ interface AnsweredCommon {
    * What happened on the way: the sanitisation events (the question's, then each span's in evidence-id
    * order), then the `evidence_broken` events in evidence-id order, then the `entailment_unverified`
    * events in statement order then citation order, then `claims_not_persisted` when the claims were
-   * not stored, then `query_not_logged` when the call's `query_log` row was not written (DIS-74);
-   * empty when nothing was flagged, cut, broken or left unverified and both writes succeeded.
+   * not stored, then `answer_not_cached` when its answer cache entry was not written (DIS-21), then
+   * `query_not_logged` when the call's `query_log` row was not written (DIS-74); empty when nothing was
+   * flagged, cut, broken or left unverified and every write succeeded. A cache hit carries none, but
+   * `query_not_logged` when its row was not written.
    */
   events: ExplainEvent[];
   /** What this answer cost and saved: the `answer` call and the semantic check (DIS-74). */

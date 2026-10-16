@@ -39,7 +39,8 @@ import { meterLlm } from './usage-meter.js';
 // DIS-70 semantic), stored statements, or an honest `UNKNOWN`. Each step is one `return` or one call, in the order of the `explain` spec, so
 // every branch is observable through the calls the doubles count. Core returns events; it never logs
 // the question, a span's text or the model's output. Since DIS-74 every call is metered and recorded
-// in one `query_log` row (design U7).
+// in one `query_log` row (design U7). Since DIS-21 a repeated question is answered from the answer
+// cache of the project (design C6), and a cacheable answer is saved there.
 
 /** What `explain` reads and writes through. */
 export interface ExplainDependencies {
@@ -52,8 +53,9 @@ export interface ExplainDependencies {
   /** Absolute path a relative project root resolves against. */
   workspaceRoot: string;
   /**
-   * The clock of the provenance, of the latency of the call and of the semantic check (DIS-74): read
-   * twice by explain when it writes a row, and twice more by the semantic check in `live` mode.
+   * The clock of the provenance, of the latency of the call, of a cache hit's record (DIS-21) and of
+   * the semantic check (DIS-74): read twice by explain when it writes a row, and twice more by the
+   * semantic check in `live` mode.
    */
   now: () => Date;
   /** The verdicts of the semantic check already known; only passed to it (one per `ask` run, DIS-70 D2). */
@@ -87,8 +89,13 @@ interface CallState {
 
 /**
  * Answers a question about one indexed project in a single pass: validates the request, anchors the
- * question once, answers `UNKNOWN` without building the pack when nothing anchors (`no-anchor`) or the
- * model is in evaluation mode (`llm-required`), builds the pack (`over-budget` when no span fits),
+ * question once and answers `UNKNOWN` without building the pack when nothing anchors (`no-anchor`).
+ * Unless the request sets `useCache: false`, it then looks the question's normalized form up once in
+ * the project's answer cache (DIS-21): an entry whose stored response passes the check is answered, in
+ * both modes, as the stored answer with `events: []` and the usage of a hit (no token, no cost,
+ * `cacheHit: true`), after its hit is recorded, without building the pack, reading the prior claims,
+ * calling the model or writing a claim; anything else is a miss. On a miss it answers `UNKNOWN` when
+ * the model is in evaluation mode (`llm-required`), builds the pack (`over-budget` when no span fits),
  * sanitises the question and the pack's spans (from then on the only spans: a span over the limit is
  * cut), reads the prior claims of those spans, asks the model once with the purpose `answer`,
  * quarantines its output (`invalid-model-output`, or `no-evidence` without statements), types each
@@ -104,27 +111,33 @@ interface CallState {
  * (DIS-74: the `answer` call and the semantic check, priced with `costTable`, the savings against the
  * pack's baseline and the latency) and the `confidence` of all its statements together, an `UNKNOWN`
  * one neither. When the store fails with `ClaimWriteFailed` the answer is still returned,
- * `persisted: false`, with the prompt ids.
+ * `persisted: false`, with the prompt ids. A cacheable answer (a stored answer whose statements are all
+ * `current`, or a `no-evidence` `UNKNOWN`) is saved in the answer cache after the claim write and the
+ * clock's second read, whatever `useCache` is, replacing the key's entry; when that save fails with
+ * `CacheWriteFailed` or `ProjectNotFound` the answer is still returned with `answer_not_cached`.
  *
  * Every call is recorded in one `query_log` row, written on its own after the claim write: on every
  * return (`UNKNOWN` included, with zero counters when no model call was made) and on every rejection
  * raised after a model call resolved (the spend so far, then the original error, whatever happened to
  * the row). No row is written when explain fails before any call resolved. When the row of a returned
  * answer fails with `QueryLogWriteFailed`, `ProjectNotFound` or `InvalidStoreQuery`, the answer is still returned with
- * `query_not_logged` as its last event. Explain reads its clock twice in a call that writes a row (after
- * validating the request, which is also every claim's provenance instant, and just before the row); in
+ * `query_not_logged` as its last event. The row of a hit has the cache flag and zero counters. Explain
+ * reads its clock twice in a call that writes a row (after validating the request, which is also every
+ * claim's provenance instant and a hit's instant, and just before the cache save and the row); in
  * `live` mode the semantic check reads it twice more between them.
  *
  * @param dependencies The store, the source reader, the model, the workspace root, the clock, the
  *   verification cache and, optionally, the cost table.
- * @param request The project, the question and the limits of the pack; checked before any call.
+ * @param request The project, the question, the limits of the pack and `useCache`; checked before any call.
  * @throws InvalidExplainRequest naming the field at fault, before any call.
  * @throws RangeError naming `workspaceRoot` when it is not absolute, before any call.
  * @throws ProjectNotFound, SourceUnavailable, the LlmUnavailable and BudgetExhausted of the `answer`
- *   call, and any failure of the prior-claims read, of the verification reads (other than a missing
+ *   call, and any failure of the answer cache lookup or of the recording of a hit (before any model
+ *   call, with no row), of the prior-claims read, of the verification reads (other than a missing
  *   file, which breaks its citations), of a `verify` call other than LlmUnavailable and
  *   BudgetExhausted (which leave its citations `cited`), or of the claim write other than
- *   `ClaimWriteFailed`, unchanged; any failure of the row write of a returned answer other than
+ *   `ClaimWriteFailed`, unchanged; any failure of the cache save other than `CacheWriteFailed` and
+ *   `ProjectNotFound`, unchanged, after the row was sent; any failure of the row write of a returned answer other than
  *   `QueryLogWriteFailed`, `ProjectNotFound` and `InvalidStoreQuery`, unchanged.
  */
 export async function explain(dependencies: ExplainDependencies, request: ExplainRequest): Promise<ExplainAnswer> {
@@ -268,9 +281,10 @@ function withEvents<A extends ExplainAnswer>(
 }
 
 /**
- * The pipeline of one call over the metered model, from anchoring to the claim write. It records in
- * `state` the pack's baseline and the progress of the semantic check (for a rejection row), and stamps
- * every claim's provenance with `startedAt`.
+ * The pipeline of one call over the metered model, from anchoring to the claim write. It looks `key` up
+ * in the answer cache (unless the request sets `useCache: false` or `key` is empty) and records a hit at
+ * `startedAt`. It records in `state` the pack's baseline and the progress of the semantic check (for a
+ * rejection row), and stamps every claim's provenance with `startedAt`.
  */
 async function answerQuestion(
   dependencies: ExplainDependencies,

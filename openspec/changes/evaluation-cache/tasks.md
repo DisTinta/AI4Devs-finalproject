@@ -53,7 +53,7 @@
 - [x] 6.7 RED → GREEN: "A cached question answers with the daily budget spent" (`withDailyBudget` over the double wrapped with a `sumCostSince` stub through the `store` hook)
 - [x] 6.8 RED → GREEN: in `tests/integration/explain/explain.spec.ts`, "A hit over the database counts in its entry and its row"
 - [x] 6.9 RED → GREEN: update the existing tests whose contract this change modifies, "An answer leaves one query log row the daily spend sees" (`tests/integration/explain/explain.spec.ts`) and "A valid but irrelevant citation is cited and never a fact" (`tests/unit/explain/explain-verification.spec.ts`), so their repeat call sends `useCache: false`, as the modified scenarios say; and, in the same way, the repeat call of `tests/unit/explain/explain.spec.ts` "builds the pack with the hops and budget of the request" and of `tests/unit/explain/explain-sanitization.spec.ts` "Untrusted text reaches the prompt wrapped and unchanged" (design C8); they fail without it once 6.4 is green; record all four in the step 11 report
-- [ ] 6.10 Update the TSDoc of `explain`, `answerQuestion`, `aggregateUsage`, `queryLogEntry`, `AnswerUsage.cacheHit` and the `UnknownExplain.events` comment (no more "until DIS-21"); `npx vitest run tests/unit/explain tests/integration/explain` green
+- [x] 6.10 Update the TSDoc of `explain`, `answerQuestion`, `aggregateUsage`, `queryLogEntry`, `AnswerUsage.cacheHit` and the `UnknownExplain.events` comment (no more "until DIS-21"); `npx vitest run tests/unit/explain tests/integration/explain` green
 
 ## 7. API: forward useCache and cache over the seed (TDD, design C7) — `http-ask` → "Ask request validation", "Ask from the answer cache"
 
