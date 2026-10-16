@@ -39,8 +39,10 @@ declare module 'fastify' {
   }
 }
 
-/** What the request log records of a request: never its body nor any header but `host` (design U9). */
-// A type alias, not an interface: Fastify's serialiser type needs an implicit index signature.
+/**
+ * What the request log records of a request: never its body nor any header but `host` (design U9).
+ * A type alias, not an interface: Fastify's serialiser type needs an implicit index signature.
+ */
 export type LoggedRequest = {
   /** The HTTP method. */
   method: string;

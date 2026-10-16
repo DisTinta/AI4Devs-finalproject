@@ -65,13 +65,13 @@
 
 ## 10. Backend: Review and Update Existing Tests (MANDATORY)
 
-- [ ] 10.1 Identify the tests affected by the change: `grep -rn "packages/api\|@codemind/api\|fastify" tests/`, plus every type error `npm run typecheck` reports after the Fastify 5 upgrade
-- [ ] 10.2 Update only the tests whose contract this change modified (none expected: no existing test covers `packages/api` and no existing spec changes), without weakening any assertion; list every edited existing test with the reason in the step 12 report, or record "none"
-- [ ] 10.3 Confirm each `#### Scenario:` of both delta specs maps 1:1 to a test with exactly the same name (grep each title in `tests/`)
+- [x] 10.1 Identify the tests affected by the change: `grep -rn "packages/api\|@codemind/api\|fastify" tests/`, plus every type error `npm run typecheck` reports after the Fastify 5 upgrade
+- [x] 10.2 Update only the tests whose contract this change modified (none expected: no existing test covers `packages/api` and no existing spec changes), without weakening any assertion; list every edited existing test with the reason in the step 12 report, or record "none"
+- [x] 10.3 Confirm each `#### Scenario:` of both delta specs maps 1:1 to a test with exactly the same name (grep each title in `tests/`)
 
 ## 11. Refactor
 
-- [ ] 11.1 With the suite green, refactor `packages/api/src/**` and `open-store.ts` for naming and duplication only (no behaviour change, no test edits); `npx vitest run tests/unit/api tests/integration/api tests/integration/store/open-store.spec.ts` stays green
+- [x] 11.1 With the suite green, refactor `packages/api/src/**` and `open-store.ts` for naming and duplication only (no behaviour change, no test edits); `npx vitest run tests/unit/api tests/integration/api tests/integration/store/open-store.spec.ts` stays green
 
 ## 12. Backend: Run Tests and Verify Data State (MANDATORY)
 
