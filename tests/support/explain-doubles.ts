@@ -3,7 +3,7 @@ import { buildContextPack, createInMemoryVerificationCache } from '@codemind/cor
 import type { CostTable, FilledContextPack, KnowledgeGraph, NewProject, StorePort, VerificationCache } from '@codemind/core';
 import { ACME_SHOP_PROJECT, acmeShopGraph } from './acme-shop-graph';
 import { createInMemoryStore } from './in-memory-store';
-import type { ClaimWriteFailure } from './in-memory-store';
+import type { CacheCallFailures, ClaimWriteFailure } from './in-memory-store';
 import { createInMemorySourceTree } from './in-memory-source-tree';
 import type { SourceContents } from './in-memory-source-tree';
 import { createScriptedLlm, modelOutput } from './scripted-llm';
@@ -20,7 +20,9 @@ import { file, symbol } from './sample-graph';
 // the usage options go to the scripted model, whose default verifier entails every pair. Since DIS-74
 // (design U12) `now` scripts the clock (instants read in turn, the last one repeated; `[NOW]` by
 // default, so `clock.reads()` counts the reads), `failQueryLogWrite` injects a failure of the
-// `query_log` write, `costTable` reaches explain, and `saveQueryLog` joins the shared call order.
+// `query_log` write, `costTable` reaches explain, and `saveQueryLog` joins the shared call order. Since
+// DIS-21 (design C5) `failCacheCall` injects failures of the answer cache calls, and `findCacheEntry`,
+// `touchCacheEntry` and `saveCacheEntry` join the shared call order under their own names.
 
 export const Q1 = '¿Cómo se calcula el precio final de un pedido?';
 export const COMMIT = 'c'.repeat(40);
@@ -47,6 +49,8 @@ export interface DoubleOptions extends ScriptedLlmOptions {
   failClaimWrite?: ClaimWriteFailure;
   /** Called on each valid `saveQueryLog`; a value other than `undefined` is thrown instead of writing. */
   failQueryLogWrite?: () => unknown;
+  /** Failures of the answer cache calls, each thrown when its function returns a value. */
+  failCacheCall?: CacheCallFailures;
   /** The instants `deps.now` reads in turn, the last one repeated once the list is exhausted; `[NOW]` when absent. */
   now?: readonly Date[];
   /** The cost table of `deps`; absent (explain's default) when not given. */
@@ -71,6 +75,7 @@ export function doubles(options: DoubleOptions = {}) {
     projects: [{ project, graph }],
     failClaimWrite: options.failClaimWrite,
     failQueryLogWrite: options.failQueryLogWrite,
+    failCacheCall: options.failCacheCall,
   });
   const contents = options.contents ?? Object.fromEntries(graph.files.map((f) => [f.path, linesOf(f.path, f.loc ?? 1)]));
   const tree: SourceContents = { [project.rootPath]: { [COMMIT]: contents } };
@@ -113,6 +118,18 @@ export function doubles(options: DoubleOptions = {}) {
     saveQueryLog: (...args) => {
       order.push('saveQueryLog');
       return base.saveQueryLog(...args);
+    },
+    findCacheEntry: (...args) => {
+      order.push('findCacheEntry');
+      return base.findCacheEntry(...args);
+    },
+    touchCacheEntry: (...args) => {
+      order.push('touchCacheEntry');
+      return base.touchCacheEntry(...args);
+    },
+    saveCacheEntry: (...args) => {
+      order.push('saveCacheEntry');
+      return base.saveCacheEntry(...args);
     },
   };
   return {

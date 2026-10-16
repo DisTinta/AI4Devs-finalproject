@@ -20,3 +20,4 @@ export * from './evidence.js';
 export * from './text-without-nul.js';
 export * from './stored-claim.js';
 export * from './query-log.js';
+export * from './cache-entry.js';

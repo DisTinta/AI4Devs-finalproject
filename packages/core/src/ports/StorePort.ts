@@ -8,6 +8,7 @@ import type {
   TraversalDirection,
 } from '../knowledge/graph-read.js';
 import type { NewProject, Project } from '../knowledge/project.js';
+import type { CacheEntry } from '../knowledge/cache-entry.js';
 import type { QueryLogEntry } from '../knowledge/query-log.js';
 import type { ClaimItem, ClaimSpan, SavedClaim, StoredClaim } from '../knowledge/stored-claim.js';
 
@@ -153,4 +154,62 @@ export interface StorePort {
    *   savepoint on a caller-owned transaction, propagates unchanged.
    */
   saveQueryLog(entry: QueryLogEntry): Promise<void>;
+
+  /**
+   * Finds the project's answer cache entry under `questionNormalized` (DIS-21 design C3): its id and
+   * its stored response as written (`null` when the column is `NULL`), or `undefined` when there is
+   * none. When the table holds more than one entry for the pair (rows written outside the store), the
+   * most recently created is returned (by creation instant, then id, both descending). Checks, in this
+   * order, before any statement: `projectId` well formed, then the key (`assertValidCacheKey`); then
+   * the project exists. One parameterised statement. Writes nothing; a database failure propagates
+   * unchanged.
+   *
+   * @throws ProjectNotFound when `projectId` is malformed (before any statement) or names no project.
+   * @throws InvalidStoreQuery naming `question` when the key is not a non-blank text without U+0000;
+   *   its message never holds the key.
+   */
+  findCacheEntry(projectId: string, questionNormalized: string): Promise<CacheEntry | undefined>;
+
+  /**
+   * Saves `response` as the project's only answer cache entry under `questionNormalized`: deletes
+   * every entry of the pair and inserts the new one (hit count 0, no last hit, no embedding) as one
+   * atomic write; saves of one pair are serialised, so concurrent saves leave exactly one entry.
+   * Checks, in this order, before any statement: `projectId` well formed, the key
+   * (`assertValidCacheKey`), the response (`assertValidCacheResponse`); then, inside the write, the
+   * project exists. On its own connections the write commits before returning; on a caller-owned
+   * transaction it neither commits nor rolls it back, and on failure undoes only its own write.
+   *
+   * @throws ProjectNotFound when `projectId` is malformed (before any statement) or names no project
+   *   (nothing is written).
+   * @throws InvalidStoreQuery naming `question` or `response` when the argument is invalid; its message
+   *   never holds a value given.
+   * @throws CacheWriteFailed when the database fails once the write has started, rollback included; it
+   *   carries no text of the database error. A failure to obtain a connection, or to open the savepoint
+   *   on a caller-owned transaction, propagates unchanged.
+   */
+  saveCacheEntry(projectId: string, questionNormalized: string, response: object): Promise<void>;
+
+  /**
+   * Records one hit of an entry of the project: adds 1 to its hit count and sets its last hit instant
+   * to `at`, in one statement, only when the entry belongs to the project. An id naming no entry of
+   * the project changes nothing and resolves (the entry may have been replaced or invalidated since it
+   * was found). Checks, in this order, before any statement: `projectId` well formed, `entryId`
+   * (`assertValidEntryId`), `at` (`assertValidHitInstant`); then, inside the write, the project
+   * exists. Transaction behaviour as {@link saveCacheEntry}.
+   *
+   * @throws ProjectNotFound when `projectId` is malformed (before any statement) or names no project.
+   * @throws InvalidStoreQuery naming `entryId` or `at` when the argument is invalid.
+   * @throws CacheWriteFailed as {@link saveCacheEntry}.
+   */
+  touchCacheEntry(projectId: string, entryId: string, at: Date): Promise<void>;
+
+  /**
+   * Deletes every answer cache entry of the project, and only of it, in one statement, and resolves to
+   * the number deleted. Checks `projectId` well formed before any statement; then, inside the write,
+   * the project exists. Transaction behaviour as {@link saveCacheEntry}.
+   *
+   * @throws ProjectNotFound when `projectId` is malformed (before any statement) or names no project.
+   * @throws CacheWriteFailed as {@link saveCacheEntry}.
+   */
+  invalidateCache(projectId: string): Promise<number>;
 }

@@ -22,10 +22,10 @@
 
 ## 3. Core: store port and in-memory double (TDD, design C3, C5) — `graph-store` → "Answer cache entries"
 
-- [ ] 3.1 RED: in `tests/unit/store/in-memory-store.spec.ts`, "The in-memory double keeps, checks and fails cache entries". See it fail
-- [ ] 3.2 GREEN (port): `packages/core/src/knowledge/cache-entry.ts` (`CacheEntry`, `assertValidCacheKey`, `assertValidCacheResponse`, `assertValidEntryId`, `assertValidHitInstant`), `CacheWriteFailed` in `packages/core/src/knowledge/errors.ts`, the four methods on `StorePort` with TSDoc (checks, errors, transaction behaviour); exports in `packages/core/src/index.ts`
-- [ ] 3.3 GREEN (double): `findCacheEntry`, `saveCacheEntry`, `touchCacheEntry`, `invalidateCache` in `tests/support/in-memory-store.ts` with `calls.*`, `cacheEntries()`, `seedCacheEntry()`, `failCacheCall` and a JSON round trip of each stored response; 3.1 green
-- [ ] 3.4 Every other `StorePort` double in `tests/` that `npm run typecheck` reports gets the four methods without changing what its tests assert: a double given to `explain` delegates to the in-memory double (or answers a miss: `findCacheEntry` resolves `undefined`, `saveCacheEntry` resolves); only doubles never given to `explain` may throw. `doubles()` of `tests/support/explain-doubles.ts` forwards `failCacheCall` and records `findCacheEntry`, `touchCacheEntry` and `saveCacheEntry` in `order` under their own names (design C5)
+- [x] 3.1 RED: in `tests/unit/store/in-memory-store.spec.ts`, "The in-memory double keeps, checks and fails cache entries". See it fail
+- [x] 3.2 GREEN (port): `packages/core/src/knowledge/cache-entry.ts` (`CacheEntry`, `assertValidCacheKey`, `assertValidCacheResponse`, `assertValidEntryId`, `assertValidHitInstant`), `CacheWriteFailed` in `packages/core/src/knowledge/errors.ts`, the four methods on `StorePort` with TSDoc (checks, errors, transaction behaviour); exports in `packages/core/src/index.ts`
+- [x] 3.3 GREEN (double): `findCacheEntry`, `saveCacheEntry`, `touchCacheEntry`, `invalidateCache` in `tests/support/in-memory-store.ts` with `calls.*`, `cacheEntries()`, `seedCacheEntry()`, `failCacheCall` and a JSON round trip of each stored response; 3.1 green
+- [x] 3.4 Every other `StorePort` double in `tests/` that `npm run typecheck` reports gets the four methods without changing what its tests assert: a double given to `explain` delegates to the in-memory double (or answers a miss: `findCacheEntry` resolves `undefined`, `saveCacheEntry` resolves); only doubles never given to `explain` may throw. `doubles()` of `tests/support/explain-doubles.ts` forwards `failCacheCall` and records `findCacheEntry`, `touchCacheEntry` and `saveCacheEntry` in `order` under their own names (design C5)
 
 ## 4. Adapter: Postgres cache entries (TDD, design C4) — `graph-store` → "Answer cache entries"
 

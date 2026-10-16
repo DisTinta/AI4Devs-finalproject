@@ -1,5 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import {
+  assertValidCacheKey,
+  assertValidCacheResponse,
+  assertValidEntryId,
+  assertValidHitInstant,
   assertValidSymbolSearch,
   assertValidTraversal,
   assertValidClaimItems,
@@ -12,6 +16,7 @@ import {
   symbolKey,
 } from '@codemind/core';
 import type {
+  CacheEntry,
   ClaimItem,
   ClaimSpan,
   EdgeEndpoint,
@@ -39,7 +44,10 @@ import type {
 // graph-store spec, and reuses core's argument checks. Since DIS-39 it also writes and reads claims
 // (`saveClaims`, `findClaimsOverlapping`, design D12), with an injectable write failure and a seeding
 // helper. Since DIS-74 it writes query log entries (`saveQueryLog`, design U4) and keeps them for
-// assertions, with an injectable write failure. The graph writes and the cost sum throw. It lives under
+// assertions, with an injectable write failure. Since DIS-21 it keeps the answer cache entries
+// (`findCacheEntry`, `saveCacheEntry`, `touchCacheEntry`, `invalidateCache`, design C5) with the
+// adapter's checks in the same order, a JSON round trip of each response (as the `jsonb` column), a
+// seeding helper and an injectable failure per call. The graph writes and the cost sum throw. It lives under
 // tests/ so it stays out of Stryker's mutate set and out of core's dist.
 //
 // Known limit: names are compared case-insensitively with `toLowerCase`, which can disagree with
@@ -68,6 +76,10 @@ export interface InMemoryStore {
     saveClaims: number;
     findClaimsOverlapping: number;
     saveQueryLog: number;
+    findCacheEntry: number;
+    saveCacheEntry: number;
+    touchCacheEntry: number;
+    invalidateCache: number;
   };
   /**
    * Stores a claim as given and returns its id, bypassing the checks of `saveClaims` (so a claim of
@@ -80,6 +92,46 @@ export interface InMemoryStore {
   setIndexedCommit(projectId: string, commit: string): void;
   /** Every query log entry `saveQueryLog` wrote, in write order. */
   queryLog(): QueryLogEntry[];
+  /** The answer cache entries of `projectId` (of every project when absent), in write order. */
+  cacheEntries(projectId?: string): StoredCacheEntry[];
+  /**
+   * Stores a cache entry as given, bypassing every check (an invalid response included), and returns
+   * its id. Later saves are stamped after its `createdAt`.
+   */
+  seedCacheEntry(seed: SeedCacheEntry): string;
+}
+
+/** An answer cache entry as the double keeps it. */
+export interface StoredCacheEntry {
+  id: string;
+  projectId: string;
+  /** The normalized question. */
+  key: string;
+  /** The stored response (a JSON round trip of what was written), or `null`. */
+  response: unknown;
+  hitCount: number;
+  lastHitAt: Date | null;
+  createdAt: Date;
+}
+
+/** A cache entry to seed: its project, key and response, and optionally its hit count and instant. */
+export interface SeedCacheEntry {
+  projectId: string;
+  key: string;
+  response: unknown;
+  hitCount?: number;
+  createdAt?: Date;
+}
+
+/**
+ * Failures to inject in the cache calls: each is called once a call passed its checks and, when it
+ * returns a value other than `undefined`, that value is thrown instead of reading or writing.
+ */
+export interface CacheCallFailures {
+  find?: () => unknown;
+  save?: () => unknown;
+  touch?: () => unknown;
+  invalidate?: () => unknown;
 }
 
 /** A claim to seed: its record, its evidence and the instant it was written (ISO 8601). */
@@ -119,6 +171,11 @@ interface StoredEdgeRow {
   target: string;
 }
 
+/** A JSON round trip of `value`, as a `jsonb` column stores and returns it. */
+function jsonRoundTrip(value: unknown): unknown {
+  return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
+}
+
 /** A well-formed id, as the Postgres store accepts it: the hyphenated 8-4-4-4-12 form. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -138,16 +195,19 @@ function nodeKey(type: NodeRef['type'], id: string): string {
  * `failClaimWrite`, `saveClaims` rejects with `ClaimWriteFailed` when it reaches that evidence, after
  * validating and before storing anything. With `failQueryLogWrite`, each `saveQueryLog` that passes
  * its checks calls it and, when it returns a value other than `undefined`, throws that value instead
- * of writing (DIS-74 design U4).
+ * of writing (DIS-74 design U4). With `failCacheCall`, each cache call that passes its checks calls
+ * its function and throws what it returns, when not `undefined` (DIS-21 design C5).
  */
 export function createInMemoryStore({
   projects,
   failClaimWrite,
   failQueryLogWrite,
+  failCacheCall = {},
 }: {
   projects: InMemoryProject[];
   failClaimWrite?: ClaimWriteFailure;
   failQueryLogWrite?: () => unknown;
+  failCacheCall?: CacheCallFailures;
 }): InMemoryStore {
   const projectRows = new Map<string, Project>();
   const files = new Map<string, StoredFileRow>();
@@ -156,7 +216,19 @@ export function createInMemoryStore({
   const claimRows: StoredClaimRow[] = [];
   let lastStamp = STAMP_BASE;
   const queryLogRows: QueryLogEntry[] = [];
-  const calls = { findSymbols: 0, neighbors: 0, getProject: 0, saveClaims: 0, findClaimsOverlapping: 0, saveQueryLog: 0 };
+  const cacheRows: StoredCacheEntry[] = [];
+  const calls = {
+    findSymbols: 0,
+    neighbors: 0,
+    getProject: 0,
+    saveClaims: 0,
+    findClaimsOverlapping: 0,
+    saveQueryLog: 0,
+    findCacheEntry: 0,
+    saveCacheEntry: 0,
+    touchCacheEntry: 0,
+    invalidateCache: 0,
+  };
   const projectIds: string[] = [];
   const fileIds: Array<Map<string, string>> = [];
 
@@ -292,6 +364,28 @@ export function createInMemoryStore({
     return id;
   }
 
+  /** Stores a cache entry as given, without any check. */
+  function seedCacheEntry({ projectId, key, response, hitCount = 0, createdAt }: SeedCacheEntry): string {
+    const id = randomUUID();
+    if (createdAt !== undefined) lastStamp = Math.max(lastStamp, createdAt.getTime());
+    cacheRows.push({
+      id,
+      projectId: projectId.toLowerCase(),
+      key,
+      response: jsonRoundTrip(response),
+      hitCount,
+      lastHitAt: null,
+      createdAt: createdAt ?? new Date(nextStamp()),
+    });
+    return id;
+  }
+
+  /** Throws the failure `inject` returns, if any. */
+  function injected(inject: (() => unknown) | undefined): void {
+    const failure = inject?.();
+    if (failure !== undefined) throw failure;
+  }
+
   const notImplemented = (): never => {
     throw new Error('not implemented in the in-memory store double');
   };
@@ -319,6 +413,63 @@ export function createInMemoryStore({
       const failure = failQueryLogWrite?.();
       if (failure !== undefined) throw failure;
       queryLogRows.push({ ...entry });
+    },
+
+    async findCacheEntry(projectId: string, questionNormalized: string): Promise<CacheEntry | undefined> {
+      calls.findCacheEntry += 1;
+      // Same order as the Postgres adapter (DIS-21 design C3): id form, key, project.
+      if (!UUID.test(projectId)) throw new ProjectNotFound(projectId);
+      assertValidCacheKey(questionNormalized);
+      const project = projectOf(projectId);
+      injected(failCacheCall.find);
+      const [newest] = cacheRows
+        .filter((row) => row.projectId === project.id && row.key === questionNormalized)
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || byteOrder(b.id, a.id));
+      return newest === undefined ? undefined : { id: newest.id, response: jsonRoundTrip(newest.response) };
+    },
+
+    async saveCacheEntry(projectId: string, questionNormalized: string, response: object): Promise<void> {
+      calls.saveCacheEntry += 1;
+      if (!UUID.test(projectId)) throw new ProjectNotFound(projectId);
+      assertValidCacheKey(questionNormalized);
+      assertValidCacheResponse(response);
+      const project = projectOf(projectId);
+      injected(failCacheCall.save);
+      const kept = cacheRows.filter((row) => !(row.projectId === project.id && row.key === questionNormalized));
+      cacheRows.splice(0, cacheRows.length, ...kept);
+      cacheRows.push({
+        id: randomUUID(),
+        projectId: project.id,
+        key: questionNormalized,
+        response: jsonRoundTrip(response),
+        hitCount: 0,
+        lastHitAt: null,
+        createdAt: new Date(nextStamp()),
+      });
+    },
+
+    async touchCacheEntry(projectId: string, entryId: string, at: Date): Promise<void> {
+      calls.touchCacheEntry += 1;
+      if (!UUID.test(projectId)) throw new ProjectNotFound(projectId);
+      assertValidEntryId(entryId);
+      assertValidHitInstant(at);
+      const project = projectOf(projectId);
+      injected(failCacheCall.touch);
+      const row = cacheRows.find((entry) => entry.projectId === project.id && entry.id === entryId.toLowerCase());
+      if (row === undefined) return;
+      row.hitCount += 1;
+      row.lastHitAt = new Date(at.getTime());
+    },
+
+    async invalidateCache(projectId: string): Promise<number> {
+      calls.invalidateCache += 1;
+      if (!UUID.test(projectId)) throw new ProjectNotFound(projectId);
+      const project = projectOf(projectId);
+      injected(failCacheCall.invalidate);
+      const kept = cacheRows.filter((row) => row.projectId !== project.id);
+      const deleted = cacheRows.length - kept.length;
+      cacheRows.splice(0, cacheRows.length, ...kept);
+      return deleted;
     },
 
     async saveClaims(projectId: string, items: ClaimItem[], readAtCommit?: string): Promise<SavedClaim[]> {
@@ -442,5 +593,14 @@ export function createInMemoryStore({
     setIndexedCommit,
     storedClaims: () => claimRows.map((row) => row.claim),
     queryLog: () => queryLogRows.map((row) => ({ ...row })),
+    cacheEntries: (projectId?: string) =>
+      cacheRows
+        .filter((row) => projectId === undefined || row.projectId === projectId.toLowerCase())
+        .map((row) => ({
+          ...row,
+          response: jsonRoundTrip(row.response),
+          lastHitAt: row.lastHitAt === null ? null : new Date(row.lastHitAt.getTime()),
+        })),
+    seedCacheEntry,
   };
 }
