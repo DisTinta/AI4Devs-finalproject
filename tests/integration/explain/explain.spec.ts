@@ -286,12 +286,13 @@ describeWithDatabase('explain over the indexed acme-shop (DIS-39)', () => {
       const spent = await store.sumCostSince(startOfDay);
       expect(spent).toBeCloseTo(before + 0.0165, 6);
 
-      // Act: the same question with the model behind a daily budget the day's spend already reaches.
+      // Act: the same question past the answer cache (`useCache: false`, DIS-21), with the model behind a
+      // daily budget the day's spend already reaches.
       reads = 0;
       const budgeted = createScriptedLlm('live', script, undefined, calls);
       const error = await explain(
         { ...deps, llm: withDailyBudget(budgeted.llm, { store, dailyBudgetUsd: spent }) },
-        { projectId, question: Q1 },
+        { projectId, question: Q1, useCache: false },
       ).catch((e: unknown) => e);
 
       // Assert
@@ -346,6 +347,74 @@ describeWithDatabase('explain over the indexed acme-shop (DIS-39)', () => {
       for (const span of pack.spans) expect(events).not.toContain(span.text.slice(0, 40));
       const { rows } = await db().query<{ n: number }>('SELECT count(*)::int AS n FROM claim WHERE project_id = $1', [projectId]);
       expect(rows[0]!.n).toBe(0);
+    },
+    TIMEOUT_MS,
+  );
+
+  // DIS-21 (change evaluation-cache), spec explain → "Answer cache".
+  it(
+    'A hit over the database counts in its entry and its row',
+    async () => {
+      // Arrange: the price question answered and saved by a live explain citing the anchor span.
+      const { store, projectId, pack } = await indexed();
+      const calculator = pack.spans.find((s) => s.path === 'app/Services/PriceCalculator.php' && s.origin === 'anchor')!;
+      const live = createScriptedLlm('live', (prompt) =>
+        modelOutput('El precio final lo calcula PriceCalculator::compute.', [
+          { text: 'PriceCalculator::compute calcula el precio final.', evidenceIds: [idOf(prompt, calculator)] },
+        ]),
+      );
+      const deps = {
+        store,
+        source: createGitSourceTree(),
+        workspaceRoot: WORKSPACE_ROOT,
+        verificationCache: createInMemoryVerificationCache(),
+      };
+      const first = await explain({ ...deps, llm: live.llm, now: () => NOW }, { projectId, question: Q1 });
+      const count = async (table: 'claim' | 'cache_entry'): Promise<number> =>
+        (await db().query<{ n: number }>(`SELECT count(*)::int AS n FROM ${table} WHERE project_id = $1`, [projectId])).rows[0]!.n;
+      const claimsBefore = await count('claim');
+      const evaluation = createScriptedLlm('evaluation');
+      const hitAt = new Date('2026-10-17T12:00:00.000Z');
+      const instants = [hitAt, new Date(hitAt.getTime() + 3)];
+      let reads = 0;
+
+      // Act
+      const answer = await explain(
+        { ...deps, llm: evaluation.llm, now: () => instants[Math.min(reads++, instants.length - 1)]! },
+        { projectId, question: 'COMO SE CALCULA EL PRECIO FINAL DE UN PEDIDO' },
+      );
+
+      // Assert
+      expect(first).toMatchObject({ kind: 'answered', persisted: true });
+      if (first.kind !== 'answered') return;
+      expect(answer).toMatchObject({
+        kind: 'answered',
+        persisted: true,
+        answer: first.answer,
+        statements: first.statements,
+        evidence: first.evidence,
+        priorClaims: first.priorClaims,
+        confidence: first.confidence,
+        events: [],
+        usage: { cacheHit: true, costUsd: 0, inputTokens: 0, outputTokens: 0 },
+      });
+      expect(evaluation.requests).toHaveLength(0);
+      const { rows: entries } = await db().query<{ hit_count: number; last_hit_at: Date }>(
+        'SELECT hit_count, last_hit_at FROM cache_entry WHERE project_id = $1',
+        [projectId],
+      );
+      expect(entries).toEqual([{ hit_count: 1, last_hit_at: hitAt }]);
+      // Both rows share the harness transaction's `now()`, so the hit's row is told apart by its flag.
+      const { rows: logged } = await db().query<{ cache_hit: boolean; cost_usd: string }>(
+        'SELECT cache_hit, cost_usd FROM query_log WHERE project_id = $1 ORDER BY cache_hit',
+        [projectId],
+      );
+      expect(logged).toEqual([
+        { cache_hit: false, cost_usd: '0.000000' },
+        { cache_hit: true, cost_usd: '0.000000' },
+      ]);
+      expect(await count('claim')).toBe(claimsBefore);
+      expect(await count('cache_entry')).toBe(1);
     },
     TIMEOUT_MS,
   );
