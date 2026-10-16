@@ -1,9 +1,57 @@
 import type { FastifyInstance } from 'fastify';
 import { createInMemoryVerificationCache, explain as coreExplain } from '@codemind/core';
-import type { explain, ExplainAnswer } from '@codemind/core';
+import type { explain, ExplainAnswer, InvalidExplainRequest, LlmUnavailable, SourceUnavailable } from '@codemind/core';
+import { DOMAIN_ERRORS } from '../plugins/error-handler.js';
+import type { DomainErrorMapping, DomainErrorTable } from '../plugins/error-handler.js';
 import { askBodySchema, askParamsSchema, askResponseSchema } from '../schemas/ask.js';
 import type { AskBody, AskParams, AskResponse } from '../schemas/ask.js';
 import { errorSchema } from '../schemas/common.js';
+
+/** The global answer of `BUDGET_EXHAUSTED`, which the table of `/ask` extends (D6). */
+const BUDGET_EXHAUSTED = DOMAIN_ERRORS.get('BUDGET_EXHAUSTED')!;
+
+/**
+ * The domain error table of `POST /api/projects/{projectId}/ask` (DIS-78 design U4, D5, D6): fixed
+ * messages (those of the CLI `ask`, except `invalid request`, the message of every HTTP `400`
+ * validation answer) and details built only from the error's fields. `BUDGET_EXHAUSTED` keeps the
+ * global answer and adds `cacheOnly: true`: what needs no model call is still served.
+ */
+export const ASK_DOMAIN_ERRORS: DomainErrorTable = new Map<string, DomainErrorMapping>([
+  ['PROJECT_NOT_FOUND', { status: 404, message: 'project not found', details: () => ({}) }],
+  [
+    'INVALID_EXPLAIN_REQUEST',
+    { status: 400, message: 'invalid request', details: (error) => ({ field: (error as InvalidExplainRequest).field }) },
+  ],
+  [
+    'LLM_UNAVAILABLE',
+    {
+      status: 503,
+      message: 'the language model is unavailable',
+      details: (error) => {
+        const { reason, status, expected, received, systemCode } = error as LlmUnavailable;
+        return {
+          reason,
+          ...(status !== undefined && { status }),
+          ...(expected !== undefined && { expected }),
+          ...(received !== undefined && { received }),
+          ...(systemCode !== undefined && { systemCode }),
+        };
+      },
+    },
+  ],
+  [
+    'SOURCE_UNAVAILABLE',
+    {
+      status: 503,
+      message: "the project's source cannot be read",
+      details: (error) => {
+        const { reason, path } = error as SourceUnavailable;
+        return { reason, ...(path !== undefined && { path }) };
+      },
+    },
+  ],
+  ['BUDGET_EXHAUSTED', { ...BUDGET_EXHAUSTED, details: (error) => ({ ...BUDGET_EXHAUSTED.details(error), cacheOnly: true }) }],
+]);
 
 /** How the ask route is registered. */
 export interface AskRouteOptions {
@@ -81,7 +129,7 @@ export function registerAskRoute(app: FastifyInstance, options: AskRouteOptions 
     body: askBodySchema,
     response: { 200: askResponseSchema, 400: errorSchema, 404: errorSchema, 429: errorSchema, 500: errorSchema, 503: errorSchema },
   };
-  app.post('/api/projects/:projectId/ask', { schema }, async (request) => {
+  app.post('/api/projects/:projectId/ask', { schema, config: { domainErrors: ASK_DOMAIN_ERRORS } }, async (request) => {
     const { projectId } = request.params as AskParams;
     const body = request.body as AskBody;
     const project = await app.deps.store.getProject(projectId);

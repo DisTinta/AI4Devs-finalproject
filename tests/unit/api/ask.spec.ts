@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { LLM_REQUIRED_MESSAGE } from '@codemind/core';
@@ -379,5 +380,25 @@ describe('ask UNKNOWN response', () => {
     expect(first.json()).toEqual({ answer: 'UNKNOWN', reason: 'no-anchor', statements: [], evidence: [] });
     expect(second.statusCode).toBe(200);
     expect(second.json()).toEqual({ answer: 'UNKNOWN', reason: 'broken-evidence', statements: [], evidence: [] });
+  });
+});
+
+describe('ask project resolution', () => {
+  it('An unknown project answers PROJECT_NOT_FOUND', async () => {
+    // Arrange
+    const built = await askApp();
+    const unknownId = randomUUID();
+
+    // Act
+    const anchored = await ask(built.app, unknownId, { question: Q1 });
+    const unanchored = await ask(built.app, unknownId, { question: SMILE.repeat(5) });
+
+    // Assert
+    for (const response of [anchored, unanchored]) {
+      expect(response.statusCode).toBe(404);
+      expect(response.json()).toEqual(errorBody('PROJECT_NOT_FOUND', 'project not found'));
+      expect(response.body).not.toContain(unknownId);
+    }
+    expect(built.llm.calls()).toBe(0);
   });
 });

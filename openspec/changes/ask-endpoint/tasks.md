@@ -27,8 +27,8 @@
 
 ## 4. API: project resolution and error answers (TDD, design U3, U4) — `http-ask` → "Ask project resolution", "Ask error answers"
 
-- [ ] 4.1 RED: "An unknown project answers PROJECT_NOT_FOUND". See it fail (`500 INTERNAL` without the route's table)
-- [ ] 4.2 GREEN: `ASK_DOMAIN_ERRORS` in `routes/ask.ts` (`PROJECT_NOT_FOUND`, `INVALID_EXPLAIN_REQUEST` → `400` `invalid request`, `LLM_UNAVAILABLE`, `SOURCE_UNAVAILABLE`, `BUDGET_EXHAUSTED` built from the global entry plus `cacheOnly: true`), declared in the route's `config`
+- [x] 4.1 RED: "An unknown project answers PROJECT_NOT_FOUND". See it fail (`500 INTERNAL` without the route's table)
+- [x] 4.2 GREEN: `ASK_DOMAIN_ERRORS` in `routes/ask.ts` (`PROJECT_NOT_FOUND`, `INVALID_EXPLAIN_REQUEST` → `400` `invalid request`, `LLM_UNAVAILABLE`, `SOURCE_UNAVAILABLE`, `BUDGET_EXHAUSTED` built from the global entry plus `cacheOnly: true`), declared in the route's `config`
 - [ ] 4.3 RED → GREEN, one at a time: "Domain errors of the use case map to their answers", "An exhausted budget on ask answers 429 with the cache-only notice", "Another error of the use case answers INTERNAL", "The ask route is rate limited" ("called exactly twice" observed with the counting `explain` seam; characterisation tests if they pass at once)
 
 ## 5. API: events, verification verdicts and OpenAPI (TDD, design U3, U5) — `http-ask` → "Ask events and verification verdicts", "Ask in the OpenAPI document"

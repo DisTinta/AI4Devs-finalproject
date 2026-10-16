@@ -35,4 +35,4 @@ export {
   type AskUnknown,
   type AskUsage,
 } from './schemas/ask.js';
-export { registerAskRoute, toPublicAnswer, type AskRouteOptions } from './routes/ask.js';
+export { registerAskRoute, type AskRouteOptions } from './routes/ask.js';
