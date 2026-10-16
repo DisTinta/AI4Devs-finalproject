@@ -15,8 +15,8 @@
 - [x] 2.1 RED: create `tests/unit/api/ask.spec.ts` with "An invalid question answers VALIDATION_ERROR without asking" (in-memory store with the acme-shop subset, store/model/source wrapped by `counting()`). See it fail (`404 NOT_FOUND`: no route)
 - [x] 2.2 GREEN (schemas): `packages/api/src/schemas/ask.ts` (`askParamsSchema`, `askBodySchema`; `TOKEN_BUDGET_MIN`/`TOKEN_BUDGET_MAX`/`TOKEN_BUDGET_DEFAULT`/`hasNoNul` imported from `@codemind/core`); TSDoc on every export; `npm run typecheck` green
 - [x] 2.3 GREEN (route): `packages/api/src/routes/ask.ts` (`registerAskRoute` with the `explain` seam, the verification cache per registration, `getProject` then `explain`), `AppOptions.explain?` and the call in `buildApp` after `registerHealthRoute`; TSDoc on every export; 2.1 green and `npx vitest run tests/unit/api` stays green
-- [ ] 2.4 RED → GREEN, one at a time: "A question at the length bounds is accepted", "An invalid token budget, cache flag or extra key answers VALIDATION_ERROR", "A malformed project id answers VALIDATION_ERROR" ("no call" observed with `counting()` on the store, model and source tree; each a characterisation test if it passes at once, recorded in the step 9 report)
-- [ ] 2.5 RED → GREEN: "Optional fields are forwarded as the use case expects" (the `explain` seam records the requests; `useCache` never forwarded, `tokenBudget` only when sent, `projectId` the store's id)
+- [x] 2.4 RED → GREEN, one at a time: "A question at the length bounds is accepted", "An invalid token budget, cache flag or extra key answers VALIDATION_ERROR", "A malformed project id answers VALIDATION_ERROR" ("no call" observed with `counting()` on the store, model and source tree; each a characterisation test if it passes at once, recorded in the step 9 report)
+- [x] 2.5 RED → GREEN: "Optional fields are forwarded as the use case expects" (the `explain` seam records the requests; `useCache` never forwarded, `tokenBudget` only when sent, `projectId` the store's id)
 
 ## 3. API: public response (TDD, design U2, U3) — `http-ask` → "Ask answered response", "Ask UNKNOWN response"
 

@@ -1,6 +1,17 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
-import type { explain, LlmPort, SourceTreePort, StorePort } from '@codemind/core';
+import { LLM_REQUIRED_MESSAGE } from '@codemind/core';
+import type {
+  explain,
+  ExplainAnswer,
+  ExplainDependencies,
+  ExplainEvent,
+  ExplainRequest,
+  LlmPort,
+  SourceTreePort,
+  StorePort,
+  UnknownExplain,
+} from '@codemind/core';
 import { buildApp } from '../../../packages/api/src/app';
 import type { AppDeps, AppOptions } from '../../../packages/api/src/app';
 import { ACME_SHOP_PROJECT, acmeShopGraph } from '../../support/acme-shop-graph';
@@ -81,6 +92,32 @@ function noCalls(ports: Pick<AskApp, 'store' | 'llm' | 'source'>): boolean {
   return ports.store.calls() === 0 && ports.llm.calls() === 0 && ports.source.calls() === 0;
 }
 
+/** A use case seam that records its requests and answers with `answers()` (resolved or thrown). */
+function useCase(answers: () => ExplainAnswer | Promise<ExplainAnswer> = () => unknownAnswer('no-anchor')): {
+  explain: typeof explain;
+  requests: ExplainRequest[];
+} {
+  const requests: ExplainRequest[] = [];
+  const seam = (async (_dependencies: ExplainDependencies, request: ExplainRequest) => {
+    requests.push(request);
+    return answers();
+  }) as typeof explain;
+  return { explain: seam, requests };
+}
+
+/** An `UNKNOWN` answer of `explain` with `reason` and `events`. */
+function unknownAnswer(reason: UnknownExplain['reason'], events: ExplainEvent[] = []): UnknownExplain {
+  return {
+    kind: 'unknown',
+    answer: 'UNKNOWN',
+    reason,
+    ...(reason === 'llm-required' && { message: LLM_REQUIRED_MESSAGE }),
+    statements: [],
+    evidence: [],
+    events,
+  };
+}
+
 describe('ask request validation', () => {
   it('An invalid question answers VALIDATION_ERROR without asking', async () => {
     // Arrange
@@ -107,5 +144,93 @@ describe('ask request validation', () => {
       for (const value of ['abc', 'price', 'calc']) expect(response.body).not.toContain(value);
     }
     expect(noCalls(built)).toBe(true);
+  });
+
+  it('A question at the length bounds is accepted', async () => {
+    // Arrange
+    const built = await askApp();
+    const shortest = SMILE.repeat(5);
+    const longest = SMILE.repeat(500);
+
+    // Act
+    const atMin = await ask(built.app, built.projectId, { question: shortest });
+    const atMax = await ask(built.app, built.projectId, { question: longest });
+
+    // Assert
+    expect(shortest).toHaveLength(10);
+    expect(longest).toHaveLength(1_000);
+    expect(atMin.statusCode).toBe(200);
+    expect(atMax.statusCode).toBe(200);
+  });
+
+  it('An invalid token budget, cache flag or extra key answers VALIDATION_ERROR', async () => {
+    // Arrange
+    const built = await askApp();
+    const payloads = [
+      { question: Q1, tokenBudget: 50 },
+      { question: Q1, tokenBudget: 999 },
+      { question: Q1, tokenBudget: 32_001 },
+      { question: Q1, tokenBudget: 8000.5 },
+      { question: Q1, tokenBudget: '8000' },
+      { question: Q1, useCache: 'yes' },
+      { question: Q1, hops: 2 },
+      { question: Q1, x: 1 },
+    ];
+
+    // Act
+    const responses = [];
+    for (const payload of payloads) responses.push(await ask(built.app, built.projectId, payload));
+
+    // Assert
+    const codes = responses.map((response) => {
+      expect(response.statusCode).toBe(400);
+      const { error } = response.json();
+      expect(error.code).toBe('VALIDATION_ERROR');
+      expect(error.details.issues).toHaveLength(1);
+      return error.details.issues[0].code;
+    });
+    expect(codes).toEqual(['too_small', 'too_small', 'too_big', 'invalid_type', 'invalid_type', 'invalid_type', 'unrecognized_keys', 'unrecognized_keys']);
+    expect(noCalls(built)).toBe(true);
+  });
+
+  it('A malformed project id answers VALIDATION_ERROR', async () => {
+    // Arrange
+    const built = await askApp();
+    const ids = ['not-a-uuid', '123', built.projectId.replaceAll('-', '')];
+
+    // Act
+    const responses = [];
+    for (const id of ids) responses.push(await ask(built.app, id, { question: Q1 }));
+
+    // Assert
+    responses.forEach((response, i) => {
+      expect(response.statusCode).toBe(400);
+      const { error } = response.json();
+      expect(error.code).toBe('VALIDATION_ERROR');
+      expect(error.details.issues.map((issue: { path: unknown }) => issue.path)).toContainEqual(['projectId']);
+      expect(response.body).not.toContain(ids[i]);
+    });
+    expect(built.store.calls()).toBe(0);
+  });
+
+  it('Optional fields are forwarded as the use case expects', async () => {
+    // Arrange
+    const recorded = useCase();
+    const built = await askApp({ explain: recorded.explain });
+
+    // Act
+    const responses = [
+      await ask(built.app, built.projectId, { question: Q1 }),
+      await ask(built.app, built.projectId, { question: Q1, tokenBudget: 1000 }),
+      await ask(built.app, built.projectId, { question: Q1, tokenBudget: 32_000, useCache: false }),
+    ];
+
+    // Assert
+    expect(responses.map((response) => response.statusCode)).toEqual([200, 200, 200]);
+    expect(recorded.requests).toEqual([
+      { projectId: built.projectId, question: Q1 },
+      { projectId: built.projectId, question: Q1, tokenBudget: 1000 },
+      { projectId: built.projectId, question: Q1, tokenBudget: 32_000 },
+    ]);
   });
 });
