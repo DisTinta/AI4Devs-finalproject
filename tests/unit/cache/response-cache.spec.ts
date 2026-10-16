@@ -90,4 +90,35 @@ describe('Requirement: Stored response', () => {
     expect(stored).toStrictEqual(cachedNoEvidence());
     expect(parseStoredResponse(JSON.parse(JSON.stringify(stored)))).toStrictEqual(stored);
   });
+
+  it('Invalid stored responses are rejected without leaking', () => {
+    // Arrange
+    const SENTINEL = 'SENTINEL-cached-answer-5c2f';
+    const valid = (): Record<string, unknown> => ({ ...cachedAnswer({ answer: SENTINEL }) });
+    const [statement] = cachedAnswer().statements;
+    const [evidence] = cachedAnswer().evidence;
+    const withoutUsage = valid();
+    delete withoutUsage.usage;
+    const invalid: unknown[] = [
+      null,
+      'x',
+      { ...valid(), debug: SENTINEL },
+      { ...valid(), events: [] },
+      { ...valid(), persisted: false },
+      { ...valid(), statements: [{ ...statement!, type: 'INFERENCE', status: 'stale', warning: 'stale-evidence' }] },
+      { ...valid(), statements: [{ ...statement!, evidenceIds: ['00000000-0000-4000-8000-000000000000'] }] },
+      { ...valid(), evidence: [{ ...evidence!, excerpt: null }] },
+      withoutUsage,
+      { ...valid(), usage: { ...cachedAnswer().usage, cacheHit: true } },
+      { ...cachedNoEvidence(), reason: 'llm-required' },
+      { ...cachedNoEvidence(), message: SENTINEL },
+    ];
+
+    // Act
+    const results = invalid.map((value) => parseStoredResponse(value));
+
+    // Assert
+    expect(results).toEqual(invalid.map(() => undefined));
+    expect(JSON.stringify(results)).not.toContain(SENTINEL);
+  });
 });

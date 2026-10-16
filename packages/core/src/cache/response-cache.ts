@@ -117,7 +117,12 @@ const storedAnswerSchema = z.strictObject({
   ),
   usage: usageSchema,
   confidence: z.number().gt(0).lt(1),
-});
+})
+  // A statement citing an id absent from `evidence` would make `/ask` answer 500 (http-ask).
+  .refine((stored) => {
+    const ids = new Set(stored.evidence.map((evidence) => evidence.id));
+    return stored.statements.every((statement) => statement.evidenceIds.every((id) => ids.has(id)));
+  });
 
 const storedUnknownSchema = z.strictObject({
   kind: z.literal('unknown'),

@@ -17,7 +17,7 @@
 - [x] 2.2 RED: create `tests/unit/cache/response-cache.spec.ts` with "Only stored current answers and no-evidence unknowns are cacheable". See it fail
 - [x] 2.3 GREEN: `packages/core/src/cache/response-cache.ts` with `isCacheable`; add `STATEMENT_TYPES` to `packages/core/src/explain/typing-rules.ts` and derive `StatementType` from it (`npm run typecheck` and `npx vitest run tests/unit` stay green)
 - [x] 2.4 RED → GREEN: "A stored response keeps the answer without its events", "A no-evidence unknown is stored without events" (`toStoredResponse`, `storedResponseSchema`, `parseStoredResponse`)
-- [ ] 2.5 RED → GREEN: "Invalid stored responses are rejected without leaking" (strict objects, the evidence-id reference check, answer evidence `excerpt` a string, `cacheHit` literal `false`; a negative `savingsPct` and a `null` prior-claim excerpt accepted, as the scenario of 2.4 checks)
+- [x] 2.5 RED → GREEN: "Invalid stored responses are rejected without leaking" (strict objects, the evidence-id reference check, answer evidence `excerpt` a string, `cacheHit` literal `false`; a negative `savingsPct` and a `null` prior-claim excerpt accepted, as the scenario of 2.4 checks)
 - [ ] 2.6 RED → GREEN: "A hit carries the stored answer and the usage of this call", "A cached unknown is answered without usage" (`answerFromCache`, `savingsPct` from `explain/usage.ts`; widen `AnswerUsage.cacheHit` to `boolean`); exports in `cache/index.ts`; `npm run lint:architecture` green (no cycle between `cache/` and `explain/`)
 
 ## 3. Core: store port and in-memory double (TDD, design C3, C5) — `graph-store` → "Answer cache entries"
