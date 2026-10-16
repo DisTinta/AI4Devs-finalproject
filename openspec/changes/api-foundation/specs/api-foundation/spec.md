@@ -267,8 +267,10 @@ response still never carries it.
   and a test route `GET /api/test-throw` that throws `new Error('boom-7f3a')`
 - **WHEN** `POST /api/test-only` is sent `{ "question": "SENTINEL-question-91b2" }` with the header
   `authorization: Bearer SENTINEL-hdr-55e1`, then `GET /api/test-throw` is sent
-- **THEN** no log line contains `SENTINEL-question-91b2` or `SENTINEL-hdr-55e1`, the log lines sharing one `reqId` record `POST`, `/api/test-only` and status `200`, no log line has a
-  `version` field, and one log line at level `error` contains `boom-7f3a`
+- **THEN** no log line contains `SENTINEL-question-91b2` or `SENTINEL-hdr-55e1`, the log lines sharing
+  one `reqId` record `POST`, `/api/test-only` and status `200`, the `request completed` line of that
+  `reqId` has a numeric `responseTime`, no log line has a `version` field, and one log line at level
+  `error` contains `boom-7f3a`
 
 ### Requirement: Configuration from the environment
 
@@ -283,12 +285,13 @@ variable that is unset or empty after trimming takes its default:
 | `RATE_LIMIT_MAX` | decimal digits only, 1–1 000 000 | `30` |
 | `RATE_LIMIT_WINDOW_MS` | decimal digits only, 1–86 400 000 | `60000` |
 
-It SHALL check them in that order and fail on the first invalid one with the code `INVALID_CONFIG`
-(one code for missing and invalid, as `LLM_CONFIG_INVALID` does),
-the message `<VARIABLE> is missing or invalid; see .env.example` and `details.variable` naming it,
-never its value. It SHALL then read the LLM configuration (`LLM_*`, `DAILY_BUDGET_USD`) with the rules
-of the `llm-adapter` capability, failing with `LLM_CONFIG_INVALID`. Every check SHALL happen before
-any connection is opened.
+It SHALL check them in that order and fail on the first invalid one with an error whose `code` is
+`INVALID_CONFIG` (one code for missing and invalid, as `LLM_CONFIG_INVALID` does), whose `variable`
+names it and whose message is `<VARIABLE> is missing or invalid; see .env.example`, never holding its
+value; the start-up line carries that name as `details.variable` (requirement "Start-up failure"). It
+SHALL then read the LLM configuration (`LLM_*`, `DAILY_BUDGET_USD`) with the rules of the
+`llm-adapter` capability, failing with `LLM_CONFIG_INVALID`. Every check SHALL happen before any
+connection is opened.
 
 #### Scenario: Defaults apply to unset and empty variables
 
@@ -304,8 +307,8 @@ any connection is opened.
   `RATE_LIMIT_MAX` = `1000001`, `RATE_LIMIT_WINDOW_MS` = `0`, `RATE_LIMIT_WINDOW_MS` = `1m`,
   `RATE_LIMIT_WINDOW_MS` = `86400001`
 - **WHEN** the configuration is read
-- **THEN** each fails with `INVALID_CONFIG` and `details.variable` naming that variable, and neither
-  the message nor the details contain the value
+- **THEN** each fails with an error whose `code` is `INVALID_CONFIG` and whose `variable` is that
+  variable, and its message does not contain the value
 
 ### Requirement: Composition from the environment
 
@@ -322,9 +325,9 @@ Closing the API SHALL close the store's connections.
 - **GIVEN** `DATABASE_URL` unset; then a valid `DATABASE_URL` with `LLM_API_KEY` set and
   `LLM_BASE_URL` unset
 - **WHEN** the dependencies are composed with an `openStore` seam that records its calls
-- **THEN** the first fails with `INVALID_CONFIG` (`DATABASE_URL`), the second with
-  `LLM_CONFIG_INVALID` (`details.variable` naming the LLM variable at fault), and `openStore` was
-  never called
+- **THEN** the first fails with an error whose `code` is `INVALID_CONFIG` and whose `variable` is
+  `DATABASE_URL`, the second with an `LlmConfigError` (`code` `LLM_CONFIG_INVALID`) whose `variable`
+  is `LLM_BASE_URL`, and `openStore` was never called
 
 #### Scenario: Evaluation mode uses the model as built
 
@@ -370,7 +373,9 @@ When the API process cannot start, it SHALL write exactly one line to stderr,
 | The database does not accept a connection | `DATABASE_UNAVAILABLE` | `cannot connect to the database` | `{}` |
 | Anything else (e.g. the address is in use) | `STARTUP_FAILED` | `the API could not start` | `{ systemCode }` when the error's `code` is a system code (`E` followed by capital letters only, such as `EADDRINUSE`), else `{}` |
 
-The line MUST NOT contain the value of any variable, the database URL, its credentials or
+A start-up failure raised after the store was opened (for example, the address is in use) SHALL
+close the store's connections before the process exits. The line MUST NOT contain the value of any
+variable, the database URL, its credentials or
 `LLM_API_KEY`.
 
 #### Scenario: A missing DATABASE_URL stops the process with one line

@@ -590,3 +590,234 @@ D9, criterion 5 (h), reality-map test note).
 | 6.3 D1–D10 | D1–D11 in proposal and task 16.1 |
 | 7.1 stale Stryker comments | Task 9.1 updates the `vitest.stryker.config.ts` header and both `ci.yml` comments |
 | 8.1 compilers needed from task 3.3 | Minimal `zod-compiler.ts` moves to task 3.3; task 3.5 completes it |
+
+---
+
+# Run 3 (spec-auditor, 2026-10-16)
+
+CHANGES REQUIRED
+
+**Questions for the author:** none. This is an autonomous run (ADR `20261016-autonomous-workflow-run-entrega-2`), so the decisions in the DIS-76 `[enhanced]` (D1–D11, criteria 1–5 (a)–(h), technical context) count as valid scope. The P1 decision (option b) is recorded in the DIS-78 `[enhanced]`.
+
+**Input note:** the Linear tools were available. I loaded DIS-76 (sub-issue, 2 comments, handover notes from DIS-18), DIS-59 (parent, no comments) and DIS-78. The autonomous-run ADR is not on this branch; as in runs 1–2, I accept its authorisation as stated.
+
+---
+
+## Run-2 resolutions: did they land?
+
+| Run-2 finding | Landed? | Where |
+|---|---|---|
+| 3.1 listen failure closes the store | ✓ | spec l. 393-399; design U6 l. 161-163, U10 l. 249; task 8.2b |
+| 3.2 config range edges | ✓ | spec l. 302-305 (`1000001`, `0`, `1m`) |
+| 5.1 / 6.1 / 8.2 log line shape, `accept-version` | ✓ | design U9 l. 222-228; spec l. 259-261, 270-271 (`reqId`, no `version` field); task 6.1 |
+| 5.2 `toJSONSchema` `io` | ✓ | design U2 l. 83-86; DIS-76 D2 |
+| 5.3 command for start-up checks | ✓ | task 13.4 (`npx tsx --tsconfig … server.ts`, `$?`) |
+| 5.4 `DatabaseUnavailable` input | ✓ | spec l. 387 ("a `DatabaseUnavailable` of the store adapter") |
+| 6.2 `tsx watch` does not exit | ✓ | proposal l. 28-29; design Risks l. 276-279; DIS-76 D7 |
+| 6.3 D1–D11 | ✓ | proposal l. 19; task 16.1 |
+| 7.1 stale Stryker comments | ✓ | task 9.1 |
+| 8.1 compilers needed from task 3.3 | ✓ | task 3.3 (minimal `zod-compiler.ts`), task 3.5 completes it |
+| Linear (D2, D7, D9, reality-map note, criterion 5 (h)) | ✓ | DIS-76 `[enhanced]` |
+
+All run-2 resolutions landed. The findings below are new.
+
+---
+
+## 1. Scope against the ticket
+
+Clean. Everything traces to the DIS-76 `[enhanced]`:
+- D1–D11;
+- criteria 1–5, including (g) and (h);
+- the technical context.
+
+The change does not widen to DIS-59's whole story. `/ask`, `PROJECT_NOT_FOUND`/`INVALID_EXPLAIN_REQUEST`/`LLM_UNAVAILABLE`, the cache notice and "`/docs` lists `/ask`" all stay with DIS-78.
+
+## 2. Inherited acceptance criteria
+
+Clean. The DIS-76 DoD and the parent criteria that the DoD inherits all have a requirement and a scenario:
+
+| Criterion | Requirement | Scenario |
+|---|---|---|
+| `/health` answers | Liveness route | Health answers ok… |
+| `/docs` answers | OpenAPI document at /docs | The document lists… / The viewer is served as HTML |
+| Test `400` in `Error` format (DIS-59 `VALIDATION_ERROR`) | Request validation by schema | A field that fails its rule… |
+| Test `429` in `Error` format (DIS-59 `RATE_LIMITED`) | Rate limit by IP | The request beyond the limit… |
+| `BUDGET_EXHAUSTED` `429` (DIS-59) | Domain error mapping | An exhausted budget answers 429… (the cache notice goes to DIS-78, Follow-ups B) |
+| Tests with `inject` | — | `tests/unit/api/*` |
+
+## 3. Missing scenarios
+
+- **3.1 (improvable): the "listen failure" behaviour is not in any requirement clause.**
+  - The scenario "A listen failure closes the store" (spec l. 393) sits under "Start-up failure".
+  - That requirement (l. 363-374) only fixes the stderr line and exit code `1`. No requirement text says that a start-up failure after the store was opened closes the store's connections.
+  - Fix: add that clause to the requirement (see Corrections 3).
+- **3.2 (improvable): response time is required but not checked.**
+  - "Request body limit and logging" (l. 259-261) says the log SHALL record the response time.
+  - The scenario (l. 270-271) does not check it.
+  - Fix: add "and the `request completed` line of that `reqId` has a numeric `responseTime`".
+- **3.3 (improvable): the LLM variable at fault is not named.**
+  - "Configuration errors are raised before the store is opened" (l. 325-326) says "naming the LLM variable at fault" without naming it.
+  - With `LLM_API_KEY` set and `LLM_BASE_URL` unset, the code raises `LlmConfigError('LLM_BASE_URL')` (`packages/adapters/llm/src/config.ts:83`).
+  - Fix: name `LLM_BASE_URL` in the scenario. This is folded into Corrections 2.
+
+Every other MUST clause has a scenario.
+
+## 4. Ambiguity
+
+Clean. I searched `proposal.md`, `design.md`, both deltas and `tasks.md` for fast / easy / secure / efficient / many / appropriate / robust (plus quickly / simple). The only hit is the fixed contract literal `too many requests` (spec l. 24, 226).
+
+## 5. Open decisions
+
+- **5.1 (blocking): where the configuration errors carry the variable name.** A test will pin this property name, and the change gives two different answers.
+  - The spec puts it in `details.variable` on the error that is raised:
+    - "Configuration from the environment" (l. 286-288): "fail … with the code `INVALID_CONFIG` … and `details.variable` naming it";
+    - its scenario (l. 307): "each fails with `INVALID_CONFIG` and `details.variable` naming that variable";
+    - "Configuration errors are raised before the store is opened" (l. 325-326): "`LLM_CONFIG_INVALID` (`details.variable` naming the LLM variable at fault)".
+  - Design U7 (l. 190-191) and DIS-76 D6 put it in a `variable` property of `ApiConfigError`: "`ApiConfigError` con `code: 'INVALID_CONFIG'` y `variable`".
+  - The real `LlmConfigError` has `variable`/`modelVariable` and **no `details`** (`packages/adapters/llm/src/config.ts:45-69`). `composeFromEnv` lets it propagate as is (U7 l. 193-194). So the LLM half of the scenario cannot pass unless someone changes `adapter-llm` or wraps the error. Wrapping would also break `startupFailure`'s mapping of that error.
+  - `details.variable` exists only in the **start-up line** (spec table l. 368-369), built by `startupFailure`, as the CLI's `toFailure` does (`packages/cli/src/commands/ask.ts:284-286`).
+  - The implementer would have to choose alone between adding `details` to both error classes and rewording the spec.
+  - Fix: the thrown errors carry `variable`; `details.variable` belongs to the start-up line only (Corrections 1–2).
+- **5.2 (improvable): who installs the custom `serializers.req`.**
+  - U9 says the logger uses a custom `serializers.req`.
+  - U6 says `startApi` passes `{ level: 'info' }`, and the test passes `{ level: 'info', stream }` through `AppOptions.logger`.
+  - Neither says that `buildApp` adds `serializers.req` to whatever logger options it receives. If the serializer goes into `startApi`, the unit test never exercises it, and `start.ts` is not mutated.
+  - Fix: Corrections 5.
+
+## 6. Contradictions inside the change
+
+- **6.1 (blocking, same root as 5.1).** The spec says `details.variable` on the error that is raised (l. 288, 307, 326). Design U7 says `ApiConfigError` has a `variable` property, and composition throws `LlmConfigError` unchanged. Corrections 1–2.
+
+Everything else is consistent:
+- proposal ↔ design ↔ spec on the code table;
+- the 64 KiB limit;
+- the rate-limit defaults and exemptions;
+- the `io` modes;
+- the module layout;
+- the Stryker scope.
+
+## 7. Contradictions with the project
+
+Clean.
+- `docs/backend-standards.md` §3/§4: strict request schemas, enumerated response fields.
+- `docs/backend-standards.md` §6: `429` for rate limit or budget, one error handler.
+- `docs/backend-standards.md` §8: ceiling only in live mode with a ceiling set.
+- `docs/backend-standards.md` §9: environment validated at start-up.
+- `.dependency-cruiser.cjs` `api-no-sql`: respected through `openPostgresStore`.
+- `openspec/specs/llm-adapter`: the `LLM_CONFIG_INVALID` start-up message is rewritten to the CLI's shorter form, as `toFailure` does (`packages/cli/src/commands/ask.ts:284-286`); the adapter's own message at `config.ts:63` is longer. This is consistent with the CLI.
+- The `graph-store` delta duplicates no main requirement and refers to "Cooperation with a caller-owned transaction".
+- The `INVALID_CONFIG` vs `MISSING_CONFIG` split is justified (U7) and documented (task 15.2).
+
+## 8. Contrast with the real code
+
+- **8.1 (blocking, same root as 5.1).** `LlmConfigError` has no `details` (`packages/adapters/llm/src/config.ts:45-69`) and `DomainError` defines only `code` (`packages/core/src/knowledge/errors.ts:2-5`). The composition scenario's "`details.variable`" does not match the error the design propagates.
+- **8.2 (no finding).**
+  - The test doubles named in task 3.1 exist: `tests/support/in-memory-store.ts`, `scripted-llm.ts`, `in-memory-source-tree.ts`.
+  - The `pg_stat_activity` polling pattern exists at `tests/integration/cli/ask-command.spec.ts:77-96`.
+  - `LlmConfigError('LLM_BASE_URL')` is raised for a key without a base URL (`config.ts:83`).
+  - `ProjectNotFound` carries the id only in its message (`errors.ts:13-14`), which the "without a mapping" scenario checks is not leaked.
+
+## 9. Task size
+
+Clean. Each task fits in one agent turn. Tasks 3.4a/3.4b, 5.3 and 17.3–17.6 were already split.
+
+## 10. Mandatory steps
+
+Clean.
+- Step 0 comes first: Linear state, then branch `feature/DIS-76-api-foundation` from `feature/entrega-2-CRN`, then the baseline.
+- Steps 10, 12, 13, 14, 15 and 17 are present with their exact labels.
+- The step-12 report is named `YYYY-MM-DD-12-test-and-state-verification.md`.
+- Restoration is covered: baseline in 0.4 / 12.1, check in 12.6, "none" justified in 13.6 (13.5 checks the sessions are gone).
+- Pre-merge Review is last, and the archive commit comes before the merge (authorised by the ADR).
+
+## 11. Traceability
+
+| Requirement | Scenario | Tasks |
+|---|---|---|
+| Single error format | An unknown route answers NOT_FOUND | 3.2, 3.3 |
+| | A malformed or empty JSON body answers VALIDATION_ERROR | 3.4a |
+| | A body over the limit answers PAYLOAD_TOO_LARGE | 3.4b |
+| | An unsupported content type answers UNSUPPORTED_MEDIA_TYPE | 3.4b |
+| | Another 4xx error answers BAD_REQUEST with its status | 3.4b |
+| | A 400 that is not a body error answers BAD_REQUEST | 3.4b |
+| | An unexpected error answers INTERNAL without its text | 3.4a |
+| Request validation by schema | A field that fails its rule answers VALIDATION_ERROR with its issue | 3.5 |
+| | An undeclared key answers VALIDATION_ERROR | 3.5 |
+| | A query string that fails its schema answers VALIDATION_ERROR | 3.5 |
+| Response serialisation by schema | Undeclared response fields are dropped | 3.6 |
+| | A result that breaks its response schema answers INTERNAL | 3.6 |
+| Domain error mapping | An exhausted budget answers 429 BUDGET_EXHAUSTED | 3.7 |
+| | A domain error without a mapping answers INTERNAL | 3.7 |
+| Liveness route | Health answers ok without touching the store | 4.1, 4.2 |
+| OpenAPI document at /docs | The document lists health, the error schema and a route's body schema | 4.3 |
+| | The viewer is served as HTML | 4.4 |
+| Rate limit by IP | The request beyond the limit answers RATE_LIMITED | 5.1, 5.2 |
+| | The limit is per IP and ignores forwarding headers | 5.3 |
+| | Health and the documentation are not limited | 5.3 |
+| | A request that matches no route is not counted | 5.3 |
+| | Rejected requests count towards the limit | 5.3 |
+| Request body limit and logging | The request log holds no body and a 500 logs its cause | 6.1 (the 413 is in 3.4b) |
+| Configuration from the environment | Defaults apply to unset and empty variables | 7.1, 7.2 |
+| | An invalid variable fails with its name and without its value | 7.1, 7.2 |
+| Composition from the environment | Configuration errors are raised before the store is opened | 7.3 |
+| | Evaluation mode uses the model as built | 7.3 |
+| | A daily budget stops the model call | 7.3 |
+| | The API answers on its address and closes its connections | 8.2 |
+| | The composed repository root is the repository's top directory | 7.3 |
+| Start-up failure | A missing DATABASE_URL stops the process with one line | 8.3 |
+| | Start-up errors map to their line | 8.1 |
+| | A listen failure closes the store | 8.2b |
+| graph-store: Opening a pooled store from a URL | An opened store answers and closes its connections | 2.3 |
+| | The URL's application name wins | 2.3 |
+| | An unreachable database fails without leaking the URL | 2.1, 2.2 |
+
+No empty rows: all 36 scenarios have a task.
+
+---
+
+## Corrections to apply
+
+### `openspec/changes/api-foundation/specs/api-foundation/spec.md`
+
+1. **Requirement "Configuration from the environment", l. 286-288 (5.1 / 6.1 / 8.1, blocking).**
+   - Replace "fail on the first invalid one with the code `INVALID_CONFIG` (one code for missing and invalid, as `LLM_CONFIG_INVALID` does), the message `<VARIABLE> is missing or invalid; see .env.example` and `details.variable` naming it, never its value."
+   - With: "fail on the first invalid one with an error whose `code` is `INVALID_CONFIG` (one code for missing and invalid, as `LLM_CONFIG_INVALID` does), whose `variable` names it and whose message is `<VARIABLE> is missing or invalid; see .env.example`, never holding its value; the start-up line carries that name as `details.variable` (requirement "Start-up failure")."
+   - In the scenario "An invalid variable fails with its name and without its value" (l. 307), replace "each fails with `INVALID_CONFIG` and `details.variable` naming that variable" with "each fails with an error whose `code` is `INVALID_CONFIG` and whose `variable` is that variable".
+2. **Scenario "Configuration errors are raised before the store is opened", l. 325-327 (5.1 blocking, 3.3 improvable).** Replace the THEN with: "the first fails with an error whose `code` is `INVALID_CONFIG` and whose `variable` is `DATABASE_URL`, the second with an `LlmConfigError` (`code` `LLM_CONFIG_INVALID`) whose `variable` is `LLM_BASE_URL`, and `openStore` was never called".
+3. **Requirement "Start-up failure", after l. 364 (3.1, improvable).** Add: "A start-up failure raised after the store was opened (for example, the address is in use) SHALL close the store's connections before the process exits."
+4. **Scenario "The request log holds no body and a 500 logs its cause", l. 270 (3.2, improvable).** After "record `POST`, `/api/test-only` and status `200`", add ", the `request completed` line of that `reqId` has a numeric `responseTime`".
+
+### `openspec/changes/api-foundation/design.md`
+
+5. **U9, after "and the default `res` serializer" (5.2, improvable).** Add: "`buildApp` adds `serializers: { req }` to whatever `options.logger` object it receives (the test stream and `startApi`'s `{ level: 'info' }` alike), so the unit test of task 6.1 exercises the same serializer the process uses."
+6. **U7, `apiConfigFromEnv` bullet (5.1, blocking).** After "throws `ApiConfigError` (`code 'INVALID_CONFIG'`, `variable`, message …)", add: "The errors raised by `apiConfigFromEnv` and `llmConfigFromEnv` carry the name in `variable` (neither has `details`); `startupFailure` builds `details: { variable }` (plus `modelVariable`) for the start-up line, as the CLI's `toFailure` does (`packages/cli/src/commands/ask.ts:284-286`)."
+
+### `openspec/changes/api-foundation/tasks.md`
+
+7. **7.1 / 7.3 (5.1).** No text change; the tests follow Corrections 1–2. Task 7.2 may add: "`ApiConfigError` exposes `code` and `variable` (no `details`)".
+8. **6.1 (5.2).** Append: "the serializer is added by `buildApp` to any logger options (design U9)".
+
+### `openspec/changes/api-foundation/proposal.md`
+
+No change.
+
+### Linear
+
+- **DIS-76, `[enhanced]` part.** Do not touch the `[original]` block. No change is needed: D6 already says `ApiConfigError` carries `code: 'INVALID_CONFIG'` and `variable`, and criterion 5 (b) does not name a property, so the fix is in the spec only.
+  - Optional, for traceability: add to D6 «*(Re-auditoría 3, 2026-10-16)* Los errores de configuración llevan el nombre en `variable`; `details.variable` solo aparece en la línea de arranque que construye `startupFailure`.»
+- **DIS-78, DIS-59:** no change.
+
+---
+
+---
+
+## Resolution of run 3 (main session, 2026-10-16)
+
+| Finding | Resolution |
+|---|---|
+| 5.1 / 6.1 / 8.1 `details.variable` on the thrown error | Spec "Configuration from the environment" and its two scenarios now say the thrown error carries `code` and `variable`; `details.variable` exists only in the start-up line built by `startupFailure` (design U7, as the CLI's `toFailure`); task 7.2 |
+| 3.1 listen-failure clause | Requirement "Start-up failure" gains the clause that a failure after the store was opened closes its connections |
+| 3.2 response time | Logging scenario checks a numeric `responseTime` on the `request completed` line |
+| 3.3 LLM variable at fault | Scenario names `LLM_BASE_URL` |
+| 5.2 who installs `serializers.req` | Design U9: `buildApp` adds it to any logger options; task 6.1 |
+| Linear | No new decision: D6 already says `ApiConfigError` carries `code` and `variable` |

@@ -190,6 +190,10 @@ healthResponseSchema }` (`z.object({ status: z.literal('ok') })`) so `/health` i
   match `^[0-9]+$` and fall in range; first failure in table order throws `ApiConfigError` (`code
   'INVALID_CONFIG'`, `variable`, message `<VARIABLE> is missing or invalid; see .env.example`). The
   window's upper bound (86 400 000 ms) keeps the rate-limit timer under Node's 2^31−1 ms timer limit.
+- The errors raised by `apiConfigFromEnv` and `llmConfigFromEnv` carry the variable's name in
+  `variable` (neither has `details`); `startupFailure` builds `details: { variable }` (plus
+  `modelVariable`) for the start-up line, as the CLI's `toFailure` does
+  (`packages/cli/src/commands/ask.ts:284-286`).
 - `composeFromEnv(env, seams = {})`: `apiConfigFromEnv`, then `llmConfigFromEnv` (throws
   `LlmConfigError`), and only then `openStore(databaseUrl)` (default `openPostgresStore(url, {
   applicationName: 'codemind-api' })`); `llm = createLlm(cfg)` wrapped in `withDailyBudget(llm, {
@@ -218,14 +222,17 @@ which the spec pins ("The URL's application name wins").
 
 ### U9 — Limits and logs (D9)
 
-`bodyLimit` 65 536 bytes: a 1 000-code-point question, even with every character escaped as a
-`\uXXXX` sequence, stays under 13 KiB. The logger is Fastify's pino with a custom `serializers.req`
-returning `{ method, url, host, remoteAddress, remotePort }` (Fastify 5's default also logs the
-`accept-version` header as `version`) and the default `res` serializer. Fastify writes
+`bodyLimit` 65 536 bytes: a 1 000-code-point question, even with every character escaped as a `\uXXXX`
+sequence, stays under 13 KiB. The logger is Fastify's pino with a custom `serializers.req` returning
+`{ method, url, host, remoteAddress, remotePort }` (Fastify 5's default also logs the `accept-version`
+header as `version`) and the default `res` serializer. `buildApp` adds `serializers: { req }` to
+whatever `options.logger` object it receives (the test stream and `startApi`'s `{ level: 'info' }`
+alike), so the unit test of task 6.1 exercises the same serializer the process uses. Fastify writes
 `incoming request` (with `req`) and `request completed` (with `res.statusCode` and `responseTime`) as
 two lines joined by `reqId`; the default fields are confirmed against the installed Fastify in the RED
-step of task 6.1. No body is logged, so a question never reaches the log. `logger: false` by default in `buildApp` (tests);
-`startApi` passes `{ level: 'info' }`. A test passes `{ level: 'info', stream }` to assert on lines.
+step of task 6.1. No body is logged, so a question never reaches the log. `logger: false` by default
+in `buildApp` (tests); `startApi` passes `{ level: 'info' }`. A test passes `{ level: 'info', stream
+}` to assert on lines.
 
 ### U10 — Tests and quality (D10)
 

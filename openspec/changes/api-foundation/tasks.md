@@ -42,12 +42,12 @@
 
 ## 6. API: request logging (TDD, design U9) — `api-foundation` → "Request body limit and logging"
 
-- [ ] 6.1 RED → GREEN: in `tests/unit/api/errors.spec.ts`, "The request log holds no body and a 500 logs its cause" (`AppOptions.logger` with a test stream; custom `serializers.req` of design U9, after confirming the default `req` fields of the installed Fastify; `request.log.error` in the `INTERNAL` branch)
+- [ ] 6.1 RED → GREEN: in `tests/unit/api/errors.spec.ts`, "The request log holds no body and a 500 logs its cause" (`AppOptions.logger` with a test stream; custom `serializers.req` of design U9, added by `buildApp` to any logger options, after confirming the default `req` fields of the installed Fastify; `request.log.error` in the `INTERNAL` branch)
 
 ## 7. API: configuration and composition (TDD, design U7) — `api-foundation` → "Configuration from the environment", "Composition from the environment"
 
 - [ ] 7.1 RED: create `tests/unit/api/composition.spec.ts` with "Defaults apply to unset and empty variables" and "An invalid variable fails with its name and without its value". See them fail
-- [ ] 7.2 GREEN: `apiConfigFromEnv`, `ApiConfig`, `ApiConfigError` in `packages/api/src/composition.ts`
+- [ ] 7.2 GREEN: `apiConfigFromEnv`, `ApiConfig`, `ApiConfigError` (exposes `code` and `variable`, no `details`) in `packages/api/src/composition.ts`
 - [ ] 7.3 RED → GREEN: "Configuration errors are raised before the store is opened", "Evaluation mode uses the model as built", "A daily budget stops the model call" and "The composed repository root is the repository's top directory" with `composeFromEnv` and `ComposeSeams` (seams `openStore`, `createLlm`, `source`, `now`)
 
 ## 8. API: start-up, process entry and package entry (TDD, design U6) — `api-foundation` → "Start-up failure", "Composition from the environment"
