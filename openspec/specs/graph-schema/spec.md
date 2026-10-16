@@ -34,8 +34,8 @@ migration is pending MUST change nothing and MUST still exit with code 0.
 ### Requirement: Roll back the latest migration
 
 `npm run db:rollback` SHALL revert only the most recently applied migration and SHALL exit with
-code 0 when it succeeds. The rollback removes every table, enum type, index, trigger and function
-that migration created and leaves every earlier migration applied. Each further call reverts the
+code 0 when it succeeds. The rollback removes every table, column, enum type, index, trigger and
+function that migration created and leaves every earlier migration applied. Each further call reverts the
 next most recent migration. The `vector` extension is shared database infrastructure and is not
 removed by rollback.
 
@@ -43,12 +43,15 @@ removed by rollback.
 
 - **WHEN** every migration is applied and `npm run db:rollback` runs once
 - **THEN** the command exits with code 0
-- **AND** the indexes, the trigger and the function created by the index and invalidation
-  migration no longer exist
+- **AND** the columns `verify_input_tokens`, `verify_output_tokens`, `verify_cost_usd`,
+  `verify_calls` and `verify_latency_ms` created by the query log verification migration no longer
+  exist, and every other column of `query_log` still
+  exists
 - **AND** the ten tables `project`, `file`, `symbol`, `edge`, `commit`, `file_commit`, `claim`,
-  `evidence`, `query_log` and `cache_entry` and their enum types still exist
-- **AND** the L1 graph migration and the history migration are the only migrations recorded as
-  applied
+  `evidence`, `query_log` and `cache_entry`, their enum types, and the indexes, the trigger and the
+  function of the index and invalidation migration still exist
+- **AND** the L1 graph migration, the history migration and the index and invalidation migration are
+  the only migrations recorded as applied
 
 #### Scenario: Roll back the L1 graph migration
 
@@ -306,8 +309,9 @@ The database does NOT require an edge's endpoints to belong to the same project 
 ### Requirement: History, claim, usage and cache column contract
 
 After migration, the tables `commit`, `file_commit`, `claim`, `evidence`, `query_log` and
-`cache_entry` SHALL have exactly the columns below (from `readme.md` §3.1), with the stated type,
-nullability and default. "enum" means a PostgreSQL enum type restricted to the listed values.
+`cache_entry` SHALL have exactly the columns below (from `readme.md` §3.1, plus the verification
+breakdown of `query_log` that the query log verification migration adds, PH-27), with the stated
+type, nullability and default. "enum" means a PostgreSQL enum type restricted to the listed values.
 Nullability follows two rules:
 
 - A column that §3.1 marks `not null` or gives an explicit default is NOT NULL (with that default,
@@ -365,6 +369,11 @@ is the pair (`file_id`, `commit_id`).
 | `query_log` | `latency_ms` | integer | NULL | — |
 | `query_log` | `cache_hit` | boolean | NOT NULL | `false` |
 | `query_log` | `created_at` | timestamptz | NOT NULL | `now()` |
+| `query_log` | `verify_input_tokens` | integer | NULL | — |
+| `query_log` | `verify_output_tokens` | integer | NULL | — |
+| `query_log` | `verify_cost_usd` | numeric(10,6) | NULL | — |
+| `query_log` | `verify_calls` | integer | NULL | — |
+| `query_log` | `verify_latency_ms` | integer | NULL | — |
 | `cache_entry` | `id` | uuid | NOT NULL | generated |
 | `cache_entry` | `project_id` | uuid | NOT NULL | — |
 | `cache_entry` | `question_normalized` | text | NOT NULL | — |
@@ -390,7 +399,9 @@ is the pair (`file_id`, `commit_id`).
   `cache_entry` row with only `project_id` and `question_normalized`
 - **THEN** the claim has a generated `id`, `status = 'current'` and non-null `created_at` and
   `updated_at`
-- **AND** the query log has a generated `id`, `cache_hit = false` and a non-null `created_at`
+- **AND** the query log has a generated `id`, `cache_hit = false`, a non-null `created_at`, and
+  `verify_input_tokens`, `verify_output_tokens`, `verify_cost_usd`, `verify_calls` and
+  `verify_latency_ms` null
 - **AND** the cache entry has a generated `id`, `hit_count = 0` and a non-null `created_at`
 
 ### Requirement: Commit table

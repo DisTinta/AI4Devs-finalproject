@@ -148,3 +148,9 @@ green (`scope`, `secrets`, `quality`, `mutation`, `frontend`).
   code (`99f62ae`, 8 s after it), so git alone cannot show the spec came first; the spec audit report
   records the order. In future changes, commit the change folder at `/opsx:propose` time.
 - Data state after the fix runs: project 1, claim 0, evidence 0, query_log 0 (unchanged).
+- CI after the fixes: PR #44 head `775a5a5`, run
+  [38913386192](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/38913386192): every job
+  green; 105 files, 1 350 passed, 1 skipped (the platform-specific `path-policy.spec.ts` case); the
+  `0004` migration round trip passed; mutation 95.96 ≥ 80. The intermediate head `ea1b4f2` failed
+  `secrets` on the report line that quoted the old sentinel constant; reworded and fingerprinted in
+  `775a5a5`.
