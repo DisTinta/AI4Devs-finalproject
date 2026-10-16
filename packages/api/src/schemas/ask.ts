@@ -87,8 +87,8 @@ export const askAnsweredSchema = z.object({
   statements: z.array(
     z.object({
       text: z.string(),
-      type: z.enum(PROVENANCE_STATEMENT_TYPES),
-      verification: z.enum(STATEMENT_VERIFICATIONS),
+      type: z.literal(PROVENANCE_STATEMENT_TYPES),
+      verification: z.literal(STATEMENT_VERIFICATIONS),
       evidenceIds: z.array(z.string()),
     }),
   ),
@@ -115,7 +115,7 @@ export type AskAnswered = z.infer<typeof askAnsweredSchema>;
  */
 export const askUnknownSchema = z.object({
   answer: z.literal('UNKNOWN'),
-  reason: z.enum(UNKNOWN_REASONS),
+  reason: z.literal(UNKNOWN_REASONS),
   message: z.string().optional(),
   statements: z.array(z.never()).max(0),
   evidence: z.array(z.never()).max(0),

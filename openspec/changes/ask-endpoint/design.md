@@ -73,17 +73,20 @@ reviewable by the author). This design turns them into units U1–U8.
 ### U2 — Response schemas (D3, D7)
 
 - `askAnsweredSchema = z.object({ answer: z.string(), statements: z.array(z.object({ text, type:
-  z.enum(PROVENANCE_STATEMENT_TYPES), verification: z.enum(STATEMENT_VERIFICATIONS), evidenceIds:
+  z.literal(PROVENANCE_STATEMENT_TYPES), verification: z.literal(STATEMENT_VERIFICATIONS), evidenceIds:
   z.array(z.string()) })), evidence: z.array(z.object({ id, file, startLine: z.int(), endLine: z.int(),
   excerpt: z.string() })), confidence: z.number(), usage: askUsageSchema })`, where `askUsageSchema`
   lists exactly the fields of core's `AnswerUsage` (`baselineEstimator` `z.literal(TOKEN_ESTIMATOR)`,
   `cacheHit` `z.boolean()`, `generation` and `verification` sub-objects).
 - Closed sets come from core, never copied (backend-standards §4): `PROVENANCE_STATEMENT_TYPES`
-  (`packages/core/src/knowledge/claim.ts:53`), `UNKNOWN_REASONS`, `TOKEN_ESTIMATOR`, and a new
+  (`packages/core/src/knowledge/claim.ts:53`), `UNKNOWN_REASONS`, `TOKEN_ESTIMATOR` (each through
+  `z.literal(<set>)`, as core's own `claim.ts` does: same validation and same OpenAPI `enum` as
+  `z.enum`, without the per-value map `z.enum` adds to the exported type, which the docs gate reports
+  as undocumented properties — found at apply), and a new
   `STATEMENT_VERIFICATIONS = ['entailed', 'cited'] as const` exported from
   `packages/core/src/explain/claim-items.ts`, from which `StatementVerification` is derived
   (`(typeof STATEMENT_VERIFICATIONS)[number]`, the same union: no behaviour change in core).
-- `askUnknownSchema = z.object({ answer: z.literal('UNKNOWN'), reason: z.enum(UNKNOWN_REASONS),
+- `askUnknownSchema = z.object({ answer: z.literal('UNKNOWN'), reason: z.literal(UNKNOWN_REASONS),
   message: z.string().optional(), statements: z.array(z.never()).max(0), evidence:
   z.array(z.never()).max(0) })`. Not `z.tuple([])`: with `target: 'openapi-3.0'` it emits
   `items: { anyOf: [] }`, an empty `anyOf` JSON Schema forbids; `z.array(z.never()).max(0)` emits
