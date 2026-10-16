@@ -126,6 +126,18 @@ model only in live mode (evaluation scenario: 0 model calls). No new personal da
 Collected in task 14.3 once the pull request exists: the CI run must show the three new spec files
 ran and passed and the `mutation` job ≥ 80 (task 11.2). Addendum pending.
 
+### Addendum — CI run of pull request #46 (2026-10-16)
+
+PR: https://github.com/DisTinta/AI4Devs-finalproject/pull/46 (`feature/DIS-78-ask-endpoint` →
+`feature/entrega-2-CRN`). Run: https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/38973940816.
+
+- `frontend`, `scope`, `secrets`, `quality`, `mutation`: all pass.
+- `quality` includes the full `vitest` suite (unit + integration, the new `tests/unit/api/ask.spec.ts`,
+  `tests/unit/api/route-errors.spec.ts` and `tests/integration/api/ask.spec.ts` ran and passed), lint,
+  typecheck and architecture lint.
+- `mutation`: final mutation score 96.16, break threshold 80 — `MutationTestReportHelper`: "Final
+  mutation score of 96.16 is greater than or equal to break threshold 80".
+
 ## Outcome
 
 - Status: PASS
