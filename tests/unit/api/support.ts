@@ -1,3 +1,4 @@
+import { Writable } from 'node:stream';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { LlmPort, SourceTreePort, StorePort } from '@codemind/core';
@@ -123,4 +124,16 @@ export function countedPorts(): CountedPorts {
 /** The exact error body of `code` with its fixed message and empty details. */
 export function errorBody(code: string, message: string): { error: { code: string; message: string; details: Record<string, never> } } {
   return { error: { code, message, details: {} } };
+}
+
+/** A writable stream for the app's log, and the JSON lines written to it so far. */
+export function logStream(): { stream: Writable; lines: Array<Record<string, unknown>> } {
+  const lines: Array<Record<string, unknown>> = [];
+  const stream = new Writable({
+    write(chunk: Buffer, _encoding, done) {
+      for (const line of chunk.toString('utf8').split('\n')) if (line !== '') lines.push(JSON.parse(line) as Record<string, unknown>);
+      done();
+    },
+  });
+  return { stream, lines };
 }

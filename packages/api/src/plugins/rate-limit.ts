@@ -55,5 +55,7 @@ export async function registerRateLimit(app: FastifyInstance, options: { max: nu
     keyGenerator: (request) => request.ip,
     allowList: (request) => isUnlimited(request.routeOptions.url),
     errorResponseBuilder,
+    // The error handler sets `Retry-After` from the error, so header and body cannot disagree.
+    addHeaders: { 'retry-after': false },
   });
 }

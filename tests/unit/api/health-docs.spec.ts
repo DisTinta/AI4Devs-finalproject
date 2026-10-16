@@ -69,3 +69,18 @@ describe('OpenAPI document at /docs', () => {
     expect(response.headers['content-type']).toMatch(/^text\/html/);
   });
 });
+
+// Below the spec scenarios (added after the step 12 mutation run): /health documents its response.
+describe('health in the OpenAPI document', () => {
+  it('documents the 200 response of /health', async () => {
+    // Arrange
+    ({ app } = await buildTestApp());
+
+    // Act
+    const document = (await app.inject({ method: 'GET', url: '/docs/json' })).json();
+
+    // Assert
+    const schema = document.paths['/health'].get.responses['200'].content['application/json'].schema;
+    expect(schema).toMatchObject({ type: 'object', properties: { status: { type: 'string', enum: ['ok'] } }, required: ['status'] });
+  });
+});

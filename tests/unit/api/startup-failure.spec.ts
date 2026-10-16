@@ -36,3 +36,14 @@ describe('start-up failure', () => {
     ]);
   });
 });
+
+// Below the spec scenario: only a whole system code is reported (added after the step 12 mutation run).
+describe('start-up failure boundaries', () => {
+  it('reports systemCode only for E followed by capital letters only', () => {
+    const codes: unknown[] = ['XEADDRINUSE', 'EADDRINUSE1', 'UND_ERR_SOCKET', 'E', 42];
+    for (const code of codes) {
+      expect(startupFailure(Object.assign(new Error('x'), { code })).details, String(code)).toEqual({});
+    }
+    expect(startupFailure(null)).toEqual({ code: 'STARTUP_FAILED', message: 'the API could not start', details: {} });
+  });
+});

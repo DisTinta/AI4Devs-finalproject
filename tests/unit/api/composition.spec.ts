@@ -5,7 +5,8 @@ import { BudgetExhausted } from '@codemind/core';
 import type { CompletionResult, LlmPort, StorePort } from '@codemind/core';
 import { LlmConfigError } from '@codemind/adapter-llm';
 import type { LlmConfig } from '@codemind/adapter-llm';
-import { apiConfigFromEnv, ApiConfigError, composeFromEnv } from '../../../packages/api/src/composition';
+import { DatabaseUnavailable } from '@codemind/adapter-store-postgres';
+import { API_APPLICATION_NAME, apiConfigFromEnv, ApiConfigError, composeFromEnv } from '../../../packages/api/src/composition';
 import type { ComposeSeams } from '../../../packages/api/src/composition';
 import { createInMemoryStore } from '../../support/in-memory-store';
 
@@ -181,5 +182,56 @@ describe('composition from the environment', () => {
     // Assert
     expect(isAbsolute(composed.deps.workspaceRoot)).toBe(true);
     expect(existsSync(join(composed.deps.workspaceRoot, 'packages/api/package.json'))).toBe(true);
+  });
+});
+
+// Below the spec scenarios: explicit values, boundaries and the default seams (added after the step
+// 12 mutation run, for its meaningful survivors).
+describe('configuration and composition boundaries', () => {
+  it('uses explicit values at both ends of each range, trimmed', () => {
+    expect(apiConfigFromEnv({ DATABASE_URL: ` ${DATABASE_URL} `, PORT: ' 65535 ', HOST: ' 0.0.0.0 ', RATE_LIMIT_MAX: '1000000', RATE_LIMIT_WINDOW_MS: '86400000' })).toEqual({
+      databaseUrl: DATABASE_URL,
+      port: 65_535,
+      host: '0.0.0.0',
+      rateLimit: { max: 1_000_000, windowMs: 86_400_000 },
+    });
+    expect(apiConfigFromEnv({ DATABASE_URL, PORT: '1', RATE_LIMIT_MAX: '1', RATE_LIMIT_WINDOW_MS: '1' })).toMatchObject({
+      port: 1,
+      rateLimit: { max: 1, windowMs: 1 },
+    });
+  });
+
+  it('names the configuration error', () => {
+    expect(new ApiConfigError('HOST').name).toBe('ApiConfigError');
+  });
+
+  it('defaults the clock and the source tree when no seam is given', async () => {
+    // Arrange
+    const { openStore } = recordingOpenStore();
+    const before = Date.now();
+
+    // Act
+    const composed = await composeFromEnv({ DATABASE_URL }, { openStore });
+
+    // Assert
+    const now = composed.deps.now();
+    expect(now).toBeInstanceOf(Date);
+    expect(now.getTime()).toBeGreaterThanOrEqual(before);
+    expect(typeof composed.deps.source.readFileAt).toBe('function');
+  });
+
+  it('opens the default store on DATABASE_URL and fails without leaking it', async () => {
+    // Act
+    const error = await composeFromEnv({ DATABASE_URL: 'postgres://u:s3cret@127.0.0.1:1/db' }).then(
+      () => undefined,
+      (rejection: unknown) => rejection,
+    );
+
+    // Assert
+    expect(error).toBeInstanceOf(DatabaseUnavailable);
+  });
+
+  it('names its sessions codemind-api', () => {
+    expect(API_APPLICATION_NAME).toBe('codemind-api');
   });
 });

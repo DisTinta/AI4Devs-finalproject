@@ -90,10 +90,10 @@ function answerOf(error: FastifyError): ErrorAnswer {
   return INTERNAL;
 }
 
-/** Sends `answer` in the error format. */
+/** Sends `answer` in the error format (Fastify serialises the object as `application/json`). */
 function send(reply: FastifyReply, answer: ErrorAnswer): FastifyReply {
   const body: ErrorBody = { error: { code: answer.code, message: answer.message, details: answer.details } };
-  return reply.code(answer.status).type('application/json; charset=utf-8').send(body);
+  return reply.code(answer.status).send(body);
 }
 
 /** Whether `status` is a 4xx HTTP status. */

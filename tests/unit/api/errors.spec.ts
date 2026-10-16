@@ -1,9 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { Writable } from 'node:stream';
 import { afterEach, describe, expect, it } from 'vitest';
 import { BudgetExhausted, ProjectNotFound } from '@codemind/core';
 import type { FastifyInstance } from 'fastify';
-import { buildTestApp, errorBody, errorWithStatus } from './support';
+import { buildTestApp, errorBody, errorWithStatus, logStream } from './support';
 
 // Spec: api-foundation → "Single error format" (DIS-76 design U3).
 
@@ -239,13 +238,7 @@ describe('domain error mapping', () => {
 describe('request body limit and logging', () => {
   it('The request log holds no body and a 500 logs its cause', async () => {
     // Arrange
-    const lines: Array<Record<string, unknown>> = [];
-    const stream = new Writable({
-      write(chunk: Buffer, _encoding, done) {
-        for (const line of chunk.toString('utf8').split('\n')) if (line !== '') lines.push(JSON.parse(line));
-        done();
-      },
-    });
+    const { stream, lines } = logStream();
     ({ app } = await buildTestApp({ logger: { level: 'info', stream }, error: () => new Error('boom-7f3a') }));
 
     // Act
@@ -273,5 +266,50 @@ describe('request body limit and logging', () => {
     expect(lines.some((line) => 'version' in line || 'version' in ((line.req as object | undefined) ?? {}))).toBe(false);
     const errors = lines.filter((line) => line.level === 50);
     expect(errors.some((line) => JSON.stringify(line).includes('boom-7f3a'))).toBe(true);
+  });
+});
+
+// Below the spec scenarios: boundaries of the error table and of its logging (added after the step 12
+// mutation run, for its meaningful survivors).
+describe('error table boundaries', () => {
+  it('maps only 400 to 499 to BAD_REQUEST, and nothing else sets Retry-After', async () => {
+    // Arrange
+    const statuses = [399, 499, 503];
+    const responses = [];
+
+    // Act
+    for (const status of statuses) {
+      const built = await buildTestApp({ error: () => errorWithStatus('x', status) });
+      responses.push(await built.app.inject({ method: 'GET', url: '/api/test-throw' }));
+      await built.app.close();
+    }
+
+    // Assert
+    expect(responses.map((response) => [response.statusCode, response.json().error.code])).toEqual([
+      [500, 'INTERNAL'],
+      [499, 'BAD_REQUEST'],
+      [500, 'INTERNAL'],
+    ]);
+    expect(responses.map((response) => response.headers['retry-after'])).toEqual([undefined, undefined, undefined]);
+  });
+
+  it("logs only an INTERNAL answer at level error, as 'unexpected error'", async () => {
+    // Arrange
+    const { stream, lines } = logStream();
+    const thrown = [errorWithStatus('teapot', 418), new Error('boom-c4d2')];
+    ({ app } = await buildTestApp({ logger: { level: 'info', stream }, error: () => thrown.shift() }));
+    const errorLines = () => lines.filter((line) => line.level === 50);
+
+    // Act
+    await app.inject({ method: 'GET', url: '/api/test-throw' });
+    await app.inject({ method: 'POST', url: '/api/test-only', payload: { question: 'abc' } });
+    const afterClientErrors = errorLines().length;
+    await app.inject({ method: 'GET', url: '/api/test-throw' });
+
+    // Assert
+    expect(afterClientErrors).toBe(0);
+    expect(errorLines()).toHaveLength(1);
+    expect(errorLines()[0]!.msg).toBe('unexpected error');
+    expect(JSON.stringify(errorLines()[0])).toContain('boom-c4d2');
   });
 });

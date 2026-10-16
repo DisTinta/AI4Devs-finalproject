@@ -28,8 +28,8 @@ export interface AppDeps {
 export interface AppOptions {
   /** Requests per client IP within the window. */
   rateLimit: { max: number; windowMs: number };
-  /** Fastify's logger options; no logger when absent. */
-  logger?: FastifyServerOptions['logger'];
+  /** Fastify's logger options (an object, such as `{ level: 'info' }`); no logger when absent. */
+  logger?: Exclude<FastifyServerOptions['logger'], boolean>;
 }
 
 declare module 'fastify' {
@@ -69,15 +69,13 @@ export function serializeRequest(request: FastifyRequest): LoggedRequest {
     url: request.url,
     host: request.host,
     remoteAddress: request.ip,
-    remotePort: request.socket?.remotePort,
+    remotePort: request.socket.remotePort,
   };
 }
 
 /** `logger` with {@link serializeRequest} added to its serialisers; `false` when there is none. */
 function withRequestSerializer(logger: AppOptions['logger']): FastifyServerOptions['logger'] {
-  if (logger === undefined || logger === false) return false;
-  const options = logger === true ? {} : logger;
-  return { ...options, serializers: { ...options.serializers, req: serializeRequest } };
+  return logger === undefined ? false : { ...logger, serializers: { ...logger.serializers, req: serializeRequest } };
 }
 
 /**
