@@ -36,9 +36,9 @@
 
 ## 5. API: rate limit by IP (TDD, design U4) — `api-foundation` → "Rate limit by IP"
 
-- [ ] 5.1 RED: create `tests/unit/api/rate-limit.spec.ts` with "The request beyond the limit answers RATE_LIMITED". See it fail
-- [ ] 5.2 GREEN: `packages/api/src/plugins/rate-limit.ts` (`RateLimited`, `isUnlimited`, `errorResponseBuilder`) and the `RateLimited` branch of the error handler with the `Retry-After` header
-- [ ] 5.3 RED → GREEN, one at a time: "The limit is per IP and ignores forwarding headers", "Health and the documentation are not limited", "A request that matches no route is not counted", "Rejected requests count towards the limit" (each a characterisation test if it passes at once)
+- [x] 5.1 RED: create `tests/unit/api/rate-limit.spec.ts` with "The request beyond the limit answers RATE_LIMITED". See it fail
+- [x] 5.2 GREEN: `packages/api/src/plugins/rate-limit.ts` (`RateLimited`, `isUnlimited`, `errorResponseBuilder`) and the `RateLimited` branch of the error handler with the `Retry-After` header
+- [x] 5.3 RED → GREEN, one at a time: "The limit is per IP and ignores forwarding headers", "Health and the documentation are not limited", "A request that matches no route is not counted", "Rejected requests count towards the limit" (each a characterisation test if it passes at once)
 
 ## 6. API: request logging (TDD, design U9) — `api-foundation` → "Request body limit and logging"
 

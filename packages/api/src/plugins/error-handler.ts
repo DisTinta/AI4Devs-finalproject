@@ -2,6 +2,7 @@ import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from
 import { DomainError } from '@codemind/core';
 import type { BudgetExhausted } from '@codemind/core';
 import type { ErrorBody } from '../schemas/common.js';
+import { RateLimited } from './rate-limit.js';
 import { SchemaValidationFailed } from './zod-compiler.js';
 
 /** How an error is answered: its status, code, fixed message and details. */
@@ -64,6 +65,7 @@ export const DOMAIN_ERRORS: ReadonlyMap<string, DomainErrorMapping> = new Map([
 export function installErrorHandler(app: FastifyInstance): void {
   app.setErrorHandler((error: FastifyError, request: FastifyRequest, reply: FastifyReply) => {
     const answer = answerOf(error);
+    if (error instanceof RateLimited) void reply.header('retry-after', String(error.retryAfterSeconds));
     if (answer === INTERNAL) request.log.error({ err: error }, 'unexpected error');
     return send(reply, answer);
   });
@@ -75,6 +77,9 @@ export function installErrorHandler(app: FastifyInstance): void {
 /** The answer of `error`: the first rule of design U3 that matches it. */
 function answerOf(error: FastifyError): ErrorAnswer {
   if (error instanceof SchemaValidationFailed) return { ...VALIDATION_ERROR, details: { issues: error.issues } };
+  if (error instanceof RateLimited) {
+    return { status: 429, code: 'RATE_LIMITED', message: 'too many requests', details: { retryAfterSeconds: error.retryAfterSeconds } };
+  }
   if (error instanceof DomainError) {
     const mapping = DOMAIN_ERRORS.get(error.code);
     return mapping === undefined ? INTERNAL : { status: mapping.status, code: error.code, message: mapping.message, details: mapping.details(error) };

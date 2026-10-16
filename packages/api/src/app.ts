@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyServerOptions } from 'fastify';
 import type { LlmPort, SourceTreePort, StorePort } from '@codemind/core';
 import { installErrorHandler } from './plugins/error-handler.js';
 import { registerOpenApi } from './plugins/openapi.js';
+import { registerRateLimit } from './plugins/rate-limit.js';
 import { installZodCompilers } from './plugins/zod-compiler.js';
 import { registerHealthRoute } from './routes/health.js';
 
@@ -52,6 +53,7 @@ export async function buildApp(deps: AppDeps, options: AppOptions): Promise<Fast
   installErrorHandler(app);
   app.decorate('deps', Object.freeze({ ...deps }));
   await registerOpenApi(app);
+  await registerRateLimit(app, options.rateLimit);
   registerHealthRoute(app);
   return app;
 }
