@@ -11,7 +11,7 @@ import type { QueryLogEntry } from '@codemind/core';
 const MIGRATION = fileURLToPath(
   new URL('../../../packages/adapters/store-postgres/migrations/0002_history-claims.up.sql', import.meta.url),
 );
-const SECRET = 'sentinel-question-7f3a';
+const SENTINEL = 'sentinel-question-7f3a';
 
 /** An entry that passes every rule. */
 function entry(overrides: Partial<Record<keyof QueryLogEntry, unknown>> = {}): QueryLogEntry {
@@ -99,14 +99,14 @@ describe('graph-store: query log record', () => {
       entry({ verifyLatencyMs: 1.5 }),
       entry({ verifyLatencyMs: -1 }),
       entry({ verifyCostUsd: Number.NaN }),
-      entry({ question: `${SECRET}\u0000` }),
+      entry({ question: `${SENTINEL}\u0000` }),
       entry({ question: '   ' }),
       entry({ question: '' }),
       entry({ question: 42 }),
       entry({ capability: 'summarise' }),
       entry({ cacheHit: 'false' }),
       entry({ projectId: 42 }),
-      { ...entry(), extra: SECRET } as QueryLogEntry,
+      { ...entry(), extra: SENTINEL } as QueryLogEntry,
       missingField as QueryLogEntry,
     ];
 
@@ -118,7 +118,7 @@ describe('graph-store: query log record', () => {
       expect(error, `case ${index}`).toBeInstanceOf(InvalidStoreQuery);
       expect((error as InvalidStoreQuery).argument).toBe('entry');
       expect((error as InvalidStoreQuery).message).toBe('Invalid store query: entry must be a valid query log entry');
-      expect(JSON.stringify(error)).not.toContain(SECRET);
+      expect(JSON.stringify(error)).not.toContain(SENTINEL);
     }
   });
 
