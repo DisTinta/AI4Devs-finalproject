@@ -1,20 +1,23 @@
-import Fastify from 'fastify';
-
-const app = Fastify({ logger: true });
-
-app.get('/health', async () => {
-  return { status: 'ok' };
-});
-
-// TODO Ticket 1/2 — add /api/projects/:id/ask, /impact, /index endpoints
-
-const start = async (): Promise<void> => {
-  try {
-    await app.listen({ port: 3000, host: '0.0.0.0' });
-  } catch (err) {
-    app.log.error(err);
-    process.exit(1);
-  }
-};
-
-start();
+/**
+ * `@codemind/api` — the HTTP base of the API (DIS-76): `buildApp` builds the Fastify instance with
+ * the error format, Zod validation, the OpenAPI document at `/docs`, the rate limit by IP and
+ * `/health`; `composeFromEnv` and `startApi` compose it from the environment. Importing this module
+ * starts nothing: the process entry is `src/server.ts`.
+ *
+ * @module
+ */
+export { buildApp, BODY_LIMIT_BYTES, serializeRequest, type AppDeps, type AppOptions, type LoggedRequest } from './app.js';
+export {
+  API_APPLICATION_NAME,
+  apiConfigFromEnv,
+  ApiConfigError,
+  composeFromEnv,
+  type ApiConfig,
+  type ApiConfigVariable,
+  type ComposedApi,
+  type ComposeSeams,
+  type Environment,
+} from './composition.js';
+export { startApi, type StartedApi } from './start.js';
+export { startupFailure, type StartupFailure } from './startup-failure.js';
+export { errorSchema, healthResponseSchema, type ErrorBody } from './schemas/common.js';

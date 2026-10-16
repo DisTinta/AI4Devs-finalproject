@@ -12,3 +12,4 @@ export {
   type SeedSymbolRow,
 } from './export-seed.js';
 export { loadSeed, type LoadedSample, type SeedToLoad } from './load-seed.js';
+export { DatabaseUnavailable, openPostgresStore, type OpenedStore, type OpenStoreOptions } from './open-store.js';

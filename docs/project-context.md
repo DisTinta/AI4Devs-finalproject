@@ -53,7 +53,13 @@ Verified against `package.json` (root and per package). If a command is not here
 — do not invent one.
 
 - Development environment: `npm run dev` (root) — runs `packages/api` + `packages/web` via
-  `concurrently`, kills all on first failure.
+  `concurrently`, kills all on first failure. The API's `dev` (DIS-76) is `tsx watch --tsconfig
+  tsconfig.run.json src/server.ts`: `packages/api/tsconfig.run.json` maps `@codemind/core` and the
+  three adapters to their `src/` (as the CLI's), so it never runs a stale `dist/`. It needs
+  `DATABASE_URL` exported (`make up` exports `.env`); without it the API prints one
+  `INVALID_CONFIG` line and `tsx watch` keeps waiting (the web stays up). To see the exit code,
+  run it without `watch`: `npx tsx --tsconfig packages/api/tsconfig.run.json packages/api/src/server.ts`.
+  It listens on `127.0.0.1:3000`; OpenAPI at `http://localhost:3000/docs` (`/docs/json`).
 - Tests (full): `npm test` or `npx vitest run` (root `vitest.config.ts`). `fixtures/**` is excluded
   and `passWithNoTests` is on, so a green run may mean **zero tests ran**.
 - A subset of tests: `npx vitest run <pattern>` — prefer this over the full suite.
@@ -67,7 +73,9 @@ Verified against `package.json` (root and per package). If a command is not here
   `typescript-eslint` recommended. Empty port interfaces are downgraded to warnings; `.cjs`, `dist`,
   `.claude`, `.cursor`, `fixtures` are ignored.
 - Mutation testing: `npm run test:mutation` (`stryker run`; `stryker.config.json`, targets
-  `packages/core/src` and, since DIS-86, `packages/cli/src` minus its entry point `index.ts`). A
+  `packages/core/src`, since DIS-86 `packages/cli/src` minus its entry point `index.ts`, and since
+  DIS-76 `packages/api/src` minus its process shells `server.ts` and `start.ts`, covered only by
+  `tests/integration/api/server.spec.ts`). A
   mutation score under 80 fails the run (`thresholds`: break 80, low 80, high 90; Stryker requires
   break ≤ low ≤ high). It is
   incremental (`"incremental": true`): the first run is full (~14 min in CI), later runs only re-test
@@ -76,7 +84,7 @@ Verified against `package.json` (root and per package). If a command is not here
   (`--force`) re-tests everything and rewrites that file: use it after changing dependencies or the
   Vitest/Stryker config, which incremental mode does not detect. In CI it is its own `mutation` job,
   parallel to `quality` and without Postgres; it runs when its `business` paths filter matches
-  (`packages/core/**`, `packages/cli/**`, `tests/**`, Stryker/Vitest config, `package*.json`,
+  (`packages/core/**`, `packages/cli/**`, `packages/api/**`, `tests/**`, Stryker/Vitest config, `package*.json`,
   `ci.yml`) and restores the report from the Actions cache (this branch, else the PR base branch;
   the key hashes the lock file and the Stryker/Vitest configs). A PR runs `test:mutation`; a push to
   a base branch runs `test:mutation:full` and saves the report the next PRs start from. It is
@@ -236,9 +244,18 @@ Verified against `package.json` (root and per package). If a command is not here
   - lifecycle tests use a throwaway database each;
   - constraint tests run in `withRollback` with per-test unique values.
 
-  Four files migrate the shared DB, always through `migrateSharedDatabase()`:
-  `graph-schema-constraints.spec.ts`, `history-claims-constraints.spec.ts`,
-  `indexes-stale.spec.ts` and `helpers/harness.spec.ts`. No test rolls it back.
+  These files migrate the shared DB, always through `migrateSharedDatabase()` (directly or through
+  `useTransactionPerTest()`): `graph-schema-constraints.spec.ts`, `graph-write-pool.spec.ts`,
+  `history-claims-constraints.spec.ts`, `indexes-stale.spec.ts`, `helpers/harness.spec.ts` and,
+  since DIS-76, `store/open-store.spec.ts` and `api/server.spec.ts`. No test rolls it back.
+- **API `inject` specs live in `tests/unit/api/`** (DIS-76), not under `tests/integration/`: they
+  need no database and must run under Stryker, whose Vitest config excludes `tests/integration/**`.
+  `tests/unit/api/support.ts` builds the app with `buildApp` and the doubles of `tests/support/`,
+  registers the test routes `POST /api/test-only`, `GET /api/test-query` and `GET /api/test-throw`
+  (result or thrown error chosen per test, handler runs counted) before `ready()`, and wraps any
+  port in a counting `Proxy`; it never imports `tests/integration/helpers/db.ts`. They import the
+  API sources by relative path, as the CLI tests do (no Vitest alias for `@codemind/api`). The
+  process and database scenarios (`startApi`, `server.ts`) are in `tests/integration/api/`.
 - Test data comes from `fixtures/` (`acme-shop`, `task-api`, `history`, `build-history.mjs`) and
   `seeds/graph-dump.sql`. `fixtures/**` is excluded from Vitest collection.
 - **PH-22 — fixtures are an analyzer's input, never test-writable (DIS-47).** `createPhpAnalyzer()`
@@ -422,8 +439,8 @@ services that must be started first, quirks of the local environment.
   non-negative integer is `invalid-response`; only `choices[0]` is validated. `embed()` rejects any vector whose length is not `EMBEDDING_DIMENSIONS` (1536, the
   `vector(1536)` columns): Ollama's `nomic-embed-text` (768) always fails with `dimension-mismatch`
   until DIS-46 picks the model and migrates the columns. `llmConfigFromEnv(env)` is the only reader
-  of the `LLM_*` variables and `DAILY_BUDGET_USD`; no composition root calls it yet (DIS-29 /
-  CM-HU-12). Tests fake `fetch` (`tests/unit/llm/`); the adapter is outside Stryker's `mutate`.
+  of the `LLM_*` variables and `DAILY_BUDGET_USD`; the CLI's `ask` (DIS-40) and the API's
+  `composeFromEnv` (DIS-76) call it, before any connection. Tests fake `fetch` (`tests/unit/llm/`); the adapter is outside Stryker's `mutate`.
 - **Evaluation mode and the daily ceiling** (DIS-18). `createLlm(config)` builds
   `createEvaluationLlm` (mode `evaluation`, never touches `fetch`, every call fails with
   `LlmUnavailable` reason `evaluation-mode`; `not-configured` still means live without
@@ -546,8 +563,9 @@ services that must be started first, quirks of the local environment.
     before any store call; a project without `indexedCommit` is `SourceUnavailable('not-indexed')`.
   - **`workspaceRoot`, never `process.cwd()`**: the seed's `rootPath` is relative
     (`fixtures/<name>`) and `npm -w packages/api run dev` runs with cwd `packages/api`, so a
-    relative root is joined to the injected absolute `workspaceRoot` (computing it in the API
-    composition is DIS-39). An absolute `rootPath` is used as is.
+    relative root is joined to the injected absolute `workspaceRoot` (the CLI computes it from
+    `import.meta.url`; the API's `composeFromEnv` too since DIS-76: three levels up from
+    `packages/api/src/`). An absolute `rootPath` is used as is.
 - **Claims, typing and the model-output quarantine are pure core** (DIS-38). Zod is a dependency of
   `@codemind/core` since then (same `^4.6.5` as `adapters/llm`).
   - `packages/core/src/knowledge/{claim,evidence}.ts`: `claimSchema` / `evidenceSchema` /
@@ -869,6 +887,21 @@ services that must be started first, quirks of the local environment.
   Exit `0` for an answer or an `UNKNOWN`, `1` configuration, connection, domain or `INTERNAL`
   (`unexpected error`), `2` usage. **Until DIS-21 (answer cache), `ask` in evaluation mode (no
   `LLM_BASE_URL` nor `LLM_API_KEY`) answers `UNKNOWN (llm-required)` even for the sample questions.**
+- **The API base** (DIS-76, `packages/api/src/`). `buildApp(deps, options)` builds Fastify 5 without
+  listening or reading `env` and returns it **not ready**, so tests (and the business routes of
+  DIS-78 / DIS-9) add routes before `ready()`; routes declare Zod schemas only (own compilers in
+  `plugins/zod-compiler.ts`, no type provider): request schemas with `z.strictObject`, response
+  schemas with `z.object` (undeclared fields dropped). A non-Zod schema fails at `ready()`.
+  Every error goes through `plugins/error-handler.ts` (one table; a new domain code is one
+  `DOMAIN_ERRORS` entry; only `BUDGET_EXHAUSTED` → `429` today; an unmapped one is `500 INTERNAL`).
+  `composition.ts` is the API's only reader of `env` (`apiConfigFromEnv` → `INVALID_CONFIG`, then
+  `llmConfigFromEnv`, then the store). **No `pg` in `packages/api`** (`api-no-sql`): the store
+  comes from `openPostgresStore(url, { applicationName: 'codemind-api' })` of
+  `@codemind/adapter-store-postgres` (probe connection, `DatabaseUnavailable` without the driver's
+  text; the URL's own `application_name` wins). The CLI keeps its own `defaultOpenStore` (deferred,
+  DIS-76 Follow-up C). `startApi` closes the store on `app.close()` and on a listen failure;
+  `server.ts` is the only process shell. The rate limit is in memory, per socket IP
+  (`trustProxy` off), and only applies to routes registered after it in `buildApp`.
 - **Vitest can report success with no tests** (`passWithNoTests: true`). A green suite is not
   evidence that behaviour is covered.
 - **The repo is mid-build (Entrega 2).** `verify` is a placeholder that no-ops; `seed:build`

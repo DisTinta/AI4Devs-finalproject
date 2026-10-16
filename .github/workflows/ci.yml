@@ -141,8 +141,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # business: PATH_BUSINESS (packages/core) + packages/cli (DIS-86) + Stryker/Vitest config +
-      # tests/** + dependencies + this workflow.
+      # business: PATH_BUSINESS (packages/core) + packages/cli (DIS-86) + packages/api (DIS-76) +
+      # Stryker/Vitest config + tests/** + dependencies + this workflow.
       - uses: dorny/paths-filter@v4
         id: changes
         with:
@@ -150,6 +150,7 @@ jobs:
             business:
               - 'packages/core/**'
               - 'packages/cli/**'
+              - 'packages/api/**'
               - 'tests/**'
               - 'stryker.config.*'
               - 'stryker.conf.*'
@@ -186,8 +187,8 @@ jobs:
       # zero tests, and fabricating an empty test to force it green is exactly
       # what this gate is meant to prevent. It self-activates once tests land.
       # tests/integration/** is ignored here and in Stryker's own vitest config
-      # (vitest.stryker.config.ts): those specs need Postgres, which this job
-      # does not have, and they cannot kill mutants in packages/core.
+      # (vitest.stryker.config.ts): those specs need Postgres (or spawn processes), which this
+      # job does not have; the mutated core, cli and api sources are covered by the unit specs.
       - name: Mutation testing on critical paths
         if: steps.changes.outputs.business == 'true'
         env:
