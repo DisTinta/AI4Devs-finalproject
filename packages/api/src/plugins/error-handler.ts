@@ -19,6 +19,8 @@ const VALIDATION_ERROR = { status: 400, code: 'VALIDATION_ERROR', message: 'inva
 const BODY_ERRORS = new Map<string, ErrorAnswer>([
   ['FST_ERR_CTP_EMPTY_JSON_BODY', { ...VALIDATION_ERROR, details: {} }],
   ['FST_ERR_CTP_INVALID_JSON_BODY', { ...VALIDATION_ERROR, details: {} }],
+  ['FST_ERR_CTP_BODY_TOO_LARGE', { status: 413, code: 'PAYLOAD_TOO_LARGE', message: 'request body too large', details: {} }],
+  ['FST_ERR_CTP_INVALID_MEDIA_TYPE', { status: 415, code: 'UNSUPPORTED_MEDIA_TYPE', message: 'unsupported media type', details: {} }],
 ]);
 
 /**
@@ -43,6 +45,7 @@ export function installErrorHandler(app: FastifyInstance): void {
 function answerOf(error: FastifyError): ErrorAnswer {
   const bodyError = BODY_ERRORS.get(error.code);
   if (bodyError !== undefined) return bodyError;
+  if (isClientError(error.statusCode)) return { status: error.statusCode, code: 'BAD_REQUEST', message: 'bad request', details: {} };
   return INTERNAL;
 }
 
@@ -50,4 +53,9 @@ function answerOf(error: FastifyError): ErrorAnswer {
 function send(reply: FastifyReply, answer: ErrorAnswer): FastifyReply {
   const body: ErrorBody = { error: { code: answer.code, message: answer.message, details: answer.details } };
   return reply.code(answer.status).type('application/json; charset=utf-8').send(body);
+}
+
+/** Whether `status` is a 4xx HTTP status. */
+function isClientError(status: number | undefined): status is number {
+  return status !== undefined && status >= 400 && status <= 499;
 }
