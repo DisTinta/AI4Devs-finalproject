@@ -61,6 +61,7 @@
 44. [Verificador semántico de citas, caché por par y uso de la verificación (DIS-70)](#44-verificador-semántico-de-citas-caché-por-par-y-uso-de-la-verificación-dis-70)
 45. [Confianza calculada, pesos publicados y salida del modelo con valla (DIS-72)](#45-confianza-calculada-pesos-publicados-y-salida-del-modelo-con-valla-dis-72)
 46. [Uso por consulta en `query_log` y tope de verificación (DIS-74)](#46-uso-por-consulta-en-query_log-y-tope-de-verificación-dis-74)
+47. [Base HTTP de la API: formato de error, Zod, `/docs`, límite por IP y composición (DIS-76)](#47-base-http-de-la-api-formato-de-error-zod-docs-límite-por-ip-y-composición-dis-76)
 
 ---
 
@@ -4443,3 +4444,34 @@ otro rollback (aserciones intactas). Para la prueba manual eligió `qwen2.5-code
 verificar. En CPU el `ask` del CLI agotó el tope de 300 s del adaptador sin dejar fila, como manda la
 spec, y la fila real se obtuvo con la misma composición en un script del scratchpad: 4 llamadas de
 verificación, el 32 % de la latencia, y un ahorro de −22,7 % que queda como dato para la Tabla 1.
+
+---
+
+# 47. Base HTTP de la API: formato de error, Zod, `/docs`, límite por IP y composición (DIS-76)
+
+### Prompt 1 — Aplicar el change dentro del workflow autónomo
+
+La autora lanzó la ejecución con «usa un workflow»; el script del workflow (ADR
+`20261016-autonomous-workflow-run-entrega-2`) envió a este paso, entre otras reglas, este texto literal:
+
+```
+YOUR STEP 3/6 — implement.
+Run /opsx:apply (Skill "opsx:apply") for the change of DIS-76 and walk every task in tasks.md in TDD per scenario (tdd-test-writer → tdd-implementer → tdd-refactorer agents; for tdd-implementer and tdd-refactorer pass model "sonnet" if the Agent tool lets you). Stop before the pre-merge review tasks (show-spec-working / verify-against-spec / adversarial-review, PR, archive): those are later steps. Full suite, lint, typecheck and architecture lint must be green. Commit in small conventional commits.
+```
+
+**Por qué funcionó.** El diseño ya fijaba el orden de registro (compiladores, manejador de errores,
+OpenAPI, límite, `/health`) y una tabla única de errores, así que cada escenario fue un ciclo corto
+RED → GREEN con `inject` y sin base de datos. Confirmar en el código instalado de Fastify 5.12.7 los
+códigos de error del cuerpo (`FST_ERR_CTP_INVALID_JSON_BODY`, `FST_ERR_CTP_EMPTY_JSON_BODY`) y el
+serializador de petición por defecto (que registra `accept-version` como `version`) evitó adivinar.
+La primera pasada de Stryker dejó `packages/api` en 77,64 %: los supervivientes con sentido (límites
+del 4xx, rangos de la configuración, `isUnlimited`, la conversión a OpenAPI) se cerraron con tests de
+límites y dos simplificaciones (el `Retry-After` solo lo pone el manejador; `logger` solo como
+objeto), y la pasada forzada quedó en 96,81 %.
+
+**Ajuste humano.** Ninguno: ejecución autónoma, sin la autora en el bucle. Decisiones del agente
+registradas en el informe del paso 12: el sentinel `SENTINEL-key-3c9d` que exige la spec se permite por
+su valor exacto en `.gitleaks.toml` (como los de DIS-17 y DIS-40); `.env.example` no se pudo leer ni
+editar porque la configuración de permisos de la sesión lo bloquea, así que la tarea 15.3 queda abierta;
+la parada con `SIGINT` no se pudo enviar en Windows desde la shell del agente y su camino de cierre lo
+cubre el test de integración.

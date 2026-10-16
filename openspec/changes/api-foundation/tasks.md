@@ -75,36 +75,36 @@
 
 ## 12. Backend: Run Tests and Verify Data State (MANDATORY)
 
-- [ ] 12.1 Capture the pre-test baseline: the 0.4 indicators
-- [ ] 12.2 Run the targeted tests: `npx vitest run tests/unit/api tests/integration/api tests/integration/store/open-store.spec.ts`
-- [ ] 12.3 Run the required broader suite and gates: `npx vitest run`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`
-- [ ] 12.4 Run `npm run test:mutation -- --mutate "packages/api/src/**/*.ts,!packages/api/src/server.ts,!packages/api/src/start.ts"` (score ≥ 80, the CI break threshold); for each meaningful survivor, a RED → GREEN test
-- [ ] 12.5 Run `/privacy-ethics-check` over the diff (new dependencies; request logs without body but with the client IP; error responses without input values; environment values never printed); record the result in the report
-- [ ] 12.6 Verify the post-test state: same `project` count and no `codemind-%` session left as in 12.1; no `.stryker-tmp/` left. Restore and document if not
-- [ ] 12.7 Create `openspec/changes/api-foundation/reports/YYYY-MM-DD-12-test-and-state-verification.md` from the template of `docs/openspec-tasks-mandatory-steps.md` §6, with the baseline, the characterisation tests (2.3, 3.7, 5.3), the edited existing tests (10.2), the Stryker score and survivors (12.4) and the privacy check (12.5)
-- [ ] 12.8 Mark complete only after the tests pass and the report exists
+- [x] 12.1 Capture the pre-test baseline: the 0.4 indicators
+- [x] 12.2 Run the targeted tests: `npx vitest run tests/unit/api tests/integration/api tests/integration/store/open-store.spec.ts`
+- [x] 12.3 Run the required broader suite and gates: `npx vitest run`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`
+- [x] 12.4 Run `npm run test:mutation -- --mutate "packages/api/src/**/*.ts,!packages/api/src/server.ts,!packages/api/src/start.ts"` (score ≥ 80, the CI break threshold); for each meaningful survivor, a RED → GREEN test
+- [x] 12.5 Run `/privacy-ethics-check` over the diff (new dependencies; request logs without body but with the client IP; error responses without input values; environment values never printed); record the result in the report
+- [x] 12.6 Verify the post-test state: same `project` count and no `codemind-%` session left as in 12.1; no `.stryker-tmp/` left. Restore and document if not
+- [x] 12.7 Create `openspec/changes/api-foundation/reports/YYYY-MM-DD-12-test-and-state-verification.md` from the template of `docs/openspec-tasks-mandatory-steps.md` §6, with the baseline, the characterisation tests (2.3, 3.7, 5.3), the edited existing tests (10.2), the Stryker score and survivors (12.4) and the privacy check (12.5)
+- [x] 12.8 Mark complete only after the tests pass and the report exists
 
 ## 13. Backend: Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 13.1 Preconditions: local database up and migrated (`docker compose up -d`, `npm run db:migrate`); record the 0.4 indicators
-- [ ] 13.2 Start the API with `DATABASE_URL` exported: `npm -w packages/api run dev`; check the log shows it listening on `http://127.0.0.1:3000`
-- [ ] 13.3 Success paths with `curl -i`: `GET /health` (200, `{"status":"ok"}`), `GET /docs` (200 HTML, after at most one redirect), `GET /docs/json` (200, `openapi` `3.0.3`, `/health` in `paths`, `components.schemas.Error`)
-- [ ] 13.4 Error paths: `GET /api/nope` (404 `NOT_FOUND`, exact body); `POST /health` (404); the start-up failures, each run with `npx tsx --tsconfig packages/api/tsconfig.run.json packages/api/src/server.ts` (no `watch`: `tsx watch` does not exit) and `$?` recorded: no `DATABASE_URL` → one `INVALID_CONFIG` line and exit 1; `PORT=70000` → `INVALID_CONFIG` (`PORT`); `DATABASE_URL=postgres://u:s3cret@127.0.0.1:1/db` → `DATABASE_UNAVAILABLE` without the URL; the port already in use → `STARTUP_FAILED` with `EADDRINUSE`. The `429` cannot be reached with `curl` in this change (every real route is exempt and an unknown route is not counted): record that and point to the step 5 test output, then show 40 `GET /health` in a row from the same IP all answering `200`. Invalid input cannot be sent with `curl` either (no real route has a body or a query schema): record it and point to the `tests/unit/api/errors.spec.ts` output
-- [ ] 13.5 Stop the server with Ctrl+C (`SIGINT`) and check it exits and leaves no `codemind-api` session in `pg_stat_activity`
-- [ ] 13.6 Document every command, exit code and response in `openspec/changes/api-foundation/reports/YYYY-MM-DD-13-manual-interface-testing.md` (mask the OS user name in paths); nothing is mutated, so restoration is "none" once 13.5 holds
+- [x] 13.1 Preconditions: local database up and migrated (`docker compose up -d`, `npm run db:migrate`); record the 0.4 indicators
+- [x] 13.2 Start the API with `DATABASE_URL` exported: `npm -w packages/api run dev`; check the log shows it listening on `http://127.0.0.1:3000`
+- [x] 13.3 Success paths with `curl -i`: `GET /health` (200, `{"status":"ok"}`), `GET /docs` (200 HTML, after at most one redirect), `GET /docs/json` (200, `openapi` `3.0.3`, `/health` in `paths`, `components.schemas.Error`)
+- [x] 13.4 Error paths: `GET /api/nope` (404 `NOT_FOUND`, exact body); `POST /health` (404); the start-up failures, each run with `npx tsx --tsconfig packages/api/tsconfig.run.json packages/api/src/server.ts` (no `watch`: `tsx watch` does not exit) and `$?` recorded: no `DATABASE_URL` → one `INVALID_CONFIG` line and exit 1; `PORT=70000` → `INVALID_CONFIG` (`PORT`); `DATABASE_URL=postgres://u:s3cret@127.0.0.1:1/db` → `DATABASE_UNAVAILABLE` without the URL; the port already in use → `STARTUP_FAILED` with `EADDRINUSE`. The `429` cannot be reached with `curl` in this change (every real route is exempt and an unknown route is not counted): record that and point to the step 5 test output, then show 40 `GET /health` in a row from the same IP all answering `200`. Invalid input cannot be sent with `curl` either (no real route has a body or a query schema): record it and point to the `tests/unit/api/errors.spec.ts` output
+- [x] 13.5 Stop the server with Ctrl+C (`SIGINT`) and check it exits and leaves no `codemind-api` session in `pg_stat_activity`
+- [x] 13.6 Document every command, exit code and response in `openspec/changes/api-foundation/reports/YYYY-MM-DD-13-manual-interface-testing.md` (mask the OS user name in paths); nothing is mutated, so restoration is "none" once 13.5 holds
 
 ## 14. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
-- [ ] 14.1 The change has no browser UI (`packages/web` is untouched and has no proxy to the API yet): record "not applicable beyond step 13" in the step 12 report
-- [ ] 14.2 Record in the step 12 report that the CI evidence (new spec files ran and passed, the mutation job ≥ 80 with `packages/api`) is collected in 17.3, once the PR exists
+- [x] 14.1 The change has no browser UI (`packages/web` is untouched and has no proxy to the API yet): record "not applicable beyond step 13" in the step 12 report
+- [x] 14.2 Record in the step 12 report that the CI evidence (new spec files ran and passed, the mutation job ≥ 80 with `packages/api`) is collected in 17.3, once the PR exists
 
 ## 15. Update Technical Documentation (MANDATORY)
 
-- [ ] 15.1 ADR `docs/adr/20261016-fastify-5-and-zod-json-schema.md` with `/adr-new` (design U11), the "why" marked as the agent's decision under the autonomous-run ADR
-- [ ] 15.2 `readme.md`: variables table (`PORT`, `HOST`, `RATE_LIMIT_MAX`, `RATE_LIMIT_WINDOW_MS`; `DATABASE_URL` also required by the API); §1.4 (`npm run dev` needs `DATABASE_URL` exported or `make up`; the API listens on `127.0.0.1:3000`; open `http://localhost:3000/docs`); §2.5 point 6 (the limit's values and exemptions); §4 (the error codes table, the `429` codes, and the start-up codes: the API's `INVALID_CONFIG` vs the CLI's `MISSING_CONFIG` for `DATABASE_URL`)
+- [x] 15.1 ADR `docs/adr/20261016-fastify-5-and-zod-json-schema.md` with `/adr-new` (design U11), the "why" marked as the agent's decision under the autonomous-run ADR
+- [x] 15.2 `readme.md`: variables table (`PORT`, `HOST`, `RATE_LIMIT_MAX`, `RATE_LIMIT_WINDOW_MS`; `DATABASE_URL` also required by the API); §1.4 (`npm run dev` needs `DATABASE_URL` exported or `make up`; the API listens on `127.0.0.1:3000`; open `http://localhost:3000/docs`); §2.5 point 6 (the limit's values and exemptions); §4 (the error codes table, the `429` codes, and the start-up codes: the API's `INVALID_CONFIG` vs the CLI's `MISSING_CONFIG` for `DATABASE_URL`)
 - [ ] 15.3 `.env.example`: the four new variables, empty, with a comment each
-- [ ] 15.4 `docs/project-context.md`: Commands (the API `dev` entry `server.ts` and `tsconfig.run.json`; Stryker `mutate` with `packages/api/src` minus `server.ts` and `start.ts`), Testing (the API `inject` specs in `tests/unit/api/` and why; five files now migrate the shared DB, `open-store.spec.ts` added), Gotchas (the API composition, no `pg` in the API, `openPostgresStore`, `buildApp` without `listen`, the test routes helper); fix the stale lines "no composition root calls it yet (DIS-29 / CM-HU-12)" of the LLM adapter gotcha (now read by the CLI and the API) and "computing it in the API composition is DIS-39" of the `workspaceRoot` gotcha (done by DIS-76); `docs/backend-standards.md` §1 (Zod is a dependency of `packages/api`); `docs/DEPLOYMENT.md` if it mentions the listen address
-- [ ] 15.5 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
+- [x] 15.4 `docs/project-context.md`: Commands (the API `dev` entry `server.ts` and `tsconfig.run.json`; Stryker `mutate` with `packages/api/src` minus `server.ts` and `start.ts`), Testing (the API `inject` specs in `tests/unit/api/` and why; five files now migrate the shared DB, `open-store.spec.ts` added), Gotchas (the API composition, no `pg` in the API, `openPostgresStore`, `buildApp` without `listen`, the test routes helper); fix the stale lines "no composition root calls it yet (DIS-29 / CM-HU-12)" of the LLM adapter gotcha (now read by the CLI and the API) and "computing it in the API composition is DIS-39" of the `workspaceRoot` gotcha (done by DIS-76); `docs/backend-standards.md` §1 (Zod is a dependency of `packages/api`); `docs/DEPLOYMENT.md` if it mentions the listen address
+- [x] 15.5 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
 
 ## 16. Pull request preparation
 
