@@ -44,13 +44,13 @@
 
 ## 7. Backend: Review and Update Existing Tests (MANDATORY)
 
-- [ ] 7.1 Identify the tests affected by the change: `grep -rn "DOMAIN_ERRORS\|answerOf\|buildApp\|registerHealthRoute" tests/`, plus every type error `npm run typecheck` reports
-- [ ] 7.2 Update only the tests whose contract this change modified (none expected: the DIS-76 scenarios keep their behaviour, and no existing test may be edited to pass), without weakening any assertion; list every edited existing test with the reason in the step 9 report, or record "none"
-- [ ] 7.3 Confirm each `#### Scenario:` of both delta specs maps 1:1 to a test with exactly the same name (grep each title in `tests/`); the unchanged scenarios of the two modified `api-foundation` requirements still map to their DIS-76 tests
+- [x] 7.1 Identify the tests affected by the change: `grep -rn "DOMAIN_ERRORS\|answerOf\|buildApp\|registerHealthRoute" tests/`, plus every type error `npm run typecheck` reports
+- [x] 7.2 Update only the tests whose contract this change modified (none expected: the DIS-76 scenarios keep their behaviour, and no existing test may be edited to pass), without weakening any assertion; list every edited existing test with the reason in the step 9 report, or record "none"
+- [x] 7.3 Confirm each `#### Scenario:` of both delta specs maps 1:1 to a test with exactly the same name (grep each title in `tests/`); the unchanged scenarios of the two modified `api-foundation` requirements still map to their DIS-76 tests
 
 ## 8. Refactor
 
-- [ ] 8.1 With the suite green, refactor `packages/api/src/**` for naming and duplication only (no behaviour change, no test edits); `npx vitest run tests/unit/api tests/integration/api` stays green
+- [x] 8.1 With the suite green, refactor `packages/api/src/**` for naming and duplication only (no behaviour change, no test edits); `npx vitest run tests/unit/api tests/integration/api` stays green
 
 ## 9. Backend: Run Tests and Verify Data State (MANDATORY)
 
