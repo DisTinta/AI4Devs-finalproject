@@ -114,8 +114,8 @@ PR [#44](https://github.com/DisTinta/AI4Devs-finalproject/pull/44), head `7ee73c
 [38892815466](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/38892815466): every job
 green (`scope`, `secrets`, `quality`, `mutation`, `frontend`).
 
-- The first run of the PR (`99f62ae`) failed `secrets`: gitleaks reported the synthetic test constant
-  `SECRET = 'sentinel-question-7f3a'` (`tests/unit/knowledge/query-log.spec.ts:14`) as
+- The first run of the PR (`99f62ae`) failed `secrets`: gitleaks reported the synthetic test
+  constant named after a secret (`tests/unit/knowledge/query-log.spec.ts:14`, a synthetic sentinel question) as
   `generic-api-key`. Fixed in `7ee73c3`: the constant is now `SENTINEL`, and the finding of commit
   `21df2e1` is fingerprinted in `.gitleaksignore`, as DIS-91 did. Local `gitleaks dir` and
   `gitleaks git --log-opts 082a6fb..HEAD` report no leak.

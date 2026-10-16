@@ -15,3 +15,7 @@ cb4e6aa71c5cea7667a75fc475a1e92f4a0d4e22:openspec/changes/security-gateway/specs
 # DIS-74: synthetic sentinel question flagged because the test constant was named SECRET; renamed
 # to SENTINEL in the next commit.
 21df2e178250932d14b964ee39711b599489dbe1:tests/unit/knowledge/query-log.spec.ts:generic-api-key:14
+
+# DIS-74: the step 12 report addendum quoted that synthetic sentinel with its old constant name;
+# reworded in the next commit.
+ea1b4f280cf060efb083b85dfe07bbd8590b6692:openspec/changes/query-usage-log/reports/2026-10-16-12-test-and-state-verification.md:generic-api-key:118
