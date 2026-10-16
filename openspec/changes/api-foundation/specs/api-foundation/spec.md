@@ -221,7 +221,7 @@ matches no route. The limit and the window come from the configuration (default 
 
 - **GIVEN** the app built with a limit of 2 requests per 60 000 ms and the test route
   `POST /api/test-only`
-- **WHEN** the same IP sends three valid requests to it
+- **WHEN** the IP `10.0.0.1` sends three valid requests to it
 - **THEN** the first two answer `200` and the third answers `429` with `error.code` `RATE_LIMITED`,
   `error.message` `too many requests`, `error.details.retryAfterSeconds` an integer greater than 0,
   a `Retry-After` header equal to it, and the handler ran exactly twice
@@ -389,11 +389,17 @@ variable, the database URL, its credentials or
 #### Scenario: Start-up errors map to their line
 
 - **GIVEN** the start-up errors `INVALID_CONFIG` for `PORT`, an LLM configuration error for
-  `LLM_BASE_URL`, a `DatabaseUnavailable` of the store adapter, and a listen error with system code
-  `EADDRINUSE`
+  `LLM_BASE_URL`, an LLM configuration error for `DAILY_BUDGET_USD` with the model variable
+  `LLM_MODEL`, a `DatabaseUnavailable` of the store adapter, a listen error with system code
+  `EADDRINUSE`, and an `Error` without a `code`
 - **WHEN** each is turned into its start-up line
-- **THEN** they give `INVALID_CONFIG` with `{ "variable": "PORT" }`, `LLM_CONFIG_INVALID` with
-  `{ "variable": "LLM_BASE_URL" }`, `DATABASE_UNAVAILABLE` with `{}`, and `STARTUP_FAILED` with `{ "systemCode": "EADDRINUSE" }`
+- **THEN** they give, in order: `INVALID_CONFIG`, `PORT is missing or invalid; see .env.example`,
+  `{ "variable": "PORT" }`; `LLM_CONFIG_INVALID`, `LLM_BASE_URL is missing or invalid; see
+  .env.example`, `{ "variable": "LLM_BASE_URL" }`; `LLM_CONFIG_INVALID`, `DAILY_BUDGET_USD is set but
+  LLM_MODEL has no price in COST_TABLE; see .env.example`, `{ "variable": "DAILY_BUDGET_USD",
+  "modelVariable": "LLM_MODEL" }`; `DATABASE_UNAVAILABLE`, `cannot connect to the database`, `{}`;
+  `STARTUP_FAILED`, `the API could not start`, `{ "systemCode": "EADDRINUSE" }`; `STARTUP_FAILED`,
+  `the API could not start`, `{}`
 
 #### Scenario: A listen failure closes the store
 

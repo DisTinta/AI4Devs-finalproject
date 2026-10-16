@@ -1,4 +1,9 @@
+APPROVED
+
 # Spec audit — api-foundation (DIS-76)
+
+Final verdict after four runs: APPROVED (run 4). Runs 1–3 were CHANGES REQUIRED; each run is followed by
+how its findings were resolved.
 
 - Date: 2026-10-16
 - Auditor: spec-auditor subagent (run 1)
@@ -821,3 +826,263 @@ No change.
 | 3.3 LLM variable at fault | Scenario names `LLM_BASE_URL` |
 | 5.2 who installs `serializers.req` | Design U9: `buildApp` adds it to any logger options; task 6.1 |
 | Linear | No new decision: D6 already says `ApiConfigError` carries `code` and `variable` |
+
+---
+
+# Run 4 (spec-auditor, 2026-10-16)
+
+Note: the raw auditor output opened with a provisional `CHANGES REQUIRED` line that it retracted in
+the next line ("no blocking findings"); its final verdict is below.
+
+APPROVED
+
+**Questions for the author:** none. This is an autonomous run (ADR `20261016-autonomous-workflow-run-entrega-2`), so I treat every decision in the DIS-76 `[enhanced]` as valid scope: D1–D11, criteria 1–5 (a)–(h) and the technical context. The P1 decision (option b, the cache notice goes to DIS-78) is in the DIS-78 `[enhanced]`. It also matches DIS-78's own line: «Se hace con un requisito MODIFIED de la capability `api-foundation`».
+
+**Input note:** I loaded DIS-76 with the Linear tools (sub-issue, 2 comments with the DIS-18 handover notes), DIS-59 (parent) and DIS-78. The autonomous-run ADR is not on this branch. As in runs 1–3, I accept its authorisation as stated (PR, archive and merge in tasks 17.1 and 17.9).
+
+---
+
+## Run-3 resolutions: did they land?
+
+| Run-3 finding | Landed? | Where |
+|---|---|---|
+| 5.1 / 6.1 / 8.1: `details.variable` on the thrown error | ✓ | spec "Configuration from the environment" l. 288-291 (thrown error carries `code` and `variable`; `details.variable` only in the start-up line); scenario l. 310-311; design U7 l. 193-196; task 7.2 ("exposes `code` and `variable`, no `details`"). Matches `LlmConfigError` (`packages/adapters/llm/src/config.ts:45-69`, `variable`/`modelVariable`, no `details`) and the CLI's `toFailure` (`packages/cli/src/commands/ask.ts:282-289`) |
+| 3.1: listen-failure clause | ✓ | spec "Start-up failure" l. 376-377 |
+| 3.2: response time | ✓ | spec l. 271-272 (numeric `responseTime` on the `request completed` line) |
+| 3.3: LLM variable at fault | ✓ | spec l. 328-330 (`LlmConfigError` … `variable` is `LLM_BASE_URL`), matching `config.ts:83` |
+| 5.2: who installs `serializers.req` | ✓ | design U9 l. 228-230; task 6.1 |
+
+All run-3 resolutions landed. The findings below are new, and none is blocking.
+
+---
+
+## 1. Scope against the ticket
+
+Clean. Every element of the proposal, both deltas and the task list traces to the DIS-76 `[enhanced]`:
+- D1 → U1.
+- D2 → U2.
+- D3/D4 → U3.
+- D5 → U4.
+- D6 → U7 and U8.
+- D7 → U6.
+- D8 → U5.
+- D9 → U9.
+- D10 → U10.
+- D11 → Follow-ups C.
+- Criteria 1–5 (a)–(h).
+
+The change does not widen to the whole DIS-59 story. These stay with DIS-78 and are listed as non-goals:
+- `POST /ask`;
+- `PROJECT_NOT_FOUND` / `INVALID_EXPLAIN_REQUEST` / `LLM_UNAVAILABLE`;
+- the cache-serving notice;
+- "`/docs` lists `/ask`";
+- the Postgres-backed `200`.
+
+## 2. Inherited acceptance criteria
+
+Clean. The DIS-76 DoD is: «`GET /health` y `/docs` responden; un `400` y un `429` de prueba salen con el formato `Error`; test con `inject`».
+
+| Criterion (DoD DIS-76 / parent DIS-59) | Requirement | Scenario | Status |
+|---|---|---|---|
+| `/health` answers | Liveness route | Health answers ok without touching the store | ✓ |
+| `/docs` answers | OpenAPI document at /docs | The document lists… / The viewer is served as HTML | ✓ |
+| Test `400` `VALIDATION_ERROR` in `Error` format (DIS-59 AC 2) | Request validation by schema | A field that fails its rule… | ✓ (`tokenBudget: 50` → DIS-78) |
+| Test `429` `RATE_LIMITED`, same IP (DIS-59 AC 4) | Rate limit by IP | The request beyond the limit answers RATE_LIMITED | ✓ |
+| `429` `BUDGET_EXHAUSTED` (DIS-59 AC 4) | Domain error mapping | An exhausted budget answers 429 BUDGET_EXHAUSTED | ✓ (cache notice → DIS-78, Follow-ups B) |
+| Tests with `app.inject` | — | `tests/unit/api/*` | ✓ |
+
+## 3. Missing scenarios
+
+- **3.1 (improvable): the start-up line table is only partly pinned.**
+  - "Start-up failure" (spec l. 369-374) fixes a `message` for every cause. It also fixes two variants that no scenario reaches:
+    - the `LLM_CONFIG_INVALID` model-variable form (`<variable> is set but <modelVariable> has no price…`, `details` with `modelVariable`);
+    - `STARTUP_FAILED` with `{}` when the error's `code` is not a system code.
+  - "Start-up errors map to their line" (l. 389-396) checks only `code` and `details`.
+  - "A missing DATABASE_URL stops the process with one line" (l. 381-387) pins only the `INVALID_CONFIG` message.
+  - Consequence: `startupFailure` is mutated (design U6), so its message literals and the `modelVariable` / no-system-code branches will show up as Stryker survivors in task 12.4 instead of being driven by a scenario.
+  - Fix: Corrections 1.
+- Everything else is clean. Each MUST/SHALL clause has a scenario or refers to a requirement that has one ("Cooperation with a caller-owned transaction" for "commit on its own").
+
+## 4. Ambiguity
+
+Clean. I searched `proposal.md`, `design.md`, both deltas and `tasks.md` with a word-boundary, case-insensitive search for fast / easy / secure / efficient / many / appropriate / robust (plus quickly / simple). The only hit is the fixed contract literal `too many requests` (spec l. 24, 226).
+
+## 5. Open decisions
+
+- **5.1 (improvable): the IP of the first rate-limit scenario is not named.**
+  - "The request beyond the limit answers RATE_LIMITED" (spec l. 222-227) says "the same IP sends three valid requests".
+  - The next two scenarios start from "the same app after the IP `10.0.0.1` exhausted its limit" (l. 231, 238).
+  - Each scenario is one independent test (design U10, backend-standards §7). `inject` defaults to `127.0.0.1`, so whoever writes the second and third tests has to choose how `10.0.0.1` got exhausted.
+  - The intent is clear, so this is not blocking.
+  - Fix: Corrections 2.
+- No other open decision. These are all fixed:
+  - formats (error body, issues, start-up line, `systemCode` pattern);
+  - limits (64 KiB, 1–65 535, 1–1 000 000, 1–86 400 000 ms);
+  - empty/absent inputs (trim → default; empty JSON body);
+  - ordering (config table order, handler steps 1–6, LLM after API config, store last);
+  - names a test will pin (scenario titles, test routes, `codemind-api`, `codemind-api-test`, `codemind-url-test`).
+
+## 6. Contradictions inside the change
+
+Clean. I checked proposal ↔ design ↔ spec on:
+- the code table (8 codes);
+- the `variable` vs `details.variable` split (spec l. 288-291 ↔ U7 l. 193-196);
+- the 64 KiB limit;
+- the defaults and exemptions;
+- the `io` modes;
+- the custom `serializers.req` (spec l. 259-261 ↔ U9);
+- the module layout (proposal Impact ↔ U6);
+- the Stryker scope (proposal Quality gates ↔ U10 ↔ task 9.1 ↔ 12.4);
+- the `tsx watch` behaviour (proposal l. 28-29 ↔ Risks l. 283-286 ↔ task 13.4).
+
+## 7. Contradictions with the project
+
+Clean.
+- `docs/backend-standards.md`:
+  - §3/§4: strict request schemas, response schemas with enumerated fields.
+  - §6: `429` for rate limit and budget, one error handler.
+  - §8: ceiling only in live mode with a ceiling.
+  - §9: environment validated at start-up, no values printed.
+  - §7: one test per scenario (task 10.3).
+- `.dependency-cruiser.cjs` `api-no-sql`: respected through `openPostgresStore` (task 9.2).
+- `openspec/specs/llm-adapter`: `LLM_CONFIG_INVALID` is propagated unchanged; the start-up message follows the CLI's `toFailure` (`ask.ts:284-285`).
+- The `graph-store` delta adds one requirement and duplicates none.
+- `docs/project-context.md`:
+  - l. 239 ("Four files migrate the shared DB"), l. 425 ("no composition root calls it yet") and l. 549-550 ("computing it in the API composition is DIS-39") are stale after this change, and task 15.4 names all three.
+  - `codemind-<client>` application names are respected.
+- DIS-18 handover comments on DIS-76:
+  - the `pg` failure inside the ceiling maps to `500` `INTERNAL` (U3 step 6; scenario "An unexpected error answers INTERNAL without its text");
+  - the ceiling is built only from the configuration (U7, the exact `mode === 'live' && dailyBudgetUsd !== undefined` form).
+
+## 8. Contrast with the real code
+
+No finding. I checked:
+- `stryker.config.json:19-25`: `disableTypeChecks` and `mutate` hold only core and cli today. Task 9.1 adds `packages/api` to both, with `server.ts` and `start.ts` excluded.
+- `vitest.stryker.config.ts:2,16`: the header comment is stale ("mutates packages/core only"), and `tests/integration/**` is excluded, which is why the `inject` specs live in `tests/unit/api/`. Task 9.1 updates the comment.
+- `packages/api/tsconfig.json:4-5`: `rootDir: src`, `outDir: dist`. "Three levels up from `packages/api/src/` or `dist/`" (U7) reaches the repository root in both cases.
+- `packages/api/package.json:8`: `dev` is still `tsx watch src/index.ts`; task 8.4 changes it.
+- `packages/adapters/llm/src/config.ts`:
+  - l. 83 raises `LlmConfigError('LLM_BASE_URL')` for a key without a base URL;
+  - l. 105 raises `LlmConfigError('DAILY_BUDGET_USD', <model variable>)`, which is the `modelVariable` case of 3.1;
+  - l. 137-145 accepts `http:` for the live configuration in "A daily budget stops the model call".
+- `packages/cli/src/commands/ask.ts:282-290`: `toFailure` builds the same `LLM_CONFIG_INVALID` messages and `details`, and the same `DATABASE_UNAVAILABLE` line, that the spec table fixes.
+
+## 9. Task size
+
+Clean. Each task fits in one agent turn. These were split in earlier runs: 3.4a/3.4b, 5.3 (four characterisation-or-TDD cycles over one helper), 8.2/8.2b/8.3 and 17.3–17.9.
+
+## 10. Mandatory steps
+
+Clean.
+- Step 0 comes first: 0.1 sets the Linear state (project convention: Linear state before branch work), 0.2 creates the branch `feature/DIS-76-api-foundation` from `feature/entrega-2-CRN`, and 0.4 records the baseline.
+- These steps are present with their exact labels: 10 "Review and Update Existing Tests (MANDATORY)", 12 "Run Tests and Verify Data State (MANDATORY)", 13 "Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE)", 14 "End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)", 15 "Update Technical Documentation (MANDATORY)" and 17 "Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)".
+- Pre-merge Review is last, and the archive commit comes before the merge.
+- The step-12 report is named `YYYY-MM-DD-12-test-and-state-verification.md`.
+- Restoration is covered: baseline in 0.4 / 12.1, check in 12.6, and "none" justified in 13.6 because 13.5 checks that no session remains. The only writes are `migrateSharedDatabase()` (idempotent) and pooled sessions, which are polled until they are gone.
+
+## 11. Traceability
+
+| Requirement | Scenario | Tasks |
+|---|---|---|
+| Single error format | An unknown route answers NOT_FOUND | 3.2, 3.3 |
+| | A malformed or empty JSON body answers VALIDATION_ERROR | 3.4a |
+| | A body over the limit answers PAYLOAD_TOO_LARGE | 3.4b |
+| | An unsupported content type answers UNSUPPORTED_MEDIA_TYPE | 3.4b |
+| | Another 4xx error answers BAD_REQUEST with its status | 3.4b |
+| | A 400 that is not a body error answers BAD_REQUEST | 3.4b |
+| | An unexpected error answers INTERNAL without its text | 3.4a |
+| Request validation by schema | A field that fails its rule answers VALIDATION_ERROR with its issue | 3.5 |
+| | An undeclared key answers VALIDATION_ERROR | 3.5 |
+| | A query string that fails its schema answers VALIDATION_ERROR | 3.5 |
+| Response serialisation by schema | Undeclared response fields are dropped | 3.6 |
+| | A result that breaks its response schema answers INTERNAL | 3.6 |
+| Domain error mapping | An exhausted budget answers 429 BUDGET_EXHAUSTED | 3.7 |
+| | A domain error without a mapping answers INTERNAL | 3.7 |
+| Liveness route | Health answers ok without touching the store | 4.1, 4.2 |
+| OpenAPI document at /docs | The document lists health, the error schema and a route's body schema | 4.3 |
+| | The viewer is served as HTML | 4.4 |
+| Rate limit by IP | The request beyond the limit answers RATE_LIMITED | 5.1, 5.2 |
+| | The limit is per IP and ignores forwarding headers | 5.3 |
+| | Health and the documentation are not limited | 5.3 |
+| | A request that matches no route is not counted | 5.3 |
+| | Rejected requests count towards the limit | 5.3 |
+| Request body limit and logging | The request log holds no body and a 500 logs its cause | 6.1 (the 413 is in 3.4b) |
+| Configuration from the environment | Defaults apply to unset and empty variables | 7.1, 7.2 |
+| | An invalid variable fails with its name and without its value | 7.1, 7.2 |
+| Composition from the environment | Configuration errors are raised before the store is opened | 7.3 |
+| | Evaluation mode uses the model as built | 7.3 |
+| | A daily budget stops the model call | 7.3 |
+| | The API answers on its address and closes its connections | 8.2 |
+| | The composed repository root is the repository's top directory | 7.3 |
+| Start-up failure | A missing DATABASE_URL stops the process with one line | 8.3 |
+| | Start-up errors map to their line | 8.1 |
+| | A listen failure closes the store | 8.2b |
+| graph-store: Opening a pooled store from a URL | An opened store answers and closes its connections | 2.3 |
+| | The URL's application name wins | 2.3 |
+| | An unreachable database fails without leaking the URL | 2.1, 2.2 |
+
+All 36 scenarios have a task, so no row is empty. Corrections 1 extends an existing scenario and adds no new row (task 8.1 already covers it).
+
+---
+
+## Corrections to apply
+
+None of these is blocking. Applying them is recommended before `/opsx:apply`, and they can be done in one `/opsx:update` pass.
+
+### `openspec/changes/api-foundation/specs/api-foundation/spec.md`
+
+1. **Scenario "Start-up errors map to their line", l. 389-396 (3.1, improvable).** Replace the scenario body with:
+   ```
+   - **GIVEN** the start-up errors `INVALID_CONFIG` for `PORT`, an LLM configuration error for
+     `LLM_BASE_URL`, an LLM configuration error for `DAILY_BUDGET_USD` with the model variable
+     `LLM_MODEL`, a `DatabaseUnavailable` of the store adapter, a listen error with system code
+     `EADDRINUSE`, and an `Error` without a `code`
+   - **WHEN** each is turned into its start-up line
+   - **THEN** they give, in order:
+     `INVALID_CONFIG`, `PORT is missing or invalid; see .env.example`, `{ "variable": "PORT" }`;
+     `LLM_CONFIG_INVALID`, `LLM_BASE_URL is missing or invalid; see .env.example`,
+     `{ "variable": "LLM_BASE_URL" }`;
+     `LLM_CONFIG_INVALID`, `DAILY_BUDGET_USD is set but LLM_MODEL has no price in COST_TABLE; see .env.example`,
+     `{ "variable": "DAILY_BUDGET_USD", "modelVariable": "LLM_MODEL" }`;
+     `DATABASE_UNAVAILABLE`, `cannot connect to the database`, `{}`;
+     `STARTUP_FAILED`, `the API could not start`, `{ "systemCode": "EADDRINUSE" }`;
+     `STARTUP_FAILED`, `the API could not start`, `{}`
+   ```
+2. **Scenario "The request beyond the limit answers RATE_LIMITED", l. 224 (5.1, improvable).** Replace "the same IP sends three valid requests to it" with "the IP `10.0.0.1` sends three valid requests to it". The GIVEN of the two scenarios that follow ("the same app after the IP `10.0.0.1` exhausted its limit") then refers to an explicit state: the app with a limit of 2 per 60 000 ms after `10.0.0.1` sent two valid `POST /api/test-only`.
+
+### `openspec/changes/api-foundation/design.md`
+
+No change needed.
+
+### `openspec/changes/api-foundation/proposal.md`
+
+No change needed.
+
+### `openspec/changes/api-foundation/tasks.md`
+
+3. **8.1 (3.1, improvable).** Append: "(the six inputs of the scenario, each with its exact `message` and `details`)". This needs no new task.
+
+### Linear
+
+- **DIS-76, `[enhanced]` part.** Do not edit the `[original]` block, and put scope in the description, not in comments.
+  - Optional, for consistency (improvable). D9 still opens with «Logger de Fastify (pino) con su serializador por defecto: método, URL y estado», and its own re-audit note overrides that. D10 still opens with «Stryker añade `packages/api/src/**/*.ts` salvo `server.ts`», and its own correction overrides that. Rewrite those opening sentences to:
+    - D9: «Logger de Fastify (pino) con un serializador `req` propio (`method`, `url`, `host`, `remoteAddress`, `remotePort`) y el `res` por defecto: nunca el cuerpo ni otras cabeceras».
+    - D10: «Stryker añade `packages/api/src/**/*.ts` salvo `server.ts` y `start.ts`».
+  - If Corrections 1 is applied, optionally add to criterion 5, without changing scope: «*(Re-auditoría 4, 2026-10-16)* La línea de arranque fija también el mensaje de cada causa, la variante con `modelVariable` de `LLM_CONFIG_INVALID` y `STARTUP_FAILED` con `{}` cuando el error no trae código de sistema.»
+- **DIS-59, DIS-78:** no change.
+
+---
+
+## Resolution of run 4 (main session, 2026-10-16)
+
+Verdict APPROVED: the apply can start. The three improvable corrections were applied anyway:
+
+| Finding | Resolution |
+|---|---|
+| 3.1 start-up line table partly pinned | Scenario "Start-up errors map to their line" now pins all six inputs with exact `message` and `details` (including the `modelVariable` form and `STARTUP_FAILED` with `{}`); task 8.1 |
+| 5.1 IP of the first rate-limit scenario | "the IP `10.0.0.1` sends three valid requests" |
+| Linear D9/D10 opening sentences (optional) | Not rewritten: the re-audit notes appended to D9 and D10 already state the current decision; no scope change |
+
+## Final verdict
+
+APPROVED (run 4, 2026-10-16).
