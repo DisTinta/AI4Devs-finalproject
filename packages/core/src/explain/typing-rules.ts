@@ -9,8 +9,11 @@ import type { ContextSpan } from '../context/context-pack.js';
 /** What the typing of a statement reads from each span it cites. */
 export type CitedSpan = Pick<ContextSpan, 'origin'>;
 
+/** The types the rule gives a statement; `UNKNOWN` is an answer policy, not a typing result. */
+export const STATEMENT_TYPES = ['FACT', 'INFERENCE'] as const;
+
 /** The type the rule gives a statement; `UNKNOWN` is an answer policy, not a typing result. */
-export type StatementType = 'FACT' | 'INFERENCE';
+export type StatementType = (typeof STATEMENT_TYPES)[number];
 
 /** The origins that can back a fact; any other origin, known or not, makes an inference. */
 const FACT_ORIGINS: ReadonlySet<string> = new Set(['anchor', 'exact']);
