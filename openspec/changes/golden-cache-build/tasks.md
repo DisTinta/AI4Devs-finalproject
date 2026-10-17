@@ -25,8 +25,8 @@
 
 ## 4. Answer fingerprint (TDD, design C3) — `golden-answers` → "Golden answer fingerprint"
 
-- [ ] 4.1 RED: create `tests/unit/cache/answer-fingerprint.spec.ts` with "The answer fingerprint covers exactly its declared inputs" (temporary tree, as `tests/unit/cli/seed-fingerprint.spec.ts`). See it fail
-- [ ] 4.2 GREEN: `packages/cli/src/cache/answer-fingerprint.ts` (`ANSWER_FINGERPRINT_FILES`, `collectAnswerFingerprintInputs`, `answerFingerprint`), importing `fingerprint` from `packages/cli/src/seed/fingerprint.ts` without editing it
+- [x] 4.1 RED: create `tests/unit/cache/answer-fingerprint.spec.ts` with "The answer fingerprint covers exactly its declared inputs" (temporary tree, as `tests/unit/cli/seed-fingerprint.spec.ts`). See it fail
+- [x] 4.2 GREEN: `packages/cli/src/cache/answer-fingerprint.ts` (`ANSWER_FINGERPRINT_FILES`, `collectAnswerFingerprintInputs`, `answerFingerprint`), importing `fingerprint` from `packages/cli/src/seed/fingerprint.ts` without editing it
 
 ## 5. Long request function (TDD, design C4) — `golden-answers` → "Cache build command contract and configuration"
 
