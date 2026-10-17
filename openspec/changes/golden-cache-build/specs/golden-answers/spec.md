@@ -34,9 +34,13 @@ and before the golden file is read or written. The daily ceiling `DAILY_BUDGET_U
 applied by the build.
 
 The exit code SHALL be `0` on success and `1` on any failure. stdout SHALL receive, as the build
-advances, one line per attempt: `<id>: answered in <s> s (attempt <n>/3)` for a kept answer, with
-`<s>` the attempt's duration in whole seconds, rounded half up; `<id>: attempt <n>/3 not cacheable
-(<reason>)` for an attempt that is retried. On success stdout SHALL end with exactly one line
+advances, one line per attempt that ends with an answer or with a failed model request:
+`<id>: answered in <s> s (attempt <n>/3)` for a kept answer, with `<s>` the attempt's duration in
+whole seconds, rounded half up; `<id>: attempt <n>/3 not cacheable (<reason>)` for any other such
+attempt, whether it is retried or not, with `<reason>` the reason of "Retries and failures of a
+golden answer" or the model failure's reason (`timeout`, `network`, `http-status`, …). A failure that
+is not the outcome of an attempt's answer or model request (configuration, seed, database, source)
+prints no line. On success stdout SHALL end with exactly one line
 `acme-shop: <count> golden answers -> <output>`, `<count>` being the number of entries of the written
 file and `<output>` its path displayed as `seed:build` displays its output; stderr SHALL be empty. On
 failure stdout SHALL hold only the attempt lines already printed, and stderr exactly one line,
@@ -72,11 +76,21 @@ or its API key, or a question's answer text.
 
 #### Scenario: Unreachable services are reported without their URLs
 
-- **GIVEN** `DATABASE_URL=postgres://u:s3cret@127.0.0.1:1/db` and a valid model configuration whose
-  `LLM_BASE_URL` is `http://k3y@127.0.0.1:1/v1`
+- **GIVEN** `DATABASE_URL=postgres://u:s3cret@127.0.0.1:1/db` and a valid model configuration with
+  `LLM_BASE_URL=http://127.0.0.1:1/v1` and `LLM_API_KEY=k3y`
 - **WHEN** the cache build runs
 - **THEN** it exits with `1` and `DATABASE_UNAVAILABLE`; no output contains `s3cret`, `u:`, `k3y` or
   `127.0.0.1:1`; the previous golden file is unchanged
+
+#### Scenario: The build's request limit applies and the daily ceiling does not
+
+- **GIVEN** a valid configuration with `LLM_MODEL=qwen2.5-coder`, `LLM_TIMEOUT_MS=1000` and
+  `DAILY_BUDGET_USD=0.000001`, a daily spend already above that ceiling, and `CACHE_BUILD_TIMEOUT_MS`
+  unset, then `5000`
+- **WHEN** the cache build runs with a model that answers every golden question validly
+- **THEN** each run exits with `0`; the model client is built with a per-request limit of `1200000`,
+  then `5000` (never `1000`), and with the build's request function; every golden question reaches
+  the model; and no failure is `BUDGET_EXHAUSTED`
 
 #### Scenario: A slow model answer within the build's limit is kept
 
@@ -112,12 +126,14 @@ and, when the `HEAD` commit of the rebuilt sample differs from the seed's `index
 acme-shop, fail in the same way. Both checks SHALL happen before any database connection and before
 the model is called.
 
-#### Scenario: A seed older than the code is refused
+#### Scenario: A missing or outdated seed is refused
 
-- **GIVEN** a valid configuration and a seed whose analyzer fingerprint differs from the current one,
-  and then a seed with current fingerprints whose `indexed_commit` differs from the rebuilt `HEAD`
+- **GIVEN** a valid configuration and a seed file that does not exist; then a seed whose analyzer
+  fingerprint differs from the current one; then a seed with current fingerprints whose
+  `indexed_commit` differs from the rebuilt `HEAD`
 - **WHEN** the cache build runs
-- **THEN** each run exits with `1` and `GOLDEN_STALE` with the message
+- **THEN** each run exits with `1`: the first with `INVALID_SEED`, `details.reason` = `missing` and
+  the message of `db:seed`; the other two with `GOLDEN_STALE`, the message
   `seed out of date: run npm run seed:build` and `details.reason` = `seed`; no database connection
   is opened, the model is not called, and the previous golden file is unchanged
 
@@ -138,15 +154,25 @@ change, on success and on failure, and every connection SHALL be closed. A non-s
   `cache_entry` rows recorded, the versioned seed, the sample's history rebuilt in a temporary
   workspace, and a scripted live model that answers each golden question with a valid answer citing a
   span of the evidence it receives and entails every pair
-- **WHEN** the cache build runs to a temporary output file
-- **THEN** it exits with `0`; the file is exactly the canonical render of a golden file with project
-  `acme-shop`, the seed's two header fingerprints, the current answer fingerprint, the configured
+- **WHEN** the cache build runs to an output file in a temporary directory that does not exist yet
+- **THEN** it exits with `0`; the directory is created; the file is exactly the canonical render of
+  a golden file with project `acme-shop`, the seed's two header fingerprints, the current answer fingerprint, the configured
   answer and verification models, and one entry per golden question in order, each with its id and
   question, `questionNormalized` equal to the normalized question, `reviews` empty and a `response`
   the answer cache accepts as a stored response, with `priorClaims` empty and every evidence
   `fileId` naming a file of the seed with the same path; stdout is one `answered` line per question
-  followed by `acme-shop: 3 golden answers -> <file name>`; stderr is empty; and the recorded project
-  ids and rows are unchanged
+  followed by `acme-shop: 3 golden answers -> <file name>`; stderr is empty; each question's
+  transaction was rolled back and released; and the recorded project ids and rows are unchanged
+
+#### Scenario: A non-sample acme-shop blocks the cache build
+
+- **GIVEN** a migrated database holding a non-sample project named `acme-shop`, and a previous golden
+  file with known content
+- **WHEN** the cache build runs
+- **THEN** it exits with `1`; stderr holds one error line with code `PROJECT_NAME_TAKEN`, the message
+  `a project named "acme-shop" already exists and is not a sample` and `details.name` = `acme-shop`;
+  the model is not called; the existing project keeps its id and rows; the previous golden file is
+  unchanged
 
 ### Requirement: Retries and failures of a golden answer
 
@@ -154,9 +180,11 @@ An attempt SHALL be retried, up to 3 attempts per question, when its answer is a
 `invalid-model-output`, `broken-evidence` or `no-evidence`, when it is an answer the cache would not
 keep (reason `not-cacheable`), or when the model request fails as `LLM_UNAVAILABLE` with reason
 `timeout` or `network`. An `UNKNOWN` of reason `no-anchor` or `over-budget` SHALL fail at once. A
-kept response whose JSON text matches `/AKIA[A-Z0-9]{16}/`, or contains the repository's absolute
-path, `DATABASE_URL` or `LLM_BASE_URL`, SHALL fail at once with reason `unsafe-content`. A failure of
-the model with any other reason SHALL fail at once as `LLM_UNAVAILABLE`. After 3 failed attempts the
+response whose JSON text matches `/AKIA[A-Z0-9]{16}/`, or contains, as written or as escaped inside a
+JSON string, the absolute path of the repository root or of the workspace the sample is rebuilt in,
+the value of `DATABASE_URL`, of `LLM_BASE_URL` or, when set, of `LLM_API_KEY`, SHALL fail at once with
+reason `unsafe-content`. A failure of the model with any other reason SHALL fail at once as
+`LLM_UNAVAILABLE`. After 3 failed attempts the
 build SHALL fail as `LLM_UNAVAILABLE` when the last attempt failed that way, and otherwise with
 `GOLDEN_NOT_CACHEABLE`. A `GOLDEN_NOT_CACHEABLE` failure SHALL have the message
 `<id> has no cacheable answer (<reason>)` and `details` = `{ id, reason }`, `<reason>` being one of
@@ -181,17 +209,33 @@ it was, with no temporary file next to it.
 - **WHEN** the cache build runs
 - **THEN** each run exits with `1`; stderr holds one error line with code `GOLDEN_NOT_CACHEABLE` and
   `details` = `{"id":"Q3","reason":"invalid-model-output"}`, then `{"id":"Q1","reason":"no-evidence"}`
-  after three attempts, then `{"id":"Q4","reason":"unsafe-content"}` after one attempt;
-  the previous golden file is unchanged and no `.tmp` file remains next to it; and the database rows
-  are unchanged
+  after three attempts, then `{"id":"Q4","reason":"unsafe-content"}` after one attempt; stdout ends
+  with `Q3: attempt 3/3 not cacheable (invalid-model-output)`, `Q1: attempt 3/3 not cacheable
+  (no-evidence)` and `Q4: attempt 1/3 not cacheable (unsafe-content)` respectively; no output
+  contains `AKIAABCDEFGHIJKLMNOP`; the previous golden file is unchanged and no `.tmp` file remains
+  next to it; and the database rows are unchanged
+
+#### Scenario: Answers that cannot become golden fail at once
+
+- **GIVEN** a previous golden file with known content and a build whose answer to Q1 is an `UNKNOWN`
+  of reason `no-anchor`; then one whose answer is an `UNKNOWN` of reason `over-budget`; then one whose
+  model request fails as `LLM_UNAVAILABLE` with reason `http-status` and status `500`
+- **WHEN** the cache build runs
+- **THEN** each run exits with `1` after one attempt at Q1; stdout is exactly
+  `Q1: attempt 1/3 not cacheable (no-anchor)`, then `Q1: attempt 1/3 not cacheable (over-budget)`,
+  then `Q1: attempt 1/3 not cacheable (http-status)`; stderr holds one error line with code
+  `GOLDEN_NOT_CACHEABLE` and `details` = `{"id":"Q1","reason":"no-anchor"}`, then
+  `{"id":"Q1","reason":"over-budget"}`, then code `LLM_UNAVAILABLE` with `details.reason` =
+  `http-status` and `details.status` = `500`; the previous golden file is unchanged
 
 #### Scenario: A model that keeps timing out is reported as unavailable
 
 - **GIVEN** a previous golden file with known content and a model whose every request fails as a
   timeout
 - **WHEN** the cache build runs
-- **THEN** it exits with `1` after three attempts at Q1; stdout holds `Q1: attempt 1/3 not cacheable
-  (timeout)` and `Q1: attempt 2/3 not cacheable (timeout)`; stderr holds one error line with code
+- **THEN** it exits with `1` after three attempts at Q1; stdout is exactly the three lines
+  `Q1: attempt 1/3 not cacheable (timeout)`, `Q1: attempt 2/3 not cacheable (timeout)` and
+  `Q1: attempt 3/3 not cacheable (timeout)`; stderr holds one error line with code
   `LLM_UNAVAILABLE` and `details.reason` = `timeout`; the previous golden file is unchanged
 
 ### Requirement: Partial regeneration
@@ -200,12 +244,14 @@ With question ids as arguments the build SHALL read the existing golden file bef
 history and before connecting, and SHALL fail with `GOLDEN_STALE`, the message
 `golden file cannot be partially regenerated (<reason>): run npm run cache:build` and
 `details.reason` = `<reason>` when: the file does not exist (`missing`); it is not a valid golden file
-by the checks `db:seed` applies (`invalid`); its seed or answer fingerprint differs from the current
-one (`fingerprint`); or its answer or verification model differs from the configured one (`model`).
-Otherwise it SHALL regenerate only the named questions and write a file whose other entries, their
-`reviews` included, are identical to the existing ones, and whose entries are in the golden order.
-A regenerated entry SHALL have empty `reviews`. Without arguments every entry SHALL be regenerated
-and every `reviews` list SHALL be empty.
+by the checks `db:seed` applies, or it holds an entry whose id is not a golden question
+(`invalid`); its seed or answer fingerprint differs from the current one (`fingerprint`); or its
+answer or verification model differs from the configured one (`model`). Otherwise it SHALL
+regenerate only the named questions and write a file holding the existing entries that were not
+named, identical to the existing ones (their `reviews` included), and the regenerated ones, in the
+golden order; a golden question absent from the existing file and not named stays absent. A
+regenerated entry SHALL have empty `reviews`. Without arguments every golden question SHALL be
+regenerated and every `reviews` list SHALL be empty.
 
 #### Scenario: Only the named question is regenerated
 
@@ -214,17 +260,18 @@ and every `reviews` list SHALL be empty.
 - **WHEN** the cache build runs with `Q3`
 - **THEN** it exits with `0`; the model is asked only Q3; the Q1 and Q4 entries of the new file,
   Q1's review included, are identical to the previous ones; the Q3 entry holds the new answer with
-  empty `reviews`; and the final line counts `3 golden answers`
+  empty `reviews`; and the final line counts `3 golden answers`; and a run without arguments over
+  that file then regenerates the three questions and leaves every `reviews` list empty
 
 #### Scenario: A stale golden file is not partially regenerated
 
-- **GIVEN** no golden file; then a golden file that is not valid JSON; then a valid one whose answer
-  fingerprint differs from the current one; then a valid one whose answer model differs from
-  `LLM_MODEL`
+- **GIVEN** no golden file; then a golden file that is not valid JSON; then a valid one holding an
+  entry `Q7`; then a valid one whose answer fingerprint differs from the current one; then a valid one
+  whose answer model differs from `LLM_MODEL`
 - **WHEN** the cache build runs with `Q3`
 - **THEN** each run exits with `1` and `GOLDEN_STALE` with `details.reason` = `missing`, `invalid`,
-  `fingerprint` and `model` respectively; the model is not called and the file, when it existed, is
-  unchanged
+  `invalid`, `fingerprint` and `model` respectively; the model is not called and the file, when it
+  existed, is unchanged
 
 ### Requirement: Golden file format
 
@@ -280,7 +327,8 @@ not on their line endings.
 
 The golden file SHALL be replaced only once its whole new content is written: on any failure it SHALL
 stay byte for byte as it was and no partial or temporary file SHALL remain next to it. The file SHALL
-be written only after every requested question produced a kept response.
+be written only after every requested question produced a kept response. The build SHALL create the
+golden file's directory, and its missing parents, when it does not exist.
 
 #### Scenario: A failed write leaves the previous golden file intact
 

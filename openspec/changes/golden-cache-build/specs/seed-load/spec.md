@@ -25,7 +25,7 @@ closed list, when:
 It SHALL then read every file whose name ends in `.json` directly in the directory `seeds/cache/` of
 the repository, in name order (code-unit order); a missing or empty directory means no golden
 answers. Each such file SHALL fail with `INVALID_SEED`, `details.reason` = `cache` and
-`details.file` = the file named as the seed is named below, when: it is not valid UTF-8 JSON; it is
+`details.file` = the file named as the seed is named below, when: it is not valid JSON; it is
 not a valid golden file (`golden-answers` → "Golden file format"); its `project` is not the name of a
 project of the seed, or its file name is not `<project>.json`; an entry's `questionNormalized`
 differs from the normalized `question`; two entries share an `id` or a `questionNormalized`; or an
@@ -83,7 +83,8 @@ is outside the repository root.
 - **GIVEN** a valid `DATABASE_URL`, the versioned seed, and a golden directory holding, one at a
   time: `acme-shop.json` with broken JSON; a valid golden file whose `project` is `task-api` named
   `task-api.json`; a valid acme-shop golden file named `other.json`; one whose entry's
-  `questionNormalized` is the question unnormalized; one with two entries of the same `id`; one whose
+  `questionNormalized` is the question unnormalized; one with two entries of the same `id`; one with
+  two entries of different ids and the same `questionNormalized`; one whose
   entry's `response` has a statement citing an evidence id absent from its `evidence`; and one with
   `format` `2`
 - **WHEN** the seed load runs
@@ -143,8 +144,8 @@ never be touched.
 #### Scenario: Golden answers are loaded and served in evaluation mode
 
 - **GIVEN** a migrated database without projects, the versioned seed, and a golden directory holding
-  a valid `acme-shop.json` with one entry for `¿Cómo se calcula el precio final de un pedido?` and
-  another for `¿Cómo se validan los cupones?`
+  a valid `acme-shop.json` whose fingerprints are not the ones of the current code, with one entry for
+  `¿Cómo se calcula el precio final de un pedido?` and another for `¿Cómo se validan los cupones?`
 - **WHEN** the seed load runs, and then `POST /api/projects/{acme-shop's id}/ask` is sent in
   evaluation mode with `{ "question": "COMO SE CALCULA EL PRECIO FINAL DE UN PEDIDO" }`
 - **THEN** the load exits with `0` with the same stdout as without golden answers; acme-shop has
@@ -152,6 +153,15 @@ never be touched.
   with `hit_count` `0`; the request answers `200` with the first entry's answer, statements and
   evidence, `usage.cacheHit` `true` and `usage.costUsd` `0`, without calling the model; and that
   entry's `hit_count` is then `1`
+
+#### Scenario: A seed without golden files loads only the graph
+
+- **GIVEN** a migrated database without projects and the versioned seed, with a golden directory that
+  does not exist; then one that is empty; then one holding only `README.md` and a subdirectory `old/`
+  with a valid `acme-shop.json`
+- **WHEN** the seed load runs
+- **THEN** each run exits with `0` with the same stdout as "The seed is loaded into an empty
+  database", and acme-shop has no `cache_entry` row
 
 #### Scenario: Loading golden answers again does not duplicate them
 

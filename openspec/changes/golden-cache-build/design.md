@@ -121,9 +121,12 @@ Order, each step only after the previous one succeeded:
    with `timeoutMs` = that value.
 3. Seed: read and check as `db:seed` does (its `readSeed` is exported for reuse, no behaviour change),
    compare its header fingerprints with `seedFingerprints(repoRoot)` → `GOLDEN_STALE` `seed` (D15).
-4. Partial regeneration (ids given): `readGoldenFile` + `checkGoldenFile`, then compare the two seed
-   fingerprints, `answerFingerprint` and `generatedWith` with the current ones → `GOLDEN_STALE`
-   `missing` / `invalid` / `fingerprint` / `model` (D16).
+4. Partial regeneration (ids given): `readGoldenFile` + `checkGoldenFile` + every entry id a golden
+   question, then compare the two seed fingerprints, `answerFingerprint` and `generatedWith` with the
+   current ones → `GOLDEN_STALE` `missing` / `invalid` / `fingerprint` / `model` (D16). The new file
+   holds the existing entries not named (as they are, `reviews` included) plus the regenerated ones,
+   ordered by the golden order; a golden question absent from the file and not named stays absent
+   (audit F9).
 5. History: `buildHistory(join(workspaceRoot, 'fixtures'), repoRoot)` (`buildOne` with a no-op log);
    `git rev-parse HEAD` of the rebuilt sample ≠ the seed project's `indexed_commit` (read from the
    seed's project `INSERT` by a small reader in `cache-build.ts`) → `GOLDEN_STALE` `seed` (D4).
@@ -132,26 +135,39 @@ Order, each step only after the previous one succeeded:
    { fetch: longFetch }), workspaceRoot, now, verificationCache: createInMemoryVerificationCache() },
    { projectId, question, useCache: false })`; `rollback()` and `release()` in `finally`, always. The
    project id is the seed's (`seedProjects`). Classification: `isCacheable` and `kind === 'answered'`
-   → keep `toStoredResponse(answer)` after the unsafe-content check (JSON text vs
-   `/AKIA[A-Z0-9]{16}/`, `repoRoot`, `workspaceRoot`, `DATABASE_URL`, `LLM_BASE_URL`); `UNKNOWN`
+   → keep `toStoredResponse(answer)` after the unsafe-content check (audit F10): the response's
+   `JSON.stringify` text against `/AKIA[A-Z0-9]{16}/` and, each both as written and as
+   `JSON.stringify(value).slice(1, -1)` (so a Windows path with escaped backslashes is caught), the
+   absolute `repoRoot`, the absolute `workspaceRoot`, `DATABASE_URL`, `LLM_BASE_URL` and, when set,
+   `LLM_API_KEY`; `UNKNOWN`
    `invalid-model-output` / `broken-evidence` / `no-evidence`, a non-cacheable answered answer
    (`not-cacheable`), and `LlmUnavailable` `timeout` / `network` → retry; `no-anchor` /
-   `over-budget` / `unsafe-content` → `GOLDEN_NOT_CACHEABLE` at once; any other error → mapped as
-   `ask` maps it (`LLM_UNAVAILABLE`, `SOURCE_UNAVAILABLE`, `DATABASE_UNAVAILABLE`,
-   `PROJECT_NAME_TAKEN`; `INTERNAL` otherwise). A fresh in-memory verification cache per attempt, so
-   a retry re-verifies.
-7. Write: the kept entries (plus the untouched ones of step 4), `renderGoldenFile`, then the atomic
-   write (temporary `.<name>.<pid>.tmp` next to the file, `rename`, temporary removed on failure),
+   `over-budget` / `unsafe-content` → `GOLDEN_NOT_CACHEABLE` at once; any other `LlmUnavailable`
+   (`http-status`, `invalid-response`, …) → `LLM_UNAVAILABLE` at once. Error mapping (audit F11):
+   `CliError` as it is; `ProjectNameTaken` → `PROJECT_NAME_TAKEN` exactly as `seed-load.ts`'s
+   `toFailure` maps it (message `a project named "<name>" already exists and is not a sample`,
+   `details.name`) — `ask`'s `toFailure` (`packages/cli/src/commands/ask.ts:277`) has no such branch;
+   every other error through `ask`'s exported `toFailure` (`LLM_CONFIG_INVALID`, `LLM_UNAVAILABLE`,
+   `SOURCE_UNAVAILABLE`, `DATABASE_UNAVAILABLE`), whose `INTERNAL` gets the message
+   `cache build failed; nothing was written`. A fresh in-memory verification cache per attempt, so a
+   retry re-verifies.
+7. Write: the kept entries (plus the untouched ones of step 4), `renderGoldenFile`, then
+   `mkdirSync(dirname(output), { recursive: true })` (`seeds/cache/` does not exist before the first
+   run; audit F7), then the atomic write (temporary `.<name>.<pid>.tmp` next to the file, `rename`,
+   temporary removed on failure),
    then the final line. The atomic write is a copy of `seed-build.ts`'s private `writeAtomically` in
    `packages/cli/src/cache/write-atomically.ts`, not an export of it: `seed-build.ts` and
    `compose-index.ts` are seed fingerprint inputs and are only imported from (`displayPath`,
    `CliError`, `defaultOpenTransaction`), never edited (C6).
 
-Progress lines go to stdout as each attempt ends (`<id>: answered in <s> s (attempt n/3)`, with
-`Math.round` of the seconds measured with `now`; `<id>: attempt n/3 not cacheable (<reason>)`, the
-reason being the `UNKNOWN` reason, `not-cacheable`, or the `LlmUnavailable` reason). The error line
-is `toTerminalSafeJson`. No daily ceiling (D5): the `query_log` rows are rolled back, so
-`withDailyBudget` could not see the spend, and the cost is 0 for `qwen2.5-coder`.
+Progress lines (audit F8) go to stdout as each attempt ends with an answer or a failed model
+request, retried or not: `<id>: answered in <s> s (attempt n/3)`, with `Math.round` of the seconds
+measured with `now`, or `<id>: attempt n/3 not cacheable (<reason>)`, the reason being the `UNKNOWN`
+reason, `not-cacheable`, `unsafe-content` or the `LlmUnavailable` reason. A database, source or
+configuration failure prints no attempt line. The error line is `toTerminalSafeJson`. No daily
+ceiling (D5): the `query_log` rows are rolled back, so `withDailyBudget` could not see the spend.
+Amendment to D5 (audit F13): the final line carries no cost — the D8 format is kept; each entry's
+`response.usage.costUsd` already records it, and it is 0 for `qwen2.5-coder`.
 
 ### C6 — `db:seed` loads the golden files (D12 amended, D13) — `packages/cli/src/seed-load.ts`
 
@@ -172,6 +188,10 @@ project id comes from `seedProjects(sql)` (the seed writes deterministic ids).
   `(deps.cacheStore ?? createPostgresStore)({ transaction: client }).saveCacheEntry(…)`; a failure
   propagates and the existing `inTransaction` rolls back (`INTERNAL`, `seed load failed; the database
   is unchanged`). New seam `cacheStore` for the failed-save scenario.
+- The `http-ask` main-spec scenarios "Evaluation mode answers UNKNOWN llm-required over the seed" and
+  "A spent daily budget stops the model over the seed" load `seeds/graph-dump.sql` itself (with
+  `loadSeed`), not `db:seed`, so they load no golden answer and stay cache misses: no `http-ask` delta
+  is needed (audit F17).
 - stdout unchanged (D13). `loadSeed`'s callers in tests (`ask.spec.ts`, `ask-command.spec.ts`) load
   no golden answers.
 
@@ -202,21 +222,25 @@ the retries and at most two full runs, a question has no cacheable answer, the t
   fingerprint covers exactly its declared inputs", over a temporary tree as
   `seed-fingerprint.spec.ts`); `tests/unit/cli/long-fetch.spec.ts` ("A slow model answer within the
   build's limit is kept", a local `node:http` server on port 0, the real adapter with
-  `{ fetch: longFetch }`); `tests/unit/cli/cache-build.spec.ts` (the configuration, usage and
-  stale-golden scenarios, with doubles for every seam: no database, no git);
+  `{ fetch: longFetch }`); `tests/unit/cli/cache-build.spec.ts` (with doubles for every seam: no
+  database, no git — "Missing or invalid cache build configuration…", "An unknown or repeated
+  question id…", "The build's request limit applies and the daily ceiling does not", "A stale golden
+  file is not partially regenerated", "A failed write leaves the previous golden file intact",
+  "Answers that cannot become golden fail at once" with an `explain` double; audit F15);
   `tests/unit/seed/golden-questions.spec.ts` ("The golden questions match the demo-question table");
   `tests/unit/seed/golden-coherence.spec.ts` ("The versioned golden file matches the seed, the
   questions and the code", reading the versioned files, as `sample-projects-coherence.spec.ts`).
 - Integration: `tests/integration/cli/cache-build.spec.ts` (the scripted-model scenarios, the
-  database-unchanged checks, the stale-seed scenario and "Unreachable services…"): a temporary
-  workspace holding a copy of `fixtures/acme-shop` (without `.git`) with its history rebuilt once in
-  `beforeAll`, the harness's `describeWithDatabase`, a `savepoint` `openTransaction` on a dedicated
+  database-unchanged checks, the missing-or-outdated-seed scenario, "A non-sample acme-shop blocks
+  the cache build" and "Unreachable services…"): a temporary workspace holding a copy of
+  `fixtures/acme-shop` (without `.git`) with its history rebuilt once in `beforeAll` and a no-op
+  `buildHistory` seam afterwards (audit F18), the harness's `describeWithDatabase`, a `savepoint` `openTransaction` on a dedicated
   client so the build's rollback is observable, `createScriptedLlm` of `tests/support/scripted-llm.ts`
   in live mode; the seed read from the repository, with `seedFingerprints` returning its header pair
   so CI does not depend on the seed being rebuilt (fingerprint freshness is DIS-44's), except in the
   stale-seed scenario. Long timeouts (history rebuild). New scenarios in
   `tests/unit/cli/seed-load.spec.ts` ("An invalid golden file fails before connecting") and
-  `tests/integration/cli/seed-load.spec.ts` (the three "Golden answers…" scenarios; the served one
+  `tests/integration/cli/seed-load.spec.ts` (the four golden scenarios of the delta; the served one
   builds the API with `buildApp` of `packages/api/src/app.ts` over a store on the harness
   transaction, an evaluation-mode model and `inject`), each with a temporary `cacheDir` holding a
   golden file built from `tests/support/cached-answer.ts`.

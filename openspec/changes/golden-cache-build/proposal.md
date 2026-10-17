@@ -16,8 +16,9 @@ questions answer in evaluation mode.
 
 The decisions D1–D14 were taken by the agent as lead engineer in the autonomous run of Entrega 2 (ADR
 `20261016-autonomous-workflow-run-entrega-2`) and recorded in the DIS-26 `[enhanced]` description on
-2026-10-17; the amendments of this proposal (D12 loads through the store port, D15 rebuilds the stale
-seed, D16 the closed failure reasons, D17 the workspace seam) are recorded there too. The author
+2026-10-17; the amendments of this proposal (D5 no cost in the final line, D11 two more fingerprint
+inputs, D12 loads through the store port, D15 rebuilds the stale seed, D16 the closed failure
+reasons, D17 the workspace seam) and the decisions of the spec audit are recorded there too. The author
 reviews them afterwards.
 
 ## What Changes
@@ -35,6 +36,7 @@ reviews them afterwards.
     (D7), and writes the file only when every requested question succeeded, atomically (D8);
   - regenerates only the named questions when ids are given, keeping the others and their reviews,
     provided the existing file's fingerprints and models match (D8, D16);
+  - creates `seeds/cache/` when it does not exist;
   - prints one progress line per attempt and a final summary; one JSON error line on failure.
 - New versioned file `seeds/cache/acme-shop.json` (format 1, D9, canonical render D10): project,
   the seed's two fingerprints, the new `answerFingerprint` (prompt files, confidence weights, stored
