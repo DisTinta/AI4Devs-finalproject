@@ -40,13 +40,13 @@
 
 ## 6. Backend: Review and Update Existing Tests (MANDATORY)
 
-- [ ] 6.1 Identify the tests affected by the change: `grep -rn "cache-build\|headerFingerprints\|\"verify\"\|ci.yml" tests/`, plus every type error `npm run typecheck` reports
-- [ ] 6.2 No existing test changes its assertions; if one must, stop and record why in the step 9 report, never weakening it
-- [ ] 6.3 Confirm each `#### Scenario:` of the delta spec maps 1:1 to a test with exactly the same name (grep each title in `tests/`), except "The verify job is green on the pull request", a recorded check (14.3)
+- [x] 6.1 Identify the tests affected by the change: `grep -rn "cache-build\|headerFingerprints\|\"verify\"\|ci.yml" tests/`, plus every type error `npm run typecheck` reports
+- [x] 6.2 No existing test changes its assertions; if one must, stop and record why in the step 9 report, never weakening it
+- [x] 6.3 Confirm each `#### Scenario:` of the delta spec maps 1:1 to a test with exactly the same name (grep each title in `tests/`), except "The verify job is green on the pull request", a recorded check (14.3)
 
 ## 7. Refactor
 
-- [ ] 7.1 With the suite green, refactor `packages/cli/src/verify.ts` and `packages/cli/src/cache/{compare-golden,seed-header}.ts` for naming and duplication only (no behaviour change, no test edits, no fingerprint input touched); `npx vitest run tests/unit/cache tests/unit/cli tests/unit/ci tests/integration/cli` stays green
+- [x] 7.1 With the suite green, refactor `packages/cli/src/verify.ts` and `packages/cli/src/cache/{compare-golden,seed-header}.ts` for naming and duplication only (no behaviour change, no test edits, no fingerprint input touched); `npx vitest run tests/unit/cache tests/unit/cli tests/unit/ci tests/integration/cli` stays green
 
 ## 8. Real run against the local database
 

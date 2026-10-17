@@ -155,10 +155,11 @@ async function verifyInTransaction(plan: Plan, client: ClientBase, deps: VerifyD
     let matching = 0;
     for (const entry of file.entries) {
       const served = await ask(dependencies, { projectId: ids.get(file.project)!, question: entry.question, useCache: true });
+      // `readGoldenFiles` only returns stored answered responses (`checkGoldenFile`).
       const differences = compareGolden(entry.response as StoredAnswer, served);
-      const mark = differences.length === 0 ? '✓' : '✗';
-      if (differences.length === 0) matching += 1;
-      const lines = [`${mark} ${project} ${terminalSafeText(entry.id)} ${terminalSafeText(entry.question)}`];
+      const matches = differences.length === 0;
+      if (matches) matching += 1;
+      const lines = [`${matches ? '✓' : '✗'} ${project} ${terminalSafeText(entry.id)} ${terminalSafeText(entry.question)}`];
       for (const difference of differences) lines.push(`    ${renderDifference(difference)}`);
       deps.stdout.write(lines.map((line) => `${line}\n`).join(''));
     }
