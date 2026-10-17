@@ -22,6 +22,8 @@ import { answerFingerprint } from './cache/answer-fingerprint.js';
 import { GOLDEN_PROJECT, GOLDEN_QUESTIONS } from './cache/demo-questions.js';
 import { checkGoldenFile, readGoldenFile, renderGoldenFile } from './cache/golden-file.js';
 import type { GoldenEntry, GoldenFile } from './cache/golden-file.js';
+import { currentSeedFingerprints, headerFingerprints, indexedCommitOf } from './cache/seed-header.js';
+import type { SeedFingerprints } from './cache/seed-header.js';
 import { longFetch } from './cache/long-fetch.js';
 import { writeAtomically } from './cache/write-atomically.js';
 import { toFailure as toAskFailure } from './commands/ask.js';
@@ -32,8 +34,11 @@ import { escapeLiteral } from './render-report.js';
 import { toTerminalSafeJson } from './safe-json.js';
 import { displayPath } from './seed-build.js';
 import { readSeed } from './seed-load.js';
-import { collectFingerprintInputs, fingerprint } from './seed/fingerprint.js';
 import { seedProjects } from './seed/parse-seed.js';
+
+// Re-exported for the callers and tests of `cache:build` that import them from here.
+export { indexedCommitOf } from './cache/seed-header.js';
+export type { SeedFingerprints } from './cache/seed-header.js';
 
 /** Message of every `INTERNAL` failure of the cache build: the golden file is never partly written. */
 export const CACHE_BUILD_FAILED = 'cache build failed; nothing was written';
@@ -58,14 +63,6 @@ const RETRIED_LLM_REASONS: ReadonlySet<string> = new Set(['timeout', 'network'])
 
 /** The planted key pattern of the samples: a response holding it is never kept. */
 const AWS_KEY = /AKIA[A-Z0-9]{16}/;
-
-/** The header fingerprints of a seed, or the ones the current code computes. */
-export interface SeedFingerprints {
-  /** The analyzer fingerprint. */
-  analyzer: string;
-  /** The contract fingerprint. */
-  contract: string;
-}
 
 /** What `runCacheBuild` reads from and writes to, plus the test seams (DIS-26 design C5). */
 export interface CacheBuildDeps {
@@ -342,54 +339,6 @@ function isUnsafe(text: string, plan: Plan): boolean {
     .concat([plan.databaseUrl, plan.config.baseUrl, plan.config.apiKey ?? ''])
     .filter((value) => value !== '');
   return secrets.some((value) => text.includes(value) || text.includes(JSON.stringify(value).slice(1, -1)));
-}
-
-/** The two fingerprints of a seed's header, or `undefined` when one is missing. */
-function headerFingerprints(sql: string): SeedFingerprints | undefined {
-  const header: string[] = [];
-  for (const line of sql.split('\n')) {
-    if (!line.startsWith('--')) break;
-    header.push(line.trimEnd());
-  }
-  const value = (name: string): string | undefined =>
-    header.find((line) => line.startsWith(`-- ${name}: `))?.slice(`-- ${name}: `.length);
-  const analyzer = value('analyzer-fingerprint');
-  const contract = value('contract-fingerprint');
-  return analyzer === undefined || contract === undefined ? undefined : { analyzer, contract };
-}
-
-/**
- * The `indexed_commit` of the project named `name` in the seed's `INSERT INTO project` statements, as
- * `renderSeedDump` writes them (explicit columns, literal values).
- */
-export function indexedCommitOf(sql: string, name: string): string | undefined {
-  for (const line of sql.split('\n')) {
-    const match = /^INSERT INTO project \(([^)]*)\) VALUES \((.*)\);\s*$/.exec(line);
-    if (match === null) continue;
-    const columns = match[1].split(',').map((column) => column.trim());
-    const values = literals(match[2]);
-    const row = new Map(columns.map((column, i) => [column, values[i]]));
-    if (row.get('name') === name) return row.get('indexed_commit') ?? undefined;
-  }
-  return undefined;
-}
-
-/** The values of a `VALUES (…)` list: quoted strings unquoted (`''` → `'`), anything else as written; `NULL` as `null`. */
-function literals(list: string): Array<string | null> {
-  const values: Array<string | null> = [];
-  const pattern = /\s*(?:E?'((?:[^']|'')*)'|([^,]+?))\s*(?:,|$)/gy;
-  let match: RegExpExecArray | null;
-  while (pattern.lastIndex < list.length && (match = pattern.exec(list)) !== null) {
-    if (match[1] !== undefined) values.push(match[1].replace(/''/g, "'"));
-    else values.push(match[2] === 'NULL' ? null : match[2]);
-  }
-  return values;
-}
-
-/** The fingerprints the seed build would write now. */
-function currentSeedFingerprints(repoRoot: string): SeedFingerprints {
-  const inputs = collectFingerprintInputs(repoRoot);
-  return { analyzer: fingerprint(inputs.analyzer), contract: fingerprint(inputs.contract) };
 }
 
 /** `git rev-parse HEAD` of `repository`. */
