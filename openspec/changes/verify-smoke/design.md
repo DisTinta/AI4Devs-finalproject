@@ -51,9 +51,11 @@ must not change, or the change itself would turn `verify` red (D1). `verify.ts` 
   root script `"verify": "tsx --tsconfig packages/cli/tsconfig.run.json packages/cli/src/verify.ts"`.
 - `packages/cli/src/cache/compare-golden.ts`: `compareGolden(golden: StoredAnswer, served:
   ExplainAnswer): GoldenDifference[]`, pure, plus the rendering of a difference as a line.
-- `packages/cli/src/cache/seed-fingerprints.ts`: `SeedFingerprints`, `headerFingerprints(sql)` and
-  `currentSeedFingerprints(repoRoot)`, moved verbatim out of `cache-build.ts`, which imports them
-  and re-exports the type. Not under `packages/cli/src/seed/` (a fingerprint input).
+- `packages/cli/src/cache/seed-header.ts`: `SeedFingerprints`, `headerFingerprints(sql)`,
+  `currentSeedFingerprints(repoRoot)` and `indexedCommitOf(sql, name)` (with its `literals` helper),
+  moved verbatim out of `cache-build.ts`, which imports them and re-exports the type and
+  `indexedCommitOf` (its unit spec imports it from there). Not under `packages/cli/src/seed/` (a
+  fingerprint input).
 - Alternatives: `scripts/verify.mjs` (the parent's sketch) would sit outside typecheck, lint and
   mutation; a `codemind verify` subcommand would mix a development check into the product CLI next
   to `ask` and `index`. Both rejected (D1).
@@ -112,9 +114,14 @@ fixed by loading the golden answers); for any other reason (e.g. `no-anchor`, a 
 regression) `db:seed` would not fix it, so the line names only the reason. Amendment A3: the summary
 lines go at the end, after every entry line, so a reader finds the totals in one place.
 
-**C7. Project check (D7).** `listProjects()` on the transaction's store; per golden project, the one
-with that exact name; it must be `isSample` and have the seed's id (from `seedProjects`). Row counts
-are not compared: the fingerprint already ties the seed to the code.
+**C7. Project check (D7, amended A10).** `listProjects()` on the transaction's store; per golden
+project, the one with that exact name; it must be `isSample`, have the seed's id (from
+`seedProjects`) and the seed's indexed commit (`Project.indexedCommit` against
+`indexedCommitOf(seed.sql, name)`). Seed ids are deterministic (`seed/deterministic-ids.ts`), so the
+id alone tells a `db:seed`-loaded project from a hand-made one but not an older seed from the current
+one; the indexed commit adds the regenerations that rebuilt the sample history. An older seed that
+differs only in analyzer output still passes (accepted limit, see Risks): the fingerprint ties the
+*file* to the code, never the *database* to the file. Row counts are not compared (D7).
 
 **C8. Coverage (D8, amended A2).** Every golden file `readGoldenFiles` returns is verified, and every
 seed project must have one. Amendment A2: a golden file with zero entries counts as missing
@@ -198,6 +205,11 @@ change to `core/knowledge`, the store adapter or the prompts). It is recorded in
 - [Adding `yaml` changes `package-lock.json`, part of the Stryker cache key (`ci.yml:181`): this PR's
   mutation job runs without the incremental cache (29m34s measured on DIS-26, timeout 40 min)] →
   accepted once; if it times out, rerun the job, never lower the threshold.
+- [A local database seeded before a PR that regenerated `seed:build` / `cache:build` without
+  changing the sample history passes the project check (A10) and shows field-level `✗` lines without
+  the `db:seed` hint] → `docs/project-context.md` → Gotchas: after pulling a regenerated seed or
+  golden file, run `npm run db:seed` before `verify`. CI always seeds a fresh database, so it is
+  unaffected.
 - [The local database is changed by the manual steps (`db:seed`, the cache-miss check)] → a
   `pg_dump -Fc` taken in task 0.4 and restored in task 10.7, with the indicators compared.
 

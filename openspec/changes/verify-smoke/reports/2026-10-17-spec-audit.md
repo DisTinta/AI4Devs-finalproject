@@ -223,3 +223,202 @@ before the A1–A5 block reached Linear; it was added right after, so finding 6.
 | 9 / task 4.4 and 4.1 too large | improvable | Section 4 split into 4.1–4.7 |
 | 10 / local state restoration | blocking | `pg_dump -Fc` in 0.4, `pg_restore --clean` in 10.7, indicators compared (tasks 0.4, 9.6, 10.7; design Risks) |
 | 11 / traceability holes | blocking | Lost-connection clause removed (A6); `details` and CI clauses now covered by scenarios |
+
+## Run 2 (commit 67acc6e)
+
+Verdict: `CHANGES REQUIRED`
+
+
+
+
+- Date: 2026-10-17. Audited at commit `67acc6e`. Read-only.
+- Inputs read:
+  - The change: `proposal.md`, `design.md`, `specs/verify-smoke/spec.md`, `tasks.md` and the run 1 report.
+  - Linear: DIS-44 (`[original]`, `[reality-map]`, `[enhanced]` with D1–D14 and A1–A9) and DIS-43, with the comments of both. DIS-43 has no comments.
+  - Docs and specs: `docs/project-context.md`, `docs/backend-standards.md`, `docs/openspec-tasks-mandatory-steps.md`, and the main specs `test-db-isolation` and the others cited.
+  - Code: `seed-load.ts`, `cache-build.ts`, `cache/golden-file.ts`, `seed/parse-seed.ts`, `seed/deterministic-ids.ts`, `compose-index.ts`, `commands/ask.ts`, `core/explain/explain.ts`, `core/cache/response-cache.ts`, `core/knowledge/project.ts`, `ci.yml`, `package.json` / `package-lock.json`, `seeds/cache/acme-shop.json`, `tests/integration/cli/cache-build.spec.ts`, `tests/unit/seed/golden-coherence.spec.ts`.
+- **Run 1 findings:** all resolved as the "Resolution of run 1" table says. I checked each one against the current artifacts and the DIS-44 `[enhanced]` (A1–A9 are present). None is repeated below.
+
+### Decisions for the agent (lead engineer, ADR `20261016-autonomous-workflow-run-entrega-2`)
+
+1. **What does `SEED_NOT_LOADED` really guarantee? (blocking, points 6 and 8)**
+   - The problem: seed ids are deterministic. The project id is `uuidV5(SEED_ID_NAMESPACE, "acme-shop")` (`packages/cli/src/seed/deterministic-ids.ts:41-51`), and `docs/project-context.md:942-943` says so too ("the seed's deterministic ids"). So every version of the seed gives acme-shop the same id.
+   - A local database seeded from an older seed therefore passes the name + `isSample` + id check of D7 / C7.
+   - The requirement title "Golden projects are loaded from the *current* seed", the message "…is not loaded from the current seed", and D7's stated purpose ("una base sembrada con una semilla antigua no debe dar un verde o un rojo engañoso") all promise something the mechanism cannot detect.
+   - Typical case: after pulling a PR that regenerated `seed:build` + `cache:build` without running `db:seed` again, `verify` prints field-level `✗` diffs with no "run npm run db:seed" hint. That is exactly the misleading red D7 wanted to avoid.
+   - **Recommended answer:**
+     - Keep the check as it is, since it is cheap and it catches a hand-made or foreign `acme-shop`.
+     - Reword the requirement to what it actually checks.
+     - Record the limit in design Risks and in a new `[enhanced]` amendment A10.
+     - Optionally, at low cost, also compare the stored project's `indexedCommit` (`Project.indexedCommit`, `core/src/knowledge/project.ts:45`) with `indexedCommitOf(seed.sql, name)`, which is already exported at `cache-build.ts:365`. That catches regenerations that rebuilt the fixture history. It still does not catch analyzer-only regenerations, so the Risks entry is needed either way.
+   - Do not add row-count comparisons: D7 rejected them, and the mapping of `nodeCount` to seed counts is not specified.
+
+### 1. Scope against the ticket
+
+Clean.
+- Everything run 1 flagged (`yaml` + workflow test, A2, the new `cache/` modules) is now recorded in `[enhanced]`: A2, A5 and "Módulos".
+- The ADR (A9), `pg_dump`/`pg_restore` (0.4/10.7) and the Stryker cold-cache cost are recorded too.
+- Nothing widens the change to DIS-43's docs (`DEMO.md`, `DEPLOYMENT.md`, `TESTING.md` stay with DIS-45).
+
+### 2. Inherited acceptance criteria
+
+Clean. Each parent AC that the DIS-44 DoD inherits has a requirement and a scenario:
+
+| Inherited AC | Covered by |
+|---|---|
+| ✓/✗ lines, exit 0 | "Every golden answer matches" |
+| Altered golden → exit 1 + field diff | "An altered golden answer is reported field by field" |
+| No HTTP request even with `LLM_*` set | "No request reaches a model even when one is configured" |
+| Separate CI job, own Postgres, fails the pipeline | "The CI workflow runs verify in a job of its own" (now includes `continue-on-error`) and "The verify job is green on the pull request" |
+| Stale fingerprint → "seed/golden fingerprint mismatch" + what to regenerate | The two stale-fingerprint scenarios |
+
+- D5 records that the parent asks to compare `answer` but its non-goals exclude free text; nothing is left open there.
+- No sub-issue/parent scope conflict remains.
+
+### 3. Missing scenarios
+
+- **Improvable.** The A1 branch has no scenario. A1 amends D6, a behaviour stated in the ticket: for an `UNKNOWN` reason other than `llm-required`, the line has no `: run npm run db:seed` hint (spec "Golden answers are compared…", point 1). Only a plain test in task 2.3 covers it.
+  - **Fix:** add a case (E) to "Count and span differences are listed in a fixed order": a served `UNKNOWN` `no-anchor` gives exactly `expected an answer from the golden cache, got UNKNOWN (no-anchor)`.
+- Every other MUST clause is covered by a scenario or by a plain test named in tasks 2.3 / 4.2. Run 1 accepted that split.
+
+### 4. Ambiguity
+
+Clean. None of "fast", "easy", "secure", "efficient", "many", "appropriate" or "robust" appears in the proposal, design, spec or tasks. The run 1 vague phrases are now `< 60 s` and `< 5 s`.
+
+### 5. Open decisions
+
+- **Blocking: question 1** (what `SEED_NOT_LOADED` guarantees). This must be fixed in the requirement "Golden projects are loaded from the current seed", in design C7 and in Risks.
+- **Improvable: arguments.** The spec says "`npm run verify` SHALL take no arguments" but does not say what happens if some are given (`npm run verify -- x`). `runVerify(deps)` has no `argv` (design C1), so they are ignored by construction.
+  - **Fix:** say so: "Arguments, if any, are ignored."
+- **Improvable: how task 0.4 checks fingerprints.** Task 0.4 says "confirm the seed and golden fingerprints still equal what the code computes", but no command can do that before `verify` exists.
+  - **Fix:** name the command (for example a one-off `npx tsx` call to `collectFingerprintInputs` + `fingerprint` and `answerFingerprint`), or drop the item and rely on the `[reality-map]` measurement plus 8.1.
+
+### 6. Contradictions inside the change
+
+- **Blocking (same finding as question 1).** The requirement title and the `SEED_NOT_LOADED` message say "current seed", while design C7 says the check is name + `isSample` + id. Design C7 justifies it with "the fingerprint already ties the seed to the code", but the fingerprint ties the *file* to the code, never the *database* to the file.
+- **Improvable: task 9.7 vs A9.** Task 9.7 says the step 9 report must state "no ADR" with its reason (design C11). A9 / design C12 / task 12.2 now write an ADR, and C11 is now "Security".
+- **Improvable: where the CI evidence goes.** The spec (line 294) says "a recorded check linked from the step 12 report". Task 14.3 and the ticket's A5 say step 9 report.
+- **Improvable: order of tasks 9.6–9.8.** Task 9.6 says the counts are "compared again after the 10.7 restore", but 9.7/9.8 finish the step 9 report before step 10 runs. Add an addendum to the step 9 report after 10.7, or state that the post-restore comparison lives only in the step 10 report.
+
+### 7. Contradictions with the project
+
+- **Improvable.** `docs/project-context.md:942-944` says: "After a local `make up`, the database holds a committed acme-shop with the seed's deterministic ids: integration tests that need no acme-shop … clear the projects they depend on inside their harness transaction first."
+  - The first case of "A database without the current seed is reported" ("a migrated database with no project", task 4.6) breaks locally when `DATABASE_URL` points at a database that `make up` seeded.
+  - **Fix:** task 4.6 must delete the projects inside the harness transaction first.
+- No new conflict with `openspec/specs/{golden-answers,seed-load,explain,answer-cache,test-db-isolation}`.
+  - A `SAVEPOINT` opener passes the commit check (`test-db-isolation`, "A savepoint inside the harness transaction passes the check").
+  - The hit writes `hit_count` and `query_log` (`explain.ts:308`, `:185`), which the rollback undoes.
+- Already resolved in run 1 and not repeated: the agent merging (`openspec-tasks-mandatory-steps.md` §3) and `backend-standards.md` §7.
+
+### 8. Contrast with the real code
+
+- **Blocking: question 1.** `deterministic-ids.ts:41-51` (`seedId(projectKey(name))`) makes the project id independent of the seed's content. The design C7 rationale does not hold against the code.
+- Verified as matching the code:
+  - Changing Q3 `statements[0].type` from `INFERENCE` to `FACT` still passes `storedAnswerSchema`: there is no type/verification refinement (`response-cache.ts:97-126`). So the altered-golden scenario really reaches the comparison and does not fail as `INVALID_SEED`.
+  - `checkGoldenFile` accepts only answered responses (`golden-file.ts:137`).
+  - `StoredAnswer` is exported from `@codemind/core` (`core/src/cache/index.ts:2`) and `createEvaluationLlm` from `adapter-llm` (`index.ts:13`).
+  - `listProjects` exists (`StorePort.ts:59`).
+  - `yaml@2.9.1` is in the lock (`package-lock.json:8487`).
+  - The `scope` loop is at `ci.yml:46`.
+  - Q1 / Q3 / Q4 and their questions match `seeds/cache/acme-shop.json:15-16, 123-124, 180-181`.
+
+### 9. Task size
+
+- **Improvable: task 4.2** holds eight plain tests: output order, mismatch exit, `DATABASE_UNAVAILABLE`, `INTERNAL` after open, `SEED_NOT_LOADED` order, escaping, the `explain` request, and absolute `workspaceRoot`. Split it:
+  - 4.2a: output and exit code (multi-file order, mismatch, escaping).
+  - 4.2b: failures and the request (`DATABASE_UNAVAILABLE`, `INTERNAL`, `SEED_NOT_LOADED` order, `explain` request and `workspaceRoot`).
+- Every other task fits in one turn.
+
+### 10. Mandatory steps
+
+Clean, except the ordering note in point 6.
+- Step 0 comes first. 0.1 sets the Linear state, as the project's "Linear state first" rule requires, and 0.2 creates the branch `feature/DIS-44-verify-smoke`.
+- Steps 6, 9, 10, 11, 12 and 14 are present with their labels. Step 9 names its report path, and step 14 comes last with the three checks in order and the archive before the merge.
+- Mutating tasks restore state: 10.4 / 10.5 with `git diff --exit-code`, 10.6 with `db:seed`, and 0.4 → 10.7 with the `pg_dump -Fc` / `pg_restore` pair and the indicators compared.
+
+### 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| Verify command contract and configuration | Missing database configuration fails before verifying anything | 3.1, 3.2 |
+| | An invalid seed or golden file fails before connecting | 3.3 |
+| | An unreachable database is reported without its URL by verify | 4.7 |
+| Seed and golden fingerprints are current | A stale seed fingerprint stops verify before any question | 3.3 |
+| | A stale golden file stops verify before any question | 3.3 |
+| | A seed project without golden answers is reported | 3.3 |
+| Golden projects are loaded from the current seed | A database without the current seed is reported | 4.6 (+ 4.2 order) |
+| Golden questions are asked without any model | No request reaches a model even when one is configured | 4.7 |
+| | Verify leaves the database as it was | 4.6 |
+| | A failure while asking is reported after the lines already printed | 4.1 |
+| Golden answers are compared on structure only | Every golden answer matches | 4.3, 4.4 |
+| | An altered golden answer is reported field by field | 4.5 |
+| | A missing cache entry is reported as a cache miss | 4.5 |
+| | Count and span differences are listed in a fixed order | 2.3 |
+| | Free text, ids and usage are not compared | 2.1, 2.2 |
+| Verify runs in a CI job of its own | The CI workflow runs verify in a job of its own | 5.1, 5.2, 5.3 |
+| | The verify job is green on the pull request | 14.3 (recorded check) |
+
+No empty row. Run 1's lost-connection hole is resolved by A6.
+
+---
+
+### Corrections to apply
+
+### `openspec/changes/verify-smoke/specs/verify-smoke/spec.md`
+
+1. **Requirement "Golden projects are loaded from the current seed".** Rename it to `### Requirement: Golden projects are the seed's sample projects`. After its first paragraph, add:
+   > Seed ids are deterministic (a project's id derives from its name), so this check tells a database loaded by `db:seed` from a project created otherwise; it does not tell an older seed of the same project from the current one.
+
+   If the agent also adopts the optional `indexedCommit` check (question 1): add "or its indexed commit is not the one the versioned seed records" to the failure list, and add a fourth case to the scenario: "a database where the seed's `acme-shop` has another indexed commit".
+2. **"Verify command contract and configuration", first sentence.** Replace "SHALL take no arguments" with "SHALL take no arguments; arguments, if any, are ignored".
+3. **Scenario "Count and span differences are listed in a fixed order".**
+   - GIVEN: append "; (E) a served `UNKNOWN` answer of reason `no-anchor`".
+   - THEN: append "; (E) exactly `expected an answer from the golden cache, got UNKNOWN (no-anchor)`, without the `db:seed` hint".
+4. **Line 294.** Replace "linked from the step 12 report" with "linked from an addendum to the step 9 report (task 14.3)".
+
+### `openspec/changes/verify-smoke/design.md`
+
+1. **C7.** Replace "Row counts are not compared: the fingerprint already ties the seed to the code." with:
+   > Row counts are not compared. Seed ids are deterministic (`seed/deterministic-ids.ts`), so the id check tells a `db:seed`-loaded project from a hand-made one but not an older seed from the current one (amendment A10); that limit is accepted and listed in Risks.
+
+   Add the `indexedCommit` comparison here if adopted.
+2. **Risks.** Add:
+   > [A local database seeded before a PR that regenerated `seed:build` / `cache:build` passes the project check (deterministic ids) and shows field-level `✗` lines without the `db:seed` hint] → documented in `docs/project-context.md` → Gotchas: after pulling a regenerated seed or golden file, run `npm run db:seed` before `verify`. CI always seeds fresh, so it is unaffected.
+
+### `openspec/changes/verify-smoke/proposal.md`
+
+1. **What Changes, second bullet.** Replace "checks that every golden project is loaded from the current seed" with "checks that every golden project is the seed's sample project (same name, sample, seed id)".
+
+### `openspec/changes/verify-smoke/tasks.md`
+
+1. **0.4.** Replace "confirm the seed and golden fingerprints still equal what the code computes (as measured in DIS-44 `[reality-map]`)" with a concrete command, for example "run `npx tsx --tsconfig packages/cli/tsconfig.run.json -e` printing `currentSeedFingerprints` / `answerFingerprint` and compare them with the seed header and the golden file". Alternatively, drop it and rely on 8.1.
+2. **4.2.** Split it into 4.2a (stdout format of several golden files, mismatch exit with empty stderr, escaped question and project) and 4.2b (`DATABASE_UNAVAILABLE` `{}`, `INTERNAL` after open, `SEED_NOT_LOADED` first failing project, the `explain` request with an absolute `workspaceRoot`).
+3. **4.6.** In the case "a migrated database with no project", add: "delete every project inside the harness transaction first (`docs/project-context.md:942-944`: a local `make up` leaves a committed acme-shop)".
+4. **2.3.** Add "and case (E) of the scenario (A1)".
+5. **9.7.** Replace `"no ADR" with its reason (design C11)` with "the ADR of task 12.2 (design C12, A9)".
+6. **9.6 / 9.7.** Add to 9.7: "add an addendum after 10.7 with the post-restore indicators".
+7. **12.1, Gotchas.** Add: "after pulling a regenerated seed or golden file, run `npm run db:seed` before `verify` (deterministic ids, A10)".
+
+### Linear DIS-44: `[enhanced]` part of the description (never the `[original]` block)
+
+Add at the end of "Enmiendas de la auditoría de spec", in Spanish:
+
+> * **A10 (auditoría, ejecución 2; precisa D7).** Los ids de la semilla son deterministas: el id de un proyecto se deriva de su nombre (`seed/deterministic-ids.ts`). Por eso la comprobación de D7 (nombre, `isSample`, id) distingue un proyecto cargado por `db:seed` de uno creado a mano, pero no una semilla anterior del mismo proyecto. Se acepta el límite. El requisito pasa a llamarse «Golden projects are the seed's sample projects», el mensaje de `SEED_NOT_LOADED` no cambia, y `docs/project-context.md` → Gotchas indica que hay que ejecutar `npm run db:seed` antes de `verify` tras traer una semilla o una golden regeneradas. En CI no afecta, porque siempre se siembra de cero. *(Si el agente lo adopta: se compara además el `indexedCommit` del proyecto guardado con el de la semilla.)*
+> * **A11 (auditoría, ejecución 2).** Los argumentos de `npm run verify` se ignoran. La línea de `UNKNOWN` con un motivo distinto de `llm-required` (A1) tiene su propio caso en un escenario.
+
+### Resolution of run 2
+
+Decided by the agent as lead engineer and recorded in DIS-44 `[enhanced]` ("Enmiendas de la
+auditoría de spec (ejecución 2)": A10, A11; the "Módulos" bullet renamed to `seed-header.ts`).
+
+| Finding | Severity | Resolution |
+|---|---|---|
+| Q1 / 5 / 6 / 8: deterministic seed ids, `SEED_NOT_LOADED` cannot tell an older seed | blocking | A10: requirement renamed "Golden projects are the seed's sample projects"; the check also compares `Project.indexedCommit` with `indexedCommitOf(seed.sql, name)` (fourth case in the scenario, task 4.3/4.7); the remaining limit (analyzer-only regeneration) is stated in the requirement, design C7 and Risks, with the `db:seed`-before-`verify` gotcha in task 12.1. `indexedCommitOf` moves with the header helpers to `packages/cli/src/cache/seed-header.ts` (renamed from `seed-fingerprints.ts`), re-exported by `cache-build.ts` |
+| 3: A1 branch without a scenario | improvable | Case (E) `no-anchor` added to "Count and span differences…" and to task 2.3 |
+| 5: arguments | improvable | A11: "arguments, if any, are ignored" in the contract; plain test in task 4.2 |
+| 5: how 0.4 checks fingerprints | improvable | Task 0.4 names a one-off `npx tsx --tsconfig packages/cli/tsconfig.run.json -e` script |
+| 6: 9.7 "no ADR" vs A9 | improvable | Task 9.7 cites the ADR of task 12.2 |
+| 6: step 12 vs step 9 report for CI evidence | improvable | Spec now says "an addendum to the step 9 report (task 14.3)" |
+| 6: 9.6 vs 10.7 order | improvable | Task 9.7 adds an addendum with the post-restore indicators after 10.7 |
+| 7: "no project" case vs a locally seeded database | improvable | Task 4.7 deletes every project inside the harness transaction first |
+| 9: task 4.2 too large | improvable | Split into 4.2 (output) and 4.3 (failures and request); later tasks renumbered 4.4–4.8 |

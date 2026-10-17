@@ -26,7 +26,8 @@ recorded there too. The author reviews them afterwards.
   and the message `seed/golden fingerprint mismatch: … run npm run seed:build, then npm run
   cache:build` (or `… run npm run cache:build`), before any question is asked (D2, D3, PH-12).
 - Then, in one database transaction that is always rolled back (D4), it checks that every golden
-  project is loaded from the current seed (`SEED_NOT_LOADED` otherwise, D7) and asks each golden
+  project is the seed's sample project: same name, sample, seed id and indexed commit
+  (`SEED_NOT_LOADED` otherwise, D7, A10) and asks each golden
   question through the real `explain` use case with the evaluation model forced: the `LLM_*`
   variables are never read, so no request reaches a model even when they are set. The served answer
   is compared with the golden response on structural fields only (cache hit, statement types,
@@ -41,8 +42,8 @@ recorded there too. The author reviews them afterwards.
   and database `verify`, running `npm ci`, `db:migrate`, `db:seed` and `verify` without any `LLM_*`
   variable; `scope` also looks at the previous `verify` result before skipping a docs-only push. The
   `quality` job keeps its unseeded `test` database.
-- The private fingerprint helpers of `cache-build.ts` (`headerFingerprints`,
-  `currentSeedFingerprints`, `SeedFingerprints`) move to `packages/cli/src/cache/seed-fingerprints.ts`
+- The private seed-header helpers of `cache-build.ts` (`headerFingerprints`,
+  `currentSeedFingerprints`, `SeedFingerprints`, and the exported `indexedCommitOf`) move to `packages/cli/src/cache/seed-header.ts`
   so `verify` and `cache:build` share them; `cache:build`'s behaviour does not change.
 - Docs: `docs/project-context.md` (the command, its checks and codes, the fingerprint policy D2 and
   the CI job; `verify` stops being a placeholder). A short ADR records the fingerprint policy D2,
@@ -65,7 +66,7 @@ and the fingerprints they define (D14).
 ## Impact
 
 - Code: `packages/cli/src/verify.ts` (new), `packages/cli/src/cache/compare-golden.ts` (new, the
-  structural comparison), `packages/cli/src/cache/seed-fingerprints.ts` (new, moved out of
+  structural comparison), `packages/cli/src/cache/seed-header.ts` (new, moved out of
   `cache-build.ts`), `packages/cli/src/cache-build.ts` (imports them), root `package.json` (script
   `verify`; `yaml` as a root devDependency for the CI workflow test, already resolved in the lock
   file). No file under `packages/core`, `packages/adapters/*/src`, `packages/cli/src/seed/`,

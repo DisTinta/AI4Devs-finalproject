@@ -9,7 +9,7 @@ answer, on a database of its own in CI.
 
 ### Requirement: Verify command contract and configuration
 
-`npm run verify` SHALL take no arguments. It SHALL read only `DATABASE_URL` from the environment,
+`npm run verify` SHALL take no arguments; arguments, if any, are ignored. It SHALL read only `DATABASE_URL` from the environment,
 trimmed: unset, empty or only whitespace fails with `MISSING_CONFIG`, the message
 `DATABASE_URL is not set` and `details.variable` = `DATABASE_URL`, before any file is read and before
 any connection is opened. It SHALL NOT read nor check any `LLM_*` variable, `DAILY_BUDGET_USD` or
@@ -115,21 +115,25 @@ printed.
   `GOLDEN_MISSING`, `details` = `{"project":"acme-shop"}` and the message
   `no golden answers for "acme-shop": run npm run cache:build`; no database connection is opened
 
-### Requirement: Golden projects are loaded from the current seed
+### Requirement: Golden projects are the seed's sample projects
 
 After connecting, and before asking any question, verify SHALL look up every golden file's project by
 its exact name among the stored projects, in golden-file order; the first project that fails is
-reported. When it is absent, is not a sample project, or its id is
-not the id the versioned seed gives it, verify SHALL fail with `SEED_NOT_LOADED`,
+reported. When it is absent, is not a sample project, its id is not the id the versioned seed gives
+it, or its indexed commit is not the one the versioned seed records for it, verify SHALL fail with `SEED_NOT_LOADED`,
 `details.project` = the project's name and the message
 `<name> is not loaded from the current seed: run npm run db:seed`, `<name>` being the quoted
-terminal-safe literal of the name.
+terminal-safe literal of the name. Seed ids are deterministic (a project's id derives from its name),
+so this check tells a database loaded by `db:seed` from a project created otherwise, and a seed whose
+sample history changed from the current one; it does not tell apart two seeds of the same project and
+history that differ only in what the analyzer produced (that limit is accepted).
 
 #### Scenario: A database without the current seed is reported
 
 - **GIVEN** current seed and golden files and, one at a time, a migrated database with no project; a
   database where a sample project `acme-shop` exists with an id different from the seed's; a
-  database where a non-sample project named `acme-shop` exists with the seed's id
+  database where a non-sample project named `acme-shop` exists with the seed's id; a database where
+  the sample `acme-shop` has the seed's id and another indexed commit
 - **WHEN** verify runs
 - **THEN** each run exits with `1`; stdout is empty; stderr holds one error line with code
   `SEED_NOT_LOADED`, `details` = `{"project":"acme-shop"}` and the message
@@ -244,12 +248,13 @@ entry matches.
   second citing evidence `b.php:5-6`, and four answers served from the cache, each equal to it except:
   (A) the second statement and the second evidence entry are absent; (B) the second statement cites
   the first evidence entry; (C) the second evidence entry ends at line `7`; (D) `usage.cacheHit` is
-  `false`
+  `false`; and (E) a served `UNKNOWN` answer of reason `no-anchor`
 - **WHEN** each is compared with the golden response
 - **THEN** the differences are exactly: (A) `statements: expected 2 items, got 1`, then
   `evidence: expected 2 items, got 1`; (B) `statements[1].evidence: expected ["b.php:5-6"], got ["a.php:1-2"]`;
   (C) `statements[1].evidence: expected ["b.php:5-6"], got ["b.php:5-7"]`, then
-  `evidence[1].endLine: expected 6, got 7`; (D) `usage.cacheHit: expected true, got false`
+  `evidence[1].endLine: expected 6, got 7`; (D) `usage.cacheHit: expected true, got false`; (E) `expected an answer from the golden cache, got UNKNOWN (no-anchor)`,
+  without the `db:seed` hint
 
 #### Scenario: Free text, ids and usage are not compared
 
@@ -291,5 +296,5 @@ jobs when it is not green. A failing `verify` job SHALL fail the run.
   answers match`, and the `quality` job succeeded with `tests/integration/store/graph-read.spec.ts`
   "Listing with no project returns an empty list" unchanged
 
-This scenario is checked by the CI run itself, a recorded check linked from the step 12 report, not
-by a test.
+This scenario is checked by the CI run itself, a recorded check linked from an addendum to the
+step 9 report (task 14.3), not by a test.
