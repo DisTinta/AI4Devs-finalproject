@@ -621,3 +621,58 @@ describe('runVerify: asking and reporting', () => {
     expect(result.explainDeps[0].now).toBe(now);
   });
 });
+
+describe('runVerify: defaults', () => {
+  it('reads the seed and the golden files under repoRoot when no path is given', async () => {
+    // Act: the helper writes them at <repoRoot>/seeds/graph-dump.sql and <repoRoot>/seeds/cache
+    const result = await run({ seams: { seedPath: undefined, cacheDir: undefined } });
+
+    // Assert
+    expect(result.exit).toBe(0);
+    expect(result.stdoutLines.at(-1)).toBe('acme-shop: 3/3 golden answers match');
+  });
+
+  it("lists the projects and gives explain a store on the transaction's client", async () => {
+    // Arrange: a client that records every statement and holds no project
+    const statements: string[] = [];
+    const client = {
+      query: async (sql: string) => {
+        statements.push(sql);
+        return { rows: [] };
+      },
+    } as unknown as ClientBase;
+    const openTransaction: VerifyDeps['openTransaction'] = async () => ({
+      client,
+      commit: async () => undefined,
+      rollback: async () => undefined,
+      release: async () => undefined,
+    });
+
+    // Act
+    const unlisted = await run({ seams: { openTransaction, listProjects: undefined } });
+    const listedBefore = statements.length;
+    const asked = await run({
+      seams: { openTransaction },
+      answers: () => new Error('not reached'),
+      projects: [storedProject()],
+    });
+    const viaStore = await run({
+      seams: {
+        openTransaction,
+        explain: async (deps) => {
+          await deps.store.listProjects();
+          return unknownAnswer('no-anchor');
+        },
+      },
+    });
+
+    // Assert
+    expect(errorOf(unlisted).code).toBe('SEED_NOT_LOADED');
+    expect(listedBefore).toBe(1);
+    expect(statements[0]).toMatch(/FROM project/);
+    expect(errorOf(asked).code).toBe('INTERNAL');
+    expect(viaStore.exit).toBe(1);
+    expect(viaStore.stderr).toBe('');
+    expect(statements.length).toBe(listedBefore + 3);
+  });
+});
