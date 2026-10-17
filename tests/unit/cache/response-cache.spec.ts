@@ -121,6 +121,46 @@ describe('Requirement: Stored response', () => {
     expect(results).toEqual(invalid.map(() => undefined));
     expect(JSON.stringify(results)).not.toContain(SENTINEL);
   });
+
+  // Not a scenario: the boundaries of the stored-response check (design C2), added after the mutation run.
+  it('checks every line range, every cited id and the stale warning of prior claims', () => {
+    // Arrange
+    const [statement] = cachedAnswer().statements;
+    const [evidence] = cachedAnswer().evidence;
+    const other = { ...evidence!, id: '9c8b7a65-4d3e-4f21-8a0b-c1d2e3f4a5b6' };
+    const prior = (overrides: Record<string, unknown>) =>
+      cachedAnswer({
+        priorClaims: [{ id: 'c1', text: null, type: 'INFERENCE', status: 'current', evidence: [{ ...evidence!, excerpt: null }], ...overrides }] as never,
+      });
+    const accepted = [
+      cachedAnswer({ evidence: [{ ...evidence!, startLine: 16, endLine: 16 }] }),
+      cachedAnswer({ statements: [statement!, { ...statement!, evidenceIds: [other.id] }], evidence: [evidence!, other] }),
+      prior({ status: 'stale', warning: 'stale-evidence', type: 'FACT' }),
+      prior({ type: 'UNKNOWN' }),
+    ];
+    const rejected = [
+      cachedAnswer({ evidence: [{ ...evidence!, startLine: 16, endLine: 15 }] }),
+      cachedAnswer({ evidence: [{ ...evidence!, startLine: 0 }] }),
+      cachedAnswer({ statements: [{ ...statement!, evidenceIds: [evidence!.id, other.id] }] }),
+      cachedAnswer({ statements: [statement!, { ...statement!, evidenceIds: [other.id] }] }),
+      cachedAnswer({ statements: [] }),
+      cachedAnswer({ statements: [{ ...statement!, evidenceIds: [] }] }),
+      cachedAnswer({ confidence: 1 }),
+      cachedAnswer({ confidence: 0 }),
+      cachedAnswer({ usage: { ...cachedAnswer().usage, costUsd: -1 } }),
+      cachedAnswer({ usage: { ...cachedAnswer().usage, inputTokens: 1.5 } }),
+      prior({ status: 'stale' }),
+      prior({ warning: 'stale-evidence' }),
+      prior({ evidence: [{ ...evidence!, endLine: 1 }] }),
+      { ...cachedNoEvidence(), statements: [statement] },
+      { ...cachedNoEvidence(), answer: 'No sé.' },
+      { ...cachedNoEvidence(), kind: 'other' },
+    ];
+
+    // Act / Assert
+    for (const value of accepted) expect(parseStoredResponse(JSON.parse(JSON.stringify(value)))).toStrictEqual(value);
+    expect(rejected.map((value) => parseStoredResponse(value))).toEqual(rejected.map(() => undefined));
+  });
 });
 
 describe('Requirement: Answer of a cache hit', () => {

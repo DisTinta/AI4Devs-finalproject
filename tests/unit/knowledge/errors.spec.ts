@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CacheWriteFailed,
   ClaimWriteFailed,
   DomainError,
   EmptyRepository,
@@ -70,6 +71,20 @@ describe('domain errors', () => {
     expect(error.code).toBe('QUERY_LOG_WRITE_FAILED');
     expect(error.name).toBe('QueryLogWriteFailed');
     expect(error.message).toBe('The query log entry could not be written');
+    expect('cause' in error).toBe(false);
+    expect(Object.keys(error).sort()).toEqual(['code', 'name']);
+  });
+
+  // DIS-21 (graph-store "Answer cache entries"): the error of a failed answer cache write.
+  it('CacheWriteFailed carries its stable code and no cause or database text', () => {
+    // Arrange / Act
+    const error = new CacheWriteFailed();
+
+    // Assert
+    expect(error).toBeInstanceOf(DomainError);
+    expect(error.code).toBe('CACHE_WRITE_FAILED');
+    expect(error.name).toBe('CacheWriteFailed');
+    expect(error.message).toBe('The cache entry could not be written');
     expect('cause' in error).toBe(false);
     expect(Object.keys(error).sort()).toEqual(['code', 'name']);
   });

@@ -302,10 +302,12 @@ async function answerQuestion(
   // both modes. An entry whose response fails the check is a miss, without an event.
   if (request.useCache !== false && key !== '') {
     const entry = await store.findCacheEntry(projectId, key);
-    const stored = entry === undefined ? undefined : parseStoredResponse(entry.response);
-    if (entry !== undefined && stored !== undefined) {
-      await store.touchCacheEntry(projectId, entry.id, startedAt);
-      return { hit: stored };
+    if (entry !== undefined) {
+      const stored = parseStoredResponse(entry.response);
+      if (stored !== undefined) {
+        await store.touchCacheEntry(projectId, entry.id, startedAt);
+        return { hit: stored };
+      }
     }
   }
   if (llm.mode === 'evaluation') return { answer: unknown('llm-required') };

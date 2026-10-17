@@ -77,12 +77,12 @@
 
 ## 11. Backend: Run Tests and Verify Data State (MANDATORY)
 
-- [ ] 11.1 Capture the pre-test baseline: the 0.4 indicators
-- [ ] 11.2 Run the targeted tests: `npx vitest run tests/unit/cache tests/unit/explain tests/unit/store tests/unit/api tests/integration/store tests/integration/explain tests/integration/api tests/integration/cli`
-- [ ] 11.3 Run the required broader suite and gates: `npx vitest run`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`
-- [ ] 11.4 Run `npm run test:mutation` (score ≥ 80, the CI break threshold); for each meaningful survivor in `packages/core/src/cache/**` and the cache path of `explain.ts`, a RED → GREEN test
-- [ ] 11.5 Run `/privacy-ethics-check` over the diff (design C9: the key only in `cache_entry`, events and errors with codes only, parameterised and project-scoped SQL, no call to the model on a hit); record the result in the report
-- [ ] 11.6 Verify the post-test state: same `project`, `claim`, `query_log` and `cache_entry` counts as in 11.1 (the integration specs roll back or clean up in `finally`); no `.stryker-tmp/` left. Restore and document if not
+- [x] 11.1 Capture the pre-test baseline: the 0.4 indicators
+- [x] 11.2 Run the targeted tests: `npx vitest run tests/unit/cache tests/unit/explain tests/unit/store tests/unit/api tests/integration/store tests/integration/explain tests/integration/api tests/integration/cli`
+- [x] 11.3 Run the required broader suite and gates: `npx vitest run`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`
+- [x] 11.4 Run `npm run test:mutation` (score ≥ 80, the CI break threshold); for each meaningful survivor in `packages/core/src/cache/**` and the cache path of `explain.ts`, a RED → GREEN test
+- [x] 11.5 Run `/privacy-ethics-check` over the diff (design C9: the key only in `cache_entry`, events and errors with codes only, parameterised and project-scoped SQL, no call to the model on a hit); record the result in the report
+- [x] 11.6 Verify the post-test state: same `project`, `claim`, `query_log` and `cache_entry` counts as in 11.1 (the integration specs roll back or clean up in `finally`); no `.stryker-tmp/` left. Restore and document if not
 - [ ] 11.7 Create `openspec/changes/evaluation-cache/reports/YYYY-MM-DD-11-test-and-state-verification.md` from the template of `docs/openspec-tasks-mandatory-steps.md` §6, with the baseline, the characterisation tests (1.3, 8.1), the edited existing tests (9.2), the Stryker score and survivors (11.4) and the privacy check (11.5)
 - [ ] 11.8 Mark complete only after the tests pass and the report exists
 
