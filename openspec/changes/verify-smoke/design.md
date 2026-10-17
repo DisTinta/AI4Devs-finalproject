@@ -1,0 +1,188 @@
+## Context
+
+See proposal.md → Why. The pieces `verify` needs already exist on the base branch (`84b6e2f`):
+
+- `packages/cli/src/seed-load.ts`: `readSeed(seedPath, shown)` and
+  `readGoldenFiles(cacheDir, seedProjectNames, repoRoot)` (the `INVALID_SEED` checks of `db:seed`),
+  and the development-command pattern: checks before connecting, one JSON error line on stderr,
+  `toFailure`, the entry guard on `process.argv[1]`.
+- `packages/cli/src/cache-build.ts`: the private `headerFingerprints(sql)` and
+  `currentSeedFingerprints(repoRoot)`, the `SeedFingerprints` type, a transaction that is always
+  rolled back around `explain`.
+- `packages/cli/src/cache/answer-fingerprint.ts` (`answerFingerprint`),
+  `packages/cli/src/cache/golden-file.ts` (`GoldenFile`, `GoldenEntry`),
+  `packages/cli/src/seed/parse-seed.ts` (`seedProjects`: id, name, `isSample`).
+- `@codemind/adapter-llm`'s `createEvaluationLlm({ mode: 'evaluation' })`: never calls `fetch`.
+- Core's `explain` (`openspec/specs/explain/spec.md` → "Answer cache"): after anchoring, a valid
+  `cache_entry` is a hit served with `usage.cacheHit: true` without building the pack, reading the
+  source or calling the model; the hit is recorded (`touchCacheEntry`, one `query_log` row). In
+  evaluation mode a miss answers `UNKNOWN` `llm-required`; no anchor answers `UNKNOWN` `no-anchor`.
+- A golden response is always a stored *answered* response (`checkGoldenFile` rejects anything
+  else), whose citations all resolve (`storedResponseSchema`).
+- Measured on the branch: the seed header fingerprints and the golden file's `answerFingerprint`
+  equal what the current code computes, so `verify` can be born green.
+
+Constraints: the files that feed the seed fingerprint (`packages/cli/src/seed/**`, `seed-build.ts`,
+`compose-index.ts`, `packages/adapters/{git,store-postgres}/src/**`, `packages/core/src/{index,
+knowledge}/**`, the PHP analyzer, fixtures) and the answer fingerprint (`ANSWER_FINGERPRINT_FILES`)
+must not change, or the change itself would turn `verify` red (D1). `verify.ts` and the new
+`cache/` modules are not inputs of either fingerprint.
+
+## Goals / Non-Goals
+
+**Goals:**
+
+- A `verify` whose every check and output is driven by seams, so the unit suite covers its logic
+  without a database and the mutation score stays ≥ 80 on the new files.
+- One structural comparison function, pure, reused for every entry and testable on its own.
+- A CI job that is isolated from the integration tests' database by construction.
+
+**Non-Goals:**
+
+- Any change to `explain`, the answer cache, the golden format, `db:seed` or `cache:build`'s
+  behaviour; any regenerated seed or golden file.
+- A generic diff of JSON values: only the fields of the spec are compared.
+
+## Decisions
+
+**C1. Modules (D1).**
+
+- `packages/cli/src/verify.ts`: `runVerify(deps: VerifyDeps): Promise<number>` and the entry guard;
+  root script `"verify": "tsx --tsconfig packages/cli/tsconfig.run.json packages/cli/src/verify.ts"`.
+- `packages/cli/src/cache/compare-golden.ts`: `compareGolden(golden: StoredAnswer, served:
+  ExplainAnswer): GoldenDifference[]`, pure, plus the rendering of a difference as a line.
+- `packages/cli/src/cache/seed-fingerprints.ts`: `SeedFingerprints`, `headerFingerprints(sql)` and
+  `currentSeedFingerprints(repoRoot)`, moved verbatim out of `cache-build.ts`, which imports them
+  and re-exports the type. Not under `packages/cli/src/seed/` (a fingerprint input).
+- Alternatives: `scripts/verify.mjs` (the parent's sketch) would sit outside typecheck, lint and
+  mutation; a `codemind verify` subcommand would mix a development check into the product CLI next
+  to `ask` and `index`. Both rejected (D1).
+
+**C2. Seams (`VerifyDeps`).** `env`, `stdout`, `stderr` (required); `repoRoot`, `seedPath`,
+`cacheDir`, `openTransaction` (default `defaultOpenTransaction(DATABASE_URL)`), `explain` (default
+core's), `seedFingerprints` (default `currentSeedFingerprints`), `answerFingerprint` (default
+`answerFingerprint` of `cache/answer-fingerprint.ts`), `now` (default system clock). The store is
+always `createPostgresStore({ transaction: client })`, the model always
+`createEvaluationLlm({ mode: 'evaluation' })`, the source `createGitSourceTree()` (never read on a
+hit), `workspaceRoot` = the repository root and one fresh `createInMemoryVerificationCache()` per
+run. No seam builds a model: there is no way to inject a live one (D4).
+
+**C3. Order of the run (D3).** Read `DATABASE_URL` → `readSeed` → `readGoldenFiles` (same messages
+as `db:seed`) → seed fingerprints (`headerFingerprints` vs `seedFingerprints(repoRoot)`; a header
+without one of them is a mismatch) → per golden file in name order: `seed.*` vs header, then
+`answerFingerprint` vs `answerFingerprint(repoRoot)` (computed once) → per seed project in seed order:
+a golden file with ≥ 1 entry (`GOLDEN_MISSING`) → open the transaction → `listProjects()` and the
+`SEED_NOT_LOADED` check for every golden project → ask and compare each entry, writing its lines to
+stdout as soon as it is compared → write the summary lines → rollback and release in `finally`
+(errors of both swallowed) → exit code. `FINGERPRINT_MISMATCH` is a new code, not `GOLDEN_STALE`:
+`cache:build`'s code means "cannot build", this one "the versioned files do not match the code", and
+the parent asks for the text "seed/golden fingerprint mismatch".
+
+**C4. One transaction, always rolled back (D4).** A hit writes (`touchCacheEntry`, `query_log`);
+`verify` is a check, not usage, so it must neither inflate the usage metrics (DIS-74) nor make two
+runs leave different databases. `verify` never calls `commit`. Alternative rejected: a read-only
+comparison of `cache_entry` rows without `explain`, which would not exercise anchoring, the
+normalized key, the stored-response check or the hit path that the user runs.
+
+**C5. Comparison (D5).** `compareGolden` returns differences in the spec's order: the cache-miss
+difference alone for an `UNKNOWN`; else `usage.cacheHit`; `statements` count; per common index the
+statement's `type`, `verification`, `status`, `evidence` (spans resolved through the answer's own
+`evidence` by id, rendered `path:start-end`); `evidence` count; per common index `path`, `startLine`,
+`endLine`. Values are rendered with `toTerminalSafeJson`; a count difference as
+`expected <n> items, got <m>`. Ids are never compared because the golden ids are random UUIDs of the
+generating transaction; confidence is protected by the answer fingerprint (`confidence.ts` is one of
+its inputs). The parent's `evidence[].file` is read as `path`, the field that exists.
+
+**C6. Output (D6, amended A1, A3).** Entry lines `✓|✗ <project> <id> <question>` with project and
+question through `terminalSafeText`; difference lines indented by four spaces; summary lines
+`<project>: <m>/<n> golden answers match` after all entry lines, in golden-file order. Amendment
+A1: the cache-miss line ends with `: run npm run db:seed` only for `llm-required` (a cache miss,
+fixed by loading the golden answers); for any other reason (e.g. `no-anchor`, a Context Engine
+regression) `db:seed` would not fix it, so the line names only the reason. Amendment A3: the summary
+lines go at the end, after every entry line, so a reader finds the totals in one place.
+
+**C7. Project check (D7).** `listProjects()` on the transaction's store; per golden project, the one
+with that exact name; it must be `isSample` and have the seed's id (from `seedProjects`). Row counts
+are not compared: the fingerprint already ties the seed to the code.
+
+**C8. Coverage (D8, amended A2).** Every golden file `readGoldenFiles` returns is verified, and every
+seed project must have one. Amendment A2: a golden file with zero entries counts as missing
+(`GOLDEN_MISSING`), so `verify` cannot be green by omission (the format allows an empty `entries`).
+
+**C9. CI job (D10).** In `.github/workflows/ci.yml`:
+
+```yaml
+verify:
+  needs: scope
+  if: needs.scope.outputs.code == 'true'
+  runs-on: ubuntu-latest
+  timeout-minutes: 10
+  services:
+    postgres:
+      image: pgvector/pgvector:pg16
+      env: { POSTGRES_PASSWORD: postgres, POSTGRES_DB: verify }
+      ports: ['5432:5432']
+      options: --health-cmd pg_isready …
+  steps: checkout → setup-node 20 (npm cache) → npm ci → db:migrate → db:seed → verify
+```
+
+with `DATABASE_URL: postgres://postgres:postgres@localhost:5432/verify` on the three database steps.
+No paths filter: `verify` depends on almost every file and takes well under a minute after
+`npm ci`. The `scope` loop becomes `for job in quality mutation verify`. Its own service container
+means the seed can never reach the `test` database of `quality` (PH-23), so
+`graph-read.spec.ts` "Listing with no project returns an empty list" keeps its assumption.
+
+**C10. Tests (amended A4, A5).**
+
+- `tests/unit/cache/compare-golden.spec.ts`: the comparison scenarios, with responses from
+  `tests/support/cached-answer.ts`.
+- `tests/unit/cli/verify.spec.ts`: every seam doubled, no database: configuration, `INVALID_SEED`,
+  fingerprint and `GOLDEN_MISSING` order, `SEED_NOT_LOADED` through an `openTransaction` whose client
+  answers `listProjects` through a scripted store, the output format, `INTERNAL` mid-run, rollback
+  and release always, `commit` never called.
+- `tests/integration/cli/verify.spec.ts`: on the harness (`describeWithDatabase`,
+  `useTransactionPerTest`), `loadSeed` and `saveCacheEntry` of the versioned files inside the test's
+  transaction, `openTransaction` = a savepoint opener like `tests/integration/cli/cache-build.spec.ts`
+  (its `commit` recorded so the test can assert it never happens), the real `explain`, the HTTP
+  counting server (`node:http` on port 0).
+- Amendment A4: every test injects `seedFingerprints` and `answerFingerprint` (returning the values
+  of the files under test); none depends on the real fingerprints being current. Freshness of the
+  versioned files is the job of the `verify` CI job alone, as `golden-coherence.spec.ts` already
+  states ("Fingerprint freshness is `verify`'s, not this test's"): a PR touching a fingerprint input
+  turns one job red, not the whole unit suite. The defaults are exercised by the CI job and the
+  manual run.
+- `tests/unit/ci/verify-job.spec.ts`: parses `ci.yml`. Amendment A5: `yaml` is added as a root
+  devDependency at the version the lock file already resolves (`2.9.1`, through
+  `@fastify/swagger`); importing a transitive package would break on any upgrade of its parent, and
+  a regex over the YAML text would be brittle. No new package enters the lock file.
+- No existing test changes; `tests/unit/cli/cache-build.spec.ts` stays green after the move of C1.
+
+**C11. Security.** stdout and stderr never hold the database URL (the connection error is
+`DatabaseUnavailable`, without the driver's text), an absolute path (`displayPath`), or answer,
+statement or excerpt text (never compared, never printed). Questions, names and values go through
+`terminalSafeText` / `toTerminalSafeJson`. The run never commits. No ADR: the decisions stay inside
+one command and one CI job and are cheap to revert; the fingerprint policy (D2) is recorded in
+`docs/project-context.md` and in DIS-44.
+
+## Risks / Trade-offs
+
+- [Every PR touching a fingerprint input turns `verify` red until the author regenerates the seed and
+  the golden answers locally (D2)] → the error says exactly what to run; the policy is documented in
+  `docs/project-context.md`; it is the purpose of PH-12, and warning instead would hide it.
+- [`verify` compares against the golden file `db:seed` just loaded, so in CI an edit by hand already
+  committed to the golden file is not caught by `verify` (D11)] → the review of DIS-34 and
+  `golden-coherence.spec.ts` cover the versioned file; `verify` catches regenerated or edited files
+  after seeding, a missing or altered cache entry and any break of the answering path.
+- [The Context Engine is not part of the answer fingerprint (DIS-26 D11)] → a regression that stops
+  anchoring a golden question shows as `✗ … got UNKNOWN (no-anchor)`.
+- [CI time] → one more job in parallel with `quality` and `mutation`, about 1–2 minutes.
+
+## Migration Plan
+
+No data migration. Rollback is reverting the PR: the script returns to the placeholder and the CI job
+disappears.
+
+## Follow-ups
+
+Filled during the pre-merge review: every finding gets an A/B/C/D destination
+(`docs/project-context.md` → Tracking deferred findings).
