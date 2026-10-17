@@ -159,8 +159,8 @@ statement 1 does not repeat «al crear» (the answer text does); a typo («recá
 
 ## Sample for the author to sign
 
-The author adds her own `{"by": "<author>", "date": "YYYY-MM-DD"}` next to the agent's in the
-`reviews` list of each golden she signs.
+The author adds their own `{"by": "<author>", "date": "YYYY-MM-DD"}` next to the agent's in the
+`reviews` list of each golden they sign.
 
 | Golden | Why it is in the sample |
 |---|---|
@@ -170,3 +170,23 @@ The author adds her own `{"by": "<author>", "date": "YYYY-MM-DD"}` next to the a
 | Q1 | First in the list. |
 
 With only three goldens the sample covers the whole set.
+
+## Addendum — the author's review and the regenerated Q3 (2026-10-17)
+
+- **Q1 and Q4 (regenerated):** approved by the author, who signed both
+  (`author:cristina-rodriguez`). A second, independent agent pass agreed: Q1 matches the expected
+  order (subtotal → discount → tax on the discounted base → shipping) and Q4 matches
+  `OrderObserver::created` (dispatches `RecalculateTotals`, fires `OrderPlaced`).
+- **Q3 (doubtful) rejected and regenerated.** It centred on `isRedeemable`, which nothing in the
+  fixture calls (`DiscountService` calls `percentFor`), and missed the empty-code case. Regenerated
+  with `npm run cache:build -- Q3` (local Ollama `qwen2.5-coder` on CPU, 299 s, first attempt), on a
+  separate database so the build's transaction locked no other work.
+- **Q3 (regenerated): correct.** The answer names `CouponValidator` and the four rejection cases of
+  the expected answer (null or empty code, unknown, inactive, expired); its statement says
+  `percentFor` checks the code and returns the discount percentage, typed `INFERENCE` (conservative).
+  Both excerpts match the fixture byte for byte. Minor: the second evidence,
+  `app/Http/Requests/StoreOrderRequest.php` lines 41–47 (the `validated()` override), is not about
+  coupons; an extra citation, not an error. Reviewed by the agent and approved and signed by the
+  author.
+- **Result:** every golden of `seeds/cache/acme-shop.json` carries the agent's review and the
+  author's signature.
