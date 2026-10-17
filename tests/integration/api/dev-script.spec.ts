@@ -2,7 +2,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import { createServer } from 'node:net';
 import { fileURLToPath } from 'node:url';
-import { expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { databaseUrl, describeWithDatabase } from '../helpers/db';
 
 // DIS-45: `make up` and `npm run dev` run the API's `dev` script under `concurrently`, which gives
@@ -72,5 +72,26 @@ describeWithDatabase('API dev script (integration)', () => {
     } finally {
       killTree(child);
     }
+  }, START_TIMEOUT_MS + 15_000);
+});
+
+describe('API dev register (integration)', () => {
+  it('The dev register finds tsconfig.run.json from any working directory', () => {
+    // Arrange: the repository root, not packages/api, as the working directory. Without a
+    // DATABASE_URL the API stops at its configuration check, after every import has resolved.
+    const env = { ...process.env, DATABASE_URL: '' };
+
+    // Act
+    const result = spawnSync(process.execPath, ['--import', './packages/api/dev-register.mjs', 'packages/api/src/server.ts'], {
+      cwd: WORKSPACE_ROOT,
+      env,
+      encoding: 'utf8',
+      timeout: START_TIMEOUT_MS,
+    });
+
+    // Assert
+    expect(result.stderr).not.toContain('Cannot resolve tsconfig');
+    expect(result.stderr).toContain('"code":"INVALID_CONFIG"');
+    expect(result.status).toBe(1);
   }, START_TIMEOUT_MS + 15_000);
 });
