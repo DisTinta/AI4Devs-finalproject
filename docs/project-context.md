@@ -53,12 +53,15 @@ Verified against `package.json` (root and per package). If a command is not here
 — do not invent one.
 
 - Development environment: `npm run dev` (root) — runs `packages/api` + `packages/web` via
-  `concurrently`, kills all on first failure. The API's `dev` (DIS-76) is `tsx watch --tsconfig
-  tsconfig.run.json src/server.ts`: `packages/api/tsconfig.run.json` maps `@codemind/core` and the
-  three adapters to their `src/` (as the CLI's), so it never runs a stale `dist/`. It needs
+  `concurrently`, kills all on first failure. The API's `dev` (DIS-76, DIS-45) is `node --watch
+  --import ./dev-register.mjs src/server.ts`: `packages/api/dev-register.mjs` registers tsx with
+  `packages/api/tsconfig.run.json`, which maps `@codemind/core` and the three adapters to their
+  `src/` (as the CLI's), so it never runs a stale `dist/`. Not `tsx watch`: it reads its stdin and
+  passes the same pipe to the API, and under `concurrently` (whose children get an open stdin pipe)
+  the API never started on Windows (`tests/integration/api/dev-script.spec.ts`). It needs
   `DATABASE_URL` exported (`make up` exports `.env`); without it the API prints one
-  `INVALID_CONFIG` line and `tsx watch` keeps waiting (the web stays up). To see the exit code,
-  run it without `watch`: `npx tsx --tsconfig packages/api/tsconfig.run.json packages/api/src/server.ts`.
+  `INVALID_CONFIG` line and `node --watch` keeps waiting for a file change (the web stays up). To see
+  the exit code, run it without watch: `npx tsx --tsconfig packages/api/tsconfig.run.json packages/api/src/server.ts`.
   It listens on `127.0.0.1:3000`; OpenAPI at `http://localhost:3000/docs` (`/docs/json`).
 - Tests (full): `npm test` or `npx vitest run` (root `vitest.config.ts`). `fixtures/**` is excluded
   and `passWithNoTests` is on, so a green run may mean **zero tests ran**.
@@ -285,7 +288,10 @@ Verified against `package.json` (root and per package). If a command is not here
   other integration files commit projects of their own in parallel. The golden scenarios of
   `tests/integration/cli/seed-load.spec.ts` pass a temporary `cacheDir`; its "Loading again" scenario
   compares the sample projects' cache entries without their id (`reloadSnapshot`), because each load
-  re-inserts them. Never run DB integration tests while a real `cache:build` runs: its transaction
+  re-inserts them. Two scenarios still read every project and race those commits
+  (`projects-command.spec.ts` and seed-load's "A failed golden save leaves the database unchanged"):
+  `docs/TESTING.md` → Known races; `npm test -- --no-file-parallelism` avoids them (DIS-45). Never run
+  DB integration tests while a real `cache:build` runs: its transaction
   holds the sample project's rows for minutes and tests that delete projects wait on it; so do a
   `db:seed` and any `ask` on acme-shop (CLI or API), whose `query_log` insert checks the locked
   project row.
