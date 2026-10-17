@@ -27,7 +27,7 @@
     "cache:build": "tsx --tsconfig packages/cli/tsconfig.run.json packages/cli/src/cache-build.ts",
     "seed:build": "tsx --tsconfig packages/cli/tsconfig.run.json packages/cli/src/seed-build.ts",
     "cli": "tsx --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts",
-    "verify": "node -e \"console.log('pending — verify not implemented (Ticket 1/2)'); process.exit(0)\"",
+    "verify": "tsx --tsconfig packages/cli/tsconfig.run.json packages/cli/src/verify.ts",
     "test": "vitest run",
     "test:mutation": "stryker run",
     "test:mutation:full": "stryker run --force",
