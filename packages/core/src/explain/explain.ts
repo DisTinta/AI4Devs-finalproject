@@ -232,7 +232,7 @@ async function saveCache(
   store: StorePort,
   projectId: string,
   key: string,
-  answer: Parameters<typeof toStoredResponse>[0],
+  answer: StoredExplain | UnknownExplain,
 ): Promise<AnswerNotCachedCode | undefined> {
   try {
     await store.saveCacheEntry(projectId, key, toStoredResponse(answer));

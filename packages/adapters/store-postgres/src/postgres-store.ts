@@ -132,31 +132,25 @@ async function atomically<T>(
 }
 
 /**
- * Maps an error of a claim write: a domain error raised by the write itself (an unknown project, a
- * foreign file) passes unchanged; any other becomes `ClaimWriteFailed`, which carries no text of the
- * database error (its `detail`, `hint` or `where` can quote an excerpt).
+ * The mapper of a write's errors (DIS-21 design C4, folding the mappers of DIS-39 D7 and DIS-74 U3): a
+ * domain error raised by the write itself (an unknown project, a foreign file) passes unchanged; any
+ * other becomes the opaque error `failed` builds, which carries no text of the database error (its
+ * `detail`, `hint` or `where` can quote an excerpt, the question, a cache key or a cached response).
+ *
+ * @param failed Builds the write's own failure: `ClaimWriteFailed`, `QueryLogWriteFailed` or `CacheWriteFailed`.
  */
-function toClaimWriteError(error: unknown): unknown {
-  return error instanceof DomainError ? error : new ClaimWriteFailed();
+function domainErrorOr(failed: () => DomainError): (error: unknown) => unknown {
+  return (error) => (error instanceof DomainError ? error : failed());
 }
 
-/**
- * Maps an error of a query log write (DIS-74 design U3): a domain error raised by the write itself (an
- * unknown project) passes unchanged; any other becomes `QueryLogWriteFailed`, which carries no text of
- * the database error (its `detail`, `hint` or `where` can quote the question).
- */
-function toQueryLogWriteError(error: unknown): unknown {
-  return error instanceof DomainError ? error : new QueryLogWriteFailed();
-}
+/** Maps an error of a claim write (see {@link domainErrorOr}). */
+const toClaimWriteError = domainErrorOr(() => new ClaimWriteFailed());
 
-/**
- * Maps an error of an answer cache write (DIS-21 design C4): a domain error raised by the write itself
- * (an unknown project) passes unchanged; any other becomes `CacheWriteFailed`, which carries no text
- * of the database error (its `detail`, `hint` or `where` can quote the key or the response).
- */
-function toCacheWriteError(error: unknown): unknown {
-  return error instanceof DomainError ? error : new CacheWriteFailed();
-}
+/** Maps an error of a query log write (see {@link domainErrorOr}). */
+const toQueryLogWriteError = domainErrorOr(() => new QueryLogWriteFailed());
+
+/** Maps an error of an answer cache write (see {@link domainErrorOr}). */
+const toCacheWriteError = domainErrorOr(() => new CacheWriteFailed());
 
 /**
  * Runs one project-scoped cache write statement that reports whether the project exists and how many
