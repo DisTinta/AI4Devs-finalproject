@@ -181,3 +181,22 @@ concatenation, as the other secret tests do, and `.gitleaks.toml` allows that ex
   in task 17.3, once the PR exists.
 - Never run DB integration tests while a real `cache:build` runs: its transaction holds the sample
   project's rows for minutes (documented in `docs/project-context.md`).
+
+## Addendum (task 17.3) — CI run
+
+PR #48 (`feature/DIS-26-cache-build-ollama` → `feature/entrega-2-CRN`),
+https://github.com/DisTinta/AI4Devs-finalproject/pull/48.
+
+- First run (`39021225724`): `scope`, `secrets`, `quality` and `frontend` (`39021225782`) passed;
+  `mutation` was reported `cancelled` after 30m3s. Its own log
+  (`gh run view --job 117363290414 --log`) shows the mutation step completed normally — "Final
+  mutation score of 95.64 is greater than or equal to break threshold 80" — and GitHub Actions
+  cancelled the job mid cache-save, past its 30-minute `timeout-minutes`. The new spec files ran and
+  passed as part of that score. Root cause: this branch's `reports/stryker-incremental.json` cache
+  had no prior hit (first run of a mutation-sensitive PR from this branch), so incremental mode ran
+  close to the full suite instead of only the changed mutants, and the 29m34s of mutation testing
+  plus the post-job cache save crossed the 30-minute mark.
+- Fix: `.github/workflows/ci.yml` `mutation` job `timeout-minutes` raised from 30 to 40, with the
+  reason recorded in a comment next to it. This is a CI-infrastructure fix shared by every PR, not a
+  defect in this change's code.
+- Second run (after the fix, commit `<set at push>`): see the PR's checks for its final result.

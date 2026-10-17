@@ -137,7 +137,10 @@ jobs:
     needs: scope
     if: needs.scope.outputs.code == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 30 min was too tight for a branch whose incremental cache has no hit yet (DIS-26: the
+    # mutation step alone finished in 29m34s, and the job was cancelled mid cache-save at the
+    # 30 min mark even though its score, 95.64, was already above the break threshold).
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
 
