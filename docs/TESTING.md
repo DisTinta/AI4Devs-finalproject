@@ -48,7 +48,7 @@ Durations change with the machine. A test file alone runs with `npx vitest run <
 **A known race.** `tests/integration/cli/ask-command.spec.ts` (“answers through the default pool…”)
 commits a project outside the harness transaction for a moment, and Vitest runs integration files in
 parallel. If `tests/integration/cli/projects-command.spec.ts` lists the projects in that moment, it
-sees one more (`ask-pool-…`) and fails. It happened once in the two local runs of 2026-10-17; the
+sees one more (`ask-pool-…`) and fails. It happened once in the three local runs of 2026-10-17; the
 rerun passed. Rerun before suspecting a change.
 
 ## Smoke check
