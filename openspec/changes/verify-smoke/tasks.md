@@ -50,7 +50,7 @@
 
 ## 8. Real run against the local database
 
-- [ ] 8.1 On the migrated local database: `npm run db:seed`, then `npm run verify` without any `LLM_*` exported: exit `0`, the three `✓` lines and `acme-shop: 3/3 golden answers match`; record the output and the wall time (< 5 s, the ticket's figure, measured with `time`)
+- [x] 8.1 On the migrated local database: `npm run db:seed`, then `npm run verify` without any `LLM_*` exported: exit `0`, the three `✓` lines and `acme-shop: 3/3 golden answers match`; record the output and the wall time (< 5 s, the ticket's figure, measured with `time`)
 
 ## 9. Backend: Run Tests and Verify Data State (MANDATORY)
 
@@ -65,14 +65,14 @@
 
 ## 10. Backend: Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 10.1 Preconditions: local database up, migrated and seeded (8.1); record the 0.4 indicators
-- [ ] 10.2 Success path: `npm run verify` (exit `0`, stdout exact, stderr empty); again with `LLM_BASE_URL=http://127.0.0.1:1/v1 LLM_API_KEY=k3y` and with `LLM_BASE_URL=ftp://x` (same output, exit `0`); `hit_count` of every golden entry still `0` and no `query_log` row after the 10.1 `max(created_at)`; `npm run verify -- extra` gives the same output and exit `0` (A11)
-- [ ] 10.3 Error paths, each with exit code and the exact stderr line: no `DATABASE_URL`; `DATABASE_URL=postgres://u:s3cret@127.0.0.1:1/db` (no `s3cret` in any output)
-- [ ] 10.4 Altered golden answer: copy `seeds/cache/acme-shop.json` to the scratchpad, change Q3 `statements[0].type` to `FACT` in the working copy, run `npm run verify` (exit `1`, the `✗` line and the diff line, `2/3`), restore the file (checked with `git diff --exit-code seeds/cache`)
-- [ ] 10.5 Stale fingerprint: change one character of `answerFingerprint` in the working copy of the golden file, run `npm run verify` (exit `1`, `FINGERPRINT_MISMATCH` `golden`, stdout empty), restore it (`git diff --exit-code seeds/cache`); same with the seed's `analyzer-fingerprint` line (`FINGERPRINT_MISMATCH` `seed`), restored (`git diff --exit-code seeds/graph-dump.sql`)
-- [ ] 10.6 Cache miss: `DELETE FROM cache_entry` of acme-shop with psql, run `npm run verify` (exit `1`, three cache-miss lines, `0/3`), then `npm run db:seed` to restore
-- [ ] 10.7 Restore the state: restore the 0.4 dump (`docker compose exec -T postgres pg_restore -U codemind -d codemind --clean --if-exists` fed with `pre-dis44.dump`); re-check the 0.4 indicators against 0.4; no `codemind` session left in `pg_stat_activity`
-- [ ] 10.8 Document every command, exit code and output in `openspec/changes/verify-smoke/reports/YYYY-MM-DD-10-manual-interface-testing.md` (mask the OS user name in paths), with the restoration of 10.7
+- [x] 10.1 Preconditions: local database up, migrated and seeded (8.1); record the 0.4 indicators
+- [x] 10.2 Success path: `npm run verify` (exit `0`, stdout exact, stderr empty); again with `LLM_BASE_URL=http://127.0.0.1:1/v1 LLM_API_KEY=k3y` and with `LLM_BASE_URL=ftp://x` (same output, exit `0`); `hit_count` of every golden entry still `0` and no `query_log` row after the 10.1 `max(created_at)`; `npm run verify -- extra` gives the same output and exit `0` (A11)
+- [x] 10.3 Error paths, each with exit code and the exact stderr line: no `DATABASE_URL`; `DATABASE_URL=postgres://u:s3cret@127.0.0.1:1/db` (no `s3cret` in any output)
+- [x] 10.4 Altered golden answer: copy `seeds/cache/acme-shop.json` to the scratchpad, change Q3 `statements[0].type` to `FACT` in the working copy, run `npm run verify` (exit `1`, the `✗` line and the diff line, `2/3`), restore the file (checked with `git diff --exit-code seeds/cache`)
+- [x] 10.5 Stale fingerprint: change one character of `answerFingerprint` in the working copy of the golden file, run `npm run verify` (exit `1`, `FINGERPRINT_MISMATCH` `golden`, stdout empty), restore it (`git diff --exit-code seeds/cache`); same with the seed's `analyzer-fingerprint` line (`FINGERPRINT_MISMATCH` `seed`), restored (`git diff --exit-code seeds/graph-dump.sql`)
+- [x] 10.6 Cache miss: `DELETE FROM cache_entry` of acme-shop with psql, run `npm run verify` (exit `1`, three cache-miss lines, `0/3`), then `npm run db:seed` to restore
+- [x] 10.7 Restore the state: restore the 0.4 dump (`docker compose exec -T postgres pg_restore -U codemind -d codemind --clean --if-exists` fed with `pre-dis44.dump`); re-check the 0.4 indicators against 0.4; no `codemind` session left in `pg_stat_activity`
+- [x] 10.8 Document every command, exit code and output in `openspec/changes/verify-smoke/reports/YYYY-MM-DD-10-manual-interface-testing.md` (mask the OS user name in paths), with the restoration of 10.7
 
 ## 11. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
@@ -81,9 +81,9 @@
 
 ## 12. Update Technical Documentation (MANDATORY)
 
-- [ ] 12.1 `docs/project-context.md`: Commands (`npm run verify` is real: what it checks, in which order, its codes and output; remove "still a placeholder"), CI (the `verify` job, its own database, the `scope` loop), Gotchas (the fingerprint policy D2: touching a seed or answer fingerprint input means `seed:build` then `cache:build` locally, or `verify` stays red; the cache-miss hint; after pulling a regenerated seed or golden file, run `npm run db:seed` before `verify`, A10), Testing (the new spec files and the fingerprint seams of A4); also the "mid-build" paragraph that still says "`verify` is a placeholder that no-ops" (`grep -n placeholder docs/project-context.md`)
-- [ ] 12.2 ADR for the fingerprint policy D2 (design C12, A9) with `/adr-new` under `docs/adr/`, its why written by the agent and marked as the agent's decision (ADR `20261016-autonomous-workflow-run-entrega-2`); linked from `docs/project-context.md` → Gotchas
-- [ ] 12.3 `readme.md`: check §1.4, §2.4, §6 and the CI lines (`grep -n verify readme.md`) and change only sentences that became false (e.g. the "golden/caché" wording stays; any "pending" mention goes)
+- [x] 12.1 `docs/project-context.md`: Commands (`npm run verify` is real: what it checks, in which order, its codes and output; remove "still a placeholder"), CI (the `verify` job, its own database, the `scope` loop), Gotchas (the fingerprint policy D2: touching a seed or answer fingerprint input means `seed:build` then `cache:build` locally, or `verify` stays red; the cache-miss hint; after pulling a regenerated seed or golden file, run `npm run db:seed` before `verify`, A10), Testing (the new spec files and the fingerprint seams of A4); also the "mid-build" paragraph that still says "`verify` is a placeholder that no-ops" (`grep -n placeholder docs/project-context.md`)
+- [x] 12.2 ADR for the fingerprint policy D2 (design C12, A9) with `/adr-new` under `docs/adr/`, its why written by the agent and marked as the agent's decision (ADR `20261016-autonomous-workflow-run-entrega-2`); linked from `docs/project-context.md` → Gotchas
+- [x] 12.3 `readme.md`: check §1.4, §2.4, §6 and the CI lines (`grep -n verify readme.md`) and change only sentences that became false (e.g. the "golden/caché" wording stays; any "pending" mention goes)
 - [ ] 12.4 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
 
 ## 13. Pull request preparation
