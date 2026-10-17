@@ -968,7 +968,9 @@ services that must be started first, quirks of the local environment.
   because Node's `fetch` ends any request at 300 s. **Format** (`golden-file.ts`): `format: 1`,
   `project`, `seed` (the seed header's two fingerprints), `answerFingerprint`, `generatedWith`
   (`model`, `verifyModel`), `entries` (`id`, `question`, `questionNormalized`, `response`,
-  `reviews` — empty until DIS-34); no generation time; canonical render = 2-space JSON in that key
+  `reviews` — `{by, date}` per review: DIS-34 added `agent:claude-opus-5-5` to every entry and the
+  author signs a sample; a regenerated entry comes back empty and must be reviewed again; report in
+  `docs/golden-review/`); no generation time; canonical render = 2-space JSON in that key
   order, LF, final newline. **`answerFingerprint`** (`answer-fingerprint.ts`) = the seed's
   `fingerprint()` over `ANSWER_FINGERPRINT_FILES` (explain prompt, untrusted-text, sanitize, limits,
   statement schema, typing rules; verify prompt and policy; confidence weights; normalize and

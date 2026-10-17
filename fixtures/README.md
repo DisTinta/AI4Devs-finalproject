@@ -201,6 +201,12 @@ documentation-drift question, added with the drift story, and its terms anchor
 no symbol of the seed; Q6 answers `UNKNOWN` `no-anchor` before the cache is
 read, without a model and at zero cost.
 
+**Golden review (DIS-34).** Each entry's `reviews` lists who checked it
+against this fixture and when; the report, with a verdict per golden, is
+[`docs/golden-review/2026-10-acme-shop-golden-review.md`](../docs/golden-review/2026-10-acme-shop-golden-review.md).
+`npm run cache:build` empties the `reviews` of every entry it regenerates, so a
+regenerated answer must be reviewed again.
+
 ## Planted secret
 
 `config/services.php` line 21 — a dev-only AWS S3 key (matches
