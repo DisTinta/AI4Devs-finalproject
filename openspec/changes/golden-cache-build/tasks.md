@@ -18,10 +18,10 @@
 ## 3. Golden file format (TDD, design C2) — `golden-answers` → "Golden file format"
 
 - [x] 3.1 Add `zod` (`^4.6.5`) to `packages/cli/package.json` and run `npm install` (only the workspace entry of `package-lock.json` changes; no new package)
-- [ ] 3.2 Factory: `tests/support/golden-file.ts` with `goldenFile(overrides?)`, a fresh valid golden file value per call (`backend-standards.md` §7) whose entries hold `cachedAnswer()` of `tests/support/cached-answer.ts` for the three golden questions
-- [ ] 3.3 RED: create `tests/unit/cache/golden-file.spec.ts` with "The canonical render is stable". See it fail
-- [ ] 3.4 GREEN: `packages/cli/src/cache/golden-file.ts` with `goldenFileSchema`, `renderGoldenFile` (TSDoc)
-- [ ] 3.5 RED → GREEN: "Golden files with an invalid shape are rejected" (`checkGoldenFile`, `readGoldenFile`, the calendar check of `date`)
+- [x] 3.2 Factory: `tests/support/golden-file.ts` with `goldenFile(overrides?)`, a fresh valid golden file value per call (`backend-standards.md` §7) whose entries hold `cachedAnswer()` of `tests/support/cached-answer.ts` for the three golden questions
+- [x] 3.3 RED: create `tests/unit/cache/golden-file.spec.ts` with "The canonical render is stable". See it fail
+- [x] 3.4 GREEN: `packages/cli/src/cache/golden-file.ts` with `goldenFileSchema`, `renderGoldenFile` (TSDoc)
+- [x] 3.5 RED → GREEN: "Golden files with an invalid shape are rejected" (`checkGoldenFile`, `readGoldenFile`, the calendar check of `date`)
 
 ## 4. Answer fingerprint (TDD, design C3) — `golden-answers` → "Golden answer fingerprint"
 
