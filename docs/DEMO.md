@@ -178,7 +178,8 @@ app/Services/PriceCalculator.php:16-44
 
 The CLI does not print token usage; the API does. Define a helper in terminal 2 that posts a
 question to `POST /api/projects/{projectId}/ask` and prints the HTTP status, how many statements and
-evidence items came back, and the `usage` block (the id is the one `projects` printed):
+evidence items came back, and the `usage` block, or the error body when the status is not 2xx (the
+id is the one `projects` printed):
 
 ```bash
 ask_api() {
@@ -191,7 +192,8 @@ ask_api() {
     }).then(async (response) => {
       const body = await response.json();
       console.log(`HTTP ${response.status}`);
-      console.log(JSON.stringify({ statements: body.statements.length, evidence: body.evidence.length, usage: body.usage }, null, 2));
+      const summary = response.ok ? { statements: body.statements.length, evidence: body.evidence.length, usage: body.usage } : body;
+      console.log(JSON.stringify(summary, null, 2));
     });
   ' "$@"
 }

@@ -288,7 +288,10 @@ Verified against `package.json` (root and per package). If a command is not here
   other integration files commit projects of their own in parallel. The golden scenarios of
   `tests/integration/cli/seed-load.spec.ts` pass a temporary `cacheDir`; its "Loading again" scenario
   compares the sample projects' cache entries without their id (`reloadSnapshot`), because each load
-  re-inserts them. Never run DB integration tests while a real `cache:build` runs: its transaction
+  re-inserts them. Two scenarios still read every project and race those commits
+  (`projects-command.spec.ts` and seed-load's "A failed golden save leaves the database unchanged"):
+  `docs/TESTING.md` → Known races; `npm test -- --no-file-parallelism` avoids them (DIS-45). Never run
+  DB integration tests while a real `cache:build` runs: its transaction
   holds the sample project's rows for minutes and tests that delete projects wait on it; so do a
   `db:seed` and any `ask` on acme-shop (CLI or API), whose `query_log` insert checks the locked
   project row.

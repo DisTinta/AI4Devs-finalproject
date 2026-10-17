@@ -43,13 +43,28 @@ The last lines of a run (2026-10-17, commit `b9026be`, Windows 11, Node v24.11.1
    Duration  132.94s (transform 15.08s, setup 27ms, collect 160.77s, tests 625.11s, environment 75ms, prepare 53.01s)
 ```
 
-Durations change with the machine. A test file alone runs with `npx vitest run <pattern>`.
+Durations change with the machine, and the counts with the suite. A test file alone runs with
+`npx vitest run <pattern>`.
 
-**A known race.** `tests/integration/cli/ask-command.spec.ts` (“answers through the default pool…”)
-commits a project outside the harness transaction for a moment, and Vitest runs integration files in
-parallel. If `tests/integration/cli/projects-command.spec.ts` lists the projects in that moment, it
-sees one more (`ask-pool-…`) and fails. It happened once in the three local runs of 2026-10-17; the
-rerun passed. Rerun before suspecting a change.
+**Known races.** Two integration specs commit a project outside the harness transaction for a
+moment: `tests/integration/cli/ask-command.spec.ts` (“answers through the default pool…”, project
+`ask-pool-…`) and `tests/integration/store/cache-entry.spec.ts` (project `cache-concurrent-…`).
+Vitest runs integration files in parallel, so a spec that reads every project in that moment sees one
+more and fails: `tests/integration/cli/projects-command.spec.ts` (which can also time out) and “A
+failed golden save leaves the database unchanged” of `tests/integration/cli/seed-load.spec.ts`. On
+2026-10-17 four of six local runs had one to three of these failures, and no other. Running the
+files one at a time removes the race, at about four times the duration (same machine, 2026-10-17):
+
+```bash
+npm test -- --no-file-parallelism
+```
+
+```text
+ Test Files  137 passed (137)
+      Tests  1600 passed (1600)
+   Start at  18:51:29
+   Duration  507.38s (transform 8.75s, setup 16ms, collect 73.17s, tests 497.02s, environment 49ms, prepare 35.83s)
+```
 
 ## Smoke check
 
