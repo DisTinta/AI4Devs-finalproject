@@ -93,12 +93,17 @@ Verified against `package.json` (root and per package). If a command is not here
 - CI triggers: every PR, plus pushes to `main`, `feature/entrega-*` and `final-project-*` (the
   delivery branches PRs merge into). A new push to a PR cancels the run of its previous head
   (`concurrency`); pushes to a base branch always finish.
-- CI docs-only skip: the `scope` job of `ci.yml` skips the `quality` and `mutation` jobs when a push
-  to an open PR only touches `openspec/**`, `docs/**` or `*.md` (diff of that push, `before..after`)
-  and both were green or skipped on the previous head — e.g. the `/opsx:archive` commit. They always
+- CI docs-only skip: the `scope` job of `ci.yml` skips the `quality`, `mutation` and `verify` jobs
+  when a push to an open PR only touches `openspec/**`, `docs/**` or `*.md` (diff of that push,
+  `before..after`) and all three were green or skipped on the previous head — e.g. the `/opsx:archive` commit. They always
   run on PR open/reopen, on a push to a base branch, after a force-push or a non-green (or
   cancelled) previous head. A skipped job counts as passed for required checks. Keep test-file edits
   (even comments, such as spec paths in test headers) out of the archive commit, or it runs in full.
+- CI `verify` job (DIS-44, PH-23): `needs: scope`, same `if` as `quality`, its own
+  `pgvector/pgvector:pg16` service with database `verify`; runs `npm ci` → `db:migrate` → `db:seed` →
+  `npm run verify` with `DATABASE_URL=postgres://postgres:postgres@localhost:5432/verify` and no
+  `LLM_*`. The seed never reaches `quality`'s `test` database, which stays unseeded. A stale seed or
+  golden fingerprint turns this job (only this one) red: see Gotchas → `verify`.
 - CI secret scan (DIS-87): the `secrets` job of `ci.yml` runs gitleaks 8.30.1 (official binary,
   pinned by SHA-256 in the workflow) on every CI run (see CI triggers). Own job: no `needs: scope`, no
   `if`, never skipped — a docs-only push skips `quality` and `mutation` but not `secrets`. No `npm ci`. It runs
@@ -143,7 +148,30 @@ Verified against `package.json` (root and per package). If a command is not here
   `qwen2.5-coder` on CPU, about 30 minutes; see Gotchas → golden answers); `CACHE_BUILD_TIMEOUT_MS`
   (1..3 600 000, default 1 200 000) is its per-request limit, `LLM_TIMEOUT_MS` is not used. Run it
   after `seed:build`, never in CI.
-  `verify` is still a **placeholder**: it prints a "pending Ticket …" message and exits 0.
+- `npm run verify` (DIS-44, `packages/cli/src/verify.ts`) is the no-model smoke check of the readme
+  (§1.4, §2.4, §6): needs only `DATABASE_URL` of a database where `db:seed` loaded the seed and the
+  golden answers; never reads `LLM_*`, `DAILY_BUDGET_USD` nor `CACHE_BUILD_TIMEOUT_MS`; arguments are
+  ignored. Before connecting, in order: `DATABASE_URL` (`MISSING_CONFIG`); the seed and every
+  `seeds/cache/*.json`, read as `db:seed` reads them (`INVALID_SEED`); the seed header fingerprints
+  against the code (`FINGERPRINT_MISMATCH` `{reason:"seed"}`, "run npm run seed:build, then npm run
+  cache:build"); each golden file's `seed.*` and `answerFingerprint` (`FINGERPRINT_MISMATCH`
+  `{reason:"golden", file}`, "run npm run cache:build"); one golden file with entries per seed project
+  (`GOLDEN_MISSING` `{project}`). Then one transaction, **always rolled back** (no `hit_count`,
+  `query_log` or `claim` change): each golden project must be the stored sample with the seed's id and
+  indexed commit (`SEED_NOT_LOADED` `{project}`, "run npm run db:seed"), and each golden question is
+  asked through `explain` with the cache on and `createEvaluationLlm` (no request ever reaches a
+  model). `DATABASE_UNAVAILABLE` only when opening the transaction fails (a `DATABASE_URL` the driver
+  cannot parse included); anything later, or any other unexpected failure before, is `INTERNAL`
+  (`verify failed; the database is unchanged`); a failed rollback or release does not change the
+  outcome. stdout: one `✓|✗ <project> <id>
+  <question>` line per entry, under each `✗` one 4-space-indented line per difference
+  (`statements[0].type: expected "FACT", got "INFERENCE"`, `evidence: expected 2 items, got 1`,
+  `usage.cacheHit: expected true, got false`, or `expected an answer from the golden cache, got
+  UNKNOWN (<reason>)`, followed by `: run npm run db:seed` for `llm-required`), then one
+  `<project>: <m>/<n> golden answers match` line per golden file. Only structure is compared
+  (`packages/cli/src/cache/compare-golden.ts`): never text, ids, `usage` other than `cacheHit`,
+  `confidence` or `priorClaims`. Exit `0` only when every entry matches; a mismatch is stdout only, a
+  failure is one JSON line on stderr. About 3 s locally.
 - Local stack: `docker compose up -d` starts Postgres (`pgvector/pgvector:pg16`) on `5432`. On
   Windows, `make up` needs Git Bash/WSL; in native PowerShell run the `npm` scripts directly.
 
@@ -261,6 +289,17 @@ Verified against `package.json` (root and per package). If a command is not here
   holds the sample project's rows for minutes and tests that delete projects wait on it; so do a
   `db:seed` and any `ask` on acme-shop (CLI or API), whose `query_log` insert checks the locked
   project row.
+- **`verify` tests (DIS-44).** Unit: `tests/unit/cache/compare-golden.spec.ts` (the structural
+  comparison over `cachedAnswer()` responses), `tests/unit/cache/seed-header.spec.ts`,
+  `tests/unit/cli/verify.spec.ts` (doubles for every seam
+  of `VerifyDeps`, `listProjects` included; temporary seed and cache directories; no database) and
+  `tests/unit/ci/verify-job.spec.ts` (parses `ci.yml` with `yaml`, a root devDependency). Integration:
+  `tests/integration/cli/verify.spec.ts` loads the versioned seed and golden answers with `loadSeed`
+  and `saveCacheEntry` inside the harness transaction, passes a savepoint `openTransaction` that
+  records `commit`, counts requests on a local `node:http` server, and deletes only the project named
+  `acme-shop` for its "no project" case. Every test injects `seedFingerprints` and `answerFingerprint`
+  with the files' own values: freshness of the versioned files is the `verify` CI job's alone, so a
+  PR touching a fingerprint input turns one job red, not the suite.
 - **Hook order: Vitest 1.6 runs all hooks of one suite in parallel.** This is
   `sequence.hooks = 'parallel'`, the default here, and it applies to `beforeAll`, `beforeEach` and
   `afterEach` alike. A parent suite's hooks do run before a nested suite's.
@@ -980,6 +1019,22 @@ services that must be started first, quirks of the local environment.
   claims and evidence are random UUIDs of the generating transaction (never looked up).
   `tests/unit/seed/golden-coherence.spec.ts` fails when the versioned golden file stops matching the
   seed's file rows, the golden questions or the canonical render.
+- **`verify` and the fingerprint policy (DIS-44, D2;
+  [ADR](./adr/20261017-stale-fingerprint-fails-verify.md)).** A stale seed or golden fingerprint
+  fails `npm run verify`, locally and in the CI `verify` job, before any question. A PR that touches
+  a seed fingerprint input (store adapter, `core/index`, `core/knowledge`, PHP analyzer, git adapter,
+  fixtures, `packages/cli/src/seed/`, `seed-build.ts`, `compose-index.ts`) or an answer fingerprint
+  input (`ANSWER_FINGERPRINT_FILES`) must run `npm run seed:build` then `npm run cache:build` locally
+  (the salt and a live model are not in CI) and commit both files; regenerated entries need a new
+  review. `verify.ts` and `packages/cli/src/cache/{compare-golden,seed-header}.ts` are not inputs.
+  A `✗ … got UNKNOWN (llm-required): run npm run db:seed` line means the golden answer is not in the
+  cache. The fingerprint ties the files to the code, never the database to the files: after pulling a
+  regenerated seed or golden file, run `npm run db:seed` before `verify`, or a database seeded before
+  shows field-level `✗` lines without the `db:seed` hint (the project check only compares name,
+  sample flag, id and indexed commit). CI always seeds a fresh database. While `verify` runs (about
+  3 s), the golden `cache_entry` rows are locked by its transaction (each hit updates `hit_count`
+  before the rollback): an `ask` of a golden question on the same database waits for it, and a lock
+  held elsewhere on those rows makes `verify` wait (no statement timeout is set).
 - **The CLI `ask` command** (DIS-40, `packages/cli/src/commands/ask.ts`): `ask <project> <question>`,
   the transport of `explain`. Check order, all before any connection: the arguments (`USAGE`, exit
   `2`, fixed messages that never quote an argument; a question starting with `-` goes after `--`),
@@ -1028,8 +1083,8 @@ services that must be started first, quirks of the local environment.
   (`trustProxy` off), and only applies to routes registered after it in `buildApp`.
 - **Vitest can report success with no tests** (`passWithNoTests: true`). A green suite is not
   evidence that behaviour is covered.
-- **The repo is mid-build (Entrega 2).** `verify` is a placeholder that no-ops; `seed:build`
-  (DIS-91) and `db:seed` (DIS-92) are real. The schema has migrations `0001`–`0003`, but only the L1 graph and history
+- **The repo is mid-build (Entrega 2).** `verify` (DIS-44), `seed:build` (DIS-91) and `db:seed`
+  (DIS-92) are real. The schema has migrations `0001`–`0003`, but only the L1 graph and history
   (`project`, `file`, `symbol`, `edge`, `commit`, `file_commit`) and, since DIS-39, `claim` and
   `evidence` (through `StorePort.saveClaims`, called only by `explain`) and, since DIS-21, `cache_entry`
   (through `saveCacheEntry` and `touchCacheEntry`, called only by `explain`) have a writer so far, and only

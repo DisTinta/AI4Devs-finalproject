@@ -14,9 +14,9 @@ permissions:
   pull-requests: read
   checks: read
 jobs:
-  # Decides whether `quality` and `mutation` run. A push to an open PR that only touches documentation
-  # (openspec/**, docs/**, *.md) skips both, as long as both were green (or themselves skipped) on the
-  # previous head: e.g. the /opsx:archive commit. A job skipped by `if:` counts as passed for
+  # Decides whether `quality`, `mutation` and `verify` run. A push to an open PR that only touches
+  # documentation (openspec/**, docs/**, *.md) skips them, as long as all three were green (or
+  # themselves skipped) on the previous head: e.g. the /opsx:archive commit. A job skipped by `if:` counts as passed for
   # required checks. paths-filter cannot do this: on pull_request it always diffs the whole PR.
   # Never skipped: PR opened/reopened, pushes to main, force-pushes, or a previous head that was not
   # green — so a docs-only push can never hide an earlier failure.
@@ -43,7 +43,7 @@ jobs:
             changed=$(git diff --name-only "$BEFORE" "$AFTER")
             code_files=$(printf '%s\n' "$changed" | grep -vE '^(openspec/|docs/)|\.md$' | grep . || true)
             green=true
-            for job in quality mutation; do
+            for job in quality mutation verify; do
               previous=$(gh api "repos/$REPO/commits/$BEFORE/check-runs?check_name=$job" --jq '.check_runs[0].conclusion' 2>/dev/null || true)
               echo "Previous $job: ${previous:-unknown}"
               case "$previous" in success|skipped) ;; *) green=false ;; esac
@@ -126,6 +126,56 @@ jobs:
         env:
           NODE_ENV: test
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/test
+
+  # `npm run verify` (DIS-44) on a database of its own (PH-23): the seed and the golden answers are
+  # loaded into `verify`, never into the `test` database of `quality`, whose integration tests assume
+  # it holds no seed. No `LLM_*` variable: verify answers from the golden cache with an evaluation
+  # model and never calls one. A stale seed or golden fingerprint fails here until the author runs
+  # `npm run seed:build` then `npm run cache:build` locally (docs/project-context.md -> Gotchas).
+  verify:
+    needs: scope
+    if: needs.scope.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: verify
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Migrations
+        run: npm run db:migrate
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/verify
+
+      - name: Seed and golden answers
+        run: npm run db:seed
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/verify
+
+      - name: Verify the golden answers
+        run: npm run verify
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/verify
 
   # Mutation testing, its own job so it runs in parallel with `quality` (it needs no Postgres).
   # Incremental (`"incremental": true` in stryker.config.json): only mutants whose code or covering

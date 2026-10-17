@@ -357,7 +357,7 @@ Sin respuesta posible imprime `UNKNOWN (<reason>)` (`no-anchor`, `llm-required`,
 npm run verify
 ```
 
-Ejecuta una consulta contra cada repositorio de muestra y compara la salida con la esperada (**determinista: no llama al LLM**). Sirve como prueba de humo para quien evalúa y como test de integración en CI.
+Hace cada pregunta golden de los repositorios de muestra (versionadas en `seeds/cache/`) y compara la estructura de la respuesta servida con la esperada: tipos de afirmación, verificación y citas, nunca el texto (**determinista: no llama al LLM**). Antes comprueba que la semilla y las golden corresponden al código actual (huellas). Necesita `DATABASE_URL` de una base cargada con `npm run db:seed` y sale con `0` solo si todas coinciden. Sirve como prueba de humo para quien evalúa y como test de integración en CI (job `verify`, con su propia base).
 
 #### Variables de entorno
 
