@@ -12,7 +12,7 @@ green locally and in CI; an altered golden answer or a stale fingerprint turns i
 does not share a database with the integration tests (PH-23). The decisions D1–D14 were taken by
 the agent as lead engineer in the autonomous run of Entrega 2 (ADR
 `20261016-autonomous-workflow-run-entrega-2`) and recorded in the DIS-44 `[enhanced]` description
-on 2026-10-17; the amendments A1–A9 of design.md (those of the propose and of the spec audit) are
+on 2026-10-17; the amendments A1–A13 (those of the propose and of the three spec-audit runs) are
 recorded there too. The author reviews them afterwards.
 
 ## What Changes

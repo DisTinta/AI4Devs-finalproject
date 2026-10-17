@@ -120,7 +120,8 @@ printed.
 After connecting, and before asking any question, verify SHALL look up every golden file's project by
 its exact name among the stored projects, in golden-file order; the first project that fails is
 reported. When it is absent, is not a sample project, its id is not the id the versioned seed gives
-it, or its indexed commit is not the one the versioned seed records for it, verify SHALL fail with `SEED_NOT_LOADED`,
+it, its indexed commit is not the one the versioned seed records for it, or the versioned seed records no
+indexed commit for it, verify SHALL fail with `SEED_NOT_LOADED`,
 `details.project` = the project's name and the message
 `<name> is not loaded from the current seed: run npm run db:seed`, `<name>` being the quoted
 terminal-safe literal of the name. Seed ids are deterministic (a project's id derives from its name),

@@ -61,10 +61,11 @@ must not change, or the change itself would turn `verify` red (D1). `verify.ts` 
   to `ask` and `index`. Both rejected (D1).
 
 **C2. Seams (`VerifyDeps`).** `env`, `stdout`, `stderr` (required); `repoRoot`, `seedPath`,
-`cacheDir`, `openTransaction` (default `defaultOpenTransaction(DATABASE_URL)`), `explain` (default
-core's), `seedFingerprints` (default `currentSeedFingerprints`), `answerFingerprint` (default
-`answerFingerprint` of `cache/answer-fingerprint.ts`), `now` (default system clock). The store is
-always `createPostgresStore({ transaction: client })`, the model always
+`cacheDir`, `openTransaction` (default `defaultOpenTransaction(DATABASE_URL)`), `listProjects`
+(`(client) => Promise<Project[]>`, default the store's `listProjects` on that client, as
+`commands/projects.ts` does; amendment A12), `explain` (default core's), `seedFingerprints` (default `currentSeedFingerprints`), `answerFingerprint` (default
+`answerFingerprint` of `cache/answer-fingerprint.ts`), `now` (default system clock). Apart from the
+`listProjects` seam, the store is always `createPostgresStore({ transaction: client })`, the model always
 `createEvaluationLlm({ mode: 'evaluation' })`, the source `createGitSourceTree()` (never read on a
 hit), `workspaceRoot` = `resolve(repoRoot)` (`explain` rejects a relative root, `explain.ts:146`) and
 one fresh `createInMemoryVerificationCache()` per
@@ -121,7 +122,9 @@ project, the one with that exact name; it must be `isSample`, have the seed's id
 id alone tells a `db:seed`-loaded project from a hand-made one but not an older seed from the current
 one; the indexed commit adds the regenerations that rebuilt the sample history. An older seed that
 differs only in analyzer output still passes (accepted limit, see Risks): the fingerprint ties the
-*file* to the code, never the *database* to the file. Row counts are not compared (D7).
+*file* to the code, never the *database* to the file. A seed project without an indexed commit is
+`SEED_NOT_LOADED` too, as `cache:build` treats it as a stale seed (`cache-build.ts:207`; amendment
+A12). Row counts are not compared (D7).
 
 **C8. Coverage (D8, amended A2).** Every golden file `readGoldenFiles` returns is verified, and every
 seed project must have one. Amendment A2: a golden file with zero entries counts as missing
@@ -155,8 +158,7 @@ means the seed can never reach the `test` database of `quality` (PH-23), so
 - `tests/unit/cache/compare-golden.spec.ts`: the comparison scenarios, with responses from
   `tests/support/cached-answer.ts`.
 - `tests/unit/cli/verify.spec.ts`: every seam doubled, no database: configuration, `INVALID_SEED`,
-  fingerprint and `GOLDEN_MISSING` order, `SEED_NOT_LOADED` through an `openTransaction` whose client
-  answers `listProjects` through a scripted store, the output format, `INTERNAL` mid-run, rollback
+  fingerprint and `GOLDEN_MISSING` order, `SEED_NOT_LOADED` through the `listProjects` seam (no faked SQL rows), the output format, `INTERNAL` mid-run, rollback
   and release always, `commit` never called.
 - `tests/integration/cli/verify.spec.ts`: on the harness (`describeWithDatabase`,
   `useTransactionPerTest`), `loadSeed` and `saveCacheEntry` of the versioned files inside the test's
@@ -210,6 +212,10 @@ change to `core/knowledge`, the store adapter or the prompts). It is recorded in
   the `db:seed` hint] → `docs/project-context.md` → Gotchas: after pulling a regenerated seed or
   golden file, run `npm run db:seed` before `verify`. CI always seeds a fresh database, so it is
   unaffected.
+- [The fingerprints were measured on a local working tree; `collectFingerprintInputs` also reads
+  ignored or untracked files under its directories (`seed/fingerprint.ts:96-102`), which a CI
+  checkout lacks] → task 0.4 recomputes them on a clean `git worktree` of `HEAD`; a difference is
+  fixed before any code (amendment A13).
 - [The local database is changed by the manual steps (`db:seed`, the cache-miss check)] → a
   `pg_dump -Fc` taken in task 0.4 and restored in task 10.7, with the indicators compared.
 

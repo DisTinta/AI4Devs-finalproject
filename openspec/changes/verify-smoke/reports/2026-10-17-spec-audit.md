@@ -1,4 +1,4 @@
-CHANGES REQUIRED
+APPROVED
 
 # Spec audit — verify-smoke (DIS-44, parent DIS-43)
 
@@ -422,3 +422,201 @@ auditoría de spec (ejecución 2)": A10, A11; the "Módulos" bullet renamed to `
 | 6: 9.6 vs 10.7 order | improvable | Task 9.7 adds an addendum with the post-restore indicators after 10.7 |
 | 7: "no project" case vs a locally seeded database | improvable | Task 4.7 deletes every project inside the harness transaction first |
 | 9: task 4.2 too large | improvable | Split into 4.2 (output) and 4.3 (failures and request); later tasks renumbered 4.4–4.8 |
+
+## Run 3 (commit 5164958)
+
+Verdict: `APPROVED` (as corrected by the auditor on its second line)
+
+
+**Correction to the line above (applies to the whole report): the verdict is `APPROVED`.** This run found no blocking issues, and every row in the traceability table is filled. The findings below are all improvable. Use `APPROVED` as the first line of the saved report.
+
+
+
+- **Date:** 2026-10-17. Read-only. I audited the working tree on top of `5164958`, with 2 uncommitted modified files.
+- **Inputs read:**
+  - The change: `proposal.md`, `design.md`, `specs/verify-smoke/spec.md`, `tasks.md`, and `reports/2026-10-17-spec-audit.md` (runs 1 and 2 with their resolutions).
+  - Linear: DIS-44 (`[original]`, `[reality-map]`, `[enhanced]` with D1–D14 and A1–A11) and its two comments (the DIS-91 handover and the PH-23 risk). DIS-43, which has no comments.
+  - Project docs: `docs/project-context.md`, `docs/openspec-tasks-mandatory-steps.md`, and the main specs `golden-answers`, `seed-load`, `explain`, `answer-cache` and `test-db-isolation`.
+  - Code: `seed-load.ts`, `cache-build.ts`, `cache/answer-fingerprint.ts`, `seed/fingerprint.ts`, `compose-index.ts`, `commands/ask.ts`, `core/explain/explain.ts`, `core/cache/response-cache.ts`, `adapters/store-postgres/src/postgres-store.ts`, `.github/workflows/ci.yml`, `package.json`, `.gitignore`, `seeds/cache/acme-shop.json`, `tests/integration/cli/cache-build.spec.ts`, `tests/unit/cli/cache-build.spec.ts` and `tests/unit/seed/golden-coherence.spec.ts`.
+- **Findings from runs 1 and 2:** all resolved. I checked each row of both resolution tables against the current artifacts and the DIS-44 `[enhanced]` description, where A1–A11 are present. None of them is repeated below.
+
+### Decisions for the agent (lead engineer, ADR `20261016-autonomous-workflow-run-entrega-2`)
+
+None of these blocks the change. I give the answer I recommend for each.
+
+1. **Seam for `listProjects` in the unit tests.**
+   - Design C2 says the store is *always* `createPostgresStore({ transaction: client })`.
+   - Design C10 and tasks 4.1 and 4.3 test `SEED_NOT_LOADED`, the indexed-commit case and "A failure while asking…" with a client that "answers `listProjects` through a scripted store".
+   - Without a seam, the unit spec has to fake `pg` query results shaped like the `LIST_PROJECTS` rows (`postgres-store.ts:270-273`). That couples the test to the store's SQL.
+   - **Recommended:** add an optional `listProjects?: (client: ClientBase) => Promise<Project[]>` to `VerifyDeps`, defaulting to the store's `listProjects`. This is exactly the precedent of `packages/cli/src/commands/projects.ts:24-25,43`.
+   - The model stays impossible to inject, so D4 is unaffected.
+2. **A seed project with no `indexed_commit`.**
+   - `indexedCommitOf` returns `undefined` for a `NULL` commit (`tests/unit/cli/cache-build.spec.ts:636`). A stored project without `indexedCommit` also has `undefined` (`read-graph.ts:39`).
+   - The spec does not say whether two missing commits count as a match.
+   - **Recommended:** a seed project without an indexed commit fails with `SEED_NOT_LOADED`. The seeds that `seed:build` writes always carry one, and `cache:build` already treats a missing commit as a stale seed (`cache-build.ts:207`).
+
+### 1. Scope against the ticket
+
+Clean.
+- The new elements are all recorded in DIS-44 `[enhanced]`: `indexedCommitOf` moving to `cache/seed-header.ts` and the indexed-commit comparison (A10), ignored arguments (A11), `yaml` and the workflow test (A5), and the ADR (A9).
+- The change still does not widen into DIS-43's docs: `DEMO.md`, `DEPLOYMENT.md` and `TESTING.md` stay with DIS-45.
+
+### 2. Inherited acceptance criteria
+
+Clean. Each parent acceptance criterion that the DIS-44 DoD inherits still has a requirement and a scenario:
+
+| Inherited criterion | Scenario |
+|---|---|
+| One ✓/✗ line per question, exit 0 | "Every golden answer matches" |
+| Altered golden answer → exit 1 and a diff of the field | "An altered golden answer is reported field by field" |
+| No HTTP request even with `LLM_*` set | "No request reaches a model even when one is configured" |
+| Separate job with its own Postgres that fails the pipeline | "The CI workflow runs verify in a job of its own" and "The verify job is green on the pull request" |
+| Stale fingerprint → "seed/golden fingerprint mismatch" and what to regenerate, before any question | "A stale seed fingerprint…" and "A stale golden file…" |
+
+There is no unresolved disagreement on scope between the sub-issue and the parent.
+
+### 3. Missing scenarios
+
+Clean. A10's new MUST (another indexed commit gives `SEED_NOT_LOADED`) is the fourth case of "A database without the current seed is reported". A1's branch is case (E) of "Count and span differences…".
+
+### 4. Ambiguity
+
+Clean. None of "fast", "easy", "secure", "efficient", "many", "appropriate" or "robust" appears in the proposal, design, spec or tasks. Every time figure is measurable: `< 60 s`, `< 5 s`, `timeout-minutes: 10`.
+
+### 5. Open decisions
+
+- **Improvable:** the `listProjects` seam (decision 1). Fix it in design C2 and C10.
+- **Improvable:** a missing indexed commit (decision 2). Fix it in the requirement "Golden projects are the seed's sample projects" and in design C7.
+- **Improvable:** how A11 ("arguments are ignored") is tested.
+  - Task 4.2 lists "extra arguments ignored" as a plain unit test.
+  - `runVerify(deps)` takes no `argv` (design C1), and the entry guard passes none, the same way `seed-load.ts:224-226` does. A unit test therefore cannot exercise it. It would be vacuous, or a test of the guard line, which mutation cannot target either.
+  - **Fix:** remove it from 4.2. Exercise it in manual testing instead, by adding `npm run verify -- extra` (exit `0`, same stdout) to task 10.2.
+
+### 6. Contradictions inside the change
+
+- **Improvable:** the amendment range is out of date.
+  - `proposal.md:15` says "the amendments A1–A9 of design.md … are recorded there too".
+  - `tasks.md` 13.1 says "the amendments A1–A9 of design.md".
+  - The ticket now holds A1–A11, and design C7 cites A10.
+  - **Fix:** change both to A1–A11.
+- **Improvable:** design C2 ("the store is always `createPostgresStore`") contradicts C10 ("a scripted store"). See decision 1.
+- Everything else agrees across the proposal, design, spec and tasks: order, codes, messages, `details`, output format, the summary lines placed last, and the CI job.
+
+### 7. Contradictions with the project
+
+- **Improvable:** the "no project" case in task 4.7.
+  - The task deletes *every* project inside the harness transaction.
+  - `tests/integration/cli/cache-build.spec.ts:154-155` notes that other integration files commit projects in parallel through real pools. A broad `DELETE FROM project` holds row locks on those committed rows until the rollback, which risks blocking or deadlocking parallel files.
+  - `verify` looks up golden projects by name only, so the case only needs "no `acme-shop`".
+  - **Fix:** delete only the project named `acme-shop` inside the transaction. This still matches the gotcha at `docs/project-context.md:942-944`.
+- Nothing new conflicts with `openspec/specs/{golden-answers,seed-load,explain,answer-cache,test-db-isolation}`:
+  - `seed-load` says at line 40 that golden fingerprints are not checked by `db:seed`, so checking them is `verify`'s job.
+  - The savepoint opener passes the `test-db-isolation` commit check.
+
+### 8. Contrast with the real code
+
+- **Improvable:** "born green" has only been measured on a local working tree.
+  - `collectFingerprintInputs` reads every file under `fixtures/acme-shop`, `fixtures/history` and the adapter/core directories. It skips only `.git` (`seed/fingerprint.ts:96-102`), not files that are ignored or untracked.
+  - `.gitignore` excludes `fixtures/*/vendor/` and `fixtures/*/node_modules/`. An ignored file present when `seed:build` ran would be in the header, but absent from the CI checkout.
+  - Nothing has ever compared the header against a clean checkout: `golden-coherence.spec.ts:12` leaves freshness to `verify`.
+  - No such directory exists today, so the risk is low. But if it happens, the "green on the pull request" scenario fails and D2 makes the fix expensive.
+  - **Fix:** in task 0.4, also compute the fingerprints in a clean `git worktree add` of `HEAD` (or confirm that `git status --porcelain --ignored -- fixtures packages/analyzers/php/src packages/adapters packages/core/src/index packages/core/src/knowledge packages/cli/src/seed` is empty). Add a Risks entry to design.md.
+- The rest of the design matches the code:
+  - `DatabaseUnavailable` carries `cannot connect to the database` and is thrown only on `connect` / `BEGIN` (`compose-index.ts:116-121,206-212`).
+  - The `isAbsolute` check on `workspaceRoot` is at `explain.ts:146`.
+  - A hit is served after `touchCacheEntry`, and evaluation mode answers `llm-required` (`explain.ts:303-313`).
+  - Stored `cacheHit: false` and served `true` are at `response-cache.ts:85,171`. Stored statements carry `status: 'current'` (`:106`).
+  - `indexedCommitOf` is exported, and its `literals` helper is private (`cache-build.ts:365-387`). `tests/unit/cli/cache-build.spec.ts:9` imports it from `cache-build`, so C1's re-export is needed and is planned.
+  - Adding `yaml` to the lock does not change the seed fingerprint, which reads only `tree-sitter-php` and `web-tree-sitter` from the lock (`seed/fingerprint.ts:42,75-82`).
+  - The `scope` loop is at `ci.yml:46`. The Stryker cache key at `ci.yml:181` is already covered in design Risks.
+  - Q1, Q3 and Q4 and their questions match `seeds/cache/acme-shop.json:15-16,123-124,180-181`.
+
+### 9. Task size
+
+Clean. After run 2's split, every task fits in one agent turn. Task 4.3 is the largest (four plain tests) and still fits.
+
+### 10. Mandatory steps
+
+Clean.
+- Step 0 comes first: 0.1 sets the Linear state, 0.2 handles the branch `feature/DIS-44-verify-smoke`.
+- Steps 6, 9, 10, 11, 12 and 14 are present with their labels, and step 9 names its report path (9.7).
+- Step 14 is last, with the three checks in order and the archive before the merge. The agent merging is authorised by the run's ADR, as resolved in run 1.
+- State is restored: `git diff --exit-code` in 10.4 and 10.5, `db:seed` in 10.6, and the `pg_dump -Fc` in 0.4 restored in 10.7 with the indicators compared.
+
+### 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| Verify command contract and configuration | Missing database configuration fails before verifying anything | 3.1, 3.2 |
+| | An invalid seed or golden file fails before connecting | 3.3 |
+| | An unreachable database is reported without its URL by verify | 4.8 |
+| Seed and golden fingerprints are current | A stale seed fingerprint stops verify before any question | 3.3 |
+| | A stale golden file stops verify before any question | 3.3 |
+| | A seed project without golden answers is reported | 3.3 |
+| Golden projects are the seed's sample projects | A database without the current seed is reported | 4.7 (plus 4.3 for order and indexed commit) |
+| Golden questions are asked without any model | No request reaches a model even when one is configured | 4.8 |
+| | Verify leaves the database as it was | 4.7 |
+| | A failure while asking is reported after the lines already printed | 4.1 |
+| Golden answers are compared on structure only | Every golden answer matches | 4.4, 4.5 |
+| | An altered golden answer is reported field by field | 4.6 |
+| | A missing cache entry is reported as a cache miss | 4.6 |
+| | Count and span differences are listed in a fixed order | 2.3 |
+| | Free text, ids and usage are not compared | 2.1, 2.2 |
+| Verify runs in a CI job of its own | The CI workflow runs verify in a job of its own | 5.1, 5.2, 5.3 |
+| | The verify job is green on the pull request | 14.3 (recorded check) |
+
+No row is empty.
+
+---
+
+### Corrections to apply
+
+### `openspec/changes/verify-smoke/specs/verify-smoke/spec.md`
+
+1. **Requirement "Golden projects are the seed's sample projects"** (decision 2). After "or its indexed commit is not the one the versioned seed records for it", add: ", or the versioned seed records no indexed commit for it".
+
+### `openspec/changes/verify-smoke/design.md`
+
+1. **C2** (decision 1). Replace "The store is always `createPostgresStore({ transaction: client })`" with:
+   > The store is always `createPostgresStore({ transaction: client })`; `listProjects` (optional, `(client) => Promise<Project[]>`, default the store's `listProjects`, as `commands/projects.ts:25`) is the one store seam, so the unit spec scripts projects without faking SQL rows.
+2. **C10.** Replace "through an `openTransaction` whose client answers `listProjects` through a scripted store" with "through the `listProjects` seam".
+3. **C7.** Append: "A seed project without an indexed commit is `SEED_NOT_LOADED` (as `cache:build` treats it as a stale seed, `cache-build.ts:207`)."
+4. **Risks.** Add:
+   > [The fingerprints were measured on a local working tree; `collectFingerprintInputs` reads ignored or untracked files under its directories (`seed/fingerprint.ts:96-102`), which a CI checkout lacks] → task 0.4 also computes them on a clean `git worktree` of `HEAD`; a difference is fixed before any code.
+
+### `openspec/changes/verify-smoke/proposal.md`
+
+1. **Line 15.** Replace "the amendments A1–A9 of design.md (those of the propose and of the spec audit)" with "the amendments A1–A11 (those of the propose and of the two spec-audit runs)".
+
+### `openspec/changes/verify-smoke/tasks.md`
+
+1. **0.4.** After "prints them next to the seed header and the golden file's values", add: "; run the same script in a clean `git worktree add <scratchpad>/clean HEAD` (removed afterwards) and confirm identical values".
+2. **4.2.** Remove "; extra arguments ignored".
+3. **10.2.** Append: "; `npm run verify -- extra` gives the same output and exit `0` (A11)".
+4. **4.3.** Replace "`SEED_NOT_LOADED` for the first failing project in golden-file order, and for a sample with the seed's id and another `indexedCommit` (A10)" with "`SEED_NOT_LOADED` (through the `listProjects` seam) for the first failing project in golden-file order, for a sample with the seed's id and another `indexedCommit` (A10), and for a seed project without an indexed commit".
+5. **4.7.** Replace "delete every project inside the harness transaction first" with "delete the project named `acme-shop` inside the harness transaction first".
+6. **13.1.** Replace "the amendments A1–A9 of design.md" with "the amendments A1–A11".
+
+### Linear DIS-44: `[enhanced]` part of the description (never the `[original]` block)
+
+Add at the end of "Enmiendas de la auditoría de spec (ejecución 2, 2026-10-17)", or under a new heading "Enmiendas de la auditoría de spec (ejecución 3, 2026-10-17)", in Spanish:
+
+> * **A12 (auditoría, ejecución 3; precisa A10).** Un proyecto de la semilla sin `indexed_commit` da `SEED_NOT_LOADED`, como ya lo trata `cache:build` (semilla desactualizada). `VerifyDeps` gana un único *seam* de store, `listProjects` (por defecto el del store), siguiendo el precedente de `commands/projects.ts`, para que los tests unitarios no simulen filas SQL. El modelo sigue sin poder inyectarse (D4).
+> * **A13 (auditoría, ejecución 3).** Las huellas medidas en el `[reality-map]` se vuelven a calcular en una copia limpia (`git worktree`) antes de escribir código, porque `collectFingerprintInputs` lee también los ficheros ignorados o sin versionar y el *checkout* de CI no los tiene. A11 (argumentos ignorados) se comprueba en la prueba manual, no con un test unitario: `runVerify` no recibe `argv`.
+
+### Resolution of run 3
+
+Verdict APPROVED: no blocking finding, no empty traceability row. The auditor printed
+`CHANGES REQUIRED` on its first line and corrected it on the next one ("the verdict is
+`APPROVED`"); the report's first line records the corrected verdict. Every improvable finding was
+folded in by the agent as lead engineer and recorded in DIS-44 `[enhanced]` ("Enmiendas de la
+auditoría de spec (ejecución 3)": A12, A13 and the other adjustments). No fourth run was needed.
+
+| Finding | Severity | Resolution |
+|---|---|---|
+| Decision 1 / 5 / 6: no `listProjects` seam, C2 vs C10 | improvable | A12: optional `listProjects` seam in `VerifyDeps` (precedent `commands/projects.ts`), design C2 and C10, task 4.3 |
+| Decision 2 / 5: seed project without an indexed commit | improvable | A12: `SEED_NOT_LOADED` (as `cache:build` treats it), spec requirement, design C7, task 4.3 |
+| 5: A11 untestable in a unit test | improvable | Removed from task 4.2; checked manually with `npm run verify -- extra` in task 10.2 |
+| 6: amendment range out of date | improvable | Proposal and task 13.1 now cite A1–A13 |
+| 7: broad delete in the "no project" case | improvable | Task 4.7 deletes only the project named `acme-shop` |
+| 8: fingerprints measured on a working tree only | improvable | A13: task 0.4 recomputes them in a clean `git worktree` of `HEAD`; design Risks entry |
