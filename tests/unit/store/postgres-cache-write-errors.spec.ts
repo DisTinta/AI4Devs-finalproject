@@ -79,7 +79,7 @@ describe('graph-store: answer cache writes when the database fails', () => {
 
   it('A store that cannot give a connection fails cache writes with its own error', async () => {
     // Arrange: an ended pool fails `connect()` before anything is sent.
-    const pool = new Pool({ connectionString: 'postgres://codemind:codemind@127.0.0.1:1/codemind' });
+    const pool = new Pool({ connectionString: 'postgres://127.0.0.1:1/codemind' });
     await pool.end();
     const store = createPostgresStore({ pool });
 
