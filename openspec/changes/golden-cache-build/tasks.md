@@ -57,11 +57,11 @@
 
 ## 9. Generate the golden answers with local Ollama (design C8, D14) — `golden-answers` → "The versioned golden file is coherent"
 
-- [ ] 9.1 RED: create `tests/unit/seed/golden-coherence.spec.ts` with "The versioned golden file matches the seed, the questions and the code". See it fail (no file)
-- [ ] 9.2 Re-check that the seed header fingerprints equal the ones the code computes (step 1 still holds); stop the Ollama tray app and every `ollama.exe` / `llama-server`; start `ollama serve` in the background with `CUDA_VISIBLE_DEVICES=-1 GGML_VK_VISIBLE_DEVICES=-1 OLLAMA_VULKAN=0 OLLAMA_LLM_LIBRARY=cpu OLLAMA_CONTEXT_LENGTH=16384` and confirm `library=cpu` in its log; `qwen2.5-coder` pulled
-- [ ] 9.3 Run `npm run cache:build` in the background (`DATABASE_URL`, `LLM_BASE_URL=http://127.0.0.1:11434/v1`, `LLM_MODEL=qwen2.5-coder`), its output to a log in the scratchpad, polled without blocking one call more than 10 minutes; record each attempt line, the duration and the database indicators of 0.4 before and after (unchanged)
-- [ ] 9.4 If it fails: one more full run (or `-- <id>` for the failing question); if it still fails, stop cleanly per D14 (In Review, Spanish comment, nothing written by hand)
-- [ ] 9.5 Stop `ollama serve` and any orphan `llama-server`; read `seeds/cache/acme-shop.json` in full (no absolute path, URL or key; answers about the right code), 9.1 green; commit the golden file alone (`feat(DIS-26): add the acme-shop golden answers generated with qwen2.5-coder`)
+- [x] 9.1 RED: create `tests/unit/seed/golden-coherence.spec.ts` with "The versioned golden file matches the seed, the questions and the code". See it fail (no file)
+- [x] 9.2 Re-check that the seed header fingerprints equal the ones the code computes (step 1 still holds); stop the Ollama tray app and every `ollama.exe` / `llama-server`; start `ollama serve` in the background with `CUDA_VISIBLE_DEVICES=-1 GGML_VK_VISIBLE_DEVICES=-1 OLLAMA_VULKAN=0 OLLAMA_LLM_LIBRARY=cpu OLLAMA_CONTEXT_LENGTH=16384` and confirm `library=cpu` in its log; `qwen2.5-coder` pulled
+- [x] 9.3 Run `npm run cache:build` in the background (`DATABASE_URL`, `LLM_BASE_URL=http://127.0.0.1:11434/v1`, `LLM_MODEL=qwen2.5-coder`), its output to a log in the scratchpad, polled without blocking one call more than 10 minutes; record each attempt line, the duration and the database indicators of 0.4 before and after (unchanged)
+- [x] 9.4 If it fails: one more full run (or `-- <id>` for the failing question); if it still fails, stop cleanly per D14 (In Review, Spanish comment, nothing written by hand)
+- [x] 9.5 Stop `ollama serve` and any orphan `llama-server`; read `seeds/cache/acme-shop.json` in full (no absolute path, URL or key; answers about the right code), 9.1 green; commit the golden file alone (`feat(DIS-26): add the acme-shop golden answers generated with qwen2.5-coder`)
 
 ## 10. Backend: Review and Update Existing Tests (MANDATORY)
 

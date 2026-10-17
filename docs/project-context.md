@@ -136,6 +136,13 @@ Verified against `package.json` (root and per package). If a command is not here
   export it) and `DATABASE_URL` of a migrated database (see Gotchas → seed). `npm run db:seed`
   (DIS-92) loads the seed: needs only `DATABASE_URL`, replaces every sample project in one
   transaction and prints `1 project loaded` plus one line per sample (see Gotchas → seed load).
+  Since DIS-26 it also loads every `seeds/cache/*.json` golden file into the answer cache of the
+  sample projects. `npm run cache:build [-- <id>...]` (DIS-26) regenerates those golden answers
+  (`seeds/cache/acme-shop.json`: Q1, Q3 and Q4 of `fixtures/README.md`) with a **live** model: needs
+  `DATABASE_URL` of a migrated database and `LLM_BASE_URL`/`LLM_MODEL` (reference: local Ollama
+  `qwen2.5-coder` on CPU, about 30 minutes; see Gotchas → golden answers); `CACHE_BUILD_TIMEOUT_MS`
+  (1..3 600 000, default 1 200 000) is its per-request limit, `LLM_TIMEOUT_MS` is not used. Run it
+  after `seed:build`, never in CI.
   `verify` is still a **placeholder**: it prints a "pending Ticket …" message and exits 0.
 - Local stack: `docker compose up -d` starts Postgres (`pgvector/pgvector:pg16`) on `5432`. On
   Windows, `make up` needs Git Bash/WSL; in native PowerShell run the `npm` scripts directly.
@@ -235,6 +242,21 @@ Verified against `package.json` (root and per package). If a command is not here
   five (core and the four adapters/analyzers).
 - `tests/support/` holds helpers shared by unit and integration tests, such as `sample-graph.ts`,
   a synthetic `KnowledgeGraph` builder.
+- **Golden answers tests (DIS-26).** `tests/support/golden-file.ts` has `goldenFile(overrides?)` and
+  `goldenEntry(id, overrides?)`: fresh valid golden values with `cachedAnswer()` responses and
+  synthetic fingerprints. Unit: `tests/unit/cache/golden-file.spec.ts`, `answer-fingerprint.spec.ts`,
+  `write-atomically.spec.ts`, `tests/unit/cli/long-fetch.spec.ts` (a local `node:http` server on
+  port 0), `tests/unit/cli/cache-build.spec.ts` (doubles for every seam of `CacheBuildDeps`, among
+  them `headCommit` and `load`: no database, no git), `tests/unit/seed/golden-questions.spec.ts`
+  (the constant against the README table) and `golden-coherence.spec.ts` (the versioned file).
+  Integration: `tests/integration/cli/cache-build.spec.ts` copies `fixtures/acme-shop` to a temporary
+  workspace, rebuilds its history once in `beforeAll`, passes a no-op `buildHistory`, a savepoint
+  `openTransaction` on the harness client, `createScriptedLlm` in live mode and `seedFingerprints`
+  returning the seed header's pair (CI never depends on the seed being fresh). The golden scenarios of
+  `tests/integration/cli/seed-load.spec.ts` pass a temporary `cacheDir`; its "Loading again" scenario
+  compares the sample projects' cache entries without their id (`reloadSnapshot`), because each load
+  re-inserts them. Never run DB integration tests while a real `cache:build` runs: its transaction
+  holds the sample project's rows for minutes and tests that delete projects wait on it.
 - **Hook order: Vitest 1.6 runs all hooks of one suite in parallel.** This is
   `sequence.hooks = 'parallel'`, the default here, and it applies to `beforeAll`, `beforeEach` and
   `afterEach` alike. A parent suite's hooks do run before a nested suite's.
@@ -713,6 +735,14 @@ services that must be started first, quirks of the local environment.
     the system prompt is lost and every answer is `invalid-model-output`. On CPU the full prompt takes
     longer than `LLM_TIMEOUT_MS`'s 300 s maximum (also Node's own `fetch` limit), so a live `ask`
     times out there; scripts can pass their own `fetch` and `timeoutMs` to `createLlm`.
+    `cache:build` (DIS-26) does exactly that. On this project's Windows machine Ollama only runs on
+    pure CPU (its CUDA and Vulkan backends crash): stop the tray app and every `ollama.exe` /
+    `llama-server`, then run `CUDA_VISIBLE_DEVICES=-1 GGML_VK_VISIBLE_DEVICES=-1 OLLAMA_VULKAN=0
+    OLLAMA_LLM_LIBRARY=cpu OLLAMA_CONTEXT_LENGTH=16384 ollama serve` (its log must show `library=cpu`)
+    and `DATABASE_URL=… LLM_BASE_URL=http://127.0.0.1:11434/v1 LLM_MODEL=qwen2.5-coder npm run
+    cache:build` in the background, logging to a file (one answer is several minutes of prompt
+    evaluation at ~18 tokens/s); stop `ollama.exe` and any orphan `llama-server` afterwards.
+    `llama3.2` does not produce strict JSON (`invalid-model-output`).
   - Gotcha (DIS-70, test doubles): `tests/support/scripted-llm.ts` routes `purpose: 'verify'` to
     `options.verify`, whose default entails every pair, so a test that does not set it gets
     `entailed`; in the shared `order` an `answer` call pushes `complete` and a `verify` call `verify`.
@@ -893,13 +923,57 @@ services that must be started first, quirks of the local environment.
   the seed and commits. Non-sample projects are never touched. **Each `db:seed` / `make up` deletes by
   `CASCADE` the `query_log`, `claim`, `evidence` and `cache_entry` rows of the sample projects**
   (design D2). Since DIS-39 `explain` writes `claim`/`evidence`, so every `db:seed` / `make up`
-  deletes the claims `explain` stored for a sample project (acme-shop); DIS-26 will reload its cache
-  inside `db:seed`. Its summary is
+  deletes the claims `explain` stored for a sample project (acme-shop). Since DIS-26 `db:seed` also
+  reads every `*.json` directly in `seeds/cache/` (name order; a missing or empty directory means
+  none; subdirectories and other files are ignored) **before connecting**, checks each with
+  `checkGoldenFile` (shape, file named `<project>.json` after a seed project, `questionNormalized` =
+  `normalizeQuestion(question)`, unique ids and keys, every `response` a stored answered response)
+  and fails with `INVALID_SEED` reason `cache` and `details.file` (message
+  `<file> is not a loadable codemind golden file`, never a reason detail); then, after `loadSeed` and
+  in the same transaction, saves each entry with the store's `saveCacheEntry` (new id, `hit_count` 0),
+  so a failed save rolls the whole load back (`INTERNAL`). Golden fingerprints are not checked there
+  (`verify`, DIS-44). stdout does not change. Its summary is
   the `make up` text: `1 project loaded` and `  acme-shop  php/laravel  174 nodes · 170 edges`,
   **which differs from the illustrative `2 projects loaded` block of `readme.md` §1.4 until
   CM-HU-18** (PH-02). After a local `make up`, the database holds a committed acme-shop with the seed's
   deterministic ids: integration tests that need no acme-shop, or that compare against seed ids, clear
   the projects they depend on inside their harness transaction first.
+- **Golden answers (`cache:build`, DIS-26, `packages/cli/src/cache-build.ts` +
+  `packages/cli/src/cache/`; a dev script, not a `codemind` subcommand).** Order, each step only after
+  the previous one: the ids (`USAGE`, exit 1, `details.allowed`), `DATABASE_URL`, the model
+  configuration as `ask` reads it (evaluation mode → `MISSING_CONFIG` `LLM_BASE_URL`),
+  `CACHE_BUILD_TIMEOUT_MS` (`INVALID_CONFIG`); the seed, read and checked as `db:seed` does, whose
+  header fingerprints must equal the ones `seed:build` would write now (else `GOLDEN_STALE` reason
+  `seed`: run `seed:build` first); with ids, the existing golden file (`GOLDEN_STALE` `missing`,
+  `invalid`, `fingerprint` or `model`); then `buildOne('acme-shop')` and `git rev-parse HEAD` against
+  the seed's `indexed_commit` (`GOLDEN_STALE` `seed`). Each golden question gets up to 3 attempts, each
+  in its own transaction that runs `loadSeed`, `explain` (`useCache: false`, a fresh verification
+  cache, no daily ceiling) and is **always rolled back**: the author's database never changes, the
+  answers cite the seed's deterministic file ids and `priorClaims` is empty. `invalid-model-output`,
+  `broken-evidence`, `no-evidence`, a non-cacheable answer (`not-cacheable`) and `LlmUnavailable`
+  `timeout`/`network` are retried; `no-anchor`, `over-budget` and `unsafe-content` (the response
+  JSON holds `AKIA[A-Z0-9]{16}`, an absolute repo/workspace root, `DATABASE_URL`, `LLM_BASE_URL` or
+  `LLM_API_KEY`, raw or JSON-escaped) fail at once as `GOLDEN_NOT_CACHEABLE` `{ id, reason }`; any other
+  model failure is `LLM_UNAVAILABLE` at once. stdout gets one line per attempt
+  (`Q1: answered in <s> s (attempt n/3)` / `Q1: attempt n/3 not cacheable (<reason>)`) and, on success,
+  `acme-shop: <n> golden answers -> seeds/cache/acme-shop.json`; stderr one JSON error line on failure.
+  The file is written only when every requested question succeeded: `mkdirSync` of its directory,
+  then `writeAtomically` (`packages/cli/src/cache/write-atomically.ts`, a copy of `seed-build.ts`'s,
+  which is a seed fingerprint input and is only imported from). Requests go through `longFetch`
+  (`packages/cli/src/cache/long-fetch.ts`, `node:http` with the caller's `signal` as the only limit),
+  because Node's `fetch` ends any request at 300 s. **Format** (`golden-file.ts`): `format: 1`,
+  `project`, `seed` (the seed header's two fingerprints), `answerFingerprint`, `generatedWith`
+  (`model`, `verifyModel`), `entries` (`id`, `question`, `questionNormalized`, `response`,
+  `reviews` — empty until DIS-34); no generation time; canonical render = 2-space JSON in that key
+  order, LF, final newline. **`answerFingerprint`** (`answer-fingerprint.ts`) = the seed's
+  `fingerprint()` over `ANSWER_FINGERPRINT_FILES` (explain prompt, untrusted-text, sanitize, limits,
+  statement schema, typing rules; verify prompt and policy; confidence weights; normalize and
+  response-cache); `context/` is out on purpose (DIS-26 D11). **Touching a seed fingerprint input stales
+  the seed and, through `seed.*`, the golden file: regenerate in the order `seed:build` →
+  `cache:build`.** Touching an answer fingerprint input stales only the golden file. The golden ids of
+  claims and evidence are random UUIDs of the generating transaction (never looked up).
+  `tests/unit/seed/golden-coherence.spec.ts` fails when the versioned golden file stops matching the
+  seed's file rows, the golden questions or the canonical render.
 - **The CLI `ask` command** (DIS-40, `packages/cli/src/commands/ask.ts`): `ask <project> <question>`,
   the transport of `explain`. Check order, all before any connection: the arguments (`USAGE`, exit
   `2`, fixed messages that never quote an argument; a question starting with `-` goes after `--`),
