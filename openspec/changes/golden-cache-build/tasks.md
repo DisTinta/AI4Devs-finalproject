@@ -30,8 +30,8 @@
 
 ## 5. Long request function (TDD, design C4) — `golden-answers` → "Cache build command contract and configuration"
 
-- [ ] 5.1 RED: create `tests/unit/cli/long-fetch.spec.ts` with "A slow model answer within the build's limit is kept" (local `node:http` server on port 0 answering after 300 ms; `createOpenAiCompatibleLlm` with `{ fetch: longFetch }`). See it fail
-- [ ] 5.2 GREEN: `packages/cli/src/cache/long-fetch.ts` (`POST`, headers, body, `signal`, `redirect: 'manual'`, `Response` built after the whole body); add in the same spec file, as plain tests (not scenarios), a 3xx returned unfollowed and a refused connection reported as `network` with its system code
+- [x] 5.1 RED: create `tests/unit/cli/long-fetch.spec.ts` with "A slow model answer within the build's limit is kept" (local `node:http` server on port 0 answering after 300 ms; `createOpenAiCompatibleLlm` with `{ fetch: longFetch }`). See it fail
+- [x] 5.2 GREEN: `packages/cli/src/cache/long-fetch.ts` (`POST`, headers, body, `signal`, `redirect: 'manual'`, `Response` built after the whole body); add in the same spec file, as plain tests (not scenarios), a 3xx returned unfollowed and a refused connection reported as `network` with its system code
 
 ## 6. Cache build command: arguments, configuration and stale inputs (TDD, design C5) — `golden-answers` → "Cache build command contract and configuration", "The seed the answers are built on is current", "Partial regeneration", "A failed build never leaves a broken golden file"
 
