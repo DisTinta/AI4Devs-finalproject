@@ -111,7 +111,7 @@
 
 ## 15. Pull request preparation
 
-- [ ] 15.1 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the Why marked as the agent's decision (DIS-21 `[enhanced]` D1–D14 and the post-audit amendments), the Stryker score and "no new dependency, no migration"
+- [x] 15.1 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the Why marked as the agent's decision (DIS-21 `[enhanced]` D1–D14 and the post-audit amendments), the Stryker score and "no new dependency, no migration"
 
 ## 16. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
