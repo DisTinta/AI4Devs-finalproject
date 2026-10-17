@@ -118,6 +118,24 @@ async function snapshot(client: Client): Promise<Record<string, unknown>> {
   return result;
 }
 
+/**
+ * {@link snapshot} for a reload (DIS-26, seed-load → "Sample projects are loaded idempotently"): the
+ * answer cache entries of the sample projects are replaced on every load with new ids, so they are
+ * compared without their id, by project and normalized question; every other row is compared whole.
+ */
+async function reloadSnapshot(client: Client): Promise<Record<string, unknown>> {
+  const result = await snapshot(client);
+  const { rows } = await client.query(
+    `SELECT c.*, p.is_sample FROM cache_entry c JOIN project p ON p.id = c.project_id
+      ORDER BY c.project_id, c.question_normalized COLLATE "C", c.id`,
+  );
+  result.cache_entry = rows.map(({ is_sample: isSample, ...row }) => {
+    if (isSample) delete row.id;
+    return row;
+  });
+  return result;
+}
+
 /** Gives `projectId` one row in each table the domain does not write yet, so their survival is visible. */
 async function addHistoryRows(client: Client, projectId: string): Promise<void> {
   const claim = await client.query<{ id: string }>(
@@ -173,7 +191,7 @@ describeWithDatabase('db:seed (integration)', () => {
     const mine = await store.createProject({ name: unique('mine'), rootPath: '/repos/mine', language: 'php' });
     await store.saveGraph(mine, sampleGraph());
     await addHistoryRows(db(), mine);
-    const before = await snapshot(db());
+    const before = await reloadSnapshot(db());
 
     // Act
     const second = await load(db());
@@ -184,8 +202,9 @@ describeWithDatabase('db:seed (integration)', () => {
     expect(second.stdout).toBe(first.stdout);
     expect(second.stderr).toBe('');
     // Same rows, same ids, same content in every table: the samples are reloaded with their deterministic
-    // ids and the user's project, with its claim, evidence, query log and cache rows, is untouched.
-    expect(await snapshot(db())).toEqual(before);
+    // ids and the user's project, with its claim, evidence, query log and cache rows, is untouched. The
+    // samples' golden cache entries (DIS-26) come back with new ids, so only their id is not compared.
+    expect(await reloadSnapshot(db())).toEqual(before);
     const { rows } = await db().query<{ id: string }>("SELECT id FROM project WHERE name = 'acme-shop'");
     expect(rows).toEqual([{ id: ACME_ID }]);
   });
