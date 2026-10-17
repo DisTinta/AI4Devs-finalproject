@@ -91,4 +91,64 @@ describe('graph-store: answer cache writes when the database fails', () => {
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).toMatch(/end/i);
   });
+
+  it('A deadlocked cache write retries on a fresh connection and succeeds', async () => {
+    // Arrange: the insert deadlocks once (CI evidence of DIS-21: concurrent cache writes racing an
+    // unrelated project write), then a fresh connection's insert goes through.
+    const releases: Array<ReturnType<typeof vi.fn>> = [];
+    let insertCalls = 0;
+    const pool = {
+      connect: vi.fn(async () => {
+        const release = vi.fn();
+        releases.push(release);
+        const client = {
+          query: vi.fn(async (sql: string) => {
+            if (/^(BEGIN|COMMIT|ROLLBACK)$/.test(sql)) return { rows: [], rowCount: 0 };
+            if (/INSERT INTO cache_entry/.test(sql)) {
+              insertCalls += 1;
+              if (insertCalls === 1) {
+                const deadlock = Object.assign(new Error('deadlock detected'), { code: '40P01' });
+                throw deadlock;
+              }
+              return { rows: [], rowCount: 1 };
+            }
+            return { rows: [], rowCount: 1 };
+          }),
+          release,
+        };
+        return client as unknown as ClientBase;
+      }),
+    } as unknown as Pool;
+    const store = createPostgresStore({ pool });
+
+    // Act
+    await store.saveCacheEntry(randomUUID(), KEY, { kind: 'answered' });
+
+    // Assert: a second connection carried the retry; the first was released clean (not destroyed).
+    expect(insertCalls).toBe(2);
+    expect(releases).toHaveLength(2);
+    expect(releases[0]).toHaveBeenCalledWith(undefined);
+    expect(releases[1]).toHaveBeenCalledWith();
+  });
+
+  it('A deadlock that keeps recurring still fails as an opaque cache write error', async () => {
+    // Arrange: every attempt deadlocks, so the retries exhaust and the write fails like any other.
+    const client = {
+      query: vi.fn(async (sql: string) => {
+        if (/^(BEGIN|COMMIT|ROLLBACK)$/.test(sql)) return { rows: [], rowCount: 0 };
+        if (/INSERT INTO cache_entry/.test(sql)) throw Object.assign(new Error('deadlock detected'), { code: '40P01' });
+        return { rows: [], rowCount: 1 };
+      }),
+      release: vi.fn(),
+    };
+    const pool = { connect: vi.fn(async () => client) } as unknown as Pool;
+    const store = createPostgresStore({ pool });
+
+    // Act
+    const error = await store.saveCacheEntry(randomUUID(), KEY, { kind: 'answered' }).catch((e: unknown) => e);
+
+    // Assert
+    expect(error).toBeInstanceOf(CacheWriteFailed);
+    expect(pool.connect).toHaveBeenCalledTimes(3);
+  });
 });

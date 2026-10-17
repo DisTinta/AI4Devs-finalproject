@@ -383,6 +383,23 @@ destination here (`docs/project-context.md` → Tracking deferred findings).
   loads them in `db:seed`; **B — CM-HU-14.1** checks their fingerprint.
 - **D** — the accepted risks above.
 
+CI (PR #47, `quality` job, run `38990401555`), 2026-10-17 — **A**, fixed in this change: "Concurrent
+saves of one key leave one entry" (`tests/integration/store/cache-entry.spec.ts`) failed once under the
+full suite's load with one of the six saves rejected. The job's Postgres log showed the real cause: a
+genuine `deadlock detected` (`40P01`) between one save's implicit foreign-key check on the `project` row
+(`INSERT INTO cache_entry ... SELECT p.id ... FROM project p WHERE p.id = $1`, which takes a `FOR KEY
+SHARE` lock) and an unrelated concurrent `DELETE FROM project` from another test file's cleanup — a
+known Postgres interaction between FK locks and deletes on the referenced table, not a bug in the
+cache's own serialisation (the `pg_advisory_xact_lock` already serialises the six saves against each
+other; this deadlock involves a seventh, unrelated transaction). `atomically` (own connections only) now
+retries `work` on a fresh connection, up to three attempts, when the rollback succeeded and the error is
+`40P01` (deadlock) or `40001` (serialization failure); any other error, or a failed rollback, is mapped
+and thrown as before, unchanged. New tests: `tests/unit/store/postgres-cache-write-errors.spec.ts` "A
+deadlocked cache write retries on a fresh connection and succeeds" and "A deadlock that keeps recurring
+still fails as an opaque cache write error". `npx vitest run` (1492 tests), `npm run lint`, `npm run
+typecheck`, `npm run lint:architecture` and `npm run docs:coverage` all green afterwards (see the step 11
+report's CI addendum for the run links).
+
 Spec audit (`reports/2026-10-17-spec-audit.md`), run 1 (CHANGES REQUIRED) — all **A**, fixed in this
 change's artifacts on 2026-10-17:
 

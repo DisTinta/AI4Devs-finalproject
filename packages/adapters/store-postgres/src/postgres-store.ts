@@ -79,6 +79,22 @@ export type StoreConnection = { pool: Pool } | { transaction: ClientBase };
 
 const SAVEPOINT = 'store_write';
 const UNIQUE_VIOLATION = '23505';
+const DEADLOCK_DETECTED = '40P01';
+const SERIALIZATION_FAILURE = '40001';
+// Own connections only (design C4 addendum, CI evidence of DIS-21): a write that validates a foreign
+// key (the project row of a cache write) takes a short-lived `FOR KEY SHARE` lock on it, which can
+// deadlock or fail to serialize against an unrelated concurrent write on the same table, even though
+// neither transaction is wrong on its own. Postgres always resolves the conflict by aborting one side,
+// so the aborted side retries on a fresh connection instead of failing a write nothing else is wrong
+// with. A caller-owned transaction never retries: it is already mid-transaction, and a `SAVEPOINT`
+// rollback cannot replay statements that ran before it joined this call.
+const MAX_WRITE_ATTEMPTS = 3;
+
+/** Whether `error` is a transient Postgres conflict (DIS-21 design C4 addendum) a retry can resolve. */
+function isTransientConflict(error: unknown): boolean {
+  const code = (error as { code?: unknown } | null)?.code;
+  return code === DEADLOCK_DETECTED || code === SERIALIZATION_FAILURE;
+}
 
 /**
  * Runs `work` atomically on `connection` (design D3). When `mapWriteError` is given (DIS-39 design D7),
@@ -87,7 +103,9 @@ const UNIQUE_VIOLATION = '23505';
  * succeeded, the rollback to it and `RELEASE` included. A failed rollback is mapped even when the
  * write first raised a domain error: the rollback failure is the error then. A failure to connect, or a failing
  * `SAVEPOINT` (a client outside a transaction block, or an aborted caller transaction), propagates
- * unchanged.
+ * unchanged. On its own connections, a deadlock or a serialization failure whose rollback succeeded
+ * retries `work` on a fresh connection up to `MAX_WRITE_ATTEMPTS` times (design C4 addendum) before
+ * it is mapped like any other error.
  */
 async function atomically<T>(
   connection: StoreConnection,
@@ -95,24 +113,30 @@ async function atomically<T>(
   mapWriteError?: (error: unknown) => unknown,
 ): Promise<T> {
   if ('pool' in connection) {
-    const client = await connection.pool.connect();
-    let broken: Error | undefined;
-    try {
-      await client.query('BEGIN');
-      const result = await work(client);
-      await client.query('COMMIT');
-      return result;
-    } catch (error) {
-      await client.query('ROLLBACK').catch((rollbackError: Error) => {
-        broken = rollbackError;
-      });
-      if (mapWriteError === undefined) throw error;
-      // A failed rollback is a database failure of the write, whatever the first error was.
-      throw mapWriteError(broken ?? error);
-    } finally {
-      // A client whose rollback failed is in an unknown state: destroy it instead of pooling it.
-      client.release(broken);
+    for (let attempt = 1; attempt <= MAX_WRITE_ATTEMPTS; attempt++) {
+      const client = await connection.pool.connect();
+      let broken: Error | undefined;
+      try {
+        await client.query('BEGIN');
+        const result = await work(client);
+        await client.query('COMMIT');
+        client.release();
+        return result;
+      } catch (error) {
+        await client.query('ROLLBACK').catch((rollbackError: Error) => {
+          broken = rollbackError;
+        });
+        const retryable = broken === undefined && attempt < MAX_WRITE_ATTEMPTS && isTransientConflict(error);
+        // A client whose rollback failed is in an unknown state: destroy it instead of pooling it.
+        client.release(broken);
+        if (retryable) continue;
+        if (mapWriteError === undefined) throw error;
+        // A failed rollback is a database failure of the write, whatever the first error was.
+        throw mapWriteError(broken ?? error);
+      }
     }
+    // Unreachable: the loop always returns or throws by its last iteration.
+    throw new Error('atomically: exhausted retries without resolving');
   }
   const client = connection.transaction;
   await client.query(`SAVEPOINT ${SAVEPOINT}`);

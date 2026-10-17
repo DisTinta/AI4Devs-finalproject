@@ -183,3 +183,20 @@ credentials was replaced by a credential-free one.
   0 errors, 3 pre-existing `no-orphans` warnings.
 - Data state: the `/show-spec-working` run left its `query_log` rows in the local database (see that
   report, State); `cache_entry` is back to 0 and `project`/`claim` are unchanged.
+
+## Addendum — CI (task 16.3), 2026-10-17
+
+- PR: https://github.com/DisTinta/AI4Devs-finalproject/pull/47 (`feature/DIS-21-evaluation-cache` →
+  `feature/entrega-2-CRN`).
+- First run (`38990401555`): `mutation` passed (incremental; see the 11.4 score above for the forced
+  local run). `quality` failed once: "Concurrent saves of one key leave one entry"
+  (`tests/integration/store/cache-entry.spec.ts`) had one of six concurrent saves rejected under the
+  full suite's load. The job's own Postgres log showed a genuine `deadlock detected` (`40P01`) between
+  one save's implicit foreign-key check on the `project` row and an unrelated concurrent `DELETE FROM
+  project` from another test file's cleanup — a real, if rare, Postgres interaction, not a bug in the
+  cache's own serialisation. Fixed in this change (design.md → Follow-ups, "CI (PR #47, `quality` job,
+  run `38990401555`)"): `atomically` (own connections) now retries a deadlocked or non-serializable
+  write on a fresh connection, up to three attempts, before mapping it like any other write error. Local
+  verification after the fix: `npx vitest run` (with `DATABASE_URL`) 123 files, 1 492 tests passed;
+  `npm run lint`, `npm run typecheck`, `npm run lint:architecture` and `npm run docs:coverage` all clean.
+- Second run: pending — see the PR's checks for the final link once green.
