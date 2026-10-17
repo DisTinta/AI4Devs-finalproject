@@ -34,9 +34,9 @@
 
 ## 5. CI job (design C9) — `verify-smoke` → "Verify runs in a CI job of its own"
 
-- [ ] 5.1 Add `yaml` (`^2.9.1`, the version already in `package-lock.json`) to the root `devDependencies` and run `npm install`; only the root entry of the lock file changes (A5)
-- [ ] 5.2 RED: create `tests/unit/ci/verify-job.spec.ts` with "The CI workflow runs verify in a job of its own" (including no `continue-on-error` and no other job on `POSTGRES_DB: verify`). See it fail
-- [ ] 5.3 GREEN: the `verify` job in `.github/workflows/ci.yml` (own `pgvector/pgvector:pg16` service, `POSTGRES_DB: verify`, `npm ci` → `db:migrate` → `db:seed` → `verify`, no `LLM_*`, `timeout-minutes: 10`, a header comment citing PH-23) and `verify` in the `scope` loop and its comment; `quality` untouched
+- [x] 5.1 Add `yaml` (`^2.9.1`, the version already in `package-lock.json`) to the root `devDependencies` and run `npm install`; only the root entry of the lock file changes (A5)
+- [x] 5.2 RED: create `tests/unit/ci/verify-job.spec.ts` with "The CI workflow runs verify in a job of its own" (including no `continue-on-error` and no other job on `POSTGRES_DB: verify`). See it fail
+- [x] 5.3 GREEN: the `verify` job in `.github/workflows/ci.yml` (own `pgvector/pgvector:pg16` service, `POSTGRES_DB: verify`, `npm ci` → `db:migrate` → `db:seed` → `verify`, no `LLM_*`, `timeout-minutes: 10`, a header comment citing PH-23) and `verify` in the `scope` loop and its comment; `quality` untouched
 
 ## 6. Backend: Review and Update Existing Tests (MANDATORY)
 
