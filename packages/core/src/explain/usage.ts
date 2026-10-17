@@ -47,9 +47,9 @@ export interface UsageParts {
 }
 
 /**
- * The `usage` of an answered answer (DIS-74 decision D4, D5): totals are the generation plus the
- * verification, the cost rounded once to 6 decimals, the savings over those totals, and the cache flag
- * `false` until the answer cache exists (DIS-21).
+ * The `usage` of an answered answer of the model (DIS-74 decision D4, D5): totals are the generation
+ * plus the verification, the cost rounded once to 6 decimals, the savings over those totals, and the
+ * cache flag `false`. A hit of the answer cache gets its usage from `answerFromCache` (DIS-21).
  *
  * @param parts The generation and verification usage, the baseline and the latency.
  */
@@ -98,11 +98,14 @@ export interface QueryLogParts {
   baselineTokens: number | null;
   /** The latency of the call, from {@link latencyMs}. */
   latencyMs: number;
+  /** Whether the answer came from the answer cache (DIS-21); `false` when absent. */
+  cacheHit?: boolean;
 }
 
 /**
  * The `query_log` row of one explain call (DIS-74 design U6): capability `explain`, the cache flag
- * `false`, and totals that include the verification, as {@link aggregateUsage} computes them.
+ * of `parts` (`false` unless the answer came from the answer cache, DIS-21), and totals that include
+ * the verification, as {@link aggregateUsage} computes them.
  *
  * @param parts The project, the question, the usage, the baseline and the latency of the call.
  */
@@ -117,7 +120,7 @@ export function queryLogEntry(parts: QueryLogParts): QueryLogEntry {
     baselineTokens: parts.baselineTokens,
     costUsd: roundCost(generation.costUsd + verification.costUsd),
     latencyMs: parts.latencyMs,
-    cacheHit: false,
+    cacheHit: parts.cacheHit ?? false,
     verifyInputTokens: verification.inputTokens,
     verifyOutputTokens: verification.outputTokens,
     verifyCostUsd: verification.costUsd,

@@ -10,7 +10,7 @@ import { MAX_QUESTION_CHARS } from './limits.js';
 // fault leaves this module.
 
 /** The fields an invalid explain request can be blamed on; `request` is the request as a whole. */
-export const EXPLAIN_REQUEST_FIELDS = ['request', 'projectId', 'question', 'tokenBudget', 'hops'] as const;
+export const EXPLAIN_REQUEST_FIELDS = ['request', 'projectId', 'question', 'tokenBudget', 'hops', 'useCache'] as const;
 
 /** A field an invalid explain request can be blamed on. */
 export type ExplainRequestField = (typeof EXPLAIN_REQUEST_FIELDS)[number];
@@ -30,7 +30,9 @@ export class InvalidExplainRequest extends DomainError {
 /**
  * The request of `explain`: the project, a question of 1 to `MAX_QUESTION_CHARS` code points that is
  * not only whitespace and holds no U+0000 (every call writes it to `query_log`, whose `text` cannot hold
- * it: DIS-74 decision D10), and optionally the budget and hops of the context pack. No other field.
+ * it: DIS-74 decision D10), optionally the budget and hops of the context pack, and optionally `useCache`
+ * (default `true`; `false` skips the answer-cache lookup but still saves a cacheable answer, DIS-21
+ * decision D6). No other field.
  * `projectId` is only checked to be a string: anchoring reports a malformed or unknown id as
  * `ProjectNotFound`.
  */
@@ -44,6 +46,7 @@ export const explainRequestSchema = z.strictObject({
     .refine(hasNoNul),
   tokenBudget: z.int().min(TOKEN_BUDGET_MIN).max(TOKEN_BUDGET_MAX).optional(),
   hops: z.int().min(1).max(MAX_HOPS).optional(),
+  useCache: z.boolean().optional(),
 });
 
 /** The request of `explain`. */

@@ -10,12 +10,13 @@ with a reason instead of a plausible explanation when there is no anchor, no mod
 
 ### Requirement: Explain request
 
-The explain use case SHALL take the project id, the question, and optionally `tokenBudget` and `hops`
-with the ranges and defaults of the context pack, plus the store, the source reader, the model, the
+The explain use case SHALL take the project id, the question, optionally `tokenBudget` and `hops`
+with the ranges and defaults of the context pack, and optionally `useCache` (default `true`,
+requirement "Answer cache"), plus the store, the source reader, the model, the
 absolute workspace root and the clock. Before any call to the store, the source reader or the model:
 
-- the request MUST be an object holding only `projectId`, `question`, `tokenBudget` and `hops`; a
-  request that is not an object, or that holds any other field, is rejected naming `request`;
+- the request MUST be an object holding only `projectId`, `question`, `tokenBudget`, `hops` and
+  `useCache`; a request that is not an object, or that holds any other field, is rejected naming `request`;
 - `projectId` MUST be a string; its form is not checked here, because anchoring reports a malformed
   or unknown id as `ProjectNotFound` whenever it searches; a question without search terms (only
   stop words, short tokens or punctuation) answers `no-anchor` without checking the project, as the
@@ -25,9 +26,10 @@ absolute workspace root and the clock. Before any call to the store, the source 
   requirement "Query log", and a database text cannot hold that character); an astral character,
   such as an emoji, counts as one;
 - `tokenBudget` and `hops`, when given, MUST be integers in their ranges;
+- `useCache`, when given, MUST be a boolean;
 - otherwise the call MUST fail with the domain error `InvalidExplainRequest` (code
   `INVALID_EXPLAIN_REQUEST`), whose `field` is one of `request`, `projectId`, `question`,
-  `tokenBudget` and `hops` (a closed set declared once) and which never holds the value;
+  `tokenBudget`, `hops` and `useCache` (a closed set declared once) and which never holds the value;
 - a workspace root that is not absolute MUST fail with `RangeError` naming `workspaceRoot`, as the
   context pack does.
 
@@ -67,6 +69,14 @@ absolute workspace root and the clock. Before any call to the store, the source 
   `InvalidExplainRequest` naming `hops`, and with `RangeError` naming `workspaceRoot`
 - **AND** no call was sent to the store
 
+#### Scenario: A non-boolean cache flag is rejected before the store
+
+- **WHEN** explain is called, from a caller without types, with `useCache` `"yes"`, and with `useCache`
+  `1`
+- **THEN** each call fails with `InvalidExplainRequest` naming `useCache`, and no error holds the value
+  given
+- **AND** no call was sent to the store, the source reader or the model
+
 #### Scenario: A question holding U+0000 is rejected before the store
 
 - **WHEN** explain is called with the question `PriceCalculator\u0000compute`
@@ -82,7 +92,10 @@ Explain SHALL decide its answer in this order, and each step SHALL make exactly 
    `UNKNOWN` answer.
 2. Anchor the question once. An empty anchor SHALL answer `UNKNOWN` with reason `no-anchor`, in live
    and in evaluation mode, without building the pack.
-3. (The answer cache of DIS-21 will sit here.)
+3. Unless the request sets `useCache: false`, look the question's cache key up once in the answer
+   cache of the project (requirement "Answer cache"). An entry whose stored response is accepted
+   SHALL answer from the cache, in live and in evaluation mode, without building the pack, and its hit
+   SHALL be recorded; anything else is a miss and goes on to step 4.
 4. When the model is in evaluation mode, answer `UNKNOWN` with reason `llm-required` and the message
    `evaluation mode (cache-only): set LLM_* to enable free-form asks`, without building the pack.
 5. Build the context pack from the anchor already computed. A pack with no span SHALL answer
@@ -106,28 +119,35 @@ Explain SHALL decide its answer in this order, and each step SHALL make exactly 
 13. Store and return the verified statements (requirements "Answer with typed statements" and
     "Persistence failure").
 
+A cacheable answer of steps 10 and 13 SHALL be saved in the answer cache after the claim write and
+before its `query_log` row (requirement "Answer cache").
+
 Before returning any answer of the steps above, `UNKNOWN` included, explain SHALL send its
 `query_log` row to the store (requirement "Query log").
 
-The prior-claims read SHALL therefore be called 0 times for an invalid request, `no-anchor`,
-`llm-required` and `over-budget`, and once, before the model, for `invalid-model-output`,
+The prior-claims read SHALL therefore be called 0 times for an invalid request, `no-anchor`, a cache
+hit, `llm-required` and `over-budget`, and once, before the model, for `invalid-model-output`,
 `no-evidence`, `broken-evidence` and an answer with statements. The model SHALL be called 0 times up
-to step 7, once with the purpose `answer` at step 8, and with the purpose `verify` only at step 12:
+to step 7 (a cache hit included), once with the purpose `answer` at step 8, and with the purpose `verify` only at step 12:
 0 times for `invalid-model-output`, `no-evidence` and `broken-evidence`. The source reader SHALL
-receive the pack's batched read and, for `broken-evidence` and an answer with statements only, the
-verification reads of step 11 after the model; none for `invalid-model-output` or `no-evidence`.
+receive no call for a cache hit (no pack is built). Otherwise it SHALL receive the pack's batched
+read and, for `broken-evidence` and an answer with statements only, the verification reads of step
+11 after the model; `invalid-model-output` and `no-evidence` get no verification read. The answer cache SHALL be looked up 0 times for an invalid request, `no-anchor` and a
+request with `useCache: false`, and once otherwise.
 
 An `UNKNOWN` answer SHALL have exactly `kind: 'unknown'`, `answer: 'UNKNOWN'`, `reason` (one of the
 closed set `no-anchor`, `llm-required`, `over-budget`, `invalid-model-output`, `no-evidence`,
 `broken-evidence`, declared once in that order), `message` only for `llm-required`,
 `statements: []`, `evidence: []` and `events`. It SHALL NOT
 carry `persisted`, prior claims, `usage` nor `confidence`, SHALL NOT carry the model's answer text, and no claim or
-evidence SHALL be written for it; only its `query_log` row is written.
+evidence SHALL be written for it; only its `query_log` row is written and, for a cacheable `UNKNOWN`
+(requirement "Answer cache"), its cache entry.
 
 Errors SHALL propagate unchanged and write no claim and no evidence (a `query_log` row is written
 before an error only when a model call resolved before it, requirement "Query log"): `ProjectNotFound`, `SourceUnavailable`, the
-`LlmUnavailable` and `BudgetExhausted` of the `answer` call, any failure of the prior-claims read
-(then the model SHALL NOT have been called), any failure of the verification reads that the syntactic
+`LlmUnavailable` and `BudgetExhausted` of the `answer` call, any failure of the answer cache lookup
+or of the recording of a hit (then no pack is built and the model SHALL NOT have been called), any
+failure of the prior-claims read (then the model SHALL NOT have been called), any failure of the verification reads that the syntactic
 check propagates, and any failure of a `verify` call that the semantic check propagates. An
 `LlmUnavailable` or `BudgetExhausted` of a `verify` call SHALL NOT propagate: it degrades the
 citations it could not check (`evidence-verification`, "Semantic citation check").
@@ -143,11 +163,19 @@ citations it could not check (`evidence-verification`, "Semantic citation check"
 #### Scenario: Evaluation mode answers llm-required without building the pack
 
 - **WHEN** acme-shop is loaded and `¿Cómo se calcula el precio final de un pedido?` is explained with
-  an evaluation model
+  an evaluation model and no cache entry of the project
 - **THEN** the answer is `UNKNOWN` with reason `llm-required` and the message `evaluation mode
   (cache-only): set LLM_* to enable free-form asks`
 - **AND** the model, the source reader, the traversal, the project read and the prior-claims read
   received 0 calls, and no claim was written
+
+#### Scenario: A question without anchor is not looked up in the cache
+
+- **GIVEN** a cache entry of acme-shop whose key is the normalized form of `¿Dónde vive el ornitorrinco?`
+  and whose stored response is a valid answered response
+- **WHEN** `¿Dónde vive el ornitorrinco?` is explained with an evaluation model
+- **THEN** the answer is `UNKNOWN` with reason `no-anchor`
+- **AND** the answer cache received 0 lookups and the entry's hit count is unchanged
 
 #### Scenario: A pack where nothing fits is unknown over budget
 
@@ -678,7 +706,8 @@ another commit while the answer was being produced, the store writes the claims 
 - **AND** the stored evidence row of S1 has verification `cited`, and those of S2 have `entailed` then
   `cited`; the answer's events are empty
 - **AND** the two stored claims' provenances hold the statement types `INFERENCE` and `INFERENCE`, and
-  when the same question is explained again, the prior claim of S1 is shown `INFERENCE`
+  when the same question is explained again with `useCache: false` (so the model answers it again
+  instead of the answer cache, requirement "Answer cache"), the prior claim of S1 is shown `INFERENCE`
 
 #### Scenario: A cached pair is not verified again by a second answer
 
@@ -866,7 +895,7 @@ stale claim SHALL never be displayed as `FACT`. Stale claims are not recomputed.
 
 The events of an answer SHALL be of the type `ExplainEvent`, the union of the schema-violation event,
 the `claims_not_persisted` event, the two sanitisation events, the `evidence_broken` event, the
-`entailment_unverified` event and the `query_not_logged` event, separate from the audit events of
+`entailment_unverified` event, the `answer_not_cached` event and the `query_not_logged` event, separate from the audit events of
 indexing:
 
 - `{ type: 'untrusted_content_flagged', source: 'question', pattern }`, once per code that matched
@@ -887,6 +916,9 @@ indexing:
   `statementIndex` is the position, from 0, of the statement in the answer's `statements`,
   `evidenceId`, `path`, `startLine` and `endLine` are as for `evidence_broken`, and `reason` is one
   code of `ENTAILMENT_UNVERIFIED_REASONS` (`evidence-verification`);
+- `{ type: 'answer_not_cached', code }`, once when the cache entry of a cacheable answer was not
+  written (requirement "Answer cache"), where `code` is one code of the exported closed set
+  `ANSWER_NOT_CACHED_CODES` (`store-write-failed`, `project-not-found`), declared once;
 - `{ type: 'query_not_logged', code }`, once when the answer's `query_log` row was not written, where
   `code` is one code of the exported closed set `QUERY_NOT_LOGGED_CODES` (`store-write-failed`,
   `project-not-found`, `invalid-entry`), declared once (requirement "Query log").
@@ -895,17 +927,18 @@ indexing:
 question's flagged events, then for each span in evidence-id order its flagged events in the order of
 the list followed by its truncated event, then the `evidence_broken` events in evidence-id order, then
 the `entailment_unverified` events in statement order then citation order, then the
-schema-violation event or the `claims_not_persisted` event, if any, and last the `query_not_logged`
-event, if any. An answer that did not reach step 6 of "Precedence and UNKNOWN
-answers" (`no-anchor`, `llm-required`, `over-budget`) SHALL carry no sanitisation event (only, when
-its row was not written, the `query_not_logged` event), and when the
+schema-violation event or the `claims_not_persisted` event, if any, then the `answer_not_cached`
+event, if any, and last the `query_not_logged` event, if any. An answer that did not reach step 6 of
+"Precedence and UNKNOWN answers" (`no-anchor`, a cache hit, `llm-required`, `over-budget`) SHALL
+carry no sanitisation event (only, when its row was not written, the `query_not_logged` event), and when the
 `answer` call fails the error propagates without events.
 
 Explain SHALL return its events and SHALL write nothing to any log; neither the question, nor a span's
 text, nor a statement, nor the output of any model call SHALL be written to any log, event or error.
 The `question` column of the `query_log` row (requirement "Query log") is the one place the question
-is stored, as data of the local database, never as a log line. A `query_not_logged` event SHALL carry
-no message, no detail, no cause, no part of the question and no text of the store's error. A
+is stored, as data of the local database, never as a log line; its normalized form is stored only as
+the key of its cache entry (requirement "Answer cache"), never in a log, an event or an error. An
+`answer_not_cached` or a `query_not_logged` event SHALL carry no message, no detail, no cause, no part of the question and no text of the store's error. A
 sanitisation event SHALL NOT hold any part of the text that matched or was cut, nor a prefix or a hash
 of it. An `evidence_broken` or `entailment_unverified` event SHALL NOT hold any part of the file's
 content, of the excerpt, of the statement or of the verifier's output, nor a prefix or a hash of them.
@@ -965,7 +998,10 @@ content, of the excerpt, of the statement or of the verifier's output, nor a pre
 
 ### Requirement: Answer usage
 
-Every answered answer (`persisted: true` and `false`) SHALL carry `usage`, exactly:
+Every answered answer (`persisted: true` and `false`) SHALL carry `usage`. An answer served from the
+answer cache SHALL carry the usage of a cache hit (`answer-cache`, "Answer of a cache hit": no token,
+no cost, the stored baseline, this call's `latencyMs` and `cacheHit: true`). Every other answered
+answer SHALL carry exactly:
 
 - `generation`: `{ inputTokens, outputTokens, costUsd }`, the tokens the `answer` call reported and its
   cost by the cost table (`llm-adapter`, "Cost of a call from the cost table") for the model that call
@@ -984,12 +1020,13 @@ Every answered answer (`persisted: true` and `false`) SHALL carry `usage`, exact
 - `latencyMs`: the whole milliseconds between the clock's first read and its second read, and at
   least 1 (a call faster than the clock's resolution, or a clock read earlier the second time, gives
   1; author decision, parent CM-HU-11 AC 5: `latency_ms` > 0);
-- `cacheHit`: `false` (the answer cache of DIS-21 does not exist yet).
+- `cacheHit`: `false` (the answer came from the model, not from the answer cache).
 
 The cost table SHALL be the one explain was given, or the shipped cost table of `llm-adapter` when none
 was given. Explain SHALL read its clock exactly twice in a call that sends a `query_log` row to the store: once
 after the request is validated and before anchoring (that instant is also the provenance instant of
-every claim of the call), and once just before writing the row. Explain SHALL give the same clock to
+every claim of the call, and the instant a cache hit records), and once just before writing the row
+(and, for a cacheable answer, before saving its cache entry). Explain SHALL give the same clock to
 the semantic check, which, when it runs in `live` mode, reads it once when it starts and once when it returns, between explain's two
 reads (`evidence-verification`, "Semantic citation check").
 
@@ -1034,18 +1071,24 @@ reads (`evidence-verification`, "Semantic citation check").
 Explain SHALL record each call in one `query_log` row through the store it was given (`graph-store`,
 "Query log write"), on its own, outside the claim write, with capability `explain`, the question as
 the request gave it (the database stores it as UTF-8, so an unpaired UTF-16 surrogate is stored as
-U+FFFD), the cache flag `false` and the latency of requirement "Answer usage":
+U+FFFD), the cache flag `false` (`true` only for an answer served from the answer cache) and the
+latency of requirement "Answer usage":
 
-- before returning an answered answer (stored or not), after the claim write: as tokens and cost the
+- before returning an answer served from the answer cache: the cache flag `true`, every counter and
+  cost 0 (verification calls and latency included), and as baseline tokens the stored usage's
+  `baselineTokens` for an answered answer, none for a cached `UNKNOWN` (no pack was built);
+- before returning an answered answer (stored or not), after the claim write and the cache save
+  (requirement "Answer cache"): as tokens and cost the
   answer's `usage` totals, as verification tokens, cost, calls and latency its `usage.verification`
   ones, and as baseline tokens the pack's;
-- before returning an `UNKNOWN` answer: the tokens and cost of the calls that resolved (for
+- before returning any other `UNKNOWN` answer, after its cache save when it is cacheable: the tokens and cost of the calls that resolved (for
   `invalid-model-output`, `no-evidence` and `broken-evidence`, the `answer` call; verification
   tokens, cost, calls and latency 0, since no semantic check ran);
   `baseline_tokens` the pack's (0 for `over-budget`), or none for `no-anchor` and `llm-required`,
   which build no pack; every counter and cost 0 when no call was made;
 - before propagating an error raised after at least one model call resolved (the verification reads,
-  a `verify` call, the claim write other than `ClaimWriteFailed`, or anything later): the tokens and
+  a `verify` call, the claim write other than `ClaimWriteFailed`, the cache save other than
+  `CacheWriteFailed` and `ProjectNotFound`, or anything later): the tokens and
   cost of every call that resolved before the error, the `answer` call as generation and the `verify`
   calls as verification, priced as in requirement "Answer usage", with the pack's baseline tokens;
   as verification calls the `verify` calls that resolved before the error, and as verification
@@ -1056,8 +1099,8 @@ U+FFFD), the cache flag `false` and the latency of requirement "Answer usage":
 
 A call resolves when the model returns a result (an output the quarantine or the verifier then
 rejects counts; a call that fails does not). No row SHALL be written when explain fails before any
-call resolved: an invalid request, the `ProjectNotFound` of anchoring or of the pack, the
-`SourceUnavailable` of the pack's read, a failure of the prior-claims read, or the `LlmUnavailable`
+call resolved: an invalid request, the `ProjectNotFound` of anchoring or of the pack, a failure of
+the answer cache lookup or of the recording of a hit, the `SourceUnavailable` of the pack's read, a failure of the prior-claims read, or the `LlmUnavailable`
 and `BudgetExhausted` of the `answer` call.
 
 When the row write of a returned answer rejects with `QueryLogWriteFailed`, with `ProjectNotFound`
@@ -1083,8 +1126,8 @@ recorded (a known exposure, as a process stopped between the claim write and the
   0.016500, `latency_ms` 1234, `cache_hit` false, `verify_input_tokens` 600, `verify_output_tokens`
   40, `verify_cost_usd` 0.002400, `verify_calls` 2 and `verify_latency_ms` 900
 - **AND** the cost since the start of the current UTC day is the cost read before plus 0.0165
-- **AND** when the same question is explained again with the model wrapped by a daily budget whose
-  ceiling is at most the cost since the start of the current UTC day, explain fails with
+- **AND** when the same question is explained again with `useCache: false` and the model wrapped by a
+  daily budget whose ceiling is at most the cost since the start of the current UTC day, explain fails with
   `BudgetExhausted` and no new row is written
 
 #### Scenario: An unknown answer after the model call leaves a row with its usage
@@ -1210,3 +1253,200 @@ recorded (a known exposure, as a process stopped between the claim write and the
 - **THEN** the answer is `answered`, its `usage.verification.calls` is 1 and its
   `usage.verification.latencyMs` is 600
 - **AND** its row has 1 verification call and a verification latency of 600, and a latency of 800
+
+### Requirement: Answer cache
+
+Explain SHALL use the answer cache of the project through the store it was given (`graph-store`,
+"Answer cache entries"), keyed by the question's normalized form (`answer-cache`, "Question
+normalization"); `tokenBudget` and `hops` SHALL NOT be part of the key, so one entry answers the
+question at any budget. A question whose key is empty SHALL be neither looked up nor saved (a guard:
+it cannot happen after anchoring, which needs a letter or digit token that the normalization keeps).
+
+- **Lookup.** At step 3 of "Precedence and UNKNOWN answers", unless the request sets
+  `useCache: false`, explain SHALL look the key up once in the project. When an entry is found and its
+  stored response is accepted (`answer-cache`, "Stored response"), explain SHALL record the hit once
+  (the entry's hit count plus one, and its last hit instant set to the clock's first read of the call)
+  and SHALL return the answer of the hit (`answer-cache`, "Answer of a cache hit"), in live and in
+  evaluation mode, without building the pack, reading the prior claims, reading the source, calling
+  the model or writing a claim; it then writes its `query_log` row (requirement "Query log"). No entry,
+  or an entry whose stored response is rejected, is a miss: explain goes on to step 4 without an
+  event, so a miss in evaluation mode answers exactly the `UNKNOWN` `llm-required` of step 4.
+- **Save.** A cacheable answer (`answer-cache`, "Cacheable answers") SHALL be saved as its stored
+  response under its key, after the claim write and the clock's second read and before its
+  `query_log` row, whatever `useCache` is; the save replaces any entry of the key, so the project keeps
+  exactly one entry for it, with a hit count of 0. An answer served from the cache SHALL NOT be saved
+  again (its entry keeps its hit count). An answer that is not cacheable SHALL NOT be saved
+  and SHALL leave any entry of the key as it is. Nothing is saved in evaluation mode, where no answer
+  reaches the model.
+- **Failures.** A failure of the lookup or of the recording of a hit SHALL propagate unchanged, before
+  any pack, model call or `query_log` row. When the save rejects with `CacheWriteFailed` or with
+  `ProjectNotFound`, explain SHALL still return the answer, with the same fields, and append to its
+  events `{ type: 'answer_not_cached', code }` with `code` `store-write-failed` or
+  `project-not-found` (requirement "Explain events and logging"). Any other rejection of the save
+  SHALL propagate unchanged after the call's `query_log` row was sent to the store (requirement
+  "Query log"); a failure of that row write SHALL NOT replace the save's error.
+- **Row of a hit.** When the `query_log` row of a hit is not written, the hit is still returned and
+  carries the `query_not_logged` event as its only event (requirement "Query log").
+
+#### Scenario: A cached question is answered from the cache in both modes
+
+- **GIVEN** acme-shop loaded in the in-memory store with one cache entry whose key is the normalized
+  form of `¿Cómo se calcula el precio final de un pedido?`, whose stored response is a valid answered
+  response and whose hit count is 0, and a clock whose first read is t₁ in the first call and t₂ in
+  the second
+- **WHEN** `COMO SE CALCULA EL PRECIO FINAL DE UN PEDIDO` is explained with an evaluation model, and
+  then ` ¿cómo   se calcula el precio final de un pedido?? ` with a live model
+- **THEN** both answers are the stored response's `answer`, `statements`, `evidence`, `priorClaims`
+  and `confidence`, with `persisted: true`, `events: []`, `usage.cacheHit` `true`, `usage.costUsd` 0
+  and `usage.inputTokens` and `usage.outputTokens` 0
+- **AND** the model, the source reader, the traversal and the prior-claims read received 0 calls and
+  no claim was written
+- **AND** the entry's hit count is 2 and its last hit instant is t₂
+- **AND** the store received two `query_log` rows, each with the cache flag `true`, every counter and
+  cost 0, and as baseline tokens the stored usage's `baselineTokens`
+- **AND** the clock was read exactly twice in each call
+
+#### Scenario: A hit over the database counts in its entry and its row
+
+- **GIVEN** acme-shop indexed in the database with its history built, and its answer to the price
+  question saved in the cache by a first explain with a live model that answers one statement citing
+  the anchor span and accepts every verification
+- **WHEN** `COMO SE CALCULA EL PRECIO FINAL DE UN PEDIDO` is explained with an evaluation model
+- **THEN** the answer is the first answer with `usage.cacheHit` `true` and cost 0, and the model
+  received no call in this second explain
+- **AND** acme-shop has exactly one `cache_entry`, whose `hit_count` is 1 and whose `last_hit_at` is
+  the clock's first read of the second explain
+- **AND** the newest `query_log` row of acme-shop has `cache_hit` true and `cost_usd` 0, and no new
+  `claim` row was written by the second explain
+
+#### Scenario: Evaluation mode without an entry answers llm-required and saves nothing
+
+- **GIVEN** acme-shop loaded in the in-memory store with no cache entry
+- **WHEN** the price question is explained with an evaluation model
+- **THEN** the answer is exactly the `UNKNOWN` `llm-required` answer of "Precedence and UNKNOWN
+  answers", with its message and `events: []`
+- **AND** the answer cache received one lookup and no save, and the model received 0 calls
+
+#### Scenario: A live answer is saved once and a repeat is served from the cache
+
+- **GIVEN** acme-shop loaded in the in-memory store with no cache entry, and a live scripted model
+  that answers one statement citing the anchor span and accepts every verification
+- **WHEN** the price question is explained, and then `Cómo se calcula el precio final de un pedido`
+  (another punctuation) is explained with the same model
+- **THEN** the first answer is stored (`persisted: true`), and the project then holds exactly one cache
+  entry, under the normalized form of the price question, whose stored response is the first answer
+  without its `events` and whose hit count is 0
+- **AND** the second answer is served from that entry: the model received requests only during the
+  first explain, and the claims stored after the second explain are those stored after the first
+
+#### Scenario: Turning the cache off calls the model and replaces the entry
+
+- **GIVEN** acme-shop loaded in the in-memory store with a cache entry of the price question holding a
+  valid stored response R₀ with a hit count of 3, and a live scripted model that answers one statement
+  and accepts every verification
+- **WHEN** the price question is explained with `useCache: false`
+- **THEN** the answer cache received no lookup, the model received the `answer` request, and the
+  answer has `usage.cacheHit` `false`
+- **AND** the project holds exactly one cache entry for that key, whose stored response is the new
+  answer without its events (not R₀) and whose hit count is 0
+- **AND** explaining it with `useCache: false` and an evaluation model answers `UNKNOWN`
+  `llm-required` without a lookup
+
+#### Scenario: An invalid entry is a miss and a live answer replaces it
+
+- **GIVEN** acme-shop loaded in the in-memory store with a cache entry of the price question whose
+  stored response is `{ "answer": "stale golden" }`, and then one whose stored response is `null`
+- **WHEN** the price question is explained with an evaluation model, and then with a live scripted
+  model that answers one statement and accepts every verification
+- **THEN** each time the first answer is the `UNKNOWN` `llm-required` answer without events, and the
+  second is the model's stored answer
+- **AND** the project then holds exactly one cache entry for that key, holding the model's answer
+
+#### Scenario: A no-evidence unknown is cached and served without the model
+
+- **GIVEN** acme-shop loaded in the in-memory store with no cache entry, and a live model whose output
+  is `{"answer":"No sé.","statements":[]}`
+- **WHEN** the price question is explained, and then again with an evaluation model
+- **THEN** both answers are `UNKNOWN` with reason `no-evidence`; the second has `events: []`
+- **AND** after the first the project holds one cache entry whose stored response is exactly
+  `{ kind: 'unknown', answer: 'UNKNOWN', reason: 'no-evidence', statements: [], evidence: [] }`
+- **AND** the second explain sent no request to the model, and its `query_log` row has the cache flag
+  `true`, every counter and cost 0 and no baseline tokens
+
+#### Scenario: Answers that are not cacheable are not saved
+
+- **GIVEN** acme-shop loaded in the in-memory store
+- **WHEN** the price question is explained with a live model whose claim write fails with
+  `ClaimWriteFailed`, with one whose output is not JSON, with one whose every citation is `broken`,
+  with a budget where nothing fits, and with a live model whose statement is stored `stale`
+- **THEN** the answers are unsaved, `invalid-model-output`, `broken-evidence`, `over-budget` and a
+  stored answer with a `stale` statement
+- **AND** the answer cache received no save for any of them
+
+#### Scenario: The cache key ignores the budget and the hops
+
+- **GIVEN** acme-shop loaded in the in-memory store and the price question answered once with a live
+  scripted model and `tokenBudget` 1000
+- **WHEN** the price question is explained with an evaluation model, `tokenBudget` 32000 and `hops` 1
+- **THEN** the answer is served from the cache entry the first explain saved
+
+#### Scenario: The cache is scoped by project
+
+- **GIVEN** two projects in the in-memory store whose graphs both anchor the price question, and a
+  cache entry of the price question in the first project only
+- **WHEN** the price question is explained in the second project with an evaluation model
+- **THEN** the answer is `UNKNOWN` with reason `llm-required`, and the first project's entry keeps its
+  hit count
+
+#### Scenario: A failed cache write still answers and says so without leaking
+
+- **GIVEN** acme-shop loaded in the in-memory store, a live scripted model that answers one statement
+  and accepts every verification, and a cache save that rejects with `CacheWriteFailed` whose message
+  holds a sentinel text
+- **WHEN** the price question is explained; then with the save rejecting with `ProjectNotFound`; then
+  with the save rejecting with `CacheWriteFailed` and the `query_log` row write rejecting with
+  `QueryLogWriteFailed`
+- **THEN** each answer is the stored answer with its fields unchanged, and its events end with,
+  respectively, `{ type: 'answer_not_cached', code: 'store-write-failed' }`,
+  `{ type: 'answer_not_cached', code: 'project-not-found' }`, and
+  `{ type: 'answer_not_cached', code: 'store-write-failed' }` followed by
+  `{ type: 'query_not_logged', code: 'store-write-failed' }`
+- **AND** the serialised answers hold neither the sentinel, nor the question, nor its normalized form,
+  and nothing is written through `console`
+
+#### Scenario: Other cache write errors propagate after the row
+
+- **GIVEN** acme-shop loaded in the in-memory store, a live scripted model that answers one statement,
+  reports 100 input and 10 output tokens per call and accepts every verification, and a cache save that
+  rejects with an `Error` that is neither `CacheWriteFailed` nor `ProjectNotFound`
+- **WHEN** the price question is explained, and again with the `query_log` row write also rejecting
+  with an `Error`
+- **THEN** each call fails with the cache save's error, never with the row write's
+- **AND** the first time the store received one `query_log` row with the tokens of the `answer` and
+  `verify` calls and the cache flag `false`
+
+#### Scenario: A hit whose row is not written still answers and says so
+
+- **GIVEN** acme-shop loaded in the in-memory store with a cache entry of the price question holding a
+  valid stored response, and a `query_log` row write that rejects with `QueryLogWriteFailed`
+- **WHEN** the price question is explained with an evaluation model
+- **THEN** the answer is the hit of the stored response, and its events are exactly
+  `[{ type: 'query_not_logged', code: 'store-write-failed' }]`
+
+#### Scenario: A failing cache lookup or hit record stops before the model
+
+- **GIVEN** acme-shop loaded in the in-memory store and a live model that counts its calls
+- **WHEN** the price question is explained with a cache lookup that rejects with an error, and then
+  with a cache entry of the price question whose hit record rejects with `CacheWriteFailed`
+- **THEN** each call fails with that same error
+- **AND** the model, the source reader and the prior-claims read received 0 calls, and the store
+  received no `query_log` row
+
+#### Scenario: A cached question answers with the daily budget spent
+
+- **GIVEN** acme-shop loaded in the in-memory store with a cache entry of the price question holding a
+  valid stored response, and a live model wrapped by a daily budget whose ceiling the day's spend
+  already reaches
+- **WHEN** the price question is explained, and then again with `useCache: false`
+- **THEN** the first answer is served from the cache with `usage.cacheHit` `true`
+- **AND** the second call fails with `BudgetExhausted`, and the inner model received no call

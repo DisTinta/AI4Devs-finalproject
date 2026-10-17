@@ -37,8 +37,9 @@ export interface UnknownExplain {
   /**
    * For an answer that reached the prompt (`invalid-model-output`, `no-evidence`, `broken-evidence`),
    * the sanitisation events, then the schema-violation event of `invalid-model-output` or the
-   * `evidence_broken` events of `broken-evidence`; empty otherwise. Since DIS-74 any of them may end
-   * with `query_not_logged` when the call's `query_log` row was not written.
+   * `evidence_broken` events of `broken-evidence`; empty otherwise, and empty for a cached `UNKNOWN`.
+   * A `no-evidence` one may end with `answer_not_cached` when its cache entry was not written (DIS-21),
+   * and any of them with `query_not_logged` when the call's `query_log` row was not written (DIS-74).
    */
   events: ExplainEvent[];
 }

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { ClaimWriteFailed, InvalidStoreQuery, MAX_PRIOR_CLAIMS, ProjectNotFound, QueryLogWriteFailed } from '@codemind/core';
+import { CacheWriteFailed, ClaimWriteFailed, InvalidStoreQuery, MAX_PRIOR_CLAIMS, ProjectNotFound, QueryLogWriteFailed } from '@codemind/core';
 import type {
   Claim,
   ClaimItem,
@@ -794,6 +794,53 @@ describe('in-memory StorePort double', () => {
       expect(failed).toBe(injected.failure);
       expect(loaded.queryLog()).toEqual([valid]);
       expect(loaded.calls.saveQueryLog).toBe(5);
+    });
+  });
+
+  // DIS-21 (change evaluation-cache, specs/graph-store/spec.md → "Answer cache entries").
+  describe('Requirement: Answer cache entries', () => {
+    it('The in-memory double keeps, checks and fails cache entries', async () => {
+      // Arrange
+      const injected: { save?: unknown } = {};
+      const loaded = createInMemoryStore({
+        projects: [
+          { project: newProject('one'), graph: graphOf([file('a.php')], []) },
+          { project: newProject('two'), graph: graphOf([file('b.php')], []) },
+        ],
+        failCacheCall: { save: () => injected.save },
+      });
+      const [first, second] = loaded.projectIds as [string, string];
+      const key = 'como se calcula el precio';
+      const response = { kind: 'answered', answer: 'first' };
+      const hitAt = new Date('2026-10-17T10:00:00.000Z');
+
+      // Act
+      await loaded.store.saveCacheEntry(first, key, response);
+      const found = await loaded.store.findCacheEntry(first, key);
+      await loaded.store.touchCacheEntry(first, found!.id, hitAt);
+      const afterTouch = loaded.cacheEntries(first);
+      await loaded.store.saveCacheEntry(first, key, { kind: 'answered', answer: 'second' });
+      const afterSecondSave = loaded.cacheEntries(first);
+      const deleted = await loaded.store.invalidateCache(first);
+      const malformed = await rejectionOf(() => loaded.store.findCacheEntry('not-a-uuid', key));
+      const emptyKey = await rejectionOf(() => loaded.store.findCacheEntry(first, ''));
+      injected.save = new CacheWriteFailed();
+      const failed = await rejectionOf(() => loaded.store.saveCacheEntry(second, key, response));
+
+      // Assert
+      expect(found?.response).toEqual(response);
+      expect(found?.response).not.toBe(response);
+      expect(afterTouch.map((entry) => [entry.hitCount, entry.lastHitAt])).toEqual([[1, hitAt]]);
+      expect(afterSecondSave.map((entry) => [entry.key, entry.response, entry.hitCount, entry.lastHitAt])).toEqual([
+        [key, { kind: 'answered', answer: 'second' }, 0, null],
+      ]);
+      expect(deleted).toBe(1);
+      expect(malformed).toBeInstanceOf(ProjectNotFound);
+      expect(emptyKey).toBeInstanceOf(InvalidStoreQuery);
+      expect((emptyKey as InvalidStoreQuery).argument).toBe('question');
+      expect(failed).toBe(injected.save);
+      expect(loaded.cacheEntries()).toEqual([]);
+      expect(loaded.calls).toMatchObject({ findCacheEntry: 3, saveCacheEntry: 3, touchCacheEntry: 1, invalidateCache: 1 });
     });
   });
 

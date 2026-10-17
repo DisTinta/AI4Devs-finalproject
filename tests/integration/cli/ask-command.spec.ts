@@ -18,7 +18,8 @@ import { acmeShopGraph } from '../../support/acme-shop-graph';
 import { createScriptedLlm, modelOutput } from '../../support/scripted-llm';
 import type { PromptView, Script, ScriptedLlm } from '../../support/scripted-llm';
 
-// Spec: openspec/changes/cli-ask/specs/cli-ask/spec.md (DIS-40). Each `it` is the scenario it is
+// Spec: openspec/changes/cli-ask/specs/cli-ask/spec.md (DIS-40), and the requirement "Ask from the
+// answer cache" of openspec/changes/evaluation-cache/specs/cli-ask/spec.md (DIS-21). Each `it` is the scenario it is
 // named after. Two scenarios use the command's default connections (a `pg.Pool` of its own) and
 // write nothing. The others run over the seed: `fixtures/acme-shop` is copied (without `.git`) under
 // a temporary directory and its history built there with `buildOne`, whose `HEAD` is the seed's
@@ -349,6 +350,41 @@ describeWithDatabase('ask (integration)', () => {
       expect(result.stderrLines[0]!.startsWith('{"level":"info","type":"schema_violation",')).toBe(true);
       expect(result.stderr).not.toContain(SENTINEL);
       expect(await claimCount()).toBe(before);
+    },
+    TIMEOUT_MS,
+  );
+
+  // DIS-21 (change evaluation-cache), requirement "Ask from the answer cache".
+  it(
+    'Evaluation mode prints a cached answer',
+    async () => {
+      // Arrange: a first ask with a live model saves the answer of the price question in the cache.
+      const { store, deps } = await seeded();
+      const projectId = (await store.listProjects()).find((p) => p.name === 'acme-shop')!.id;
+      const first = await askLive(deps, Q1, (prompt) => {
+        const span = prompt.evidence.find((e) => e.path === 'app/Services/PriceCalculator.php' && e.startLine === 16 && e.endLine === 44)!;
+        return modelOutput('El precio final lo calcula PriceCalculator::compute.', [
+          { text: 'PriceCalculator::compute calcula el precio final.', evidenceIds: [span.id] },
+        ]);
+      });
+      const before = await claimCount();
+
+      // Act: the real `createLlm` from an env without `LLM_*`, whose model fails if it is ever called.
+      const result = await ask(['ask', 'acme-shop', 'como se calcula el precio final de un pedido'], {
+        env: { DATABASE_URL: 'postgres://injected-transaction' },
+        ...deps,
+      });
+
+      // Assert
+      expect(first.exit).toBe(0);
+      expect(first.stdout).toContain('1. [FACT] PriceCalculator::compute calcula el precio final.\n   evidence: app/Services/PriceCalculator.php:16-44\n');
+      expect(result.exit).toBe(0);
+      expect(result.stdout).toBe(first.stdout);
+      expect(result.stdout).not.toContain('note:');
+      expect(result.stderr).toBe('');
+      expect(await claimCount()).toBe(before);
+      const { rows } = await db().query<{ hit_count: number }>('SELECT hit_count FROM cache_entry WHERE project_id = $1', [projectId]);
+      expect(rows).toEqual([{ hit_count: 1 }]);
     },
     TIMEOUT_MS,
   );

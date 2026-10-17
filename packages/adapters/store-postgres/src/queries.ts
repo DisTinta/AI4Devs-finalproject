@@ -300,3 +300,50 @@ export const FIND_CLAIMS_OVERLAPPING = `
     ) m ON true
    WHERE p.id = $1
    ORDER BY m.created_at DESC, m.id DESC`;
+
+/**
+ * Finds the project's newest answer cache entry under the key `$2` (DIS-21 design C4). It starts from
+ * the project row, so it returns no row exactly when the project does not exist, and one row whose
+ * `id` is `NULL` when the project has no entry for the key. Duplicates (rows written outside the
+ * store) resolve to the most recently created one, then the greatest id.
+ */
+export const FIND_CACHE_ENTRY = `
+  SELECT e.id, e.response
+    FROM project p
+    LEFT JOIN LATERAL (
+      SELECT c.id, c.response FROM cache_entry c
+       WHERE c.project_id = p.id AND c.question_normalized = $2
+       ORDER BY c.created_at DESC, c.id DESC
+       LIMIT 1) e ON true
+   WHERE p.id = $1`;
+
+/**
+ * Serialises the saves of one (project, key) pair until the transaction ends. The id is cast to
+ * `uuid` and back so every letter case of one id takes the same lock; node-postgres sends untyped
+ * parameters, hence the explicit casts.
+ */
+export const LOCK_CACHE_KEY = `SELECT pg_advisory_xact_lock(hashtextextended($1::uuid::text || ':' || $2::text, 0))`;
+
+/** Deletes every answer cache entry of the project under the key `$2`. */
+export const DELETE_CACHE_KEY = `DELETE FROM cache_entry WHERE project_id = $1 AND question_normalized = $2`;
+
+/** Inserts an answer cache entry; no row is inserted when the project does not exist. */
+export const INSERT_CACHE_ENTRY = `
+  INSERT INTO cache_entry (project_id, question_normalized, response)
+  SELECT p.id, $2, $3::jsonb FROM project p WHERE p.id = $1`;
+
+/**
+ * Records one hit of the entry `$2` of the project, at `$3`, in one statement: whether the project
+ * exists and how many entries were touched (0 when the entry is not the project's).
+ */
+export const TOUCH_CACHE_ENTRY = `
+  WITH p AS (SELECT id FROM project WHERE id = $1),
+       u AS (UPDATE cache_entry SET hit_count = hit_count + 1, last_hit_at = $3
+              WHERE id = $2 AND project_id = $1 RETURNING 1)
+  SELECT (SELECT count(*) FROM p)::int AS project, (SELECT count(*) FROM u)::int AS changed`;
+
+/** Deletes every answer cache entry of the project, in one statement: whether it exists and how many. */
+export const INVALIDATE_CACHE = `
+  WITH p AS (SELECT id FROM project WHERE id = $1),
+       d AS (DELETE FROM cache_entry WHERE project_id = $1 RETURNING 1)
+  SELECT (SELECT count(*) FROM p)::int AS project, (SELECT count(*) FROM d)::int AS changed`;

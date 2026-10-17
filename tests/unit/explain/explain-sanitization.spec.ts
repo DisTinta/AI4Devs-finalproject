@@ -74,7 +74,7 @@ describe('Requirement: Untrusted content sanitization', () => {
 
     // Act
     const first = await explain(d.deps, { projectId: d.projectId, question });
-    const second = await explain(d.deps, { projectId: d.projectId, question });
+    const second = await explain(d.deps, { projectId: d.projectId, question, useCache: false });
 
     // Assert
     expect(pack.spans.map((span) => span.path)).toEqual(['app/F1.php', 'app/F2.php', 'app/F3.php']);

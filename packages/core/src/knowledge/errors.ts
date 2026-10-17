@@ -53,9 +53,23 @@ export class InvalidGraph extends DomainError {
 /**
  * An argument the store checks: a read argument checked before querying, the claims of a write
  * (`claims`), checked before writing and, for the ownership of their files, by one query inside the
- * write (DIS-39 design D7), or a query log entry (`entry`), checked before writing (DIS-74).
+ * write (DIS-39 design D7), a query log entry (`entry`), checked before writing (DIS-74), or an
+ * argument of an answer cache call (`question`, `response`, `entryId`, `at`), checked before any
+ * statement (DIS-21).
  */
-export type StoreQueryArgument = 'name' | 'kinds' | 'hops' | 'direction' | 'since' | 'claims' | 'spans' | 'entry';
+export type StoreQueryArgument =
+  | 'name'
+  | 'kinds'
+  | 'hops'
+  | 'direction'
+  | 'since'
+  | 'claims'
+  | 'spans'
+  | 'entry'
+  | 'question'
+  | 'response'
+  | 'entryId'
+  | 'at';
 
 /**
  * A store operation was called with an invalid argument. Nothing was written, and nothing was sent to
@@ -105,6 +119,22 @@ export class QueryLogWriteFailed extends DomainError {
   constructor() {
     super('The query log entry could not be written');
     this.name = 'QueryLogWriteFailed';
+  }
+}
+
+/**
+ * The database failed once a write of the answer cache had started (DIS-21 design C3): a save, the
+ * record of a hit or an invalidation. It carries no `cause` and no text of the database error: a
+ * Postgres error's message, `detail`, `hint` or `where` can quote the key (a normalized question) or
+ * the response.
+ */
+export class CacheWriteFailed extends DomainError {
+  /** Stable code. */
+  readonly code = 'CACHE_WRITE_FAILED';
+
+  constructor() {
+    super('The cache entry could not be written');
+    this.name = 'CacheWriteFailed';
   }
 }
 

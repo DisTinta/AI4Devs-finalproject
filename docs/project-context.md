@@ -184,6 +184,15 @@ Verified against `package.json` (root and per package). If a command is not here
   never `Date.now()`. Since DIS-74 `saveQueryLog` checks like the adapter (id form, then
   `assertValidQueryLogEntry`, then the project), keeps the rows (`queryLog()`, counted in
   `calls.saveQueryLog`) and throws what `failQueryLogWrite()` returns when it is not `undefined`.
+  Since DIS-21 it keeps the answer cache: `findCacheEntry` / `saveCacheEntry` / `touchCacheEntry` /
+  `invalidateCache` check like the adapter (id form, then `assertValidCacheKey` /
+  `assertValidCacheResponse` / `assertValidEntryId` / `assertValidHitInstant`, then the project),
+  store and return a JSON round trip of each response (as `jsonb`), count in `calls.*`, and throw
+  what `failCacheCall: { find?, save?, touch?, invalidate? }` returns; `cacheEntries(projectId?)`
+  reads the entries and `seedCacheEntry({ projectId, key, response, hitCount?, createdAt? })` stores
+  one unchecked (an invalid response included). `doubles()` of `tests/support/explain-doubles.ts`
+  forwards `failCacheCall` and records `findCacheEntry`, `touchCacheEntry` and `saveCacheEntry` in
+  `order`; stored responses for tests come from the factories of `tests/support/cached-answer.ts`.
   Graph writes and `sumCostSince` throw. It runs the `graph-store` read scenarios in
   `tests/unit/store/in-memory-store.spec.ts` (tests named `… (in-memory double)`). Known limit:
   case-insensitivity uses `toLowerCase`, which can differ from `ILIKE` on non-ASCII names. It lives
@@ -247,8 +256,9 @@ Verified against `package.json` (root and per package). If a command is not here
   These files migrate the shared DB, always through `migrateSharedDatabase()` (directly or through
   `useTransactionPerTest()`): `graph-schema-constraints.spec.ts`, `graph-write-pool.spec.ts`,
   `history-claims-constraints.spec.ts`, `indexes-stale.spec.ts`, `helpers/harness.spec.ts` and,
-  since DIS-76, `store/open-store.spec.ts` and `api/server.spec.ts`, and since DIS-78 `api/ask.spec.ts`
-  (through `useTransactionPerTest()`). No test rolls it back.
+  since DIS-76, `store/open-store.spec.ts` and `api/server.spec.ts`, since DIS-78 `api/ask.spec.ts`
+  and since DIS-21 `store/cache-entry.spec.ts` (through `useTransactionPerTest()`; its concurrency
+  and pool scenarios commit a uniquely named project and delete it in `finally`). No test rolls it back.
 - **API `inject` specs live in `tests/unit/api/`** (DIS-76), not under `tests/integration/`: they
   need no database and must run under Stryker, whose Vitest config excludes `tests/integration/**`.
   `tests/unit/api/support.ts` builds the app with `buildApp` and the doubles of `tests/support/`,
@@ -607,9 +617,9 @@ services that must be started first, quirks of the local environment.
     never a Zod `message`, `keys` or value; at most `MAX_EVENT_ISSUES` (20) issues plus `issueCount`. Core returns it; the transport logs it (DIS-39).
 - **`explain` is the one-pass use case over the Context Engine** (DIS-39,
   `packages/core/src/explain/explain.ts`). `explain({ store, source, llm, workspaceRoot, now,
-  verificationCache, costTable? }, { projectId, question, tokenBudget?, hops? })`, in this order: Zod request check
+  verificationCache, costTable? }, { projectId, question, tokenBudget?, hops?, useCache? })`, in this order: Zod request check
   (`InvalidExplainRequest`, `field` only, never the value; question 1..`MAX_QUESTION_CHARS` = 1 000
-  code points, not blank, no U+0000 since DIS-74) → `anchor` once → `no-anchor` → [DIS-21 cache slot] → `llm-required` in
+  code points, not blank, no U+0000 since DIS-74) → `anchor` once → `no-anchor` → answer cache lookup (DIS-21, unless `useCache: false`) → `llm-required` in
   evaluation mode (pack not built) → pack with the given anchor → `over-budget` →
   `sanitizeForPrompt` (DIS-41) → `findClaimsOverlapping` (before the model) → one
   `complete({ purpose: 'answer' })` → quarantine (`invalid-model-output`) → `no-evidence` when there
@@ -617,13 +627,31 @@ services that must be started first, quirks of the local environment.
   left) → semantic check (`verify` calls) → entailment policy → `saveClaims`. Answer:
   `kind: 'unknown'` with `reason` (`UNKNOWN_REASONS`), or `kind: 'answered'` with `persisted`,
   `usage` (DIS-74: totals, `generation`, `verification`, `baselineTokens`, `savingsPct`, `latencyMs`,
-  `cacheHit: false`) and `confidence` (DIS-72; `UNKNOWN` has neither).
+  `cacheHit`, `true` only for a hit of the answer cache) and `confidence` (DIS-72; `UNKNOWN` has neither).
   `ClaimWriteFailed` from `saveClaims` → `persisted: false`, the prompt ids `E1…En` and one
   `{ type: 'claims_not_persisted', code: 'store-write-failed' }`; any other error propagates.
-  The `LlmUnavailable` / `BudgetExhausted` of the `answer` call propagate (until DIS-21 adds the
-  cache-only degradation); those of a `verify` call do not: they leave the citations `cited` (DIS-70).
+  The `LlmUnavailable` / `BudgetExhausted` of the `answer` call propagate; a cached question is
+  served before any model call, so it answers with the ceiling spent, while a miss (or
+  `useCache: false`) still propagates them (DIS-21 D11). Those of a `verify` call do not: they leave
+  the citations `cited` (DIS-70).
+  - Gotcha (DIS-21, `core/cache/`, `knowledge/cache-entry.ts`): the answer cache key is
+    `normalizeQuestion` (NFKD, no combining marks, `toLowerCase`, `\p{P}`/`\p{S}` → space, spaces
+    collapsed, trimmed), deliberately not the anchor's search terms. After `no-anchor` and before
+    `llm-required`, unless `useCache: false`, `findCacheEntry` runs once; an entry whose response
+    passes `parseStoredResponse` (strict Zod; a failure is a miss, never an error) is recorded with
+    `touchCacheEntry(…, startedAt)` and answered by `answerFromCache` (`events: []`, zero tokens and
+    cost, stored baseline, `cacheHit: true`) in both modes: no pack, no prior claims, no model, no
+    claim; its row has the cache flag and zero counters. A failure of the lookup or the hit record
+    propagates with no row. A cacheable answer (`isCacheable`: persisted with every statement
+    `current`, or `UNKNOWN` `no-evidence`) is saved (`saveCacheEntry`, replacing the key's entry,
+    whatever `useCache` is) after `saveClaims` and the second clock read, before the row:
+    `CacheWriteFailed` / `ProjectNotFound` → `{ type: 'answer_not_cached', code }` before
+    `query_not_logged`; any other error is thrown after the row was sent. A hit is never saved again.
+    `cache_entry` has no unique key: the Postgres store keeps one entry per (project, key) with
+    `pg_advisory_xact_lock` + delete + insert, and a lookup takes the newest of duplicates.
+    `invalidateCache(projectId)` has no caller yet (DIS-9, PH-07).
   - Gotcha: `ExplainEvent` (`SchemaViolationEvent | ClaimsNotPersistedEvent | SanitizationEvent |
-    EvidenceBrokenEvent | EntailmentUnverifiedEvent | QueryNotLoggedEvent`) is **not** part of `AuditEvent`. Core never logs; the transport does.
+    EvidenceBrokenEvent | EntailmentUnverifiedEvent | AnswerNotCachedEvent | QueryNotLoggedEvent`) is **not** part of `AuditEvent`. Core never logs; the transport does.
   - Gotcha (DIS-74, `core/explain/usage.ts`, `usage-meter.ts`): `explain` wraps the model it was given
     in `meterLlm` (outside `withDailyBudget`, so a call the ceiling blocks never counts) and writes **one
     `query_log` row per call** through `StorePort.saveQueryLog`, after the claim write and on its own:
@@ -890,8 +918,10 @@ services that must be started first, quirks of the local environment.
   events as JSON lines (`evidence_broken` at `error`, every other one, `entailment_unverified`
   included, at `info`) and, on failure, one `{"error":{…}}` line; the question never reaches it.
   Exit `0` for an answer or an `UNKNOWN`, `1` configuration, connection, domain or `INTERNAL`
-  (`unexpected error`), `2` usage. **Until DIS-21 (answer cache), `ask` in evaluation mode (no
-  `LLM_BASE_URL` nor `LLM_API_KEY`) answers `UNKNOWN (llm-required)` even for the sample questions.**
+  (`unexpected error`), `2` usage. **Since DIS-21, `ask` in evaluation mode (no `LLM_BASE_URL` nor
+  `LLM_API_KEY`) prints the stored answer of a question that has an answer cache entry, exactly as any
+  answer (no flag, nothing tells it apart), and `UNKNOWN (llm-required)` otherwise; the golden entries
+  of the sample questions arrive with DIS-26, so until then only questions answered live are cached.**
 - **The API base** (DIS-76, `packages/api/src/`). `buildApp(deps, options)` builds Fastify 5 without
   listening or reading `env` and returns it **not ready**, so tests (and the business routes of
   DIS-78 / DIS-9) add routes before `ready()`; routes declare Zod schemas only (own compilers in
@@ -904,7 +934,9 @@ services that must be started first, quirks of the local environment.
   table, never in the global one. `POST /api/projects/{projectId}/ask` (DIS-78, `routes/ask.ts`)
   resolves the project with `getProject` before `explain`, keeps **one verification cache per app**
   (created at registration, not per request), writes the answer's events to `request.log` and
-  returns only the public shape (`toPublicAnswer`: ids `ev-n`, `path` → `file`). `AppOptions.explain`
+  returns only the public shape (`toPublicAnswer`: ids `ev-n`, `path` → `file`). Since DIS-21 it
+  forwards `useCache` only when sent; a cached question answers `200` (`usage.cacheHit: true`) even
+  with the daily budget spent, and evaluation mode answers from the cache when an entry exists. `AppOptions.explain`
   replaces the use case: a test seam only, as `AskCommandDeps.explain` in the CLI.
   `composition.ts` is the API's only reader of `env` (`apiConfigFromEnv` → `INVALID_CONFIG`, then
   `llmConfigFromEnv`, then the store). **No `pg` in `packages/api`** (`api-no-sql`): the store
@@ -919,8 +951,9 @@ services that must be started first, quirks of the local environment.
 - **The repo is mid-build (Entrega 2).** `verify` is a placeholder that no-ops; `seed:build`
   (DIS-91) and `db:seed` (DIS-92) are real. The schema has migrations `0001`–`0003`, but only the L1 graph and history
   (`project`, `file`, `symbol`, `edge`, `commit`, `file_commit`) and, since DIS-39, `claim` and
-  `evidence` (through `StorePort.saveClaims`, called only by `explain`) have a writer so far, and only
-  `project`, `file`, `symbol`, `edge` and `claim`/`evidence` (`findClaimsOverlapping`) have a reader. The git history reader (DIS-35) produces
+  `evidence` (through `StorePort.saveClaims`, called only by `explain`) and, since DIS-21, `cache_entry`
+  (through `saveCacheEntry` and `touchCacheEntry`, called only by `explain`) have a writer so far, and only
+  `project`, `file`, `symbol`, `edge` and `claim`/`evidence` (`findClaimsOverlapping`) and `cache_entry` (`findCacheEntry`) have a reader. The git history reader (DIS-35) produces
   `commit`/`file_commit` rows and the co-change rule (DIS-36) `co_changed` edges; `indexRepository`
   (DIS-85) composes them, and the CLI `index` command (DIS-86) is its only caller outside tests.
   `db:migrate` / `db:rollback` are real and need `DATABASE_URL`: `make up` gets it from `.env`,

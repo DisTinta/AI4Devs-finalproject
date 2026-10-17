@@ -45,6 +45,28 @@ export interface QueryNotLoggedEvent {
 }
 
 /**
+ * Why the answer cache entry of a cacheable answer was not written (DIS-21 design C6, decision D8): the
+ * database failed (`store-write-failed`), or the save named no project (`project-not-found`).
+ */
+export const ANSWER_NOT_CACHED_CODES = ['store-write-failed', 'project-not-found'] as const;
+
+/** Why the answer cache entry of an answer was not written. */
+export type AnswerNotCachedCode = (typeof ANSWER_NOT_CACHED_CODES)[number];
+
+/**
+ * The answer cache entry of a cacheable answer could not be written: the answer was still returned,
+ * and the next call of the same question asks the model again. It carries only its code: no message,
+ * no detail, no cause, no part of the question or its normalized form (the detail of a database error
+ * can quote them).
+ */
+export interface AnswerNotCachedEvent {
+  /** Discriminant. */
+  type: 'answer_not_cached';
+  /** Why the entry was not written. */
+  code: AnswerNotCachedCode;
+}
+
+/**
  * The instruction-like patterns the sanitisation of `explain` flags (DIS-41, author decision P4), in
  * the fixed order flags and events follow. A closed set: an event names a code, never the text.
  */
@@ -173,4 +195,5 @@ export type ExplainEvent =
   | SanitizationEvent
   | EvidenceBrokenEvent
   | EntailmentUnverifiedEvent
+  | AnswerNotCachedEvent
   | QueryNotLoggedEvent;

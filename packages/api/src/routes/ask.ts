@@ -139,7 +139,13 @@ export function registerAskRoute(app: FastifyInstance, options: AskRouteOptions 
     const project = await app.deps.store.getProject(projectId);
     const explained = await explainQuestion(
       { ...app.deps, verificationCache },
-      { projectId: project.id, question: body.question, ...(body.tokenBudget !== undefined && { tokenBudget: body.tokenBudget }) },
+      {
+        projectId: project.id,
+        question: body.question,
+        ...(body.tokenBudget !== undefined && { tokenBudget: body.tokenBudget }),
+        // Forwarded only when sent (DIS-21 D6): absent, the use case's default (`true`) applies.
+        ...(body.useCache !== undefined && { useCache: body.useCache }),
+      },
     );
     // A broken citation is a system failure (DIS-68); every other event is information. Events hold
     // codes, ids, paths and lines only, never the question nor a span's text (design U5).
