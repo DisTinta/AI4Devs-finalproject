@@ -275,8 +275,7 @@ function existingEntries(
  */
 async function answerOne(id: string, plan: Plan, deps: CacheBuildDeps, now: () => Date): Promise<StoredResponse> {
   const question = GOLDEN_QUESTIONS.find((golden) => golden.id === id)!.question;
-  let last: Failed = { retry: true, reason: 'not-cacheable' };
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS && last.retry; attempt += 1) {
+  for (let attempt = 1; ; attempt += 1) {
     const started = now().getTime();
     const outcome = await attemptOne(question, plan, deps, now);
     if ('kept' in outcome) {
@@ -284,11 +283,15 @@ async function answerOne(id: string, plan: Plan, deps: CacheBuildDeps, now: () =
       deps.stdout.write(`${id}: answered in ${seconds} s (attempt ${attempt}/${MAX_ATTEMPTS})\n`);
       return outcome.kept;
     }
-    last = outcome;
-    deps.stdout.write(`${id}: attempt ${attempt}/${MAX_ATTEMPTS} not cacheable (${last.reason})\n`);
+    deps.stdout.write(`${id}: attempt ${attempt}/${MAX_ATTEMPTS} not cacheable (${outcome.reason})\n`);
+    if (!outcome.retry || attempt === MAX_ATTEMPTS) throw failureOf(id, outcome);
   }
-  if (last.error !== undefined) throw last.error;
-  throw new CliError('GOLDEN_NOT_CACHEABLE', 1, `${id} has no cacheable answer (${last.reason})`, { id, reason: last.reason });
+}
+
+/** The error of a question whose last attempt failed: its model failure, or `GOLDEN_NOT_CACHEABLE`. */
+function failureOf(id: string, failed: Failed): Error {
+  if (failed.error !== undefined) return failed.error;
+  return new CliError('GOLDEN_NOT_CACHEABLE', 1, `${id} has no cacheable answer (${failed.reason})`, { id, reason: failed.reason });
 }
 
 /**
