@@ -252,11 +252,15 @@ Verified against `package.json` (root and per package). If a command is not here
   Integration: `tests/integration/cli/cache-build.spec.ts` copies `fixtures/acme-shop` to a temporary
   workspace, rebuilds its history once in `beforeAll`, passes a no-op `buildHistory`, a savepoint
   `openTransaction` on the harness client, `createScriptedLlm` in live mode and `seedFingerprints`
-  returning the seed header's pair (CI never depends on the seed being fresh). The golden scenarios of
+  returning the seed header's pair (CI never depends on the seed being fresh); its database snapshots
+  cover only the rows the build can reach (sample projects and any project named acme-shop), because
+  other integration files commit projects of their own in parallel. The golden scenarios of
   `tests/integration/cli/seed-load.spec.ts` pass a temporary `cacheDir`; its "Loading again" scenario
   compares the sample projects' cache entries without their id (`reloadSnapshot`), because each load
   re-inserts them. Never run DB integration tests while a real `cache:build` runs: its transaction
-  holds the sample project's rows for minutes and tests that delete projects wait on it.
+  holds the sample project's rows for minutes and tests that delete projects wait on it; so do a
+  `db:seed` and any `ask` on acme-shop (CLI or API), whose `query_log` insert checks the locked
+  project row.
 - **Hook order: Vitest 1.6 runs all hooks of one suite in parallel.** This is
   `sequence.hooks = 'parallel'`, the default here, and it applies to `beforeAll`, `beforeEach` and
   `afterEach` alike. A parent suite's hooks do run before a nested suite's.

@@ -129,7 +129,9 @@ Order, each step only after the previous one succeeded:
    (audit F9).
 5. History: `buildHistory(join(workspaceRoot, 'fixtures'), repoRoot)` (`buildOne` with a no-op log);
    `git rev-parse HEAD` of the rebuilt sample ≠ the seed project's `indexed_commit` (read from the
-   seed's project `INSERT` by a small reader in `cache-build.ts`) → `GOLDEN_STALE` `seed` (D4).
+   seed's project `INSERT` by a small reader in `cache-build.ts`) → `GOLDEN_STALE` `seed` (D4). A
+   seed without an `acme-shop` row, or whose row has no `indexed_commit`, fails the same way before
+   the history is rebuilt (spec amended after `/verify-against-spec` V2).
 6. Per requested question, in golden order, up to 3 attempts (D7): `openTransaction()`; `loadSeed`;
    `explain({ store: createPostgresStore({ transaction: client }), source, llm: createLlm(config,
    { fetch: longFetch }), workspaceRoot, now, verificationCache: createInMemoryVerificationCache() },
@@ -271,8 +273,10 @@ the retries and at most two full runs, a question has no cacheable answer, the t
   non-strict JSON] → 3 attempts per question, a 20-minute per-request limit, `OLLAMA_CONTEXT_LENGTH
   =16384`; if it still fails, the ticket stops cleanly (D14).
 - [A transaction stays open for the whole answer (~10 min)] → it holds only the sample projects' rows
-  of the author's development database; a concurrent `db:seed` would wait. Accepted for a
-  development command; documented.
+  of the author's development database; a concurrent `db:seed` would wait, and so would an `ask` on
+  acme-shop (CLI or API), whose `query_log` insert checks the locked project row (found by the
+  adversarial review, A5). Accepted for a development command; documented in
+  `docs/project-context.md` → Testing.
 - [The golden answers reflect one model run, not a reviewed truth] → `reviews` is empty; DIS-34 reviews
   them; `verify` (DIS-44) compares structure, not free text.
 - [A later change to a seed fingerprint input makes the seed stale and, through `seed.*`, the golden
@@ -290,4 +294,21 @@ Rollback = revert the commit; `db:seed` then loads no golden answers (the cache 
 
 ## Follow-ups
 
-(Filled by the pre-merge review: each finding with its A/B/C/D destination.)
+Pre-merge review of 2026-10-17 (reports `2026-10-17-show-spec-working.md`,
+`2026-10-17-verify-against-spec.md`, `2026-10-17-adversarial-review.md`,
+`2026-10-17-security-review.md`). No Blocker or Major. Every finding with its destination
+(`docs/project-context.md` → Tracking deferred findings):
+
+| Finding | Severity | Destination | Where |
+|---|---|---|---|
+| verify V2 / adversarial A8 — a seed without an acme-shop row or its `indexed_commit` fails as `GOLDEN_STALE` `seed`, unspecified | Minor | **A. Fixed now** | `specs/golden-answers/spec.md` → "The seed the answers are built on is current" amended with `/opsx:update`; C5 step 5; addendum in `reports/2026-10-17-spec-audit.md`; already tested (`tests/unit/cli/cache-build.spec.ts`, "refuses a seed whose header or project row…") |
+| adversarial A5 — an attempt's transaction also blocks an `ask` on acme-shop (CLI or API), not only `db:seed` | Minor | **A. Fixed now** (documentation) + accepted behaviour | Risks above; `docs/project-context.md` → Testing |
+| adversarial A1 — the Q4 golden answer misstates `OrderObserver::updated` (says it also emits `OrderPlaced`; drops the `paid` condition) and mixes languages | Minor | **B. DIS-34** | Spanish comment on DIS-34 (review, regenerate with `npm run cache:build -- Q4` or retire) |
+| adversarial A2 — the Q3 golden answer is shallow (0 % rules of `percentFor` only partly stated) | Minor | **B. DIS-34** | same comment on DIS-34 |
+| verify V1 / adversarial A3 — `.env.example` lacks `CACHE_BUILD_TIMEOUT_MS` (task 15.3), which the error message points to | Minor | **C. Explicit debt** (author) | Spanish checklist comment on DIS-26; this run's permissions deny reading or editing `.env.example`. Line to add: `# CACHE_BUILD_TIMEOUT_MS=1200000` with "cache:build only; per-request limit in ms, 1–3600000; default 20 min" |
+| verify V3 / adversarial A7 — read errors other than "missing" (`seeds/cache` unreadable → `INTERNAL`; any unreadable golden file → `missing`) | Minor | **D. Accepted** | fails closed before any connection, no path leaks; no value in finer reasons for a development command |
+| adversarial A6 — `db:seed` does not check golden evidence file ids against the seed | Minor | **D. Accepted** | by design (shape only; staleness is `verify`'s, DIS-44); the versioned file is guarded in CI by `tests/unit/seed/golden-coherence.spec.ts` |
+| adversarial A4 — the existing "Loading again…" test now ignores the samples' `cache_entry` ids | Minor | **D. Accepted** (justified) | the modified requirement says those entries get new ids; every other row and column still compared; step 12 report and DIS-26 Enhanced |
+| verify V4 — "A failed write…" proves the temporary-file cleanup through `write-atomically.spec.ts`, not in the scenario test | Minor | **D. Accepted** | the two tests together prove the THEN |
+| adversarial A9 — the integration snapshot of the cache build read whole tables, so another integration file committing its own project in parallel failed "The golden answers are generated with a scripted model" once | Minor | **A. Fixed now** | `tests/integration/cli/cache-build.spec.ts` `snapshot` scoped to the rows the build can reach (sample projects and any project named acme-shop); proven with a temporary committed-project probe (red, then green); addendum in the adversarial-review report |
+| verify V5 — "The build's request limit…" proves the ceiling is not applied structurally (no `withDailyBudget` wrapper) instead of recording a spend | Minor | **D. Accepted** | the structural proof is stronger for this code |

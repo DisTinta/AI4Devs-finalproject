@@ -121,10 +121,11 @@ Before rebuilding the history, the build SHALL read the versioned seed `seeds/gr
 it as `db:seed` does, and compare its header's analyzer and contract fingerprints with the ones the
 seed build computes from the current repository; when either differs it SHALL fail with
 `GOLDEN_STALE`, the message `seed out of date: run npm run seed:build` and `details.reason` =
-`seed`. It SHALL then rebuild acme-shop's history from the versioned manifest, as the seed build does,
-and, when the `HEAD` commit of the rebuilt sample differs from the seed's `indexed_commit` for
-acme-shop, fail in the same way. Both checks SHALL happen before any database connection and before
-the model is called.
+`seed`. A seed that holds no `acme-shop` project row, or whose `acme-shop` row has no
+`indexed_commit`, SHALL fail in the same way, before the history is rebuilt. It SHALL then rebuild
+acme-shop's history from the versioned manifest, as the seed build does, and, when the `HEAD` commit
+of the rebuilt sample differs from the seed's `indexed_commit` for acme-shop, fail in the same way.
+These checks SHALL happen before any database connection and before the model is called.
 
 #### Scenario: A missing or outdated seed is refused
 

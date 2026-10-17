@@ -4597,3 +4597,31 @@ modificado; el valor sintético `AKIA…` que cita la spec se permitió en `.git
 exacto; y `.env.example` no se pudo editar en este paso (los permisos de la sesión deniegan leer
 ese fichero), así que `CACHE_BUILD_TIMEOUT_MS` queda documentada en `readme.md` y en
 `docs/project-context.md` y la tarea 15.3 sigue abierta para ese fichero.
+
+### Prompt 2 — Revisiones previas al merge dentro del workflow autónomo
+
+El mismo script del workflow envió al paso siguiente este texto literal:
+
+```
+YOUR STEP 4/6 — pre-merge reviews.
+Run, in this order, the review tasks of the change's tasks.md: /show-spec-working, /verify-against-spec, /adversarial-review, and the security-reviewer agent if the diff touches HTTP inputs, rate limits, secrets or personal data. Save each report where tasks.md says. Every finding gets an A/B/C/D destination in design.md → Follow-ups and is fixed in this change when fixable (behaviour changes via TDD; spec edits via /opsx:update with an addendum to the spec-audit report). Re-run a check whose findings led to non-trivial fixes until no Blocker/Major remain. Mark the tasks. Suite green. Commit.
+```
+
+**Por qué funcionó.** Ejecutar `cache:build` y `db:seed` de verdad, con variables limpias y moviendo
+la semilla o la golden a un lado, enseñó cada camino de error con su línea exacta y sin tocar el
+fichero versionado; servir las golden por la CLI y por la API en modo evaluación probó el DoD de punta
+a punta. La lectura hostil encontró lo que los tests no cuentan: la respuesta golden de Q4 afirma algo
+que el código no hace (pasa a DIS-34, que es quien revisa, regenera o retira golden) y la transacción
+de un intento bloquea también los `ask` sobre acme-shop, no solo un `db:seed` (se documentó). La
+única conducta sin especificar, una semilla sin la fila de acme-shop, se añadió a la spec con
+`/opsx:update`.
+La suite completa destapó además que el test de integración del propio change fallaba si otro
+fichero confirmaba un proyecto en paralelo; una sonda que confirmaba un proyecto desde otra conexión
+lo reprodujo en rojo y la instantánea se acotó a las filas que el build puede tocar.
+
+**Ajuste humano.** Ninguno: ejecución autónoma. Los skills bifurcados `verify-against-spec` y
+`adversarial-review` no devolvieron su salida al agente del paso dentro de la espera razonable, así
+que el agente hizo ambas revisiones con sus mismas listas de comprobación y lo deja escrito en los
+informes; la revisión de seguridad se hizo igual, con la lista de `.claude/agents/security-reviewer.md`.
+`.env.example` siguió sin poder leerse ni editarse, así que esa línea queda como deuda explícita para
+la autora en DIS-26 y la tarea 15.3 sigue abierta.

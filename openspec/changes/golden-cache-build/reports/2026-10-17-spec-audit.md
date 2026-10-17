@@ -260,3 +260,21 @@ same inputs. `openspec validate golden-cache-build --strict` passes.
 | seed-load: Golden answers are loaded with the seed | Golden answers are loaded and served…; A seed without golden files loads only the graph; Loading golden answers again…; A failed golden save… | 8.3 |
 
 No blocking finding. The change may start the apply.
+
+## Addendum — 2026-10-17, pre-merge review (`/opsx:update`)
+
+`/verify-against-spec` (report `2026-10-17-verify-against-spec.md`, finding V2) found one behaviour
+the spec did not name: `cache:build` refuses, as `GOLDEN_STALE` `seed`, a seed that holds no
+`acme-shop` project row or whose row has no `indexed_commit` (`packages/cli/src/cache-build.ts`, in
+`prepare`, before the history is rebuilt). Agent decision (unattended run, ADR
+`20261016-autonomous-workflow-run-entrega-2`): keep the behaviour and write it down, because without
+that row there is no commit to compare the rebuilt sample against, so the seed cannot be shown to be
+current, and refusing it fails closed before any connection or model call.
+
+- `specs/golden-answers/spec.md` → "The seed the answers are built on is current": one sentence
+  added; no scenario changed (the behaviour is already covered by the plain unit test
+  "refuses a seed whose header or project row does not match the current code and sample" of
+  `tests/unit/cli/cache-build.spec.ts`).
+- `design.md` → C5 step 5: the same rule, with its origin.
+- Re-check of this audit's points 1, 4, 6 and 11 for the edited requirement: still clean; the
+  traceability row is unchanged (scenario "A missing or outdated seed is refused", task 7.4).
