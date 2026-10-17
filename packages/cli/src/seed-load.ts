@@ -93,9 +93,14 @@ export function summary(loaded: LoadedSample[]): string {
 
 /**
  * Reads and checks the seed before any connection: present, not empty, format 1, at least one project,
- * every project a sample.
+ * every project a sample. Also used by `cache:build` (DIS-26), which checks the seed as `db:seed` does.
+ *
+ * @param seedPath The seed file.
+ * @param shown The seed as messages name it (`displayPath`).
+ * @returns The seed's SQL and the names of its projects.
+ * @throws CliError `INVALID_SEED` with the reason `missing`, `empty`, `format`, `no-project` or `not-sample`.
  */
-function readSeed(seedPath: string, shown: string): SeedToLoad {
+export function readSeed(seedPath: string, shown: string): SeedToLoad {
   let sql: string;
   try {
     sql = readFileSync(seedPath, 'utf8');

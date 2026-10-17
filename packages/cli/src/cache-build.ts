@@ -1,0 +1,440 @@
+import { execFileSync } from 'node:child_process';
+import { mkdirSync } from 'node:fs';
+import { basename, dirname, join, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import type { ClientBase } from 'pg';
+import { createGitSourceTree } from '@codemind/adapter-git';
+import { createLlm as createAdapterLlm, llmConfigFromEnv } from '@codemind/adapter-llm';
+import type { LiveLlmConfig, OpenAiCompatibleLlmOptions } from '@codemind/adapter-llm';
+import { createPostgresStore, loadSeed } from '@codemind/adapter-store-postgres';
+import type { LoadedSample, SeedToLoad } from '@codemind/adapter-store-postgres';
+import {
+  createInMemoryVerificationCache,
+  explain as coreExplain,
+  isCacheable,
+  LlmUnavailable,
+  normalizeQuestion,
+  ProjectNameTaken,
+  toStoredResponse,
+} from '@codemind/core';
+import type { explain, ExplainAnswer, LlmPort, SourceTreePort, StoredResponse } from '@codemind/core';
+import { answerFingerprint } from './cache/answer-fingerprint.js';
+import { GOLDEN_PROJECT, GOLDEN_QUESTIONS } from './cache/demo-questions.js';
+import { checkGoldenFile, readGoldenFile, renderGoldenFile } from './cache/golden-file.js';
+import type { GoldenEntry, GoldenFile } from './cache/golden-file.js';
+import { longFetch } from './cache/long-fetch.js';
+import { writeAtomically } from './cache/write-atomically.js';
+import { toFailure as toAskFailure } from './commands/ask.js';
+import { CliError, defaultOpenTransaction } from './compose-index.js';
+import type { Environment, OpenTransaction } from './compose-index.js';
+import type { TextSink } from './logger.js';
+import { escapeLiteral } from './render-report.js';
+import { toTerminalSafeJson } from './safe-json.js';
+import { displayPath } from './seed-build.js';
+import { readSeed } from './seed-load.js';
+import { collectFingerprintInputs, fingerprint } from './seed/fingerprint.js';
+import { seedProjects } from './seed/parse-seed.js';
+
+/** Message of every `INTERNAL` failure of the cache build: the golden file is never partly written. */
+export const CACHE_BUILD_FAILED = 'cache build failed; nothing was written';
+
+/** The per-request limit of the build when `CACHE_BUILD_TIMEOUT_MS` is unset: 20 minutes (decision D6). */
+export const DEFAULT_CACHE_BUILD_TIMEOUT_MS = 1_200_000;
+
+/** The largest `CACHE_BUILD_TIMEOUT_MS`: one hour. */
+export const MAX_CACHE_BUILD_TIMEOUT_MS = 3_600_000;
+
+/** Attempts per golden question (decision D7). */
+export const MAX_ATTEMPTS = 3;
+
+/** The repository root, three levels above this module (`packages/cli/src` or `packages/cli/dist`). */
+const DEFAULT_REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+
+/** The `UNKNOWN` reasons a new attempt may fix: the model's output, not the question or the pack. */
+const RETRIED_UNKNOWN_REASONS: ReadonlySet<string> = new Set(['invalid-model-output', 'broken-evidence', 'no-evidence']);
+
+/** The model failures a new attempt may fix. */
+const RETRIED_LLM_REASONS: ReadonlySet<string> = new Set(['timeout', 'network']);
+
+/** The planted key pattern of the samples: a response holding it is never kept. */
+const AWS_KEY = /AKIA[A-Z0-9]{16}/;
+
+/** The header fingerprints of a seed, or the ones the current code computes. */
+export interface SeedFingerprints {
+  /** The analyzer fingerprint. */
+  analyzer: string;
+  /** The contract fingerprint. */
+  contract: string;
+}
+
+/** What `runCacheBuild` reads from and writes to, plus the test seams (DIS-26 design C5). */
+export interface CacheBuildDeps {
+  /** Where `DATABASE_URL`, the `LLM_*` variables and `CACHE_BUILD_TIMEOUT_MS` are read. */
+  env: Environment;
+  /** Receives the attempt lines and, on success, the final line. */
+  stdout: TextSink;
+  /** Receives only the error line, on failure. */
+  stderr: TextSink;
+  /** Repository root: fingerprint inputs, seed, default output, displayed paths. Defaults to this checkout. */
+  repoRoot?: string;
+  /**
+   * Where `fixtures/acme-shop` is rebuilt and the seed's relative `root_path` resolves for `explain`
+   * (decision D17). Defaults to `repoRoot`.
+   */
+  workspaceRoot?: string;
+  /** Seed file. Defaults to `<repoRoot>/seeds/graph-dump.sql`. */
+  seedPath?: string;
+  /** Golden file. Defaults to `<repoRoot>/seeds/cache/acme-shop.json`. */
+  outputPath?: string;
+  /** Rebuilds the sample's history under `<workspaceRoot>/fixtures`. Defaults to `buildOne` of `fixtures/build-history.mjs`. */
+  buildHistory?: (fixturesRoot: string, repoRoot: string) => Promise<void>;
+  /** The `HEAD` commit of a repository. Defaults to `git rev-parse HEAD`. */
+  headCommit?: (repository: string) => string;
+  /** Opens the transaction of one attempt, always rolled back. Defaults to `defaultOpenTransaction(DATABASE_URL)`. */
+  openTransaction?: OpenTransaction;
+  /** Loads the seed on the attempt's client. Defaults to `loadSeed` of the store adapter. */
+  load?: (client: ClientBase, seed: SeedToLoad) => Promise<LoadedSample[]>;
+  /** Builds the model from the build's configuration and request function. Defaults to `createLlm` of `@codemind/adapter-llm`. */
+  createLlm?: (config: LiveLlmConfig, options: OpenAiCompatibleLlmOptions) => LlmPort;
+  /** Reads the sample's files. Defaults to `createGitSourceTree()`. */
+  source?: SourceTreePort;
+  /** The use case. Defaults to core's `explain`. */
+  explain?: typeof explain;
+  /** The clock of `explain` and of the attempt durations. Defaults to the system clock. */
+  now?: () => Date;
+  /** Replaces the golden file with its new content. Defaults to an atomic write (temporary file + rename). */
+  write?: (path: string, content: string) => void;
+  /** The fingerprints the seed build computes from `repoRoot`. Defaults to `collectFingerprintInputs` + `fingerprint`. */
+  seedFingerprints?: (repoRoot: string) => SeedFingerprints;
+}
+
+/** Everything the build checked before connecting. */
+interface Plan {
+  repoRoot: string;
+  workspaceRoot: string;
+  outputPath: string;
+  databaseUrl: string;
+  config: LiveLlmConfig;
+  seed: SeedToLoad;
+  projectId: string;
+  seedFingerprints: SeedFingerprints;
+  answerFingerprint: string;
+  /** The questions to ask, in golden order. */
+  asked: GoldenEntry['id'][];
+  /** The entries of the existing file kept as they are (partial regeneration). */
+  kept: GoldenEntry[];
+}
+
+/** The outcome of one attempt that ended with an answer or a failed model request. */
+type Attempt = { kept: StoredResponse } | Failed;
+
+/** An attempt without a response to keep: whether to try again, the reason, and the model failure if any. */
+interface Failed {
+  retry: boolean;
+  reason: string;
+  error?: LlmUnavailable;
+}
+
+/**
+ * Runs `npm run cache:build [-- <id>...]` (DIS-26): checks the arguments and the configuration, checks
+ * that the versioned seed matches the current code and, with ids, that the existing golden file can
+ * be partially regenerated; rebuilds acme-shop's history and checks its `HEAD` against the seed; then,
+ * per requested golden question, up to three attempts each in its own transaction that loads the seed,
+ * asks `explain` with a live model and the answer cache off, and is always rolled back; and finally
+ * writes the golden file atomically. stdout gets one line per attempt that ended with an answer or a
+ * failed model request, then, on success, one final line; on failure stderr gets exactly one
+ * `{"error":{…}}` line and the golden file is unchanged.
+ *
+ * @param argv The golden question ids to regenerate; none means all of them.
+ * @param deps The environment, the streams and the optional test seams.
+ * @returns The exit code: `0` success, `1` any failure.
+ */
+export async function runCacheBuild(argv: string[], deps: CacheBuildDeps): Promise<number> {
+  try {
+    const plan = await prepare(argv, deps);
+    const now = deps.now ?? (() => new Date());
+    const regenerated = new Map<string, StoredResponse>();
+    for (const id of plan.asked) regenerated.set(id, await answerOne(id, plan, deps, now));
+    const entries = GOLDEN_QUESTIONS.flatMap(({ id, question }): GoldenEntry[] => {
+      const response = regenerated.get(id);
+      if (response !== undefined) return [{ id, question, questionNormalized: normalizeQuestion(question), response, reviews: [] }];
+      return plan.kept.filter((entry) => entry.id === id);
+    });
+    const file: GoldenFile = {
+      format: 1,
+      project: GOLDEN_PROJECT,
+      seed: { analyzerFingerprint: plan.seedFingerprints.analyzer, contractFingerprint: plan.seedFingerprints.contract },
+      answerFingerprint: plan.answerFingerprint,
+      generatedWith: { model: plan.config.model, verifyModel: plan.config.verifyModel },
+      entries,
+    };
+    const text = renderGoldenFile(file);
+    mkdirSync(dirname(plan.outputPath), { recursive: true });
+    (deps.write ?? writeAtomically)(plan.outputPath, text);
+    deps.stdout.write(`${GOLDEN_PROJECT}: ${entries.length} golden answers -> ${displayPath(plan.repoRoot, plan.outputPath)}\n`);
+    return 0;
+  } catch (error) {
+    deps.stderr.write(`${toTerminalSafeJson({ error: toFailure(error) })}\n`);
+    return 1;
+  }
+}
+
+/** The arguments, the configuration, the seed, the existing golden file and the history, in that order. */
+async function prepare(argv: string[], deps: CacheBuildDeps): Promise<Plan> {
+  const allowed = GOLDEN_QUESTIONS.map(({ id }) => id);
+  if (argv.some((id, i) => !allowed.includes(id) || argv.indexOf(id) !== i)) {
+    throw new CliError('USAGE', 1, 'unknown or repeated golden question id', { allowed });
+  }
+
+  const { env } = deps;
+  const databaseUrl = env.DATABASE_URL?.trim() ?? '';
+  if (databaseUrl === '') throw missingConfig('DATABASE_URL');
+  const live = llmConfigFromEnv(env);
+  if (live.mode === 'evaluation') throw missingConfig('LLM_BASE_URL');
+  const config: LiveLlmConfig = { ...live, timeoutMs: readBuildTimeout(env.CACHE_BUILD_TIMEOUT_MS) };
+
+  const repoRoot = deps.repoRoot ?? DEFAULT_REPO_ROOT;
+  const workspaceRoot = deps.workspaceRoot ?? repoRoot;
+  const seedPath = deps.seedPath ?? join(repoRoot, 'seeds', 'graph-dump.sql');
+  const outputPath = deps.outputPath ?? join(repoRoot, 'seeds', 'cache', `${GOLDEN_PROJECT}.json`);
+
+  const seed = readSeed(seedPath, displayPath(repoRoot, seedPath));
+  const header = headerFingerprints(seed.sql);
+  const current = (deps.seedFingerprints ?? currentSeedFingerprints)(repoRoot);
+  if (header === undefined || header.analyzer !== current.analyzer || header.contract !== current.contract) throw staleSeed();
+  const project = seedProjects(seed.sql).find((candidate) => candidate.name === GOLDEN_PROJECT);
+  const indexedCommit = indexedCommitOf(seed.sql, GOLDEN_PROJECT);
+  if (project === undefined || indexedCommit === undefined) throw staleSeed();
+
+  const fingerprintNow = answerFingerprint(repoRoot);
+  const kept =
+    argv.length === 0
+      ? []
+      : existingEntries(outputPath, { seed: seed.projectNames, fingerprints: current, answerFingerprint: fingerprintNow, config }).filter(
+          (entry) => !argv.includes(entry.id),
+        );
+
+  await (deps.buildHistory ?? defaultBuildHistory)(join(workspaceRoot, 'fixtures'), repoRoot);
+  const head = (deps.headCommit ?? gitHead)(join(workspaceRoot, 'fixtures', GOLDEN_PROJECT));
+  if (head !== indexedCommit) throw staleSeed();
+
+  return {
+    repoRoot,
+    workspaceRoot,
+    outputPath,
+    databaseUrl,
+    config,
+    seed,
+    projectId: project.id,
+    seedFingerprints: current,
+    answerFingerprint: fingerprintNow,
+    asked: allowed.filter((id) => argv.length === 0 || argv.includes(id)),
+    kept,
+  };
+}
+
+/** `CACHE_BUILD_TIMEOUT_MS`: blank means the default; otherwise decimal digits naming 1..3 600 000. */
+function readBuildTimeout(raw: string | undefined): number {
+  const value = raw?.trim() ?? '';
+  if (value === '') return DEFAULT_CACHE_BUILD_TIMEOUT_MS;
+  const timeoutMs = /^[0-9]+$/.test(value) ? Number(value) : Number.NaN;
+  if (!(timeoutMs >= 1 && timeoutMs <= MAX_CACHE_BUILD_TIMEOUT_MS)) {
+    throw new CliError('INVALID_CONFIG', 1, 'CACHE_BUILD_TIMEOUT_MS is invalid; see .env.example', { variable: 'CACHE_BUILD_TIMEOUT_MS' });
+  }
+  return timeoutMs;
+}
+
+/**
+ * The entries of the existing golden file a partial regeneration keeps (decision D16): the file must
+ * exist, be a valid golden file holding only golden questions, and match the current fingerprints and
+ * the configured models.
+ */
+function existingEntries(
+  outputPath: string,
+  current: { seed: string[]; fingerprints: SeedFingerprints; answerFingerprint: string; config: LiveLlmConfig },
+): GoldenEntry[] {
+  const read = readGoldenFile(outputPath);
+  if (!read.ok) throw notPartial(read.reason);
+  const file = checkGoldenFile(read.value, { seedProjectNames: current.seed, fileName: basename(outputPath) });
+  const golden = GOLDEN_QUESTIONS.map(({ id }) => id);
+  if (file === undefined || file.entries.some((entry) => !golden.includes(entry.id))) throw notPartial('invalid');
+  const sameFingerprints =
+    file.seed.analyzerFingerprint === current.fingerprints.analyzer &&
+    file.seed.contractFingerprint === current.fingerprints.contract &&
+    file.answerFingerprint === current.answerFingerprint;
+  if (!sameFingerprints) throw notPartial('fingerprint');
+  if (file.generatedWith.model !== current.config.model || file.generatedWith.verifyModel !== current.config.verifyModel) {
+    throw notPartial('model');
+  }
+  return file.entries;
+}
+
+/**
+ * Asks one golden question, up to {@link MAX_ATTEMPTS} times (decision D7), and returns the response
+ * to keep. Prints one line per attempt that ended with an answer or a failed model request.
+ */
+async function answerOne(id: string, plan: Plan, deps: CacheBuildDeps, now: () => Date): Promise<StoredResponse> {
+  const question = GOLDEN_QUESTIONS.find((golden) => golden.id === id)!.question;
+  let last: Failed = { retry: true, reason: 'not-cacheable' };
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS && last.retry; attempt += 1) {
+    const started = now().getTime();
+    const outcome = await attemptOne(question, plan, deps, now);
+    if ('kept' in outcome) {
+      const seconds = Math.round((now().getTime() - started) / 1000);
+      deps.stdout.write(`${id}: answered in ${seconds} s (attempt ${attempt}/${MAX_ATTEMPTS})\n`);
+      return outcome.kept;
+    }
+    last = outcome;
+    deps.stdout.write(`${id}: attempt ${attempt}/${MAX_ATTEMPTS} not cacheable (${last.reason})\n`);
+  }
+  if (last.error !== undefined) throw last.error;
+  throw new CliError('GOLDEN_NOT_CACHEABLE', 1, `${id} has no cacheable answer (${last.reason})`, { id, reason: last.reason });
+}
+
+/**
+ * One attempt: a transaction that loads the seed and asks `explain`, rolled back and released
+ * whatever happens; then the classification of its outcome. Errors other than a model failure
+ * propagate.
+ */
+async function attemptOne(question: string, plan: Plan, deps: CacheBuildDeps, now: () => Date): Promise<Attempt> {
+  const transaction = await (deps.openTransaction ?? defaultOpenTransaction(plan.databaseUrl))();
+  let answer: ExplainAnswer;
+  try {
+    await (deps.load ?? loadSeed)(transaction.client, plan.seed);
+    answer = await (deps.explain ?? coreExplain)(
+      {
+        store: createPostgresStore({ transaction: transaction.client }),
+        source: deps.source ?? createGitSourceTree(),
+        llm: (deps.createLlm ?? createAdapterLlm)(plan.config, { fetch: longFetch }),
+        workspaceRoot: plan.workspaceRoot,
+        now,
+        // A fresh cache per attempt, so a retry verifies again.
+        verificationCache: createInMemoryVerificationCache(),
+      },
+      { projectId: plan.projectId, question, useCache: false },
+    );
+  } catch (error) {
+    if (!(error instanceof LlmUnavailable)) throw error;
+    return { retry: RETRIED_LLM_REASONS.has(error.reason), reason: error.reason, error };
+  } finally {
+    await transaction.rollback().catch(() => undefined);
+    await transaction.release().catch(() => undefined);
+  }
+  if (answer.kind === 'unknown') return { retry: RETRIED_UNKNOWN_REASONS.has(answer.reason), reason: answer.reason };
+  if (!isCacheable(answer)) return { retry: true, reason: 'not-cacheable' };
+  const stored = toStoredResponse(answer);
+  if (isUnsafe(JSON.stringify(stored), plan)) return { retry: false, reason: 'unsafe-content' };
+  return { kept: stored };
+}
+
+/**
+ * Whether a response's JSON text holds what a versioned file must never hold (audit F10): the planted
+ * key pattern, the absolute repository or workspace root, or the database or model URL or the API key,
+ * each as written or as escaped inside a JSON string.
+ */
+function isUnsafe(text: string, plan: Plan): boolean {
+  if (AWS_KEY.test(text)) return true;
+  const secrets = [plan.repoRoot, plan.workspaceRoot]
+    .flatMap((root) => [resolve(root), resolve(root).split('\\').join('/')])
+    .concat([plan.databaseUrl, plan.config.baseUrl, plan.config.apiKey ?? ''])
+    .filter((value) => value !== '');
+  return secrets.some((value) => text.includes(value) || text.includes(JSON.stringify(value).slice(1, -1)));
+}
+
+/** The two fingerprints of a seed's header, or `undefined` when one is missing. */
+function headerFingerprints(sql: string): SeedFingerprints | undefined {
+  const header: string[] = [];
+  for (const line of sql.split('\n')) {
+    if (!line.startsWith('--')) break;
+    header.push(line.trimEnd());
+  }
+  const value = (name: string): string | undefined =>
+    header.find((line) => line.startsWith(`-- ${name}: `))?.slice(`-- ${name}: `.length);
+  const analyzer = value('analyzer-fingerprint');
+  const contract = value('contract-fingerprint');
+  return analyzer === undefined || contract === undefined ? undefined : { analyzer, contract };
+}
+
+/**
+ * The `indexed_commit` of the project named `name` in the seed's `INSERT INTO project` statements, as
+ * `renderSeedDump` writes them (explicit columns, literal values).
+ */
+export function indexedCommitOf(sql: string, name: string): string | undefined {
+  for (const line of sql.split('\n')) {
+    const match = /^INSERT INTO project \(([^)]*)\) VALUES \((.*)\);\s*$/.exec(line);
+    if (match === null) continue;
+    const columns = match[1].split(',').map((column) => column.trim());
+    const values = literals(match[2]);
+    const row = new Map(columns.map((column, i) => [column, values[i]]));
+    if (row.get('name') === name) return row.get('indexed_commit') ?? undefined;
+  }
+  return undefined;
+}
+
+/** The values of a `VALUES (…)` list: quoted strings unquoted (`''` → `'`), anything else as written; `NULL` as `null`. */
+function literals(list: string): Array<string | null> {
+  const values: Array<string | null> = [];
+  const pattern = /\s*(?:E?'((?:[^']|'')*)'|([^,]+?))\s*(?:,|$)/gy;
+  let match: RegExpExecArray | null;
+  while (pattern.lastIndex < list.length && (match = pattern.exec(list)) !== null) {
+    if (match[1] !== undefined) values.push(match[1].replace(/''/g, "'"));
+    else values.push(match[2] === 'NULL' ? null : match[2]);
+  }
+  return values;
+}
+
+/** The fingerprints the seed build would write now. */
+function currentSeedFingerprints(repoRoot: string): SeedFingerprints {
+  const inputs = collectFingerprintInputs(repoRoot);
+  return { analyzer: fingerprint(inputs.analyzer), contract: fingerprint(inputs.contract) };
+}
+
+/** `git rev-parse HEAD` of `repository`. */
+function gitHead(repository: string): string {
+  return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repository, encoding: 'utf8' }).trim();
+}
+
+/** `buildOne('acme-shop', …)` of the repository's history rebuilder, without its summary line. */
+async function defaultBuildHistory(fixturesRoot: string, repoRoot: string): Promise<void> {
+  type BuildOne = (name: string, cfg: { dir: string; manifest: string }, options?: { log?: (line: string) => void }) => Promise<void>;
+  const { buildOne } = (await import(pathToFileURL(join(repoRoot, 'fixtures', 'build-history.mjs')).href)) as { buildOne: BuildOne };
+  await buildOne(
+    GOLDEN_PROJECT,
+    { dir: join(fixturesRoot, GOLDEN_PROJECT), manifest: join(repoRoot, 'fixtures', 'history', `${GOLDEN_PROJECT}.commits.mjs`) },
+    { log: () => undefined },
+  );
+}
+
+function missingConfig(variable: string): CliError {
+  return new CliError('MISSING_CONFIG', 1, `${variable} is not set`, { variable });
+}
+
+function staleSeed(): CliError {
+  return new CliError('GOLDEN_STALE', 1, 'seed out of date: run npm run seed:build', { reason: 'seed' });
+}
+
+function notPartial(reason: 'missing' | 'invalid' | 'fingerprint' | 'model'): CliError {
+  return new CliError('GOLDEN_STALE', 1, `golden file cannot be partially regenerated (${reason}): run npm run cache:build`, { reason });
+}
+
+/**
+ * Maps any error to the error line (audit F11): a `CliError` as it is; `ProjectNameTaken` as `db:seed`
+ * reports it; anything else as the `ask` command maps it, its `INTERNAL` with the build's message.
+ */
+function toFailure(error: unknown): { code: string; message: string; details: Record<string, unknown> } {
+  if (error instanceof CliError) return { code: error.code, message: error.message, details: error.details };
+  if (error instanceof ProjectNameTaken) {
+    return {
+      code: 'PROJECT_NAME_TAKEN',
+      message: `a project named ${escapeLiteral(error.projectName)} already exists and is not a sample`,
+      details: { name: error.projectName },
+    };
+  }
+  const failure = toAskFailure(error);
+  if (failure.code === 'INTERNAL') return { code: 'INTERNAL', message: CACHE_BUILD_FAILED, details: {} };
+  return { code: failure.code, message: failure.message, details: failure.details };
+}
+
+if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  process.exitCode = await runCacheBuild(process.argv.slice(2), { env: process.env, stdout: process.stdout, stderr: process.stderr });
+}

@@ -35,9 +35,9 @@
 
 ## 6. Cache build command: arguments, configuration and stale inputs (TDD, design C5) — `golden-answers` → "Cache build command contract and configuration", "The seed the answers are built on is current", "Partial regeneration", "A failed build never leaves a broken golden file"
 
-- [ ] 6.1 RED: create `tests/unit/cli/cache-build.spec.ts` (doubles for every seam of `CacheBuildDeps`, no database and no git) with "Missing or invalid cache build configuration fails before anything else". See it fail
-- [ ] 6.2 GREEN: `packages/cli/src/cache-build.ts` (`runCacheBuild`, `CacheBuildDeps`, the entry guard of `seed-build.ts`), `packages/cli/src/cache/write-atomically.ts`, the root script `cache:build`; export `readSeed` from `packages/cli/src/seed-load.ts` without changing its behaviour (`tests/unit/cli/seed-load.spec.ts` stays green)
-- [ ] 6.3 RED → GREEN, one at a time: "An unknown or repeated question id is a usage error", "The build's request limit applies and the daily ceiling does not", "A stale golden file is not partially regenerated", "A failed write leaves the previous golden file intact"
+- [x] 6.1 RED: create `tests/unit/cli/cache-build.spec.ts` (doubles for every seam of `CacheBuildDeps`, no database and no git) with "Missing or invalid cache build configuration fails before anything else". See it fail
+- [x] 6.2 GREEN: `packages/cli/src/cache-build.ts` (`runCacheBuild`, `CacheBuildDeps`, the entry guard of `seed-build.ts`), `packages/cli/src/cache/write-atomically.ts`, the root script `cache:build`; export `readSeed` from `packages/cli/src/seed-load.ts` without changing its behaviour (`tests/unit/cli/seed-load.spec.ts` stays green)
+- [x] 6.3 RED → GREEN, one at a time: "An unknown or repeated question id is a usage error", "The build's request limit applies and the daily ceiling does not", "A stale golden file is not partially regenerated", "A failed write leaves the previous golden file intact"
 
 ## 7. Cache build command over the database (TDD, design C5, C9) — `golden-answers` → "How a golden answer is produced", "Retries and failures of a golden answer", "Partial regeneration", "The seed the answers are built on is current", "Cache build command contract and configuration"
 
