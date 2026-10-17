@@ -37,7 +37,7 @@ const HEADER = {
 const ENV = { DATABASE_URL: databaseUrl, LLM_BASE_URL: 'http://127.0.0.1:11434/v1', LLM_MODEL: 'qwen2.5-coder' };
 /** History rebuild, then up to nine `explain` calls over the seed. */
 const TIMEOUT_MS = 180_000;
-const AWS_KEY = 'AKIAABCDEFGHIJKLMNOP';
+const AWS_KEY = 'AKIA' + 'ABCDEFGHIJKLMNOP';
 
 type BuildOne = (name: string, cfg: { dir: string; manifest: string }) => Promise<void>;
 

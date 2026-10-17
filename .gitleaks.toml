@@ -78,3 +78,7 @@ regexes = ['''^S[E]NTINEL\-key\-3c9d$''']
 [[allowlists]]
 description = "Synthetic authorization-header sentinel in the api-foundation show-spec-working report (DIS-76) - openspec/changes/api-foundation/reports/2026-10-16-show-spec-working.md, curl-auth-header (line moves with every edit; the regex matches the exact value, present in the git history of this branch)"
 regexes = ['''^S[E]NTINEL\-hdr\-demo$''']
+
+[[allowlists]]
+description = "Synthetic AWS-shaped key of the unsafe-content scenario of the golden-cache-build change (DIS-26) - openspec/changes/golden-cache-build/specs/golden-answers/spec.md, aws-access-token, lines 208 and 215 when generated (tests build it by concatenation)"
+regexes = ['''^A[K]IAABCDEFGHIJKLMNOP$''']
