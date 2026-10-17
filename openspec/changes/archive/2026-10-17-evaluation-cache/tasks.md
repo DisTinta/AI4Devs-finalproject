@@ -123,4 +123,4 @@
 - [x] 16.6 Run `/adversarial-review`; report `openspec/changes/evaluation-cache/reports/YYYY-MM-DD-adversarial-review.md`
 - [x] 16.7 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report
 - [x] 16.8 Commit the fixes to the same pull request; re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
-- [ ] 16.9 `/opsx:archive`, and commit the archive to the same pull request; the agent merges, only after the archive commit and with CI green (ADR `docs/adr/20261016-autonomous-workflow-run-entrega-2.md` lets the agent merge in this run; cited by branch and name if not yet in the base branch)
+- [x] 16.9 `/opsx:archive`, and commit the archive to the same pull request; the agent merges, only after the archive commit and with CI green (ADR `docs/adr/20261016-autonomous-workflow-run-entrega-2.md` lets the agent merge in this run; cited by branch and name if not yet in the base branch)
