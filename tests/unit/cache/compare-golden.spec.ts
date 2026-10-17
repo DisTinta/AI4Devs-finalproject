@@ -165,4 +165,17 @@ describe('compareGolden', () => {
     expect(result).toContain('evidence[0].path: expected "a\\u001b[31m.php", got "app/Services/PriceCalculator.php"');
     expect(result.join('\n')).not.toContain('\u001b');
   });
+
+  it('does not compare persisted', () => {
+    // Arrange
+    const golden = cachedAnswer();
+    const served = { ...servedFrom(golden), persisted: false } as ExplainAnswer;
+
+    // Act
+    const differences = compareGolden(golden, served);
+
+    // Assert
+    expect(golden.persisted).toBe(true);
+    expect(differences).toEqual([]);
+  });
 });

@@ -74,4 +74,12 @@ describe('CI workflow', () => {
     const decide = (jobs.scope.steps ?? []).map((step) => step.run ?? '').join('\n');
     expect(decide).toMatch(/for job in quality mutation verify; do/);
   });
+
+  it('gives verify no LLM_* variable from the workflow level either', () => {
+    // Arrange
+    const parsed = parse(readFileSync(resolve('.github/workflows/ci.yml'), 'utf8')) as { env?: Record<string, string> };
+
+    // Assert: a workflow-level env would reach every job, verify included
+    expect(Object.keys(parsed.env ?? {}).filter((name) => name.startsWith('LLM_'))).toEqual([]);
+  });
 });

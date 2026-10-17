@@ -496,6 +496,21 @@ describe('runVerify: asking and reporting', () => {
     expect(result.log).toEqual(['seed-fingerprints', 'answer-fingerprint', 'open']);
   });
 
+  it('reports DATABASE_UNAVAILABLE without the URL when the driver cannot parse DATABASE_URL', async () => {
+    // Arrange: the default opener, whose driver rejects the URL before any connection
+    const env = { DATABASE_URL: 'postgres://u:s3cret@db.invalid:notaport/db' };
+
+    // Act
+    const result = await run({ env, seams: { openTransaction: undefined } });
+
+    // Assert
+    expect(result.exit).toBe(1);
+    expect(result.stdout).toBe('');
+    expect(errorOf(result)).toEqual({ code: 'DATABASE_UNAVAILABLE', message: 'cannot connect to the database', details: {} });
+    for (const secret of ['s3cret', 'u:', 'notaport', 'postgres://']) expect(result.stderr).not.toContain(secret);
+    expect(result.log).toEqual(['seed-fingerprints', 'answer-fingerprint']);
+  });
+
   it('reports any other failure, before or after the transaction is open, as INTERNAL', async () => {
     // Arrange
     const lost = Object.assign(new Error('Connection terminated unexpectedly'), { code: '57P01' });

@@ -41,7 +41,7 @@ export interface VerifyDeps {
   seedPath?: string;
   /** Directory of the golden files. Defaults to `<repoRoot>/seeds/cache`. */
   cacheDir?: string;
-  /** Opens the transaction every question is asked in, always rolled back. Defaults to `defaultOpenTransaction(DATABASE_URL)`. */
+  /** Opens the transaction every question is asked in, always rolled back. Defaults to `defaultOpenTransaction(DATABASE_URL)`, any failure of it being `DATABASE_UNAVAILABLE`. */
   openTransaction?: OpenTransaction;
   /** Lists the stored projects on the transaction's client. Defaults to the store's `listProjects`. */
   listProjects?: (client: ClientBase) => Promise<Project[]>;
@@ -79,7 +79,7 @@ interface Plan {
 export async function runVerify(deps: VerifyDeps): Promise<number> {
   try {
     const plan = prepare(deps);
-    const transaction = await open(deps.openTransaction ?? defaultOpenTransaction(plan.databaseUrl));
+    const transaction = await open(deps.openTransaction ?? defaultOpener(plan.databaseUrl));
     try {
       return await verifyInTransaction(plan, transaction.client, deps);
     } finally {
@@ -123,6 +123,21 @@ function prepare(deps: VerifyDeps): Plan {
     }
   }
   return { repoRoot, databaseUrl, seed, golden };
+}
+
+/**
+ * `defaultOpenTransaction` for `databaseUrl`, where a URL the driver cannot parse (rejected by `pg.Client`
+ * before any connection) is also `DatabaseUnavailable`: building the client is part of opening.
+ */
+function defaultOpener(databaseUrl: string): OpenTransaction {
+  const openDefault = defaultOpenTransaction(databaseUrl);
+  return async () => {
+    try {
+      return await openDefault();
+    } catch {
+      throw new DatabaseUnavailable();
+    }
+  };
 }
 
 /** Opens the transaction; only a failure here is `DATABASE_UNAVAILABLE` (design C3). */
