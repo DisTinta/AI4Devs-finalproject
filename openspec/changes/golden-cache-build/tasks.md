@@ -65,47 +65,47 @@
 
 ## 10. Backend: Review and Update Existing Tests (MANDATORY)
 
-- [ ] 10.1 Identify the tests affected by the change: `grep -rn "runSeedLoad\|readSeed\|seeds/cache\|loadSeed" tests/`, plus every type error `npm run typecheck` reports
-- [ ] 10.2 No existing test changes its assertions (design C9); if one must, stop and record why in the step 12 report, never weakening it
-- [ ] 10.3 Confirm each `#### Scenario:` of the two delta specs maps 1:1 to a test with exactly the same name (grep each title in `tests/`); the unchanged scenarios of the modified `seed-load` requirements still map to their tests
+- [x] 10.1 Identify the tests affected by the change: `grep -rn "runSeedLoad\|readSeed\|seeds/cache\|loadSeed" tests/`, plus every type error `npm run typecheck` reports
+- [x] 10.2 No existing test changes its assertions (design C9); if one must, stop and record why in the step 12 report, never weakening it
+- [x] 10.3 Confirm each `#### Scenario:` of the two delta specs maps 1:1 to a test with exactly the same name (grep each title in `tests/`); the unchanged scenarios of the modified `seed-load` requirements still map to their tests
 
 ## 11. Refactor
 
-- [ ] 11.1 With the suite green, refactor `packages/cli/src/cache/**`, `packages/cli/src/cache-build.ts` and the golden loading of `seed-load.ts` for naming and duplication only (no behaviour change, no test edits; never editing a seed fingerprint input); `npx vitest run tests/unit/cache tests/unit/cli tests/unit/seed tests/integration/cli` stays green
+- [x] 11.1 With the suite green, refactor `packages/cli/src/cache/**`, `packages/cli/src/cache-build.ts` and the golden loading of `seed-load.ts` for naming and duplication only (no behaviour change, no test edits; never editing a seed fingerprint input); `npx vitest run tests/unit/cache tests/unit/cli tests/unit/seed tests/integration/cli` stays green
 
 ## 12. Backend: Run Tests and Verify Data State (MANDATORY)
 
-- [ ] 12.1 Capture the pre-test baseline: the 0.4 indicators
-- [ ] 12.2 Run the targeted tests: `npx vitest run tests/unit/cache tests/unit/cli tests/unit/seed tests/integration/cli`
-- [ ] 12.3 Run the required broader suite and gates: `npx vitest run`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`
-- [ ] 12.4 Run `npm run test:mutation` (score ≥ 80, the CI break threshold); for each meaningful survivor in `packages/cli/src/cache/**`, `cache-build.ts` and the golden loading of `seed-load.ts`, a RED → GREEN test
-- [ ] 12.5 Run `/privacy-ethics-check` over the diff (design C10: the golden content, the unsafe-content check, errors without answer text, the store's SQL only); record the result in the report
-- [ ] 12.6 Verify the post-test state: same `project`, `claim`, `query_log` and `cache_entry` counts as in 12.1; no `.stryker-tmp/` and no temporary golden or `.tmp` file left. Restore and document if not
-- [ ] 12.7 Create `openspec/changes/golden-cache-build/reports/YYYY-MM-DD-12-test-and-state-verification.md` from the template of `docs/openspec-tasks-mandatory-steps.md` §6, with the baseline, the seed rebuild (step 1), the real run (step 9), the Stryker score and survivors (12.4), the privacy check (12.5), "no ADR" with its reason (design C10) and the note of 7.5
-- [ ] 12.8 Mark complete only after the tests pass and the report exists
+- [x] 12.1 Capture the pre-test baseline: the 0.4 indicators
+- [x] 12.2 Run the targeted tests: `npx vitest run tests/unit/cache tests/unit/cli tests/unit/seed tests/integration/cli`
+- [x] 12.3 Run the required broader suite and gates: `npx vitest run`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`
+- [x] 12.4 Run `npm run test:mutation` (score ≥ 80, the CI break threshold); for each meaningful survivor in `packages/cli/src/cache/**`, `cache-build.ts` and the golden loading of `seed-load.ts`, a RED → GREEN test
+- [x] 12.5 Run `/privacy-ethics-check` over the diff (design C10: the golden content, the unsafe-content check, errors without answer text, the store's SQL only); record the result in the report
+- [x] 12.6 Verify the post-test state: same `project`, `claim`, `query_log` and `cache_entry` counts as in 12.1; no `.stryker-tmp/` and no temporary golden or `.tmp` file left. Restore and document if not
+- [x] 12.7 Create `openspec/changes/golden-cache-build/reports/YYYY-MM-DD-12-test-and-state-verification.md` from the template of `docs/openspec-tasks-mandatory-steps.md` §6, with the baseline, the seed rebuild (step 1), the real run (step 9), the Stryker score and survivors (12.4), the privacy check (12.5), "no ADR" with its reason (design C10) and the note of 7.5
+- [x] 12.8 Mark complete only after the tests pass and the report exists
 
 ## 13. Backend: Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 13.1 Preconditions: local database up and migrated; record the 0.4 indicators and the list of projects (`npm run cli -- projects`)
-- [ ] 13.2 `npm run cache:build` error paths, each with exit code and the exact stderr line: no `DATABASE_URL`; evaluation mode (no `LLM_*`); `CACHE_BUILD_TIMEOUT_MS=abc`; `-- Q2`; `-- Q3` with an unreachable `LLM_BASE_URL` and a current golden file (expected: the run reaches the model and fails as `LLM_UNAVAILABLE` `network` after three attempts; the golden file unchanged, checked with `git diff --exit-code seeds/cache`). The success path is the real run of step 9 (its log is the evidence)
-- [ ] 13.3 `npm run db:seed`: stdout exactly the two lines; acme-shop has three `cache_entry` rows with `hit_count` 0
-- [ ] 13.4 CLI in evaluation mode (no `LLM_*`): `npm run cli -- ask acme-shop "COMO SE CALCULA EL PRECIO FINAL DE UN PEDIDO"`, `"¿Cómo se validan los cupones?"` and `"¿Qué hace OrderObserver al crear un pedido?"` print the golden answers (exit 0); `hit_count` of each is 1
-- [ ] 13.5 API in evaluation mode (`npm -w packages/api run dev`, `DATABASE_URL` exported): `curl -i` `POST /api/projects/<id>/ask` with Q1 → `200`, `usage.cacheHit: true`, `usage.costUsd: 0`; with `"useCache": false` → `200` `UNKNOWN` `llm-required`; with Q6 → `200` `UNKNOWN` `no-anchor`
-- [ ] 13.6 A broken golden file: copy `seeds/cache/acme-shop.json` aside, break its JSON, run `npm run db:seed` (`INVALID_SEED` `cache`, database unchanged), restore the file (checked with `git diff --exit-code seeds/cache`)
-- [ ] 13.7 Restore the state: delete every `query_log` row created after the 13.1 `max(created_at)`; re-run `npm run db:seed` so the hit counts are back to 0, or delete the sample projects if they were not there in 13.1; re-check the 0.4 indicators against 13.1 and record any intended difference (the three golden entries); no `codemind-api` session left in `pg_stat_activity`; the API server stopped
-- [ ] 13.8 Document every command, status and body in `openspec/changes/golden-cache-build/reports/YYYY-MM-DD-13-manual-interface-testing.md` (mask the OS user name in paths), with the restoration of 13.7
+- [x] 13.1 Preconditions: local database up and migrated; record the 0.4 indicators and the list of projects (`npm run cli -- projects`)
+- [x] 13.2 `npm run cache:build` error paths, each with exit code and the exact stderr line: no `DATABASE_URL`; evaluation mode (no `LLM_*`); `CACHE_BUILD_TIMEOUT_MS=abc`; `-- Q2`; `-- Q3` with an unreachable `LLM_BASE_URL` and a current golden file (expected: the run reaches the model and fails as `LLM_UNAVAILABLE` `network` after three attempts; the golden file unchanged, checked with `git diff --exit-code seeds/cache`). The success path is the real run of step 9 (its log is the evidence)
+- [x] 13.3 `npm run db:seed`: stdout exactly the two lines; acme-shop has three `cache_entry` rows with `hit_count` 0
+- [x] 13.4 CLI in evaluation mode (no `LLM_*`): `npm run cli -- ask acme-shop "COMO SE CALCULA EL PRECIO FINAL DE UN PEDIDO"`, `"¿Cómo se validan los cupones?"` and `"¿Qué hace OrderObserver al crear un pedido?"` print the golden answers (exit 0); `hit_count` of each is 1
+- [x] 13.5 API in evaluation mode (`npm -w packages/api run dev`, `DATABASE_URL` exported): `curl -i` `POST /api/projects/<id>/ask` with Q1 → `200`, `usage.cacheHit: true`, `usage.costUsd: 0`; with `"useCache": false` → `200` `UNKNOWN` `llm-required`; with Q6 → `200` `UNKNOWN` `no-anchor`
+- [x] 13.6 A broken golden file: copy `seeds/cache/acme-shop.json` aside, break its JSON, run `npm run db:seed` (`INVALID_SEED` `cache`, database unchanged), restore the file (checked with `git diff --exit-code seeds/cache`)
+- [x] 13.7 Restore the state: delete every `query_log` row created after the 13.1 `max(created_at)`; re-run `npm run db:seed` so the hit counts are back to 0, or delete the sample projects if they were not there in 13.1; re-check the 0.4 indicators against 13.1 and record any intended difference (the three golden entries); no `codemind-api` session left in `pg_stat_activity`; the API server stopped
+- [x] 13.8 Document every command, status and body in `openspec/changes/golden-cache-build/reports/YYYY-MM-DD-13-manual-interface-testing.md` (mask the OS user name in paths), with the restoration of 13.7
 
 ## 14. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
-- [ ] 14.1 The change has no browser UI (`packages/web` is untouched); record "not applicable beyond step 13" in the step 12 report
-- [ ] 14.2 Record in the step 12 report that the CI evidence (new spec files ran and passed, the mutation job ≥ 80) is collected in 17.3, once the PR exists
+- [x] 14.1 The change has no browser UI (`packages/web` is untouched); record "not applicable beyond step 13" in the step 12 report
+- [x] 14.2 Record in the step 12 report that the CI evidence (new spec files ran and passed, the mutation job ≥ 80) is collected in 17.3, once the PR exists
 
 ## 15. Update Technical Documentation (MANDATORY)
 
-- [ ] 15.1 `readme.md` §2.4 (evaluation mode: the golden questions answer from the cache after `make up`; the "llegan con DIS-26" line), §2.5, line 383 (how golden answers are regenerated: `npm run cache:build` with Ollama, after `seed:build`) and the cost table line 612 — design C10
-- [ ] 15.2 `docs/project-context.md`: Commands (`npm run cache:build`, its variables and its ~30-minute CPU run), Gotchas (the cache build: stale-seed refusal, retries, partial regeneration, atomic write, the long fetch; the golden format and answer fingerprint; `db:seed` loading `seeds/cache/*.json` through `saveCacheEntry` and the `INVALID_SEED` reason `cache`; regenerate in the order `seed:build` → `cache:build`; touching a seed input stales both), the Ollama CPU gotcha (the `cache:build` recipe), Testing (the new spec files)
-- [ ] 15.3 `fixtures/README.md` (Demo questions: Q1, Q3 and Q4 have golden answers in `seeds/cache/acme-shop.json`; why not Q2, Q5, Q6) and `.env.example` (`CACHE_BUILD_TIMEOUT_MS`, commented, default and range)
-- [ ] 15.4 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
+- [x] 15.1 `readme.md` §2.4 (evaluation mode: the golden questions answer from the cache after `make up`; the "llegan con DIS-26" line), §2.5, line 383 (how golden answers are regenerated: `npm run cache:build` with Ollama, after `seed:build`) and the cost table line 612 — design C10
+- [x] 15.2 `docs/project-context.md`: Commands (`npm run cache:build`, its variables and its ~30-minute CPU run), Gotchas (the cache build: stale-seed refusal, retries, partial regeneration, atomic write, the long fetch; the golden format and answer fingerprint; `db:seed` loading `seeds/cache/*.json` through `saveCacheEntry` and the `INVALID_SEED` reason `cache`; regenerate in the order `seed:build` → `cache:build`; touching a seed input stales both), the Ollama CPU gotcha (the `cache:build` recipe), Testing (the new spec files)
+- [ ] 15.3 `fixtures/README.md` (Demo questions: Q1, Q3 and Q4 have golden answers in `seeds/cache/acme-shop.json`; why not Q2, Q5, Q6) and `.env.example` (`CACHE_BUILD_TIMEOUT_MS`, commented, default and range) — open: `fixtures/README.md` done; `.env.example` could not be edited in the apply step (the session's permissions deny reading it), so `CACHE_BUILD_TIMEOUT_MS` is documented in `readme.md` §1.4 and `docs/project-context.md` meanwhile
+- [x] 15.4 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
 
 ## 16. Pull request preparation
 
