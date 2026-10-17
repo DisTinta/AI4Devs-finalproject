@@ -135,50 +135,59 @@
       "response": {
         "kind": "answered",
         "persisted": true,
-        "answer": "Los cupones se validan en el servicio CouponValidator.",
+        "answer": "Los cupones se validan en el servicio CouponValidator. Este servicio verifica si el código del cupón es nulo o vacío, si el cupón existe y está activo, y si el cupón no ha expirado.",
         "statements": [
           {
-            "text": "El método CouponValidator::isRedeemable($code) verifica si el código de cupón es válido consultando la base de datos para encontrar el cupón con el código dado y ejecutando varios controles adicionales como la validación de su expiración y estado activo.",
+            "text": "El método CouponValidator::percentFor() verifica la validez del código del cupón y devuelve el porcentaje de descuento si es válido.",
             "type": "INFERENCE",
             "status": "current",
             "verification": "cited",
             "evidenceIds": [
-              "19f42fc7-93c7-4f1f-a6bc-5212f0f1dcbc"
+              "f7d0411f-96c6-446e-8dc3-371918744089",
+              "c783309f-f147-421e-9f39-307461103970"
             ]
           }
         ],
         "evidence": [
           {
-            "id": "19f42fc7-93c7-4f1f-a6bc-5212f0f1dcbc",
+            "id": "f7d0411f-96c6-446e-8dc3-371918744089",
             "fileId": "5b05b76b-733a-59d8-b4cd-284b2783f184",
             "path": "app/Services/CouponValidator.php",
             "startLine": 14,
             "endLine": 39,
             "excerpt": "class CouponValidator\n{\n    public function percentFor(?string $code): float\n    {\n        if ($code === null || $code === '') {\n            return 0.0;\n        }\n\n        $coupon = Coupon::query()->find($code);\n\n        if (! $coupon instanceof Coupon || ! $coupon->active) {\n            return 0.0;\n        }\n\n        if ($coupon->expires_at !== null && $coupon->expires_at->isPast()) {\n            return 0.0;\n        }\n\n        return $coupon->percent_off;\n    }\n\n    public function isRedeemable(?string $code): bool\n    {\n        return $this->percentFor($code) > 0.0;\n    }\n}"
+          },
+          {
+            "id": "c783309f-f147-421e-9f39-307461103970",
+            "fileId": "8f2af44e-fbb1-5ba1-a5d8-bdedd0a937e4",
+            "path": "app/Http/Requests/StoreOrderRequest.php",
+            "startLine": 41,
+            "endLine": 47,
+            "excerpt": "    public function validated($key = null, $default = null): array\n    {\n        $data = parent::validated();\n        unset($data['lines']);\n\n        return $data;\n    }"
           }
         ],
         "priorClaims": [],
         "usage": {
-          "inputTokens": 4726,
-          "outputTokens": 121,
+          "inputTokens": 5016,
+          "outputTokens": 138,
           "baselineTokens": 4422,
           "baselineEstimator": "chars-div-4",
-          "savingsPct": -6.9,
+          "savingsPct": -13.4,
           "costUsd": 0,
-          "latencyMs": 263144,
+          "latencyMs": 298401,
           "cacheHit": false,
           "generation": {
             "inputTokens": 4251,
-            "outputTokens": 110,
+            "outputTokens": 120,
             "costUsd": 0
           },
           "verification": {
-            "calls": 1,
+            "calls": 2,
             "cacheHits": 0,
-            "inputTokens": 475,
-            "outputTokens": 11,
+            "inputTokens": 765,
+            "outputTokens": 18,
             "costUsd": 0,
-            "latencyMs": 16377
+            "latencyMs": 32880
           }
         },
         "confidence": 0.6224593312018546
