@@ -343,6 +343,18 @@ the DIS-21 `[enhanced]` description as D14.
 - **A golden response written by hand that fails the schema is silently a miss** (D5) → no event, so
   the evaluator sees `llm-required`; CM-HU-14.1 (`verify`) checks golden fingerprints and DIS-26 builds
   them through `toStoredResponse` (B, DIS-26 / CM-HU-14.1).
+- **A degraded verification is cached as it is** (D4; adversarial review AR1) → an answer whose
+  semantic check could not run (verifier unavailable, budget spent, verify call limit) is stored with
+  its statements `cited`/`INFERENCE` and served until replaced or invalidated, without retrying the
+  verifier. Nothing false is served (the types and the confidence stay honest); a live caller
+  refreshes the entry with `"useCache": false`, and DIS-9 invalidates on reindex. Accepted (D).
+- **A hit does not repeat the events of the first answer** (D5; adversarial review AR2) → the
+  sanitisation and `entailment_unverified` log lines are written once, for the call that produced
+  the answer, not for each hit; the response body never carried them. Accepted (D).
+- **Any caller can replace an entry** (security review, Low; adversarial review AR3) → with a live
+  model, `"useCache": false` replaces the key's entry with a new pipeline-checked answer, at the same
+  trust level as every other write of the unauthenticated local API. Protecting golden entries, if
+  needed, is DIS-26's decision. Accepted (D).
 
 ## Migration Plan
 
@@ -407,3 +419,18 @@ tasks 6.9 and 9.2), P2 (the 5-character prefixes in C11), P3 (the source-reader 
 Spec audit run 4 (APPROVED) — improvable findings, all **A**, folded by the main session on
 2026-10-17: Q1 (the count of edited tests in task 9.2), Q2 ("rare" removed from `answer-cache`
 "Question normalization").
+
+Pre-merge checks (task 16.4–16.7, 2026-10-17): `reports/2026-10-17-show-spec-working.md` (demonstrably
+working; no finding), `reports/2026-10-17-verify-against-spec.md` (CONFORMS),
+`reports/2026-10-17-adversarial-review.md` (PASS) and `reports/2026-10-17-security-review.md` (PASS):
+
+- **A**, fixed in this change: V1 ("A failed cache write still answers…" now compares every field of
+  each answer but its events with the reference answer), V2 ("A hit whose row is not written…" now
+  checks the exact hit of the stored response), V3 (the zero verification counters of the cached
+  `UNKNOWN`'s row), V4 (the normalization test writes its full-width and `İ` inputs as escapes, as its
+  comment says), V5 (`FIND_CACHE_ENTRY` no longer selects the unused `project_id`), AR4 (Major: the
+  integration test "Saving a key again replaces its entry" picked the other key's entry by row order,
+  which falls back to the random id inside one transaction; it now picks it by key).
+- **D**, accepted (Risks above): AR1 (a degraded verification is cached as it is), AR2 (a hit does not
+  repeat the events of the first answer), AR3 / security Low (any caller can replace an entry with
+  `"useCache": false`).

@@ -167,3 +167,19 @@ credentials was replaced by a credential-free one.
 
 - Status: PASS
 - Blocking issues: none
+
+## Addendum — pre-merge checks (tasks 16.4–16.8), 2026-10-17
+
+- Reports: `2026-10-17-show-spec-working.md` (demonstrably working), `2026-10-17-verify-against-spec.md`
+  (CONFORMS), `2026-10-17-adversarial-review.md` (PASS), `2026-10-17-security-review.md` (PASS).
+- Tests created by this change and edited in this step (never an existing test of the base branch):
+  `tests/unit/explain/explain-cache.spec.ts` (V1–V3: stronger assertions), `tests/unit/cache/normalize.spec.ts`
+  (V4: the same inputs written as escapes), `tests/integration/store/cache-entry.spec.ts` (AR4: the
+  order-dependent lookup of "Saving a key again replaces its entry" picks the entry by key).
+- Source: `packages/adapters/store-postgres/src/queries.ts` (V5: `FIND_CACHE_ENTRY` no longer selects
+  the unused `project_id`).
+- Results on the fixed tree: `npx vitest run` (with `DATABASE_URL`) 123 files, 1 490 tests passed;
+  `npm run lint`, `npm run typecheck`, `npm run docs:coverage` clean; `npm run lint:architecture`
+  0 errors, 3 pre-existing `no-orphans` warnings.
+- Data state: the `/show-spec-working` run left its `query_log` rows in the local database (see that
+  report, State); `cache_entry` is back to 0 and `project`/`claim` are unchanged.
