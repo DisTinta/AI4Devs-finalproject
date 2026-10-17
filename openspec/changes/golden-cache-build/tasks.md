@@ -115,7 +115,7 @@
 
 - [x] 17.1 Open the pull request against `feature/entrega-2-CRN` (authorised by ADR `docs/adr/20261016-autonomous-workflow-run-entrega-2.md`, which relaxes `base-standards.md` §88/§90/§99 for this run; it lives on `feature/DIS-101-readme-entrega-2`, and if it is not yet in `feature/entrega-2-CRN` when the PR opens, cite it by branch and name in the PR body; `gh` on the DisTinta account, back to Cristina-JumpMath afterwards) — PR #48
 - [x] 17.2 Set DIS-26 to In Review in Linear with a comment in Spanish linking the PR and the change
-- [ ] 17.3 Confirm in the PR's CI run that the new spec files ran and passed and the mutation job is ≥ 80, and link the run in an addendum to the step 12 report
+- [x] 17.3 Confirm in the PR's CI run that the new spec files ran and passed and the mutation job is ≥ 80, and link the run in an addendum to the step 12 report
 - [x] 17.4 Run `/show-spec-working` (may reuse the step 9 and 13 evidence); report `openspec/changes/golden-cache-build/reports/YYYY-MM-DD-show-spec-working.md`
 - [x] 17.5 Run `/verify-against-spec`; report `openspec/changes/golden-cache-build/reports/YYYY-MM-DD-verify-against-spec.md`
 - [x] 17.6 Run `/adversarial-review`; report `openspec/changes/golden-cache-build/reports/YYYY-MM-DD-adversarial-review.md`

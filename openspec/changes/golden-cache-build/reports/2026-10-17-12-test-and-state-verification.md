@@ -199,4 +199,7 @@ https://github.com/DisTinta/AI4Devs-finalproject/pull/48.
 - Fix: `.github/workflows/ci.yml` `mutation` job `timeout-minutes` raised from 30 to 40, with the
   reason recorded in a comment next to it. This is a CI-infrastructure fix shared by every PR, not a
   defect in this change's code.
-- Second run (after the fix, commit `<set at push>`): see the PR's checks for its final result.
+- Second run (after the fix, commit `4da64f4`, run `39023309888` / `39023309890`): `scope` (7s),
+  `secrets` (6s), `mutation` (55s, incremental cache now hit), `quality` (2m20s) and `frontend`
+  (1m11s) all passed. All five checks green:
+  https://github.com/DisTinta/AI4Devs-finalproject/pull/48/checks.
