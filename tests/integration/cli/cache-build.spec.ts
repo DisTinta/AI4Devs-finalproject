@@ -146,18 +146,27 @@ function previousOutput(content: string): string {
   return output;
 }
 
-/** The project ids and every row of the tables the build could touch, in a stable order. */
+/** The projects the build can reach: the sample projects (`loadSeed` replaces them) and any project named acme-shop. */
+const REACHABLE_PROJECTS = "SELECT id FROM project WHERE is_sample OR name = 'acme-shop'";
+
+/**
+ * The project rows the build can reach and every `claim`, `evidence`, `query_log` and `cache_entry`
+ * row of those projects, in a stable order. Other integration files run in parallel and commit
+ * projects of their own through real pools (e.g. `ask-command.spec.ts`); under READ COMMITTED a
+ * whole-table snapshot would see them appear or vanish while the build runs. The build cannot touch
+ * those rows: `loadSeed` deletes and inserts only sample projects, and `explain` writes only for
+ * acme-shop.
+ */
 async function snapshot(client: Client): Promise<Record<string, unknown>> {
+  const queries: Record<string, string> = {
+    project: `SELECT * FROM project WHERE id IN (${REACHABLE_PROJECTS}) ORDER BY id`,
+    claim: `SELECT * FROM claim WHERE project_id IN (${REACHABLE_PROJECTS}) ORDER BY id`,
+    evidence: `SELECT * FROM evidence WHERE claim_id IN (SELECT id FROM claim WHERE project_id IN (${REACHABLE_PROJECTS})) ORDER BY id`,
+    query_log: `SELECT * FROM query_log WHERE project_id IN (${REACHABLE_PROJECTS}) ORDER BY id`,
+    cache_entry: `SELECT * FROM cache_entry WHERE project_id IN (${REACHABLE_PROJECTS}) ORDER BY id`,
+  };
   const result: Record<string, unknown> = {};
-  for (const [table, order] of [
-    ['project', 'id'],
-    ['claim', 'id'],
-    ['evidence', 'id'],
-    ['query_log', 'id'],
-    ['cache_entry', 'id'],
-  ]) {
-    result[table] = (await client.query(`SELECT * FROM ${table} ORDER BY ${order}`)).rows;
-  }
+  for (const [table, sql] of Object.entries(queries)) result[table] = (await client.query(sql)).rows;
   return result;
 }
 
