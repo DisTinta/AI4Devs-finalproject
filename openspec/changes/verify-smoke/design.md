@@ -64,19 +64,26 @@ core's), `seedFingerprints` (default `currentSeedFingerprints`), `answerFingerpr
 `answerFingerprint` of `cache/answer-fingerprint.ts`), `now` (default system clock). The store is
 always `createPostgresStore({ transaction: client })`, the model always
 `createEvaluationLlm({ mode: 'evaluation' })`, the source `createGitSourceTree()` (never read on a
-hit), `workspaceRoot` = the repository root and one fresh `createInMemoryVerificationCache()` per
+hit), `workspaceRoot` = `resolve(repoRoot)` (`explain` rejects a relative root, `explain.ts:146`) and
+one fresh `createInMemoryVerificationCache()` per
 run. No seam builds a model: there is no way to inject a live one (D4).
 
 **C3. Order of the run (D3).** Read `DATABASE_URL` → `readSeed` → `readGoldenFiles` (same messages
 as `db:seed`) → seed fingerprints (`headerFingerprints` vs `seedFingerprints(repoRoot)`; a header
 without one of them is a mismatch) → per golden file in name order: `seed.*` vs header, then
 `answerFingerprint` vs `answerFingerprint(repoRoot)` (computed once) → per seed project in seed order:
-a golden file with ≥ 1 entry (`GOLDEN_MISSING`) → open the transaction → `listProjects()` and the
-`SEED_NOT_LOADED` check for every golden project → ask and compare each entry, writing its lines to
+a golden file with ≥ 1 entry (`GOLDEN_MISSING`) → open the transaction (a failure here is
+`DATABASE_UNAVAILABLE`) → `listProjects()` and the `SEED_NOT_LOADED` check for every golden project, in
+golden-file order, the first failing one reported → ask and compare each entry, writing its lines to
 stdout as soon as it is compared → write the summary lines → rollback and release in `finally`
 (errors of both swallowed) → exit code. `FINGERPRINT_MISMATCH` is a new code, not `GOLDEN_STALE`:
 `cache:build`'s code means "cannot build", this one "the versioned files do not match the code", and
-the parent asks for the text "seed/golden fingerprint mismatch".
+the parent asks for the text "seed/golden fingerprint mismatch". Amendment A6: any failure after the
+transaction is open, a lost connection included, is `INTERNAL`: `defaultOpenTransaction` throws
+`DatabaseUnavailable` only on `connect`/`BEGIN` (`compose-index.ts:200-224`) and the store does not
+classify connection errors of its queries, so a "connection lost" branch would need a classifier the
+code does not have. Amendment A8: `details` is fixed per code (`{variable}`, `db:seed`'s, `{reason}` or
+`{reason, file}`, `{project}`, `{}`), so a test can pin it with `toEqual`.
 
 **C4. One transaction, always rolled back (D4).** A hit writes (`touchCacheEntry`, `query_log`);
 `verify` is a check, not usage, so it must neither inflate the usage metrics (DIS-74) nor make two
@@ -85,10 +92,14 @@ comparison of `cache_entry` rows without `explain`, which would not exercise anc
 normalized key, the stored-response check or the hit path that the user runs.
 
 **C5. Comparison (D5).** `compareGolden` returns differences in the spec's order: the cache-miss
-difference alone for an `UNKNOWN`; else `usage.cacheHit`; `statements` count; per common index the
+difference alone for an `UNKNOWN`; else `usage.cacheHit` against the literal `true` (amendment A7: a
+stored response always holds `false`, `response-cache.ts:85`, and a hit serves `true`); `statements`
+count; per common index the
 statement's `type`, `verification`, `status`, `evidence` (spans resolved through the answer's own
 `evidence` by id, rendered `path:start-end`); `evidence` count; per common index `path`, `startLine`,
-`endLine`. Values are rendered with `toTerminalSafeJson`; a count difference as
+`endLine`. A cited id with no evidence entry is skipped, as `formatAnswer` does
+(`commands/ask.ts:185-186`); real stored responses never have one (`response-cache.ts:123-126`), only
+test doubles and mutants. Values are rendered with `toTerminalSafeJson`; a count difference as
 `expected <n> items, got <m>`. Ids are never compared because the golden ids are random UUIDs of the
 generating transaction; confidence is protected by the answer fingerprint (`confidence.ts` is one of
 its inputs). The parent's `evidence[].file` is read as `path`, the field that exists.
@@ -127,8 +138,8 @@ verify:
 ```
 
 with `DATABASE_URL: postgres://postgres:postgres@localhost:5432/verify` on the three database steps.
-No paths filter: `verify` depends on almost every file and takes well under a minute after
-`npm ci`. The `scope` loop becomes `for job in quality mutation verify`. Its own service container
+No paths filter: `verify` depends on almost every file, and its `npm run verify` step takes < 60 s
+(the job stays within `timeout-minutes: 10`). The `scope` loop becomes `for job in quality mutation verify`. Its own service container
 means the seed can never reach the `test` database of `quality` (PH-23), so
 `graph-read.spec.ts` "Listing with no project returns an empty list" keeps its assumption.
 
@@ -144,7 +155,10 @@ means the seed can never reach the `test` database of `quality` (PH-23), so
   `useTransactionPerTest`), `loadSeed` and `saveCacheEntry` of the versioned files inside the test's
   transaction, `openTransaction` = a savepoint opener like `tests/integration/cli/cache-build.spec.ts`
   (its `commit` recorded so the test can assert it never happens), the real `explain`, the HTTP
-  counting server (`node:http` on port 0).
+  counting server (`node:http` on port 0). Using the versioned seed and golden file there departs from
+  `backend-standards.md` §7 (factories) on purpose: those files are the subject under test, as in
+  `tests/integration/cli/cache-build.spec.ts`. The unit spec doubles `explain` at the command's seam,
+  as `tests/unit/cli/cache-build.spec.ts` does.
 - Amendment A4: every test injects `seedFingerprints` and `answerFingerprint` (returning the values
   of the files under test); none depends on the real fingerprints being current. Freshness of the
   versioned files is the job of the `verify` CI job alone, as `golden-coherence.spec.ts` already
@@ -160,9 +174,14 @@ means the seed can never reach the `test` database of `quality` (PH-23), so
 **C11. Security.** stdout and stderr never hold the database URL (the connection error is
 `DatabaseUnavailable`, without the driver's text), an absolute path (`displayPath`), or answer,
 statement or excerpt text (never compared, never printed). Questions, names and values go through
-`terminalSafeText` / `toTerminalSafeJson`. The run never commits. No ADR: the decisions stay inside
-one command and one CI job and are cheap to revert; the fingerprint policy (D2) is recorded in
-`docs/project-context.md` and in DIS-44.
+`terminalSafeText` / `toTerminalSafeJson`. The run never commits.
+
+**C12. ADR for the fingerprint policy (amendment A9).** The command and the CI job are cheap to
+revert, but the policy D2 ("a stale fingerprint fails, locally and in CI; regenerate `seed:build` then
+`cache:build` locally") binds every later PR that touches a fingerprint input (DIS-32, DIS-45, any
+change to `core/knowledge`, the store adapter or the prompts). It is recorded in a short ADR
+(`docs/adr/`, through `/adr-new`, with the why written by the agent and marked as its decision) and in
+`docs/project-context.md` → Gotchas.
 
 ## Risks / Trade-offs
 
@@ -175,7 +194,12 @@ one command and one CI job and are cheap to revert; the fingerprint policy (D2) 
   after seeding, a missing or altered cache entry and any break of the answering path.
 - [The Context Engine is not part of the answer fingerprint (DIS-26 D11)] → a regression that stops
   anchoring a golden question shows as `✗ … got UNKNOWN (no-anchor)`.
-- [CI time] → one more job in parallel with `quality` and `mutation`, about 1–2 minutes.
+- [CI time] → one more job in parallel with `quality` and `mutation`; its `verify` step takes < 60 s.
+- [Adding `yaml` changes `package-lock.json`, part of the Stryker cache key (`ci.yml:181`): this PR's
+  mutation job runs without the incremental cache (29m34s measured on DIS-26, timeout 40 min)] →
+  accepted once; if it times out, rerun the job, never lower the threshold.
+- [The local database is changed by the manual steps (`db:seed`, the cache-miss check)] → a
+  `pg_dump -Fc` taken in task 0.4 and restored in task 10.7, with the indicators compared.
 
 ## Migration Plan
 

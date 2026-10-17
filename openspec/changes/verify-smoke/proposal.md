@@ -12,8 +12,8 @@ green locally and in CI; an altered golden answer or a stale fingerprint turns i
 does not share a database with the integration tests (PH-23). The decisions D1–D14 were taken by
 the agent as lead engineer in the autonomous run of Entrega 2 (ADR
 `20261016-autonomous-workflow-run-entrega-2`) and recorded in the DIS-44 `[enhanced]` description
-on 2026-10-17, together with the amendments of this proposal and of the spec audit. The author
-reviews them afterwards.
+on 2026-10-17; the amendments A1–A9 of design.md (those of the propose and of the spec audit) are
+recorded there too. The author reviews them afterwards.
 
 ## What Changes
 
@@ -45,7 +45,8 @@ reviews them afterwards.
   `currentSeedFingerprints`, `SeedFingerprints`) move to `packages/cli/src/cache/seed-fingerprints.ts`
   so `verify` and `cache:build` share them; `cache:build`'s behaviour does not change.
 - Docs: `docs/project-context.md` (the command, its checks and codes, the fingerprint policy D2 and
-  the CI job; `verify` stops being a placeholder). `readme.md` only where a sentence becomes false.
+  the CI job; `verify` stops being a placeholder). A short ADR records the fingerprint policy D2,
+  which binds every later PR (A9). `readme.md` only where a sentence becomes false.
 
 ## Capabilities
 

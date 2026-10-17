@@ -1,8 +1,9 @@
 ## Purpose
 
 Lets an evaluator or CI check, with one command and without any language model, that the versioned
-seed and golden answers match the current code and that the installation serves every golden
-question exactly with its expected structural answer, on a database of its own in CI.
+seed and golden answers match the current code and that the installation (as `make up` /
+`npm run db:seed` leaves it) serves every golden question exactly with its expected structural
+answer, on a database of its own in CI.
 
 ## ADDED Requirements
 
@@ -23,7 +24,10 @@ check or of the environment SHALL leave stdout without any line printed after it
 one line to stderr, `{"error":{"code","message","details"}}`, with one of the codes
 `MISSING_CONFIG`, `INVALID_SEED`, `FINGERPRINT_MISMATCH`, `GOLDEN_MISSING`, `DATABASE_UNAVAILABLE`
 (message `cannot connect to the database`), `SEED_NOT_LOADED` or `INTERNAL` (message
-`verify failed; the database is unchanged`). A golden answer that does not match is not a failure of
+`verify failed; the database is unchanged`). `details` SHALL be exactly: `{"variable":"DATABASE_URL"}`
+for `MISSING_CONFIG`; the details `db:seed` gives for `INVALID_SEED`; `{"reason":"seed"}` or
+`{"reason":"golden","file":<file>}` for `FINGERPRINT_MISMATCH`; `{"project":<name>}` for
+`GOLDEN_MISSING` and `SEED_NOT_LOADED`; `{}` for `DATABASE_UNAVAILABLE` and `INTERNAL`. A golden answer that does not match is not a failure of
 the command: it is reported on stdout (see "Golden answers are compared on structure only") and
 stderr SHALL stay empty. No output SHALL contain an absolute path, the database URL or its
 credentials, or the text of an answer, a statement or an excerpt; every question, project name and
@@ -35,8 +39,8 @@ character is printed as its escaped JSON literal).
 - **GIVEN** `DATABASE_URL` unset, then `DATABASE_URL` = `"   "`
 - **WHEN** verify runs
 - **THEN** each run exits with `1`; stdout is empty; stderr holds one error line with code
-  `MISSING_CONFIG`, the message `DATABASE_URL is not set` and `details.variable` = `DATABASE_URL`; no
-  seed or golden file is read and no database connection is opened
+  `MISSING_CONFIG`, the message `DATABASE_URL is not set` and `details` = `{"variable":"DATABASE_URL"}`;
+  no seed or golden file is read and no database connection is opened
 
 #### Scenario: An invalid seed or golden file fails before connecting
 
@@ -45,7 +49,9 @@ character is printed as its escaped JSON literal).
 - **WHEN** verify runs
 - **THEN** each run exits with `1`; stdout is empty; stderr holds one `INVALID_SEED` error line with,
   in order, `details.reason` = `missing`, `format` and `cache` (with `details.file`), and the messages
-  `db:seed` gives them; no database connection is opened
+  `db:seed` gives them; no database connection is opened. (These three reasons stand for all of
+  `db:seed`'s: the seed and golden files are read by the same readers, whose other reasons are covered
+  by the `seed-load` scenarios.)
 
 #### Scenario: An unreachable database is reported without its URL by verify
 
@@ -53,7 +59,7 @@ character is printed as its escaped JSON literal).
   `DATABASE_URL=postgres://u:s3cret@127.0.0.1:1/db`
 - **WHEN** verify runs
 - **THEN** it exits with `1`; stdout is empty; stderr holds one error line with code
-  `DATABASE_UNAVAILABLE` and the message `cannot connect to the database`; no output contains
+  `DATABASE_UNAVAILABLE`, the message `cannot connect to the database` and `details` = `{}`; no output contains
   `s3cret`, `u:`, `127.0.0.1:1` or `postgres://`
 
 ### Requirement: Seed and golden fingerprints are current
@@ -62,7 +68,7 @@ After reading the files and before any connection, verify SHALL compare, in this
 
 1. the seed header's analyzer and contract fingerprints with the ones the seed build computes from the
    current repository. When either differs, or the header lacks one, it SHALL fail with
-   `FINGERPRINT_MISMATCH`, `details.reason` = `seed` and the message
+   `FINGERPRINT_MISMATCH`, `details` = `{"reason":"seed"}` and the message
    `seed/golden fingerprint mismatch: <seed> is out of date; run npm run seed:build, then npm run cache:build`,
    `<seed>` being the seed path displayed as `db:seed` displays it (`seeds/graph-dump.sql` by default);
 2. each golden file, in file-name order: its `seed` fingerprints with the seed header's, and its
@@ -85,7 +91,7 @@ printed.
   analyzer fingerprint line
 - **WHEN** verify runs
 - **THEN** each run exits with `1`; stdout is empty; stderr holds one error line with code
-  `FINGERPRINT_MISMATCH`, `details.reason` = `seed` and the message
+  `FINGERPRINT_MISMATCH`, `details` = `{"reason":"seed"}` and the message
   `seed/golden fingerprint mismatch: seeds/graph-dump.sql is out of date; run npm run seed:build, then npm run cache:build`;
   no database connection is opened
 
@@ -95,8 +101,8 @@ printed.
   current answer fingerprint; then one whose `seed.analyzerFingerprint` differs from the seed header's
 - **WHEN** verify runs
 - **THEN** each run exits with `1`; stdout is empty; stderr holds one error line with code
-  `FINGERPRINT_MISMATCH`, `details.reason` = `golden`, `details.file` = `seeds/cache/acme-shop.json`
-  and the message
+  `FINGERPRINT_MISMATCH`, `details` = `{"reason":"golden","file":"seeds/cache/acme-shop.json"}` and
+  the message
   `seed/golden fingerprint mismatch: seeds/cache/acme-shop.json is out of date; run npm run cache:build`;
   no database connection is opened
 
@@ -106,13 +112,14 @@ printed.
   golden file; then one whose `acme-shop.json` has current fingerprints and no entries
 - **WHEN** verify runs
 - **THEN** each run exits with `1`; stdout is empty; stderr holds one error line with code
-  `GOLDEN_MISSING`, `details.project` = `acme-shop` and the message
+  `GOLDEN_MISSING`, `details` = `{"project":"acme-shop"}` and the message
   `no golden answers for "acme-shop": run npm run cache:build`; no database connection is opened
 
 ### Requirement: Golden projects are loaded from the current seed
 
 After connecting, and before asking any question, verify SHALL look up every golden file's project by
-its exact name among the stored projects. When it is absent, is not a sample project, or its id is
+its exact name among the stored projects, in golden-file order; the first project that fails is
+reported. When it is absent, is not a sample project, or its id is
 not the id the versioned seed gives it, verify SHALL fail with `SEED_NOT_LOADED`,
 `details.project` = the project's name and the message
 `<name> is not loaded from the current seed: run npm run db:seed`, `<name>` being the quoted
@@ -125,7 +132,7 @@ terminal-safe literal of the name.
   database where a non-sample project named `acme-shop` exists with the seed's id
 - **WHEN** verify runs
 - **THEN** each run exits with `1`; stdout is empty; stderr holds one error line with code
-  `SEED_NOT_LOADED`, `details.project` = `acme-shop` and the message
+  `SEED_NOT_LOADED`, `details` = `{"project":"acme-shop"}` and the message
   `"acme-shop" is not loaded from the current seed: run npm run db:seed`; no question is asked; the
   database is unchanged
 
@@ -137,15 +144,16 @@ uses, with the answer cache on and a model in evaluation mode that never sends a
 the environment holds. Every question of one run SHALL be asked inside one database transaction
 that is always rolled back and never committed, whatever happens, and whose connection is always
 closed before verify returns; the run SHALL leave no row added, changed or deleted (no `query_log` or
-`claim` row added, no `cache_entry.hit_count` changed). A failure while asking SHALL be reported as
-`INTERNAL` (or `DATABASE_UNAVAILABLE` when the connection is lost), after the lines already printed
-for the previous entries.
+`claim` row added, no `cache_entry.hit_count` changed). `DATABASE_UNAVAILABLE` SHALL be reported only
+when opening the transaction fails. Any failure after the transaction is open (a lost connection
+included) SHALL be reported as `INTERNAL`, after the lines already printed for the previous entries.
 
 #### Scenario: No request reaches a model even when one is configured
 
 - **GIVEN** a database with the seed and the golden answers loaded, current fingerprints, a local
   HTTP server that counts every request it receives, `LLM_BASE_URL` = that server's URL and
-  `LLM_API_KEY` = `k3y`; then, in another run, `LLM_BASE_URL` = `ftp://x`
+  `LLM_API_KEY` = `k3y`; then, in another run, `LLM_BASE_URL` = `ftp://x`, `DAILY_BUDGET_USD` = `abc`
+  and `CACHE_BUILD_TIMEOUT_MS` = `abc`
 - **WHEN** verify runs
 - **THEN** each run exits with `0` with the same stdout as without any `LLM_*` variable, and the
   server has received `0` requests
@@ -175,10 +183,12 @@ order:
 1. that it was served from the answer cache: an `UNKNOWN` answer is a mismatch reported only by the
    line `expected an answer from the golden cache, got UNKNOWN (<reason>)`, followed by
    `: run npm run db:seed` when `<reason>` is `llm-required`; an answered answer whose
-   `usage.cacheHit` is not `true` is the difference `usage.cacheHit`;
+   `usage.cacheHit` is not `true` is the difference `usage.cacheHit: expected true, got <served>` (the
+   expected value is the literal `true`: a stored golden response always holds `false`);
 2. `statements`: the number of statements, then, for each index present in both, the statement's
    `type`, `verification`, `status` and `evidence` — its cited spans as the list of
-   `<path>:<startLine>-<endLine>` of the evidence its `evidenceIds` resolve to, in order;
+   `<path>:<startLine>-<endLine>` of the evidence its `evidenceIds` resolve to, in order (an id that
+   resolves to no evidence entry is left out);
 3. `evidence`: the number of evidence entries, then, for each index present in both, its `path`,
    `startLine` and `endLine`.
 
@@ -189,7 +199,8 @@ compared.
 stdout SHALL hold, for each entry, in the order the questions are asked, one line
 `✓ <project> <id> <question>` when it matches or `✗ <project> <id> <question>` when it does not;
 under each `✗` line, one line indented by four spaces per difference, in the order above:
-`<field>: expected <golden>, got <served>` with both values as terminal-safe JSON literals (for
+`<field>: expected <golden>, got <served>` (for `usage.cacheHit`, `expected true`) with both values
+as terminal-safe JSON literals (for
 example `statements[0].type: expected "FACT", got "INFERENCE"`), or
 `<field>: expected <n> items, got <m>` for a count (`statements`, `evidence`). After every entry line,
 stdout SHALL end with one line per golden file, in the same order,
@@ -198,7 +209,8 @@ entry matches.
 
 #### Scenario: Every golden answer matches
 
-- **GIVEN** a migrated database where `db:seed` loaded the versioned seed and the versioned
+- **GIVEN** a migrated database where `db:seed` (as `make up` runs it) loaded the versioned seed and
+  the versioned
   `seeds/cache/acme-shop.json` (Q1, Q3 and Q4), current fingerprints and no `LLM_*` variable
 - **WHEN** verify runs
 - **THEN** it exits with `0`; stdout is exactly
@@ -266,7 +278,8 @@ jobs when it is not green. A failing `verify` job SHALL fail the run.
   service is `pgvector/pgvector:pg16` with `POSTGRES_DB` = `verify`; its steps run `npm ci`,
   `npm run db:migrate`, `npm run db:seed` and `npm run verify` in that order, each step that needs
   the database with `DATABASE_URL` = `postgres://postgres:postgres@localhost:5432/verify`; no step
-  or job of it defines an `LLM_*` variable; `quality` still uses `POSTGRES_DB` = `test` and no step of
+  or job of it defines an `LLM_*` variable; neither the job nor any of its steps sets
+  `continue-on-error`; no other job has a service with `POSTGRES_DB` = `verify`; `quality` still uses `POSTGRES_DB` = `test` and no step of
   `quality` runs `db:seed`; and the `scope` script checks `verify` together with `quality` and
   `mutation`
 
