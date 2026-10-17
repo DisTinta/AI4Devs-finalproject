@@ -24,6 +24,7 @@
     "db:migrate": "tsx packages/adapters/store-postgres/src/migrate.ts up",
     "db:rollback": "tsx packages/adapters/store-postgres/src/migrate.ts down",
     "db:seed": "tsx --tsconfig packages/cli/tsconfig.run.json packages/cli/src/seed-load.ts",
+    "cache:build": "tsx --tsconfig packages/cli/tsconfig.run.json packages/cli/src/cache-build.ts",
     "seed:build": "tsx --tsconfig packages/cli/tsconfig.run.json packages/cli/src/seed-build.ts",
     "cli": "tsx --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts",
     "verify": "node -e \"console.log('pending — verify not implemented (Ticket 1/2)'); process.exit(0)\"",

@@ -1,12 +1,22 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { Client } from 'pg';
-import { expect, it } from 'vitest';
+import { afterAll, expect, it } from 'vitest';
+import { createGitSourceTree } from '@codemind/adapter-git';
 import { createPostgresStore } from '@codemind/adapter-store-postgres';
+import { buildApp } from '../../../packages/api/src/app';
+import { renderGoldenFile } from '../../../packages/cli/src/cache/golden-file';
+import type { GoldenFile } from '../../../packages/cli/src/cache/golden-file';
 import type { OpenTransaction } from '../../../packages/cli/src/compose-index';
 import { runSeedLoad } from '../../../packages/cli/src/seed-load';
+import type { SeedLoadDeps } from '../../../packages/cli/src/seed-load';
 import { seedProjects } from '../../../packages/cli/src/seed/parse-seed';
+import { cachedAnswer } from '../../support/cached-answer';
+import { goldenEntry, goldenFile } from '../../support/golden-file';
 import { sampleGraph } from '../../support/sample-graph';
+import { createScriptedLlm } from '../../support/scripted-llm';
 import { databaseUrl, describeWithDatabase, useTransactionPerTest } from '../helpers/db';
 import { unique } from '../helpers/factories';
 
@@ -19,6 +29,13 @@ import { unique } from '../helpers/factories';
 const ACME_ID = 'a794456d-6d1b-5b55-a360-13fec83dc7bc';
 const SEED = readFileSync(resolve('seeds/graph-dump.sql'), 'utf8');
 const ACME_LINES = ['1 project loaded', '  acme-shop  php/laravel  174 nodes · 170 edges'];
+const WORKSPACE_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+/** Temporary golden directories of the golden scenarios (DIS-26), removed at the end. */
+const goldenDirs: string[] = [];
+
+afterAll(() => {
+  for (const dir of goldenDirs) rmSync(dir, { recursive: true, force: true });
+});
 
 interface Run {
   exit: number;
@@ -101,6 +118,24 @@ async function snapshot(client: Client): Promise<Record<string, unknown>> {
   return result;
 }
 
+/**
+ * {@link snapshot} for a reload (DIS-26, seed-load → "Sample projects are loaded idempotently"): the
+ * answer cache entries of the sample projects are replaced on every load with new ids, so they are
+ * compared without their id, by project and normalized question; every other row is compared whole.
+ */
+async function reloadSnapshot(client: Client): Promise<Record<string, unknown>> {
+  const result = await snapshot(client);
+  const { rows } = await client.query(
+    `SELECT c.*, p.is_sample FROM cache_entry c JOIN project p ON p.id = c.project_id
+      ORDER BY c.project_id, c.question_normalized COLLATE "C", c.id`,
+  );
+  result.cache_entry = rows.map(({ is_sample: isSample, ...row }) => {
+    if (isSample) delete row.id;
+    return row;
+  });
+  return result;
+}
+
 /** Gives `projectId` one row in each table the domain does not write yet, so their survival is visible. */
 async function addHistoryRows(client: Client, projectId: string): Promise<void> {
   const claim = await client.query<{ id: string }>(
@@ -156,7 +191,7 @@ describeWithDatabase('db:seed (integration)', () => {
     const mine = await store.createProject({ name: unique('mine'), rootPath: '/repos/mine', language: 'php' });
     await store.saveGraph(mine, sampleGraph());
     await addHistoryRows(db(), mine);
-    const before = await snapshot(db());
+    const before = await reloadSnapshot(db());
 
     // Act
     const second = await load(db());
@@ -167,8 +202,9 @@ describeWithDatabase('db:seed (integration)', () => {
     expect(second.stdout).toBe(first.stdout);
     expect(second.stderr).toBe('');
     // Same rows, same ids, same content in every table: the samples are reloaded with their deterministic
-    // ids and the user's project, with its claim, evidence, query log and cache rows, is untouched.
-    expect(await snapshot(db())).toEqual(before);
+    // ids and the user's project, with its claim, evidence, query log and cache rows, is untouched. The
+    // samples' golden cache entries (DIS-26) come back with new ids, so only their id is not compared.
+    expect(await reloadSnapshot(db())).toEqual(before);
     const { rows } = await db().query<{ id: string }>("SELECT id FROM project WHERE name = 'acme-shop'");
     expect(rows).toEqual([{ id: ACME_ID }]);
   });
@@ -222,4 +258,176 @@ describeWithDatabase('db:seed (integration)', () => {
       expect(output).not.toContain('u:');
     }
   }, 20_000);
+
+  // Spec: openspec/changes/golden-cache-build/specs/seed-load/spec.md → "Golden answers are loaded with
+  // the seed" and "Command contract and configuration". Each golden directory is temporary (`cacheDir`).
+
+  /** A temporary golden directory holding `files` (name → content); removed after the test. */
+  function goldenDir(files: Record<string, string> = {}): string {
+    const dir = mkdtempSync(join(tmpdir(), 'codemind-golden-'));
+    goldenDirs.push(dir);
+    for (const [name, content] of Object.entries(files)) {
+      mkdirSync(dirname(join(dir, name)), { recursive: true });
+      writeFileSync(join(dir, name), content);
+    }
+    return dir;
+  }
+
+  /** Loads the versioned seed with the golden directory `cacheDir` and the optional cache store seam. */
+  async function loadGolden(client: Client, cacheDir: string, cacheStore?: SeedLoadDeps['cacheStore']): Promise<Run> {
+    let stdout = '';
+    let stderr = '';
+    const exit = await runSeedLoad({
+      env: { DATABASE_URL: databaseUrl },
+      stdout: { write: (chunk: string) => void (stdout += chunk) },
+      stderr: { write: (chunk: string) => void (stderr += chunk) },
+      openTransaction: savepointTransaction(client),
+      cacheDir,
+      ...(cacheStore === undefined ? {} : { cacheStore }),
+    });
+    return { exit, stdout, stderr };
+  }
+
+  interface CacheRow {
+    question_normalized: string;
+    response: unknown;
+    hit_count: number;
+    last_hit_at: Date | null;
+  }
+
+  async function cacheRows(client: Client, projectId: string): Promise<CacheRow[]> {
+    const { rows } = await client.query<CacheRow>(
+      'SELECT question_normalized, response, hit_count, last_hit_at FROM cache_entry WHERE project_id = $1 ORDER BY question_normalized',
+      [projectId],
+    );
+    return rows;
+  }
+
+  /** A golden file of acme-shop with Q1 and Q3, fingerprints that are not the current code's. */
+  function twoEntries(): string {
+    const q1 = goldenEntry('Q1');
+    const q3 = goldenEntry('Q3', { response: cachedAnswer({ answer: 'Los cupones los valida CouponValidator::percentFor.' }) });
+    return renderGoldenFile(goldenFile({ entries: [q1, q3] }));
+  }
+
+  it('Golden answers are loaded and served in evaluation mode', async () => {
+    // Arrange
+    await db().query('DELETE FROM project');
+    const cacheDir = goldenDir({ 'acme-shop.json': twoEntries() });
+    const [q1, q3] = (JSON.parse(twoEntries()) as GoldenFile).entries;
+
+    // Act
+    const loaded = await loadGolden(db(), cacheDir);
+    const afterLoad = await cacheRows(db(), ACME_ID);
+    const model = createScriptedLlm('evaluation');
+    const store = createPostgresStore({ transaction: db() });
+    const app = await buildApp(
+      { store, llm: model.llm, source: createGitSourceTree(), now: () => new Date(), workspaceRoot: WORKSPACE_ROOT },
+      { rateLimit: { max: 1000, windowMs: 60_000 } },
+    );
+    let response;
+    try {
+      await app.ready();
+      response = await app.inject({
+        method: 'POST',
+        url: `/api/projects/${ACME_ID}/ask`,
+        payload: { question: 'COMO SE CALCULA EL PRECIO FINAL DE UN PEDIDO' },
+      });
+    } finally {
+      await app.close();
+    }
+
+    // Assert
+    expect(loaded.exit).toBe(0);
+    expect(loaded.stderr).toBe('');
+    expect(loaded.stdout.split('\n')).toEqual([...ACME_LINES, '']);
+    const before = [q1, q3].map((entry) => ({ question_normalized: entry.questionNormalized, response: entry.response, hit_count: 0, last_hit_at: null }));
+    expect(afterLoad).toEqual(before.sort((a, b) => (a.question_normalized < b.question_normalized ? -1 : 1)));
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    const stored = q1.response as ReturnType<typeof cachedAnswer>;
+    expect(body.answer).toBe(stored.answer);
+    expect(body.statements.map((s: { text: string; type: string }) => [s.text, s.type])).toEqual(stored.statements.map((s) => [s.text, s.type]));
+    expect(body.evidence.map((e: { file: string; startLine: number; endLine: number; excerpt: string }) => [e.file, e.startLine, e.endLine, e.excerpt])).toEqual(
+      stored.evidence.map((e) => [e.path, e.startLine, e.endLine, e.excerpt]),
+    );
+    expect(body.usage).toMatchObject({ cacheHit: true, costUsd: 0 });
+    expect(model.requests).toEqual([]);
+    const { rows } = await db().query<{ hit_count: number }>('SELECT hit_count FROM cache_entry WHERE project_id = $1 AND question_normalized = $2', [
+      ACME_ID,
+      q1.questionNormalized,
+    ]);
+    expect(rows).toEqual([{ hit_count: 1 }]);
+  });
+
+  it('A seed without golden files loads only the graph', async () => {
+    const valid = renderGoldenFile(goldenFile());
+    const missing = join(goldenDir(), 'absent');
+    for (const cacheDir of [missing, goldenDir(), goldenDir({ 'README.md': '# golden\n', 'old/acme-shop.json': valid })]) {
+      // Arrange
+      await db().query('DELETE FROM project');
+
+      // Act
+      const result = await loadGolden(db(), cacheDir);
+
+      // Assert
+      expect(result.exit).toBe(0);
+      expect(result.stderr).toBe('');
+      expect(result.stdout.split('\n')).toEqual([...ACME_LINES, '']);
+      expect(await cacheRows(db(), ACME_ID)).toEqual([]);
+    }
+  });
+
+  it('Loading golden answers again does not duplicate them', async () => {
+    // Arrange
+    await db().query('DELETE FROM project');
+    const cacheDir = goldenDir({ 'acme-shop.json': twoEntries() });
+    const first = await loadGolden(db(), cacheDir);
+    const store = createPostgresStore({ transaction: db() });
+    const mine = await store.createProject({ name: unique('mine'), rootPath: '/repos/mine', language: 'php' });
+    await store.saveCacheEntry(mine, 'mi pregunta', cachedAnswer());
+    await db().query('UPDATE cache_entry SET hit_count = 4 WHERE project_id = $1', [mine]);
+    await db().query('UPDATE cache_entry SET hit_count = 2 WHERE project_id = $1', [ACME_ID]);
+    const mineBefore = (await db().query('SELECT * FROM cache_entry WHERE project_id = $1', [mine])).rows;
+
+    // Act
+    const second = await loadGolden(db(), cacheDir);
+
+    // Assert
+    expect(first.exit).toBe(0);
+    expect(second.exit).toBe(0);
+    const acme = await cacheRows(db(), ACME_ID);
+    expect(acme).toHaveLength(2);
+    expect(acme.map((row) => row.hit_count)).toEqual([0, 0]);
+    expect((await db().query('SELECT * FROM cache_entry WHERE project_id = $1', [mine])).rows).toEqual(mineBefore);
+  });
+
+  it('A failed golden save leaves the database unchanged', async () => {
+    // Arrange
+    await db().query('DELETE FROM project');
+    const cacheDir = goldenDir({ 'acme-shop.json': twoEntries() });
+    expect((await loadGolden(db(), cacheDir)).exit).toBe(0);
+    const before = await snapshot(db());
+    let saves = 0;
+    const failing: SeedLoadDeps['cacheStore'] = (connection) => {
+      const real = createPostgresStore(connection);
+      return {
+        saveCacheEntry: async (projectId, key, response) => {
+          saves += 1;
+          if (saves === 2) throw new Error('disk full');
+          await real.saveCacheEntry(projectId, key, response);
+        },
+      };
+    };
+
+    // Act
+    const result = await loadGolden(db(), cacheDir, failing);
+
+    // Assert
+    expect(result.exit).toBe(1);
+    expect(result.stdout).toBe('');
+    expect(JSON.parse(result.stderr)).toEqual({ error: { code: 'INTERNAL', message: 'seed load failed; the database is unchanged', details: {} } });
+    expect(saves).toBe(2);
+    expect(await snapshot(db())).toEqual(before);
+  });
 });

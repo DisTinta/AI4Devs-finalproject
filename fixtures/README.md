@@ -189,6 +189,18 @@ anchored to symbols so it survives edits.
 | Q5 | ¿La documentación de precios coincide con el código? | **No** — `docs/pricing.md` says tax-before-discount and €50 free shipping; code does discount-before-tax and €75 (drift) | `docs/pricing.md` vs `PriceCalculator::compute`, `config/shop.php` |
 | Q6 (UNKNOWN) | ¿Cómo se gestionan los reembolsos de un pedido? | **UNKNOWN** — there is no refund logic in the repo | — (no evidence; must not fabricate) |
 
+**Golden answers (DIS-26).** Q1, Q3 and Q4 have golden answers in
+`seeds/cache/acme-shop.json`, generated with `npm run cache:build` (a live
+model, after `npm run seed:build`) and loaded into the answer cache by
+`npm run db:seed`, so they answer in evaluation mode without a model. Their ids
+and texts are `GOLDEN_QUESTIONS` of `packages/cli/src/cache/demo-questions.ts`,
+which `tests/unit/seed/golden-questions.spec.ts` checks against this table:
+change a question here and there together, then regenerate. The others have
+none: Q2 is an impact question (CM-HU-16, not an `explain` answer); Q5 is the
+documentation-drift question, added with the drift story, and its terms anchor
+no symbol of the seed; Q6 answers `UNKNOWN` `no-anchor` before the cache is
+read, without a model and at zero cost.
+
 ## Planted secret
 
 `config/services.php` line 21 — a dev-only AWS S3 key (matches
