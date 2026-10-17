@@ -11,9 +11,9 @@
 
 ## 2. Structural comparison (TDD, design C5) — `verify-smoke` → "Golden answers are compared on structure only"
 
-- [ ] 2.1 RED: create `tests/unit/cache/compare-golden.spec.ts` with "Free text, ids and usage are not compared" (golden and served built from `tests/support/cached-answer.ts`). See it fail (module missing)
-- [ ] 2.2 GREEN: `packages/cli/src/cache/compare-golden.ts` (`compareGolden`, `GoldenDifference`, the line render; TSDoc)
-- [ ] 2.3 RED → GREEN: "Count and span differences are listed in a fixed order" (cases A–D), including case (E) (A1), plus, as plain tests (not scenarios): the `UNKNOWN` `llm-required` difference with the `db:seed` hint, each of `type`, `verification` and `status`, and a value with a control character rendered as its escaped literal
+- [x] 2.1 RED: create `tests/unit/cache/compare-golden.spec.ts` with "Free text, ids and usage are not compared" (golden and served built from `tests/support/cached-answer.ts`). See it fail (module missing)
+- [x] 2.2 GREEN: `packages/cli/src/cache/compare-golden.ts` (`compareGolden`, `GoldenDifference`, the line render; TSDoc)
+- [x] 2.3 RED → GREEN: "Count and span differences are listed in a fixed order" (cases A–D), including case (E) (A1), plus, as plain tests (not scenarios): the `UNKNOWN` `llm-required` difference with the `db:seed` hint, each of `type`, `verification` and `status`, and a value with a control character rendered as its escaped literal
 
 ## 3. Verify command: checks before connecting (TDD, design C2, C3) — `verify-smoke` → "Verify command contract and configuration", "Seed and golden fingerprints are current"
 
