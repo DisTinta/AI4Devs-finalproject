@@ -199,4 +199,8 @@ credentials was replaced by a credential-free one.
   write on a fresh connection, up to three attempts, before mapping it like any other write error. Local
   verification after the fix: `npx vitest run` (with `DATABASE_URL`) 123 files, 1 492 tests passed;
   `npm run lint`, `npm run typecheck`, `npm run lint:architecture` and `npm run docs:coverage` all clean.
-- Second run: pending — see the PR's checks for the final link once green.
+- Second run (`38992112769`, after `b51df3d`): all checks green — `frontend` pass, `scope` pass,
+  `secrets` pass, `mutation` pass (1m15s, final mutation score **96.22** ≥ break threshold 80), `quality`
+  pass (1m43s), including the new spec files (`tests/unit/explain/explain-cache.spec.ts`,
+  `tests/integration/store/cache-entry.spec.ts`, `tests/unit/store/postgres-cache-write-errors.spec.ts`,
+  and the rest of this change's suite). Run: https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/38992112769.
