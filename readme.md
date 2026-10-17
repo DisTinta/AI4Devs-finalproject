@@ -306,7 +306,7 @@ npm run cli -- impact acme-shop "cambiar el cálculo de descuentos"
 npm run cli -- ask task-api "¿Cómo se validan las peticiones entrantes?"
 ```
 
-**Estado en Entrega 2:** la caché de preguntas de muestra llega con DIS-21, así que sin `LLM_*` (modo evaluación) `ask` responde a todas, también a las de muestra, con:
+**Estado en Entrega 2:** desde DIS-21, sin `LLM_*` (modo evaluación) `ask` responde desde la caché de respuestas del proyecto cualquier pregunta que ya tenga entrada (misma pregunta normalizada: sin distinguir mayúsculas, tildes, signos ni espacios), sin llamar al modelo y a coste 0. Las respuestas *golden* de las preguntas de muestra llegan con DIS-26; hasta entonces la caché solo tiene lo que una pregunta respondida en modo vivo guardó, así que una pregunta sin entrada responde:
 
 ```text
 UNKNOWN (llm-required)
@@ -485,7 +485,7 @@ flowchart TB
 | Security Gateway | Reglas propias en proceso + `gitleaks` en CI | Secretos antes de indexar, sanitización, aislamiento por proyecto; escaneo de secretos del repositorio en cada PR y cada push a `main` |
 | Persistencia | **PostgreSQL 16 + pgvector** | Nodos, aristas, embeddings, afirmaciones, evidencias, uso |
 
-**Caso de uso `explain` (DIS-39).** Responde una pregunta sobre un proyecto indexado en **una sola pasada** Context Engine → modelo, en este orden: valida la entrada (pregunta de 1 a 1 000 code points que no sea solo espacios; un error, no un `UNKNOWN`), ancla la pregunta una vez, y responde `UNKNOWN` sin construir el paquete si no hay ancla (`no-anchor`) o si el modelo está en modo evaluación (`llm-required`, con el mensaje PH-08; la caché de DIS-21 irá entre los dos). Después construye el paquete (`over-budget` si no cabe ningún span), lee las afirmaciones ya guardadas que se solapan con sus spans (como mucho las 20 más recientes, antes de llamar al modelo), llama al modelo una vez, pasa su salida por la cuarentena (`invalid-model-output`) y, si no trae ninguna afirmación, responde `UNKNOWN` con `no-evidence` en lugar de devolver el texto del modelo. Cada afirmación se tipa `FACT` o `INFERENCE` por las citas y se guarda como `CLAIM` con su evidencia y su procedencia, todo en una transacción. Si el proyecto se reindexó a otro commit mientras se respondía, las afirmaciones se guardan `stale` y la respuesta las muestra con aviso, nunca como `FACT`. Si la escritura falla, la respuesta se devuelve igual, con `persisted: false` y un evento `claims_not_persisted` que no lleva ningún texto. Core devuelve los eventos y no escribe en ningún log.
+**Caso de uso `explain` (DIS-39).** Responde una pregunta sobre un proyecto indexado en **una sola pasada** Context Engine → modelo, en este orden: valida la entrada (pregunta de 1 a 1 000 code points que no sea solo espacios; un error, no un `UNKNOWN`), ancla la pregunta una vez, y responde `UNKNOWN` sin construir el paquete si no hay ancla (`no-anchor`) o si el modelo está en modo evaluación (`llm-required`, con el mensaje PH-08). Entre ambos pasos (DIS-21), salvo con `useCache: false`, busca la pregunta normalizada en la caché de respuestas del proyecto: una entrada válida responde, en los dos modos, la respuesta guardada sin construir el paquete, sin llamar al modelo y sin escribir afirmaciones, con `usage.cacheHit: true` y coste 0, y suma un acierto a la entrada; una entrada que no supera la validación cuenta como fallo de caché. Después construye el paquete (`over-budget` si no cabe ningún span), lee las afirmaciones ya guardadas que se solapan con sus spans (como mucho las 20 más recientes, antes de llamar al modelo), llama al modelo una vez, pasa su salida por la cuarentena (`invalid-model-output`) y, si no trae ninguna afirmación, responde `UNKNOWN` con `no-evidence` en lugar de devolver el texto del modelo. Cada afirmación se tipa `FACT` o `INFERENCE` por las citas y se guarda como `CLAIM` con su evidencia y su procedencia, todo en una transacción. Si el proyecto se reindexó a otro commit mientras se respondía, las afirmaciones se guardan `stale` y la respuesta las muestra con aviso, nunca como `FACT`. Si la escritura falla, la respuesta se devuelve igual, con `persisted: false` y un evento `claims_not_persisted` que no lleva ningún texto. Core devuelve los eventos y no escribe en ningún log.
 
 **Sobre `drift`.** Es el comando de la funcionalidad F6, que es *should-have* y vive en la reserva del calendario: puede no entrar en esta versión. Aparece ya en el diagrama, en la CLI y en el enum `capability` de `QUERY_LOG` porque el punto de extensión conviene diseñarlo ahora —añadir un valor a un enum con datos dentro es una migración, no un cambio de código— pero se documenta como **previsto, no entregado**. La distinción no es cosmética: un README que anuncia un comando que el código no tiene es exactamente la divergencia entre documentación y código que F6 existe para detectar.
 
@@ -609,8 +609,9 @@ Push a la rama → CI ejecuta lint, test de arquitectura, unitarios, integració
 
 | Tipo de consulta | Comportamiento | Coste |
 |---|---|---|
-| Una de las ~12 preguntas sugeridas (sin LLM) | Se sirve desde caché precalculada en semillas | **0 $** |
-| Pregunta libre semánticamente equivalente a una cacheada | Acierto de caché por similitud de embedding (si el índice de caché está sembrado) | **0 $** |
+| Una de las ~12 preguntas sugeridas (sin LLM) | Se sirve desde caché precalculada en semillas (las entradas *golden* llegan con DIS-26) | **0 $** |
+| Pregunta ya respondida, escrita igual salvo mayúsculas, tildes, signos o espacios | Acierto de caché exacto por la pregunta normalizada (DIS-21), en modo vivo y en modo evaluación; `useCache: false` lo salta | **0 $** |
+| Pregunta libre semánticamente equivalente a una cacheada | Acierto de caché por similitud de embedding: solo con CM-HU-19 (hoy no hay acierto por similitud) | **0 $** |
 | Pregunta libre nueva | Requiere LLM configurado (Ollama u otro); opcionalmente con presupuesto si el proveedor es de pago | 0 $ con Ollama; acotado con cloud |
 | Sin LLM y pregunta no cacheada | Aviso claro: modo solo-caché / configurar `LLM_*` | 0 $ |
 
@@ -692,7 +693,7 @@ Cada consulta lleva su `project_id` y toda consulta al almacén lo filtra. Ningu
 
 #### 6. Límite de uso y protección de la cuota
 
-*Rate limiting* por IP y, si el LLM es un proveedor cloud de pago, presupuesto diario global de gasto, para que un uso intensivo en local (o una futura exposición) no agote la cuota. Al alcanzar el techo, el sistema deja de llamar al modelo y degrada a modo solo-caché con aviso, sin caerse: `POST /ask` responde `429 BUDGET_EXHAUSTED` con `details.cacheOnly: true` (DIS-78); lo que no necesita llamar al modelo (por ejemplo, un `UNKNOWN` `no-anchor`) sigue contestando, y las respuestas guardadas en caché lo harán cuando exista la caché de respuestas (CM-HU-13). Con Ollama local el presupuesto en USD no aplica.
+*Rate limiting* por IP y, si el LLM es un proveedor cloud de pago, presupuesto diario global de gasto, para que un uso intensivo en local (o una futura exposición) no agote la cuota. Al alcanzar el techo, el sistema deja de llamar al modelo y degrada a modo solo-caché con aviso, sin caerse: `POST /ask` responde `429 BUDGET_EXHAUSTED` con `details.cacheOnly: true` (DIS-78); lo que no necesita llamar al modelo (por ejemplo, un `UNKNOWN` `no-anchor`) sigue contestando, y desde DIS-21 también una pregunta que ya está en la caché de respuestas: la caché se consulta antes de cualquier llamada al modelo, así que responde `200` con el techo agotado; con `useCache: false` o sin entrada, el techo agotado sigue respondiendo `429`. Con Ollama local el presupuesto en USD no aplica.
 
 El límite (DIS-76) cuenta, en memoria, las peticiones de cada IP —la del socket: `X-Forwarded-For` y similares se ignoran— dentro de una ventana: **30 peticiones cada 60 s** por defecto (`RATE_LIMIT_MAX`, `RATE_LIMIT_WINDOW_MS`). La petición que lo supera recibe `429 RATE_LIMITED` con `details.retryAfterSeconds` y la cabecera `Retry-After`, sin llegar al dominio. Cuenta toda petición a una ruta limitada, también las rechazadas por validación; `/health`, `/docs` y todo lo que cuelga de `/docs/` no se limitan ni se cuentan, y tampoco una petición a una ruta que no existe (`404`). Los contadores se reinician al reiniciar la API (un único proceso local); el techo de gasto, en cambio, vive en la base de datos.
 
@@ -989,7 +990,7 @@ Desde DIS-74 `explain` escribe **una fila por llamada**: en toda respuesta, tamb
 
 #### CACHE_ENTRY
 
-Sostiene F7 y el modo demo. El acierto **no es por texto exacto sino por similitud de embedding**, de modo que «¿cómo se calcula el precio?» y «explícame el cálculo del precio final» comparten entrada. `hit_count` alimenta la métrica de acierto que se muestra en la interfaz.
+Sostiene F7 y el modo demo. Desde DIS-21 el acierto es **exacto por la pregunta normalizada** (`question_normalized`: descomposición NFKD, sin tildes, en minúsculas, signos y símbolos como espacios y espacios colapsados), de modo que «¿Cómo se calcula el precio final de un pedido?» y «COMO SE CALCULA EL PRECIO FINAL DE UN PEDIDO» comparten entrada; el acierto por similitud de embedding (que «explícame el cálculo del precio final» comparta entrada) llega con CM-HU-19, y hasta entonces `question_embedding` queda vacío. Hay **una entrada por proyecto y pregunta normalizada**, pero no la garantiza una clave única (no hay migración nueva): la mantiene el almacén, que al guardar bloquea el par con un *advisory lock*, borra sus entradas y escribe la nueva; si alguien escribe duplicados por fuera, la lectura toma la más reciente. `response` guarda la respuesta sin sus eventos y se valida al leerla (si no la supera, es un fallo de caché, no un error). Solo se guardan las respuestas con afirmaciones guardadas y todas vigentes, y los `UNKNOWN` `no-evidence`. `hit_count` y `last_hit_at` registran cada acierto y alimentan la métrica de acierto que se muestra en la interfaz. `invalidateCache(projectId)` borra la caché de un proyecto (la llamará el reindexado, DIS-9).
 
 #### Índices
 
@@ -1100,7 +1101,7 @@ paths:
               properties:
                 question:    {type: string, minLength: 5, maxLength: 500}
                 tokenBudget: {type: integer, default: 8000, minimum: 1000, maximum: 32000}
-                useCache:    {type: boolean, default: true}
+                useCache:    {type: boolean, default: true}   # false: no consulta la caché (sí guarda la respuesta nueva)
             example:
               question: "¿Cómo se calcula el precio final de un pedido?"
               tokenBudget: 8000
@@ -1161,7 +1162,10 @@ paths:
       # /docs/json. `question` se cuenta en code points, no puede ser solo espacios ni contener
       # U+0000; `projectId` acepta mayúsculas y minúsculas (8-4-4-4-12 hexadecimal); `hops` u otra
       # clave responde 400. Sin `tokenBudget` se aplica el valor por defecto (8000); `useCache` se
-      # acepta y no tiene efecto hasta la caché de respuestas (CM-HU-13). Los ids de evidencia son
+      # reenvía al caso de uso solo si llega (DIS-21): sin él se consulta la caché de respuestas, y
+      # con `false` se salta la consulta, aunque la respuesta nueva sustituye a la guardada. Una
+      # respuesta servida desde la caché lleva `usage.cacheHit: true`, tokens y coste 0, y responde
+      # 200 aunque el techo diario esté agotado. Los ids de evidencia son
       # públicos (`ev-1`, `ev-2`… en el orden de `evidence`) y la verificación va en cada
       # afirmación: `entailed` si el chequeo semántico confirma todas sus citas, `cited` si no. La
       # respuesta nunca lleva ids de base de datos, `provenance`, reclamaciones previas ni eventos
