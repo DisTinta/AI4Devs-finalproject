@@ -26,9 +26,9 @@ describe('Requirement: Question normalization', () => {
     const questions = [
       'PriceCalculator::compute()',
       '$final_price',
-      'ＰｒｉｃｅＣａｌｃｕｌａｔｏｒ',
+      '\uFF30\uFF52\uFF49\uFF43\uFF45\uFF23\uFF41\uFF4C\uFF43\uFF55\uFF4C\uFF41\uFF54\uFF4F\uFF52',
       'año',
-      'İstanbul',
+      '\u0130stanbul',
       'precio\tfinal\n pedido',
     ];
 

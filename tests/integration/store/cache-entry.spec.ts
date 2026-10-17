@@ -102,7 +102,8 @@ describeWithDatabase('graph store answer cache entries (DIS-21)', () => {
       const first = await store.findCacheEntry(project.id, KEY);
       await store.touchCacheEntry(project.id, first!.id, new Date('2026-10-17T10:00:00.000Z'));
       await store.saveCacheEntry(project.id, 'otra pregunta', R1);
-      const [, other] = await entriesOf(project.id);
+      // By key: rows of one transaction share `created_at`, so their order falls back to the random id.
+      const other = (await entriesOf(project.id)).find((entry) => entry.question_normalized === 'otra pregunta');
 
       // Act
       await store.saveCacheEntry(project.id, KEY, R2);

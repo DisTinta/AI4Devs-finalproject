@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  answerFromCache,
   BudgetExhausted,
   CacheWriteFailed,
   createInMemoryVerificationCache,
@@ -19,6 +20,7 @@ import { createInMemorySourceTree } from '../../support/in-memory-source-tree';
 import { createInMemoryStore } from '../../support/in-memory-store';
 import { createScriptedLlm, modelOutput } from '../../support/scripted-llm';
 import type { PromptView } from '../../support/scripted-llm';
+import type { ExplainAnswer } from '@codemind/core';
 
 // Spec: openspec/changes/evaluation-cache/specs/explain/spec.md (DIS-21): the requirement "Answer cache"
 // and the new scenarios of "Precedence and UNKNOWN answers" (design C6, C8). Each test is one scenario,
@@ -38,6 +40,21 @@ afterEach(() => {
 function citingCalculator(prompt: PromptView): string {
   const calculator = prompt.evidence.find((evidence) => evidence.path === CALCULATOR)!;
   return modelOutput('ok', [{ text: 'compute calcula el precio final.', evidenceIds: [calculator.id] }]);
+}
+
+/**
+ * `answer` without its events, each evidence id replaced by its position and without the file ids:
+ * both are random per in-memory store, so two stores' answers compare only this way.
+ */
+function comparable(answer: ExplainAnswer): unknown {
+  if (answer.kind !== 'answered') return { ...answer, events: [] };
+  const position = new Map(answer.evidence.map((evidence, i) => [evidence.id, `#${i}`]));
+  return {
+    ...answer,
+    events: [],
+    statements: answer.statements.map((statement) => ({ ...statement, evidenceIds: statement.evidenceIds.map((id) => position.get(id)) })),
+    evidence: answer.evidence.map(({ id, path, startLine, endLine, excerpt }) => ({ id: position.get(id), path, startLine, endLine, excerpt })),
+  };
 }
 
 /** `d`'s project with one cache entry of the price question holding `response`; returns its id. */
@@ -301,6 +318,9 @@ describe('Requirement: Answer cache', () => {
       outputTokens: 0,
       costUsd: 0,
       baselineTokens: null,
+      verifyInputTokens: 0,
+      verifyOutputTokens: 0,
+      verifyCostUsd: 0,
       verifyCalls: 0,
       verifyLatencyMs: 0,
     });
@@ -404,11 +424,10 @@ describe('Requirement: Answer cache', () => {
         { type: 'query_not_logged', code: 'store-write-failed' },
       ],
     ]);
+    expect(expected).toMatchObject({ kind: 'answered', persisted: true, answer: 'ok', usage: { cacheHit: false } });
     for (const answer of answers) {
-      expect(answer).toMatchObject({ kind: 'answered', persisted: true, answer: 'ok', usage: { cacheHit: false } });
-      expect(answer.kind === 'answered' && answer.statements.map((s) => [s.text, s.type, s.verification])).toEqual(
-        expected.kind === 'answered' && expected.statements.map((s) => [s.text, s.type, s.verification]),
-      );
+      // Its fields unchanged: everything but the events is the reference answer's.
+      expect(comparable(answer)).toStrictEqual(comparable(expected));
       const serialised = JSON.stringify(answer);
       expect(serialised).not.toContain(SENTINEL);
       expect(serialised).not.toContain(Q1);
@@ -459,7 +478,9 @@ describe('Requirement: Answer cache', () => {
     const answer = await explain(d.deps, { projectId: d.projectId, question: Q1 });
 
     // Assert
-    expect(answer).toMatchObject({ kind: 'answered', answer: cachedAnswer().answer, usage: { cacheHit: true } });
+    expect(answer.kind === 'answered' && { ...answer, events: [] }).toStrictEqual(
+      answer.kind === 'answered' && answerFromCache(cachedAnswer(), answer.usage.latencyMs),
+    );
     expect(answer.events).toEqual([{ type: 'query_not_logged', code: 'store-write-failed' }]);
   });
 
