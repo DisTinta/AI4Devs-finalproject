@@ -1,23 +1,23 @@
 ## 0. Setup: Create Feature Branch (MANDATORY - FIRST STEP)
 
-- [ ] 0.1 First action of the apply: confirm DIS-26 is In Progress in Linear (set it if not), with a short comment in Spanish naming the change `golden-cache-build` and the branch `feature/DIS-26-cache-build-ollama`
-- [ ] 0.2 Feature branch `feature/DIS-26-cache-build-ollama` (`BRANCH_PREFIX=feature/`, `docs/project-context.md` → Branch and ticket conventions), created from `feature/entrega-2-CRN` before `/opsx:propose`; confirm `git merge-base --is-ancestor origin/feature/entrega-2-CRN HEAD` and that `openspec/changes/golden-cache-build/` is on it. `git fetch`; if `origin/feature/entrega-2-CRN` moved, rebase before any code (never force-push a published branch)
-- [ ] 0.3 Verify the current branch (`git branch --show-current`) and `git status`; `.claude/sdd-harness.env` carries a local change that is never staged
-- [ ] 0.4 Baseline: run `npx vitest run` once, green, and record the totals for the step 12 report; in the local database record `SELECT count(*) FROM project`, `SELECT count(*) FROM claim`, `SELECT count(*) FROM query_log`, `SELECT count(*) FROM cache_entry` and `SELECT max(created_at) FROM query_log`
+- [x] 0.1 First action of the apply: confirm DIS-26 is In Progress in Linear (set it if not), with a short comment in Spanish naming the change `golden-cache-build` and the branch `feature/DIS-26-cache-build-ollama`
+- [x] 0.2 Feature branch `feature/DIS-26-cache-build-ollama` (`BRANCH_PREFIX=feature/`, `docs/project-context.md` → Branch and ticket conventions), created from `feature/entrega-2-CRN` before `/opsx:propose`; confirm `git merge-base --is-ancestor origin/feature/entrega-2-CRN HEAD` and that `openspec/changes/golden-cache-build/` is on it. `git fetch`; if `origin/feature/entrega-2-CRN` moved, rebase before any code (never force-push a published branch)
+- [x] 0.3 Verify the current branch (`git branch --show-current`) and `git status`; `.claude/sdd-harness.env` carries a local change that is never staged
+- [x] 0.4 Baseline: run `npx vitest run` once, green, and record the totals for the step 12 report; in the local database record `SELECT count(*) FROM project`, `SELECT count(*) FROM claim`, `SELECT count(*) FROM query_log`, `SELECT count(*) FROM cache_entry` and `SELECT max(created_at) FROM query_log`
 
 ## 1. Rebuild the stale seed (design C7, D15)
 
-- [ ] 1.1 `git status --porcelain fixtures` and `git clean -ndX fixtures/acme-shop` print nothing; with `AUTHOR_HASH_SALT` exported from `.env` and `DATABASE_URL` of the migrated local database, run `npm run seed:build`
-- [ ] 1.2 `git diff --stat seeds/graph-dump.sql packages/web/src/data/sample-projects.ts`: only the `analyzer-fingerprint` header line of the seed changes and the constant is unchanged (any other difference stops the task: investigate, never commit it); `npx vitest run tests/unit/seed tests/unit/cli/seed-load.spec.ts tests/integration/cli/seed-load.spec.ts` green; commit the seed alone (`chore(DIS-26): rebuild the seed for the current analyzer fingerprint`)
+- [x] 1.1 `git status --porcelain fixtures` and `git clean -ndX fixtures/acme-shop` print nothing; with `AUTHOR_HASH_SALT` exported from `.env` and `DATABASE_URL` of the migrated local database, run `npm run seed:build`
+- [x] 1.2 `git diff --stat seeds/graph-dump.sql packages/web/src/data/sample-projects.ts`: only the `analyzer-fingerprint` header line of the seed changes and the constant is unchanged (any other difference stops the task: investigate, never commit it); `npx vitest run tests/unit/seed tests/unit/cli/seed-load.spec.ts tests/integration/cli/seed-load.spec.ts` green; commit the seed alone (`chore(DIS-26): rebuild the seed for the current analyzer fingerprint`)
 
 ## 2. Golden questions (TDD, design C1) — `golden-answers` → "Golden questions"
 
-- [ ] 2.1 RED: create `tests/unit/seed/golden-questions.spec.ts` with "The golden questions match the demo-question table" (parses the acme-shop table of `fixtures/README.md`). See it fail (module missing)
-- [ ] 2.2 GREEN: `packages/cli/src/cache/demo-questions.ts` (`GOLDEN_PROJECT`, `GOLDEN_QUESTIONS`, TSDoc)
+- [x] 2.1 RED: create `tests/unit/seed/golden-questions.spec.ts` with "The golden questions match the demo-question table" (parses the acme-shop table of `fixtures/README.md`). See it fail (module missing)
+- [x] 2.2 GREEN: `packages/cli/src/cache/demo-questions.ts` (`GOLDEN_PROJECT`, `GOLDEN_QUESTIONS`, TSDoc)
 
 ## 3. Golden file format (TDD, design C2) — `golden-answers` → "Golden file format"
 
-- [ ] 3.1 Add `zod` (`^4.6.5`) to `packages/cli/package.json` and run `npm install` (only the workspace entry of `package-lock.json` changes; no new package)
+- [x] 3.1 Add `zod` (`^4.6.5`) to `packages/cli/package.json` and run `npm install` (only the workspace entry of `package-lock.json` changes; no new package)
 - [ ] 3.2 Factory: `tests/support/golden-file.ts` with `goldenFile(overrides?)`, a fresh valid golden file value per call (`backend-standards.md` §7) whose entries hold `cachedAnswer()` of `tests/support/cached-answer.ts` for the three golden questions
 - [ ] 3.3 RED: create `tests/unit/cache/golden-file.spec.ts` with "The canonical render is stable". See it fail
 - [ ] 3.4 GREEN: `packages/cli/src/cache/golden-file.ts` with `goldenFileSchema`, `renderGoldenFile` (TSDoc)
