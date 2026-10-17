@@ -50,9 +50,9 @@
 
 ## 8. db:seed loads the golden files (TDD, design C6) — `seed-load` → "Command contract and configuration", "Golden answers are loaded with the seed", "Sample projects are loaded idempotently"
 
-- [ ] 8.1 RED: in `tests/unit/cli/seed-load.spec.ts`, "An invalid golden file fails before connecting" (temporary `cacheDir`). See it fail
-- [ ] 8.2 GREEN: `readGoldenFiles` and the `cacheDir` and `cacheStore` seams in `packages/cli/src/seed-load.ts`; the saves after `loadSeed` in the same transaction (`loadSeed` and `packages/adapters/store-postgres/src/` unchanged)
-- [ ] 8.3 RED → GREEN, one at a time, in `tests/integration/cli/seed-load.spec.ts`: "Golden answers are loaded and served in evaluation mode" (`buildApp` of `packages/api/src/app.ts` over a store on the harness transaction, an evaluation-mode model, `inject`; a golden file with fingerprints that are not the current ones), "A seed without golden files loads only the graph", "Loading golden answers again does not duplicate them", "A failed golden save leaves the database unchanged" (`cacheStore` wrapping the real store, failing the second save)
+- [x] 8.1 RED: in `tests/unit/cli/seed-load.spec.ts`, "An invalid golden file fails before connecting" (temporary `cacheDir`). See it fail
+- [x] 8.2 GREEN: `readGoldenFiles` and the `cacheDir` and `cacheStore` seams in `packages/cli/src/seed-load.ts`; the saves after `loadSeed` in the same transaction (`loadSeed` and `packages/adapters/store-postgres/src/` unchanged)
+- [x] 8.3 RED → GREEN, one at a time, in `tests/integration/cli/seed-load.spec.ts`: "Golden answers are loaded and served in evaluation mode" (`buildApp` of `packages/api/src/app.ts` over a store on the harness transaction, an evaluation-mode model, `inject`; a golden file with fingerprints that are not the current ones), "A seed without golden files loads only the graph", "Loading golden answers again does not duplicate them", "A failed golden save leaves the database unchanged" (`cacheStore` wrapping the real store, failing the second save)
 - [ ] 8.4 Confirm the existing `seed-load` scenarios ("The seed is loaded into an empty database", "Loading again changes nothing and keeps the user's projects") still pass unchanged, with and without a versioned golden file
 
 ## 9. Generate the golden answers with local Ollama (design C8, D14) — `golden-answers` → "The versioned golden file is coherent"

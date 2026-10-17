@@ -8,6 +8,9 @@ import type { LoadedSample, SeedToLoad } from '@codemind/adapter-store-postgres'
 import { DatabaseUnavailable } from '../../../packages/cli/src/compose-index';
 import type { OpenTransaction } from '../../../packages/cli/src/compose-index';
 import { runSeedLoad } from '../../../packages/cli/src/seed-load';
+import { renderGoldenFile } from '../../../packages/cli/src/cache/golden-file';
+import { cachedAnswer } from '../../support/cached-answer';
+import { goldenFile } from '../../support/golden-file';
 
 // Spec: openspec/changes/seed-load-and-projects/specs/seed-load/spec.md → "Command contract and
 // configuration". Each `it` named after a scenario is that scenario; the others are extra cases. The
@@ -335,5 +338,46 @@ describe('runSeedLoad', () => {
     const error = (JSON.parse(captured) as { error: { message: string } }).error;
     expect(error.message).toBe('seeds/graph-dump.sql is not a loadable codemind seed (missing)');
     expect(captured).not.toContain(dir);
+  });
+
+  // Spec: openspec/changes/golden-cache-build/specs/seed-load/spec.md → "Command contract and configuration".
+  it('An invalid golden file fails before connecting', async () => {
+    // Arrange
+    const valid = goldenFile();
+    const [q1, q3] = valid.entries;
+    const cases: [string, string][] = [
+      ['acme-shop.json', '{"format": 1,'],
+      ['task-api.json', renderGoldenFile(goldenFile({ project: 'task-api' }))],
+      ['other.json', renderGoldenFile(valid)],
+      ['acme-shop.json', renderGoldenFile(goldenFile({ entries: [{ ...q1, questionNormalized: q1.question }] }))],
+      ['acme-shop.json', renderGoldenFile(goldenFile({ entries: [q1, { ...q3, id: 'Q1' }] }))],
+      ['acme-shop.json', renderGoldenFile(goldenFile({ entries: [q1, { ...q1, id: 'Q9' }] }))],
+      [
+        'acme-shop.json',
+        JSON.stringify({
+          ...valid,
+          entries: [{ ...q1, response: { ...cachedAnswer(), statements: [{ ...cachedAnswer().statements[0], evidenceIds: ['absent'] }] } }],
+        }),
+      ],
+      ['acme-shop.json', JSON.stringify({ ...valid, format: 2 })],
+    ];
+    for (const [name, content] of cases) {
+      const cacheDir = join(dir, 'seeds', 'cache');
+      rmSync(cacheDir, { recursive: true, force: true });
+      mkdirSync(cacheDir, { recursive: true });
+      writeFileSync(join(cacheDir, name), content);
+
+      // Act
+      const result = await run();
+
+      // Assert
+      expect(result.exit).toBe(1);
+      expect(errorOf(result)).toEqual({
+        code: 'INVALID_SEED',
+        message: `seeds/cache/${name} is not a loadable codemind golden file`,
+        details: { reason: 'cache', file: `seeds/cache/${name}` },
+      });
+      expect(result.log).toEqual([]);
+    }
   });
 });
