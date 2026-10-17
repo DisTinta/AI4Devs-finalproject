@@ -7,7 +7,7 @@ import { ProjectNameTaken } from '@codemind/core';
 import type { LoadedSample, SeedToLoad } from '@codemind/adapter-store-postgres';
 import { DatabaseUnavailable } from '../../../packages/cli/src/compose-index';
 import type { OpenTransaction } from '../../../packages/cli/src/compose-index';
-import { runSeedLoad } from '../../../packages/cli/src/seed-load';
+import { readGoldenFiles, runSeedLoad } from '../../../packages/cli/src/seed-load';
 import { renderGoldenFile } from '../../../packages/cli/src/cache/golden-file';
 import { cachedAnswer } from '../../support/cached-answer';
 import { goldenFile } from '../../support/golden-file';
@@ -379,5 +379,87 @@ describe('runSeedLoad', () => {
       });
       expect(result.log).toEqual([]);
     }
+  });
+
+  it('saves every golden entry after the seed, through the cache store on the transaction client', async () => {
+    // Arrange
+    const cacheDir = join(dir, 'seeds', 'cache');
+    mkdirSync(cacheDir, { recursive: true });
+    const file = goldenFile();
+    writeFileSync(join(cacheDir, 'acme-shop.json'), renderGoldenFile(file));
+    const log: string[] = [];
+    const saves: unknown[][] = [];
+    const client = { marker: 'client' } as unknown as ClientBase;
+    writeFileSync(join(dir, 'graph-dump.sql'), SEED);
+
+    // Act
+    const exit = await runSeedLoad({
+      env: VALID_ENV,
+      stdout: { write: () => undefined },
+      stderr: { write: () => undefined },
+      repoRoot: dir,
+      seedPath: join(dir, 'graph-dump.sql'),
+      openTransaction: async () => ({
+        client,
+        commit: async () => void log.push('commit'),
+        rollback: async () => void log.push('rollback'),
+        release: async () => void log.push('release'),
+      }),
+      load: async () => {
+        log.push('load');
+        return [ACME];
+      },
+      cacheStore: (connection) => {
+        log.push('store');
+        expect(connection).toEqual({ transaction: client });
+        return {
+          saveCacheEntry: async (...args: unknown[]) => {
+            log.push('save');
+            saves.push(args);
+          },
+        };
+      },
+    });
+
+    // Assert
+    expect(exit).toBe(0);
+    expect(log).toEqual(['load', 'store', 'save', 'save', 'save', 'commit', 'release']);
+    expect(saves).toEqual(file.entries.map((entry) => [ACME_ID, entry.questionNormalized, entry.response]));
+  });
+
+  it('builds no cache store when there is no golden file', async () => {
+    let built = 0;
+    writeFileSync(join(dir, 'graph-dump.sql'), SEED);
+    const exit = await runSeedLoad({
+      env: VALID_ENV,
+      stdout: { write: () => undefined },
+      stderr: { write: () => undefined },
+      repoRoot: dir,
+      seedPath: join(dir, 'graph-dump.sql'),
+      openTransaction: async () => ({ client: {} as ClientBase, commit: async () => undefined, rollback: async () => undefined, release: async () => undefined }),
+      load: async () => [ACME],
+      cacheStore: () => {
+        built += 1;
+        return { saveCacheEntry: async () => undefined };
+      },
+    });
+    expect(exit).toBe(0);
+    expect(built).toBe(0);
+  });
+
+  it('reads only the .json files directly in the golden directory, in name order', () => {
+    const cacheDir = join(dir, 'cache');
+    mkdirSync(join(cacheDir, 'old'), { recursive: true });
+    mkdirSync(join(cacheDir, 'dir.json'));
+    writeFileSync(join(cacheDir, 'task-api.json'), renderGoldenFile(goldenFile({ project: 'task-api' })));
+    writeFileSync(join(cacheDir, 'acme-shop.json'), renderGoldenFile(goldenFile()));
+    writeFileSync(join(cacheDir, 'README.md'), '{');
+    writeFileSync(join(cacheDir, 'old', 'acme-shop.json'), '{');
+
+    const files = readGoldenFiles(cacheDir, ['acme-shop', 'task-api'], dir);
+
+    expect(files.map((file) => file.project)).toEqual(['acme-shop', 'task-api']);
+    expect(readGoldenFiles(join(dir, 'absent'), ['acme-shop'], dir)).toEqual([]);
+    expect(() => readGoldenFiles(join(cacheDir, 'README.md'), ['acme-shop'], dir)).toThrow();
   });
 });

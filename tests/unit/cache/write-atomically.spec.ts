@@ -35,4 +35,14 @@ describe('writeAtomically', () => {
     expect(readdirSync(dir)).toEqual(['acme-shop.json']);
     expect(readFileSync(join(path, 'keep'), 'utf8')).toBe('kept\n');
   });
+
+  it('rethrows the write error itself when the temporary file could not even be created', () => {
+    let thrown: unknown;
+    try {
+      writeAtomically(join(dir, 'absent', 'acme-shop.json'), 'new\n');
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toMatchObject({ code: 'ENOENT', syscall: 'open' });
+  });
 });

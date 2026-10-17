@@ -160,4 +160,22 @@ describe('long fetch', () => {
     await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
     await expect(longFetch(`${base}/slow/x`, { method: 'POST', body: new Uint8Array([1]) })).rejects.toThrow(TypeError);
   });
+
+  it('sends a GET without a body by default, takes a Request as input and keeps the status text', async () => {
+    received.length = 0;
+    const plain = await longFetch(`${base}/slow/plain`);
+    const fromRequest = await longFetch(new Request(`${base}/slow/request`), { body: null });
+
+    expect(plain.statusText).toBe('OK');
+    expect(await fromRequest.text()).toBe(COMPLETION);
+    expect(received.map((request) => [request.method, request.url, request.body])).toEqual([
+      ['GET', '/slow/plain', ''],
+      ['GET', '/slow/request', ''],
+    ]);
+  });
+
+  it('speaks TLS to an https URL', async () => {
+    // The local server speaks plain HTTP: over TLS the handshake fails, over HTTP it would answer.
+    await expect(longFetch(`${base.replace('http:', 'https:')}/slow/x`, { method: 'POST', body: '{}' })).rejects.toThrow();
+  });
 });

@@ -4,9 +4,10 @@ import { join, resolve } from 'node:path';
 import type { ClientBase } from 'pg';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { LiveLlmConfig, OpenAiCompatibleLlmOptions } from '@codemind/adapter-llm';
-import { LlmUnavailable } from '@codemind/core';
-import type { ExplainAnswer, ExplainDependencies, ExplainRequest, LlmPort, UnknownReason } from '@codemind/core';
-import { runCacheBuild } from '../../../packages/cli/src/cache-build';
+import { LlmUnavailable, ProjectNameTaken, SourceUnavailable } from '@codemind/core';
+import type { ExplainAnswer, ExplainDependencies, ExplainRequest, LlmPort, SourceTreePort, UnknownReason } from '@codemind/core';
+import { indexedCommitOf, runCacheBuild } from '../../../packages/cli/src/cache-build';
+import { DatabaseUnavailable } from '../../../packages/cli/src/compose-index';
 import type { CacheBuildDeps } from '../../../packages/cli/src/cache-build';
 import { answerFingerprint } from '../../../packages/cli/src/cache/answer-fingerprint';
 import { longFetch } from '../../../packages/cli/src/cache/long-fetch';
@@ -48,6 +49,12 @@ interface FakeOptions {
   previous?: string | null;
   answers?: (id: string, attempt: number) => Scripted;
   write?: CacheBuildDeps['write'];
+  /** The seed file's content; `SEED` when absent. */
+  seed?: string;
+  /** What `headCommit` returns; the seed's indexed commit when absent. */
+  head?: string;
+  /** Seams that replace the doubles of `run` (an `undefined` value restores the command's default). */
+  seams?: Partial<CacheBuildDeps>;
 }
 
 interface Run {
@@ -61,6 +68,10 @@ interface Run {
   fetches: Array<OpenAiCompatibleLlmOptions['fetch']>;
   llms: { built: LlmPort[]; used: LlmPort[] };
   output: string;
+  /** The dependencies `explain` received, one per call. */
+  explainDeps: ExplainDependencies[];
+  /** The arguments of `buildHistory` and `headCommit`. */
+  history: string[][];
 }
 
 let dir = '';
@@ -85,10 +96,12 @@ async function run(options: FakeOptions = {}): Promise<Run> {
   const fetches: Array<OpenAiCompatibleLlmOptions['fetch']> = [];
   const llms = { built: [] as LlmPort[], used: [] as LlmPort[] };
   const attempts = new Map<string, number>();
+  const explainDeps: ExplainDependencies[] = [];
+  const history: string[][] = [];
   let stdout = '';
   let stderr = '';
   const seedPath = join(dir, 'graph-dump.sql');
-  writeFileSync(seedPath, SEED);
+  writeFileSync(seedPath, options.seed ?? SEED);
   const output = join(dir, 'cache', 'acme-shop.json');
   const previous = options.previous === undefined ? null : options.previous;
   if (previous !== null) {
@@ -108,8 +121,14 @@ async function run(options: FakeOptions = {}): Promise<Run> {
       log.push('fingerprints');
       return { analyzer: ANALYZER, contract: CONTRACT };
     },
-    buildHistory: async () => void log.push('history'),
-    headCommit: () => INDEXED_COMMIT,
+    buildHistory: async (fixturesRoot, repoRoot) => {
+      log.push('history');
+      history.push([fixturesRoot, repoRoot]);
+    },
+    headCommit: (repository) => {
+      history.push([repository]);
+      return options.head ?? INDEXED_COMMIT;
+    },
     openTransaction: async () => {
       log.push('open');
       return {
@@ -133,6 +152,7 @@ async function run(options: FakeOptions = {}): Promise<Run> {
     explain: async (deps: ExplainDependencies, request: ExplainRequest) => {
       log.push('explain');
       llms.used.push(deps.llm);
+      explainDeps.push(deps);
       expect(request.useCache).toBe(false);
       expect(request.projectId).toBe(ACME_ID);
       const id = idOf(request.question);
@@ -145,6 +165,7 @@ async function run(options: FakeOptions = {}): Promise<Run> {
     },
     now: () => new Date('2026-10-17T10:00:00.000Z'),
     ...(options.write === undefined ? {} : { write: options.write }),
+    ...options.seams,
   });
   return {
     exit,
@@ -157,6 +178,8 @@ async function run(options: FakeOptions = {}): Promise<Run> {
     fetches,
     llms,
     output,
+    explainDeps,
+    history,
   };
 }
 
@@ -314,5 +337,306 @@ describe('runCacheBuild', () => {
       expect(result.log).not.toContain('commit');
     }
     expect(errorOf(await run({ answers: () => unknownAnswer('no-anchor') })).message).toBe('Q1 has no cacheable answer (no-anchor)');
+  });
+
+  // Plain tests below: the same contract, case by case, so each branch fails a test of its own.
+
+  it('writes the canonical golden file with the seed, the code and the models it was built from', async () => {
+    const result = await run({ env: { ...VALID_ENV, LLM_MODEL_VERIFY: 'qwen2.5-coder:1.5b' } });
+
+    expect(result.exit).toBe(0);
+    expect(result.stderr).toBe('');
+    expect(result.stdout.split('\n').slice(-2)).toEqual(['acme-shop: 3 golden answers -> acme-shop.json', '']);
+    const text = readFileSync(result.output, 'utf8');
+    const expected = goldenFile({
+      seed: { analyzerFingerprint: ANALYZER, contractFingerprint: CONTRACT },
+      answerFingerprint: answerFingerprint(REPO_ROOT),
+      generatedWith: { model: 'qwen2.5-coder', verifyModel: 'qwen2.5-coder:1.5b' },
+    });
+    expect(text).toBe(renderGoldenFile(expected));
+    expect(result.history).toEqual([[join(dir, 'fixtures'), REPO_ROOT], [join(dir, 'fixtures', 'acme-shop')]]);
+    expect(result.log.filter((entry) => entry === 'commit')).toEqual([]);
+    expect(result.log.filter((entry) => entry === 'rollback')).toHaveLength(3);
+    expect(result.log.filter((entry) => entry === 'release')).toHaveLength(3);
+  });
+
+  it('gives explain the workspace, the clock, the source and a fresh verification cache per attempt', async () => {
+    const source = { readFileAt: async () => '', readFilesAt: async () => [], readFiles: async () => [], realPath: async () => '' } as unknown as SourceTreePort;
+    const result = await run({
+      argv: [],
+      answers: (id, attempt) => (id === 'Q1' && attempt === 1 ? unknownAnswer('broken-evidence') : answered()),
+      seams: { source },
+    });
+
+    expect(result.exit).toBe(0);
+    expect(result.explainDeps).toHaveLength(4);
+    expect(result.explainDeps.every((deps) => deps.workspaceRoot === dir && deps.source === source)).toBe(true);
+    expect(new Set(result.explainDeps.map((deps) => deps.verificationCache)).size).toBe(4);
+    expect(result.explainDeps[0].now()).toEqual(new Date('2026-10-17T10:00:00.000Z'));
+  });
+
+  it('uses the system clock and the git source tree when no seam is given', async () => {
+    const result = await run({ seams: { now: undefined, source: undefined } });
+
+    expect(result.exit).toBe(0);
+    expect(result.explainDeps[0].now()).toBeInstanceOf(Date);
+    expect(typeof result.explainDeps[0].source.readFilesAt).toBe('function');
+  });
+
+  it('defaults the workspace to the repository root', async () => {
+    const result = await run({ seams: { workspaceRoot: undefined } });
+
+    expect(result.exit).toBe(0);
+    expect(result.history[0]).toEqual([join(REPO_ROOT, 'fixtures'), REPO_ROOT]);
+    expect(result.explainDeps[0].workspaceRoot).toBe(REPO_ROOT);
+  });
+
+  it('defaults the repository root to this checkout', async () => {
+    const roots: string[] = [];
+    const result = await run({
+      seams: {
+        repoRoot: undefined,
+        seedFingerprints: (root) => {
+          roots.push(root);
+          return { analyzer: ANALYZER, contract: CONTRACT };
+        },
+      },
+    });
+
+    expect(result.exit).toBe(0);
+    expect(roots.map((root) => resolve(root))).toEqual([REPO_ROOT]);
+  });
+
+  it('measures each kept attempt in whole seconds, rounded half up', async () => {
+    for (const [elapsed, shown] of [
+      [1499, 1],
+      [1500, 2],
+      [61_000, 61],
+    ] as const) {
+      let calls = 0;
+      const start = Date.parse('2026-10-17T10:00:00.000Z');
+      const result = await run({
+        argv: ['Q1'],
+        previous: renderGoldenFile(
+          goldenFile({ seed: { analyzerFingerprint: ANALYZER, contractFingerprint: CONTRACT }, answerFingerprint: answerFingerprint(REPO_ROOT) }),
+        ),
+        seams: { now: () => new Date(start + (calls++ % 2 === 0 ? 0 : elapsed)) },
+      });
+      expect(result.stdout.split('\n')[0]).toBe(`Q1: answered in ${shown} s (attempt 1/3)`);
+      rmSync(join(dir, 'cache'), { recursive: true, force: true });
+    }
+  });
+
+  it('retries a model output it may fix, at most three times', async () => {
+    const cases: [(attempt: number) => Scripted, string[], number][] = [
+      [(a) => (a === 1 ? unknownAnswer('invalid-model-output') : answered()), ['Q1: attempt 1/3 not cacheable (invalid-model-output)'], 0],
+      [(a) => (a < 3 ? unknownAnswer('no-evidence') : answered()), ['Q1: attempt 1/3 not cacheable (no-evidence)', 'Q1: attempt 2/3 not cacheable (no-evidence)'], 0],
+      [(a) => (a === 1 ? answered({ persisted: false } as Partial<ExplainAnswer>) : answered()), ['Q1: attempt 1/3 not cacheable (not-cacheable)'], 0],
+      [(a) => (a === 1 ? new LlmUnavailable('network', { systemCode: 'ECONNRESET' }) : answered()), ['Q1: attempt 1/3 not cacheable (network)'], 0],
+      [() => unknownAnswer('broken-evidence'), [1, 2, 3].map((n) => `Q1: attempt ${n}/3 not cacheable (broken-evidence)`), 1],
+    ];
+    for (const [script, failedLines, exit] of cases) {
+      const result = await run({ answers: (id, attempt) => (id === 'Q1' ? script(attempt) : answered()) });
+
+      expect(result.exit).toBe(exit);
+      const lines = result.stdout.split('\n').filter((line) => line.startsWith('Q1:'));
+      expect(lines.slice(0, failedLines.length)).toEqual(failedLines);
+      if (exit === 0) expect(lines.at(-1)).toBe(`Q1: answered in 0 s (attempt ${failedLines.length + 1}/3)`);
+      else {
+        expect(lines).toHaveLength(3);
+        expect(errorOf(result)).toEqual({
+          code: 'GOLDEN_NOT_CACHEABLE',
+          message: 'Q1 has no cacheable answer (broken-evidence)',
+          details: { id: 'Q1', reason: 'broken-evidence' },
+        });
+      }
+    }
+  });
+
+  it('reports the last model failure after three failed requests', async () => {
+    const result = await run({ answers: () => new LlmUnavailable('network', { systemCode: 'ECONNREFUSED' }) });
+
+    expect(result.exit).toBe(1);
+    expect(result.asked).toEqual(['Q1', 'Q1', 'Q1']);
+    expect(errorOf(result)).toEqual({
+      code: 'LLM_UNAVAILABLE',
+      message: 'the language model is unavailable',
+      details: { reason: 'network', systemCode: 'ECONNREFUSED' },
+    });
+  });
+
+  it('refuses at once a response holding a secret, a root path, a service URL or the API key', async () => {
+    const env = { ...VALID_ENV, DATABASE_URL: 'postgres://u:s3cret@db.local/codemind', LLM_BASE_URL: 'http://llm.local:11434/v1/', LLM_API_KEY: 'k3y-sentinel' };
+    const leaks = [
+      `AKIA${'B'.repeat(16)}`,
+      REPO_ROOT,
+      REPO_ROOT.split('\\').join('/'),
+      join(dir, 'fixtures'),
+      'see postgres://u:s3cret@db.local/codemind',
+      'http://llm.local:11434/v1',
+      'k3y-sentinel',
+    ];
+    for (const leak of leaks) {
+      const result = await run({ env, answers: () => answered({ answer: `The answer quotes ${leak} here.` } as Partial<ExplainAnswer>) });
+
+      expect(result.exit).toBe(1);
+      expect(result.stdout).toBe('Q1: attempt 1/3 not cacheable (unsafe-content)\n');
+      expect(errorOf(result).details).toEqual({ id: 'Q1', reason: 'unsafe-content' });
+      expect(result.stdout + result.stderr).not.toContain(leak);
+    }
+    const safe = await run({ env: { ...env, LLM_API_KEY: '' }, answers: () => answered({ answer: 'AKIA is a prefix; postgres is a database.' } as Partial<ExplainAnswer>) });
+    expect(safe.exit).toBe(0);
+  });
+
+  it('refuses a seed whose header or project row does not match the current code and sample', async () => {
+    const header = (analyzer: string | null, contract: string | null) =>
+      [
+        '-- codemind-seed-format: 1',
+        ...(analyzer === null ? [] : [`-- analyzer-fingerprint: ${analyzer}`]),
+        ...(contract === null ? [] : [`-- contract-fingerprint: ${contract}`]),
+        '',
+        ...SEED.split('\n').slice(4),
+      ].join('\n');
+    const other = `sha256:${'9'.repeat(64)}`;
+    const seeds = [
+      header(other, CONTRACT),
+      header(ANALYZER, other),
+      header(null, CONTRACT),
+      header(ANALYZER, null),
+      SEED.replace("'acme-shop'", "'other-shop'"),
+      SEED.replace(', indexed_commit', '').replace(`, '${INDEXED_COMMIT}'`, ''),
+    ];
+    for (const seed of seeds) {
+      const result = await run({ seed });
+
+      expect(result.exit).toBe(1);
+      expect(errorOf(result)).toEqual({ code: 'GOLDEN_STALE', message: 'seed out of date: run npm run seed:build', details: { reason: 'seed' } });
+      expect(result.log).toEqual(['fingerprints']);
+    }
+    const moved = await run({ head: 'f'.repeat(40) });
+    expect(errorOf(moved).details).toEqual({ reason: 'seed' });
+    expect(moved.log).toEqual(['fingerprints', 'history']);
+    const crlf = await run({ seed: SEED.replace(/\n/g, '\r\n') });
+    expect(crlf.exit).toBe(0);
+  });
+
+  it('keeps the entries not named, and leaves absent the golden questions not named', async () => {
+    const current = { seed: { analyzerFingerprint: ANALYZER, contractFingerprint: CONTRACT }, answerFingerprint: answerFingerprint(REPO_ROOT) };
+    const reviewed = goldenEntry('Q1', { reviews: [{ by: 'author', date: '2026-10-17' }], response: cachedAnswer({ answer: 'old Q1' }) });
+    const previous = goldenFile({ ...current, entries: [reviewed, goldenEntry('Q3', { response: cachedAnswer({ answer: 'old Q3' }) })] });
+
+    const result = await run({ argv: ['Q3'], previous: renderGoldenFile(previous), answers: () => answered({ answer: 'new Q3' } as Partial<ExplainAnswer>) });
+
+    expect(result.exit).toBe(0);
+    expect(result.asked).toEqual(['Q3']);
+    expect(result.stdout.split('\n').at(-2)).toBe('acme-shop: 2 golden answers -> acme-shop.json');
+    const written = JSON.parse(readFileSync(result.output, 'utf8')) as ReturnType<typeof goldenFile>;
+    expect(written.entries.map((entry) => entry.id)).toEqual(['Q1', 'Q3']);
+    expect(written.entries[0]).toEqual(JSON.parse(JSON.stringify(reviewed)));
+    expect(written.entries[1]).toMatchObject({ id: 'Q3', reviews: [], response: { answer: 'new Q3' } });
+
+    const both = await run({ argv: ['Q4', 'Q1'], previous: renderGoldenFile(previous), answers: () => answered() });
+    expect(both.asked).toEqual(['Q1', 'Q4']);
+    expect((JSON.parse(readFileSync(both.output, 'utf8')) as ReturnType<typeof goldenFile>).entries.map((entry) => entry.id)).toEqual(['Q1', 'Q3', 'Q4']);
+  });
+
+  it('refuses a partial regeneration when either seed fingerprint or the verification model changed', async () => {
+    const answer = answerFingerprint(REPO_ROOT);
+    const other = `sha256:${'8'.repeat(64)}`;
+    const cases: [ReturnType<typeof goldenFile>, string][] = [
+      [goldenFile({ seed: { analyzerFingerprint: other, contractFingerprint: CONTRACT }, answerFingerprint: answer }), 'fingerprint'],
+      [goldenFile({ seed: { analyzerFingerprint: ANALYZER, contractFingerprint: other }, answerFingerprint: answer }), 'fingerprint'],
+      [
+        goldenFile({
+          seed: { analyzerFingerprint: ANALYZER, contractFingerprint: CONTRACT },
+          answerFingerprint: answer,
+          generatedWith: { model: 'qwen2.5-coder', verifyModel: 'other' },
+        }),
+        'model',
+      ],
+    ];
+    for (const [file, reason] of cases) {
+      const result = await run({ argv: ['Q1'], previous: renderGoldenFile(file) });
+      expect(errorOf(result).details).toEqual({ reason });
+      rmSync(join(dir, 'cache'), { recursive: true, force: true });
+    }
+    const renamed = await run({
+      argv: ['Q1'],
+      previous: renderGoldenFile(goldenFile({ seed: { analyzerFingerprint: ANALYZER, contractFingerprint: CONTRACT }, answerFingerprint: answer })),
+      seams: { outputPath: join(dir, 'cache', 'other.json') },
+    });
+    expect(errorOf(renamed).details).toEqual({ reason: 'missing' });
+  });
+
+  it('maps database, sample, source and unexpected failures, rolling back and releasing every attempt', async () => {
+    const cases: [Partial<CacheBuildDeps>, Scripted | undefined, Record<string, unknown>][] = [
+      [{ openTransaction: async () => Promise.reject(new DatabaseUnavailable()) }, undefined, { code: 'DATABASE_UNAVAILABLE', message: 'cannot connect to the database', details: {} }],
+      [
+        { load: async () => Promise.reject(new ProjectNameTaken('acme-shop')) },
+        undefined,
+        { code: 'PROJECT_NAME_TAKEN', message: 'a project named "acme-shop" already exists and is not a sample', details: { name: 'acme-shop' } },
+      ],
+      [{}, new SourceUnavailable('missing', 'app/x.php'), { code: 'SOURCE_UNAVAILABLE', details: { reason: 'missing', path: 'app/x.php' } }],
+      [{}, new Error('boom at C:\\secret'), { code: 'INTERNAL', message: 'cache build failed; nothing was written', details: {} }],
+    ];
+    for (const [seams, scripted, expected] of cases) {
+      const result = await run({ seams, answers: () => scripted ?? answered() });
+
+      expect(result.exit).toBe(1);
+      expect(result.stdout).toBe('');
+      expect(errorOf(result)).toMatchObject(expected);
+      expect(result.stderr).not.toContain('secret');
+      if (seams.openTransaction === undefined) expect(result.log.filter((entry) => entry === 'rollback' || entry === 'release')).toEqual(['rollback', 'release']);
+    }
+    const failingRollback = await run({
+      seams: {
+        openTransaction: async () => ({
+          client: {} as ClientBase,
+          commit: async () => undefined,
+          rollback: async () => Promise.reject(new Error('gone')),
+          release: async () => Promise.reject(new Error('gone')),
+        }),
+      },
+    });
+    expect(failingRollback.exit).toBe(0);
+  });
+
+  it('reads CACHE_BUILD_TIMEOUT_MS trimmed and accepts both ends of its range', async () => {
+    for (const [raw, expected] of [
+      ['1', 1],
+      ['3600000', 3_600_000],
+      [' 5000 ', 5000],
+      ['   ', 1_200_000],
+    ] as const) {
+      const result = await run({ argv: ['Q1'], env: { ...VALID_ENV, CACHE_BUILD_TIMEOUT_MS: raw }, previous: null, seams: { outputPath: join(dir, 'x', 'acme-shop.json') } });
+      expect(result.configs.map((config) => config.timeoutMs)).toEqual([]);
+      expect(errorOf(result).details).toEqual({ reason: 'missing' });
+      const full = await run({ env: { ...VALID_ENV, CACHE_BUILD_TIMEOUT_MS: raw } });
+      expect(full.configs[0].timeoutMs).toBe(expected);
+    }
+    const blank = await run({ env: { ...VALID_ENV, DATABASE_URL: '   ' } });
+    expect(errorOf(blank).details).toEqual({ variable: 'DATABASE_URL' });
+    const trimmed = await run({ env: { ...VALID_ENV, DATABASE_URL: ' postgres://fake/db ' }, answers: () => answered({ answer: 'mentions postgres://fake/db' } as Partial<ExplainAnswer>) });
+    expect(errorOf(trimmed).details).toEqual({ id: 'Q1', reason: 'unsafe-content' });
+  });
+});
+
+describe('indexedCommitOf', () => {
+  it('reads the indexed commit of the named project from its INSERT, by column', () => {
+    const sql = [
+      '-- header',
+      "INSERT INTO project (id, name, indexed_commit) VALUES ('1', 'other', 'aaa');",
+      "INSERT INTO project (id, name, root_path, indexed_commit) VALUES ('2', 'o''brien', E'x,y', 'bbb');  ",
+      "INSERT INTO project (name, indexed_commit, id) VALUES ('acme-shop', NULL, '3');",
+      "INSERT INTO file (id, project_id, path) VALUES ('f', '2', 'a');",
+    ].join('\n');
+
+    expect(indexedCommitOf(sql, 'other')).toBe('aaa');
+    expect(indexedCommitOf(sql, "o'brien")).toBe('bbb');
+    expect(indexedCommitOf(sql, 'acme-shop')).toBeUndefined();
+    expect(indexedCommitOf(sql, 'missing')).toBeUndefined();
+    expect(indexedCommitOf("  INSERT INTO project (name, indexed_commit) VALUES ('x', 'c');", 'x')).toBeUndefined();
+    expect(indexedCommitOf("INSERT INTO project (name, indexed_commit) VALUES ('x', 'c'); -- trailing", 'x')).toBeUndefined();
+    expect(indexedCommitOf(SEED, 'acme-shop')).toBe(INDEXED_COMMIT);
   });
 });
