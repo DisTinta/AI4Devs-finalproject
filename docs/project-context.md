@@ -160,8 +160,10 @@ Verified against `package.json` (root and per package). If a command is not here
   `query_log` or `claim` change): each golden project must be the stored sample with the seed's id and
   indexed commit (`SEED_NOT_LOADED` `{project}`, "run npm run db:seed"), and each golden question is
   asked through `explain` with the cache on and `createEvaluationLlm` (no request ever reaches a
-  model). `DATABASE_UNAVAILABLE` only when opening the transaction fails; anything later is
-  `INTERNAL` (`verify failed; the database is unchanged`). stdout: one `✓|✗ <project> <id>
+  model). `DATABASE_UNAVAILABLE` only when opening the transaction fails (a `DATABASE_URL` the driver
+  cannot parse included); anything later, or any other unexpected failure before, is `INTERNAL`
+  (`verify failed; the database is unchanged`); a failed rollback or release does not change the
+  outcome. stdout: one `✓|✗ <project> <id>
   <question>` line per entry, under each `✗` one 4-space-indented line per difference
   (`statements[0].type: expected "FACT", got "INFERENCE"`, `evidence: expected 2 items, got 1`,
   `usage.cacheHit: expected true, got false`, or `expected an answer from the golden cache, got
@@ -1029,7 +1031,10 @@ services that must be started first, quirks of the local environment.
   cache. The fingerprint ties the files to the code, never the database to the files: after pulling a
   regenerated seed or golden file, run `npm run db:seed` before `verify`, or a database seeded before
   shows field-level `✗` lines without the `db:seed` hint (the project check only compares name,
-  sample flag, id and indexed commit). CI always seeds a fresh database.
+  sample flag, id and indexed commit). CI always seeds a fresh database. While `verify` runs (about
+  3 s), the golden `cache_entry` rows are locked by its transaction (each hit updates `hit_count`
+  before the rollback): an `ask` of a golden question on the same database waits for it, and a lock
+  held elsewhere on those rows makes `verify` wait (no statement timeout is set).
 - **The CLI `ask` command** (DIS-40, `packages/cli/src/commands/ask.ts`): `ask <project> <question>`,
   the transport of `explain`. Check order, all before any connection: the arguments (`USAGE`, exit
   `2`, fixed messages that never quote an argument; a question starting with `-` goes after `--`),

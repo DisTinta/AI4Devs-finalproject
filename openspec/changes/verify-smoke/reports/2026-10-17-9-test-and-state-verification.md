@@ -177,3 +177,28 @@ linked from `docs/project-context.md` → Gotchas and indexed in `docs/adr/READM
 | `codemind` sessions in `pg_stat_activity` | — | 0 |
 
 Details in `2026-10-17-10-manual-interface-testing.md`.
+
+## Addendum — pre-merge review fixes (task 14.7)
+
+Fixes of the pre-merge review (`design.md` → Follow-ups): amendment A14 in `verify.ts` (an
+unparseable `DATABASE_URL` is `DATABASE_UNAVAILABLE`, TDD: seen red as `INTERNAL`, then green) and
+three new plain tests (`tests/unit/cli/verify.spec.ts` "reports DATABASE_UNAVAILABLE without the URL
+when the driver cannot parse DATABASE_URL", `tests/unit/cache/compare-golden.spec.ts` "does not
+compare persisted", `tests/unit/ci/verify-job.spec.ts` "gives verify no LLM_* variable from the
+workflow level either"; the last two shown to fail under a mutant / a probe, then restored). No
+existing test changed.
+
+- Targeted tests (`tests/unit/cache tests/unit/cli tests/unit/ci tests/integration/cli`, with
+  `DATABASE_URL` of the local database): 29 files, 325 passed, 0 failed.
+- Full suite: 136 files, 1598 passed, 0 failed. The three git integration failures of the final 9.3
+  run above did not recur (the git integration files passed).
+- `npm run lint`, `npm run typecheck`, `npm run docs:coverage`: exit 0. `npm run lint:architecture`:
+  0 errors, the same 3 pre-existing warnings.
+- Mutation, targeted (`npx stryker run --mutate packages/cli/src/verify.ts,packages/cli/src/cache/compare-golden.ts`,
+  incremental file in the scratchpad): **96.27 %** (258 killed, 8 survived, 2 without coverage;
+  `compare-golden.ts` 100.00, `verify.ts` 94.59). Every mutant of the new `defaultOpener` is killed;
+  the survivors are the process entry guard and `DEFAULT_REPO_ROOT` only, the process shell already
+  judged not meaningful in the second pass above. No `.stryker-tmp/` left.
+- Database after the runs: `project` 1, `claim` 0, `query_log` 0, `cache_entry` 3 with
+  `sum(hit_count)` 0, no `codemind` session in `pg_stat_activity` (the state as found; the
+  show-spec-working run restored its own dump).

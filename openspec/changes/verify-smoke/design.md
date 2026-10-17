@@ -61,7 +61,8 @@ must not change, or the change itself would turn `verify` red (D1). `verify.ts` 
   to `ask` and `index`. Both rejected (D1).
 
 **C2. Seams (`VerifyDeps`).** `env`, `stdout`, `stderr` (required); `repoRoot`, `seedPath`,
-`cacheDir`, `openTransaction` (default `defaultOpenTransaction(DATABASE_URL)`), `listProjects`
+`cacheDir`, `openTransaction` (default `defaultOpenTransaction(DATABASE_URL)`, any failure of it
+reported as `DatabaseUnavailable`; amendment A14), `listProjects`
 (`(client) => Promise<Project[]>`, default the store's `listProjects` on that client, as
 `commands/projects.ts` does; amendment A12), `explain` (default core's), `seedFingerprints` (default `currentSeedFingerprints`), `answerFingerprint` (default
 `answerFingerprint` of `cache/answer-fingerprint.ts`), `now` (default system clock). Apart from the
@@ -76,7 +77,7 @@ as `db:seed`) → seed fingerprints (`headerFingerprints` vs `seedFingerprints(r
 without one of them is a mismatch) → per golden file in name order: `seed.*` vs header, then
 `answerFingerprint` vs `answerFingerprint(repoRoot)` (computed once) → per seed project in seed order:
 a golden file with ≥ 1 entry (`GOLDEN_MISSING`) → open the transaction (a failure here is
-`DATABASE_UNAVAILABLE`) → `listProjects()` and the `SEED_NOT_LOADED` check for every golden project, in
+`DATABASE_UNAVAILABLE`, a URL `pg.Client` cannot parse included; amendment A14) → `listProjects()` and the `SEED_NOT_LOADED` check for every golden project, in
 golden-file order, the first failing one reported → ask and compare each entry, writing its lines to
 stdout as soon as it is compared → write the summary lines → rollback and release in `finally`
 (errors of both swallowed) → exit code. `FINGERPRINT_MISMATCH` is a new code, not `GOLDEN_STALE`:
@@ -86,7 +87,17 @@ transaction is open, a lost connection included, is `INTERNAL`: `defaultOpenTran
 `DatabaseUnavailable` only on `connect`/`BEGIN` (`compose-index.ts:200-224`) and the store does not
 classify connection errors of its queries, so a "connection lost" branch would need a classifier the
 code does not have. Amendment A8: `details` is fixed per code (`{variable}`, `db:seed`'s, `{reason}` or
-`{reason, file}`, `{project}`, `{}`), so a test can pin it with `toEqual`.
+`{reason, file}`, `{project}`, `{}`), so a test can pin it with `toEqual`. Amendment A14 (pre-merge
+review): `defaultOpenTransaction` builds its `pg.Client` outside its `try`, so a `DATABASE_URL` the
+driver cannot parse (`postgres://u:p@h:notaport/db`) threw `Invalid URL` and came out as `INTERNAL`
+("the database is unchanged", which points nowhere near the cause). `verify.ts` wraps the default
+opener (`defaultOpener`) so that any failure of it is `DatabaseUnavailable`; `compose-index.ts` is a
+seed fingerprint input and stays untouched (D1), so `db:seed`, `cache:build` and the other commands
+keep reporting that URL as `INTERNAL` (Follow-ups). An injected opener keeps the A6 mapping (only
+`DatabaseUnavailable` is `DATABASE_UNAVAILABLE`). Any other failure before the transaction is open
+(an unreadable directory, a fingerprint that cannot be computed) is `INTERNAL` with stdout empty, and
+a failed rollback or release never changes the outcome (the server aborts the transaction when the
+connection ends); both are now stated in the spec.
 
 **C4. One transaction, always rolled back (D4).** A hit writes (`touchCacheEntry`, `query_log`);
 `verify` is a check, not usage, so it must neither inflate the usage metrics (DIS-74) nor make two
@@ -216,6 +227,11 @@ change to `core/knowledge`, the store adapter or the prompts). It is recorded in
   ignored or untracked files under its directories (`seed/fingerprint.ts:96-102`), which a CI
   checkout lacks] → task 0.4 recomputes them on a clean `git worktree` of `HEAD`; a difference is
   fixed before any code (amendment A13).
+- [Each golden hit runs `touchCacheEntry` inside verify's transaction, so the golden `cache_entry`
+  rows stay locked until the rollback (about 3 s), and no statement or lock timeout is set (pre-merge
+  review)] → an `ask` of a golden question on the same database waits for those seconds; a lock held
+  elsewhere on those rows makes `verify` wait for it (the CI job has its own database and
+  `timeout-minutes: 10`). Accepted; noted in `docs/project-context.md` → Gotchas.
 - [The local database is changed by the manual steps (`db:seed`, the cache-miss check)] → a
   `pg_dump -Fc` taken in task 0.4 and restored in task 10.7, with the indicators compared.
 
@@ -226,5 +242,30 @@ disappears.
 
 ## Follow-ups
 
-Filled during the pre-merge review: every finding gets an A/B/C/D destination
-(`docs/project-context.md` → Tracking deferred findings).
+Pre-merge review of 2026-10-17 (reports `2026-10-17-show-spec-working.md`,
+`2026-10-17-verify-against-spec.md` (VaS), `2026-10-17-adversarial-review.md` (AR1–AR6),
+`2026-10-17-security-review.md`). No Blocker or Major. Every finding with its destination
+(`docs/project-context.md` → Tracking deferred findings):
+
+| Finding | Severity | Destination | Where |
+|---|---|---|---|
+| AR1 / VaS block 3 item 2 — a `DATABASE_URL` the driver cannot parse came out as `INTERNAL` ("the database is unchanged"): `pg.Client` is built outside the opener's `try` | Minor | **A. Fixed now** | `verify.ts` `defaultOpener` (amendment A14, C2/C3), TDD: plain unit test "reports DATABASE_UNAVAILABLE without the URL when the driver cannot parse DATABASE_URL" seen red, then green; spec sentence via `/opsx:update` (spec-audit addendum); real runs in the show-spec-working addendum |
+| AR1, other commands — `db:seed`, `cache:build`, `index`, `projects` keep reporting an unparseable `DATABASE_URL` as `INTERNAL` | Minor | **D. Accepted** | `compose-index.ts` is a seed fingerprint input (D1: touching it means `seed:build` + `cache:build`); they fail closed, with a fixed message and no URL in any output |
+| VaS block 3 item 2 — any other unexpected failure before the transaction is open is `INTERNAL` | Minor | **A. Fixed now** (spec) | `specs/verify-smoke/spec.md` → "Golden questions are asked without any model", via `/opsx:update`; already pinned by the plain unit test "reports any other failure, before or after the transaction is open, as INTERNAL" |
+| VaS block 3 item 1 — a failed rollback or release keeps the outcome, unspecified | Minor | **A. Fixed now** (spec) | same requirement, one sentence; pinned by "keeps the outcome when the rollback or the release fails" |
+| VaS block 2 item 4 — the git adapter copies `PATH`, `HOME`, `TEMP`… from `process.env`, against "read only `DATABASE_URL`" | Minor | **A. Fixed now** (spec) | "Verify command contract and configuration" now says "of its configuration"; no `LLM_*`, budget or timeout variable is read (unchanged tests) |
+| VaS block 3 item 3 — `tests/unit/cache/seed-header.spec.ts` missing from the proposal | Minor | **A. Fixed now** | `proposal.md` → Impact → Tests |
+| VaS block 2 item 3 — no test varies `persisted` | Minor | **A. Fixed now** | plain unit test "does not compare persisted" (`tests/unit/cache/compare-golden.spec.ts`), shown to fail under a mutant that compares it |
+| VaS block 2 (CI scenario test) — a workflow-level `env` defining `LLM_*` would pass the CI test | Minor | **A. Fixed now** | plain unit test "gives verify no LLM_* variable from the workflow level either" (`tests/unit/ci/verify-job.spec.ts`), shown to fail with a probe `env: LLM_MODEL` in `ci.yml` |
+| VaS block 2 item 1 — "The verify job is green on the pull request" has no evidence yet | — | **A. In this change** | task 14.3 (recorded CI check, addendum to the step 9 report) before `/opsx:archive` |
+| AR3 — 9.8 marked done while three git integration tests failed locally | Minor | **A. Settled** | the full suite rerun in this review: 136 files, 1598 passed, 0 failed (git tests included); CI `quality` confirms it in 14.3 |
+| VaS block 2 item 2 — "arguments are ignored" has no automated test | Minor | **D. Accepted** | decided in spec audit run 3 (A11/A13): `runVerify` receives no `argv` by type; checked with `npm run verify -- extra` (step 10.2 and show-spec-working E7) |
+| VaS block 2 — "Every golden answer matches" injects the files' own fingerprints | Minor | **D. Accepted** | amendment A4 by design; the real fingerprints are proven by the manual runs and the CI `verify` job |
+| VaS block 2 — "Verify leaves the database as it was" counts only acme-shop rows and its savepoint `release` is a no-op | Minor | **D. Accepted** | other integration files commit their own projects in parallel (the DIS-26 A9 lesson); whole-table counts and `pg_stat_activity` are checked by the real runs (show-spec-working E7/E8, step 10.7) |
+| VaS block 2 — "A database without the current seed" deletes only acme-shop and does not log `explain` | Minor | **D. Accepted** | task 4.7 (a broad delete would lock rows other files commit); "no question asked" is pinned by the unit test of the same requirement |
+| VaS block 3 item 4 — `timeout-minutes: 10` is design-only | Minor | **D. Accepted** | CI configuration in C9, like the Node version and the npm cache; a timed-out job fails the run like any failure |
+| AR2 — tasks say RED → GREEN, but most tests passed when added (code written whole first) | Minor | **D. Accepted** (process, recorded) | step 9 report → "TDD note"; mutation score 97.39 % shows the tests bite; no Linear issue (process minor) |
+| AR4 — the default-fingerprint test of `seed-header.spec.ts` rebuilds its expectation with the same functions | Minor | **D. Accepted** | it covers the wiring of the default seam; freshness is the CI `verify` job's alone (A4) |
+| AR6 — golden `cache_entry` rows are locked during a run, no statement timeout | Minor | **D. Accepted** (documented) | Risks above; `docs/project-context.md` → Gotchas (`verify` and the fingerprint policy) |
+| show-spec-working E5 — for a non-sample `acme-shop`, the hint "run npm run db:seed" leads to `db:seed`'s own `PROJECT_NAME_TAKEN` | Minor | **D. Accepted** | the spec fixes one `SEED_NOT_LOADED` message for every case; `db:seed`'s refusal names the conflict |
+| AR5 — uncommitted tests in the working tree | Question | **Resolved** | they are this review's fixes, committed with it; `.claude/settings.json` is a local edit of the author, outside this change, never staged |

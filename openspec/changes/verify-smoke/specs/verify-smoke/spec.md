@@ -9,8 +9,9 @@ answer, on a database of its own in CI.
 
 ### Requirement: Verify command contract and configuration
 
-`npm run verify` SHALL take no arguments; arguments, if any, are ignored. It SHALL read only `DATABASE_URL` from the environment,
-trimmed: unset, empty or only whitespace fails with `MISSING_CONFIG`, the message
+`npm run verify` SHALL take no arguments; arguments, if any, are ignored. Of its configuration it SHALL read only `DATABASE_URL` from
+the environment (the operating-system variables git needs to start, which the git adapter passes to
+its own processes as every command that reads a repository does, are not configuration), trimmed: unset, empty or only whitespace fails with `MISSING_CONFIG`, the message
 `DATABASE_URL is not set` and `details.variable` = `DATABASE_URL`, before any file is read and before
 any connection is opened. It SHALL NOT read nor check any `LLM_*` variable, `DAILY_BUDGET_USD` or
 `CACHE_BUILD_TIMEOUT_MS`: an invalid model configuration does not affect it.
@@ -149,9 +150,13 @@ uses, with the answer cache on and a model in evaluation mode that never sends a
 the environment holds. Every question of one run SHALL be asked inside one database transaction
 that is always rolled back and never committed, whatever happens, and whose connection is always
 closed before verify returns; the run SHALL leave no row added, changed or deleted (no `query_log` or
-`claim` row added, no `cache_entry.hit_count` changed). `DATABASE_UNAVAILABLE` SHALL be reported only
-when opening the transaction fails. Any failure after the transaction is open (a lost connection
-included) SHALL be reported as `INTERNAL`, after the lines already printed for the previous entries.
+`claim` row added, no `cache_entry.hit_count` changed). A failure of the rollback or of closing the
+connection SHALL NOT change the exit code nor the output. `DATABASE_UNAVAILABLE` SHALL be reported
+only when opening the transaction fails, a `DATABASE_URL` the database driver cannot parse included.
+Any failure after the transaction is open (a lost connection included) SHALL be reported as
+`INTERNAL`, after the lines already printed for the previous entries. Any other unexpected failure
+before the transaction is open (a file that cannot be read for a reason the `db:seed` checks do not
+name, a fingerprint that cannot be computed) SHALL be reported as `INTERNAL` too, with stdout empty.
 
 #### Scenario: No request reaches a model even when one is configured
 

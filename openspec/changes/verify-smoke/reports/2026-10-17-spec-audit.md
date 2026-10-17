@@ -620,3 +620,31 @@ auditoría de spec (ejecución 3)": A12, A13 and the other adjustments). No four
 | 6: amendment range out of date | improvable | Proposal and task 13.1 now cite A1–A13 |
 | 7: broad delete in the "no project" case | improvable | Task 4.7 deletes only the project named `acme-shop` |
 | 8: fingerprints measured on a working tree only | improvable | A13: task 0.4 recomputes them in a clean `git worktree` of `HEAD`; design Risks entry |
+
+## Addendum — 2026-10-17, pre-merge review (`/opsx:update`)
+
+`/verify-against-spec` (report `2026-10-17-verify-against-spec.md`, block 2 item 4 and block 3 items
+1–3) and `/adversarial-review` (report `2026-10-17-adversarial-review.md`, findings AR1 and AR6) found
+behaviour the spec did not name. Agent decisions (unattended run, ADR
+`20261016-autonomous-workflow-run-entrega-2`), folded in with `/opsx:update`:
+
+- `specs/verify-smoke/spec.md` → "Verify command contract and configuration": "read only
+  `DATABASE_URL`" becomes "of its configuration … only `DATABASE_URL`", naming the operating-system
+  variables the git adapter passes to its own git processes (`PATH`, `HOME`, `TEMP`…, its closed
+  list), which are not configuration. No `LLM_*`, budget or timeout variable is among them, so the
+  intent and its tests are unchanged.
+- `specs/verify-smoke/spec.md` → "Golden questions are asked without any model": three sentences.
+  (1) A failed rollback or close does not change the exit code nor the output (already pinned by the
+  plain unit test "keeps the outcome when the rollback or the release fails"; the server aborts the
+  transaction when the connection ends). (2) `DATABASE_UNAVAILABLE` covers a `DATABASE_URL` the
+  driver cannot parse (amendment A14: before this review it came out as `INTERNAL`; fixed in
+  `verify.ts` through TDD, plain unit test "reports DATABASE_UNAVAILABLE without the URL when the
+  driver cannot parse DATABASE_URL", seen red first). (3) Any other unexpected failure before the
+  transaction is open is `INTERNAL` with stdout empty (already pinned by the plain unit test
+  "reports any other failure, before or after the transaction is open, as INTERNAL").
+- `design.md` → C2, C3 (amendment A14) and Risks (the golden `cache_entry` rows are locked during a
+  run, no statement timeout; accepted and documented in `docs/project-context.md` → Gotchas).
+- `proposal.md` → Impact → Tests: `tests/unit/cache/seed-header.spec.ts`, added by the mutation pass.
+- No scenario was added, removed or renamed; the scenario → test map of point 11 is unchanged.
+  Re-check of this audit's points 1, 4, 6 and 11 for the edited requirements: still clean.
+  `openspec validate verify-smoke` → valid.

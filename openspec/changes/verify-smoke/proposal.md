@@ -75,7 +75,9 @@ and the fingerprints they define (D14).
 - CI: `.github/workflows/ci.yml` (new `verify` job; `scope` loop).
 - Data: none. No migration; `seeds/` is not regenerated.
 - Tests: `tests/unit/cli/verify.spec.ts`, `tests/unit/cache/compare-golden.spec.ts`,
-  `tests/integration/cli/verify.spec.ts`, `tests/unit/ci/verify-job.spec.ts` (new). No existing test
+  `tests/integration/cli/verify.spec.ts`, `tests/unit/ci/verify-job.spec.ts` (new), and
+  `tests/unit/cache/seed-header.spec.ts` (new, added by the mutation pass of task 9.4 for the moved
+  helpers; its default-fingerprint case checks the wiring, not freshness, so amendment A4 holds). No existing test
   changes its assertions.
 - Policy consequence (D2): from now on any PR that touches an input of the seed fingerprint or of the
   answer fingerprint turns the `verify` job red until the author regenerates `seed:build` and then
