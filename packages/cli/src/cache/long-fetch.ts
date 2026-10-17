@@ -66,7 +66,7 @@ function toResponse(message: IncomingMessage, body: Buffer): Response {
   for (const [name, value] of Object.entries(message.headers)) {
     for (const item of Array.isArray(value) ? value : value === undefined ? [] : [value]) headers.append(name, item);
   }
-  return new Response(NULL_BODY_STATUSES.has(status) ? null : body, { status, statusText: message.statusMessage ?? '', headers });
+  return new Response(NULL_BODY_STATUSES.has(status) ? null : new Uint8Array(body), { status, statusText: message.statusMessage ?? '', headers });
 }
 
 /** What an aborted request rejects with: the signal's reason when it is an error, else an `AbortError`. */
