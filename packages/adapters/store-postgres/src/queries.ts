@@ -308,7 +308,7 @@ export const FIND_CLAIMS_OVERLAPPING = `
  * store) resolve to the most recently created one, then the greatest id.
  */
 export const FIND_CACHE_ENTRY = `
-  SELECT p.id AS project_id, e.id, e.response
+  SELECT e.id, e.response
     FROM project p
     LEFT JOIN LATERAL (
       SELECT c.id, c.response FROM cache_entry c
