@@ -288,7 +288,8 @@ Verified against `package.json` (root and per package). If a command is not here
   `db:seed` and any `ask` on acme-shop (CLI or API), whose `query_log` insert checks the locked
   project row.
 - **`verify` tests (DIS-44).** Unit: `tests/unit/cache/compare-golden.spec.ts` (the structural
-  comparison over `cachedAnswer()` responses), `tests/unit/cli/verify.spec.ts` (doubles for every seam
+  comparison over `cachedAnswer()` responses), `tests/unit/cache/seed-header.spec.ts`,
+  `tests/unit/cli/verify.spec.ts` (doubles for every seam
   of `VerifyDeps`, `listProjects` included; temporary seed and cache directories; no database) and
   `tests/unit/ci/verify-job.spec.ts` (parses `ci.yml` with `yaml`, a root devDependency). Integration:
   `tests/integration/cli/verify.spec.ts` loads the versioned seed and golden answers with `loadSeed`

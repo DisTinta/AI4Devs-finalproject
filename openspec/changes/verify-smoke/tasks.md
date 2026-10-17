@@ -54,14 +54,14 @@
 
 ## 9. Backend: Run Tests and Verify Data State (MANDATORY)
 
-- [ ] 9.1 Capture the pre-test baseline: the 0.4 indicators
-- [ ] 9.2 Run the targeted tests: `npx vitest run tests/unit/cache tests/unit/cli tests/unit/ci tests/integration/cli`
-- [ ] 9.3 Run the required broader suite and gates: `npx vitest run`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`
-- [ ] 9.4 Run `npm run test:mutation` (score ≥ 80, the CI break threshold); for each meaningful survivor in `verify.ts`, `compare-golden.ts` and `seed-header.ts`, a RED → GREEN test
-- [ ] 9.5 Run `/privacy-ethics-check` over the diff (design C11: no URL, credentials, absolute path or answer text in any output; terminal-safe values; no commit); record the result in the report
-- [ ] 9.6 Verify the post-test state: same `project`, `claim`, `query_log` and `cache_entry` counts and `hit_count` sum as in 9.1 (compared again after the 10.7 restore); no `.stryker-tmp/` and no temporary seed or golden copy left. Restore and document if not
-- [ ] 9.7 Create `openspec/changes/verify-smoke/reports/YYYY-MM-DD-9-test-and-state-verification.md` from the template of `docs/openspec-tasks-mandatory-steps.md` §6, with the baseline, the real run (step 8), the Stryker score and survivors (9.4), the privacy check (9.5) and the ADR of task 12.2 (design C12, A9); after 10.7, add an addendum with the post-restore indicators
-- [ ] 9.8 Mark complete only after the tests pass and the report exists
+- [x] 9.1 Capture the pre-test baseline: the 0.4 indicators
+- [x] 9.2 Run the targeted tests: `npx vitest run tests/unit/cache tests/unit/cli tests/unit/ci tests/integration/cli`
+- [x] 9.3 Run the required broader suite and gates: `npx vitest run`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`
+- [x] 9.4 Run `npm run test:mutation` (score ≥ 80, the CI break threshold); for each meaningful survivor in `verify.ts`, `compare-golden.ts` and `seed-header.ts`, a RED → GREEN test
+- [x] 9.5 Run `/privacy-ethics-check` over the diff (design C11: no URL, credentials, absolute path or answer text in any output; terminal-safe values; no commit); record the result in the report
+- [x] 9.6 Verify the post-test state: same `project`, `claim`, `query_log` and `cache_entry` counts and `hit_count` sum as in 9.1 (compared again after the 10.7 restore); no `.stryker-tmp/` and no temporary seed or golden copy left. Restore and document if not
+- [x] 9.7 Create `openspec/changes/verify-smoke/reports/YYYY-MM-DD-9-test-and-state-verification.md` from the template of `docs/openspec-tasks-mandatory-steps.md` §6, with the baseline, the real run (step 8), the Stryker score and survivors (9.4), the privacy check (9.5) and the ADR of task 12.2 (design C12, A9); after 10.7, add an addendum with the post-restore indicators
+- [x] 9.8 Mark complete only after the tests pass and the report exists
 
 ## 10. Backend: Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE)
 
@@ -76,15 +76,15 @@
 
 ## 11. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
-- [ ] 11.1 The change has no browser UI (`packages/web` is untouched); record "not applicable beyond step 10" in the step 9 report
-- [ ] 11.2 Record in the step 9 report that the CI evidence (the `verify` job green with its output, the new spec files ran in `quality`, the mutation job ≥ 80) is collected in 14.3, once the PR exists
+- [x] 11.1 The change has no browser UI (`packages/web` is untouched); record "not applicable beyond step 10" in the step 9 report
+- [x] 11.2 Record in the step 9 report that the CI evidence (the `verify` job green with its output, the new spec files ran in `quality`, the mutation job ≥ 80) is collected in 14.3, once the PR exists
 
 ## 12. Update Technical Documentation (MANDATORY)
 
 - [x] 12.1 `docs/project-context.md`: Commands (`npm run verify` is real: what it checks, in which order, its codes and output; remove "still a placeholder"), CI (the `verify` job, its own database, the `scope` loop), Gotchas (the fingerprint policy D2: touching a seed or answer fingerprint input means `seed:build` then `cache:build` locally, or `verify` stays red; the cache-miss hint; after pulling a regenerated seed or golden file, run `npm run db:seed` before `verify`, A10), Testing (the new spec files and the fingerprint seams of A4); also the "mid-build" paragraph that still says "`verify` is a placeholder that no-ops" (`grep -n placeholder docs/project-context.md`)
 - [x] 12.2 ADR for the fingerprint policy D2 (design C12, A9) with `/adr-new` under `docs/adr/`, its why written by the agent and marked as the agent's decision (ADR `20261016-autonomous-workflow-run-entrega-2`); linked from `docs/project-context.md` → Gotchas
 - [x] 12.3 `readme.md`: check §1.4, §2.4, §6 and the CI lines (`grep -n verify readme.md`) and change only sentences that became false (e.g. the "golden/caché" wording stays; any "pending" mention goes)
-- [ ] 12.4 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
+- [x] 12.4 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
 
 ## 13. Pull request preparation
 
