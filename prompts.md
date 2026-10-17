@@ -64,6 +64,7 @@
 47. [Base HTTP de la API: formato de error, Zod, `/docs`, límite por IP y composición (DIS-76)](#47-base-http-de-la-api-formato-de-error-zod-docs-límite-por-ip-y-composición-dis-76)
 48. [Endpoint `POST /ask`: esquemas, respuesta pública y errores por ruta (DIS-78)](#48-endpoint-post-ask-esquemas-respuesta-pública-y-errores-por-ruta-dis-78)
 49. [Caché de respuestas por pregunta normalizada en `explain` (DIS-21)](#49-caché-de-respuestas-por-pregunta-normalizada-en-explain-dis-21)
+50. [Respuestas *golden* de acme-shop con Ollama, huella y carga en `db:seed` (DIS-26)](#50-respuestas-golden-de-acme-shop-con-ollama-huella-y-carga-en-dbseed-dis-26)
 
 ---
 
@@ -4563,3 +4564,36 @@ pregunta con tildes en una codificación que no era UTF-8 (se guardaba U+FFFD) y
 que las peticiones se repitieron desde ficheros UTF-8 con `--data-binary`; y tres mutantes estáticos
 del esquema guardado que Stryker da por supervivientes se aplicaron a mano y rompen la carga del
 módulo, así que se registran como artefacto del *runner*, no como hueco de los tests.
+
+---
+
+# 50. Respuestas *golden* de acme-shop con Ollama, huella y carga en `db:seed` (DIS-26)
+
+### Prompt 1 — Aplicar el change dentro del workflow autónomo
+
+El script del workflow (ADR `20261016-autonomous-workflow-run-entrega-2`) envió a este paso, entre
+otras reglas, este texto literal:
+
+```
+YOUR STEP 3/6 — implement.
+Run /opsx:apply (Skill "opsx:apply") for the change of DIS-26 and walk every task in tasks.md in TDD per scenario (tdd-test-writer → tdd-implementer → tdd-refactorer). Include the step-12 style verification tasks (suite, lint, typecheck, architecture lint, docs coverage, targeted mutation ≥ 80, privacy check) but stop before the pre-merge review tasks (show-spec-working / verify-against-spec / adversarial-review), PR, CI and archive: those are later steps. Commit in small conventional commits.
+```
+
+**Por qué funcionó.** El diseño (C1–C10) ya fijaba los ficheros nuevos de `packages/cli/src/cache/`,
+el orden de comprobaciones de `cache:build`, los *seams* y que `db:seed` guardara las golden con
+`saveCacheEntry` sin tocar ninguna entrada de la huella de la semilla. La ejecución real con Ollama
+en CPU, en segundo plano y vigilada por su log, respondió Q1, Q3 y Q4 al primer intento en 22 min
+24 s, con la `fetch` propia sin el corte de 300 s de Node. Stryker no ejecuta los specs de
+integración, así que la primera pasada sobre el código nuevo dio 77,03 %; con 20 tests unitarios de
+reintentos, semilla vieja, contenido inseguro, regeneración parcial y guardado en `db:seed`, subió a
+91,50 %.
+
+**Ajuste humano.** Ninguno: ejecución autónoma, sin la autora en el bucle. Decisiones del agente
+registradas en la descripción `[enhanced]` de DIS-26 y en los informes del change: la tríada TDD la
+hizo el propio agente del paso (sin herramienta de subagentes); el test existente «Loading again
+changes nothing and keeps the user's projects» compara ahora las entradas de caché de los proyectos
+de muestra sin su id, porque cada carga las reinserta con ids nuevos tal como pide el requisito
+modificado; el valor sintético `AKIA…` que cita la spec se permitió en `.gitleaks.toml` por su valor
+exacto; y `.env.example` no se pudo editar en este paso (los permisos de la sesión deniegan leer
+ese fichero), así que `CACHE_BUILD_TIMEOUT_MS` queda documentada en `readme.md` y en
+`docs/project-context.md` y la tarea 15.3 sigue abierta para ese fichero.
