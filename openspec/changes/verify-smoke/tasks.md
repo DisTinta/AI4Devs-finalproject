@@ -88,13 +88,13 @@
 
 ## 13. Pull request preparation
 
-- [ ] 13.1 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the Why marked as the agent's decision (DIS-44 `[enhanced]` D1–D14 and the amendments A1–A13), the real run of step 8, the Stryker score and "no migration; `yaml` added as a root devDependency, no new package in the lock file"
+- [x] 13.1 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the Why marked as the agent's decision (DIS-44 `[enhanced]` D1–D14 and the amendments A1–A13), the real run of step 8, the Stryker score and "no migration; `yaml` added as a root devDependency, no new package in the lock file"
 
 ## 14. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 14.1 Open the pull request against `feature/entrega-2-CRN` (authorised by ADR `docs/adr/20261016-autonomous-workflow-run-entrega-2.md`, which relaxes `base-standards.md` §88/§90/§99 for this run; it lives on `feature/DIS-101-readme-entrega-2`, and if it is not yet in `feature/entrega-2-CRN` when the PR opens, cite it by branch and name in the PR body; `gh` on the DisTinta account, back to Cristina-JumpMath afterwards)
-- [ ] 14.2 Set DIS-44 to In Review in Linear with a comment in Spanish linking the PR and the change
-- [ ] 14.3 Confirm in the PR's CI run that the `verify` job is green with the three `✓` lines and `acme-shop: 3/3 golden answers match` ("The verify job is green on the pull request"), that `quality` is green with `graph-read.spec.ts` unchanged and the new spec files ran, and that the mutation job is ≥ 80; link the run in an addendum to the step 9 report
+- [x] 14.1 Open the pull request against `feature/entrega-2-CRN` (authorised by ADR `docs/adr/20261016-autonomous-workflow-run-entrega-2.md`, which relaxes `base-standards.md` §88/§90/§99 for this run; it lives on `feature/DIS-101-readme-entrega-2`, and if it is not yet in `feature/entrega-2-CRN` when the PR opens, cite it by branch and name in the PR body; `gh` on the DisTinta account, back to Cristina-JumpMath afterwards) — PR #51
+- [x] 14.2 Set DIS-44 to In Review in Linear with a comment in Spanish linking the PR and the change
+- [x] 14.3 Confirm in the PR's CI run that the `verify` job is green with the three `✓` lines and `acme-shop: 3/3 golden answers match` ("The verify job is green on the pull request"), that `quality` is green with `graph-read.spec.ts` unchanged and the new spec files ran, and that the mutation job is ≥ 80; link the run in an addendum to the step 9 report — run https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/39037228884, mutation score 95.94
 - [x] 14.4 Run `/show-spec-working` (may reuse the step 8 and 10 evidence); report `openspec/changes/verify-smoke/reports/YYYY-MM-DD-show-spec-working.md`
 - [x] 14.5 Run `/verify-against-spec`; report `openspec/changes/verify-smoke/reports/YYYY-MM-DD-verify-against-spec.md`
 - [x] 14.6 Run `/adversarial-review`; report `openspec/changes/verify-smoke/reports/YYYY-MM-DD-adversarial-review.md`

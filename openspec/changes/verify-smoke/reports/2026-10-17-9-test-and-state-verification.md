@@ -202,3 +202,20 @@ existing test changed.
 - Database after the runs: `project` 1, `claim` 0, `query_log` 0, `cache_entry` 3 with
   `sum(hit_count)` 0, no `codemind` session in `pg_stat_activity` (the state as found; the
   show-spec-working run restored its own dump).
+
+## Addendum — CI run of the pull request (task 14.3)
+
+Pull request #51 (`feature/DIS-44-verify-smoke` → `feature/entrega-2-CRN`), CI run
+https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/39037228884:
+
+- `verify`: pass (52s). stdout has the three `✓` lines in order (`Q1`, `Q3`, `Q4`) and ends with
+  `acme-shop: 3/3 golden answers match` ("The verify job is green on the pull request").
+- `quality`: pass (2m25s). `tests/integration/store/graph-read.spec.ts` unchanged, 42 tests green.
+  The new spec files ran and passed: `tests/unit/cli/verify.spec.ts` (22), `tests/integration/cli/verify.spec.ts`
+  (7), `tests/unit/cache/compare-golden.spec.ts` (8), `tests/unit/cache/seed-header.spec.ts` (4),
+  `tests/unit/ci/verify-job.spec.ts` (2). Full suite: 136 test files, 1597 passed, 1 skipped (1598 total).
+- `mutation`: pass (31m48s, cold cache as accepted in the spec-audit run 1 addendum since `yaml` changed
+  `package-lock.json`). Final mutation score **95.94**, ≥ the break threshold 80.
+- `scope`, `secrets`, `frontend`: pass.
+
+No Blocker or Major. The PR is ready for `/opsx:archive` and merge.
