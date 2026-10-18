@@ -68,16 +68,16 @@ Every test of this change follows Arrange-Act-Assert with the three blocks comme
 
 ## 10. Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 10.1 Preconditions: local Postgres up (`docker compose up -d`), `DATABASE_URL` exported, acme-shop stored (`npm run cli -- projects`; `npm run db:seed` only if it is missing, recorded). The screen only calls `GET /health`, which writes nothing; record `count(*)` of `query_log` so 10.5 can prove nothing changed
-- [ ] 10.2 Start the API and the web as two separate processes (`npm -w packages/api run dev`, `npm -w packages/web run dev`; not the root `npm run dev`, which would stop Vite when 10.3 stops the API). With the browser-automation skill open `http://localhost:5173/`: the card, «indexado» and «listo», no alert, no console error; the network log shows `GET /health` (twice in `dev` because of `StrictMode`, D8) and no other API request; screenshot `reports/YYYY-MM-DD-10-api-up.png`
-- [ ] 10.3 Stop only the API process; reload `/`: the alert appears between the subtitle and the card, the card has no «listo»; screenshot `…-10-api-down.png`. Start the API again, press «Reintentar» (keyboard: Tab to it, Enter): the alert disappears, «listo» appears, the focus is on the `h1`; screenshot `…-10-retry.png`
-- [ ] 10.4 Keyboard and focus: from the top of `/`, Tab to «Explorar proyecto», check the focus outline is visible (screenshot `…-10-link-focused.png`), Enter → `/p/a794456d-6d1b-5b55-a360-13fec83dc7bc`; open `/no-existe` and confirm the not-found screen (route table unchanged for it)
-- [ ] 10.5 Restore the state: stop both processes; re-check `count(*)` of `query_log` equals 10.1; remove what `db:seed` added in 10.1 if it ran
-- [ ] 10.6 Document every command, observation and screenshot in `openspec/changes/project-picker/reports/YYYY-MM-DD-10-manual-interface-testing.md` (screenshots next to it; OS user name masked in paths)
+- [x] 10.1 Preconditions: local Postgres up (`docker compose up -d`), `DATABASE_URL` exported, acme-shop stored (`npm run cli -- projects`; `npm run db:seed` only if it is missing, recorded). The screen only calls `GET /health`, which writes nothing; record `count(*)` of `query_log` so 10.5 can prove nothing changed
+- [x] 10.2 Start the API and the web as two separate processes (`npm -w packages/api run dev`, `npm -w packages/web run dev`; not the root `npm run dev`, which would stop Vite when 10.3 stops the API). With the browser-automation skill open `http://localhost:5173/`: the card, «indexado» and «listo», no alert, no console error; the network log shows `GET /health` (twice in `dev` because of `StrictMode`, D8) and no other API request; screenshot `reports/YYYY-MM-DD-10-api-up.png`
+- [x] 10.3 Stop only the API process; reload `/`: the alert appears between the subtitle and the card, the card has no «listo»; screenshot `…-10-api-down.png`. Start the API again, press «Reintentar» (keyboard: Tab to it, Enter): the alert disappears, «listo» appears, the focus is on the `h1`; screenshot `…-10-retry.png`
+- [x] 10.4 Keyboard and focus: from the top of `/`, Tab to «Explorar proyecto», check the focus outline is visible (screenshot `…-10-link-focused.png`), Enter → `/p/a794456d-6d1b-5b55-a360-13fec83dc7bc`; open `/no-existe` and confirm the not-found screen (route table unchanged for it)
+- [x] 10.5 Restore the state: stop both processes; re-check `count(*)` of `query_log` equals 10.1; remove what `db:seed` added in 10.1 if it ran
+- [x] 10.6 Document every command, observation and screenshot in `openspec/changes/project-picker/reports/YYYY-MM-DD-10-manual-interface-testing.md` (screenshots next to it; OS user name masked in paths)
 
 ## 11. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
-- [ ] 11.1 There is no Playwright suite yet (DIS-75): the browser runs of 10.2–10.4 are the end-to-end evidence of the workflow "open Screen 1 → see the API status → retry → enter a project with the keyboard"; record "covered by steps 10.2–10.4; no Playwright suite in this change" in the step 10 report
+- [x] 11.1 There is no Playwright suite yet (DIS-75): the browser runs of 10.2–10.4 are the end-to-end evidence of the workflow "open Screen 1 → see the API status → retry → enter a project with the keyboard"; record "covered by steps 10.2–10.4; no Playwright suite in this change" in the step 10 report
 
 ## 12. Update Technical Documentation (MANDATORY)
 
