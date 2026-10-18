@@ -193,26 +193,95 @@ function isErrorBody(body: unknown): body is ApiErrorBody {
   return typeof code === 'string' && typeof message === 'string' && isJsonObject(details);
 }
 
+/** The health check's time limit when the caller passes none, in milliseconds. */
+export const HEALTH_TIMEOUT_MS = 5_000;
+
+/**
+ * A request signal that aborts when a time limit expires or when the caller's signal aborts (design D20:
+ * `AbortController` + `setTimeout`, which Vitest's fake timers drive, unlike `AbortSignal.timeout`).
+ */
+class Deadline {
+  private readonly controller = new AbortController();
+  private readonly timer: ReturnType<typeof setTimeout>;
+  private readonly onCallerAbort: () => void;
+  private timedOut = false;
+
+  /**
+   * @param timeoutMs - The time limit, in milliseconds.
+   * @param callerSignal - The caller's signal, if any.
+   */
+  constructor(
+    timeoutMs: number,
+    private readonly callerSignal: AbortSignal | undefined,
+  ) {
+    this.timer = setTimeout(() => {
+      this.timedOut = true;
+      this.controller.abort(new DOMException('the health check timed out', 'TimeoutError'));
+    }, timeoutMs);
+    this.onCallerAbort = () => this.controller.abort(callerSignal?.reason);
+    callerSignal?.addEventListener('abort', this.onCallerAbort);
+  }
+
+  /** The signal to send the request with. */
+  get signal(): AbortSignal {
+    return this.controller.signal;
+  }
+
+  /** Whether the time limit expired. */
+  get expired(): boolean {
+    return this.timedOut;
+  }
+
+  /** Stops the timer and the caller listener. */
+  clear(): void {
+    clearTimeout(this.timer);
+    this.callerSignal?.removeEventListener('abort', this.onCallerAbort);
+  }
+}
+
+/** How one request is sent. */
+interface SendOptions {
+  /** The caller's signal: aborting it cancels the request and rejects with its reason. */
+  signal?: AbortSignal;
+  /** Gives up after this many milliseconds; absent, no time limit. */
+  timeoutMs?: number;
+}
+
 /**
  * Sends one request to the API and returns its `2xx` JSON body when `isExpected` accepts it.
  *
+ * A failure of the request or of the body read is classified by checking the caller's signal first
+ * (aborted: its reason is rethrown), then the time limit, then the rules of design D9 (design D20).
+ *
+ * @throws The reason of the caller's signal when the caller aborted, before or during the call.
  * @throws ApiError when the API answered in its error format.
- * @throws ApiUnavailableError for anything else: the request failed, the body is not JSON, or it is not
- * the body the API answers (design D9).
+ * @throws ApiUnavailableError for anything else: the request failed, the body is not JSON, it is not the
+ * body the API answers, or the time limit expired.
  */
 async function send(
   path: string,
   init: RequestInit,
   isExpected: (body: Record<string, unknown>) => boolean,
+  { signal, timeoutMs }: SendOptions,
 ): Promise<unknown> {
+  // `addEventListener('abort')` never fires on a signal that is already aborted.
+  if (signal?.aborted) {
+    throw signal.reason;
+  }
+  const deadline = timeoutMs === undefined ? undefined : new Deadline(timeoutMs, signal);
   let status: number | undefined;
   let body: unknown;
   try {
-    const response = await fetch(path, init);
+    const response = await fetch(path, { ...init, signal: deadline?.signal ?? signal });
     status = response.status;
     body = JSON.parse(await response.text());
   } catch (failure) {
-    throw new ApiUnavailableError(failure, status);
+    if (signal?.aborted) {
+      throw signal.reason;
+    }
+    throw new ApiUnavailableError(deadline?.expired ? deadline.signal.reason : failure, status);
+  } finally {
+    deadline?.clear();
   }
   if (status >= 200 && status < 300 && isJsonObject(body) && isExpected(body)) {
     return body;
@@ -223,26 +292,58 @@ async function send(
   throw new ApiUnavailableError(new Error(`unexpected response ${status}`), status);
 }
 
-/**
- * Checks that the API is up: `GET /health`.
- *
- * @returns The body `{ status: 'ok' }`.
- */
-export async function getHealth(): Promise<HealthResponse> {
-  return (await send('/health', { method: 'GET' }, (body) => body.status === 'ok')) as HealthResponse;
+/** Options of {@link getHealth}. */
+export interface HealthOptions {
+  /** Aborting it cancels the request; the call then rejects with the signal's reason. */
+  signal?: AbortSignal;
+  /** Gives up after this many milliseconds; a positive finite number, {@link HEALTH_TIMEOUT_MS} by default. */
+  timeoutMs?: number;
 }
 
 /**
- * Asks a question about a project: `POST /api/projects/{projectId}/ask`.
+ * Checks that the API is up: `GET /health`.
+ *
+ * @param options - The caller's signal and the time limit.
+ * @returns The body `{ status: 'ok' }`.
+ * @throws The reason of the caller's signal when the caller aborted.
+ * @throws RangeError when `timeoutMs` is not a positive finite number; no request is sent.
+ * @throws ApiError when the API answered in its error format.
+ * @throws ApiUnavailableError when the API is not answering as the API, or the time limit expired (its
+ * `cause` is then a `DOMException` named `TimeoutError`).
+ */
+export async function getHealth({
+  signal,
+  timeoutMs = HEALTH_TIMEOUT_MS,
+}: HealthOptions = {}): Promise<HealthResponse> {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    throw new RangeError(`the health check time limit must be a positive finite number, got ${timeoutMs}`);
+  }
+  return (await send('/health', { method: 'GET' }, (body) => body.status === 'ok', { signal, timeoutMs })) as HealthResponse;
+}
+
+/** Options of {@link ask}. */
+export interface AskOptions {
+  /** Aborting it cancels the request; the call then rejects with the signal's reason. */
+  signal?: AbortSignal;
+}
+
+/**
+ * Asks a question about a project: `POST /api/projects/{projectId}/ask`. It has no time limit of its own:
+ * with a local model an answer takes tens of seconds.
  *
  * @param projectId - The project id, percent-encoded as one path segment.
  * @param body - The question and its optional settings.
+ * @param options - The caller's signal.
  * @returns The response body unchanged: an answered question or an `UNKNOWN`.
+ * @throws The reason of the caller's signal when the caller aborted.
+ * @throws ApiError when the API answered in its error format.
+ * @throws ApiUnavailableError when the API is not answering as the API.
  */
-export async function ask(projectId: string, body: AskRequest): Promise<AskResponse> {
-  return (await send(`/api/projects/${encodeURIComponent(projectId)}/ask`, {
+export async function ask(projectId: string, body: AskRequest, { signal }: AskOptions = {}): Promise<AskResponse> {
+  const init: RequestInit = {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
-  }, () => true)) as AskResponse;
+  };
+  return (await send(`/api/projects/${encodeURIComponent(projectId)}/ask`, init, () => true, { signal })) as AskResponse;
 }

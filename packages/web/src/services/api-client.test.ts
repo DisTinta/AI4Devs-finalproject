@@ -240,3 +240,183 @@ describe('Unavailable API', () => {
     ]);
   });
 });
+
+/**
+ * A network that never answers: the request only settles when its signal aborts, and then rejects with
+ * that signal's reason, as `fetch` does.
+ */
+function hangingNetwork(request: RecordedRequest): Promise<Response> {
+  return new Promise((_resolve, reject) => {
+    request.signal?.addEventListener('abort', () => reject(request.signal?.reason));
+  });
+}
+
+/** Tracks whether a promise has settled, and keeps its rejection reason. */
+function track(promise: Promise<unknown>): { settled: () => boolean; rejection: Promise<unknown> } {
+  let settled = false;
+  const rejection = rejectionOf(promise).finally(() => {
+    settled = true;
+  });
+  return { settled: () => settled, rejection };
+}
+
+describe('Health check time limit', () => {
+  it('A hanging API makes the health check time out', async () => {
+    // Arrange
+    vi.useFakeTimers();
+    const requests = stubFetch(hangingNetwork);
+
+    // Act
+    const call = track(getHealth());
+    await vi.advanceTimersByTimeAsync(4_999);
+    const pendingAt4999 = !call.settled();
+    await vi.advanceTimersByTimeAsync(1);
+    const failure = (await call.rejection) as ApiUnavailableError;
+
+    // Assert
+    expect(pendingAt4999).toBe(true);
+    expect(failure).toBeInstanceOf(ApiUnavailableError);
+    expect((failure.cause as Error).name).toBe('TimeoutError');
+    expect(requests[0].signal?.aborted).toBe(true);
+  });
+
+  it('A caller-chosen limit is honoured', async () => {
+    // Arrange
+    vi.useFakeTimers();
+    stubFetch(hangingNetwork);
+
+    // Act
+    const call = track(getHealth({ timeoutMs: 100 }));
+    await vi.advanceTimersByTimeAsync(99);
+    const pendingAt99 = !call.settled();
+    await vi.advanceTimersByTimeAsync(1);
+    const failure = await call.rejection;
+
+    // Assert
+    expect(pendingAt99).toBe(true);
+    expect(failure).toBeInstanceOf(ApiUnavailableError);
+  });
+
+  it('An invalid limit is refused', async () => {
+    // Arrange
+    const requests = stubFetch(async () => jsonResponse(200, { status: 'ok' }));
+
+    // Act
+    const failures = [];
+    for (const timeoutMs of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      failures.push(await rejectionOf(getHealth({ timeoutMs })));
+    }
+
+    // Assert
+    for (const failure of failures) {
+      expect(failure).toBeInstanceOf(RangeError);
+    }
+    expect(requests).toHaveLength(0);
+  });
+
+  it('A question has no time limit of its own', async () => {
+    // Arrange
+    vi.useFakeTimers();
+    const requests = stubFetch(hangingNetwork);
+
+    // Act
+    const call = track(ask(PROJECT_ID, { question: '¿Qué hace OrderObserver?' }));
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    // Assert
+    expect(call.settled()).toBe(false);
+    expect(requests).toHaveLength(1);
+    expect(requests[0].signal?.aborted ?? false).toBe(false);
+  });
+});
+
+/** Whether a failure is the caller's abort: an `AbortError`, neither client error class. */
+function expectCallerAbort(failure: unknown): void {
+  expect((failure as Error).name).toBe('AbortError');
+  expect(failure).not.toBeInstanceOf(ApiError);
+  expect(failure).not.toBeInstanceOf(ApiUnavailableError);
+}
+
+describe('Cancellation by the caller', () => {
+  it('Aborting a pending question cancels the request', async () => {
+    // Arrange
+    const requests = stubFetch(hangingNetwork);
+    const caller = new AbortController();
+
+    // Act
+    const failure = rejectionOf(ask(PROJECT_ID, { question: '¿Qué hace OrderObserver?' }, { signal: caller.signal }));
+    caller.abort();
+
+    // Assert
+    expectCallerAbort(await failure);
+    expect(requests[0].signal?.aborted).toBe(true);
+  });
+
+  it('Aborting a pending health check cancels the request', async () => {
+    // Arrange
+    vi.useFakeTimers();
+    const requests = stubFetch(hangingNetwork);
+    const caller = new AbortController();
+
+    // Act
+    const failure = rejectionOf(getHealth({ signal: caller.signal }));
+    await vi.advanceTimersByTimeAsync(4_000);
+    caller.abort();
+
+    // Assert
+    expectCallerAbort(await failure);
+    expect(requests[0].signal?.aborted).toBe(true);
+  });
+
+  it("Aborting while the body is read rejects with the caller's reason", async () => {
+    // Arrange: a 200 whose body reading rejects once the caller's signal aborts.
+    const caller = new AbortController();
+    let bodyRequested: () => void = () => undefined;
+    const bodyReadStarted = () =>
+      new Promise<void>((resolve) => {
+        bodyRequested = resolve;
+      });
+    const respondWithStalledBody = async (): Promise<Response> => {
+      const response = new Response('{"status":"ok"}', { status: 200 });
+      response.text = () => {
+        bodyRequested();
+        return new Promise((_resolve, reject) => {
+          caller.signal.addEventListener('abort', () => reject(caller.signal.reason));
+        });
+      };
+      return response;
+    };
+    stubFetch(respondWithStalledBody);
+
+    // Act
+    const askStarted = bodyReadStarted();
+    const askFailure = rejectionOf(ask(PROJECT_ID, { question: '¿Qué hace OrderObserver?' }, { signal: caller.signal }));
+    await askStarted;
+    const healthStarted = bodyReadStarted();
+    const healthFailure = rejectionOf(getHealth({ signal: caller.signal }));
+    await healthStarted;
+    caller.abort();
+
+    // Assert
+    expectCallerAbort(await askFailure);
+    expectCallerAbort(await healthFailure);
+  });
+
+  it('An already-aborted signal sends no request', async () => {
+    // Arrange
+    const requests = stubFetch(async () => jsonResponse(200, { status: 'ok' }));
+    const caller = new AbortController();
+    caller.abort();
+
+    // Act
+    const healthFailure = await rejectionOf(getHealth({ signal: caller.signal }));
+    const askFailure = await rejectionOf(
+      ask(PROJECT_ID, { question: '¿Qué hace OrderObserver?' }, { signal: caller.signal }),
+    );
+
+    // Assert
+    expectCallerAbort(healthFailure);
+    expectCallerAbort(askFailure);
+    expect(requests).toHaveLength(0);
+  });
+});
