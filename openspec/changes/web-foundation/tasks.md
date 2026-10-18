@@ -17,11 +17,11 @@
 
 Every test of this change follows Arrange-Act-Assert with the three blocks commented (frontend-standards §4).
 
-- [ ] 2.1 RED: create `packages/web/src/theme.test.ts` with "A token changed to a low-contrast value fails the theme test" (imports `contrastRatio`/`meetsAA` from `./theme-contrast`; `#4dabf7` on `#ffffff` → about 2.48 and failing; black on white → 21). See it fail (module missing)
-- [ ] 2.2 GREEN: `packages/web/src/theme-contrast.ts` (WCAG 2.2 relative luminance and ratio, `meetsAA(ratio) = ratio >= 4.5`), with TSDoc
-- [ ] 2.3 RED: add "Every declared text pair meets 4.5:1" to `theme.test.ts` (reads `index.css` with `readFileSync(new URL('./index.css', import.meta.url), 'utf8')`, D24; extracts the `@theme` tokens; checks each of the 13 pairs of the spec table by token name resolves to the spec's value and meets 4.5:1, and `--font-sans`, `--radius-card`, `--radius-button` have the spec's values). See it fail (no `index.css`)
-- [ ] 2.4 GREEN: create `packages/web/src/index.css`: `@import "tailwindcss";`, `@theme` with every token of D4 and `--font-sans`, `--radius-card`, `--radius-button` (D5), and `@layer base` setting `body` to `font-sans bg-canvas text-ink`. 2.1 and 2.3 green
-- [ ] 2.5 RED → GREEN: "Wireframe accent colours are never text" (walks `packages/web/src/` with `readdirSync(…, { recursive: true })`, skipping `index.css` and `*.test.ts(x)`; see it fail once with a probe file using `text-stripe`, created locally and deleted, and record it in the step 9 report)
+- [x] 2.1 RED: create `packages/web/src/theme.test.ts` with "A token changed to a low-contrast value fails the theme test" (imports `contrastRatio`/`meetsAA` from `./theme-contrast`; `#4dabf7` on `#ffffff` → about 2.48 and failing; black on white → 21). See it fail (module missing)
+- [x] 2.2 GREEN: `packages/web/src/theme-contrast.ts` (WCAG 2.2 relative luminance and ratio, `meetsAA(ratio) = ratio >= 4.5`), with TSDoc
+- [x] 2.3 RED: add "Every declared text pair meets 4.5:1" to `theme.test.ts` (reads `index.css` with `readFileSync(new URL('./index.css', import.meta.url), 'utf8')`, D24; extracts the `@theme` tokens; checks each of the 13 pairs of the spec table by token name resolves to the spec's value and meets 4.5:1, and `--font-sans`, `--radius-card`, `--radius-button` have the spec's values). See it fail (no `index.css`)
+- [x] 2.4 GREEN: create `packages/web/src/index.css`: `@import "tailwindcss";`, `@theme` with every token of D4 and `--font-sans`, `--radius-card`, `--radius-button` (D5), and `@layer base` setting `body` to `font-sans bg-canvas text-ink`. 2.1 and 2.3 green
+- [x] 2.5 RED → GREEN: "Wireframe accent colours are never text" (walks `packages/web/src/` with `readdirSync(…, { recursive: true })`, skipping `index.css` and `*.test.ts(x)`; see it fail once with a probe file using `text-stripe`, created locally and deleted, and record it in the step 9 report)
 - [ ] 2.6 `packages/web/vite.config.ts`: add `@tailwindcss/vite` to `plugins` (before `react()`); `npm run build -w packages/web` succeeds and the emitted CSS contains the `--color-accent` value `#1971c2`
 
 ## 3. Same-origin proxy (TDD, design D8, D22) — `web-foundation` → "Same-origin access to the API in local development"
