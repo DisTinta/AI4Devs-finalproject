@@ -46,10 +46,10 @@ Every test of this change follows Arrange-Act-Assert with the three blocks comme
 
 ## 7. Review and Update Existing Tests (MANDATORY)
 
-- [ ] 7.1 Identify the tests affected: `grep -rn "PendingScreen\|Screen 1 placeholder\|routes\b" packages/web/src tests/a11y`, every type error of `npm run typecheck`, and the tests that render `/` without stubbing `fetch` (D19: "An unknown path shows the not-found screen and leads back", "Rendered output does not leak between tests", "The three routes have no axe violations")
-- [ ] 7.2 Edit no existing test except the removal of 2.3 (its scenario left the spec); confirm the three D19 tests pass unedited and record in the step 9 report any `act(...)` warning they print (not silenced). If one of them fails, the fix goes in the production code, never in the test
-- [ ] 7.3 Confirm each `#### Scenario:` of `specs/project-picker/spec.md` and `specs/web-foundation/spec.md` maps 1:1 to a test with exactly the same name (grep each title in `packages/web/src/` and `tests/`), except those validated by command or by hand: "The cards show the seed's figures" (7.4, 9.2) and "The development server serves the three paths" (10.2–10.4, 14.2)
-- [ ] 7.4 Confirm the coherence test `tests/unit/seed/sample-projects-coherence.spec.ts` is untouched (`git diff --stat` empty for it) and passes
+- [x] 7.1 Identify the tests affected: `grep -rn "PendingScreen\|Screen 1 placeholder\|routes\b" packages/web/src tests/a11y`, every type error of `npm run typecheck`, and the tests that render `/` without stubbing `fetch` (D19: "An unknown path shows the not-found screen and leads back", "Rendered output does not leak between tests", "The three routes have no axe violations")
+- [x] 7.2 Edit no existing test except the removal of 2.3 (its scenario left the spec); confirm the three D19 tests pass unedited and record in the step 9 report any `act(...)` warning they print (not silenced). If one of them fails, the fix goes in the production code, never in the test
+- [x] 7.3 Confirm each `#### Scenario:` of `specs/project-picker/spec.md` and `specs/web-foundation/spec.md` maps 1:1 to a test with exactly the same name (grep each title in `packages/web/src/` and `tests/`), except those validated by command or by hand: "The cards show the seed's figures" (7.4, 9.2) and "The development server serves the three paths" (10.2–10.4, 14.2)
+- [x] 7.4 Confirm the coherence test `tests/unit/seed/sample-projects-coherence.spec.ts` is untouched (`git diff --stat` empty for it) and passes
 
 ## 8. Refactor
 

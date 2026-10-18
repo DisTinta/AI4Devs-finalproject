@@ -25,7 +25,7 @@ afterEach(() => {
 });
 
 describe('App error screen', () => {
-  it('A route that fails to render shows the app\'s error screen', async () => {
+  it("A route that fails to render shows the app's error screen", async () => {
     // Arrange: React and React Router log the caught render error; this test only (design D21).
     consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
