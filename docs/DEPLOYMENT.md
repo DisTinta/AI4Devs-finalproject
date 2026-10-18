@@ -56,7 +56,7 @@ and to the delivery branches (`feature/entrega-*`, `final-project-*`); `Frontend
 | `CI` → `verify` | `npm run db:migrate`, `npm run db:seed`, `npm run verify` | Postgres service with its own `verify` database, never the `test` one; no `LLM_*` |
 | `CI` → `mutation` | `npm run test:mutation` (incremental) on pull requests, `npm run test:mutation:full` on pushes | No database; fails under a mutation score of 80; only when `packages/core`, `packages/cli`, `packages/api`, `tests` or their configuration changed |
 | `CI` → `secrets` | gitleaks 8.30.1 over the working tree and the commits of the event | Always runs, also on documentation-only pushes |
-| `Frontend` → `frontend` | `npm run lint`, `npm run typecheck`, `npx vitest run --exclude 'tests/integration/**'`, `npm run test:a11y` | Only when front-end files changed; `test:a11y` is not defined yet and the step prints a warning (see `docs/TESTING.md`) |
+| `Frontend` → `frontend` | `npm run lint`, `npm run typecheck`, `npx vitest run --exclude 'tests/integration/**'`, `npm run test:a11y` | Only when front-end files changed (`dorny/paths-filter`: `.tsx`/`.css` files, `packages/web/**`, `tests/a11y/**`, `tests/unit/web/**`, `tests/support/jsdom-setup.ts`, the lock file and the Vite/Vitest/TS configs); `test:a11y` runs the accessibility gate (see `docs/TESTING.md`) |
 
 `docs/TESTING.md` explains each level of tests these jobs run.
 

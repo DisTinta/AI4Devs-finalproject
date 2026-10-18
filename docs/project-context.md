@@ -63,15 +63,28 @@ Verified against `package.json` (root and per package). If a command is not here
   `INVALID_CONFIG` line and `node --watch` keeps waiting for a file change (the web stays up). To see
   the exit code, run it without watch: `npx tsx --tsconfig packages/api/tsconfig.run.json packages/api/src/server.ts`.
   It listens on `127.0.0.1:3000`; OpenAPI at `http://localhost:3000/docs` (`/docs/json`).
+- Web client (DIS-58): `npm -w packages/web run dev` (Vite on `5173`) and `npm run build -w
+  packages/web` (`tsc --noEmit` + `vite build` into `packages/web/dist`, gitignored); `npm -w
+  packages/web run preview` serves the build. Both Vite servers forward `/api` and `/health` to
+  `http://127.0.0.1:3000` (`apiProxy` in `packages/web/vite.config.ts`): the page calls relative URLs
+  and the API has no CORS. Changing the API's `PORT` means changing that table. To see the proxy with
+  the API stopped, start the API and the web as two processes (the root `npm run dev` kills Vite when
+  the API exits); a stopped API answers through the proxy as an empty `500`, which the client reports
+  as `ApiUnavailableError`.
+- Accessibility gate: `npm run test:a11y` (root) = `vitest run tests/a11y` — axe over the real routes
+  (see Testing).
 - Tests (full): `npm test` or `npx vitest run` (root `vitest.config.ts`). `fixtures/**` is excluded
   and `passWithNoTests` is on, so a green run may mean **zero tests ran**.
 - A subset of tests: `npx vitest run <pattern>` — prefer this over the full suite.
 - Type check: `npm run typecheck` (root) — `tsc --build` over project references + a separate
   `--noEmit` pass on `packages/web` + `tsc -p tests/tsconfig.json` for the root `tests/` folder
   (Vitest-style `ESNext`/`Bundler` resolution; under Node16 the tests would be CommonJS and fail
-  with TS1479 when importing ESM packages).
+  with TS1479 when importing ESM packages) + `tsc -p tests/a11y/tsconfig.json` (the `.tsx` gate,
+  with the web's compiler options).
 - Architecture rule: `npm run lint:architecture` (root) — dependency-cruiser over `packages` using
-  `.dependency-cruiser.cjs` (the single config; CI runs the same file).
+  `.dependency-cruiser.cjs` (the single config; CI runs the same file). Since DIS-58 the rule
+  `web-no-backend` forbids `packages/web` from importing `packages/{api,core,adapters,analyzers,cli}`
+  or a `@codemind/` package.
 - Lint: `npm run lint` (root) — ESLint flat config (`eslint.config.mjs`), `@eslint/js` +
   `typescript-eslint` recommended. Empty port interfaces are downgraded to warnings; `.cjs`, `dist`,
   `.claude`, `.cursor`, `fixtures` are ignored.
@@ -181,6 +194,21 @@ Verified against `package.json` (root and per package). If a command is not here
 ## Testing
 
 - Framework: Vitest (root `vitest.config.ts`; no per-package vitest config yet).
+- **Web tests (DIS-58).** Next to the code: `packages/web/src/**/*.test.ts(x)`. Only
+  `packages/web/**/*.test.tsx` and `tests/a11y/**` run in **jsdom** (`environmentMatchGlobs`); every
+  other test, the web's `.test.ts` files included (API client, theme), stays in Node — under jsdom the
+  global `AbortSignal` is jsdom's while `fetch` stays Node's, and Node's `fetch` rejects it. The setup
+  file `tests/support/jsdom-setup.ts` (guarded by `'document' in globalThis`) unmounts after every
+  jsdom test (RTL's auto-cleanup needs Vitest `globals`, off here) and replaces `Request` with a
+  subclass that drops `init.signal`, because React Router builds `new Request(url, { signal })` on
+  navigation with Node's `Request` and jsdom's `AbortController`. That workaround is safe only while
+  the app has no loader or action: **the ticket that adds one must revisit it**. `.tsx` tests compile
+  with `esbuild.jsx: 'automatic'`. Use RTL accessible queries and `user-event`; mock the network with
+  `vi.stubGlobal('fetch', …)`. `tests/unit/web/` holds the Vite proxy table test and the type-level
+  contract test `api-contract.spec.ts` (`expectTypeOf` of the client types against the API's Zod
+  types, by relative path; it fails `npm run typecheck`, not Vitest). Stryker excludes
+  `packages/web/**`, `tests/a11y/**` and `tests/unit/web/**` (`vitest.stryker.config.ts`): it mutates
+  no web file.
 - Test locations: `tests/{unit,integration,e2e,a11y}` and co-located package sources. The first real
   suite is `tests/integration/store/` (schema migrations and constraints, against real Postgres).
 - DB integration tests need `DATABASE_URL`. If it is unset:
@@ -486,6 +514,13 @@ Mandatory whenever an agent closes a milestone or a relevant AI-assisted decisio
 What the model does NOT know by default about this project: non-obvious behaviour, known traps,
 services that must be started first, quirks of the local environment.
 
+- **The web's test setup carries two workarounds, and Tailwind scans every file** (DIS-58).
+  `tests/support/jsdom-setup.ts` unmounts after each jsdom test and drops `init.signal` from
+  `Request` so React Router can navigate under jsdom; a loader or action would then lose its abort
+  signal in tests, so the ticket that adds one revisits it. The web's `.test.ts` files must stay in
+  Node (a `.test.tsx` runs in jsdom, where Node's `fetch` rejects jsdom's `AbortSignal`). Tailwind 4
+  generates a utility for any class-like string in any source file, tests included, so `index.css`
+  excludes `*.test.ts(x)` with `@source not`; a new non-UI folder with class names needs the same.
 - **Some CI gates run against stubs, on purpose.** `lint`, `lint:architecture` and `typecheck` are
   real and must pass, and so is CI's `db:migrate` → `db:rollback` → `db:migrate` step. Mutation
   testing has real mutants since DIS-23 (`packages/core/src/knowledge/`, 86.82 % at DIS-23 merge, 90.09 % with DIS-35, 92.23 % with DIS-36; `packages/core/src/index/` since DIS-84, 95.11 % for all of core; 96.48 % for `index/` with DIS-85; threshold
