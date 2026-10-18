@@ -88,10 +88,10 @@ Every test of this change follows Arrange-Act-Assert with the three blocks comme
 
 ## 13. Pull request
 
-- [ ] 13.1 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the Why marked as the agent's decision (DIS-60 `[enhanced]` D1–D14 and design D15–D22), the wireframe deviations (D3, D4, D9, D14, D16) and the bundle size before and after
-- [ ] 13.2 Commit by explicit paths only (nothing under `.claude/`), English messages ending with the co-author line; push with `git -c credential.helper='!gh auth git-credential' push` on the DisTinta account (autonomous run: it stays active)
-- [ ] 13.3 Open the pull request against `feature/entrega-2-CRN` (title and body in Spanish); set DIS-60 to In Review in Linear with a Spanish comment linking the PR and the change
-- [ ] 13.4 Confirm the PR's CI is green (`quality`, `Frontend` with `test:a11y` running the new file, `secrets`, `verify`); link the run in an addendum to the step 9 report
+- [x] 13.1 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the Why marked as the agent's decision (DIS-60 `[enhanced]` D1–D14 and design D15–D22), the wireframe deviations (D3, D4, D9, D14, D16) and the bundle size before and after
+- [x] 13.2 Commit by explicit paths only (nothing under `.claude/`), English messages ending with the co-author line; push with `git -c credential.helper='!gh auth git-credential' push` on the DisTinta account (autonomous run: it stays active) — nothing to commit at this step (branch already up to date; only `.claude/` has local uncommitted edits, left untouched per the hard rules)
+- [x] 13.3 Open the pull request against `feature/entrega-2-CRN` (title and body in Spanish); set DIS-60 to In Review in Linear with a Spanish comment linking the PR and the change — PR #54: https://github.com/DisTinta/AI4Devs-finalproject/pull/54
+- [x] 13.4 Confirm the PR's CI is green (`quality`, `Frontend` with `test:a11y` running the new file, `secrets`, `verify`); link the run in an addendum to the step 9 report — all checks pass on the first run (`quality`, `frontend`, `mutation`, `scope`, `secrets`, `verify`), see addendum below
 
 ## 14. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 

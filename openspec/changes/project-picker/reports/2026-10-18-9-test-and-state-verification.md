@@ -179,3 +179,19 @@ not apply). The error screen never shows the error's message or stack.
 - `npx vitest run`: 147 files (127 passed, 20 skipped), 1 642 tests (1 369 passed, 221 skipped), 69.97 s.
   Targeted run: 11 files, 43 tests passed. `npm run test:a11y`: 2 files, 4 tests passed. `lint`,
   `typecheck`, `docs:coverage` clean; `lint:architecture` 0 errors (the same three warnings).
+
+## Addendum — CI run of the pull request (2026-10-18, task 13.4)
+
+- Pull request: https://github.com/DisTinta/AI4Devs-finalproject/pull/54 (`feature/DIS-60-project-picker`
+  into `feature/entrega-2-CRN`).
+- `gh pr checks 54 --repo DisTinta/AI4Devs-finalproject --watch --interval 30`: all checks passed on the
+  first run, no fix attempt needed.
+
+  | Check | Result | Duration | Run |
+  |---|---|---|---|
+  | quality | pass | 2m25s | https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/39154134984/job/117753749521 |
+  | frontend | pass | 1m9s | https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/39154135177/job/117753719513 |
+  | mutation | pass | 1m24s | https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/39154134984/job/117753749523 |
+  | scope | pass | 6s | https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/39154134984/job/117753719390 |
+  | secrets | pass | 8s | https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/39154134984/job/117753719153 |
+  | verify | pass | 48s | https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/39154134984/job/117753749531 |
