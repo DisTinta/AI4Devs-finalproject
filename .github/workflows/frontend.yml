@@ -62,11 +62,8 @@ jobs:
         if: steps.changes.outputs.frontend == 'true'
         run: npx vitest run --exclude 'tests/integration/**'
 
+      # A real gate since DIS-58: no fallback when the script is missing, so removing or renaming
+      # `test:a11y` fails the job instead of turning the gate into a warning (web-foundation design D32).
       - name: Accessibility (test:a11y)
         if: steps.changes.outputs.frontend == 'true'
-        run: |
-          if [ -f package.json ] && npm run | grep -q ' test:a11y'; then
-            npm run test:a11y
-          else
-            echo "WARNING: npm script test:a11y not defined — see docs/frontend-standards.md. Add axe-core or equivalent to enforce this gate."
-          fi
+        run: npm run test:a11y

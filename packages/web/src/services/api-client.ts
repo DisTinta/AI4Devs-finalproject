@@ -197,6 +197,12 @@ function isErrorBody(body: unknown): body is ApiErrorBody {
 export const HEALTH_TIMEOUT_MS = 5_000;
 
 /**
+ * The largest time limit a timer honours, in milliseconds (2^31 - 1). Browsers and Node fire a longer
+ * `setTimeout` at once, so a larger limit would make the health check time out immediately.
+ */
+export const MAX_TIMEOUT_MS = 2_147_483_647;
+
+/**
  * A request signal that aborts when a time limit expires or when the caller's signal aborts (design D20:
  * `AbortController` + `setTimeout`, which Vitest's fake timers drive, unlike `AbortSignal.timeout`).
  */
@@ -296,7 +302,10 @@ async function send(
 export interface HealthOptions {
   /** Aborting it cancels the request; the call then rejects with the signal's reason. */
   signal?: AbortSignal;
-  /** Gives up after this many milliseconds; a positive finite number, {@link HEALTH_TIMEOUT_MS} by default. */
+  /**
+   * Gives up after this many milliseconds: a positive number up to {@link MAX_TIMEOUT_MS},
+   * {@link HEALTH_TIMEOUT_MS} by default.
+   */
   timeoutMs?: number;
 }
 
@@ -306,7 +315,8 @@ export interface HealthOptions {
  * @param options - The caller's signal and the time limit.
  * @returns The body `{ status: 'ok' }`.
  * @throws The reason of the caller's signal when the caller aborted.
- * @throws RangeError when `timeoutMs` is not a positive finite number; no request is sent.
+ * @throws RangeError when `timeoutMs` is not a positive number up to {@link MAX_TIMEOUT_MS}; no request is
+ * sent.
  * @throws ApiError when the API answered in its error format.
  * @throws ApiUnavailableError when the API is not answering as the API, or the time limit expired (its
  * `cause` is then a `DOMException` named `TimeoutError`).
@@ -315,8 +325,10 @@ export async function getHealth({
   signal,
   timeoutMs = HEALTH_TIMEOUT_MS,
 }: HealthOptions = {}): Promise<HealthResponse> {
-  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-    throw new RangeError(`the health check time limit must be a positive finite number, got ${timeoutMs}`);
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || timeoutMs > MAX_TIMEOUT_MS) {
+    throw new RangeError(
+      `the health check time limit must be a positive number up to ${MAX_TIMEOUT_MS} ms, got ${timeoutMs}`,
+    );
   }
   return (await send('/health', { method: 'GET' }, (body) => body.status === 'ok', { signal, timeoutMs })) as HealthResponse;
 }

@@ -303,7 +303,7 @@ describe('Health check time limit', () => {
 
     // Act
     const failures = [];
-    for (const timeoutMs of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+    for (const timeoutMs of [0, -1, Number.NaN, Number.POSITIVE_INFINITY, 2_147_483_648]) {
       failures.push(await rejectionOf(getHealth({ timeoutMs })));
     }
 

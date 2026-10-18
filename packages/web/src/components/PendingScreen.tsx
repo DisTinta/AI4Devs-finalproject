@@ -21,7 +21,7 @@ export function PendingScreen({ heading, detail }: PendingScreenProps): ReactEle
     <PageFrame>
       <h1 className="text-lg font-semibold text-ink-muted">{heading}</h1>
       <p className="mt-2 text-sm text-ink-subtle">Esta pantalla está en construcción.</p>
-      {detail === undefined ? null : <p className="mt-2 font-mono text-sm text-ink-muted">{detail}</p>}
+      {detail === undefined ? null : <p className="mt-2 font-mono text-sm break-all text-ink-muted">{detail}</p>}
     </PageFrame>
   );
 }
