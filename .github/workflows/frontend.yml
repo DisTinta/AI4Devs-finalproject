@@ -33,6 +33,9 @@ jobs:
               - 'vite.config.*'
               - 'vitest.config.*'
               - 'tests/a11y/**'
+              - 'packages/web/**'
+              - 'tests/unit/web/**'
+              - 'tests/support/jsdom-setup.ts'
               - '.github/workflows/frontend.yml'
 
       - uses: actions/setup-node@v4

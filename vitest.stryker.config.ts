@@ -19,6 +19,11 @@ export default mergeConfig(
         'tests/unit/index/secret-scanner.scaling.spec.ts',
         'tests/unit/explain/sanitize.linear.spec.ts',
         'tests/unit/explain/sanitize.scaling.spec.ts',
+        // Stryker mutates no web file, so the web and accessibility tests can kill no mutant; they would
+        // only slow the dry run and load jsdom into it (DIS-58 design D25).
+        'packages/web/**',
+        'tests/a11y/**',
+        'tests/unit/web/**',
       ],
     },
   }),
