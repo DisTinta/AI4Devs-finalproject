@@ -11,11 +11,16 @@ export type ApiHealthStatus = 'checking' | 'available' | 'unavailable';
 export interface ApiHealth {
   /** The API status. */
   status: ApiHealthStatus;
+  /** Whether a retry is pending. */
+  retrying: boolean;
+  /** Sends one new health check. */
+  retry: () => void;
 }
 
 /**
  * Checks the API once when the calling page mounts, with the API client's health check and its default
- * time limit, without blocking the page; unmounting aborts the pending check (design D8).
+ * time limit, without blocking the page; unmounting aborts the pending check (design D8). Any failure
+ * other than that abort makes the API `unavailable`.
  *
  * @returns The API status.
  */
@@ -26,10 +31,14 @@ export function useApiHealth(): ApiHealth {
     const controller = new AbortController();
     getHealth({ signal: controller.signal }).then(
       () => setStatus('available'),
-      () => undefined,
+      () => {
+        if (!controller.signal.aborted) {
+          setStatus('unavailable');
+        }
+      },
     );
     return () => controller.abort();
   }, []);
 
-  return { status };
+  return { status, retrying: false, retry: () => undefined };
 }

@@ -51,6 +51,14 @@ function answerOk(): Promise<Response> {
   return Promise.resolve(new Response('{"status":"ok"}', { status: 200 }));
 }
 
+/** The first sentence of the API-unavailable alert. */
+const UNAVAILABLE = 'La API de CODEMIND no está disponible';
+
+/** A failure of the request itself, as `fetch` rejects when nothing listens on the port. */
+function rejectWithTypeError(): Promise<Response> {
+  return Promise.reject(new TypeError('fetch failed'));
+}
+
 /** Renders the web client's routes in a memory router at `path`. */
 function renderAt(path: string): ReturnType<typeof render> {
   return render(<RouterProvider router={createMemoryRouter(routes, { initialEntries: [path] })} />);
@@ -167,5 +175,59 @@ describe('API status on Screen 1', () => {
     expect(screen.queryByRole('alert')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Reintentar' })).toBeNull();
     expect(document.activeElement).toBe(document.body);
+  });
+
+  it('An unavailable API shows the alert and keeps the cards', async () => {
+    // Arrange
+    const runs: Array<[string, () => Promise<Response>]> = [
+      ['rejects with a TypeError', rejectWithTypeError],
+      ['answers 500 with an empty body', () => Promise.resolve(new Response('', { status: 500 }))],
+      [
+        'answers 503 in the error format',
+        () =>
+          Promise.resolve(
+            new Response('{"error":{"code":"SERVICE_UNAVAILABLE","message":"unavailable","details":{}}}', {
+              status: 503,
+            }),
+          ),
+      ],
+      ['answers 200 with status down', () => Promise.resolve(new Response('{"status":"down"}', { status: 200 }))],
+    ];
+
+    // Act
+    const outcomes: Record<string, Record<string, unknown>> = {};
+    for (const [label, answer] of runs) {
+      const requests = stubFetch(answer);
+      const { unmount } = renderAt('/');
+      const alert = await screen.findByRole('alert');
+      const subtitle = screen.getByText('Repositorios precargados · sin registro · sin instalación');
+      const list = screen.getByRole('list', { name: 'Proyectos de muestra' });
+      const article = within(list).getByRole('article', { name: 'acme-shop' });
+      outcomes[label] = {
+        holdsMessage: alert.textContent?.includes(UNAVAILABLE),
+        holdsRetryButton: within(alert).queryByRole('button', { name: 'Reintentar' }) !== null,
+        afterSubtitle: comesAfter(subtitle, alert),
+        beforeList: comesAfter(alert, list),
+        linkRendered: within(article).queryByRole('link', { name: 'Explorar proyecto acme-shop' }) !== null,
+        showsReady: screen.queryByText('listo') !== null,
+        showsChecking: screen.queryByText(CHECKING) !== null,
+        requests: requests.length,
+      };
+      unmount();
+      vi.unstubAllGlobals();
+    }
+
+    // Assert
+    const expected = {
+      holdsMessage: true,
+      holdsRetryButton: true,
+      afterSubtitle: true,
+      beforeList: true,
+      linkRendered: true,
+      showsReady: false,
+      showsChecking: false,
+      requests: 1,
+    };
+    expect(outcomes).toEqual(Object.fromEntries(runs.map(([label]) => [label, expected])));
   });
 });
