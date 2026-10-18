@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { routes } from '../router';
@@ -120,5 +121,26 @@ describe('Sample-project cards without HTTP', () => {
     expect(requests).toHaveLength(1);
     expect(requests[0].url).toBe('/health');
     expect(requests[0].init?.method).toBe('GET');
+  });
+
+  it('The project link is reached and followed with the keyboard', async () => {
+    // Arrange
+    stubFetch(neverAnswer);
+    const user = userEvent.setup();
+    renderAt('/');
+    const link = await screen.findByRole('link', { name: 'Explorar proyecto acme-shop' });
+
+    // Act
+    const maxTabs = document.querySelectorAll('a, button, input, select, textarea, [tabindex]').length + 1;
+    for (let presses = 0; presses < maxTabs && document.activeElement !== link; presses += 1) {
+      await user.tab();
+    }
+    const focusedByKeyboard = document.activeElement === link;
+    await user.keyboard('{Enter}');
+
+    // Assert
+    expect(focusedByKeyboard).toBe(true);
+    expect(await screen.findByRole('heading', { level: 1, name: 'Consulta del proyecto' })).toBeDefined();
+    expect(screen.getByText(PROJECT_ID)).toBeDefined();
   });
 });
