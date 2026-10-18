@@ -45,7 +45,7 @@ D1–D14 come from the `[enhanced]` description of DIS-60 (agent as lead enginee
 `20261016-autonomous-workflow-run-entrega-2`, reviewable by the author). D15–D22 were taken while
 proposing, D26–D31 while implementing, and D23–D25 while resolving the spec audit (run 1, `reports/2026-10-18-spec-audit.md`), which
 also refined D3, D6, D9, D11, D17 and D19; all of them were added to the same description on 2026-10-18
-("Decisiones D15–D25").
+("Decisiones D15–D25"). D32–D34 were taken while fixing the pre-merge review findings (task 14).
 
 ### D1 — An OpenSpec change with the new capability `project-picker`
 
@@ -118,7 +118,7 @@ message content and `onRetry`), role `alert`, `warning-*` colours with a `warnin
 `aria-hidden`, the text of the spec (`make up` in `<code>`, D24) and a `type="button"` «Reintentar»
 styled as the primary button (D24). During a retry the alert stays, the button reads «Reintentando…»
 and keeps the focus; repeated presses are ignored (no `disabled`, which would drop the focus to `body`).
-If the retry succeeds the alert disappears and the focus moves to the `h1` (`tabIndex={-1}`: focusable by
+If the retry succeeds the alert disappears and the focus (unless the person moved it, D32) moves to the `h1` (`tabIndex={-1}`: focusable by
 script, never reached with Tab), so a keyboard user is not left on `body`. If it fails, the button reads
 «Reintentar» again and nothing else changes. "la API", as in `readme.md`.
 
@@ -284,6 +284,28 @@ DIS-60.
   stderr; it still reports zero violations. Installing `canvas` would be a new dependency (D22) and
   stubbing it would change `jsdom-setup.ts` (non-goal).
 
+### Taken in the pre-merge review (D32–D34)
+
+Agent decisions while fixing the findings of task 14 (reports `reports/2026-10-18-show-spec-working.md`,
+`reports/2026-10-18-verify-against-spec.md`, `reports/2026-10-18-adversarial-review.md`), added to the
+`[enhanced]` description of DIS-60 and to the spec through the addendum of `reports/2026-10-18-spec-audit.md`.
+
+- **D32 — A successful retry moves the focus only when it was lost.** The reason to move it to the `h1`
+  (D9, D17) is that the focused button disappears; if the person moved the focus elsewhere while the retry
+  was pending (for example, tabbed to «Explorar proyecto»), taking it away is worse than leaving it. The
+  page's effect moves the focus only when `document.activeElement` is `body` or `null` (the browser and
+  jsdom put it on `body` when the focused button is removed). Spec "API status on Screen 1" and its new
+  scenario "A successful retry leaves the focus where the person moved it".
+- **D33 — The guard against an aborted check is tested under `StrictMode`.** No other render can observe
+  it: after leaving the page nothing is left to show. Mounting the real routes inside `StrictMode` (as
+  `main.tsx` does) aborts the first check while the page stays mounted, so a missing guard shows the alert
+  with the API still checking. New scenario "A check the page cancels itself changes nothing on the
+  screen"; it closes the mutation survivor of the step 9 report.
+- **D34 — The alert wraps on narrow screens.** The ⚠ and the message share a box of at least `12rem`
+  (`min-w-48 flex-1`) and the alert is `flex-wrap`: on a desktop the button stays on the message's row, on
+  a phone it goes below the message instead of squeezing it into a 110 px column. The alert's text content
+  and order do not change (layout only; checked in the browser at 320 and 1 280 px).
+
 ## Risks / Trade-offs
 
 - [The existing a11y gate scans `/` while the real `fetch` may flip the page to the alert during the
@@ -307,4 +329,17 @@ placeholder test. Rollback = revert the PR; no data, no API, no dependency chang
 
 ## Follow-ups
 
-Filled by the pre-merge review (task 14).
+Findings of the pre-merge reviews (task 14; reports `reports/2026-10-18-show-spec-working.md`,
+`reports/2026-10-18-verify-against-spec.md`, `reports/2026-10-18-adversarial-review.md`), each with its
+destination (`docs/project-context.md` → Tracking deferred findings):
+
+| # | Severity | Finding | Destination |
+|---|---|---|---|
+| 1 | Minor | A successful retry moved the focus to the `h1` even when the person had moved it elsewhere while the retry was pending | **A** — fixed in this change by TDD (D32; spec "API status on Screen 1", scenario "A successful retry leaves the focus where the person moved it") |
+| 2 | Minor | The guard that makes an aborted check change nothing had no test able to observe it (verify V2, step 9 mutation survivor) | **A** — fixed in this change: scenario "A check the page cancels itself changes nothing on the screen", proven by removing the guard (D33) |
+| 3 | Minor | "The first check never moves the focus, whatever its outcome" was asserted only for the success case (verify V1) | **A** — fixed in this change: scenario "An unavailable API shows the alert and keeps the cards" states and tests the focus on the body |
+| 4 | Minor | At 320 px the alert squeezed its message into a column about 110 px wide (show-spec-working S1) | **A** — fixed in this change: the button wraps below the message (D34), checked in the browser |
+| 5 | Minor | `router.test.tsx` keeps the `describe` label «Routes of the web client» of the removed requirement | **D** — accepted: task 2.3 limits that file to the removal of the retired test; the traced names (scenario ↔ test) are exact |
+| 6 | Question | A project name with no break opportunity wider than the card would be clipped | **D** — accepted: names come from the versioned seed (`npm run seed:build`), reviewed in its pull request with a screenshot of Screen 1 |
+| 7 | Question | An empty constant would show an empty list with no message | **D** — accepted: `seed-build` always writes acme-shop, so the constant cannot be empty while the seed has a project |
+| 8 | — | Unspecified but deliberate: `h1 tabIndex={-1}` (D9), the card stripe (D3), the ⚠ of the alert (D9), `encodeURIComponent` on the id, the shared `BackToPickerLink` (D27) | **D** — accepted, documented in the decisions named |

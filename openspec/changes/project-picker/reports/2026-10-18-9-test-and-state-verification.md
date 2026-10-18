@@ -166,3 +166,16 @@ not apply). The error screen never shows the error's message or stack.
 
 - Status: PASS
 - Blocking issues: none
+
+## Addendum — pre-merge review fixes (2026-10-18, task 14.5)
+
+- Two new tests in `packages/web/src/pages/ProjectPickerPage.test.tsx` ("A successful retry leaves the focus
+  where the person moved it", RED then GREEN; "A check the page cancels itself changes nothing on the
+  screen", proven by removing the abort guard) and one assertion added to "An unavailable API shows the
+  alert and keeps the cards" (its scenario's THEN now names the focus), all from spec edits recorded in
+  the spec-audit addendum. No existing test of an earlier change was edited.
+- The mutation survivor "ignore an aborted check" of `useApiHealth.ts` (listed above as observable only
+  under `StrictMode`) is now killed by the `StrictMode` test (design D33).
+- `npx vitest run`: 147 files (127 passed, 20 skipped), 1 642 tests (1 369 passed, 221 skipped), 69.97 s.
+  Targeted run: 11 files, 43 tests passed. `npm run test:a11y`: 2 files, 4 tests passed. `lint`,
+  `typecheck`, `docs:coverage` clean; `lint:architecture` 0 errors (the same three warnings).

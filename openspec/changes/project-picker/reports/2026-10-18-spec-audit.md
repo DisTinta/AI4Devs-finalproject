@@ -240,3 +240,20 @@ None.
 | G3 | improvable | Applied: task 6.1 proves the a11y test with the `button-name` probe only |
 
 No blocking finding remains: the apply may start.
+
+## Addendum — spec edits of the pre-merge review (2026-10-18)
+
+Edits made through `/opsx:update` (run inline in the autonomous run's pre-merge step) to fix findings of
+task 14; agent's decisions D32–D33 in `design.md`. `npx openspec validate project-picker --strict` → valid
+after the edits.
+
+| Finding | Requirement / scenario | Edit |
+|---|---|---|
+| Adversarial 1 | "API status on Screen 1" (requirement text) | After a successful retry the focus moves to the level-1 heading "unless the person moved the focus to another element while the retry was pending: then the focus stays where the person put it" (D32) |
+| Adversarial 1 | new scenario "A successful retry leaves the focus where the person moved it" | Retry pending on a double whose answer the test releases; Tab to «Explorar proyecto acme-shop»; release → one request, no alert, «listo», focus still on the link |
+| Verify V2 / adversarial 2 | new scenario "A check the page cancels itself changes nothing on the screen" | The routes inside `StrictMode` with a never-answering double: two requests, the first aborted and the second not, «comprobando…» shown, no alert (D33) |
+| Verify V1 / adversarial 3 | "An unavailable API shows the alert and keeps the cards" (THEN) | Adds "the focus is still on the document body" (the requirement already said so; the scenario now states it) |
+
+Traceability: each new or edited scenario maps 1:1 to a test of the same name in
+`packages/web/src/pages/ProjectPickerPage.test.tsx` (tasks 14.5.1–14.5.3). No requirement was removed and
+no other scenario changed.

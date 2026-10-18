@@ -20,7 +20,7 @@ DIS-65 (Screen 2) starts from the link this screen provides.
   «La API de CODEMIND no está disponible…» with a «Reintentar» button appears between the subtitle and
   the cards. While the first check runs, each card shows «comprobando…»; retrying sends one new check
   (the button reads «Reintentando…» meanwhile); a success removes the alert and moves focus to the
-  heading. The page never retries on its own.
+  heading (unless the person moved it meanwhile). The page never retries on its own.
 - **«+ Indexar mi propio repositorio»**: the wireframe's text, below a dashed separator, as a
   non-interactive paragraph followed by the CLI command and a requirements line that matches today's
   indexer (no PHP needed, only PHP repositories for now).
