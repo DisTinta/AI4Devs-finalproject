@@ -1,8 +1,8 @@
-CHANGES REQUIRED
+APPROVED
 
 # Spec audit — web-foundation (DIS-58)
 
-Verdict of the latest run first; each run is followed by how its findings were resolved.
+Final verdict: APPROVED by the agent's closure after run 4 (see "Cierre" at the end). Auditor verdicts: run 1, 2, 3 and 4 CHANGES REQUIRED; every finding of each run was folded into the artifacts, and each run is followed by how its findings were resolved.
 
 - Date: 2026-10-17 / 2026-10-18
 - Auditor: spec-auditor subagent
@@ -786,3 +786,285 @@ Resueltos por el agente como lead engineer con `/opsx:update`; el `[enhanced]` d
 | Texto exacto del `main` de los marcadores | Añadido a los THEN de los dos escenarios de marcador. |
 | `proposal.md` → filtro de `frontend.yml` | Incluye `tests/support/jsdom-setup.ts`. |
 | Entradilla de decisiones | `design.md` y el `[enhanced]` citan las rondas 1–3. |
+
+## Run 4
+
+CHANGES REQUIRED
+
+# Auditoría de especificación: `web-foundation` (DIS-58, padre DIS-51), ejecución 4, 2026-10-18
+
+**Qué he leído:**
+- **El change completo:** `proposal.md`, `design.md`, `specs/web-foundation/spec.md` y `tasks.md`.
+- **Informes anteriores:** el de las ejecuciones 1, 2 y 3, con sus tablas de resolución (`reports/2026-10-18-spec-audit.md`).
+- **Linear:** DIS-58 (sub-issue) y DIS-51 (padre), con sus comentarios. Ninguno de los dos tiene comentarios.
+- **Proyecto:** `docs/openspec-tasks-mandatory-steps.md`, `docs/project-context.md` (Commands) y la lista de `docs/adr/`.
+- **Código real:** `package.json` (raíz), `packages/web/package.json`, `vitest.config.ts`, `.github/workflows/frontend.yml` y `tests/tsconfig.json`.
+
+**Supuestos:**
+- La ADR `20261016-autonomous-workflow-run-entrega-2` no está en este árbol. Según el encargo, cubre lo siguiente: las decisiones del agente, las respuestas a las preguntas para la autora, la apertura del PR (15.1) y el merge (15.9).
+- Doy por buenas las comprobaciones de D24 y D26 tal como constan: proyecto de prueba con Vitest 1.6.1, jsdom 26.1 y react-router 7.18.
+
+## Preguntas para la autora
+
+Ninguna nueva. Las tres de la ejecución 1 (ruta e impacto, nota de Playwright, apertura de OpenSpec) siguen decididas y registradas en el `[enhanced]` de DIS-58, en «Puntos que el auditor planteó a la autora…».
+
+---
+
+## Comprobación de las resoluciones
+
+### Ejecuciones 1 y 2
+
+Las ejecuciones 2 y 3 las comprobaron una a una. He vuelto a revisar las que la ronda 3 tocó de nuevo o que dependen de ella. Siguen reflejadas y no hay regresiones:
+- B2, B5 y B6 de la ronda 1: spec l.65–98 y l.156–211.
+- B3 de la ronda 1: l.28–46.
+- B4 de la ronda 1: l.289–295.
+- B7 de la ronda 1: D26 l.351–361.
+- B9 de la ronda 1 y B2 de la ronda 2: tareas 10.1 y 10.5.
+
+### Ejecución 3
+
+| Hallazgo de la ejecución 3 | ¿Está en los artefactos? | ¿Está en el `[enhanced]` de DIS-58? | Estado |
+|---|---|---|---|
+| B1: restauración con tablas vacías | 10.1 l.83 («A `max(created_at)` of `NULL` … recorded as such»); 10.5 l.87 (`coalesce(<10.1 max>, '-infinity')`, comprobación final con `NULL` incluido) | «Prueba manual (restauración)», con `coalesce` y el valor nulo | ✓ |
+| «called without a time limit» | Spec l.84: «without passing a limit (the default applies)» | — | ✓ |
+| `ask` sin tiempo límite propio | Spec l.126–130 (escenario nuevo); D9 l.187–188; tarea 4.6 | «Cliente (refina D9)»: «`ask` no tiene tiempo límite propio… 60 000 ms sin abortar» | ✓ |
+| Texto exacto del `main` de los marcadores | Spec l.35–36 y l.45–46 | «Cliente (refina D9)», última frase | ✓ (el orden del texto queda implícito, ver §5) |
+| Filtro de `frontend.yml` en `proposal.md` | `proposal.md` l.97–98 | D27 | ✓ |
+| Entradilla de decisiones | `design.md` l.52–56 (rondas 2 y 3) | Encabezado «…rondas 1–3…» y entradilla «…rondas 1, 2 y 3…» | ✓ |
+
+Las seis resoluciones de la ronda 3 están en los artefactos y en el `[enhanced]`. El bloque `[original]` no se ha tocado, y el ticket sigue sin comentarios, de acuerdo con la regla de que el alcance va en la descripción.
+
+---
+
+## 1. Alcance frente al ticket
+
+Limpio:
+- Todo sale del `[enhanced]` de DIS-58: D1–D28, los refinamientos de D2, D4 y D9, «Encabezados de los marcadores» y «Prueba manual».
+- No se amplía a la HU completa de DIS-51: `ProjectPickerPage`, las tarjetas, el aviso de API caída y el test de coherencia siguen en DIS-60.
+- La ruta y los tipos de impacto quedan fuera por decisión registrada.
+
+## 2. Criterios de aceptación heredados
+
+| Criterio | Origen | Requisito / escenario | Estado |
+|---|---|---|---|
+| `test:a11y` pasa en `frontend.yml` | DoD de DIS-58 | «The gate runs in CI instead of warning»; 6.4, 15.3 | OK |
+| Un test RTL de ejemplo pasa en `frontend.yml` | DoD de DIS-58 | Escenarios de «Routes…»; 15.3 (paso «Unit / component tests») | OK |
+| Notas *target* retiradas | DoD de DIS-58 | Criterio documental (D13); 12.1 | OK, decidido y registrado |
+| Rutas `/`, `/p/{id}` y desconocida, sin peticiones | AC «Rutas» de DIS-58 | Cuatro escenarios de «Routes…» | OK |
+| `getHealth` y `ask`: URL relativa, cabecera y cuerpo exactos | AC «Cliente, éxito y contrato» | «A healthy API…», «An answered question…», «An UNKNOWN…», «The project id…» | OK |
+| `typecheck` falla si cambia el contrato | AC «Cliente, éxito y contrato» | «A drift between…» | OK |
+| `ApiError` con `status`/`code`/`message`/`details` | AC «Cliente, errores» | «The error format becomes an API error» | OK |
+| `ApiUnavailableError` (red, cuerpo no JSON **o sin el formato de error**, tiempo agotado) | AC «Cliente, errores» | «Failures that are not the API's answer…» | **Parcial**: falta el caso «JSON sin el formato de error» (ver §3 B1) |
+| Cancelación en `ask` y en `getHealth` | AC «Cliente, errores» | Cuatro escenarios de «Cancellation by the caller» | OK |
+| Proxy de `/health` | AC «Cliente, éxito y contrato» | «The health check reaches the API through the development server» | OK en la spec; la tarea que lo ejecuta no es practicable tal como está (ver §8 B2) |
+| axe sin violaciones y controles con nombre accesible | AC 4 de DIS-51 y AC «Puerta» de DIS-58 | «The three routes…», «The negative control…» | OK |
+| Contraste ≥ 4.5:1 de los pares de D4 | AC «Tema y standards» | «Every declared text pair meets 4.5:1» | OK |
+| `TESTING.md`, `DEPLOYMENT.md` y `project-context.md` | AC «Tema y standards» | Documental; 12.2, 12.3 | OK |
+| AC 1, 2, 3 y 5 de DIS-51 | DIS-51 | Fuera de este cambio, son de DIS-60 | Correcto |
+
+El hueco del criterio de errores se trata como B1 en §3.
+
+## 3. Escenarios ausentes
+
+**B1 (bloqueante): una respuesta ≥ 400 con cuerpo JSON pero sin el formato de error no tiene escenario.**
+- El requisito «Unavailable API» (spec l.161–162) lo exige: «a body of a status `400` or more is not in the single error format». D9 (l.172–174, l.179–181) lo convierte en una rama propia, con `cause` = `Error('unexpected response <status>')`.
+- Los dos ejemplos del escenario de fallos (spec l.168–170) son cuerpos **no JSON**: el `500` vacío y el `502` HTML. Los dos salen por la rama `SyntaxError`.
+- Queda sin probar la rama «JSON, pero no `{ error: { code, message, details } }`». Es la que distingue a `ApiError` de lo que no es la API: el cuerpo por defecto de Fastify, `{"statusCode":500,"error":"Internal Server Error",…}`, con `error` como cadena, o un `details` que es un array.
+- DIS-66 decide entre «error de la API» y «API no disponible» con esta clasificación. Si la comprobación de forma fallara, por ejemplo aceptando un `details` array o un `error` de tipo cadena, ningún test lo detectaría.
+- **Corrección:** ampliar el escenario de fallos con dos llamadas a `ask`: un `500` con `{"statusCode":500,"error":"Internal Server Error","message":"boom"}` y un `400` con `{"error":{"code":"VALIDATION_ERROR","message":"invalid request","details":[]}}`. Su `cause` es un `Error` con mensaje `unexpected response <status>` y llevan `status` `500` y `400`. Hay que ajustar la tarea 4.5, que enumera los casos.
+
+**Mejorables:**
+- **Cancelación de `getHealth` durante la lectura del cuerpo.** El MUST de «Cancellation by the caller» dice que la regla vale para las dos llamadas «while the response body is being read». El escenario «Aborting while the body is read…» (l.201–205) solo usa `ask`. `getHealth` lee el cuerpo con su propio `AbortController` (D20), que es justo donde la señal del llamante y la del temporizador se mezclan. Propuesta: que el WHEN diga «`ask`, then the health check, are called…» y el THEN «both promises reject…».
+- **`cause` de cada caso.** D9 fija la `cause` de cada caso: `SyntaxError` si el cuerpo no es JSON, `Error('unexpected response <status>')` si la forma no es la esperada y un `DOMException` `TimeoutError` si vence el tiempo. La spec solo exige «`cause` is set», salvo en los dos `TypeError`. Propuesta: añadir al THEN del escenario de fallos «the `cause` of the non-JSON bodies is a `SyntaxError`», y al de «A hanging API…» «with a `cause` named `TimeoutError`».
+- **«Every other test file SHALL keep running in Node».** Igual que en las ejecuciones 2 y 3: lo sostiene la comparación de totales de 1.5, citada en 9.7. Es aceptable.
+
+## 4. Ambigüedad
+
+- **`spec.md`, `proposal.md` y `tasks.md`:** no tienen ninguna de las palabras vetadas. «too many requests» (spec l.150) es un valor de fixture.
+- **`design.md`:** las coincidencias son inocuas, porque son justificación o nombre propio y no requisitos:
+  - l.281: «keeps them fast» y «easy to forget».
+  - l.226: «small pure function».
+  - l.335: «Fast Refresh».
+
+Limpio.
+
+## 5. Decisiones abiertas
+
+- Lo que el implementador necesita está fijado:
+  - formatos, nombres (`timeoutMs`, `signal`, el `name` de las clases) y límites (`RangeError` para un límite que no sea positivo y finito);
+  - el orden de clasificación de los rechazos (D20);
+  - los globs, el fichero de setup, los textos de la interfaz, los tokens y las rutas de los informes.
+- El caso abierto de la prueba manual se trata en §8 (B2), porque nace del código real.
+- **Mejorable: orden y forma de comparar el texto del `main` de los marcadores.**
+  - Los escenarios (spec l.35–36 y l.45–46) dicen «the text of the main landmark is exactly the level-1 heading, «Esta pantalla está en construcción.» and the `projectId`».
+  - Leo el orden de la lista como el orden fijado, así que no lo trato como bloqueante. Además, DIS-60 y DIS-65 sustituyen el marcador y ningún consumidor depende de él.
+  - Aun así, ni la tarea 5.2 (`PendingScreen` con «optional detail») ni la spec dicen dónde va el `projectId` ni cómo se compara: ¿`textContent` concatenado o un elemento por línea?
+  - Propuesta para la spec y la tarea 5.2: «the main landmark holds, in this order, the `h1`, a paragraph «Esta pantalla está en construcción.» and, on Screen 2, a paragraph with the `projectId`; no other text».
+
+## 6. Contradicciones dentro del cambio
+
+Limpio. `proposal.md`, `design.md` y la spec coinciden en todo esto:
+- rutas, textos y encabezados;
+- modelo de errores y forma del éxito;
+- tiempos límite (incluido que `ask` no tiene límite propio) y cancelación;
+- entorno por ruta (D17), setup (D18, D26) y Stryker (D25);
+- filtro de CI (D27) y regla de arquitectura (D28).
+
+Las líneas del contexto técnico del `[enhanced]` que se refinan (`paths` de `@codemind/api`, `environmentMatchGlobs` para `packages/web/**`, «Stryker no cambia» y el encabezado «CODEMIND») están marcadas como sustituidas en D17, D19, D25 y D2.
+
+## 7. Contradicciones con el proyecto
+
+- **Limpio:**
+  - `test:mutation:full` en 9.4 cumple `docs/project-context.md` → Mutation testing.
+  - D3 cumple frontend-standards §1 (configuración en CSS) y D10 cumple §3 (tipos declarados una vez).
+  - Arrange-Act-Assert está en la cabecera del grupo 2. La nota de CWV está en Risks, 0.4 y 9.3.
+  - El orden de los pasos obligatorios cumple `openspec-tasks-mandatory-steps.md` §2: Review (7), Tests (9), Manual (10), E2E (11), Documentación (12) y Pre-merge (15) al final.
+  - Ninguna ADR de `docs/adr/` choca con el cambio. No hay ADRs nuevas desde la ejecución 3; la de Fastify 5 + Zod es coherente con D10.
+- **Nota, no es hallazgo:** 15.1 y 15.9 se apartan de `openspec-tasks-mandatory-steps.md` §3 (Pre-merge) porque, según el encargo, los autoriza la ADR de la ejecución autónoma. No se puede comprobar en este árbol.
+- **Choque con la descripción del comando `dev`:** el de `docs/project-context.md` l.55–56 se trata en §8 B2.
+
+## 8. Contraste con el código real
+
+**B2 (bloqueante): la prueba manual no puede parar «solo la API» con el `npm run dev` de la raíz.**
+- La tarea 10.2 arranca `npm run dev` (raíz), que es `concurrently --kill-others-on-fail "npm -w packages/api run dev" "npm -w packages/web run dev"` (`package.json` l.20). `docs/project-context.md` l.55–56 lo resume así: «kills all on first failure».
+- La tarea 10.3 dice «Stop only the API». Parar el proceso de la API (que corre bajo `node --watch`) termina con un código distinto de cero, así que `concurrently` mata también Vite. El paso siguiente, `curl http://localhost:5173/health` «with the API stopped», llega a un servidor web que ya no existe.
+- Pasa lo mismo con la segunda mitad del escenario «The health check reaches the API through the development server» (spec l.248–254) y con la llamada desde la consola del navegador de 10.3.
+- El implementador tendría que improvisar cómo arrancar los servidores, y la evidencia del «500 vacío del proxy» (D9, Risks l.389–390) es justo lo que esta tarea debe registrar.
+- **Corrección:**
+  - 10.2 arranca los dos servidores como procesos separados: `npm -w packages/api run dev` y `npm -w packages/web run dev`.
+  - 10.3 para solo el proceso de la API y comprueba que Vite sigue respondiendo en `:5173`.
+  - 10.5 para los dos procesos.
+  - Hay que registrarlo en el `[enhanced]`, en «Prueba manual».
+
+**Limpio:**
+- **`frontend.yml`:** el paso de accesibilidad usa `npm run | grep -q ' test:a11y'` (l.65), la misma condición que comprueba 6.4. El paso «Unit / component tests» (l.58–60) es el que nombra 15.3. El filtro actual (l.21–35) no recoge `packages/web/**/*.ts` ni `tests/unit/web/**`, y D27 lo corrige.
+- **`vitest.config.ts`:** `poolMatchGlobs` con prefijo `**/` (l.30) confirma los globs de D17. No hay `setupFiles` ni `environment` previos que choquen con D17 ni D18.
+- **`tests/tsconfig.json`:** no tiene `rootDir` ni `lib` (l.6–23), así que compila `api-client.ts` y `vite.config.ts` importados por ruta relativa (D19, D22). Tampoco cambia, como dice D19.
+- **`packages/web/package.json`:** `build` = `tsc -p tsconfig.json --noEmit && vite build` (l.8). Con D7, ese `tsc` también compila los `*.test.ts(x)` de `src`. Resuelve `vitest`, `@testing-library/*` y `@types/node` desde el `node_modules` de la raíz (workspaces), así que 2.6 y 5.6 son viables.
+- **Sin duplicados:** `tests/support/` no tiene ningún doble de `fetch` ni de DOM, así que no se duplica ninguna abstracción.
+
+## 9. Tamaño de las tareas
+
+Limpio:
+- La 4.2 es la más grande (tipos a mano, dos clases y el helper compartido) y cabe en un turno.
+- La 4.6 agrupa cuatro escenarios en RED → GREEN uno a uno. Cabe.
+- La 1.1 puede crecer si hay que regenerar el lock, y Risks fija qué hacer.
+- La 15.7 es abierta por naturaleza.
+
+## 10. Pasos obligatorios
+
+- **Limpio:**
+  - El paso 0 es la rama: 0.2 la crea y la comprueba, y 0.1 es el estado de Linear, como pide la regla del proyecto.
+  - Las etiquetas `(MANDATORY)` y `AGENT MUST EXECUTE` están.
+  - La numeración va de 0 a 15 sin huecos.
+  - Las rutas de los informes están nombradas (9.7, 10.6, 15.4–15.6).
+  - El paso E2E está presente (11.1, que remite a 10.4).
+  - Pre-merge va el último, con la secuencia fija.
+  - La restauración de 10.5 cubre `query_log`, `claim` y `cache_entry`, también con tablas vacías.
+- **B2 (bloqueante, el mismo de §8):** el paso Manual (10.2/10.3) no es ejecutable tal como está escrito, y la restauración de 10.5 empieza con «stop both servers», que hoy es un único proceso.
+
+## 11. Trazabilidad
+
+| Requisito | Escenario | Tareas |
+|---|---|---|
+| Routes of the web client | The root path shows the Screen 1 placeholder | 5.1, 5.2 |
+| | A project path shows the Screen 2 placeholder with its id | 5.3 |
+| | An unknown path shows the not-found screen and leads back | 5.4 (D26, 1.2) |
+| | The development server serves the three paths | 10.4, 15.4 |
+| Health check through the API client | A healthy API resolves the health check | 4.1, 4.2 |
+| | A hanging API makes the health check time out | 4.6 |
+| | A caller-chosen limit is honoured | 4.6 |
+| | An invalid limit is refused | 4.6 |
+| Asking a question through the API client | An answered question is resolved as received | 4.3 |
+| | An UNKNOWN is resolved as received | 4.3 |
+| | A question has no time limit of its own | 4.6 |
+| | The project id is encoded as one path segment | 4.3 |
+| API errors | The error format becomes an API error | 4.4 |
+| Unavailable API | Failures that are not the API's answer become unavailable-API errors | 4.5 (sin el caso «JSON sin formato de error», B1) |
+| Cancellation by the caller | Aborting a pending question cancels the request | 4.7 |
+| | Aborting a pending health check cancels the request | 4.7 |
+| | Aborting while the body is read rejects with the caller's reason | 4.7 |
+| | An already-aborted signal sends no request | 4.7 |
+| API types follow the API's schemas | A drift between the client types and the API schemas fails the type check | 4.8 |
+| | The web does not import the API or the backend | 1.4, 4.9 |
+| Same-origin access to the API in local development | Both servers forward the API paths | 3.1, 3.2 |
+| | The health check reaches the API through the development server | 10.2, 10.3, 15.4 (no ejecutable tal como está, B2) |
+| Theme colours and minimum contrast | Every declared text pair meets 4.5:1 | 2.3, 2.4 |
+| | Wireframe accent colours are never text | 2.5 |
+| | A token changed to a low-contrast value fails the theme test | 2.1, 2.2 |
+| Accessibility gate on the real routes | The three routes have no axe violations | 6.2, 6.3 |
+| | The negative control proves axe runs | 6.2 |
+| | The gate runs in CI instead of warning | 6.4, 15.3 |
+| Component test environment | Rendered output does not leak between tests | 5.5 (la navegación, 5.4) |
+| (DoD: notas *target*) | Criterio documental (D13) | 12.1 |
+
+Ninguno de los 29 escenarios tiene la fila vacía. Las dos anotaciones remiten a B1 y B2: son defectos de cobertura y de ejecución, no huecos de la tabla.
+
+---
+
+## Correcciones a aplicar
+
+### `openspec/changes/web-foundation/specs/web-foundation/spec.md`
+
+1. **Escenario «Failures that are not the API's answer become unavailable-API errors»** (l.166–175, bloqueante, B1). Sustituir el WHEN y el THEN por:
+   > - **WHEN** the health check is called for each, and `ask` is called three times more: with a network that rejects with a `TypeError`; with a network that answers `500` with the JSON body `{"statusCode":500,"error":"Internal Server Error","message":"boom"}`; with a network that answers `400` with `{"error":{"code":"VALIDATION_ERROR","message":"invalid request","details":[]}}`
+   > - **THEN** each of the ten promises rejects with an unavailable-API error whose `cause` is set, and none of them is an API error; the `cause` of both `TypeError` cases is the `TypeError` itself; the `cause` of the two JSON bodies not in the error format is an `Error` with message `unexpected response 500` and `unexpected response 400`; the errors of the `500`, `502`, `500` and `400` calls carry that `status`
+
+   Mejorable, en el mismo THEN: añadir «; the `cause` of the empty and HTML bodies and of the non-JSON `200` is a `SyntaxError`».
+2. **Escenario «Aborting while the body is read rejects with the caller's reason»** (l.201–205, mejorable):
+   > - **WHEN** `ask`, then the health check, are called with a caller signal and the caller aborts while the body is being read
+   > - **THEN** both promises reject with an error named `AbortError`, not an unavailable-API error
+3. **Escenario «A hanging API makes the health check time out»** (l.85–86, mejorable): añadir al final del THEN «, with a `cause` named `TimeoutError`».
+4. **Escenarios «The root path…» y «A project path…»** (l.35–36 y l.45–46, mejorable): sustituir «the text of the main landmark is exactly …» por:
+   > «the main landmark holds, in this order, the level-1 heading, a paragraph «Esta pantalla está en construcción.» [en el segundo: «and a paragraph with the `projectId`»], and no other text»
+
+### `openspec/changes/web-foundation/design.md`
+
+1. **D9** (bloqueante, B1): después de «Anything else at ≥ 400 is not the API speaking.» añadir:
+   > «That includes a JSON body without that shape, such as Fastify's default `{ statusCode, error: '<string>', message }` or an `error.details` that is an array; the spec scenario of unavailable-API failures covers both.»
+2. **D15** (bloqueante, B2): sustituir «It also sends `GET http://localhost:5173/health` through the proxy with the API up and down» por:
+   > «It also sends `GET http://localhost:5173/health` through the proxy with the API up and down; the API and the web are started as two processes (`npm -w packages/api run dev`, `npm -w packages/web run dev`), because the root `npm run dev` runs `concurrently --kill-others-on-fail` and stopping the API would also stop Vite.»
+3. **Risks**, cuarto punto (l.389–390): añadir «(observed in the manual test with the servers started separately, D15)».
+
+### `openspec/changes/web-foundation/tasks.md`
+
+1. **4.5** (bloqueante, B1): sustituir «(the seven health answers and the `ask` with a rejected `fetch`; …)» por:
+   > «(the seven health answers and the three `ask` calls: rejected `fetch`, `500` Fastify-default JSON, `400` with `details: []`; `cause` set; the `TypeError` cases keep the same `TypeError`; the JSON-not-error-format cases have `cause.message` `unexpected response <status>` and carry `status`)»
+2. **4.7** (mejorable): en «Aborting while the body is read…», añadir «(for `ask` and for the health check)».
+3. **10.2** (bloqueante, B2): sustituir «Start `npm run dev` (root: API + web).» por:
+   > «Start the API and the web as two separate processes, `npm -w packages/api run dev` and `npm -w packages/web run dev` (not the root `npm run dev`: `concurrently --kill-others-on-fail` would stop Vite when 10.3 stops the API).»
+4. **10.3** (bloqueante, B2): sustituir «Stop only the API:» por:
+   > «Stop only the API process and confirm `curl -i http://localhost:5173/` still answers `200` (Vite is up):»
+5. **10.5** (bloqueante, B2): sustituir «stop both servers» por «stop the web process (the API is already stopped)».
+6. **5.2** (mejorable): sustituir «`main` with the `h1` and «Esta pantalla está en construcción.»» por:
+   > «`main` with, in this order, the `h1`, a `<p>` «Esta pantalla está en construcción.» and, when given, a `<p>` with the detail (the `projectId`)»
+
+### `openspec/changes/web-foundation/proposal.md`
+
+Sin cambios.
+
+### Ticket Linear DIS-58 (parte `[enhanced]`; el bloque `[original]` no se toca; en español)
+
+- **«Cliente (refina D9)»** (bloqueante, B1): añadir:
+  > «Una respuesta ≥ 400 con cuerpo JSON que no tiene el formato único de error (por ejemplo el cuerpo por defecto de Fastify `{ statusCode, error, message }`, o un `details` que es un array) es `ApiUnavailableError`, con `cause` `Error('unexpected response <status>')` y su `status`; el escenario de fallos lo comprueba sobre `ask`.»
+- **«Prueba manual (restauración)»** (bloqueante, B2): añadir al principio:
+  > «La API y la web se arrancan como dos procesos (`npm -w packages/api run dev` y `npm -w packages/web run dev`), no con el `npm run dev` de la raíz: `concurrently --kill-others-on-fail` pararía Vite al parar la API, y la prueba necesita la web en marcha con la API parada.»
+- **Encabezado de «Decisiones D17–D28»** (mejorable, al aplicar esta ronda): sustituir «rondas 1–3» por «rondas 1–4», y «las rondas 1, 2 y 3» por «las rondas 1 a 4».
+- Ningún comentario nuevo: el alcance va en la descripción.
+
+## Resolución de los hallazgos de la ronda 4
+
+Resueltos por el agente como lead engineer con `/opsx:update`; el `[enhanced]` de DIS-58 recoge los cambios («Cliente», «Prueba manual (restauración)» y el encabezado de «Decisiones D17–D28», ahora «rondas 1–4»).
+
+| Hallazgo | Resolución |
+|---|---|
+| B1 respuesta ≥ 400 con JSON que no es el formato de error, sin escenario | Corregido: el escenario de fallos añade dos llamadas a `ask` (`500` con el cuerpo por defecto de Fastify y `400` con `details: []`), con `cause` `unexpected response <status>` y su `status`; D9 lo dice; tarea 4.5. |
+| B2 la prueba manual no puede parar solo la API con `npm run dev` | Corregido: 10.2 arranca la API y la web como dos procesos; 10.3 para solo la API y comprueba que Vite sigue en `:5173`; 10.5 para la web; D15 y Risks lo explican. |
+| Cancelación de `getHealth` durante la lectura del cuerpo | El escenario «Aborting while the body is read…» cubre `ask` y el health check; tarea 4.7. |
+| `cause` de cada caso en la spec | El escenario de fallos fija `SyntaxError` para los cuerpos no JSON; «A hanging API…» fija `cause` `TimeoutError`. |
+| Texto del `main` de los marcadores | Reescrito como orden de elementos (`h1`, párrafo de construcción y, en la Pantalla 2, párrafo con el `projectId`); tarea 5.2. |
+| «Every other test file SHALL keep running in Node» | Sin cambios: lo sostiene la comparación de totales de 1.5, citada en 9.7 (aceptado por el auditor en las rondas 2–4). |
+
+## Cierre
+
+La ronda 4 es la última que permite el flujo autónomo (como máximo cuatro ejecuciones del auditor). Sus dos bloqueantes eran correcciones mecánicas de un escenario y de una tarea de prueba manual, sin ninguna decisión de producto o de alcance pendiente, y se han incorporado a los artefactos junto con todas las mejoras. No se lanza una quinta ronda. Veredicto final del cambio: **APPROVED por cierre del agente** como lead engineer (ADR `20261016-autonomous-workflow-run-entrega-2`, que delega en el agente las decisiones de la autora, base-standards §7.1 punto 4). El último veredicto emitido por el auditor fue CHANGES REQUIRED (ronda 4), y cada uno de sus hallazgos queda resuelto en la tabla anterior. `openspec validate web-foundation --strict` pasa.

@@ -171,7 +171,9 @@ Two classes in `services/api-client.ts`, both extending `Error`, each with `name
 
 - `ApiError { status, code, message, details }`: the response status is ≥ 400 and the body is a JSON
   object with `error.code` (string), `error.message` (string) and `error.details` (a non-null,
-  non-array object). Anything else at ≥ 400 is not the API speaking.
+  non-array object). Anything else at ≥ 400 is not the API speaking. That includes a JSON body without
+  that shape, such as Fastify's default `{ statusCode, error: '<string>', message }` or an
+  `error.details` that is an array; the spec scenario of unavailable-API failures covers both.
 - `ApiUnavailableError { cause, status? }` (`status` set when a response arrived; `cause` and `status` are
   declared fields of the class, because the web `tsconfig.json` uses `lib: ES2020`, which has no
   `ErrorOptions`). Its `cause`, per case:
@@ -261,8 +263,10 @@ the browser.
 `/show-spec-working` starts `npm run dev`, captures `/` and an unknown path and compares them with
 `images/pantalla-1-seleccion.svg` only for what this change sets: dark header with «CODEMIND» and the
 tagline, font, page background and white container, link colour. The cards are DIS-60's. It also sends
-`GET http://localhost:5173/health` through the proxy with the API up and down. Screenshots go next to the
-report.
+`GET http://localhost:5173/health` through the proxy with the API up and down; the API and the web are
+started as two processes (`npm -w packages/api run dev`, `npm -w packages/web run dev`), because the root
+`npm run dev` runs `concurrently --kill-others-on-fail` and stopping the API would also stop Vite.
+Screenshots go next to the report.
 
 ### D16 — Texts in Spanish
 
@@ -387,7 +391,8 @@ type-level contract test lives in `tests/`, outside the rule's `from`.
 - [axe in jsdom misses contrast and focus visibility] → D12 covers contrast; keyboard and focus are
   checked by hand in `/show-spec-working` (frontend-standards §3).
 - [The proxy hides a stopped API as an empty `500`] → that is exactly why such a body is
-  `ApiUnavailableError` (D9) and has its own scenario.
+  `ApiUnavailableError` (D9) and has its own scenario (observed in the manual test with the servers
+  started separately, D15).
 - [The full suite now also renders React in jsdom] → the duration of `npx vitest run` is recorded in
   tasks 0.4 and 9.3 and the difference goes to the step 9 report; Stryker excludes them (D25).
 - [The router replaces a static page: bundle size and LCP change (frontend-standards §5)] → expected

@@ -32,8 +32,8 @@ no request to the API.
 - **WHEN** the initial path is `/`
 - **THEN** the level-1 heading «Elige un proyecto para explorar» is rendered inside the main landmark, the
   banner shows «CODEMIND» and «Comprensión de repositorios con evidencia verificable», and the double
-  recorded no request, and the text of the main landmark is exactly the level-1 heading and «Esta pantalla
-  está en construcción.»
+  recorded no request, and the main landmark holds, in this order, the level-1 heading and a paragraph
+  «Esta pantalla está en construcción.», and no other text
 
 #### Scenario: A project path shows the Screen 2 placeholder with its id
 
@@ -42,8 +42,9 @@ no request to the API.
 - **WHEN** the initial path is `/p/a794456d-6d1b-5b55-a360-13fec83dc7bc`
 - **THEN** the level-1 heading «Consulta del proyecto» is rendered, the text
   `a794456d-6d1b-5b55-a360-13fec83dc7bc` is shown, the banner shows «CODEMIND» and «Comprensión de
-  repositorios con evidencia verificable», the double recorded no request, and the text of the main
-  landmark is exactly the level-1 heading, «Esta pantalla está en construcción.» and the `projectId`
+  repositorios con evidencia verificable», the double recorded no request, and the main landmark
+  holds, in this order, the level-1 heading, a paragraph «Esta pantalla está en construcción.» and a
+  paragraph with the `projectId`, and no other text
 
 #### Scenario: An unknown path shows the not-found screen and leads back
 
@@ -82,8 +83,8 @@ a time limit, 5 000 ms unless the caller passes another limit, and then reject a
 
 - **GIVEN** a network that never answers, and a clock that the test advances
 - **WHEN** the health check is called without passing a limit (the default applies) and the clock advances 4 999 ms, then 1 ms more
-- **THEN** the promise is still pending after 4 999 ms; after 5 000 ms it rejects as unavailable, and the
-  signal the request was sent with is aborted
+- **THEN** the promise is still pending after 4 999 ms; after 5 000 ms it rejects as unavailable, with a
+  `cause` named `TimeoutError`, and the signal the request was sent with is aborted
 
 #### Scenario: A caller-chosen limit is honoured
 
@@ -168,11 +169,15 @@ unavailable-API error SHALL be distinguishable from an API error by type.
 - **GIVEN** seven calls where the network, in turn: rejects with a `TypeError`; answers `500` with an empty
   body; answers `502` with an HTML body; answers `200` with a body that is not JSON; answers `200` with the
   body `null`; answers `200` with the body `[]`; answers `200` with the body `{"status":"down"}`
-- **WHEN** the health check is called for each, and `ask` is called once more with a network that rejects
-  with a `TypeError`
-- **THEN** each of the eight promises rejects with an unavailable-API error whose `cause` is set, and none
-  of them is an API error; the `cause` of both `TypeError` cases is the `TypeError` itself; the errors of the
-  `500` and `502` calls carry `status` `500` and `502`
+- **WHEN** the health check is called for each, and `ask` is called three times more: with a network that
+  rejects with a `TypeError`; with a network that answers `500` with the JSON body
+  `{"statusCode":500,"error":"Internal Server Error","message":"boom"}`; with a network that answers `400`
+  with `{"error":{"code":"VALIDATION_ERROR","message":"invalid request","details":[]}}`
+- **THEN** each of the ten promises rejects with an unavailable-API error whose `cause` is set, and none of
+  them is an API error; the `cause` of both `TypeError` cases is the `TypeError` itself; the `cause` of the
+  empty and HTML bodies and of the non-JSON `200` is a `SyntaxError`; the `cause` of the two JSON bodies
+  not in the error format is an `Error` with message `unexpected response 500` and `unexpected response
+  400`; the errors of the `500`, `502`, `500` and `400` calls carry that `status`
 
 ### Requirement: Cancellation by the caller
 
@@ -201,8 +206,9 @@ aborted when the call starts SHALL make the call reject with its reason without 
 #### Scenario: Aborting while the body is read rejects with the caller's reason
 
 - **GIVEN** a network that answers `200` with a body whose reading rejects once the caller's signal aborts
-- **WHEN** `ask` is called with a caller signal and the caller aborts while the body is being read
-- **THEN** the promise rejects with an error named `AbortError`, not an unavailable-API error
+- **WHEN** `ask`, then the health check, are called with a caller signal and the caller aborts while the
+  body is being read
+- **THEN** both promises reject with an error named `AbortError`, not an unavailable-API error
 
 #### Scenario: An already-aborted signal sends no request
 
