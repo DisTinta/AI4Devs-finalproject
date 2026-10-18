@@ -114,9 +114,8 @@ npm run dev
 [… still running; stopped with Ctrl+C]
 ```
 
-> **Entrega 2.** The seed loads **one** project, `1 project loaded`. The block «Salida esperada al
-> terminar» in `readme.md` §1.4 (`2 projects loaded` and the `✓` lines) is illustrative: no command
-> prints it, and `task-api` joins the seed with CM-HU-18 (PH-02).
+> **Entrega 2.** The seed loads **one** project, `1 project loaded`; `task-api` joins the seed with
+> CM-HU-18 (PH-02). `readme.md` §1.4 quotes an excerpt of this output.
 
 > **How the capture differs from a first run.** The container was already running, so Compose
 > printed `Running` (a first run prints that it creates and starts it), and `npm install` found

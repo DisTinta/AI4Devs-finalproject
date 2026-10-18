@@ -1017,9 +1017,8 @@ services that must be started first, quirks of the local environment.
   in the same transaction, saves each entry with the store's `saveCacheEntry` (new id, `hit_count` 0),
   so a failed save rolls the whole load back (`INTERNAL`). Golden fingerprints are not checked there
   (`verify`, DIS-44). stdout does not change. Its summary is
-  the `make up` text: `1 project loaded` and `  acme-shop  php/laravel  174 nodes · 170 edges`,
-  **which differs from the illustrative `2 projects loaded` block of `readme.md` §1.4 until
-  CM-HU-18** (PH-02). After a local `make up`, the database holds a committed acme-shop with the seed's
+  the `make up` text: `1 project loaded` and `  acme-shop  php/laravel  174 nodes · 170 edges`
+  (quoted in `readme.md` §1.4 since DIS-101; `task-api` joins with CM-HU-18, PH-02). After a local `make up`, the database holds a committed acme-shop with the seed's
   deterministic ids: integration tests that need no acme-shop, or that compare against seed ids, clear
   the projects they depend on inside their harness transaction first.
 - **Golden answers (`cache:build`, DIS-26, `packages/cli/src/cache-build.ts` +
