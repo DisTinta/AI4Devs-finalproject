@@ -81,9 +81,9 @@ Every test of this change follows Arrange-Act-Assert with the three blocks comme
 
 ## 12. Update Technical Documentation (MANDATORY)
 
-- [ ] 12.1 `docs/project-context.md`: the web section (Screen 1 on `/` from `SAMPLE_PROJECTS`, the health check in an effect and not a loader — so the `Request` workaround of `jsdom-setup.ts` still holds —, the root route's `errorElement`, and that a test rendering `/` should stub `fetch`, D19)
-- [ ] 12.2 `docs/DEMO.md`: replace the note "The web has no screens yet" with what Screen 1 shows (with the API up and down); `docs/frontend-standards.md` only if a rule changed (record "no change" otherwise)
-- [ ] 12.3 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts of this change to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
+- [x] 12.1 `docs/project-context.md`: the web section (Screen 1 on `/` from `SAMPLE_PROJECTS`, the health check in an effect and not a loader — so the `Request` workaround of `jsdom-setup.ts` still holds —, the root route's `errorElement`, and that a test rendering `/` should stub `fetch`, D19)
+- [x] 12.2 `docs/DEMO.md`: replace the note "The web has no screens yet" with what Screen 1 shows (with the API up and down); `docs/frontend-standards.md` only if a rule changed (record "no change" otherwise)
+- [x] 12.3 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts of this change to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
 - [ ] 12.4 The `[enhanced]` description of DIS-60 in Linear already holds D15–D25 (added while resolving the spec audit); add there, in Spanish and never inside `[original]`, every decision taken during the apply (design "taken while implementing")
 
 ## 13. Pull request

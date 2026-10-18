@@ -43,7 +43,7 @@ See `proposal.md` → Why. The current state that shapes the approach (`origin/f
 
 D1–D14 come from the `[enhanced]` description of DIS-60 (agent as lead engineer, ADR
 `20261016-autonomous-workflow-run-entrega-2`, reviewable by the author). D15–D22 were taken while
-proposing and D23–D25 while resolving the spec audit (run 1, `reports/2026-10-18-spec-audit.md`), which
+proposing, D26–D31 while implementing, and D23–D25 while resolving the spec audit (run 1, `reports/2026-10-18-spec-audit.md`), which
 also refined D3, D6, D9, D11, D17 and D19; all of them were added to the same description on 2026-10-18
 ("Decisiones D15–D25").
 
@@ -254,6 +254,35 @@ outline of the links), not a `warning`-coloured one (no listed pair); the `make 
 Moving the focus when the page loads would interrupt a screen-reader user who has started reading; the
 alert's role already announces the failure. Only a successful retry moves the focus (to the `h1`),
 because then the focused button disappears.
+
+### Taken while implementing (D26–D31)
+
+Agent decisions during `/opsx:apply` (autonomous run, 2026-10-18), added to the `[enhanced]` description of
+DIS-60.
+
+- **D26 — Label tables are `ReadonlyMap`s.** The web compiles with `lib: ES2020`, which has no
+  `Object.hasOwn`; a `Map` looks an identifier up without reaching `Object.prototype` (an identifier such
+  as `constructor` is written as it is). The digit separator is written `'\u00a0'` in the source, never as
+  the raw character, and the tests compare it by code point.
+- **D27 — The shared link of D11 was extracted.** `components/BackToPickerLink.tsx` renders «Volver a la
+  selección de proyecto» for `NotFoundPage` and `RouteErrorPage` (same markup and classes); no test
+  changed.
+- **D28 — The card takes the API status type from the hook.** `ProjectCard` imports `ApiHealthStatus` from
+  `pages/useApiHealth.ts` as a type only (no runtime dependency from `components/` to `pages/`), so the
+  three states are declared once. The article is named by `aria-labelledby` on its `h2` (`useId`); the
+  language icon inside the `h2` is `aria-hidden`, so the name is the project's name.
+- **D29 — TDD phases run inline.** This unattended step has no Task tool to start the `tdd-*` subagents, so
+  each scenario went red → green → refactor inline with the same contract. Tests that passed as soon as
+  they were written (2.4, 3.3, 3.5–3.7, 6.1) were shown to fail with a temporary change of the production
+  code, reverted at once (step 9 report).
+- **D30 — Targeted mutation run outside Stryker's configuration.** `packages/web/**` stays out of
+  `stryker.config.json` (DIS-58 D25, D22 here); a one-off configuration outside the repository mutated the
+  eight new or changed web files: 84.46 % (break threshold 80). The survivors are recorded in the step 9
+  report.
+- **D31 — axe's canvas message is recorded, not silenced.** Scanning Screen 1, axe probes the card's emoji
+  with a canvas that jsdom lacks and prints `Not implemented: HTMLCanvasElement.prototype.getContext` to
+  stderr; it still reports zero violations. Installing `canvas` would be a new dependency (D22) and
+  stubbing it would change `jsdom-setup.ts` (non-goal).
 
 ## Risks / Trade-offs
 

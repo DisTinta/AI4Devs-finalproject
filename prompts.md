@@ -68,6 +68,7 @@
 51. [`npm run verify` real: huellas y comparación estructural con las golden, sin LLM, y job `verify` en CI (DIS-44)](#51-npm-run-verify-real-huellas-y-comparación-estructural-con-las-golden-sin-llm-y-job-verify-en-ci-dis-44)
 52. [Guion de demostración, despliegue y tests con salida real (DIS-45)](#52-guion-de-demostración-despliegue-y-tests-con-salida-real-dis-45)
 53. [Andamiaje web: Tailwind, router, cliente tipado de la API y `test:a11y` real (DIS-58)](#53-andamiaje-web-tailwind-router-cliente-tipado-de-la-api-y-testa11y-real-dis-58)
+54. [Pantalla 1: tarjetas de proyectos de muestra, aviso de API caída y pantalla de error (DIS-60)](#54-pantalla-1-tarjetas-de-proyectos-de-muestra-aviso-de-api-caída-y-pantalla-de-error-dis-60)
 
 ---
 
@@ -4745,3 +4746,33 @@ excluye los tests de su escaneo; la cabecera, el contenedor y el `main` se extra
 para las tres pantallas; y como el agente no podía leer las credenciales locales de la base de datos,
 la prueba manual levantó la API real con los dobles de sus tests unitarios, lo que demuestra el proxy y
 el caso de API caída pero no la respuesta `UNKNOWN` de acme-shop sembrada.
+
+# 54. Pantalla 1: tarjetas de proyectos de muestra, aviso de API caída y pantalla de error (DIS-60)
+
+### Prompt 1 — Implementar la Pantalla 1 dentro del workflow autónomo
+
+El script del workflow (ADR `20261016-autonomous-workflow-run-entrega-2`) envió a este paso, entre
+otras reglas, este texto literal:
+
+```
+YOUR STEP 3/6 — implement.
+Run /opsx:apply (Skill "opsx:apply") for the change of DIS-60 and walk every task in tasks.md in TDD per scenario (tdd-test-writer → tdd-implementer → tdd-refactorer). Include the step-12 style verification tasks (suite, lint, typecheck, architecture lint, docs coverage, targeted mutation ≥ 80, privacy check) but stop before the pre-merge review tasks (show-spec-working / verify-against-spec / adversarial-review), PR, CI and archive: those are later steps. Commit in small conventional commits.
+```
+
+**Por qué funcionó.** El change `project-picker` llegaba con 25 decisiones y dos pasadas del
+`spec-auditor`, y cada escenario de la spec ya nombraba la consulta accesible, el doble de `fetch` y el
+orden de las comprobaciones, así que cada test se escribió casi al dictado. Los escenarios que pasaron a
+la primera (el teclado, el tiempo límite, la pulsación repetida, el reintento fallido, la cancelación al
+salir y axe) se probaron rompiendo a propósito lo que vigilan: el enlace fuera del orden de tabulación, un
+límite de 10 s, el guardián del reintento quitado, el estado «reintentando» sin limpiar, el aborto quitado
+del efecto y el botón del aviso sin texto. La prueba manual se hizo con la API real sobre la base de datos
+sembrada, apagándola y volviéndola a arrancar con la página abierta.
+
+**Ajuste humano.** Ninguno: ejecución autónoma, sin la autora en el bucle. Decisiones del agente al
+implementar, registradas en `design.md` y en la descripción `[enhanced]` del ticket: las tablas de
+etiquetas son `Map` porque el cliente compila con `lib: ES2020` (sin `Object.hasOwn`); el separador de
+miles se escribe como `'\u00a0'` en el código y los tests lo comprueban por punto de código; el enlace
+«Volver a la selección de proyecto» pasó a un componente compartido por las pantallas de no encontrado y
+de error; y, como el paso no podía arrancar los subagentes de TDD, cada fase rojo → verde → refactor se
+hizo en línea con el mismo contrato.
+
