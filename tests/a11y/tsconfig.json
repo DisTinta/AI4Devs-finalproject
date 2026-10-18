@@ -1,0 +1,7 @@
+{
+  // Type-checks the accessibility gate (`.tsx`, JSX): tests/tsconfig.json compiles only `.ts` and has no
+  // `jsx` setting, so tests/a11y takes the web's compiler options (DIS-58 design D7). Checked by
+  // `npm run typecheck`.
+  "extends": "../../packages/web/tsconfig.json",
+  "include": ["**/*.ts", "**/*.tsx"]
+}

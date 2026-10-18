@@ -52,10 +52,10 @@ Every test of this change follows Arrange-Act-Assert with the three blocks comme
 
 ## 6. Accessibility gate (TDD, design D7, D11, D21) — `web-foundation` → "Accessibility gate on the real routes"
 
-- [ ] 6.1 `git mv tests/a11y/smoke.example.tsx tests/a11y/smoke.a11y.test.tsx` and create `tests/a11y/tsconfig.json` (extends `../../packages/web/tsconfig.json`, `include: ["**/*.ts", "**/*.tsx"]`); add `&& tsc -p tests/a11y/tsconfig.json` to the root `typecheck` script and `"test:a11y": "vitest run tests/a11y"` to the root scripts
-- [ ] 6.2 RED: rewrite the renamed file (no `ExampleSurface`, no kit warning) with "The negative control proves axe runs" (an `<img src="x.png">` without `alt` rendered with RTL `render`, so the D18 cleanup removes it before the route scans; `axe.run(document)` reports `image-alt`) and "The three routes have no axe violations" (`lang="es"`, `document.title = 'CODEMIND'`, routes in a memory router at `/`, `/p/${SAMPLE_PROJECTS[0].id}` and `/ruta-que-no-existe`, await the `h1`, `axe.run(document)` → `violations` equal `[]`, the failing rule ids printed on failure). Observe the second one fail once by removing the `main` landmark of `PendingScreen` locally (not committed) and record it
-- [ ] 6.3 GREEN: `npm run test:a11y` passes; `npm run typecheck` green
-- [ ] 6.4 "The gate runs in CI instead of warning": confirm locally that `npm run | grep ' test:a11y'` matches (the condition `frontend.yml` uses) and the scaffold is gone; the CI half is collected in 15.3
+- [x] 6.1 `git mv tests/a11y/smoke.example.tsx tests/a11y/smoke.a11y.test.tsx` and create `tests/a11y/tsconfig.json` (extends `../../packages/web/tsconfig.json`, `include: ["**/*.ts", "**/*.tsx"]`); add `&& tsc -p tests/a11y/tsconfig.json` to the root `typecheck` script and `"test:a11y": "vitest run tests/a11y"` to the root scripts
+- [x] 6.2 RED: rewrite the renamed file (no `ExampleSurface`, no kit warning) with "The negative control proves axe runs" (an `<img src="x.png">` without `alt` rendered with RTL `render`, so the D18 cleanup removes it before the route scans; `axe.run(document)` reports `image-alt`) and "The three routes have no axe violations" (`lang="es"`, `document.title = 'CODEMIND'`, routes in a memory router at `/`, `/p/${SAMPLE_PROJECTS[0].id}` and `/ruta-que-no-existe`, await the `h1`, `axe.run(document)` → `violations` equal `[]`, the failing rule ids printed on failure). Observe the second one fail once by removing the `main` landmark of `PendingScreen` locally (not committed) and record it
+- [x] 6.3 GREEN: `npm run test:a11y` passes; `npm run typecheck` green
+- [x] 6.4 "The gate runs in CI instead of warning": confirm locally that `npm run | grep ' test:a11y'` matches (the condition `frontend.yml` uses) and the scaffold is gone; the CI half is collected in 15.3
 
 ## 7. Review and Update Existing Tests (MANDATORY)
 

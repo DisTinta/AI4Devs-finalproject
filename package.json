@@ -18,7 +18,7 @@
   ],
   "scripts": {
     "dev": "concurrently --kill-others-on-fail \"npm -w packages/api run dev\" \"npm -w packages/web run dev\"",
-    "typecheck": "tsc --build && tsc -p packages/web/tsconfig.json --noEmit && tsc -p tests/tsconfig.json",
+    "typecheck": "tsc --build && tsc -p packages/web/tsconfig.json --noEmit && tsc -p tests/tsconfig.json && tsc -p tests/a11y/tsconfig.json",
     "lint": "eslint .",
     "lint:architecture": "depcruise packages --config .dependency-cruiser.cjs",
     "db:migrate": "tsx packages/adapters/store-postgres/src/migrate.ts up",
@@ -29,6 +29,7 @@
     "cli": "tsx --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts",
     "verify": "tsx --tsconfig packages/cli/tsconfig.run.json packages/cli/src/verify.ts",
     "test": "vitest run",
+    "test:a11y": "vitest run tests/a11y",
     "test:mutation": "stryker run",
     "test:mutation:full": "stryker run --force",
     "docs:coverage": "typedoc --validation.notDocumented --logLevel Warn"
