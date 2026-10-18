@@ -2,6 +2,9 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  // The root config has no React plugin: compile the `.tsx` tests with the React 17+ JSX runtime
+  // whatever tsconfig esbuild finds (DIS-58 design D23).
+  esbuild: { jsx: 'automatic' },
   resolve: {
     // Tests run against the workspace sources, never a stale `dist/` (DIS-23 design D6). The adapters
     // and the PHP analyzer are listed too since the CLI imports them by name (DIS-86 design D10); the
@@ -28,5 +31,13 @@ export default defineConfig({
     // A worker thread ignores `process.env.TZ` assignments (only the main thread resets its time-zone
     // cache), so the seed build's time-zone scenario runs in a forked process (DIS-91 design D9).
     poolMatchGlobs: [['**/tests/integration/cli/seed-build.spec.ts', 'forks']],
+    // Only the web's component tests and the accessibility gate need a DOM; every other test, the web's
+    // `.test.ts` files included, keeps running in Node (DIS-58 design D17).
+    environmentMatchGlobs: [
+      ['**/packages/web/**/*.test.tsx', 'jsdom'],
+      ['**/tests/a11y/**', 'jsdom'],
+    ],
+    // DOM cleanup after each jsdom test and React Router's `Request` workaround (DIS-58 design D18, D26).
+    setupFiles: ['tests/support/jsdom-setup.ts'],
   },
 });

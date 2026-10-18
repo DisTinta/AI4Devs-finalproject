@@ -93,6 +93,18 @@ module.exports = {
       },
     },
     {
+      name: 'web-no-backend',
+      comment:
+        'packages/web is a browser client: it talks to the API only over HTTP (relative URLs through the ' +
+        'Vite proxy) and declares its own copy of the API types. Importing the API or any backend package ' +
+        'would pull Fastify, Zod and the domain into the bundle (web-foundation, "API types follow the ' +
+        "API's schemas\"; DIS-58 design D10, D28). The type-level contract test lives in tests/, outside " +
+        'this rule.',
+      severity: 'error',
+      from: { path: '^packages/web' },
+      to: { path: '^(packages/(api|core|adapters|analyzers|cli)(/|$)|(node_modules/)?@codemind/(?!web(/|$)))' },
+    },
+    {
       name: 'api-no-sql',
       comment:
         'The HTTP layer validates, delegates and serializes. Data access lives in store-postgres.',

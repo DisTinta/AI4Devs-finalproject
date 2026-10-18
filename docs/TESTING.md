@@ -9,15 +9,16 @@ Testing; CI is described in `docs/DEPLOYMENT.md`.
 
 | Level | Command | Where | CI job |
 |---|---|---|---|
-| Architecture | `npm run lint:architecture` | `.dependency-cruiser.cjs`: `core` imports no adapter, analyzer nor `api` | `CI` → `quality` |
+| Architecture | `npm run lint:architecture` | `.dependency-cruiser.cjs`: `core` imports no adapter, analyzer nor `api`; `web` imports no backend package (`web-no-backend`) | `CI` → `quality` |
 | Unit | `npx vitest run tests/unit` | `tests/unit/` (doubles in `tests/support/`) | `CI` → `quality`; `Frontend` |
+| Web component | `npx vitest run packages/web tests/unit/web` | `packages/web/src/**/*.test.ts(x)` next to the code (`.test.tsx` in jsdom, `.test.ts` in Node); `tests/unit/web/` (the Vite proxy table; the type-level contract of the API client, checked by `npm run typecheck`) | `CI` → `quality`; `Frontend` |
 | Integration | `npm test` with `DATABASE_URL` (below) | `tests/integration/`, harness in `tests/integration/helpers/db.ts` | `CI` → `quality`, on its own `test` database |
 | Mutation | `npm run test:mutation` | `stryker.config.json`: mutates `packages/core`, `packages/cli` and `packages/api` sources against the unit specs (`vitest.stryker.config.ts`) | `CI` → `mutation`, fails under a score of 80 |
 | Smoke | `npm run verify` | `packages/cli/src/verify.ts`, golden answers in `seeds/cache/` | `CI` → `verify`, on its own `verify` database |
 | Static | `npm run lint`, `npm run typecheck` | ESLint and `tsc` over the workspaces and `tests/` | `CI` → `quality`; `Frontend` |
 | Documentation | `npm run docs:coverage` | TypeDoc fails on an undocumented export | Local only |
 | Secrets | `gitleaks dir . --config .gitleaks.toml` (gitleaks installed) | `.gitleaks.toml`, `.gitleaksignore` | `CI` → `secrets` |
-| Accessibility | `npm run test:a11y`: **not defined yet** | `tests/a11y/smoke.example.tsx` is a template, not run | `Frontend` prints a warning; arrives with the web scaffold (DIS-58) |
+| Accessibility | `npm run test:a11y` | `tests/a11y/smoke.a11y.test.tsx` (jsdom): axe over the whole document at `/`, `/p/<acme-shop id>` and an unknown path of the real route table, plus a negative control; contrast is checked by `packages/web/src/theme.test.ts` (axe in jsdom cannot) | `Frontend`; `CI` → `quality` (whole suite) |
 | End to end | **Not available yet**: Playwright arrives with CM-HU-21 (DIS-75) | `tests/e2e/` is empty | None yet |
 
 ## The whole suite

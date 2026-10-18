@@ -11,10 +11,10 @@ alwaysApply: true
 - **React** with function components and hooks. No class components in new code.
 - **TypeScript** for anything new. Existing JavaScript files may stay as they are.
 - **Vite** — build tooling and dev server.
-- **Tailwind** for styling. Configuration lives in CSS, not in a JavaScript config file.
-  _(target; not yet a dependency — the app currently uses inline styles. Remove this note when installed.)_
-- **Vitest** (installed) + **React Testing Library** — component tests.
-  _(React Testing Library and jsdom are targets; not yet dependencies — remove this note when installed.)_
+- **Tailwind** for styling. Configuration lives in CSS, not in a JavaScript config file
+  (`packages/web/src/index.css`: `@import "tailwindcss"` + `@theme` with the wireframe tokens).
+- **Vitest** + **React Testing Library** (+ `user-event`) on **jsdom** — component tests.
+- **React Router** (data mode) — the route table in `packages/web/src/router.tsx`.
 - **Playwright** — end-to-end, for critical flows only.
   _(target; not yet a dependency — remove this note when installed.)_
 - Accessibility automation via the project script **`test:a11y`** (axe-core or equivalent).
@@ -64,26 +64,20 @@ All frontend code lives under `packages/web/src/`; the folders below are relativ
 - Run `npm run test:a11y` (or the project's equivalent) on UI touched by the change before calling
   the work done.
 
-### Wiring `test:a11y`
+### How `test:a11y` is wired
 
-The installer copies `tests/a11y/smoke.example.tsx` if that path does not already exist. It is a
-scaffold, not a test: Vitest will not discover it, and the kit never edits `package.json`.
-
-To turn the frontend CI job into a real gate:
-
-1. `npm i -D axe-core vitest @testing-library/react jsdom` (skip packages you already have).
-2. Rename the scaffold to `tests/a11y/smoke.a11y.test.tsx`.
-3. Add this script to `package.json`:
-
-```json
-"test:a11y": "vitest run tests/a11y"
-```
-
-4. Replace `ExampleSurface` in that file with a real page or component from this app.
-
-Do not add a no-op script that always exits 0. `frontend.yml` runs `npm run test:a11y` only when that
-script exists; otherwise it logs a warning and continues. A green run on the kit placeholder is
-wiring, not coverage.
+- `npm run test:a11y` = `vitest run tests/a11y`; the file is `tests/a11y/smoke.a11y.test.tsx` (jsdom,
+  type-checked by `tests/a11y/tsconfig.json`, which extends the web's).
+- It renders the **real route table** (`routes` of `packages/web/src/router.tsx`) in a memory router at
+  `/`, `/p/<acme-shop id>` and an unknown path, inside a document with `lang="es"` and a title, and runs
+  `axe.run(document)` on each: any violation fails. A screen that replaces a placeholder on one of these
+  routes is scanned without editing the test; a new route needs its path added.
+- A negative control (an image without `alt`) proves axe really runs in that environment.
+- axe in jsdom computes no styles, so it cannot judge colour contrast: the theme test
+  (`packages/web/src/theme.test.ts`) checks every text/background pair of the `@theme` tokens at 4.5:1.
+  Keyboard operation and visible focus are checked by hand in a real browser.
+- `.github/workflows/frontend.yml` runs the script in its `Accessibility (test:a11y)` step. Do not add a
+  no-op script that always exits 0: a green run must mean the routes were scanned.
 
 ## 5. Definition of done for a frontend change
 
