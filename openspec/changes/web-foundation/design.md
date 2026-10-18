@@ -377,6 +377,31 @@ would skip the `Frontend` job and its `test:a11y` step.
 client SHALL NOT import the API package" into a gate `npm run lint:architecture` (and CI) checks; the
 type-level contract test lives in `tests/`, outside the rule's `from`.
 
+### D29 — Tailwind does not scan the test files (taken while implementing)
+
+Tailwind 4 detects its sources automatically, and the theme test holds `text-stripe` and
+`text-stripe-soft` on purpose (spec "Wireframe accent colours are never text"), so the first build
+emitted both utilities and the two decorative tokens. `index.css` declares `@source not
+"./**/*.test.ts"` and `@source not "./**/*.test.tsx"`: the tests are not UI. Checked on the build: the
+CSS holds neither utility.
+
+### D30 — One page frame for the placeholders and the not-found page (taken while implementing)
+
+`components/PageFrame.tsx` renders the wireframe's white container on the page background, the
+`AppHeader` banner and the `main` landmark around its children; `PendingScreen` and `NotFoundPage`
+compose it (refactor of task 8.1). DIS-60/65/66 may reuse it or compose their own header (the
+wireframe 2 header differs, Non-Goals).
+
+### D31 — Manual interface test on the API's own doubles (taken while implementing)
+
+The agent could not read the local database credentials in the autonomous run, so step 10 ran the
+real Fastify app of `packages/api` with the doubles of its unit tests (`defaultDeps()`: empty in-memory
+store, evaluation-mode model) on `127.0.0.1:3000`, started from a script outside the repository. The
+proxy, the API's error format through it and the stopped-API case do not depend on the store; the
+acme-shop `ask` answers `404 PROJECT_NOT_FOUND` there instead of a `200 UNKNOWN`, and no database is
+touched, so the state capture and restoration of 10.1/10.5 have nothing to do. `/show-spec-working` may
+repeat the `ask` call against the seeded database.
+
 ## Risks / Trade-offs
 
 - [Tailwind 4's native engines (`@tailwindcss/oxide`, `lightningcss`) need a prebuilt binary per
