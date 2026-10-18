@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { Link } from 'react-router';
+import { BackToPickerLink } from '../components/BackToPickerLink';
 import { PageFrame } from '../components/PageFrame';
 
 /**
@@ -16,12 +16,7 @@ export function RouteErrorPage(): ReactElement {
       <p className="mt-2 text-sm text-ink-subtle">
         La pantalla no se ha podido mostrar. Recarga la página o vuelve a la selección de proyecto.
       </p>
-      <Link
-        to="/"
-        className="mt-2 inline-block text-sm text-accent underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-      >
-        Volver a la selección de proyecto
-      </Link>
+      <BackToPickerLink />
     </PageFrame>
   );
 }

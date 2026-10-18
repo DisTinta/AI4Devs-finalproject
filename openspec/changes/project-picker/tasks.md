@@ -53,7 +53,7 @@ Every test of this change follows Arrange-Act-Assert with the three blocks comme
 
 ## 8. Refactor
 
-- [ ] 8.1 With the suite green, refactor `packages/web/src/**` and `tests/a11y/project-picker.a11y.test.tsx` for naming and duplication only (no behaviour change, no test edits), including the shared link component of `NotFoundPage` and `RouteErrorPage` if it pays off (design D11); `npx vitest run packages/web tests/a11y tests/unit/web` stays green; `theme.test.ts` still passes (no `text-stripe*`, `#4dabf7` or `#74c0fc` outside `index.css`)
+- [x] 8.1 With the suite green, refactor `packages/web/src/**` and `tests/a11y/project-picker.a11y.test.tsx` for naming and duplication only (no behaviour change, no test edits), including the shared link component of `NotFoundPage` and `RouteErrorPage` if it pays off (design D11); `npx vitest run packages/web tests/a11y tests/unit/web` stays green; `theme.test.ts` still passes (no `text-stripe*`, `#4dabf7` or `#74c0fc` outside `index.css`)
 
 ## 9. Run Tests and Verify Data State (MANDATORY)
 
