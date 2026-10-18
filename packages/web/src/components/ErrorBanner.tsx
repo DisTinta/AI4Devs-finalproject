@@ -22,10 +22,13 @@ export function ErrorBanner({ children, onRetry, retrying }: ErrorBannerProps): 
   return (
     <div
       role="alert"
-      className="mt-5 flex items-start gap-3 rounded-card border border-warning-border bg-warning-soft px-4 py-3 text-left text-sm text-warning-ink"
+      className="mt-5 flex flex-wrap items-start gap-3 rounded-card border border-warning-border bg-warning-soft px-4 py-3 text-left text-sm text-warning-ink"
     >
-      <span aria-hidden="true">⚠</span>
-      <p className="flex-1">{children}</p>
+      {/* The message keeps at least 12rem: on a narrow screen the button wraps below it (design D34). */}
+      <div className="flex min-w-48 flex-1 gap-3">
+        <span aria-hidden="true">⚠</span>
+        <p className="flex-1">{children}</p>
+      </div>
       <button
         type="button"
         onClick={onRetry}

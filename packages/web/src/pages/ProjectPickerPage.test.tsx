@@ -1,4 +1,5 @@
 import { act, render, screen, within } from '@testing-library/react';
+import { StrictMode } from 'react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -224,6 +225,7 @@ describe('API status on Screen 1', () => {
         linkRendered: within(article).queryByRole('link', { name: 'Explorar proyecto acme-shop' }) !== null,
         showsReady: screen.queryByText('listo') !== null,
         showsChecking: screen.queryByText(CHECKING) !== null,
+        focusOnBody: document.activeElement === document.body,
         requests: requests.length,
       };
       unmount();
@@ -239,6 +241,7 @@ describe('API status on Screen 1', () => {
       linkRendered: true,
       showsReady: false,
       showsChecking: false,
+      focusOnBody: true,
       requests: 1,
     };
     expect(outcomes).toEqual(Object.fromEntries(runs.map(([label]) => [label, expected])));
@@ -291,6 +294,37 @@ describe('API status on Screen 1', () => {
     expect(document.activeElement).toBe(
       screen.getByRole('heading', { level: 1, name: 'Elige un proyecto para explorar' }),
     );
+  });
+
+  it('A successful retry leaves the focus where the person moved it', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const retryButton = await renderWithAlert();
+    let releaseAnswer = (): void => undefined;
+    const requests = stubFetch(
+      () =>
+        new Promise<Response>((resolve) => {
+          releaseAnswer = () => resolve(new Response('{"status":"ok"}', { status: 200 }));
+        }),
+    );
+    const link = screen.getByRole('link', { name: 'Explorar proyecto acme-shop' });
+
+    // Act
+    await user.click(retryButton);
+    await user.tab();
+    const linkFocusedByKeyboard = document.activeElement === link;
+    await act(async () => {
+      releaseAnswer();
+    });
+    const article = screen.getByRole('article', { name: 'acme-shop' });
+    const ready = await within(article).findByText('listo');
+
+    // Assert
+    expect(linkFocusedByKeyboard).toBe(true);
+    expect(requests).toHaveLength(1);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(ready).toBeDefined();
+    expect(document.activeElement).toBe(link);
   });
 
   it('Pressing again while a retry is pending sends no request', async () => {
@@ -347,6 +381,25 @@ describe('API status on Screen 1', () => {
     // Assert
     expect(requests).toHaveLength(1);
     expect(requests[0].init?.signal?.aborted).toBe(true);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('A check the page cancels itself changes nothing on the screen', async () => {
+    // Arrange
+    const requests = stubFetch(neverAnswer);
+
+    // Act: StrictMode mounts the page, unmounts it (aborting the first check) and mounts it again.
+    render(
+      <StrictMode>
+        <RouterProvider router={createMemoryRouter(routes, { initialEntries: ['/'] })} />
+      </StrictMode>,
+    );
+    const article = await screen.findByRole('article', { name: 'acme-shop' });
+    await act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+
+    // Assert
+    expect(requests.map(({ init }) => init?.signal?.aborted)).toEqual([true, false]);
+    expect(within(article).getByText(CHECKING)).toBeDefined();
     expect(screen.queryByRole('alert')).toBeNull();
   });
 });

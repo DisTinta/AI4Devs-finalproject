@@ -19,9 +19,12 @@ export function ProjectPickerPage(): ReactElement {
   const heading = useRef<HTMLHeadingElement>(null);
   const retried = useRef(false);
 
-  // Only a successful retry moves the focus: its button disappears (design D17, D25).
+  // Only a successful retry moves the focus, because its button disappears, and only when the focus went
+  // with it: a person who moved the focus elsewhere while the retry was pending keeps it (design D17,
+  // D25, D32).
   useEffect(() => {
-    if (status === 'available' && retried.current) {
+    const focusWasLost = document.activeElement === null || document.activeElement === document.body;
+    if (status === 'available' && retried.current && focusWasLost) {
       heading.current?.focus();
     }
   }, [status]);

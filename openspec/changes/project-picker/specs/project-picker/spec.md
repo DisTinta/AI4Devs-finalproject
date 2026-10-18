@@ -96,7 +96,8 @@ are.
 Pressing «Reintentar» SHALL send exactly one new health check; while it is pending, the alert stays, its
 button reads «Reintentando…» (with U+2026) and keeps the focus, and further presses SHALL send no
 request. If it resolves, the alert SHALL disappear, every card SHALL show «listo» and the focus SHALL
-move to the level-1 heading. If it fails, the alert SHALL stay as it was, its button SHALL read
+move to the level-1 heading, unless the person moved the focus to another element while the retry was
+pending: then the focus stays where the person put it. If it fails, the alert SHALL stay as it was, its button SHALL read
 «Reintentar» again and keep the focus. The page SHALL NOT retry on its own: after a failed check, no
 request is sent until the person presses «Reintentar». Leaving the page SHALL cancel a pending check, and that cancellation SHALL change nothing on
 the screen.
@@ -118,7 +119,8 @@ the screen.
 - **THEN** each time an element with role `alert` appears holding «La API de CODEMIND no está
   disponible» and a button «Reintentar», it comes after the subtitle and before the list «Proyectos de
   muestra», the article «acme-shop» and its link «Explorar proyecto acme-shop» are still rendered, the
-  texts «listo» and «comprobando…» are not shown, and the double recorded exactly one request
+  texts «listo» and «comprobando…» are not shown, the focus is still on the document body, and the double
+  recorded exactly one request
 
 #### Scenario: A health check that never answers shows the alert after its time limit
 
@@ -137,6 +139,15 @@ the screen.
 - **THEN** the double recorded exactly one request, `GET /health`; the alert and the button «Reintentar»
   are gone; the article «acme-shop» shows «listo»; and the focus is on the level-1 heading «Elige un
   proyecto para explorar»
+
+#### Scenario: A successful retry leaves the focus where the person moved it
+
+- **GIVEN** Screen 1 showing the alert, and `fetch` then replaced by a double that records requests and
+  answers `200` with `{"status":"ok"}` only when the test releases the answer
+- **WHEN** the person presses «Reintentar», then presses Tab, which moves the focus to the link «Explorar
+  proyecto acme-shop», and the answer is then released
+- **THEN** the double recorded exactly one request; the alert is gone; the article «acme-shop» shows
+  «listo»; and the focus is still on the link «Explorar proyecto acme-shop»
 
 #### Scenario: Pressing again while a retry is pending sends no request
 
@@ -160,6 +171,16 @@ the screen.
 - **WHEN** the person follows the link «Explorar proyecto acme-shop»
 - **THEN** the signal of the pending health check is aborted, the level-1 heading «Consulta del proyecto»
   is rendered, and no element with role `alert` is shown
+
+#### Scenario: A check the page cancels itself changes nothing on the screen
+
+- **GIVEN** `fetch` replaced by a double that records the signal of each request, never answers on its
+  own and rejects with its signal's reason when that signal aborts, and the routes of the web client
+  mounted inside React's `StrictMode`, which mounts the page, unmounts it and mounts it again, as the
+  development server does
+- **WHEN** the initial path is `/`
+- **THEN** the double recorded two requests, the signal of the first one is aborted and that of the second
+  one is not; the badge «comprobando…» is shown; and there is no element with role `alert`
 
 ### Requirement: Indexing a repository of one's own is a hint, not a control
 
