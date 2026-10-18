@@ -1,17 +1,17 @@
 ## 0. Setup: Create Feature Branch (MANDATORY - FIRST STEP)
 
-- [ ] 0.1 First action of the apply: confirm DIS-60 is In Progress in Linear (set it if not), with a short comment in Spanish naming the change `project-picker` and the branch `feature/DIS-60-project-picker`
-- [ ] 0.2 Feature branch `feature/DIS-60-project-picker` (`BRANCH_PREFIX=feature/`, `docs/project-context.md` → Branch and ticket conventions), created from `feature/entrega-2-CRN` before `/opsx:propose`; confirm `git merge-base --is-ancestor origin/feature/entrega-2-CRN HEAD` and that `openspec/changes/project-picker/` is on it. `git fetch`; if `origin/feature/entrega-2-CRN` moved, rebase before any code (never force-push a published branch)
-- [ ] 0.3 Verify the current branch (`git branch --show-current`) and `git status`; the local changes under `.claude/` are never staged
-- [ ] 0.4 Baseline for the step 9 report: run `npx vitest run` once, green, and record files, tests and duration; run `npm run build -w packages/web` and record the size of `packages/web/dist/assets/*`; record that the code tasks touch no database (step 10 captures its own state)
+- [x] 0.1 First action of the apply: confirm DIS-60 is In Progress in Linear (set it if not), with a short comment in Spanish naming the change `project-picker` and the branch `feature/DIS-60-project-picker`
+- [x] 0.2 Feature branch `feature/DIS-60-project-picker` (`BRANCH_PREFIX=feature/`, `docs/project-context.md` → Branch and ticket conventions), created from `feature/entrega-2-CRN` before `/opsx:propose`; confirm `git merge-base --is-ancestor origin/feature/entrega-2-CRN HEAD` and that `openspec/changes/project-picker/` is on it. `git fetch`; if `origin/feature/entrega-2-CRN` moved, rebase before any code (never force-push a published branch)
+- [x] 0.3 Verify the current branch (`git branch --show-current`) and `git status`; the local changes under `.claude/` are never staged
+- [x] 0.4 Baseline for the step 9 report: run `npx vitest run` once, green, and record files, tests and duration; run `npm run build -w packages/web` and record the size of `packages/web/dist/assets/*`; record that the code tasks touch no database (step 10 captures its own state)
 
 ## 1. How a project is written (TDD, design D4, D5) — `project-picker` → "How a project is written on its card"
 
 Every test of this change follows Arrange-Act-Assert with the three blocks commented (frontend-standards §4) and is named exactly as its scenario.
 
-- [ ] 1.1 RED: create `packages/web/src/components/project-display.test.ts` (Node environment) with "Language and framework labels" (the four pairs of the scenario → label and icon, `undefined` icon for `go`). See it fail (module missing)
-- [ ] 1.2 GREEN: `packages/web/src/components/project-display.ts` with `stackLabel(language, framework)`, `languageIcon(language)` and their label tables; TSDoc on every export; parameters typed as `string` and `string | null` (the constant's literal types are assignable)
-- [ ] 1.3 RED → GREEN: "Counts in singular, in plural and with grouped digits" (`formatCount(n, singular, plural)`; assert the U+00A0 separators by code point, e.g. `'1 840 aristas'`, never by a visually similar space; no `Intl`, D5)
+- [x] 1.1 RED: create `packages/web/src/components/project-display.test.ts` (Node environment) with "Language and framework labels" (the four pairs of the scenario → label and icon, `undefined` icon for `go`). See it fail (module missing)
+- [x] 1.2 GREEN: `packages/web/src/components/project-display.ts` with `stackLabel(language, framework)`, `languageIcon(language)` and their label tables; TSDoc on every export; parameters typed as `string` and `string | null` (the constant's literal types are assignable)
+- [x] 1.3 RED → GREEN: "Counts in singular, in plural and with grouped digits" (`formatCount(n, singular, plural)`; assert the U+00A0 separators by code point, e.g. `'1 840 aristas'`, never by a visually similar space; no `Intl`, D5)
 
 ## 2. Cards on Screen 1 (TDD, design D2, D3, D6, D7, D12, D20) — `project-picker` → "Sample-project cards without HTTP"
 
