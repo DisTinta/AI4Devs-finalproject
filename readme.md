@@ -1336,7 +1336,7 @@ Si la API no puede arrancar, escribe una sola línea `{"error":{code,message,det
 >
 > Las secciones [5. Historias de usuario](#5-historias-de-usuario) y [6. Tickets de trabajo](#6-tickets-de-trabajo) pertenecen al **estado inicial** exigido por la Entrega 1 (documentación con un recorte acotado de historias y tickets). Se conservan en este `readme` como **referencia histórica**; **no** son la cola de trabajo vigente.
 >
-> El backlog real del producto —historias INVEST y sus cortes de trabajo en jerarquía *issue padre / sub-issues*, preparada para Linear— se elabora y queda registrado en [`docs/ai-sessions/03-planificacion-historias-de-usuario.md`](docs/ai-sessions/03-planificacion-historias-de-usuario.md) en el momento de su creación. El prompt que generó ese registro está en [`docs/ai-sessions/03-prompt-planificacion-historias-de-usuario.md`](docs/ai-sessions/03-prompt-planificacion-historias-de-usuario.md). Cuando ese backlog exista en Linear, Linear será la fuente viva; el archivo de planificación conserva el snapshot previo a la importación.
+> El backlog real del producto —historias INVEST y sus cortes de trabajo en jerarquía *issue padre / sub-issues*, preparada para Linear— se elabora y queda registrado en [`docs/ai-sessions/03-planificacion-historias-de-usuario.md`](docs/ai-sessions/03-planificacion-historias-de-usuario.md) en el momento de su creación. El prompt que generó ese registro está en [`docs/ai-sessions/03-prompt-planificacion-historias-de-usuario.md`](docs/ai-sessions/03-prompt-planificacion-historias-de-usuario.md). Ese backlog está importado en Linear (proyectos «CODEMIND — Entrega 2» y «CODEMIND — Entrega 3», tickets `DIS-n`), que es la fuente viva; el archivo de planificación conserva el snapshot previo a la importación.
 
 ## 5. Historias de Usuario
 
@@ -1506,25 +1506,259 @@ Crear el esquema de PostgreSQL con pgvector, los índices para travesía del gra
 
 ## 7. Pull Requests
 
-*(pendiente — se completará en la Entrega 3)*
+Las pull requests de la Entrega 2 se abren contra la rama de entrega `feature/entrega-2-CRN` y se fusionan con *merge commit*, con CI en verde y solo después del commit de `/opsx:archive` del change. A 19-10-2026 hay **52 fusionadas** (`gh pr list --base feature/entrega-2-CRN --state merged`) y una abierta, la #54. Cada una lleva su ticket `DIS-n` en el título y en la rama y, si cambia comportamiento, su change de OpenSpec archivado en `openspec/changes/archive/` con los informes de revisión en `reports/`. Las descripciones están en español y las genera `/pr-describe` ([8.2](#82-el-flujo-completo)).
 
-En esta primera entrega no hay código, así que no hay pull requests de desarrollo que documentar. Las tres que pide la plantilla se documentarán al final del proyecto.
+La Entrega 1 anunció tres candidatas: esquema y analizador PHP, el flujo `explain` completo con web mínima, y el analizador TypeScript. El trabajo se partió en PR mucho más pequeñas, así que aquí se destacan **tres PR concretas, una por área**. La del analizador TypeScript sigue siendo de la Entrega 3, y mantiene su promesa: su descripción llevará el `git diff --stat` que demuestre que no toca `packages/core`.
 
-**Esta entrega se somete desde la rama `feature/entrega-1-CRN`**, en una pull request que contiene únicamente los dos documentos y los wireframes. Queda anotada aquí por trazabilidad, pero **no cuenta como una de las tres**: esta sección documenta pull requests de código, y una que solo añade documentación no muestra nada del proceso de desarrollo.
+### PR 1 · Base de datos — [#4](https://github.com/DisTinta/AI4Devs-finalproject/pull/4) `feat(DIS-11): esquema del grafo L1 y runner de node-pg-migrate`
 
-Las ramas de entrega, con las iniciales que exige la mecánica del máster, son `feature/entrega-1-CRN`, `feature/entrega-2-CRN` y `final-project-CRN`.
+La primera pieza de código del grafo: sustituye los *stubs* de `db:migrate` / `db:rollback` por un runner real de `node-pg-migrate` con SQL plano (`.up.sql` / `.down.sql`) y crea `project`, `file`, `symbol` y `edge` con la integridad garantizada por PostgreSQL. Ahí nace la decisión de las aristas con dos claves foráneas por extremo y un `CHECK (num_nonnulls(...) = 1)` ([ADR](docs/adr/20260928-edge-endpoints-as-fk-pairs.md)), y la secuencia aplicar → revertir → aplicar que CI repite en cada PR. 35 tests de integración cubren los 27 escenarios de la spec `graph-schema` (change `schema-graph-l1`). La siguieron DIS-12 (#6, historial, afirmaciones, uso y caché) y DIS-13 (#7, índices, HNSW y el trigger de invalidación).
 
-Candidatas previstas:
+### PR 2 · Backend — [#43](https://github.com/DisTinta/AI4Devs-finalproject/pull/43) `feat(DIS-72): confianza calculada por afirmación y por respuesta, pesos publicados y salida del modelo con valla`
 
-| PR | Contenido | Entrega |
+La confianza deja de ser un número del modelo y pasa a ser una función pura de señales del grafo y del verificador (`packages/core/src/knowledge/confidence.ts`), con los seis pesos publicados en `docs/CONFIDENCE.md` y un test que falla si el documento y el código no coinciden. En la misma PR se resolvieron dos hallazgos de la sesión con el modelo real: Ollama recortaba el prompt (`OLLAMA_CONTEXT_LENGTH=16384`) y algunos modelos envuelven el JSON en una valla Markdown (la cuarentena acepta ahora una única valla). Es el ejemplo trazado de punta a punta en [8.4](#84-ejemplo-trazado-de-punta-a-punta-dis-72).
+
+### PR 3 · Frontend — [#53](https://github.com/DisTinta/AI4Devs-finalproject/pull/53) `feat(DIS-58): andamiaje del cliente web (Tailwind, router, cliente API tipado y gate de accesibilidad)`
+
+El andamiaje de la web: tema de Tailwind con los colores de los wireframes y un test de contraste, rutas con React Router, un cliente tipado de la API con su modelo de errores y un test que falla si los tipos del cliente se separan de los esquemas de la API, y `test:a11y` como puerta real con axe sobre cada ruta. La hizo el workflow autónomo y la fusionó él mismo ([8.6](#86-experimento-workflow-autónomo-en-las-últimas-tareas-de-la-entrega-2)). La Pantalla 1, que se monta encima, está en el PR #54 a la espera del merge.
+
+### Todas las PR de la Entrega 2
+
+<details>
+<summary>52 PR fusionadas y 1 abierta (desplegar)</summary>
+
+| PR | Ticket | Change de OpenSpec | Contenido |
+|---|---|---|---|
+| [#1](https://github.com/DisTinta/AI4Devs-finalproject/pull/1), [#2](https://github.com/DisTinta/AI4Devs-finalproject/pull/2) | — | — (harness) | Instalación del kit, OpenSpec, TypeDoc |
+| [#3](https://github.com/DisTinta/AI4Devs-finalproject/pull/3) | — | — (planificación) | Backlog de producto e importación a Linear |
+| [#4](https://github.com/DisTinta/AI4Devs-finalproject/pull/4), [#5](https://github.com/DisTinta/AI4Devs-finalproject/pull/5) | DIS-11 | `schema-graph-l1` | Esquema del grafo L1 y runner de migraciones |
+| [#6](https://github.com/DisTinta/AI4Devs-finalproject/pull/6) | DIS-12 | `schema-history-claims` | Historial, afirmaciones, uso y caché |
+| [#7](https://github.com/DisTinta/AI4Devs-finalproject/pull/7) | DIS-13 | `schema-indexes-stale` | Índices, HNSW e invalidación `stale` |
+| [#8](https://github.com/DisTinta/AI4Devs-finalproject/pull/8) | DIS-22 | `test-db-isolation` | Transacción por test y factorías |
+| [#9](https://github.com/DisTinta/AI4Devs-finalproject/pull/9) | DIS-23 | `store-graph-write` | Escritura transaccional del grafo |
+| [#10](https://github.com/DisTinta/AI4Devs-finalproject/pull/10) | DIS-24 | `store-graph-read` | Lecturas del grafo por proyecto |
+| [#11](https://github.com/DisTinta/AI4Devs-finalproject/pull/11) | DIS-35 | `git-history-extraction` | `GitPort` y autores seudonimizados |
+| [#12](https://github.com/DisTinta/AI4Devs-finalproject/pull/12) | DIS-36 | `co-change-edges` | Aristas `co_changed` ponderadas |
+| [#13](https://github.com/DisTinta/AI4Devs-finalproject/pull/13) | DIS-47 | `analyzer-port-and-php-structure` | `AnalyzerPort` y analizador PHP |
+| [#14](https://github.com/DisTinta/AI4Devs-finalproject/pull/14) | DIS-49 | `php-declarative-edges` | Aristas declarativas de PHP |
+| [#15](https://github.com/DisTinta/AI4Devs-finalproject/pull/15) | DIS-52 | `php-declared-type-calls` | Llamadas `exact` por tipo declarado |
+| [#16](https://github.com/DisTinta/AI4Devs-finalproject/pull/16), [#17](https://github.com/DisTinta/AI4Devs-finalproject/pull/17) | DIS-61 | `php-laravel-heuristics-1` | Facades, bindings y `__call` |
+| [#18](https://github.com/DisTinta/AI4Devs-finalproject/pull/18) | DIS-97 | `php-laravel-heuristics-2a` | Rutas por string, jobs y eventos |
+| [#19](https://github.com/DisTinta/AI4Devs-finalproject/pull/19) | DIS-98 | `php-laravel-heuristics-2b` | Atributos Eloquent y no resueltos |
+| [#20](https://github.com/DisTinta/AI4Devs-finalproject/pull/20) | DIS-96 | `analyzer-php-debt` | Deuda del analizador PHP |
+| [#21](https://github.com/DisTinta/AI4Devs-finalproject/pull/21) | DIS-99 | `analyzer-port-edges-tsdoc` | TSDoc de las aristas |
+| [#22](https://github.com/DisTinta/AI4Devs-finalproject/pull/22) | DIS-84 | `security-gateway` | Redacción de secretos y confinamiento de rutas |
+| [#23](https://github.com/DisTinta/AI4Devs-finalproject/pull/23) | DIS-85 | `index-repository` | Caso de uso de indexado |
+| [#24](https://github.com/DisTinta/AI4Devs-finalproject/pull/24) | DIS-86 | `cli-index-command` | Comando `index` |
+| [#25](https://github.com/DisTinta/AI4Devs-finalproject/pull/25) | DIS-100 | `index-repository-debt` | Deuda del indexado |
+| [#26](https://github.com/DisTinta/AI4Devs-finalproject/pull/26) | DIS-87 | `ci-secret-scan` | `gitleaks` en CI |
+| [#28](https://github.com/DisTinta/AI4Devs-finalproject/pull/28) | — | — (doctrina) | Revisión previa al merge en cada `tasks.md` |
+| [#29](https://github.com/DisTinta/AI4Devs-finalproject/pull/29) | DIS-91 | `seed-build` | Semilla reproducible |
+| [#30](https://github.com/DisTinta/AI4Devs-finalproject/pull/30) | DIS-92 | `seed-load-and-projects` | `db:seed` y `cli projects` |
+| [#31](https://github.com/DisTinta/AI4Devs-finalproject/pull/31) | DIS-17 | `llm-adapter` | `LlmPort` y adaptador compatible OpenAI |
+| [#32](https://github.com/DisTinta/AI4Devs-finalproject/pull/32) | DIS-18 | `llm-evaluation-budget` | Modo evaluación y techo de gasto |
+| [#33](https://github.com/DisTinta/AI4Devs-finalproject/pull/33) | DIS-27 | `context-engine-anchor-expand` | Anclaje y expansión |
+| [#34](https://github.com/DisTinta/AI4Devs-finalproject/pull/34) | DIS-28 | `context-engine-rank-budget` | Ranking y presupuesto de tokens |
+| [#35](https://github.com/DisTinta/AI4Devs-finalproject/pull/35) | — | — (harness) | `spec-auditor` obligatorio entre propose y apply |
+| [#36](https://github.com/DisTinta/AI4Devs-finalproject/pull/36) | DIS-38 | `claims-and-typing` | Afirmaciones tipadas y cuarentena |
+| [#37](https://github.com/DisTinta/AI4Devs-finalproject/pull/37) | DIS-39 | `explain-use-case` | Caso de uso `explain` |
+| [#38](https://github.com/DisTinta/AI4Devs-finalproject/pull/38) | DIS-40 | `cli-ask` | Comando `ask` |
+| [#39](https://github.com/DisTinta/AI4Devs-finalproject/pull/39) | DIS-41 | `untrusted-content-sanitization` | Sanitización del contenido no confiable |
+| [#40](https://github.com/DisTinta/AI4Devs-finalproject/pull/40) | — | — (CI) | Stryker incremental en un job propio |
+| [#41](https://github.com/DisTinta/AI4Devs-finalproject/pull/41) | DIS-68 | `evidence-verifier-syntactic` | Verificación sintáctica de citas |
+| [#42](https://github.com/DisTinta/AI4Devs-finalproject/pull/42) | DIS-70 | `evidence-verifier-semantic` | Verificación semántica de citas |
+| [#43](https://github.com/DisTinta/AI4Devs-finalproject/pull/43) | DIS-72 | `confidence-score` | Confianza calculada |
+| [#44](https://github.com/DisTinta/AI4Devs-finalproject/pull/44) | DIS-74 | `query-usage-log` | Uso por consulta en `query_log` |
+| [#45](https://github.com/DisTinta/AI4Devs-finalproject/pull/45) | DIS-76 | `api-foundation` | Base HTTP de la API |
+| [#46](https://github.com/DisTinta/AI4Devs-finalproject/pull/46) | DIS-78 | `ask-endpoint` | `POST /ask` |
+| [#47](https://github.com/DisTinta/AI4Devs-finalproject/pull/47) | DIS-21 | `evaluation-cache` | Caché por pregunta normalizada |
+| [#48](https://github.com/DisTinta/AI4Devs-finalproject/pull/48) | DIS-26 | `golden-cache-build` | Respuestas *golden* con Ollama |
+| [#49](https://github.com/DisTinta/AI4Devs-finalproject/pull/49), [#50](https://github.com/DisTinta/AI4Devs-finalproject/pull/50) | DIS-34 | flujo ligero | Revisión de las golden y firma de la autora |
+| [#51](https://github.com/DisTinta/AI4Devs-finalproject/pull/51) | DIS-44 | `verify-smoke` | `npm run verify` real |
+| [#52](https://github.com/DisTinta/AI4Devs-finalproject/pull/52) | DIS-45 | flujo ligero | `DEMO.md`, `DEPLOYMENT.md` y `TESTING.md` con salida real |
+| [#53](https://github.com/DisTinta/AI4Devs-finalproject/pull/53) | DIS-58 | `web-foundation` | Andamiaje web |
+| [#54](https://github.com/DisTinta/AI4Devs-finalproject/pull/54) (abierta) | DIS-60 | `project-picker` | Pantalla 1 |
+
+</details>
+
+**La Entrega 1 se sometió desde la rama `feature/entrega-1-CRN`**, en una pull request que solo contenía los dos documentos y los wireframes. Queda anotada aquí por trazabilidad, pero no cuenta como una de las tres: no muestra nada del proceso de desarrollo. Las ramas de entrega, con las iniciales que exige la mecánica del máster, son `feature/entrega-1-CRN`, `feature/entrega-2-CRN` y `final-project-CRN`.
+
+---
+
+## 8. Flujo de trabajo con IA y `sdd-harness-kit`
+
+Esta sección no la pide la plantilla. Recoge lo que pidió la revisión de la Entrega 1 —ver la IA en todas las fases del ciclo, no solo en la documentación— y cómo se ha construido CODEMIND en la Entrega 2: con qué kit, con qué flujo y con qué cifras. El registro de prompts sigue en [`prompts.md`](./prompts.md); aquí está el proceso.
+
+### 8.1. El kit: `sdd-harness-kit`
+
+[`DisTinta/sdd-harness-kit`](https://github.com/DisTinta/sdd-harness-kit) es un kit propio de Spec-Driven Development, público, que nace de lo aprendido en el máster y toma como punto de partida [`LIDR-academy/lidr-specboot`](https://github.com/LIDR-academy/lidr-specboot) (la procedencia está en `prompts.md` §0.2). En este repositorio instala la doctrina (`docs/base-standards.md` y los estándares por capa), 29 skills y 9 subagentes en `ai-specs/`, las referencias para Claude Code (`.claude/`) y Cursor (`.cursor/`), y los hooks.
+
+**Instalación y diagnóstico.** Se instala desde el kit con `./install.sh --dest <proyecto>` (o `.\install.ps1 -Dest <proyecto>` en Windows), con `--dry-run` para ver antes qué haría. Detecta el stack del proyecto destino y copia su adaptador, que vive en `.claude/sdd-harness.env` y `docs/backend-standards.md`; para CODEMIND hubo que escribir el adaptador `fastify`. `doctor.sh` / `doctor.ps1` (o la skill `/kit-health`) diagnostica una instalación: doctrina, memoria de los copilotos, hooks y dependencias. En Windows, donde no siempre hay *symlinks*, el kit usa copias más un script de sincronización (`.claude/sync-artifacts.ps1`), y los hooks se lanzan con `invoke.cjs`, que localiza Git Bash.
+
+**Hooks: garantías deterministas, no instrucciones.** Hay 10 cableados en `.claude/settings.json`. Todos pasan por `invoke.cjs` y comparten `lib.sh`. Un hook no le pide al modelo que se porte bien: actúa sobre la herramienta, sea cual sea el razonamiento que la llamó. Los disparos se han contado con un script sobre las transcripciones de Claude Code del proyecto (132 sesiones con sus subagentes, del 28-09 al 16-10-2026, la fase con la autora en el bucle), buscando el mensaje característico de cada hook en los eventos de hook y deduplicando cada evento:
+
+| Hook | Cuándo actúa | Qué impide | Disparos reales (28-09 → 16-10) |
+|---|---|---|---|
+| `protect-specs-and-tests` | Antes de `Edit` / `Write` | Modificar un test existente o reescribir un artefacto de spec sin que un humano lo confirme; editar ficheros de entorno; rutas con `..` | **370** confirmaciones al modificar un test existente y **285** al reescribir un artefacto de spec; 1 edición de un fichero de entorno denegada |
+| `block-dangerous-bash` | Antes de `Bash` | `rm -rf` y otros comandos destructivos, `push --force`, `chmod 777`, operaciones contra producción, instalar una dependencia sin verificarla (*slopsquatting*), comandos destructivos del stack, escribir la configuración del kit desde la shell | **38** comandos destructivos bloqueados (por ejemplo `rm -rf packages/*/dist`; los ficheros se movieron al scratchpad), 6 instalaciones que pidieron confirmación, 11 comandos destructivos del stack que pidieron confirmación y 25 accesos de shell a la configuración del kit denegados |
+| `verify-tests` | Al cerrar el turno (`Stop`) | Dar el turno por terminado con la suite en rojo | **11** cierres bloqueados; 140 avisos de «suite en verde: marca las tareas y mira si hace falta un ADR» |
+| `post-edit-quality` | Después de `Edit` / `Write` | Que `packages/core` conozca HTTP o la infraestructura, y errores de análisis estático | 4 bloqueos: 2 violaciones de capa (`packages/core/src/knowledge/project.ts` conocía HTTP) y 2 del `tsc` por fichero, que se desactivó por lento en el commit `1c12e98` |
+| `block-secrets` | Al enviar un prompt | Prompts con tokens, claves privadas o contraseñas | 3 prompts bloqueados antes de llegar al modelo |
+| `block-secret-reads` | Antes de `Read` | Cargar `.env`, claves privadas o credenciales en el contexto | 2 lecturas bloqueadas (`.npmrc` del fixture `acme-shop` y de la raíz) |
+| `session-context` | Al abrir o retomar una sesión | — (inyecta la rama, los changes abiertos y el estado del repo) | 67 inyecciones |
+| `spec-audit-gate` | Antes de `Edit` / `Write` | Escribir código o tests de un change sin informe del `spec-auditor` (añadido en la Entrega 2, PR #35) | 0 |
+| `validate-tasks` | Después de `Edit` / `Write` | Un `tasks.md` sin los pasos obligatorios | 0 |
+| `docs-gate` | Antes de `git commit` | Commitear sin revisar qué documentación ha quedado desfasada | 0 |
+
+Los tres últimos no dispararon nunca. Se presentan como garantías preventivas, no como bloqueos: el flujo siempre llegó al apply con el informe del auditor hecho y con un `tasks.md` válido, y la documentación se revisó antes de cada commit con `/update-docs`.
+
+**Lecciones honestas del kit.**
+
+- **El kit mejoró gracias a CODEMIND.** Los primeros días, `invoke.cjs` no encontraba los hooks cuando la sesión trabajaba desde una subcarpeta, y una ruta con barras de Windows fallaba. Se corrigió en el commit `457b61a` (02-10-2026), que ancla las rutas de los hooks al directorio del proyecto.
+- **La coincidencia por subcadena da falsos positivos.** `block-dangerous-bash` mira el texto del comando, no lo que hace. La regla que protege la configuración del kit salta también con una lectura que lleva una redirección como `2>/dev/null`, y en la propia redacción de esta sección bloqueó un `grep` cuyo patrón contenía `rm -rf` y un script de recuento que contenía el texto de `push --force`. El remedio es reescribir el comando, no desactivar el hook.
+- **Mantener al humano en el bucle tiene un coste visible:** 655 confirmaciones de `protect-specs-and-tests` en tres semanas. Es lo que cuesta que los tests y las specs sigan siendo la especificación firmada.
+- **No todo el kit se usó.** Los subagentes `explorer`, `backend-planner` y `security-reviewer`, y la skill `/code-review`, están instalados pero no aparecen invocados en las transcripciones. Las revisiones de seguridad se hicieron con `/security-review` (3 informes) y `/privacy-ethics-check`.
+
+**El ciclo SDD que impone.** Cada `tasks.md` lleva los pasos obligatorios de `docs/openspec-tasks-mandatory-steps.md`; el `spec-auditor` revisa la propuesta entre propose y apply, y el hook `spec-audit-gate` no deja escribir código sin su informe; el apply va en TDD por escenario con los roles `tdd-test-writer` → `tdd-implementer` → `tdd-refactorer`; antes de archivar pasan tres revisiones; y cada hallazgo que no se corrige en el change sale con un destino A/B/C/D ([8.2](#82-el-flujo-completo)).
+
+Es la misma idea que sostiene el producto: **no se le pide al modelo que cumpla, se monta un mecanismo que lo comprueba.** CODEMIND verifica sus citas en lugar de pedírselas bien al modelo; el kit bloquea un `rm -rf` en lugar de pedirle al agente que no lo haga.
+
+### 8.2. El flujo completo
+
+```mermaid
+flowchart LR
+    L["Linear (MCP)<br/>sub-issue + padre"] --> E["/enrich-us<br/>[original] · [reality-map] · Enhanced"]
+    E --> P["/opsx:propose<br/>proposal · design · specs · tasks"]
+    P --> SA["spec-auditor<br/>reports/*-spec-audit.md"]
+    SA -- cambios --> U["/opsx:update"]
+    U --> SA
+    SA -- aprobado --> A["/opsx:apply<br/>TDD por escenario"]
+    A --> R["/verify-against-spec<br/>/adversarial-review<br/>/show-spec-working"]
+    R -- hallazgo A --> U
+    R --> PR["/pr-describe<br/>PR en español · CI"]
+    PR --> AR["/opsx:archive<br/>sync de specs"]
+    AR --> M["merge"]
+    M --> D["Linear → Done"]
+```
+
+| Fase | Skill, agente o hook | Evidencia en el repositorio |
 |---|---|---|
-| **PR 1** | Esquema de base de datos, analizador PHP y extractor de Git | 2 |
-| **PR 2** | Context Engine, verificador de evidencias y web mínima — flujo `explain` completo | 2 |
-| **PR 3** | **Analizador TypeScript.** El diff no toca `packages/core`, lo que demuestra la independencia del lenguaje afirmada en [2.1](#21-diagrama-de-arquitectura) | 3 |
+| **Linear vía MCP** | Servidor MCP de Linear (`.mcp.json`) | Antes de proponer, el agente lee la sub-issue y su padre; cambia el estado (In Progress → In Review → Done) y comenta en español. 1 274 llamadas al MCP de Linear en las transcripciones desde el 28-09 |
+| **Enriquecimiento** | `/enrich-us` | La descripción de cada ticket en Linear: bloque `[original]` inmutable, `[reality-map]` (qué existe y qué hay que crear, comprobado contra el código) y Enhanced con criterios Dado/Cuando/Entonces y las decisiones de la autora (D1…Dn) |
+| **Propuesta** | `/opsx:propose`, `spec-auditor`, `spec-audit-gate`, `/opsx:update` | `openspec/changes/archive/*/proposal.md`, `design.md`, `specs/`, `tasks.md`; 13 informes `*-spec-audit.md` desde que el auditor es obligatorio (PR #35) |
+| **Implementación** | `/opsx:apply` en TDD: `tdd-test-writer` → `tdd-implementer` → `tdd-refactorer`; hooks `protect-specs-and-tests`, `post-edit-quality`, `verify-tests` | Commits `test(...)` → `feat(...)` → `refactor(...)` por escenario; cada escenario de la spec tiene un test con su mismo nombre |
+| **Tres revisiones antes de archivar** | `/verify-against-spec`, `/adversarial-review`, `/show-spec-working` | 23 + 23 + 39 informes en `reports/`, más 40 de pruebas manuales de la interfaz real y 41 de verificación de tests y estado |
+| **Destino de cada hallazgo** | Regla *Tracking deferred findings* de `docs/project-context.md` | **A** se corrige en el change (`/opsx:update`); **B** pasa a un ticket sucesor con comentario en Linear; **C** queda como deuda explícita; **D** se acepta para siempre. Sin destino no se archiva. El ritual de archivo revisa las notas entrantes, las salientes y deja la tabla de pendientes en el comentario de In Review |
+| **Documentación** | `docs-gate`, `/update-docs`, `/adr-new`, `/pr-describe` | `docs/adr/` (9 ADR), descripciones de PR en español (`reports/pr-description.md`), `readme.md` y `docs/` actualizados en el mismo PR |
+| **Registro de IA** | Norma *prompts.md — synchronous AI log* de `docs/project-context.md` | `prompts.md`: una sección por ticket, con el prompt literal y el ajuste humano, escrita en la misma sesión; `docs/ai-sessions/` |
+| **Calidad en CI** | Stryker, `dependency-cruiser`, TypeDoc, `gitleaks` | Jobs de [2.4](#24-infraestructura-y-despliegue): mutación con umbral 80, `lint:architecture`, `docs:coverage`, escaneo de secretos |
+| **Otras herramientas usadas de verdad** | `/privacy-ethics-check`, `/security-review`, `browser-automation`, Context7 MCP | Comprobación de privacidad en los pasos de verificación de cada change; 3 informes de seguridad; capturas de la web en `reports/` de DIS-58; documentación de librerías por Context7 |
 
-**PR 3 es la más relevante de documentar**: su valor está precisamente en lo que *no* cambia. Su descripción incluirá la salida de `git diff --stat` como prueba, y la Tabla 2 de [2.6](#26-tests), que solo se puede construir cuando existen los dos analizadores.
+`claude-auto-review.yml` y `claude-interactive.yml` vienen del kit, están en `.github/workflows/` y **no están activados** ([2.4](#24-infraestructura-y-despliegue)): no forman parte de este flujo.
 
-**Habrá más de tres.** La disciplina de trabajo del proyecto pide pull requests pequeñas y de un solo objetivo, así que el número real será bastante mayor que tres. Las tres de la tabla son una **selección** —la que cierra cada fase, y entre las tres cubren backend, base de datos y frontend—, no el inventario completo. Lo que describe cada fila es el alcance de su fase, no el de un único commit.
+Herramientas y modelos: **Claude Code con Opus** para implementar, revisar y orquestar subagentes; **Claude Code con Sonnet** en los subagentes de pasos mecánicos (PR, archivo, cierre); **Cursor** en sesiones de criterio y de redacción; **Claude (Cowork / chat)** para planificar historias, propuestas y documentos largos (`prompts.md` §0.1).
+
+### 8.3. IA en las seis fases del ciclo
+
+| Fase | Qué hace la IA | Qué decide o comprueba la persona |
+|---|---|---|
+| Requisitos | `/enrich-us` lee la sub-issue y su padre en Linear, contrasta cada ejemplo del ticket con el código y propone criterios Dado/Cuando/Entonces | La autora responde las preguntas abiertas y fija las decisiones D1…Dn |
+| Diseño | `/opsx:propose` escribe propuesta, diseño, specs y tareas; el `spec-auditor` busca huecos, contradicciones y decisiones sin tomar; `/adr-new` registra las decisiones de arquitectura | La autora aprueba el plan y contesta las preguntas del auditor |
+| Implementación | El agente implementa escenario a escenario, con la capa de dominio aislada (`post-edit-quality`, `dependency-cruiser`) | Revisión de cada PR |
+| **Pruebas** | **`tdd-test-writer` escribe los tests en RED a partir de los escenarios de la spec y de los criterios de aceptación**, antes del código; `/show-spec-working` ejercita la interfaz real (CLI, API, navegador) y guarda la salida; Stryker mide si los tests detectan cambios | `protect-specs-and-tests` pide confirmación humana para modificar un test existente: un test no se cambia para que la suite pase |
+| Despliegue | El agente diseñó y mantiene los jobs de CI (`verify`, `mutation`, `secrets`) y escribió `docs/DEPLOYMENT.md` con la salida real de `make up` (DIS-45) | El merge, firmado por una persona |
+| Mantenimiento | `/opsx:archive` y `/opsx:sync` llevan las specs al estado vigente; cada hallazgo sale con destino A/B/C/D; `/update-docs` y `docs-gate` antes de cada commit; tickets de deuda nacidos de hallazgos (DIS-96, DIS-100) | Qué se acepta como deuda (C) o como riesgo permanente (D) |
+
+### 8.4. Ejemplo trazado de punta a punta: DIS-72
+
+DIS-72 (CM-HU-11.1) convirtió la confianza de la respuesta en un valor calculado. Cada paso deja un artefacto:
+
+1. **Issue en Linear:** [DIS-72](https://linear.app/distinta-ai4devs/issue/DIS-72/cm-hu-111-confidencets-con-seis-pesos-docsconfidencemd-real), sub-issue de la historia CM-HU-11, enriquecida con `/enrich-us`.
+2. **Propuesta:** [`proposal.md`](openspec/changes/archive/2026-10-15-confidence-score/proposal.md), [`design.md`](openspec/changes/archive/2026-10-15-confidence-score/design.md) y las specs `confidence-score`, `claims-and-typing` y `explain`. Las decisiones D1–D4 de la autora y sus respuestas Q1–Q3 al auditor fijaron las seis señales y la fórmula sin término independiente.
+3. **Auditoría:** [`2026-10-15-spec-audit.md`](openspec/changes/archive/2026-10-15-confidence-score/reports/2026-10-15-spec-audit.md). El auditor marcó como bloqueante cómo contar una cita repetida (Q1) y otras dos preguntas que solo podía decidir la autora.
+4. **Apply en TDD:** 63 escenarios, cada uno con un test del mismo nombre; un test falla si los pesos de `docs/CONFIDENCE.md` y los del código difieren; Stryker 97,06 %.
+5. **Sesión de pesos con el modelo real:** [`2026-10-15-9-weights-session.md`](openspec/changes/archive/2026-10-15-confidence-score/reports/2026-10-15-9-weights-session.md). Ahí salieron los dos hallazgos de la sesión: Ollama recortaba el prompt a unos 2 000 tokens (se resolvió sirviéndolo con `OLLAMA_CONTEXT_LENGTH=16384`, sin código) y el modelo envolvía el JSON en una valla. La autora pidió resolver la valla en el mismo change («no quiero dejar flecos»): `/opsx:update` añadió la decisión C9 y el grupo de tareas 8b. Con cinco respuestas reales, la autora mantuvo los pesos iniciales con los motivos que recomendó el agente.
+6. **Tres revisiones:** [`verify-against-spec`](openspec/changes/archive/2026-10-15-confidence-score/reports/2026-10-15-verify-against-spec.md) (el código hace lo que piden las specs), [`adversarial-review`](openspec/changes/archive/2026-10-15-confidence-score/reports/2026-10-15-adversarial-review.md) (hallazgos menores con su destino) y [`show-spec-working`](openspec/changes/archive/2026-10-15-confidence-score/reports/2026-10-15-show-spec-working.md).
+7. **PR:** [#43](https://github.com/DisTinta/AI4Devs-finalproject/pull/43), con la descripción de [`pr-description.md`](openspec/changes/archive/2026-10-15-confidence-score/reports/pr-description.md).
+8. **Archivo y specs sincronizadas:** el change está en `openspec/changes/archive/2026-10-15-confidence-score/` y las specs vigentes en `openspec/specs/confidence-score/`, `claims-and-typing/` y `explain/`.
+9. **Registro:** `prompts.md` §45, con los tres prompts literales de la autora, y [`docs/CONFIDENCE.md`](docs/CONFIDENCE.md) con los pesos y sus motivos.
+
+### 8.5. Cifras de evidencia
+
+Calculadas del repositorio el 19-10-2026, no estimadas:
+
+| Cifra | Valor | Cómo se calcula |
+|---|---|---|
+| Changes de OpenSpec archivados | **41** | Carpetas en `openspec/changes/archive/` |
+| Capacidades con spec vigente | 24 | Carpetas en `openspec/specs/` |
+| Informes de revisión y verificación | **249** | Ficheros en `openspec/changes/archive/*/reports/` |
+| Tests | **1 353** pasan, 221 se saltan sin base de datos, 143 ficheros | `npx vitest run` en local, sin `DATABASE_URL` |
+| Mutation score | **95,94 %** | Último job `mutation` de CI en `feature/entrega-2-CRN` (completo, tras el merge del PR #53) |
+| ADR | 9 | `docs/adr/` sin `README.md` ni `_template.md` |
+| Sesiones de IA registradas | 8 | Ficheros en `docs/ai-sessions/` |
+| PR fusionadas | **52** | `gh pr list --base feature/entrega-2-CRN --state merged` |
+
+### 8.6. Experimento: workflow autónomo en las últimas tareas de la Entrega 2
+
+El 16-10-2026, a seis días de la entrega, quedaban doce tickets: DIS-76, DIS-78, DIS-21, DIS-26, DIS-34, DIS-44, DIS-45, DIS-58, DIS-60, DIS-65, DIS-66 y esta misma DIS-101. La autora preguntó si un agente podía hacerlos solo, con el flujo de [8.2](#82-el-flujo-completo), resolviendo las dudas como un ingeniero jefe y sin preguntarle. Se hicieron como **experimento con la herramienta Workflow de Claude Code**: un script recorre los tickets en serie, por orden de dependencias, y lanza un subagente en segundo plano con el contexto limpio para cada paso (`enrich` → `propose` con el `spec-auditor` → `apply` → `review` → `pr` → `archive` y merge). Los pasos de criterio corren con Opus y los mecánicos con Sonnet. El registro de la sesión que lo planteó —la pregunta de la autora, las reglas relajadas, el plan y cómo se mide el coste— está en [`docs/ai-sessions/04-experimento-workflow-autonomo-entrega-2.md`](docs/ai-sessions/04-experimento-workflow-autonomo-entrega-2.md).
+
+**Las reglas que se relajaron**, solo para esta ejecución y registradas en el ADR [`20261016-autonomous-workflow-run-entrega-2`](docs/adr/20261016-autonomous-workflow-run-entrega-2.md), son cuatro principios de `docs/base-standards.md`:
+
+| Principio | Regla normal | En el experimento |
+|---|---|---|
+| 2 (línea 88) | Una persona aprueba el plan si toca más de tres ficheros | Lo aprueban el `spec-auditor` y un subagente «ingeniero jefe», que escribe cada decisión, en español, en la descripción Enhanced del ticket en Linear |
+| 3 (línea 90) | Los tests los escribe o supervisa una persona | Los escribe `tdd-test-writer` desde los escenarios de la spec, sin supervisión |
+| 8 (línea 98) | El porqué de un PR o un ADR no lo escribe la IA | Lo escribe el agente, marcado como decisión suya |
+| 9 (línea 99) | Los merges los firma una persona | Los hace el agente, solo después del commit de `/opsx:archive` y con CI en verde |
+
+DIS-34, la revisión de las respuestas *golden*, se hizo en **modo híbrido**: el agente revisa todas y la autora firma una muestra (todos los `UNKNOWN`, las dudosas y dos o tres al azar), porque si una IA valida lo que generó otra IA la referencia de evaluación pierde independencia.
+
+**Qué pasó con cada ticket.** Las duraciones salen de las marcas de tiempo de los registros de cada agente (primer y último evento) y se contrastan con la creación y el merge de cada PR en GitHub. Los agentes cuentan solo los pasos del ciclo; las esperas de merge y los pasos que registran un bloqueo van aparte.
+
+| Ticket | Ejecución | Resultado | PR | Merge | Tiempo del ciclo | Agentes |
+|---|---|---|---|---|---|---|
+| DIS-76 | Piloto, 16-10 | Cerrado | [#45](https://github.com/DisTinta/AI4Devs-finalproject/pull/45) | La autora: el clasificador lo denegó | 3 h 33 min | 6 + 1 de bloqueo |
+| DIS-78 | Tanda 1, 16-10 | Cerrado | [#46](https://github.com/DisTinta/AI4Devs-finalproject/pull/46) | El workflow | 2 h 07 min | 6 |
+| DIS-21 | Tanda 1 | Cerrado | [#47](https://github.com/DisTinta/AI4Devs-finalproject/pull/47) | El workflow | 3 h 40 min | 6 |
+| DIS-26 | Tanda 1 | Cerrado | [#48](https://github.com/DisTinta/AI4Devs-finalproject/pull/48) | El workflow | 8 h 21 min, con las respuestas *golden* generadas por Ollama en CPU | 6 |
+| DIS-34 | Tanda 1, 17-10 | Cerrado con la firma de la autora | [#49](https://github.com/DisTinta/AI4Devs-finalproject/pull/49) (revisión del agente) y [#50](https://github.com/DisTinta/AI4Devs-finalproject/pull/50) (firmas y Q3 regenerada) | La autora: el clasificador denegó #49; #50 lo preparó la sesión principal | 24 min el paso del agente | 2 + 1 de bloqueo |
+| DIS-44 | Tanda 1 | Cerrado | [#51](https://github.com/DisTinta/AI4Devs-finalproject/pull/51) | La autora: denegado | 3 h 33 min | 6 + 1 de bloqueo |
+| DIS-45 | Lanzado solo, 17-10 | Cerrado | [#52](https://github.com/DisTinta/AI4Devs-finalproject/pull/52) | La autora: denegado | 1 h 47 min | 6 + 1 de bloqueo |
+| DIS-58 | Lanzado solo, 17-10 → 18-10 | Cerrado | [#53](https://github.com/DisTinta/AI4Devs-finalproject/pull/53) | El workflow | 20 h 37 min, de ellas unas 10,5 h parado de noche esperando una confirmación | 6 |
+| DIS-60 | Tanda 2, 18-10 | **Bloqueado**: PR listo, con CI en verde y el archivo hecho | [#54](https://github.com/DisTinta/AI4Devs-finalproject/pull/54), abierto | Pendiente de la autora: denegado | 1 h 36 min, más 3 h 08 min de espera | 6 + 20 de espera + 1 de bloqueo |
+| DIS-65, DIS-66 | Tanda 2 | **No lanzados**: dependen de DIS-60 | — | — | — | 0 |
+| DIS-101 | Tanda 2, 18-10 → 19-10 | Esta tarea, de documentación | — | — | En curso al redactar | — |
+
+DIS-45 no entró en la tanda 1: cuando el merge de DIS-44 se bloqueó, el script saltó sus dependientes para no construir sobre algo sin fusionar, y nada lo volvió a lanzar tras el merge de la autora. Por eso se lanzó aparte, igual que DIS-58, que se adelantó la noche del 17-10 con el visto bueno de la autora.
+
+**La intervención real de la autora** fue más que la firma de DIS-34: fusionó a mano los cuatro PR que el clasificador denegó (#45, #49, #51 y #52; el #54 espera) y el #50 de las firmas; añadió tras el piloto una regla de permiso para `gh pr merge`; aplicó en Windows Defender la exclusión de un falso positivo; y desactivó en local, para el resto de la ejecución, la confirmación de instalación de dependencias tras la parada de DIS-58. Cada una de esas intervenciones es una de las lecciones de abajo.
+
+**Coste en tokens.** Las cifras salen de un script que suma el uso de los registros de sesión de Claude Code del proyecto por la rama `DIS-n` en la que se trabajó, ejecutado el 19-10-2026 sobre todas las ramas. La referencia manual son los tickets de código de tamaño parecido hechos con la autora en el bucle:
+
+| Tickets | Lectura de caché | Escritura de caché | Salida |
+|---|---|---|---|
+| **Manuales** — DIS-68, DIS-70, DIS-72, DIS-74, DIS-28, DIS-92 | 92,7 / 108,3 / 102,7 / 180,0 / 116,1 / 143,4M — **media 123,9M** | 1,20 / 1,82 / 1,25 / 2,92 / 1,09 / 1,14M — **media 1,57M** | media 0,33M |
+| **Workflow, ciclo de código completo** — DIS-76, DIS-78, DIS-21, DIS-26, DIS-44, DIS-58 | 137,2 / 83,6 / 156,4 / 125,3 / 137,1 / 139,3M — **media 129,8M** | 3,70 / 2,03 / 4,42 / 4,92 / 3,33 / 5,17M — **media 3,93M** | media 0,11M |
+| Workflow, otros — DIS-60 / DIS-45 / DIS-34 | 53,8 / 32,0 / 6,7M | 2,10 / 1,83 / 0,34M | 0,02 / 0,01 / 0,01M |
+| Sin ticket — rama `feature/entrega-2-CRN` | 257,4M | 9,78M | 1,77M |
+
+- **Lectura de caché parecida** (1,05 veces la media manual) y **escritura de caché unas 2,5 veces mayor**: cada subagente empieza de cero y vuelve a leer los estándares, la spec y el código, mientras que una sesión manual larga reutiliza lo que ya tiene en caché.
+- **Límites de la medición.** (a) La orquestación, la sesión principal y los pasos que corren en `feature/entrega-2-CRN` no se atribuyen a ningún ticket: esa rama suma 257M de lectura, que incluye también trabajo manual. (b) La salida de los subagentes del workflow sale muy por debajo de la de los tickets manuales, así que no se compara la salida. (c) La cifra de DIS-60 es baja para un ciclo completo; se publica tal cual. (d) DIS-34 y DIS-45 son tickets de documentación y no se comparan con los de código.
+- **Límite de uso del plan** (`/usage`, que el agente no puede leer: lo apuntó la autora en cada punto de control). Semana (horas peninsulares): 51 % antes del piloto → 56 % después (unos 5 puntos por DIS-76) → 64 % el 17-10 a las 09:00, con DIS-78 y DIS-21 cerrados (unos 3–3,5 puntos por ticket) → 73 % el 17-10 a las 17:35, al cerrar la tanda 1 → 74 % el 17-10 a las 20:20, tras DIS-45 (alrededor de 1 punto). El límite semanal se reinició el 18-10 a las 12:00 y después no se registró ningún punto, así que DIS-58, DIS-60 y DIS-101 no tienen cifra de `/usage`. El coste equivalente de API que muestra `/usage` (con suscripción no es un cargo) fue de 53,93 $ al terminar el piloto y de 266,18 $ acumulados al cerrar la tanda 1.
+
+**Lecciones**, cada una comprobada en el repositorio, en GitHub, en Linear o en los diarios del workflow:
+
+1. **La autonomía tiene un techo en el merge, y está bien que lo tenga.** El clasificador de permisos del modo automático de Claude Code denegó `gh pr merge` («Merge Without Review») en #45, #49, #51, #52 y #54, aunque la autora había añadido una regla de permiso tras el piloto; dejó pasar #46, #47, #48 y #53. El agente no buscó rodeos: los descartó por escrito (fusión automática en GitHub, saltarse los permisos), y la autora decidió el 17-10 que el workflow esperase su merge. Coste de esa espera en DIS-60: 20 agentes de sondeo y 3 h 08 min sin avanzar trabajo. Una persona firma lo que entra.
+2. **Una protección pensada para una persona presente frena una ejecución desatendida.** `block-dangerous-bash` pide confirmación antes de instalar una dependencia, como defensa contra paquetes falsos. Un agente de DIS-58 lanzó un `npm install` de prueba a las 20:45 del 17-10 y se quedó esperando esa confirmación hasta las 07:25 del día siguiente, unas 10,5 h. La autora la desactivó en local para el resto de la ejecución y pidió a cambio una verificación automática en las instrucciones del workflow: antes de cada `npm install <paquete>`, el agente comprueba el nombre exacto, que el paquete exista desde hace más de 90 días con su repositorio conocido, que tenga al menos 10 000 descargas semanales y que no traiga scripts de instalación inesperados, y después pasa `npm audit`. La lección es sustituir el control por otro automático equivalente, no quitarlo sin más.
+3. **Los resultados de los subagentes de revisión no llegaban al paso que los lanzaba.** `verify-against-spec` y `adversarial-review` corrían como subagentes y su informe se quedaba en `reports/`, pero el paso de revisión esperaba un mensaje que no llegaba, hasta que caducaba, y entonces leía la transcripción o repetía la comprobación: más tiempo y más tokens. Uno de esos mensajes lo bloqueó el hook `block-secrets` porque citaba los secretos de prueba del fixture (17-10, DIS-26). Desde la tanda 2, las revisiones corren dentro del propio paso.
+4. **El entorno local también rompe el flujo.** El 17-10, una actualización de firmas de Windows Defender empezó a marcar como `Trojan:Win32/Bearfoos.A!ml` un fichero de test de 11 bytes, `b.php` con el contenido `<?php // b`, y rompió en local dos ficheros de test de git (en CI, que corre en Linux, no pasaba). `verify-tests` impidió cerrar el turno con la suite en rojo y el agente no tocó el test. La autora aplicó una exclusión acotada a las carpetas temporales del proyecto; la primera que propuso el agente cubría solo uno de los dos tests y hubo que ampliarla.
+5. **Un corte de internet no rompió nada.** El 17-10, un agente de DIS-44 estuvo unos 25 minutos sin registrar actividad durante una caída de la conexión; Claude Code reintentó la petición y siguió donde estaba, sin pasos perdidos ni repetidos.
+6. **Un fichero de configuración local estuvo a punto de entrar en un commit.** El agente de cierre de DIS-34 intentó commitear `.claude/settings.json`, que tenía cambios locales de la autora. El clasificador lo denegó («Self-Modification»). Desde entonces el script prohíbe preparar, commitear, revertir o restaurar nada dentro de `.claude/`, y una vigilancia en segundo plano comprobaba que ninguna rama del experimento lo llevase.
+7. **La revisión híbrida de DIS-34 funcionó, y la firma se quedó en manos de la autora.** El agente revisó las tres *golden* de `acme-shop` ([`docs/golden-review/2026-10-acme-shop-golden-review.md`](docs/golden-review/2026-10-acme-shop-golden-review.md)): vio que Q4 era incorrecta (atribuía a `updated` un comportamiento que no tiene) y la regeneró con Ollama, y marcó Q3 como dudosa porque se centraba en un método que nadie llama. La autora revisó las tres, pidió regenerar Q3 y firmó las tres (`author:cristina-rodriguez`) en el #50. Cuando la autora le pidió que firmase en su nombre, el agente se negó: la firma registra una revisión humana y quedaría como un registro falso. Además, al fusionar #49 la integración de GitHub con Linear pasó DIS-34 a Done, y el agente lo devolvió a In Review hasta las firmas.
+8. **Lo que el ingeniero jefe decidió solo y la autora debe revisar.** Cada decisión quedó escrita en la Enhanced del ticket y en el `design.md` del change, con su destino A/B/C/D. Las de tipo D (riesgo aceptado para siempre) son las que más pesan; por ejemplo, en DIS-76 (AR6) aceptó que el mensaje de un error `unrecognized_keys` repita el nombre de la clave no declarada que envió el cliente. Otras cosas se corrigieron por el camino: un script de sincronización de specs que duplicaba texto de escenarios al archivar DIS-21 (se rehízo y se validó), y una vigilancia que cambiaba de cuenta de `gh` cada minuto y podía romper los push (se paró y se relanzó sin cambiar de cuenta).
+9. **El permiso para programarse trabajo a sí mismo también está acotado.** El agente intentó programar el arranque de la tanda 2 y el sistema de permisos lo bloqueó hasta que la autora lo pidió expresamente.
+
+**Balance.** Ocho tickets cerrados en tres días (DIS-76, DIS-78, DIS-21, DIS-26, DIS-34, DIS-44, DIS-45 y DIS-58), con el mismo ciclo SDD, las mismas revisiones y un coste en lectura de caché parecido al manual. El cuello de botella no fue el agente, sino los puntos donde el sistema exige a una persona —el merge, la firma de las *golden*, una confirmación de seguridad—, que son justo los que conviene conservar. DIS-60 quedó en el PR #54 a la espera del merge, y DIS-65 y DIS-66 siguen pendientes de él.
 
 ---
 
