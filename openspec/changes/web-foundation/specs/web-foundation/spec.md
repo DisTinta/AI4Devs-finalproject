@@ -25,17 +25,20 @@ SHALL be in Spanish. A placeholder screen SHALL make no request to the API.
 
 #### Scenario: The root path shows the Screen 1 placeholder
 
-- **GIVEN** the routes of the web client mounted in a memory router
+- **GIVEN** the routes of the web client mounted in a memory router, and `fetch` replaced by a recording
+  double
 - **WHEN** the initial path is `/`
-- **THEN** the level-1 heading «Elige un proyecto para explorar» is rendered inside the main landmark, and
-  the banner shows «CODEMIND» and «Comprensión de repositorios con evidencia verificable»
+- **THEN** the level-1 heading «Elige un proyecto para explorar» is rendered inside the main landmark, the
+  banner shows «CODEMIND» and «Comprensión de repositorios con evidencia verificable», and the double
+  recorded no request
 
 #### Scenario: A project path shows the Screen 2 placeholder with its id
 
-- **GIVEN** the routes of the web client mounted in a memory router
+- **GIVEN** the routes of the web client mounted in a memory router, and `fetch` replaced by a recording
+  double
 - **WHEN** the initial path is `/p/a794456d-6d1b-5b55-a360-13fec83dc7bc`
-- **THEN** the level-1 heading «Consulta del proyecto» is rendered and the text
-  `a794456d-6d1b-5b55-a360-13fec83dc7bc` is shown
+- **THEN** the level-1 heading «Consulta del proyecto» is rendered, the text
+  `a794456d-6d1b-5b55-a360-13fec83dc7bc` is shown, and the double recorded no request
 
 #### Scenario: An unknown path shows the not-found screen and leads back
 
@@ -56,9 +59,11 @@ SHALL be in Spanish. A placeholder screen SHALL make no request to the API.
 ### Requirement: Health check through the API client
 
 The API client SHALL expose a health check that sends `GET /health` to the same origin as the page (a
-relative URL, never a host or port) and resolves with the body `{ status: 'ok' }` of a `200` answer. The
-health check SHALL give up after a time limit, 5 000 ms unless the caller passes another limit, and then
-reject as described in "Unavailable API".
+relative URL, never a host or port) and resolves with the body `{ status: 'ok' }` of a `2xx` answer. A
+`2xx` body whose `status` is not `'ok'` SHALL reject as unavailable. The health check SHALL give up after
+a time limit, 5 000 ms unless the caller passes another limit, and then reject as described in
+"Unavailable API". A limit that is not a positive finite number SHALL make the call reject with a
+`RangeError` without sending any request.
 
 #### Scenario: A healthy API resolves the health check
 
@@ -74,12 +79,24 @@ reject as described in "Unavailable API".
 - **THEN** the promise is still pending after 4 999 ms; after 5 000 ms it rejects as unavailable, and the
   signal the request was sent with is aborted
 
+#### Scenario: A caller-chosen limit is honoured
+
+- **GIVEN** a network that never answers, and a clock that the test advances
+- **WHEN** the health check is called with a limit of 100 ms and the clock advances 99 ms, then 1 ms more
+- **THEN** the promise is still pending after 99 ms and rejects as unavailable after 100 ms
+
+#### Scenario: An invalid limit is refused
+
+- **GIVEN** `fetch` replaced by a recording double
+- **WHEN** the health check is called with a limit of `0`, then `-1`, then `NaN`, then `Infinity`
+- **THEN** each call rejects with a `RangeError` and the double recorded no request
+
 ### Requirement: Asking a question through the API client
 
 The API client SHALL expose `ask(projectId, body)` that sends `POST /api/projects/{projectId}/ask` to the
 same origin, with the `projectId` percent-encoded as one path segment, the header
 `content-type: application/json` and the JSON serialisation of `body` (the fields of the API's ask body:
-`question`, optional `tokenBudget`, optional `useCache`) as the request body. On a `200` answer it SHALL
+`question`, optional `tokenBudget`, optional `useCache`) as the request body. On a `2xx` answer it SHALL
 resolve with the response body unchanged, whether an answered question or an `UNKNOWN`. It SHALL have no
 time limit of its own.
 
@@ -128,25 +145,28 @@ SHALL reject with an API error that carries the response `status` and the `code`
 
 The client SHALL reject with an unavailable-API error, which keeps the original failure as its `cause`,
 when: the request itself fails (network down, connection refused); the response body is not JSON; a
-`200` body is not a JSON object; a body of a status `400` or more is not in the single error format (for
-example the empty `500` the development proxy answers while the API is stopped, or an HTML `502`); or the
-health check exceeds its time limit. The unavailable-API error SHALL be distinguishable from an API error
-by type.
+`2xx` body is not a JSON object (`null` and arrays included); a health body whose `status` is not `'ok'`;
+a body of a status `400` or more is not in the single error format (for example the empty `500` the
+development proxy answers while the API is stopped, or an HTML `502`); or the health check exceeds its
+time limit. The unavailable-API error SHALL be distinguishable from an API error by type.
 
 #### Scenario: Failures that are not the API's answer become unavailable-API errors
 
-- **GIVEN** five calls where the network, in turn: rejects with a `TypeError`; answers `500` with an empty
+- **GIVEN** seven calls where the network, in turn: rejects with a `TypeError`; answers `500` with an empty
   body; answers `502` with an HTML body; answers `200` with a body that is not JSON; answers `200` with the
-  body `null`
-- **WHEN** the health check is called for each
-- **THEN** each promise rejects with an unavailable-API error whose `cause` is set, and none of them is an
-  API error; the first one's `cause` is the `TypeError` itself
+  body `null`; answers `200` with the body `[]`; answers `200` with the body `{"status":"down"}`
+- **WHEN** the health check is called for each, and `ask` is called once more with a network that rejects
+  with a `TypeError`
+- **THEN** each of the eight promises rejects with an unavailable-API error whose `cause` is set, and none
+  of them is an API error; the `cause` of both `TypeError` cases is the `TypeError` itself
 
 ### Requirement: Cancellation by the caller
 
 Both client calls SHALL accept an abort signal from the caller and pass a signal to the network request
 that aborts when the caller's signal aborts. A call cancelled by its caller SHALL reject with the reason
-of the caller's signal, neither an API error nor an unavailable-API error, so the screen can ignore it.
+of the caller's signal, neither an API error nor an unavailable-API error, so the screen can ignore it;
+this holds while the request is pending and while the response body is being read. A signal already
+aborted when the call starts SHALL make the call reject with its reason without sending any request.
 
 #### Scenario: Aborting a pending question cancels the request
 
@@ -155,6 +175,26 @@ of the caller's signal, neither an API error nor an unavailable-API error, so th
 - **WHEN** `ask` is called with a caller signal and the caller aborts it
 - **THEN** the request signal is aborted, and the promise rejects with an error named `AbortError` that is
   neither an API error nor an unavailable-API error
+
+#### Scenario: Aborting a pending health check cancels the request
+
+- **GIVEN** a network that answers only when its request signal aborts, and a clock that the test advances
+- **WHEN** the health check is called with a caller signal, the clock advances 4 000 ms and the caller
+  aborts
+- **THEN** the request signal is aborted, and the promise rejects with an error named `AbortError` that is
+  neither an API error nor an unavailable-API error
+
+#### Scenario: Aborting while the body is read rejects with the caller's reason
+
+- **GIVEN** a network that answers `200` with a body whose reading rejects once the caller's signal aborts
+- **WHEN** `ask` is called with a caller signal and the caller aborts while the body is being read
+- **THEN** the promise rejects with an error named `AbortError`, not an unavailable-API error
+
+#### Scenario: An already-aborted signal sends no request
+
+- **GIVEN** `fetch` replaced by a recording double and a caller signal that is already aborted
+- **WHEN** the health check is called with it, then `ask` is called with it
+- **THEN** both reject with an error named `AbortError` and the double recorded no request
 
 ### Requirement: API types follow the API's schemas
 
@@ -170,6 +210,13 @@ fail. The web client SHALL NOT import the API package at build or run time.
 - **THEN** it passes, and the contract test's negative control (a copy of the client's ask body with
   `question` renamed, compared with the API type under an expected-error marker) proves the comparison
   rejects a drift: if the comparison ever accepted it, the unused marker would fail the type check
+
+#### Scenario: The web does not import the API or the backend
+
+- **GIVEN** the architecture rules checked by `npm run lint:architecture`
+- **WHEN** they run on the change as delivered, and on a probe file under `packages/web/src/` that imports
+  `packages/api/src/schemas/common.ts` (created once during the implementation, not committed)
+- **THEN** the first run passes, and the probe makes it fail with the web-isolation rule
 
 ### Requirement: Same-origin access to the API in local development
 
@@ -203,23 +250,34 @@ least 4.5:1 computed with the WCAG 2.2 formula:
 | `#212529` | `#ffffff` | body text on a card or container |
 | `#212529` | `#f8f9fa` | body text on the page background |
 | `#495057` | `#ffffff` | secondary text on a card |
+| `#495057` | `#f8f9fa` | secondary text on the page background |
 | `#6c757d` | `#ffffff` | tertiary text, only on white |
 | `#ffffff` | `#212529` | header title |
 | `#adb5bd` | `#212529` | header tagline |
 | `#1971c2` | `#ffffff` | links and blue text |
+| `#1971c2` | `#f8f9fa` | links on the page background |
 | `#ffffff` | `#1971c2` | primary button |
 | `#1971c2` | `#e7f5ff` | blue badge |
 | `#1e6f31` | `#d3f9d8` | «indexado» badge |
 | `#5c3d00` | `#fff9db` | warning text and icon |
 
-The wireframe colours `#4dabf7` and `#74c0fc` SHALL be used only as decoration, never as a text colour.
+The font family SHALL be `'Segoe UI', system-ui, sans-serif`, the card radius `8px` and the button
+radius `4px`. The wireframe colours `#4dabf7` and `#74c0fc` SHALL be used only as decoration, never as a
+text colour.
 
 #### Scenario: Every declared text pair meets 4.5:1
 
 - **GIVEN** the theme file of the web client
-- **WHEN** the theme test reads the colour tokens declared in it and computes the ratio of every pair of the
-  table
-- **THEN** every pair resolves to the colours of the table and has a ratio of at least 4.5:1
+- **WHEN** the theme test reads the tokens declared in it and computes the ratio of every pair of the table
+- **THEN** every pair resolves to the colours of the table and has a ratio of at least 4.5:1, and the font
+  family, card radius and button radius tokens have the values above
+
+#### Scenario: Wireframe accent colours are never text
+
+- **GIVEN** every source file under `packages/web/src/`
+- **WHEN** the theme test searches them for the text utilities of the decorative tokens (`text-stripe`,
+  `text-stripe-soft`) and, outside the theme file, for the values `#4dabf7` and `#74c0fc`
+- **THEN** none is found
 
 #### Scenario: A token changed to a low-contrast value fails the theme test
 
@@ -260,6 +318,8 @@ run the script instead of printing that it is missing.
 Test files of the web client whose name ends in `.test.tsx` under `packages/web/src/`, and every test
 file under `tests/a11y/`, SHALL run with a DOM (jsdom); every other test file SHALL keep running in Node.
 Each test that renders SHALL start from an empty document body, whatever the previous test rendered.
+Navigating between routes in a rendered test SHALL work in that environment (a link click changes the
+rendered route).
 
 #### Scenario: Rendered output does not leak between tests
 

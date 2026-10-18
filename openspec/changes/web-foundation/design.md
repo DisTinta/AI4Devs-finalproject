@@ -49,8 +49,9 @@ See `proposal.md` → Why. The current state that shapes the approach:
 ## Decisions
 
 Decisions D1–D16 come from the DIS-58 `[enhanced]` description (agent as lead engineer, ADR
-`20261016-autonomous-workflow-run-entrega-2`); D17–D25 were taken while proposing and are recorded in
-the same description.
+`20261016-autonomous-workflow-run-entrega-2`); D17–D25 were taken while proposing and D26–D28 while
+resolving the spec audit (run 1); all of them, with the refinements of D2, D9 and D13, were added to the
+same description on 2026-10-18 ("Decisiones D17–D28").
 
 ### D1 — An OpenSpec change with the new capability `web-foundation`
 
@@ -73,8 +74,14 @@ acceptance criteria of the ticket.
 | `/p/:projectId` | `PendingScreen` with heading «Consulta del proyecto» and the `projectId` | DIS-65 |
 | `*` | `NotFoundPage` | — |
 
+Refines `[enhanced]` D2 (which named «CODEMIND» as the placeholder heading): the `h1` of each
+placeholder is the screen's own heading — the wireframe 1 text for Screen 1 — and «CODEMIND» with the
+tagline lives in the banner (`components/AppHeader.tsx`), as in both wireframes. One `h1` per page keeps
+axe's `page-has-heading-one` meaningful when DIS-60/65 replace the placeholders.
+
 No `/p/:projectId/impact`: no impact API nor Screen 3 in Entrega 2; a route without a destination is
-dead code. The wireframe 2 address bar shows `localhost:5173/acme-shop`; the parent's AC `/p/{id}`
+dead code. The parent DIS-51 lists that route and the `/impact` types; DIS-58 bounds the change and drops
+them (decided as lead engineer; the spec audit asked the author to confirm, recorded in the `[enhanced]`). The wireframe 2 address bar shows `localhost:5173/acme-shop`; the parent's AC `/p/{id}`
 wins (the id is what the API takes). Alternatives rejected: local state with `useState` (no deep link to
 `/p/{id}`, no browser history); TanStack Router (a second router model for three routes).
 
@@ -157,20 +164,28 @@ CORS in the API (a change to `packages/api`, a non-goal); an absolute base URL f
 
 ### D9 — The client's error model
 
-Two classes in `services/api-client.ts`, both extending `Error`:
+Two classes in `services/api-client.ts`, both extending `Error`, each with `name` equal to its class name
+(`'ApiError'`, `'ApiUnavailableError'`):
 
 - `ApiError { status, code, message, details }`: the response status is ≥ 400 and the body is a JSON
   object with `error.code` (string), `error.message` (string) and `error.details` (a non-null,
   non-array object). Anything else at ≥ 400 is not the API speaking.
-- `ApiUnavailableError { cause }`: `fetch` rejected (other than the caller's abort), the body is not
-  JSON, a `200` body is not a non-null object, a ≥ 400 body is not in the error format, or the health
-  time limit expired.
+- `ApiUnavailableError { cause, status? }` (`status` set when a response arrived). Its `cause`, per case:
+  `fetch` rejected (other than the caller's abort) → the rejection itself (`TypeError`); the body is not
+  JSON → the `SyntaxError` of `JSON.parse`; a `2xx` body that is not a non-null, non-array object, a
+  health body whose `status` is not `'ok'`, or a ≥ 400 body not in the error format → an
+  `Error('unexpected response <status>')`; the health time limit expired → a `DOMException` named
+  `TimeoutError`.
 
-`getHealth({ signal?, timeoutMs = 5000 })` and `ask(projectId, body, { signal? })`. `ask` has no default
-time limit: with a local model on CPU an answer takes tens of seconds. The client never retries (retry is
-a UI action, DIS-60). No Zod in the browser: the API already serialises through its schemas
-(`api-foundation`); the client only checks the JSON shape that decides between success and the two
-errors. Status `2xx` other than `200` is treated as success (the API only answers `200` on these routes).
+Success is any `2xx` (the API only answers `200` on these routes). `getHealth({ signal?, timeoutMs = 5000 })`
+also requires `status === 'ok'` (its type promises `{ status: 'ok' }` and DIS-60 decides "API available"
+on it); a `timeoutMs` that is not a positive finite number (`0`, negatives, `NaN`, `Infinity`) rejects
+with a `RangeError` before any request. `ask(projectId, body, { signal? })` has no default time limit:
+with a local model on CPU an answer takes tens of seconds. The body is read with `response.text()` and
+parsed with `JSON.parse`, inside the same `try` as `fetch`, so the caller's abort is classified the same
+way during the request and during the body read (D20). The client never retries (retry is a UI action,
+DIS-60). No Zod in the browser: the API already serialises through its schemas (`api-foundation`); the
+client only checks the JSON shape that decides between success and the two errors.
 
 ### D10 — Types declared once, guarded by a type-level contract test
 
@@ -195,8 +210,12 @@ colour contrast (it reports it as incomplete, not as a violation): that is D12's
 ### D12 — Contrast test over the tokens
 
 `packages/web/src/theme.test.ts` reads `index.css` as text (D24), extracts every `--color-<name>: #rrggbb`
-declared in `@theme`, and for each pair of D4's table (written in the test as token names) checks the
-token resolves to the spec's value and the WCAG ratio is ≥ 4.5. The ratio helper is a small pure function
+declared in `@theme`, and for each pair of the spec table (written in the test as token names; it adds
+`#495057` and `#1971c2` on `#f8f9fa`, 7.76 and 4.76) checks the token resolves to the spec's value and the
+WCAG ratio is ≥ 4.5; it also checks `--font-sans`, `--radius-card` and `--radius-button`. A second test
+walks every file under `packages/web/src/` (`readdirSync` with `recursive: true`, Node ≥ 20.1) and fails
+on `text-stripe`, `text-stripe-soft`, or `#4dabf7`/`#74c0fc` outside `index.css` (spec "Wireframe accent
+colours are never text"). The ratio helper is a small pure function
 in `packages/web/src/theme-contrast.ts` (relative luminance + ratio), also checked against known values
 (`#4dabf7` on white → 2.48, failing; black on white → 21).
 
@@ -204,7 +223,11 @@ in `packages/web/src/theme-contrast.ts` (relative luminance + ratio), also check
 
 `docs/frontend-standards.md`: the Tailwind and RTL + jsdom *target* notes go; §4 "Wiring `test:a11y`"
 becomes "How `test:a11y` is wired" (file, script, surfaces it scans, negative control, what axe in jsdom
-cannot check). The Playwright note stays in both standards: Playwright is not installed here (DIS-75).
+cannot check). The Playwright note stays in both standards: Playwright is not installed here (DIS-75),
+and removing it would be false; the DoD «marcas *target* retiradas» is read as "the notes of what this
+change installs" (decided as lead engineer, recorded in the `[enhanced]`). That DoD item is documentation,
+not behaviour: it has no spec scenario; task 12.1 delivers it and `/verify-against-spec` checks it against
+the ticket.
 `docs/TESTING.md` (Accessibility row), `docs/DEPLOYMENT.md` (`Frontend` row) and
 `docs/project-context.md` (Commands: `test:a11y`, the web `dev` proxy; Testing: jsdom environment,
 cleanup, where web tests live) are updated.
@@ -241,8 +264,8 @@ selección de proyecto», the tagline. Code, tests and repository docs stay in E
 
 ### D17 — jsdom only for `.test.tsx` of the web and for `tests/a11y` (refines D6)
 
-`vitest.config.ts` → `environmentMatchGlobs: [['packages/web/**/*.test.tsx', 'jsdom'], ['tests/a11y/**',
-'jsdom']]`. The `[enhanced]` text said `packages/web/**`; it is narrowed because `.test.ts` files of the
+`vitest.config.ts` → `environmentMatchGlobs: [['**/packages/web/**/*.test.tsx', 'jsdom'],
+['**/tests/a11y/**', 'jsdom']]` (the `**/` prefix as the existing `poolMatchGlobs`). The `[enhanced]` text said `packages/web/**`; it is narrowed because `.test.ts` files of the
 web (client, theme) need no DOM, and under jsdom the global `AbortSignal` is jsdom's while `fetch` stays
 Node's, and Node's `fetch` rejects a foreign signal. Keeping them in Node avoids that mismatch and keeps
 them fast. Alternative rejected: `// @vitest-environment jsdom` comments per file (easy to forget in
@@ -251,9 +274,10 @@ DIS-60/65/66).
 ### D18 — DOM cleanup through one guarded setup file
 
 RTL only cleans up automatically when the test framework exposes a global `afterEach` (Vitest
-`globals`, off here). `tests/support/dom-cleanup.ts` is added to `test.setupFiles`: it registers
-`afterEach` that, only when `document` exists, dynamically imports `@testing-library/react` and calls
-`cleanup()`. Node tests pay one `typeof` check. Alternatives rejected: `globals: true` (changes every
+`globals`, off here). `tests/support/jsdom-setup.ts` is added to `test.setupFiles`: it registers
+`afterEach` that, only when `'document' in globalThis` (the file is type-checked by `tests/tsconfig.json`,
+which has no DOM lib, so `typeof document` would not compile), dynamically imports
+`@testing-library/react` and calls `cleanup()`. Node tests pay one `in` check. The same file holds D26. Alternatives rejected: `globals: true` (changes every
 existing test's environment); `afterEach(cleanup)` in every component file (DIS-60/65/66 would have to
 remember it, and a forgotten one leaks DOM between tests).
 
@@ -264,14 +288,18 @@ unit tests import the API by relative path (`../../../packages/api/src/...`); th
 that convention with `import type` from `packages/api/src/schemas/{ask,common}` and
 `packages/web/src/services/api-client`, so neither `paths` nor a Vitest alias changes. `api-client.ts`
 only uses globals that both the DOM lib and `@types/node` declare (`fetch`, `Response`, `AbortSignal`,
-`AbortController`, `setTimeout`), so it type-checks in both projects.
+`AbortController`, `setTimeout`, `DOMException`; checked in `@types/node` 20.19:
+`web-globals/fetch.d.ts`, `web-globals/domexception.d.ts`), so it type-checks in both projects.
 
 ### D20 — Time limit with `AbortController` + `setTimeout`
 
-`getHealth` creates its own `AbortController`, aborts it from a `setTimeout(timeoutMs)` (cleared in
-`finally`) and from the caller's signal (listener removed in `finally`), and passes its signal to
-`fetch`. A rejection after the timer fired becomes `ApiUnavailableError` (cause: a `TimeoutError`
-`DOMException`); after the caller aborted, the caller's `signal.reason` is rethrown. Rejected:
+If the caller's signal is already aborted, both calls reject with its `reason` before calling `fetch`
+(`addEventListener('abort')` never fires on a signal that is already aborted). `getHealth` creates its
+own `AbortController`, aborts it from a `setTimeout(timeoutMs)` (cleared in `finally`) and from the
+caller's signal (listener removed in `finally`), and passes its signal to `fetch`. `ask` passes the
+caller's signal to `fetch` as is. Any rejection of the request or of the body read is classified by
+checking the caller's signal first (aborted → rethrow its `reason`), then the timer (fired →
+`ApiUnavailableError` with a `TimeoutError` `DOMException` as cause), then the rules of D9. Rejected:
 `AbortSignal.timeout` + `AbortSignal.any` (Vitest fake timers do not drive `AbortSignal.timeout`, so the
 5 000 ms scenario could only be tested in real time).
 
@@ -296,34 +324,68 @@ The root Vitest config has no React plugin; esbuild would take `jsx` from the ne
 17+ runtime whatever tsconfig is found. Rejected: adding `@vitejs/plugin-react` to the root config
 (Fast Refresh is useless in tests).
 
-### D24 — The theme test reads `index.css` with `?raw`
+### D24 — The theme test reads `index.css` with `node:fs`
 
-`import css from './index.css?raw'` (typed by `/// <reference types="vite/client" />` in
-`src/vite-env.d.ts`) keeps the web sources free of `node:fs`. If Vitest 1.6 does not return the raw text
-for a CSS `?raw` import, the fallback is `readFileSync(new URL('./index.css', import.meta.url))`, recorded
-in the task.
+`readFileSync(new URL('./index.css', import.meta.url), 'utf8')` in the Node-environment `theme.test.ts`.
+Probed on 2026-10-18 in a scratch project (Vitest 1.6.1, jsdom 26): `import css from './index.css?raw'`
+returns an empty string, because Vitest does not process CSS by default. The web `tsconfig.json` sets no
+`types`, so the root `@types/node` is visible to it. No `vite-env.d.ts` is needed.
 
 ### D25 — Stryker skips the web tests
 
 `vitest.stryker.config.ts` adds `packages/web/**`, `tests/a11y/**` and `tests/unit/web/**` to its
 `exclude`: Stryker mutates no web file, so those tests can kill no mutant and would only slow its dry run
-and load jsdom into it.
+and load jsdom into it. Stryker's `mutate` list does not change (the `[enhanced]` "Stryker no cambia"
+referred to it).
+
+### D26 — React Router navigation under jsdom
+
+Probed on 2026-10-18 (Vitest 1.6.1, jsdom 26.1, react-router 7.18, RTL 16, user-event 14): clicking a
+`Link` in a `createMemoryRouter` fails with `TypeError: RequestInit: Expected signal ("AbortSignal {}") to
+be an instance of AbortSignal` — the router builds `new Request(url, { signal })` with Node's `Request`
+(jsdom has none) and the `AbortController` jsdom installs. Mitigation, proven in the same probe (the
+navigation test passed): `tests/support/jsdom-setup.ts`, only when `'document' in globalThis`, replaces
+`globalThis.Request` with a subclass of Node's that drops `init.signal`. Safe here because the app
+declares no loaders or actions, so the router never reads `request.signal`; a later ticket that adds
+loaders must revisit it. Task 1.2 adds it and task 5.4 is the test that proves it. Rejected: `happy-dom`
+(D14); running the router tests without navigation (the spec requires the link to lead back).
+
+### D27 — `frontend.yml` path filter
+
+`.github/workflows/frontend.yml` → `dorny/paths-filter` adds `'packages/web/**'` and
+`'tests/unit/web/**'`: today a PR touching only `api-client.ts` or `theme-contrast.ts` (`.ts`, not `.tsx`)
+would skip the `Frontend` job and its `test:a11y` step.
+
+### D28 — Architecture rule: the web imports no backend
+
+`.dependency-cruiser.cjs` gains `web-no-backend` (severity `error`): from `^packages/web` to
+`^packages/(api|core|adapters|analyzers|cli)` or a `@codemind/` package. It turns the spec's "the web
+client SHALL NOT import the API package" into a gate `npm run lint:architecture` (and CI) checks; the
+type-level contract test lives in `tests/`, outside the rule's `from`.
 
 ## Risks / Trade-offs
 
-- [Tailwind 4's native engine (`@tailwindcss/oxide`) needs a prebuilt binary per platform] → the lock
-  file is regenerated with `npm install` on Windows; `npm ci` on Linux installs the optional Linux
-  binary because npm records every platform's optional package in the lock file. The CI `Frontend` job
-  proves it (`typecheck` + build-free tests do not load Tailwind; `npm run build -w packages/web` is run
-  in the test task to prove the build on both systems).
+- [Tailwind 4's native engines (`@tailwindcss/oxide`, `lightningcss`) need a prebuilt binary per
+  platform, and the full suite loads them on both systems: `tests/unit/web/vite-config.spec.ts` (D22)
+  imports `vite.config.ts`, which imports `@tailwindcss/vite`] → the lock file is regenerated with
+  `npm install` on Windows; task 1.1 checks that `package-lock.json` lists the `linux-x64-gnu` optional
+  packages of both. If they are missing (npm/cli#4828), regenerate them (`npm install
+  --os=linux --cpu=x64` on top of the Windows install, or delete the lock entries and reinstall) before
+  any other task, and the first CI run on the PR (`npm ci` + the suite) is the proof.
 - [`environmentMatchGlobs` is deprecated in later Vitest majors (replaced by `projects`)] → accepted on
   Vitest 1.6; the upgrade ticket replaces it.
 - [axe in jsdom misses contrast and focus visibility] → D12 covers contrast; keyboard and focus are
   checked by hand in `/show-spec-working` (frontend-standards §3).
 - [The proxy hides a stopped API as an empty `500`] → that is exactly why such a body is
   `ApiUnavailableError` (D9) and has its own scenario.
-- [The full suite now also renders React in jsdom] → a few seconds more in `quality`; Stryker excludes
-  them (D25).
+- [The full suite now also renders React in jsdom] → the duration of `npx vitest run` is recorded in
+  tasks 0.4 and 9.3 and the difference goes to the step 9 report; Stryker excludes them (D25).
+- [The router replaces a static page: bundle size and LCP change (frontend-standards §5)] → expected
+  impact: `react-router` and the Tailwind CSS add to the bundle; the placeholders have no image nor web
+  font (system font stack), so LCP is the header text. The size of `npm run build -w packages/web` output
+  is recorded before (task 0.4) and after (task 9.3) in the step 9 report.
+- [D26 drops the router's request signal in tests] → harmless while the app has no loaders or actions;
+  written in `docs/project-context.md` → Testing so the ticket that adds a loader revisits it.
 - [`ask` without a time limit can wait forever on a hung API] → the caller's signal cancels it; DIS-65
   owns the UI that offers cancelling.
 

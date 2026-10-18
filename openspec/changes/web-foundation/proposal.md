@@ -45,7 +45,9 @@ proposing.
 - **Component test tooling.** jsdom, React Testing Library and `user-event` in the root
   `devDependencies` (where Vitest lives); `vitest.config.ts` runs `*.test.tsx` files of `packages/web`
   and the files of `tests/a11y` in jsdom, the rest stays in Node; the DOM is emptied after every jsdom
-  test.
+  test, and route navigation works under jsdom.
+- **Architecture guard.** A dependency-cruiser rule forbids `packages/web` from importing the API or any
+  backend package.
 - **Real accessibility gate.** The scaffold is renamed to `tests/a11y/smoke.a11y.test.tsx`, which
   renders the real `routes` at `/`, `/p/<acme-shop id>` and an unknown path and expects no `axe-core`
   violation, plus a negative control proving axe really runs. Root script `"test:a11y": "vitest run
@@ -77,22 +79,26 @@ requirement of theirs changes.
 
 ## Impact
 
-- **Code:** `packages/web/src/` — new `index.css`, `router.tsx`, `services/api-client.ts`,
-  `pages/NotFoundPage.tsx`, `components/PendingScreen.tsx` and co-located tests (`router.test.tsx`,
-  `services/api-client.test.ts`, `theme.test.ts`); `main.tsx` changes; `App.tsx` removed;
-  `packages/web/vite.config.ts` gains the Tailwind plugin and the proxy. `tests/a11y/smoke.example.tsx`
-  becomes `tests/a11y/smoke.a11y.test.tsx` with its own `tests/a11y/tsconfig.json`; new
-  `tests/unit/web/api-contract.spec.ts`; new jsdom setup file. No change in `packages/core`,
-  `packages/api`, `packages/cli` nor the adapters.
+- **Code:** `packages/web/src/` — new `index.css`, `theme-contrast.ts`, `router.tsx`,
+  `services/api-client.ts`, `pages/NotFoundPage.tsx`, `components/AppHeader.tsx`,
+  `components/PendingScreen.tsx` and co-located tests (`router.test.tsx`, `services/api-client.test.ts`,
+  `theme.test.ts`); `main.tsx` changes; `App.tsx` removed; `packages/web/vite.config.ts` gains the
+  Tailwind plugin and the proxy. `tests/a11y/smoke.example.tsx` becomes `tests/a11y/smoke.a11y.test.tsx`
+  with its own `tests/a11y/tsconfig.json`; new `tests/unit/web/api-contract.spec.ts`,
+  `tests/unit/web/vite-config.spec.ts` and `tests/support/jsdom-setup.ts` (DOM cleanup and the router's
+  `Request` workaround under jsdom). No change in `packages/core`, `packages/api`, `packages/cli` nor the
+  adapters.
 - **Dependencies (each justified in `design.md`, D14):** `packages/web` gains `react-router ^7`
   (runtime), `tailwindcss ^4` and `@tailwindcss/vite ^4` (build); the root `devDependencies` gain
   `jsdom ^26`, `@testing-library/react ^16`, `@testing-library/dom ^10`, `@testing-library/user-event
   ^14` and `axe-core ^4`. `package-lock.json` is regenerated with `npm install` (CI runs `npm ci`).
 - **Config and CI:** root `package.json` gains the `test:a11y` script and `typecheck` checks
-  `tests/a11y/tsconfig.json`; `vitest.config.ts` gains the per-path environment and the setup file.
-  `frontend.yml` needs no edit (its `test:a11y` step runs the script once it exists). The `quality` job
-  of `ci.yml` runs the jsdom tests too (it runs the whole suite). Stryker is unchanged: `packages/web` is
-  not in `mutate`.
+  `tests/a11y/tsconfig.json`; `vitest.config.ts` gains the per-path environment, the JSX transform and the
+  setup file. `frontend.yml`'s `test:a11y` step runs the script once it exists; its paths filter gains
+  `packages/web/**` and `tests/unit/web/**` so a change to a `.ts` file of the web runs the job (D27).
+  `.dependency-cruiser.cjs` gains the rule `web-no-backend` (D28). The `quality` job of `ci.yml` runs the
+  jsdom tests too (it runs the whole suite). Stryker's `mutate` is unchanged (`packages/web` is not in
+  it); `vitest.stryker.config.ts` excludes the web tests, which can kill no mutant (D25).
 - **Privacy / security:** no personal data. The web ships no `VITE_*` variable and no secret; React
   escapes every rendered text (no `dangerouslySetInnerHTML`); API error messages are shown as the API
   wrote them (fixed strings, `api-foundation`). The proxy only exists in the local Vite servers; no
