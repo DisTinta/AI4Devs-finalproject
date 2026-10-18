@@ -1068,3 +1068,15 @@ Resueltos por el agente como lead engineer con `/opsx:update`; el `[enhanced]` d
 ## Cierre
 
 La ronda 4 es la última que permite el flujo autónomo (como máximo cuatro ejecuciones del auditor). Sus dos bloqueantes eran correcciones mecánicas de un escenario y de una tarea de prueba manual, sin ninguna decisión de producto o de alcance pendiente, y se han incorporado a los artefactos junto con todas las mejoras. No se lanza una quinta ronda. Veredicto final del cambio: **APPROVED por cierre del agente** como lead engineer (ADR `20261016-autonomous-workflow-run-entrega-2`, que delega en el agente las decisiones de la autora, base-standards §7.1 punto 4). El último veredicto emitido por el auditor fue CHANGES REQUIRED (ronda 4), y cada uno de sus hallazgos queda resuelto en la tabla anterior. `openspec validate web-foundation --strict` pasa.
+
+## Adenda — revisiones previas al merge (2026-10-18)
+
+Cambios de la spec hechos con `/opsx:update` después de la implementación, a raíz de `/verify-against-spec` y `/adversarial-review` (informes `2026-10-18-verify-against-spec.md` y `2026-10-18-adversarial-review.md`). Los decide el agente como lead engineer en la ejecución autónoma; quedan en el `[enhanced]` de DIS-58 y en `design.md` → Follow-ups. No se relanza el auditor: son tres precisiones de requisitos ya auditados, sin decisión de producto nueva.
+
+| Requisito / escenario | Cambio | Motivo |
+|---|---|---|
+| «Health check through the API client» / «An invalid limit is refused» | Un límite por encima de 2 147 483 647 ms también se rechaza con `RangeError`; el escenario añade `2147483648` | Un `setTimeout` mayor se dispara al instante en navegadores y Node: el health check caducaría en el acto. Corregido por TDD (D9). |
+| «Same-origin access to the API in local development» | «starts with `/api` or is `/health`» pasa a «starts with `/api` or with `/health`» | El proxy de Vite compara por prefijo; ninguna ruta de la web empieza así, y una clave `^…$` complicaría la tabla sin beneficio (D8). |
+| «The gate runs in CI instead of warning» | El paso de accesibilidad no tiene rama que lo salte si falta el script: un script ausente hace fallar el job | La rama heredada del kit podía esconder el borrado del script tras un job verde (D32). |
+
+`openspec validate web-foundation` pasa tras los cambios.

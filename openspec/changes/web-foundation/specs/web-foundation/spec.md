@@ -69,7 +69,8 @@ The API client SHALL expose a health check that sends `GET /health` to the same 
 relative URL, never a host or port) and resolves with the body `{ status: 'ok' }` of a `2xx` answer. A
 `2xx` body whose `status` is not `'ok'` SHALL reject as unavailable. The health check SHALL give up after
 a time limit, 5 000 ms unless the caller passes another limit, and then reject as described in
-"Unavailable API". A limit that is not a positive finite number SHALL make the call reject with a
+"Unavailable API". A limit that is not a positive finite number, or that is above 2 147 483 647 ms (the
+largest delay a timer honours: a longer one fires at once), SHALL make the call reject with a
 `RangeError` without sending any request.
 
 #### Scenario: A healthy API resolves the health check
@@ -95,7 +96,8 @@ a time limit, 5 000 ms unless the caller passes another limit, and then reject a
 #### Scenario: An invalid limit is refused
 
 - **GIVEN** `fetch` replaced by a recording double
-- **WHEN** the health check is called with a limit of `0`, then `-1`, then `NaN`, then `Infinity`
+- **WHEN** the health check is called with a limit of `0`, then `-1`, then `NaN`, then `Infinity`, then
+  `2147483648`
 - **THEN** each call rejects with a `RangeError` and the double recorded no request
 
 ### Requirement: Asking a question through the API client
@@ -241,7 +243,8 @@ fail. The web client SHALL NOT import the API package at build or run time.
 ### Requirement: Same-origin access to the API in local development
 
 The development server and the preview server of the web client SHALL forward every request whose path
-starts with `/api` or is `/health` to the API at `http://127.0.0.1:3000`, so the page calls the API from
+starts with `/api` or with `/health` (the servers match a forwarded path by its prefix) to the API at
+`http://127.0.0.1:3000`, so the page calls the API from
 its own origin and the API needs no CORS. No base URL of the API SHALL be configured through an
 environment variable shipped to the browser.
 
@@ -332,7 +335,8 @@ run the script instead of printing that it is missing.
 - **GIVEN** the root `package.json` and the frontend CI workflow
 - **WHEN** `npm run test:a11y` runs locally and the workflow runs on the pull request
 - **THEN** the script exists and runs the files of `tests/a11y/`, the kit scaffold is gone, and the
-  workflow's accessibility step runs the tests without printing the "not defined" warning
+  workflow's accessibility step runs the tests without printing the "not defined" warning and has no
+  branch that skips them when the script is missing (a missing script fails the job)
 
 ### Requirement: Component test environment
 

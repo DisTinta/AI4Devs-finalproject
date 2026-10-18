@@ -51,7 +51,7 @@ proposing.
 - **Real accessibility gate.** The scaffold is renamed to `tests/a11y/smoke.a11y.test.tsx`, which
   renders the real `routes` at `/`, `/p/<acme-shop id>` and an unknown path and expects no `axe-core`
   violation, plus a negative control proving axe really runs. Root script `"test:a11y": "vitest run
-  tests/a11y"`; `frontend.yml` runs it without the warning.
+  tests/a11y"`; `frontend.yml` runs it with no fallback: no warning, and a missing script fails the job.
 - **Standards and docs.** The Tailwind and RTL + jsdom *target* notes leave `docs/frontend-standards.md`
   (the Playwright one stays: Playwright is not installed here); §4 describes how `test:a11y` is wired.
   `docs/TESTING.md`, `docs/DEPLOYMENT.md` and `docs/project-context.md` stop saying `test:a11y` does not

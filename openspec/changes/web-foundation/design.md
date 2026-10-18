@@ -160,7 +160,11 @@ The client calls relative URLs (`/health`, `/api/...`). `vite.config.ts` declare
 `{ '/api': 'http://127.0.0.1:3000', '/health': 'http://127.0.0.1:3000' }` and uses it for
 `server.proxy` and `preview.proxy` (`127.0.0.1`, not `localhost`, to avoid resolving `::1` while the API
 listens on IPv4). No `VITE_API_URL`: evidence is local only (closed decision 1); changing the API's
-`PORT` means changing the proxy, written in one line of `docs/project-context.md`. Alternatives rejected:
+`PORT` means changing the proxy, written in one line of `docs/project-context.md`. Vite matches a proxy
+key as a path prefix, so `/health` also forwards `/healthz` or `/health/x`: the spec requirement says
+"starts with `/api` or with `/health`" (pre-merge review, agent decision: no route of the web starts
+with either, and a `^…$` regular-expression key would make the table harder to read and to test for no
+behaviour anyone needs). Alternatives rejected:
 CORS in the API (a change to `packages/api`, a non-goal); an absolute base URL from an env variable
 (shipped to the browser, and cross-origin needs CORS anyway).
 
@@ -185,8 +189,10 @@ Two classes in `services/api-client.ts`, both extending `Error`, each with `name
 
 Success is any `2xx` (the API only answers `200` on these routes). `getHealth({ signal?, timeoutMs = 5000 })`
 also requires `status === 'ok'` (its type promises `{ status: 'ok' }` and DIS-60 decides "API available"
-on it); a `timeoutMs` that is not a positive finite number (`0`, negatives, `NaN`, `Infinity`) rejects
-with a `RangeError` before any request. `ask(projectId, body, { signal? })` has no default time limit (spec scenario "A question has no time
+on it); a `timeoutMs` that is not a positive finite number (`0`, negatives, `NaN`, `Infinity`) or that is
+above `MAX_TIMEOUT_MS` = 2 147 483 647 (browsers and Node fire a longer `setTimeout` at once, so the call
+would time out immediately; found by the pre-merge review) rejects with a `RangeError` before any
+request. `ask(projectId, body, { signal? })` has no default time limit (spec scenario "A question has no time
 limit of its own"):
 with a local model on CPU an answer takes tens of seconds. The body is read with `response.text()` and
 parsed with `JSON.parse`, inside the same `try` as `fetch`, so the caller's abort is classified the same
@@ -402,6 +408,14 @@ acme-shop `ask` answers `404 PROJECT_NOT_FOUND` there instead of a `200 UNKNOWN`
 touched, so the state capture and restoration of 10.1/10.5 have nothing to do. `/show-spec-working` may
 repeat the `ask` call against the seeded database.
 
+### D32 — The CI accessibility step has no fallback (pre-merge review)
+
+`frontend.yml`'s `Accessibility (test:a11y)` step ran the script only when `npm run` listed it and
+otherwise printed the kit's warning and passed. With the script in place that branch could only ever
+hide a removed or renamed script behind a green job. The step is now `run: npm run test:a11y`: a
+missing script fails the job (spec "The gate runs in CI instead of warning"). Agent decision in the
+autonomous run.
+
 ## Risks / Trade-offs
 
 - [Tailwind 4's native engines (`@tailwindcss/oxide`, `lightningcss`) need a prebuilt binary per
@@ -433,3 +447,18 @@ repeat the `ask` call against the seeded database.
 
 Additive except `App.tsx` (removed; nothing imports it besides `main.tsx`). Rollback = revert the PR;
 no data, no API change. After merging, run `npm install` (new dependencies).
+
+## Follow-ups
+
+Findings of the pre-merge reviews (task 15.7; reports `reports/2026-10-18-show-spec-working.md`,
+`reports/2026-10-18-verify-against-spec.md`, `reports/2026-10-18-adversarial-review.md`), each with its
+destination (`docs/project-context.md` → Tracking deferred findings):
+
+| # | Severity | Finding | Destination |
+|---|---|---|---|
+| 1 | Minor | `frontend.yml` kept the "script not defined" fallback, so removing `test:a11y` would turn the gate into a warning on a green job | **A** — fixed in this change: the step runs `npm run test:a11y` unconditionally (D32; spec scenario "The gate runs in CI instead of warning") |
+| 2 | Minor | `getHealth({ timeoutMs })` accepted a limit above 2 147 483 647 ms; the timer overflows and the health check times out at once | **A** — fixed in this change by TDD: `RangeError` above `MAX_TIMEOUT_MS` (D9; spec "Health check through the API client", scenario "An invalid limit is refused") |
+| 3 | Minor | The Vite proxy forwards every path starting with `/health`, while the spec said "is `/health`" | **A** — spec aligned to the prefix semantics of the proxy (D8; spec "Same-origin access to the API in local development") |
+| 4 | Minor | A long `projectId` without spaces overflowed the Screen 2 placeholder and was clipped by the frame's `overflow-hidden` | **A** — fixed in this change: `break-all` on the id paragraph, checked in the browser (show-spec-working addendum) |
+| 5 | Question | The route table declares no `errorElement`: a render or loader error would show React Router's default English error screen | **B** — DIS-60 (first screen with data and the "API caída" notice) decides the app's error UI; Spanish comment on DIS-60. The placeholders cannot throw and no route has a loader |
+| 6 | — | Unspecified but deliberate: exported `HEALTH_TIMEOUT_MS`/`MAX_TIMEOUT_MS`, the `PageFrame` container (D30), the link's `focus-visible` outline (frontend-standards §3), `@source not` (D29) | **D** — accepted, documented in the decisions named |
