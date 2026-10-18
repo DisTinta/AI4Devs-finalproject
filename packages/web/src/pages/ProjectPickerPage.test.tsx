@@ -292,4 +292,61 @@ describe('API status on Screen 1', () => {
       screen.getByRole('heading', { level: 1, name: 'Elige un proyecto para explorar' }),
     );
   });
+
+  it('Pressing again while a retry is pending sends no request', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const retryButton = await renderWithAlert();
+    const requests = stubFetch(neverAnswer);
+
+    // Act
+    await user.click(retryButton);
+    await user.click(retryButton);
+    await user.click(retryButton);
+
+    // Assert
+    expect(requests).toHaveLength(1);
+    const alert = screen.getByRole('alert');
+    const pendingButton = within(alert).getByRole('button', { name: `Reintentando${ELLIPSIS}` });
+    expect(document.activeElement).toBe(pendingButton);
+  });
+
+  it('A failed retry keeps the alert', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const retryButton = await renderWithAlert();
+    const alertText = screen.getByRole('alert').textContent;
+    const requests = stubFetch(rejectWithTypeError);
+
+    // Act
+    await user.click(retryButton);
+    const button = await within(screen.getByRole('alert')).findByRole('button', { name: 'Reintentar' });
+
+    // Assert
+    expect(requests).toHaveLength(1);
+    expect(screen.getByRole('alert').textContent).toBe(alertText);
+    expect(alertText).toBe(
+      '⚠La API de CODEMIND no está disponible. Puedes ver los proyectos, pero no preguntar hasta que vuelva. ' +
+        'Arráncala con make up y pulsa Reintentar.Reintentar',
+    );
+    expect(document.activeElement).toBe(button);
+    expect(screen.queryByText('listo')).toBeNull();
+  });
+
+  it('Leaving Screen 1 cancels a pending check', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const requests = stubFetch(neverAnswer);
+    renderAt('/');
+    const link = await screen.findByRole('link', { name: 'Explorar proyecto acme-shop' });
+
+    // Act
+    await user.click(link);
+    await screen.findByRole('heading', { level: 1, name: 'Consulta del proyecto' });
+
+    // Assert
+    expect(requests).toHaveLength(1);
+    expect(requests[0].init?.signal?.aborted).toBe(true);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
 });
