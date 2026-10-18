@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import { createBrowserRouter, useParams, type RouteObject } from 'react-router';
 import { PendingScreen } from './components/PendingScreen';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { ProjectPickerPage } from './pages/ProjectPickerPage';
 
 /** The Screen 2 placeholder: the project query screen, with the `projectId` of its path (DIS-65 replaces it). */
 function ProjectQueryPlaceholder(): ReactElement {
@@ -15,7 +16,7 @@ function ProjectQueryPlaceholder(): ReactElement {
  * router.
  */
 export const routes: RouteObject[] = [
-  { path: '/', element: <PendingScreen heading="Elige un proyecto para explorar" /> },
+  { path: '/', element: <ProjectPickerPage /> },
   { path: '/p/:projectId', element: <ProjectQueryPlaceholder /> },
   { path: '*', element: <NotFoundPage /> },
 ];

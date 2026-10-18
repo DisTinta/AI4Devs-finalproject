@@ -39,22 +39,6 @@ afterEach(() => {
 });
 
 describe('Routes of the web client', () => {
-  it('The root path shows the Screen 1 placeholder', async () => {
-    // Arrange
-    const requests = recordRequests();
-
-    // Act
-    renderAt('/');
-    const heading = await screen.findByRole('heading', { level: 1, name: 'Elige un proyecto para explorar' });
-
-    // Assert
-    expect(within(screen.getByRole('main')).getByRole('heading', { level: 1 })).toBe(heading);
-    expectBanner();
-    expect(mainBlocks()).toEqual(['Elige un proyecto para explorar', 'Esta pantalla está en construcción.']);
-    expect(screen.getByText('Esta pantalla está en construcción.').tagName).toBe('P');
-    expect(requests).toHaveLength(0);
-  });
-
   it('A project path shows the Screen 2 placeholder with its id', async () => {
     // Arrange
     const requests = recordRequests();
