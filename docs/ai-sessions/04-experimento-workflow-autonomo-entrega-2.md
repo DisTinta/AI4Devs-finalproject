@@ -6,8 +6,9 @@
 **Herramienta:** Claude Code (Opus) con la herramienta Workflow (orquestación de subagentes en segundo plano)
 **Contenido:** (1) la pregunta de la autora, (2) los riesgos y choques con las reglas del proyecto, (3) las decisiones de la autora, (4) el plan que sigue el workflow, (5) cómo se mide el coste en tokens.
 
-> Registro parcial de la sesión: solo la pregunta inicial, las decisiones y el plan acordado. El resultado
-> del experimento se documenta en `readme.md` (DIS-101).
+> Registro parcial de la sesión: solo la pregunta inicial, las decisiones y el plan acordado, más los
+> resultados de cada tanda al final de la sección 5. El análisis del experimento está en `readme.md` §8.6
+> (DIS-101).
 
 ---
 
@@ -127,10 +128,16 @@ y después.
 
 Valores de `/usage` antes del piloto (16-10-2026, plan de suscripción):
 
-| Indicador | Antes del piloto | Después del piloto |
-|---|---|---|
-| Sesión actual (ventana de 5 h) | 13 % | 24 % |
-| Semana, todos los modelos (reinicio 18-10, 12:00) | 51 % | 56 % |
+| Indicador | Antes del piloto | Después del piloto | Último punto registrado |
+|---|---|---|---|
+| Sesión actual (ventana de 5 h) | 13 % | 24 % | — (no se volvió a anotar) |
+| Semana, todos los modelos (reinicio 18-10, 12:00) | 51 % | 56 % | 74 % (17-10, 20:20, tras DIS-45) |
+| Coste equivalente de API acumulado en la sesión | 1,01 $ | 53,93 $ | 266,18 $ (17-10, 17:35, al cerrar la tanda 1) |
+
+El agente no puede leer `/usage`: la última columna es el último valor que anotó la autora. Tras el
+reinicio semanal del 18-10 a las 12:00 no se registró ningún punto, así que DIS-58 (que cruzó el
+reinicio), DIS-60 y DIS-101 no tienen cifra de `/usage`. Con suscripción, el coste equivalente de API es
+una estimación de lo que costaría con pago por uso, no un cargo.
 
 Diagnóstico de `/usage` sobre las últimas 24 h: el 98 % del uso vino de sesiones con muchos subagentes y
 el 81 % se consumió con más de 150k tokens de contexto. Por eso el workflow asigna modelo por paso:
@@ -148,3 +155,77 @@ Opus para el razonamiento (ingeniero jefe, tests, revisión adversarial) y Sonne
   «Merge Without Review». El merge lo hizo la autora. DIS-78 no arrancó porque depende de DIS-76.
 - **Decisión tras el piloto:** seguir en tandas que paren antes de agotar el límite semanal (unos 7 tickets
   antes del reinicio del 18-10 y el resto después), para no dejar tickets a medias.
+
+## Resultado de la tanda 1 (16-10 → 17-10)
+
+Run del workflow `wf_2ee7c1a7`, de las 22:13 del 16-10 a las 16:21 del 17-10 (horas peninsulares).
+
+- **DIS-78** (#46), **DIS-21** (#47) y **DIS-26** (#48): ciclo completo y merge hecho por el propio
+  workflow, con la regla de permiso `gh pr merge` que la autora añadió tras el piloto. DIS-26 tardó
+  8 h 21 min porque generó las tres respuestas *golden* con Ollama en CPU.
+- **DIS-34**: el agente revisó las tres *golden* (#49). Vio que Q4 era incorrecta y la regeneró, y marcó
+  Q3 como dudosa. El clasificador denegó el merge del #49 y la autora lo hizo a mano. Después la autora
+  revisó las tres, pidió regenerar Q3 y las firmó; el agente se negó a firmar en su nombre. Las firmas
+  y la nueva Q3 entraron en el #50, que preparó la sesión principal y fusionó la autora. El agente de
+  cierre intentó commitear `.claude/settings.json`, con cambios locales de la autora, y el clasificador
+  lo denegó («Self-Modification»): no se commiteó nada.
+- **DIS-44** (#51): ciclo completo; el clasificador denegó el merge y lo hizo la autora.
+- **DIS-45**: no llegó a lanzarse. Depende de DIS-44, y el script salta los dependientes de un ticket
+  bloqueado; el merge de la autora llegó cuando la tanda ya había terminado.
+- **Padres:** DIS-59 y DIS-16 cerrados; DIS-43 no, porque DIS-45 seguía pendiente.
+- **Incidencias:** un falso positivo de Windows Defender (`Trojan:Win32/Bearfoos.A!ml` sobre un fichero
+  de test `<?php // b`) rompió en local dos tests de git, y la autora añadió una exclusión acotada a las
+  carpetas temporales del proyecto; una caída de internet dejó un agente de DIS-44 unos 25 min sin
+  avanzar, sin pérdida; los informes de `verify-against-spec` y `adversarial-review` no llegaban al paso
+  de revisión (quedaban guardados en `reports/`), y uno lo bloqueó el hook `block-secrets` por citar
+  secretos de prueba.
+- **Decisión de la autora (17-10):** ante el merge denegado no se busca ningún rodeo. El paso de merge
+  espera a que lo haga ella, sondeando el PR hasta 3 h.
+
+## DIS-45 y DIS-58, lanzados aparte (17-10 → 18-10)
+
+- **DIS-45** (run `wf_2ead1005`): 1 h 47 min de ciclo; merge denegado y hecho por la autora (#52).
+  Costó alrededor de 1 punto semanal (73 % → 74 %).
+- **DIS-58** (run `wf_8d14bcc3`), adelantado la noche del 17-10 con el visto bueno de la autora: el
+  agente de propuesta lanzó a las 20:45 un `npm install` de prueba y se quedó esperando hasta las 07:25
+  la confirmación de instalación de dependencias del hook `block-dangerous-bash`, unas 10,5 h. La autora
+  desactivó esa confirmación en local para el resto de la ejecución y pidió a cambio una verificación de
+  cada paquete en las instrucciones del workflow (nombre exacto, más de 90 días con su repositorio
+  conocido, al menos 10 000 descargas semanales, sin scripts de instalación inesperados y `npm audit`
+  después). El workflow fusionó él mismo el #53, sin denegación. 20 h 37 min de ciclo en total.
+
+## Resultado de la tanda 2 (18-10 → 19-10)
+
+Run `wf_ba3c3c42`, lanzado por la autora («sí, lanza la tanda 2») a las 19:03 del 18-10.
+
+- **DIS-60** (#54): ciclo completo en 1 h 36 min, con CI en verde y el archivo hecho. El clasificador
+  denegó el merge, y el workflow esperó a la autora con 20 agentes de sondeo de unos 9,4 min cada uno
+  (3 h 08 min) antes de dejar el ticket en In Review con un comentario.
+- **DIS-65 y DIS-66**: no se lanzaron, porque dependen de DIS-60.
+- **DIS-101**: el ciclo ligero de este ticket de documentación, sin change de OpenSpec.
+
+## Medición final de tokens (19-10)
+
+Script de medición por rama, ejecutado el 19-10 sobre todas las ramas (lectura de caché / escritura de
+caché / salida, en millones):
+
+| Ticket | Modo | Lectura | Escritura | Salida |
+|---|---|---|---|---|
+| DIS-76 | Workflow (piloto) | 137,2 | 3,70 | 0,14 |
+| DIS-78 | Workflow | 83,6 | 2,03 | 0,06 |
+| DIS-21 | Workflow | 156,4 | 4,42 | 0,13 |
+| DIS-26 | Workflow | 125,3 | 4,92 | 0,03 |
+| DIS-44 | Workflow | 137,1 | 3,33 | 0,13 |
+| DIS-58 | Workflow | 139,3 | 5,17 | 0,16 |
+| DIS-60 | Workflow (sin merge) | 53,8 | 2,10 | 0,02 |
+| DIS-45 | Workflow (documentación) | 32,0 | 1,83 | 0,01 |
+| DIS-34 | Workflow (documentación) | 6,7 | 0,34 | 0,01 |
+| DIS-68 / DIS-70 / DIS-72 | Manual | 92,7 / 108,3 / 102,7 | 1,20 / 1,82 / 1,25 | 0,25 / 0,31 / 0,31 |
+| DIS-74 / DIS-28 / DIS-92 | Manual | 180,0 / 116,1 / 143,4 | 2,92 / 1,09 / 1,14 | 0,46 / 0,30 / 0,33 |
+| `feature/entrega-2-CRN` | Sin ticket (orquestación y trabajo en la rama de entrega) | 257,4 | 9,78 | 1,77 |
+
+Frente a la estimación previa (entre 1x y 2x por ticket): en los seis tickets de código del workflow,
+la lectura de caché media es 1,05 veces la de los seis manuales (129,8M frente a 123,9M) y la escritura
+de caché, unas 2,5 veces (3,93M frente a 1,57M). La salida no se compara, porque la de los subagentes
+del workflow sale muy por debajo. La orquestación no se atribuye a ningún ticket. El análisis completo
+está en `readme.md` §8.6.
