@@ -46,6 +46,11 @@ function neverAnswer({ init }: RecordedRequest): Promise<Response> {
   });
 }
 
+/** An answer of the API's health check: `200` with `{"status":"ok"}`. */
+function answerOk(): Promise<Response> {
+  return Promise.resolve(new Response('{"status":"ok"}', { status: 200 }));
+}
+
 /** Renders the web client's routes in a memory router at `path`. */
 function renderAt(path: string): ReturnType<typeof render> {
   return render(<RouterProvider router={createMemoryRouter(routes, { initialEntries: [path] })} />);
@@ -142,5 +147,25 @@ describe('Sample-project cards without HTTP', () => {
     expect(focusedByKeyboard).toBe(true);
     expect(await screen.findByRole('heading', { level: 1, name: 'Consulta del proyecto' })).toBeDefined();
     expect(screen.getByText(PROJECT_ID)).toBeDefined();
+  });
+});
+
+describe('API status on Screen 1', () => {
+  it('An available API adds the «listo» badge', async () => {
+    // Arrange
+    stubFetch(answerOk);
+
+    // Act
+    renderAt('/');
+    const article = await screen.findByRole('article', { name: 'acme-shop' });
+    const ready = await within(article).findByText('listo');
+
+    // Assert
+    expect(ready).toBeDefined();
+    expect(within(article).getByText('indexado')).toBeDefined();
+    expect(within(article).queryByText(CHECKING)).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Reintentar' })).toBeNull();
+    expect(document.activeElement).toBe(document.body);
   });
 });

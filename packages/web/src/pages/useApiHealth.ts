@@ -20,11 +20,14 @@ export interface ApiHealth {
  * @returns The API status.
  */
 export function useApiHealth(): ApiHealth {
-  const [status] = useState<ApiHealthStatus>('checking');
+  const [status, setStatus] = useState<ApiHealthStatus>('checking');
 
   useEffect(() => {
     const controller = new AbortController();
-    getHealth({ signal: controller.signal }).catch(() => undefined);
+    getHealth({ signal: controller.signal }).then(
+      () => setStatus('available'),
+      () => undefined,
+    );
     return () => controller.abort();
   }, []);
 
