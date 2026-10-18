@@ -26,8 +26,8 @@ Every test of this change follows Arrange-Act-Assert with the three blocks comme
 
 ## 3. Same-origin proxy (TDD, design D8, D22) — `web-foundation` → "Same-origin access to the API in local development"
 
-- [ ] 3.1 RED: create `tests/unit/web/vite-config.spec.ts` with "Both servers forward the API paths" (imports the default export of `packages/web/vite.config.ts` by relative path; asserts `server.proxy` and `preview.proxy` map `/api` and `/health` to `http://127.0.0.1:3000`). See it fail
-- [ ] 3.2 GREEN: in `packages/web/vite.config.ts`, one `apiProxy` table used by `server.proxy` and `preview.proxy`, with a comment naming design D8 (API without CORS, `127.0.0.1` not `localhost`). `npm run typecheck` green (the spec is type-checked by `tests/tsconfig.json`)
+- [x] 3.1 RED: create `tests/unit/web/vite-config.spec.ts` with "Both servers forward the API paths" (imports the default export of `packages/web/vite.config.ts` by relative path; asserts `server.proxy` and `preview.proxy` map `/api` and `/health` to `http://127.0.0.1:3000`). See it fail
+- [x] 3.2 GREEN: in `packages/web/vite.config.ts`, one `apiProxy` table used by `server.proxy` and `preview.proxy`, with a comment naming design D8 (API without CORS, `127.0.0.1` not `localhost`). `npm run typecheck` green (the spec is type-checked by `tests/tsconfig.json`)
 
 ## 4. API client (TDD, design D9, D10, D19, D20) — `web-foundation` → "Health check through the API client", "Asking a question through the API client", "API errors", "Unavailable API", "Cancellation by the caller"
 
