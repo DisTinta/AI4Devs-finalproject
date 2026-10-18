@@ -1,10 +1,16 @@
 import './index.css';
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import App from './App.js';
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import { RouterProvider } from 'react-router';
+import { createAppRouter } from './router';
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
+const rootElement = document.getElementById('root');
+if (rootElement === null) {
+  throw new Error('index.html has no #root element');
+}
+
+createRoot(rootElement).render(
+  <StrictMode>
+    <RouterProvider router={createAppRouter()} />
+  </StrictMode>,
 );
