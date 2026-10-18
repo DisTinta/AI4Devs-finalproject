@@ -34,8 +34,10 @@ API answers, and SHALL NOT cause any HTTP request: the only request the page sen
   article, named «acme-shop»; that article holds the level-2 heading «acme-shop», the text «PHP /
   Laravel», the counts «53 ficheros», «121 símbolos», «170 aristas» and «32 commits» in this order, the
   text «indexado», and a link named «Explorar proyecto acme-shop» whose target is
-  `/p/a794456d-6d1b-5b55-a360-13fec83dc7bc`; there is no element with role `alert`, no text «listo» and
-  no button «Reintentar»; and the double recorded exactly one request, `GET /health`
+  `/p/a794456d-6d1b-5b55-a360-13fec83dc7bc`; every icon of the card (🐘, 📁, 🔷, ↔, 📝, ✓ and →) is
+  inside an element hidden from assistive technology; the article shows the badge «comprobando…» and no
+  text «listo»; there is no element with role `alert` and no button «Reintentar»; and the double
+  recorded exactly one request, `GET /health`
 
 #### Scenario: The project link is reached and followed with the keyboard
 
@@ -79,46 +81,52 @@ Numbers of four digits or more SHALL group their digits in threes from the right
 ### Requirement: API status on Screen 1
 
 When Screen 1 is shown, it SHALL check the API once with the health check of the API client, without
-blocking the cards. While the check is pending, the page SHALL show neither the «listo» badge nor the
-alert. When the check resolves, every card SHALL also show the badge «listo» next to «indexado». When
+blocking the cards. While that first check is pending, every card SHALL show the badge «comprobando…»
+(with U+2026) in the place of «listo», and the page SHALL show no alert. When the check resolves, the
+«comprobando…» badge SHALL give way to the badge «listo» next to «indexado» on every card; the first
+check SHALL NOT move the focus, whatever its outcome. When
 the check fails for any reason other than the page itself cancelling it (an unavailable API, an API
 error answer, or the health check's time limit), the page SHALL show an alert (role `alert`) between the
 subtitle and the list of projects, with the text «La API de CODEMIND no está disponible. Puedes ver los
 proyectos, pero no preguntar hasta que vuelva. Arráncala con make up y pulsa Reintentar.» and a button
-«Reintentar», and no card SHALL show «listo»; the cards and their links stay as they are.
+«Reintentar», and no card SHALL show «listo» nor «comprobando…»; the cards and their links stay as they
+are.
 
-Pressing «Reintentar» SHALL send exactly one new health check; while it is pending, the alert and the
-button stay, the button keeps the focus and further presses SHALL send no request. If it resolves, the
-alert SHALL disappear, every card SHALL show «listo» and the focus SHALL move to the level-1 heading. If
-it fails, the alert SHALL stay as it was and the button SHALL keep the focus. The page SHALL NOT retry on
-its own. Leaving the page SHALL cancel a pending check, and that cancellation SHALL change nothing on
+Pressing «Reintentar» SHALL send exactly one new health check; while it is pending, the alert stays, its
+button reads «Reintentando…» (with U+2026) and keeps the focus, and further presses SHALL send no
+request. If it resolves, the alert SHALL disappear, every card SHALL show «listo» and the focus SHALL
+move to the level-1 heading. If it fails, the alert SHALL stay as it was, its button SHALL read
+«Reintentar» again and keep the focus. The page SHALL NOT retry on its own: after a failed check, no
+request is sent until the person presses «Reintentar». Leaving the page SHALL cancel a pending check, and that cancellation SHALL change nothing on
 the screen.
 
 #### Scenario: An available API adds the «listo» badge
 
 - **GIVEN** `fetch` that answers `GET /health` with `200` and body `{"status":"ok"}`
 - **WHEN** Screen 1 is shown
-- **THEN** the article «acme-shop» shows the texts «indexado» and «listo», there is no element with role
-  `alert` and no button «Reintentar»
+- **THEN** the article «acme-shop» shows the texts «indexado» and «listo» and not «comprobando…», there is
+  no element with role `alert` and no button «Reintentar», and the focus is still on the document body
 
 #### Scenario: An unavailable API shows the alert and keeps the cards
 
-- **GIVEN** four runs where `fetch`, in turn: rejects with a `TypeError`; answers `500` with an empty
-  body; answers `503` with `{"error":{"code":"SERVICE_UNAVAILABLE","message":"unavailable","details":{}}}`;
-  answers `200` with `{"status":"down"}`
+- **GIVEN** four runs where `fetch` is replaced by a double that records every request and, in turn:
+  rejects with a `TypeError`; answers `500` with an empty body; answers `503` with
+  `{"error":{"code":"SERVICE_UNAVAILABLE","message":"unavailable","details":{}}}`; answers `200` with
+  `{"status":"down"}`
 - **WHEN** Screen 1 is shown in each run
 - **THEN** each time an element with role `alert` appears holding «La API de CODEMIND no está
   disponible» and a button «Reintentar», it comes after the subtitle and before the list «Proyectos de
-  muestra», the article «acme-shop» and its link «Explorar proyecto acme-shop» are still rendered, and
-  the text «listo» is not shown
+  muestra», the article «acme-shop» and its link «Explorar proyecto acme-shop» are still rendered, the
+  texts «listo» and «comprobando…» are not shown, and the double recorded exactly one request
 
 #### Scenario: A health check that never answers shows the alert after its time limit
 
 - **GIVEN** `fetch` replaced by a double that never answers (it rejects only when its request signal
   aborts), and a clock that the test advances
-- **WHEN** Screen 1 is shown and the clock advances 4 999 ms, then 1 ms more
-- **THEN** after 4 999 ms there is no element with role `alert`; after 5 000 ms the alert «La API de
-  CODEMIND no está disponible» is shown
+- **WHEN** Screen 1 is shown and the clock advances 4 999 ms, then 1 ms more, then 60 000 ms more
+- **THEN** after 4 999 ms there is no element with role `alert` and the badge «comprobando…» is shown;
+  after 5 000 ms the alert «La API de CODEMIND no está disponible» is shown and «comprobando…» is not;
+  and after the last 60 000 ms the double has still received exactly one request
 
 #### Scenario: Retrying after the API comes back removes the alert
 
@@ -134,15 +142,15 @@ the screen.
 - **GIVEN** Screen 1 showing the alert, and `fetch` then replaced by a double that records requests and
   never answers
 - **WHEN** the person presses «Reintentar» three times
-- **THEN** the double recorded exactly one request; the alert and the button «Reintentar» are still
-  shown and the button has the focus
+- **THEN** the double recorded exactly one request; the alert is still shown, its button reads
+  «Reintentando…» and has the focus
 
 #### Scenario: A failed retry keeps the alert
 
 - **GIVEN** Screen 1 showing the alert, and `fetch` still rejecting with a `TypeError`
 - **WHEN** the person presses «Reintentar» and the new check fails
-- **THEN** exactly one more request was sent; the alert, its text and the button «Reintentar» are still
-  shown, the button has the focus, and the text «listo» is not shown
+- **THEN** exactly one more request was sent; the alert and its text are still shown, its button reads
+  «Reintentar» again and has the focus, and the text «listo» is not shown
 
 #### Scenario: Leaving Screen 1 cancels a pending check
 

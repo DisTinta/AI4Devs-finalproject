@@ -43,7 +43,9 @@ See `proposal.md` → Why. The current state that shapes the approach (`origin/f
 
 D1–D14 come from the `[enhanced]` description of DIS-60 (agent as lead engineer, ADR
 `20261016-autonomous-workflow-run-entrega-2`, reviewable by the author). D15–D22 were taken while
-proposing and were added to the same description ("Decisiones D15–D22").
+proposing and D23–D25 while resolving the spec audit (run 1, `reports/2026-10-18-spec-audit.md`), which
+also refined D3, D6, D9, D11, D17 and D19; all of them were added to the same description on 2026-10-18
+("Decisiones D15–D25").
 
 ### D1 — An OpenSpec change with the new capability `project-picker`
 
@@ -61,7 +63,9 @@ The wireframe draws acme-shop and task-api; the constant holds only acme-shop (P
 with CM-HU-18). The page renders the cards of the constant, in its order (by name), in a `ul` with
 `flex flex-wrap justify-center gap-…`: one card is centred; two sit side by side as in the wireframe.
 Each card is `w-72` (the wireframe's 280 px). The 6 px top stripe alternates `bg-stripe` (even index)
-and `bg-stripe-soft` (odd index), as the wireframe does; it is decoration (`aria-hidden` `div`).
+and `bg-stripe-soft` (odd index), as the wireframe does; it is decoration (`aria-hidden` `div`). The
+article is `text-left` (the wireframe aligns the card content left; `PageFrame`'s `main` is
+`text-center`), while the heading, subtitle and indexing hint stay centred.
 
 ### D4 — Language and framework without versions (deviation)
 
@@ -83,9 +87,10 @@ order (files, symbols, edges, commits), laid out as a 2×2 grid.
 
 The constant has no status field: every project in it comes from the indexed seed, so «✓ indexado» is
 fixed (✓ `aria-hidden`, `text-success bg-success-soft`). «listo» means "the API answers and you can ask":
-shown only after the health check resolved (`text-accent bg-accent-soft`), absent while checking and
-when the API is down (the alert explains it). No badge claims something the page does not know. Both
-badges are `span`s in one row whose height does not change when «listo» appears.
+shown only after the health check resolved (`text-accent bg-accent-soft`), absent when the API is down
+(the alert explains it). While the first check is pending the same slot shows «comprobando…»
+(`text-ink-muted bg-canvas`, D23). No badge claims something the page does not know. The badges are
+`span`s in one row whose height does not change when «comprobando…» gives way to «listo» or disappears.
 
 ### D7 — The «Explorar proyecto» link
 
@@ -110,11 +115,12 @@ the build). No automatic retry: retrying is the person's action (DIS-58 D9).
 
 Between the subtitle and the cards, so it is read before entering a project. `ErrorBanner` (props:
 message content and `onRetry`), role `alert`, `warning-*` colours with a `warning-border` border, ⚠
-`aria-hidden`, the text of the spec (`make up` in `<code>`) and a button «Reintentar». During a retry
-the alert stays and the button keeps the focus; repeated presses are ignored (no `disabled`, which would
-drop the focus to `body`). If the retry succeeds the alert disappears and the focus moves to the `h1`
-(`tabIndex={-1}`: focusable by script, never reached with Tab), so a keyboard user is not left on
-`body`. If it fails, nothing changes. "la API", as in `readme.md`.
+`aria-hidden`, the text of the spec (`make up` in `<code>`, D24) and a `type="button"` «Reintentar»
+styled as the primary button (D24). During a retry the alert stays, the button reads «Reintentando…»
+and keeps the focus; repeated presses are ignored (no `disabled`, which would drop the focus to `body`).
+If the retry succeeds the alert disappears and the focus moves to the `h1` (`tabIndex={-1}`: focusable by
+script, never reached with Tab), so a keyboard user is not left on `body`. If it fails, the button reads
+«Reintentar» again and nothing else changes. "la API", as in `readme.md`.
 
 ### D10 — Constant ↔ seed coherence: reuse the existing test
 
@@ -133,6 +139,9 @@ fallado», the line of the spec and a `Link` «Volver a la selección de proyect
 element). The scenario is tested by building, in the test, a table whose root route is `routes[0]` with
 one more child `{ path: '/test-only-boom', element: <Boom /> }`; axe checks the same screen in
 `tests/a11y/project-picker.a11y.test.tsx` (no URL leads to it, so the existing gate cannot reach it).
+`RouteErrorPage` and `NotFoundPage` would repeat the same link markup and classes
+(`NotFoundPage.tsx:13-19`): the refactor step (8.1) may extract one shared link component used by both,
+with no behaviour change and no test edit.
 
 ### D12 — `web-foundation` delta and the placeholder test
 
@@ -176,10 +185,11 @@ D14, which named only Docker and Node). The maintenance versions stay in the rea
 
 ### D17 — The hook's states and the retry guard (taken while proposing)
 
-`useApiHealth()` returns `{ status: 'checking' | 'available' | 'unavailable', retry }`. `retry()` keeps
-`status` as `unavailable` while the new check runs (so the alert and its focused button stay) and is a
-no-op while any check is in flight (a ref, not state, so two clicks in the same tick are also
-ignored). Each check owns an `AbortController`; unmount aborts the current one. The page moves the focus
+`useApiHealth()` returns `{ status: 'checking' | 'available' | 'unavailable', retrying, retry }`.
+`checking` is only the first check (the «comprobando…» badge). `retry()` keeps `status` as `unavailable`
+while the new check runs (so the alert and its focused button stay), sets `retrying` (the button's
+«Reintentando…» label) and is a no-op while any check is in flight (a ref, not state, so two clicks in
+the same tick are also ignored). Each check owns an `AbortController`; unmount aborts the current one. The page moves the focus
 to the `h1` in an effect that runs only when a retry (not the first check) ends in `available`.
 
 ### D18 — The time-limit scenario under fake timers (taken while proposing)
@@ -193,8 +203,9 @@ synchronous `queryByRole` (RTL's `findBy*` polls with timers it does not know ar
 ### D19 — Existing tests that render `/` without stubbing `fetch` (taken while proposing)
 
 `router.test.tsx` ("An unknown path… leads back", "Rendered output does not leak between tests") and
-`smoke.a11y.test.tsx` render Screen 1 with Node's real `fetch`. Under jsdom, `fetch('/health')` with a
-relative URL rejects with a `TypeError` (no base URL), so the page shows the alert; none of them
+`smoke.a11y.test.tsx` render Screen 1 with Node's real `fetch`. Under jsdom that call rejects with a
+`TypeError`: Node's `fetch` refuses jsdom's `AbortSignal` (`docs/project-context.md` → Testing) and has
+no base URL for the relative `/health`; so the page shows the alert; none of them
 asserts its absence, and the cleanup unmounts the page (aborting the check). These tests are not edited
 (no test may be edited to make the suite pass). If React prints `act(...)` warnings from that late state
 update, they are recorded in the step 9 report, not silenced. The new tests always stub `fetch`.
@@ -221,6 +232,28 @@ nothing about it; the behaviour is what the spec asserts.
 Everything used is installed since DIS-58 (`react-router` 7, Tailwind 4, `@testing-library/react`,
 `@testing-library/user-event`, `axe-core`, `jsdom`). No `npm install` runs in this change, so the
 dependency vetting of the autonomous run does not apply; the step 9 report records it.
+
+### D23 — Explicit checking and retrying states (spec audit run 1, F1)
+
+`docs/frontend-standards.md` §2 ("Loading and error states are explicit and rendered, never silent") and
+§5 (loading state in the DoD). The cards are not loading (they are static), but the API status is: up to
+5 s for the first check and an open-ended retry. So the first check shows the badge «comprobando…» in
+the slot of «listo» on every card, and a pending retry changes the alert's button to «Reintentando…».
+Alternatives rejected: a spinner (motion, a new asset, no text), `aria-busy` alone (invisible), or a
+page-level status line (moves the layout when it disappears). The ellipsis is U+2026.
+
+### D24 — Colours inside the alert (spec audit run 1, F2)
+
+Only the pairs of the `web-foundation` theme table may carry text. The «Reintentar» button is the
+primary button (`bg-accent text-on-accent rounded-button`, white on `#1971c2`, with the `focus-visible`
+outline of the links), not a `warning`-coloured one (no listed pair); the `make up` code and the ⚠ inherit
+`text-warning-ink` on `bg-warning-soft` (`#5c3d00` on `#fff9db`, listed), with no own background.
+
+### D25 — The first check never moves the focus (spec audit run 1, F4)
+
+Moving the focus when the page loads would interrupt a screen-reader user who has started reading; the
+alert's role already announces the failure. Only a successful retry moves the focus (to the `h1`),
+because then the focused button disappears.
 
 ## Risks / Trade-offs
 

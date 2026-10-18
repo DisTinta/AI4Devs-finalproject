@@ -18,7 +18,9 @@ DIS-65 (Screen 2) starts from the link this screen provides.
 - **API status**: the page checks `GET /health` once when it mounts. When the API answers, each card
   also shows the «listo» badge; when it does not (any failure, error answer or time-out), an alert
   «La API de CODEMIND no está disponible…» with a «Reintentar» button appears between the subtitle and
-  the cards. Retrying sends one new check; a success removes the alert and moves focus to the heading.
+  the cards. While the first check runs, each card shows «comprobando…»; retrying sends one new check
+  (the button reads «Reintentando…» meanwhile); a success removes the alert and moves focus to the
+  heading. The page never retries on its own.
 - **«+ Indexar mi propio repositorio»**: the wireframe's text, below a dashed separator, as a
   non-interactive paragraph followed by the CLI command and a requirements line that matches today's
   indexer (no PHP needed, only PHP repositories for now).
@@ -59,8 +61,8 @@ DIS-65 (Screen 2) starts from the link this screen provides.
 - Tests: new `packages/web/src/pages/ProjectPickerPage.test.tsx`,
   `packages/web/src/pages/RouteErrorPage.test.tsx`, `packages/web/src/components/project-display.test.ts`,
   `tests/a11y/project-picker.a11y.test.tsx`. In `packages/web/src/router.test.tsx` only the test of the
-  retired scenario "The root path shows the Screen 1 placeholder" is replaced (its behaviour is
-  specified anew in `project-picker`); no other existing test is edited.
+  retired scenario "The root path shows the Screen 1 placeholder" is removed; its checks move to
+  `ProjectPickerPage.test.tsx` under the `project-picker` scenarios; no other existing test is edited.
 - Dependencies: none (react-router 7, Tailwind 4, RTL, user-event, axe-core and jsdom are installed).
 - Docs: `docs/project-context.md` (web section), `docs/DEMO.md` (the "web has no screens yet" note),
   `docs/frontend-standards.md` if the page structure rule changes, `prompts.md` (section + Índice).
