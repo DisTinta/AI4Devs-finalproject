@@ -16,9 +16,9 @@
 
 > ¿hay alguna forma para que hicieras el resto de tareas de Linear (CODEMIND — Entrega 2) en automático
 > con el flujo definido? Y si te surgen preguntas o decisiones investigues como ingeniero de software jefe
-> para resolverlas sin tener que preguntarme? No tendrías que mostrar en esta terminal nada más que al
+> para ressolverlas sin tener que preguntarme? No tendrías que mostrar en esta terminal nada más que al
 > final una lista de los tickets resueltos y un mensaje tipo tareas finalizadas.
-> ¿cómo ves esta idea? es posible? ¿cómo se tendría que hacer?
+> ¿como ves esta idea? es posible? ¿cómo se tendría que hacer?
 
 ---
 

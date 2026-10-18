@@ -4,7 +4,7 @@
 Accepted
 
 ## Context and problem
-On 2026-10-16, six days before the Entrega 2 deadline (2026-10-22), eleven leaf tickets of CODEMIND —
+On 2026-10-16, six days before the Entrega 2 deadline (2026-10-22), twelve leaf tickets of CODEMIND —
 Entrega 2 were still open: DIS-76, DIS-78, DIS-21, DIS-26, DIS-34, DIS-44, DIS-45, DIS-58, DIS-60,
 DIS-65, DIS-66 and DIS-101. Every ticket so far ran with the author in the loop, through the full SDD
 cycle (`/enrich-us` → `/opsx:propose` → `spec-auditor` → `/opsx:apply` in TDD → three reviews →

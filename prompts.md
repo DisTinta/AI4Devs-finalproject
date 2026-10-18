@@ -4811,7 +4811,7 @@ sí, lanza la tanda 2
 **Por qué funcionó.** A partir de aquí no hay más prompts de la autora: las instrucciones de cada paso
 («YOUR STEP 3/6 — implement…», citada en la §53) las genera el script del workflow con los datos de
 cada ticket, y no son prompts de la autora. Este ticket, DIS-101, lo redactó el agente dentro de esa
-tanda; sus decisiones D1–D20 están en la descripción Enhanced del ticket en Linear.
+tanda; sus decisiones (D1 en adelante) están en la descripción Enhanced del ticket en Linear.
 
 **Ajuste humano.** Lo que la autora hizo durante la ejecución, que el readme cuenta como lecciones:
 
