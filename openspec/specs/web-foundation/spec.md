@@ -8,33 +8,24 @@ fails CI on the real routes.
 
 ## Requirements
 
-### Requirement: Routes of the web client
+### Requirement: Routes and screens of the web client
 
 The web client SHALL answer three kinds of path:
 
 | Path | Screen | Level-1 heading |
 |---|---|---|
-| `/` | project selection placeholder (Screen 1) | «Elige un proyecto para explorar» |
+| `/` | project selection, Screen 1 (`project-picker`) | «Elige un proyecto para explorar» |
 | `/p/{projectId}` | project query placeholder (Screen 2) | «Consulta del proyecto» |
 | any other path | not found | «Página no encontrada» |
 
 Every one of these screens SHALL render a banner landmark with the text «CODEMIND» and the tagline
 «Comprensión de repositorios con evidencia verificable», and one main landmark holding the level-1
-heading. The Screen 2 placeholder SHALL show the `projectId` of its path as text. The not-found screen
-SHALL render a link «Volver a la selección de proyecto» that leads to `/`. The two placeholder screens
-SHALL also show the line «Esta pantalla está en construcción.»; no other text is rendered besides the
-banner, the headings, that line, the `projectId` and the not-found link. A placeholder screen SHALL make
-no request to the API.
-
-#### Scenario: The root path shows the Screen 1 placeholder
-
-- **GIVEN** the routes of the web client mounted in a memory router, and `fetch` replaced by a recording
-  double
-- **WHEN** the initial path is `/`
-- **THEN** the level-1 heading «Elige un proyecto para explorar» is rendered inside the main landmark, the
-  banner shows «CODEMIND» and «Comprensión de repositorios con evidencia verificable», and the double
-  recorded no request, and the main landmark holds, in this order, the level-1 heading and a paragraph
-  «Esta pantalla está en construcción.», and no other text
+heading. Screen 1 is specified by the `project-picker` capability. The Screen 2 placeholder SHALL show
+the `projectId` of its path as text and the line «Esta pantalla está en construcción.»; no other text is
+rendered on it besides the banner, the heading, that line and the `projectId`, and it SHALL make no
+request to the API. The not-found screen SHALL render a link «Volver a la selección de proyecto» that
+leads to `/`. Every route SHALL be rendered under the app's error screen (`project-picker`, "App error
+screen").
 
 #### Scenario: A project path shows the Screen 2 placeholder with its id
 
@@ -350,5 +341,5 @@ rendered route).
 #### Scenario: Rendered output does not leak between tests
 
 - **GIVEN** two tests in the same component test file, the first rendering the not-found screen
-- **WHEN** the second runs and renders the Screen 1 placeholder
+- **WHEN** the second runs and renders Screen 1
 - **THEN** exactly one level-1 heading is found in the document, «Elige un proyecto para explorar»

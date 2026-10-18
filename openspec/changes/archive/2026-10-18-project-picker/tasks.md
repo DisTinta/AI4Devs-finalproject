@@ -95,7 +95,7 @@ Every test of this change follows Arrange-Act-Assert with the three blocks comme
 
 ## 14. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 14.1 Precondition: the pull request of 13.3 is open (autonomous run: the reviews 14.2–14.6 ran before 13, because the workflow opens the pull request in its next step; agent's decision recorded in the DIS-60 `[enhanced]` description)
+- [x] 14.1 Precondition: the pull request of 13.3 is open (autonomous run: the reviews 14.2–14.6 ran before 13, because the workflow opens the pull request in its next step; agent's decision recorded in the DIS-60 `[enhanced]` description)
 - [x] 14.2 Run `/show-spec-working`: screenshots of the running `/` (API up and API down) next to `images/pantalla-1-seleccion.svg` rendered as an image, and of the error screen if reachable by hand; may reuse step 10 evidence. Report `openspec/changes/project-picker/reports/YYYY-MM-DD-show-spec-working.md`, screenshots next to it
 - [x] 14.3 Run `/verify-against-spec`; report `openspec/changes/project-picker/reports/YYYY-MM-DD-verify-against-spec.md`
 - [x] 14.4 Run `/adversarial-review`; report `openspec/changes/project-picker/reports/YYYY-MM-DD-adversarial-review.md`
@@ -105,4 +105,4 @@ Every test of this change follows Arrange-Act-Assert with the three blocks comme
   - [x] 14.5.3 "An unavailable API shows the alert and keeps the cards" asserts the focus on the body in its four runs (spec THEN edited); proven by focusing the `h1` on failure temporarily
   - [x] 14.5.4 `ErrorBanner` wraps its button below the message on narrow screens (D34), checked in the browser at 320 and 1 280 px
 - [x] 14.6 Commit the fixes to the same pull request; re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
-- [ ] 14.7 `/opsx:archive`, and commit the archive to the same pull request (no test-file edits in that commit); merge only after the archive commit and with CI green (autonomous-run ADR)
+- [x] 14.7 `/opsx:archive`, and commit the archive to the same pull request (no test-file edits in that commit); merge only after the archive commit and with CI green (autonomous-run ADR)
