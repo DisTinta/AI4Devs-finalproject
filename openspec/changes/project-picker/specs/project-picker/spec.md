@@ -20,7 +20,8 @@ Each item SHALL be an article named by its project's name, holding: a level-2 he
 the language and framework label (see "How a project is written on its card"); a list of four counts,
 files, symbols, edges and commits, in this order; the badge «indexado»; and a link whose visible text is
 «Explorar proyecto», whose accessible name is «Explorar proyecto <name>» and which leads to
-`/p/<id>`. The cards SHALL be rendered from the constant on the first render, before and whatever the
+`/p/<id>`. The check mark ✓ of «indexado» and the arrow → of the link are decorative and SHALL be
+hidden from assistive technology, like the icons of "How a project is written on its card". The cards SHALL be rendered from the constant on the first render, before and whatever the
 API answers, and SHALL NOT cause any HTTP request: the only request the page sends is its health check.
 
 #### Scenario: Screen 1 shows the sample projects without waiting for the API
@@ -121,8 +122,8 @@ the screen.
 
 #### Scenario: A health check that never answers shows the alert after its time limit
 
-- **GIVEN** `fetch` replaced by a double that never answers (it rejects only when its request signal
-  aborts), and a clock that the test advances
+- **GIVEN** `fetch` replaced by a double that records every request and never answers (it rejects only
+  when its request signal aborts), and a clock that the test advances
 - **WHEN** Screen 1 is shown and the clock advances 4 999 ms, then 1 ms more, then 60 000 ms more
 - **THEN** after 4 999 ms there is no element with role `alert` and the badge «comprobando…» is shown;
   after 5 000 ms the alert «La API de CODEMIND no está disponible» is shown and «comprobando…» is not;

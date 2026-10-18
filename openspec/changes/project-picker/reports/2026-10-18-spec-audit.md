@@ -1,4 +1,4 @@
-CHANGES REQUIRED
+APPROVED
 
 # Spec audit — project-picker (DIS-60)
 
@@ -7,7 +7,8 @@ CHANGES REQUIRED
   step agent of the autonomous run (ADR `20261016-autonomous-workflow-run-entrega-2`). This step had no
   subagent tool, so the auditor's instructions were run in this context, read-only on the artifacts
   until the report was written; the corrections were then applied through `/opsx:update`.
-- Verdict per run: run 1 CHANGES REQUIRED (this section); the following runs are appended below.
+- Verdict per run: run 1 CHANGES REQUIRED; run 2 APPROVED (no blocking finding; its three improvable
+  findings were folded before the apply). Final verdict: APPROVED.
 
 ## Run 1
 
@@ -186,3 +187,56 @@ No empty row.
 | F9 | improvable | Applied: task 7.3 cites 10.2–10.4 and 14.2 |
 | F10 | improvable | Applied: D11 and task 8.1 allow extracting a shared link component |
 | F11 | improvable | Applied: D15–D25 added to the DIS-60 Enhanced description; task 12.4 reworded |
+
+## Run 2
+
+APPROVED
+
+**Inputs read again:** the whole change after the run 1 corrections (commit `cda055a`): `proposal.md`,
+`design.md` (D1–D25), both delta specs, `tasks.md`; DIS-60 in Linear with the new "Decisiones D15–D25"
+section of the Enhanced description (outside `[original]`); `docs/frontend-standards.md` §2–§5 and the
+`web-foundation` theme table again for the new badge and button colours.
+
+### Questions for the author
+
+None.
+
+### The eleven points
+
+1. **Scope** — clean. D23–D25 come from the project's frontend standards and the run 1 findings; no new
+   product scope.
+2. **Inherited acceptance criteria** — clean; unchanged coverage (run 1, point 2).
+3. **Missing scenarios** — **G1 (improvable).** The cards scenario now asserts that ✓ and → are hidden
+   from assistive technology, but no requirement says so (the requirement only names the language and
+   count icons). Correction: the cards requirement states that ✓ and → are decorative and hidden.
+4. **Ambiguity** — clean (grep repeated: none of the seven words).
+5. **Open decisions** — clean. The «comprobando…» badge colour (`text-ink-muted` on `bg-canvas`,
+   `#495057` on `#f8f9fa`), the button colours (white on `#1971c2`) and the code colours (`#5c3d00` on
+   `#fff9db`) are all listed pairs of the theme table; the ellipsis code point (U+2026) and where the
+   focus goes in every outcome are fixed.
+6. **Contradictions inside the change** — **G2 (improvable).** "A health check that never answers…"
+   now counts requests in its THEN, but its GIVEN described a double that only "never answers".
+   Correction: the double "records every request and never answers".
+7. **Contradictions with the project** — clean. F1 resolved the frontend-standards §2/§5 conflict; the
+   new colours respect the theme table; no loader (project-context's `Request` workaround holds).
+8. **Contrast with the real code** — clean. `getHealth` keeps one request per call (no internal retry,
+   `api-client.ts` `send`), so the request counts of F3 are reachable; a label change on a focused
+   `button` keeps the focus in React (same element, re-rendered text).
+9. **Task size** — clean.
+10. **Mandatory steps** — clean (unchanged since run 1). **G3 (improvable)**, found while checking the
+    RED evidence of task 6.1: one of its two suggested probes (removing the list's `aria-label`) would
+    not make axe fail (an unnamed `ul` is no violation), so it could not prove the test bites.
+    Correction: keep only the probe that triggers `button-name`.
+11. **Traceability** — the table of run 1 still holds; every scenario of both deltas has its task and
+    no row is empty. The scenarios changed by run 1 map to the tasks updated with them (2.1, 3.1, 3.2,
+    3.3, 3.5, 3.6).
+
+### Resolution of run 2
+
+| # | Severity | Resolution |
+|---|---|---|
+| G1 | improvable | Applied: cards requirement says ✓ and → are decorative and hidden from assistive technology |
+| G2 | improvable | Applied: the time-limit scenario's double records every request |
+| G3 | improvable | Applied: task 6.1 proves the a11y test with the `button-name` probe only |
+
+No blocking finding remains: the apply may start.
