@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { AppHeader } from './AppHeader';
+import { PageFrame } from './PageFrame';
 
 /** Props of {@link PendingScreen}. */
 export interface PendingScreenProps {
@@ -18,13 +18,10 @@ export interface PendingScreenProps {
  */
 export function PendingScreen({ heading, detail }: PendingScreenProps): ReactElement {
   return (
-    <div className="mx-auto my-6 max-w-3xl overflow-hidden rounded-card border border-border bg-surface">
-      <AppHeader />
-      <main className="px-8 py-8 text-center">
-        <h1 className="text-lg font-semibold text-ink-muted">{heading}</h1>
-        <p className="mt-2 text-sm text-ink-subtle">Esta pantalla está en construcción.</p>
-        {detail === undefined ? null : <p className="mt-2 font-mono text-sm text-ink-muted">{detail}</p>}
-      </main>
-    </div>
+    <PageFrame>
+      <h1 className="text-lg font-semibold text-ink-muted">{heading}</h1>
+      <p className="mt-2 text-sm text-ink-subtle">Esta pantalla está en construcción.</p>
+      {detail === undefined ? null : <p className="mt-2 font-mono text-sm text-ink-muted">{detail}</p>}
+    </PageFrame>
   );
 }

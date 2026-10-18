@@ -59,13 +59,13 @@ Every test of this change follows Arrange-Act-Assert with the three blocks comme
 
 ## 7. Review and Update Existing Tests (MANDATORY)
 
-- [ ] 7.1 Identify the tests affected by the change: `grep -rn "smoke.example\|App.tsx\|from './App" tests/ packages/web/`, plus every type error `npm run typecheck` reports and every test whose environment changed (none expected outside `packages/web/**/*.test.tsx` and `tests/a11y/**`)
-- [ ] 7.2 Update only tests whose contract this change modified (the kit scaffold is replaced, not edited to pass; no other existing test may be edited), without weakening any assertion; list every edited existing test with the reason in the step 9 report, or record "none"
-- [ ] 7.3 Confirm each `#### Scenario:` of `specs/web-foundation/spec.md` maps 1:1 to a test with exactly the same name (grep each title in `packages/web/src/` and `tests/`), except those validated by command or by hand: "The development server serves the three paths" (10.4, 15.4), "The health check reaches the API through the development server" (10.2, 10.3), "The web does not import the API or the backend" (4.9) and the CI half of "The gate runs in CI instead of warning" (15.3)
+- [x] 7.1 Identify the tests affected by the change: `grep -rn "smoke.example\|App.tsx\|from './App" tests/ packages/web/`, plus every type error `npm run typecheck` reports and every test whose environment changed (none expected outside `packages/web/**/*.test.tsx` and `tests/a11y/**`)
+- [x] 7.2 Update only tests whose contract this change modified (the kit scaffold is replaced, not edited to pass; no other existing test may be edited), without weakening any assertion; list every edited existing test with the reason in the step 9 report, or record "none"
+- [x] 7.3 Confirm each `#### Scenario:` of `specs/web-foundation/spec.md` maps 1:1 to a test with exactly the same name (grep each title in `packages/web/src/` and `tests/`), except those validated by command or by hand: "The development server serves the three paths" (10.4, 15.4), "The health check reaches the API through the development server" (10.2, 10.3), "The web does not import the API or the backend" (4.9) and the CI half of "The gate runs in CI instead of warning" (15.3)
 
 ## 8. Refactor
 
-- [ ] 8.1 With the suite green, refactor `packages/web/src/**` and `tests/a11y/**` for naming and duplication only (no behaviour change, no test edits); `npx vitest run packages/web tests/a11y tests/unit/web` stays green
+- [x] 8.1 With the suite green, refactor `packages/web/src/**` and `tests/a11y/**` for naming and duplication only (no behaviour change, no test edits); `npx vitest run packages/web tests/a11y tests/unit/web` stays green
 
 ## 9. Run Tests and Verify Data State (MANDATORY)
 
