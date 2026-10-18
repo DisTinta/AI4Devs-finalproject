@@ -537,3 +537,252 @@ Resueltos por el agente como lead engineer con `/opsx:update` y registrados en e
 | `tests/support/jsdom-setup.ts` fuera del filtro | Añadido en D27 y tarea 1.4. |
 | `docs:coverage` no cubre la web | 9.3 lo dice; el TSDoc de la web se revisa en 15.5/15.6. |
 | Entrada inválida en la prueba manual | 10.2 añade el `POST` con `{}` → `400 VALIDATION_ERROR`. |
+
+## Run 3
+
+CHANGES REQUIRED
+
+# Auditoría de especificación: `web-foundation` (DIS-58, padre DIS-51), ejecución 3, 2026-10-18
+
+**Qué he leído:**
+- **El change entero:** `proposal.md`, `design.md`, `specs/web-foundation/spec.md` y `tasks.md`, más el informe de las ejecuciones 1 y 2 con sus dos tablas de resolución.
+- **Linear:** DIS-58 y DIS-51, con sus comentarios. Ninguno de los dos tiene comentarios, lo que cumple la regla de que el alcance va en la descripción.
+- **Documentación:** `docs/base-standards.md` §7.1, `docs/openspec-tasks-mandatory-steps.md`, `docs/frontend-standards.md` y `docs/project-context.md` (Mutation testing, el orden de los hooks de Vitest 1.6 y `docs:coverage`).
+- **Código real:**
+  - configuración: `vitest.config.ts`, `vitest.stryker.config.ts`, `.github/workflows/frontend.yml`, `.dependency-cruiser.cjs` y los scripts de `package.json`;
+  - TypeScript: `packages/web/tsconfig.json` y `tests/tsconfig.json`;
+  - la web: `packages/web/vite.config.ts` y los imports de `packages/web/src/`;
+  - datos: las migraciones de `store-postgres` (`claim`, `query_log`, `cache_entry`) y `seeds/`.
+
+La ADR `20261016-autonomous-workflow-run-entrega-2` no está en este árbol. Según el encargo, tomo como suyas las decisiones del agente, las respuestas a las preguntas para la autora, la apertura del PR (15.1) y el merge (15.9). Doy por buenas las comprobaciones de D24 y D26 tal como constan: proyecto de prueba con Vitest 1.6.1, jsdom 26.1 y react-router 7.18.
+
+## Preguntas para la autora
+
+Ninguna nueva. Las tres de la ejecución 1 siguen decididas y registradas en el `[enhanced]` de DIS-58, en «Puntos que el auditor planteó a la autora…».
+
+---
+
+## Comprobación de las resoluciones
+
+### Ejecución 1
+
+La ejecución 2 las comprobó una a una. He revisado de nuevo las que la ronda 2 volvió a tocar: B2/B5/B6 (spec l.63–96, l.148–203), B3 (l.30–44), B4 (l.281–287), B7 (D26 l.349–359; tareas 1.2 y 5.4), B8 (tarea 9.4) y B9 (10.1/10.5). Siguen reflejadas y no hay regresiones.
+
+### Ejecución 2
+
+| Hallazgo de la ejecución 2 | ¿Está en los artefactos? | ¿Está en el `[enhanced]` de DIS-58? | Estado |
+|---|---|---|---|
+| B1: el escenario de colores decorativos fallaba sobre el propio test | Spec l.283–284; D12 l.220–221; tarea 2.5 | «Tema (refina D4)», última frase | ✓ |
+| B2: restauración (`cache_entry` nuevas, `claim` sin referencia) | 10.1 l.83 captura `max(created_at)` y la lista de `id`; 10.5 l.87 borra y restaura | «Prueba manual (restauración)» | ✓ en lo que pedía la ronda 2. Queda un hueco en el caso de tabla vacía (ver §5 y §10, B1) |
+| DoD «test RTL en `frontend.yml`» | 15.3 nombra el paso «Unit / component tests» | — | ✓ |
+| Banner en las tres pantallas | Spec l.43–44 y l.51–52 | «Encabezados de los marcadores» | ✓ |
+| «Every text… in Spanish» no era verificable | Spec l.24–25: lista cerrada de textos | «Encabezados de los marcadores» (la línea del marcador) | ✓ en el requisito; sin escenario (ver §3) |
+| `status` de `ApiUnavailableError` | Spec l.155 y l.167 | «Cliente (refina D9)» | ✓ |
+| Comparación de totales de Node en el informe | 9.7 l.78 | — | ✓ |
+| «well-known packages» | 9.5 l.76 | — | ✓ |
+| Línea del marcador (proposal frente a D16) | `proposal.md` l.34; D16 l.269–271; tarea 5.2 | «Encabezados de los marcadores» | ✓ |
+| Control negativo de axe con RTL `render` | D11 l.210–211; tarea 6.2 | — | ✓ |
+| `cause`/`status` con `lib: ES2020` | D9 l.174–176 | «Cliente (refina D9)» | ✓ |
+| «refinements of D2, D9 and D13» | `design.md` l.54: «D2, D4, D9 and D13» | — | ✓ |
+| Premisa «no DOM lib» | Context l.14–15; D7 l.152; D18 l.286–287 | — | ✓ |
+| `tests/support/jsdom-setup.ts` en el filtro | D27 l.364; tarea 1.4 | D27 | ✓ en design, tasks y ticket. **`proposal.md` → Impact l.97–98 no se actualizó** (ver §6) |
+| `docs:coverage` no cubre la web | 9.3 l.74 | — | ✓ |
+| Entrada inválida en la prueba manual | 10.2 l.84 | «Prueba manual (restauración)» | ✓ |
+
+**Detalle de registro (mejorable):**
+- El encabezado del `[enhanced]` sigue siendo «Decisiones D17–D28 (propuesta y auditoría de especificación…)», y su entradilla dice «al resolver la ronda 1». Los ajustes de la ronda 2 están dentro, pero no se nombran.
+- Lo mismo pasa en `design.md` l.53–55 («while resolving the spec audit (run 1)»).
+
+---
+
+## 1. Alcance frente al ticket
+
+Limpio. Todo sale del `[enhanced]` de DIS-58 (D1–D28 y sus refinamientos). No se amplía a la HU completa de DIS-51: `ProjectPickerPage`, las tarjetas, el aviso de API caída y el test de coherencia siguen en DIS-60. D27 (filtro de CI) y D28 (regla de arquitectura) constan en el ticket.
+
+## 2. Criterios de aceptación heredados
+
+| Criterio | Origen | Requisito / escenario | Estado |
+|---|---|---|---|
+| `test:a11y` pasa en `frontend.yml` | DoD de DIS-58 | «The gate runs in CI instead of warning»; 6.4, 15.3 | OK |
+| Un test RTL de ejemplo pasa en `frontend.yml` | DoD de DIS-58 | Escenarios de «Routes…» (`router.test.tsx`); 15.3, con el paso «Unit / component tests» | OK |
+| Notas *target* retiradas | DoD de DIS-58 | Criterio documental (D13); 12.1 | OK, decidido y registrado |
+| axe sin violaciones y controles con nombre accesible | AC 4 de DIS-51 | «The three routes have no axe violations» | OK |
+| `GET /health` a través del proxy | AC de DIS-58 | «The health check reaches the API through the development server» | OK |
+| Cancelación en `ask` y en `getHealth` | AC de DIS-58 | Cuatro escenarios de «Cancellation by the caller» | OK |
+| Tiempo límite de 5 000 ms en `getHealth` | AC de DIS-58 | «A hanging API…», «A caller-chosen limit…» | OK |
+| `TESTING.md`, `DEPLOYMENT.md` y `project-context.md` actualizados | AC «Tema y standards» de DIS-58 | Documental; 12.2, 12.3 | OK |
+| AC 1, 2, 3 y 5 de DIS-51 | DIS-51 | Fuera de este cambio: son de DIS-60 | Correcto |
+
+Sin bloqueantes.
+
+## 3. Escenarios ausentes
+
+- **Mejorable.** «Asking a question…»: el MUST «It SHALL have no time limit of its own» (spec l.104–105) no tiene escenario. DIS-65 depende de ello, porque un modelo local en CPU tarda decenas de segundos. Si el helper compartido de D9 heredara por error el temporizador de `getHealth`, ningún test lo detectaría. Propuesta: un escenario «A question has no time limit of its own», con el reloj adelantado 60 000 ms, la promesa aún pendiente y la señal de la petición sin abortar. Se implementa en la tarea 4.6.
+- **Mejorable.** «Routes…»: la lista cerrada «no other text is rendered besides the banner, the headings, that line, the `projectId` and the not-found link» (spec l.24–25) no tiene escenario. Propuesta: añadir al THEN de los dos escenarios de marcador que el texto del `main` es exactamente el `h1`, la línea «Esta pantalla está en construcción.» y, en la Pantalla 2, el id.
+- **Igual que en la ejecución 2:** «Every other test file SHALL keep running in Node» se sostiene con la comparación de totales de 1.5, citada en 9.7. Es aceptable.
+
+## 4. Ambigüedad
+
+- `spec.md`, `proposal.md` y `tasks.md` no tienen ninguna de las palabras vetadas. «too many requests» (spec l.142) es un valor de fixture.
+- `design.md` l.224 «small pure function», l.279 «keeps them fast» / «easy to forget» y l.333 «Fast Refresh» son justificación o nombre propio. Inocuos.
+- **Mejorable.** Spec l.82, escenario «A hanging API…»: «called without a time limit» se puede leer como «sin límite», lo contrario de lo que se prueba, que es el límite por defecto. Debe decir «called without passing a limit (the default applies)».
+
+## 5. Decisiones abiertas
+
+- **B1 (bloqueante): la restauración no está definida si una tabla no tiene filas.**
+  - La tarea 10.5 (l.87) borra las filas de `query_log` y de los `claim` de acme-shop «created after the 10.1 `max(created_at)`».
+  - En una base recién sembrada ese máximo es `NULL`: `seeds/` no inserta ninguna fila de `claim`, `query_log` ni `cache_entry`.
+  - En SQL, `created_at > NULL` no selecciona ninguna fila. El borrado no hace nada, la comprobación de 10.5 da otra cuenta y el implementador tendría que improvisar la restauración.
+  - Las columnas existen: `claim.created_at` (`0002_history-claims.up.sql` l.53) y `query_log.created_at` (l.92).
+  - Corrección en 10.1 y 10.5, y en el `[enhanced]`: comparar con `coalesce(<max capturado>, '-infinity')`. Así, si la tabla estaba vacía, se borran todas las filas de acme-shop creadas durante la prueba, y la comprobación final exige el mismo `count(*)` y el mismo `max(created_at)`, incluido `NULL`.
+- Todo lo demás que el implementador necesita está fijado:
+  - formatos, nombres (`timeoutMs`, `signal`, `name` de las clases) y límites (`RangeError`);
+  - los casos de error y su `cause`, y el orden de clasificación (D20);
+  - los globs, el fichero de setup, los textos de la interfaz y las rutas de los informes.
+
+## 6. Contradicciones dentro del cambio
+
+- **Mejorable.** `proposal.md` → Impact l.97–98 dice que el filtro de `frontend.yml` «gains `packages/web/**` and `tests/unit/web/**`». D27 (l.363–364), la tarea 1.4 y el `[enhanced]` añaden además `tests/support/jsdom-setup.ts`. Hay que alinear `proposal.md`.
+- **Mejorable.** `design.md` l.53–55 y la entradilla del `[enhanced]` solo citan la ronda 1 (ver «Detalle de registro»).
+- No hay más contradicciones. Proposal, design y spec coinciden en:
+  - rutas, textos y modelo de errores;
+  - tiempos límite y cancelación;
+  - entorno por ruta, setup, Stryker, CI y la regla de arquitectura.
+
+## 7. Contradicciones con el proyecto
+
+- **Limpio.**
+  - `test:mutation:full` en 9.4 cumple `docs/project-context.md` → Mutation testing (l.86–88).
+  - D3 cumple frontend-standards §1 (configuración en CSS). D10 cumple §3 (tipos declarados una vez). Arrange-Act-Assert (§4 l.63) está en la cabecera del grupo 2. La nota de CWV (§5) está en Risks, 0.4 y 9.3.
+  - El orden de los pasos obligatorios cumple `openspec-tasks-mandatory-steps.md` §2.
+  - Ninguna ADR de `docs/adr/` choca con el cambio.
+- **Comprobado, no es hallazgo.** `docs/project-context.md` l.309–311 avisa de que en Vitest 1.6 los hooks de una suite corren en paralelo. El `afterEach` del setup (D18) y los `afterEach` de los ficheros (`vi.unstubAllGlobals()`, `vi.useRealTimers()` en 4.1) no comparten estado, así que el paralelismo no les afecta.
+- **Nota.** 15.1 (abrir el PR sin confirmar con la autora) y 15.9 (el agente hace el merge) contradicen `openspec-tasks-mandatory-steps.md` §3, Pre-merge, puntos 1 y 5. Según el encargo, la ADR de la ejecución autónoma lo autoriza, pero no se puede comprobar en este árbol.
+
+## 8. Contraste con el código real
+
+**Limpio:**
+- **D22:** `packages/web/vite.config.ts` exporta `defineConfig({…})` como objeto (l.4), así que el test puede leer `server.proxy` y `preview.proxy`.
+- **D28:** `packages/web/src/` solo importa `react` y `react-dom` (l.1–3 de `main.tsx` y `App.tsx`). `sample-projects.ts` no importa nada, así que la regla `web-no-backend` no rompe nada de lo que existe. `lint:architecture` = `depcruise packages` (`package.json` l.23) cubre `packages/web`, y el `exclude` de `tests/` (`.dependency-cruiser.cjs` l.118) deja fuera el test de contrato. El patrón `^@codemind/` sigue la convención de `core-no-infra-packages` (l.30).
+- **D24, D12, D7:** el `tsconfig` de la web (`module: ESNext`, sin `types`) admite `import.meta.url`, `node:fs` y `readdirSync(…, { recursive: true })`. `tests/a11y/tsconfig.json` hereda `noEmit` (l.12) y no hereda `references`.
+- **D19:** `tests/tsconfig.json` usa `Bundler`, con imports sin extensión (l.8–9), y sin `lib` carga DOM, así que compila `api-client.ts`.
+- **Tarea 7.1:** `main.tsx` importa `./App.js` (l.3), que el grep `from './App` encuentra.
+- **D25:** `vitest.stryker.config.ts` concatena su `exclude` con `mergeConfig` (l.12–24), así que la exclusión es viable.
+- **D17:** `poolMatchGlobs` con `**/` (`vitest.config.ts` l.30) confirma los globs.
+- **D27:** el filtro actual (`frontend.yml` l.21–35) no recoge `packages/web/vite.config.ts` ni los `.ts` de la web, porque `vite.config.*` solo casa en la raíz. D27 lo corrige.
+- **No hay duplicados:** `tests/support/` no tiene ningún doble de `fetch` ni de DOM.
+
+## 9. Tamaño de las tareas
+
+Limpio. La 4.2 es la más grande y cabe. La 1.1 puede crecer si hay que regenerar el lock, y Risks fija qué hacer. La 15.7 es abierta por naturaleza.
+
+## 10. Pasos obligatorios
+
+- **Limpio:**
+  - El paso 0 es la rama: 0.2 la crea y comprueba, y 0.1 es el estado de Linear, como pide la regla del proyecto.
+  - Las etiquetas `(MANDATORY)` y `AGENT MUST EXECUTE` están.
+  - La numeración es secuencial, de 0 a 15.
+  - Las rutas de los informes están nombradas (9.7, 10.6, 15.4–15.6).
+  - El paso E2E está presente (11.1, que remite a 10.4).
+  - Pre-merge va el último, con la secuencia fija.
+  - Cada escenario tiene al menos una tarea.
+- **B1 (bloqueante, el mismo de §5).** La restauración de 10.5 falla en silencio cuando `query_log` o los `claim` de acme-shop estaban vacíos en 10.1, que es el caso de una base recién sembrada.
+
+## 11. Trazabilidad
+
+| Requisito | Escenario | Tareas |
+|---|---|---|
+| Routes of the web client | The root path shows the Screen 1 placeholder | 5.1, 5.2 |
+| | A project path shows the Screen 2 placeholder with its id | 5.3 |
+| | An unknown path shows the not-found screen and leads back | 5.4 (D26, 1.2) |
+| | The development server serves the three paths | 10.4, 15.4 |
+| Health check through the API client | A healthy API resolves the health check | 4.1, 4.2 |
+| | A hanging API makes the health check time out | 4.6 |
+| | A caller-chosen limit is honoured | 4.6 |
+| | An invalid limit is refused | 4.6 |
+| Asking a question through the API client | An answered question is resolved as received | 4.3 |
+| | An UNKNOWN is resolved as received | 4.3 |
+| | The project id is encoded as one path segment | 4.3 |
+| | *(propuesto, mejorable)* A question has no time limit of its own | *(4.6, si se añade)* |
+| API errors | The error format becomes an API error | 4.4 |
+| Unavailable API | Failures that are not the API's answer become unavailable-API errors | 4.5 |
+| Cancellation by the caller | Aborting a pending question cancels the request | 4.7 |
+| | Aborting a pending health check cancels the request | 4.7 |
+| | Aborting while the body is read rejects with the caller's reason | 4.7 |
+| | An already-aborted signal sends no request | 4.7 |
+| API types follow the API's schemas | A drift between the client types and the API schemas fails the type check | 4.8 |
+| | The web does not import the API or the backend | 1.4, 4.9 |
+| Same-origin access to the API in local development | Both servers forward the API paths | 3.1, 3.2 |
+| | The health check reaches the API through the development server | 10.2, 10.3, 15.4 |
+| Theme colours and minimum contrast | Every declared text pair meets 4.5:1 | 2.3, 2.4 |
+| | Wireframe accent colours are never text | 2.5 |
+| | A token changed to a low-contrast value fails the theme test | 2.1, 2.2 |
+| Accessibility gate on the real routes | The three routes have no axe violations | 6.2, 6.3 |
+| | The negative control proves axe runs | 6.2 |
+| | The gate runs in CI instead of warning | 6.4, 15.3 |
+| Component test environment | Rendered output does not leak between tests | 5.5 (la navegación, 5.4) |
+| (DoD: notas *target*) | Criterio documental (D13) | 12.1 |
+
+No hay filas vacías entre los 28 escenarios existentes. La fila propuesta solo aparece si se acepta la mejora de §3.
+
+---
+
+## Correcciones a aplicar
+
+### `openspec/changes/web-foundation/tasks.md`
+
+1. **10.1** (bloqueante, B1): añadir al final:
+   > «A `max(created_at)` of `NULL` (no rows) is recorded as such.»
+2. **10.5** (bloqueante, B1): sustituir «created after the 10.1 `max(created_at)`» y «with `created_at` after the 10.1 value» por:
+   > «with `created_at > coalesce(<10.1 max>, '-infinity')` (an empty table in 10.1 means every row the test created is deleted)»
+
+   Y al final:
+   > «the re-check requires the same `count(*)` and the same `max(created_at)`, `NULL` included».
+3. **4.6** (mejorable, solo si se acepta el escenario nuevo de la spec): añadir:
+   > «, "A question has no time limit of its own" (`vi.useFakeTimers()`, advance 60 000 ms; still pending, request signal not aborted)».
+4. **7.3**: si se añade el escenario nuevo, no requiere excepción, porque es un test con el mismo nombre.
+
+### `openspec/changes/web-foundation/specs/web-foundation/spec.md`
+
+1. **Escenario «A hanging API makes the health check time out»** (l.82, mejorable): sustituir «called without a time limit» por:
+   > «called without passing a limit (the default applies)».
+2. **Requirement «Asking a question through the API client»** (mejorable): añadir el escenario:
+   > #### Scenario: A question has no time limit of its own
+   > - **GIVEN** a network that never answers, and a clock that the test advances
+   > - **WHEN** `ask` is called without a caller signal and the clock advances 60 000 ms
+   > - **THEN** the promise is still pending and the signal the request was sent with, if any, is not aborted
+3. **Escenarios «The root path…» y «A project path…»** (mejorable): añadir al THEN:
+   > «, and the text of the main landmark is exactly the level-1 heading and «Esta pantalla está en construcción.»» (en el segundo, «… and the `projectId`»).
+
+### `openspec/changes/web-foundation/proposal.md`
+
+- **Impact → Config and CI**, l.97–98 (mejorable): sustituir «gains `packages/web/**` and `tests/unit/web/**`» por:
+  > «gains `packages/web/**`, `tests/unit/web/**` and `tests/support/jsdom-setup.ts`».
+
+### `openspec/changes/web-foundation/design.md`
+
+- **Decisions**, l.53–55 (mejorable): sustituir «and D26–D28 while resolving the spec audit (run 1); all of them, with the refinements of D2, D4, D9 and D13, were added» por:
+  > «D26–D28 while resolving the spec audit (run 1), and runs 2 and 3 adjusted D9, D11, D12, D27 and the manual-test restoration; all of them, with the refinements of D2, D4, D9 and D13, were added».
+- **D9** (mejorable, si se acepta el escenario nuevo): después de «`ask(projectId, body, { signal? })` has no default time limit», añadir:
+  > «(spec scenario "A question has no time limit of its own")».
+
+### Ticket Linear DIS-58 (parte `[enhanced]`; el bloque `[original]` no se toca; en español)
+
+- **«Prueba manual (restauración)»** (bloqueante, B1): sustituir «se borran las filas de `query_log` y `claim` posteriores a esas fechas» por:
+  > «se borran las filas de `query_log` y `claim` con `created_at` posterior a esas fechas, comparando con `coalesce(máximo capturado, '-infinity')`: si la tabla no tenía filas (una base recién sembrada no tiene ni `claim` ni `query_log`), se borran todas las que creó la prueba; la comprobación final exige el mismo `count(*)` y el mismo `max(created_at)`, incluido el valor nulo».
+- **Encabezado y entradilla de «Decisiones D17–D28»** (mejorable): sustituir «(propuesta y auditoría de especificación, 2026-10-18)» por «(propuesta y rondas 1–3 de la auditoría de especificación, 2026-10-18)», y «al resolver la ronda 1 del `spec-auditor`» por «al resolver las rondas 1, 2 y 3 del `spec-auditor`».
+- **«Cliente (refina D9)»** (mejorable, solo si se acepta el escenario nuevo): añadir:
+  > «`ask` no tiene tiempo límite propio y un escenario lo comprueba (60 000 ms sin abortar).»
+
+## Resolución de los hallazgos de la ronda 3
+
+Resueltos por el agente como lead engineer con `/opsx:update`; el `[enhanced]` de DIS-58 recoge los cambios («Prueba manual (restauración)», «Cliente», encabezado de «Decisiones D17–D28»).
+
+| Hallazgo | Resolución |
+|---|---|
+| B1 restauración con tablas vacías | Corregido: 10.1 registra un `max(created_at)` nulo como tal; 10.5 borra con `created_at > coalesce(<máximo de 10.1>, '-infinity')`; la comprobación final exige el mismo `count(*)` y el mismo `max(created_at)`, nulo incluido. |
+| «called without a time limit» | Reescrito: «without passing a limit (the default applies)». |
+| `ask` sin tiempo límite propio | Escenario nuevo «A question has no time limit of its own» (60 000 ms); D9 lo cita; tarea 4.6. |
+| Texto exacto del `main` de los marcadores | Añadido a los THEN de los dos escenarios de marcador. |
+| `proposal.md` → filtro de `frontend.yml` | Incluye `tests/support/jsdom-setup.ts`. |
+| Entradilla de decisiones | `design.md` y el `[enhanced]` citan las rondas 1–3. |

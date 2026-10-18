@@ -32,7 +32,8 @@ no request to the API.
 - **WHEN** the initial path is `/`
 - **THEN** the level-1 heading «Elige un proyecto para explorar» is rendered inside the main landmark, the
   banner shows «CODEMIND» and «Comprensión de repositorios con evidencia verificable», and the double
-  recorded no request
+  recorded no request, and the text of the main landmark is exactly the level-1 heading and «Esta pantalla
+  está en construcción.»
 
 #### Scenario: A project path shows the Screen 2 placeholder with its id
 
@@ -41,7 +42,8 @@ no request to the API.
 - **WHEN** the initial path is `/p/a794456d-6d1b-5b55-a360-13fec83dc7bc`
 - **THEN** the level-1 heading «Consulta del proyecto» is rendered, the text
   `a794456d-6d1b-5b55-a360-13fec83dc7bc` is shown, the banner shows «CODEMIND» and «Comprensión de
-  repositorios con evidencia verificable», and the double recorded no request
+  repositorios con evidencia verificable», the double recorded no request, and the text of the main
+  landmark is exactly the level-1 heading, «Esta pantalla está en construcción.» and the `projectId`
 
 #### Scenario: An unknown path shows the not-found screen and leads back
 
@@ -79,7 +81,7 @@ a time limit, 5 000 ms unless the caller passes another limit, and then reject a
 #### Scenario: A hanging API makes the health check time out
 
 - **GIVEN** a network that never answers, and a clock that the test advances
-- **WHEN** the health check is called without a time limit and the clock advances 4 999 ms, then 1 ms more
+- **WHEN** the health check is called without passing a limit (the default applies) and the clock advances 4 999 ms, then 1 ms more
 - **THEN** the promise is still pending after 4 999 ms; after 5 000 ms it rejects as unavailable, and the
   signal the request was sent with is aborted
 
@@ -120,6 +122,12 @@ time limit of its own.
   `{"answer":"UNKNOWN","reason":"no-anchor","statements":[],"evidence":[]}`
 - **WHEN** `ask` is called with a valid project id and question
 - **THEN** the promise resolves to a value deeply equal to that body, not an error
+
+#### Scenario: A question has no time limit of its own
+
+- **GIVEN** a network that never answers, and a clock that the test advances
+- **WHEN** `ask` is called without a caller signal and the clock advances 60 000 ms
+- **THEN** the promise is still pending and the signal the request was sent with, if any, is not aborted
 
 #### Scenario: The project id is encoded as one path segment
 

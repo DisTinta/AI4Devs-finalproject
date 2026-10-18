@@ -95,7 +95,7 @@ requirement of theirs changes.
 - **Config and CI:** root `package.json` gains the `test:a11y` script and `typecheck` checks
   `tests/a11y/tsconfig.json`; `vitest.config.ts` gains the per-path environment, the JSX transform and the
   setup file. `frontend.yml`'s `test:a11y` step runs the script once it exists; its paths filter gains
-  `packages/web/**` and `tests/unit/web/**` so a change to a `.ts` file of the web runs the job (D27).
+  `packages/web/**`, `tests/unit/web/**` and `tests/support/jsdom-setup.ts` so a change to a `.ts` file of the web runs the job (D27).
   `.dependency-cruiser.cjs` gains the rule `web-no-backend` (D28). The `quality` job of `ci.yml` runs the
   jsdom tests too (it runs the whole suite). Stryker's `mutate` is unchanged (`packages/web` is not in
   it); `vitest.stryker.config.ts` excludes the web tests, which can kill no mutant (D25).

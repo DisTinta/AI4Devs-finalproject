@@ -51,7 +51,8 @@ See `proposal.md` → Why. The current state that shapes the approach:
 
 Decisions D1–D16 come from the DIS-58 `[enhanced]` description (agent as lead engineer, ADR
 `20261016-autonomous-workflow-run-entrega-2`); D17–D25 were taken while proposing and D26–D28 while
-resolving the spec audit (run 1); all of them, with the refinements of D2, D4, D9 and D13, were added to the
+resolving the spec audit (run 1), and runs 2 and 3 adjusted D9, D11, D12, D27 and the manual-test
+restoration; all of them, with the refinements of D2, D4, D9 and D13, were added to the
 same description on 2026-10-18 ("Decisiones D17–D28").
 
 ### D1 — An OpenSpec change with the new capability `web-foundation`
@@ -183,7 +184,8 @@ Two classes in `services/api-client.ts`, both extending `Error`, each with `name
 Success is any `2xx` (the API only answers `200` on these routes). `getHealth({ signal?, timeoutMs = 5000 })`
 also requires `status === 'ok'` (its type promises `{ status: 'ok' }` and DIS-60 decides "API available"
 on it); a `timeoutMs` that is not a positive finite number (`0`, negatives, `NaN`, `Infinity`) rejects
-with a `RangeError` before any request. `ask(projectId, body, { signal? })` has no default time limit:
+with a `RangeError` before any request. `ask(projectId, body, { signal? })` has no default time limit (spec scenario "A question has no time
+limit of its own"):
 with a local model on CPU an answer takes tens of seconds. The body is read with `response.text()` and
 parsed with `JSON.parse`, inside the same `try` as `fetch`, so the caller's abort is classified the same
 way during the request and during the body read (D20). The client never retries (retry is a UI action,
