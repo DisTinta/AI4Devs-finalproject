@@ -9,7 +9,8 @@ import { useApiHealth } from './useApiHealth';
  * Screen 1 of the web client, on `/` (project-picker; DIS-60 design D2, D3, D8): the heading, the
  * subtitle and one card per project of the versioned sample-project constant, painted on the first
  * render without any HTTP request. The only request it sends is the API health check; when it fails, an
- * alert between the subtitle and the cards says so and offers a retry (design D9).
+ * alert between the subtitle and the cards says so and offers a retry (design D9). Below the cards, the
+ * command to index a repository of one's own is a hint, not a control (design D14, D16).
  *
  * @returns The project selection page.
  */
@@ -49,6 +50,16 @@ export function ProjectPickerPage(): ReactElement {
           </li>
         ))}
       </ul>
+      <hr className="mx-auto mt-8 w-2/3 border-t border-dashed border-border" />
+      <p className="mt-4 text-sm text-accent">+ Indexar mi propio repositorio</p>
+      <p className="mt-2">
+        <code className="rounded-button bg-canvas px-2 py-0.5 font-mono text-xs text-ink-muted">
+          npm run cli -- index &lt;carpeta&gt; --name &lt;nombre&gt; --language php
+        </code>
+      </p>
+      <p className="mt-2 text-xs text-ink-subtle">
+        Desde la terminal · requiere Docker, Node 20+ y Git 2.45.1+ · por ahora solo PHP
+      </p>
     </PageFrame>
   );
 }

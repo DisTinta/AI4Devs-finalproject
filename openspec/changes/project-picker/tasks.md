@@ -32,7 +32,7 @@ Every test of this change follows Arrange-Act-Assert with the three blocks comme
 
 ## 4. Indexing hint (TDD, design D14, D16) — `project-picker` → "Indexing a repository of one's own is a hint, not a control"
 
-- [ ] 4.1 RED → GREEN: "The indexing hint is text, not a control" (texts after the list, by `compareDocumentPosition`; the command inside a `code` element; `queryAllByRole('link')` and `queryAllByRole('button')` have no name matching `/Indexar/`). Add the `hr` with `border-dashed`, the accent `p`, the `code` and the requirements line to `ProjectPickerPage`
+- [x] 4.1 RED → GREEN: "The indexing hint is text, not a control" (texts after the list, by `compareDocumentPosition`; the command inside a `code` element; `queryAllByRole('link')` and `queryAllByRole('button')` have no name matching `/Indexar/`). Add the `hr` with `border-dashed`, the accent `p`, the `code` and the requirements line to `ProjectPickerPage`
 
 ## 5. App error screen (TDD, design D11, D21) — `project-picker` → "App error screen"; `web-foundation` → "Routes and screens of the web client"
 

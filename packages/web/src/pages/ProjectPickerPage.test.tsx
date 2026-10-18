@@ -350,3 +350,28 @@ describe('API status on Screen 1', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 });
+
+describe("Indexing a repository of one's own is a hint, not a control", () => {
+  it('The indexing hint is text, not a control', async () => {
+    // Arrange
+    stubFetch(neverAnswer);
+
+    // Act
+    renderAt('/');
+    const main = await screen.findByRole('main');
+    const list = within(main).getByRole('list', { name: 'Proyectos de muestra' });
+
+    // Assert
+    const hint = within(main).getByText('+ Indexar mi propio repositorio');
+    const command = within(main).getByText('npm run cli -- index <carpeta> --name <nombre> --language php');
+    const requirements = within(main).getByText(
+      'Desde la terminal · requiere Docker, Node 20+ y Git 2.45.1+ · por ahora solo PHP',
+    );
+    expect(comesAfter(list, hint)).toBe(true);
+    expect(comesAfter(hint, command)).toBe(true);
+    expect(comesAfter(command, requirements)).toBe(true);
+    expect(command.tagName).toBe('CODE');
+    expect(screen.queryAllByRole('link', { name: /Indexar/ })).toEqual([]);
+    expect(screen.queryAllByRole('button', { name: /Indexar/ })).toEqual([]);
+  });
+});
