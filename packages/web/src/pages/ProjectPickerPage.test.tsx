@@ -59,6 +59,18 @@ function rejectWithTypeError(): Promise<Response> {
   return Promise.reject(new TypeError('fetch failed'));
 }
 
+/**
+ * Renders Screen 1 with `fetch` rejecting with a `TypeError`, and waits for the alert.
+ *
+ * @returns The alert's retry button.
+ */
+async function renderWithAlert(): Promise<HTMLElement> {
+  stubFetch(rejectWithTypeError);
+  renderAt('/');
+  const alert = await screen.findByRole('alert');
+  return within(alert).getByRole('button', { name: 'Reintentar' });
+}
+
 /** Renders the web client's routes in a memory router at `path`. */
 function renderAt(path: string): ReturnType<typeof render> {
   return render(<RouterProvider router={createMemoryRouter(routes, { initialEntries: [path] })} />);
@@ -256,5 +268,28 @@ describe('API status on Screen 1', () => {
     expect(at4999).toEqual({ alert: false, checking: true });
     expect(at5000).toEqual({ alert: true, checking: false });
     expect(requests).toHaveLength(1);
+  });
+
+  it('Retrying after the API comes back removes the alert', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const retryButton = await renderWithAlert();
+    const requests = stubFetch(answerOk);
+
+    // Act
+    await user.click(retryButton);
+    const article = screen.getByRole('article', { name: 'acme-shop' });
+    const ready = await within(article).findByText('listo');
+
+    // Assert
+    expect(ready).toBeDefined();
+    expect(requests).toHaveLength(1);
+    expect(requests[0].url).toBe('/health');
+    expect(requests[0].init?.method).toBe('GET');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Reintentar' })).toBeNull();
+    expect(document.activeElement).toBe(
+      screen.getByRole('heading', { level: 1, name: 'Elige un proyecto para explorar' }),
+    );
   });
 });

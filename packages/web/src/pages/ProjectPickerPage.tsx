@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import { useEffect, useRef, type ReactElement } from 'react';
 import { ErrorBanner } from '../components/ErrorBanner';
 import { PageFrame } from '../components/PageFrame';
 import { ProjectCard } from '../components/ProjectCard';
@@ -15,14 +15,29 @@ import { useApiHealth } from './useApiHealth';
  */
 export function ProjectPickerPage(): ReactElement {
   const { status, retrying, retry } = useApiHealth();
+  const heading = useRef<HTMLHeadingElement>(null);
+  const retried = useRef(false);
+
+  // Only a successful retry moves the focus: its button disappears (design D17, D25).
+  useEffect(() => {
+    if (status === 'available' && retried.current) {
+      heading.current?.focus();
+    }
+  }, [status]);
+
+  const onRetry = (): void => {
+    retried.current = true;
+    retry();
+  };
+
   return (
     <PageFrame>
-      <h1 tabIndex={-1} className="text-lg font-semibold text-ink-muted">
+      <h1 ref={heading} tabIndex={-1} className="text-lg font-semibold text-ink-muted">
         Elige un proyecto para explorar
       </h1>
       <p className="mt-1 text-sm text-ink-subtle">Repositorios precargados · sin registro · sin instalación</p>
       {status === 'unavailable' ? (
-        <ErrorBanner onRetry={retry} retrying={retrying}>
+        <ErrorBanner onRetry={onRetry} retrying={retrying}>
           La API de CODEMIND no está disponible. Puedes ver los proyectos, pero no preguntar hasta que vuelva.
           Arráncala con <code>make up</code> y pulsa Reintentar.
         </ErrorBanner>
