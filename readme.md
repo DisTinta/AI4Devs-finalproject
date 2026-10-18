@@ -8,14 +8,31 @@ Proyecto Final del Máster AI4Devs · Cristina Rodríguez Núñez
 
 > **Estado de la entrega**
 >
-> Este documento corresponde a la **Entrega 1 — Documentación técnica** (24 de septiembre de 2026), que es documentación sin código. Describe el sistema tal como está diseñado para construirse.
+> Este documento corresponde a la **Entrega 2 — código funcional** (22 de octubre de 2026). Describe el sistema tal como está en la rama `feature/entrega-2-CRN`, y marca como *Entrega 3* lo que todavía no existe.
 >
-> - **Entrega 2** (22 de octubre): código funcional con el flujo principal operativo.
-> - **Entrega 3** (12 de noviembre): funcionalidades completas, tests, despliegue reproducible (Compose + CI + `verify`) y `prompts.md`.
+> - **Entrega 1** (24 de septiembre): documentación técnica.
+> - **Entrega 2** (22 de octubre): flujo principal operativo por CLI y API — indexar un repositorio PHP/Laravel, preguntar con evidencia verificada, confianza calculada, uso y coste por consulta, caché de respuestas y `npm run verify` — y el andamiaje de la web.
+> - **Entrega 3** (12 de noviembre): pantallas web completas, análisis de impacto, analizador TypeScript, mediciones publicadas y despliegue reproducible cerrado.
 >
-> Las secciones marcadas con *(pendiente)* se completarán en las entregas correspondientes. La sección 7 (Pull Requests) queda necesariamente vacía en esta entrega, ya que aún no hay código.
+> Las secciones marcadas con *(pendiente)* se completarán en la entrega que indican. La sección 7 recoge las pull requests reales de esta entrega, y la [sección 8](#8-flujo-de-trabajo-con-ia-y-sdd-harness-kit) el flujo de trabajo con IA con el que se han hecho.
 >
-> **Sobre la evidencia de funcionamiento:** el repositorio levantable en local en tres comandos (`make up`), el guion `docs/DEMO.md` y `npm run verify`. Los wireframes de las tres pantallas principales están en [1.3](#13-diseño-y-experiencia-de-usuario).
+> **Sobre la evidencia de funcionamiento:** el repositorio levantable en local (`make up`), el guion [`docs/DEMO.md`](docs/DEMO.md) con la salida real de cada paso y `npm run verify`. Los wireframes de las tres pantallas siguen en [1.3](#13-diseño-y-experiencia-de-usuario) como referencia visual de la web.
+>
+> **Recomendaciones de la revisión de la Entrega 1**
+>
+> | Recomendación | Estado | Dónde |
+> |---|---|---|
+> | Medir la latencia y las llamadas del verificador en cada consulta | Aplicado tras la revisión (14-10-2026) | `query_log.verify_latency_ms` y `verify_calls`, DIS-74 ([3.2](#32-descripción-de-entidades-principales)) |
+> | Alinear el contrato OpenAPI con la decisión de indexar solo por CLI | Aplicado tras la revisión | [4](#4-especificación-de-la-api): `/index` sale del contrato |
+> | Decidir qué pasa con los embeddings | Aplicado tras la revisión: se documenta el estado | Nota de [2.2](#22-descripción-de-componentes-principales); la decisión del puerto la tomará DIS-46 |
+> | Mostrar la IA en las fases de Pruebas, Despliegue y Mantenimiento | Aplicado tras la revisión | [8.3](#83-ia-en-las-seis-fases-del-ciclo) |
+> | Medir el verificador | Previsto | DIS-79 (Tabla 1 y Tabla 2 de [2.6](#26-tests)) |
+> | Aristas con un extremo polimórfico sin clave foránea | Ya resuelto antes de la revisión | Dos FK por extremo y `CHECK` (ADR `20260928-edge-endpoints-as-fk-pairs`) |
+> | Confinamiento de rutas con `startsWith` | Ya resuelto antes de la revisión | `path.relative` en `path-policy.ts` ([2.5](#25-seguridad)) |
+> | Acceso a Git detrás de un puerto | Ya resuelto antes de la revisión | `GitPort` (DIS-35) |
+> | Harness de trabajo con IA instalado en el repositorio | Ya resuelto antes de la revisión | `ai-specs/`, `.claude/`, `openspec/` ([8.1](#81-el-kit-sdd-harness-kit)) |
+> | Que el servidor no acepte rutas de repositorio | Ya resuelto antes de la revisión | El indexado es solo por la CLI local; la API no recibe rutas |
+> | Acotar el proyecto a un solo analizador | **No aplicado** | La planificación en Linear (hitos M1–M9) ya ordena las entregas: PHP en la Entrega 2 y TypeScript en la 3 |
 >
 > **Decisión (5 sep 2026).** Antes: evidencia = demo alojada + local. Ahora: **solo local**. Motivo: sin coste de hosting/dominio y un único entorno fiable el día de la revisión. Detalle en `proposal-codemind/05-propuesta-v4-evidencia-local-hibrido-ollama.md`.
 
@@ -31,6 +48,7 @@ Proyecto Final del Máster AI4Devs · Cristina Rodríguez Núñez
 5. [Historias de usuario](#5-historias-de-usuario)
 6. [Tickets de trabajo](#6-tickets-de-trabajo)
 7. [Pull requests](#7-pull-requests)
+8. [Flujo de trabajo con IA y `sdd-harness-kit`](#8-flujo-de-trabajo-con-ia-y-sdd-harness-kit)
 
 ---
 
@@ -73,6 +91,8 @@ En el proyecto intervienen **tres repositorios distintos**, y conviene no confun
 | **3** | `acme-shop` y `task-api` | Públicos, **incluidos dentro del 1** | Repositorios de muestra pequeños, con su grafo ya construido, en `fixtures/`. Son lo que permite reproducir la demo sin credenciales de nadie |
 
 Que el número 2 sea privado **no obliga a que CODEMIND sea público o privado**: el repositorio analizado es dato de entrada, no el producto entregado. Pero tiene una consecuencia de diseño, y es la que explica el número 3: nadie ajeno puede abrir el número 2, así que no sirve para demostrar nada. Los repositorios de muestra existen para que la evaluación sea reproducible por cualquiera, y por eso viajan dentro de la entrega en lugar de enlazarse desde fuera.
+
+**Kit de trabajo con IA:** el proyecto se construye con [`DisTinta/sdd-harness-kit`](https://github.com/DisTinta/sdd-harness-kit), un kit propio de Spec-Driven Development con hooks, skills y subagentes. Cómo se ha usado está en la [sección 8](#8-flujo-de-trabajo-con-ia-y-sdd-harness-kit).
 
 ---
 
@@ -126,6 +146,8 @@ Desarrolladores que trabajan sobre código que no escribieron: incorporaciones a
 
 - **Local, en tres comandos.** Se clona el repositorio, se copia `.env.example` a `.env` (sin obligar a una API key) y se levanta con `make up`. Los dos proyectos de muestra quedan consultables. **Sin PHP instalado, sin clonar repositorios ajenos, sin esperar ningún indexado**, porque los grafos y las respuestas de evaluación van versionados como semillas SQL / caché.
 
+*Estado en la Entrega 2:* la semilla carga `acme-shop` (174 nodos y 170 aristas) con tres respuestas *golden*; `task-api` entra con el analizador TypeScript (CM-HU-18, Entrega 3). F1, F2, F4 y F5 funcionan por CLI y por `POST /ask`; F3 (impacto) y F6 (deriva documental) son de la Entrega 3, y F7 tiene hoy el acierto exacto por pregunta normalizada, sin similitud de embedding (CM-HU-19).
+
 **Modo híbrido LLM (parte de F4):**
 
 | Situación | Qué puede hacer quien evalúa |
@@ -150,6 +172,17 @@ Los wireframes de las tres pantallas muestran el flujo completo del producto. La
 3. **`npm run verify`**: prueba de humo ejecutable que consulta cada repositorio de muestra y compara con la salida esperada (**sin llamar al LLM**: golden/caché versionada).
 
 > **Decisión (5 sep 2026).** Se eliminó la demo alojada de esta lista. La evidencia queda acotada a local + DEMO.md + verify.
+
+**Estado de la web en la Entrega 2.** Los wireframes se mantienen como referencia visual y de textos de la web, pero la web todavía no los cubre:
+
+| Pieza | Estado |
+|---|---|
+| Andamiaje web: Tailwind con los colores de los wireframes, rutas, cliente tipado de la API, puerta de accesibilidad `test:a11y` | Fusionado (DIS-58, PR #53) |
+| Pantalla 1 — tarjetas de los proyectos de muestra desde `data/sample-projects.ts`, aviso de API caída y pantalla de error | En el PR #54 (DIS-60), con CI en verde, a la espera del merge de la autora |
+| Pantalla 2 — consulta, respuesta con distintivos y panel de uso (DIS-65, DIS-66) | Sin empezar: depende de la Pantalla 1 |
+| Pantalla 3 — impacto | Entrega 3 (la CLI `impact` es un stub) |
+
+Hasta entonces, el recorrido de abajo se hace por la CLI: [`docs/DEMO.md`](docs/DEMO.md) ejecuta los seis pasos contra `acme-shop` y dice, en cada uno, qué hace hoy el sistema.
 
 #### Las tres pantallas
 
@@ -274,26 +307,28 @@ make up
 docker compose up -d               # PostgreSQL 16 + pgvector
 npm install
 npm run db:migrate                 # esquema
-npm run db:seed                    # ← los 2 repositorios de muestra YA indexados (+ caché de evaluación)
+npm run db:seed                    # ← el repositorio de muestra YA indexado (+ caché de evaluación)
 npm run dev                        # API en :3000 · web en :5173
 ```
 
 `npm run dev` arranca la API desde `packages/api/src/server.ts` y necesita `DATABASE_URL` exportada (`make up` la exporta desde `.env`); sin ella la API imprime una sola línea `INVALID_CONFIG` en stderr y no arranca, mientras la web sigue en marcha. La API escucha en `127.0.0.1:3000` (no en todas las interfaces: no tiene autenticación); su documentación OpenAPI se abre en `http://localhost:3000/docs` (el documento en `/docs/json`). Conviene abrirla en `localhost` y no en `127.0.0.1`: el servidor declarado en el documento es `http://localhost:3000` y, desde otro origen, «Try it out» fallaría (no hay CORS). Si `localhost` resuelve a `::1` y no conecta, `HOST=::1` o `HOST=0.0.0.0` lo exponen de otra forma, como decisión explícita.
 
-Salida esperada al terminar:
+Lo que imprime al terminar (extracto de la ejecución real del 17-10-2026; la salida completa está en el paso 0 de [`docs/DEMO.md`](docs/DEMO.md)):
 
 ```text
-✓ postgres        healthy on :5432 (pgvector 0.7)
-✓ migrations      12 applied
-✓ seed            2 projects loaded
-                    acme-shop   php/laravel   53 files · ~312 symbols · ~1840 edges  [illustrative until analyzer runs]
-                    task-api    typescript    38 files · ~264 symbols · ~2110 edges  [illustrative until analyzer runs]
-✓ api             http://localhost:3000  (openapi at /docs)
-✓ web             http://localhost:5173
-✓ llm             evaluation mode (cache-only) — set LLM_* to enable free-form asks
-
-Ready. No indexing required — sample graphs are pre-built.
+### MIGRATION 0001_graph-l1 (UP) ###
+### MIGRATION 0002_history-claims (UP) ###
+### MIGRATION 0003_indexes-stale (UP) ###
+### MIGRATION 0004_query-log-verification (UP) ###
+…
+1 project loaded
+  acme-shop  php/laravel  174 nodes · 170 edges
+…
+[1]   ➜  Local:   http://localhost:5173/
+[0] {"level":30,…,"msg":"Server listening at http://127.0.0.1:3000"}
 ```
+
+`docker-compose.yml` solo levanta PostgreSQL 16 con pgvector; la API y la web corren en la máquina con `npm run dev`. No hay `Dockerfile`.
 
 #### El mismo flujo por CLI
 
@@ -351,6 +386,35 @@ app/Services/PriceCalculator.php:16-44
 
 Sin respuesta posible imprime `UNKNOWN (<reason>)` (`no-anchor`, `llm-required`, `over-budget`, `invalid-model-output` o `no-evidence`). Los eventos (JSON por línea) y los errores van a stderr y nunca contienen la pregunta. Sale con `0` ante una respuesta o un `UNKNOWN`, `1` ante un error de configuración, conexión o dominio (por ejemplo `PROJECT_NOT_FOUND`, `LLM_UNAVAILABLE`, `BUDGET_EXHAUSTED`) y `2` ante un uso incorrecto o una pregunta inválida.
 
+#### Probar con un modelo real
+
+Sin `LLM_*` (modo evaluación) no hace falta ningún modelo: las tres preguntas *golden* de `acme-shop` (Q1, Q3 y Q4) se sirven al instante desde la caché, con `cacheHit: true` y `costUsd: 0`, y cualquier otra pregunta responde `UNKNOWN (llm-required)` (ver [`docs/DEMO.md`](docs/DEMO.md), pasos 1 y 5). Para preguntar libremente hace falta un endpoint compatible con OpenAI, y conviene saber de antemano cuánto tarda:
+
+| Modo | Tiempo por pregunta | Fuente |
+|---|---|---|
+| Modo evaluación, pregunta *golden* | Instantáneo (milisegundos) | `docs/DEMO.md` |
+| Ollama en CPU, `qwen2.5-coder` (7B) | **≈ 3,5–9 min, medido** | Una pregunta completa: 211,8 s, de los que 68,1 s fueron el `verify` con 4 llamadas (`openspec/changes/archive/2026-10-16-query-usage-log/reports/2026-10-16-13-manual-interface-testing.md`). `npm run cache:build`: las 3 *golden* en 22 min 24 s, entre 4 y 9 min por intento (`openspec/changes/archive/2026-10-17-golden-cache-build/reports/`) |
+| Ollama con GPU, modelo de 7B | ≈ 10–30 s | **Estimado, no medido en este proyecto** |
+| API alojada compatible con OpenAI | ≈ 5–20 s | **Estimado, no medido en este proyecto** |
+
+Los 2–3 min que cita la propuesta de DIS-74 no son el tiempo de una pregunta: son la cota del `verify` en CPU, limitada por el tope de 20 llamadas de verificación por respuesta (`MAX_VERIFY_CALLS_PER_ANSWER`).
+
+Lo que hay que configurar para que funcione con Ollama local:
+
+```bash
+OLLAMA_CONTEXT_LENGTH=16384 ollama serve        # sin esto, Ollama recorta el prompt a unos 2 000 tokens
+ollama pull qwen2.5-coder
+export DATABASE_URL=postgresql://codemind:codemind@localhost:5432/codemind
+export LLM_BASE_URL=http://localhost:11434/v1 LLM_MODEL=qwen2.5-coder LLM_API_KEY=
+export LLM_TIMEOUT_MS=300000                     # el máximo admitido
+npm run cli -- ask acme-shop "¿Qué hace DiscountService?"   # una pregunta que no está en la caché
+```
+
+- **`OLLAMA_CONTEXT_LENGTH=16384`.** El prompt de `explain` ocupa entre 5 000 y 7 000 tokens. Con el contexto por defecto, Ollama lo recorta (`truncating input prompt` en su log), se pierde el *system prompt* y toda respuesta sale `UNKNOWN (invalid-model-output)`.
+- **`LLM_TIMEOUT_MS` admite como máximo 300 000 ms** (es también el límite del `fetch` de Node). En una CPU lenta, una pregunta puede pasar de ahí y `ask` corta con `LLM_UNAVAILABLE` (`reason: timeout`). `npm run cache:build` no tiene ese tope: usa su propio `CACHE_BUILD_TIMEOUT_MS`.
+- **Modelo:** `qwen2.5-coder` (7B). `llama3.2` (3B) no produce el JSON estricto que exige la cuarentena y responde `invalid-model-output`.
+- **Salida con valla:** desde DIS-72 se acepta una única valla ```` ```json ```` que envuelva toda la salida, porque algunos modelos responden así ([2.5](#25-seguridad), práctica 2).
+
 #### Verificación de la instalación
 
 ```bash
@@ -397,7 +461,7 @@ flowchart TB
     end
 
     subgraph api["API · Node 20 + Fastify"]
-        REST["3 endpoints REST<br/>OpenAPI + validación por esquema"]
+        REST["REST: POST /ask · GET /health<br/>(/impact en la Entrega 3)<br/>OpenAPI + validación por esquema"]
         RATE["Rate limiting<br/>+ modo demo"]
         ORCH["Orquestador<br/>intención · plan · política"]
     end
@@ -474,23 +538,25 @@ flowchart TB
 | Componente | Tecnología | Responsabilidad |
 |---|---|---|
 | CLI | TypeScript + `commander` | `index`, `ask`, `impact`, `projects`; `drift` **previsto** (F6) |
-| API | Node 20 + **Fastify** + Zod | 3 endpoints REST, validación por esquema, OpenAPI generado |
-| Web | React 18 + TypeScript + **Vite** | Selección de proyecto, consulta, impacto |
+| API | Node 20 + **Fastify** 5 + Zod | `POST /api/projects/{projectId}/ask` y `GET /health`, validación por esquema, OpenAPI generado en `/docs` (DIS-76, DIS-78); `/impact` en la Entrega 3 |
+| Web | React 18 + TypeScript + **Vite** + Tailwind | Andamiaje, rutas y cliente tipado (DIS-58); selección de proyecto en el PR #54; consulta e impacto pendientes |
 | Orquestador | TypeScript | Clasifica intención, coordina el bucle, aplica política de seguridad |
 | **Analizador PHP** | **Tree-sitter** (`tree-sitter-php`) + reglas Laravel | Ficheros, clases, métodos, rutas, spans, llamadas |
 | **Analizador TypeScript** | **TypeScript Compiler API** / `ts-morph` | Lo mismo, con referencias resueltas por el compilador |
 | Extractor de Git | `simple-git` | Commits, ficheros modificados, co-cambio, número de PR |
 | Context Engine | TypeScript | Anclaje de entidades, expansión por grafo, ranking híbrido, presupuesto de tokens. El texto de los spans se lee de git en el commit indexado (la base de datos no guarda contenido), todos los ficheros del paquete en una sola lectura por lotes con un número fijo de procesos git (DIS-39), y los tokens se estiman en local como `ceil(caracteres / 4)`, declarado como `chars-div-4` |
 | Verificador de evidencias | TypeScript + LLM acotado | Validación sintáctica (git en el commit del paquete) y semántica (*entailment* con `LLM_MODEL_VERIFY`, salida `{"entails": boolean}`, caché en memoria por par) de cada cita |
-| Caché semántica | TypeScript + pgvector | Reutiliza respuestas de preguntas equivalentes; sostiene el modo demo |
+| Caché de respuestas | TypeScript (+ pgvector en CM-HU-19) | Reutiliza la respuesta de una pregunta ya respondida, por su forma normalizada (DIS-21); sostiene el modo demo. El acierto por similitud de embedding llega con CM-HU-19 |
 | Security Gateway | Reglas propias en proceso + `gitleaks` en CI | Secretos antes de indexar, sanitización, aislamiento por proyecto; escaneo de secretos del repositorio en cada PR y cada push a `main` |
 | Persistencia | **PostgreSQL 16 + pgvector** | Nodos, aristas, embeddings, afirmaciones, evidencias, uso |
 
 **Caso de uso `explain` (DIS-39).** Responde una pregunta sobre un proyecto indexado en **una sola pasada** Context Engine → modelo, en este orden: valida la entrada (pregunta de 1 a 1 000 code points que no sea solo espacios; un error, no un `UNKNOWN`), ancla la pregunta una vez, y responde `UNKNOWN` sin construir el paquete si no hay ancla (`no-anchor`) o si el modelo está en modo evaluación (`llm-required`, con el mensaje PH-08). Entre ambos pasos (DIS-21), salvo con `useCache: false`, busca la pregunta normalizada en la caché de respuestas del proyecto: una entrada válida responde, en los dos modos, la respuesta guardada sin construir el paquete, sin llamar al modelo y sin escribir afirmaciones, con `usage.cacheHit: true` y coste 0, y suma un acierto a la entrada; una entrada que no supera la validación cuenta como fallo de caché. Después construye el paquete (`over-budget` si no cabe ningún span), lee las afirmaciones ya guardadas que se solapan con sus spans (como mucho las 20 más recientes, antes de llamar al modelo), llama al modelo una vez, pasa su salida por la cuarentena (`invalid-model-output`) y, si no trae ninguna afirmación, responde `UNKNOWN` con `no-evidence` en lugar de devolver el texto del modelo. Cada afirmación se tipa `FACT` o `INFERENCE` por las citas y se guarda como `CLAIM` con su evidencia y su procedencia, todo en una transacción. Si el proyecto se reindexó a otro commit mientras se respondía, las afirmaciones se guardan `stale` y la respuesta las muestra con aviso, nunca como `FACT`. Si la escritura falla, la respuesta se devuelve igual, con `persisted: false` y un evento `claims_not_persisted` que no lleva ningún texto. Core devuelve los eventos y no escribe en ningún log.
 
+**Nota sobre los embeddings (estado en la Entrega 2).** El esquema reserva columnas `vector(1536)` en `FILE`, `SYMBOL` y `CACHE_ENTRY`, con sus índices HNSW ([3.2](#32-descripción-de-entidades-principales) → Índices), y `LlmPort` declara `embed()` (`packages/core/src/ports/LlmPort.ts:18`). Pero hoy **nada escribe ni lee esos vectores**: ningún caso de uso llama a `embed()`, que solo se reenvía en los envoltorios de medición (`packages/core/src/explain/usage-meter.ts:62`) y de presupuesto (`packages/core/src/llm/budget.ts:62`); el almacén no escribe nunca `embedding` (`packages/adapters/store-postgres/src/queries.ts:36-39`), y el anclaje de la pregunta es léxico, sin embeddings (`packages/core/src/context/anchor.ts`). Se deja como nota y no como ADR porque hoy no se elige entre alternativas, solo se constata el estado. La decisión real —si se separa un `EmbeddingPort` y qué modelo de 1536 dimensiones se usa— la tomará DIS-46 (caché por similitud, CM-HU-19), con su propio ADR.
+
 **Sobre `drift`.** Es el comando de la funcionalidad F6, que es *should-have* y vive en la reserva del calendario: puede no entrar en esta versión. Aparece ya en el diagrama, en la CLI y en el enum `capability` de `QUERY_LOG` porque el punto de extensión conviene diseñarlo ahora —añadir un valor a un enum con datos dentro es una migración, no un cambio de código— pero se documenta como **previsto, no entregado**. La distinción no es cosmética: un README que anuncia un comando que el código no tiene es exactamente la divergencia entre documentación y código que F6 existe para detectar.
 
-**Por qué Fastify y no NestJS.** Con tres endpoints y el dominio ya aislado en `packages/core`, la estructura de módulos y la inyección de dependencias de NestJS resuelven un problema que este proyecto no tiene. Fastify aporta validación por esquema y generación de OpenAPI, que es exactamente lo que se necesita.
+**Por qué Fastify y no NestJS.** Con dos o tres endpoints y el dominio ya aislado en `packages/core`, la estructura de módulos y la inyección de dependencias de NestJS resuelven un problema que este proyecto no tiene. Fastify aporta validación por esquema y generación de OpenAPI, que es exactamente lo que se necesita.
 
 **Por qué dos tecnologías de análisis distintas.** Tree-sitter da estructura sintáctica pero no resuelve tipos, lo que en PHP obliga a añadir reglas heurísticas para las convenciones de Laravel. En TypeScript, la API del compilador ya devuelve referencias resueltas, así que usarla es más simple *y* más preciso. Que los dos analizadores tengan perfiles de precisión distintos detrás del mismo puerto es justamente lo que valida la arquitectura.
 
@@ -499,41 +565,45 @@ flowchart TB
 ```
 AI4Devs-finalproject/
 ├── packages/
-│   ├── core/                       # dominio — CERO dependencias de infraestructura
-│   │   ├── knowledge/              #   entidades L1/L2, afirmaciones, evidencia, reglas de tipado
+│   ├── core/src/                   # dominio — CERO dependencias de infraestructura
+│   │   ├── knowledge/              #   entidades L1/L2, afirmaciones, evidencia, confianza, uso
 │   │   ├── index/                  #   caso de uso de indexado, gateway de seguridad, detección de framework
-│   │   ├── context/                #   Context Engine, ranking, presupuesto de tokens
-│   │   ├── verify/                 #   verificador de evidencias
-│   │   ├── cache/                  #   caché semántica
+│   │   ├── context/                #   Context Engine: anclaje, expansión, ranking, presupuesto de tokens
+│   │   ├── explain/                #   caso de uso explain: prompt, cuarentena, tipado, política UNKNOWN
+│   │   ├── verify/                 #   verificador de evidencias (sintáctico y semántico)
+│   │   ├── cache/                  #   caché de respuestas por pregunta normalizada
+│   │   ├── llm/                    #   presupuesto diario, tabla de costes, errores del modelo
 │   │   └── ports/                  #   AnalyzerPort · LlmPort · StorePort · GitPort · SourceTreePort
 │   │
 │   ├── analyzers/                  # adaptadores de lenguaje
-│   │   ├── php/                    #   Tree-sitter + reglas Laravel
-│   │   └── typescript/             #   TS Compiler API
+│   │   ├── php/                    #   Tree-sitter (WebAssembly) + reglas Laravel
+│   │   └── typescript/             #   esqueleto: el analizador llega con CM-HU-18 (Entrega 3)
 │   │
 │   ├── adapters/                   # adaptadores de infraestructura
-│   │   ├── store-postgres/
-│   │   ├── llm/
-│   │   └── git/
+│   │   ├── store-postgres/         #   StorePort + migraciones (node-pg-migrate)
+│   │   ├── llm/                    #   cliente compatible OpenAI (Ollama o API alojada)
+│   │   └── git/                    #   historial y lectura del árbol con simple-git
 │   │
-│   ├── api/                        # Fastify, rutas, esquemas, rate limiting, modo demo
-│   ├── cli/                        # comandos (`index` real; raíz de composición del indexado)
-│   └── web/                        # React + Vite
+│   ├── api/                        # Fastify: /ask, /health, /docs, errores, límite por IP
+│   ├── cli/                        # projects · index · ask · impact (stub) · db:seed · cache:build · verify
+│   └── web/                        # React + Vite + Tailwind: rutas, cliente tipado, Pantalla 1 en curso
 │
 ├── fixtures/                       # los 2 repositorios de muestra
-│   ├── acme-shop/                  #   Laravel 11, ~47 ficheros, con drift plantado
-│   └── task-api/                   #   TypeScript + Fastify, ~38 ficheros
+│   ├── acme-shop/                  #   Laravel 11, con drift plantado — en la semilla
+│   └── task-api/                   #   TypeScript + Fastify — entra en la semilla con CM-HU-18
 │
 ├── seeds/
-│   └── graph-dump.sql              # grafos ya construidos, versionados
+│   ├── graph-dump.sql              # grafo ya construido de acme-shop, versionado
+│   └── cache/acme-shop.json        # respuestas golden Q1, Q3 y Q4 con su huella
 │
 ├── docs/                           # ── del proyecto ──
 │   ├── DEMO.md                     # guion reproducible: comandos + salida real
 │   ├── CONFIDENCE.md               # fórmula, señales, los 6 pesos (+ saturación) con valor y motivo, límites
 │   ├── TESTING.md
 │   ├── DEPLOYMENT.md
-│   ├── adr/                        # decisiones de arquitectura
-│   ├── ai-sessions/                # transcripciones de las sesiones citadas en prompts.md
+│   ├── adr/                        # decisiones de arquitectura (9 ADR)
+│   ├── ai-sessions/                # sesiones con IA citadas en prompts.md
+│   ├── golden-review/              # revisión de las respuestas golden (DIS-34)
 │   │                               # ── del harness: se reemplazan al actualizarlo ──
 │   ├── base-standards.md
 │   ├── documentation-standards.md
@@ -542,22 +612,28 @@ AI4Devs-finalproject/
 │   ├── frontend-standards.md
 │   └── project-context.md          #   el único que se escribe a mano y sobrevive
 │
-├── ai-specs/                       # harness: skills, subagentes y plantillas
-├── openspec/                       # especificaciones y cambios (OpenSpec)
-├── .claude/ · .cursor/             # referencias al harness + 9 hooks del ciclo de vida
-├── .mcp.json                       # MCP del proyecto: Context7 y Playwright
-├── CLAUDE.md · AGENTS.md · GEMINI.md · codex.md    # punteros a la doctrina
+├── ai-specs/                       # harness: 29 skills, 9 subagentes y plantillas (fuente canónica)
+├── openspec/
+│   ├── specs/                      # 24 capacidades vigentes
+│   └── changes/archive/            # 41 changes archivados, cada uno con sus informes en reports/
+├── .claude/                        # referencias a ai-specs, comandos /opsx:*, 10 hooks + invoke.cjs + lib.sh
+├── .cursor/                        # las mismas referencias y reglas para Cursor
+├── .mcp.json                       # MCP del proyecto: Context7, Playwright y Linear
+├── CLAUDE.md · AGENTS.md           # punteros a la doctrina
 │
 ├── images/                         # los 3 wireframes de 1.3, en SVG
 │
 ├── tests/
 │   ├── unit/
-│   ├── integration/
-│   └── e2e/
+│   ├── integration/                #   con PostgreSQL; se saltan sin DATABASE_URL
+│   ├── a11y/                       #   puerta de accesibilidad con axe (test:a11y)
+│   ├── support/                    #   dobles y factorías compartidas
+│   └── e2e/                        #   vacío: el E2E con Playwright es de la Entrega 3
 │
-├── .github/workflows/ci.yml
-├── docker-compose.yml
+├── .github/workflows/              # ci.yml · frontend.yml · claude-auto-review.yml · claude-interactive.yml
+├── docker-compose.yml              # solo PostgreSQL 16 + pgvector (no hay Dockerfile)
 ├── Makefile
+├── stryker.config.json             # pruebas de mutación, umbral 80
 ├── .gitignore · .gitattributes · .gitleaks.toml · .gitleaksignore
 ├── readme.md
 └── prompts.md
@@ -565,7 +641,7 @@ AI4Devs-finalproject/
 
 **Monorepo con workspaces de npm.** La regla de dependencias es unidireccional y **se comprueba en CI**: `core` no importa nada de `adapters`, `analyzers` ni `api`; solo define los puertos que ellos implementan. Un test de arquitectura con `dependency-cruiser` falla el build si alguien la rompe, de modo que la afirmación de independencia del lenguaje está protegida por el pipeline y no por la buena voluntad.
 
-**Parte del árbol es un harness de desarrollo, no código del producto.** `ai-specs/`, `openspec/`, `.claude/hooks/`, los estándares de `docs/` y los cuatro ficheros de memoria son el andamiaje de trabajo con IA. Se instala desde [`sdd-harness-kit`](https://github.com/DisTinta/sdd-harness-kit), un kit propio de Spec-Driven Development cuya procedencia y uso en este proyecto están en `prompts.md` §0.2. Ya forma parte del árbol de la Entrega 2; omitirlo dejaría esta sección incompleta.
+**Parte del árbol es un harness de desarrollo, no código del producto.** `ai-specs/`, `openspec/`, `.claude/hooks/`, los estándares de `docs/` y los cuatro ficheros de memoria son el andamiaje de trabajo con IA. Se instala desde [`sdd-harness-kit`](https://github.com/DisTinta/sdd-harness-kit), un kit propio de Spec-Driven Development cuya procedencia está en `prompts.md` §0.2 y cuyo uso en este proyecto se cuenta en la [sección 8](#8-flujo-de-trabajo-con-ia-y-sdd-harness-kit). En la Entrega 1 el kit traía 9 hooks; el décimo, `spec-audit-gate`, se añadió en la Entrega 2 (PR #35). Omitir el harness dejaría esta sección incompleta.
 
 Tiene dos consecuencias que conviene declarar. La primera es operativa: los ficheros de `docs/` que instala el harness **se reemplazan cuando el harness se actualiza**, así que la documentación del proyecto no puede compartir nombre con ellos — de ahí que estén separados en dos grupos en el árbol. La segunda es de diseño, y es deliberada: uno de los hooks comprueba, al guardar un fichero de `packages/core`, que no mencione `adapters/` ni `analyzers/`. Es la **misma** regla que `dependency-cruiser` impone en CI. La redundancia es intencionada: el hook es rápido y local y avisa mientras escribes; el CI es la autoridad y no se puede saltar.
 
@@ -581,7 +657,7 @@ En este proyecto, **«despliegue» (Entrega 3) significa artefacto reproducible*
 flowchart LR
     DEV["Local<br/>make up<br/>Postgres + pgvector"]
     GH["GitHub<br/>fork de la plantilla"]
-    CI["GitHub Actions<br/>lint · arquitectura · unit · integración · E2E · verify · secretos"]
+    CI["GitHub Actions<br/>lint · tipos · arquitectura · migraciones · tests · verify · mutación · secretos"]
     DB[("Postgres<br/>en Compose / CI")]
     LLM["LLM opcional<br/>Ollama u otro"]
 
@@ -595,7 +671,17 @@ flowchart LR
 
 #### Proceso de verificación continua
 
-Push a la rama → CI ejecuta lint, test de arquitectura, unitarios, integración (con PostgreSQL en contenedor), E2E y **`npm run verify`** (golden/caché, sin LLM) → el mismo `docker-compose` que documenta [1.4](#14-instrucciones-de-instalación) es lo que corre en local.
+Cada pull request y cada push a una rama de entrega ejecutan, en `.github/workflows/ci.yml`:
+
+| Job | Qué comprueba |
+|---|---|
+| `scope` | Qué ficheros cambian, para saltar los jobs que no aplican (por ejemplo, en un PR solo de documentación) |
+| `quality` | ESLint, `tsc` (`npm run typecheck`), la regla de dependencias con `dependency-cruiser`, migraciones aplicadas y revertidas, y la suite de Vitest con PostgreSQL en contenedor |
+| `verify` | `db:migrate`, `db:seed` y **`npm run verify`** sobre una base propia: las golden contra el código actual, sin LLM (DIS-44) |
+| `mutation` | Stryker sobre los caminos críticos, con umbral de rotura 80: incremental en los PR y completo en cada push |
+| `secrets` | `gitleaks` 8.30.1 sobre el árbol y los commits del evento (DIS-87) |
+
+`frontend.yml` ejecuta las comprobaciones de la web cuando cambia código de frontend. `claude-auto-review.yml` y `claude-interactive.yml` vienen del kit y están en el repositorio, pero **no están activados** en GitHub (dependen de la variable `CLAUDE_ENABLED` y de una clave que no se han configurado), así que no cuentan como evidencia de uso. No hay E2E en CI: `tests/e2e/` está vacío hasta que existan las pantallas (Entrega 3). No hay `Dockerfile`: `docker-compose.yml` solo levanta PostgreSQL, que es lo que usan tanto [1.4](#14-instrucciones-de-instalación) como los jobs de CI.
 
 #### Dos entornos de ejecución
 
@@ -720,11 +806,15 @@ Los tests forman parte de la **definición de hecho de cada ticket**, no de una 
 | Nivel | Herramienta | Qué cubre |
 |---|---|---|
 | **Arquitectura** | `dependency-cruiser` en CI | Que `core` no importe de `adapters`, `analyzers` ni `api`. **Falla el build si se rompe** |
-| Unitarios | **Vitest** | Context Engine (presupuesto respetado, ranking), verificador de evidencias, reglas de tipado hecho/inferencia, caché |
-| Integración | Vitest + PostgreSQL en contenedor | Indexado de los dos repositorios de muestra, travesía del grafo, los 3 endpoints, migraciones reversibles |
-| **E2E** | **Playwright** | Flujo principal: elegir proyecto → preguntar → respuesta con evidencia verificada y coste. Y el caso `UNKNOWN` |
-| **Prueba de humo** | `npm run verify` | Consulta contra cada repositorio de muestra comparada con la salida esperada |
+| Unitarios | **Vitest** | Context Engine (presupuesto respetado, ranking), verificador de evidencias, reglas de tipado hecho/inferencia, confianza, caché, API y componentes web (RTL + jsdom) |
+| Integración | Vitest + PostgreSQL en contenedor | Indexado de `acme-shop`, travesía del grafo, `/ask` y `/health`, migraciones reversibles, git real en repositorios temporales |
+| Accesibilidad | axe-core + jsdom (`npm run test:a11y`) | Cada ruta de la web sin violaciones de axe (DIS-58) |
+| **Mutación** | **Stryker** | Que los tests detecten cambios en el código de los caminos críticos; umbral de rotura 80 |
+| **E2E** | **Playwright** | *(pendiente, Entrega 3)*: el flujo elegir proyecto → preguntar → evidencia y coste, y el caso `UNKNOWN`, cuando existan las pantallas |
+| **Prueba de humo** | `npm run verify` | Cada golden de `acme-shop` comparada por estructura con la respuesta servida, sin LLM (DIS-44) |
 | Estáticos | ESLint + `tsc --noEmit` | En CI |
+
+**Estado medido (19-10-2026).** `npx vitest run` en local, sin `DATABASE_URL`: 143 ficheros de test, **1 353 tests pasan** y 221 se saltan (los de integración, que necesitan base de datos; en CI corren con PostgreSQL). Último job `mutation` en `feature/entrega-2-CRN` (ejecución completa tras el merge del PR #53, 18-10-2026): **95,94 %** (5 546 mutantes eliminados, 54 por tiempo, 176 supervivientes y 61 sin cobertura).
 
 **`npm run verify` cumple una función doble:** es un test de integración en CI **y** el mecanismo por el que alguien externo comprueba que su instalación local reproduce lo documentado. Los wireframes de [1.3](#13-diseño-y-experiencia-de-usuario) muestran el diseño de las pantallas, no el sistema en marcha, y no se aporta vídeo: **la evidencia de funcionamiento es ejecutable**, y esta es la pieza que la hace comprobable en un solo comando.
 
@@ -733,6 +823,8 @@ Los tests forman parte de la **definición de hecho de cada ticket**, no de una 
 **Objetivo de cobertura:** >80 % en `packages/core`, >70 % en `analyzers`. No se persigue cobertura alta en adaptadores de infraestructura.
 
 #### Mediciones que se publicarán
+
+*(pendiente, Entrega 3).* Las dos tablas se rellenan con el script de medición de CM-HU-22 (DIS-79); hoy solo existe `task-api` como fixture, sin analizador ni semilla.
 
 **Tabla 1 — Ahorro de contexto** (~20 preguntas por repositorio, revisión manual)
 
@@ -1023,11 +1115,15 @@ CREATE INDEX ON cache_entry USING hnsw (question_embedding vector_cosine_ops);
 
 Los índices de travesía **empiezan por el extremo, no por `project_id`**: un id de símbolo o de fichero pertenece a un único proyecto, así que anteponer `project_id` no filtra nada más, y un índice que empieza por el extremo sirve además al borrado en cascada desde `symbol` o `file`. Son parciales porque cada columna de extremo solo está rellena en las aristas que la usan. El resto de índices de claves foráneas existe para que borrar un proyecto, un fichero o una afirmación no recorra tablas enteras: PostgreSQL no indexa las claves foráneas por su cuenta. Las que ya encabezan una PK o una restricción UNIQUE (`file.project_id`, `commit.project_id`, `file_commit.file_id`) no necesitan índice propio.
 
+Los tres índices HNSW existen desde DIS-13, pero en la Entrega 2 están vacíos: ninguna columna `vector(1536)` se escribe todavía (ver la nota sobre los embeddings en [2.2](#22-descripción-de-componentes-principales)).
+
 ---
 
 ## 4. Especificación de la API
 
-Tres endpoints, el máximo que permite la plantilla, elegidos para cubrir las tres historias de usuario *must-have* sin dejar ninguna a medias.
+La plantilla permite documentar como máximo tres endpoints. El contrato recoge los dos de producto: `POST /api/projects/{projectId}/ask`, implementado en la Entrega 2 (DIS-78), y `POST /api/projects/{projectId}/impact`, de la Entrega 3.
+
+> **Alineado con el código en la Entrega 2 (DIS-101).** La versión de la Entrega 1 publicaba también `POST /api/projects/{projectId}/index`, que devolvía un `jobId` que nadie podía consultar. Se ha quitado del contrato: **el indexado es solo por la CLI local** (`npm run cli -- index`, decisión PH-01 de DIS-51), de modo que la API nunca recibe una ruta del sistema de ficheros. Tampoco hay `GET /api/projects`: la web lee los proyectos de muestra de la constante `packages/web/src/data/sample-projects.ts`, que genera `seed:build`. La API expone además `GET /health` (estado del proceso, sin límite de peticiones) y la documentación OpenAPI generada desde los esquemas Zod en `/docs` (`/docs/json`), que quedan fuera del YAML para no pasar de los tres endpoints de la plantilla.
 
 ```yaml
 openapi: 3.0.3
@@ -1043,43 +1139,6 @@ servers:
     description: Local
 
 paths:
-  /api/projects/{projectId}/index:
-    post:
-      summary: Indexa o reindexa un repositorio
-      description: |
-        El analizador se selecciona según el lenguaje declarado. Por defecto el
-        indexado es incremental: solo se reprocesan los ficheros cuyo hash ha
-        cambiado, y sus dependientes directos.
-      parameters:
-        - name: projectId
-          in: path
-          required: true
-          schema: {type: string, format: uuid}
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [rootPath, language]
-              properties:
-                rootPath:    {type: string, example: "/repos/acme-shop"}
-                language:    {type: string, enum: [php, typescript]}
-                incremental: {type: boolean, default: true}
-      responses:
-        '202':
-          description: Indexado iniciado
-          content:
-            application/json:
-              example:
-                jobId: "8f3c1e2a-4b71-4c0e-9a12-5d6e7f801234"
-                mode: "incremental"
-                analyzer: "php-treesitter-laravel"
-                filesQueued: 34
-                filesSkipped: 13
-        '400': {description: Lenguaje no soportado o ruta inválida}
-        '403': {description: Ruta fuera del directorio permitido}
-
   /api/projects/{projectId}/ask:
     post:
       summary: Explica cómo funciona una parte del proyecto
@@ -1179,11 +1238,12 @@ paths:
 
   /api/projects/{projectId}/impact:
     post:
-      summary: Analiza qué se vería afectado por un cambio
+      summary: Analiza qué se vería afectado por un cambio (Entrega 3)
       description: |
-        Separa explícitamente lo derivado del grafo determinista de lo derivado
-        de la señal histórica de co-cambio, indicando el origen y la fiabilidad
-        de cada elemento.
+        Entrega 3: todavía no implementado (la ruta no existe y la CLI `impact`
+        es un stub). Separará explícitamente lo derivado del grafo determinista
+        de lo derivado de la señal histórica de co-cambio, indicando el origen y
+        la fiabilidad de cada elemento.
       parameters:
         - name: projectId
           in: path
