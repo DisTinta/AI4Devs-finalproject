@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -82,6 +82,7 @@ function comesAfter(earlier: Node, later: Node): boolean {
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -229,5 +230,31 @@ describe('API status on Screen 1', () => {
       requests: 1,
     };
     expect(outcomes).toEqual(Object.fromEntries(runs.map(([label]) => [label, expected])));
+  });
+
+  it('A health check that never answers shows the alert after its time limit', async () => {
+    // Arrange: only the timers of the health check are fake; React's scheduler keeps the real ones (D18).
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const requests = stubFetch(neverAnswer);
+    renderAt('/');
+
+    // Act
+    await act(() => vi.advanceTimersByTimeAsync(4_999));
+    const at4999 = {
+      alert: screen.queryByRole('alert') !== null,
+      checking: screen.queryByText(CHECKING) !== null,
+    };
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    const alertAt5000 = screen.queryByRole('alert');
+    const at5000 = {
+      alert: alertAt5000?.textContent?.includes(UNAVAILABLE) ?? false,
+      checking: screen.queryByText(CHECKING) !== null,
+    };
+    await act(() => vi.advanceTimersByTimeAsync(60_000));
+
+    // Assert
+    expect(at4999).toEqual({ alert: false, checking: true });
+    expect(at5000).toEqual({ alert: true, checking: false });
+    expect(requests).toHaveLength(1);
   });
 });
