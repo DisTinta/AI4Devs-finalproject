@@ -100,17 +100,17 @@ Every test of this change follows Arrange-Act-Assert with the three blocks comme
 
 ## 13. Pull request preparation
 
-- [ ] 13.1 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the Why marked as the agent's decision (DIS-58 `[enhanced]` D1–D28), the dependency table of D14, the contrast deviations of D4 and the bundle size before and after
+- [x] 13.1 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the Why marked as the agent's decision (DIS-58 `[enhanced]` D1–D28), the dependency table of D14, the contrast deviations of D4 and the bundle size before and after
 
 ## 14. Commit and push
 
-- [ ] 14.1 Commit by explicit paths only (never `.claude/sdd-harness.env` nor `.claude/settings.json`), English messages ending with the co-author line; push with the DisTinta account and switch back to Cristina-JumpMath in the same command
+- [x] 14.1 Commit by explicit paths only (never `.claude/sdd-harness.env` nor `.claude/settings.json`), English messages ending with the co-author line; push with the DisTinta account and switch back to Cristina-JumpMath in the same command
 
 ## 15. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 15.1 Open the pull request against `feature/entrega-2-CRN` (authorised by the autonomous-run ADR; `gh` on the DisTinta account, back to Cristina-JumpMath afterwards)
-- [ ] 15.2 Set DIS-58 to In Review in Linear with a comment in Spanish linking the PR and the change
-- [ ] 15.3 Confirm in the PR's CI run that the `Frontend` job ran `test:a11y` without the "not defined" warning, `npm ci` installed the Tailwind native binaries on Linux, and the new test files ran and passed in the `Frontend` job's "Unit / component tests" step and in `quality`; link the run in an addendum to the step 9 report
+- [x] 15.1 Open the pull request against `feature/entrega-2-CRN` (authorised by the autonomous-run ADR; `gh` on the DisTinta account, back to Cristina-JumpMath afterwards)
+- [x] 15.2 Set DIS-58 to In Review in Linear with a comment in Spanish linking the PR and the change
+- [x] 15.3 Confirm in the PR's CI run that the `Frontend` job ran `test:a11y` without the "not defined" warning, `npm ci` installed the Tailwind native binaries on Linux, and the new test files ran and passed in the `Frontend` job's "Unit / component tests" step and in `quality`; link the run in an addendum to the step 9 report. Done 2026-10-18: PR #53, CI run https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/39135036340 (`quality` re-run https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/39135036340/job/117704870511 after the unrelated `seed-build.spec.ts` DB race of `docs/TESTING.md` → Known races) and https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/39135036414 (`Frontend`); addendum in the step 9 report
 - [x] 15.4 Run `/show-spec-working` (D15: screenshots of `/` and an unknown path next to `images/pantalla-1-seleccion.svg`, the proxy with the API up and down; may reuse step 10 evidence); report `openspec/changes/web-foundation/reports/YYYY-MM-DD-show-spec-working.md`, screenshots next to it
 - [x] 15.5 Run `/verify-against-spec`; report `openspec/changes/web-foundation/reports/YYYY-MM-DD-verify-against-spec.md`
 - [x] 15.6 Run `/adversarial-review`; report `openspec/changes/web-foundation/reports/YYYY-MM-DD-adversarial-review.md`

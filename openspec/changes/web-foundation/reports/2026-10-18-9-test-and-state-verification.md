@@ -141,3 +141,37 @@ See the step 10 report (`./2026-10-18-10-manual-interface-testing.md`).
 
 - Status: PASS
 - Blocking issues: none
+
+## Addendum: CI run of the pull request (2026-10-18, task 15.3)
+
+PR #53 (`feature/DIS-58-web-scaffolding` → `feature/entrega-2-CRN`):
+https://github.com/DisTinta/AI4Devs-finalproject/pull/53
+
+- `Frontend` workflow run: https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/39135036414
+  - "Unit / component tests" step: `Test Files 111 passed (111)`, `packages/web` and `tests/unit/web`
+    included (`frontend.yml`'s paths filter, D27).
+  - "Accessibility (test:a11y)" step: ran `npm run test:a11y` directly (no "not defined" warning, D32),
+    `Test Files 1 passed (1)` over `tests/a11y/smoke.a11y.test.tsx`. The `HTMLCanvasElement.getContext`
+    messages in its stderr are axe-core's known jsdom limitation (no `canvas` package), not a failure.
+- `CI` workflow run: https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/39135036340
+  - `scope`, `secrets`, `verify`: pass on the first attempt.
+  - `mutation`: pass on the first attempt (`npm run test:mutation:full`, ≥ 80, 32m11s).
+  - `quality`: failed on the first attempt with
+    `tests/integration/cli/seed-build.spec.ts:345` — `AssertionError: expected [] to deeply equal [ Array(1) ]`
+    in "The database is unchanged after a build". This spec and its failure mode are outside this PR's
+    diff (`git diff --stat origin/feature/entrega-2-CRN...HEAD -- tests/integration/` is empty) and match
+    the known DB-integration race documented in `docs/TESTING.md` → Known races: a parallel integration
+    spec commits a project outside the harness transaction for a moment, and a spec that reads every
+    project in that moment (here, `projectIds(observer)` in "seed build on its own connection") sees one
+    extra row. Per the hard rule against editing existing tests and the project's own documented
+    mitigation (`npm test -- --no-file-parallelism`, not applicable to a parallel CI job), the job was
+    re-run instead of modifying code or tests:
+    `gh run rerun 39135036340 --repo DisTinta/AI4Devs-finalproject --job 117697733266`. The re-run
+    (job https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/39135036340/job/117704870511)
+    passed: "Tests" step shows `Test Files 143 passed (143)`, including
+    `packages/web/src/services/api-client.test.ts` (14 tests), `packages/web/src/theme.test.ts` (3 tests)
+    and `packages/web/src/router.test.tsx` (5 tests).
+- Final state of `gh pr checks 53`: `frontend`, `mutation`, `quality`, `scope`, `secrets`, `verify` all
+  `pass`.
+- This counts as 0 fix attempts against the task's budget of 2: no code or test was changed, only a CI
+  job was re-run against a documented, pre-existing flake unrelated to this change's diff.
