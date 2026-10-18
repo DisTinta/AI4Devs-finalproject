@@ -57,14 +57,14 @@ Every test of this change follows Arrange-Act-Assert with the three blocks comme
 
 ## 9. Run Tests and Verify Data State (MANDATORY)
 
-- [ ] 9.1 Capture the pre-test baseline: the 0.4 totals, duration and bundle size
-- [ ] 9.2 Run the targeted tests: `npx vitest run packages/web tests/a11y tests/unit/web tests/unit/seed/sample-projects-coherence.spec.ts` and `npm run test:a11y` (the coherence run is the evidence of "The cards show the seed's figures"; also check that `ProjectCard.tsx` and `ProjectPickerPage.tsx` take every id, name and count from `SAMPLE_PROJECTS`, with no literal copy of them)
-- [ ] 9.3 Run the required broader suite and gates: `npx vitest run` (duration against 0.4), `npx vitest run --exclude 'tests/integration/**'` (the `frontend.yml` step), `npm run lint`, `npm run typecheck`, `npm run lint:architecture` (the `no-orphans` warning of `sample-projects.ts` is gone), `npm run docs:coverage`, `npm run build -w packages/web` (bundle size against 0.4)
-- [ ] 9.4 Mutation testing: `packages/web/**` is not in Stryker's `mutate` and its tests are excluded (DIS-58 D25); no dependency or Vitest/Stryker config changes (D22). Record that `npm run test:mutation` is not affected and is left to the CI `mutation` job (its `business` filter matches `tests/**` only through the new a11y file, run there incrementally)
-- [ ] 9.5 Run `/privacy-ethics-check` over the diff (no personal data, no user input, no `dangerouslySetInnerHTML`, no `VITE_*` in `dist`; no new dependency, D22) and record the result
-- [ ] 9.6 Verify the post-test state: no database touched; no `.stryker-tmp/`; `packages/web/dist` not staged (gitignored); restore and document if not
-- [ ] 9.7 Create `openspec/changes/project-picker/reports/YYYY-MM-DD-9-test-and-state-verification.md` from the template of `docs/openspec-tasks-mandatory-steps.md` §6: baseline and after (totals, duration, bundle size), the removed test (2.3), the RED evidence (including 6.1), the D19 warnings if any, the mutation note (9.4) and the privacy check (9.5)
-- [ ] 9.8 Mark complete only after the tests pass and the report exists
+- [x] 9.1 Capture the pre-test baseline: the 0.4 totals, duration and bundle size
+- [x] 9.2 Run the targeted tests: `npx vitest run packages/web tests/a11y tests/unit/web tests/unit/seed/sample-projects-coherence.spec.ts` and `npm run test:a11y` (the coherence run is the evidence of "The cards show the seed's figures"; also check that `ProjectCard.tsx` and `ProjectPickerPage.tsx` take every id, name and count from `SAMPLE_PROJECTS`, with no literal copy of them)
+- [x] 9.3 Run the required broader suite and gates: `npx vitest run` (duration against 0.4), `npx vitest run --exclude 'tests/integration/**'` (the `frontend.yml` step), `npm run lint`, `npm run typecheck`, `npm run lint:architecture` (the `no-orphans` warning of `sample-projects.ts` is gone), `npm run docs:coverage`, `npm run build -w packages/web` (bundle size against 0.4)
+- [x] 9.4 Mutation testing: `packages/web/**` is not in Stryker's `mutate` and its tests are excluded (DIS-58 D25); no dependency or Vitest/Stryker config changes (D22). Record that `npm run test:mutation` is not affected and is left to the CI `mutation` job (its `business` filter matches `tests/**` only through the new a11y file, run there incrementally)
+- [x] 9.5 Run `/privacy-ethics-check` over the diff (no personal data, no user input, no `dangerouslySetInnerHTML`, no `VITE_*` in `dist`; no new dependency, D22) and record the result
+- [x] 9.6 Verify the post-test state: no database touched; no `.stryker-tmp/`; `packages/web/dist` not staged (gitignored); restore and document if not
+- [x] 9.7 Create `openspec/changes/project-picker/reports/YYYY-MM-DD-9-test-and-state-verification.md` from the template of `docs/openspec-tasks-mandatory-steps.md` §6: baseline and after (totals, duration, bundle size), the removed test (2.3), the RED evidence (including 6.1), the D19 warnings if any, the mutation note (9.4) and the privacy check (9.5)
+- [x] 9.8 Mark complete only after the tests pass and the report exists
 
 ## 10. Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE)
 
