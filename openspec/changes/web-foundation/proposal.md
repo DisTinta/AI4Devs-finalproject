@@ -31,7 +31,7 @@ proposing.
   any listed pair drops under 4.5:1.
 - **Routes.** `react-router` 7 in data mode: an exported `routes` table (`/`, `/p/:projectId`, `*`) and
   `createAppRouter()`. `/` and `/p/:projectId` render a `PendingScreen` placeholder (dark header
-  «CODEMIND», the wireframe tagline, which screen is coming) until DIS-60/DIS-65 replace it; `*` renders
+  «CODEMIND», the wireframe tagline, the line «Esta pantalla está en construcción.») until DIS-60/DIS-65 replace it; `*` renders
   `NotFoundPage` («Página no encontrada», link «Volver a la selección de proyecto»). `main.tsx` mounts
   `RouterProvider`; `App.tsx` is removed.
 - **Typed API client.** `packages/web/src/services/api-client.ts`: the response types of `GET /health`

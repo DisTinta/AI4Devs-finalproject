@@ -20,8 +20,10 @@ The web client SHALL answer three kinds of path:
 Every one of these screens SHALL render a banner landmark with the text «CODEMIND» and the tagline
 «Comprensión de repositorios con evidencia verificable», and one main landmark holding the level-1
 heading. The Screen 2 placeholder SHALL show the `projectId` of its path as text. The not-found screen
-SHALL render a link «Volver a la selección de proyecto» that leads to `/`. Every text of these screens
-SHALL be in Spanish. A placeholder screen SHALL make no request to the API.
+SHALL render a link «Volver a la selección de proyecto» that leads to `/`. The two placeholder screens
+SHALL also show the line «Esta pantalla está en construcción.»; no other text is rendered besides the
+banner, the headings, that line, the `projectId` and the not-found link. A placeholder screen SHALL make
+no request to the API.
 
 #### Scenario: The root path shows the Screen 1 placeholder
 
@@ -38,15 +40,17 @@ SHALL be in Spanish. A placeholder screen SHALL make no request to the API.
   double
 - **WHEN** the initial path is `/p/a794456d-6d1b-5b55-a360-13fec83dc7bc`
 - **THEN** the level-1 heading «Consulta del proyecto» is rendered, the text
-  `a794456d-6d1b-5b55-a360-13fec83dc7bc` is shown, and the double recorded no request
+  `a794456d-6d1b-5b55-a360-13fec83dc7bc` is shown, the banner shows «CODEMIND» and «Comprensión de
+  repositorios con evidencia verificable», and the double recorded no request
 
 #### Scenario: An unknown path shows the not-found screen and leads back
 
 - **GIVEN** the routes of the web client mounted in a memory router
 - **WHEN** the initial path is `/no-existe` and the person activates the link «Volver a la selección de
   proyecto» with a pointer
-- **THEN** before the click the level-1 heading is «Página no encontrada», and after it the level-1 heading
-  is «Elige un proyecto para explorar»
+- **THEN** before the click the level-1 heading is «Página no encontrada» and the banner shows «CODEMIND»
+  and «Comprensión de repositorios con evidencia verificable», and after it the level-1 heading is «Elige
+  un proyecto para explorar»
 
 #### Scenario: The development server serves the three paths
 
@@ -148,7 +152,8 @@ when: the request itself fails (network down, connection refused); the response 
 `2xx` body is not a JSON object (`null` and arrays included); a health body whose `status` is not `'ok'`;
 a body of a status `400` or more is not in the single error format (for example the empty `500` the
 development proxy answers while the API is stopped, or an HTML `502`); or the health check exceeds its
-time limit. The unavailable-API error SHALL be distinguishable from an API error by type.
+time limit. When a response arrived, the unavailable-API error SHALL carry its `status`. The
+unavailable-API error SHALL be distinguishable from an API error by type.
 
 #### Scenario: Failures that are not the API's answer become unavailable-API errors
 
@@ -158,7 +163,8 @@ time limit. The unavailable-API error SHALL be distinguishable from an API error
 - **WHEN** the health check is called for each, and `ask` is called once more with a network that rejects
   with a `TypeError`
 - **THEN** each of the eight promises rejects with an unavailable-API error whose `cause` is set, and none
-  of them is an API error; the `cause` of both `TypeError` cases is the `TypeError` itself
+  of them is an API error; the `cause` of both `TypeError` cases is the `TypeError` itself; the errors of the
+  `500` and `502` calls carry `status` `500` and `502`
 
 ### Requirement: Cancellation by the caller
 
@@ -274,9 +280,10 @@ text colour.
 
 #### Scenario: Wireframe accent colours are never text
 
-- **GIVEN** every source file under `packages/web/src/`
+- **GIVEN** every file under `packages/web/src/` except the theme file and the test files (`*.test.ts`,
+  `*.test.tsx`, which hold those values on purpose)
 - **WHEN** the theme test searches them for the text utilities of the decorative tokens (`text-stripe`,
-  `text-stripe-soft`) and, outside the theme file, for the values `#4dabf7` and `#74c0fc`
+  `text-stripe-soft`) and for the values `#4dabf7` and `#74c0fc`
 - **THEN** none is found
 
 #### Scenario: A token changed to a low-contrast value fails the theme test

@@ -11,7 +11,8 @@ See `proposal.md` → Why. The current state that shapes the approach:
   JSX plugin, no `globals`), TypeScript `^5.5`, ESLint 9 flat config with `typescript-eslint`
   recommended (already lints `.tsx`), `engines.node >= 20.11`; CI runs Node 20. `typecheck` =
   `tsc --build` + `tsc -p packages/web/tsconfig.json --noEmit` + `tsc -p tests/tsconfig.json`.
-- `tests/tsconfig.json` type-checks `tests/**/*.ts` only (`types: ["node"]`, no DOM lib, no JSX);
+- `tests/tsconfig.json` type-checks `tests/**/*.ts` only (`types: ["node"]`, no `.tsx`, no `jsx` setting;
+  `tsconfig.base.json` sets no `lib`, so TypeScript's default library for ES2022, DOM included, applies);
   the API unit tests import the API by relative path (`../../../packages/api/src/app`), not by package
   name.
 - `vitest.stryker.config.ts` merges the root config and excludes the integration and timed specs;
@@ -50,7 +51,7 @@ See `proposal.md` → Why. The current state that shapes the approach:
 
 Decisions D1–D16 come from the DIS-58 `[enhanced]` description (agent as lead engineer, ADR
 `20261016-autonomous-workflow-run-entrega-2`); D17–D25 were taken while proposing and D26–D28 while
-resolving the spec audit (run 1); all of them, with the refinements of D2, D9 and D13, were added to the
+resolving the spec audit (run 1); all of them, with the refinements of D2, D4, D9 and D13, were added to the
 same description on 2026-10-18 ("Decisiones D17–D28").
 
 ### D1 — An OpenSpec change with the new capability `web-foundation`
@@ -148,7 +149,7 @@ Component, router, client and theme tests next to the code in `packages/web/src/
 (type-checked by the web `tsconfig.json`, which already includes `src`). The a11y gate in `tests/a11y/`
 (the path of frontend-standards §4 and `frontend.yml`) with its own `tests/a11y/tsconfig.json`
 (extends `packages/web/tsconfig.json`, `include: ["**/*.tsx", "**/*.ts"]`), added to the root
-`typecheck` script, because `tests/tsconfig.json` compiles neither `.tsx` nor DOM. Root script
+`typecheck` script, because `tests/tsconfig.json` compiles no `.tsx` and has no `jsx` setting. Root script
 `"test:a11y": "vitest run tests/a11y"`. The full suite runs `tests/a11y` too; running it twice in
 `frontend.yml` costs seconds and is accepted.
 
@@ -170,7 +171,9 @@ Two classes in `services/api-client.ts`, both extending `Error`, each with `name
 - `ApiError { status, code, message, details }`: the response status is ≥ 400 and the body is a JSON
   object with `error.code` (string), `error.message` (string) and `error.details` (a non-null,
   non-array object). Anything else at ≥ 400 is not the API speaking.
-- `ApiUnavailableError { cause, status? }` (`status` set when a response arrived). Its `cause`, per case:
+- `ApiUnavailableError { cause, status? }` (`status` set when a response arrived; `cause` and `status` are
+  declared fields of the class, because the web `tsconfig.json` uses `lib: ES2020`, which has no
+  `ErrorOptions`). Its `cause`, per case:
   `fetch` rejected (other than the caller's abort) → the rejection itself (`TypeError`); the body is not
   JSON → the `SyntaxError` of `JSON.parse`; a `2xx` body that is not a non-null, non-array object, a
   health body whose `status` is not `'ok'`, or a ≥ 400 body not in the error format → an
@@ -204,7 +207,8 @@ Only `health` and `ask`: no impact API, no invented types.
 `tests/a11y/smoke.a11y.test.tsx` renders `routes` in a memory router at `/`, `/p/<acme-shop id>` (taken
 from `SAMPLE_PROJECTS[0].id`, not copied) and `/ruta-que-no-existe`, and runs axe (D21). When DIS-60/65
 replace the placeholders, the gate scans the real screens without editing the test. The negative control
-(an `<img>` without `alt`) proves axe runs. axe in jsdom does not compute styles, so it cannot judge
+(an `<img>` without `alt`, rendered with RTL `render` so the D18 cleanup removes it before the route
+scans) proves axe runs. axe in jsdom does not compute styles, so it cannot judge
 colour contrast (it reports it as incomplete, not as a violation): that is D12's job.
 
 ### D12 — Contrast test over the tokens
@@ -213,8 +217,10 @@ colour contrast (it reports it as incomplete, not as a violation): that is D12's
 declared in `@theme`, and for each pair of the spec table (written in the test as token names; it adds
 `#495057` and `#1971c2` on `#f8f9fa`, 7.76 and 4.76) checks the token resolves to the spec's value and the
 WCAG ratio is ≥ 4.5; it also checks `--font-sans`, `--radius-card` and `--radius-button`. A second test
-walks every file under `packages/web/src/` (`readdirSync` with `recursive: true`, Node ≥ 20.1) and fails
-on `text-stripe`, `text-stripe-soft`, or `#4dabf7`/`#74c0fc` outside `index.css` (spec "Wireframe accent
+walks every file under `packages/web/src/` except `index.css` and the test files (`*.test.ts`,
+`*.test.tsx`, which hold `#4dabf7` as a known failing value and the searched class names) (`readdirSync`
+with `recursive: true`, Node ≥ 20.1) and fails
+on `text-stripe`, `text-stripe-soft`, `#4dabf7` or `#74c0fc` in them (spec "Wireframe accent
 colours are never text"). The ratio helper is a small pure function
 in `packages/web/src/theme-contrast.ts` (relative luminance + ratio), also checked against known values
 (`#4dabf7` on white → 2.48, failing; black on white → 21).
@@ -260,7 +266,9 @@ report.
 
 The UI is in Spanish (`index.html` `lang="es"`, wireframes): «Elige un proyecto para explorar»,
 «Consulta del proyecto», «Esta pantalla está en construcción.», «Página no encontrada», «Volver a la
-selección de proyecto», the tagline. Code, tests and repository docs stay in English.
+selección de proyecto», the tagline. The placeholder line is «Esta pantalla está en construcción.» (it
+replaces the `[enhanced]` D2 "una línea que dice qué pantalla llega": naming a ticket in the UI means
+nothing to a visitor). Code, tests and repository docs stay in English.
 
 ### D17 — jsdom only for `.test.tsx` of the web and for `tests/a11y` (refines D6)
 
@@ -275,8 +283,8 @@ DIS-60/65/66).
 
 RTL only cleans up automatically when the test framework exposes a global `afterEach` (Vitest
 `globals`, off here). `tests/support/jsdom-setup.ts` is added to `test.setupFiles`: it registers
-`afterEach` that, only when `'document' in globalThis` (the file is type-checked by `tests/tsconfig.json`,
-which has no DOM lib, so `typeof document` would not compile), dynamically imports
+`afterEach` that, only when `'document' in globalThis` (a guard that is correct in both environments and
+type-checks under `tests/tsconfig.json` whatever its `lib`), dynamically imports
 `@testing-library/react` and calls `cleanup()`. Node tests pay one `in` check. The same file holds D26. Alternatives rejected: `globals: true` (changes every
 existing test's environment); `afterEach(cleanup)` in every component file (DIS-60/65/66 would have to
 remember it, and a forgotten one leaks DOM between tests).
@@ -352,8 +360,8 @@ loaders must revisit it. Task 1.2 adds it and task 5.4 is the test that proves i
 
 ### D27 — `frontend.yml` path filter
 
-`.github/workflows/frontend.yml` → `dorny/paths-filter` adds `'packages/web/**'` and
-`'tests/unit/web/**'`: today a PR touching only `api-client.ts` or `theme-contrast.ts` (`.ts`, not `.tsx`)
+`.github/workflows/frontend.yml` → `dorny/paths-filter` adds `'packages/web/**'`,
+`'tests/unit/web/**'` and `'tests/support/jsdom-setup.ts'`: today a PR touching only `api-client.ts` or `theme-contrast.ts` (`.ts`, not `.tsx`)
 would skip the `Frontend` job and its `test:a11y` step.
 
 ### D28 — Architecture rule: the web imports no backend
