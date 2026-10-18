@@ -41,8 +41,8 @@ Every test of this change follows Arrange-Act-Assert with the three blocks comme
 
 ## 6. Accessibility (TDD, design D13) — `project-picker` → "Accessibility of Screen 1 and of the error screen"
 
-- [ ] 6.1 RED → GREEN: create `tests/a11y/project-picker.a11y.test.tsx` with "Screen 1 has no axe violations with the API available or unavailable" (`lang="es"`, `document.title = 'CODEMIND'`; `fetch` answering `ok` → await «listo» → `axe.run(document)`; unmount; `fetch` rejecting → await the alert → `axe.run(document)`; both `violations` equal `[]`, failing rule ids printed on failure) and "The error screen has no axe violations" (the table of 5.1, `console.error` spied as in D21). Observe the first one fail once by giving the `ErrorBanner` button no text locally (axe rule `button-name`; not committed) and record it in the step 9 report
-- [ ] 6.2 `npm run test:a11y` runs both files and passes; `npm run typecheck` green (the `.tsx` is compiled by `tests/a11y/tsconfig.json`)
+- [x] 6.1 RED → GREEN: create `tests/a11y/project-picker.a11y.test.tsx` with "Screen 1 has no axe violations with the API available or unavailable" (`lang="es"`, `document.title = 'CODEMIND'`; `fetch` answering `ok` → await «listo» → `axe.run(document)`; unmount; `fetch` rejecting → await the alert → `axe.run(document)`; both `violations` equal `[]`, failing rule ids printed on failure) and "The error screen has no axe violations" (the table of 5.1, `console.error` spied as in D21). Observe the first one fail once by giving the `ErrorBanner` button no text locally (axe rule `button-name`; not committed) and record it in the step 9 report
+- [x] 6.2 `npm run test:a11y` runs both files and passes; `npm run typecheck` green (the `.tsx` is compiled by `tests/a11y/tsconfig.json`)
 
 ## 7. Review and Update Existing Tests (MANDATORY)
 
