@@ -587,3 +587,275 @@ Do not touch `[original]`. In the **Enhanced** part, in Spanish:
 | 5.3 — PowerShell `$env:` persists in the session | TESTING requirement, design D14 (A17), task 10.2. |
 | 6.2 — stale cross-references, D18 order | Tasks 17.2 and 18.1 cite D2–D18 / A1–A18; D18 moved after D17. |
 | 7.2 — readme §1.2, §2.4 and `&&` in the start block | Design D10 and task 12.1 widened; scenario requires §1.2/§1.4/§2.4 and no `&&` (A18). |
+
+## Run 3
+
+Verdict line as returned:
+
+APPROVED
+
+**Decisions to record.** None of the findings is blocking. This run is autonomous under ADR `docs/adr/20261016-autonomous-workflow-run-entrega-2.md`, which is present in this tree. The agent can fold in the minor points below as lead engineer. No question needs the author.
+
+- **R7 (decision to record, improvable).** Name the step-15 scratchpad clone and its Compose project explicitly. It must not be `codemind`. See 5.1.
+
+---
+
+### Resolutions of runs 1 and 2: do they hold?
+
+| Earlier finding | Holds? | Evidence |
+|---|---|---|
+| Run 1 R1/R2/R3, D12–D18 in Linear | Yes | Enhanced holds D12–D17 («Decisiones añadidas en el propose»), D18 and A1–A9, A11, A12 (run 1), and A10, A13–A18 (run 2). |
+| Run 1: `engines`, `.env` loading of `up`/`demo:ask`, product code never loads `.env` | Yes | `local-startup` → "Which commands load .env" l. 101–106 and the wiring scenario l. 120–126. |
+| Run 1: switch read from the target env; `dotenvPath` injectable | Yes | Spec l. 51, 57–59; design D3, D4 (A1, A2); tasks 2.1, 4.1, 6.3. |
+| Run 1: Ctrl+C on `up` | Yes | Spec l. 150–153; scenario l. 177–183; design D5 (A3); task 4.3. |
+| Run 1: `demo:ask` / `demo:excerpt` rules | Yes | Spec l. 251–263 and l. 328–334 (A4, A5). |
+| Run 1: stale sentences, anchors with NFC, `port is already allocated` | Yes | Spec l. 468–483 and l. 464–466; design D10 (A6, A8, A9). |
+| Run 1: 14.3 risk to the author's database | Yes | Task 14.3 runs the demonstration only in the clone (A11). |
+| Run 2 R4: Ctrl+C output vs. "pasted from a run" | Yes | Spec l. 396–400 and the "ordered" scenario l. 421–422; design D11 (A13); tasks 11.2b, 16.3. |
+| Run 2 R5: the clones' `.env` edit | Yes | Design D11 l. 221–225 (A14); tasks 16.2, 18.1. Step 15 does not cite it (see 5.1). |
+| Run 2 R6: ADR scope | Yes | Proposal l. 13–15, design → Context l. 43–46, Enhanced «Ámbito del ADR», task 19.9. |
+| Run 2: `DOTENV_PATH` in the entry guards (A15) | Yes | Spec l. 105–106 and l. 121–122; task 3.1. Which task adds that assertion is ambiguous (see 9.1). |
+| Run 2: `$` and assignment lines (A16) | Yes | Spec l. 377–379 and l. 408–410; task 11.1. |
+| Run 2: PowerShell `$env:` persistence (A17) | Yes | Spec l. 451–454; design D14; task 10.2. |
+| Run 2: readme §1.2, §2.4 and `&&` (A18) | Yes | Design D10; task 12.1; scenario l. 482–483. Checked: `readme.md:147`, `:299`, `:658`, `:690`. |
+| Run 2: "cortos" and "en pocos minutos" in Linear | Yes | Enhanced criterion C and the user story are reworded; `[original]` is untouched. |
+| Run 2: stale cross-references, order of D18 | Partly | Tasks 17.2 and 18.1 are fixed, and D18 now follows D17. `design.md:67` still says "A1–A12" (see 6.1). |
+
+---
+
+### 1. Scope against the ticket
+
+DIS-102 has no parent: no relations and no comments (checked again). The ticket alone bounds the change.
+
+- Every item of the proposal, the three deltas and the tasks traces to D1–D18, A1–A18 or criteria A–E of the Enhanced description. **There is no invented scope.**
+- **1.1 (improvable, Linear only).** Enhanced → «Contexto técnico» is stale in two places:
+  - "Delta specs: `local-startup` (ADDED) y `confidence-score` (MODIFIED)" omits the `project-picker` MODIFIED delta, which D13 adds.
+  - "`readme.md` §0/§1.3/§1.4" omits §1.2 and §2.4, which A18 adds.
+
+  The decisions themselves are recorded, so only this summary block is out of date.
+
+### 2. Inherited acceptance criteria
+
+There is no parent, so nothing is inherited. Checked against the ticket's own criteria instead:
+
+- **A:** `up` sequence, before `npm install`, Docker down, `down` keeps the volume, `make up` → covered.
+- **B:** `.env` read, precedence, no `.env`, quality scripts, `engines` → covered.
+- **C:** one command per step, prerequisites, web walkthrough, ordered steps, accents → covered.
+- **D:** four documents in Spanish, links (D10 records that `prompts.md` and the specs hold no `#fragment` link into the guides), the CONFIDENCE test → covered.
+- **E:** the recorded clean-clone run → covered.
+
+**Clean.**
+
+### 3. Missing scenarios
+
+**Clean.** Every SHALL clause of `local-startup`, of `confidence-score` → "Published weights" and of `project-picker` → "API status on Screen 1" has a scenario.
+
+### 4. Ambiguity
+
+**Clean.** None of fast / easy / secure / efficient / many / appropriate / robust / short appears in `proposal.md`, `design.md`, the three deltas or `tasks.md`. The remaining "a short comment" at `tasks.md:3` is a note in Linear, not behaviour. Linear criterion C and the user story were reworded in run 2.
+
+### 5. Open decisions
+
+| # | What the implementer would decide alone | Where to fix it | Severity |
+|---|---|---|---|
+| 5.1 | **The step-15 clone's folder name, and so its Compose project.** Task 15.1 says "a scratchpad clone of the branch … never the working tree's compose project". The branch is pushed only in 16.1, so the step-15 clone comes from the local repository. `git clone <path to Codemind>` with no target creates a folder `Codemind`, and Compose names that project `codemind` (the author's). `npm run up` there would recreate the author's container with the clone's `POSTGRES_PORT`, and `db:seed` would reload her sample data. Task 15.8's `down -v` is forbidden on `codemind` by text, but no step checks for it. Step 15 also does not say how the clone's `.env` is created and its port changed (A14 is cited only in 16.2). | Task 15.1 (and 15.2) | Improvable (high priority: protects the author's data) |
+| 5.2 | **The message that tells the reader the port is taken.** `Antes de empezar` names only `port is already allocated`. Compose prints that when **another container** holds the port. When a **native process** holds it (a Windows Postgres service is the usual case), Docker Desktop reports `Ports are not available: exposing port TCP 0.0.0.0:5432 …`. With a native Postgres bound only to loopback, `Paso 0` can even pass its first step and then fail at `npm run db:migrate` with `password authentication failed for user "codemind"`. A first-time reader on Windows would not recognise either case. | `local-startup` → "The demo guide runs the same…" (requirement l. 381–383); task 11.2 | Improvable |
+| 5.3 | **How `demo:ask` reads `PORT`.** The spec says "a decimal integer from 1 to 65535". The API's own reader (`packages/api/src/composition.ts:56–68`) trims the value, treats blank as the default, and accepts digits only (so `03000` is valid). With `PORT=" "` set in the shell, the API listens on 3000 while `demo:ask` exits `2`. | Requirement "The demo question helper" l. 250–253 | Improvable |
+| 5.4 | **The default `cwd` of `runUp`.** The scenario says "each from the repository root", but D5 does not say whether the default `cwd` is `process.cwd()` or the root resolved from the module. A test run from the root passes either way. | Design D5 | Improvable |
+
+### 6. Contradictions inside the change
+
+- **6.1 (improvable).** `design.md:66–68` says "adds D12–D18 and the spec-audit amendments (A1–A12, end of this section)". The section now holds A1–A18.
+- **6.2 (improvable).** Task 6.2 says `runDemoAsk` "loads `.env` through `./load-env.mjs`". That reads as relying on the module's import side effect, which design D4 and A2 rule out: `runDemoAsk` calls `loadEnvFile(dotenvPath, env, stderr)`, and `./load-env.mjs` is imported only for `DOTENV_PATH`.
+- **6.3 (improvable).** A side effect of D4 and A15: `up.mjs` and `demo-ask.mjs` import `./load-env.mjs`, which loads `.env` on import, and then they call `loadEnvFile` again. With an unreadable `.env` the warning is printed **twice**. The requirement "Loading .env into a process" says exactly one line per load, so this does not break the spec, but a reader sees two identical lines. Record it as accepted in D4, or skip the explicit call when it would load the same path into `process.env` that the import already loaded.
+- **6.4 (improvable).** Proposal → Impact → New files lists `tests/unit/scripts/*.spec.ts` but not `tests/unit/docs/guides.spec.ts` (design D16, task 11.1).
+
+Apart from these, the proposal, the design, the three deltas and the tasks agree.
+
+### 7. Contradictions with the project
+
+**Clean.**
+
+- **No duplication.** No main spec under `openspec/specs/` already defines local start-up or `.env` loading. `verify-smoke` (l. 6, 224) and `seed-load` (l. 5) still say `make up` truthfully, because `make up` now runs `npm run up`. `cli-ask` l. 322 (`DATABASE_URL is not set`) is unchanged by the loader.
+- **The `confidence-score` delta** keeps the whole requirement of `openspec/specs/confidence-score/spec.md:158–189`. It adds the language, the header cells and `—`, and pins the exact section order. That is stricter than the main spec, and `confidence-doc.spec.ts:70` already asserts the exact order.
+- **The `project-picker` delta** matches `openspec/specs/project-picker/spec.md:84–105` word for word, except «npm run up». All nine scenarios are kept.
+- **D18 vs `docs/base-standards.md` §2.** Placing the exception in `docs/project-context.md` is consistent with that file's role.
+- **ADR.** `docs/adr/20261016-autonomous-workflow-run-entrega-2.md` (§ Decision: "§99: the agent merges, only after the `/opsx:archive` commit and with CI green") covers tasks 19.1 and 19.9. DIS-102's joining of the run is recorded in Enhanced.
+- **`docs/project-context.md` hits outside the lines task 12.2 names:**
+  - l. 155 and 872 are Bash-prefixed CI/dev commands that stay true.
+  - l. 621, 1053, 1055 and 1066–1067 mention `make up` in statements that stay true.
+
+  The scenario's "`make up` … every hit reviewed" rule covers all of them.
+
+### 8. Contrast with the real code
+
+Every design claim I re-checked holds:
+
+- **Root scripts:** `package.json:24–30` (the seven `tsx` scripts), `:5–7` (`engines`), `:20` (`dev` through `concurrently`).
+- **API `dev`:** `packages/api/package.json:8`.
+- **`Makefile`:** l. 7–10 (`include`/`export`), l. 15–20 (`up`, with no `--wait`).
+- **`docker-compose.yml:9`:** fixed `"5432:5432"`.
+- **Test configuration:**
+  - `vitest.config.ts` has no `test.env` and no `globalSetup`.
+  - `vitest.stryker.config.ts:12` uses `mergeConfig(base, …)`, so it would inherit `test.env`.
+  - `stryker.config.json` has no `ignorePatterns`, so `scripts/` and `fixtures/` reach the sandbox for the new unit tests.
+- **The D12 danger is real:**
+  - `tests/integration/store/support.ts:32` copies `{ ...process.env }`;
+  - `migrations.spec.ts:257/268/280` run `npm run --silent db:migrate|db:rollback` without `DATABASE_URL`;
+  - `:301` runs `npx tsx` directly, with no preload.
+- **`dev-script.spec.ts`:** `:58` and `:82` spread `process.env`, and the spawn at `:85` of `dev-register.mjs` is untouched by the separate preload.
+- **`ProjectPickerPage.tsx:46`** is `<code>make up</code>`; `ProjectPickerPage.test.tsx:364` pins the whole text. The other `make up` hits under `packages/` and `tests/` are comments only.
+- **`confidence-doc.spec.ts`:** `:24`, `:47`, `:67`, `:70–80` are exactly the places D9 changes.
+- **No fingerprint input changes:**
+  - `packages/cli/src/seed/fingerprint.ts:27–45` reads `package-lock.json` (parser versions only), `packages/core/src/knowledge` and the fixtures, never the root `package.json`, `scripts/` or `docs/`;
+  - the TSDoc of `confidence.ts` is not edited.
+- **Empty values in `.env.example`:** `PORT=`, `HOST=` and the `RATE_LIMIT_*` keys, now fed to the API's `dev`, keep their defaults (`composition.ts:56–68`). `make up` already exported them.
+- **No duplicate abstraction:** there is no `.env` parser and no `dotenv` use outside `node_modules`.
+
+**Clean**, apart from the alignment in 5.3.
+
+### 9. Task size
+
+- **9.1 (improvable, ordering rather than size).** Task 3.1 writes the wiring test "with … the entry guards of `up.mjs` and `demo-ask.mjs` passing `DOTENV_PATH` … once they exist in steps 4 and 6". No task in step 4 or 6 says when those assertions are added (RED) and turned green, so 3.2 "GREEN" cannot be fully green. State it in 4.1/4.2 and 6.1/6.2.
+- Every other task fits in one agent turn. 11.2/11.2b and 16.2/16.2b are split.
+
+### 10. Mandatory steps
+
+- Step 0 is first and labelled "(MANDATORY - FIRST STEP)". The branch is `feature/DIS-102-cross-shell-demo-spanish-docs`, created from `feature/entrega-2-CRN`. 0.1 sets the Linear state first.
+- Steps 13, 14, 15, 16, 17 and 19 are present and labelled. "AGENT MUST EXECUTE" appears on 15, 16 and 19. Report paths follow the template, and screenshots go in `reports/`. Pre-merge review is last, with the three checks in order and the archive commit before the merge. The agent's merge is authorised by the ADR and the Enhanced record.
+- **Restoration:** 14.5, 15.4 (`.env` put back), 15.8 and 16.5.
+- **10.1 (improvable).** 14.5 compares "the author's `.env` … `git hash-object` before and after", but no task records the "before". Add it to 0.4.
+- **10.2 (improvable).** In 15.5, setting `DOCKER_HOST` in PowerShell (`$env:DOCKER_HOST=…`) persists in the tool's session. Every later `docker` command in that session would then fail or point at the closed port. Remove it in the same command.
+
+### 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| The .env file grammar | The .env grammar of .env.example is read | 1.1, 1.2 |
+| | Lines that do not match are ignored and the last assignment wins | 1.3 |
+| Loading .env into a process | Values of .env fill only the variables the environment lacks | 2.1 |
+| | Without .env the environment is unchanged | 2.1 |
+| | An unreadable .env is skipped with a warning | 2.1 |
+| | The loaded .env is the repository root's | 2.2 |
+| | The test suite never reads .env | 2.3 |
+| Which commands load .env | The guide's scripts load .env and the quality scripts do not | 3.1, 3.2 (entry-guard part: 4.x/6.x, see 9.1) |
+| | A guide command reads DATABASE_URL from .env (recorded) | 15.4 |
+| One command starts the system | Up runs the start sequence in order | 4.1, 4.2 |
+| | Up stops at the first failing step | 4.3 |
+| | Ctrl+C stops up without a failure line | 4.3 |
+| | A step that cannot start stops up | 4.3 |
+| | Up needs npm to start it | 4.3 |
+| | The startup scripts need no installed dependency | 4.4 |
+| | Up with Docker unavailable fails naming its first step (recorded) | 15.5 |
+| Stopping the system and the Makefile | Down keeps the data volume | 5.1, 15.6 |
+| | Make delegates to the npm commands | 5.2, 15.6 |
+| Configurable Postgres port | The Postgres port follows POSTGRES_PORT | 5.3 |
+| The demo question helper | An answered question prints its status and summary | 6.1, 6.2 |
+| | An UNKNOWN answer prints its reason | 6.3 |
+| | An error status prints the error body | 6.3 |
+| | An unreachable API is reported | 6.3 |
+| | demo:ask reads PORT from .env | 6.3 |
+| | Missing arguments are a usage error | 6.3 |
+| The demo excerpt helper | An excerpt prints exactly the cited lines | 7.1, 7.2 |
+| | Paths outside the project are refused | 7.3 |
+| | A missing file or a range past its end is reported | 7.3 |
+| | A malformed citation is a usage error | 7.3 |
+| The demo guide runs the same in PowerShell and Bash | The demo guide has no Bash-only command | 11.1, 11.2, 11.2b |
+| | The demo guide is ordered for a first-time reader | 11.1, 11.2, 11.2b |
+| | The web walkthrough names what each screen shows | 11.1, 11.3, 16.4 |
+| | The guide was followed on a clean clone in both shells (recorded) | 16.2, 16.2b, 16.3, 18.1 |
+| The deployment and testing guides in Spanish | Links to the guides' sections resolve | 10.1, 10.2, 11.4, 12.1, 12.2 |
+| | The guides are in Spanish and say that .env is read (recorded) | 10.1, 10.2, 12.1, 12.2, 17.1 |
+| confidence-score → Published weights | The published weights are the code's weights | 9.1, 9.2 |
+| | The confidence document states its limits | 9.1, 9.2 |
+| project-picker → API status on Screen 1 | A failed retry keeps the alert | 8.1, 8.2 |
+| | The other eight scenarios (text unchanged) | 8.2 (`npx vitest run packages/web tests/a11y`) |
+
+**No empty row.**
+
+---
+
+### Corrections to apply
+
+All of these are improvable. The change can go to apply without them, but they are cheap to fold in now.
+
+#### `openspec/changes/cross-shell-demo-spanish-docs/tasks.md`
+
+- **0.4.** Append:
+  > ; record `git hash-object .env` of the working tree (without printing the file) for the 14.5 comparison
+- **4.1 / 4.2.** Append to 4.1:
+  > ; add to `wiring.spec.ts` the assertion that `scripts/up.mjs` imports `DOTENV_PATH` from `./load-env.mjs` and passes it in its entry guard (RED)
+
+  Append to 4.2: "(that assertion GREEN)".
+- **6.1 / 6.2.** Make the same addition for `scripts/demo-ask.mjs`. In 6.2, replace "loads `.env` through `./load-env.mjs`" with:
+  > calls `loadEnvFile(dotenvPath, env, stderr)` first, `dotenvPath` defaulting to `DOTENV_PATH` imported from `./load-env.mjs` (design D4, A2)
+- **3.1.** Replace "once they exist in steps 4 and 6" with:
+  > (added in 4.1 and 6.1)
+- **15.1.** Replace "a scratchpad clone of the branch for the commands that start containers (design D11), never the working tree's compose project" with:
+  > a scratchpad clone of the branch into a folder named `manual-15` (`git clone <repo> manual-15`; design D11: the folder name is the Compose project), checked with `docker compose ls` / `docker compose config --format json` to be a project other than `codemind` before any `npm run up`; its `.env` is `cp .env.example .env` plus the scripted port edit of design D11 (A14)
+- **15.5.** Append:
+  > ; in PowerShell set and remove it in one line (`$env:DOCKER_HOST='tcp://127.0.0.1:1'; npm run up; Remove-Item Env:DOCKER_HOST`)
+- **15.8.** Replace `docker compose -p <clone> down -v` with `docker compose -p manual-15 down -v`.
+
+#### `openspec/changes/cross-shell-demo-spanish-docs/specs/local-startup/spec.md`
+
+- **Requirement "The demo guide runs the same in PowerShell and Bash"** (5.2). Replace "how to recognise that port 5432 is taken (`docker compose` reports `port is already allocated` and `Paso 0` stops at its first step)" with:
+  > how to recognise that port 5432 is taken (`Paso 0` stops at its first step and `docker compose` reports `port is already allocated` when another container holds it, or `Ports are not available` when another program does; with a local PostgreSQL already on 5432, `npm run db:migrate` can instead fail with `password authentication failed for user "codemind"`)
+
+  In the scenario "The demo guide is ordered for a first-time reader", add `Ports are not available` next to `port is already allocated`.
+- **Requirement "The demo question helper"** (5.3). Replace "where `<PORT>` is the `PORT` variable or `3000` when it is unset or empty, …. A `PORT` that is not a decimal integer from 1 to 65535" with:
+  > where `<PORT>` is the `PORT` variable trimmed of spaces, or `3000` when it is unset or blank (as the API reads it). A `PORT` that, once trimmed, is not made of decimal digits only with a value from 1 to 65535
+
+#### `openspec/changes/cross-shell-demo-spanish-docs/design.md`
+
+- **Decisions intro, l. 67.** Change "A1–A12" to "A1–A18".
+- **D4** (6.3). Append:
+  > With an unreadable `.env`, `npm run up` and `npm run demo:ask` print the `warning: .env not read (…)` line twice, once from the import side effect of `./load-env.mjs` and once from their own `loadEnvFile` call; accepted, since each load prints one line and the requirement holds.
+- **D5** (5.4). After the signature, add:
+  > `cwd` defaults to the repository root, resolved from the module (`fileURLToPath(new URL('..', import.meta.url))`), not `process.cwd()`.
+- **Spec-audit amendments.** Add a "run 3" list:
+  - **A19:** the step-15 clone is `manual-15`;
+  - **A20:** `Antes de empezar` names `Ports are not available` and the `password authentication failed` symptom;
+  - **A21:** `demo:ask` reads `PORT` as the API does;
+  - **A22:** the default `cwd` of `runUp` is the root;
+  - **A23:** the double warning is accepted.
+
+#### `openspec/changes/cross-shell-demo-spanish-docs/proposal.md`
+
+- **Impact → New files** (6.4). Add `tests/unit/docs/guides.spec.ts`.
+
+#### Linear DIS-102
+
+Do not touch `[original]`. In the **Enhanced** part, in Spanish:
+
+- **«Contexto técnico».** Replace «Delta specs: `local-startup` (ADDED) y `confidence-score` (MODIFIED «Published weights»)» with:
+  > Delta specs: `local-startup` (ADDED), `confidence-score` (MODIFIED «Published weights») y `project-picker` (MODIFIED «API status on Screen 1», D13)
+
+  Replace «`readme.md` §0/§1.3/§1.4» with «`readme.md` §0/§1.2/§1.3/§1.4/§2.4 (A18)».
+- After A18, add a section «Enmiendas de la auditoría de la spec (ejecución 3, 19-10-2026)»:
+  > * **A19.** El clon de la prueba manual (paso 15) se llama `manual-15`; antes de `npm run up` se comprueba que su proyecto de Compose no es `codemind`, y su `.env` se prepara como en A14.
+  > * **A20.** «Antes de empezar» nombra también `Ports are not available` (el puerto lo ocupa otro programa, p. ej. un PostgreSQL instalado en Windows) y el síntoma `password authentication failed for user "codemind"` en `npm run db:migrate`.
+  > * **A21.** `demo:ask` lee `PORT` como la API: sin espacios alrededor, en blanco = 3000, solo dígitos entre 1 y 65535.
+  > * **A22.** `up` ejecuta sus pasos desde la raíz del repositorio, resuelta desde el propio módulo.
+  > * **A23.** Con un `.env` ilegible, `npm run up` y `npm run demo:ask` muestran el aviso dos veces (una por cada carga); se acepta.
+
+### Resolution of run 3
+
+Verdict APPROVED: the apply can start. The minor points were folded anyway with `/opsx:update`:
+
+| Finding | Resolution |
+|---|---|
+| R7, 5.1 — step-15 clone could take the `codemind` Compose project | Clone `manual-15`, project name checked before any `npm run up`, `.env` prepared as A14; tasks 15.1, 15.8 (A19). |
+| 5.2 — other port-taken messages | `Antes de empezar` also names `Ports are not available` and `password authentication failed`; spec and scenario (A20). |
+| 5.3 — `PORT` parsing differs from the API | `demo:ask` reads `PORT` as `packages/api/src/composition.ts` does (A21); task 6.2. |
+| 5.4 — default `cwd` of `runUp` | Root resolved from the module (A22); design D5, task 4.2. |
+| 6.1 — "A1–A12" in the design intro | Now "A1–A22". |
+| 6.2 — task 6.2 wording | Rewritten: `runDemoAsk` calls `loadEnvFile` itself. |
+| 6.3 — double warning | Resolved instead of accepted: `DOTENV_PATH` moves to `scripts/env.mjs`, `up`/`demo:ask` never import the side-effecting `./load-env.mjs`; spec says the warning prints at most once per process (A23). |
+| 6.4 — `guides.spec.ts` missing in Impact | Added to proposal → Impact. |
+| 9.1 — when the entry-guard assertions are written | Added as RED in 4.1 and 6.1, GREEN in 4.2 and 6.2; 3.1 points to them. |
+| 10.1 — no "before" hash of the author's `.env` | Task 0.4 records `git hash-object .env` (file never printed). |
+| 10.2 — `$env:DOCKER_HOST` persists in PowerShell | Task 15.5 sets and removes it in one line. |
+| 1.1 — Linear «Contexto técnico» stale | Updated (three deltas; readme §0/§1.2/§1.3/§1.4/§2.4). |
+
+No further run is needed: run 3 returned APPROVED, and its points are folded.

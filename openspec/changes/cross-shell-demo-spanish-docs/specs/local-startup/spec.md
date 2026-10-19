@@ -103,7 +103,8 @@ reading its configuration from the process environment only: no file under `pack
 import from `scripts/` or name `load-env` or `.env` in an import specifier. The root `package.json`
 SHALL keep `engines.node` = `>=20.11`, and no file of `scripts/` SHALL use `process.loadEnvFile`,
 `util.parseEnv` or `--env-file`. When run as entry modules, `up` and `demo:ask` SHALL pass the repository root's `.env`
-path (`DOTENV_PATH` of `scripts/load-env.mjs`) as their `.env` path.
+path (`DOTENV_PATH` of `scripts/env.mjs`) as their `.env` path, and loading `.env` SHALL print its
+warning at most once per process.
 
 #### Scenario: The guide's scripts load .env and the quality scripts do not
 
@@ -118,9 +119,9 @@ path (`DOTENV_PATH` of `scripts/load-env.mjs`) as their `.env` path.
   `lint:architecture`, `typecheck` and `docs:coverage` contains `load-env`, and
   `packages/api/dev-register.mjs` does not contain `load-env`
 - **AND** `engines.node` is `>=20.11`
-- **AND** `scripts/up.mjs` and `scripts/demo-ask.mjs` import `DOTENV_PATH` from `./load-env.mjs` and
-  pass it in the call of their entry guard, `scripts/demo-excerpt.mjs` imports neither `./env.mjs` nor
-  `./load-env.mjs`, and no source text of `scripts/` contains
+- **AND** `scripts/up.mjs` and `scripts/demo-ask.mjs` import `DOTENV_PATH` from `./env.mjs`, pass it in
+  the call of their entry guard and do not import `./load-env.mjs`, `scripts/demo-excerpt.mjs` imports
+  neither `./env.mjs` nor `./load-env.mjs`, and no source text of `scripts/` contains
   `process.loadEnvFile`, `parseEnv` imported from `node:util`, or `--env-file`
 - **AND** no file under `packages/*/src` has an import specifier containing `scripts/`, `load-env` or
   `.env`
@@ -247,9 +248,10 @@ change together.
 
 `npm run demo:ask -- <projectId> "<question>"` SHALL load `.env`, then send `POST
 /api/projects/<projectId>/ask` (the id percent-encoded as a path segment) to
-`http://127.0.0.1:<PORT>`, where `<PORT>` is the `PORT` variable or `3000` when it is unset or empty,
-with the JSON body `{"question": <question>}` encoded as UTF-8. A `PORT` that is not a decimal integer
-from 1 to 65535 SHALL write `demo:ask: PORT must be a port number` to stderr and exit `2` without
+`http://127.0.0.1:<PORT>`, where `<PORT>` is the `PORT` variable trimmed of spaces, or `3000` when it
+is unset or blank (as the API reads it), with the JSON body `{"question": <question>}` encoded as
+UTF-8. A `PORT` that, once trimmed, is not made of decimal digits only with a value from 1 to 65535
+SHALL write `demo:ask: PORT must be a port number` to stderr and exit `2` without
 sending any request. It SHALL print the line `HTTP <status>` and then a JSON document indented with two
 spaces, chosen in this order: for a `2xx` response whose JSON body has `answer` equal to `"UNKNOWN"`,
 its `answer`, `reason` and, when present, `message`; for any other `2xx` response whose JSON body has
@@ -378,8 +380,11 @@ adjacent pair. No `shell` block SHALL contain `export `, `$env:`, `ask_api`, `se
 `$(`, `make `, any other `$` (PowerShell expands it even inside double quotes), a line starting with a
 variable assignment (`^[A-Za-z_][A-Za-z0-9_]*=`) or a line ending in `\` or in a backtick. `Antes de empezar` SHALL say how to check that
 Docker is running (`docker info`), the Node version (`node -v`, 20.11 or later) and the Git version
-(`git --version`), how to recognise that port 5432 is taken (`docker compose` reports `port is
-already allocated` and `Paso 0` stops at its first step) and what to do then (`POSTGRES_PORT` with
+(`git --version`), how to recognise that port 5432 is taken (`Paso 0` stops at its first step and
+`docker compose` reports `port is already allocated` when another container holds it, or `Ports are
+not available` when another program does; with a local PostgreSQL already on 5432, `npm run
+db:migrate` can instead fail with `password authentication failed for user "codemind"`) and what to do
+then (`POSTGRES_PORT` with
 the matching `DATABASE_URL`, edited in `.env` with a text editor, not with a shell redirection), and
 copy `.env` with the `shell` command `cp .env.example .env`; `Paso 0` SHALL start
 the system with the `shell` command `npm run up`. The questions to the API SHALL be sent with
@@ -415,7 +420,7 @@ it pastes is that of `npm run down`.
 - **THEN** they include, in this order, `Antes de empezar`, seven headings starting `Paso 0 — ` to
   `Paso 6 — `, `Comprobar la instalación`, `Recorrido por la web` and `Parar el sistema`
 - **AND** `Antes de empezar` contains `docker info`, `node -v`, `git --version`, `POSTGRES_PORT`,
-  `port is already allocated` and a
+  `port is already allocated`, `Ports are not available`, `password authentication failed` and a
   `shell` block holding `cp .env.example .env`, and `Paso 0` a `shell` block holding `npm run up`
 - **AND** a `shell` block holds `npm run demo:ask --` and another `npm run demo:excerpt --`
 - **AND** `Parar el sistema` contains `[up] stopped (Ctrl+C)` and `130` in its text and a `shell` block

@@ -85,7 +85,7 @@ every evaluator step identical in PowerShell and Bash, no manual `export`/`$env:
 
 - New files: `scripts/env.mjs`, `scripts/load-env.mjs`, `scripts/up.mjs`, `scripts/demo-ask.mjs`,
   `scripts/demo-excerpt.mjs`, with `.d.mts` declarations for the modules the tests import;
-  `tests/unit/scripts/*.spec.ts`.
+  `tests/unit/scripts/*.spec.ts`, `tests/unit/docs/guides.spec.ts`.
 - Changed (product, one string): `packages/web/src/pages/ProjectPickerPage.tsx` (design D13) and its
   test `packages/web/src/pages/ProjectPickerPage.test.tsx` ("A failed retry keeps the alert").
 - Changed: root `package.json` (scripts `up`, `down`, `demo:ask`, `demo:excerpt`; the `.env` preload

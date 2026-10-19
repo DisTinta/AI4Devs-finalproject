@@ -64,7 +64,7 @@ that date (the workflow run she launched; recorded in DIS-102 Enhanced). Without
 ## Decisions
 
 The Linear decisions D1–D11 (DIS-102 Enhanced, 2026-10-19) hold; this section gives their technical
-shape and adds D12–D18 and the spec-audit amendments (A1–A12, end of this section), all recorded in the
+shape and adds D12–D18 and the spec-audit amendments (A1–A22, end of this section), all recorded in the
 ticket's Enhanced description.
 
 ### D1. Through OpenSpec, with three deltas
@@ -90,10 +90,10 @@ plus matched quotes, so the result is the same on every Node version. `engines` 
 
 `Object.hasOwn(env, key)` decides: a present key is never overwritten, even when empty, so a variable
 set in the shell (or `KEY=` on purpose) beats `.env`. The path is
-`fileURLToPath(new URL('../.env', import.meta.url))` of `scripts/load-env.mjs`, so the API's `dev`
-(cwd `packages/api`) reads the same file as the root scripts. `scripts/load-env.mjs` exports that
-path as `DOTENV_PATH` and, as its side effect on import, calls `loadEnvFile(DOTENV_PATH, process.env,
-process.stderr)`. The skip switch (D12) is read from the environment passed to `loadEnvFile`, not from
+`fileURLToPath(new URL('../.env', import.meta.url))` of `scripts/env.mjs`, which exports it as
+`DOTENV_PATH`, so the API's `dev` (cwd `packages/api`) reads the same file as the root scripts.
+`scripts/load-env.mjs` is the preload only: on import it calls `loadEnvFile(DOTENV_PATH, process.env,
+process.stderr)` and exports nothing else of its own. The skip switch (D12) is read from the environment passed to `loadEnvFile`, not from
 `process.env`, so the unit tests load into plain objects without the switch while the suite's own
 `process.env` keeps it (A1).
 
@@ -106,8 +106,9 @@ becomes `node --watch --import ../../scripts/load-env.mjs --import ./dev-registe
 a separate preload, so `dev-register.mjs` and the test that spawns it directly stay as they are; with
 `--watch`, each restart loads `.env` again. `up` and `demo:ask` do not rely on the preload's side
 effect: `runUp` and `runDemoAsk` call `loadEnvFile(dotenvPath, env, stderr)` first, with `dotenvPath`
-defaulting to `DOTENV_PATH` (imported from `./load-env.mjs` for the constant; its import side effect
-is a no-op under the suite's switch), so their tests can give a temporary file (A2). Their entry
+defaulting to `DOTENV_PATH` (imported from `./env.mjs`, never from the side-effecting
+`./load-env.mjs`, so an unreadable `.env` warns once, A23), so their tests can give a temporary file
+(A2). Their entry
 guards pass `dotenvPath: DOTENV_PATH` explicitly, which `wiring.spec.ts` checks in the source text, so
 a default left `undefined` cannot pass every test unnoticed (A15). The root
 `dev` needs no preload: the API's own `dev` loads it, and the web reads no variable. `demo:excerpt`
@@ -116,8 +117,10 @@ it would do nothing). Quality scripts never load it (`local-startup` → "Which 
 
 ### D5. `npm run up` = `node scripts/up.mjs`
 
-`scripts/up.mjs` exports `runUp({ env, dotenvPath, run, stdout, stderr, cwd, onInterrupt })` and runs
-it when it is the entry module (the `process.argv[1]` guard pattern of `packages/cli/src/seed-load.ts`, compared with
+`scripts/up.mjs` exports `runUp({ env, dotenvPath, run, stdout, stderr, cwd, onInterrupt })`, with
+`cwd` defaulting to the repository root resolved from the module
+(`fileURLToPath(new URL('..', import.meta.url))`, not `process.cwd()`, A22), and runs it when it is
+the entry module (the `process.argv[1]` guard pattern of `packages/cli/src/seed-load.ts`, compared with
 `fileURLToPath(import.meta.url)`). `run(command, args, options)` is `child_process.spawn` with
 `stdio: 'inherit'`, `shell: false`, resolving `{ code, signal }` on `exit` or `{ error }` on
 `error`; tests pass a double. Steps:
@@ -332,6 +335,18 @@ reads that line before applying the English rule.
 - **A18.** `readme.md` §1.2 and §2.4 also move to `npm run up`, and §1.4's start block drops `&&` (D10).
 - Recorded: A10 is D18; D11's two clones and their `down -v` on the clones' own projects; the ADR scope
   of DIS-102 (Context).
+
+### Spec-audit amendments (run 3, 2026-10-19, verdict APPROVED; minor points folded)
+
+- **A19.** The step-15 clone is `manual-15`; before any `npm run up` its Compose project is checked not
+  to be `codemind`; its `.env` is prepared as A14 (tasks 15.1, 15.8).
+- **A20.** `Antes de empezar` also names `Ports are not available` and the `password authentication
+  failed` symptom of a native PostgreSQL on 5432.
+- **A21.** `demo:ask` reads `PORT` as the API does (`packages/api/src/composition.ts`): trimmed, blank =
+  3000, digits only, 1–65535.
+- **A22.** `runUp`'s default `cwd` is the root resolved from the module.
+- **A23.** `DOTENV_PATH` lives in `scripts/env.mjs`; `up` and `demo:ask` import it from there, so the
+  warning of an unreadable `.env` is printed once (instead of accepting a double warning).
 
 ## Risks / Trade-offs
 
