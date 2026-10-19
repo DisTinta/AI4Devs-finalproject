@@ -6,7 +6,7 @@
  * Spec: `local-startup` → "The demo excerpt helper".
  */
 import { readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
-import { isAbsolute, relative, resolve } from 'node:path';
+import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { URL, fileURLToPath } from 'node:url';
 
 /** The repository's `fixtures/` directory. */
@@ -50,7 +50,8 @@ function isProject(fixturesRoot, project) {
  */
 function isInside(directory, path) {
   const rest = relative(directory, path);
-  return rest === '' || (!rest.startsWith('..') && !isAbsolute(rest));
+  // Only a first segment `..` leaves the directory: a name such as `..notes.txt` stays inside it (design D20).
+  return rest === '' || (rest !== '..' && !rest.startsWith(`..${sep}`) && !isAbsolute(rest));
 }
 
 /**

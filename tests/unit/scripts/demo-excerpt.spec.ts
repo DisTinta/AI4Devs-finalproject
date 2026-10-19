@@ -1,5 +1,6 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { runDemoExcerpt } from '../../../scripts/demo-excerpt.mjs';
@@ -117,6 +118,52 @@ describe('The demo excerpt helper', () => {
       expect(result.stderr, args.join(' ')).toBe(usage);
       expect(result.stdout, args.join(' ')).toBe('');
       expect(result.code, args.join(' ')).toBe(2);
+    }
+  });
+
+  it('A link that leads out of the project is refused', () => {
+    // Arrange: a temporary fixtures directory whose project holds a directory link to a folder outside
+    // it (a junction on Windows, which needs no privilege; a symbolic link elsewhere)
+    const base = mkdtempSync(join(tmpdir(), 'codemind-excerpt-'));
+    try {
+      const fixturesRoot = join(base, 'fixtures');
+      mkdirSync(join(fixturesRoot, 'demo'), { recursive: true });
+      mkdirSync(join(base, 'outside'));
+      writeFileSync(join(base, 'outside', 'secret.txt'), 'secret\n');
+      symlinkSync(join(base, 'outside'), join(fixturesRoot, 'demo', 'link'), 'junction');
+      const stdout = recorder();
+      const stderr = recorder();
+
+      // Act
+      const code = runDemoExcerpt(['demo', 'link/secret.txt:1-1'], { fixturesRoot, stdout, stderr });
+
+      // Assert
+      expect(stderr.text()).toBe('demo:excerpt: link/secret.txt is outside fixtures/demo\n');
+      expect(stdout.text()).toBe('');
+      expect(code).toBe(1);
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
+  });
+
+  it('A file whose name starts with two dots is inside the project', () => {
+    // Arrange: a temporary fixtures directory whose project holds a file named `..notes.txt`
+    const fixturesRoot = mkdtempSync(join(tmpdir(), 'codemind-excerpt-'));
+    try {
+      mkdirSync(join(fixturesRoot, 'demo'));
+      writeFileSync(join(fixturesRoot, 'demo', '..notes.txt'), 'first\nsecond\n');
+      const stdout = recorder();
+      const stderr = recorder();
+
+      // Act
+      const code = runDemoExcerpt(['demo', '..notes.txt:1-2'], { fixturesRoot, stdout, stderr });
+
+      // Assert
+      expect(stdout.text()).toBe('first\nsecond\n');
+      expect(stderr.text()).toBe('');
+      expect(code).toBe(0);
+    } finally {
+      rmSync(fixturesRoot, { recursive: true, force: true });
     }
   });
 });
