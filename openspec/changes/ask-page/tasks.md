@@ -1,0 +1,109 @@
+## 0. Setup: Create Feature Branch (MANDATORY - FIRST STEP)
+
+- [ ] 0.1 First action of the apply: confirm DIS-65 is In Progress in Linear (set it if not), with a short comment in Spanish naming the change `ask-page` and the branch `feature/DIS-65-ask-page`
+- [ ] 0.2 Feature branch `feature/DIS-65-ask-page` (`BRANCH_PREFIX=feature/`, `docs/project-context.md` → Branch and ticket conventions), created from `feature/entrega-2-CRN` before `/opsx:propose`; confirm `git merge-base --is-ancestor origin/feature/entrega-2-CRN HEAD` and that `openspec/changes/ask-page/` is on it. `git fetch`; if `origin/feature/entrega-2-CRN` moved, rebase before any code (never force-push a published branch)
+- [ ] 0.3 Verify the current branch (`git branch --show-current`) and `git status`; the local changes under `.claude/` are never staged
+- [ ] 0.4 Baseline for the step 11 report: run `npx vitest run` once, green, and record files, tests and duration; run `npm run build -w packages/web` and record the size of `packages/web/dist/assets/*`; record that the code tasks touch no database (step 10 captures its own state)
+
+## 1. How a question, an answer and an evidence location are written (TDD, design D4, D13) — `ask-page` → "How a question, an answer and an evidence location are written"
+
+Every test of this change follows Arrange-Act-Assert with the three blocks commented (frontend-standards §4) and is named exactly as its scenario.
+
+- [ ] 1.1 RED: create `packages/web/src/components/answer-display.test.ts` (Node environment) with "Question length is counted in code points after trimming" (the nine inputs of the scenario; the valid ones return the trimmed question, the invalid ones return no question; build the astral and 500/501-letter inputs with `String.fromCodePoint` and `'a'.repeat`). See it fail (module missing)
+- [ ] 1.2 GREEN: `packages/web/src/components/answer-display.ts` with the question check (`[...trimmed].length` between 5 and 500), TSDoc on every export
+- [ ] 1.3 RED → GREEN: "Back-quoted fragments are shown as code" (the splitter returns `{ kind: 'text' | 'code', text }[]`; the four inputs and their exact fragment lists)
+- [ ] 1.4 RED → GREEN: "Evidence locations name the file and its lines" (`file:start-end`, `file:line` when equal)
+
+## 2. Suggested questions and their coherence (TDD, design D5, D28) — `ask-page` → "Suggested questions"
+
+- [ ] 2.1 RED: create `tests/unit/seed/suggested-questions-coherence.spec.ts` with "The suggested questions are the golden questions" (list `seeds/cache/*.json` with `node:fs`, `JSON.parse` each, map `project` → the `SAMPLE_PROJECTS` id; compare the constant's array with the entries' `question` in order; every key of the constant is such an id; acme-shop's three texts asserted literally). See it fail (module missing)
+- [ ] 2.2 GREEN: `packages/web/src/data/suggested-questions.ts` (`SUGGESTED_QUESTIONS: Readonly<Record<string, readonly string[]>>`, keyed by the acme-shop id taken from `SAMPLE_PROJECTS`, not a copied literal; TSDoc stating it is hand-written and guarded by the coherence test)
+
+## 3. Screen 2 frame and project bar (TDD, design D3, D12, D15, D16, D20, D21, D24, D27) — `ask-page` → "Screen 2 frame and project bar"; `web-foundation` → "Paths of the web client and their screens"
+
+- [ ] 3.1 RED: create `packages/web/src/pages/AskPage.test.tsx` with "Screen 2 opens on a sample project without any request" (real `routes` in `createMemoryRouter` at `/p/a794456d-6d1b-5b55-a360-13fec83dc7bc`; recording `fetch` double that never answers; `within(getByRole('banner'))` for the link — name, visible text «←» and `href` `/` —, the `h1`, «PHP / Laravel · 170 aristas», and no «CODEMIND» nor tagline; `within(getByRole('main'))` for the field «Pregunta», the button «Preguntar», «Prueba:» and `getByRole('group', { name: 'Prueba:' })` with three buttons in order; their document order checked with `compareDocumentPosition`; no `heading` «Respuesta»/«Evidencia», no `status`, no `alert`; zero recorded requests). See it fail
+- [ ] 3.2 GREEN: `PageFrame` optional `banner` prop (default `AppHeader`, TSDoc updated); `packages/web/src/components/ProjectBar.tsx` (props interface; `header`, back `Link` with `aria-label`, «←», white focus outline D20; `h1`; label and count via `stackLabel`/`formatCount`); `packages/web/src/components/QueryBox.tsx` (form, visually hidden label, input, submit button «→» `aria-hidden` + accessible name); `packages/web/src/components/SuggestedQuestions.tsx` (group labelled by «Prueba:»); `packages/web/src/pages/AskPage.tsx` (composition, `text-left` wrapper D27); `router.tsx`: `/p/:projectId` → a route component that renders `<AskPage key={projectId} projectId={projectId} />` (D21); delete `packages/web/src/components/PendingScreen.tsx` and its import (D16); update the TSDoc of `routes`
+- [ ] 3.3 In `packages/web/src/router.test.tsx`, remove only the test "A project path shows the Screen 2 placeholder with its id" and its now unused helper if any (its scenario left the spec, design D12, D15); no other line of that file changes. Record the removal with its reason in the step 11 report
+- [ ] 3.4 RED → GREEN: "A project outside the sample constant is shown by its id" (`h1` is the id; no «PHP», no «aristas»; no «Prueba:»; the only buttons in `main` are «Preguntar»; zero requests)
+
+## 4. Two Screen 1 scenarios now land on Screen 2 (design D17) — `project-picker` → "Sample-project cards without HTTP", "API status on Screen 1"
+
+- [ ] 4.1 In `packages/web/src/pages/ProjectPickerPage.test.tsx`, change only the post-navigation assertions of "The project link is reached and followed with the keyboard" (level-1 heading «acme-shop» and the textbox «Pregunta», instead of «Consulta del proyecto» and the id text) and of "Leaving Screen 1 cancels a pending check" (level-1 heading «acme-shop»); no other line changes. Confirm both failed before 3.2 for the expected reason and pass now; record them in the step 11 report as specified changes (delta of `project-picker`), not fixes
+
+## 5. Question box and pending question (TDD, design D4, D6, D7, D18, D22) — `ask-page` → "Question box", "Suggested questions", "Pending question"
+
+- [ ] 5.1 RED → GREEN: "A written question is sent trimmed" (two runs with `unmount()` between them; `user.type` then `{Enter}`; then `user.click` «Preguntar»; one request per run: URL argument, `init.method`, `init.headers` `content-type`, `init.body` exactly; field value untouched; no `aria-invalid`; `document.activeElement` per run). Create `packages/web/src/pages/useAsk.ts` (`idle | pending | answered | unknown | failed`, `AbortController`, ref guard, abort on unmount, own-abort guard; D22) and wire `QueryBox` → `AskPage` → `useAsk`
+- [ ] 5.2 RED → GREEN: "An invalid question is not sent" (each input set with `user.clear` + `user.type`, then `{Enter}`; zero requests; `aria-invalid="true"`; accessible description via `toHaveAccessibleDescription`-free check: `getAttribute('aria-describedby')` resolves to the message element with role `alert`; focus on the field; no «Buscando evidencia…»). Message element per D18
+- [ ] 5.3 RED → GREEN: "Changing an invalid question clears the mark" (one more `user.type` character; no `aria-invalid`, no `aria-describedby`, no message, zero requests)
+- [ ] 5.4 RED → GREEN: "A suggested question is sent at once" (one request with the exact body; field value; `getByRole('status')` text «Buscando evidencia…» with U+2026 written by code point; focus on the pressed button). Suggestion press fills the field and calls the same send path as the form
+- [ ] 5.5 RED → GREEN: "Sending again while a question is pending sends no request" (four sends, one request, field still holds Q1, status shown)
+- [ ] 5.6 RED → GREEN: "A new question replaces what was shown" (first `fetch` answers the answered body of 6.1 — define it once as a test helper —, wait for «Respuesta»; then a never-answering recording double; press Q3; one request; status shown; no «Respuesta», no «Evidencia», no text of the previous statements)
+- [ ] 5.7 RED → GREEN: "Leaving the page aborts the pending question" (double records `init.signal`, rejects with its reason on abort and never answers `/health`; press Q1, then click the back link; the ask request's signal is `aborted`; `h1` «Elige un proyecto para explorar»; no `alert`)
+
+## 6. Answer with typed and verified statements (TDD, design D8, D9, D13, D19) — `ask-page` → "Answer with typed and verified statements"
+
+- [ ] 6.1 RED → GREEN: "An answered question shows the answer, its statements and its evidence" (the body of the scenario, with `confidence` 0.71 and a complete `usage`; the paragraph after the `h2` — its `textContent` and its `code` child; `getByRole('list')` ordered (`OL`) with two `listitem`s and their texts; icons inside `aria-hidden` elements; `h2` «Evidencia» after the list by `compareDocumentPosition`; no status; no «0.71», no «Confianza»; focus on the pressed button). Create `packages/web/src/components/AnswerView.tsx`, `StatementBadge.tsx` (props interfaces, theme pairs only, D19) and a shared fragment renderer over the splitter of 1.3
+- [ ] 6.2 RED → GREEN: "Every combination of type and verification is labelled" (four statements; each `listitem` holds its two labels)
+
+## 7. Expandable evidence (TDD, design D11, D26) — `ask-page` → "Expandable evidence"
+
+- [ ] 7.1 RED → GREEN: "Evidence expands and collapses with a pointer" (the `ev-1` excerpt of the scenario with its line breaks and leading spaces; `aria-expanded` before, after one and after two clicks; `document.querySelectorAll('pre')` length 0 / 1 / 0; `pre.textContent` strictly equal to the excerpt). Create `packages/web/src/components/EvidenceList.tsx` and `EvidenceItem.tsx` (props interfaces; `aria-controls` only while expanded, D26; ▸/▾ `aria-hidden`)
+- [ ] 7.2 RED → GREEN: "Evidence expands with the keyboard, one item at a time" (Tab until the `ev-2` button is `document.activeElement`, asserting it got there by Tab; `{Enter}`; `[Space]`; `ev-1` stays `aria-expanded="false"`)
+
+## 8. Provisional notice (TDD, design D10, D25) — `ask-page` → "Provisional notice for what is not an answer"
+
+- [ ] 8.1 RED → GREEN: "An UNKNOWN shows the provisional status" (type «¿Por qué existe legacy_ref?» and Enter; `status` text exactly «Sin respuesta verificada (motivo: no-anchor).»; no `h2`, no `ol`, no `alert`). Create `packages/web/src/components/AskFallbackNotice.tsx` (props interface; `warning-*` alert, `ink-muted`/`canvas` status)
+- [ ] 8.2 RED → GREEN: "An API error shows the provisional alert with its code" (`429` body of the scenario; alert texts; no button inside it; no «Respuesta»; no status; focus on the pressed button)
+- [ ] 8.3 RED → GREEN: "An unavailable API shows the provisional alert" (two runs, `TypeError` and empty `500`, `unmount()` between them)
+
+## 9. Accessibility (TDD, design D18, D20, D25) — `ask-page` → "Accessibility of Screen 2"
+
+- [ ] 9.1 RED → GREEN: in `AskPage.test.tsx`, "The tab order follows question, suggestions and evidence" (answer of 6.1; `document.activeElement.blur()` so the body has the focus; eight `user.tab()`; record each `document.activeElement` and compare with the eight expected elements in order)
+- [ ] 9.2 RED → GREEN: create `tests/a11y/ask-page.a11y.test.tsx` with "Screen 2 has no axe violations in any of its states" (`lang="es"`, `document.title = 'CODEMIND'`; one render per state with its own `fetch` double — pending, answered with `ev-1` expanded, invalid message, `UNKNOWN` status, `429` alert —, `axe.run(document)` each, `unmount()` between; the five violation lists equal `[]`, failing rule ids printed). Observe it fail once by removing the `aria-label` of the back link locally (axe rule `link-name`; not committed) and record it in the step 12 report
+- [ ] 9.3 `npm run test:a11y` runs the three files (the gate, Screen 1's and Screen 2's) and passes, the gate unedited; `npm run typecheck` green (the `.tsx` is compiled by `tests/a11y/tsconfig.json`)
+
+## 10. Review and Update Existing Tests (MANDATORY)
+
+- [ ] 10.1 Identify the tests affected (`grep -rn "PendingScreen\|Consulta del proyecto\|Screen 2" packages/web/src tests`, every type error of `npm run typecheck`); edit none except 3.3 and 4.1 (their scenarios changed in the spec); confirm the gate `tests/a11y/smoke.a11y.test.tsx`, `tests/a11y/project-picker.a11y.test.tsx`, `theme.test.ts` and `tests/unit/seed/sample-projects-coherence.spec.ts` are untouched (`git diff --stat` empty for them) and pass. If any other existing test fails, the fix goes in the production code, never in the test
+- [ ] 10.2 Confirm each `#### Scenario:` of `specs/ask-page/spec.md`, `specs/project-picker/spec.md` and `specs/web-foundation/spec.md` maps 1:1 to a test with exactly the same name (grep each title in `packages/web/src/` and `tests/`), except "The development server serves the three paths" (validated in 12.2–12.4 and 15.2)
+- [ ] 10.3 Refactor with the suite green: `packages/web/src/**` and the new test files, for naming and duplication only (no behaviour change, no test edits); `theme.test.ts` still passes (no `text-stripe*`, `#4dabf7` or `#74c0fc` outside `index.css`)
+
+## 11. Run Tests and Verify Data State (MANDATORY)
+
+- [ ] 11.1 Capture the pre-test baseline: the 0.4 totals, duration and bundle size
+- [ ] 11.2 Run the targeted tests: `npx vitest run packages/web tests/a11y tests/unit/web tests/unit/seed` and `npm run test:a11y`
+- [ ] 11.3 Run the required broader suite and gates: `npx vitest run` (duration against 0.4), `npx vitest run --exclude 'tests/integration/**'` (the `frontend.yml` step), `npm run lint`, `npm run typecheck`, `npm run lint:architecture` (no new `no-orphans` warning), `npm run docs:coverage`, `npm run build -w packages/web` (bundle size against 0.4)
+- [ ] 11.4 Mutation testing: `packages/web/**` is not in Stryker's `mutate` and its tests are excluded (DIS-58 D25); no dependency or Vitest/Stryker config changes (D14). Record that `npm run test:mutation` is not affected and is left to the CI `mutation` job (its `business` filter matches `tests/**` through the new coherence and a11y files)
+- [ ] 11.5 Run `/privacy-ethics-check` over the diff (the question is the person's own text sent to the same-origin API; nothing persisted in the browser; no `dangerouslySetInnerHTML`; no `VITE_*` in `dist`; no new dependency, D14) and record the result
+- [ ] 11.6 Verify the post-test state: no database touched by the unit and a11y tests; no `.stryker-tmp/`; `packages/web/dist` not staged (gitignored); restore and document if not
+- [ ] 11.7 Create `openspec/changes/ask-page/reports/YYYY-MM-DD-11-test-and-state-verification.md` from the template of `docs/openspec-tasks-mandatory-steps.md` §6: baseline and after (totals, duration, bundle size), the removed test (3.3), the two changed assertions (4.1), the RED evidence, the mutation note (11.4) and the privacy check (11.5); mark complete only after the tests pass and the report exists
+
+## 12. Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE)
+
+- [ ] 12.1 Preconditions: local Postgres up (`docker compose up -d`), `DATABASE_URL` exported, acme-shop and its golden answers loaded (`npm run cli -- projects`; `npm run db:seed` only if it is missing, recorded), no `LLM_*` exported (evaluation mode). Record `count(*)` of `query_log` and the `hit_count` of acme-shop's cache entries: every `/ask` writes a `query_log` row and a cache hit bumps `hit_count`, so 12.5 restores them
+- [ ] 12.2 Start the API and the web as two separate processes (`npm -w packages/api run dev`, `npm -w packages/web run dev`). With the browser-automation skill open `http://localhost:5173/p/a794456d-6d1b-5b55-a360-13fec83dc7bc`: the project bar, the box, the three suggestions, no request to `/api` on load, no console error; screenshot `reports/YYYY-MM-DD-12-empty.png`
+- [ ] 12.3 Press Q1: «Buscando evidencia…», then the answer with its four statements (two «HECHO · verificado», two «INFERIDO · sin verificar») and its evidence; expand `ev-1` with the keyboard (Tab, Enter): the excerpt matches `seeds/cache/acme-shop.json`; screenshot `…-12-answer-expanded.png`. Press Q3 and Q4 (Q4's repeated range shown twice). Write a free question (evaluation mode → provisional status `llm-required`), screenshot `…-12-unknown.png`; send «hola» (message, no request in the network log), screenshot `…-12-invalid.png`
+- [ ] 12.4 Stop only the API; press Q3: the provisional alert «No se ha podido obtener la respuesta.» + «La API de CODEMIND no responde.»; screenshot `…-12-api-down.png`. Open `/p/0b5c7f2e-1d3a-4e6b-8f90-1a2b3c4d5e6f` with the API up and send Q-like text: `h1` is the id and the alert shows `Código: PROJECT_NOT_FOUND.`; open `/` and `/no-existe` to confirm the other screens of the table are unchanged; follow «←» back to Screen 1
+- [ ] 12.5 Restore the state: stop both processes; delete the `query_log` rows created during 12.2–12.4 (by `created_at` after the 12.1 timestamp, acme-shop and the unknown id) and reset the `hit_count` of the touched cache entries to their 12.1 values; re-check both equal 12.1; remove what `db:seed` added in 12.1 if it ran
+- [ ] 12.6 Document every command, observation and screenshot in `openspec/changes/ask-page/reports/YYYY-MM-DD-12-manual-interface-testing.md` (screenshots next to it; OS user name masked in paths), including the a11y negative control of 9.2
+
+## 13. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
+
+- [ ] 13.1 There is no Playwright suite yet (DIS-75): the browser runs of 12.2–12.4 are the end-to-end evidence of the workflow "open Screen 2 → press a suggestion → read the answer → expand an evidence with the keyboard → go back"; record "covered by steps 12.2–12.4; no Playwright suite in this change" in the step 12 report
+
+## 14. Update Technical Documentation (MANDATORY)
+
+- [ ] 14.1 `docs/project-context.md`: the web section (Screen 2 on `/p/:projectId` → `AskPage` keyed by the id, the project bar as banner, the hand-written `SUGGESTED_QUESTIONS` guarded by `suggested-questions-coherence.spec.ts`, no request on mount, the provisional notice until DIS-66)
+- [ ] 14.2 `docs/frontend-standards.md` → «How test:a11y is wired»: add `tests/a11y/ask-page.a11y.test.tsx`; `docs/DEMO.md`: replace the note that «Explorar proyecto» leads to the Screen 2 placeholder with what Screen 2 shows (suggestions answered from the golden cache, evidence expandable)
+- [ ] 14.3 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts of this change to `prompts.md` per `docs/project-context.md` → prompts.md rules, as a new section appended at the end of the file with its Índice entry in the same edit
+- [ ] 14.4 The `[enhanced]` description of DIS-65 in Linear holds D1–D14 and the decisions of the propose and the spec audit; add there, in Spanish and never inside `[original]`, every decision taken during the apply (design "taken while implementing")
+
+## 15. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
+
+- [ ] 15.1 Open the pull request against `feature/entrega-2-CRN` (title and body in Spanish via `/pr-describe`, the Why marked as the agent's decision, the wireframe deviations D3, D5, D8, D11 and the bundle size before and after); commit by explicit paths only (nothing under `.claude/`), English messages ending with the co-author line; push with `git -c credential.helper='!gh auth git-credential' push` on the DisTinta account; set DIS-65 to In Review with a Spanish comment linking the PR; confirm CI green (`quality`, `frontend` with `test:a11y`, `mutation`, `secrets`, `verify`)
+- [ ] 15.2 Run `/show-spec-working`: screenshots of the running Screen 2 (empty, an answer with evidence expanded, the provisional notices) next to `images/pantalla-2-consulta.svg` rendered as an image; may reuse step 12 evidence. Report `openspec/changes/ask-page/reports/YYYY-MM-DD-show-spec-working.md`, screenshots next to it
+- [ ] 15.3 Run `/verify-against-spec`; report `openspec/changes/ask-page/reports/YYYY-MM-DD-verify-against-spec.md`
+- [ ] 15.4 Run `/adversarial-review`; report `openspec/changes/ask-page/reports/YYYY-MM-DD-adversarial-review.md`
+- [ ] 15.5 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report
+- [ ] 15.6 Commit the fixes to the same pull request; re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
+- [ ] 15.7 `/opsx:archive`, and commit the archive to the same pull request (no test-file edits in that commit); merge only after the archive commit and with CI green (autonomous-run ADR)
