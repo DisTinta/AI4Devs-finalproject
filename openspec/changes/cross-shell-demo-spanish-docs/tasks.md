@@ -122,13 +122,13 @@
 
 ## 18. Pull request preparation
 
-- [ ] 18.1 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the Why marked as the agent's decision (DIS-102 Enhanced D1–D11 and design D12–D18, A1–A18; the scripted `.env` edit of the clean-clone run as its one deviation), the clean-clone run of step 16 in both shells (which PowerShell, any shell-specific variant), "no dependency added, `package-lock.json` unchanged, no migration", and the two tests that follow modified requirements
+- [x] 18.1 Prepare the PR description (`/pr-describe`, in Spanish) against `feature/entrega-2-CRN`, with the Why marked as the agent's decision (DIS-102 Enhanced D1–D11 and design D12–D18, A1–A18; the scripted `.env` edit of the clean-clone run as its one deviation), the clean-clone run of step 16 in both shells (which PowerShell, any shell-specific variant), "no dependency added, `package-lock.json` unchanged, no migration", and the two tests that follow modified requirements
 
 ## 19. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 19.1 Open the pull request against `feature/entrega-2-CRN` (authorised by ADR `20261016-autonomous-workflow-run-entrega-2`; cited by branch and name if it is not yet in the base branch; `gh` on the DisTinta account)
-- [ ] 19.2 Set DIS-102 to In Review in Linear with a comment in Spanish linking the PR and the change
-- [ ] 19.3 Confirm the PR's CI is green (`quality`, `verify`, `mutation`, `secrets`, `Frontend`); link the run in an addendum to the step 14 report
+- [x] 19.1 Open the pull request against `feature/entrega-2-CRN` (authorised by ADR `20261016-autonomous-workflow-run-entrega-2`; cited by branch and name if it is not yet in the base branch; `gh` on the DisTinta account)
+- [x] 19.2 Set DIS-102 to In Review in Linear with a comment in Spanish linking the PR and the change
+- [x] 19.3 Confirm the PR's CI is green (`quality`, `verify`, `mutation`, `secrets`, `Frontend`); link the run in an addendum to the step 14 report
 - [x] 19.4 Run `/show-spec-working` (may reuse the step 15 and 16 evidence and screenshots); report `openspec/changes/cross-shell-demo-spanish-docs/reports/YYYY-MM-DD-show-spec-working.md`
 - [x] 19.5 Run `/verify-against-spec`; report `openspec/changes/cross-shell-demo-spanish-docs/reports/YYYY-MM-DD-verify-against-spec.md`
 - [x] 19.6 Run `/adversarial-review`; report `openspec/changes/cross-shell-demo-spanish-docs/reports/YYYY-MM-DD-adversarial-review.md`

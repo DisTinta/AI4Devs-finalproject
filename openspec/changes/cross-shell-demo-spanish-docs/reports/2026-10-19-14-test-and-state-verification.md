@@ -149,3 +149,16 @@ and the guides, cheap to reverse (revert the PR), and recorded in `design.md` an
   The clone `ssw-102` and its Compose project were removed (`down -v` on that project only).
 - Dependencies: none added; `package-lock.json` unchanged; the new `node:http` and `node:buffer`
   imports are Node built-ins (pinned by "The startup scripts need no installed dependency").
+
+## Addendum — pull request CI (step 19, 2026-10-19)
+
+Pull request: https://github.com/DisTinta/AI4Devs-finalproject/pull/58 (`feature/DIS-102-cross-shell-demo-spanish-docs` → `feature/entrega-2-CRN`). All checks passed on the first run, no fix attempt was needed:
+
+| Check | Result | Duration | Run |
+|---|---|---|---|
+| quality | pass | 2m24s | https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/39311203610/job/118261009060 |
+| verify | pass | 44s | https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/39311203610/job/118261008957 |
+| mutation | pass | 30m56s | https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/39311203610/job/118261009062 |
+| scope | pass | 6s | https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/39311203610/job/118260937631 |
+| secrets | pass | 8s | https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/39311203610/job/118260938390 |
+| frontend | pass | 1m31s | https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/39311203639/job/118260937898 |
