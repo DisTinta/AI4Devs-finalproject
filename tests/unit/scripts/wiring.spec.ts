@@ -127,6 +127,11 @@ describe('Which commands load .env', () => {
       expect(text, file).toMatch(guard);
     }
 
+    // Assert: demo:excerpt reads no variable, so it loads no .env (design D4)
+    const excerptSpecifiers = importSpecifiers(source('scripts/demo-excerpt.mjs'));
+    expect(excerptSpecifiers).not.toContain('./env.mjs');
+    expect(excerptSpecifiers).not.toContain('./load-env.mjs');
+
     // Assert: product code reads its configuration from the process environment only
     const offending = packageSourceDirectories()
       .flatMap(filesUnder)

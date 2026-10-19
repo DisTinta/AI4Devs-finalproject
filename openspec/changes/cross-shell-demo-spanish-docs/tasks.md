@@ -43,8 +43,8 @@
 
 ## 7. `demo:excerpt` (TDD, design D8) — `local-startup` → "The demo excerpt helper"
 
-- [ ] 7.1 RED: create `tests/unit/scripts/demo-excerpt.spec.ts` with "An excerpt prints exactly the cited lines" (expected lines read from the fixture file itself). See it fail
-- [ ] 7.2 GREEN: `scripts/demo-excerpt.mjs` (`runDemoExcerpt`, entry guard, no `.env`) and `scripts/demo-excerpt.d.mts`
+- [x] 7.1 RED: create `tests/unit/scripts/demo-excerpt.spec.ts` with "An excerpt prints exactly the cited lines" (expected lines read from the fixture file itself). See it fail
+- [x] 7.2 GREEN: `scripts/demo-excerpt.mjs` (`runDemoExcerpt`, entry guard, no `.env`) and `scripts/demo-excerpt.d.mts`
 - [ ] 7.3 RED → GREEN, one at a time: "Paths outside the project are refused", "A missing file or a range past its end is reported", "A malformed citation is a usage error"
 
 ## 8. Screen 1's start hint (design D13) — `project-picker` → "API status on Screen 1"
