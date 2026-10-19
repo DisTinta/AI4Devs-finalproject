@@ -1,18 +1,18 @@
 ## 0. Setup: Create Feature Branch (MANDATORY - FIRST STEP)
 
-- [ ] 0.1 First action of the apply: confirm DIS-65 is In Progress in Linear (set it if not), with a short comment in Spanish naming the change `ask-page` and the branch `feature/DIS-65-ask-page`
-- [ ] 0.2 Feature branch `feature/DIS-65-ask-page` (`BRANCH_PREFIX=feature/`, `docs/project-context.md` → Branch and ticket conventions), created from `feature/entrega-2-CRN` before `/opsx:propose`; confirm `git merge-base --is-ancestor origin/feature/entrega-2-CRN HEAD` and that `openspec/changes/ask-page/` is on it. `git fetch`; if `origin/feature/entrega-2-CRN` moved, rebase before any code (never force-push a published branch)
-- [ ] 0.3 Verify the current branch (`git branch --show-current`) and `git status`; the local changes under `.claude/` are never staged
-- [ ] 0.4 Baseline for the step 11 report: run `npx vitest run` once, green, and record files, tests and duration; run `npm run build -w packages/web` and record the size of `packages/web/dist/assets/*`; record that the code tasks touch no database (step 12 captures its own state)
+- [x] 0.1 First action of the apply: confirm DIS-65 is In Progress in Linear (set it if not), with a short comment in Spanish naming the change `ask-page` and the branch `feature/DIS-65-ask-page`
+- [x] 0.2 Feature branch `feature/DIS-65-ask-page` (`BRANCH_PREFIX=feature/`, `docs/project-context.md` → Branch and ticket conventions), created from `feature/entrega-2-CRN` before `/opsx:propose`; confirm `git merge-base --is-ancestor origin/feature/entrega-2-CRN HEAD` and that `openspec/changes/ask-page/` is on it. `git fetch`; if `origin/feature/entrega-2-CRN` moved, rebase before any code (never force-push a published branch)
+- [x] 0.3 Verify the current branch (`git branch --show-current`) and `git status`; the local changes under `.claude/` are never staged
+- [x] 0.4 Baseline for the step 11 report: run `npx vitest run` once, green, and record files, tests and duration; run `npm run build -w packages/web` and record the size of `packages/web/dist/assets/*`; record that the code tasks touch no database (step 12 captures its own state)
 
 ## 1. How a question, an answer and an evidence location are written (TDD, design D4, D13) — `ask-page` → "How a question, an answer and an evidence location are written"
 
 Every test of this change follows Arrange-Act-Assert with the three blocks commented (frontend-standards §4) and is named exactly as its scenario.
 
-- [ ] 1.1 RED: create `packages/web/src/components/answer-display.test.ts` (Node environment) with "Question length is counted in code points after trimming" (the nine inputs of the scenario; the valid ones return the trimmed question, the invalid ones return no question; build the astral and 500/501-letter inputs with `String.fromCodePoint` and `'a'.repeat`). See it fail (module missing)
-- [ ] 1.2 GREEN: `packages/web/src/components/answer-display.ts` with the question check (`[...trimmed].length` between 5 and 500), TSDoc on every export
-- [ ] 1.3 RED → GREEN: "Back-quoted fragments are shown as code" (the splitter returns `{ kind: 'text' | 'code', text }[]`; the four inputs and their exact fragment lists)
-- [ ] 1.4 RED → GREEN: "Evidence locations name the file and its lines" (`file:start-end`, `file:line` when equal)
+- [x] 1.1 RED: create `packages/web/src/components/answer-display.test.ts` (Node environment) with "Question length is counted in code points after trimming" (the nine inputs of the scenario; the valid ones return the trimmed question, the invalid ones return no question; build the astral and 500/501-letter inputs with `String.fromCodePoint` and `'a'.repeat`). See it fail (module missing)
+- [x] 1.2 GREEN: `packages/web/src/components/answer-display.ts` with the question check (`[...trimmed].length` between 5 and 500), TSDoc on every export
+- [x] 1.3 RED → GREEN: "Back-quoted fragments are shown as code" (the splitter returns `{ kind: 'text' | 'code', text }[]`; the four inputs and their exact fragment lists)
+- [x] 1.4 RED → GREEN: "Evidence locations name the file and its lines" (`file:start-end`, `file:line` when equal)
 
 ## 2. Suggested questions and their coherence (TDD, design D5, D28) — `ask-page` → "Suggested questions"
 
