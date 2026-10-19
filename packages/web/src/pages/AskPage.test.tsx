@@ -726,6 +726,51 @@ describe('Accessibility of Screen 2', () => {
     expect(startsOnBody).toBe(true);
     expect(visited).toEqual(expected);
   });
+
+  it('The result states add no tab stop', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const results: Array<{ answer: () => Promise<Response>; shown: () => Promise<unknown> }> = [
+      { answer: answerWith(200, ANSWERED), shown: () => screen.findByRole('heading', { level: 2, name: 'Respuesta' }) },
+      {
+        answer: answerWith(200, { answer: 'UNKNOWN', reason: 'no-anchor', statements: [], evidence: [] }),
+        shown: () => screen.findByRole('heading', { level: 2, name: 'Sin respuesta verificada' }),
+      },
+      {
+        answer: answerWith(200, { answer: 'UNKNOWN', reason: 'llm-required', message: 'set LLM_*', statements: [], evidence: [] }),
+        shown: () => screen.findByRole('heading', { level: 2, name: 'Hace falta un modelo de lenguaje' }),
+      },
+      {
+        answer: answerWith(429, { error: { code: 'BUDGET_EXHAUSTED', message: 'the daily LLM budget is exhausted', details: { cacheOnly: true } } }),
+        shown: () => screen.findByRole('alert'),
+      },
+      { answer: () => Promise.reject(new TypeError('fetch failed')), shown: () => screen.findByRole('alert') },
+    ];
+    const runs: Array<{ focusOnPressed: boolean; stops: Element[]; evidence: Element[] }> = [];
+
+    // Act
+    for (const { answer, shown } of results) {
+      stubFetch(answer);
+      const { unmount } = await renderScreen2();
+      const suggestion = screen.getByRole('button', { name: Q3 });
+      await user.click(suggestion);
+      await shown();
+      const main = screen.getByRole('main');
+      const group = within(main).getByRole('group', { name: 'Prueba:' });
+      const stops = Array.from(main.querySelectorAll('a[href], button, input, select, textarea, [tabindex]')).filter(
+        (element) => precedes(group, element) && !group.contains(element),
+      );
+      const evidence = [EV1_NAME, EV2_NAME].flatMap((name) => screen.queryAllByRole('button', { name }));
+      runs.push({ focusOnPressed: document.activeElement === suggestion, stops, evidence });
+      unmount();
+    }
+
+    // Assert
+    expect(runs.map(({ focusOnPressed }) => focusOnPressed)).toEqual([true, true, true, true, true]);
+    expect(runs[0].evidence).toHaveLength(2);
+    expect(runs[0].stops).toEqual(runs[0].evidence);
+    expect(runs.slice(1).map(({ stops }) => stops)).toEqual([[], [], [], []]);
+  });
 });
 
 describe('Screen reader announcements of Screen 2', () => {
