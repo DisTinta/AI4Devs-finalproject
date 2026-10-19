@@ -358,6 +358,16 @@ reads that line before applying the English rule.
   to Node (`node.exe: bad option: --tsconfig`, exit `9`). The `=` form runs every script (checked with
   `npm run verify`); the spec scenario "The guide's scripts load .env and the quality scripts do not"
   pins it (D4).
+- **A25.** `Parar el sistema` says that `npm run up` ends with `[up] stopped (Ctrl+C)` and exit `130`,
+  *possibly* followed by npm's own `code 130` lines: npm 11.19.0 printed no error line for a script that
+  exited `130` (checked during the apply), so the guide does not promise them (D11, A13). For the same
+  reason the note of `Paso 6` does not mention `npm error` lines.
+- **A26.** The clean-clone runs clone with `git -c core.longpaths=true`: the agent's scratchpad path is
+  long enough that a plain `git clone` on Windows failed with `Filename too long` on archived reports. An
+  evaluator's usual folder (`readme.md` §1.4) is short; the guide is unchanged. The `.env` copy in the
+  clones used absolute paths because the agent's `.env` deny rule resolves a relative `cp` target against
+  the main checkout; the command is the guide's `cp .env.example .env` (PowerShell's `cp` alias was
+  checked separately).
 
 ## Risks / Trade-offs
 

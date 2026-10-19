@@ -77,10 +77,17 @@ push a `main`.
 npm run verify
 ```
 
-Salida sobre la base de datos de `docs/DEMO.md` (termina con código `0`):
+Salida sobre la base de datos de `docs/DEMO.md` (2026-10-19, commit `c129278`; termina con código `0`):
 
 ```text
-[pendiente de la prueba desde cero]
+
+> codemind@0.0.1 verify
+> tsx --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json packages/cli/src/verify.ts
+
+✓ acme-shop Q1 ¿Cómo se calcula el precio final de un pedido?
+✓ acme-shop Q3 ¿Cómo se validan los cupones?
+✓ acme-shop Q4 ¿Qué hace OrderObserver al crear un pedido?
+acme-shop: 3/3 golden answers match
 ```
 
 Solo necesita el `DATABASE_URL` (lo lee de `.env`) de una base de datos donde `npm run db:seed` cargó

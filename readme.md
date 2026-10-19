@@ -316,16 +316,24 @@ npm run dev                        # API en :3000 · web en :5173
 
 `npm run dev` arranca la API desde `packages/api/src/server.ts` y necesita `DATABASE_URL`, que `npm run dev` lee de `.env` (una variable ya definida en la terminal gana sobre `.env`); sin ella la API imprime una sola línea `INVALID_CONFIG` en stderr y no arranca, mientras la web sigue en marcha. La API escucha en `127.0.0.1:3000` (no en todas las interfaces: no tiene autenticación); su documentación OpenAPI se abre en `http://localhost:3000/docs` (el documento en `/docs/json`). Conviene abrirla en `localhost` y no en `127.0.0.1`: el servidor declarado en el documento es `http://localhost:3000` y, desde otro origen, «Try it out» fallaría (no hay CORS). Si `localhost` resuelve a `::1` y no conecta, `HOST=::1` o `HOST=0.0.0.0` lo exponen de otra forma, como decisión explícita.
 
-Lo que imprime al terminar (extracto de la ejecución real del 17-10-2026; la salida completa está en el paso 0 de [`docs/DEMO.md`](docs/DEMO.md)):
+Lo que imprime al terminar (extracto de la ejecución real del 19-10-2026, en PowerShell y en Bash; la salida completa está en el paso 0 de [`docs/DEMO.md`](docs/DEMO.md)):
 
 ```text
+[up] docker compose up -d --wait
+…
+[up] npm install
+…
+[up] npm run db:migrate
+…
 ### MIGRATION 0001_graph-l1 (UP) ###
 ### MIGRATION 0002_history-claims (UP) ###
 ### MIGRATION 0003_indexes-stale (UP) ###
 ### MIGRATION 0004_query-log-verification (UP) ###
+[up] npm run db:seed
 …
 1 project loaded
   acme-shop  php/laravel  174 nodes · 170 edges
+[up] npm run dev
 …
 [1]   ➜  Local:   http://localhost:5173/
 [0] {"level":30,…,"msg":"Server listening at http://127.0.0.1:3000"}

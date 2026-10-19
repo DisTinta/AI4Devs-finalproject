@@ -401,7 +401,8 @@ that expands; the usage panel with «Confianza»; the «Sin respuesta verificada
 The output pasted in the guide SHALL come from a run of the guide, literally, on a clean clone of the
 branch, in PowerShell and in Bash, except for the stop with Ctrl+C: `Parar el sistema` SHALL paste no
 output for it and SHALL state in its text that `npm run up` then ends with `[up] stopped (Ctrl+C)`
-followed by npm's own lines with `code 130`, which are the expected end and not a failure; the output
+and exit code `130`, possibly followed (depending on the npm version) by npm's own lines with `code 130`,
+which are the expected end and not a failure; the output
 it pastes is that of `npm run down`.
 
 #### Scenario: The demo guide has no Bash-only command

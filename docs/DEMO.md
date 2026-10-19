@@ -13,11 +13,11 @@ variable ya definida en la terminal gana sobre `.env`.
 
 | Dato | Valor |
 |---|---|
-| Fecha | [pendiente de la prueba desde cero] |
-| Commit | [pendiente de la prueba desde cero] |
-| Máquina | [pendiente de la prueba desde cero] |
-| Terminales | [pendiente de la prueba desde cero] |
-| Node / npm | [pendiente de la prueba desde cero] (el proyecto necesita Node 20.11 o posterior; la CI usa Node 20) |
+| Fecha | 2026-10-19 |
+| Commit | `c129278` (rama `feature/DIS-102-cross-shell-demo-spanish-docs`), clonado de GitHub en una carpeta nueva para cada terminal |
+| Máquina | Windows 11 Pro, Docker Desktop (Docker Engine 29.8.1, Compose v5.5.1), Git 2.45.1 |
+| Terminales | PowerShell 7.6.6 y Git Bash (GNU bash 5.2.26): la guía entera en cada una, con salidas idénticas salvo los campos que cambian en cada ejecución |
+| Node / npm | v24.11.1 / 11.19.0 (el proyecto necesita Node 20.11 o posterior; la CI usa Node 20) |
 | LLM | ninguno: **modo evaluación**, todas las variables `LLM_*` vacías |
 | Base de datos | una base de datos nueva y vacía (ver el paso 0) |
 
@@ -29,10 +29,19 @@ Los únicos cambios hechos a la salida pegada:
 - **(c)** se quitan los códigos de color de la terminal.
 - **(d)** el nombre de la máquina en la línea de arranque de la API se sustituye por `<host>`.
 
+Lo que no sale de la ejecución literal de la guía: el puerto 5432 estaba ocupado por otro contenedor,
+así que la captura siguió la rama «Si el puerto 5432 ya está ocupado» de `Antes de empezar`, y el
+cambio de `.env` lo hizo un script (las mismas dos líneas que diría un editor de texto). La parada con
+Ctrl+C no se capturó: `Parar el sistema` la describe en el texto. `npm` muestra en su línea `> node
+scripts/demo-ask.mjs …` el id del proyecto como `***` (oculta lo que parece un token); el id llega
+entero a la API.
+
 **Campos que cambian en cada ejecución**, que hay que ignorar al comparar: el número de paquetes, el
 tiempo y las líneas de auditoría de `npm install`; el prefijo `(node:<pid>)` y el `ready in … ms` de
-Vite; `time` y `pid` en la línea de log de la API; y `latencyMs` en las respuestas de la API. El id del
-proyecto lo fija la semilla.
+Vite; `time` y `pid` en la línea de log de la API; `latencyMs` en las respuestas de la API; y el
+prefijo de los nombres de Docker (`e2e-bash-postgres-1`, `e2e-pwsh_pgdata`…), que es el nombre de la
+carpeta del clon (`ai4devs-finalproject` con el `git clone` de `readme.md` §1.4). El id del proyecto lo
+fija la semilla.
 
 ## Antes de empezar
 
@@ -60,7 +69,18 @@ de `.env` (`5432` por defecto). Si otro contenedor ya lo usa, el paso 0 se para 
 `Ports are not available`. Con un PostgreSQL local ya escuchando en 5432, el arranque puede llegar más
 lejos y fallar en `npm run db:migrate` con `password authentication failed for user "codemind"`. En
 cualquiera de los tres casos, abre `.env` con un editor de texto (no con una redirección de la
-terminal) y cambia a un puerto libre las dos líneas, con el mismo número:
+terminal) y cambia a un puerto libre las dos líneas, con el mismo número. Así terminó el primer
+`npm run up` de la captura, con el 5432 ocupado por otro contenedor:
+
+```text
+[up] docker compose up -d --wait
+…
+ Container e2e-bash-postgres-1 Starting 
+Error response from daemon: failed to set up container networking: driver failed programming external connectivity on endpoint e2e-bash-postgres-1 (…): Bind for 0.0.0.0:5432 failed: port is already allocated
+[up] "docker compose up -d --wait" failed with exit code 1
+```
+
+Las dos líneas de `.env`, con `5433` como ejemplo de puerto libre:
 
 ```text
 POSTGRES_PORT=5433
@@ -78,7 +98,83 @@ npm run up
 ```
 
 ```text
-[pendiente de la prueba desde cero]
+> codemind@0.0.1 up
+> node scripts/up.mjs
+
+[up] docker compose up -d --wait
+ Container e2e-bash-postgres-1 Recreate 
+ Container e2e-bash-postgres-1 Recreated 
+ Container e2e-bash-postgres-1 Starting 
+ Container e2e-bash-postgres-1 Started 
+ Container e2e-bash-postgres-1 Waiting 
+ Container e2e-bash-postgres-1 Healthy 
+[up] npm install
+npm warn deprecated @babel/plugin-proposal-explicit-resource-management@7.27.4: This proposal has been merged to the ECMAScript standard and thus this plugin is no longer maintained. Please use @babel/plugin-transform-explicit-resource-management instead.
+npm warn deprecated whatwg-encoding@3.1.1: Use @exodus/bytes instead for a more spec-conformant and faster implementation
+npm warn deprecated eslint@9.39.5: This version is no longer supported. Please see https://eslint.org/version-support for other options.
+
+added 609 packages, and audited 619 packages in 1m
+
+168 packages are looking for funding
+  run `npm fund` for details
+
+18 vulnerabilities (5 low, 6 moderate, 4 high, 3 critical)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+npm warn install-scripts 3 packages have install scripts not yet covered by allowScripts:
+npm warn install-scripts   esbuild@0.28.2 (postinstall: node install.js)
+npm warn install-scripts   tree-sitter-php@0.24.2 (install: node-gyp-build)
+npm warn install-scripts   esbuild@0.21.5 (postinstall: node install.js)
+npm warn install-scripts
+npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.
+[up] npm run db:migrate
+
+> codemind@0.0.1 db:migrate
+> tsx --import=./scripts/load-env.mjs packages/adapters/store-postgres/src/migrate.ts up
+
+> Migrating files:
+> - 0001_graph-l1
+> - 0002_history-claims
+> - 0003_indexes-stale
+> - 0004_query-log-verification
+### MIGRATION 0001_graph-l1 (UP) ###
+### MIGRATION 0002_history-claims (UP) ###
+### MIGRATION 0003_indexes-stale (UP) ###
+### MIGRATION 0004_query-log-verification (UP) ###
+[up] npm run db:seed
+
+> codemind@0.0.1 db:seed
+> tsx --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json packages/cli/src/seed-load.ts
+
+1 project loaded
+  acme-shop  php/laravel  174 nodes · 170 edges
+[up] npm run dev
+
+> codemind@0.0.1 dev
+> concurrently --kill-others-on-fail "npm -w packages/api run dev" "npm -w packages/web run dev"
+
+(node:14216) [DEP0060] DeprecationWarning: The `util._extend` API is deprecated. Please use Object.assign() instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[0] 
+[0] > @codemind/api@0.0.1 dev
+[0] > node --watch --import ../../scripts/load-env.mjs --import ./dev-register.mjs src/server.ts
+[0] 
+[1] 
+[1] > @codemind/web@0.0.1 dev
+[1] > vite
+[1] 
+[1] 
+[1]   VITE v5.4.21  ready in 1347 ms
+[1] 
+[1]   ➜  Local:   http://localhost:5173/
+[1]   ➜  Network: use --host to expose
+[0] {"level":30,"time":1792431438658,"pid":27016,"hostname":"<host>","msg":"Server listening at http://127.0.0.1:3000"}
 [… sigue en marcha; se para con Ctrl+C]
 ```
 
@@ -97,7 +193,11 @@ npm run cli -- projects
 ```
 
 ```text
-[pendiente de la prueba desde cero]
+
+> codemind@0.0.1 cli
+> tsx --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts projects
+
+acme-shop  a794456d-6d1b-5b55-a360-13fec83dc7bc  php/laravel  174 nodes · 170 edges  2024-05-06T09:31:00.000Z sample
 ```
 
 ## Paso 1 — Preguntar cómo se calcula el precio final
@@ -110,7 +210,30 @@ npm run cli -- ask acme-shop "¿Cómo se calcula el precio final de un pedido?"
 ```
 
 ```text
-[pendiente de la prueba desde cero]
+
+> codemind@0.0.1 cli
+> tsx --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts ask acme-shop ¿Cómo se calcula el precio final de un pedido?
+
+El precio final de un pedido se calcula mediante el método `compute()` en la clase `PriceCalculator`. Este método toma en cuenta el subtotal, realiza descuentos, agrega impuestos y envío, y devuelve el total final. El descuento y la tax se aplican en ese orden específico.
+
+statements:
+1. [FACT] El método `compute()` en la clase `PriceCalculator` es el encargado de calcular el precio final de un pedido.
+   evidence: app/Services/PriceCalculator.php:16-44
+2. [FACT] Primero se aplica el descuento al subtotal.
+   evidence: app/Services/PriceCalculator.php:16-44
+3. [INFERENCE] Luego se calcula el impuesto sobre el valor descontado.
+   evidence: app/Services/PriceCalculator.php:16-44
+4. [INFERENCE] Finalmente se suman el impuesto y el envío al valor descontado para obtener el precio final.
+   evidence: app/Services/PriceCalculator.php:16-44
+
+evidence:
+app/Services/PriceCalculator.php:16-44
+    class PriceCalculator
+    {
+        public function __construct(
+            private readonly DiscountService $discounts,
+            private readonly TaxService $taxes,
+    … (+24 lines)
 ```
 
 La CLI no imprime el uso de tokens; la API sí. `npm run demo:ask` envía la pregunta a
@@ -123,7 +246,38 @@ npm run demo:ask -- a794456d-6d1b-5b55-a360-13fec83dc7bc "¿Cómo se calcula el 
 ```
 
 ```text
-[pendiente de la prueba desde cero]
+
+> codemind@0.0.1 demo:ask
+> node scripts/demo-ask.mjs *** ¿Cómo se calcula el precio final de un pedido?
+
+HTTP 200
+{
+  "statements": 4,
+  "evidence": 4,
+  "usage": {
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "baselineTokens": 7123,
+    "baselineEstimator": "chars-div-4",
+    "savingsPct": 100,
+    "costUsd": 0,
+    "latencyMs": 66,
+    "cacheHit": true,
+    "generation": {
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "costUsd": 0
+    },
+    "verification": {
+      "calls": 0,
+      "cacheHits": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "costUsd": 0,
+      "latencyMs": 0
+    }
+  }
+}
 ```
 
 > **Entrega 2.** En modo evaluación cada pregunta contestada sale de las respuestas golden que cargó
@@ -143,7 +297,39 @@ npm run demo:excerpt -- acme-shop app/Services/PriceCalculator.php:16-44
 ```
 
 ```text
-[pendiente de la prueba desde cero]
+
+> codemind@0.0.1 demo:excerpt
+> node scripts/demo-excerpt.mjs acme-shop app/Services/PriceCalculator.php:16-44
+
+class PriceCalculator
+{
+    public function __construct(
+        private readonly DiscountService $discounts,
+        private readonly TaxService $taxes,
+        private readonly ShippingService $shipping,
+    ) {
+    }
+
+    public function compute(Order $order): Money
+    {
+        $subtotal = $order->subtotal;                       // magic accessor
+        $discount = $this->discounts->discountFor($order, $subtotal);
+        $taxable = $subtotal->subtract($discount);
+
+        $tax = $this->taxes->taxFor($order, $taxable);
+        $shipping = $this->shipping->shippingFor($order, $taxable);
+
+        return $taxable->add($tax)->add($shipping);
+    }
+
+    /** Returns the discounted amount before tax and shipping. */
+    public function taxableBase(Order $order): Money
+    {
+        $subtotal = $order->subtotal;
+
+        return $subtotal->subtract($this->discounts->discountFor($order, $subtotal));
+    }
+}
 ```
 
 Son las líneas del fragmento que imprimió la CLI (las cinco primeras) y que devolvió la API (todas).
@@ -158,7 +344,11 @@ npm run cli -- ask acme-shop "¿Cómo se gestionan los reembolsos de un pedido?"
 ```
 
 ```text
-[pendiente de la prueba desde cero]
+
+> codemind@0.0.1 cli
+> tsx --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts ask acme-shop ¿Cómo se gestionan los reembolsos de un pedido?
+
+UNKNOWN (no-anchor)
 ```
 
 `UNKNOWN (no-anchor)`: ningún símbolo del grafo ancla la pregunta, así que el sistema dice que no lo
@@ -172,7 +362,11 @@ npm run cli -- impact acme-shop "cambiar el cálculo de descuentos"
 ```
 
 ```text
-[pendiente de la prueba desde cero]
+
+> codemind@0.0.1 cli
+> tsx --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts impact acme-shop cambiar el cálculo de descuentos
+
+not implemented — pending Ticket 1/2
 ```
 
 Termina con código `0`.
@@ -189,7 +383,38 @@ npm run demo:ask -- a794456d-6d1b-5b55-a360-13fec83dc7bc "¿Cómo se calcula el 
 ```
 
 ```text
-[pendiente de la prueba desde cero]
+
+> codemind@0.0.1 demo:ask
+> node scripts/demo-ask.mjs *** ¿Cómo se calcula el precio final de un pedido?
+
+HTTP 200
+{
+  "statements": 4,
+  "evidence": 4,
+  "usage": {
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "baselineTokens": 7123,
+    "baselineEstimator": "chars-div-4",
+    "savingsPct": 100,
+    "costUsd": 0,
+    "latencyMs": 26,
+    "cacheHit": true,
+    "generation": {
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "costUsd": 0
+    },
+    "verification": {
+      "calls": 0,
+      "cacheHits": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "costUsd": 0,
+      "latencyMs": 0
+    }
+  }
+}
 ```
 
 Una variante que solo cambia mayúsculas, tildes y puntuación. **No** es una reformulación: tiene la
@@ -200,7 +425,38 @@ npm run demo:ask -- a794456d-6d1b-5b55-a360-13fec83dc7bc "como se calcula el pre
 ```
 
 ```text
-[pendiente de la prueba desde cero]
+
+> codemind@0.0.1 demo:ask
+> node scripts/demo-ask.mjs *** como se calcula el precio final de un pedido
+
+HTTP 200
+{
+  "statements": 4,
+  "evidence": 4,
+  "usage": {
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "baselineTokens": 7123,
+    "baselineEstimator": "chars-div-4",
+    "savingsPct": 100,
+    "costUsd": 0,
+    "latencyMs": 26,
+    "cacheHit": true,
+    "generation": {
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "costUsd": 0
+    },
+    "verification": {
+      "calls": 0,
+      "cacheHits": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "costUsd": 0,
+      "latencyMs": 0
+    }
+  }
+}
 ```
 
 > **Entrega 2.** `readme.md` §1.3 pide *reformular* la pregunta y obtener un acierto de caché por
@@ -217,13 +473,16 @@ npm run cli -- ask task-api "¿Cómo se calcula el precio final de un pedido?"
 ```
 
 ```text
-[pendiente de la prueba desde cero]
+
+> codemind@0.0.1 cli
+> tsx --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts ask task-api ¿Cómo se calcula el precio final de un pedido?
+
+{"error":{"code":"PROJECT_NOT_FOUND","message":"project not found","details":{}}}
 ```
 
 > **Entrega 2.** `task-api`, la muestra en TypeScript, todavía no está en la semilla (`projects` en el
 > paso 0 solo listó `acme-shop`), así que la CLI responde `PROJECT_NOT_FOUND` en stderr y termina con
-> código `1` (npm añade después sus propias líneas `npm error`). Entra en la semilla con CM-HU-18
-> (PH-02).
+> código `1`. Entra en la semilla con CM-HU-18 (PH-02).
 
 ## Comprobar la instalación
 
@@ -237,7 +496,14 @@ npm run verify
 ```
 
 ```text
-[pendiente de la prueba desde cero]
+
+> codemind@0.0.1 verify
+> tsx --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json packages/cli/src/verify.ts
+
+✓ acme-shop Q1 ¿Cómo se calcula el precio final de un pedido?
+✓ acme-shop Q3 ¿Cómo se validan los cupones?
+✓ acme-shop Q4 ¿Qué hace OrderObserver al crear un pedido?
+acme-shop: 3/3 golden answers match
 ```
 
 ## Recorrido por la web
@@ -266,13 +532,14 @@ wireframes de `readme.md` §1.3 (`images/pantalla-1-seleccion.svg`, `images/pant
    calcula el precio final de un pedido?», «¿Cómo se validan los cupones?» y «¿Qué hace OrderObserver
    al crear un pedido?». Pulsar una la envía; en modo evaluación las tres se responden desde la caché.
 7. «Respuesta»: el texto de la respuesta y sus afirmaciones numeradas, cada una con la insignia de su
-   tipo, «HECHO» o «INFERIDO», y la de su verificación, «verificado» o «sin verificar».
+   tipo, «HECHO» o «INFERIDO», la de su verificación, «verificado» o «sin verificar», y la cita que la
+   respalda («Evidencia: ev-1»). Las inferidas se destacan con fondo amarillo.
 8. «Evidencia»: una entrada por cita, «ev-1 · app/Services/PriceCalculator.php:16-44». Al pulsarla (o
    con Intro o Espacio) se despliega el mismo fragmento que imprimió `npm run demo:excerpt` en el
    paso 2; al pulsarla otra vez se pliega.
-9. Debajo, el panel de uso: «Confianza» con su valor, los tokens, el coste («$0»), la latencia en
-   milisegundos, «ahorro 100 % vs bruto», «caché ✓» y la línea base («… tokens sin selección de
-   contexto → 0 con CODEMIND»). En modo evaluación todas las preguntas sugeridas son aciertos de caché.
+9. Debajo, el panel de uso: «Confianza» con su valor (0.78 en la captura), los tokens («0 tokens»), el
+   coste («$0»), la latencia en milisegundos, «ahorro 100 % vs bruto», «caché ✓» y la línea base («7 123
+   tokens sin selección de contexto → 0 con CODEMIND»). En modo evaluación todas las preguntas sugeridas son aciertos de caché.
 10. Una pregunta libre escrita en el campo, como «¿Qué hace ShippingService con los pedidos
     internacionales?», muestra en modo evaluación el aviso «Hace falta un modelo de lenguaje», que
     explica que la API solo responde las preguntas que tiene en caché y que para preguntas libres hay
@@ -305,16 +572,26 @@ wireframe, que ilustra una generación en vivo.
 
 ## Parar el sistema
 
-En la terminal 1, pulsa Ctrl+C. `npm run up` termina entonces con la línea `[up] stopped (Ctrl+C)`,
-seguida de las líneas propias de npm con `code 130`: es el final esperado, no un fallo. Después, en
-cualquier terminal:
+En la terminal 1, pulsa Ctrl+C. `npm run up` termina entonces con la línea `[up] stopped (Ctrl+C)` y
+el código de salida `130` (el de una interrupción); según la versión de npm, npm puede añadir después
+sus propias líneas de error con `code 130`. Es el final esperado, no un fallo. Después, en cualquier
+terminal:
 
 ```shell
 npm run down
 ```
 
 ```text
-[pendiente de la prueba desde cero]
+
+> codemind@0.0.1 down
+> docker compose down
+
+ Container e2e-pwsh-postgres-1 Stopping 
+ Container e2e-pwsh-postgres-1 Stopped 
+ Container e2e-pwsh-postgres-1 Removing 
+ Container e2e-pwsh-postgres-1 Removed 
+ Network e2e-pwsh_default Removing 
+ Network e2e-pwsh_default Removed 
 ```
 
 `npm run down` para y elimina el contenedor; los datos se conservan en el volumen `pgdata`, así que el
