@@ -60,7 +60,7 @@
 ## 10. `docs/DEPLOYMENT.md` and `docs/TESTING.md` in Spanish (design D10, D14) — `local-startup` → "The deployment and testing guides in Spanish"
 
 - [ ] 10.1 Translate `docs/DEPLOYMENT.md`: `npm run up` / `npm run down` as the start/stop in any shell, `make up` / `make down` as the Git Bash/WSL equivalent, the step table of `up` (with `--wait`), `POSTGRES_PORT`, the `MISSING_CONFIG` row («copia `.env.example` a `.env` o define la variable»), the indexing section without "export them or use make", headings `Verificar una instalación` and `Indexar un repositorio (CLI)`; commands and pasted output verbatim
-- [ ] 10.2 Translate `docs/TESTING.md`: the integration-database step as a labelled `bash` / `powershell` pair (D14; the PowerShell variant's session persistence and `Remove-Item Env:DATABASE_URL`; the test URL's port follows `.env`), the smoke check without `export`, `**Carreras conocidas.**`, the link to `DEPLOYMENT.md` → `Verificar una instalación`; the `CODEMIND_SKIP_DOTENV` switch explained in one sentence (D12)
+- [x] 10.2 Translate `docs/TESTING.md`: the integration-database step as a labelled `bash` / `powershell` pair (D14; the PowerShell variant's session persistence and `Remove-Item Env:DATABASE_URL`; the test URL's port follows `.env`), the smoke check without `export`, `**Carreras conocidas.**`, the link to `DEPLOYMENT.md` → `Verificar una instalación`; the `CODEMIND_SKIP_DOTENV` switch explained in one sentence (D12)
 
 ## 11. `docs/DEMO.md` rewritten (design D8, D11, D15) — `local-startup` → "The demo guide runs the same in PowerShell and Bash"
 
