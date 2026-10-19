@@ -49,8 +49,8 @@
 
 ## 8. Screen 1's start hint (design D13) — `project-picker` → "API status on Screen 1"
 
-- [ ] 8.1 Update `packages/web/src/pages/ProjectPickerPage.test.tsx` "A failed retry keeps the alert" to the modified requirement's text (`Arráncala con npm run up y pulsa Reintentar.`) in the same commit as the code; see it fail (RED)
-- [ ] 8.2 GREEN: `packages/web/src/pages/ProjectPickerPage.tsx` shows `<code>npm run up</code>`; `npx vitest run packages/web tests/a11y` green; `grep -rn "make up" packages/web/src` finds nothing
+- [x] 8.1 Update `packages/web/src/pages/ProjectPickerPage.test.tsx` "A failed retry keeps the alert" to the modified requirement's text (`Arráncala con npm run up y pulsa Reintentar.`) in the same commit as the code; see it fail (RED)
+- [x] 8.2 GREEN: `packages/web/src/pages/ProjectPickerPage.tsx` shows `<code>npm run up</code>`; `npx vitest run packages/web tests/a11y` green; `grep -rn "make up" packages/web/src` finds nothing
 
 ## 9. `docs/CONFIDENCE.md` in Spanish (design D9) — `confidence-score` → "Published weights"
 
