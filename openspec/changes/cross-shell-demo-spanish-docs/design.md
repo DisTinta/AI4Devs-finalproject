@@ -219,7 +219,7 @@ author's container already holds 5432, so each clone follows the guide's "port t
 background (it ends in `npm run dev`); the other steps run in a second shell. Afterwards the agent
 stops the dev servers it started (process tree, `taskkill /T` on Windows) and runs `docker compose -p
 <clone> down -v` for each clone's own project only (never `-v` on `codemind`), and moves the clone
-folders out of the way without `rm -rf`. `C:/Users/cristina/Desktop/~` is never touched. The output
+folders out of the way without `rm -rf`. `C:/Users/<user>/Desktop/~` is never touched. The output
 pasted into `docs/DEMO.md` comes from these runs (the PowerShell one for the PowerShell-specific
 variants, if any), with the edits the guide lists. If PowerShell's `npm` loses `--` or the accents, the
 guide shows labelled `powershell`/`bash` variants and the PR says so.

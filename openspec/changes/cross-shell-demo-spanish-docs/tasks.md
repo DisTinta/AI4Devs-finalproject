@@ -78,13 +78,13 @@
 
 ## 13. Review and Update Existing Tests (MANDATORY)
 
-- [ ] 13.1 Identify the tests affected: `grep -rn "CONFIDENCE.md\|make up\|db:migrate\|db:rollback\|npm.*run.*dev\|dev-register" tests packages/web/src`, plus every type error of `npm run typecheck`
-- [ ] 13.2 Only the two tests that follow a modified requirement change (`confidence-doc.spec.ts`, task 9.1; "A failed retry keeps the alert", task 8.1); `migrations.spec.ts`, `dev-script.spec.ts` and every other test stay untouched; if another must change, stop and record why in the step 14 report, never weakening it
-- [ ] 13.3 Confirm each `#### Scenario:` of the `local-startup` delta maps to a test with exactly the same name (grep each title in `tests/`), except the recorded checks "A guide command reads DATABASE_URL from .env" and "Up with Docker unavailable fails naming its first step" (15.4, 15.5), "The guide was followed on a clean clone in both shells" (16.3) and "The guides are in Spanish and say that .env is read" (17.1), and the review half of "The web walkthrough names what each screen shows" (16.4)
+- [x] 13.1 Identify the tests affected: `grep -rn "CONFIDENCE.md\|make up\|db:migrate\|db:rollback\|npm.*run.*dev\|dev-register" tests packages/web/src`, plus every type error of `npm run typecheck`
+- [x] 13.2 Only the two tests that follow a modified requirement change (`confidence-doc.spec.ts`, task 9.1; "A failed retry keeps the alert", task 8.1); `migrations.spec.ts`, `dev-script.spec.ts` and every other test stay untouched; if another must change, stop and record why in the step 14 report, never weakening it
+- [x] 13.3 Confirm each `#### Scenario:` of the `local-startup` delta maps to a test with exactly the same name (grep each title in `tests/`), except the recorded checks "A guide command reads DATABASE_URL from .env" and "Up with Docker unavailable fails naming its first step" (15.4, 15.5), "The guide was followed on a clean clone in both shells" (16.3) and "The guides are in Spanish and say that .env is read" (17.1), and the review half of "The web walkthrough names what each screen shows" (16.4)
 
 ## 14. Run Tests and Verify Data State (MANDATORY)
 
-- [ ] 14.1 Capture the pre-test baseline: the 0.4 indicators
+- [x] 14.1 Capture the pre-test baseline: the 0.4 indicators
 - [ ] 14.2 Run the targeted tests: `npx vitest run tests/unit/scripts tests/unit/docs tests/unit/knowledge/confidence-doc.spec.ts packages/web/src/pages/ProjectPickerPage.test.tsx`
 - [ ] 14.3 Run the required broader suite and gates: `npx vitest run` (integration database as in 0.4; D12 is shown only in the scratchpad clone of step 15, with its own `.env` and its own database, by `npx vitest run tests/integration/store/migrations.spec.ts` there; never in the working tree, where a D12 bug would roll back the author's database (design A11); the author's database counts unchanged), `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`, `npm run test:a11y`, `npm run test:mutation` (score ≥ 80; `scripts/` is not in its scope); `npm run verify` on the seeded database (fingerprints unchanged)
 - [ ] 14.4 Run `/privacy-ethics-check` over the diff (`.env` never printed, the loader prints no key or value, `demo:excerpt` confinement, no volume removed); record the result
@@ -101,7 +101,7 @@
 - [ ] 15.5 Recorded check "Up with Docker unavailable fails naming its first step" with `DOCKER_HOST=tcp://127.0.0.1:1` for that one command in each shell (design D17): the `[up]` failure line, no `npm install`, exit ≠ `0`; in PowerShell set and remove it in one line (`$env:DOCKER_HOST='tcp://127.0.0.1:1'; npm run up; Remove-Item Env:DOCKER_HOST`)
 - [ ] 15.6 `npm run down` keeps the clone's volume (`docker volume ls`); `make up` from Git Bash in the clone reaches `[up] docker compose up -d --wait` and the rest of the sequence, `make down` stops it
 - [ ] 15.7 `npm run db:migrate` with `DATABASE_URL` set in the shell to a URL with a wrong password while `.env` holds the right one: the shell's value wins (`db:migrate` fails for that URL, without printing it, and the clone's database is not migrated by it)
-- [ ] 15.8 Restore: stop every dev server the agent started, `docker compose -p manual-15 down -v` for the clone's own project only (never `-v` on `codemind`), move the clone folders out of the scratchpad's working area without `rm -rf`; re-check the 0.4 indicators and `codemind_pgdata`; `C:/Users/cristina/Desktop/~` untouched
+- [ ] 15.8 Restore: stop every dev server the agent started, `docker compose -p manual-15 down -v` for the clone's own project only (never `-v` on `codemind`), move the clone folders out of the scratchpad's working area without `rm -rf`; re-check the 0.4 indicators and `codemind_pgdata`; `C:/Users/<user>/Desktop/~` untouched
 - [ ] 15.9 Document every command, exit code and output in `openspec/changes/cross-shell-demo-spanish-docs/reports/YYYY-MM-DD-15-manual-interface-testing.md` (mask the OS user name in paths), with the restoration of 15.8
 
 ## 16. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
