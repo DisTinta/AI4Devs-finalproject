@@ -184,3 +184,14 @@ None for this step (see `2026-10-19-12-manual-interface-testing.md`).
 
 - Status: PASS
 - Blocking issues: none.
+
+## Addendum — CI run (2026-10-19, PR #57)
+
+Pull request [DisTinta/AI4Devs-finalproject#57](https://github.com/DisTinta/AI4Devs-finalproject/pull/57)
+(`feature/DIS-66-usage-panel-states` → `feature/entrega-2-CRN`), run
+[39241245016](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/39241245016) and
+[39241245071](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/39241245071).
+
+- `scope`, `secrets`, `verify`, `quality`, `mutation`, `frontend` (with `test:a11y`): all green on the
+  first attempt. No fix attempt was needed.
+- Final state: all checks green — `scope`, `secrets`, `verify`, `quality`, `mutation`, `frontend`.
