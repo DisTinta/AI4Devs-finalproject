@@ -54,4 +54,69 @@ describe('The demo excerpt helper', () => {
     expect(result.stderr).toBe('');
     expect(result.code).toBe(0);
   });
+
+  it('Paths outside the project are refused', () => {
+    // Arrange
+    const absolute = resolve(ROOT, 'package.json');
+
+    for (const path of ['../task-api/package.json', absolute, 'app/../../acme-shop/../../package.json']) {
+      // Act
+      const result = excerpt('acme-shop', `${path}:1-1`);
+
+      // Assert
+      expect(result.stderr, path).toBe(`demo:excerpt: ${path} is outside fixtures/acme-shop\n`);
+      expect(result.stdout, path).toBe('');
+      expect(result.code, path).toBe(1);
+    }
+    for (const project of ['..', '.']) {
+      // Act
+      const result = excerpt(project, 'package.json:1-1');
+
+      // Assert
+      expect(result.stderr, project).toBe(`demo:excerpt: unknown project ${project}\n`);
+      expect(result.stdout, project).toBe('');
+      expect(result.code, project).toBe(1);
+    }
+  });
+
+  it('A missing file or a range past its end is reported', () => {
+    // Arrange
+    const lineCount = fixtureLines('acme-shop', CALCULATOR).length;
+
+    // Act
+    const missing = excerpt('acme-shop', 'app/Nope.php:1-2');
+    const directory = excerpt('acme-shop', 'app/Services:1-2');
+    const pastEnd = excerpt('acme-shop', `${CALCULATOR}:16-9999`);
+
+    // Assert
+    expect(missing.stderr).toBe('demo:excerpt: app/Nope.php not found in fixtures/acme-shop\n');
+    expect(directory.stderr).toBe('demo:excerpt: app/Services not found in fixtures/acme-shop\n');
+    expect(pastEnd.stderr).toBe(`demo:excerpt: ${CALCULATOR} has ${lineCount} lines\n`);
+    for (const result of [missing, directory, pastEnd]) {
+      expect(result.stdout).toBe('');
+      expect(result.code).toBe(1);
+    }
+  });
+
+  it('A malformed citation is a usage error', () => {
+    // Arrange
+    const usage = 'usage: npm run demo:excerpt -- <project> <path>:<start>-<end>\n';
+    const calls = [
+      ['acme-shop', CALCULATOR],
+      ['acme-shop', `${CALCULATOR}:0-3`],
+      ['acme-shop', `${CALCULATOR}:9-3`],
+      ['acme-shop', `${CALCULATOR}:a-b`],
+      ['acme-shop'],
+    ];
+
+    for (const args of calls) {
+      // Act
+      const result = excerpt(...args);
+
+      // Assert
+      expect(result.stderr, args.join(' ')).toBe(usage);
+      expect(result.stdout, args.join(' ')).toBe('');
+      expect(result.code, args.join(' ')).toBe(2);
+    }
+  });
 });

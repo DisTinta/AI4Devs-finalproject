@@ -5,12 +5,15 @@
  *
  * Spec: `local-startup` → "The demo excerpt helper".
  */
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
+import { isAbsolute, relative, resolve } from 'node:path';
 import { URL, fileURLToPath } from 'node:url';
 
 /** The repository's `fixtures/` directory. */
 const FIXTURES = fileURLToPath(new URL('../fixtures/', import.meta.url));
+
+/** The exit code of a usage error, as the CLI's (`docs/DEPLOYMENT.md`). */
+const USAGE_EXIT_CODE = 2;
 
 /** A citation: a path, `:`, and a line range of decimal integers. */
 const CITATION = /^(.+):([0-9]+)-([0-9]+)$/;
@@ -28,6 +31,41 @@ function linesOf(text) {
 }
 
 /**
+ * Whether `project` is the name of a directory directly under `fixturesRoot` (never `.` or `..`).
+ *
+ * @param {string} fixturesRoot - The `fixtures/` directory.
+ * @param {string} project - The project name.
+ * @returns {boolean} `true` for a project directory.
+ */
+function isProject(fixturesRoot, project) {
+  return readdirSync(fixturesRoot, { withFileTypes: true }).some((entry) => entry.isDirectory() && entry.name === project);
+}
+
+/**
+ * Whether `path` is `directory` itself or lies inside it.
+ *
+ * @param {string} directory - An absolute directory.
+ * @param {string} path - An absolute path.
+ * @returns {boolean} `true` inside.
+ */
+function isInside(directory, path) {
+  const rest = relative(directory, path);
+  return rest === '' || (!rest.startsWith('..') && !isAbsolute(rest));
+}
+
+/**
+ * Writes `line` to `stderr` and returns the exit code of a refused excerpt.
+ *
+ * @param {{ write(chunk: string): unknown }} stderr - Where the line goes.
+ * @param {string} line - The message.
+ * @returns {number} `1`.
+ */
+function fail(stderr, line) {
+  stderr.write(`${line}\n`);
+  return 1;
+}
+
+/**
  * Prints the cited lines and returns the exit code.
  *
  * @param {string[]} args - The command-line arguments: the project and the citation.
@@ -35,13 +73,37 @@ function linesOf(text) {
  *   - The `fixtures/` directory and the output streams.
  * @returns {number} The exit code.
  */
-export function runDemoExcerpt(args, { fixturesRoot = FIXTURES, stdout }) {
-  const [project, citation] = args;
-  const [, path, start, end] = /** @type {RegExpExecArray} */ (CITATION.exec(citation));
-  const lines = linesOf(readFileSync(resolve(fixturesRoot, project, path), 'utf8'));
+export function runDemoExcerpt(args, { fixturesRoot = FIXTURES, stdout, stderr }) {
+  // The checks run in the spec's order, the first failing one deciding the message (A5): arguments
+  // and citation, project, outside, missing, range.
+  const citation = args.length === 2 ? CITATION.exec(args[1]) : null;
+  const start = Number(citation?.[2]);
+  const end = Number(citation?.[3]);
+  if (citation === null || start < 1 || end < start) {
+    stderr.write('usage: npm run demo:excerpt -- <project> <path>:<start>-<end>\n');
+    return USAGE_EXIT_CODE;
+  }
+  const [project] = args;
+  const path = citation[1];
+  if (!isProject(fixturesRoot, project)) return fail(stderr, `demo:excerpt: unknown project ${project}`);
+  const outside = `demo:excerpt: ${path} is outside fixtures/${project}`;
+  const projectDirectory = resolve(fixturesRoot, project);
+  if (isAbsolute(path) || !isInside(projectDirectory, resolve(projectDirectory, path))) return fail(stderr, outside);
+  const notFound = `demo:excerpt: ${path} not found in fixtures/${project}`;
+  let real;
+  try {
+    real = realpathSync(resolve(projectDirectory, path));
+  } catch {
+    return fail(stderr, notFound);
+  }
+  // A link inside the fixture must not lead out of it either.
+  if (!isInside(realpathSync(projectDirectory), real)) return fail(stderr, outside);
+  if (!statSync(real).isFile()) return fail(stderr, notFound);
+  const lines = linesOf(readFileSync(real, 'utf8'));
+  if (end > lines.length) return fail(stderr, `demo:excerpt: ${path} has ${lines.length} lines`);
   stdout.write(
     lines
-      .slice(Number(start) - 1, Number(end))
+      .slice(start - 1, end)
       .map((line) => `${line}\n`)
       .join(''),
   );
