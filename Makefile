@@ -1,32 +1,23 @@
 # CODEMIND — Makefile
-# Sintaxis GNU Make. Requiere Git Bash o WSL en Windows.
-# En PowerShell nativo usa: npm run <script> directamente.
-
-# Carga .env si existe y exporta sus variables a todas las recetas: así `npm run db:migrate`
-# recibe DATABASE_URL tras `cp .env.example .env`. Los scripts npm a pelo no leen .env.
-ifneq (,$(wildcard .env))
-include .env
-export
-endif
+# GNU Make shortcuts for the npm commands (Git Bash or WSL on Windows). Every shell, PowerShell
+# included, can run the npm commands directly: `npm run up`, `npm run down`.
+# `npm run up` loads .env itself, so this file neither includes .env nor exports variables: a
+# variable set in the environment wins over .env through make exactly as through npm (DIS-102).
 
 .PHONY: up down logs ps
 
-## Levanta el sistema completo (secuencia §1.4 del readme)
+## Starts the whole system (readme.md section 1.4): npm run up
 up:
-	docker compose up -d
-	npm install
-	npm run db:migrate
-	npm run db:seed
-	npm run dev
+	npm run up
 
-## Para y elimina los contenedores
+## Stops and removes the containers; the data volume stays
 down:
-	docker compose down
+	npm run down
 
-## Muestra logs del compose
+## Follows the compose logs
 logs:
 	docker compose logs -f
 
-## Estado de los contenedores
+## Shows the containers' state
 ps:
 	docker compose ps

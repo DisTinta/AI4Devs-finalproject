@@ -361,7 +361,7 @@ describe('API status on Screen 1', () => {
     expect(screen.getByRole('alert').textContent).toBe(alertText);
     expect(alertText).toBe(
       '⚠La API de CODEMIND no está disponible. Puedes ver los proyectos, pero no preguntar hasta que vuelva. ' +
-        'Arráncala con make up y pulsa Reintentar.Reintentar',
+        'Arráncala con npm run up y pulsa Reintentar.Reintentar',
     );
     expect(document.activeElement).toBe(button);
     expect(screen.queryByText('listo')).toBeNull();

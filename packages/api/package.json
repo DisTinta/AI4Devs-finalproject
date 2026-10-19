@@ -5,7 +5,7 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "node --watch --import ./dev-register.mjs src/server.ts",
+    "dev": "node --watch --import ../../scripts/load-env.mjs --import ./dev-register.mjs src/server.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit"
   },

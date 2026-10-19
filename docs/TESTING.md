@@ -1,41 +1,62 @@
-# Testing
+# Tests
 
-Tests are part of the definition of done of every ticket (`readme.md` §2.6). This page lists the
-levels that exist today, how to run each one locally and which CI job runs it. The details agents
-need (the integration harness, the mutation set-up, the gotchas) are in `docs/project-context.md` →
-Testing; CI is described in `docs/DEPLOYMENT.md`.
+Los tests forman parte de la definición de terminado de cada ticket (`readme.md` §2.6). Esta página
+enumera los niveles que existen hoy, cómo ejecutar cada uno en local y qué job de CI lo ejecuta. Los
+detalles que necesitan los agentes (el arnés de integración, la configuración de mutación, los
+problemas conocidos) están en `docs/project-context.md` → Testing; la CI se describe en
+`docs/DEPLOYMENT.md`.
 
-## Levels
+## Niveles
 
-| Level | Command | Where | CI job |
+| Nivel | Comando | Dónde | Job de CI |
 |---|---|---|---|
-| Architecture | `npm run lint:architecture` | `.dependency-cruiser.cjs`: `core` imports no adapter, analyzer nor `api`; `web` imports no backend package (`web-no-backend`) | `CI` → `quality` |
-| Unit | `npx vitest run tests/unit` | `tests/unit/` (doubles in `tests/support/`) | `CI` → `quality`; `Frontend` |
-| Web component | `npx vitest run packages/web tests/unit/web` | `packages/web/src/**/*.test.ts(x)` next to the code (`.test.tsx` in jsdom, `.test.ts` in Node); `tests/unit/web/` (the Vite proxy table; the type-level contract of the API client, checked by `npm run typecheck`) | `CI` → `quality`; `Frontend` |
-| Integration | `npm test` with `DATABASE_URL` (below) | `tests/integration/`, harness in `tests/integration/helpers/db.ts` | `CI` → `quality`, on its own `test` database |
-| Mutation | `npm run test:mutation` | `stryker.config.json`: mutates `packages/core`, `packages/cli` and `packages/api` sources against the unit specs (`vitest.stryker.config.ts`) | `CI` → `mutation`, fails under a score of 80 |
-| Smoke | `npm run verify` | `packages/cli/src/verify.ts`, golden answers in `seeds/cache/` | `CI` → `verify`, on its own `verify` database |
-| Static | `npm run lint`, `npm run typecheck` | ESLint and `tsc` over the workspaces and `tests/` | `CI` → `quality`; `Frontend` |
-| Documentation | `npm run docs:coverage` | TypeDoc fails on an undocumented export | Local only |
-| Secrets | `gitleaks dir . --config .gitleaks.toml` (gitleaks installed) | `.gitleaks.toml`, `.gitleaksignore` | `CI` → `secrets` |
-| Accessibility | `npm run test:a11y` | `tests/a11y/smoke.a11y.test.tsx` (jsdom): axe over the whole document at `/`, `/p/<acme-shop id>` and an unknown path of the real route table, plus a negative control; contrast is checked by `packages/web/src/theme.test.ts` (axe in jsdom cannot) | `Frontend`; `CI` → `quality` (whole suite) |
-| End to end | **Not available yet**: Playwright arrives with CM-HU-21 (DIS-75) | `tests/e2e/` is empty | None yet |
+| Arquitectura | `npm run lint:architecture` | `.dependency-cruiser.cjs`: `core` no importa ningún adaptador, analizador ni `api`; `web` no importa ningún paquete del backend (`web-no-backend`) | `CI` → `quality` |
+| Unitario | `npx vitest run tests/unit` | `tests/unit/` (dobles en `tests/support/`) | `CI` → `quality`; `Frontend` |
+| Componente web | `npx vitest run packages/web tests/unit/web` | `packages/web/src/**/*.test.ts(x)` junto al código (`.test.tsx` en jsdom, `.test.ts` en Node); `tests/unit/web/` (la tabla del proxy de Vite; el contrato a nivel de tipos del cliente de la API, comprobado por `npm run typecheck`) | `CI` → `quality`; `Frontend` |
+| Integración | `npm test` con `DATABASE_URL` (abajo) | `tests/integration/`, arnés en `tests/integration/helpers/db.ts` | `CI` → `quality`, sobre su propia base de datos `test` |
+| Mutación | `npm run test:mutation` | `stryker.config.json`: muta los fuentes de `packages/core`, `packages/cli` y `packages/api` contra los specs unitarios (`vitest.stryker.config.ts`) | `CI` → `mutation`, falla por debajo de una puntuación de 80 |
+| Humo | `npm run verify` | `packages/cli/src/verify.ts`, respuestas golden en `seeds/cache/` | `CI` → `verify`, sobre su propia base de datos `verify` |
+| Estático | `npm run lint`, `npm run typecheck` | ESLint y `tsc` sobre los workspaces y `tests/` | `CI` → `quality`; `Frontend` |
+| Documentación | `npm run docs:coverage` | TypeDoc falla ante un export sin documentar | Solo en local |
+| Secretos | `gitleaks dir . --config .gitleaks.toml` (con gitleaks instalado) | `.gitleaks.toml`, `.gitleaksignore` | `CI` → `secrets` |
+| Accesibilidad | `npm run test:a11y` | `tests/a11y/smoke.a11y.test.tsx` (jsdom): axe sobre el documento entero en `/`, `/p/<id de acme-shop>` y una ruta desconocida de la tabla real de rutas, más un control negativo; el contraste lo comprueba `packages/web/src/theme.test.ts` (axe en jsdom no puede) | `Frontend`; `CI` → `quality` (la suite entera) |
+| Extremo a extremo | **Todavía no disponible**: Playwright llega con CM-HU-21 (DIS-75) | `tests/e2e/` está vacío | Ninguno todavía |
 
-## The whole suite
+## La suite entera
 
-`npm test` runs `vitest run`, unit and integration together. The integration specs need PostgreSQL:
-without `DATABASE_URL` they are skipped with a warning locally (`WARNING: DATABASE_URL is not set —
-skipping database integration tests…`), and in CI they fail instead of skipping. Point them at a
-**database of their own**, never the one `make up` seeded: the harness migrates it and runs each test
-in a transaction it rolls back, and some specs assume it holds no seed.
+`npm test` ejecuta `vitest run`, unitarios e integración juntos. Los specs de integración necesitan
+PostgreSQL: sin `DATABASE_URL` se saltan con un aviso en local (`WARNING: DATABASE_URL is not set —
+skipping database integration tests…`), y en CI fallan en lugar de saltarse. Apúntalos a una **base de
+datos propia**, nunca a la que sembró `npm run up`: el arnés la migra y ejecuta cada test en una
+transacción que deshace, y algunos specs suponen que no tiene semilla.
 
-```bash
+La suite nunca lee `.env`: `vitest.config.ts` define `CODEMIND_SKIP_DOTENV=1` para cada test y para los
+procesos que arrancan, así que ningún test ni ningún `npm run db:rollback` de un test llega a la base de
+datos de `.env`. Por eso la URL de la base de datos de tests se da en el propio comando. La base de
+datos se crea igual en las dos terminales:
+
+```shell
 docker compose exec postgres createdb -U codemind codemind_test
-export DATABASE_URL=postgresql://codemind:codemind@localhost:5432/codemind_test
-npm test
 ```
 
-The last lines of a run (2026-10-17, commit `b9026be`, Windows 11, Node v24.11.1):
+Después, en Bash:
+
+```bash
+DATABASE_URL=postgresql://codemind:codemind@localhost:5432/codemind_test npm test
+```
+
+Y en PowerShell:
+
+```powershell
+$env:DATABASE_URL='postgresql://codemind:codemind@localhost:5432/codemind_test'; npm test
+```
+
+En PowerShell, `$env:DATABASE_URL` sigue definida durante el resto de la sesión de esa terminal y gana
+sobre `.env`: antes de la demo, quítala con `Remove-Item Env:DATABASE_URL` o abre una terminal nueva.
+En las dos variantes, el puerto de la URL es el de `DATABASE_URL` en `.env` (`POSTGRES_PORT`, `5432`
+por defecto).
+
+Las últimas líneas de una ejecución (2026-10-17, commit `b9026be`, Windows 11, Node v24.11.1):
 
 ```text
  Test Files  137 passed (137)
@@ -44,21 +65,24 @@ The last lines of a run (2026-10-17, commit `b9026be`, Windows 11, Node v24.11.1
    Duration  132.94s (transform 15.08s, setup 27ms, collect 160.77s, tests 625.11s, environment 75ms, prepare 53.01s)
 ```
 
-Durations change with the machine, and the counts with the suite. A test file alone runs with
-`npx vitest run <pattern>`.
+Las duraciones cambian con la máquina, y los totales con la suite. Un fichero de tests suelto se
+ejecuta con `npx vitest run <patrón>`.
 
-**Known races.** Two integration specs commit a project outside the harness transaction for a
-moment: `tests/integration/cli/ask-command.spec.ts` (“answers through the default pool…”, project
-`ask-pool-…`) and `tests/integration/store/cache-entry.spec.ts` (project `cache-concurrent-…`).
-Vitest runs integration files in parallel, so a spec that reads every project in that moment sees one
-more and fails: `tests/integration/cli/projects-command.spec.ts` (which can also time out) and “A
-failed golden save leaves the database unchanged” of `tests/integration/cli/seed-load.spec.ts`. On
-2026-10-17 four of six local runs had one to three of these failures, and no other. Running the
-files one at a time removes the race, at about four times the duration (same machine, 2026-10-17):
+**Carreras conocidas.** Dos specs de integración confirman un proyecto fuera de la transacción del
+arnés durante un momento: `tests/integration/cli/ask-command.spec.ts` (“answers through the default
+pool…”, proyecto `ask-pool-…`) y `tests/integration/store/cache-entry.spec.ts` (proyecto
+`cache-concurrent-…`). Vitest ejecuta los ficheros de integración en paralelo, así que un spec que lee
+todos los proyectos en ese momento ve uno de más y falla: `tests/integration/cli/projects-command.spec.ts`
+(que además puede agotar su tiempo) y “A failed golden save leaves the database unchanged” de
+`tests/integration/cli/seed-load.spec.ts`. El 2026-10-17, cuatro de seis ejecuciones locales tuvieron
+entre uno y tres de estos fallos, y ningún otro. Ejecutar los ficheros de uno en uno elimina la
+carrera, con unas cuatro veces la duración (misma máquina, 2026-10-17):
 
-```bash
+```shell
 npm test -- --no-file-parallelism
 ```
+
+(con `DATABASE_URL` definida como arriba)
 
 ```text
  Test Files  137 passed (137)
@@ -67,34 +91,24 @@ npm test -- --no-file-parallelism
    Duration  507.38s (transform 8.75s, setup 16ms, collect 73.17s, tests 497.02s, environment 49ms, prepare 35.83s)
 ```
 
-## Smoke check
+## Comprobación de humo
 
-`npm run verify` needs the seeded database instead (on the database of `docs/DEMO.md`):
+`npm run verify` necesita en cambio la base de datos sembrada (la de `docs/DEMO.md`); lee
+`DATABASE_URL` de `.env`, así que no hace falta exportar nada:
 
-```bash
-export DATABASE_URL=postgresql://codemind:codemind@localhost:5432/codemind
-npm run verify; echo "exit: $?"
+```shell
+npm run verify
 ```
 
-```text
+Termina con código `0` cuando las tres respuestas golden coinciden; su salida está en
+`docs/DEPLOYMENT.md` → [Verificar una instalación](DEPLOYMENT.md#verificar-una-instalación), junto con
+lo que significa cada código de fallo y cómo arreglarlo.
 
-> codemind@0.0.1 verify
-> tsx --tsconfig packages/cli/tsconfig.run.json packages/cli/src/verify.ts
+## Tests de mutación
 
-✓ acme-shop Q1 ¿Cómo se calcula el precio final de un pedido?
-✓ acme-shop Q3 ¿Cómo se validan los cupones?
-✓ acme-shop Q4 ¿Qué hace OrderObserver al crear un pedido?
-acme-shop: 3/3 golden answers match
-exit: 0
-```
-
-What each failure code means and how to fix it is in `docs/DEPLOYMENT.md` → Verifying an
-installation.
-
-## Mutation testing
-
-`npm run test:mutation` runs Stryker incrementally: only mutants whose code or covering tests changed
-run again, the rest reuse `reports/stryker-incremental.json`. `npm run test:mutation:full` runs every
-mutant. The break threshold is a score of 80 (`thresholds.break`); coverage is not a gate. A single
-file runs with `npx stryker run --mutate <path>`. Integration specs are not part of it: they need a
-database or spawn processes.
+`npm run test:mutation` ejecuta Stryker de forma incremental: solo se vuelven a ejecutar los mutantes
+cuyo código o cuyos tests que lo cubren cambiaron; el resto reutiliza `reports/stryker-incremental.json`.
+`npm run test:mutation:full` ejecuta todos los mutantes. El umbral de corte es una puntuación de 80
+(`thresholds.break`); la cobertura no es una puerta. Un único fichero se ejecuta con
+`npx stryker run --mutate <ruta>`. Los specs de integración no forman parte: necesitan una base de
+datos o arrancan procesos. `scripts/` tampoco: la mutación se limita a los paquetes del producto.

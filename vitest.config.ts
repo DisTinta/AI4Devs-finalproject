@@ -39,5 +39,9 @@ export default defineConfig({
     ],
     // DOM cleanup after each jsdom test and React Router's `Request` workaround (DIS-58 design D18, D26).
     setupFiles: ['tests/support/jsdom-setup.ts'],
+    // The suite never reads the `.env` of whoever runs it: the processes the tests start (for example
+    // `npm run db:rollback` in the migration specs) inherit this switch, so the `.env` preload leaves
+    // their environment as the test set it (DIS-102 design D12). `vitest.stryker.config.ts` inherits it.
+    env: { CODEMIND_SKIP_DOTENV: '1' },
   },
 });

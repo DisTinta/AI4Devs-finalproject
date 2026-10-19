@@ -43,7 +43,7 @@ export function ProjectPickerPage(): ReactElement {
       {status === 'unavailable' ? (
         <ErrorBanner onRetry={onRetry} retrying={retrying}>
           La API de CODEMIND no está disponible. Puedes ver los proyectos, pero no preguntar hasta que vuelva.
-          Arráncala con <code>make up</code> y pulsa Reintentar.
+          Arráncala con <code>npm run up</code> y pulsa Reintentar.
         </ErrorBanner>
       ) : null}
       <ul aria-label="Proyectos de muestra" className="mt-6 flex flex-wrap justify-center gap-6">

@@ -1,56 +1,57 @@
-# Confidence
+# Confianza
 
-CODEMIND gives every stored claim and every answered answer a `confidence`, computed by
-`packages/core/src/knowledge/confidence.ts` from observable signals of the citations: never
-self-reported by the model. A claim's value is the confidence of its own statement; an answer's value
-is the confidence of all its statements together. `UNKNOWN` answers carry none.
+CODEMIND da a cada claim guardado y a cada respuesta contestada una `confidence`, calculada por
+`packages/core/src/knowledge/confidence.ts` a partir de señales observables de las citas: nunca la
+declara el modelo. El valor de un claim es la confianza de su propia afirmación; el de una respuesta es
+la confianza de todas sus afirmaciones juntas. Las respuestas `UNKNOWN` no llevan ninguna.
 
-## Formula
+## Fórmula
 
 ```text
 confidence = σ(w1·evidence + w2·diversity + w3·crossConfirmation + w4·resolution + w5·entailment − w6·contradiction)
 σ(z)       = 1 / (1 + e^(−z))
 ```
 
-There is no intercept. Every weight is positive, so no positive signal can lower the value and a
-contradiction always lowers it. The sum runs in a fixed order, so the same citations and verdicts give
-the same number whatever the order of statements and citations. The value is not rounded.
+No hay término independiente. Todos los pesos son positivos, así que ninguna señal positiva puede bajar
+el valor y una contradicción siempre lo baja. La suma se hace en un orden fijo, de modo que las mismas
+citas y veredictos dan el mismo número sea cual sea el orden de las afirmaciones y de las citas. El
+valor no se redondea.
 
-## Signals
+## Señales
 
-Each signal is a number in [0, 1], computed over a set of statements with their citations. A citation
-carries its span (file id, first and last line), the kind of the cited file, the origin of the span
-and the verifier's verdict for its (statement, citation) pair, `entailed` or `cited`. A citation's
-category is `code` for `source` and `config` files, `test` for `test` and `doc` for `doc`; `history`
-is a fourth category that no citation can have yet.
+Cada señal es un número en [0, 1], calculado sobre un conjunto de afirmaciones con sus citas. Una cita
+lleva su tramo (id del fichero, primera y última línea), el tipo del fichero citado, el origen del tramo
+y el veredicto del verificador para su par (afirmación, cita), `entailed` o `cited`. La categoría de una
+cita es `code` para los ficheros `source` y `config`, `test` para `test` y `doc` para `doc`; `history`
+es una cuarta categoría que ninguna cita puede tener todavía.
 
-| Signal | Definition |
+| Señal | Definición |
 | --- | --- |
-| `evidence` | min(E, `EVIDENCE_SATURATION`) / `EVIDENCE_SATURATION`, where E is the number of distinct spans with at least one `entailed` citation |
-| `diversity` | Distinct categories among the `entailed` citations, divided by 4 (`history` included) |
-| `crossConfirmation` | 1 when a statement has an `entailed` `code` citation and an `entailed` `test` citation, 0 otherwise |
-| `resolution` | Distinct cited spans all of whose citations have origin `anchor` or `exact`, divided by the distinct cited spans; every verdict counts, and any other origin counts as not resolved |
-| `entailment` | `entailed` citations divided by all citations, every citation counted as given |
-| `contradiction` | 1 when contrary evidence exists for the set, 0 otherwise |
+| `evidence` | min(E, `EVIDENCE_SATURATION`) / `EVIDENCE_SATURATION`, donde E es el número de tramos distintos con al menos una cita `entailed` |
+| `diversity` | Categorías distintas entre las citas `entailed`, divididas entre 4 (`history` incluida) |
+| `crossConfirmation` | 1 cuando una afirmación tiene una cita `code` `entailed` y una cita `test` `entailed`, 0 en otro caso |
+| `resolution` | Tramos citados distintos cuyas citas tienen todas origen `anchor` o `exact`, divididos entre los tramos citados distintos; cuenta cualquier veredicto, y cualquier otro origen cuenta como no resuelto |
+| `entailment` | Citas `entailed` divididas entre todas las citas, contando cada cita tal como se da |
+| `contradiction` | 1 cuando existe evidencia contraria para el conjunto, 0 en otro caso |
 
-The signals read only span metadata and verdicts: never a statement's text, an excerpt, a status or
-the model's output. A set with no statement, or a statement with no citation, has no confidence (the
-function throws `RangeError`).
+Las señales leen solo los metadatos de los tramos y los veredictos: nunca el texto de una afirmación, un
+fragmento, un estado ni la salida del modelo. Un conjunto sin afirmaciones, o una afirmación sin citas,
+no tiene confianza (la función lanza `RangeError`).
 
-## Weights
+## Pesos
 
-| Name | Signal | Value | Reason |
+| Nombre | Señal | Valor | Motivo |
 | --- | --- | --- | --- |
-| w1 | `evidence` | 0.5 | More spans that back the answer add support; capped so long answers are not rewarded. |
-| w2 | `diversity` | 0.5 | Sources of different kind fail independently; not exercised by the development questions. |
-| w3 | `crossConfirmation` | 0.5 | Code and test backing the same statement agree; not exercised by the development questions. |
-| w4 | `resolution` | 0.5 | `heuristic` edges (facades, Laravel conventions) can be wrong; weaker than the verifier's verdict. |
-| w5 | `entailment` | 1.0 | The only signal that checks the citation supports the statement; the verifier also errs. |
-| w6 | `contradiction` | 1.5 | Contrary evidence must outweigh any single positive signal. |
-| EVIDENCE_SATURATION | — | 4 | Answers cite a few spans; saturating keeps long answers from winning on length. |
+| w1 | `evidence` | 0.5 | Más tramos que respaldan la respuesta suman apoyo; con tope, para no premiar las respuestas largas. |
+| w2 | `diversity` | 0.5 | Las fuentes de distinto tipo fallan de forma independiente; las preguntas de desarrollo no la ejercitan. |
+| w3 | `crossConfirmation` | 0.5 | Código y test que respaldan la misma afirmación coinciden; las preguntas de desarrollo no la ejercitan. |
+| w4 | `resolution` | 0.5 | Las aristas `heuristic` (fachadas, convenciones de Laravel) pueden fallar; pesa menos que el veredicto del verificador. |
+| w5 | `entailment` | 1.0 | La única señal que comprueba que la cita respalda la afirmación; el verificador también se equivoca. |
+| w6 | `contradiction` | 1.5 | La evidencia contraria debe pesar más que cualquier señal positiva por separado. |
+| EVIDENCE_SATURATION | — | 4 | Las respuestas citan pocos tramos; saturar evita que las respuestas largas ganen por longitud. |
 
-The author fixed these values and reasons on 2026-10-15, after running the development questions
-below over `acme-shop` with `qwen2.5-coder` (Ollama, CPU) as answer model and verifier
+La autora fijó estos valores y motivos el 2026-10-15, tras ejecutar las preguntas de desarrollo de
+abajo sobre `acme-shop` con `qwen2.5-coder` (Ollama, CPU) como modelo de respuesta y verificador
 (`openspec/changes/archive/2026-10-15-confidence-score/reports/2026-10-15-9-weights-session.md`):
 
 1. ¿Cómo aplica DiscountService los descuentos a un pedido?
@@ -62,28 +63,30 @@ below over `acme-shop` with `qwen2.5-coder` (Ollama, CPU) as answer model and ve
 7. ¿Qué valida StoreOrderRequest al crear un pedido?
 8. ¿Cómo se envía la factura en PDF al cliente?
 
-`entailment` separated the statements most and `resolution` ordered them within a verdict;
-`diversity`, `crossConfirmation` and `contradiction` were never active on these questions, so their
-weights keep their initial values.
+`entailment` fue la que más separó las afirmaciones y `resolution` las ordenó dentro de un mismo
+veredicto; `diversity`, `crossConfirmation` y `contradiction` no se activaron nunca en estas preguntas,
+así que sus pesos conservan su valor inicial.
 
-These values live in `CONFIDENCE_WEIGHTS` and `EVIDENCE_SATURATION`;
-`tests/unit/knowledge/confidence-doc.spec.ts` fails when this table and the code disagree. The
-weights were fixed once on the development questions of the sample repositories and are never
-re-tuned against the measurement questions.
+Estos valores viven en `CONFIDENCE_WEIGHTS` y `EVIDENCE_SATURATION`;
+`tests/unit/knowledge/confidence-doc.spec.ts` falla cuando esta tabla y el código no coinciden. Los
+pesos se fijaron una sola vez con las preguntas de desarrollo de los repositorios de muestra y nunca se
+reajustan con las preguntas de medición.
 
-## Limits
+## Límites
 
-- The value is ordinal and not calibrated: it orders answers of this system, it is no probability.
-- The contradiction signal is 0 in every answer until DIS-71: no component produces contrary
-  evidence yet (the verifier's `entails: false` leaves a citation `cited`, it does not contradict).
-- No citation has the `history` category yet, so `diversity` is at most 0.75.
-- A set with no signal (every citation `cited`, no resolved span) is worth exactly 0.5.
-- `entailment` comes from the verifier, a model call: the value is reproducible for the same
-  citations and verdicts (the per-pair verification cache keeps a verdict within a process).
-- Adding well-backed statements to an answer can raise the answer's value, since the value of a set
-  never falls when an entailed, resolved citation is added. Each claim keeps the value of its own
-  statement, so a weak statement stays visible in its claim.
-- A citation left `cited` because the verifier was unavailable or out of budget lowers the stored value
-  of its claim for good: the record does not tell a degraded verdict from a real one, and stored values
-  are not recomputed.
-- The weights are not re-tuned against the measurement questions.
+- El valor es ordinal y no está calibrado: ordena las respuestas de este sistema, no es una
+  probabilidad.
+- La señal de contradicción vale 0 en todas las respuestas hasta DIS-71: ningún componente produce
+  todavía evidencia contraria (el `entails: false` del verificador deja una cita en `cited`, no la
+  contradice).
+- Ninguna cita tiene todavía la categoría `history`, así que `diversity` vale como máximo 0.75.
+- Un conjunto sin ninguna señal (todas las citas `cited`, ningún tramo resuelto) vale exactamente 0.5.
+- `entailment` viene del verificador, una llamada al modelo: el valor es reproducible para las mismas
+  citas y veredictos (la caché de verificación por par conserva un veredicto dentro de un proceso).
+- Añadir afirmaciones bien respaldadas a una respuesta puede subir el valor de la respuesta, ya que el
+  valor de un conjunto nunca baja al añadir una cita `entailed` y resuelta. Cada claim conserva el valor
+  de su propia afirmación, así que una afirmación débil sigue visible en su claim.
+- Una cita que queda en `cited` porque el verificador no estaba disponible o se quedó sin presupuesto
+  baja para siempre el valor guardado de su claim: el registro no distingue un veredicto degradado de
+  uno real, y los valores guardados no se recalculan.
+- Los pesos no se reajustan con las preguntas de medición.

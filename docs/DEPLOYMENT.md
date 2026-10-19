@@ -1,143 +1,160 @@
-# Deployment
+# Despliegue
 
-## What deployment means here
+## Qué significa desplegar aquí
 
-Codemind has **no public server**. Deploying it means a reproducible artifact: the same Docker
-Compose file that whoever evaluates the project runs locally, plus a CI pipeline that checks on
-every push that the artifact still works, `npm run verify` included. The hosted target (image
-registry, own server, TLS proxy, mandatory LLM API) was dropped for the evaluation on 5 Sep 2026:
-cost, domain, and a single point of failure (`readme.md` §2.4).
+Codemind **no tiene servidor público**. Desplegarlo significa un artefacto reproducible: el mismo
+fichero de Docker Compose que ejecuta en local quien evalúa el proyecto, más un pipeline de CI que
+comprueba en cada push que el artefacto sigue funcionando, `npm run verify` incluido. El destino
+alojado (registro de imágenes, servidor propio, proxy TLS, API de LLM obligatoria) se descartó para la
+evaluación el 5 sep 2026: coste, dominio y un único punto de fallo (`readme.md` §2.4).
 
-| Environment | How it starts | What it is for |
+| Entorno | Cómo arranca | Para qué sirve |
 |---|---|---|
-| Local | `make up`: Docker and Node | Trying the system and the CLI. The only evidence that it works; it depends on no server of the author |
-| CI | GitHub Actions with Postgres in a service container | Keeping the artifact from breaking on each push: same migrations, same seed, same `verify` |
+| Local | `npm run up`: Docker y Node | Probar el sistema y la CLI. La única prueba de que funciona; no depende de ningún servidor de la autora |
+| CI | GitHub Actions con Postgres en un contenedor de servicio | Evitar que el artefacto se rompa en cada push: las mismas migraciones, la misma semilla, el mismo `verify` |
 
-## Requirements
+## Requisitos
 
-- **Docker** with Compose, for PostgreSQL 16 with pgvector.
-- **Node 20.11 or later** and npm.
-- **GNU make and a Bash shell** for `make up`: on Windows, Git Bash or WSL. In PowerShell, run the
-  `npm` scripts of the table below one by one.
-- **Git 2.45.1 or later** (or 2.43.4 / 2.44.1) only to index a repository of your own (see
-  [Indexing a repository](#indexing-a-repository-cli)); the sample is already indexed.
-- No LLM account: without `LLM_*` the system runs in evaluation mode, answering from the cache.
+- **Docker** con Compose v2.1.1 o posterior (por `docker compose up --wait`; Docker Desktop ya lo
+  trae), para PostgreSQL 16 con pgvector.
+- **Node 20.11 o posterior** y npm.
+- Cualquier terminal: los comandos son los mismos en PowerShell y en Bash. **GNU make** es opcional:
+  `make up` y `make down` son atajos de `npm run up` y `npm run down` para Git Bash o WSL.
+- **Git 2.45.1 o posterior** (o 2.43.4 / 2.44.1) solo para indexar un repositorio propio (ver
+  [Indexar un repositorio](#indexar-un-repositorio-cli)); la muestra ya viene indexada.
+- Sin cuenta de LLM: sin `LLM_*` el sistema funciona en modo evaluación, respondiendo desde la caché.
 
-## Local environment
+## Entorno local
 
-```bash
+```shell
 cp .env.example .env
-make up
+npm run up
 ```
 
-The `Makefile` loads `.env` and exports its variables to every step, then runs:
+`npm run up` (`scripts/up.mjs`) carga `.env` (una variable ya definida en el entorno gana sobre
+`.env`), escribe una línea `[up] <comando>` antes de cada paso y ejecuta, desde la raíz del
+repositorio:
 
-| Step | What it does |
+| Paso | Qué hace |
 |---|---|
-| `docker compose up -d` | Starts the `postgres` service (`pgvector/pgvector:pg16`, user, password and database `codemind`, port `5432`, data in the `pgdata` volume) |
-| `npm install` | Installs the workspaces |
-| `npm run db:migrate` | Applies the migrations of `packages/adapters/store-postgres/migrations` |
-| `npm run db:seed` | Loads the pre-built graph of the sample (`seeds/graph-dump.sql`) and its golden answers (`seeds/cache/`) |
-| `npm run dev` | Starts the API on `127.0.0.1:3000` and the web on `localhost:5173`, and stays in the foreground |
+| `docker compose up -d --wait` | Arranca el servicio `postgres` (`pgvector/pgvector:pg16`, usuario, contraseña y base de datos `codemind`, puerto del host `POSTGRES_PORT`, `5432` por defecto, datos en el volumen `pgdata`) y espera a que su healthcheck diga que acepta conexiones |
+| `npm install` | Instala los workspaces |
+| `npm run db:migrate` | Aplica las migraciones de `packages/adapters/store-postgres/migrations` |
+| `npm run db:seed` | Carga el grafo precalculado de la muestra (`seeds/graph-dump.sql`) y sus respuestas golden (`seeds/cache/`) |
+| `npm run dev` | Arranca la API en `127.0.0.1:3000` y la web en `localhost:5173`, y se queda en primer plano |
 
-`make down` stops and removes the container (the volume stays), `make logs` follows its log and
-`make ps` shows its state. `docs/DEMO.md` step 0 has the real output of `make up`, and the
-environment variables are described in `readme.md` §1.4.
+Si un paso falla, `up` no ejecuta los siguientes, escribe `[up] "<comando>" failed with exit code <n>`
+y termina con ese código. Ctrl+C lo para (`[up] stopped (Ctrl+C)`, código `130`).
 
-## Continuous integration
+Si el puerto 5432 ya está ocupado (otro contenedor u otro PostgreSQL), cambia en `.env` `POSTGRES_PORT`
+y el puerto de `DATABASE_URL`, los dos al mismo valor.
 
-Two workflows run on every pull request (`.github/workflows/`). `CI` also runs on pushes to `main`
-and to the delivery branches (`feature/entrega-*`, `final-project-*`); `Frontend`, on pushes to `main`.
+`npm run down` para y elimina el contenedor (el volumen se conserva), `make logs` sigue su log y
+`make ps` muestra su estado (o `docker compose logs -f` y `docker compose ps` en cualquier terminal).
+El paso 0 de `docs/DEMO.md` tiene la salida real de `npm run up`, y las variables de entorno se
+describen en `readme.md` §1.4.
 
-| Workflow → job | What it runs | Notes |
+## Integración continua
+
+En cada pull request se ejecutan dos workflows (`.github/workflows/`). `CI` también se ejecuta en los
+push a `main` y a las ramas de entrega (`feature/entrega-*`, `final-project-*`); `Frontend`, en los
+push a `main`.
+
+| Workflow → job | Qué ejecuta | Notas |
 |---|---|---|
-| `CI` → `scope` | Decides whether `quality`, `verify` and `mutation` run | A push to an open PR that only touches `docs/`, `openspec/` or `*.md` skips them when all three were green on the previous head |
-| `CI` → `quality` | `npm ci`, `npm run lint`, `npm run typecheck`, `npx depcruise --config .dependency-cruiser.cjs packages`, migrations up, down and up again, `npx vitest run` | Postgres service with its own `test` database; the migrations and tests run only when runtime files changed |
-| `CI` → `verify` | `npm run db:migrate`, `npm run db:seed`, `npm run verify` | Postgres service with its own `verify` database, never the `test` one; no `LLM_*` |
-| `CI` → `mutation` | `npm run test:mutation` (incremental) on pull requests, `npm run test:mutation:full` on pushes | No database; fails under a mutation score of 80; only when `packages/core`, `packages/cli`, `packages/api`, `tests` or their configuration changed |
-| `CI` → `secrets` | gitleaks 8.30.1 over the working tree and the commits of the event | Always runs, also on documentation-only pushes |
-| `Frontend` → `frontend` | `npm run lint`, `npm run typecheck`, `npx vitest run --exclude 'tests/integration/**'`, `npm run test:a11y` | Only when front-end files changed (`dorny/paths-filter`: `.tsx`/`.css` files, `packages/web/**`, `tests/a11y/**`, `tests/unit/web/**`, `tests/support/jsdom-setup.ts`, the lock file and the Vite/Vitest/TS configs); `test:a11y` runs the accessibility gate (see `docs/TESTING.md`) |
+| `CI` → `scope` | Decide si se ejecutan `quality`, `verify` y `mutation` | Un push a un PR abierto que solo toca `docs/`, `openspec/` o `*.md` se los salta cuando los tres estaban en verde en el head anterior |
+| `CI` → `quality` | `npm ci`, `npm run lint`, `npm run typecheck`, `npx depcruise --config .dependency-cruiser.cjs packages`, migraciones up, down y otra vez up, `npx vitest run` | Servicio Postgres con su propia base de datos `test`; las migraciones y los tests solo se ejecutan cuando cambiaron ficheros de runtime |
+| `CI` → `verify` | `npm run db:migrate`, `npm run db:seed`, `npm run verify` | Servicio Postgres con su propia base de datos `verify`, nunca la de `test`; sin `LLM_*` |
+| `CI` → `mutation` | `npm run test:mutation` (incremental) en los pull requests, `npm run test:mutation:full` en los push | Sin base de datos; falla por debajo de una puntuación de mutación de 80; solo cuando cambiaron `packages/core`, `packages/cli`, `packages/api`, `tests` o su configuración |
+| `CI` → `secrets` | gitleaks 8.30.1 sobre el árbol de trabajo y los commits del evento | Se ejecuta siempre, también en los push que solo tocan documentación |
+| `Frontend` → `frontend` | `npm run lint`, `npm run typecheck`, `npx vitest run --exclude 'tests/integration/**'`, `npm run test:a11y` | Solo cuando cambiaron ficheros del front-end (`dorny/paths-filter`: ficheros `.tsx`/`.css`, `packages/web/**`, `tests/a11y/**`, `tests/unit/web/**`, `tests/support/jsdom-setup.ts`, el lock file y las configuraciones de Vite/Vitest/TS); `test:a11y` ejecuta la puerta de accesibilidad (ver `docs/TESTING.md`) |
 
-`docs/TESTING.md` explains each level of tests these jobs run.
+`docs/TESTING.md` explica cada nivel de tests que ejecutan estos jobs.
 
-## Verifying an installation
+## Verificar una instalación
 
-```bash
-npm run verify; echo "exit: $?"
+```shell
+npm run verify
 ```
 
-Output on the database of `docs/DEMO.md` (2026-10-17, commit `b9026be`):
+Salida sobre la base de datos de `docs/DEMO.md` (2026-10-19, commit `c129278`; termina con código `0`):
 
 ```text
 
 > codemind@0.0.1 verify
-> tsx --tsconfig packages/cli/tsconfig.run.json packages/cli/src/verify.ts
+> tsx --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json packages/cli/src/verify.ts
 
 ✓ acme-shop Q1 ¿Cómo se calcula el precio final de un pedido?
 ✓ acme-shop Q3 ¿Cómo se validan los cupones?
 ✓ acme-shop Q4 ¿Qué hace OrderObserver al crear un pedido?
 acme-shop: 3/3 golden answers match
-exit: 0
 ```
 
-It needs only `DATABASE_URL` of a database where `npm run db:seed` loaded the seed, and never calls
-a model. It exits `0` only when every golden answer matches. When it fails:
+Solo necesita el `DATABASE_URL` (lo lee de `.env`) de una base de datos donde `npm run db:seed` cargó
+la semilla, y nunca llama a un modelo. Termina con `0` solo cuando todas las respuestas golden
+coinciden. Cuando falla:
 
-| Code (stderr) | Meaning | What to do |
+| Código (stderr) | Significado | Qué hacer |
 |---|---|---|
-| `MISSING_CONFIG` | `DATABASE_URL` is not set | Export it (see `docs/DEMO.md` step 0) |
-| `DATABASE_UNAVAILABLE` | The database cannot be reached | Check that the container runs (`make ps`) and the URL |
-| `SEED_NOT_LOADED` | The database does not hold the current seed | `npm run db:seed` |
-| `FINGERPRINT_MISMATCH` | The seed or the golden answers no longer match the code (`details.reason` is `seed` or `golden`) | Not fixable on an installation: the author regenerates them with `npm run seed:build` and then `npm run cache:build` (`reason: seed`), or only `npm run cache:build` (`reason: golden`), and commits them |
-| `GOLDEN_MISSING` | A seed project has no golden answers | The author runs `npm run cache:build` |
+| `MISSING_CONFIG` | `DATABASE_URL` no está definida | Copia `.env.example` a `.env` o define la variable (ver el paso 0 de `docs/DEMO.md`) |
+| `DATABASE_UNAVAILABLE` | No se llega a la base de datos | Comprueba que el contenedor está en marcha (`docker compose ps`) y la URL |
+| `SEED_NOT_LOADED` | La base de datos no tiene la semilla actual | `npm run db:seed` |
+| `FINGERPRINT_MISMATCH` | La semilla o las respuestas golden ya no corresponden al código (`details.reason` es `seed` o `golden`) | No se arregla en una instalación: la autora las regenera con `npm run seed:build` y después `npm run cache:build` (`reason: seed`), o solo `npm run cache:build` (`reason: golden`), y las sube |
+| `GOLDEN_MISSING` | Un proyecto de la semilla no tiene respuestas golden | La autora ejecuta `npm run cache:build` |
 
-A `✗` line with exit `1` and no error code is a structural mismatch: the lines under it name each
-difference. `INVALID_SEED` (an unreadable seed or golden file) and `INTERNAL` are the remaining
-codes; the full contract is in `docs/project-context.md` → Commands, and the decision to fail
-on a stale fingerprint in `docs/adr/20261017-stale-fingerprint-fails-verify.md`.
+Una línea `✗` con código de salida `1` y sin código de error es una discrepancia estructural: las
+líneas de debajo nombran cada diferencia. `INVALID_SEED` (un fichero de semilla o golden ilegible) e
+`INTERNAL` son los códigos restantes; el contrato completo está en `docs/project-context.md` →
+Commands, y la decisión de fallar ante una huella desactualizada en
+`docs/adr/20261017-stale-fingerprint-fails-verify.md`.
 
-## Secrets
+## Secretos
 
-Only through environment variables. `.env` is in `.gitignore` and `.env.example` holds no real
-value; no key lives in the repository. There is no hosting secret store because there is no public
-deployment. In CI the jobs use the throwaway passwords of their service containers, the `verify`
-job sets no `LLM_*`, and the `secrets` job scans every pull request and push with gitleaks.
+Solo mediante variables de entorno. `.env` está en `.gitignore` y `.env.example` no contiene ningún
+valor real; ninguna clave vive en el repositorio. No hay almacén de secretos de hosting porque no hay
+despliegue público. En CI los jobs usan las contraseñas desechables de sus contenedores de servicio, el
+job `verify` no define ningún `LLM_*`, y el job `secrets` analiza con gitleaks cada pull request y cada
+push.
 
-## Indexing a repository (CLI)
+## Indexar un repositorio (CLI)
 
-Indexing runs from the CLI, `npm run cli -- index <path> --name <name> --language php` (DIS-86). It
-needs three environment variables; plain `npm` scripts do not read `.env`, so export them or use
-`make` (which includes and exports `.env`):
+El indexado se ejecuta desde la CLI, `npm run cli -- index <ruta> --name <nombre> --language php`
+(DIS-86). Necesita tres variables de entorno; `npm run cli` las lee de `.env` (una variable ya definida
+en el entorno gana):
 
-| Variable | Required | Meaning |
+| Variable | Obligatoria | Significado |
 |---|---|---|
-| `ALLOWED_REPOS_DIR` | yes, to index | The only directory repositories are indexed from; `<path>` is absolute inside it or relative to it. Empty or unset disables indexing (fixtures-only mode, exit `1`, `INDEXING_DISABLED`). |
-| `AUTHOR_HASH_SALT` | yes | Keys the pseudonymisation of commit authors. Never commit a value; changing it changes every stored `author_hash`. |
-| `DATABASE_URL` | yes | PostgreSQL the graph is saved to. Never printed: a refused connection is reported as `DATABASE_UNAVAILABLE`. |
+| `ALLOWED_REPOS_DIR` | sí, para indexar | El único directorio desde el que se indexan repositorios; `<ruta>` es absoluta dentro de él o relativa a él. Vacía o sin definir desactiva el indexado (modo solo-fixtures, código de salida `1`, `INDEXING_DISABLED`). |
+| `AUTHOR_HASH_SALT` | sí | La clave de la seudonimización de los autores de los commits. Nunca subas un valor; cambiarla cambia todos los `author_hash` guardados. |
+| `DATABASE_URL` | sí | El PostgreSQL donde se guarda el grafo. Nunca se imprime: una conexión rechazada se informa como `DATABASE_UNAVAILABLE`. |
 
-**`ALLOWED_REPOS_DIR` must be writable only by the user that runs Codemind, and must hold only
-trusted repositories.** The path is confined lexically and again on its real path before reading,
-but git resolves it again when it reads. Someone who can write inside that directory could swap a
-directory of a repository path for a link in between, or make git read objects from outside the
-directory through a `.git` file (`gitdir:`) or `objects/info/alternates`. Codemind only reads Git
-objects and never executes anything from an indexed repository, so the reach is reading another
-repository the Codemind user can already read. This residual risk is accepted rather than closed in
-code (DIS-86 design D7); revisit it before indexing repositories uploaded by untrusted parties.
+**`ALLOWED_REPOS_DIR` solo debe poder escribirlo el usuario que ejecuta Codemind, y solo debe contener
+repositorios de confianza.** La ruta se confina léxicamente y otra vez sobre su ruta real antes de
+leer, pero git la vuelve a resolver cuando lee. Alguien que pueda escribir dentro de ese directorio
+podría cambiar entretanto un directorio de la ruta de un repositorio por un enlace, o hacer que git lea
+objetos de fuera del directorio mediante un fichero `.git` (`gitdir:`) u `objects/info/alternates`.
+Codemind solo lee objetos de Git y nunca ejecuta nada de un repositorio indexado, así que el alcance es
+leer otro repositorio que el usuario de Codemind ya puede leer. Este riesgo residual se acepta en lugar
+de cerrarse en código (DIS-86 design D7); revísalo antes de indexar repositorios subidos por terceros
+que no sean de confianza.
 
-Exit codes: `0` success, `1` a domain, configuration or runtime error, `2` a usage error. Errors are
-one JSON line on stderr, `{"error":{"code","message","details"}}`; stdout carries only the report.
+Códigos de salida: `0` éxito, `1` un error de dominio, de configuración o de ejecución, `2` un error de
+uso. Los errores son una línea JSON en stderr, `{"error":{"code","message","details"}}`; stdout solo
+lleva el informe.
 
-## Running the API
+## Ejecutar la API
 
-`npm run dev` (or `npx tsx --tsconfig packages/api/tsconfig.run.json packages/api/src/server.ts`)
-starts the API (DIS-76). It needs `DATABASE_URL`; `PORT`, `HOST`, `RATE_LIMIT_MAX` and
-`RATE_LIMIT_WINDOW_MS` are optional (see `.env.example` and `readme.md` §2.5). A start-up failure is
-one JSON line on stderr and exit `1`.
+`npm run dev` (o `npx tsx --tsconfig packages/api/tsconfig.run.json packages/api/src/server.ts`)
+arranca la API (DIS-76). Necesita `DATABASE_URL`; `PORT`, `HOST`, `RATE_LIMIT_MAX` y
+`RATE_LIMIT_WINDOW_MS` son opcionales (ver `.env.example` y `readme.md` §2.5). `npm run dev` las lee de
+`.env`; el comando `npx tsx` directo, no. Un fallo de arranque es una línea JSON en stderr y código de
+salida `1`.
 
-**The API has no authentication.** It listens on `127.0.0.1` by default; `HOST=0.0.0.0` exposes it to
-the network, which is an explicit decision of whoever runs it.
+**La API no tiene autenticación.** Escucha en `127.0.0.1` por defecto; `HOST=0.0.0.0` la expone a la
+red, lo que es una decisión explícita de quien la ejecuta.
 
-**The rate limit keys on the socket's address** (`trustProxy` is off, so `X-Forwarded-For` is
-ignored and cannot be spoofed). Behind a reverse proxy every client therefore shares the proxy's
-address and one counter. The counter is in memory, per process: several processes do not share it,
-and a restart resets it. `/health` and `/docs` are neither limited nor counted.
+**El límite de peticiones se basa en la dirección del socket** (`trustProxy` está desactivado, así que
+`X-Forwarded-For` se ignora y no se puede falsificar). Detrás de un proxy inverso todos los clientes
+comparten por tanto la dirección del proxy y un único contador. El contador está en memoria, por
+proceso: varios procesos no lo comparten, y un reinicio lo pone a cero. `/health` y `/docs` ni se
+limitan ni cuentan.
