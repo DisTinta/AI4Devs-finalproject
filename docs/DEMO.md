@@ -1,461 +1,265 @@
-# Demo walkthrough
+# Guion de la demo
 
-The six steps of `readme.md` §1.3, run from a terminal against the sample project `acme-shop`. Every
-step gives the exact command and, under it, the output of a real run pasted as captured. Where
-Entrega 2 does not reach what §1.3 describes yet, the step says so and shows what the system does
-today instead.
+Los seis pasos de `readme.md` §1.3, ejecutados desde una terminal contra el proyecto de muestra
+`acme-shop`, más un recorrido por la web. Cada paso da el comando exacto y, debajo, la salida de una
+ejecución real pegada tal como se capturó. Donde la Entrega 2 todavía no llega a lo que describe §1.3,
+el paso lo dice y muestra lo que hace hoy el sistema.
 
-## How this was captured
+**Los comandos son los mismos en PowerShell y en Bash** (Windows, macOS o Linux): se escriben tal cual,
+sin exportar variables ni definir funciones. Los comandos que lee `.env` lo cargan solos, y una
+variable ya definida en la terminal gana sobre `.env`.
 
-| Item | Value |
+## Cómo se capturó
+
+| Dato | Valor |
 |---|---|
-| Date | 2026-10-17 |
-| Commit | `b9026be` (branch `feature/DIS-45-demo-deployment-testing-docs`) |
-| Machine | Windows 11 Pro, Git Bash, Docker Desktop, Git 2.45.1 |
-| Node / npm | v24.11.1 / 11.19.0 (the project needs Node 20.11 or later; CI runs Node 20) |
-| LLM | none: **evaluation mode**, every `LLM_*` variable empty |
-| Database | a new, empty database (see step 0) |
+| Fecha | [pendiente de la prueba desde cero] |
+| Commit | [pendiente de la prueba desde cero] |
+| Máquina | [pendiente de la prueba desde cero] |
+| Terminales | [pendiente de la prueba desde cero] |
+| Node / npm | [pendiente de la prueba desde cero] (el proyecto necesita Node 20.11 o posterior; la CI usa Node 20) |
+| LLM | ninguno: **modo evaluación**, todas las variables `LLM_*` vacías |
+| Base de datos | una base de datos nueva y vacía (ver el paso 0) |
 
-The only edits made to the pasted output:
+Los únicos cambios hechos a la salida pegada:
 
-- **(a)** `make up` keeps running in the foreground (`npm run dev`); its output stops after the
-  start-up lines, marked `[… still running; stopped with Ctrl+C]`.
-- **(b)** an absolute path of the checkout would be replaced with `<repo>` (none appeared).
-- **(c)** terminal colour codes are removed.
-- **(d)** the machine name in the API's start-up log line is replaced with `<host>`.
+- **(a)** `npm run up` se queda en primer plano (`npm run dev`); su salida se corta tras las líneas de
+  arranque, marcadas con `[… sigue en marcha; se para con Ctrl+C]`.
+- **(b)** una ruta absoluta del clon se sustituiría por `<repo>`.
+- **(c)** se quitan los códigos de color de la terminal.
+- **(d)** el nombre de la máquina en la línea de arranque de la API se sustituye por `<host>`.
 
-**Fields that change on every run**, to ignore when comparing: `npm install`'s package count, time
-and audit lines; the `(node:<pid>)` prefix and Vite's `ready in … ms`; `time` and `pid` in the API's
-log line; and `latencyMs` in the API answers. The project id is fixed by the seed.
+**Campos que cambian en cada ejecución**, que hay que ignorar al comparar: el número de paquetes, el
+tiempo y las líneas de auditoría de `npm install`; el prefijo `(node:<pid>)` y el `ready in … ms` de
+Vite; `time` y `pid` en la línea de log de la API; y `latencyMs` en las respuestas de la API. El id del
+proyecto lo fija la semilla.
 
-**Shell.** The commands are Bash (Git Bash or WSL on Windows, as the `Makefile`). In PowerShell, run
-the `npm run …` commands directly; the `ask_api` helper of step 1 is Bash only.
+## Antes de empezar
 
-**Why the API is called with `node` and not `curl`.** `curl` from Git Bash on Windows sent the
-question with its accents mangled, so the API saw a different question and answered `UNKNOWN
-(llm-required)`. Node is already a requirement and sends it intact on every system.
+Comprueba que Docker está en marcha, que Node es la versión 20.11 o posterior y que Git está instalado:
 
-## Step 0 — Start the system
+```shell
+docker info
+node -v
+git --version
+```
 
-Terminal 1, from the root of the clone:
+`docker info` debe terminar sin error (si dice que no puede conectar con el daemon, arranca Docker
+Desktop); `node -v` debe mostrar `v20.11.0` o posterior.
 
-```bash
+Desde la raíz de un clon del repositorio (`readme.md` §1.4), copia la configuración de ejemplo, que
+deja todas las variables `LLM_*` vacías (modo evaluación, sin cuenta ni API key):
+
+```shell
 cp .env.example .env
-make up
+```
+
+**Si el puerto 5432 ya está ocupado.** El contenedor de PostgreSQL publica el puerto `POSTGRES_PORT`
+de `.env` (`5432` por defecto). Si otro contenedor ya lo usa, el paso 0 se para en su primer paso y
+`docker compose` dice `port is already allocated`; si lo usa otro programa, dice
+`Ports are not available`. Con un PostgreSQL local ya escuchando en 5432, el arranque puede llegar más
+lejos y fallar en `npm run db:migrate` con `password authentication failed for user "codemind"`. En
+cualquiera de los tres casos, abre `.env` con un editor de texto (no con una redirección de la
+terminal) y cambia a un puerto libre las dos líneas, con el mismo número:
+
+```text
+POSTGRES_PORT=5433
+DATABASE_URL=postgresql://codemind:codemind@localhost:5433/codemind
+```
+
+Después vuelve a ejecutar el paso 0.
+
+## Paso 0 — Arrancar el sistema
+
+Terminal 1, desde la raíz del clon:
+
+```shell
+npm run up
 ```
 
 ```text
-docker compose up -d
- Container codemind-postgres-1 Running 
-npm install
-
-up to date, audited 562 packages in 5s
-
-158 packages are looking for funding
-  run `npm fund` for details
-
-18 vulnerabilities (5 low, 6 moderate, 4 high, 3 critical)
-
-To address issues that do not require attention, run:
-  npm audit fix
-
-To address all issues (including breaking changes), run:
-  npm audit fix --force
-
-Run `npm audit` for details.
-npm warn install-scripts 3 packages have install scripts not yet covered by allowScripts:
-npm warn install-scripts   esbuild@0.28.2 (postinstall: node install.js)
-npm warn install-scripts   tree-sitter-php@0.24.2 (install: node-gyp rebuild)
-npm warn install-scripts   esbuild@0.21.5 (postinstall: node install.js)
-npm warn install-scripts
-npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.
-npm run db:migrate
-
-> codemind@0.0.1 db:migrate
-> tsx packages/adapters/store-postgres/src/migrate.ts up
-
-> Migrating files:
-> - 0001_graph-l1
-> - 0002_history-claims
-> - 0003_indexes-stale
-> - 0004_query-log-verification
-### MIGRATION 0001_graph-l1 (UP) ###
-### MIGRATION 0002_history-claims (UP) ###
-### MIGRATION 0003_indexes-stale (UP) ###
-### MIGRATION 0004_query-log-verification (UP) ###
-npm run db:seed
-
-> codemind@0.0.1 db:seed
-> tsx --tsconfig packages/cli/tsconfig.run.json packages/cli/src/seed-load.ts
-
-1 project loaded
-  acme-shop  php/laravel  174 nodes · 170 edges
-npm run dev
-
-> codemind@0.0.1 dev
-> concurrently --kill-others-on-fail "npm -w packages/api run dev" "npm -w packages/web run dev"
-
-(node:39088) [DEP0060] DeprecationWarning: The `util._extend` API is deprecated. Please use Object.assign() instead.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-[0] 
-[0] > @codemind/api@0.0.1 dev
-[0] > node --watch --import ./dev-register.mjs src/server.ts
-[0] 
-[1] 
-[1] > @codemind/web@0.0.1 dev
-[1] > vite
-[1] 
-[1] 
-[1]   VITE v5.4.21  ready in 967 ms
-[1] 
-[1]   ➜  Local:   http://localhost:5173/
-[1]   ➜  Network: use --host to expose
-[0] {"level":30,"time":1792253837152,"pid":3380,"hostname":"<host>","msg":"Server listening at http://127.0.0.1:3000"}
-[… still running; stopped with Ctrl+C]
+[pendiente de la prueba desde cero]
+[… sigue en marcha; se para con Ctrl+C]
 ```
 
-> **Entrega 2.** The seed loads **one** project, `1 project loaded`; `task-api` joins the seed with
-> CM-HU-18 (PH-02). `readme.md` §1.4 quotes an excerpt of this output.
+`npm run up` escribe una línea `[up] <comando>` antes de cada paso: arranca PostgreSQL y espera a que
+acepte conexiones, instala las dependencias, migra la base de datos, carga la semilla y arranca la API
+(`http://127.0.0.1:3000`) y la web (`http://localhost:5173/`). Se queda en primer plano: el resto de la
+demo va en una **segunda terminal**, abierta en la misma carpeta.
 
-> **How the capture differs from a first run.** The container was already running, so Compose
-> printed `Running` (a first run prints that it creates and starts it), and `npm install` found
-> everything installed. To leave the author's database untouched, the capture ran `make up` on a new
-> database of the same container, `codemind_demo`, passing on the command line the values of
-> `.env.example` (every `LLM_*` empty) with that database in `DATABASE_URL`.
+> **Entrega 2.** La semilla carga **un** proyecto, `1 project loaded`; `task-api` entra en la semilla
+> con CM-HU-18 (PH-02). `readme.md` §1.4 cita un extracto de esta salida.
 
-Terminal 2. `npm` scripts do not read `.env`, so export the database first (the URL of
-`.env.example`; the capture used `codemind_demo`):
+Terminal 2. `npm run cli` lee `DATABASE_URL` de `.env`, así que basta con:
 
-```bash
-export DATABASE_URL=postgresql://codemind:codemind@localhost:5432/codemind
+```shell
 npm run cli -- projects
 ```
 
 ```text
-
-> codemind@0.0.1 cli
-> tsx --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts projects
-
-acme-shop  a794456d-6d1b-5b55-a360-13fec83dc7bc  php/laravel  174 nodes · 170 edges  2024-05-06T09:31:00.000Z sample
+[pendiente de la prueba desde cero]
 ```
 
-## Step 1 — Ask how the final price is computed
+## Paso 1 — Preguntar cómo se calcula el precio final
 
-The CLI prints the answer, each typed statement with its evidence `path:start-end`, and the cited
-excerpts (at most five lines each):
+La CLI imprime la respuesta, cada afirmación tipada con su evidencia `ruta:inicio-fin`, y los
+fragmentos citados (cinco líneas como máximo cada uno):
 
-```bash
+```shell
 npm run cli -- ask acme-shop "¿Cómo se calcula el precio final de un pedido?"
 ```
 
 ```text
-
-> codemind@0.0.1 cli
-> tsx --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts ask acme-shop ¿Cómo se calcula el precio final de un pedido?
-
-El precio final de un pedido se calcula mediante el método `compute()` en la clase `PriceCalculator`. Este método toma en cuenta el subtotal, realiza descuentos, agrega impuestos y envío, y devuelve el total final. El descuento y la tax se aplican en ese orden específico.
-
-statements:
-1. [FACT] El método `compute()` en la clase `PriceCalculator` es el encargado de calcular el precio final de un pedido.
-   evidence: app/Services/PriceCalculator.php:16-44
-2. [FACT] Primero se aplica el descuento al subtotal.
-   evidence: app/Services/PriceCalculator.php:16-44
-3. [INFERENCE] Luego se calcula el impuesto sobre el valor descontado.
-   evidence: app/Services/PriceCalculator.php:16-44
-4. [INFERENCE] Finalmente se suman el impuesto y el envío al valor descontado para obtener el precio final.
-   evidence: app/Services/PriceCalculator.php:16-44
-
-evidence:
-app/Services/PriceCalculator.php:16-44
-    class PriceCalculator
-    {
-        public function __construct(
-            private readonly DiscountService $discounts,
-            private readonly TaxService $taxes,
-    … (+24 lines)
+[pendiente de la prueba desde cero]
 ```
 
-The CLI does not print token usage; the API does. Define a helper in terminal 2 that posts a
-question to `POST /api/projects/{projectId}/ask` and prints the HTTP status, how many statements and
-evidence items came back, and the `usage` block, or the error body when the status is not 2xx (the
-id is the one `projects` printed):
+La CLI no imprime el uso de tokens; la API sí. `npm run demo:ask` envía la pregunta a
+`POST /api/projects/{projectId}/ask` (el id es el que imprimió `projects`) y muestra el estado HTTP,
+cuántas afirmaciones y evidencias volvieron y el bloque `usage`, o el cuerpo del error cuando el estado
+no es 2xx. Termina con código `0` para un estado 2xx y `1` para cualquier otro:
 
-```bash
-ask_api() {
-  node -e '
-    const [project, question] = process.argv.slice(1);
-    fetch(`http://127.0.0.1:3000/api/projects/${project}/ask`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ question }),
-    }).then(async (response) => {
-      const body = await response.json();
-      console.log(`HTTP ${response.status}`);
-      const summary = response.ok ? { statements: body.statements.length, evidence: body.evidence.length, usage: body.usage } : body;
-      console.log(JSON.stringify(summary, null, 2));
-    });
-  ' "$@"
-}
-ACME=a794456d-6d1b-5b55-a360-13fec83dc7bc
-ask_api "$ACME" "¿Cómo se calcula el precio final de un pedido?"
+```shell
+npm run demo:ask -- a794456d-6d1b-5b55-a360-13fec83dc7bc "¿Cómo se calcula el precio final de un pedido?"
 ```
 
 ```text
-HTTP 200
-{
-  "statements": 4,
-  "evidence": 4,
-  "usage": {
-    "inputTokens": 0,
-    "outputTokens": 0,
-    "baselineTokens": 7123,
-    "baselineEstimator": "chars-div-4",
-    "savingsPct": 100,
-    "costUsd": 0,
-    "latencyMs": 55,
-    "cacheHit": true,
-    "generation": {
-      "inputTokens": 0,
-      "outputTokens": 0,
-      "costUsd": 0
-    },
-    "verification": {
-      "calls": 0,
-      "cacheHits": 0,
-      "inputTokens": 0,
-      "outputTokens": 0,
-      "costUsd": 0,
-      "latencyMs": 0
-    }
-  }
-}
+[pendiente de la prueba desde cero]
 ```
 
-> **Entrega 2.** In evaluation mode every answered question comes from the golden answers that
-> `db:seed` loaded, so this first call is already a cache hit: `cacheHit: true`, `costUsd: 0`,
-> `inputTokens: 0`. `savingsPct: 100` is the saving of an answer served from the cache against the
-> stored baseline of raw context (`baselineTokens`, estimated as characters / 4). The savings of a
-> live generation are measured in Entrega 3 (`readme.md` §2.6).
+> **Entrega 2.** En modo evaluación cada pregunta contestada sale de las respuestas golden que cargó
+> `db:seed`, así que esta primera llamada ya es un acierto de caché: `cacheHit: true`, `costUsd: 0`,
+> `inputTokens: 0`. `savingsPct: 100` es el ahorro de una respuesta servida desde la caché frente a la
+> línea base guardada de contexto en bruto (`baselineTokens`, estimada como caracteres / 4). El ahorro
+> de una generación en vivo se mide en la Entrega 3 (`readme.md` §2.6).
 
-## Step 2 — Open an evidence
+## Paso 2 — Abrir una evidencia
 
-Every statement above cites `app/Services/PriceCalculator.php:16-44`. The citation is relative to
-the root of the sample project, `fixtures/acme-shop`; those lines of the file are:
+Todas las afirmaciones de arriba citan `app/Services/PriceCalculator.php:16-44`. La cita es relativa a
+la raíz del proyecto de muestra, `fixtures/acme-shop`; `npm run demo:excerpt` imprime esas líneas del
+fichero:
 
-```bash
-sed -n '16,44p' fixtures/acme-shop/app/Services/PriceCalculator.php
+```shell
+npm run demo:excerpt -- acme-shop app/Services/PriceCalculator.php:16-44
 ```
 
 ```text
-class PriceCalculator
-{
-    public function __construct(
-        private readonly DiscountService $discounts,
-        private readonly TaxService $taxes,
-        private readonly ShippingService $shipping,
-    ) {
-    }
-
-    public function compute(Order $order): Money
-    {
-        $subtotal = $order->subtotal;                       // magic accessor
-        $discount = $this->discounts->discountFor($order, $subtotal);
-        $taxable = $subtotal->subtract($discount);
-
-        $tax = $this->taxes->taxFor($order, $taxable);
-        $shipping = $this->shipping->shippingFor($order, $taxable);
-
-        return $taxable->add($tax)->add($shipping);
-    }
-
-    /** Returns the discounted amount before tax and shipping. */
-    public function taxableBase(Order $order): Money
-    {
-        $subtotal = $order->subtotal;
-
-        return $subtotal->subtract($this->discounts->discountFor($order, $subtotal));
-    }
-}
+[pendiente de la prueba desde cero]
 ```
 
-They are the lines of the excerpt that the CLI printed (the first five) and the API returned (all
-of them).
+Son las líneas del fragmento que imprimió la CLI (las cinco primeras) y que devolvió la API (todas).
+`demo:excerpt` solo lee ficheros de `fixtures/<proyecto>`: una ruta que sale de él se rechaza.
 
-> **Entrega 2.** The web shows Screen 1 at `http://localhost:5173/` (DIS-60): the acme-shop card with
-> its four counts, «indexado» and, once the API answers its health check, «listo». With the API stopped
-> the cards stay and an alert «La API de CODEMIND no está disponible…» offers «Reintentar». «Explorar
-> proyecto» opens Screen 2 (DIS-65): the three suggested questions are the golden ones, so in
-> evaluation mode each is answered from the cache with its statements marked «HECHO»/«INFERIDO» and
-> «verificado»/«sin verificar»; each evidence («ev-1 · app/Services/PriceCalculator.php:16-44») expands
-> with a click, Enter or Space to the same excerpt the API returned here. Under the evidence, the usage
-> panel (DIS-66) shows «Confianza», the tokens, «$0», the latency in milliseconds, «ahorro 100 % vs
-> bruto», «caché ✓» and the baseline line: in evaluation mode every suggested question is a cache hit. A
-> free question in evaluation mode shows the notice «Hace falta un modelo de lenguaje» with the API's
-> own message; a question that names nothing in the code shows «Sin respuesta verificada» with its
-> reason (`no-anchor`).
+## Paso 3 — Preguntar algo que el repositorio no puede responder
 
-## Step 3 — Ask something the repository cannot answer
+Los reembolsos no están implementados en `acme-shop`:
 
-Refunds are not implemented in `acme-shop`:
-
-```bash
-npm run cli -- ask acme-shop "¿Cómo se gestionan los reembolsos de un pedido?"; echo "exit: $?"
+```shell
+npm run cli -- ask acme-shop "¿Cómo se gestionan los reembolsos de un pedido?"
 ```
 
 ```text
-
-> codemind@0.0.1 cli
-> tsx --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts ask acme-shop ¿Cómo se gestionan los reembolsos de un pedido?
-
-UNKNOWN (no-anchor)
-exit: 0
+[pendiente de la prueba desde cero]
 ```
 
-`UNKNOWN (no-anchor)`: no symbol of the graph anchors the question, so the system says it does not
-know instead of inventing an answer. It decides before any model or cache is consulted, and exits
-`0` because `UNKNOWN` is an answer.
+`UNKNOWN (no-anchor)`: ningún símbolo del grafo ancla la pregunta, así que el sistema dice que no lo
+sabe en lugar de inventar una respuesta. Lo decide antes de consultar ningún modelo ni la caché, y
+termina con código `0` porque `UNKNOWN` es una respuesta.
 
-## Step 4 — Ask for the impact of changing the discounts
+## Paso 4 — Preguntar por el impacto de cambiar los descuentos
 
-```bash
-npm run cli -- impact acme-shop "cambiar el cálculo de descuentos"; echo "exit: $?"
+```shell
+npm run cli -- impact acme-shop "cambiar el cálculo de descuentos"
 ```
 
 ```text
-
-> codemind@0.0.1 cli
-> tsx --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts impact acme-shop cambiar el cálculo de descuentos
-
-not implemented — pending Ticket 1/2
-exit: 0
+[pendiente de la prueba desde cero]
 ```
 
-> **Entrega 2.** `impact` is still a stub. The impact analysis, which separates the deterministic
-> graph from the historical signal, is CM-HU-16, planned for Entrega 3.
+Termina con código `0`.
 
-## Step 5 — Repeat step 1
+> **Entrega 2.** `impact` todavía es un stub. El análisis de impacto, que separa el grafo determinista
+> de la señal histórica, es CM-HU-16, previsto para la Entrega 3.
 
-The same question of step 1, literally:
+## Paso 5 — Repetir el paso 1
 
-```bash
-ask_api "$ACME" "¿Cómo se calcula el precio final de un pedido?"
+La misma pregunta del paso 1, literalmente:
+
+```shell
+npm run demo:ask -- a794456d-6d1b-5b55-a360-13fec83dc7bc "¿Cómo se calcula el precio final de un pedido?"
 ```
 
 ```text
-HTTP 200
-{
-  "statements": 4,
-  "evidence": 4,
-  "usage": {
-    "inputTokens": 0,
-    "outputTokens": 0,
-    "baselineTokens": 7123,
-    "baselineEstimator": "chars-div-4",
-    "savingsPct": 100,
-    "costUsd": 0,
-    "latencyMs": 27,
-    "cacheHit": true,
-    "generation": {
-      "inputTokens": 0,
-      "outputTokens": 0,
-      "costUsd": 0
-    },
-    "verification": {
-      "calls": 0,
-      "cacheHits": 0,
-      "inputTokens": 0,
-      "outputTokens": 0,
-      "costUsd": 0,
-      "latencyMs": 0
-    }
-  }
-}
+[pendiente de la prueba desde cero]
 ```
 
-A variant that changes only case, accents and punctuation. It is **not** a rephrasing: it has the
-same normalised key, so it is the same cache entry (DIS-21):
+Una variante que solo cambia mayúsculas, tildes y puntuación. **No** es una reformulación: tiene la
+misma clave normalizada, así que es la misma entrada de la caché (DIS-21):
 
-```bash
-ask_api "$ACME" "como se calcula el precio final de un pedido"
+```shell
+npm run demo:ask -- a794456d-6d1b-5b55-a360-13fec83dc7bc "como se calcula el precio final de un pedido"
 ```
 
 ```text
-HTTP 200
-{
-  "statements": 4,
-  "evidence": 4,
-  "usage": {
-    "inputTokens": 0,
-    "outputTokens": 0,
-    "baselineTokens": 7123,
-    "baselineEstimator": "chars-div-4",
-    "savingsPct": 100,
-    "costUsd": 0,
-    "latencyMs": 34,
-    "cacheHit": true,
-    "generation": {
-      "inputTokens": 0,
-      "outputTokens": 0,
-      "costUsd": 0
-    },
-    "verification": {
-      "calls": 0,
-      "cacheHits": 0,
-      "inputTokens": 0,
-      "outputTokens": 0,
-      "costUsd": 0,
-      "latencyMs": 0
-    }
-  }
-}
+[pendiente de la prueba desde cero]
 ```
 
-> **Entrega 2.** `readme.md` §1.3 asks to *rephrase* the question and get a cache hit by similarity.
-> That is CM-HU-19 (PH-05); today a cache hit needs the same normalised question, as above. And since
-> step 1 was already served from the cache (evaluation mode), what this step shows is that the
-> repeated question resolves to the same entry, with `cacheHit: true` and `costUsd: 0`. The cache
-> miss of a first question is only visible in live mode, with `LLM_*` set, which this capture does
-> not use.
+> **Entrega 2.** `readme.md` §1.3 pide *reformular* la pregunta y obtener un acierto de caché por
+> similitud. Eso es CM-HU-19 (PH-05); hoy un acierto de caché necesita la misma pregunta normalizada,
+> como arriba. Y como el paso 1 ya se sirvió desde la caché (modo evaluación), lo que muestra este paso
+> es que la pregunta repetida resuelve a la misma entrada, con `cacheHit: true` y `costUsd: 0`. El
+> fallo de caché de una primera pregunta solo se ve en modo vivo, con `LLM_*` definidas, que esta
+> captura no usa.
 
-## Step 6 — Switch to `task-api` and repeat step 1
+## Paso 6 — Cambiar a `task-api` y repetir el paso 1
 
-```bash
-npm run cli -- ask task-api "¿Cómo se calcula el precio final de un pedido?"; echo "exit: $?"
+```shell
+npm run cli -- ask task-api "¿Cómo se calcula el precio final de un pedido?"
 ```
 
 ```text
-
-> codemind@0.0.1 cli
-> tsx --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts ask task-api ¿Cómo se calcula el precio final de un pedido?
-
-{"error":{"code":"PROJECT_NOT_FOUND","message":"project not found","details":{}}}
-exit: 1
+[pendiente de la prueba desde cero]
 ```
 
-> **Entrega 2.** `task-api`, the TypeScript sample, is not in the seed yet (`projects` in step 0
-> listed only `acme-shop`), so the CLI answers `PROJECT_NOT_FOUND` on stderr and exits `1`. It
-> joins the seed with CM-HU-18 (PH-02).
+> **Entrega 2.** `task-api`, la muestra en TypeScript, todavía no está en la semilla (`projects` en el
+> paso 0 solo listó `acme-shop`), así que la CLI responde `PROJECT_NOT_FOUND` en stderr y termina con
+> código `1` (npm añade después sus propias líneas `npm error`). Entra en la semilla con CM-HU-18
+> (PH-02).
 
-## Check the installation
+## Comprobar la instalación
 
-`npm run verify` asks every golden question of the seed and compares the structure of each answer
-with the stored one, without calling a model (`docs/DEPLOYMENT.md` explains its failures):
+`npm run verify` hace cada pregunta golden de la semilla y compara la estructura de cada respuesta con
+la guardada, sin llamar a ningún modelo (`docs/DEPLOYMENT.md` →
+[Verificar una instalación](DEPLOYMENT.md#verificar-una-instalación) explica sus fallos). Termina con
+código `0`:
 
-```bash
-npm run verify; echo "exit: $?"
+```shell
+npm run verify
 ```
 
 ```text
-
-> codemind@0.0.1 verify
-> tsx --tsconfig packages/cli/tsconfig.run.json packages/cli/src/verify.ts
-
-✓ acme-shop Q1 ¿Cómo se calcula el precio final de un pedido?
-✓ acme-shop Q3 ¿Cómo se validan los cupones?
-✓ acme-shop Q4 ¿Qué hace OrderObserver al crear un pedido?
-acme-shop: 3/3 golden answers match
-exit: 0
+[pendiente de la prueba desde cero]
 ```
 
-To stop, press Ctrl+C in terminal 1, then `make down` stops the container (the data stays in the
-`pgdata` volume).
+## Recorrido por la web
+
+Con `npm run up` en marcha, abre `http://localhost:5173/` en el navegador. Las dos pantallas siguen los
+wireframes de `readme.md` §1.3 (`images/pantalla-1-seleccion.svg`, `images/pantalla-2-consulta.svg`).
+
+[pendiente del recorrido sobre las capturas]
+
+## Parar el sistema
+
+En la terminal 1, pulsa Ctrl+C. `npm run up` termina entonces con la línea `[up] stopped (Ctrl+C)`,
+seguida de las líneas propias de npm con `code 130`: es el final esperado, no un fallo. Después, en
+cualquier terminal:
+
+```shell
+npm run down
+```
+
+```text
+[pendiente de la prueba desde cero]
+```
+
+`npm run down` para y elimina el contenedor; los datos se conservan en el volumen `pgdata`, así que el
+siguiente `npm run up` no vuelve a crear la base de datos desde cero.
