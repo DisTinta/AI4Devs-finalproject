@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -96,4 +96,122 @@ describe('The demo question helper', () => {
     expect(stderr.text()).toBe('');
     expect(code).toBe(0);
   });
+
+  it('An UNKNOWN answer prints its reason', async () => {
+    // Arrange
+    const message = 'evaluation mode (cache-only): set LLM_* to enable free-form asks';
+    const unknown = { answer: 'UNKNOWN', reason: 'llm-required', message, statements: [], evidence: [] };
+    const api = await apiDouble(200, JSON.stringify(unknown));
+    const stdout = recorder();
+
+    // Act
+    const code = await runDemoAsk([PROJECT_ID, 'una pregunta libre'], {
+      env: { PORT: String(api.port) },
+      dotenvPath: missingEnvFile(),
+      stdout,
+      stderr: recorder(),
+    });
+
+    // Assert
+    expect(stdout.text()).toBe(`HTTP 200\n${JSON.stringify({ answer: 'UNKNOWN', reason: 'llm-required', message }, null, 2)}\n`);
+    expect(code).toBe(0);
+  });
+
+  it('An error status prints the error body', async () => {
+    // Arrange
+    const error = { error: { code: 'PROJECT_NOT_FOUND', message: 'project not found', details: {} } };
+    const api = await apiDouble(404, JSON.stringify(error));
+    const stdout = recorder();
+
+    // Act
+    const code = await runDemoAsk(['00000000-0000-0000-0000-000000000000', QUESTION], {
+      env: { PORT: String(api.port) },
+      dotenvPath: missingEnvFile(),
+      stdout,
+      stderr: recorder(),
+    });
+
+    // Assert
+    expect(stdout.text()).toBe(`HTTP 404\n${JSON.stringify(error, null, 2)}\n`);
+    expect(code).toBe(1);
+  });
+
+  it('An unreachable API is reported', async () => {
+    // Arrange: a port taken and released, where nothing listens
+    const port = await freePort();
+    const stdout = recorder();
+    const stderr = recorder();
+
+    // Act
+    const code = await runDemoAsk([PROJECT_ID, QUESTION], {
+      env: { PORT: String(port) },
+      dotenvPath: missingEnvFile(),
+      stdout,
+      stderr,
+    });
+
+    // Assert
+    expect(stderr.text()).toBe(
+      `demo:ask: the API is not reachable at http://127.0.0.1:${port} (start it with npm run up)\n`,
+    );
+    expect(stdout.text()).toBe('');
+    expect(code).toBe(1);
+  });
+
+  it('demo:ask reads PORT from .env', async () => {
+    // Arrange: the port comes only from the .env file given to demo:ask
+    const api = await apiDouble(200, JSON.stringify({ statements: [], evidence: [], usage: {} }));
+    const dotenvPath = join(temporaryDirectory(), '.env');
+    writeFileSync(dotenvPath, `PORT=${api.port}\n`);
+    // Arrange: a PORT that is not a port number
+    const invalid = await apiDouble(200, '{}');
+    const invalidErr = recorder();
+
+    // Act
+    const code = await runDemoAsk([PROJECT_ID, QUESTION], { env: {}, dotenvPath, stdout: recorder(), stderr: recorder() });
+    const invalidCode = await runDemoAsk([PROJECT_ID, QUESTION], {
+      env: { PORT: 'abc' },
+      dotenvPath: missingEnvFile(),
+      stdout: recorder(),
+      stderr: invalidErr,
+    });
+
+    // Assert
+    expect(api.received).toHaveLength(1);
+    expect(code).toBe(0);
+    expect(invalidErr.text()).toBe('demo:ask: PORT must be a port number\n');
+    expect(invalid.received).toHaveLength(0);
+    expect(invalidCode).toBe(2);
+  });
+
+  it('Missing arguments are a usage error', async () => {
+    // Arrange
+    const api = await apiDouble(200, '{}');
+
+    for (const args of [[PROJECT_ID], [PROJECT_ID, QUESTION, 'extra']]) {
+      const stderr = recorder();
+
+      // Act
+      const code = await runDemoAsk(args, {
+        env: { PORT: String(api.port) },
+        dotenvPath: missingEnvFile(),
+        stdout: recorder(),
+        stderr,
+      });
+
+      // Assert
+      expect(stderr.text()).toBe('usage: npm run demo:ask -- <projectId> "<question>"\n');
+      expect(code).toBe(2);
+    }
+    expect(api.received).toHaveLength(0);
+  });
 });
+
+/** A port that was free a moment ago (taken and released), as `tests/integration/api/dev-script.spec.ts` does. */
+async function freePort(): Promise<number> {
+  const server = createServer();
+  await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+  const { port } = server.address() as { port: number };
+  await new Promise((done) => server.close(done));
+  return port;
+}

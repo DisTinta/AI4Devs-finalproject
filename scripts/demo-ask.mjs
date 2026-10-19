@@ -14,15 +14,74 @@ import { DOTENV_PATH, loadEnvFile } from './env.mjs';
  * @typedef {(url: string, init: { method: string, headers: Record<string, string>, body: string }) => Promise<{ status: number, text(): Promise<string> }>} Fetch
  */
 
+/** The exit code of a usage error, as the CLI's (`docs/DEPLOYMENT.md`). */
+const USAGE_EXIT_CODE = 2;
+
+/** The API's port when `PORT` is unset or blank (`packages/api/src/composition.ts`). */
+const DEFAULT_PORT = 3000;
+
 /**
- * The summary `demo:ask` prints for a response body.
+ * The port the API listens on, read as the API reads `PORT` (A21): trimmed, blank = 3000, decimal
+ * digits only, 1–65535.
  *
- * @param {unknown} body - The parsed JSON body.
- * @returns {unknown} The summary.
+ * @param {string | undefined} value - The `PORT` variable.
+ * @returns {number | undefined} The port, or `undefined` when `value` is not a port number.
  */
-function summarise(body) {
-  const answer = /** @type {{ statements: unknown[], evidence?: unknown[], usage?: unknown }} */ (body);
-  return { statements: answer.statements.length, evidence: answer.evidence?.length ?? 0, usage: answer.usage };
+function apiPort(value) {
+  const trimmed = value?.trim() ?? '';
+  if (trimmed === '') return DEFAULT_PORT;
+  const port = /^[0-9]+$/.test(trimmed) ? Number(trimmed) : Number.NaN;
+  return port >= 1 && port <= 65_535 ? port : undefined;
+}
+
+/**
+ * The text `demo:ask` prints after the status line: for a `2xx` `UNKNOWN` body its answer, reason and
+ * message; for any other `2xx` body with a `statements` array its counts and usage; otherwise the body
+ * as it came (indented when it is JSON).
+ *
+ * @param {number} status - The HTTP status.
+ * @param {string} text - The response body.
+ * @returns {string} The text to print.
+ */
+function describeBody(status, text) {
+  let body;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return text;
+  }
+  if (isSuccess(status) && typeof body === 'object' && body !== null) {
+    // An UNKNOWN body also has `statements: []`, so it is recognised first (A4).
+    if (body.answer === 'UNKNOWN') {
+      const { answer, reason, message } = body;
+      return indent(message === undefined ? { answer, reason } : { answer, reason, message });
+    }
+    if (Array.isArray(body.statements)) {
+      const evidence = Array.isArray(body.evidence) ? body.evidence.length : 0;
+      return indent({ statements: body.statements.length, evidence, usage: body.usage });
+    }
+  }
+  return indent(body);
+}
+
+/**
+ * `value` as JSON indented with two spaces.
+ *
+ * @param {unknown} value - The value.
+ * @returns {string} The JSON text.
+ */
+function indent(value) {
+  return JSON.stringify(value, null, 2);
+}
+
+/**
+ * Whether `status` is a `2xx` status.
+ *
+ * @param {number} status - The HTTP status.
+ * @returns {boolean} `true` for 200–299.
+ */
+function isSuccess(status) {
+  return status >= 200 && status <= 299;
 }
 
 /**
@@ -35,16 +94,32 @@ function summarise(body) {
  */
 export async function runDemoAsk(args, { env, dotenvPath = DOTENV_PATH, fetch = globalThis.fetch, stdout, stderr }) {
   loadEnvFile(dotenvPath, env, stderr);
+  if (args.length !== 2) {
+    stderr.write('usage: npm run demo:ask -- <projectId> "<question>"\n');
+    return USAGE_EXIT_CODE;
+  }
   const [projectId, question] = args;
-  const port = env.PORT?.trim() || '3000';
-  const response = await fetch(`http://127.0.0.1:${port}/api/projects/${encodeURIComponent(projectId)}/ask`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json; charset=utf-8' },
-    body: JSON.stringify({ question }),
-  });
-  const body = JSON.parse(await response.text());
-  stdout.write(`HTTP ${response.status}\n${JSON.stringify(summarise(body), null, 2)}\n`);
-  return 0;
+  const port = apiPort(env.PORT);
+  if (port === undefined) {
+    stderr.write('demo:ask: PORT must be a port number\n');
+    return USAGE_EXIT_CODE;
+  }
+  const origin = `http://127.0.0.1:${port}`;
+  let response;
+  try {
+    // No time limit: a live model can take minutes on a CPU, and Ctrl+C stops the helper (A4).
+    response = await fetch(`${origin}/api/projects/${encodeURIComponent(projectId)}/ask`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({ question }),
+    });
+  } catch {
+    stderr.write(`demo:ask: the API is not reachable at ${origin} (start it with npm run up)\n`);
+    return 1;
+  }
+  const text = await response.text();
+  stdout.write(`HTTP ${response.status}\n${describeBody(response.status, text)}\n`);
+  return isSuccess(response.status) ? 0 : 1;
 }
 
 if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
