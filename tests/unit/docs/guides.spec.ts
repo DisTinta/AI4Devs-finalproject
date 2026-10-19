@@ -177,3 +177,50 @@ describe('The demo guide runs the same in PowerShell and Bash', () => {
     }
   });
 });
+
+const GUIDES = ['docs/DEMO.md', 'docs/CONFIDENCE.md', 'docs/DEPLOYMENT.md', 'docs/TESTING.md'];
+const LINKING = ['readme.md', 'docs/project-context.md', ...GUIDES];
+
+/** GitHub's anchor of a heading: NFC, lower case, only Unicode letters, digits, spaces, `-` and `_`, spaces as `-`. */
+function anchorOf(heading: string): string {
+  return heading
+    .normalize('NFC')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N} _-]/gu, '')
+    .replace(/ /g, '-');
+}
+
+/** The anchors of every heading of `markdown` (fenced lines are not headings). */
+function anchorsOf(markdown: string): Set<string> {
+  const anchors = new Set<string>();
+  let inFence = false;
+  for (const line of markdown.split('\n')) {
+    if (line.startsWith('```')) inFence = !inFence;
+    const heading = inFence ? null : /^#{1,6} (.+)$/.exec(line);
+    if (heading !== null) anchors.add(anchorOf(heading[1].trim()));
+  }
+  return anchors;
+}
+
+describe('The deployment and testing guides in Spanish', () => {
+  it("Links to the guides' sections resolve", () => {
+    // Arrange: every link with a fragment into one of the four guides
+    const links = LINKING.flatMap((source) => {
+      const markdown = prose(documentText(source));
+      return [...markdown.matchAll(/\]\(([^)\s]*)#([^)\s]+)\)/g)].flatMap(([, path, fragment]) => {
+        const target = path === '' ? source : resolve(ROOT, source, '..', path).slice(ROOT.length).replace(/\\/g, '/');
+        const normalised = target.replace(/^\//, '');
+        return GUIDES.includes(normalised) ? [{ source, target: normalised, fragment }] : [];
+      });
+    });
+
+    // Act
+    const broken = links.filter(
+      ({ target, fragment }) => !anchorsOf(documentText(target)).has(decodeURIComponent(fragment).normalize('NFC')),
+    );
+
+    // Assert
+    expect(links.length).toBeGreaterThan(0);
+    expect(broken).toEqual([]);
+  });
+});
