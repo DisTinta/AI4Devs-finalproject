@@ -71,6 +71,7 @@
 54. [Pantalla 1: tarjetas de proyectos de muestra, aviso de API caída y pantalla de error (DIS-60)](#54-pantalla-1-tarjetas-de-proyectos-de-muestra-aviso-de-api-caída-y-pantalla-de-error-dis-60)
 55. [Pantalla 2: pregunta, sugeridas, respuesta con afirmaciones tipadas y evidencia expandible (DIS-65)](#55-pantalla-2-pregunta-sugeridas-respuesta-con-afirmaciones-tipadas-y-evidencia-expandible-dis-65)
 56. [Pantalla 2: panel de uso, estados `UNKNOWN`, avisos de `429` y error, y pasada de accesibilidad (DIS-66)](#56-pantalla-2-panel-de-uso-estados-unknown-avisos-de-429-y-error-y-pasada-de-accesibilidad-dis-66)
+57. [Experimento: workflow autónomo para cerrar la Entrega 2 (DIS-101)](#57-experimento-workflow-autónomo-para-cerrar-la-entrega-2-dis-101)
 
 ---
 
@@ -84,8 +85,12 @@
 | Investigación de referencias | Claude (Cowork) con búsqueda web | Opus | Verificación de citas reales en vez de generarlas de memoria |
 | Redacción de documentación técnica | Claude (Cowork) | Opus | Documentos largos con estructura fija |
 | Diseño de esquema de datos y API | Claude (Cowork) | Opus | Decisiones con consecuencias en cascada |
+| Planificación de historias, propuestas y redacción larga (Entrega 2) | Claude (Cowork / chat) | Opus | El backlog en jerarquía para Linear y los prompts de cada hito, antes de abrir el repositorio |
+| Implementación, tests, revisión y orquestación de subagentes (Entrega 2) | Claude Code | Opus | Todo el ciclo SDD de cada ticket: `/enrich-us`, OpenSpec, TDD, las tres revisiones y el archivo; y, en el experimento de [§57](#57-experimento-workflow-autónomo-para-cerrar-la-entrega-2-dis-101), la orquestación del workflow |
+| Subagentes de pasos mecánicos (Entrega 2) | Claude Code | Sonnet | PR, archivo, merge y cierre en Linear dentro del workflow: pasos fáciles de verificar y de rehacer |
+| Sesiones de criterio y redacción | Cursor | — | Decisiones de producto conversadas, como la del 5 de septiembre (§8, lección 6) |
 
-Esta tabla recoge **solo las fases ya ejecutadas**, que en esta entrega son las de documentación. El reparto previsto para las fases de código —Cursor con Sonnet para implementación y tests, Claude Code con Opus para revisión de pull requests— se registrará aquí cuando se haya usado, en la Entrega 3.
+En la Entrega 1 esta tabla recogía solo las fases de documentación y anunciaba para el código «Cursor con Sonnet para implementación y tests, Claude Code con Opus para revisión». No fue así: la implementación y los tests se hicieron en Claude Code con Opus, dentro del flujo del kit, y Sonnet quedó para los subagentes de pasos mecánicos. El flujo completo está en la sección 8 del readme.
 
 **Criterio de reparto.** Opus para lo que tiene consecuencias difíciles de revertir —arquitectura, esquema de base de datos, decisiones de seguridad—; Sonnet para lo que es rápido de verificar y de rehacer —código, tests, refactors—. El coste de un error de Opus en el esquema de datos se paga durante semanas; el de Sonnet en una función se paga en cinco minutos.
 
@@ -94,6 +99,8 @@ Esta tabla recoge **solo las fases ya ejecutadas**, que en esta entrega son las 
 ### El harness de trabajo
 
 Antes de arrancar el desarrollo construí un **harness propio de Spec-Driven Development**, [`sdd-harness-kit`](https://github.com/DisTinta/sdd-harness-kit), para no montar el andamiaje de trabajo con IA desde cero en cada proyecto. Es un instalable que deja en el repositorio destino 27 skills y 9 subagentes como fuente canónica en `ai-specs/`, 9 hooks deterministas del ciclo de vida, estándares por capa en `docs/`, adaptadores por stack y los cuatro ficheros de memoria de copiloto apuntando a una doctrina única. Su huella en este repositorio está descrita en la sección 2.3 del readme.
+
+**En la Entrega 2** el repositorio tiene 29 skills, 9 subagentes y **10 hooks**: los 9 de la Entrega 1, que eran ciertos entonces, más `spec-audit-gate`, que llegó con el PR #35 (commit `2de2630`) para que ningún change pase al apply sin el informe del `spec-auditor`. Qué impide cada hook y cuántas veces disparó está en la sección 8.1 del readme.
 
 **Procedencia.** El kit es de creación propia: nace de lo que estoy aprendiendo en el Máster AI4Devs de LIDR Academy, al que entregaré CODEMIND como proyecto final. Toma como punto de partida ideas y convenciones de [`LIDR-academy/lidr-specboot`](https://github.com/LIDR-academy/lidr-specboot) (MIT), el repositorio de referencia del máster: la disposición de `ai-specs/` con skills y subagentes como fuente canónica, los estándares en `docs/`, y los ficheros de memoria por copiloto —`CLAUDE.md`, `AGENTS.md`— apuntando a una doctrina única. Lo añadido por mí es el instalable con detección de stack, los 9 hooks deterministas, los adaptadores, el `doctor`, el soporte en Windows y los gates de secretos. Queda declarado en el `CREDITS.md` y el `LICENSE` del kit, que conserva el aviso de copyright de specboot.
 
@@ -108,15 +115,22 @@ Antes de arrancar el desarrollo construí un **harness propio de Spec-Driven Dev
 | Recurso | Tipo | Para qué |
 |---|---|---|
 | `critico-adversarial` | Subagente | Recibe una sección de documentación y devuelve solo objeciones, sin reformularla. Se usó sobre todas las secciones del readme |
-| Adaptador `fastify` | Adaptador de stack del harness | Escrito para este proyecto: comandos, rutas de capa y guardas de arquitectura del monorepo hexagonal. Ya en el kit, aún no instalado en el repositorio |
+| Adaptador `fastify` | Adaptador de stack del harness | Escrito para este proyecto: comandos, rutas de capa y guardas de arquitectura del monorepo hexagonal. Instalado en el repositorio (`.claude/sdd-harness.env`, `docs/backend-standards.md`) |
 
-**Previsto para las fases de código** (Entregas 2 y 3), aquí por decisión tomada, no por uso:
+**Usado en la Entrega 2** (en el código; el detalle, con su evidencia, está en la sección 8.2 del readme):
 
 | Recurso | Tipo | Para qué |
 |---|---|---|
-| `/revisar-arquitectura` | Comando personalizado (Cursor) | Aplicar sobre un fichero la regla de dependencias: comprobar que `packages/core` no importe de `adapters`, `analyzers` ni `api`, y explicar cada violación |
-| `verificador-de-evidencias` | Subagente | Ejecutar el proceso del Ticket 1 sobre respuestas de prueba, para validar el diseño antes de implementar el componente |
-| Reglas de proyecto (`.cursorrules`) | Rules | Fijar el estilo: TypeScript estricto, sin `any`, errores como tipos y no como excepciones, y prohibición de importar infraestructura desde `core` |
+| `/enrich-us` | Skill | Enriquecer cada ticket de Linear con `[original]`, `[reality-map]` y Enhanced antes de proponer |
+| `/opsx:propose`, `/opsx:apply`, `/opsx:update`, `/opsx:archive`, `/opsx:sync` | Comandos de OpenSpec | El ciclo de cada change, de la propuesta al archivo con las specs sincronizadas |
+| `spec-auditor` | Subagente | Auditar la propuesta entre propose y apply; el hook `spec-audit-gate` exige su informe |
+| `tdd-test-writer` → `tdd-implementer` → `tdd-refactorer` | Roles del apply | Test en RED desde el escenario, implementación mínima y refactor con la suite en verde |
+| `/verify-against-spec`, `/adversarial-review`, `/show-spec-working` | Skills | Las tres revisiones antes de archivar |
+| `/pr-describe`, `/update-docs`, `/adr-new`, `/privacy-ethics-check` | Skills | Descripción del PR en español, documentación desfasada, ADR y comprobación de privacidad |
+| Linear y Context7 | Servidores MCP | Leer y actualizar los tickets; documentación de librerías |
+| Workflow de Claude Code | Orquestación | El experimento de la [§57](#57-experimento-workflow-autónomo-para-cerrar-la-entrega-2-dis-101) |
+
+Lo que la Entrega 1 dejó **previsto** y no se usó, y por qué: `/revisar-arquitectura` (comando de Cursor) lo sustituyeron el hook `post-edit-quality`, que avisa al guardar, y `dependency-cruiser` en CI; el subagente `verificador-de-evidencias` no hizo falta, porque el verificador se diseñó con OpenSpec y sus escenarios; y las reglas de estilo de `.cursorrules` las cubren las reglas que el kit instala en `.cursor/rules/` y los estándares de `docs/`.
 
 **Nota sobre `critico-adversarial`.** Fue el recurso más rentable del proyecto. Pedir «mejora este texto» produce texto más largo; pedir «dame solo las objeciones, sin reescribir nada» produce los agujeros. Casi todos los cambios de fondo en la propuesta salieron de ahí.
 
@@ -625,11 +639,9 @@ del proyecto es la demo alojada y el arranque local.
 
 # 7. Pull Requests
 
-*(pendiente — Entrega 3)*
+En la Entrega 1 no había código, y esta sección quedó vacía a propósito. En la Entrega 2 hay 52 pull requests fusionadas, listadas en la sección 7 del readme con su ticket y su change de OpenSpec.
 
-En esta entrega no hay código, luego no hay pull requests y no hay prompts que registrar aquí. La sección 7 del readme lo dice en los mismos términos, y las dos deben coincidir: un registro de uso de IA que documentase la revisión de una pull request inexistente sería, precisamente, el tipo de divergencia entre documentación y realidad que este proyecto se propone detectar.
-
-El enfoque previsto está descrito en el ticket correspondiente del readme; los prompts que realmente se usen se transcribirán aquí cuando existan las PR.
+No hay un prompt de PR que merezca registrarse aparte: ninguna descripción se escribió con un prompt propio. Todas salen de la skill `/pr-describe`, que lee el change, los commits y los informes de revisión y deja sin rellenar el porqué, que en el flujo normal escribe la autora; en el experimento de la [§57](#57-experimento-workflow-autónomo-para-cerrar-la-entrega-2-dis-101) lo escribió el agente, marcado como decisión suya. El texto de cada descripción se guarda en el change, en `openspec/changes/archive/*/reports/pr-description.md`, y los prompts que dieron forma a cada PR están en la sección de su ticket (§12 en adelante).
 
 ---
 
@@ -4869,3 +4881,82 @@ marzo; el RED de los escaneos de axe nuevos tuvo que ser estructural, porque axe
 estilos y nunca da `color-contrast` como violación; y el escaneo del estado pendiente espera el texto
 visible por su `aria-hidden`, porque la región de estado repite el mismo texto. Como el paso no podía
 arrancar los subagentes de TDD, cada fase rojo → verde → refactor se hizo en línea con el mismo contrato.
+
+---
+
+# 57. Experimento: workflow autónomo para cerrar la Entrega 2 (DIS-101)
+
+Las últimas tareas de la Entrega 2 (DIS-76, DIS-78, DIS-21, DIS-26, DIS-34, DIS-44, DIS-45, DIS-58,
+DIS-60, DIS-65, DIS-66 y esta DIS-101) se hicieron con la herramienta
+Workflow de Claude Code: un subagente con contexto limpio por paso, en serie, sin la autora en las
+puertas del plan, de los tests y del merge (ADR `20261016-autonomous-workflow-run-entrega-2`). El
+planteamiento está en `docs/ai-sessions/04-experimento-workflow-autonomo-entrega-2.md` y el resultado,
+con cifras, en `readme.md` §8.6. Los prompts de cada paso de esos tickets están en su propia sección
+(§47 en adelante); aquí solo están los de la autora que dieron forma al experimento.
+
+### Prompt 1 — Preguntar si el resto de la entrega se podía hacer sin la autora
+
+```
+¿hay alguna forma para que hicieras el resto de tareas de Linear (CODEMIND — Entrega 2)  en automático con el flujo definido? Y si te surgen preguntas o decisiones investigues como ingeniero de software jefe para ressolverlas sin tener que preguntarme? No tendrías que mostrar en esta terminal nada más que al final una lista de los tickets resueltos y un mensaje tipo tareas finalizadas.
+¿como ves esta idea? es posible? ¿cómo se tendría que hacer?
+```
+
+**Por qué funcionó.** Preguntar «¿cómo se tendría que hacer?» en lugar de pedir que lo hiciera llevó a
+una respuesta con los choques antes que con el plan: los principios 2, 3, 8 y 9 de
+`docs/base-standards.md` (puerta humana en el plan, tests supervisados, el porqué escrito por una
+persona, merges firmados) y DIS-34, definida como no delegable. Cada choque se convirtió en una
+decisión explícita de la autora, y el conjunto en un ADR, en vez de quedar como una excepción
+silenciosa.
+
+### Prompt 2 — Las decisiones de la autora
+
+Respuesta a las opciones cerradas que propuso el agente:
+
+```
+- la B, el híbrido.
+- el merge lo harías tú
+- Ollama lo intentas (las últimas pruebas salieron bien, revisa tu memoria)
+- el porqué lo pones tú
+
+alguna pregunta mas? entonces explícame cual sería el plan
+```
+
+**Por qué funcionó.** Opciones cerradas con su consecuencia escrita permiten decidir en cuatro líneas.
+En un mensaje posterior la autora autorizó el tamaño dinámico del workflow, pidió que cada ticket
+empezara con `/enrich-us`, que DIS-101 contara el experimento y que se midieran los tokens antes y
+después de un piloto, para comprobar la estimación de coste en lugar de aceptarla.
+
+### Prompt 3 — Lanzar la tanda 2
+
+```
+sí, lanza la tanda 2
+```
+
+**Por qué funcionó.** A partir de aquí no hay más prompts de la autora: las instrucciones de cada paso
+(«YOUR STEP 3/6 — implement…», citada en la §53) las genera el script del workflow con los datos de
+cada ticket, y no son prompts de la autora. Este ticket, DIS-101, lo redactó el agente dentro de esa
+tanda; sus decisiones (D1 en adelante) están en la descripción Enhanced del ticket en Linear.
+
+### Prompt 4 — Lanzar DIS-65 y DIS-66 tras el merge de la Pantalla 1
+
+```
+ya hice el merge del #54, lanza DIS-65 y DIS-66 (DIS-101 marca conflictos en el archivo prompts.md)
+```
+
+**Por qué funcionó.** La tanda 2 había saltado DIS-65 y DIS-66 porque dependían de DIS-60, cuyo merge
+denegó el clasificador. Con el #54 ya fusionado, una línea bastó para lanzar una tanda 3 solo con esos
+dos tickets, sobre la rama de entrega actualizada.
+
+**Ajuste humano.** Lo que la autora hizo durante la ejecución, que el readme cuenta como lecciones:
+
+- Fusionó a mano los PR cuyo merge denegó el clasificador de permisos (#45, #49, #51, #52, #54 y #56;
+  el #55 de este ticket espera su merge) y, tras el piloto, añadió una regla de permiso para
+  `gh pr merge`. Cuando el clasificador siguió denegando
+  algunos, descartó cualquier rodeo: «vale, nos quedamos con la espera».
+- En DIS-34 revisó las tres respuestas *golden*, pidió regenerar una («Q1 ok, Q4 ok, regenera Q3, he
+  firmado Q1 y Q4, cuando veamos Q3 acabo las firmas») y las firmó. Antes había pedido al agente que
+  firmase en su nombre, y el agente se negó.
+- Tras la parada nocturna de DIS-58 desactivó en local la confirmación de instalación de dependencias
+  y pidió a cambio una comprobación automática: «he añadido la rule. Pero puedes ponerle una cpa de
+  verificación de que el paquete exista y no sea un paquete malicioso?».
+- Aplicó en Windows Defender la exclusión del falso positivo que rompía dos tests de git en local.

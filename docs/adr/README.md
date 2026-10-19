@@ -12,4 +12,5 @@ Decisions that affect more than one module or cost more than a day to revert. Ne
 | 2026-10-13 | [A `FACT` statement is stored as an `L2` `INFERENCE` claim that keeps its type in the provenance](./20261013-fact-statements-stored-as-l2-inference.md) | Accepted |
 | 2026-10-14 | [A `broken` citation is neither stored nor shown; it only leaves an `evidence_broken` event](./20261014-broken-citations-not-stored.md) | Accepted |
 | 2026-10-16 | [The API runs on Fastify 5 with Zod as its single schema language, through its own compilers](./20261016-fastify-5-and-zod-json-schema.md) | Accepted |
+| 2026-10-16 | [The last Entrega 2 tickets run as an autonomous Workflow, with four human gates relaxed](./20261016-autonomous-workflow-run-entrega-2.md) | Accepted |
 | 2026-10-17 | [A stale seed or golden fingerprint fails `verify`, locally and in CI; the author regenerates locally](./20261017-stale-fingerprint-fails-verify.md) | Accepted |
