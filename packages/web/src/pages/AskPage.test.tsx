@@ -1,4 +1,5 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { routes } from '../router';
@@ -12,11 +13,17 @@ const PROJECT_ID = 'a794456d-6d1b-5b55-a360-13fec83dc7bc';
 /** A project id that is not in the sample-project constant (a project indexed with the CLI). */
 const OTHER_PROJECT_ID = '0b5c7f2e-1d3a-4e6b-8f90-1a2b3c4d5e6f';
 
+/** The ask URL of acme-shop. */
+const ASK_URL = `/api/projects/${PROJECT_ID}/ask`;
+
 /** The ellipsis of «Buscando evidencia…» (U+2026), written by code point. */
 const ELLIPSIS = String.fromCodePoint(0x2026);
 
 /** The pending status. */
 const SEARCHING = `Buscando evidencia${ELLIPSIS}`;
+
+/** The message of an invalid question. */
+const INVALID = 'Escribe una pregunta de 5 a 500 caracteres.';
 
 /** The suggested questions of acme-shop, in golden order. */
 const Q1 = '¿Cómo se calcula el precio final de un pedido?';
@@ -58,6 +65,17 @@ function renderAt(path: string): ReturnType<typeof render> {
   return render(<RouterProvider router={createMemoryRouter(routes, { initialEntries: [path] })} />);
 }
 
+/**
+ * Renders Screen 2 of acme-shop and waits for its level-1 heading.
+ *
+ * @returns What `render` returns, to unmount between runs.
+ */
+async function renderScreen2(): Promise<ReturnType<typeof render>> {
+  const rendered = renderAt(`/p/${PROJECT_ID}`);
+  await screen.findByRole('heading', { level: 1, name: 'acme-shop' });
+  return rendered;
+}
+
 /** Whether `first` comes before `second` in document order. */
 function precedes(first: Node, second: Node): boolean {
   return (first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
@@ -71,6 +89,7 @@ function expectInOrder(elements: Node[]): void {
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -131,5 +150,196 @@ describe('Screen 2 frame and project bar', () => {
       'Preguntar',
     ]);
     expect(requests).toHaveLength(0);
+  });
+});
+
+describe('Question box', () => {
+  it('A written question is sent trimmed', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const written = '  ¿Qué hace OrderService?  ';
+    const runs: Array<{ requests: RecordedRequest[]; field: HTMLElement; used: HTMLElement; focused: Element | null }> = [];
+
+    // Act
+    for (const via of ['enter', 'button'] as const) {
+      const requests = stubFetch(neverAnswer);
+      const { unmount } = await renderScreen2();
+      const field = screen.getByRole('textbox', { name: 'Pregunta' });
+      const button = screen.getByRole('button', { name: 'Preguntar' });
+      await user.type(field, written);
+      if (via === 'enter') {
+        await user.keyboard('{Enter}');
+      } else {
+        await user.click(button);
+      }
+      runs.push({ requests: [...requests], field, used: via === 'enter' ? field : button, focused: document.activeElement });
+      expect((field as HTMLInputElement).value).toBe(written);
+      expect(field.getAttribute('aria-invalid')).toBeNull();
+      unmount();
+    }
+
+    // Assert
+    for (const { requests, used, focused } of runs) {
+      expect(requests).toHaveLength(1);
+      expect(requests[0].url).toBe(ASK_URL);
+      expect(requests[0].init?.method).toBe('POST');
+      expect(new Headers(requests[0].init?.headers).get('content-type')).toBe('application/json');
+      expect(requests[0].init?.body).toBe('{"question":"¿Qué hace OrderService?"}');
+      expect(focused).toBe(used);
+    }
+  });
+
+  it('An invalid question is not sent', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const requests = stubFetch(neverAnswer);
+    await renderScreen2();
+    const field = screen.getByRole('textbox', { name: 'Pregunta' });
+    const inputs = ['hola', '     ', '  hola  ', 'a'.repeat(501)];
+    const afterEachSend: Array<Record<string, unknown>> = [];
+
+    // Act
+    for (const input of inputs) {
+      await user.clear(field);
+      await user.type(field, input);
+      await user.keyboard('{Enter}');
+      const describedBy = field.getAttribute('aria-describedby');
+      const description = describedBy === null ? null : document.getElementById(describedBy);
+      afterEachSend.push({
+        requests: requests.length,
+        invalid: field.getAttribute('aria-invalid'),
+        descriptionRole: description?.getAttribute('role'),
+        description: description?.textContent,
+        alerts: screen.getAllByRole('alert').map((alert) => alert.textContent),
+        focusOnField: document.activeElement === field,
+        searching: screen.queryByText(SEARCHING) !== null,
+      });
+    }
+
+    // Assert
+    const expected = {
+      requests: 0,
+      invalid: 'true',
+      descriptionRole: 'alert',
+      description: INVALID,
+      alerts: [INVALID],
+      focusOnField: true,
+      searching: false,
+    };
+    expect(afterEachSend).toEqual(inputs.map(() => expected));
+  });
+
+  it('Changing an invalid question clears the mark', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const runs: Array<Record<string, unknown>> = [];
+
+    // Act
+    for (const change of ['type', 'suggestion'] as const) {
+      const requests = stubFetch(neverAnswer);
+      const { unmount } = await renderScreen2();
+      const field = screen.getByRole('textbox', { name: 'Pregunta' });
+      await user.type(field, 'hola');
+      await user.keyboard('{Enter}');
+      const markedBefore = field.getAttribute('aria-invalid') === 'true' && screen.queryByText(INVALID) !== null;
+      if (change === 'type') {
+        await user.type(field, 's');
+      } else {
+        await user.click(screen.getByRole('button', { name: Q3 }));
+      }
+      runs.push({
+        markedBefore,
+        invalid: field.getAttribute('aria-invalid'),
+        describedBy: field.getAttribute('aria-describedby'),
+        message: screen.queryByText(INVALID) !== null,
+        bodies: requests.map((request) => request.init?.body),
+      });
+      unmount();
+    }
+
+    // Assert
+    expect(runs).toEqual([
+      { markedBefore: true, invalid: null, describedBy: null, message: false, bodies: [] },
+      { markedBefore: true, invalid: null, describedBy: null, message: false, bodies: [`{"question":"${Q3}"}`] },
+    ]);
+  });
+});
+
+describe('Suggested questions', () => {
+  it('A suggested question is sent at once', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const requests = stubFetch(neverAnswer);
+    await renderScreen2();
+    const suggestion = screen.getByRole('button', { name: Q1 });
+
+    // Act
+    await user.click(suggestion);
+
+    // Assert
+    expect(requests).toHaveLength(1);
+    expect(requests[0].url).toBe(ASK_URL);
+    expect(requests[0].init?.method).toBe('POST');
+    expect(requests[0].init?.body).toBe(`{"question":"${Q1}"}`);
+    expect((screen.getByRole('textbox', { name: 'Pregunta' }) as HTMLInputElement).value).toBe(Q1);
+    expect(screen.getByRole('status').textContent).toBe(SEARCHING);
+    expect(document.activeElement).toBe(suggestion);
+  });
+});
+
+describe('Pending question', () => {
+  it('Sending again while a question is pending sends no request', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const requests = stubFetch(neverAnswer);
+    await renderScreen2();
+    const field = screen.getByRole('textbox', { name: 'Pregunta' });
+
+    // Act
+    await user.click(screen.getByRole('button', { name: Q1 }));
+    await user.click(screen.getByRole('button', { name: Q3 }));
+    await user.click(field);
+    await user.keyboard('{Enter}');
+    await user.click(screen.getByRole('button', { name: 'Preguntar' }));
+
+    // Assert
+    expect(requests.map((request) => request.init?.body)).toEqual([`{"question":"${Q1}"}`]);
+    expect((field as HTMLInputElement).value).toBe(Q1);
+    expect(screen.getByRole('status').textContent).toBe(SEARCHING);
+  });
+
+  it('A pending question has no time limit of its own', async () => {
+    // Arrange: only the page's timers are fake; React's scheduler keeps the real ones (design D30). The
+    // press is a `fireEvent`: user-event waits on RTL's async wrapper, whose `setTimeout(0)` the fake
+    // clock would never fire.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const requests = stubFetch(neverAnswer);
+    renderAt(`/p/${PROJECT_ID}`);
+
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: Q1 }));
+    await act(() => vi.advanceTimersByTimeAsync(120_000));
+
+    // Assert
+    expect(screen.getByRole('status').textContent).toBe(SEARCHING);
+    expect(requests).toHaveLength(1);
+    expect(requests[0].init?.signal?.aborted).toBe(false);
+  });
+
+  it('Leaving the page aborts the pending question', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const requests = stubFetch(neverAnswer);
+    await renderScreen2();
+
+    // Act
+    await user.click(screen.getByRole('button', { name: Q1 }));
+    await user.click(screen.getByRole('link', { name: 'Volver a la selección de proyecto' }));
+    await screen.findByRole('heading', { level: 1, name: 'Elige un proyecto para explorar' });
+
+    // Assert
+    const askRequest = requests.find((request) => request.url === ASK_URL);
+    expect(askRequest?.init?.signal?.aborted).toBe(true);
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });
