@@ -86,12 +86,15 @@ describe('The demo guide runs the same in PowerShell and Bash', () => {
     // Assert: every block is a common command, output, or one side of a labelled pair
     expect(blocks.length).toBeGreaterThan(0);
     for (const block of blocks) expect(['shell', 'text', 'powershell', 'bash'], block.body).toContain(block.info);
-    blocks.forEach((block, index) => {
+    // Each shell-specific block opens a pair whose next block is the other shell's; the pair is then
+    // consumed, so `bash, powershell, bash` leaves the last block without its pair.
+    for (let index = 0; index < blocks.length; index += 1) {
+      const block = blocks[index];
       const other = block.info === 'powershell' ? 'bash' : block.info === 'bash' ? 'powershell' : undefined;
-      if (other === undefined) return;
-      const neighbours = [blocks[index - 1]?.info, blocks[index + 1]?.info];
-      expect(neighbours, block.body).toContain(other);
-    });
+      if (other === undefined) continue;
+      expect(blocks[index + 1]?.info, block.body).toBe(other);
+      index += 1;
+    }
 
     // Assert: no construct that differs between the two shells in a common block
     for (const block of blocks.filter((candidate) => candidate.info === 'shell')) {
