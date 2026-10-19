@@ -16,7 +16,7 @@ Proyecto Final del Máster AI4Devs · Cristina Rodríguez Núñez
 >
 > Las secciones marcadas con *(pendiente)* se completarán en la entrega que indican. La sección 7 recoge las pull requests reales de esta entrega, y la [sección 8](#8-flujo-de-trabajo-con-ia-y-sdd-harness-kit) el flujo de trabajo con IA con el que se han hecho.
 >
-> **Sobre la evidencia de funcionamiento:** el repositorio levantable en local (`make up`), el guion [`docs/DEMO.md`](docs/DEMO.md) con la salida real de cada paso y `npm run verify`. Los wireframes de las tres pantallas siguen en [1.3](#13-diseño-y-experiencia-de-usuario) como referencia visual de la web.
+> **Sobre la evidencia de funcionamiento:** el repositorio levantable en local (`npm run up`, el mismo comando en PowerShell y en Bash), el guion [`docs/DEMO.md`](docs/DEMO.md) con la salida real de cada paso y `npm run verify`. Los wireframes de las tres pantallas siguen en [1.3](#13-diseño-y-experiencia-de-usuario) como referencia visual de la web.
 >
 > **Recomendaciones de la revisión de la Entrega 1**
 >
@@ -72,7 +72,7 @@ Se diferencia de un asistente de código convencional en tres comportamientos ve
 
 La evidencia ejecutable es el propio repositorio público, levantado en local:
 
-https://github.com/DisTinta/AI4Devs-finalproject — clonar y seguir [1.4](#14-instrucciones-de-instalación) (`make up`).
+https://github.com/DisTinta/AI4Devs-finalproject — clonar y seguir [1.4](#14-instrucciones-de-instalación) (`npm run up`).
 
 No hay URL de servicio web alojado: quien evalúa prueba en su máquina con Docker y Node.
 
@@ -144,7 +144,7 @@ Desarrolladores que trabajan sobre código que no escribieron: incorporaciones a
 
 **F4 merece una nota**. Los wireframes de [1.3](#13-diseño-y-experiencia-de-usuario) muestran el diseño; F4 es la evidencia de que el sistema **funciona realmente**. Se concreta en un único camino garantizado:
 
-- **Local, en tres comandos.** Se clona el repositorio, se copia `.env.example` a `.env` (sin obligar a una API key) y se levanta con `make up`. Los dos proyectos de muestra quedan consultables. **Sin PHP instalado, sin clonar repositorios ajenos, sin esperar ningún indexado**, porque los grafos y las respuestas de evaluación van versionados como semillas SQL / caché.
+- **Local, en tres comandos.** Se clona el repositorio, se copia `.env.example` a `.env` (sin obligar a una API key) y se levanta con `npm run up`, el mismo comando en PowerShell y en Bash (`make up` es su atajo en Git Bash o WSL). Los dos proyectos de muestra quedan consultables. **Sin PHP instalado, sin clonar repositorios ajenos, sin esperar ningún indexado**, porque los grafos y las respuestas de evaluación van versionados como semillas SQL / caché.
 
 *Estado en la Entrega 2:* la semilla carga `acme-shop` (174 nodos y 170 aristas) con tres respuestas *golden*; `task-api` entra con el analizador TypeScript (CM-HU-18, Entrega 3). F1, F2, F4 y F5 funcionan por CLI y por `POST /ask`; F3 (impacto) y F6 (deriva documental) son de la Entrega 3, y F7 tiene hoy el acierto exacto por pregunta normalizada, sin similitud de embedding (CM-HU-19).
 
@@ -182,7 +182,7 @@ Los wireframes de las tres pantallas muestran el flujo completo del producto. La
 | Pantalla 2 — pregunta, preguntas sugeridas (las *golden*), afirmaciones tipadas con distintivos de tipo y de verificación, evidencia desplegable, panel de uso (confianza, tokens, coste, latencia, ahorro y caché), estados `UNKNOWN` y avisos de `429` y de error | Fusionado (DIS-65, PR #56; DIS-66, PR #57) |
 | Pantalla 3 — impacto | Entrega 3 (la CLI `impact` es un stub) |
 
-Con `npm run dev` (web en http://localhost:5173), los pasos 1 a 3 del recorrido de abajo se hacen ya en el navegador; el 4 (impacto) y el 6 (`task-api`) siguen siendo de la Entrega 3. [`docs/DEMO.md`](docs/DEMO.md) ejecuta los seis pasos por la CLI contra `acme-shop` y dice, en cada uno, qué hace hoy el sistema.
+Con `npm run up` (web en http://localhost:5173), los pasos 1 a 3 del recorrido de abajo se hacen ya en el navegador; el 4 (impacto) y el 6 (`task-api`) siguen siendo de la Entrega 3. [`docs/DEMO.md`](docs/DEMO.md) ejecuta los seis pasos por la CLI contra `acme-shop`, dice en cada uno qué hace hoy el sistema y recorre las dos pantallas en [Recorrido por la web](docs/DEMO.md#recorrido-por-la-web).
 
 #### Las tres pantallas
 
@@ -295,23 +295,26 @@ Al ser el arranque local **la única evidencia de que el sistema funciona ante q
 
 #### Camino corto — sistema operativo en tres comandos
 
-```bash
-git clone https://github.com/DisTinta/AI4Devs-finalproject && cd AI4Devs-finalproject
-cp .env.example .env               # DATABASE_URL del contenedor local; LLM opcional: ver variables abajo
-make up
+```shell
+git clone https://github.com/DisTinta/AI4Devs-finalproject
+cd AI4Devs-finalproject
+cp .env.example .env
+npm run up
 ```
 
-`make up` encapsula la secuencia completa:
+Los cuatro comandos son los mismos en PowerShell y en Bash. `.env.example` trae el `DATABASE_URL` del contenedor local y deja vacías las variables `LLM_*` (modo evaluación; ver las variables abajo). Si el puerto 5432 ya está ocupado, `docs/DEMO.md` → [Antes de empezar](docs/DEMO.md#antes-de-empezar) explica cómo cambiarlo (`POSTGRES_PORT`).
+
+`npm run up` (`scripts/up.mjs`) carga `.env` y encapsula la secuencia completa, escribiendo una línea `[up] <comando>` antes de cada paso; `make up` hace lo mismo desde Git Bash o WSL:
 
 ```bash
-docker compose up -d               # PostgreSQL 16 + pgvector
+docker compose up -d --wait        # PostgreSQL 16 + pgvector, esperando a que acepte conexiones
 npm install
 npm run db:migrate                 # esquema
 npm run db:seed                    # ← el repositorio de muestra YA indexado (+ caché de evaluación)
 npm run dev                        # API en :3000 · web en :5173
 ```
 
-`npm run dev` arranca la API desde `packages/api/src/server.ts` y necesita `DATABASE_URL` exportada (`make up` la exporta desde `.env`); sin ella la API imprime una sola línea `INVALID_CONFIG` en stderr y no arranca, mientras la web sigue en marcha. La API escucha en `127.0.0.1:3000` (no en todas las interfaces: no tiene autenticación); su documentación OpenAPI se abre en `http://localhost:3000/docs` (el documento en `/docs/json`). Conviene abrirla en `localhost` y no en `127.0.0.1`: el servidor declarado en el documento es `http://localhost:3000` y, desde otro origen, «Try it out» fallaría (no hay CORS). Si `localhost` resuelve a `::1` y no conecta, `HOST=::1` o `HOST=0.0.0.0` lo exponen de otra forma, como decisión explícita.
+`npm run dev` arranca la API desde `packages/api/src/server.ts` y necesita `DATABASE_URL`, que `npm run dev` lee de `.env` (una variable ya definida en la terminal gana sobre `.env`); sin ella la API imprime una sola línea `INVALID_CONFIG` en stderr y no arranca, mientras la web sigue en marcha. La API escucha en `127.0.0.1:3000` (no en todas las interfaces: no tiene autenticación); su documentación OpenAPI se abre en `http://localhost:3000/docs` (el documento en `/docs/json`). Conviene abrirla en `localhost` y no en `127.0.0.1`: el servidor declarado en el documento es `http://localhost:3000` y, desde otro origen, «Try it out» fallaría (no hay CORS). Si `localhost` resuelve a `::1` y no conecta, `HOST=::1` o `HOST=0.0.0.0` lo exponen de otra forma, como decisión explícita.
 
 Lo que imprime al terminar (extracto de la ejecución real del 17-10-2026; la salida completa está en el paso 0 de [`docs/DEMO.md`](docs/DEMO.md)):
 
@@ -332,16 +335,16 @@ Lo que imprime al terminar (extracto de la ejecución real del 17-10-2026; la sa
 
 #### El mismo flujo por CLI
 
-Sin necesidad de abrir la web (`projects` y `ask` necesitan `DATABASE_URL`):
+Sin necesidad de abrir la web (`projects` y `ask` leen `DATABASE_URL` de `.env`):
 
-```bash
+```shell
 npm run cli -- projects
 npm run cli -- ask acme-shop "¿Cómo se calcula el precio final de un pedido?"
 npm run cli -- impact acme-shop "cambiar el cálculo de descuentos"
 npm run cli -- ask task-api "¿Cómo se validan las peticiones entrantes?"
 ```
 
-**Estado en Entrega 2:** desde DIS-21, sin `LLM_*` (modo evaluación) `ask` responde desde la caché de respuestas del proyecto cualquier pregunta que ya tenga entrada (misma pregunta normalizada: sin distinguir mayúsculas, tildes, signos ni espacios), sin llamar al modelo y a coste 0. Desde DIS-26, `npm run db:seed` (y con él `make up`) carga además las respuestas *golden* versionadas en `seeds/cache/acme-shop.json` para tres preguntas de muestra de acme-shop: Q1 «¿Cómo se calcula el precio final de un pedido?», Q3 «¿Cómo se validan los cupones?» y Q4 «¿Qué hace OrderObserver al crear un pedido?». Esas tres responden al instante, sin modelo y a coste 0 (también escritas con otras mayúsculas, tildes o signos). Una pregunta sin entrada responde:
+**Estado en Entrega 2:** desde DIS-21, sin `LLM_*` (modo evaluación) `ask` responde desde la caché de respuestas del proyecto cualquier pregunta que ya tenga entrada (misma pregunta normalizada: sin distinguir mayúsculas, tildes, signos ni espacios), sin llamar al modelo y a coste 0. Desde DIS-26, `npm run db:seed` (y con él `npm run up`) carga además las respuestas *golden* versionadas en `seeds/cache/acme-shop.json` para tres preguntas de muestra de acme-shop: Q1 «¿Cómo se calcula el precio final de un pedido?», Q3 «¿Cómo se validan los cupones?» y Q4 «¿Qué hace OrderObserver al crear un pedido?». Esas tres responden al instante, sin modelo y a coste 0 (también escritas con otras mayúsculas, tildes o signos). Una pregunta sin entrada responde:
 
 ```text
 UNKNOWN (llm-required)
@@ -401,13 +404,26 @@ Los 2–3 min que cita la propuesta de DIS-74 no son el tiempo de una pregunta: 
 
 Lo que hay que configurar para que funcione con Ollama local:
 
+Arranca Ollama con un contexto de 16 384 tokens (sin esto, Ollama recorta el prompt a unos 2 000 tokens) y descarga el modelo. En Bash:
+
 ```bash
-OLLAMA_CONTEXT_LENGTH=16384 ollama serve        # sin esto, Ollama recorta el prompt a unos 2 000 tokens
+OLLAMA_CONTEXT_LENGTH=16384 ollama serve
+```
+
+En PowerShell:
+
+```powershell
+$env:OLLAMA_CONTEXT_LENGTH='16384'; ollama serve
+```
+
+```shell
 ollama pull qwen2.5-coder
-export DATABASE_URL=postgresql://codemind:codemind@localhost:5432/codemind
-export LLM_BASE_URL=http://localhost:11434/v1 LLM_MODEL=qwen2.5-coder LLM_API_KEY=
-export LLM_TIMEOUT_MS=300000                     # el máximo admitido
-npm run cli -- ask acme-shop "¿Qué hace DiscountService?"   # una pregunta que no está en la caché
+```
+
+En `.env`, define `LLM_BASE_URL=http://localhost:11434/v1`, `LLM_MODEL=qwen2.5-coder`, `LLM_API_KEY=` (vacía) y `LLM_TIMEOUT_MS=300000` (el máximo admitido), y haz una pregunta que no está en la caché (`npm run cli` lee `.env`):
+
+```shell
+npm run cli -- ask acme-shop "¿Qué hace DiscountService?"
 ```
 
 - **`OLLAMA_CONTEXT_LENGTH=16384`.** El prompt de `explain` ocupa entre 5 000 y 7 000 tokens. Con el contexto por defecto, Ollama lo recorta (`truncating input prompt` en su log), se pierde el *system prompt* y toda respuesta sale `UNKNOWN (invalid-model-output)`.
@@ -433,7 +449,8 @@ Hace cada pregunta golden de los repositorios de muestra (versionadas en `seeds/
 | `LLM_MODEL_VERIFY` | no | Modelo económico para la verificación de evidencias en vivo; sin él se usa `LLM_MODEL` |
 | `LLM_EMBED_MODEL` | no | Modelo de embeddings; sin él, los embeddings no están disponibles (sin usar `LLM_MODEL`). Sus vectores deben tener 1536 dimensiones, las de `vector(1536)` del esquema: `nomic-embed-text` (768) falla hasta que CM-HU-19 elija el modelo |
 | `LLM_TIMEOUT_MS` | no | Tiempo máximo por petición al LLM, en ms (entero de 1 a 300000: por encima, el `fetch` de Node corta la petición por su cuenta a los 300 s). Por defecto `120000`, para el arranque en frío de Ollama |
-| `DATABASE_URL` | **sí** (scripts `db:*`, `index` y la API) | Cadena de conexión de PostgreSQL. La API no arranca sin ella (`INVALID_CONFIG`). `.env.example` trae la del contenedor local; `make up` la toma de `.env` (el Makefile carga y exporta `.env`). Si ejecutas `npm run db:migrate` / `db:rollback` a mano, expórtala antes: sin ella salen con error |
+| `DATABASE_URL` | **sí** (scripts `db:*`, `index` y la API) | Cadena de conexión de PostgreSQL. La API no arranca sin ella (`INVALID_CONFIG`). `.env.example` trae la del contenedor local. Los comandos `npm run` de la guía (`up`, `dev`, `db:*`, `cli`, `verify`, `cache:build`, `seed:build` y `demo:ask`) la leen de `.env`, y una variable ya definida en la terminal gana sobre `.env`; sin ella en ninguno de los dos sitios, `db:migrate` / `db:rollback` salen con error |
+| `POSTGRES_PORT` | no | Puerto del host en el que `docker compose` publica PostgreSQL. Por defecto `5432`. Si lo cambias (otro programa ya usa el 5432), cambia también el puerto de `DATABASE_URL`: los dos van juntos |
 | `PORT` | no | Puerto de la API: solo dígitos, de 1 a 65535. Por defecto `3000` |
 | `HOST` | no | Dirección en la que escucha la API. Por defecto `127.0.0.1` (solo local); `0.0.0.0` la expone a la red, y la API no tiene autenticación |
 | `RATE_LIMIT_MAX` | no | Peticiones por IP dentro de la ventana: solo dígitos, de 1 a 1000000. Por defecto `30` |
@@ -655,7 +672,7 @@ En este proyecto, **«despliegue» (Entrega 3) significa artefacto reproducible*
 
 ```mermaid
 flowchart LR
-    DEV["Local<br/>make up<br/>Postgres + pgvector"]
+    DEV["Local<br/>npm run up<br/>Postgres + pgvector"]
     GH["GitHub<br/>fork de la plantilla"]
     CI["GitHub Actions<br/>lint · tipos · arquitectura · migraciones · tests · verify · mutación · secretos"]
     DB[("Postgres<br/>en Compose / CI")]
@@ -687,7 +704,7 @@ Cada pull request y cada push a una rama de entrega ejecutan, en `.github/workfl
 
 | Entorno | Cómo se levanta | Para qué sirve | Garantía |
 |---|---|---|---|
-| **Local** | `make up` — Docker y Node | Que quien evalúe pruebe el sistema y la CLI | **Única vía de evidencia.** No depende de un servidor de la autora |
+| **Local** | `npm run up` — Docker y Node, en PowerShell o Bash | Que quien evalúe pruebe el sistema y la CLI | **Única vía de evidencia.** No depende de un servidor de la autora |
 | **CI** | GitHub Actions con Postgres en contenedor | Que el artefacto no se rompa en cada push | Automatizada; misma semilla / verify |
 
 **Que local y CI usen el mismo Compose (o el mismo servicio Postgres + las mismas migraciones/semillas) es deliberado**: elimina la clase de fallo «en mi máquina funciona».
