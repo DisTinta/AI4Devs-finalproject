@@ -134,4 +134,4 @@
 - [x] 19.6 Run `/adversarial-review`; report `openspec/changes/cross-shell-demo-spanish-docs/reports/YYYY-MM-DD-adversarial-review.md`
 - [x] 19.7 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report
 - [x] 19.8 Commit the fixes to the same pull request; re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
-- [ ] 19.9 `/opsx:archive`, and commit the archive to the same pull request; the agent merges only after the archive commit and with CI green (ADR `20261016-autonomous-workflow-run-entrega-2`, DIS-102 within the run as recorded in Enhanced; otherwise stop before the merge and leave DIS-102 In Review)
+- [x] 19.9 `/opsx:archive`, and commit the archive to the same pull request; the agent merges only after the archive commit and with CI green (ADR `20261016-autonomous-workflow-run-entrega-2`, DIS-102 within the run as recorded in Enhanced; otherwise stop before the merge and leave DIS-102 In Review)

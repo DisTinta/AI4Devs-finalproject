@@ -91,7 +91,7 @@ check SHALL NOT move the focus, whatever its outcome. When
 the check fails for any reason other than the page itself cancelling it (an unavailable API, an API
 error answer, or the health check's time limit), the page SHALL show an alert (role `alert`) between the
 subtitle and the list of projects, with the text «La API de CODEMIND no está disponible. Puedes ver los
-proyectos, pero no preguntar hasta que vuelva. Arráncala con make up y pulsa Reintentar.» and a button
+proyectos, pero no preguntar hasta que vuelva. Arráncala con npm run up y pulsa Reintentar.» and a button
 «Reintentar», and no card SHALL show «listo» nor «comprobando…»; the cards and their links stay as they
 are.
 
