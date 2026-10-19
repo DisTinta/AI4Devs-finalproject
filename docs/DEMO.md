@@ -282,8 +282,11 @@ class PriceCalculator
 They are the lines of the excerpt that the CLI printed (the first five) and the API returned (all
 of them).
 
-> **Entrega 2.** The web has no screens yet: the expandable evidence of Screen 2 arrives with DIS-65.
-> Until then the citation is checked against the file, as here.
+> **Entrega 2.** The web shows Screen 1 at `http://localhost:5173/` (DIS-60): the acme-shop card with
+> its four counts, «indexado» and, once the API answers its health check, «listo». With the API stopped
+> the cards stay and an alert «La API de CODEMIND no está disponible…» offers «Reintentar». «Explorar
+> proyecto» still leads to the Screen 2 placeholder: the expandable evidence of Screen 2 arrives with
+> DIS-65. Until then the citation is checked against the file, as here.
 
 ## Step 3 — Ask something the repository cannot answer
 

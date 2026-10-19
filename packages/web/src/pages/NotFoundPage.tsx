@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { Link } from 'react-router';
+import { BackToPickerLink } from '../components/BackToPickerLink';
 import { PageFrame } from '../components/PageFrame';
 
 /**
@@ -12,12 +12,7 @@ export function NotFoundPage(): ReactElement {
   return (
     <PageFrame>
       <h1 className="text-lg font-semibold text-ink-muted">Página no encontrada</h1>
-      <Link
-        to="/"
-        className="mt-2 inline-block text-sm text-accent underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-      >
-        Volver a la selección de proyecto
-      </Link>
+      <BackToPickerLink />
     </PageFrame>
   );
 }

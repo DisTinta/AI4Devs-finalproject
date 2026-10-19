@@ -71,6 +71,15 @@ Verified against `package.json` (root and per package). If a command is not here
   the API stopped, start the API and the web as two processes (the root `npm run dev` kills Vite when
   the API exits); a stopped API answers through the proxy as an empty `500`, which the client reports
   as `ApiUnavailableError`.
+- Web screens (DIS-60): `packages/web/src/router.tsx` exports `routes`, one pathless root route whose
+  `errorElement` is the app's error screen (`pages/RouteErrorPage.tsx`, «Algo ha fallado», never the
+  error's message) and whose children are `/` → Screen 1 (`pages/ProjectPickerPage.tsx`), `/p/:projectId`
+  → the Screen 2 placeholder and `*` → not found. Screen 1 paints one card per project of
+  `SAMPLE_PROJECTS` (`packages/web/src/data/sample-projects.ts`) with no request, and checks the API with
+  `getHealth` in an effect (`pages/useApiHealth.ts`), not in a React Router loader, so the `Request`
+  workaround of `tests/support/jsdom-setup.ts` still holds. «comprobando…» while the first check runs,
+  «listo» when it answers, and an alert with «Reintentar» when it does not (no automatic retry). In
+  development `StrictMode` sends `/health` twice (the first is aborted).
 - Accessibility gate: `npm run test:a11y` (root) = `vitest run tests/a11y` — axe over the real routes
   (see Testing).
 - Tests (full): `npm test` or `npx vitest run` (root `vitest.config.ts`). `fixtures/**` is excluded
@@ -204,7 +213,10 @@ Verified against `package.json` (root and per package). If a command is not here
   navigation with Node's `Request` and jsdom's `AbortController`. That workaround is safe only while
   the app has no loader or action: **the ticket that adds one must revisit it**. `.tsx` tests compile
   with `esbuild.jsx: 'automatic'`. Use RTL accessible queries and `user-event`; mock the network with
-  `vi.stubGlobal('fetch', …)`. `tests/unit/web/` holds the Vite proxy table test and the type-level
+  `vi.stubGlobal('fetch', …)`. A test that renders `/` should stub `fetch` (Screen 1 calls `GET /health` on
+  mount; Node's real `fetch` rejects under jsdom, so the page would show the API-unavailable alert); the
+  pre-DIS-60 tests that render `/` without a stub still pass, since none asserts the alert's absence.
+  `tests/unit/web/` holds the Vite proxy table test and the type-level
   contract test `api-contract.spec.ts` (`expectTypeOf` of the client types against the API's Zod
   types, by relative path; it fails `npm run typecheck`, not Vitest). Stryker excludes
   `packages/web/**`, `tests/a11y/**` and `tests/unit/web/**` (`vitest.stryker.config.ts`): it mutates
