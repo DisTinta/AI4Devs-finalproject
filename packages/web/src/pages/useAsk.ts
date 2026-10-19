@@ -22,9 +22,9 @@ export interface AskSession {
   send: (question: string) => void;
 }
 
-/** The state of an `UNKNOWN`: its reason, and the API's message only when it sent one (DIS-66 design D18). */
+/** The state of an `UNKNOWN`: its reason and the API's message, when it sent one (DIS-66 design D18). */
 function unknownState({ reason, message }: AskUnknown): AskState {
-  return message === undefined ? { status: 'unknown', reason } : { status: 'unknown', reason, message };
+  return { status: 'unknown', reason, message };
 }
 
 /** Whether a `200` body is an `UNKNOWN`. */
