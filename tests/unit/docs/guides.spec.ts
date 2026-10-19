@@ -21,6 +21,8 @@ interface Fence {
   body: string;
   /** The level-2 section the block is in (its heading, without `## `). */
   section: string;
+  /** How many headings (any level) come before the block. */
+  headingsBefore: number;
 }
 
 /** A level-2 section: its heading and its text, fenced blocks included. */
@@ -34,15 +36,17 @@ function fences(markdown: string): Fence[] {
   const blocks: Fence[] = [];
   let open: { info: string; lines: string[] } | undefined;
   let section = '';
+  let headings = 0;
   for (const line of markdown.split('\n')) {
     if (open === undefined && line.startsWith('## ')) section = line.slice(3).trim();
+    if (open === undefined && /^#{1,6} /.test(line)) headings += 1;
     const fence = /^```(.*)$/.exec(line);
     if (fence === null) {
       open?.lines.push(line);
     } else if (open === undefined) {
       open = { info: fence[1].trim(), lines: [] };
     } else {
-      blocks.push({ info: open.info, body: open.lines.join('\n'), section });
+      blocks.push({ info: open.info, body: open.lines.join('\n'), section, headingsBefore: headings });
       open = undefined;
     }
   }
@@ -93,6 +97,8 @@ describe('The demo guide runs the same in PowerShell and Bash', () => {
       const other = block.info === 'powershell' ? 'bash' : block.info === 'bash' ? 'powershell' : undefined;
       if (other === undefined) continue;
       expect(blocks[index + 1]?.info, block.body).toBe(other);
+      // Only text between the two blocks: no heading
+      expect(blocks[index + 1]?.headingsBefore, block.body).toBe(block.headingsBefore);
       index += 1;
     }
 
