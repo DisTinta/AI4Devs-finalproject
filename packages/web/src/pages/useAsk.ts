@@ -4,8 +4,8 @@ import { ApiError, ask, type AskAnswered, type AskResponse, type AskUnknown } fr
 
 /**
  * What Screen 2 knows about its question (ask-page; DIS-65 design D22): nothing sent yet, a question
- * pending, an answered question, an `UNKNOWN` with its reason and the API's message (DIS-66 design D18), or a
- * failure.
+ * pending, an answered question, an `UNKNOWN` with its reason and the API's message, or a failure with the
+ * API's code and details (DIS-66 design D18).
  */
 export type AskState =
   | { status: 'idle' }
@@ -36,7 +36,8 @@ function isUnknown(response: AskResponse): response is AskUnknown {
 function failedState(failure: unknown): AskState {
   return {
     status: 'failed',
-    failure: failure instanceof ApiError
+    failure:
+      failure instanceof ApiError
         ? { kind: 'api', code: failure.code, details: failure.details }
         : { kind: 'unavailable' },
   };

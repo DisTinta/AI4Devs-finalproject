@@ -69,9 +69,10 @@ function announcementOf(state: AskState): string {
 }
 
 /**
- * The result area: nothing before the first question, then the pending text, the answer or a notice
- * (DIS-65 design D7, D10). The pending text takes the place of whatever was shown before; it is hidden
- * from assistive technology because the status region announces it (DIS-66 design D22).
+ * The result area: nothing before the first question, then the pending text, the answer and its usage
+ * panel, an `UNKNOWN` state or the configuration notice, or an error notice (DIS-65 design D7, D10; DIS-66
+ * design D7, D8, D21). The pending text takes the place of whatever was shown before; it is hidden from
+ * assistive technology because the status region announces it (DIS-66 design D22).
  */
 function ResultArea({ state, hasSuggestions }: { state: AskState; hasSuggestions: boolean }): ReactElement | null {
   if (state.status === 'pending') {
@@ -89,11 +90,12 @@ function ResultArea({ state, hasSuggestions }: { state: AskState; hasSuggestions
       </>
     );
   }
-  if (state.status === 'unknown' && state.reason !== 'llm-required') {
-    return <UnknownState reason={state.reason} />;
-  }
   if (state.status === 'unknown') {
-    return <LlmRequiredNotice message={state.message} hasSuggestions={hasSuggestions} />;
+    return state.reason === 'llm-required' ? (
+      <LlmRequiredNotice message={state.message} hasSuggestions={hasSuggestions} />
+    ) : (
+      <UnknownState reason={state.reason} />
+    );
   }
   if (state.status === 'failed') {
     return <AskErrorNotice failure={state.failure} />;
@@ -103,8 +105,9 @@ function ResultArea({ state, hasSuggestions }: { state: AskState; hasSuggestions
 
 /**
  * Screen 2 of the web client, on `/p/{projectId}` (ask-page; DIS-65 design D3, D22, D27): the project bar
- * as banner, then the question box, the suggested questions and the result area. It sends no request
- * until a question is sent; it composes the components and the page hook and implements nothing else.
+ * as banner, then the question box, the suggested questions, the result area and the visually hidden
+ * status region that announces each outcome (DIS-66 design D11, D22). It sends no request until a question
+ * is sent; it composes the components and the page hook and implements nothing else.
  *
  * @param props - The project id of the path.
  * @returns The project query page.
