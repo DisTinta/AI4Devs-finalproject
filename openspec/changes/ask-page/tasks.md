@@ -62,9 +62,9 @@ Every test of this change follows Arrange-Act-Assert with the three blocks comme
 
 ## 9. Accessibility (TDD, design D18, D20, D25) — `ask-page` → "Accessibility of Screen 2"
 
-- [ ] 9.1 RED → GREEN: in `AskPage.test.tsx`, "The tab order follows question, suggestions and evidence" (answer of 6.1; `document.activeElement.blur()` so the body has the focus; eight `user.tab()`; record each `document.activeElement` and compare with the eight expected elements in order)
-- [ ] 9.2 RED → GREEN: create `tests/a11y/ask-page.a11y.test.tsx` with "Screen 2 has no axe violations in any of its states" (`lang="es"`, `document.title = 'CODEMIND'`; one render per state with its own `fetch` double — pending, answered with `ev-1` expanded, invalid message, `UNKNOWN` status, `429` alert —, `axe.run(document)` each, `unmount()` between; the five violation lists equal `[]`, failing rule ids printed). Observe it fail once by removing the `aria-label` of the back link locally (axe rule `link-name`; not committed) and record it in the step 12 report
-- [ ] 9.3 `npm run test:a11y` runs the three files (the gate, Screen 1's and Screen 2's) and passes, the gate unedited; `npm run typecheck` green (the `.tsx` is compiled by `tests/a11y/tsconfig.json`)
+- [x] 9.1 RED → GREEN: in `AskPage.test.tsx`, "The tab order follows question, suggestions and evidence" (answer of 6.1; `document.activeElement.blur()` so the body has the focus; eight `user.tab()`; record each `document.activeElement` and compare with the eight expected elements in order)
+- [x] 9.2 RED → GREEN: create `tests/a11y/ask-page.a11y.test.tsx` with "Screen 2 has no axe violations in any of its states" (`lang="es"`, `document.title = 'CODEMIND'`; one render per state with its own `fetch` double — pending, answered with `ev-1` expanded, invalid message, `UNKNOWN` status, `429` alert —, `axe.run(document)` each, `unmount()` between; the five violation lists equal `[]`, failing rule ids printed). Observe it fail once by removing the `aria-label` of the back link locally (axe rule `link-name`; not committed) and record it in the step 12 report
+- [x] 9.3 `npm run test:a11y` runs the three files (the gate, Screen 1's and Screen 2's) and passes, the gate unedited; `npm run typecheck` green (the `.tsx` is compiled by `tests/a11y/tsconfig.json`)
 
 ## 10. Review and Update Existing Tests (MANDATORY)
 

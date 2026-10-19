@@ -728,3 +728,37 @@ describe('Provisional notice for what is not an answer', () => {
     ]);
   });
 });
+
+describe('Accessibility of Screen 2', () => {
+  it('The tab order follows question, suggestions and evidence', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    stubFetch(answerWith(200, ANSWERED));
+    await renderScreen2();
+    await user.click(screen.getByRole('button', { name: Q1 }));
+    await screen.findByRole('heading', { level: 2, name: 'Respuesta' });
+    (document.activeElement as HTMLElement).blur();
+    const startsOnBody = document.activeElement === document.body;
+    const expected = [
+      screen.getByRole('link', { name: 'Volver a la selección de proyecto' }),
+      screen.getByRole('textbox', { name: 'Pregunta' }),
+      screen.getByRole('button', { name: 'Preguntar' }),
+      screen.getByRole('button', { name: Q1 }),
+      screen.getByRole('button', { name: Q3 }),
+      screen.getByRole('button', { name: Q4 }),
+      screen.getByRole('button', { name: EV1_NAME }),
+      screen.getByRole('button', { name: EV2_NAME }),
+    ];
+
+    // Act
+    const visited: Array<Element | null> = [];
+    for (let presses = 0; presses < 8; presses += 1) {
+      await user.tab();
+      visited.push(document.activeElement);
+    }
+
+    // Assert
+    expect(startsOnBody).toBe(true);
+    expect(visited).toEqual(expected);
+  });
+});
