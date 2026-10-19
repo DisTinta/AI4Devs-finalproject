@@ -307,8 +307,8 @@ alone):
 
 | Value | Badge |
 |---|---|
-| `savingsPct` greater than 0 | «ahorro <savings> % vs bruto», in the success colours |
-| `savingsPct` 0 or less | «sin ahorro vs bruto», in the muted colours |
+| `savingsPct`, rounded to one decimal, greater than 0 | «ahorro <savings> % vs bruto», in the success colours |
+| `savingsPct`, rounded to one decimal, 0 or less | «sin ahorro vs bruto», in the muted colours |
 | `cacheHit` `true` | «caché ✓», the ✓ hidden from assistive technology, in the accent colours |
 | `cacheHit` `false` | «sin caché», in the muted colours |
 
@@ -376,7 +376,7 @@ time zone:
 | the input tokens of the baseline line | the number with its digit groups, without a noun |
 | cost | «$0» when it is 0; «< $0.001» when it is greater than 0 and rounds to 0.000; otherwise «$» and the amount with exactly three decimals |
 | latency | «<n> ms» under 1 000 ms; otherwise the seconds with exactly one decimal and « s» |
-| savings | when greater than 0, «ahorro <savings> % vs bruto» with the value rounded to one decimal and no trailing «.0»; otherwise «sin ahorro vs bruto» |
+| savings | rounded to one decimal; when the rounded value is greater than 0, «ahorro <savings> % vs bruto» with that value and no trailing «.0»; otherwise «sin ahorro vs bruto», so no badge reads «ahorro 0 %» |
 
 The details of an API error SHALL be read only when they have the expected type and form, and are
 otherwise treated as absent: the reset time of an exhausted budget is `details.resetsAt` when it is a
@@ -415,9 +415,9 @@ wait of a rate limit is `details.retryAfterSeconds` when it is a whole number of
 #### Scenario: Savings are written only when there are savings
 
 - **GIVEN** the usage writer of Screen 2
-- **WHEN** it is given the savings `88`, `88.3`, `100`, `0` and `-24.9`
-- **THEN** it writes «ahorro 88 % vs bruto», «ahorro 88.3 % vs bruto», «ahorro 100 % vs bruto», «sin
-  ahorro vs bruto» and «sin ahorro vs bruto»
+- **WHEN** it is given the savings `88`, `88.3`, `100`, `0`, `-24.9`, `0.04` and `-0.04`
+- **THEN** it writes «ahorro 88 % vs bruto», «ahorro 88.3 % vs bruto», «ahorro 100 % vs bruto», and «sin
+  ahorro vs bruto» for the other four
 
 #### Scenario: The budget reset time is written in UTC
 
@@ -508,11 +508,11 @@ announcements of Screen 2"). Every text of the API is rendered as text.
 ### Requirement: Error, rate-limit and budget notices
 
 Every failure of a sent question, except the page's own abort, SHALL show in the result area exactly one
-element with role `alert`, in the warning colours, holding first «No se ha podido obtener la respuesta.»
-and then the lines of its case; never an empty area, and no heading «Respuesta», no usage panel and no
-button. The notice SHALL NOT move the focus, and it offers no retry: sending a question again asks again
-("Pending question"). An API error is told apart by the code of the API's error format, whatever its HTTP
-status:
+element with role `alert`, in the warning colours, with a decorative ⚠ hidden from assistive technology,
+holding first «No se ha podido obtener la respuesta.» and then the lines of its case; never an empty
+area, and no heading «Respuesta», no usage panel and no button. The notice SHALL NOT move the focus, and
+it offers no retry: sending a question again asks again ("Pending question"). An API error is told apart
+by the code of the API's error format, whatever its HTTP status:
 
 | Failure | Lines after «No se ha podido obtener la respuesta.» |
 |---|---|
@@ -537,8 +537,9 @@ written". Only `BUDGET_EXHAUSTED` and `LLM_UNAVAILABLE` say that cached question
   la respuesta.», «Se ha agotado el presupuesto diario del modelo de lenguaje.», «Las preguntas que ya
   están en caché siguen respondiendo, sin coste.», «El presupuesto se renueva el 2026-10-20 a las 00:00
   UTC.» and «Código: BUDGET_EXHAUSTED.»; in the second it holds the same lines except «El presupuesto se
-  renueva…»; in both it holds no button, there is no heading «Respuesta», the element with role `status`
-  is empty, and the focus is still on the pressed button
+  renueva…»; in both it holds no button, its ⚠ is inside an element hidden from assistive technology,
+  there is no heading «Respuesta», the element with role `status` is empty, and the focus is still on the
+  pressed button
 
 #### Scenario: A rate limit says how long to wait
 

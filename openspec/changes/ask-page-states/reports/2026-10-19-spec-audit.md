@@ -224,3 +224,24 @@ Enhanced description with D17–D32 and the F2/F6 notes.
   status region's text is never visible.
 
 No blocking finding remains; the change may enter the apply.
+
+## Addendum — pre-merge review (2026-10-19)
+
+`/verify-against-spec` (task 15.3) found two behaviours of the code that the spec did not state, both
+wanted (V1, V2; design D37). `/opsx:update` revised `specs/ask-page/spec.md`:
+
+- "Usage panel" and "How usage figures and notice details are written": the savings badge decides on the
+  value rounded to one decimal, so a value that rounds to 0 reads «sin ahorro vs bruto» and no badge reads
+  «ahorro 0 %» (design D33). The scenario "Savings are written only when there are savings" gains the
+  inputs `0.04` and `-0.04`; its Node test in `usage-display.test.ts` failed with the badge deciding on
+  the raw value locally (`ahorro 0 % vs bruto`) and passes with the committed code.
+- "Error, rate-limit and budget notices": every alert carries a decorative ⚠ hidden from assistive
+  technology. "An exhausted budget says the cached questions still answer" now asserts it; its test in
+  `AskPage.test.tsx` failed with the icon's `aria-hidden` removed locally and passes with the committed
+  code.
+
+Re-check of the affected audit points: ambiguity (the savings row now names the rounding the scenario
+"No saving is not shown as a saving" already required), contradictions inside the change (the two
+savings tables, D33 and D37 agree), contrast with the real code (`usage-display.ts:95-98`,
+`AskErrorNotice.tsx:25`) and traceability (both scenarios keep their test of the same name and their
+tasks, 1.6 and 6.1/6.2; the fix is task 15.5) — clean. `openspec validate ask-page-states` passes.

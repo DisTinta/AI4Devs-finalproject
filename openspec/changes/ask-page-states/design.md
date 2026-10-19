@@ -319,6 +319,26 @@ After D22 two elements hold «Buscando evidencia…» (the status region and the
 scan waits with `findByText(…, { selector: '[aria-hidden="true"]' })`: the visible text, as task 5.3
 asks, without matching the status region.
 
+### D37 — The spec states the rounded savings threshold and the alert's ⚠ (taken in the pre-merge review)
+
+`/verify-against-spec` found two behaviours the code has and the spec did not say. D33 made the savings
+badge decide on the value rounded to one decimal, but both savings tables still read «greater than 0»
+(literally, 0.04 would read «ahorro 0 % vs bruto»); and the failure alert draws a decorative ⚠ hidden from
+assistive technology (task 6.2) that the requirement never mentioned, while the ○ of the state without
+evidence is in the spec. Both were wanted, so `/opsx:update` added them to the spec instead of removing
+them: the two tables say «rounded to one decimal», "Savings are written only when there are savings" gains
+the inputs `0.04` and `-0.04`, and "An exhausted budget says the cached questions still answer" pins the
+hidden ⚠. The API never sends a value in (−0.05, 0.05) other than 0 (`packages/core/src/explain/usage.ts`
+returns whole tenths and maps −0 to 0), so no screen changes.
+
+### D38 — A separator travels with the figure after it (taken in the pre-merge review)
+
+At 320 px the figures of the usage strip wrapped one by one, so a line could end in a lone « · » («$0 ·»,
+then «36 ms» on the next line; step 12 and `/show-spec-working` screenshots). Each separator and the
+figure after it now share one `whitespace-nowrap` span, so a line breaks before a separator, never after
+it. The text, its order and the hidden separators are unchanged; jsdom has no layout, so the check is the
+browser at 320 px (adversarial-review report).
+
 ## Risks / Trade-offs
 
 - [Screen readers differ in how they announce a persistent status region] → the region exists from the
@@ -341,5 +361,14 @@ with the change.
 
 ## Follow-ups
 
-None yet. Findings of the pre-merge review get an A/B/C/D destination here
-(`docs/project-context.md` → Tracking deferred findings).
+Every finding of the pre-merge review (`reports/2026-10-19-verify-against-spec.md`,
+`reports/2026-10-19-adversarial-review.md`) with its destination (`docs/project-context.md` → Tracking
+deferred findings):
+
+| Id | Severity | Finding | Destination |
+|---|---|---|---|
+| V1 | Minor | The savings tables said «greater than 0» while the badge decides on the rounded value (D33) | **A** — fixed in this change: spec (D37) and the Node test of its scenario |
+| V2 | Minor | The alert's decorative ⚠ was not in the spec | **A** — fixed in this change: spec (D37) and the RTL test of its scenario |
+| AR1 | Minor | At 320 px a line of the usage strip could end in a lone « · » | **A** — fixed in this change (D38), checked in the browser |
+| AR2 | Question | The RTL usage scenarios find «$0» and «0 tokens» as substrings; the exact forms are pinned by the Node scenarios of `usage-display.test.ts` | **D** — accepted: the layering is deliberate (D19), no change |
+| AR3 | Question | No `security-reviewer` run: the diff adds no server input, rate limit, secret or personal data; the client only renders the API's `message`, `code` and `details` as text | **D** — accepted, pinned by "Texts of the API in a state are shown as text" and "An API error names its code" |

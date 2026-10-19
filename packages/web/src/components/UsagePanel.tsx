@@ -16,14 +16,22 @@ const BADGE = 'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 font-se
 /** The theme pair of a muted badge: «sin ahorro vs bruto» and «sin caché» (design D4, D5, D30). */
 const MUTED_BADGE = `${BADGE} border border-border bg-canvas text-ink-muted`;
 
-/** The « · » between two figures, hidden from assistive technology. */
-function Separator(): ReactElement {
-  return <span aria-hidden="true">·</span>;
+/**
+ * A figure after the first one, with the « · » before it hidden from assistive technology. The separator
+ * and the figure never break apart, so a wrapped line never ends in a lone « · » (design D38).
+ */
+function NextFigure({ children }: { children: string }): ReactElement {
+  return (
+    <span className="inline-flex gap-x-2 whitespace-nowrap">
+      <span aria-hidden="true">·</span>
+      <span>{children}</span>
+    </span>
+  );
 }
 
 /**
- * The usage panel of an answered question (ask-page, "Usage panel"; DIS-66 design D2–D6, D21, D25, D30):
- * a section on the canvas background named by its visually hidden level-2 heading «Uso», with the
+ * The usage panel of an answered question (ask-page, "Usage panel"; DIS-66 design D2–D6, D21, D25, D30,
+ * D38): a section on the canvas background named by its visually hidden level-2 heading «Uso», with the
  * confidence, the tokens, the cost and the latency separated by « · », the savings badge, the cache badge
  * and the baseline line. Every badge has its text, never colour alone; the panel holds no control.
  *
@@ -44,12 +52,9 @@ export function UsagePanel({ confidence, usage }: UsagePanelProps): ReactElement
             <span>
               Confianza <strong className="text-sm font-bold text-ink">{formatConfidence(confidence)}</strong>
             </span>
-            <Separator />
-            <span>{formatTokens(usage.inputTokens, usage.outputTokens)}</span>
-            <Separator />
-            <span>{formatCost(usage.costUsd)}</span>
-            <Separator />
-            <span>{formatLatency(usage.latencyMs)}</span>
+            <NextFigure>{formatTokens(usage.inputTokens, usage.outputTokens)}</NextFigure>
+            <NextFigure>{formatCost(usage.costUsd)}</NextFigure>
+            <NextFigure>{formatLatency(usage.latencyMs)}</NextFigure>
           </p>
           <p className="flex flex-wrap gap-2">
             <span className={savings.saving ? `${BADGE} bg-success-soft text-success` : MUTED_BADGE}>{savings.text}</span>

@@ -71,7 +71,7 @@ describe('How usage figures and notice details are written', () => {
 
   it('Savings are written only when there are savings', () => {
     // Arrange
-    const savings = [88, 88.3, 100, 0, -24.9];
+    const savings = [88, 88.3, 100, 0, -24.9, 0.04, -0.04];
 
     // Act
     const badges = savings.map((savingsPct) => savingsBadge(savingsPct));
@@ -81,6 +81,8 @@ describe('How usage figures and notice details are written', () => {
       { text: 'ahorro 88 % vs bruto', saving: true },
       { text: 'ahorro 88.3 % vs bruto', saving: true },
       { text: 'ahorro 100 % vs bruto', saving: true },
+      { text: 'sin ahorro vs bruto', saving: false },
+      { text: 'sin ahorro vs bruto', saving: false },
       { text: 'sin ahorro vs bruto', saving: false },
       { text: 'sin ahorro vs bruto', saving: false },
     ]);

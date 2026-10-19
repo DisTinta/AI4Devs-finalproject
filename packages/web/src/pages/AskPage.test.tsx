@@ -1174,6 +1174,7 @@ async function alertAfterQ3(answer: () => Promise<Response>): Promise<Record<str
     status: screen.getByRole('status').textContent,
     focusOnPressed: document.activeElement === suggestion,
     italics: screen.getByRole('main').querySelectorAll('i').length,
+    warningIconHidden: textNodesWith(alert, '⚠').map((icon) => icon.parentElement?.closest('[aria-hidden="true"]') !== null),
   };
   unmount();
   return shown;
@@ -1192,7 +1193,7 @@ describe('Error, rate-limit and budget notices', () => {
     ];
 
     // Assert
-    const shown = { alerts: 1, buttons: 0, answer: false, status: '', focusOnPressed: true, italics: 0 };
+    const shown = { alerts: 1, buttons: 0, answer: false, status: '', focusOnPressed: true, italics: 0, warningIconHidden: [true] };
     const budgetLines = [
       FAILED,
       'Se ha agotado el presupuesto diario del modelo de lenguaje.',
