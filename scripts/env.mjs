@@ -6,6 +6,7 @@
  *
  * Spec: `local-startup` → "The .env file grammar" and "Loading .env into a process".
  */
+import { readFileSync } from 'node:fs';
 
 /** The UTF-8 byte-order mark some editors write at the start of a file. */
 const BYTE_ORDER_MARK = 0xfeff;
@@ -48,4 +49,29 @@ export function parseEnv(text) {
     if (match !== null) values[match[1]] = readValue(match[2]);
   }
   return values;
+}
+
+/**
+ * Loads the `.env` file at `path` into `env`: a key `env` already holds, even with an empty value,
+ * keeps its value, so a variable set in the shell wins over the file. A missing file changes nothing
+ * and prints nothing; a file that cannot be read changes nothing and writes one warning line with
+ * the error code. No key or value is ever printed.
+ *
+ * @param {string} path - The `.env` file to read.
+ * @param {Record<string, string | undefined>} env - The environment to fill, changed in place.
+ * @param {{ write(chunk: string): unknown }} stderr - Where the warning goes.
+ * @returns {void}
+ */
+export function loadEnvFile(path, env, stderr) {
+  let text;
+  try {
+    text = readFileSync(path, 'utf8');
+  } catch (error) {
+    const code = /** @type {NodeJS.ErrnoException} */ (error).code;
+    if (code !== 'ENOENT') stderr.write(`warning: .env not read (${code ?? 'unknown'})\n`);
+    return;
+  }
+  for (const [key, value] of Object.entries(parseEnv(text))) {
+    if (!Object.hasOwn(env, key)) env[key] = value;
+  }
 }

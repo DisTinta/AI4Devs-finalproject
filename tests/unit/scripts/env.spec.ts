@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest';
-import { parseEnv } from '../../../scripts/env.mjs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it } from 'vitest';
+import { loadEnvFile, parseEnv } from '../../../scripts/env.mjs';
 
 // Spec: openspec/changes/cross-shell-demo-spanish-docs/specs/local-startup/spec.md → "The .env file
 // grammar" and "Loading .env into a process" (DIS-102 design D2, D3, D12). Each test is one scenario,
@@ -47,5 +50,83 @@ describe('The .env file grammar', () => {
 
     // Assert
     expect(values).toEqual({ F: '"open', G: '2' });
+  });
+});
+
+/** A stream double that records every write. */
+function recorder(): { write: (chunk: string) => boolean; text: () => string } {
+  const chunks: string[] = [];
+  return {
+    write: (chunk: string) => {
+      chunks.push(chunk);
+      return true;
+    },
+    text: () => chunks.join(''),
+  };
+}
+
+const directories: string[] = [];
+
+/** A new temporary directory, removed after the test. */
+function temporaryDirectory(): string {
+  const directory = mkdtempSync(join(tmpdir(), 'codemind-env-'));
+  directories.push(directory);
+  return directory;
+}
+
+/** A temporary `.env` file holding `lines`, one per line. */
+function temporaryEnvFile(lines: string[]): string {
+  const path = join(temporaryDirectory(), '.env');
+  writeFileSync(path, lines.join('\n') + '\n');
+  return path;
+}
+
+afterEach(() => {
+  for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true });
+});
+
+describe('Loading .env into a process', () => {
+  it('Values of .env fill only the variables the environment lacks', () => {
+    // Arrange
+    const path = temporaryEnvFile(['DATABASE_URL=from-file', 'PORT=4000', 'LLM_MODEL=m']);
+    const env: Record<string, string | undefined> = { DATABASE_URL: 'from-env', PORT: '' };
+    const stderr = recorder();
+
+    // Act
+    loadEnvFile(path, env, stderr);
+
+    // Assert
+    expect(env).toEqual({ DATABASE_URL: 'from-env', PORT: '', LLM_MODEL: 'm' });
+    expect(stderr.text()).toBe('');
+  });
+
+  it('Without .env the environment is unchanged', () => {
+    // Arrange
+    const path = join(temporaryDirectory(), '.env');
+    const env: Record<string, string | undefined> = { DATABASE_URL: 'from-env' };
+    const stderr = recorder();
+
+    // Act
+    loadEnvFile(path, env, stderr);
+
+    // Assert
+    expect(env).toEqual({ DATABASE_URL: 'from-env' });
+    expect(stderr.text()).toBe('');
+  });
+
+  it('An unreadable .env is skipped with a warning', () => {
+    // Arrange: a directory where the file should be
+    const path = temporaryDirectory();
+    const env: Record<string, string | undefined> = { DATABASE_URL: 'from-env' };
+    const stderr = recorder();
+
+    // Act
+    loadEnvFile(path, env, stderr);
+
+    // Assert
+    expect(env).toEqual({ DATABASE_URL: 'from-env' });
+    const lines = stderr.text().split('\n').filter((line) => line !== '');
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatch(/^warning: \.env not read \(.+\)$/);
   });
 });
