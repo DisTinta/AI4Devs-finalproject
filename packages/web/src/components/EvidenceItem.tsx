@@ -37,7 +37,7 @@ export function EvidenceItem({ evidence }: EvidenceItemProps): ReactElement {
       {expanded ? (
         <pre
           id={excerptId}
-          className="mt-1 overflow-x-auto rounded-button border border-border bg-canvas px-3 py-2 text-xs text-ink"
+          className="mt-1 whitespace-pre-wrap wrap-break-word rounded-button border border-border bg-canvas px-3 py-2 text-xs text-ink"
         >
           <code>{excerpt}</code>
         </pre>

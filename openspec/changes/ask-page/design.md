@@ -147,7 +147,7 @@ CODEMIND no responde.». No retry button (the person retries by sending again). 
 `EvidenceList` (`h2` «Evidencia», `ul`) with one `EvidenceItem` per evidence in API order: a
 `type="button"` with `aria-expanded`, «▸»/«▾» `aria-hidden`, «ev-1 · app/Services/PriceCalculator.php:16-44»
 (`accent` on `canvas`, visible focus outline); when expanded, a `pre` > `code` with the exact `excerpt`
-(`ink` on `canvas`, `overflow-x-auto`, no line numbers, no highlighting). All collapsed when the answer
+(`ink` on `canvas`, no line numbers, no highlighting; long lines wrap, D37). All collapsed when the answer
 arrives; each toggles on its own (local `useState` per item, keyed by the evidence id). Deviations: no
 «entailed» badge per evidence (the API gives verification per statement, not per evidence, and deriving
 it would invent data); no PR evidence (the API cites only file ranges). Repeated evidence is shown as
@@ -298,8 +298,8 @@ could plausibly set by mistake (the health check's default is 5 000 ms).
 
 ### Decisions taken while implementing
 
-D31–D36 were taken during `/opsx:apply` (agent as lead engineer, same ADR) and are added to the
-`[enhanced]` description of DIS-65.
+D31–D36 were taken during `/opsx:apply` and D37 during the pre-merge review (agent as lead engineer,
+same ADR); all of them are added to the `[enhanced]` description of DIS-65.
 
 #### D31 — Suggested questions are read by own key only
 
@@ -341,6 +341,21 @@ Removing only the back link's `aria-label` does not fail axe: the visible «←�
 does not judge meaning). That removal is caught by "Screen 2 opens on a sample project without any
 request", which finds the link by its name. The axe negative control removes the `aria-label` and hides
 the arrow from assistive technology, which gives `link-name` in all five states (step 11 report).
+
+#### D37 — Excerpts wrap; three visual deviations written down (pre-merge `/show-spec-working`)
+
+- The expanded excerpt's `pre` wraps its lines (`whitespace-pre-wrap`, `overflow-wrap: break-word`)
+  instead of scrolling sideways (`overflow-x-auto` until then). At 320 px a horizontally scrolling `pre`
+  holds nothing focusable, so a keyboard user cannot scroll it: axe `scrollable-region-focusable` in a
+  real browser (jsdom computes no layout, so the gate could not see it). A wrapping block is never a
+  scroll region and adds no tab stop; making the `pre` focusable instead was rejected because it would add
+  a tab stop to every expanded excerpt even at desktop widths, where nothing scrolls. Its text content is
+  still exactly the excerpt; indentation is kept.
+- The type and verification badges sit under the statement's text, not on its right as in the wireframe:
+  they never collide with a long statement and the layout is the same at 320 px.
+- Code fragments and evidence locations are monospace (the wireframe draws the code in italic accent and
+  the locations in the body font): monospace marks code without relying on colour alone, and a location
+  is code (a path and a line range).
 
 ## Risks / Trade-offs
 
