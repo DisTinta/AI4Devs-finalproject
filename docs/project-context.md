@@ -559,6 +559,14 @@ services that must be started first, quirks of the local environment.
   Node (a `.test.tsx` runs in jsdom, where Node's `fetch` rejects jsdom's `AbortSignal`). Tailwind 4
   generates a utility for any class-like string in any source file, tests included, so `index.css`
   excludes `*.test.ts(x)` with `@source not`; a new non-UI folder with class names needs the same.
+- **Screen 2 writes its pending text twice, and axe in jsdom cannot see colours** (DIS-66). The
+  persistent `sr-only` status region repeats «Buscando evidencia…» next to the visible, `aria-hidden`
+  copy, so `getByText` on that text finds two elements (target the visible one with
+  `selector: '[aria-hidden="true"]'`, or the region with `getByRole('status')`). Never key or remount
+  the status `p`: screen readers announce a change of text in an element that already exists, and
+  "The status region announces every outcome" pins it as the same element. A colour break never fails
+  `test:a11y` (axe reports `color-contrast` as incomplete without layout); colours are guarded by
+  `theme.test.ts` and the browser pass.
 - **Some CI gates run against stubs, on purpose.** `lint`, `lint:architecture` and `typecheck` are
   real and must pass, and so is CI's `db:migrate` → `db:rollback` → `db:migrate` step. Mutation
   testing has real mutants since DIS-23 (`packages/core/src/knowledge/`, 86.82 % at DIS-23 merge, 90.09 % with DIS-35, 92.23 % with DIS-36; `packages/core/src/index/` since DIS-84, 95.11 % for all of core; 96.48 % for `index/` with DIS-85; threshold
