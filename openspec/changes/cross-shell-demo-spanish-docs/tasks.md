@@ -37,8 +37,8 @@
 
 ## 6. `demo:ask` (TDD, design D8) — `local-startup` → "The demo question helper"
 
-- [ ] 6.1 RED: create `tests/unit/scripts/demo-ask.spec.ts` with "An answered question prints its status and summary" (`node:http` server on port 0 passed as `PORT` in the injected environment; the request path and the UTF-8 body recorded); add the same `DOTENV_PATH` wiring assertion for `scripts/demo-ask.mjs`. See both fail
-- [ ] 6.2 GREEN: `scripts/demo-ask.mjs` (`runDemoAsk` calls `loadEnvFile(dotenvPath, env, stderr)` first, `dotenvPath` defaulting to `DOTENV_PATH` of `./env.mjs`, design D4, A2; `PORT` read as the API reads it, A21; `globalThis.fetch`; entry guard) and `scripts/demo-ask.d.mts`; the 6.1 wiring assertion green
+- [x] 6.1 RED: create `tests/unit/scripts/demo-ask.spec.ts` with "An answered question prints its status and summary" (`node:http` server on port 0 passed as `PORT` in the injected environment; the request path and the UTF-8 body recorded); add the same `DOTENV_PATH` wiring assertion for `scripts/demo-ask.mjs`. See both fail
+- [x] 6.2 GREEN: `scripts/demo-ask.mjs` (`runDemoAsk` calls `loadEnvFile(dotenvPath, env, stderr)` first, `dotenvPath` defaulting to `DOTENV_PATH` of `./env.mjs`, design D4, A2; `PORT` read as the API reads it, A21; `globalThis.fetch`; entry guard) and `scripts/demo-ask.d.mts`; the 6.1 wiring assertion green
 - [ ] 6.3 RED → GREEN, one at a time: "An UNKNOWN answer prints its reason", "An error status prints the error body", "An unreachable API is reported" (a port taken and released, as `freePort` in `tests/integration/api/dev-script.spec.ts`), "demo:ask reads PORT from .env" (a temporary `.env` passed as `dotenvPath`), "Missing arguments are a usage error"
 
 ## 7. `demo:excerpt` (TDD, design D8) — `local-startup` → "The demo excerpt helper"
