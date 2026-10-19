@@ -137,3 +137,25 @@ describe('Which commands load .env', () => {
     expect(offending).toEqual([]);
   });
 });
+
+describe('One command starts the system', () => {
+  it('The startup scripts need no installed dependency', () => {
+    // Arrange
+    const files = scriptFiles();
+
+    // Act
+    const specifiers = files.flatMap((file) =>
+      importSpecifiers(source(file)).map((specifier) => ({ file, specifier })),
+    );
+
+    // Assert: a Node built-in, or a file of scripts/
+    expect(files.length).toBeGreaterThan(0);
+    const external = specifiers.filter(
+      ({ specifier }) => !specifier.startsWith('node:') && !/^\.\/[^/]+\.mjs$/.test(specifier),
+    );
+    expect(external).toEqual([]);
+    for (const { specifier } of specifiers.filter(({ specifier }) => specifier.startsWith('./'))) {
+      expect(existsSync(resolve(ROOT, 'scripts', specifier)), specifier).toBe(true);
+    }
+  });
+});

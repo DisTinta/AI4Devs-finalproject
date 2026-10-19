@@ -27,7 +27,7 @@
 - [x] 4.1 RED: create `tests/unit/scripts/up.spec.ts` with "Up runs the start sequence in order" (a recording runner double, a temporary `.env` with `POSTGRES_PORT=5433` passed as `dotenvPath`, `npm_execpath` set in the injected environment and no `CODEMIND_SKIP_DOTENV`); add to `wiring.spec.ts` the assertion that `scripts/up.mjs` imports `DOTENV_PATH` from `./env.mjs`, passes it in its entry guard and does not import `./load-env.mjs`. See both fail
 - [x] 4.2 GREEN: `scripts/up.mjs` (`runUp`, `cwd` defaulting to the root resolved from the module, the default `spawn` runner, the entry guard) and `scripts/up.d.mts`; the 4.1 wiring assertion green
 - [x] 4.3 RED → GREEN, one at a time: "Up stops at the first failing step" (exit code and signal cases), "Ctrl+C stops up without a failure line" (an `onInterrupt` double fired while the `npm run dev` call runs), "A step that cannot start stops up", "Up needs npm to start it"
-- [ ] 4.4 RED → GREEN in `wiring.spec.ts`: "The startup scripts need no installed dependency" (import specifiers of every `scripts/*.mjs` read from the source text)
+- [x] 4.4 RED → GREEN in `wiring.spec.ts`: "The startup scripts need no installed dependency" (import specifiers of every `scripts/*.mjs` read from the source text)
 
 ## 5. Stop, Makefile and Postgres port (TDD, design D6, D7) — `local-startup` → "Stopping the system and the Makefile", "Configurable Postgres port"
 
