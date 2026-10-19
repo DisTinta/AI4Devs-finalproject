@@ -30,3 +30,15 @@ export const SUGGESTED_QUESTIONS: Readonly<Record<string, readonly string[]>> = 
     return project === undefined ? [] : [[project.id, questions]];
   }),
 );
+
+/**
+ * The suggested questions of a project, in order, or an empty list when it has none. Only the
+ * constant's own keys count: a path such as `/p/constructor` must not read a property of
+ * `Object.prototype`.
+ *
+ * @param projectId - The project id of the path.
+ * @returns The suggested questions.
+ */
+export function suggestedQuestionsOf(projectId: string): readonly string[] {
+  return Object.prototype.hasOwnProperty.call(SUGGESTED_QUESTIONS, projectId) ? SUGGESTED_QUESTIONS[projectId] : [];
+}
