@@ -38,7 +38,8 @@ function StatementItem({ statement }: { statement: AskStatement }): ReactElement
  * An answered question (ask-page, "Answer with typed and verified statements"; DIS-65 design D8, D9,
  * D13, D19): the level-2 heading «Respuesta», the answer text, an ordered list with one item per
  * statement in the API's order, and the evidence. Back-quoted fragments are shown as code; every text is
- * rendered as text. Neither the confidence nor the usage is shown (DIS-66).
+ * rendered as text. The page shows the confidence and the usage after it, in the usage panel (DIS-66
+ * design D21).
  *
  * @param props - The answered question.
  * @returns The answer section and the evidence section.

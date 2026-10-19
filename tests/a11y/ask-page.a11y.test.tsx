@@ -109,13 +109,34 @@ describe('Accessibility of Screen 2', () => {
     // Act
     const pending = await scan(neverAnswering, async (user) => {
       await pressQ1(user);
-      await screen.findByRole('status');
+      await screen.findByText('Buscando evidencia…', { selector: '[aria-hidden="true"]' });
     });
     const answeredWithEvidence = await scan(answering(200, ANSWERED), async (user) => {
       await pressQ1(user);
       await user.click(await screen.findByRole('button', { name: 'ev-1 · app/Services/PriceCalculator.php:16-44' }));
       await screen.findByText(/class PriceCalculator/);
+      await screen.findByRole('region', { name: 'Uso' });
     });
+    const cacheHit = await scan(
+      answering(200, {
+        ...ANSWERED,
+        confidence: 0.7772998611746911,
+        usage: {
+          ...ANSWERED.usage,
+          inputTokens: 0,
+          outputTokens: 0,
+          baselineTokens: 7123,
+          savingsPct: 100,
+          costUsd: 0,
+          latencyMs: 12,
+          cacheHit: true,
+        },
+      }),
+      async (user) => {
+        await pressQ1(user);
+        await screen.findByRole('region', { name: 'Uso' });
+      },
+    );
     const invalidQuestion = await scan(neverAnswering, async (user) => {
       await user.type(screen.getByRole('textbox', { name: 'Pregunta' }), 'hola{Enter}');
       await screen.findByRole('alert');
@@ -124,7 +145,20 @@ describe('Accessibility of Screen 2', () => {
       answering(200, { answer: 'UNKNOWN', reason: 'no-anchor', statements: [], evidence: [] }),
       async (user) => {
         await pressQ1(user);
-        await screen.findByText('Sin respuesta verificada (motivo: no-anchor).');
+        await screen.findByRole('heading', { level: 2, name: 'Sin respuesta verificada' });
+      },
+    );
+    const llmRequired = await scan(
+      answering(200, {
+        answer: 'UNKNOWN',
+        reason: 'llm-required',
+        message: 'evaluation mode (cache-only): set LLM_* to enable free-form asks',
+        statements: [],
+        evidence: [],
+      }),
+      async (user) => {
+        await pressQ1(user);
+        await screen.findByRole('heading', { level: 2, name: 'Hace falta un modelo de lenguaje' });
       },
     );
     const errorAlert = await scan(
@@ -135,13 +169,51 @@ describe('Accessibility of Screen 2', () => {
       },
     );
 
+    const rateLimited = await scan(
+      answering(429, { error: { code: 'RATE_LIMITED', message: 'too many requests', details: { retryAfterSeconds: 42 } } }),
+      async (user) => {
+        await pressQ1(user);
+        await screen.findByRole('alert');
+      },
+    );
+    const llmUnavailable = await scan(
+      answering(503, { error: { code: 'LLM_UNAVAILABLE', message: 'the LLM is unavailable', details: {} } }),
+      async (user) => {
+        await pressQ1(user);
+        await screen.findByRole('alert');
+      },
+    );
+    const unavailableApi = await scan(
+      () => Promise.reject(new TypeError('fetch failed')),
+      async (user) => {
+        await pressQ1(user);
+        await screen.findByRole('alert');
+      },
+    );
+
     // Assert
-    expect({ pending, answeredWithEvidence, invalidQuestion, unknownStatus, errorAlert }).toEqual({
+    expect({
+      pending,
+      answeredWithEvidence,
+      cacheHit,
+      invalidQuestion,
+      unknownStatus,
+      llmRequired,
+      errorAlert,
+      rateLimited,
+      llmUnavailable,
+      unavailableApi,
+    }).toEqual({
       pending: [],
       answeredWithEvidence: [],
+      cacheHit: [],
       invalidQuestion: [],
       unknownStatus: [],
+      llmRequired: [],
       errorAlert: [],
+      rateLimited: [],
+      llmUnavailable: [],
+      unavailableApi: [],
     });
   });
 });

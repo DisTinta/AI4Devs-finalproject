@@ -76,8 +76,10 @@ All frontend code lives under `packages/web/src/`; the folders below are relativ
 - A screen with states the real routes cannot reach on their own (an API answer, a render error) gets its
   own file next to the gate that pins each state with a `fetch` double and scans it: Screen 1 with the API
   up and down, and the app's error screen, in `tests/a11y/project-picker.a11y.test.tsx` (DIS-60);
-  Screen 2 pending, answered with an evidence expanded, with the invalid-question message, and with the
-  provisional status and alert, in `tests/a11y/ask-page.a11y.test.tsx` (DIS-65).
+  Screen 2 in ten states in `tests/a11y/ask-page.a11y.test.tsx` (DIS-65, DIS-66): pending, answered with
+  an evidence expanded and its usage panel, a cache hit, the invalid-question message, the `UNKNOWN`
+  `no-anchor` state, the `llm-required` notice, and the alerts of `BUDGET_EXHAUSTED`, `RATE_LIMITED`,
+  `LLM_UNAVAILABLE` and an unavailable API.
 - axe in jsdom computes no styles, so it cannot judge colour contrast: the theme test
   (`packages/web/src/theme.test.ts`) checks every text/background pair of the `@theme` tokens at 4.5:1.
   Keyboard operation and visible focus are checked by hand in a real browser.

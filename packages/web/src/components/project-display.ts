@@ -57,9 +57,13 @@ const DIGIT_GROUP_SEPARATOR = '\u00a0';
 /**
  * Writes a whole number with its digits grouped in threes from the right, separated by a no-break space
  * (U+00A0), from 1 000 up. Not `Intl.NumberFormat`: `es-ES` does not group four-digit numbers and its
- * output depends on the ICU of the environment (design D5).
+ * output depends on the ICU of the environment (design D5). Screen 2 uses it for the bare token figure
+ * of its usage panel (DIS-66 design D20).
+ *
+ * @param value - A whole number of zero or more.
+ * @returns The number with its digits grouped, such as «41 200».
  */
-function groupDigits(value: number): string {
+export function groupDigits(value: number): string {
   return String(value).replace(/\B(?=(\d{3})+(?!\d))/g, DIGIT_GROUP_SEPARATOR);
 }
 

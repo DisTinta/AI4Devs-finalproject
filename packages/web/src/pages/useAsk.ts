@@ -1,18 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { AskFailure } from '../components/notice-display';
 import { ApiError, ask, type AskAnswered, type AskResponse, type AskUnknown } from '../services/api-client';
-
-/** Why a sent question got no answer from the API: an API error with its code, or an unavailable API. */
-export type AskFailure = { kind: 'api'; code: string } | { kind: 'unavailable' };
 
 /**
  * What Screen 2 knows about its question (ask-page; DIS-65 design D22): nothing sent yet, a question
- * pending, an answered question, an `UNKNOWN` with its reason, or a failure.
+ * pending, an answered question, an `UNKNOWN` with its reason and the API's message, or a failure with the
+ * API's code and details (DIS-66 design D18).
  */
 export type AskState =
   | { status: 'idle' }
   | { status: 'pending' }
   | { status: 'answered'; answer: AskAnswered }
-  | { status: 'unknown'; reason: AskUnknown['reason'] }
+  | { status: 'unknown'; reason: AskUnknown['reason']; message?: string }
   | { status: 'failed'; failure: AskFailure };
 
 /** What {@link useAsk} returns. */
@@ -23,16 +22,24 @@ export interface AskSession {
   send: (question: string) => void;
 }
 
+/** The state of an `UNKNOWN`: its reason and the API's message, when it sent one (DIS-66 design D18). */
+function unknownState({ reason, message }: AskUnknown): AskState {
+  return { status: 'unknown', reason, message };
+}
+
 /** Whether a `200` body is an `UNKNOWN`. */
 function isUnknown(response: AskResponse): response is AskUnknown {
   return response.answer === 'UNKNOWN';
 }
 
-/** The state a failure of the ask call leaves: the API's error code, or an unavailable API. */
+/** The state a failure of the ask call leaves: the API's error code and details, or an unavailable API. */
 function failedState(failure: unknown): AskState {
   return {
     status: 'failed',
-    failure: failure instanceof ApiError ? { kind: 'api', code: failure.code } : { kind: 'unavailable' },
+    failure:
+      failure instanceof ApiError
+        ? { kind: 'api', code: failure.code, details: failure.details }
+        : { kind: 'unavailable' },
   };
 }
 
@@ -69,7 +76,7 @@ export function useAsk(projectId: string): AskSession {
       };
       ask(projectId, { question }, { signal: controller.signal }).then(
         (response) =>
-          settle(isUnknown(response) ? { status: 'unknown', reason: response.reason } : { status: 'answered', answer: response }),
+          settle(isUnknown(response) ? unknownState(response) : { status: 'answered', answer: response }),
         (failure: unknown) => settle(failedState(failure)),
       );
     },
