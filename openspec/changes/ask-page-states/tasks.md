@@ -18,9 +18,9 @@ Every test of this change follows Arrange-Act-Assert with the three blocks comme
 
 ## 2. How notice details are read (TDD, design D9, D19, D26, D27) — `ask-page` → "How usage figures and notice details are written"
 
-- [ ] 2.1 RED: create `packages/web/src/components/notice-display.test.ts` (Node environment) with "The budget reset time is written in UTC" (the seven inputs; `details` given as `Record<string, unknown>`). See it fail (module missing)
-- [ ] 2.2 GREEN: `packages/web/src/components/notice-display.ts` with the strict reset-time reader and its UTC writer (`getUTC*`, no `Intl`, D27)
-- [ ] 2.3 RED → GREEN: "The wait of a rate limit is read only when it is a whole number of seconds" (`Number.isInteger(value) && value >= 1`, D26)
+- [x] 2.1 RED: create `packages/web/src/components/notice-display.test.ts` (Node environment) with "The budget reset time is written in UTC" (the seven inputs; `details` given as `Record<string, unknown>`). See it fail (module missing)
+- [x] 2.2 GREEN: `packages/web/src/components/notice-display.ts` with the strict reset-time reader and its UTC writer (`getUTC*`, no `Intl`, D27)
+- [x] 2.3 RED → GREEN: "The wait of a rate limit is read only when it is a whole number of seconds" (`Number.isInteger(value) && value >= 1`, D26)
 
 ## 3. Status region and pending text (TDD, design D11, D22, D24, D32) — `ask-page` → "Screen 2 frame and project bar", "Pending question", "Answer with typed and verified statements", "Screen reader announcements of Screen 2"; REMOVED "Provisional notice for what is not an answer"
 
