@@ -117,7 +117,14 @@ export async function runDemoAsk(args, { env, dotenvPath = DOTENV_PATH, fetch = 
     stderr.write(`demo:ask: the API is not reachable at ${origin} (start it with npm run up)\n`);
     return 1;
   }
-  const text = await response.text();
+  let text;
+  try {
+    text = await response.text();
+  } catch {
+    // The connection dropped after the status line (design D22).
+    stderr.write(`demo:ask: the answer of the API at ${origin} could not be read\n`);
+    return 1;
+  }
   stdout.write(`HTTP ${response.status}\n${describeBody(response.status, text)}\n`);
   return isSuccess(response.status) ? 0 : 1;
 }

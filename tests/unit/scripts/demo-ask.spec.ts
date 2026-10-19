@@ -164,14 +164,19 @@ describe('The demo question helper', () => {
     const dotenvPath = join(temporaryDirectory(), '.env');
     writeFileSync(dotenvPath, `PORT=${api.port}\n`);
     // Arrange: a PORT that is not a port number
-    const invalid = await apiDouble(200, '{}');
     const invalidErr = recorder();
+    const invalidRequests: string[] = [];
 
     // Act
     const code = await runDemoAsk([PROJECT_ID, QUESTION], { env: {}, dotenvPath, stdout: recorder(), stderr: recorder() });
     const invalidCode = await runDemoAsk([PROJECT_ID, QUESTION], {
       env: { PORT: 'abc' },
       dotenvPath: missingEnvFile(),
+      // A fetch double: any request demo:ask tried to send, to any address, is recorded here
+      fetch: async (url) => {
+        invalidRequests.push(url);
+        return { status: 200, text: async () => '{}' };
+      },
       stdout: recorder(),
       stderr: invalidErr,
     });
@@ -180,7 +185,7 @@ describe('The demo question helper', () => {
     expect(api.received).toHaveLength(1);
     expect(code).toBe(0);
     expect(invalidErr.text()).toBe('demo:ask: PORT must be a port number\n');
-    expect(invalid.received).toHaveLength(0);
+    expect(invalidRequests).toEqual([]);
     expect(invalidCode).toBe(2);
   });
 
@@ -204,6 +209,30 @@ describe('The demo question helper', () => {
       expect(code).toBe(2);
     }
     expect(api.received).toHaveLength(0);
+  });
+
+  it('An answer that cannot be read is reported', async () => {
+    // Arrange: the API answers its status, then the connection drops before the body is read
+    const port = await freePort();
+    const stdout = recorder();
+    const stderr = recorder();
+
+    // Act
+    const code = await runDemoAsk([PROJECT_ID, QUESTION], {
+      env: { PORT: String(port) },
+      dotenvPath: missingEnvFile(),
+      fetch: async () => ({
+        status: 200,
+        text: () => Promise.reject(new TypeError('terminated')),
+      }),
+      stdout,
+      stderr,
+    });
+
+    // Assert
+    expect(stderr.text()).toBe(`demo:ask: the answer of the API at http://127.0.0.1:${port} could not be read\n`);
+    expect(stdout.text()).toBe('');
+    expect(code).toBe(1);
   });
 });
 
