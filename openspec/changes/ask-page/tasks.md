@@ -105,9 +105,14 @@ Every test of this change follows Arrange-Act-Assert with the three blocks comme
 ## 15. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
 - [ ] 15.1 Open the pull request against `feature/entrega-2-CRN` (title and body in Spanish via `/pr-describe`, the Why marked as the agent's decision, the wireframe deviations D3, D5, D8, D11 and the bundle size before and after); commit by explicit paths only (nothing under `.claude/`), English messages ending with the co-author line; push with `git -c credential.helper='!gh auth git-credential' push` on the DisTinta account; set DIS-65 to In Review with a Spanish comment linking the PR; confirm CI green (`quality`, `frontend` with `test:a11y`, `mutation`, `secrets`, `verify`)
-- [ ] 15.2 Run `/show-spec-working`: screenshots of the running Screen 2 (empty, an answer with evidence expanded, the provisional notices) next to `images/pantalla-2-consulta.svg` rendered as an image; may reuse step 12 evidence. Report `openspec/changes/ask-page/reports/YYYY-MM-DD-show-spec-working.md`, screenshots next to it
-- [ ] 15.3 Run `/verify-against-spec`; report `openspec/changes/ask-page/reports/YYYY-MM-DD-verify-against-spec.md`
-- [ ] 15.4 Run `/adversarial-review`; report `openspec/changes/ask-page/reports/YYYY-MM-DD-adversarial-review.md`
-- [ ] 15.5 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report
-- [ ] 15.6 Commit the fixes to the same pull request; re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
+- [x] 15.2 Run `/show-spec-working`: screenshots of the running Screen 2 (empty, an answer with evidence expanded, the provisional notices) next to `images/pantalla-2-consulta.svg` rendered as an image; may reuse step 12 evidence. Report `openspec/changes/ask-page/reports/YYYY-MM-DD-show-spec-working.md`, screenshots next to it
+- [x] 15.3 Run `/verify-against-spec`; report `openspec/changes/ask-page/reports/YYYY-MM-DD-verify-against-spec.md`
+- [x] 15.4 Run `/adversarial-review`; report `openspec/changes/ask-page/reports/YYYY-MM-DD-adversarial-review.md`
+- [x] 15.5 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report
+  - [x] 15.5.1 Excerpts wrap instead of scrolling (show-spec-working S1, D37); axe in Chromium at 320 and 960 px with every evidence expanded: clean
+  - [x] 15.5.2 Screen 2's content wraps long words (adversarial, D38); the 320 px probe with a long-word answer: nothing clipped
+  - [x] 15.5.3 RED → GREEN: "An invalid send while a question is pending changes nothing" (`/opsx:update` of "Pending question", addendum in `reports/2026-10-19-spec-audit.md`); RED observed with the page's pending guard removed locally
+  - [x] 15.5.4 Strengthen "A project outside the sample constant is shown by its id": the banner text is exactly «←» plus the id (verify)
+  - [x] 15.5.5 B destinations: Spanish comments on DIS-75 (axe in a real browser) and DIS-66 (alert re-announcement); D destinations recorded in `design.md` → Follow-ups
+- [x] 15.6 Commit the fixes to the same pull request; re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major (the fixes are committed on the branch before the pull request of 15.1 opens; the browser probes were re-run after each fix and found no Blocker or Major)
 - [ ] 15.7 `/opsx:archive`, and commit the archive to the same pull request (no test-file edits in that commit); merge only after the archive commit and with CI green (autonomous-run ADR)

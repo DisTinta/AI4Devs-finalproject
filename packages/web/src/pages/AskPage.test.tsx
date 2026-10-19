@@ -383,6 +383,29 @@ describe('Pending question', () => {
     expect(screen.getByRole('status').textContent).toBe(SEARCHING);
   });
 
+  it('An invalid send while a question is pending changes nothing', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const requests = stubFetch(neverAnswer);
+    await renderScreen2();
+    const field = screen.getByRole('textbox', { name: 'Pregunta' });
+
+    // Act
+    await user.click(screen.getByRole('button', { name: Q1 }));
+    await user.clear(field);
+    await user.type(field, 'hola');
+    await user.keyboard('{Enter}');
+
+    // Assert
+    expect(requests.map((request) => request.init?.body)).toEqual([`{"question":"${Q1}"}`]);
+    expect((field as HTMLInputElement).value).toBe('hola');
+    expect(field.getAttribute('aria-invalid')).toBeNull();
+    expect(field.getAttribute('aria-describedby')).toBeNull();
+    expect(screen.queryByText(INVALID)).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('status').textContent).toBe(SEARCHING);
+  });
+
   it('A new question replaces what was shown', async () => {
     // Arrange
     const user = userEvent.setup();

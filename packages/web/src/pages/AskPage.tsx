@@ -108,7 +108,7 @@ export function AskPage({ projectId }: AskPageProps): ReactElement {
 
   return (
     <PageFrame banner={<ProjectBar title={title} detail={detail} />}>
-      <div className="text-left">
+      <div className="text-left wrap-break-word">
         <QueryBox value={question} onChange={onChange} onSubmit={onSubmit} invalid={invalid} placeholder={placeholder} />
         {suggestions.length === 0 ? null : <SuggestedQuestions questions={suggestions} onPick={onPick} />}
         <ResultArea state={state} />

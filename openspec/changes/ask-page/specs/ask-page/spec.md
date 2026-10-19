@@ -133,7 +133,7 @@ an element with role `status` holding «Buscando evidencia…» (with U+2026): w
 answer with its evidence, or a notice) SHALL be removed when the question is sent, so an answer to another
 question is never shown. While a question is pending, sending from the field, from the button «Preguntar»
 or from a suggested question SHALL send no request and change nothing on the screen, the field's text
-included. The page SHALL NOT set a time limit of its own (a local model takes tens of seconds). Leaving
+included, whether or not the field holds a valid question: no invalid mark and no message either. The page SHALL NOT set a time limit of its own (a local model takes tens of seconds). Leaving
 the page SHALL abort the pending request, and that abort SHALL show nothing. When the answer arrives, the
 focus SHALL stay where it is.
 
@@ -145,6 +145,17 @@ focus SHALL stay where it is.
   cupones?», then presses Enter in the field, then presses «Preguntar»
 - **THEN** the double recorded exactly one request, whose body holds «¿Cómo se calcula el precio final de
   un pedido?»; the field still holds that question; and the status «Buscando evidencia…» is shown
+
+#### Scenario: An invalid send while a question is pending changes nothing
+
+- **GIVEN** Screen 2 of acme-shop, and `fetch` replaced by a double that records every request and never
+  answers
+- **WHEN** the person presses «¿Cómo se calcula el precio final de un pedido?», then clears the field,
+  writes «hola» and presses Enter
+- **THEN** the double recorded exactly one request, whose body holds «¿Cómo se calcula el precio final de
+  un pedido?»; the field holds «hola» and has no `aria-invalid="true"` and no accessible description; the
+  message «Escribe una pregunta de 5 a 500 caracteres.» is not shown and there is no element with role
+  `alert`; and the status «Buscando evidencia…» is shown
 
 #### Scenario: A new question replaces what was shown
 

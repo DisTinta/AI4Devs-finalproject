@@ -298,7 +298,7 @@ could plausibly set by mistake (the health check's default is 5 000 ms).
 
 ### Decisions taken while implementing
 
-D31–D36 were taken during `/opsx:apply` and D37 during the pre-merge review (agent as lead engineer,
+D31–D36 were taken during `/opsx:apply` and D37–D38 during the pre-merge review (agent as lead engineer,
 same ADR); all of them are added to the `[enhanced]` description of DIS-65.
 
 #### D31 — Suggested questions are read by own key only
@@ -357,6 +357,13 @@ the arrow from assistive technology, which gives `link-name` in all five states 
   the locations in the body font): monospace marks code without relying on colour alone, and a location
   is code (a path and a line range).
 
+#### D38 — Long words wrap on Screen 2 (pre-merge `/adversarial-review`)
+
+Screen 2's content (`AskPage`'s `text-left` wrapper) has `overflow-wrap: break-word`. A word longer than
+the card (a path in back-quotes, a long identifier) ran past it at 320 px and the frame's
+`overflow-hidden` clipped it, so the end of the path was lost. Breaking such a word only where it would
+overflow keeps every other line as it was; `PageFrame` keeps its classes.
+
 ## Risks / Trade-offs
 
 - [The API answers an unexpected `2xx` shape (e.g. an answered body without `statements`)] → the client
@@ -380,5 +387,19 @@ Rollback = revert the PR; no data, no API, no dependency change.
 
 ## Follow-ups
 
-Filled in during the pre-merge review (task 15): each finding with its A/B/C/D destination
-(`docs/project-context.md` → Tracking deferred findings).
+Findings of the pre-merge reviews (task 15; reports `reports/2026-10-19-show-spec-working.md`,
+`reports/2026-10-19-verify-against-spec.md`, `reports/2026-10-19-adversarial-review.md`), each with its
+destination (`docs/project-context.md` → Tracking deferred findings):
+
+| # | Severity | Finding | Destination |
+|---|---|---|---|
+| 1 | Major | At 320 px an expanded excerpt scrolled sideways with nothing focusable: axe `scrollable-region-focusable` in a real browser (show-spec-working S1) | **A** — fixed in this change: the excerpt wraps (D37); axe in Chromium clean at 320 and 960 px with every evidence expanded |
+| 2 | Major | A long word in the answer or a statement was clipped by the frame at 320 px (adversarial) | **A** — fixed in this change: Screen 2's content wraps long words (D38); re-probed in the browser |
+| 3 | Minor | An invalid send while a question is pending was not pinned: the page's guard survived mutation (step 11, adversarial) | **A** — fixed in this change: `/opsx:update` clause and scenario "An invalid send while a question is pending changes nothing", test RED with the guard removed |
+| 4 | Minor | "A project outside the sample constant is shown by its id" checked «no language label» only as «no PHP» (verify) | **A** — fixed in this change: the banner text is asserted exactly |
+| 5 | Minor | Badges under the statement text and monospace code and locations were deviations from the wireframe not written down (show-spec-working S2, S3) | **A** — recorded in this change (D37) |
+| 6 | Minor | The axe scenario runs in jsdom, which evaluates no layout rule, so findings 1 and 2 could not be caught automatically (verify V1) | **B** — DIS-75 (Playwright suite): axe in the real browser on Screen 2 at a narrow and a desktop width with every evidence expanded, plus a long-word answer; Spanish comment on DIS-75 |
+| 7 | Minor | Sending the same invalid text twice does not re-announce the alert (adversarial) | **B** — DIS-66, which reworks the states and owns the screen-reader pass (D25); Spanish comment on DIS-66 |
+| 8 | Minor | The hook's pending-ref and own-abort guards are not observable through the page (step 11, adversarial) | **D** — accepted: defence in depth, as in DIS-60 |
+| 9 | Question | `security-reviewer` not run: the diff touches no server entry point, rate limit, secret or stored personal data; untrusted model output is rendered as text (scenario "Markup in an answer is shown as text") | **D** — accepted, reasons in the adversarial report |
+| 10 | — | Unspecified but deliberate: placeholders (D4, D24), `aria-controls` (D26), code colours (D19), the bar's divider, the own-key read (D31) | **D** — accepted, documented in the decisions named |

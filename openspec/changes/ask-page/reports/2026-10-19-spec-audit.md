@@ -243,3 +243,19 @@ The rows of run 1's table keep their tasks (3.2 → 3.2/3.3, 3.3 → 3.4, 3.4 �
 
 - `tasks.md`: G1, G2, G3 (applied).
 - Linear DIS-65 Enhanced: D15–D30 and the audit outcome (applied, in Spanish, outside `[original]`).
+
+## Addendum — pre-merge review (2026-10-19)
+
+`/adversarial-review` (task 15.4) took the step 11 mutation survivor of `AskPage`'s `if (pending) return`
+in `onSubmit` to the spec. `/opsx:update` revised `specs/ask-page/spec.md` → "Pending question":
+
+- the requirement now says that a send while a question is pending changes nothing «whether or not the
+  field holds a valid question: no invalid mark and no message either» (before, "Question box" and
+  "Pending question" could be read as conflicting for an invalid text sent while pending);
+- new scenario "An invalid send while a question is pending changes nothing", with its test of the same
+  name in `packages/web/src/pages/AskPage.test.tsx` (task 15.5.3), RED observed with the guard removed
+  locally (`expected 'true' to be null`, the field's `aria-invalid`).
+
+Re-check of the affected audit points: open decisions, contradictions inside the change and traceability
+are clean (`openspec validate ask-page --strict` passes; the new scenario maps 1:1 to its test). No other
+requirement changed; D37 and D38 (excerpts and long words wrap) are presentation and touch no scenario.
