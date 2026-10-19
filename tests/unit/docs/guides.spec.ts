@@ -53,6 +53,27 @@ function fences(markdown: string): Fence[] {
   return blocks;
 }
 
+/**
+ * The bodies of the `powershell` / `bash` blocks of `blocks` that are not one side of an adjacent pair:
+ * each such block must be followed by the other shell's block, with no heading between them; the pair
+ * is then consumed, so `bash, powershell, bash` leaves the last block alone.
+ */
+function unpairedShellBlocks(blocks: Fence[]): string[] {
+  const unpaired: string[] = [];
+  for (let index = 0; index < blocks.length; index += 1) {
+    const current = blocks[index];
+    const other = current.info === 'powershell' ? 'bash' : current.info === 'bash' ? 'powershell' : undefined;
+    if (other === undefined) continue;
+    const next = blocks[index + 1];
+    if (next?.info === other && next.headingsBefore === current.headingsBefore) {
+      index += 1;
+    } else {
+      unpaired.push(current.body);
+    }
+  }
+  return unpaired;
+}
+
 /** The level-2 sections of `markdown`, in order (fenced lines starting `## ` are not headings). */
 function sections(markdown: string): Section[] {
   const result: Section[] = [];
@@ -90,17 +111,15 @@ describe('The demo guide runs the same in PowerShell and Bash', () => {
     // Assert: every block is a common command, output, or one side of a labelled pair
     expect(blocks.length).toBeGreaterThan(0);
     for (const block of blocks) expect(['shell', 'text', 'powershell', 'bash'], block.body).toContain(block.info);
-    // Each shell-specific block opens a pair whose next block is the other shell's; the pair is then
-    // consumed, so `bash, powershell, bash` leaves the last block without its pair.
-    for (let index = 0; index < blocks.length; index += 1) {
-      const block = blocks[index];
-      const other = block.info === 'powershell' ? 'bash' : block.info === 'bash' ? 'powershell' : undefined;
-      if (other === undefined) continue;
-      expect(blocks[index + 1]?.info, block.body).toBe(other);
-      // Only text between the two blocks: no heading
-      expect(blocks[index + 1]?.headingsBefore, block.body).toBe(block.headingsBefore);
-      index += 1;
-    }
+    expect(unpairedShellBlocks(blocks)).toEqual([]);
+    // The pairing rule itself, on made-up Markdown (the guide has no pair today): a pair with text
+    // between is fine; a pair split by a heading, and a third block after a pair, are not
+    const sample = (parts: string[]): Fence[] => fences(parts.join('\n'));
+    const block = (info: string, body: string): string => `\`\`\`${info}\n${body}\n\`\`\``;
+    expect(unpairedShellBlocks(sample([block('bash', 'a'), 'En PowerShell:', block('powershell', 'b')]))).toEqual([]);
+    expect(unpairedShellBlocks(sample([block('bash', 'a'), '### Otro', block('powershell', 'b')]))).toEqual(['a', 'b']);
+    expect(unpairedShellBlocks(sample([block('bash', 'a'), block('powershell', 'b'), block('bash', 'c')]))).toEqual(['c']);
+    expect(unpairedShellBlocks(sample([block('powershell', 'a'), block('shell', 'b')]))).toEqual(['a']);
 
     // Assert: no construct that differs between the two shells in a common block
     for (const block of blocks.filter((candidate) => candidate.info === 'shell')) {
