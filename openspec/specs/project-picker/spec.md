@@ -48,8 +48,8 @@ API answers, and SHALL NOT cause any HTTP request: the only request the page sen
   double that never answers
 - **WHEN** the person presses Tab until the link «Explorar proyecto acme-shop» has the focus, then presses
   Enter
-- **THEN** the link received the focus by keyboard, and the level-1 heading «Consulta del proyecto» and
-  the text `a794456d-6d1b-5b55-a360-13fec83dc7bc` are rendered
+- **THEN** the link received the focus by keyboard, and Screen 2 of acme-shop is rendered: the level-1
+  heading «acme-shop» and the field «Pregunta» (`ask-page`)
 
 ### Requirement: How a project is written on its card
 
@@ -171,7 +171,7 @@ the screen.
 - **GIVEN** Screen 1 shown with `fetch` replaced by a double that records the signal of each request and
   never answers on its own
 - **WHEN** the person follows the link «Explorar proyecto acme-shop»
-- **THEN** the signal of the pending health check is aborted, the level-1 heading «Consulta del proyecto»
+- **THEN** the signal of the pending health check is aborted, the level-1 heading «acme-shop» of Screen 2
   is rendered, and no element with role `alert` is shown
 
 #### Scenario: A check the page cancels itself changes nothing on the screen

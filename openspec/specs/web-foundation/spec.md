@@ -8,35 +8,23 @@ fails CI on the real routes.
 
 ## Requirements
 
-### Requirement: Routes and screens of the web client
+### Requirement: Paths of the web client and their screens
 
 The web client SHALL answer three kinds of path:
 
 | Path | Screen | Level-1 heading |
 |---|---|---|
 | `/` | project selection, Screen 1 (`project-picker`) | «Elige un proyecto para explorar» |
-| `/p/{projectId}` | project query placeholder (Screen 2) | «Consulta del proyecto» |
+| `/p/{projectId}` | project query, Screen 2 (`ask-page`) | the project's name, or the `projectId` when it is not a sample project |
 | any other path | not found | «Página no encontrada» |
 
-Every one of these screens SHALL render a banner landmark with the text «CODEMIND» and the tagline
+Screen 1 and the not-found screen SHALL render a banner landmark with the text «CODEMIND» and the tagline
 «Comprensión de repositorios con evidencia verificable», and one main landmark holding the level-1
-heading. Screen 1 is specified by the `project-picker` capability. The Screen 2 placeholder SHALL show
-the `projectId` of its path as text and the line «Esta pantalla está en construcción.»; no other text is
-rendered on it besides the banner, the heading, that line and the `projectId`, and it SHALL make no
-request to the API. The not-found screen SHALL render a link «Volver a la selección de proyecto» that
-leads to `/`. Every route SHALL be rendered under the app's error screen (`project-picker`, "App error
-screen").
-
-#### Scenario: A project path shows the Screen 2 placeholder with its id
-
-- **GIVEN** the routes of the web client mounted in a memory router, and `fetch` replaced by a recording
-  double
-- **WHEN** the initial path is `/p/a794456d-6d1b-5b55-a360-13fec83dc7bc`
-- **THEN** the level-1 heading «Consulta del proyecto» is rendered, the text
-  `a794456d-6d1b-5b55-a360-13fec83dc7bc` is shown, the banner shows «CODEMIND» and «Comprensión de
-  repositorios con evidencia verificable», the double recorded no request, and the main landmark
-  holds, in this order, the level-1 heading, a paragraph «Esta pantalla está en construcción.» and a
-  paragraph with the `projectId`, and no other text
+heading. Screen 2 SHALL render the project bar of `ask-page` as its banner landmark, holding its level-1
+heading, and one main landmark. Screen 1 is specified by the `project-picker` capability and Screen 2 by
+the `ask-page` capability. The not-found screen SHALL render a link «Volver a la selección de proyecto»
+that leads to `/`. Every route SHALL be rendered under the app's error screen (`project-picker`, "App
+error screen").
 
 #### Scenario: An unknown path shows the not-found screen and leads back
 
