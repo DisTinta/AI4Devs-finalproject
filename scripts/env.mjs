@@ -7,6 +7,9 @@
  * Spec: `local-startup` → "The .env file grammar" and "Loading .env into a process".
  */
 
+/** The UTF-8 byte-order mark some editors write at the start of a file. */
+const BYTE_ORDER_MARK = 0xfeff;
+
 /** An assignment line: optional blanks, a key, optional blanks, `=` and the raw value. */
 const ASSIGNMENT = /^[ \t]*([A-Za-z_][A-Za-z0-9_]*)[ \t]*=(.*)$/;
 
@@ -39,8 +42,9 @@ function readValue(raw) {
 export function parseEnv(text) {
   /** @type {Record<string, string>} */
   const values = {};
-  for (const line of text.split('\n')) {
-    const match = ASSIGNMENT.exec(line);
+  const body = text.charCodeAt(0) === BYTE_ORDER_MARK ? text.slice(1) : text;
+  for (const line of body.split('\n')) {
+    const match = ASSIGNMENT.exec(line.endsWith('\r') ? line.slice(0, -1) : line);
     if (match !== null) values[match[1]] = readValue(match[2]);
   }
   return values;

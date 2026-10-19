@@ -9,7 +9,7 @@
 
 - [x] 1.1 RED: create `tests/unit/scripts/env.spec.ts` with "The .env grammar of .env.example is read" (parser fed an in-memory string). See it fail (module missing)
 - [x] 1.2 GREEN: `scripts/env.mjs` with `parseEnv(text)` (TSDoc/JSDoc, only `node:` imports) and `scripts/env.d.mts`; LF line endings on every new file (`grep -c $'\r'`, fixed with `sed -i 's/\r$//'`)
-- [ ] 1.3 RED → GREEN: "Lines that do not match are ignored and the last assignment wins"
+- [x] 1.3 RED → GREEN: "Lines that do not match are ignored and the last assignment wins"
 
 ## 2. Loading `.env` (TDD, design D3, D12) — `local-startup` → "Loading .env into a process"
 

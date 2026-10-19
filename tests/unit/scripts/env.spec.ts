@@ -37,4 +37,15 @@ describe('The .env file grammar', () => {
       D: '${HOME}/x',
     });
   });
+
+  it('Lines that do not match are ignored and the last assignment wins', () => {
+    // Arrange
+    const text = '\uFEFF' + ['not a line', '1BAD=x', 'export E=y', '=z', 'F="open', 'G=1', 'G=2'].join('\r\n') + '\r\n';
+
+    // Act
+    const values = parseEnv(text);
+
+    // Assert
+    expect(values).toEqual({ F: '"open', G: '2' });
+  });
 });
