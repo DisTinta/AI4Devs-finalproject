@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { routes } from '../router';
+import type { AskAnswered, AskStatement } from '../services/api-client';
 
 // Spec: openspec/changes/ask-page/specs/ask-page/spec.md (Screen 2 of the web client; DIS-65). Every
 // test renders the real route table in a memory router with `fetch` replaced by a double (design D23).
@@ -29,6 +30,43 @@ const INVALID = 'Escribe una pregunta de 5 a 500 caracteres.';
 const Q1 = '¿Cómo se calcula el precio final de un pedido?';
 const Q3 = '¿Cómo se validan los cupones?';
 const Q4 = '¿Qué hace OrderObserver al crear un pedido?';
+
+/** The excerpt of `ev-1`, with its line breaks and leading spaces. */
+const EV1_EXCERPT = 'class PriceCalculator\n{\n    public function compute(Order $order): float\n}';
+
+/** The excerpt of `ev-2`. */
+const EV2_EXCERPT = '        return $order->shippingCost();';
+
+/** The answered question of "An answered question shows the answer, its statements and its evidence". */
+const ANSWERED: AskAnswered = {
+  answer: 'El precio final se calcula en `PriceCalculator::compute()`.',
+  statements: [
+    {
+      text: '`compute()` aplica el descuento antes del impuesto.',
+      type: 'FACT',
+      verification: 'entailed',
+      evidenceIds: ['ev-1'],
+    },
+    { text: 'El envío se suma al final.', type: 'INFERENCE', verification: 'cited', evidenceIds: ['ev-1', 'ev-2'] },
+  ],
+  evidence: [
+    { id: 'ev-1', file: 'app/Services/PriceCalculator.php', startLine: 16, endLine: 44, excerpt: EV1_EXCERPT },
+    { id: 'ev-2', file: 'app/Services/ShippingService.php', startLine: 12, endLine: 12, excerpt: EV2_EXCERPT },
+  ],
+  confidence: 0.71,
+  usage: {
+    inputTokens: 4_000,
+    outputTokens: 812,
+    baselineTokens: 41_200,
+    baselineEstimator: 'chars-div-4',
+    savingsPct: 88,
+    costUsd: 0.014,
+    latencyMs: 2_100,
+    cacheHit: false,
+    generation: { inputTokens: 3_000, outputTokens: 600, costUsd: 0.01 },
+    verification: { calls: 2, cacheHits: 0, inputTokens: 1_000, outputTokens: 212, costUsd: 0.004, latencyMs: 700 },
+  },
+};
 
 /** One request the `fetch` double received. */
 interface RecordedRequest {
@@ -58,6 +96,23 @@ function neverAnswer({ init }: RecordedRequest): Promise<Response> {
   return new Promise((_resolve, reject) => {
     init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
   });
+}
+
+/** An answer of the API: `status` with `body` as JSON. */
+function answerWith(status: number, body: unknown): () => Promise<Response> {
+  return () => Promise.resolve(new Response(JSON.stringify(body), { status }));
+}
+
+/** Every text node under `root` that contains `text`. */
+function textNodesWith(root: Node, text: string): Text[] {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const found: Text[] = [];
+  for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+    if (node.textContent?.includes(text) === true) {
+      found.push(node as Text);
+    }
+  }
+  return found;
 }
 
 /** Renders the web client's routes in a memory router at `path`. */
@@ -341,5 +396,116 @@ describe('Pending question', () => {
     const askRequest = requests.find((request) => request.url === ASK_URL);
     expect(askRequest?.init?.signal?.aborted).toBe(true);
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
+
+describe('Answer with typed and verified statements', () => {
+  it('An answered question shows the answer, its statements and its evidence', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    stubFetch(answerWith(200, ANSWERED));
+    await renderScreen2();
+    const suggestion = screen.getByRole('button', { name: Q1 });
+
+    // Act
+    await user.click(suggestion);
+    const answerHeading = await screen.findByRole('heading', { level: 2, name: 'Respuesta' });
+
+    // Assert
+    const paragraph = answerHeading.nextElementSibling;
+    expect(paragraph?.tagName).toBe('P');
+    expect(paragraph?.textContent).toBe('El precio final se calcula en PriceCalculator::compute().');
+    expect(Array.from(paragraph?.querySelectorAll('code') ?? [], (code) => code.textContent)).toEqual([
+      'PriceCalculator::compute()',
+    ]);
+
+    const orderedLists = screen.getAllByRole('list').filter((list) => list.tagName === 'OL');
+    expect(orderedLists).toHaveLength(1);
+    const items = within(orderedLists[0]).getAllByRole('listitem');
+    expect(items).toHaveLength(2);
+    expect(Array.from(items[0].querySelectorAll('code'), (code) => code.textContent)).toEqual(['compute()']);
+    expect(within(items[0]).getByText('HECHO')).toBeDefined();
+    expect(within(items[0]).getByText('verificado')).toBeDefined();
+    expect(within(items[0]).getByText('Evidencia: ev-1')).toBeDefined();
+    expect(within(items[1]).getByText('INFERIDO')).toBeDefined();
+    expect(within(items[1]).getByText('sin verificar')).toBeDefined();
+    expect(within(items[1]).getByText('Evidencia: ev-1, ev-2')).toBeDefined();
+    for (const icon of ['●', '✓', '⚠', '○']) {
+      const nodes = textNodesWith(orderedLists[0], icon);
+      expect(nodes.length, `icon ${icon} is shown`).toBeGreaterThan(0);
+      for (const node of nodes) {
+        expect(node.parentElement?.closest('[aria-hidden="true"]'), `icon ${icon} is hidden`).not.toBeNull();
+      }
+    }
+
+    const evidenceHeading = screen.getByRole('heading', { level: 2, name: 'Evidencia' });
+    expect(precedes(orderedLists[0], evidenceHeading)).toBe(true);
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.queryByText(SEARCHING)).toBeNull();
+    expect(document.body.textContent).not.toContain('0.71');
+    expect(document.body.textContent).not.toContain('Confianza');
+    expect(document.activeElement).toBe(suggestion);
+  });
+
+  it('Every combination of type and verification is labelled', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const combinations: Array<[AskStatement['type'], AskStatement['verification']]> = [
+      ['FACT', 'entailed'],
+      ['FACT', 'cited'],
+      ['INFERENCE', 'entailed'],
+      ['INFERENCE', 'cited'],
+    ];
+    const statements = combinations.map(([type, verification], index) => ({
+      text: `Afirmación ${index + 1}.`,
+      type,
+      verification,
+      evidenceIds: index < 3 ? ['ev-1'] : [],
+    }));
+    stubFetch(answerWith(200, { ...ANSWERED, statements }));
+    await renderScreen2();
+
+    // Act
+    await user.click(screen.getByRole('button', { name: Q1 }));
+    await screen.findByRole('heading', { level: 2, name: 'Respuesta' });
+
+    // Assert
+    const orderedList = screen.getAllByRole('list').find((list) => list.tagName === 'OL');
+    const items = within(orderedList as HTMLElement).getAllByRole('listitem');
+    const labels = items.map((item) => [
+      ['HECHO', 'INFERIDO'].filter((label) => within(item).queryByText(label) !== null),
+      ['verificado', 'sin verificar'].filter((label) => within(item).queryByText(label) !== null),
+      within(item).queryByText(/^Evidencia:/)?.textContent ?? null,
+    ]);
+    expect(labels).toEqual([
+      [['HECHO'], ['verificado'], 'Evidencia: ev-1'],
+      [['HECHO'], ['sin verificar'], 'Evidencia: ev-1'],
+      [['INFERIDO'], ['verificado'], 'Evidencia: ev-1'],
+      [['INFERIDO'], ['sin verificar'], null],
+    ]);
+  });
+
+  it('Markup in an answer is shown as text', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const markupAnswer: AskAnswered = {
+      ...ANSWERED,
+      answer: 'Usa <b>negrita</b> y `<i>x</i>`.',
+      statements: [{ text: '<img src=x onerror=alert(1)>', type: 'FACT', verification: 'entailed', evidenceIds: ['ev-1'] }],
+    };
+    stubFetch(answerWith(200, markupAnswer));
+    await renderScreen2();
+
+    // Act
+    await user.click(screen.getByRole('button', { name: Q1 }));
+    const answerHeading = await screen.findByRole('heading', { level: 2, name: 'Respuesta' });
+
+    // Assert
+    const paragraph = answerHeading.nextElementSibling;
+    expect(paragraph?.textContent).toBe('Usa <b>negrita</b> y <i>x</i>.');
+    expect(paragraph?.querySelector('code')?.textContent).toBe('<i>x</i>');
+    const orderedList = screen.getAllByRole('list').find((list) => list.tagName === 'OL');
+    expect(orderedList?.textContent).toContain('<img src=x onerror=alert(1)>');
+    expect(screen.getByRole('main').querySelectorAll('b, i, img')).toHaveLength(0);
   });
 });

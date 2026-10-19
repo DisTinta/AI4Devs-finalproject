@@ -1,4 +1,5 @@
 import { useState, type ReactElement } from 'react';
+import { AnswerView } from '../components/AnswerView';
 import { validQuestion } from '../components/answer-display';
 import { PageFrame } from '../components/PageFrame';
 import { formatCount, stackLabel } from '../components/project-display';
@@ -49,6 +50,9 @@ function ResultArea({ state }: { state: AskState }): ReactElement | null {
         Buscando evidencia…
       </p>
     );
+  }
+  if (state.status === 'answered') {
+    return <AnswerView answer={state.answer} />;
   }
   return null;
 }
