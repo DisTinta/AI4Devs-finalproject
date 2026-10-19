@@ -31,11 +31,11 @@ Every test of this change follows Arrange-Act-Assert with the three blocks comme
 
 ## 4. Answer and usage panel (TDD, design D2–D6, D14, D21, D24, D30) — `ask-page` → "Answer with typed and verified statements", "Usage panel"
 
-- [ ] 4.1 RED: "An answer from the model shows its usage panel" (`getByRole('region', { name: 'Uso' })`; its `h2`; after the `Evidencia` heading and both evidence buttons by `compareDocumentPosition`; the eight texts in order by their index in the region's `textContent`; U+00A0 groups; every text node « · » under `aria-hidden`; no `a`, `button`, `input` in the region). See it fail
-- [ ] 4.2 GREEN: `packages/web/src/components/UsagePanel.tsx` (props interface `{ confidence: number; usage: AskUsage }`, TSDoc, `section aria-labelledby` + `h2 className="sr-only"`, figures from `usage-display.ts`, theme pairs of D30, `flex-wrap`, badges `whitespace-nowrap`); `ResultArea` renders it after `AnswerView` (D21); update `AnswerView`'s TSDoc (drop "Neither the confidence nor the usage is shown")
-- [ ] 4.3 Changed scenario (D24): run "An answered question shows the answer, its statements and its evidence" and see it fail on `not.toContain('0.71')` (the panel now shows the confidence: its RED evidence, recorded for the step 11 report); then delete only the two assertions `not.toContain('0.71')` and `not.toContain('Confianza')`; it passes
-- [ ] 4.4 RED → GREEN: "A cache hit shows its usage panel" (the ✓ text node under `aria-hidden`; no «sin caché»)
-- [ ] 4.5 RED → GREEN: "No saving is not shown as a saving" (two runs, `unmount()` between them; region text has «sin ahorro vs bruto» and no «ahorro -», «ahorro 0» nor «%»)
+- [x] 4.1 RED: "An answer from the model shows its usage panel" (`getByRole('region', { name: 'Uso' })`; its `h2`; after the `Evidencia` heading and both evidence buttons by `compareDocumentPosition`; the eight texts in order by their index in the region's `textContent`; U+00A0 groups; every text node « · » under `aria-hidden`; no `a`, `button`, `input` in the region). See it fail
+- [x] 4.2 GREEN: `packages/web/src/components/UsagePanel.tsx` (props interface `{ confidence: number; usage: AskUsage }`, TSDoc, `section aria-labelledby` + `h2 className="sr-only"`, figures from `usage-display.ts`, theme pairs of D30, `flex-wrap`, badges `whitespace-nowrap`); `ResultArea` renders it after `AnswerView` (D21); update `AnswerView`'s TSDoc (drop "Neither the confidence nor the usage is shown")
+- [x] 4.3 Changed scenario (D24): run "An answered question shows the answer, its statements and its evidence" and see it fail on `not.toContain('0.71')` (the panel now shows the confidence: its RED evidence, recorded for the step 11 report); then delete only the two assertions `not.toContain('0.71')` and `not.toContain('Confianza')`; it passes
+- [x] 4.4 RED → GREEN: "A cache hit shows its usage panel" (the ✓ text node under `aria-hidden`; no «sin caché»)
+- [x] 4.5 RED → GREEN: "No saving is not shown as a saving" (two runs, `unmount()` between them; region text has «sin ahorro vs bruto» and no «ahorro -», «ahorro 0» nor «%»)
 
 ## 5. UNKNOWN states (TDD, design D7, D8, D18, D23, D30) — `ask-page` → "UNKNOWN states"
 

@@ -23,6 +23,9 @@ const ELLIPSIS = String.fromCodePoint(0x2026);
 /** The pending status. */
 const SEARCHING = `Buscando evidencia${ELLIPSIS}`;
 
+/** The digit-group separator, a no-break space (U+00A0), written by code point. */
+const NBSP = String.fromCodePoint(0x00a0);
+
 /** The message of an invalid question. */
 const INVALID = 'Escribe una pregunta de 5 a 500 caracteres.';
 
@@ -504,8 +507,6 @@ describe('Answer with typed and verified statements', () => {
     expect(precedes(orderedLists[0], evidenceHeading)).toBe(true);
     expect(screen.getAllByRole('status').map((status) => status.textContent)).toEqual(['Respuesta recibida.']);
     expect(screen.queryByText(SEARCHING)).toBeNull();
-    expect(document.body.textContent).not.toContain('0.71');
-    expect(document.body.textContent).not.toContain('Confianza');
     expect(document.activeElement).toBe(suggestion);
   });
 
@@ -721,5 +722,122 @@ describe('Screen reader announcements of Screen 2', () => {
     expect(statuses[0].contains(inStatus)).toBe(true);
     expect(statuses[0].contains(hidden)).toBe(false);
     expect(hidden.parentElement?.closest('[aria-hidden="true"]')).not.toBeNull();
+  });
+});
+
+/** Asserts that every text of `texts` is in `text`, in this order. */
+function expectTextsInOrder(text: string, texts: string[]): void {
+  const positions = texts.map((part) => text.indexOf(part));
+  texts.forEach((part, index) => expect(positions[index], `«${part}» is shown`).toBeGreaterThanOrEqual(0));
+  for (let index = 1; index < texts.length; index += 1) {
+    expect(positions[index], `«${texts[index - 1]}» comes before «${texts[index]}»`).toBeGreaterThan(positions[index - 1]);
+  }
+}
+
+/**
+ * Presses Q1 with `fetch` answering `answer`, and waits for the region «Uso».
+ *
+ * @returns The region and the unmount of the render, to run again.
+ */
+async function usageRegionOf(answer: AskAnswered): Promise<{ region: HTMLElement; unmount: () => void }> {
+  const user = userEvent.setup();
+  stubFetch(answerWith(200, answer));
+  const { unmount } = await renderScreen2();
+  await user.click(screen.getByRole('button', { name: Q1 }));
+  return { region: await screen.findByRole('region', { name: 'Uso' }), unmount };
+}
+
+describe('Usage panel', () => {
+  it('An answer from the model shows its usage panel', async () => {
+    // Arrange
+    const answer = ANSWERED;
+
+    // Act
+    const { region } = await usageRegionOf(answer);
+
+    // Assert
+    expect(within(region).getByRole('heading', { level: 2, name: 'Uso' })).toBeDefined();
+    const evidenceHeading = screen.getByRole('heading', { level: 2, name: 'Evidencia' });
+    expectInOrder([
+      evidenceHeading,
+      screen.getByRole('button', { name: EV1_NAME }),
+      screen.getByRole('button', { name: EV2_NAME }),
+      region,
+    ]);
+    expectTextsInOrder(region.textContent ?? '', [
+      'Confianza',
+      '0.71',
+      `4${NBSP}812 tokens`,
+      '$0.014',
+      '2.1 s',
+      'ahorro 88 % vs bruto',
+      'sin caché',
+      `41${NBSP}200 tokens sin selección de contexto → 4${NBSP}000 con CODEMIND`,
+    ]);
+    const separators = textNodesWith(region, '·');
+    expect(separators.length).toBeGreaterThan(0);
+    for (const separator of separators) {
+      expect(separator.parentElement?.closest('[aria-hidden="true"]'), 'the separator is hidden').not.toBeNull();
+    }
+    expect(region.querySelectorAll('a, button, input')).toHaveLength(0);
+  });
+
+  it('A cache hit shows its usage panel', async () => {
+    // Arrange
+    const cacheHit: AskAnswered = {
+      ...ANSWERED,
+      confidence: 0.7772998611746911,
+      usage: {
+        ...ANSWERED.usage,
+        inputTokens: 0,
+        outputTokens: 0,
+        baselineTokens: 7_123,
+        savingsPct: 100,
+        costUsd: 0,
+        latencyMs: 12,
+        cacheHit: true,
+      },
+    };
+
+    // Act
+    const { region } = await usageRegionOf(cacheHit);
+
+    // Assert
+    const text = region.textContent ?? '';
+    expectTextsInOrder(text, [
+      'Confianza',
+      '0.78',
+      '0 tokens',
+      '$0',
+      '12 ms',
+      'ahorro 100 % vs bruto',
+      'caché ✓',
+      `7${NBSP}123 tokens sin selección de contexto → 0 con CODEMIND`,
+    ]);
+    const ticks = textNodesWith(region, '✓');
+    expect(ticks).toHaveLength(1);
+    expect(ticks[0].parentElement?.closest('[aria-hidden="true"]')).not.toBeNull();
+    expect(text).not.toContain('sin caché');
+  });
+
+  it('No saving is not shown as a saving', async () => {
+    // Arrange
+    const runs: string[] = [];
+
+    // Act
+    for (const savingsPct of [-24.9, 0]) {
+      const { region, unmount } = await usageRegionOf({ ...ANSWERED, usage: { ...ANSWERED.usage, savingsPct } });
+      runs.push(region.textContent ?? '');
+      unmount();
+    }
+
+    // Assert
+    expect(runs).toHaveLength(2);
+    for (const text of runs) {
+      expect(text).toContain('sin ahorro vs bruto');
+      expect(text).not.toContain('ahorro -');
+      expect(text).not.toContain('ahorro 0');
+      expect(text).not.toContain('%');
+    }
   });
 });
