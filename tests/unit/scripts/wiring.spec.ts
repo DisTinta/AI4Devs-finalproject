@@ -115,6 +115,16 @@ describe('Which commands load .env', () => {
       expect(text, file).not.toMatch(/\bparseEnv\b[^;]*from\s+['"](node:)?util['"]/);
     }
 
+    // Assert: up loads the root's .env itself, with the path passed by its entry guard (A15, A23)
+    for (const [file, run] of [['scripts/up.mjs', 'runUp']] as const) {
+      const text = source(file);
+      const specifiers = importSpecifiers(text);
+      expect(text, file).toMatch(/import\s*\{[^}]*\bDOTENV_PATH\b[^}]*\}\s*from\s*'\.\/env\.mjs'/);
+      expect(specifiers, file).not.toContain('./load-env.mjs');
+      const guard = new RegExp(`if \\(process\\.argv\\[1\\][^\\n]*\\{[\\s\\S]*?${run}\\(\\{[\\s\\S]*?dotenvPath: DOTENV_PATH`);
+      expect(text, file).toMatch(guard);
+    }
+
     // Assert: product code reads its configuration from the process environment only
     const offending = packageSourceDirectories()
       .flatMap(filesUnder)
