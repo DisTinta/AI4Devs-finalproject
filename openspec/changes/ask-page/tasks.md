@@ -16,8 +16,8 @@ Every test of this change follows Arrange-Act-Assert with the three blocks comme
 
 ## 2. Suggested questions and their coherence (TDD, design D5, D28) — `ask-page` → "Suggested questions"
 
-- [ ] 2.1 RED: create `tests/unit/seed/suggested-questions-coherence.spec.ts` with "The suggested questions are the golden questions" (list `seeds/cache/*.json` with `node:fs`, `JSON.parse` each, map `project` → the `SAMPLE_PROJECTS` id; compare the constant's array with the entries' `question` in order; every key of the constant is such an id; acme-shop's three texts asserted literally). See it fail (module missing)
-- [ ] 2.2 GREEN: `packages/web/src/data/suggested-questions.ts` (`SUGGESTED_QUESTIONS: Readonly<Record<string, readonly string[]>>`, keyed by the acme-shop id taken from `SAMPLE_PROJECTS`, not a copied literal; TSDoc stating it is hand-written and guarded by the coherence test)
+- [x] 2.1 RED: create `tests/unit/seed/suggested-questions-coherence.spec.ts` with "The suggested questions are the golden questions" (list `seeds/cache/*.json` with `node:fs`, `JSON.parse` each, map `project` → the `SAMPLE_PROJECTS` id; compare the constant's array with the entries' `question` in order; every key of the constant is such an id; acme-shop's three texts asserted literally). See it fail (module missing)
+- [x] 2.2 GREEN: `packages/web/src/data/suggested-questions.ts` (`SUGGESTED_QUESTIONS: Readonly<Record<string, readonly string[]>>`, keyed by the acme-shop id taken from `SAMPLE_PROJECTS`, not a copied literal; TSDoc stating it is hand-written and guarded by the coherence test)
 
 ## 3. Screen 2 frame and project bar (TDD, design D3, D12, D15, D16, D20, D21, D24, D27) — `ask-page` → "Screen 2 frame and project bar"; `web-foundation` → "Paths of the web client and their screens"
 
