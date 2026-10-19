@@ -160,3 +160,11 @@ the accents arrived byte for byte. The echo server was stopped afterwards.
 `npx vitest run tests/unit/scripts tests/unit/docs` → 6 files, 36 tests passed (31 before, plus five new
 scenarios); `npx eslint scripts tests/unit/scripts tests/unit/docs` clean; `npm run typecheck` clean. The
 full suite and the gates are re-run before the commit (addendum below).
+
+## Addendum — after the adversarial review (2026-10-19)
+
+The adversarial review's fixes (D23, A27, AR2–AR6) touch requirements this audit covered ("The demo
+question helper", "Loading .env into a process"); their scenarios and tests are listed in
+`2026-10-19-adversarial-review.md` → Resolution. `npx vitest run tests/unit/scripts tests/unit/docs` → 6
+files, 41 tests passed. The weak points V3 and V8 of this audit were strengthened further there (the
+request double is renamed `send`; the pairing check also refuses a heading between the blocks).

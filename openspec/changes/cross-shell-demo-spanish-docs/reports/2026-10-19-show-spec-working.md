@@ -273,3 +273,16 @@ exercised through the real commands in Bash and (for the shell-sensitive ones) P
 its passing scenario test where the scenario is defined on doubles; the two recorded web states were
 captured and match the wireframes and the guide. No screenshot was written at the repository root
 (all three are under `openspec/changes/cross-shell-demo-spanish-docs/reports/`).
+
+## Addendum — after the pre-merge fixes (2026-10-19)
+
+The fixes D19–D23 and A27 change `scripts/env.mjs`, `scripts/demo-excerpt.mjs`, `scripts/up.mjs` and
+`scripts/demo-ask.mjs` (`design.md` → Pre-merge review amendments). `demo:ask` changed transport
+(`fetch` → `node:http`), so it was exercised again against the real API (the working tree's
+`packages/api` on the throwaway test database): golden question `HTTP 200` with 4/4 and exit `0`,
+refunds question `UNKNOWN` `no-anchor`, unknown id `HTTP 404` exit `1`, short question `HTTP 400` exit
+`1`; and against local servers for the 310 s wait, a dropped body and a closed port (evidence in
+`2026-10-19-adversarial-review.md` → AR1). Windows PowerShell 5.1 was exercised for the accents and `--`
+(`2026-10-19-verify-against-spec.md` → V2). The other three scripts' fixes are covered by their new
+scenario tests; their happy paths are unchanged (`npx vitest run tests/unit/scripts tests/unit/docs`
+green).
