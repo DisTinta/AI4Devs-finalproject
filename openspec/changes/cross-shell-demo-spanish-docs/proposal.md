@@ -11,7 +11,8 @@ author also wants the four evaluator-facing documents (`docs/DEMO.md`, `docs/CON
 
 This is DIS-102 (labels `docs`, `dx`; no parent issue in Linear, so the ticket alone bounds the
 change). Its decisions D1–D11 were taken by the agent as lead engineer in the autonomous run of
-Entrega 2 (ADR `20261016-autonomous-workflow-run-entrega-2`) and recorded in the DIS-102 Enhanced
+Entrega 2 (ADR `20261016-autonomous-workflow-run-entrega-2`, which DIS-102 joined on 2026-10-19,
+after the ADR's ticket list, by the author's request) and recorded in the DIS-102 Enhanced
 description on 2026-10-19; the author's decisions of 2026-10-19 (the four documents in Spanish;
 every evaluator step identical in PowerShell and Bash, no manual `export`/`$env:`) frame them.
 

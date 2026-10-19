@@ -40,6 +40,11 @@ See proposal.md → Why. The state this design starts from (base `368dc38`):
 - Fingerprints: the seed fingerprint reads `package-lock.json` and package sources, the answer
   fingerprint a list of `packages/core/src` files. This change touches none of them.
 
+Run authorisation: DIS-102 was opened on 2026-10-19, after the twelve tickets listed in ADR
+`20261016-autonomous-workflow-run-entrega-2`, and runs under the same ADR by the author's request of
+that date (the workflow run she launched; recorded in DIS-102 Enhanced). Without that record, task
+19.9 stops before the merge and leaves DIS-102 In Review.
+
 ## Goals / Non-Goals
 
 **Goals:**
@@ -102,7 +107,9 @@ a separate preload, so `dev-register.mjs` and the test that spawns it directly s
 `--watch`, each restart loads `.env` again. `up` and `demo:ask` do not rely on the preload's side
 effect: `runUp` and `runDemoAsk` call `loadEnvFile(dotenvPath, env, stderr)` first, with `dotenvPath`
 defaulting to `DOTENV_PATH` (imported from `./load-env.mjs` for the constant; its import side effect
-is a no-op under the suite's switch), so their tests can give a temporary file (A2). The root
+is a no-op under the suite's switch), so their tests can give a temporary file (A2). Their entry
+guards pass `dotenvPath: DOTENV_PATH` explicitly, which `wiring.spec.ts` checks in the source text, so
+a default left `undefined` cannot pass every test unnoticed (A15). The root
 `dev` needs no preload: the API's own `dev` loads it, and the web reads no variable. `demo:excerpt`
 reads no variable, so it does not load `.env` (a refinement of the ticket's "the demo helpers": loading
 it would do nothing). Quality scripts never load it (`local-startup` → "Which commands load .env").
@@ -185,9 +192,11 @@ decision, 2026-10-19); everything else stays English, `prompts.md` stays Spanish
 una instalación`; in `TESTING.md` `**Carreras conocidas.**`. References to update: `docs/DEPLOYMENT.md`
 → `#indexing-a-repository-cli`; `docs/project-context.md` l. 359 (`docs/TESTING.md` → Known races) and
 any other section name it cites; `docs/TESTING.md` → `DEPLOYMENT.md` → Verifying an installation;
-`readme.md` §0 (l. 19), §1.3 (l. 185, 279), §1.4 (l. 301–316, 391–395, variables table l. 436–441),
-and `make up` as the main command wherever it is (now `npm run up`, with `make up` as the Git Bash/WSL
-alternative). The TSDoc in `packages/core/src` cites `docs/CONFIDENCE.md` by file name only and is not
+`readme.md` §0 (l. 19, 75), §1.2 (l. 147), §1.3 (l. 185, 279), §1.4 (l. 298–316 — the start block
+without `&&`: `git clone …` and `cd …` on two lines in a `shell` block —, 391–395, 407, variables
+table l. 436–441) and §2.4 (l. 658, 690), and `make up` as the main command wherever it is (now
+`npm run up`, with `make up` as the Git Bash/WSL alternative); l. 1084 and l. 1672 are history and
+stay (A18). The TSDoc in `packages/core/src` cites `docs/CONFIDENCE.md` by file name only and is not
 touched (it is also an answer-fingerprint input). `prompts.md` and `openspec/specs/` hold no
 `#fragment` link into the four guides (checked during the spec audit), so they need no anchor update;
 the `make up` mentions of `openspec/specs/verify-smoke` and `seed-load` stay true because `make up` now
@@ -208,6 +217,16 @@ folders out of the way without `rm -rf`. `C:/Users/cristina/Desktop/~` is never 
 pasted into `docs/DEMO.md` comes from these runs (the PowerShell one for the PowerShell-specific
 variants, if any), with the edits the guide lists. If PowerShell's `npm` loses `--` or the accents, the
 guide shows labelled `powershell`/`bash` variants and the PR says so.
+
+The guide's "port taken" step ("edit `.env` with a text editor") is performed in each clone by a
+scripted, line-anchored replacement of the `POSTGRES_PORT=` line and of the port in `DATABASE_URL=`,
+writing UTF-8 without BOM and LF, without reading or printing the file (the agent has no editor and
+its Read tool is denied on `.env*`); it is the one stated deviation from "literally", recorded in the
+step 16 report and in the PR body (A14). `npm run up` runs in the background and is stopped by process
+tree, so the Ctrl+C end is not captured: `Parar el sistema` states it in text (`[up] stopped
+(Ctrl+C)`, then npm's `code 130` lines, the expected end) and pastes only `npm run down` (A13); in the
+Bash clone the agent may send `kill -INT` to the process group and record that output in the step 16
+report.
 
 ### D12. The test suite never reads `.env` (agent's decision)
 
@@ -236,7 +255,10 @@ in the guide that `make up` means `npm run up` (the screen would keep giving a B
 needs a variable per shell. `docs/TESTING.md` shows it as an adjacent, labelled pair:
 `DATABASE_URL=postgresql://…/codemind_test npm test` (Bash) and
 `$env:DATABASE_URL='postgresql://…/codemind_test'; npm test` (PowerShell), plus the `createdb` line,
-which is the same in both. Running the tests is a developer task, not a demo step, so criterion C's
+which is the same in both. The PowerShell variant notes that `$env:DATABASE_URL` persists for the
+session and beats `.env` (D3), so the reader removes it (`Remove-Item Env:DATABASE_URL`) or opens a
+new terminal before the demo; the `codemind_test` URL uses the port of `.env`'s `DATABASE_URL` (A17).
+Running the tests is a developer task, not a demo step, so criterion C's
 "one command for both shells" is met in `docs/DEMO.md`, and `docs/TESTING.md` uses the "two labelled
 variants when unavoidable" clause. The smoke check (`npm run verify`) no longer needs `export`.
 
@@ -263,6 +285,12 @@ and `tests/unit/docs/guides.spec.ts` (DEMO.md fences, headings, walkthrough labe
 after its scenario. `scripts/` stays out of Stryker (as `dev-register.mjs`): the mutation scope is the
 product packages.
 
+### D17. Manual checks without stopping the author's Docker
+
+"Up with Docker unavailable" runs with `DOCKER_HOST=tcp://127.0.0.1:1` (a closed port) in the
+clone, set per shell for that one check, instead of stopping Docker Desktop, which would stop the
+author's other containers.
+
 ### D18. The four guides are a recorded language exception (agent's decision)
 
 `docs/base-standards.md` §2 and `docs/documentation-standards.md` say documentation is English. The
@@ -272,12 +300,6 @@ is kit doctrine and is replaced on kit updates): `docs/DEMO.md`, `docs/CONFIDENC
 `docs/DEPLOYMENT.md` and `docs/TESTING.md` are Spanish, with commands, pasted output, identifiers,
 error codes and paths verbatim; every other document follows `base-standards.md` §2. `/update-docs`
 reads that line before applying the English rule.
-
-### D17. Manual checks without stopping the author's Docker
-
-"Up with Docker unavailable" runs with `DOCKER_HOST=tcp://127.0.0.1:1` (a closed port) in the
-clone, set per shell for that one check, instead of stopping Docker Desktop, which would stop the
-author's other containers.
 
 ### Spec-audit amendments (run 1, 2026-10-19)
 
@@ -298,6 +320,18 @@ author's other containers.
 - **A12.** `confidence-doc.spec.ts` normalises headings and section lookup to NFC (task 9.1); tasks
   11.2 and 16.2 are split in two. Rejected: switching `gh` back to Cristina-JumpMath after pushing; the
   author allowed DisTinta to stay active for this run (2026-10-18).
+
+### Spec-audit amendments (run 2, 2026-10-19)
+
+- **A13.** `Parar el sistema` states the Ctrl+C end in text and pastes only `npm run down` (D11).
+- **A14.** The clones' "port taken" `.env` edit is scripted and the one stated deviation (D11).
+- **A15.** The entry guards of `up` and `demo:ask` pass `DOTENV_PATH`, checked by `wiring.spec.ts`.
+- **A16.** `shell` blocks also forbid any `$` and lines starting with a variable assignment.
+- **A17.** TESTING's PowerShell variant warns about session persistence and the test URL follows
+  `.env`'s port (D14).
+- **A18.** `readme.md` §1.2 and §2.4 also move to `npm run up`, and §1.4's start block drops `&&` (D10).
+- Recorded: A10 is D18; D11's two clones and their `down -v` on the clones' own projects; the ADR scope
+  of DIS-102 (Context).
 
 ## Risks / Trade-offs
 

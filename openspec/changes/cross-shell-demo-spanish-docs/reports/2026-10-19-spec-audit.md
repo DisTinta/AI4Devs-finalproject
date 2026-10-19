@@ -300,3 +300,290 @@ description and in `design.md` → "Spec-audit amendments (run 1)".
 | 9 — task size | 11.2 split into 11.2/11.2b; 16.2 into 16.2/16.2b. |
 | 10 — 14.3 risk to the author's database | 14.3 runs the `.env` demonstration only in the scratchpad clone (A11). |
 | 10 — `gh` switch back to Cristina-JumpMath | Rejected: the author allowed DisTinta to stay the active account for this run (2026-10-18). |
+
+## Run 2
+
+Verdict line as returned:
+
+CHANGES REQUIRED
+
+**Decisions to record.** This is an autonomous run under ADR `docs/adr/20261016-autonomous-workflow-run-entrega-2.md`. The agent takes each decision below as lead engineer and writes it, in Spanish, into the DIS-102 Enhanced description and into the change's artifacts.
+
+- **R4. How the guide's "stop" output is obtained (blocking, points 5 and 6).** Two statements conflict:
+  - `local-startup` says "The output pasted in the guide SHALL come from a run of the guide, literally".
+  - Design D11 runs `npm run up` **in the background**. An agent tool cannot send a console Ctrl+C to a background process (on Windows in particular). D11 instead stops the servers with `taskkill /T`, which never produces `[up] stopped (Ctrl+C)`.
+  - After `up` exits `130`, npm itself prints its lifecycle error lines (`npm error Lifecycle script \`up\` failed…`, `npm error code 130`). A first-time reader will take that for a failure.
+
+  Proposed decision: `Parar el sistema` pastes no output for the Ctrl+C step. Its text names what the reader will see (`[up] stopped (Ctrl+C)` followed by npm's `code 130` lines) and says this is the expected end. The pasted output of that section is only `npm run down`. The Ctrl+C behaviour is proven by the unit scenario "Ctrl+C stops up without a failure line". If the agent can send SIGINT to the process group in the Bash clone (`kill -INT -<pgid>`), it records that output in the step 16 report, not in the guide.
+- **R5. How the clean-clone run performs the "port taken" `.env` edit (blocking, point 5).** Three facts collide:
+  - The guide tells the reader to edit `.env` "with a text editor, not with a shell redirection" (A9).
+  - Criterion E and D11 say the guide is followed "literally".
+  - The agent has no text editor, and design → Risks records that its Read tool is denied on `.env*`. That is a path pattern, so it also matches the clone's `.env`.
+
+  Proposed decision: in each clone the edit is a scripted, line-anchored replacement of the `POSTGRES_PORT=` line and of the port in `DATABASE_URL=`. It writes UTF-8 without BOM and LF line endings, and the agent never reads or prints the file. Record it as the one stated deviation from "literally", in D11, in tasks 16.2/16.2b and in the PR body.
+- **R6. DIS-102 and the scope of the ADR (improvable, decision to record).** The ADR's Context names twelve tickets (DIS-76 … DIS-101); DIS-102 is not among them. Tasks 19.1 and 19.9 rely on the ADR for the agent to open and **merge** the PR. Without the ADR, `docs/openspec-tasks-mandatory-steps.md` §3 step 5 applies ("The agent never merges"). The caller states the run is authorised, so record the basis once: proposal → Why, and one sentence in Enhanced saying DIS-102 joined the run on 2026-10-19 at the author's request. If that basis cannot be stated, 19.9 stops at "ready to merge" and the ticket goes to In Review.
+
+---
+
+### Findings of run 2
+
+#### Resolutions of run 1: do they hold?
+
+| Run-1 finding | Holds? | Evidence |
+|---|---|---|
+| R1 / 1 / 6.2: D12–D17 and D13 in Linear | Yes | Enhanced → «Decisiones añadidas en el propose» holds D12–D17, the D4 refinement and the fixed formats. «Fuera de alcance» names the D13 exception. |
+| R2 / 7.1: language exception | Yes | Enhanced D18, design D18, task 12.2 (exact line), task 17.3. |
+| R3 / 5.2: Ctrl+C | Yes, in the spec | Requirement plus scenario "Ctrl+C stops up without a failure line", design D5 (A3), task 4.3. Its consequence for the guide is new (R4). |
+| 2: `engines` | Yes | Requirement "Which commands load .env" and the wiring scenario (`engines.node`, forbidden APIs); task 3.1. |
+| 3.1 / 3.2 / 6.1: `.env` reaching `up`/`demo:ask` | Yes | `dotenvPath` in the spec, D4/D5/D8 and tasks 4.1/6.3. A residual gap is in 3.2 below. |
+| 3.3: product code never loads `.env` | Yes | Requirement and wiring scenario, last AND. |
+| 3.4 / 7.2: stale sentences | Mostly | The search list is wider and the `project-context.md` lines are named. The readme hits outside §0/§1.3/§1.4 have no task (see 7.2 below). |
+| 4: "short" | Yes in the change; **not in Linear** | Enhanced AC C still says «Pasos numerados, cortos y en orden» (see 4.1 below). |
+| 5.1, 5.3–5.8 | Yes | Spec l. 57–59, 249–261, 326–332, 453, 376–381; design A1, A4, A5, A8, A9. |
+| 8: NFC | Yes | Task 9.1. |
+| 9: task size | Yes | 11.2/11.2b and 16.2/16.2b. |
+| 10: 14.3 | Yes | Task 14.3 and A11. |
+| 10: `gh` switch back | Rejected and recorded | A12, in Linear and in the design. |
+
+---
+
+#### 1. Scope against the ticket
+
+DIS-102 has no parent: no `parentId`, no relations, no comments. The ticket alone bounds the change.
+
+- Everything in the proposal, the specs and the tasks traces to D1–D18, A1–A12 or criteria A–E of the Enhanced description. No invented scope.
+- **1.1 (improvable).** Design D11 refines the Linear D11 in two ways the ticket does not record:
+  - **two** clones (`e2e-bash`, `e2e-pwsh`) whose folder names give each its own Compose project, instead of one clone with a `-p <nombre>` project;
+  - `docker compose -p <clone> down -v` on the clones' own projects, where Linear says `docker compose -p <nombre> down`.
+
+  Both are harmless, but the ADR asks for every decision to be recorded. Add them to Enhanced.
+- **1.2 (improvable).** Linear lists A1–A9, A11 and A12, but not A10. In the design, A10 is D18, which Linear does hold. Add the line "A10 = D18" so the two lists match one to one.
+
+#### 2. Inherited acceptance criteria
+
+There is no parent, so nothing is inherited. Checked against the ticket's own criteria A–E:
+
+- **A.** Covered: the start sequence, `up` working before `npm install`, the Docker-down case, `down` keeping the volume and `make up` still working (15.6).
+- **B.** Covered: `.env` read by the guide scripts, precedence, the no-`.env` case, the quality scripts skipping it, and `engines`.
+- **C.** Covered by "The demo guide …" (three scenarios) and the clean-clone run.
+- **D.** Covered: the Spanish guides, the links, `confidence-doc.spec.ts`.
+- **E.** Covered by "The guide was followed on a clean clone in both shells".
+
+No missing criterion. AC A says "the documented start command (the same text in PowerShell and Bash)". That command is also documented in `readme.md` §1.4 and §1.2, which point 7.2 covers.
+
+#### 3. Missing scenarios
+
+- **3.1 Clean for the MUST clauses.** Every MUST/SHALL clause of the three deltas has a scenario.
+- **3.2 (improvable).** In "Which commands load .env", the clause "`up` and `demo:ask` SHALL load it themselves" is proven only partly:
+  - the behaviour scenarios pass an explicit `dotenvPath`;
+  - the wiring scenario checks only that the modules *import* `./env.mjs` or `./load-env.mjs`.
+
+  If `runUp` or `runDemoAsk` defaulted `dotenvPath` to `undefined`, every test would pass and nothing would load `.env` in real use. The recorded checks would not show it either: Compose reads `.env` by itself, the `db:*` steps preload it themselves, and the demo uses the default `PORT`. Fix: the entry guard of each module passes `dotenvPath: DOTENV_PATH` explicitly, and the wiring scenario asserts it from the source text: "`scripts/up.mjs` and `scripts/demo-ask.mjs` name `DOTENV_PATH` in the call of their entry guard".
+- **3.3 (improvable).** In "The demo guide runs the same in PowerShell and Bash", the forbidden-construct list is the test that makes criterion C checkable. It misses two Bash-only forms that a `shell` block could still hold:
+  - a variable assignment or environment prefix (`ACME=…`, `DATABASE_URL=… npm test`; the old guide used `ACME=`);
+  - a `$NAME` expansion (`"$ACME"`).
+
+  Both break in PowerShell. Add to the requirement and to the scenario: "no line that starts with `NAME=` (`^[A-Za-z_][A-Za-z0-9_]*=`), and no `$` outside the quoted questions" (the questions hold no `$`).
+
+#### 4. Ambiguity
+
+- **4.1 (improvable, Linear only).** Enhanced → criterion C says «Pasos numerados, **cortos** y en orden». The user story says «en **pocos** minutos». The change dropped "short", but the ticket still carries both words. Correct the Enhanced part (never `[original]`).
+- `tasks.md:3` says "a short comment in Spanish". This is a Linear note, not behaviour, so it is not a defect.
+- No occurrence of fast / easy / secure / efficient / many / appropriate / robust in `proposal.md`, `design.md`, the specs or `tasks.md`.
+
+#### 5. Open decisions
+
+| # | Decision left to the implementer | Where to fix it | Severity |
+|---|---|---|---|
+| 5.1 | R4: what `Parar el sistema` shows for Ctrl+C, and how that output relates to "pasted output SHALL come from a run". `up` runs in the background in the clean-clone run, and npm adds `code 130` lines after `up` exits. | `local-startup` → "The demo guide runs the same…" (requirement and "ordered" scenario); design D11; tasks 11.2b, 16.3 | Blocking |
+| 5.2 | R5: how the agent performs the guide's "edit `.env` with a text editor" step in the clones, given the `.env*` permission denial and "literally". | Design D11; tasks 16.2, 16.2b; PR body (18.1) | Blocking |
+| 5.3 | `docs/TESTING.md`, PowerShell variant `$env:DATABASE_URL='…/codemind_test'; npm test` (D14). The variable stays for the whole PowerShell session. Since the environment beats `.env` (D3), every later `npm run cli`, `verify` or `up` in that terminal silently uses the **test** database. The Bash variant is per-command. The guide must say how to undo it. A `codemind_test` URL hard-coded to port 5432 must also follow `POSTGRES_PORT`. | `local-startup` → "The deployment and testing guides in Spanish"; design D14; task 10.2 | Improvable |
+
+#### 6. Contradictions inside the change
+
+- **6.1 (blocking, same as 5.1).** The requirement "The output pasted in the guide SHALL come from a run of the guide, literally" conflicts with design D11, where `npm run up` runs in the background and the agent stops it with `taskkill /T`. With that procedure, the stop sequence cannot be captured.
+- **6.2 (improvable).** Some cross-references point at the old decision range:
+  - task 18.1 cites "design D12–D17" and task 17.2 "design D2–D17"; D18 and A1–A12 exist now;
+  - in `design.md`, D18 comes before D17 (cosmetic).
+- Otherwise the proposal, the design, the three deltas and the tasks agree.
+
+#### 7. Contradictions with the project
+
+- **7.1 Clean.**
+  - `confidence-score` delta: the requirement is copied in full with the language change; the scenarios are stricter (exact order, header cells, `—`).
+  - `project-picker` delta: copied word for word except the hint (checked against `openspec/specs/project-picker/spec.md:84–105`); all nine scenarios kept.
+  - `verify-smoke` (l. 6, 224) and `seed-load` (l. 5) still say `make up` truthfully.
+  - D18 is placed in `docs/project-context.md`, consistent with l. 8–9/14.
+  - `test-db-isolation` agrees with D12.
+- **7.2 (improvable).** `readme.md` hits outside the sections that task 12.1 and design D10 name (§0, §1.3, §1.4):
+  - l. 147 (§1.2: «se levanta con `make up`»);
+  - l. 658 and l. 690 (§2.4 diagram and table: «Local — `make up`»).
+
+  These present `make up` as *the* start command, contrary to criterion A. l. 1084 and l. 1672 are history and stay true. The 17.1 search would flag l. 147, 658 and 690, but no task fixes them.
+
+  In addition, the documented start block (`readme.md:298–302`) uses `git clone … && cd …`. `&&` does not exist in Windows PowerShell 5.1, and design D15 forbids it for exactly that reason.
+
+  Fix: widen 12.1 and D10 to §1.2 l. 147 and §2.4 l. 658/690. Split l. 299 into two lines (`git clone …` then `cd AI4Devs-finalproject`) inside a `shell` block, and make `npm run up` the third command.
+- **7.3 (improvable, R6).** ADR scope against tasks 19.1/19.9; see the decisions to record.
+
+#### 8. Contrast with the real code
+
+Every design claim checked holds:
+
+- **D12 risk:**
+  - `tests/integration/store/support.ts:32` copies `{ ...process.env }` and `migrations.spec.ts:268` runs `db:rollback` with `DATABASE_URL: undefined`;
+  - `dev-script.spec.ts:58` and `:82` spread `process.env`, so they inherit the switch;
+  - every other `env: {…}` under `tests/` is passed in-process to `run()`/`build()` helpers, not to a spawned npm script, so no spawn loses the switch;
+  - `migrations.spec.ts:301` runs `npx tsx` directly, with no preload;
+  - `vitest.config.ts` has no `globalSetup` (only `setupFiles`, l. 41), so `test.env` reaches every place that spawns. The forks pool for `seed-build.spec.ts` (l. 33) also receives `test.env`.
+- **Config files and scripts:**
+  - `package.json:24–30`: the seven scripts are as quoted; `engines` is at l. 5–7;
+  - `packages/api/package.json:8` (`dev`);
+  - `Makefile:7–10` (include/export) and l. 1–6 (a Spanish header, which D6 rewrites in English);
+  - `docker-compose.yml:9` (`"5432:5432"`).
+- **Screen 1 and the confidence test:** `ProjectPickerPage.tsx:46` (`<code>make up</code>`) and `ProjectPickerPage.test.tsx:364` (whole text). `confidence-doc.spec.ts:24`, `47`, `67`, `70–80` are the places D9 changes.
+- **Fixture:** line 16 of `fixtures/acme-shop/app/Services/PriceCalculator.php` is `class PriceCalculator`, and lines 16–44 are 29 lines, as the scenario says (`docs/DEMO.md:250–278`).
+- **No duplicated abstraction:** no `.env` parser and no `dotenv` use exist outside `node_modules`. The LLM config reader (`packages/adapters/llm/src/config.ts:96`) treats blank values as absent, so the empty `LLM_*=` keys that `.env.example` now feeds into `npm run cli` keep evaluation mode. Design → Risks (last bullet) holds.
+
+#### 9. Task size
+
+Clean. 11.2/11.2b and 16.2/16.2b are split. 10.1, 10.2, 11.3 and 12.2 each fit in one turn.
+
+#### 10. Mandatory steps
+
+- Step 0 is first and labelled; the branch is `feature/DIS-102-cross-shell-demo-spanish-docs`; 0.1 sets the Linear state first.
+- Steps 13, 14, 15, 16, 17 and 19 are present and labelled; "AGENT MUST EXECUTE" appears on 15, 16 and 19. Pre-merge is last, with the three checks in order and the archive commit before the merge.
+- Restoration is covered: 14.5, 15.4 (`.env` put back), 15.8, 16.5. Screenshots go in `reports/`.
+- **Improvable (R6):** the agent's merge in 19.9 needs the ADR scope recorded. Otherwise it reverts to "the author merges".
+- **Improvable:** 16.2/16.2b do not say how the guide's `.env` edit is performed (R5).
+
+#### 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| The .env file grammar | The .env grammar of .env.example is read | 1.1, 1.2 |
+| | Lines that do not match are ignored and the last assignment wins | 1.3 |
+| Loading .env into a process | Values of .env fill only the variables the environment lacks | 2.1 |
+| | Without .env the environment is unchanged | 2.1 |
+| | An unreadable .env is skipped with a warning | 2.1 |
+| | The loaded .env is the repository root's | 2.2 |
+| | The test suite never reads .env | 2.3 |
+| Which commands load .env | The guide's scripts load .env and the quality scripts do not | 3.1, 3.2 (default `dotenvPath` wiring: improvable, 3.2) |
+| | A guide command reads DATABASE_URL from .env (recorded) | 15.4 |
+| One command starts the system | Up runs the start sequence in order | 4.1, 4.2 |
+| | Up stops at the first failing step | 4.3 |
+| | Ctrl+C stops up without a failure line | 4.3 |
+| | A step that cannot start stops up | 4.3 |
+| | Up needs npm to start it | 4.3 |
+| | The startup scripts need no installed dependency | 4.4 |
+| | Up with Docker unavailable fails naming its first step (recorded) | 15.5 |
+| Stopping the system and the Makefile | Down keeps the data volume | 5.1, 15.6 |
+| | Make delegates to the npm commands | 5.2, 15.6 |
+| Configurable Postgres port | The Postgres port follows POSTGRES_PORT | 5.3 |
+| The demo question helper | An answered question prints its status and summary | 6.1, 6.2 |
+| | An UNKNOWN answer prints its reason | 6.3 |
+| | An error status prints the error body | 6.3 |
+| | An unreachable API is reported | 6.3 |
+| | demo:ask reads PORT from .env | 6.3 |
+| | Missing arguments are a usage error | 6.3 |
+| The demo excerpt helper | An excerpt prints exactly the cited lines | 7.1, 7.2 |
+| | Paths outside the project are refused | 7.3 |
+| | A missing file or a range past its end is reported | 7.3 |
+| | A malformed citation is a usage error | 7.3 |
+| The demo guide runs the same in PowerShell and Bash | The demo guide has no Bash-only command | 11.1, 11.2, 11.2b |
+| | The demo guide is ordered for a first-time reader | 11.1, 11.2, 11.2b |
+| | The web walkthrough names what each screen shows | 11.1, 11.3, 16.4 |
+| | The guide was followed on a clean clone in both shells (recorded) | 16.2, 16.2b, 16.3, 18.1 (stop sequence: blocking, 5.1) |
+| The deployment and testing guides in Spanish | Links to the guides' sections resolve | 11.4, 10.1, 10.2, 12.1, 12.2 |
+| | The guides are in Spanish and say that .env is read (recorded) | 10.1, 10.2, 12.1, 12.2, 17.1 |
+| confidence-score → Published weights | The published weights are the code's weights | 9.1, 9.2 |
+| | The confidence document states its limits | 9.1, 9.2 |
+| project-picker → API status on Screen 1 | A failed retry keeps the alert | 8.1, 8.2 |
+| | The other eight scenarios (text unchanged) | 8.2 |
+
+No empty row. The blocking items are 5.1/6.1 and 5.2.
+
+---
+
+#### Corrections to apply
+
+##### `openspec/changes/cross-shell-demo-spanish-docs/specs/local-startup/spec.md`
+
+1. **Requirement "The demo guide runs the same in PowerShell and Bash"** (5.1). Replace the paragraph "The output pasted in the guide SHALL come from a run of the guide, literally, on a clean clone of the branch, in PowerShell and in Bash." with:
+   > The output pasted in the guide SHALL come from a run of the guide, literally, on a clean clone of the branch, in PowerShell and in Bash, except for the stop with Ctrl+C: `Parar el sistema` SHALL paste no output for it and SHALL state in its text that `npm run up` then ends with `[up] stopped (Ctrl+C)` followed by npm's own lines with `code 130`, which are the expected end and not a failure; the output it pastes is that of `npm run down`.
+
+   Append to the scenario "The demo guide is ordered for a first-time reader":
+   > - **AND** `Parar el sistema` contains `[up] stopped (Ctrl+C)` and `130` in its text and a `shell` block holding `npm run down`
+2. **Same requirement and scenario "The demo guide has no Bash-only command"** (3.3). After "`make ` or a line ending in `\` or in a backtick", add:
+   > , a line starting with a variable assignment (`^[A-Za-z_][A-Za-z0-9_]*=`), or a `$` outside a double-quoted argument
+3. **Requirement "Which commands load .env"** (3.2). Append:
+   > When run as entry modules, `up` and `demo:ask` SHALL pass the repository root's `.env` path (`DOTENV_PATH` of `scripts/load-env.mjs`) as their `.env` path.
+
+   Scenario "The guide's scripts load .env and the quality scripts do not": change the AND about `scripts/up.mjs` to:
+   > - **AND** `scripts/up.mjs` and `scripts/demo-ask.mjs` import `DOTENV_PATH` from `./load-env.mjs` and pass it in the call of their entry guard, `scripts/demo-excerpt.mjs` imports neither `./env.mjs` nor `./load-env.mjs`, and no source text of `scripts/` contains `process.loadEnvFile`, `parseEnv` imported from `node:util`, or `--env-file`
+4. **Requirement "The deployment and testing guides in Spanish"** (5.3). After "they SHALL show a `bash` and a `powershell` variant side by side, labelled", add:
+   > ; the PowerShell variant SHALL say that the variable stays set for the rest of that terminal session and beats `.env`, and how to remove it (`Remove-Item Env:DATABASE_URL`) or to use a new terminal before running the demo; the integration database URL SHALL use the same port as `DATABASE_URL` of `.env` (`POSTGRES_PORT`)
+5. **Scenario "The guides are in Spanish and say that .env is read"** (7.2). Append to THEN:
+   > - **AND** `readme.md` §1.2, §1.4 and §2.4 give `npm run up` as the start command, and the start block of §1.4 contains no `&&`
+
+##### `openspec/changes/cross-shell-demo-spanish-docs/design.md`
+
+- **D11** (R4, R5, 1.1). Append:
+  > The guide's "port taken" step ("edit `.env` with a text editor") is performed in each clone by a scripted, line-anchored replacement of the `POSTGRES_PORT=` line and of the port in `DATABASE_URL=`, writing UTF-8 without BOM and LF, without reading or printing the file (the agent has no editor and its Read tool is denied on `.env*`); it is the one stated deviation from "literally", recorded in the step 16 report and in the PR body. `npm run up` runs in the background and is stopped by process tree, so the Ctrl+C end is not captured: `Parar el sistema` states it in text (`[up] stopped (Ctrl+C)`, npm's `code 130` lines) and pastes only `npm run down` (R4); in the Bash clone the agent may send `kill -INT` to the process group and record that output in the step 16 report.
+- **D14** (5.3). Append:
+  > The PowerShell variant notes that `$env:DATABASE_URL` persists for the session and beats `.env` (D3), so the reader removes it (`Remove-Item Env:DATABASE_URL`) or opens a new terminal before the demo; the `codemind_test` URL uses the port of `.env`'s `DATABASE_URL`.
+- **D10** (7.2). Change "`readme.md` §0 (l. 19), §1.3 (l. 185, 279), §1.4 (l. 301–316, 391–395, variables table l. 436–441)" to:
+  > `readme.md` §0 (l. 19, 75), §1.2 (l. 147), §1.3 (l. 185, 279), §1.4 (l. 298–316 — the start block without `&&`: `git clone …` and `cd …` on two lines in a `shell` block —, 391–395, 407, variables table l. 436–441) and §2.4 (l. 658, 690); l. 1084 and l. 1672 are history and stay
+- **D4 / D5 / D8** (3.2). Add: "the entry guard passes `dotenvPath: DOTENV_PATH` explicitly; `wiring.spec.ts` checks it".
+- **Context / Decisions** (R6). Add one sentence:
+  > DIS-102 was opened on 2026-10-19, after the ADR's list of twelve tickets, and runs under the same ADR by the author's request of that date (recorded in DIS-102 Enhanced); without that record, task 19.9 stops before the merge.
+- **Spec-audit amendments.** Add a "run 2" list: A13 (R4), A14 (R5), A15 (3.2), A16 (3.3), A17 (5.3), A18 (7.2). Optionally move D18 after D17.
+
+##### `openspec/changes/cross-shell-demo-spanish-docs/proposal.md`
+
+- Why, 2nd paragraph (R6). After "(ADR `20261016-autonomous-workflow-run-entrega-2`)", add: "which DIS-102 joined on 2026-10-19, after the ADR's ticket list".
+
+##### `openspec/changes/cross-shell-demo-spanish-docs/tasks.md`
+
+- **3.1:** add "the entry guards pass `DOTENV_PATH` (source text)".
+- **10.2:** add "the PowerShell variant's session persistence and `Remove-Item Env:DATABASE_URL`; the test URL's port follows `.env`".
+- **11.1:** add the two new forbidden forms (assignment line, `$` outside a quoted argument), and the `Parar el sistema` assertion.
+- **11.2b:** `Parar el sistema`: Ctrl+C stated in text (`[up] stopped (Ctrl+C)`, npm's `code 130` lines expected), pasted output only for `npm run down`.
+- **12.1:** extend to §1.2 l. 147 and §2.4 l. 658/690, and split l. 299 (`git clone` / `cd`) into a `shell` block without `&&`.
+- **16.2 and 16.2b:** add "the 'port taken' edit as design D11 (scripted, UTF-8 without BOM, LF, never read or printed), recorded as the one deviation".
+- **16.3:** "the stop with Ctrl+C is not compared (design D11)".
+- **17.2:** "design D2–D18". **18.1:** "design D12–D18 and A1–A18"; add the R5 deviation.
+- **19.9:** "(DIS-102 within the ADR's run as recorded in Enhanced; otherwise stop before the merge and leave DIS-102 In Review)".
+
+##### Linear DIS-102
+
+Do not touch `[original]`. In the **Enhanced** part, in Spanish:
+
+- Criterion C, 4th bullet: replace «Pasos numerados, cortos y en orden, para alguien que no conoce el proyecto.» with «Pasos numerados y en orden, para alguien que no conoce el proyecto; cada paso, un comando o una pareja etiquetada.»
+- User story: replace «para comprobar en pocos minutos que…» with «para comprobar, siguiendo `docs/DEMO.md` de principio a fin, que…».
+- After A12, add a section «Enmiendas de la auditoría de la spec (ejecución 2, 19-10-2026)»:
+  > * **A10.** Es la decisión D18 (excepción de idioma).
+  > * **Ámbito del ADR.** DIS-102 se abrió el 19-10-2026, después de la lista de doce tickets del ADR `20261016-autonomous-workflow-run-entrega-2`, y entra en la misma ejecución autónoma a petición de la autora de esa fecha; el agente abre el PR y lo fusiona solo tras el commit de `/opsx:archive` y con la CI en verde.
+  > * **Precisión de D11.** Dos clones (`e2e-bash`, `e2e-pwsh`), uno por shell y uno tras otro; el nombre de la carpeta da a cada uno su proyecto de Compose, y al terminar se ejecuta `docker compose -p <clon> down -v` solo sobre el proyecto del clon (nunca `-v` sobre `codemind`).
+  > * **A13.** `Parar el sistema` no pega salida del Ctrl+C: el texto dice que `npm run up` termina con `[up] stopped (Ctrl+C)` y después con las líneas de npm con `code 130`, y que es el final esperado; solo se pega la salida de `npm run down`. En la prueba E, `npm run up` corre en segundo plano y se para por árbol de procesos.
+  > * **A14.** En los clones, el paso «edita `.env` con un editor de texto» se hace con un reemplazo por guion de las líneas `POSTGRES_PORT=` y del puerto de `DATABASE_URL=` (UTF-8 sin BOM, LF, sin leer ni imprimir el fichero); es la única desviación del «al pie de la letra» y se anota en el informe y en el PR.
+  > * **A15.** El punto de entrada de `up` y de `demo:ask` pasa `DOTENV_PATH` explícitamente; lo comprueba `wiring.spec.ts`.
+  > * **A16.** Un bloque `shell` de la guía tampoco puede tener una línea que empiece por una asignación (`NOMBRE=`) ni un `$` fuera de un argumento entre comillas dobles.
+  > * **A17.** En `docs/TESTING.md`, la variante de PowerShell avisa de que `$env:DATABASE_URL` sigue en la sesión y gana a `.env`, y dice cómo quitarla (`Remove-Item Env:DATABASE_URL`) o que se abra un terminal nuevo antes de la demo; la URL de la base de datos de tests usa el puerto del `DATABASE_URL` de `.env`.
+  > * **A18.** `readme.md` §1.2 (l. 147) y §2.4 (l. 658, 690) también pasan a `npm run up`; el bloque de arranque de §1.4 se escribe sin `&&` (`git clone …` y `cd …` en dos líneas).
+
+### Resolution of run 2
+
+| Finding | Resolution |
+|---|---|
+| R4, 5.1, 6.1 — Ctrl+C output vs. "pasted from a run" | Adopted: `Parar el sistema` pastes no Ctrl+C output, states `[up] stopped (Ctrl+C)` and npm's `code 130` lines as the expected end, pastes only `npm run down`; requirement, "ordered" scenario, design D11 (A13), tasks 11.2b, 16.3. |
+| R5, 5.2 — the clones' `.env` edit | Adopted: scripted line-anchored replacement (UTF-8 without BOM, LF, never read or printed), the one stated deviation; design D11 (A14), tasks 16.2/16.2b, 18.1. |
+| R6, 7.3 — DIS-102 and the ADR's ticket list | Recorded in proposal → Why, design → Context and Linear Enhanced: DIS-102 joined the run on 2026-10-19 by the author's request (she launched this workflow run); task 19.9 stops before the merge without that record. |
+| 1.1 — D11 refinements not in Linear | Recorded in Enhanced (two clones, `down -v` only on the clones' own projects). |
+| 1.2 — A10 missing in Linear | Recorded: A10 = D18. |
+| 3.2 — default `dotenvPath` could stay `undefined` | Entry guards pass `DOTENV_PATH`; requirement and wiring scenario check it (A15); task 3.1. |
+| 3.3 — assignment lines and `$` expansions | Forbidden in `shell` blocks; `$` forbidden altogether since PowerShell expands it inside double quotes too (A16); task 11.1. |
+| 4.1 — "cortos", "en pocos minutos" in Enhanced | Enhanced criterion C and user story reworded (never `[original]`). |
+| 5.3 — PowerShell `$env:` persists in the session | TESTING requirement, design D14 (A17), task 10.2. |
+| 6.2 — stale cross-references, D18 order | Tasks 17.2 and 18.1 cite D2–D18 / A1–A18; D18 moved after D17. |
+| 7.2 — readme §1.2, §2.4 and `&&` in the start block | Design D10 and task 12.1 widened; scenario requires §1.2/§1.4/§2.4 and no `&&` (A18). |

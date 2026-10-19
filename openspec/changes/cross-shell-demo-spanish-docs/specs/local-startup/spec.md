@@ -102,7 +102,8 @@ else. The scripts `test`, `test:a11y`, `test:mutation`, `test:mutation:full`, `l
 reading its configuration from the process environment only: no file under `packages/*/src` SHALL
 import from `scripts/` or name `load-env` or `.env` in an import specifier. The root `package.json`
 SHALL keep `engines.node` = `>=20.11`, and no file of `scripts/` SHALL use `process.loadEnvFile`,
-`util.parseEnv` or `--env-file`.
+`util.parseEnv` or `--env-file`. When run as entry modules, `up` and `demo:ask` SHALL pass the repository root's `.env`
+path (`DOTENV_PATH` of `scripts/load-env.mjs`) as their `.env` path.
 
 #### Scenario: The guide's scripts load .env and the quality scripts do not
 
@@ -117,8 +118,9 @@ SHALL keep `engines.node` = `>=20.11`, and no file of `scripts/` SHALL use `proc
   `lint:architecture`, `typecheck` and `docs:coverage` contains `load-env`, and
   `packages/api/dev-register.mjs` does not contain `load-env`
 - **AND** `engines.node` is `>=20.11`
-- **AND** `scripts/up.mjs` and `scripts/demo-ask.mjs` import `./env.mjs` or `./load-env.mjs`,
-  `scripts/demo-excerpt.mjs` imports neither, and no source text of `scripts/` contains
+- **AND** `scripts/up.mjs` and `scripts/demo-ask.mjs` import `DOTENV_PATH` from `./load-env.mjs` and
+  pass it in the call of their entry guard, `scripts/demo-excerpt.mjs` imports neither `./env.mjs` nor
+  `./load-env.mjs`, and no source text of `scripts/` contains
   `process.loadEnvFile`, `parseEnv` imported from `node:util`, or `--env-file`
 - **AND** no file under `packages/*/src` has an import specifier containing `scripts/`, `load-env` or
   `.env`
@@ -373,7 +375,8 @@ the six steps of `readme.md` §1.3), `Comprobar la instalación`, `Recorrido por
 in PowerShell and in Bash), `text` (output), or `powershell` or `bash` (a shell-specific variant, only
 when no common command exists); a `powershell` block and a `bash` block SHALL always come as an
 adjacent pair. No `shell` block SHALL contain `export `, `$env:`, `ask_api`, `sed `, `$?`, `&&`, `||`,
-`$(`, `make ` or a line ending in `\` or in a backtick. `Antes de empezar` SHALL say how to check that
+`$(`, `make `, any other `$` (PowerShell expands it even inside double quotes), a line starting with a
+variable assignment (`^[A-Za-z_][A-Za-z0-9_]*=`) or a line ending in `\` or in a backtick. `Antes de empezar` SHALL say how to check that
 Docker is running (`docker info`), the Node version (`node -v`, 20.11 or later) and the Git version
 (`git --version`), how to recognise that port 5432 is taken (`docker compose` reports `port is
 already allocated` and `Paso 0` stops at its first step) and what to do then (`POSTGRES_PORT` with
@@ -391,7 +394,10 @@ that expands; the usage panel with «Confianza»; the «Sin respuesta verificada
 «Reintentar», with the command that shows it.
 
 The output pasted in the guide SHALL come from a run of the guide, literally, on a clean clone of the
-branch, in PowerShell and in Bash.
+branch, in PowerShell and in Bash, except for the stop with Ctrl+C: `Parar el sistema` SHALL paste no
+output for it and SHALL state in its text that `npm run up` then ends with `[up] stopped (Ctrl+C)`
+followed by npm's own lines with `code 130`, which are the expected end and not a failure; the output
+it pastes is that of `npm run down`.
 
 #### Scenario: The demo guide has no Bash-only command
 
@@ -399,8 +405,9 @@ branch, in PowerShell and in Bash.
 - **THEN** every fenced block's info string is `shell`, `text`, `powershell` or `bash`
 - **AND** every `powershell` block is next to a `bash` block and every `bash` block next to a
   `powershell` block, with only text between them
-- **AND** no `shell` block contains `export `, `$env:`, `ask_api`, `sed `, `$?`, `&&`, `||`, `$(` or
-  `make `, nor a line ending in `\` or in a backtick
+- **AND** no `shell` block contains `export `, `$env:`, `ask_api`, `sed `, `$?`, `&&`, `||`, `$(`,
+  `make ` or any `$`, nor a line starting with `NAME=` (`^[A-Za-z_][A-Za-z0-9_]*=`), nor a line ending
+  in `\` or in a backtick
 
 #### Scenario: The demo guide is ordered for a first-time reader
 
@@ -411,6 +418,8 @@ branch, in PowerShell and in Bash.
   `port is already allocated` and a
   `shell` block holding `cp .env.example .env`, and `Paso 0` a `shell` block holding `npm run up`
 - **AND** a `shell` block holds `npm run demo:ask --` and another `npm run demo:excerpt --`
+- **AND** `Parar el sistema` contains `[up] stopped (Ctrl+C)` and `130` in its text and a `shell` block
+  holding `npm run down`
 
 #### Scenario: The web walkthrough names what each screen shows
 
@@ -439,7 +448,10 @@ system in any shell and `make up` / `make down` as their equivalent for Git Bash
 `MISSING_CONFIG` row SHALL tell the reader to copy `.env.example` to `.env` (or set the variable).
 Where a command of these guides needs a variable that `.env` does not provide (the integration tests'
 `DATABASE_URL`, since the test suite never reads `.env`), they SHALL show a `bash` and a `powershell`
-variant side by side, labelled. No sentence of `readme.md`, `docs/project-context.md`, `.env.example`
+variant side by side, labelled; the PowerShell variant SHALL say that the variable stays set for the
+rest of that terminal session and beats `.env`, and how to remove it (`Remove-Item Env:DATABASE_URL`)
+or to open a new terminal before running the demo; the integration database URL SHALL use the same
+port as the `DATABASE_URL` of `.env` (`POSTGRES_PORT`). No sentence of `readme.md`, `docs/project-context.md`, `.env.example`
 or the four guides SHALL say that the npm scripts do not read `.env`, or that `DATABASE_URL` must be
 exported before a command that now loads `.env`. Every link from `readme.md`, `docs/project-context.md`
 or the four guides to a section of one of the four guides SHALL point to a heading that exists.
@@ -467,3 +479,5 @@ or the four guides to a section of one of the four guides SHALL point to a headi
   Bash/WSL alternative or in text that stays true because `make up` runs `npm run up`
 - **AND** `docs/project-context.md` lines 38, 62, 191, 227 and 1180–1181 (numbering of base `368dc38`)
   say that the guide's npm scripts read `.env` and that `npm run up` starts the system in any shell
+- **AND** `readme.md` §1.2, §1.4 and §2.4 give `npm run up` as the start command, and the start block of
+  §1.4 contains no `&&`
