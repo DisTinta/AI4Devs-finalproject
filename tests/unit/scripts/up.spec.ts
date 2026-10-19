@@ -124,4 +124,101 @@ describe('One command starts the system', () => {
     expect(stderr.text()).toBe('');
     expect(code).toBe(0);
   });
+
+  it('Up stops at the first failing step', async () => {
+    // Arrange: npm install exits 3
+    const failing = runner((index) => ({ code: index === 1 ? 3 : 0, signal: null }));
+    const failingErr = recorder();
+    // Arrange: the first step ends by a signal
+    const signalled = runner(() => ({ code: null, signal: 'SIGINT' }));
+    const signalledErr = recorder();
+
+    // Act
+    const failingCode = await runUp({ ...baseOptions(), run: failing.run, stderr: failingErr });
+    const signalledCode = await runUp({ ...baseOptions(), run: signalled.run, stderr: signalledErr });
+
+    // Assert
+    expect(failing.calls.map(({ command, args }) => [command, ...args])).toEqual([
+      ['docker', 'compose', 'up', '-d', '--wait'],
+      [process.execPath, NPM_EXECPATH, 'install'],
+    ]);
+    expect(failingErr.text()).toContain('[up] "npm install" failed with exit code 3');
+    expect(failingCode).toBe(3);
+    expect(signalled.calls).toHaveLength(1);
+    expect(signalledErr.text()).toContain('[up] "docker compose up -d --wait" failed (SIGINT)');
+    expect(signalledCode).toBe(1);
+  });
+
+  it('Ctrl+C stops up without a failure line', async () => {
+    // Arrange: Ctrl+C arrives while npm run dev runs, which then ends with Windows' STATUS_CONTROL_C_EXIT
+    const signals = interrupts();
+    const installedDuringSteps: number[] = [];
+    const steps = runner((index) => {
+      installedDuringSteps.push(signals.installed());
+      if (index === 4) {
+        signals.fire();
+        return { code: 3221225786, signal: null };
+      }
+      return { code: 0, signal: null };
+    });
+    const stderr = recorder();
+
+    // Act
+    const code = await runUp({ ...baseOptions(), run: steps.run, stderr, onInterrupt: signals.onInterrupt });
+
+    // Assert
+    expect(steps.calls).toHaveLength(5);
+    expect(installedDuringSteps).toEqual([1, 1, 1, 1, 1]);
+    expect(signals.installed()).toBe(0);
+    expect(stderr.text()).toContain('[up] stopped (Ctrl+C)');
+    expect(stderr.text()).not.toContain('failed');
+    expect(code).toBe(130);
+  });
+
+  it('A step that cannot start stops up', async () => {
+    // Arrange
+    const steps = runner(() => ({ error: Object.assign(new Error('spawn docker ENOENT'), { code: 'ENOENT' }) }));
+    const stderr = recorder();
+
+    // Act
+    const code = await runUp({ ...baseOptions(), run: steps.run, stderr });
+
+    // Assert
+    expect(steps.calls).toHaveLength(1);
+    expect(stderr.text()).toContain('[up] "docker compose up -d --wait" could not start (ENOENT)');
+    expect(code).toBe(1);
+  });
+
+  it('Up needs npm to start it', async () => {
+    // Arrange
+    const steps = runner();
+    const stderr = recorder();
+
+    // Act
+    const code = await runUp({ ...baseOptions(), env: {}, run: steps.run, stderr });
+
+    // Assert
+    expect(steps.calls).toHaveLength(0);
+    expect(stderr.text()).toContain('[up] run it with npm run up');
+    expect(code).toBe(1);
+  });
 });
+
+/** The options of a run with `npm_execpath` set and no `.env`; each test overrides what it checks. */
+function baseOptions(): Parameters<typeof runUp>[0] {
+  return {
+    env: { npm_execpath: NPM_EXECPATH },
+    dotenvPath: missingEnvFile(),
+    run: runner().run,
+    stdout: recorder(),
+    stderr: recorder(),
+    onInterrupt: interrupts().onInterrupt,
+  };
+}
+
+/** A path where no `.env` exists. */
+function missingEnvFile(): string {
+  const directory = mkdtempSync(join(tmpdir(), 'codemind-up-'));
+  directories.push(directory);
+  return join(directory, '.env');
+}

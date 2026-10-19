@@ -14,6 +14,9 @@ import { DOTENV_PATH, loadEnvFile } from './env.mjs';
 /** The repository root: the parent directory of `scripts/`, resolved from this module (A22). */
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
+/** The shell convention for a command ended by Ctrl+C (128 + SIGINT). */
+const INTERRUPTED_EXIT_CODE = 130;
+
 /**
  * @typedef {{ cwd: string, env: Record<string, string | undefined>, stdio: 'inherit', shell: false }} StepOptions
  * @typedef {{ code: number | null, signal: string | null } | { error: NodeJS.ErrnoException }} StepResult
@@ -81,14 +84,56 @@ function startSequence(npmCli) {
  *   runner, the output streams, the directory the steps run in and the SIGINT subscription.
  * @returns {Promise<number>} The exit code.
  */
-export async function runUp({ env, dotenvPath = DOTENV_PATH, run = spawnStep, stdout, stderr, cwd = ROOT }) {
+export async function runUp({
+  env,
+  dotenvPath = DOTENV_PATH,
+  run = spawnStep,
+  stdout,
+  stderr,
+  cwd = ROOT,
+  onInterrupt = onProcessInterrupt,
+}) {
   loadEnvFile(dotenvPath, env, stderr);
-  const npmCli = /** @type {string} */ (env.npm_execpath);
+  const npmCli = env.npm_execpath;
+  if (npmCli === undefined || npmCli === '') {
+    stderr.write('[up] run it with npm run up\n');
+    return 1;
+  }
+  let interrupted = false;
   for (const step of startSequence(npmCli)) {
     stdout.write(`[up] ${step.label}\n`);
-    await run(step.command, step.args, { cwd, env, stdio: 'inherit', shell: false });
+    // While a step runs, Ctrl+C reaches it through the console; `up` only notes it, so Node's default
+    // SIGINT handler does not end `up` before the step does (A3).
+    const unsubscribe = onInterrupt(() => {
+      interrupted = true;
+    });
+    const result = await run(step.command, step.args, { cwd, env, stdio: 'inherit', shell: false });
+    unsubscribe();
+    if (interrupted) {
+      stderr.write('[up] stopped (Ctrl+C)\n');
+      return INTERRUPTED_EXIT_CODE;
+    }
+    const failure = describeFailure(step.label, result);
+    if (failure !== undefined) {
+      stderr.write(`${failure.line}\n`);
+      return failure.code;
+    }
   }
   return 0;
+}
+
+/**
+ * The failure line and exit code of a step that did not exit `0`, or `undefined` when it did.
+ *
+ * @param {string} label - The command as a person types it.
+ * @param {StepResult} result - How the step ended.
+ * @returns {{ line: string, code: number } | undefined} The failure, if any.
+ */
+function describeFailure(label, result) {
+  if ('error' in result) return { line: `[up] "${label}" could not start (${result.error.code ?? 'unknown'})`, code: 1 };
+  if (result.signal !== null) return { line: `[up] "${label}" failed (${result.signal})`, code: 1 };
+  if (result.code !== 0) return { line: `[up] "${label}" failed with exit code ${result.code}`, code: result.code ?? 1 };
+  return undefined;
 }
 
 if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
