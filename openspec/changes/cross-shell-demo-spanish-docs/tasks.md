@@ -1,14 +1,14 @@
 ## 0. Setup: Create Feature Branch (MANDATORY - FIRST STEP)
 
-- [ ] 0.1 First action of the apply: confirm DIS-102 is In Progress in Linear (set it if not), with a short comment in Spanish naming the change `cross-shell-demo-spanish-docs` and the branch `feature/DIS-102-cross-shell-demo-spanish-docs`
-- [ ] 0.2 Feature branch `feature/DIS-102-cross-shell-demo-spanish-docs` (`BRANCH_PREFIX=feature/`, `docs/project-context.md` → Branch and ticket conventions), created from `feature/entrega-2-CRN` before `/opsx:propose`; confirm `git merge-base --is-ancestor origin/feature/entrega-2-CRN HEAD` and that `openspec/changes/cross-shell-demo-spanish-docs/` is on it. `git fetch`; if `origin/feature/entrega-2-CRN` moved, merge it before any code (never force-push a published branch)
-- [ ] 0.3 Verify the current branch (`git branch --show-current`) and `git status`; nothing under `.claude/` is ever staged (explicit paths only)
+- [x] 0.1 First action of the apply: confirm DIS-102 is In Progress in Linear (set it if not), with a short comment in Spanish naming the change `cross-shell-demo-spanish-docs` and the branch `feature/DIS-102-cross-shell-demo-spanish-docs`
+- [x] 0.2 Feature branch `feature/DIS-102-cross-shell-demo-spanish-docs` (`BRANCH_PREFIX=feature/`, `docs/project-context.md` → Branch and ticket conventions), created from `feature/entrega-2-CRN` before `/opsx:propose`; confirm `git merge-base --is-ancestor origin/feature/entrega-2-CRN HEAD` and that `openspec/changes/cross-shell-demo-spanish-docs/` is on it. `git fetch`; if `origin/feature/entrega-2-CRN` moved, merge it before any code (never force-push a published branch)
+- [x] 0.3 Verify the current branch (`git branch --show-current`) and `git status`; nothing under `.claude/` is ever staged (explicit paths only)
 - [ ] 0.4 Baseline: run `npx vitest run` once (with `DATABASE_URL` pointing at the integration database, as `docs/TESTING.md` says) and record the totals for the step 14 report; record `node -v`, `npm -v`, `docker compose version`; in the author's local database record `SELECT count(*) FROM project`, `SELECT count(*) FROM claim`, `SELECT count(*) FROM query_log`, `SELECT count(*), sum(hit_count) FROM cache_entry` and `docker volume ls` (the `codemind_pgdata` volume), restored or re-checked in 15.8; record `git hash-object .env` of the working tree if it exists (without printing the file) for the 14.5 comparison
 
 ## 1. `.env` grammar (TDD, design D2) — `local-startup` → "The .env file grammar"
 
-- [ ] 1.1 RED: create `tests/unit/scripts/env.spec.ts` with "The .env grammar of .env.example is read" (parser fed an in-memory string). See it fail (module missing)
-- [ ] 1.2 GREEN: `scripts/env.mjs` with `parseEnv(text)` (TSDoc/JSDoc, only `node:` imports) and `scripts/env.d.mts`; LF line endings on every new file (`grep -c $'\r'`, fixed with `sed -i 's/\r$//'`)
+- [x] 1.1 RED: create `tests/unit/scripts/env.spec.ts` with "The .env grammar of .env.example is read" (parser fed an in-memory string). See it fail (module missing)
+- [x] 1.2 GREEN: `scripts/env.mjs` with `parseEnv(text)` (TSDoc/JSDoc, only `node:` imports) and `scripts/env.d.mts`; LF line endings on every new file (`grep -c $'\r'`, fixed with `sed -i 's/\r$//'`)
 - [ ] 1.3 RED → GREEN: "Lines that do not match are ignored and the last assignment wins"
 
 ## 2. Loading `.env` (TDD, design D3, D12) — `local-startup` → "Loading .env into a process"
