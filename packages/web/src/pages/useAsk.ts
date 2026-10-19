@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { AskFailure } from '../components/notice-display';
 import { ApiError, ask, type AskAnswered, type AskResponse, type AskUnknown } from '../services/api-client';
-
-/** Why a sent question got no answer from the API: an API error with its code, or an unavailable API. */
-export type AskFailure = { kind: 'api'; code: string } | { kind: 'unavailable' };
 
 /**
  * What Screen 2 knows about its question (ask-page; DIS-65 design D22): nothing sent yet, a question
@@ -34,11 +32,13 @@ function isUnknown(response: AskResponse): response is AskUnknown {
   return response.answer === 'UNKNOWN';
 }
 
-/** The state a failure of the ask call leaves: the API's error code, or an unavailable API. */
+/** The state a failure of the ask call leaves: the API's error code and details, or an unavailable API. */
 function failedState(failure: unknown): AskState {
   return {
     status: 'failed',
-    failure: failure instanceof ApiError ? { kind: 'api', code: failure.code } : { kind: 'unavailable' },
+    failure: failure instanceof ApiError
+        ? { kind: 'api', code: failure.code, details: failure.details }
+        : { kind: 'unavailable' },
   };
 }
 

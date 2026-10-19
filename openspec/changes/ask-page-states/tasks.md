@@ -49,12 +49,12 @@ Every test of this change follows Arrange-Act-Assert with the three blocks comme
 
 ## 6. Error, rate-limit and budget notices (TDD, design D9, D10, D17, D18, D24) — `ask-page` → "Error, rate-limit and budget notices"
 
-- [ ] 6.1 RED: "An exhausted budget says the cached questions still answer" (two runs; the alert's `p` texts in order, exactly; no button; no «Respuesta»; the `status` element empty; focus on the pressed button). See it fail
-- [ ] 6.2 GREEN: `notice-display.ts` declares and exports `AskFailure` (`{ kind: 'api'; code: string; details: Record<string, unknown> } | { kind: 'unavailable' }`, D18, D32) and `useAsk.ts` imports it from there (no component imports from `pages/`); `notice-display.ts` → `alertLinesOf(failure: AskFailure): string[]` (the generic line, the case lines of the spec table, the code line; D17); `packages/web/src/components/AskErrorNotice.tsx` (props `{ failure: AskFailure }`, `role="alert"`, one `p` per line, ⚠ under `aria-hidden`, warning pair); `ResultArea` renders it for `failed`
-- [ ] 6.3 RED → GREEN: "A rate limit says how long to wait" (two runs; no text «caché»)
-- [ ] 6.4 RED → GREEN: "An API error names its code" (five runs with their statuses; the fifth, code «<i>X</i>», shows «Código: <i>X</i>.» as text and `main.querySelectorAll('i')` is empty)
-- [ ] 6.5 RED → GREEN: "An unavailable API says so" (`TypeError` and empty `500`; exactly two `p`; no «Código:»). The provisional alert already had these two lines, so it may pass at once after 6.2: then see it fail by making `alertLinesOf` append the code line to `unavailable` locally (not committed), and record it
-- [ ] 6.6 Remove the provisional component (D24): delete `packages/web/src/components/AskFallbackNotice.tsx` and its import (its tests left in 3.1); `npm run lint` and `npm run lint:architecture` clean (no `no-orphans` warning)
+- [x] 6.1 RED: "An exhausted budget says the cached questions still answer" (two runs; the alert's `p` texts in order, exactly; no button; no «Respuesta»; the `status` element empty; focus on the pressed button). See it fail
+- [x] 6.2 GREEN: `notice-display.ts` declares and exports `AskFailure` (`{ kind: 'api'; code: string; details: Record<string, unknown> } | { kind: 'unavailable' }`, D18, D32) and `useAsk.ts` imports it from there (no component imports from `pages/`); `notice-display.ts` → `alertLinesOf(failure: AskFailure): string[]` (the generic line, the case lines of the spec table, the code line; D17); `packages/web/src/components/AskErrorNotice.tsx` (props `{ failure: AskFailure }`, `role="alert"`, one `p` per line, ⚠ under `aria-hidden`, warning pair); `ResultArea` renders it for `failed`
+- [x] 6.3 RED → GREEN: "A rate limit says how long to wait" (two runs; no text «caché»)
+- [x] 6.4 RED → GREEN: "An API error names its code" (five runs with their statuses; the fifth, code «<i>X</i>», shows «Código: <i>X</i>.» as text and `main.querySelectorAll('i')` is empty)
+- [x] 6.5 RED → GREEN: "An unavailable API says so" (`TypeError` and empty `500`; exactly two `p`; no «Código:»). The provisional alert already had these two lines, so it may pass at once after 6.2: then see it fail by making `alertLinesOf` append the code line to `unavailable` locally (not committed), and record it
+- [x] 6.6 Remove the provisional component (D24): delete `packages/web/src/components/AskFallbackNotice.tsx` and its import (its tests left in 3.1); `npm run lint` and `npm run lint:architecture` clean (no `no-orphans` warning)
 
 ## 7. Screen reader announcements (TDD, design D11, D22) — `ask-page` → "Screen reader announcements of Screen 2"
 

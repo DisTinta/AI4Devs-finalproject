@@ -1,6 +1,6 @@
 import { useState, type ReactElement } from 'react';
 import { AnswerView } from '../components/AnswerView';
-import { AskFallbackNotice } from '../components/AskFallbackNotice';
+import { AskErrorNotice } from '../components/AskErrorNotice';
 import { validQuestion } from '../components/answer-display';
 import { LlmRequiredNotice } from '../components/LlmRequiredNotice';
 import { PageFrame } from '../components/PageFrame';
@@ -96,7 +96,7 @@ function ResultArea({ state, hasSuggestions }: { state: AskState; hasSuggestions
     return <LlmRequiredNotice message={state.message} hasSuggestions={hasSuggestions} />;
   }
   if (state.status === 'failed') {
-    return <AskFallbackNotice failure={state.failure} />;
+    return <AskErrorNotice failure={state.failure} />;
   }
   return null;
 }

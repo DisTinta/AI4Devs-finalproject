@@ -1013,3 +1013,141 @@ describe('UNKNOWN states', () => {
     expect(screen.getByRole('main').querySelectorAll('img')).toHaveLength(0);
   });
 });
+
+/** The first line of every failure alert. */
+const FAILED = 'No se ha podido obtener la respuesta.';
+
+/** A body in the API's error format. */
+function errorBody(code: string, message: string, details: Record<string, unknown>): Record<string, unknown> {
+  return { error: { code, message, details } };
+}
+
+/**
+ * Presses Q3 with `fetch` answering `answer`, waits for the alert, and reads what the spec pins.
+ *
+ * @returns The texts of the alert's paragraphs, and what else the screen shows.
+ */
+async function alertAfterQ3(answer: () => Promise<Response>): Promise<Record<string, unknown>> {
+  const user = userEvent.setup();
+  stubFetch(answer);
+  const { unmount } = await renderScreen2();
+  const suggestion = screen.getByRole('button', { name: Q3 });
+  await user.click(suggestion);
+  const alert = await screen.findByRole('alert');
+  const shown = {
+    lines: Array.from(alert.querySelectorAll('p'), (paragraph) => paragraph.textContent),
+    alerts: screen.getAllByRole('alert').length,
+    buttons: within(alert).queryAllByRole('button').length,
+    answer: screen.queryByRole('heading', { name: 'Respuesta' }) !== null,
+    status: screen.getByRole('status').textContent,
+    focusOnPressed: document.activeElement === suggestion,
+    italics: screen.getByRole('main').querySelectorAll('i').length,
+  };
+  unmount();
+  return shown;
+}
+
+describe('Error, rate-limit and budget notices', () => {
+  it('An exhausted budget says the cached questions still answer', async () => {
+    // Arrange
+    const message = 'the daily LLM budget is exhausted';
+    const withReset = { spentUsd: 5, dailyBudgetUsd: 5, resetsAt: '2026-10-20T00:00:00.000Z', cacheOnly: true };
+
+    // Act
+    const runs = [
+      await alertAfterQ3(answerWith(429, errorBody('BUDGET_EXHAUSTED', message, withReset))),
+      await alertAfterQ3(answerWith(429, errorBody('BUDGET_EXHAUSTED', message, { cacheOnly: true }))),
+    ];
+
+    // Assert
+    const shown = { alerts: 1, buttons: 0, answer: false, status: '', focusOnPressed: true, italics: 0 };
+    const budgetLines = [
+      FAILED,
+      'Se ha agotado el presupuesto diario del modelo de lenguaje.',
+      'Las preguntas que ya están en caché siguen respondiendo, sin coste.',
+    ];
+    expect(runs).toEqual([
+      {
+        ...shown,
+        lines: [...budgetLines, 'El presupuesto se renueva el 2026-10-20 a las 00:00 UTC.', 'Código: BUDGET_EXHAUSTED.'],
+      },
+      { ...shown, lines: [...budgetLines, 'Código: BUDGET_EXHAUSTED.'] },
+    ]);
+  });
+
+  it('A rate limit says how long to wait', async () => {
+    // Arrange
+    const message = 'too many requests';
+
+    // Act
+    const runs = [
+      await alertAfterQ3(answerWith(429, errorBody('RATE_LIMITED', message, { retryAfterSeconds: 42 }))),
+      await alertAfterQ3(answerWith(429, errorBody('RATE_LIMITED', message, {}))),
+    ];
+
+    // Assert
+    const lines = (wait: string): string[] => [FAILED, 'Demasiadas peticiones seguidas a la API.', wait, 'Código: RATE_LIMITED.'];
+    expect(runs.map((run) => run.lines)).toEqual([
+      lines('Espera 42 s y vuelve a preguntar.'),
+      lines('Espera un momento y vuelve a preguntar.'),
+    ]);
+    for (const run of runs) {
+      expect((run.lines as string[]).join(' ')).not.toContain('caché');
+      expect(run.focusOnPressed).toBe(true);
+    }
+  });
+
+  it('An API error names its code', async () => {
+    // Arrange
+    const errors: Array<{ status: number; code: string; sentence?: string }> = [
+      {
+        status: 404,
+        code: 'PROJECT_NOT_FOUND',
+        sentence: 'La API no tiene este proyecto: vuelve a la selección de proyecto o indéxalo con la CLI.',
+      },
+      {
+        status: 503,
+        code: 'LLM_UNAVAILABLE',
+        sentence: 'El modelo de lenguaje no responde; las preguntas en caché siguen respondiendo.',
+      },
+      { status: 503, code: 'SOURCE_UNAVAILABLE', sentence: 'La API no puede leer el código del proyecto.' },
+      { status: 500, code: 'INTERNAL' },
+      { status: 500, code: '<i>X</i>' },
+    ];
+    const runs: Array<Record<string, unknown>> = [];
+
+    // Act
+    for (const { status, code } of errors) {
+      runs.push(await alertAfterQ3(answerWith(status, errorBody(code, 'an error of the API', {}))));
+    }
+
+    // Assert
+    expect(runs.map(({ lines, buttons, italics }) => ({ lines, buttons, italics }))).toEqual(
+      errors.map(({ code, sentence }) => ({
+        lines: [FAILED, ...(sentence === undefined ? [] : [sentence]), `Código: ${code}.`],
+        buttons: 0,
+        italics: 0,
+      })),
+    );
+  });
+
+  it('An unavailable API says so', async () => {
+    // Arrange
+    const failures: Array<() => Promise<Response>> = [
+      () => Promise.reject(new TypeError('fetch failed')),
+      () => Promise.resolve(new Response('', { status: 500 })),
+    ];
+
+    // Act
+    const runs: Array<Record<string, unknown>> = [];
+    for (const failure of failures) {
+      runs.push(await alertAfterQ3(failure));
+    }
+
+    // Assert
+    expect(runs.map(({ lines, alerts, answer }) => ({ lines, alerts, answer }))).toEqual([
+      { lines: [FAILED, 'La API de CODEMIND no responde.'], alerts: 1, answer: false },
+      { lines: [FAILED, 'La API de CODEMIND no responde.'], alerts: 1, answer: false },
+    ]);
+  });
+});

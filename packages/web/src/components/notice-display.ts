@@ -85,3 +85,56 @@ const GENERAL_REASON_SENTENCE = 'CODEMIND no ha encontrado evidencia suficiente 
 export function reasonSentence(reason: string): string {
   return REASON_SENTENCES.get(reason) ?? GENERAL_REASON_SENTENCE;
 }
+
+/**
+ * Why a sent question got no answer from the API (design D18, D32): an API error with its code and its
+ * details, or an unavailable API (the request failed, or the answer is not the API's error format).
+ */
+export type AskFailure = { kind: 'api'; code: string; details: Record<string, unknown> } | { kind: 'unavailable' };
+
+/** The first line of every failure alert (design D17). */
+const FAILED = 'No se ha podido obtener la respuesta.';
+
+/** The lines of an API error between the first line and its code, chosen by the code (design D9, D10). */
+function caseLinesOf(code: string, details: Record<string, unknown>): string[] {
+  switch (code) {
+    case 'BUDGET_EXHAUSTED': {
+      const resetTime = resetTimeOf(details);
+      return [
+        'Se ha agotado el presupuesto diario del modelo de lenguaje.',
+        'Las preguntas que ya están en caché siguen respondiendo, sin coste.',
+        ...(resetTime === undefined ? [] : [`El presupuesto se renueva el ${resetTime}.`]),
+      ];
+    }
+    case 'RATE_LIMITED': {
+      const wait = retryWaitOf(details);
+      return [
+        'Demasiadas peticiones seguidas a la API.',
+        wait === undefined ? 'Espera un momento y vuelve a preguntar.' : `Espera ${wait} s y vuelve a preguntar.`,
+      ];
+    }
+    case 'PROJECT_NOT_FOUND':
+      return ['La API no tiene este proyecto: vuelve a la selección de proyecto o indéxalo con la CLI.'];
+    case 'LLM_UNAVAILABLE':
+      return ['El modelo de lenguaje no responde; las preguntas en caché siguen respondiendo.'];
+    case 'SOURCE_UNAVAILABLE':
+      return ['La API no puede leer el código del proyecto.'];
+    default:
+      return [];
+  }
+}
+
+/**
+ * The lines of the alert of a failure (design D9, D10, D17): «No se ha podido obtener la respuesta.»,
+ * then the lines of its case, then «Código: <code>.» for any API error; «La API de CODEMIND no
+ * responde.» for an unavailable API. The case is chosen by the code, never by the HTTP status.
+ *
+ * @param failure - The failure of the sent question.
+ * @returns The lines, in order.
+ */
+export function alertLinesOf(failure: AskFailure): string[] {
+  if (failure.kind === 'unavailable') {
+    return [FAILED, 'La API de CODEMIND no responde.'];
+  }
+  return [FAILED, ...caseLinesOf(failure.code, failure.details), `Código: ${failure.code}.`];
+}
