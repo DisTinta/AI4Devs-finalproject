@@ -19,12 +19,8 @@ export type AskState =
 export interface AskSession {
   /** The state of the last question sent. */
   state: AskState;
-  /**
-   * Sends one question, already checked and trimmed; ignored while a question is pending.
-   *
-   * @returns Whether the question was sent.
-   */
-  send: (question: string) => boolean;
+  /** Sends one question, already checked and trimmed; ignored while a question is pending. */
+  send: (question: string) => void;
 }
 
 /** Whether a `200` body is an `UNKNOWN`. */
@@ -57,9 +53,9 @@ export function useAsk(projectId: string): AskSession {
   useEffect(() => () => pending.current?.abort(), []);
 
   const send = useCallback(
-    (question: string): boolean => {
+    (question: string): void => {
       if (pending.current !== null) {
-        return false;
+        return;
       }
       const controller = new AbortController();
       pending.current = controller;
@@ -76,7 +72,6 @@ export function useAsk(projectId: string): AskSession {
           settle(isUnknown(response) ? { status: 'unknown', reason: response.reason } : { status: 'answered', answer: response }),
         (failure: unknown) => settle(failedState(failure)),
       );
-      return true;
     },
     [projectId],
   );
