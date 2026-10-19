@@ -26,6 +26,20 @@ const SEARCHING = `Buscando evidencia${ELLIPSIS}`;
 /** The message of an invalid question. */
 const INVALID = 'Escribe una pregunta de 5 a 500 caracteres.';
 
+/** The provisional status of an `UNKNOWN` `no-anchor`. */
+const UNKNOWN_NOTICE = 'Sin respuesta verificada (motivo: no-anchor).';
+
+/** The first line of the provisional alert. */
+const FAILED = 'No se ha podido obtener la respuesta.';
+
+/** The second line of the provisional alert for an unavailable API. */
+const UNAVAILABLE = 'La API de CODEMIND no responde.';
+
+/** The `429` body of an exhausted daily budget, in the API's error format. */
+const BUDGET_EXHAUSTED = {
+  error: { code: 'BUDGET_EXHAUSTED', message: 'the daily LLM budget is exhausted', details: { cacheOnly: true } },
+};
+
 /** The suggested questions of acme-shop, in golden order. */
 const Q1 = '¿Cómo se calcula el precio final de un pedido?';
 const Q3 = '¿Cómo se validan los cupones?';
@@ -367,6 +381,39 @@ describe('Pending question', () => {
     expect(screen.getByRole('status').textContent).toBe(SEARCHING);
   });
 
+  it('A new question replaces what was shown', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const firstAnswers: Array<{ answer: () => Promise<Response>; shown: () => Promise<unknown> }> = [
+      { answer: answerWith(200, ANSWERED), shown: () => screen.findByRole('heading', { level: 2, name: 'Respuesta' }) },
+      { answer: () => Promise.reject(new TypeError('fetch failed')), shown: () => screen.findByRole('alert') },
+    ];
+    const runs: Array<Record<string, unknown>> = [];
+
+    // Act
+    for (const { answer, shown } of firstAnswers) {
+      stubFetch(answer);
+      const { unmount } = await renderScreen2();
+      await user.click(screen.getByRole('button', { name: Q1 }));
+      await shown();
+      const requests = stubFetch(neverAnswer);
+      await user.click(screen.getByRole('button', { name: Q3 }));
+      runs.push({
+        requests: requests.length,
+        status: screen.queryByRole('status')?.textContent,
+        answer: screen.queryByRole('heading', { name: 'Respuesta' }) !== null,
+        evidence: screen.queryByRole('heading', { name: 'Evidencia' }) !== null,
+        previousStatements: screen.queryByText('El envío se suma al final.') !== null,
+        alert: screen.queryByRole('alert') !== null,
+      });
+      unmount();
+    }
+
+    // Assert
+    const replaced = { requests: 1, status: SEARCHING, answer: false, evidence: false, previousStatements: false, alert: false };
+    expect(runs).toEqual([replaced, replaced]);
+  });
+
   it('A pending question has no time limit of its own', async () => {
     // Arrange: only the page's timers are fake; React's scheduler keeps the real ones (design D30). The
     // press is a `fireEvent`: user-event waits on RTL's async wrapper, whose `setTimeout(0)` the fake
@@ -607,5 +654,77 @@ describe('Expandable evidence', () => {
     expect(screen.getByRole('button', { name: 'ev-2 · app/Observers/OrderObserver.php:14-28' })).toBe(buttons[1]);
     expect(buttons[1].getAttribute('aria-expanded')).toBe('true');
     expect(buttons[0].getAttribute('aria-expanded')).toBe('false');
+  });
+});
+
+describe('Provisional notice for what is not an answer', () => {
+  it('An UNKNOWN shows the provisional status', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    stubFetch(answerWith(200, { answer: 'UNKNOWN', reason: 'no-anchor', statements: [], evidence: [] }));
+    await renderScreen2();
+
+    // Act
+    await user.type(screen.getByRole('textbox', { name: 'Pregunta' }), '¿Por qué existe legacy_ref?');
+    await user.keyboard('{Enter}');
+    await screen.findByText(UNKNOWN_NOTICE);
+
+    // Assert
+    expect(screen.getByRole('status').textContent).toBe(UNKNOWN_NOTICE);
+    expect(screen.queryByRole('heading', { name: 'Respuesta' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Evidencia' })).toBeNull();
+    expect(document.querySelector('ol')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('An API error shows the provisional alert with its code', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    stubFetch(answerWith(429, BUDGET_EXHAUSTED));
+    await renderScreen2();
+    const suggestion = screen.getByRole('button', { name: Q3 });
+
+    // Act
+    await user.click(suggestion);
+    const alert = await screen.findByRole('alert');
+
+    // Assert
+    expect(within(alert).getByText(FAILED)).toBeDefined();
+    expect(within(alert).getByText('Código: BUDGET_EXHAUSTED.')).toBeDefined();
+    expect(within(alert).queryByRole('button')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Respuesta' })).toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.queryByText(SEARCHING)).toBeNull();
+    expect(document.activeElement).toBe(suggestion);
+  });
+
+  it('An unavailable API shows the provisional alert', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const failures: Array<() => Promise<Response>> = [
+      () => Promise.reject(new TypeError('fetch failed')),
+      () => Promise.resolve(new Response('', { status: 500 })),
+    ];
+    const runs: Array<Record<string, unknown>> = [];
+
+    // Act
+    for (const failure of failures) {
+      stubFetch(failure);
+      const { unmount } = await renderScreen2();
+      await user.click(screen.getByRole('button', { name: Q3 }));
+      const alert = await screen.findByRole('alert');
+      runs.push({
+        failed: within(alert).queryByText(FAILED) !== null,
+        unavailable: within(alert).queryByText(UNAVAILABLE) !== null,
+        answer: screen.queryByRole('heading', { name: 'Respuesta' }) !== null,
+      });
+      unmount();
+    }
+
+    // Assert
+    expect(runs).toEqual([
+      { failed: true, unavailable: true, answer: false },
+      { failed: true, unavailable: true, answer: false },
+    ]);
   });
 });

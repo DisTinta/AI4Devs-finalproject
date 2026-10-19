@@ -1,5 +1,6 @@
 import { useState, type ReactElement } from 'react';
 import { AnswerView } from '../components/AnswerView';
+import { AskFallbackNotice } from '../components/AskFallbackNotice';
 import { validQuestion } from '../components/answer-display';
 import { PageFrame } from '../components/PageFrame';
 import { formatCount, stackLabel } from '../components/project-display';
@@ -53,6 +54,12 @@ function ResultArea({ state }: { state: AskState }): ReactElement | null {
   }
   if (state.status === 'answered') {
     return <AnswerView answer={state.answer} />;
+  }
+  if (state.status === 'unknown') {
+    return <AskFallbackNotice reason={state.reason} />;
+  }
+  if (state.status === 'failed') {
+    return <AskFallbackNotice failure={state.failure} />;
   }
   return null;
 }

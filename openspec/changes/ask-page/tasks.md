@@ -38,7 +38,7 @@ Every test of this change follows Arrange-Act-Assert with the three blocks comme
 - [x] 5.3 RED → GREEN: "Changing an invalid question clears the mark" (two runs with `unmount()` between them: one more `user.type` character → no `aria-invalid`, no `aria-describedby`, no message, zero requests; pressing «¿Cómo se validan los cupones?» → the same, and exactly one request with that body). Write it after 5.4 if the suggestion path does not exist yet
 - [x] 5.4 RED → GREEN: "A suggested question is sent at once" (one request with the exact body; field value; `getByRole('status')` text «Buscando evidencia…» with U+2026 written by code point; focus on the pressed button). Suggestion press fills the field and calls the same send path as the form
 - [x] 5.5 RED → GREEN: "Sending again while a question is pending sends no request" (four sends, one request, field still holds Q1, status shown)
-- [ ] 5.6 RED → GREEN: "A new question replaces what was shown" (first `fetch` answers the answered body of 6.1 — define it once as a test helper —, wait for «Respuesta»; then a never-answering recording double; press Q3; one request; status shown; no «Respuesta», no «Evidencia», no text of the previous statements; second run from the provisional alert of a `TypeError` — write it after 8.3 if the notice does not exist yet —: one request, status shown, no `alert`)
+- [x] 5.6 RED → GREEN: "A new question replaces what was shown" (first `fetch` answers the answered body of 6.1 — define it once as a test helper —, wait for «Respuesta»; then a never-answering recording double; press Q3; one request; status shown; no «Respuesta», no «Evidencia», no text of the previous statements; second run from the provisional alert of a `TypeError` — write it after 8.3 if the notice does not exist yet —: one request, status shown, no `alert`)
 - [x] 5.7 RED → GREEN: "Leaving the page aborts the pending question" (double records `init.signal`, rejects with its reason on abort and never answers `/health`; press Q1, then click the back link; the ask request's signal is `aborted`; `h1` «Elige un proyecto para explorar»; no `alert`)
 - [x] 5.8 RED → GREEN: "A pending question has no time limit of its own" (fake timers per D30; press Q1; `await act(() => vi.advanceTimersByTimeAsync(120_000))`; status still shown; one request; its `init.signal.aborted` is `false`; `vi.useRealTimers()` in `afterEach`)
 
@@ -56,9 +56,9 @@ Every test of this change follows Arrange-Act-Assert with the three blocks comme
 
 ## 8. Provisional notice (TDD, design D10, D25) — `ask-page` → "Provisional notice for what is not an answer"
 
-- [ ] 8.1 RED → GREEN: "An UNKNOWN shows the provisional status" (type «¿Por qué existe legacy_ref?» and Enter; `status` text exactly «Sin respuesta verificada (motivo: no-anchor).»; no `h2`, no `ol`, no `alert`). Create `packages/web/src/components/AskFallbackNotice.tsx` (props interface; `warning-*` alert, `ink-muted`/`canvas` status)
-- [ ] 8.2 RED → GREEN: "An API error shows the provisional alert with its code" (`429` body of the scenario; alert texts; no button inside it; no «Respuesta»; no status; focus on the pressed button)
-- [ ] 8.3 RED → GREEN: "An unavailable API shows the provisional alert" (two runs, `TypeError` and empty `500`, `unmount()` between them)
+- [x] 8.1 RED → GREEN: "An UNKNOWN shows the provisional status" (type «¿Por qué existe legacy_ref?» and Enter; `status` text exactly «Sin respuesta verificada (motivo: no-anchor).»; no `h2`, no `ol`, no `alert`). Create `packages/web/src/components/AskFallbackNotice.tsx` (props interface; `warning-*` alert, `ink-muted`/`canvas` status)
+- [x] 8.2 RED → GREEN: "An API error shows the provisional alert with its code" (`429` body of the scenario; alert texts; no button inside it; no «Respuesta»; no status; focus on the pressed button)
+- [x] 8.3 RED → GREEN: "An unavailable API shows the provisional alert" (two runs, `TypeError` and empty `500`, `unmount()` between them)
 
 ## 9. Accessibility (TDD, design D18, D20, D25) — `ask-page` → "Accessibility of Screen 2"
 
