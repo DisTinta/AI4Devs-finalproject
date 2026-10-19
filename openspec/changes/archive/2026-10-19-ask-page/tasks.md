@@ -115,4 +115,4 @@ Every test of this change follows Arrange-Act-Assert with the three blocks comme
   - [x] 15.5.4 Strengthen "A project outside the sample constant is shown by its id": the banner text is exactly «←» plus the id (verify)
   - [x] 15.5.5 B destinations: Spanish comments on DIS-75 (axe in a real browser) and DIS-66 (alert re-announcement); D destinations recorded in `design.md` → Follow-ups
 - [x] 15.6 Commit the fixes to the same pull request; re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major (the fixes are committed on the branch before the pull request of 15.1 opens; the browser probes were re-run after each fix and found no Blocker or Major)
-- [ ] 15.7 `/opsx:archive`, and commit the archive to the same pull request (no test-file edits in that commit); merge only after the archive commit and with CI green (autonomous-run ADR)
+- [x] 15.7 `/opsx:archive`, and commit the archive to the same pull request (no test-file edits in that commit); merge only after the archive commit and with CI green (autonomous-run ADR)
