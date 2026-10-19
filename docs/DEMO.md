@@ -281,8 +281,18 @@ class PriceCalculator
 They are the lines of the excerpt that the CLI printed (the first five) and the API returned (all
 of them).
 
-> **Entrega 2.** The web has no screens yet: the expandable evidence of Screen 2 arrives with DIS-65.
-> Until then the citation is checked against the file, as here.
+> **Entrega 2.** The web shows Screen 1 at `http://localhost:5173/` (DIS-60): the acme-shop card with
+> its four counts, «indexado» and, once the API answers its health check, «listo». With the API stopped
+> the cards stay and an alert «La API de CODEMIND no está disponible…» offers «Reintentar». «Explorar
+> proyecto» opens Screen 2 (DIS-65): the three suggested questions are the golden ones, so in
+> evaluation mode each is answered from the cache with its statements marked «HECHO»/«INFERIDO» and
+> «verificado»/«sin verificar»; each evidence («ev-1 · app/Services/PriceCalculator.php:16-44») expands
+> with a click, Enter or Space to the same excerpt the API returned here. Under the evidence, the usage
+> panel (DIS-66) shows «Confianza», the tokens, «$0», the latency in milliseconds, «ahorro 100 % vs
+> bruto», «caché ✓» and the baseline line: in evaluation mode every suggested question is a cache hit. A
+> free question in evaluation mode shows the notice «Hace falta un modelo de lenguaje» with the API's
+> own message; a question that names nothing in the code shows «Sin respuesta verificada» with its
+> reason (`no-anchor`).
 
 ## Step 3 — Ask something the repository cannot answer
 

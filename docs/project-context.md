@@ -71,6 +71,41 @@ Verified against `package.json` (root and per package). If a command is not here
   the API stopped, start the API and the web as two processes (the root `npm run dev` kills Vite when
   the API exits); a stopped API answers through the proxy as an empty `500`, which the client reports
   as `ApiUnavailableError`.
+- Web screens (DIS-60): `packages/web/src/router.tsx` exports `routes`, one pathless root route whose
+  `errorElement` is the app's error screen (`pages/RouteErrorPage.tsx`, «Algo ha fallado», never the
+  error's message) and whose children are `/` → Screen 1 (`pages/ProjectPickerPage.tsx`), `/p/:projectId`
+  → Screen 2 (`pages/AskPage.tsx`, DIS-65) and `*` → not found. Screen 1 paints one card per project of
+  `SAMPLE_PROJECTS` (`packages/web/src/data/sample-projects.ts`) with no request, and checks the API with
+  `getHealth` in an effect (`pages/useApiHealth.ts`), not in a React Router loader, so the `Request`
+  workaround of `tests/support/jsdom-setup.ts` still holds. «comprobando…» while the first check runs,
+  «listo» when it answers, and an alert with «Reintentar» when it does not (no automatic retry). In
+  development `StrictMode` sends `/health` twice (the first is aborted).
+- Screen 2 (DIS-65): the route renders `<AskPage key={projectId} …/>`, so another project remounts the
+  page. `PageFrame` takes an optional `banner`; Screen 2 passes `ProjectBar` (back link «←», the project
+  name as `h1`, «PHP / Laravel · 170 aristas»; only the id for a project outside `SAMPLE_PROJECTS`) instead
+  of the CODEMIND header. No request on mount: `pages/useAsk.ts` calls `ask()` only when a question is
+  sent (one at a time, no time limit, aborted on unmount), with the body `{ question }` only. The box
+  checks 5–500 code points after trimming (`components/answer-display.ts`) before sending. The suggested
+  questions are `SUGGESTED_QUESTIONS` (`packages/web/src/data/suggested-questions.ts`), written by hand
+  and guarded by `tests/unit/seed/suggested-questions-coherence.spec.ts`: they must be the golden
+  questions of `seeds/cache/<project>.json`, in order, so in evaluation mode each one is answered from
+  the cache. Regenerating the golden answers with other questions means updating that constant. The
+  answer renders back-quoted fragments as `code` and everything else as text (no Markdown, no
+  `dangerouslySetInnerHTML`).
+- Screen 2 states (DIS-66): after the evidence, `components/UsagePanel.tsx` (a region named by a visually
+  hidden `h2` «Uso»: confidence, input + output tokens, cost, latency, the savings and cache badges and
+  the line «<baseline> tokens sin selección de contexto → <input tokens> con CODEMIND»). An `UNKNOWN`
+  shows `components/UnknownState.tsx` (one sentence per reason, «Motivo: <reason>», muted) or, for
+  `llm-required`, `components/LlmRequiredNotice.tsx` (accent; how to set `LLM_*`, the API's message as
+  text); every failure shows `components/AskErrorNotice.tsx` (`role="alert"`, warning colours, chosen by
+  the API's error code: budget with its UTC reset time, rate limit with its wait, the known codes, the
+  code line, or «La API de CODEMIND no responde.»). The figures and the notice lines are pure functions in
+  `components/usage-display.ts` and `components/notice-display.ts` (no `Intl`; `notice-display.ts`
+  owns the `AskFailure` type). `AskPage` renders one persistent, visually hidden `role="status"`
+  region whose text follows the state (empty, «Buscando evidencia…», «Respuesta recibida.», «Sin respuesta
+  verificada.», «Hace falta un modelo de lenguaje.», empty after an alert); the visible pending text is
+  `aria-hidden`. A repeated invalid send re-mounts the box's alert (keyed by a send counter) so it is
+  announced again. No state adds a tab stop or moves the focus.
 - Accessibility gate: `npm run test:a11y` (root) = `vitest run tests/a11y` — axe over the real routes
   (see Testing).
 - Tests (full): `npm test` or `npx vitest run` (root `vitest.config.ts`). `fixtures/**` is excluded
@@ -204,7 +239,10 @@ Verified against `package.json` (root and per package). If a command is not here
   navigation with Node's `Request` and jsdom's `AbortController`. That workaround is safe only while
   the app has no loader or action: **the ticket that adds one must revisit it**. `.tsx` tests compile
   with `esbuild.jsx: 'automatic'`. Use RTL accessible queries and `user-event`; mock the network with
-  `vi.stubGlobal('fetch', …)`. `tests/unit/web/` holds the Vite proxy table test and the type-level
+  `vi.stubGlobal('fetch', …)`. A test that renders `/` should stub `fetch` (Screen 1 calls `GET /health` on
+  mount; Node's real `fetch` rejects under jsdom, so the page would show the API-unavailable alert); the
+  pre-DIS-60 tests that render `/` without a stub still pass, since none asserts the alert's absence.
+  `tests/unit/web/` holds the Vite proxy table test and the type-level
   contract test `api-contract.spec.ts` (`expectTypeOf` of the client types against the API's Zod
   types, by relative path; it fails `npm run typecheck`, not Vitest). Stryker excludes
   `packages/web/**`, `tests/a11y/**` and `tests/unit/web/**` (`vitest.stryker.config.ts`): it mutates
@@ -521,6 +559,14 @@ services that must be started first, quirks of the local environment.
   Node (a `.test.tsx` runs in jsdom, where Node's `fetch` rejects jsdom's `AbortSignal`). Tailwind 4
   generates a utility for any class-like string in any source file, tests included, so `index.css`
   excludes `*.test.ts(x)` with `@source not`; a new non-UI folder with class names needs the same.
+- **Screen 2 writes its pending text twice, and axe in jsdom cannot see colours** (DIS-66). The
+  persistent `sr-only` status region repeats «Buscando evidencia…» next to the visible, `aria-hidden`
+  copy, so `getByText` on that text finds two elements (target the visible one with
+  `selector: '[aria-hidden="true"]'`, or the region with `getByRole('status')`). Never key or remount
+  the status `p`: screen readers announce a change of text in an element that already exists, and
+  "The status region announces every outcome" pins it as the same element. A colour break never fails
+  `test:a11y` (axe reports `color-contrast` as incomplete without layout); colours are guarded by
+  `theme.test.ts` and the browser pass.
 - **Some CI gates run against stubs, on purpose.** `lint`, `lint:architecture` and `typecheck` are
   real and must pass, and so is CI's `db:migrate` → `db:rollback` → `db:migrate` step. Mutation
   testing has real mutants since DIS-23 (`packages/core/src/knowledge/`, 86.82 % at DIS-23 merge, 90.09 % with DIS-35, 92.23 % with DIS-36; `packages/core/src/index/` since DIS-84, 95.11 % for all of core; 96.48 % for `index/` with DIS-85; threshold

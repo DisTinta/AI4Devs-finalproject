@@ -68,7 +68,10 @@
 51. [`npm run verify` real: huellas y comparación estructural con las golden, sin LLM, y job `verify` en CI (DIS-44)](#51-npm-run-verify-real-huellas-y-comparación-estructural-con-las-golden-sin-llm-y-job-verify-en-ci-dis-44)
 52. [Guion de demostración, despliegue y tests con salida real (DIS-45)](#52-guion-de-demostración-despliegue-y-tests-con-salida-real-dis-45)
 53. [Andamiaje web: Tailwind, router, cliente tipado de la API y `test:a11y` real (DIS-58)](#53-andamiaje-web-tailwind-router-cliente-tipado-de-la-api-y-testa11y-real-dis-58)
-55. [Experimento: workflow autónomo para cerrar la Entrega 2 (DIS-101)](#55-experimento-workflow-autónomo-para-cerrar-la-entrega-2-dis-101)
+54. [Pantalla 1: tarjetas de proyectos de muestra, aviso de API caída y pantalla de error (DIS-60)](#54-pantalla-1-tarjetas-de-proyectos-de-muestra-aviso-de-api-caída-y-pantalla-de-error-dis-60)
+55. [Pantalla 2: pregunta, sugeridas, respuesta con afirmaciones tipadas y evidencia expandible (DIS-65)](#55-pantalla-2-pregunta-sugeridas-respuesta-con-afirmaciones-tipadas-y-evidencia-expandible-dis-65)
+56. [Pantalla 2: panel de uso, estados `UNKNOWN`, avisos de `429` y error, y pasada de accesibilidad (DIS-66)](#56-pantalla-2-panel-de-uso-estados-unknown-avisos-de-429-y-error-y-pasada-de-accesibilidad-dis-66)
+57. [Experimento: workflow autónomo para cerrar la Entrega 2 (DIS-101)](#57-experimento-workflow-autónomo-para-cerrar-la-entrega-2-dis-101)
 
 ---
 
@@ -83,7 +86,7 @@
 | Redacción de documentación técnica | Claude (Cowork) | Opus | Documentos largos con estructura fija |
 | Diseño de esquema de datos y API | Claude (Cowork) | Opus | Decisiones con consecuencias en cascada |
 | Planificación de historias, propuestas y redacción larga (Entrega 2) | Claude (Cowork / chat) | Opus | El backlog en jerarquía para Linear y los prompts de cada hito, antes de abrir el repositorio |
-| Implementación, tests, revisión y orquestación de subagentes (Entrega 2) | Claude Code | Opus | Todo el ciclo SDD de cada ticket: `/enrich-us`, OpenSpec, TDD, las tres revisiones y el archivo; y, en el experimento de [§55](#55-experimento-workflow-autónomo-para-cerrar-la-entrega-2-dis-101), la orquestación del workflow |
+| Implementación, tests, revisión y orquestación de subagentes (Entrega 2) | Claude Code | Opus | Todo el ciclo SDD de cada ticket: `/enrich-us`, OpenSpec, TDD, las tres revisiones y el archivo; y, en el experimento de [§57](#57-experimento-workflow-autónomo-para-cerrar-la-entrega-2-dis-101), la orquestación del workflow |
 | Subagentes de pasos mecánicos (Entrega 2) | Claude Code | Sonnet | PR, archivo, merge y cierre en Linear dentro del workflow: pasos fáciles de verificar y de rehacer |
 | Sesiones de criterio y redacción | Cursor | — | Decisiones de producto conversadas, como la del 5 de septiembre (§8, lección 6) |
 
@@ -125,7 +128,7 @@ Antes de arrancar el desarrollo construí un **harness propio de Spec-Driven Dev
 | `/verify-against-spec`, `/adversarial-review`, `/show-spec-working` | Skills | Las tres revisiones antes de archivar |
 | `/pr-describe`, `/update-docs`, `/adr-new`, `/privacy-ethics-check` | Skills | Descripción del PR en español, documentación desfasada, ADR y comprobación de privacidad |
 | Linear y Context7 | Servidores MCP | Leer y actualizar los tickets; documentación de librerías |
-| Workflow de Claude Code | Orquestación | El experimento de la [§55](#55-experimento-workflow-autónomo-para-cerrar-la-entrega-2-dis-101) |
+| Workflow de Claude Code | Orquestación | El experimento de la [§57](#57-experimento-workflow-autónomo-para-cerrar-la-entrega-2-dis-101) |
 
 Lo que la Entrega 1 dejó **previsto** y no se usó, y por qué: `/revisar-arquitectura` (comando de Cursor) lo sustituyeron el hook `post-edit-quality`, que avisa al guardar, y `dependency-cruiser` en CI; el subagente `verificador-de-evidencias` no hizo falta, porque el verificador se diseñó con OpenSpec y sus escenarios; y las reglas de estilo de `.cursorrules` las cubren las reglas que el kit instala en `.cursor/rules/` y los estándares de `docs/`.
 
@@ -638,7 +641,7 @@ del proyecto es la demo alojada y el arranque local.
 
 En la Entrega 1 no había código, y esta sección quedó vacía a propósito. En la Entrega 2 hay 52 pull requests fusionadas, listadas en la sección 7 del readme con su ticket y su change de OpenSpec.
 
-No hay un prompt de PR que merezca registrarse aparte: ninguna descripción se escribió con un prompt propio. Todas salen de la skill `/pr-describe`, que lee el change, los commits y los informes de revisión y deja sin rellenar el porqué, que en el flujo normal escribe la autora; en el experimento de la [§55](#55-experimento-workflow-autónomo-para-cerrar-la-entrega-2-dis-101) lo escribió el agente, marcado como decisión suya. El texto de cada descripción se guarda en el change, en `openspec/changes/archive/*/reports/pr-description.md`, y los prompts que dieron forma a cada PR están en la sección de su ticket (§12 en adelante).
+No hay un prompt de PR que merezca registrarse aparte: ninguna descripción se escribió con un prompt propio. Todas salen de la skill `/pr-describe`, que lee el change, los commits y los informes de revisión y deja sin rellenar el porqué, que en el flujo normal escribe la autora; en el experimento de la [§57](#57-experimento-workflow-autónomo-para-cerrar-la-entrega-2-dis-101) lo escribió el agente, marcado como decisión suya. El texto de cada descripción se guarda en el change, en `openspec/changes/archive/*/reports/pr-description.md`, y los prompts que dieron forma a cada PR están en la sección de su ticket (§12 en adelante).
 
 ---
 
@@ -4758,9 +4761,130 @@ para las tres pantallas; y como el agente no podía leer las credenciales locale
 la prueba manual levantó la API real con los dobles de sus tests unitarios, lo que demuestra el proxy y
 el caso de API caída pero no la respuesta `UNKNOWN` de acme-shop sembrada.
 
+# 54. Pantalla 1: tarjetas de proyectos de muestra, aviso de API caída y pantalla de error (DIS-60)
+
+### Prompt 1 — Implementar la Pantalla 1 dentro del workflow autónomo
+
+El script del workflow (ADR `20261016-autonomous-workflow-run-entrega-2`) envió a este paso, entre
+otras reglas, este texto literal:
+
+```
+YOUR STEP 3/6 — implement.
+Run /opsx:apply (Skill "opsx:apply") for the change of DIS-60 and walk every task in tasks.md in TDD per scenario (tdd-test-writer → tdd-implementer → tdd-refactorer). Include the step-12 style verification tasks (suite, lint, typecheck, architecture lint, docs coverage, targeted mutation ≥ 80, privacy check) but stop before the pre-merge review tasks (show-spec-working / verify-against-spec / adversarial-review), PR, CI and archive: those are later steps. Commit in small conventional commits.
+```
+
+**Por qué funcionó.** El change `project-picker` llegaba con 25 decisiones y dos pasadas del
+`spec-auditor`, y cada escenario de la spec ya nombraba la consulta accesible, el doble de `fetch` y el
+orden de las comprobaciones, así que cada test se escribió casi al dictado. Los escenarios que pasaron a
+la primera (el teclado, el tiempo límite, la pulsación repetida, el reintento fallido, la cancelación al
+salir y axe) se probaron rompiendo a propósito lo que vigilan: el enlace fuera del orden de tabulación, un
+límite de 10 s, el guardián del reintento quitado, el estado «reintentando» sin limpiar, el aborto quitado
+del efecto y el botón del aviso sin texto. La prueba manual se hizo con la API real sobre la base de datos
+sembrada, apagándola y volviéndola a arrancar con la página abierta.
+
+**Ajuste humano.** Ninguno: ejecución autónoma, sin la autora en el bucle. Decisiones del agente al
+implementar, registradas en `design.md` y en la descripción `[enhanced]` del ticket: las tablas de
+etiquetas son `Map` porque el cliente compila con `lib: ES2020` (sin `Object.hasOwn`); el separador de
+miles se escribe como `'\u00a0'` en el código y los tests lo comprueban por punto de código; el enlace
+«Volver a la selección de proyecto» pasó a un componente compartido por las pantallas de no encontrado y
+de error; y, como el paso no podía arrancar los subagentes de TDD, cada fase rojo → verde → refactor se
+hizo en línea con el mismo contrato.
+
+### Prompt 2 — Revisiones previas al merge dentro del workflow autónomo
+
+El mismo script del workflow envió al paso siguiente este texto literal:
+
+```
+YOUR STEP 4/6 — pre-merge reviews.
+Run, in this order and IN THE FOREGROUND inside your own context (do not fork them to background subagents: their results get lost or blocked by the block-secrets hook when they quote test secrets), the review tasks of the change's tasks.md: /show-spec-working, /verify-against-spec, /adversarial-review, and the security-reviewer agent if the diff touches HTTP inputs, rate limits, secrets or personal data. Save each report where tasks.md says. Every finding gets an A/B/C/D destination in design.md → Follow-ups and is fixed in this change when fixable (behaviour changes via TDD; spec edits via /opsx:update with an addendum to the spec-audit report). Re-run a check whose findings led to non-trivial fixes until no Blocker/Major remain. Mark the tasks. Suite green. Commit.
+```
+
+**Por qué funcionó.** `/show-spec-working` recorrió cada escenario visible en el navegador contra la API
+real: además de apagarla y encenderla, interceptó `/health` para que no respondiera nunca, y así se vio
+el tiempo límite de 5 s, el «Reintentando…» con tres pulsaciones y una sola petición, el reintento
+fallido y la cancelación al salir. La pantalla de error, a la que no lleva ninguna URL, se alcanzó a mano
+con una ruta temporal que lanza un error, retirada en el acto. La lectura hostil encontró que un
+reintento correcto quitaba el foco a quien ya había tabulado hasta el enlace, que el guardián que ignora
+una comprobación abortada no tenía ningún test capaz de verlo (solo se nota con el doble montaje de
+`StrictMode`) y que a 320 px el aviso dejaba el texto en una columna de 110 px. Los tres se arreglaron en
+el mismo change: escenarios nuevos en la spec, test en rojo o roto a propósito, código y comprobación en
+el navegador.
+
+**Ajuste humano.** Ninguno: ejecución autónoma. `verify-against-spec` y `adversarial-review` se bifurcan
+a un agente en segundo plano por su configuración, así que el agente hizo ambas revisiones en primer
+plano con sus mismas listas de comprobación. El security-reviewer no se lanzó: el diff no añade entradas
+HTTP, límites, secretos ni datos personales. Las revisiones se hicieron antes de abrir el pull request,
+porque el workflow abre el PR en el paso siguiente; quedó anotado como decisión del agente.
+
+# 55. Pantalla 2: pregunta, sugeridas, respuesta con afirmaciones tipadas y evidencia expandible (DIS-65)
+
+### Prompt 1 — Implementar la Pantalla 2 dentro del workflow autónomo
+
+El script del workflow (ADR `20261016-autonomous-workflow-run-entrega-2`) envió a este paso, entre
+otras reglas, este texto literal:
+
+```
+YOUR STEP 3/6 — implement.
+Run /opsx:apply (Skill "opsx:apply") for the change of DIS-65 and walk every task in tasks.md in TDD per scenario (tdd-test-writer → tdd-implementer → tdd-refactorer). Include the step-12 style verification tasks (suite, lint, typecheck, architecture lint, docs coverage, targeted mutation ≥ 80, privacy check) but stop before the pre-merge review tasks (show-spec-working / verify-against-spec / adversarial-review), PR, CI and archive: those are later steps. Commit in small conventional commits.
+```
+
+**Por qué funcionó.** El change `ask-page` llegaba con 30 decisiones y una auditoría de la spec aprobada
+en su segunda pasada, y cada escenario ya decía qué doble de `fetch` usar, qué consulta accesible y en qué
+orden comprobar, así que los tests se escribieron casi al dictado y en el orden de `tasks.md`. Los
+escenarios que pasaron a la primera (el proyecto fuera de la constante, la pregunta nueva que sustituye a
+la anterior, el orden de tabulación y axe) se probaron rompiendo a propósito lo que vigilan. Lo que más
+aportó fue la prueba en el navegador contra la API real en modo evaluación: las tres sugeridas se
+respondieron desde la caché golden y el fragmento desplegado coincidió carácter a carácter con
+`seeds/cache/acme-shop.json`, pero también salieron tres defectos que ningún test de jsdom podía ver
+(«Prueba:» en su propia línea, la insignia «INFERIDO» invisible sobre el recuadro de la inferencia y un
+mensaje con un par de colores sin comprobar). Una mutación dirigida (configuración temporal, sin
+commitear) sobre los ficheros nuevos dio 84,29 %.
+
+**Ajuste humano.** Ninguno: ejecución autónoma, sin la autora en el bucle. Decisiones del agente al
+implementar, registradas en `design.md` (D31–D36) y en la descripción `[enhanced]` del ticket: las
+sugeridas se leen solo por clave propia para que `/p/constructor` no lea `Object.prototype`; el escenario
+sin tiempo límite pulsa con `fireEvent`, porque `user-event` se cuelga esperando un `setTimeout(0)` que el
+reloj falso nunca dispara; el control negativo de axe tuvo que ocultar también la flecha «←», porque
+quitar solo el `aria-label` deja un nombre visible que axe da por bueno; y, como el paso no podía arrancar
+los subagentes de TDD, cada fase rojo → verde → refactor se hizo en línea con el mismo contrato.
+
+# 56. Pantalla 2: panel de uso, estados `UNKNOWN`, avisos de `429` y error, y pasada de accesibilidad (DIS-66)
+
+### Prompt 1 — Implementar los estados finales de la Pantalla 2 dentro del workflow autónomo
+
+El script del workflow (ADR `20261016-autonomous-workflow-run-entrega-2`) envió a este paso, entre
+otras reglas, este texto literal:
+
+```
+YOUR STEP 3/6 — implement.
+Run /opsx:apply (Skill "opsx:apply") for the change of DIS-66 and walk every task in tasks.md in TDD per scenario (tdd-test-writer → tdd-implementer → tdd-refactorer). Include the step-12 style verification tasks (suite, lint, typecheck, architecture lint, docs coverage, targeted mutation ≥ 80, privacy check) but stop before the pre-merge review tasks (show-spec-working / verify-against-spec / adversarial-review), PR, CI and archive: those are later steps. Commit in small conventional commits.
+```
+
+**Por qué funcionó.** El change `ask-page-states` llegaba con 32 decisiones, una auditoría de la spec
+aprobada en su segunda pasada y una regla explícita (D24) sobre qué líneas de tests existentes podían
+cambiar y en qué orden, así que borrar los tres tests del aviso provisional, cambiar las dos aserciones
+de la región de estado y ajustar las esperas del test de axe se hizo sin dejar nunca la suite en rojo
+entre tareas. Los escenarios que pasaron a la primera (acierto de caché, ahorro negativo, cada motivo
+sin evidencia, las alertas, la secuencia de anuncios y las paradas de tabulación) se vieron fallar
+rompiendo a propósito, sin commitear, lo que vigilan. La prueba en el navegador contra la API real en
+modo evaluación confirmó el recorrido del readme: Q1 es un acierto de caché («caché ✓», «$0», «ahorro
+100 % vs bruto»), «¿Por qué existe legacy_ref?» da `no-anchor` y una pregunta libre da el aviso de
+configuración con el mensaje de la API. La mutación dirigida (configuración temporal, sin commitear)
+sobre los diez ficheros nuevos o cambiados dio 88,16 % y señaló que la comprobación de calendario de la
+hora de renovación no tenía test; se fijó con uno.
+
+**Ajuste humano.** Ninguno: ejecución autónoma, sin la autora en el bucle. Decisiones del agente al
+implementar, registradas en `design.md` (D33–D36) y en la descripción `[enhanced]` del ticket: la
+insignia de ahorro decide con el valor ya redondeado, para que nunca diga «ahorro 0 %»; la hora de
+renovación tiene que existir en el calendario, porque `Date.parse` convierte el 30 de febrero en el 2 de
+marzo; el RED de los escaneos de axe nuevos tuvo que ser estructural, porque axe en jsdom no calcula
+estilos y nunca da `color-contrast` como violación; y el escaneo del estado pendiente espera el texto
+visible por su `aria-hidden`, porque la región de estado repite el mismo texto. Como el paso no podía
+arrancar los subagentes de TDD, cada fase rojo → verde → refactor se hizo en línea con el mismo contrato.
+
 ---
 
-# 55. Experimento: workflow autónomo para cerrar la Entrega 2 (DIS-101)
+# 57. Experimento: workflow autónomo para cerrar la Entrega 2 (DIS-101)
 
 Las últimas tareas de la Entrega 2 (DIS-76, DIS-78, DIS-21, DIS-26, DIS-34, DIS-44, DIS-45, DIS-58,
 DIS-60, DIS-65, DIS-66 y esta DIS-101) se hicieron con la herramienta
