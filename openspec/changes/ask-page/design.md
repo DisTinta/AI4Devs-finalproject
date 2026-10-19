@@ -296,6 +296,52 @@ renderer (DIS-66, a Markdown temptation) cannot drop it unnoticed.
 D18 did for the health check; `vi.useRealTimers()` in `afterEach`. 120 000 ms is over any timer the page
 could plausibly set by mistake (the health check's default is 5 000 ms).
 
+### Decisions taken while implementing
+
+D31–D36 were taken during `/opsx:apply` (agent as lead engineer, same ADR) and are added to the
+`[enhanced]` description of DIS-65.
+
+#### D31 — Suggested questions are read by own key only
+
+`suggestedQuestionsOf(projectId)` checks `hasOwnProperty` before reading `SUGGESTED_QUESTIONS`: a path
+such as `/p/constructor` would otherwise read a property of `Object.prototype` and the page would throw
+while rendering. The web compiles with `lib: ES2020`, which has no `Object.hasOwn`.
+
+#### D32 — One fragment renderer
+
+`CodeText` renders the answer and the statements over `splitCode`: code fragments in `code`, plain
+fragments as React string children with no wrapper, so any markup stays text (D29).
+
+#### D33 — Answer and evidence as sibling sections
+
+`AnswerView` returns the answer section (`h2` «Respuesta», paragraph, ordered list) and `EvidenceList`'s
+own section, each with a top divider, as the wireframe draws «RESPUESTA» and «EVIDENCIA». The headings are
+upper-cased by CSS only; their accessible names stay «Respuesta» and «Evidencia».
+
+#### D34 — Visual fixes found in the browser run (step 12)
+
+- «Prueba:» stays to the left of the suggestions (the label does not shrink, the group wraps) instead of
+  wrapping onto its own line.
+- The «⚠ INFERIDO» badge gets a `warning-border` border: on the inference box, which has the same
+  `warning-soft` background, the badge had no visible edge.
+- The invalid-question message is `warning-ink` on `warning-soft` with a `warning-border` border, a pair
+  `theme.test.ts` checks, instead of `warning-ink` on `surface`, which it does not.
+
+No colour pair is added.
+
+#### D35 — The time-limit scenario presses with `fireEvent`
+
+With `setTimeout` faked, `user-event` awaits RTL's async wrapper, which waits on a `setTimeout(0)` the fake
+clock never fires, so the test hung. That scenario presses the suggestion with `fireEvent.click` (still a
+pointer press); every other test uses `user-event`.
+
+#### D36 — The axe negative control
+
+Removing only the back link's `aria-label` does not fail axe: the visible «←» is a discernible name (axe
+does not judge meaning). That removal is caught by "Screen 2 opens on a sample project without any
+request", which finds the link by its name. The axe negative control removes the `aria-label` and hides
+the arrow from assistive technology, which gives `link-name` in all five states (step 11 report).
+
 ## Risks / Trade-offs
 
 - [The API answers an unexpected `2xx` shape (e.g. an answered body without `statements`)] → the client

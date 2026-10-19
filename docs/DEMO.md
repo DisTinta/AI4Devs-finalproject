@@ -285,8 +285,11 @@ of them).
 > **Entrega 2.** The web shows Screen 1 at `http://localhost:5173/` (DIS-60): the acme-shop card with
 > its four counts, «indexado» and, once the API answers its health check, «listo». With the API stopped
 > the cards stay and an alert «La API de CODEMIND no está disponible…» offers «Reintentar». «Explorar
-> proyecto» still leads to the Screen 2 placeholder: the expandable evidence of Screen 2 arrives with
-> DIS-65. Until then the citation is checked against the file, as here.
+> proyecto» opens Screen 2 (DIS-65): the three suggested questions are the golden ones, so in
+> evaluation mode each is answered from the cache with its statements marked «HECHO»/«INFERIDO» and
+> «verificado»/«sin verificar»; each evidence («ev-1 · app/Services/PriceCalculator.php:16-44») expands
+> with a click, Enter or Space to the same excerpt the API returned here. A free question in evaluation
+> mode shows «Sin respuesta verificada (motivo: llm-required).» until DIS-66 adds its final notice.
 
 ## Step 3 — Ask something the repository cannot answer
 

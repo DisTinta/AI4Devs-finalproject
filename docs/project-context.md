@@ -74,12 +74,25 @@ Verified against `package.json` (root and per package). If a command is not here
 - Web screens (DIS-60): `packages/web/src/router.tsx` exports `routes`, one pathless root route whose
   `errorElement` is the app's error screen (`pages/RouteErrorPage.tsx`, «Algo ha fallado», never the
   error's message) and whose children are `/` → Screen 1 (`pages/ProjectPickerPage.tsx`), `/p/:projectId`
-  → the Screen 2 placeholder and `*` → not found. Screen 1 paints one card per project of
+  → Screen 2 (`pages/AskPage.tsx`, DIS-65) and `*` → not found. Screen 1 paints one card per project of
   `SAMPLE_PROJECTS` (`packages/web/src/data/sample-projects.ts`) with no request, and checks the API with
   `getHealth` in an effect (`pages/useApiHealth.ts`), not in a React Router loader, so the `Request`
   workaround of `tests/support/jsdom-setup.ts` still holds. «comprobando…» while the first check runs,
   «listo» when it answers, and an alert with «Reintentar» when it does not (no automatic retry). In
   development `StrictMode` sends `/health` twice (the first is aborted).
+- Screen 2 (DIS-65): the route renders `<AskPage key={projectId} …/>`, so another project remounts the
+  page. `PageFrame` takes an optional `banner`; Screen 2 passes `ProjectBar` (back link «←», the project
+  name as `h1`, «PHP / Laravel · 170 aristas»; only the id for a project outside `SAMPLE_PROJECTS`) instead
+  of the CODEMIND header. No request on mount: `pages/useAsk.ts` calls `ask()` only when a question is
+  sent (one at a time, no time limit, aborted on unmount), with the body `{ question }` only. The box
+  checks 5–500 code points after trimming (`components/answer-display.ts`) before sending. The suggested
+  questions are `SUGGESTED_QUESTIONS` (`packages/web/src/data/suggested-questions.ts`), written by hand
+  and guarded by `tests/unit/seed/suggested-questions-coherence.spec.ts`: they must be the golden
+  questions of `seeds/cache/<project>.json`, in order, so in evaluation mode each one is answered from
+  the cache. Regenerating the golden answers with other questions means updating that constant. The
+  answer renders back-quoted fragments as `code` and everything else as text (no Markdown, no
+  `dangerouslySetInnerHTML`); `UNKNOWN`, API errors and an unavailable API show a provisional notice
+  (`components/AskFallbackNotice.tsx`) until DIS-66 adds the usage panel and the final states.
 - Accessibility gate: `npm run test:a11y` (root) = `vitest run tests/a11y` — axe over the real routes
   (see Testing).
 - Tests (full): `npm test` or `npx vitest run` (root `vitest.config.ts`). `fixtures/**` is excluded
