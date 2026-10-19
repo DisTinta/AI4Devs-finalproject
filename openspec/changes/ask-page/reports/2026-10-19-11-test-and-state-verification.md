@@ -160,3 +160,23 @@ None for this step (see `2026-10-19-12-manual-interface-testing.md`).
 - Status: PASS
 - Blocking issues: none. One candidate finding for the pre-merge review (the invalid-while-pending send,
   above).
+
+## Addendum — CI run (2026-10-19, PR #56)
+
+Pull request [DisTinta/AI4Devs-finalproject#56](https://github.com/DisTinta/AI4Devs-finalproject/pull/56)
+(`feature/DIS-65-ask-page` → `feature/entrega-2-CRN`), run
+[39221440442](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/39221440442) and
+[39221440994](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/39221440994).
+
+- `scope`, `secrets`, `verify`, `mutation`, `frontend` (with `test:a11y`): green on the first attempt.
+- `quality`: red twice, both times on `tests/integration/cli/seed-load.spec.ts` (two different tests of
+  that file, "A failed golden save leaves the database unchanged" and "A user project named acme-shop is
+  left intact"), both an `AssertionError` on a whole-database snapshot taken inside the test while another
+  integration file committed a row to the same shared Postgres database through `npx vitest run`'s default
+  file parallelism — the known cross-file race already documented for this suite (e.g.
+  `openspec/changes/archive/2026-10-17-golden-cache-build/reports/2026-10-17-adversarial-review.md`,
+  `openspec/changes/archive/2026-10-10-llm-evaluation-budget/reports/2026-10-10-adversarial-review.md`).
+  Not caused by this change (DIS-65 touches no database code, and the step 11 run above confirms the
+  targeted and full suites were green before the PR opened). Per the no-edit-existing-test rule, the test
+  was not changed; the job was re-run (`gh run rerun --failed`) and passed green on the third attempt.
+- Final state: all checks green — `scope`, `secrets`, `verify`, `mutation`, `frontend`, `quality`.
