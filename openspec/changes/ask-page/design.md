@@ -48,7 +48,8 @@ See `proposal.md` → Why. The current state that shapes the approach (`origin/f
 
 D1–D14 come from the `[enhanced]` description of DIS-65 (agent as lead engineer, ADR
 `20261016-autonomous-workflow-run-entrega-2`, reviewable by the author). D15–D28 were taken while
-proposing and are added to the same description.
+proposing, and D29–D30 while resolving the spec audit (run 1, `reports/2026-10-19-spec-audit.md`), which
+also refined D19; all of them are added to the same description.
 
 ### D1 — An OpenSpec change with the new capability `ask-page`
 
@@ -209,7 +210,18 @@ invalid send changes nothing else (the previous answer stays).
 `warning-ink` (on `warning-soft`); a `FACT` item's text is `ink` on `surface`; code fragments take the
 `accent` colour only in the answer paragraph (`accent` on `surface`) and inherit the colour of the
 statement they are in (`accent` on `warning-soft` is not a checked pair). The badges carry their own
-background.
+background. The exact tokens, checked by eye in the manual test and `/show-spec-working` (spec
+"Statement colours follow the wireframe"; jsdom computes no styles):
+
+| Element | Text | Background | Border |
+|---|---|---|---|
+| `FACT` item | `ink` | `surface` | left `border-success` (stripe) |
+| `INFERENCE` item | `warning-ink` | `warning-soft` | `warning-border` |
+| «● HECHO», «✓ verificado» | `success` | `success-soft` | — |
+| «⚠ INFERIDO» | `warning-ink` | `warning-soft` | — |
+| «○ sin verificar» | `ink-muted` | `canvas` | — |
+| code in the answer paragraph | `accent` | `surface` | — |
+| code in a statement | inherited | inherited | — |
 
 ### D20 — The back link's focus outline is white (taken while proposing)
 
@@ -270,6 +282,19 @@ as the wireframe draws it; `PageFrame` keeps its classes.
 
 Instead of hard-coding `acme-shop.json`, it lists `seeds/cache/*.json`, so task-api (CM-HU-18) or any
 future sample project with golden answers is covered without editing the test.
+
+### D29 — Markup is text, proven by a scenario (spec audit run 1, F3)
+
+The answer and the statements come from a model: an `<img onerror>` in them must stay text. React
+escapes every string child; the scenario "Markup in an answer is shown as text" pins it so a later
+renderer (DIS-66, a Markdown temptation) cannot drop it unnoticed.
+
+### D30 — The time-limit check under fake timers (spec audit run 1, F2)
+
+"A pending question has no time limit of its own" uses `vi.useFakeTimers({ toFake: ['setTimeout',
+'clearTimeout'] })` before rendering and `act(() => vi.advanceTimersByTimeAsync(120_000))`, as DIS-60
+D18 did for the health check; `vi.useRealTimers()` in `afterEach`. 120 000 ms is over any timer the page
+could plausibly set by mistake (the health check's default is 5 000 ms).
 
 ## Risks / Trade-offs
 

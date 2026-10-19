@@ -86,10 +86,13 @@ U+0000) is reported by the API's answer ("Provisional notice for what is not an 
 #### Scenario: Changing an invalid question clears the mark
 
 - **GIVEN** Screen 2 of acme-shop showing the message «Escribe una pregunta de 5 a 500 caracteres.» after
-  the person sent «hola», and `fetch` replaced by a double that records every request
-- **WHEN** the person writes one more character in the field
-- **THEN** the field has no `aria-invalid="true"` and no accessible description, the message is not
-  shown, and the double recorded no request
+  the person sent «hola», and `fetch` replaced by a double that records every request and never
+  answers, in two runs
+- **WHEN** the person writes one more character in the field in the first run, and presses the suggested
+  question «¿Cómo se validan los cupones?» in the second run
+- **THEN** in both runs the field has no `aria-invalid="true"` and no accessible description and the
+  message is not shown; the double recorded no request in the first run, and exactly one request, whose
+  body is `{"question":"¿Cómo se validan los cupones?"}`, in the second
 
 ### Requirement: Suggested questions
 
@@ -145,11 +148,23 @@ focus SHALL stay where it is.
 
 #### Scenario: A new question replaces what was shown
 
-- **GIVEN** Screen 2 of acme-shop showing the answer of «¿Cómo se calcula el precio final de un pedido?»,
-  and `fetch` then replaced by a double that records every request and never answers
-- **WHEN** the person presses «¿Cómo se validan los cupones?»
-- **THEN** the double recorded exactly one request; the status «Buscando evidencia…» is shown; and there is
-  no heading «Respuesta» nor «Evidencia», and no statement of the previous answer
+- **GIVEN** two runs: Screen 2 of acme-shop showing the answer of «¿Cómo se calcula el precio final de un
+  pedido?»; and Screen 2 of acme-shop showing the provisional alert after `fetch` rejected with a
+  `TypeError`; in each run `fetch` is then replaced by a double that records every request and never
+  answers
+- **WHEN** the person presses «¿Cómo se validan los cupones?» in each run
+- **THEN** in each run the double recorded exactly one request and the status «Buscando evidencia…» is
+  shown; in the first there is no heading «Respuesta» nor «Evidencia» and no statement of the previous
+  answer; in the second there is no element with role `alert`
+
+#### Scenario: A pending question has no time limit of its own
+
+- **GIVEN** Screen 2 of acme-shop, `fetch` replaced by a double that records the signal of each request
+  and never answers on its own, and a clock that the test advances
+- **WHEN** the person presses «¿Cómo se calcula el precio final de un pedido?» and the clock advances
+  120 000 ms
+- **THEN** the status «Buscando evidencia…» is still shown, the double recorded exactly one request, and
+  its signal is not aborted
 
 #### Scenario: Leaving the page aborts the pending question
 
@@ -204,10 +219,31 @@ with the decorative success stripe. The page SHALL NOT show the answer's `confid
 
 - **GIVEN** Screen 2 of acme-shop, and `fetch` answering `200` with an answered question whose four
   statements are, in order, `FACT`/`entailed`, `FACT`/`cited`, `INFERENCE`/`entailed` and
-  `INFERENCE`/`cited`
+  `INFERENCE`/`cited`, the first three citing `ev-1` and the fourth citing no evidence
 - **WHEN** the person sends a question
 - **THEN** the four statement items hold, in order, «HECHO» and «verificado», «HECHO» and «sin
-  verificar», «INFERIDO» and «verificado», and «INFERIDO» and «sin verificar»
+  verificar», «INFERIDO» and «verificado», and «INFERIDO» and «sin verificar»; the first three hold
+  «Evidencia: ev-1» and the fourth holds no text «Evidencia:»
+
+#### Scenario: Markup in an answer is shown as text
+
+- **GIVEN** Screen 2 of acme-shop, and `fetch` answering `200` with an answered question whose answer is
+  «Usa <b>negrita</b> y `<i>x</i>`.» and whose only statement is «<img src=x onerror=alert(1)>»
+- **WHEN** the person sends a question
+- **THEN** the answer paragraph's text is «Usa <b>negrita</b> y <i>x</i>.», with «<i>x</i>» as the text
+  of its `code` element; the statement item's text includes «<img src=x onerror=alert(1)>»; and the
+  result area holds no `b`, `i` or `img` element
+
+#### Scenario: Statement colours follow the wireframe
+
+- **GIVEN** the web client and the API running locally in evaluation mode, with the seed and the golden
+  answers loaded
+- **WHEN** a browser opens Screen 2 of acme-shop and presses «¿Cómo se calcula el precio final de un
+  pedido?»
+- **THEN** each `FACT` statement shows the green stripe and each `INFERENCE` statement the yellow
+  background and border; the badges «HECHO» and «verificado» are green, «INFERIDO» yellow-brown and «sin
+  verificar» grey, each with its icon (validated in the manual interface test and in
+  `/show-spec-working`, with screenshots saved next to the report)
 
 ### Requirement: Expandable evidence
 
@@ -242,6 +278,14 @@ independently of the others.
 - **THEN** the button received the focus by keyboard; after Enter it has `aria-expanded="true"`, the
   excerpt of `ev-2` is shown, and the button of `ev-1` still has `aria-expanded="false"`; and after Space
   it has `aria-expanded="false"` and no `pre` element is in the document
+
+#### Scenario: Repeated evidence is listed as received
+
+- **GIVEN** Screen 2 of acme-shop, and `fetch` answering `200` with an answered question whose evidence is
+  `ev-1` and `ev-2`, both `app/Observers/OrderObserver.php`, lines 14 to 28, with the same excerpt
+- **WHEN** the person sends a question
+- **THEN** the evidence list has two items, in order, named «ev-1 · app/Observers/OrderObserver.php:14-28»
+  and «ev-2 · app/Observers/OrderObserver.php:14-28»; expanding the second leaves the first collapsed
 
 ### Requirement: How a question, an answer and an evidence location are written
 
