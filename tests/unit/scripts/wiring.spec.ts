@@ -159,3 +159,48 @@ describe('One command starts the system', () => {
     }
   });
 });
+
+/** The recipe lines of each target of a Makefile (tab-indented lines after `target:`). */
+function makeRecipes(text: string): Record<string, string[]> {
+  const recipes: Record<string, string[]> = {};
+  let current: string | undefined;
+  for (const line of text.split('\n')) {
+    const target = /^([A-Za-z0-9_-]+):(?!=)/.exec(line);
+    if (target !== null) {
+      current = target[1];
+      recipes[current] = [];
+    } else if (line.startsWith('\t') && current !== undefined) {
+      recipes[current].push(line.trim());
+    } else if (line.trim() !== '' && !line.startsWith('#')) {
+      current = undefined;
+    }
+  }
+  return recipes;
+}
+
+describe('Stopping the system and the Makefile', () => {
+  it('Down keeps the data volume', () => {
+    // Act
+    const { scripts } = packageJson('package.json');
+
+    // Assert
+    expect(scripts.down).toBe('docker compose down');
+  });
+
+  it('Make delegates to the npm commands', () => {
+    // Arrange
+    const text = source('Makefile');
+
+    // Act
+    const recipes = makeRecipes(text);
+
+    // Assert
+    expect(recipes.up).toEqual(['npm run up']);
+    expect(recipes.down).toEqual(['npm run down']);
+    expect(recipes.logs).toEqual(['docker compose logs -f']);
+    expect(recipes.ps).toEqual(['docker compose ps']);
+    const lines = text.split('\n');
+    expect(lines.filter((line) => /^\s*-?include\b/.test(line))).toEqual([]);
+    expect(lines.filter((line) => /^\s*export\b/.test(line))).toEqual([]);
+  });
+});
