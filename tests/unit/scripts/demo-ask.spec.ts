@@ -339,6 +339,35 @@ describe('The demo question helper', () => {
     expect(stderr.text()).toBe(`demo:ask: the answer of the API at http://127.0.0.1:${port} could not be read\n`);
     expect(stdout.text()).toBe('');
     expect(code).toBe(1);
+
+    // Arrange: a real server that sends the headers and part of the body, then drops the connection,
+    // so the default node:http sender is exercised too
+    const dropping = createServer((request, response) => {
+      request.resume();
+      request.on('end', () => {
+        response.writeHead(200, { 'content-type': 'application/json', 'content-length': '100' });
+        response.write('{"statements":');
+        setTimeout(() => response.socket?.destroy(), 50);
+      });
+    });
+    await new Promise<void>((done) => dropping.listen(0, '127.0.0.1', done));
+    servers.push(dropping);
+    const droppingPort = (dropping.address() as { port: number }).port;
+    const realOut = recorder();
+    const realErr = recorder();
+
+    // Act
+    const realCode = await runDemoAsk([PROJECT_ID, QUESTION], {
+      env: { PORT: String(droppingPort) },
+      dotenvPath: missingEnvFile(),
+      stdout: realOut,
+      stderr: realErr,
+    });
+
+    // Assert
+    expect(realErr.text()).toBe(`demo:ask: the answer of the API at http://127.0.0.1:${droppingPort} could not be read\n`);
+    expect(realOut.text()).toBe('');
+    expect(realCode).toBe(1);
   });
 });
 
