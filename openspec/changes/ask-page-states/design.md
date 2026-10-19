@@ -232,7 +232,11 @@ code for the expected reason (RED) before the production code changes:
   states are added to the expected object.
 
 No other line of any existing test changes; every other existing test must pass unchanged. Each change is
-recorded with its reason in the step 11 report.
+recorded with its reason in the step 11 report. The a11y file's waits change right after the `UNKNOWN`
+state replaces the provisional status, so `test:a11y` is never left red across tasks (spec audit run 2).
+A new scenario whose behaviour earlier tasks already built (the unavailable API, the announcement
+sequence, the tab stops) gets its RED from a local, uncommitted break of the production code, recorded in
+the reports.
 
 ### D25 — Units with a plain space, digit groups with U+00A0 (taken while proposing)
 

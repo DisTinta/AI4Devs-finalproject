@@ -1,4 +1,4 @@
-CHANGES REQUIRED
+APPROVED
 
 # Spec audit — ask-page-states (DIS-66)
 
@@ -7,8 +7,8 @@ CHANGES REQUIRED
   step agent of the autonomous run (ADR `20261016-autonomous-workflow-run-entrega-2`). This step has no
   subagent tool, so the auditor's instructions were run in this context, read-only on the artifacts until
   the report was written; the corrections were then applied through `/opsx:update`.
-- Verdict per run: see each run below; the final verdict is the first line of this file once the last
-  run is written.
+- Verdict per run: run 1 CHANGES REQUIRED; run 2 APPROVED (no blocking finding; its three improvable
+  findings were folded before the apply). Final verdict: APPROVED.
 
 ## Run 1
 
@@ -168,7 +168,7 @@ The F2 row is empty: blocking until the scenario and its task exist.
   4.3 removes the confidence assertions after the panel's GREEN; 6.6 deletes only the component. Design
   D24 updated.
 - F2 — scenario "Texts of the API in a state are shown as text" added to "UNKNOWN states"; fifth run
-  (`500` with code «<i>X</i>») added to "An API error names its code"; tasks 5.6 and 6.4 cover them.
+  (`500` with code «<i>X</i>») added to "An API error names its code"; tasks 5.7 and 6.4 cover them (5.6 before the run 2 renumbering).
 - F3 — design D3 names the rounding (`toFixed(3)` gives «0.000»).
 - F4 — manual scenario reworded (canvas band, 320 px, hidden «Uso»).
 - F5 — announcement clause reworded.
@@ -176,3 +176,51 @@ The F2 row is empty: blocking until the scenario and its task exist.
 - F7 — D17, D23, D26 and the other propose decisions recorded in DIS-66 Enhanced.
 - F8 — new design D32: `notice-display.ts` owns `AskFailure`; `useAsk.ts` imports it; the status text is
   a local function of `AskPage.tsx` (D22 updated).
+
+## Run 2
+
+APPROVED
+
+**Inputs read:** the same as run 1, over the artifacts of commit `f40386a` (run 1 folded), and the DIS-66
+Enhanced description with D17–D32 and the F2/F6 notes.
+
+**Questions for the author:** none.
+
+1. **Scope against the ticket** — clean; D17, D23, D26 and the audit's decisions are now in the
+   Enhanced description.
+2. **Inherited acceptance criteria** — clean; F6 resolved and recorded.
+3. **Missing scenarios** — clean: "Texts of the API in a state are shown as text" and the fifth run of
+   "An API error names its code" cover the rendering of API texts.
+4. **Ambiguity** — clean. **R2-3 (improvable):** the spec says the status region is hidden visually, and
+   no scenario checks it (jsdom has no layout). Correction: the manual scenario "The usage panel and the
+   states follow the wireframe" also checks that the region's text is never visible.
+5. **Open decisions** — clean (D3 now names the rounding).
+6. **Contradictions inside the change** — clean.
+7. **Contradictions with the project** — clean.
+8. **Contrast with the real code** — clean: D32 removes the component → page import.
+9. **Task size** — **R2-1 (improvable):** task 9.2 asked to leave `tests/a11y/ask-page.a11y.test.tsx`
+   red from 5.2 to 9.2 ("do not commit while that file is red"), a window of a dozen tasks. Correction:
+   its two waits change in a task right after 5.2 (new 5.3, `test:a11y` green again), and 9.2 only adds
+   the new states. **R2-2 (improvable):** three new scenarios describe behaviour that earlier tasks
+   already build — "An unavailable API says so" (the provisional alert had the same two lines), "The
+   status region announces every outcome" and "The result states add no tab stop" — so their RED may not
+   be observable. Correction: each task names a local, uncommitted break of the production code that
+   makes it fail, recorded in the reports (as DIS-65 did for its markup and axe controls). The new
+   states of 9.2 get their RED from a non-theme colour in the `llm-required` notice.
+10. **Mandatory steps** — clean.
+11. **Traceability** — complete: the F2 row is now "UNKNOWN states → Texts of the API in a state are
+    shown as text → 5.7"; the REMOVED requirement's tests leave in 3.1 and its component in 6.6; the
+    a11y scenario is 5.3 + 9.2; every other row as in run 1 (step 5 renumbered: 5.3 is the a11y wait
+    change, the `UNKNOWN` scenarios are 5.1, 5.4–5.7).
+
+### Resolution of run 2
+
+- R2-1 — new task 5.3 (the a11y waits, right after 5.2); 9.2 reworded to the new states only; step 5
+  renumbered; 10.1 lists 5.3 among the D24 edits; design D24 says `test:a11y` is never left red across
+  tasks.
+- R2-2 — tasks 6.5, 7.1 and 9.1 name their negative control; 9.2 names the colour control; design D24
+  states the rule.
+- R2-3 — the manual scenario "The usage panel and the states follow the wireframe" checks that the
+  status region's text is never visible.
+
+No blocking finding remains; the change may enter the apply.

@@ -360,9 +360,9 @@ usage nor confidence with it).
 - **THEN** the usage strip is drawn as the wireframe's (one band in the canvas colour after the evidence,
   with no visible heading «Uso»; the figures in one line that, at 320 px wide, wraps without clipping any
   text; the green savings badge, the blue «caché ✓» badge and the baseline line under them); the `UNKNOWN` state is drawn in the muted colours, the configuration notice
-  in the blue accent colours and the alert in the yellow warning colours (validated in the manual
-  interface test and in `/show-spec-working`, with screenshots saved next to the report and next to the
-  wireframe)
+  in the blue accent colours and the alert in the yellow warning colours; the text of the status region
+  («Respuesta recibida.» and the others) is never visible on the page (validated in the manual interface
+  test and in `/show-spec-working`, with screenshots saved next to the report and next to the wireframe)
 
 ### Requirement: How usage figures and notice details are written
 
