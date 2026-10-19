@@ -357,9 +357,9 @@ usage nor confidence with it).
   pedido?», then sends a question with no anchor in the code, then a free question that names a class of
   acme-shop, then presses «¿Cómo se calcula el precio final de un pedido?» again; and, with the API
   stopped, presses «¿Cómo se validan los cupones?»
-- **THEN** the usage strip is drawn as the wireframe's (one light band after the evidence, the figures in
-  one line that wraps on a narrow screen, the green savings badge, the blue «caché ✓» badge and the
-  baseline line under them); the `UNKNOWN` state is drawn in the muted colours, the configuration notice
+- **THEN** the usage strip is drawn as the wireframe's (one band in the canvas colour after the evidence,
+  with no visible heading «Uso»; the figures in one line that, at 320 px wide, wraps without clipping any
+  text; the green savings badge, the blue «caché ✓» badge and the baseline line under them); the `UNKNOWN` state is drawn in the muted colours, the configuration notice
   in the blue accent colours and the alert in the yellow warning colours (validated in the manual
   interface test and in `/show-spec-working`, with screenshots saved next to the report and next to the
   wireframe)
@@ -488,6 +488,14 @@ announcements of Screen 2"). Every text of the API is rendered as text.
   to enable free-form asks»; there is no text «Sin respuesta verificada» nor «Motivo:», no heading
   «Respuesta», no region «Uso» and no element with role `alert`; and the focus is still on the field
 
+#### Scenario: Texts of the API in a state are shown as text
+
+- **GIVEN** Screen 2 of acme-shop, and `fetch` answering `200` with
+  `{"answer":"UNKNOWN","reason":"llm-required","message":"<img src=x onerror=alert(1)>","statements":[],"evidence":[]}`
+- **WHEN** the person writes «¿Qué hace OrderService?» and presses Enter
+- **THEN** the configuration notice holds the text «Mensaje de la API: <img src=x onerror=alert(1)>»; and
+  the main landmark holds no `img` element
+
 #### Scenario: The configuration notice of a project without suggested questions
 
 - **GIVEN** Screen 2 of the project `0b5c7f2e-1d3a-4e6b-8f90-1a2b3c4d5e6f`, and `fetch` answering `200`
@@ -545,13 +553,14 @@ written". Only `BUDGET_EXHAUSTED` and `LLM_UNAVAILABLE` say that cached question
 
 #### Scenario: An API error names its code
 
-- **GIVEN** Screen 2 of acme-shop, in four runs where `fetch` answers in the API's error format `404`
-  `PROJECT_NOT_FOUND`, `503` `LLM_UNAVAILABLE`, `503` `SOURCE_UNAVAILABLE` and `500` `INTERNAL`, each with
-  `details` `{}`
+- **GIVEN** Screen 2 of acme-shop, in five runs where `fetch` answers in the API's error format `404`
+  `PROJECT_NOT_FOUND`, `503` `LLM_UNAVAILABLE`, `503` `SOURCE_UNAVAILABLE`, `500` `INTERNAL` and `500` with
+  the code «<i>X</i>», each with `details` `{}`
 - **WHEN** the person presses «¿Cómo se validan los cupones?» in each run
 - **THEN** the element with role `alert` holds, in this order, «No se ha podido obtener la respuesta.»,
-  the sentence of its code in the table (none for `INTERNAL`) and «Código: <code>.»; and it holds no
-  button
+  the sentence of its code in the table (none for `INTERNAL` nor «<i>X</i>») and «Código: <code>.», the
+  last run's as the text «Código: <i>X</i>.»; the main landmark holds no `i` element; and the alert holds
+  no button
 
 #### Scenario: An unavailable API says so
 
@@ -569,8 +578,8 @@ whose text is: empty before the first question; «Buscando evidencia…» while 
 other than `llm-required` is shown; «Hace falta un modelo de lenguaje.» while the configuration notice is
 shown; and empty while an alert of "Error, rate-limit and budget notices" is shown (the alert announces
 itself). It SHALL remain the same element across every state, so that each change of its text is
-announced. An invalid send SHALL NOT change it. No other element of Screen 2 has role `status`, and no
-element of the result area other than the alerts has a live role.
+announced. An invalid send SHALL NOT change it. No other element of Screen 2 has role `status`, and the
+`UNKNOWN` states and the usage panel have neither role `status` nor role `alert`.
 
 #### Scenario: The status region announces every outcome
 

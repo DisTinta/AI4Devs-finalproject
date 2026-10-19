@@ -70,8 +70,8 @@ Alternative rejected: input+output in both places — the line would then contra
 ### D3 — Figures
 
 A point as decimal separator, as the wireframe and the API: confidence with two decimals (it is ordinal,
-`docs/CONFIDENCE.md`); cost with three decimals, «$0» for 0 and «< $0.001» for a positive amount that
-rounds to zero; latency «N ms» under 1 000 ms and «X.Y s» from 1 000 ms (a cache hit takes milliseconds
+`docs/CONFIDENCE.md`); cost with three decimals, «$0» for 0 and «< $0.001» for a positive amount whose
+three-decimal form (`toFixed(3)`) is «0.000» (spec audit run 1, F3); latency «N ms» under 1 000 ms and «X.Y s» from 1 000 ms (a cache hit takes milliseconds
 and «0.0 s» would lie); savings as received, one decimal at most; token counts grouped with U+00A0 as
 `formatCount`. No `Intl`: the output must not depend on the browser's locale or ICU.
 
@@ -199,7 +199,7 @@ panel then follows the evidence list in document order, as the wireframe.
 
 `AskPage` always renders one `p role="status" className="sr-only"` at the end of the main column, outside
 `ResultArea` (which mounts and unmounts its children per state), so the element survives every state. Its
-text comes from a pure function of the `AskState` in `notice-display.ts` (`announcementOf`). The visible
+text comes from a local pure function of the `AskState` in `AskPage.tsx` (`announcementOf`, D32). The visible
 «Buscando evidencia…» is a `p aria-hidden="true"` inside `ResultArea`. An invalid send does not touch
 `AskState`, so the region does not change.
 
@@ -218,12 +218,14 @@ code for the expected reason (RED) before the production code changes:
 - `AskPage.test.tsx` → "Screen 2 opens on a sample project without any request": the assertion
   `queryByRole('status')` is null becomes "one status element, empty".
 - `AskPage.test.tsx` → "An answered question shows the answer, its statements and its evidence": the
-  assertion "no status" becomes "status holds «Respuesta recibida.»", and the two assertions "no 0.71 / no
-  Confianza" are removed (the usage panel now shows them; "An answer from the model shows its usage
-  panel" pins them).
+  assertion "no status" becomes "status holds «Respuesta recibida.»" (RED before the status region
+  exists), and the two assertions "no 0.71 / no Confianza" are removed after the usage panel's GREEN,
+  whose failure on «0.71» is their RED evidence ("An answer from the model shows its usage panel" pins
+  the figures).
 - `AskPage.test.tsx` → the `describe('Provisional notice for what is not an answer')` block (three tests)
-  is deleted, with the constants only it uses (`UNKNOWN_NOTICE`, `BUDGET_EXHAUSTED` if unused elsewhere),
-  so `npm run lint` stays clean.
+  is deleted first, before the status region (it would fail there: two `status` elements, or a `status`
+  where it expects none), with the constants only it uses, so `npm run lint` stays clean. The provisional
+  component stays in use until the error notice replaces it (spec audit run 1, F1).
 - `tests/a11y/ask-page.a11y.test.tsx` → "Screen 2 has no axe violations in any of its states": the step
   that waits for the provisional text becomes the wait for the `no-anchor` state, the pending step waits
   for the visible text instead of `findByRole('status')` (the region now exists before), and the new
@@ -274,6 +276,13 @@ pair on that background). `UnknownState`: heading `ink` on `canvas`, text `ink-m
 "The result states add no tab stop" lists every link, button, field and `[tabindex]` of `main` after the
 «Prueba:» group (`compareDocumentPosition`), so a new control in any state fails it. jsdom has no layout,
 so the visible outline is checked in the browser ("The focus is visible on every control").
+
+### D32 — `notice-display.ts` owns the failure type; the page owns the status text (spec audit run 1, F8)
+
+A component module importing types from `pages/` inverts the page → component direction of
+frontend-standards §2–§3. `notice-display.ts` declares and exports `AskFailure`, which `useAsk.ts` imports;
+the status text of a state (`announcementOf`) is a local pure function of `AskPage.tsx`, the owner of the
+region. No component module imports from `pages/` once `AskFallbackNotice.tsx` is deleted.
 
 ## Risks / Trade-offs
 
