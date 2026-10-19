@@ -35,8 +35,9 @@ Do not invent product facts from memory. Prefer these files:
 
 Agents must not reopen these or invent a different hosting/vendor without an explicit author decision:
 
-1. **Evidence is local only.** No hosted web demo. No “Option B” video. Evaluators run `make up` +
-   `docs/DEMO.md` + `npm run verify` (golden/cache, no live LLM required).
+1. **Evidence is local only.** No hosted web demo. No “Option B” video. Evaluators run `npm run up`
+   (the same command in PowerShell and Bash; `make up` is its Git Bash/WSL shortcut) + `docs/DEMO.md` +
+   `npm run verify` (golden/cache, no live LLM required).
 2. **Hybrid LLM + Ollama.** `LLM_API_KEY` / `LLM_BASE_URL` are optional, and `LLM_BASE_URL` decides
    the mode (DIS-17): both empty → evaluation mode (cache/golden only, 0 €); URL set → free-form
    answers, with the key optional (Ollama runs with `LLM_API_KEY` empty). A key without a URL fails
@@ -52,14 +53,47 @@ the empty-key evaluation default.
 Verified against `package.json` (root and per package). If a command is not here, it does not exist
 — do not invent one.
 
+- Start and stop (DIS-102): `npm run up` (`node scripts/up.mjs`) loads the root `.env` and runs
+  `docker compose up -d --wait`, `npm install`, `npm run db:migrate`, `npm run db:seed` and
+  `npm run dev` in order from the repository root, printing `[up] <command>` before each step; a
+  failing step stops it with `[up] "<command>" failed with exit code <n>` and that code, Ctrl+C ends it
+  with `[up] stopped (Ctrl+C)` and exit `130`, and without `npm_execpath` (not started by npm) it
+  prints `[up] run it with npm run up` and exits `1`. It spawns npm as `process.execPath` +
+  `npm_execpath`, never `npm` by name through a shell. `npm run down` is `docker compose down` (the
+  volume stays). The `Makefile` only delegates: `make up` = `npm run up`, `make down` =
+  `npm run down`, plus `logs` and `ps`; it neither includes `.env` nor exports variables.
+  `docker-compose.yml` publishes Postgres on `${POSTGRES_PORT:-5432}`; `POSTGRES_PORT` and the port of
+  `DATABASE_URL` change together.
+- Demo helpers (DIS-102): `npm run demo:ask -- <projectId> "<question>"` (`scripts/demo-ask.mjs`)
+  loads `.env`, posts the question to `http://127.0.0.1:<PORT>/api/projects/<id>/ask` (`PORT` read as
+  the API reads it, default `3000`) and prints `HTTP <status>` plus a summary (`answer`/`reason`/
+  `message` of an `UNKNOWN`, counts and `usage` of an answer, the body otherwise); exit `0` for 2xx,
+  `1` otherwise or when the API is not reachable, `2` for a usage error or a bad `PORT`.
+  `npm run demo:excerpt -- <project> <path>:<start>-<end>` (`scripts/demo-excerpt.mjs`) prints those
+  lines of `fixtures/<project>/<path>`, refusing paths that leave the project (links included);
+  exit `1` for an unknown project, an outside path, a missing file or a range past the end, `2` for a
+  usage error. Neither replaces the CLI: they exist so `docs/DEMO.md` runs the same in PowerShell and
+  Bash.
+- `.env` loading (DIS-102): `scripts/env.mjs` parses the root `.env` (a hand-written subset of the
+  dotenv grammar: comments, blank lines, matched quotes, no expansion, the last assignment wins) and
+  fills only the variables the environment lacks (a variable set in the shell, even empty, wins). The
+  root scripts `cli`, `verify`, `db:migrate`, `db:rollback`, `db:seed`, `cache:build` and
+  `seed:build` preload it with `tsx --import=./scripts/load-env.mjs …` (one token: with a space, tsx
+  4.23.13 forwards the following `--tsconfig` to Node and fails), the API's `dev` with
+  `--import ../../scripts/load-env.mjs`, and `up` / `demo:ask` load it themselves. The quality scripts
+  (`test`, `test:a11y`, `test:mutation*`, `lint`, `lint:architecture`, `typecheck`, `docs:coverage`)
+  never load it, and product code (`packages/*/src`) never imports it. `scripts/` imports only Node
+  built-ins, so `npm run up` works before `npm install`; no `process.loadEnvFile` / `--env-file`
+  (`engines.node` stays `>=20.11`). An unreadable `.env` prints one `warning: .env not read (<code>)`;
+  no key or value is ever printed.
 - Development environment: `npm run dev` (root) — runs `packages/api` + `packages/web` via
-  `concurrently`, kills all on first failure. The API's `dev` (DIS-76, DIS-45) is `node --watch
-  --import ./dev-register.mjs src/server.ts`: `packages/api/dev-register.mjs` registers tsx with
+  `concurrently`, kills all on first failure. The API's `dev` (DIS-76, DIS-45, DIS-102) is `node --watch
+  --import ../../scripts/load-env.mjs --import ./dev-register.mjs src/server.ts`: `packages/api/dev-register.mjs` registers tsx with
   `packages/api/tsconfig.run.json`, which maps `@codemind/core` and the three adapters to their
   `src/` (as the CLI's), so it never runs a stale `dist/`. Not `tsx watch`: it reads its stdin and
   passes the same pipe to the API, and under `concurrently` (whose children get an open stdin pipe)
   the API never started on Windows (`tests/integration/api/dev-script.spec.ts`). It needs
-  `DATABASE_URL` exported (`make up` exports `.env`); without it the API prints one
+  `DATABASE_URL`, which its `dev` reads from the root `.env` (a variable already set wins); without it the API prints one
   `INVALID_CONFIG` line and `node --watch` keeps waiting for a file change (the web stays up). To see
   the exit code, run it without watch: `npx tsx --tsconfig packages/api/tsconfig.run.json packages/api/src/server.ts`.
   It listens on `127.0.0.1:3000`; OpenAPI at `http://localhost:3000/docs` (`/docs/json`).
@@ -188,8 +222,8 @@ Verified against `package.json` (root and per package). If a command is not here
   `postgres://codemind:codemind@localhost:5432/codemind` with the compose defaults.
 - `npm run seed:build` (DIS-91) rebuilds acme-shop's history, indexes it without committing and
   rewrites `packages/web/src/data/sample-projects.ts` and then `seeds/graph-dump.sql`; needs
-  `AUTHOR_HASH_SALT` (the author's development salt, from `.env`, which npm scripts do not load:
-  export it) and `DATABASE_URL` of a migrated database (see Gotchas → seed). `npm run db:seed`
+  `AUTHOR_HASH_SALT` (the author's development salt, read from `.env` by the script's preload) and
+  `DATABASE_URL` of a migrated database (see Gotchas → seed). `npm run db:seed`
   (DIS-92) loads the seed: needs only `DATABASE_URL`, replaces every sample project in one
   transaction and prints `1 project loaded` plus one line per sample (see Gotchas → seed load).
   Since DIS-26 it also loads every `seeds/cache/*.json` golden file into the answer cache of the
@@ -223,12 +257,22 @@ Verified against `package.json` (root and per package). If a command is not here
   (`packages/cli/src/cache/compare-golden.ts`): never text, ids, `usage` other than `cacheHit`,
   `confidence` or `priorClaims`. Exit `0` only when every entry matches; a mismatch is stdout only, a
   failure is one JSON line on stderr. About 3 s locally.
-- Local stack: `docker compose up -d` starts Postgres (`pgvector/pgvector:pg16`) on `5432`. On
-  Windows, `make up` needs Git Bash/WSL; in native PowerShell run the `npm` scripts directly.
+- Local stack: `docker compose up -d` starts Postgres (`pgvector/pgvector:pg16`) on `POSTGRES_PORT`
+  (`5432` by default). `npm run up` starts the whole system in any shell, native PowerShell included;
+  `make up` (GNU Make) needs Git Bash/WSL on Windows.
 
 ## Testing
 
 - Framework: Vitest (root `vitest.config.ts`; no per-package vitest config yet).
+- **The suite never reads `.env` (DIS-102 design D12).** `vitest.config.ts` sets
+  `test.env: { CODEMIND_SKIP_DOTENV: '1' }` (inherited by `vitest.stryker.config.ts`), so every
+  test and every process a test spawns (`npm run db:rollback` in `migrations.spec.ts`) leaves its
+  environment as the test set it: with a developer `.env`, a preloaded `db:rollback` would otherwise
+  roll back the developer's database. `loadEnvFile` reads the switch from the environment it loads
+  into, so the unit tests of `scripts/` load into plain objects. Integration tests therefore take
+  their `DATABASE_URL` from the command line (`docs/TESTING.md`). The `scripts/` tests live in
+  `tests/unit/scripts/` (typed through sibling `.d.mts` files) and the guides' structure tests in
+  `tests/unit/docs/guides.spec.ts`; `scripts/` is outside Stryker's scope.
 - **Web tests (DIS-58).** Next to the code: `packages/web/src/**/*.test.ts(x)`. Only
   `packages/web/**/*.test.tsx` and `tests/a11y/**` run in **jsdom** (`environmentMatchGlobs`); every
   other test, the web's `.test.ts` files included (API client, theme), stays in Node — under jsdom the
@@ -356,7 +400,7 @@ Verified against `package.json` (root and per package). If a command is not here
   compares the sample projects' cache entries without their id (`reloadSnapshot`), because each load
   re-inserts them. Two scenarios still read every project and race those commits
   (`projects-command.spec.ts` and seed-load's "A failed golden save leaves the database unchanged"):
-  `docs/TESTING.md` → Known races; `npm test -- --no-file-parallelism` avoids them (DIS-45). Never run
+  `docs/TESTING.md` → Carreras conocidas; `npm test -- --no-file-parallelism` avoids them (DIS-45). Never run
   DB integration tests while a real `cache:build` runs: its transaction
   holds the sample project's rows for minutes and tests that delete projects wait on it; so do a
   `db:seed` and any `ask` on acme-shop (CLI or API), whose `query_log` insert checks the locked
@@ -473,6 +517,10 @@ Verified against `package.json` (root and per package). If a command is not here
      file paths, command names). Code, commits, OpenSpec artifacts and ADRs remain English. Pull
      requests (title and description) are Spanish too — see the PR exception in
      `base-standards.md` §2.
+  4. Language exception, evaluator guides (DIS-102, author decision 2026-10-19): `docs/DEMO.md`,
+     `docs/CONFIDENCE.md`, `docs/DEPLOYMENT.md` and `docs/TESTING.md` are written in Spanish, like
+     `readme.md`; commands, pasted output, identifiers, error codes and paths stay verbatim. Every
+     other document follows `base-standards.md` §2.
 - **Tracking deferred findings** (after `/adversarial-review`, `/verify-against-spec`, or any
   author decision to leave a gap open). A finding that is **not** fixed in the current change
   MUST leave the change with an owner and a place that stays queryable. A note only in an
@@ -1177,8 +1225,8 @@ services that must be started first, quirks of the local environment.
   `project`, `file`, `symbol`, `edge` and `claim`/`evidence` (`findClaimsOverlapping`) and `cache_entry` (`findCacheEntry`) have a reader. The git history reader (DIS-35) produces
   `commit`/`file_commit` rows and the co-change rule (DIS-36) `co_changed` edges; `indexRepository`
   (DIS-85) composes them, and the CLI `index` command (DIS-86) is its only caller outside tests.
-  `db:migrate` / `db:rollback` are real and need `DATABASE_URL`: `make up` gets it from `.env`,
-  because the Makefile includes and exports `.env`. Plain `npm run db:*` does not read `.env`.
+  `db:migrate` / `db:rollback` are real and need `DATABASE_URL`: `npm run db:*` reads it from the
+  root `.env` (a variable set in the shell wins), and `npm run up` loads `.env` before every step.
   Do not assume a working end-to-end flow exists.
 - **Migration runner edge cases (known behaviour, DIS-11).** `db:rollback` with nothing applied
   prints `No migrations to run!` and exits 0 (no-op, symmetric with `db:migrate` when up to date).
