@@ -1,20 +1,20 @@
 ## 0. Setup: Create Feature Branch (MANDATORY - FIRST STEP)
 
-- [ ] 0.1 First action of the apply: confirm DIS-66 is In Progress in Linear (set it if not), with a short comment in Spanish naming the change `ask-page-states` and the branch `feature/DIS-66-usage-panel-states`
-- [ ] 0.2 Feature branch `feature/DIS-66-usage-panel-states` (`BRANCH_PREFIX=feature/`, `docs/project-context.md` → Branch and ticket conventions), created from `feature/entrega-2-CRN` before `/opsx:propose`; confirm `git merge-base --is-ancestor origin/feature/entrega-2-CRN HEAD` and that `openspec/changes/ask-page-states/` is on it. `git fetch`; if `origin/feature/entrega-2-CRN` moved, rebase before any code (never force-push a published branch)
-- [ ] 0.3 Verify the current branch (`git branch --show-current`) and `git status`; the local changes under `.claude/` are never staged
-- [ ] 0.4 Baseline for the step 11 report: run `npx vitest run` once, green, and record files, tests and duration; run `npm run build -w packages/web` and record the size of `packages/web/dist/assets/*`; record that the code tasks touch no database (step 12 captures its own state)
+- [x] 0.1 First action of the apply: confirm DIS-66 is In Progress in Linear (set it if not), with a short comment in Spanish naming the change `ask-page-states` and the branch `feature/DIS-66-usage-panel-states`
+- [x] 0.2 Feature branch `feature/DIS-66-usage-panel-states` (`BRANCH_PREFIX=feature/`, `docs/project-context.md` → Branch and ticket conventions), created from `feature/entrega-2-CRN` before `/opsx:propose`; confirm `git merge-base --is-ancestor origin/feature/entrega-2-CRN HEAD` and that `openspec/changes/ask-page-states/` is on it. `git fetch`; if `origin/feature/entrega-2-CRN` moved, rebase before any code (never force-push a published branch)
+- [x] 0.3 Verify the current branch (`git branch --show-current`) and `git status`; the local changes under `.claude/` are never staged
+- [x] 0.4 Baseline for the step 11 report: run `npx vitest run` once, green, and record files, tests and duration; run `npm run build -w packages/web` and record the size of `packages/web/dist/assets/*`; record that the code tasks touch no database (step 12 captures its own state)
 
 ## 1. How usage figures are written (TDD, design D2, D3, D4, D20, D25, D28) — `ask-page` → "How usage figures and notice details are written"
 
 Every test of this change follows Arrange-Act-Assert with the three blocks commented (frontend-standards §4) and is named exactly as its scenario.
 
-- [ ] 1.1 RED: create `packages/web/src/components/usage-display.test.ts` (Node environment) with "Confidence is written with two decimals" (the five inputs and outputs of the scenario). See it fail (module missing)
-- [ ] 1.2 GREEN: `packages/web/src/components/usage-display.ts` with the confidence writer (module and export TSDoc, pattern of `answer-display.ts`)
-- [ ] 1.3 RED → GREEN: "Tokens are counted with grouped digits" (token total via `formatCount(input + output, 'token', 'tokens')`; the baseline line; U+00A0 written by code point in the test). Export `groupDigits` from `project-display.ts` with TSDoc (D20); `project-display.test.ts` stays untouched and green
-- [ ] 1.4 RED → GREEN: "Cost is written in dollars"
-- [ ] 1.5 RED → GREEN: "Latency is written in milliseconds or seconds"
-- [ ] 1.6 RED → GREEN: "Savings are written only when there are savings" (the writer returns the whole badge text and whether it is a saving, so the panel picks the colours)
+- [x] 1.1 RED: create `packages/web/src/components/usage-display.test.ts` (Node environment) with "Confidence is written with two decimals" (the five inputs and outputs of the scenario). See it fail (module missing)
+- [x] 1.2 GREEN: `packages/web/src/components/usage-display.ts` with the confidence writer (module and export TSDoc, pattern of `answer-display.ts`)
+- [x] 1.3 RED → GREEN: "Tokens are counted with grouped digits" (token total via `formatCount(input + output, 'token', 'tokens')`; the baseline line; U+00A0 written by code point in the test). Export `groupDigits` from `project-display.ts` with TSDoc (D20); `project-display.test.ts` stays untouched and green
+- [x] 1.4 RED → GREEN: "Cost is written in dollars"
+- [x] 1.5 RED → GREEN: "Latency is written in milliseconds or seconds"
+- [x] 1.6 RED → GREEN: "Savings are written only when there are savings" (the writer returns the whole badge text and whether it is a saving, so the panel picks the colours)
 
 ## 2. How notice details are read (TDD, design D9, D19, D26, D27) — `ask-page` → "How usage figures and notice details are written"
 
