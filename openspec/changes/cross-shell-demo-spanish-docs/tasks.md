@@ -54,8 +54,8 @@
 
 ## 9. `docs/CONFIDENCE.md` in Spanish (design D9) — `confidence-score` → "Published weights"
 
-- [ ] 9.1 Update `tests/unit/knowledge/confidence-doc.spec.ts` to the modified requirement (Spanish sections, header cells, the eight statements; headings, section lookup and statements normalised to NFC on both sides; test names unchanged); see it fail against the English document (RED)
-- [ ] 9.2 GREEN: translate `docs/CONFIDENCE.md` (same meaning, figures, table values, development questions, model and report path; numbers with a decimal point); `npx vitest run tests/unit/knowledge/confidence-doc.spec.ts` green; commit doc, test and nothing else together
+- [x] 9.1 Update `tests/unit/knowledge/confidence-doc.spec.ts` to the modified requirement (Spanish sections, header cells, the eight statements; headings, section lookup and statements normalised to NFC on both sides; test names unchanged); see it fail against the English document (RED)
+- [x] 9.2 GREEN: translate `docs/CONFIDENCE.md` (same meaning, figures, table values, development questions, model and report path; numbers with a decimal point); `npx vitest run tests/unit/knowledge/confidence-doc.spec.ts` green; commit doc, test and nothing else together
 
 ## 10. `docs/DEPLOYMENT.md` and `docs/TESTING.md` in Spanish (design D10, D14) — `local-startup` → "The deployment and testing guides in Spanish"
 
