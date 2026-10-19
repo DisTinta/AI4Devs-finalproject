@@ -300,7 +300,8 @@ gap the scenario "No saving is not shown as a saving" forbids («ahorro 0»).
 V8's `Date.parse` rolls «2026-02-30T00:00:00Z» over to 2 March and «T24:00» to the next day. The spec asks
 for a form «that denotes a real instant», so `resetTimeOf` also checks month 1–12, the day against the
 days of that month and the hour 0–23 before parsing; minutes, seconds and the offset are left to
-`Date.parse`, which already rejects 60 and `+25:00`.
+`Date.parse`, which already rejects 60 and `+25:00`. The targeted mutation run of step 11 showed the check had no test (the scenario
+only reaches it through month 13), so a Node test next to the scenario pins it.
 
 ### D35 — The RED of the new axe scans is structural, not a colour (taken while implementing)
 

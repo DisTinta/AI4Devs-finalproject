@@ -80,13 +80,13 @@ Every test of this change follows Arrange-Act-Assert with the three blocks comme
 
 ## 11. Run Tests and Verify Data State (MANDATORY)
 
-- [ ] 11.1 Capture the pre-test baseline: the 0.4 totals, duration and bundle size
-- [ ] 11.2 Run the targeted tests: `npx vitest run packages/web tests/a11y tests/unit/web` and `npm run test:a11y`
-- [ ] 11.3 Run the required broader suite and gates: `npx vitest run` (duration against 0.4), `npx vitest run --exclude 'tests/integration/**'` (the `frontend.yml` step), `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`, `npm run build -w packages/web` (bundle size against 0.4)
-- [ ] 11.4 Mutation testing: `packages/web/**` is not in Stryker's `mutate` and its tests are excluded (DIS-58 D25); no dependency or Vitest/Stryker config changes (D16). Record that `npm run test:mutation` is not affected and is left to the CI `mutation` job (its `business` filter matches `tests/**` through the a11y file)
-- [ ] 11.5 Run `/privacy-ethics-check` over the diff (no new request or data; the API's `message`, `code` and `details` rendered as text; no `dangerouslySetInnerHTML`; no `VITE_*` in `dist`; no new dependency, D16) and record the result
-- [ ] 11.6 Verify the post-test state: no database touched by the unit and a11y tests; no `.stryker-tmp/`; `packages/web/dist` not staged (gitignored); restore and document if not
-- [ ] 11.7 Create `openspec/changes/ask-page-states/reports/YYYY-MM-DD-11-test-and-state-verification.md` from the template of `docs/openspec-tasks-mandatory-steps.md` §6: baseline and after (totals, duration, bundle size), the changed and deleted tests of D24 with their RED evidence, the mutation note (11.4) and the privacy check (11.5); mark complete only after the tests pass and the report exists
+- [x] 11.1 Capture the pre-test baseline: the 0.4 totals, duration and bundle size
+- [x] 11.2 Run the targeted tests: `npx vitest run packages/web tests/a11y tests/unit/web` and `npm run test:a11y`
+- [x] 11.3 Run the required broader suite and gates: `npx vitest run` (duration against 0.4), `npx vitest run --exclude 'tests/integration/**'` (the `frontend.yml` step), `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`, `npm run build -w packages/web` (bundle size against 0.4)
+- [x] 11.4 Mutation testing: `packages/web/**` is not in Stryker's `mutate` and its tests are excluded (DIS-58 D25); no dependency or Vitest/Stryker config changes (D16). Record that `npm run test:mutation` is not affected and is left to the CI `mutation` job (its `business` filter matches `tests/**` through the a11y file)
+- [x] 11.5 Run `/privacy-ethics-check` over the diff (no new request or data; the API's `message`, `code` and `details` rendered as text; no `dangerouslySetInnerHTML`; no `VITE_*` in `dist`; no new dependency, D16) and record the result
+- [x] 11.6 Verify the post-test state: no database touched by the unit and a11y tests; no `.stryker-tmp/`; `packages/web/dist` not staged (gitignored); restore and document if not
+- [x] 11.7 Create `openspec/changes/ask-page-states/reports/YYYY-MM-DD-11-test-and-state-verification.md` from the template of `docs/openspec-tasks-mandatory-steps.md` §6: baseline and after (totals, duration, bundle size), the changed and deleted tests of D24 with their RED evidence, the mutation note (11.4) and the privacy check (11.5); mark complete only after the tests pass and the report exists
 
 ## 12. Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE)
 
@@ -104,10 +104,10 @@ Every test of this change follows Arrange-Act-Assert with the three blocks comme
 
 ## 14. Update Technical Documentation (MANDATORY)
 
-- [ ] 14.1 `docs/project-context.md` → Screen 2 paragraph: the usage panel, the final states (`UnknownState`, `LlmRequiredNotice`, `AskErrorNotice`), the persistent status region, the two pure modules; remove "until DIS-66 adds the usage panel and the final states"
-- [ ] 14.2 `docs/frontend-standards.md` → «How test:a11y is wired»: the states now scanned by `tests/a11y/ask-page.a11y.test.tsx`; `docs/DEMO.md`: the Entrega 2 note on Screen 2 (usage panel, cache hit «caché ✓», `llm-required` for free questions in evaluation mode)
-- [ ] 14.3 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts of this change to `prompts.md` per `docs/project-context.md` → prompts.md rules, as a new section appended at the end of the file with its Índice entry in the same edit (DIS-101 edits the start of the file)
-- [ ] 14.4 The `[enhanced]` description of DIS-66 in Linear holds D1–D16 and the decisions of the propose and the spec audit; add there, in Spanish and never inside `[original]`, every decision taken during the apply (design "taken while implementing")
+- [x] 14.1 `docs/project-context.md` → Screen 2 paragraph: the usage panel, the final states (`UnknownState`, `LlmRequiredNotice`, `AskErrorNotice`), the persistent status region, the two pure modules; remove "until DIS-66 adds the usage panel and the final states"
+- [x] 14.2 `docs/frontend-standards.md` → «How test:a11y is wired»: the states now scanned by `tests/a11y/ask-page.a11y.test.tsx`; `docs/DEMO.md`: the Entrega 2 note on Screen 2 (usage panel, cache hit «caché ✓», `llm-required` for free questions in evaluation mode)
+- [x] 14.3 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts of this change to `prompts.md` per `docs/project-context.md` → prompts.md rules, as a new section appended at the end of the file with its Índice entry in the same edit (DIS-101 edits the start of the file)
+- [x] 14.4 The `[enhanced]` description of DIS-66 in Linear holds D1–D16 and the decisions of the propose and the spec audit; add there, in Spanish and never inside `[original]`, every decision taken during the apply (design "taken while implementing")
 
 ## 15. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
