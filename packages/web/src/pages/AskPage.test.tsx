@@ -216,6 +216,8 @@ describe('Screen 2 frame and project bar', () => {
     const banner = screen.getByRole('banner');
     expect(within(banner).queryByText(/PHP/)).toBeNull();
     expect(within(banner).queryByText(/aristas/)).toBeNull();
+    // No label of any language: the banner holds only the back arrow and the id.
+    expect(banner.textContent).toBe(`←${OTHER_PROJECT_ID}`);
     const main = screen.getByRole('main');
     expect(within(main).getByRole('textbox', { name: 'Pregunta' })).toBeDefined();
     expect(within(main).queryByText('Prueba:')).toBeNull();
