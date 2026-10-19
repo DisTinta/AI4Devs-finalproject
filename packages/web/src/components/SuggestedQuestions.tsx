@@ -19,11 +19,11 @@ export interface SuggestedQuestionsProps {
 export function SuggestedQuestions({ questions, onPick }: SuggestedQuestionsProps): ReactElement {
   const labelId = useId();
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-      <span id={labelId} className="text-ink-subtle">
+    <div className="mt-3 flex items-baseline gap-2 text-xs">
+      <span id={labelId} className="shrink-0 text-ink-subtle">
         Prueba:
       </span>
-      <div role="group" aria-labelledby={labelId} className="flex flex-wrap gap-2">
+      <div role="group" aria-labelledby={labelId} className="flex flex-1 flex-wrap gap-2">
         {questions.map((question) => (
           <button
             key={question}

@@ -58,7 +58,11 @@ export function QueryBox({ value, onChange, onSubmit, invalid, placeholder }: Qu
         </button>
       </div>
       {invalid ? (
-        <p id={messageId} role="alert" className="mt-2 text-sm text-warning-ink">
+        <p
+          id={messageId}
+          role="alert"
+          className="mt-2 rounded-card border border-warning-border bg-warning-soft px-3 py-1 text-sm text-warning-ink"
+        >
           {INVALID_QUESTION_MESSAGE}
         </p>
       ) : null}

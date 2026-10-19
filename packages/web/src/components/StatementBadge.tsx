@@ -13,7 +13,7 @@ export interface StatementBadgeProps {
 /** The icon, the label and the theme pair of each badge (design D8, D19). */
 const BADGES: Readonly<Record<StatementBadgeValue, { icon: string; label: string; className: string }>> = {
   FACT: { icon: '●', label: 'HECHO', className: 'bg-success-soft text-success' },
-  INFERENCE: { icon: '⚠', label: 'INFERIDO', className: 'bg-warning-soft text-warning-ink' },
+  INFERENCE: { icon: '⚠', label: 'INFERIDO', className: 'border border-warning-border bg-warning-soft text-warning-ink' },
   entailed: { icon: '✓', label: 'verificado', className: 'bg-success-soft text-success' },
   cited: { icon: '○', label: 'sin verificar', className: 'bg-canvas text-ink-muted' },
 };
