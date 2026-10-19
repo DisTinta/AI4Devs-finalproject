@@ -50,9 +50,9 @@ Every test of this change follows Arrange-Act-Assert with the three blocks comme
 
 ## 7. Expandable evidence (TDD, design D11, D26) — `ask-page` → "Expandable evidence"
 
-- [ ] 7.1 RED → GREEN: "Evidence expands and collapses with a pointer" (the `ev-1` excerpt of the scenario with its line breaks and leading spaces; `aria-expanded` before, after one and after two clicks; `document.querySelectorAll('pre')` length 0 / 1 / 0; `pre.textContent` strictly equal to the excerpt). Create `packages/web/src/components/EvidenceList.tsx` and `EvidenceItem.tsx` (props interfaces; `aria-controls` only while expanded, D26; ▸/▾ `aria-hidden`)
-- [ ] 7.2 RED → GREEN: "Evidence expands with the keyboard, one item at a time" (Tab until the `ev-2` button is `document.activeElement`, asserting it got there by Tab; `{Enter}`; `[Space]`; `ev-1` stays `aria-expanded="false"`)
-- [ ] 7.3 RED → GREEN: "Repeated evidence is listed as received" (two evidences with the same file, range and excerpt; two buttons with the names of the scenario in order; expanding the second leaves the first `aria-expanded="false"`; React keys are the evidence ids, never the location)
+- [x] 7.1 RED → GREEN: "Evidence expands and collapses with a pointer" (the `ev-1` excerpt of the scenario with its line breaks and leading spaces; `aria-expanded` before, after one and after two clicks; `document.querySelectorAll('pre')` length 0 / 1 / 0; `pre.textContent` strictly equal to the excerpt). Create `packages/web/src/components/EvidenceList.tsx` and `EvidenceItem.tsx` (props interfaces; `aria-controls` only while expanded, D26; ▸/▾ `aria-hidden`)
+- [x] 7.2 RED → GREEN: "Evidence expands with the keyboard, one item at a time" (Tab until the `ev-2` button is `document.activeElement`, asserting it got there by Tab; `{Enter}`; `[Space]`; `ev-1` stays `aria-expanded="false"`)
+- [x] 7.3 RED → GREEN: "Repeated evidence is listed as received" (two evidences with the same file, range and excerpt; two buttons with the names of the scenario in order; expanding the second leaves the first `aria-expanded="false"`; React keys are the evidence ids, never the location)
 
 ## 8. Provisional notice (TDD, design D10, D25) — `ask-page` → "Provisional notice for what is not an answer"
 

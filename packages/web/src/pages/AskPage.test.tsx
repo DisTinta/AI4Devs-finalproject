@@ -37,6 +37,10 @@ const EV1_EXCERPT = 'class PriceCalculator\n{\n    public function compute(Order
 /** The excerpt of `ev-2`. */
 const EV2_EXCERPT = '        return $order->shippingCost();';
 
+/** The accessible names of the two evidence buttons of {@link ANSWERED}. */
+const EV1_NAME = 'ev-1 · app/Services/PriceCalculator.php:16-44';
+const EV2_NAME = 'ev-2 · app/Services/ShippingService.php:12';
+
 /** The answered question of "An answered question shows the answer, its statements and its evidence". */
 const ANSWERED: AskAnswered = {
   answer: 'El precio final se calcula en `PriceCalculator::compute()`.',
@@ -507,5 +511,101 @@ describe('Answer with typed and verified statements', () => {
     const orderedList = screen.getAllByRole('list').find((list) => list.tagName === 'OL');
     expect(orderedList?.textContent).toContain('<img src=x onerror=alert(1)>');
     expect(screen.getByRole('main').querySelectorAll('b, i, img')).toHaveLength(0);
+  });
+});
+
+describe('Expandable evidence', () => {
+  it('Evidence expands and collapses with a pointer', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    stubFetch(answerWith(200, ANSWERED));
+    await renderScreen2();
+    await user.click(screen.getByRole('button', { name: Q1 }));
+    const first = await screen.findByRole('button', { name: EV1_NAME });
+    const second = screen.getByRole('button', { name: EV2_NAME });
+    const before = {
+      expanded: [first.getAttribute('aria-expanded'), second.getAttribute('aria-expanded')],
+      pre: document.querySelectorAll('pre').length,
+    };
+
+    // Act
+    await user.click(first);
+    const afterOne = {
+      expanded: first.getAttribute('aria-expanded'),
+      pre: Array.from(document.querySelectorAll('pre'), (pre) => pre.textContent),
+    };
+    await user.click(first);
+    const afterTwo = { expanded: first.getAttribute('aria-expanded'), pre: document.querySelectorAll('pre').length };
+
+    // Assert
+    expect(before).toEqual({ expanded: ['false', 'false'], pre: 0 });
+    expect(afterOne).toEqual({ expanded: 'true', pre: [EV1_EXCERPT] });
+    expect(afterTwo).toEqual({ expanded: 'false', pre: 0 });
+  });
+
+  it('Evidence expands with the keyboard, one item at a time', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    stubFetch(answerWith(200, ANSWERED));
+    await renderScreen2();
+    await user.click(screen.getByRole('button', { name: Q1 }));
+    const first = await screen.findByRole('button', { name: EV1_NAME });
+    const second = screen.getByRole('button', { name: EV2_NAME });
+
+    // Act
+    const maxTabs = document.querySelectorAll('a, button, input, select, textarea, [tabindex]').length + 1;
+    for (let presses = 0; presses < maxTabs && document.activeElement !== second; presses += 1) {
+      await user.tab();
+    }
+    const focusedByKeyboard = document.activeElement === second;
+    await user.keyboard('{Enter}');
+    const afterEnter = {
+      second: second.getAttribute('aria-expanded'),
+      first: first.getAttribute('aria-expanded'),
+      pre: Array.from(document.querySelectorAll('pre'), (pre) => pre.textContent),
+    };
+    await user.keyboard('[Space]');
+    const afterSpace = { second: second.getAttribute('aria-expanded'), pre: document.querySelectorAll('pre').length };
+
+    // Assert
+    expect(focusedByKeyboard).toBe(true);
+    expect(afterEnter).toEqual({ second: 'true', first: 'false', pre: [EV2_EXCERPT] });
+    expect(afterSpace).toEqual({ second: 'false', pre: 0 });
+  });
+
+  it('Repeated evidence is listed as received', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const excerpt = "    public function created(Order $order): void\n    {\n        event(new OrderCreated($order));\n    }";
+    const repeated = { file: 'app/Observers/OrderObserver.php', startLine: 14, endLine: 28, excerpt };
+    stubFetch(
+      answerWith(200, {
+        ...ANSWERED,
+        statements: [{ text: 'OrderObserver lanza un evento.', type: 'FACT', verification: 'entailed', evidenceIds: ['ev-1', 'ev-2'] }],
+        evidence: [
+          { id: 'ev-1', ...repeated },
+          { id: 'ev-2', ...repeated },
+        ],
+      }),
+    );
+    await renderScreen2();
+
+    // Act
+    await user.click(screen.getByRole('button', { name: Q4 }));
+    const evidenceHeading = await screen.findByRole('heading', { level: 2, name: 'Evidencia' });
+    const evidenceList = evidenceHeading.nextElementSibling as HTMLElement;
+    const buttons = within(evidenceList).getAllByRole('button');
+    await user.click(buttons[1]);
+
+    // Assert
+    expect(within(evidenceList).getAllByRole('listitem')).toHaveLength(2);
+    expect(buttons.map((button) => button.textContent?.replace(/^[▸▾]/, ''))).toEqual([
+      'ev-1 · app/Observers/OrderObserver.php:14-28',
+      'ev-2 · app/Observers/OrderObserver.php:14-28',
+    ]);
+    expect(screen.getByRole('button', { name: 'ev-1 · app/Observers/OrderObserver.php:14-28' })).toBe(buttons[0]);
+    expect(screen.getByRole('button', { name: 'ev-2 · app/Observers/OrderObserver.php:14-28' })).toBe(buttons[1]);
+    expect(buttons[1].getAttribute('aria-expanded')).toBe('true');
+    expect(buttons[0].getAttribute('aria-expanded')).toBe('false');
   });
 });
