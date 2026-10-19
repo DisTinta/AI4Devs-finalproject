@@ -13,20 +13,20 @@
 
 ## 2. Loading `.env` (TDD, design D3, D12) — `local-startup` → "Loading .env into a process"
 
-- [ ] 2.1 RED → GREEN, one at a time in `env.spec.ts`, on temporary files of `os.tmpdir()` (never the real `.env`) and plain-object environments with recording stderr doubles: "Values of .env fill only the variables the environment lacks", "Without .env the environment is unchanged", "An unreadable .env is skipped with a warning" (a temporary directory as the path); `loadEnvFile(path, env, stderr)` in `scripts/env.mjs`
+- [ ] 2.1 RED → GREEN, one at a time in `env.spec.ts`, on temporary files of `os.tmpdir()` (never the real `.env`) and plain-object environments without `CODEMIND_SKIP_DOTENV` (the switch is read from the target environment, design A1), with recording stderr doubles: "Values of .env fill only the variables the environment lacks", "Without .env the environment is unchanged", "An unreadable .env is skipped with a warning" (a temporary directory as the path); `loadEnvFile(path, env, stderr)` in `scripts/env.mjs`
 - [ ] 2.2 RED → GREEN: "The loaded .env is the repository root's": `scripts/load-env.mjs` exporting `DOTENV_PATH` and loading it on import, with `scripts/load-env.d.mts`; the test imports only `DOTENV_PATH` from a module whose import side effect is a no-op under the switch of 2.3
 - [ ] 2.3 RED → GREEN: "The test suite never reads .env": `vitest.config.ts` `test.env: { CODEMIND_SKIP_DOTENV: '1' }` with a comment citing design D12; confirm `vitest.stryker.config.ts` inherits it (`mergeConfig`)
 
 ## 3. Wiring the npm scripts (TDD, design D4) — `local-startup` → "Which commands load .env"
 
-- [ ] 3.1 RED: create `tests/unit/scripts/wiring.spec.ts` with "The guide's scripts load .env and the quality scripts do not" (`package.json` files read with `JSON.parse`). See it fail
+- [ ] 3.1 RED: create `tests/unit/scripts/wiring.spec.ts` with "The guide's scripts load .env and the quality scripts do not" (`package.json` files read with `JSON.parse`; `engines.node`; the `.env` imports of `scripts/up.mjs`, `demo-ask.mjs` and `demo-excerpt.mjs` and the forbidden Node APIs read from their source text; no import specifier of `packages/*/src` naming `scripts/`, `load-env` or `.env`). See it fail
 - [ ] 3.2 GREEN: in the root `package.json`, prefix `--import ./scripts/load-env.mjs` to `cli`, `verify`, `db:migrate`, `db:rollback`, `db:seed`, `cache:build` and `seed:build` (arguments otherwise unchanged); add `up`, `down`, `demo:ask`, `demo:excerpt` (the last three pointing at files created in steps 4, 6 and 7); `packages/api/package.json` `dev` per the scenario; `packages/api/dev-register.mjs` untouched; `package-lock.json` unchanged (`git diff --exit-code package-lock.json`)
 
 ## 4. `npm run up` (TDD, design D5) — `local-startup` → "One command starts the system"
 
-- [ ] 4.1 RED: create `tests/unit/scripts/up.spec.ts` with "Up runs the start sequence in order" (a recording runner double, a temporary `.env` with `POSTGRES_PORT=5433`, `npm_execpath` set in the injected environment). See it fail
+- [ ] 4.1 RED: create `tests/unit/scripts/up.spec.ts` with "Up runs the start sequence in order" (a recording runner double, a temporary `.env` with `POSTGRES_PORT=5433` passed as `dotenvPath`, `npm_execpath` set in the injected environment and no `CODEMIND_SKIP_DOTENV`). See it fail
 - [ ] 4.2 GREEN: `scripts/up.mjs` (`runUp`, the default `spawn` runner, the entry guard) and `scripts/up.d.mts`
-- [ ] 4.3 RED → GREEN, one at a time: "Up stops at the first failing step" (exit code and signal cases), "A step that cannot start stops up", "Up needs npm to start it"
+- [ ] 4.3 RED → GREEN, one at a time: "Up stops at the first failing step" (exit code and signal cases), "Ctrl+C stops up without a failure line" (an `onInterrupt` double fired while the `npm run dev` call runs), "A step that cannot start stops up", "Up needs npm to start it"
 - [ ] 4.4 RED → GREEN in `wiring.spec.ts`: "The startup scripts need no installed dependency" (import specifiers of every `scripts/*.mjs` read from the source text)
 
 ## 5. Stop, Makefile and Postgres port (TDD, design D6, D7) — `local-startup` → "Stopping the system and the Makefile", "Configurable Postgres port"
@@ -39,7 +39,7 @@
 
 - [ ] 6.1 RED: create `tests/unit/scripts/demo-ask.spec.ts` with "An answered question prints its status and summary" (`node:http` server on port 0 passed as `PORT` in the injected environment; the request path and the UTF-8 body recorded). See it fail
 - [ ] 6.2 GREEN: `scripts/demo-ask.mjs` (`runDemoAsk`, loads `.env` through `./load-env.mjs`, `globalThis.fetch`, entry guard) and `scripts/demo-ask.d.mts`
-- [ ] 6.3 RED → GREEN, one at a time: "An UNKNOWN answer prints its reason", "An error status prints the error body", "An unreachable API is reported" (a port taken and released, as `freePort` in `tests/integration/api/dev-script.spec.ts`), "Missing arguments are a usage error"
+- [ ] 6.3 RED → GREEN, one at a time: "An UNKNOWN answer prints its reason", "An error status prints the error body", "An unreachable API is reported" (a port taken and released, as `freePort` in `tests/integration/api/dev-script.spec.ts`), "demo:ask reads PORT from .env" (a temporary `.env` passed as `dotenvPath`), "Missing arguments are a usage error"
 
 ## 7. `demo:excerpt` (TDD, design D8) — `local-startup` → "The demo excerpt helper"
 
@@ -54,7 +54,7 @@
 
 ## 9. `docs/CONFIDENCE.md` in Spanish (design D9) — `confidence-score` → "Published weights"
 
-- [ ] 9.1 Update `tests/unit/knowledge/confidence-doc.spec.ts` to the modified requirement (Spanish sections, header cells, the eight statements; test names unchanged); see it fail against the English document (RED)
+- [ ] 9.1 Update `tests/unit/knowledge/confidence-doc.spec.ts` to the modified requirement (Spanish sections, header cells, the eight statements; headings, section lookup and statements normalised to NFC on both sides; test names unchanged); see it fail against the English document (RED)
 - [ ] 9.2 GREEN: translate `docs/CONFIDENCE.md` (same meaning, figures, table values, development questions, model and report path; numbers with a decimal point); `npx vitest run tests/unit/knowledge/confidence-doc.spec.ts` green; commit doc, test and nothing else together
 
 ## 10. `docs/DEPLOYMENT.md` and `docs/TESTING.md` in Spanish (design D10, D14) — `local-startup` → "The deployment and testing guides in Spanish"
@@ -65,14 +65,15 @@
 ## 11. `docs/DEMO.md` rewritten (design D8, D11, D15) — `local-startup` → "The demo guide runs the same in PowerShell and Bash"
 
 - [ ] 11.1 RED: create `tests/unit/docs/guides.spec.ts` with "The demo guide has no Bash-only command", "The demo guide is ordered for a first-time reader" and "The web walkthrough names what each screen shows" (its automatable part). See them fail against the English guide
-- [ ] 11.2 GREEN: rewrite `docs/DEMO.md` in Spanish: `Cómo se capturó` (date, commit, machine, both shells, Node/npm, evaluation mode, the edits made to pasted output), `Antes de empezar`, `Paso 0 — Arrancar el sistema` (`npm run up`, a second terminal for the rest), `Paso 1`…`Paso 6` as in `readme.md` §1.3 with `npm run demo:ask -- a794456d-6d1b-5b55-a360-13fec83dc7bc "…"` and `npm run demo:excerpt -- acme-shop app/Services/PriceCalculator.php:16-44`, expected exit codes stated in the text, `Comprobar la instalación`, `Recorrido por la web` and `Parar el sistema` (`npm run down`, the volume stays). Output blocks hold the 2026-10-17 output only as placeholders marked `[pendiente de la prueba desde cero]` until step 16 replaces them
+- [ ] 11.2 Rewrite the first half of `docs/DEMO.md` in Spanish: `Cómo se capturó` (date, commit, machine, both shells, Node/npm, evaluation mode, the edits made to pasted output), `Antes de empezar` (`docker info`, `node -v`, `git --version`, how to recognise `port is already allocated` and change `POSTGRES_PORT` with the matching `DATABASE_URL` in `.env` with a text editor, `cp .env.example .env`) and `Paso 0 — Arrancar el sistema` (`npm run up`, a second terminal for the rest). Output blocks hold placeholders marked `[pendiente de la prueba desde cero]` until step 16 replaces them
+- [ ] 11.2b Rewrite the second half: `Paso 1`…`Paso 6` as in `readme.md` §1.3 with `npm run demo:ask -- a794456d-6d1b-5b55-a360-13fec83dc7bc "…"` and `npm run demo:excerpt -- acme-shop app/Services/PriceCalculator.php:16-44`, the expected exit codes stated in the text, `Comprobar la instalación` and `Parar el sistema` (`npm run down`, the volume stays); the two structural scenarios of 11.1 green
 - [ ] 11.3 Write `Recorrido por la web` from the wireframes (open `images/pantalla-1-seleccion.svg` and `images/pantalla-2-consulta.svg`) and the real pages (`packages/web/src/pages/ProjectPickerPage.tsx`, `AskPage.tsx` and their components): Screen 1 card, counts, «indexado»/«listo», «Explorar proyecto», the indexing hint; Screen 2 suggested golden questions, «HECHO»/«INFERIDO» with «verificado»/«sin verificar», evidence that expands (click, Enter, Space), the usage panel («Confianza», tokens, cost, latency, savings, cache), «Sin respuesta verificada» (a question that names nothing in the code), «Hace falta un modelo de lenguaje» (a free question in evaluation mode), and the unavailable-API alert with «Reintentar», shown by running only the web (`npm -w packages/web run dev`); deviations from the wireframes (data the seed lacks, Entrega 3 items) stated in the text; 11.1 green
 - [ ] 11.4 RED → GREEN in `guides.spec.ts`: "Links to the guides' sections resolve" (GitHub slug rule of the scenario)
 
 ## 12. References to the guides and to `.env` (design D10)
 
 - [ ] 12.1 `readme.md` §0, §1.3, §1.4 (start command `npm run up` with `make up` as the Git Bash/WSL alternative, `cp .env.example .env`, `POSTGRES_PORT` in the variables table, the start output excerpt and the DEMO step references) and every link to the renamed headings; `grep -n "make up\|export DATABASE_URL\|no leen\|do not read" readme.md` reviewed line by line
-- [ ] 12.2 `docs/project-context.md`: Commands (`up`, `down`, `demo:ask`, `demo:excerpt`, the `.env` preload of the D4 scripts), Testing (`CODEMIND_SKIP_DOTENV`, D12), the `Known races` reference → `Carreras conocidas`, and every sentence that says npm scripts do not read `.env`; `.env.example` comments that say so (scripted edit, as 5.3)
+- [ ] 12.2 `docs/project-context.md`: Closed decision 1 (l. 38, evaluators start with `npm run up`, `make up` as alternative), l. 62 (`DATABASE_URL` from `.env`), l. 191 ("npm scripts do not load: export it"), l. 227 (native PowerShell), l. 1180–1181 ("does not read `.env`") — numbering of base `368dc38` —, Commands (`up`, `down`, `demo:ask`, `demo:excerpt`, the `.env` preload of the D4 scripts), Testing (`CODEMIND_SKIP_DOTENV`, D12), the `Known races` reference → `Carreras conocidas`, and the language exception of design D18 («Language exception, evaluator guides (DIS-102, author decision 2026-10-19): `docs/DEMO.md`, `docs/CONFIDENCE.md`, `docs/DEPLOYMENT.md` and `docs/TESTING.md` are written in Spanish, like `readme.md`; commands, pasted output, identifiers, error codes and paths stay verbatim. Every other document follows `base-standards.md` §2.»); `.env.example` comments that say npm scripts do not read `.env` (scripted edit, as 5.3)
 - [ ] 12.3 `npx vitest run tests/unit/docs tests/unit/scripts tests/unit/knowledge/confidence-doc.spec.ts` green
 
 ## 13. Review and Update Existing Tests (MANDATORY)
@@ -85,7 +86,7 @@
 
 - [ ] 14.1 Capture the pre-test baseline: the 0.4 indicators
 - [ ] 14.2 Run the targeted tests: `npx vitest run tests/unit/scripts tests/unit/docs tests/unit/knowledge/confidence-doc.spec.ts packages/web/src/pages/ProjectPickerPage.test.tsx`
-- [ ] 14.3 Run the required broader suite and gates: `npx vitest run` (integration database as in 0.4; D12 is shown by `migrations.spec.ts` staying green while a `.env` exists: the author's, if the working tree has one (never read, printed or changed), otherwise the clone's of step 15, running `npx vitest run tests/integration/store/migrations.spec.ts` there against the clone's own database; the author's database counts unchanged), `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`, `npm run test:a11y`, `npm run test:mutation` (score ≥ 80; `scripts/` is not in its scope); `npm run verify` on the seeded database (fingerprints unchanged)
+- [ ] 14.3 Run the required broader suite and gates: `npx vitest run` (integration database as in 0.4; D12 is shown only in the scratchpad clone of step 15, with its own `.env` and its own database, by `npx vitest run tests/integration/store/migrations.spec.ts` there; never in the working tree, where a D12 bug would roll back the author's database (design A11); the author's database counts unchanged), `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`, `npm run test:a11y`, `npm run test:mutation` (score ≥ 80; `scripts/` is not in its scope); `npm run verify` on the seeded database (fingerprints unchanged)
 - [ ] 14.4 Run `/privacy-ethics-check` over the diff (`.env` never printed, the loader prints no key or value, `demo:excerpt` confinement, no volume removed); record the result
 - [ ] 14.5 Verify the post-test state: same 0.4 counts; no temporary `.env`, `.env` copies or `.stryker-tmp/` left; the author's `.env` (if any) unchanged (compare its `git hash-object` before and after without printing it). Restore and document if not
 - [ ] 14.6 Create `openspec/changes/cross-shell-demo-spanish-docs/reports/YYYY-MM-DD-14-test-and-state-verification.md` from the template of `docs/openspec-tasks-mandatory-steps.md` §6 (baseline, totals, Stryker score, privacy check, "no dependency installed: no npm package check needed")
@@ -106,7 +107,8 @@
 ## 16. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
 - [ ] 16.1 Push the branch (`gh auth switch -u DisTinta`; `git -c credential.helper='!gh auth git-credential' push`) so the clean clone takes `origin/feature/DIS-102-cross-shell-demo-spanish-docs`
-- [ ] 16.2 Two clean clones in the scratchpad (`e2e-bash`, `e2e-pwsh`), one after the other; in each, follow `docs/DEMO.md` literally from `Antes de empezar` to `Parar el sistema` with that shell's tool (the "port taken" branch with a free `POSTGRES_PORT`), `npm run up` in the background and the other steps in a second shell
+- [ ] 16.2 Clean clone `e2e-bash` in the scratchpad: follow `docs/DEMO.md` literally from `Antes de empezar` to `Parar el sistema` with the Bash tool (the "port taken" branch with a free `POSTGRES_PORT`), `npm run up` in the background and the other steps in a second shell; record every output and exit code
+- [ ] 16.2b Clean clone `e2e-pwsh`, after 16.2 is stopped: the same with the PowerShell tool (record `$PSVersionTable.PSVersion`)
 - [ ] 16.3 Recorded check "The guide was followed on a clean clone in both shells": compare every output and exit code with the guide (ignoring only the fields it lists as changing), check the accented questions reached the API intact in both shells; paste the real output into `docs/DEMO.md` replacing the 11.2 placeholders, update `Cómo se capturó`; if a command needed a shell-specific variant, add the labelled pair and note it for the PR; `guides.spec.ts` still green
 - [ ] 16.4 Web walkthrough: with the clone's `npm run up` running, take screenshots of Screen 1 (API up; API down with only the web running), Screen 2 (a golden question answered with evidence expanded and the usage panel; a free question → «Hace falta un modelo de lenguaje»; a no-anchor question → «Sin respuesta verificada») with the browser-automation skill, save them as `reports/YYYY-MM-DD-16-<scenario>.png`, and review `Recorrido por la web` against them and the two wireframes (the review half of "The web walkthrough names what each screen shows"); fix the text where it differs
 - [ ] 16.5 Restore as 15.8 (dev servers stopped, `docker compose -p e2e-bash down -v` and `-p e2e-pwsh`, clones moved aside)
@@ -114,9 +116,9 @@
 
 ## 17. Update Technical Documentation (MANDATORY)
 
-- [ ] 17.1 Recorded check "The guides are in Spanish and say that .env is read": review `docs/DEPLOYMENT.md` and `docs/TESTING.md` against their English version at the base commit (`git show 368dc38:docs/…`) section by section (same sections, figures, commands, output), and run the searches of the scenario over `readme.md`, `docs/project-context.md` and `.env.example` (counts only for `.env.example`); record the result in the step 14 report as an addendum
+- [ ] 17.1 Recorded check "The guides are in Spanish and say that .env is read": review `docs/DEPLOYMENT.md` and `docs/TESTING.md` against their English version at the base commit (`git show 368dc38:docs/…`) section by section (same sections, figures, commands, output), and run the searches of the scenario (case-insensitive, backticks ignored) over `readme.md`, `docs/project-context.md`, the four guides and `.env.example` (counts only for `.env.example`), reviewing every hit; record the result in the step 14 report as an addendum
 - [ ] 17.2 No ADR: the decisions are reversible and local to the start-up tooling (design D2–D17); confirm with the `adr-new` criteria and record "not warranted" in the step 14 report
-- [ ] 17.3 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts of DIS-102 to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
+- [ ] 17.3 Run `/update-docs` (with the D18 language exception of `docs/project-context.md` in force) and confirm the docs gate passes. Add the relevant AI prompts of DIS-102 to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
 
 ## 18. Pull request preparation
 

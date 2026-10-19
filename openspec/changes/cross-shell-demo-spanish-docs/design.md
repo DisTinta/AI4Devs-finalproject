@@ -59,7 +59,8 @@ See proposal.md → Why. The state this design starts from (base `368dc38`):
 ## Decisions
 
 The Linear decisions D1–D11 (DIS-102 Enhanced, 2026-10-19) hold; this section gives their technical
-shape and adds D12–D17, also recorded in the ticket's Enhanced description.
+shape and adds D12–D18 and the spec-audit amendments (A1–A12, end of this section), all recorded in the
+ticket's Enhanced description.
 
 ### D1. Through OpenSpec, with three deltas
 
@@ -76,7 +77,9 @@ Rejected: `process.loadEnvFile` / `util.parseEnv` (Node 20.12.0 and 21.7.0, belo
 grammar has changed between releases); `node --env-file` (20.6.0, but fails when the file is missing;
 `--env-file-if-exists` is 22.9.0); `dotenv` (a dependency, and a `package-lock.json` change that would
 also change the seed fingerprint, for about 30 lines). The grammar is the subset `.env.example` uses
-plus matched quotes, so the result is the same on every Node version.
+plus matched quotes, so the result is the same on every Node version. `engines` stays `>=20.11`;
+`wiring.spec.ts` pins it and checks that no script uses `process.loadEnvFile`, `util.parseEnv` or
+`--env-file` (`local-startup` → "Which commands load .env").
 
 ### D3. Precedence and location
 
@@ -85,7 +88,9 @@ set in the shell (or `KEY=` on purpose) beats `.env`. The path is
 `fileURLToPath(new URL('../.env', import.meta.url))` of `scripts/load-env.mjs`, so the API's `dev`
 (cwd `packages/api`) reads the same file as the root scripts. `scripts/load-env.mjs` exports that
 path as `DOTENV_PATH` and, as its side effect on import, calls `loadEnvFile(DOTENV_PATH, process.env,
-process.stderr)`.
+process.stderr)`. The skip switch (D12) is read from the environment passed to `loadEnvFile`, not from
+`process.env`, so the unit tests load into plain objects without the switch while the suite's own
+`process.env` keeps it (A1).
 
 ### D4. Which commands load `.env`
 
@@ -94,15 +99,18 @@ forwards Node's `--import` (checked on tsx 4.23.13 during the propose: a preload
 program read), and the child process tsx starts inherits the loaded environment. The API's `dev`
 becomes `node --watch --import ../../scripts/load-env.mjs --import ./dev-register.mjs src/server.ts`:
 a separate preload, so `dev-register.mjs` and the test that spawns it directly stay as they are; with
-`--watch`, each restart loads `.env` again. `up` and `demo:ask` import `./load-env.mjs` first. The root
+`--watch`, each restart loads `.env` again. `up` and `demo:ask` do not rely on the preload's side
+effect: `runUp` and `runDemoAsk` call `loadEnvFile(dotenvPath, env, stderr)` first, with `dotenvPath`
+defaulting to `DOTENV_PATH` (imported from `./load-env.mjs` for the constant; its import side effect
+is a no-op under the suite's switch), so their tests can give a temporary file (A2). The root
 `dev` needs no preload: the API's own `dev` loads it, and the web reads no variable. `demo:excerpt`
 reads no variable, so it does not load `.env` (a refinement of the ticket's "the demo helpers": loading
 it would do nothing). Quality scripts never load it (`local-startup` → "Which commands load .env").
 
 ### D5. `npm run up` = `node scripts/up.mjs`
 
-`scripts/up.mjs` exports `runUp({ env, run, stdout, stderr, cwd })` and runs it when it is the entry
-module (the `process.argv[1]` guard pattern of `packages/cli/src/seed-load.ts`, compared with
+`scripts/up.mjs` exports `runUp({ env, dotenvPath, run, stdout, stderr, cwd, onInterrupt })` and runs
+it when it is the entry module (the `process.argv[1]` guard pattern of `packages/cli/src/seed-load.ts`, compared with
 `fileURLToPath(import.meta.url)`). `run(command, args, options)` is `child_process.spawn` with
 `stdio: 'inherit'`, `shell: false`, resolving `{ code, signal }` on `exit` or `{ error }` on
 `error`; tests pass a double. Steps:
@@ -120,8 +128,12 @@ waits for the healthcheck, so a first start never migrates before Postgres accep
 (Compose v2.1.1 or later; Docker Desktop ships v2). `npm` is never spawned by name: since Node 20.12.2
 (CVE-2024-27980) spawning `npm.cmd` without a shell fails on Windows, and `npm_execpath` (set by npm
 for every script it runs, `make up` included since it calls `npm run up`) is the npm-cli.js of the
-running npm. Ctrl+C reaches every process of the console; `up` exits with the code of the step that
-ended. `npm run down` is the plain script `docker compose down`.
+running npm. Ctrl+C reaches every process of the console. While a step runs, `up` installs a SIGINT
+listener (so Node's default handler does not kill `up` before its child ends) and removes it after the
+step; when the step then ends, whatever its code (on Windows typically `3221225786`) or signal, `up`
+prints `[up] stopped (Ctrl+C)` and exits `130`, the shell convention for an interrupt (A3). The
+default `onInterrupt(listener)` subscribes to `process`'s `SIGINT`; tests pass a double that fires the
+listener. `npm run down` is the plain script `docker compose down`.
 
 ### D6. `Makefile` delegates
 
@@ -140,10 +152,16 @@ calling it, so both paths agree.
 
 ### D8. Demo helpers
 
-`scripts/demo-ask.mjs` exports `runDemoAsk(args, { env, fetch, stdout, stderr })` (entry guard as D5;
-the real `fetch` taken from `globalThis`); `scripts/demo-excerpt.mjs` exports
+`scripts/demo-ask.mjs` exports `runDemoAsk(args, { env, dotenvPath, fetch, stdout, stderr })` (entry
+guard as D5; the real `fetch` taken from `globalThis`); `scripts/demo-excerpt.mjs` exports
 `runDemoExcerpt(args, { fixturesRoot, stdout, stderr })`. Output and errors as in `local-startup` →
-"The demo question helper" and "The demo excerpt helper". The excerpt check resolves
+"The demo question helper" and "The demo excerpt helper": an `UNKNOWN` body is recognised by
+`answer === "UNKNOWN"` before the statements count (an `UNKNOWN` body also has `statements: []`), a
+`PORT` outside 1–65535 is a usage error, and there is no request time limit, since a live model can
+take minutes on a CPU (`readme.md` §1.4 timings) and Ctrl+C stops the helper (A4). The excerpt's lines
+are LF-split with a trailing CR dropped and no extra line after a final LF; the project must be a
+directory entry of `fixtures/` other than `.`/`..`; a directory path reads as not found; the checks run
+usage → project → outside → missing → range (A5). The excerpt check resolves
 `fixtures/<project>` and the file with `path.resolve`, refuses absolute paths and any relative path
 that leaves the project directory, and then compares `fs.realpathSync` of both, so a link inside the
 fixture cannot lead out. Exit code `2` for usage errors follows the CLI's convention
@@ -170,7 +188,11 @@ any other section name it cites; `docs/TESTING.md` → `DEPLOYMENT.md` → Verif
 `readme.md` §0 (l. 19), §1.3 (l. 185, 279), §1.4 (l. 301–316, 391–395, variables table l. 436–441),
 and `make up` as the main command wherever it is (now `npm run up`, with `make up` as the Git Bash/WSL
 alternative). The TSDoc in `packages/core/src` cites `docs/CONFIDENCE.md` by file name only and is not
-touched (it is also an answer-fingerprint input).
+touched (it is also an answer-fingerprint input). `prompts.md` and `openspec/specs/` hold no
+`#fragment` link into the four guides (checked during the spec audit), so they need no anchor update;
+the `make up` mentions of `openspec/specs/verify-smoke` and `seed-load` stay true because `make up` now
+runs `npm run up`. The stale sentences of `docs/project-context.md` are at lines 38, 62, 191, 227 and
+1180–1181 of the base, plus `docs/DEPLOYMENT.md` lines 20–21, 109 and `docs/TESTING.md` line 29 (A6).
 
 ### D11. The clean-clone run (criterion E)
 
@@ -241,11 +263,41 @@ and `tests/unit/docs/guides.spec.ts` (DEMO.md fences, headings, walkthrough labe
 after its scenario. `scripts/` stays out of Stryker (as `dev-register.mjs`): the mutation scope is the
 product packages.
 
+### D18. The four guides are a recorded language exception (agent's decision)
+
+`docs/base-standards.md` §2 and `docs/documentation-standards.md` say documentation is English. The
+author's decision of 2026-10-19 puts the four evaluator guides in Spanish, like `readme.md`. The
+exception is written once in `docs/project-context.md` (the project's facts file; `base-standards.md`
+is kit doctrine and is replaced on kit updates): `docs/DEMO.md`, `docs/CONFIDENCE.md`,
+`docs/DEPLOYMENT.md` and `docs/TESTING.md` are Spanish, with commands, pasted output, identifiers,
+error codes and paths verbatim; every other document follows `base-standards.md` §2. `/update-docs`
+reads that line before applying the English rule.
+
 ### D17. Manual checks without stopping the author's Docker
 
 "Up with Docker unavailable" runs with `DOCKER_HOST=tcp://127.0.0.1:1` (a closed port) in the
 clone, set per shell for that one check, instead of stopping Docker Desktop, which would stop the
 author's other containers.
+
+### Spec-audit amendments (run 1, 2026-10-19)
+
+- **A1.** The skip switch is read from the target environment (D3).
+- **A2.** `up` and `demo:ask` load `.env` through `loadEnvFile` with an injectable `dotenvPath` (D4).
+- **A3.** Ctrl+C during a step ends `up` with `[up] stopped (Ctrl+C)` and exit `130` (D5).
+- **A4.** `demo:ask` classifies `UNKNOWN` first, validates `PORT`, sets no time limit (D8).
+- **A5.** `demo:excerpt` line definition, project rule, directory path and check order (D8).
+- **A6.** The stale sentences are listed by line, and the search list of the recorded check is wider
+  (D10; `local-startup` → "The guides are in Spanish and say that .env is read").
+- **A7.** `engines` and "product code never loads `.env`" are pinned by `wiring.spec.ts` (D2, D4).
+- **A8.** The anchor rule uses Unicode letters and digits and NFC on both sides (D16).
+- **A9.** `Antes de empezar` names Compose's `port is already allocated` and says to edit `.env` with a
+  text editor (Windows PowerShell 5.1 redirection writes UTF-16, which the UTF-8 grammar cannot read).
+- **A10.** D18, the language exception.
+- **A11.** The D12 demonstration with a real `.env` runs only in the scratchpad clone, never in the
+  working tree, where a bug would roll back the author's database (tasks 14.3).
+- **A12.** `confidence-doc.spec.ts` normalises headings and section lookup to NFC (task 9.1); tasks
+  11.2 and 16.2 are split in two. Rejected: switching `gh` back to Cristina-JumpMath after pushing; the
+  author allowed DisTinta to stay active for this run (2026-10-18).
 
 ## Risks / Trade-offs
 

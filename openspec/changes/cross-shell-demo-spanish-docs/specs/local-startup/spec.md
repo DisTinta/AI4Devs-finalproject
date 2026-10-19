@@ -46,15 +46,17 @@ into lines on LF and removing a trailing CR from each line. Each line SHALL be r
 
 ### Requirement: Loading .env into a process
 
-Loading `.env` SHALL read the file `.env` at the root of the repository (the directory that holds
-`scripts/`), located from the loader's own file and never from the working directory. For each key
+Loading `.env` SHALL read, by default, the file `.env` at the root of the repository (the directory
+that holds `scripts/`), located from the loader's own file and never from the working directory; the
+commands that load it themselves (`up`, `demo:ask`) SHALL accept another path only from their tests. For each key
 it parses, it SHALL set the process environment variable only when the environment does not already
 hold that key; a key that is present, even with an empty value, SHALL keep its value. When the file
 does not exist, loading SHALL change nothing and print nothing. When the file exists but cannot be
 read, loading SHALL change nothing and write exactly one line to stderr that starts with
 `warning: .env not read (` followed by the error code and `)`. Loading SHALL never print a key or a
-value. When the environment variable `CODEMIND_SKIP_DOTENV` is `1`, loading SHALL not read the file
-and SHALL change nothing; the test suite SHALL run with `CODEMIND_SKIP_DOTENV` set to `1`, so neither
+value. When the environment the file is loaded into holds `CODEMIND_SKIP_DOTENV` with the value `1`,
+loading SHALL not read the file and SHALL change nothing; any other value, or its absence, loads
+normally. The test suite SHALL run with `CODEMIND_SKIP_DOTENV` set to `1`, so neither
 a test nor a process a test starts reads the `.env` of whoever runs the suite.
 
 #### Scenario: Values of .env fill only the variables the environment lacks
@@ -97,7 +99,10 @@ arguments; the API's `dev` script SHALL load it before the API starts, without c
 `packages/api/dev-register.mjs`; `up` and `demo:ask` SHALL load it themselves before doing anything
 else. The scripts `test`, `test:a11y`, `test:mutation`, `test:mutation:full`, `lint`,
 `lint:architecture`, `typecheck` and `docs:coverage` SHALL NOT load it. Product code SHALL keep
-reading its configuration from the process environment only.
+reading its configuration from the process environment only: no file under `packages/*/src` SHALL
+import from `scripts/` or name `load-env` or `.env` in an import specifier. The root `package.json`
+SHALL keep `engines.node` = `>=20.11`, and no file of `scripts/` SHALL use `process.loadEnvFile`,
+`util.parseEnv` or `--env-file`.
 
 #### Scenario: The guide's scripts load .env and the quality scripts do not
 
@@ -111,6 +116,12 @@ reading its configuration from the process environment only.
 - **AND** none of `test`, `test:a11y`, `test:mutation`, `test:mutation:full`, `lint`,
   `lint:architecture`, `typecheck` and `docs:coverage` contains `load-env`, and
   `packages/api/dev-register.mjs` does not contain `load-env`
+- **AND** `engines.node` is `>=20.11`
+- **AND** `scripts/up.mjs` and `scripts/demo-ask.mjs` import `./env.mjs` or `./load-env.mjs`,
+  `scripts/demo-excerpt.mjs` imports neither, and no source text of `scripts/` contains
+  `process.loadEnvFile`, `parseEnv` imported from `node:util`, or `--env-file`
+- **AND** no file under `packages/*/src` has an import specifier containing `scripts/`, `load-env` or
+  `.env`
 
 #### Scenario: A guide command reads DATABASE_URL from .env
 
@@ -123,8 +134,9 @@ reading its configuration from the process environment only.
 
 ### Requirement: One command starts the system
 
-`npm run up` SHALL load `.env` and then run, from the repository root and in this order, each with the
-standard input, output and error of `up`: `docker compose up -d --wait`, `npm install`,
+`npm run up` SHALL load `.env` (as in "Loading .env into a process", by default the repository root's
+file) into the environment it gives every step, and then run, from the repository root and in this
+order, each with the standard input, output and error of `up`: `docker compose up -d --wait`, `npm install`,
 `npm run db:migrate`, `npm run db:seed` and `npm run dev`. Before each step it SHALL print one line
 `[up] <command>` to stdout. The npm steps SHALL run the npm that started `up` (the `npm_execpath` npm
 gives its scripts, run by the same Node executable), never through a shell; when `npm_execpath` is
@@ -133,13 +145,17 @@ step exits with a code other than `0`, `up` SHALL run no further step, write
 `[up] "<command>" failed with exit code <n>` to stderr and exit with that code; when a step ends by
 a signal, the line SHALL be `[up] "<command>" failed (<signal>)` and the exit code `1`; when a step
 cannot be started, the line SHALL be `[up] "<command>" could not start (<error code>)` and the exit
-code `1`. When every step exits `0`, `up` SHALL exit `0`. `up` and the `.env` loader SHALL import only
+code `1`. When every step exits `0`, `up` SHALL exit `0`. While a step runs, `up` SHALL NOT end on
+SIGINT itself (the step receives the console's Ctrl+C on its own); when `up` has received SIGINT and
+the running step then ends, whatever its code or signal, `up` SHALL run no further step, write
+`[up] stopped (Ctrl+C)` to stderr instead of a failure line and exit `130`. `up` and the `.env` loader SHALL import only
 Node built-in modules and files of `scripts/`, so `npm run up` works before `npm install`.
 
 #### Scenario: Up runs the start sequence in order
 
-- **GIVEN** a step runner double that records each call and returns exit code `0`, `npm_execpath`
-  set and a `.env` file with `POSTGRES_PORT=5433`
+- **GIVEN** a step runner double that records each call and returns exit code `0`, an injected
+  environment with `npm_execpath` set and without `CODEMIND_SKIP_DOTENV` or `POSTGRES_PORT`, and a
+  `.env` file given to `up` with `POSTGRES_PORT=5433`
 - **WHEN** `up` runs
 - **THEN** the runner received, in order, `docker compose up -d --wait`, then the Node executable with
   `npm_execpath` and `install`, `run db:migrate`, `run db:seed` and `run dev`, each from the repository
@@ -155,6 +171,14 @@ Node built-in modules and files of `scripts/`, so `npm run up` works before `npm
 - **AND** stderr holds `[up] "npm install" failed with exit code 3`, and `up` exits `3`
 - **AND** with a double whose first call ends by the signal `SIGINT`, the runner received one call,
   stderr holds `[up] "docker compose up -d --wait" failed (SIGINT)` and `up` exits `1`
+
+#### Scenario: Ctrl+C stops up without a failure line
+
+- **GIVEN** a step runner double whose `npm run dev` call ends with exit code `3221225786` after `up`
+  received SIGINT while that call was running
+- **WHEN** `up` runs
+- **THEN** the runner received the five calls, stderr holds `[up] stopped (Ctrl+C)` and no line with
+  `failed`, and `up` exits `130`
 
 #### Scenario: A step that cannot start stops up
 
@@ -222,12 +246,15 @@ change together.
 `npm run demo:ask -- <projectId> "<question>"` SHALL load `.env`, then send `POST
 /api/projects/<projectId>/ask` (the id percent-encoded as a path segment) to
 `http://127.0.0.1:<PORT>`, where `<PORT>` is the `PORT` variable or `3000` when it is unset or empty,
-with the JSON body `{"question": <question>}` encoded as UTF-8. It SHALL print the line
-`HTTP <status>` and then, indented with two spaces, a JSON document: for a `2xx` response with
-statements, `{ statements: <number of statements>, evidence: <number of evidence items>, usage }`; for a
-`2xx` `UNKNOWN` response, its `answer`, `reason` and, when present, `message`; for any other status,
-the response body as it came (as text when it is not JSON). It SHALL exit `0` for a `2xx` status and
-`1` for any other. When the API cannot be reached it SHALL write
+with the JSON body `{"question": <question>}` encoded as UTF-8. A `PORT` that is not a decimal integer
+from 1 to 65535 SHALL write `demo:ask: PORT must be a port number` to stderr and exit `2` without
+sending any request. It SHALL print the line `HTTP <status>` and then a JSON document indented with two
+spaces, chosen in this order: for a `2xx` response whose JSON body has `answer` equal to `"UNKNOWN"`,
+its `answer`, `reason` and, when present, `message`; for any other `2xx` response whose JSON body has
+a `statements` array, `{ statements: <its length>, evidence: <length of evidence, 0 when absent>,
+usage }`; for any other response, the body as it came (JSON indented with two spaces when it parses, as
+text otherwise). It SHALL exit `0` for a `2xx` status and `1` for any other. It SHALL set no time
+limit on the request (a live model can take minutes on a CPU; Ctrl+C stops it). When the API cannot be reached it SHALL write
 `demo:ask: the API is not reachable at http://127.0.0.1:<PORT> (start it with npm run up)` to stderr
 and exit `1`. With fewer or more than two arguments it SHALL write
 `usage: npm run demo:ask -- <projectId> "<question>"` to stderr and exit `2`, without sending any
@@ -269,6 +296,15 @@ request.
 - **THEN** stderr is `demo:ask: the API is not reachable at http://127.0.0.1:<PORT> (start it with npm
   run up)` with that port, stdout is empty, and `demo:ask` exits `1`
 
+#### Scenario: demo:ask reads PORT from .env
+
+- **GIVEN** the local server on a free port, an injected environment without `PORT` and without
+  `CODEMIND_SKIP_DOTENV`, and a `.env` file given to `demo:ask` with `PORT=<that port>`
+- **WHEN** `demo:ask` runs with a project id and a question
+- **THEN** the server received the request and `demo:ask` exits `0`
+- **AND** with `PORT=abc` in the injected environment, stderr is `demo:ask: PORT must be a port
+  number`, no request was sent and `demo:ask` exits `2`
+
 #### Scenario: Missing arguments are a usage error
 
 - **WHEN** `demo:ask` runs with only a project id, and then with three arguments
@@ -287,7 +323,13 @@ missing file SHALL give `demo:excerpt: <path> not found in fixtures/<project>` a
 beyond the file's last line SHALL give `demo:excerpt: <path> has <n> lines` and exit `1`. A number of
 arguments other than two, a citation not of the form `<path>:<start>-<end>` with decimal integers, a
 `start` below 1 or an `end` below `start` SHALL write
-`usage: npm run demo:excerpt -- <project> <path>:<start>-<end>` to stderr and exit `2`.
+`usage: npm run demo:excerpt -- <project> <path>:<start>-<end>` to stderr and exit `2`. The file's
+lines are its UTF-8 text split on LF, each with a trailing CR removed; a final LF does not start a
+line, and `<n>` is that number of lines. `<project>` SHALL equal the name of a directory entry of
+`fixtures/` other than `.` and `..`. A `<path>` that names a directory SHALL give
+`demo:excerpt: <path> not found in fixtures/<project>` and exit `1`. The checks SHALL run in this
+order, the first failing one deciding the message: arguments and citation (exit `2`), project,
+outside, missing, range.
 
 #### Scenario: An excerpt prints exactly the cited lines
 
@@ -302,15 +344,17 @@ arguments other than two, a citation not of the form `<path>:<start>-<end>` with
   path to a file of the repository with `:1-1`, and `app/../../acme-shop/../../package.json:1-1`; and
   then with the project `..` and `package.json:1-1`
 - **THEN** the first three each write `demo:excerpt: <path> is outside fixtures/acme-shop` and exit `1`
-- **AND** the last writes `demo:excerpt: unknown project ..` and exits `1`
+- **AND** the last writes `demo:excerpt: unknown project ..` and exits `1`, and so does the project `.`
+  (`demo:excerpt: unknown project .`)
 
 #### Scenario: A missing file or a range past its end is reported
 
-- **WHEN** `demo:excerpt` runs with `acme-shop` and `app/Nope.php:1-2`, and then with
-  `app/Services/PriceCalculator.php:16-9999`
-- **THEN** the first writes `demo:excerpt: app/Nope.php not found in fixtures/acme-shop` and the second
-  `demo:excerpt: app/Services/PriceCalculator.php has <n> lines` with the file's line count, each with
-  exit `1` and stdout empty
+- **WHEN** `demo:excerpt` runs with `acme-shop` and `app/Nope.php:1-2`, then with `app/Services:1-2`
+  (a directory), and then with `app/Services/PriceCalculator.php:16-9999`
+- **THEN** the first two write `demo:excerpt: app/Nope.php not found in fixtures/acme-shop` and
+  `demo:excerpt: app/Services not found in fixtures/acme-shop`, and the third
+  `demo:excerpt: app/Services/PriceCalculator.php has <n> lines` with the file's number of lines as
+  defined above, each with exit `1` and stdout empty
 
 #### Scenario: A malformed citation is a usage error
 
@@ -331,8 +375,10 @@ when no common command exists); a `powershell` block and a `bash` block SHALL al
 adjacent pair. No `shell` block SHALL contain `export `, `$env:`, `ask_api`, `sed `, `$?`, `&&`, `||`,
 `$(`, `make ` or a line ending in `\` or in a backtick. `Antes de empezar` SHALL say how to check that
 Docker is running (`docker info`), the Node version (`node -v`, 20.11 or later) and the Git version
-(`git --version`), what to do when port 5432 is taken (`POSTGRES_PORT` with the matching
-`DATABASE_URL`), and copy `.env` with the `shell` command `cp .env.example .env`; `Paso 0` SHALL start
+(`git --version`), how to recognise that port 5432 is taken (`docker compose` reports `port is
+already allocated` and `Paso 0` stops at its first step) and what to do then (`POSTGRES_PORT` with
+the matching `DATABASE_URL`, edited in `.env` with a text editor, not with a shell redirection), and
+copy `.env` with the `shell` command `cp .env.example .env`; `Paso 0` SHALL start
 the system with the `shell` command `npm run up`. The questions to the API SHALL be sent with
 `npm run demo:ask` and the excerpt of step 2 shown with `npm run demo:excerpt`.
 
@@ -361,7 +407,8 @@ branch, in PowerShell and in Bash.
 - **WHEN** the level-2 headings of `docs/DEMO.md` are read
 - **THEN** they include, in this order, `Antes de empezar`, seven headings starting `Paso 0 — ` to
   `Paso 6 — `, `Comprobar la instalación`, `Recorrido por la web` and `Parar el sistema`
-- **AND** `Antes de empezar` contains `docker info`, `node -v`, `git --version`, `POSTGRES_PORT` and a
+- **AND** `Antes de empezar` contains `docker info`, `node -v`, `git --version`, `POSTGRES_PORT`,
+  `port is already allocated` and a
   `shell` block holding `cp .env.example .env`, and `Paso 0` a `shell` block holding `npm run up`
 - **AND** a `shell` block holds `npm run demo:ask --` and another `npm run demo:excerpt --`
 
@@ -402,15 +449,21 @@ or the four guides to a section of one of the four guides SHALL point to a headi
 - **WHEN** every Markdown link of `readme.md`, `docs/project-context.md`, `docs/DEMO.md`,
   `docs/CONFIDENCE.md`, `docs/DEPLOYMENT.md` and `docs/TESTING.md` whose target is one of the four
   guides with a `#fragment`, or a bare `#fragment` inside one of the four guides, is resolved
-- **THEN** each fragment equals the GitHub anchor of a heading of the target document (lower case,
-  characters other than letters, digits, spaces, `-` and `_` removed, spaces turned into `-`)
+- **THEN** each fragment equals the GitHub anchor of a heading of the target document (heading and
+  fragment in NFC; lower case; characters other than Unicode letters `\p{L}`, digits `\p{N}`, spaces,
+  `-` and `_` removed; each space turned into `-`)
 
 #### Scenario: The guides are in Spanish and say that .env is read
 
 - **WHEN** `docs/DEPLOYMENT.md` and `docs/TESTING.md` are reviewed against their previous English
-  version, and `readme.md`, `docs/project-context.md` and `.env.example` are searched for `export
-  DATABASE_URL`, `do not read .env`, `no leen .env` and `Export it`
+  version, and `readme.md`, `docs/project-context.md`, `.env.example` and the four guides are
+  searched, case-insensitively and ignoring backticks, for `export DATABASE_URL`, `export (it|them)`,
+  `DATABASE_URL. exported`, `(do|does) not (read|load) .env`, `do not load`, `no (leen|cargan) .env`,
+  `npm scripts directly`, `PowerShell` and `make up`
 - **THEN** both guides are in Spanish with the same sections, figures, commands and output as before,
   `docs/DEPLOYMENT.md` gives `npm run up` / `npm run down` and `make up` / `make down` as described,
-  the integration tests' `DATABASE_URL` appears as a labelled `bash` / `powershell` pair, and no search
-  finds a sentence that is no longer true
+  the integration tests' `DATABASE_URL` appears as a labelled `bash` / `powershell` pair, and every
+  hit is reviewed: none is a sentence that is no longer true, and `make up` appears only as the Git
+  Bash/WSL alternative or in text that stays true because `make up` runs `npm run up`
+- **AND** `docs/project-context.md` lines 38, 62, 191, 227 and 1180–1181 (numbering of base `368dc38`)
+  say that the guide's npm scripts read `.env` and that `npm run up` starts the system in any shell

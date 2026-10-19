@@ -42,7 +42,7 @@ every evaluator step identical in PowerShell and Bash, no manual `export`/`$env:
   `fixtures/<project>`).
 - **`docs/DEMO.md` rewritten in Spanish and cross-shell** (C): a prerequisites step (Docker running,
   port 5432 free or how to move it, Node and Git versions, copying `.env` with the one line that works
-  in both shells), numbered short steps whose commands run as-is in PowerShell and Bash (labelled
+  in both shells), numbered steps in order whose commands run as-is in PowerShell and Bash (labelled
   variants side by side only where unavoidable), a web walkthrough of Screens 1 and 2 consistent with
   the wireframes and the real pages, and the real output of a clean-clone run in both shells (E).
 - **`docs/CONFIDENCE.md`, `docs/DEPLOYMENT.md`, `docs/TESTING.md` in Spanish** (D9, D10), meaning and
@@ -90,7 +90,7 @@ every evaluator step identical in PowerShell and Bash, no manual `export`/`$env:
 - Changed: root `package.json` (scripts `up`, `down`, `demo:ask`, `demo:excerpt`; the `.env` preload
   on the D4 scripts), `packages/api/package.json` (`dev`), `vitest.config.ts` (the suite's skip
   switch), `Makefile`, `docker-compose.yml`, `.env.example`, `docs/DEMO.md`, `docs/CONFIDENCE.md`,
-  `docs/DEPLOYMENT.md`, `docs/TESTING.md`, `readme.md` (§0, §1.3, §1.4), `docs/project-context.md`,
+  `docs/DEPLOYMENT.md`, `docs/TESTING.md`, `readme.md` (§0, §1.3, §1.4), `docs/project-context.md` (including the language exception of the four guides, design D18),
   `prompts.md`, `tests/unit/knowledge/confidence-doc.spec.ts` (follows the D9 delta).
 - Not changed: any other file under `packages/*/src` (the TSDoc that cites `docs/CONFIDENCE.md` names only
   the file, which keeps its name), `packages/api/dev-register.mjs`, fixtures, `seeds/`,
