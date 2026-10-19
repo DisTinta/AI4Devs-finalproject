@@ -92,6 +92,12 @@ a test nor a process a test starts reads the `.env` of whoever runs the suite.
 - **WHEN** the path the loader reads is computed
 - **THEN** it is the `.env` file of the repository root, the parent directory of `scripts/`
 
+#### Scenario: Any other value of the skip switch loads .env
+
+- **GIVEN** a file with `DATABASE_URL=from-file`
+- **WHEN** it is loaded into an environment whose `CODEMIND_SKIP_DOTENV` is `0`, `true`, empty or ` 1`
+- **THEN** each time `DATABASE_URL` becomes `from-file`
+
 #### Scenario: The test suite never reads .env
 
 - **WHEN** a test of the suite reads its environment
@@ -276,13 +282,14 @@ its `answer`, `reason` and, when present, `message`; for any other `2xx` respons
 a `statements` array, `{ statements: <its length>, evidence: <length of evidence, 0 when absent>,
 usage }` (`usage` as the body holds it, left out when the body has none); for any other response, the body as it came (JSON indented with two spaces when it parses, as
 text otherwise). It SHALL exit `0` for a `2xx` status and `1` for any other. It SHALL set no time
-limit on the request (a live model can take minutes on a CPU; Ctrl+C stops it). When the API cannot be reached it SHALL write
+limit on the request (a live model can take minutes on a CPU; Ctrl+C stops it): it SHALL send it with
+`node:http`, never with Node's `fetch`, which stops waiting after 300 s. When the API cannot be reached it SHALL write
 `demo:ask: the API is not reachable at http://127.0.0.1:<PORT> (start it with npm run up)` to stderr
 and exit `1`. When the status arrived but the body cannot be read (the connection dropped), it SHALL
 write `demo:ask: the answer of the API at http://127.0.0.1:<PORT> could not be read` to stderr, print
 nothing to stdout and exit `1`. With fewer or more than two arguments it SHALL write
 `usage: npm run demo:ask -- <projectId> "<question>"` to stderr and exit `2`, without sending any
-request.
+request; so SHALL a project id of `.` or `..`, which the URL would drop as a dot segment.
 
 #### Scenario: An answered question prints its status and summary
 
@@ -291,7 +298,8 @@ request.
 - **WHEN** `demo:ask` runs with `a794456d-6d1b-5b55-a360-13fec83dc7bc` and
   `¿Cómo se calcula el precio final de un pedido?`
 - **THEN** the server received one `POST /api/projects/a794456d-6d1b-5b55-a360-13fec83dc7bc/ask`
-  whose body, decoded as UTF-8 JSON, is `{"question":"¿Cómo se calcula el precio final de un pedido?"}`
+  with the header `content-type: application/json; charset=utf-8`, whose body, decoded as UTF-8 JSON,
+  is `{"question":"¿Cómo se calcula el precio final de un pedido?"}`
 - **AND** stdout is `HTTP 200`, a line break and `{ statements: 4, evidence: 4, usage }` as JSON
   indented with two spaces, and `demo:ask` exits `0`
 
@@ -329,9 +337,39 @@ request.
 - **AND** with `PORT=abc` in the injected environment, stderr is `demo:ask: PORT must be a port
   number`, no request was sent and `demo:ask` exits `2`
 
+#### Scenario: PORT is read as the API reads it
+
+- **GIVEN** a request double that records the address of every request
+- **WHEN** `demo:ask` runs with `PORT` unset, empty, `  `, ` 4000 `, `65535` and `1`, and then with `0`,
+  `65536`, `-1` and `3e3`
+- **THEN** the first six exit `0` and were sent to the ports `3000`, `3000`, `3000`, `4000`, `65535` and
+  `1`, and the last four exit `2` without any request
+
+#### Scenario: Only a 2xx answer is summarised
+
+- **GIVEN** a server answering `409` with `{"statements":[1,2],"error":{"code":"X"}}`, and another
+  answering `200` with `{"statements":[1],"evidence":[]}`
+- **WHEN** `demo:ask` runs against each
+- **THEN** the first prints `HTTP 409` and that body indented with two spaces and exits `1`, and the
+  second prints `HTTP 200` and `{ statements: 1, evidence: 0 }` (no `usage`) and exits `0`
+
+#### Scenario: A slow answer is waited for
+
+- **GIVEN** a server that answers `200` after a delay
+- **WHEN** `demo:ask` runs against it
+- **THEN** it prints `HTTP 200` and exits `0`
+- **AND** the source of `scripts/demo-ask.mjs` imports from `node:http` and does not call `fetch`
+
+#### Scenario: A dot project id is a usage error
+
+- **WHEN** `demo:ask` runs with the project id `.`, and then with `..`, and a question
+- **THEN** each time stderr is `usage: npm run demo:ask -- <projectId> "<question>"`, no request was
+  sent, and `demo:ask` exits `2`
+
 #### Scenario: An answer that cannot be read is reported
 
-- **GIVEN** a `fetch` whose response has status `200` and whose body cannot be read, and `PORT` set
+- **GIVEN** a request double whose response has status `200` and whose body cannot be read, and `PORT`
+  set
 - **WHEN** `demo:ask` runs with a project id and a question
 - **THEN** stderr is `demo:ask: the answer of the API at http://127.0.0.1:<PORT> could not be read`
   with that port, stdout is empty, and `demo:ask` exits `1`

@@ -390,7 +390,9 @@ Findings of `reports/2026-10-19-show-spec-working.md` (SSW) and `reports/2026-10
 - **D21. `npm_execpath` comes only from npm** (V-U1). `up` read `npm_execpath` after loading `.env`, so a
   `.env` line `npm_execpath=x.js` made `node scripts/up.mjs` run `x.js` at every npm step. It is now
   read before `.env` is loaded; an empty value counts as unset (spec sentence). New scenario "Up ignores
-  an npm_execpath of .env".
+  an npm_execpath of .env". This fixes *which npm* `up` runs; it is not a sandbox: `.env` is the
+  person's own file, and its values (`NODE_OPTIONS` included) reach every step by design, as `make up`
+  exported them before this change (Risks; AR11).
 - **D22. An answer whose body cannot be read is reported** (V-U2). `demo:ask` crashed with a stack trace
   when the connection dropped after the status line; it now writes `demo:ask: the answer of the API at
   http://127.0.0.1:<PORT> could not be read`, prints nothing to stdout and exits `1`. New scenario "An
@@ -404,6 +406,27 @@ Findings of `reports/2026-10-19-show-spec-working.md` (SSW) and `reports/2026-10
   started; "The demo guide has no Bash-only command" consumes each `powershell`/`bash` pair, so
   `bash, powershell, bash` fails. All three were green before and after the change of code: they now
   check what their scenario says.
+
+Findings of `reports/2026-10-19-adversarial-review.md` (AR), run 1:
+
+- **D23. `demo:ask` sends with `node:http`** (AR1, Major). The spec asks for no time limit, but Node's
+  `fetch` stops waiting for the headers or the body after 300 s (undici's `headersTimeout` /
+  `bodyTimeout`, as `packages/adapters/llm/src/config.ts` already notes), and `readme.md` measures a
+  live answer on a CPU at 3.5–9 min: past 300 s the helper said "the API is not reachable" while the API
+  was still working. Checked with a server that answers after 310 s: the `fetch` version exited `1`
+  after 307 s with that message; the `node:http` version waited and printed `HTTP 200`. The request
+  goes through `node:http` with `agent: false` (one connection, closed afterwards) and no timeout; the
+  injectable sender is renamed `send`. New scenario "A slow answer is waited for" (a delayed server
+  plus a source check that `fetch` is not used: a 300 s wait does not belong in the suite).
+- **A27. `.` and `..` are no project id** (AR10). The URL parser drops them as dot segments, so
+  `demo:ask -- .. "q"` reached `/api/ask`; they are now a usage error (exit `2`). New scenario "A dot
+  project id is a usage error".
+- **Tests for the sentences that had none** (AR2–AR6): "Any other value of the skip switch loads .env",
+  "PORT is read as the API reads it" (unset, blank, padded, `1`, `65535` accepted; `0`, `65536`, `-1`,
+  `3e3` refused), "Only a 2xx answer is summarised" (a `409` with `statements` is printed as it came; a
+  `200` without `usage` has no `usage` key); "An answered question prints its status and summary" now
+  asserts the `content-type` header the server received; the pairing check also requires no heading
+  between the two blocks of a pair.
 
 ## Risks / Trade-offs
 
@@ -426,6 +449,10 @@ Findings of `reports/2026-10-19-show-spec-working.md` (SSW) and `reports/2026-10
   it; `up` names the failing step and `docs/DEPLOYMENT.md` lists the requirement.
 - [A key in a developer's `.env` now reaches commands it did not reach before (`npm run cli` read
   only the shell)] → the same values `make up` already exported; the environment still wins.
+- [On Windows, `up` copies `process.env` into a plain object, so its "the environment wins" check is
+  case-sensitive there, while the preload's check on `process.env` is not (AR7)] → it matters only when
+  a shell variable and a `.env` key differ only in letter case; the product reads upper-case names and
+  `.env.example` uses them. Accepted.
 
 ## Migration Plan
 
@@ -456,4 +483,17 @@ destination (`docs/project-context.md` → Tracking deferred findings):
 | V-U7 | Question | `readme.md` changes beyond the spec (`OLLAMA_CONTEXT_LENGTH` pair, `POSTGRES_PORT` row, `scripts/` in the tree) | **D** — accepted: author decision (2) of DIS-102 (every evaluator step in both shells) and task 12.1 / D10 ask for them; documentation, not behaviour |
 | V-U8 | Question | The language-exception rule of `docs/project-context.md` has no spec requirement | **D** — accepted: a documentation-governance rule (D18), not product behaviour |
 | V-U9 | Question | Makefile comments rewritten in English | **D** — accepted: task 5.2; comments only |
+| AR1 | Major | `demo:ask` used `fetch`, which stops after 300 s, so a slow live answer was reported as "API not reachable" | **A** — fixed (D23): `node:http`, new scenario and test, checked with a 310 s server |
+| AR2 | Minor | Only the value `1` of `CODEMIND_SKIP_DOTENV` was tested | **A** — new scenario "Any other value of the skip switch loads .env" |
+| AR3 | Minor | `PORT` boundaries untested | **A** — new scenario "PORT is read as the API reads it" |
+| AR4 | Minor | The request header was not asserted | **A** — "An answered question prints its status and summary" asserts it |
+| AR5 | Minor | `usage` left out and the 2xx-only summary untested | **A** — new scenario "Only a 2xx answer is summarised" |
+| AR6 | Minor | The pairing check allowed a heading between the two blocks | **A** — test strengthened |
+| AR7 | Minor | On Windows `up`'s env copy makes the precedence check case-sensitive | **D** — accepted (Risks) |
+| AR8 | Minor | Spec edited after the fix commits; RED not visible in the history | **D** — process: every fix was seen RED first (messages quoted in the verify-against-spec and adversarial-review reports); the spec edits are in the same pre-merge pass |
+| AR9 | Minor | Stryker does not mutate `scripts/` | **D** — accepted (D16): tooling outside the product; the reviewers' mutation questions were answered with targeted tests (AR2–AR6) |
+| AR10 | Question | `.` / `..` as a project id dropped from the URL | **A** — fixed (A27): usage error, new scenario and test |
+| AR11 | Question | `NODE_OPTIONS` or `npm_config_*` in `.env` still reach the npm steps | **D** — accepted: `.env` is the person's own file and reaches every step by design (D21, Risks) |
+| AR12 | Question | Nothing checks the `.env.example` comment that says the two ports change together | **D** — accepted: the values are pinned by "The Postgres port follows POSTGRES_PORT"; the agent may not read `.env.example` (local deny rule), so the PR asks the author to confirm the comment's wording |
+| SEC | — | Inline security review (no agent tool in this step): no secret, route, query, dependency or personal data in the diff | **D** — nothing to fix (`reports/2026-10-19-adversarial-review.md` → Security review) |
 

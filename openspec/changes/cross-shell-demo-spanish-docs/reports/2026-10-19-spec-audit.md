@@ -877,3 +877,13 @@ cross-shell-demo-spanish-docs --strict` passes.
 
 No requirement was removed, and no scenario lost a clause: the edits refine the existing requirements
 (each new scenario has its test, named after it, in `tests/unit/scripts/`).
+
+### Second round — after `/adversarial-review` run 1
+
+| Requirement | Edit | Origin |
+|---|---|---|
+| Loading .env into a process | New scenario "Any other value of the skip switch loads .env" | AR2 |
+| The demo question helper | The request is sent with `node:http`, never with Node's `fetch` (300 s limit); `.` and `..` are no project id (usage error); "An answered question prints its status and summary" names the header; new scenarios "PORT is read as the API reads it", "Only a 2xx answer is summarised", "A slow answer is waited for", "A dot project id is a usage error"; the unreadable-body scenario speaks of a request double | AR1 (D23), AR10 (A27), AR3–AR5 |
+
+`openspec validate cross-shell-demo-spanish-docs --strict` passes; every scenario of the delta has its
+test by name except the four recorded checks.

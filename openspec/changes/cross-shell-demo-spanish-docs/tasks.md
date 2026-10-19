@@ -129,8 +129,8 @@
 - [ ] 19.1 Open the pull request against `feature/entrega-2-CRN` (authorised by ADR `20261016-autonomous-workflow-run-entrega-2`; cited by branch and name if it is not yet in the base branch; `gh` on the DisTinta account)
 - [ ] 19.2 Set DIS-102 to In Review in Linear with a comment in Spanish linking the PR and the change
 - [ ] 19.3 Confirm the PR's CI is green (`quality`, `verify`, `mutation`, `secrets`, `Frontend`); link the run in an addendum to the step 14 report
-- [ ] 19.4 Run `/show-spec-working` (may reuse the step 15 and 16 evidence and screenshots); report `openspec/changes/cross-shell-demo-spanish-docs/reports/YYYY-MM-DD-show-spec-working.md`
-- [ ] 19.5 Run `/verify-against-spec`; report `openspec/changes/cross-shell-demo-spanish-docs/reports/YYYY-MM-DD-verify-against-spec.md`
+- [x] 19.4 Run `/show-spec-working` (may reuse the step 15 and 16 evidence and screenshots); report `openspec/changes/cross-shell-demo-spanish-docs/reports/YYYY-MM-DD-show-spec-working.md`
+- [x] 19.5 Run `/verify-against-spec`; report `openspec/changes/cross-shell-demo-spanish-docs/reports/YYYY-MM-DD-verify-against-spec.md`
 - [ ] 19.6 Run `/adversarial-review`; report `openspec/changes/cross-shell-demo-spanish-docs/reports/YYYY-MM-DD-adversarial-review.md`
 - [ ] 19.7 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report
 - [ ] 19.8 Commit the fixes to the same pull request; re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
