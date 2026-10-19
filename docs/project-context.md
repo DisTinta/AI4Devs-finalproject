@@ -91,8 +91,21 @@ Verified against `package.json` (root and per package). If a command is not here
   questions of `seeds/cache/<project>.json`, in order, so in evaluation mode each one is answered from
   the cache. Regenerating the golden answers with other questions means updating that constant. The
   answer renders back-quoted fragments as `code` and everything else as text (no Markdown, no
-  `dangerouslySetInnerHTML`); `UNKNOWN`, API errors and an unavailable API show a provisional notice
-  (`components/AskFallbackNotice.tsx`) until DIS-66 adds the usage panel and the final states.
+  `dangerouslySetInnerHTML`).
+- Screen 2 states (DIS-66): after the evidence, `components/UsagePanel.tsx` (a region named by a visually
+  hidden `h2` «Uso»: confidence, input + output tokens, cost, latency, the savings and cache badges and
+  the line «<baseline> tokens sin selección de contexto → <input tokens> con CODEMIND»). An `UNKNOWN`
+  shows `components/UnknownState.tsx` (one sentence per reason, «Motivo: <reason>», muted) or, for
+  `llm-required`, `components/LlmRequiredNotice.tsx` (accent; how to set `LLM_*`, the API's message as
+  text); every failure shows `components/AskErrorNotice.tsx` (`role="alert"`, warning colours, chosen by
+  the API's error code: budget with its UTC reset time, rate limit with its wait, the known codes, the
+  code line, or «La API de CODEMIND no responde.»). The figures and the notice lines are pure functions in
+  `components/usage-display.ts` and `components/notice-display.ts` (no `Intl`; `notice-display.ts`
+  owns the `AskFailure` type). `AskPage` renders one persistent, visually hidden `role="status"`
+  region whose text follows the state (empty, «Buscando evidencia…», «Respuesta recibida.», «Sin respuesta
+  verificada.», «Hace falta un modelo de lenguaje.», empty after an alert); the visible pending text is
+  `aria-hidden`. A repeated invalid send re-mounts the box's alert (keyed by a send counter) so it is
+  announced again. No state adds a tab stop or moves the focus.
 - Accessibility gate: `npm run test:a11y` (root) = `vitest run tests/a11y` — axe over the real routes
   (see Testing).
 - Tests (full): `npm test` or `npx vitest run` (root `vitest.config.ts`). `fixtures/**` is excluded

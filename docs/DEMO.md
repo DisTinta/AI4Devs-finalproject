@@ -288,8 +288,12 @@ of them).
 > proyecto» opens Screen 2 (DIS-65): the three suggested questions are the golden ones, so in
 > evaluation mode each is answered from the cache with its statements marked «HECHO»/«INFERIDO» and
 > «verificado»/«sin verificar»; each evidence («ev-1 · app/Services/PriceCalculator.php:16-44») expands
-> with a click, Enter or Space to the same excerpt the API returned here. A free question in evaluation
-> mode shows «Sin respuesta verificada (motivo: llm-required).» until DIS-66 adds its final notice.
+> with a click, Enter or Space to the same excerpt the API returned here. Under the evidence, the usage
+> panel (DIS-66) shows «Confianza», the tokens, «$0», the latency in milliseconds, «ahorro 100 % vs
+> bruto», «caché ✓» and the baseline line: in evaluation mode every suggested question is a cache hit. A
+> free question in evaluation mode shows the notice «Hace falta un modelo de lenguaje» with the API's
+> own message; a question that names nothing in the code shows «Sin respuesta verificada» with its
+> reason (`no-anchor`).
 
 ## Step 3 — Ask something the repository cannot answer
 

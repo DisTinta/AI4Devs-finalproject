@@ -288,6 +288,36 @@ frontend-standards §2–§3. `notice-display.ts` declares and exports `AskFailu
 the status text of a state (`announcementOf`) is a local pure function of `AskPage.tsx`, the owner of the
 region. No component module imports from `pages/` once `AskFallbackNotice.tsx` is deleted.
 
+### D33 — The savings badge decides on the rounded value (taken while implementing)
+
+`savingsBadge` rounds first (D28) and shows a saving only when the rounded value is greater than 0, so a
+value such as 0.04 or −0.04 reads «sin ahorro vs bruto» instead of «ahorro 0 % vs bruto». The API already
+rounds to one decimal, so this agrees with the spec table for every value it sends; it only closes the
+gap the scenario "No saving is not shown as a saving" forbids («ahorro 0»).
+
+### D34 — A reset time must exist on the calendar (taken while implementing)
+
+V8's `Date.parse` rolls «2026-02-30T00:00:00Z» over to 2 March and «T24:00» to the next day. The spec asks
+for a form «that denotes a real instant», so `resetTimeOf` also checks month 1–12, the day against the
+days of that month and the hour 0–23 before parsing; minutes, seconds and the offset are left to
+`Date.parse`, which already rejects 60 and `+25:00`.
+
+### D35 — The RED of the new axe scans is structural, not a colour (taken while implementing)
+
+Tasks 9.2 and 9.3 planned to see axe fail on a non-theme light grey. axe in jsdom computes no layout nor
+styles, so `color-contrast` is reported as incomplete, never as a violation — even with an inline style
+(frontend-standards §4, "How test:a11y is wired"). The `llm-required` scan was therefore seen failing with
+a structural break axe does detect in jsdom (`role="list"` on a paragraph of the notice →
+`aria-required-children`), and the 9.3 negative control (the usage section without its name, or named by
+a missing id) fails on the named-region check of the scan. Contrast stays covered by `theme.test.ts` and
+the manual browser pass.
+
+### D36 — The pending scan waits for the visible text by its hidden mark (taken while implementing)
+
+After D22 two elements hold «Buscando evidencia…» (the status region and the visible text), so the a11y
+scan waits with `findByText(…, { selector: '[aria-hidden="true"]' })`: the visible text, as task 5.3
+asks, without matching the status region.
+
 ## Risks / Trade-offs
 
 - [Screen readers differ in how they announce a persistent status region] → the region exists from the
