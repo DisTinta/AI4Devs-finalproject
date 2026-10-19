@@ -99,9 +99,12 @@ process.stderr)` and exports nothing else of its own. The skip switch (D12) is r
 
 ### D4. Which commands load `.env`
 
-The seven root scripts become `tsx --import ./scripts/load-env.mjs <today's arguments>`: `tsx`
+The seven root scripts become `tsx --import=./scripts/load-env.mjs <today's arguments>`: `tsx`
 forwards Node's `--import` (checked on tsx 4.23.13 during the propose: a preload set a variable the
-program read), and the child process tsx starts inherits the loaded environment. The API's `dev`
+program read), and the child process tsx starts inherits the loaded environment. The flag is written
+as one token with `=` (A24): with the space form, tsx 4.23.13 forwards the `--tsconfig` that follows
+to Node, which stops with `bad option: --tsconfig` (exit `9`; found during the apply on
+`npm run verify`). The API's `dev`
 becomes `node --watch --import ../../scripts/load-env.mjs --import ./dev-register.mjs src/server.ts`:
 a separate preload, so `dev-register.mjs` and the test that spawns it directly stay as they are; with
 `--watch`, each restart loads `.env` again. `up` and `demo:ask` do not rely on the preload's side
@@ -347,6 +350,14 @@ reads that line before applying the English rule.
 - **A22.** `runUp`'s default `cwd` is the root resolved from the module.
 - **A23.** `DOTENV_PATH` lives in `scripts/env.mjs`; `up` and `demo:ask` import it from there, so the
   warning of an unreadable `.env` is printed once (instead of accepting a double warning).
+
+### Apply amendments (2026-10-19, agent's decisions during `/opsx:apply`)
+
+- **A24.** The seven root scripts preload with `--import=./scripts/load-env.mjs` (one token), not
+  `--import ./scripts/load-env.mjs`: tsx 4.23.13 then forwarded `--tsconfig packages/cli/tsconfig.run.json`
+  to Node (`node.exe: bad option: --tsconfig`, exit `9`). The `=` form runs every script (checked with
+  `npm run verify`); the spec scenario "The guide's scripts load .env and the quality scripts do not"
+  pins it (D4).
 
 ## Risks / Trade-offs
 

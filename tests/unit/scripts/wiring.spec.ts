@@ -95,7 +95,7 @@ describe('Which commands load .env', () => {
 
     // Assert: the guide's scripts preload .env and keep their program and arguments
     for (const [name, today] of Object.entries(PRELOADED)) {
-      expect(root.scripts[name], name).toBe(today.replace(/^tsx /, 'tsx --import ./scripts/load-env.mjs '));
+      expect(root.scripts[name], name).toBe(today.replace(/^tsx /, 'tsx --import=./scripts/load-env.mjs '));
     }
     expect(api.scripts.dev).toBe(
       'node --watch --import ../../scripts/load-env.mjs --import ./dev-register.mjs src/server.ts',

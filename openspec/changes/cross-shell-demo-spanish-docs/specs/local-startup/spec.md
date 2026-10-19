@@ -110,7 +110,7 @@ warning at most once per process.
 
 - **WHEN** the root `package.json` and `packages/api/package.json` are read as JSON
 - **THEN** each of `cli`, `verify`, `db:migrate`, `db:rollback`, `db:seed`, `cache:build` and
-  `seed:build` is `tsx --import ./scripts/load-env.mjs` followed by the program and arguments it has
+  `seed:build` is `tsx --import=./scripts/load-env.mjs` followed by the program and arguments it has
   today
 - **AND** the API's `dev` is `node --watch --import ../../scripts/load-env.mjs --import ./dev-register.mjs src/server.ts`
 - **AND** `up` is `node scripts/up.mjs`, `demo:ask` is `node scripts/demo-ask.mjs` and `demo:excerpt`
