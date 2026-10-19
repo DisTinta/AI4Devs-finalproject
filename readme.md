@@ -656,8 +656,9 @@ AI4Devs-finalproject/
 │   └── e2e/                        #   vacío: el E2E con Playwright es de la Entrega 3
 │
 ├── .github/workflows/              # ci.yml · frontend.yml · claude-auto-review.yml · claude-interactive.yml
+├── scripts/                        # npm run up · demo:ask · demo:excerpt y la carga de .env (solo módulos de Node)
 ├── docker-compose.yml              # solo PostgreSQL 16 + pgvector (no hay Dockerfile)
-├── Makefile
+├── Makefile                        # atajos de npm run up / npm run down para Git Bash o WSL
 ├── stryker.config.json             # pruebas de mutación, umbral 80
 ├── .gitignore · .gitattributes · .gitleaks.toml · .gitleaksignore
 ├── readme.md

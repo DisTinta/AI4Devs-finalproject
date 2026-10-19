@@ -116,9 +116,9 @@
 
 ## 17. Update Technical Documentation (MANDATORY)
 
-- [ ] 17.1 Recorded check "The guides are in Spanish and say that .env is read": review `docs/DEPLOYMENT.md` and `docs/TESTING.md` against their English version at the base commit (`git show 368dc38:docs/…`) section by section (same sections, figures, commands, output), and run the searches of the scenario (case-insensitive, backticks ignored) over `readme.md`, `docs/project-context.md`, the four guides and `.env.example` (counts only for `.env.example`), reviewing every hit; record the result in the step 14 report as an addendum
-- [ ] 17.2 No ADR: the decisions are reversible and local to the start-up tooling (design D2–D18); confirm with the `adr-new` criteria and record "not warranted" in the step 14 report
-- [ ] 17.3 Run `/update-docs` (with the D18 language exception of `docs/project-context.md` in force) and confirm the docs gate passes. Add the relevant AI prompts of DIS-102 to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
+- [x] 17.1 Recorded check "The guides are in Spanish and say that .env is read": review `docs/DEPLOYMENT.md` and `docs/TESTING.md` against their English version at the base commit (`git show 368dc38:docs/…`) section by section (same sections, figures, commands, output), and run the searches of the scenario (case-insensitive, backticks ignored) over `readme.md`, `docs/project-context.md`, the four guides and `.env.example` (counts only for `.env.example`), reviewing every hit; record the result in the step 14 report as an addendum
+- [x] 17.2 No ADR: the decisions are reversible and local to the start-up tooling (design D2–D18); confirm with the `adr-new` criteria and record "not warranted" in the step 14 report
+- [x] 17.3 Run `/update-docs` (with the D18 language exception of `docs/project-context.md` in force) and confirm the docs gate passes. Add the relevant AI prompts of DIS-102 to `prompts.md` per `docs/project-context.md` → prompts.md rules, with its Índice entry in the same edit
 
 ## 18. Pull request preparation
 
