@@ -11,7 +11,7 @@ Proyecto Final del Máster AI4Devs · Cristina Rodríguez Núñez
 > Este documento corresponde a la **Entrega 2 — código funcional** (22 de octubre de 2026). Describe el sistema tal como está en la rama `feature/entrega-2-CRN`, y marca como *Entrega 3* lo que todavía no existe.
 >
 > - **Entrega 1** (24 de septiembre): documentación técnica.
-> - **Entrega 2** (22 de octubre): flujo principal operativo por CLI y API — indexar un repositorio PHP/Laravel, preguntar con evidencia verificada, confianza calculada, uso y coste por consulta, caché de respuestas y `npm run verify` — y el andamiaje de la web.
+> - **Entrega 2** (22 de octubre): flujo principal operativo por CLI y API — indexar un repositorio PHP/Laravel, preguntar con evidencia verificada, confianza calculada, uso y coste por consulta, caché de respuestas y `npm run verify` — y la web con las pantallas 1 (selección de proyecto) y 2 (consulta).
 > - **Entrega 3** (12 de noviembre): pantallas web completas, análisis de impacto, analizador TypeScript, mediciones publicadas y despliegue reproducible cerrado.
 >
 > Las secciones marcadas con *(pendiente)* se completarán en la entrega que indican. La sección 7 recoge las pull requests reales de esta entrega, y la [sección 8](#8-flujo-de-trabajo-con-ia-y-sdd-harness-kit) el flujo de trabajo con IA con el que se han hecho.
@@ -173,16 +173,16 @@ Los wireframes de las tres pantallas muestran el flujo completo del producto. La
 
 > **Decisión (5 sep 2026).** Se eliminó la demo alojada de esta lista. La evidencia queda acotada a local + DEMO.md + verify.
 
-**Estado de la web en la Entrega 2.** Los wireframes se mantienen como referencia visual y de textos de la web, pero la web todavía no los cubre:
+**Estado de la web en la Entrega 2.** Los wireframes se mantienen como referencia visual y de textos de la web. La web ya cubre las pantallas 1 y 2; la 3 es de la Entrega 3:
 
 | Pieza | Estado |
 |---|---|
 | Andamiaje web: Tailwind con los colores de los wireframes, rutas, cliente tipado de la API, puerta de accesibilidad `test:a11y` | Fusionado (DIS-58, PR #53) |
-| Pantalla 1 — tarjetas de los proyectos de muestra desde `data/sample-projects.ts`, aviso de API caída y pantalla de error | En el PR #54 (DIS-60), con CI en verde, a la espera del merge de la autora |
-| Pantalla 2 — consulta, respuesta con distintivos y panel de uso (DIS-65, DIS-66) | Sin empezar: depende de la Pantalla 1 |
+| Pantalla 1 — tarjetas de los proyectos de muestra desde `data/sample-projects.ts`, aviso de API caída y pantalla de error | Fusionado (DIS-60, PR #54) |
+| Pantalla 2 — pregunta, preguntas sugeridas (las *golden*), afirmaciones tipadas con distintivos de tipo y de verificación, evidencia desplegable, panel de uso (confianza, tokens, coste, latencia, ahorro y caché), estados `UNKNOWN` y avisos de `429` y de error | Fusionado (DIS-65, PR #56; DIS-66, PR #57) |
 | Pantalla 3 — impacto | Entrega 3 (la CLI `impact` es un stub) |
 
-Hasta entonces, el recorrido de abajo se hace por la CLI: [`docs/DEMO.md`](docs/DEMO.md) ejecuta los seis pasos contra `acme-shop` y dice, en cada uno, qué hace hoy el sistema.
+Con `npm run dev` (web en http://localhost:5173), los pasos 1 a 3 del recorrido de abajo se hacen ya en el navegador; el 4 (impacto) y el 6 (`task-api`) siguen siendo de la Entrega 3. [`docs/DEMO.md`](docs/DEMO.md) ejecuta los seis pasos por la CLI contra `acme-shop` y dice, en cada uno, qué hace hoy el sistema.
 
 #### Las tres pantallas
 
@@ -539,7 +539,7 @@ flowchart TB
 |---|---|---|
 | CLI | TypeScript + `commander` | `index`, `ask`, `impact`, `projects`; `drift` **previsto** (F6) |
 | API | Node 20 + **Fastify** 5 + Zod | `POST /api/projects/{projectId}/ask` y `GET /health`, validación por esquema, OpenAPI generado en `/docs` (DIS-76, DIS-78); `/impact` en la Entrega 3 |
-| Web | React 18 + TypeScript + **Vite** + Tailwind | Andamiaje, rutas y cliente tipado (DIS-58); selección de proyecto en el PR #54; consulta e impacto pendientes |
+| Web | React 18 + TypeScript + **Vite** + Tailwind | Andamiaje, rutas y cliente tipado (DIS-58); selección de proyecto (DIS-60) y consulta con panel de uso y estados (DIS-65, DIS-66); impacto en la Entrega 3 |
 | Orquestador | TypeScript | Clasifica intención, coordina el bucle, aplica política de seguridad |
 | **Analizador PHP** | **Tree-sitter** (`tree-sitter-php`) + reglas Laravel | Ficheros, clases, métodos, rutas, spans, llamadas |
 | **Analizador TypeScript** | **TypeScript Compiler API** / `ts-morph` | Lo mismo, con referencias resueltas por el compilador |
@@ -586,7 +586,7 @@ AI4Devs-finalproject/
 │   │
 │   ├── api/                        # Fastify: /ask, /health, /docs, errores, límite por IP
 │   ├── cli/                        # projects · index · ask · impact (stub) · db:seed · cache:build · verify
-│   └── web/                        # React + Vite + Tailwind: rutas, cliente tipado, Pantalla 1 en curso
+│   └── web/                        # React + Vite + Tailwind: rutas, cliente tipado, Pantallas 1 y 2
 │
 ├── fixtures/                       # los 2 repositorios de muestra
 │   ├── acme-shop/                  #   Laravel 11, con drift plantado — en la semilla
@@ -614,8 +614,8 @@ AI4Devs-finalproject/
 │
 ├── ai-specs/                       # harness: 29 skills, 9 subagentes y plantillas (fuente canónica)
 ├── openspec/
-│   ├── specs/                      # 24 capacidades vigentes
-│   └── changes/archive/            # 41 changes archivados, cada uno con sus informes en reports/
+│   ├── specs/                      # 26 capacidades vigentes
+│   └── changes/archive/            # 44 changes archivados, cada uno con sus informes en reports/
 ├── .claude/                        # referencias a ai-specs, comandos /opsx:*, 10 hooks + invoke.cjs + lib.sh
 ├── .cursor/                        # las mismas referencias y reglas para Cursor
 ├── .mcp.json                       # MCP del proyecto: Context7, Playwright y Linear
@@ -810,11 +810,11 @@ Los tests forman parte de la **definición de hecho de cada ticket**, no de una 
 | Integración | Vitest + PostgreSQL en contenedor | Indexado de `acme-shop`, travesía del grafo, `/ask` y `/health`, migraciones reversibles, git real en repositorios temporales |
 | Accesibilidad | axe-core + jsdom (`npm run test:a11y`) | Cada ruta de la web sin violaciones de axe (DIS-58) |
 | **Mutación** | **Stryker** | Que los tests detecten cambios en el código de los caminos críticos; umbral de rotura 80 |
-| **E2E** | **Playwright** | *(pendiente, Entrega 3)*: el flujo elegir proyecto → preguntar → evidencia y coste, y el caso `UNKNOWN`, cuando existan las pantallas |
+| **E2E** | **Playwright** | *(pendiente, Entrega 3)*: el flujo elegir proyecto → preguntar → evidencia y coste, y el caso `UNKNOWN`, sobre las pantallas 1 y 2 ya construidas |
 | **Prueba de humo** | `npm run verify` | Cada golden de `acme-shop` comparada por estructura con la respuesta servida, sin LLM (DIS-44) |
 | Estáticos | ESLint + `tsc --noEmit` | En CI |
 
-**Estado medido (19-10-2026).** `npx vitest run` en local, sin `DATABASE_URL`: 143 ficheros de test, **1 353 tests pasan** y 221 se saltan (los de integración, que necesitan base de datos; en CI corren con PostgreSQL). Último job `mutation` en `feature/entrega-2-CRN` (ejecución completa tras el merge del PR #53, 18-10-2026): **95,94 %** (5 546 mutantes eliminados, 54 por tiempo, 176 supervivientes y 61 sin cobertura).
+**Estado medido (19-10-2026).** `npx vitest run` en local, sin `DATABASE_URL`: 153 ficheros de test, **1 415 tests pasan** y 221 se saltan (los de integración, que necesitan base de datos; en CI corren con PostgreSQL). Último job `mutation` en `feature/entrega-2-CRN` (ejecución completa tras el merge del PR #56, 19-10-2026): **95,94 %** (5 549 mutantes eliminados, 51 por tiempo, 176 supervivientes y 61 sin cobertura).
 
 **`npm run verify` cumple una función doble:** es un test de integración en CI **y** el mecanismo por el que alguien externo comprueba que su instalación local reproduce lo documentado. Los wireframes de [1.3](#13-diseño-y-experiencia-de-usuario) muestran el diseño de las pantallas, no el sistema en marcha, y no se aporta vídeo: **la evidencia de funcionamiento es ejecutable**, y esta es la pieza que la hace comprobable en un solo comando.
 
@@ -1506,7 +1506,7 @@ Crear el esquema de PostgreSQL con pgvector, los índices para travesía del gra
 
 ## 7. Pull Requests
 
-Las pull requests de la Entrega 2 se abren contra la rama de entrega `feature/entrega-2-CRN` y se fusionan con *merge commit*, con CI en verde y solo después del commit de `/opsx:archive` del change. A 19-10-2026 hay **52 fusionadas** (`gh pr list --base feature/entrega-2-CRN --state merged`) y una abierta, la #54. Cada una lleva su ticket `DIS-n` en el título y en la rama y, si cambia comportamiento, su change de OpenSpec archivado en `openspec/changes/archive/` con los informes de revisión en `reports/`. Las descripciones están en español y las genera `/pr-describe` ([8.2](#82-el-flujo-completo)).
+Las pull requests de la Entrega 2 se abren contra la rama de entrega `feature/entrega-2-CRN` y se fusionan con *merge commit*, con CI en verde y solo después del commit de `/opsx:archive` del change. A 19-10-2026 hay **55 fusionadas** (`gh pr list --base feature/entrega-2-CRN --state merged`) y una abierta, la #55 de este readme (DIS-101). Cada una lleva su ticket `DIS-n` en el título y en la rama y, si cambia comportamiento, su change de OpenSpec archivado en `openspec/changes/archive/` con los informes de revisión en `reports/`. Las descripciones están en español y las genera `/pr-describe` ([8.2](#82-el-flujo-completo)).
 
 La Entrega 1 anunció tres candidatas: esquema y analizador PHP, el flujo `explain` completo con web mínima, y el analizador TypeScript. El trabajo se partió en PR mucho más pequeñas, así que aquí se destacan **tres PR concretas, una por área**. La del analizador TypeScript sigue siendo de la Entrega 3, y mantiene su promesa: su descripción llevará el `git diff --stat` que demuestre que no toca `packages/core`.
 
@@ -1520,12 +1520,12 @@ La confianza deja de ser un número del modelo y pasa a ser una función pura de
 
 ### PR 3 · Frontend — [#53](https://github.com/DisTinta/AI4Devs-finalproject/pull/53) `feat(DIS-58): andamiaje del cliente web (Tailwind, router, cliente API tipado y gate de accesibilidad)`
 
-El andamiaje de la web: tema de Tailwind con los colores de los wireframes y un test de contraste, rutas con React Router, un cliente tipado de la API con su modelo de errores y un test que falla si los tipos del cliente se separan de los esquemas de la API, y `test:a11y` como puerta real con axe sobre cada ruta. La hizo el workflow autónomo y la fusionó él mismo ([8.6](#86-experimento-workflow-autónomo-en-las-últimas-tareas-de-la-entrega-2)). La Pantalla 1, que se monta encima, está en el PR #54 a la espera del merge.
+El andamiaje de la web: tema de Tailwind con los colores de los wireframes y un test de contraste, rutas con React Router, un cliente tipado de la API con su modelo de errores y un test que falla si los tipos del cliente se separan de los esquemas de la API, y `test:a11y` como puerta real con axe sobre cada ruta. La hizo el workflow autónomo y la fusionó él mismo ([8.6](#86-experimento-workflow-autónomo-en-las-últimas-tareas-de-la-entrega-2)). Encima se montaron la Pantalla 1 (DIS-60, #54) y la Pantalla 2 (DIS-65, #56, y DIS-66, #57), también del workflow.
 
 ### Todas las PR de la Entrega 2
 
 <details>
-<summary>52 PR fusionadas y 1 abierta (desplegar)</summary>
+<summary>55 PR fusionadas y 1 abierta (desplegar)</summary>
 
 | PR | Ticket | Change de OpenSpec | Contenido |
 |---|---|---|---|
@@ -1577,7 +1577,10 @@ El andamiaje de la web: tema de Tailwind con los colores de los wireframes y un 
 | [#51](https://github.com/DisTinta/AI4Devs-finalproject/pull/51) | DIS-44 | `verify-smoke` | `npm run verify` real |
 | [#52](https://github.com/DisTinta/AI4Devs-finalproject/pull/52) | DIS-45 | flujo ligero | `DEMO.md`, `DEPLOYMENT.md` y `TESTING.md` con salida real |
 | [#53](https://github.com/DisTinta/AI4Devs-finalproject/pull/53) | DIS-58 | `web-foundation` | Andamiaje web |
-| [#54](https://github.com/DisTinta/AI4Devs-finalproject/pull/54) (abierta) | DIS-60 | `project-picker` | Pantalla 1 |
+| [#54](https://github.com/DisTinta/AI4Devs-finalproject/pull/54) | DIS-60 | `project-picker` | Pantalla 1 |
+| [#56](https://github.com/DisTinta/AI4Devs-finalproject/pull/56) | DIS-65 | `ask-page` | Pantalla 2: pregunta, sugeridas, afirmaciones tipadas y evidencia |
+| [#57](https://github.com/DisTinta/AI4Devs-finalproject/pull/57) | DIS-66 | `ask-page-states` | Pantalla 2: panel de uso y estados `UNKNOWN`, `429` y error |
+| [#55](https://github.com/DisTinta/AI4Devs-finalproject/pull/55) (abierta) | DIS-101 | flujo ligero | Este readme y el experimento del workflow |
 
 </details>
 
@@ -1689,11 +1692,11 @@ Calculadas del repositorio el 19-10-2026, no estimadas:
 
 | Cifra | Valor | Cómo se calcula |
 |---|---|---|
-| Changes de OpenSpec archivados | **41** | Carpetas en `openspec/changes/archive/` |
-| Capacidades con spec vigente | 24 | Carpetas en `openspec/specs/` |
-| Informes de revisión y verificación | **249** | Ficheros en `openspec/changes/archive/*/reports/` |
-| Tests | **1 353** pasan, 221 se saltan sin base de datos, 143 ficheros | `npx vitest run` en local, sin `DATABASE_URL` |
-| Mutation score | **95,94 %** | Último job `mutation` de CI en `feature/entrega-2-CRN` (completo, tras el merge del PR #53) |
+| Changes de OpenSpec archivados | **44** | Carpetas en `openspec/changes/archive/` |
+| Capacidades con spec vigente | 26 | Carpetas en `openspec/specs/` |
+| Informes de revisión y verificación | **323** | Ficheros en `openspec/changes/archive/*/reports/` |
+| Tests | **1 415** pasan, 221 se saltan sin base de datos, 153 ficheros | `npx vitest run` en local, sin `DATABASE_URL` |
+| Mutation score | **95,94 %** | Último job `mutation` de CI en `feature/entrega-2-CRN` (completo, tras el merge del PR #56) |
 | ADR | 9 | `docs/adr/` sin `README.md` ni `_template.md` |
 | Sesiones de IA registradas | 8 | Ficheros en `docs/ai-sessions/` |
 | PR fusionadas | **52** | `gh pr list --base feature/entrega-2-CRN --state merged` |
@@ -1725,30 +1728,31 @@ DIS-34, la revisión de las respuestas *golden*, se hizo en **modo híbrido**: e
 | DIS-44 | Tanda 1 | Cerrado | [#51](https://github.com/DisTinta/AI4Devs-finalproject/pull/51) | La autora: denegado | 3 h 33 min | 6 + 1 de bloqueo |
 | DIS-45 | Lanzado solo, 17-10 | Cerrado | [#52](https://github.com/DisTinta/AI4Devs-finalproject/pull/52) | La autora: denegado | 1 h 47 min | 6 + 1 de bloqueo |
 | DIS-58 | Lanzado solo, 17-10 → 18-10 | Cerrado | [#53](https://github.com/DisTinta/AI4Devs-finalproject/pull/53) | El workflow | 20 h 37 min, de ellas unas 10,5 h parado de noche esperando una confirmación | 6 |
-| DIS-60 | Tanda 2, 18-10 | **Bloqueado**: PR listo, con CI en verde y el archivo hecho | [#54](https://github.com/DisTinta/AI4Devs-finalproject/pull/54), abierto | Pendiente de la autora: denegado | 1 h 36 min, más 3 h 08 min de espera | 6 + 20 de espera + 1 de bloqueo |
-| DIS-65, DIS-66 | Tanda 2 | **No lanzados**: dependen de DIS-60 | — | — | — | 0 |
-| DIS-101 | Tanda 2, 18-10 → 19-10 | Esta tarea, de documentación | — | — | En curso al redactar | — |
+| DIS-60 | Tanda 2, 18-10 | Cerrado | [#54](https://github.com/DisTinta/AI4Devs-finalproject/pull/54) | La autora, el 19-10: denegado | 1 h 36 min, más 3 h 08 min de espera | 6 + 20 de espera + 1 de bloqueo |
+| DIS-101 | Tanda 2, 18-10 → 19-10 | **En revisión**: este readme, de documentación | [#55](https://github.com/DisTinta/AI4Devs-finalproject/pull/55), abierto | Pendiente de la autora: denegado | 1 h 06 min, más 3 h 06 min de espera | 6 + 20 de espera + 1 de bloqueo |
+| DIS-65 | Tanda 3, 19-10 | Cerrado | [#56](https://github.com/DisTinta/AI4Devs-finalproject/pull/56) | La autora: denegado | 2 h 00 min, más 28 min de espera | 6 + 3 de espera |
+| DIS-66 | Tanda 3, 19-10 | Cerrado | [#57](https://github.com/DisTinta/AI4Devs-finalproject/pull/57) | El workflow | 2 h 11 min | 6 |
 
-DIS-45 no entró en la tanda 1: cuando el merge de DIS-44 se bloqueó, el script saltó sus dependientes para no construir sobre algo sin fusionar, y nada lo volvió a lanzar tras el merge de la autora. Por eso se lanzó aparte, igual que DIS-58, que se adelantó la noche del 17-10 con el visto bueno de la autora.
+DIS-45 no entró en la tanda 1: cuando el merge de DIS-44 se bloqueó, el script saltó sus dependientes para no construir sobre algo sin fusionar, y nada lo volvió a lanzar tras el merge de la autora. Por eso se lanzó aparte, igual que DIS-58, que se adelantó la noche del 17-10 con el visto bueno de la autora. DIS-65 y DIS-66 dependían de DIS-60, así que la tanda 2 los saltó; la autora los lanzó en una tanda 3 la mañana del 19-10, nada más fusionar el #54.
 
-**La intervención real de la autora** fue más que la firma de DIS-34: fusionó a mano los cuatro PR que el clasificador denegó (#45, #49, #51 y #52; el #54 espera) y el #50 de las firmas; añadió tras el piloto una regla de permiso para `gh pr merge`; aplicó en Windows Defender la exclusión de un falso positivo; y desactivó en local, para el resto de la ejecución, la confirmación de instalación de dependencias tras la parada de DIS-58. Cada una de esas intervenciones es una de las lecciones de abajo.
+**La intervención real de la autora** fue más que la firma de DIS-34: fusionó a mano los seis PR que el clasificador denegó (#45, #49, #51, #52, #54 y #56; el #55 de este readme espera) y el #50 de las firmas; lanzó la tanda 3 tras el merge del #54; añadió tras el piloto una regla de permiso para `gh pr merge`; aplicó en Windows Defender la exclusión de un falso positivo; y desactivó en local, para el resto de la ejecución, la confirmación de instalación de dependencias tras la parada de DIS-58. Cada una de esas intervenciones es una de las lecciones de abajo.
 
 **Coste en tokens.** Las cifras salen de un script que suma el uso de los registros de sesión de Claude Code del proyecto por la rama `DIS-n` en la que se trabajó, ejecutado el 19-10-2026 sobre todas las ramas. La referencia manual son los tickets de código de tamaño parecido hechos con la autora en el bucle:
 
 | Tickets | Lectura de caché | Escritura de caché | Salida |
 |---|---|---|---|
 | **Manuales** — DIS-68, DIS-70, DIS-72, DIS-74, DIS-28, DIS-92 | 92,7 / 108,3 / 102,7 / 180,0 / 116,1 / 143,4M — **media 123,9M** | 1,20 / 1,82 / 1,25 / 2,92 / 1,09 / 1,14M — **media 1,57M** | media 0,33M |
-| **Workflow, ciclo de código completo** — DIS-76, DIS-78, DIS-21, DIS-26, DIS-44, DIS-58 | 137,2 / 83,6 / 156,4 / 125,3 / 137,1 / 139,3M — **media 129,8M** | 3,70 / 2,03 / 4,42 / 4,92 / 3,33 / 5,17M — **media 3,93M** | media 0,11M |
-| Workflow, otros — DIS-60 / DIS-45 / DIS-34 | 53,8 / 32,0 / 6,7M | 2,10 / 1,83 / 0,34M | 0,02 / 0,01 / 0,01M |
-| Sin ticket — rama `feature/entrega-2-CRN` | 257,4M | 9,78M | 1,77M |
+| **Workflow, ciclo de código completo** — DIS-76, DIS-78, DIS-21, DIS-26, DIS-44, DIS-58, DIS-65, DIS-66 | 137,2 / 83,6 / 156,4 / 125,3 / 137,1 / 139,3 / 77,0 / 81,0M — **media 117,1M** | 3,70 / 2,03 / 4,42 / 4,92 / 3,33 / 5,17 / 1,95 / 1,73M — **media 3,41M** | media 0,09M |
+| Workflow, otros — DIS-60 / DIS-101 / DIS-45 / DIS-34 | 53,8 / 81,8 / 32,0 / 6,7M | 2,10 / 2,62 / 1,83 / 0,34M | 0,02 / 0,03 / 0,01 / 0,01M |
+| Sin ticket — rama `feature/entrega-2-CRN` | 263,5M | 10,52M | 1,77M |
 
-- **Lectura de caché parecida** (1,05 veces la media manual) y **escritura de caché unas 2,5 veces mayor**: cada subagente empieza de cero y vuelve a leer los estándares, la spec y el código, mientras que una sesión manual larga reutiliza lo que ya tiene en caché.
-- **Límites de la medición.** (a) La orquestación, la sesión principal y los pasos que corren en `feature/entrega-2-CRN` no se atribuyen a ningún ticket: esa rama suma 257M de lectura, que incluye también trabajo manual. (b) La salida de los subagentes del workflow sale muy por debajo de la de los tickets manuales, así que no se compara la salida. (c) La cifra de DIS-60 es baja para un ciclo completo; se publica tal cual. (d) DIS-34 y DIS-45 son tickets de documentación y no se comparan con los de código.
-- **Límite de uso del plan** (`/usage`, que el agente no puede leer: lo apuntó la autora en cada punto de control). Semana (horas peninsulares): 51 % antes del piloto → 56 % después (unos 5 puntos por DIS-76) → 64 % el 17-10 a las 09:00, con DIS-78 y DIS-21 cerrados (unos 3–3,5 puntos por ticket) → 73 % el 17-10 a las 17:35, al cerrar la tanda 1 → 74 % el 17-10 a las 20:20, tras DIS-45 (alrededor de 1 punto). El límite semanal se reinició el 18-10 a las 12:00 y después no se registró ningún punto, así que DIS-58, DIS-60 y DIS-101 no tienen cifra de `/usage`. El coste equivalente de API que muestra `/usage` (con suscripción no es un cargo) fue de 53,93 $ al terminar el piloto y de 266,18 $ acumulados al cerrar la tanda 1.
+- **Lectura de caché parecida** (0,95 veces la media manual) y **escritura de caché unas 2,2 veces mayor**: cada subagente empieza de cero y vuelve a leer los estándares, la spec y el código, mientras que una sesión manual larga reutiliza lo que ya tiene en caché.
+- **Límites de la medición.** (a) La orquestación, la sesión principal y los pasos que corren en `feature/entrega-2-CRN` no se atribuyen a ningún ticket: esa rama suma 263M de lectura, que incluye también trabajo manual. (b) La salida de los subagentes del workflow sale muy por debajo de la de los tickets manuales, así que no se compara la salida. (c) La cifra de DIS-60 es baja para un ciclo completo y queda fuera de la media; se publica tal cual. Los tres tickets de la web posteriores a DIS-58 (DIS-60, DIS-65 y DIS-66) leen menos caché que los anteriores, y por eso la media del workflow baja de 129,8M a 117,1M al sumar DIS-65 y DIS-66. (d) DIS-34, DIS-45 y DIS-101 son tickets de documentación y no se comparan con los de código; la cifra de DIS-101 incluye además el trabajo de la sesión principal en su rama después de la ejecución.
+- **Límite de uso del plan** (`/usage`, que el agente no puede leer: lo apuntó la autora en cada punto de control). Semana (horas peninsulares): 51 % antes del piloto → 56 % después (unos 5 puntos por DIS-76) → 64 % el 17-10 a las 09:00, con DIS-78 y DIS-21 cerrados (unos 3–3,5 puntos por ticket) → 73 % el 17-10 a las 17:35, al cerrar la tanda 1 → 74 % el 17-10 a las 20:20, tras DIS-45 (alrededor de 1 punto). El límite semanal se reinició el 18-10 a las 12:00 y después no se registró ningún punto, así que DIS-58, DIS-60, DIS-65, DIS-66 y DIS-101 no tienen cifra de `/usage`. El coste equivalente de API que muestra `/usage` (con suscripción no es un cargo) fue de 53,93 $ al terminar el piloto y de 266,18 $ acumulados al cerrar la tanda 1.
 
 **Lecciones**, cada una comprobada en el repositorio, en GitHub, en Linear o en los diarios del workflow:
 
-1. **La autonomía tiene un techo en el merge, y está bien que lo tenga.** El clasificador de permisos del modo automático de Claude Code denegó `gh pr merge` («Merge Without Review») en #45, #49, #51, #52 y #54, aunque la autora había añadido una regla de permiso tras el piloto; dejó pasar #46, #47, #48 y #53. El agente no buscó rodeos: los descartó por escrito (fusión automática en GitHub, saltarse los permisos), y la autora decidió el 17-10 que el workflow esperase su merge. Coste de esa espera en DIS-60: 20 agentes de sondeo y 3 h 08 min sin avanzar trabajo. Una persona firma lo que entra.
+1. **La autonomía tiene un techo en el merge, y está bien que lo tenga.** El clasificador de permisos del modo automático de Claude Code denegó `gh pr merge` («Merge Without Review») en #45, #49, #51, #52, #54, #55 y #56, aunque la autora había añadido una regla de permiso tras el piloto; dejó pasar #46, #47, #48, #53 y #57. El agente no buscó rodeos: los descartó por escrito (fusión automática en GitHub, saltarse los permisos), y la autora decidió el 17-10 que el workflow esperase su merge. Coste de esa espera: en DIS-60, 20 agentes de sondeo y 3 h 08 min sin avanzar trabajo; en DIS-101, otros 20 y 3 h 06 min; en DIS-65, 3 agentes y 28 min, hasta que la autora fusionó el #56. Una persona firma lo que entra.
 2. **Una protección pensada para una persona presente frena una ejecución desatendida.** `block-dangerous-bash` pide confirmación antes de instalar una dependencia, como defensa contra paquetes falsos. Un agente de DIS-58 lanzó un `npm install` de prueba a las 20:45 del 17-10 y se quedó esperando esa confirmación hasta las 07:25 del día siguiente, unas 10,5 h. La autora la desactivó en local para el resto de la ejecución y pidió a cambio una verificación automática en las instrucciones del workflow: antes de cada `npm install <paquete>`, el agente comprueba el nombre exacto, que el paquete exista desde hace más de 90 días con su repositorio conocido, que tenga al menos 10 000 descargas semanales y que no traiga scripts de instalación inesperados, y después pasa `npm audit`. La lección es sustituir el control por otro automático equivalente, no quitarlo sin más.
 3. **Los resultados de los subagentes de revisión no llegaban al paso que los lanzaba.** `verify-against-spec` y `adversarial-review` corrían como subagentes y su informe se quedaba en `reports/`, pero el paso de revisión esperaba un mensaje que no llegaba, hasta que caducaba, y entonces leía la transcripción o repetía la comprobación: más tiempo y más tokens. Uno de esos mensajes lo bloqueó el hook `block-secrets` porque citaba los secretos de prueba del fixture (17-10, DIS-26). Desde la tanda 2, las revisiones corren dentro del propio paso.
 4. **El entorno local también rompe el flujo.** El 17-10, una actualización de firmas de Windows Defender empezó a marcar como `Trojan:Win32/Bearfoos.A!ml` un fichero de test de 11 bytes, `b.php` con el contenido `<?php // b`, y rompió en local dos ficheros de test de git (en CI, que corre en Linux, no pasaba). `verify-tests` impidió cerrar el turno con la suite en rojo y el agente no tocó el test. La autora aplicó una exclusión acotada a las carpetas temporales del proyecto; la primera que propuso el agente cubría solo uno de los dos tests y hubo que ampliarla.
@@ -1758,7 +1762,7 @@ DIS-45 no entró en la tanda 1: cuando el merge de DIS-44 se bloqueó, el script
 8. **Lo que el ingeniero jefe decidió solo y la autora debe revisar.** Cada decisión quedó escrita en la Enhanced del ticket y en el `design.md` del change, con su destino A/B/C/D. Las de tipo D (riesgo aceptado para siempre) son las que más pesan; por ejemplo, en DIS-76 (AR6) aceptó que el mensaje de un error `unrecognized_keys` repita el nombre de la clave no declarada que envió el cliente. Otras cosas se corrigieron por el camino: un script de sincronización de specs que duplicaba texto de escenarios al archivar DIS-21 (se rehízo y se validó), y una vigilancia que cambiaba de cuenta de `gh` cada minuto y podía romper los push (se paró y se relanzó sin cambiar de cuenta).
 9. **El permiso para programarse trabajo a sí mismo también está acotado.** El agente intentó programar el arranque de la tanda 2 y el sistema de permisos lo bloqueó hasta que la autora lo pidió expresamente.
 
-**Balance.** Ocho tickets cerrados en tres días (DIS-76, DIS-78, DIS-21, DIS-26, DIS-34, DIS-44, DIS-45 y DIS-58), con el mismo ciclo SDD, las mismas revisiones y un coste en lectura de caché parecido al manual. El cuello de botella no fue el agente, sino los puntos donde el sistema exige a una persona —el merge, la firma de las *golden*, una confirmación de seguridad—, que son justo los que conviene conservar. DIS-60 quedó en el PR #54 a la espera del merge, y DIS-65 y DIS-66 siguen pendientes de él.
+**Balance.** Once tickets cerrados en cuatro días, del 16-10 al 19-10 (DIS-76, DIS-78, DIS-21, DIS-26, DIS-34, DIS-44, DIS-45, DIS-58, DIS-60, DIS-65 y DIS-66), y este, DIS-101, en revisión en el PR #55, con el mismo ciclo SDD, las mismas revisiones y un coste en lectura de caché parecido al manual. El cuello de botella no fue el agente, sino los puntos donde el sistema exige a una persona —el merge, la firma de las *golden*, una confirmación de seguridad—, que son justo los que conviene conservar.
 
 ---
 

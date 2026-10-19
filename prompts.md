@@ -4891,8 +4891,8 @@ DIS-60, DIS-65, DIS-66 y esta DIS-101) se hicieron con la herramienta
 Workflow de Claude Code: un subagente con contexto limpio por paso, en serie, sin la autora en las
 puertas del plan, de los tests y del merge (ADR `20261016-autonomous-workflow-run-entrega-2`). El
 planteamiento está en `docs/ai-sessions/04-experimento-workflow-autonomo-entrega-2.md` y el resultado,
-con cifras, en `readme.md` §8.6. El Índice salta de la 53 a esta 55 porque la 54 la ocupa el PR #54
-de DIS-60, que no estaba fusionado al redactar esta sección.
+con cifras, en `readme.md` §8.6. Los prompts de cada paso de esos tickets están en su propia sección
+(§47 en adelante); aquí solo están los de la autora que dieron forma al experimento.
 
 ### Prompt 1 — Preguntar si el resto de la entrega se podía hacer sin la autora
 
@@ -4937,10 +4937,21 @@ sí, lanza la tanda 2
 cada ticket, y no son prompts de la autora. Este ticket, DIS-101, lo redactó el agente dentro de esa
 tanda; sus decisiones (D1 en adelante) están en la descripción Enhanced del ticket en Linear.
 
+### Prompt 4 — Lanzar DIS-65 y DIS-66 tras el merge de la Pantalla 1
+
+```
+ya hice el merge del #54, lanza DIS-65 y DIS-66 (DIS-101 marca conflictos en el archivo prompts.md)
+```
+
+**Por qué funcionó.** La tanda 2 había saltado DIS-65 y DIS-66 porque dependían de DIS-60, cuyo merge
+denegó el clasificador. Con el #54 ya fusionado, una línea bastó para lanzar una tanda 3 solo con esos
+dos tickets, sobre la rama de entrega actualizada.
+
 **Ajuste humano.** Lo que la autora hizo durante la ejecución, que el readme cuenta como lecciones:
 
-- Fusionó a mano los PR cuyo merge denegó el clasificador de permisos (#45, #49, #51 y #52) y, tras el
-  piloto, añadió una regla de permiso para `gh pr merge`. Cuando el clasificador siguió denegando
+- Fusionó a mano los PR cuyo merge denegó el clasificador de permisos (#45, #49, #51, #52, #54 y #56;
+  el #55 de este ticket espera su merge) y, tras el piloto, añadió una regla de permiso para
+  `gh pr merge`. Cuando el clasificador siguió denegando
   algunos, descartó cualquier rodeo: «vale, nos quedamos con la espera».
 - En DIS-34 revisó las tres respuestas *golden*, pidió regenerar una («Q1 ok, Q4 ok, regenera Q3, he
   firmado Q1 y Q4, cuando veamos Q3 acabo las firmas») y las firmó. Antes había pedido al agente que

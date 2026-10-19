@@ -136,7 +136,7 @@ Valores de `/usage` antes del piloto (16-10-2026, plan de suscripción):
 
 El agente no puede leer `/usage`: la última columna es el último valor que anotó la autora. Tras el
 reinicio semanal del 18-10 a las 12:00 no se registró ningún punto, así que DIS-58 (que cruzó el
-reinicio), DIS-60 y DIS-101 no tienen cifra de `/usage`. Con suscripción, el coste equivalente de API es
+reinicio), DIS-60, DIS-65, DIS-66 y DIS-101 no tienen cifra de `/usage`. Con suscripción, el coste equivalente de API es
 una estimación de lo que costaría con pago por uso, no un cargo.
 
 Diagnóstico de `/usage` sobre las últimas 24 h: el 98 % del uso vino de sesiones con muchos subagentes y
@@ -200,9 +200,26 @@ Run `wf_ba3c3c42`, lanzado por la autora («sí, lanza la tanda 2») a las 19:03
 
 - **DIS-60** (#54): ciclo completo en 1 h 36 min, con CI en verde y el archivo hecho. El clasificador
   denegó el merge, y el workflow esperó a la autora con 20 agentes de sondeo de unos 9,4 min cada uno
-  (3 h 08 min) antes de dejar el ticket en In Review con un comentario.
+  (3 h 08 min) antes de dejar el ticket en In Review con un comentario. La autora lo fusionó a las 08:30
+  del 19-10.
 - **DIS-65 y DIS-66**: no se lanzaron, porque dependen de DIS-60.
-- **DIS-101**: el ciclo ligero de este ticket de documentación, sin change de OpenSpec.
+- **DIS-101** (#55): el ciclo ligero de este ticket de documentación, sin change de OpenSpec, en 1 h 06 min.
+  El clasificador denegó también este merge; tras 20 agentes de sondeo (3 h 06 min) el ticket quedó en
+  In Review, a la espera de la autora.
+- **Padres:** DIS-51 y DIS-62 no se cerraron, porque DIS-60, DIS-65 y DIS-66 seguían abiertos.
+
+## Resultado de la tanda 3 (19-10)
+
+Run `wf_426c6b7e`, lanzado por la autora («ya hice el merge del #54, lanza DIS-65 y DIS-66») a las 08:33
+del 19-10.
+
+- **DIS-65** (#56): ciclo completo en 2 h 00 min. El clasificador denegó el merge; el workflow esperó con
+  3 agentes de sondeo (28 min) hasta que la autora lo fusionó a las 11:00.
+- **DIS-66** (#57): ciclo completo en 2 h 11 min, y el workflow fusionó él mismo el #57 a las 13:10.
+- **Padres:** DIS-62 cerrado; DIS-51 también está en Done.
+
+Estado final: once tickets cerrados (DIS-76, DIS-78, DIS-21, DIS-26, DIS-34, DIS-44, DIS-45, DIS-58,
+DIS-60, DIS-65 y DIS-66) y DIS-101 en revisión en el #55.
 
 ## Medición final de tokens (19-10)
 
@@ -217,15 +234,18 @@ caché / salida, en millones):
 | DIS-26 | Workflow | 125,3 | 4,92 | 0,03 |
 | DIS-44 | Workflow | 137,1 | 3,33 | 0,13 |
 | DIS-58 | Workflow | 139,3 | 5,17 | 0,16 |
-| DIS-60 | Workflow (sin merge) | 53,8 | 2,10 | 0,02 |
+| DIS-65 | Workflow | 77,0 | 1,95 | 0,01 |
+| DIS-66 | Workflow | 81,0 | 1,73 | 0,03 |
+| DIS-60 | Workflow (fuera de la media: cifra baja para un ciclo completo) | 53,8 | 2,10 | 0,02 |
+| DIS-101 | Workflow (documentación; incluye la sesión principal en su rama) | 81,8 | 2,62 | 0,03 |
 | DIS-45 | Workflow (documentación) | 32,0 | 1,83 | 0,01 |
 | DIS-34 | Workflow (documentación) | 6,7 | 0,34 | 0,01 |
 | DIS-68 / DIS-70 / DIS-72 | Manual | 92,7 / 108,3 / 102,7 | 1,20 / 1,82 / 1,25 | 0,25 / 0,31 / 0,31 |
 | DIS-74 / DIS-28 / DIS-92 | Manual | 180,0 / 116,1 / 143,4 | 2,92 / 1,09 / 1,14 | 0,46 / 0,30 / 0,33 |
-| `feature/entrega-2-CRN` | Sin ticket (orquestación y trabajo en la rama de entrega) | 257,4 | 9,78 | 1,77 |
+| `feature/entrega-2-CRN` | Sin ticket (orquestación y trabajo en la rama de entrega) | 263,5 | 10,52 | 1,77 |
 
-Frente a la estimación previa (entre 1x y 2x por ticket): en los seis tickets de código del workflow,
-la lectura de caché media es 1,05 veces la de los seis manuales (129,8M frente a 123,9M) y la escritura
-de caché, unas 2,5 veces (3,93M frente a 1,57M). La salida no se compara, porque la de los subagentes
+Frente a la estimación previa (entre 1x y 2x por ticket): en los ocho tickets de código del workflow
+con ciclo completo, la lectura de caché media es 0,95 veces la de los seis manuales (117,1M frente a
+123,9M) y la escritura de caché, unas 2,2 veces (3,41M frente a 1,57M). La salida no se compara, porque la de los subagentes
 del workflow sale muy por debajo. La orquestación no se atribuye a ningún ticket. El análisis completo
 está en `readme.md` §8.6.
