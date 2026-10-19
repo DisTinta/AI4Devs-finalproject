@@ -841,3 +841,61 @@ describe('Usage panel', () => {
     }
   });
 });
+
+/** The sentence of the state without evidence for `no-anchor`. */
+const NO_ANCHOR_SENTENCE =
+  'La pregunta no nombra nada que CODEMIND encuentre en el código de este proyecto (ningún símbolo ni fichero), así que no hay evidencia en la que apoyar una respuesta. CODEMIND prefiere no inventarla.';
+
+/** The heading of the state without evidence. */
+const NO_VERIFIED_ANSWER = 'Sin respuesta verificada';
+
+/** An `UNKNOWN` body of the API with `reason` and, when given, `message`. */
+function unknownBody(reason: string, message?: string): Record<string, unknown> {
+  return { answer: 'UNKNOWN', reason, ...(message === undefined ? {} : { message }), statements: [], evidence: [] };
+}
+
+/** Writes `question` in the field of Screen 2 and presses Enter. */
+async function askInField(user: ReturnType<typeof userEvent.setup>, question: string): Promise<HTMLElement> {
+  const field = screen.getByRole('textbox', { name: 'Pregunta' });
+  await user.clear(field);
+  await user.type(field, question);
+  await user.keyboard('{Enter}');
+  return field;
+}
+
+/** Every button of the main landmark that comes after the group «Prueba:». */
+function buttonsAfterSuggestions(): HTMLElement[] {
+  const main = screen.getByRole('main');
+  const group = within(main).getByRole('group', { name: 'Prueba:' });
+  return within(main)
+    .queryAllByRole('button')
+    .filter((button) => precedes(group, button) && !group.contains(button));
+}
+
+describe('UNKNOWN states', () => {
+  it('An UNKNOWN without anchors explains that there is no evidence', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    stubFetch(answerWith(200, unknownBody('no-anchor')));
+    await renderScreen2();
+
+    // Act
+    const field = await askInField(user, '¿Por qué existe legacy_ref?');
+    const heading = await screen.findByRole('heading', { level: 2, name: NO_VERIFIED_ANSWER });
+
+    // Assert
+    expectInOrder([heading, screen.getByText(NO_ANCHOR_SENTENCE), screen.getByText('Motivo: no-anchor')]);
+    const circles = textNodesWith(document.body, '○');
+    expect(circles.length).toBeGreaterThan(0);
+    for (const circle of circles) {
+      expect(circle.parentElement?.closest('[aria-hidden="true"]'), 'the ○ is hidden').not.toBeNull();
+    }
+    expect(screen.queryByRole('heading', { name: 'Respuesta' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Evidencia' })).toBeNull();
+    expect(document.querySelector('ol')).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Uso' })).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(buttonsAfterSuggestions()).toEqual([]);
+    expect(document.activeElement).toBe(field);
+  });
+});

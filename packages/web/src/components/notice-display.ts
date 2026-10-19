@@ -59,3 +59,29 @@ export function retryWaitOf(details: Record<string, unknown>): number | undefine
   const value = details.retryAfterSeconds;
   return typeof value === 'number' && Number.isInteger(value) && value >= 1 ? value : undefined;
 }
+
+/** The sentence of each known reason of an `UNKNOWN` without evidence (design D7). */
+const REASON_SENTENCES: ReadonlyMap<string, string> = new Map([
+  [
+    'no-anchor',
+    'La pregunta no nombra nada que CODEMIND encuentre en el código de este proyecto (ningún símbolo ni fichero), así que no hay evidencia en la que apoyar una respuesta. CODEMIND prefiere no inventarla.',
+  ],
+  ['over-budget', 'Ningún fragmento de código relevante cabe en el presupuesto de tokens de la consulta.'],
+  ['invalid-model-output', 'El modelo devolvió una respuesta con un formato no válido y se ha descartado.'],
+  ['no-evidence', 'El modelo no dio ninguna afirmación apoyada en evidencia.'],
+  ['broken-evidence', 'Ninguna cita del modelo coincide con el código del proyecto y se ha descartado la respuesta.'],
+]);
+
+/** The sentence of a reason the page does not know: the API may add one, and `ask()` does not check it. */
+const GENERAL_REASON_SENTENCE = 'CODEMIND no ha encontrado evidencia suficiente para dar una respuesta verificada.';
+
+/**
+ * The sentence that explains an `UNKNOWN` without evidence (design D7, D23): one per known reason, and a
+ * general sentence for any other value.
+ *
+ * @param reason - The reason of the `UNKNOWN`, as the API sent it.
+ * @returns The sentence.
+ */
+export function reasonSentence(reason: string): string {
+  return REASON_SENTENCES.get(reason) ?? GENERAL_REASON_SENTENCE;
+}

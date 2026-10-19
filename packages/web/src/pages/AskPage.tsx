@@ -7,6 +7,7 @@ import { formatCount, stackLabel } from '../components/project-display';
 import { ProjectBar } from '../components/ProjectBar';
 import { QueryBox } from '../components/QueryBox';
 import { SuggestedQuestions } from '../components/SuggestedQuestions';
+import { UnknownState } from '../components/UnknownState';
 import { UsagePanel } from '../components/UsagePanel';
 import { SAMPLE_PROJECTS } from '../data/sample-projects';
 import { suggestedQuestionsOf } from '../data/suggested-questions';
@@ -86,6 +87,9 @@ function ResultArea({ state }: { state: AskState }): ReactElement | null {
         <UsagePanel confidence={state.answer.confidence} usage={state.answer.usage} />
       </>
     );
+  }
+  if (state.status === 'unknown' && state.reason !== 'llm-required') {
+    return <UnknownState reason={state.reason} />;
   }
   if (state.status === 'unknown') {
     return <AskFallbackNotice reason={state.reason} />;

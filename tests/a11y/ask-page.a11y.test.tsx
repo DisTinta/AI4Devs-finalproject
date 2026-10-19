@@ -109,7 +109,7 @@ describe('Accessibility of Screen 2', () => {
     // Act
     const pending = await scan(neverAnswering, async (user) => {
       await pressQ1(user);
-      await screen.findByRole('status');
+      await screen.findByText('Buscando evidencia…', { selector: '[aria-hidden="true"]' });
     });
     const answeredWithEvidence = await scan(answering(200, ANSWERED), async (user) => {
       await pressQ1(user);
@@ -124,7 +124,7 @@ describe('Accessibility of Screen 2', () => {
       answering(200, { answer: 'UNKNOWN', reason: 'no-anchor', statements: [], evidence: [] }),
       async (user) => {
         await pressQ1(user);
-        await screen.findByText('Sin respuesta verificada (motivo: no-anchor).');
+        await screen.findByRole('heading', { level: 2, name: 'Sin respuesta verificada' });
       },
     );
     const errorAlert = await scan(

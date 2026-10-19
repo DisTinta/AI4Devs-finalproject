@@ -6,13 +6,14 @@ export type AskFailure = { kind: 'api'; code: string } | { kind: 'unavailable' }
 
 /**
  * What Screen 2 knows about its question (ask-page; DIS-65 design D22): nothing sent yet, a question
- * pending, an answered question, an `UNKNOWN` with its reason, or a failure.
+ * pending, an answered question, an `UNKNOWN` with its reason and the API's message (DIS-66 design D18), or a
+ * failure.
  */
 export type AskState =
   | { status: 'idle' }
   | { status: 'pending' }
   | { status: 'answered'; answer: AskAnswered }
-  | { status: 'unknown'; reason: AskUnknown['reason'] }
+  | { status: 'unknown'; reason: AskUnknown['reason']; message?: string }
   | { status: 'failed'; failure: AskFailure };
 
 /** What {@link useAsk} returns. */
@@ -21,6 +22,11 @@ export interface AskSession {
   state: AskState;
   /** Sends one question, already checked and trimmed; ignored while a question is pending. */
   send: (question: string) => void;
+}
+
+/** The state of an `UNKNOWN`: its reason, and the API's message only when it sent one (DIS-66 design D18). */
+function unknownState({ reason, message }: AskUnknown): AskState {
+  return message === undefined ? { status: 'unknown', reason } : { status: 'unknown', reason, message };
 }
 
 /** Whether a `200` body is an `UNKNOWN`. */
@@ -69,7 +75,7 @@ export function useAsk(projectId: string): AskSession {
       };
       ask(projectId, { question }, { signal: controller.signal }).then(
         (response) =>
-          settle(isUnknown(response) ? { status: 'unknown', reason: response.reason } : { status: 'answered', answer: response }),
+          settle(isUnknown(response) ? unknownState(response) : { status: 'answered', answer: response }),
         (failure: unknown) => settle(failedState(failure)),
       );
     },
