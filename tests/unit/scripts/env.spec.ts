@@ -154,6 +154,20 @@ describe('Loading .env into a process', () => {
     expect(existsSync(resolve(dirname(path), 'scripts', 'env.mjs'))).toBe(true);
   });
 
+  it('Any other value of the skip switch loads .env', () => {
+    for (const value of ['0', 'true', '', ' 1']) {
+      // Arrange
+      const path = temporaryEnvFile(['DATABASE_URL=from-file']);
+      const env: Record<string, string | undefined> = { CODEMIND_SKIP_DOTENV: value };
+
+      // Act
+      loadEnvFile(path, env, recorder());
+
+      // Assert
+      expect(env, JSON.stringify(value)).toEqual({ CODEMIND_SKIP_DOTENV: value, DATABASE_URL: 'from-file' });
+    }
+  });
+
   it('The test suite never reads .env', () => {
     // Arrange
     const path = temporaryEnvFile(['DATABASE_URL=from-file']);
