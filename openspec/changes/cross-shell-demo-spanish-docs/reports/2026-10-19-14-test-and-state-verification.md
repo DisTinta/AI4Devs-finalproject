@@ -126,3 +126,26 @@ and the guides, cheap to reverse (revert the PR), and recorded in `design.md` an
 
 - Status: PASS
 - Blocking issues: none
+
+## Addendum — after the pre-merge review fixes (step 19, 2026-10-19)
+
+- `npx vitest run` (integration database `dis102-testdb`, as above), four runs during step 19:
+  - after the show-spec-working and verify-against-spec fixes (`f9df1ca`): 159 files, **1724 passed**, 0
+    failed, 144.13 s;
+  - after the adversarial-review fixes (`525724f` and the run-2 fixes): 1729 tests; three runs had one or
+    two failures, always and only in `tests/integration/cli/projects-command.spec.ts` (an extra
+    `ask-pool-…` project, or the empty-database test timing out), the known race of `docs/TESTING.md` →
+    Carreras conocidas; that file, alone and with `seed-load.spec.ts`, passes (10 of 10). No file of
+    this change touches it.
+- `npx vitest run tests/unit/scripts tests/unit/docs` → 6 files, 41 tests passed (31 at step 14, plus
+  ten new scenarios of the reviews).
+- `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`,
+  `npm run test:a11y`: exit `0`. `npm run test:mutation` not re-run: the review fixes touch only
+  `scripts/` and tests, outside Stryker's scope (D16).
+- `openspec validate cross-shell-demo-spanish-docs --strict`: valid.
+- Data state: the author's `codemind` database untouched by step 19 (counts 1/0/3/3/0 as the baseline;
+  `codemind_pgdata` present). The throwaway `codemind_test` database was seeded once with `npm run
+  db:seed` to run the real API against it (adversarial review, AR1); the integration tests reset it.
+  The clone `ssw-102` and its Compose project were removed (`down -v` on that project only).
+- Dependencies: none added; `package-lock.json` unchanged; the new `node:http` and `node:buffer`
+  imports are Node built-ins (pinned by "The startup scripts need no installed dependency").

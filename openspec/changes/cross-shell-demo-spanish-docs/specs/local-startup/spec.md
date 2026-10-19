@@ -369,10 +369,10 @@ request; so SHALL a project id of `.` or `..`, which the URL would drop as a dot
 #### Scenario: An answer that cannot be read is reported
 
 - **GIVEN** a request double whose response has status `200` and whose body cannot be read, and `PORT`
-  set
+  set; and then a real server that sends the headers and part of the body and drops the connection
 - **WHEN** `demo:ask` runs with a project id and a question
-- **THEN** stderr is `demo:ask: the answer of the API at http://127.0.0.1:<PORT> could not be read`
-  with that port, stdout is empty, and `demo:ask` exits `1`
+- **THEN** each time stderr is `demo:ask: the answer of the API at http://127.0.0.1:<PORT> could not be
+  read` with that port, stdout is empty, and `demo:ask` exits `1`
 
 #### Scenario: Missing arguments are a usage error
 

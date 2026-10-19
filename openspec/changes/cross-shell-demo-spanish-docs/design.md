@@ -165,8 +165,9 @@ calling it, so both paths agree.
 
 ### D8. Demo helpers
 
-`scripts/demo-ask.mjs` exports `runDemoAsk(args, { env, dotenvPath, fetch, stdout, stderr })` (entry
-guard as D5; the real `fetch` taken from `globalThis`); `scripts/demo-excerpt.mjs` exports
+`scripts/demo-ask.mjs` exports `runDemoAsk(args, { env, dotenvPath, send, stdout, stderr })` (entry
+guard as D5; `send` defaults to a `node:http` sender without a time limit — superseded the first
+version's `fetch` from `globalThis`, see D23); `scripts/demo-excerpt.mjs` exports
 `runDemoExcerpt(args, { fixturesRoot, stdout, stderr })`. Output and errors as in `local-startup` →
 "The demo question helper" and "The demo excerpt helper": an `UNKNOWN` body is recognised by
 `answer === "UNKNOWN"` before the statements count (an `UNKNOWN` body also has `statements: []`), a
@@ -417,7 +418,10 @@ Findings of `reports/2026-10-19-adversarial-review.md` (AR), run 1:
   after 307 s with that message; the `node:http` version waited and printed `HTTP 200`. The request
   goes through `node:http` with `agent: false` (one connection, closed afterwards) and no timeout; the
   injectable sender is renamed `send`. New scenario "A slow answer is waited for" (a delayed server
-  plus a source check that `fetch` is not used: a 300 s wait does not belong in the suite).
+  plus a source check that `fetch` is not used: a 300 s wait does not belong in the suite, so the
+  guard checks how the request is sent, not the 300 s itself — accepted, AR2-2). Every failure before
+  the headers, a reset of a dying API included, is reported as "not reachable … start it with npm run
+  up", which is the right advice for an API that died (accepted, AR2-6).
 - **A27. `.` and `..` are no project id** (AR10). The URL parser drops them as dot segments, so
   `demo:ask -- .. "q"` reached `/api/ask`; they are now a usage error (exit `2`). New scenario "A dot
   project id is a usage error".
@@ -490,10 +494,15 @@ destination (`docs/project-context.md` → Tracking deferred findings):
 | AR5 | Minor | `usage` left out and the 2xx-only summary untested | **A** — new scenario "Only a 2xx answer is summarised" |
 | AR6 | Minor | The pairing check allowed a heading between the two blocks | **A** — test strengthened |
 | AR7 | Minor | On Windows `up`'s env copy makes the precedence check case-sensitive | **D** — accepted (Risks) |
-| AR8 | Minor | Spec edited after the fix commits; RED not visible in the history | **D** — process: every fix was seen RED first (messages quoted in the verify-against-spec and adversarial-review reports); the spec edits are in the same pre-merge pass |
+| AR8 / AR2-5 | Minor | Spec edited after the fix commits (both review rounds); RED not visible in the history | **D** — process: every fix was seen RED first (messages quoted in the verify-against-spec and adversarial-review reports); the spec edits are in the same pre-merge pass |
 | AR9 | Minor | Stryker does not mutate `scripts/` | **D** — accepted (D16): tooling outside the product; the reviewers' mutation questions were answered with targeted tests (AR2–AR6) |
 | AR10 | Question | `.` / `..` as a project id dropped from the URL | **A** — fixed (A27): usage error, new scenario and test |
 | AR11 | Question | `NODE_OPTIONS` or `npm_config_*` in `.env` still reach the npm steps | **D** — accepted: `.env` is the person's own file and reaches every step by design (D21, Risks) |
 | AR12 | Question | Nothing checks the `.env.example` comment that says the two ports change together | **D** — accepted: the values are pinned by "The Postgres port follows POSTGRES_PORT"; the agent may not read `.env.example` (local deny rule), so the PR asks the author to confirm the comment's wording |
+| AR2-1 | Minor | The default sender's dropped-body path had only a manual check | **A** — "An answer that cannot be read is reported" also runs a real server that drops the socket mid-body |
+| AR2-2 | Minor | "No time limit" is guarded by a source check, not by behaviour | **D** — accepted in D23: the suite cannot wait 300 s |
+| AR2-3 | Minor | The pairing check ran over an empty set (the guide has no pairs) | **A** — the rule is a helper, `unpairedShellBlocks`, also tested on made-up Markdown (valid pair, pair split by a heading, third block, lone block) |
+| AR2-4 | Minor | D8 and task 6.2 still named `fetch` | **A** — D8 says `send` / `node:http` (superseded note); task 6.2 keeps its history with the same note |
+| AR2-6 | Question | A reset before the headers is reported as "not reachable" | **D** — accepted in D23 |
 | SEC | — | Inline security review (no agent tool in this step): no secret, route, query, dependency or personal data in the diff | **D** — nothing to fix (`reports/2026-10-19-adversarial-review.md` → Security review) |
 

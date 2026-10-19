@@ -111,3 +111,78 @@ agent tool, so the agent's checklist (`.claude/agents/security-reviewer.md`) was
 | Low — none | Logs | Nothing logs a request body. |
 
 Nothing to fix.
+
+## Run 2 (on `525724f`, trimmed to the change)
+
+### Adversarial review: run 2
+
+**Scope:** I reviewed `git diff f9df1ca..HEAD`, the 5 commits made after run 1 (a2ffdec, d1c1372, 3e74e28, 4cd99d7, 525724f). For the AR1 fix I read all of `scripts/demo-ask.mjs` and `tests/unit/scripts/demo-ask.spec.ts`. I also read the parts of `guides.spec.ts`, `env.spec.ts`, the spec delta, `design.md`, `tasks.md` and the report addenda that changed. To compare, I read the existing `node:http` sender `packages/cli/src/cache/long-fetch.ts`. I checked the Fastify options in `packages/api/src/app.ts:93` and the Node version (v24.11.1). I did not run the test suite: it creates temporary directories, which this read-only review does not allow.
+
+#### Is the AR1 fix correct?
+Yes.
+- `http.request` has no client-side time limit, and `scripts/demo-ask.mjs:35-55` sets neither `timeout` nor `setTimeout`.
+- `agent: false` means no keep-alive connection is left open, so the process exits once the answer is printed.
+- The body is read with listeners attached in the response callback, so no data is lost. `text.catch` avoids an unhandled rejection.
+- A socket error after the response has arrived is handled. It reaches `outgoing`'s `failed`, which has no effect once the promise is settled, and the response's `error`/`close` events then reject `text()`.
+- On the server side, Fastify is built with no `connectionTimeout` or `requestTimeout`, so the API does not close a slow answer either.
+- The A27 dot check is complete. Any `%` the user types is encoded to `%25`, so `%2E`-style dot segments cannot reach the URL.
+
+#### Findings
+| Severity | File:line | Finding | Why it matters |
+|---|---|---|---|
+| Minor | `scripts/demo-ask.mjs:41-50`; `tests/unit/scripts/demo-ask.spec.ts:320-342` | The new sender's dropped-body handling (the `error` and `close` listeners and the `!incoming.complete` check) is not run by any test. "An answer that cannot be read is reported" still injects a `send` double that rejects with fetch's `TypeError('terminated')`. **Mutation it misses:** delete lines 44-47. A body cut mid-way would then leave `text` unsettled for ever, and the CLI would end with an unsettled top-level await instead of the spec's message and exit `1`. The suite stays green. This path was only checked by hand (report AR1, port 39126). | This is the code AR1 added, and the only proof that it works is manual. A short test would close it: a real server that sends the headers and part of the body, then destroys the socket. |
+| Minor | `tests/unit/scripts/demo-ask.spec.ts:294`; spec "A slow answer is waited for" | The "no time limit" requirement is guarded only by a regex on the source (`/\bfetch\s*\(\|globalThis\.fetch/`). The 1.5 s server delay would pass with `fetch` too. A `outgoing.setTimeout(300_000, …)` or `AbortSignal.timeout(300_000)` would bring the 300 s limit back with every test green, and so would `globalThis['fetch']`. The spec now names the transport (`node:http`), not only the behaviour. | D23 accepts this ("a 300 s wait does not belong in the suite"), but the guard checks how the code is written, not what it does. Record it as accepted (D) or replace it with a check on the request's socket timeout. |
+| Minor | `tests/unit/docs/guides.spec.ts:100-101`; `docs/DEMO.md` (0 `powershell`/`bash` blocks) | The AR6 fix (no heading between the two blocks of a pair) runs over an empty set. `DEMO.md` has no shell pairs, and no made-up markdown is fed to `fences()`. Deleting line 101 changes nothing. Run 1 already said "the check currently tests nothing", and the resolution's "test strengthened" does not change that. | AR6 is marked **A, fixed**, but there is still no evidence that the check works. A small markdown example with one valid pair, one pair split by a heading and one unpaired block would make it real. |
+| Minor | `design.md:168-169`; `tasks.md:41` | D8 still says `runDemoAsk(args, { env, dotenvPath, fetch, stdout, stderr })` and "the real `fetch` taken from `globalThis`". Task 6.2 (`[x]`) still says `globalThis.fetch`. D23 renamed the option to `send` and banned `fetch`, but did not change D8. | The design now contradicts itself, and the code. The archived design will describe the wrong transport. |
+| Minor | spec history: 4cd99d7 comes after a2ffdec | The spec scenarios "A slow answer is waited for" and "A dot project id is a usage error" were written after the code and test commit. This repeats AR8. The RED messages are quoted in the report, but the history cannot show them. | Process debt only, the same class as AR8. |
+| Question | `scripts/demo-ask.mjs:154-156` | Every failure before the headers still prints "the API is not reachable … (start it with npm run up)". That includes an `ECONNRESET` or socket hang-up when the API dies while working on an answer. Run 1 step 1 suggested telling the cases apart with the error `code`, and that was not done. With no client time limit left, the main trigger is gone, and "start it with npm run up" is roughly right for an API that died. | Probably acceptable. Record it as D or say nothing, but decide on purpose. |
+
+**Existing tests modified in this round:**
+- "An answered question prints its status and summary" gained the `content-type` assertion, so it is stronger.
+- "demo:ask reads PORT from .env" and "An answer that cannot be read is reported" only had the `fetch` → `send` rename.
+- `apiDouble` gained an optional `delayMs`, and existing calls are unchanged.
+
+None got weaker, so these changes are justified.
+
+**Blast radius:**
+- `runDemoAsk` and the `Send` type are used only by its own spec and the CLI entry. Nothing else imports the old `Fetch` type.
+- No other code path changed.
+- The remaining mentions of `fetch` in `readme.md` and `docs/project-context.md` are about the LLM adapter's `LLM_TIMEOUT_MS`, and they are still true.
+- There is no migration and no new dependency.
+- `long-fetch.ts` already does this job, but `scripts/` cannot import a TypeScript module (only Node built-ins, pinned by a test), so the copy is justified.
+
+**Other run-1 fixes I checked:**
+- AR2 (`env.spec.ts` with `'0'`, `'true'`, `''`, `' 1'`) catches a truthy or trimmed check.
+- AR3 catches `<=` changed to `<`, and a wrong default port.
+- AR5 catches dropping `isSuccess(status) &&`: the 409 body with `statements` would be summarised.
+- AR4 catches deleting the header.
+
+#### Verdict
+**PASS WITH GAPS.** There are no Blockers and no Majors. The AR1 Major is really fixed, and the A27 fix is complete. The gaps above are Minor. Two of them (the dropped-body path and AR6) are run-1 items whose resolution says more than the evidence shows.
+
+#### Recommended next steps before archiving
+1. **Dropped-body test → A.** Add one test with a real server that writes the headers and part of the body, then destroys the socket. It should expect the "could not be read" message, an empty stdout and exit `1`. It is cheap, and it covers the only new code that has no automated test.
+2. **AR6 pairing check → A.** Feed `fences()` and the pairing loop a small markdown example (a valid pair, a pair split by a heading, an unpaired block), or move the loop into a helper and test that. Until then, change the AR6 resolution from "fixed" to "no pairs exist today".
+3. **D8 / task 6.2 wording → A.** Update `design.md:168-169` to say `send` and `node:http`, or add a "superseded by D23" note. Leave the task text as history, or add the same note there.
+4. **Source-grep guard for "no time limit" → D.** Accept it in the D23 text as a design decision ("the suite cannot wait 300 s; the guard checks the source"), or replace it with a check that the request's socket timeout is 0.
+5. **"Not reachable" on a reset before the headers → D.** Accept it in design → Risks in one sentence.
+7. **Spec written after the code again (4cd99d7 after a2ffdec) → D, process.** Add it to the AR8 row. It is not a Linear issue.
+8. Save this run as "Run 2" in `reports/2026-10-19-adversarial-review.md`. Because no Major is left, task 19.8's "re-run until no Blocker or Major" is met once items 1 to 3 are done or given a destination.
+
+## Resolution of run 2
+
+No Blocker and no Major: task 19.8 is met. Ids AR2-1 to AR2-6 follow the order of the findings table
+above (one finding about files outside the change was out of scope and is not listed); each has its
+destination in `design.md` → Follow-ups.
+
+| Finding | Resolution |
+|---|---|
+| AR2-1 — dropped-body path untested | **Fixed**: "An answer that cannot be read is reported" also runs a real server that sends the headers and part of the body and destroys the socket. Mutation check: with the `error`/`close` listeners deleted, the test fails (`Test timed out in 20000ms`); restored. |
+| AR2-2 — source guard for "no time limit" | Accepted (D) in D23: the suite cannot wait 300 s; the 310 s real check is in run 1's resolution. |
+| AR2-3 — pairing over an empty set | **Fixed**: the rule is the helper `unpairedShellBlocks`, tested on made-up Markdown: a pair with text between → none; a pair split by `### Otro` → both blocks; `bash, powershell, bash` → the third; a lone `powershell` → it. |
+| AR2-4 — D8 / task 6.2 wording | **Fixed**: D8 names `send` and the `node:http` sender (superseded note); task 6.2 keeps its history with the same note. |
+| AR2-5 — spec after code again | Accepted (D), joined to the AR8 row (process). |
+| AR2-6 — reset before headers = "not reachable" | Accepted (D) in D23: the advice to start the API again is right for an API that died. |
+
+`npx vitest run tests/unit/scripts tests/unit/docs` → 6 files, 41 tests passed; lint, typecheck and
+`openspec validate --strict` clean. The full suite and gates are in the addendum of the step 14 report.

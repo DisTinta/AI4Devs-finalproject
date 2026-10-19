@@ -38,7 +38,7 @@
 ## 6. `demo:ask` (TDD, design D8) — `local-startup` → "The demo question helper"
 
 - [x] 6.1 RED: create `tests/unit/scripts/demo-ask.spec.ts` with "An answered question prints its status and summary" (`node:http` server on port 0 passed as `PORT` in the injected environment; the request path and the UTF-8 body recorded); add the same `DOTENV_PATH` wiring assertion for `scripts/demo-ask.mjs`. See both fail
-- [x] 6.2 GREEN: `scripts/demo-ask.mjs` (`runDemoAsk` calls `loadEnvFile(dotenvPath, env, stderr)` first, `dotenvPath` defaulting to `DOTENV_PATH` of `./env.mjs`, design D4, A2; `PORT` read as the API reads it, A21; `globalThis.fetch`; entry guard) and `scripts/demo-ask.d.mts`; the 6.1 wiring assertion green
+- [x] 6.2 GREEN: `scripts/demo-ask.mjs` (`runDemoAsk` calls `loadEnvFile(dotenvPath, env, stderr)` first, `dotenvPath` defaulting to `DOTENV_PATH` of `./env.mjs`, design D4, A2; `PORT` read as the API reads it, A21; `globalThis.fetch` — superseded in the pre-merge review by a `node:http` sender, design D23; entry guard) and `scripts/demo-ask.d.mts`; the 6.1 wiring assertion green
 - [x] 6.3 RED → GREEN, one at a time: "An UNKNOWN answer prints its reason", "An error status prints the error body", "An unreachable API is reported" (a port taken and released, as `freePort` in `tests/integration/api/dev-script.spec.ts`), "demo:ask reads PORT from .env" (a temporary `.env` passed as `dotenvPath`), "Missing arguments are a usage error"
 
 ## 7. `demo:excerpt` (TDD, design D8) — `local-startup` → "The demo excerpt helper"
@@ -131,7 +131,7 @@
 - [ ] 19.3 Confirm the PR's CI is green (`quality`, `verify`, `mutation`, `secrets`, `Frontend`); link the run in an addendum to the step 14 report
 - [x] 19.4 Run `/show-spec-working` (may reuse the step 15 and 16 evidence and screenshots); report `openspec/changes/cross-shell-demo-spanish-docs/reports/YYYY-MM-DD-show-spec-working.md`
 - [x] 19.5 Run `/verify-against-spec`; report `openspec/changes/cross-shell-demo-spanish-docs/reports/YYYY-MM-DD-verify-against-spec.md`
-- [ ] 19.6 Run `/adversarial-review`; report `openspec/changes/cross-shell-demo-spanish-docs/reports/YYYY-MM-DD-adversarial-review.md`
-- [ ] 19.7 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report
-- [ ] 19.8 Commit the fixes to the same pull request; re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
+- [x] 19.6 Run `/adversarial-review`; report `openspec/changes/cross-shell-demo-spanish-docs/reports/YYYY-MM-DD-adversarial-review.md`
+- [x] 19.7 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report
+- [x] 19.8 Commit the fixes to the same pull request; re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
 - [ ] 19.9 `/opsx:archive`, and commit the archive to the same pull request; the agent merges only after the archive commit and with CI green (ADR `20261016-autonomous-workflow-run-entrega-2`, DIS-102 within the run as recorded in Enhanced; otherwise stop before the merge and leave DIS-102 In Review)
