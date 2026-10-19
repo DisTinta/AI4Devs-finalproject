@@ -245,7 +245,63 @@ npm run verify
 Con `npm run up` en marcha, abre `http://localhost:5173/` en el navegador. Las dos pantallas siguen los
 wireframes de `readme.md` §1.3 (`images/pantalla-1-seleccion.svg`, `images/pantalla-2-consulta.svg`).
 
-[pendiente del recorrido sobre las capturas]
+**Pantalla 1 — Selección de proyecto** (`/`):
+
+1. Arriba, la cabecera «CODEMIND» con «Comprensión de repositorios con evidencia verificable»; debajo,
+   el título «Elige un proyecto para explorar» y «Repositorios precargados · sin registro · sin
+   instalación».
+2. La tarjeta de acme-shop: «PHP / Laravel» y sus cuatro recuentos (ficheros, símbolos, aristas y
+   commits del grafo de la semilla), la insignia «✓ indexado» y, en cuanto la API contesta a su
+   comprobación de salud, la insignia «listo» (mientras tanto, «comprobando…»).
+3. El enlace «Explorar proyecto →» abre la pantalla 2 de ese proyecto.
+4. Debajo de la tarjeta, «+ Indexar mi propio repositorio» es una indicación, no un botón: muestra el
+   comando de la CLI (`npm run cli -- index <carpeta> --name <nombre> --language php`) y sus
+   requisitos.
+
+**Pantalla 2 — Consulta con evidencia verificada** (`/p/<id del proyecto>`):
+
+5. Arriba, la barra del proyecto: «←» (vuelve a la pantalla 1), «acme-shop» y «PHP / Laravel · 170
+   aristas»; debajo, el campo de la pregunta con el botón «→».
+6. «Prueba:» y las tres preguntas sugeridas, que son las preguntas golden de la semilla: «¿Cómo se
+   calcula el precio final de un pedido?», «¿Cómo se validan los cupones?» y «¿Qué hace OrderObserver
+   al crear un pedido?». Pulsar una la envía; en modo evaluación las tres se responden desde la caché.
+7. «Respuesta»: el texto de la respuesta y sus afirmaciones numeradas, cada una con la insignia de su
+   tipo, «HECHO» o «INFERIDO», y la de su verificación, «verificado» o «sin verificar».
+8. «Evidencia»: una entrada por cita, «ev-1 · app/Services/PriceCalculator.php:16-44». Al pulsarla (o
+   con Intro o Espacio) se despliega el mismo fragmento que imprimió `npm run demo:excerpt` en el
+   paso 2; al pulsarla otra vez se pliega.
+9. Debajo, el panel de uso: «Confianza» con su valor, los tokens, el coste («$0»), la latencia en
+   milisegundos, «ahorro 100 % vs bruto», «caché ✓» y la línea base («… tokens sin selección de
+   contexto → 0 con CODEMIND»). En modo evaluación todas las preguntas sugeridas son aciertos de caché.
+10. Una pregunta libre escrita en el campo, como «¿Qué hace ShippingService con los pedidos
+    internacionales?», muestra en modo evaluación el aviso «Hace falta un modelo de lenguaje», que
+    explica que la API solo responde las preguntas que tiene en caché y que para preguntas libres hay
+    que configurar las variables `LLM_*`; añade que las preguntas sugeridas siguen respondiendo desde la
+    caché.
+11. Una pregunta que no nombra nada del código, como la del paso 3 («¿Cómo se gestionan los reembolsos
+    de un pedido?»), muestra «Sin respuesta verificada», la frase que explica el motivo y «Motivo:
+    no-anchor»: CODEMIND prefiere no inventar una respuesta.
+
+**La API no disponible.** Para ver este estado, para el sistema (ver
+[Parar el sistema](#parar-el-sistema)) y arranca solo la web:
+
+```shell
+npm -w packages/web run dev
+```
+
+12. En `http://localhost:5173/` la tarjeta de acme-shop sigue visible, sin «listo», y entre el subtítulo
+    y la tarjeta aparece la alerta «La API de CODEMIND no está disponible. Puedes ver los proyectos, pero
+    no preguntar hasta que vuelva. Arráncala con npm run up y pulsa Reintentar.» con el botón
+    «Reintentar». Pulsarlo vuelve a comprobar la API una sola vez; si sigue parada, la alerta se queda.
+    Para la web con Ctrl+C.
+
+**Diferencias con los wireframes**, por los datos de la Entrega 2: hay una sola tarjeta (`task-api`
+entra en la semilla con CM-HU-18), los recuentos son los del grafo de la semilla y no los ilustrativos
+del wireframe, la pantalla 2 no tiene el botón «⟳» ni evidencias de PR (el historial de Git como
+evidencia llega en la Entrega 3), las preguntas sugeridas son las golden y no las del wireframe, y el
+indexado de un repositorio propio es una indicación del comando de la CLI en lugar de un botón. Los
+valores del panel de uso son los de una respuesta servida desde la caché (0 tokens, «$0»), no los del
+wireframe, que ilustra una generación en vivo.
 
 ## Parar el sistema
 
