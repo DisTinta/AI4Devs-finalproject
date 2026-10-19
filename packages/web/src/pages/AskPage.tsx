@@ -2,6 +2,7 @@ import { useState, type ReactElement } from 'react';
 import { AnswerView } from '../components/AnswerView';
 import { AskFallbackNotice } from '../components/AskFallbackNotice';
 import { validQuestion } from '../components/answer-display';
+import { LlmRequiredNotice } from '../components/LlmRequiredNotice';
 import { PageFrame } from '../components/PageFrame';
 import { formatCount, stackLabel } from '../components/project-display';
 import { ProjectBar } from '../components/ProjectBar';
@@ -72,7 +73,7 @@ function announcementOf(state: AskState): string {
  * (DIS-65 design D7, D10). The pending text takes the place of whatever was shown before; it is hidden
  * from assistive technology because the status region announces it (DIS-66 design D22).
  */
-function ResultArea({ state }: { state: AskState }): ReactElement | null {
+function ResultArea({ state, hasSuggestions }: { state: AskState; hasSuggestions: boolean }): ReactElement | null {
   if (state.status === 'pending') {
     return (
       <p aria-hidden="true" className="mt-6 text-sm text-ink-muted">
@@ -92,7 +93,7 @@ function ResultArea({ state }: { state: AskState }): ReactElement | null {
     return <UnknownState reason={state.reason} />;
   }
   if (state.status === 'unknown') {
-    return <AskFallbackNotice reason={state.reason} />;
+    return <LlmRequiredNotice message={state.message} hasSuggestions={hasSuggestions} />;
   }
   if (state.status === 'failed') {
     return <AskFallbackNotice failure={state.failure} />;
@@ -147,7 +148,7 @@ export function AskPage({ projectId }: AskPageProps): ReactElement {
       <div className="text-left wrap-break-word">
         <QueryBox value={question} onChange={onChange} onSubmit={onSubmit} invalid={invalid} placeholder={placeholder} />
         {suggestions.length === 0 ? null : <SuggestedQuestions questions={suggestions} onPick={onPick} />}
-        <ResultArea state={state} />
+        <ResultArea state={state} hasSuggestions={suggestions.length > 0} />
         <p role="status" className="sr-only">
           {announcementOf(state)}
         </p>

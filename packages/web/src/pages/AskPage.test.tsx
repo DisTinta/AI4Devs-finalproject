@@ -872,6 +872,25 @@ function buttonsAfterSuggestions(): HTMLElement[] {
     .filter((button) => precedes(group, button) && !group.contains(button));
 }
 
+/** The heading of the configuration notice of `llm-required`. */
+const LLM_REQUIRED = 'Hace falta un modelo de lenguaje';
+
+/** The paragraph of the configuration notice, as text. */
+const LLM_REQUIRED_PARAGRAPH =
+  'La API está en modo evaluación: solo responde las preguntas que tiene en caché. Para preguntas libres, configura las variables LLM_* de la API y reiníciala.';
+
+/** The line of the configuration notice for a project with suggested questions. */
+const SUGGESTIONS_STILL_ANSWER = 'Las preguntas sugeridas siguen respondiendo desde la caché.';
+
+/** The `message` the API sends with `llm-required` in evaluation mode. */
+const LLM_REQUIRED_MESSAGE = 'evaluation mode (cache-only): set LLM_* to enable free-form asks';
+
+/** The paragraph of the configuration notice: the one that holds a `code` element. */
+function llmRequiredParagraph(heading: HTMLElement): HTMLElement | undefined {
+  const notice = heading.parentElement as HTMLElement;
+  return Array.from(notice.querySelectorAll('p')).find((paragraph) => paragraph.querySelector('code') !== null);
+}
+
 describe('UNKNOWN states', () => {
   it('An UNKNOWN without anchors explains that there is no evidence', async () => {
     // Arrange
@@ -897,5 +916,100 @@ describe('UNKNOWN states', () => {
     expect(screen.queryByRole('alert')).toBeNull();
     expect(buttonsAfterSuggestions()).toEqual([]);
     expect(document.activeElement).toBe(field);
+  });
+
+  it('Every other reason without evidence has its own sentence', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const sentences: Record<string, string> = {
+      'over-budget': 'Ningún fragmento de código relevante cabe en el presupuesto de tokens de la consulta.',
+      'invalid-model-output': 'El modelo devolvió una respuesta con un formato no válido y se ha descartado.',
+      'no-evidence': 'El modelo no dio ninguna afirmación apoyada en evidencia.',
+      'broken-evidence': 'Ninguna cita del modelo coincide con el código del proyecto y se ha descartado la respuesta.',
+      'a-future-reason': 'CODEMIND no ha encontrado evidencia suficiente para dar una respuesta verificada.',
+    };
+    const runs: Array<Record<string, unknown>> = [];
+
+    // Act
+    for (const reason of Object.keys(sentences)) {
+      // `a-future-reason` is not an `UnknownReason`: the double sends it as JSON, as a newer API would.
+      stubFetch(answerWith(200, unknownBody(reason)));
+      const { unmount } = await renderScreen2();
+      await user.click(screen.getByRole('button', { name: Q3 }));
+      const heading = await screen.findByRole('heading', { level: 2, name: NO_VERIFIED_ANSWER });
+      const sentence = screen.queryByText(sentences[reason]);
+      const motive = screen.queryByText(`Motivo: ${reason}`);
+      runs.push({
+        reason,
+        sentence: sentence !== null,
+        motive: motive !== null,
+        inOrder: sentence !== null && motive !== null && precedes(heading, sentence) && precedes(sentence, motive),
+        alert: screen.queryByRole('alert') !== null,
+      });
+      unmount();
+    }
+
+    // Assert
+    expect(runs).toEqual(
+      Object.keys(sentences).map((reason) => ({ reason, sentence: true, motive: true, inOrder: true, alert: false })),
+    );
+  });
+
+  it('An UNKNOWN that needs a language model shows the configuration notice', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    stubFetch(answerWith(200, unknownBody('llm-required', LLM_REQUIRED_MESSAGE)));
+    await renderScreen2();
+
+    // Act
+    const field = await askInField(user, '¿Qué hace OrderService?');
+    const heading = await screen.findByRole('heading', { level: 2, name: LLM_REQUIRED });
+
+    // Assert
+    const paragraph = llmRequiredParagraph(heading);
+    expect(paragraph?.textContent).toBe(LLM_REQUIRED_PARAGRAPH);
+    expect(Array.from(paragraph?.querySelectorAll('code') ?? [], (code) => code.textContent)).toEqual(['LLM_*']);
+    const apiMessage = screen.getByText(`Mensaje de la API: ${LLM_REQUIRED_MESSAGE}`);
+    expectInOrder([heading, paragraph as HTMLElement, screen.getByText(SUGGESTIONS_STILL_ANSWER), apiMessage]);
+    expect(screen.queryByText(NO_VERIFIED_ANSWER)).toBeNull();
+    expect(screen.queryByText(/Motivo:/)).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Respuesta' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Uso' })).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(document.activeElement).toBe(field);
+  });
+
+  it('The configuration notice of a project without suggested questions', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    stubFetch(answerWith(200, unknownBody('llm-required')));
+    renderAt(`/p/${OTHER_PROJECT_ID}`);
+    await screen.findByRole('heading', { level: 1, name: OTHER_PROJECT_ID });
+
+    // Act
+    await askInField(user, '¿Qué hace OrderService?');
+    const heading = await screen.findByRole('heading', { level: 2, name: LLM_REQUIRED });
+
+    // Assert
+    expect(llmRequiredParagraph(heading)?.textContent).toBe(LLM_REQUIRED_PARAGRAPH);
+    expect(screen.queryByText(SUGGESTIONS_STILL_ANSWER)).toBeNull();
+    expect(screen.queryByText(/Mensaje de la API:/)).toBeNull();
+  });
+
+  it('Texts of the API in a state are shown as text', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const markup = '<img src=x onerror=alert(1)>';
+    stubFetch(answerWith(200, unknownBody('llm-required', markup)));
+    await renderScreen2();
+
+    // Act
+    await askInField(user, '¿Qué hace OrderService?');
+    const heading = await screen.findByRole('heading', { level: 2, name: LLM_REQUIRED });
+
+    // Assert
+    const notice = heading.parentElement as HTMLElement;
+    expect(within(notice).getByText(`Mensaje de la API: ${markup}`).textContent).toBe(`Mensaje de la API: ${markup}`);
+    expect(screen.getByRole('main').querySelectorAll('img')).toHaveLength(0);
   });
 });
