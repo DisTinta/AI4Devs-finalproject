@@ -117,4 +117,4 @@ Every test of this change follows Arrange-Act-Assert with the three blocks comme
 - [x] 15.4 Run `/adversarial-review`; report `openspec/changes/ask-page-states/reports/YYYY-MM-DD-adversarial-review.md`
 - [x] 15.5 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups; re-run the verification each fix invalidates and add an addendum to the affected report
 - [x] 15.6 Commit the fixes to the same pull request; re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
-- [ ] 15.7 `/opsx:archive`, and commit the archive to the same pull request (no test-file edits in that commit); merge only after the archive commit and with CI green (autonomous-run ADR)
+- [x] 15.7 `/opsx:archive`, and commit the archive to the same pull request (no test-file edits in that commit); merge only after the archive commit and with CI green (autonomous-run ADR)

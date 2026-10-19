@@ -19,8 +19,10 @@ sample project, its language and framework label and its edge count, written as 
 (`project-picker` → "How a project is written on its card"), separated by « · ». The main landmark SHALL
 hold, in this order: the question box ("Question box"); the suggested questions, when the project has
 any ("Suggested questions"); and the result area, which shows the pending state, the answer with its
-evidence, or a notice ("Pending question", "Answer with typed and verified statements", "Expandable
-evidence", "Provisional notice for what is not an answer"), and nothing before the first question.
+evidence and its usage panel, an `UNKNOWN` state, or a notice ("Pending question", "Answer with typed and
+verified statements", "Expandable evidence", "Usage panel", "UNKNOWN states", "Error, rate-limit and
+budget notices"), and nothing before the first question. Screen 2 SHALL also hold, from the moment it
+opens, the status region of "Screen reader announcements of Screen 2", empty before the first question.
 Opening Screen 2 SHALL NOT send any request: the page calls the API only when a question is sent.
 
 #### Scenario: Screen 2 opens on a sample project without any request
@@ -33,9 +35,10 @@ Opening Screen 2 SHALL NOT send any request: the page calls the API only when a 
   and neither «CODEMIND» nor «Comprensión de repositorios con evidencia verificable» is shown; the main
   landmark holds, in this order, a text field named «Pregunta», a button named «Preguntar», the text
   «Prueba:» and a group named «Prueba:» with exactly three buttons, named «¿Cómo se calcula el precio
-  final de un pedido?», «¿Cómo se validan los cupones?» and «¿Qué hace OrderObserver al crear un
+  final de un pedido?», «¿Cómo se validan los cupones?» y «¿Qué hace OrderObserver al crear un
   pedido?» in this order; there is no heading «Respuesta» nor «Evidencia», no text «Buscando evidencia…»
-  and no element with role `alert` or `status`; and the double recorded no request
+  and no element with role `alert`; exactly one element has role `status`, and its text is empty; and
+  the double recorded no request
 
 #### Scenario: A project outside the sample constant is shown by its id
 
@@ -59,9 +62,11 @@ field SHALL keep the text the person wrote, and sending SHALL NOT move the focus
 When the trimmed text is not a valid question, the page SHALL send no request, leave the result area as
 it was, mark the field with `aria-invalid="true"`, show the message «Escribe una pregunta de 5 a 500
 caracteres.» in an element with role `alert` that is the field's accessible description, and keep the
-focus on the field. The mark and the message SHALL go away as soon as the person changes the field's
-text, or sends a valid question. The page checks only the length: any other rule of the API (such as
-U+0000) is reported by the API's answer ("Provisional notice for what is not an answer").
+focus on the field. Every invalid send SHALL insert the message as a new element, even when the message
+is already shown after a previous invalid send, so that assistive technology announces it again. The
+mark and the message SHALL go away as soon as the person changes the field's text, or sends a valid
+question. The page checks only the length: any other rule of the API (such as U+0000) is reported by the
+API's answer ("Error, rate-limit and budget notices").
 
 #### Scenario: A written question is sent trimmed
 
@@ -95,6 +100,17 @@ U+0000) is reported by the API's answer ("Provisional notice for what is not an 
 - **THEN** in both runs the field has no `aria-invalid="true"` and no accessible description and the
   message is not shown; the double recorded no request in the first run, and exactly one request, whose
   body is `{"question":"¿Cómo se validan los cupones?"}`, in the second
+
+#### Scenario: Sending the same invalid question again announces the message again
+
+- **GIVEN** Screen 2 of acme-shop showing the message «Escribe una pregunta de 5 a 500 caracteres.» after
+  the person wrote «hola» and pressed Enter, and `fetch` replaced by a double that records every request
+  and never answers
+- **WHEN** the person presses Enter again without changing the field
+- **THEN** exactly one element with role `alert` holds the message, and it is not the element that held
+  it before the second Enter (a new element was inserted); the field has `aria-invalid="true"` and that
+  new element is its accessible description; the focus is on the field; and the double recorded no
+  request
 
 ### Requirement: Suggested questions
 
@@ -131,13 +147,15 @@ box"); the focus SHALL stay on the pressed button.
 ### Requirement: Pending question
 
 From the moment a valid question is sent until the API's answer arrives, the result area SHALL show only
-an element with role `status` holding «Buscando evidencia…» (with U+2026): whatever it showed before (an
-answer with its evidence, or a notice) SHALL be removed when the question is sent, so an answer to another
-question is never shown. While a question is pending, sending from the field, from the button «Preguntar»
-or from a suggested question SHALL send no request and change nothing on the screen, the field's text
-included, whether or not the field holds a valid question: no invalid mark and no message either. The page SHALL NOT set a time limit of its own (a local model takes tens of seconds). Leaving
-the page SHALL abort the pending request, and that abort SHALL show nothing. When the answer arrives, the
-focus SHALL stay where it is.
+the text «Buscando evidencia…» (with U+2026), hidden from assistive technology, and the status region of
+"Screen reader announcements of Screen 2" SHALL hold «Buscando evidencia…»: whatever the result area
+showed before (an answer with its evidence and its usage panel, an `UNKNOWN` state, or a notice) SHALL be
+removed when the question is sent, so an answer to another question is never shown. While a question is
+pending, sending from the field, from the button «Preguntar» or from a suggested question SHALL send no
+request and change nothing on the screen, the field's text included, whether or not the field holds a
+valid question: no invalid mark and no message either. The page SHALL NOT set a time limit of its own (a
+local model takes tens of seconds). Leaving the page SHALL abort the pending request, and that abort SHALL
+show nothing. When the answer arrives, the focus SHALL stay where it is.
 
 #### Scenario: Sending again while a question is pending sends no request
 
@@ -162,8 +180,8 @@ focus SHALL stay where it is.
 #### Scenario: A new question replaces what was shown
 
 - **GIVEN** two runs: Screen 2 of acme-shop showing the answer of «¿Cómo se calcula el precio final de un
-  pedido?»; and Screen 2 of acme-shop showing the provisional alert after `fetch` rejected with a
-  `TypeError`; in each run `fetch` is then replaced by a double that records every request and never
+  pedido?»; and Screen 2 of acme-shop showing the alert of an unavailable API after `fetch` rejected with
+  a `TypeError`; in each run `fetch` is then replaced by a double that records every request and never
   answers
 - **WHEN** the person presses «¿Cómo se validan los cupones?» in each run
 - **THEN** in each run the double recorded exactly one request and the status «Buscando evidencia…» is
@@ -192,13 +210,13 @@ focus SHALL stay where it is.
 
 When the API answers with an answered question, the result area SHALL show, in this order: a level-2
 heading «Respuesta»; the answer text; an ordered list with one item per statement, in the API's order;
-and the evidence ("Expandable evidence"). In the answer text and in each statement's text, every fragment
-between a pair of back-quotes SHALL be shown, without the back-quotes, in a `code` element ("How a
-question, an answer and an evidence location are written"); no other markup is interpreted and every
-text is rendered as text. Each statement item SHALL show its text, then a type badge and a verification
-badge, then «Evidencia: » followed by the ids of the evidence it cites joined by «, » (omitted when it
-cites none). The badges are, with their icon hidden from assistive technology and the text always
-present (never colour alone):
+the evidence ("Expandable evidence"); and the usage panel ("Usage panel"). In the answer text and in each
+statement's text, every fragment between a pair of back-quotes SHALL be shown, without the back-quotes,
+in a `code` element ("How a question, an answer and an evidence location are written"); no other markup
+is interpreted and every text is rendered as text. Each statement item SHALL show its text, then a type
+badge and a verification badge, then «Evidencia: » followed by the ids of the evidence it cites joined by
+«, » (omitted when it cites none). The badges are, with their icon hidden from assistive technology and
+the text always present (never colour alone):
 
 | Value | Badge |
 |---|---|
@@ -208,8 +226,8 @@ present (never colour alone):
 | verification `cited` | ○ «sin verificar», in the muted colours |
 
 An `INFERENCE` item SHALL be drawn on the warning background with the warning border, and a `FACT` item
-with the decorative success stripe. The page SHALL NOT show the answer's `confidence` nor its `usage`
-(DIS-66).
+with the decorative success stripe. The status region SHALL hold «Respuesta recibida.» while the answer
+is shown ("Screen reader announcements of Screen 2").
 
 #### Scenario: An answered question shows the answer, its statements and its evidence
 
@@ -225,8 +243,8 @@ with the decorative success stripe. The page SHALL NOT show the answer's `confid
   ordered list has two items: the first holds «compute()» in a `code` element, «HECHO», «verificado» and
   «Evidencia: ev-1», and the second holds «INFERIDO», «sin verificar» and «Evidencia: ev-1, ev-2»; the
   icons ●, ✓, ⚠ and ○ are inside elements hidden from assistive technology; the level-2 heading
-  «Evidencia» comes after the list; there is no status «Buscando evidencia…», no text «0.71» and no text
-  «Confianza»; and the focus is still on the pressed button
+  «Evidencia» comes after the list; there is no text «Buscando evidencia…» and the element with role
+  `status` holds «Respuesta recibida.»; and the focus is still on the pressed button
 
 #### Scenario: Every combination of type and verification is labelled
 
@@ -300,6 +318,145 @@ independently of the others.
 - **THEN** the evidence list has two items, in order, named «ev-1 · app/Observers/OrderObserver.php:14-28»
   and «ev-2 · app/Observers/OrderObserver.php:14-28»; expanding the second leaves the first collapsed
 
+### Requirement: Usage panel
+
+After the evidence of an answered question, the result area SHALL show a section on the canvas background
+whose accessible name is its level-2 heading «Uso», hidden visually and present for assistive technology.
+The section SHALL show, in this order: «Confianza» followed by the confidence; the tokens of the answer
+(input plus output tokens) as a count of «token» / «tokens»; the cost; the latency — these four figures
+separated by « · » hidden from assistive technology —; the savings badge; the cache badge; and the
+baseline line «<baseline tokens> sin selección de contexto → <input tokens> con CODEMIND», the baseline
+written as a count of «token» / «tokens» and the input tokens as a number. Every figure is written as in
+"How usage figures and notice details are written". The badges are, always with their text (never colour
+alone):
+
+| Value | Badge |
+|---|---|
+| `savingsPct`, rounded to one decimal, greater than 0 | «ahorro <savings> % vs bruto», in the success colours |
+| `savingsPct`, rounded to one decimal, 0 or less | «sin ahorro vs bruto», in the muted colours |
+| `cacheHit` `true` | «caché ✓», the ✓ hidden from assistive technology, in the accent colours |
+| `cacheHit` `false` | «sin caché», in the muted colours |
+
+The section SHALL hold no link, button or field. An `UNKNOWN` SHALL show no usage panel (the API sends no
+usage nor confidence with it).
+
+#### Scenario: An answer from the model shows its usage panel
+
+- **GIVEN** Screen 2 of acme-shop, and `fetch` answering `200` with the answered question of "An answered
+  question shows the answer, its statements and its evidence", whose `confidence` is `0.71` and whose
+  `usage` has `inputTokens` 4000, `outputTokens` 812, `baselineTokens` 41200, `savingsPct` 88, `costUsd`
+  0.014, `latencyMs` 2100 and `cacheHit` `false`
+- **WHEN** the person presses «¿Cómo se calcula el precio final de un pedido?»
+- **THEN** a region named «Uso», whose level-2 heading is «Uso», comes after the heading «Evidencia» and
+  after every evidence button; its text holds, in this order, «Confianza», «0.71», «4 812 tokens»,
+  «$0.014», «2.1 s», «ahorro 88 % vs bruto», «sin caché» and «41 200 tokens sin selección de contexto →
+  4 000 con CODEMIND», each digit group separated by a no-break space (U+00A0); every « · » of the region
+  is inside an element hidden from assistive technology; and the region holds no link, button or field
+
+#### Scenario: A cache hit shows its usage panel
+
+- **GIVEN** Screen 2 of acme-shop, and `fetch` answering `200` with the answered question of "An answered
+  question shows the answer, its statements and its evidence" but with `confidence` `0.7772998611746911`
+  and a `usage` with `inputTokens` 0, `outputTokens` 0, `baselineTokens` 7123, `savingsPct` 100,
+  `costUsd` 0, `latencyMs` 12 and `cacheHit` `true`
+- **WHEN** the person presses «¿Cómo se calcula el precio final de un pedido?»
+- **THEN** the region «Uso» holds, in this order, «Confianza», «0.78», «0 tokens», «$0», «12 ms»,
+  «ahorro 100 % vs bruto», «caché ✓» and «7 123 tokens sin selección de contexto → 0 con CODEMIND»; the
+  ✓ of the cache badge is inside an element hidden from assistive technology; and the region holds no
+  text «sin caché»
+
+#### Scenario: No saving is not shown as a saving
+
+- **GIVEN** Screen 2 of acme-shop, in two runs where `fetch` answers `200` with the answered question of
+  "An answered question shows the answer, its statements and its evidence" whose `savingsPct` is `-24.9`
+  in the first run and `0` in the second
+- **WHEN** the person presses «¿Cómo se calcula el precio final de un pedido?» in each run
+- **THEN** in each run the region «Uso» holds «sin ahorro vs bruto» and no text «ahorro -», «ahorro 0»
+  nor «%»
+
+#### Scenario: The usage panel and the states follow the wireframe
+
+- **GIVEN** the web client and the API running locally in evaluation mode, with the seed and the golden
+  answers loaded
+- **WHEN** a browser opens Screen 2 of acme-shop, presses «¿Cómo se calcula el precio final de un
+  pedido?», then sends a question with no anchor in the code, then a free question that names a class of
+  acme-shop, then presses «¿Cómo se calcula el precio final de un pedido?» again; and, with the API
+  stopped, presses «¿Cómo se validan los cupones?»
+- **THEN** the usage strip is drawn as the wireframe's (one band in the canvas colour after the evidence,
+  with no visible heading «Uso»; the figures in one line that, at 320 px wide, wraps without clipping any
+  text; the green savings badge, the blue «caché ✓» badge and the baseline line under them); the `UNKNOWN` state is drawn in the muted colours, the configuration notice
+  in the blue accent colours and the alert in the yellow warning colours; the text of the status region
+  («Respuesta recibida.» and the others) is never visible on the page (validated in the manual interface
+  test and in `/show-spec-working`, with screenshots saved next to the report and next to the wireframe)
+
+### Requirement: How usage figures and notice details are written
+
+Every figure SHALL be written with a point as the decimal separator, the same in every browser locale and
+time zone:
+
+| Figure | Written |
+|---|---|
+| confidence | with exactly two decimals («0.71», «1.00») |
+| a count of tokens | as Screen 1 writes its counts: digit groups of three from 1 000 up separated by U+00A0, then « token» for exactly 1 and « tokens» otherwise |
+| the input tokens of the baseline line | the number with its digit groups, without a noun |
+| cost | «$0» when it is 0; «< $0.001» when it is greater than 0 and rounds to 0.000; otherwise «$» and the amount with exactly three decimals |
+| latency | «<n> ms» under 1 000 ms; otherwise the seconds with exactly one decimal and « s» |
+| savings | rounded to one decimal; when the rounded value is greater than 0, «ahorro <savings> % vs bruto» with that value and no trailing «.0»; otherwise «sin ahorro vs bruto», so no badge reads «ahorro 0 %» |
+
+The details of an API error SHALL be read only when they have the expected type and form, and are
+otherwise treated as absent: the reset time of an exhausted budget is `details.resetsAt` when it is a
+string of the form `YYYY-MM-DDTHH:MM`, optionally followed by seconds and fractions, and then `Z` or an
+offset `±HH:MM`, that denotes a real instant; it is written in UTC as «<YYYY-MM-DD> a las <HH:MM> UTC». The
+wait of a rate limit is `details.retryAfterSeconds` when it is a whole number of 1 or more.
+
+#### Scenario: Confidence is written with two decimals
+
+- **GIVEN** the usage writer of Screen 2
+- **WHEN** it is given the confidences `0.71`, `0.7772998611746911`, `0.6222`, `1` and `0`
+- **THEN** it writes «0.71», «0.78», «0.62», «1.00» and «0.00»
+
+#### Scenario: Tokens are counted with grouped digits
+
+- **GIVEN** the usage writer of Screen 2
+- **WHEN** it is given the token pairs (input, output) `(4000, 812)`, `(0, 0)`, `(1, 0)` and the baseline
+  lines (baseline, input) `(41200, 4000)`, `(7123, 0)`, `(1, 1)` and `(1234567, 12345)`
+- **THEN** it writes «4 812 tokens», «0 tokens», «1 token», then «41 200 tokens sin selección de contexto
+  → 4 000 con CODEMIND», «7 123 tokens sin selección de contexto → 0 con CODEMIND», «1 token sin selección
+  de contexto → 1 con CODEMIND» and «1 234 567 tokens sin selección de contexto → 12 345 con CODEMIND»,
+  every digit group separated by U+00A0
+
+#### Scenario: Cost is written in dollars
+
+- **GIVEN** the usage writer of Screen 2
+- **WHEN** it is given the costs `0`, `0.0004`, `0.014`, `0.0123` and `1.23456`
+- **THEN** it writes «$0», «< $0.001», «$0.014», «$0.012» and «$1.235»
+
+#### Scenario: Latency is written in milliseconds or seconds
+
+- **GIVEN** the usage writer of Screen 2
+- **WHEN** it is given the latencies `12`, `999`, `1000`, `2100` and `539201` (milliseconds)
+- **THEN** it writes «12 ms», «999 ms», «1.0 s», «2.1 s» and «539.2 s»
+
+#### Scenario: Savings are written only when there are savings
+
+- **GIVEN** the usage writer of Screen 2
+- **WHEN** it is given the savings `88`, `88.3`, `100`, `0`, `-24.9`, `0.04` and `-0.04`
+- **THEN** it writes «ahorro 88 % vs bruto», «ahorro 88.3 % vs bruto», «ahorro 100 % vs bruto», and «sin
+  ahorro vs bruto» for the other four
+
+#### Scenario: The budget reset time is written in UTC
+
+- **GIVEN** the notice reader of Screen 2
+- **WHEN** it is given, as `resetsAt`, «2026-10-20T00:00:00.000Z», «2026-10-20T02:00:00+02:00»,
+  «2026-10-20», «mañana», «2026-13-45T00:00:00Z», the number `1760918400000` and no value
+- **THEN** it writes «2026-10-20 a las 00:00 UTC» for the first two and no reset time for the other five
+
+#### Scenario: The wait of a rate limit is read only when it is a whole number of seconds
+
+- **GIVEN** the notice reader of Screen 2
+- **WHEN** it is given, as `retryAfterSeconds`, `42`, `1`, `0`, `-1`, `1.5`, the text «42» and no value
+- **THEN** it reads a wait of 42 and of 1 seconds for the first two and no wait for the other five
+
 ### Requirement: How a question, an answer and an evidence location are written
 
 A question SHALL be valid when its text, once trimmed of leading and trailing whitespace, has from 5 to
@@ -333,64 +490,201 @@ without a pair, and an empty pair, stay as plain text. An evidence location SHAL
   `app/Services/ShippingService.php` with lines 12 to 12
 - **THEN** it writes «app/Services/PriceCalculator.php:16-44», then «app/Services/ShippingService.php:12»
 
-### Requirement: Provisional notice for what is not an answer
+### Requirement: UNKNOWN states
 
-Until DIS-66 replaces them with the final states, every outcome of a sent question that is not an
-answered question SHALL show a notice in the result area, never an empty area, and no heading
-«Respuesta», statement or evidence:
+When the API answers `200` with `answer: 'UNKNOWN'`, the result area SHALL show a state, never an empty
+area, with no heading «Respuesta» nor «Evidencia», no statement list, no usage panel and no element with
+role `alert`. The state holds no control and no live role (the status region announces it, "Screen reader
+announcements of Screen 2"). Every text of the API is rendered as text.
 
-| Outcome | Notice |
+- **Reason `llm-required`** — the configuration notice, in the accent colours: a level-2 heading «Hace
+  falta un modelo de lenguaje»; the paragraph «La API está en modo evaluación: solo responde las preguntas
+  que tiene en caché. Para preguntas libres, configura las variables LLM_* de la API y reiníciala.» with
+  «LLM_*» in a `code` element; only when the project has suggested questions, «Las preguntas sugeridas
+  siguen respondiendo desde la caché.»; and only when the API sent a `message`, «Mensaje de la API:
+  <message>».
+- **Any other reason** — the state without evidence, in the muted colours, with a decorative ○ hidden
+  from assistive technology: a level-2 heading «Sin respuesta verificada», the sentence of its reason, and
+  «Motivo: <reason>».
+
+| Reason | Sentence |
 |---|---|
-| `200` with `answer: 'UNKNOWN'` | an element with role `status` holding «Sin respuesta verificada (motivo: <reason>).» |
-| an API error (the API's error format) | an element with role `alert` holding «No se ha podido obtener la respuesta.» and «Código: <code>.» |
-| an unavailable API, or any other failure except the page's own abort | an element with role `alert` holding «No se ha podido obtener la respuesta.» and «La API de CODEMIND no responde.» |
+| `no-anchor` | «La pregunta no nombra nada que CODEMIND encuentre en el código de este proyecto (ningún símbolo ni fichero), así que no hay evidencia en la que apoyar una respuesta. CODEMIND prefiere no inventarla.» |
+| `over-budget` | «Ningún fragmento de código relevante cabe en el presupuesto de tokens de la consulta.» |
+| `invalid-model-output` | «El modelo devolvió una respuesta con un formato no válido y se ha descartado.» |
+| `no-evidence` | «El modelo no dio ninguna afirmación apoyada en evidencia.» |
+| `broken-evidence` | «Ninguna cita del modelo coincide con el código del proyecto y se ha descartado la respuesta.» |
+| any other value | «CODEMIND no ha encontrado evidencia suficiente para dar una respuesta verificada.» |
 
-The notice SHALL offer no retry button: sending a question again asks again ("Pending question"). The
-notice SHALL NOT move the focus.
-
-#### Scenario: An UNKNOWN shows the provisional status
+#### Scenario: An UNKNOWN without anchors explains that there is no evidence
 
 - **GIVEN** Screen 2 of acme-shop, and `fetch` answering `200` with
   `{"answer":"UNKNOWN","reason":"no-anchor","statements":[],"evidence":[]}`
-- **WHEN** the person sends «¿Por qué existe legacy_ref?»
-- **THEN** an element with role `status` holds exactly «Sin respuesta verificada (motivo: no-anchor).»;
-  there is no heading «Respuesta» nor «Evidencia», no ordered list and no element with role `alert`
+- **WHEN** the person writes «¿Por qué existe legacy_ref?» and presses Enter
+- **THEN** a level-2 heading «Sin respuesta verificada» is shown, followed by the sentence of
+  `no-anchor` and by «Motivo: no-anchor»; the ○ is inside an element hidden from assistive technology;
+  there is no heading «Respuesta» nor «Evidencia», no ordered list, no region «Uso», no button after the
+  group «Prueba:» and no element with role `alert`; and the focus is still on the field
 
-#### Scenario: An API error shows the provisional alert with its code
+#### Scenario: Every other reason without evidence has its own sentence
 
-- **GIVEN** Screen 2 of acme-shop, and `fetch` answering `429` with
-  `{"error":{"code":"BUDGET_EXHAUSTED","message":"the daily LLM budget is exhausted","details":{"cacheOnly":true}}}`
-- **WHEN** the person presses «¿Cómo se validan los cupones?»
-- **THEN** one element with role `alert` holds «No se ha podido obtener la respuesta.» and «Código:
-  BUDGET_EXHAUSTED.»; it holds no button; there is no heading «Respuesta» and no status «Buscando
-  evidencia…»; and the focus is still on the pressed button
+- **GIVEN** Screen 2 of acme-shop, in five runs where `fetch` answers `200` with an `UNKNOWN` whose
+  `reason` is `over-budget`, `invalid-model-output`, `no-evidence`, `broken-evidence` and
+  `a-future-reason`
+- **WHEN** the person presses «¿Cómo se validan los cupones?» in each run
+- **THEN** each run shows the heading «Sin respuesta verificada», the sentence of its reason in the
+  table (the last one for `a-future-reason`) and «Motivo: <reason>»; and no element with role `alert`
 
-#### Scenario: An unavailable API shows the provisional alert
+#### Scenario: An UNKNOWN that needs a language model shows the configuration notice
+
+- **GIVEN** Screen 2 of acme-shop, and `fetch` answering `200` with
+  `{"answer":"UNKNOWN","reason":"llm-required","message":"evaluation mode (cache-only): set LLM_* to enable free-form asks","statements":[],"evidence":[]}`
+- **WHEN** the person writes «¿Qué hace OrderService?» and presses Enter
+- **THEN** a level-2 heading «Hace falta un modelo de lenguaje» is shown, followed by the paragraph of
+  the configuration notice with «LLM_*» as the text of its `code` element, by «Las preguntas sugeridas
+  siguen respondiendo desde la caché.» and by «Mensaje de la API: evaluation mode (cache-only): set LLM_*
+  to enable free-form asks»; there is no text «Sin respuesta verificada» nor «Motivo:», no heading
+  «Respuesta», no region «Uso» and no element with role `alert`; and the focus is still on the field
+
+#### Scenario: Texts of the API in a state are shown as text
+
+- **GIVEN** Screen 2 of acme-shop, and `fetch` answering `200` with
+  `{"answer":"UNKNOWN","reason":"llm-required","message":"<img src=x onerror=alert(1)>","statements":[],"evidence":[]}`
+- **WHEN** the person writes «¿Qué hace OrderService?» and presses Enter
+- **THEN** the configuration notice holds the text «Mensaje de la API: <img src=x onerror=alert(1)>»; and
+  the main landmark holds no `img` element
+
+#### Scenario: The configuration notice of a project without suggested questions
+
+- **GIVEN** Screen 2 of the project `0b5c7f2e-1d3a-4e6b-8f90-1a2b3c4d5e6f`, and `fetch` answering `200`
+  with `{"answer":"UNKNOWN","reason":"llm-required","statements":[],"evidence":[]}` (no `message`)
+- **WHEN** the person writes «¿Qué hace OrderService?» and presses Enter
+- **THEN** the heading «Hace falta un modelo de lenguaje» and the paragraph of the configuration notice
+  are shown; and there is no text «Las preguntas sugeridas siguen respondiendo desde la caché.» nor
+  «Mensaje de la API:»
+
+### Requirement: Error, rate-limit and budget notices
+
+Every failure of a sent question, except the page's own abort, SHALL show in the result area exactly one
+element with role `alert`, in the warning colours, with a decorative ⚠ hidden from assistive technology,
+holding first «No se ha podido obtener la respuesta.» and then the lines of its case; never an empty
+area, and no heading «Respuesta», no usage panel and no button. The notice SHALL NOT move the focus, and
+it offers no retry: sending a question again asks again ("Pending question"). An API error is told apart
+by the code of the API's error format, whatever its HTTP status:
+
+| Failure | Lines after «No se ha podido obtener la respuesta.» |
+|---|---|
+| `BUDGET_EXHAUSTED` | «Se ha agotado el presupuesto diario del modelo de lenguaje.», «Las preguntas que ya están en caché siguen respondiendo, sin coste.», when the details hold a reset time «El presupuesto se renueva el <reset time>.», and «Código: BUDGET_EXHAUSTED.» |
+| `RATE_LIMITED` | «Demasiadas peticiones seguidas a la API.», «Espera <wait> s y vuelve a preguntar.» when the details hold a wait and «Espera un momento y vuelve a preguntar.» otherwise, and «Código: RATE_LIMITED.» |
+| `PROJECT_NOT_FOUND` | «La API no tiene este proyecto: vuelve a la selección de proyecto o indéxalo con la CLI.» and «Código: PROJECT_NOT_FOUND.» |
+| `LLM_UNAVAILABLE` | «El modelo de lenguaje no responde; las preguntas en caché siguen respondiendo.» and «Código: LLM_UNAVAILABLE.» |
+| `SOURCE_UNAVAILABLE` | «La API no puede leer el código del proyecto.» and «Código: SOURCE_UNAVAILABLE.» |
+| any other code | «Código: <code>.» |
+| an unavailable API (the request fails, or the answer is not the API's error format) | «La API de CODEMIND no responde.» |
+
+The reset time and the wait are read and written as in "How usage figures and notice details are
+written". Only `BUDGET_EXHAUSTED` and `LLM_UNAVAILABLE` say that cached questions still answer.
+
+#### Scenario: An exhausted budget says the cached questions still answer
+
+- **GIVEN** Screen 2 of acme-shop, in two runs where `fetch` answers `429` with
+  `{"error":{"code":"BUDGET_EXHAUSTED","message":"the daily LLM budget is exhausted","details":{"spentUsd":5,"dailyBudgetUsd":5,"resetsAt":"2026-10-20T00:00:00.000Z","cacheOnly":true}}}`
+  in the first and with the same body whose `details` is `{"cacheOnly":true}` in the second
+- **WHEN** the person presses «¿Cómo se validan los cupones?» in each run
+- **THEN** in the first run one element with role `alert` holds, in this order, «No se ha podido obtener
+  la respuesta.», «Se ha agotado el presupuesto diario del modelo de lenguaje.», «Las preguntas que ya
+  están en caché siguen respondiendo, sin coste.», «El presupuesto se renueva el 2026-10-20 a las 00:00
+  UTC.» and «Código: BUDGET_EXHAUSTED.»; in the second it holds the same lines except «El presupuesto se
+  renueva…»; in both it holds no button, its ⚠ is inside an element hidden from assistive technology,
+  there is no heading «Respuesta», the element with role `status` is empty, and the focus is still on the
+  pressed button
+
+#### Scenario: A rate limit says how long to wait
+
+- **GIVEN** Screen 2 of acme-shop, in two runs where `fetch` answers `429` with
+  `{"error":{"code":"RATE_LIMITED","message":"too many requests","details":{"retryAfterSeconds":42}}}` in
+  the first and with the same body whose `details` is `{}` in the second
+- **WHEN** the person presses «¿Cómo se validan los cupones?» in each run
+- **THEN** the element with role `alert` holds, in this order, «No se ha podido obtener la respuesta.»,
+  «Demasiadas peticiones seguidas a la API.», «Espera 42 s y vuelve a preguntar.» (in the second run
+  «Espera un momento y vuelve a preguntar.») and «Código: RATE_LIMITED.»; it holds no text «caché»; and
+  the focus is still on the pressed button
+
+#### Scenario: An API error names its code
+
+- **GIVEN** Screen 2 of acme-shop, in five runs where `fetch` answers in the API's error format `404`
+  `PROJECT_NOT_FOUND`, `503` `LLM_UNAVAILABLE`, `503` `SOURCE_UNAVAILABLE`, `500` `INTERNAL` and `500` with
+  the code «<i>X</i>», each with `details` `{}`
+- **WHEN** the person presses «¿Cómo se validan los cupones?» in each run
+- **THEN** the element with role `alert` holds, in this order, «No se ha podido obtener la respuesta.»,
+  the sentence of its code in the table (none for `INTERNAL` nor «<i>X</i>») and «Código: <code>.», the
+  last run's as the text «Código: <i>X</i>.»; the main landmark holds no `i` element; and the alert holds
+  no button
+
+#### Scenario: An unavailable API says so
 
 - **GIVEN** Screen 2 of acme-shop, in two runs where `fetch` rejects with a `TypeError`, and answers
   `500` with an empty body
 - **WHEN** the person presses «¿Cómo se validan los cupones?» in each run
-- **THEN** each time one element with role `alert` holds «No se ha podido obtener la respuesta.» and «La
-  API de CODEMIND no responde.», and there is no heading «Respuesta»
+- **THEN** each time one element with role `alert` holds exactly «No se ha podido obtener la respuesta.»
+  and «La API de CODEMIND no responde.», with no text «Código:», and there is no heading «Respuesta»
+
+### Requirement: Screen reader announcements of Screen 2
+
+Screen 2 SHALL hold, from the moment it opens, exactly one element with role `status`, hidden visually,
+whose text is: empty before the first question; «Buscando evidencia…» while a question is pending;
+«Respuesta recibida.» while an answered question is shown; «Sin respuesta verificada.» while an `UNKNOWN`
+other than `llm-required` is shown; «Hace falta un modelo de lenguaje.» while the configuration notice is
+shown; and empty while an alert of "Error, rate-limit and budget notices" is shown (the alert announces
+itself). It SHALL remain the same element across every state, so that each change of its text is
+announced. An invalid send SHALL NOT change it. No other element of Screen 2 has role `status`, and the
+`UNKNOWN` states and the usage panel have neither role `status` nor role `alert`.
+
+#### Scenario: The status region announces every outcome
+
+- **GIVEN** Screen 2 of acme-shop, and `fetch` answering, in turn, `200` with the answered question of "An
+  answered question shows the answer, its statements and its evidence", `200` with an `UNKNOWN`
+  `no-anchor`, `200` with an `UNKNOWN` `llm-required`, and `429` `BUDGET_EXHAUSTED`
+- **WHEN** the person presses «¿Cómo se calcula el precio final de un pedido?»; then sends «hola»; then
+  writes «¿Por qué existe legacy_ref?» and presses Enter; then writes «¿Qué hace OrderService?» and
+  presses Enter; then presses «¿Cómo se validan los cupones?»
+- **THEN** exactly one element has role `status` throughout and it is the same element as when the page
+  opened; its text is empty on open, «Respuesta recibida.» once the answer is shown and still after
+  «hola», «Sin respuesta verificada.» after the third send, «Hace falta un modelo de lenguaje.» after the
+  fourth, and empty once the alert of the fifth is shown
+
+#### Scenario: The pending text is not read twice
+
+- **GIVEN** Screen 2 of acme-shop, and `fetch` replaced by a double that never answers
+- **WHEN** the person presses «¿Cómo se calcula el precio final de un pedido?»
+- **THEN** the text «Buscando evidencia…» is in the document twice: once as the whole text of the only
+  element with role `status`, and once inside the result area in an element hidden from assistive
+  technology
 
 ### Requirement: Accessibility of Screen 2
 
 Screen 2 SHALL have no `axe-core` violation in any of its states: before any question (the existing gate
 of `web-foundation` → "Accessibility gate on the real routes", not edited), with a question pending, with
-an answer whose first evidence is expanded, with the invalid-question message, with the provisional
-status and with the provisional alert. The keyboard tab order of Screen 2 with an answer SHALL follow the
-flow of the page: the back link, the field, the button «Preguntar», the suggested questions in order, and
-the evidence buttons in order.
+an answer from the model whose first evidence is expanded and whose usage panel is shown, with an answer
+from the cache, with the invalid-question message, with the `UNKNOWN` state of `no-anchor`, with the
+configuration notice of `llm-required`, and with the alerts of an exhausted budget, a rate limit, another
+API error and an unavailable API. The keyboard tab order of Screen 2 with an answer SHALL follow the flow
+of the page: the back link, the field, the button «Preguntar», the suggested questions in order, and the
+evidence buttons in order. The usage panel, the `UNKNOWN` states and the notices SHALL add no tab stop and
+SHALL NOT move the focus. Every control of Screen 2 SHALL show a visible focus indicator when it receives
+the focus from the keyboard.
 
 #### Scenario: Screen 2 has no axe violations in any of its states
 
 - **GIVEN** a document with `lang="es"` and a title, and the routes of the web client at
   `/p/a794456d-6d1b-5b55-a360-13fec83dc7bc` with `fetch` replaced by a double for each state
-- **WHEN** `axe-core` runs over the whole document with a question pending, with the answer of "An
-  answered question shows the answer, its statements and its evidence" and `ev-1` expanded, with the
-  invalid-question message, with the provisional status of an `UNKNOWN` and with the provisional alert of
-  an API error
-- **THEN** it reports zero violations in each of the five states
+- **WHEN** `axe-core` runs over the whole document with a question pending; with the answer of "An
+  answered question shows the answer, its statements and its evidence", its usage panel and `ev-1`
+  expanded; with the cache hit of "A cache hit shows its usage panel"; with the invalid-question message;
+  with the `UNKNOWN` state of `no-anchor`; with the configuration notice of `llm-required`; and with the
+  alerts of `429` `BUDGET_EXHAUSTED`, `429` `RATE_LIMITED`, `503` `LLM_UNAVAILABLE` and a `fetch` that
+  rejects with a `TypeError`
+- **THEN** it reports zero violations in each of the ten states
 
 #### Scenario: The tab order follows question, suggestions and evidence
 
@@ -400,3 +694,25 @@ the evidence buttons in order.
 - **THEN** the focus visits, in this order, the link «Volver a la selección de proyecto», the field
   «Pregunta», the button «Preguntar», the three suggested questions in their order, the button of `ev-1`
   and the button of `ev-2`
+
+#### Scenario: The result states add no tab stop
+
+- **GIVEN** Screen 2 of acme-shop, in five runs where `fetch` answers with the answer of "An answered
+  question shows the answer, its statements and its evidence", with the `UNKNOWN` `no-anchor`, with the
+  `UNKNOWN` `llm-required` and its message, with `429` `BUDGET_EXHAUSTED`, and rejects with a `TypeError`
+- **WHEN** the person presses «¿Cómo se validan los cupones?» in each run and the result is shown
+- **THEN** in each run the focus is still on the pressed button; and every link, button, field and
+  element with a `tabindex` of the main landmark that comes after the group «Prueba:» is an evidence
+  button: the two evidence buttons in the first run, and none in the other four
+
+#### Scenario: The focus is visible on every control
+
+- **GIVEN** the web client and the API running locally in evaluation mode, with the seed and the golden
+  answers loaded
+- **WHEN** a browser opens Screen 2 of acme-shop, presses «¿Cómo se calcula el precio final de un
+  pedido?», and the person moves through the page with Tab and Shift+Tab
+- **THEN** each control (the back link, the field, the button «Preguntar», the suggested questions and
+  the evidence buttons) shows a visible outline while it has the focus, and the usage panel is never
+  focused (validated in the manual interface test and in `/show-spec-working`, with screenshots saved
+  next to the report)
+</content>
