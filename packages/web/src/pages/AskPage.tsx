@@ -40,15 +40,41 @@ function projectHeading(projectId: string): ProjectHeading {
   };
 }
 
+/** The text of the pending state, shown in the result area and announced by the status region. */
+const SEARCHING = 'Buscando evidencia…';
+
 /**
- * The result area: nothing before the first question, then the pending status, the answer or a notice
- * (design D7, D10). The pending status takes the place of whatever was shown before.
+ * What the status region of Screen 2 holds in a state (ask-page, "Screen reader announcements of Screen
+ * 2"; DIS-66 design D11, D22, D32): empty before the first question and after a failure (the alert
+ * announces itself), the pending text, or one sentence per outcome.
+ *
+ * @param state - The state of the last question sent.
+ * @returns The text of the status region.
+ */
+function announcementOf(state: AskState): string {
+  switch (state.status) {
+    case 'pending':
+      return SEARCHING;
+    case 'answered':
+      return 'Respuesta recibida.';
+    case 'unknown':
+      return state.reason === 'llm-required' ? 'Hace falta un modelo de lenguaje.' : 'Sin respuesta verificada.';
+    case 'idle':
+    case 'failed':
+      return '';
+  }
+}
+
+/**
+ * The result area: nothing before the first question, then the pending text, the answer or a notice
+ * (DIS-65 design D7, D10). The pending text takes the place of whatever was shown before; it is hidden
+ * from assistive technology because the status region announces it (DIS-66 design D22).
  */
 function ResultArea({ state }: { state: AskState }): ReactElement | null {
   if (state.status === 'pending') {
     return (
-      <p role="status" className="mt-6 text-sm text-ink-muted">
-        Buscando evidencia…
+      <p aria-hidden="true" className="mt-6 text-sm text-ink-muted">
+        {SEARCHING}
       </p>
     );
   }
@@ -112,6 +138,9 @@ export function AskPage({ projectId }: AskPageProps): ReactElement {
         <QueryBox value={question} onChange={onChange} onSubmit={onSubmit} invalid={invalid} placeholder={placeholder} />
         {suggestions.length === 0 ? null : <SuggestedQuestions questions={suggestions} onPick={onPick} />}
         <ResultArea state={state} />
+        <p role="status" className="sr-only">
+          {announcementOf(state)}
+        </p>
       </div>
     </PageFrame>
   );

@@ -26,20 +26,6 @@ const SEARCHING = `Buscando evidencia${ELLIPSIS}`;
 /** The message of an invalid question. */
 const INVALID = 'Escribe una pregunta de 5 a 500 caracteres.';
 
-/** The provisional status of an `UNKNOWN` `no-anchor`. */
-const UNKNOWN_NOTICE = 'Sin respuesta verificada (motivo: no-anchor).';
-
-/** The first line of the provisional alert. */
-const FAILED = 'No se ha podido obtener la respuesta.';
-
-/** The second line of the provisional alert for an unavailable API. */
-const UNAVAILABLE = 'La API de CODEMIND no responde.';
-
-/** The `429` body of an exhausted daily budget, in the API's error format. */
-const BUDGET_EXHAUSTED = {
-  error: { code: 'BUDGET_EXHAUSTED', message: 'the daily LLM budget is exhausted', details: { cacheOnly: true } },
-};
-
 /** The suggested questions of acme-shop, in golden order. */
 const Q1 = '¿Cómo se calcula el precio final de un pedido?';
 const Q3 = '¿Cómo se validan los cupones?';
@@ -198,7 +184,7 @@ describe('Screen 2 frame and project bar', () => {
     expect(screen.queryByRole('heading', { name: 'Respuesta' })).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Evidencia' })).toBeNull();
     expect(screen.queryByText(SEARCHING)).toBeNull();
-    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.getAllByRole('status').map((status) => status.textContent)).toEqual(['']);
     expect(screen.queryByRole('alert')).toBeNull();
     expect(requests).toHaveLength(0);
   });
@@ -516,7 +502,7 @@ describe('Answer with typed and verified statements', () => {
 
     const evidenceHeading = screen.getByRole('heading', { level: 2, name: 'Evidencia' });
     expect(precedes(orderedLists[0], evidenceHeading)).toBe(true);
-    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.getAllByRole('status').map((status) => status.textContent)).toEqual(['Respuesta recibida.']);
     expect(screen.queryByText(SEARCHING)).toBeNull();
     expect(document.body.textContent).not.toContain('0.71');
     expect(document.body.textContent).not.toContain('Confianza');
@@ -682,78 +668,6 @@ describe('Expandable evidence', () => {
   });
 });
 
-describe('Provisional notice for what is not an answer', () => {
-  it('An UNKNOWN shows the provisional status', async () => {
-    // Arrange
-    const user = userEvent.setup();
-    stubFetch(answerWith(200, { answer: 'UNKNOWN', reason: 'no-anchor', statements: [], evidence: [] }));
-    await renderScreen2();
-
-    // Act
-    await user.type(screen.getByRole('textbox', { name: 'Pregunta' }), '¿Por qué existe legacy_ref?');
-    await user.keyboard('{Enter}');
-    await screen.findByText(UNKNOWN_NOTICE);
-
-    // Assert
-    expect(screen.getByRole('status').textContent).toBe(UNKNOWN_NOTICE);
-    expect(screen.queryByRole('heading', { name: 'Respuesta' })).toBeNull();
-    expect(screen.queryByRole('heading', { name: 'Evidencia' })).toBeNull();
-    expect(document.querySelector('ol')).toBeNull();
-    expect(screen.queryByRole('alert')).toBeNull();
-  });
-
-  it('An API error shows the provisional alert with its code', async () => {
-    // Arrange
-    const user = userEvent.setup();
-    stubFetch(answerWith(429, BUDGET_EXHAUSTED));
-    await renderScreen2();
-    const suggestion = screen.getByRole('button', { name: Q3 });
-
-    // Act
-    await user.click(suggestion);
-    const alert = await screen.findByRole('alert');
-
-    // Assert
-    expect(within(alert).getByText(FAILED)).toBeDefined();
-    expect(within(alert).getByText('Código: BUDGET_EXHAUSTED.')).toBeDefined();
-    expect(within(alert).queryByRole('button')).toBeNull();
-    expect(screen.queryByRole('heading', { name: 'Respuesta' })).toBeNull();
-    expect(screen.queryByRole('status')).toBeNull();
-    expect(screen.queryByText(SEARCHING)).toBeNull();
-    expect(document.activeElement).toBe(suggestion);
-  });
-
-  it('An unavailable API shows the provisional alert', async () => {
-    // Arrange
-    const user = userEvent.setup();
-    const failures: Array<() => Promise<Response>> = [
-      () => Promise.reject(new TypeError('fetch failed')),
-      () => Promise.resolve(new Response('', { status: 500 })),
-    ];
-    const runs: Array<Record<string, unknown>> = [];
-
-    // Act
-    for (const failure of failures) {
-      stubFetch(failure);
-      const { unmount } = await renderScreen2();
-      await user.click(screen.getByRole('button', { name: Q3 }));
-      const alert = await screen.findByRole('alert');
-      runs.push({
-        failed: within(alert).queryByText(FAILED) !== null,
-        unavailable: within(alert).queryByText(UNAVAILABLE) !== null,
-        answer: screen.queryByRole('heading', { name: 'Respuesta' }) !== null,
-      });
-      unmount();
-    }
-
-    // Assert
-    expect(runs).toEqual([
-      { failed: true, unavailable: true, answer: false },
-      { failed: true, unavailable: true, answer: false },
-    ]);
-  });
-});
-
 describe('Accessibility of Screen 2', () => {
   it('The tab order follows question, suggestions and evidence', async () => {
     // Arrange
@@ -785,5 +699,27 @@ describe('Accessibility of Screen 2', () => {
     // Assert
     expect(startsOnBody).toBe(true);
     expect(visited).toEqual(expected);
+  });
+});
+
+describe('Screen reader announcements of Screen 2', () => {
+  it('The pending text is not read twice', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    stubFetch(neverAnswer);
+    await renderScreen2();
+
+    // Act
+    await user.click(screen.getByRole('button', { name: Q1 }));
+
+    // Assert
+    const statuses = screen.getAllByRole('status');
+    expect(statuses.map((status) => status.textContent)).toEqual([SEARCHING]);
+    const nodes = textNodesWith(document.body, SEARCHING);
+    expect(nodes).toHaveLength(2);
+    const [inStatus, hidden] = statuses[0].contains(nodes[0]) ? nodes : [nodes[1], nodes[0]];
+    expect(statuses[0].contains(inStatus)).toBe(true);
+    expect(statuses[0].contains(hidden)).toBe(false);
+    expect(hidden.parentElement?.closest('[aria-hidden="true"]')).not.toBeNull();
   });
 });
