@@ -369,6 +369,42 @@ reads that line before applying the English rule.
   the main checkout; the command is the guide's `cp .env.example .env` (PowerShell's `cp` alias was
   checked separately).
 
+### Pre-merge review amendments (2026-10-19, agent's decisions in step 19)
+
+Findings of `reports/2026-10-19-show-spec-working.md` (SSW) and `reports/2026-10-19-verify-against-spec.md`
+(V) fixed in this change; each spec edit is in the `local-startup` delta and in the addendum of
+`reports/2026-10-19-spec-audit.md`.
+
+- **D19. A `#` right after `=` and a blank starts a comment** (SSW1). `KEY= # note` was read as
+  `# note` because the grammar trimmed the value before looking for ` #`: an evaluator who writes
+  `LLM_API_KEY=   # paste it here` in `.env` would hand the product a key `# paste it here`. The comment
+  is now looked for in the text after `=`, so the value is empty, as dotenv and Node's own parser read
+  it. `C=a#b` and `I=#kept` (no blank before `#`) keep their `#`. New scenario "A comment after an
+  empty value leaves the value empty".
+- **D20. Only a `..` segment leaves the project** (SSW2, V6). `demo:excerpt` refused any path whose
+  relative form started with `..`, so a file named `..notes.txt` inside the fixture was reported as
+  outside. The check is now "the first segment is `..`". New scenario "A file whose name starts with
+  two dots is inside the project". A link that leads out of the project already was refused; the new
+  scenario "A link that leads out of the project is refused" pins it (a junction on Windows, which needs
+  no privilege), and a link that leads nowhere is a missing file (V5, spec sentence; behaviour kept).
+- **D21. `npm_execpath` comes only from npm** (V-U1). `up` read `npm_execpath` after loading `.env`, so a
+  `.env` line `npm_execpath=x.js` made `node scripts/up.mjs` run `x.js` at every npm step. It is now
+  read before `.env` is loaded; an empty value counts as unset (spec sentence). New scenario "Up ignores
+  an npm_execpath of .env".
+- **D22. An answer whose body cannot be read is reported** (V-U2). `demo:ask` crashed with a stack trace
+  when the connection dropped after the status line; it now writes `demo:ask: the answer of the API at
+  http://127.0.0.1:<PORT> could not be read`, prints nothing to stdout and exits `1`. New scenario "An
+  answer that cannot be read is reported".
+- **Spec sentences for behaviour the code already had** (V-U4, V-U5, V-U6): `demo:ask` sends
+  `content-type: application/json; charset=utf-8` and leaves `usage` out when the body has none; the
+  loader's warning and `up`'s "could not start" line say `unknown` when the error has no code.
+- **Stronger tests** (V3, V7, V8; existing tests changed, justified by the review): "demo:ask reads
+  PORT from .env" passes a `fetch` double and asserts that no request was attempted for `PORT=abc`;
+  "Up runs the start sequence in order" asserts that each `[up]` line was printed before its step
+  started; "The demo guide has no Bash-only command" consumes each `powershell`/`bash` pair, so
+  `bash, powershell, bash` fails. All three were green before and after the change of code: they now
+  check what their scenario says.
+
 ## Risks / Trade-offs
 
 - [The agent's Read tool is denied on `.env*`, `.env.example` included] → the apply edits
@@ -376,8 +412,11 @@ reads that line before applying the English rule.
   replacements of the sentences D10 names, checks them with the `wiring.spec.ts` test and `git diff
   --stat`; if the permission blocks the edit itself, the step stops, the ticket goes to In Review with
   a Spanish comment, and the author makes the `.env.example` edit.
-- [PowerShell 5.1 is not exercised; the clean-clone run uses PowerShell 7] → the guide avoids every
-  construct that differs (D15), and the PR body says which PowerShell was used.
+- [PowerShell 5.1 is not exercised by the clean-clone run (PowerShell 7)] → the guide avoids every
+  construct that differs (D15), and the PR body says which PowerShell was used. In step 19 Windows
+  PowerShell 5.1.26100 (`npm` → `npm.ps1`) ran `demo:ask` with the accented golden question against a
+  local echo server (the body arrived byte for byte), the usage error (exit `2`) and `demo:excerpt`
+  (29 lines): `--` and the accents survive (V2; `reports/2026-10-19-verify-against-spec.md`).
 - [PowerShell's `npm` (npm.ps1) dropping `--` or re-encoding accented arguments] → found by the
   clean-clone run; then the guide shows labelled variants and the PR records it (D11).
 - [`tsx` stops forwarding `--import` in a future release] → `wiring.spec.ts` pins the scripts, and the
@@ -395,4 +434,26 @@ Rollback is reverting the PR; the `pgdata` volume is never touched.
 
 ## Follow-ups
 
-None yet; the pre-merge reviews add their findings here with an A/B/C/D destination.
+Every finding of the pre-merge reviews (`reports/2026-10-19-show-spec-working.md`,
+`reports/2026-10-19-verify-against-spec.md`, `reports/2026-10-19-adversarial-review.md`) with its
+destination (`docs/project-context.md` → Tracking deferred findings):
+
+| Id | Severity | Finding | Destination |
+|---|---|---|---|
+| SSW1 | Minor | `KEY= # note` was read as `# note` | **A** — fixed in this change (D19): spec, new scenario and test, `scripts/env.mjs` |
+| SSW2 / V6 | Minor | A file named `..notes.txt` inside the fixture was refused as outside | **A** — fixed in this change (D20): spec, new scenario and test, `scripts/demo-excerpt.mjs` |
+| V1 | Minor | "the pull request body records the run" has no evidence yet | **A** — task 18.1 writes the clean-clone run into the PR body before the merge; not a code gap |
+| V2 | Minor | Windows PowerShell 5.1 was never exercised | **A** — exercised in step 19 (Risks); the PR body names both PowerShell versions |
+| V3 | Minor | "PORT=abc … no request was sent" was not really asserted | **A** — test strengthened with a `fetch` double (pre-merge review amendments) |
+| V4 | Minor | No test for a link that leads out of the fixture | **A** — new scenario and test (D20) |
+| V5 | Minor | A broken link reports "not found", not "outside" | **A** — spec sentence: a link that leads nowhere is a missing file (nothing is read either way) |
+| V7 | Minor | The test did not check that each `[up]` line precedes its step | **A** — test strengthened |
+| V8 | Minor | The pairing check accepted `bash, powershell, bash` | **A** — test strengthened |
+| V-U1 | Minor | A `.env` line could set `npm_execpath` | **A** — fixed (D21): spec, new scenario and test, `scripts/up.mjs` |
+| V-U2 | Minor | `demo:ask` crashed when the body could not be read | **A** — fixed (D22): spec, new scenario and test, `scripts/demo-ask.mjs` |
+| V-U3 | Question | With an unreadable `.env`, the usage error is preceded by the loader's warning | **D** — accepted: the spec loads `.env` before anything else and the warning is the loader's single line |
+| V-U4, V-U5, V-U6 | Minor | `usage` left out when absent, the request header, the `unknown` code fallback were unspecified | **A** — spec sentences added (behaviour kept) |
+| V-U7 | Question | `readme.md` changes beyond the spec (`OLLAMA_CONTEXT_LENGTH` pair, `POSTGRES_PORT` row, `scripts/` in the tree) | **D** — accepted: author decision (2) of DIS-102 (every evaluator step in both shells) and task 12.1 / D10 ask for them; documentation, not behaviour |
+| V-U8 | Question | The language-exception rule of `docs/project-context.md` has no spec requirement | **D** — accepted: a documentation-governance rule (D18), not product behaviour |
+| V-U9 | Question | Makefile comments rewritten in English | **D** — accepted: task 5.2; comments only |
+

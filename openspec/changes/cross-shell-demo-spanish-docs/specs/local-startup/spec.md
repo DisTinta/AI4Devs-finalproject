@@ -20,8 +20,9 @@ into lines on LF and removing a trailing CR from each line. Each line SHALL be r
 - when the raw value starts with `"` or `'` and that same quote appears again later in it, the value
   is the text between the opening quote and that next occurrence, taken verbatim (no escape sequence),
   and whatever follows the closing quote is ignored;
-- otherwise the value is the raw value up to the first `#` preceded by a space or a tab, with its
-  trailing spaces and tabs removed; an opening quote without its closing one is part of the value;
+- otherwise the value is the text after `=` up to the first `#` preceded, in that text, by a space or
+  a tab (so a `#` right after `=` and a blank starts a comment too), with its leading and trailing
+  spaces and tabs removed; an opening quote without its closing one is part of the value;
 - `$NAME` and `${NAME}` are kept literally (no expansion), and an empty value is the empty string;
 - any other line (no `=`, a key that does not match, `export KEY=value`) is ignored;
 - when a key is assigned more than once, the last assignment wins.
@@ -44,6 +45,12 @@ into lines on LF and removing a trailing CR from each line. Each line SHALL be r
 - **WHEN** it is parsed
 - **THEN** the result is exactly `{ F: "\"open", G: "2" }`
 
+#### Scenario: A comment after an empty value leaves the value empty
+
+- **GIVEN** a file with the lines `E= # set it here`, `H=<tab># after a tab` and `I=#kept`
+- **WHEN** it is parsed
+- **THEN** the result is exactly `{ E: "", H: "", I: "#kept" }`
+
 ### Requirement: Loading .env into a process
 
 Loading `.env` SHALL read, by default, the file `.env` at the root of the repository (the directory
@@ -53,7 +60,8 @@ it parses, it SHALL set the process environment variable only when the environme
 hold that key; a key that is present, even with an empty value, SHALL keep its value. When the file
 does not exist, loading SHALL change nothing and print nothing. When the file exists but cannot be
 read, loading SHALL change nothing and write exactly one line to stderr that starts with
-`warning: .env not read (` followed by the error code and `)`. Loading SHALL never print a key or a
+`warning: .env not read (` followed by the error code (`unknown` when the error has none) and `)`.
+Loading SHALL never print a key or a
 value. When the environment the file is loaded into holds `CODEMIND_SKIP_DOTENV` with the value `1`,
 loading SHALL not read the file and SHALL change nothing; any other value, or its absence, loads
 normally. The test suite SHALL run with `CODEMIND_SKIP_DOTENV` set to `1`, so neither
@@ -142,12 +150,14 @@ file) into the environment it gives every step, and then run, from the repositor
 order, each with the standard input, output and error of `up`: `docker compose up -d --wait`, `npm install`,
 `npm run db:migrate`, `npm run db:seed` and `npm run dev`. Before each step it SHALL print one line
 `[up] <command>` to stdout. The npm steps SHALL run the npm that started `up` (the `npm_execpath` npm
-gives its scripts, run by the same Node executable), never through a shell; when `npm_execpath` is
-not set, `up` SHALL run no step, write `[up] run it with npm run up` to stderr and exit `1`. When a
+gives its scripts, run by the same Node executable), never through a shell; `npm_execpath` SHALL be
+read from the environment `up` was started with, before `.env` is loaded, so a line of `.env` never
+names it; when it is not set there or is empty, `up` SHALL run no step, write `[up] run it with npm run up` to stderr and exit `1`. When a
 step exits with a code other than `0`, `up` SHALL run no further step, write
 `[up] "<command>" failed with exit code <n>` to stderr and exit with that code; when a step ends by
 a signal, the line SHALL be `[up] "<command>" failed (<signal>)` and the exit code `1`; when a step
-cannot be started, the line SHALL be `[up] "<command>" could not start (<error code>)` and the exit
+cannot be started, the line SHALL be `[up] "<command>" could not start (<error code>)` (`unknown`
+when the error has no code) and the exit
 code `1`. When every step exits `0`, `up` SHALL exit `0`. While a step runs, `up` SHALL NOT end on
 SIGINT itself (the step receives the console's Ctrl+C on its own); when `up` has received SIGINT and
 the running step then ends, whatever its code or signal, `up` SHALL run no further step, write
@@ -164,7 +174,15 @@ Node built-in modules and files of `scripts/`, so `npm run up` works before `npm
   `npm_execpath` and `install`, `run db:migrate`, `run db:seed` and `run dev`, each from the repository
   root, with inherited standard streams, without a shell and with `POSTGRES_PORT` = `5433` in its
   environment
-- **AND** stdout holds the five `[up] <command>` lines in that order, and `up` exits `0`
+- **AND** stdout holds the five `[up] <command>` lines in that order, each printed before its step
+  started, and `up` exits `0`
+
+#### Scenario: Up ignores an npm_execpath of .env
+
+- **GIVEN** an environment without `npm_execpath` and a `.env` file given to `up` with
+  `npm_execpath=/tmp/not-npm.js`
+- **WHEN** `up` runs
+- **THEN** the runner received no call, stderr is exactly `[up] run it with npm run up`, and `up` exits `1`
 
 #### Scenario: Up stops at the first failing step
 
@@ -250,17 +268,19 @@ change together.
 /api/projects/<projectId>/ask` (the id percent-encoded as a path segment) to
 `http://127.0.0.1:<PORT>`, where `<PORT>` is the `PORT` variable trimmed of spaces, or `3000` when it
 is unset or blank (as the API reads it), with the JSON body `{"question": <question>}` encoded as
-UTF-8. A `PORT` that, once trimmed, is not made of decimal digits only with a value from 1 to 65535
+UTF-8 and the header `content-type: application/json; charset=utf-8`. A `PORT` that, once trimmed, is not made of decimal digits only with a value from 1 to 65535
 SHALL write `demo:ask: PORT must be a port number` to stderr and exit `2` without
 sending any request. It SHALL print the line `HTTP <status>` and then a JSON document indented with two
 spaces, chosen in this order: for a `2xx` response whose JSON body has `answer` equal to `"UNKNOWN"`,
 its `answer`, `reason` and, when present, `message`; for any other `2xx` response whose JSON body has
 a `statements` array, `{ statements: <its length>, evidence: <length of evidence, 0 when absent>,
-usage }`; for any other response, the body as it came (JSON indented with two spaces when it parses, as
+usage }` (`usage` as the body holds it, left out when the body has none); for any other response, the body as it came (JSON indented with two spaces when it parses, as
 text otherwise). It SHALL exit `0` for a `2xx` status and `1` for any other. It SHALL set no time
 limit on the request (a live model can take minutes on a CPU; Ctrl+C stops it). When the API cannot be reached it SHALL write
 `demo:ask: the API is not reachable at http://127.0.0.1:<PORT> (start it with npm run up)` to stderr
-and exit `1`. With fewer or more than two arguments it SHALL write
+and exit `1`. When the status arrived but the body cannot be read (the connection dropped), it SHALL
+write `demo:ask: the answer of the API at http://127.0.0.1:<PORT> could not be read` to stderr, print
+nothing to stdout and exit `1`. With fewer or more than two arguments it SHALL write
 `usage: npm run demo:ask -- <projectId> "<question>"` to stderr and exit `2`, without sending any
 request.
 
@@ -309,6 +329,13 @@ request.
 - **AND** with `PORT=abc` in the injected environment, stderr is `demo:ask: PORT must be a port
   number`, no request was sent and `demo:ask` exits `2`
 
+#### Scenario: An answer that cannot be read is reported
+
+- **GIVEN** a `fetch` whose response has status `200` and whose body cannot be read, and `PORT` set
+- **WHEN** `demo:ask` runs with a project id and a question
+- **THEN** stderr is `demo:ask: the answer of the API at http://127.0.0.1:<PORT> could not be read`
+  with that port, stdout is empty, and `demo:ask` exits `1`
+
 #### Scenario: Missing arguments are a usage error
 
 - **WHEN** `demo:ask` runs with only a project id, and then with three arguments
@@ -322,8 +349,10 @@ included, counted from 1) of the file `<path>` of `fixtures/<project>`, each fol
 and nothing else, and exit `0`. `<project>` SHALL name a directory directly under `fixtures/`;
 otherwise it SHALL write `demo:excerpt: unknown project <project>` to stderr and exit `1`. A `<path>`
 that is absolute or that resolves, links included, outside `fixtures/<project>` SHALL be refused with
-`demo:excerpt: <path> is outside fixtures/<project>` on stderr and exit `1`, without reading it. A
-missing file SHALL give `demo:excerpt: <path> not found in fixtures/<project>` and exit `1`; an `end`
+`demo:excerpt: <path> is outside fixtures/<project>` on stderr and exit `1`, without reading it; a
+path leaves the project only through a `..` segment, so a file whose name starts with `..` (such as
+`..notes.txt`) is inside it. A
+link that leads nowhere is a missing file. A missing file SHALL give `demo:excerpt: <path> not found in fixtures/<project>` and exit `1`; an `end`
 beyond the file's last line SHALL give `demo:excerpt: <path> has <n> lines` and exit `1`. A number of
 arguments other than two, a citation not of the form `<path>:<start>-<end>` with decimal integers, a
 `start` below 1 or an `end` below `start` SHALL write
@@ -350,6 +379,21 @@ outside, missing, range.
 - **THEN** the first three each write `demo:excerpt: <path> is outside fixtures/acme-shop` and exit `1`
 - **AND** the last writes `demo:excerpt: unknown project ..` and exits `1`, and so does the project `.`
   (`demo:excerpt: unknown project .`)
+
+#### Scenario: A link that leads out of the project is refused
+
+- **GIVEN** a fixtures directory whose project `demo` holds a directory link `link` to a folder outside
+  it that has `secret.txt`
+- **WHEN** `demo:excerpt` runs with `demo` and `link/secret.txt:1-1`
+- **THEN** stderr is `demo:excerpt: link/secret.txt is outside fixtures/demo`, stdout is empty and it
+  exits `1`
+
+#### Scenario: A file whose name starts with two dots is inside the project
+
+- **GIVEN** a fixtures directory whose project `demo` holds a file `..notes.txt` with the lines `first`
+  and `second`
+- **WHEN** `demo:excerpt` runs with `demo` and `..notes.txt:1-2`
+- **THEN** stdout is `first`, a line feed, `second` and a line feed, stderr is empty and it exits `0`
 
 #### Scenario: A missing file or a range past its end is reported
 

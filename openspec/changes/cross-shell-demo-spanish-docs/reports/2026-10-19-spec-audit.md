@@ -860,3 +860,20 @@ Verdict APPROVED: the apply can start. The minor points were folded anyway with 
 | 1.1 — Linear «Contexto técnico» stale | Updated (three deltas; readme §0/§1.2/§1.3/§1.4/§2.4). |
 
 No further run is needed: run 3 returned APPROVED, and its points are folded.
+
+## Addendum — pre-merge review spec edits (2026-10-19, step 19)
+
+Edits made with `/opsx:update` after `/show-spec-working` and `/verify-against-spec` (design →
+"Pre-merge review amendments", D19–D22; Follow-ups). All in the `local-startup` delta; `openspec validate
+cross-shell-demo-spanish-docs --strict` passes.
+
+| Requirement | Edit | Origin |
+|---|---|---|
+| The .env file grammar | The comment `#` is looked for in the text after `=`, so a `#` right after `=` and a blank starts a comment; new scenario "A comment after an empty value leaves the value empty" | SSW1 (D19) |
+| Loading .env into a process | The warning names `unknown` when the error has no code | V-U6 |
+| One command starts the system | `npm_execpath` is read from the environment `up` was started with, before `.env`; empty counts as unset; `unknown` in "could not start"; "Up runs the start sequence in order" also says each line is printed before its step; new scenario "Up ignores an npm_execpath of .env" | V-U1 (D21), V-U6, V7 |
+| The demo question helper | The request header is stated; `usage` is left out when the body has none; an unreadable body gives `demo:ask: the answer of the API at http://127.0.0.1:<PORT> could not be read` and exit `1`; new scenario "An answer that cannot be read is reported" | V-U5, V-U4, V-U2 (D22) |
+| The demo excerpt helper | Only a `..` segment leaves the project; a link that leads nowhere is a missing file; new scenarios "A link that leads out of the project is refused" and "A file whose name starts with two dots is inside the project" | SSW2/V6 (D20), V4, V5 |
+
+No requirement was removed, and no scenario lost a clause: the edits refine the existing requirements
+(each new scenario has its test, named after it, in `tests/unit/scripts/`).
