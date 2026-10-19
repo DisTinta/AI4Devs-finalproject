@@ -5,13 +5,15 @@
  *
  * Spec: `local-startup` → "The demo question helper".
  */
+import { Buffer } from 'node:buffer';
+import { request } from 'node:http';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DOTENV_PATH, loadEnvFile } from './env.mjs';
 
 /**
  * @typedef {{ write(chunk: string): unknown }} Writable
- * @typedef {(url: string, init: { method: string, headers: Record<string, string>, body: string }) => Promise<{ status: number, text(): Promise<string> }>} Fetch
+ * @typedef {(url: string, init: { method: string, headers: Record<string, string>, body: string }) => Promise<{ status: number, text(): Promise<string> }>} Send
  */
 
 /** The exit code of a usage error, as the CLI's (`docs/DEPLOYMENT.md`). */
@@ -19,6 +21,40 @@ const USAGE_EXIT_CODE = 2;
 
 /** The API's port when `PORT` is unset or blank (`packages/api/src/composition.ts`). */
 const DEFAULT_PORT = 3000;
+
+/**
+ * Sends one request with `node:http`, which sets no time limit: Node's `fetch` stops waiting for the
+ * headers or the body after 300 s, and a live model on a CPU can take longer (design D23). It resolves
+ * with the status once the headers arrive; `text()` rejects when the connection drops before the body
+ * ends. A connection that cannot be made rejects.
+ *
+ * @type {Send}
+ */
+function sendWithHttp(url, { method, headers, body }) {
+  return new Promise((answered, failed) => {
+    const outgoing = request(
+      url,
+      { method, headers: { ...headers, 'content-length': String(Buffer.byteLength(body)) }, agent: false },
+      (incoming) => {
+        /** @type {Buffer[]} */
+        const chunks = [];
+        const text = new Promise((read, broken) => {
+          incoming.on('data', (chunk) => chunks.push(chunk));
+          incoming.on('end', () => read(Buffer.concat(chunks).toString('utf8')));
+          incoming.on('error', broken);
+          incoming.on('close', () => {
+            if (!incoming.complete) broken(new Error('the connection closed before the body ended'));
+          });
+        });
+        // A body nobody reads must not end the process with an unhandled rejection.
+        text.catch(() => undefined);
+        answered({ status: incoming.statusCode ?? 0, text: () => text });
+      },
+    );
+    outgoing.on('error', failed);
+    outgoing.end(body);
+  });
+}
 
 /**
  * The port the API listens on, read as the API reads `PORT` (A21): trimmed, blank = 3000, decimal
@@ -88,13 +124,15 @@ function isSuccess(status) {
  * Sends the question and prints the result; resolves with the exit code.
  *
  * @param {string[]} args - The command-line arguments: the project id and the question.
- * @param {{ env: Record<string, string | undefined>, dotenvPath?: string, fetch?: Fetch, stdout: Writable, stderr: Writable }} options
- *   - The environment to load `.env` into, the `.env` path, the `fetch` to use and the output streams.
+ * @param {{ env: Record<string, string | undefined>, dotenvPath?: string, send?: Send, stdout: Writable, stderr: Writable }} options
+ *   - The environment to load `.env` into, the `.env` path, how to send the request and the output
+ *   streams.
  * @returns {Promise<number>} The exit code.
  */
-export async function runDemoAsk(args, { env, dotenvPath = DOTENV_PATH, fetch = globalThis.fetch, stdout, stderr }) {
+export async function runDemoAsk(args, { env, dotenvPath = DOTENV_PATH, send = sendWithHttp, stdout, stderr }) {
   loadEnvFile(dotenvPath, env, stderr);
-  if (args.length !== 2) {
+  // `.` and `..` would be removed from the URL path as dot segments, so they are no project id (A27).
+  if (args.length !== 2 || args[0] === '.' || args[0] === '..') {
     stderr.write('usage: npm run demo:ask -- <projectId> "<question>"\n');
     return USAGE_EXIT_CODE;
   }
@@ -107,8 +145,8 @@ export async function runDemoAsk(args, { env, dotenvPath = DOTENV_PATH, fetch = 
   const origin = `http://127.0.0.1:${port}`;
   let response;
   try {
-    // No time limit: a live model can take minutes on a CPU, and Ctrl+C stops the helper (A4).
-    response = await fetch(`${origin}/api/projects/${encodeURIComponent(projectId)}/ask`, {
+    // No time limit: a live model can take minutes on a CPU, and Ctrl+C stops the helper (A4, D23).
+    response = await send(`${origin}/api/projects/${encodeURIComponent(projectId)}/ask`, {
       method: 'POST',
       headers: { 'content-type': 'application/json; charset=utf-8' },
       body: JSON.stringify({ question }),
