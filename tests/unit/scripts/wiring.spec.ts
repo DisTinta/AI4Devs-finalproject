@@ -2,6 +2,8 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { parse } from 'yaml';
+import { parseEnv } from '../../../scripts/env.mjs';
 
 // Spec: openspec/changes/cross-shell-demo-spanish-docs/specs/local-startup/spec.md → "Which commands
 // load .env", "One command starts the system", "Stopping the system and the Makefile" and
@@ -202,5 +204,18 @@ describe('Stopping the system and the Makefile', () => {
     const lines = text.split('\n');
     expect(lines.filter((line) => /^\s*-?include\b/.test(line))).toEqual([]);
     expect(lines.filter((line) => /^\s*export\b/.test(line))).toEqual([]);
+  });
+});
+
+describe('Configurable Postgres port', () => {
+  it('The Postgres port follows POSTGRES_PORT', () => {
+    // Arrange
+    const compose = parse(source('docker-compose.yml')) as { services: { postgres: { ports: string[] } } };
+    const example = parseEnv(source('.env.example'));
+
+    // Assert
+    expect(compose.services.postgres.ports).toEqual(['${POSTGRES_PORT:-5432}:5432']);
+    expect(example.POSTGRES_PORT).toBe('5432');
+    expect(new URL(example.DATABASE_URL).port).toBe('5432');
   });
 });

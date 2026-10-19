@@ -33,7 +33,7 @@
 
 - [x] 5.1 RED → GREEN in `wiring.spec.ts`: "Down keeps the data volume" (root `down` = `docker compose down`)
 - [x] 5.2 RED → GREEN: "Make delegates to the npm commands": rewrite the `Makefile` (recipes, no `include`/`export`, header comment in English); keep tab-indented recipes
-- [ ] 5.3 RED → GREEN: "The Postgres port follows POSTGRES_PORT": `docker-compose.yml` ports entry; `.env.example` gains `POSTGRES_PORT=5432` above `DATABASE_URL` with its comment, edited with a line-anchored script (the agent's Read tool is denied on `.env*`; design → Risks) and checked with `git diff --stat .env.example`; if the edit is blocked, follow the Risks fallback and record it
+- [x] 5.3 RED → GREEN: "The Postgres port follows POSTGRES_PORT": `docker-compose.yml` ports entry; `.env.example` gains `POSTGRES_PORT=5432` above `DATABASE_URL` with its comment, edited with a line-anchored script (the agent's Read tool is denied on `.env*`; design → Risks) and checked with `git diff --stat .env.example`; if the edit is blocked, follow the Risks fallback and record it
 
 ## 6. `demo:ask` (TDD, design D8) — `local-startup` → "The demo question helper"
 
