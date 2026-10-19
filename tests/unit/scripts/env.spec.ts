@@ -142,4 +142,19 @@ describe('Loading .env into a process', () => {
     expect(resolve(path)).toBe(resolve(root, '.env'));
     expect(existsSync(resolve(dirname(path), 'scripts', 'env.mjs'))).toBe(true);
   });
+
+  it('The test suite never reads .env', () => {
+    // Arrange
+    const path = temporaryEnvFile(['DATABASE_URL=from-file']);
+    const env: Record<string, string | undefined> = { CODEMIND_SKIP_DOTENV: '1' };
+    const stderr = recorder();
+
+    // Act
+    loadEnvFile(path, env, stderr);
+
+    // Assert
+    expect(process.env.CODEMIND_SKIP_DOTENV).toBe('1');
+    expect(env).toEqual({ CODEMIND_SKIP_DOTENV: '1' });
+    expect(stderr.text()).toBe('');
+  });
 });

@@ -16,6 +16,13 @@ import { URL, fileURLToPath } from 'node:url';
  */
 export const DOTENV_PATH = fileURLToPath(new URL('../.env', import.meta.url));
 
+/**
+ * The variable that, set to `1` in the environment `.env` is loaded into, skips the file: the test
+ * suite sets it so no test reads the `.env` of whoever runs it (design D12). It is read from that
+ * environment, not from `process.env`, so the unit tests can load into plain objects (A1).
+ */
+const SKIP_SWITCH = 'CODEMIND_SKIP_DOTENV';
+
 /** The UTF-8 byte-order mark some editors write at the start of a file. */
 const BYTE_ORDER_MARK = 0xfeff;
 
@@ -63,7 +70,8 @@ export function parseEnv(text) {
  * Loads the `.env` file at `path` into `env`: a key `env` already holds, even with an empty value,
  * keeps its value, so a variable set in the shell wins over the file. A missing file changes nothing
  * and prints nothing; a file that cannot be read changes nothing and writes one warning line with
- * the error code. No key or value is ever printed.
+ * the error code. No key or value is ever printed. With `CODEMIND_SKIP_DOTENV` = `1` in `env`, the
+ * file is not read.
  *
  * @param {string} path - The `.env` file to read.
  * @param {Record<string, string | undefined>} env - The environment to fill, changed in place.
@@ -71,6 +79,7 @@ export function parseEnv(text) {
  * @returns {void}
  */
 export function loadEnvFile(path, env, stderr) {
+  if (env[SKIP_SWITCH] === '1') return;
   let text;
   try {
     text = readFileSync(path, 'utf8');
