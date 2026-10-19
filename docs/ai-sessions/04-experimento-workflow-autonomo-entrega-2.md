@@ -180,7 +180,7 @@ Run del workflow `wf_2ee7c1a7`, de las 22:13 del 16-10 a las 16:21 del 17-10 (ho
   de revisión (quedaban guardados en `reports/`), y uno lo bloqueó el hook `block-secrets` por citar
   secretos de prueba.
 - **Decisión de la autora (17-10):** ante el merge denegado no se busca ningún rodeo. El paso de merge
-  espera a que lo haga ella, sondeando el PR hasta 3 h.
+  espera a que lo haga la autora, sondeando el PR hasta 3 h.
 
 ## DIS-45 y DIS-58, lanzados aparte (17-10 → 18-10)
 
