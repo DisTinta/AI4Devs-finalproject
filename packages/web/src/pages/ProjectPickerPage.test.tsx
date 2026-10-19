@@ -167,8 +167,8 @@ describe('Sample-project cards without HTTP', () => {
 
     // Assert
     expect(focusedByKeyboard).toBe(true);
-    expect(await screen.findByRole('heading', { level: 1, name: 'Consulta del proyecto' })).toBeDefined();
-    expect(screen.getByText(PROJECT_ID)).toBeDefined();
+    expect(await screen.findByRole('heading', { level: 1, name: 'acme-shop' })).toBeDefined();
+    expect(screen.getByRole('textbox', { name: 'Pregunta' })).toBeDefined();
   });
 });
 
@@ -376,7 +376,7 @@ describe('API status on Screen 1', () => {
 
     // Act
     await user.click(link);
-    await screen.findByRole('heading', { level: 1, name: 'Consulta del proyecto' });
+    await screen.findByRole('heading', { level: 1, name: 'acme-shop' });
 
     // Assert
     expect(requests).toHaveLength(1);
