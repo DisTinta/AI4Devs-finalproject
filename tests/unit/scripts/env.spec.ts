@@ -1,8 +1,9 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
-import { loadEnvFile, parseEnv } from '../../../scripts/env.mjs';
+import { DOTENV_PATH, loadEnvFile, parseEnv } from '../../../scripts/env.mjs';
 
 // Spec: openspec/changes/cross-shell-demo-spanish-docs/specs/local-startup/spec.md → "The .env file
 // grammar" and "Loading .env into a process" (DIS-102 design D2, D3, D12). Each test is one scenario,
@@ -128,5 +129,17 @@ describe('Loading .env into a process', () => {
     const lines = stderr.text().split('\n').filter((line) => line !== '');
     expect(lines).toHaveLength(1);
     expect(lines[0]).toMatch(/^warning: \.env not read \(.+\)$/);
+  });
+
+  it("The loaded .env is the repository root's", () => {
+    // Arrange: the repository root is the parent directory of scripts/
+    const root = fileURLToPath(new URL('../../../', import.meta.url));
+
+    // Act
+    const path = DOTENV_PATH;
+
+    // Assert
+    expect(resolve(path)).toBe(resolve(root, '.env'));
+    expect(existsSync(resolve(dirname(path), 'scripts', 'env.mjs'))).toBe(true);
   });
 });

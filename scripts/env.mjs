@@ -7,6 +7,14 @@
  * Spec: `local-startup` → "The .env file grammar" and "Loading .env into a process".
  */
 import { readFileSync } from 'node:fs';
+import { URL, fileURLToPath } from 'node:url';
+
+/**
+ * The `.env` file of the repository root (the parent directory of `scripts/`), located from this
+ * module and never from the working directory, so the API's `dev` (cwd `packages/api`) reads the
+ * same file as the root scripts.
+ */
+export const DOTENV_PATH = fileURLToPath(new URL('../.env', import.meta.url));
 
 /** The UTF-8 byte-order mark some editors write at the start of a file. */
 const BYTE_ORDER_MARK = 0xfeff;

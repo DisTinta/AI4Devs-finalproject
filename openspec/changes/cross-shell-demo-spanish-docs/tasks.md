@@ -14,7 +14,7 @@
 ## 2. Loading `.env` (TDD, design D3, D12) — `local-startup` → "Loading .env into a process"
 
 - [x] 2.1 RED → GREEN, one at a time in `env.spec.ts`, on temporary files of `os.tmpdir()` (never the real `.env`) and plain-object environments without `CODEMIND_SKIP_DOTENV` (the switch is read from the target environment, design A1), with recording stderr doubles: "Values of .env fill only the variables the environment lacks", "Without .env the environment is unchanged", "An unreadable .env is skipped with a warning" (a temporary directory as the path); `loadEnvFile(path, env, stderr)` in `scripts/env.mjs`
-- [ ] 2.2 RED → GREEN: "The loaded .env is the repository root's": `DOTENV_PATH` exported by `scripts/env.mjs` (and its `.d.mts`); `scripts/load-env.mjs` is the preload that loads it on import (design D3, A23); the test imports `DOTENV_PATH` from `scripts/env.mjs` only
+- [x] 2.2 RED → GREEN: "The loaded .env is the repository root's": `DOTENV_PATH` exported by `scripts/env.mjs` (and its `.d.mts`); `scripts/load-env.mjs` is the preload that loads it on import (design D3, A23); the test imports `DOTENV_PATH` from `scripts/env.mjs` only
 - [ ] 2.3 RED → GREEN: "The test suite never reads .env": `vitest.config.ts` `test.env: { CODEMIND_SKIP_DOTENV: '1' }` with a comment citing design D12; confirm `vitest.stryker.config.ts` inherits it (`mergeConfig`)
 
 ## 3. Wiring the npm scripts (TDD, design D4) — `local-startup` → "Which commands load .env"

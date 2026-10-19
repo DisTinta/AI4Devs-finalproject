@@ -5,6 +5,9 @@ export interface Writable {
   write(chunk: string): unknown;
 }
 
+/** The `.env` file of the repository root. */
+export const DOTENV_PATH: string;
+
 /** Parses the text of a `.env` file into its values by key. */
 export function parseEnv(text: string): Record<string, string>;
 
