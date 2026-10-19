@@ -82,9 +82,13 @@ afterEach(() => {
 
 describe('One command starts the system', () => {
   it('Up runs the start sequence in order', async () => {
-    // Arrange
-    const steps = runner();
+    // Arrange: the runner double also notes what stdout held when each step started
     const stdout = recorder();
+    const printedBeforeStep: string[] = [];
+    const steps = runner(() => {
+      printedBeforeStep.push(stdout.text());
+      return { code: 0, signal: null };
+    });
     const stderr = recorder();
 
     // Act
@@ -121,6 +125,12 @@ describe('One command starts the system', () => {
         '',
       ].join('\n'),
     );
+    // Assert: each [up] line was printed before its step started, and only the lines up to it
+    const lines = stdout.text().split('\n');
+    printedBeforeStep.forEach((printed, index) => {
+      expect(printed, `before step ${index + 1}`).toBe(lines.slice(0, index + 1).join('\n') + '\n');
+    });
+    expect(printedBeforeStep).toHaveLength(5);
     expect(stderr.text()).toBe('');
     expect(code).toBe(0);
   });
@@ -200,6 +210,26 @@ describe('One command starts the system', () => {
     // Assert
     expect(steps.calls).toHaveLength(0);
     expect(stderr.text()).toContain('[up] run it with npm run up');
+    expect(code).toBe(1);
+  });
+
+  it('Up ignores an npm_execpath of .env', async () => {
+    // Arrange: npm_execpath only in the .env file, not in the environment npm gave up
+    const steps = runner();
+    const stderr = recorder();
+
+    // Act
+    const code = await runUp({
+      ...baseOptions(),
+      env: {},
+      dotenvPath: temporaryEnvFile(['npm_execpath=/tmp/not-npm.js']),
+      run: steps.run,
+      stderr,
+    });
+
+    // Assert
+    expect(steps.calls).toHaveLength(0);
+    expect(stderr.text()).toBe('[up] run it with npm run up\n');
     expect(code).toBe(1);
   });
 });

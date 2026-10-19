@@ -93,8 +93,10 @@ export async function runUp({
   cwd = ROOT,
   onInterrupt = onProcessInterrupt,
 }) {
-  loadEnvFile(dotenvPath, env, stderr);
+  // `npm_execpath` is read before `.env` is loaded: only the npm that started `up` names it, never a
+  // line of `.env` (design D21).
   const npmCli = env.npm_execpath;
+  loadEnvFile(dotenvPath, env, stderr);
   if (npmCli === undefined || npmCli === '') {
     stderr.write('[up] run it with npm run up\n');
     return 1;
