@@ -58,7 +58,7 @@ Every test of this change follows Arrange-Act-Assert with the three blocks comme
 
 ## 7. Screen reader announcements (TDD, design D11, D22) — `ask-page` → "Screen reader announcements of Screen 2"
 
-- [ ] 7.1 RED → GREEN: "The status region announces every outcome" (one `fetch` double answering the four bodies in turn; keep a reference to the status element on open and assert `toBe` the same element after each step; the six texts of the scenario, waiting for each visible state before reading the region; «hola» sent with `user.clear` + `user.type` + `{Enter}`). Steps 3–6 already build this behaviour, so it may pass at once: then see it fail by moving the status `p` inside `ResultArea` locally (a new element per state; the same-element assertion catches it; not committed), and record it
+- [x] 7.1 RED → GREEN: "The status region announces every outcome" (one `fetch` double answering the four bodies in turn; keep a reference to the status element on open and assert `toBe` the same element after each step; the six texts of the scenario, waiting for each visible state before reading the region; «hola» sent with `user.clear` + `user.type` + `{Enter}`). Steps 3–6 already build this behaviour, so it may pass at once: then see it fail by moving the status `p` inside `ResultArea` locally (a new element per state; the same-element assertion catches it; not committed), and record it
 
 ## 8. Question box re-announcement (TDD, design D12, D29) — `ask-page` → "Question box"
 

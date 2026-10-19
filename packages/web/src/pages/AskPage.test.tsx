@@ -723,6 +723,68 @@ describe('Screen reader announcements of Screen 2', () => {
     expect(statuses[0].contains(hidden)).toBe(false);
     expect(hidden.parentElement?.closest('[aria-hidden="true"]')).not.toBeNull();
   });
+
+  it('The status region announces every outcome', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const bodies: Array<[number, unknown]> = [
+      [200, ANSWERED],
+      [200, { answer: 'UNKNOWN', reason: 'no-anchor', statements: [], evidence: [] }],
+      [200, { answer: 'UNKNOWN', reason: 'llm-required', message: 'set LLM_*', statements: [], evidence: [] }],
+      [429, { error: { code: 'BUDGET_EXHAUSTED', message: 'the daily LLM budget is exhausted', details: { cacheOnly: true } } }],
+    ];
+    let answered = 0;
+    stubFetch(() => {
+      const [status, body] = bodies[answered];
+      answered += 1;
+      return Promise.resolve(new Response(JSON.stringify(body), { status }));
+    });
+    await renderScreen2();
+    const region = screen.getByRole('status');
+    const texts: Array<string | null> = [];
+    const sameRegion: boolean[] = [];
+    const read = (): void => {
+      const statuses = screen.getAllByRole('status');
+      sameRegion.push(statuses.length === 1 && statuses[0] === region);
+      texts.push(region.textContent);
+    };
+    const field = screen.getByRole('textbox', { name: 'Pregunta' });
+    const writeAndSend = async (text: string): Promise<void> => {
+      await user.clear(field);
+      await user.type(field, text);
+      await user.keyboard('{Enter}');
+    };
+
+    // Act
+    read();
+    await user.click(screen.getByRole('button', { name: Q1 }));
+    await screen.findByRole('heading', { level: 2, name: 'Respuesta' });
+    read();
+    await writeAndSend('hola');
+    await screen.findByRole('alert');
+    read();
+    await writeAndSend('¿Por qué existe legacy_ref?');
+    await screen.findByRole('heading', { level: 2, name: 'Sin respuesta verificada' });
+    read();
+    await writeAndSend('¿Qué hace OrderService?');
+    await screen.findByRole('heading', { level: 2, name: 'Hace falta un modelo de lenguaje' });
+    read();
+    await user.click(screen.getByRole('button', { name: Q3 }));
+    await screen.findByRole('alert');
+    read();
+
+    // Assert
+    expect(answered).toBe(4);
+    expect(texts).toEqual([
+      '',
+      'Respuesta recibida.',
+      'Respuesta recibida.',
+      'Sin respuesta verificada.',
+      'Hace falta un modelo de lenguaje.',
+      '',
+    ]);
+    expect(sameRegion).toEqual([true, true, true, true, true, true]);
+  });
 });
 
 /** Asserts that every text of `texts` is in `text`, in this order. */
