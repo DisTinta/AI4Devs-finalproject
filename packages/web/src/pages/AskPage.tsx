@@ -115,6 +115,7 @@ export function AskPage({ projectId }: AskPageProps): ReactElement {
   const { state, send } = useAsk(projectId);
   const [question, setQuestion] = useState('');
   const [invalid, setInvalid] = useState(false);
+  const [invalidSends, setInvalidSends] = useState(0);
   const pending = state.status === 'pending';
 
   const onChange = (text: string): void => {
@@ -129,7 +130,9 @@ export function AskPage({ projectId }: AskPageProps): ReactElement {
     }
     const checked = validQuestion(question);
     setInvalid(checked === undefined);
-    if (checked !== undefined) {
+    if (checked === undefined) {
+      setInvalidSends((count) => count + 1);
+    } else {
       send(checked);
     }
   };
@@ -146,7 +149,14 @@ export function AskPage({ projectId }: AskPageProps): ReactElement {
   return (
     <PageFrame banner={<ProjectBar title={title} detail={detail} />}>
       <div className="text-left wrap-break-word">
-        <QueryBox value={question} onChange={onChange} onSubmit={onSubmit} invalid={invalid} placeholder={placeholder} />
+        <QueryBox
+          value={question}
+          onChange={onChange}
+          onSubmit={onSubmit}
+          invalid={invalid}
+          invalidSends={invalidSends}
+          placeholder={placeholder}
+        />
         {suggestions.length === 0 ? null : <SuggestedQuestions questions={suggestions} onPick={onPick} />}
         <ResultArea state={state} hasSuggestions={suggestions.length > 0} />
         <p role="status" className="sr-only">

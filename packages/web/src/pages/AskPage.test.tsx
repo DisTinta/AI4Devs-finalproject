@@ -327,6 +327,31 @@ describe('Question box', () => {
       { markedBefore: true, invalid: null, describedBy: null, message: false, bodies: [`{"question":"${Q3}"}`] },
     ]);
   });
+
+  it('Sending the same invalid question again announces the message again', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const requests = stubFetch(neverAnswer);
+    await renderScreen2();
+    const field = screen.getByRole('textbox', { name: 'Pregunta' });
+    await user.type(field, 'hola');
+    await user.keyboard('{Enter}');
+    const before = screen.getByRole('alert');
+
+    // Act
+    await user.keyboard('{Enter}');
+
+    // Assert
+    const alerts = screen.getAllByRole('alert');
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]).not.toBe(before);
+    expect(alerts[0].textContent).toBe(INVALID);
+    expect(field.getAttribute('aria-invalid')).toBe('true');
+    const describedBy = field.getAttribute('aria-describedby');
+    expect(describedBy === null ? null : document.getElementById(describedBy)).toBe(alerts[0]);
+    expect(document.activeElement).toBe(field);
+    expect(requests).toHaveLength(0);
+  });
 });
 
 describe('Suggested questions', () => {

@@ -13,6 +13,11 @@ export interface QueryBoxProps {
   onSubmit: () => void;
   /** Whether the last send was an invalid question: the field is marked and the message shown. */
   invalid: boolean;
+  /**
+   * How many invalid sends there have been: the key of the message, so each invalid send inserts it as a
+   * new element that assistive technology announces again (DIS-66 design D12, D29).
+   */
+  invalidSends: number;
   /** The field's placeholder. */
   placeholder: string;
 }
@@ -21,12 +26,14 @@ export interface QueryBoxProps {
  * The question box of Screen 2 (ask-page, "Question box"; DIS-65 design D4, D18): a form with a one-line
  * field labelled «Pregunta» (visually hidden) and a submit button «→» named «Preguntar». When `invalid`,
  * the field has `aria-invalid` and its accessible description is the alert «Escribe una pregunta de 5 a
- * 500 caracteres.». The button is never disabled.
+ * 500 caracteres.», inserted as a new element on every invalid send (keyed by `invalidSends`; DIS-66
+ * design D12, D29). The button is never disabled.
  *
- * @param props - The field's text, the change and submit actions, the invalid mark and the placeholder.
+ * @param props - The field's text, the change and submit actions, the invalid mark and its count, and the
+ *   placeholder.
  * @returns The form.
  */
-export function QueryBox({ value, onChange, onSubmit, invalid, placeholder }: QueryBoxProps): ReactElement {
+export function QueryBox({ value, onChange, onSubmit, invalid, invalidSends, placeholder }: QueryBoxProps): ReactElement {
   const fieldId = useId();
   const messageId = useId();
   const submit = (event: FormEvent<HTMLFormElement>): void => {
@@ -59,6 +66,7 @@ export function QueryBox({ value, onChange, onSubmit, invalid, placeholder }: Qu
       </div>
       {invalid ? (
         <p
+          key={invalidSends}
           id={messageId}
           role="alert"
           className="mt-2 rounded-card border border-warning-border bg-warning-soft px-3 py-1 text-sm text-warning-ink"

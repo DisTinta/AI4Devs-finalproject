@@ -62,8 +62,8 @@ Every test of this change follows Arrange-Act-Assert with the three blocks comme
 
 ## 8. Question box re-announcement (TDD, design D12, D29) — `ask-page` → "Question box"
 
-- [ ] 8.1 RED: "Sending the same invalid question again announces the message again" (type «hola» + Enter; keep the alert element; Enter again; one `alert`, `not.toBe` the kept element, same text; the field's `aria-describedby` resolves to the new element; focus on the field; no request). See it fail (same node)
-- [ ] 8.2 GREEN: `AskPage` counts invalid sends and passes the count to `QueryBox`; `QueryBox` uses it as the `key` of the alert `p` (props interface and TSDoc updated, D29). Every existing "Question box" test passes unchanged
+- [x] 8.1 RED: "Sending the same invalid question again announces the message again" (type «hola» + Enter; keep the alert element; Enter again; one `alert`, `not.toBe` the kept element, same text; the field's `aria-describedby` resolves to the new element; focus on the field; no request). See it fail (same node)
+- [x] 8.2 GREEN: `AskPage` counts invalid sends and passes the count to `QueryBox`; `QueryBox` uses it as the `key` of the alert `p` (props interface and TSDoc updated, D29). Every existing "Question box" test passes unchanged
 
 ## 9. Accessibility (TDD, design D13, D24, D31) — `ask-page` → "Accessibility of Screen 2"
 
