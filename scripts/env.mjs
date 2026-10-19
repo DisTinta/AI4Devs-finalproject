@@ -31,21 +31,32 @@ const ASSIGNMENT = /^[ \t]*([A-Za-z_][A-Za-z0-9_]*)[ \t]*=(.*)$/;
 
 /**
  * Reads the value of an assignment from its raw text: a value in matched quotes is taken verbatim up
- * to the closing quote; otherwise an inline comment (`#` after a space or a tab) and the trailing
- * blanks are dropped.
+ * to the closing quote; otherwise an inline comment (`#` after a space or a tab in the line, also the
+ * blank right after `=`) and the blanks around the value are dropped.
  *
  * @param {string} raw - The text after `=`.
  * @returns {string} The value.
  */
 function readValue(raw) {
-  const value = raw.replace(/^[ \t]+|[ \t]+$/g, '');
+  const value = trimBlanks(raw);
   const quote = value[0];
   if (quote === '"' || quote === "'") {
     const close = value.indexOf(quote, 1);
     if (close !== -1) return value.slice(1, close);
   }
-  const comment = value.search(/[ \t]#/);
-  return (comment === -1 ? value : value.slice(0, comment)).replace(/[ \t]+$/, '');
+  // The comment is looked for in the text after `=`, so `KEY= # note` is an empty value (design D19).
+  const comment = raw.search(/[ \t]#/);
+  return trimBlanks(comment === -1 ? raw : raw.slice(0, comment));
+}
+
+/**
+ * `text` without its leading and trailing spaces and tabs.
+ *
+ * @param {string} text - The text.
+ * @returns {string} The trimmed text.
+ */
+function trimBlanks(text) {
+  return text.replace(/^[ \t]+|[ \t]+$/g, '');
 }
 
 /**

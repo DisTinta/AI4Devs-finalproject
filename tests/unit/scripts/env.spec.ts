@@ -52,6 +52,17 @@ describe('The .env file grammar', () => {
     // Assert
     expect(values).toEqual({ F: '"open', G: '2' });
   });
+
+  it('A comment after an empty value leaves the value empty', () => {
+    // Arrange
+    const text = ['E= # set it here', 'H=\t# after a tab', 'I=#kept'].join('\n');
+
+    // Act
+    const values = parseEnv(text);
+
+    // Assert
+    expect(values).toEqual({ E: '', H: '', I: '#kept' });
+  });
 });
 
 /** A stream double that records every write. */
