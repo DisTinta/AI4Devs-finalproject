@@ -13,33 +13,41 @@ variable ya definida en la terminal gana sobre `.env`.
 
 | Dato | Valor |
 |---|---|
-| Fecha | 2026-10-19 |
-| Commit | `c129278` (rama `feature/DIS-102-cross-shell-demo-spanish-docs`), clonado de GitHub en una carpeta nueva para cada terminal |
+| Fecha | 2026-10-20 |
+| Commit | `da94264` (rama `feature/DIS-103-real-model-clean-clone`), clonado de GitHub en una carpeta nueva para cada terminal |
 | Máquina | Windows 11 Pro, Docker Desktop (Docker Engine 29.8.1, Compose v5.5.1), Git 2.45.1 |
-| Terminales | PowerShell 7.6.6 y Git Bash (GNU bash 5.2.26): la guía entera en cada una, con salidas idénticas salvo los campos que cambian en cada ejecución |
+| Terminales | PowerShell 7.6.6 y Git Bash (GNU bash 5.2.26): la guía entera salvo `Probar con un modelo real` en cada una, con salidas idénticas salvo los campos que cambian en cada ejecución |
 | Node / npm | v24.11.1 / 11.19.0 (el proyecto necesita Node 20.11 o posterior; la CI usa Node 20) |
 | LLM | ninguno: **modo evaluación**, todas las variables `LLM_*` vacías |
 | Base de datos | una base de datos nueva y vacía (ver el paso 0) |
+| `Probar con un modelo real` | 2026-10-20, rama `feature/DIS-103-real-model-clean-clone` clonada en una carpeta nueva, Git Bash: Ollama 0.40.5 **solo en CPU**, `qwen2.5-coder`, `OLLAMA_CONTEXT_LENGTH=16384`, `LLM_TIMEOUT_MS=1200000`. Duraciones medidas: CLI 8 min 28 s; API 300,9 s (pregunta repetida con la caché desactivada); web en Chromium 597,7 s (otra pregunta, «¿Qué hace ShippingService?») |
 
 Los únicos cambios hechos a la salida pegada:
 
 - **(a)** `npm run up` se queda en primer plano (`npm run dev`); su salida se corta tras las líneas de
   arranque, marcadas con `[… sigue en marcha; se para con Ctrl+C]`.
-- **(b)** una ruta absoluta del clon se sustituiría por `<repo>`.
+- **(b)** la ruta absoluta del clon se sustituye por `<repo>`; el separador que la sigue es el del
+  sistema (`\` en Windows, en las dos terminales; `/` en Linux y macOS).
 - **(c)** se quitan los códigos de color de la terminal.
 - **(d)** el nombre de la máquina en la línea de arranque de la API se sustituye por `<host>`.
 
-Lo que no sale de la ejecución literal de la guía: el puerto 5432 estaba ocupado por otro contenedor,
-así que la captura siguió la rama «Si el puerto 5432 ya está ocupado» de `Antes de empezar`, y el
-cambio de `.env` lo hizo un script (las mismas dos líneas que diría un editor de texto). La parada con
-Ctrl+C no se capturó: `Parar el sistema` la describe en el texto. `npm` muestra en su línea `> node
+Lo que no sale de la ejecución literal de la guía: no se creó `.env` (quien capturó la guía no podía
+escribir ficheros `.env`); `POSTGRES_PORT` y su `DATABASE_URL`, con un puerto libre distinto en cada
+clon, y en `Probar con un modelo real` las variables `LLM_*`, se dieron en el entorno de cada comando.
+Una variable ya definida gana sobre `.env`, y sin `.env` las variables `LLM_*` quedan sin definir,
+como vacías las deja `.env.example` (modo evaluación); todas las salidas coincidieron con las de la
+captura anterior, hecha con `.env`. La salida de `docker compose` con el puerto ocupado de `Antes de empezar` es de la captura
+anterior de la guía (2026-10-19), cuando la captura siguió esa rama. La parada con Ctrl+C no se
+capturó: `Parar el sistema` la describe en el texto. El par de Ollama de `Probar con un modelo real` se ejecutó
+una vez en PowerShell y otra en Git Bash con las variables que obligan a esta máquina a usar solo la
+CPU (su GPU no funciona con Ollama). `npm` muestra en su línea `> node
 scripts/demo-ask.mjs …` el id del proyecto como `***` (oculta lo que parece un token); el id llega
 entero a la API.
 
 **Campos que cambian en cada ejecución**, que hay que ignorar al comparar: el número de paquetes, el
 tiempo y las líneas de auditoría de `npm install`; el prefijo `(node:<pid>)` y el `ready in … ms` de
 Vite; `time` y `pid` en la línea de log de la API; `latencyMs` en las respuestas de la API; y el
-prefijo de los nombres de Docker (`e2e-bash-postgres-1`, `e2e-pwsh_pgdata`…), que es el nombre de la
+prefijo de los nombres de Docker (`dis103-bash-postgres-1`, `dis103-pwsh_pgdata`…), que es el nombre de la
 carpeta del clon (`ai4devs-finalproject` con el `git clone` de `readme.md` §1.4). El id del proyecto lo
 fija la semilla.
 
@@ -102,12 +110,20 @@ npm run up
 > node scripts/up.mjs
 
 [up] docker compose up -d --wait
- Container e2e-bash-postgres-1 Recreate 
- Container e2e-bash-postgres-1 Recreated 
- Container e2e-bash-postgres-1 Starting 
- Container e2e-bash-postgres-1 Started 
- Container e2e-bash-postgres-1 Waiting 
- Container e2e-bash-postgres-1 Healthy 
+ Network dis103-bash_default Creating 
+ Volume dis103-bash_pgdata Creating 
+ Network dis103-bash_default Creating 
+ Volume dis103-bash_pgdata Creating 
+ Volume dis103-bash_pgdata Created 
+ Volume dis103-bash_pgdata Created 
+ Network dis103-bash_default Created 
+ Network dis103-bash_default Created 
+ Container dis103-bash-postgres-1 Creating 
+ Container dis103-bash-postgres-1 Created 
+ Container dis103-bash-postgres-1 Starting 
+ Container dis103-bash-postgres-1 Started 
+ Container dis103-bash-postgres-1 Waiting 
+ Container dis103-bash-postgres-1 Healthy 
 [up] npm install
 npm warn deprecated @babel/plugin-proposal-explicit-resource-management@7.27.4: This proposal has been merged to the ECMAScript standard and thus this plugin is no longer maintained. Please use @babel/plugin-transform-explicit-resource-management instead.
 npm warn deprecated whatwg-encoding@3.1.1: Use @exodus/bytes instead for a more spec-conformant and faster implementation
@@ -154,12 +170,14 @@ npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install
 
 1 project loaded
   acme-shop  php/laravel  174 nodes · 170 edges
+[up] node fixtures/build-history.mjs acme-shop
+acme-shop: 32 commits, 3 authors -> <repo>\fixtures\acme-shop\.git
 [up] npm run dev
 
 > codemind@0.0.1 dev
 > concurrently --kill-others-on-fail "npm -w packages/api run dev" "npm -w packages/web run dev"
 
-(node:14216) [DEP0060] DeprecationWarning: The `util._extend` API is deprecated. Please use Object.assign() instead.
+(node:37328) [DEP0060] DeprecationWarning: The `util._extend` API is deprecated. Please use Object.assign() instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
 [0] 
 [0] > @codemind/api@0.0.1 dev
@@ -170,16 +188,18 @@ npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install
 [1] > vite
 [1] 
 [1] 
-[1]   VITE v5.4.21  ready in 1347 ms
+[1]   VITE v5.4.21  ready in 1332 ms
 [1] 
 [1]   ➜  Local:   http://localhost:5173/
 [1]   ➜  Network: use --host to expose
-[0] {"level":30,"time":1792431438658,"pid":27016,"hostname":"<host>","msg":"Server listening at http://127.0.0.1:3000"}
+[0] {"level":30,"time":1792487313238,"pid":30948,"hostname":"<host>","msg":"Server listening at http://127.0.0.1:3000"}
 [… sigue en marcha; se para con Ctrl+C]
 ```
 
 `npm run up` escribe una línea `[up] <comando>` antes de cada paso: arranca PostgreSQL y espera a que
-acepte conexiones, instala las dependencias, migra la base de datos, carga la semilla y arranca la API
+acepte conexiones, instala las dependencias, migra la base de datos, carga la semilla, construye el
+historial de Git de `acme-shop` (`fixtures/acme-shop/.git`, unos 11 s; solo lo leen las respuestas en
+vivo, ver [Probar con un modelo real](#probar-con-un-modelo-real)) y arranca la API
 (`http://127.0.0.1:3000`) y la web (`http://localhost:5173/`). Se queda en primer plano: el resto de la
 demo va en una **segunda terminal**, abierta en la misma carpeta.
 
@@ -570,6 +590,217 @@ indexado de un repositorio propio es una indicación del comando de la CLI en lu
 valores del panel de uso son los de una respuesta servida desde la caché (0 tokens, «$0»), no los del
 wireframe, que ilustra una generación en vivo.
 
+## Probar con un modelo real
+
+Hasta aquí todo funciona en modo evaluación, sin ningún modelo: las preguntas golden salen de la caché
+y cualquier otra responde `UNKNOWN (llm-required)`. Para hacer preguntas libres hace falta un endpoint
+compatible con OpenAI, configurado en `.env`. Hay tres caminos: Ollama en la propia máquina (el único
+probado de principio a fin), una API alojada compatible con OpenAI y Claude por el endpoint compatible
+con OpenAI de Anthropic (estos dos, **no verificados**).
+
+### El historial de `acme-shop`
+
+Una respuesta en vivo lee el código de `fixtures/acme-shop` desde su propio historial de Git
+(`fixtures/acme-shop/.git`), que no viaja con el clon (está en `.gitignore`). `npm run up` lo construye
+en cada arranque: es la línea `[up] node fixtures/build-history.mjs acme-shop` del paso 0. Si arrancas
+el sistema sin `npm run up`, constrúyelo una vez desde la raíz del clon:
+
+```shell
+node fixtures/build-history.mjs acme-shop
+```
+
+Sin él, una pregunta en vivo termina con `SOURCE_UNAVAILABLE` (`not-a-repository`). Siempre genera el
+mismo historial (su `HEAD` es el commit que indexó la semilla) y no cambia nada del modo evaluación.
+
+### Ollama, con GPU o en CPU
+
+Ollama (`https://ollama.com`) usa la GPU si la encuentra y, si no, la CPU. En una **tercera terminal**,
+arranca el servidor con un contexto de 16 384 tokens: el prompt de `explain` ocupa entre 5 000 y 7 000
+tokens, y con el contexto por defecto Ollama lo recorta y toda respuesta sale
+`UNKNOWN (invalid-model-output)`. Es el único comando de la guía que cambia según la terminal. En
+PowerShell:
+
+```powershell
+$env:OLLAMA_CONTEXT_LENGTH='16384'; ollama serve
+```
+
+En Bash:
+
+```bash
+OLLAMA_CONTEXT_LENGTH=16384 ollama serve
+```
+
+Si Ollama ya está en marcha como aplicación de escritorio (Windows y macOS) o como servicio del sistema
+(el servicio de systemd que crea el instalador en Linux), ya ocupa el puerto 11434 y este
+`ollama serve` no arranca: cierra la aplicación (o para el servicio) antes, o da
+`OLLAMA_CONTEXT_LENGTH=16384` a esa aplicación o servicio como explica la documentación de Ollama
+(`https://docs.ollama.com/faq#how-do-i-configure-ollama-server`). Las dos variantes se comprobaron
+solo en Windows, cada una en su terminal (PowerShell 7 y Git Bash).
+
+Con el servidor en marcha, descarga el modelo desde otra terminal:
+
+```shell
+ollama pull qwen2.5-coder
+```
+
+Abre `.env` con un editor de texto y deja así estas líneas (`LLM_API_KEY` vacía: Ollama no pide clave):
+
+```text
+LLM_BASE_URL=http://localhost:11434/v1
+LLM_API_KEY=
+LLM_MODEL=qwen2.5-coder
+LLM_TIMEOUT_MS=1200000
+```
+
+`LLM_TIMEOUT_MS=1200000` (20 minutos) es para la **CPU**, donde una pregunta tarda entre 3,5 y 9
+minutos (la tabla de tiempos de `readme.md` → «Probar con un modelo real»); admite hasta `3600000` (una
+hora). Con GPU puedes dejar `LLM_TIMEOUT_MS` vacía (120 000 ms por defecto). Usa `qwen2.5-coder`:
+`llama3.2` no produce el JSON estricto que exige la respuesta y responde `invalid-model-output`.
+
+**Después de editar `.env`, reinicia el sistema**: en la terminal 1, pulsa Ctrl+C y vuelve a lanzar
+`npm run up`. La API lee `.env` solo al arrancar, así que hasta entonces sigue en modo evaluación;
+`npm run cli`, en cambio, lee `.env` en cada ejecución.
+
+Una pregunta que no está en la caché, por la CLI (terminal 2):
+
+```shell
+npm run cli -- ask acme-shop "¿Qué hace DiscountService?"
+```
+
+```text
+
+> codemind@0.0.1 cli
+> tsx --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts ask acme-shop ¿Qué hace DiscountService?
+
+DiscountService calculates discounts for orders based on loyalty tier, coupon, and volume. It applies these discounts to the subtotal before calculating taxes and shipping.
+
+statements:
+1. [INFERENCE] DiscountService is tested for volume bonuses in `tests/Unit/DiscountServiceTest.php`.
+   evidence: tests/Unit/DiscountServiceTest.php:22-82
+2. [FACT] The discount logic is detailed in `app/Services/DiscountService.php`.
+   evidence: app/Services/DiscountService.php:21-66
+
+evidence:
+tests/Unit/DiscountServiceTest.php:22-82
+    class DiscountServiceTest extends TestCase
+    {
+        protected function tearDown(): void
+        {
+            Mockery::close();
+    … (+56 lines)
+app/Services/DiscountService.php:21-66
+    class DiscountService
+    {
+        private const LOYALTY_SILVER_PERCENT = 5.0;
+        private const LOYALTY_GOLD_PERCENT = 10.0;
+
+    … (+41 lines)
+{"level":"info","type":"entailment_unverified","statementIndex":0,"evidenceId":"E1","path":"tests/Unit/DiscountServiceTest.php","startLine":22,"endLine":82,"reason":"invalid-output"}
+```
+
+En la captura (Ollama en CPU) tardó 8 min 28 s. La respuesta generada en vivo cambia de una
+ejecución a otra: el texto, las afirmaciones y sus evidencias no tienen por qué coincidir con estas.
+Una afirmación que el modelo no pudo comprobar aparece como `INFERENCE` y deja un evento
+`entailment_unverified` en stderr. La respuesta queda guardada en la caché de la base de datos.
+
+Y la misma pregunta por la API:
+
+```shell
+npm run demo:ask -- a794456d-6d1b-5b55-a360-13fec83dc7bc "¿Qué hace DiscountService?"
+```
+
+```text
+
+> codemind@0.0.1 demo:ask
+> node scripts/demo-ask.mjs *** ¿Qué hace DiscountService?
+
+HTTP 200
+{
+  "statements": 2,
+  "evidence": 2,
+  "usage": {
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "baselineTokens": 6749,
+    "baselineEstimator": "chars-div-4",
+    "savingsPct": 100,
+    "costUsd": 0,
+    "latencyMs": 54,
+    "cacheHit": true,
+    "generation": {
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "costUsd": 0
+    },
+    "verification": {
+      "calls": 0,
+      "cacheHits": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "costUsd": 0,
+      "latencyMs": 0
+    }
+  }
+}
+```
+
+Como la CLI acaba de guardar esa respuesta, la API la sirve desde la caché al instante
+(`"cacheHit": true`, 0 tokens). Una pregunta nueva por la API va al modelo y, como por la CLI, tarda
+minutos: en la captura, la misma pregunta con la caché desactivada tardó 300,9 s por la API
+(`"cacheHit": false`, 6 591 tokens de generación y 9 llamadas de verificación).
+
+En la web, con el sistema reiniciado, escribe una pregunta libre en el campo de la pantalla 2 (por
+ejemplo «¿Qué hace ShippingService?») y espera: ni la web ni la API ponen un límite de tiempo propio.
+En la captura, con Ollama en CPU, la respuesta llegó en Chromium a los 597,7 s (casi 10 minutos), con
+sus afirmaciones «HECHO» e «INFERIDO», sus evidencias y el panel de uso («sin caché»). La espera de
+más de 300 s solo se ha comprobado en Chromium.
+
+### Una API alojada compatible con OpenAI (no verificado)
+
+**No verificado**: no se ha probado con una clave real. Cualquier proveedor con un endpoint
+`chat/completions` compatible con OpenAI sirve en principio. En `.env`, con un editor de texto:
+
+- `LLM_BASE_URL`: la URL base que documente el proveedor, sin `?` ni `#` (el cliente le añade
+  `/chat/completions`); por ejemplo, `https://api.openai.com/v1` para OpenAI.
+- `LLM_API_KEY`: tu clave del proveedor. No la pegues en ningún otro sitio: el sistema nunca la muestra
+  en sus mensajes.
+- `LLM_MODEL`: el identificador de modelo que dé el proveedor.
+- `DAILY_BUDGET_USD`: **vacía**. La tabla de precios del sistema solo tiene los modelos locales de
+  Ollama (a 0 USD); con un techo diario, un modelo sin precio deja la configuración inválida. El gasto
+  se controla en la consola del proveedor.
+
+Una API alojada responde en segundos, así que `LLM_TIMEOUT_MS` puede quedarse vacía. Después, reinicia
+`npm run up` y pregunta como en el apartado de Ollama.
+
+### Claude, por el endpoint compatible con OpenAI de Anthropic (no verificado)
+
+**No verificado: no se ha probado con una clave real.** Anthropic ofrece una capa compatible con OpenAI
+(`https://platform.claude.com/docs/en/api/openai-sdk`; los identificadores de modelo, en
+`https://platform.claude.com/docs/en/about-claude/models/overview`; las dos páginas consultadas el
+2026-10-20). En `.env`, con un editor de texto:
+
+- `LLM_BASE_URL=https://api.anthropic.com/v1`
+- `LLM_API_KEY`: tu clave de la consola de Claude.
+- `LLM_MODEL`: un identificador de la lista de modelos de Anthropic (por ejemplo, `claude-sonnet-5-5`
+  o `claude-haiku-5-5`).
+- `DAILY_BUDGET_USD`: **vacía**, por el mismo motivo que con una API alojada.
+
+Lo que dice la documentación de Anthropic y conviene saber antes:
+
+- Anthropic presenta esta capa para probar y comparar modelos, no como una solución para producción.
+- El cliente envía la clave como `Authorization: Bearer …`, que la capa admite. Con una clave que da
+  acceso a varios *workspaces*, Anthropic pide además la cabecera `anthropic-workspace-id` en cada
+  petición, que el cliente no envía: usa una clave de un solo *workspace*.
+- El cliente envía solo el modelo y los mensajes: ni `response_format` (la capa lo ignora) ni
+  `temperature` ni `top_p` (que dan error en los modelos recientes). Los mensajes `system` se elevan al
+  campo `system` de Anthropic, y la respuesta trae `usage.prompt_tokens` y `usage.completion_tokens`.
+- El cliente no envía `max_tokens`; no se ha comprobado cómo lo trata la capa cuando falta.
+- Anthropic no ofrece un modelo de embeddings propio
+  (`https://platform.claude.com/docs/en/build-with-claude/embeddings`, consultada el 2026-10-20);
+  `ask` no los necesita.
+
+Después, reinicia `npm run up` y pregunta como en el apartado de Ollama.
+
 ## Parar el sistema
 
 En la terminal 1, pulsa Ctrl+C. `npm run up` termina entonces con la línea `[up] stopped (Ctrl+C)` y
@@ -586,12 +817,12 @@ npm run down
 > codemind@0.0.1 down
 > docker compose down
 
- Container e2e-pwsh-postgres-1 Stopping 
- Container e2e-pwsh-postgres-1 Stopped 
- Container e2e-pwsh-postgres-1 Removing 
- Container e2e-pwsh-postgres-1 Removed 
- Network e2e-pwsh_default Removing 
- Network e2e-pwsh_default Removed 
+ Container dis103-pwsh-postgres-1 Stopping 
+ Container dis103-pwsh-postgres-1 Stopped 
+ Container dis103-pwsh-postgres-1 Removing 
+ Container dis103-pwsh-postgres-1 Removed 
+ Network dis103-pwsh_default Removing 
+ Network dis103-pwsh_default Removed 
 ```
 
 `npm run down` para y elimina el contenedor; los datos se conservan en el volumen `pgdata`, así que el

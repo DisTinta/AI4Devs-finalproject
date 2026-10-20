@@ -1,8 +1,10 @@
 /**
  * `npm run up` (DIS-102 design D5): loads the repository root's `.env` and starts the whole system
  * with the same command in PowerShell and in Bash: `docker compose up -d --wait`, `npm install`,
- * `npm run db:migrate`, `npm run db:seed` and `npm run dev`, in order, from the repository root. It
- * imports only Node built-in modules and files of `scripts/`, so it works before `npm install`.
+ * `npm run db:migrate`, `npm run db:seed`, `node fixtures/build-history.mjs acme-shop` and
+ * `npm run dev`, in order, from the repository root (six steps). The history step builds
+ * `fixtures/acme-shop/.git`, which live answers read (change `real-model-clean-clone`, design D1).
+ * It imports only Node built-in modules and files of `scripts/`, so it works before `npm install`.
  *
  * Spec: `local-startup` → "One command starts the system".
  */
@@ -50,6 +52,9 @@ function onProcessInterrupt(listener) {
 /**
  * The steps of the start sequence: the line `up` prints, and the command it runs. The npm steps run
  * the npm that started `up` (`npm_execpath`) with the same Node, never `npm` by name through a shell.
+ * The fixture history step runs the builder with the same Node too, under the `defer-ctrl-c` preload
+ * so a Ctrl+C never ends Node before the builder restores the fixture (design D3); its label is the
+ * command a person types.
  *
  * @param {string} npmCli - The npm-cli.js of the running npm.
  * @returns {{ label: string, command: string, args: string[] }[]} The steps, in order.
@@ -65,6 +70,11 @@ function startSequence(npmCli) {
     npm('install'),
     npm('run', 'db:migrate'),
     npm('run', 'db:seed'),
+    {
+      label: 'node fixtures/build-history.mjs acme-shop',
+      command: process.execPath,
+      args: ['--import', './scripts/defer-ctrl-c.mjs', 'fixtures/build-history.mjs', 'acme-shop'],
+    },
     npm('run', 'dev'),
   ];
 }

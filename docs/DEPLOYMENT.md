@@ -41,6 +41,7 @@ repositorio:
 | `npm install` | Instala los workspaces |
 | `npm run db:migrate` | Aplica las migraciones de `packages/adapters/store-postgres/migrations` |
 | `npm run db:seed` | Carga el grafo precalculado de la muestra (`seeds/graph-dump.sql`) y sus respuestas golden (`seeds/cache/`) |
+| `node fixtures/build-history.mjs acme-shop` | Construye el historial de Git de la muestra (`fixtures/acme-shop/.git`, que no viaja con el clon), en unos 11 s y siempre igual: su `HEAD` es el commit que indexó la semilla. Solo lo leen las respuestas en vivo (con un modelo); el modo evaluación y `npm run verify` no lo necesitan. Un Ctrl+C durante el paso no deja modificados los ficheros versionados del fixture |
 | `npm run dev` | Arranca la API en `127.0.0.1:3000` y la web en `localhost:5173`, y se queda en primer plano |
 
 Si un paso falla, `up` no ejecuta los siguientes, escribe `[up] "<comando>" failed with exit code <n>`

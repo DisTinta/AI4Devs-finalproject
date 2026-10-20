@@ -12,3 +12,4 @@ export {
 export { createOpenAiCompatibleLlm, type OpenAiCompatibleLlmOptions } from './openai-compatible-llm.js';
 export { createEvaluationLlm } from './evaluation-llm.js';
 export { createLlm } from './create-llm.js';
+export { longFetch } from './long-fetch.js';

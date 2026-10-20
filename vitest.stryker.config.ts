@@ -1,6 +1,6 @@
 // Vitest config used only by Stryker (`stryker.config.json` → `vitest.configFile`).
-// Stryker mutates packages/core, packages/cli and packages/api (minus their process entry points), so it
-// must not load the integration specs, which need Postgres:
+// Stryker mutates packages/core, packages/cli and packages/api (minus their process entry points) and
+// packages/adapters/llm/src/long-fetch.ts (DIS-103, design D12), so it must not load the integration specs, which need Postgres:
 // tests/integration/helpers/db.ts (the DATABASE_URL gate, re-exported by store/support.ts) throws on
 // import when CI is set without DATABASE_URL (DIS-11 design D5, moved there in DIS-22).
 // The timed linear-time cases and the n/4n scaling checks are excluded too: instrumented code is too

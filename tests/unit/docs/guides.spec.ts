@@ -7,6 +7,8 @@ import { describe, expect, it } from 'vitest';
 // runs the same in PowerShell and Bash" and "The deployment and testing guides in Spanish" (DIS-102
 // design D8, D10, D11, D15, D16). Each test is one scenario, named after it; the review half of "The
 // web walkthrough names what each screen shows" is a recorded check of the change's step 16.
+// "The real-model section says how to try each model" and the `Probar con un modelo real` heading come
+// from openspec/changes/real-model-clean-clone/specs/local-startup/spec.md (DIS-103 design D6, D10).
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 
@@ -112,7 +114,7 @@ describe('The demo guide runs the same in PowerShell and Bash', () => {
     expect(blocks.length).toBeGreaterThan(0);
     for (const block of blocks) expect(['shell', 'text', 'powershell', 'bash'], block.body).toContain(block.info);
     expect(unpairedShellBlocks(blocks)).toEqual([]);
-    // The pairing rule itself, on made-up Markdown (the guide has no pair today): a pair with text
+    // The pairing rule itself, on made-up Markdown: a pair with text
     // between is fine; a pair split by a heading, and a third block after a pair, are not
     const sample = (parts: string[]): Fence[] => fences(parts.join('\n'));
     const block = (info: string, body: string): string => `\`\`\`${info}\n${body}\n\`\`\``;
@@ -147,6 +149,7 @@ describe('The demo guide runs the same in PowerShell and Bash', () => {
       ...[0, 1, 2, 3, 4, 5, 6].map((step) => `Paso ${step} — `),
       'Comprobar la instalación',
       'Recorrido por la web',
+      'Probar con un modelo real',
       'Parar el sistema',
     ].map((heading) => heading.normalize('NFC'));
     const positions = expected.map((wanted) =>
@@ -203,6 +206,52 @@ describe('The demo guide runs the same in PowerShell and Bash', () => {
     ]) {
       expect(walkthrough, label).toContain(label);
     }
+  });
+
+  it('The real-model section says how to try each model', () => {
+    // Arrange
+    const markdown = documentText(DEMO);
+    const section = sectionOf(markdown, 'Probar con un modelo real');
+    const blocks = fences(markdown).filter((block) => block.section === 'Probar con un modelo real');
+    const text = prose(section.text);
+
+    // Assert: the commands
+    const shellHolds = (command: string): boolean =>
+      blocks.some((block) => block.info === 'shell' && block.body.includes(command));
+    expect(shellHolds('node fixtures/build-history.mjs acme-shop')).toBe(true);
+    expect(shellHolds('ollama pull qwen2.5-coder')).toBe(true);
+
+    // Assert: exactly one labelled pair, both sides naming the context length
+    const labelled = blocks.filter((block) => block.info === 'powershell' || block.info === 'bash');
+    expect(labelled.map((block) => block.info).sort()).toEqual(['bash', 'powershell']);
+    for (const block of labelled) {
+      expect(block.body).toContain('OLLAMA_CONTEXT_LENGTH');
+      expect(block.body).toContain('16384');
+    }
+
+    // Assert: what the text says
+    for (const wanted of [
+      'LLM_BASE_URL=http://localhost:11434/v1',
+      'LLM_MODEL=qwen2.5-coder',
+      'LLM_API_KEY',
+      'LLM_TIMEOUT_MS=1200000',
+      '3600000',
+      'DAILY_BUDGET_USD',
+      'https://api.anthropic.com/v1',
+      'https://platform.claude.com/docs/en/api/openai-sdk',
+      'anthropic-workspace-id',
+      'max_tokens',
+      'Ctrl+C',
+      'npm run up',
+      'npm run cli -- ask acme-shop',
+      'npm run demo:ask -- a794456d-6d1b-5b55-a360-13fec83dc7bc',
+    ]) {
+      expect(section.text, wanted).toContain(wanted);
+    }
+    expect(text.match(/no verificado/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
+
+    // Assert: no API key, real or made up, anywhere in the guide
+    expect(markdown).not.toMatch(/sk-[A-Za-z0-9_-]{10,}/);
   });
 });
 

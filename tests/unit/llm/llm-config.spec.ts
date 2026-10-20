@@ -78,7 +78,7 @@ describe('LLM configuration', () => {
     // Arrange
     const valid = { LLM_BASE_URL: OLLAMA, LLM_MODEL: 'chat-x' };
     const cases: Array<[Record<string, string>, string, string]> = [
-      ...['abc', '0', '-5', '1.5', '9999999999', '300001'].map(
+      ...['abc', '0', '-5', '1.5', '9999999999', '3600001'].map(
         (value): [Record<string, string>, string, string] => [{ ...valid, LLM_TIMEOUT_MS: value }, 'LLM_TIMEOUT_MS', value],
       ),
       ...[
@@ -114,6 +114,16 @@ describe('LLM configuration', () => {
 
     // Assert
     expect(config).toMatchObject({ mode: 'live', timeoutMs: 50 });
+  });
+
+  it('A timeout above 300 s is accepted', () => {
+    for (const value of ['300001', '1200000', '3600000']) {
+      // Act
+      const config = llmConfigFromEnv({ LLM_BASE_URL: OLLAMA, LLM_MODEL: 'chat-x', LLM_TIMEOUT_MS: value });
+
+      // Assert
+      expect(config).toMatchObject({ mode: 'live', timeoutMs: Number(value) });
+    }
   });
 
   // Extra cases (not spec scenarios), design D5.

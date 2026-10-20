@@ -110,10 +110,12 @@ export function llmConfigFromEnv(env: Record<string, string | undefined>): LlmCo
 }
 
 /**
- * Largest useful timeout: the default `headersTimeout` and `bodyTimeout` (300 s) of the undici agent
- * behind Node's `fetch`, which ends any request by itself at that point (design D5).
+ * Largest accepted timeout: one hour, the range of `CACHE_BUILD_TIMEOUT_MS`, enough for the slowest
+ * CPU answer measured (about 9 minutes per request) and far below the 2^31 - 1 ms of Node's timers.
+ * The client sends over `node:http` by default, so no 300 s limit of Node's `fetch` applies
+ * (change `real-model-clean-clone`, design D5).
  */
-const MAX_TIMEOUT_MS = 300_000;
+const MAX_TIMEOUT_MS = 3_600_000;
 
 function readTimeout(value: string | undefined): number {
   if (value === undefined) return DEFAULT_LLM_TIMEOUT_MS;

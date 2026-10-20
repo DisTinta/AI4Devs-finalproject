@@ -54,12 +54,19 @@ Verified against `package.json` (root and per package). If a command is not here
 — do not invent one.
 
 - Start and stop (DIS-102): `npm run up` (`node scripts/up.mjs`) loads the root `.env` and runs
-  `docker compose up -d --wait`, `npm install`, `npm run db:migrate`, `npm run db:seed` and
-  `npm run dev` in order from the repository root, printing `[up] <command>` before each step; a
+  `docker compose up -d --wait`, `npm install`, `npm run db:migrate`, `npm run db:seed`,
+  `node fixtures/build-history.mjs acme-shop` (DIS-103: the fixture's `.git`, which live answers read
+  and a clean clone lacks; rebuilt every time, ~11 s) and `npm run dev` in order from the repository
+  root, printing `[up] <command>` before each step; a
   failing step stops it with `[up] "<command>" failed with exit code <n>` and that code, Ctrl+C ends it
   with `[up] stopped (Ctrl+C)` and exit `130`, and without `npm_execpath` (not started by npm) it
   prints `[up] run it with npm run up` and exits `1`. It spawns npm as `process.execPath` +
-  `npm_execpath`, never `npm` by name through a shell. `npm run down` is `docker compose down` (the
+  `npm_execpath`, never `npm` by name through a shell. The history step runs
+  `process.execPath --import ./scripts/defer-ctrl-c.mjs fixtures/build-history.mjs acme-shop`: the
+  preload (no imports) only registers a no-op SIGINT listener, so Ctrl+C never ends Node before the
+  builder's `finally` restores the fixture's tracked files. The builder itself is not edited because
+  it is a seed fingerprint input (any byte change fails `npm run verify` until `seed:build` and
+  `cache:build` run again). `npm run down` is `docker compose down` (the
   volume stays). The `Makefile` only delegates: `make up` = `npm run up`, `make down` =
   `npm run down`, plus `logs` and `ps`; it neither includes `.env` nor exports variables.
   `docker-compose.yml` publishes Postgres on `${POSTGRES_PORT:-5432}`; `POSTGRES_PORT` and the port of
@@ -290,7 +297,8 @@ Verified against `package.json` (root and per package). If a command is not here
   contract test `api-contract.spec.ts` (`expectTypeOf` of the client types against the API's Zod
   types, by relative path; it fails `npm run typecheck`, not Vitest). Stryker excludes
   `packages/web/**`, `tests/a11y/**` and `tests/unit/web/**` (`vitest.stryker.config.ts`): it mutates
-  no web file.
+  no web file. Of `packages/adapters`, it mutates only `packages/adapters/llm/src/long-fetch.ts`
+  (DIS-103), which the CI `mutation` job's `business` path filter also lists.
 - Test locations: `tests/{unit,integration,e2e,a11y}` and co-located package sources. The first real
   suite is `tests/integration/store/` (schema migrations and constraints, against real Postgres).
 - DB integration tests need `DATABASE_URL`. If it is unset:
@@ -468,7 +476,10 @@ Verified against `package.json` (root and per package). If a command is not here
   files with older snapshots, and the analyzer specs that read `fixtures/acme-shop` from disk in
   parallel (Vitest runs files concurrently) then see e.g. a `DiscountService.php` without
   `volumeBonus` and fail at random — seen in CI only, where the DB-backed files also run. To refresh
-  the real fixtures' `.git` by hand, run `node fixtures/build-history.mjs`; no test does it. Other
+  the real fixtures' `.git` by hand, run `node fixtures/build-history.mjs`; no test does it. Since
+  DIS-103 `npm run up` rebuilds `acme-shop`'s `.git` on every start (its step
+  `node fixtures/build-history.mjs acme-shop`, ~11 s): never run the suite in the same checkout while
+  that step runs, for the same reason. Other
   cases use throwaway repositories under the OS temp dir with synthetic
   identities (`git -c user.name=… -c user.email=…`). They need `git` on `PATH`. Only the two
   persistence blocks (`git history persistence`, `co-change persistence`) need Postgres
@@ -646,8 +657,10 @@ services that must be started first, quirks of the local environment.
   `dimension-mismatch`; `evaluation-mode` since DIS-18) and only numbers, plus `systemCode` for `network` when the error's or its
   cause's `code` matches `^E[A-Z]+$` or `^UND_ERR_[A-Z_]+$` (undici's `UND_ERR_HEADERS_TIMEOUT` /
   `UND_ERR_BODY_TIMEOUT` are `timeout` instead); a detail that does not apply is an absent property.
-  `LLM_TIMEOUT_MS` is capped at 300000: undici's default header/body timeouts behind Node's `fetch`
-  end any request at 300 s anyway. No `cause`,
+  `LLM_TIMEOUT_MS` accepts 1 to 3600000 (DIS-103; the range of `CACHE_BUILD_TIMEOUT_MS`): without an
+  injected `fetch` the client sends with `longFetch` (`packages/adapters/llm/src/long-fetch.ts`,
+  `node:http` / `node:https`), so undici's 300 s header/body timeouts behind Node's `fetch` never
+  apply. No `cause`,
   no response body, so a key echoed by a server cannot leak. Failures are classified by error name
   both on `fetch` and on the body read: a stalled body is `timeout`, a body cut mid-way is `network`.
   `usage` (or one of its fields) absent or `null` counts as `0`; a present field that is not a
@@ -655,7 +668,9 @@ services that must be started first, quirks of the local environment.
   `vector(1536)` columns): Ollama's `nomic-embed-text` (768) always fails with `dimension-mismatch`
   until DIS-46 picks the model and migrates the columns. `llmConfigFromEnv(env)` is the only reader
   of the `LLM_*` variables and `DAILY_BUDGET_USD`; the CLI's `ask` (DIS-40) and the API's
-  `composeFromEnv` (DIS-76) call it, before any connection. Tests fake `fetch` (`tests/unit/llm/`); the adapter is outside Stryker's `mutate`.
+  `composeFromEnv` (DIS-76) call it, before any connection. Tests fake `fetch` (`tests/unit/llm/`), and
+  `tests/unit/llm/default-transport.spec.ts` drives the default transport against a local `node:http`
+  server with the global `fetch` stubbed; of the adapter, only `long-fetch.ts` is in Stryker's `mutate`.
 - **Evaluation mode and the daily ceiling** (DIS-18). `createLlm(config)` builds
   `createEvaluationLlm` (mode `evaluation`, never touches `fetch`, every call fails with
   `LlmUnavailable` reason `evaluation-mode`; `not-configured` still means live without
@@ -910,10 +925,9 @@ services that must be started first, quirks of the local environment.
     the exported constants, never hard-coded weights.
   - Gotcha (DIS-72, local Ollama): serve it with `OLLAMA_CONTEXT_LENGTH=16384`. Its default context
     cuts `explain`'s 5–7k-token prompt to about 2 000 tokens (`truncating input prompt` in its log),
-    the system prompt is lost and every answer is `invalid-model-output`. On CPU the full prompt takes
-    longer than `LLM_TIMEOUT_MS`'s 300 s maximum (also Node's own `fetch` limit), so a live `ask`
-    times out there; scripts can pass their own `fetch` and `timeoutMs` to `createLlm`.
-    `cache:build` (DIS-26) does exactly that. On this project's Windows machine Ollama only runs on
+    the system prompt is lost and every answer is `invalid-model-output`. On CPU one answer takes
+    3.5–9 min: set `LLM_TIMEOUT_MS=1200000` (DIS-103 removed the 300 s cap; `docs/DEMO.md` →
+    `Probar con un modelo real`). `cache:build` (DIS-26) passes its own `timeoutMs` to `createLlm`. On this project's Windows machine Ollama only runs on
     pure CPU (its CUDA and Vulkan backends crash): stop the tray app and every `ollama.exe` /
     `llama-server`, then run `CUDA_VISIBLE_DEVICES=-1 GGML_VK_VISIBLE_DEVICES=-1 OLLAMA_VULKAN=0
     OLLAMA_LLM_LIBRARY=cpu OLLAMA_CONTEXT_LENGTH=16384 ollama serve` (its log must show `library=cpu`)
@@ -1137,7 +1151,8 @@ services that must be started first, quirks of the local environment.
   The file is written only when every requested question succeeded: `mkdirSync` of its directory,
   then `writeAtomically` (`packages/cli/src/cache/write-atomically.ts`, a copy of `seed-build.ts`'s,
   which is a seed fingerprint input and is only imported from). Requests go through `longFetch`
-  (`packages/cli/src/cache/long-fetch.ts`, `node:http` with the caller's `signal` as the only limit),
+  (`packages/adapters/llm/src/long-fetch.ts` since DIS-103, re-exported by
+  `packages/cli/src/cache/long-fetch.ts`; `node:http` with the caller's `signal` as the only limit),
   because Node's `fetch` ends any request at 300 s. **Format** (`golden-file.ts`): `format: 1`,
   `project`, `seed` (the seed header's two fingerprints), `answerFingerprint`, `generatedWith`
   (`model`, `verifyModel`), `entries` (`id`, `question`, `questionNormalized`, `response`,
