@@ -144,7 +144,7 @@ Desarrolladores que trabajan sobre código que no escribieron: incorporaciones a
 
 **F4 merece una nota**. Los wireframes de [1.3](#13-diseño-y-experiencia-de-usuario) muestran el diseño; F4 es la evidencia de que el sistema **funciona realmente**. Se concreta en un único camino garantizado:
 
-- **Local, en tres comandos.** Se clona el repositorio, se copia `.env.example` a `.env` (sin obligar a una API key) y se levanta con `npm run up`, el mismo comando en PowerShell y en Bash (`make up` es su atajo en Git Bash o WSL). Los dos proyectos de muestra quedan consultables. **Sin PHP instalado, sin clonar repositorios ajenos, sin esperar ningún indexado**, porque los grafos y las respuestas de evaluación van versionados como semillas SQL / caché.
+- **Local, en cuatro comandos.** Se clona el repositorio, se copia `.env.example` a `.env` (sin obligar a una API key) y se levanta con `npm run up`, el mismo comando en PowerShell y en Bash (`make up` es su atajo en Git Bash o WSL). Los dos proyectos de muestra quedan consultables. **Sin PHP instalado, sin clonar repositorios ajenos, sin esperar ningún indexado**, porque los grafos y las respuestas de evaluación van versionados como semillas SQL / caché.
 
 *Estado en la Entrega 2:* la semilla carga `acme-shop` (174 nodos y 170 aristas) con tres respuestas *golden*; `task-api` entra con el analizador TypeScript (CM-HU-18, Entrega 3). F1, F2, F4 y F5 funcionan por CLI y por `POST /ask`; F3 (impacto) y F6 (deriva documental) son de la Entrega 3, y F7 tiene hoy el acierto exacto por pregunta normalizada, sin similitud de embedding (CM-HU-19).
 
@@ -167,7 +167,7 @@ Declarado desde el principio: **no modifica código, no genera pull requests, no
 
 Los wireframes de las tres pantallas muestran el flujo completo del producto. La evidencia ejecutable complementa las imágenes:
 
-1. **El repositorio levantable en local** en tres comandos (ver [1.4](#14-instrucciones-de-instalación)).
+1. **El repositorio levantable en local** en cuatro comandos (ver [1.4](#14-instrucciones-de-instalación)).
 2. **`docs/DEMO.md`**: guion de demostración con los comandos exactos y **la salida real de terminal** que producen. Se puede copiar, ejecutar y comparar con lo que uno obtiene.
 3. **`npm run verify`**: prueba de humo ejecutable que consulta cada repositorio de muestra y compara con la salida esperada (**sin llamar al LLM**: golden/caché versionada).
 
@@ -293,7 +293,7 @@ El paso 3 es el más característico: un sistema que sabe callarse.
 
 Al ser el arranque local **la única evidencia de que el sistema funciona ante quien evalúa**, esta sección se trata como crítica. El camino corto no requiere nada más que **Docker y Node 20+**: ni PHP instalado, ni clonar repositorios ajenos, ni esperar un indexado, **ni una API key de LLM**. Para indexar un repositorio hace falta además **Git 2.45.1 o posterior** (o las versiones de mantenimiento de mayo de 2024 2.43.4 y 2.44.1): las anteriores ignoran `GIT_NO_LAZY_FETCH`, que impide que un *partial clone* ejecute el programa de su remoto al leer un objeto que falta, o no leen `attr.tree`, que hace que los atributos salgan siempre del `.gitattributes` de `HEAD`.
 
-#### Camino corto — sistema operativo en tres comandos
+#### Camino corto — sistema operativo en cuatro comandos
 
 ```shell
 git clone https://github.com/DisTinta/AI4Devs-finalproject
@@ -311,6 +311,7 @@ docker compose up -d --wait        # PostgreSQL 16 + pgvector, esperando a que a
 npm install
 npm run db:migrate                 # esquema
 npm run db:seed                    # ← el repositorio de muestra YA indexado (+ caché de evaluación)
+node fixtures/build-history.mjs acme-shop   # historial de Git del fixture (~11 s), lo leen las respuestas en vivo
 npm run dev                        # API en :3000 · web en :5173
 ```
 
@@ -410,32 +411,12 @@ Sin `LLM_*` (modo evaluación) no hace falta ningún modelo: las tres preguntas 
 
 Los 2–3 min que cita la propuesta de DIS-74 no son el tiempo de una pregunta: son la cota del `verify` en CPU, limitada por el tope de 20 llamadas de verificación por respuesta (`MAX_VERIFY_CALLS_PER_ANSWER`).
 
-Lo que hay que configurar para que funcione con Ollama local:
+La receta paso a paso, igual en PowerShell y en Bash, está en [`docs/DEMO.md` → Probar con un modelo real](docs/DEMO.md#probar-con-un-modelo-real): Ollama con GPU o en CPU, una API alojada compatible con OpenAI y Claude por el endpoint compatible con OpenAI de Anthropic (estos dos, no verificados). Lo esencial para Ollama:
 
-Arranca Ollama con un contexto de 16 384 tokens (sin esto, Ollama recorta el prompt a unos 2 000 tokens) y descarga el modelo. En Bash:
-
-```bash
-OLLAMA_CONTEXT_LENGTH=16384 ollama serve
-```
-
-En PowerShell:
-
-```powershell
-$env:OLLAMA_CONTEXT_LENGTH='16384'; ollama serve
-```
-
-```shell
-ollama pull qwen2.5-coder
-```
-
-En `.env`, define `LLM_BASE_URL=http://localhost:11434/v1`, `LLM_MODEL=qwen2.5-coder`, `LLM_API_KEY=` (vacía) y `LLM_TIMEOUT_MS=300000` (el máximo admitido), y haz una pregunta que no está en la caché (`npm run cli` lee `.env`):
-
-```shell
-npm run cli -- ask acme-shop "¿Qué hace DiscountService?"
-```
-
+- **El historial de `acme-shop`.** Las respuestas en vivo leen el código del fixture desde `fixtures/acme-shop/.git`, que no viaja con el clon; `npm run up` lo construye en cada arranque (`node fixtures/build-history.mjs acme-shop` para quien no use `up`). Sin él, la pregunta termina con `SOURCE_UNAVAILABLE` (`not-a-repository`).
 - **`OLLAMA_CONTEXT_LENGTH=16384`.** El prompt de `explain` ocupa entre 5 000 y 7 000 tokens. Con el contexto por defecto, Ollama lo recorta (`truncating input prompt` en su log), se pierde el *system prompt* y toda respuesta sale `UNKNOWN (invalid-model-output)`.
-- **`LLM_TIMEOUT_MS` admite como máximo 300 000 ms** (es también el límite del `fetch` de Node). En una CPU lenta, una pregunta puede pasar de ahí y `ask` corta con `LLM_UNAVAILABLE` (`reason: timeout`). `npm run cache:build` no tiene ese tope: usa su propio `CACHE_BUILD_TIMEOUT_MS`.
+- **`LLM_TIMEOUT_MS=1200000` en CPU.** `LLM_TIMEOUT_MS` admite de 1 a 3 600 000 ms (una hora); el cliente envía con `node:http`, así que no hay otro límite por debajo (el `fetch` de Node cortaba a los 300 s). Con GPU o una API alojada basta el valor por defecto, 120 000 ms.
+- **Reiniciar tras editar `.env`.** La API lee `.env` al arrancar: Ctrl+C en la terminal de `npm run up` y otra vez `npm run up`. `npm run cli` lo lee en cada ejecución.
 - **Modelo:** `qwen2.5-coder` (7B). `llama3.2` (3B) no produce el JSON estricto que exige la cuarentena y responde `invalid-model-output`.
 - **Salida con valla:** desde DIS-72 se acepta una única valla ```` ```json ```` que envuelva toda la salida, porque algunos modelos responden así ([2.5](#25-seguridad), práctica 2).
 
@@ -456,7 +437,7 @@ Hace cada pregunta golden de los repositorios de muestra (versionadas en `seeds/
 | `LLM_MODEL` | sí en modo vivo | Modelo para generación; con `LLM_BASE_URL` y sin `LLM_MODEL`, el arranque falla |
 | `LLM_MODEL_VERIFY` | no | Modelo económico para la verificación de evidencias en vivo; sin él se usa `LLM_MODEL` |
 | `LLM_EMBED_MODEL` | no | Modelo de embeddings; sin él, los embeddings no están disponibles (sin usar `LLM_MODEL`). Sus vectores deben tener 1536 dimensiones, las de `vector(1536)` del esquema: `nomic-embed-text` (768) falla hasta que CM-HU-19 elija el modelo |
-| `LLM_TIMEOUT_MS` | no | Tiempo máximo por petición al LLM, en ms (entero de 1 a 300000: por encima, el `fetch` de Node corta la petición por su cuenta a los 300 s). Por defecto `120000`, para el arranque en frío de Ollama |
+| `LLM_TIMEOUT_MS` | no | Tiempo máximo por petición al LLM, en ms (entero de 1 a 3600000). Por defecto `120000`, para el arranque en frío de Ollama; en CPU, `1200000` (ver [Probar con un modelo real](#probar-con-un-modelo-real)) |
 | `DATABASE_URL` | **sí** (scripts `db:*`, `index` y la API) | Cadena de conexión de PostgreSQL. La API no arranca sin ella (`INVALID_CONFIG`). `.env.example` trae la del contenedor local. Los comandos `npm run` de la guía (`up`, `dev`, `db:*`, `cli`, `verify`, `cache:build`, `seed:build` y `demo:ask`) la leen de `.env`, y una variable ya definida en la terminal gana sobre `.env`; sin ella en ninguno de los dos sitios, `db:migrate` / `db:rollback` salen con error |
 | `POSTGRES_PORT` | no | Puerto del host en el que `docker compose` publica PostgreSQL. Por defecto `5432`. Si lo cambias (otro programa ya usa el 5432), cambia también el puerto de `DATABASE_URL`: los dos van juntos |
 | `PORT` | no | Puerto de la API: solo dígitos, de 1 a 65535. Por defecto `3000` |

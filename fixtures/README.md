@@ -56,7 +56,13 @@ node fixtures/build-history.mjs task-api   # one
 
 The generated `.git` is gitignored and fully regenerable (fixed authors, dates
 and messages — no wall-clock dependency). `npm run seed:build` runs it (for acme-shop only in
-Entrega 2) before indexing the fixture into `seeds/graph-dump.sql`. This choice keeps the real `simple-git` extractor
+Entrega 2) before indexing the fixture into `seeds/graph-dump.sql`. `npm run up` also rebuilds
+`acme-shop`'s history on every start, as its step `node fixtures/build-history.mjs acme-shop`
+after `npm run db:seed` (about 11 s): live answers read the fixture's code from that `.git`, which a
+clean clone does not have. Whoever starts the system without `npm run up` runs that command once
+from the repository root; without it, a live question ends with `SOURCE_UNAVAILABLE`
+(`not-a-repository`). The built `HEAD` is the seed's `indexed_commit`, and the build changes neither
+the seed's fingerprint nor evaluation mode. This choice keeps the real `simple-git` extractor
 (readme §2.2) exercised against a real repository, stays text-diffable, and adds
 no binary blob. The rebuilder snapshots and restores the source tree, so it never
 mutates the tracked fixture files. Every file a manifest entry lists really changes

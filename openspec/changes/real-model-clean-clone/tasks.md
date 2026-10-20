@@ -36,11 +36,11 @@
 ## 5. Other docs (design D2, D7, D9)
 
 - [ ] 5.1 `readme.md`: «cuatro comandos» at §1.2, §1.3 and the §1.4 title; every link to the old anchor (`grep -rn "tres-comandos" --include=*.md .`) updated; the `up` sequence with the new step; `Probar con un modelo real` linking to `docs/DEMO.md#probar-con-un-modelo-real`, keeping the times table, no «máximo admitido»; `LLM_TIMEOUT_MS` row «entero de 1 a 3600000»; the output excerpt under «Lo que imprime al terminar» gains `[up] node fixtures/build-history.mjs acme-shop` and its summary line with `<repo>`, taken from the 6.2 run, date updated; `grep -n "300000\|300 s\|tres comandos" readme.md` reviewed line by line
-- [ ] 5.2 `fixtures/README.md` ("Git history — how it is versioned"): `npm run up` builds `acme-shop`'s history; the manual command
-- [ ] 5.2b `docs/DEPLOYMENT.md`: the table of `npm run up` steps gains the row `node fixtures/build-history.mjs acme-shop` between `npm run db:seed` and `npm run dev` (what it does, about 11 s, read only by live answers), in Spanish; `npx vitest run tests/unit/docs` green
-- [ ] 5.3 `docs/project-context.md`: l.464-471 (`npm run up` rebuilds `acme-shop`'s `.git` on every start, design D1; do not run the suite in the same checkout during that step, DIS-61); Commands (`up` six steps, the `defer-ctrl-c` preload and why the builder is not edited, design D3), the `LLM_TIMEOUT_MS` cap lines (l.649, l.914, l.1141 at base), the `longFetch` location (l.1139–1141) and l.658 ("the adapter is outside Stryker's `mutate`" → only `long-fetch.ts` of the adapter is mutated, design D12)
-- [ ] 5.4 `.env.example` per design D9 (count-only check; scripted edit or one PR line)
-- [ ] 5.5 `npx vitest run tests/unit/docs` green
+- [x] 5.2 `fixtures/README.md` ("Git history — how it is versioned"): `npm run up` builds `acme-shop`'s history; the manual command
+- [x] 5.2b `docs/DEPLOYMENT.md`: the table of `npm run up` steps gains the row `node fixtures/build-history.mjs acme-shop` between `npm run db:seed` and `npm run dev` (what it does, about 11 s, read only by live answers), in Spanish; `npx vitest run tests/unit/docs` green
+- [x] 5.3 `docs/project-context.md`: l.464-471 (`npm run up` rebuilds `acme-shop`'s `.git` on every start, design D1; do not run the suite in the same checkout during that step, DIS-61); Commands (`up` six steps, the `defer-ctrl-c` preload and why the builder is not edited, design D3), the `LLM_TIMEOUT_MS` cap lines (l.649, l.914, l.1141 at base), the `longFetch` location (l.1139–1141) and l.658 ("the adapter is outside Stryker's `mutate`" → only `long-fetch.ts` of the adapter is mutated, design D12)
+- [x] 5.4 `.env.example` per design D9 (count-only check; scripted edit or one PR line)
+- [x] 5.5 `npx vitest run tests/unit/docs` green
 
 ## 6. Live verification on a clean clone (MANDATORY - AGENT MUST EXECUTE; design D8)
 
