@@ -156,11 +156,18 @@ warning at most once per process.
 `npm run up` SHALL load `.env` (as in "Loading .env into a process", by default the repository root's
 file) into the environment it gives every step, and then run, from the repository root and in this
 order, each with the standard input, output and error of `up`: `docker compose up -d --wait`, `npm install`,
-`npm run db:migrate`, `npm run db:seed` and `npm run dev`. Before each step it SHALL print one line
-`[up] <command>` to stdout. The npm steps SHALL run the npm that started `up` (the `npm_execpath` npm
-gives its scripts, run by the same Node executable), never through a shell; `npm_execpath` SHALL be
-read from the environment `up` was started with, before `.env` is loaded, so a line of `.env` never
-names it; when it is not set there or is empty, `up` SHALL run no step, write `[up] run it with npm run up` to stderr and exit `1`. When a
+`npm run db:migrate`, `npm run db:seed`, `node fixtures/build-history.mjs acme-shop` and `npm run dev`.
+Before each step it SHALL print one line `[up] <command>` to stdout. The npm steps SHALL run the npm
+that started `up` (the `npm_execpath` npm gives its scripts, run by the same Node executable), never
+through a shell; `npm_execpath` SHALL be read from the environment `up` was started with, before
+`.env` is loaded, so a line of `.env` never names it; when it is not set there or is empty, `up` SHALL
+run no step, write `[up] run it with npm run up` to stderr and exit `1`. The fixture history step
+SHALL run `fixtures/build-history.mjs` with the argument `acme-shop` with the same Node executable,
+never through a shell, every time `up` runs (the build is deterministic: its `HEAD` is the
+`indexed_commit` of the seed `seeds/graph-dump.sql`), and in a process that does not end on SIGINT
+before the builder has finished, so a Ctrl+C during the step never leaves the fixture's tracked files
+modified; the step's own exit code after a Ctrl+C is not specified, and `up` reports the stop as for
+any step. When a
 step exits with a code other than `0`, `up` SHALL run no further step, write
 `[up] "<command>" failed with exit code <n>` to stderr and exit with that code; when a step ends by
 a signal, the line SHALL be `[up] "<command>" failed (<signal>)` and the exit code `1`; when a step
@@ -170,7 +177,8 @@ code `1`. When every step exits `0`, `up` SHALL exit `0`. While a step runs, `up
 SIGINT itself (the step receives the console's Ctrl+C on its own); when `up` has received SIGINT and
 the running step then ends, whatever its code or signal, `up` SHALL run no further step, write
 `[up] stopped (Ctrl+C)` to stderr instead of a failure line and exit `130`. `up` and the `.env` loader SHALL import only
-Node built-in modules and files of `scripts/`, so `npm run up` works before `npm install`.
+Node built-in modules and files of `scripts/`, so `npm run up` works before `npm install`. Building
+the fixture history SHALL change neither the seed's fingerprints nor the answers of evaluation mode.
 
 #### Scenario: Up runs the start sequence in order
 
@@ -179,11 +187,13 @@ Node built-in modules and files of `scripts/`, so `npm run up` works before `npm
   `.env` file given to `up` with `POSTGRES_PORT=5433`
 - **WHEN** `up` runs
 - **THEN** the runner received, in order, `docker compose up -d --wait`, then the Node executable with
-  `npm_execpath` and `install`, `run db:migrate`, `run db:seed` and `run dev`, each from the repository
-  root, with inherited standard streams, without a shell and with `POSTGRES_PORT` = `5433` in its
-  environment
-- **AND** stdout holds the five `[up] <command>` lines in that order, each printed before its step
-  started, and `up` exits `0`
+  `npm_execpath` and `install`, `run db:migrate` and `run db:seed`, then the Node executable with the
+  arguments `--import`, `./scripts/defer-ctrl-c.mjs`, `fixtures/build-history.mjs`, `acme-shop`, then the
+  Node executable with `npm_execpath` and `run dev`; each from the repository root, with inherited
+  standard streams, without a shell and with `POSTGRES_PORT` = `5433` in its environment
+- **AND** stdout holds the six `[up] <command>` lines in that order (the fifth is
+  `[up] node fixtures/build-history.mjs acme-shop`), each printed before its step started, and `up`
+  exits `0`
 
 #### Scenario: Up ignores an npm_execpath of .env
 
@@ -206,8 +216,19 @@ Node built-in modules and files of `scripts/`, so `npm run up` works before `npm
 - **GIVEN** a step runner double whose `npm run dev` call ends with exit code `3221225786` after `up`
   received SIGINT while that call was running
 - **WHEN** `up` runs
-- **THEN** the runner received the five calls, stderr holds `[up] stopped (Ctrl+C)` and no line with
+- **THEN** the runner received the six calls, stderr holds `[up] stopped (Ctrl+C)` and no line with
   `failed`, and `up` exits `130`
+
+#### Scenario: The history step finishes its work before ending on Ctrl+C
+
+- **GIVEN** a Node process started the way `up` starts the fixture history step, running instead a
+  script that receives SIGINT while it works and, after that, writes a marker file and then returns
+  or, in a second run, calls `process.exit(1)`
+- **WHEN** the process ends
+- **THEN** the marker file exists (the work finished after SIGINT) and the process was not ended by a
+  signal: it exits with the script's own code (`0` when the script returns, `1` when it calls
+  `process.exit(1)` after the SIGINT)
+- **AND** the same process without SIGINT exits `0`
 
 #### Scenario: A step that cannot start stops up
 
@@ -235,6 +256,20 @@ Node built-in modules and files of `scripts/`, so `npm run up` works before `npm
 - **THEN** each prints `[up] docker compose up -d --wait`, then
   `[up] "docker compose up -d --wait" failed with exit code <n>` with `n` other than `0`, runs no
   `npm install`, and the command exits with a code other than `0`
+
+#### Scenario: Up builds the fixture history the seed indexed
+
+- **GIVEN** a clean clone of the change's branch without `fixtures/acme-shop/.git`, with its own
+  Compose project name and a free `POSTGRES_PORT`
+- **WHEN** `npm run up` runs (a recorded check), is stopped (Ctrl+C, or by ending its process tree
+  where the tool cannot send Ctrl+C) once the API listens, and runs a second time
+- **THEN** each run prints `[up] node fixtures/build-history.mjs acme-shop` after `[up] npm run db:seed`
+  and before `[up] npm run dev`, and that step exits `0`
+- **AND** after each run `git -C fixtures/acme-shop rev-parse HEAD` is
+  `4f028db4d51a3321031f3a24b3f36240410ed38c` (the `indexed_commit` of `seeds/graph-dump.sql`),
+  `git status --porcelain` of the clone is empty, `npm run verify` exits `0`, and `git hash-object` of
+  `seeds/graph-dump.sql`, `seeds/cache/acme-shop.json` and `fixtures/build-history.mjs` is the one of
+  the branch
 
 ### Requirement: Stopping the system and the Makefile
 
@@ -457,7 +492,7 @@ outside, missing, range.
 and paths verbatim. Its level-2 headings SHALL include, in this order, `Antes de empezar`, the steps
 `Paso 0 — …` to `Paso 6 — …` numbered consecutively (step 0 starts the system and steps 1 to 6 are
 the six steps of `readme.md` §1.3), `Comprobar la instalación`, `Recorrido por la web` and
-`Parar el sistema`. Every fenced block SHALL have the info string `shell` (a command that runs as-is
+`Probar con un modelo real` and `Parar el sistema`. Every fenced block SHALL have the info string `shell` (a command that runs as-is
 in PowerShell and in Bash), `text` (output), or `powershell` or `bash` (a shell-specific variant, only
 when no common command exists); a `powershell` block and a `bash` block SHALL always come as an
 adjacent pair. No `shell` block SHALL contain `export `, `$env:`, `ask_api`, `sed `, `$?`, `&&`, `||`,
@@ -482,8 +517,44 @@ that expands; the usage panel with «Confianza»; the «Sin respuesta verificada
 `UNKNOWN`; the notice «Hace falta un modelo de lenguaje»; and the notice of an unavailable API with
 «Reintentar», with the command that shows it.
 
-The output pasted in the guide SHALL come from a run of the guide, literally, on a clean clone of the
-branch, in PowerShell and in Bash, except for the stop with Ctrl+C: `Parar el sistema` SHALL paste no
+`Probar con un modelo real` SHALL say, in Spanish:
+
+- that `npm run up` builds the fixture history (`fixtures/acme-shop/.git`) that live answers read,
+  and give, for whoever starts the system without `up`, the `shell` command
+  `node fixtures/build-history.mjs acme-shop`;
+- Ollama, with a GPU or on CPU: the `shell` command `ollama pull qwen2.5-coder`; the server started
+  with a context of 16384 tokens through `OLLAMA_CONTEXT_LENGTH=16384`, as an adjacent `powershell` /
+  `bash` pair (the only shell-specific pair of the section); the `.env` lines
+  `LLM_BASE_URL=http://localhost:11434/v1`, `LLM_MODEL=qwen2.5-coder` and `LLM_API_KEY` empty, written
+  in the text (lines of a file edited with a text editor, never a `shell` block nor a shell
+  redirection); on CPU, `LLM_TIMEOUT_MS=1200000` (accepted up to `3600000`) and the CPU times of
+  `readme.md`'s times table; what to do when Ollama already runs as a desktop app or a system service (quit it before
+  starting the server with the variable, or give the variable to that service as Ollama's
+  documentation says), and on which system the pair was verified;
+- a hosted OpenAI-compatible API: `LLM_BASE_URL` (the provider's base URL, without `?` or `#`; the
+  client appends `/chat/completions`), `LLM_API_KEY`, `LLM_MODEL` (the id the provider gives) and
+  `DAILY_BUDGET_USD` left empty, marked «no verificado»;
+- Claude through Anthropic's OpenAI-compatible endpoint: `LLM_BASE_URL=https://api.anthropic.com/v1`,
+  a model id from Anthropic's model list, `DAILY_BUDGET_USD` left empty, links to the official pages,
+  and these limits from Anthropic's documentation: the layer is presented for testing and comparing,
+  not for production; a key of several workspaces needs the `anthropic-workspace-id` header, which the
+  client does not send; `max_tokens` is not sent and how the layer treats that is not checked; it has
+  no embeddings, which `ask` does not need; marked «no verificado»;
+- that after editing `.env` the reader stops `npm run up` with Ctrl+C and starts it again, so the API
+  and the web use the model, while `npm run cli` reads `.env` on every run;
+- a free question through the CLI (`npm run cli -- ask acme-shop "¿Qué hace DiscountService?"`) and
+  through the API (`npm run demo:ask -- a794456d-6d1b-5b55-a360-13fec83dc7bc "¿Qué hace DiscountService?"`), with
+  the literal project id and question in the `shell` blocks (no `<…>` placeholder: PowerShell
+  reserves `<`).
+
+No API key, real or made up, SHALL appear in the guide. Its pasted output SHALL come from the Ollama
+path run on a clean clone of the branch (one shell is enough; the hosted and Claude paths paste no
+output), and `Cómo se capturó` SHALL state that capture (model, context, timeout, shell, date).
+
+The output pasted in the other sections of the guide SHALL come from a run of the guide, literally,
+on a clean clone of the branch, in PowerShell and in Bash (the clone's absolute path, which changes
+per clone and uses the system's separator, is written `<repo>`, as rule (b) of `Cómo se capturó`
+says), except for the stop with Ctrl+C: `Parar el sistema` SHALL paste no
 output for it and SHALL state in its text that `npm run up` then ends with `[up] stopped (Ctrl+C)`
 and exit code `130`, possibly followed (depending on the npm version) by npm's own lines with `code 130`,
 which are the expected end and not a failure; the output
@@ -503,7 +574,8 @@ it pastes is that of `npm run down`.
 
 - **WHEN** the level-2 headings of `docs/DEMO.md` are read
 - **THEN** they include, in this order, `Antes de empezar`, seven headings starting `Paso 0 — ` to
-  `Paso 6 — `, `Comprobar la instalación`, `Recorrido por la web` and `Parar el sistema`
+  `Paso 6 — `, `Comprobar la instalación`, `Recorrido por la web`, `Probar con un modelo real` and
+  `Parar el sistema`
 - **AND** `Antes de empezar` contains `docker info`, `node -v`, `git --version`, `POSTGRES_PORT`,
   `port is already allocated`, `Ports are not available`, `password authentication failed` and a
   `shell` block holding `cp .env.example .env`, and `Paso 0` a `shell` block holding `npm run up`
@@ -524,10 +596,37 @@ it pastes is that of `npm run down`.
 
 - **GIVEN** a clone of the change's branch in a new folder, with its own Compose project name and a
   free `POSTGRES_PORT`
-- **WHEN** every command of `docs/DEMO.md` is run literally with PowerShell and with Bash
+- **WHEN** every command of `docs/DEMO.md` outside `Probar con un modelo real` is run literally with
+  PowerShell and with Bash
 - **THEN** each command gives the output and exit code the guide shows, apart from the fields the guide
-  lists as changing on every run, and the accented questions reach the API intact in both shells
+  lists as changing on every run or with the clone's folder, and the accented questions reach the API intact in both shells
 - **AND** the pasted output is that of this run, and the pull request body records the run
+
+#### Scenario: The real-model section says how to try each model
+
+- **WHEN** the `Probar con un modelo real` section of `docs/DEMO.md` is read
+- **THEN** it has a `shell` block holding `node fixtures/build-history.mjs acme-shop` and another holding
+  `ollama pull qwen2.5-coder`
+- **AND** it has exactly one `powershell` / `bash` pair, and both blocks of the pair contain
+  `OLLAMA_CONTEXT_LENGTH` and `16384`
+- **AND** its text contains `LLM_BASE_URL=http://localhost:11434/v1`, `LLM_MODEL=qwen2.5-coder`,
+  `LLM_API_KEY`, `LLM_TIMEOUT_MS=1200000`, `3600000`, `DAILY_BUDGET_USD`,
+  `https://api.anthropic.com/v1`, `https://platform.claude.com/docs/en/api/openai-sdk`,
+  `anthropic-workspace-id`, `max_tokens`, `Ctrl+C`, `npm run up`, `npm run cli -- ask acme-shop` and
+  `npm run demo:ask -- a794456d-6d1b-5b55-a360-13fec83dc7bc`, and «no verificado» at least twice
+- **AND** no text of the guide matches the shape of an API key (`sk-` followed by ten or more letters,
+  digits, `-` or `_`)
+
+#### Scenario: The Ollama path was followed on a clean clone
+
+- **GIVEN** a clean clone of the change's branch with its own Compose project name and a free
+  `POSTGRES_PORT`, and Ollama on CPU only with `OLLAMA_CONTEXT_LENGTH=16384` and `qwen2.5-coder`
+- **WHEN** the steps of `Probar con un modelo real` for Ollama are followed (a recorded check) with
+  `LLM_TIMEOUT_MS=1200000`, and `npm run cli -- ask acme-shop "¿Qué hace DiscountService?"` and the same
+  question through `npm run demo:ask` are run
+- **THEN** neither ends with `SOURCE_UNAVAILABLE` nor with `LLM_UNAVAILABLE`: each ends with an answer
+  or an `UNKNOWN` decided by the model, and the measured duration of each is recorded in the change's
+  report
 
 ### Requirement: The deployment and testing guides in Spanish
 
