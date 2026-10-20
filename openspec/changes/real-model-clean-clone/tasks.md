@@ -85,7 +85,7 @@
 ## 12. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
 - [x] 12.1 Open the PR against `feature/entrega-2-CRN` (ADR `20261016-autonomous-workflow-run-entrega-2`; `gh` on DisTinta); DIS-103 to In Review with a Spanish comment linking it (PR #59)
-- [ ] 12.2 CI green (`quality`, `verify`, `mutation`, `secrets`, `Frontend`); link the run in an addendum to the step 7 report; a timeout of this PR's full mutation run follows design Risks (DR9: one re-run, then raise `timeout-minutes` with its reason)
+- [x] 12.2 CI green (`quality`, `verify`, `mutation`, `secrets`, `Frontend`); link the run in an addendum to the step 7 report; a timeout of this PR's full mutation run follows design Risks (DR9: one re-run, then raise `timeout-minutes` with its reason) — all six checks passed on the first attempt (run `39421576214` + `frontend` of `39421576371`), mutation 33m48s under the 40-minute cap, no re-run needed
 - [x] 12.3 `/show-spec-working` (may reuse 6 and 8 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
 - [x] 12.4 `/verify-against-spec` → `reports/YYYY-MM-DD-verify-against-spec.md`
 - [x] 12.5 `/adversarial-review` → `reports/YYYY-MM-DD-adversarial-review.md`

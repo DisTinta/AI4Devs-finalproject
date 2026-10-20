@@ -158,3 +158,24 @@ reversible in one commit, and decided by the author in the ticket.
   (l.36-37); the read of the surrounding lines and the scripted edit were refused by the agent's
   `.env*` rules. Destination **C** in `design.md` → Follow-ups (V1 / AR1), with the exact replacement
   for the author.
+
+## Addendum — CI run (2026-10-20, step 12.2)
+
+- PR [#59](https://github.com/DisTinta/AI4Devs-finalproject/pull/59) against `feature/entrega-2-CRN`,
+  run [39421576214](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/39421576214) (plus
+  the `frontend` job of run
+  [39421576371](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/39421576371)): all six
+  checks passed on the first attempt, no fix needed.
+
+| Check | Result | Duration |
+|---|---|---|
+| frontend | pass | 7s |
+| scope | pass | 6s |
+| secrets | pass | 7s |
+| verify | pass | 49s |
+| quality | pass | 2m1s |
+| mutation | pass | 33m48s |
+
+- `mutation` ran the full suite (the cache key changed with `stryker.config.json` and
+  `vitest.stryker.config.ts`, design DR9) and finished at 33m48s, under the 40-minute cap; no re-run or
+  `timeout-minutes` change was needed.
