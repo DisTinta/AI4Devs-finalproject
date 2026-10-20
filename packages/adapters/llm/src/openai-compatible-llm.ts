@@ -8,11 +8,15 @@ import {
 } from '@codemind/core';
 import type { z } from 'zod';
 import type { LiveLlmConfig } from './config.js';
+import { longFetch } from './long-fetch.js';
 import { chatCompletionResponse, embeddingsResponse } from './response-schemas.js';
 
 /** Test seams of {@link createOpenAiCompatibleLlm}. */
 export interface OpenAiCompatibleLlmOptions {
-  /** The `fetch` to use; Node's global one by default. */
+  /**
+   * The `fetch` to use. By default {@link longFetch}, over `node:http` / `node:https`, so the
+   * configured timeout is the only limit (Node's global `fetch` ends any request at 300 s).
+   */
   fetch?: typeof fetch;
 }
 
@@ -22,7 +26,7 @@ export interface OpenAiCompatibleLlmOptions {
  * no text from the endpoint or the runtime (design D4).
  */
 export function createOpenAiCompatibleLlm(config: LiveLlmConfig, options: OpenAiCompatibleLlmOptions = {}): LlmPort {
-  const fetchImpl = options.fetch ?? fetch;
+  const fetchImpl = options.fetch ?? longFetch;
 
   async function post<T>(path: string, body: object, schema: z.ZodType<T>): Promise<T> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
