@@ -253,3 +253,232 @@ auditoría de la spec».
 | 7.1 note on "The web walkthrough…" | Automated half green; review half not re-run (section unchanged), stated in the report | task 7.1 |
 | 10 — switch `gh` back to Cristina-JumpMath | Not applied: the author allowed DisTinta to stay active for this autonomous run (2026-10-18) | design D14; task 6.1 |
 | Linear updates | D3 revised and technical context fixed in Enhanced; DR1–DR5 recorded | DIS-103 Enhanced |
+
+## Run 2
+
+Verdict line as returned:
+
+CHANGES REQUIRED
+
+**Ticket:** I loaded DIS-103 from Linear: the description, the relations and the comments (it has none). It has no parent issue, so point 2 is checked against DIS-103's own acceptance criteria (AC1–AC5). This is an autonomous run under ADR `20261016-autonomous-workflow-run-entrega-2`, so there are no questions for the author. Each point that needs a decision is written below as a **decision to record**. Keeping `gh` on DisTinta is the author's permission for this run and is not a finding.
+
+**Decisions to record**
+- **DR6:** How the live clones and the author's own instance share the fixed ports `3000` (API) and `5173` (Vite) during steps 6 and 8 (see 6.1 and 8.1 below). This is blocking.
+- **DR7:** Whether the CI `mutation` job's path filter includes `packages/adapters/llm/src/long-fetch.ts`, so that DR2 actually keeps the coverage the file had in `packages/cli` (see 8.2 below). This is blocking.
+- **DR8:** The guide's `demo:ask` command uses the real project id and a real question, not `<projectId>` and `"…"` (see 5.1 below).
+
+---
+
+## Check of run 1's resolutions
+
+| Run 1 finding | Applied in the artifacts? |
+|---|---|
+| 5.1 / DR1: no exit code `130` from the step | **Yes.** Delta l.16–19 says "the step's own exit code after a Ctrl+C is not specified". The scenario's THEN is rewritten. Design D3 bullet 1 covers it and the `exitCode` risk is removed. Tasks 3.1 and 3.2 have no `exit` listener. |
+| 8.1 / DR2: `long-fetch.ts` stays in mutation scope | **Partly.** Design D12, task 2.3b, task 7.3 and the `stryker.config.json` entry in Impact are there. But the proposal still lists "CI" under "Not changed", and the CI path filter does not trigger on the moved file. See 8.2 below. |
+| DR3: guide re-run in both shells | **Yes:** design D13, tasks 8.2 and 11.1. |
+| Hole: "Up with Docker unavailable…" | **Yes:** task 8.1 with `DOCKER_HOST=tcp://127.0.0.1:1`. |
+| 6.1: restoration happened before step 8 | **Yes:** task 6.5 only stops Ollama, and the restoration is now task 8.3. The new order exposes a port clash, though (see 6.1 below). |
+| 5.2 / DR4: real Ctrl+C on Windows | **Yes:** design D3 states the verification scope; it is in Risks and in task 11.1. |
+| 5.5 / DR5: Ollama already running as an app or service | **Yes:** delta l.164–166 and design D6. |
+| 5.3: exact `up` arguments | **Yes:** delta l.39–40 and task 3.4. |
+| 5.4: clone folder in pasted paths | **Yes:** delta l.186–188 and the clean-clone scenario; design D3 bullet 3; task 4.4. |
+| 5.6: "byte for byte" vs a needed fix | **Yes:** design D4. |
+| 3.1: unchecked MUST content | **Yes:** the scenario now checks the official URL, `anthropic-workspace-id` and `max_tokens`. |
+| 3.2: fingerprint inputs unchanged | **Yes:** the scenario's THEN and task 6.2. |
+| 4.1, 4.2, 4.3: vague wording | **Yes:** the Claude limits are listed one by one, there is a ≤ 15 min rule for the web check, and the preload is named. |
+| 9.1: task 6.3 too big | **Yes:** split into 6.3a–6.3d. |
+| `GOLDEN_STALE` wording in D3 | **Yes:** now `FINGERPRINT_MISMATCH`, reason `seed`, with the ADR cited. |
+| Note 7.1 on "The web walkthrough…" | **Yes:** task 7.1. |
+| Linear updates | **Yes:** the Enhanced description has D3 revised, "Decisiones registradas en la auditoría de la spec" with DR1–DR5, and the "Contexto técnico" fixed. The `[original]` block is untouched. |
+
+---
+
+## 1. Scope against the ticket: clean
+
+Every artifact follows from DIS-103:
+- Enhanced D1–D14 and the author's decision of 20-10-2026;
+- AC1–AC5;
+- DR1–DR5, already recorded in the Enhanced description.
+
+`scripts/defer-ctrl-c.mjs` puts into effect the risk that Enhanced D3 brings into scope, now in its revised form. DR2's `stryker.config.json` entry keeps existing coverage rather than adding new scope. Nothing is invented.
+
+## 2. Inherited acceptance criteria: clean (no parent; checked against DIS-103)
+
+| AC | Requirement → scenario |
+|---|---|
+| AC1: history built by `up` | "One command starts the system" → "Up runs the start sequence in order" (six lines, exact arguments) and "Up builds the fixture history the seed indexed" (`HEAD`, `git status --porcelain`, `verify`, hashes) |
+| AC2: no 300 s cap | "LLM configuration…" → "A malformed timeout…" (`3600001`, `9999999999`, `0`, `abc`) and "A timeout above 300 s is accepted". "The client waits…" → "Without an injected fetch the request does not use the global fetch" (spy) and "…keep their mapping" (`LLM_TIMEOUT_MS=50` → `timeout`) |
+| AC3: live run past 300 s | "The Ollama path was followed on a clean clone" plus "A response after 300 s is accepted". The web check falls under the ≤ 15 min rule. |
+| AC4: DEMO section | "The real-model section says how to try each model" and "…ordered for a first-time reader" |
+| AC5: readme | No spec covers it (the readme is not specified). Task 5.1 covers the text and task 8.1 covers the `3600001` error. Acceptable. |
+
+## 3. Missing scenarios: improvable
+
+- **3.1:** The scenario "The history step finishes its work before ending on Ctrl+C" (delta l.73–79) does not match its own THEN.
+  - Its GIVEN describes only a script that "writes a marker file and returns".
+  - Its THEN also asserts the `process.exit(1)` variant.
+  - **Fix:** in the GIVEN, change the script to one that "writes a marker file and then returns, or, in a second run, calls `process.exit(1)`".
+
+## 4. Ambiguity: improvable (one occurrence)
+
+None of fast, easy, secure, efficient, many, appropriate or robust appears in the change.
+
+- **4.1:** Delta l.163–164 asks for "the time a CPU answer takes", which is not measurable.
+  - **Fix:** "the CPU times of `readme.md`'s times table (3.5–9 min per question on the machine measured)". This matches design D6 ("CPU times from `readme.md`'s table").
+
+## 5. Open decisions
+
+- **5.1: improvable (DR8).** The delta (l.178–179) asks for "`npm run demo:ask -- <projectId> "…"`".
+  - Taken literally in a `shell` block, `<` is a reserved operator in PowerShell 5.1, so the command breaks in one shell.
+  - Enhanced D6 already gives the literal id `a794456d-6d1b-5b55-a360-13fec83dc7bc`.
+  - **Fix:** the delta says the `shell` blocks use that literal id and the literal question `¿Qué hace DiscountService?` (no `<…>` and no `…`). Add `a794456d-6d1b-5b55-a360-13fec83dc7bc` to the third AND of "The real-model section says how to try each model".
+- **5.2: improvable.** `stryker.config.json:19` holds `disableTypeChecks` as **one glob string** (`"{packages/core,packages/cli,packages/api}/src/**/*.ts"`), not a list. Task 2.3b says "add the file to `disableTypeChecks`" and leaves the shape to the implementer.
+  - **Fix:** pin the value in design D12: `"{packages/core/src/**/*.ts,packages/cli/src/**/*.ts,packages/api/src/**/*.ts,packages/adapters/llm/src/long-fetch.ts}"`.
+- **5.3: improvable.** The scenario "Up builds the fixture history the seed indexed" says the run "is stopped with Ctrl+C once the API listens". Task 6.2 instead says "stop (process tree)", and design D3 / DR4 admits the agent cannot send Ctrl+C to a Windows console.
+  - **Fix:** in the scenario's WHEN, write "is stopped (Ctrl+C, or by ending its process tree where the tool cannot send Ctrl+C) once the API listens".
+
+## 6. Contradictions inside the change
+
+- **6.1: BLOCKING (DR6). Ports `3000` and `5173` clash in steps 6 and 8.**
+  - `packages/web/vite.config.ts:11-12,19` fixes the API proxy to `127.0.0.1:3000` and Vite to `5173`. Only `POSTGRES_PORT` is made unique per clone.
+  - Task 6.5 says "the clone stays up for step 8". Task 8.1 then runs `npm run up` **again** in the same clone, twice (PowerShell, then Bash). Task 8.2 starts two more clones, `dis103-bash` and `dis103-pwsh`, while `dis103-live`'s dev servers may still hold `3000` and `5173`.
+  - In that state, a second API fails with `EADDRINUSE`. Worse, Vite moves to `5174` while its proxy still points at **the other clone's** API on `3000`, and `npm run demo:ask` in `dis103-bash` would also reach that API.
+  - So the recorded check "The guide was followed on a clean clone in both shells" could pass against the wrong database.
+  - Design D8 also leaves the author's clone untouched, but says nothing about the author's own `npm run up` already holding those ports.
+  - **Fix (record DR6):**
+    - Before every `npm run up` in steps 6 and 8, check that `127.0.0.1:3000` and `:5173` are free. If they are held by a process outside the scratchpad clones, stop and record it; never kill it.
+    - Stop the previous `up` (process tree) before each new one: between the two shells of 8.1, at the end of 8.1 for `dis103-live`, and between `dis103-bash` and `dis103-pwsh`.
+    - Task 6.5 then reads "the clone stays for step 8; its dev servers are stopped at the end of 8.1".
+- **6.2: improvable.** Task 7.1 lists the recorded checks as "(6.2, 6.3, 6.4, 8.1, 8.2)", but 6.3 is now split. **Fix:** "(6.2, 6.3a–6.3c, 6.4, 8.1, 8.2)".
+
+The proposal, design and deltas agree everywhere else.
+
+## 7. Contradictions with the project: clean apart from stale text (improvable)
+
+- **7.1:** These lines will be wrong once D12 is applied:
+  - `docs/project-context.md:658`: "the adapter is outside Stryker's `mutate`";
+  - the header comment of `vitest.stryker.config.ts:2`: "Stryker mutates packages/core, packages/cli and packages/api";
+  - `.github/workflows/ci.yml:197` and `:244`: "the mutated core, cli and api sources".
+  - Task 5.3 covers only l.649, l.914, l.1139–1141 and Commands.
+  - **Fix:** add these lines to task 5.3 (project-context) and task 2.3b (the two config comments).
+- Everything else agrees:
+  - the new range matches `MAX_CACHE_BUILD_TIMEOUT_MS`;
+  - ADR `20261017-stale-fingerprint-fails-verify` supports D3;
+  - `scripts/defer-ctrl-c.mjs` is outside `ANALYZER_FILES` (`packages/cli/src/seed/fingerprint.ts:39`) and outside the answer fingerprint (`packages/cli/src/cache/answer-fingerprint.ts:13-23`, core only).
+
+## 8. Contrast with the real code
+
+- **8.1: clean.**
+  - Moving `longFetch` (`packages/cli/src/cache/long-fetch.ts:23-60`) under `createOpenAiCompatibleLlm` (`openai-compatible-llm.ts:25`, `:43-44`) keeps the error mapping as D4 says. A `TimeoutError` from the signal becomes `timeout` through `isAbort`. A mid-body `response` error makes `fetchImpl` reject, which goes to `network` with `ECONNRESET` through `systemCodeOf`.
+  - The step shape in D1 fits `startSequence()` (`scripts/up.mjs:57-70`, `{label, command, args}`).
+  - The relative `--import` follows the API's `dev` precedent.
+- **8.2: BLOCKING (DR7). DR2 coverage is lost after this PR.**
+  - In `.github/workflows/ci.yml:203-214`, the `business` filter that gates the whole `mutation` job lists `packages/core/**`, `packages/cli/**`, `packages/api/**`, `tests/**` and the config files. It does not list `packages/adapters/**`.
+  - Today an edit to `longFetch` (under `packages/cli/**`) triggers mutation testing. After the move, a later PR that edits only `packages/adapters/llm/src/long-fetch.ts` skips the job.
+  - So design D12's claim that "the code keeps the coverage it had in the CLI" holds only for this PR, which runs the job because it touches `stryker.config.json`.
+  - The proposal's Impact still says "Not changed: … CI".
+  - **Fix (record DR7):**
+    - add `- 'packages/adapters/llm/src/long-fetch.ts'` to the `business` filter and update the comment at l.197;
+    - in the proposal, move `.github/workflows/ci.yml` from "Not changed" to "Changed (tooling and docs)";
+    - add the CI edit to task 2.3b;
+    - record it in design D12.
+
+## 9. Task size: clean
+
+Task 6.3 is split. Task 8.2 (two full guide runs) is large but has one goal and one clone at a time; it is acceptable. Task 12.6 is open-ended by nature; acceptable.
+
+## 10. Mandatory steps: clean, with one gap from 6.1
+
+- Step 0 comes first and creates the branch (0.2). Linear goes to In Progress (0.1).
+- Steps 7, 8, 9, 10 and 12 are labelled `(MANDATORY)`, with `AGENT MUST EXECUTE` where required. Report paths are named.
+- Restoration is in 8.3 and the 0.4 indicators are re-checked.
+- Pre-merge comes last: the three checks, then fixes on the same PR, then archive before merge.
+- **Gap:** stopping each `up` between runs is missing (blocking, covered by 6.1).
+
+## 11. Traceability: no holes
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| llm-adapter: LLM configuration… (MOD) | No URL and no key selects evaluation mode | 7.1, 7.2 (existing test) |
+| | A URL without a key selects live mode | 7.1, 7.2 |
+| | A key without a URL fails without showing the key | 7.1, 7.2 |
+| | A URL without a model fails | 7.1, 7.2 |
+| | A malformed timeout or URL fails naming the variable | 1.1, 1.2 |
+| | A valid timeout overrides the default | 7.1, 7.2 |
+| | A timeout above 300 s is accepted | 1.1, 1.2 |
+| | The daily budget is read in live mode only | 7.1, 7.2 |
+| | A malformed daily budget fails naming the variable | 7.1, 7.2 |
+| | With a ceiling every configured model needs a price | 7.1, 7.2 |
+| | Without a ceiling a model needs no price | 7.1, 7.2 |
+| llm-adapter: The client waits… (ADDED) | Without an injected fetch the request does not use the global fetch | 2.1, 2.2 |
+| | Without an injected fetch timeouts, refusals and redirects keep their mapping | 2.3 (+ 2.3b) |
+| | A response after 300 s is accepted | 6.4 |
+| local-startup: One command starts the system (MOD) | Up runs the start sequence in order | 3.3, 3.4 |
+| | Up ignores an npm_execpath of .env | 7.1, 7.2 |
+| | Up stops at the first failing step | 7.1, 7.2 |
+| | Ctrl+C stops up without a failure line | 3.3, 3.4 |
+| | The history step finishes its work before ending on Ctrl+C | 3.1, 3.2 |
+| | A step that cannot start stops up | 7.1, 7.2 |
+| | Up needs npm to start it | 7.1, 7.2 |
+| | The startup scripts need no installed dependency | 3.4 |
+| | Up with Docker unavailable fails naming its first step | 8.1 |
+| | Up builds the fixture history the seed indexed | 6.2 |
+| local-startup: The demo guide… (MOD) | The demo guide has no Bash-only command | 4.3, 5.5 |
+| | The demo guide is ordered for a first-time reader | 4.1 |
+| | The web walkthrough names what each screen shows | 7.1, 7.2 (review half not re-run; the section is unchanged) |
+| | The guide was followed on a clean clone in both shells | 8.2, 11.1 (valid only with the 6.1 fix) |
+| | The real-model section says how to try each model | 4.1, 4.3, 6.3d |
+| | The Ollama path was followed on a clean clone | 6.3a, 6.3b |
+
+---
+
+## Corrections to apply
+
+### `openspec/changes/real-model-clean-clone/tasks.md`
+1. **6.1 / 6.2.** Add to the start of 6.2: «Before `npm run up`: `127.0.0.1:3000` and `127.0.0.1:5173` free (`Get-NetTCPConnection` / `ss -ltn`); if a process outside the scratchpad clones holds them, stop and record it, never end it (DR6)».
+2. **6.5.** Replace "(the clone stays up for step 8)" with "(the clone stays for step 8; its dev servers are stopped at the end of 8.1, DR6)".
+3. **8.1.** Add: «stop the running `up` (process tree) before each shell's `npm run up`, and stop `dis103-live`'s `up` at the end of 8.1; ports 3000/5173 checked free before each start (DR6)».
+4. **8.2.** Add: «before each clone's `npm run up`, ports 3000/5173 free; stop `dis103-bash`'s `up` (process tree) before starting `dis103-pwsh` (DR6)».
+5. **2.3b.** Append: «`disableTypeChecks` becomes `"{packages/core/src/**/*.ts,packages/cli/src/**/*.ts,packages/api/src/**/*.ts,packages/adapters/llm/src/long-fetch.ts}"`; `.github/workflows/ci.yml` → `business` filter gains `'packages/adapters/llm/src/long-fetch.ts'` and the comments at l.197 and l.244 name it; the header comment of `vitest.stryker.config.ts` updated (DR7)».
+6. **5.3.** Add «l.658 "the adapter is outside Stryker's `mutate`" → "only `long-fetch.ts` of the adapter is mutated (design D12)"».
+7. **7.1.** Change "(6.2, 6.3, 6.4, 8.1, 8.2)" to "(6.2, 6.3a–6.3c, 6.4, 8.1, 8.2)".
+
+### `openspec/changes/real-model-clean-clone/design.md`
+1. **D8.** Add: «Ports `3000` and `5173` are fixed (`packages/web/vite.config.ts`): only one scratchpad `up` runs at a time, each start is preceded by a free-port check, and a port held by anything outside the scratchpad clones stops the run and is recorded, never ended (DR6)».
+2. **D13.** Add the same rule for `dis103-bash` / `dis103-pwsh` (one after the other, previous `up` stopped).
+3. **D12.** Add the exact `disableTypeChecks` value from task 2.3b and «the CI `mutation` job's `business` path filter gains `packages/adapters/llm/src/long-fetch.ts`, otherwise a later PR touching only that file would skip mutation testing (DR7)».
+4. **D6, Ollama/commands bullet.** Add: «The `shell` blocks use the literal project id `a794456d-6d1b-5b55-a360-13fec83dc7bc` and the literal question `¿Qué hace DiscountService?`; no `<…>` placeholder (PowerShell reserves `<`) (DR8)».
+5. **Spec-audit amendments.** Add a "run 2" line listing DR6–DR8.
+
+### `openspec/changes/real-model-clean-clone/proposal.md`
+1. **Impact → Changed (tooling and docs).** Add `.github/workflows/ci.yml` (mutation path filter, design D12) and `vitest.stryker.config.ts` (comment).
+2. **Impact → Not changed.** Remove "CI".
+
+### `openspec/changes/real-model-clean-clone/specs/local-startup/spec.md`
+1. **`Probar con un modelo real` paragraph, l.163–164.** Replace "and the time a CPU answer takes" with "and the CPU times of `readme.md`'s times table".
+2. **Same paragraph, l.178–179.** Replace "(`npm run demo:ask -- <projectId> "…"`)" with "(`npm run demo:ask -- a794456d-6d1b-5b55-a360-13fec83dc7bc "…"` with a literal question; no `<…>` placeholder in a `shell` block)".
+3. **Scenario "The real-model section says how to try each model", third AND.** Add `a794456d-6d1b-5b55-a360-13fec83dc7bc`.
+4. **Scenario "The history step finishes its work before ending on Ctrl+C", GIVEN.** Replace "writes a marker file and returns" with "writes a marker file and then returns or, in a second run, calls `process.exit(1)`".
+5. **Scenario "Up builds the fixture history the seed indexed", WHEN.** Replace "is stopped with Ctrl+C once the API listens" with "is stopped (Ctrl+C, or by ending its process tree where the tool cannot send Ctrl+C) once the API listens".
+
+### Linear DIS-103
+Do not edit the `[original]` block. In the `[enhanced]` part, under «Decisiones registradas en la auditoría de la spec», add in Spanish:
+- «**DR6 — Puertos fijos 3000 y 5173.** El proxy de Vite apunta a `127.0.0.1:3000` y Vite usa `5173` (`packages/web/vite.config.ts`); solo se diferencia `POSTGRES_PORT`. En las pruebas en vivo solo corre un `npm run up` del scratchpad a la vez: antes de cada arranque se comprueba que 3000 y 5173 están libres, y el `up` anterior se para (árbol de procesos). Si los ocupa algo fuera de los clones del scratchpad (por ejemplo, la instancia de la autora), la prueba se detiene y se anota; nunca se termina ese proceso.»
+- «**DR7 — CI de mutación.** El filtro `business` del job `mutation` (`.github/workflows/ci.yml`) añade `packages/adapters/llm/src/long-fetch.ts`; sin él, un PR posterior que solo toque ese fichero saltaría las pruebas de mutación y DR2 se perdería. `disableTypeChecks` incluye el fichero en su glob.»
+- «**DR8 — `demo:ask` literal en la guía.** Los bloques `shell` usan el id `a794456d-6d1b-5b55-a360-13fec83dc7bc` y la pregunta `¿Qué hace DiscountService?` literales, sin `<projectId>`: PowerShell reserva `<`.»
+
+### Resolution of run 2 (lead-engineer decisions)
+
+Applied with `/opsx:update`; DR6–DR8 recorded in the DIS-103 Enhanced description (Spanish).
+
+| Finding | Decision | Where |
+|---|---|---|
+| 6.1 / DR6 (blocking) — fixed ports 3000/5173 across clones | One scratchpad `up` at a time; free-port check before each start; previous `up` stopped by its process tree; a port held outside the scratchpad clones stops the run and is recorded, never ended | design D8, D13; tasks 6.2, 6.5, 8.1, 8.2 |
+| 8.2 / DR7 (blocking) — CI mutation path filter misses the moved file | `business` filter gains `packages/adapters/llm/src/long-fetch.ts`; exact `disableTypeChecks` glob pinned; stale comments updated | design D12; proposal Impact; tasks 2.3b, 5.3 |
+| 5.1 / DR8 — `<projectId>` placeholder | Literal id `a794456d-6d1b-5b55-a360-13fec83dc7bc` and literal question in the `shell` blocks; checked by the scenario | delta (section paragraph, scenario); design D6 |
+| 5.2 — `disableTypeChecks` shape | Pinned (single glob) | design D12; task 2.3b |
+| 5.3 — stopping `up` with Ctrl+C in the recorded check | "Ctrl+C, or by ending its process tree where the tool cannot send Ctrl+C" | delta "Up builds the fixture history…" |
+| 3.1 — preload scenario GIVEN vs THEN | GIVEN now includes the `process.exit(1)` run | delta |
+| 4.1 — "the time a CPU answer takes" | "the CPU times of `readme.md`'s times table" | delta |
+| 6.2 — recorded-check list in 7.1 | "(6.2, 6.3a-6.3c, 6.4, 8.1, 8.2)" | task 7.1 |
+| 7.1 — stale mutation-scope text | `docs/project-context.md` l.658, `ci.yml` comments, `vitest.stryker.config.ts` header | tasks 2.3b, 5.3 |

@@ -71,7 +71,8 @@ the fixture history SHALL change neither the seed's fingerprints nor the answers
 #### Scenario: The history step finishes its work before ending on Ctrl+C
 
 - **GIVEN** a Node process started the way `up` starts the fixture history step, running instead a
-  script that receives SIGINT while it works and, after that, writes a marker file and returns
+  script that receives SIGINT while it works and, after that, writes a marker file and then returns
+  or, in a second run, calls `process.exit(1)`
 - **WHEN** the process ends
 - **THEN** the marker file exists (the work finished after SIGINT) and the process was not ended by a
   signal: it exits with the script's own code (`0` when the script returns, `1` when it calls
@@ -109,8 +110,8 @@ the fixture history SHALL change neither the seed's fingerprints nor the answers
 
 - **GIVEN** a clean clone of the change's branch without `fixtures/acme-shop/.git`, with its own
   Compose project name and a free `POSTGRES_PORT`
-- **WHEN** `npm run up` runs (a recorded check), is stopped with Ctrl+C once the API listens, and
-  runs a second time
+- **WHEN** `npm run up` runs (a recorded check), is stopped (Ctrl+C, or by ending its process tree
+  where the tool cannot send Ctrl+C) once the API listens, and runs a second time
 - **THEN** each run prints `[up] node fixtures/build-history.mjs acme-shop` after `[up] npm run db:seed`
   and before `[up] npm run dev`, and that step exits `0`
 - **AND** after each run `git -C fixtures/acme-shop rev-parse HEAD` is
@@ -160,8 +161,8 @@ that expands; the usage panel with «Confianza»; the «Sin respuesta verificada
   `bash` pair (the only shell-specific pair of the section); the `.env` lines
   `LLM_BASE_URL=http://localhost:11434/v1`, `LLM_MODEL=qwen2.5-coder` and `LLM_API_KEY` empty, written
   in the text (lines of a file edited with a text editor, never a `shell` block nor a shell
-  redirection); on CPU, `LLM_TIMEOUT_MS=1200000` (accepted up to `3600000`) and the time a CPU answer
-  takes; what to do when Ollama already runs as a desktop app or a system service (quit it before
+  redirection); on CPU, `LLM_TIMEOUT_MS=1200000` (accepted up to `3600000`) and the CPU times of
+  `readme.md`'s times table; what to do when Ollama already runs as a desktop app or a system service (quit it before
   starting the server with the variable, or give the variable to that service as Ollama's
   documentation says), and on which system the pair was verified;
 - a hosted OpenAI-compatible API: `LLM_BASE_URL` (the provider's base URL, without `?` or `#`; the
@@ -175,8 +176,10 @@ that expands; the usage panel with «Confianza»; the «Sin respuesta verificada
   no embeddings, which `ask` does not need; marked «no verificado»;
 - that after editing `.env` the reader stops `npm run up` with Ctrl+C and starts it again, so the API
   and the web use the model, while `npm run cli` reads `.env` on every run;
-- a free question through the CLI (`npm run cli -- ask acme-shop "…"`) and through the API
-  (`npm run demo:ask -- <projectId> "…"`).
+- a free question through the CLI (`npm run cli -- ask acme-shop "¿Qué hace DiscountService?"`) and
+  through the API (`npm run demo:ask -- a794456d-6d1b-5b55-a360-13fec83dc7bc "¿Qué hace DiscountService?"`), with
+  the literal project id and question in the `shell` blocks (no `<…>` placeholder: PowerShell
+  reserves `<`).
 
 No API key, real or made up, SHALL appear in the guide. Its pasted output SHALL come from the Ollama
 path run on a clean clone of the branch (one shell is enough; the hosted and Claude paths paste no
@@ -244,7 +247,7 @@ it pastes is that of `npm run down`.
   `LLM_API_KEY`, `LLM_TIMEOUT_MS=1200000`, `3600000`, `DAILY_BUDGET_USD`,
   `https://api.anthropic.com/v1`, `https://platform.claude.com/docs/en/api/openai-sdk`,
   `anthropic-workspace-id`, `max_tokens`, `Ctrl+C`, `npm run up`, `npm run cli -- ask acme-shop` and
-  `npm run demo:ask --`, and «no verificado» at least twice
+  `npm run demo:ask -- a794456d-6d1b-5b55-a360-13fec83dc7bc`, and «no verificado» at least twice
 - **AND** no text of the guide matches the shape of an API key (`sk-` followed by ten or more letters,
   digits, `-` or `_`)
 

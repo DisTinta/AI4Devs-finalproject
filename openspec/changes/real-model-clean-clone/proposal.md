@@ -86,14 +86,15 @@ None.
   `config.ts` (`MAX_TIMEOUT_MS`), `index.ts` (export); `packages/cli/src/cache/long-fetch.ts` becomes
   a re-export (`cache-build.ts` unchanged).
 - Changed (tooling and docs): `scripts/up.mjs`, `stryker.config.json` (`long-fetch.ts` stays in the
-  mutation scope, design D12), `docs/DEMO.md`, `readme.md`, `fixtures/README.md`,
+  mutation scope, design D12), `.github/workflows/ci.yml` (the mutation job's path filter, design D12),
+  `vitest.stryker.config.ts` (comment), `docs/DEMO.md`, `readme.md`, `fixtures/README.md`,
   `docs/project-context.md`, possibly `.env.example`, `prompts.md`.
 - Tests that follow a modified requirement: `tests/unit/llm/llm-config.spec.ts` (`300001` →
   `3600001` in "A malformed timeout or URL fails naming the variable"),
   `tests/unit/scripts/up.spec.ts` ("Up runs the start sequence in order" and "Ctrl+C stops up without
   a failure line": six steps). `tests/unit/docs/guides.spec.ts` gains the new section's checks.
 - Not changed: `fixtures/build-history.mjs`, `fixtures/acme-shop/`, `fixtures/history/`, `seeds/`,
-  `packages/api/src`, `packages/cli/src/commands`, `packages/web/src`, `package-lock.json`, CI. No
+  `packages/api/src`, `packages/cli/src/commands`, `packages/web/src`, `package-lock.json`, the CI jobs other than the mutation path filter. No
   input of the seed or answer fingerprint changes, so `npm run verify` stays green.
 - Dependencies: none added. No migration, no API or CLI contract change.
 - Security and privacy: no key is ever written in the guide, the repo or a report (the hosted and

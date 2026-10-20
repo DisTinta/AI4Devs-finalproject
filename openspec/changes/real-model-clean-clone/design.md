@@ -150,6 +150,9 @@ Facts:
   layer is presented by Anthropic for testing and comparing, a multi-workspace key needs a header the
   client does not send, `max_tokens` is not sent and its default is not checked here; model ids as
   listed there. «no verificado: no se ha probado con una clave real».
+- Commands (spec audit run 2, DR8): the `shell` blocks use the literal project id
+  `a794456d-6d1b-5b55-a360-13fec83dc7bc` and the literal question `¿Qué hace DiscountService?`; no
+  `<…>` placeholder, which PowerShell reserves.
 - Restart (Enhanced D9): Ctrl+C in terminal 1 and `npm run up` again; `npm run cli` reads `.env` on
   every run.
 - The web (Enhanced D13): only what is verified; if the web check runs only in Chromium, the guide
@@ -175,7 +178,12 @@ answer took 15 min or less, otherwise the report and the guide say the web check
 Since a CPU answer may still finish under 300 s, the deterministic proof is the recorded check
 "A response after 300 s is accepted": a throwaway script in the scratchpad (not committed; its source
 pasted in the report) starts a local server that answers after 310 s and calls the client built
-through `createLlm` with `LLM_TIMEOUT_MS=600000`. Afterwards: `ollama` and any orphan `llama-server`
+through `createLlm` with `LLM_TIMEOUT_MS=600000`. **Ports (spec audit run 2, DR6):** `3000` and
+`5173` are fixed (`packages/web/vite.config.ts` proxies to `127.0.0.1:3000`; only `POSTGRES_PORT`
+differs per clone), so only one scratchpad `up` runs at a time: each start is preceded by a free-port
+check of `127.0.0.1:3000` and `:5173`, the previous `up` is stopped (process tree) first, and a port
+held by anything outside the scratchpad clones (for example the author's own instance) stops the run
+and is recorded, never ended. Afterwards: `ollama` and any orphan `llama-server`
 stopped, `docker compose -p <clone> down -v` on the clone only; the author's clone and
 `codemind-postgres-1` untouched.
 
@@ -205,8 +213,14 @@ decided them in the ticket. `adr-new` criteria: not warranted (recorded in the s
 
 `stryker.config.json` mutates `packages/core`, `packages/cli` and `packages/api`, not
 `packages/adapters`; moving `longFetch` would take it out of mutation testing. The file is added to
-`mutate` (`packages/adapters/llm/src/long-fetch.ts`) and to `disableTypeChecks`, so the code keeps the
-coverage it had in the CLI; the rest of `packages/adapters` stays out (scope unchanged).
+`mutate` (`packages/adapters/llm/src/long-fetch.ts`) and to `disableTypeChecks`, whose single glob
+becomes `"{packages/core/src/**/*.ts,packages/cli/src/**/*.ts,packages/api/src/**/*.ts,packages/adapters/llm/src/long-fetch.ts}"`;
+the rest of `packages/adapters` stays out (scope unchanged). The CI `mutation` job only runs when its
+`business` path filter matches (`.github/workflows/ci.yml`), which lists `packages/cli/**` but not
+`packages/adapters/**`: the filter gains `packages/adapters/llm/src/long-fetch.ts`, otherwise a later
+PR touching only that file would skip mutation testing (spec audit run 2, DR7). The comments that say
+Stryker mutates only core, cli and api (`ci.yml`, `vitest.stryker.config.ts`,
+`docs/project-context.md`) are updated.
 
 ### D13. The guide is re-run in both shells (spec audit run 1, DR3)
 
@@ -214,7 +228,8 @@ coverage it had in the CLI; the rest of `packages/adapters` stays out (scope unc
 the modified requirement, so every command of `docs/DEMO.md` outside `Probar con un modelo real` is
 run again literally in PowerShell and in Bash on clean clones (as DIS-102 did), and the run is
 recorded in the PR body. The recorded check "Up with Docker unavailable fails naming its first step"
-of the same requirement is re-run in both shells too.
+of the same requirement is re-run in both shells too. The clones run one after the other under the
+port rule of D8 (DR6).
 
 ### D14. `gh` account
 
@@ -254,6 +269,14 @@ arguments; pasted paths use `<carpeta del clon>`; the Claude limits are enumerat
 recorded check of the history also compares the fingerprint inputs' hashes; the web check rule
 (≤ 15 min); the restoration of the clone moves after the manual tests; `FINGERPRINT_MISMATCH`
 wording in D3; a TDD fix of `longFetch` is allowed (D4); `gh` stays on DisTinta (D14).
+
+### Spec-audit amendments (run 2, 2026-10-20)
+
+DR6 (fixed ports `3000`/`5173`: one scratchpad `up` at a time, free-port check, never end a foreign
+process; D8, D13), DR7 (CI `business` filter and the exact `disableTypeChecks` glob; D12), DR8 (literal
+id and question in the guide; D6); the scenario of the preload covers the `process.exit(1)` run; the
+history check may stop `up` by ending its process tree; the CPU times come from `readme.md`'s table;
+stale comments about the mutation scope are listed in tasks 2.3b and 5.3.
 
 ## Follow-ups
 
