@@ -70,7 +70,7 @@
               "${CLAUDE_PROJECT_DIR}/.claude/hooks/invoke.cjs",
               "${CLAUDE_PROJECT_DIR}/.claude/hooks/block-dangerous-bash.sh"
             ],
-            "timeout": 10
+            "timeout": 30
           }
         ]
       },
@@ -107,7 +107,7 @@
               "${CLAUDE_PROJECT_DIR}/.claude/hooks/invoke.cjs",
               "${CLAUDE_PROJECT_DIR}/.claude/hooks/docs-gate.sh"
             ],
-            "timeout": 20
+            "timeout": 30
           }
         ]
       }

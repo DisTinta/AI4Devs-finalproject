@@ -111,7 +111,7 @@
 
 ## 4. Package vetting (TDD, design D3) — "Dependency installs are vetted automatically…"
 
-- [ ] 4.1 RED: create `tests/harness/vet-package.spec.ts` against the stub registry (`KIT_NPM_REGISTRY`, `KIT_NPM_DOWNLOADS`), with:
+- [x] 4.1 RED: create `tests/harness/vet-package.spec.ts` against the stub registry (`KIT_NPM_REGISTRY`, `KIT_NPM_DOWNLOADS`), with:
   - "A vetted package is allowed" (including `2>&1`);
   - "Flags before the package name do not skip the check";
   - "A chained or redirected-registry install is denied" (the four forms);
@@ -124,7 +124,7 @@
   - "Other package managers and package runners are denied" (including `npx -p x y`, `npx x@1.0.0` and `npx` of a binary that is not installed).
 
   See them fail
-- [ ] 4.2 GREEN: `.claude/hooks/vet-package.mjs` (D3: argument parsing with the value-taking flags, the exact-version regex, package and version age, the parallel queries under one 8 s budget, thresholds as named constants, one JSON line out). In `block-dangerous-bash.sh` rule 5:
+- [x] 4.2 GREEN: `.claude/hooks/vet-package.mjs` (D3: argument parsing with the value-taking flags, the exact-version regex, package and version age, the parallel queries under one 8 s budget, thresholds as named constants, one JSON line out). In `block-dangerous-bash.sh` rule 5:
   - install detection on the parsed simple command (always on);
   - in unattended mode:
     - chained installs and `--registry`/`--userconfig` → `deny`;
@@ -133,7 +133,7 @@
   - non-npm managers → `deny`; package runners per D3 (`npx`/`npm exec` of a local binary get no decision).
 
   Raise the Bash hooks' `timeout` in `.claude/settings.json` to 30 s
-- [ ] 4.3 `npx vitest run tests/harness` green; `npm run lint` covers `.claude/hooks/*.mjs` if the lint globs include it (otherwise record that it does not)
+- [x] 4.3 `npx vitest run tests/harness` green; `npm run lint` covers `.claude/hooks/*.mjs` if the lint globs include it (otherwise record that it does not)
 
 ## 5. Specs, tests, kit configuration edits and env files (TDD, design D5, D8, D9) — "Rewrites of specs, tests and doctrine…", "The kit configuration…", "Example environment files…"
 
