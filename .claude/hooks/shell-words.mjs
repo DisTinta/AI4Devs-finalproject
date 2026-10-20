@@ -768,7 +768,13 @@ const toplevelCache = new Map();
 function toplevel(dir) {
   if (toplevelCache.has(dir)) return toplevelCache.get(dir);
   let probe = dir;
-  while (probe && !existsSync(probe)) probe = probe.replace(/\/[^/]*$/, '');
+  // Climb to the nearest existing ancestor. A path whose root does not exist (a drive letter on
+  // POSIX, a missing drive on Windows) has no '/' left to strip: stop there instead of looping.
+  while (probe && !existsSync(probe)) {
+    const parent = probe.replace(/\/[^/]*$/, '');
+    if (parent === probe) { probe = ''; break; }
+    probe = parent;
+  }
   const r = spawnSync('git', ['-C', probe || '/', 'rev-parse', '--show-toplevel'], { encoding: 'utf8' });
   const top = r.status === 0 ? collapse(norm(r.stdout.trim())) : null;
   toplevelCache.set(dir, top);

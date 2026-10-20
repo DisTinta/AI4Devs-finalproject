@@ -122,8 +122,10 @@ describe('Rewrites of specs, tests and doctrine are decided without a human in u
 
       it('An existing test planned in tasks.md may change', async () => {
         project = fixture({ protect });
-        const windows = `${project.dir}/tests/unit/llm/llm-config.spec.ts`.replace(/\//g, '\\');
-        expect((await edit(project, windows)).decision).toBe('allow');
+        // On Windows the client sends backslashes (design D9); elsewhere a backslash is a file-name character.
+        const native = `${project.dir}/tests/unit/llm/llm-config.spec.ts`;
+        const path = process.platform === 'win32' ? native.replace(/\//g, '\\') : native;
+        expect((await edit(project, path)).decision).toBe('allow');
       });
 
       it('A test the branch created may change', async () => {

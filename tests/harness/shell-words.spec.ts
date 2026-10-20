@@ -18,7 +18,7 @@ interface Result {
   facts: Facts;
 }
 
-const ctx = { cwd: 'C:/repo', project: 'C:/repo', scratchpad: null, base: null, configDir: null };
+const ctx = { cwd: 'C:/repo', project: 'C:/repo', scratchpad: null as string | null, base: null, configDir: null };
 const run = (line: string, extra: Partial<typeof ctx> & Record<string, unknown> = {}): Result => inspect(line, { ...ctx, ...extra });
 const names = (line: string) => run(line).commands.map((c) => c.name);
 
@@ -179,5 +179,14 @@ describe('shell-words: resolution', () => {
 
   it('parses a plain line without throwing on deep nesting', () => {
     expect(() => parseLine('echo $(echo $(echo $(echo $(echo $(echo $(echo $(echo $(echo $(echo x)))))))))')).toThrow();
+  });
+});
+
+describe('shell-words: kit configuration lookup', () => {
+  it('returns for a path whose root does not exist (no endless climb to an existing ancestor)', () => {
+    // A drive that does not exist on Windows; a drive-letter path is not absolute at all on POSIX.
+    const result = run('rm -rf Q:/nope/scratchpad/clone', { scratchpad: 'Q:/nope/scratchpad' });
+    expect(result.ok).toBe(true);
+    expect(result.facts.scratchpadOnly).toBe(true);
   });
 });

@@ -141,6 +141,15 @@ The template test of task 10.2 ("the autonomous profile template") is not a name
     Cursor"). Cause: the harness helper copied the working copy's `.claude/sdd-harness.env`, so a
     local hand edit of a switch leaked into the fixtures. Fixed in `tests/harness/support/run-hook.ts`:
     the switches are pinned to their shipped defaults before each test's overrides. Rerun green.
+  - CI (Linux) on PR #61 then failed three harness tests that pass on Windows:
+    - `scratchpad-rm` "A file in the scratchpad is removed": a real bug. `toplevel()` in
+      `shell-words.mjs` climbs to the nearest existing ancestor, and looped forever on a path whose
+      root does not exist (`C:/…` on POSIX, a missing drive such as `Q:/…` on Windows). The parser
+      hit its 5 s timeout, the raw fallback matched `rm -rf`, and the hook denied. Fixed: the climb
+      stops when nothing is left to strip. Regression test in `tests/harness/shell-words.spec.ts`.
+    - `autonomous-protect` "An existing test planned in tasks.md may change" (twice): the test sent a
+      backslash path, which only a Windows client sends; on Linux a backslash is a file-name
+      character and that file does not exist. The test now uses backslashes on Windows only.
   - Lint found two `no-control-regex` errors in harness tests (`\x1b`, `\u0000`); fixed with
     `stripVTControlCharacters` and a printable placeholder.
   - ESLint ignores `.claude/`, so the hook scripts, `shell-words.mjs` and `vet-package.mjs` are
