@@ -6,6 +6,7 @@ set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 INPUT=$(cat)
+remember_input "$INPUT"
 [[ "$(field "$INPUT" '.stop_hook_active')" == "true" ]] && exit 0
 [[ "${KIT_SKIP_STOP_TESTS}" == "1" ]] && exit 0
 [[ "${KIT_ALLOW_WIP}" == "1" ]] && exit 0

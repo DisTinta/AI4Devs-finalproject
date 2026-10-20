@@ -595,10 +595,12 @@ the script. `lib.sh` then adapts.
 - `.tool_input.file_path // .tool_input.path // .tool_input.target_file // .file_path`;
 - `.prompt` unchanged.
 
-This is done with jq alternatives in one helper, `input_command` / `input_path`. These hooks
-switch to it: `block-dangerous-bash`, `docs-gate`, `autonomous-merge-gate`, `protect-specs-and-tests`,
-`spec-audit-gate`, `block-secret-reads`, `post-edit-quality` and `validate-tasks`. The hooks keep a
-single code path.
+This is done inside `field()` (amended during the apply, 2026-10-20). When `KIT_HOOK_CLIENT=cursor`,
+the Claude Code queries the hooks already use (`.tool_input.command`, `.tool_input.file_path`,
+`.tool_input.path`, `.tool_name`, `.source`, `.stop_hook_active`) are rewritten to the jq
+alternatives above. No hook changes its queries, so every hook keeps a single code path. That is
+simpler than the `input_command` / `input_path` helpers planned first. Hooks that take no tool
+decision call `remember_input` so the emitters can read the Cursor event.
 
 `session-context.sh` exits unless `.source` is `startup` or `resume`. Under Cursor the event name
 `sessionStart` counts as `startup`, since Cursor sends no `source`.
@@ -652,6 +654,20 @@ Task 9.1 checks these against the docs (Context7) before the adapter is written:
 - whether `preToolUse` now accepts `ask`. If it does, `ask` is kept there, and the spec exception
   is removed through rule 7 before coding.
 
+**Checked on 2026-10-20 (task 9.1, cursor.com/docs/agent/hooks):**
+- `preToolUse` tool names are `Shell`, `Read`, `Write`, `Grep`, `Delete`, `Task` and `MCP:<tool>`. There
+  is no separate edit tool: the matcher is `Write|Delete`. The docs do not list `tool_input` keys for
+  file tools, so the adapter keeps its jq alternatives (`file_path`, `path`, `target_file`).
+- `ask` "is accepted by the schema but not enforced for `preToolUse` today", and `beforeReadFile` takes
+  `allow`/`deny` only: the spec's exception (allow plus a warning outside unattended mode) stays.
+- Several hooks on one event: "any `deny` wins over `ask`, and `ask` wins over `allow`". So the
+  vetting `allow` of `block-dangerous-bash` cannot override a `deny` from another hook.
+- `stop` receives `status` and `loop_count` and answers `followup_message`. `timeout` is in seconds.
+- `is_background_agent` is documented on `sessionStart`. Cloud agents run every hook used here
+  except `sessionStart`. The adapter reads `is_background_agent` from any hook input that carries
+  it; a cloud agent whose other hooks do not carry it is unattended only through the switch. This is
+  recorded in `docs/AUTONOMOUS-RUN.md` as a limit.
+
 *Alternative rejected:* separate Cursor scripts. Two copies of every rule would drift.
 
 ### D12 — Separate Claude Code profile for autonomous runs (`CLAUDE_CONFIG_DIR`)
@@ -684,7 +700,10 @@ it, is verified in task 10.1. If it does not hold, the guide falls back to remov
 ask rules by hand, and the preflight check for the profile becomes a check on `~/.claude`.
 
 Cursor's counterpart is `ai-specs/templates/autonomous/cursor-cli.json.tpl` (the `cursor-agent`
-permissions). Its keys are checked with Context7 in task 9.1.
+permissions). Checked on 2026-10-20 (task 9.1, cursor.com/docs/cli/reference/permissions): the file
+is `<project>/.cursor/cli.json` (or `~/.cursor/cli-config.json`), with `permissions.allow` and
+`permissions.deny` arrays of `Shell(<command base>)`, `Read(<glob>)`, `Write(<glob>)`, `WebFetch(…)`
+and `Mcp(server:tool)` rules; deny takes precedence over allow.
 
 ### D13 — Preflight in the existing doctors, behind a flag
 

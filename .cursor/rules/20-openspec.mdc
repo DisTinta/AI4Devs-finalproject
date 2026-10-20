@@ -33,3 +33,21 @@ When you are asked to implement a change from `openspec/changes/<id>/`:
    Pre-merge Review of `docs/openspec-tasks-mandatory-steps.md` (PR open → `/show-spec-working` →
    `/verify-against-spec` → `/adversarial-review` → fixes on the same PR), and commit the archive to
    that PR before the merge.
+9. **Autonomous run contract** (`KIT_AUTONOMOUS_RUN="1"`, `docs/AUTONOMOUS-RUN.md`):
+   - Ask no questions: decide as lead engineer and record each decision in the ticket and in
+     `design.md` → Follow-ups with its A/B/C/D destination.
+   - Run `verify-against-spec` and `adversarial-review` inline (their `Inline mode` section), never as
+     forks.
+   - Stop cleanly — ticket In Review with a comment — on: a `CHANGES REQUIRED` spec audit, CI red
+     after 2 fixes, a merge conflict, the usage limit, a denied permission with no alternative, or a
+     code fix needed after `/opsx:archive` (there is no active change any more).
+   - After a vetted install, run `npm audit --audit-level=high`; a new high or critical finding stops
+     the ticket.
+   - `tasks.md` names every existing test a task changes. Never write code through the shell
+     (`cat > file`, `sed -i`): use the editing tools, which the spec-audit gate sees.
+   - The agent writes the "why" of PRs and ADRs and marks it as the agent's text.
+   - Never edit or commit `.claude/` or `.cursor/`; stage explicit paths only.
+   - Merge only with `gh pr merge <n> --merge`, alone, through the merge gate.
+   - The doctrine relaxed in an autonomous run is listed in `docs/adr/20261020-kit-autonomous-mode.md`
+     (`docs/base-standards.md` §3 rules 2, 3, 4, 8 and 9; the "agent never merges" item of the
+     mandatory steps). A background agent with the switch `"0"` gets none of them.

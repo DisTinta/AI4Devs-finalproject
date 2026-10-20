@@ -96,10 +96,39 @@ load_env_safe "$ENV_FILE"
 # instead of failing on every turn.
 has_jq() { command -v jq >/dev/null 2>&1; }
 
+# Client of the hook: "claude" (default) or "cursor" (invoke.cjs --client cursor, design D11).
+KIT_HOOK_CLIENT="${KIT_HOOK_CLIENT:-claude}"
+cursor_client() { [[ "$KIT_HOOK_CLIENT" == "cursor" ]]; }
+LAST_INPUT=""
+
 # Reads the JSON from stdin and returns a field. Usage: field "$INPUT" '.tool_name'
+# Under Cursor the Claude Code field names are mapped to Cursor's (design D11), so the hooks keep
+# one code path.
 field() {
   has_jq || { printf ''; return 0; }
-  printf '%s' "$1" | jq -r "$2 // empty" 2>/dev/null || printf ''
+  local q="$2"
+  [[ -n "$1" ]] && LAST_INPUT="$1"
+  if cursor_client; then
+    case "$q" in
+      .tool_input.command) q='(.tool_input.command // .command)' ;;
+      .tool_input.file_path) q='(.tool_input.file_path // .tool_input.path // .tool_input.target_file // .file_path)' ;;
+      .tool_input.path) q='(.tool_input.path // .tool_input.target_file // .file_path)' ;;
+      .tool_name) q='(.tool_name // (if .hook_event_name == "beforeReadFile" then "Read" else empty end))' ;;
+      .source) q='(.source // (if .hook_event_name == "sessionStart" then "startup" else empty end))' ;;
+      .stop_hook_active) q='(if (.loop_count // 0) > 0 then "true" else empty end)' ;;
+    esac
+  fi
+  printf '%s' "$1" | jq -r "$q // empty" 2>/dev/null || printf ''
+}
+
+# Cursor event of the current hook (empty under Claude Code).
+cursor_event() {
+  cursor_client || return 0
+  printf '%s' "${HOOK_INPUT:-$LAST_INPUT}" | jq -r '.hook_event_name // empty' 2>/dev/null
+}
+
+cursor_permission() { # cursor_permission <allow|deny|ask> "<reason>"
+  jq -nc --arg p "$1" --arg r "$2" 'if $r == "" then {permission:$p} else {permission:$p,user_message:$r,agent_message:$r} end'
 }
 
 # Runs a command configured in sdd-harness.env WITHOUT eval.
@@ -128,6 +157,10 @@ hook_input_init() {
     exit 2
   fi
 }
+
+# Hooks that take no tool decision (prompt, session start, post-edit, stop) only keep the input, so
+# the emitters can tell the Cursor event (design D11).
+remember_input() { HOOK_INPUT="$1"; }
 
 autonomous_run() { [[ "$KIT_AUTONOMOUS_RUN" == "1" ]]; }
 
@@ -159,24 +192,36 @@ parse_command() {
 }
 
 # ── Decision emitters ────────────────────────────────────────────────────────
+# Each emitter writes Claude Code's JSON, or Cursor's when invoke.cjs ran with --client cursor
+# (design D11).
 deny() {
   HOOK_DECIDED=1
   has_jq || { printf '%s\n' "$1" >&2; exit 2; }
-  if ! jq -nc --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}'; then
-    # In an unattended run a broken jq must not turn a deny into a silent pass (design D21).
-    unattended && { printf '%s\n' "$1" >&2; exit 2; }
+  local ok=0
+  if cursor_client; then
+    cursor_permission deny "$1" || ok=1
+  else
+    jq -nc --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}' || ok=1
   fi
+  # In an unattended run a broken jq must not turn a deny into a silent pass (design D21).
+  if [[ "$ok" != "0" ]] && unattended; then printf '%s\n' "$1" >&2; exit 2; fi
   exit 0
 }
 
 allow() {
   HOOK_DECIDED=1
   has_jq || exit 0
-  jq -nc --arg r "${1:-}" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"allow",permissionDecisionReason:$r}}'
+  if cursor_client; then
+    cursor_permission allow "${1:-}"
+  else
+    jq -nc --arg r "${1:-}" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"allow",permissionDecisionReason:$r}}'
+  fi
   exit 0
 }
 
 # ask "<reason>" ["<alternative>"]. In an unattended run nobody can answer, so it denies (design D2).
+# Cursor's tool-use and file-read events do not enforce "ask": outside an unattended run they get
+# "allow" with the confirmation text, so the agent states it to the person (spec exception).
 ask() {
   if unattended; then
     local msg="$1"$'\n\n'"Unattended run (KIT_AUTONOMOUS_RUN or a background agent): no human can confirm."
@@ -185,32 +230,66 @@ ask() {
   fi
   HOOK_DECIDED=1
   has_jq || exit 0
-  jq -nc --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"ask",permissionDecisionReason:$r}}'
+  if cursor_client; then
+    case "$(cursor_event)" in
+      preToolUse|beforeReadFile) cursor_permission allow "Needs the person's confirmation: $1" ;;
+      *) cursor_permission ask "$1" ;;
+    esac
+  else
+    jq -nc --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"ask",permissionDecisionReason:$r}}'
+  fi
   exit 0
 }
 
 block() {
+  HOOK_DECIDED=1
   has_jq || { printf '%s\n' "$1" >&2; exit 2; }
+  if cursor_client; then
+    # Cursor: a stop that would block becomes a follow-up; afterFileEdit is observational.
+    if [[ "$(cursor_event)" == "stop" ]]; then
+      jq -nc --arg r "$1" '{followup_message:$r}'
+    else
+      printf '%s\n' "$1" >&2
+    fi
+    exit 0
+  fi
   jq -nc --arg r "$1" '{decision:"block",reason:$r}'
   exit 0
 }
 
 block_prompt() {
+  HOOK_DECIDED=1
   has_jq || { printf '%s\n' "$1" >&2; exit 2; }
+  if cursor_client; then
+    jq -nc --arg r "$1" '{continue:false,user_message:$r}'
+    exit 0
+  fi
   jq -nc --arg r "$1" '{decision:"block",reason:$r,hookSpecificOutput:{hookEventName:"UserPromptSubmit",suppressOriginalPrompt:true}}'
   exit 0
 }
 
 # Stop does not accept additionalContext (Claude Code validates the JSON and fails the hook).
 # systemMessage is shown to the user without blocking the turn from closing.
+# Cursor: a green stop gives no output (a follow-up would start a new turn every time).
 notify() {
+  HOOK_DECIDED=1
+  cursor_client && exit 0
   has_jq || { printf '%s\n' "$1" >&2; exit 0; }
   jq -nc --arg m "$1" '{systemMessage:$m}'
   exit 0
 }
 
 inject() {
+  HOOK_DECIDED=1
   has_jq || exit 0
+  if cursor_client; then
+    if [[ "$1" == "SessionStart" ]]; then
+      jq -nc --arg c "$2" '{additional_context:$c}'
+    else
+      printf '%s\n' "$2" >&2
+    fi
+    exit 0
+  fi
   # Stop: see notify(). SessionStart / PostToolUse do use additionalContext.
   if [[ "$1" == "Stop" ]]; then
     jq -nc --arg m "$2" '{systemMessage:$m}'

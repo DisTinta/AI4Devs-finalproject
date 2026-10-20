@@ -5,6 +5,7 @@ set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 INPUT=$(cat)
+remember_input "$INPUT"
 SOURCE=$(field "$INPUT" '.source')
 [[ "$SOURCE" == "startup" || "$SOURCE" == "resume" ]] || exit 0
 

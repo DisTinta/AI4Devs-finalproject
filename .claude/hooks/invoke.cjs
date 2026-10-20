@@ -7,7 +7,15 @@
 const { spawnSync } = require('child_process')
 const fs = require('fs')
 
-const script = process.argv[2]
+// `--client cursor` (from .cursor/hooks.json) tells lib.sh to read and answer in Cursor's hook format
+// (openspec change autonomous-run-switch, design D11).
+const argv = process.argv.slice(2)
+let client = 'claude'
+if (argv[0] === '--client') {
+  client = argv[1] || 'claude'
+  argv.splice(0, 2)
+}
+const script = argv[0]
 if (!script) {
   process.stderr.write('invoke.cjs: missing hook script\n')
   process.exit(1)
@@ -35,7 +43,7 @@ const bash = process.platform === 'win32' ? gitBashWin() || 'bash' : 'bash'
 const result = spawnSync(bash, [script], {
   stdio: 'inherit',
   cwd: process.cwd(),
-  env: process.env,
+  env: { ...process.env, KIT_HOOK_CLIENT: client },
   windowsHide: true,
 })
 

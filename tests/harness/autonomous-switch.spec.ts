@@ -64,6 +64,13 @@ describe('The autonomous run is a manual switch that leaves the default behaviou
     expect(first).toContain('KIT_AUTONOMOUS_RUN');
   });
 
-  // Turned into a real test in task 9.4, once the Cursor adapter exists.
-  it.todo('A Cursor background agent runs unattended but not autonomous');
+  it('A Cursor background agent runs unattended but not autonomous', async () => {
+    project = createProject({ env: { KIT_AUTONOMOUS_RUN: '0', AUTONOMOUS_MERGE_BASE: 'final-project-CRN' } });
+    const input = (command: string) => ({ hook_event_name: 'beforeShellExecution', command, cwd: project!.dir, is_background_agent: true });
+    const reset = await runHook(project, 'block-dangerous-bash', input('git reset --hard'), { client: 'cursor' });
+    expect(reset.json?.permission).toBe('deny');
+    const merge = await runHook(project, 'autonomous-merge-gate', input('gh pr merge 61 --merge'), { client: 'cursor' });
+    expect(merge.json?.permission).toBe('deny');
+    expect(String(merge.json?.agent_message)).toContain('KIT_AUTONOMOUS_RUN');
+  });
 });

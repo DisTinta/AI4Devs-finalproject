@@ -221,7 +221,7 @@
 
 ## 9. Cursor (TDD, design D11) — "Cursor runs the same hooks with the same decisions"
 
-- [ ] 9.1 Check with Context7 / the Cursor docs, and date it in the design:
+- [x] 9.1 Check with Context7 / the Cursor docs, and date it in the design:
   - the name and `tool_input` keys of every Cursor file-modifying tool (write, edit, replace, multi-edit, delete), to set the `preToolUse` matcher;
   - which events fire in background (cloud) agents, and that `is_background_agent` reaches them;
   - whether `preToolUse` and `beforeReadFile` accept `ask` (if they do, remove the spec exception through rule 7 before coding);
@@ -230,7 +230,7 @@
   - the `cursor-agent` CLI permission file and its keys.
 
   Update D11 and D12 only where the docs differ
-- [ ] 9.2 RED: create `tests/harness/cursor.spec.ts` with:
+- [x] 9.2 RED: create `tests/harness/cursor.spec.ts` with:
   - "A dangerous command is denied in Cursor's format";
   - "A shell confirmation stays a confirmation in Cursor";
   - "A secret file read is denied in Cursor's format";
@@ -241,12 +241,12 @@
   - "The Cursor hook file only points to existing hooks".
 
   See them fail
-- [ ] 9.3 GREEN (input): `invoke.cjs --client cursor` exporting `KIT_HOOK_CLIENT`; the `lib.sh` input helpers `input_command` / `input_path`, adopted by the eight hooks D11 lists; `session-context.sh` treats Cursor's `sessionStart` as `startup`
-- [ ] 9.4 GREEN (output):
+- [x] 9.3 GREEN (input): `invoke.cjs --client cursor` exporting `KIT_HOOK_CLIENT`; the `lib.sh` input helpers `input_command` / `input_path`, adopted by the eight hooks D11 lists; `session-context.sh` treats Cursor's `sessionStart` as `startup`
+- [x] 9.4 GREEN (output):
   - the `lib.sh` emitters for Cursor (D11 table, including the `ask` exception and the `stop`/`loop_count` mapping);
   - `.cursor/hooks.json` with an explicit timeout on every entry (60 s for the merge gate, D4);
   - "A Cursor background agent runs unattended but not autonomous" (2.1) moves from `it.todo` to a real test, green.
-- [ ] 9.5 `.cursor/rules/00-core.mdc` and `20-openspec.mdc`:
+- [x] 9.5 `.cursor/rules/00-core.mdc` and `20-openspec.mdc`:
   - `00-core.mdc`: the two modes and what each changes.
   - `20-openspec.mdc`, the autonomous contract:
     - no questions, inline reviews;

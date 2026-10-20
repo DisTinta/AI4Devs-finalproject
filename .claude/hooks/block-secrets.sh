@@ -7,6 +7,7 @@ set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 INPUT=$(cat)
+remember_input "$INPUT"
 PROMPT=$(field "$INPUT" '.prompt')
 [[ -n "$PROMPT" ]] || exit 0
 
