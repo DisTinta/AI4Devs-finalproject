@@ -212,12 +212,12 @@
 
 ## 8. Review skills inline mode (design D14) — "The forked review skills can run inline…"
 
-- [ ] 8.1 RED: create `tests/unit/docs/kit-skills.spec.ts` with:
+- [x] 8.1 RED: create `tests/unit/docs/kit-skills.spec.ts` with:
   - "Both skills describe the inline mode";
   - "The synced copies match the source".
 
   See them fail
-- [ ] 8.2 GREEN: add the `Inline mode (autonomous runs)` section to `ai-specs/skills/verify-against-spec/SKILL.md` and `ai-specs/skills/adversarial-review/SKILL.md`, then run `/sync-agent-artifacts` (`--force` if copy mode reports `DIVERGES`). Suite green
+- [x] 8.2 GREEN: add the `Inline mode (autonomous runs)` section to `ai-specs/skills/verify-against-spec/SKILL.md` and `ai-specs/skills/adversarial-review/SKILL.md`, then run `/sync-agent-artifacts` (`--force` if copy mode reports `DIVERGES`). Suite green
 
 ## 9. Cursor (TDD, design D11) — "Cursor runs the same hooks with the same decisions"
 
