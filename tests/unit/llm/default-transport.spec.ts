@@ -30,6 +30,18 @@ function handle(request: IncomingMessage, response: ServerResponse): void {
   request.on('data', (chunk: Buffer) => void (body += chunk.toString('utf8')));
   request.on('end', () => {
     received.push({ method: request.method ?? '', url: request.url ?? '', headers: request.headers, body });
+    if (request.url === '/hang/v1/chat/completions') return; // never answers
+    if (request.url === '/redirect/v1/chat/completions') {
+      response.writeHead(302, { Location: `${base}/v1/chat/completions` });
+      response.end('moved');
+      return;
+    }
+    if (request.url === '/cut/v1/chat/completions') {
+      // Headers and part of the body, then the connection is cut.
+      response.writeHead(200, { 'Content-Type': 'application/json', 'Content-Length': String(COMPLETION.length) });
+      response.write(COMPLETION.slice(0, 10), () => setTimeout(() => response.socket?.destroy(), 20));
+      return;
+    }
     if (request.url === '/v1/chat/completions') {
       response.writeHead(200, { 'Content-Type': 'application/json' });
       response.end(COMPLETION);
@@ -99,7 +111,52 @@ describe('default transport of the OpenAI-compatible client', () => {
     expect(embeddings.vectors).toEqual([VECTOR]);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it('Without an injected fetch timeouts, refusals and redirects keep their mapping', async () => {
+    // Arrange
+    const live = (baseUrl: string, timeout = '5000') =>
+      createLlm(llmConfigFromEnv({ LLM_BASE_URL: baseUrl, LLM_MODEL: 'chat-x', LLM_TIMEOUT_MS: timeout }));
+    const message = { purpose: 'answer' as const, messages: [{ role: 'user' as const, content: 'q' }] };
+    const port = await closedPort();
+
+    // Act
+    const timeout = await failureOf(live(`${base}/hang/v1`, '50').complete(message));
+    const refused = await failureOf(live(`http://127.0.0.1:${port}/v1`).complete(message));
+    received.length = 0;
+    const redirect = await failureOf(live(`${base}/redirect/v1`).complete(message));
+
+    // Assert
+    expect(timeout).toMatchObject({ code: 'LLM_UNAVAILABLE', reason: 'timeout' });
+    expect(refused).toMatchObject({ code: 'LLM_UNAVAILABLE', reason: 'network', systemCode: 'ECONNREFUSED' });
+    expect(redirect).toMatchObject({ code: 'LLM_UNAVAILABLE', reason: 'http-status', status: 302 });
+    expect(received.map((r) => r.url)).toEqual(['/redirect/v1/chat/completions']);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  // Plain test (not a scenario), design D4: a connection cut mid-body is a network failure, not a timeout.
+  it('reports a connection cut mid-body as network', async () => {
+    // Arrange
+    const llm = createLlm(llmConfigFromEnv({ LLM_BASE_URL: `${base}/cut/v1`, LLM_MODEL: 'chat-x', LLM_TIMEOUT_MS: '5000' }));
+
+    // Act
+    const started = Date.now();
+    const failure = await failureOf(llm.complete({ purpose: 'answer', messages: [{ role: 'user', content: 'q' }] }));
+
+    // Assert
+    expect(failure).toMatchObject({ code: 'LLM_UNAVAILABLE', reason: 'network' });
+    expect(Date.now() - started).toBeLessThan(4000);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });
+
+/** A local port where nothing listens: taken on port 0, then released. */
+async function closedPort(): Promise<number> {
+  const probe = createServer();
+  await new Promise<void>((resolve) => probe.listen(0, '127.0.0.1', resolve));
+  const { port } = probe.address() as AddressInfo;
+  await new Promise<void>((resolve) => probe.close(() => resolve()));
+  return port;
+}
 
 /** The `LlmUnavailable` a promise rejects with. */
 async function failureOf(promise: Promise<unknown>): Promise<LlmUnavailable> {
