@@ -183,12 +183,12 @@ that expands; the usage panel with «Confianza»; the «Sin respuesta verificada
 
 No API key, real or made up, SHALL appear in the guide. Its pasted output SHALL come from the Ollama
 path run on a clean clone of the branch (one shell is enough; the hosted and Claude paths paste no
-output).
+output), and `Cómo se capturó` SHALL state that capture (model, context, timeout, shell, date).
 
 The output pasted in the other sections of the guide SHALL come from a run of the guide, literally,
-on a clean clone of the branch, in PowerShell and in Bash (the clone's folder in a path, which
-changes per clone and uses the system's separator, is written `<carpeta del clon>` and `Cómo se
-capturó` says so), except for the stop with Ctrl+C: `Parar el sistema` SHALL paste no
+on a clean clone of the branch, in PowerShell and in Bash (the clone's absolute path, which changes
+per clone and uses the system's separator, is written `<repo>`, as rule (b) of `Cómo se capturó`
+says), except for the stop with Ctrl+C: `Parar el sistema` SHALL paste no
 output for it and SHALL state in its text that `npm run up` then ends with `[up] stopped (Ctrl+C)`
 and exit code `130`, possibly followed (depending on the npm version) by npm's own lines with `code 130`,
 which are the expected end and not a failure; the output

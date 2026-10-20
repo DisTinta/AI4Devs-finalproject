@@ -83,8 +83,9 @@ is fixed here, outside the fingerprint:
   (unchanged behaviour), and the fixture is intact (`git-history` → "Fixture histories record every
   listed file": tracked files keep their content whether the build succeeds or fails).
 - The summary line keeps its absolute path. `docs/DEMO.md` → `Paso 0` pastes it with the clone's
-  folder replaced by `<carpeta del clon>`, and `Cómo se capturó` lists that edit and says the
-  separator is the system's (`\` on Windows in both shells, `/` on Linux and macOS).
+  absolute path replaced by `<repo>`, the placeholder that rule (b) of `Cómo se capturó` already
+  defines (spec audit run 4, DR13: one placeholder per guide; "carpeta del clon" stays the folder
+  name of the Docker-prefix note), and rule (b) now says the separator is the system's (`\` on Windows in both shells, `/` on Linux and macOS).
 - The label printed is `node fixtures/build-history.mjs acme-shop`, the command a person types; the
   preload is an implementation detail stated in `docs/project-context.md` → Commands.
 
@@ -136,7 +137,8 @@ Facts:
   desktop app on Windows and macOS, the systemd service the Linux installer creates), a second
   `ollama serve` cannot start: the guide says to quit the app (or stop the service) first, or to give
   `OLLAMA_CONTEXT_LENGTH` to that app or service as Ollama's documentation explains, and says the pair
-  was verified on Windows only (DR5). CPU times from `readme.md`'s table.
+  was verified on Windows only (DR5). Each block of the pair is run once in its own shell (PowerShell,
+  Git Bash) on Windows, and the guide says so. CPU times from `readme.md`'s table.
 - Hosted OpenAI-compatible API (Enhanced D7): generic, `https://api.openai.com/v1` may be cited as an
   example base URL, no model id invented; `DAILY_BUDGET_USD` empty because `COST_TABLE` has no paid
   prices and a ceiling would make the configuration invalid; spend is watched in the provider's
@@ -186,8 +188,12 @@ through `createLlm` with `LLM_TIMEOUT_MS=600000`. **The web past 300 s (spec aud
 same stub then serves the `dis103-live` API (`LLM_BASE_URL` pointing at it, `LLM_TIMEOUT_MS=600000`,
 `up` restarted) and one free question is asked through `npm run demo:ask` and on Screen 2 in Chromium:
 any outcome other than `LLM_UNAVAILABLE` / `timeout`, arriving after more than 300 s, proves that
-neither the API, Vite's dev server and proxy nor the browser cut the request (the stub's text need not
-be a valid explain answer; an `UNKNOWN` or an invalid-response result is fine). Only then may the guide
+neither the API, Vite's dev server and proxy nor the browser cut the request (the stub answers a valid
+OpenAI completion whose text need not be a valid explain answer, so the API returns an answer or an
+`UNKNOWN` such as `invalid-model-output`; on Screen 2 the check passes only with an answer or an
+`UNKNOWN` showing «Motivo: …» after more than 300 s, since every `LLM_UNAVAILABLE` alert looks the
+same there (`notice-display.ts`); through `demo:ask`, anything other than `LLM_UNAVAILABLE` with
+reason `timeout` passes; spec audit run 4, DR12). Only then may the guide
 and the PR say the web waits past 300 s; otherwise they say what was measured. **The Ollama tray app
 (DR11):** task 0.4 records whether it runs; 8.3 starts it again if it did, since restoring the
 machine's state comes first (the GPU crash on this machine happens when a model runs, not when the
@@ -287,7 +293,7 @@ Rollback is reverting the branch's commits.
 
 DR1 (no exit code `130` from the step; the preload only defers SIGINT), DR2 (D12), DR3 (D13), DR4 (D3
 verification scope), DR5 (D6, Ollama as an app or service); the `up` scenario pins the exact
-arguments; pasted paths use `<carpeta del clon>`; the Claude limits are enumerated in the delta; the
+arguments; pasted paths use `<carpeta del clon>` (replaced by `<repo>` in run 4, DR13); the Claude limits are enumerated in the delta; the
 recorded check of the history also compares the fingerprint inputs' hashes; the web check rule
 (≤ 15 min); the restoration of the clone moves after the manual tests; `FINGERPRINT_MISMATCH`
 wording in D3; a TDD fix of `longFetch` is allowed (D4); `gh` stays on DisTinta (D14).
@@ -307,6 +313,13 @@ and DEMO's `Paso 0` paragraph (D7; tasks 4.4, 5.1); project-context's DIS-61 par
 5.3); DR9 (full mutation run on this PR; Risks; tasks 0.4, 12.2); DR10 (deterministic web check past
 300 s through the API and Chromium; D8; task 6.4b); DR11 (tray app state recorded and restored; D8;
 tasks 0.4, 8.3); the `INVALID_CONFIG` check of 8.1 names its command.
+
+### Spec-audit amendments (run 4, 2026-10-20, verdict APPROVED; minor points folded)
+
+DR12 (web pass criterion; D8; task 6.4b), DR13 (`<repo>` reused for the clone's absolute path; D3,
+delta, tasks 4.4, 5.1), `Cómo se capturó` states the real-model capture (delta; task 6.3d), per-shell
+set/unset of variables in 8.1, both blocks of the Ollama pair run (D6; task 6.3a), 9.1 cites 6.4b,
+embeddings in the default-transport scenario (delta; task 2.1).
 
 ## Follow-ups
 

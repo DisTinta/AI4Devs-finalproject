@@ -140,14 +140,16 @@ A client built with an injected `fetch` SHALL use that `fetch` only, as before.
 
 - **GIVEN** a local HTTP server on a free port that answers `POST /v1/chat/completions` with 200 and
   `{ "choices": [{ "message": { "content": "hola" } }], "usage": { "prompt_tokens": 12, "completion_tokens": 3 } }`,
-  a live configuration with `LLM_BASE_URL` pointing at `/v1` of that server, `LLM_API_KEY=clave-x` and
-  `LLM_MODEL=chat-x`, and the global `fetch` replaced by a recording spy
-- **WHEN** the model is built through the entry point without a `fetch` and a completion with purpose
-  `answer` and one `user` message is requested
+  and `POST /v1/embeddings` with 200 and one vector of 1536 components (`index` 0), a live
+  configuration with `LLM_BASE_URL` pointing at `/v1` of that server, `LLM_API_KEY=clave-x`,
+  `LLM_MODEL=chat-x` and `LLM_EMBED_MODEL=embed-z`, and the global `fetch` replaced by a recording spy
+- **WHEN** the model is built through the entry point without a `fetch`, a completion with purpose
+  `answer` and one `user` message is requested, and then embeddings for `["a"]`
 - **THEN** the server received exactly one `POST /v1/chat/completions` with
   `Authorization: Bearer clave-x`, `Content-Type: application/json` and a JSON body with
   `model: "chat-x"` and the given messages; the result is text `hola`, model `chat-x`, `inputTokens`
-  `12` and `outputTokens` `3`; and the spy recorded no call
+  `12` and `outputTokens` `3`; the embeddings result holds that vector, after exactly one
+  `POST /v1/embeddings`; and the spy recorded no call
 
 #### Scenario: Without an injected fetch timeouts, refusals and redirects keep their mapping
 

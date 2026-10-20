@@ -58,7 +58,8 @@ decisions of this change make them concrete.
   Ollama on CPU answers a free question through the CLI, the API and the web (the web check runs when
   the CLI answer took 15 min or less; otherwise the report and the guide say it was not run), with the
   measured duration in the change's report, plus a deterministic check with a local server that
-  answers after 310 s.
+  answers after 310 s, called by the client and then served to the API and to Screen 2 in Chromium
+  (design D8, DR10).
 
 ## Capabilities
 

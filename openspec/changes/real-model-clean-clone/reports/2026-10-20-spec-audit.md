@@ -2,7 +2,7 @@
 
 - Date: 2026-10-20
 - Auditor: spec-auditor subagent (headless `claude -p --agent spec-auditor`, read-only tools: Read, Grep, Glob, Linear read)
-- Final verdict: see the last run below; every finding of each run is resolved under its run
+- Final verdict: **APPROVED** (run 4 of 4); every finding of each run is resolved under its run
 
 ## Run 1
 
@@ -703,3 +703,249 @@ Applied with `/opsx:update`; DR9–DR11 recorded in the DIS-103 Enhanced descrip
 | 10 / DR11 — Ollama tray app | State recorded in 0.4; started again in 8.3 if it was running | design D8; tasks 0.4, 8.3 |
 | 5.1 — `INVALID_CONFIG` check names no command | Command and per-shell set/unset written in 8.1 | task 8.1 |
 | Readme output excerpt and DEMO's `Paso 0` paragraph | Updated with the new step (and ~11 s) | design D7; tasks 4.4, 5.1 |
+
+## Run 4
+
+Verdict line as returned:
+
+APPROVED
+
+**Ticket:** DIS-103 was loaded from Linear, with its description, relations and comments (it has none). It has no parent issue, so point 2 is checked against DIS-103's own AC1–AC5. This is an autonomous run under ADR `20261016-autonomous-workflow-run-entrega-2`, so there are no questions for the author. Keeping `gh` on DisTinta is the author's permission for this run and is not a finding. No finding below is blocking. Every one is improvable and can be fixed in this change's own artifacts before `/opsx:apply`.
+
+**Decisions to record (improvable, not blocking)**
+- **DR12 — What counts as a pass for the web check past 300 s (6.4b).** On Screen 2, an `LLM_UNAVAILABLE` with reason `invalid-response` looks exactly like a timeout. Pin the stub's body to a valid completion, and state what passes (see 5.1).
+- **DR13 — Placeholder for the clone's absolute path.** The guide already has a rule for this, (b) `<repo>`. Decide whether to reuse it or rewrite the rule to `<carpeta del clon>` (see 7.1).
+
+---
+
+## Check of run 3's resolutions
+
+| Run 3 finding | In the artifacts? |
+|---|---|
+| 7.1 (blocking): `docs/DEPLOYMENT.md` table of `up` steps | **Yes.** Design D7 (l.169-171), proposal Impact (l.90-91), task 5.2b. Linear D11 names it. |
+| 7.2: project-context DIS-61 paragraph and the new race | **Yes.** Design Risks (l.260-263) and task 5.3 ("l.464-471 … DIS-61"). |
+| 8.2 / DR9: full mutation run on this PR | **Yes.** Design Risks (l.264-268), task 0.4 (duration of the last base-branch `mutation` run) and task 12.2 (one re-run, then raise `timeout-minutes`). |
+| 5.2 / DR10: the web past 300 s | **Yes.** Option (a) is in design D8 (l.185-191) and task 6.4b; the guide and PR may claim it only if it passes. A gap in the pass criterion is new; see 5.1. |
+| 10 / DR11: Ollama tray app | **Yes.** Task 0.4 records its state; design D8 and task 8.3 start it again if it was running. |
+| 5.1: the `INVALID_CONFIG` check names no command | **Yes.** Task 8.1 names the command and gives the set/unset for each shell. |
+| Readme output excerpt and DEMO's `Paso 0` paragraph | **Yes.** Design D7 (l.168-172), task 4.4 ("the paragraph after the output … ~11 s"), task 5.1 ("Lo que imprime al terminar"). |
+| Linear DR9–DR11 and "Otros ajustes (tercera pasada)" | **Yes.** All are in the Enhanced section «Decisiones registradas en la auditoría de la spec». The `[original]` block is untouched. |
+
+Earlier runs still hold:
+- DR1: no exit `130` from the step (delta l.16-19; design D3; tasks 3.1-3.2).
+- DR2/DR7: `mutate`, the `disableTypeChecks` glob and the `business` filter (design D12; task 2.3b). They match the real `stryker.config.json:19-28` and `.github/workflows/ci.yml:197-206`.
+- DR3: design D13 and task 8.2.
+- DR4: design D3 and task 11.1.
+- DR5: delta l.165-167 and design D6.
+- DR6: ports (design D8, D13; tasks 6.2, 6.5, 8.1, 8.2).
+- DR8: literal `demo:ask` (delta l.179-182 and scenario).
+- Restoration is in 8.3, and 6.3 is split into 6.3a–6.3d.
+
+---
+
+## 1. Scope against the ticket: clean
+
+Every artifact follows from DIS-103:
+- Enhanced D1–D14;
+- the author's decision of 20-10-2026 to remove the 300 s cap;
+- AC1–AC5;
+- DR1–DR11, all already in the Enhanced description.
+
+`scripts/defer-ctrl-c.mjs`, the mutation-scope edits and `docs/DEPLOYMENT.md` were each brought in by a recorded decision. Nothing is invented, and the change is not widened beyond the ticket.
+
+## 2. Inherited acceptance criteria: clean (no parent; checked against DIS-103)
+
+| AC | Covered by |
+|---|---|
+| AC1: history built by `up` | "Up runs the start sequence in order" (six calls, exact arguments) and "Up builds the fixture history the seed indexed" (`HEAD` `4f028db…`, `git status --porcelain` empty, `verify` exits `0`, hashes) |
+| AC2: no 300 s cap | "A malformed timeout…" (`3600001`, `9999999999`, `0`, `abc`); "A timeout above 300 s is accepted" (`300001`, `1200000`, `3600000`); the two automated scenarios of "The client waits as long as the configured timeout" (spy on the global `fetch`; `LLM_TIMEOUT_MS=50` gives `timeout`) |
+| AC3: live run past 300 s | "The Ollama path was followed on a clean clone" plus "A response after 300 s is accepted"; the web falls under the ≤ 15 min rule and DR10 |
+| AC4: DEMO section | "The real-model section says how to try each model" and "…ordered for a first-time reader" |
+| AC5: readme | No spec covers the readme. Task 5.1 covers the text and task 8.1 covers the `3600001` error. Acceptable. |
+
+## 3. Missing scenarios: improvable (one item)
+
+- **3.1 (improvable):** The ADDED requirement "The client waits as long as the configured timeout" says the client sends "its requests" over `http`/`https`. It also keeps the behaviour of "Embedding request, order and dimension". But both automated scenarios exercise completions only. The transport function is the same for both, so the risk is low.
+  - **Fix:** in "Without an injected fetch the request does not use the global fetch", add `LLM_EMBED_MODEL=embed-z` and an embeddings request for `["a"]` answered with one vector of 1536 components. Expect the vector back, and no call recorded by the spy.
+
+## 4. Ambiguity: clean
+
+I searched `proposal.md`, `design.md`, `tasks.md` and both deltas for fast, easy, secure, efficient, many, appropriate and robust, plus "if needed", "as needed" and "simple". None appears.
+
+## 5. Open decisions
+
+- **5.1 (improvable, DR12): the pass criterion of the web check past 300 s can't tell the outcomes apart on Screen 2.**
+  - Design D8 (l.189-190) says "an `UNKNOWN` or an invalid-response result is fine". But `invalid-response` is a reason of `LLM_UNAVAILABLE`.
+  - Screen 2 shows every `LLM_UNAVAILABLE` the same way, with no reason: «El modelo de lenguaje no responde; las preguntas en caché siguen respondiendo.» and «Código: LLM_UNAVAILABLE.» (`packages/web/src/components/notice-display.ts:118-119`, `:139`). So in Chromium an `invalid-response` result and a timeout look identical.
+  - An `UNKNOWN` is shown with «Motivo: <reason>» (`packages/web/src/components/UnknownState.tsx:26`). A stub whose content is not valid explain output gives `invalid-model-output` (`packages/core/src/explain/explain.ts:332`), which is visible.
+  - **Fix:**
+    - Make the stub answer a valid OpenAI completion (`{"choices":[{"message":{"content":"<any text>"}}],"usage":{…}}`).
+    - The web passes when, after more than 300 s, Screen 2 shows an answer or an `UNKNOWN` with «Motivo: …». Any `LLM_UNAVAILABLE` alert, or «La API de CODEMIND no responde.», fails it.
+    - For `demo:ask`, any outcome other than `LLM_UNAVAILABLE` with reason `timeout` passes, because the JSON carries the reason.
+    - Apply this in design D8 and task 6.4b.
+- **5.2 (improvable): "set in the shell for one command" has no PowerShell form in task 8.1.**
+  - Task 8.1 sets `LLM_TIMEOUT_MS=3600001` "for one command" before `npm run cli -- ask acme-shop "x"`, and `DOCKER_HOST=tcp://127.0.0.1:1` "for that one command in each shell". PowerShell has no `VAR=value cmd` prefix. Only the `npm run up` sub-check spells out `$env:` / `Remove-Item`.
+  - **Fix:** for both checks, write «PowerShell: `$env:X='…'`, run the command, then `Remove-Item Env:X`; Bash: `X=… <command>`».
+- **5.3 (improvable): which block of the Ollama pair is verified.**
+  - DR5 and the delta (l.167) have the guide say "on which system the pair was verified". Task 6.3a starts `ollama serve` with "the project memory recipe" and does not say which block of the pair it runs.
+  - If only one block runs, "the pair was verified on Windows" claims too much.
+  - **Fix:** in 6.3a, start the server once with the `powershell` block in PowerShell and once with the `bash` block in Git Bash. Each time, check that it serves with 16384 tokens of context, then stop it. Or have the guide name the one block that was run.
+
+## 6. Contradictions inside the change: improvable (two items)
+
+- **6.1 (improvable):** Task 9.1 says the end-to-end step is "Covered by 6.3b-6.3c … and 8.2", but leaves out 6.4b. That is the only fixed check of the web past 300 s (DR10). The proposal's "Live proof past 300 s" bullet (l.57-61) leaves out 6.4b as well.
+  - **Fix:** in 9.1, write "Covered by 6.3b-6.3c, 6.4b (the web past 300 s, DR10) and 8.2; evidence in the 6.6 report". In the proposal bullet, add «and the same stub served to the API and Screen 2 in Chromium (design D8, DR10)».
+- **6.2 (improvable):** `Cómo se capturó` in `docs/DEMO.md` is not updated for the new section.
+  - Today it says `LLM | ninguno: modo evaluación` and "la guía entera en cada una" (`docs/DEMO.md:19-21`).
+  - The delta (l.184-186) has the new section's output come from the Ollama path in **one** shell.
+  - Task 4.4 updates `Cómo se capturó` for `Paso 0` only, and 6.3d pastes the Ollama output without touching that table. The table would then describe the capture wrongly.
+  - **Fix:** in 6.3d, append «`Cómo se capturó` gains the capture of `Probar con un modelo real`: Ollama on CPU (`qwen2.5-coder`, `OLLAMA_CONTEXT_LENGTH=16384`, `LLM_TIMEOUT_MS=1200000`), the shell used, the date and the measured durations; "la guía entera en cada una" becomes "la guía entera salvo `Probar con un modelo real`"».
+
+## 7. Contradictions with the project: improvable (one item)
+
+- **7.1 (improvable, DR13): two placeholders for the clone's path in one guide.**
+  - `docs/DEMO.md:28` already has a rule: «**(b)** una ruta absoluta del clon se sustituiría por `<repo>`».
+  - The delta (l.189-191), design D3 (l.85-87) and tasks 4.4 and 5.1 introduce `<carpeta del clon>` for the same thing.
+  - `docs/DEMO.md:42-43` already uses "carpeta del clon" for the folder *name* (the Docker prefix), not an absolute path.
+  - Without a decision, the guide ends up with two placeholders, or one whose name does not match what it replaces.
+  - **Fix (record DR13), choose one:**
+    - (a) reuse `<repo>`: in the delta, design D3 and tasks 4.4 and 5.1, replace `<carpeta del clon>` with `<repo>`; rule (b) becomes «se sustituye por `<repo>`» and adds the system's separator;
+    - (b) keep `<carpeta del clon>`: task 4.4 rewrites rule (b) to that token and says it stands for the absolute path, not the folder name of l.42-43.
+  - The readme excerpt (task 5.1) uses the same token.
+- Everything else agrees:
+  - The delta replaces the old cap rationale (`openspec/specs/llm-adapter/spec.md:24-27`).
+  - "Endpoint failures map to one error" still holds for an injected `fetch`.
+  - The range matches `CACHE_BUILD_TIMEOUT_MS`.
+  - ADR `20261017-stale-fingerprint-fails-verify` supports D3.
+  - `fixtures/build-history.mjs` is in `ANALYZER_FILES` (`packages/cli/src/seed/fingerprint.ts:39`); `scripts/defer-ctrl-c.mjs` is not.
+  - `openspec/specs/git-history/spec.md:44, :394, :407` still holds: the builder is unchanged.
+  - The stale 300 s text is all listed for update: `readme.md:431, :438, :459`, `docs/project-context.md:649-650, :914, :1141`, `config.ts:113`, `long-fetch.ts:10` (tasks 1.2, 2.2, 5.1, 5.3).
+  - `openspec/specs/local-startup/spec.md:288` (`demo:ask` with `node:http`) stays true.
+
+## 8. Contrast with the real code: clean
+
+- `scripts/up.mjs:57-70` (`startSequence`) takes a `{label, command, args}` step as it is.
+- The step runs with `cwd = ROOT` (`:15`, `:93`), so `--import ./scripts/defer-ctrl-c.mjs` and `fixtures/build-history.mjs` resolve from the root. `process.argv[1]` stays the builder, so its entry guard (`fixtures/build-history.mjs:195`) still fires.
+- The builder restores the tracked files with `writeFileSync` in `finally` (`:108-110`, `:169-171`), not with `git`. So a `git` child killed by Ctrl+C does not block the restore.
+- The `await import(manifest)` (`:87`) runs before the `try` and before any write, so a Ctrl+C there leaves nothing modified.
+- `tests/unit/scripts/wiring.spec.ts:63-67, :113-118` reads every `.mjs` of `scripts/`. A preload with no imports and no `.env` API passes it.
+- When the whole body is passed to `end()` (`long-fetch.ts:58`), Node sets `Content-Length`, as `fetch` did. Its abort listener stays until the response settles (`:38-43`, `:52-56`), which satisfies "A request that exceeds the timeout is aborted".
+- `vitest.stryker.config.ts:16-27` excludes neither `tests/unit/llm/**` nor `tests/unit/cli/long-fetch.spec.ts`, so mutants of the moved file can be killed. Its header (`:2`) is the comment task 2.3b updates.
+- Fastify is built with only `bodyLimit` and `logger` (`packages/api/src/app.ts:93`), so its request timeouts stay at the defaults design Context assumes.
+- The web's `ask()` passes no `timeoutMs`. Only the health check has one (`packages/web/src/services/api-client.ts:197, :326`).
+- No abstraction is duplicated.
+
+## 9. Task size: clean
+
+Each task fits one turn. 8.2 (two full runs of the guide) is large but has one goal and runs one clone at a time. 12.6 is open-ended by nature. Both are acceptable.
+
+## 10. Mandatory steps: clean
+
+- Step 0 comes first and handles the branch (0.2). Linear goes to In Progress in 0.1.
+- These sections are labelled `(MANDATORY)`, with `AGENT MUST EXECUTE` where required: 6, 7 (Review/Run Tests), 8 (Manual), 9 (E2E), 10 (Docs) and 12 (Pre-merge).
+- Report paths are named: 6.6, 7.4, 8.4 and 12.3-12.5. Screenshots go under `reports/` (6.3c, 6.4b).
+- Every step that changes state has its restoration:
+  - 6.4b restores the clone's `.env`;
+  - 8.1 removes the variable it set in each shell;
+  - 8.3 runs compose `down -v` per clone, moves the clones away, re-checks the 0.4 indicators and starts the tray app again;
+  - 7.4 re-checks the database counts.
+- Pre-merge comes last: the three checks in order, fixes on the same PR, and the archive committed before the merge.
+
+## 11. Traceability: no holes
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| llm-adapter: LLM configuration… (MOD) | No URL and no key selects evaluation mode | 7.1, 7.2 |
+| | A URL without a key selects live mode | 7.1, 7.2 |
+| | A key without a URL fails without showing the key | 7.1, 7.2 |
+| | A URL without a model fails | 7.1, 7.2 |
+| | A malformed timeout or URL fails naming the variable | 1.1, 1.2 |
+| | A valid timeout overrides the default | 7.1, 7.2 |
+| | A timeout above 300 s is accepted | 1.1, 1.2 |
+| | The daily budget is read in live mode only | 7.1, 7.2 |
+| | A malformed daily budget fails naming the variable | 7.1, 7.2 |
+| | With a ceiling every configured model needs a price | 7.1, 7.2 |
+| | Without a ceiling a model needs no price | 7.1, 7.2 |
+| llm-adapter: The client waits… (ADDED) | Without an injected fetch the request does not use the global fetch | 2.1, 2.2 |
+| | Without an injected fetch timeouts, refusals and redirects keep their mapping | 2.3, 2.3b |
+| | A response after 300 s is accepted | 6.4 (web: 6.4b) |
+| local-startup: One command starts the system (MOD) | Up runs the start sequence in order | 3.3, 3.4 |
+| | Up ignores an npm_execpath of .env | 7.1, 7.2 |
+| | Up stops at the first failing step | 7.1, 7.2 |
+| | Ctrl+C stops up without a failure line | 3.3, 3.4 |
+| | The history step finishes its work before ending on Ctrl+C | 3.1, 3.2 |
+| | A step that cannot start stops up | 7.1, 7.2 |
+| | Up needs npm to start it | 7.1, 7.2 |
+| | The startup scripts need no installed dependency | 3.4, 7.2 |
+| | Up with Docker unavailable fails naming its first step | 8.1 |
+| | Up builds the fixture history the seed indexed | 6.2 |
+| local-startup: The demo guide… (MOD) | The demo guide has no Bash-only command | 4.3, 5.5 |
+| | The demo guide is ordered for a first-time reader | 4.1 |
+| | The web walkthrough names what each screen shows | 7.1, 7.2 (review half not re-run; section unchanged) |
+| | The guide was followed on a clean clone in both shells | 8.2, 11.1 |
+| | The real-model section says how to try each model | 4.1, 4.3, 6.3d |
+| | The Ollama path was followed on a clean clone | 6.3a, 6.3b |
+
+Both MODIFIED requirements keep every scenario of the main specs: 10 of 10 in `llm-adapter`, 8 of 8 in "One command starts the system", and 4 of 4 in "The demo guide…".
+
+---
+
+## Corrections to apply
+
+### `openspec/changes/real-model-clean-clone/design.md`
+1. **D8, l.189-190.**
+   - Replace «(the stub's text need not be a valid explain answer; an `UNKNOWN` or an invalid-response result is fine)» with «(the stub answers a valid OpenAI completion whose text need not be a valid explain answer, so the API returns an answer or an `UNKNOWN` such as `invalid-model-output`; on Screen 2 the check passes only with an answer or an `UNKNOWN` showing «Motivo: …» after more than 300 s, since every `LLM_UNAVAILABLE` alert looks the same there (`notice-display.ts`); through `demo:ask`, anything other than `LLM_UNAVAILABLE` with reason `timeout` passes) (spec audit run 4, DR12)».
+2. **D3 bullet 3 (l.85-87), and the delta.** Record DR13. Option (a): «the clone's absolute path is written `<repo>`, the existing rule (b) of `Cómo se capturó`, now applied, with the system's separator». Option (b): «rule (b) of `Cómo se capturó` is rewritten to `<carpeta del clon>` (the absolute path, not the folder name of the Docker-prefix note)».
+3. **D6, Ollama bullet.** Append «The pair is verified by starting the server once with each block in its own shell (PowerShell, Git Bash) on Windows; the guide says so».
+4. **Spec-audit amendments.** Add a "run 4" line: «DR12 (web pass criterion, D8; task 6.4b), DR13 (path placeholder; D3, delta, tasks 4.4, 5.1), `Cómo se capturó` for the real-model capture (task 6.3d), per-shell variable set/unset in 8.1, both blocks of the Ollama pair run (6.3a), 9.1 cites 6.4b, embeddings in the default-transport scenario».
+
+### `openspec/changes/real-model-clean-clone/specs/llm-adapter/spec.md`
+1. **Scenario "Without an injected fetch the request does not use the global fetch".**
+   - GIVEN: add «`LLM_EMBED_MODEL=embed-z`, and the server also answers `POST /v1/embeddings` with 200 and one vector of 1536 components (`index` 0)».
+   - WHEN: add «and embeddings for `["a"]`».
+   - THEN: add «the embeddings result holds that vector, after exactly one `POST /v1/embeddings`».
+
+### `openspec/changes/real-model-clean-clone/specs/local-startup/spec.md`
+1. **Output paragraph (l.189-191).** Apply the DR13 choice: either `<repo>` instead of `<carpeta del clon>`, or keep it and say «(rule (b) of `Cómo se capturó`)».
+2. **Paragraph on the real-model section's output (l.184-186).** Append «and `Cómo se capturó` states that capture (model, context, timeout, shell, date)».
+
+### `openspec/changes/real-model-clean-clone/tasks.md`
+1. **6.3a.** Replace "start `ollama serve` on CPU only (project memory recipe, `OLLAMA_CONTEXT_LENGTH=16384`)" with «start `ollama serve` on CPU only (project memory recipe) once with the guide's `powershell` block in PowerShell and once with its `bash` block in Git Bash, checking each time that it serves with a 16384-token context, then keep one running».
+2. **6.3d.** Append the `Cómo se capturó` update of design correction 4 / finding 6.2.
+3. **6.4b.** Replace "any outcome other than `LLM_UNAVAILABLE` / `timeout` after more than 300 s" with «the stub answers a valid OpenAI completion; after more than 300 s, `demo:ask` gives anything other than `LLM_UNAVAILABLE` with reason `timeout`, and Screen 2 shows an answer or an `UNKNOWN` with «Motivo: …» (no `LLM_UNAVAILABLE` alert, no «La API de CODEMIND no responde.») (DR12)».
+4. **8.1.**
+   - Replace "with `LLM_TIMEOUT_MS=3600001` set in the shell for one command" with «with `LLM_TIMEOUT_MS=3600001` set for that command (PowerShell `$env:LLM_TIMEOUT_MS='3600001'`, then `Remove-Item Env:LLM_TIMEOUT_MS`; Bash `LLM_TIMEOUT_MS=3600001 npm run cli -- …`)».
+   - Replace "with `DOCKER_HOST=tcp://127.0.0.1:1` for that one command in each shell" with «with `DOCKER_HOST=tcp://127.0.0.1:1` (PowerShell `$env:DOCKER_HOST=…`, then `Remove-Item Env:DOCKER_HOST`; Bash `DOCKER_HOST=… npm run up`)».
+5. **9.1.** Replace "Covered by 6.3b-6.3c (…) and 8.2" with «Covered by 6.3b-6.3c (…), 6.4b (the web past 300 s, DR10/DR12) and 8.2; evidence in the 6.6 and 8.4 reports».
+6. **2.1.** Append «plus embeddings for `["a"]` with `LLM_EMBED_MODEL=embed-z` (finding 3.1)».
+7. **4.4 and 5.1.** Use the DR13 placeholder.
+
+### `openspec/changes/real-model-clean-clone/proposal.md`
+1. **What Changes, "Live proof past 300 s" bullet (l.57-61).** Append «and the same stub served to the API and to Screen 2 in Chromium (design D8, DR10)».
+
+### Linear DIS-103
+Do not edit the `[original]` block. In the `[enhanced]` part, write in Spanish:
+- In **Contexto técnico → 1. Tests primero**, replace «`tests/unit/llm/openai-compatible-llm.spec.ts` (nuevo caso: sin `fetch` inyectado va por `node:http`)» with «`tests/unit/llm/default-transport.spec.ts` (nuevo: los dos escenarios automáticos de "The client waits as long as the configured timeout", con completions y embeddings)». This aligns it with design D10.
+- Under «Decisiones registradas en la auditoría de la spec», add:
+  - «**DR12 — Criterio de la prueba web por encima de 300 s (cuarta pasada).** El servidor de prueba responde una compleción OpenAI válida. En la Pantalla 2 la prueba pasa solo con una respuesta o un `UNKNOWN` con «Motivo: …» después de más de 300 s: todo aviso `LLM_UNAVAILABLE` se ve igual en la web (sin motivo), así que un `invalid-response` no se distinguiría de un `timeout`. Por `demo:ask` pasa cualquier resultado distinto de `LLM_UNAVAILABLE` con motivo `timeout`.»
+  - «**DR13 — Marcador de la ruta del clon (cuarta pasada).** [opción elegida: (a) se reutiliza `<repo>`, la regla (b) de `Cómo se capturó` de `docs/DEMO.md`; o (b) la regla (b) se reescribe a `<carpeta del clon>` y se aclara que es la ruta absoluta, no el nombre de la carpeta del prefijo de Docker].»
+  - «**Otros ajustes (cuarta pasada):** `Cómo se capturó` registra la captura de `Probar con un modelo real` (Ollama en CPU, `qwen2.5-coder`, `OLLAMA_CONTEXT_LENGTH=16384`, `LLM_TIMEOUT_MS=1200000`, la shell, la fecha y las duraciones); las dos variantes del par de Ollama se ejecutan cada una en su shell; la prueba de 8.1 escribe cómo se pone y se quita cada variable en PowerShell; el escenario del transporte por defecto incluye embeddings.»
+
+### Resolution of run 4 (verdict APPROVED; improvable points folded by the lead engineer)
+
+Run 4 is the last allowed run; its verdict lets the apply start. Every improvable point was folded
+into the artifacts with `/opsx:update`, and DR12–DR13 were recorded in the DIS-103 Enhanced
+description (Spanish).
+
+| Finding | Decision | Where |
+|---|---|---|
+| 5.1 / DR12 — web pass criterion | The stub answers a valid OpenAI completion; Screen 2 passes only with an answer or an `UNKNOWN` with «Motivo: …» after > 300 s; `demo:ask` passes with anything but `LLM_UNAVAILABLE`/`timeout` | design D8; task 6.4b |
+| 7.1 / DR13 — two placeholders | Option (a): reuse `<repo>` (rule (b) of `Cómo se capturó`), with the system's separator; "carpeta del clon" stays the Docker-prefix folder name | delta (output paragraph); design D3; tasks 4.4, 5.1 |
+| 3.1 — embeddings over the default transport | Added to the scenario and task 2.1 | `llm-adapter` delta; task 2.1 |
+| 5.2 — per-shell variable syntax in 8.1 | PowerShell `$env:` + `Remove-Item Env:`; Bash prefix | task 8.1 |
+| 5.3 — which block of the Ollama pair is verified | Both blocks run, each in its own shell, on Windows; the guide says so | design D6; task 6.3a |
+| 6.1 — 9.1 and proposal omit 6.4b | Cited | task 9.1; proposal |
+| 6.2 — `Cómo se capturó` for the real-model capture | Required by the delta and done in 6.3d | delta; task 6.3d |
+| Linear "Tests primero" item | Aligned with design D10 (`default-transport.spec.ts`) | DIS-103 Enhanced |
+
+**Final verdict: APPROVED (run 4 of 4).** The apply may start.
