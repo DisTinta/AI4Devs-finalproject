@@ -16,10 +16,11 @@ variable ya definida en la terminal gana sobre `.env`.
 | Fecha | 2026-10-19 |
 | Commit | `c129278` (rama `feature/DIS-102-cross-shell-demo-spanish-docs`), clonado de GitHub en una carpeta nueva para cada terminal |
 | Máquina | Windows 11 Pro, Docker Desktop (Docker Engine 29.8.1, Compose v5.5.1), Git 2.45.1 |
-| Terminales | PowerShell 7.6.6 y Git Bash (GNU bash 5.2.26): la guía entera en cada una, con salidas idénticas salvo los campos que cambian en cada ejecución |
+| Terminales | PowerShell 7.6.6 y Git Bash (GNU bash 5.2.26): la guía entera salvo `Probar con un modelo real` en cada una, con salidas idénticas salvo los campos que cambian en cada ejecución |
 | Node / npm | v24.11.1 / 11.19.0 (el proyecto necesita Node 20.11 o posterior; la CI usa Node 20) |
 | LLM | ninguno: **modo evaluación**, todas las variables `LLM_*` vacías |
 | Base de datos | una base de datos nueva y vacía (ver el paso 0) |
+| `Probar con un modelo real` | 2026-10-20, rama `feature/DIS-103-real-model-clean-clone` clonada en una carpeta nueva, Git Bash: Ollama 0.40.5 **solo en CPU**, `qwen2.5-coder`, `OLLAMA_CONTEXT_LENGTH=16384`, `LLM_TIMEOUT_MS=1200000`. Duraciones medidas: CLI 8 min 28 s; API 300,9 s (pregunta repetida con la caché desactivada); web en Chromium 597,7 s (otra pregunta, «¿Qué hace ShippingService?») |
 
 Los únicos cambios hechos a la salida pegada:
 
@@ -33,7 +34,11 @@ Los únicos cambios hechos a la salida pegada:
 Lo que no sale de la ejecución literal de la guía: el puerto 5432 estaba ocupado por otro contenedor,
 así que la captura siguió la rama «Si el puerto 5432 ya está ocupado» de `Antes de empezar`, y el
 cambio de `.env` lo hizo un script (las mismas dos líneas que diría un editor de texto). La parada con
-Ctrl+C no se capturó: `Parar el sistema` la describe en el texto. `npm` muestra en su línea `> node
+Ctrl+C no se capturó: `Parar el sistema` la describe en el texto. En `Probar con un modelo real`, las
+variables `LLM_*` se dieron en el entorno de cada comando en lugar de escribirlas en `.env` (una
+variable ya definida gana sobre `.env`, así que el efecto es el mismo), y el par de Ollama se ejecutó
+una vez en PowerShell y otra en Git Bash con las variables que obligan a esta máquina a usar solo la
+CPU (su GPU no funciona con Ollama). `npm` muestra en su línea `> node
 scripts/demo-ask.mjs …` el id del proyecto como `***` (oculta lo que parece un token); el id llega
 entero a la API.
 
@@ -653,8 +658,40 @@ npm run cli -- ask acme-shop "¿Qué hace DiscountService?"
 ```
 
 ```text
-[pendiente de la prueba en vivo]
+
+> codemind@0.0.1 cli
+> tsx --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts ask acme-shop ¿Qué hace DiscountService?
+
+DiscountService calculates discounts for orders based on loyalty tier, coupon, and volume. It applies these discounts to the subtotal before calculating taxes and shipping.
+
+statements:
+1. [INFERENCE] DiscountService is tested for volume bonuses in `tests/Unit/DiscountServiceTest.php`.
+   evidence: tests/Unit/DiscountServiceTest.php:22-82
+2. [FACT] The discount logic is detailed in `app/Services/DiscountService.php`.
+   evidence: app/Services/DiscountService.php:21-66
+
+evidence:
+tests/Unit/DiscountServiceTest.php:22-82
+    class DiscountServiceTest extends TestCase
+    {
+        protected function tearDown(): void
+        {
+            Mockery::close();
+    … (+56 lines)
+app/Services/DiscountService.php:21-66
+    class DiscountService
+    {
+        private const LOYALTY_SILVER_PERCENT = 5.0;
+        private const LOYALTY_GOLD_PERCENT = 10.0;
+
+    … (+41 lines)
+{"level":"info","type":"entailment_unverified","statementIndex":0,"evidenceId":"E1","path":"tests/Unit/DiscountServiceTest.php","startLine":22,"endLine":82,"reason":"invalid-output"}
 ```
+
+En la captura (Ollama en CPU) tardó 8 min 28 s. La respuesta generada en vivo cambia de una
+ejecución a otra: el texto, las afirmaciones y sus evidencias no tienen por qué coincidir con estas.
+Una afirmación que el modelo no pudo comprobar aparece como `INFERENCE` y deja un evento
+`entailment_unverified` en stderr. La respuesta queda guardada en la caché de la base de datos.
 
 Y la misma pregunta por la API:
 
@@ -663,10 +700,50 @@ npm run demo:ask -- a794456d-6d1b-5b55-a360-13fec83dc7bc "¿Qué hace DiscountSe
 ```
 
 ```text
-[pendiente de la prueba en vivo]
+
+> codemind@0.0.1 demo:ask
+> node scripts/demo-ask.mjs *** ¿Qué hace DiscountService?
+
+HTTP 200
+{
+  "statements": 2,
+  "evidence": 2,
+  "usage": {
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "baselineTokens": 6749,
+    "baselineEstimator": "chars-div-4",
+    "savingsPct": 100,
+    "costUsd": 0,
+    "latencyMs": 54,
+    "cacheHit": true,
+    "generation": {
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "costUsd": 0
+    },
+    "verification": {
+      "calls": 0,
+      "cacheHits": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "costUsd": 0,
+      "latencyMs": 0
+    }
+  }
+}
 ```
 
-[pendiente de la prueba en vivo: la web]
+Como la CLI acaba de guardar esa respuesta, la API la sirve desde la caché al instante
+(`"cacheHit": true`, 0 tokens). Una pregunta nueva por la API va al modelo y tarda lo mismo que por la
+CLI: en la captura, la misma pregunta con la caché desactivada tardó 300,9 s por la API
+(`"cacheHit": false`, 6 591 tokens de generación y 9 llamadas de verificación).
+
+En la web, con el sistema reiniciado, escribe una pregunta libre en el campo de la pantalla 2 (por
+ejemplo «¿Qué hace ShippingService?») y espera: ni la web ni la API ponen un límite de tiempo propio.
+En la captura, con Ollama en CPU, la respuesta llegó en Chromium a los 597,7 s (casi 10 minutos), con
+sus afirmaciones «HECHO» e «INFERIDO», sus evidencias y el panel de uso («sin caché»). La espera de
+más de 300 s solo se ha comprobado en Chromium.
 
 ### Una API alojada compatible con OpenAI (no verificado)
 
