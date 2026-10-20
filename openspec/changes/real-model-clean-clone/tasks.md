@@ -59,8 +59,8 @@
 
 - [x] 7.1 Review the affected tests (`grep -rn "300001\|startSequence\|five\|Paso 0\|long-fetch" tests`); only the D10 tests change; every `#### Scenario:` of both deltas maps to a test of the same name except the recorded checks (6.2, 6.3a-6.3c, 6.4, 6.4b, 8.1, 8.2); "The web walkthrough names what each screen shows": automated half green, review half not re-run because `Recorrido por la web` is unchanged (stated in the report)
 - [x] 7.2 Targeted: `npx vitest run tests/unit/llm tests/unit/scripts tests/unit/docs tests/unit/cli/long-fetch.spec.ts tests/unit/cli/cache-build.spec.ts`
-- [ ] 7.3 Broader: `npx vitest run`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`, `npm run test:mutation` (score >= 80, `long-fetch.ts` included per design D12), `npm run verify`
-- [ ] 7.4 `/privacy-ethics-check` over the diff (no key in the guide, `.env` never printed); post-test state: the 0.4 counts and hashes unchanged; no temporary files left. Report `reports/YYYY-MM-DD-7-test-and-state-verification.md` (template of `docs/openspec-tasks-mandatory-steps.md` §6; "no dependency installed: no npm package check needed")
+- [x] 7.3 Broader: `npx vitest run`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`, `npm run test:mutation` (score >= 80, `long-fetch.ts` included per design D12), `npm run verify`
+- [x] 7.4 `/privacy-ethics-check` over the diff (no key in the guide, `.env` never printed); post-test state: the 0.4 counts and hashes unchanged; no temporary files left. Report `reports/YYYY-MM-DD-7-test-and-state-verification.md` (template of `docs/openspec-tasks-mandatory-steps.md` §6; "no dependency installed: no npm package check needed")
 
 ## 8. Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE)
 
