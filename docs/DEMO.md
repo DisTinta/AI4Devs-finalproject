@@ -13,8 +13,8 @@ variable ya definida en la terminal gana sobre `.env`.
 
 | Dato | Valor |
 |---|---|
-| Fecha | 2026-10-19 |
-| Commit | `c129278` (rama `feature/DIS-102-cross-shell-demo-spanish-docs`), clonado de GitHub en una carpeta nueva para cada terminal |
+| Fecha | 2026-10-20 |
+| Commit | `da94264` (rama `feature/DIS-103-real-model-clean-clone`), clonado de GitHub en una carpeta nueva para cada terminal |
 | Máquina | Windows 11 Pro, Docker Desktop (Docker Engine 29.8.1, Compose v5.5.1), Git 2.45.1 |
 | Terminales | PowerShell 7.6.6 y Git Bash (GNU bash 5.2.26): la guía entera salvo `Probar con un modelo real` en cada una, con salidas idénticas salvo los campos que cambian en cada ejecución |
 | Node / npm | v24.11.1 / 11.19.0 (el proyecto necesita Node 20.11 o posterior; la CI usa Node 20) |
@@ -27,16 +27,18 @@ Los únicos cambios hechos a la salida pegada:
 - **(a)** `npm run up` se queda en primer plano (`npm run dev`); su salida se corta tras las líneas de
   arranque, marcadas con `[… sigue en marcha; se para con Ctrl+C]`.
 - **(b)** la ruta absoluta del clon se sustituye por `<repo>`; el separador que la sigue es el del
-  sistema (`` en Windows, en las dos terminales; `/` en Linux y macOS).
+  sistema (`\` en Windows, en las dos terminales; `/` en Linux y macOS).
 - **(c)** se quitan los códigos de color de la terminal.
 - **(d)** el nombre de la máquina en la línea de arranque de la API se sustituye por `<host>`.
 
-Lo que no sale de la ejecución literal de la guía: el puerto 5432 estaba ocupado por otro contenedor,
-así que la captura siguió la rama «Si el puerto 5432 ya está ocupado» de `Antes de empezar`, y el
-cambio de `.env` lo hizo un script (las mismas dos líneas que diría un editor de texto). La parada con
-Ctrl+C no se capturó: `Parar el sistema` la describe en el texto. En `Probar con un modelo real`, las
-variables `LLM_*` se dieron en el entorno de cada comando en lugar de escribirlas en `.env` (una
-variable ya definida gana sobre `.env`, así que el efecto es el mismo), y el par de Ollama se ejecutó
+Lo que no sale de la ejecución literal de la guía: no se creó `.env` (quien capturó la guía no podía
+escribir ficheros `.env`); `POSTGRES_PORT` y su `DATABASE_URL`, con un puerto libre distinto en cada
+clon, y en `Probar con un modelo real` las variables `LLM_*`, se dieron en el entorno de cada comando.
+Una variable ya definida gana sobre `.env`, y sin `.env` las variables `LLM_*` quedan sin definir,
+como vacías las deja `.env.example` (modo evaluación); todas las salidas coincidieron con las de la
+captura anterior, hecha con `.env`. La salida de `docker compose` con el puerto ocupado de `Antes de empezar` es de la captura
+anterior de la guía (2026-10-19), cuando la captura siguió esa rama. La parada con Ctrl+C no se
+capturó: `Parar el sistema` la describe en el texto. El par de Ollama de `Probar con un modelo real` se ejecutó
 una vez en PowerShell y otra en Git Bash con las variables que obligan a esta máquina a usar solo la
 CPU (su GPU no funciona con Ollama). `npm` muestra en su línea `> node
 scripts/demo-ask.mjs …` el id del proyecto como `***` (oculta lo que parece un token); el id llega
@@ -45,7 +47,7 @@ entero a la API.
 **Campos que cambian en cada ejecución**, que hay que ignorar al comparar: el número de paquetes, el
 tiempo y las líneas de auditoría de `npm install`; el prefijo `(node:<pid>)` y el `ready in … ms` de
 Vite; `time` y `pid` en la línea de log de la API; `latencyMs` en las respuestas de la API; y el
-prefijo de los nombres de Docker (`e2e-bash-postgres-1`, `e2e-pwsh_pgdata`…), que es el nombre de la
+prefijo de los nombres de Docker (`dis103-bash-postgres-1`, `dis103-pwsh_pgdata`…), que es el nombre de la
 carpeta del clon (`ai4devs-finalproject` con el `git clone` de `readme.md` §1.4). El id del proyecto lo
 fija la semilla.
 
@@ -108,12 +110,20 @@ npm run up
 > node scripts/up.mjs
 
 [up] docker compose up -d --wait
- Container e2e-bash-postgres-1 Recreate 
- Container e2e-bash-postgres-1 Recreated 
- Container e2e-bash-postgres-1 Starting 
- Container e2e-bash-postgres-1 Started 
- Container e2e-bash-postgres-1 Waiting 
- Container e2e-bash-postgres-1 Healthy 
+ Network dis103-bash_default Creating 
+ Volume dis103-bash_pgdata Creating 
+ Network dis103-bash_default Creating 
+ Volume dis103-bash_pgdata Creating 
+ Volume dis103-bash_pgdata Created 
+ Volume dis103-bash_pgdata Created 
+ Network dis103-bash_default Created 
+ Network dis103-bash_default Created 
+ Container dis103-bash-postgres-1 Creating 
+ Container dis103-bash-postgres-1 Created 
+ Container dis103-bash-postgres-1 Starting 
+ Container dis103-bash-postgres-1 Started 
+ Container dis103-bash-postgres-1 Waiting 
+ Container dis103-bash-postgres-1 Healthy 
 [up] npm install
 npm warn deprecated @babel/plugin-proposal-explicit-resource-management@7.27.4: This proposal has been merged to the ECMAScript standard and thus this plugin is no longer maintained. Please use @babel/plugin-transform-explicit-resource-management instead.
 npm warn deprecated whatwg-encoding@3.1.1: Use @exodus/bytes instead for a more spec-conformant and faster implementation
@@ -161,13 +171,13 @@ npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install
 1 project loaded
   acme-shop  php/laravel  174 nodes · 170 edges
 [up] node fixtures/build-history.mjs acme-shop
-[pendiente de la prueba en vivo]
+acme-shop: 32 commits, 3 authors -> <repo>\fixtures\acme-shop\.git
 [up] npm run dev
 
 > codemind@0.0.1 dev
 > concurrently --kill-others-on-fail "npm -w packages/api run dev" "npm -w packages/web run dev"
 
-(node:14216) [DEP0060] DeprecationWarning: The `util._extend` API is deprecated. Please use Object.assign() instead.
+(node:37328) [DEP0060] DeprecationWarning: The `util._extend` API is deprecated. Please use Object.assign() instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
 [0] 
 [0] > @codemind/api@0.0.1 dev
@@ -178,11 +188,11 @@ npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install
 [1] > vite
 [1] 
 [1] 
-[1]   VITE v5.4.21  ready in 1347 ms
+[1]   VITE v5.4.21  ready in 1332 ms
 [1] 
 [1]   ➜  Local:   http://localhost:5173/
 [1]   ➜  Network: use --host to expose
-[0] {"level":30,"time":1792431438658,"pid":27016,"hostname":"<host>","msg":"Server listening at http://127.0.0.1:3000"}
+[0] {"level":30,"time":1792487313238,"pid":30948,"hostname":"<host>","msg":"Server listening at http://127.0.0.1:3000"}
 [… sigue en marcha; se para con Ctrl+C]
 ```
 
@@ -805,12 +815,12 @@ npm run down
 > codemind@0.0.1 down
 > docker compose down
 
- Container e2e-pwsh-postgres-1 Stopping 
- Container e2e-pwsh-postgres-1 Stopped 
- Container e2e-pwsh-postgres-1 Removing 
- Container e2e-pwsh-postgres-1 Removed 
- Network e2e-pwsh_default Removing 
- Network e2e-pwsh_default Removed 
+ Container dis103-pwsh-postgres-1 Stopping 
+ Container dis103-pwsh-postgres-1 Stopped 
+ Container dis103-pwsh-postgres-1 Removing 
+ Container dis103-pwsh-postgres-1 Removed 
+ Network dis103-pwsh_default Removing 
+ Network dis103-pwsh_default Removed 
 ```
 
 `npm run down` para y elimina el contenedor; los datos se conservan en el volumen `pgdata`, así que el
