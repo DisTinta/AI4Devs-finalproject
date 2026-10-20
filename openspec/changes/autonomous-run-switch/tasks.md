@@ -137,7 +137,7 @@
 
 ## 5. Specs, tests, kit configuration edits and env files (TDD, design D5, D8, D9) — "Rewrites of specs, tests and doctrine…", "The kit configuration…", "Example environment files…"
 
-- [ ] 5.1 RED: create `tests/harness/autonomous-protect.spec.ts` with:
+- [x] 5.1 RED: create `tests/harness/autonomous-protect.spec.ts` with:
   - "An artifact of an approved active change is rewritten";
   - "Artifacts are free before the first audit";
   - "A verdict line with a carriage return still counts";
@@ -158,12 +158,12 @@
   - "Files outside the repository and the profile stay free".
 
   Fixture: a git repo on branch `feature/DIS-9-foo-bar` with `openspec/changes/foo-bar/` and a base branch named in `AUTONOMOUS_MERGE_BASE`. Run each with `KIT_PROTECT_SPECS` `"1"` and `"0"`. See them fail
-- [ ] 5.2a GREEN (helpers):
+- [x] 5.2a GREEN (helpers):
   - move the active-change detection from `spec-audit-gate.sh` (lines 25–48) to `lib.sh` → `active_change()` (both hooks call it; `spec-audit-gate` behaviour unchanged, its suite case re-run);
   - reuse the 3.4 path and kit-configuration helpers; add the CR- and fence-tolerant verdict reader and the merge-base lookup with `origin/<base>` first and the local base as fallback (D9);
   - wire the verdict reader into `spec-audit-gate.sh`: in unattended mode, before its `KIT_SPEC_AUDIT_GATE` exit, only `APPROVED` lets `PATH_SOURCE`/`PATH_TESTS` edits through, and an empty `active_change()` denies naming the branch (D9). `active_change()` returns empty when `openspec/changes/` does not exist (today's exit at line 23). The D21 fail-closed trap is added to the gate too.
-- [ ] 5.2b GREEN (table): in `protect-specs-and-tests.sh` (with the D21 fail-closed trap in unattended mode), the unattended table goes before the `KIT_PROTECT_SPECS` exit, with the no-report rule of QG, with the kit-configuration row, the approved-artifact and main-spec rows, the whole-path `tasks.md` match, the branch-created test rule, and the doctrine and migration rows (D5, D9). "Files outside the repository and the profile stay free" (5.1) turns green
-- [ ] 5.3 RED → GREEN: create `tests/harness/env-example.spec.ts` with:
+- [x] 5.2b GREEN (table): in `protect-specs-and-tests.sh` (with the D21 fail-closed trap in unattended mode), the unattended table goes before the `KIT_PROTECT_SPECS` exit, with the no-report rule of QG, with the kit-configuration row, the approved-artifact and main-spec rows, the whole-path `tasks.md` match, the branch-created test rule, and the doctrine and migration rows (D5, D9). "Files outside the repository and the profile stay free" (5.1) turns green
+- [x] 5.3 RED → GREEN: create `tests/harness/env-example.spec.ts` with:
   - "The example file is read and edited" (`block-secret-reads` and `protect-specs-and-tests`);
   - "Real environment and secret files stay denied" (absolute paths; including the edit of `secrets/x.env.example`).
 
@@ -172,7 +172,7 @@
   - `protect-specs-and-tests.sh` keeps its own env case and gains, before `*.env.*`, the example arm that skips paths with a `secrets`/`.secrets` component (D8; no secret-location deny arm).
 
   Confirm `bash .claude/doctor.sh` still prints the `sdd-harness.env` OK line
-- [ ] 5.4 `.claude/settings.json` deny list as in D8. Add a test (not a named scenario) that the deny list has no pattern matching `.env.example`, using the glob semantics of the patterns it contains
+- [x] 5.4 `.claude/settings.json` deny list as in D8. Add a test (not a named scenario) that the deny list has no pattern matching `.env.example`, using the glob semantics of the patterns it contains
 
 ## 6. Merge gate (TDD, design D4) — "The agent merges only in an autonomous run and under deterministic conditions"
 

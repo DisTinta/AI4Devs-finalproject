@@ -6,49 +6,45 @@
 #
 # Only edits under PATH_SOURCE or PATH_TESTS are gated: openspec/, docs/ and the rest stay free,
 # so the audit report and the artifact fixes can always be written.
+#
+# In an unattended run (openspec change autonomous-run-switch, design D9) the latest verdict must be
+# APPROVED, the gate applies whatever KIT_SPEC_AUDIT_GATE says, and a branch whose active change
+# cannot be told is denied: the auditor's APPROVED replaces the human plan gate.
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-# Manual switch in sdd-harness.env: "0" turns the gate off.
-[[ "$KIT_SPEC_AUDIT_GATE" == "0" ]] && exit 0
-
 INPUT=$(cat)
 hook_input_init "$INPUT"
+fail_closed
+
+if ! unattended; then
+  # Manual switch in sdd-harness.env: "0" turns the gate off.
+  [[ "$KIT_SPEC_AUDIT_GATE" == "0" ]] && done_ok
+fi
+
 FILE=$(field "$INPUT" '.tool_input.file_path')
-[[ -n "$FILE" ]] || exit 0
+[[ -n "$FILE" ]] || done_ok
 FILE="${FILE//\\//}"
 
-under "$FILE" "$PATH_SOURCE" || under "$FILE" "$PATH_TESTS" || exit 0
+under "$FILE" "$PATH_SOURCE" || under "$FILE" "$PATH_TESTS" || done_ok
 
-CHANGES_DIR="$PROJECT_DIR/openspec/changes"
-[[ -d "$CHANGES_DIR" ]] || exit 0
-
-ACTIVE=()
-for dir in "$CHANGES_DIR"/*/; do
-  [[ -d "$dir" ]] || continue
-  name="$(basename "$dir")"
-  [[ "$name" == "archive" ]] && continue
-  ACTIVE+=("$name")
-done
-[[ ${#ACTIVE[@]} -gt 0 ]] || exit 0
-
-# The change of this branch: the active change whose name closes the branch name
-# (feature/DIS-38-claims-and-typing → claims-and-typing); the longest one wins. With no match and
-# exactly one active change, that one. Otherwise the change cannot be told: let the edit pass.
-BRANCH="$(git -C "$PROJECT_DIR" branch --show-current 2>/dev/null || true)"
-CHANGE=""
-for name in "${ACTIVE[@]}"; do
-  case "$BRANCH" in
-    "$name"|*/"$name"|*-"$name")
-      [[ ${#name} -gt ${#CHANGE} ]] && CHANGE="$name" ;;
-  esac
-done
-if [[ -z "$CHANGE" && ${#ACTIVE[@]} -eq 1 ]]; then
-  CHANGE="${ACTIVE[0]}"
+CHANGE=$(active_change)
+if [[ -z "$CHANGE" ]]; then
+  if unattended; then
+    deny "Spec audit gate (unattended run): branch $(current_branch) has no determinable active OpenSpec change, so no code or test is written. Run the propose and the spec audit first (docs/base-standards.md §7.1)."
+  fi
+  done_ok
 fi
-[[ -n "$CHANGE" ]] || exit 0
 
-compgen -G "$CHANGES_DIR/$CHANGE/reports/*spec-audit*.md" >/dev/null && exit 0
+if unattended; then
+  VERDICT=$(latest_verdict "$CHANGE")
+  [[ "$VERDICT" == "APPROVED" ]] && done_ok
+  if [[ "$VERDICT" == "CHANGES REQUIRED" ]]; then
+    deny "Spec audit gate (unattended run): the latest spec audit of '${CHANGE}' is CHANGES REQUIRED, so the ticket stops cleanly here. The author applies or approves the fixes; no code is written until the verdict is APPROVED."
+  fi
+fi
+
+compgen -G "$PROJECT_DIR/openspec/changes/$CHANGE/reports/*spec-audit*.md" >/dev/null && done_ok
 
 deny "Spec audit gate: the OpenSpec change '${CHANGE}' has no spec audit report, so no code or test is written for it yet (docs/base-standards.md §7.1).
 

@@ -220,6 +220,91 @@ inject() {
   exit 0
 }
 
+# ── Change, paths and verdicts (design D5, D9) ───────────────────────────────
+
+# The branch's active OpenSpec change: the active change whose name closes the branch name
+# (feature/DIS-38-claims-and-typing → claims-and-typing); the longest one wins. With no match and
+# exactly one active change, that one. Prints nothing when it cannot be told (no openspec/changes,
+# no active change, or several and none matches).
+active_change() {
+  local changes_dir="$PROJECT_DIR/openspec/changes" dir name branch change="" active=()
+  [[ -d "$changes_dir" ]] || return 0
+  for dir in "$changes_dir"/*/; do
+    [[ -d "$dir" ]] || continue
+    name="$(basename "$dir")"
+    [[ "$name" == "archive" ]] && continue
+    active+=("$name")
+  done
+  [[ ${#active[@]} -gt 0 ]] || return 0
+  branch="$(git -C "$PROJECT_DIR" branch --show-current 2>/dev/null || true)"
+  for name in "${active[@]}"; do
+    case "$branch" in
+      "$name"|*/"$name"|*-"$name")
+        [[ ${#name} -gt ${#change} ]] && change="$name" ;;
+    esac
+  done
+  if [[ -z "$change" && ${#active[@]} -eq 1 ]]; then
+    change="${active[0]}"
+  fi
+  printf '%s' "$change"
+}
+
+current_branch() { git -C "$PROJECT_DIR" branch --show-current 2>/dev/null || true; }
+
+# Normalises a path (slashes, /c/… drive form) and strips PROJECT_DIR/, case-insensitively on
+# Windows. Prints the repository-relative path, or the normalised absolute one when outside.
+rel_path() {
+  local p="${1//\\//}" root="${PROJECT_DIR//\\//}"
+  [[ "$p" =~ ^/([a-zA-Z])/(.*)$ ]] && p="${BASH_REMATCH[1]^^}:/${BASH_REMATCH[2]}"
+  [[ "$root" =~ ^/([a-zA-Z])/(.*)$ ]] && root="${BASH_REMATCH[1]^^}:/${BASH_REMATCH[2]}"
+  [[ "$p" =~ ^([a-z]):(.*)$ ]] && p="${BASH_REMATCH[1]^^}:${BASH_REMATCH[2]}"
+  [[ "$root" =~ ^([a-z]):(.*)$ ]] && root="${BASH_REMATCH[1]^^}:${BASH_REMATCH[2]}"
+  if [[ "${p,,}" == "${root,,}/"* ]]; then
+    printf '%s' "${p:$(( ${#root} + 1 ))}"
+  else
+    printf '%s' "$p"
+  fi
+}
+
+# Kit configuration (design D5): .claude/ or .cursor/ relative to the working tree that holds the
+# path, or anything inside CLAUDE_CONFIG_DIR. Shares shell-words.mjs's implementation.
+is_kit_config() {
+  [[ "$(timeout 5 node "$(dirname "${BASH_SOURCE[0]}")/shell-words.mjs" --kit-path "$1" --project "$PROJECT_DIR" 2>/dev/null)" == "true" ]]
+}
+
+# Latest spec-audit verdict of a change: the last line, across reports/*spec-audit*.md in name order,
+# that is APPROVED or CHANGES REQUIRED once a trailing \r and whitespace are removed; lines inside
+# fenced code blocks are ignored. Prints nothing when there is no report.
+latest_verdict() {
+  local reports=("$PROJECT_DIR/openspec/changes/$1/reports/"*spec-audit*.md) f v last=""
+  [[ -e "${reports[0]}" ]] || return 0
+  for f in "${reports[@]}"; do
+    v=$(awk '
+      { sub(/\r$/, ""); sub(/[[:space:]]+$/, "") }
+      /^[[:space:]]*(```|~~~)/ { fence = !fence; next }
+      !fence && ($0 == "APPROVED" || $0 == "CHANGES REQUIRED") { verdict = $0 }
+      END { print verdict }
+    ' "$f" 2>/dev/null)
+    [[ -n "$v" ]] && last="$v"
+  done
+  printf '%s' "${last:-NONE}"
+}
+
+# Whether a repository-relative path existed at the merge base of HEAD with
+# origin/AUTONOMOUS_MERGE_BASE (or the local base when the remote-tracking branch is missing).
+# Prints yes, no, or unknown (no merge base).
+existed_at_merge_base() {
+  local base mb=""
+  if [[ -n "$AUTONOMOUS_MERGE_BASE" ]]; then
+    for base in "origin/$AUTONOMOUS_MERGE_BASE" "$AUTONOMOUS_MERGE_BASE"; do
+      mb=$(git -C "$PROJECT_DIR" merge-base HEAD "$base" 2>/dev/null) && break
+      mb=""
+    done
+  fi
+  if [[ -z "$mb" ]]; then printf 'unknown'; return 0; fi
+  if git -C "$PROJECT_DIR" cat-file -e "$mb:$1" 2>/dev/null; then printf 'yes'; else printf 'no'; fi
+}
+
 # ── Utilities ────────────────────────────────────────────────────────────────
 under() {
   local file="$1" dir="$2"
@@ -252,6 +337,14 @@ is_secret_path() {
   # that a Read on it is not denied. It only holds STACK/CMD_*/PATH_*/BRANCH_PREFIX.
   case "$file" in
     */.claude/sdd-harness.env|.claude/sdd-harness.env|sdd-harness.env) return 1 ;;
+  esac
+  # Example env files hold no secrets and can be read, except inside a secret location, which wins
+  # (openspec change autonomous-run-switch, design D8).
+  case "$file" in
+    */secrets/*|*/.secrets/*|secrets/*|.secrets/*) return 0 ;;
+  esac
+  case "$file" in
+    *.env.example|*.env.sample) return 1 ;;
   esac
   case "$file" in
     *.env|*.env.*|*/.env|.env|*/.env.*|\

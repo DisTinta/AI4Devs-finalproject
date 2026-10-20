@@ -812,7 +812,11 @@ function arg(name) {
   return k > 0 ? process.argv[k + 1] : undefined;
 }
 
-if (process.argv[1] && /shell-words\.mjs$/.test(process.argv[1].replace(/\\/g, '/'))) {
+if (process.argv[1] && /shell-words\.mjs$/.test(process.argv[1].replace(/\\/g, '/')) && arg('--kit-path')) {
+  // Used by protect-specs-and-tests.sh for the editing tools (design D5): prints true / false.
+  const ctx = { project: arg('--project'), configDir: process.env.CLAUDE_CONFIG_DIR || null };
+  process.stdout.write(`${kitConfiguration(resolvePath(arg('--kit-path'), false, arg('--project') ?? process.cwd()), ctx)}\n`);
+} else if (process.argv[1] && /shell-words\.mjs$/.test(process.argv[1].replace(/\\/g, '/'))) {
   const line = readFileSync(0, 'utf8');
   const ctx = {
     cwd: arg('--cwd') ? norm(arg('--cwd')) : process.cwd().replace(/\\/g, '/'),
