@@ -57,8 +57,8 @@
 
 ## 7. Review and Update Existing Tests / Run Tests and Verify Data State (MANDATORY)
 
-- [ ] 7.1 Review the affected tests (`grep -rn "300001\|startSequence\|five\|Paso 0\|long-fetch" tests`); only the D10 tests change; every `#### Scenario:` of both deltas maps to a test of the same name except the recorded checks (6.2, 6.3a-6.3c, 6.4, 6.4b, 8.1, 8.2); "The web walkthrough names what each screen shows": automated half green, review half not re-run because `Recorrido por la web` is unchanged (stated in the report)
-- [ ] 7.2 Targeted: `npx vitest run tests/unit/llm tests/unit/scripts tests/unit/docs tests/unit/cli/long-fetch.spec.ts tests/unit/cli/cache-build.spec.ts`
+- [x] 7.1 Review the affected tests (`grep -rn "300001\|startSequence\|five\|Paso 0\|long-fetch" tests`); only the D10 tests change; every `#### Scenario:` of both deltas maps to a test of the same name except the recorded checks (6.2, 6.3a-6.3c, 6.4, 6.4b, 8.1, 8.2); "The web walkthrough names what each screen shows": automated half green, review half not re-run because `Recorrido por la web` is unchanged (stated in the report)
+- [x] 7.2 Targeted: `npx vitest run tests/unit/llm tests/unit/scripts tests/unit/docs tests/unit/cli/long-fetch.spec.ts tests/unit/cli/cache-build.spec.ts`
 - [ ] 7.3 Broader: `npx vitest run`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`, `npm run test:mutation` (score >= 80, `long-fetch.ts` included per design D12), `npm run verify`
 - [ ] 7.4 `/privacy-ethics-check` over the diff (no key in the guide, `.env` never printed); post-test state: the 0.4 counts and hashes unchanged; no temporary files left. Report `reports/YYYY-MM-DD-7-test-and-state-verification.md` (template of `docs/openspec-tasks-mandatory-steps.md` §6; "no dependency installed: no npm package check needed")
 
@@ -71,12 +71,12 @@
 
 ## 9. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
-- [ ] 9.1 Covered by 6.3b-6.3c (CLI, API and Screen 2 in Chromium under the 15-minute rule), 6.4b (the web past 300 s, DR10/DR12) and 8.2 (the whole guide in both shells), with evidence in the 6.6 and 8.4 reports; if the web check did not run, the report and the guide say so and no web claim is made (design D6)
+- [x] 9.1 Covered by 6.3b-6.3c (CLI, API and Screen 2 in Chromium under the 15-minute rule), 6.4b (the web past 300 s, DR10/DR12) and 8.2 (the whole guide in both shells), with evidence in the 6.6 and 8.4 reports; if the web check did not run, the report and the guide say so and no web claim is made (design D6)
 
 ## 10. Update Technical Documentation (MANDATORY)
 
-- [ ] 10.1 `/update-docs`: the docs gate passes; `prompts.md` gains the DIS-103 prompts with its Índice entry in the same edit
-- [ ] 10.2 ADR not warranted (design D11): record it in the step 7 report
+- [x] 10.1 `/update-docs`: the docs gate passes; `prompts.md` gains the DIS-103 prompts with its Índice entry in the same edit
+- [x] 10.2 ADR not warranted (design D11): record it in the step 7 report
 
 ## 11. Pull request preparation
 
