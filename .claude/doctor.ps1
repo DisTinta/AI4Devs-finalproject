@@ -5,10 +5,13 @@
 .EXAMPLE
     .\doctor.ps1 -Dest C:\proyectos\mi-api
     .\doctor.ps1
+    .\doctor.ps1 -Autonomous -ConfigDir $HOME\.claude-autonomo   # preflight of an autonomous run
 #>
 [CmdletBinding()]
 param(
-    [string]$Dest = (Get-Location).Path
+    [string]$Dest = (Get-Location).Path,
+    [switch]$Autonomous,
+    [string]$ConfigDir = $env:CLAUDE_CONFIG_DIR
 )
 
 $ErrorActionPreference = 'Continue'
@@ -48,7 +51,8 @@ Ok "canonical skills: $skillN"
 
 $hooks = @(
     'session-context','block-secrets','block-secret-reads','block-dangerous-bash',
-    'docs-gate','protect-specs-and-tests','post-edit-quality','validate-tasks','verify-tests','lib'
+    'docs-gate','protect-specs-and-tests','spec-audit-gate','post-edit-quality','validate-tasks','verify-tests',
+    'autonomous-merge-gate','log-permission-denied','lib'
 )
 foreach ($h in $hooks) {
     $hp = Join-Path $Dest ".claude\hooks\$h.sh"
@@ -100,7 +104,8 @@ $envFile = Join-Path $Dest '.claude\sdd-harness.env'
 if (Test-Path $envFile) {
     if (Select-String -Path $envFile -Pattern '^BRANCH_PREFIX=' -Quiet) { Ok 'BRANCH_PREFIX defined' }
     else { Warn 'BRANCH_PREFIX is not in sdd-harness.env' }
-    $envRaw = Get-Content -LiteralPath $envFile -Raw
+    # Comments are skipped by the safe loader, so only assignment lines count.
+    $envRaw = (Get-Content -LiteralPath $envFile | Where-Object { $_ -notmatch '^\s*#' }) -join "`n"
     if ($envRaw -match '\$\(' -or $envRaw -match '`') {
         Fail 'sdd-harness.env contains command substitution — clean up the file'
     }
@@ -115,6 +120,126 @@ if (Test-Path $libSh) {
     } else {
         Fail 'is_secret_path does NOT exempt .claude/sdd-harness.env: block-secret-reads will treat it as a secret and subagents will not be able to read the contract. Update lib.sh.'
     }
+}
+
+# Autonomous preflight (openspec change autonomous-run-switch, design D13). Read-only.
+function Get-EnvValue($key) {
+    if (-not (Test-Path $envFile)) { return '' }
+    $line = Get-Content -LiteralPath $envFile | Where-Object { $_ -match "^$key=" } | Select-Object -Last 1
+    if (-not $line) { return '' }
+    return ($line -replace "^$key=", '').Trim().Trim('"').Trim("'")
+}
+
+if ($Autonomous) {
+    Write-Host ""
+    Write-Host "Autonomous run preflight" -ForegroundColor Cyan
+    Write-Host ""
+    $base = Get-EnvValue 'AUTONOMOUS_MERGE_BASE'
+
+    # Switch and configuration
+    if ((Get-EnvValue 'KIT_AUTONOMOUS_RUN') -eq '1') { Ok 'KIT_AUTONOMOUS_RUN="1"' }
+    else { Fail 'KIT_AUTONOMOUS_RUN is not "1" in .claude/sdd-harness.env (the author sets it by hand)' }
+    if ($base) { Ok "AUTONOMOUS_MERGE_BASE=$base" } else { Fail 'AUTONOMOUS_MERGE_BASE is empty: the merge gate denies every merge' }
+    foreach ($key in @('KIT_SPEC_AUDIT_GATE','KIT_PROTECT_SPECS')) {
+        if ((Get-EnvValue $key) -eq '0') { Warn "$key=`"0`": unattended mode applies its rules anyway" }
+    }
+
+    # Tools: jq, and the Git Bash that invoke.cjs uses
+    if (Get-Command jq -ErrorAction SilentlyContinue) { Ok 'jq installed' }
+    else { Fail 'jq NOT installed: in an unattended run every guarded hook denies' }
+    $gitBash = @($env:CLAUDE_CODE_GIT_BASH_PATH, $env:GIT_BASH_PATH, 'C:\Program Files\Git\bin\bash.exe',
+        'C:\Program Files (x86)\Git\bin\bash.exe') | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -First 1
+    if ($gitBash) { Ok "Git Bash for invoke.cjs: $gitBash" }
+    else { Fail 'Git Bash not found: invoke.cjs would fall back to bash on PATH (maybe WSL)' }
+
+    # Ask rules (they force a prompt even in auto mode)
+    function Test-AskRules($file) {
+        if (-not (Test-Path -LiteralPath $file)) { return }
+        try { $json = Get-Content -LiteralPath $file -Raw | ConvertFrom-Json } catch { Fail "$file is not valid JSON"; return }
+        $rules = @()
+        if ($json.permissions -and $json.permissions.ask) { $rules = @($json.permissions.ask) }
+        if ($rules.Count -gt 0) { foreach ($r in $rules) { Fail "permissions.ask rule $r in ${file}: it waits for a human" } }
+        else { Ok "no permissions.ask in $file" }
+    }
+    if (-not $ConfigDir) { Fail 'no autonomous profile: pass -ConfigDir or set CLAUDE_CONFIG_DIR' }
+    elseif (-not (Test-Path -LiteralPath $ConfigDir)) { Fail "autonomous profile $ConfigDir (CLAUDE_CONFIG_DIR) does not exist" }
+    else { Ok "autonomous profile $ConfigDir"; Test-AskRules (Join-Path $ConfigDir 'settings.json') }
+    Test-AskRules $settings
+    Test-AskRules (Join-Path $Dest '.claude\settings.local.json')
+
+    # Secret allowlist: too wide when it matches the canonical token sample (D10)
+    $allow = Get-EnvValue 'KIT_SECRET_ALLOWLIST'
+    if ($allow) {
+        try { if (('ghp_' + ('a' * 36)) -match $allow) { Warn 'KIT_SECRET_ALLOWLIST matches a GitHub token sample: block-secrets ignores it' } } catch {}
+    }
+
+    # Merge authorisation in the profile's effective auto-mode configuration
+    if ($ConfigDir -and $base -and (Get-Command claude -ErrorAction SilentlyContinue)) {
+        $prev = $env:CLAUDE_CONFIG_DIR; $env:CLAUDE_CONFIG_DIR = $ConfigDir
+        $auto = (& claude auto-mode config 2>$null) -join "`n"
+        $env:CLAUDE_CONFIG_DIR = $prev
+        if ($auto -match 'gh pr merge' -and $auto.Contains($base)) { Ok "auto-mode merge authorisation names $base" }
+        else { Fail "no auto-mode merge authorisation for $base in the profile (see ai-specs/templates/autonomous/)" }
+    } else {
+        Fail 'cannot read the auto-mode merge authorisation (needs the profile, AUTONOMOUS_MERGE_BASE and the claude CLI)'
+    }
+
+    # Hooks
+    foreach ($h in @('block-secret-reads','block-secrets','autonomous-merge-gate','log-permission-denied')) {
+        if ((Test-Path $settings) -and (Select-String -Path $settings -Pattern $h -SimpleMatch -Quiet)) { Ok "settings registers $h" }
+        else { Fail "settings.json does not register $h" }
+    }
+    if ((Test-Path $settings) -and (Select-String -Path $settings -Pattern '"Read(.env)"' -SimpleMatch -Quiet)) { Ok 'settings denies reading .env' }
+    else { Fail 'settings.json has no Read(.env) deny rule' }
+    function Test-RegisteredHooks($file, $label) {
+        $found = Select-String -Path $file -Pattern '\.claude/hooks/[A-Za-z0-9_.-]+\.(sh|mjs|cjs)' -AllMatches |
+            ForEach-Object { $_.Matches.Value } | Sort-Object -Unique
+        foreach ($h in $found) { if (-not (Test-Path (Join-Path $Dest $h))) { Fail "$label runs $h, which does not exist" } }
+    }
+    if (Test-Path $settings) { Test-RegisteredHooks $settings 'settings.json' }
+    foreach ($m in @('vet-package.mjs','shell-words.mjs')) {
+        if (Test-Path (Join-Path $Dest ".claude\hooks\$m")) { Ok "hook helper $m" } else { Fail "missing .claude/hooks/$m" }
+    }
+    $cursorHooks = Join-Path $Dest '.cursor\hooks.json'
+    if (Test-Path $cursorHooks) { Ok '.cursor/hooks.json'; Test-RegisteredHooks $cursorHooks '.cursor/hooks.json' }
+    else { Fail 'missing .cursor/hooks.json: Cursor runs none of the kit hooks' }
+
+    # GitHub
+    $ghOk = $false
+    if (Get-Command gh -ErrorAction SilentlyContinue) { & gh auth status *> $null; $ghOk = ($LASTEXITCODE -eq 0) }
+    if (-not $ghOk) { Fail 'gh is not installed or not authenticated (gh auth status)' }
+    elseif ($base) {
+        Ok 'gh authenticated'
+        $run = $null
+        try { $run = (& gh run list --branch $base --limit 1 --json status,conclusion 2>$null | ConvertFrom-Json) | Select-Object -First 1 } catch {}
+        if ($run -and $run.status -eq 'completed' -and $run.conclusion -eq 'success') { Ok "latest CI run on $base succeeded" }
+        else { Fail "latest CI run on $base is not completed and successful ($(if ($run) { "$($run.status)/$($run.conclusion)" } else { 'none' }))" }
+        $prot = $null
+        try { $prot = & gh api "repos/{owner}/{repo}/branches/$base/protection" 2>$null | ConvertFrom-Json } catch {}
+        if ($LASTEXITCODE -eq 0 -and $prot) {
+            if ($prot.required_pull_request_reviews) { Ok "$base requires a pull request" } else { Fail "$base is protected but does not require a pull request" }
+            if (@($prot.required_status_checks.contexts).Count -gt 0) { Ok "$base requires CI checks" } else { Fail "$base does not require CI checks" }
+            if ($prot.enforce_admins.enabled -eq $true) { Ok "$base protection applies to administrators" }
+            else { Fail "$base protection does not apply to administrators (enforce_admins): the owner's token bypasses it" }
+        } else {
+            $rules = $null
+            try { $rules = @(& gh api "repos/{owner}/{repo}/rules/branches/$base" 2>$null | ConvertFrom-Json) } catch {}
+            if ($rules -and ($rules.type -contains 'pull_request') -and ($rules.type -contains 'required_status_checks')) {
+                Ok "$base protected by rulesets (check in GitHub that the bypass list is empty)"
+            } else { Fail "$base is not protected on GitHub (a pull request and CI checks must be required)" }
+        }
+    }
+
+    # Local services and Defender (warnings only)
+    $dockerOk = $false
+    if (Get-Command docker -ErrorAction SilentlyContinue) { & docker compose ps *> $null; $dockerOk = ($LASTEXITCODE -eq 0) }
+    if ($dockerOk) { Ok 'docker compose reachable' } else { Warn 'docker compose not reachable: tests that need the local database will fail' }
+    try {
+        $excl = @((Get-MpPreference -ErrorAction Stop).ExclusionPath)
+        if ($excl -match '^N/A') { Warn 'cannot read the Defender exclusions (needs an elevated shell)' }
+        elseif ($excl | Where-Object { $_ -like '*codemind-*' }) { Ok 'Defender excludes the test temp dirs' }
+        else { Warn "Defender has no exclusion for $env:TEMP\codemind-* (git tests may fail with Invalid argument)" }
+    } catch { Warn 'cannot read the Defender exclusions (needs an elevated shell)' }
 }
 
 Write-Host ""

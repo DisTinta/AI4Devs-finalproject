@@ -26,6 +26,18 @@ bash .claude/doctor.sh
 # pwsh -File .claude/doctor.ps1
 ```
 
+**Before an autonomous run** (`KIT_AUTONOMOUS_RUN="1"`), add the preflight flag and the autonomous
+profile. Flags may come in any order:
+
+```bash
+bash .claude/doctor.sh --autonomous --config-dir ~/.claude-autonomo
+# PowerShell: pwsh -File .claude/doctor.ps1 -Autonomous -ConfigDir $HOME\.claude-autonomo
+```
+
+It checks the switch, the merge base, `jq`, the ask rules of the profile and the project, the
+auto-mode merge authorisation, the hooks (Claude Code and Cursor), `gh`, the base branch's CI and its
+protection. Any `FAIL` means the run would stop or wait for a human: fix it before launching.
+
 If `.claude/doctor.sh` is missing, look for `doctor.sh` / `scripts/doctor.sh` at the repo root, or
 re-run install from the kit so the doctor is copied. **If no doctor script exists**, perform Step 2
 manually and state that the doctor binary/script is absent (itself a crack in a complete install).

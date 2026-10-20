@@ -261,19 +261,19 @@
 
 ## 10. Autonomous profile, Cursor template and preflight (design D12, D13) — "A preflight checks the autonomous setup…"
 
-- [ ] 10.1 Check with the Claude Code docs (claude-code-guide / WebFetch, dated in the design):
+- [x] 10.1 Check with the Claude Code docs (claude-code-guide / WebFetch, dated in the design):
   - that `CLAUDE_CONFIG_DIR` isolates `settings.json`, `autoMode`, the login and the MCP servers;
   - that Workflow subagents run under the same profile;
   - that `claude auto-mode config` prints the effective rules for that profile;
   - that leading-`*` Bash deny rules (`Bash(*--dangerously-skip-permissions*)`) match as D12 assumes.
 
   If something does not hold, apply the D12 fallback (guide and preflight check `~/.claude` instead) and record it in the design
-- [ ] 10.2 Create `ai-specs/templates/autonomous/claude-settings.json.tpl` and `cursor-cli.json.tpl` (D12), with `<owner>/<repo>`, `<base-branch>` and `<db-name>` placeholders. Add a test (not a named scenario) that the Claude Code template:
+- [x] 10.2 Create `ai-specs/templates/autonomous/claude-settings.json.tpl` and `cursor-cli.json.tpl` (D12), with `<owner>/<repo>`, `<base-branch>` and `<db-name>` placeholders. Add a test (not a named scenario) that the Claude Code template:
   - parses as JSON;
   - has no `permissions.ask`;
   - denies `--dangerously-skip-permissions`, `bypassPermissions` and `--permission-mode`;
   - keeps `"$defaults"` in every `autoMode` list it sets.
-- [ ] 10.3 RED: create `tests/harness/doctor-autonomous.spec.ts` (bash doctor, shims for `claude`, `gh`, `docker` and a `PATH` without `jq` for one case, a temporary profile dir), with:
+- [x] 10.3 RED: create `tests/harness/doctor-autonomous.spec.ts` (bash doctor, shims for `claude`, `gh`, `docker` and a `PATH` without `jq` for one case, a temporary profile dir), with:
   - "A switch left off fails the preflight";
   - "An ask rule in the profile or the project fails the preflight";
   - "A missing profile fails the preflight";
@@ -284,8 +284,8 @@
   - "A complete setup passes".
 
   Add tests that a missing `jq` (hidden as in 2.3) and a missing `vet-package.mjs` fail, that `KIT_SPEC_AUDIT_GATE="0"` gives a `WARN` line, and that `doctor.sh --autonomous --dest <dir>` and `doctor.sh <dir> --autonomous` both work. See them fail
-- [ ] 10.4 GREEN (bash): `doctor.sh` argument parser, `--config-dir`, the autonomous block (including `jq`, `vet-package.mjs`, `shell-words.mjs`, branch protection and the allowlist `WARN`) and the `HOOKS` list update (D13)
-- [ ] 10.5 `doctor.ps1 -Autonomous -ConfigDir` with the same checks, its hook list at lines 49–52 updated, plus the Git Bash and Defender lines. `ai-specs/skills/kit-health/SKILL.md` names the flag; sync the copies
+- [x] 10.4 GREEN (bash): `doctor.sh` argument parser, `--config-dir`, the autonomous block (including `jq`, `vet-package.mjs`, `shell-words.mjs`, branch protection and the allowlist `WARN`) and the `HOOKS` list update (D13)
+- [x] 10.5 `doctor.ps1 -Autonomous -ConfigDir` with the same checks, its hook list at lines 49–52 updated, plus the Git Bash and Defender lines. `ai-specs/skills/kit-health/SKILL.md` names the flag; sync the copies
 
 ## 11. Review and Update Existing Tests / Run Tests and Verify Data State (MANDATORY)
 

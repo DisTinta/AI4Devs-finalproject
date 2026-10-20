@@ -40,7 +40,8 @@ function gitBashWin() {
 }
 
 const bash = process.platform === 'win32' ? gitBashWin() || 'bash' : 'bash'
-const result = spawnSync(bash, [script], {
+// Extra arguments go to the script (the doctor's flags; hooks get none).
+const result = spawnSync(bash, argv, {
   stdio: 'inherit',
   cwd: process.cwd(),
   env: { ...process.env, KIT_HOOK_CLIENT: client },

@@ -120,6 +120,41 @@ setTimeout(() => {
   };
 }
 
+/** One canned answer: the first rule whose `prefix` starts the argument list wins. */
+export interface ShimRule {
+  prefix: string[];
+  stdout?: string;
+  exitCode?: number;
+}
+
+/** Writes shims for several commands (bash + .cmd), each answering from its rules. */
+export function createCommandShims(commands: Record<string, ShimRule[]>): { path: string; cleanup(): void } {
+  const binDir = mkdtempSync(join(tmpdir(), 'harness-bin-')).replace(/\\/g, '/');
+  for (const [name, rules] of Object.entries(commands)) {
+    const config = join(binDir, `${name}.rules.json`);
+    writeFileSync(config, JSON.stringify(rules));
+    const script = join(binDir, `${name}-shim.cjs`);
+    writeFileSync(
+      script,
+      `'use strict';
+const rules = JSON.parse(require('fs').readFileSync(${JSON.stringify(config)}, 'utf8'));
+const args = process.argv.slice(2);
+const rule = rules.find((r) => r.prefix.every((p, i) => args[i] === p)) || { exitCode: 1, stdout: '' };
+if (rule.stdout) process.stdout.write(rule.stdout + '\\n');
+process.exit(rule.exitCode || 0);
+`,
+    );
+    const sh = join(binDir, name);
+    writeFileSync(sh, `#!/usr/bin/env bash\nexec node "${script}" "$@"\n`);
+    chmodSync(sh, 0o755);
+    writeFileSync(join(binDir, `${name}.cmd`), `@node "${script}" %*\r\n`);
+  }
+  return {
+    path: `${binDir}${delimiter}${process.env.PATH ?? ''}`,
+    cleanup: () => rmSync(binDir, { recursive: true, force: true }),
+  };
+}
+
 /** A pull request as `gh pr view --json baseRefName,mergeable,changedFiles,files,statusCheckRollup` prints it. */
 export function prViewJson(overrides: Partial<{
   baseRefName: string;

@@ -696,7 +696,18 @@ in PowerShell and Bash. The author creates the profile before step 12 (her answe
 dry run runs under it.
 
 That `CLAUDE_CONFIG_DIR` isolates settings, `autoMode` and login, and that Workflow subagents inherit
-it, is verified in task 10.1. If it does not hold, the guide falls back to removing and restoring the
+it, is verified in task 10.1. **Checked on 2026-10-20** (code.claude.com/docs/en/env-vars,
+permissions):
+- `CLAUDE_CONFIG_DIR` (an absolute path) moves `settings.json`, the credentials, the MCP server
+  configuration (`.claude.json`), `projects/` (transcripts and auto memory) and the plugins. Project
+  settings cannot set it.
+- The docs do not say whether subagents inherit it. Subagents and Workflow agents run inside the same
+  Claude Code process, so they read the same configuration; the 12.4 dry run confirms it in
+  practice.
+- Bash rules accept a `*` anywhere, including leading (`Bash(* --help *)`), so
+  `Bash(*--dangerously-skip-permissions*)` is valid. Deny rules apply to every subcommand of a
+  compound command.
+- `claude auto-mode config` prints the effective rules (Configure auto mode). If it does not hold, the guide falls back to removing and restoring the
 ask rules by hand, and the preflight check for the profile becomes a check on `~/.claude`.
 
 Cursor's counterpart is `ai-specs/templates/autonomous/cursor-cli.json.tpl` (the `cursor-agent`
@@ -756,6 +767,14 @@ The `HOOKS` lists at `doctor.sh:51` and `doctor.ps1:49-52` gain `autonomous-merg
 
 The tests run the bash doctor with `PATH` shims for `claude`, `gh` and `docker`. The PowerShell
 doctor is run by the agent in PowerShell in step 12, since the suite has no PowerShell runner in CI.
+
+**Amended during the apply (2026-10-20, tasks 10.4–10.5):**
+- `invoke.cjs` now passes the arguments after the script to it, so the tests run the doctor through
+  the same Git Bash resolution as the hooks. Hooks are registered without extra arguments, so their
+  behaviour does not change.
+- The existing "command substitution" check of both doctors skipped nothing and failed on the
+  backticks of `sdd-harness.env`'s comments, which the safe loader ignores. It now looks only at
+  non-comment lines, so a complete setup can pass (scenario "A complete setup passes").
 
 ### D14 — Skills: an inline-mode section, frontmatter unchanged
 
