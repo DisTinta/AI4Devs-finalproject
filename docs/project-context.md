@@ -515,8 +515,10 @@ Verified against `package.json` (root and per package). If a command is not here
   3. Use the parent to frame and constrain; use the sub-issue to bound. If parent and sub disagree,
      stop and ask — do not silently widen the sub to match the parent, and do not drop a parent AC
      that the sub's DoD clearly inherits.
-- Branch naming for a change: `feature/DIS-n-slug` (merge into delivery branch
-  `feature/entrega-2-CRN`). Ultimate base branch: `main`.
+- Branch naming for a change: `feature/DIS-n-slug`. **Base branch: `final-project-CRN`**
+  (author's rule, 2026-10-20): every new branch is created from it and every PR targets it
+  (`gh pr create --base final-project-CRN`). It was cut from `feature/entrega-2-CRN` once Entrega 2
+  closed (PR #60); `feature/entrega-2-CRN` takes no new work. `main` is not touched.
 - **Linear status via MCP** (agents, per sub-issue `DIS-n`):
   1. Starting work → set status to **In Progress**.
   2. Verification succeeds → set **In Review** or **Done**, and leave a comment linking the
