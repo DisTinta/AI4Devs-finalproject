@@ -1,14 +1,14 @@
 ## 0. Setup: Create Feature Branch (MANDATORY - FIRST STEP)
 
-- [ ] 0.1 First action of the apply: confirm DIS-103 is In Progress in Linear (set it if not), with a short comment in Spanish naming the change `real-model-clean-clone` and the branch `feature/DIS-103-real-model-clean-clone`
-- [ ] 0.2 Feature branch `feature/DIS-103-real-model-clean-clone` (`BRANCH_PREFIX=feature/`), created from `feature/entrega-2-CRN` before `/opsx:propose`; confirm `git merge-base --is-ancestor origin/feature/entrega-2-CRN HEAD` and that `openspec/changes/real-model-clean-clone/` is on it. `git fetch`; if `origin/feature/entrega-2-CRN` moved, merge it before any code (never force-push a published branch)
-- [ ] 0.3 Verify the current branch and `git status`; nothing under `.claude/` is ever staged (explicit paths only)
-- [ ] 0.4 Baseline: `npx vitest run` once (integration database as `docs/TESTING.md` says) and record the totals; `node -v`, `npm -v`, `docker compose version`; `git hash-object seeds/graph-dump.sql seeds/cache/acme-shop.json fixtures/build-history.mjs` (must not change, design D3); whether the Ollama tray app is running (DR11); the duration of the last `mutation` run on `feature/entrega-2-CRN` (`gh run list`, DR9); in the author's local database `SELECT count(*) FROM project`, `FROM query_log`, `SELECT count(*), sum(hit_count) FROM cache_entry` (re-checked in 7.4)
+- [x] 0.1 First action of the apply: confirm DIS-103 is In Progress in Linear (set it if not), with a short comment in Spanish naming the change `real-model-clean-clone` and the branch `feature/DIS-103-real-model-clean-clone`
+- [x] 0.2 Feature branch `feature/DIS-103-real-model-clean-clone` (`BRANCH_PREFIX=feature/`), created from `feature/entrega-2-CRN` before `/opsx:propose`; confirm `git merge-base --is-ancestor origin/feature/entrega-2-CRN HEAD` and that `openspec/changes/real-model-clean-clone/` is on it. `git fetch`; if `origin/feature/entrega-2-CRN` moved, merge it before any code (never force-push a published branch)
+- [x] 0.3 Verify the current branch and `git status`; nothing under `.claude/` is ever staged (explicit paths only)
+- [x] 0.4 Baseline: `npx vitest run` once (integration database as `docs/TESTING.md` says) and record the totals; `node -v`, `npm -v`, `docker compose version`; `git hash-object seeds/graph-dump.sql seeds/cache/acme-shop.json fixtures/build-history.mjs` (must not change, design D3); whether the Ollama tray app is running (DR11); the duration of the last `mutation` run on `feature/entrega-2-CRN` (`gh run list`, DR9); in the author's local database `SELECT count(*) FROM project`, `FROM query_log`, `SELECT count(*), sum(hit_count) FROM cache_entry` (re-checked in 7.4)
 
 ## 1. Timeout range (TDD, design D5) — `llm-adapter` → "LLM configuration is classified and validated when read"
 
-- [ ] 1.1 RED: in `tests/unit/llm/llm-config.spec.ts`, change `300001` to `3600001` in "A malformed timeout or URL fails naming the variable" (requirement change, D5/D10; no other value touched) and add "A timeout above 300 s is accepted" (`300001`, `1200000`, `3600000`). See the new scenario fail
-- [ ] 1.2 GREEN: `MAX_TIMEOUT_MS = 3_600_000` in `packages/adapters/llm/src/config.ts`, its comment rewritten (range of `CACHE_BUILD_TIMEOUT_MS`, design D5); `npx vitest run tests/unit/llm` green
+- [x] 1.1 RED: in `tests/unit/llm/llm-config.spec.ts`, change `300001` to `3600001` in "A malformed timeout or URL fails naming the variable" (requirement change, D5/D10; no other value touched) and add "A timeout above 300 s is accepted" (`300001`, `1200000`, `3600000`). See the new scenario fail
+- [x] 1.2 GREEN: `MAX_TIMEOUT_MS = 3_600_000` in `packages/adapters/llm/src/config.ts`, its comment rewritten (range of `CACHE_BUILD_TIMEOUT_MS`, design D5); `npx vitest run tests/unit/llm` green
 
 ## 2. Default transport over `node:http` (TDD, design D4) — `llm-adapter` → "The client waits as long as the configured timeout"
 
