@@ -25,7 +25,8 @@ Los únicos cambios hechos a la salida pegada:
 
 - **(a)** `npm run up` se queda en primer plano (`npm run dev`); su salida se corta tras las líneas de
   arranque, marcadas con `[… sigue en marcha; se para con Ctrl+C]`.
-- **(b)** una ruta absoluta del clon se sustituiría por `<repo>`.
+- **(b)** la ruta absoluta del clon se sustituye por `<repo>`; el separador que la sigue es el del
+  sistema (`` en Windows, en las dos terminales; `/` en Linux y macOS).
 - **(c)** se quitan los códigos de color de la terminal.
 - **(d)** el nombre de la máquina en la línea de arranque de la API se sustituye por `<host>`.
 
@@ -154,6 +155,8 @@ npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install
 
 1 project loaded
   acme-shop  php/laravel  174 nodes · 170 edges
+[up] node fixtures/build-history.mjs acme-shop
+[pendiente de la prueba en vivo]
 [up] npm run dev
 
 > codemind@0.0.1 dev
@@ -179,7 +182,9 @@ npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install
 ```
 
 `npm run up` escribe una línea `[up] <comando>` antes de cada paso: arranca PostgreSQL y espera a que
-acepte conexiones, instala las dependencias, migra la base de datos, carga la semilla y arranca la API
+acepte conexiones, instala las dependencias, migra la base de datos, carga la semilla, construye el
+historial de Git de `acme-shop` (`fixtures/acme-shop/.git`, unos 11 s; solo lo leen las respuestas en
+vivo, ver [Probar con un modelo real](#probar-con-un-modelo-real)) y arranca la API
 (`http://127.0.0.1:3000`) y la web (`http://localhost:5173/`). Se queda en primer plano: el resto de la
 demo va en una **segunda terminal**, abierta en la misma carpeta.
 
@@ -569,6 +574,143 @@ evidencia llega en la Entrega 3), las preguntas sugeridas son las golden y no la
 indexado de un repositorio propio es una indicación del comando de la CLI en lugar de un botón. Los
 valores del panel de uso son los de una respuesta servida desde la caché (0 tokens, «$0»), no los del
 wireframe, que ilustra una generación en vivo.
+
+## Probar con un modelo real
+
+Hasta aquí todo funciona en modo evaluación, sin ningún modelo: las preguntas golden salen de la caché
+y cualquier otra responde `UNKNOWN (llm-required)`. Para hacer preguntas libres hace falta un endpoint
+compatible con OpenAI, configurado en `.env`. Hay tres caminos: Ollama en la propia máquina (el único
+probado de principio a fin), una API alojada compatible con OpenAI y Claude por el endpoint compatible
+con OpenAI de Anthropic (estos dos, **no verificados**).
+
+### El historial de `acme-shop`
+
+Una respuesta en vivo lee el código de `fixtures/acme-shop` desde su propio historial de Git
+(`fixtures/acme-shop/.git`), que no viaja con el clon (está en `.gitignore`). `npm run up` lo construye
+en cada arranque: es la línea `[up] node fixtures/build-history.mjs acme-shop` del paso 0. Si arrancas
+el sistema sin `npm run up`, constrúyelo una vez desde la raíz del clon:
+
+```shell
+node fixtures/build-history.mjs acme-shop
+```
+
+Sin él, una pregunta en vivo termina con `SOURCE_UNAVAILABLE` (`not-a-repository`). Siempre genera el
+mismo historial (su `HEAD` es el commit que indexó la semilla) y no cambia nada del modo evaluación.
+
+### Ollama, con GPU o en CPU
+
+Ollama (`https://ollama.com`) usa la GPU si la encuentra y, si no, la CPU. En una **tercera terminal**,
+arranca el servidor con un contexto de 16 384 tokens: el prompt de `explain` ocupa entre 5 000 y 7 000
+tokens, y con el contexto por defecto Ollama lo recorta y toda respuesta sale
+`UNKNOWN (invalid-model-output)`. Es el único comando de la guía que cambia según la terminal. En
+PowerShell:
+
+```powershell
+$env:OLLAMA_CONTEXT_LENGTH='16384'; ollama serve
+```
+
+En Bash:
+
+```bash
+OLLAMA_CONTEXT_LENGTH=16384 ollama serve
+```
+
+Si Ollama ya está en marcha como aplicación de escritorio (Windows y macOS) o como servicio del sistema
+(el servicio de systemd que crea el instalador en Linux), ya ocupa el puerto 11434 y este
+`ollama serve` no arranca: cierra la aplicación (o para el servicio) antes, o da
+`OLLAMA_CONTEXT_LENGTH=16384` a esa aplicación o servicio como explica la documentación de Ollama
+(`https://docs.ollama.com/faq#how-do-i-configure-ollama-server`). Las dos variantes se comprobaron
+solo en Windows, cada una en su terminal (PowerShell 7 y Git Bash).
+
+Con el servidor en marcha, descarga el modelo desde otra terminal:
+
+```shell
+ollama pull qwen2.5-coder
+```
+
+Abre `.env` con un editor de texto y deja así estas líneas (`LLM_API_KEY` vacía: Ollama no pide clave):
+
+```text
+LLM_BASE_URL=http://localhost:11434/v1
+LLM_API_KEY=
+LLM_MODEL=qwen2.5-coder
+LLM_TIMEOUT_MS=1200000
+```
+
+`LLM_TIMEOUT_MS=1200000` (20 minutos) es para la **CPU**, donde una pregunta tarda entre 3,5 y 9
+minutos (la tabla de tiempos de `readme.md` → «Probar con un modelo real»); admite hasta `3600000` (una
+hora). Con GPU puedes dejar `LLM_TIMEOUT_MS` vacía (120 000 ms por defecto). Usa `qwen2.5-coder`:
+`llama3.2` no produce el JSON estricto que exige la respuesta y responde `invalid-model-output`.
+
+**Después de editar `.env`, reinicia el sistema**: en la terminal 1, pulsa Ctrl+C y vuelve a lanzar
+`npm run up`. La API lee `.env` solo al arrancar, así que hasta entonces sigue en modo evaluación;
+`npm run cli`, en cambio, lee `.env` en cada ejecución.
+
+Una pregunta que no está en la caché, por la CLI (terminal 2):
+
+```shell
+npm run cli -- ask acme-shop "¿Qué hace DiscountService?"
+```
+
+```text
+[pendiente de la prueba en vivo]
+```
+
+Y la misma pregunta por la API:
+
+```shell
+npm run demo:ask -- a794456d-6d1b-5b55-a360-13fec83dc7bc "¿Qué hace DiscountService?"
+```
+
+```text
+[pendiente de la prueba en vivo]
+```
+
+[pendiente de la prueba en vivo: la web]
+
+### Una API alojada compatible con OpenAI (no verificado)
+
+**No verificado**: no se ha probado con una clave real. Cualquier proveedor con un endpoint
+`chat/completions` compatible con OpenAI sirve en principio. En `.env`, con un editor de texto:
+
+- `LLM_BASE_URL`: la URL base que documente el proveedor, sin `?` ni `#` (el cliente le añade
+  `/chat/completions`); por ejemplo, `https://api.openai.com/v1` para OpenAI.
+- `LLM_API_KEY`: tu clave del proveedor. No la pegues en ningún otro sitio: el sistema nunca la muestra
+  en sus mensajes.
+- `LLM_MODEL`: el identificador de modelo que dé el proveedor.
+- `DAILY_BUDGET_USD`: **vacía**. La tabla de precios del sistema solo tiene los modelos locales de
+  Ollama (a 0 USD); con un techo diario, un modelo sin precio deja la configuración inválida. El gasto
+  se controla en la consola del proveedor.
+
+Una API alojada responde en segundos, así que `LLM_TIMEOUT_MS` puede quedarse vacía. Después, reinicia
+`npm run up` y pregunta como en el apartado de Ollama.
+
+### Claude, por el endpoint compatible con OpenAI de Anthropic (no verificado)
+
+**No verificado: no se ha probado con una clave real.** Anthropic ofrece una capa compatible con OpenAI
+(`https://platform.claude.com/docs/en/api/openai-sdk`; los identificadores de modelo, en
+`https://platform.claude.com/docs/en/about-claude/models/overview`; las dos páginas consultadas el
+2026-10-20). En `.env`, con un editor de texto:
+
+- `LLM_BASE_URL=https://api.anthropic.com/v1`
+- `LLM_API_KEY`: tu clave de la consola de Claude.
+- `LLM_MODEL`: un identificador de la lista de modelos de Anthropic (por ejemplo, `claude-sonnet-5-5`
+  o `claude-haiku-5-5`).
+- `DAILY_BUDGET_USD`: **vacía**, por el mismo motivo que con una API alojada.
+
+Lo que dice la documentación de Anthropic y conviene saber antes:
+
+- Anthropic presenta esta capa para probar y comparar modelos, no como una solución para producción.
+- El cliente envía la clave como `Authorization: Bearer …`, que la capa admite. Con una clave que da
+  acceso a varios *workspaces*, Anthropic pide además la cabecera `anthropic-workspace-id` en cada
+  petición, que el cliente no envía: usa una clave de un solo *workspace*.
+- El cliente envía solo el modelo y los mensajes: ni `response_format` (la capa lo ignora) ni
+  `temperature` ni `top_p` (que dan error en los modelos recientes). Los mensajes `system` se elevan al
+  campo `system` de Anthropic, y la respuesta trae `usage.prompt_tokens` y `usage.completion_tokens`.
+- El cliente no envía `max_tokens`; no se ha comprobado cómo lo trata la capa cuando falta.
+- La capa no tiene embeddings; `ask` no los necesita.
+
+Después, reinicia `npm run up` y pregunta como en el apartado de Ollama.
 
 ## Parar el sistema
 

@@ -16,7 +16,7 @@
 - [x] 2.2 GREEN: move `longFetch` byte for byte to `packages/adapters/llm/src/long-fetch.ts` (TSDoc updated: used by the client by default and by `cache:build`), export it from `packages/adapters/llm/src/index.ts`, make `packages/cli/src/cache/long-fetch.ts` a re-export from `@codemind/adapter-llm`; `createOpenAiCompatibleLlm` uses `options.fetch ?? longFetch` (option TSDoc updated). LF on the new file (`grep -c $'\r'`)
 - [x] 2.3 RED → GREEN: "Without an injected fetch timeouts, refusals and redirects keep their mapping" (never-answering server with `LLM_TIMEOUT_MS=50`; a port taken and released for `ECONNREFUSED`; a 302 server counting requests). Add a test (not a named scenario) that a connection cut mid-body over the default transport is `network` (design D4)
 - [x] 2.3b `stryker.config.json`: add `packages/adapters/llm/src/long-fetch.ts` to `mutate`, and `disableTypeChecks` becomes `"{packages/core/src/**/*.ts,packages/cli/src/**/*.ts,packages/api/src/**/*.ts,packages/adapters/llm/src/long-fetch.ts}"` (design D12); `.github/workflows/ci.yml` → the `business` filter of the mutation job gains `'packages/adapters/llm/src/long-fetch.ts'` and its comments that name the mutated sources are updated; the header comment of `vitest.stryker.config.ts` updated (DR7); `npx stryker run --mutate packages/adapters/llm/src/long-fetch.ts` scores >= 80 (kill or justify survivors with tests in `tests/unit/llm/default-transport.spec.ts`, never editing `tests/unit/cli/long-fetch.spec.ts`)
-- [ ] 2.4 Run `npx vitest run tests/unit/llm tests/unit/cli/long-fetch.spec.ts tests/unit/cli/cache-build.spec.ts` (the last two untouched and green), `npm run typecheck`, `npm run lint:architecture`
+- [x] 2.4 Run `npx vitest run tests/unit/llm tests/unit/cli/long-fetch.spec.ts tests/unit/cli/cache-build.spec.ts` (the last two untouched and green), `npm run typecheck`, `npm run lint:architecture`
 
 ## 3. The history step of `up` (TDD, design D1, D3) — `local-startup` → "One command starts the system"
 
@@ -28,9 +28,9 @@
 
 ## 4. `docs/DEMO.md` → `Probar con un modelo real` (design D6) — `local-startup` → "The demo guide runs the same in PowerShell and Bash"
 
-- [ ] 4.1 RED: in `tests/unit/docs/guides.spec.ts`, add `Probar con un modelo real` to "The demo guide is ordered for a first-time reader" (D10) and add "The real-model section says how to try each model". See both fail
-- [ ] 4.2 Re-read the two official Anthropic pages of design D6 (WebFetch; date them) and confirm base URL, supported fields and model ids; anything not stated there stays out of the guide
-- [ ] 4.3 Write the section in Spanish (history step for whoever does not use `up`; Ollama GPU/CPU with the one labelled pair; `.env` lines in the text; `LLM_TIMEOUT_MS=1200000` on CPU and the 3600000 limit; hosted API «no verificado»; Claude «no verificado» with links and limits; restart `npm run up` after editing `.env`; CLI and `demo:ask` questions). Output blocks marked `[pendiente de la prueba en vivo]` until 6.3. `guides.spec.ts` green
+- [x] 4.1 RED: in `tests/unit/docs/guides.spec.ts`, add `Probar con un modelo real` to "The demo guide is ordered for a first-time reader" (D10) and add "The real-model section says how to try each model". See both fail
+- [x] 4.2 Re-read the two official Anthropic pages of design D6 (WebFetch; date them) and confirm base URL, supported fields and model ids; anything not stated there stays out of the guide
+- [x] 4.3 Write the section in Spanish (history step for whoever does not use `up`; Ollama GPU/CPU with the one labelled pair; `.env` lines in the text; `LLM_TIMEOUT_MS=1200000` on CPU and the 3600000 limit; hosted API «no verificado»; Claude «no verificado» with links and limits; restart `npm run up` after editing `.env`; CLI and `demo:ask` questions). Output blocks marked `[pendiente de la prueba en vivo]` until 6.3. `guides.spec.ts` green
 - [ ] 4.4 `Paso 0`: the new `[up] node fixtures/build-history.mjs acme-shop` line and its output in the pasted `up` output (placeholder until 6.2, with `<repo>` for the clone's folder, design D3), the paragraph after the output (what each `[up]` line does) describes the new step and its ~11 s, and `Cómo se capturó` updated
 
 ## 5. Other docs (design D2, D7, D9)
