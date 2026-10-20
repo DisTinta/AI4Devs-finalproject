@@ -237,7 +237,11 @@ another clone.
 
 **Evaluation.** The hook evaluates every condition and collects every failure:
 - **Files:** `files` gives `path`. When `files` has fewer entries than `changedFiles` the list is
-  incomplete → `deny`; the CLI's file page limit is checked with Context7 in task 6.2.
+  incomplete → `deny`. Checked with Context7 on 2026-10-20 (`cli/cli`, `api/query_builder.go`):
+  `changedFiles` and `files` are both `PullRequestFields`, and `files` is a separate, paged fragment
+  (`prFiles`), so a long pull request can return fewer files than `changedFiles`. `gh pr view` also
+  requires a selector when `--repo` is given; with `-R` and no selector the query fails, and the gate
+  denies.
 - **Mergeable:** GitHub reports `MERGEABLE`, `CONFLICTING` or `UNKNOWN`; only `MERGEABLE` passes.
 - **Checks:** every `statusCheckRollup` entry must be either a check run with `status == COMPLETED`
   and a conclusion in `SUCCESS`, `NEUTRAL` or `SKIPPED`, or a commit status with `state == SUCCESS`.

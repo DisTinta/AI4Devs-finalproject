@@ -81,6 +81,15 @@
               "${CLAUDE_PROJECT_DIR}/.claude/hooks/block-dangerous-bash.sh"
             ],
             "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/invoke.cjs",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/autonomous-merge-gate.sh"
+            ],
+            "timeout": 60
           }
         ]
       },

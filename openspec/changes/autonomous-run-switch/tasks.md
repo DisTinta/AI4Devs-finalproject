@@ -176,7 +176,7 @@
 
 ## 6. Merge gate (TDD, design D4) — "The agent merges only in an autonomous run and under deterministic conditions"
 
-- [ ] 6.1 RED: create `tests/harness/merge-gate.spec.ts` with the `gh` shim and a fixture JSON per case:
+- [x] 6.1 RED: create `tests/harness/merge-gate.spec.ts` with the `gh` shim and a fixture JSON per case:
   - "A pull request that meets every condition is merged";
   - "Each unmet condition denies the merge" (one case per condition, plus one with two failures where both are named);
   - "The command form is restricted";
@@ -189,7 +189,7 @@
   - "Outside unattended mode the gate stays silent".
 
   Add tests that `gh pr merge --merge` with no number queries the current branch, that a branch-name selector is passed through, and that `-R o/r` before or after `merge` reaches `gh pr view`. See them fail
-- [ ] 6.2 GREEN:
+- [x] 6.2 GREEN:
   - Check with Context7 the `gh pr view --json files` page limit and the `changedFiles` field, dated in the design.
   - `.claude/hooks/autonomous-merge-gate.sh` (D4: value flags and positional rule, interpreter detection, the `.protected` check with `GH_REPO` for `-R`, both queries in parallel under `timeout 15`, fail-closed `EXIT` trap in unattended mode), registered in `.claude/settings.json` after `block-dangerous-bash` in the Bash matcher, through `invoke.cjs`, with a **60 s** hook timeout.
   - Add a test (not a named scenario) that a crash inside the gate denies in unattended mode, triggered by a `jq` shim that delegates to the real `jq` and fails only when its filter contains `statusCheckRollup`. Add a `lib.sh` test that `deny()` exits 2 when `jq` fails.
