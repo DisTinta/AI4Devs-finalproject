@@ -32,8 +32,9 @@ decisions of this change make them concrete.
   `HEAD` is the seed's `indexed_commit`. Evaluation mode, `npm run verify` and the seed fingerprint do
   not change.
 - **Ctrl+C during that step never leaves the fixture modified** (design D3, replacing Enhanced D3):
-  `up` starts the step with a small preload of `scripts/` that keeps the process alive on Ctrl+C until
-  the builder has restored the fixture's tracked files, then exits `130`.
+  `up` starts the step with a preload with no imports, `scripts/defer-ctrl-c.mjs`, that keeps the
+  process alive on Ctrl+C until the builder has restored the fixture's tracked files; `up` then
+  reports `[up] stopped (Ctrl+C)` and exits `130` as for any step.
   `fixtures/build-history.mjs` itself is **not** edited: it is a seed fingerprint input, and any byte
   change would stale the seed and the reviewed golden file (design D3).
 - **No 300 s cap on the language model** (author decision, Enhanced D4–D5): the OpenAI-compatible
@@ -54,8 +55,10 @@ decisions of this change make them concrete.
 - **Docs that state the cap or the history step**: `docs/project-context.md`, `fixtures/README.md`
   and, if it names the cap, `.env.example` (design D9).
 - **Live proof past 300 s** (Enhanced acceptance criterion 3): a clean clone in the scratchpad with
-  Ollama on CPU answers a free question through the CLI, the API and, time allowing, the web, with
-  the measured duration in the change's report.
+  Ollama on CPU answers a free question through the CLI, the API and the web (the web check runs when
+  the CLI answer took 15 min or less; otherwise the report and the guide say it was not run), with the
+  measured duration in the change's report, plus a deterministic check with a local server that
+  answers after 310 s.
 
 ## Capabilities
 
@@ -82,7 +85,8 @@ None.
 - Changed (product): `packages/adapters/llm/src/openai-compatible-llm.ts` (default transport),
   `config.ts` (`MAX_TIMEOUT_MS`), `index.ts` (export); `packages/cli/src/cache/long-fetch.ts` becomes
   a re-export (`cache-build.ts` unchanged).
-- Changed (tooling and docs): `scripts/up.mjs`, `docs/DEMO.md`, `readme.md`, `fixtures/README.md`,
+- Changed (tooling and docs): `scripts/up.mjs`, `stryker.config.json` (`long-fetch.ts` stays in the
+  mutation scope, design D12), `docs/DEMO.md`, `readme.md`, `fixtures/README.md`,
   `docs/project-context.md`, possibly `.env.example`, `prompts.md`.
 - Tests that follow a modified requirement: `tests/unit/llm/llm-config.spec.ts` (`300001` →
   `3600001` in "A malformed timeout or URL fails naming the variable"),

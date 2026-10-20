@@ -15,12 +15,13 @@
 - [ ] 2.1 RED: create `tests/unit/llm/default-transport.spec.ts` with "Without an injected fetch the request does not use the global fetch" (`node:http` server on port 0; `vi.stubGlobal('fetch', spy)` restored after each test; the model built with `createLlm` without `fetch`). See it fail (the spy is called)
 - [ ] 2.2 GREEN: move `longFetch` byte for byte to `packages/adapters/llm/src/long-fetch.ts` (TSDoc updated: used by the client by default and by `cache:build`), export it from `packages/adapters/llm/src/index.ts`, make `packages/cli/src/cache/long-fetch.ts` a re-export from `@codemind/adapter-llm`; `createOpenAiCompatibleLlm` uses `options.fetch ?? longFetch` (option TSDoc updated). LF on the new file (`grep -c $'\r'`)
 - [ ] 2.3 RED → GREEN: "Without an injected fetch timeouts, refusals and redirects keep their mapping" (never-answering server with `LLM_TIMEOUT_MS=50`; a port taken and released for `ECONNREFUSED`; a 302 server counting requests). Add a test (not a named scenario) that a connection cut mid-body over the default transport is `network` (design D4)
+- [ ] 2.3b `stryker.config.json`: add `packages/adapters/llm/src/long-fetch.ts` to `mutate` and the file to `disableTypeChecks` (design D12); `npx stryker run --mutate packages/adapters/llm/src/long-fetch.ts` scores >= 80 (kill or justify survivors with tests in `tests/unit/llm/default-transport.spec.ts`, never editing `tests/unit/cli/long-fetch.spec.ts`)
 - [ ] 2.4 Run `npx vitest run tests/unit/llm tests/unit/cli/long-fetch.spec.ts tests/unit/cli/cache-build.spec.ts` (the last two untouched and green), `npm run typecheck`, `npm run lint:architecture`
 
 ## 3. The history step of `up` (TDD, design D1, D3) — `local-startup` → "One command starts the system"
 
-- [ ] 3.1 RED: create `tests/unit/scripts/defer-ctrl-c.spec.ts` with "The history step finishes its work before ending on Ctrl+C": spawn `process.execPath` with `--import ./scripts/defer-ctrl-c.mjs` and a temporary script that delivers SIGINT to itself (`process.kill(process.pid, 'SIGINT')` on POSIX, `process.emit('SIGINT', 'SIGINT')` on win32, design D3), keeps working (a short synchronous loop), then writes a marker file; a second case calls `process.exit(1)` after SIGINT; a third without SIGINT exits `0`. See it fail (module missing)
-- [ ] 3.2 GREEN: `scripts/defer-ctrl-c.mjs` (no imports; JSDoc citing design D3); LF
+- [ ] 3.1 RED: create `tests/unit/scripts/defer-ctrl-c.spec.ts` with "The history step finishes its work before ending on Ctrl+C": spawn `process.execPath` with `--import ./scripts/defer-ctrl-c.mjs` and a temporary script that delivers SIGINT to itself (`process.kill(process.pid, 'SIGINT')` on POSIX, `process.emit('SIGINT', 'SIGINT')` on win32, design D3), keeps working (a short synchronous loop), then writes a marker file: marker present, `signal === null`, exit `0`; a second case calls `process.exit(1)` after SIGINT and the marker: marker present, exit `1`, no signal; a third without SIGINT exits `0`. See it fail (module missing; on POSIX the process is ended by SIGINT)
+- [ ] 3.2 GREEN: `scripts/defer-ctrl-c.mjs` (no imports, a no-op `SIGINT` listener only, no `exit` listener; JSDoc citing design D3); LF
 - [ ] 3.3 RED: in `tests/unit/scripts/up.spec.ts`, update "Up runs the start sequence in order" and "Ctrl+C stops up without a failure line" to the six-step requirement (D10). See them fail
 - [ ] 3.4 GREEN: `scripts/up.mjs` → `startSequence()` adds the step of design D1 (label `node fixtures/build-history.mjs acme-shop`, `process.execPath`, `['--import', './scripts/defer-ctrl-c.mjs', 'fixtures/build-history.mjs', 'acme-shop']`); header comment lists six steps; `npx vitest run tests/unit/scripts` green (including "The startup scripts need no installed dependency")
 - [ ] 3.5 Confirm `fixtures/build-history.mjs`, `fixtures/acme-shop/`, `fixtures/history/` and `seeds/` are unchanged (`git diff --exit-code` on them) and `npm run verify` exits `0` on the seeded database
@@ -42,28 +43,33 @@
 
 ## 6. Live verification on a clean clone (MANDATORY - AGENT MUST EXECUTE; design D8)
 
-- [ ] 6.1 Push the branch (`gh auth switch -u DisTinta`; `git -c credential.helper='!gh auth git-credential' push -u origin feature/DIS-103-real-model-clean-clone`); clone it into the scratchpad (folder `dis103-live`, checked with `docker compose config --format json` to be a project other than `codemind`); `cp .env.example .env` plus scripted edits for a free `POSTGRES_PORT` and the matching `DATABASE_URL` (never read or printed)
-- [ ] 6.2 Recorded check "Up builds the fixture history the seed indexed": `npm run up` in the background; the six `[up]` lines; `git -C fixtures/acme-shop rev-parse HEAD`; `git status --porcelain` empty; `npm run verify` exit `0`; stop (process tree), run `up` again and repeat the checks; keep the real `Paso 0` output for 4.4
-- [ ] 6.3 Recorded check "The Ollama path was followed on a clean clone": stop the Ollama tray app; start `ollama serve` on CPU only (project memory recipe, `OLLAMA_CONTEXT_LENGTH=16384`), `ollama pull qwen2.5-coder`; scripted `.env` edits of the guide with `LLM_TIMEOUT_MS=1200000`; restart `up`; `npm run cli -- ask acme-shop "¿Qué hace DiscountService?"` and the same through `npm run demo:ask`, timed; then, time allowing, the same question on Screen 2 in Chromium (browser-automation skill, screenshot `reports/YYYY-MM-DD-6-web-live-answer.png`); paste the real output into the section
+- [ ] 6.1 Push the branch (`gh auth switch -u DisTinta`, which stays active for this run, design D14; `git -c credential.helper='!gh auth git-credential' push -u origin feature/DIS-103-real-model-clean-clone`); clone it into the scratchpad (folder `dis103-live`, checked with `docker compose config --format json` to be a project other than `codemind`); `cp .env.example .env` plus scripted edits for a free `POSTGRES_PORT` and the matching `DATABASE_URL` (never read or printed)
+- [ ] 6.2 Recorded check "Up builds the fixture history the seed indexed": `npm run up` in the background; the six `[up]` lines; `git -C fixtures/acme-shop rev-parse HEAD`; `git status --porcelain` empty; `npm run verify` exit `0`; `git hash-object` of the three fingerprint inputs equal to the branch's; stop (process tree), run `up` again and repeat the checks; keep the real `Paso 0` output for 4.4
+- [ ] 6.3a Ollama for the recorded check "The Ollama path was followed on a clean clone": stop the Ollama tray app; start `ollama serve` on CPU only (project memory recipe, `OLLAMA_CONTEXT_LENGTH=16384`), `ollama pull qwen2.5-coder`; scripted `.env` edits of the guide with `LLM_TIMEOUT_MS=1200000`; stop and restart `up`
+- [ ] 6.3b `npm run cli -- ask acme-shop "¿Qué hace DiscountService?"` and the same question through `npm run demo:ask`, each timed (start/end timestamps); no `SOURCE_UNAVAILABLE`, no `LLM_UNAVAILABLE`
+- [ ] 6.3c Web: when the 6.3b CLI answer took 15 min or less, the same question on Screen 2 in Chromium (browser-automation skill, screenshot `reports/YYYY-MM-DD-6-web-live-answer.png`), timed; otherwise record that it did not run and make no web claim in the guide (design D6, D8)
+- [ ] 6.3d Paste the real output of 6.3b into `Probar con un modelo real` replacing the 4.3 placeholders; `guides.spec.ts` green
 - [ ] 6.4 Recorded check "A response after 300 s is accepted": the throwaway scratchpad script of design D8 (310 s server, `LLM_TIMEOUT_MS=600000`, `createLlm` without `fetch`); its source and output in the report
-- [ ] 6.5 Restore: stop `ollama` and any orphan `llama-server`, the dev servers, `docker compose -p dis103-live down -v` (that clone only), move the clone out of the scratchpad's working area without `rm -rf`; the author's clone and `codemind-postgres-1` untouched
+- [ ] 6.5 Stop `ollama` and any orphan `llama-server` (the clone stays up for step 8)
 - [ ] 6.6 Report `openspec/changes/real-model-clean-clone/reports/YYYY-MM-DD-6-live-verification.md` (commands, outputs, durations, machine, OS user masked)
 
 ## 7. Review and Update Existing Tests / Run Tests and Verify Data State (MANDATORY)
 
-- [ ] 7.1 Review the affected tests (`grep -rn "300001\|startSequence\|five\|Paso 0\|long-fetch" tests`); only the D10 tests change; every `#### Scenario:` of both deltas maps to a test of the same name except the recorded checks (6.2, 6.3, 6.4)
+- [ ] 7.1 Review the affected tests (`grep -rn "300001\|startSequence\|five\|Paso 0\|long-fetch" tests`); only the D10 tests change; every `#### Scenario:` of both deltas maps to a test of the same name except the recorded checks (6.2, 6.3, 6.4, 8.1, 8.2); "The web walkthrough names what each screen shows": automated half green, review half not re-run because `Recorrido por la web` is unchanged (stated in the report)
 - [ ] 7.2 Targeted: `npx vitest run tests/unit/llm tests/unit/scripts tests/unit/docs tests/unit/cli/long-fetch.spec.ts tests/unit/cli/cache-build.spec.ts`
-- [ ] 7.3 Broader: `npx vitest run`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`, `npm run test:mutation` (score ≥ 80 on the touched adapter files), `npm run verify`
+- [ ] 7.3 Broader: `npx vitest run`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`, `npm run test:mutation` (score >= 80, `long-fetch.ts` included per design D12), `npm run verify`
 - [ ] 7.4 `/privacy-ethics-check` over the diff (no key in the guide, `.env` never printed); post-test state: the 0.4 counts and hashes unchanged; no temporary files left. Report `reports/YYYY-MM-DD-7-test-and-state-verification.md` (template of `docs/openspec-tasks-mandatory-steps.md` §6; "no dependency installed: no npm package check needed")
 
 ## 8. Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 8.1 In the 6.1 clone, in PowerShell and in Bash: `npm run up` prints the six lines; with `LLM_TIMEOUT_MS=3600001` set in the shell for one command, `npm run cli -- ask acme-shop "x"` fails with `LLM_CONFIG_INVALID` naming `LLM_TIMEOUT_MS` without the value, and the API's `dev` prints `INVALID_CONFIG` the same way; `node fixtures/build-history.mjs acme-shop` run by hand rebuilds the same `HEAD`
-- [ ] 8.2 Document every command and output in `reports/YYYY-MM-DD-8-manual-interface-testing.md`, with the restoration of 6.5
+- [ ] 8.1 In the 6.1 clone, in PowerShell and in Bash: `npm run up` prints the six lines; with `LLM_TIMEOUT_MS=3600001` set in the shell for one command, `npm run cli -- ask acme-shop "x"` fails with `LLM_CONFIG_INVALID` naming `LLM_TIMEOUT_MS` without the value, and the API's `dev` prints `INVALID_CONFIG` the same way; `node fixtures/build-history.mjs acme-shop` run by hand rebuilds the same `HEAD`; recorded check "Up with Docker unavailable fails naming its first step" with `DOCKER_HOST=tcp://127.0.0.1:1` for that one command in each shell (the `[up]` failure line, no `npm install`, exit other than `0`)
+- [ ] 8.2 Recorded check "The guide was followed on a clean clone in both shells" (design D13): two fresh clones (`dis103-bash`, `dis103-pwsh`, evaluation-mode `.env`, own `POSTGRES_PORT`), one after the other; every command of `docs/DEMO.md` outside `Probar con un modelo real` run literally with the Bash tool and with the PowerShell tool and compared with the pasted output (fields that change per run or with the clone's folder ignored); fix the guide where it differs; record it for the PR body
+- [ ] 8.3 Restore: stop the dev servers, `docker compose -p <clone> down -v` for `dis103-live`, `dis103-bash` and `dis103-pwsh` only, move the clones out of the scratchpad's working area without `rm -rf`; the author's clone and `codemind-postgres-1` untouched; re-check the 0.4 indicators
+- [ ] 8.4 Document every command and output of 8.1-8.3 in `reports/YYYY-MM-DD-8-manual-interface-testing.md`
 
 ## 9. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
-- [ ] 9.1 Covered by 6.3 (CLI, API and, time allowing, Screen 2 in Chromium with a live answer); if the web check did not run, the report and the guide say so and no web claim is made (design D6)
+- [ ] 9.1 Covered by 6.3b-6.3c (CLI, API and Screen 2 in Chromium under the 15-minute rule) and 8.2 (the whole guide in both shells); if the web check did not run, the report and the guide say so and no web claim is made (design D6)
 
 ## 10. Update Technical Documentation (MANDATORY)
 
@@ -72,7 +78,7 @@
 
 ## 11. Pull request preparation
 
-- [ ] 11.1 `/pr-describe` in Spanish against `feature/entrega-2-CRN`: the Why marked as the agent's decision where it is (design D3 replacing Enhanced D3), the live run and durations, «no verificado» paths, no dependency added, the D10 tests, the `.env.example` note if any
+- [ ] 11.1 `/pr-describe` in Spanish against `feature/entrega-2-CRN`: the Why marked as the agent's decision where it is (design D3 replacing Enhanced D3, D12-D14), the live run and durations, the run of the guide in both shells (8.2), the Ctrl+C verification scope (POSIX CI only, design D3), «no verificado» paths, no dependency added, the D10 tests, the `.env.example` note if any
 
 ## 12. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
