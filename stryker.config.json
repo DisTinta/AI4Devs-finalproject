@@ -16,7 +16,7 @@
     "low": 80,
     "break": 80
   },
-  "disableTypeChecks": "{packages/core,packages/cli,packages/api}/src/**/*.ts",
+  "disableTypeChecks": "{packages/core/src/**/*.ts,packages/cli/src/**/*.ts,packages/api/src/**/*.ts,packages/adapters/llm/src/long-fetch.ts}",
   "mutate": [
     "packages/core/src/**/*.ts",
     "!packages/core/src/**/*.d.ts",
@@ -24,6 +24,7 @@
     "!packages/cli/src/index.ts",
     "packages/api/src/**/*.ts",
     "!packages/api/src/server.ts",
-    "!packages/api/src/start.ts"
+    "!packages/api/src/start.ts",
+    "packages/adapters/llm/src/long-fetch.ts"
   ]
 }

@@ -147,6 +147,24 @@ describe('default transport of the OpenAI-compatible client', () => {
     expect(Date.now() - started).toBeLessThan(4000);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  // Plain test (not a scenario), design D4: an https base URL is spoken over TLS. The local server
+  // speaks plain HTTP, so the handshake fails with a system error code; sent over plain `node:http`,
+  // an https URL would fail before any connection, with no system code.
+  it('speaks TLS to an https base URL', async () => {
+    // Arrange
+    const llm = createLlm(
+      llmConfigFromEnv({ LLM_BASE_URL: `${base.replace('http:', 'https:')}/v1`, LLM_MODEL: 'chat-x', LLM_TIMEOUT_MS: '5000' }),
+    );
+
+    // Act
+    const failure = await failureOf(llm.complete({ purpose: 'answer', messages: [{ role: 'user', content: 'q' }] }));
+
+    // Assert
+    expect(failure).toMatchObject({ code: 'LLM_UNAVAILABLE', reason: 'network' });
+    expect(failure.systemCode).toMatch(/^E[A-Z]+$/);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });
 
 /** A local port where nothing listens: taken on port 0, then released. */
