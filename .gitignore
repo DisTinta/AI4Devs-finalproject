@@ -76,4 +76,6 @@ desktop.ini
 
 # sdd-harness-kit
 .claude/settings.local.json
+# Local denial log of autonomous runs (openspec change autonomous-run-switch, design D10).
+.claude/autonomous-denials.log
 .worktrees/

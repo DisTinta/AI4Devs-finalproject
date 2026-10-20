@@ -196,13 +196,13 @@
 
 ## 7. Secret allowlist and denial log (TDD, design D10)
 
-- [ ] 7.1 RED → GREEN: create `tests/harness/secret-allowlist.spec.ts` with:
+- [x] 7.1 RED → GREEN: create `tests/harness/secret-allowlist.spec.ts` with:
   - "An allowlisted sentinel passes";
   - "A real secret next to a sentinel is still blocked";
   - "An invalid or too wide allowlist is ignored".
 
   Move the patterns to `lib.sh` → `SECRET_PATTERNS`. In `block-secrets.sh`, strip the `KIT_SECRET_ALLOWLIST` matches with `awk` `gsub`, after validating the expression with that same `awk` and checking that it does not match the canonical sample (D10)
-- [ ] 7.2 RED → GREEN: create `tests/harness/denial-log.spec.ts` with:
+- [x] 7.2 RED → GREEN: create `tests/harness/denial-log.spec.ts` with:
   - "A classifier denial is logged";
   - "Secrets in a denied input are redacted";
   - "An unwritable log does not block" (the log path is a directory);

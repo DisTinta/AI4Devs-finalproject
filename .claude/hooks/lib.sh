@@ -220,6 +220,37 @@ inject() {
   exit 0
 }
 
+# ── Secrets (design D10) ─────────────────────────────────────────────────────
+# Shared by block-secrets.sh (prompt scan) and log-permission-denied.sh (redaction).
+SECRET_PATTERNS='(sk-ant-[A-Za-z0-9_-]{20,}'
+SECRET_PATTERNS+='|sk-[a-zA-Z0-9]{40,}'
+SECRET_PATTERNS+='|ghp_[a-zA-Z0-9]{36}'
+SECRET_PATTERNS+='|github_pat_[A-Za-z0-9_]{50,}'
+SECRET_PATTERNS+='|gho_[a-zA-Z0-9]{36}'
+SECRET_PATTERNS+='|xox[baprs]-[A-Za-z0-9-]{10,}'
+SECRET_PATTERNS+='|AKIA[0-9A-Z]{16}'
+SECRET_PATTERNS+='|AIza[0-9A-Za-z_-]{35}'
+SECRET_PATTERNS+='|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}'
+SECRET_PATTERNS+='|-----BEGIN [A-Z ]*PRIVATE KEY-----'
+SECRET_PATTERNS+='|(APP_KEY|SECRET_KEY|DB_PASSWORD|API_SECRET)[[:space:]]*=[[:space:]]*[^[:space:]]{8,})'
+
+# Removes the text matching KIT_SECRET_ALLOWLIST. The allowlist is ignored (the text comes back
+# unchanged) when awk rejects it, or when it matches the canonical sample ghp_ + 36 'a', since it
+# would switch the scan off.
+strip_allowlisted() {
+  local text="$1" sample out
+  [[ -n "$KIT_SECRET_ALLOWLIST" ]] || { printf '%s' "$text"; return 0; }
+  sample="ghp_$(printf 'a%.0s' {1..36})"
+  if ! printf 'x' | awk -v re="$KIT_SECRET_ALLOWLIST" '{ gsub(re, "") }' >/dev/null 2>&1; then
+    printf '%s' "$text"; return 0
+  fi
+  if printf '%s' "$sample" | awk -v re="$KIT_SECRET_ALLOWLIST" '{ exit (match($0, re) ? 0 : 1) }' 2>/dev/null; then
+    printf '%s' "$text"; return 0
+  fi
+  out=$(printf '%s' "$text" | awk -v re="$KIT_SECRET_ALLOWLIST" '{ gsub(re, ""); print }' 2>/dev/null) || out="$text"
+  printf '%s' "$out"
+}
+
 # ── Change, paths and verdicts (design D5, D9) ───────────────────────────────
 
 # The branch's active OpenSpec change: the active change whose name closes the branch name

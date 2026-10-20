@@ -178,6 +178,21 @@
           }
         ]
       }
+    ],
+    "PermissionDenied": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/invoke.cjs",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/log-permission-denied.sh"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
     ]
   }
 }
