@@ -13,6 +13,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 [[ "$KIT_SPEC_AUDIT_GATE" == "0" ]] && exit 0
 
 INPUT=$(cat)
+hook_input_init "$INPUT"
 FILE=$(field "$INPUT" '.tool_input.file_path')
 [[ -n "$FILE" ]] || exit 0
 FILE="${FILE//\\//}"

@@ -23,6 +23,11 @@ if [[ -d "$PROJECT_DIR/openspec/changes" ]]; then
 fi
 
 PROTECT_WARNING=""
+# Autonomous run (openspec change autonomous-run-switch): always the first line of the context.
+AUTONOMOUS_WARNING=""
+[[ "$KIT_AUTONOMOUS_RUN" == "1" ]] && \
+  AUTONOMOUS_WARNING="⚠ autonomous run: ON (sdd-harness.env, KIT_AUTONOMOUS_RUN=\"1\"). No hook asks; the agent may merge through the merge gate; see docs/AUTONOMOUS-RUN.md.
+"
 [[ "$KIT_PROTECT_SPECS" == "0" ]] && \
   PROTECT_WARNING="⚠ protect-specs: OFF (sdd-harness.env, KIT_PROTECT_SPECS=\"0\"). Existing specs, tests and migrations can be rewritten without confirmation.
 "
@@ -30,7 +35,7 @@ PROTECT_WARNING=""
   PROTECT_WARNING+="⚠ spec-audit-gate: OFF (sdd-harness.env, KIT_SPEC_AUDIT_GATE=\"0\"). Code and tests can be written for a change the spec-auditor has not reviewed.
 "
 
-CONTEXT="${PROTECT_WARNING}Repository state
+CONTEXT="${AUTONOMOUS_WARNING}${PROTECT_WARNING}Repository state
 - Configured stack: ${STACK}
 - Branch: ${BRANCH} (expected prefix: ${BRANCH_PREFIX})
 - Last commit: ${LAST_COMMIT}

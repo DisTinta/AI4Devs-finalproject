@@ -8,6 +8,7 @@ set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 INPUT=$(cat)
+hook_input_init "$INPUT"
 FILE=$(field "$INPUT" '.tool_input.file_path')
 [[ -n "$FILE" ]] || exit 0
 # Normalize slashes for Windows (Git Bash): the case patterns below match on '/'.

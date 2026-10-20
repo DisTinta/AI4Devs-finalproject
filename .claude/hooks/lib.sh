@@ -49,6 +49,11 @@ KIT_SKIP_STOP_TESTS="0"
 KIT_ALLOW_WIP="0"
 KIT_PROTECT_SPECS="1"
 KIT_SPEC_AUDIT_GATE="1"
+# Autonomous run (openspec change autonomous-run-switch, design D1). "1" = unattended and autonomous:
+# no hook asks, the agent may merge through the merge gate, the doctrine relaxations of the ADR apply.
+KIT_AUTONOMOUS_RUN="0"
+AUTONOMOUS_MERGE_BASE=""
+KIT_SECRET_ALLOWLIST=""
 
 # Loads KEY="value" or KEY=value without executing the file as shell.
 # Rejects lines with command substitution, backticks or $(...).
@@ -77,7 +82,8 @@ load_env_safe() {
       CMD_MUTATION|CMD_DOCS_COVERAGE|CMD_DEV|CMD_MIGRATE|SOURCE_EXTENSIONS|PATH_SOURCE|\
       PATH_TESTS|PATH_BUSINESS|PATH_HTTP|PATH_MIGRATIONS|PATH_ADR|GUARD_HTTP_IN_BUSINESS|\
       GUARD_DB_IN_HTTP|GUARD_DANGEROUS_CMD|LAYER_ORDER|MIN_MUTATION_SCORE|BRANCH_PREFIX|\
-      KIT_SKIP_STOP_TESTS|KIT_ALLOW_WIP|KIT_PROTECT_SPECS|KIT_SPEC_AUDIT_GATE)
+      KIT_SKIP_STOP_TESTS|KIT_ALLOW_WIP|KIT_PROTECT_SPECS|KIT_SPEC_AUDIT_GATE|\
+      KIT_AUTONOMOUS_RUN|AUTONOMOUS_MERGE_BASE|KIT_SECRET_ALLOWLIST)
         printf -v "$key" '%s' "$val"
         ;;
     esac
@@ -108,14 +114,51 @@ run_cmd() {
   ( cd "$PROJECT_DIR" && bash -c -- "$cmdline \"\$@\"" _ "$@" )
 }
 
+# ── Modes (design D1, D2) ─────────────────────────────────────────────────────
+# Unattended mode: the switch is "1", or Cursor reports a background agent. No hook asks.
+# Autonomous run: the switch is "1" only. Merge, relaxations and kit-configuration protections.
+HOOK_INPUT=""
+
+# Every decision hook calls it right after reading stdin. In an unattended run a missing jq denies
+# (exit 2) instead of letting every protection fall silent.
+hook_input_init() {
+  HOOK_INPUT="$1"
+  if [[ "$KIT_AUTONOMOUS_RUN" == "1" ]] && ! has_jq; then
+    printf 'jq is required in an unattended run (KIT_AUTONOMOUS_RUN="1"); install it or set the switch to "0".\n' >&2
+    exit 2
+  fi
+}
+
+autonomous_run() { [[ "$KIT_AUTONOMOUS_RUN" == "1" ]]; }
+
+unattended() {
+  autonomous_run && return 0
+  [[ -n "$HOOK_INPUT" ]] && [[ "$(field "$HOOK_INPUT" '.is_background_agent')" == "true" ]]
+}
+
 # ── Decision emitters ────────────────────────────────────────────────────────
 deny() {
   has_jq || { printf '%s\n' "$1" >&2; exit 2; }
-  jq -nc --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}'
+  if ! jq -nc --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}'; then
+    # In an unattended run a broken jq must not turn a deny into a silent pass (design D21).
+    unattended && { printf '%s\n' "$1" >&2; exit 2; }
+  fi
   exit 0
 }
 
+allow() {
+  has_jq || exit 0
+  jq -nc --arg r "${1:-}" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"allow",permissionDecisionReason:$r}}'
+  exit 0
+}
+
+# ask "<reason>" ["<alternative>"]. In an unattended run nobody can answer, so it denies (design D2).
 ask() {
+  if unattended; then
+    local msg="$1"$'\n\n'"Unattended run (KIT_AUTONOMOUS_RUN or a background agent): no human can confirm."
+    [[ -n "${2:-}" ]] && msg+=" ${2}"
+    deny "$msg"
+  fi
   has_jq || exit 0
   jq -nc --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"ask",permissionDecisionReason:$r}}'
   exit 0

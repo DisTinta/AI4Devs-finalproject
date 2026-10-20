@@ -1,39 +1,39 @@
 ## 0. Setup: Create Feature Branch (MANDATORY - FIRST STEP)
 
-- [ ] 0.1 First action of the apply: set DIS-106 to In Progress in Linear, with a short comment in Spanish naming the change `autonomous-run-switch` and the branch `feature/DIS-106-autonomous-run-switch`
-- [ ] 0.2 Feature branch `feature/DIS-106-autonomous-run-switch` (`BRANCH_PREFIX=feature/`), created before `/opsx:propose` from `final-project-CRN` (published on 2026-10-20 at `c92cdb2`, design D17). `git fetch`; confirm `git merge-base --is-ancestor origin/final-project-CRN HEAD`; if `origin/final-project-CRN` moved, merge it before any code (never force-push a published branch)
-- [ ] 0.3 Verify the current branch and `git status`. Commits of this change stage explicit paths only. The `.claude/` files this change edits, including `.claude/sdd-harness.env` (design D18; the author reverted her local edits for this), are staged by explicit path, and nothing else under `.claude/`
-- [ ] 0.4 Baseline:
+- [x] 0.1 First action of the apply: set DIS-106 to In Progress in Linear, with a short comment in Spanish naming the change `autonomous-run-switch` and the branch `feature/DIS-106-autonomous-run-switch`
+- [x] 0.2 Feature branch `feature/DIS-106-autonomous-run-switch` (`BRANCH_PREFIX=feature/`), created before `/opsx:propose` from `final-project-CRN` (published on 2026-10-20 at `c92cdb2`, design D17). `git fetch`; confirm `git merge-base --is-ancestor origin/final-project-CRN HEAD`; if `origin/final-project-CRN` moved, merge it before any code (never force-push a published branch)
+- [x] 0.3 Verify the current branch and `git status`. Commits of this change stage explicit paths only. The `.claude/` files this change edits, including `.claude/sdd-harness.env` (design D18; the author reverted her local edits for this), are staged by explicit path, and nothing else under `.claude/`
+- [x] 0.4 Baseline:
   - `npx vitest run` once and record the totals;
   - `jq --version`, `node -v`, `claude --version` (`scratchpad_dir` in hook input needs v2.1.257+);
   - save the decision of every current hook in `reports/YYYY-MM-DD-0-baseline-decisions.md`, piped by hand through `invoke.cjs`, for the inputs of the scenarios "With the switch off the hooks keep their decisions" and "With the switch off denials and silences are unchanged" (including `git rm -r --cached x`, `docker rm -f c` and `npx vitest run`)
 
 ## 1. Test harness (design D15)
 
-- [ ] 1.1 Create `tests/harness/support/run-hook.ts`:
+- [x] 1.1 Create `tests/harness/support/run-hook.ts`:
   - `runHook(name, input, { env, client, files, git, path })` builds a temporary project (`mkdtemp`, prefix `harness-`) with the real `.claude/hooks/` copied in and a `sdd-harness.env` written from `env`;
   - it runs `node .claude/hooks/invoke.cjs [--client cursor] <hook>.sh` with `CLAUDE_PROJECT_DIR`;
   - it returns `{ decision, reason, raw, exitCode }`, parsed from either Claude Code or Cursor output;
   - it removes the temporary project afterwards.
 
   Also create `tests/harness/support/stubs.ts`: a `node:http` registry/downloads server with a configurable delay, and a `gh` shim (Node script plus `.cmd` and bash wrappers on a temporary `PATH`) that records its working directory. Exclude `tests/harness/**` in `vitest.stryker.config.ts`, and add `.claude/hooks/**` and `.cursor/hooks.json` to the `runtime` paths filter of `.github/workflows/ci.yml` (D15). LF on all new files
-- [ ] 1.2 Self-test `tests/harness/run-hook.spec.ts`: the current `block-dangerous-bash` denies `rm -rf packages` through the helper (Claude Code format). Green before any hook change
+- [x] 1.2 Self-test `tests/harness/run-hook.spec.ts`: the current `block-dangerous-bash` denies `rm -rf packages` through the helper (Claude Code format). Green before any hook change
 
 ## 2. Modes, tracked keys, `ask`/`allow`, jq and session warning (TDD, design D1, D2, D18) — "The autonomous run is a manual switch…", "No hook leaves a confirmation pending…"
 
-- [ ] 2.1 RED: create `tests/harness/autonomous-switch.spec.ts` with:
+- [x] 2.1 RED: create `tests/harness/autonomous-switch.spec.ts` with:
   - "With the switch off the hooks keep their decisions";
   - "With the switch off denials and silences are unchanged";
   - "The session start warns when the switch is on";
   - "A Cursor background agent runs unattended but not autonomous", as `it.todo` until 9.4.
 
   The first two match the 0.4 baseline (green now). See the warning test fail
-- [ ] 2.2 GREEN:
+- [x] 2.2 GREEN:
   - `lib.sh`: defaults and whitelist for `KIT_AUTONOMOUS_RUN`, `AUTONOMOUS_MERGE_BASE` and `KIT_SECRET_ALLOWLIST`; `hook_input_init`, `unattended`, `autonomous_run`, `allow()`; `ask "<reason>" ["<alternative>"]` delegating to `deny()` in unattended mode (D2).
   - `session-context.sh`: the warning line.
   - The decision hooks call `hook_input_init "$INPUT"` after reading stdin.
   - `.claude/sdd-harness.env`: the three keys with comments, through the Edit tool, which the author confirms (D18).
-- [ ] 2.3 RED → GREEN: create `tests/harness/no-pending-ask.spec.ts` with:
+- [x] 2.3 RED → GREEN: create `tests/harness/no-pending-ask.spec.ts` with:
   - "A destructive git command is denied with its alternative";
   - "The documentation gate denies and lists what is missing" (git repo fixture with a staged migration path from `PATH_MIGRATIONS`);
   - "The stack guard denies in unattended mode";
@@ -41,7 +41,7 @@
   - "Without jq the hooks deny instead of passing" (`block-dangerous-bash` run with `jq` hidden: on Linux, `PATH` set to a temporary bin directory holding links to `bash`, `node`, `git` and the coreutils it needs but no `jq`; on Windows, `PATH` without the directory that holds `jq.exe`; expecting exit 2 and `jq` in stderr; D2).
 
   Pass the alternatives from `block-dangerous-bash.sh` rule 3 and `docs-gate.sh`
-- [ ] 2.4 REFACTOR: no hook other than `lib.sh` emits `"permissionDecision":"ask"` directly (`grep`); suite green
+- [x] 2.4 REFACTOR: no hook other than `lib.sh` emits `"permissionDecision":"ask"` directly (`grep`); suite green
 
 ## 3. Shell guard: command parser, kit contract writes, scratchpad, kit configuration (TDD, design D5, D6, D7)
 

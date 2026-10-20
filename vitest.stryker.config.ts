@@ -24,6 +24,9 @@ export default mergeConfig(
         'packages/web/**',
         'tests/a11y/**',
         'tests/unit/web/**',
+        // The hook harness spawns bash and Node processes and exercises no mutated source
+        // (openspec change autonomous-run-switch, design D15).
+        'tests/harness/**',
       ],
     },
   }),

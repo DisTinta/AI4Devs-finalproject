@@ -94,6 +94,9 @@ jobs:
               - 'stryker.config.*'
               - 'stryker.conf.*'
               - '.github/workflows/ci.yml'
+              # The kit hooks are tested by tests/harness (autonomous-run-switch, design D15).
+              - '.claude/hooks/**'
+              - '.cursor/hooks.json'
 
       - uses: actions/setup-node@v4
         with:

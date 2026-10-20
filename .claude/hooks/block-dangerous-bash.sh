@@ -5,6 +5,7 @@ set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 INPUT=$(cat)
+hook_input_init "$INPUT"
 COMMAND=$(field "$INPUT" '.tool_input.command')
 [[ -n "$COMMAND" ]] || exit 0
 
@@ -23,7 +24,8 @@ if printf '%s' "$COMMAND" | grep -qE 'git[[:space:]]+push.*(--force([^-]|$)|-f([
   deny "git push --force is forbidden. A force push is done by a human or not at all."
 fi
 if printf '%s' "$COMMAND" | grep -qE 'git[[:space:]]+(reset[[:space:]]+--hard|clean[[:space:]]+-[a-z]*f|filter-branch)'; then
-  ask "This command irreversibly discards local work. Confirm manually."
+  ask "This command irreversibly discards local work. Confirm manually." \
+    "Use git restore -- <paths> or git stash push -- <paths> on explicit paths instead."
 fi
 
 # 4. Production.
