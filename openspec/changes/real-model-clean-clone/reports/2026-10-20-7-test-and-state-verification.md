@@ -141,3 +141,20 @@ reversible in one commit, and decided by the author in the ticket.
 - Status: PASS
 - Blocking issues: none. Pending for the author (PR line): whether `.env.example`'s comment on
   `LLM_TIMEOUT_MS` states a 300000 maximum.
+
+## Addendum — after the pre-merge reviews (2026-10-20, step 12)
+
+- The reviews changed only prose (`docs/DEMO.md`, two sentences of `Probar con un modelo real`) and the
+  change's artifacts. Re-run: `npx vitest run tests/unit/docs` (5 passed), `npm run lint` (exit 0),
+  `npm run typecheck` (exit 0).
+- Full suite on `dis102-testdb` (`DATABASE_URL=…localhost:55432/codemind_test`): two runs with the
+  default pool each had one unrelated integration failure under machine load — run 1
+  `tests/integration/cli/seed-load.spec.ts` "A failed golden save leaves the database unchanged"
+  (passes alone: 8/8), run 2 `tests/integration/cli/projects-command.spec.ts` (two `Test timed out in
+  20000ms`). Neither file nor what they exercise is touched by this change. Run 3 with a smaller pool
+  (`--poolOptions.threads.maxThreads=6 --poolOptions.forks.maxForks=6`, min 1): **161 files, 1736
+  tests passed**, exit 0. `dis102-testdb` stopped again afterwards.
+- `.env.example`: a repository-wide `git grep` showed that its comment does state the 300000 maximum
+  (l.36-37); the read of the surrounding lines and the scripted edit were refused by the agent's
+  `.env*` rules. Destination **C** in `design.md` → Follow-ups (V1 / AR1), with the exact replacement
+  for the author.

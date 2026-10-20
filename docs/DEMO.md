@@ -745,8 +745,8 @@ HTTP 200
 ```
 
 Como la CLI acaba de guardar esa respuesta, la API la sirve desde la caché al instante
-(`"cacheHit": true`, 0 tokens). Una pregunta nueva por la API va al modelo y tarda lo mismo que por la
-CLI: en la captura, la misma pregunta con la caché desactivada tardó 300,9 s por la API
+(`"cacheHit": true`, 0 tokens). Una pregunta nueva por la API va al modelo y, como por la CLI, tarda
+minutos: en la captura, la misma pregunta con la caché desactivada tardó 300,9 s por la API
 (`"cacheHit": false`, 6 591 tokens de generación y 9 llamadas de verificación).
 
 En la web, con el sistema reiniciado, escribe una pregunta libre en el campo de la pantalla 2 (por
@@ -795,7 +795,9 @@ Lo que dice la documentación de Anthropic y conviene saber antes:
   `temperature` ni `top_p` (que dan error en los modelos recientes). Los mensajes `system` se elevan al
   campo `system` de Anthropic, y la respuesta trae `usage.prompt_tokens` y `usage.completion_tokens`.
 - El cliente no envía `max_tokens`; no se ha comprobado cómo lo trata la capa cuando falta.
-- La capa no tiene embeddings; `ask` no los necesita.
+- Anthropic no ofrece un modelo de embeddings propio
+  (`https://platform.claude.com/docs/en/build-with-claude/embeddings`, consultada el 2026-10-20);
+  `ask` no los necesita.
 
 Después, reinicia `npm run up` y pregunta como en el apartado de Ollama.
 

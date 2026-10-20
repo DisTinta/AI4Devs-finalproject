@@ -86,8 +86,8 @@
 
 - [ ] 12.1 Open the PR against `feature/entrega-2-CRN` (ADR `20261016-autonomous-workflow-run-entrega-2`; `gh` on DisTinta); DIS-103 to In Review with a Spanish comment linking it
 - [ ] 12.2 CI green (`quality`, `verify`, `mutation`, `secrets`, `Frontend`); link the run in an addendum to the step 7 report; a timeout of this PR's full mutation run follows design Risks (DR9: one re-run, then raise `timeout-minutes` with its reason)
-- [ ] 12.3 `/show-spec-working` (may reuse 6 and 8 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
-- [ ] 12.4 `/verify-against-spec` → `reports/YYYY-MM-DD-verify-against-spec.md`
-- [ ] 12.5 `/adversarial-review` → `reports/YYYY-MM-DD-adversarial-review.md`
-- [ ] 12.6 Fix every finding in this change (TDD for behaviour), each with an A/B/C/D destination in `design.md` → Follow-ups; re-run what each fix invalidates; commit to the same PR; re-run a check whose findings led to non-trivial fixes until no Blocker or Major
+- [x] 12.3 `/show-spec-working` (may reuse 6 and 8 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
+- [x] 12.4 `/verify-against-spec` → `reports/YYYY-MM-DD-verify-against-spec.md`
+- [x] 12.5 `/adversarial-review` → `reports/YYYY-MM-DD-adversarial-review.md`
+- [x] 12.6 Fix every finding in this change (TDD for behaviour), each with an A/B/C/D destination in `design.md` → Follow-ups; re-run what each fix invalidates; commit to the same PR; re-run a check whose findings led to non-trivial fixes until no Blocker or Major
 - [ ] 12.7 `/opsx:archive`, commit it to the same PR; merge only after the archive commit and with CI green (ADR `20261016-autonomous-workflow-run-entrega-2`)

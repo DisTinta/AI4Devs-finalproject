@@ -323,4 +323,23 @@ embeddings in the default-transport scenario (delta; task 2.1).
 
 ## Follow-ups
 
-None yet.
+Every finding of the pre-merge reviews (`reports/2026-10-20-show-spec-working.md`,
+`reports/2026-10-20-verify-against-spec.md`, `reports/2026-10-20-adversarial-review.md`) with its
+destination (`docs/project-context.md` → Tracking deferred findings). `show-spec-working` found
+nothing beyond the scope notes of D3 and D6; the security pass (appendix of the adversarial review)
+found nothing.
+
+| Id | Severity | Finding | Destination |
+|---|---|---|---|
+| V1 / AR1 | Minor | `.env.example` (l.36-37) still says `LLM_TIMEOUT_MS` is «entero de 1 a 300000» because Node's `fetch` cuts at 300 s | **C** — the agent's permission rules refuse any read or edit of `.env*` in this run (design D9 fallback). One Spanish checklist comment on DIS-103 and a line in the PR body give the author the exact replacement: l.36 `(entero de 1 a 3600000, una hora: el cliente envía` and l.37 starting `# con node:http, sin el corte de 300 s del fetch de Node). Por defecto 120000, …` (rest of the line unchanged) |
+| V2 / AR5 | Minor | On Windows the Ctrl+C preload test emits `SIGINT` instead of delivering a signal | **D** — accepted in D3 (DR4): a real signal on POSIX in CI, Node's documented behaviour on Windows; stated in the PR |
+| V3 | Question | `longFetch` is a public export of `@codemind/adapter-llm` | **D** — wanted (D4): the CLI re-exports the same function for `cache:build` |
+| V4 | Question | A plain test pins `https` → `node:https` | **D** — wanted: makes the «`http`/`https` modules» half of the requirement observable |
+| V5 / AR3 | Minor | The guide said a new API question «tarda lo mismo que por la CLI» against 300,9 s vs 8 min 28 s | **A** — fixed: «como por la CLI, tarda minutos» |
+| V6 / AR4 | Minor | «La capa no tiene embeddings» had no source | **A** — fixed: the guide cites Anthropic's embeddings page («Anthropic does not offer its own embedding model»), read on 2026-10-20 |
+| V7 | Question | `https://platform.claude.com/docs/en/api/openai-sdk` now redirects to `…/cli-sdks-libraries/libraries/openai-sdk` | **D** — the link the spec pins still resolves; changing it would change the spec for no reader benefit |
+| AR2 | Minor | Task 4.2 had no recorded evidence of the re-read of the Anthropic pages | **A** — `reports/2026-10-20-verify-against-spec.md` records the pages read on 2026-10-20 and the quoted facts; every fact of the guide matched |
+| AR6 | Question | `up` needs `git` even in evaluation mode (a source ZIP without Git stops at step 5) | **D** — accepted: `git --version` is a prerequisite of `Antes de empezar` and the readme path starts with `git clone` (Risks) |
+| AR7 | Question | A Ctrl+C during the history step leaves a half-built `fixtures/acme-shop/.git` (tracked files restored) | **D** — accepted: the next `up` rebuilds it, and the guide gives the manual command for whoever starts without `up` (D1, D2) |
+| AR8 | Question | Browsers other than Chromium were not measured past 300 s | **D** — accepted: the guide claims Chromium only (D6) |
+| AR9 | Question | `longFetch` buffers the whole body without a size cap | **D** — unchanged behaviour (Node's `fetch` + `text()` did the same) |
