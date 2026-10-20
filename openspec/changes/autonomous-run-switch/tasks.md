@@ -45,7 +45,7 @@
 
 ## 3. Shell guard: command parser, kit contract writes, scratchpad, kit configuration (TDD, design D5, D6, D7)
 
-- [ ] 3.1 RED: create `tests/harness/shell-guard.spec.ts` with:
+- [x] 3.1 RED: create `tests/harness/shell-guard.spec.ts` with:
   - "Searching for a dangerous string is not a dangerous command";
   - "A commit message is not a command";
   - "Executed text is still matched" (the five forms);
@@ -61,7 +61,7 @@
   - "An unparsable line is denied in unattended mode".
 
   See "Searching for a dangerous string…", "A commit message is not a command", "Wrapped, grouped and looped commands are found" (the `find -exec` and `for` forms, which today's raw match denies only by accident of text) and "An unparsable line is denied in unattended mode" fail. Explicit vitest timeouts on any case that spawns more than one process
-- [ ] 3.2a-i RED → GREEN: `.claude/hooks/shell-words.mjs`, lexing and structure (D6). Unit cases in `tests/harness/shell-words.spec.ts` (not named scenarios):
+- [x] 3.2a-i RED → GREEN: `.claude/hooks/shell-words.mjs`, lexing and structure (D6). Unit cases in `tests/harness/shell-words.spec.ts` (not named scenarios):
   - quotes, escapes, unquoted `\x` (`\;` stays a word), backslash-newline, comments to end of line (`git status # don't`);
   - nested `$(…)` and backticks;
   - quoted and unquoted heredocs, `<<-`;
@@ -73,7 +73,7 @@
   - unmodelled constructs and parse failures (crash, timeout, non-JSON → `ok:false`).
 
   LF
-- [ ] 3.2a-ii RED → GREEN: `shell-words.mjs`, resolution (D6). Unit cases in the same file:
+- [x] 3.2a-ii RED → GREEN: `shell-words.mjs`, resolution (D6). Unit cases in the same file:
   - command-name resolution through every wrapper, basename and `.exe`;
   - `find -exec … {} +` and `-execdir … \;`;
   - `cwd` tracking through `cd`, `pushd`/`popd`, `cd -`, `git -C`, `--work-tree=`, git global options, and a dynamic directory word (`cd "$X"` → `cwd: null`);
@@ -81,7 +81,7 @@
   - recursive parse of `bash`/`sh`/`zsh` text (`-c`, `-lc`, `<<<`, heredoc), and `pipeIntoShell` for a pipe or `-s`;
   - `rawInterpreterText` for the other interpreters (`eval`, `xargs`, `ssh` words joined);
   - message options (`-m`, `-mmsg`, `--message=`, `-am`, `gh -b`/`-F`/`-t`).
-- [ ] 3.2b GREEN: `lib.sh` → `parse_command` and the jq helpers over its JSON. In `block-dangerous-bash.sh`:
+- [x] 3.2b GREEN: `lib.sh` → `parse_command` and the jq helpers over its JSON. In `block-dangerous-bash.sh`:
   - rule 1 (by name with an `r`/`f` flag, and a later `rm` word of another tool's command with such a flag, D6), rule 3 (with `git filter-branch`) and rule 6 (basename `sdd-harness.env`, targets resolved with the command's `cwd`) decide on the parsed simple commands, including `inSubst` and `inInterp` ones, with message options skipped;
   - device destruction and rules 2, 4 and 7 keep the raw text, and also match each `rawInterpreterText` entry;
   - `ok:false`: raw matching with the switch `"0"`, `deny` in unattended mode;
@@ -90,13 +90,13 @@
   - the switch-off raw fallback stays in place until the 3.1 cases are green (Risks: the hooks are live in this session).
 
   The 2.1 switch-off scenarios stay green (`psql -c "DROP TABLE x"` still asks)
-- [ ] 3.3 RED → GREEN: create `tests/harness/scratchpad-rm.spec.ts` with:
+- [x] 3.3 RED → GREEN: create `tests/harness/scratchpad-rm.spec.ts` with:
   - "A file in the scratchpad is removed" (including the quoted path with a space);
   - "A removal outside the scratchpad is still denied" (`..`, glob, variable, outside path, chained);
   - "Without a scratchpad in the input nothing changes".
 
   Implement D7 (no decision)
-- [ ] 3.4 RED → GREEN: create `tests/harness/kit-config.spec.ts` with:
+- [x] 3.4 RED → GREEN: create `tests/harness/kit-config.spec.ts` with:
   - "Staging or reverting kit configuration is denied" (including the quoted pathspec, `sh -c 'git add -A'` and `echo "git add -A" | sh`);
   - "Pushing or merging into the base directly is denied";
   - "Whole-tree or glob staging is denied";

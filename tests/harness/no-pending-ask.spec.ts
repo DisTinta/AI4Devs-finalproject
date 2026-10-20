@@ -5,7 +5,7 @@ import { bashInput, createProject, editInput, pathWithoutJq, runHook, type Proje
 
 const MIGRATION = 'packages/adapters/store-postgres/migrations/0099_x.sql';
 
-describe('No hook leaves a confirmation pending in unattended mode', () => {
+describe('No hook leaves a confirmation pending in unattended mode', { timeout: 120_000 }, () => {
   let project: Project | undefined;
   afterEach(() => project?.cleanup());
 

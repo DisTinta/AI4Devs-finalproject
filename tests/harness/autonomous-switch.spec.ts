@@ -5,7 +5,7 @@ import { bashInput, createProject, editInput, runHook, type Project } from './su
 
 const MIGRATION = 'packages/adapters/store-postgres/migrations/0099_x.sql';
 
-describe('The autonomous run is a manual switch that leaves the default behaviour intact', () => {
+describe('The autonomous run is a manual switch that leaves the default behaviour intact', { timeout: 120_000 }, () => {
   let project: Project | undefined;
   afterEach(() => project?.cleanup());
 

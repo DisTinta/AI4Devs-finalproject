@@ -136,8 +136,31 @@ unattended() {
   [[ -n "$HOOK_INPUT" ]] && [[ "$(field "$HOOK_INPUT" '.is_background_agent')" == "true" ]]
 }
 
+# Fail-closed in an unattended run (design D21): a crash or an unexpected exit before a decision
+# denies (exit 2) instead of letting the call through. Every emitter and done_ok mark the decision.
+HOOK_DECIDED=0
+fail_closed() {
+  unattended || return 0
+  trap '[[ "$HOOK_DECIDED" == 1 ]] || { printf "sdd-harness: the hook failed before deciding (unattended run): denied.\n" >&2; exit 2; }' EXIT
+}
+done_ok() { HOOK_DECIDED=1; exit 0; }
+
+# Parses a command line with shell-words.mjs (design D6). Prints its JSON, or {"ok":false} when the
+# parser fails, times out or prints something unreadable.
+parse_command() {
+  local out
+  out=$(printf '%s' "$1" | timeout 5 node "$(dirname "${BASH_SOURCE[0]}")/shell-words.mjs" \
+    --cwd "${2:-$PROJECT_DIR}" --project "$PROJECT_DIR" --scratchpad "${3:-}" \
+    --base "$AUTONOMOUS_MERGE_BASE" 2>/dev/null) || out=''
+  if [[ -z "$out" ]] || ! printf '%s' "$out" | jq -e 'type == "object" and has("ok")' >/dev/null 2>&1; then
+    out='{"ok":false,"error":"parser failure"}'
+  fi
+  printf '%s' "$out"
+}
+
 # ── Decision emitters ────────────────────────────────────────────────────────
 deny() {
+  HOOK_DECIDED=1
   has_jq || { printf '%s\n' "$1" >&2; exit 2; }
   if ! jq -nc --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}'; then
     # In an unattended run a broken jq must not turn a deny into a silent pass (design D21).
@@ -147,6 +170,7 @@ deny() {
 }
 
 allow() {
+  HOOK_DECIDED=1
   has_jq || exit 0
   jq -nc --arg r "${1:-}" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"allow",permissionDecisionReason:$r}}'
   exit 0
@@ -159,6 +183,7 @@ ask() {
     [[ -n "${2:-}" ]] && msg+=" ${2}"
     deny "$msg"
   fi
+  HOOK_DECIDED=1
   has_jq || exit 0
   jq -nc --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"ask",permissionDecisionReason:$r}}'
   exit 0
