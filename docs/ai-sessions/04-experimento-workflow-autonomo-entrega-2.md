@@ -4,7 +4,7 @@
 **Rama base:** `feature/entrega-2-CRN`
 **Fecha:** 16 de octubre de 2026
 **Herramienta:** Claude Code (Opus) con la herramienta Workflow (orquestación de subagentes en segundo plano)
-**Contenido:** (1) la pregunta de la autora, (2) los riesgos y choques con las reglas del proyecto, (3) las decisiones de la autora, (4) el plan que sigue el workflow, (5) cómo se mide el coste en tokens.
+**Contenido:** (1) la pregunta de la autora y por qué se atrevió a intentarlo, (2) los riesgos y choques con las reglas del proyecto, (3) las decisiones de la autora, (4) el plan que sigue el workflow, (5) cómo se mide el coste en tokens y los resultados de cada tanda, (6) la conclusión de la autora.
 
 > Registro parcial de la sesión: solo la pregunta inicial, las decisiones y el plan acordado, más los
 > resultados de cada tanda al final de la sección 5. El análisis del experimento está en `readme.md` §8.6
@@ -19,6 +19,18 @@
 > para ressolverlas sin tener que preguntarme? No tendrías que mostrar en esta terminal nada más que al
 > final una lista de los tickets resueltos y un mensaje tipo tareas finalizadas.
 > ¿como ves esta idea? es posible? ¿cómo se tendría que hacer?
+
+## Por qué se atrevió a intentarlo
+
+En palabras de la autora:
+
+> Me atreví a intentar el experimento porque ya había hecho más del 80 % de las tareas de la Entrega 2
+> con el flujo normal, conmigo en el bucle, y había visto ticket tras ticket lo bien que el agente lo
+> seguía. Eso me dio la confianza de que, con el mismo flujo y con normas y reglas claras, en modo
+> automático lo haría igual de bien.
+
+El dato lo respalda: el 16-10, de los 66 tickets del proyecto «CODEMIND — Entrega 2» en Linear, 54 (un
+82 %) ya estaban cerrados con la autora en el bucle; quedaban los doce de la sección 4.
 
 ---
 
@@ -218,7 +230,7 @@ del 19-10.
 - **DIS-66** (#57): ciclo completo en 2 h 11 min, y el workflow fusionó él mismo el #57 a las 13:10.
 - **Padres:** DIS-62 cerrado; DIS-51 también está en Done.
 
-Estado final: once tickets cerrados (DIS-76, DIS-78, DIS-21, DIS-26, DIS-34, DIS-44, DIS-45, DIS-58,
+Estado al cerrar la tanda 3: once tickets cerrados (DIS-76, DIS-78, DIS-21, DIS-26, DIS-34, DIS-44, DIS-45, DIS-58,
 DIS-60, DIS-65 y DIS-66) y DIS-101 en revisión en el #55.
 
 ## Medición final de tokens (19-10)
@@ -249,3 +261,79 @@ con ciclo completo, la lectura de caché media es 0,95 veces la de los seis manu
 123,9M) y la escritura de caché, unas 2,2 veces (3,41M frente a 1,57M). La salida no se compara, porque la de los subagentes
 del workflow sale muy por debajo. La orquestación no se atribuye a ningún ticket. El análisis completo
 está en `readme.md` §8.6.
+
+## DIS-101, cerrado (19-10)
+
+La autora fusionó el #55 a las 13:48 del 19-10, y DIS-101 pasó a Done. Con él, los doce tickets del plan
+quedaron cerrados.
+
+## Resultado de la tanda 4: DIS-102 y DIS-103 (19-10 → 20-10)
+
+Dos tickets que no estaban en el plan y que salieron de las pruebas desde cero de la autora, lanzados con
+el mismo workflow y las mismas reglas.
+
+- **DIS-102** (#58), run `wf_61e95f53`. La autora clonó la rama de entrega en una carpeta nueva y siguió
+  la guía: `make up` funcionó en Git Bash, pero en una segunda terminal de PowerShell la CLI respondió
+  `MISSING_CONFIG` (`DATABASE_URL is not set`), porque los scripts npm no leían `.env`. La autora pidió
+  que cada paso funcionase igual en PowerShell y en Bash y que `DEMO.md`, `CONFIDENCE.md`,
+  `DEPLOYMENT.md` y `TESTING.md` pasasen al español. Ciclo completo en 4 h 39 min con 7 agentes:
+  `npm run up` y `npm run down` en Node, `.env` cargado solo, `demo:ask` y `demo:excerpt` en lugar de los
+  ayudantes de Bash, y la guía recorrida en dos clones limpios (PowerShell 7 y Git Bash). La revisión
+  adversarial encontró un fallo Major (`demo:ask` cortaba a los 300 s con un modelo lento) y se corrigió
+  en el mismo PR. El workflow fusionó él mismo el #58, a las 22:06 del 19-10.
+- **Prueba manual de la autora** (20-10), en **Windows PowerShell 5.1**, la terminal que no había probado
+  ningún agente. Todos los pasos del modo evaluación, `npm run verify`, el recorrido por la web y el aviso
+  de API caída coincidieron con `DEMO.md`. Al configurar Ollama y hacer una pregunta fuera de la caché
+  salieron dos fallos que ninguna prueba automática había visto: `SOURCE_UNAVAILABLE`
+  (`not-a-repository`), porque el historial Git de `fixtures/acme-shop` no viaja con el clon y nada lo
+  generaba, y después `LLM_UNAVAILABLE` (`timeout`), porque el adaptador del LLM cortaba a los 300 s y en
+  esta máquina, solo en CPU, una pregunta tarda entre 3,5 y 9 min.
+- **DIS-103** (#59), run `wf_e9c6d8a6`, abierto con esos hallazgos y con la decisión de la autora de
+  quitar el tope de 300 s. Ciclo completo en 6 h 10 min con 6 agentes: `npm run up` genera el historial
+  del fixture, `LLM_TIMEOUT_MS` admite hasta una hora con el envío por `node:http`, y `DEMO.md` gana la
+  sección «Probar con un modelo real» (Ollama, probado; una API alojada y Claude, marcados como no
+  verificados). Una pregunta en vivo con Ollama en CPU terminó en la CLI en 8 min 28 s y en la web en
+  597,7 s. El workflow fusionó él mismo el #59, a las 15:06 del 20-10.
+- **A la Entrega 3:** DIS-104 (las respuestas en vivo salen en inglés aunque la pregunta esté en
+  español) y DIS-105 (los 18 avisos de `npm audit` de las herramientas de desarrollo).
+
+## Medición de tokens de la tanda 4 (20-10)
+
+El mismo script, ejecutado el 20-10:
+
+| Ticket | Modo | Lectura | Escritura | Salida |
+|---|---|---|---|---|
+| DIS-102 | Workflow | 163,2 | 4,90 | 0,20 |
+| DIS-103 | Workflow | 114,9 | 4,71 | 0,16 |
+| `feature/entrega-2-CRN` | Sin ticket (cifra acumulada al 20-10) | 282,6 | 11,54 | 1,82 |
+
+Las dos quedan dentro del rango de los tickets de código del workflow, con la escritura de caché en la
+parte alta: cada uno recorrió la guía entera en varios clones limpios.
+
+---
+
+# 6. Conclusión de la autora
+
+En palabras de la autora:
+
+> Me doy cuenta de que, sin un harness, un contexto, un flujo, unas normas y una planificación claros y
+> robustos, la automatización no habría dado un buen resultado; más bien todo lo contrario.
+
+Lo que hizo que funcionase no fue que el agente trabajase solo, sino todo lo que lo rodeaba y que ya
+existía antes del experimento:
+
+- **El harness:** los hooks que bloquean comandos peligrosos y secretos, los subagentes con contexto
+  limpio para cada paso, y las revisiones (`spec-auditor`, `verify-against-spec`, `adversarial-review`)
+  que pararon cambios incompletos antes del merge.
+- **El contexto:** `docs/base-standards.md`, `docs/project-context.md`, las specs de OpenSpec y los ADR,
+  que cada subagente vuelve a leer y que le dicen cómo se hacen las cosas en este proyecto.
+- **El flujo:** el mismo ciclo SDD de los tickets manuales, de `/enrich-us` al archive, con TDD.
+- **Las normas:** qué no se toca nunca (`.claude/`, el bloque `[original]` de Linear, la firma de la
+  autora), qué paquetes se pueden instalar y cuándo se puede fusionar.
+- **La planificación:** tickets enriquecidos con criterios de aceptación comprobables, dependencias
+  explícitas entre ellos y decisiones registradas en Linear.
+
+Sin esa estructura, el agente habría tenido la misma autonomía y menos con qué orientarse: se habría
+producido más rápido, pero peor, y con errores más difíciles de ver. La tanda 4 lo muestra también por
+el otro lado: lo que la estructura no cubría (el camino en vivo desde un clon limpio) lo encontró la
+prueba manual de la autora, no un agente.
