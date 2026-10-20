@@ -165,7 +165,11 @@ to the old anchor `#camino-corto--sistema-operativo-en-tres-comandos` (searched 
 `Probar con un modelo real` keeps the times table, links to
 `docs/DEMO.md#probar-con-un-modelo-real` instead of repeating the recipe, and drops «el máximo
 admitido» / the 300 s explanation; the `LLM_TIMEOUT_MS` row says «entero de 1 a 3600000»; the
-`up` sequence lists the new step.
+`up` sequence lists the new step, and the output excerpt under «Lo que imprime al terminar» gains the
+new `[up]` line and its summary (from the live run, date updated). `docs/DEPLOYMENT.md`'s table of
+`npm run up` steps gains the row `node fixtures/build-history.mjs acme-shop` between `npm run db:seed`
+and `npm run dev` (spec audit run 3). `docs/DEMO.md`'s paragraph after the `Paso 0` output describes
+the new step and its ~11 s.
 
 ### D8. Live verification (Enhanced D14 and acceptance criterion 3)
 
@@ -178,7 +182,16 @@ answer took 15 min or less, otherwise the report and the guide say the web check
 Since a CPU answer may still finish under 300 s, the deterministic proof is the recorded check
 "A response after 300 s is accepted": a throwaway script in the scratchpad (not committed; its source
 pasted in the report) starts a local server that answers after 310 s and calls the client built
-through `createLlm` with `LLM_TIMEOUT_MS=600000`. **Ports (spec audit run 2, DR6):** `3000` and
+through `createLlm` with `LLM_TIMEOUT_MS=600000`. **The web past 300 s (spec audit run 3, DR10):** the
+same stub then serves the `dis103-live` API (`LLM_BASE_URL` pointing at it, `LLM_TIMEOUT_MS=600000`,
+`up` restarted) and one free question is asked through `npm run demo:ask` and on Screen 2 in Chromium:
+any outcome other than `LLM_UNAVAILABLE` / `timeout`, arriving after more than 300 s, proves that
+neither the API, Vite's dev server and proxy nor the browser cut the request (the stub's text need not
+be a valid explain answer; an `UNKNOWN` or an invalid-response result is fine). Only then may the guide
+and the PR say the web waits past 300 s; otherwise they say what was measured. **The Ollama tray app
+(DR11):** task 0.4 records whether it runs; 8.3 starts it again if it did, since restoring the
+machine's state comes first (the GPU crash on this machine happens when a model runs, not when the
+app is open). **Ports (spec audit run 2, DR6):** `3000` and
 `5173` are fixed (`packages/web/vite.config.ts` proxies to `127.0.0.1:3000`; only `POSTGRES_PORT`
 differs per clone), so only one scratchpad `up` runs at a time: each start is preceded by a free-port
 check of `127.0.0.1:3000` and `:5173`, the previous `up` is stopped (process tree) first, and a port
@@ -244,6 +257,15 @@ autonomous run (2026-10-18); the tasks do not switch back.
 - [`rmSync` of a `.git` whose objects are read-only on Windows] → the builder already rebuilds over
   an existing `.git` (developers rerun it); the recorded check "Up builds the fixture history the
   seed indexed" runs `up` twice to prove it on this machine.
+- [`up` rewrites `fixtures/acme-shop`'s tracked files for ~11 s on every start] → do not run the
+  test suite in the same checkout during that step (the DIS-61 race of `docs/project-context.md`,
+  whose text is updated by task 5.3); the agent's suite runs never overlap a local `up` of the same
+  checkout.
+- [This PR's `mutation` job runs every mutant (spec audit run 3, DR9)] → the cache key hashes
+  `stryker.config.json` and `vitest.stryker.config.ts`, which this change edits, so no incremental
+  report is restored (limit 40 min, DIS-26 measured ~30 min for a full run). Task 0.4 records the last
+  base-branch `mutation` duration; on a timeout the job is re-run once, and a second timeout raises
+  `timeout-minutes` in this change with its reason, recorded in the PR.
 - [A real Ctrl+C on Windows is not exercised by a test] → Node's documented behaviour plus the POSIX
   test in CI; stated in the PR (D3, DR4).
 - [A browser or the Vite dev server could cap a long request] → Vite's proxy and Fastify set no
@@ -277,6 +299,14 @@ process; D8, D13), DR7 (CI `business` filter and the exact `disableTypeChecks` g
 id and question in the guide; D6); the scenario of the preload covers the `process.exit(1)` run; the
 history check may stop `up` by ending its process tree; the CPU times come from `readme.md`'s table;
 stale comments about the mutation scope are listed in tasks 2.3b and 5.3.
+
+### Spec-audit amendments (run 3, 2026-10-20)
+
+`docs/DEPLOYMENT.md` table of `up` steps (D7; proposal Impact; task 5.2b); the readme output excerpt
+and DEMO's `Paso 0` paragraph (D7; tasks 4.4, 5.1); project-context's DIS-61 paragraph (Risks; task
+5.3); DR9 (full mutation run on this PR; Risks; tasks 0.4, 12.2); DR10 (deterministic web check past
+300 s through the API and Chromium; D8; task 6.4b); DR11 (tray app state recorded and restored; D8;
+tasks 0.4, 8.3); the `INVALID_CONFIG` check of 8.1 names its command.
 
 ## Follow-ups
 

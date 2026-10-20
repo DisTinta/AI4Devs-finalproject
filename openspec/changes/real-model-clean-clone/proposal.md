@@ -87,7 +87,8 @@ None.
   a re-export (`cache-build.ts` unchanged).
 - Changed (tooling and docs): `scripts/up.mjs`, `stryker.config.json` (`long-fetch.ts` stays in the
   mutation scope, design D12), `.github/workflows/ci.yml` (the mutation job's path filter, design D12),
-  `vitest.stryker.config.ts` (comment), `docs/DEMO.md`, `readme.md`, `fixtures/README.md`,
+  `vitest.stryker.config.ts` (comment), `docs/DEMO.md`, `docs/DEPLOYMENT.md` (the table of `up`
+  steps), `readme.md`, `fixtures/README.md`,
   `docs/project-context.md`, possibly `.env.example`, `prompts.md`.
 - Tests that follow a modified requirement: `tests/unit/llm/llm-config.spec.ts` (`300001` →
   `3600001` in "A malformed timeout or URL fails naming the variable"),

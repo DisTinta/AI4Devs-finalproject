@@ -482,3 +482,224 @@ Applied with `/opsx:update`; DR6–DR8 recorded in the DIS-103 Enhanced descript
 | 4.1 — "the time a CPU answer takes" | "the CPU times of `readme.md`'s times table" | delta |
 | 6.2 — recorded-check list in 7.1 | "(6.2, 6.3a-6.3c, 6.4, 8.1, 8.2)" | task 7.1 |
 | 7.1 — stale mutation-scope text | `docs/project-context.md` l.658, `ci.yml` comments, `vitest.stryker.config.ts` header | tasks 2.3b, 5.3 |
+
+## Run 3
+
+Verdict line as returned:
+
+CHANGES REQUIRED
+
+**Ticket:** I loaded DIS-103 from Linear, including its description, relations and comments (there are no comments). It has no parent issue, so point 2 is checked against DIS-103's own AC1–AC5. This is an autonomous run under ADR `20261016-autonomous-workflow-run-entrega-2`, so there are no questions for the author. Anything that needs a decision is listed as a **decision to record**. Keeping `gh` on DisTinta is the author's permission for this run, not a finding.
+
+**Decisions to record**
+- **DR9 — CI mutation run on this PR without the incremental cache.** The cache key of the `mutation` job hashes `stryker.config.json` and `vitest.stryker.config.ts` (`.github/workflows/ci.yml:231-234`). This change edits both, so no restore key matches and the PR runs every mutant. DIS-26 measured 29m34s for that, and the job's `timeout-minutes` is 40. Record what is expected and what happens on a timeout (see 8.2). Improvable.
+- **DR10 — How the web is proven past 300 s.** The only fixed check that a response arriving after 300 s is accepted (task 6.4) goes through `createLlm` alone. The web path (browser → Vite's dev server and proxy → Fastify) is only exercised by 6.3c, and only past 300 s if the CPU answer happens to take longer than that. Record either a deterministic web check or the rule that the guide and the PR make no web claim past 300 s unless 6.3c's measured time exceeds 300 s (see 5.2). Improvable.
+- **DR11 — The Ollama tray app after the live run.** Task 6.3a stops the author's Ollama tray app, and no task records whether it was running or restarts it (see 10). Improvable.
+
+---
+
+## Check of run 2's resolutions
+
+Every run-2 resolution is in the artifacts.
+
+| Run 2 finding | Applied? |
+|---|---|
+| 6.1 / DR6: fixed ports 3000/5173 | **Yes.** Design D8 and D13; task 6.2 checks the ports are free first; 6.5 says the clone stays for step 8 and its servers stop at the end of 8.1; 8.1 and 8.2 run one `up` at a time. |
+| 8.2 / DR7: CI path filter | **Yes.** Design D12; the proposal's Impact lists `.github/workflows/ci.yml` and `vitest.stryker.config.ts` and says only the mutation path filter changes in CI; task 2.3b adds the filter entry and fixes the comments. |
+| 5.1 / DR8: literal `demo:ask` command | **Yes.** `local-startup` delta l.179-182 and the third AND of the scenario (the id `a794456d-…`); design D6 "Commands". |
+| 5.2: shape of `disableTypeChecks` | **Yes.** The single glob is pinned in design D12 and task 2.3b. |
+| 5.3: stopping `up` by its process tree | **Yes.** Delta l.113-114. |
+| 3.1: preload scenario GIVEN vs THEN | **Yes.** Delta l.73-75. |
+| 4.1: "the time a CPU answer takes" | **Yes.** Delta l.164-165. |
+| 6.2: list of recorded checks in 7.1 | **Yes.** |
+| 7.1: stale mutation-scope text | **Yes.** Task 5.3 covers project-context l.658; task 2.3b covers the `ci.yml` and `vitest.stryker.config.ts` comments. |
+| Linear DR6–DR8 | **Yes.** They are in the Enhanced section «Decisiones registradas en la auditoría de la spec». The `[original]` block is untouched. |
+
+The run-1 resolutions also still hold: DR1 (no exit `130` from the step), DR2, DR3, DR4, DR5, the restoration in 8.3, and the split of 6.3.
+
+---
+
+## 1. Scope against the ticket: clean
+
+Every artifact follows from DIS-103:
+- Enhanced D1–D14;
+- the author's decision of 20-10-2026 to remove the 300 s cap;
+- AC1–AC5;
+- DR1–DR8.
+
+Nothing is invented. The fixes proposed below (`docs/DEPLOYMENT.md`, project-context l.471, the readme output excerpt) widen the change's own documentation work under Enhanced D11 ("Actualizar todo lo que afirma…"). None of them is new scope.
+
+## 2. Inherited acceptance criteria: clean (no parent; checked against DIS-103)
+
+| AC | Covered by |
+|---|---|
+| AC1 | "Up runs the start sequence in order" (six calls, exact arguments) and "Up builds the fixture history the seed indexed" |
+| AC2 | "A malformed timeout…" (`3600001`), "A timeout above 300 s is accepted", and the two automated scenarios of "The client waits as long as the configured timeout" |
+| AC3 | "The Ollama path was followed on a clean clone" and "A response after 300 s is accepted"; the web check follows the ≤ 15 min rule (see DR10) |
+| AC4 | "The real-model section says how to try each model" and "…ordered for a first-time reader" |
+| AC5 | Task 5.1, plus task 8.1 for the `3600001` error (the readme has no spec; acceptable) |
+
+## 3. Missing scenarios: clean
+
+Every MUST clause of both deltas has a scenario or a recorded check. The sentence "Building the fixture history SHALL change neither the seed's fingerprints…" is covered by the `git hash-object` and `npm run verify` checks of "Up builds the fixture history the seed indexed".
+
+## 4. Ambiguity: clean
+
+A search of `proposal.md`, `design.md`, `tasks.md` and both deltas finds none of fast, easy, secure, efficient, many, appropriate or robust. The earlier vague phrases were all replaced (≤ 15 min rule, readme times table, preload named).
+
+## 5. Open decisions
+
+- **5.1 — improvable: the API check in task 8.1 names no command.** "The API's `dev` prints `INVALID_CONFIG` the same way" does not say how the API is started with `LLM_TIMEOUT_MS=3600001`.
+  - Either `npm run up` or a direct `npm run dev` would work, because a variable already in the shell beats `.env` ("Values of .env fill only the variables the environment lacks").
+  - Each shell also needs to know how to unset it afterwards.
+  - **Fix:** in 8.1, write: «with `LLM_TIMEOUT_MS=3600001` set in that terminal (PowerShell `$env:LLM_TIMEOUT_MS='3600001'`, removed afterwards with `Remove-Item Env:LLM_TIMEOUT_MS`; Bash `LLM_TIMEOUT_MS=3600001 npm run up`), `npm run up` reaches `[up] npm run dev`, the API prints one `INVALID_CONFIG` line that names `LLM_TIMEOUT_MS` without its value, and the web stays up; then `up` is stopped by its process tree».
+- **5.2 — improvable (DR10): the web path past 300 s.**
+  - Design Goals promise "no time limit below `LLM_TIMEOUT_MS` anywhere on the live path (CLI, API, web through the API)".
+  - The deterministic 310 s check (6.4, design D8) only goes through `createLlm`.
+  - Vite's dev server is a plain Node `http.Server` with Node's default `headersTimeout`/`requestTimeout`. Design Context discusses Fastify's timeouts and Vite's `proxyTimeout`, but not these. They time how long the *request* takes to arrive, so they are expected to be harmless here, but nothing verifies it.
+  - **Fix (record DR10), either:**
+    - (a) extend 6.4: point the `dis103-live` API's `LLM_BASE_URL` at the 310 s stub and ask a question that is not cached on Screen 2 in Chromium. Any result other than `LLM_UNAVAILABLE` / `timeout` after more than 300 s proves the path; or
+    - (b) add to design D6/D13 and task 6.3c: «the guide and the PR say the web was verified past 300 s only if 6.3c's measured answer took more than 300 s; otherwise they say the web was verified below 300 s».
+
+## 6. Contradictions inside the change: clean
+
+`proposal.md`, `design.md`, both deltas and `tasks.md` agree:
+- D1 and the scenario have the same step arguments;
+- D3, the delta and tasks 3.1/3.2 agree on DR1;
+- D12, the proposal's Impact and task 2.3b agree;
+- D8, D13 and tasks 6.x/8.x agree.
+
+One small inconsistency is covered in 7.3: design Risks says the ~11 s rebuild is "stated in the guide", but no task or delta clause puts it there.
+
+## 7. Contradictions with the project
+
+- **7.1 — BLOCKING: `docs/DEPLOYMENT.md` will describe a five-step `up`.**
+  - `docs/DEPLOYMENT.md:34-44` lists what `npm run up` runs in a table: `docker compose up -d --wait`, `npm install`, `npm run db:migrate`, `npm run db:seed`, `npm run dev`.
+  - After this change that table is false. It is one of the four Spanish guides an evaluator reads (DIS-102), and it describes exactly the hidden step this ticket removes.
+  - No task, no item of the proposal's Impact and no design decision touches it. Task 5.x lists `readme.md`, `fixtures/README.md`, `docs/project-context.md` and `.env.example` only.
+  - **Fix:**
+    - add a row between `npm run db:seed` and `npm run dev`: `| \`node fixtures/build-history.mjs acme-shop\` | Reconstruye el historial Git del proyecto de muestra (\`fixtures/acme-shop/.git\`, unos 11 s) que leen las respuestas en vivo; el modo evaluación no lo necesita |`;
+    - add a task 5.2b;
+    - add `docs/DEPLOYMENT.md` to the proposal's Impact "Changed (tooling and docs)" and to design D7 or D11.
+- **7.2 — improvable: `docs/project-context.md:464-471` goes stale and its DIS-61 gotcha gets a new trigger.**
+  - Line 471 says "To refresh the real fixtures' `.git` by hand, run `node fixtures/build-history.mjs`; no test does it". After this change, `npm run up` does it on every start.
+  - The same paragraph explains why nothing may build inside `fixtures/` while analyzer specs read `fixtures/acme-shop` in parallel: the builder rewrites tracked files with older snapshots for ~11 s, and those specs then fail at random.
+  - An `npm run up` started in a checkout while `npx vitest run` is running in that same checkout now reproduces that race.
+  - **Fix:** add to task 5.3: «l.471: `npm run up` rebuilds `acme-shop`'s `.git` on every start (design D1); do not run the suite in the same checkout during the `[up] node fixtures/build-history.mjs acme-shop` step (DIS-61)». Add the same risk to design → Risks.
+- Clean otherwise:
+  - the delta replaces the cap rationale of `openspec/specs/llm-adapter/spec.md:24-27`;
+  - "Endpoint failures map to one error" still holds for an injected `fetch`;
+  - the range matches `CACHE_BUILD_TIMEOUT_MS`;
+  - ADR `20261017-stale-fingerprint-fails-verify` supports D3;
+  - `.dependency-cruiser.cjs` restricts `node:http` only for `packages/core` and the analyzers, so `packages/adapters/llm` may import it.
+
+## 8. Contrast with the real code
+
+- **8.1 — clean.**
+  - `longFetch` (`packages/cli/src/cache/long-fetch.ts:23-60`) keeps its abort listener until the response settles (`:38-43`, `:52-56`). The configured timeout therefore also aborts a body that has started arriving: a `TimeoutError` maps to `timeout` through `isAbort` (`openai-compatible-llm.ts:43,105-107`). This satisfies "A request that exceeds the timeout is aborted".
+  - `vitest.config.ts:16` already maps `@codemind/adapter-llm` to its source, so the CLI re-export works in the tests and under Stryker.
+  - `startSequence()` (`scripts/up.mjs:57-70`) takes the new `{label, command, args}` step as is.
+  - `build-history.mjs:118-119` already pins `commit.gpgsign` and `core.autocrlf` locally, so `HEAD` does not depend on the user's git config.
+- **8.2 — improvable (DR9): the mutation job on this PR.**
+  - The key `stryker-${{ hashFiles('package-lock.json', 'stryker.config.json', 'vitest.config.ts', 'vitest.stryker.config.ts') }}-…` (`ci.yml:231-234`) changes with tasks 2.3b's edits. Neither restore key matches, so `npm run test:mutation` runs with no incremental report, which means every mutant.
+  - `timeout-minutes: 40` (`ci.yml:193`) was set after a 29m34s step in DIS-26.
+  - **Fix (record DR9):** in design → Risks, write: «This PR's `mutation` job runs all mutants (the config hash is in the cache key); a push to the base branch already runs `test:mutation:full` under the same 40 min limit. Task 0.4 records the duration of the last base-branch `mutation` run. If this PR's job times out, it is re-run once; a second timeout is recorded in the PR, and raising `timeout-minutes` is done in this change with its reason». Reference DR9 in task 12.2.
+
+## 9. Task size: clean
+
+Each task fits one turn. 8.2 is large but has a single goal and runs one clone at a time; 12.6 is open-ended by nature. Both are acceptable.
+
+## 10. Mandatory steps: clean, with one improvable gap
+
+- Step 0 comes first and handles the branch (0.2); Linear goes to In Progress in 0.1.
+- Steps 6, 7, 8, 9, 10 and 12 are labelled `(MANDATORY)` with `AGENT MUST EXECUTE` where required, and every report path is named.
+- Restoration is in 8.3 (compose `down -v` per clone, clones moved, 0.4 indicators re-checked).
+- Pre-merge comes last: the three checks in order, fixes on the same PR, archive before merge.
+- **Improvable (DR11):** 6.3a stops the author's Ollama tray app, and 6.5 stops `ollama` / `llama-server`, but nothing records the app's earlier state or restores it.
+  - **Fix:** 0.4 records whether the tray app is running. 8.3 restarts it if it was, or records the decision not to (the project's memory says Ollama crashes on GPU on this machine, so leaving it stopped may be the author's preferred state, and that should be stated).
+
+## 11. Traceability: no holes
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| llm-adapter: LLM configuration… (MOD) | No URL and no key selects evaluation mode | 7.1, 7.2 |
+| | A URL without a key selects live mode | 7.1, 7.2 |
+| | A key without a URL fails without showing the key | 7.1, 7.2 |
+| | A URL without a model fails | 7.1, 7.2 |
+| | A malformed timeout or URL fails naming the variable | 1.1, 1.2 |
+| | A valid timeout overrides the default | 7.1, 7.2 |
+| | A timeout above 300 s is accepted | 1.1, 1.2 |
+| | The daily budget is read in live mode only | 7.1, 7.2 |
+| | A malformed daily budget fails naming the variable | 7.1, 7.2 |
+| | With a ceiling every configured model needs a price | 7.1, 7.2 |
+| | Without a ceiling a model needs no price | 7.1, 7.2 |
+| llm-adapter: The client waits… (ADDED) | Without an injected fetch the request does not use the global fetch | 2.1, 2.2 |
+| | Without an injected fetch timeouts, refusals and redirects keep their mapping | 2.3, 2.3b |
+| | A response after 300 s is accepted | 6.4 |
+| local-startup: One command starts the system (MOD) | Up runs the start sequence in order | 3.3, 3.4 |
+| | Up ignores an npm_execpath of .env | 7.1, 7.2 |
+| | Up stops at the first failing step | 7.1, 7.2 |
+| | Ctrl+C stops up without a failure line | 3.3, 3.4 |
+| | The history step finishes its work before ending on Ctrl+C | 3.1, 3.2 |
+| | A step that cannot start stops up | 7.1, 7.2 |
+| | Up needs npm to start it | 7.1, 7.2 |
+| | The startup scripts need no installed dependency | 3.4, 7.2 |
+| | Up with Docker unavailable fails naming its first step | 8.1 |
+| | Up builds the fixture history the seed indexed | 6.2 |
+| local-startup: The demo guide… (MOD) | The demo guide has no Bash-only command | 4.3, 5.5 |
+| | The demo guide is ordered for a first-time reader | 4.1 |
+| | The web walkthrough names what each screen shows | 7.1, 7.2 (review half not re-run; section unchanged) |
+| | The guide was followed on a clean clone in both shells | 8.2, 11.1 |
+| | The real-model section says how to try each model | 4.1, 4.3, 6.3d |
+| | The Ollama path was followed on a clean clone | 6.3a, 6.3b |
+
+---
+
+## Corrections to apply
+
+### `openspec/changes/real-model-clean-clone/tasks.md`
+1. **New 5.2b** (after 5.2): «`docs/DEPLOYMENT.md` → the table of `npm run up` steps (l.38-44) gains the row `node fixtures/build-history.mjs acme-shop` between `npm run db:seed` and `npm run dev` (what it does, about 11 s, read by live answers only); `npx vitest run tests/unit/docs` green» (finding 7.1).
+2. **5.3:** append «l.464-471: `npm run up` rebuilds `acme-shop`'s `.git` on every start (design D1); do not run the suite in the same checkout during that step (DIS-61)» (7.2).
+3. **5.1:** append «the output excerpt under "Lo que imprime al terminar" (l.319-340, dated 19-10-2026) gains `[up] node fixtures/build-history.mjs acme-shop` and its summary line with `<carpeta del clon>`, taken from the 6.2 run, with the date updated».
+4. **4.4:** append «and the paragraph after the pasted output (l.181, what each `[up]` line does) describes the new step and its ~11 s» (6, design Risks "stated in the guide").
+5. **8.1:** replace "and the API's `dev` prints `INVALID_CONFIG` the same way" with the wording of 5.1 above.
+6. **6.4 or 6.3c:** add the DR10 option that gets recorded (5.2).
+7. **0.4:** append «whether the Ollama tray app is running (DR11); the duration of the last `mutation` run on `feature/entrega-2-CRN` (DR9)». **8.3:** append «tray app restarted if 0.4 recorded it running, or the decision not to restart it recorded (DR11)». **12.2:** append «a timeout of the full mutation run follows design Risks (DR9)».
+
+### `openspec/changes/real-model-clean-clone/design.md`
+1. **D7** (or D11): add «`docs/DEPLOYMENT.md`'s table of `up` steps gains the history step».
+2. **Risks:** add:
+   - «[`up` rewrites `fixtures/acme-shop`'s tracked files for ~11 s on every start] → do not run the test suite in the same checkout during that step (DIS-61, `docs/project-context.md`)»;
+   - the DR9 text of 8.2;
+   - «[The web past 300 s] → …» with the DR10 option that gets recorded.
+3. **D8:** the DR11 rule for the tray app.
+4. **Spec-audit amendments:** add a "run 3" line: DR9–DR11; `docs/DEPLOYMENT.md`; project-context l.471; the readme excerpt; the `INVALID_CONFIG` command of 8.1.
+
+### `openspec/changes/real-model-clean-clone/proposal.md`
+1. **Impact → Changed (tooling and docs):** add `docs/DEPLOYMENT.md`.
+
+### Delta specs
+- No change is required. With DR10 option (b), you may append to the `local-startup` paragraph "The web (…)" nothing beyond what design D6 already says: claims only what was verified.
+
+### Linear DIS-103
+Do not edit the `[original]` block. In the `[enhanced]` part:
+- In **D11**, add at the end: «y la tabla de pasos de `npm run up` en `docs/DEPLOYMENT.md` (l.38-44), que gana la fila del historial del fixture».
+- Under «Decisiones registradas en la auditoría de la spec», add:
+  - «**DR9 — Mutación completa en este PR (tercera pasada).** La clave de caché del job `mutation` incluye el hash de `stryker.config.json` y `vitest.stryker.config.ts`; al cambiarlos, el PR ejecuta todos los mutantes (límite de 40 min). En 0.4 se anota la duración de la última ejecución en `feature/entrega-2-CRN`; si el job agota el tiempo se relanza una vez y, si vuelve a agotarlo, se sube `timeout-minutes` en este mismo change con su motivo.»
+  - «**DR10 — La web por encima de 300 s (tercera pasada).** [opción elegida: (a) la comprobación de 310 s se repite por la API y la Pantalla 2 en Chromium con `LLM_BASE_URL` apuntando al servidor lento; o (b) la guía y el PR solo afirman que la web pasa de 300 s si la respuesta medida en 6.3c tardó más de 300 s].»
+  - «**DR11 — App de Ollama de la bandeja (tercera pasada).** En 0.4 se anota si estaba en marcha; al restaurar (8.3) se vuelve a abrir si lo estaba, o se anota por qué no (en esta máquina Ollama falla con GPU).»
+  - «**Otros ajustes (tercera pasada):** `docs/project-context.md` l.471 dice ahora que `npm run up` reconstruye el historial y avisa de no lanzar la suite en el mismo clon durante ese paso (DIS-61); el extracto de salida de `up` en `readme.md` incluye el paso nuevo; la comprobación de `INVALID_CONFIG` de la API en 8.1 nombra el comando.»
+
+### Resolution of run 3 (lead-engineer decisions)
+
+Applied with `/opsx:update`; DR9–DR11 recorded in the DIS-103 Enhanced description (Spanish).
+
+| Finding | Decision | Where |
+|---|---|---|
+| 7.1 (blocking) — `docs/DEPLOYMENT.md` table of `up` steps | Gains the history row | design D7; proposal Impact; task 5.2b |
+| 7.2 — project-context DIS-61 paragraph and the new race | l.464-471 updated; risk recorded (no suite run in the same checkout during the step) | design Risks; task 5.3 |
+| 8.2 / DR9 — full mutation run on this PR | Expected; last base-branch duration recorded; one re-run on timeout, then `timeout-minutes` raised in this change with its reason | design Risks; tasks 0.4, 12.2 |
+| 5.2 / DR10 — the web past 300 s | Option (a): the 310 s stub serves the `dis103-live` API and a question goes through `demo:ask` and Screen 2 in Chromium; the guide and PR claim the web waits past 300 s only if it passes | design D8; task 6.4b |
+| 10 / DR11 — Ollama tray app | State recorded in 0.4; started again in 8.3 if it was running | design D8; tasks 0.4, 8.3 |
+| 5.1 — `INVALID_CONFIG` check names no command | Command and per-shell set/unset written in 8.1 | task 8.1 |
+| Readme output excerpt and DEMO's `Paso 0` paragraph | Updated with the new step (and ~11 s) | design D7; tasks 4.4, 5.1 |
