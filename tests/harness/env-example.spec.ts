@@ -41,9 +41,9 @@ describe('Example environment files are readable and editable', { timeout: 120_0
       new RegExp(
         `^${glob
           .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-          .replace(/\*\*\//g, '\u0000')
+          .replace(/\*\*\//g, '<globstar>')
           .replace(/\*/g, '[^/]*')
-          .replace(/\u0000/g, '(?:.*/)?')}$`,
+          .replace(/<globstar>/g, '(?:.*/)?')}$`,
       );
     const denied = (path: string) => globs.some((g) => toRegex(g).test(path));
     for (const path of ['.env.example', 'packages/api/.env.example', '.env.sample']) expect(denied(path), path).toBe(false);

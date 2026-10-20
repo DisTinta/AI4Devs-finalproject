@@ -83,10 +83,19 @@ export function createProject(options: ProjectOptions = {}): Project {
   return project;
 }
 
-/** The real `sdd-harness.env` with some keys replaced or appended. */
+/** The switches at their shipped defaults, so a local hand edit of the contract does not leak into the tests. */
+const SWITCH_DEFAULTS: Record<string, string> = {
+  KIT_PROTECT_SPECS: '1',
+  KIT_SPEC_AUDIT_GATE: '1',
+  KIT_AUTONOMOUS_RUN: '0',
+  AUTONOMOUS_MERGE_BASE: 'final-project-CRN',
+  KIT_SECRET_ALLOWLIST: '',
+};
+
+/** The real `sdd-harness.env` with the switches at their defaults and some keys replaced or appended. */
 function contract(overrides: Record<string, string>): string {
   let text = readFileSync(join(REPO_ROOT, '.claude/sdd-harness.env'), 'utf8').replace(/\r\n/g, '\n');
-  for (const [key, value] of Object.entries(overrides)) {
+  for (const [key, value] of Object.entries({ ...SWITCH_DEFAULTS, ...overrides })) {
     const line = `${key}="${value}"`;
     const re = new RegExp(`^${key}=.*$`, 'm');
     text = re.test(text) ? text.replace(re, line) : `${text.trimEnd()}\n${line}\n`;

@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createProject, pathWithoutJq, REPO_ROOT, type Project } from './support/run-hook';
 import { createCommandShims, type ShimRule } from './support/stubs';
@@ -85,7 +86,7 @@ describe('A preflight checks the autonomous setup before a run', { timeout: 120_
     const path = setup.noJq ? `${shims.path.split(process.platform === 'win32' ? ';' : ':')[0]}${process.platform === 'win32' ? ';' : ':'}${pathWithoutJq()}` : shims.path;
     const env = { ...process.env, PATH: path, CLAUDE_CONFIG_DIR: '' };
     const r = spawnSync('node', [join(REPO_ROOT, '.claude/hooks/invoke.cjs'), join(p.dir, '.claude/doctor.sh'), ...args], { env, encoding: 'utf8', cwd: p.dir });
-    const out = (r.stdout + r.stderr).replace(/\x1b\[[0-9;]*m/g, '');
+    const out = stripVTControlCharacters(r.stdout + r.stderr);
     return { out, status: r.status, fails: out.split('\n').filter((l) => l.includes('FAIL')) };
   }
 

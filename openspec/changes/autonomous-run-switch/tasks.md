@@ -289,15 +289,15 @@
 
 ## 11. Review and Update Existing Tests / Run Tests and Verify Data State (MANDATORY)
 
-- [ ] 11.1 Review the existing tests that touch the changed areas (`grep -rln "invoke.cjs\|sdd-harness\|hooks/" tests`). No existing test is edited. Every `#### Scenario:` of the delta maps to a test of the same name in `tests/harness/` or `tests/unit/docs/kit-skills.spec.ts` (table in the report)
-- [ ] 11.2 Run, in order:
+- [x] 11.1 Review the existing tests that touch the changed areas (`grep -rln "invoke.cjs\|sdd-harness\|hooks/" tests`). No existing test is edited. Every `#### Scenario:` of the delta maps to a test of the same name in `tests/harness/` or `tests/unit/docs/kit-skills.spec.ts` (table in the report)
+- [x] 11.2 Run, in order:
   1. the targeted tests, `npx vitest run tests/harness tests/unit/docs/kit-skills.spec.ts`;
   2. the full `npx vitest run` (integration database as `docs/TESTING.md` says), `npm run lint`, `npm run typecheck` and `openspec validate autonomous-run-switch --strict`;
   3. compare the totals with 0.4.
 
   Confirm that the Stryker config excludes `tests/harness` (1.1)
-- [ ] 11.3 State: no change touches the database. Check that `git status` shows no leftover temporary project, that `.claude/autonomous-denials.log` is ignored (`git check-ignore`), and that `%TEMP%\harness-*` dirs are removed by the helper
-- [ ] 11.4 Report `openspec/changes/autonomous-run-switch/reports/YYYY-MM-DD-11-test-and-state-verification.md` (section 6 template of `docs/openspec-tasks-mandatory-steps.md`). End-to-End Testing does not apply: the change has no user interface
+- [x] 11.3 State: no change touches the database. Check that `git status` shows no leftover temporary project, that `.claude/autonomous-denials.log` is ignored (`git check-ignore`), and that `%TEMP%\harness-*` dirs are removed by the helper
+- [x] 11.4 Report `openspec/changes/autonomous-run-switch/reports/YYYY-MM-DD-11-test-and-state-verification.md` (section 6 template of `docs/openspec-tasks-mandatory-steps.md`). End-to-End Testing does not apply: the change has no user interface
 
 ## 12. Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE)
 
