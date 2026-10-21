@@ -4,7 +4,7 @@
 // (openspec change autonomous-run-switch, design D5, D9).
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createProject, editInput, runHook, type Project } from './support/run-hook';
 
@@ -67,7 +67,7 @@ describe('Rewrites of specs, tests and doctrine are decided without a human in u
   let project: Project | undefined;
   afterEach(() => project?.cleanup());
   const edit = (p: Project, path: string, extra: Record<string, unknown> = {}) =>
-    runHook(p, 'protect-specs-and-tests', editInput(path.includes(':') ? path : `${p.dir}/${path}`, 'Edit', extra));
+    runHook(p, 'protect-specs-and-tests', editInput(isAbsolute(path) || path.includes(':') ? path : `${p.dir}/${path}`, 'Edit', extra));
 
   for (const protect of ['1', '0']) {
     describe(`with KIT_PROTECT_SPECS="${protect}"`, () => {

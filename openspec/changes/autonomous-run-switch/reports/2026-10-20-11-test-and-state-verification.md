@@ -147,9 +147,13 @@ The template test of task 10.2 ("the autonomous profile template") is not a name
       root does not exist (`C:/…` on POSIX, a missing drive such as `Q:/…` on Windows). The parser
       hit its 5 s timeout, the raw fallback matched `rm -rf`, and the hook denied. Fixed: the climb
       stops when nothing is left to strip. Regression test in `tests/harness/shell-words.spec.ts`.
-    - `autonomous-protect` "An existing test planned in tasks.md may change" (twice): the test sent a
-      backslash path, which only a Windows client sends; on Linux a backslash is a file-name
-      character and that file does not exist. The test now uses backslashes on Windows only.
+    - `autonomous-protect` "An existing test planned in tasks.md may change" (twice): a bug in the
+      test, not in the hook. The `edit` helper kept a path as given only when it contained `:`, and
+      prefixed the project directory to anything else. A POSIX absolute path (`/tmp/...`) has no `:`,
+      so on Linux it became `<dir>/<dir>/tests/...`, a path outside the repository, and the hook
+      correctly answered `none`. Fixed: the helper keeps any absolute path (`isAbsolute`). A first
+      attempt blamed the backslashes and made them Windows-only; that alone did not fix CI. The
+      Windows-only backslash path stays, since only a Windows client sends one (design D9).
   - Lint found two `no-control-regex` errors in harness tests (`\x1b`, `\u0000`); fixed with
     `stripVTControlCharacters` and a printable placeholder.
   - ESLint ignores `.claude/`, so the hook scripts, `shell-words.mjs` and `vet-package.mjs` are
