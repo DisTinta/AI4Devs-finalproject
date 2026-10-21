@@ -30,6 +30,13 @@ describe('No hook leaves a confirmation pending in unattended mode', { timeout: 
       const result = await runHook(project, 'block-dangerous-bash', bashInput(command));
       expect(result.decision, command).toBe('deny');
       expect(result.reason, command).toContain('editing tools');
+      expect(result.reason, command).toContain('read only by pattern');
+    }
+    // A parsed destructive command does not get that sentence.
+    for (const command of ['rm -rf packages', 'git push --force', 'mkfs /dev/sda1', 'dd if=/dev/zero of=/dev/sda']) {
+      const result = await runHook(project, 'block-dangerous-bash', bashInput(command));
+      expect(result.decision, command).toBe('deny');
+      expect(result.reason, command).not.toContain('editing tools');
     }
   });
 
@@ -47,6 +54,7 @@ describe('No hook leaves a confirmation pending in unattended mode', { timeout: 
     project = createProject({ env: { KIT_AUTONOMOUS_RUN: '1' } });
     const result = await runHook(project, 'block-dangerous-bash', bashInput('psql -c "DROP TABLE x"'));
     expect(result.decision).toBe('deny');
+    expect(result.reason).toContain('stop the ticket cleanly and leave it In Review');
   });
 
   it('The kit contract cannot be edited in unattended mode', async () => {

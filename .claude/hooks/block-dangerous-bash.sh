@@ -52,8 +52,10 @@ raw_whole() { printf '%s' "$COMMAND" | grep -qiE "$1"; }
 # that writes prose mentioning a command): the agent is told how to write such text instead.
 raw_hint() {
   [[ "$1" != "true" && "$PARSED" == "true" ]] && unattended || return 0
-  printf '%s' " The match comes from text handed to an interpreter (a heredoc, -c or -e), which the guard reads only by pattern: if it is text and not a command, write the file with the editing tools instead."
+  printf '%s' " The match comes from text handed to an interpreter (a heredoc, -c or -e), which the guard has read only by pattern: if it is text and not a command, write the file with the editing tools instead."
 }
+# True when one piece of raw text matches both patterns.
+raw_any_both() { local t; for t in "${RAW_TEXTS[@]}"; do printf '%s' "$t" | grep -qE "$1" && printf '%s' "$t" | grep -qE "$2" && return 0; done; return 1; }
 
 RM_RAW='rm[[:space:]]+(-[a-zA-Z]*[rf][a-zA-Z]*[[:space:]]+)+'
 PUSH_FORCE_RAW='git[[:space:]]+push.*(--force([^-]|$)|-f([[:space:]]|$))'
@@ -71,8 +73,13 @@ fi
 [[ "$P_SCRATCH" == "true" ]] && done_ok
 
 # 1. Mass deletions and device destruction.
-if [[ "$P_RM" == "true" ]] || raw_any "$RM_RAW" || raw_whole 'mkfs|dd[[:space:]]+if=|:\(\)\{.*\};:'; then
-  deny "Destructive command blocked by repository policy: ${COMMAND}$(raw_hint "$P_RM")"
+#    The interpreter-text hint goes only with a match found in interpreter text, never with a parsed
+#    command or a whole-line raw rule (mkfs, dd if=, the fork bomb).
+if [[ "$P_RM" == "true" ]] || raw_whole 'mkfs|dd[[:space:]]+if=|:\(\)\{.*\};:'; then
+  deny "Destructive command blocked by repository policy: ${COMMAND}"
+fi
+if raw_any "$RM_RAW"; then
+  deny "Destructive command blocked by repository policy: ${COMMAND}$(raw_hint false)"
 fi
 
 # 2. Wide-open permissions.
@@ -97,7 +104,8 @@ fi
 # 6. The kit contract (and its switches) is changed by a human, never by a shell write from the
 #    agent. Reading it stays free: only a write whose target is sdd-harness.env counts.
 if [[ "$P_CONTRACT" == "true" ]] || \
-   { [[ "$PARSED" != "true" ]] && raw_whole 'sdd-harness\.env' && raw_whole "$CONTRACT_RAW"; }; then
+   { [[ "$PARSED" != "true" ]] && raw_whole 'sdd-harness\.env' && raw_whole "$CONTRACT_RAW"; } || \
+   raw_any_both 'sdd-harness\.env' "$CONTRACT_RAW"; then
   deny "sdd-harness.env is edited by hand, not from the agent's shell."
 fi
 
@@ -110,7 +118,7 @@ if autonomous_run && [[ "$PARSED" == "true" ]]; then
   [[ "$P_FORCED" != "true" ]] || deny "Autonomous run: a forced checkout or switch discards local changes, the switch included."
   [[ "$P_BYPASS" != "true" ]] || deny "Autonomous run: permission bypass flags are not allowed."
   [[ "$P_BASE" != "true" ]] || deny "Autonomous run: the base branch (${AUTONOMOUS_MERGE_BASE}) only changes through the merge gate (gh pr merge). No direct push, local merge or commit on it."
-  [[ "$P_PROTECTION" != "true" ]] || deny "Autonomous run: the branch protection is not modified by the agent."
+  [[ "$P_PROTECTION" != "true" ]] || deny "Autonomous run: the branch protection is not modified by the agent; only the merge gate (gh pr merge) changes the base."
 fi
 
 # 5. Dependency installation. Outside an unattended run it asks, as before. In an unattended run the
@@ -149,7 +157,8 @@ fi
 
 # 7. Additional stack-specific pattern, defined in sdd-harness.env (always on the raw text).
 if [[ -n "$GUARD_DANGEROUS_CMD" ]] && printf '%s' "$COMMAND" | grep -qE "$GUARD_DANGEROUS_CMD"; then
-  ask "This command is destructive for this project's stack (${STACK}). Confirm manually."
+  ask "This command is destructive for this project's stack (${STACK}). Confirm manually." \
+    "This needs a human: stop the ticket cleanly and leave it In Review."
 fi
 
 [[ -n "$ALLOW_INSTALL" ]] && allow "$ALLOW_INSTALL"

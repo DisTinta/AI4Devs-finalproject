@@ -21,6 +21,7 @@ const SHELLS = new Set(['bash', 'sh', 'zsh']);
 const OTHER_INTERPRETERS = new Set(['pwsh', 'powershell', 'cmd', 'eval', 'xargs', 'ssh', 'python', 'python3', 'node', 'perl', 'ruby']);
 const RESERVED = new Set(['if', 'then', 'elif', 'else', 'fi', 'do', 'done', 'while', 'until', '!', '{', '}']);
 const WRAPPERS = new Set(['sudo', 'env', 'command', 'exec', 'nohup', 'time', 'nice', 'timeout', 'xargs']);
+const ASSIGN = /^[A-Za-z_][A-Za-z0-9_]*=/;
 
 /**
  * Parses one command line. Returns { commands, separators, heredocs } or throws Unparsable.
@@ -99,8 +100,30 @@ export function parseLine(line, depth = 0) {
     }
     let level = 1;
     const start = i;
+    // Heredocs declared inside the substitution: their bodies are skipped line by line, unlexed, the
+    // way the shell reads them (a message body may hold an apostrophe or `1)`).
+    const bodies = [];
     while (i < src.length) {
       const c = src[i];
+      if (c === '\n' && bodies.length) {
+        i++;
+        while (bodies.length) {
+          const h = bodies.shift();
+          let closed = false;
+          while (i < src.length) {
+            const nl = src.indexOf('\n', i);
+            const raw = src.slice(i, nl < 0 ? src.length : nl);
+            i = nl < 0 ? src.length : nl + 1;
+            if ((h.strip ? raw.replace(/^\t+/, '') : raw) === h.delim) { closed = true; break; }
+          }
+          if (!closed) throw new Unparsable('unclosed heredoc');
+        }
+        continue;
+      }
+      if (c === '<' && src[i + 1] === '<' && src[i + 2] !== '<') {
+        const m = /^<<(-?)[ \t]*(?:'([^'\n]*)'|"([^"\n]*)"|\\?([A-Za-z0-9_.-]+))/.exec(src.slice(i));
+        if (m) { bodies.push({ delim: m[2] ?? m[3] ?? m[4], strip: m[1] === '-' }); i += m[0].length; continue; }
+      }
       if (c === "'") { const end = src.indexOf("'", i + 1); if (end < 0) throw new Unparsable('quote'); i = end + 1; continue; }
       if (c === '"') { i++; while (i < src.length && src[i] !== '"') { if (src[i] === '\\') i++; i++; } i++; continue; }
       if (c === '\\') { i += 2; continue; }
@@ -267,8 +290,12 @@ export function parseLine(line, depth = 0) {
 
   for (const text of substitutions) {
     const nested = parseLine(text, depth + 1);
+    // The commands of one substitution share a working directory (design D6: a cd inside it makes
+    // the directory of the following ones unknown).
+    const group = { parent: null };
     for (const cmd of nested.commands) {
       cmd.inSubst = true;
+      if (!cmd.group) cmd.group = group;
       commands.push(cmd);
     }
   }
@@ -322,6 +349,7 @@ export function commandStart(words) {
       }
     } else if (name === 'sudo') {
       while (k < words.length && /^-/.test(words[k].value)) { if (/^-[ugCDhpRrTt]$/.test(words[k].value)) k++; k++; }
+      while (k < words.length && ASSIGN.test(words[k].value)) k++;
     } else if (name === 'nice') {
       while (k < words.length && /^-/.test(words[k].value)) { if (words[k].value === '-n') k++; k++; }
     } else if (name === 'timeout') {
@@ -344,7 +372,9 @@ function normalise(commands) {
     const words = cmd.words.slice(start);
     const name = words.length ? baseName(words[0].value) : '';
     const viaXargs = cmd.words.slice(0, start).some((w) => baseName(w.value) === 'xargs');
-    out.push({ ...cmd, words, name, viaXargs });
+    // Assignments given to a wrapper (`env A=b cmd`, `sudo A=b cmd`) reach the command like prefix ones.
+    const assigns = [...cmd.assigns, ...cmd.words.slice(0, start).filter((w) => ASSIGN.test(w.value)).map((w) => w.value)];
+    out.push({ ...cmd, words, name, viaXargs, assigns });
     if (name === 'find') {
       for (let k = 1; k < words.length; k++) {
         if (words[k].value === '-exec' || words[k].value === '-execdir') {
@@ -402,12 +432,13 @@ function otherInterpreterText(cmd, line) {
     return at > 0 ? w[at + 1] ?? '' : null;
   }
   if (name === 'pwsh' || name === 'powershell') {
+    // Without -Command, the positional words are the command text too.
     const at = w.findIndex((x, idx) => idx > 0 && /^-(c|command|encodedcommand)$/i.test(x));
-    return at > 0 ? w.slice(at + 1).join(' ') : null;
+    return at > 0 ? w.slice(at + 1).join(' ') : w.slice(1).join(' ') || null;
   }
   if (name === 'cmd') {
     const at = w.findIndex((x, idx) => idx > 0 && /^\/[ck]$/i.test(x));
-    return at > 0 ? w.slice(at + 1).join(' ') : null;
+    return at > 0 ? w.slice(at + 1).join(' ') : w.slice(1).join(' ') || null;
   }
   return null;
 }
@@ -508,6 +539,18 @@ function withoutMessages(words, opts) {
   return out;
 }
 
+/** Arguments of a git subcommand; message values are removed for git commit and git tag only. */
+function gitRest(g) {
+  return g.sub === 'commit' || g.sub === 'tag' ? withoutMessages(g.rest, MSG_OPTS_GIT) : g.rest;
+}
+
+/** Words of a command with message values removed (git commit/tag, gh). */
+function wordsWithoutMessages(cmd) {
+  if (cmd.name === 'git') return gitRest(gitArgs(cmd.words)).map((x) => x.value);
+  if (cmd.name === 'gh') return withoutMessages(cmd.words, MSG_OPTS_GH).map((x) => x.value);
+  return cmd.words.map((x) => x.value);
+}
+
 const GH_MERGE_VALUE_FLAGS = new Set(['-R', '--repo', '-b', '--body', '-F', '--body-file', '-t', '--subject', '-A', '--author-email', '--match-head-commit']);
 
 function analyse(parsed, line, ctx) {
@@ -532,36 +575,49 @@ function analyse(parsed, line, ctx) {
   const commands = normalise(parsed.commands);
   const rawInterpreterText = [];
   let pipeIntoShell = false;
-  const extra = [];
-
-  // Interpreter text.
-  for (const cmd of commands) {
+  // Interpreter text, parsed recursively: shell text inside shell text is read too (design D6).
+  const all = [...commands];
+  for (let q = 0; q < all.length; q++) {
+    const cmd = all[q];
     if (SHELLS.has(cmd.name)) {
       const prog = shellProgram(cmd);
       if (!prog) continue;
       if (prog.kind === 'pipe') { pipeIntoShell = true; rawInterpreterText.push(line); continue; }
-      const nested = normalise(parseLine(prog.text, 1).commands).map((c) => ({ ...c, inInterp: true }));
-      extra.push(...nested);
+      const depth = (cmd.interpDepth ?? 0) + 1;
+      const group = { parent: cmd };
+      const nested = normalise(parseLine(prog.text, depth).commands)
+        .map((c) => ({ ...c, inInterp: true, interpDepth: depth, group: c.group ?? group }));
+      all.push(...nested);
     } else if (OTHER_INTERPRETERS.has(cmd.name) || cmd.viaXargs) {
       const text = cmd.viaXargs ? `${cmd.words.map((w) => w.value).join(' ')}` : otherInterpreterText(cmd, line);
       if (text) rawInterpreterText.push(text);
     }
   }
-  const all = [...commands, ...extra];
 
-  // Working directories, in line order.
+  // Working directories, in line order. The commands of one substitution or interpreter text form a
+  // group: it starts in its interpreter's directory (a substitution: the line's current one), and a
+  // cd, pushd or popd inside it makes the directory of the group's following commands unknown.
   let cwd = ctx.cwd;
+  const groupCwd = new Map();
+  const changesDir = (cmd) => cmd.name === 'cd' || cmd.name === 'pushd' || cmd.name === 'popd';
   for (const cmd of all) {
-    cmd.cwd = cwd;
-    if ((cmd.name === 'cd' || cmd.name === 'pushd') && !cmd.inSubst && !cmd.inInterp) {
-      const arg = cmd.words.slice(1).find((w) => !/^-[LP]$/.test(w.value));
-      if (!arg || arg.value === '-') cwd = null;
-      else cwd = resolvePath(arg.value, arg.dynamic, cwd);
-    } else if (cmd.name === 'popd') cwd = null;
+    if (cmd.group) {
+      if (!groupCwd.has(cmd.group)) groupCwd.set(cmd.group, cmd.group.parent ? cmd.group.parent.cwd ?? null : cwd);
+      cmd.cwd = groupCwd.get(cmd.group);
+      if (changesDir(cmd)) groupCwd.set(cmd.group, null);
+    } else {
+      cmd.cwd = cwd;
+      if (cmd.name === 'cd' || cmd.name === 'pushd') {
+        const arg = cmd.words.slice(1).find((w) => !/^-[LP]$/.test(w.value));
+        if (!arg || arg.value === '-') cwd = null;
+        else cwd = resolvePath(arg.value, arg.dynamic, cwd);
+      } else if (cmd.name === 'popd') cwd = null;
+    }
     if (cmd.name === 'git') {
       const g = gitArgs(cmd.words);
-      if (g.dashC) cmd.cwd = resolvePath(g.dashC.value, g.dashC.dynamic, cwd);
-      if (g.workTree) cmd.cwd = resolvePath(g.workTree.value, g.workTree.dynamic, cwd);
+      const base = cmd.cwd;
+      if (g.dashC) cmd.cwd = resolvePath(g.dashC.value, g.dashC.dynamic, base);
+      if (g.workTree) cmd.cwd = resolvePath(g.workTree.value, g.workTree.dynamic, base);
     }
   }
 
@@ -582,7 +638,7 @@ function analyse(parsed, line, ctx) {
     // Rule 3.
     if (cmd.name === 'git') {
       const g = gitArgs(w);
-      const rest = withoutMessages(g.rest, MSG_OPTS_GIT).map((x) => x.value);
+      const rest = gitRest(g).map((x) => x.value);
       if (g.sub === 'push' && rest.some((x) => x === '--force' || x === '-f' || (/^-[A-Za-z]+$/.test(x) && x.includes('f') && !x.startsWith('--')) || /^\+/.test(x))) facts.gitForcePush = true;
       if ((g.sub === 'reset' && rest.includes('--hard')) || (g.sub === 'clean' && rest.some((x) => /^-[a-z]*f/.test(x))) || g.sub === 'filter-branch') facts.gitDiscard = true;
     }
@@ -601,7 +657,8 @@ function analyse(parsed, line, ctx) {
     // Rule 8: git on kit configuration, whole tree, reverts, forced switches, pushes to the base.
     if (cmd.name === 'git') gitRules(cmd, facts, ctx, isKit);
     // Permission bypass.
-    if (v.includes('--dangerously-skip-permissions') || v.some((x, k) => (x === '--permission-mode' && v[k + 1] === 'bypassPermissions') || x === '--permission-mode=bypassPermissions')) facts.bypassFlags = true;
+    const b = wordsWithoutMessages(cmd);
+    if (b.includes('--dangerously-skip-permissions') || b.some((x, k) => (x === '--permission-mode' && b[k + 1] === 'bypassPermissions') || x === '--permission-mode=bypassPermissions')) facts.bypassFlags = true;
     // gh.
     if (cmd.name === 'gh') ghRules(cmd, facts, all.length === 1 && parsed.separators.every((s) => s === null || s === undefined));
   }
@@ -621,7 +678,18 @@ function summary(cmd) {
 }
 
 const MANAGERS = { npm: ['i', 'add', 'install'], pnpm: ['i', 'add', 'install'], yarn: ['i', 'add', 'install'], bun: ['i', 'add', 'install'], composer: ['require', 'install', 'add', 'get'], pip: ['require', 'install', 'add', 'get'], pip3: ['require', 'install', 'add', 'get'], gem: ['require', 'install', 'add', 'get'], cargo: ['require', 'install', 'add', 'get'], go: ['require', 'install', 'add', 'get'] };
-const VALUE_FLAGS = new Set(['-w', '--workspace', '--filter', '--prefix', '--registry', '--omit', '--include', '--tag', '--cache', '--loglevel', '--userconfig', '-C', '--dir', '--cwd', '-r', '-c', '--requirement', '--constraint']);
+// Options that take a value, skipped with it, per manager family.
+const NPM_FAMILY = new Set(['npm', 'pnpm', 'yarn', 'bun']);
+const NPM_VALUE_FLAGS = new Set(['-w', '--workspace', '--filter', '--prefix', '--registry', '--omit', '--include', '--tag', '--cache', '--loglevel', '--userconfig', '-C', '--dir', '--cwd']);
+const PIP_VALUE_FLAGS = new Set(['-r', '-c', '--requirement', '--constraint']);
+const VALUE_FLAGS = { npm: NPM_VALUE_FLAGS, pnpm: NPM_VALUE_FLAGS, yarn: NPM_VALUE_FLAGS, bun: NPM_VALUE_FLAGS, pip: PIP_VALUE_FLAGS, pip3: PIP_VALUE_FLAGS };
+
+/** `--registry` / `--userconfig` or any abbreviation npm accepts (a long option of 4+ characters that prefixes one). */
+function registryFlag(x) {
+  if (!x.startsWith('--')) return false;
+  const name = x.split('=')[0];
+  return name.length >= 4 && ('--registry'.startsWith(name) || '--userconfig'.startsWith(name));
+}
 
 function install(cmd) {
   const verbs = MANAGERS[cmd.name];
@@ -630,10 +698,15 @@ function install(cmd) {
   if (!verbs.includes(v[1])) return null;
   const packages = [];
   let registry = false;
+  const valueFlags = VALUE_FLAGS[cmd.name] ?? new Set();
   for (let k = 2; k < v.length; k++) {
     const x = v[k];
-    if (x === '--registry' || x.startsWith('--registry=') || x === '--userconfig' || x.startsWith('--userconfig=')) registry = true;
-    if (VALUE_FLAGS.has(x)) { k++; continue; }
+    if (registryFlag(x)) {
+      registry = true;
+      if (NPM_FAMILY.has(cmd.name) && !x.includes('=')) k++;
+      continue;
+    }
+    if (valueFlags.has(x)) { k++; continue; }
     if (/^-/.test(x)) continue;
     packages.push(x);
   }
@@ -661,7 +734,7 @@ function packageRunner(cmd, ctx) {
 
 function gitRules(cmd, facts, ctx, isKit) {
   const g = gitArgs(cmd.words);
-  const rest = withoutMessages(g.rest, MSG_OPTS_GIT);
+  const rest = gitRest(g);
   const vals = rest.map((x) => x.value);
   const afterDashDash = vals.indexOf('--');
   const pathspecs = rest.filter((x, k) => !/^-/.test(x.value) || (afterDashDash >= 0 && k > afterDashDash));
@@ -672,8 +745,8 @@ function gitRules(cmd, facts, ctx, isKit) {
     const specs = g.sub === 'checkout' || g.sub === 'restore' || g.sub === 'stash'
       ? rest.filter((x, k) => afterDashDash >= 0 ? k > afterDashDash : !/^-/.test(x.value))
       : pathspecs;
-    const candidates = g.sub === 'checkout' && afterDashDash < 0 ? [] : specs;
-    if (touchesKit(candidates.filter((x) => !globOrTop(x.value)))) facts.kitConfig.push(`git ${g.sub}`);
+    // git checkout without -- reads its non-option words as a tree-ish and pathspecs: every one is checked.
+    if (touchesKit(specs.filter((x) => !globOrTop(x.value)))) facts.kitConfig.push(`git ${g.sub}`);
   }
   if (g.sub === 'add' && vals.some((x) => ['-A', '--all', '-u', '--update'].includes(x) || globOrTop(x))) facts.wholeTree.push('git add');
   if (g.sub === 'commit' && vals.some((x) => x === '--all' || x === '.' || (/^-[A-Za-z]+$/.test(x) && /^-[^mFCc]*a/.test(x)))) facts.wholeTree.push('git commit');
@@ -681,7 +754,7 @@ function gitRules(cmd, facts, ctx, isKit) {
     const specs = rest.filter((x, k) => (afterDashDash >= 0 ? k > afterDashDash : !/^-/.test(x.value) && !x.value.startsWith('--')));
     if (specs.length === 0 || specs.some((x) => globOrTop(x.value))) facts.pathlessRevert.push(`git ${g.sub}`);
   }
-  if (g.sub === 'checkout' && afterDashDash < 0 && vals.includes('.')) facts.pathlessRevert.push('git checkout .');
+  if (g.sub === 'checkout' && afterDashDash < 0 && vals.some((x) => !/^-/.test(x) && globOrTop(x))) facts.pathlessRevert.push(vals.includes('.') ? 'git checkout .' : 'git checkout');
   if (g.sub === 'stash' || (g.sub === '' && false)) {
     const subcommand = vals.find((x) => !/^-/.test(x));
     if (!subcommand || subcommand === 'push' || subcommand === 'save') {

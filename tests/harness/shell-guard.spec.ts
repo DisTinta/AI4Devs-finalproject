@@ -20,6 +20,7 @@ describe('The shell guard reads commands, not text', { timeout: 120_000 }, () =>
       'git commit -m "touch .claude/x and git push --force"',
       'git commit -am"wip: rm -rf build"',
       "git commit -m \"$(cat <<'EOF'\nfix: avoid git push --force and rm -rf build\nEOF\n)\"",
+      "git commit -m \"$(cat <<'EOF'\nfix: it's not rm -rf build\n\n1) avoid git push --force\nEOF\n)\"",
     ]) {
       expect((await guard(project, command)).decision, command).toBe('none');
     }

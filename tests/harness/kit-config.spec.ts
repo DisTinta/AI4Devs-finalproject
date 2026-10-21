@@ -48,7 +48,8 @@ describe('The kit configuration and the local switch stay untouched in an autono
     for (const c of ['git add -A', 'git add -u', 'git add :/', "git add '*.env'", 'git commit -am "wip"', 'git commit .']) {
       const r = await runHook(project, 'block-dangerous-bash', bashInput(c, { cwd: project.dir }));
       expect(r.decision, c).toBe('deny');
-      expect(r.reason, c).toMatch(/explicit paths|could also revert/);
+      expect(r.reason, c).toContain('Stage explicit paths');
+      expect(r.reason, c).not.toContain('could also revert');
     }
     // An attached message is not a whole-tree flag.
     expect((await decisions(project, ['git commit -m"add x"']))['git commit -m"add x"']).toBe('none');
@@ -80,19 +81,26 @@ describe('The kit configuration and the local switch stay untouched in an autono
 
   it('Pushing or merging into the base directly is denied', async () => {
     project = createProject({ env: AUTONOMOUS, git: { branch: 'feature/DIS-9-foo-bar' } });
-    const d = await decisions(project, [
+    const p = project;
+    const deniedNamingGate = async (commands: string[]) => {
+      for (const c of commands) {
+        const r = await runHook(p, 'block-dangerous-bash', bashInput(c, { cwd: p.dir }));
+        expect(r.decision, c).toBe('deny');
+        expect(r.reason, c).toContain('merge gate (gh pr merge)');
+      }
+    };
+    // A forced refspec is denied first as a force push.
+    expect((await runHook(p, 'block-dangerous-bash', bashInput('git push origin +HEAD:final-project-CRN', { cwd: p.dir }))).decision).toBe('deny');
+    await deniedNamingGate([
       'git push origin HEAD:final-project-CRN',
-      'git push origin +HEAD:final-project-CRN',
       'git push origin final-project-CRN',
       'git push --all origin',
       'gh api -X DELETE repos/DisTinta/repo/branches/final-project-CRN/protection',
       'gh api --method=DELETE repos/DisTinta/repo/branches/final-project-CRN/protection',
       'gh api repos/DisTinta/repo/branches/final-project-CRN/protection/enforce_admins -f x=y',
     ]);
-    for (const [c, v] of Object.entries(d)) expect(v, c).toBe('deny');
     project.git('checkout', '-q', '-b', 'final-project-CRN');
-    const onBase = await decisions(project, ['git push', 'git merge feature/DIS-9-x']);
-    for (const [c, v] of Object.entries(onBase)) expect(v, c).toBe('deny');
+    await deniedNamingGate(['git push', 'git merge feature/DIS-9-x']);
   });
 
   it('Explicit source paths stay free', async () => {
