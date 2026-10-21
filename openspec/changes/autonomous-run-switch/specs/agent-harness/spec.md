@@ -59,7 +59,7 @@ In unattended mode no kit hook SHALL return `ask`. Every case that asks a human 
 - `allow`, when an automatic check defined in this specification passes; or
 - `deny`, with a reason that keeps the original explanation and adds a line naming the unattended run and the alternative the agent can take.
 
-When `jq` is missing in unattended mode, every hook that decides on a tool call SHALL deny with a reason that names `jq`, instead of letting the call pass. The prompt hook keeps its current behaviour.
+When `jq` is missing in unattended mode, every hook that decides on a tool call SHALL deny with a reason that names `jq`, instead of letting the call pass. The prompt hook keeps its current behaviour. Without `jq` the hook input cannot be read, so this case is decided by the switch alone: a Cursor background agent with the switch `"0"` and no `jq` is not detected as unattended (design D2); the preflight requires `jq`.
 
 #### Scenario: A destructive git command is denied with its alternative
 - **WHEN** unattended mode receives `git reset --hard HEAD~1` or `git clean -fd`
@@ -552,7 +552,12 @@ In an autonomous run, these count as kit configuration, so the rules that protec
 - a `tee` argument;
 - the file of an in-place `sed`/`perl` edit;
 - the source or destination of `mv`;
-- the destination of `cp`, `truncate`, `dd of=` or `ln`.
+- the destination of `cp`, `truncate`, `dd of=` or `ln`;
+- the target of `rm`, `rmdir` or `install` (removing or replacing the contract is a write too).
+
+#### Scenario: Removing the kit contract is a write
+- **WHEN** the command is `rm .claude/sdd-harness.env`, with the switch `"0"` or `"1"`
+- **THEN** the decision is `deny` with the kit-contract reason
 
 #### Scenario: Searching for a dangerous string is not a dangerous command
 - **WHEN** the command is `grep -rn "rm -rf packages" docs`
@@ -651,7 +656,7 @@ Always on. When the hook input provides the session's scratchpad directory, the 
 
 ### Requirement: Example environment files are readable and editable
 
-Always on. `.env.example` and `.env.sample` files (at any depth) SHALL NOT be treated as secret files: reading and editing them SHALL NOT be denied by the kit's hooks nor by the project's permission deny rules. Every other `.env` file, and every file the kit treats as a secret file today (for example under `secrets/`), SHALL stay denied for reading, and every other `.env` file SHALL stay denied for editing. An example file inside a secret location (for example `secrets/x.env.example`) stays denied: the secret location wins.
+Always on. `.env.example` and `.env.sample` files (at any depth) SHALL NOT be treated as secret files: reading and editing them SHALL NOT be denied by the kit's hooks nor by the project's permission deny rules. Every other `.env` file, and every file the kit treats as a secret file today (for example under `secrets/`), SHALL stay denied for reading, and every other `.env` file SHALL stay denied for editing. An example file inside a secret location (for example `secrets/x.env.example`) stays denied: the secret location wins. An example file under `PATH_SOURCE` or `PATH_TESTS` is still code for the spec-audit gate: in unattended mode it is editable only once the change's audit is `APPROVED`, like any other file there.
 
 #### Scenario: The example file is read and edited
 - **WHEN** the agent reads `.env.example`, or edits `packages/api/.env.sample`
@@ -681,7 +686,7 @@ Always on. The prompt secret scan SHALL ignore the text that matches `KIT_SECRET
 
 ### Requirement: Denials of an autonomous run are logged locally
 
-In an autonomous run under Claude Code, every `PermissionDenied` event SHALL be appended as one JSON line to `.claude/autonomous-denials.log`. The line SHALL hold the time, the tool name, the denial reason and the tool input, with every value matching the prompt secret patterns replaced by `[REDACTED]`. The log SHALL be ignored by git. Logging SHALL never block the session, even when the log cannot be written. Outside an autonomous run nothing SHALL be logged.
+In an autonomous run under Claude Code, every `PermissionDenied` event SHALL be appended as one JSON line to `.claude/autonomous-denials.log`. The line SHALL hold the time, the tool name, the denial reason, the tool input and, when the event carries one, the classifier's verdict, with every value matching the prompt secret patterns replaced by `[REDACTED]`. The log SHALL be ignored by git. Logging SHALL never block the session, even when the log cannot be written. Outside an autonomous run nothing SHALL be logged.
 
 #### Scenario: A classifier denial is logged
 - **WHEN** an autonomous run reports a denial of `gh pr merge 61 --merge` with reason `classifier_denied`

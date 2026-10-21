@@ -992,6 +992,38 @@ use worktree isolation. A subagent in a fresh worktree would read that worktree'
 - C: porting to the kit repository uses section 6 of the author's porting note; this change is its
   Codemind implementation.
 
+**Pre-merge review findings (2026-10-21, `reports/2026-10-21-verify-against-spec.md`).**
+- A (fixed in this change, each with a test seen red first):
+  - parser and shell guard: V1 (`env` assignments), V2 (abbreviated registry flags), V4 (`git checkout`
+    without `--`), V5 (message options only for commit/tag), V6 (recursive interpreter text), V7 (`cd`
+    inside text makes the directory unknown), V8 (kit-contract pattern on interpreter text again), V9
+    (positional PowerShell/cmd text), V21 (hint only on interpreter-text matches), V22 (heredoc body
+    inside `$(…)`), V24 (protection reason names the gate), V31 (stack-guard alternative); U2 (value
+    flags per manager) and U4 (bypass check ignores messages) removed from the code;
+  - merge gate: V3 (`--flag=value`), V11 (URL selector checks that repository's protection), V12
+    (missing `changedFiles` denies), V13 (merge split across lines), V23 (every failed condition named
+    in one reason; a wrong form now also queries GitHub, up to 15 s, before denying);
+  - vetting, log and protection: V10 (report without a verdict denies), V14 (unreadable values deny),
+    V15 (redaction inside jq, the line stays JSON), V25 (`is_kit_config` fails closed), V26 (free
+    paths match whole segments), V27 (a path outside the repository gets no decision), V28 (allowlist
+    regex runs as written), V31 (contract-edit alternative);
+  - doctors: V16 (no silent abort), V17 (ruleset bypass actors), V18 (one rule names merge and base),
+    V19 (Defender WARN from Git Bash), V20 (PowerShell parity, compose in the destination);
+  - test harness: `KIT_ALLOW_WIP` and `KIT_SKIP_STOP_TESTS` pinned to their defaults (a local hand edit
+    made the Cursor stop test pass vacuously).
+- D (added to the spec delta, accepted as permanent):
+  - U1: the wrappers were already specified (spec "The shell guard reads commands, not text");
+  - U3: `rm`/`rmdir`/`install` of the kit contract are writes (scenario "Removing the kit contract is
+    a write");
+  - U5: the denial log carries the classifier's verdict when the event has one;
+  - V30: without `jq` the switch alone decides unattended mode (D2), now stated in the spec;
+  - example env files under `PATH_SOURCE`/`PATH_TESTS` follow the spec-audit gate in unattended mode;
+  - U6 (`invoke.cjs` passes extra arguments, D13 amendment) and U7 (stricter or reporting-only:
+    the `gh api` merge pattern without `gh api`, legacy status contexts on `SUCCESS` only, the
+    case-sensitive scratchpad prefix, `git stash push <path>` without `--` as pathless, `doctor.sh` exit 2
+    on an unknown option, `doctor.ps1` OK on a confirmed Defender exclusion; with V4, any `git checkout`
+    in an unknown directory is denied in an autonomous run).
+
 ## Open Questions
 
 None that change the specs or the tasks. Two facts are checked during the apply, each with a
