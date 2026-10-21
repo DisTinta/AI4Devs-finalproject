@@ -48,6 +48,12 @@ RAW_TEXTS=()
 for t in $P_RAW; do RAW_TEXTS+=("$(printf '%s' "$t" | base64 -d 2>/dev/null)"); done
 raw_any() { local t; for t in "${RAW_TEXTS[@]}"; do printf '%s' "$t" | grep -qE "$1" && return 0; done; return 1; }
 raw_whole() { printf '%s' "$COMMAND" | grep -qiE "$1"; }
+# In an unattended run a rule that fired only on interpreter text may be a false positive (a heredoc
+# that writes prose mentioning a command): the agent is told how to write such text instead.
+raw_hint() {
+  [[ "$1" != "true" && "$PARSED" == "true" ]] && unattended || return 0
+  printf '%s' " The match comes from text handed to an interpreter (a heredoc, -c or -e), which the guard reads only by pattern: if it is text and not a command, write the file with the editing tools instead."
+}
 
 RM_RAW='rm[[:space:]]+(-[a-zA-Z]*[rf][a-zA-Z]*[[:space:]]+)+'
 PUSH_FORCE_RAW='git[[:space:]]+push.*(--force([^-]|$)|-f([[:space:]]|$))'
@@ -66,7 +72,7 @@ fi
 
 # 1. Mass deletions and device destruction.
 if [[ "$P_RM" == "true" ]] || raw_any "$RM_RAW" || raw_whole 'mkfs|dd[[:space:]]+if=|:\(\)\{.*\};:'; then
-  deny "Destructive command blocked by repository policy: ${COMMAND}"
+  deny "Destructive command blocked by repository policy: ${COMMAND}$(raw_hint "$P_RM")"
 fi
 
 # 2. Wide-open permissions.
@@ -76,11 +82,11 @@ fi
 
 # 3. History rewriting and force push.
 if [[ "$P_PUSH" == "true" ]] || raw_any "$PUSH_FORCE_RAW"; then
-  deny "git push --force is forbidden. A force push is done by a human or not at all."
+  deny "git push --force is forbidden. A force push is done by a human or not at all.$(raw_hint "$P_PUSH")"
 fi
 if [[ "$P_DISCARD" == "true" ]] || raw_any "$DISCARD_RAW"; then
   ask "This command irreversibly discards local work. Confirm manually." \
-    "Use git restore -- <paths> or git stash push -- <paths> on explicit paths instead."
+    "Use git restore -- <paths> or git stash push -- <paths> on explicit paths instead.$(raw_hint "$P_DISCARD")"
 fi
 
 # 4. Production.

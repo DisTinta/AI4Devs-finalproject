@@ -15,6 +15,21 @@ describe('No hook leaves a confirmation pending in unattended mode', { timeout: 
       const result = await runHook(project, 'block-dangerous-bash', bashInput(command));
       expect(result.decision, command).toBe('deny');
       expect(result.reason).toMatch(/git restore -- <paths>|git stash push -- <paths>/);
+      expect(result.reason).not.toContain('editing tools');
+    }
+  });
+
+  it('A match found only in interpreter text names the editing tools', async () => {
+    project = createProject({ env: { KIT_AUTONOMOUS_RUN: '1' } });
+    const heredocs = [
+      "python - <<'EOF'\nprint('the author rejected git reset --hard')\nEOF",
+      "python - <<'EOF'\nprint('never run rm -rf packages')\nEOF",
+      "python - <<'EOF'\nprint('git push --force is forbidden')\nEOF",
+    ];
+    for (const command of heredocs) {
+      const result = await runHook(project, 'block-dangerous-bash', bashInput(command));
+      expect(result.decision, command).toBe('deny');
+      expect(result.reason, command).toContain('editing tools');
     }
   });
 

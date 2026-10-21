@@ -65,6 +65,10 @@ When `jq` is missing in unattended mode, every hook that decides on a tool call 
 - **WHEN** unattended mode receives `git reset --hard HEAD~1` or `git clean -fd`
 - **THEN** the decision is `deny` and the reason names `git restore -- <paths>` or `git stash push -- <paths>` as the alternative
 
+#### Scenario: A match found only in interpreter text names the editing tools
+- **WHEN** unattended mode receives a heredoc fed to an interpreter whose text mentions `git reset --hard`, `rm -rf` or `git push --force`, and no parsed command does
+- **THEN** the decision is `deny` and the reason says that interpreter text is read only by pattern and that text is written with the editing tools; a parsed destructive command does not get that sentence
+
 #### Scenario: The documentation gate denies and lists what is missing
 - **WHEN** unattended mode commits a staged migration with no staged documentation
 - **THEN** the decision is `deny` and the reason lists the missing documentation and `/update-docs`

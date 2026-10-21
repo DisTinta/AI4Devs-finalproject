@@ -442,6 +442,12 @@ is acceptable.
 *Alternative rejected:* regex stripping (runs 1–3 of the audit). Every variant either hid executed
 text or erased quoted arguments (findings B-1, N1, N2).
 
+**Amended during step 13 (2026-10-21, author's approval).** A raw match on interpreter text can be prose,
+not a command: writing `prompts.md` through `python - <<'EOF'` with the phrase "`git reset --hard`" made
+rule 3 ask. In unattended mode, when rule 1 or 3 fires only on raw interpreter text (the parsed fact is
+false), the reason adds that such text is read only by pattern and should be written with the editing
+tools. Decisions do not change, and switch-off reasons stay as they were.
+
 *Risk accepted:* code that a non-shell interpreter runs (for example
 `node -e "fs.writeFileSync('.claude/…')"`) is matched only by raw patterns, not by the path rules.
 In Claude Code the auto-mode classifier still reviews it; in Cursor it does not. Recorded in Risks.
