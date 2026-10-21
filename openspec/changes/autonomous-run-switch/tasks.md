@@ -336,23 +336,23 @@
 
 ## 13. Update Technical Documentation (MANDATORY)
 
-- [ ] 13.1 `docs/AUTONOMOUS-RUN.md` in Spanish, part 1. Every evaluator step works in PowerShell and Bash. It covers:
+- [x] 13.1 `docs/AUTONOMOUS-RUN.md` in Spanish, part 1. Every evaluator step works in PowerShell and Bash. It covers:
   - the two modes and what each changes;
   - the doctrine relaxed in an autonomous run (D16);
   - the profile (`CLAUDE_CONFIG_DIR`) and how to launch in both shells;
   - the preflight and the merge dry run.
-- [ ] 13.2 `docs/AUTONOMOUS-RUN.md`, part 2:
+- [x] 13.2 `docs/AUTONOMOUS-RUN.md`, part 2:
   - the workflow contract: steps, models, rules (`tasks.md` names every existing test a task changes; the agent writes and marks the "why"; `npm audit`, D19; no worktree isolation, D21), clean stops including a `CHANGES REQUIRED` audit (D9) and a code fix needed after the archive, no code written through the shell, waits with `Monitor`, the merge fallback;
   - Cursor: hooks, the `ask` exception, background agents (unattended, never merging with the switch `"0"`), `cursor-agent`;
   - closing a run: switch to `"0"`, review the denial log;
   - what is still unverified.
-- [ ] 13.3 ADR `docs/adr/YYYYMMDD-kit-autonomous-mode.md` (design D16): the Context is the agent's text, marked as written at the author's request; the doctrine relaxed in an autonomous run, by rule number; its relation to `20261016-autonomous-workflow-run-entrega-2.md`. Add its row in `docs/adr/README.md`
-- [ ] 13.4 `docs/project-context.md`:
+- [x] 13.3 ADR `docs/adr/YYYYMMDD-kit-autonomous-mode.md` (design D16): the Context is the agent's text, marked as written at the author's request; the doctrine relaxed in an autonomous run, by rule number; its relation to `20261016-autonomous-workflow-run-entrega-2.md`. Add its row in `docs/adr/README.md`
+- [x] 13.4 `docs/project-context.md`:
   - a "local patch to the kit" note like the `KIT_PROTECT_SPECS` / spec-audit-gate ones: files a kit update replaces, how to re-apply, the doctrine relaxed in an autonomous run;
   - the hooks test suite;
   - the base-branch line already updated (design D17), checked.
-- [ ] 13.5 `readme.md` §8.6: a pointer to `docs/AUTONOMOUS-RUN.md` and what DIS-106 fixed. `prompts.md`: the section of this change, with its Índice entry in the same edit
-- [ ] 13.6 `/update-docs` over the diff; `npx vitest run tests/unit/docs` green
+- [x] 13.5 `readme.md` §8.6: a pointer to `docs/AUTONOMOUS-RUN.md` and what DIS-106 fixed. `prompts.md`: the section of this change, with its Índice entry in the same edit
+- [x] 13.6 `/update-docs` over the diff; `npx vitest run tests/unit/docs` green
 
 ## 14. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 

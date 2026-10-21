@@ -1779,6 +1779,19 @@ DIS-45 no entró en la tanda 1: cuando el merge de DIS-44 se bloqueó, el script
 
 **Por qué se intentó y qué concluye la autora.** La autora se atrevió con el experimento porque ya había hecho más del 80 % de las tareas de la Entrega 2 con el flujo normal (54 de 66 tickets el 16-10) y había visto lo bien que el agente lo seguía; con el mismo flujo y normas claras, confiaba en que en modo automático lo haría igual de bien. Su conclusión: sin un harness, un contexto, un flujo, unas normas y una planificación claros y robustos, la automatización no habría dado un buen resultado, sino todo lo contrario. Sus palabras y el detalle están en [`docs/ai-sessions/04-experimento-workflow-autonomo-entrega-2.md`](docs/ai-sessions/04-experimento-workflow-autonomo-entrega-2.md), secciones 1 y 6.
 
+**Lo que DIS-106 llevó al kit.** Las lecciones 1, 2, 3 y 6 pasaron a ser parte del kit, detrás de un
+interruptor manual, `KIT_AUTONOMOUS_RUN` en `.claude/sdd-harness.env` (siempre `"0"` en el
+repositorio): con él a `"1"` ningún hook deja una confirmación pendiente, y cada pregunta se convierte en
+una comprobación automática o en una denegación con alternativa. La confirmación de instalación es ahora
+la verificación de la lección 2, hecha por un hook. El merge pasa por una puerta que exige el commit de
+archivo, la CI en verde y la rama base protegida en GitHub, y un perfil de Claude Code aparte lleva la
+autorización del merge: en la prueba en seco del 21-10 la puerta denegó un PR sin archivo y, con él, el
+clasificador dejó pasar el merge. Las revisiones tienen un modo en línea, y el agente no puede tocar
+`.claude/` ni `.cursor/` en una ejecución autónoma. Los mismos hooks corren también en Cursor, y tienen
+una suite de tests propia. La guía es [`docs/AUTONOMOUS-RUN.md`](docs/AUTONOMOUS-RUN.md), y la decisión,
+con la doctrina que se relaja solo con el interruptor activo, el ADR
+[`20261020-kit-autonomous-mode`](docs/adr/20261020-kit-autonomous-mode.md).
+
 ---
 
 ## Referencias

@@ -44,7 +44,9 @@ When you are asked to implement a change from `openspec/changes/<id>/`:
    - After a vetted install, run `npm audit --audit-level=high`; a new high or critical finding stops
      the ticket.
    - `tasks.md` names every existing test a task changes. Never write code through the shell
-     (`cat > file`, `sed -i`): use the editing tools, which the spec-audit gate sees.
+     (`cat > file`, `sed -i`): use the editing tools, which the spec-audit gate sees. Text that
+     mentions commands (docs, prompts, reports) is written with the editing tools too, never in a
+     heredoc fed to an interpreter: the shell guard matches interpreter text by pattern.
    - The agent writes the "why" of PRs and ADRs and marks it as the agent's text.
    - Never edit or commit `.claude/` or `.cursor/`; stage explicit paths only.
    - Merge only with `gh pr merge <n> --merge`, alone, through the merge gate.

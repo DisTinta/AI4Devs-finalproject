@@ -1297,6 +1297,40 @@ services that must be started first, quirks of the local environment.
   agent (ticket check, open decisions, verdict, Linear tools, `opus`) and the Cursor rule
   `20-openspec.mdc`: re-apply the patch afterwards (commit `chore(harness): gate the apply on a
   spec-auditor review…`).
+- **The autonomous-run switch is a local patch to the kit too** (DIS-106, ADR
+  `docs/adr/20261020-kit-autonomous-mode.md`, guide `docs/AUTONOMOUS-RUN.md`). `KIT_AUTONOMOUS_RUN`
+  in `.claude/sdd-harness.env` is edited by hand and committed only as `"0"`; with `"1"`
+  `session-context.sh` warns at session start. Two modes, decided in `lib.sh`: *unattended* (the
+  switch `"1"`, or a Cursor background agent) — no hook asks, each `ask` becomes an automatic check or
+  a deny with the alternative, a missing `jq` denies, the spec-audit gate requires `APPROVED`; and
+  *autonomous run* (the switch `"1"` only) — the agent may merge through `autonomous-merge-gate.sh`
+  into `AUTONOMOUS_MERGE_BASE`, edits and shell writes to `.claude/`, `.cursor/` and the autonomous
+  profile are denied, and this doctrine is relaxed: `docs/base-standards.md` §3 rules 2 (the
+  `spec-auditor` `APPROVED` replaces the human plan gate), 3 (tests written without supervision),
+  4 (only tests named in `tasks.md` or created on the branch change), 8 (the agent writes the "why"
+  and marks it) and 9 (the agent merges through the gate), and the "agent never merges" item of
+  `docs/openspec-tasks-mandatory-steps.md`. A background agent with the switch `"0"` gets none of the
+  relaxations. Always on: the shell guard parses commands (`shell-words.mjs`), a lone `rm` in the
+  session scratchpad gets no decision, `.env.example` is readable, `KIT_SECRET_ALLOWLIST`, and the
+  hooks in Cursor (`.cursor/hooks.json`, `invoke.cjs --client cursor`). Denials of a run go to the
+  untracked `.claude/autonomous-denials.log`. `doctor.sh --autonomous` / `doctor.ps1 -Autonomous` is
+  the preflight; it reads the base protection, so the active gh account must have admin access
+  (`DisTinta`). A kit update replaces `lib.sh`, every hook under `.claude/hooks/` (new:
+  `autonomous-merge-gate.sh`, `log-permission-denied.sh`, `vet-package.mjs`, `shell-words.mjs`),
+  `invoke.cjs`, `settings.json`, `sdd-harness.env`, both doctors, `.cursor/hooks.json`, the Cursor rules
+  `00-core.mdc` and `20-openspec.mdc`, the skills `verify-against-spec`, `adversarial-review` and
+  `kit-health`, and `ai-specs/templates/autonomous/`: re-apply the patch afterwards (the DIS-106
+  commits). `ci.yml` (hooks in the `runtime` filter), `vitest.stryker.config.ts` (harness excluded) and
+  `.gitignore` are project files.
+- **The hooks have a test suite, `tests/harness/`** (DIS-106). Each spec runs the real hook script
+  through `invoke.cjs` in a temporary project (`mkdtemp` prefix `harness-`) with
+  `tests/harness/support/run-hook.ts`; `gh`, `claude` and `docker` are `PATH` shims
+  (`support/stubs.ts`), and the npm registry is a local HTTP server. The switches of the copied
+  `sdd-harness.env` are pinned to their shipped defaults before each test's overrides, so a local hand
+  edit does not leak into the fixtures. It runs in `npx vitest run` and in CI (`quality`, Ubuntu), and
+  is excluded from Stryker. On Windows, Defender can block files that the git fixtures write
+  (`open("b.php")` fails with "Invalid argument"): exclude `%TEMP%\harness-*` and `%TEMP%\codemind-*`.
+  The PowerShell doctor has no runner in the suite.
 - **The PHP analyzer now emits edges** (DIS-49): `imports` (file → class/interface/trait, one per
   top-level `use`), `extends`, `implements`, a route's `calls` (array-action routes
   `Route::<verb>('<uri>', [X::class, '<m>'])`, a new `route` symbol named `<VERB> <uri>`; string
