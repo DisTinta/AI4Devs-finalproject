@@ -15,6 +15,24 @@ describe('Example environment files are readable and editable', { timeout: 120_0
     project = createProject();
     expect((await runHook(project, 'block-secret-reads', readInput(`${project.dir}/.env.example`))).decision).toBe('none');
     expect((await runHook(project, 'protect-specs-and-tests', editInput(`${project.dir}/packages/api/.env.sample`))).decision).toBe('none');
+    expect((await runHook(project, 'spec-audit-gate', editInput(`${project.dir}/packages/api/.env.sample`))).decision).toBe('none');
+    // Unattended mode, inside an approved change (the spec-audit gate's own rule is met).
+    project.cleanup();
+    project = createProject({
+      env: { KIT_AUTONOMOUS_RUN: '1' },
+      files: {
+        'openspec/changes/foo-bar/proposal.md': '# p\n',
+        'openspec/changes/foo-bar/reports/2026-10-21-spec-audit.md': 'APPROVED\n',
+        '.env.example': 'X=\n',
+        'packages/api/.env.sample': 'X=\n',
+      },
+      git: { branch: 'feature/DIS-9-foo-bar' },
+    });
+    expect((await runHook(project, 'block-secret-reads', readInput(`${project.dir}/.env.example`))).decision).toBe('none');
+    for (const hook of ['protect-specs-and-tests', 'spec-audit-gate']) {
+      const r = await runHook(project, hook, editInput(`${project.dir}/packages/api/.env.sample`));
+      expect(r.decision, `${hook} ${r.reason}`).toBe('none');
+    }
   });
 
   it('Real environment and secret files stay denied', async () => {

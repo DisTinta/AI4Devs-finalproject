@@ -25,7 +25,11 @@ export function splitSpec(spec) {
   return { name: spec.slice(0, at), version: spec.slice(at + 1) };
 }
 
-const daysSince = (iso) => Math.floor((Date.now() - Date.parse(iso)) / 86_400_000);
+// Days since an ISO date, or null when the value is not a readable date (the check then denies).
+const daysSince = (iso) => {
+  const t = typeof iso === 'string' ? Date.parse(iso) : NaN;
+  return Number.isFinite(t) ? Math.floor((Date.now() - t) / 86_400_000) : null;
+};
 const enc = (name) => name.replace('/', '%2F');
 
 async function getJson(url, signal) {
@@ -44,14 +48,23 @@ async function vetOne(spec, signal) {
   const failures = [];
   const v = doc.versions?.[version];
   if (!v) failures.push(`${name}: version ${version} does not exist`);
+  // A value that cannot be read denies, naming its check (spec: "a check whose result cannot be read").
   const created = doc.time?.created;
+  const packageAge = daysSince(created);
   if (!created) failures.push(`${name}: no first-publication date`);
-  else if (daysSince(created) < MIN_PACKAGE_AGE_DAYS) failures.push(`${name}: first published ${daysSince(created)} days ago (minimum ${MIN_PACKAGE_AGE_DAYS})`);
-  const published = doc.time?.[version];
-  if (v && published && daysSince(published) < MIN_VERSION_AGE_DAYS) failures.push(`${name}@${version}: published ${daysSince(published)} days ago (minimum ${MIN_VERSION_AGE_DAYS})`);
+  else if (packageAge === null) failures.push(`${name}: the first-publication date cannot be read (${JSON.stringify(created)})`);
+  else if (packageAge < MIN_PACKAGE_AGE_DAYS) failures.push(`${name}: first published ${packageAge} days ago (minimum ${MIN_PACKAGE_AGE_DAYS})`);
+  if (v) {
+    const published = doc.time?.[version];
+    const versionAge = daysSince(published);
+    if (versionAge === null) failures.push(`${name}@${version}: the publication date of the version cannot be read (${JSON.stringify(published ?? null)})`);
+    else if (versionAge < MIN_VERSION_AGE_DAYS) failures.push(`${name}@${version}: published ${versionAge} days ago (minimum ${MIN_VERSION_AGE_DAYS})`);
+  }
   if (!doc.repository) failures.push(`${name}: no repository in its metadata`);
-  const weekly = dl.missing ? 0 : Number(dl.body?.downloads ?? 0);
-  if (weekly < MIN_WEEKLY_DOWNLOADS) failures.push(`${name}: ${weekly} downloads last week (minimum ${MIN_WEEKLY_DOWNLOADS})`);
+  const rawDownloads = dl.missing ? 0 : dl.body?.downloads;
+  const weekly = typeof rawDownloads === 'number' ? rawDownloads : NaN;
+  if (!Number.isFinite(weekly)) failures.push(`${name}: the weekly downloads cannot be read (${JSON.stringify(rawDownloads ?? null)})`);
+  else if (weekly < MIN_WEEKLY_DOWNLOADS) failures.push(`${name}: ${weekly} downloads last week (minimum ${MIN_WEEKLY_DOWNLOADS})`);
   const scripts = Object.keys(v?.scripts ?? {}).filter((s) => INSTALL_SCRIPTS.includes(s));
   if (scripts.length) failures.push(`${name}@${version}: declares install scripts (${scripts.join(', ')})`);
   return failures;

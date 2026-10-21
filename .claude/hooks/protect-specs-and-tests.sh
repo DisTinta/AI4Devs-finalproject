@@ -33,7 +33,8 @@ case "$FILE" in */secrets/*|*/.secrets/*|secrets/*|.secrets/*) ENV_EXAMPLE=0 ;; 
 if [[ "$ENV_EXAMPLE" == "0" ]]; then
   case "$FILE" in
     */.claude/sdd-harness.env|.claude/sdd-harness.env)
-      ask "You are about to modify the SDD Harness Kit configuration. Confirm the change." ;;
+      ask "You are about to modify the SDD Harness Kit configuration. Confirm the change." \
+        "The contract is edited by hand by the author; stop and report what needs changing." ;;
     *.env|*.env.*|*/.env|.env)
       deny "Environment files are not edited from the agent: ${FILE}" ;;
   esac
@@ -46,11 +47,29 @@ if unattended; then
 
   # Kit configuration (autonomous run only, design D5).
   if autonomous_run && is_kit_config "$FILE"; then
+    [[ -z "$KIT_CONFIG_UNCHECKED" ]] || \
+      deny "Autonomous run: ${REL} could not be checked against the kit configuration (${KIT_CONFIG_UNCHECKED}), so it is treated as kit configuration and not modified."
     deny "Autonomous run: .claude/, .cursor/ and the autonomous profile are not modified by the agent (${REL})."
   fi
 
+  # Free paths, matched on whole repository-relative segments: openspec/changes/<change>/tasks.md,
+  # openspec/changes/<change>/reports/… (also under archive/<change>/) and openspec/templates/….
   case "$REL" in
-    openspec/changes/*/tasks.md|openspec/changes/*/reports/*|openspec/templates/*) done_ok ;;
+    openspec/templates/*) done_ok ;;
+    openspec/changes/*)
+      REST="${REL#openspec/changes/}"
+      [[ "$REST" == archive/*/* ]] && REST="${REST#archive/}"
+      if [[ "$REST" == ?*/* ]]; then
+        REST="${REST#*/}"
+        [[ "$REST" == "tasks.md" || "$REST" == reports/?* ]] && done_ok
+      fi
+      ;;
+  esac
+
+  IN_REPO=1
+  [[ "$REL" == /* || "$REL" =~ ^[A-Za-z]: ]] && IN_REPO=0
+
+  case "$REL" in
     openspec/*)
       [[ -f "$FILE" ]] || done_ok   # creating an artifact is the normal propose flow
       CHANGE=$(active_change)
@@ -80,6 +99,10 @@ if unattended; then
       deny "Unattended run: kit doctrine (${REL}) is not edited; project-specific rules go in docs/project-context.md."
       ;;
   esac
+
+  # A file outside the repository is not under PATH_TESTS or PATH_MIGRATIONS (paths are compared
+  # relative to the repository root): no decision, like every other file outside the repository.
+  [[ "$IN_REPO" == "1" ]] || done_ok
 
   # Existing tests: allowed only when planned in tasks.md or created by the branch (Q2, design D9).
   if under "$FILE" "$PATH_TESTS" && [[ -f "$FILE" ]]; then

@@ -1,6 +1,6 @@
 // agent-harness → "Denials of an autonomous run are logged locally"
 // (openspec change autonomous-run-switch, design D10).
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createProject, runHook, type Project } from './support/run-hook';
@@ -53,5 +53,10 @@ describe('Denials of an autonomous run are logged locally', { timeout: 120_000 }
     const r = await runHook(project, 'log-permission-denied', denial('x'));
     expect(r.exitCode).toBe(0);
     expect(existsSync(log(project))).toBe(false);
+    // A log left by an earlier autonomous run is not changed either.
+    const earlier = '{"ts":"2026-10-20T10:00:00Z","tool_name":"Bash","reason":"classifier_denied","tool_input":{"command":"y"}}\n';
+    writeFileSync(log(project), earlier);
+    expect((await runHook(project, 'log-permission-denied', denial('x'))).exitCode).toBe(0);
+    expect(readFileSync(log(project), 'utf8')).toBe(earlier);
   });
 });

@@ -42,6 +42,10 @@ if unattended; then
   if [[ "$VERDICT" == "CHANGES REQUIRED" ]]; then
     deny "Spec audit gate (unattended run): the latest spec audit of '${CHANGE}' is CHANGES REQUIRED, so the ticket stops cleanly here. The author applies or approves the fixes; no code is written until the verdict is APPROVED."
   fi
+  # A report exists but holds no readable verdict line (none, or only inside fenced code blocks).
+  if [[ -n "$VERDICT" ]]; then
+    deny "Spec audit gate (unattended run): the spec audit report of '${CHANGE}' has no APPROVED verdict (no line that is exactly APPROVED or CHANGES REQUIRED outside a code block), so no code or test is written. Finish the spec audit with its verdict line first (docs/base-standards.md §7.1)."
+  fi
 fi
 
 compgen -G "$PROJECT_DIR/openspec/changes/$CHANGE/reports/*spec-audit*.md" >/dev/null && done_ok

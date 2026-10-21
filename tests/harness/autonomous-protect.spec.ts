@@ -142,7 +142,7 @@ describe('Rewrites of specs, tests and doctrine are decided without a human in u
         project = fixture({ protect });
         const r = await edit(project, 'tests/unit/a.spec.ts');
         expect(r.decision).toBe('deny');
-        expect(r.reason).toContain('tasks.md');
+        expect(r.reason).toContain('Record the test change in tasks.md together with the requirement that changes it');
       });
 
       it('Doctrine and versioned migrations are protected', async () => {

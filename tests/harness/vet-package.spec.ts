@@ -124,8 +124,13 @@ describe('Dependency installs are vetted automatically in unattended mode', { ti
   it('An unreachable or slow registry denies', async () => {
     project = unattended();
     const closed = { registryUrl: 'http://127.0.0.1:9/registry', downloadsUrl: 'http://127.0.0.1:9/downloads', close: async () => {} };
-    expect((await vet(project, 'npm i left-pad@1.3.0', closed)).decision).toBe('deny');
-    expect((await vet(project, 'npm i left-pad@1.3.0', slow)).decision).toBe('deny');
+    const unreachable = await vet(project, 'npm i left-pad@1.3.0', closed);
+    expect(unreachable.decision).toBe('deny');
+    expect(unreachable.reason).toContain('could not be reached');
+    // The stub answers after 9 s: the vetting's own 8 s budget runs out first (not the hook timeout).
+    const late = await vet(project, 'npm i left-pad@1.3.0', slow);
+    expect(late.decision).toBe('deny');
+    expect(late.reason).toContain('did not answer within 8 s');
   });
 
   it('Other package managers and package runners are denied', async () => {

@@ -315,18 +315,19 @@ SECRET_PATTERNS+='|(APP_KEY|SECRET_KEY|DB_PASSWORD|API_SECRET)[[:space:]]*=[[:sp
 
 # Removes the text matching KIT_SECRET_ALLOWLIST. The allowlist is ignored (the text comes back
 # unchanged) when awk rejects it, or when it matches the canonical sample ghp_ + 36 'a', since it
-# would switch the scan off.
+# would switch the scan off. The regex reaches awk through ENVIRON, not -v, so awk does not process
+# its backslash escapes: the ERE runs as written (\. stays a literal dot).
 strip_allowlisted() {
   local text="$1" sample out
   [[ -n "$KIT_SECRET_ALLOWLIST" ]] || { printf '%s' "$text"; return 0; }
   sample="ghp_$(printf 'a%.0s' {1..36})"
-  if ! printf 'x' | awk -v re="$KIT_SECRET_ALLOWLIST" '{ gsub(re, "") }' >/dev/null 2>&1; then
+  if ! printf 'x' | KIT_ALLOW_RE="$KIT_SECRET_ALLOWLIST" awk '{ gsub(ENVIRON["KIT_ALLOW_RE"], "") }' >/dev/null 2>&1; then
     printf '%s' "$text"; return 0
   fi
-  if printf '%s' "$sample" | awk -v re="$KIT_SECRET_ALLOWLIST" '{ exit (match($0, re) ? 0 : 1) }' 2>/dev/null; then
+  if printf '%s' "$sample" | KIT_ALLOW_RE="$KIT_SECRET_ALLOWLIST" awk '{ exit (match($0, ENVIRON["KIT_ALLOW_RE"]) ? 0 : 1) }' 2>/dev/null; then
     printf '%s' "$text"; return 0
   fi
-  out=$(printf '%s' "$text" | awk -v re="$KIT_SECRET_ALLOWLIST" '{ gsub(re, ""); print }' 2>/dev/null) || out="$text"
+  out=$(printf '%s' "$text" | KIT_ALLOW_RE="$KIT_SECRET_ALLOWLIST" awk '{ gsub(ENVIRON["KIT_ALLOW_RE"], ""); print }' 2>/dev/null) || out="$text"
   printf '%s' "$out"
 }
 
@@ -378,8 +379,20 @@ rel_path() {
 
 # Kit configuration (design D5): .claude/ or .cursor/ relative to the working tree that holds the
 # path, or anything inside CLAUDE_CONFIG_DIR. Shares shell-words.mjs's implementation.
+# Fails closed: when node crashes, times out or prints anything but true/false, the path counts as
+# kit configuration and KIT_CONFIG_UNCHECKED says why (it is only called in an autonomous run).
+KIT_CONFIG_UNCHECKED=""
 is_kit_config() {
-  [[ "$(timeout 5 node "$(dirname "${BASH_SOURCE[0]}")/shell-words.mjs" --kit-path "$1" --project "$PROJECT_DIR" 2>/dev/null)" == "true" ]]
+  local out
+  KIT_CONFIG_UNCHECKED=""
+  out=$(timeout 5 node "$(dirname "${BASH_SOURCE[0]}")/shell-words.mjs" --kit-path "$1" --project "$PROJECT_DIR" 2>/dev/null) || out=''
+  out="${out%$'\n'}"; out="${out%$'\r'}"
+  case "$out" in
+    true) return 0 ;;
+    false) return 1 ;;
+    *) KIT_CONFIG_UNCHECKED="the kit-configuration check (shell-words.mjs) failed, timed out or gave an unreadable answer"
+       return 0 ;;
+  esac
 }
 
 # Latest spec-audit verdict of a change: the last line, across reports/*spec-audit*.md in name order,
