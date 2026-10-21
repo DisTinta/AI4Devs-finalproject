@@ -34,13 +34,16 @@ describe('The agent merges only in an autonomous run and under deterministic con
     const calls = shim!.calls();
     expect(calls.some((c) => c.args.slice(0, 3).join(' ') === 'pr view 61')).toBe(true);
     expect(calls.some((c) => c.args[0] === 'api' && c.args.join(' ').includes('branches/final-project-CRN'))).toBe(true);
+    const allSuccess = prViewJson({ checks: [1, 2, 3].map(() => ({ status: 'COMPLETED', conclusion: 'SUCCESS' })) });
+    const three = await gate('gh pr merge 61 --merge', { prView: allSuccess });
+    expect(three.decision, three.reason).toBe('allow');
   });
 
   it('Each unmet condition denies the merge', async () => {
     const cases: Array<[string, GhShimBehaviour, string, Record<string, string>?]> = [
       ['base', { prView: prViewJson({ baseRefName: 'main' }) }, 'main'],
-      ['failed check', { prView: prViewJson({ checks: [{ status: 'COMPLETED', conclusion: 'FAILURE' }] }) }, 'check'],
-      ['running check', { prView: prViewJson({ checks: [{ status: 'IN_PROGRESS' }] }) }, 'check'],
+      ['failed check', { prView: prViewJson({ checks: [{ status: 'COMPLETED', conclusion: 'FAILURE' }] }) }, 'a check concluded FAILURE'],
+      ['running check', { prView: prViewJson({ checks: [{ status: 'IN_PROGRESS' }] }) }, 'a check is still running (IN_PROGRESS)'],
       ['no checks', { prView: prViewJson({ checks: [] }) }, 'no checks'],
       ['conflict', { prView: prViewJson({ mergeable: 'CONFLICTING' }) }, 'CONFLICTING'],
       ['unknown', { prView: prViewJson({ mergeable: 'UNKNOWN' }) }, 'UNKNOWN'],
