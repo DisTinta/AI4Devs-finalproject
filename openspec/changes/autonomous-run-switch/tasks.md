@@ -301,23 +301,23 @@
 
 ## 12. Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 12.1 After confirming with the author:
+- [x] 12.1 After confirming with the author:
   - push the branch and open the PR with `--base final-project-CRN`;
   - protect `final-project-CRN` on GitHub with the D20 payload (`enforce_admins: true`, `strict: false`, contexts `scope`, `quality`, `verify`, `mutation`, `secrets`, no approving review), with `gh api -X PUT …/branches/final-project-CRN/protection` or by the author in the UI; record the resulting JSON. If GitHub refuses it, stop and ask the author;
   - this change's own PR then needs its CI green to merge, and the author merges it through the protection (or switches it off for a moment if she must).
 
   `gh` as DisTinta per the project rule
-- [ ] 12.2 Live hooks in this Claude Code session, switch `"0"`, recording each prompt or denial:
+- [x] 12.2 Live hooks in this Claude Code session, switch `"0"`, recording each prompt or denial:
   - `git reset --hard` asks (the author answers No; recorded);
   - `rm -f` on a file in this session's scratchpad gets no decision from the hook (the author's personal `rm *` ask rule still prompts: expected, recorded);
   - `grep -rn "rm -rf" docs` passes;
   - reading `.env.example` passes;
   - reading `.env` is denied.
-- [ ] 12.3 Autonomous checks with `KIT_AUTONOMOUS_RUN="1"`. The author edits the file by hand; ask her, and restore `"0"` after this step:
+- [x] 12.3 Autonomous checks with `KIT_AUTONOMOUS_RUN="1"`. The author edits the file by hand; ask her, and restore `"0"` after this step:
   - `npm install --prefix <scratchpad>/vet --save-dev left-pad@1.3.0` is allowed by the hook (real registry; `--prefix` avoids a chained `cd`); the author's personal `npm install*` ask rule still prompts in this session (expected, recorded);
   - an invented package name is denied;
   - `git reset --hard` is denied with the alternative.
-- [ ] 12.4 Merge dry run (design D4, D12, D20), confirmed with the author because it creates remote branches, a protection and a PR. It runs under the autonomous profile, which the author creates before this step (Q5) with the 10.2 template. In this order:
+- [x] 12.4 Merge dry run (design D4, D12, D20), confirmed with the author because it creates remote branches, a protection and a PR. It runs under the autonomous profile, which the author creates before this step (Q5) with the 10.2 template. In this order:
   1. with the switch `"0"`, create and push `tmp-autonomous-dry-run` from `final-project-CRN`. Build the throwaway head in a **scratchpad worktree**, so the main working tree keeps the gate and the author's local switch: `git worktree add --no-track <scratchpad>/dry-head -b tmp-autonomous-dry-head origin/tmp-autonomous-dry-run`. Its first commit (one file outside `openspec/changes/archive/`) is made with `git -C <scratchpad>/dry-head add <explicit path>` and a commit, then pushed with `git -C <scratchpad>/dry-head push -u origin tmp-autonomous-dry-head`. The names have no slash, so the protection API paths resolve plainly. The main working tree stays on `feature/DIS-106-autonomous-run-switch`;
   2. protect `tmp-autonomous-dry-run` with the D20 payload, after the author confirms;
   3. the author sets `KIT_AUTONOMOUS_RUN="1"` and `AUTONOMOUS_MERGE_BASE="tmp-autonomous-dry-run"` by hand, and points the profile's `autoMode.allow` merge authorisation at `tmp-autonomous-dry-run`;
@@ -326,13 +326,13 @@
   6. remove the protection of `tmp-autonomous-dry-run` (`gh api -X DELETE …/branches/tmp-autonomous-dry-run/protection`);
   7. `git worktree remove <scratchpad>/dry-head`; delete the throwaway branches, and close the PR if it is still open;
   8. re-check DIS-106's Linear state.
-- [ ] 12.5 Cursor: run every command line of `.cursor/hooks.json` with Cursor-format inputs (session start, shell, read, preToolUse Write, prompt, stop) and record the outputs. If a `cursor-agent` CLI is installed, a live run; otherwise record that only the hook lines were exercised
-- [ ] 12.6 `bash .claude/doctor.sh --autonomous` and `pwsh .claude/doctor.ps1 -Autonomous`:
+- [x] 12.5 Cursor: run every command line of `.cursor/hooks.json` with Cursor-format inputs (session start, shell, read, preToolUse Write, prompt, stop) and record the outputs. If a `cursor-agent` CLI is installed, a live run; otherwise record that only the hook lines were exercised
+- [x] 12.6 `bash .claude/doctor.sh --autonomous` and `pwsh .claude/doctor.ps1 -Autonomous`:
   - with the switch `"0"`, expect `FAIL` naming it;
   - against the author's autonomous profile, during the 12.4 window (between its steps 3 and 5): the base-CI line is expected to `FAIL` if `tmp-autonomous-dry-run` has no CI run of its own, and that is recorded as expected
 
   Record the outputs
-- [ ] 12.7 Report `reports/YYYY-MM-DD-12-manual-interface-testing.md`. Every temporary change is restored: switch and base values, the profile's merge authorisation, the throwaway base's protection, the scratchpad worktree, throwaway branches, scratchpad installs
+- [x] 12.7 Report `reports/YYYY-MM-DD-12-manual-interface-testing.md`. Every temporary change is restored: switch and base values, the profile's merge authorisation, the throwaway base's protection, the scratchpad worktree, throwaway branches, scratchpad installs
 
 ## 13. Update Technical Documentation (MANDATORY)
 
