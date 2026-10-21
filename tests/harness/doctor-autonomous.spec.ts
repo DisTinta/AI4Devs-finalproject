@@ -20,7 +20,11 @@ interface Setup {
   profileSettings?: unknown;
   localSettings?: unknown;
   noProfile?: boolean;
-  gh?: Partial<Record<'auth' | 'runs' | 'protection', ShimRule>>;
+  /** Raw text for `.claude/settings.local.json` (to write a file that is not valid JSON). */
+  localSettingsRaw?: string;
+  /** Keys removed from sdd-harness.env altogether (not just emptied). */
+  dropEnvKeys?: string[];
+  gh?: Partial<Record<'auth' | 'runs' | 'protection', ShimRule>> & { api?: ShimRule[] };
   autoModeConfig?: string;
   dropCursorHooks?: boolean;
   dropGateRegistration?: boolean;
@@ -65,6 +69,12 @@ describe('A preflight checks the autonomous setup before a run', { timeout: 120_
     cleanups.push(() => rmSync(profile, { recursive: true, force: true }));
     writeFileSync(join(profile, 'settings.json'), JSON.stringify(setup.profileSettings ?? { permissions: { allow: [], deny: [] } }));
     if (setup.localSettings) writeFileSync(join(p.dir, '.claude/settings.local.json'), JSON.stringify(setup.localSettings));
+    if (setup.localSettingsRaw !== undefined) writeFileSync(join(p.dir, '.claude/settings.local.json'), setup.localSettingsRaw);
+    if (setup.dropEnvKeys) {
+      const envPath = join(p.dir, '.claude/sdd-harness.env');
+      const kept = readFileSync(envPath, 'utf8').split('\n').filter((l) => !setup.dropEnvKeys!.some((k) => l.startsWith(`${k}=`)));
+      writeFileSync(envPath, kept.join('\n'));
+    }
     if (setup.dropCursorHooks) rmSync(join(p.dir, '.cursor/hooks.json'));
     if (setup.dropVetPackage) rmSync(join(p.dir, '.claude/hooks/vet-package.mjs'));
     if (setup.dropGateRegistration) {
@@ -76,6 +86,7 @@ describe('A preflight checks the autonomous setup before a run', { timeout: 120_
       gh: [
         setup.gh?.auth ?? { prefix: ['auth', 'status'], exitCode: 0 },
         setup.gh?.runs ?? { prefix: ['run', 'list'], stdout: '[{"status":"completed","conclusion":"success"}]' },
+        ...(setup.gh?.api ?? []),
         setup.gh?.protection ?? { prefix: ['api'], stdout: PROTECTION },
       ],
       docker: [{ prefix: ['compose', 'ps'], exitCode: 0 }],
@@ -90,6 +101,26 @@ describe('A preflight checks the autonomous setup before a run', { timeout: 120_
     return { out, status: r.status, fails: out.split('\n').filter((l) => l.includes('FAIL')) };
   }
 
+  /** Expects a FAIL line containing `text`, a non-zero exit, and a run that reached the Summary. */
+  function expectFail(r: ReturnType<typeof preflight>, text: string | RegExp) {
+    if (typeof text === 'string') expect(r.fails.join('\n'), r.out).toContain(text);
+    else expect(r.fails.join('\n'), r.out).toMatch(text);
+    expect(r.status, r.out).not.toBe(0);
+    expect(r.out).toContain('Summary:');
+  }
+
+  const API = 'repos/{owner}/{repo}';
+  const BASE = 'final-project-CRN';
+  const notProtected: ShimRule = { prefix: ['api', `${API}/branches/${BASE}/protection`], stdout: '{"message":"Branch not protected","status":"404"}', exitCode: 1 };
+  const rulesOf = (types: string[]): ShimRule => ({
+    prefix: ['api', `${API}/rules/branches/${BASE}`],
+    stdout: JSON.stringify(types.map((type) => ({ type, ruleset_id: 7, ruleset_source: 'o/r' }))),
+  });
+  const ruleset = (bypass: unknown[] | undefined): ShimRule => ({
+    prefix: ['api', `${API}/rulesets/7`],
+    stdout: JSON.stringify({ id: 7, ...(bypass ? { bypass_actors: bypass } : {}) }),
+  });
+
   it('A switch left off fails the preflight', () => {
     const r = preflight({ env: { KIT_AUTONOMOUS_RUN: '0' } });
     expect(r.status).not.toBe(0);
@@ -98,10 +129,21 @@ describe('A preflight checks the autonomous setup before a run', { timeout: 120_
 
   it('An ask rule in the profile or the project fails the preflight', () => {
     const viaProfile = preflight({ profileSettings: { permissions: { ask: ['Bash(rmdir *)'] } } });
-    expect(viaProfile.status).not.toBe(0);
-    expect(viaProfile.fails.join('\n')).toMatch(/Bash\(rmdir \*\).*settings\.json|settings\.json.*Bash\(rmdir \*\)/);
+    expectFail(viaProfile, /Bash\(rmdir \*\).*settings\.json|settings\.json.*Bash\(rmdir \*\)/);
     const viaLocal = preflight({ localSettings: { permissions: { ask: ['Bash(rmdir *)'] } } });
-    expect(viaLocal.fails.join('\n')).toContain('settings.local.json');
+    expectFail(viaLocal, /Bash\(rmdir \*\).*settings\.local\.json/);
+  });
+
+  it('never stops before the summary: a missing env key, an invalid settings file, a gh run list error', () => {
+    expectFail(preflight({ dropEnvKeys: ['AUTONOMOUS_MERGE_BASE'] }), 'AUTONOMOUS_MERGE_BASE');
+    const noAllowlist = preflight({ dropEnvKeys: ['KIT_SECRET_ALLOWLIST'] });
+    expect(noAllowlist.fails, noAllowlist.out).toEqual([]);
+    expect(noAllowlist.out).toContain('Summary:');
+    expect(noAllowlist.status).toBe(0);
+    expectFail(preflight({ localSettingsRaw: '{ "permissions": ' }), /settings\.local\.json is not valid JSON/);
+    const runError = preflight({ gh: { runs: { prefix: ['run', 'list'], exitCode: 1 } } });
+    expectFail(runError, 'successful (none)');
+    expect(runError.out).toContain('requires a pull request');
   });
 
   it('A missing profile fails the preflight', () => {
@@ -112,20 +154,42 @@ describe('A preflight checks the autonomous setup before a run', { timeout: 120_
 
   it('A missing merge authorisation or base fails the preflight', () => {
     const noBase = preflight({ env: { AUTONOMOUS_MERGE_BASE: '' } });
-    expect(noBase.fails.join('\n')).toContain('AUTONOMOUS_MERGE_BASE');
-    const noAuth = preflight({ autoModeConfig: '{"allow":[]}' });
-    expect(noAuth.status).not.toBe(0);
-    expect(noAuth.fails.join('\n')).toContain('merge authorisation');
+    expectFail(noBase, 'AUTONOMOUS_MERGE_BASE');
+    expect(noBase.out).toContain('gh authenticated');
+    expect(noBase.fails.join('\n')).toMatch(/CI run.*AUTONOMOUS_MERGE_BASE|AUTONOMOUS_MERGE_BASE.*CI run/);
+    expectFail(preflight({ autoModeConfig: '{"allow":[]}' }), 'merge authorisation');
+    // Both strings present, but in different rules: no rule authorises merging into the base.
+    const split = preflight({
+      autoModeConfig: JSON.stringify({ allow: ['Merging with gh pr merge is pre-authorised', 'Pushing to final-project-CRN is allowed'] }),
+    });
+    expectFail(split, 'merge authorisation');
   });
 
   it('GitHub problems fail the preflight', () => {
-    expect(preflight({ gh: { auth: { prefix: ['auth', 'status'], exitCode: 1 } } }).fails.join('\n')).toContain('gh');
-    expect(preflight({ gh: { runs: { prefix: ['run', 'list'], stdout: '[{"status":"completed","conclusion":"failure"}]' } } }).fails.join('\n')).toContain('CI');
-    expect(preflight({ gh: { runs: { prefix: ['run', 'list'], stdout: '[{"status":"in_progress","conclusion":""}]' } } }).fails.join('\n')).toContain('CI');
-    expect(preflight({ gh: { runs: { prefix: ['run', 'list'], stdout: '[]' } } }).fails.join('\n')).toContain('successful (none)');
-    expect(preflight({ gh: { protection: { prefix: ['api'], exitCode: 1 } } }).fails.join('\n')).toContain('protect');
-    const bypass = JSON.stringify({ ...JSON.parse(PROTECTION), enforce_admins: { enabled: false } });
-    expect(preflight({ gh: { protection: { prefix: ['api'], stdout: bypass } } }).fails.join('\n')).toContain('administrators');
+    expectFail(preflight({ gh: { auth: { prefix: ['auth', 'status'], exitCode: 1 } } }), 'gh');
+    expectFail(preflight({ gh: { runs: { prefix: ['run', 'list'], stdout: '[{"status":"completed","conclusion":"failure"}]' } } }), 'CI run');
+    expectFail(preflight({ gh: { runs: { prefix: ['run', 'list'], stdout: '[{"status":"in_progress","conclusion":""}]' } } }), 'CI run');
+    expectFail(preflight({ gh: { runs: { prefix: ['run', 'list'], stdout: '[]' } } }), 'successful (none)');
+    expectFail(preflight({ gh: { protection: { prefix: ['api'], exitCode: 1 } } }), 'is not protected');
+    const p = JSON.parse(PROTECTION) as Record<string, unknown>;
+    const bypass = JSON.stringify({ ...p, enforce_admins: { enabled: false } });
+    expectFail(preflight({ gh: { protection: { prefix: ['api'], stdout: bypass } } }), 'administrators');
+    const noPr = JSON.stringify({ ...p, required_pull_request_reviews: undefined });
+    expectFail(preflight({ gh: { protection: { prefix: ['api'], stdout: noPr } } }), 'does not require a pull request');
+    const noChecks = JSON.stringify({ ...p, required_status_checks: { strict: false, contexts: [] } });
+    expectFail(preflight({ gh: { protection: { prefix: ['api'], stdout: noChecks } } }), 'does not require CI checks');
+  });
+
+  it('A ruleset protection fails when it has bypass actors or lacks a rule', () => {
+    const both = ['pull_request', 'required_status_checks'];
+    const clean = preflight({ gh: { api: [notProtected, rulesOf(both), ruleset([])] } });
+    expect(clean.fails, clean.out).toEqual([]);
+    expect(clean.status).toBe(0);
+    const actor = { actor_id: 5, actor_type: 'RepositoryRole', bypass_mode: 'always' };
+    expectFail(preflight({ gh: { api: [notProtected, rulesOf(both), ruleset([actor])] } }), 'bypass');
+    expectFail(preflight({ gh: { api: [notProtected, rulesOf(both), ruleset(undefined)] } }), 'bypass');
+    expectFail(preflight({ gh: { api: [notProtected, rulesOf(['required_status_checks']), ruleset([])] } }), 'does not require a pull request');
+    expectFail(preflight({ gh: { api: [notProtected, rulesOf(['pull_request']), ruleset([])] } }), 'does not require CI checks');
   });
 
   it('A protection the gh account cannot read is reported as such', () => {
@@ -138,8 +202,8 @@ describe('A preflight checks the autonomous setup before a run', { timeout: 120_
   });
 
   it('Missing hooks fail the preflight', () => {
-    expect(preflight({ dropCursorHooks: true }).fails.join('\n')).toContain('.cursor/hooks.json');
-    expect(preflight({ dropGateRegistration: true }).fails.join('\n')).toContain('autonomous-merge-gate');
+    expectFail(preflight({ dropCursorHooks: true }), '.cursor/hooks.json');
+    expectFail(preflight({ dropGateRegistration: true }), 'autonomous-merge-gate');
   });
 
   it('A disabled spec protection gives a warning', () => {

@@ -13,7 +13,8 @@ describe('The forked review skills can run inline in a workflow step', () => {
   it('Both skills describe the inline mode', () => {
     for (const skill of SKILLS) {
       const text = read(`ai-specs/skills/${skill}/SKILL.md`);
-      const section = text.split(/^## Inline mode \(autonomous runs\)$/m)[1];
+      // Only the section itself: from its heading up to the next `## ` heading.
+      const section = text.split(/^## Inline mode \(autonomous runs\)$/m)[1]?.split(/^## /m)[0];
       expect(section, skill).toBeDefined();
       expect(section, skill).toContain('KIT_AUTONOMOUS_RUN');
       expect(section, skill).toContain('reports/');

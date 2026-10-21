@@ -147,10 +147,14 @@ if ($Autonomous) {
     # Tools: jq, and the Git Bash that invoke.cjs uses
     if (Get-Command jq -ErrorAction SilentlyContinue) { Ok 'jq installed' }
     else { Fail 'jq NOT installed: in an unattended run every guarded hook denies' }
-    $gitBash = @($env:CLAUDE_CODE_GIT_BASH_PATH, $env:GIT_BASH_PATH, 'C:\Program Files\Git\bin\bash.exe',
-        'C:\Program Files (x86)\Git\bin\bash.exe') | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -First 1
-    if ($gitBash) { Ok "Git Bash for invoke.cjs: $gitBash" }
-    else { Fail 'Git Bash not found: invoke.cjs would fall back to bash on PATH (maybe WSL)' }
+    # Windows PowerShell 5.1 has no $IsWindows; $env:OS covers it.
+    $onWindows = ($IsWindows -or $env:OS -eq 'Windows_NT')
+    if ($onWindows) {
+        $gitBash = @($env:CLAUDE_CODE_GIT_BASH_PATH, $env:GIT_BASH_PATH, 'C:\Program Files\Git\bin\bash.exe',
+            'C:\Program Files (x86)\Git\bin\bash.exe') | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -First 1
+        if ($gitBash) { Ok "Git Bash for invoke.cjs: $gitBash" }
+        else { Fail 'Git Bash not found: invoke.cjs would fall back to bash on PATH (maybe WSL)' }
+    }
 
     # Ask rules (they force a prompt even in auto mode)
     function Test-AskRules($file) {
@@ -178,7 +182,12 @@ if ($Autonomous) {
         $prev = $env:CLAUDE_CONFIG_DIR; $env:CLAUDE_CONFIG_DIR = $ConfigDir
         $auto = (& claude auto-mode config 2>$null) -join "`n"
         $env:CLAUDE_CONFIG_DIR = $prev
-        if ($auto -match 'gh pr merge' -and $auto.Contains($base)) { Ok "auto-mode merge authorisation names $base" }
+        # One rule must name both the merge command and the base: the JSON `allow` list when the
+        # output parses, otherwise one line of the text.
+        $candidates = $null
+        try { $candidates = @((ConvertFrom-Json -InputObject $auto -ErrorAction Stop).allow) } catch { $candidates = @($auto -split "`n") }
+        $mergeRule = @($candidates | Where-Object { $_ -is [string] -and $_.Contains('gh pr merge') -and $_.Contains($base) })
+        if ($mergeRule.Count -gt 0) { Ok "auto-mode merge authorisation names $base" }
         else { Fail "no auto-mode merge authorisation for $base in the profile (see ai-specs/templates/autonomous/)" }
     } else {
         Fail 'cannot read the auto-mode merge authorisation (needs the profile, AUTONOMOUS_MERGE_BASE and the claude CLI)'
@@ -207,8 +216,18 @@ if ($Autonomous) {
     # GitHub
     $ghOk = $false
     if (Get-Command gh -ErrorAction SilentlyContinue) { & gh auth status *> $null; $ghOk = ($LASTEXITCODE -eq 0) }
+    # gh api / run list output as one JSON value ($null when it does not parse); gh prints the error
+    # body on stdout too.
+    function Invoke-GhJson {
+        $text = (& gh @args 2>$null) -join "`n"
+        if (-not $text) { return $null }
+        try { return , (ConvertFrom-Json -InputObject $text -ErrorAction Stop) } catch { return $null }
+    }
     if (-not $ghOk) { Fail 'gh is not installed or not authenticated (gh auth status)' }
-    elseif ($base) {
+    elseif (-not $base) {
+        Ok 'gh authenticated'
+        Fail "cannot check the base's CI run and protection: AUTONOMOUS_MERGE_BASE is empty"
+    } else {
         Ok 'gh authenticated'
         $run = $null
         try { $run = (& gh run list --branch $base --limit 1 --json status,conclusion 2>$null | ConvertFrom-Json) | Select-Object -First 1 } catch {}
@@ -227,17 +246,36 @@ if ($Autonomous) {
             if ($prot.enforce_admins.enabled -eq $true) { Ok "$base protection applies to administrators" }
             else { Fail "$base protection does not apply to administrators (enforce_admins): the owner's token bypasses it" }
         } else {
-            $rules = $null
-            try { $rules = @(& gh api "repos/{owner}/{repo}/rules/branches/$base" 2>$null | ConvertFrom-Json) } catch {}
-            if ($rules -and ($rules.type -contains 'pull_request') -and ($rules.type -contains 'required_status_checks')) {
-                Ok "$base protected by rulesets (check in GitHub that the bypass list is empty)"
+            $rulesJson = Invoke-GhJson api "repos/{owner}/{repo}/rules/branches/$base"
+            # Rules are the items with a `type`; an error body ({"message": …}) has none.
+            $rules = @(@($rulesJson) | ForEach-Object { $_ } | Where-Object { $_ -and $_.PSObject.Properties['type'] })
+            if ($rules.Count -gt 0) {
+                if ($rules.type -contains 'pull_request') { Ok "$base requires a pull request (ruleset)" }
+                else { Fail "$base is protected by rulesets but does not require a pull request" }
+                if ($rules.type -contains 'required_status_checks') { Ok "$base requires CI checks (ruleset)" }
+                else { Fail "$base is protected by rulesets but does not require CI checks" }
+                # The rulesets that provide those rules must have no bypass actors. GitHub returns
+                # bypass_actors only to accounts that can edit the ruleset: otherwise it cannot be confirmed.
+                $ids = @($rules | Where-Object { $_.type -in @('pull_request','required_status_checks') -and $null -ne $_.ruleset_id } |
+                    ForEach-Object { $_.ruleset_id } | Sort-Object -Unique)
+                foreach ($id in $ids) {
+                    $rs = Invoke-GhJson api "repos/{owner}/{repo}/rulesets/$id"
+                    if (-not $rs -or -not $rs.PSObject.Properties['bypass_actors']) {
+                        Fail "cannot read the bypass actors of ruleset $id on ${base}: the active gh account needs admin access to the repository (gh auth switch)"
+                    } elseif (@($rs.bypass_actors).Count -eq 0) { Ok "$base ruleset $id has no bypass actors" }
+                    else { Fail "$base ruleset $id has $(@($rs.bypass_actors).Count) bypass actors: they can merge without the pull request and the CI checks" }
+                }
             } else { Fail "$base is not protected on GitHub (a pull request and CI checks must be required)" }
         }
     }
 
     # Local services and Defender (warnings only)
     $dockerOk = $false
-    if (Get-Command docker -ErrorAction SilentlyContinue) { & docker compose ps *> $null; $dockerOk = ($LASTEXITCODE -eq 0) }
+    if (Get-Command docker -ErrorAction SilentlyContinue) {
+        # compose runs in the destination project, not the current directory.
+        Push-Location -LiteralPath $Dest
+        try { & docker compose ps *> $null; $dockerOk = ($LASTEXITCODE -eq 0) } finally { Pop-Location }
+    }
     if ($dockerOk) { Ok 'docker compose reachable' } else { Warn 'docker compose not reachable: tests that need the local database will fail' }
     try {
         $excl = @((Get-MpPreference -ErrorAction Stop).ExclusionPath)

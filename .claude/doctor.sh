@@ -134,8 +134,11 @@ fi
 env_value() { # the value of KEY in sdd-harness.env, quotes stripped; empty when absent
   local f="$DEST/.claude/sdd-harness.env"
   [[ -f "$f" ]] || return 0
-  grep -E "^$1=" "$f" | tail -n 1 | sed -E "s/^$1=//; s/^\"(.*)\"\$/\\1/; s/^'(.*)'\$/\\1/" | tr -d '\r'
+  # A missing key is not an error: under pipefail grep's status 1 would abort the doctor (V16).
+  { grep -E "^$1=" "$f" || true; } | tail -n 1 | sed -E "s/^$1=//; s/^\"(.*)\"\$/\\1/; s/^'(.*)'\$/\\1/" | tr -d '\r'
 }
+IS_WINDOWS=0
+case "$(uname -s 2>/dev/null || true)" in MINGW*|MSYS*|CYGWIN*) IS_WINDOWS=1 ;; esac
 
 if [[ "$AUTONOMOUS" == "1" ]]; then
   printf '\nAutonomous run preflight\n\n'
@@ -154,13 +157,24 @@ if [[ "$AUTONOMOUS" == "1" ]]; then
   HAVE_JQ=0
   if command -v jq >/dev/null; then HAVE_JQ=1; ok "jq installed"
   else fail "jq NOT installed: in an unattended run every guarded hook denies"; fi
-  ok "bash found ($BASH)"
+  if [[ "$IS_WINDOWS" == "1" ]]; then
+    # The Git Bash that invoke.cjs picks (same candidates, same order); without it hooks may run in WSL.
+    GIT_BASH=""
+    for cand in "${CLAUDE_CODE_GIT_BASH_PATH:-}" "${GIT_BASH_PATH:-}" 'C:\Program Files\Git\bin\bash.exe' 'C:\Program Files (x86)\Git\bin\bash.exe'; do
+      [[ -n "$cand" ]] || continue
+      unix="$(cygpath -u "$cand" 2>/dev/null || printf '%s' "$cand")"
+      if [[ -f "$unix" ]]; then GIT_BASH="$cand"; break; fi
+    done
+    [[ -n "$GIT_BASH" ]] && ok "Git Bash for invoke.cjs: $GIT_BASH" \
+      || fail "Git Bash not found: invoke.cjs would fall back to bash on PATH (maybe WSL)"
+  fi
 
   # Ask rules (they force a prompt even in auto mode)
   ask_rules() { # file → FAIL per permissions.ask rule
     local file="$1" rules
     [[ -f "$file" && "$HAVE_JQ" == "1" ]] || return 0
-    rules="$(jq -r '(.permissions.ask // [])[]' "$file" 2>/dev/null | tr -d '\r')"
+    if ! jq empty "$file" >/dev/null 2>&1; then fail "$file is not valid JSON"; return 0; fi
+    rules="$(jq -r '(.permissions.ask // [])[]' "$file" 2>/dev/null | tr -d '\r')" || true
     if [[ -n "$rules" ]]; then
       while IFS= read -r rule; do fail "permissions.ask rule $rule in $file: it waits for a human"; done <<<"$rules"
     else
@@ -187,7 +201,15 @@ if [[ "$AUTONOMOUS" == "1" ]]; then
   # Merge authorisation in the profile's effective auto-mode configuration
   if [[ -n "$CONFIG_DIR" && -n "$BASE" ]] && command -v claude >/dev/null; then
     AUTO="$(CLAUDE_CONFIG_DIR="$CONFIG_DIR" claude auto-mode config 2>/dev/null || true)"
-    if grep -q 'gh pr merge' <<<"$AUTO" && grep -qF "$BASE" <<<"$AUTO"; then
+    # One rule must name both the merge command and the base (V18): the JSON `allow` list when the
+    # output parses, otherwise one line of the text.
+    if [[ "$HAVE_JQ" == "1" ]] && jq -e 'type == "object"' >/dev/null 2>&1 <<<"$AUTO"; then
+      MERGE_RULE="$(jq -r --arg b "$BASE" '[(.allow // [])[] | strings
+        | select(contains("gh pr merge") and contains($b))] | length' 2>/dev/null <<<"$AUTO" | tr -d '\r')" || MERGE_RULE=0
+    else
+      MERGE_RULE="$({ grep -F 'gh pr merge' <<<"$AUTO" || true; } | { grep -cF "$BASE" || true; })"
+    fi
+    if [[ "${MERGE_RULE:-0}" =~ ^[0-9]+$ && "${MERGE_RULE:-0}" -gt 0 ]]; then
       ok "auto-mode merge authorisation names $BASE"
     else
       fail "no auto-mode merge authorisation for $BASE in the profile (see ai-specs/templates/autonomous/)"
@@ -224,15 +246,20 @@ if [[ "$AUTONOMOUS" == "1" ]]; then
   # GitHub
   if command -v gh >/dev/null && gh auth status >/dev/null 2>&1; then
     ok "gh authenticated"
-    if [[ -n "$BASE" && "$HAVE_JQ" == "1" ]]; then
+    if [[ -z "$BASE" ]]; then
+      fail "cannot check the base's CI run and protection: AUTONOMOUS_MERGE_BASE is empty"
+    elif [[ "$HAVE_JQ" != "1" ]]; then
+      fail "cannot check the CI run and protection of $BASE without jq"
+    else
+      # A gh error is reported as "none", never an abort under pipefail (V16).
       RUN="$(gh run list --branch "$BASE" --limit 1 --json status,conclusion 2>/dev/null \
-        | jq -r '.[0] // empty | "\(.status)/\(.conclusion)"' 2>/dev/null | tr -d '\r')"
+        | jq -r '.[0] // empty | "\(.status)/\(.conclusion)"' 2>/dev/null | tr -d '\r')" || RUN=""
       [[ "$RUN" == "completed/success" ]] && ok "latest CI run on $BASE succeeded" \
         || fail "latest CI run on $BASE is not completed and successful (${RUN:-none})"
       PROT="$(gh api "repos/{owner}/{repo}/branches/$BASE/protection" 2>/dev/null || true)"
       # On an error gh still prints the body: "Branch not protected", or "Not Found" when the active
       # account lacks admin access to the repository.
-      PROT_ERR="$(jq -r '.message? // empty' 2>/dev/null <<<"$PROT" | tr -d '\r')"
+      PROT_ERR="$(jq -r '.message? // empty' 2>/dev/null <<<"$PROT" | tr -d '\r')" || PROT_ERR=""
       if [[ -n "$PROT_ERR" && "$PROT_ERR" != "Branch not protected" ]]; then
         fail "cannot read the protection of $BASE ($PROT_ERR): the active gh account needs admin access to the repository (gh auth switch)"
       elif [[ -n "$PROT" && -z "$PROT_ERR" ]] && jq -e . >/dev/null 2>&1 <<<"$PROT"; then
@@ -245,9 +272,26 @@ if [[ "$AUTONOMOUS" == "1" ]]; then
           || fail "$BASE protection does not apply to administrators (enforce_admins): the owner's token bypasses it"
       else
         RULES="$(gh api "repos/{owner}/{repo}/rules/branches/$BASE" 2>/dev/null || true)"
-        if [[ -n "$RULES" ]] && jq -e 'type == "array"
-              and any(.[]; .type == "pull_request") and any(.[]; .type == "required_status_checks")' >/dev/null 2>&1 <<<"$RULES"; then
-          ok "$BASE protected by rulesets (check in GitHub that the bypass list is empty)"
+        if [[ -n "$RULES" ]] && jq -e 'type == "array" and length > 0' >/dev/null 2>&1 <<<"$RULES"; then
+          jq -e 'any(.[]; .type == "pull_request")' >/dev/null <<<"$RULES" \
+            && ok "$BASE requires a pull request (ruleset)" || fail "$BASE is protected by rulesets but does not require a pull request"
+          jq -e 'any(.[]; .type == "required_status_checks")' >/dev/null <<<"$RULES" \
+            && ok "$BASE requires CI checks (ruleset)" || fail "$BASE is protected by rulesets but does not require CI checks"
+          # The rulesets that provide those rules must have no bypass actors (V17). GitHub returns
+          # bypass_actors only to accounts that can edit the ruleset: otherwise it cannot be confirmed.
+          RULESET_IDS="$(jq -r '[.[] | select(.type == "pull_request" or .type == "required_status_checks")
+            | .ruleset_id | select(. != null)] | unique | .[]' <<<"$RULES" 2>/dev/null | tr -d '\r')" || RULESET_IDS=""
+          while IFS= read -r id; do
+            [[ -n "$id" ]] || continue
+            RS="$(gh api "repos/{owner}/{repo}/rulesets/$id" </dev/null 2>/dev/null || true)"
+            BYPASS="$(jq -r 'if (.bypass_actors | type) == "array" then (.bypass_actors | length) else "unknown" end' \
+              2>/dev/null <<<"$RS" | tr -d '\r')" || BYPASS="unknown"
+            case "${BYPASS:-unknown}" in
+              0) ok "$BASE ruleset $id has no bypass actors" ;;
+              unknown) fail "cannot read the bypass actors of ruleset $id on $BASE: the active gh account needs admin access to the repository (gh auth switch)" ;;
+              *) fail "$BASE ruleset $id has $BYPASS bypass actors: they can merge without the pull request and the CI checks" ;;
+            esac
+          done <<<"$RULESET_IDS"
         else
           fail "$BASE is not protected on GitHub (a pull request and CI checks must be required)"
         fi
@@ -257,9 +301,20 @@ if [[ "$AUTONOMOUS" == "1" ]]; then
     fail "gh is not installed or not authenticated (gh auth status)"
   fi
 
-  # Local services (warnings only)
-  if command -v docker >/dev/null && docker compose ps >/dev/null 2>&1; then ok "docker compose reachable"
+  # Local services and Defender (warnings only); compose runs in the destination project (V20).
+  if command -v docker >/dev/null && (cd "$DEST" && docker compose ps >/dev/null 2>&1); then ok "docker compose reachable"
   else warn "docker compose not reachable: tests that need the local database will fail"; fi
+  if [[ "$IS_WINDOWS" == "1" ]]; then
+    # Get-MpPreference prints "N/A: Must be an administrator…" in a non-elevated shell.
+    EXCL="$(powershell.exe -NoProfile -NonInteractive -Command '(Get-MpPreference).ExclusionPath' </dev/null 2>/dev/null | tr -d '\r')" || EXCL=""
+    if [[ -z "$EXCL" ]] || grep -q '^N/A' <<<"$EXCL"; then
+      warn "cannot read the Defender exclusions (needs an elevated shell)"
+    elif grep -q 'codemind-' <<<"$EXCL"; then
+      ok "Defender excludes the test temp dirs"
+    else
+      warn "Defender has no exclusion for \$TEMP/codemind-* (git tests may fail with Invalid argument)"
+    fi
+  fi
 fi
 
 printf '\nSummary: %s failures, %s warnings\n' "$FAILS" "$WARNS"
