@@ -216,7 +216,12 @@ if ($Autonomous) {
         else { Fail "latest CI run on $base is not completed and successful ($(if ($run) { "$($run.status)/$($run.conclusion)" } else { 'none' }))" }
         $prot = $null
         try { $prot = & gh api "repos/{owner}/{repo}/branches/$base/protection" 2>$null | ConvertFrom-Json } catch {}
-        if ($LASTEXITCODE -eq 0 -and $prot) {
+        # On an error gh still prints the body: "Branch not protected", or "Not Found" when the active
+        # account lacks admin access to the repository.
+        $protErr = if ($prot -and $prot.PSObject.Properties['message']) { "$($prot.message)" } else { '' }
+        if ($protErr -and $protErr -ne 'Branch not protected') {
+            Fail "cannot read the protection of $base ($protErr): the active gh account needs admin access to the repository (gh auth switch)"
+        } elseif ($LASTEXITCODE -eq 0 -and $prot -and -not $protErr) {
             if ($prot.required_pull_request_reviews) { Ok "$base requires a pull request" } else { Fail "$base is protected but does not require a pull request" }
             if (@($prot.required_status_checks.contexts).Count -gt 0) { Ok "$base requires CI checks" } else { Fail "$base does not require CI checks" }
             if ($prot.enforce_admins.enabled -eq $true) { Ok "$base protection applies to administrators" }

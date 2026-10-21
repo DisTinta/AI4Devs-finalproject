@@ -230,7 +230,12 @@ if [[ "$AUTONOMOUS" == "1" ]]; then
       [[ "$RUN" == "completed/success" ]] && ok "latest CI run on $BASE succeeded" \
         || fail "latest CI run on $BASE is not completed and successful (${RUN:-none})"
       PROT="$(gh api "repos/{owner}/{repo}/branches/$BASE/protection" 2>/dev/null || true)"
-      if [[ -n "$PROT" ]] && jq -e . >/dev/null 2>&1 <<<"$PROT"; then
+      # On an error gh still prints the body: "Branch not protected", or "Not Found" when the active
+      # account lacks admin access to the repository.
+      PROT_ERR="$(jq -r '.message? // empty' 2>/dev/null <<<"$PROT" | tr -d '\r')"
+      if [[ -n "$PROT_ERR" && "$PROT_ERR" != "Branch not protected" ]]; then
+        fail "cannot read the protection of $BASE ($PROT_ERR): the active gh account needs admin access to the repository (gh auth switch)"
+      elif [[ -n "$PROT" && -z "$PROT_ERR" ]] && jq -e . >/dev/null 2>&1 <<<"$PROT"; then
         jq -e '.required_pull_request_reviews != null' >/dev/null <<<"$PROT" \
           && ok "$BASE requires a pull request" || fail "$BASE is protected but does not require a pull request"
         jq -e '((.required_status_checks.contexts // []) | length) > 0' >/dev/null <<<"$PROT" \

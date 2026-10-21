@@ -127,6 +127,15 @@ describe('A preflight checks the autonomous setup before a run', { timeout: 120_
     expect(preflight({ gh: { protection: { prefix: ['api'], stdout: bypass } } }).fails.join('\n')).toContain('administrators');
   });
 
+  it('A protection the gh account cannot read is reported as such', () => {
+    // GitHub answers 404 "Not Found" when the active account lacks admin access, and prints the body.
+    const hidden = preflight({ gh: { protection: { prefix: ['api'], stdout: '{"message":"Not Found","status":"404"}', exitCode: 1 } } }).fails;
+    expect(hidden).toHaveLength(1);
+    expect(hidden[0]).toContain('admin access');
+    const unprotected = preflight({ gh: { protection: { prefix: ['api'], stdout: '{"message":"Branch not protected","status":"404"}', exitCode: 1 } } }).fails;
+    expect(unprotected.join('\n')).toContain('is not protected');
+  });
+
   it('Missing hooks fail the preflight', () => {
     expect(preflight({ dropCursorHooks: true }).fails.join('\n')).toContain('.cursor/hooks.json');
     expect(preflight({ dropGateRegistration: true }).fails.join('\n')).toContain('autonomous-merge-gate');
