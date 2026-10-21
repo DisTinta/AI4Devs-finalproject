@@ -226,7 +226,7 @@ if [[ "$AUTONOMOUS" == "1" ]]; then
     ok "gh authenticated"
     if [[ -n "$BASE" && "$HAVE_JQ" == "1" ]]; then
       RUN="$(gh run list --branch "$BASE" --limit 1 --json status,conclusion 2>/dev/null \
-        | jq -r '.[0] | "\(.status)/\(.conclusion)"' 2>/dev/null | tr -d '\r')"
+        | jq -r '.[0] // empty | "\(.status)/\(.conclusion)"' 2>/dev/null | tr -d '\r')"
       [[ "$RUN" == "completed/success" ]] && ok "latest CI run on $BASE succeeded" \
         || fail "latest CI run on $BASE is not completed and successful (${RUN:-none})"
       PROT="$(gh api "repos/{owner}/{repo}/branches/$BASE/protection" 2>/dev/null || true)"

@@ -122,6 +122,7 @@ describe('A preflight checks the autonomous setup before a run', { timeout: 120_
     expect(preflight({ gh: { auth: { prefix: ['auth', 'status'], exitCode: 1 } } }).fails.join('\n')).toContain('gh');
     expect(preflight({ gh: { runs: { prefix: ['run', 'list'], stdout: '[{"status":"completed","conclusion":"failure"}]' } } }).fails.join('\n')).toContain('CI');
     expect(preflight({ gh: { runs: { prefix: ['run', 'list'], stdout: '[{"status":"in_progress","conclusion":""}]' } } }).fails.join('\n')).toContain('CI');
+    expect(preflight({ gh: { runs: { prefix: ['run', 'list'], stdout: '[]' } } }).fails.join('\n')).toContain('successful (none)');
     expect(preflight({ gh: { protection: { prefix: ['api'], exitCode: 1 } } }).fails.join('\n')).toContain('protect');
     const bypass = JSON.stringify({ ...JSON.parse(PROTECTION), enforce_admins: { enabled: false } });
     expect(preflight({ gh: { protection: { prefix: ['api'], stdout: bypass } } }).fails.join('\n')).toContain('administrators');
