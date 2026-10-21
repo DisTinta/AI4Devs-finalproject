@@ -90,6 +90,8 @@ const SWITCH_DEFAULTS: Record<string, string> = {
   KIT_AUTONOMOUS_RUN: '0',
   AUTONOMOUS_MERGE_BASE: 'final-project-CRN',
   KIT_SECRET_ALLOWLIST: '',
+  KIT_SKIP_STOP_TESTS: '0',
+  KIT_ALLOW_WIP: '0',
 };
 
 /** The real `sdd-harness.env` with the switches at their defaults and some keys replaced or appended. */
