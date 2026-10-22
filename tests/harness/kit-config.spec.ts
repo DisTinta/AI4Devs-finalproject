@@ -89,10 +89,10 @@ describe('The kit configuration and the local switch stay untouched in an autono
         expect(r.reason, c).toContain('merge gate (gh pr merge)');
       }
     };
-    // A forced refspec is denied first as a force push.
-    expect((await runHook(p, 'block-dangerous-bash', bashInput('git push origin +HEAD:final-project-CRN', { cwd: p.dir }))).decision).toBe('deny');
     await deniedNamingGate([
       'git push origin HEAD:final-project-CRN',
+      // A forced refspec is also a force push: the reason names both.
+      'git push origin +HEAD:final-project-CRN',
       'git push origin final-project-CRN',
       'git push --all origin',
       'gh api -X DELETE repos/DisTinta/repo/branches/final-project-CRN/protection',

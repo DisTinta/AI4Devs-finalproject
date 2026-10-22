@@ -9,9 +9,9 @@
 // CLI: node shell-words.mjs --cwd <dir> [--project <dir>] [--scratchpad <dir>]  (line on stdin)
 // Prints one JSON document: { ok, commands, separators, rawInterpreterText, pipeIntoShell, facts }.
 'use strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { homedir } from 'node:os';
+import { homedir, hostname } from 'node:os';
 
 // ── Lexing and parsing ───────────────────────────────────────────────────────
 
@@ -445,7 +445,23 @@ function otherInterpreterText(cmd, line) {
 
 // ── Paths ────────────────────────────────────────────────────────────────────
 
-const norm = (p) => p.replace(/\\/g, '/').replace(/^\/([a-zA-Z])\//, (_, d) => `${d.toUpperCase()}:/`).replace(/^([a-z]):/, (_, d) => `${d.toUpperCase()}:`);
+// Names under which an administrative share (//<host>/C$/…) points to this machine.
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1', '.', hostname().toLowerCase()]);
+
+/**
+ * One spelling for a path: forward slashes, an upper-case drive letter, and the Windows and Cygwin
+ * aliases of a drive path reduced to `C:/…` — `\\?\C:\…`, `\\.\C:\…`, `\\?\UNC\localhost\C$\…`,
+ * `\\localhost\C$\…`, `/cygdrive/c/…`, `/proc/cygdrive/c/…` and `/c/…` (adversarial review 2026-10-21).
+ */
+const norm = (p) => {
+  let v = String(p).replace(/\\/g, '/');
+  v = v.replace(/^\/\/[?.]\/UNC\//i, '//');
+  v = v.replace(/^\/\/[?.]\/(?=[A-Za-z]:)/, '');
+  const share = /^\/\/([^/]+)\/([A-Za-z])\$(?:\/(.*))?$/.exec(v);
+  if (share && LOCAL_HOSTS.has(share[1].toLowerCase())) v = `${share[2]}:/${share[3] ?? ''}`;
+  v = v.replace(/^\/(?:proc\/)?cygdrive\/([A-Za-z])(?:\/|$)/i, (_, d) => `/${d}/`);
+  return v.replace(/^\/([a-zA-Z])\//, (_, d) => `${d.toUpperCase()}:/`).replace(/^([a-z]):/, (_, d) => `${d.toUpperCase()}:`);
+};
 
 function collapse(p) {
   const parts = [];
@@ -489,6 +505,96 @@ function gitArgs(words) {
   return { sub: words[k]?.value ?? '', rest: words.slice(k + 1), dashC, workTree };
 }
 
+/** A long option `x` names `full` (GNU getopt accepts any unambiguous prefix of `min` characters or more). */
+const longOpt = (x, full, min) => x.length >= min && full.startsWith(x);
+
+/**
+ * Files a `sed` edits in place, in GNU syntax: `-i[SUFFIX]` or `--in-place[=SUFFIX]` anywhere in a
+ * short-option cluster or as a long option; the script from `-e`/`--expression`/`-f`/`--file` (then
+ * every operand is a file) or else the first operand.
+ */
+function sedInPlaceFiles(w) {
+  let inPlace = false;
+  let scriptGiven = false;
+  const ops = [];
+  for (let k = 1; k < w.length; k++) {
+    const v = w[k].value;
+    if (v === '--') { ops.push(...w.slice(k + 1)); break; }
+    if (v.startsWith('--')) {
+      const [name] = v.split('=');
+      if (longOpt(name, '--in-place', 3)) inPlace = true;
+      else if (longOpt(name, '--expression', 3) || longOpt(name, '--file', 4)) { scriptGiven = true; if (!v.includes('=')) k++; }
+      else if (longOpt(name, '--line-length', 3) && !v.includes('=')) k++;
+      continue;
+    }
+    if (/^-./.test(v)) {
+      for (let j = 1; j < v.length; j++) {
+        const c = v[j];
+        if (c === 'i') { inPlace = true; break; } // the rest of the cluster is the suffix
+        if (c === 'e' || c === 'f') { scriptGiven = true; if (j === v.length - 1) k++; break; }
+        if (c === 'l') { if (j === v.length - 1) k++; break; }
+      }
+      continue;
+    }
+    ops.push(w[k]);
+  }
+  if (!inPlace) return [];
+  return scriptGiven ? ops : ops.slice(1);
+}
+
+const COPY_VALUE_FLAGS = {
+  cp: new Set(['-S', '--suffix']),
+  mv: new Set(['-S', '--suffix']),
+  ln: new Set(['-S', '--suffix']),
+  install: new Set(['-S', '--suffix', '-m', '--mode', '-o', '--owner', '-g', '--group']),
+};
+
+/**
+ * What `cp`, `mv`, `ln` and `install` write: the destination (last operand), or with
+ * `-t DIR`/`--target-directory[=]DIR` the directory and each `DIR/<source name>`; `mv` also removes
+ * its sources, and `install -d` creates every operand.
+ */
+function copyTargets(name, w) {
+  const valueFlags = COPY_VALUE_FLAGS[name];
+  const ops = [];
+  const dirs = [];
+  let createDirs = false;
+  for (let k = 1; k < w.length; k++) {
+    const v = w[k].value;
+    if (v === '--') { ops.push(...w.slice(k + 1)); break; }
+    if (v.startsWith('--')) {
+      const [opt] = v.split('=');
+      if (longOpt(opt, '--target-directory', 3)) {
+        if (v.includes('=')) dirs.push({ value: v.slice(v.indexOf('=') + 1), dynamic: w[k].dynamic });
+        else if (w[k + 1]) { dirs.push(w[k + 1]); k++; }
+      } else if (name === 'install' && longOpt(opt, '--directory', 5)) createDirs = true;
+      else if (valueFlags.has(opt) && !v.includes('=')) k++;
+      continue;
+    }
+    if (/^-./.test(v)) {
+      for (let j = 1; j < v.length; j++) {
+        const c = v[j];
+        if (c === 't') {
+          if (j < v.length - 1) dirs.push({ value: v.slice(j + 1), dynamic: w[k].dynamic });
+          else if (w[k + 1]) { dirs.push(w[k + 1]); k++; }
+          break;
+        }
+        if (name === 'install' && c === 'd') createDirs = true;
+        if (valueFlags.has(`-${c}`)) { if (j === v.length - 1) k++; break; }
+      }
+      continue;
+    }
+    ops.push(w[k]);
+  }
+  const out = [...dirs];
+  for (const d of dirs) {
+    for (const s of ops) out.push({ value: `${d.value}/${s.value.replace(/\\/g, '/').split('/').pop()}`, dynamic: d.dynamic || s.dynamic });
+  }
+  if (name === 'mv' || createDirs) out.push(...ops);
+  else if (!dirs.length && ops.length) out.push(ops[ops.length - 1]);
+  return out;
+}
+
 /** Writes performed by one simple command: [{ word, abs }]. */
 function writeTargets(cmd) {
   const out = [];
@@ -499,20 +605,18 @@ function writeTargets(cmd) {
   const args = (from = 1) => w.slice(from).filter((x) => !/^-/.test(x.value));
   switch (cmd.name) {
     case 'tee': out.push(...args()); break;
-    case 'sed':
+    case 'sed': out.push(...sedInPlaceFiles(w)); break;
     case 'perl': {
       if (w.some((x) => /^-[A-Za-z]*i/.test(x.value) || x.value.startsWith('--in-place'))) {
-        // The file operands: words after the script (sed) / options (perl).
-        const ops = w.slice(1).filter((x) => !/^-/.test(x.value));
-        const hasScriptFlag = w.some((x) => /^-[A-Za-z]*e$/.test(x.value) && cmd.name === 'sed');
-        out.push(...(cmd.name === 'sed' && !hasScriptFlag ? ops.slice(1) : cmd.name === 'perl' ? ops.slice(1) : ops));
+        // The file operands: words after the options and the script.
+        out.push(...w.slice(1).filter((x) => !/^-/.test(x.value)).slice(1));
       }
       break;
     }
-    case 'mv': { const a = args(); out.push(...a); break; } // source and destination
+    case 'mv':
     case 'cp':
     case 'ln':
-    case 'install': { const a = args(); if (a.length) out.push(a[a.length - 1]); break; }
+    case 'install': out.push(...copyTargets(cmd.name, w)); break;
     case 'truncate': out.push(...args().filter((x, idx, arr) => !(idx === 0 && /^\d/.test(x.value)))); break;
     case 'dd': for (const x of w) if (x.value.startsWith('of=')) out.push({ value: x.value.slice(3), dynamic: x.dynamic }); break;
     case 'rm':
@@ -553,6 +657,92 @@ function wordsWithoutMessages(cmd) {
 
 const GH_MERGE_VALUE_FLAGS = new Set(['-R', '--repo', '-b', '--body', '-F', '--body-file', '-t', '--subject', '-A', '--author-email', '--match-head-commit']);
 
+// Past these sizes a line is too costly to check: an unattended run denies it instead of risking the
+// hook timeout, which would let the call through (adversarial review 2026-10-21).
+export const LIMITS = { interpreterTexts: 20, commands: 200, interpreterBytes: 65536 };
+
+/** `.claude` / `.cursor` as a path segment, or the kit contract's name, in free text. */
+const KIT_TEXT = /(^|[^A-Za-z0-9_-])\.(claude|cursor)(?![A-Za-z0-9_-])|sdd-harness\.env/i;
+
+function namesKitInText(text, ctx) {
+  if (KIT_TEXT.test(text)) return true;
+  if (!ctx.configDir) return false;
+  const t = text.replace(/\\\\/g, '/').replace(/\\/g, '/');
+  const d = collapse(norm(ctx.configDir));
+  return process.platform === 'win32' ? t.toLowerCase().includes(d.toLowerCase()) : t.includes(d);
+}
+
+/** A gh or git alias definition (or removal), or null. */
+function aliasDefinition(cmd) {
+  const isAlias = (key) => /^alias(\.|$)/i.test(key);
+  const env = [...cmd.assigns, ...(cmd.name === 'export' ? cmd.words.slice(1).map((x) => x.value) : [])];
+  if (env.some((a) => /^GIT_CONFIG_(PARAMETERS|KEY_\d+)=/.test(a) && /alias/i.test(a))) return 'git configuration from the environment';
+  const v = cmd.words.map((x) => x.value);
+  if (cmd.name === 'git') {
+    let k = 1;
+    for (; k < v.length && /^-/.test(v[k]); k++) {
+      const x = v[k];
+      if ((x === '-c' || x === '--config-env') && isAlias(v[k + 1] ?? '')) return `git ${x} ${(v[k + 1] ?? '').split('=')[0]}`;
+      if (x.startsWith('--config-env=') && isAlias(x.slice(13))) return `git ${x.split('=').slice(0, 2).join('=')}`;
+      if (['-c', '-C', '--config-env', '--git-dir', '--work-tree', '--namespace'].includes(x)) k++;
+    }
+    if (v[k] !== 'config') return null;
+    const rest = v.slice(k + 1);
+    const READS = ['--get', '--get-all', '--get-regexp', '--get-urlmatch', '--get-color', '--get-colorbool', '--list', '-l'];
+    const sub = rest.find((x) => !/^-/.test(x));
+    if (rest.some((x) => READS.includes(x)) || sub === 'get' || sub === 'list') return null;
+    return rest.some(isAlias) ? 'git config alias' : null;
+  }
+  if (cmd.name === 'gh') {
+    let k = 1;
+    while (k < v.length && /^-/.test(v[k])) k += v[k] === '-R' || v[k] === '--repo' ? 2 : 1;
+    if (v[k] === 'alias' && ['set', 'import', 'delete'].includes(v[k + 1])) return `gh alias ${v[k + 1]}`;
+  }
+  return null;
+}
+
+// Commands that only read the files they name (their output goes through redirections, which are
+// checked as writes), and the git subcommands that only read.
+const READ_ONLY = new Set(['cat', 'head', 'tail', 'less', 'more', 'grep', 'egrep', 'fgrep', 'rg', 'ls', 'dir', 'stat', 'file', 'wc', 'diff', 'cmp', 'jq', 'echo', 'printf', 'test', '[', 'realpath', 'readlink', 'basename', 'dirname', 'md5sum', 'sha1sum', 'sha256sum', 'du', 'cd', 'pushd', 'popd', 'pwd', 'true', 'false', 'type', 'which']);
+const GIT_READ_ONLY = new Set(['diff', 'show', 'log', 'status', 'ls-files', 'blame', 'grep', 'rev-parse', 'cat-file', 'ls-tree', 'shortlog', 'describe', 'check-ignore', 'check-attr']);
+const FIND_ACTIONS = new Set(['-exec', '-execdir', '-ok', '-okdir', '-delete', '-fprint', '-fprint0', '-fprintf', '-fls']);
+// Runners of the kit's own scripts (bash .claude/doctor.sh, node .claude/hooks/…): allowed.
+const KIT_RUNNERS = new Set(['bash', 'sh', 'zsh', 'node', 'pwsh', 'powershell', 'source', '.']);
+
+/** "<command> <word>" when a command outside the read-only list names kit configuration, or null. */
+function kitNamedBy(cmd, ctx) {
+  const name = cmd.name;
+  const w = cmd.words;
+  if (!name || !w.length || READ_ONLY.has(name)) return null;
+  if (name === 'find' && !w.some((x) => FIND_ACTIONS.has(x.value))) return null;
+  let words = w.slice(1);
+  if (name === 'git') {
+    const g = gitArgs(w);
+    if (GIT_READ_ONLY.has(g.sub) && !g.rest.some((x) => x.value.startsWith('--output'))) return null;
+    words = gitRest(g);
+  } else if (name === 'gh') words = withoutMessages(w, MSG_OPTS_GH).slice(1);
+  const kitPath = (value, dynamic) => {
+    const abs = resolvePath(value, dynamic, cmd.cwd);
+    return abs === null ? namesKitInText(value, ctx) : kitConfiguration(abs, ctx);
+  };
+  // The kit's own tools: a script under .claude/ run directly or through its interpreter.
+  if (kitPath(w[0].value, w[0].dynamic) && /[\\/]/.test(w[0].value)) return null;
+  if (KIT_RUNNERS.has(name)) {
+    const script = w.slice(1).find((x) => !/^-/.test(x.value));
+    const inline = w.slice(1).some((x) => /^-[A-Za-z]*[ce]$/.test(x.value) || /^-(command|encodedcommand)$/i.test(x.value));
+    if (script && !inline && kitPath(script.value, script.dynamic)) return null;
+  }
+  for (const x of words) {
+    let value = x.value;
+    if (value.startsWith('-')) {
+      if (!value.includes('=')) continue;
+      value = value.slice(value.indexOf('=') + 1);
+    }
+    if (value && kitPath(value, x.dynamic)) return `${name} ${x.value}`;
+  }
+  return null;
+}
+
 function analyse(parsed, line, ctx) {
   const facts = {
     rmRecursive: false,
@@ -571,6 +761,10 @@ function analyse(parsed, line, ctx) {
     pushToBase: false,
     protectionApi: false,
     scratchpadOnly: false,
+    aliasDefinition: [],
+    kitNamed: [],
+    kitInInterpreter: [],
+    tooCostly: '',
   };
   const commands = normalise(parsed.commands);
   const rawInterpreterText = [];
@@ -661,7 +855,25 @@ function analyse(parsed, line, ctx) {
     if (b.includes('--dangerously-skip-permissions') || b.some((x, k) => (x === '--permission-mode' && b[k + 1] === 'bypassPermissions') || x === '--permission-mode=bypassPermissions')) facts.bypassFlags = true;
     // gh.
     if (cmd.name === 'gh') ghRules(cmd, facts, all.length === 1 && parsed.separators.every((s) => s === null || s === undefined));
+    // Aliases: one can hide a merge from the merge gate (gh alias set, git config alias.*, git -c alias.*=).
+    const alias = aliasDefinition(cmd);
+    if (alias) facts.aliasDefinition.push(alias);
+    // Any other command that names kit configuration (curl -o, tar -C, touch, chmod, git apply…).
+    const named = kitNamedBy(cmd, ctx);
+    if (named) facts.kitNamed.push(named);
   }
+
+  // Interpreter text the guard reads only by pattern: naming kit configuration is enough.
+  for (const text of rawInterpreterText) {
+    if (namesKitInText(text, ctx)) facts.kitInInterpreter.push(text.length > 80 ? `${text.slice(0, 77)}...` : text);
+  }
+
+  // The cost bound (adversarial review 2026-10-21): past these sizes an unattended run denies.
+  const rawBytes = rawInterpreterText.reduce((n, t) => n + t.length, 0);
+  if (rawInterpreterText.length > LIMITS.interpreterTexts) facts.tooCostly = `${rawInterpreterText.length} interpreter texts, more than ${LIMITS.interpreterTexts}`;
+  else if (all.length > LIMITS.commands) facts.tooCostly = `${all.length} commands, more than ${LIMITS.commands}`;
+  else if (rawBytes > LIMITS.interpreterBytes) facts.tooCostly = `${rawBytes} characters of interpreter text, more than ${LIMITS.interpreterBytes}`;
+  else if (spawnBudgetExceeded) facts.tooCostly = `more than ${MAX_GIT_SPAWNS} git lookups`;
 
   // Scratchpad removal: exactly one rm/rmdir command, every target an explicit path inside.
   if (ctx.scratchpad && all.length === 1 && (all[0].name === 'rm' || all[0].name === 'rmdir') && !pipeIntoShell) {
@@ -837,46 +1049,105 @@ function ghRules(cmd, facts) {
 
 // ── Kit configuration (design D5) ────────────────────────────────────────────
 
+// Every git process the analysis starts costs time on Windows: past this many the line is too costly
+// to check (adversarial review 2026-10-21, the fail-open by timeout), and the answers turn conservative.
+const MAX_GIT_SPAWNS = 16;
+let gitSpawns = 0;
+let spawnBudgetExceeded = false;
+function git(args) {
+  if (++gitSpawns > MAX_GIT_SPAWNS) { spawnBudgetExceeded = true; return null; }
+  const r = spawnSync('git', args, { encoding: 'utf8', timeout: 3000, windowsHide: true });
+  return r.status === 0 ? r.stdout.trim() : null;
+}
+
+/** The nearest existing ancestor of an absolute normalised path, and the part below it. */
+function existingAncestor(p) {
+  let probe = p;
+  let rest = '';
+  // A path whose root does not exist (a drive letter on POSIX, a missing drive on Windows) has no
+  // parent left: stop there instead of looping.
+  while (probe && !existsSync(probe)) {
+    const k = probe.lastIndexOf('/');
+    if (k < 0) return { probe: '', rest: p };
+    let parent = probe.slice(0, k);
+    if (k === 0) parent = '/';
+    else if (/^[A-Za-z]:$/.test(parent)) parent += '/';
+    if (parent === probe) return { probe: '', rest: p };
+    rest = probe.slice(k + 1) + (rest ? `/${rest}` : '');
+    probe = parent;
+  }
+  return { probe, rest };
+}
+
+/** Real path: the nearest existing ancestor resolved (junctions, symlinks, 8.3 names), plus the rest. */
+const realCache = new Map();
+function realPath(p) {
+  if (realCache.has(p)) return realCache.get(p);
+  let out = p;
+  const { probe, rest } = existingAncestor(p);
+  if (probe) {
+    try {
+      const real = collapse(norm(realpathSync.native(probe)));
+      out = rest ? collapse(`${real}/${rest}`) : real;
+    } catch { /* unreadable: keep the path as written */ }
+  }
+  realCache.set(p, out);
+  return out;
+}
+
 const toplevelCache = new Map();
 function toplevel(dir) {
   if (toplevelCache.has(dir)) return toplevelCache.get(dir);
-  let probe = dir;
-  // Climb to the nearest existing ancestor. A path whose root does not exist (a drive letter on
-  // POSIX, a missing drive on Windows) has no '/' left to strip: stop there instead of looping.
-  while (probe && !existsSync(probe)) {
-    const parent = probe.replace(/\/[^/]*$/, '');
-    if (parent === probe) { probe = ''; break; }
-    probe = parent;
-  }
-  const r = spawnSync('git', ['-C', probe || '/', 'rev-parse', '--show-toplevel'], { encoding: 'utf8' });
-  const top = r.status === 0 ? collapse(norm(r.stdout.trim())) : null;
+  const { probe } = existingAncestor(dir);
+  const out = git(['-C', probe || '/', 'rev-parse', '--show-toplevel']);
+  const top = out === null ? (spawnBudgetExceeded ? undefined : null) : collapse(norm(out));
   toplevelCache.set(dir, top);
   return top;
 }
 
+const eqPath = (a, b) => (process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b);
+const underPath = (path, root) => eqPath(path, root) || (process.platform === 'win32' ? path.toLowerCase().startsWith(`${root.toLowerCase()}/`) : path.startsWith(`${root}/`));
+
+function kitConfigurationOf(p, ctx) {
+  for (const dir of [ctx.configDir, ctx.configDir && realPath(collapse(norm(ctx.configDir)))]) {
+    if (dir && underPath(p, collapse(norm(dir)))) return true;
+  }
+  const project = ctx.project ? collapse(norm(ctx.project)) : null;
+  let root = null;
+  for (const r of project ? [project, realPath(project)] : []) {
+    if (underPath(p, r) && !underPath(p, `${r}/.claude/worktrees`)) { root = r; break; }
+  }
+  if (!root) root = toplevel(p.replace(/\/[^/]*$/, ''));
+  if (root === undefined) return true; // too costly to look up: count it as kit configuration
+  if (!root) return false;
+  const rel = eqPath(p, root) ? '' : p.slice(root.length + 1);
+  return /^(\.claude|\.cursor)(\/|$)/i.test(rel);
+}
+
+/**
+ * Kit configuration (design D5), whatever the spelling: the path is normalised (see norm and
+ * collapse), compared without case on Windows, and also looked up by its real path, so a junction or
+ * a symlink into .claude/ counts.
+ */
 export function kitConfiguration(abs, ctx) {
   const p = collapse(norm(abs));
-  const eq = (a, b) => (process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b);
-  const under = (path, root) => eq(path, root) || (process.platform === 'win32' ? path.toLowerCase().startsWith(`${root.toLowerCase()}/`) : path.startsWith(`${root}/`));
-  if (ctx.configDir && under(p, collapse(norm(ctx.configDir)))) return true;
-  let root = null;
-  const project = ctx.project ? collapse(norm(ctx.project)) : null;
-  if (project && under(p, project) && !under(p, `${project}/.claude/worktrees`)) root = project;
-  else root = toplevel(p.replace(/\/[^/]*$/, ''));
-  if (!root) return false;
-  const rel = eq(p, root) ? '' : p.slice(root.length + 1);
-  return /^(\.claude|\.cursor)(\/|$)/i.test(rel);
+  if (kitConfigurationOf(p, ctx)) return true;
+  const real = realPath(p);
+  return real !== p && kitConfigurationOf(real, ctx);
 }
 
 function currentBranch(cwd) {
   if (!cwd) return null;
-  const r = spawnSync('git', ['-C', cwd, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8' });
-  return r.status === 0 ? r.stdout.trim() : null;
+  return git(['-C', cwd, 'rev-parse', '--abbrev-ref', 'HEAD']);
 }
 
 // ── Entry point ──────────────────────────────────────────────────────────────
 
 export function inspect(line, ctx) {
+  gitSpawns = 0;
+  spawnBudgetExceeded = false;
+  realCache.clear();
+  toplevelCache.clear();
   try {
     const parsed = parseLine(line);
     return { ok: true, ...analyse(parsed, line, ctx) };
@@ -886,12 +1157,112 @@ export function inspect(line, ctx) {
   }
 }
 
+// ── Raw-text rules, matched here in one process ──────────────────────────────
+
+const POSIX_CLASSES = { space: ' \\t\\n\\v\\f\\r', blank: ' \\t', alpha: 'A-Za-z', digit: '0-9', alnum: 'A-Za-z0-9', upper: 'A-Z', lower: 'a-z', xdigit: '0-9A-Fa-f' };
+
+/**
+ * A POSIX extended regular expression as a JavaScript one (bracket classes expanded). Constructs whose
+ * meaning differs (a backslash before a letter, a digit, < or >, or inside a bracket expression)
+ * throw: the caller then matches with grep.
+ */
+function ereToRegExp(ere, flags) {
+  if (/\\[A-Za-z0-9<>`']/.test(ere) || /\[[^\]]*\\/.test(ere)) throw new Error('construct read differently by grep');
+  const src = ere.replace(/\[:([a-z]+):\]/g, (m, c) => {
+    if (!(c in POSIX_CLASSES)) throw new Error(`unsupported class ${m}`);
+    return POSIX_CLASSES[c];
+  });
+  return new RegExp(src, flags);
+}
+
+/**
+ * The shell guard's raw-text rules, matched like `grep -qE` (any line of a text matches). Each spec is
+ * "NAME<TAB>SCOPE<TAB>ERE[<TAB>ERE…]": scope `any` reads every interpreter text (and the whole line
+ * when it could not be parsed), `whole` reads the line ignoring case, `line` reads it with case; with several EREs one text must
+ * match them all. The value is true, false, or "error" when an ERE cannot be translated.
+ */
+export function rawMatches(specs, result, line) {
+  const texts = [...(result.ok ? [] : [line]), ...(result.rawInterpreterText ?? [])];
+  const anyLine = (text, re) => text.split('\n').some((l) => re.test(l));
+  const out = {};
+  for (const spec of specs) {
+    const [name, scope, ...eres] = spec.split('\t');
+    try {
+      const regs = eres.map((e) => ereToRegExp(e, scope === 'whole' ? 'is' : 's'));
+      const pool = scope === 'whole' || scope === 'line' ? [line] : texts;
+      out[name] = pool.some((t) => regs.every((re) => anyLine(t, re)));
+    } catch {
+      out[name] = 'error';
+    }
+  }
+  return out;
+}
+
+// ── Command line interface ───────────────────────────────────────────────────
+
 function arg(name) {
   const k = process.argv.indexOf(name);
   return k > 0 ? process.argv[k + 1] : undefined;
 }
 
-if (process.argv[1] && /shell-words\.mjs$/.test(process.argv[1].replace(/\\/g, '/')) && arg('--kit-path')) {
+function args(name) {
+  return process.argv.flatMap((x, k) => (x === name && k + 1 < process.argv.length ? [process.argv[k + 1]] : []));
+}
+
+const shq = (s) => `'${String(s ?? '').replace(/\0/g, '').replace(/'/g, `'\\''`)}'`;
+
+/**
+ * --hook-input: stdin is the hook's JSON. Prints shell assignments for block-dangerous-bash.sh (the
+ * command, the parser's facts and the raw-text matches), ending with SW_DONE=1, so the hook needs
+ * neither jq nor grep per rule (adversarial review 2026-10-21: one process instead of several per
+ * interpreter text).
+ */
+function hookInput() {
+  let input = null;
+  try { input = JSON.parse(readFileSync(0, 'utf8')); } catch { input = null; }
+  const str = (v) => (v === null || v === undefined || v === false ? '' : typeof v === 'string' ? v : JSON.stringify(v));
+  const ti = input && typeof input === 'object' ? input.tool_input ?? {} : {};
+  const cursor = process.env.KIT_HOOK_CLIENT === 'cursor';
+  const command = input ? str(ti?.command ?? (cursor ? input.command : undefined)) : '';
+  const cwd = input ? str(input.cwd) : '';
+  const scratchpad = input ? str(input.scratchpad_dir) : '';
+  const background = input && typeof input === 'object' ? str(input.is_background_agent) : '';
+  const lines = [`COMMAND=${shq(command)}`, `CWD=${shq(cwd)}`, `SCRATCHPAD=${shq(scratchpad)}`, `P_BACKGROUND=${shq(background)}`];
+  if (command) {
+    const project = arg('--project');
+    const ctx = {
+      cwd: norm(cwd || project || process.cwd()),
+      project,
+      scratchpad: scratchpad || null,
+      base: arg('--base') || null,
+      configDir: process.env.CLAUDE_CONFIG_DIR || null,
+    };
+    const r = inspect(command, ctx);
+    const f = r.facts ?? {};
+    const inst = f.installs ?? [];
+    const set = {
+      P_OK: r.ok, P_ERROR: r.error ?? '', P_PIPE: r.pipeIntoShell ?? false,
+      P_SCRATCH: f.scratchpadOnly ?? false, P_RM: f.rmRecursive ?? false, P_PUSH: f.gitForcePush ?? false, P_DISCARD: f.gitDiscard ?? false,
+      P_CONTRACT: f.kitContractWrite ?? false, P_KIT: (f.kitConfig ?? []).join(', '), P_WHOLE: (f.wholeTree ?? []).join(', '), P_REVERT: (f.pathlessRevert ?? []).join(', '),
+      P_FORCED: f.forcedSwitch ?? false, P_BYPASS: f.bypassFlags ?? false, P_BASE: f.pushToBase ?? false, P_PROTECTION: f.protectionApi ?? false,
+      P_INSTALLS: inst.length, P_INST_INTERP: inst.filter((x) => x.inInterp).length, P_COMMANDS: (r.commands ?? []).length,
+      P_MANAGER: inst[0]?.manager ?? '', P_REGISTRY: inst[0]?.registry ?? false, P_NPMCONFIG: inst[0]?.npmConfig ?? false,
+      P_PACKAGES: (inst[0]?.packages ?? []).join(' '), P_RUNNERS: (f.runners ?? []).filter((x) => x.downloads).length,
+      P_KIT_NAMED: (f.kitNamed ?? []).join(', '), P_KIT_INTERP: (f.kitInInterpreter ?? []).join('; '),
+      P_ALIAS: (f.aliasDefinition ?? []).join(', '), P_COSTLY: f.tooCostly ?? '',
+    };
+    for (const [name, value] of Object.entries(rawMatches(args('--raw'), r, command))) {
+      if (/^[A-Za-z0-9_]+$/.test(name)) set[`R_${name.toUpperCase()}`] = value;
+    }
+    for (const [k, v] of Object.entries(set)) lines.push(`${k}=${shq(v)}`);
+  }
+  lines.push('SW_DONE=1');
+  process.stdout.write(`${lines.join('\n')}\n`);
+}
+
+if (process.argv[1] && /shell-words\.mjs$/.test(process.argv[1].replace(/\\/g, '/')) && process.argv.includes('--hook-input')) {
+  hookInput();
+} else if (process.argv[1] && /shell-words\.mjs$/.test(process.argv[1].replace(/\\/g, '/')) && arg('--kit-path')) {
   // Used by protect-specs-and-tests.sh for the editing tools (design D5): prints true / false.
   const ctx = { project: arg('--project'), configDir: process.env.CLAUDE_CONFIG_DIR || null };
   process.stdout.write(`${kitConfiguration(resolvePath(arg('--kit-path'), false, arg('--project') ?? process.cwd()), ctx)}\n`);
