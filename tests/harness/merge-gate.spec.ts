@@ -132,6 +132,18 @@ describe('The agent merges only in an autonomous run and under deterministic con
     }
   });
 
+  it('Other ways to merge are gated too: a quoted assignment before gh', async () => {
+    const quotedGh = await gate('GH_REPO="o/x" gh pr merge 61 --merge --admin');
+    expect(quotedGh.decision).toBe('deny');
+    expect(quotedGh.reason).toContain('GH_*');
+    expect(quotedGh.reason).toContain('--admin');
+    // A non-GH_* quoted assignment still leaves gh pr merge as the command: the gate reads the PR and denies on its state.
+    const quotedOther = await gate('FOO="1" gh pr merge 61 --merge', { prView: prViewJson({ baseRefName: 'main' }) });
+    expect(quotedOther.decision).toBe('deny');
+    expect(quotedOther.reason).toContain('main');
+    expect(shim!.calls().some((c) => c.args.slice(0, 3).join(' ') === 'pr view 61')).toBe(true);
+  });
+
   it('The selector is read without its quotes', async () => {
     for (const command of ['gh pr merge "61" --merge', 'gh pr merge 61 --merge -b "--admin text"']) {
       const r = await gate(command);

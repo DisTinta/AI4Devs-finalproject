@@ -37,7 +37,7 @@ describe('The merge gate is not bypassed by alternative forms (verify 2026-10-21
     command: string,
     behaviour: GhShimBehaviour,
     filesJson: string,
-    opts: { env?: Record<string, string>; mode?: 'ok' | 'fail' | 'sleep'; processEnv?: Record<string, string>; timeoutMs?: number } = {},
+    opts: { env?: Record<string, string>; mode?: 'ok' | 'fail' | 'sleep' | 'raw'; processEnv?: Record<string, string>; timeoutMs?: number } = {},
   ) {
     project?.cleanup();
     shim?.cleanup();
@@ -54,6 +54,8 @@ describe('The merge gate is not bypassed by alternative forms (verify 2026-10-21
         'if [[ "$1" == api && "$*" == */pulls/*/files* ]]; then',
         `  "${shim.binDir}/gh" "$@" > /dev/null || exit $?`,
         `  ${mode === 'fail' ? 'exit 1' : mode === 'sleep' ? 'sleep 20' : ':'}`,
+        // raw: gh exits 0 printing files.json as is (a page its --jq filter never saw).
+        `  ${mode === 'raw' ? `cat "${filesBin}/files.json"; exit 0` : ':'}`,
         '  f=.; prev=""; for a in "$@"; do [[ "$prev" == --jq ]] && f="$a"; prev="$a"; done',
         `  exec jq -r "$f" "${filesBin}/files.json"`,
         'fi',
@@ -70,7 +72,7 @@ describe('The merge gate is not bypassed by alternative forms (verify 2026-10-21
   async function gate(command: string, behaviour: GhShimBehaviour = { prView: prViewJson() }, env: Record<string, string> = AUTONOMOUS) {
     return run(command, behaviour, pageOf(behaviour.prView), { env });
   }
-  async function gateWithFiles(command: string, filesJson: string, view: unknown, mode: 'ok' | 'fail' | 'sleep' = 'ok') {
+  async function gateWithFiles(command: string, filesJson: string, view: unknown, mode: 'ok' | 'fail' | 'sleep' | 'raw' = 'ok') {
     return run(command, { prView: view }, filesJson, { mode });
   }
   function filesCalls(): Array<{ args: string[]; ghRepo: string | null }> {
@@ -263,6 +265,19 @@ describe('The merge gate is not bypassed by alternative forms (verify 2026-10-21
       expect(r.reason, label).toContain('not checked');
     }
   });
+
+  // gh exits 0 yet prints no "<n> true" / "<n> kit …" line: the list was not read, so it is not clean.
+  for (const [label, output] of [
+    ['an HTML page', '<html>rate limited</html>' + String.fromCharCode(10)],
+    ['an empty output', ''],
+    ['a JSON page of the wrong shape', '{"message":"API rate limit exceeded","documentation_url":"https://docs.github.com"}' + String.fromCharCode(10)],
+  ] as const) {
+    it(`A pull request that renames a file out of the kit configuration is not merged: a file list read as ${label} with exit 0 denies`, async () => {
+      const r = await gateWithFiles('gh pr merge 61 --merge', output, prViewJson(), 'raw');
+      expect(r.decision, label).toBe('deny');
+      expect(r.reason, label).toContain("GitHub's file list (renames and removals) could not be read");
+    });
+  }
 
   // Depends on shell-words.mjs recording assignments after an `env` wrapper (V1, parser side).
   it('V1: env GH_REPO=x before gh is a GH_* assignment', async () => {
