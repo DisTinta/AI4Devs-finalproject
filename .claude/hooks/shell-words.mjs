@@ -21,7 +21,13 @@ const SHELLS = new Set(['bash', 'sh', 'zsh']);
 const OTHER_INTERPRETERS = new Set(['pwsh', 'powershell', 'cmd', 'eval', 'xargs', 'ssh', 'python', 'python3', 'node', 'perl', 'ruby']);
 const RESERVED = new Set(['if', 'then', 'elif', 'else', 'fi', 'do', 'done', 'while', 'until', '!', '{', '}']);
 const WRAPPERS = new Set(['sudo', 'env', 'command', 'exec', 'nohup', 'time', 'nice', 'timeout', 'xargs']);
-const ASSIGN = /^[A-Za-z_][A-Za-z0-9_]*=/;
+// An assignment in command position: NAME=, NAME+= or NAME[subscript]= / += (adversarial review
+// round 5: bash runs the next word as the command, so an append does not hide it).
+const SHELL_ASSIGN = /^([A-Za-z_][A-Za-z0-9_]*)(\[[^\]]*\])?(\+?=)/;
+// What env and sudo take as an assignment: any word with a `=` before the command.
+const WRAPPER_ASSIGN = /^[^-=][^=]*=/;
+/** `NAME+=v` and `NAME[i]=v` as `NAME=v`, so every rule on assignments reads them alike. */
+const normAssign = (s) => String(s).replace(/^([A-Za-z_][A-Za-z0-9_]*)(?:\[[^\]]*\])?\+?=/, '$1=');
 
 /**
  * Parses one command line. Returns { commands, separators, heredocs } or throws Unparsable.
@@ -46,16 +52,30 @@ export function parseLine(line, depth = 0) {
   function newCommand() {
     return { words: [], assigns: [], redirects: [], heredoc: null, heredocQuoted: false, herestring: null, inSubst: depth > 0 && false, pipedIn: false };
   }
-  // A word keeps, besides its value, `lit` (the length of its value before the first quote, escape or
-  // expansion) and `pat` (its value with the quoted glob characters escaped, for filename expansion).
+  // A word keeps, besides its value, `mask` (one character per character of the value: 1 when it
+  // came quoted, escaped or from an expansion, 0 when literal) and `pat` (its value with the quoted
+  // glob characters escaped, for filename expansion).
   function startWord() {
-    if (!word) word = { value: '', dynamic: false, quoted: false, lit: undefined, pat: '' };
+    if (!word) word = { value: '', dynamic: false, quoted: false, mask: '', pat: '' };
   }
   /** Appends text that came quoted, escaped or from an expansion: it is never a glob or a name. */
   function addQuoted(text) {
-    if (word.lit === undefined) word.lit = word.value.length;
     word.value += text;
+    word.mask += '1'.repeat(text.length);
     word.pat += text.replace(/[*?[\]{},\\]/g, '\\$&');
+  }
+  /**
+   * The assignment a word in command position makes, as `NAME=value`, or null. Its name, the
+   * brackets of a subscript and its `=` / `+=` are unquoted, whatever quoting the value has (R4-1).
+   */
+  function assignment(w) {
+    const m = SHELL_ASSIGN.exec(w.value);
+    if (!m) return null;
+    const literal = (from, to) => !w.mask.slice(from, to).includes('1');
+    const n = m[1].length;
+    const s = m[2]?.length ?? 0;
+    if (!literal(0, n + 1) || (s && !literal(n + s - 1, n + s)) || !literal(n + s, m[0].length)) return null;
+    return `${m[1]}=${w.value.slice(m[0].length)}`;
   }
   function endWord() {
     if (!word) return;
@@ -71,11 +91,15 @@ export function parseLine(line, depth = 0) {
       } else current.redirects.push({ op: r.op, fd: r.fd, target: w.value, dynamic: w.dynamic, glob });
       return;
     }
-    // An assignment: the name and its `=` are unquoted, whatever quoting the value has (R4-1).
-    const assign = /^[A-Za-z_][A-Za-z0-9_]*=/.exec(w.value);
-    if (current.words.length === 0 && assign && (w.lit === undefined || assign[0].length <= w.lit)) {
-      current.assigns.push(w.value);
+    // An assignment, only in command position (after the command name it is an argument).
+    const assign = current.words.length === 0 ? assignment(w) : null;
+    if (assign !== null) {
+      current.assigns.push(assign);
       return;
+    }
+    // `A[a b]=x`: bash keeps a subscript with a blank in one word, this lexer splits it.
+    if (current.words.length === 0 && /^[A-Za-z_][A-Za-z0-9_]*\[[^\]]*$/.test(w.value) && w.mask[0] === '0') {
+      throw new Unparsable('array subscript with a blank');
     }
     // Reserved words and grouping in command position are skipped.
     if (current.words.length === 0 && !w.quoted && RESERVED.has(w.value)) return;
@@ -295,6 +319,7 @@ export function parseLine(line, depth = 0) {
     }
     startWord();
     word.value += c;
+    word.mask += '0';
     word.pat += c;
     i++;
   }
@@ -524,13 +549,13 @@ export function commandStart(words) {
     if (!WRAPPERS.has(name)) return k;
     k++;
     if (name === 'env') {
-      while (k < words.length && (/^-/.test(words[k].value) || /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[k].value))) {
+      while (k < words.length && (/^-/.test(words[k].value) || WRAPPER_ASSIGN.test(words[k].value))) {
         if (/^-(u|C|S)$/.test(words[k].value)) k++;
         k++;
       }
     } else if (name === 'sudo') {
       while (k < words.length && /^-/.test(words[k].value)) { if (/^-[ugCDhpRrTt]$/.test(words[k].value)) k++; k++; }
-      while (k < words.length && ASSIGN.test(words[k].value)) k++;
+      while (k < words.length && WRAPPER_ASSIGN.test(words[k].value)) k++;
     } else if (name === 'nice') {
       while (k < words.length && /^-/.test(words[k].value)) { if (words[k].value === '-n') k++; k++; }
     } else if (name === 'timeout') {
@@ -554,7 +579,7 @@ function normalise(commands) {
     const name = words.length ? baseName(words[0].value) : '';
     const viaXargs = cmd.words.slice(0, start).some((w) => baseName(w.value) === 'xargs');
     // Assignments given to a wrapper (`env A=b cmd`, `sudo A=b cmd`) reach the command like prefix ones.
-    const assigns = [...cmd.assigns, ...cmd.words.slice(0, start).filter((w) => ASSIGN.test(w.value)).map((w) => w.value)];
+    const assigns = [...cmd.assigns, ...cmd.words.slice(0, start).filter((w) => WRAPPER_ASSIGN.test(w.value)).map((w) => normAssign(w.value))];
     out.push({ ...cmd, words, name, viaXargs, assigns });
     if (name === 'find') {
       for (let k = 1; k < words.length; k++) {
@@ -853,11 +878,33 @@ function namesKitInText(text, ctx) {
   return process.platform === 'win32' ? t.toLowerCase().includes(d.toLowerCase()) : t.includes(d);
 }
 
-/** A gh or git alias definition (or removal), or null. */
+/** The assignments a command makes: prefix ones, and the words of export, declare -x, local… */
+function envAssigns(cmd) {
+  return [...cmd.assigns, ...(SETS_ENV.has(cmd.name) ? cmd.words.slice(1).map((x) => normAssign(x.value)) : [])];
+}
+
+// Variables that point git or gh at other configuration files, which could define an alias (or
+// include a file that does): set for a git or gh command, they count as an alias definition.
+const CONFIG_SOURCE_ENV = /^(GIT_CONFIG_GLOBAL|GIT_CONFIG_SYSTEM|GIT_CONFIG|GIT_CONFIG_NOSYSTEM|GH_CONFIG_DIR|HOME|XDG_CONFIG_HOME)=/i;
+
+/** A line that runs git or gh with configuration from another file (`HOME=/tmp/h git m`), or null. */
+function configSourceDefinition(commands) {
+  const tools = (c) => c.name === 'git' || c.name === 'gh';
+  if (!commands.some(tools)) return null;
+  for (const c of commands) {
+    // A prefix assignment reaches its own command; a plain assignment, export or declare, the line.
+    const env = tools(c) || !c.name ? c.assigns : SETS_ENV.has(c.name) ? envAssigns(c) : [];
+    const hit = env.find((a) => CONFIG_SOURCE_ENV.test(a));
+    if (hit) return `configuration files from ${hit.split('=')[0]}`;
+  }
+  return null;
+}
+
+/** A gh or git alias definition (or removal), or null. An include can load one too. */
 function aliasDefinition(cmd) {
-  const isAlias = (key) => /^alias(\.|$)/i.test(key);
-  const env = [...cmd.assigns, ...(cmd.name === 'export' ? cmd.words.slice(1).map((x) => x.value) : [])];
-  if (env.some((a) => /^GIT_CONFIG_(PARAMETERS|KEY_\d+)=/.test(a) && /alias/i.test(a))) return 'git configuration from the environment';
+  const isAlias = (key) => /^(alias|include|includeif)(\.|$)/i.test(key);
+  const env = envAssigns(cmd);
+  if (env.some((a) => /^GIT_CONFIG_(PARAMETERS|KEY_\d+)=/i.test(a) && /alias|include/i.test(a))) return 'git configuration from the environment';
   const v = cmd.words.map((x) => x.value);
   if (cmd.name === 'git') {
     let k = 1;
@@ -872,7 +919,8 @@ function aliasDefinition(cmd) {
     const READS = ['--get', '--get-all', '--get-regexp', '--get-urlmatch', '--get-color', '--get-colorbool', '--list', '-l'];
     const sub = rest.find((x) => !/^-/.test(x));
     if (rest.some((x) => READS.includes(x)) || sub === 'get' || sub === 'list') return null;
-    return rest.some(isAlias) ? 'git config alias' : null;
+    const key = rest.find(isAlias);
+    return key ? `git config ${key.split('.')[0]}` : null;
   }
   if (cmd.name === 'gh') {
     let k = 1;
@@ -899,7 +947,7 @@ const SETS_ENV = new Set(['export', 'declare', 'typeset', 'readonly', 'local', '
 /** The line sets a variable of RUNS_PROGRAM_ENV for its later commands (`export LESSOPEN=…; less …`). */
 function lineSetsProgramEnv(commands) {
   return commands.some((c) => (!c.name && c.assigns.some((a) => RUNS_PROGRAM_ENV.test(a)))
-    || (SETS_ENV.has(c.name) && c.words.slice(1).some((w) => RUNS_PROGRAM_ENV.test(w.value))));
+    || (SETS_ENV.has(c.name) && envAssigns(c).some((a) => RUNS_PROGRAM_ENV.test(a))));
 }
 
 /** A word that is only a path (no quotes, spaces, separators or code), so it cannot carry a program. */
@@ -954,6 +1002,22 @@ function kitFragment(value, ctx) {
   const d = collapse(norm(ctx.configDir));
   const s = t.replace(/\\/g, '/');
   return win ? s.includes(d.toLowerCase()) : s.includes(d);
+}
+
+/**
+ * `pwsh <kit .ps1>` / `powershell <kit .ps1>`: a kit script given as a plain path right after the
+ * interpreter, without options before it, stdin text or a variable that runs code first. The words
+ * after it are its arguments, plain ones only: Windows PowerShell joins them into command text.
+ */
+function kitScriptRun(cmd, ctx, lineEnv) {
+  const w = cmd.words;
+  if (cmd.pipedIn || cmd.heredoc !== null || cmd.herestring !== null) return false;
+  if (lineEnv || cmd.assigns.some((a) => RUNS_PROGRAM_ENV.test(a))) return false;
+  const script = w[1];
+  if (!script || script.dynamic || script.glob || !PLAIN_PATH.test(script.value) || script.value.startsWith('-') || !/\.ps1$/i.test(script.value)) return false;
+  if (!w.slice(2).every((x) => !x.dynamic && !x.glob && /^[A-Za-z0-9_.:=\\/-]+$/.test(x.value))) return false;
+  const abs = resolvePath(script.value, false, cmd.cwd);
+  return abs !== null && kitConfiguration(abs, ctx);
 }
 
 /** Index of the program text of a shell's `-c`, or -1 (that text is parsed and checked as commands). */
@@ -1053,7 +1117,8 @@ function analyse(parsed, line, ctx) {
     tooCostly: '',
   };
   const commands = normalise(parsed.commands);
-  const rawInterpreterText = [];
+  let rawInterpreterText = [];
+  const psScripts = []; // pwsh / powershell texts, which may be a run of a kit script
   let pipeIntoShell = false;
   // Interpreter text, parsed recursively: shell text inside shell text is read too (design D6).
   const all = [...commands];
@@ -1070,7 +1135,10 @@ function analyse(parsed, line, ctx) {
       all.push(...nested);
     } else if (OTHER_INTERPRETERS.has(cmd.name) || cmd.viaXargs) {
       const text = cmd.viaXargs ? `${cmd.words.map((w) => w.value).join(' ')}` : otherInterpreterText(cmd, line);
-      if (text) rawInterpreterText.push(text);
+      if (text) {
+        rawInterpreterText.push(text);
+        if (!cmd.viaXargs && (cmd.name === 'pwsh' || cmd.name === 'powershell')) psScripts.push({ cmd, at: rawInterpreterText.length - 1 });
+      }
     }
   }
 
@@ -1089,7 +1157,8 @@ function analyse(parsed, line, ctx) {
       cmd.cwd = cwd;
       if (cmd.name === 'cd' || cmd.name === 'pushd') {
         const arg = cmd.words.slice(1).find((w) => !/^-[LP]$/.test(w.value));
-        if (!arg || arg.value === '-') cwd = null;
+        // A glob or a brace (`cd .clau*`, `cd .{claude,x}`) names a directory the shell picks.
+        if (!arg || arg.value === '-' || arg.glob) cwd = null;
         else cwd = resolvePath(arg.value, arg.dynamic, cwd);
       } else if (cmd.name === 'popd') cwd = null;
     }
@@ -1114,6 +1183,10 @@ function analyse(parsed, line, ctx) {
     return kitFragment(t.value, ctx) || isKit(resolvePath(t.value, t.dynamic, cwd));
   };
   const lineEnv = lineSetsProgramEnv(all);
+  // `pwsh .claude/doctor.ps1` runs a kit script, like `bash .claude/doctor.sh`: its text is not
+  // interpreter text to read (options before the script, or a variable that runs code, still count).
+  const kitScripts = new Set(psScripts.filter(({ cmd }) => kitScriptRun(cmd, ctx, lineEnv)).map(({ at }) => at));
+  if (kitScripts.size) rawInterpreterText = rawInterpreterText.filter((_, k) => !kitScripts.has(k));
 
   for (const cmd of all) {
     const w = cmd.words;
@@ -1163,6 +1236,10 @@ function analyse(parsed, line, ctx) {
     if (named && !named.unresolved) facts.kitNamed.push(named.text);
     else if (named && facts.kitConfig.length === kitBefore) facts.kitConfig.push(named.text);
   }
+
+  // git or gh reading its configuration from other files, which could define an alias.
+  const source = configSourceDefinition(all);
+  if (source) facts.aliasDefinition.push(source);
 
   // Interpreter text the guard reads only by pattern: naming kit configuration is enough.
   for (const text of rawInterpreterText) {
