@@ -72,7 +72,8 @@ Con el interruptor a `"1"`, el inicio de cada sesión lo avisa (`⚠ autonomous 
 - Rutas que el guardián no puede resolver: comodines o llaves que podrían apuntar al kit
   (`.cl?ude/`, `.{claude,x}/`), nombres cortos de Windows (`CLAUDE~1`) y **palabras con variables** en
   un comando que no es de solo lectura (`git push origin "$BRANCH"`, `export PATH="$PATH:x"`, cualquier
-  comando tras `cd "$X"`). En una ejecución autónoma se escriben los valores literales.
+  comando tras `cd "$X"`). En una ejecución autónoma se escriben los valores literales. El mensaje de
+  un commit o de un PR sí puede llevar variables (`git commit -m "$(cat <<EOF …)"`).
 - Una ruta de edición de más de 4 KiB, que no se puede comprobar a tiempo.
 
 ### Lo que cuesta cada llamada
@@ -84,7 +85,7 @@ Medianas en Windows (Git Bash, 7 ejecuciones), con el interruptor a `"0"`:
 | `Bash` (`ls`) | 1,2 s | 0,76 s |
 | `Read` | 0,86 s | 0,47 s |
 | `Grep` / `Glob` | sin hook | 0,50 s |
-| `Edit` | 1,28 s | 1,02 s |
+| `Edit` | 1,54 s | 1,27 s |
 
 La fila de `Edit` suma los dos hooks de edición en una rama con un cambio activo; en una rama sin
 cambio activo el coste es el mismo que antes (unos 1,3 s).

@@ -217,3 +217,9 @@ Update after the third and fourth review rounds (2026-10-22): 25 harness spec fi
 rounds also have tests of the same name in `guard-round3.spec.ts`, `guard-round4.spec.ts`,
 `secrets-round3.spec.ts` and `secrets-round4.spec.ts`. Full suite: 167 files and 1700 tests passed,
 221 skipped; lint, typecheck and `openspec validate --strict` clean; 110 scenarios mapped.
+
+Update after the fifth review round (2026-10-22): 27 harness spec files; full suite 169 files and
+1713 tests passed, 221 skipped; lint, typecheck and `openspec validate --strict` clean; 110 scenarios
+mapped. The long-input timing assertions run in their own serial step (`HOOK_TIMING=1 npx vitest run
+--no-file-parallelism tests/harness/paths-node.spec.ts tests/harness/secrets-round4.spec.ts`, CI step
+"Hook timing"): 12 passed locally.

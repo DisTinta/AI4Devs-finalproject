@@ -11,12 +11,12 @@ The kit SHALL read `KIT_AUTONOMOUS_RUN` from `.claude/sdd-harness.env`, with `"0
 - **Autonomous run** is in effect only when the key is `"1"`. The agent merge, the doctrine relaxations and the kit-configuration protections of this specification apply only in an autonomous run.
 
 With the switch `"0"` and outside a Cursor background agent, every hook decision SHALL be the same as before this change for the same input, except for these always-on items:
-- the shell guard reads commands, not text (it no longer matches text that is not executed);
+- the shell guard reads commands, not text (it no longer matches text that is not executed), and recognises a force push written as a `+<refspec>` (`git push origin +main` is denied like `--force`);
 - the `sdd-harness.env` rule fires only when that file is the write target, and removing or replacing it counts as a write;
 - install detection also recognises flags before package names;
 - the shell guard leaves removals inside the session scratchpad undecided;
 - example environment files can be read and edited, and so can source files whose name merely contains `.env` (`config.env.ts`: an environment file is `.env`, `.env.<suffix>`, `<name>.env` or `<name>.env.<suffix>`, except an `example`/`sample` suffix or a source-code last extension; `sh` and `md` are not source-code extensions here, so `.env.sh` stays secret);
-- secret files are matched in any letter case, through relative paths too, and with a Windows alternate-data-stream suffix (`.env::$DATA`) removed;
+- secret files are matched in any letter case, through relative paths too, and with any Windows alternate-data-stream suffix removed (`.env::$DATA`, `.env:notes`, `secrets::$INDEX_ALLOCATION`);
 - secret files are also checked for `Grep` and `Glob` calls in Claude Code, and for `Grep` in Cursor (which has no `Glob` tool);
 - known test sentinels can be allowlisted in the prompt secret scan.
 
@@ -286,7 +286,7 @@ Outside unattended mode the gate keeps its current rule: any report lets the edi
 
 #### Scenario: A protected path is recognised in any spelling
 - **WHEN** an unattended edit names a main spec, kit doctrine, an existing test or a file under `PATH_SOURCE` through another spelling of its path (`./` segments, doubled slashes, `\\?\` or `\\localhost\C$\` prefixes, a `/cygdrive/` or `/proc/cygdrive/` form, a leading `~`, a different letter case on Windows, or a junction or symbolic link into the repository)
-- **THEN** the decision is the one the canonical repository-relative path gets; a path with a `..` segment is denied outright, as before this change, and in unattended mode a path longer than 4 KiB is denied as too long to check within the hook's time
+- **THEN** the decision is the one the canonical repository-relative path gets; a path with a `..` segment is denied outright, as before this change, and in unattended mode any edit path longer than 4 KiB (counted in bytes as written) is denied as too long to check within the hook's time
 
 ### Requirement: The agent merges only in an autonomous run and under deterministic conditions
 
@@ -486,7 +486,7 @@ Outside an autonomous run these commands and edits are not affected.
 - **THEN** the shell guard returns no decision
 
 #### Scenario: A path to kit configuration is recognised in any spelling
-- **WHEN** an autonomous run writes to `.claude/` or `.cursor/` through `./` or `..` segments, doubled slashes, a `\\?\` or `\\localhost\C$\` prefix, a `/cygdrive/` or `/proc/cygdrive/` form, a different letter case on Windows, a glob or brace that could match them (`.cl?ude/`, `.{claude,x}/`), a variable, or a junction or symbolic link that points into them
+- **WHEN** an autonomous run writes to `.claude/` or `.cursor/` through `./` or `..` segments, doubled slashes, a `\\?\` or `\\localhost\C$\` prefix, a `/cygdrive/` or `/proc/cygdrive/` form, a different letter case on Windows, a Windows 8.3 short name (`CLAUDE~1`, told apart from git revisions such as `HEAD~1`), a glob or brace that could match them (`.cl?ude/`, `.{claude,x}/`, also as the target of a `cd`), a variable, or a junction or symbolic link that points into them
 - **THEN** the decision is `deny`, as for the plain path
 
 #### Scenario: Writers in their alternative syntax are recognised
@@ -494,7 +494,7 @@ Outside an autonomous run these commands and edits are not affected.
 - **THEN** the decision is `deny`
 
 #### Scenario: A gh or git alias is not defined in an autonomous run
-- **WHEN** an autonomous run runs `gh alias set`, `gh alias import`, `gh alias delete`, a `git config` that writes an `alias.*` key, `git -c alias.<name>=…`, `git --config-env`, or sets `GIT_CONFIG_PARAMETERS` or `GIT_CONFIG_KEY_<n>` to an alias
+- **WHEN** an autonomous run runs `gh alias set`, `gh alias import`, `gh alias delete`, a `git config` that writes an `alias.*`, `include.path` or `includeIf.*` key, `git -c alias.<name>=…`, `git --config-env`, sets `GIT_CONFIG_PARAMETERS` or `GIT_CONFIG_KEY_<n>` to an alias (as a prefix, with `export` or with `declare -x`/`typeset -x`), or points git at another configuration (`GIT_CONFIG_GLOBAL`, `GIT_CONFIG_SYSTEM`, `GIT_CONFIG`, `HOME` or `XDG_CONFIG_HOME` before `git`)
 - **THEN** the decision is `deny`, and the reason says an alias could hide a merge from the merge gate
 
 #### Scenario: Interpreter text that names kit configuration is denied in an autonomous run
@@ -502,7 +502,7 @@ Outside an autonomous run these commands and edits are not affected.
 - **THEN** the decision is `deny`
 
 #### Scenario: An unknown command that names kit configuration is denied in an autonomous run
-- **WHEN** an autonomous run runs a command any of whose words contains a kit-configuration path, and the command is neither on the guard's read-only list (commands that only read, such as `cat`, `head`, `tail`, `less`, `grep`, `rg`, `ls`, `stat`, `file`, `wc`, `diff`, `echo`, `find`, `jq`, and the read-only git subcommands `diff`, `show`, `log`, `status`, `ls-files`, `blame`, `grep`, `rev-parse`, `cat-file`, `ls-tree`) used without an option that runs a command or writes a file (`find -exec`/`-ok`/`-delete`/`-fprint`, `rg --pre`, `git grep -O`, `git -c …` or `--config-env`, `git diff --output`, `file -C`, `less -o`), nor a run of one of the kit's own scripts without options (`bash`, `sh`, `zsh`, `node`, `pwsh`, `source` or `.` of a file under `.claude/`, or the file itself; `bash -x .claude/doctor.sh` is not exempt); a word with a glob or brace that could match a kit path, or a dynamic word (`$VAR`, `$(…)`) in such a command, counts as naming kit configuration
+- **WHEN** an autonomous run runs a command any of whose words contains a kit-configuration path, and the command is neither on the guard's read-only list (commands that only read, such as `cat`, `head`, `tail`, `less`, `grep`, `rg`, `ls`, `stat`, `file`, `wc`, `diff`, `echo`, `find`, `jq`, and the read-only git subcommands `diff`, `show`, `log`, `status`, `ls-files`, `blame`, `grep`, `rev-parse`, `cat-file`, `ls-tree`) used without an option that runs a command or writes a file (`find -exec`/`-ok`/`-delete`/`-fprint`, `rg --pre`, `git grep -O`, `git -c …` or `--config-env`, `git diff --output`, `file -C`, `less -o`) and without a variable in the line that makes it run a program or read options (`PAGER`, `EDITOR`, `VISUAL`, `LESS*`, `MORE`, `RIPGREP_CONFIG_PATH`, `GREP_OPTIONS`, `GIT_*`, `NODE_OPTIONS`, `BASH_ENV`, `ENV`, `SHELLOPTS`, `PERL5OPT`, `PYTHONSTARTUP`, `RUBYOPT`…, set as a prefix or by `export`/`declare -x`), nor a run of one of the kit's own scripts without options (`bash`, `sh`, `zsh`, `node`, `pwsh`, `powershell`, `source` or `.` of a file under `.claude/`, or the file itself; `bash -x .claude/doctor.sh` is not exempt); a word with a glob or brace that could match a kit path, or a dynamic word (`$VAR`, `$(…)`) in such a command, counts as naming kit configuration
 - **THEN** the decision is `deny`; this covers writers outside the write-target list, such as `curl -o`, `tar -C`, `touch`, `chmod`, `git apply`, `git update-index` and `git stash pop`
 
 #### Scenario: A git checkout in an unknown directory is denied in an autonomous run

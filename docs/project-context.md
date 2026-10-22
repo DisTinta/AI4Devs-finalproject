@@ -1320,7 +1320,7 @@ services that must be started first, quirks of the local environment.
   untracked `.claude/autonomous-denials.log`. `doctor.sh --autonomous` / `doctor.ps1 -Autonomous` is
   the preflight; it reads the base protection, so the active gh account must have admin access
   (`DisTinta`). A kit update replaces `lib.sh`, every hook under `.claude/hooks/` (new:
-  `autonomous-merge-gate.sh`, `log-permission-denied.sh`, `vet-package.mjs`, `shell-words.mjs`),
+  `autonomous-merge-gate.sh`, `log-permission-denied.sh`, `vet-package.mjs`, `shell-words.mjs`, `paths.mjs` — the path and secret classifier the read and edit hooks call once per invocation),
   `invoke.cjs`, `settings.json`, `sdd-harness.env`, both doctors, `.cursor/hooks.json`, the Cursor rules
   `00-core.mdc` and `20-openspec.mdc`, the skills `verify-against-spec`, `adversarial-review` and
   `kit-health`, and `ai-specs/templates/autonomous/`: re-apply the patch afterwards (the DIS-106

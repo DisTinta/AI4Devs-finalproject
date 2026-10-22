@@ -501,6 +501,16 @@ Any other `.env.*` is still denied by `block-secret-reads.sh`.
 *Accepted gap (pre-existing, unchanged):* a shell `cat .env.foo` is not a Read, and no hook stops
 it. The secret scan and the classifier remain the guard. Recorded in Follow-ups.
 
+**Moved to Node during the pre-merge reviews (2026-10-22, the author's decision).** Bash string
+operations are quadratic on long inputs: three review rounds found long paths (backslash runs, many
+segments, non-ASCII) that made the read and edit hooks run past their 10 s timeout, which lets the call
+through. Path and secret classification now runs in one `node .claude/hooks/paths.mjs` call per hook
+invocation: it reads the hook input (top-level keys, both clients' field names), canonicalises the path
+(every spelling, the real path of the nearest existing ancestor, streams stripped), classifies secrets,
+environment files and globs, measures the byte length, and prints the facts as shell assignments ending
+in a per-call nonce. If it fails, unattended mode denies; with the switch `"0"` the bash checks above
+remain as the fallback, and a test keeps both classifications in agreement.
+
 ### D9 — Protect-specs in an autonomous run
 
 **Spec-audit gate in unattended mode** (finding B1, run 7). `spec-audit-gate.sh` uses the same
@@ -1077,7 +1087,7 @@ held):
 - the evidence: every cap at and one past its limit, the time budgets through test-only process
   variables (`KIT_GUARD_TIME_BUDGET_S`, `KIT_GATE_TIME_BUDGET_S`, never read from `sdd-harness.env`);
 - cost: Windows medians before this change → now, `Bash` 1.2 → 0.76 s, `Read` 0.86 → 0.47 s, `Edit`
-  1.28 → 1.02 s, `Grep`/`Glob` (new) 0.5 s.
+  1.54 → 1.27 s, `Grep`/`Glob` (new) 0.5 s.
 
 Accepted (D): in an autonomous run, shell writes to `~/.claude/` and `.claude/worktrees/` are denied
 (memory goes through the editing tools; autonomous runs use no worktrees, D21); kit scripts run with
@@ -1103,10 +1113,30 @@ in this change (A), each with a test seen red first or a mutation shown to fail:
 - R4-10: the spec text (always-on list, Cursor `Grep` only, kit scripts without options).
 
 Accepted (D): in an autonomous run a non-read-only command with a variable word is denied ("use
-literal paths"), so the agent writes values out (`git push origin <branch>`); the timing tests allow
-5 s against the 10 s hook timeout, since a loaded Windows machine takes up to 3.8 s; the Windows-only
+literal paths"), so the agent writes values out (`git push origin <branch>`); a commit or PR message
+may still hold variables. The author kept this rule on 2026-10-22 ("Mantenerla"), after the review
+showed a normal SDD cycle passes with literal values. The timing tests assert an absolute 8 s ceiling
+against the 10 s hook timeout (a bound relative to a short-path baseline flaked under the parallel
+suite); the Windows-only
 spellings and case folding run only on a Windows machine (CI is Ubuntu) — they are exercised by the
 local suite and the edge-case runs recorded in the reports.
+
+**Fourth review run (2026-10-22, `reports/2026-10-22-verify-against-spec-4.md`, R5-1 to R5-8).** Fixed
+in this change (A), each with a test seen red first or a mutation shown to fail:
+- R5-1 (Blocker): append (`NAME+=`) and array assignments are prefix assignments;
+- R5-2 (Blocker): the Windows-only test assertion that turned CI red (`954ce65`); the other harness
+  files were checked for platform-dependent assertions;
+- R5-3: path and secret classification moved to Node (D8 above); 60 000 `é` decided in 0.8 s (was
+  23.8 s); the unattended 4 KiB rule is counted in bytes on the raw path and covers every edit path;
+- R5-4: `cd`/`pushd` into a glob or brace makes the directory unknown;
+- R5-5: `declare -x`/`typeset -x`/`local -x`/`readonly -x` count like `export`; `GIT_CONFIG_GLOBAL`,
+  `GIT_CONFIG_SYSTEM`, `GIT_CONFIG`, `HOME`, `XDG_CONFIG_HOME` before git (and `GH_CONFIG_DIR` before gh)
+  and `include.path`/`includeIf.*` writes count as alias definitions;
+- R5-6: the `+refspec` force push is an always-on item of the spec;
+- R5-7, R5-8: `pwsh`/`powershell` of a kit `.ps1` without options is a kit-script run; the spec states
+  short names, the program-variable list and any stream name;
+- evidence: every program variable family tested; the assignment position rule pinned; the merge
+  gate's mixed files page tested by mutation; the doctors check `paths.mjs`.
 
 ## Open Questions
 
