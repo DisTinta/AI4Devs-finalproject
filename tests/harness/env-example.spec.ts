@@ -55,10 +55,14 @@ describe('Example environment files are readable and editable', { timeout: 120_0
 
   it('Real environment and secret files stay denied', async () => {
     project = createProject();
-    for (const path of ['.env', '.env.local', 'config/.env.production', 'secrets/api.key', 'secrets/x.env.example']) {
+    for (const path of ['.env', '.env.local', 'config/.env.production', 'secrets/api.key', 'secrets/x.env.example', '.secrets/api.key', '.env::$DATA', '.env.sh', '.env.md']) {
       expect((await runHook(project, 'block-secret-reads', readInput(`${project.dir}/${path}`))).decision, path).toBe('deny');
     }
     expect((await runHook(project, 'protect-specs-and-tests', editInput(`${project.dir}/secrets/x.env.example`))).decision).toBe('deny');
+    // Review round 4: an alternate data stream names its file; .env.sh and .env.md are environment files.
+    for (const path of ['.env::$DATA', '.env:$DATA', '.env.sh', '.env.md']) {
+      expect((await runHook(project, 'protect-specs-and-tests', editInput(`${project.dir}/${path}`))).decision, path).toBe('deny');
+    }
   });
 
   it('keeps today\'s edit decisions for other secret-looking files with the switch off', async () => {

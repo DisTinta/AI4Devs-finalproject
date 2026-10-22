@@ -25,9 +25,11 @@ fi
 field_v "$INPUT" '.tool_input.file_path'   # no jq or subshell on the plain path (lib.sh json_str)
 FILE="$FIELD_VAL"
 [[ -n "$FILE" ]] || done_ok
-FILE="${FILE//\\//}"
+slashes_v "$FILE"; FILE="$SLASHED"   # lib.sh: stays fast on a long path
 
 if unattended; then
+  path_too_long "$FILE" && \
+    deny "Spec audit gate (unattended run): the path is over 4 KiB, too long to check against PATH_SOURCE and PATH_TESTS in time, so it is not edited."
   # Canonical spelling (lib.sh rel_path_v), case-insensitive on Windows.
   rel_path_v "$FILE"
   under_ci "$REL_PATH" "$PATH_SOURCE" || under_ci "$REL_PATH" "$PATH_TESTS" || done_ok

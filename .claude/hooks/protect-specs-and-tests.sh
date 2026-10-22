@@ -15,8 +15,9 @@ fail_closed
 field_v "$INPUT" '.tool_input.file_path'   # no jq or subshell on the plain path (lib.sh json_str)
 FILE="$FIELD_VAL"
 [[ -n "$FILE" ]] || done_ok
-# Normalize slashes for Windows (Git Bash): the case patterns below match on '/'.
-FILE="${FILE//\\//}"
+# Normalize slashes for Windows (Git Bash): the case patterns below match on '/' (lib.sh slashes_v,
+# which stays fast on a long path).
+slashes_v "$FILE"; FILE="$SLASHED"
 
 # Path traversal.
 case "$FILE" in
@@ -28,13 +29,14 @@ esac
 #    secret location, where the location wins (design D8).
 #    The kit contract is asked about (not denied): it goes BEFORE the *.env pattern,
 #    which would otherwise capture it first and leave the confirmation branch dead.
-#    Names compare in any letter case (R3-3).
-FILE_LC="${FILE,,}"
-ENV_EXAMPLE=0
-case "$FILE_LC" in *.env.example|*.env.sample) ENV_EXAMPLE=1 ;; esac
-case "$FILE_LC" in */secrets/*|*/.secrets/*|secrets/*|.secrets/*) ENV_EXAMPLE=0 ;; esac
-if [[ "$ENV_EXAMPLE" == "0" ]]; then
-  case "$FILE_LC" in
+#    Names compare in any letter case (R3-3). The path is judged as written and, when it names a
+#    Windows alternate data stream (.env::$DATA, .env:notes), as the file the stream belongs to.
+env_edit_check() {
+  local lc="$1" example=0
+  case "$lc" in *.env.example|*.env.sample) example=1 ;; esac
+  case "$lc" in */secrets/*|*/.secrets/*|secrets/*|.secrets/*) example=0 ;; esac
+  [[ "$example" == "0" ]] || return 0
+  case "$lc" in
     */.claude/sdd-harness.env|.claude/sdd-harness.env)
       ask "You are about to modify the SDD Harness Kit configuration. Confirm the change." \
         "The contract is edited by hand by the author; stop and report what needs changing." ;;
@@ -42,12 +44,21 @@ if [[ "$ENV_EXAMPLE" == "0" ]]; then
       deny "Environment files are not edited from the agent: ${FILE}" ;;
   esac
   # Environment file names as lib.sh is_env_file says: config.env.ts is code, prod.env.local is not.
-  is_env_file "${FILE_LC##*/}" && deny "Environment files are not edited from the agent: ${FILE}"
+  is_env_file "${lc##*/}" && deny "Environment files are not edited from the agent: ${FILE}"
+  return 0
+}
+FILE_LC="${FILE,,}"
+if [[ "$FILE_LC" == *:* ]]; then
+  no_streams_v "$FILE_LC"
+  [[ "$NO_STREAMS" != "$FILE_LC" ]] && env_edit_check "$NO_STREAMS"
 fi
+env_edit_check "$FILE_LC"
 
 # Unattended run (design D9): decided here, before the KIT_PROTECT_SPECS switch, so an unattended
 # run never inherits a disabled protection.
 if unattended; then
+  path_too_long "$FILE" && \
+    deny "Unattended run: the path is over 4 KiB, too long to check against the protected paths in time, so it is not edited."
   # Canonical spelling (lib.sh rel_path_v): \\?\, admin shares, cygdrive, '.', '//', the real
   # location of a link, and on Windows the on-disk case; the patterns below match case-insensitively
   # on Windows.

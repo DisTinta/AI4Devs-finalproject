@@ -5,9 +5,9 @@
 # Complements block-secrets.sh (which only looks at the user's prompt).
 #
 # Cost (verify report 2026-10-22): the plain case runs no jq and forks no subshell. json_str reads
-# every key that can carry a path or a glob, wherever it sits in the input; only when one of them
-# looks like a secret, or the input cannot be read without jq, does one jq call read the exact fields
-# and decide.
+# the top-level tool_name and every key that can carry a path or a glob, wherever it sits in the
+# input; only when one of them looks like a secret, or the input cannot be read without jq, does one
+# jq call read the exact fields and decide.
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
@@ -38,7 +38,8 @@ check() {
 fast_free() {
   local tool="" key k
   has_jq || return 1
-  json_str tool_name "$INPUT"; case $? in 0) tool="$JSON_STR" ;; 2) return 1 ;; esac
+  # The tool name only counts at the top level: a nested "tool_name" must not make a read free.
+  json_str tool_name "$INPUT" top; case $? in 0) tool="$JSON_STR" ;; 2) return 1 ;; esac
   case "$tool" in
     Read|read|"") set -- file_path path target_file ;;
     Grep) set -- path target_directory glob include_pattern include ;;
@@ -59,19 +60,41 @@ fast_free() {
 }
 fast_free && done_ok
 
-# Exact fields, one jq call (Claude Code and Cursor keys alike; field() in lib.sh maps the same ones).
+# Exact fields (Claude Code and Cursor keys alike; field() in lib.sh maps the same ones).
 has_jq || done_ok
-OUT=$(printf '%s' "$INPUT" | jq -j '
-  [ (.tool_name // (if .hook_event_name == "beforeReadFile" then "Read" else "" end)),
+FIELDS='[ (.tool_name // (if .hook_event_name == "beforeReadFile" then "Read" else "" end)),
     (.tool_input.file_path // .tool_input.path // .tool_input.target_file // .file_path // ""),
     (.tool_input.path // .tool_input.target_directory // ""),
     (if .tool_name == "Grep" then (.tool_input.glob // .tool_input.include_pattern // .tool_input.include // "")
      else (.tool_input.pattern // .tool_input.glob_pattern // .tool_input.glob // "") end) ]
-  | map(if type == "string" then . else tostring end) | join("\u001f")' 2>/dev/null) || OUT=""
-SEP=$'\x1f'
-TOOL="${OUT%%"$SEP"*}"; OUT="${OUT#*"$SEP"}"
-FILE="${OUT%%"$SEP"*}"; OUT="${OUT#*"$SEP"}"
-TARGET="${OUT%%"$SEP"*}"; PATTERN="${OUT#*"$SEP"}"
+  | map(if type == "string" then . else tostring end)'
+TOOL=""; FILE=""; TARGET=""; PATTERN=""
+if (( ${#INPUT} <= 16384 )); then
+  # One jq call; the fields are split in bash, cheap on a short input.
+  OUT=$(printf '%s' "$INPUT" | jq -j "$FIELDS"' | join("\u001f")' 2>/dev/null) || OUT=""
+  SEP=$'\x1f'
+  if [[ -n "$OUT" ]]; then
+    TOOL="${OUT%%"$SEP"*}"; OUT="${OUT#*"$SEP"}"
+    FILE="${OUT%%"$SEP"*}"; OUT="${OUT#*"$SEP"}"
+    TARGET="${OUT%%"$SEP"*}"; PATTERN="${OUT#*"$SEP"}"
+  fi
+else
+  # A long input: splitting several long values in bash (${OUT%%sep*}, read -d) costs seconds on
+  # Windows and could push the hook past its timeout (review round 4). One jq call prints the tool,
+  # a separator and the one path the check reads (only the short tool name is split off); Grep and
+  # Glob get their glob from a second call.
+  OUT=$(printf '%s' "$INPUT" | jq -j "$FIELDS"' | if (.[0] == "Read" or .[0] == "read" or .[0] == "") then .[0] + "\u001f" + .[1]
+    elif (.[0] == "Grep" or .[0] == "Glob") then .[0] + "\u001f" + .[2] else .[0] end' 2>/dev/null) || OUT=""
+  SEP=$'\x1f'
+  TOOL="${OUT%%"$SEP"*}"
+  V=""; [[ "$OUT" == "$TOOL" ]] || V="${OUT:$(( ${#TOOL} + 1 ))}"
+  case "$TOOL" in
+    Read|read|"") FILE="$V" ;;
+    Grep|Glob)
+      TARGET="$V"
+      PATTERN=$(printf '%s' "$INPUT" | jq -j "$FIELDS | .[3]" 2>/dev/null) || PATTERN="" ;;
+  esac
+fi
 [[ -n "$TOOL$FILE$TARGET$PATTERN" ]] || done_ok
 
 check "$TOOL" "$FILE" "$TARGET" "$PATTERN" && deny "$HIT"

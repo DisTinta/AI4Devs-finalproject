@@ -125,28 +125,74 @@ field() {
 # forks no subshell (cost note of the 2026-10-22 verify report). Sets JSON_STR. Returns 0 when "KEY"
 # occurs exactly once in the input, as an object key with a plain string value; 1 when the input does
 # not contain "KEY" at all (jq would find nothing either); 2 when only jq can tell: a \u escape
-# anywhere (it could spell a key), an input over 64 KiB, a repeated "KEY", another value type, or an
-# escape other than \\, \" and \/ in the value. The key is not tied to its object: callers use it
-# where a key found at another level can only make the decision stricter, or they fall back to jq.
+# anywhere (it could spell a key), an input over 16 KiB, a repeated "KEY", another value type, a
+# value over 4 KiB, or an escape other than \\, \" and \/ in the value. Bash's own string operations
+# grow quadratically with the length, so the limits keep a hook far from its timeout (review round 4).
+# With LEVEL "top" the key must be a member of the top-level object; with LEVEL "tool_input" a member
+# of the top-level tool_input object; elsewhere it is 2. Without LEVEL the key is not tied to its
+# object: callers use it where a key found at another level can only make the decision stricter.
 JSON_STR=""
 _JSON_STR_RE='^"(([^"\\]|\\.)*)"'
+
+# _json_depth TEXT: TEXT is the start of a JSON text, cut before a key's opening quote. Sets
+# JSON_DEPTH to the bracket nesting at the cut and JSON_MIN to the lowest nesting after the first
+# bracket. Returns 1 when TEXT is over 4 KiB (too costly here) or the cut falls inside a string.
+JSON_DEPTH=0; JSON_MIN=0
+_json_depth() {
+  local t="$1" i ch in=0 d=0 min=99
+  (( ${#t} <= 4096 )) || return 1
+  if [[ "$t" == *'\'* ]]; then
+    t="${t//\\\\/}"; t="${t//\\\"/}"
+    [[ "$t" =~ \\([^/bfnrt]|$) ]] && return 1   # not a JSON escape: invalid input, jq decides
+  fi
+  t="${t//[^\{\}\[\]\"]/}"
+  for (( i = 0; i < ${#t}; i++ )); do
+    ch="${t:i:1}"
+    if (( in )); then [[ "$ch" == '"' ]] && in=0; continue; fi
+    case "$ch" in
+      '"') in=1 ;;
+      '{'|'[') d=$(( d + 1 )) ;;
+      *) d=$(( d - 1 )); (( d < min )) && min=$d ;;
+    esac
+  done
+  (( in == 0 )) || return 1
+  JSON_DEPTH=$d; JSON_MIN=$min
+  return 0
+}
+
 json_str() {
-  local key="\"$1\"" raw="$2" pre post val c
+  local key="\"$1\"" raw="$2" level="${3:-}" pre post val c ti tpre
   JSON_STR=""
-  (( ${#raw} <= 65536 )) || return 2
+  (( ${#raw} <= 16384 )) || return 2
   [[ "$raw" != *'\u'* ]] || return 2
   [[ "$raw" == *"$key"* ]] || return 1
-  post="${raw#*"$key"}"
-  [[ "$post" != *"$key"* ]] || return 2
   pre="${raw%%"$key"*}"
+  post="${raw:$(( ${#pre} + ${#key} ))}"
+  [[ "$post" != *"$key"* ]] || return 2
+  case "$level" in
+    top)
+      _json_depth "$pre" && (( JSON_DEPTH == 1 )) || return 2 ;;
+    tool_input)
+      ti='"tool_input"'
+      [[ "$pre" == *"$ti"* ]] || return 2
+      tpre="${pre%%"$ti"*}"
+      [[ "${raw:$(( ${#tpre} + ${#ti} ))}" != *"$ti"* ]] || return 2
+      _json_depth "$tpre" && (( JSON_DEPTH == 1 )) || return 2
+      _json_depth "${pre:$(( ${#tpre} + ${#ti} ))}" && (( JSON_DEPTH == 1 && JSON_MIN >= 1 )) || return 2
+      [[ "${pre:$(( ${#tpre} + ${#ti} ))}" =~ ^[[:space:]]*:[[:space:]]*\{ ]] || return 2 ;;
+  esac
+  pre="${pre:$(( ${#pre} > 64 ? ${#pre} - 64 : 0 ))}"
   pre="${pre%"${pre##*[![:space:]]}"}"
   [[ "$pre" == *'{' || "$pre" == *',' ]] || return 2
+  post="${post:0:4200}"
   post="${post#"${post%%[![:space:]]*}"}"
   [[ "$post" == :* ]] || return 2
   post="${post:1}"; post="${post#"${post%%[![:space:]]*}"}"
+  # A value longer than 4 KiB has no closing quote in the window: only jq can tell.
+  post="${post:0:4098}"
   [[ "$post" =~ $_JSON_STR_RE ]] || return 2
   val="${BASH_REMATCH[1]}"
-  post="${post:${#BASH_REMATCH[0]}}"; post="${post#"${post%%[![:space:]]*}"}"
+  post="${post:${#BASH_REMATCH[0]}:64}"; post="${post#"${post%%[![:space:]]*}"}"
   [[ "$post" == ,* || "$post" == '}'* ]] || return 2
   if [[ "$val" == *'\'* ]]; then
     c="${val//\\\\/}"; c="${c//\\\"/}"; c="${c//\\\//}"
@@ -158,14 +204,15 @@ json_str() {
 }
 
 # field without a subshell where it can: sets FIELD_VAL. Under Claude Code a plain key (.x or
-# .tool_input.x) is read by json_str; anything else, or a json_str "only jq can tell", goes to field.
+# .tool_input.x) is read by json_str at that exact level; anything else, or a json_str "only jq can
+# tell", goes to field.
 FIELD_VAL=""
 field_v() {
   FIELD_VAL=""
   has_jq || return 0
   [[ -n "$1" ]] && LAST_INPUT="$1"
   if ! cursor_client && [[ "$2" =~ ^\.(tool_input\.)?([A-Za-z_]+)$ ]]; then
-    json_str "${BASH_REMATCH[2]}" "$1"
+    if [[ -n "${BASH_REMATCH[1]}" ]]; then json_str "${BASH_REMATCH[2]}" "$1" tool_input; else json_str "${BASH_REMATCH[2]}" "$1" top; fi
     case $? in
       0) FIELD_VAL="$JSON_STR"; return 0 ;;
       1) return 0 ;;
@@ -257,17 +304,27 @@ parse_command() {
 # ── Decision emitters ────────────────────────────────────────────────────────
 # Each emitter writes Claude Code's JSON, or Cursor's when invoke.cjs ran with --client cursor
 # (design D11).
+# A reason over 4 KiB (a reason that quotes a very long path) keeps its first and last 1500
+# characters, in SHORT_REASON: jq gets it as an argument, and Windows caps a command line at 32 767
+# characters, so the full text would make jq fail and the decision vanish (review round 4).
+SHORT_REASON=""
+short_reason_v() {
+  SHORT_REASON="$1"
+  (( ${#1} <= 4096 )) || SHORT_REASON="${1:0:1500} […] ${1: -1500}"
+}
+
 deny() {
   HOOK_DECIDED=1
   has_jq || { printf '%s\n' "$1" >&2; exit 2; }
   local ok=0
+  short_reason_v "$1"
   if cursor_client; then
-    cursor_permission deny "$1" || ok=1
+    cursor_permission deny "$SHORT_REASON" || ok=1
   else
-    jq -nc --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}' || ok=1
+    jq -nc --arg r "$SHORT_REASON" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}' || ok=1
   fi
   # In an unattended run a broken jq must not turn a deny into a silent pass (design D21).
-  if [[ "$ok" != "0" ]] && unattended; then printf '%s\n' "$1" >&2; exit 2; fi
+  if [[ "$ok" != "0" ]] && unattended; then printf '%s\n' "$SHORT_REASON" >&2; exit 2; fi
   exit 0
 }
 
@@ -293,13 +350,14 @@ ask() {
   fi
   HOOK_DECIDED=1
   has_jq || exit 0
+  short_reason_v "$1"
   if cursor_client; then
     case "$(cursor_event)" in
-      preToolUse|beforeReadFile) cursor_permission allow "Needs the person's confirmation: $1" ;;
-      *) cursor_permission ask "$1" ;;
+      preToolUse|beforeReadFile) cursor_permission allow "Needs the person's confirmation: $SHORT_REASON" ;;
+      *) cursor_permission ask "$SHORT_REASON" ;;
     esac
   else
-    jq -nc --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"ask",permissionDecisionReason:$r}}'
+    jq -nc --arg r "$SHORT_REASON" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"ask",permissionDecisionReason:$r}}'
   fi
   exit 0
 }
@@ -439,14 +497,29 @@ kit_windows() {
   [[ "$_KIT_WIN" == 1 ]]
 }
 
+# Forward-slash form of a path, in SLASHED. Bash's ${p//\\//} grows quadratically with the number of
+# backslashes (60 KB of them took seconds), so a path over 4 KiB that holds one goes through tr
+# instead, which also squeezes repeated separators after a leading pair (\\?\, \\host\ stay).
+# The last long input and its answer are kept, so one hook forks tr once per path.
+SLASHED=""; _SLASH_IN=""; _SLASH_OUT=""
+slashes_v() {
+  local lead=""
+  if (( ${#1} <= 4096 )) || [[ "$1" != *'\'* ]]; then SLASHED="${1//\\//}"; return 0; fi
+  if [[ "$1" == "$_SLASH_IN" ]]; then SLASHED="$_SLASH_OUT"; return 0; fi
+  [[ "${1:0:2}" == [\\/][\\/] ]] && lead="//"
+  SLASHED="$lead$(printf '%s' "${1:${#lead}}" | tr -s '\\/' '/')"
+  _SLASH_IN="$1"; _SLASH_OUT="$SLASHED"
+}
+
 # Lexical form of a path, in NORM_PATH: backslashes become '/'; the \\?\ and \\.\ prefixes (and
 # \\?\UNC\) are dropped; this machine's admin shares (\\localhost\C$\…), /proc/cygdrive/c/…,
 # /cygdrive/c/… and /c/… become C:/…; the drive letter is upper case; duplicate slashes and '.'
 # segments are dropped and '..' segments are resolved. A leading ~ or ~/ is the home directory (R3-8).
 NORM_PATH=""
 _lexical_path() {
-  local p="${1//\\//}" host hn="${HOSTNAME:-}" cn="${COMPUTERNAME:-}" root="" seg
+  local p host hn="${HOSTNAME:-}" cn="${COMPUTERNAME:-}" root="" seg
   local -a segs=() out=()
+  slashes_v "$1"; p="$SLASHED"
   if [[ -n "${HOME:-}" && ( "$p" == "~" || "$p" == "~/"* ) ]]; then p="${HOME//\\//}${p:1}"; fi
   if [[ "$p" =~ ^//[?.]/[Uu][Nn][Cc]/(.*)$ ]]; then p="//${BASH_REMATCH[1]}"
   elif [[ "$p" =~ ^//[?.]/(.*)$ ]]; then p="${BASH_REMATCH[1]}"; fi
@@ -645,7 +718,8 @@ is_source() {
 
 # Source-code extensions: a name such as config.env.ts or app.env.d.ts is code, not an environment
 # file (R3-6).
-ENV_SOURCE_EXTENSIONS=' ts tsx js jsx mjs cjs mts cts py rb go java kt rs php cs sh md '
+# sh and md are not among them: .env.sh and .env.md stay secrets (author decision, review round 4).
+ENV_SOURCE_EXTENSIONS=' ts tsx js jsx mjs cjs mts cts py rb go java kt rs php cs '
 
 # Is a lower-case basename an environment file? .env, .env.<suffix>, <name>.env or
 # <name>.env.<suffix>, except a .example / .sample suffix or a source-code last extension.
@@ -658,11 +732,38 @@ is_env_file() {
   esac
 }
 
+# A slash-form, lower-case path without its Windows alternate data streams, in NO_STREAMS: in every
+# segment, the text from a ':' on is dropped (.env::$data, .env:$data and .env:notes name .env;
+# secrets::$index_allocation names the folder), except a drive letter (c:, //?/c:).
+NO_STREAMS=""
+no_streams_v() {
+  local p="$1" drive="" pre rest
+  # Prefix tests and substrings only: a regex or a literal ${p#…} costs up to a second on 60 KB.
+  if [[ "$p" == //[?.]/[a-z]:* ]]; then drive="${p:0:6}"; p="${p:6}"
+  elif [[ "$p" == [a-z]:* ]]; then drive="${p:0:2}"; p="${p:2}"; fi
+  while [[ "$p" == *:* ]]; do
+    pre="${p%%:*}"; rest="${p#*:}"
+    if [[ "$rest" == */* ]]; then p="$pre/${rest#*/}"; else p="$pre"; fi
+  done
+  NO_STREAMS="$drive$p"
+}
+
 # Does the path look like a secrets / environment file? Names compare in any letter case (R3-3);
-# environment files as is_env_file says.
+# environment files as is_env_file says. A path is judged as written and, when it names an alternate
+# data stream, as the file the stream belongs to (review round 4): either form can make it a secret.
 is_secret_path() {
-  local file="${1//\\//}" base
-  file="${file,,}"
+  local file
+  slashes_v "$1"; file="${SLASHED,,}"
+  _is_secret_name "$file" && return 0
+  if [[ "$file" == *:* ]]; then
+    no_streams_v "$file"
+    [[ "$NO_STREAMS" != "$file" ]] && _is_secret_name "$NO_STREAMS" && return 0
+  fi
+  return 1
+}
+
+_is_secret_name() {
+  local file="$1" base
   # The kit contract is NOT a secret: the doctrine, the SessionStart banner and
   # several subagents require reading it. It is excepted BEFORE the *.env pattern so
   # that a Read on it is not denied. It only holds STACK/CMD_*/PATH_*/BRANCH_PREFIX.
@@ -686,12 +787,25 @@ is_secret_path() {
 
 # Is the path a secret location itself (a search tool rooted there reaches every file in it)?
 is_secret_dir() {
-  local dir="${1//\\//}"
-  dir="${dir%/}"; dir="${dir,,}"
-  case "$dir" in
-    secrets|.secrets|*/secrets|*/.secrets) return 0 ;;
+  local dir
+  slashes_v "$1"; dir="${SLASHED,,}"
+  if [[ "$dir" == *:* ]]; then no_streams_v "$dir"; dir="$NO_STREAMS"; fi
+  # One trailing '/' off by substring: on a 60 KB string bash's ${dir%/} (a literal, non-glob
+  # pattern) took a second.
+  [[ "$dir" == */ ]] && dir="${dir:0:${#dir}-1}"
+  case "${dir##*/}" in
+    secrets|.secrets) return 0 ;;
   esac
   return 1
+}
+
+# Unattended mode canonicalises an edited path segment by segment (rel_path_v), which on a path of
+# tens of thousands of segments outruns the hook's timeout. A path over 4 KiB in its slash form
+# (slashes_v, which squeezes a long path's backslash runs) is too long to check, and the unattended
+# edit hooks deny it (review round 4).
+path_too_long() {
+  slashes_v "$1"
+  (( ${#SLASHED} > 4096 ))
 }
 
 # Does a search-tool glob (Grep's glob, Glob's pattern) reach a secret file (R3-3, R3-6)? In any
@@ -854,9 +968,12 @@ _glob_alts() {
 }
 
 glob_reaches_secret() {
-  local pat="${1//\\//}" alt rest comp last tpl
-  [[ -n "$pat" ]] || return 1
-  pat="${pat,,}"
+  local pat alt rest comp last tpl
+  [[ -n "$1" ]] || return 1
+  slashes_v "$1"; pat="${SLASHED,,}"
+  # Past 4 KiB (with separators squeezed) the component search below would outrun the hook's
+  # timeout: such a glob counts as reaching (review round 4).
+  (( ${#pat} <= 4096 )) || return 0
   if [[ "$pat" == *'{'* || "$pat" == *'}'* ]]; then
     _glob_alts "$pat" || return 0
   else
