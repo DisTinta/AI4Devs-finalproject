@@ -26,7 +26,13 @@ FILE=$(field "$INPUT" '.tool_input.file_path')
 [[ -n "$FILE" ]] || done_ok
 FILE="${FILE//\\//}"
 
-under "$FILE" "$PATH_SOURCE" || under "$FILE" "$PATH_TESTS" || done_ok
+if unattended; then
+  # Canonical spelling (lib.sh rel_path_v), case-insensitive on Windows.
+  rel_path_v "$FILE"
+  under_ci "$REL_PATH" "$PATH_SOURCE" || under_ci "$REL_PATH" "$PATH_TESTS" || done_ok
+else
+  under "$FILE" "$PATH_SOURCE" || under "$FILE" "$PATH_TESTS" || done_ok
+fi
 
 CHANGE=$(active_change)
 if [[ -z "$CHANGE" ]]; then

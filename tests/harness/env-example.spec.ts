@@ -35,6 +35,18 @@ describe('Example environment files are readable and editable', { timeout: 120_0
     }
   });
 
+  it('An example file under PATH_SOURCE is still code for the spec-audit gate in unattended mode', async () => {
+    for (const report of [null, 'CHANGES REQUIRED\n']) {
+      project?.cleanup();
+      const files: Record<string, string> = { 'openspec/changes/foo-bar/proposal.md': '# p\n', 'packages/api/.env.sample': 'X=\n' };
+      if (report) files['openspec/changes/foo-bar/reports/2026-10-21-spec-audit.md'] = report;
+      project = createProject({ env: { KIT_AUTONOMOUS_RUN: '1' }, files, git: { branch: 'feature/DIS-9-foo-bar' } });
+      const r = await runHook(project, 'spec-audit-gate', editInput(`${project.dir}/packages/api/.env.sample`));
+      expect(r.decision, String(report)).toBe('deny');
+      expect(r.reason).toContain('Spec audit gate');
+    }
+  });
+
   it('Real environment and secret files stay denied', async () => {
     project = createProject();
     for (const path of ['.env', '.env.local', 'config/.env.production', 'secrets/api.key', 'secrets/x.env.example']) {

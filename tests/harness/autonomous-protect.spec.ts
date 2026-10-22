@@ -110,6 +110,25 @@ describe('Rewrites of specs, tests and doctrine are decided without a human in u
         expect((await edit(project, 'openspec/specs/llm-adapter/spec.md')).decision).toBe('allow');
       });
 
+      it('A main spec with a delta is not synced after a CHANGES REQUIRED audit', async () => {
+        project = fixture({ protect, verdict: 'CHANGES REQUIRED' });
+        const r = await edit(project, 'openspec/specs/llm-adapter/spec.md');
+        expect(r.decision).toBe('deny');
+        expect(r.reason).toContain('only synced from an approved delta');
+      });
+
+      it('A Cursor background agent with the switch "0" does not edit a planned test', async () => {
+        project = fixture({ protect, autonomous: '0' });
+        const r = await runHook(
+          project,
+          'protect-specs-and-tests',
+          { hook_event_name: 'preToolUse', tool_name: 'Write', tool_input: { file_path: `${project.dir}/tests/unit/llm/llm-config.spec.ts` }, is_background_agent: true },
+          { client: 'cursor' },
+        );
+        expect(r.decision).toBe('deny');
+        expect(r.reason).toContain('KIT_AUTONOMOUS_RUN');
+      });
+
       it('A main spec without a delta is protected', async () => {
         project = fixture({ protect });
         expect((await edit(project, 'openspec/specs/graph-store/spec.md')).decision).toBe('deny');

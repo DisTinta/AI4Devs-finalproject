@@ -30,6 +30,14 @@ describe('Denials of an autonomous run are logged locally', { timeout: 120_000 }
     expect(entry.reason).toBe('classifier_denied');
     expect(JSON.stringify(entry.tool_input)).toContain('gh pr merge 61 --merge');
     expect(typeof entry.ts).toBe('string');
+    expect(entry.classifier_verdict).toBe('deny');
+    expect(lines[0]).toContain('"classifier_verdict":"deny"');
+    // An event without a classifier verdict logs no such key.
+    const plain: Record<string, unknown> = { ...denial('gh pr merge 62 --merge') };
+    delete plain.classifier_verdict;
+    await runHook(project, 'log-permission-denied', plain);
+    const second = JSON.parse(readFileSync(log(project), 'utf8').trim().split('\n')[1]) as Record<string, unknown>;
+    expect(second).not.toHaveProperty('classifier_verdict');
   });
 
   it('Secrets in a denied input are redacted', async () => {

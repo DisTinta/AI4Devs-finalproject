@@ -43,10 +43,15 @@ fi
 # Unattended run (design D9): decided here, before the KIT_PROTECT_SPECS switch, so an unattended
 # run never inherits a disabled protection.
 if unattended; then
-  REL=$(rel_path "$FILE")
+  # Canonical spelling (lib.sh rel_path_v): \\?\, admin shares, cygdrive, '.', '//', the real
+  # location of a link, and on Windows the on-disk case; the patterns below match case-insensitively
+  # on Windows.
+  rel_path_v "$FILE"
+  REL="$REL_PATH"; FILE_N="$NORM_PATH"
+  kit_windows && shopt -s nocasematch
 
   # Kit configuration (autonomous run only, design D5).
-  if autonomous_run && is_kit_config "$FILE"; then
+  if autonomous_run && is_kit_config "$FILE_N"; then
     [[ -z "$KIT_CONFIG_UNCHECKED" ]] || \
       deny "Autonomous run: ${REL} could not be checked against the kit configuration (${KIT_CONFIG_UNCHECKED}), so it is treated as kit configuration and not modified."
     deny "Autonomous run: .claude/, .cursor/ and the autonomous profile are not modified by the agent (${REL})."
@@ -71,7 +76,7 @@ if unattended; then
 
   case "$REL" in
     openspec/*)
-      [[ -f "$FILE" ]] || done_ok   # creating an artifact is the normal propose flow
+      [[ -f "$FILE_N" ]] || done_ok   # creating an artifact is the normal propose flow
       CHANGE=$(active_change)
       [[ -n "$CHANGE" ]] || deny "Unattended run: the branch's active OpenSpec change cannot be determined (branch $(current_branch)), so existing artifacts are not rewritten. Name the branch after the change, or keep one active change."
       VERDICT=$(latest_verdict "$CHANGE")
@@ -105,7 +110,7 @@ if unattended; then
   [[ "$IN_REPO" == "1" ]] || done_ok
 
   # Existing tests: allowed only when planned in tasks.md or created by the branch (Q2, design D9).
-  if under "$FILE" "$PATH_TESTS" && [[ -f "$FILE" ]]; then
+  if under_ci "$REL" "$PATH_TESTS" && [[ -f "$FILE_N" ]]; then
     autonomous_run || deny "Unattended run without KIT_AUTONOMOUS_RUN=\"1\": existing tests are not modified."
     CHANGE=$(active_change)
     [[ -n "$CHANGE" ]] || deny "Unattended run: the branch's active OpenSpec change cannot be determined (branch $(current_branch)), so existing tests are not modified."
@@ -119,8 +124,8 @@ if unattended; then
   fi
 
   # Versioned migrations.
-  if [[ -n "$PATH_MIGRATIONS" ]] && under "$FILE" "$PATH_MIGRATIONS" && [[ -f "$FILE" ]] && \
-     git -C "$PROJECT_DIR" ls-files --error-unmatch "$FILE" >/dev/null 2>&1; then
+  if [[ -n "$PATH_MIGRATIONS" ]] && under_ci "$REL" "$PATH_MIGRATIONS" && [[ -f "$FILE_N" ]] && \
+     git -C "$PROJECT_DIR" ls-files --error-unmatch -- "$REL" >/dev/null 2>&1; then
     deny "Unattended run: ${REL} is an already-versioned migration. Create a new migration instead."
   fi
   done_ok

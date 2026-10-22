@@ -5,7 +5,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { bashInput, createProject, editInput, runHook, type Project } from './support/run-hook';
+import { bashInput, createProject, editInput, pathWithoutJq, runHook, type Project } from './support/run-hook';
 import { startRegistry, type Registry, type StubPackage } from './support/stubs';
 
 const DAY = 86_400_000;
@@ -218,5 +218,25 @@ describe('Conformance: the allowlist runs as written (V28)', { timeout: 120_000 
     project = createProject({ env: { KIT_SECRET_ALLOWLIST: 'DB_PASSWORD=SENTINEL\\.[a-z0-9-]+' } });
     expect((await runHook(project, 'block-secrets', prompt('fixture DB_PASSWORD=SENTINEL.hdr-demo'))).decision).toBe('none');
     expect((await runHook(project, 'block-secrets', prompt('fixture DB_PASSWORD=SENTINELxhdr-demo'))).decision).toBe('block');
+  });
+});
+
+describe('Conformance: without jq the edit and read guards deny in unattended mode', { timeout: 120_000 }, () => {
+  let project: Project | undefined;
+  afterEach(() => project?.cleanup());
+
+  it('denies in protect-specs-and-tests, spec-audit-gate and block-secret-reads', async () => {
+    project = changeProject('APPROVED\n');
+    const path = pathWithoutJq();
+    const cases: Array<[string, Record<string, unknown>]> = [
+      ['protect-specs-and-tests', editInput(`${project.dir}/README.md`)],
+      ['spec-audit-gate', editInput(`${project.dir}/packages/core/src/x.ts`, 'Write')],
+      ['block-secret-reads', { hook_event_name: 'PreToolUse', tool_name: 'Read', tool_input: { file_path: `${project.dir}/notes.md` } }],
+    ];
+    for (const [hook, input] of cases) {
+      const r = await runHook(project, hook, input, { env: { PATH: path } });
+      expect(r.exitCode, hook).toBe(2);
+      expect(r.stderr, hook).toContain('jq is required');
+    }
   });
 });

@@ -29,6 +29,14 @@ describe('Dependency installs are vetted automatically in unattended mode', { ti
       unpopular: good({ weeklyDownloads: 500 }),
       norepo: good({ repository: undefined }),
       scripted: good({ versions: { '1.0.0': { published: ago(300), scripts: { postinstall: 'node x.js' } } } }),
+      'pre-scripted': good({ versions: { '1.0.0': { published: ago(300), scripts: { preinstall: 'node x.js' } } } }),
+      'install-scripted': good({ versions: { '1.0.0': { published: ago(300), scripts: { install: 'node x.js' } } } }),
+      'age-89': good({ created: ago(89), versions: { '1.0.0': { published: ago(30) } } }),
+      'age-90': good({ created: ago(90), versions: { '1.0.0': { published: ago(30) } } }),
+      'ver-6': good({ versions: { '1.0.0': { published: ago(6) } } }),
+      'ver-7': good({ versions: { '1.0.0': { published: ago(7) } } }),
+      'dl-9999': good({ weeklyDownloads: 9_999, versions: { '1.0.0': { published: ago(300) } } }),
+      'dl-10000': good({ weeklyDownloads: 10_000, versions: { '1.0.0': { published: ago(300) } } }),
     };
     registry = await startRegistry(packages);
     slow = await startRegistry({ 'left-pad': good() }, 9_000);
@@ -119,6 +127,35 @@ describe('Dependency installs are vetted automatically in unattended mode', { ti
       const r = await vet(project, command);
       expect(r.decision, `${command} ${r.reason}`).toBe('allow');
     }
+  });
+
+  it('The thresholds hold at their boundary, and every install script counts', async () => {
+    project = unattended();
+    const denied: Array<[string, string]> = [
+      ['npm i age-89@1.0.0', 'first published 89 days ago'],
+      ['npm i ver-6@1.0.0', 'published 6 days ago'],
+      ['npm i dl-9999@1.0.0', '9999 downloads'],
+      ['npm i pre-scripted@1.0.0', 'install scripts (preinstall)'],
+      ['npm i install-scripted@1.0.0', 'install scripts (install)'],
+    ];
+    for (const [command, expected] of denied) {
+      const r = await vet(project, command);
+      expect(r.decision, command).toBe('deny');
+      expect(r.reason, command).toContain(expected);
+    }
+    for (const command of ['npm i age-90@1.0.0', 'npm i ver-7@1.0.0', 'npm i dl-10000@1.0.0']) {
+      const r = await vet(project, command);
+      expect(r.decision, `${command} ${r.reason}`).toBe('allow');
+    }
+  });
+
+  it('A package runner with -p or a version downloads even when the binary is local', async () => {
+    project = unattended();
+    for (const bin of ['x', 'y', 'x@1.0.0']) project.write(`node_modules/.bin/${bin}`, '');
+    for (const command of ['npx -p x y', 'npx --package=x y', 'npx x@1.0.0']) {
+      expect((await vet(project, command)).decision, command).toBe('deny');
+    }
+    expect((await vet(project, 'npx y')).decision).toBe('none');
   });
 
   it('An unreachable or slow registry denies', async () => {

@@ -362,19 +362,146 @@ active_change() {
 
 current_branch() { git -C "$PROJECT_DIR" branch --show-current 2>/dev/null || true; }
 
-# Normalises a path (slashes, /c/… drive form) and strips PROJECT_DIR/, case-insensitively on
-# Windows. Prints the repository-relative path, or the normalised absolute one when outside.
-rel_path() {
-  local p="${1//\\//}" root="${PROJECT_DIR//\\//}"
-  [[ "$p" =~ ^/([a-zA-Z])/(.*)$ ]] && p="${BASH_REMATCH[1]^^}:/${BASH_REMATCH[2]}"
-  [[ "$root" =~ ^/([a-zA-Z])/(.*)$ ]] && root="${BASH_REMATCH[1]^^}:/${BASH_REMATCH[2]}"
-  [[ "$p" =~ ^([a-z]):(.*)$ ]] && p="${BASH_REMATCH[1]^^}:${BASH_REMATCH[2]}"
-  [[ "$root" =~ ^([a-z]):(.*)$ ]] && root="${BASH_REMATCH[1]^^}:${BASH_REMATCH[2]}"
-  if [[ "${p,,}" == "${root,,}/"* ]]; then
-    printf '%s' "${p:$(( ${#root} + 1 ))}"
-  else
-    printf '%s' "$p"
+# ── Path normalisation (design D9 «Paths»; adversarial review 2026-10-21) ────
+# Windows (Git Bash, MSYS, Cygwin): paths compare case-insensitively.
+_KIT_WIN=""
+kit_windows() {
+  if [[ -z "$_KIT_WIN" ]]; then
+    _KIT_WIN=0
+    case "${OSTYPE:-}" in
+      msys*|cygwin*) _KIT_WIN=1 ;;
+      *) case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*) _KIT_WIN=1 ;; esac ;;
+    esac
   fi
+  [[ "$_KIT_WIN" == 1 ]]
+}
+
+# Lexical form of a path, in NORM_PATH: backslashes become '/'; the \\?\ and \\.\ prefixes (and
+# \\?\UNC\) are dropped; this machine's admin shares (\\localhost\C$\…), /proc/cygdrive/c/…,
+# /cygdrive/c/… and /c/… become C:/…; the drive letter is upper case; duplicate slashes and '.'
+# segments are dropped and '..' segments are resolved.
+NORM_PATH=""
+_lexical_path() {
+  local p="${1//\\//}" host hn="${HOSTNAME:-}" cn="${COMPUTERNAME:-}" root="" seg
+  local -a segs=() out=()
+  if [[ "$p" =~ ^//[?.]/[Uu][Nn][Cc]/(.*)$ ]]; then p="//${BASH_REMATCH[1]}"
+  elif [[ "$p" =~ ^//[?.]/(.*)$ ]]; then p="${BASH_REMATCH[1]}"; fi
+  if [[ "$p" =~ ^//+([^/]+)/+([A-Za-z])\$(/.*)?$ ]]; then
+    host="${BASH_REMATCH[1],,}"
+    if [[ "$host" == localhost || "$host" == 127.0.0.1 || "$host" == "[::1]" || "$host" == "${hn,,}" || "$host" == "${cn,,}" ]]; then
+      p="${BASH_REMATCH[2]}:/${BASH_REMATCH[3]}"
+    fi
+  fi
+  if [[ "$p" =~ ^(/proc)?/cygdrive/([A-Za-z])(/.*)?$ ]]; then p="${BASH_REMATCH[2]}:/${BASH_REMATCH[3]}"
+  elif [[ "$p" =~ ^/([A-Za-z])/(.*)$ ]]; then p="${BASH_REMATCH[1]}:/${BASH_REMATCH[2]}"; fi
+  if [[ "$p" =~ ^([A-Za-z]):(.*)$ ]]; then root="${BASH_REMATCH[1]^^}:/"; p="${BASH_REMATCH[2]}"
+  elif [[ "$p" =~ ^//[^/] ]]; then root="//"
+  elif [[ "$p" == /* ]]; then root="/"; fi
+  IFS='/' read -r -a segs <<< "$p"
+  for seg in "${segs[@]}"; do
+    case "$seg" in
+      ""|.) ;;
+      ..)
+        if (( ${#out[@]} )) && [[ "${out[${#out[@]}-1]}" != ".." ]]; then
+          out=("${out[@]:0:${#out[@]}-1}")
+        elif [[ -z "$root" ]]; then
+          out+=("..")
+        fi ;;
+      *) out+=("$seg") ;;
+    esac
+  done
+  local IFS=/
+  NORM_PATH="${root}${out[*]}"
+  [[ -n "$NORM_PATH" ]] || NORM_PATH="."
+}
+
+# Canonical absolute form of a path, in NORM_PATH: the lexical form (a relative path is taken from
+# PROJECT_DIR), with its nearest existing ancestor replaced by that ancestor's real path, so a
+# junction or a symlink is classified by where it points. On Windows the existing part also gets
+# its on-disk case. When nothing can be resolved, the lexical form stays.
+norm_path() {
+  local p anc rest="" parent dir name real e
+  _lexical_path "$1"; p="$NORM_PATH"
+  case "$p" in
+    /*|[A-Z]:/*) ;;
+    *) _lexical_path "$PROJECT_DIR/$p"; p="$NORM_PATH" ;;
+  esac
+  anc="$p"
+  while [[ ! -e "$anc" ]]; do
+    if [[ "$anc" == / || "$anc" =~ ^[A-Z]:/$ || "$anc" =~ ^//[^/]*$ ]]; then NORM_PATH="$p"; return 0; fi
+    parent="${anc%/*}"
+    case "$parent" in ""|/) parent="/" ;; [A-Z]:) parent="$parent/" ;; esac
+    rest="/${anc##*/}$rest"; anc="$parent"
+  done
+  # A file symlink: follow it first (junctions are directories, handled by cd -P below).
+  if [[ -L "$anc" && ! -d "$anc" ]]; then
+    e=$(realpath -- "$anc" 2>/dev/null || readlink -f -- "$anc" 2>/dev/null) && [[ -n "$e" ]] && anc="$e"
+  fi
+  if [[ -d "$anc" ]]; then
+    dir="$anc"; name=""
+  else
+    dir="${anc%/*}"; name="${anc##*/}"
+    case "$dir" in ""|/) dir="/" ;; [A-Z]:) dir="$dir/" ;; esac
+  fi
+  real=$(cd -P -- "$dir" 2>/dev/null && { pwd -W 2>/dev/null || pwd -P; }) || real=""
+  if [[ -z "$real" ]]; then NORM_PATH="$p"; return 0; fi
+  _lexical_path "$real"; real="${NORM_PATH%/}"
+  [[ -n "$name" ]] && real="$real/$name"
+  NORM_PATH="$real$rest"
+  [[ -n "$NORM_PATH" ]] || NORM_PATH="/"
+}
+
+# Repository-relative path of a file, in REL_PATH (and its canonical absolute form in NORM_PATH):
+# PROJECT_DIR/ is stripped from the canonical form, case-insensitively on Windows, where the
+# existing segments then take their on-disk case (so git and tasks.md see the real name). A path
+# outside the repository stays absolute.
+REL_PATH=""
+rel_path_v() {
+  local p root rel cur out="" seg e
+  local -a segs=()
+  norm_path "$PROJECT_DIR"; root="${NORM_PATH%/}"
+  norm_path "$1"; p="$NORM_PATH"
+  if kit_windows && [[ "${p,,}" == "${root,,}/"* ]] || [[ "$p" == "$root/"* ]]; then
+    rel="${p:$(( ${#root} + 1 ))}"
+    if kit_windows; then
+      cur="$root"
+      IFS='/' read -r -a segs <<< "$rel"
+      for seg in "${segs[@]}"; do
+        if [[ -n "$cur" && -e "$cur/$seg" ]]; then
+          for e in "$cur"/* "$cur"/.*; do
+            e="${e##*/}"
+            [[ "$e" == "$seg" ]] && break
+            if [[ "${e,,}" == "${seg,,}" ]]; then seg="$e"; break; fi
+          done
+          cur="$cur/$seg"
+        else
+          cur=""
+        fi
+        out+="${out:+/}$seg"
+      done
+      rel="$out"
+    fi
+    REL_PATH="$rel"
+    NORM_PATH="$root/$rel"
+  else
+    REL_PATH="$p"
+  fi
+}
+
+# Prints the repository-relative path, or the canonical absolute one when outside.
+rel_path() { rel_path_v "$1"; printf '%s' "$REL_PATH"; }
+
+# Whether a path lies under a configured folder (any segment, like under()), case-insensitively on
+# Windows. Used on canonical paths in unattended mode.
+under_ci() {
+  local file="${1//\\//}" dir="${2//\\//}" r=1 had=0
+  dir="${dir#./}"; dir="${dir%/}"
+  [[ -n "$dir" ]] || return 1
+  shopt -q nocasematch && had=1
+  kit_windows && shopt -s nocasematch
+  case "$file" in "$dir"|"$dir"/*|*/"$dir"|*/"$dir"/*) r=0 ;; esac
+  [[ "$had" == 1 ]] || shopt -u nocasematch
+  return "$r"
 }
 
 # Kit configuration (design D5): .claude/ or .cursor/ relative to the working tree that holds the
@@ -477,4 +604,48 @@ is_secret_path() {
       return 0 ;;
   esac
   return 1
+}
+
+# Is the path a secret location itself (a search tool rooted there reaches every file in it)?
+is_secret_dir() {
+  local dir="${1//\\//}"
+  dir="${dir%/}"
+  case "$dir" in
+    secrets|.secrets|*/secrets|*/.secrets) return 0 ;;
+  esac
+  return 1
+}
+
+# Does a search-tool glob (Grep's glob, Glob's pattern) reach a secret file? It does when the
+# pattern is itself a secret path, or when it matches one of the sample secret names below and it
+# names a secret (a secret word, or a last component that starts with a dot, such as .env* or .*),
+# so broad patterns such as * or **/*.ts stay free. ** counts as *, and {a,b} as either alternative.
+SECRET_SAMPLES=(.env .env.ci .env.local .env.production .env.backup x.env secrets/x .secrets/x
+  credentials.json credentials.yml id_rsa id_ed25519 .npmrc .pypirc google-services.json
+  service-account-x.json)
+glob_reaches_secret() {
+  local pat="${1//\\//}" last c i ch depth=0 conv="" had=0 r=1
+  [[ -n "$pat" ]] || return 1
+  is_secret_path "$pat" && return 0
+  last="${pat##*/}"
+  [[ "${pat,,}" =~ (env|secret|credential|id_rsa|id_ed25519|npmrc|pypirc|service-account|google-services) || "$last" == .* || "$last" == "[.]"* ]] || return 1
+  pat="${pat//\*\*/*}"
+  for (( i = 0; i < ${#pat}; i++ )); do
+    ch="${pat:i:1}"
+    case "$ch" in
+      "{") conv+="@("; depth=$(( depth + 1 )) ;;
+      "}") if (( depth > 0 )); then conv+=")"; depth=$(( depth - 1 )); else conv+="}"; fi ;;
+      ",") if (( depth > 0 )); then conv+="|"; else conv+=","; fi ;;
+      *) conv+="$ch" ;;
+    esac
+  done
+  shopt -q extglob && had=1
+  shopt -s extglob
+  for c in "${SECRET_SAMPLES[@]}"; do
+    # shellcheck disable=SC2053
+    if [[ "$c" == $conv || "d/$c" == $conv || "d/e/$c" == $conv ]]; then r=0; break; fi
+    if [[ "$conv" != */* && "${c##*/}" == $conv ]]; then r=0; break; fi
+  done
+  [[ "$had" == 1 ]] || shopt -u extglob
+  return "$r"
 }
