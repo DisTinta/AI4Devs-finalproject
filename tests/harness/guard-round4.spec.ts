@@ -42,7 +42,8 @@ describe('Shell guard: adversarial review round 4', { timeout: 300_000 }, () => 
       expect(c.assigns.length, line).toBe(1);
     }
     // A quoted name is not an assignment: the shell runs the word as a command.
-    expect(parse('"X=1" git m').commands[0].name).toBe('x=1');
+    // (Command names are folded to lower case on Windows only.)
+    expect(parse('"X=1" git m').commands[0].name.toLowerCase()).toBe('x=1');
     expect(parse('X\\=1 git m').commands[0].assigns).toEqual([]);
     project = createProject({ env: { KIT_AUTONOMOUS_RUN: '0' }, git: { branch: 'feature/DIS-9-foo-bar' } });
     await expectDecision(project, ['X="1" git reset --hard', "X='1' git reset --hard"], 'ask');
