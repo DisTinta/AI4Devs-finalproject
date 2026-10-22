@@ -149,3 +149,16 @@ Findings fixed in this change:
 | Throwaway branches | deleted locally and on the remote; PR #62 closed |
 | Scratchpad installs (`vet/`) and the throwaway repository | removed |
 | gh active account | Cristina-JumpMath |
+
+## Addendum (2026-10-22): the Cursor `Grep` line
+
+The pre-merge reviews added a `preToolUse` entry with matcher `Grep` to `.cursor/hooks.json`
+(`node .claude/hooks/invoke.cjs --client cursor .claude/hooks/block-secret-reads.sh`, timeout 10 s).
+It was run exactly as configured with Cursor-format inputs (switch `"0"`, Windows):
+
+| `tool_input` | Time | Output |
+|---|---|---|
+| `{"path":".env.ci"}` | 1.4 s | `{"permission":"deny","user_message":"Grep blocked: .env.ci looks like a secrets or credentials file…"}` |
+| `{"path":".","glob":"**/.env*"}` | 1.1 s | `{"permission":"deny","user_message":"Grep blocked: the pattern **/.env* reaches files that look like secrets…"}` |
+| `{"path":"docs","glob":"*.md"}` | 0.8 s | none |
+| `{"path":".env.example"}` | 0.8 s | none |

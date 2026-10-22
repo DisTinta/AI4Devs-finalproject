@@ -69,6 +69,11 @@ Con el interruptor a `"1"`, el inicio de cada sesión lo avisa (`⚠ autonomous 
   se ejecutan sin opciones: `bash .claude/doctor.sh` pasa, `bash -x .claude/doctor.sh` no.
 - Escribir por la shell en `~/.claude/…` o en `.claude/worktrees/`: la memoria se escribe con la
   herramienta de edición, y una ejecución autónoma no usa worktrees.
+- Rutas que el guardián no puede resolver: comodines o llaves que podrían apuntar al kit
+  (`.cl?ude/`, `.{claude,x}/`), nombres cortos de Windows (`CLAUDE~1`) y **palabras con variables** en
+  un comando que no es de solo lectura (`git push origin "$BRANCH"`, `export PATH="$PATH:x"`, cualquier
+  comando tras `cd "$X"`). En una ejecución autónoma se escriben los valores literales.
+- Una ruta de edición de más de 4 KiB, que no se puede comprobar a tiempo.
 
 ### Lo que cuesta cada llamada
 
@@ -80,6 +85,9 @@ Medianas en Windows (Git Bash, 7 ejecuciones), con el interruptor a `"0"`:
 | `Read` | 0,86 s | 0,47 s |
 | `Grep` / `Glob` | sin hook | 0,50 s |
 | `Edit` | 1,28 s | 1,02 s |
+
+La fila de `Edit` suma los dos hooks de edición en una rama con un cambio activo; en una rama sin
+cambio activo el coste es el mismo que antes (unos 1,3 s).
 
 ### Qué está activo siempre, también con el interruptor a `"0"`
 
@@ -93,7 +101,9 @@ Medianas en Windows (Git Bash, 7 ejecuciones), con el interruptor a `"0"`:
 - `KIT_SECRET_ALLOWLIST` excluye centinelas de test conocidos del escaneo de secretos del prompt.
 - La comprobación de ficheros secretos también se aplica a `Grep` y `Glob`, sin distinguir mayúsculas.
   Un fichero de entorno es `.env`, `.env.<sufijo>`, `<nombre>.env` o `<nombre>.env.<sufijo>`, salvo los
-  sufijos `example`/`sample` y los ficheros de código (`config.env.ts` se puede leer y editar).
+  sufijos `example`/`sample` y los ficheros de código (`config.env.ts` se puede leer y editar; `.env.sh`
+  y `.env.md` no cuentan como código y siguen siendo secretos). También se reconocen en rutas
+  relativas y con el sufijo de flujo alternativo de Windows (`.env::$DATA`).
 - En Cursor, los hooks del kit (sección 7).
 
 ## 2. La doctrina que se relaja en una ejecución autónoma

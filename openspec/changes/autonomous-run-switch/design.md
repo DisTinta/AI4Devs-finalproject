@@ -1084,6 +1084,30 @@ Accepted (D): in an autonomous run, shell writes to `~/.claude/` and `.claude/wo
 options (`bash -x .claude/doctor.sh`) are denied; the read-only lists and the alias detection are wider
 than the spec's examples, as the scenarios now say.
 
+**Third review run (2026-10-22, `reports/2026-10-22-verify-against-spec-3.md`, R4-1 to R4-10).** Fixed
+in this change (A), each with a test seen red first or a mutation shown to fail:
+- R4-1 (Blocker): a prefix assignment is recognised whatever the quoting of its value; with the switch
+  `"0"` `X="1" git reset --hard` asks again, and in an autonomous run quoted `GH_*` and `GIT_CONFIG_*`
+  assignments are seen;
+- R4-2: tests for an unreadable files page in the merge gate (HTML, empty, wrong shape);
+- R4-3, R4-8, R4-9: globs, braces, Windows short names (`CLAUDE~1`, told apart from `HEAD~1`) and
+  dynamic words that could reach a kit path count as kit configuration in an autonomous run; variables
+  that pass options or programs (`RIPGREP_CONFIG_PATH`, `LESS`, `GIT_*`, `BASH_ENV`…) remove the
+  read-only exemption; shell writes to `~/.claude/` are denied consistently; kit scripts are exempt only
+  without options;
+- R4-4: the pure-bash JSON reader bails out to jq on long escaped values and long paths are squeezed
+  with `tr`; a 60 KB path is decided in 1–2 s (was 17–24 s); in unattended mode an edit path over 4 KiB
+  is denied;
+- R4-5, R4-6, R4-7: `::$DATA` streams, top-level keys only in the fast reader, and `.env.sh`/`.env.md`
+  secret again (the author's decision, 2026-10-22);
+- R4-10: the spec text (always-on list, Cursor `Grep` only, kit scripts without options).
+
+Accepted (D): in an autonomous run a non-read-only command with a variable word is denied ("use
+literal paths"), so the agent writes values out (`git push origin <branch>`); the timing tests allow
+5 s against the 10 s hook timeout, since a loaded Windows machine takes up to 3.8 s; the Windows-only
+spellings and case folding run only on a Windows machine (CI is Ubuntu) — they are exercised by the
+local suite and the edge-case runs recorded in the reports.
+
 ## Open Questions
 
 None that change the specs or the tasks. Two facts are checked during the apply, each with a

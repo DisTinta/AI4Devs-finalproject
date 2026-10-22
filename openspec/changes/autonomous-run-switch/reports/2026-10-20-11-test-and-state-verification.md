@@ -211,3 +211,9 @@ Scenarios added after step 11 (the table above lists the rest):
 | The shell guard reads commands, not text | Removing the kit contract is a write | `tests/harness/kit-contract-removal.spec.ts` |
 | The shell guard reads commands, not text | A line too costly to check is denied in unattended mode | `tests/harness/guard-round2.spec.ts` |
 | Example environment files are readable and editable | Secret files are not reached through search tools | `tests/harness/paths-round2.spec.ts` |
+
+Update after the third and fourth review rounds (2026-10-22): 25 harness spec files plus
+`tests/unit/docs/kit-skills.spec.ts`; the scenarios in the table above whose cases grew in later
+rounds also have tests of the same name in `guard-round3.spec.ts`, `guard-round4.spec.ts`,
+`secrets-round3.spec.ts` and `secrets-round4.spec.ts`. Full suite: 167 files and 1700 tests passed,
+221 skipped; lint, typecheck and `openspec validate --strict` clean; 110 scenarios mapped.

@@ -15,8 +15,9 @@ With the switch `"0"` and outside a Cursor background agent, every hook decision
 - the `sdd-harness.env` rule fires only when that file is the write target, and removing or replacing it counts as a write;
 - install detection also recognises flags before package names;
 - the shell guard leaves removals inside the session scratchpad undecided;
-- example environment files can be read and edited, and so can source files whose name merely contains `.env` (`config.env.ts`: an environment file is `.env`, `.env.<suffix>`, `<name>.env` or `<name>.env.<suffix>`, except an `example`/`sample` suffix or a source-code last extension);
-- secret files are also checked for `Grep` and `Glob` calls, in Claude Code and in Cursor, in any letter case;
+- example environment files can be read and edited, and so can source files whose name merely contains `.env` (`config.env.ts`: an environment file is `.env`, `.env.<suffix>`, `<name>.env` or `<name>.env.<suffix>`, except an `example`/`sample` suffix or a source-code last extension; `sh` and `md` are not source-code extensions here, so `.env.sh` stays secret);
+- secret files are matched in any letter case, through relative paths too, and with a Windows alternate-data-stream suffix (`.env::$DATA`) removed;
+- secret files are also checked for `Grep` and `Glob` calls in Claude Code, and for `Grep` in Cursor (which has no `Glob` tool);
 - known test sentinels can be allowlisted in the prompt secret scan.
 
 When the switch is `"1"`, the session-start context SHALL begin with a warning line that names `KIT_AUTONOMOUS_RUN`.
@@ -285,7 +286,7 @@ Outside unattended mode the gate keeps its current rule: any report lets the edi
 
 #### Scenario: A protected path is recognised in any spelling
 - **WHEN** an unattended edit names a main spec, kit doctrine, an existing test or a file under `PATH_SOURCE` through another spelling of its path (`./` segments, doubled slashes, `\\?\` or `\\localhost\C$\` prefixes, a `/cygdrive/` or `/proc/cygdrive/` form, a leading `~`, a different letter case on Windows, or a junction or symbolic link into the repository)
-- **THEN** the decision is the one the canonical repository-relative path gets; a path with a `..` segment is denied outright, as before this change
+- **THEN** the decision is the one the canonical repository-relative path gets; a path with a `..` segment is denied outright, as before this change, and in unattended mode a path longer than 4 KiB is denied as too long to check within the hook's time
 
 ### Requirement: The agent merges only in an autonomous run and under deterministic conditions
 
@@ -407,7 +408,7 @@ In an autonomous run, a path, resolved as stated in "The shell guard reads comma
 - made relative to the git working tree that contains it, it starts with `.claude/` or `.cursor/`, or is `.claude` or `.cursor`. Files of a worktree that Claude Code creates under `.claude/worktrees/<name>/` are relative to that worktree, so only the worktree's own `.claude/` and `.cursor/` count;
 - it is inside the directory named by `CLAUDE_CONFIG_DIR` (the autonomous profile).
 
-Paths outside every working tree and outside the profile, such as `~/.claude/` memory and plan files, are not kit configuration.
+Paths outside every working tree and outside the profile, such as `~/.claude/` memory and plan files, are not kit configuration for the editing tools. A shell command that names them (or a worktree under `.claude/worktrees/`) still matches the generic kit-path rule below and is denied in an autonomous run: memory is written with the editing tools, and an autonomous run uses no worktrees.
 
 These SHALL be denied. Paths, pathspecs and flags are read from the command's words with the quotes removed:
 - **File edits:** an edit or write of kit configuration through the editing tools (Claude Code `Edit`/`Write`, Cursor's file-modifying tools), and a shell write to it:
@@ -485,7 +486,7 @@ Outside an autonomous run these commands and edits are not affected.
 - **THEN** the shell guard returns no decision
 
 #### Scenario: A path to kit configuration is recognised in any spelling
-- **WHEN** an autonomous run writes to `.claude/` or `.cursor/` through `./` or `..` segments, doubled slashes, a `\\?\` or `\\localhost\C$\` prefix, a `/cygdrive/` or `/proc/cygdrive/` form, a different letter case on Windows, or a junction or symbolic link that points into them
+- **WHEN** an autonomous run writes to `.claude/` or `.cursor/` through `./` or `..` segments, doubled slashes, a `\\?\` or `\\localhost\C$\` prefix, a `/cygdrive/` or `/proc/cygdrive/` form, a different letter case on Windows, a glob or brace that could match them (`.cl?ude/`, `.{claude,x}/`), a variable, or a junction or symbolic link that points into them
 - **THEN** the decision is `deny`, as for the plain path
 
 #### Scenario: Writers in their alternative syntax are recognised
@@ -501,7 +502,7 @@ Outside an autonomous run these commands and edits are not affected.
 - **THEN** the decision is `deny`
 
 #### Scenario: An unknown command that names kit configuration is denied in an autonomous run
-- **WHEN** an autonomous run runs a command any of whose words contains a kit-configuration path, and the command is neither on the guard's read-only list (commands that only read, such as `cat`, `head`, `tail`, `less`, `grep`, `rg`, `ls`, `stat`, `file`, `wc`, `diff`, `echo`, `find`, `jq`, and the read-only git subcommands `diff`, `show`, `log`, `status`, `ls-files`, `blame`, `grep`, `rev-parse`, `cat-file`, `ls-tree`) used without an option that runs a command or writes a file (`find -exec`/`-ok`/`-delete`/`-fprint`, `rg --pre`, `git grep -O`, `git -c …` or `--config-env`, `git diff --output`, `file -C`, `less -o`), nor a run of one of the kit's own scripts (`bash`, `sh`, `node`, `pwsh` or `source` of a file under `.claude/`)
+- **WHEN** an autonomous run runs a command any of whose words contains a kit-configuration path, and the command is neither on the guard's read-only list (commands that only read, such as `cat`, `head`, `tail`, `less`, `grep`, `rg`, `ls`, `stat`, `file`, `wc`, `diff`, `echo`, `find`, `jq`, and the read-only git subcommands `diff`, `show`, `log`, `status`, `ls-files`, `blame`, `grep`, `rev-parse`, `cat-file`, `ls-tree`) used without an option that runs a command or writes a file (`find -exec`/`-ok`/`-delete`/`-fprint`, `rg --pre`, `git grep -O`, `git -c …` or `--config-env`, `git diff --output`, `file -C`, `less -o`), nor a run of one of the kit's own scripts without options (`bash`, `sh`, `zsh`, `node`, `pwsh`, `source` or `.` of a file under `.claude/`, or the file itself; `bash -x .claude/doctor.sh` is not exempt); a word with a glob or brace that could match a kit path, or a dynamic word (`$VAR`, `$(…)`) in such a command, counts as naming kit configuration
 - **THEN** the decision is `deny`; this covers writers outside the write-target list, such as `curl -o`, `tar -C`, `touch`, `chmod`, `git apply`, `git update-index` and `git stash pop`
 
 #### Scenario: A git checkout in an unknown directory is denied in an autonomous run
