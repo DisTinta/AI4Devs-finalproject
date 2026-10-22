@@ -103,6 +103,10 @@ jobs:
               - 'ai-specs/templates/autonomous/**'
               - 'ai-specs/skills/verify-against-spec/**'
               - 'ai-specs/skills/adversarial-review/**'
+              - '.claude/skills/verify-against-spec/**'
+              - '.claude/skills/adversarial-review/**'
+              - '.cursor/skills/verify-against-spec/**'
+              - '.cursor/skills/adversarial-review/**'
 
       - uses: actions/setup-node@v4
         with:

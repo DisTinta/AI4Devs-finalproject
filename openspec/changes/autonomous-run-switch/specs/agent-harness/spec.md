@@ -12,10 +12,11 @@ The kit SHALL read `KIT_AUTONOMOUS_RUN` from `.claude/sdd-harness.env`, with `"0
 
 With the switch `"0"` and outside a Cursor background agent, every hook decision SHALL be the same as before this change for the same input, except for these always-on items:
 - the shell guard reads commands, not text (it no longer matches text that is not executed);
-- the `sdd-harness.env` rule fires only when that file is the write target;
+- the `sdd-harness.env` rule fires only when that file is the write target, and removing or replacing it counts as a write;
 - install detection also recognises flags before package names;
 - the shell guard leaves removals inside the session scratchpad undecided;
-- example environment files can be read and edited;
+- example environment files can be read and edited, and so can source files whose name merely contains `.env` (`config.env.ts`: an environment file is `.env`, `.env.<suffix>`, `<name>.env` or `<name>.env.<suffix>`, except an `example`/`sample` suffix or a source-code last extension);
+- secret files are also checked for `Grep` and `Glob` calls, in Claude Code and in Cursor, in any letter case;
 - known test sentinels can be allowlisted in the prompt secret scan.
 
 When the switch is `"1"`, the session-start context SHALL begin with a warning line that names `KIT_AUTONOMOUS_RUN`.
@@ -283,8 +284,8 @@ Outside unattended mode the gate keeps its current rule: any report lets the edi
 - **THEN** the decision is `deny`, and for the migration the reason asks for a new migration
 
 #### Scenario: A protected path is recognised in any spelling
-- **WHEN** an unattended edit names a main spec, kit doctrine, an existing test or a file under `PATH_SOURCE` through another spelling of its path (`./` or `..` segments, doubled slashes, `\\?\` or `\\localhost\C$\` prefixes, a `/cygdrive/` or `/proc/cygdrive/` form, a different letter case on Windows, or a junction or symbolic link into the repository)
-- **THEN** the decision is the one the canonical repository-relative path gets
+- **WHEN** an unattended edit names a main spec, kit doctrine, an existing test or a file under `PATH_SOURCE` through another spelling of its path (`./` segments, doubled slashes, `\\?\` or `\\localhost\C$\` prefixes, a `/cygdrive/` or `/proc/cygdrive/` form, a leading `~`, a different letter case on Windows, or a junction or symbolic link into the repository)
+- **THEN** the decision is the one the canonical repository-relative path gets; a path with a `..` segment is denied outright, as before this change
 
 ### Requirement: The agent merges only in an autonomous run and under deterministic conditions
 
@@ -492,15 +493,15 @@ Outside an autonomous run these commands and edits are not affected.
 - **THEN** the decision is `deny`
 
 #### Scenario: A gh or git alias is not defined in an autonomous run
-- **WHEN** an autonomous run runs `gh alias set`, `gh alias import`, `gh alias delete`, a `git config` that writes an `alias.*` key, or `git -c alias.<name>=…`
+- **WHEN** an autonomous run runs `gh alias set`, `gh alias import`, `gh alias delete`, a `git config` that writes an `alias.*` key, `git -c alias.<name>=…`, `git --config-env`, or sets `GIT_CONFIG_PARAMETERS` or `GIT_CONFIG_KEY_<n>` to an alias
 - **THEN** the decision is `deny`, and the reason says an alias could hide a merge from the merge gate
 
 #### Scenario: Interpreter text that names kit configuration is denied in an autonomous run
-- **WHEN** an autonomous run passes interpreter text (`python -c`, `node -e`, `perl -e`, `ruby -e`, PowerShell or cmd text, `eval`) that names `.claude/`, `.cursor/`, `sdd-harness.env` or the autonomous profile
+- **WHEN** an autonomous run passes interpreter text that names `.claude/`, `.cursor/`, `sdd-harness.env` or the autonomous profile, whatever the interpreter or the flag that introduces the text (`python -c`, `python3 -Ic`, `node -e`, `node --eval`, `node -p`, `perl -E`, `ruby -e`, PowerShell or cmd text, `eval`…)
 - **THEN** the decision is `deny`
 
 #### Scenario: An unknown command that names kit configuration is denied in an autonomous run
-- **WHEN** an autonomous run runs a command that names a kit-configuration path and is not one of the read-only commands (`cat`, `head`, `tail`, `less`, `grep`, `rg`, `ls`, `stat`, `file`, `wc`, `diff`, `find` without `-exec` or `-delete`, `jq`, and `git diff`, `show`, `log`, `status`, `ls-files`, `blame`) nor the kit's own tools (`bash .claude/doctor.sh`, `node .claude/hooks/…`)
+- **WHEN** an autonomous run runs a command any of whose words contains a kit-configuration path, and the command is neither on the guard's read-only list (commands that only read, such as `cat`, `head`, `tail`, `less`, `grep`, `rg`, `ls`, `stat`, `file`, `wc`, `diff`, `echo`, `find`, `jq`, and the read-only git subcommands `diff`, `show`, `log`, `status`, `ls-files`, `blame`, `grep`, `rev-parse`, `cat-file`, `ls-tree`) used without an option that runs a command or writes a file (`find -exec`/`-ok`/`-delete`/`-fprint`, `rg --pre`, `git grep -O`, `git -c …` or `--config-env`, `git diff --output`, `file -C`, `less -o`), nor a run of one of the kit's own scripts (`bash`, `sh`, `node`, `pwsh` or `source` of a file under `.claude/`)
 - **THEN** the decision is `deny`; this covers writers outside the write-target list, such as `curl -o`, `tar -C`, `touch`, `chmod`, `git apply`, `git update-index` and `git stash pop`
 
 #### Scenario: A git checkout in an unknown directory is denied in an autonomous run
@@ -667,8 +668,8 @@ In an autonomous run, these count as kit configuration, so the rules that protec
 - **THEN** the decision is `deny` and the reason asks for plain simple commands
 
 #### Scenario: A line too costly to check is denied in unattended mode
-- **WHEN** unattended mode receives a line with more interpreter texts or commands than the guard's cap, or one whose checks would run past the hook's own time budget (for example many `eval true;` before a merge)
-- **THEN** the shell guard and the merge gate deny with a reason that names the cap, before the client's hook timeout; with the switch `"0"` such a line keeps today's decision
+- **WHEN** unattended mode receives a line over one of the caps (more than 20 interpreter texts, 200 commands, 64 KB of interpreter text, or 16 git lookups to resolve paths), or one whose checks would run past the hook's own time budget (for example many `eval true;` before a merge)
+- **THEN** the shell guard and the merge gate deny with a reason that names the cap or the budget, before the client's hook timeout; parser output that cannot be read is denied too; with the switch `"0"` such a line keeps today's decision
 
 ### Requirement: The shell guard leaves removals inside the session scratchpad undecided
 

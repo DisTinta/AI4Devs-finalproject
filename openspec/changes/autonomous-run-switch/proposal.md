@@ -18,7 +18,9 @@ The Entrega 2 experiment (ADR `20261016-autonomous-workflow-run-entrega-2`, `doc
   - install detection also catches flags before package names;
   - the shell guard leaves `rm` inside the session scratchpad undecided;
   - `.env.example` / `.env.sample` can be read and edited;
-  - a project allowlist exempts known test sentinels from the prompt secret scan.
+  - a project allowlist exempts known test sentinels from the prompt secret scan;
+  - removing or replacing the kit contract counts as writing it;
+  - secret files are also checked for `Grep` and `Glob` calls (added by the pre-merge reviews).
 - In an autonomous run (switch `"1"` only), `docs/base-standards.md` §3 rules 2, 3, 4, 8 and 9 and the "agent never merges" item of the mandatory steps are relaxed:
   - the spec auditor's `APPROVED` replaces the human plan gate. The spec-audit gate requires it before code or tests are written in all of unattended mode, and denies when the branch has no determinable change;
   - merges go through the gate;

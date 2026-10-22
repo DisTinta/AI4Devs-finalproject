@@ -19,7 +19,7 @@ siempre como `"0"`; el `"1"` es un cambio local que no se hace commit.
 
 | Modo | Cuándo | Qué cambia |
 |---|---|---|
-| **Interactivo** | `KIT_AUTONOMOUS_RUN="0"` y sesión normal | Nada respecto a antes: los hooks preguntan donde preguntaban. El agente nunca hace merge |
+| **Interactivo** | `KIT_AUTONOMOUS_RUN="0"` y sesión normal | Lo mismo que antes, salvo lo que está siempre activo (abajo): los hooks preguntan donde preguntaban. El agente nunca hace merge |
 | **Desatendido** | `KIT_AUTONOMOUS_RUN="1"`, o un *background agent* de Cursor aunque el interruptor esté a `"0"` | Ningún hook deja una confirmación pendiente: cada pregunta se convierte en una comprobación automática que permite o deniega, o en una denegación que dice qué hacer en su lugar. Sin `jq`, los hooks deniegan en vez de desactivarse. La puerta del `spec-auditor` exige `APPROVED` antes de escribir código o tests |
 | **Ejecución autónoma** | Solo `KIT_AUTONOMOUS_RUN="1"` | Todo lo del modo desatendido, más: el agente puede hacer merge a través de la puerta de merge, se relaja la doctrina de la sección 2, y se protege la configuración del kit y el propio interruptor |
 
@@ -40,7 +40,7 @@ Con el interruptor a `"1"`, el inicio de cada sesión lo avisa (`⚠ autonomous 
   la última auditoría es `APPROVED`. Un test existente solo se puede cambiar si `tasks.md` lo nombra o
   si lo creó la propia rama. La doctrina del kit y las migraciones ya versionadas no se tocan.
 - **Puerta de merge:** ver la sección 5.
-- **Lecturas de secretos:** `.env` y similares siguen denegados, también a través de `Grep` y `Glob`.
+- **Lecturas de secretos:** `.env` y similares siguen denegados, también a través de `Grep` y `Glob` (en Cursor, `Grep`), en los dos modos.
   `.env.example` y `.env.sample` se pueden leer y editar en los dos modos.
 - **Líneas demasiado costosas de comprobar:** una línea con demasiados textos de intérprete o comandos
   (por ejemplo, cientos de `eval` delante de un merge) se deniega antes de que el hook agote su tiempo.
@@ -62,6 +62,24 @@ Con el interruptor a `"1"`, el inicio de cada sesión lo avisa (`⚠ autonomous 
   `node .claude/hooks/…`). Incluye `curl -o`, `tar -C`, `touch`, `chmod`, `git apply`… y también
   `sed`, porque su comando `w` escribe ficheros: para leer la configuración del kit, `cat` o `grep`.
 - Un `git checkout` en un directorio que no se puede resolver (por ejemplo, tras `cd "$X"`).
+- Cualquier palabra de un comando que contenga una ruta del kit, se pase como se pase: `node --eval`,
+  `python3 -Ic`, `perl -E`, `awk`… También pierden la excepción de solo lectura los comandos con una
+  opción que ejecuta o escribe (`rg --pre`, `git -c …`, `git diff --output`, `less -o`, `find -exec`) o
+  con una variable que cambia el programa que se lanza (`GIT_PAGER`, `EDITOR`…). Los scripts del kit
+  se ejecutan sin opciones: `bash .claude/doctor.sh` pasa, `bash -x .claude/doctor.sh` no.
+- Escribir por la shell en `~/.claude/…` o en `.claude/worktrees/`: la memoria se escribe con la
+  herramienta de edición, y una ejecución autónoma no usa worktrees.
+
+### Lo que cuesta cada llamada
+
+Medianas en Windows (Git Bash, 7 ejecuciones), con el interruptor a `"0"`:
+
+| Llamada | Antes de DIS-106 | Ahora |
+|---|---|---|
+| `Bash` (`ls`) | 1,2 s | 0,76 s |
+| `Read` | 0,86 s | 0,47 s |
+| `Grep` / `Glob` | sin hook | 0,50 s |
+| `Edit` | 1,28 s | 1,02 s |
 
 ### Qué está activo siempre, también con el interruptor a `"0"`
 
@@ -73,6 +91,9 @@ Con el interruptor a `"1"`, el inicio de cada sesión lo avisa (`⚠ autonomous 
 - Borrar o sustituir el contrato del kit (`rm .claude/sdd-harness.env`) cuenta como escribirlo, y se
   deniega.
 - `KIT_SECRET_ALLOWLIST` excluye centinelas de test conocidos del escaneo de secretos del prompt.
+- La comprobación de ficheros secretos también se aplica a `Grep` y `Glob`, sin distinguir mayúsculas.
+  Un fichero de entorno es `.env`, `.env.<sufijo>`, `<nombre>.env` o `<nombre>.env.<sufijo>`, salvo los
+  sufijos `example`/`sample` y los ficheros de código (`config.env.ts` se puede leer y editar).
 - En Cursor, los hooks del kit (sección 7).
 
 ## 2. La doctrina que se relaja en una ejecución autónoma

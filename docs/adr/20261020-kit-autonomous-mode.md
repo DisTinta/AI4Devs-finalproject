@@ -81,7 +81,9 @@ record stays as the history of the first run.
   install detection sees flags before the package, removing or replacing the kit contract counts as
   writing it, secret reads are also checked for `Grep` and `Glob`, `.env.example` is readable and
   editable, the secret-scan allowlist, and the hooks in Cursor. The shell guard now parses each line in
-  one Node process: a shell call costs about 0.7 s on Windows, less than before this change (1.2 s).
+  one Node process, and the read and edit hooks avoid most `jq` calls. Windows medians, before this
+  change → now: `Bash` 1.2 → 0.76 s, `Read` 0.86 → 0.47 s, `Edit` 1.28 → 1.02 s; `Grep`/`Glob` had no
+  hook and now take 0.5 s.
 * The author reviews the agent's decisions after the merge, not before. A wrong decision can reach the
   base and need a follow-up change.
 * The `APPROVED` verdict is written by the same session that runs the propose; nothing cryptographic

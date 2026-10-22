@@ -194,3 +194,20 @@ The counts above describe the suite at step 11. After the fixes of `verify-again
 spec files plus `tests/unit/docs/kit-skills.spec.ts`. Full suite on 2026-10-22: 163 files and 1676
 tests passed, 221 skipped (no `DATABASE_URL`); `npm run lint`, `npm run typecheck` and
 `openspec validate autonomous-run-switch --strict` clean.
+
+Scenarios added after step 11 (the table above lists the rest):
+
+| Requirement | Scenario | Test file |
+|---|---|---|
+| No hook leaves a confirmation pending in unattended mode | A match found only in interpreter text names the editing tools | `tests/harness/no-pending-ask.spec.ts` |
+| Rewrites of specs, tests and doctrine are decided without a human in unattended mode | A protected path is recognised in any spelling | `tests/harness/paths-round2.spec.ts` |
+| The agent merges only in an autonomous run and under deterministic conditions | A pull request that renames a file out of the kit configuration is not merged | `tests/harness/merge-gate-hardening.spec.ts` |
+| The kit configuration and the local switch stay untouched in an autonomous run | A path to kit configuration is recognised in any spelling | `tests/harness/guard-round2.spec.ts` |
+| The kit configuration and the local switch stay untouched in an autonomous run | Writers in their alternative syntax are recognised | `tests/harness/guard-round2.spec.ts` |
+| The kit configuration and the local switch stay untouched in an autonomous run | A gh or git alias is not defined in an autonomous run | `tests/harness/guard-round2.spec.ts` |
+| The kit configuration and the local switch stay untouched in an autonomous run | Interpreter text that names kit configuration is denied in an autonomous run | `tests/harness/guard-round2.spec.ts` |
+| The kit configuration and the local switch stay untouched in an autonomous run | An unknown command that names kit configuration is denied in an autonomous run | `tests/harness/guard-round2.spec.ts` |
+| The kit configuration and the local switch stay untouched in an autonomous run | A git checkout in an unknown directory is denied in an autonomous run | `tests/harness/guard-round2.spec.ts` |
+| The shell guard reads commands, not text | Removing the kit contract is a write | `tests/harness/kit-contract-removal.spec.ts` |
+| The shell guard reads commands, not text | A line too costly to check is denied in unattended mode | `tests/harness/guard-round2.spec.ts` |
+| Example environment files are readable and editable | Secret files are not reached through search tools | `tests/harness/paths-round2.spec.ts` |

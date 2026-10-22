@@ -64,3 +64,13 @@ state.
 5. Strengthen the listed tests; restore the `+HEAD` case.
 6. Put U6/U7 in the spec, record the author's approval; update the docs and the CI filter.
 7. Add the addenda and re-run verify-against-spec and this review until no Blocker or Major remains.
+
+## Addendum (2026-10-22): fixes and second run
+Every finding above was fixed in this change (commits `fe369fa`, `1f0adbc`, `c7969bc`, `314633c`) or
+recorded as D in `design.md` → Follow-ups. The second adversarial run (fresh reviewers on `314633c`;
+one hostile-input reviewer was stopped by a safety classifier and replaced by two narrowly scoped
+edge-case runners) found no Blocker. Its Major and Minor findings are the same set listed in
+`2026-10-22-verify-against-spec.md` (R3-1 to R3-11), plus: the evidence for the time guard and two
+caps is missing, the guide and design have stale passages, the step-11 scenario table lacks the ten
+new scenarios, and the CI filter misses the synced skill copies. A third round fixes them; this check
+is then run again.

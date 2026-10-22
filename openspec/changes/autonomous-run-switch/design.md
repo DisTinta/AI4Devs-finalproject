@@ -454,6 +454,9 @@ tools. Decisions do not change, and switch-off reasons stay as they were.
 *Risk accepted:* code that a non-shell interpreter runs (for example
 `node -e "fs.writeFileSync('.claude/…')"`) is matched only by raw patterns, not by the path rules.
 In Claude Code the auto-mode classifier still reviews it; in Cursor it does not. Recorded in Risks.
+*Narrowed by the pre-merge reviews (2026-10-22):* in an autonomous run any word of a non-read-only
+command that contains a kit path, interpreter text included whatever its flag, is denied; what remains
+is a kit path built piece by piece inside the text.
 
 ### D7 — Scratchpad removals get no decision
 
@@ -932,8 +935,8 @@ use worktree isolation. A subagent in a fresh worktree would read that worktree'
   ticket In Review with a Spanish comment and poll with `Monitor`, never with `sleep`. Denials are
   logged (D10).
 - **Interpreter gaps (D6).** Shell interpreters are parsed recursively; the others are matched only
-  by raw patterns, so a file written by `node -e`/`python -c` into `.claude/` is not caught by the path
-  rules. → One interpreter list in `shell-words.mjs`; in Claude Code the classifier is a second gate;
+  by raw patterns. → In an autonomous run, interpreter text that names a kit path is denied (pre-merge
+  reviews); a path built piece by piece is not seen; in Claude Code the classifier is a second gate;
   GitHub branch protection (D20) bounds what can reach the base.
 - **Indirect execution.** A script file written and then run (`bash x.sh`), and writers outside the
   write list (`curl -o`, `install`, `rsync`, `tar -C`, `unzip`), are not inspected by the path rules.
@@ -1033,8 +1036,8 @@ use worktree isolation. A subagent in a fresh worktree would read that worktree'
     run"); the others are tooling or reporting details recorded here only.
 
 **Adversarial review findings (2026-10-21/22, `reports/2026-10-21-adversarial-review.md`, verdict
-FAIL).** Fixed in this change (A), each with a test seen red first, by three parallel agents at the
-author's choice ("Todo, con 4 agentes"):
+FAIL).** Fixed in this change (A), each with a test seen red first. The author chose the full scope
+with parallel agents ("Todo, con 4 agentes"); three agents covered the code and this session the docs:
 - the timeout fail-open: the shell guard and the merge gate match every interpreter text in one
   process, cap the texts, commands and size, and deny before their own timeout in unattended mode
   (scenario "A line too costly to check is denied in unattended mode"); the guard also got faster than
@@ -1056,6 +1059,30 @@ inside interpreter text; scripts written and then run; `git apply`/`git stash po
 the line; a `Grep` over a whole folder; a shell read of `.env.*`; `.cursor/hooks.json` relative commands
 (Cursor runs hooks from the project root); `shell-words.mjs` and `vet-package.mjs` outside Stryker (the
 harness that exercises them spawns bash and is excluded from mutation runs, D15).
+
+**Second review run (2026-10-22, `reports/2026-10-22-verify-against-spec.md`, R3-1 to R3-11).** The
+author chose to run the reviews until clean and to optimise the hook cost in the same round. Fixed in
+this change (A), each with a test seen red first (or a mutation shown to fail where the code already
+held):
+- R3-1: in an autonomous run, any word of a non-read-only command that contains a kit path is denied,
+  whatever the interpreter or flag; only a plain kit script run without options is exempt;
+- R3-2: read-only commands lose the exemption with an option or variable that runs a program or writes;
+- R3-3, R3-6: secret names in any case, wildcards matched against secret-name templates, and one
+  environment-file rule (`is_env_file`) for reads, searches and edits; `config.env.ts` is not one;
+- R3-4: Cursor runs the secret check on `Grep`;
+- R3-5, R3-10, R3-11: URL selectors read like gh, the files query compared with `changedFiles`, the
+  gate uses the parser's caps;
+- R3-7: unreadable parser output (checked with a per-call nonce) denies in unattended mode;
+- R3-8: `~` is expanded; R3-9: `..` stays denied outright (scenario text amended);
+- the evidence: every cap at and one past its limit, the time budgets through test-only process
+  variables (`KIT_GUARD_TIME_BUDGET_S`, `KIT_GATE_TIME_BUDGET_S`, never read from `sdd-harness.env`);
+- cost: Windows medians before this change → now, `Bash` 1.2 → 0.76 s, `Read` 0.86 → 0.47 s, `Edit`
+  1.28 → 1.02 s, `Grep`/`Glob` (new) 0.5 s.
+
+Accepted (D): in an autonomous run, shell writes to `~/.claude/` and `.claude/worktrees/` are denied
+(memory goes through the editing tools; autonomous runs use no worktrees, D21); kit scripts run with
+options (`bash -x .claude/doctor.sh`) are denied; the read-only lists and the alias detection are wider
+than the spec's examples, as the scenarios now say.
 
 ## Open Questions
 
