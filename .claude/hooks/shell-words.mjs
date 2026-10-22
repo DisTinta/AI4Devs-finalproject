@@ -476,6 +476,8 @@ function componentMatches(comp, name) {
 }
 
 const KIT_NAMES = ['.claude', '.cursor', 'sdd-harness.env'];
+// The kit names a directory can have (a cd target cannot be the kit contract file).
+const KIT_DIRS = ['.claude', '.cursor'];
 
 // A Windows 8.3 short name: up to eight characters, `~N`, an extension of up to three. It keeps the
 // first two characters of the long name (without a leading dot), whether it is `CLAUDE~1` or a
@@ -500,14 +502,14 @@ function shortNameUnder(path, dir) {
  * autonomous profile. Too many expansions, or a relative pattern in an unknown directory, count too.
  * Expansions without a wildcard are returned in `literals`, for the caller's literal-path check.
  */
-function globKit(pat, cwd, ctx) {
+function globKit(pat, cwd, ctx, names = KIT_NAMES) {
   const words = expandBraces(pat);
   if (words === null) return { kit: true, literals: [] };
   const literals = [];
   for (const word of words) {
     if (!hasWildcard(word)) { literals.push(unescape(word)); continue; }
     const comps = word.split(/(?<!\\)\//);
-    if (comps.some((comp) => KIT_NAMES.some((name) => componentMatches(comp, name)))) return { kit: true, literals };
+    if (comps.some((comp) => names.some((name) => componentMatches(comp, name)))) return { kit: true, literals };
     if (!ctx.configDir) continue;
     let full;
     const head = unescape(comps[0]);
@@ -531,6 +533,22 @@ function globKit(pat, cwd, ctx) {
     if (k === dir.length) return { kit: true, literals };
   }
   return { kit: false, literals };
+}
+
+/**
+ * The directory a `cd`/`pushd` into a glob or brace leads to: null (unknown) when the pattern could
+ * match kit configuration, else the pattern's first expansion, resolved as written.
+ */
+function globDirectory(pat, cwd, ctx) {
+  const g = globKit(pat, cwd, ctx, KIT_DIRS);
+  if (g.kit) return null;
+  for (const lit of g.literals) {
+    if (kitFragment(lit, ctx)) return null;
+    const abs = resolvePath(lit, false, cwd);
+    if (abs === null || kitConfiguration(abs, ctx)) return null;
+  }
+  const first = expandBraces(pat)?.[0];
+  return first === undefined ? null : resolvePath(unescape(first), false, cwd);
 }
 
 // ── Command names, wrappers and nested commands ──────────────────────────────
@@ -705,7 +723,7 @@ function gitArgs(words) {
     if (v === '-C') { dashC = words[k + 1] ?? null; k += 2; continue; }
     if (v === '-c') { k += 2; continue; }
     if (v.startsWith('--work-tree=')) { workTree = { value: v.slice(12), dynamic: words[k].dynamic }; k++; continue; }
-    if (v === '--work-tree' || v === '--git-dir' || v === '--namespace') { if (v === '--work-tree') workTree = words[k + 1] ?? null; k += 2; continue; }
+    if (v === '--work-tree' || v === '--git-dir' || v === '--namespace' || v === '--config-env') { if (v === '--work-tree') workTree = words[k + 1] ?? null; k += 2; continue; }
     k++;
   }
   return { sub: words[k]?.value ?? '', rest: words.slice(k + 1), dashC, workTree };
@@ -884,20 +902,69 @@ function envAssigns(cmd) {
 }
 
 // Variables that point git or gh at other configuration files, which could define an alias (or
-// include a file that does): set for a git or gh command, they count as an alias definition.
-const CONFIG_SOURCE_ENV = /^(GIT_CONFIG_GLOBAL|GIT_CONFIG_SYSTEM|GIT_CONFIG|GIT_CONFIG_NOSYSTEM|GH_CONFIG_DIR|HOME|XDG_CONFIG_HOME)=/i;
+// include a file that does): set for a git or gh command, they count as an alias definition. Each
+// tool has its own: GIT_CONFIG_NOSYSTEM only drops a file, and git does not read GH_CONFIG_DIR. For
+// git, GIT_EXEC_PATH is the directory of its script commands (mergetool, filter-branch…).
+const CONFIG_SOURCE_ENV = {
+  git: /^(GIT_CONFIG_GLOBAL|GIT_CONFIG_SYSTEM|GIT_CONFIG|GIT_EXEC_PATH|HOME|XDG_CONFIG_HOME)=/i,
+  gh: /^(GH_CONFIG_DIR|HOME|XDG_CONFIG_HOME)=/i,
+};
 
 /** A line that runs git or gh with configuration from another file (`HOME=/tmp/h git m`), or null. */
 function configSourceDefinition(commands) {
-  const tools = (c) => c.name === 'git' || c.name === 'gh';
-  if (!commands.some(tools)) return null;
-  for (const c of commands) {
-    // A prefix assignment reaches its own command; a plain assignment, export or declare, the line.
-    const env = tools(c) || !c.name ? c.assigns : SETS_ENV.has(c.name) ? envAssigns(c) : [];
-    const hit = env.find((a) => CONFIG_SOURCE_ENV.test(a));
-    if (hit) return `configuration files from ${hit.split('=')[0]}`;
+  for (const tool of ['git', 'gh']) {
+    if (!commands.some((c) => c.name === tool)) continue;
+    for (const c of commands) {
+      // A prefix assignment reaches its own command; a plain assignment, export or declare, the line.
+      const env = c.name === tool || !c.name ? c.assigns : SETS_ENV.has(c.name) ? envAssigns(c) : [];
+      const hit = env.find((a) => CONFIG_SOURCE_ENV[tool].test(a));
+      if (hit) return `configuration files from ${hit.split('=')[0]}`;
+    }
   }
   return null;
+}
+
+// git's own commands (porcelain, plumbing and helpers, from `git help -a` and command-list.txt of
+// git 2.45–2.52). Any other subcommand is an alias, from whatever configuration file, or an external
+// git-<name>: either could hide a merge from the merge gate (author's decision 2026-10-22).
+const GIT_BUILTINS = new Set(`add am annotate apply archimport archive backfill bisect blame branch bugreport bundle
+cat-file check-attr check-ignore check-mailmap check-ref-format checkout checkout-index cherry cherry-pick citool
+clean clone column commit commit-graph commit-tree config count-objects credential credential-cache
+credential-cache--daemon credential-store cvsexportcommit cvsimport cvsserver daemon describe diagnose diff
+diff-files diff-index diff-pairs diff-tree difftool fast-export fast-import fetch fetch-pack filter-branch
+fmt-merge-msg for-each-ref for-each-repo format-patch fsck fsck-objects fsmonitor--daemon gc get-tar-commit-id grep
+gui hash-object help hook http-backend http-fetch http-push imap-send index-pack init init-db instaweb
+interpret-trailers last-modified log ls-files ls-remote ls-tree mailinfo mailsplit maintenance merge merge-base
+merge-file merge-index merge-octopus merge-one-file merge-ours merge-recursive merge-recursive-ours
+merge-recursive-theirs merge-resolve merge-subtree merge-tree mergetool mktag mktree multi-pack-index mv name-rev
+notes p4 pack-objects pack-redundant pack-refs patch-id prune prune-packed pull push quiltimport range-diff
+read-tree rebase receive-pack reflog refs remote remote-ext remote-fd remote-ftp remote-ftps remote-http
+remote-https repack replace replay repo request-pull rerere reset restore rev-list rev-parse revert rm scalar
+send-email send-pack sh-i18n--envsubst shell shortlog show show-branch show-index show-ref sparse-checkout stage
+stash status stripspace submodule submodule--helper svn switch symbolic-ref tag unpack-file unpack-objects
+update-index update-ref update-server-info upload-archive upload-archive--writer upload-pack var verify-commit
+verify-pack verify-tag version web--browse whatchanged worktree write-tree`.split(/\s+/));
+
+/**
+ * A shell write to a git configuration file (an alias definition): `.git/config` and any
+ * `<gitdir>/config` or `config.worktree`, `~/.gitconfig`, `~/.config/git/config`,
+ * `$XDG_CONFIG_HOME/git/config`; a `config` in an unknown directory counts too.
+ */
+function gitConfigWrite(t, abs) {
+  const win = process.platform === 'win32';
+  const path = (abs ?? t.value).replace(/\\/g, '/');
+  const s = win ? path.toLowerCase() : path;
+  const last = s.split('/').pop();
+  if (t.glob) {
+    const comps = t.glob.split(/(?<!\\)\//);
+    const comp = comps[comps.length - 1];
+    if (['config', 'config.worktree', '.gitconfig'].some((name) => componentMatches(comp, name))) return true;
+  }
+  if (last === '.gitconfig') return true;
+  if (last !== 'config' && last !== 'config.worktree') return false;
+  if (abs === null || /(^|\/)\.git\/(.+\/)?config(\.worktree)?$/.test(s) || /(^|\/)git\/config$/.test(s)) return true;
+  const dir = abs.slice(0, abs.lastIndexOf('/'));
+  return existsSync(`${dir}/HEAD`) && (existsSync(`${dir}/objects`) || existsSync(`${dir}/commondir`));
 }
 
 /** A gh or git alias definition (or removal), or null. An include can load one too. */
@@ -912,7 +979,12 @@ function aliasDefinition(cmd) {
       const x = v[k];
       if ((x === '-c' || x === '--config-env') && isAlias(v[k + 1] ?? '')) return `git ${x} ${(v[k + 1] ?? '').split('=')[0]}`;
       if (x.startsWith('--config-env=') && isAlias(x.slice(13))) return `git ${x.split('=').slice(0, 2).join('=')}`;
+      if (x.startsWith('--exec-path=')) return 'git --exec-path';
       if (['-c', '-C', '--config-env', '--git-dir', '--work-tree', '--namespace'].includes(x)) k++;
+    }
+    if (k < v.length && !GIT_BUILTINS.has(v[k])) {
+      const sub = v[k].length > 40 ? `${v[k].slice(0, 37)}...` : v[k];
+      return `git ${sub}: not one of git's own commands`;
     }
     if (v[k] !== 'config') return null;
     const rest = v.slice(k + 1);
@@ -1157,8 +1229,11 @@ function analyse(parsed, line, ctx) {
       cmd.cwd = cwd;
       if (cmd.name === 'cd' || cmd.name === 'pushd') {
         const arg = cmd.words.slice(1).find((w) => !/^-[LP]$/.test(w.value));
-        // A glob or a brace (`cd .clau*`, `cd .{claude,x}`) names a directory the shell picks.
-        if (!arg || arg.value === '-' || arg.glob) cwd = null;
+        // A glob or a brace names a directory the shell picks: unknown when it could match kit
+        // configuration (`cd .clau*`, `cd .{claude,x}`), else read as written (`cd packages/*`, the
+        // first expansion of `cd {a,b}`), so the line keeps today's decision.
+        if (!arg || arg.value === '-') cwd = null;
+        else if (arg.glob) cwd = globDirectory(arg.glob, cwd, ctx);
         else cwd = resolvePath(arg.value, arg.dynamic, cwd);
       } else if (cmd.name === 'popd') cwd = null;
     }
@@ -1213,6 +1288,7 @@ function analyse(parsed, line, ctx) {
       const abs = resolvePath(t.value, t.dynamic, cmd.cwd);
       const name = (abs ?? t.value).split('/').pop();
       if (name === 'sdd-harness.env') facts.kitContractWrite = true;
+      if (gitConfigWrite(t, abs)) facts.aliasDefinition.push(`a write to git configuration (${abs ?? t.value})`);
       if (isKitWord(t, cmd.cwd)) facts.kitConfig.push(abs ?? t.value);
     }
     // Rule 5: installs.

@@ -67,33 +67,32 @@ describe('Shell guard: adversarial review round 5', { timeout: 300_000 }, () => 
     expect(merges('X+=1 gh pr merge 61 --merge')).toHaveLength(1);
     expect(merges('GH_REPO+=o/x gh pr merge 61 --merge')[0].ghAssign).toBe(true);
     expect(merges('env GH_REPO+=o/x gh pr merge 61 --merge')[0].ghAssign).toBe(true);
-    expect(alias('GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0+=alias.m GIT_CONFIG_VALUE_0=x git m')).not.toEqual([]);
+    expect(alias('GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0+=alias.m GIT_CONFIG_VALUE_0=x git status')).not.toEqual([]);
     // declare -x, typeset -x, local -x, readonly -x… set the environment like export.
     for (const line of [
-      `declare -x GIT_CONFIG_PARAMETERS="'alias.m=x'"; git m`,
-      `declare -gx GIT_CONFIG_PARAMETERS="'alias.m=x'"; git m`,
-      `typeset -x GIT_CONFIG_PARAMETERS="'alias.m=x'"; git m`,
-      `local -x GIT_CONFIG_KEY_0=alias.m; git m`,
-      `readonly -x GIT_CONFIG_KEY_0=alias.m; git m`,
-      `export GIT_CONFIG_KEY_0+=alias.m; git m`,
+      `declare -x GIT_CONFIG_PARAMETERS="'alias.m=x'"; git status`,
+      `declare -gx GIT_CONFIG_PARAMETERS="'alias.m=x'"; git status`,
+      `typeset -x GIT_CONFIG_PARAMETERS="'alias.m=x'"; git status`,
+      `local -x GIT_CONFIG_KEY_0=alias.m; git status`,
+      `readonly -x GIT_CONFIG_KEY_0=alias.m; git status`,
+      `export GIT_CONFIG_KEY_0+=alias.m; git status`,
     ]) expect(alias(line), line).not.toEqual([]);
     // Configuration files and variables that could load an alias count as alias definitions.
     for (const line of [
-      'GIT_CONFIG_GLOBAL=/tmp/g git m',
-      'GIT_CONFIG_SYSTEM=/tmp/s git m',
-      'GIT_CONFIG=/tmp/c git m',
-      'GIT_CONFIG_NOSYSTEM=1 git m',
-      'HOME=/tmp/h git m',
-      'XDG_CONFIG_HOME=/tmp/x git m',
-      'env HOME=/tmp/h git m',
-      'export HOME=/tmp/h; git m',
-      'HOME=/tmp/h; git m',
-      'GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=include.path GIT_CONFIG_VALUE_0=/tmp/x git m',
+      'GIT_CONFIG_GLOBAL=/tmp/g git status',
+      'GIT_CONFIG_SYSTEM=/tmp/s git status',
+      'GIT_CONFIG=/tmp/c git status',
+      'HOME=/tmp/h git status',
+      'XDG_CONFIG_HOME=/tmp/x git status',
+      'env HOME=/tmp/h git status',
+      'export HOME=/tmp/h; git status',
+      'HOME=/tmp/h; git status',
+      'GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=include.path GIT_CONFIG_VALUE_0=/tmp/x git status',
       'git config include.path /tmp/x',
       'git config --global Include.Path /tmp/x',
       'git config --global includeIf.gitdir:/x/.path /tmp/y',
-      'git -c include.path=/tmp/x m',
-      'git -c includeIf.onbranch:x.path=/tmp/y m',
+      'git -c include.path=/tmp/x status',
+      'git -c includeIf.onbranch:x.path=/tmp/y status',
     ]) expect(alias(line), line).not.toEqual([]);
     // Free: reading the configuration, other keys, and HOME for a command that is not git.
     for (const line of ['git config --get include.path', 'git config user.name x', 'HOME=/tmp/h npm test', 'git status']) {
@@ -101,12 +100,35 @@ describe('Shell guard: adversarial review round 5', { timeout: 300_000 }, () => 
     }
     project = createProject({ env: AUTONOMOUS, git: { branch: 'feature/DIS-9-foo-bar' } });
     await expectDecision(project, [
-      'GIT_CONFIG_KEY_0+=alias.m GIT_CONFIG_COUNT=1 GIT_CONFIG_VALUE_0=x git m',
-      `declare -x GIT_CONFIG_PARAMETERS="'alias.m=x'"; git m`,
-      'GIT_CONFIG_GLOBAL=/tmp/g git m',
-      'HOME=/tmp/h git m',
+      'GIT_CONFIG_KEY_0+=alias.m GIT_CONFIG_COUNT=1 GIT_CONFIG_VALUE_0=x git status',
+      `declare -x GIT_CONFIG_PARAMETERS="'alias.m=x'"; git status`,
+      'GIT_CONFIG_GLOBAL=/tmp/g git status',
+      'HOME=/tmp/h git status',
       'git config include.path /tmp/x',
+      'GIT_CONFIG_SYSTEM=/tmp/s git status',
+      'GIT_CONFIG=/tmp/c git status',
+      'XDG_CONFIG_HOME=/tmp/x git status',
+      `typeset -x GIT_CONFIG_PARAMETERS="'alias.m=x'"; git status`,
+      'git config --global includeIf.gitdir:/x/.path /tmp/y',
+      'git -c include.path=/tmp/x status',
+      'git --config-env alias.m=MERGE_VAR status',
+      'git --config-env=alias.m=MERGE_VAR status',
     ], 'deny', /an alias can hide a merge from the merge gate/);
+    // An array element `NAME[i]=` is read as `NAME=`, in command position and after export/declare.
+    for (const line of [
+      'GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0[0]=alias.m GIT_CONFIG_VALUE_0=x git status',
+      'export GIT_CONFIG_KEY_0[0]=alias.m; git status',
+      `declare -x GIT_CONFIG_PARAMETERS[0]="'alias.m=x'"; git status`,
+      'env GIT_CONFIG_KEY_0[0]=alias.m git status',
+    ]) expect(alias(line), line).not.toEqual([]);
+    for (const line of ['PAGER[0]=x less .claude/x', 'export PAGER[0]=x; less .claude/x', 'declare -x PAGER[0]=x; less .claude/x']) {
+      expect(kitNamed(line), line).not.toEqual([]);
+    }
+    await expectDecision(project, [
+      'GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0[0]=alias.m GIT_CONFIG_VALUE_0=x git status',
+      'export GIT_CONFIG_KEY_0[0]=alias.m; git status',
+    ], 'deny', /an alias can hide a merge from the merge gate/);
+    await expectDecision(project, ['PAGER[0]=x less .claude/x', 'export PAGER[0]=x; less .claude/x'], 'deny', /\.claude\/, \.cursor\/ and the autonomous profile/);
   });
 
   it('The command form is restricted', () => {
@@ -119,10 +141,12 @@ describe('Shell guard: adversarial review round 5', { timeout: 300_000 }, () => 
   });
 
   it('A git checkout in an unknown directory is denied in an autonomous run', async () => {
-    // A cd or pushd into a glob or a brace leaves the directory unknown.
-    for (const line of ['cd .clau* && git checkout main', 'cd .{claude,x} && git checkout main', 'pushd .cl?ude && git checkout main', 'cd src/* && git checkout main']) {
+    // A cd or pushd into a glob or a brace that could match kit configuration leaves the directory
+    // unknown; one that cannot keeps it (author's decision 2026-10-22).
+    for (const line of ['cd .clau* && git checkout main', 'cd .{claude,x} && git checkout main', 'pushd .cl?ude && git checkout main']) {
       expect(parse(line).commands[1].cwd, line).toBeNull();
     }
+    expect(parse('cd src/* && git checkout main').commands[1].cwd).toBe('C:/repo/src/*');
     expect(parse('cd src && git checkout main').commands[1].cwd).toBe('C:/repo/src');
     project = createProject({ env: AUTONOMOUS, git: { branch: 'feature/DIS-9-foo-bar' } });
     await expectDecision(project, ['cd .clau* && git checkout main'], 'deny', /Paths that cannot be resolved \(variables, unknown directory\) count too/);
