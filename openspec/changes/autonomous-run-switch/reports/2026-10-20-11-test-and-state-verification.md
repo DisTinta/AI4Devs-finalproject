@@ -223,3 +223,7 @@ Update after the fifth review round (2026-10-22): 27 harness spec files; full su
 mapped. The long-input timing assertions run in their own serial step (`HOOK_TIMING=1 npx vitest run
 --no-file-parallelism tests/harness/paths-node.spec.ts tests/harness/secrets-round4.spec.ts`, CI step
 "Hook timing"): 12 passed locally.
+
+Update after the sixth review round (2026-10-22): 29 harness spec files; full suite 171 files and
+1727 tests passed, 221 skipped; lint, typecheck and `openspec validate --strict` clean; 110 scenarios
+mapped; the serial "Hook timing" step 12 passed on Windows.

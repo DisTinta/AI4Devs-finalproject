@@ -1136,7 +1136,25 @@ in this change (A), each with a test seen red first or a mutation shown to fail:
 - R5-7, R5-8: `pwsh`/`powershell` of a kit `.ps1` without options is a kit-script run; the spec states
   short names, the program-variable list and any stream name;
 - evidence: every program variable family tested; the assignment position rule pinned; the merge
-  gate's mixed files page tested by mutation; the doctors check `paths.mjs`.
+  gate's mixed files page tested by mutation; the doctors check `paths.mjs` (its test came in round 6).
+
+**Fifth review run (2026-10-22, `reports/2026-10-22-verify-against-spec-5.md`, R6-1 to R6-6).** The
+author decided on 2026-10-22: keep the `+refspec` force push as an always-on item ("Mantenerlo"); narrow
+the over-denials ("Acotarlas": `GIT_CONFIG_NOSYSTEM` out, `GH_CONFIG_DIR`/`HOME`/`XDG_CONFIG_HOME` before
+`gh` kept and specified, a `cd` into a glob counts only when the glob could match a kit path, the 4 KiB
+rule for search patterns only in unattended mode); a generic rule for git subcommands that are not git's
+own (closes aliases from hand-edited config files, `GIT_DIR` and `git -C`); and accept that the timing
+step runs on Linux CI only ("Aceptarlo y documentarlo") — the Windows timing run is done locally and
+recorded in each round's report. Fixed in this change (A), round 6: an outer time limit on `paths.mjs`
+and no blocking `realpath` on network roots; drive-relative paths; the switch-`"0"` fallback keeps the
+input; the tests listed in the report.
+
+Accepted (D), round 6: in an autonomous run, external git commands (`git lfs`, `git flow`, any
+`git-<name>`) are denied by the generic rule; Codemind uses none (no LFS filter in `.gitattributes`), and
+a project that needs one would add it to an allowlist. When `paths.mjs` has already failed, the bash
+fallback keeps the 4 KiB pattern rule with the switch `"0"` too, because its string handling would
+otherwise run past the hook timeout; with `paths.mjs` working, the rule applies in unattended mode only,
+as the author decided. Edit with the switch `"1"` costs 1.43 s (both hooks).
 
 ## Open Questions
 

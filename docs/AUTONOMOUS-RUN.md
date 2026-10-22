@@ -53,8 +53,10 @@ Con el interruptor a `"1"`, el inicio de cada sesión lo avisa (`⚠ autonomous 
   una *junction* o un enlace simbólico que apunte dentro.
 - Las formas alternativas de los comandos que escriben: `cp -t`, `cp --target-directory=`, `ln -t`,
   `install -t`, `sed --in-place`, `sed --expression=…`.
-- Definir un alias de `gh` o de `git` (`gh alias set`, `git config alias.*`, `git -c alias.*=`): un
-  alias podría esconder un merge a la puerta.
+- Definir un alias de `gh` o de `git` (`gh alias set`, `git config alias.*`, `git -c alias.*=`), escribir
+  a mano un fichero de configuración de git (`.git/config`, `~/.gitconfig`) o ejecutar un subcomando de
+  git que no sea de git (`git m`, `git lfs`, `git flow`): un alias o un comando externo podría esconder
+  un merge a la puerta.
 - Texto de un intérprete (`python -c`, `node -e`, `eval`…) que nombre `.claude/`, `.cursor/`,
   `sdd-harness.env` o el perfil.
 - Cualquier comando que nombre la configuración del kit y no sea de solo lectura (`cat`, `grep`, `ls`,
