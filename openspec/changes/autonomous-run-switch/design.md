@@ -437,7 +437,10 @@ flag:
 
 *Why Node:* a correct quote, heredoc and substitution parser in bash would be long and fragile. The
 hooks already depend on Node through `invoke.cjs`. One extra `node` start (~50 ms) per shell command
-is acceptable.
+is acceptable. *Measured during the pre-merge review (2026-10-22):* the first version cost about +1.25 s
+per shell call on Windows, from the jq, base64 and grep processes around the parser. The guard now asks
+`shell-words.mjs --hook-input` for every fact and raw match in one process: `ls` takes about 0.7 s,
+against 1.2 s before this change.
 
 *Alternative rejected:* regex stripping (runs 1–3 of the audit). Every variant either hid executed
 text or erased quoted arguments (findings B-1, N1, N2).
@@ -1018,11 +1021,41 @@ use worktree isolation. A subagent in a fresh worktree would read that worktree'
   - U5: the denial log carries the classifier's verdict when the event has one;
   - V30: without `jq` the switch alone decides unattended mode (D2), now stated in the spec;
   - example env files under `PATH_SOURCE`/`PATH_TESTS` follow the spec-audit gate in unattended mode;
+  - the author approved adding U1–U7 and the jq limit to the spec on 2026-10-21 (answer "Añadirlos
+    al spec", asked during the verify-against-spec fixes); the A fixes were run by four parallel agents
+    at her choice;
   - U6 (`invoke.cjs` passes extra arguments, D13 amendment) and U7 (stricter or reporting-only:
     the `gh api` merge pattern without `gh api`, legacy status contexts on `SUCCESS` only, the
     case-sensitive scratchpad prefix, `git stash push <path>` without `--` as pathless, `doctor.sh` exit 2
     on an unknown option, `doctor.ps1` OK on a confirmed Defender exclusion; with V4, any `git checkout`
-    in an unknown directory is denied in an autonomous run).
+    in an unknown directory is denied in an autonomous run). The `git checkout` case is a spec scenario
+    since the adversarial round ("A git checkout in an unknown directory is denied in an autonomous
+    run"); the others are tooling or reporting details recorded here only.
+
+**Adversarial review findings (2026-10-21/22, `reports/2026-10-21-adversarial-review.md`, verdict
+FAIL).** Fixed in this change (A), each with a test seen red first, by three parallel agents at the
+author's choice ("Todo, con 4 agentes"):
+- the timeout fail-open: the shell guard and the merge gate match every interpreter text in one
+  process, cap the texts, commands and size, and deny before their own timeout in unattended mode
+  (scenario "A line too costly to check is denied in unattended mode"); the guard also got faster than
+  before this change;
+- path spellings and junctions, in the parser and in `lib.sh` `rel_path` (scenarios "A path to kit
+  configuration is recognised in any spelling", "A protected path is recognised in any spelling");
+- `cp -t`, `sed --expression` and other alternative writer syntax; `gh`/`git` aliases; kit paths in
+  interpreter text; unknown commands naming the kit; the force push to the base names the gate;
+- renames and removals out of `.claude/`/`.cursor/` in the merge gate, case-insensitive;
+- `Grep`/`Glob` secret reads, and `fail_closed` in `block-secret-reads.sh`;
+- the weak tests (classifier verdict, main-spec sync after `CHANGES REQUIRED`, background agent on a
+  planned test, `-m -s`/`-m -r`, vetting thresholds at their boundary, `preinstall`/`install`, `npx -p`
+  with a local binary, missing jq in every decision hook, the example-file deny side); the `+HEAD` case
+  restored;
+- the CI `runtime` filter, and the docs (guide, ADR, project-context, readme, the cost estimate above).
+
+Accepted (D), documented in `docs/AUTONOMOUS-RUN.md` §9 and the ADR: a path built piece by piece
+inside interpreter text; scripts written and then run; `git apply`/`git stash pop` with no kit path in
+the line; a `Grep` over a whole folder; a shell read of `.env.*`; `.cursor/hooks.json` relative commands
+(Cursor runs hooks from the project root); `shell-words.mjs` and `vet-package.mjs` outside Stryker (the
+harness that exercises them spawns bash and is excluded from mutation runs, D15).
 
 ## Open Questions
 

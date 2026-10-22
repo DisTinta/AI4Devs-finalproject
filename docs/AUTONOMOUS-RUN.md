@@ -40,8 +40,28 @@ Con el interruptor a `"1"`, el inicio de cada sesión lo avisa (`⚠ autonomous 
   la última auditoría es `APPROVED`. Un test existente solo se puede cambiar si `tasks.md` lo nombra o
   si lo creó la propia rama. La doctrina del kit y las migraciones ya versionadas no se tocan.
 - **Puerta de merge:** ver la sección 5.
-- **Lecturas de secretos:** `.env` y similares siguen denegados. `.env.example` y `.env.sample` se
-  pueden leer y editar en los dos modos.
+- **Lecturas de secretos:** `.env` y similares siguen denegados, también a través de `Grep` y `Glob`.
+  `.env.example` y `.env.sample` se pueden leer y editar en los dos modos.
+- **Líneas demasiado costosas de comprobar:** una línea con demasiados textos de intérprete o comandos
+  (por ejemplo, cientos de `eval` delante de un merge) se deniega antes de que el hook agote su tiempo.
+  Un hook que agota su tiempo deja pasar la llamada, así que el tope cierra esa puerta.
+
+### Qué más se deniega en una ejecución autónoma
+
+- Escribir en `.claude/`, `.cursor/` o el perfil autónomo con cualquier forma de la ruta: `./` o `..`,
+  barras dobles, prefijos `\\?\` o `\\localhost\C$\`, `/cygdrive/c/…`, otras mayúsculas en Windows, o
+  una *junction* o un enlace simbólico que apunte dentro.
+- Las formas alternativas de los comandos que escriben: `cp -t`, `cp --target-directory=`, `ln -t`,
+  `install -t`, `sed --in-place`, `sed --expression=…`.
+- Definir un alias de `gh` o de `git` (`gh alias set`, `git config alias.*`, `git -c alias.*=`): un
+  alias podría esconder un merge a la puerta.
+- Texto de un intérprete (`python -c`, `node -e`, `eval`…) que nombre `.claude/`, `.cursor/`,
+  `sdd-harness.env` o el perfil.
+- Cualquier comando que nombre la configuración del kit y no sea de solo lectura (`cat`, `grep`, `ls`,
+  `jq`, `git diff`/`show`/`log`/`status`…) ni una herramienta del propio kit (`bash .claude/doctor.sh`,
+  `node .claude/hooks/…`). Incluye `curl -o`, `tar -C`, `touch`, `chmod`, `git apply`… y también
+  `sed`, porque su comando `w` escribe ficheros: para leer la configuración del kit, `cat` o `grep`.
+- Un `git checkout` en un directorio que no se puede resolver (por ejemplo, tras `cd "$X"`).
 
 ### Qué está activo siempre, también con el interruptor a `"0"`
 
@@ -50,6 +70,8 @@ Con el interruptor a `"1"`, el inicio de cada sesión lo avisa (`⚠ autonomous 
 - Un `rm` o `rmdir` **solo** (sin `&&` ni otros comandos en la línea) sobre rutas literales dentro del
   scratchpad de la sesión no recibe decisión del hook.
 - La detección de instalaciones también ve flags delante del paquete (`npm i -D x`).
+- Borrar o sustituir el contrato del kit (`rm .claude/sdd-harness.env`) cuenta como escribirlo, y se
+  deniega.
 - `KIT_SECRET_ALLOWLIST` excluye centinelas de test conocidos del escaneo de secretos del prompt.
 - En Cursor, los hooks del kit (sección 7).
 
@@ -139,7 +161,11 @@ pwsh .claude/doctor.ps1 -Autonomous -ConfigDir "$HOME\.claude-autonomous"
 Sin `--config-dir`/`-ConfigDir` usa `CLAUDE_CONFIG_DIR`. Comprueba, entre otras cosas: el interruptor y
 la base, el perfil sin reglas `ask` y con la autorización del merge que nombra la base, `jq`, los hooks
 registrados, `gh` autenticado, que la última CI de la base terminó en verde y la protección de la base.
-Sale con código distinto de 0 si hay algún `FAIL`. Docker y las exclusiones de Defender solo dan `WARN`.
+Si la base se protege con *rulesets* en vez de la protección clásica, exige que pidan PR y checks y
+que **no tengan actores con permiso para saltárselas**; sin acceso de administrador no puede leerlos y
+lo dice. La autorización del merge tiene que estar en una sola regla del perfil que nombre a la vez
+`gh pr merge` y la base. Sale con código distinto de 0 si hay algún `FAIL`. Docker y las exclusiones de
+Defender (también desde Git Bash) solo dan `WARN`.
 Si alguna protección del kit está desactivada en local, también es `WARN`: el modo desatendido aplica
 sus reglas igualmente.
 
@@ -175,8 +201,12 @@ el hook `autonomous-merge-gate` lo permite únicamente si:
   deja `quality`, `verify` y `mutation` en `SKIPPED`, y cuenta como verde);
 - GitHub lo da como `MERGEABLE`;
 - lleva algún fichero bajo `openspec/changes/archive/`;
-- no toca nada bajo `.claude/` ni `.cursor/`;
+- no toca nada bajo `.claude/` ni `.cursor/`, en ninguna combinación de mayúsculas, ni renombra o borra
+  nada de ahí (la puerta consulta también la lista de ficheros del PR con su ruta anterior);
 - la base está protegida en GitHub.
+
+Si falla alguna condición, el motivo las nombra todas a la vez. Por eso, aunque la forma del comando
+sea incorrecta, la puerta consulta GitHub antes de denegar (hasta 15 s).
 
 Se deniegan `--squash`, `--rebase`, `--admin`, `--auto`, `--delete-branch`, varios comandos en la
 misma línea, variables `GH_*` y los merges por `gh api` o dentro de texto de un intérprete. Un push
@@ -288,8 +318,14 @@ Cursor:
   documentación de Cursor.
 - **El clasificador.** No es determinista: que haya permitido el merge en la prueba en seco no
   garantiza que lo permita siempre.
-- **Huecos aceptados:** el código que ejecuta un intérprete que no es de shell (`node -e`,
-  `python -c`) solo se compara con patrones de texto; un script escrito y luego ejecutado
-  (`bash x.sh`) y escritores como `curl -o` o `tar -C` no se inspeccionan; la lectura de un `.env.*` por
-  la shell (`cat .env.local`) no la para ningún hook. En Claude Code queda el clasificador; en los dos
-  clientes, la protección de la rama base.
+- **Huecos aceptados:**
+  - el código que ejecuta un intérprete que no es de shell (`node -e`, `python -c`) solo se compara
+    con patrones de texto: en una ejecución autónoma se deniega si nombra la configuración del kit, pero
+    una ruta construida por partes no se ve;
+  - un script escrito y luego ejecutado (`bash x.sh`, `source x.sh`) no se inspecciona por dentro;
+  - `git apply` o `git stash pop` sin ninguna ruta del kit en la línea no se deciden;
+  - una búsqueda con `Grep` sobre una carpeta entera, sin patrón de ficheros, no se puede decidir: el
+    hook no sabe qué ficheros tocará;
+  - la lectura de un `.env.*` por la shell (`cat .env.local`) no la para ningún hook.
+
+  En Claude Code queda el clasificador; en los dos clientes, la protección de la rama base.

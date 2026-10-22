@@ -282,6 +282,10 @@ Outside unattended mode the gate keeps its current rule: any report lets the edi
 - **WHEN** an autonomous run edits `docs/base-standards.md`, or a migration file tracked by git
 - **THEN** the decision is `deny`, and for the migration the reason asks for a new migration
 
+#### Scenario: A protected path is recognised in any spelling
+- **WHEN** an unattended edit names a main spec, kit doctrine, an existing test or a file under `PATH_SOURCE` through another spelling of its path (`./` or `..` segments, doubled slashes, `\\?\` or `\\localhost\C$\` prefixes, a `/cygdrive/` or `/proc/cygdrive/` form, a different letter case on Windows, or a junction or symbolic link into the repository)
+- **THEN** the decision is the one the canonical repository-relative path gets
+
 ### Requirement: The agent merges only in an autonomous run and under deterministic conditions
 
 A command line SHALL count as a merge command when any of these holds:
@@ -392,6 +396,10 @@ Each denial SHALL name every condition that failed. With the switch `"0"` outsid
 - **WHEN** the switch is `"0"`, outside a Cursor background agent, and the command is `gh pr merge 61 --merge`
 - **THEN** the merge gate returns no decision
 
+#### Scenario: A pull request that renames a file out of the kit configuration is not merged
+- **WHEN** a pull request renames or removes a file under `.claude/` or `.cursor/` (any letter case), so its new path is outside them
+- **THEN** the decision is `deny` and the reason names the kit-configuration condition; a failed query of the file history denies too
+
 ### Requirement: The kit configuration and the local switch stay untouched in an autonomous run
 
 In an autonomous run, a path, resolved as stated in "The shell guard reads commands, not text" (working directory, `git -C`, `cd`), is **kit configuration** when either:
@@ -474,6 +482,30 @@ Outside an autonomous run these commands and edits are not affected.
 #### Scenario: Outside an autonomous run kit files can be committed
 - **WHEN** the switch is `"0"` and the command is `git add .claude/hooks/lib.sh`
 - **THEN** the shell guard returns no decision
+
+#### Scenario: A path to kit configuration is recognised in any spelling
+- **WHEN** an autonomous run writes to `.claude/` or `.cursor/` through `./` or `..` segments, doubled slashes, a `\\?\` or `\\localhost\C$\` prefix, a `/cygdrive/` or `/proc/cygdrive/` form, a different letter case on Windows, or a junction or symbolic link that points into them
+- **THEN** the decision is `deny`, as for the plain path
+
+#### Scenario: Writers in their alternative syntax are recognised
+- **WHEN** an autonomous run runs `cp -t .claude/hooks x`, `cp --target-directory=.claude/hooks x`, `ln -t`, `install -t`, `mv -t`, `sed -i --expression=… .claude/hooks/lib.sh` or `sed --in-place … .claude/hooks/lib.sh`
+- **THEN** the decision is `deny`
+
+#### Scenario: A gh or git alias is not defined in an autonomous run
+- **WHEN** an autonomous run runs `gh alias set`, `gh alias import`, `gh alias delete`, a `git config` that writes an `alias.*` key, or `git -c alias.<name>=…`
+- **THEN** the decision is `deny`, and the reason says an alias could hide a merge from the merge gate
+
+#### Scenario: Interpreter text that names kit configuration is denied in an autonomous run
+- **WHEN** an autonomous run passes interpreter text (`python -c`, `node -e`, `perl -e`, `ruby -e`, PowerShell or cmd text, `eval`) that names `.claude/`, `.cursor/`, `sdd-harness.env` or the autonomous profile
+- **THEN** the decision is `deny`
+
+#### Scenario: An unknown command that names kit configuration is denied in an autonomous run
+- **WHEN** an autonomous run runs a command that names a kit-configuration path and is not one of the read-only commands (`cat`, `head`, `tail`, `less`, `grep`, `rg`, `ls`, `stat`, `file`, `wc`, `diff`, `find` without `-exec` or `-delete`, `jq`, and `git diff`, `show`, `log`, `status`, `ls-files`, `blame`) nor the kit's own tools (`bash .claude/doctor.sh`, `node .claude/hooks/…`)
+- **THEN** the decision is `deny`; this covers writers outside the write-target list, such as `curl -o`, `tar -C`, `touch`, `chmod`, `git apply`, `git update-index` and `git stash pop`
+
+#### Scenario: A git checkout in an unknown directory is denied in an autonomous run
+- **WHEN** an autonomous run runs `git checkout` after a `cd` to a directory that cannot be resolved (for example `cd "$X" && git checkout main`)
+- **THEN** the decision is `deny`, because a path that cannot be resolved counts as kit configuration
 
 ### Requirement: The shell guard reads commands, not text
 
@@ -634,6 +666,10 @@ In an autonomous run, these count as kit configuration, so the rules that protec
 - **WHEN** an autonomous run receives `cat <(ls)`, or a line with unbalanced quotes
 - **THEN** the decision is `deny` and the reason asks for plain simple commands
 
+#### Scenario: A line too costly to check is denied in unattended mode
+- **WHEN** unattended mode receives a line with more interpreter texts or commands than the guard's cap, or one whose checks would run past the hook's own time budget (for example many `eval true;` before a merge)
+- **THEN** the shell guard and the merge gate deny with a reason that names the cap, before the client's hook timeout; with the switch `"0"` such a line keeps today's decision
+
 ### Requirement: The shell guard leaves removals inside the session scratchpad undecided
 
 Always on. When the hook input provides the session's scratchpad directory, the shell guard SHALL return no decision for a line that is one `rm` or `rmdir` simple command whose every target is an explicit path inside that directory. Targets are read from its words with the quotes removed. The normal permission flow then applies. The current behaviour SHALL apply when:
@@ -665,6 +701,10 @@ Always on. `.env.example` and `.env.sample` files (at any depth) SHALL NOT be tr
 #### Scenario: Real environment and secret files stay denied
 - **WHEN** the agent reads `<repo>/.env`, `<repo>/.env.local`, `<repo>/config/.env.production`, `<repo>/secrets/api.key` or `<repo>/secrets/x.env.example`, or edits `<repo>/secrets/x.env.example`
 - **THEN** the decision is `deny`
+
+#### Scenario: Secret files are not reached through search tools
+- **WHEN** a `Grep` or `Glob` call targets a real environment file other than an example (for example `.env.ci` or `.env.prod`) or a secret location, through its path, glob or pattern
+- **THEN** the secret-read hook denies it, as it does for `Read`; `.env.example` stays reachable
 
 ### Requirement: Known test sentinels can be exempted from the prompt secret scan
 

@@ -153,3 +153,11 @@ here: the findings above sit in cases the tests do not exercise.
 **Not conformant yet.** Thirteen bypasses (V1–V13) and seventeen behaviour gaps (V14–V31) are fixed in
 this change (task 14.2). Each gets a test first and its A/B/C/D destination in `design.md` →
 Follow-ups. U1–U7 are either added to the spec or removed, as recorded there.
+
+## Addendum (2026-10-22): fixes
+Every finding V1–V28, V30–V31 was fixed in this change with a test seen red first (commits `db9afa9`,
+`c086116`, `90beebe`, `241b9b1`, `f4de47b`); U2 and U4 were removed from the code; U1, U3, U5, U6,
+U7 and the jq limit were added to the spec or recorded as D with the author's approval
+(`design.md` → Follow-ups). The adversarial review then found further gaps, fixed in the same change
+(see its report and addendum). The second run of this check follows in
+`2026-10-22-verify-against-spec.md`.

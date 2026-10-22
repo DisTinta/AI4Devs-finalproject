@@ -94,3 +94,13 @@ The change is **demonstrably working**: every scenario has a passing test that r
 scripts, the live session and the merge dry run of step 12 behaved as specified, and the later commits
 were exercised against the real repository. The gaps above are recorded in `docs/AUTONOMOUS-RUN.md`
 §9. No screenshot or other file was left at the repository root.
+
+## Addendum (2026-10-22)
+The verify-against-spec and adversarial-review fixes changed the hooks after this report (`db9afa9`
+onwards). Their behaviour is demonstrated by the harness, which runs the real scripts: 110 scenarios,
+each with a test seen red before its fix and green after (agents' reports in this session), and the
+full suite green (163 files, 1676 tests). The new decisions were also exercised against throwaway
+copies of the hooks by the adversarial reviewers' probes (scratchpad `adv2/`, `r2/`): the padded line
+(`eval true; ` ×1000 before a merge) is denied in about 1 s in an autonomous run; a `\?\`, UNC or
+junction path into `.claude/` is denied; a pull request that renames a file out of `.claude/` is denied.
+The Bash guard's cost on Windows went from 1.2 s (base) and 2.4 s (first version) to about 0.7 s per call.

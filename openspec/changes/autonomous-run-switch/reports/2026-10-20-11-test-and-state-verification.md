@@ -187,3 +187,10 @@ The template test of task 10.2 ("the autonomous profile template") is not a name
 ## Outcome
 - Status: PASS
 - Blocking issues: none
+
+## Addendum (2026-10-22, after the pre-merge review fixes)
+The counts above describe the suite at step 11. After the fixes of `verify-against-spec` and
+`adversarial-review` the delta has 110 scenarios, each mapped to a test of the same name, in 21 harness
+spec files plus `tests/unit/docs/kit-skills.spec.ts`. Full suite on 2026-10-22: 163 files and 1676
+tests passed, 221 skipped (no `DATABASE_URL`); `npm run lint`, `npm run typecheck` and
+`openspec validate autonomous-run-switch --strict` clean.

@@ -78,17 +78,23 @@ record stays as the history of the first run.
 ## Consequences
 * With the switch `"0"` nothing changes for interactive use, except the items that are always on: the
   shell guard reads commands instead of text, a lone `rm` in the session scratchpad gets no decision,
-  install detection sees flags before the package, `.env.example` is readable and editable, the
-  secret-scan allowlist, and the hooks in Cursor.
+  install detection sees flags before the package, removing or replacing the kit contract counts as
+  writing it, secret reads are also checked for `Grep` and `Glob`, `.env.example` is readable and
+  editable, the secret-scan allowlist, and the hooks in Cursor. The shell guard now parses each line in
+  one Node process: a shell call costs about 0.7 s on Windows, less than before this change (1.2 s).
 * The author reviews the agent's decisions after the merge, not before. A wrong decision can reach the
   base and need a follow-up change.
 * The `APPROVED` verdict is written by the same session that runs the propose; nothing cryptographic
   ties it to the `spec-auditor`. The pre-merge reviews and the author's review of the PR are the check.
 * The auto-mode classifier is not deterministic. When it denies a merge the ticket stops In Review, and
   the denial is logged in `.claude/autonomous-denials.log`.
-* Gaps accepted and documented: code run by non-shell interpreters is matched only by raw patterns;
-  scripts written and then run are not inspected; a shell read of `.env.*` is not stopped by a hook. In
-  Claude Code the classifier remains; in both clients, the base-branch protection.
+* The guard is a list of what it recognises, so it can never be complete. The pre-merge reviews closed
+  the forms they found (path spellings and junctions, aliases, alternative writer syntax, kit paths in
+  interpreter text, unknown commands naming the kit, a line padded until the hook times out). Gaps
+  accepted and documented in `docs/AUTONOMOUS-RUN.md` §9: a path built piece by piece inside
+  interpreter text; scripts written and then run; `git apply` or `git stash pop` with no kit path in
+  the line; a `Grep` over a whole folder; a shell read of `.env.*`. In Claude Code the classifier
+  remains; in both clients, the base-branch protection.
 * `enforce_admins` binds the author too: a direct push or a merge on red CI needs the protection
   switched off first in the web UI.
 * The switch, the profile and the protection are set by hand. Forgetting to set the switch back to

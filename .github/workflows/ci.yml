@@ -96,7 +96,13 @@ jobs:
               - '.github/workflows/ci.yml'
               # The kit hooks are tested by tests/harness (autonomous-run-switch, design D15).
               - '.claude/hooks/**'
+              - '.claude/settings.json'
+              - '.claude/sdd-harness.env'
+              - '.claude/doctor.sh'
               - '.cursor/hooks.json'
+              - 'ai-specs/templates/autonomous/**'
+              - 'ai-specs/skills/verify-against-spec/**'
+              - 'ai-specs/skills/adversarial-review/**'
 
       - uses: actions/setup-node@v4
         with:

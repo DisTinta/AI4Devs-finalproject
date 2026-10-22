@@ -1310,9 +1310,13 @@ services that must be started first, quirks of the local environment.
   4 (only tests named in `tasks.md` or created on the branch change), 8 (the agent writes the "why"
   and marks it) and 9 (the agent merges through the gate), and the "agent never merges" item of
   `docs/openspec-tasks-mandatory-steps.md`. A background agent with the switch `"0"` gets none of the
-  relaxations. Always on: the shell guard parses commands (`shell-words.mjs`), a lone `rm` in the
-  session scratchpad gets no decision, `.env.example` is readable, `KIT_SECRET_ALLOWLIST`, and the
-  hooks in Cursor (`.cursor/hooks.json`, `invoke.cjs --client cursor`). Denials of a run go to the
+  relaxations. Always on: the shell guard parses commands (`shell-words.mjs`, one Node process per
+  line), install detection sees flags before the package (`npm i -D x` asks), removing the kit
+  contract is a write, a lone `rm` in the session scratchpad gets no decision, `.env.example` is
+  readable, secret reads are checked for `Grep`/`Glob` too, `KIT_SECRET_ALLOWLIST`, and the hooks in
+  Cursor (`.cursor/hooks.json`, `invoke.cjs --client cursor`). In an autonomous run the guard also
+  denies kit paths in any spelling (junctions, UNC, case), `gh`/`git` aliases, kit paths in interpreter
+  text, any non-read-only command naming a kit path (including `sed`), and lines too costly to check. Denials of a run go to the
   untracked `.claude/autonomous-denials.log`. `doctor.sh --autonomous` / `doctor.ps1 -Autonomous` is
   the preflight; it reads the base protection, so the active gh account must have admin access
   (`DisTinta`). A kit update replaces `lib.sh`, every hook under `.claude/hooks/` (new:
