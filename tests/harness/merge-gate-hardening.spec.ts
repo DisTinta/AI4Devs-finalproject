@@ -271,6 +271,8 @@ describe('The merge gate is not bypassed by alternative forms (verify 2026-10-21
     ['an HTML page', '<html>rate limited</html>' + String.fromCharCode(10)],
     ['an empty output', ''],
     ['a JSON page of the wrong shape', '{"message":"API rate limit exceeded","documentation_url":"https://docs.github.com"}' + String.fromCharCode(10)],
+    // One valid page line covering every changed file plus garbage: the garbage line alone makes it unread.
+    ['a mixed output (a valid page line plus garbage)', '2 true' + String.fromCharCode(10) + '<html>rate limited</html>' + String.fromCharCode(10)],
   ] as const) {
     it(`A pull request that renames a file out of the kit configuration is not merged: a file list read as ${label} with exit 0 denies`, async () => {
       const r = await gateWithFiles('gh pr merge 61 --merge', output, prViewJson(), 'raw');
