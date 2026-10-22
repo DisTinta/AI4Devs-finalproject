@@ -28,29 +28,28 @@ PARSE=$(parse_command "$COMMAND" "$CWD" "")
 # (unbounded, as before) and over the whole text with line breaks joined, so a merge split across
 # lines is caught; there the gaps between the words are bounded so distant prose does not match.
 # Every text is matched in one jq process (finding: one process per text let a long line outlast the
-# 60 s hook timeout). Above MAX_TEXTS texts or MAX_TEXT_CHARS characters the line is denied unread.
-MAX_TEXTS=100
-MAX_TEXT_CHARS=200000
+# 60 s hook timeout). The cost caps are the shell guard's own (R3-11): the parser measures the line
+# against its LIMITS (interpreter texts, commands, interpreter characters, git lookups) and names the
+# cap it exceeds in .facts.tooCostly, so both hooks deny the same lines with the same reason.
+COSTLY=$(printf '%s' "$PARSE" | jq -r 'if (.facts.tooCostly | type) == "string" then .facts.tooCostly else "the parser did not measure the line" end')
+[[ -z "$COSTLY" ]] || deny "Merge gate: the line is too costly to check (${COSTLY}), so it is denied in unattended mode; split it into shorter commands."
 # The hook timeout is 60 s: past this many seconds the gate denies instead of starting more work.
+# KIT_GATE_TIME_BUDGET_S, from the process environment only (lib.sh never loads it from
+# sdd-harness.env), lets the tests lower the budget; it can never raise it.
 TIME_GUARD=40
+if [[ "${KIT_GATE_TIME_BUDGET_S:-}" =~ ^[0-9]+$ ]] && (( 10#$KIT_GATE_TIME_BUDGET_S < TIME_GUARD )); then
+  TIME_GUARD=$(( 10#$KIT_GATE_TIME_BUDGET_S ))
+fi
 too_slow() {
-  (( SECONDS < TIME_GUARD )) || deny "Merge gate: the line is too costly to check (${SECONDS} s spent, the hook timeout is 60 s), so it is denied; run gh pr merge <n> --merge alone."
+  (( SECONDS < TIME_GUARD )) || deny "Merge gate: the line is too costly to check (${SECONDS} s spent; the gate's time budget is ${TIME_GUARD} s, the hook timeout is 60 s), so it is denied; run gh pr merge <n> --merge alone."
 }
-MATCH=$(printf '%s' "$PARSE" | jq -r --argjson maxn "$MAX_TEXTS" --argjson maxc "$MAX_TEXT_CHARS" '
+MATCH=$(printf '%s' "$PARSE" | jq -r '
   def api: test("/pulls/[0-9]+/merge|mergePullRequest|enablePullRequestAutoMerge");
   [.rawInterpreterText[]? | strings] as $t |
-  if ($t | length) > $maxn or ($t | map(length) | add // 0) > $maxc then
-    "costly \($t | length) \($t | map(length) | add // 0)"
-  else
-    [ ((.facts.merges // []) | length),
-      (if ($t | any(api)) then 1 else 0 end),
-      (if ($t | any(test("\\bgh(\\.exe)?\\b.*\\bpr\\b.*\\bmerge\\b") or (gsub("[\r\n]"; " ") | test("\\bgh(\\.exe)?\\b.{0,120}\\bpr\\b.{0,120}\\bmerge\\b")))) then 1 else 0 end)
-    ] | "ok \(join(" "))"
-  end')
-if [[ "$MATCH" == costly* ]]; then
-  read -r _ n c <<< "$MATCH"
-  deny "Merge gate: the line is too costly to check (${n} interpreter texts, ${c} characters; at most ${MAX_TEXTS} texts and ${MAX_TEXT_CHARS} characters), so it is denied in unattended mode; split it into shorter commands."
-fi
+  [ ((.facts.merges // []) | length),
+    (if ($t | any(api)) then 1 else 0 end),
+    (if ($t | any(test("\\bgh(\\.exe)?\\b.*\\bpr\\b.*\\bmerge\\b") or (gsub("[\r\n]"; " ") | test("\\bgh(\\.exe)?\\b.{0,120}\\bpr\\b.{0,120}\\bmerge\\b")))) then 1 else 0 end)
+  ] | "ok \(join(" "))"')
 read -r _ MERGES API_MERGE RAW_MERGE <<< "$MATCH"
 [[ "$MERGES" =~ ^[0-9]+$ && "$API_MERGE" =~ ^[01]$ && "$RAW_MERGE" =~ ^[01]$ ]] || deny "Merge gate: the line could not be checked for merges, so it is denied."
 printf '%s' "$COMMAND" | grep -qE '/pulls/[0-9]+/merge|mergePullRequest|enablePullRequestAutoMerge' && API_MERGE=1
@@ -107,14 +106,28 @@ QCWD="${QCWD:-$CWD}"
 # The protection checked is that of the pull request's own base (spec: "the base branch is
 # protected on GitHub" for that pull request). A URL selector names its repository, and gh pr view /
 # gh pr merge follow the URL whatever the cwd or -R, so the protection query follows it too.
+# gh reads a URL as Go's url.Parse does (R3-5): the scheme (http or https) in any case, the host
+# lower-cased without userinfo, port or a leading "www.", and a path /<owner>/<repo>/pull/<n> that
+# may go on (/files) or carry a query or fragment. Any other selector with a scheme is denied, so
+# the queries never fall back to the cwd's repository while gh merges another.
 PROT_REPO="$REPO"
-if [[ "$SELECTOR" =~ ^https?://([^/]+)/([^/]+)/([^/]+)/pull/[0-9]+ ]]; then
-  url_host="${BASH_REMATCH[1],,}"
-  if [[ "$url_host" == "github.com" || "$url_host" == "www.github.com" ]]; then
-    PROT_REPO="${BASH_REMATCH[2]}/${BASH_REMATCH[3]}"
+PR_NUMBER=""
+if [[ "$SELECTOR" =~ ^[A-Za-z][A-Za-z0-9+.-]*: ]]; then
+  if [[ "$SELECTOR" =~ ^[Hh][Tt][Tt][Pp]([Ss])?://([^/?#@]*@)?([A-Za-z0-9.-]+)(:[0-9]+)?/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/pull/([0-9]+)([/?#].*)?$ ]]; then
+    url_host="${BASH_REMATCH[3],,}"
+    url_host="${url_host#www.}"
+    PR_NUMBER="${BASH_REMATCH[7]}"
+    if [[ "$url_host" == "github.com" ]]; then
+      PROT_REPO="${BASH_REMATCH[5]}/${BASH_REMATCH[6]}"
+    else
+      PROT_REPO="${url_host}/${BASH_REMATCH[5]}/${BASH_REMATCH[6]}"
+    fi
   else
-    PROT_REPO="${url_host}/${BASH_REMATCH[2]}/${BASH_REMATCH[3]}"
+    FAILED+=("the pull request URL cannot be read (use https://<host>/<owner>/<repo>/pull/<n> or the number), so GitHub's state was not checked")
+    deny_failed
   fi
+elif [[ "$SELECTOR" =~ ^#?([0-9]+)$ ]]; then
+  PR_NUMBER="${BASH_REMATCH[1]}"
 fi
 
 VIEW_ARGS=(pr view)
@@ -124,15 +137,11 @@ VIEW_ARGS+=(--json baseRefName,mergeable,changedFiles,files,statusCheckRollup)
 
 # gh pr view lists files by their new path only, so a rename out of (or a removal from) the kit
 # configuration is invisible there. The REST file list gives previous_filename and status; its --jq
-# filter, applied by gh to every page, prints "true" for a page that touches no kit path, or the kit
-# paths it touches (old and new names, case-insensitive).
-FILES_JQ='[.[] | (.filename, (.previous_filename // empty)) | strings | select(ascii_downcase | test("^\\.(claude|cursor)/"))] | if length == 0 then "true" else "kit " + join(", ") end'
-PR_NUMBER=""
-if [[ "$SELECTOR" =~ ^#?([0-9]+)$ ]]; then
-  PR_NUMBER="${BASH_REMATCH[1]}"
-elif [[ "$SELECTOR" =~ ^https?://[^/]+/[^/]+/[^/]+/pull/([0-9]+) ]]; then
-  PR_NUMBER="${BASH_REMATCH[1]}"
-fi
+# filter, applied by gh to every page, prints the page's number of entries and then "true" for a
+# page that touches no kit path, or the kit paths it touches (old and new names, case-insensitive).
+# The entries of all pages are counted against changedFiles (R3-10): an empty or truncated list (the
+# REST list stops at 3000 files) is not a clean one.
+FILES_JQ='length as $n | [.[] | (.filename, (.previous_filename // empty)) | strings | select(ascii_downcase | test("^\\.(claude|cursor)/"))] | "\($n) " + (if length == 0 then "true" else "kit " + join(", ") end)'
 NUMBER_ARGS=(pr view)
 [[ -n "$SELECTOR" ]] && NUMBER_ARGS+=("$SELECTOR")
 [[ -n "$REPO" ]] && NUMBER_ARGS+=(-R "$REPO")
@@ -193,11 +202,15 @@ if [[ "$VIEW_RC" != "0" || "$PROT_RC" != "0" || "$FILES_RC" != "0" ]]; then
   deny_failed
 fi
 too_slow
-# Every page answered "true" or named the kit paths it touches; anything else (or no page) is unread.
-KIT_TOUCHED=$(printf '%s\n' "$FILES" | jq -R -s -r '
+# Every page answered "<n> true" or "<n> kit <paths>"; anything else (or no page) is unread. The
+# first word printed is the number of entries listed over all pages (-1 when unread).
+KIT_FILES=$(printf '%s\n' "$FILES" | jq -R -s -r '
   [split("\n")[] | select(. != "")] as $l |
-  if ($l | length) == 0 or ($l | any(. != "true" and (startswith("kit ") | not))) then "unread"
-  else [$l[] | select(startswith("kit ")) | .[4:]] | join(", ") end')
+  if ($l | length) == 0 or ($l | any(test("^[0-9]+ (true|kit .+)$") | not)) then "-1 unread"
+  else "\([$l[] | capture("^(?<n>[0-9]+) ") | .n | tonumber] | add) \([$l[] | select(test("^[0-9]+ kit ")) | sub("^[0-9]+ kit "; "")] | join(", "))" end')
+LISTED="${KIT_FILES%% *}"
+KIT_TOUCHED="${KIT_FILES#* }"
+[[ "$LISTED" =~ ^(-1|[0-9]+)$ ]] || { LISTED=-1; KIT_TOUCHED="unread"; }
 if [[ "$KIT_TOUCHED" == "unread" ]]; then
   FAILED+=("GitHub's file list (renames and removals) could not be read, so the pull request's kit configuration was not checked")
 elif [[ -n "$KIT_TOUCHED" ]]; then
@@ -208,7 +221,7 @@ if ! printf '%s' "$VIEW" | jq -e 'type == "object" and (.baseRefName | type == "
   deny_failed
 fi
 
-STATE=$(printf '%s' "$VIEW" | jq -r --arg base "$AUTONOMOUS_MERGE_BASE" --arg prot "$PROTECTED" '
+STATE=$(printf '%s' "$VIEW" | jq -r --arg base "$AUTONOMOUS_MERGE_BASE" --arg prot "$PROTECTED" --argjson listed "$LISTED" '
   [ (if $base != "" and .baseRefName != $base then "the pull request targets \(.baseRefName), not \($base)" else empty end),
     (if (.statusCheckRollup | length) == 0 then "the pull request has no checks" else empty end),
     (.statusCheckRollup[] |
@@ -221,6 +234,7 @@ STATE=$(printf '%s' "$VIEW" | jq -r --arg base "$AUTONOMOUS_MERGE_BASE" --arg pr
     (if (.changedFiles | type) != "number" then "the file list cannot be checked (GitHub gave no changed-files count)"
      elif (.files | length) < .changedFiles then "the file list is incomplete (\(.files | length) of \(.changedFiles))"
      else empty end),
+    (if (.changedFiles | type) == "number" and $listed >= 0 and $listed < .changedFiles then "the file list cannot be checked (GitHub listed \($listed) of \(.changedFiles) changed files)" else empty end),
     (if ([.files[].path | select(startswith("openspec/changes/archive/"))] | length) == 0 then "no archived OpenSpec change in the pull request" else empty end),
     ([.files[].path | select(ascii_downcase | test("^\\.(claude|cursor)/"))] | if length > 0 then "the pull request changes kit configuration (\(join(", ")))" else empty end),
     (if $base != "" and $prot != "true" then "the base branch is not protected on GitHub" else empty end)

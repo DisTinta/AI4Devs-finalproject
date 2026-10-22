@@ -21,12 +21,42 @@ describe('The agent merges only in an autonomous run and under deterministic con
     shim = undefined;
   });
 
+  // A `gh` before the shim that answers `gh api …/pulls/<n>/files` with a page listing the view's
+  // files (through the gate's own --jq filter); the shim still records that query and applies its
+  // exit code and delays to it. Every other call goes to the shim.
+  let filesBin: string | undefined;
+  afterEach(() => {
+    if (filesBin) rmSync(filesBin, { recursive: true, force: true });
+    filesBin = undefined;
+  });
+  function withFilesPage(s: GhShim, view: unknown): string {
+    if (filesBin) rmSync(filesBin, { recursive: true, force: true });
+    filesBin = mkdtempSync(join(tmpdir(), 'harness-ghfiles-')).replace(/\\/g, '/');
+    const files = (view as { files?: unknown } | null)?.files;
+    writeFileSync(join(filesBin, 'files.json'), JSON.stringify(Array.isArray(files) ? files.map((f: { path: string }) => ({ filename: f.path, status: 'modified' })) : []));
+    writeFileSync(
+      join(filesBin, 'gh'),
+      [
+        '#!/usr/bin/env bash',
+        'if [[ "$1" == api && "$*" == */pulls/*/files* ]]; then',
+        `  "${s.binDir}/gh" "$@" > /dev/null || exit $?`,
+        '  f=.; prev=""; for a in "$@"; do [[ "$prev" == --jq ]] && f="$a"; prev="$a"; done',
+        `  exec jq -r "$f" "${filesBin}/files.json"`,
+        'fi',
+        `exec "${s.binDir}/gh" "$@"`,
+        '',
+      ].join('\n'),
+    );
+    chmodSync(join(filesBin, 'gh'), 0o755);
+    return `${filesBin}${delimiter}${s.path}`;
+  }
+
   async function gate(command: string, behaviour: GhShimBehaviour = { prView: prViewJson() }, env: Record<string, string> = AUTONOMOUS, extra: Record<string, unknown> = {}) {
     project?.cleanup();
     shim?.cleanup();
     project = createProject({ env, git: { branch: 'feature/DIS-9-foo-bar' } });
     shim = createGhShim(behaviour);
-    return runHook(project, 'autonomous-merge-gate', bashInput(command, { cwd: project.dir, ...extra }), { env: { PATH: shim.path } });
+    return runHook(project, 'autonomous-merge-gate', bashInput(command, { cwd: project.dir, ...extra }), { env: { PATH: withFilesPage(shim, behaviour.prView) } });
   }
 
   it('A pull request that meets every condition is merged', async () => {
