@@ -140,6 +140,14 @@ jobs:
           NODE_ENV: test
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/test
 
+      # The hooks must decide long inputs well inside their 10 s timeout. Timed one file at a time, so
+      # the figure measures the hook and not the load of the parallel suite (autonomous-run-switch).
+      - name: Hook timing
+        if: steps.changes.outputs.runtime == 'true'
+        run: npx vitest run --no-file-parallelism tests/harness/paths-node.spec.ts tests/harness/secrets-round4.spec.ts
+        env:
+          HOOK_TIMING: '1'
+
   # `npm run verify` (DIS-44) on a database of its own (PH-23): the seed and the golden answers are
   # loaded into `verify`, never into the `test` database of `quality`, whose integration tests assume
   # it holds no seed. No `LLM_*` variable: verify answers from the golden cache with an evaluation
