@@ -16,6 +16,12 @@ describe('Example environment files are readable and editable', { timeout: 120_0
     expect((await runHook(project, 'block-secret-reads', readInput(`${project.dir}/.env.example`))).decision).toBe('none');
     expect((await runHook(project, 'protect-specs-and-tests', editInput(`${project.dir}/packages/api/.env.sample`))).decision).toBe('none');
     expect((await runHook(project, 'spec-audit-gate', editInput(`${project.dir}/packages/api/.env.sample`))).decision).toBe('none');
+    // In any letter case, and through the search tools.
+    expect((await runHook(project, 'block-secret-reads', readInput(`${project.dir}/config/.ENV.Example`))).decision).toBe('none');
+    expect((await runHook(project, 'protect-specs-and-tests', editInput(`${project.dir}/packages/api/.Env.Sample`))).decision).toBe('none');
+    for (const input of [{ tool_name: 'Glob', tool_input: { pattern: '**/.env.example' } }, { tool_name: 'Grep', tool_input: { pattern: 'X', path: `${project.dir}/.env.sample` } }]) {
+      expect((await runHook(project, 'block-secret-reads', { hook_event_name: 'PreToolUse', ...input })).decision, JSON.stringify(input)).toBe('none');
+    }
     // Unattended mode, inside an approved change (the spec-audit gate's own rule is met).
     project.cleanup();
     project = createProject({

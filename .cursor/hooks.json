@@ -13,6 +13,7 @@
       { "command": "node .claude/hooks/invoke.cjs --client cursor .claude/hooks/block-secret-reads.sh", "timeout": 10 }
     ],
     "preToolUse": [
+      { "command": "node .claude/hooks/invoke.cjs --client cursor .claude/hooks/block-secret-reads.sh", "matcher": "Grep", "timeout": 10 },
       { "command": "node .claude/hooks/invoke.cjs --client cursor .claude/hooks/protect-specs-and-tests.sh", "matcher": "Write|Delete", "timeout": 10 },
       { "command": "node .claude/hooks/invoke.cjs --client cursor .claude/hooks/spec-audit-gate.sh", "matcher": "Write|Delete", "timeout": 10 }
     ],

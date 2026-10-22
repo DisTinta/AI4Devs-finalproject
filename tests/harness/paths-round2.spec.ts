@@ -84,6 +84,26 @@ describe('Protected paths in any spelling', { timeout: 180_000 }, () => {
       expect(r.decision, `${path} ${r.reason}`).toBe('deny');
     }
 
+    // A '..' segment is denied outright, before canonicalisation (stricter than the canonical decision).
+    for (const path of [`${dir}/tests/../tests/a.spec.ts`, `${dir}/packages/../docs/base-standards.md`, 'openspec/x/../specs/cap/spec.md']) {
+      const r = await runHook(project, 'protect-specs-and-tests', editInput(path));
+      expect(r.decision, `${path} ${r.reason}`).toBe('deny');
+    }
+
+    // A leading ~ is the home directory (R3-8): with HOME at the project root, ~/… names the repository.
+    const home = { env: { HOME: dir } };
+    for (const path of ['~/tests/a.spec.ts', '~/docs/base-standards.md', '~/openspec/specs/cap/spec.md']) {
+      const r = await runHook(project, 'protect-specs-and-tests', editInput(path), home);
+      expect(r.decision, `${path} ${r.reason}`).toBe('deny');
+      expect(r.reason, path).toMatch(/^(Unattended run|Autonomous run)/);
+    }
+    expect((await runHook(project, 'protect-specs-and-tests', editInput(`~/${CHANGE}/tasks.md`), home)).decision).toBe('none');
+
+    // An allowed rewrite keeps its decision in another spelling: an artifact of the approved active change.
+    for (const path of [`${dir}//${CHANGE}/proposal.md`, `${dir}/./${CHANGE}/proposal.md`]) {
+      expect((await runHook(project, 'protect-specs-and-tests', editInput(path))).decision, path).toBe('allow');
+    }
+
     // A link into the repository is classified by its real location.
     const l = linkOutside(`${dir}/tests`);
     linked = l;
@@ -111,6 +131,8 @@ describe('Protected paths in any spelling', { timeout: 180_000 }, () => {
     linked = g;
     const gateViaLink = await runHook(project, 'spec-audit-gate', editInput(`${g.link}/core/x.ts`, 'Write'));
     expect(gateViaLink.decision, gateViaLink.reason).toBe('deny');
+    const gateViaHome = await runHook(project, 'spec-audit-gate', editInput('~/packages/core/x.ts', 'Write'), { env: { HOME: gdir } });
+    expect(gateViaHome.decision, gateViaHome.reason).toBe('deny');
   });
 });
 

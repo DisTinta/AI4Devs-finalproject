@@ -121,6 +121,59 @@ field() {
   printf '%s' "$1" | jq -r "$q // empty" 2>/dev/null || printf ''
 }
 
+# Pure-bash read of one string value of the JSON input, so the common path of a hook runs no jq and
+# forks no subshell (cost note of the 2026-10-22 verify report). Sets JSON_STR. Returns 0 when "KEY"
+# occurs exactly once in the input, as an object key with a plain string value; 1 when the input does
+# not contain "KEY" at all (jq would find nothing either); 2 when only jq can tell: a \u escape
+# anywhere (it could spell a key), an input over 64 KiB, a repeated "KEY", another value type, or an
+# escape other than \\, \" and \/ in the value. The key is not tied to its object: callers use it
+# where a key found at another level can only make the decision stricter, or they fall back to jq.
+JSON_STR=""
+_JSON_STR_RE='^"(([^"\\]|\\.)*)"'
+json_str() {
+  local key="\"$1\"" raw="$2" pre post val c
+  JSON_STR=""
+  (( ${#raw} <= 65536 )) || return 2
+  [[ "$raw" != *'\u'* ]] || return 2
+  [[ "$raw" == *"$key"* ]] || return 1
+  post="${raw#*"$key"}"
+  [[ "$post" != *"$key"* ]] || return 2
+  pre="${raw%%"$key"*}"
+  pre="${pre%"${pre##*[![:space:]]}"}"
+  [[ "$pre" == *'{' || "$pre" == *',' ]] || return 2
+  post="${post#"${post%%[![:space:]]*}"}"
+  [[ "$post" == :* ]] || return 2
+  post="${post:1}"; post="${post#"${post%%[![:space:]]*}"}"
+  [[ "$post" =~ $_JSON_STR_RE ]] || return 2
+  val="${BASH_REMATCH[1]}"
+  post="${post:${#BASH_REMATCH[0]}}"; post="${post#"${post%%[![:space:]]*}"}"
+  [[ "$post" == ,* || "$post" == '}'* ]] || return 2
+  if [[ "$val" == *'\'* ]]; then
+    c="${val//\\\\/}"; c="${c//\\\"/}"; c="${c//\\\//}"
+    [[ "$c" != *'\'* ]] || return 2
+    val="${val//\\\\/$'\x01'}"; val="${val//\\\"/\"}"; val="${val//\\\//\/}"; val="${val//$'\x01'/\\}"
+  fi
+  JSON_STR="$val"
+  return 0
+}
+
+# field without a subshell where it can: sets FIELD_VAL. Under Claude Code a plain key (.x or
+# .tool_input.x) is read by json_str; anything else, or a json_str "only jq can tell", goes to field.
+FIELD_VAL=""
+field_v() {
+  FIELD_VAL=""
+  has_jq || return 0
+  [[ -n "$1" ]] && LAST_INPUT="$1"
+  if ! cursor_client && [[ "$2" =~ ^\.(tool_input\.)?([A-Za-z_]+)$ ]]; then
+    json_str "${BASH_REMATCH[2]}" "$1"
+    case $? in
+      0) FIELD_VAL="$JSON_STR"; return 0 ;;
+      1) return 0 ;;
+    esac
+  fi
+  FIELD_VAL=$(field "$1" "$2")
+}
+
 # Cursor event of the current hook (empty under Claude Code).
 cursor_event() {
   cursor_client || return 0
@@ -151,7 +204,7 @@ HOOK_INPUT=""
 # Every decision hook calls it right after reading stdin. In an unattended run a missing jq denies
 # (exit 2) instead of letting every protection fall silent.
 hook_input_init() {
-  HOOK_INPUT="$1"
+  HOOK_INPUT="$1"; _UNATTENDED=""
   if [[ "$KIT_AUTONOMOUS_RUN" == "1" ]] && ! has_jq; then
     printf 'jq is required in an unattended run (KIT_AUTONOMOUS_RUN="1"); install it or set the switch to "0".\n' >&2
     exit 2
@@ -160,13 +213,23 @@ hook_input_init() {
 
 # Hooks that take no tool decision (prompt, session start, post-edit, stop) only keep the input, so
 # the emitters can tell the Cursor event (design D11).
-remember_input() { HOOK_INPUT="$1"; }
+remember_input() { HOOK_INPUT="$1"; _UNATTENDED=""; }
 
 autonomous_run() { [[ "$KIT_AUTONOMOUS_RUN" == "1" ]]; }
 
+# The background-agent answer is computed once per input. jq only runs when the input names
+# is_background_agent or holds a \u escape (which could spell the key): otherwise jq could not find it.
+_UNATTENDED=""
 unattended() {
   autonomous_run && return 0
-  [[ -n "$HOOK_INPUT" ]] && [[ "$(field "$HOOK_INPUT" '.is_background_agent')" == "true" ]]
+  [[ -n "$HOOK_INPUT" ]] || return 1
+  if [[ -z "$_UNATTENDED" ]]; then
+    _UNATTENDED=0
+    if [[ "$HOOK_INPUT" == *is_background_agent* || "$HOOK_INPUT" == *'\u'* ]]; then
+      [[ "$(field "$HOOK_INPUT" '.is_background_agent')" == "true" ]] && _UNATTENDED=1
+    fi
+  fi
+  [[ "$_UNATTENDED" == 1 ]]
 }
 
 # Fail-closed in an unattended run (design D21): a crash or an unexpected exit before a decision
@@ -379,11 +442,12 @@ kit_windows() {
 # Lexical form of a path, in NORM_PATH: backslashes become '/'; the \\?\ and \\.\ prefixes (and
 # \\?\UNC\) are dropped; this machine's admin shares (\\localhost\C$\…), /proc/cygdrive/c/…,
 # /cygdrive/c/… and /c/… become C:/…; the drive letter is upper case; duplicate slashes and '.'
-# segments are dropped and '..' segments are resolved.
+# segments are dropped and '..' segments are resolved. A leading ~ or ~/ is the home directory (R3-8).
 NORM_PATH=""
 _lexical_path() {
   local p="${1//\\//}" host hn="${HOSTNAME:-}" cn="${COMPUTERNAME:-}" root="" seg
   local -a segs=() out=()
+  if [[ -n "${HOME:-}" && ( "$p" == "~" || "$p" == "~/"* ) ]]; then p="${HOME//\\//}${p:1}"; fi
   if [[ "$p" =~ ^//[?.]/[Uu][Nn][Cc]/(.*)$ ]]; then p="//${BASH_REMATCH[1]}"
   elif [[ "$p" =~ ^//[?.]/(.*)$ ]]; then p="${BASH_REMATCH[1]}"; fi
   if [[ "$p" =~ ^//+([^/]+)/+([A-Za-z])\$(/.*)?$ ]]; then
@@ -579,9 +643,26 @@ is_source() {
   return 1
 }
 
-# Does the path look like a secrets / environment file?
+# Source-code extensions: a name such as config.env.ts or app.env.d.ts is code, not an environment
+# file (R3-6).
+ENV_SOURCE_EXTENSIONS=' ts tsx js jsx mjs cjs mts cts py rb go java kt rs php cs sh md '
+
+# Is a lower-case basename an environment file? .env, .env.<suffix>, <name>.env or
+# <name>.env.<suffix>, except a .example / .sample suffix or a source-code last extension.
+is_env_file() {
+  case "$1" in
+    *.env.example|*.env.sample) return 1 ;;
+    .env|*.env) return 0 ;;
+    .env.*|*.env.*) [[ "$ENV_SOURCE_EXTENSIONS" != *" ${1##*.} "* ]] ;;
+    *) return 1 ;;
+  esac
+}
+
+# Does the path look like a secrets / environment file? Names compare in any letter case (R3-3);
+# environment files as is_env_file says.
 is_secret_path() {
-  local file="${1//\\//}"
+  local file="${1//\\//}" base
+  file="${file,,}"
   # The kit contract is NOT a secret: the doctrine, the SessionStart banner and
   # several subagents require reading it. It is excepted BEFORE the *.env pattern so
   # that a Read on it is not denied. It only holds STACK/CMD_*/PATH_*/BRANCH_PREFIX.
@@ -593,14 +674,11 @@ is_secret_path() {
   case "$file" in
     */secrets/*|*/.secrets/*|secrets/*|.secrets/*) return 0 ;;
   esac
-  case "$file" in
+  base="${file##*/}"
+  is_env_file "$base" && return 0
+  case "$base" in
     *.env.example|*.env.sample) return 1 ;;
-  esac
-  case "$file" in
-    *.env|*.env.*|*/.env|.env|*/.env.*|\
-    */secrets/*|*/.secrets/*|*/credentials.json|*/credentials.*|\
-    */id_rsa|*/id_ed25519|*/.npmrc|*/.pypirc|\
-    */google-services.json|*/service-account*.json)
+    credentials.*|id_rsa|id_ed25519|.npmrc|.pypirc|google-services.json|service-account*.json)
       return 0 ;;
   esac
   return 1
@@ -609,43 +687,197 @@ is_secret_path() {
 # Is the path a secret location itself (a search tool rooted there reaches every file in it)?
 is_secret_dir() {
   local dir="${1//\\//}"
-  dir="${dir%/}"
+  dir="${dir%/}"; dir="${dir,,}"
   case "$dir" in
     secrets|.secrets|*/secrets|*/.secrets) return 0 ;;
   esac
   return 1
 }
 
-# Does a search-tool glob (Grep's glob, Glob's pattern) reach a secret file? It does when the
-# pattern is itself a secret path, or when it matches one of the sample secret names below and it
-# names a secret (a secret word, or a last component that starts with a dot, such as .env* or .*),
-# so broad patterns such as * or **/*.ts stay free. ** counts as *, and {a,b} as either alternative.
-SECRET_SAMPLES=(.env .env.ci .env.local .env.production .env.backup x.env secrets/x .secrets/x
-  credentials.json credentials.yml id_rsa id_ed25519 .npmrc .pypirc google-services.json
-  service-account-x.json)
-glob_reaches_secret() {
-  local pat="${1//\\//}" last c i ch depth=0 conv="" had=0 r=1
-  [[ -n "$pat" ]] || return 1
-  is_secret_path "$pat" && return 0
-  last="${pat##*/}"
-  [[ "${pat,,}" =~ (env|secret|credential|id_rsa|id_ed25519|npmrc|pypirc|service-account|google-services) || "$last" == .* || "$last" == "[.]"* ]] || return 1
-  pat="${pat//\*\*/*}"
-  for (( i = 0; i < ${#pat}; i++ )); do
-    ch="${pat:i:1}"
+# Does a search-tool glob (Grep's glob, Glob's pattern) reach a secret file (R3-3, R3-6)? In any
+# letter case, it does when the pattern is itself a secret path or a secret location, or when one of
+# its components can match a secret name below in a way that NAMES it: at least 3 of the name's
+# marked characters ('d') come from literal characters or [...] classes of the glob, or the name's
+# leading dot does. ? and [...] stand for any character they allow, so ?env.prod, [.]env.prod and
+# .e?v.local are caught; * and ? alone name nothing, so *, **/*.ts and **/*.json stay free. A * that
+# opens a component stands for at least one character other than a dot: *.env.ts names x.env.ts
+# files, not .env.ts. A component ending in env.example / env.sample does not count for .env.<suffix>.
+# {a,b} counts as either alternative; unbalanced braces or more than 64 alternatives count as reaching.
+# Pure bash, no subshell: it runs on every Grep and Glob call. In a name, '*' stands for any text.
+SECRET_NAME_TEMPLATES=(
+  '.env|dddd' '.env.*|dddd--' '*.env|-dddd' '*.env.*|-dddd--' 'credentials.*|ddddddddddd--'
+  'id_rsa|dddddd' 'id_ed25519|dddddddddd' '.npmrc|dddddd' '.pypirc|ddddddd'
+  'google-services.json|ddddddddddddddd-----' 'service-account*.json|ddddddddddddddd------'
+  'secrets|ddddddd' '.secrets|dddddddd'
+)
+SECRET_DIR_TEMPLATES=('secrets|ddddddd' '.secrets|dddddddd')
+
+# Tokens of one glob component, in GT: '*', '?', D (the leading *'s first character: not a dot),
+# L<char>, C<chars> (a class), N<chars> (a negated class). GT_LITS holds the literal characters and
+# GT_CLASS is 1 when there is a class.
+GT=(); GT_LITS=""; GT_CLASS=0
+_glob_tokens() {
+  local s="$1" n=${#1} i=0 j ch set neg a b k hex c
+  GT=(); GT_LITS=""; GT_CLASS=0
+  while (( i < n )); do
+    ch="${s:i:1}"
     case "$ch" in
-      "{") conv+="@("; depth=$(( depth + 1 )) ;;
-      "}") if (( depth > 0 )); then conv+=")"; depth=$(( depth - 1 )); else conv+="}"; fi ;;
-      ",") if (( depth > 0 )); then conv+="|"; else conv+=","; fi ;;
-      *) conv+="$ch" ;;
+      '*')
+        if (( ${#GT[@]} == 0 )); then GT=(D '*')
+        elif [[ "${GT[${#GT[@]}-1]}" != '*' ]]; then GT+=('*'); fi
+        i=$(( i + 1 )) ;;
+      '?') GT+=('?'); i=$(( i + 1 )) ;;
+      '[')
+        j=$(( i + 1 )); neg=0; set=""
+        if [[ "${s:j:1}" == '!' || "${s:j:1}" == '^' ]]; then neg=1; j=$(( j + 1 )); fi
+        if [[ "${s:j:1}" == ']' ]]; then set+=']'; j=$(( j + 1 )); fi
+        while (( j < n )) && [[ "${s:j:1}" != ']' ]]; do
+          a="${s:j:1}"
+          if [[ "${s:j+1:1}" == '-' ]] && (( j + 2 < n )) && [[ "${s:j+2:1}" != ']' ]]; then
+            b="${s:j+2:1}"
+            printf -v a '%d' "'$a"; printf -v b '%d' "'$b"
+            (( b <= 126 )) || b=126
+            for (( k = a; k <= b; k++ )); do printf -v hex '%x' "$k"; printf -v c "\\x$hex"; set+="$c"; done
+            j=$(( j + 3 ))
+          else
+            set+="$a"; j=$(( j + 1 ))
+          fi
+        done
+        if (( j >= n )); then
+          GT+=("L["); GT_LITS+='['; i=$(( i + 1 ))
+        else
+          if (( neg )); then GT+=("N$set"); else GT+=("C$set"); fi
+          GT_CLASS=1; i=$(( j + 1 ))
+        fi ;;
+      *) GT+=("L$ch"); GT_LITS+="$ch"; i=$(( i + 1 )) ;;
     esac
   done
-  shopt -q extglob && had=1
-  shopt -s extglob
-  for c in "${SECRET_SAMPLES[@]}"; do
-    # shellcheck disable=SC2053
-    if [[ "$c" == $conv || "d/$c" == $conv || "d/e/$c" == $conv ]]; then r=0; break; fi
-    if [[ "$conv" != */* && "${c##*/}" == $conv ]]; then r=0; break; fi
+}
+
+# Whether the component in GT can match the name $1 (marks $2) while naming it (see above): a search
+# over (glob token, name position, marked characters credited up to 3), state = (i*64+j)*4+k.
+_glob_meets() {
+  local tt="$1" mk="$2" ng=${#GT[@]} nt=${#1} s i j k kk g t
+  local -a todo=(0) seen=()
+  while (( ${#todo[@]} )); do
+    s=${todo[${#todo[@]}-1]}; unset "todo[${#todo[@]}-1]"
+    [[ -z "${seen[s]:-}" ]] || continue
+    seen[s]=1
+    k=$(( s % 4 )); j=$(( (s / 4) % 64 )); i=$(( s / 256 ))
+    (( i == ng && j == nt && k == 3 )) && return 0
+    g="${GT[i]:-}"; t="${tt:j:1}"
+    if (( i < ng )) && [[ "$g" == '*' ]]; then
+      todo+=( $(( ((i + 1) * 64 + j) * 4 + k )) )
+      (( j < nt )) && todo+=( $(( (i * 64 + j + 1) * 4 + k )) )
+    fi
+    if (( j < nt )) && [[ "$t" == '*' ]]; then
+      todo+=( $(( (i * 64 + j + 1) * 4 + k )) )
+      (( i < ng )) && [[ "$g" != '*' ]] && todo+=( $(( ((i + 1) * 64 + j) * 4 + k )) )
+    fi
+    if (( i < ng && j < nt )) && [[ "$g" != '*' && "$t" != '*' ]]; then
+      case "$g" in
+        '?') ;;
+        D) [[ "$t" != '.' ]] || continue ;;
+        L*) [[ "${g:1}" == "$t" ]] || continue ;;
+        C*) [[ "${g:1}" == *"$t"* ]] || continue ;;
+        N*) [[ "${g:1}" != *"$t"* ]] || continue ;;
+      esac
+      kk=$k
+      if [[ "$g" == [LCN]* ]]; then
+        if (( j == 0 )) && [[ "$t" == '.' ]]; then kk=3
+        elif [[ "${mk:j:1}" == d ]] && (( kk < 3 )); then kk=$(( kk + 1 )); fi
+      fi
+      todo+=( $(( ((i + 1) * 64 + j + 1) * 4 + kk )) )
+    fi
   done
-  [[ "$had" == 1 ]] || shopt -u extglob
-  return "$r"
+  return 1
+}
+
+# _glob_could_name NAME MARKS COMPONENT (tokens already in GT): a cheap count of the literal
+# characters the name could credit skips the search for most components.
+_glob_could_name() {
+  local tt="$1" mk="$2" comp="$3" d="" i n=0 ext
+  if [[ "$tt" == '.env.*' || "$tt" == '*.env.*' ]]; then
+    [[ "$comp" == *env.example || "$comp" == *env.sample ]] && return 1
+    # A literal source-code last extension (*.env.ts) names code, not an environment file.
+    ext="${comp##*.}"
+    [[ "$comp" == *.* && "$ext" != *[\*\?\[\]]* && "$ENV_SOURCE_EXTENSIONS" == *" $ext "* ]] && return 1
+  fi
+  if [[ "$GT_CLASS" == 0 ]] && ! [[ "$tt" == .* && "${GT[0]:-}" == 'L.' ]]; then
+    for (( i = 0; i < ${#tt}; i++ )); do [[ "${mk:i:1}" == d ]] && d+="${tt:i:1}"; done
+    for (( i = 0; i < ${#GT_LITS}; i++ )); do [[ "$d" == *"${GT_LITS:i:1}"* ]] && n=$(( n + 1 )); done
+    (( n >= 3 )) || return 1
+  fi
+  _glob_meets "$tt" "$mk"
+}
+
+# The {a,b} alternatives of a glob, in GLOB_ALTS. Returns 1 on unbalanced braces or more than 64.
+GLOB_ALTS=()
+_glob_alts() {
+  local -a todo=("$1")
+  local p i ch depth open close body part pre post
+  GLOB_ALTS=()
+  while (( ${#todo[@]} )); do
+    p="${todo[${#todo[@]}-1]}"; unset "todo[${#todo[@]}-1]"
+    if [[ "$p" != *'{'* && "$p" != *'}'* ]]; then
+      GLOB_ALTS+=("$p")
+    else
+      open=-1; close=-1; depth=0
+      for (( i = 0; i < ${#p}; i++ )); do
+        ch="${p:i:1}"
+        if [[ "$ch" == '{' ]]; then
+          (( depth == 0 )) && open=$i
+          depth=$(( depth + 1 ))
+        elif [[ "$ch" == '}' ]]; then
+          (( depth > 0 )) || return 1
+          depth=$(( depth - 1 ))
+          if (( depth == 0 )); then close=$i; break; fi
+        fi
+      done
+      (( close >= 0 )) || return 1
+      pre="${p:0:open}"; body="${p:open+1:close-open-1}"; post="${p:close+1}"
+      depth=0; part=""
+      for (( i = 0; i < ${#body}; i++ )); do
+        ch="${body:i:1}"
+        case "$ch" in
+          '{') depth=$(( depth + 1 )); part+="$ch" ;;
+          '}') depth=$(( depth - 1 )); part+="$ch" ;;
+          ',') if (( depth == 0 )); then todo+=("$pre$part$post"); part=""; else part+="$ch"; fi ;;
+          *) part+="$ch" ;;
+        esac
+      done
+      todo+=("$pre$part$post")
+    fi
+    (( ${#GLOB_ALTS[@]} + ${#todo[@]} <= 64 )) || return 1
+  done
+  return 0
+}
+
+glob_reaches_secret() {
+  local pat="${1//\\//}" alt rest comp last tpl
+  [[ -n "$pat" ]] || return 1
+  pat="${pat,,}"
+  if [[ "$pat" == *'{'* || "$pat" == *'}'* ]]; then
+    _glob_alts "$pat" || return 0
+  else
+    GLOB_ALTS=("$pat")
+  fi
+  for alt in "${GLOB_ALTS[@]}"; do
+    { is_secret_path "$alt" || is_secret_dir "$alt"; } && return 0
+    rest="$alt"
+    while [[ -n "$rest" ]]; do
+      comp="${rest%%/*}"
+      if [[ "$rest" == */* ]]; then rest="${rest#*/}"; last=0; else rest=""; last=1; fi
+      # A literal component is judged by is_secret_path above; one made only of * names nothing.
+      [[ "$comp" == *[\*\?\[]* ]] || continue
+      [[ -n "${comp//\*/}" ]] || continue
+      _glob_tokens "$comp"
+      if (( last )); then
+        for tpl in "${SECRET_NAME_TEMPLATES[@]}"; do _glob_could_name "${tpl%%|*}" "${tpl#*|}" "$comp" && return 0; done
+      else
+        for tpl in "${SECRET_DIR_TEMPLATES[@]}"; do _glob_could_name "${tpl%%|*}" "${tpl#*|}" "$comp" && return 0; done
+      fi
+    done
+  done
+  return 1
 }

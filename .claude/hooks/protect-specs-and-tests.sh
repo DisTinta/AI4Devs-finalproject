@@ -12,7 +12,8 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 INPUT=$(cat)
 hook_input_init "$INPUT"
 fail_closed
-FILE=$(field "$INPUT" '.tool_input.file_path')
+field_v "$INPUT" '.tool_input.file_path'   # no jq or subshell on the plain path (lib.sh json_str)
+FILE="$FIELD_VAL"
 [[ -n "$FILE" ]] || done_ok
 # Normalize slashes for Windows (Git Bash): the case patterns below match on '/'.
 FILE="${FILE//\\//}"
@@ -27,17 +28,21 @@ esac
 #    secret location, where the location wins (design D8).
 #    The kit contract is asked about (not denied): it goes BEFORE the *.env pattern,
 #    which would otherwise capture it first and leave the confirmation branch dead.
+#    Names compare in any letter case (R3-3).
+FILE_LC="${FILE,,}"
 ENV_EXAMPLE=0
-case "$FILE" in *.env.example|*.env.sample) ENV_EXAMPLE=1 ;; esac
-case "$FILE" in */secrets/*|*/.secrets/*|secrets/*|.secrets/*) ENV_EXAMPLE=0 ;; esac
+case "$FILE_LC" in *.env.example|*.env.sample) ENV_EXAMPLE=1 ;; esac
+case "$FILE_LC" in */secrets/*|*/.secrets/*|secrets/*|.secrets/*) ENV_EXAMPLE=0 ;; esac
 if [[ "$ENV_EXAMPLE" == "0" ]]; then
-  case "$FILE" in
+  case "$FILE_LC" in
     */.claude/sdd-harness.env|.claude/sdd-harness.env)
       ask "You are about to modify the SDD Harness Kit configuration. Confirm the change." \
         "The contract is edited by hand by the author; stop and report what needs changing." ;;
-    *.env|*.env.*|*/.env|.env)
+    *.env.example|*.env.sample)   # only reached inside a secret location, which wins
       deny "Environment files are not edited from the agent: ${FILE}" ;;
   esac
+  # Environment file names as lib.sh is_env_file says: config.env.ts is code, prod.env.local is not.
+  is_env_file "${FILE_LC##*/}" && deny "Environment files are not edited from the agent: ${FILE}"
 fi
 
 # Unattended run (design D9): decided here, before the KIT_PROTECT_SPECS switch, so an unattended

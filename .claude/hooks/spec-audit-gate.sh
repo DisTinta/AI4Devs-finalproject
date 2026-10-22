@@ -22,7 +22,8 @@ if ! unattended; then
   [[ "$KIT_SPEC_AUDIT_GATE" == "0" ]] && done_ok
 fi
 
-FILE=$(field "$INPUT" '.tool_input.file_path')
+field_v "$INPUT" '.tool_input.file_path'   # no jq or subshell on the plain path (lib.sh json_str)
+FILE="$FIELD_VAL"
 [[ -n "$FILE" ]] || done_ok
 FILE="${FILE//\\//}"
 
