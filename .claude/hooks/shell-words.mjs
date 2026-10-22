@@ -46,23 +46,34 @@ export function parseLine(line, depth = 0) {
   function newCommand() {
     return { words: [], assigns: [], redirects: [], heredoc: null, heredocQuoted: false, herestring: null, inSubst: depth > 0 && false, pipedIn: false };
   }
+  // A word keeps, besides its value, `lit` (the length of its value before the first quote, escape or
+  // expansion) and `pat` (its value with the quoted glob characters escaped, for filename expansion).
   function startWord() {
-    if (!word) word = { value: '', dynamic: false, quoted: false };
+    if (!word) word = { value: '', dynamic: false, quoted: false, lit: undefined, pat: '' };
+  }
+  /** Appends text that came quoted, escaped or from an expansion: it is never a glob or a name. */
+  function addQuoted(text) {
+    if (word.lit === undefined) word.lit = word.value.length;
+    word.value += text;
+    word.pat += text.replace(/[*?[\]{},\\]/g, '\\$&');
   }
   function endWord() {
     if (!word) return;
     const w = word;
     word = null;
+    const glob = !w.dynamic && hasGlob(w.pat) ? w.pat : undefined;
     if (current.pendingRedirect) {
       const r = current.pendingRedirect;
       current.pendingRedirect = null;
       if (r.op === '<<<') current.herestring = w.value;
       else if (r.op === '<<' || r.op === '<<-') {
         pendingHeredocs.push({ cmd: current, delim: w.value, quoted: w.quoted, strip: r.op === '<<-' });
-      } else current.redirects.push({ op: r.op, fd: r.fd, target: w.value, dynamic: w.dynamic });
+      } else current.redirects.push({ op: r.op, fd: r.fd, target: w.value, dynamic: w.dynamic, glob });
       return;
     }
-    if (current.words.length === 0 && !w.quoted && /^[A-Za-z_][A-Za-z0-9_]*=/.test(w.value)) {
+    // An assignment: the name and its `=` are unquoted, whatever quoting the value has (R4-1).
+    const assign = /^[A-Za-z_][A-Za-z0-9_]*=/.exec(w.value);
+    if (current.words.length === 0 && assign && (w.lit === undefined || assign[0].length <= w.lit)) {
       current.assigns.push(w.value);
       return;
     }
@@ -71,7 +82,7 @@ export function parseLine(line, depth = 0) {
     if (current.words.length === 0 && !w.quoted && (w.value === 'case' || w.value === 'function')) {
       throw new Unparsable(`unsupported construct: ${w.value}`);
     }
-    current.words.push({ value: w.value, dynamic: w.dynamic });
+    current.words.push(glob ? { value: w.value, dynamic: w.dynamic, glob } : { value: w.value, dynamic: w.dynamic });
   }
   function endCommand(sep) {
     endWord();
@@ -174,7 +185,7 @@ export function parseLine(line, depth = 0) {
     }
     if (c === '\\') {
       startWord();
-      if (i + 1 < src.length) word.value += src[i + 1];
+      addQuoted(i + 1 < src.length ? src[i + 1] : '');
       word.quoted = true;
       i += 2;
       continue;
@@ -183,26 +194,27 @@ export function parseLine(line, depth = 0) {
       const end = src.indexOf("'", i + 1);
       if (end < 0) throw new Unparsable('unbalanced single quote');
       startWord();
-      word.value += src.slice(i + 1, end);
+      addQuoted(src.slice(i + 1, end));
       word.quoted = true;
       i = end + 1;
       continue;
     }
     if (c === '"') {
       startWord();
+      addQuoted('');
       word.quoted = true;
       i++;
       while (true) {
         if (i >= src.length) throw new Unparsable('unbalanced double quote');
         const d = src[i];
         if (d === '"') { i++; break; }
-        if (d === '\\' && i + 1 < src.length && '"\\$`\n'.includes(src[i + 1])) { word.value += src[i + 1]; i += 2; continue; }
+        if (d === '\\' && i + 1 < src.length && '"\\$`\n'.includes(src[i + 1])) { addQuoted(src[i + 1]); i += 2; continue; }
         if (d === '$' && src[i + 1] === '(') {
           if (src[i + 2] === '(') throw new Unparsable('arithmetic expansion');
           i += 2;
           const text = readSubstitution('$(');
           substitutions.push(text);
-          word.value += `$(${text})`;
+          addQuoted(`$(${text})`);
           word.dynamic = true;
           continue;
         }
@@ -210,12 +222,12 @@ export function parseLine(line, depth = 0) {
           i++;
           const text = readSubstitution('`');
           substitutions.push(text);
-          word.value += '`' + text + '`';
+          addQuoted('`' + text + '`');
           word.dynamic = true;
           continue;
         }
         if (d === '$') word.dynamic = true;
-        word.value += d;
+        addQuoted(d);
         i++;
       }
       continue;
@@ -228,13 +240,13 @@ export function parseLine(line, depth = 0) {
         const text = readSubstitution('$(');
         substitutions.push(text);
         startWord();
-        word.value += `$(${text})`;
+        addQuoted(`$(${text})`);
         word.dynamic = true;
         continue;
       }
       startWord();
       word.dynamic = true;
-      word.value += c;
+      addQuoted(c);
       i++;
       continue;
     }
@@ -243,7 +255,7 @@ export function parseLine(line, depth = 0) {
       const text = readSubstitution('`');
       substitutions.push(text);
       startWord();
-      word.value += '`' + text + '`';
+      addQuoted('`' + text + '`');
       word.dynamic = true;
       continue;
     }
@@ -283,6 +295,7 @@ export function parseLine(line, depth = 0) {
     }
     startWord();
     word.value += c;
+    word.pat += c;
     i++;
   }
   endCommand(null);
@@ -325,6 +338,174 @@ function collectSubstitutions(body, out) {
     }
     i++;
   }
+}
+
+// ── Filename patterns (adversarial review round 4, 3a) ───────────────────────
+
+/** Index of the `}` closing the brace at `at`, and whether it is an expansion (`a,b` or `x..y`). */
+function braceAt(pat, at) {
+  let depth = 0;
+  let comma = false;
+  for (let i = at; i < pat.length; i++) {
+    const c = pat[i];
+    if (c === '\\') { i++; continue; }
+    if (c === '{') depth++;
+    else if (c === '}') {
+      depth--;
+      if (depth === 0) {
+        const inner = pat.slice(at + 1, i);
+        return { end: i, expands: comma || /^(-?\d+\.\.-?\d+|[A-Za-z]\.\.[A-Za-z])$/.test(inner) };
+      }
+    } else if (c === ',' && depth === 1) comma = true;
+  }
+  return null;
+}
+
+/** True when a pattern (quoted glob characters escaped) holds an unquoted `*`, `?`, `[…]` or `{a,b}`. */
+export function hasGlob(pat) {
+  for (let i = 0; i < pat.length; i++) {
+    const c = pat[i];
+    if (c === '\\') { i++; continue; }
+    if (c === '*' || c === '?') return true;
+    if (c === '[' && pat.indexOf(']', i + 2) > 0) return true;
+    if (c === '{') { const b = braceAt(pat, i); if (b?.expands) return true; }
+  }
+  return false;
+}
+
+const BRACE_CAP = 64;
+
+/** The words a brace expansion yields (escapes kept), or null past BRACE_CAP. */
+function expandBraces(pat) {
+  for (let i = 0; i < pat.length; i++) {
+    if (pat[i] === '\\') { i++; continue; }
+    if (pat[i] !== '{') continue;
+    const b = braceAt(pat, i);
+    if (!b || !b.expands) continue;
+    const inner = pat.slice(i + 1, b.end);
+    const head = pat.slice(0, i);
+    const tail = pat.slice(b.end + 1);
+    let alts = [];
+    const seq = /^(-?\d+)\.\.(-?\d+)$|^([A-Za-z])\.\.([A-Za-z])$/.exec(inner);
+    if (seq) {
+      const [from, to] = seq[1] !== undefined ? [Number(seq[1]), Number(seq[2])] : [seq[3].charCodeAt(0), seq[4].charCodeAt(0)];
+      if (Math.abs(to - from) >= BRACE_CAP) return null;
+      for (let n = from; ; n += from <= to ? 1 : -1) {
+        alts.push(seq[1] !== undefined ? String(n) : String.fromCharCode(n));
+        if (n === to) break;
+      }
+    } else {
+      let depth = 0;
+      let start = 0;
+      for (let j = 0; j < inner.length; j++) {
+        const c = inner[j];
+        if (c === '\\') { j++; continue; }
+        if (c === '{') depth++;
+        else if (c === '}') depth--;
+        else if (c === ',' && depth === 0) { alts.push(inner.slice(start, j)); start = j + 1; }
+      }
+      alts.push(inner.slice(start));
+    }
+    const out = [];
+    for (const a of alts) {
+      const more = expandBraces(`${head}${a}${tail}`);
+      if (more === null || out.length + more.length > BRACE_CAP) return null;
+      out.push(...more);
+    }
+    return out;
+  }
+  return [pat];
+}
+
+const unescape = (s) => s.replace(/\\(.)/g, '$1');
+const hasWildcard = (comp) => /(^|[^\\])(\\\\)*[*?[]/.test(comp);
+
+/** One path component of a pattern as an anchored regular expression. */
+function componentRegExp(comp) {
+  let re = '';
+  for (let i = 0; i < comp.length; i++) {
+    const c = comp[i];
+    if (c === '\\' && i + 1 < comp.length) { re += comp[i + 1].replace(/[.*+?^${}()|[\]\\/]/g, '\\$&'); i++; continue; }
+    if (c === '*') { re += '.*'; continue; }
+    if (c === '?') { re += '.'; continue; }
+    if (c === '[') {
+      const end = comp.indexOf(']', i + 2);
+      if (end > 0) {
+        let body = comp.slice(i + 1, end).replace(/\\/g, '\\\\');
+        if (body[0] === '!' || body[0] === '^') body = `^${body.slice(1)}`;
+        re += `[${body}]`;
+        i = end;
+        continue;
+      }
+    }
+    re += c.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+  }
+  return new RegExp(`^${re}$`, process.platform === 'win32' ? 'i' : '');
+}
+
+/** A component pattern can match a name; a leading `.` must be matched by a literal `.`, as in bash. */
+function componentMatches(comp, name) {
+  if (!hasWildcard(comp)) return eqPath(unescape(comp), name);
+  if (name.startsWith('.') && !/^\\?\./.test(comp)) return false;
+  return componentRegExp(comp).test(name);
+}
+
+const KIT_NAMES = ['.claude', '.cursor', 'sdd-harness.env'];
+
+// A Windows 8.3 short name: up to eight characters, `~N`, an extension of up to three. It keeps the
+// first two characters of the long name (without a leading dot), whether it is `CLAUDE~1` or a
+// hashed `CL1A2B~1`. When short names are disabled or the path does not exist, realpath cannot tell
+// which name it aliases, so a short name that could be one of a kit name counts as that name.
+const SHORT_NAME = /^[^~\\/]{1,8}~\d+(\.[^.\\/]{0,3})?$/;
+function shortNameMayAlias(comp, name) {
+  return SHORT_NAME.test(comp) && comp.slice(0, 2).toLowerCase() === name.replace(/^\./, '').slice(0, 2).toLowerCase();
+}
+
+/** A path that, read with its short names as possible aliases, could lie inside `dir`. */
+function shortNameUnder(path, dir) {
+  const parts = path.split('/').filter(Boolean);
+  const want = dir.split('/').filter(Boolean);
+  if (parts.length < want.length || !parts.some((comp) => SHORT_NAME.test(comp))) return false;
+  return want.every((name, k) => eqPath(parts[k], name) || shortNameMayAlias(parts[k], name));
+}
+
+/**
+ * Whether a filename pattern could name kit configuration (3a): after brace expansion, a component
+ * that could match `.claude`, `.cursor` or `sdd-harness.env`, or a path that could fall inside the
+ * autonomous profile. Too many expansions, or a relative pattern in an unknown directory, count too.
+ * Expansions without a wildcard are returned in `literals`, for the caller's literal-path check.
+ */
+function globKit(pat, cwd, ctx) {
+  const words = expandBraces(pat);
+  if (words === null) return { kit: true, literals: [] };
+  const literals = [];
+  for (const word of words) {
+    if (!hasWildcard(word)) { literals.push(unescape(word)); continue; }
+    const comps = word.split(/(?<!\\)\//);
+    if (comps.some((comp) => KIT_NAMES.some((name) => componentMatches(comp, name)))) return { kit: true, literals };
+    if (!ctx.configDir) continue;
+    let full;
+    const head = unescape(comps[0]);
+    if (word.startsWith('/') || /^[A-Za-z]:$/.test(head) || head === '~') {
+      const root = head === '~' ? homedir() : word.startsWith('/') ? '/' : `${head}/`;
+      full = [...collapse(norm(root)).split('/'), ...comps.slice(1)];
+    } else if (cwd === null) return { kit: true, literals };
+    else full = [...collapse(norm(cwd)).split('/'), ...comps];
+    const parts = [];
+    for (const comp of full) {
+      if (comp === '' || comp === '.') continue;
+      if (comp === '..') parts.pop();
+      else parts.push(comp);
+    }
+    const dir = collapse(norm(ctx.configDir)).split('/').filter(Boolean);
+    let k = 0;
+    for (; k < dir.length && k < parts.length; k++) {
+      if (parts[k] === '**') return { kit: true, literals };
+      if (!componentMatches(parts[k], dir[k])) break;
+    }
+    if (k === dir.length) return { kit: true, literals };
+  }
+  return { kit: false, literals };
 }
 
 // ── Command names, wrappers and nested commands ──────────────────────────────
@@ -599,7 +780,7 @@ function copyTargets(name, w) {
 function writeTargets(cmd) {
   const out = [];
   for (const r of cmd.redirects) {
-    if (r.target !== null && /^(>|>>|>\||&>|&>>)$/.test(r.op)) out.push({ value: r.target, dynamic: r.dynamic });
+    if (r.target !== null && /^(>|>>|>\||&>|&>>)$/.test(r.op)) out.push({ value: r.target, dynamic: r.dynamic, glob: r.glob });
   }
   const w = cmd.words;
   const args = (from = 1) => w.slice(from).filter((x) => !/^-/.test(x.value));
@@ -708,8 +889,18 @@ const GIT_READ_ONLY = new Set(['diff', 'show', 'log', 'status', 'ls-files', 'bla
 const FIND_ACTIONS = new Set(['-exec', '-execdir', '-ok', '-okdir', '-delete', '-fprint', '-fprint0', '-fprintf', '-fls']);
 // Runners of the kit's own scripts (bash .claude/doctor.sh, node .claude/hooks/…): allowed.
 const KIT_RUNNERS = new Set(['bash', 'sh', 'zsh', 'node', 'pwsh', 'powershell', 'source', '.']);
-// Assignments that make a read-only command run another program (a pager, a diff driver, git config).
-const RUNS_PROGRAM_ENV = /^(GIT_CONFIG_[A-Z0-9_]*|GIT_EXTERNAL_DIFF|GIT_PAGER|GIT_EDITOR|GIT_SSH(_COMMAND)?|PAGER|LESSOPEN|LESSCLOSE|LESSKEYIN|VISUAL|EDITOR)=/;
+// Assignments that make a read-only command run another program or take options from the environment
+// (a pager, a diff driver, git configuration, a config file of rg, grep or less), or that run code
+// before a kit script (BASH_ENV, NODE_OPTIONS). Without case: Windows environment names have none.
+const RUNS_PROGRAM_ENV = /^(GIT_[A-Z0-9_]*|PAGER|LESS|LESSOPEN|LESSCLOSE|LESSKEY|LESSKEYIN|LESSKEY_SYSTEM|LESSEDIT|MORE|VISUAL|EDITOR|RIPGREP_CONFIG_PATH|GREP_OPTIONS|BASH_ENV|ENV|SHELLOPTS|BASHOPTS|NODE_OPTIONS|PERL5OPT|PYTHONSTARTUP|RUBYOPT)=/i;
+// Commands that export or set shell variables for the commands after them in the line.
+const SETS_ENV = new Set(['export', 'declare', 'typeset', 'readonly', 'local', 'set']);
+
+/** The line sets a variable of RUNS_PROGRAM_ENV for its later commands (`export LESSOPEN=…; less …`). */
+function lineSetsProgramEnv(commands) {
+  return commands.some((c) => (!c.name && c.assigns.some((a) => RUNS_PROGRAM_ENV.test(a)))
+    || (SETS_ENV.has(c.name) && c.words.slice(1).some((w) => RUNS_PROGRAM_ENV.test(w.value))));
+}
 
 /** A word that is only a path (no quotes, spaces, separators or code), so it cannot carry a program. */
 const PLAIN_PATH = /^[A-Za-z0-9_.~:\\/-]+$/;
@@ -719,10 +910,10 @@ const PLAIN_PATH = /^[A-Za-z0-9_.~:\\/-]+$/;
  * report 2026-10-22, R3-2): rg --pre, git grep -O, any git -c / --config-env, git --output /
  * --ext-diff / --textconv / --filters, file -C, less -o / -O / --log-file / +cmd, find actions.
  */
-function readOnlyCommand(cmd) {
+function readOnlyCommand(cmd, lineEnv = false) {
   const name = cmd.name;
   const v = cmd.words.map((x) => x.value);
-  if (cmd.assigns.some((a) => RUNS_PROGRAM_ENV.test(a))) return false;
+  if (lineEnv || cmd.assigns.some((a) => RUNS_PROGRAM_ENV.test(a))) return false;
   if (name === 'git') {
     const g = gitArgs(cmd.words);
     if (!GIT_READ_ONLY.has(g.sub)) return false;
@@ -758,6 +949,7 @@ function kitFragment(value, ctx) {
   const win = process.platform === 'win32';
   const t = win ? value.toLowerCase() : value;
   if (/\.(claude|cursor)([\\/]|$)/.test(t) || t.includes('sdd-harness.env')) return true;
+  if (t.split(/[\\/]/).some((comp) => KIT_NAMES.some((name) => shortNameMayAlias(comp, name)))) return true;
   if (!ctx.configDir) return false;
   const d = collapse(norm(ctx.configDir));
   const s = t.replace(/\\/g, '/');
@@ -780,10 +972,10 @@ function shellTextIndex(cmd) {
  * kit's own tools, or null. Any word counts (R3-1): a path that resolves into kit configuration, or a
  * word that contains a kit fragment, whatever option introduced it — interpreter text included.
  */
-function kitNamedBy(cmd, ctx) {
+function kitNamedBy(cmd, ctx, lineEnv = false) {
   const name = cmd.name;
   const w = cmd.words;
-  if (!name || !w.length || readOnlyCommand(cmd)) return null;
+  if (!name || !w.length || readOnlyCommand(cmd, lineEnv)) return null;
   let words = w.slice(1);
   if (name === 'git') {
     const g = gitArgs(w);
@@ -793,23 +985,46 @@ function kitNamedBy(cmd, ctx) {
     const abs = resolvePath(value, dynamic, cmd.cwd);
     return abs === null ? namesKitInText(value, ctx) : kitConfiguration(abs, ctx);
   };
-  // The kit's own tools: a script under .claude/ run directly, or given as a plain path right after
-  // its interpreter (bash .claude/doctor.sh, node .claude/hooks/x.mjs).
-  if (/[\\/]/.test(w[0].value) && kitPath(w[0].value, w[0].dynamic)) return null;
-  if (KIT_RUNNERS.has(name) && w[1] && !w[1].dynamic && PLAIN_PATH.test(w[1].value) && !w[1].value.startsWith('-') && kitPath(w[1].value, false)) return null;
+  const runsEnv = lineEnv || cmd.assigns.some((a) => RUNS_PROGRAM_ENV.test(a));
+  // The kit's own tools, without options or a variable that runs code first: a script under .claude/
+  // run directly, or given as a plain path right after its interpreter (bash .claude/doctor.sh, node
+  // .claude/hooks/x.mjs). `bash -x .claude/doctor.sh` is not exempt.
+  if (!runsEnv && !w[0].dynamic && /[\\/]/.test(w[0].value) && kitPath(w[0].value, false)) return null;
+  if (!runsEnv && KIT_RUNNERS.has(name) && w[1] && !w[1].dynamic && PLAIN_PATH.test(w[1].value) && !w[1].value.startsWith('-') && kitPath(w[1].value, false)) return null;
   const shellText = shellTextIndex(cmd);
   const show = (x) => `${name} ${x.length > 80 ? `${x.slice(0, 77)}...` : x}`;
-  for (const a of cmd.assigns) if (kitFragment(a, ctx)) return show(a);
+  // A word whose path cannot be resolved (3d): it holds `$` or a backtick, or it is relative to an
+  // unknown directory. It counts as kit configuration, as an unresolved write target does.
+  const unresolved = (x) => ({ text: show(x), unresolved: true });
+  for (const a of cmd.assigns) if (kitFragment(a, ctx)) return { text: show(a) };
+  if (w[0].dynamic) return unresolved(w[0].value);
   for (let k = 0; k < words.length; k++) {
     const x = words[k];
     if (k + 1 === shellText) continue; // words[k] is w[k + 1] for a shell
-    if (kitFragment(x.value, ctx)) return show(x.value);
+    if (kitFragment(x.value, ctx)) return { text: show(x.value) };
     let value = x.value;
+    let glob = x.glob;
     if (value.startsWith('-')) {
       if (!value.includes('=')) continue;
       value = value.slice(value.indexOf('=') + 1);
+      glob = glob && glob.slice(glob.indexOf('=') + 1);
+      if (glob && !hasGlob(glob)) glob = undefined;
     }
-    if (value && kitPath(value, x.dynamic)) return show(x.value);
+    if (!value) continue;
+    if (x.dynamic) return unresolved(x.value);
+    if (glob) {
+      // 3a: a glob or a brace that could match a kit path; its literal expansions are checked as paths.
+      const g = globKit(glob, cmd.cwd, ctx);
+      if (g.kit) return { text: show(x.value) };
+      for (const lit of g.literals) {
+        if (kitFragment(lit, ctx)) return { text: show(x.value) };
+        if (resolvePath(lit, false, cmd.cwd) === null) return unresolved(x.value);
+        if (kitPath(lit, false)) return { text: show(x.value) };
+      }
+      continue;
+    }
+    if (resolvePath(value, false, cmd.cwd) === null) return unresolved(x.value);
+    if (kitPath(value, false)) return { text: show(x.value) };
   }
   return null;
 }
@@ -887,10 +1102,23 @@ function analyse(parsed, line, ctx) {
   }
 
   const isKit = (abs) => (abs === null ? true : kitConfiguration(abs, ctx));
+  // A write target or pathspec is kit configuration when its path is, when it names `.claude/`,
+  // `.cursor/` or `sdd-harness.env` anywhere (3f: ~/.claude/ too, like the generic rule), or when it
+  // is a glob or brace that could match a kit path (3a).
+  const isKitWord = (t, cwd) => {
+    if (t.glob) {
+      const g = globKit(t.glob, cwd, ctx);
+      if (g.kit) return true;
+      return g.literals.some((lit) => kitFragment(lit, ctx) || isKit(resolvePath(lit, false, cwd)));
+    }
+    return kitFragment(t.value, ctx) || isKit(resolvePath(t.value, t.dynamic, cwd));
+  };
+  const lineEnv = lineSetsProgramEnv(all);
 
   for (const cmd of all) {
     const w = cmd.words;
     const v = w.map((x) => x.value);
+    const kitBefore = facts.kitConfig.length;
     // Rule 1: rm with r/f option words right after it; or `<tool> rm -rf`.
     if (cmd.name === 'rm') {
       let k = 1;
@@ -912,7 +1140,7 @@ function analyse(parsed, line, ctx) {
       const abs = resolvePath(t.value, t.dynamic, cmd.cwd);
       const name = (abs ?? t.value).split('/').pop();
       if (name === 'sdd-harness.env') facts.kitContractWrite = true;
-      if (isKit(abs)) facts.kitConfig.push(abs ?? t.value);
+      if (isKitWord(t, cmd.cwd)) facts.kitConfig.push(abs ?? t.value);
     }
     // Rule 5: installs.
     const inst = install(cmd);
@@ -920,7 +1148,7 @@ function analyse(parsed, line, ctx) {
     const runner = packageRunner(cmd, ctx);
     if (runner) facts.runners.push(runner);
     // Rule 8: git on kit configuration, whole tree, reverts, forced switches, pushes to the base.
-    if (cmd.name === 'git') gitRules(cmd, facts, ctx, isKit);
+    if (cmd.name === 'git') gitRules(cmd, facts, ctx, isKit, isKitWord);
     // Permission bypass.
     const b = wordsWithoutMessages(cmd);
     if (b.includes('--dangerously-skip-permissions') || b.some((x, k) => (x === '--permission-mode' && b[k + 1] === 'bypassPermissions') || x === '--permission-mode=bypassPermissions')) facts.bypassFlags = true;
@@ -929,9 +1157,11 @@ function analyse(parsed, line, ctx) {
     // Aliases: one can hide a merge from the merge gate (gh alias set, git config alias.*, git -c alias.*=).
     const alias = aliasDefinition(cmd);
     if (alias) facts.aliasDefinition.push(alias);
-    // Any other command that names kit configuration (curl -o, tar -C, touch, chmod, git apply…).
-    const named = kitNamedBy(cmd, ctx);
-    if (named) facts.kitNamed.push(named);
+    // Any other command that names kit configuration (curl -o, tar -C, touch, chmod, git apply…). A
+    // word that cannot be resolved is reported with the unresolved write targets.
+    const named = kitNamedBy(cmd, ctx, lineEnv);
+    if (named && !named.unresolved) facts.kitNamed.push(named.text);
+    else if (named && facts.kitConfig.length === kitBefore) facts.kitConfig.push(named.text);
   }
 
   // Interpreter text the guard reads only by pattern: naming kit configuration is enough.
@@ -1015,7 +1245,7 @@ function packageRunner(cmd, ctx) {
   return { runner: name, downloads: !local, bin };
 }
 
-function gitRules(cmd, facts, ctx, isKit) {
+function gitRules(cmd, facts, ctx, isKit, isKitWord) {
   const g = gitArgs(cmd.words);
   const rest = gitRest(g);
   const vals = rest.map((x) => x.value);
@@ -1030,6 +1260,8 @@ function gitRules(cmd, facts, ctx, isKit) {
       : pathspecs;
     // git checkout without -- reads its non-option words as a tree-ish and pathspecs: every one is checked.
     if (touchesKit(specs.filter((x) => !globOrTop(x.value)))) facts.kitConfig.push(`git ${g.sub}`);
+    // A shell glob or brace (unquoted) is expanded before git sees it (3a).
+    else if (specs.some((x) => x.glob && isKitWord(x, cmd.cwd))) facts.kitConfig.push(`git ${g.sub}`);
   }
   if (g.sub === 'add' && vals.some((x) => ['-A', '--all', '-u', '--update'].includes(x) || globOrTop(x))) facts.wholeTree.push('git add');
   if (g.sub === 'commit' && vals.some((x) => x === '--all' || x === '.' || (/^-[A-Za-z]+$/.test(x) && /^-[^mFCc]*a/.test(x)))) facts.wholeTree.push('git commit');
@@ -1203,6 +1435,7 @@ function kitConfigurationOf(p, ctx) {
 export function kitConfiguration(abs, ctx) {
   const p = collapse(norm(abs));
   if (kitConfigurationOf(p, ctx)) return true;
+  if (ctx.configDir && shortNameUnder(p, collapse(norm(ctx.configDir)))) return true;
   const real = realPath(p);
   return real !== p && kitConfigurationOf(real, ctx);
 }
