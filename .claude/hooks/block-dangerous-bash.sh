@@ -59,22 +59,34 @@ RAW_ARGS=()
 for r in "${RAW_RULES[@]}"; do RAW_ARGS+=(--raw "$r"); done
 
 # Every fact the rules need, from one node process (shell-words.mjs --hook-input prints shell
-# assignments, single-quoted, ending with SW_DONE=1).
-P_OK=false P_ERROR='' P_PIPE=false P_SCRATCH=false P_RM=false P_PUSH=false P_DISCARD=false
-P_CONTRACT=false P_KIT='' P_WHOLE='' P_REVERT='' P_FORCED=false P_BYPASS=false P_BASE=false
-P_PROTECTION=false P_INSTALLS=0 P_INST_INTERP=0 P_COMMANDS=0 P_MANAGER='' P_REGISTRY=false
-P_NPMCONFIG=false P_PACKAGES='' P_RUNNERS=0 P_KIT_NAMED='' P_KIT_INTERP='' P_ALIAS='' P_COSTLY=''
-COMMAND='' CWD='' SCRATCHPAD='' P_BACKGROUND=''
+# assignments, single-quoted, ending with SW_SENTINEL set to the nonce passed here).
+p_defaults() {
+  P_OK=false P_ERROR='' P_PIPE=false P_SCRATCH=false P_RM=false P_PUSH=false P_DISCARD=false
+  P_CONTRACT=false P_KIT='' P_WHOLE='' P_REVERT='' P_FORCED=false P_BYPASS=false P_BASE=false
+  P_PROTECTION=false P_INSTALLS=0 P_INST_INTERP=0 P_COMMANDS=0 P_MANAGER='' P_REGISTRY=false
+  P_NPMCONFIG=false P_PACKAGES='' P_RUNNERS=0 P_KIT_NAMED='' P_KIT_INTERP='' P_ALIAS='' P_COSTLY=''
+  COMMAND='' CWD='' SCRATCHPAD='' P_BACKGROUND='' SW_SENTINEL=''
+  local r
+  for r in "${!R_@}"; do unset "$r"; done
+}
+p_defaults
+NONCE="sw${RANDOM}${RANDOM}${RANDOM}$$"
 OUT=$(timeout 5 node "$HOOK_DIR/shell-words.mjs" --hook-input --project "$PROJECT_DIR" \
-  --base "$AUTONOMOUS_MERGE_BASE" "${RAW_ARGS[@]}" <<<"$INPUT" 2>/dev/null) || OUT=''
-if [[ "$OUT" == *$'\n'SW_DONE=1 ]]; then
-  eval "$OUT"
-else
-  # The parser failed, timed out or printed something unreadable: read the input with jq and match
-  # the raw rules on the whole line with grep, as before the parser.
+  --base "$AUTONOMOUS_MERGE_BASE" --nonce "$NONCE" "${RAW_ARGS[@]}" <<<"$INPUT" 2>/dev/null) || OUT=''
+# The output is trusted only when evaluating it succeeds and sets the sentinel, which it prints last
+# (verify-against-spec 2026-10-22, R3-7): a trailing marker alone does not prove the rest was read.
+PARSER_READ=false
+if [[ -n "$OUT" ]] && eval "$OUT" 2>/dev/null && [[ "$SW_SENTINEL" == "$NONCE" ]]; then PARSER_READ=true; fi
+if [[ "$PARSER_READ" != true ]]; then
+  # The parser failed, timed out or printed something that cannot be evaluated: read the input with
+  # jq and match the raw rules on the whole line with grep, as before the parser.
+  P_ERROR='parser failure'
+  [[ -z "$OUT" ]] || P_ERROR='parser output'
+  ERR="$P_ERROR"
+  p_defaults
   COMMAND=$(field "$INPUT" '.tool_input.command')
   P_BACKGROUND=$(field "$INPUT" '.is_background_agent')
-  P_OK=false P_ERROR='parser failure'
+  P_OK=false P_ERROR="$ERR"
 fi
 # Unattended mode (lib.sh `unattended`), from the switch and the input field read above, so it is
 # looked up once without another jq process.
@@ -107,8 +119,15 @@ raw() { # raw <name>
 }
 
 # Elapsed-time guard: in an unattended run a check that has taken this long is denied before the
-# hook timeout (30 s) could end it and let the call through.
-over_budget() { [[ "$UNATT" == true ]] && (( SECONDS >= ${1:-20} )); }
+# hook timeout (30 s) could end it and let the call through. The budgets are 20 s for the check and
+# 15 s before the package vetting. KIT_GUARD_TIME_BUDGET_S, read from the process environment only
+# (sdd-harness.env cannot set it), lowers both for the tests; it never raises them.
+CHECK_BUDGET=20 VET_BUDGET=15
+if [[ "${KIT_GUARD_TIME_BUDGET_S:-}" =~ ^[0-9]{1,2}$ ]]; then
+  (( 10#$KIT_GUARD_TIME_BUDGET_S >= CHECK_BUDGET )) || CHECK_BUDGET=$(( 10#$KIT_GUARD_TIME_BUDGET_S ))
+  (( 10#$KIT_GUARD_TIME_BUDGET_S >= VET_BUDGET )) || VET_BUDGET=$(( 10#$KIT_GUARD_TIME_BUDGET_S ))
+fi
+over_budget() { [[ "$UNATT" == true ]] && (( SECONDS >= $1 )); }
 too_costly() {
   deny "Unattended run: this command line is too costly to check ($1), so it is denied. Split it into shorter commands, and write long scripts to a file with the editing tools first."
 }
@@ -118,7 +137,7 @@ if [[ "$PARSED" != "true" ]] && [[ "$UNATT" == true ]]; then
 fi
 if [[ "$UNATT" == true ]]; then
   [[ -z "$P_COSTLY" ]] || too_costly "$P_COSTLY"
-  ! over_budget 20 || too_costly "the check took ${SECONDS} s"
+  ! over_budget "$CHECK_BUDGET" || too_costly "the check took ${SECONDS} s, at or past its time budget of ${CHECK_BUDGET} s"
 fi
 
 # In an unattended run a rule that fired only on interpreter text may be a false positive (a heredoc
@@ -211,7 +230,7 @@ if { [[ "$PARSED" == "true" ]] && [[ "$P_INSTALLS" != "0" ]]; } || \
   [[ "$P_REGISTRY" != "true" ]] || deny "Unattended run: --registry / --userconfig would install from a registry the vetting does not read."
   [[ "$P_NPMCONFIG" != "true" ]] || deny "Unattended run: npm_config_* assignments could point npm at another registry."
   # The vetting may take up to 10 s: start it only with room left before the hook timeout.
-  ! over_budget 15 || too_costly "the check took ${SECONDS} s before the package vetting"
+  ! over_budget "$VET_BUDGET" || too_costly "the check took ${SECONDS} s before the package vetting, at or past its time budget of ${VET_BUDGET} s"
   # shellcheck disable=SC2086
   VET=$(timeout 10 node "$HOOK_DIR/vet-package.mjs" "$P_MANAGER" $P_PACKAGES 2>/dev/null) || VET=''
   VET_OK=$(printf '%s' "$VET" | jq -r 'if has("ok") then .ok else "unreadable" end' 2>/dev/null || echo unreadable)

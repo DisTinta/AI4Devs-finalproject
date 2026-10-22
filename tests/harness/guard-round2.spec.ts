@@ -58,11 +58,17 @@ describe('Shell guard: adversarial review round 2', { timeout: 240_000 }, () => 
   it('A path to kit configuration is recognised in any spelling', async () => {
     project = createProject({ env: AUTONOMOUS, git: { branch: 'feature/DIS-9-foo-bar' }, files: { 'evil.sh': 'x\n' } });
     const dir = project.dir;
+    // Spellings every platform runs (CI is Linux): ./ and .. segments, doubled slashes, absolute forms.
     const spellings = [
       './.claude//hooks/../hooks/lib.sh',
       'sub/../.claude/./hooks/lib.sh',
       `${dir}//.claude/hooks/lib.sh`,
+      `${dir}/src/../.claude/hooks/lib.sh`,
+      `${dir}/./.claude/./hooks/lib.sh`,
+      '.claude/hooks/x/../../hooks/lib.sh',
+      'src/../../' + dir.split('/').pop() + '/.claude/hooks/lib.sh',
     ];
+    if (!WIN) spellings.push(`/${dir}/.claude/hooks/lib.sh`, `${dir}///.claude//hooks///lib.sh`);
     if (WIN) {
       const win = dir.replace(/\//g, '\\');
       const drive = dir[0].toLowerCase();
@@ -79,24 +85,43 @@ describe('Shell guard: adversarial review round 2', { timeout: 240_000 }, () => 
     }
     // A junction (Windows, no admin rights needed) or a symlink to .claude.
     symlinkSync(join(dir, '.claude'), join(dir, 'cfg'), WIN ? 'junction' : 'dir');
-    spellings.push('cfg/hooks/lib.sh');
+    spellings.push('cfg/hooks/lib.sh', `${dir}/cfg/hooks/lib.sh`, 'cfg/../cfg/hooks/lib.sh');
+    // A symbolic link to a file inside .claude (POSIX; Windows file links need admin rights).
+    if (!WIN) {
+      symlinkSync(join(dir, '.claude/hooks/lib.sh'), join(dir, 'lib-link.sh'), 'file');
+      spellings.push('lib-link.sh', `${dir}/lib-link.sh`);
+    }
+    // Only the writers whose decision depends on resolving the path (a redirection, a copy target,
+    // git add): a word that merely contains `.claude/` is denied by the fragment rule anyway.
     const commands = spellings.flatMap((p) => [
       `echo x > '${p}'`,
+      `echo x >> '${p}'`,
       `cp evil.sh '${p}'`,
       `printf x | tee '${p}'`,
       `sed -i s/a/b/ '${p}'`,
       `git add '${p}'`,
     ]);
     await expectDenied(project, commands, /\.claude\/, \.cursor\/ and the autonomous profile/);
-    // A file next to the kit stays free.
+    // From a subdirectory, `..` reaches the kit too.
     mkdirSync(join(dir, 'src'), { recursive: true });
-    await expectFree(project, ['echo x > ./src//a.ts', 'cp evil.sh sub/../src/b.ts']);
+    for (const c of ['echo x > ../.claude/hooks/lib.sh', "cp ../evil.sh '../cfg/hooks/lib.sh'"]) {
+      const r = await guard(project, c, { cwd: join(dir, 'src').replace(/\\/g, '/') });
+      expect(r.decision, c).toBe('deny');
+    }
+    // A file next to the kit stays free, whatever its spelling.
+    await expectFree(project, [
+      'echo x > ./src//a.ts',
+      'cp evil.sh sub/../src/b.ts',
+      `echo x > '${dir}/src/../src/c.ts'`,
+      `echo x > '${dir}//src/d.ts'`,
+      "echo x > 'cfg/../src/e.ts'",
+    ]);
   });
 
   it('Writers in their alternative syntax are recognised', async () => {
     const ctx = { cwd: 'C:/repo', project: 'C:/repo', scratchpad: null, base: null, configDir: null };
     const kit = (line: string) => (inspect(line, ctx).facts as { kitConfig: string[] }).kitConfig;
-    for (const line of [
+    const writers = [
       'cp -t .claude/hooks evil.sh',
       'cp -rt .claude/hooks evil.sh',
       'cp --target-directory=.claude/hooks evil.sh',
@@ -110,12 +135,20 @@ describe('Shell guard: adversarial review round 2', { timeout: 240_000 }, () => 
       'sed -e x -i .claude/hooks/lib.sh',
       'sed -n -i -e x -e y .claude/hooks/lib.sh',
       'sed -i -f script.sed .claude/hooks/lib.sh',
-    ]) {
+    ];
+    for (const line of writers) {
       expect(kit(line), line).not.toEqual([]);
     }
     // A sed that does not edit in place, and a cp whose target is elsewhere, write no kit file.
     expect(kit('sed -n -e p .claude/hooks/lib.sh')).toEqual([]);
     expect(kit('cp -t src .claude/hooks/lib.sh')).toEqual([]);
+    // The hook denies each of them in an autonomous run, as a write to kit configuration.
+    const auto = createProject({ env: AUTONOMOUS, git: { branch: 'feature/DIS-9-foo-bar' } });
+    try {
+      await expectDenied(auto, writers, /\.claude\/, \.cursor\/ and the autonomous profile are not modified by the agent \([^)]*\.claude\/hooks/);
+    } finally {
+      auto.cleanup();
+    }
     // The always-on kit-contract rule reads the same syntax (switch "0").
     project = createProject({ env: { KIT_AUTONOMOUS_RUN: '0' } });
     await expectDenied(project, [
@@ -138,7 +171,7 @@ describe('Shell guard: adversarial review round 2', { timeout: 240_000 }, () => 
       'git -c alias.m="!gh pr merge 5 --admin" m',
       'git -c Alias.m=x m',
       'GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=alias.m GIT_CONFIG_VALUE_0=x git m',
-    ], /alias/);
+    ], /aliases are not defined or removed by the agent .*an alias can hide a merge from the merge gate/);
     await expectFree(project, ['gh alias list', 'git config --get user.name', 'git config user.name']);
     const off = createProject({ env: { KIT_AUTONOMOUS_RUN: '0' } });
     try {
@@ -220,7 +253,11 @@ describe('Shell guard: adversarial review round 2', { timeout: 240_000 }, () => 
 
   it('A git checkout in an unknown directory is denied in an autonomous run', async () => {
     project = createProject({ env: AUTONOMOUS, git: { branch: 'feature/DIS-9-foo-bar' } });
-    await expectDenied(project, ['cd "$SOMEWHERE" && git checkout feature/DIS-9-x', 'cd - && git checkout main']);
+    await expectDenied(
+      project,
+      ['cd "$SOMEWHERE" && git checkout feature/DIS-9-x', 'cd - && git checkout main', 'cd "$X" && git checkout main'],
+      /not modified by the agent \(git checkout\)\. Paths that cannot be resolved \(variables, unknown directory\) count too/,
+    );
     await expectFree(project, ['git checkout feature/DIS-9-x']);
   });
 });

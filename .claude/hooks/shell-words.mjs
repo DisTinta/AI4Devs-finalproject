@@ -708,37 +708,108 @@ const GIT_READ_ONLY = new Set(['diff', 'show', 'log', 'status', 'ls-files', 'bla
 const FIND_ACTIONS = new Set(['-exec', '-execdir', '-ok', '-okdir', '-delete', '-fprint', '-fprint0', '-fprintf', '-fls']);
 // Runners of the kit's own scripts (bash .claude/doctor.sh, node .claude/hooks/…): allowed.
 const KIT_RUNNERS = new Set(['bash', 'sh', 'zsh', 'node', 'pwsh', 'powershell', 'source', '.']);
+// Assignments that make a read-only command run another program (a pager, a diff driver, git config).
+const RUNS_PROGRAM_ENV = /^(GIT_CONFIG_[A-Z0-9_]*|GIT_EXTERNAL_DIFF|GIT_PAGER|GIT_EDITOR|GIT_SSH(_COMMAND)?|PAGER|LESSOPEN|LESSCLOSE|LESSKEYIN|VISUAL|EDITOR)=/;
 
-/** "<command> <word>" when a command outside the read-only list names kit configuration, or null. */
+/** A word that is only a path (no quotes, spaces, separators or code), so it cannot carry a program. */
+const PLAIN_PATH = /^[A-Za-z0-9_.~:\\/-]+$/;
+
+/**
+ * The read-only exemption is lost when an option runs a command or writes a file (verify-against-spec
+ * report 2026-10-22, R3-2): rg --pre, git grep -O, any git -c / --config-env, git --output /
+ * --ext-diff / --textconv / --filters, file -C, less -o / -O / --log-file / +cmd, find actions.
+ */
+function readOnlyCommand(cmd) {
+  const name = cmd.name;
+  const v = cmd.words.map((x) => x.value);
+  if (cmd.assigns.some((a) => RUNS_PROGRAM_ENV.test(a))) return false;
+  if (name === 'git') {
+    const g = gitArgs(cmd.words);
+    if (!GIT_READ_ONLY.has(g.sub)) return false;
+    const globals = v.slice(1, v.length - g.rest.length - 1);
+    if (globals.some((x) => x === '-c' || x === '--config-env' || x.startsWith('--config-env='))) return false;
+    const opts = g.rest.map((x) => x.value).filter((x) => x.startsWith('-'));
+    const longName = (x) => x.split('=')[0];
+    return !opts.some((x) => {
+      if (x.startsWith('--')) {
+        const n = longName(x);
+        return longOpt(n, '--output', 5) || n.startsWith('--output') || longOpt(n, '--ext-diff', 5) || longOpt(n, '--textconv', 7)
+          || longOpt(n, '--filters', 5) || longOpt(n, '--open-files-in-pager', 4);
+      }
+      return g.sub === 'grep' && /^-[A-Za-z]*O/.test(x);
+    });
+  }
+  if (name === 'find') return !v.some((x) => FIND_ACTIONS.has(x));
+  if (!READ_ONLY.has(name)) return false;
+  const args = v.slice(1);
+  if (name === 'rg') return !args.some((x) => x === '--pre' || x.startsWith('--pre='));
+  if (name === 'file') return !args.some((x) => (!x.startsWith('--') && /^-[A-Za-z]*C/.test(x)) || (x.startsWith('--') && longOpt(x.split('=')[0], '--compile', 4)));
+  if (name === 'less' || name === 'more') {
+    return !args.some((x) => x.startsWith('+') || (!x.startsWith('--') && /^-[A-Za-z#]*[oO]/.test(x)) || /^--log-file/i.test(x));
+  }
+  return true;
+}
+
+/**
+ * A kit-configuration fragment inside a word (R3-1): `.claude/`, `.cursor/` (either slash), a word
+ * ending in `.claude` / `.cursor`, `sdd-harness.env`, or the autonomous profile; without case on Windows.
+ */
+function kitFragment(value, ctx) {
+  const win = process.platform === 'win32';
+  const t = win ? value.toLowerCase() : value;
+  if (/\.(claude|cursor)([\\/]|$)/.test(t) || t.includes('sdd-harness.env')) return true;
+  if (!ctx.configDir) return false;
+  const d = collapse(norm(ctx.configDir));
+  const s = t.replace(/\\/g, '/');
+  return win ? s.includes(d.toLowerCase()) : s.includes(d);
+}
+
+/** Index of the program text of a shell's `-c`, or -1 (that text is parsed and checked as commands). */
+function shellTextIndex(cmd) {
+  if (!SHELLS.has(cmd.name)) return -1;
+  const w = cmd.words.map((x) => x.value);
+  for (let k = 1; k < w.length && /^-/.test(w[k]) && w[k] !== '--'; k++) {
+    if (/^-[A-Za-z]*c[A-Za-z]*$/.test(w[k])) return k + 1;
+    if (w[k] === '-o' || w[k] === '+o') k++;
+  }
+  return -1;
+}
+
+/**
+ * "<command> <word>" when a command names kit configuration and is neither read-only nor one of the
+ * kit's own tools, or null. Any word counts (R3-1): a path that resolves into kit configuration, or a
+ * word that contains a kit fragment, whatever option introduced it — interpreter text included.
+ */
 function kitNamedBy(cmd, ctx) {
   const name = cmd.name;
   const w = cmd.words;
-  if (!name || !w.length || READ_ONLY.has(name)) return null;
-  if (name === 'find' && !w.some((x) => FIND_ACTIONS.has(x.value))) return null;
+  if (!name || !w.length || readOnlyCommand(cmd)) return null;
   let words = w.slice(1);
   if (name === 'git') {
     const g = gitArgs(w);
-    if (GIT_READ_ONLY.has(g.sub) && !g.rest.some((x) => x.value.startsWith('--output'))) return null;
-    words = gitRest(g);
+    words = [...w.slice(1, w.length - g.rest.length), ...gitRest(g)];
   } else if (name === 'gh') words = withoutMessages(w, MSG_OPTS_GH).slice(1);
   const kitPath = (value, dynamic) => {
     const abs = resolvePath(value, dynamic, cmd.cwd);
     return abs === null ? namesKitInText(value, ctx) : kitConfiguration(abs, ctx);
   };
-  // The kit's own tools: a script under .claude/ run directly or through its interpreter.
-  if (kitPath(w[0].value, w[0].dynamic) && /[\\/]/.test(w[0].value)) return null;
-  if (KIT_RUNNERS.has(name)) {
-    const script = w.slice(1).find((x) => !/^-/.test(x.value));
-    const inline = w.slice(1).some((x) => /^-[A-Za-z]*[ce]$/.test(x.value) || /^-(command|encodedcommand)$/i.test(x.value));
-    if (script && !inline && kitPath(script.value, script.dynamic)) return null;
-  }
-  for (const x of words) {
+  // The kit's own tools: a script under .claude/ run directly, or given as a plain path right after
+  // its interpreter (bash .claude/doctor.sh, node .claude/hooks/x.mjs).
+  if (/[\\/]/.test(w[0].value) && kitPath(w[0].value, w[0].dynamic)) return null;
+  if (KIT_RUNNERS.has(name) && w[1] && !w[1].dynamic && PLAIN_PATH.test(w[1].value) && !w[1].value.startsWith('-') && kitPath(w[1].value, false)) return null;
+  const shellText = shellTextIndex(cmd);
+  const show = (x) => `${name} ${x.length > 80 ? `${x.slice(0, 77)}...` : x}`;
+  for (const a of cmd.assigns) if (kitFragment(a, ctx)) return show(a);
+  for (let k = 0; k < words.length; k++) {
+    const x = words[k];
+    if (k + 1 === shellText) continue; // words[k] is w[k + 1] for a shell
+    if (kitFragment(x.value, ctx)) return show(x.value);
     let value = x.value;
     if (value.startsWith('-')) {
       if (!value.includes('=')) continue;
       value = value.slice(value.indexOf('=') + 1);
     }
-    if (value && kitPath(value, x.dynamic)) return `${name} ${x.value}`;
+    if (value && kitPath(value, x.dynamic)) return show(x.value);
   }
   return null;
 }
@@ -1213,7 +1284,7 @@ const shq = (s) => `'${String(s ?? '').replace(/\0/g, '').replace(/'/g, `'\\''`)
 
 /**
  * --hook-input: stdin is the hook's JSON. Prints shell assignments for block-dangerous-bash.sh (the
- * command, the parser's facts and the raw-text matches), ending with SW_DONE=1, so the hook needs
+ * command, the parser's facts and the raw-text matches), ending with the SW_SENTINEL the hook passed as --nonce, so the hook needs
  * neither jq nor grep per rule (adversarial review 2026-10-21: one process instead of several per
  * interpreter text).
  */
@@ -1256,7 +1327,9 @@ function hookInput() {
     }
     for (const [k, v] of Object.entries(set)) lines.push(`${k}=${shq(v)}`);
   }
-  lines.push('SW_DONE=1');
+  // Last: the sentinel the hook asked for (--nonce). The hook trusts the facts only when evaluating
+  // this output set it, so a truncated or unevaluable output is not read as facts (R3-7).
+  lines.push(`SW_SENTINEL=${shq(arg('--nonce') ?? '')}`);
   process.stdout.write(`${lines.join('\n')}\n`);
 }
 
