@@ -1,6 +1,9 @@
 // agent-harness → "The agent merges only in an autonomous run and under deterministic conditions"
 // (openspec change autonomous-run-switch, design D4): the bypasses and gaps found by
 // verify-against-spec on 2026-10-21 (V1, V3, V11, V12, V13, V23).
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { delimiter, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { bashInput, createProject, runHook, type Project } from './support/run-hook';
 import { createGhShim, prViewJson, type GhShim, type GhShimBehaviour } from './support/stubs';
@@ -23,6 +26,46 @@ describe('The merge gate is not bypassed by alternative forms (verify 2026-10-21
     project = createProject({ env, git: { branch: 'feature/DIS-9-foo-bar' } });
     shim = createGhShim(behaviour);
     return runHook(project, 'autonomous-merge-gate', bashInput(command, { cwd: project.dir }), { env: { PATH: shim.path } });
+  }
+
+  // A `gh` placed before the shim that answers `gh api …/pulls/<n>/files` from a canned page (through
+  // the real jq and the gate's own --jq filter) and passes every other call to the shim.
+  let filesBin: string | undefined;
+  afterEach(() => {
+    if (filesBin) rmSync(filesBin, { recursive: true, force: true });
+    filesBin = undefined;
+  });
+  function filesCalls(): Array<{ args: string[]; ghRepo: string | null }> {
+    if (!filesBin || !existsSync(join(filesBin, 'calls.jsonl'))) return [];
+    return readFileSync(join(filesBin, 'calls.jsonl'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  }
+  async function gateWithFiles(command: string, filesJson: string, view: unknown, mode: 'ok' | 'fail' | 'sleep' = 'ok') {
+    project?.cleanup();
+    shim?.cleanup();
+    if (filesBin) rmSync(filesBin, { recursive: true, force: true });
+    project = createProject({ env: AUTONOMOUS, git: { branch: 'feature/DIS-9-foo-bar' } });
+    shim = createGhShim({ prView: view });
+    filesBin = mkdtempSync(join(tmpdir(), 'harness-ghfiles-')).replace(/\\/g, '/');
+    writeFileSync(join(filesBin, 'files.json'), filesJson);
+    writeFileSync(join(filesBin, 'record.cjs'), `require('fs').appendFileSync(${JSON.stringify(join(filesBin, 'calls.jsonl'))}, JSON.stringify({ args: process.argv.slice(2), ghRepo: process.env.GH_REPO || null }) + '\\n');\n`);
+    writeFileSync(
+      join(filesBin, 'gh'),
+      [
+        '#!/usr/bin/env bash',
+        'if [[ "$1" == api && "$*" == */pulls/*/files* ]]; then',
+        `  node "${filesBin}/record.cjs" "$@"`,
+        `  ${mode === 'fail' ? 'exit 1' : mode === 'sleep' ? 'sleep 20' : ':'}`,
+        '  f=.; prev=""; for a in "$@"; do [[ "$prev" == --jq ]] && f="$a"; prev="$a"; done',
+        `  exec jq -r "$f" "${filesBin}/files.json"`,
+        'fi',
+        `exec "${shim.binDir}/gh" "$@"`,
+        '',
+      ].join('\n'),
+    );
+    chmodSync(join(filesBin, 'gh'), 0o755);
+    return runHook(project, 'autonomous-merge-gate', bashInput(command, { cwd: project.dir }), {
+      env: { PATH: `${filesBin}${delimiter}${shim.path}` },
+    });
   }
 
   it('V3: forbidden flags in --flag=value form are denied like the bare flags', async () => {
@@ -96,6 +139,52 @@ describe('The merge gate is not bypassed by alternative forms (verify 2026-10-21
     expect(r.reason).toContain('flag --auto');
     expect(r.reason).toContain('could not be queried');
     expect(r.reason).toContain('not checked');
+  });
+
+  it('A line too costly to check is denied in unattended mode', async () => {
+    project?.cleanup();
+    shim?.cleanup();
+    project = createProject({ env: AUTONOMOUS, git: { branch: 'feature/DIS-9-foo-bar' } });
+    shim = createGhShim({ prView: prViewJson() });
+    const started = Date.now();
+    const r = await runHook(project, 'autonomous-merge-gate', bashInput(`${'eval true; '.repeat(170)}gh pr merge 61 --merge`, { cwd: project.dir }), {
+      env: { PATH: shim.path },
+      timeoutMs: 120_000,
+    });
+    const elapsed = Date.now() - started;
+    expect(r.decision, r.reason).toBe('deny');
+    expect(r.reason).toContain('too costly to check');
+    // The hook timeout is 60 s; the denial must come well before it.
+    expect(elapsed).toBeLessThan(45_000);
+  });
+
+  it('A pull request that renames a file out of the kit configuration is not merged', async () => {
+    const files = (entries: Array<Record<string, string>>) => JSON.stringify(entries.map((e) => ({ status: 'modified', ...e })));
+    const archived = { filename: 'openspec/changes/archive/2026-10-21-foo/proposal.md', status: 'added' };
+    const cases: Array<[string, string, string[], string]> = [
+      ['renamed out', files([archived, { filename: 'docs/old-merge-gate.sh', previous_filename: '.claude/hooks/autonomous-merge-gate.sh', status: 'renamed' }]), ['docs/old-merge-gate.sh', archived.filename], '.claude/hooks/autonomous-merge-gate.sh'],
+      ['removed', files([archived, { filename: '.cursor/hooks.json', status: 'removed' }]), [archived.filename], '.cursor/hooks.json'],
+      ['case variant', files([archived, { filename: '.Claude/hooks/lib.sh' }]), [archived.filename, '.Claude/hooks/lib.sh'], '.Claude/hooks/lib.sh'],
+    ];
+    for (const [label, filesJson, viewFiles, expected] of cases) {
+      const r = await gateWithFiles('gh pr merge 61 --merge', filesJson, prViewJson({ files: viewFiles }));
+      expect(r.decision, label).toBe('deny');
+      expect(r.reason, label).toContain('kit configuration');
+      expect(r.reason, label).toContain(expected);
+      const query = [...shim!.calls(), ...filesCalls()].find((c) => c.args[0] === 'api' && c.args.some((a) => /pulls\/61\/files/.test(a)));
+      expect(query, label).toBeDefined();
+      expect(query!.args, label).toContain('--paginate');
+    }
+    // A clean list passes, and the query follows -R.
+    const clean = await gateWithFiles('gh pr merge 61 --merge -R o/r', files([archived, { filename: 'packages/core/src/a.ts' }]), prViewJson());
+    expect(clean.decision, clean.reason).toBe('allow');
+    expect(filesCalls().some((c) => c.ghRepo === 'o/r')).toBe(true);
+    // The query failing or timing out denies.
+    for (const [label, mode] of [['fails', 'fail'], ['times out', 'sleep']] as const) {
+      const r = await gateWithFiles('gh pr merge 61 --merge', files([archived]), prViewJson(), mode);
+      expect(r.decision, label).toBe('deny');
+      expect(r.reason, label).toContain('not checked');
+    }
   });
 
   // Depends on shell-words.mjs recording assignments after an `env` wrapper (V1, parser side).

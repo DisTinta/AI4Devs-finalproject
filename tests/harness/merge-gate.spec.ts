@@ -5,7 +5,8 @@ import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { bashInput, createProject, runHook, type Project } from './support/run-hook';
+
+import { bashInput, createProject, pathWithoutJq, runHook, type Project } from './support/run-hook';
 import { createGhShim, prViewJson, type GhShim, type GhShimBehaviour } from './support/stubs';
 
 const AUTONOMOUS = { KIT_AUTONOMOUS_RUN: '1', AUTONOMOUS_MERGE_BASE: 'final-project-CRN' };
@@ -76,6 +77,14 @@ describe('The agent merges only in an autonomous run and under deterministic con
       'gh pr merge 61 --merge\ngh pr merge 62 --merge --admin',
     ]) {
       expect((await gate(command)).decision, command).toBe('deny');
+    }
+    for (const [command, flag] of [
+      ['gh pr merge 5 -m -s', 'flag -s'],
+      ['gh pr merge 5 -m -r', 'flag -r'],
+    ]) {
+      const r = await gate(command);
+      expect(r.decision, command).toBe('deny');
+      expect(r.reason, command).toContain(flag);
     }
   });
 
@@ -162,6 +171,16 @@ describe('The agent merges only in an autonomous run and under deterministic con
     } finally {
       rmSync(bin, { recursive: true, force: true });
     }
+    // Without jq the gate denies and names jq.
+    project.cleanup();
+    shim.cleanup();
+    project = createProject({ env: AUTONOMOUS, git: { branch: 'feature/DIS-9-foo-bar' } });
+    shim = createGhShim({ prView: prViewJson() });
+    const noJq = await runHook(project, 'autonomous-merge-gate', bashInput('gh pr merge 61 --merge', { cwd: project.dir }), {
+      env: { PATH: `${shim.binDir}${delimiter}${pathWithoutJq()}` },
+    });
+    expect(noJq.decision).toBe('deny');
+    expect(noJq.reason).toContain('jq');
   });
 
   it('deny() exits 2 when jq fails in unattended mode', async () => {
