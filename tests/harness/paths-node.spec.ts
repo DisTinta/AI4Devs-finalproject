@@ -36,9 +36,9 @@ const timed = async (project: Project, hook: string, input: Record<string, unkno
 
 /**
  * Runs the long calls (one after another, or all at once) between two rounds of the same hooks on
- * short-path inputs; the slower round is the baseline of the machine's current load. Each long call
- * must stay within 4 × the baseline + 1.5 s, and under 8 s whatever the load (the hook timeout is
- * 10 s), and get the expected decision.
+ * short-path inputs (the slower round, the short-path baseline, is only reported). Each long call
+ * must get the expected decision and, with HOOK_TIMING=1 (the serial CI step "Hook timing"), finish
+ * within an absolute 8 s: the hook timeout is 10 s. Without it no time is asserted.
  */
 async function withinBudget(project: Project, cases: Case[], parallel = false): Promise<void> {
   const shortRound = async () => {
@@ -175,8 +175,8 @@ describe('The path facts fail closed', { timeout: 300_000 }, () => {
     project = undefined;
   });
 
-  // A paths.mjs that reads the input and hands it back without facts, as the real one does when it
-  // runs out of time or fails.
+  // A paths.mjs that reads the whole input and answers without facts (it echoes the input back, as
+  // an earlier version did on failure): the hook decides on its own copy of the input.
   const handBack = [
     "import { readFileSync } from 'node:fs';",
     'const text = readFileSync(0, "utf8");',

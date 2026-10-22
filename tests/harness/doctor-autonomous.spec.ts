@@ -29,6 +29,7 @@ interface Setup {
   dropCursorHooks?: boolean;
   dropGateRegistration?: boolean;
   dropVetPackage?: boolean;
+  dropPathsMjs?: boolean;
   noJq?: boolean;
   argsOrder?: 'dest-first' | 'flag-first';
 }
@@ -77,6 +78,7 @@ describe('A preflight checks the autonomous setup before a run', { timeout: 120_
     }
     if (setup.dropCursorHooks) rmSync(join(p.dir, '.cursor/hooks.json'));
     if (setup.dropVetPackage) rmSync(join(p.dir, '.claude/hooks/vet-package.mjs'));
+    if (setup.dropPathsMjs) rmSync(join(p.dir, '.claude/hooks/paths.mjs'));
     if (setup.dropGateRegistration) {
       const s = readFileSync(join(p.dir, '.claude/settings.json'), 'utf8').replace(/autonomous-merge-gate/g, 'removed-gate');
       writeFileSync(join(p.dir, '.claude/settings.json'), s);
@@ -219,9 +221,13 @@ describe('A preflight checks the autonomous setup before a run', { timeout: 120_
     expect(r.status).toBe(0);
   });
 
-  it('fails without jq or vet-package.mjs, and accepts the flags in any order', () => {
+  it('fails without jq, vet-package.mjs or paths.mjs, and accepts the flags in any order', () => {
     expect(preflight({ noJq: true }).fails.join('\n')).toContain('jq');
     expect(preflight({ dropVetPackage: true }).fails.join('\n')).toContain('vet-package.mjs');
+    // The file-tool hooks read every path fact from paths.mjs: without it an unattended run denies them all.
+    const noPaths = preflight({ dropPathsMjs: true });
+    expect(noPaths.fails.join('\n'), noPaths.out).toContain('paths.mjs');
+    expect(noPaths.status, noPaths.out).not.toBe(0);
     expect(preflight({ argsOrder: 'flag-first' }).status).toBe(0);
   });
 });

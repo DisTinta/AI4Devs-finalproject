@@ -56,6 +56,9 @@ if unattended; then
   # Counted in bytes on the path as written (paths.mjs): any longer path is too long to check.
   [[ "$PF_TOO_LONG" == 1 ]] && \
     deny "Unattended run: the path is over 4 KiB, too long to check against the protected paths in time, so it is not edited."
+  # A drive-relative path (C:tests/x) whose drive cannot be compared with the project's (paths.mjs).
+  [[ "$PF_UNSURE" == 1 ]] && \
+    deny "Unattended run: ${FILE} is relative to the current directory of its drive, which cannot be told here, so it is not edited. Give the full path."
   # Canonical spelling (paths.mjs): \\?\, admin shares, cygdrive, '~', '.', '//', the real location
   # of a link, and on Windows the on-disk case; the patterns below match case-insensitively on Windows.
   REL="$PF_REL"; FILE_N="$PF_NORM"

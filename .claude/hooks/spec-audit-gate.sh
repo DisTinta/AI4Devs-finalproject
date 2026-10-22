@@ -44,6 +44,9 @@ if unattended; then
   # Counted in bytes on the path as written (paths.mjs): any longer path is too long to check.
   [[ "$PF_TOO_LONG" == 1 ]] && \
     deny "Spec audit gate (unattended run): the path is over 4 KiB, too long to check against PATH_SOURCE and PATH_TESTS in time, so it is not edited."
+  # A drive-relative path (C:tests/x) whose drive cannot be compared with the project's (paths.mjs).
+  [[ "$PF_UNSURE" == 1 ]] && \
+    deny "Spec audit gate (unattended run): ${FILE} is relative to the current directory of its drive, which cannot be told here, so it is not edited. Give the full path."
   # Canonical spelling (paths.mjs), case-insensitive on Windows.
   under_ci "$PF_REL" "$PATH_SOURCE" || under_ci "$PF_REL" "$PATH_TESTS" || done_ok
 else

@@ -196,39 +196,54 @@ unattended() {
 # shell assignments ending with PF_SENTINEL set to a per-call nonce; the facts count only when
 # evaluating the output sets it. PATHS_READ says whether they were read: when not, the hooks deny in
 # an unattended run and, with the switch "0", fall back to jq and the bash checks below.
-# paths.mjs reads the hook's stdin itself (bash cannot open a Windows pipe as /dev/stdin, and $(cat)
-# costs a process on every call). It bounds its own run: after 4.5 s, or on an error, it gives no
-# facts and hands the input back (PF_INPUT, with PF_FAILED set to the nonce), so no `timeout`
-# process is added to every call and the fallback still reads the input. MSYS argument conversion
-# is off: the values reach node as written.
+# The hook reads its stdin once, into HOOK_INPUT, before paths.mjs runs: whatever paths.mjs does with
+# the input, the fallback still has it. Up to 2048 characters come through the read builtin (one
+# system call per byte on Windows, but no process); a longer input (an Edit or a Write with its
+# text) adds one cat for the rest. paths.mjs gets the input as a here-string.
+# paths.mjs is bounded from outside its process (review round 6): it runs in a process substitution
+# and the hook waits at most PATHS_TIMEOUT seconds (read -t) for its first line, then kills it. A
+# node that hangs before arming its own 4.5 s watchdog, or that is stuck in a blocking file-system
+# call, costs no more than that, and costs no `timeout` process on every call. The first line is the
+# byte length of the facts: up to 8 KiB they are read by the read builtin, beyond that by one cat.
+# MSYS argument conversion is off: the values reach node as written.
 _LIB_DIR="${BASH_SOURCE[0]//\\//}"
 if [[ "$_LIB_DIR" == */* ]]; then _LIB_DIR="${_LIB_DIR%/*}"; else _LIB_DIR=.; fi
 PATHS_READ=false
+PATHS_TIMEOUT=5
 pf_defaults() {
   PF_BACKGROUND='' PF_EVENT='' PF_TOOL='' PF_HIT='' PF_SHOWN='' PF_FILE='' PF_DOTDOT=0 PF_ENV=''
   PF_TOO_LONG=0 PF_OPENSPEC=0 PF_DOCTRINE=0 PF_UNDER_TESTS=0 PF_UNDER_SOURCE=0 PF_UNDER_MIG=0
-  PF_REL='' PF_NORM='' PF_SENTINEL='' PF_INPUT='' PF_FAILED=''
+  PF_REL='' PF_NORM='' PF_UNSURE=0 PF_SENTINEL=''
 }
 pf_defaults
 
-# path_facts read|edit: reads the hook input (stdin) through paths.mjs; call it after
-# hook_input_init "". With the facts read, the unattended answer and the Cursor event come from them
-# too (no jq call). Without them, HOOK_INPUT holds the input for the fallback: the one paths.mjs
-# handed back, or what is left on stdin (all of it when node could not start).
+# path_facts read|edit: reads the hook input (stdin) into HOOK_INPUT and its facts through paths.mjs;
+# call it after hook_input_init "". With the facts read, the unattended answer and the Cursor event
+# come from them too (no jq call). Without them (paths.mjs failed, timed out or printed something
+# unreadable), HOOK_INPUT still holds the whole input for the fallback.
 path_facts() {
-  local nonce="pf${RANDOM}${RANDOM}${RANDOM}$$" out
+  local nonce="pf${RANDOM}${RANDOM}${RANDOM}$$" out="" len="" fd pid
   pf_defaults
   PATHS_READ=false
-  out=$(MSYS2_ARG_CONV_EXCL='*' MSYS_NO_PATHCONV=1 node "$_LIB_DIR/paths.mjs" --mode "$1" --nonce "$nonce" \
+  HOOK_INPUT=""
+  IFS= read -r -N 2048 -d '' HOOK_INPUT || true
+  (( ${#HOOK_INPUT} < 2048 )) || HOOK_INPUT+=$(cat)
+  exec {fd}< <(MSYS2_ARG_CONV_EXCL='*' MSYS_NO_PATHCONV=1 node "$_LIB_DIR/paths.mjs" --mode "$1" --nonce "$nonce" \
     --project "$PROJECT_DIR" --autonomous "$KIT_AUTONOMOUS_RUN" --tests "$PATH_TESTS" \
-    --source "$PATH_SOURCE" --migrations "$PATH_MIGRATIONS" 2>/dev/null)
+    --source "$PATH_SOURCE" --migrations "$PATH_MIGRATIONS" 2>/dev/null <<<"$HOOK_INPUT")
+  pid=$!
+  if IFS= read -r -t "$PATHS_TIMEOUT" -u "$fd" len && [[ "$len" =~ ^[0-9]+$ ]]; then
+    if (( len <= 8192 )); then IFS= read -r -d '' -u "$fd" out || true; else out=$(cat <&"$fd"); fi
+  else
+    kill "$pid" 2>/dev/null
+  fi
+  exec {fd}<&-
   if [[ -n "$out" ]] && eval "$out" 2>/dev/null && [[ "$PF_SENTINEL" == "$nonce" ]]; then
     PATHS_READ=true
     _UNATTENDED=0
     [[ "$PF_BACKGROUND" == true ]] && _UNATTENDED=1
     return 0
   fi
-  if [[ -n "$PF_FAILED" && "$PF_FAILED" == "$nonce" ]]; then HOOK_INPUT="$PF_INPUT"; else HOOK_INPUT=$(cat); fi
   _UNATTENDED=""
   pf_defaults
   return 0
@@ -246,6 +261,14 @@ edit_facts_fallback() {
   PF_FILE=$(field "$HOOK_INPUT" '.tool_input.file_path')
   [[ -n "$PF_FILE" ]] || return 0
   slashes_v "$PF_FILE"; PF_FILE="$SLASHED"
+  # A drive-relative path on the project's drive (C:tests/x) is taken from the project (paths.mjs
+  # driveRelative).
+  if [[ "$PF_FILE" == [A-Za-z]:* && "${PF_FILE:2:1}" != / && "${PROJECT_DIR:1:1}" == : ]]; then
+    lc="${PF_FILE:0:1}"
+    if [[ "${lc,,}" == "${PROJECT_DIR:0:1}" || "${lc^^}" == "${PROJECT_DIR:0:1}" ]]; then
+      PF_FILE="${PROJECT_DIR%/}"; [[ ${#SLASHED} -gt 2 ]] && PF_FILE+="/${SLASHED:2}"
+    fi
+  fi
   [[ "$PF_FILE" == *..* ]] && PF_DOTDOT=1
   lc="${PF_FILE,,}"
   if [[ "$lc" == *:* ]]; then
@@ -651,6 +674,8 @@ is_secret_path() {
   local file
   slashes_v "$1"; file="${SLASHED,,}"
   _is_secret_name "$file" && return 0
+  # A drive-relative path (c:secrets/x) is also judged without its drive.
+  [[ "$file" == [a-z]:* && "${file:2:1}" != / ]] && _is_secret_name "${file:2}" && return 0
   if [[ "$file" == *:* ]]; then
     no_streams_v "$file"
     [[ "$NO_STREAMS" != "$file" ]] && _is_secret_name "$NO_STREAMS" && return 0
@@ -686,6 +711,7 @@ is_secret_dir() {
   local dir
   slashes_v "$1"; dir="${SLASHED,,}"
   if [[ "$dir" == *:* ]]; then no_streams_v "$dir"; dir="$NO_STREAMS"; fi
+  [[ "$dir" == [a-z]:* && "${dir:2:1}" != / ]] && dir="${dir:2}"
   # One trailing '/' off by substring: on a 60 KB string bash's ${dir%/} (a literal, non-glob
   # pattern) took a second.
   [[ "$dir" == */ ]] && dir="${dir:0:${#dir}-1}"

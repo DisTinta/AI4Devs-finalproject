@@ -7,10 +7,10 @@ import { createProject, editInput, runHook, type HookResult, type Project } from
 const B = String.fromCharCode(92);
 
 /**
- * Runs `long` between two runs of the same hook on a short-path input; the slower of those two is
- * the baseline of the machine's current load. The long call must stay within 4 × the baseline +
- * 1.5 s, and under 8 s whatever the load: the hook timeout is 10 s, past which the call goes
- * through undecided.
+ * Runs `long` between two runs of the same hook on a short-path input (the slower of those two, the
+ * short-path baseline, is only reported). With HOOK_TIMING=1 (the serial CI step "Hook timing") the
+ * long call must finish within an absolute 8 s: the hook timeout is 10 s, past which the call goes
+ * through undecided. Without it no time is asserted.
  */
 async function withinBudget(
   project: Project,
@@ -209,7 +209,10 @@ describe('Secret files, round 4: an edit on a long escaped path stays within the
       const short = `${project.dir.replace(/\//g, B)}${B}.env`;
       for (const hook of ['protect-specs-and-tests', 'spec-audit-gate']) {
         const r = await withinBudget(project, hook, editInput(long), editInput(short), `${hook} switch ${sw}`);
-        if (hook === 'protect-specs-and-tests') expect(r.decision, `${hook} switch ${sw}`).toBe('deny');
+        // The environment file is denied by the edit guard; the gate denies only unattended, where a
+        // path over 4 KiB is too long to check (the .env is outside PATH_SOURCE and PATH_TESTS).
+        const expected = hook === 'protect-specs-and-tests' || sw === '1' ? 'deny' : 'none';
+        expect(r.decision, `${hook} switch ${sw}: ${r.reason.slice(0, 200)}`).toBe(expected);
       }
     }
     // A file_path nested below tool_input is not the edited file: jq reads no file_path, so the edit

@@ -9,9 +9,10 @@
 // CLI: node paths.mjs --mode read|edit --nonce <n> --project <dir> --autonomous <0|1>
 //                     [--tests <PATH_TESTS>] [--source <PATH_SOURCE>] [--migrations <PATH_MIGRATIONS>]
 // stdin: the hook's JSON input. KIT_HOOK_CLIENT=cursor selects Cursor's field names (design D11).
-// Prints shell assignments (single-quoted), the last one PF_SENTINEL set to the nonce: the hook
-// trusts the facts only when evaluating the output sets it. A run that takes longer than 4.5 s
-// prints nothing, so the hook fails closed before its own timeout.
+// Prints one line with the byte length of what follows, then shell assignments (single-quoted), the
+// last one PF_SENTINEL set to the nonce: the hook trusts the facts only when evaluating the output
+// sets it. A run that takes longer than 4.5 s prints nothing; the hook also stops waiting after 5 s
+// (lib.sh path_facts), so a run stuck before this watchdog is armed fails closed too.
 'use strict';
 import { readFileSync } from 'node:fs';
 import { readdir, realpath, stat } from 'node:fs/promises';
@@ -50,6 +51,9 @@ export function noStreams(p) {
   return drive + p.split('/').map((seg) => { const k = seg.indexOf(':'); return k < 0 ? seg : seg.slice(0, k); }).join('/');
 }
 
+/** A drive letter not followed by a separator (c:tests/x): relative to that drive's current directory. */
+const DRIVE_RELATIVE = /^[A-Za-z]:(?!\/)/;
+
 const SECRET_LOCATION = (f) => f.includes('/secrets/') || f.includes('/.secrets/') || f.startsWith('secrets/') || f.startsWith('.secrets/');
 
 function isSecretName(file) {
@@ -69,6 +73,8 @@ function isSecretName(file) {
 export function isSecretPath(raw) {
   const file = slashes(raw).toLowerCase();
   if (isSecretName(file)) return true;
+  // A drive-relative path (c:secrets/x) is also judged without its drive.
+  if (DRIVE_RELATIVE.test(file) && isSecretName(file.slice(2))) return true;
   if (file.includes(':')) {
     const plain = noStreams(file);
     if (plain !== file && isSecretName(plain)) return true;
@@ -80,6 +86,7 @@ export function isSecretPath(raw) {
 export function isSecretDir(raw) {
   let dir = slashes(raw).toLowerCase();
   if (dir.includes(':')) dir = noStreams(dir);
+  if (DRIVE_RELATIVE.test(dir)) dir = dir.slice(2);
   if (dir.endsWith('/')) dir = dir.slice(0, -1);
   const last = baseName(dir);
   return last === 'secrets' || last === '.secrets';
@@ -259,13 +266,14 @@ export function globAlts(pattern) {
 }
 
 /** Does a search-tool glob (Grep's glob, Glob's pattern) reach a secret file? */
-export function globReachesSecret(raw) {
+export function globReachesSecret(raw, unattended = true) {
   if (!raw) return false;
   let pat = slashes(raw).toLowerCase();
-  // A long pattern is judged with its separator runs squeezed (after a leading pair), and past 4 KiB
-  // it counts as reaching, as the bash check did (review round 4).
+  // A long pattern is judged with its separator runs squeezed (after a leading pair). In an
+  // unattended run, past 4 KiB it counts as reaching (review round 4); with the switch "0" it is
+  // decided by what it names, whatever its length (author decision, review round 6).
   if (byteLength(pat) > 4096) pat = (pat.startsWith('//') ? '//' : '') + pat.slice(pat.startsWith('//') ? 2 : 0).replace(/\/{2,}/g, '/');
-  if (byteLength(pat) > 4096) return true;
+  if (unattended && byteLength(pat) > 4096) return true;
   const alts = pat.includes('{') || pat.includes('}') ? globAlts(pat) : [pat];
   if (alts === null) return true;
   for (const alt of alts) {
@@ -358,6 +366,19 @@ export function lexicalPath(input) {
   return root + out.join('/') || '.';
 }
 
+/** A drive-relative path (C:tests/x) is relative to that drive's current directory, taken here as
+ * the project directory when the drive is the project's (review round 6); another drive's stays as
+ * written, outside the repository. `unsure` on Windows when the project has no drive letter to
+ * compare with: an unattended run denies it. */
+export function driveRelative(file, project) {
+  if (!DRIVE_RELATIVE.test(file)) return { file, unsure: false };
+  const m = /^([A-Z]):\//.exec(lexicalPath(project));
+  if (!m) return { file, unsure: WINDOWS };
+  if (m[1] !== file[0].toUpperCase()) return { file, unsure: false };
+  const root = project.replace(/\/+$/, '');
+  return { file: file.length > 2 ? `${root}/${file.slice(2)}` : root, unsure: false };
+}
+
 const isAbsolute = (p) => p.startsWith('/') || /^[A-Z]:\//.test(p);
 const isRoot = (p) => p === '/' || /^[A-Z]:\/$/.test(p) || /^\/\/[^/]*$/.test(p);
 const parentOf = (p) => {
@@ -374,6 +395,10 @@ const parentOf = (p) => {
 export async function normPath(input, project) {
   let p = lexicalPath(input);
   if (!isAbsolute(p)) p = lexicalPath(`${project}/${p}`);
+  // A network path (//host/share/…, this machine's admin shares already being C:/…) is not
+  // resolved: realpath of an unreachable host blocks for many seconds (21 s measured, review round
+  // 6). It stays as written, outside the repository.
+  if (p.startsWith('//')) return { norm: p, real: false };
   let anc = p;
   let rest = '';
   for (;;) {
@@ -497,15 +522,16 @@ async function main(text) {
       if (file && isSecretPath(file)) { hit = 'file'; shown = file; }
     } else if (tool === 'Grep' || tool === 'Glob') {
       if (target && (isSecretPath(target) || isSecretDir(target))) { hit = 'target'; shown = target; }
-      else if (pattern && globReachesSecret(pattern)) { hit = 'pattern'; shown = pattern; }
+      else if (pattern && globReachesSecret(pattern, unattended)) { hit = 'pattern'; shown = pattern; }
     }
     Object.assign(set, { PF_TOOL: tool, PF_HIT: hit, PF_SHOWN: shown });
   } else {
     const written = editFile(input, cursor);
-    const file = slashes(written);
+    const project = slashes(arg('--project') ?? process.cwd());
+    const { file, unsure } = driveRelative(slashes(written), project);
     const facts = {
       PF_FILE: file, PF_DOTDOT: 0, PF_ENV: '', PF_TOO_LONG: 0, PF_OPENSPEC: 0, PF_DOCTRINE: 0,
-      PF_UNDER_TESTS: 0, PF_UNDER_SOURCE: 0, PF_UNDER_MIG: 0, PF_REL: '', PF_NORM: '',
+      PF_UNDER_TESTS: 0, PF_UNDER_SOURCE: 0, PF_UNDER_MIG: 0, PF_REL: '', PF_NORM: '', PF_UNSURE: unsure ? 1 : 0,
     };
     if (file) {
       facts.PF_DOTDOT = file.includes('..') ? 1 : 0;
@@ -518,7 +544,7 @@ async function main(text) {
       facts.PF_UNDER_SOURCE = under(file, arg('--source') ?? '') ? 1 : 0;
       facts.PF_UNDER_MIG = under(file, arg('--migrations') ?? '') ? 1 : 0;
       if (unattended && !facts.PF_TOO_LONG) {
-        const r = await relPath(file, slashes(arg('--project') ?? process.cwd()));
+        const r = await relPath(file, project);
         facts.PF_REL = r.rel;
         facts.PF_NORM = r.norm;
       }
@@ -528,22 +554,19 @@ async function main(text) {
   const lines = Object.entries(set).map(([k, v]) => `${k}=${shq(v)}`);
   // Last: the sentinel the hook asked for. A truncated or unevaluable output does not set it.
   lines.push(`PF_SENTINEL=${shq(arg('--nonce') ?? '')}`);
-  process.stdout.write(`${lines.join('\n')}\n`);
+  const body = `${lines.join('\n')}\n`;
+  // First line: the byte length of the facts, so the hook reads a short answer without a process.
+  process.stdout.write(`${byteLength(body)}\n${body}`);
 }
 
 if (process.argv[1] && /paths\.mjs$/.test(slashes(process.argv[1]))) {
-  // The hook's stdin is read here, not by bash: bash has no cheap way to read a Windows pipe
-  // ($(</dev/stdin) cannot open it, $(cat) costs a process). When no facts can be given (too slow,
-  // or an error), the input goes back to the hook with PF_FAILED set to the nonce, so its fallback
-  // still reads it; the hook never trusts that output as facts (no PF_SENTINEL).
+  // The hook keeps its own copy of the input (lib.sh path_facts), so a failure here only gives no
+  // facts: nothing is printed and the hook falls back (switch "0") or denies (unattended run).
   let text = '';
   try { text = readFileSync(0, 'utf8'); } catch { text = ''; }
-  const failed = (code) => {
-    process.stdout.write(`PF_INPUT=${shq(text)}\nPF_FAILED=${shq(arg('--nonce') ?? '')}\n`, () => process.exit(code));
-  };
-  const watchdog = setTimeout(() => failed(3), WATCHDOG_MS);
+  const watchdog = setTimeout(() => process.exit(3), WATCHDOG_MS);
   main(text).then(
     () => clearTimeout(watchdog),
-    () => failed(4),
+    () => process.exit(4),
   );
 }
