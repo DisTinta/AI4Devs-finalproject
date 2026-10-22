@@ -13,12 +13,13 @@
 
 # Project root. On Windows, Claude Code may pass CLAUDE_PROJECT_DIR with
 # backslashes that bash interprets as escapes (C:\laragon → C:laragon). If the
-# path looks broken, we fall back to git toplevel or PWD.
+# path looks broken, we fall back to git toplevel or PWD. Sets PROJECT_DIR without a subshell (every
+# hook pays for a fork on Windows).
 _project_root() {
   local d="${1:-}"
   d="${d//\\//}"
   if [[ -n "$d" && -d "$d/.claude/hooks" ]]; then
-    printf '%s' "$d"
+    PROJECT_DIR="$d"
     return
   fi
   if [[ "$d" =~ ^[A-Za-z]:[^/] ]]; then
@@ -27,10 +28,10 @@ _project_root() {
   if [[ -z "$d" ]]; then
     d="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
   fi
-  d="${d//\\//}"
-  printf '%s' "$d"
+  PROJECT_DIR="${d//\\//}"
 }
-PROJECT_DIR="$(_project_root "${CLAUDE_PROJECT_DIR:-}")"
+PROJECT_DIR=""
+_project_root "${CLAUDE_PROJECT_DIR:-}"
 export CLAUDE_PROJECT_DIR="$PROJECT_DIR"
 ENV_FILE="$PROJECT_DIR/.claude/sdd-harness.env"
 
@@ -57,10 +58,15 @@ KIT_SECRET_ALLOWLIST=""
 
 # Loads KEY="value" or KEY=value without executing the file as shell.
 # Rejects lines with command substitution, backticks or $(...).
+# The file is read in one $(<file) and split in bash: the read builtin takes one system call per
+# byte on Windows, about 70 ms on every hook for this file.
 load_env_safe() {
-  local file="$1" line key val
+  local file="$1" line key val text
   [[ -f "$file" ]] || return 0
-  while IFS= read -r line || [[ -n "$line" ]]; do
+  { text=$(<"$file"); } 2>/dev/null || return 0
+  text+=$'\n'
+  while [[ -n "$text" ]]; do
+    line="${text%%$'\n'*}"; text="${text#*$'\n'}"
     [[ "$line" =~ ^[[:space:]]*# ]] && continue
     [[ -z "${line//[[:space:]]/}" ]] && continue
     if [[ "$line" =~ \$\(|\`|\$\{ ]]; then
@@ -87,7 +93,7 @@ load_env_safe() {
         printf -v "$key" '%s' "$val"
         ;;
     esac
-  done < "$file"
+  done
 }
 
 load_env_safe "$ENV_FILE"
@@ -121,109 +127,10 @@ field() {
   printf '%s' "$1" | jq -r "$q // empty" 2>/dev/null || printf ''
 }
 
-# Pure-bash read of one string value of the JSON input, so the common path of a hook runs no jq and
-# forks no subshell (cost note of the 2026-10-22 verify report). Sets JSON_STR. Returns 0 when "KEY"
-# occurs exactly once in the input, as an object key with a plain string value; 1 when the input does
-# not contain "KEY" at all (jq would find nothing either); 2 when only jq can tell: a \u escape
-# anywhere (it could spell a key), an input over 16 KiB, a repeated "KEY", another value type, a
-# value over 4 KiB, or an escape other than \\, \" and \/ in the value. Bash's own string operations
-# grow quadratically with the length, so the limits keep a hook far from its timeout (review round 4).
-# With LEVEL "top" the key must be a member of the top-level object; with LEVEL "tool_input" a member
-# of the top-level tool_input object; elsewhere it is 2. Without LEVEL the key is not tied to its
-# object: callers use it where a key found at another level can only make the decision stricter.
-JSON_STR=""
-_JSON_STR_RE='^"(([^"\\]|\\.)*)"'
-
-# _json_depth TEXT: TEXT is the start of a JSON text, cut before a key's opening quote. Sets
-# JSON_DEPTH to the bracket nesting at the cut and JSON_MIN to the lowest nesting after the first
-# bracket. Returns 1 when TEXT is over 4 KiB (too costly here) or the cut falls inside a string.
-JSON_DEPTH=0; JSON_MIN=0
-_json_depth() {
-  local t="$1" i ch in=0 d=0 min=99
-  (( ${#t} <= 4096 )) || return 1
-  if [[ "$t" == *'\'* ]]; then
-    t="${t//\\\\/}"; t="${t//\\\"/}"
-    [[ "$t" =~ \\([^/bfnrt]|$) ]] && return 1   # not a JSON escape: invalid input, jq decides
-  fi
-  t="${t//[^\{\}\[\]\"]/}"
-  for (( i = 0; i < ${#t}; i++ )); do
-    ch="${t:i:1}"
-    if (( in )); then [[ "$ch" == '"' ]] && in=0; continue; fi
-    case "$ch" in
-      '"') in=1 ;;
-      '{'|'[') d=$(( d + 1 )) ;;
-      *) d=$(( d - 1 )); (( d < min )) && min=$d ;;
-    esac
-  done
-  (( in == 0 )) || return 1
-  JSON_DEPTH=$d; JSON_MIN=$min
-  return 0
-}
-
-json_str() {
-  local key="\"$1\"" raw="$2" level="${3:-}" pre post val c ti tpre
-  JSON_STR=""
-  (( ${#raw} <= 16384 )) || return 2
-  [[ "$raw" != *'\u'* ]] || return 2
-  [[ "$raw" == *"$key"* ]] || return 1
-  pre="${raw%%"$key"*}"
-  post="${raw:$(( ${#pre} + ${#key} ))}"
-  [[ "$post" != *"$key"* ]] || return 2
-  case "$level" in
-    top)
-      _json_depth "$pre" && (( JSON_DEPTH == 1 )) || return 2 ;;
-    tool_input)
-      ti='"tool_input"'
-      [[ "$pre" == *"$ti"* ]] || return 2
-      tpre="${pre%%"$ti"*}"
-      [[ "${raw:$(( ${#tpre} + ${#ti} ))}" != *"$ti"* ]] || return 2
-      _json_depth "$tpre" && (( JSON_DEPTH == 1 )) || return 2
-      _json_depth "${pre:$(( ${#tpre} + ${#ti} ))}" && (( JSON_DEPTH == 1 && JSON_MIN >= 1 )) || return 2
-      [[ "${pre:$(( ${#tpre} + ${#ti} ))}" =~ ^[[:space:]]*:[[:space:]]*\{ ]] || return 2 ;;
-  esac
-  pre="${pre:$(( ${#pre} > 64 ? ${#pre} - 64 : 0 ))}"
-  pre="${pre%"${pre##*[![:space:]]}"}"
-  [[ "$pre" == *'{' || "$pre" == *',' ]] || return 2
-  post="${post:0:4200}"
-  post="${post#"${post%%[![:space:]]*}"}"
-  [[ "$post" == :* ]] || return 2
-  post="${post:1}"; post="${post#"${post%%[![:space:]]*}"}"
-  # A value longer than 4 KiB has no closing quote in the window: only jq can tell.
-  post="${post:0:4098}"
-  [[ "$post" =~ $_JSON_STR_RE ]] || return 2
-  val="${BASH_REMATCH[1]}"
-  post="${post:${#BASH_REMATCH[0]}:64}"; post="${post#"${post%%[![:space:]]*}"}"
-  [[ "$post" == ,* || "$post" == '}'* ]] || return 2
-  if [[ "$val" == *'\'* ]]; then
-    c="${val//\\\\/}"; c="${c//\\\"/}"; c="${c//\\\//}"
-    [[ "$c" != *'\'* ]] || return 2
-    val="${val//\\\\/$'\x01'}"; val="${val//\\\"/\"}"; val="${val//\\\//\/}"; val="${val//$'\x01'/\\}"
-  fi
-  JSON_STR="$val"
-  return 0
-}
-
-# field without a subshell where it can: sets FIELD_VAL. Under Claude Code a plain key (.x or
-# .tool_input.x) is read by json_str at that exact level; anything else, or a json_str "only jq can
-# tell", goes to field.
-FIELD_VAL=""
-field_v() {
-  FIELD_VAL=""
-  has_jq || return 0
-  [[ -n "$1" ]] && LAST_INPUT="$1"
-  if ! cursor_client && [[ "$2" =~ ^\.(tool_input\.)?([A-Za-z_]+)$ ]]; then
-    if [[ -n "${BASH_REMATCH[1]}" ]]; then json_str "${BASH_REMATCH[2]}" "$1" tool_input; else json_str "${BASH_REMATCH[2]}" "$1" top; fi
-    case $? in
-      0) FIELD_VAL="$JSON_STR"; return 0 ;;
-      1) return 0 ;;
-    esac
-  fi
-  FIELD_VAL=$(field "$1" "$2")
-}
-
 # Cursor event of the current hook (empty under Claude Code).
 cursor_event() {
   cursor_client || return 0
+  if [[ "${PATHS_READ:-}" == true ]]; then printf '%s' "$PF_EVENT"; return 0; fi
   printf '%s' "${HOOK_INPUT:-$LAST_INPUT}" | jq -r '.hook_event_name // empty' 2>/dev/null
 }
 
@@ -269,6 +176,8 @@ autonomous_run() { [[ "$KIT_AUTONOMOUS_RUN" == "1" ]]; }
 _UNATTENDED=""
 unattended() {
   autonomous_run && return 0
+  # Already answered (path_facts sets it from paths.mjs, which read the input).
+  [[ -n "$_UNATTENDED" ]] && { [[ "$_UNATTENDED" == 1 ]]; return; }
   [[ -n "$HOOK_INPUT" ]] || return 1
   if [[ -z "$_UNATTENDED" ]]; then
     _UNATTENDED=0
@@ -277,6 +186,101 @@ unattended() {
     fi
   fi
   [[ "$_UNATTENDED" == 1 ]]
+}
+
+# ── Path and secret facts (design D8, D9) ────────────────────────────────────
+# The file-tool hooks (block-secret-reads, protect-specs-and-tests, spec-audit-gate) read every path
+# fact they decide on from one node process per call, paths.mjs: bash's own string operations grow
+# quadratically with the length of a path (long backslash runs, many segments, non-ASCII names: 60 000
+# 'é' took over 20 s), and a hook past its timeout lets the call through undecided. paths.mjs prints
+# shell assignments ending with PF_SENTINEL set to a per-call nonce; the facts count only when
+# evaluating the output sets it. PATHS_READ says whether they were read: when not, the hooks deny in
+# an unattended run and, with the switch "0", fall back to jq and the bash checks below.
+# paths.mjs reads the hook's stdin itself (bash cannot open a Windows pipe as /dev/stdin, and $(cat)
+# costs a process on every call). It bounds its own run: after 4.5 s, or on an error, it gives no
+# facts and hands the input back (PF_INPUT, with PF_FAILED set to the nonce), so no `timeout`
+# process is added to every call and the fallback still reads the input. MSYS argument conversion
+# is off: the values reach node as written.
+_LIB_DIR="${BASH_SOURCE[0]//\\//}"
+if [[ "$_LIB_DIR" == */* ]]; then _LIB_DIR="${_LIB_DIR%/*}"; else _LIB_DIR=.; fi
+PATHS_READ=false
+pf_defaults() {
+  PF_BACKGROUND='' PF_EVENT='' PF_TOOL='' PF_HIT='' PF_SHOWN='' PF_FILE='' PF_DOTDOT=0 PF_ENV=''
+  PF_TOO_LONG=0 PF_OPENSPEC=0 PF_DOCTRINE=0 PF_UNDER_TESTS=0 PF_UNDER_SOURCE=0 PF_UNDER_MIG=0
+  PF_REL='' PF_NORM='' PF_SENTINEL='' PF_INPUT='' PF_FAILED=''
+}
+pf_defaults
+
+# path_facts read|edit: reads the hook input (stdin) through paths.mjs; call it after
+# hook_input_init "". With the facts read, the unattended answer and the Cursor event come from them
+# too (no jq call). Without them, HOOK_INPUT holds the input for the fallback: the one paths.mjs
+# handed back, or what is left on stdin (all of it when node could not start).
+path_facts() {
+  local nonce="pf${RANDOM}${RANDOM}${RANDOM}$$" out
+  pf_defaults
+  PATHS_READ=false
+  out=$(MSYS2_ARG_CONV_EXCL='*' MSYS_NO_PATHCONV=1 node "$_LIB_DIR/paths.mjs" --mode "$1" --nonce "$nonce" \
+    --project "$PROJECT_DIR" --autonomous "$KIT_AUTONOMOUS_RUN" --tests "$PATH_TESTS" \
+    --source "$PATH_SOURCE" --migrations "$PATH_MIGRATIONS" 2>/dev/null)
+  if [[ -n "$out" ]] && eval "$out" 2>/dev/null && [[ "$PF_SENTINEL" == "$nonce" ]]; then
+    PATHS_READ=true
+    _UNATTENDED=0
+    [[ "$PF_BACKGROUND" == true ]] && _UNATTENDED=1
+    return 0
+  fi
+  if [[ -n "$PF_FAILED" && "$PF_FAILED" == "$nonce" ]]; then HOOK_INPUT="$PF_INPUT"; else HOOK_INPUT=$(cat); fi
+  _UNATTENDED=""
+  pf_defaults
+  return 0
+}
+
+# The reason of an unattended denial when paths.mjs gave no facts.
+PATHS_UNCHECKED="the path check (paths.mjs) failed, timed out or gave an unreadable answer, so the call is denied"
+
+# The edit facts without paths.mjs: jq reads the file and the bash checks below classify it, as the
+# edit hooks did before paths.mjs. Only used with the switch "0" outside a background agent (an
+# unattended run has already denied), so the canonical path is not needed.
+edit_facts_fallback() {
+  local lc
+  pf_defaults
+  PF_FILE=$(field "$HOOK_INPUT" '.tool_input.file_path')
+  [[ -n "$PF_FILE" ]] || return 0
+  slashes_v "$PF_FILE"; PF_FILE="$SLASHED"
+  [[ "$PF_FILE" == *..* ]] && PF_DOTDOT=1
+  lc="${PF_FILE,,}"
+  if [[ "$lc" == *:* ]]; then
+    no_streams_v "$lc"
+    [[ "$NO_STREAMS" != "$lc" ]] && _env_edit_fact "$NO_STREAMS"
+  fi
+  [[ -n "$PF_ENV" ]] || _env_edit_fact "$lc"
+  case "$PF_FILE" in
+    */openspec/*|openspec/*)
+      case "$PF_FILE" in */tasks.md|*/reports/*|*/openspec/templates/*) ;; *) PF_OPENSPEC=1 ;; esac ;;
+  esac
+  case "$PF_FILE" in
+    */docs/base-standards.md|docs/base-standards.md|\
+    */docs/documentation-standards.md|docs/documentation-standards.md|\
+    */docs/openspec-tasks-mandatory-steps.md|docs/openspec-tasks-mandatory-steps.md) PF_DOCTRINE=1 ;;
+  esac
+  under "$PF_FILE" "$PATH_TESTS" && PF_UNDER_TESTS=1
+  under "$PF_FILE" "$PATH_SOURCE" && PF_UNDER_SOURCE=1
+  under "$PF_FILE" "$PATH_MIGRATIONS" && PF_UNDER_MIG=1
+  return 0
+}
+
+# Environment-file verdict of one lower-case path form, in PF_ENV: contract (the kit contract is
+# asked about), deny, or nothing. Example files pass, except inside a secret location (design D8).
+_env_edit_fact() {
+  local lc="$1" example=0
+  case "$lc" in *.env.example|*.env.sample) example=1 ;; esac
+  case "$lc" in */secrets/*|*/.secrets/*|secrets/*|.secrets/*) example=0 ;; esac
+  [[ "$example" == "0" ]] || return 0
+  case "$lc" in
+    */.claude/sdd-harness.env|.claude/sdd-harness.env) PF_ENV=contract; return 0 ;;
+    *.env.example|*.env.sample) PF_ENV=deny; return 0 ;;
+  esac
+  is_env_file "${lc##*/}" && PF_ENV=deny
+  return 0
 }
 
 # Fail-closed in an unattended run (design D21): a crash or an unexpected exit before a decision
@@ -463,7 +467,7 @@ active_change() {
   [[ -d "$changes_dir" ]] || return 0
   for dir in "$changes_dir"/*/; do
     [[ -d "$dir" ]] || continue
-    name="$(basename "$dir")"
+    name="${dir%/}"; name="${name##*/}"
     [[ "$name" == "archive" ]] && continue
     active+=("$name")
   done
@@ -511,122 +515,10 @@ slashes_v() {
   _SLASH_IN="$1"; _SLASH_OUT="$SLASHED"
 }
 
-# Lexical form of a path, in NORM_PATH: backslashes become '/'; the \\?\ and \\.\ prefixes (and
-# \\?\UNC\) are dropped; this machine's admin shares (\\localhost\C$\…), /proc/cygdrive/c/…,
-# /cygdrive/c/… and /c/… become C:/…; the drive letter is upper case; duplicate slashes and '.'
-# segments are dropped and '..' segments are resolved. A leading ~ or ~/ is the home directory (R3-8).
-NORM_PATH=""
-_lexical_path() {
-  local p host hn="${HOSTNAME:-}" cn="${COMPUTERNAME:-}" root="" seg
-  local -a segs=() out=()
-  slashes_v "$1"; p="$SLASHED"
-  if [[ -n "${HOME:-}" && ( "$p" == "~" || "$p" == "~/"* ) ]]; then p="${HOME//\\//}${p:1}"; fi
-  if [[ "$p" =~ ^//[?.]/[Uu][Nn][Cc]/(.*)$ ]]; then p="//${BASH_REMATCH[1]}"
-  elif [[ "$p" =~ ^//[?.]/(.*)$ ]]; then p="${BASH_REMATCH[1]}"; fi
-  if [[ "$p" =~ ^//+([^/]+)/+([A-Za-z])\$(/.*)?$ ]]; then
-    host="${BASH_REMATCH[1],,}"
-    if [[ "$host" == localhost || "$host" == 127.0.0.1 || "$host" == "[::1]" || "$host" == "${hn,,}" || "$host" == "${cn,,}" ]]; then
-      p="${BASH_REMATCH[2]}:/${BASH_REMATCH[3]}"
-    fi
-  fi
-  if [[ "$p" =~ ^(/proc)?/cygdrive/([A-Za-z])(/.*)?$ ]]; then p="${BASH_REMATCH[2]}:/${BASH_REMATCH[3]}"
-  elif [[ "$p" =~ ^/([A-Za-z])/(.*)$ ]]; then p="${BASH_REMATCH[1]}:/${BASH_REMATCH[2]}"; fi
-  if [[ "$p" =~ ^([A-Za-z]):(.*)$ ]]; then root="${BASH_REMATCH[1]^^}:/"; p="${BASH_REMATCH[2]}"
-  elif [[ "$p" =~ ^//[^/] ]]; then root="//"
-  elif [[ "$p" == /* ]]; then root="/"; fi
-  IFS='/' read -r -a segs <<< "$p"
-  for seg in "${segs[@]}"; do
-    case "$seg" in
-      ""|.) ;;
-      ..)
-        if (( ${#out[@]} )) && [[ "${out[${#out[@]}-1]}" != ".." ]]; then
-          out=("${out[@]:0:${#out[@]}-1}")
-        elif [[ -z "$root" ]]; then
-          out+=("..")
-        fi ;;
-      *) out+=("$seg") ;;
-    esac
-  done
-  local IFS=/
-  NORM_PATH="${root}${out[*]}"
-  [[ -n "$NORM_PATH" ]] || NORM_PATH="."
-}
 
-# Canonical absolute form of a path, in NORM_PATH: the lexical form (a relative path is taken from
-# PROJECT_DIR), with its nearest existing ancestor replaced by that ancestor's real path, so a
-# junction or a symlink is classified by where it points. On Windows the existing part also gets
-# its on-disk case. When nothing can be resolved, the lexical form stays.
-norm_path() {
-  local p anc rest="" parent dir name real e
-  _lexical_path "$1"; p="$NORM_PATH"
-  case "$p" in
-    /*|[A-Z]:/*) ;;
-    *) _lexical_path "$PROJECT_DIR/$p"; p="$NORM_PATH" ;;
-  esac
-  anc="$p"
-  while [[ ! -e "$anc" ]]; do
-    if [[ "$anc" == / || "$anc" =~ ^[A-Z]:/$ || "$anc" =~ ^//[^/]*$ ]]; then NORM_PATH="$p"; return 0; fi
-    parent="${anc%/*}"
-    case "$parent" in ""|/) parent="/" ;; [A-Z]:) parent="$parent/" ;; esac
-    rest="/${anc##*/}$rest"; anc="$parent"
-  done
-  # A file symlink: follow it first (junctions are directories, handled by cd -P below).
-  if [[ -L "$anc" && ! -d "$anc" ]]; then
-    e=$(realpath -- "$anc" 2>/dev/null || readlink -f -- "$anc" 2>/dev/null) && [[ -n "$e" ]] && anc="$e"
-  fi
-  if [[ -d "$anc" ]]; then
-    dir="$anc"; name=""
-  else
-    dir="${anc%/*}"; name="${anc##*/}"
-    case "$dir" in ""|/) dir="/" ;; [A-Z]:) dir="$dir/" ;; esac
-  fi
-  real=$(cd -P -- "$dir" 2>/dev/null && { pwd -W 2>/dev/null || pwd -P; }) || real=""
-  if [[ -z "$real" ]]; then NORM_PATH="$p"; return 0; fi
-  _lexical_path "$real"; real="${NORM_PATH%/}"
-  [[ -n "$name" ]] && real="$real/$name"
-  NORM_PATH="$real$rest"
-  [[ -n "$NORM_PATH" ]] || NORM_PATH="/"
-}
-
-# Repository-relative path of a file, in REL_PATH (and its canonical absolute form in NORM_PATH):
-# PROJECT_DIR/ is stripped from the canonical form, case-insensitively on Windows, where the
-# existing segments then take their on-disk case (so git and tasks.md see the real name). A path
-# outside the repository stays absolute.
-REL_PATH=""
-rel_path_v() {
-  local p root rel cur out="" seg e
-  local -a segs=()
-  norm_path "$PROJECT_DIR"; root="${NORM_PATH%/}"
-  norm_path "$1"; p="$NORM_PATH"
-  if kit_windows && [[ "${p,,}" == "${root,,}/"* ]] || [[ "$p" == "$root/"* ]]; then
-    rel="${p:$(( ${#root} + 1 ))}"
-    if kit_windows; then
-      cur="$root"
-      IFS='/' read -r -a segs <<< "$rel"
-      for seg in "${segs[@]}"; do
-        if [[ -n "$cur" && -e "$cur/$seg" ]]; then
-          for e in "$cur"/* "$cur"/.*; do
-            e="${e##*/}"
-            [[ "$e" == "$seg" ]] && break
-            if [[ "${e,,}" == "${seg,,}" ]]; then seg="$e"; break; fi
-          done
-          cur="$cur/$seg"
-        else
-          cur=""
-        fi
-        out+="${out:+/}$seg"
-      done
-      rel="$out"
-    fi
-    REL_PATH="$rel"
-    NORM_PATH="$root/$rel"
-  else
-    REL_PATH="$p"
-  fi
-}
-
-# Prints the repository-relative path, or the canonical absolute one when outside.
-rel_path() { rel_path_v "$1"; printf '%s' "$REL_PATH"; }
+# The lexical and canonical forms of a path (\\?\, admin shares, cygdrive, '~', '.', '//', the real
+# location of a link, the on-disk case on Windows) and the repository-relative path are computed by
+# paths.mjs (lexicalPath, normPath, relPath) and reach the hooks as PF_REL and PF_NORM.
 
 # Whether a path lies under a configured folder (any segment, like under()), case-insensitively on
 # Windows. Used on canonical paths in unattended mode.
@@ -721,6 +613,10 @@ is_source() {
 # sh and md are not among them: .env.sh and .env.md stay secrets (author decision, review round 4).
 ENV_SOURCE_EXTENSIONS=' ts tsx js jsx mjs cjs mts cts py rb go java kt rs php cs '
 
+# The secret and environment-file checks below are the bash copy of paths.mjs (isEnvFile,
+# noStreams, isSecretPath, isSecretDir, globReachesSecret): the hooks use them only when paths.mjs
+# gives no answer and the switch is "0". A change to one copy goes to the other.
+
 # Is a lower-case basename an environment file? .env, .env.<suffix>, <name>.env or
 # <name>.env.<suffix>, except a .example / .sample suffix or a source-code last extension.
 is_env_file() {
@@ -799,15 +695,6 @@ is_secret_dir() {
   return 1
 }
 
-# Unattended mode canonicalises an edited path segment by segment (rel_path_v), which on a path of
-# tens of thousands of segments outruns the hook's timeout. A path over 4 KiB in its slash form
-# (slashes_v, which squeezes a long path's backslash runs) is too long to check, and the unattended
-# edit hooks deny it (review round 4).
-path_too_long() {
-  slashes_v "$1"
-  (( ${#SLASHED} > 4096 ))
-}
-
 # Does a search-tool glob (Grep's glob, Glob's pattern) reach a secret file (R3-3, R3-6)? In any
 # letter case, it does when the pattern is itself a secret path or a secret location, or when one of
 # its components can match a secret name below in a way that NAMES it: at least 3 of the name's
@@ -817,7 +704,8 @@ path_too_long() {
 # opens a component stands for at least one character other than a dot: *.env.ts names x.env.ts
 # files, not .env.ts. A component ending in env.example / env.sample does not count for .env.<suffix>.
 # {a,b} counts as either alternative; unbalanced braces or more than 64 alternatives count as reaching.
-# Pure bash, no subshell: it runs on every Grep and Glob call. In a name, '*' stands for any text.
+# paths.mjs (globReachesSecret) runs this check on every Grep and Glob call; this bash copy is the
+# fallback with the switch "0" when paths.mjs gives no answer. In a name, '*' stands for any text.
 SECRET_NAME_TEMPLATES=(
   '.env|dddd' '.env.*|dddd--' '*.env|-dddd' '*.env.*|-dddd--' 'credentials.*|ddddddddddd--'
   'id_rsa|dddddd' 'id_ed25519|dddddddddd' '.npmrc|dddddd' '.pypirc|ddddddd'

@@ -206,7 +206,7 @@ if ($Autonomous) {
         foreach ($h in $found) { if (-not (Test-Path (Join-Path $Dest $h))) { Fail "$label runs $h, which does not exist" } }
     }
     if (Test-Path $settings) { Test-RegisteredHooks $settings 'settings.json' }
-    foreach ($m in @('vet-package.mjs','shell-words.mjs')) {
+    foreach ($m in @('vet-package.mjs','shell-words.mjs','paths.mjs')) {
         if (Test-Path (Join-Path $Dest ".claude\hooks\$m")) { Ok "hook helper $m" } else { Fail "missing .claude/hooks/$m" }
     }
     $cursorHooks = Join-Path $Dest '.cursor\hooks.json'

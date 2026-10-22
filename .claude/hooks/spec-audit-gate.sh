@@ -10,31 +10,44 @@
 # In an unattended run (openspec change autonomous-run-switch, design D9) the latest verdict must be
 # APPROVED, the gate applies whatever KIT_SPEC_AUDIT_GATE says, and a branch whose active change
 # cannot be told is denied: the auditor's APPROVED replaces the human plan gate.
+#
+# The path facts come from one node process (paths.mjs, lib.sh path_facts), linear in the length of
+# the path. When paths.mjs gives no answer, an unattended run denies, and with the switch "0" jq and
+# the bash checks of lib.sh give the same facts.
 set -uo pipefail
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# The hook's directory without a dirname process; invoke.cjs may pass a Windows path (backslashes).
+HOOK_PATH="${BASH_SOURCE[0]//\\//}"
+HOOK_DIR="${HOOK_PATH%/*}"
+[[ "$HOOK_DIR" != "$HOOK_PATH" ]] || HOOK_DIR=.
+source "$HOOK_DIR/lib.sh"
 
-INPUT=$(cat)
-hook_input_init "$INPUT"
+# paths.mjs reads the input from stdin (lib.sh path_facts).
+hook_input_init ""
+# An autonomous run fails closed from here on; a Cursor background agent once the input is read.
+autonomous_run && fail_closed
+path_facts edit
 fail_closed
+if [[ "$PATHS_READ" != true ]]; then
+  unattended && deny "Spec audit gate (unattended run): ${PATHS_UNCHECKED}."
+  edit_facts_fallback
+fi
 
 if ! unattended; then
   # Manual switch in sdd-harness.env: "0" turns the gate off.
   [[ "$KIT_SPEC_AUDIT_GATE" == "0" ]] && done_ok
 fi
 
-field_v "$INPUT" '.tool_input.file_path'   # no jq or subshell on the plain path (lib.sh json_str)
-FILE="$FIELD_VAL"
+FILE="$PF_FILE"
 [[ -n "$FILE" ]] || done_ok
-slashes_v "$FILE"; FILE="$SLASHED"   # lib.sh: stays fast on a long path
 
 if unattended; then
-  path_too_long "$FILE" && \
+  # Counted in bytes on the path as written (paths.mjs): any longer path is too long to check.
+  [[ "$PF_TOO_LONG" == 1 ]] && \
     deny "Spec audit gate (unattended run): the path is over 4 KiB, too long to check against PATH_SOURCE and PATH_TESTS in time, so it is not edited."
-  # Canonical spelling (lib.sh rel_path_v), case-insensitive on Windows.
-  rel_path_v "$FILE"
-  under_ci "$REL_PATH" "$PATH_SOURCE" || under_ci "$REL_PATH" "$PATH_TESTS" || done_ok
+  # Canonical spelling (paths.mjs), case-insensitive on Windows.
+  under_ci "$PF_REL" "$PATH_SOURCE" || under_ci "$PF_REL" "$PATH_TESTS" || done_ok
 else
-  under "$FILE" "$PATH_SOURCE" || under "$FILE" "$PATH_TESTS" || done_ok
+  [[ "$PF_UNDER_SOURCE" == 1 || "$PF_UNDER_TESTS" == 1 ]] || done_ok
 fi
 
 CHANGE=$(active_change)

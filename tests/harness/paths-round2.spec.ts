@@ -188,15 +188,32 @@ describe('Secret files and the search tools', { timeout: 180_000 }, () => {
   it('A secret-read check that crashes denies in unattended mode', async () => {
     project = createProject({ env: { KIT_AUTONOMOUS_RUN: '1' } });
     const lib = readFileSync(join(project.dir, '.claude/hooks/lib.sh'), 'utf8');
-    project.write('.claude/hooks/lib.sh', `${lib}\nis_secret_path() { exit 3; }\n`);
-    const read = { hook_event_name: 'PreToolUse', tool_name: 'Read', tool_input: { file_path: `${project.dir}/notes.md` } };
-    const r = await runHook(project, 'block-secret-reads', read);
+    project.write('.claude/hooks/lib.sh', `${lib}\npath_facts() { exit 3; }\n`);
+    const read = (file: string, extra: Record<string, unknown> = {}) => ({ hook_event_name: 'PreToolUse', tool_name: 'Read', tool_input: { file_path: `${project?.dir}/${file}` }, ...extra });
+    const r = await runHook(project, 'block-secret-reads', read('notes.md'));
     expect(r.decision).toBe('deny');
     expect(r.reason).toContain('failed before deciding');
     // With the switch "0" nothing changes: the crash gives no decision.
     project.cleanup();
     project = createProject({ env: { KIT_AUTONOMOUS_RUN: '0' } });
-    project.write('.claude/hooks/lib.sh', `${lib}\nis_secret_path() { exit 3; }\n`);
-    expect((await runHook(project, 'block-secret-reads', read)).decision).toBe('none');
+    project.write('.claude/hooks/lib.sh', `${lib}\npath_facts() { exit 3; }\n`);
+    expect((await runHook(project, 'block-secret-reads', read('notes.md'))).decision).toBe('none');
+
+    // The path check (paths.mjs) crashes, prints something unreadable or a stale sentinel.
+    for (const script of ['process.exit(3);\n', 'process.stdout.write("PF_HIT=\'\'\\n");\n', 'process.stdout.write("PF_HIT=\'\'\\nPF_SENTINEL=\'pf1\'\\n");\n']) {
+      project.cleanup();
+      project = createProject({ env: { KIT_AUTONOMOUS_RUN: '1' } });
+      project.write('.claude/hooks/paths.mjs', script);
+      const u = await runHook(project, 'block-secret-reads', read('notes.md'));
+      expect(u.decision, script).toBe('deny');
+      expect(u.reason, script).toContain('paths.mjs');
+      // Switch "0": jq and the bash checks decide, as before paths.mjs; a background agent still denies.
+      project.cleanup();
+      project = createProject({ env: { KIT_AUTONOMOUS_RUN: '0' } });
+      project.write('.claude/hooks/paths.mjs', script);
+      expect((await runHook(project, 'block-secret-reads', read('.env'))).decision, script).toBe('deny');
+      expect((await runHook(project, 'block-secret-reads', read('notes.md'))).decision, script).toBe('none');
+      expect((await runHook(project, 'block-secret-reads', read('notes.md', { is_background_agent: true }))).decision, script).toBe('deny');
+    }
   });
 });

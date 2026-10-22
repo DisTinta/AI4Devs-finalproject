@@ -231,7 +231,7 @@ if [[ "$AUTONOMOUS" == "1" ]]; then
       if [[ -n "$h" && ! -f "$DEST/$h" ]]; then fail "settings.json registers $h, which does not exist"; fi
     done < <(registered_hooks "$SETTINGS")
   fi
-  for m in vet-package.mjs shell-words.mjs; do
+  for m in vet-package.mjs shell-words.mjs paths.mjs; do
     [[ -f "$DEST/.claude/hooks/$m" ]] && ok "hook helper $m" || fail "missing .claude/hooks/$m"
   done
   if [[ -f "$DEST/.cursor/hooks.json" ]]; then
