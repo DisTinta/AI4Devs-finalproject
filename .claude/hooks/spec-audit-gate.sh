@@ -31,6 +31,7 @@ if [[ "$PATHS_READ" != true ]]; then
   unattended && deny "Spec audit gate (unattended run): ${PATHS_UNCHECKED}."
   edit_facts_fallback
 fi
+[[ "$PF_BAD_INPUT" == 1 ]] && unattended && deny "Spec audit gate (unattended run): ${PATHS_BAD_INPUT}."
 
 if ! unattended; then
   # Manual switch in sdd-harness.env: "0" turns the gate off.

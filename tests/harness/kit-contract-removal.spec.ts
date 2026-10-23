@@ -13,6 +13,8 @@ describe('The shell guard reads commands, not text', { timeout: 120_000 }, () =>
       const r = await runHook(project, 'block-dangerous-bash', bashInput('rm .claude/sdd-harness.env'));
       expect(r.decision).toBe('deny');
       expect(r.reason).toContain('sdd-harness.env');
+      // The kit-contract reason itself, not another denial that happens to quote the file name.
+      expect(r.reason).toContain("sdd-harness.env is edited by hand, not from the agent's shell.");
     });
   }
 });

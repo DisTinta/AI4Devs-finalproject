@@ -144,7 +144,7 @@ jobs:
       # the figure measures the hook and not the load of the parallel suite (autonomous-run-switch).
       - name: Hook timing
         if: steps.changes.outputs.runtime == 'true'
-        run: npx vitest run --no-file-parallelism tests/harness/paths-node.spec.ts tests/harness/secrets-round4.spec.ts
+        run: npx vitest run --no-file-parallelism tests/harness/paths-node.spec.ts tests/harness/secrets-round4.spec.ts tests/harness/paths-round6.spec.ts tests/harness/paths-round7.spec.ts
         env:
           HOOK_TIMING: '1'
 

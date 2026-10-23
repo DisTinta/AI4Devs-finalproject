@@ -27,6 +27,7 @@ if [[ "$PATHS_READ" != true ]]; then
   unattended && deny "Unattended run: ${PATHS_UNCHECKED}."
   edit_facts_fallback
 fi
+[[ "$PF_BAD_INPUT" == 1 ]] && unattended && deny "Unattended run: ${PATHS_BAD_INPUT}."
 # The edited path with '/' separators (backslashes converted).
 FILE="$PF_FILE"
 [[ -n "$FILE" ]] || done_ok
@@ -63,6 +64,11 @@ if unattended; then
   # of a link, and on Windows the on-disk case; the patterns below match case-insensitively on Windows.
   REL="$PF_REL"; FILE_N="$PF_NORM"
   kit_windows && shopt -s nocasematch
+
+  # gh and git configuration (autonomous run only, review round 7): an alias defined there could
+  # hide a merge from the merge gate, as through the shell (block-dangerous-bash.sh).
+  autonomous_run && [[ "$PF_ALIAS_CONFIG" == 1 ]] && \
+    deny "Autonomous run: gh and git aliases are not defined or removed by the agent (a write to gh or git configuration: ${FILE_N}): an alias can hide a merge from the merge gate (gh pr merge). Edit that file by hand."
 
   # Kit configuration (autonomous run only, design D5).
   if autonomous_run && is_kit_config "$FILE_N"; then

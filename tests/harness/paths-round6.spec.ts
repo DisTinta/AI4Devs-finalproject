@@ -8,7 +8,10 @@ import { createProject, editInput, runHook, type HookResult, type Project, type 
 
 const WINDOWS = process.platform === 'win32';
 const CHANGE = 'openspec/changes/foo-bar';
-// The hook timeout is 10 s: a decision past it lets the call through undecided.
+// The hook timeout is 10 s: a decision past it lets the call through undecided. Time is asserted
+// only in the serial timing run (HOOK_TIMING=1, CI step "Hook timing"): under the parallel suite the
+// whole machine slows down several times and the figure measures the load.
+const TIMING = process.env.HOOK_TIMING === '1';
 const CEILING_MS = 8000;
 
 const read = (filePath: string, extra: Record<string, unknown> = {}) => ({ hook_event_name: 'PreToolUse', tool_name: 'Read', tool_input: { file_path: filePath }, ...extra });
@@ -77,7 +80,7 @@ describe('The path check is bounded and the fallback keeps the input', { timeout
         for (const [what, hook, input, expected] of calls) {
           const r = await timed(project, hook, input);
           expect(r.decision, `${label}, switch ${sw}, ${what}: ${r.reason.slice(0, 200)}`).toBe(expected);
-          expect(r.ms, `${label}, switch ${sw}, ${what}`).toBeLessThanOrEqual(CEILING_MS);
+          if (TIMING) expect(r.ms, `${label}, switch ${sw}, ${what}`).toBeLessThanOrEqual(CEILING_MS);
           if (sw === '1') expect(r.reason, `${label} ${what}`).toContain('paths.mjs');
         }
       }
@@ -94,7 +97,7 @@ describe('The path check is bounded and the fallback keeps the input', { timeout
         for (const hook of ['protect-specs-and-tests', 'spec-audit-gate']) {
           const r = await timed(project, hook, editInput(path));
           expect(r.decision, `${hook} ${path} switch ${sw}: ${r.reason.slice(0, 200)}`).toBe('none');
-          expect(r.ms, `${hook} ${path} switch ${sw}`).toBeLessThanOrEqual(CEILING_MS);
+          if (TIMING) expect(r.ms, `${hook} ${path} switch ${sw}`).toBeLessThanOrEqual(CEILING_MS);
         }
       }
     }
@@ -135,24 +138,26 @@ describe.runIf(WINDOWS)('Drive-relative paths and this machine\'s admin share', 
     const kit = await runHook(project, 'protect-specs-and-tests', editInput(`${share}\\.claude\\hooks\\lib.sh`));
     expect(kit.reason).toContain('.claude/');
 
-    // Switch "0": the attended confirmations see the same files.
+    // Switch "0": the path is decided as written, as before paths.mjs (author decision, review round
+    // 7: the switch "0" keeps the base's decisions); an environment file is still denied.
     project.cleanup();
     project = fixture('0');
     const d0 = project.dir[0];
     for (const path of [`${d0}:tests/a.spec.ts`, `${d0}:docs/base-standards.md`, `${d0}:openspec/specs/cap/spec.md`]) {
       const r = await runHook(project, 'protect-specs-and-tests', editInput(path));
-      expect(r.decision, `${path} ${r.reason}`).toBe('ask');
+      expect(r.decision, `${path} ${r.reason}`).toBe('none');
     }
     expect((await runHook(project, 'protect-specs-and-tests', editInput(`${d0}:.env`))).decision).toBe('deny');
 
-    // The spec-audit gate, with no audit report yet: code and tests in that spelling are denied.
+    // The spec-audit gate, with no audit report yet: code and tests in that spelling are denied in an
+    // unattended run; with the switch "0" they are taken as written, outside PATH_SOURCE and PATH_TESTS.
     for (const sw of ['0', '1']) {
       project.cleanup();
       project = fixture(sw, { audit: false });
       const g = project.dir[0];
       for (const path of [`${g}:packages/core/x.ts`, `${g}:tests/b.test.ts`, `${g.toLowerCase()}:packages\\new\\y.ts`]) {
         const r = await runHook(project, 'spec-audit-gate', editInput(path, 'Write'));
-        expect(r.decision, `switch ${sw} ${path} ${r.reason}`).toBe('deny');
+        expect(r.decision, `switch ${sw} ${path} ${r.reason}`).toBe(sw === '1' ? 'deny' : 'none');
       }
       expect((await runHook(project, 'spec-audit-gate', editInput(`${other}:packages/core/x.ts`, 'Write'))).decision, `switch ${sw}`).toBe(sw === '1' ? 'deny' : 'none');
     }
@@ -186,7 +191,7 @@ describe('The 4 KiB rule for search patterns applies to unattended runs only', {
       for (const input of [glob({ pattern: harmless }), grep({ glob: harmless })]) {
         const r = await timed(project, 'block-secret-reads', input);
         expect(r.decision, `switch ${sw} ${r.reason.slice(0, 120)}`).toBe(sw === '1' ? 'deny' : 'none');
-        expect(r.ms).toBeLessThanOrEqual(CEILING_MS);
+        if (TIMING) expect(r.ms).toBeLessThanOrEqual(CEILING_MS);
       }
       for (const input of [glob({ pattern: secret }), grep({ glob: secret })]) {
         expect((await timed(project, 'block-secret-reads', input)).decision, `switch ${sw}`).toBe('deny');

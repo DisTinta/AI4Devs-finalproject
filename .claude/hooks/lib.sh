@@ -200,11 +200,13 @@ unattended() {
 # the input, the fallback still has it. Up to 2048 characters come through the read builtin (one
 # system call per byte on Windows, but no process); a longer input (an Edit or a Write with its
 # text) adds one cat for the rest. paths.mjs gets the input as a here-string.
-# paths.mjs is bounded from outside its process (review round 6): it runs in a process substitution
-# and the hook waits at most PATHS_TIMEOUT seconds (read -t) for its first line, then kills it. A
-# node that hangs before arming its own 4.5 s watchdog, or that is stuck in a blocking file-system
-# call, costs no more than that, and costs no `timeout` process on every call. The first line is the
-# byte length of the facts: up to 8 KiB they are read by the read builtin, beyond that by one cat.
+# paths.mjs is bounded from outside its process (review rounds 6, 7): it runs in a process
+# substitution and the hook waits at most PATHS_TIMEOUT seconds in all (read -t) for its whole
+# answer, then kills it; it is killed on every other path too, so it never outlives the hook. A node
+# that hangs before arming its own 4.5 s watchdog, that is stuck in a blocking file-system call or
+# that stalls mid-answer costs no more than that, and costs no `timeout` process on a short answer.
+# The first line is the byte length of the facts: up to 8 KiB they are read by the read builtin,
+# beyond that by one head -c under timeout.
 # MSYS argument conversion is off: the values reach node as written.
 _LIB_DIR="${BASH_SOURCE[0]//\\//}"
 if [[ "$_LIB_DIR" == */* ]]; then _LIB_DIR="${_LIB_DIR%/*}"; else _LIB_DIR=.; fi
@@ -213,7 +215,7 @@ PATHS_TIMEOUT=5
 pf_defaults() {
   PF_BACKGROUND='' PF_EVENT='' PF_TOOL='' PF_HIT='' PF_SHOWN='' PF_FILE='' PF_DOTDOT=0 PF_ENV=''
   PF_TOO_LONG=0 PF_OPENSPEC=0 PF_DOCTRINE=0 PF_UNDER_TESTS=0 PF_UNDER_SOURCE=0 PF_UNDER_MIG=0
-  PF_REL='' PF_NORM='' PF_UNSURE=0 PF_SENTINEL=''
+  PF_REL='' PF_NORM='' PF_UNSURE=0 PF_ALIAS_CONFIG=0 PF_BAD_INPUT=0 PF_SENTINEL=''
 }
 pf_defaults
 
@@ -222,21 +224,35 @@ pf_defaults
 # come from them too (no jq call). Without them (paths.mjs failed, timed out or printed something
 # unreadable), HOOK_INPUT still holds the whole input for the fallback.
 path_facts() {
-  local nonce="pf${RANDOM}${RANDOM}${RANDOM}$$" out="" len="" fd pid
+  local nonce="pf${RANDOM}${RANDOM}${RANDOM}$$" out="" len="" fd pid t0 rem
   pf_defaults
   PATHS_READ=false
   HOOK_INPUT=""
   IFS= read -r -N 2048 -d '' HOOK_INPUT || true
   (( ${#HOOK_INPUT} < 2048 )) || HOOK_INPUT+=$(cat)
-  exec {fd}< <(MSYS2_ARG_CONV_EXCL='*' MSYS_NO_PATHCONV=1 node "$_LIB_DIR/paths.mjs" --mode "$1" --nonce "$nonce" \
+  t0=${EPOCHREALTIME//[!0-9]/}
+  # exec: the process substitution's pid is node's own, so the kill below reaches it.
+  exec {fd}< <(MSYS2_ARG_CONV_EXCL='*' MSYS_NO_PATHCONV=1 exec node "$_LIB_DIR/paths.mjs" --mode "$1" --nonce "$nonce" \
     --project "$PROJECT_DIR" --autonomous "$KIT_AUTONOMOUS_RUN" --tests "$PATH_TESTS" \
     --source "$PATH_SOURCE" --migrations "$PATH_MIGRATIONS" 2>/dev/null <<<"$HOOK_INPUT")
   pid=$!
+  # The whole answer shares one PATHS_TIMEOUT budget (review round 7): the first line, then exactly
+  # the announced number of bytes in what remains of it (read -N in the C locale counts bytes; a
+  # long answer through one head -c under timeout). A process that stalls mid-answer, or keeps its
+  # output open after it, costs no more than the budget.
   if IFS= read -r -t "$PATHS_TIMEOUT" -u "$fd" len && [[ "$len" =~ ^[0-9]+$ ]]; then
-    if (( len <= 8192 )); then IFS= read -r -d '' -u "$fd" out || true; else out=$(cat <&"$fd"); fi
-  else
-    kill "$pid" 2>/dev/null
+    rem=$(( PATHS_TIMEOUT * 1000000 - (${EPOCHREALTIME//[!0-9]/} - t0) ))
+    if (( rem > 0 )); then
+      printf -v rem '%d.%06d' $(( rem / 1000000 )) $(( rem % 1000000 ))
+      if (( len <= 8192 )); then
+        LC_ALL=C IFS= read -r -N "$len" -t "$rem" -u "$fd" out || out=""
+      else
+        out=$(timeout "$rem" head -c "$len" <&"$fd" 2>/dev/null) || out=""
+      fi
+    fi
   fi
+  # Killed on every path (answer read, timed out or unreadable): it never outlives the hook.
+  kill "$pid" 2>/dev/null
   exec {fd}<&-
   if [[ -n "$out" ]] && eval "$out" 2>/dev/null && [[ "$PF_SENTINEL" == "$nonce" ]]; then
     PATHS_READ=true
@@ -251,6 +267,8 @@ path_facts() {
 
 # The reason of an unattended denial when paths.mjs gave no facts.
 PATHS_UNCHECKED="the path check (paths.mjs) failed, timed out or gave an unreadable answer, so the call is denied"
+# The reason of an unattended denial when the hook input is not a JSON object (review round 7).
+PATHS_BAD_INPUT="the hook input could not be parsed (empty, truncated or not a JSON object), so the call is denied"
 
 # The edit facts without paths.mjs: jq reads the file and the bash checks below classify it, as the
 # edit hooks did before paths.mjs. Only used with the switch "0" outside a background agent (an
@@ -261,14 +279,7 @@ edit_facts_fallback() {
   PF_FILE=$(field "$HOOK_INPUT" '.tool_input.file_path')
   [[ -n "$PF_FILE" ]] || return 0
   slashes_v "$PF_FILE"; PF_FILE="$SLASHED"
-  # A drive-relative path on the project's drive (C:tests/x) is taken from the project (paths.mjs
-  # driveRelative).
-  if [[ "$PF_FILE" == [A-Za-z]:* && "${PF_FILE:2:1}" != / && "${PROJECT_DIR:1:1}" == : ]]; then
-    lc="${PF_FILE:0:1}"
-    if [[ "${lc,,}" == "${PROJECT_DIR:0:1}" || "${lc^^}" == "${PROJECT_DIR:0:1}" ]]; then
-      PF_FILE="${PROJECT_DIR%/}"; [[ ${#SLASHED} -gt 2 ]] && PF_FILE+="/${SLASHED:2}"
-    fi
-  fi
+  # A drive-relative path (C:tests/x) stays as written, as paths.mjs leaves it with the switch "0".
   [[ "$PF_FILE" == *..* ]] && PF_DOTDOT=1
   lc="${PF_FILE,,}"
   if [[ "$lc" == *:* ]]; then

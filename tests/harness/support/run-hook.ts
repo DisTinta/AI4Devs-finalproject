@@ -66,7 +66,15 @@ export function createProject(options: ProjectOptions = {}): Project {
       return r.stdout.trim();
     },
     cleanup() {
-      rmSync(dir, { recursive: true, force: true });
+      // On Windows a just-killed hook child, or the antivirus scanning it, can hold the directory for a
+      // few seconds (EPERM/EBUSY). Cleanup is best effort: the tests that care about leftover processes
+      // check them themselves, and a stale %TEMP%\harness-* folder is harmless.
+      try {
+        rmSync(dir, { recursive: true, force: true, maxRetries: 25, retryDelay: 200 });
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (process.platform !== 'win32' || (code !== 'EPERM' && code !== 'EBUSY')) throw error;
+      }
     },
   };
 

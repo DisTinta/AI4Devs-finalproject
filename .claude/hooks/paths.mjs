@@ -11,8 +11,9 @@
 // stdin: the hook's JSON input. KIT_HOOK_CLIENT=cursor selects Cursor's field names (design D11).
 // Prints one line with the byte length of what follows, then shell assignments (single-quoted), the
 // last one PF_SENTINEL set to the nonce: the hook trusts the facts only when evaluating the output
-// sets it. A run that takes longer than 4.5 s prints nothing; the hook also stops waiting after 5 s
-// (lib.sh path_facts), so a run stuck before this watchdog is armed fails closed too.
+// sets it. A run that takes longer than 4.5 s prints nothing; the hook also stops waiting for the
+// whole answer after 5 s and kills this process on every path (lib.sh path_facts), so a run stuck
+// before this watchdog is armed, or one that stalls mid-answer, fails closed too.
 'use strict';
 import { readFileSync } from 'node:fs';
 import { readdir, realpath, stat } from 'node:fs/promises';
@@ -379,6 +380,23 @@ export function driveRelative(file, project) {
   return { file: file.length > 2 ? `${root}/${file.slice(2)}` : root, unsure: false };
 }
 
+/** A gh or git configuration file (review round 7): an alias defined there could hide a merge from
+ * the merge gate. `norm` is a canonical absolute path; `xdg` and `ghDir` the canonical forms of
+ * $XDG_CONFIG_HOME and $GH_CONFIG_DIR, when set. Compared in any case on Windows; gh's AppData
+ * folder in any case everywhere. */
+export function isAliasConfig(norm, xdg = '', ghDir = '') {
+  const fold = (s) => (WINDOWS ? s.toLowerCase() : s);
+  const p = fold(norm);
+  if (/\/appdata\/roaming\/github cli\/(config|hosts)\.yml$/i.test(norm)) return true;
+  if (baseName(p) === '.gitconfig') return true;
+  if (/(^|\/)\.git\/(.+\/)?config(\.worktree)?$/.test(p)) return true;
+  if (/(^|\/)\.config\/(git\/config|gh\/(config|hosts)\.yml)$/.test(p)) return true;
+  const x = fold(xdg).replace(/\/+$/, '');
+  if (x && [`${x}/git/config`, `${x}/gh/config.yml`, `${x}/gh/hosts.yml`].includes(p)) return true;
+  const g = fold(ghDir).replace(/\/+$/, '');
+  return Boolean(g) && [`${g}/config.yml`, `${g}/hosts.yml`].includes(p);
+}
+
 const isAbsolute = (p) => p.startsWith('/') || /^[A-Z]:\//.test(p);
 const isRoot = (p) => p === '/' || /^[A-Z]:\/$/.test(p) || /^\/\/[^/]*$/.test(p);
 const parentOf = (p) => {
@@ -512,7 +530,9 @@ async function main(text) {
   const unattended = arg('--autonomous') === '1' || bg;
   let event = '';
   try { event = raw(get(input, 'hook_event_name')); } catch { event = ''; }
-  const set = { PF_BACKGROUND: bg ? 'true' : '', PF_EVENT: event };
+  // An input that is not a JSON object (empty, truncated, invalid): an unattended run denies it
+  // (review round 7); with the switch "0" the facts stay empty, as before.
+  const set = { PF_BACKGROUND: bg ? 'true' : '', PF_EVENT: event, PF_BAD_INPUT: isObject(input) ? 0 : 1 };
 
   if (arg('--mode') === 'read') {
     const { tool, file, target, pattern } = readFields(input);
@@ -528,10 +548,14 @@ async function main(text) {
   } else {
     const written = editFile(input, cursor);
     const project = slashes(arg('--project') ?? process.cwd());
-    const { file, unsure } = driveRelative(slashes(written), project);
+    // A drive-relative path is resolved in unattended mode only: with the switch "0" it is decided
+    // as written, as before paths.mjs (author decision, review round 7: the switch "0" keeps the
+    // base's decisions).
+    const { file, unsure } = unattended ? driveRelative(slashes(written), project) : { file: slashes(written), unsure: false };
     const facts = {
       PF_FILE: file, PF_DOTDOT: 0, PF_ENV: '', PF_TOO_LONG: 0, PF_OPENSPEC: 0, PF_DOCTRINE: 0,
       PF_UNDER_TESTS: 0, PF_UNDER_SOURCE: 0, PF_UNDER_MIG: 0, PF_REL: '', PF_NORM: '', PF_UNSURE: unsure ? 1 : 0,
+      PF_ALIAS_CONFIG: 0,
     };
     if (file) {
       facts.PF_DOTDOT = file.includes('..') ? 1 : 0;
@@ -547,6 +571,8 @@ async function main(text) {
         const r = await relPath(file, project);
         facts.PF_REL = r.rel;
         facts.PF_NORM = r.norm;
+        const dirOf = async (v) => (v ? (await normPath(v, project)).norm : '');
+        facts.PF_ALIAS_CONFIG = isAliasConfig(r.norm, await dirOf(process.env.XDG_CONFIG_HOME), await dirOf(process.env.GH_CONFIG_DIR)) ? 1 : 0;
       }
     }
     Object.assign(set, facts);

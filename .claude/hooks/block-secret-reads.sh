@@ -76,6 +76,7 @@ if [[ "$PATHS_READ" != true ]]; then
   unattended && deny "Unattended run: ${PATHS_UNCHECKED}."
   read_facts_fallback
 fi
+[[ "$PF_BAD_INPUT" == 1 ]] && unattended && deny "Unattended run: ${PATHS_BAD_INPUT}."
 
 case "$PF_HIT" in
   file) deny "Read blocked: ${PF_SHOWN} ${REASON}" ;;
