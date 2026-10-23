@@ -5,6 +5,7 @@ set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 INPUT=$(cat)
+hook_input_init "$INPUT"
 COMMAND=$(field "$INPUT" '.tool_input.command')
 printf '%s' "$COMMAND" | grep -qE 'git[[:space:]]+commit' || exit 0
 
@@ -40,7 +41,8 @@ fi
 if [[ -n "$REASONS" ]]; then
   ask "Documentation gate (docs/documentation-standards.md):
 ${REASONS}
-Run the /update-docs skill before committing, or confirm the documentation was already up to date."
+Run the /update-docs skill before committing, or confirm the documentation was already up to date." \
+    "Run /update-docs, stage the documentation, then commit again."
 fi
 
 exit 0

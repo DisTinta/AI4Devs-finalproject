@@ -5,6 +5,7 @@ set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 INPUT=$(cat)
+remember_input "$INPUT"
 FILE=$(field "$INPUT" '.tool_input.file_path')
 case "$FILE" in
   */tasks.md) : ;;

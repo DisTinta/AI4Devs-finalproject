@@ -624,7 +624,7 @@ AI4Devs-finalproject/
 ├── openspec/
 │   ├── specs/                      # 26 capacidades vigentes
 │   └── changes/archive/            # 44 changes archivados, cada uno con sus informes en reports/
-├── .claude/                        # referencias a ai-specs, comandos /opsx:*, 10 hooks + invoke.cjs + lib.sh
+├── .claude/                        # referencias a ai-specs, comandos /opsx:*, 12 hooks + invoke.cjs + lib.sh
 ├── .cursor/                        # las mismas referencias y reglas para Cursor
 ├── .mcp.json                       # MCP del proyecto: Context7, Playwright y Linear
 ├── CLAUDE.md · AGENTS.md           # punteros a la doctrina
@@ -1607,7 +1607,7 @@ Esta sección no la pide la plantilla. Recoge lo que pidió la revisión de la E
 
 **Instalación y diagnóstico.** Se instala desde el kit con `./install.sh --dest <proyecto>` (o `.\install.ps1 -Dest <proyecto>` en Windows), con `--dry-run` para ver antes qué haría. Detecta el stack del proyecto destino y copia su adaptador, que vive en `.claude/sdd-harness.env` y `docs/backend-standards.md`; para CODEMIND hubo que escribir el adaptador `fastify`. `doctor.sh` / `doctor.ps1` (o la skill `/kit-health`) diagnostica una instalación: doctrina, memoria de los copilotos, hooks y dependencias. En Windows, donde no siempre hay *symlinks*, el kit usa copias más un script de sincronización (`.claude/sync-artifacts.ps1`), y los hooks se lanzan con `invoke.cjs`, que localiza Git Bash.
 
-**Hooks: garantías deterministas, no instrucciones.** Hay 10 cableados en `.claude/settings.json`. Todos pasan por `invoke.cjs` y comparten `lib.sh`. Un hook no le pide al modelo que se porte bien: actúa sobre la herramienta, sea cual sea el razonamiento que la llamó. Los disparos se han contado con un script sobre las transcripciones de Claude Code del proyecto (132 sesiones con sus subagentes, del 28-09 al 16-10-2026, la fase con la autora en el bucle), buscando el mensaje característico de cada hook en los eventos de hook y deduplicando cada evento:
+**Hooks: garantías deterministas, no instrucciones.** Hay 12 cableados en `.claude/settings.json`: los 10 del periodo medido abajo, más `autonomous-merge-gate` y `log-permission-denied`, que añadió DIS-106 (ver [8.6](#86-experimento-workflow-autónomo-en-las-últimas-tareas-de-la-entrega-2)). Todos pasan por `invoke.cjs` y comparten `lib.sh`. Un hook no le pide al modelo que se porte bien: actúa sobre la herramienta, sea cual sea el razonamiento que la llamó. Los disparos se han contado con un script sobre las transcripciones de Claude Code del proyecto (132 sesiones con sus subagentes, del 28-09 al 16-10-2026, la fase con la autora en el bucle), buscando el mensaje característico de cada hook en los eventos de hook y deduplicando cada evento:
 
 | Hook | Cuándo actúa | Qué impide | Disparos reales (28-09 → 16-10) |
 |---|---|---|---|
@@ -1627,7 +1627,7 @@ Los tres últimos no dispararon nunca. Se presentan como garantías preventivas,
 **Lecciones honestas del kit.**
 
 - **El kit mejoró gracias a CODEMIND.** Los primeros días, `invoke.cjs` no encontraba los hooks cuando la sesión trabajaba desde una subcarpeta, y una ruta con barras de Windows fallaba. Se corrigió en el commit `457b61a` (02-10-2026), que ancla las rutas de los hooks al directorio del proyecto.
-- **La coincidencia por subcadena da falsos positivos.** `block-dangerous-bash` mira el texto del comando, no lo que hace. La regla que protege la configuración del kit salta también con una lectura que lleva una redirección como `2>/dev/null`, y en la propia redacción de esta sección bloqueó un `grep` cuyo patrón contenía `rm -rf` y un script de recuento que contenía el texto de `push --force`. El remedio es reescribir el comando, no desactivar el hook.
+- **La coincidencia por subcadena da falsos positivos.** Hasta DIS-106, `block-dangerous-bash` miraba el texto del comando, no lo que hacía. La regla que protege la configuración del kit saltaba también con una lectura que lleva una redirección como `2>/dev/null`, y en la propia redacción de esta sección bloqueó un `grep` cuyo patrón contenía `rm -rf` y un script de recuento que contenía el texto de `push --force`. El remedio era reescribir el comando, no desactivar el hook. DIS-106 cambió el guardián para que lea los comandos como la shell: un mensaje de commit o un patrón de `grep` ya no son comandos.
 - **Mantener al humano en el bucle tiene un coste visible:** 655 confirmaciones de `protect-specs-and-tests` en tres semanas. Es lo que cuesta que los tests y las specs sigan siendo la especificación firmada.
 - **No todo el kit se usó.** Los subagentes `explorer` y `backend-planner` están instalados pero no aparecen invocados en las transcripciones, como tampoco los comandos `/code-review` y `/security-review` de Claude Code, que no son del kit. El `security-reviewer` tampoco se lanzó como subagente: su lista de comprobación la aplicó en línea el agente de revisión del experimento ([8.6](#86-experimento-workflow-autónomo-en-las-últimas-tareas-de-la-entrega-2)), en 3 informes `*-security-review.md` (DIS-21, DIS-26 y DIS-44) y en la sección de seguridad de las revisiones adversariales de DIS-76 y DIS-78. La privacidad se comprobó con `/privacy-ethics-check`.
 
@@ -1778,6 +1778,19 @@ DIS-45 no entró en la tanda 1: cuando el merge de DIS-44 se bloqueó, el script
 **Balance.** Los doce tickets del plan cerrados en cuatro días, del 16-10 al 19-10 (DIS-76, DIS-78, DIS-21, DIS-26, DIS-34, DIS-44, DIS-45, DIS-58, DIS-60, DIS-65, DIS-66 y este, DIS-101), más DIS-102 y DIS-103 el 19-10 y el 20-10, con el mismo ciclo SDD, las mismas revisiones y un coste en lectura de caché parecido al manual. El cuello de botella no fue el agente, sino los puntos donde el sistema exige a una persona —el merge, la firma de las *golden*, una confirmación de seguridad—, que son justo los que conviene conservar.
 
 **Por qué se intentó y qué concluye la autora.** La autora se atrevió con el experimento porque ya había hecho más del 80 % de las tareas de la Entrega 2 con el flujo normal (54 de 66 tickets el 16-10) y había visto lo bien que el agente lo seguía; con el mismo flujo y normas claras, confiaba en que en modo automático lo haría igual de bien. Su conclusión: sin un harness, un contexto, un flujo, unas normas y una planificación claros y robustos, la automatización no habría dado un buen resultado, sino todo lo contrario. Sus palabras y el detalle están en [`docs/ai-sessions/04-experimento-workflow-autonomo-entrega-2.md`](docs/ai-sessions/04-experimento-workflow-autonomo-entrega-2.md), secciones 1 y 6.
+
+**Lo que DIS-106 llevó al kit.** Las lecciones 1, 2, 3 y 6 pasaron a ser parte del kit, detrás de un
+interruptor manual, `KIT_AUTONOMOUS_RUN` en `.claude/sdd-harness.env` (siempre `"0"` en el
+repositorio): con él a `"1"` ningún hook deja una confirmación pendiente, y cada pregunta se convierte en
+una comprobación automática o en una denegación con alternativa. La confirmación de instalación es ahora
+la verificación de la lección 2, hecha por un hook. El merge pasa por una puerta que exige el commit de
+archivo, la CI en verde y la rama base protegida en GitHub, y un perfil de Claude Code aparte lleva la
+autorización del merge: en la prueba en seco del 21-10 la puerta denegó un PR sin archivo y, con él, el
+clasificador dejó pasar el merge. Las revisiones tienen un modo en línea, y el agente no puede tocar
+`.claude/` ni `.cursor/` en una ejecución autónoma. Los mismos hooks corren también en Cursor, y tienen
+una suite de tests propia. La guía es [`docs/AUTONOMOUS-RUN.md`](docs/AUTONOMOUS-RUN.md), y la decisión,
+con la doctrina que se relaja solo con el interruptor activo, el ADR
+[`20261020-kit-autonomous-mode`](docs/adr/20261020-kit-autonomous-mode.md).
 
 ---
 

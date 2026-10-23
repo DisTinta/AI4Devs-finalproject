@@ -6,6 +6,7 @@ set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 INPUT=$(cat)
+remember_input "$INPUT"
 FILE=$(field "$INPUT" '.tool_input.file_path')
 [[ -n "$FILE" ]] || exit 0
 [[ -f "$FILE" ]] || exit 0

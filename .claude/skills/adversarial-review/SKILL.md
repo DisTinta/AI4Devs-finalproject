@@ -81,3 +81,13 @@ debt (e.g. “RED was not observed”, “spec not yet committed”) is not a Li
 - Do not report a finding you have not verified in the code. Cite file and line.
 - If you cannot access the diff, say so and list exactly what is needed to continue.
 - An empty findings table is a valid outcome, but state explicitly what you checked to reach it.
+
+## Inline mode (autonomous runs)
+
+This skill runs as a fork (`context: fork`): its result goes to the main session, not to the step that
+invoked it. Inside a workflow step, or in an unattended run (`KIT_AUTONOMOUS_RUN="1"` in
+`.claude/sdd-harness.env`, or a Cursor background agent), do not invoke the skill. Read this
+`SKILL.md`, follow its instructions in your own context, and write the report yourself under
+`openspec/changes/<change>/reports/` with the file name the mandatory steps give
+(`YYYY-MM-DD-adversarial-review.md`). The checks, the verdict format and the guardrails are the same.
+(openspec change autonomous-run-switch, design D14.)

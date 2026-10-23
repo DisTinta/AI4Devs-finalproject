@@ -51,3 +51,15 @@ green → verification against the specification → documentation → PR.
   project's E2E suite or TDD.
 - If an MCP server is down or does not respond, say so and continue. Do not put API keys in the
   committed JSON; `CONTEXT7_API_KEY` goes in the environment, if needed.
+
+## Unattended and autonomous runs
+- `KIT_AUTONOMOUS_RUN` in `.claude/sdd-harness.env` (edited by hand, committed as `"0"`) and Cursor
+  background agents change how the kit hooks (`.cursor/hooks.json`) answer. See
+  `docs/AUTONOMOUS-RUN.md`.
+- **Unattended mode** (switch `"1"`, or a background agent): no hook asks. Each confirmation becomes
+  an automatic check (package vetting, spec-audit verdict, planned tests) or a deny that names the
+  alternative. A line the guard cannot parse is denied: write plain simple commands.
+- **Autonomous run** (switch `"1"` only): the agent may merge its PR through the merge gate, and the
+  doctrine relaxations of `docs/adr/20261020-kit-autonomous-mode.md` apply. `.claude/`, `.cursor/`
+  and the autonomous profile are not edited, and nothing is pushed straight to the base branch.
+- A background agent with the switch `"0"` never merges and gets no relaxation.

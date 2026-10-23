@@ -2,9 +2,19 @@
   "permissions": {
     "deny": [
       "Read(.env)",
-      "Read(.env.*)",
       "Read(**/.env)",
-      "Read(**/.env.*)",
+      "Read(.env.local)",
+      "Read(**/.env.local)",
+      "Read(.env.*.local)",
+      "Read(**/.env.*.local)",
+      "Read(.env.development)",
+      "Read(**/.env.development)",
+      "Read(.env.production)",
+      "Read(**/.env.production)",
+      "Read(.env.test)",
+      "Read(**/.env.test)",
+      "Read(.env.staging)",
+      "Read(**/.env.staging)",
       "Read(**/credentials.json)",
       "Read(**/credentials.*)",
       "Read(**/id_rsa)",
@@ -47,7 +57,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "Read",
+        "matcher": "Read|Grep|Glob",
         "hooks": [
           {
             "type": "command",
@@ -70,7 +80,16 @@
               "${CLAUDE_PROJECT_DIR}/.claude/hooks/invoke.cjs",
               "${CLAUDE_PROJECT_DIR}/.claude/hooks/block-dangerous-bash.sh"
             ],
-            "timeout": 10
+            "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/invoke.cjs",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/autonomous-merge-gate.sh"
+            ],
+            "timeout": 60
           }
         ]
       },
@@ -107,7 +126,7 @@
               "${CLAUDE_PROJECT_DIR}/.claude/hooks/invoke.cjs",
               "${CLAUDE_PROJECT_DIR}/.claude/hooks/docs-gate.sh"
             ],
-            "timeout": 20
+            "timeout": 30
           }
         ]
       }
@@ -156,6 +175,21 @@
             ],
             "timeout": 600,
             "statusMessage": "Running the test suite..."
+          }
+        ]
+      }
+    ],
+    "PermissionDenied": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/invoke.cjs",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/log-permission-denied.sh"
+            ],
+            "timeout": 10
           }
         ]
       }

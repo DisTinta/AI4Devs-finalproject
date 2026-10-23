@@ -515,8 +515,10 @@ Verified against `package.json` (root and per package). If a command is not here
   3. Use the parent to frame and constrain; use the sub-issue to bound. If parent and sub disagree,
      stop and ask — do not silently widen the sub to match the parent, and do not drop a parent AC
      that the sub's DoD clearly inherits.
-- Branch naming for a change: `feature/DIS-n-slug` (merge into delivery branch
-  `feature/entrega-2-CRN`). Ultimate base branch: `main`.
+- Branch naming for a change: `feature/DIS-n-slug`. **Base branch: `final-project-CRN`**
+  (author's rule, 2026-10-20): every new branch is created from it and every PR targets it
+  (`gh pr create --base final-project-CRN`). It was cut from `feature/entrega-2-CRN` once Entrega 2
+  closed (PR #60); `feature/entrega-2-CRN` takes no new work. `main` is not touched.
 - **Linear status via MCP** (agents, per sub-issue `DIS-n`):
   1. Starting work → set status to **In Progress**.
   2. Verification succeeds → set **In Review** or **Done**, and leave a comment linking the
@@ -1295,6 +1297,44 @@ services that must be started first, quirks of the local environment.
   agent (ticket check, open decisions, verdict, Linear tools, `opus`) and the Cursor rule
   `20-openspec.mdc`: re-apply the patch afterwards (commit `chore(harness): gate the apply on a
   spec-auditor review…`).
+- **The autonomous-run switch is a local patch to the kit too** (DIS-106, ADR
+  `docs/adr/20261020-kit-autonomous-mode.md`, guide `docs/AUTONOMOUS-RUN.md`). `KIT_AUTONOMOUS_RUN`
+  in `.claude/sdd-harness.env` is edited by hand and committed only as `"0"`; with `"1"`
+  `session-context.sh` warns at session start. Two modes, decided in `lib.sh`: *unattended* (the
+  switch `"1"`, or a Cursor background agent) — no hook asks, each `ask` becomes an automatic check or
+  a deny with the alternative, a missing `jq` denies, the spec-audit gate requires `APPROVED`; and
+  *autonomous run* (the switch `"1"` only) — the agent may merge through `autonomous-merge-gate.sh`
+  into `AUTONOMOUS_MERGE_BASE`, edits and shell writes to `.claude/`, `.cursor/` and the autonomous
+  profile are denied, and this doctrine is relaxed: `docs/base-standards.md` §3 rules 2 (the
+  `spec-auditor` `APPROVED` replaces the human plan gate), 3 (tests written without supervision),
+  4 (only tests named in `tasks.md` or created on the branch change), 8 (the agent writes the "why"
+  and marks it) and 9 (the agent merges through the gate), and the "agent never merges" item of
+  `docs/openspec-tasks-mandatory-steps.md`. A background agent with the switch `"0"` gets none of the
+  relaxations. Always on: the shell guard parses commands (`shell-words.mjs`, one Node process per
+  line), install detection sees flags before the package (`npm i -D x` asks), removing the kit
+  contract is a write, a lone `rm` in the session scratchpad gets no decision, `.env.example` is
+  readable, secret reads are checked for `Grep`/`Glob` too, `KIT_SECRET_ALLOWLIST`, and the hooks in
+  Cursor (`.cursor/hooks.json`, `invoke.cjs --client cursor`). In an autonomous run the guard also
+  denies kit paths in any spelling (junctions, UNC, case), `gh`/`git` aliases, kit paths in interpreter
+  text, any non-read-only command naming a kit path (including `sed`), and lines too costly to check. Denials of a run go to the
+  untracked `.claude/autonomous-denials.log`. `doctor.sh --autonomous` / `doctor.ps1 -Autonomous` is
+  the preflight; it reads the base protection, so the active gh account must have admin access
+  (`DisTinta`). A kit update replaces `lib.sh`, every hook under `.claude/hooks/` (new:
+  `autonomous-merge-gate.sh`, `log-permission-denied.sh`, `vet-package.mjs`, `shell-words.mjs`, `paths.mjs` — the path and secret classifier the read and edit hooks call once per invocation),
+  `invoke.cjs`, `settings.json`, `sdd-harness.env`, both doctors, `.cursor/hooks.json`, the Cursor rules
+  `00-core.mdc` and `20-openspec.mdc`, the skills `verify-against-spec`, `adversarial-review` and
+  `kit-health`, and `ai-specs/templates/autonomous/`: re-apply the patch afterwards (the DIS-106
+  commits). `ci.yml` (hooks in the `runtime` filter), `vitest.stryker.config.ts` (harness excluded) and
+  `.gitignore` are project files.
+- **The hooks have a test suite, `tests/harness/`** (DIS-106). Each spec runs the real hook script
+  through `invoke.cjs` in a temporary project (`mkdtemp` prefix `harness-`) with
+  `tests/harness/support/run-hook.ts`; `gh`, `claude` and `docker` are `PATH` shims
+  (`support/stubs.ts`), and the npm registry is a local HTTP server. The switches of the copied
+  `sdd-harness.env` are pinned to their shipped defaults before each test's overrides, so a local hand
+  edit does not leak into the fixtures. It runs in `npx vitest run` and in CI (`quality`, Ubuntu), and
+  is excluded from Stryker. On Windows, Defender can block files that the git fixtures write
+  (`open("b.php")` fails with "Invalid argument"): exclude `%TEMP%\harness-*` and `%TEMP%\codemind-*`.
+  The PowerShell doctor has no runner in the suite.
 - **The PHP analyzer now emits edges** (DIS-49): `imports` (file → class/interface/trait, one per
   top-level `use`), `extends`, `implements`, a route's `calls` (array-action routes
   `Route::<verb>('<uri>', [X::class, '<m>'])`, a new `route` symbol named `<VERB> <uri>`; string

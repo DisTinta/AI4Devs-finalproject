@@ -41,3 +41,13 @@ The three blocks, every claim with a path and line, plus a final table
 `Scenario → test → state (green / red / absent)`.
 
 If block 3 is empty, justify it: it is unusual. Do not fix anything in this turn.
+
+## Inline mode (autonomous runs)
+
+This skill runs as a fork (`context: fork`): its result goes to the main session, not to the step that
+invoked it. Inside a workflow step, or in an unattended run (`KIT_AUTONOMOUS_RUN="1"` in
+`.claude/sdd-harness.env`, or a Cursor background agent), do not invoke the skill. Read this
+`SKILL.md`, follow its instructions in your own context, and write the report yourself under
+`openspec/changes/<change>/reports/` with the file name the mandatory steps give
+(`YYYY-MM-DD-verify-against-spec.md`). The checks, the verdict format and the guardrails are the same.
+(openspec change autonomous-run-switch, design D14.)

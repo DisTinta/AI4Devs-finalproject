@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      { "command": "node .claude/hooks/invoke.cjs --client cursor .claude/hooks/session-context.sh", "timeout": 20 }
+    ],
+    "beforeShellExecution": [
+      { "command": "node .claude/hooks/invoke.cjs --client cursor .claude/hooks/block-dangerous-bash.sh", "timeout": 30 },
+      { "command": "node .claude/hooks/invoke.cjs --client cursor .claude/hooks/docs-gate.sh", "timeout": 30 },
+      { "command": "node .claude/hooks/invoke.cjs --client cursor .claude/hooks/autonomous-merge-gate.sh", "timeout": 60 }
+    ],
+    "beforeReadFile": [
+      { "command": "node .claude/hooks/invoke.cjs --client cursor .claude/hooks/block-secret-reads.sh", "timeout": 10 }
+    ],
+    "preToolUse": [
+      { "command": "node .claude/hooks/invoke.cjs --client cursor .claude/hooks/block-secret-reads.sh", "matcher": "Grep", "timeout": 10 },
+      { "command": "node .claude/hooks/invoke.cjs --client cursor .claude/hooks/protect-specs-and-tests.sh", "matcher": "Write|Delete", "timeout": 10 },
+      { "command": "node .claude/hooks/invoke.cjs --client cursor .claude/hooks/spec-audit-gate.sh", "matcher": "Write|Delete", "timeout": 10 }
+    ],
+    "afterFileEdit": [
+      { "command": "node .claude/hooks/invoke.cjs --client cursor .claude/hooks/post-edit-quality.sh", "timeout": 180 },
+      { "command": "node .claude/hooks/invoke.cjs --client cursor .claude/hooks/validate-tasks.sh", "timeout": 20 }
+    ],
+    "beforeSubmitPrompt": [
+      { "command": "node .claude/hooks/invoke.cjs --client cursor .claude/hooks/block-secrets.sh", "timeout": 10 }
+    ],
+    "stop": [
+      { "command": "node .claude/hooks/invoke.cjs --client cursor .claude/hooks/verify-tests.sh", "timeout": 600 }
+    ]
+  }
+}
