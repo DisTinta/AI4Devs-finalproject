@@ -932,7 +932,7 @@ cat-file check-attr check-ignore check-mailmap check-ref-format checkout checkou
 clean clone column commit commit-graph commit-tree config count-objects credential credential-cache
 credential-cache--daemon credential-store cvsexportcommit cvsimport cvsserver daemon describe diagnose diff
 diff-files diff-index diff-pairs diff-tree difftool fast-export fast-import fetch fetch-pack filter-branch
-fmt-merge-msg for-each-ref for-each-repo format-patch fsck fsck-objects fsmonitor--daemon gc get-tar-commit-id grep
+fmt-merge-msg for-each-ref for-each-repo format-patch format-rev fsck fsck-objects fsmonitor--daemon gc get-tar-commit-id grep
 gui hash-object help hook http-backend http-fetch http-push imap-send index-pack init init-db instaweb
 interpret-trailers last-modified log ls-files ls-remote ls-tree mailinfo mailsplit maintenance merge merge-base
 merge-file merge-index merge-octopus merge-one-file merge-ours merge-recursive merge-recursive-ours

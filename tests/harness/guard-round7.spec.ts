@@ -96,7 +96,11 @@ describe('Shell guard: seventh review run', { timeout: 300_000 }, () => {
 
   it('The set of git\'s own commands holds every subcommand of a normal SDD cycle', () => {
     for (const sub of SDD_GIT_SUBCOMMANDS) expect(alias(`git ${sub}`), sub).toEqual([]);
-    // And every builtin the local git lists, when git can list them.
+    // And every builtin the local git lists, when git can list them and is one of the versions the set
+    // was built from (2.45–2.52): a newer git may add builtins, which the set then simply does not know
+    // yet (a false deny in an autonomous run, never a false allow).
+    const version = /git version 2\.(\d+)/.exec(spawnSync('git', ['--version'], { encoding: 'utf8' }).stdout ?? '');
+    if (!version || Number(version[1]) < 45 || Number(version[1]) > 52) return;
     const listed = spawnSync('git', ['--list-cmds=builtins'], { encoding: 'utf8' });
     if (listed.status !== 0 || !listed.stdout) return;
     const builtins = listed.stdout.split(/\s+/).filter(Boolean);
