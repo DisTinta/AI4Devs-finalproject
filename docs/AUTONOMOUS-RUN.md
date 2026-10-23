@@ -84,13 +84,15 @@ Medianas en Windows (Git Bash, 7 ejecuciones), con el interruptor a `"0"`:
 
 | Llamada | Antes de DIS-106 | Ahora |
 |---|---|---|
-| `Bash` (`ls`) | 1,2 s | 0,76 s |
+| `Bash` (`ls`, los tres hooks de Bash) | 2,16 s | 1,85 s |
 | `Read` | 0,86 s | 0,47 s |
 | `Grep` / `Glob` | sin hook | 0,50 s |
 | `Edit` | 1,54 s | 1,27 s |
 
 La fila de `Edit` suma los dos hooks de edición en una rama con un cambio activo; en una rama sin
-cambio activo el coste es el mismo que antes (unos 1,3 s).
+cambio activo el coste es el mismo que antes (unos 1,3 s). La fila de `Bash` suma el guardián de shell,
+la puerta de merge y la de documentación. En una ejecución autónoma, la puerta de merge analiza cada
+línea y una llamada a `Bash` cuesta unos 3,9 s.
 
 ### Qué está activo siempre, también con el interruptor a `"0"`
 

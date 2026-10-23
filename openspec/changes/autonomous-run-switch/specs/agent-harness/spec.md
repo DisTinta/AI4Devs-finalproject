@@ -285,7 +285,7 @@ Outside unattended mode the gate keeps its current rule: any report lets the edi
 - **THEN** the decision is `deny`, and for the migration the reason asks for a new migration
 
 #### Scenario: A protected path is recognised in any spelling
-- **WHEN** an unattended edit names a main spec, kit doctrine, an existing test or a file under `PATH_SOURCE` through another spelling of its path (`./` segments, doubled slashes, `\\?\` or `\\localhost\C$\` (or this machine's name) prefixes, a `/cygdrive/` or `/proc/cygdrive/` form, a leading `~`, a drive-relative path such as `C:tests/x.spec.ts`, a different letter case on Windows, or a junction or symbolic link into the repository)
+- **WHEN** an unattended edit names a main spec, kit doctrine, an existing test or a file under `PATH_SOURCE` through another spelling of its path (`./` segments, doubled slashes, `\\?\` or `\\localhost\C$\` (or this machine's name) prefixes, a `/cygdrive/` or `/proc/cygdrive/` form, a leading `~`, a drive-relative path such as `C:tests/x.spec.ts` (when the project path itself has no drive letter, such a path is denied as unsure), a different letter case on Windows, or a junction or symbolic link into the repository)
 - **THEN** the decision is the one the canonical repository-relative path gets; a path with a `..` segment is denied outright, as before this change, and in unattended mode any edit path longer than 4 KiB (counted in bytes as written) is denied as too long to check within the hook's time
 
 ### Requirement: The agent merges only in an autonomous run and under deterministic conditions
@@ -494,7 +494,7 @@ Outside an autonomous run these commands and edits are not affected.
 - **THEN** the decision is `deny`
 
 #### Scenario: A gh or git alias is not defined in an autonomous run
-- **WHEN** an autonomous run runs `gh alias set`, `gh alias import`, `gh alias delete`, a `git config` that writes an `alias.*`, `include.path` or `includeIf.*` key, `git -c alias.<name>=…`, `git --config-env`, sets `GIT_CONFIG_PARAMETERS` or `GIT_CONFIG_KEY_<n>` to an alias (as a prefix, with `export` or with `declare -x`/`typeset -x`), points git or gh at another configuration (`GIT_CONFIG_GLOBAL`, `GIT_CONFIG_SYSTEM`, `GIT_CONFIG`, `HOME` or `XDG_CONFIG_HOME` before `git`; `GH_CONFIG_DIR`, `HOME` or `XDG_CONFIG_HOME` before `gh`), writes a git configuration file through the shell (`.git/config`, `~/.gitconfig`, `~/.config/git/config`), or runs a git subcommand that is not one of git's own commands (an alias or an external `git-<name>` could hide a merge)
+- **WHEN** an autonomous run runs `gh alias set`, `gh alias import`, `gh alias delete`, a `git config` that writes an `alias.*`, `include.path` or `includeIf.*` key, `git -c alias.<name>=…`, `git --config-env`, sets `GIT_CONFIG_PARAMETERS` or `GIT_CONFIG_KEY_<n>` to an alias (as a prefix, with `export` or with `declare -x`/`typeset -x`), points git or gh at another configuration (`GIT_CONFIG_GLOBAL`, `GIT_CONFIG_SYSTEM`, `GIT_CONFIG`, `HOME` or `XDG_CONFIG_HOME` before `git`; `GH_CONFIG_DIR`, `HOME` or `XDG_CONFIG_HOME` before `gh`), writes a git or gh configuration file through the shell or the editing tools (`.git/config`, any `.gitconfig`, `~/.config/git/config`, a `config` file in a git directory; gh's `config.yml` or `hosts.yml` under `~/.config/gh/`, `$XDG_CONFIG_HOME/gh/`, `$GH_CONFIG_DIR/` or `AppData/Roaming/GitHub CLI/`), sets `GIT_EXEC_PATH` or `--exec-path=`, runs a git subcommand that is not one of git's own commands or a gh command that is not one of gh's own (an alias or an external `git-<name>`/gh extension could hide a merge; `xargs git` with the subcommand from stdin counts), or runs `gh extension install`, `upgrade`, `exec` or `create`
 - **THEN** the decision is `deny`, and the reason says an alias could hide a merge from the merge gate
 
 #### Scenario: Interpreter text that names kit configuration is denied in an autonomous run
@@ -706,7 +706,7 @@ Always on. `.env.example` and `.env.sample` files (at any depth) SHALL NOT be tr
 
 #### Scenario: Secret files are not reached through search tools
 - **WHEN** a `Grep` or `Glob` call targets a real environment file other than an example (for example `.env.ci` or `.env.prod`) or a secret location, through its path, glob or pattern
-- **THEN** the secret-read hook denies it, as it does for `Read`; `.env.example` stays reachable; in unattended mode a path or pattern longer than 4 KiB is denied as too long to check in time
+- **THEN** the secret-read hook denies it, as it does for `Read`; `.env.example` stays reachable; in unattended mode a glob or pattern longer than 4 KiB is treated as reaching a secret and denied
 
 ### Requirement: Known test sentinels can be exempted from the prompt secret scan
 

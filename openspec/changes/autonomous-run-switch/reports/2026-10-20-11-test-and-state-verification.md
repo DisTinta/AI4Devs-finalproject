@@ -227,3 +227,8 @@ mapped. The long-input timing assertions run in their own serial step (`HOOK_TIM
 Update after the sixth review round (2026-10-22): 29 harness spec files; full suite 171 files and
 1727 tests passed, 221 skipped; lint, typecheck and `openspec validate --strict` clean; 110 scenarios
 mapped; the serial "Hook timing" step 12 passed on Windows.
+
+Update after the seventh review round (2026-10-23): 31 harness spec files; full suite 173 files,
+1736 tests passed plus `paths-round7.spec.ts` (6) after a best-effort Windows cleanup fix, 221
+skipped; lint, typecheck and `openspec validate --strict` clean; 110 scenarios mapped; the serial "Hook
+timing" step (4 files, 23 tests) passed on Windows.

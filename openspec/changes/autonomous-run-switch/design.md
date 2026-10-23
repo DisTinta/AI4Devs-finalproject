@@ -1156,6 +1156,36 @@ fallback keeps the 4 KiB pattern rule with the switch `"0"` too, because its str
 otherwise run past the hook timeout; with `paths.mjs` working, the rule applies in unattended mode only,
 as the author decided. Edit with the switch `"1"` costs 1.43 s (both hooks).
 
+**Sixth review run (2026-10-22, `reports/2026-10-22-verify-against-spec-6.md`, R7-1 to R7-6).** Fixed
+in this change (A), round 7, each with a test seen red first or a mutation shown to fail:
+- R7-1 (Major): gh gets the counterpart of the git rule (same author decision): in an autonomous run a
+  gh command that is not one of gh's own, `gh extension install|upgrade|exec|create|browse`, and writes
+  to gh's `config.yml`/`hosts.yml` (shell or editing tools) are denied; git config files through the
+  editing tools too;
+- R7-2: the whole `paths.mjs` answer shares the 5 s budget and the child is killed on every exit path
+  (no orphan processes); an input `paths.mjs` cannot parse denies in unattended mode;
+- R7-3: `xargs git`/`xargs gh` with the subcommand from stdin; the git built-in set is checked against
+  `git --list-cmds=builtins` (two missing entries found and added);
+- R7-4: drive-relative edit paths keep the base's decision with the switch `"0"` (the first
+  requirement's invariant) and are resolved in unattended mode only;
+- R7-5, R7-6: the spec states the pattern rule, `GIT_EXEC_PATH`, the git-config file match and the
+  unsure denial; `PF_UNSURE`, the merge gate's `kit .+` and the kit-contract reason are tested; the
+  round-6 timing assertions moved to the serial CI step; the guide's `Bash` cost row sums the three Bash
+  hooks.
+
+Accepted (D), round 7: `git config --edit` and downloads into `.git/config` (`curl -o`, `wget -O`) are
+not seen as alias definitions — using any alias is still denied by the git-subcommand rule; shell words
+with a drive-relative path (`> D:.claude/x`) can be over-denied; in an autonomous run the merge gate
+parses every Bash line (about 3.9 s per Bash call; a fast path is a possible later optimisation).
+
+**Stopping criterion (the author's decision, 2026-10-22).** The guard recognises forms; it can never
+be complete, and each review pass found rarer variants (blockers stopped at the fifth pass). Following
+`docs/openspec-tasks-mandatory-steps.md` ("until it returns no Blocker or Major"): after round 7, if
+the seventh pass returns no Blocker and no Major, the reviews are closed; its Minor findings are fixed
+when small or recorded as D with the author's approval, and the change is archived. Another round runs
+only for a real Blocker or Major. The base-branch protection (D20) bounds what any remaining gap can
+reach.
+
 ## Open Questions
 
 None that change the specs or the tasks. Two facts are checked during the apply, each with a

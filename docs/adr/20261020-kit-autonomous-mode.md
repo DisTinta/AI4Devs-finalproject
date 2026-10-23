@@ -82,7 +82,7 @@ record stays as the history of the first run.
   writing it, secret reads are also checked for `Grep` and `Glob`, `.env.example` is readable and
   editable, the secret-scan allowlist, and the hooks in Cursor. The shell guard now parses each line in
   one Node process, and the read and edit hooks avoid most `jq` calls. Windows medians, before this
-  change → now: `Bash` 1.2 → 0.76 s, `Read` 0.86 → 0.47 s, `Edit` 1.54 → 1.27 s (both edit hooks, branch with an active change); `Grep`/`Glob` had no
+  change → now: `Bash` 2.16 → 1.85 s (the three Bash hooks), `Read` 0.86 → 0.47 s, `Edit` 1.54 → 1.27 s (both edit hooks, branch with an active change); `Grep`/`Glob` had no
   hook and now take 0.5 s.
 * The author reviews the agent's decisions after the merge, not before. A wrong decision can reach the
   base and need a follow-up change.
