@@ -279,6 +279,8 @@ describe('The merge gate is not bypassed by alternative forms (verify 2026-10-21
     ['a valid page line plus a summary wrapped in markup', '2 true' + String.fromCharCode(10) + '<p>2 true</p>' + String.fromCharCode(10)],
     ['a valid page line plus a summary with a prefix', '2 true' + String.fromCharCode(10) + 'x2 true' + String.fromCharCode(10)],
     ['a kit page summary with a prefix', 'x2 kit .claude/hooks/lib.sh' + String.fromCharCode(10) + '2 true' + String.fromCharCode(10)],
+    // A kit page line names at least one path: without one it is garbage, not a clean page.
+    ['a kit page summary without paths', '2 kit ' + String.fromCharCode(10)],
   ] as const) {
     it(`A pull request that renames a file out of the kit configuration is not merged: a file list read as ${label} with exit 0 denies`, async () => {
       const r = await gateWithFiles('gh pr merge 61 --merge', output, prViewJson(), 'raw');

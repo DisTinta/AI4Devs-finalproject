@@ -928,7 +928,7 @@ function configSourceDefinition(commands) {
 // git 2.45–2.52). Any other subcommand is an alias, from whatever configuration file, or an external
 // git-<name>: either could hide a merge from the merge gate (author's decision 2026-10-22).
 const GIT_BUILTINS = new Set(`add am annotate apply archimport archive backfill bisect blame branch bugreport bundle
-cat-file check-attr check-ignore check-mailmap check-ref-format checkout checkout-index cherry cherry-pick citool
+cat-file check-attr check-ignore check-mailmap check-ref-format checkout checkout--worker checkout-index cherry cherry-pick citool
 clean clone column commit commit-graph commit-tree config count-objects credential credential-cache
 credential-cache--daemon credential-store cvsexportcommit cvsimport cvsserver daemon describe diagnose diff
 diff-files diff-index diff-pairs diff-tree difftool fast-export fast-import fetch fetch-pack filter-branch
@@ -937,13 +937,44 @@ gui hash-object help hook http-backend http-fetch http-push imap-send index-pack
 interpret-trailers last-modified log ls-files ls-remote ls-tree mailinfo mailsplit maintenance merge merge-base
 merge-file merge-index merge-octopus merge-one-file merge-ours merge-recursive merge-recursive-ours
 merge-recursive-theirs merge-resolve merge-subtree merge-tree mergetool mktag mktree multi-pack-index mv name-rev
-notes p4 pack-objects pack-redundant pack-refs patch-id prune prune-packed pull push quiltimport range-diff
+notes p4 pack-objects pack-redundant pack-refs patch-id pickaxe prune prune-packed pull push quiltimport range-diff
 read-tree rebase receive-pack reflog refs remote remote-ext remote-fd remote-ftp remote-ftps remote-http
 remote-https repack replace replay repo request-pull rerere reset restore rev-list rev-parse revert rm scalar
 send-email send-pack sh-i18n--envsubst shell shortlog show show-branch show-index show-ref sparse-checkout stage
 stash status stripspace submodule submodule--helper svn switch symbolic-ref tag unpack-file unpack-objects
 update-index update-ref update-server-info upload-archive upload-archive--writer upload-pack var verify-commit
 verify-pack verify-tag version web--browse whatchanged worktree write-tree`.split(/\s+/));
+
+// gh's own top-level commands, their aliases and help topics (from `gh help` of gh 2.97). Any other
+// command is an alias or an extension, either of which could hide a merge from the merge gate (the
+// git rule's counterpart, same author's decision). Of `gh extension`, only these subcommands do not
+// install, upgrade, create or run one.
+const GH_BUILTINS = new Set(`auth browse codespace cs discussion gist issue org pr project release repo skill skills cache
+run workflow agent-task agent-tasks agent agents alias api attestation at completion config copilot extension
+extensions ext gpg-key label licenses preview ruleset rs search secret ssh-key status variable help version credits
+accessibility a11y actions environment exit-codes formatting mintty reference telemetry`.split(/\s+/));
+const GH_EXTENSION_SAFE = new Set(['list', 'search', 'remove']);
+
+/**
+ * A shell write to a gh configuration file (its aliases live there): `config.yml` or `hosts.yml` in
+ * `~/.config/gh`, `$XDG_CONFIG_HOME/gh`, `$GH_CONFIG_DIR` or `%APPDATA%/GitHub CLI` (any case); one
+ * in an unknown directory counts too.
+ */
+function ghConfigWrite(t, abs) {
+  const isFile = (name) => name === 'config.yml' || name === 'hosts.yml';
+  const isDir = (name) => name === 'gh' || name === 'github cli' || /^(\$\{?gh_config_dir\}?|%gh_config_dir%)$/.test(name);
+  if (t.glob) {
+    const comps = t.glob.toLowerCase().split(/(?<!\\)\//);
+    const parent = comps[comps.length - 2];
+    if (['config.yml', 'hosts.yml'].some((name) => componentMatches(comps[comps.length - 1], name))
+      && (parent === undefined || ['gh', 'github cli'].some((name) => componentMatches(parent, name)))) return true;
+  }
+  const parts = (abs ?? t.value).replace(/\\/g, '/').toLowerCase().split('/');
+  if (!isFile(parts.pop())) return false;
+  if (abs === null || isDir(parts[parts.length - 1] ?? '')) return true;
+  const own = process.env.GH_CONFIG_DIR;
+  return Boolean(own) && eqPath(collapse(norm(own)), abs.slice(0, abs.lastIndexOf('/')));
+}
 
 /**
  * A shell write to a git configuration file (an alias definition): `.git/config` and any
@@ -982,6 +1013,8 @@ function aliasDefinition(cmd) {
       if (x.startsWith('--exec-path=')) return 'git --exec-path';
       if (['-c', '-C', '--config-env', '--git-dir', '--work-tree', '--namespace'].includes(x)) k++;
     }
+    // Run by xargs without a subcommand: it comes from the input, which may be an alias.
+    if (k >= v.length && cmd.viaXargs) return 'xargs git: the subcommand comes from its input';
     if (k < v.length && !GIT_BUILTINS.has(v[k])) {
       const sub = v[k].length > 40 ? `${v[k].slice(0, 37)}...` : v[k];
       return `git ${sub}: not one of git's own commands`;
@@ -997,7 +1030,16 @@ function aliasDefinition(cmd) {
   if (cmd.name === 'gh') {
     let k = 1;
     while (k < v.length && /^-/.test(v[k])) k += v[k] === '-R' || v[k] === '--repo' ? 2 : 1;
+    if (k >= v.length) return cmd.viaXargs ? 'xargs gh: the command comes from its input' : null;
+    if (!GH_BUILTINS.has(v[k])) {
+      const sub = v[k].length > 40 ? `${v[k].slice(0, 37)}...` : v[k];
+      return `gh ${sub}: not one of gh's own commands`;
+    }
     if (v[k] === 'alias' && ['set', 'import', 'delete'].includes(v[k + 1])) return `gh alias ${v[k + 1]}`;
+    if (['extension', 'extensions', 'ext'].includes(v[k])) {
+      const sub = v.slice(k + 1).find((x) => !/^-/.test(x));
+      if (sub !== undefined && !GH_EXTENSION_SAFE.has(sub)) return `gh ${v[k]} ${sub.length > 40 ? `${sub.slice(0, 37)}...` : sub}`;
+    }
   }
   return null;
 }
@@ -1289,6 +1331,7 @@ function analyse(parsed, line, ctx) {
       const name = (abs ?? t.value).split('/').pop();
       if (name === 'sdd-harness.env') facts.kitContractWrite = true;
       if (gitConfigWrite(t, abs)) facts.aliasDefinition.push(`a write to git configuration (${abs ?? t.value})`);
+      if (ghConfigWrite(t, abs)) facts.aliasDefinition.push(`a write to gh configuration (${abs ?? t.value})`);
       if (isKitWord(t, cmd.cwd)) facts.kitConfig.push(abs ?? t.value);
     }
     // Rule 5: installs.
