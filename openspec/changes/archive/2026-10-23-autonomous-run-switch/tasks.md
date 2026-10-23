@@ -359,4 +359,4 @@
 - [x] 14.1 With the PR open against `final-project-CRN`, run `/show-spec-working`, `/verify-against-spec` and `/adversarial-review`, in this order, inline (the mode this change documents). One report each under `reports/`
 - [x] 14.2 Fix every finding in this change and give each one an A/B/C/D destination in `design.md` → Follow-ups. Re-run the verification each fix invalidates
 - [x] 14.3 Commit the fixes to the same PR, push (confirmed with the author) and wait for a green CI
-- [ ] 14.4 `/opsx:archive`, and commit the archive to the same PR; the author merges afterwards
+- [x] 14.4 `/opsx:archive`, and commit the archive to the same PR; the author merges afterwards
