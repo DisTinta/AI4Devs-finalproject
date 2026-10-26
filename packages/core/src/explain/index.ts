@@ -7,6 +7,7 @@ export * from './explain-event.js';
 export * from './explain-answer.js';
 export * from './sanitize.js';
 export * from './unknown-policy.js';
+export * from './question-language.js';
 export * from './prompt.js';
 export * from './claim-items.js';
 export * from './prior-claims.js';
