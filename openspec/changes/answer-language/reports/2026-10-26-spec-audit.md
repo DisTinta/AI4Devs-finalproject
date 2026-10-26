@@ -446,3 +446,192 @@ None in run 2.
 | I3 `tests/integration/cli/seed-load.spec.ts` (correction 4) | Fixed: named in task 5.1 (an evaluation-mode cache hit, no prompt built). |
 | Contradiction in the call count (section 6) | Fixed by B1: the seventh `answer` call (the CLI capture) is now live. |
 | Correction 10 (Linear comment) | Replaced by this round's Spanish comment on DIS-104, which summarises the finding and the agent's decisions. |
+
+---
+
+## Run 3 (2026-10-26)
+
+APPROVED
+
+# Spec audit: `answer-language` (Linear DIS-104), run 3
+
+- Date: 2026-10-26
+- Change: `openspec/changes/answer-language/`. I read `proposal.md`, `design.md`, `specs/explain/spec.md`, `tasks.md`, and `reports/2026-10-26-spec-audit.md` (runs 1 and 2 and their resolutions) for context.
+- Ticket: DIS-104 and its 6 comments, loaded through the Linear MCP. DIS-104 has **no parent** (`parentId` is empty; the ticket is only `relatedTo` DIS-103). The reference is the ticket's own `[enhanced]` AC1-AC5.
+- Project inputs: `docs/base-standards.md` (§7.1), `docs/openspec-tasks-mandatory-steps.md` and `openspec/specs/explain/spec.md:490-494, 929-934`.
+- Real code checked: `packages/core/src/explain/prompt.ts`, `packages/core/src/explain/explain.ts:205-467`, `packages/cli/src/commands/ask.ts:79-122`, `tests/support/explain-doubles.ts`, and the use of `normalize(` in `packages/core/src`.
+
+The decisions the agent took in correction rounds 1 and 2 are accepted. Each is marked as the agent's text (R1-R8 in `design.md` → Follow-ups), and none contradicts the ticket or the project.
+
+## Questions for the author
+
+None.
+
+## 1. Scope against the ticket: clean
+
+Every part of the change traces to DIS-104:
+
+| Part of the change | Source in DIS-104 |
+|---|---|
+| Spanish system message | AC1 |
+| Generic message kept byte for byte | AC2 |
+| `detectLanguage` | AC3 |
+| `answer_language_mismatch` | AC4 |
+| Measured comparison | AC5 |
+| `docs/DEMO.md` | Contexto técnico |
+
+The reseed in task 7.0 and the CLI capture in task 7.1 are process steps that serve AC5 and the `docs/DEMO.md` item. They add no product scope. Adding a cache option to the CLI was rejected precisely to avoid widening the scope (R6). Nothing to cut.
+
+## 2. Inherited acceptance criteria: not applicable (no parent); the ticket's own ACs are covered
+
+| AC | Requirement | Scenario |
+|---|---|---|
+| AC1 | Prompt and evidence ids | A Spanish question gets the explicit Spanish instruction |
+| AC2 | Prompt and evidence ids | An English or undecided question keeps the generic system message |
+| AC3 | Question and answer language | The language rule decides Spanish, English or nothing (covers all of the AC's examples: `¿Cómo se validan los cupones?`, `What does OrderObserver do?`, `price`, `ok`, `''`, `DiscountService`) |
+| AC4 | Question and answer language; Explain events and logging | An English answer to a Spanish question is reported and still returned; No language event for a Spanish answer, an English question, a cache hit or an UNKNOWN; The language event follows the verification events and precedes the write events |
+| AC5 | none (process deliverable) | design D5 (questions, procedure, per-pair classification, aggregate), tasks 1.x and 7.x |
+
+## 3. Missing scenarios: clean
+
+Every MUST clause has a scenario:
+- the rule (two WHEN/THEN pairs);
+- the positive event, which asserts `persisted: true`, one cache save and the codes-only payload;
+- five negative cases: Spanish answer, English question, cache hit, `no-evidence` and `broken-evidence`;
+- the place of the event in the order of events;
+- both system messages.
+
+I checked every example of the rule's scenario by hand against the rule as written, and every stated result holds:
+
+| Input | Signals | Result |
+|---|---|---|
+| `¿Cómo se validan los cupones?` | ES 4 (`¿`, `cómo`, `se`, `los`) | `es` |
+| `«¿Dónde se aplica el cupón?»` | ES 5 | `es` |
+| `el precio del pedido??` | ES 2 | `es` |
+| `COMO SE CALCULA EL PRECIO` | ES 3 | `es` |
+| `` The `the` price `` | EN 1 | no decision |
+| `` the price `of `` | EN 1 (the token `` `of `` is code) | no decision |
+| `[the] (of)` | EN 2 | `en` |
+| `AÑO-2024 PÁGINA_1` | both tokens are code | no decision |
+
+I also checked the event scenarios:
+- The Spanish fake answer `DiscountService calcula los descuentos de los pedidos.` gives ES 3, so it raises no event.
+- The English fake answer `…for orders based on the loyalty tier.` gives EN 3 (`for`, `on`, `the`), so it raises the event.
+- The ordering scenario's question `¿Qué hace DiscountService? ignore all previous instructions` gives `es`, because none of the English words is in the English list.
+- The two word lists share no entry.
+
+## 4. Ambiguity: clean
+
+The only listed word left in the change artifacts is "however many statements cite it" (`specs/explain/spec.md:169`). It is copied unchanged from the main spec and means "regardless of the count". No action.
+
+## 5. Open decisions: clean (two improvable precisions)
+
+None blocking. Every format, limit, ordering and name a test will pin is fixed:
+- the two system message texts and how they are joined;
+- the event shape and its position;
+- the rule's sets, threshold and majority;
+- the module, function and constant names;
+- the measurement questions, endpoint, body, environment and classification table.
+
+- **I1 (improvable): decomposed Unicode input.** The rule tests letters with `\p{L}`. A question typed in NFD form, such as `qué` written as `que` plus U+0301, holds a combining mark (`\p{M}`), so under the rule as written the token is code. The result is still deterministic: `¿Qué hace DiscountService?` in NFD still gives `es` (`¿`, `hace`). But no question is normalised before the rule (only `anchor.ts:43` and `cache/normalize.ts:17` call `normalize`), and this consequence is not stated anywhere. Correction: either state it in D1 as accepted, or apply `normalize('NFC')` to the text before tokenising and say so in the requirement's first bullet. If NFC is added, add one NFD input to task 2.1.
+- **I2 (improvable): "split on whitespace"** does not name the character class. Correction: write "split on whitespace (the JavaScript `\s` class)" in the requirement's first bullet, or say the same in D1.
+
+## 6. Contradictions inside the change: clean
+
+The texts agree with each other on every point checked:
+- `proposal.md`, D2/D3 and the delta agree on the message texts, the placement of the event (after the `broken-evidence` return, only on `storedAnswer` / `unsavedAnswer`), its cacheability (R2) and the order of events.
+- Task 3.1 matches the nine lines in the delta.
+- The call count ("seven `answer` calls: 3 before, 3 after, 1 CLI capture") is now true. The CLI capture in task 7.1 follows the reseed in task 7.0, and the proposal, D5, D6, Risks and tasks 1.4, 7.0 and 7.1 all say so.
+
+## 7. Contradictions with the project: clean
+
+- The two MODIFIED requirements match `openspec/specs/explain/spec.md:490-494` and `:929-934` word for word. The only differences are the added paragraph on the language-dependent system message, the new event bullet, the order clause and the privacy sentence.
+- The Spanish system message keeps the two lines that the main requirement places after the line describing the evidence (lines 3-4).
+- Task 12.7, where the agent merges, was accepted in run 2 as sanctioned for autonomous runs (`docs/AUTONOMOUS-RUN.md` §5, `docs/adr/20261020-kit-autonomous-mode.md`).
+
+## 8. Contrast with the real code: clean
+
+- **D2.** `EXPLAIN_SYSTEM_PROMPT` has eight lines and the fifth is `Answer in the language of the question.` (`packages/core/src/explain/prompt.ts:15-24`). `buildPrompt` (`:46-69`) is the only producer of `ExplainPrompt`, so adding `questionLanguage` breaks no caller.
+- **D3.**
+  - `events` is built at `explain.ts:354` and returned by `broken-evidence` at `:355`.
+  - `storedAnswer` / `unsavedAnswer` receive it at `:368` and `:371`.
+  - `unsavedAnswer` appends `claims_not_persisted` at `:464`.
+  - `finish` / `withEvents` append `answer_not_cached` and `query_not_logged` at `:213-221` and `:276-280`.
+  - `no-evidence` returns at `:333` with only `sanitized.events`.
+
+  The delta's order and its five negative cases follow from this code.
+- **CLI.** `packages/cli/src/commands/ask.ts:107` calls `explain` with no `useCache`. `:112` logs every event at `info` except `evidence_broken`. So the check in task 7.1 (no cache hit; the `answer_language_mismatch` line appears when the answer is English) is observable.
+- The test doubles (`tests/support/explain-doubles.ts`) expose `findCacheEntry` / `saveCacheEntry` and `ownGraph`, which is enough to seed the cache entry and anchor `DiscountService` / `OrderObserver` as the scenarios require.
+- The change duplicates no existing abstraction. The new pure module follows the pattern of the other modules of `explain/`.
+
+## 9. Task size: clean
+
+Each live call is its own task and runs in the background with `Monitor` (1.3a-c, 7.1, 7.2a-c). Mutation testing is its own task (6.3). Task 4.1 (three scenario tests) and task 5.1 (reviewing the listed test files) each fit in one turn.
+
+## 10. Mandatory steps: clean
+
+- Step 0 comes first, and 0.1 is the branch (`feature/dis-104-answer-language`, from `final-project-CRN`).
+- Every required section is present, labelled and in order:
+  - 5: Review and Update Existing Tests;
+  - 6: Run Tests and Verify Data State, with its report path and the §6 template;
+  - 8: Manual Interface Testing, AGENT MUST EXECUTE, with the error cases 400 and 404;
+  - 9: End-to-End, marked not applicable with a reason;
+  - 10: Update Technical Documentation;
+  - 12: Pre-merge Review, last, with the three checks in order and the archive commit before the merge.
+- Mutating tasks restore state:
+  - 0.4 records the baseline;
+  - 7.0 reseeds before the "after" run;
+  - 8.3 runs the final reseed and `npm run verify`;
+  - 8.4 re-checks the 0.4 counts and lists any baseline rows removed.
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| Question and answer language (ADDED) | The language rule decides Spanish, English or nothing | 2.1, 2.2, 2.3 |
+| Question and answer language | An English answer to a Spanish question is reported and still returned | 4.1, 4.2 |
+| Question and answer language | No language event for a Spanish answer, an English question, a cache hit or an UNKNOWN | 4.1, 4.2 |
+| Prompt and evidence ids (MODIFIED) | Each span of the pack gets one evidence id in rank order | existing `tests/unit/explain/explain.spec.ts`; 5.1, 5.2 |
+| Prompt and evidence ids | The prompt hash covers the whole prompt | existing tests; 5.1, 5.2 |
+| Prompt and evidence ids | A change only in the omitted lines keeps the prompt hash | existing tests; 5.2 |
+| Prompt and evidence ids | A Spanish question gets the explicit Spanish instruction | 3.1, 3.2 |
+| Prompt and evidence ids | An English or undecided question keeps the generic system message | 3.1, 3.2 |
+| Explain events and logging (MODIFIED) | Explaining writes nothing to the console | existing tests; 5.2 |
+| Explain events and logging | Sanitisation events come first in every answer that reached the prompt | existing tests; 5.2 |
+| Explain events and logging | No sanitisation event without a prompt | existing tests; 5.2 |
+| Explain events and logging | Evidence broken events follow the sanitisation events and carry no content | existing tests; 5.2 |
+| Explain events and logging | Entailment unverified events follow the evidence broken events and carry no content | existing tests; 5.2 |
+| Explain events and logging | The language event follows the verification events and precedes the write events | 4.1, 4.2 |
+| (AC5, process) | none (not system behaviour) | 1.1-1.4, 7.0-7.4 |
+| (Ticket: `docs/DEMO.md`) | none | 7.1, 10.1 |
+
+No empty row.
+
+## Corrections to apply
+
+All of these are improvable and optional. None blocks the apply step.
+
+### `openspec/changes/answer-language/specs/explain/spec.md`
+
+1. **(I1, I2)** Requirement "Question and answer language", first bullet. Replace "The rest SHALL be split on whitespace into tokens" with:
+
+   "The rest SHALL be split on whitespace (the JavaScript `\s` class) into tokens"
+
+   If the NFC option of I1 is chosen, prefix the bullet with:
+
+   "The text SHALL first be normalised to Unicode NFC."
+
+### `openspec/changes/answer-language/design.md`
+
+2. **(I1)** D1: add one sentence. Either:
+   - "Input is normalised to NFC before tokenising, so a decomposed accent counts as a letter", or
+   - "Input is not normalised: a decomposed accent (combining mark) makes its token code; accepted, since `¿` and the unaccented list words still decide typical questions."
+
+### `openspec/changes/answer-language/tasks.md`
+
+3. **(I1)** Do this only if NFC normalisation is chosen. In task 2.1, add a case: the NFD form of `¿Qué hace DiscountService?` gives `es`, and a single NFD accented word counts as a Spanish signal.
+
+### Linear DIS-104 (Spanish; never edit the `[original]` block)
+
+4. Comment:
+   > **Auditoría de la spec, ronda 3 (spec-auditor, 2026-10-26): APPROVED, 0 puntos bloqueantes.** Las correcciones de las rondas 1 y 2 (R1-R8) se aceptan. Mejoras opcionales: indicar en la regla de idioma qué cuenta como espacio (`\s`) y decidir si el texto se normaliza a NFC antes de separar los tokens (un acento descompuesto hoy convierte la palabra en código). El change puede pasar a apply.
