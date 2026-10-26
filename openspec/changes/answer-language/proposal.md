@@ -24,7 +24,9 @@ parent ticket).
 - A measured comparison on the local Ollama: three Spanish questions outside the cache, with the
   current prompt (before the change) and with the new one, through the API with `useCache: false`;
   a report in this change's `reports/` says, per pair, the language of the answer and statements,
-  the duration, and whether the cause is the model, the prompt or both.
+  the duration, and a label (prompt, model, both, not reproduced, regression) with an aggregate
+  conclusion, by the classification of design D5.
+- An answer carrying the event stays cacheable as today (design D3).
 - `docs/DEMO.md` → `Probar con un modelo real`: the English output pasted there is replaced by the
   output measured with the new prompt, and one sentence explains the new event.
 
@@ -61,5 +63,6 @@ None.
 - Privacy: the event carries only its type and the expected language code, never any part of the
   question or the answer; the question and the answer stay out of every log, as the `explain` spec
   already requires. No personal data is added.
-- Live measurement: about six model calls on CPU (minutes each), run by the agent with the `LLM_*`
+- Live measurement: seven `answer` calls on CPU (3 before, 3 after, 1 CLI capture; minutes each) plus
+  their `verify` calls, run by the agent with the `LLM_*`
   variables in the command's environment (never by editing `.env`).

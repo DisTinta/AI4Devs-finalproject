@@ -196,3 +196,39 @@ No empty row.
 17. Comment on DIS-104:
     > **Auditoría de la spec (spec-auditor, 2026-10-26): CHANGES REQUIRED.** Puntos bloqueantes que se corrigen en el propio change `answer-language`: (1) la regla de idioma fija el conjunto exacto de comillas y signos que se quitan, si se quitan todos los de los extremos, qué es una letra (`\p{L}`) y qué pasa con una comilla invertida sin cerrar; (2) el escenario «No language event…» se reescribe con la entrada de caché sembrada, `useCache: false` explícito y un caso `broken-evidence`; (3) la regla de conclusión de la medición clasifica cada pareja (prompt, modelo, ambos, no reproducido, regresión) y da una conclusión global. Preguntas para la autora: ¿las preguntas en mayúsculas (`COMO SE CALCULA…`) deben contar como español?; ¿una respuesta en inglés con `answer_language_mismatch` debe guardarse en la caché (las repeticiones se servirían en inglés sin evento)?; ¿es aceptable que `npm run db:seed` borre las filas previas de acme-shop de la base local?
 18. Optional, in the `[enhanced]` section → "Criterios de aceptación", AC5: add "la conclusión sigue la clasificación por pareja del design D5 (prompt, modelo, ambos, no reproducido, regresión)".
+
+## Resolution of run 1
+
+Correction round 1 of an autonomous run (2026-10-26). *Agent's text: the questions were answered by the
+agent as lead engineer, without the author; each decision is in `design.md` → Follow-ups (R1-R5) and
+in a Spanish comment on DIS-104.* `openspec validate answer-language --strict` passes after the edits.
+
+### Questions for the author
+
+| Question | Resolution |
+|---|---|
+| Q1 All-uppercase questions | Decided by the agent (R1, destination A): a token whose letters are all uppercase is a word compared in lowercase. Added to the rule's second bullet, to the scenario (`COMO SE CALCULA EL PRECIO` gives `es`) and to D1. The existing tests with that question are cache hits and build no prompt (task 5.1 names them). |
+| Q2 Caching an English answer | Decided by the agent (R2, destination D): it stays cacheable, as today; its repeats are served in English with `events: []`. Stated in D3, in Risks, in the proposal and pinned by the scenario "An English answer to a Spanish question is reported and still returned" (saved once in the answer cache). Not caching would change the cache rules, out of the ticket's scope. |
+| Q3 Reseed against baseline | Decided by the agent (R3, destination A): acceptable; D5, tasks 1.4 and 8.4 say the reseed is deferred to 8.3 and that baseline rows it removes are listed in the step 8 report. |
+
+### Findings and corrections
+
+| Finding / correction | Resolution |
+|---|---|
+| B1 Tokenisation (correction 1) | Fixed: backtick pairs, unmatched last backtick as a plain character, the closed strip set (every leading and trailing character), `\p{L}` letters, all-caps exception. A second WHEN/THEN pair in the scenario covers quotes, repeated edge punctuation, all-caps, a backtick pair, an unmatched backtick and brackets. Two of the audit's proposed examples were corrected because they did not hold under the rule: `pedido?? el precio` has one Spanish signal (replaced by `el precio del pedido??`, `es`), and ``What is `the` price`` keeps two English signals (`what`, `is`; replaced by ``The `the` price``, no decision). |
+| B2 Scenario "No language event…" (correction 2) | Fixed with the audit's text: seeded cache entry, explicit `useCache: false`, English `answer` in the no-statement output, five answers. |
+| B3 Conclusion rule (correction 6) | Fixed: per-pair classification table, definition of "mixed", agent's reading decides, aggregate rule with "inconclusive", regression recorded as a finding (D5, task 7.3, proposal). |
+| I1 `broken-evidence` path (corrections 2, 5, 16) | Fixed: fifth case in the scenario; D3 places the language events after the `broken-evidence` return and only on `storedAnswer` / `unsavedAnswer`; tasks 4.1 and 4.2. |
+| I2 Loose "otherwise unchanged" (correction 3) | Fixed: `persisted: true` and saved once in the answer cache; task 4.1. |
+| Correction 4 (nine lines joined by `\n`) | Fixed in the requirement and task 3.1. |
+| Ambiguity "typed fast" (correction 9) | Fixed: "typed without accents". |
+| I3 Task 5.1 note (correction 14) | Fixed. |
+| I4 Call counts (corrections 7, 10) | Fixed in the proposal, D5 (duration and `usage.verification.calls` recorded) and Risks. |
+| I5 Module name | Rejected (R4): `question-language.ts` is the name the ticket's reality-map gives, and its one public concept is the language rule. |
+| I6 Spanish sentence in `docs/DEMO.md` (correction 8) | Fixed in D6 and task 10.1. |
+| I7 Task size of 1.3 / 7.1 (correction 12) | Fixed: 1.3a-c and 7.1a-c, one question each, in the background with `Monitor`. |
+| I8 Task 6.2 bundle (correction 13) | Fixed: 6.2 (vitest, lint, typecheck, lint:architecture, docs:coverage), 6.3 mutation, 6.4 verify; the following items renumbered to 6.5 and 6.6, and the references in 10.4 and 12.2 point to 6.6. |
+| Step 0 order (correction 11) | Fixed: the branch is 0.1, the Linear status 0.2. |
+| I9 Deferred restoration (correction 15) | Fixed in 1.4, 6.4, 8.4 and D5. |
+| Correction 17 (Linear comment) | Replaced by this round's Spanish comment on DIS-104, which summarises the blocking points and the agent's decisions. |
+| Correction 18 (edit AC5 of the ticket) | Rejected (R5): optional; D5 is the authority and the round's comment records the classification. |

@@ -41,8 +41,10 @@ prompt of the semantic check, and no check of the statements' texts (D4).
 New module `packages/core/src/explain/question-language.ts` exporting
 `detectLanguage(text: string): 'es' | 'en' | null` (and the type `TextLanguage = 'es' | 'en'`),
 exported through `packages/core/src/explain/index.ts`. It implements exactly the rule of the delta
-spec (requirement "Question and answer language"): backtick spans ignored, whitespace tokens with
-their edge punctuation stripped, code-like tokens skipped, the two closed word lists as
+spec (requirement "Question and answer language"): backtick pairs ignored (an unmatched last
+backtick is a plain character), whitespace tokens with every leading and trailing character of the
+closed punctuation set stripped, code-like tokens skipped (a non-`\p{L}` character, or an uppercase
+letter after the first unless every letter is uppercase), the two closed word lists as
 `ReadonlySet<string>`, `¿`/`¡` and accented/`ñ` tokens as Spanish signals, threshold of two signals
 and a strict majority. No regular expression with nested quantifiers (linear in the text; the
 question is already bounded by `parseExplainRequest`, and the answer by the model output limit of
@@ -52,8 +54,12 @@ question is already bounded by `parseExplainRequest`, and the answer by the mode
   `npm audit`) for two languages, and it is not deterministic enough on 3-word questions.
 - *Alternative: ask the model which language the question is in.* Rejected: one more paid call per
   answer and a new failure mode.
-- *Alternative: only look for `¿`/accents.* Rejected: `Como se calcula el precio` (no accents, typed
-  fast) would get no decision; the word lists catch it.
+- *Alternative: only look for `¿`/accents.* Rejected: `Como se calcula el precio` (typed without
+  accents) would get no decision; the word lists catch it.
+- *All-uppercase tokens* (`COMO SE CALCULA EL PRECIO FINAL DE UN PEDIDO`, used by existing cache
+  tests) are words, compared in lowercase, not code: an all-caps Spanish question gets the Spanish
+  prompt. Decided by the agent in correction round 1 (Follow-ups R1). An all-caps identifier
+  (`API`, `SKU`) is in neither list, so it adds no signal.
 
 ### D2. The system message is chosen by the question's language; the generic one is untouched
 
@@ -77,12 +83,21 @@ Spanish because the end of the system message is the instruction nearest to the 
 
 ### D3. The check is an event on answered answers from the model, placed after verification
 
-In `answerQuestion`, once the statements are verified and before the claim write, the language event
-is `[{ type: 'answer_language_mismatch', expected: 'es' }]` when `prompt.questionLanguage === 'es'`
-and `detectLanguage(parsed.output.answer) === 'en'`, else `[]`. The answer's events become
-`[...sanitized.events, ...verified.events, ...languageEvents]`, so it lands after the
-`entailment_unverified` events and before `claims_not_persisted`, `answer_not_cached` and
-`query_not_logged` (the order of the delta spec). The `UNKNOWN` branches keep their events as today.
+In `answerQuestion`, after the `broken-evidence` return (`explain.ts:355`, which keeps returning
+`events = [...sanitized.events, ...verified.events]`) and before the claim write, the language events
+are `[{ type: 'answer_language_mismatch', expected: 'es' }]` when `prompt.questionLanguage === 'es'`
+and `detectLanguage(parsed.output.answer) === 'en'`, else `[]`. Only the answered answer's events
+become `[...events, ...languageEvents]`, passed to `storedAnswer` / `unsavedAnswer`
+(`explain.ts:368, 371`), so the event lands after the `entailment_unverified` events and before
+`claims_not_persisted`, `answer_not_cached` and `query_not_logged` (the order of the delta spec).
+The `UNKNOWN` branches (`invalid-model-output`, `no-evidence`, `broken-evidence`) keep their events
+as today.
+
+An answer that carries the event is still cacheable (`isCacheable` does not change): a later hit of
+the same question serves the English answer with `events: []`, so the event is seen once, on the
+call that reached the model. Decided by the agent in correction round 1 (Follow-ups R2): not caching
+it would change the cache rules, which the ticket keeps out of scope, and the measurement uses
+`useCache: false`.
 New interface `AnswerLanguageMismatchEvent { type: 'answer_language_mismatch'; expected: 'es' }` in
 `explain-event.ts`, added to the `ExplainEvent` union. A cache hit never reaches this code.
 
@@ -118,15 +133,32 @@ first. One event per answer is enough to notice the problem. Checking each state
   sent once per prompt with `POST /api/projects/a794456d-6d1b-5b55-a360-13fec83dc7bc/ask` and body
   `{"question": "…", "useCache": false}`, timed; the API's request log gives the events.
 - **What is recorded per pair:** the language the rule gives for `answer` and for each statement
-  text (and the agent's reading of it), the events, the duration, the model and the Ollama version.
-- **Conclusion rule:** new prompt Spanish where the old was English → the prompt was the cause (the
-  model can answer in Spanish when told plainly); English with both prompts → the model (7B does not
-  follow it); mixed → both. Three pairs are a small sample: the report says so and does not claim a
-  rate.
+  text (and the agent's reading of it), the events, the end-to-end request duration,
+  `usage.verification.calls` (so durations with different numbers of `verify` calls can be compared),
+  the model and the Ollama version.
+- **Conclusion rule:** each pair is classified by the agent's reading of `answer` and of every
+  statement `text`; the rule's decision is recorded beside the reading but does not decide the label.
+  "Mixed" means the `answer` and the statements of one response are not all in the same language.
+
+  | Before (current prompt) | After (new prompt) | Label |
+  |---|---|---|
+  | English | Spanish | prompt |
+  | English | English | model |
+  | English | mixed | both |
+  | mixed | any | both |
+  | Spanish | Spanish | not reproduced |
+  | Spanish | English or mixed | regression |
+
+  Aggregate: the label shared by at least two of the three pairs, or "inconclusive" otherwise. A
+  "regression" label on any pair is reported in the PR as a finding with a Follow-ups destination.
+  Three pairs are a small sample: the report says so and does not claim a rate.
 - **State:** each live call writes `claim`, `evidence`, `cache_entry` and `query_log` rows for
   acme-shop (`useCache: false` still saves a cacheable answer). After the "after" run, `npm run
   db:seed` restores the sample project (it deletes by cascade the sample's rows and reloads the seed
-  and the golden cache), and `npm run verify` must exit `0`. No integration test runs while a live
+  and the golden cache), and `npm run verify` must exit `0`. The reseed restores the seed state, not
+  the 0.4 baseline: any acme-shop row of the baseline that it removes is listed in the step 8 report
+  (decided by the agent in correction round 1, Follow-ups R3). The reseed is deferred to after both
+  runs, so step 6 runs against a database that still holds the "before" rows. No integration test runs while a live
   `ask` is in flight (`docs/project-context.md`: the `query_log` insert locks the project row).
 - **Fallback:** if Ollama does not answer in task 1 or 7, the measurement becomes destination **C**
   (explicit debt): a Spanish checklist comment on DIS-104 and a Follow-ups line here; the code and
@@ -137,7 +169,8 @@ first. One event per answer is enough to notice the problem. Checking each state
 
 The pasted CLI output of `Probar con un modelo real` is replaced by the "after" output of
 `¿Qué hace DiscountService?` taken with the CLI (`npm run cli -- ask acme-shop "¿Qué hace DiscountService?"`
-with the same `LLM_*` environment), whatever its language, and one sentence explains that an English
+with the same `LLM_*` environment), whatever its language, and one sentence in Spanish (the guide is
+in Spanish) explains that an English
 answer to a Spanish question adds the `answer_language_mismatch` line. `Cómo se capturó` gains the date,
 model and duration of that capture. `tests/unit/docs/guides.spec.ts` keeps passing (it pins commands
 and settings of the section, not the answer).
@@ -159,10 +192,15 @@ adds no dependency or cross-module contract beyond one event type. A design deci
   what is sent). The golden cache is keyed by the normalized question, so no golden answer moves.
   Claims stored before keep their old hash in their provenance, which is correct (it is what was sent
   then).
-- [The live measurement takes long on CPU (about six calls of minutes each, plus `verify` calls)] →
-  `LLM_TIMEOUT_MS=1200000`; runs in the background with `Monitor`; fallback D5.
+- [The live measurement takes long on CPU (seven `answer` calls of minutes each: 3 before, 3 after,
+  1 CLI capture, plus their `verify` calls, up to 20 each)] → `LLM_TIMEOUT_MS=1200000`; one question
+  per task, each run in the background with `Monitor`; fallback D5.
+- [An English answer to a Spanish question is cached, and its repeats are served in English with no
+  event] → Accepted (D3, Follow-ups R2): the event is on the call that reached the model, and the
+  API request log keeps it.
 - [The live run mutates the author's local database] → Restored with `npm run db:seed`, checked with
-  `npm run verify` and the counts recorded before (task 1).
+  `npm run verify` and the counts recorded in 0.4; baseline rows the reseed removes are listed in the
+  step 8 report (Follow-ups R3).
 - [Mutation testing of the word lists] → Each list entry is a string literal Stryker can mutate; the
   rule's unit tests cover every list entry through a table test, so a removed entry is killed.
 
@@ -187,3 +225,14 @@ findings here.
 | E6 | `docs/DEMO.md` output replaced by the measured one (D6) | **A** — this change |
 | P1 | The statements' texts are not checked for language (D4) | **D** — accepted |
 | P2 | The `verify` prompt of the semantic check is not changed | **D** — accepted: its output is `{"entails": boolean}`, with no language |
+
+Decisions of spec-audit correction round 1 (report `reports/2026-10-26-spec-audit.md`, "Resolution of
+run 1"). *Agent's text: decided as lead engineer in an autonomous run, without the author.*
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| R1 | Audit question 1: an all-uppercase token (`COMO`) is a word compared in lowercase, not code, so an all-caps Spanish question gets the Spanish prompt (D1, spec rule). It fulfils AC1 for a plausible way of typing; the existing tests that use such a question are cache hits and do not pin the prompt | **A** — this change |
+| R2 | Audit question 2: an answer with `answer_language_mismatch` stays cacheable; its repeats are served in English with `events: []` (D3). Not caching it would change the answer-cache rules, which the ticket leaves out of scope; the event is in the request log of the call that reached the model | **D** — accepted |
+| R3 | Audit question 3: restoring the author's local database with `npm run db:seed` after both live runs is acceptable (the project's documented restore); acme-shop rows of the 0.4 baseline that it removes are listed in the step 8 report (D5, tasks 1.4, 8.4) | **A** — this change |
+| R4 | Audit I5: the module keeps the name `question-language.ts` (the ticket's reality-map names it; its one public concept is the language rule) | **D** — accepted, rename rejected |
+| R5 | Audit correction 18 (adding the D5 classification to AC5 of the ticket's `[enhanced]` section): not applied; D5 is the authority and the round's Linear comment records it | **D** — accepted |

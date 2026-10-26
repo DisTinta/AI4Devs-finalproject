@@ -6,12 +6,14 @@ Explain SHALL decide the language of a text with one deterministic rule, with no
 than the platform, that answers `es`, `en` or no decision, never throws, and gives the same result
 for the same text:
 
-- The text inside backticks (`` `…` ``) SHALL be ignored. The rest SHALL be split on whitespace into
-  tokens, and each token SHALL lose the punctuation at its start and end (`¿`, `¡`, `?`, `!`, `.`,
-  `,`, `;`, `:`, quotes, parentheses).
-- A token that still holds a character other than a letter (`::`, `_`, `.`, `/`, `-`, a digit), or an
-  uppercase letter after its first character (`DiscountService`), is code and SHALL NOT count. Every
-  other token SHALL be compared in lowercase.
+- The text between a backtick and the next backtick SHALL be ignored; an unmatched last backtick
+  SHALL be treated as a plain character. The rest SHALL be split on whitespace into tokens, and each
+  token SHALL lose every leading and trailing character of the set
+  `¿ ¡ ? ! . , ; : " ' « » “ ” ‘ ’ ( ) [ ]`.
+- A token that still holds a character that is not a Unicode letter (`\p{L}`) (`::`, `_`, `.`, `/`,
+  `-`, a digit, a backtick), or an uppercase letter after its first character (`DiscountService`), is
+  code and SHALL NOT count, unless every letter of the token is uppercase (`COMO`), in which case it
+  is a word. Every token that counts SHALL be compared in lowercase.
 - Spanish signals SHALL be: each `¿` and each `¡` outside backticks; each token in the Spanish list
   `qué que cómo como dónde donde cuál cuáles cuándo cuando quién por para con sin el la los las un una
   unos unas de del al se es son está están hace hacen y o en lo su sus este esta si`; and each other
@@ -36,6 +38,10 @@ statements' texts SHALL NOT be checked. An `UNKNOWN` answer and a cache hit SHAL
   `DiscountService calculates discounts for orders based on the loyalty tier.`, `price`, `ok`, `q`,
   `DiscountService`, `` `the of to` `` and the empty text
 - **THEN** it gives `es`, `es`, `en`, `en`, `en`, and no decision for the last six, without throwing
+- **WHEN** the rule is applied to `«¿Dónde se aplica el cupón?»`, `el precio del pedido??`,
+  `COMO SE CALCULA EL PRECIO`, `` The `the` price ``, `` the price `of `` and `[the] (of)`
+- **THEN** it gives `es`, `es`, `es`, no decision (one English signal left outside the backticks),
+  no decision (`` `of `` holds a backtick, so it is code, and one English signal is left) and `en`
 
 #### Scenario: An English answer to a Spanish question is reported and still returned
 
@@ -43,20 +49,26 @@ statements' texts SHALL NOT be checked. An `UNKNOWN` answer and a cache hit SHAL
   `DiscountService calculates discounts for orders based on the loyalty tier.` and one statement that
   cites a span of the pack
 - **WHEN** the question is explained
-- **THEN** the answer is answered, with that `answer` text and its statement, as it would be without
-  the check
+- **THEN** the answer is answered and `persisted: true`, with that `answer` text and its statement,
+  and it is saved once in the answer cache under the question's key
 - **AND** its events hold exactly one `{ type: 'answer_language_mismatch', expected: 'es' }`, with no
   other field, and the serialised events hold no part of the question or of the answer
 
 #### Scenario: No language event for a Spanish answer, an English question, a cache hit or an UNKNOWN
 
-- **WHEN** `¿Qué hace DiscountService?` is explained with a live model whose answer is
-  `DiscountService calcula los descuentos de los pedidos.`, then `What does DiscountService do?` with
-  a model whose answer is `DiscountService calculates discounts for orders.`, then
-  `¿Qué hace DiscountService?` again answered from the answer cache after an English answer was saved
-  for it, then with a model whose output has no statement
-- **THEN** none of the four answers carries an `answer_language_mismatch` event (the last one is
-  `UNKNOWN` `no-evidence`)
+- **GIVEN** the answer cache of the project holds, under the key of `¿Qué hace OrderObserver?`, a
+  stored answered response whose `answer` is `OrderObserver sends an email to the customer.`
+- **WHEN** `¿Qué hace DiscountService?` is explained with `useCache: false` and a live model whose
+  answer is `DiscountService calcula los descuentos de los pedidos.`, then
+  `What does DiscountService do?` with `useCache: false` and a model whose answer is
+  `DiscountService calculates discounts for orders.`, then `¿Qué hace OrderObserver?` with the cache
+  on, then `¿Qué hace DiscountService?` with `useCache: false` and a model whose output is
+  `{"answer": "DiscountService calculates discounts for orders based on the loyalty tier.", "statements": []}`,
+  then `¿Qué hace DiscountService?` with `useCache: false` and a model whose answer is
+  `DiscountService calculates discounts for orders based on the loyalty tier.` with every citation
+  broken
+- **THEN** none of the five answers carries an `answer_language_mismatch` event; the third is a cache
+  hit, the fourth is `UNKNOWN` `no-evidence` and the fifth is `UNKNOWN` `broken-evidence`
 
 ## MODIFIED Requirements
 
@@ -87,7 +99,7 @@ generic message with that fifth line replaced by
 `The question is in Spanish. Write "answer" and the "text" of every statement in Spanish, even when the code and the evidence are in English; keep code identifiers as they are.`
 and with the line
 `Responde en español: "answer" y el "text" de cada statement van en español.`
-added as its last line.
+added as its last line, the nine lines joined by `\n` as in the generic message.
 
 The prompt hash of the provenance SHALL be the SHA-256, in lowercase hexadecimal, of the UTF-8 bytes
 of `JSON.stringify(messages)`, the exact messages sent: the same question and pack SHALL give the
