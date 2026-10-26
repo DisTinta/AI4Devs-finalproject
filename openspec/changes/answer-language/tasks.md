@@ -80,7 +80,7 @@
 
 ## 12. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 12.1 Open the PR against `final-project-CRN`; DIS-104 to In Review with a Spanish comment linking it
+- [x] 12.1 Open the PR against `final-project-CRN`; DIS-104 to In Review with a Spanish comment linking it
 - [ ] 12.2 CI green (wait with `Monitor`); link the run in an addendum to the step 6 report (6.6)
 - [ ] 12.3 `/show-spec-working` (may reuse the 1, 7 and 8 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
 - [ ] 12.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
