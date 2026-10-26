@@ -188,7 +188,8 @@ agente no puede escribir su memoria ni sus planes (`<perfil>/projects/…`).
    git; solo se lee al arrancar la sesión) para el agente y sus hooks, y en la terminal desde la que
    lances el preflight (`$env:GH_CONFIG_DIR = "<dir>"` en PowerShell, `GH_CONFIG_DIR="<dir>"` delante
    del comando en Bash). `git push` también la usa si el credential helper de GitHub es
-   `gh auth git-credential`.
+   `gh auth git-credential`. Desde PowerShell lanza `doctor.ps1`: `bash` puede resolverse al de WSL,
+   que no ve el `gh` de Windows, ni esa variable, ni `~/.claude-autonomous`.
 3. Pon a mano `KIT_AUTONOMOUS_RUN="1"` (y `AUTONOMOUS_MERGE_BASE`, si la base no es la de siempre).
 4. Ejecuta el preflight y corrige cada `FAIL`:
 
