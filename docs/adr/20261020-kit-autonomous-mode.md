@@ -1,7 +1,8 @@
 # The kit gets a manual autonomous-run switch, and the doctrine it relaxes holds only while it is on
 
 ## Status
-Accepted
+Accepted. Amended by [`20261026-autonomous-audit-correction-rounds.md`](./20261026-autonomous-audit-correction-rounds.md):
+a `CHANGES REQUIRED` audit opens correction rounds before it stops the ticket.
 
 ## Context and problem
 *Agent's text, written at the author's request (DIS-106, 2026-10-20), as in the 2026-10-16 record.*

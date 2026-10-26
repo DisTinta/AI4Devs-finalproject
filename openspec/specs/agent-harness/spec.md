@@ -209,8 +209,11 @@ The relaxations below marked **(autonomous run)** apply only when the switch is 
   - the change has no spec-audit report yet (the propose is still writing it; the author's answer to QG); or
   - the change's latest spec-audit verdict is `APPROVED`.
 
-  Otherwise (a report exists and its latest verdict is `CHANGES REQUIRED`) `deny`, with a reason that says the spec audit has not approved the change and the ticket must stop cleanly.
+  When the latest verdict is `CHANGES REQUIRED`, the edit is a correction round: `allow` **(autonomous run)** while the number of `CHANGES REQUIRED` verdicts of the change is at most `AUTONOMOUS_AUDIT_ROUNDS` (default `5`; any value that is not a whole number counts as `0`), with a reason that names the round (`correction round <n> of <rounds>`) and asks to apply the audit's corrections, close the report with how each finding was resolved and run the `spec-auditor` again.
+
+  Otherwise (more `CHANGES REQUIRED` verdicts than rounds) `deny`, with a reason that says the spec audit has not approved the change after the correction rounds and the ticket must stop cleanly.
   - The latest verdict is the last line, across the change's `reports/*spec-audit*.md` files in name order, that equals `APPROVED` or `CHANGES REQUIRED`.
+  - The number of `CHANGES REQUIRED` verdicts counts every such line across those files, whether the audit runs share one report or each has its own.
   - The comparison is made after removing a trailing carriage return and trailing whitespace, and lines inside fenced code blocks are ignored.
 - **A main spec `openspec/specs/<capability>/spec.md`:** `allow` **(autonomous run)** when the active change has a delta for that capability (`openspec/changes/<change>/specs/<capability>/`) and its latest verdict is `APPROVED`; `deny` otherwise.
 - **Any other existing file under `openspec/`:** `deny`.
@@ -224,7 +227,7 @@ The relaxations below marked **(autonomous run)** apply only when the switch is 
 
 **The spec-audit gate in unattended mode.** In unattended mode, regardless of `KIT_SPEC_AUDIT_GATE`, the spec-audit gate SHALL let an edit under `PATH_SOURCE` or `PATH_TESTS` through only when the active change's latest spec-audit verdict (read as above) is `APPROVED`:
 - with no report it denies, as before;
-- with `CHANGES REQUIRED` it denies, with a reason that says the ticket must stop cleanly (the author's Q3: the auditor's `APPROVED` replaces the human plan gate);
+- with `CHANGES REQUIRED` it denies (the author's Q3: the auditor's `APPROVED` replaces the human plan gate). In an autonomous run with correction rounds left, the reason asks to correct the artifacts and run the `spec-auditor` again; otherwise it says the ticket must stop cleanly;
 - when the branch's active change cannot be determined (no active change, or several and none matches the branch), it denies, with a reason that names the branch and asks for the propose and the spec audit first.
 
 Outside unattended mode the gate keeps its current rule: any report lets the edit through, it passes when no change can be told, and `KIT_SPEC_AUDIT_GATE="0"` turns it off.
@@ -242,9 +245,21 @@ Outside unattended mode the gate keeps its current rule: any report lets the edi
 - **WHEN** an autonomous run edits the existing `openspec/changes/foo-bar/design.md` and the change has no `reports/*spec-audit*.md`
 - **THEN** the decision is `allow`
 
+#### Scenario: An artifact is rewritten in a correction round after a CHANGES REQUIRED audit
+- **WHEN** an autonomous run edits the existing `openspec/changes/foo-bar/design.md`, the latest verdict is `CHANGES REQUIRED`, the change has 1, 2 or 5 `CHANGES REQUIRED` verdicts and `AUTONOMOUS_AUDIT_ROUNDS` is not set
+- **THEN** the decision is `allow` and the reason names `correction round 1 of 5`, `correction round 2 of 5` or `correction round 5 of 5`
+
+#### Scenario: Correction rounds are counted across report files
+- **WHEN** `AUTONOMOUS_AUDIT_ROUNDS="2"` and the change has three reports `2026-10-21-spec-audit.md`, `2026-10-22-spec-audit.md` and `2026-10-23-spec-audit.md`, each opening with its own verdict
+- **THEN** with the verdicts `CHANGES REQUIRED`, `CHANGES REQUIRED`, `CHANGES REQUIRED` the decision is `deny`, and with `CHANGES REQUIRED`, `APPROVED`, `CHANGES REQUIRED` it is `allow`
+
+#### Scenario: AUTONOMOUS_AUDIT_ROUNDS sets the number of correction rounds
+- **WHEN** `AUTONOMOUS_AUDIT_ROUNDS="3"` and the change has three `CHANGES REQUIRED` verdicts, or `AUTONOMOUS_AUDIT_ROUNDS` is `"0"`, `"two"` or empty and the change has one
+- **THEN** the decision is `allow` in the first case and `deny` in the others
+
 #### Scenario: An artifact of a change not yet approved is protected
-- **WHEN** the same edit happens and the latest verdict is `CHANGES REQUIRED`, or the hook runs for a Cursor background agent with the switch `"0"`
-- **THEN** the decision is `deny` and the reason says the spec audit has not approved the change or names `KIT_AUTONOMOUS_RUN`
+- **WHEN** the same edit happens and the change has six `CHANGES REQUIRED` verdicts with the default rounds, or the hook runs for a Cursor background agent with the switch `"0"`
+- **THEN** the decision is `deny` and the reason says the spec audit has not approved the change after 5 correction rounds, or names `KIT_AUTONOMOUS_RUN`
 
 #### Scenario: Task lists, reports and templates stay free
 - **WHEN** unattended mode edits the existing `openspec/changes/foo-bar/tasks.md`, `openspec/changes/foo-bar/reports/x.md` or `openspec/templates/y.md`
@@ -288,8 +303,8 @@ Outside unattended mode the gate keeps its current rule: any report lets the edi
 - **THEN** the decision is `deny` and the reason names the branch
 
 #### Scenario: No code is written after a CHANGES REQUIRED audit
-- **WHEN** unattended mode on `feature/DIS-9-foo-bar` creates `packages/core/src/x.ts`, and the latest verdict of `openspec/changes/foo-bar/reports/2026-10-21-spec-audit.md` is `CHANGES REQUIRED`
-- **THEN** the decision is `deny` and the reason says the ticket stops cleanly
+- **WHEN** an autonomous run on `feature/DIS-9-foo-bar` creates `packages/core/src/x.ts`, and the latest verdict of `openspec/changes/foo-bar/reports/2026-10-21-spec-audit.md` is `CHANGES REQUIRED`
+- **THEN** the decision is `deny`; with one `CHANGES REQUIRED` verdict the reason asks for a correction round, and with six it says the ticket stops cleanly
 
 #### Scenario: Doctrine and versioned migrations are protected
 - **WHEN** an autonomous run edits `docs/base-standards.md`, or a migration file tracked by git
