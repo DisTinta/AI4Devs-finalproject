@@ -56,7 +56,7 @@ KIT_AUTONOMOUS_RUN="0"
 AUTONOMOUS_MERGE_BASE=""
 # Correction rounds an autonomous run may make after a CHANGES REQUIRED spec audit before the ticket
 # stops cleanly; anything but a whole number counts as 0.
-AUTONOMOUS_AUDIT_ROUNDS="2"
+AUTONOMOUS_AUDIT_ROUNDS="5"
 KIT_SECRET_ALLOWLIST=""
 
 # Loads KEY="value" or KEY=value without executing the file as shell.

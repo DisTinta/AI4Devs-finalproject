@@ -40,8 +40,11 @@ We choose **a bounded number of correction rounds** because:
   `spec-auditor` says `APPROVED`, and that auditor runs in a fresh context, without the round's
   reasoning.
 * The bound is deterministic and visible: `AUTONOMOUS_AUDIT_ROUNDS` in `.claude/sdd-harness.env`
-  (default 2, anything but a whole number is 0), counted from the reports the change commits. After
-  the last round the ticket stops as before.
+  (default 5, anything but a whole number is 0), counted from the reports the change commits. After
+  the last round the ticket stops as before. The default is a ceiling, not a target: the rounds end
+  at the first `APPROVED`. The author chose 5 for a wide margin. In the changes archived up to
+  2026-10-26, counting their `CHANGES REQUIRED` verdicts, 12 of 17 were approved within 2 rounds,
+  15 within 3 and 16 within 5. The outlier, at 8, was the kit's own autonomous-mode change.
 
 ## Consequences
 * `protect-specs-and-tests.sh` allows rewriting the active change's artifacts while its
@@ -53,5 +56,7 @@ We choose **a bounded number of correction rounds** because:
 * The count is only as honest as the reports: as with the `APPROVED` line, nothing cryptographic
   stops the agent from deleting a report to reset it. Reports are committed, so a reset shows in the
   branch history, and the base branch's protection still requires CI.
-* A ticket can now spend up to three audits before its apply; the workflow pays that cost instead of
-  the author's time.
+* A ticket can now spend up to six audits before its apply, each a fresh Opus run; the workflow
+  pays that cost instead of the author's time. A change that keeps failing burns rounds before it
+  returns; stopping early when a round does not reduce the blocking findings is left for later, once
+  real runs show whether it is needed.

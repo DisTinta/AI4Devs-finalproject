@@ -1309,7 +1309,7 @@ services that must be started first, quirks of the local environment.
   `spec-auditor` `APPROVED` replaces the human plan gate), 3 (tests written without supervision),
   4 (only tests named in `tasks.md` or created on the branch change), 8 (the agent writes the "why"
   and marks it) and 9 (the agent merges through the gate), §7.1 step 3 (a `CHANGES REQUIRED` audit
-  opens up to `AUTONOMOUS_AUDIT_ROUNDS` correction rounds, default 2, where the agent takes the
+  opens up to `AUTONOMOUS_AUDIT_ROUNDS` correction rounds, default 5, where the agent takes the
   author's decisions; ADR `docs/adr/20261026-autonomous-audit-correction-rounds.md`), and the
   "agent never merges" item of `docs/openspec-tasks-mandatory-steps.md`. A background agent with the switch `"0"` gets none of the
   relaxations. Always on: the shell guard parses commands (`shell-words.mjs`, one Node process per

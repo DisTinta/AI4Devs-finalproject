@@ -10,6 +10,8 @@ import { createProject, editInput, runHook, type Project } from './support/run-h
 
 const CHANGE = 'openspec/changes/foo-bar';
 const MIGRATION = 'packages/adapters/store-postgres/migrations/0001_init.sql';
+/** The verdicts of `n` audit runs that all asked for changes. */
+const failed = (n: number) => Array.from({ length: n }, () => 'CHANGES REQUIRED');
 
 /**
  * Base `final-project-CRN` (commit A) ← origin/final-project-CRN (commit B, adds an earlier ticket's
@@ -101,28 +103,33 @@ describe('Rewrites of specs, tests and doctrine are decided without a human in u
       });
 
       it('An artifact is rewritten in a correction round after a CHANGES REQUIRED audit', async () => {
-        // The default fixture report holds two CHANGES REQUIRED runs (Run 1 and Run 2): round 2 of 2.
+        // The default fixture report holds two CHANGES REQUIRED runs (Run 1 and Run 2): round 2 of 5.
         project = fixture({ protect, verdict: 'CHANGES REQUIRED' });
         const second = await edit(project, `${CHANGE}/design.md`);
         expect(second.decision).toBe('allow');
-        expect(second.reason).toContain('correction round 2 of 2');
+        expect(second.reason).toContain('correction round 2 of 5');
         project.cleanup();
-        project = fixture({ protect, runs: ['CHANGES REQUIRED'] });
+        project = fixture({ protect, runs: failed(1) });
         const first = await edit(project, `${CHANGE}/design.md`);
         expect(first.decision).toBe('allow');
-        expect(first.reason).toContain('correction round 1 of 2');
+        expect(first.reason).toContain('correction round 1 of 5');
+        project.cleanup();
+        project = fixture({ protect, runs: failed(5) });
+        const last = await edit(project, `${CHANGE}/design.md`);
+        expect(last.decision).toBe('allow');
+        expect(last.reason).toContain('correction round 5 of 5');
       });
 
       it('Correction rounds are counted across report files', async () => {
-        project = fixture({ protect, runs: ['CHANGES REQUIRED', 'CHANGES REQUIRED', 'CHANGES REQUIRED'] });
+        project = fixture({ protect, runs: failed(3), rounds: '2' });
         expect((await edit(project, `${CHANGE}/design.md`)).decision).toBe('deny');
         project.cleanup();
-        project = fixture({ protect, runs: ['CHANGES REQUIRED', 'APPROVED', 'CHANGES REQUIRED'] });
+        project = fixture({ protect, runs: ['CHANGES REQUIRED', 'APPROVED', 'CHANGES REQUIRED'], rounds: '2' });
         expect((await edit(project, `${CHANGE}/design.md`)).decision).toBe('allow');
       });
 
       it('AUTONOMOUS_AUDIT_ROUNDS sets the number of correction rounds', async () => {
-        project = fixture({ protect, runs: ['CHANGES REQUIRED', 'CHANGES REQUIRED', 'CHANGES REQUIRED'], rounds: '3' });
+        project = fixture({ protect, runs: failed(3), rounds: '3' });
         expect((await edit(project, `${CHANGE}/design.md`)).decision).toBe('allow');
         for (const rounds of ['0', 'two', '']) {
           project.cleanup();
@@ -132,11 +139,11 @@ describe('Rewrites of specs, tests and doctrine are decided without a human in u
       });
 
       it('An artifact of a change not yet approved is protected', async () => {
-        project = fixture({ protect, runs: ['CHANGES REQUIRED', 'CHANGES REQUIRED', 'CHANGES REQUIRED'] });
+        project = fixture({ protect, runs: failed(6) });
         const r = await edit(project, `${CHANGE}/design.md`);
         expect(r.decision).toBe('deny');
         expect(r.reason).toContain('spec audit has not approved');
-        expect(r.reason).toContain('after 2 correction rounds');
+        expect(r.reason).toContain('after 5 correction rounds');
         project.cleanup();
         project = fixture({ protect, autonomous: '0' });
         const bg = await edit(project, `${CHANGE}/design.md`, { is_background_agent: true });
@@ -267,7 +274,7 @@ describe('The spec-audit gate in unattended mode', { timeout: 120_000 }, () => {
       expect(round.decision).toBe('deny');
       expect(round.reason).toContain('correction round');
       project.cleanup();
-      project = fixture({ gate, runs: ['CHANGES REQUIRED', 'CHANGES REQUIRED', 'CHANGES REQUIRED'] });
+      project = fixture({ gate, runs: failed(6) });
       const last = await code(project);
       expect(last.decision).toBe('deny');
       expect(last.reason).toContain('stops cleanly');

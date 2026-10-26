@@ -209,7 +209,7 @@ The relaxations below marked **(autonomous run)** apply only when the switch is 
   - the change has no spec-audit report yet (the propose is still writing it; the author's answer to QG); or
   - the change's latest spec-audit verdict is `APPROVED`.
 
-  When the latest verdict is `CHANGES REQUIRED`, the edit is a correction round: `allow` **(autonomous run)** while the number of `CHANGES REQUIRED` verdicts of the change is at most `AUTONOMOUS_AUDIT_ROUNDS` (default `2`; any value that is not a whole number counts as `0`), with a reason that names the round (`correction round <n> of <rounds>`) and asks to apply the audit's corrections, close the report with how each finding was resolved and run the `spec-auditor` again.
+  When the latest verdict is `CHANGES REQUIRED`, the edit is a correction round: `allow` **(autonomous run)** while the number of `CHANGES REQUIRED` verdicts of the change is at most `AUTONOMOUS_AUDIT_ROUNDS` (default `5`; any value that is not a whole number counts as `0`), with a reason that names the round (`correction round <n> of <rounds>`) and asks to apply the audit's corrections, close the report with how each finding was resolved and run the `spec-auditor` again.
 
   Otherwise (more `CHANGES REQUIRED` verdicts than rounds) `deny`, with a reason that says the spec audit has not approved the change after the correction rounds and the ticket must stop cleanly.
   - The latest verdict is the last line, across the change's `reports/*spec-audit*.md` files in name order, that equals `APPROVED` or `CHANGES REQUIRED`.
@@ -246,11 +246,11 @@ Outside unattended mode the gate keeps its current rule: any report lets the edi
 - **THEN** the decision is `allow`
 
 #### Scenario: An artifact is rewritten in a correction round after a CHANGES REQUIRED audit
-- **WHEN** an autonomous run edits the existing `openspec/changes/foo-bar/design.md`, the latest verdict is `CHANGES REQUIRED`, the change has 1 or 2 `CHANGES REQUIRED` verdicts and `AUTONOMOUS_AUDIT_ROUNDS` is not set
-- **THEN** the decision is `allow` and the reason names `correction round 1 of 2` or `correction round 2 of 2`
+- **WHEN** an autonomous run edits the existing `openspec/changes/foo-bar/design.md`, the latest verdict is `CHANGES REQUIRED`, the change has 1, 2 or 5 `CHANGES REQUIRED` verdicts and `AUTONOMOUS_AUDIT_ROUNDS` is not set
+- **THEN** the decision is `allow` and the reason names `correction round 1 of 5`, `correction round 2 of 5` or `correction round 5 of 5`
 
 #### Scenario: Correction rounds are counted across report files
-- **WHEN** the change has three reports `2026-10-21-spec-audit.md`, `2026-10-22-spec-audit.md` and `2026-10-23-spec-audit.md`, each opening with its own verdict
+- **WHEN** `AUTONOMOUS_AUDIT_ROUNDS="2"` and the change has three reports `2026-10-21-spec-audit.md`, `2026-10-22-spec-audit.md` and `2026-10-23-spec-audit.md`, each opening with its own verdict
 - **THEN** with the verdicts `CHANGES REQUIRED`, `CHANGES REQUIRED`, `CHANGES REQUIRED` the decision is `deny`, and with `CHANGES REQUIRED`, `APPROVED`, `CHANGES REQUIRED` it is `allow`
 
 #### Scenario: AUTONOMOUS_AUDIT_ROUNDS sets the number of correction rounds
@@ -258,8 +258,8 @@ Outside unattended mode the gate keeps its current rule: any report lets the edi
 - **THEN** the decision is `allow` in the first case and `deny` in the others
 
 #### Scenario: An artifact of a change not yet approved is protected
-- **WHEN** the same edit happens and the change has three `CHANGES REQUIRED` verdicts with the default rounds, or the hook runs for a Cursor background agent with the switch `"0"`
-- **THEN** the decision is `deny` and the reason says the spec audit has not approved the change after 2 correction rounds, or names `KIT_AUTONOMOUS_RUN`
+- **WHEN** the same edit happens and the change has six `CHANGES REQUIRED` verdicts with the default rounds, or the hook runs for a Cursor background agent with the switch `"0"`
+- **THEN** the decision is `deny` and the reason says the spec audit has not approved the change after 5 correction rounds, or names `KIT_AUTONOMOUS_RUN`
 
 #### Scenario: Task lists, reports and templates stay free
 - **WHEN** unattended mode edits the existing `openspec/changes/foo-bar/tasks.md`, `openspec/changes/foo-bar/reports/x.md` or `openspec/templates/y.md`
@@ -304,7 +304,7 @@ Outside unattended mode the gate keeps its current rule: any report lets the edi
 
 #### Scenario: No code is written after a CHANGES REQUIRED audit
 - **WHEN** an autonomous run on `feature/DIS-9-foo-bar` creates `packages/core/src/x.ts`, and the latest verdict of `openspec/changes/foo-bar/reports/2026-10-21-spec-audit.md` is `CHANGES REQUIRED`
-- **THEN** the decision is `deny`; with one `CHANGES REQUIRED` verdict the reason asks for a correction round, and with three it says the ticket stops cleanly
+- **THEN** the decision is `deny`; with one `CHANGES REQUIRED` verdict the reason asks for a correction round, and with six it says the ticket stops cleanly
 
 #### Scenario: Doctrine and versioned migrations are protected
 - **WHEN** an autonomous run edits `docs/base-standards.md`, or a migration file tracked by git

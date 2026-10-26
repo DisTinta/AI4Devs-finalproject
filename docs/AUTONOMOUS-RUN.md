@@ -44,7 +44,7 @@ el aviso solo llega al agente: pregúntale al empezar.
 - **Artefactos de OpenSpec, tests existentes, doctrina y migraciones:** en una ejecución autónoma, los
   artefactos del cambio activo se pueden reescribir antes de la primera auditoría, si la última
   auditoría es `APPROVED` y en las rondas de corrección tras una auditoría `CHANGES REQUIRED` (como
-  mucho `AUTONOMOUS_AUDIT_ROUNDS` rondas, 2 por defecto; ver la sección 6). Un test existente solo se puede cambiar si `tasks.md` lo nombra o
+  mucho `AUTONOMOUS_AUDIT_ROUNDS` rondas, 5 por defecto; ver la sección 6). Un test existente solo se puede cambiar si `tasks.md` lo nombra o
   si lo creó la propia rama. La doctrina del kit y las migraciones ya versionadas no se tocan.
 - **Puerta de merge:** ver la sección 5.
 - **Lecturas de secretos:** `.env` y similares siguen denegados, también a través de `Grep` y `Glob` (en Cursor, `Grep`), en los dos modos.
@@ -295,10 +295,11 @@ ronda de corrección, como en `docs/base-standards.md` §7.1, punto 3, pero sin 
    como un fichero nuevo (`<fecha>-spec-audit-<n>.md`) y su veredicto es el que cuenta.
 
 El hook `protect-specs-and-tests` deja reescribir los artefactos mientras el número de veredictos
-`CHANGES REQUIRED` del cambio no pase de `AUTONOMOUS_AUDIT_ROUNDS` (en `.claude/sdd-harness.env`; 2
-si no está, y 0 si no es un número entero). La puerta del `spec-auditor` sigue sin dejar escribir
-código ni tests hasta `APPROVED`. Una auditoría `CHANGES REQUIRED` después de la última ronda sí para
-el ticket.
+`CHANGES REQUIRED` del cambio no pase de `AUTONOMOUS_AUDIT_ROUNDS` (en `.claude/sdd-harness.env`; 5
+si no está, y 0 si no es un número entero). Es un techo, no un número fijo: en cuanto una auditoría
+sale `APPROVED` no hay más rondas. En los cambios archivados hasta el 26-10-2026, 16 de 17 se
+aprobaron en 5 rondas o menos. La puerta del `spec-auditor` sigue sin dejar escribir código ni tests
+hasta `APPROVED`. Una auditoría `CHANGES REQUIRED` después de la última ronda sí para el ticket.
 
 **Reglas:**
 

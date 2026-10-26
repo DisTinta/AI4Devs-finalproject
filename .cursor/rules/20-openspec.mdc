@@ -40,7 +40,7 @@ When you are asked to implement a change from `openspec/changes/<id>/`:
      forks.
    - A `CHANGES REQUIRED` spec audit opens a correction round (`docs/AUTONOMOUS-RUN.md` §6): answer
      the author's questions as lead engineer, apply the corrections, close the report and run a
-     fresh `spec-auditor`, at most `AUTONOMOUS_AUDIT_ROUNDS` times (default 2).
+     fresh `spec-auditor`, at most `AUTONOMOUS_AUDIT_ROUNDS` times (default 5).
    - Stop cleanly — ticket In Review with a comment — on: a `CHANGES REQUIRED` spec audit after the
      last correction round, CI red
      after 2 fixes, a merge conflict, the usage limit, a denied permission with no alternative, or a
