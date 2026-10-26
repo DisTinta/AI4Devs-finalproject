@@ -94,25 +94,39 @@ async function counts(client: Client, projectId: string): Promise<Counts> {
   };
 }
 
-/** Every table a project owns, with how to order its rows; `file_commit` has no id of its own. */
-const TABLES: [string, string][] = [
-  ['project', 'id'],
-  ['file', 'id'],
-  ['symbol', 'id'],
-  ['edge', 'id'],
-  ['commit', 'id'],
-  ['file_commit', 'file_id, commit_id'],
-  ['claim', 'id'],
-  ['evidence', 'id'],
-  ['query_log', 'id'],
-  ['cache_entry', 'id'],
+/** The projects of the versioned seed: every project a load can write. */
+const SEED_IDS = seedProjects(SEED).map((project) => project.id);
+
+const OF_FILES = 'file_id IN (SELECT id FROM file WHERE project_id = ANY($1))';
+
+/**
+ * Every table a project owns, with how to keep the rows of the given projects (`$1`) and how to order
+ * them; `file_commit` has no id of its own.
+ */
+const TABLES: [string, string, string][] = [
+  ['project', 'id = ANY($1)', 'id'],
+  ['file', 'project_id = ANY($1)', 'id'],
+  ['symbol', OF_FILES, 'id'],
+  ['edge', 'project_id = ANY($1)', 'id'],
+  ['commit', 'project_id = ANY($1)', 'id'],
+  ['file_commit', OF_FILES, 'file_id, commit_id'],
+  ['claim', 'project_id = ANY($1)', 'id'],
+  ['evidence', 'claim_id IN (SELECT id FROM claim WHERE project_id = ANY($1))', 'id'],
+  ['query_log', 'project_id = ANY($1)', 'id'],
+  ['cache_entry', 'project_id = ANY($1)', 'id'],
 ];
 
-/** Every row of every table, with all its columns, in a stable order: equal snapshots mean equal databases. */
-async function snapshot(client: Client): Promise<Record<string, unknown>> {
+/**
+ * Every row of every table, with all its columns, in a stable order, for the seed's projects and the
+ * test's own (`projectIds`): equal snapshots mean the load left those projects as they were. Rows of
+ * other projects are left out: other spec files commit projects to the shared database while this one
+ * runs, and its read-committed transaction sees them appear between two snapshots.
+ */
+async function snapshot(client: Client, projectIds: string[]): Promise<Record<string, unknown>> {
+  const ids = [...SEED_IDS, ...projectIds];
   const result: Record<string, unknown> = {};
-  for (const [table, order] of TABLES) {
-    const { rows } = await client.query(`SELECT * FROM ${table} ORDER BY ${order}`);
+  for (const [table, scope, order] of TABLES) {
+    const { rows } = await client.query(`SELECT * FROM ${table} WHERE ${scope} ORDER BY ${order}`, [ids]);
     result[table] = rows;
   }
   return result;
@@ -123,11 +137,13 @@ async function snapshot(client: Client): Promise<Record<string, unknown>> {
  * answer cache entries of the sample projects are replaced on every load with new ids, so they are
  * compared without their id, by project and normalized question; every other row is compared whole.
  */
-async function reloadSnapshot(client: Client): Promise<Record<string, unknown>> {
-  const result = await snapshot(client);
+async function reloadSnapshot(client: Client, projectIds: string[]): Promise<Record<string, unknown>> {
+  const result = await snapshot(client, projectIds);
   const { rows } = await client.query(
     `SELECT c.*, p.is_sample FROM cache_entry c JOIN project p ON p.id = c.project_id
+      WHERE c.project_id = ANY($1)
       ORDER BY c.project_id, c.question_normalized COLLATE "C", c.id`,
+    [[...SEED_IDS, ...projectIds]],
   );
   result.cache_entry = rows.map(({ is_sample: isSample, ...row }) => {
     if (isSample) delete row.id;
@@ -191,7 +207,7 @@ describeWithDatabase('db:seed (integration)', () => {
     const mine = await store.createProject({ name: unique('mine'), rootPath: '/repos/mine', language: 'php' });
     await store.saveGraph(mine, sampleGraph());
     await addHistoryRows(db(), mine);
-    const before = await reloadSnapshot(db());
+    const before = await reloadSnapshot(db(), [mine]);
 
     // Act
     const second = await load(db());
@@ -204,7 +220,7 @@ describeWithDatabase('db:seed (integration)', () => {
     // Same rows, same ids, same content in every table: the samples are reloaded with their deterministic
     // ids and the user's project, with its claim, evidence, query log and cache rows, is untouched. The
     // samples' golden cache entries (DIS-26) come back with new ids, so only their id is not compared.
-    expect(await reloadSnapshot(db())).toEqual(before);
+    expect(await reloadSnapshot(db(), [mine])).toEqual(before);
     const { rows } = await db().query<{ id: string }>("SELECT id FROM project WHERE name = 'acme-shop'");
     expect(rows).toEqual([{ id: ACME_ID }]);
   });
@@ -215,12 +231,12 @@ describeWithDatabase('db:seed (integration)', () => {
     const store = createPostgresStore({ transaction: db() });
     const id = await store.createProject({ name: 'acme-shop', rootPath: '/repos/acme', language: 'php' });
     await store.saveGraph(id, sampleGraph());
-    await store.createProject({ name: unique('other'), rootPath: '/repos/other', language: 'php' });
+    const other = await store.createProject({ name: unique('other'), rootPath: '/repos/other', language: 'php' });
     // A sample from an earlier load: the load deletes it before failing, so only the rollback can bring it back.
     const oldSample = await store.createProject({ name: unique('old-sample'), rootPath: 'fixtures/old', language: 'php', isSample: true });
     await store.saveGraph(oldSample, sampleGraph());
     await addHistoryRows(db(), id);
-    const before = await snapshot(db());
+    const before = await snapshot(db(), [id, other, oldSample]);
 
     // Act
     const result = await load(db());
@@ -238,7 +254,7 @@ describeWithDatabase('db:seed (integration)', () => {
       },
     });
     // Rolled back: every row of every table is as before, the deleted earlier sample included.
-    expect(await snapshot(db())).toEqual(before);
+    expect(await snapshot(db(), [id, other, oldSample])).toEqual(before);
     expect((await store.getProject(oldSample)).isSample).toBe(true);
   });
 
@@ -407,7 +423,7 @@ describeWithDatabase('db:seed (integration)', () => {
     await db().query('DELETE FROM project');
     const cacheDir = goldenDir({ 'acme-shop.json': twoEntries() });
     expect((await loadGolden(db(), cacheDir)).exit).toBe(0);
-    const before = await snapshot(db());
+    const before = await snapshot(db(), []);
     let saves = 0;
     const failing: SeedLoadDeps['cacheStore'] = (connection) => {
       const real = createPostgresStore(connection);
@@ -428,6 +444,6 @@ describeWithDatabase('db:seed (integration)', () => {
     expect(result.stdout).toBe('');
     expect(JSON.parse(result.stderr)).toEqual({ error: { code: 'INTERNAL', message: 'seed load failed; the database is unchanged', details: {} } });
     expect(saves).toBe(2);
-    expect(await snapshot(db())).toEqual(before);
+    expect(await snapshot(db(), [])).toEqual(before);
   });
 });
