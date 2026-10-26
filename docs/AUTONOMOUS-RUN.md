@@ -26,7 +26,10 @@ siempre como `"0"`; el `"1"` es un cambio local que no se hace commit.
 | **Desatendido** | `KIT_AUTONOMOUS_RUN="1"`, o un *background agent* de Cursor aunque el interruptor esté a `"0"` | Ningún hook deja una confirmación pendiente: cada pregunta se convierte en una comprobación automática que permite o deniega, o en una denegación que dice qué hacer en su lugar. Sin `jq`, los hooks deniegan en vez de desactivarse. La puerta del `spec-auditor` exige `APPROVED` antes de escribir código o tests |
 | **Ejecución autónoma** | Solo `KIT_AUTONOMOUS_RUN="1"` | Todo lo del modo desatendido, más: el agente puede hacer merge a través de la puerta de merge, se relaja la doctrina de la sección 2, y se protege la configuración del kit y el propio interruptor |
 
-Con el interruptor a `"1"`, el inicio de cada sesión lo avisa (`⚠ autonomous run: ON`).
+Con el interruptor a `"1"`, el inicio de cada sesión lo avisa (`⚠ autonomous run: ON`): en Claude Code
+aparece en la terminal como mensaje del hook `SessionStart` y además llega al agente como primera
+línea de su contexto. Los avisos `protect-specs: OFF` y `spec-audit-gate: OFF` salen igual. En Cursor
+el aviso solo llega al agente: pregúntale al empezar.
 
 ### Qué decide cada hook en modo desatendido
 
@@ -445,7 +448,8 @@ inestable se relanza; un fallo real se arregla primero.
 **Paso 8. Abre una sesión nueva con el perfil autónomo**, en una terminal nueva y desde la carpeta
 del repositorio (comandos en la sección 3, «Lanzar una sesión con el perfil»). Tiene que ser nueva:
 `.claude/settings.local.json` y el interruptor solo se leen al arrancar. Comprueba dos cosas:
-- al inicio sale el aviso `⚠ autonomous run: ON`;
+- al inicio sale en la terminal el aviso `⚠ autonomous run: ON` (mensaje del hook `SessionStart`).
+  Si no sale, la sesión no leyó el interruptor a `"1"`: no lances el workflow;
 - si usas `GH_CONFIG_DIR`, `gh auth status` muestra solo la cuenta del repositorio. Pídeselo al agente
   como primer mensaje.
 

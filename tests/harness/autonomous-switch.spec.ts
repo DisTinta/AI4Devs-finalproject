@@ -62,6 +62,23 @@ describe('The autonomous run is a manual switch that leaves the default behaviou
     const first = context.split('\n')[0] ?? '';
     expect(first).toContain('autonomous run: ON');
     expect(first).toContain('KIT_AUTONOMOUS_RUN');
+    // additionalContext only reaches the model; systemMessage is what the user sees.
+    expect(String(result.json?.systemMessage ?? '')).toContain('autonomous run: ON');
+  });
+
+  it('The session start shows no warning to the user when every switch is at its default', async () => {
+    project = createProject({ env: { KIT_AUTONOMOUS_RUN: '0', KIT_PROTECT_SPECS: '1', KIT_SPEC_AUDIT_GATE: '1' }, git: {} });
+    const result = await runHook(project, 'session-context', { hook_event_name: 'SessionStart', source: 'startup' });
+    expect(result.json?.systemMessage).toBeUndefined();
+  });
+
+  it('The session start shows the user the protect-specs and spec-audit-gate warnings', async () => {
+    project = createProject({ env: { KIT_AUTONOMOUS_RUN: '0', KIT_PROTECT_SPECS: '0', KIT_SPEC_AUDIT_GATE: '0' }, git: {} });
+    const result = await runHook(project, 'session-context', { hook_event_name: 'SessionStart', source: 'startup' });
+    const message = String(result.json?.systemMessage ?? '');
+    expect(message).toContain('protect-specs: OFF');
+    expect(message).toContain('spec-audit-gate: OFF');
+    expect(message).not.toContain('autonomous run: ON');
   });
 
   it('A Cursor background agent runs unattended but not autonomous', async () => {
