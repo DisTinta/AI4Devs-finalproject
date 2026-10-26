@@ -38,7 +38,11 @@ When you are asked to implement a change from `openspec/changes/<id>/`:
      `design.md` → Follow-ups with its A/B/C/D destination.
    - Run `verify-against-spec` and `adversarial-review` inline (their `Inline mode` section), never as
      forks.
-   - Stop cleanly — ticket In Review with a comment — on: a `CHANGES REQUIRED` spec audit, CI red
+   - A `CHANGES REQUIRED` spec audit opens a correction round (`docs/AUTONOMOUS-RUN.md` §6): answer
+     the author's questions as lead engineer, apply the corrections, close the report and run a
+     fresh `spec-auditor`, at most `AUTONOMOUS_AUDIT_ROUNDS` times (default 2).
+   - Stop cleanly — ticket In Review with a comment — on: a `CHANGES REQUIRED` spec audit after the
+     last correction round, CI red
      after 2 fixes, a merge conflict, the usage limit, a denied permission with no alternative, or a
      code fix needed after `/opsx:archive` (there is no active change any more).
    - After a vetted install, run `npm audit --audit-level=high`; a new high or critical finding stops

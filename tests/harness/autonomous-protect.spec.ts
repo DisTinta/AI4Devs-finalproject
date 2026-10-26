@@ -15,13 +15,23 @@ const MIGRATION = 'packages/adapters/store-postgres/migrations/0001_init.sql';
  * Base `final-project-CRN` (commit A) ← origin/final-project-CRN (commit B, adds an earlier ticket's
  * test) ← feature/DIS-9-foo-bar (commit C, adds the branch's own test and the change).
  */
-function fixture(opts: { autonomous?: string; protect?: string; gate?: string; verdict?: 'APPROVED' | 'CHANGES REQUIRED' | 'APPROVED\r' | null; crlf?: boolean } = {}): Project {
+function fixture(opts: {
+  autonomous?: string;
+  protect?: string;
+  gate?: string;
+  verdict?: 'APPROVED' | 'CHANGES REQUIRED' | 'APPROVED\r' | null;
+  crlf?: boolean;
+  /** Verdict of each audit run, one report file per entry; replaces `verdict`. */
+  runs?: string[];
+  rounds?: string;
+} = {}): Project {
   const p = createProject({
     env: {
       KIT_AUTONOMOUS_RUN: opts.autonomous ?? '1',
       KIT_PROTECT_SPECS: opts.protect ?? '1',
       KIT_SPEC_AUDIT_GATE: opts.gate ?? '1',
       AUTONOMOUS_MERGE_BASE: 'final-project-CRN',
+      ...(opts.rounds === undefined ? {} : { AUTONOMOUS_AUDIT_ROUNDS: opts.rounds }),
     },
     files: {
       'openspec/specs/llm-adapter/spec.md': '# llm\n',
@@ -50,7 +60,11 @@ function fixture(opts: { autonomous?: string; protect?: string; gate?: string; v
   p.write(`${CHANGE}/specs/llm-adapter/spec.md`, '## MODIFIED Requirements\n');
   p.write(`${CHANGE}/reports/x.md`, 'notes\n');
   p.write('openspec/changes/other-change/proposal.md', '# other\n');
-  if (opts.verdict !== null) {
+  if (opts.runs) {
+    opts.runs.forEach((verdict, i) =>
+      p.write(`${CHANGE}/reports/2026-10-2${i + 1}-spec-audit.md`, `${verdict}\n\n# Spec audit, run ${i + 1}\n`),
+    );
+  } else if (opts.verdict !== null) {
     const verdict = opts.verdict ?? 'APPROVED';
     const nl = opts.crlf ? '\r\n' : '\n';
     p.write(
@@ -86,11 +100,43 @@ describe('Rewrites of specs, tests and doctrine are decided without a human in u
         expect((await edit(project, `${CHANGE}/design.md`)).decision).toBe('allow');
       });
 
-      it('An artifact of a change not yet approved is protected', async () => {
+      it('An artifact is rewritten in a correction round after a CHANGES REQUIRED audit', async () => {
+        // The default fixture report holds two CHANGES REQUIRED runs (Run 1 and Run 2): round 2 of 2.
         project = fixture({ protect, verdict: 'CHANGES REQUIRED' });
+        const second = await edit(project, `${CHANGE}/design.md`);
+        expect(second.decision).toBe('allow');
+        expect(second.reason).toContain('correction round 2 of 2');
+        project.cleanup();
+        project = fixture({ protect, runs: ['CHANGES REQUIRED'] });
+        const first = await edit(project, `${CHANGE}/design.md`);
+        expect(first.decision).toBe('allow');
+        expect(first.reason).toContain('correction round 1 of 2');
+      });
+
+      it('Correction rounds are counted across report files', async () => {
+        project = fixture({ protect, runs: ['CHANGES REQUIRED', 'CHANGES REQUIRED', 'CHANGES REQUIRED'] });
+        expect((await edit(project, `${CHANGE}/design.md`)).decision).toBe('deny');
+        project.cleanup();
+        project = fixture({ protect, runs: ['CHANGES REQUIRED', 'APPROVED', 'CHANGES REQUIRED'] });
+        expect((await edit(project, `${CHANGE}/design.md`)).decision).toBe('allow');
+      });
+
+      it('AUTONOMOUS_AUDIT_ROUNDS sets the number of correction rounds', async () => {
+        project = fixture({ protect, runs: ['CHANGES REQUIRED', 'CHANGES REQUIRED', 'CHANGES REQUIRED'], rounds: '3' });
+        expect((await edit(project, `${CHANGE}/design.md`)).decision).toBe('allow');
+        for (const rounds of ['0', 'two', '']) {
+          project.cleanup();
+          project = fixture({ protect, runs: ['CHANGES REQUIRED'], rounds });
+          expect((await edit(project, `${CHANGE}/design.md`)).decision, `rounds="${rounds}"`).toBe('deny');
+        }
+      });
+
+      it('An artifact of a change not yet approved is protected', async () => {
+        project = fixture({ protect, runs: ['CHANGES REQUIRED', 'CHANGES REQUIRED', 'CHANGES REQUIRED'] });
         const r = await edit(project, `${CHANGE}/design.md`);
         expect(r.decision).toBe('deny');
         expect(r.reason).toContain('spec audit has not approved');
+        expect(r.reason).toContain('after 2 correction rounds');
         project.cleanup();
         project = fixture({ protect, autonomous: '0' });
         const bg = await edit(project, `${CHANGE}/design.md`, { is_background_agent: true });
@@ -216,10 +262,15 @@ describe('The spec-audit gate in unattended mode', { timeout: 120_000 }, () => {
 
   for (const gate of ['1', '0']) {
     it(`No code is written after a CHANGES REQUIRED audit (KIT_SPEC_AUDIT_GATE="${gate}")`, async () => {
-      project = fixture({ gate, verdict: 'CHANGES REQUIRED' });
-      const r = await code(project);
-      expect(r.decision).toBe('deny');
-      expect(r.reason).toContain('stops cleanly');
+      project = fixture({ gate, runs: ['CHANGES REQUIRED'] });
+      const round = await code(project);
+      expect(round.decision).toBe('deny');
+      expect(round.reason).toContain('correction round');
+      project.cleanup();
+      project = fixture({ gate, runs: ['CHANGES REQUIRED', 'CHANGES REQUIRED', 'CHANGES REQUIRED'] });
+      const last = await code(project);
+      expect(last.decision).toBe('deny');
+      expect(last.reason).toContain('stops cleanly');
     });
 
     it(`No code is written without an active change in unattended mode (KIT_SPEC_AUDIT_GATE="${gate}")`, async () => {

@@ -54,6 +54,9 @@ KIT_SPEC_AUDIT_GATE="1"
 # no hook asks, the agent may merge through the merge gate, the doctrine relaxations of the ADR apply.
 KIT_AUTONOMOUS_RUN="0"
 AUTONOMOUS_MERGE_BASE=""
+# Correction rounds an autonomous run may make after a CHANGES REQUIRED spec audit before the ticket
+# stops cleanly; anything but a whole number counts as 0.
+AUTONOMOUS_AUDIT_ROUNDS="2"
 KIT_SECRET_ALLOWLIST=""
 
 # Loads KEY="value" or KEY=value without executing the file as shell.
@@ -89,7 +92,7 @@ load_env_safe() {
       PATH_TESTS|PATH_BUSINESS|PATH_HTTP|PATH_MIGRATIONS|PATH_ADR|GUARD_HTTP_IN_BUSINESS|\
       GUARD_DB_IN_HTTP|GUARD_DANGEROUS_CMD|LAYER_ORDER|MIN_MUTATION_SCORE|BRANCH_PREFIX|\
       KIT_SKIP_STOP_TESTS|KIT_ALLOW_WIP|KIT_PROTECT_SPECS|KIT_SPEC_AUDIT_GATE|\
-      KIT_AUTONOMOUS_RUN|AUTONOMOUS_MERGE_BASE|KIT_SECRET_ALLOWLIST)
+      KIT_AUTONOMOUS_RUN|AUTONOMOUS_MERGE_BASE|AUTONOMOUS_AUDIT_ROUNDS|KIT_SECRET_ALLOWLIST)
         printf -v "$key" '%s' "$val"
         ;;
     esac
@@ -604,6 +607,25 @@ latest_verdict() {
     [[ -n "$v" ]] && last="$v"
   done
   printf '%s' "${last:-NONE}"
+}
+
+# Number of CHANGES REQUIRED verdicts of a change, read like latest_verdict: every audit run that
+# asked for changes, whether the runs share one report or each has its own.
+failed_audits() {
+  local reports=("$PROJECT_DIR/openspec/changes/$1/reports/"*spec-audit*.md)
+  [[ -e "${reports[0]}" ]] || { printf '0'; return 0; }
+  awk '
+    FNR == 1 { fence = 0 }
+    { sub(/\r$/, ""); sub(/[[:space:]]+$/, "") }
+    /^[[:space:]]*(```|~~~)/ { fence = !fence; next }
+    !fence && $0 == "CHANGES REQUIRED" { n++ }
+    END { print n + 0 }
+  ' "${reports[@]}" 2>/dev/null || printf '0'
+}
+
+# AUTONOMOUS_AUDIT_ROUNDS as a whole number; anything else is 0 (no correction round).
+audit_rounds() {
+  if [[ "$AUTONOMOUS_AUDIT_ROUNDS" =~ ^[0-9]{1,3}$ ]]; then printf '%d' "$((10#$AUTONOMOUS_AUDIT_ROUNDS))"; else printf '0'; fi
 }
 
 # Whether a repository-relative path existed at the merge base of HEAD with
