@@ -75,6 +75,7 @@
 58. [Arranque y guion de demo iguales en PowerShell y Bash, y guías en español (DIS-102)](#58-arranque-y-guion-de-demo-iguales-en-powershell-y-bash-y-guías-en-español-dis-102)
 59. [Probar con un modelo real desde un clon limpio (DIS-103)](#59-probar-con-un-modelo-real-desde-un-clon-limpio-dis-103)
 60. [Interruptor de ejecución autónoma en el kit, para Claude Code y Cursor (DIS-106)](#60-interruptor-de-ejecución-autónoma-en-el-kit-para-claude-code-y-cursor-dis-106)
+61. [Respuestas en el idioma de la pregunta (DIS-104)](#61-respuestas-en-el-idioma-de-la-pregunta-dis-104)
 
 ---
 
@@ -5094,3 +5095,40 @@ lanzó el merge desde la sesión del perfil. En el paso 12 rechazó el `git rese
 preguntó si había sido ella quien aprobó el primero (el agente lo había atribuido al auto mode y lo
 corrigió tras revisar los tiempos de la transcripción) y no aceptó la oferta de la sesión del perfil
 de integrar el PR #61 de verdad cuando un prompt pegado llegó cortado.
+
+# 61. Respuestas en el idioma de la pregunta (DIS-104)
+
+### Prompt 1 — Lanzar el ticket tras la medición en vivo de DIS-103
+
+En la comprobación de DIS-103 (Ollama en CPU, `qwen2.5-coder`), la pregunta `¿Qué hace DiscountService?`
+recibió respuesta y afirmaciones en inglés. La autora abrió DIS-104 con ese hallazgo (bloque `[original]`
+del ticket) y, tras el merge y el interruptor a `"1"`, relanzó el workflow con:
+
+```
+hecho el merge y el interruptor a 1. Relanza el workflow
+```
+
+### Prompt 2 — Implementar el change dentro del workflow autónomo
+
+El script del workflow envió a este paso, entre otras reglas, este texto literal:
+
+```
+Ticket: DIS-104. Branch: feature/dis-104-answer-language. Change: openspec/changes/answer-language. Step: apply.
+The spec audit is APPROVED. Run /opsx:apply on change answer-language: every task in TDD (failing test first, then implementation, layer order), marking tasks.md as you go, with the mandatory verification steps. Run tests, lint and typecheck. Commit, push and open the PR to final-project-CRN with /pr-describe (write the "why" yourself and mark it as agent-written). Return pr.
+```
+
+**Por qué funcionó.** El change se partió en lo que la suite comprueba (la regla de idioma como función
+pura con tablas de palabras, el mensaje de sistema por idioma, el evento solo con códigos y su orden entre
+los demás eventos) y en lo que solo se ve en vivo, con una medición antes y después sobre las mismas tres
+preguntas. La medición encontró tres cosas que ningún test habría visto: el Ollama habitual de la máquina
+no carga el modelo (error de CUDA) y hubo que usar una instancia solo CPU en otro puerto; `curl` mandaba las
+preguntas con bytes rotos desde Git Bash, así que la primera tanda no era en español (se vio porque el
+evento no salía para respuestas en inglés, y `query_log` lo confirmó); y `prompt.ts` es una entrada de la
+huella de las respuestas golden, así que `npm run verify` fallaba hasta regenerarlas con `cache:build`.
+
+**Ajuste humano.** Ninguno: ejecución autónoma, sin la autora en el bucle. Decisiones del agente durante la
+implementación, registradas en `design.md` (A1–A4) y en el ticket: regenerar las tres respuestas golden en
+vez de dejar el `verify` en rojo (queda su revisión del agente y la muestra para firmar en
+`docs/golden-review/`); no normalizar a NFC; y aceptar los mutantes equivalentes de los bucles de la regla.
+Resultado de la medición: no se reproduce con el prompt actual en 2 de 3 preguntas, así que el evento, que
+sí salió con el modelo real, es la parte con evidencia viva.

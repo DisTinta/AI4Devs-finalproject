@@ -868,7 +868,19 @@ services that must be started first, quirks of the local environment.
     `pg_advisory_xact_lock` + delete + insert, and a lookup takes the newest of duplicates.
     `invalidateCache(projectId)` has no caller yet (DIS-9, PH-07).
   - Gotcha: `ExplainEvent` (`SchemaViolationEvent | ClaimsNotPersistedEvent | SanitizationEvent |
-    EvidenceBrokenEvent | EntailmentUnverifiedEvent | AnswerNotCachedEvent | QueryNotLoggedEvent`) is **not** part of `AuditEvent`. Core never logs; the transport does.
+    EvidenceBrokenEvent | EntailmentUnverifiedEvent | AnswerLanguageMismatchEvent | AnswerNotCachedEvent |
+    QueryNotLoggedEvent`) is **not** part of `AuditEvent`. Core never logs; the transport does.
+  - Gotcha (DIS-104, `core/explain/question-language.ts`, `prompt.ts`): `detectLanguage(text)` is a pure
+    rule with two closed word lists (`es`, `en`, or `null` with fewer than two signals or no strict
+    majority; backtick pairs ignored, code-like tokens skipped, `¿`/`¡` and accented words count as
+    Spanish). A question it decides is `es` gets `EXPLAIN_SYSTEM_PROMPT_ES` (the generic message with an
+    explicit Spanish instruction and a Spanish last line); English and undecided questions keep
+    `EXPLAIN_SYSTEM_PROMPT` byte for byte, so their prompt hash does not move. `ExplainPrompt` carries
+    `questionLanguage`. When the question is `es` and the live `answer` text (not the statements) reads
+    `en`, an answered answer gets `{ type: 'answer_language_mismatch', expected: 'es' }` (codes only, `info`
+    level in the transports, after `entailment_unverified` and before `claims_not_persisted`); never on
+    a cache hit or an `UNKNOWN`. The answer is returned unchanged and stays cacheable, so a later hit
+    serves it with `events: []`.
   - Gotcha (DIS-74, `core/explain/usage.ts`, `usage-meter.ts`): `explain` wraps the model it was given
     in `meterLlm` (outside `withDailyBudget`, so a call the ceiling blocks never counts) and writes **one
     `query_log` row per call** through `StorePort.saveQueryLog`, after the claim write and on its own:

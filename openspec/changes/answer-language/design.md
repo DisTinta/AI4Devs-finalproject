@@ -254,3 +254,14 @@ asked no question for the author; these are the agent's choices in applying its 
 | R6 | Audit run 2 B1: the CLI capture for `docs/DEMO.md` would be a cache hit. A reseed is added before the "after" run (task 7.0) and the CLI capture becomes its first call (task 7.1), rather than adding a `--no-cache` option to the CLI, which would widen the scope of the ticket | **A** — this change |
 | R7 | Audit run 2 I1: evaluation mode in task 8.1 is reached with `LLM_BASE_URL=` and `LLM_API_KEY=` set empty in the command's environment, so the agent never reads `.env` | **A** — this change |
 | R8 | Audit run 2 I2: the all-uppercase exception of the rule applies only to tokens made only of letters; a token with a non-letter character is always code (`AÑO-2024 PÁGINA_1` gives no decision; spec, task 2.1) | **A** — this change |
+
+Decisions and findings of the apply step (reports `2026-10-26-language-measurement.md` and
+`2026-10-26-6-test-and-state-verification.md`). *Agent's text: decided as lead engineer in an autonomous
+run, without the author.*
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| A1 | Finding: `packages/core/src/explain/prompt.ts` is an input of the answer fingerprint (`ANSWER_FINGERPRINT_FILES`), so editing it stales `seeds/cache/acme-shop.json` and `npm run verify` (and the CI `verify` job) fails with `FINGERPRINT_MISMATCH` (`reason: golden`) until `npm run cache:build` is run again (ADR 20261017-stale-fingerprint-fails-verify). Design D2 and the Risks section said no golden answer moves: the cache key is unchanged, but the golden file is out of date. Decision: regenerate it with `npm run cache:build` on the local Ollama and commit it, as the policy requires (Q1, Q3 and Q4 are Spanish questions, so their golden answers are now generated with the Spanish prompt); the agent reviews the three regenerated entries as DIS-34 did and the author signs a sample later | **A** — this change |
+| A2 | Finding: the author's Ollama on `localhost:11434` cannot load the model on this machine (CUDA error), and its default context (4096) makes every answer `invalid-model-output`. The measurement and the golden build use a second CPU-only instance on port 11435 with `OLLAMA_CONTEXT_LENGTH=16384` (the DIS-72 gotcha); the author's server is untouched | **D** — accepted, recorded in the measurement report |
+| A3 | Round 3 optional improvements: `\s` is the JavaScript whitespace class (it is what the code uses); the text is not normalised to NFC, so a decomposed accent makes its token code (pinned by a test) | **D** — accepted |
+| A4 | Mutation run: `question-language.ts` scored 86.61 before three extra tests (backtick tail read once, capital letters); the survivors left are equivalent mutants of the loop bounds of `stripEdges` and of `split(/\s+/)` against `split(/\s/)` (an empty token counts for nothing) | **D** — accepted |

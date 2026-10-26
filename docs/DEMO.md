@@ -20,7 +20,7 @@ variable ya definida en la terminal gana sobre `.env`.
 | Node / npm | v24.11.1 / 11.19.0 (el proyecto necesita Node 20.11 o posterior; la CI usa Node 20) |
 | LLM | ninguno: **modo evaluación**, todas las variables `LLM_*` vacías |
 | Base de datos | una base de datos nueva y vacía (ver el paso 0) |
-| `Probar con un modelo real` | 2026-10-20, rama `feature/DIS-103-real-model-clean-clone` clonada en una carpeta nueva, Git Bash: Ollama 0.40.5 **solo en CPU**, `qwen2.5-coder`, `OLLAMA_CONTEXT_LENGTH=16384`, `LLM_TIMEOUT_MS=1200000`. Duraciones medidas: CLI 8 min 28 s; API 300,9 s (pregunta repetida con la caché desactivada); web en Chromium 597,7 s (otra pregunta, «¿Qué hace ShippingService?») |
+| `Probar con un modelo real` | 2026-10-20, rama `feature/DIS-103-real-model-clean-clone` clonada en una carpeta nueva, Git Bash: Ollama 0.40.5 **solo en CPU**, `qwen2.5-coder`, `OLLAMA_CONTEXT_LENGTH=16384`, `LLM_TIMEOUT_MS=1200000`. Duraciones medidas: CLI 8 min 28 s; API 300,9 s (pregunta repetida con la caché desactivada); web en Chromium 597,7 s (otra pregunta, «¿Qué hace ShippingService?»). La salida de la CLI pegada en esa sección es de otra captura, la de DIS-104 (2026-10-26, rama `feature/dis-104-answer-language`, Git Bash, Ollama 0.40.11 solo en CPU con `OLLAMA_CONTEXT_LENGTH=16384`, `qwen2.5-coder`, `LLM_TIMEOUT_MS=1200000`, primera llamada tras `npm run db:seed`, así que no salió de la caché): 598 s, con la salida de error mezclada como en las anteriores |
 
 Los únicos cambios hechos a la salida pegada:
 
@@ -672,22 +672,23 @@ npm run cli -- ask acme-shop "¿Qué hace DiscountService?"
 > codemind@0.0.1 cli
 > tsx --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts ask acme-shop ¿Qué hace DiscountService?
 
-DiscountService calculates discounts for orders based on loyalty tier, coupon, and volume. It applies these discounts to the subtotal before calculating taxes and shipping.
+DiscountService calculatea discounts for orders considering loyalty tiers, number of items, and coupon codes, ensuring the total discount does not exceed 30%.
 
 statements:
-1. [INFERENCE] DiscountService is tested for volume bonuses in `tests/Unit/DiscountServiceTest.php`.
-   evidence: tests/Unit/DiscountServiceTest.php:22-82
-2. [FACT] The discount logic is detailed in `app/Services/DiscountService.php`.
+1. [FACT] DiscountService tiene métodos para calcular descuentos basándose en los tiers de lealtad del cliente, el número de ítems del pedido y códigos de cupón (E4).
    evidence: app/Services/DiscountService.php:21-66
+2. [INFERENCE] Los descuentos se calculan sumando porcentajes de descuento de lealtad, coupon validator y bono de volumen si se cumple el umbral de 5 ítems (E4).
+   evidence: app/Services/DiscountService.php:21-66, app/Services/CouponValidator.php:14-39
+3. [FACT] Se aplica un límite máximo del 30% en el descuento total (E4).
+   evidence: app/Services/DiscountService.php:21-66
+4. [INFERENCE] Se emite un evento 'DiscountApplied' cuando se aplica un descuento mayor a cero (E4).
+   evidence: app/Services/DiscountService.php:21-66, app/Events/DiscountApplied.php:15-24
+5. [INFERENCE] El precio final del pedido se calcula restando el descuento a la base del pedido (subtotal) y luego aplicando IVA (E8).
+   evidence: app/Services/PriceCalculator.php:16-44
+6. [FACT] Los descuentos se aplican antes de calcular el IVA (E3).
+   evidence: tests/Unit/PriceCalculatorTest.php:29-56
 
 evidence:
-tests/Unit/DiscountServiceTest.php:22-82
-    class DiscountServiceTest extends TestCase
-    {
-        protected function tearDown(): void
-        {
-            Mockery::close();
-    … (+56 lines)
 app/Services/DiscountService.php:21-66
     class DiscountService
     {
@@ -695,8 +696,44 @@ app/Services/DiscountService.php:21-66
         private const LOYALTY_GOLD_PERCENT = 10.0;
 
     … (+41 lines)
-{"level":"info","type":"entailment_unverified","statementIndex":0,"evidenceId":"E1","path":"tests/Unit/DiscountServiceTest.php","startLine":22,"endLine":82,"reason":"invalid-output"}
+app/Services/CouponValidator.php:14-39
+    class CouponValidator
+    {
+        public function percentFor(?string $code): float
+        {
+            if ($code === null || $code === '') {
+    … (+21 lines)
+app/Events/DiscountApplied.php:15-24
+    class DiscountApplied
+    {
+        use Dispatchable;
+
+        public function __construct(
+    … (+5 lines)
+app/Services/PriceCalculator.php:16-44
+    class PriceCalculator
+    {
+        public function __construct(
+            private readonly DiscountService $discounts,
+            private readonly TaxService $taxes,
+    … (+24 lines)
+tests/Unit/PriceCalculatorTest.php:29-56
+        public function test_discount_is_applied_before_tax(): void
+        {
+            $subtotal = Money::fromCents(10000);   // €100.00
+            $discount = Money::fromCents(1000);    // €10.00
+            $discountedBase = Money::fromCents(9000);
+    … (+23 lines)
+{"level":"info","type":"entailment_unverified","statementIndex":1,"evidenceId":"E4","path":"app/Services/DiscountService.php","startLine":21,"endLine":66,"reason":"invalid-output"}
+{"level":"info","type":"entailment_unverified","statementIndex":3,"evidenceId":"E4","path":"app/Services/DiscountService.php","startLine":21,"endLine":66,"reason":"invalid-output"}
+{"level":"info","type":"answer_language_mismatch","expected":"es"}
 ```
+
+La pregunta está en español y el prompt pide la respuesta en español, pero el modelo de 7B a veces
+contesta en inglés, o mezcla los dos idiomas, como en esta captura (el párrafo de `answer` en inglés y
+las afirmaciones en español). Cuando la respuesta del modelo a una pregunta en español está en inglés,
+la última línea JSON (`answer_language_mismatch`) lo avisa en el registro; la respuesta se devuelve tal
+cual y el aviso no sale en la respuesta pública de la API ni en la web.
 
 En la captura (Ollama en CPU) tardó 8 min 28 s. La respuesta generada en vivo cambia de una
 ejecución a otra: el texto, las afirmaciones y sus evidencias no tienen por qué coincidir con estas.
