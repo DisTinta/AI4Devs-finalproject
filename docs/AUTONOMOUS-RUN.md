@@ -181,8 +181,14 @@ agente no puede escribir su memoria ni sus planes (`<perfil>/projects/…`).
    `quality`, `verify`, `mutation`, `secrets`) obligatorios, `enforce_admins` activo, sin revisiones
    obligatorias y `strict` desactivado. Es la red de seguridad del lado del servidor: aguanta aunque un
    hook no vea un comando.
-2. La cuenta de `gh` activa es la que tiene acceso de administrador al repositorio (en Codemind,
-   `DisTinta`): sin ella, GitHub responde «Not Found» a la consulta de la protección.
+2. `gh` está autenticado con una cuenta con acceso de administrador al repositorio (en Codemind,
+   `DisTinta`): sin ella, GitHub responde «Not Found» a la consulta de la protección. Si la
+   configuración global de `gh` la comparten otros proyectos, dale al repositorio su propia
+   configuración con `GH_CONFIG_DIR`: en la clave `env` de `.claude/settings.local.json` (ignorado por
+   git; solo se lee al arrancar la sesión) para el agente y sus hooks, y en la terminal desde la que
+   lances el preflight (`$env:GH_CONFIG_DIR = "<dir>"` en PowerShell, `GH_CONFIG_DIR="<dir>"` delante
+   del comando en Bash). `git push` también la usa si el credential helper de GitHub es
+   `gh auth git-credential`.
 3. Pon a mano `KIT_AUTONOMOUS_RUN="1"` (y `AUTONOMOUS_MERGE_BASE`, si la base no es la de siempre).
 4. Ejecuta el preflight y corrige cada `FAIL`:
 
