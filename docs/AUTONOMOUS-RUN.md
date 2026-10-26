@@ -11,6 +11,9 @@ bloqueos del experimento de la Entrega 2 (ADR
 Todos los comandos de esta guía se escriben igual en PowerShell y en Bash, salvo donde la guía da
 las dos formas.
 
+Si solo quieres lanzar una ejecución, ve a la sección 10: es el recorrido paso a paso y remite a las
+demás secciones cuando hace falta el detalle.
+
 ## 1. Los dos modos
 
 El interruptor es la clave `KIT_AUTONOMOUS_RUN` de `.claude/sdd-harness.env`. Se cambia **a mano**:
@@ -348,7 +351,6 @@ Cursor:
    (fecha, herramienta, motivo, entrada con los secretos sustituidos por `[REDACTED]` y, si lo hay, el
    veredicto del clasificador). Es local y no se versiona. Cada denegación es o una protección que
    funcionó o una regla que falta en el kit.
-3. Vuelve la cuenta de `gh` a la de uso normal.
 
 ## 9. Lo que no está verificado
 
@@ -372,3 +374,127 @@ Cursor:
   - la lectura de un `.env.*` por la shell (`cat .env.local`) no la para ningún hook.
 
   En Claude Code queda el clasificador; en los dos clientes, la protección de la rama base.
+
+## 10. Cómo se usa, paso a paso
+
+El recorrido completo de una ejecución autónoma en Claude Code, desde la preparación hasta el cierre.
+Para Cursor, ver la sección 7.
+
+En pocas palabras: preparas una vez el perfil autónomo y la protección de la base. Antes de cada
+ejecución eliges los tickets, pones el interruptor a `"1"` y pasas el preflight. Abres una sesión
+**nueva** de Claude Code con el perfil autónomo y le pides, en un solo mensaje, un workflow con la
+lista de tickets. El workflow recorre cada ticket en un subagente propio, con el contrato de la
+sección 6, y al final escribe un resumen. Tú no respondes nada mientras corre.
+
+### Una sola vez
+
+**Paso 1. Crea el perfil autónomo.** Sigue «Crear el perfil» de la sección 3: carpeta
+`~/.claude-autonomous`, su `settings.json` a partir de la plantilla, `/login`, servidores MCP
+aprobados y Linear autenticado.
+
+**Paso 2. Prepara GitHub.**
+- Protege la rama base (sección 4, punto 1).
+- Si la configuración global de `gh` la comparten otros proyectos, dale al repositorio la suya con
+  `GH_CONFIG_DIR` (sección 4, punto 2).
+
+**Paso 3. Haz la prueba en seco del merge.** Ver «Prueba en seco del merge» en la sección 4. Repítela
+si cambias el perfil o la protección de la base.
+
+### Antes de cada ejecución
+
+**Paso 4. Elige los tickets y su orden.**
+- **Qué tickets.** Solo los que terminan en un cambio de OpenSpec: uno de solo documentación no lo
+  puede integrar el agente (sección 5). Deja fuera los que necesitan una decisión o una revisión
+  tuya que no se puede delegar, por ejemplo firmar resultados.
+- **En qué orden.** El workflow los hace en serie, cada uno sobre la base ya integrada del anterior.
+  Ordénalos por dependencias. Si uno se para, el workflow salta los que dependen de él y sigue con
+  los independientes.
+- **Cuántos.** El kit no pone límite: el límite es tu cuota de uso. Mira `/usage` antes de elegir. En
+  la Entrega 2 cada ticket tardó entre 2 y 4 h de reloj (más si había esperas), y las tandas se
+  cortaron en unos 7 tickets para no agotar el límite semanal a mitad de un ticket. La primera vez,
+  lanza una tanda piloto de 1 o 2 tickets y revisa el resultado antes de lanzar más.
+
+**Paso 5. Deja la copia de trabajo lista.**
+- Rama base actualizada y sin cambios pendientes: `git switch final-project-CRN`, `git pull` y
+  `git status` limpio.
+- Docker arrancado (`docker compose up -d`): sin él fallan los tests de integración.
+
+**Paso 6. Pon el interruptor a `"1"`.** Edita a mano `.claude/sdd-harness.env`:
+`KIT_AUTONOMOUS_RUN="1"`.
+
+**Paso 7. Pasa el preflight sin ningún `FAIL`** (sección 4). Si usas `GH_CONFIG_DIR`, ponla en la
+misma terminal.
+
+PowerShell:
+
+```
+$env:GH_CONFIG_DIR = "$HOME\.config\gh-distinta"; pwsh .claude/doctor.ps1 -Autonomous -ConfigDir "$HOME\.claude-autonomous"
+```
+
+Bash (Git Bash, no WSL):
+
+```
+GH_CONFIG_DIR="$HOME/.config/gh-distinta" bash .claude/doctor.sh --autonomous --config-dir ~/.claude-autonomous
+```
+
+Si la última CI de la base está en rojo, el preflight falla. Mira el motivo antes de lanzar: un test
+inestable se relanza; un fallo real se arregla primero.
+
+### Lanzar
+
+**Paso 8. Abre una sesión nueva con el perfil autónomo**, en una terminal nueva y desde la carpeta
+del repositorio (comandos en la sección 3, «Lanzar una sesión con el perfil»). Tiene que ser nueva:
+`.claude/settings.local.json` y el interruptor solo se leen al arrancar. Comprueba dos cosas:
+- al inicio sale el aviso `⚠ autonomous run: ON`;
+- si usas `GH_CONFIG_DIR`, `gh auth status` muestra solo la cuenta del repositorio. Pídeselo al agente
+  como primer mensaje.
+
+**Paso 9. Pide el workflow en un solo mensaje.** La herramienta Workflow solo se usa si se pide
+explícitamente, así que el mensaje tiene que decir «usa un workflow». Cambia los tickets y pégalo en
+una sola línea (un texto largo pegado desde la terminal puede llegar cortado):
+
+```
+Usa un workflow para la ejecución autónoma de estos tickets de Linear, en este orden: DIS-a, DIS-b, DIS-c. Sigue para cada ticket el contrato de docs/AUTONOMOUS-RUN.md §6, con la rama desde final-project-CRN. Si un ticket se para, salta los que dependen de él y sigue con los demás. No me preguntes nada mientras corre. Al terminar escribe solo: tickets cerrados con su PR, tickets parados con el motivo y lo que queda pendiente para mí.
+```
+
+Claude Code enseña la descripción del workflow en un diálogo de permiso: apruébalo. Desde ahí, la
+terminal queda en silencio hasta el resumen final.
+
+### Mientras corre
+
+**Paso 10. No toques la copia de trabajo.** El workflow trabaja en esa misma carpeta, sin worktrees
+(sección 6). No cambies de rama, no edites ficheros, no hagas commit allí y no cambies el
+interruptor. Si necesitas trabajar en el repositorio a la vez, hazlo en otro clon.
+
+**Paso 11. Deja la sesión viva.** El workflow corre dentro de esa sesión de Claude Code: no cierres
+la terminal ni dejes que el equipo se suspenda.
+
+**Paso 12. Sigue el avance sin intervenir:**
+- `/workflows`, en la misma sesión: el progreso de cada agente;
+- Linear: cada ticket pasa por *In Progress* y termina en *Done* o en *In Review*;
+- GitHub: los PR, su CI y sus merges.
+
+**Paso 13. Atiende los tickets que se paran.** Un ticket que queda en *In Review* lleva un comentario
+en Linear con el motivo (las paradas de la sección 6):
+- **El clasificador denegó el merge:** revisa el PR y haz tú el merge. El workflow lo detecta y sigue
+  con el siguiente ticket.
+- **Cualquier otro motivo:** no hagas nada durante la ejecución. Ese ticket lo retomas tú después, en
+  modo interactivo.
+
+Para cortar la ejecución antes de tiempo, pídeselo al agente en la misma sesión («para el workflow»).
+
+### Al terminar
+
+**Paso 14. Revisa el resultado.** Lee el resumen y repasa, ticket a ticket:
+- el PR y su CI;
+- las decisiones que el agente tomó por su cuenta: en la descripción Enhanced del ticket en Linear y
+  en `design.md` → Follow-ups;
+- el «porqué» de los PR y ADR, que escribió el agente y lleva su marca.
+
+**Paso 15. Cierra la ejecución** (sección 8): interruptor a `"0"` y repaso de
+`.claude/autonomous-denials.log`.
+
+**Paso 16. Vuelve al modo interactivo.**
+- Sal de la sesión autónoma con `/exit` y cierra esa terminal: en PowerShell, `CLAUDE_CONFIG_DIR`
+  sigue puesta en ella.
+- Para seguir trabajando, abre una sesión normal: `claude`, sin el perfil.
