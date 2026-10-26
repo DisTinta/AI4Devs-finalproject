@@ -72,4 +72,6 @@ Workflow reminders
   Playwright MCP to demonstrate a real UI in /show-spec-working. If a server
   is disabled, say so and continue."
 
-inject "SessionStart" "$CONTEXT"
+# The same warnings, shown to the user too (additionalContext never reaches the terminal).
+USER_WARNING="${AUTONOMOUS_WARNING}${PROTECT_WARNING}"
+inject "SessionStart" "$CONTEXT" "${USER_WARNING%$'\n'}"

@@ -52,6 +52,15 @@ When the switch is `"1"`, the session-start context SHALL begin with a warning l
 #### Scenario: The session start warns when the switch is on
 - **WHEN** the switch is `"1"` and a session starts
 - **THEN** the injected context starts with a line that contains `autonomous run: ON` and `KIT_AUTONOMOUS_RUN`
+- **AND** the output's `systemMessage` shows that warning to the user
+
+#### Scenario: The session start shows no warning to the user when every switch is at its default
+- **WHEN** `KIT_AUTONOMOUS_RUN` is `"0"`, `KIT_PROTECT_SPECS` and `KIT_SPEC_AUDIT_GATE` are `"1"`, and a session starts
+- **THEN** the output has no `systemMessage`
+
+#### Scenario: The session start shows the user the protect-specs and spec-audit-gate warnings
+- **WHEN** `KIT_AUTONOMOUS_RUN` is `"0"`, `KIT_PROTECT_SPECS` and `KIT_SPEC_AUDIT_GATE` are `"0"`, and a session starts
+- **THEN** the output's `systemMessage` contains `protect-specs: OFF` and `spec-audit-gate: OFF`, and not `autonomous run: ON`
 
 #### Scenario: A Cursor background agent runs unattended but not autonomous
 - **WHEN** the switch is `"0"` and a Cursor shell hook with `is_background_agent: true` receives `git reset --hard`, and then `gh pr merge 61 --merge`

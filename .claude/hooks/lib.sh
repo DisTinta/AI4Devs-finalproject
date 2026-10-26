@@ -450,8 +450,11 @@ inject() {
     exit 0
   fi
   # Stop: see notify(). SessionStart / PostToolUse do use additionalContext.
+  # additionalContext only reaches the model; an optional $3 also goes to the user as systemMessage.
   if [[ "$1" == "Stop" ]]; then
     jq -nc --arg m "$2" '{systemMessage:$m}'
+  elif [[ -n "${3:-}" ]]; then
+    jq -nc --arg e "$1" --arg c "$2" --arg m "$3" '{systemMessage:$m,hookSpecificOutput:{hookEventName:$e,additionalContext:$c}}'
   else
     jq -nc --arg e "$1" --arg c "$2" '{hookSpecificOutput:{hookEventName:$e,additionalContext:$c}}'
   fi
