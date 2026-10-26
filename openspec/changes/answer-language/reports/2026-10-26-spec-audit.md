@@ -422,3 +422,27 @@ No empty row.
 
 10. Comment:
     > **Auditoría de la spec, ronda 2 (spec-auditor, 2026-10-26): CHANGES REQUIRED, 1 punto bloqueante.** La captura de la CLI para `docs/DEMO.md` (tarea 7.2, design D6) saldría de la caché de respuestas y no del modelo: la CLI no tiene `useCache: false` y las llamadas 1.3a y 7.1a ya guardan la respuesta de `¿Qué hace DiscountService?`. Así no tendría el evento `answer_language_mismatch` ni la duración real. Se corrige en el propio change con un `npm run db:seed` antes de la tanda «después» (tarea 7.0) y con la captura de la CLI como primera llamada tras el reseed. Mejoras menores: modo evaluación de la tarea 8.1 con `LLM_BASE_URL=` y `LLM_API_KEY=` vacías en el entorno, redacción de la excepción de mayúsculas en la regla de idioma y un test más en la lista de la 5.1. Las decisiones R1-R5 de la ronda 1 se aceptan.
+
+## Resolution of run 2
+
+Correction round 2 of an autonomous run (2026-10-26). *Agent's text: run 2 asked no question for the
+author; the agent's choices in applying its findings are in `design.md` → Follow-ups (R6-R8) and in a
+Spanish comment on DIS-104.* Every claim of B1 and I1 was checked against the code:
+`packages/cli/src/commands/ask.ts:97-108` calls `explain` with no `useCache`, and `scripts/env.mjs:103`
+fills only variables that are not already set. `openspec validate answer-language --strict` passes
+after the edits.
+
+### Questions for the author
+
+None in run 2.
+
+### Findings and corrections
+
+| Finding / correction | Resolution |
+|---|---|
+| B1 CLI capture served from the cache (corrections 1, 2, 5, 6, 7, 9) | Fixed, decided by the agent (R6, destination A): new task 7.0 reseeds and runs `npm run verify` before the "after" run; the CLI capture is task 7.1, the first call after the reseed, with a check that it is not a cache hit; the API run follows as 7.2 (start), 7.2a-c (`useCache: false`), 7.3 (stop); the report is 7.4. References updated in 1.1 (skip 7.0-7.4), 8.1 and 9.1 (7.1 and 7.2a-c) and 10.1 (the 7.1 CLI output); 12.3 refers to step 7 as a whole and needs no change. 1.4, D5 → State, D6, Risks (call count and database restoration) and the proposal (What Changes and Impact) say the capture is live because it follows the reseed. Adding a cache option to the CLI was not chosen: it widens the ticket's scope. |
+| I1 Evaluation mode in task 8.1 (correction 3) | Fixed (R7, destination A): `LLM_BASE_URL=` and `LLM_API_KEY=` set empty in the `npm run dev` command's environment. |
+| I2 Code-token clause of the rule (correction 8) | Fixed (R8, destination A): the spec's second bullet separates the two conditions, so the all-uppercase exception applies only to tokens made only of letters; D1 says the same. The optional example was added as `AÑO-2024 PÁGINA_1` (no decision) rather than `AÑO-2024` alone, because a single token is below the two-signal threshold under either reading and would not tell them apart; it is also in task 2.1. |
+| I3 `tests/integration/cli/seed-load.spec.ts` (correction 4) | Fixed: named in task 5.1 (an evaluation-mode cache hit, no prompt built). |
+| Contradiction in the call count (section 6) | Fixed by B1: the seventh `answer` call (the CLI capture) is now live. |
+| Correction 10 (Linear comment) | Replaced by this round's Spanish comment on DIS-104, which summarises the finding and the agent's decisions. |

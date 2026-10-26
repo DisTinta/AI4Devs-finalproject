@@ -25,7 +25,8 @@ parent ticket).
   current prompt (before the change) and with the new one, through the API with `useCache: false`;
   a report in this change's `reports/` says, per pair, the language of the answer and statements,
   the duration, and a label (prompt, model, both, not reproduced, regression) with an aggregate
-  conclusion, by the classification of design D5.
+  conclusion, by the classification of design D5. The CLI capture of `docs/DEMO.md` runs right after
+  a reseed, so it is a live call and not a cache hit.
 - An answer carrying the event stays cacheable as today (design D3).
 - `docs/DEMO.md` → `Probar con un modelo real`: the English output pasted there is replaced by the
   output measured with the new prompt, and one sentence explains the new event.
@@ -65,4 +66,5 @@ None.
   already requires. No personal data is added.
 - Live measurement: seven `answer` calls on CPU (3 before, 3 after, 1 CLI capture; minutes each) plus
   their `verify` calls, run by the agent with the `LLM_*`
-  variables in the command's environment (never by editing `.env`).
+  variables in the command's environment (never by editing `.env`). The CLI capture of `docs/DEMO.md`
+  runs right after a reseed, so it is a live call and not a cache hit.

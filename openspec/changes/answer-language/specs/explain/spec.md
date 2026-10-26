@@ -11,9 +11,10 @@ for the same text:
   token SHALL lose every leading and trailing character of the set
   `¿ ¡ ? ! . , ; : " ' « » “ ” ‘ ’ ( ) [ ]`.
 - A token that still holds a character that is not a Unicode letter (`\p{L}`) (`::`, `_`, `.`, `/`,
-  `-`, a digit, a backtick), or an uppercase letter after its first character (`DiscountService`), is
-  code and SHALL NOT count, unless every letter of the token is uppercase (`COMO`), in which case it
-  is a word. Every token that counts SHALL be compared in lowercase.
+  `-`, a digit, a backtick) is code and SHALL NOT count. A token made only of letters is code and
+  SHALL NOT count when it has an uppercase letter after its first character (`DiscountService`),
+  unless every one of its letters is uppercase (`COMO`), in which case it is a word. Every token that
+  counts SHALL be compared in lowercase.
 - Spanish signals SHALL be: each `¿` and each `¡` outside backticks; each token in the Spanish list
   `qué que cómo como dónde donde cuál cuáles cuándo cuando quién por para con sin el la los las un una
   unos unas de del al se es son está están hace hacen y o en lo su sus este esta si`; and each other
@@ -39,9 +40,12 @@ statements' texts SHALL NOT be checked. An `UNKNOWN` answer and a cache hit SHAL
   `DiscountService`, `` `the of to` `` and the empty text
 - **THEN** it gives `es`, `es`, `en`, `en`, `en`, and no decision for the last six, without throwing
 - **WHEN** the rule is applied to `«¿Dónde se aplica el cupón?»`, `el precio del pedido??`,
-  `COMO SE CALCULA EL PRECIO`, `` The `the` price ``, `` the price `of `` and `[the] (of)`
+  `COMO SE CALCULA EL PRECIO`, `` The `the` price ``, `` the price `of ``, `[the] (of)` and
+  `AÑO-2024 PÁGINA_1`
 - **THEN** it gives `es`, `es`, `es`, no decision (one English signal left outside the backticks),
-  no decision (`` `of `` holds a backtick, so it is code, and one English signal is left) and `en`
+  no decision (`` `of `` holds a backtick, so it is code, and one English signal is left), `en`, and
+  no decision (both tokens hold a non-letter character, so both are code although every letter is
+  uppercase)
 
 #### Scenario: An English answer to a Spanish question is reported and still returned
 

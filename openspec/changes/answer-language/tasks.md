@@ -7,16 +7,16 @@
 
 ## 1. Live measurement with the current prompt (MANDATORY - AGENT MUST EXECUTE; design D5, before any source change)
 
-- [ ] 1.1 Check the local model: `curl -s http://localhost:11434/api/tags` lists `qwen2.5-coder`; record `ollama --version`. If Ollama does not answer, record it, apply the design D5 fallback (destination C: Spanish checklist comment on DIS-104 and a Follow-ups line) and skip 1.2-1.4 and 7.1-7.3
+- [ ] 1.1 Check the local model: `curl -s http://localhost:11434/api/tags` lists `qwen2.5-coder`; record `ollama --version`. If Ollama does not answer, record it, apply the design D5 fallback (destination C: Spanish checklist comment on DIS-104 and a Follow-ups line) and skip 1.2-1.4 and 7.0-7.4
 - [ ] 1.2 Start the API with `npm run dev` in the background, with `LLM_BASE_URL=http://localhost:11434/v1`, `LLM_MODEL=qwen2.5-coder`, `LLM_API_KEY=` and `LLM_TIMEOUT_MS=1200000` in that command's environment (never reading or editing `.env`); ports 3000/5173 free first; wait for it with `Monitor`
 - [ ] 1.3a Send `¿Qué hace DiscountService?` with `POST /api/projects/a794456d-6d1b-5b55-a360-13fec83dc7bc/ask` and body `{"question": "…", "useCache": false}`, in the background, waited with `Monitor`; record the end-to-end duration, the response body (with `usage.verification.calls`) and the `explain event` lines of the API log for it. No integration test runs meanwhile
 - [ ] 1.3b Same as 1.3a with `¿Qué hace ShippingService?`
 - [ ] 1.3c Same as 1.3a with `¿Qué hace TaxService?`
-- [ ] 1.4 Stop the API (its process tree). Start `openspec/changes/answer-language/reports/YYYY-MM-DD-language-measurement.md` with the "before" half: machine, Ollama version, model, settings, commands, for each question the `answer` and statements, the language the agent reads in each and the rule's decision, the duration and `usage.verification.calls`. Restoration deferred to 8.3 (one reseed after both runs); step 6 runs against a database that still holds the 1.3 rows
+- [ ] 1.4 Stop the API (its process tree). Start `openspec/changes/answer-language/reports/YYYY-MM-DD-language-measurement.md` with the "before" half: machine, Ollama version, model, settings, commands, for each question the `answer` and statements, the language the agent reads in each and the rule's decision, the duration and `usage.verification.calls`. The 1.3 rows are cleared by the reseed of 7.0 and the final state is restored in 8.3; step 6 runs against a database that still holds the 1.3 rows
 
 ## 2. Language rule (TDD; spec "Question and answer language", design D1)
 
-- [ ] 2.1 RED: create `tests/unit/explain/question-language.spec.ts` with "The language rule decides Spanish, English or nothing" (the exact inputs and results of both WHEN/THEN pairs of the scenario: quotes and brackets stripped, repeated edge punctuation, all-caps words, a backtick pair, an unmatched backtick) plus a table test over every word of both lists (one Spanish signal plus `¿` gives `es`; two English list words give `en`) and the code-token cases (`PriceCalculator::compute`, `snake_case`, `v2`, a backtick span). See it fail (module missing)
+- [ ] 2.1 RED: create `tests/unit/explain/question-language.spec.ts` with "The language rule decides Spanish, English or nothing" (the exact inputs and results of both WHEN/THEN pairs of the scenario: quotes and brackets stripped, repeated edge punctuation, all-caps words, a backtick pair, an unmatched backtick) plus a table test over every word of both lists (one Spanish signal plus `¿` gives `es`; two English list words give `en`) and the code-token cases (`PriceCalculator::compute`, `snake_case`, `v2`, a backtick span, `AÑO-2024 PÁGINA_1` with no decision). See it fail (module missing)
 - [ ] 2.2 GREEN: `packages/core/src/explain/question-language.ts` with `detectLanguage(text): TextLanguage | null` and `TextLanguage`, exported from `packages/core/src/explain/index.ts`; TSDoc citing DIS-104 design D1; no new dependency; `npx vitest run tests/unit/explain/question-language.spec.ts` green
 - [ ] 2.3 REFACTOR with the suite green; `npm run typecheck`, `npm run lint`
 
@@ -33,7 +33,7 @@
 
 ## 5. Review and Update Existing Tests (MANDATORY)
 
-- [ ] 5.1 Review the tests that pin the prompt or the exact events of a Spanish question: `tests/unit/explain/prompt.spec.ts` ("sends the explain instruction verbatim as the system message", question `q`), `tests/unit/explain/explain.spec.ts` ("Each span of the pack gets one evidence id in rank order", question `price`), `tests/unit/explain/explain-sanitization.spec.ts`, `tests/unit/explain/explain-cache.spec.ts` (including "A cached question is answered from the cache in both modes", whose all-caps question is now Spanish but is a cache hit, so no prompt is built), `tests/unit/explain/explain-verification.spec.ts`, `tests/unit/explain/usage.spec.ts`, `tests/unit/api/ask.spec.ts` ("Requests to one API share verification verdicts", answer `The final price.`: one English signal, no decision, so no event), `tests/integration/api/ask.spec.ts` (the all-caps question answered from the cache) and `tests/integration/explain/explain.spec.ts` (the stored `promptHash` equals the hash of the messages sent). Expected: none changes, because their questions are English or undecided, are answered from the cache, or their fake answers (`ok`, `La respuesta.`, `statement 1`) give no `en` decision. If one fails, fix the code, not the test, unless the delta spec changes what it pins; then change only that assertion, never weakening it, and record why in the step 6 report
+- [ ] 5.1 Review the tests that pin the prompt or the exact events of a Spanish question: `tests/unit/explain/prompt.spec.ts` ("sends the explain instruction verbatim as the system message", question `q`), `tests/unit/explain/explain.spec.ts` ("Each span of the pack gets one evidence id in rank order", question `price`), `tests/unit/explain/explain-sanitization.spec.ts`, `tests/unit/explain/explain-cache.spec.ts` (including "A cached question is answered from the cache in both modes", whose all-caps question is now Spanish but is a cache hit, so no prompt is built), `tests/unit/explain/explain-verification.spec.ts`, `tests/unit/explain/usage.spec.ts`, `tests/unit/api/ask.spec.ts` ("Requests to one API share verification verdicts", answer `The final price.`: one English signal, no decision, so no event), `tests/integration/api/ask.spec.ts` (the all-caps question answered from the cache), `tests/integration/cli/seed-load.spec.ts` (`COMO SE CALCULA EL PRECIO FINAL DE UN PEDIDO`, an evaluation-mode cache hit, no prompt built) and `tests/integration/explain/explain.spec.ts` (the stored `promptHash` equals the hash of the messages sent). Expected: none changes, because their questions are English or undecided, are answered from the cache, or their fake answers (`ok`, `La respuesta.`, `statement 1`) give no `en` decision. If one fails, fix the code, not the test, unless the delta spec changes what it pins; then change only that assertion, never weakening it, and record why in the step 6 report
 - [ ] 5.2 Every `#### Scenario:` of the delta maps to a test of the same name: the three new ones of "Question and answer language" (2.1, 4.1), the two new ones of "Prompt and evidence ids" (3.1), "The language event follows the verification events and precedes the write events" (4.1); the scenarios copied unchanged keep their existing tests
 
 ## 6. Run Tests and Verify Data State (MANDATORY)
@@ -47,27 +47,29 @@
 
 ## 7. Live measurement with the new prompt (MANDATORY - AGENT MUST EXECUTE; design D5)
 
-- [ ] 7.1 Start the API as in 1.2 on the implemented branch
-- [ ] 7.1a Same as 1.3a with `¿Qué hace DiscountService?` (an `answer_language_mismatch` line in the log when the answer is still English)
-- [ ] 7.1b Same as 1.3a with `¿Qué hace ShippingService?`
-- [ ] 7.1c Same as 1.3a with `¿Qué hace TaxService?`
-- [ ] 7.2 `npm run cli -- ask acme-shop "¿Qué hace DiscountService?"` with the same `LLM_*` variables in the command's environment, in the background with `Monitor`, timed; keep the full output for `docs/DEMO.md` (design D6). Stop the API
-- [ ] 7.3 Complete the measurement report: the "after" half, a table per question (before/after: language of `answer` and of each statement by the agent's reading and by the rule, events, duration, `usage.verification.calls`), each pair's label and the aggregate conclusion by the classification of design D5 (prompt, model, both, not reproduced, regression; inconclusive), saying that three pairs are a small sample. A "regression" label is also recorded as a finding in `design.md` → Follow-ups
+- [ ] 7.0 Clear the live rows of step 1 before the "after" run: `npm run db:seed` (API stopped), then `npm run verify` exits `0`; the 1.3 results are already in the 1.4 report (design D5 → State)
+- [ ] 7.1 `npm run cli -- ask acme-shop "¿Qué hace DiscountService?"` on the implemented branch, with the `LLM_*` variables of 1.2 in the command's environment, in the background with `Monitor`, timed; it is the first call after the reseed of 7.0, so a cache miss and a live `answer` call (check that the output is not a cache hit: a model duration and, if the answer is English, the `answer_language_mismatch` line); keep the full output and the `explain event` lines for `docs/DEMO.md` (design D6)
+- [ ] 7.2 Start the API as in 1.2 on the implemented branch
+- [ ] 7.2a Same as 1.3a with `¿Qué hace DiscountService?` (`useCache: false`, so the CLI's cache entry of 7.1 is not served; an `answer_language_mismatch` line in the log when the answer is still English)
+- [ ] 7.2b Same as 1.3a with `¿Qué hace ShippingService?`
+- [ ] 7.2c Same as 1.3a with `¿Qué hace TaxService?`
+- [ ] 7.3 Stop the API (its process tree)
+- [ ] 7.4 Complete the measurement report: the "after" half, a table per question (before/after: language of `answer` and of each statement by the agent's reading and by the rule, events, duration, `usage.verification.calls`), each pair's label and the aggregate conclusion by the classification of design D5 (prompt, model, both, not reproduced, regression; inconclusive), saying that three pairs are a small sample. A "regression" label is also recorded as a finding in `design.md` → Follow-ups
 
 ## 8. Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 8.1 The interfaces this change touches are the `explain` events written by the API and the CLI; both were exercised live in 1.3, 7.1 and 7.2. Also exercise, with the API in evaluation mode (no `LLM_*` variables): `¿Qué hace DiscountService?` with `useCache: false` answers `UNKNOWN` `llm-required` with no event; a golden question (`¿Cómo se validan los cupones?`) answers from the cache with no `answer_language_mismatch` line in the log
+- [ ] 8.1 The interfaces this change touches are the `explain` events written by the API and the CLI; both were exercised live in 1.3, 7.1 and 7.2a-c. Also exercise, with the API in evaluation mode (`LLM_BASE_URL=` and `LLM_API_KEY=` set empty in the `npm run dev` command's environment: an empty variable is kept over `.env`, and both empty is evaluation mode, `docs/project-context.md`): `¿Qué hace DiscountService?` with `useCache: false` answers `UNKNOWN` `llm-required` with no event; a golden question (`¿Cómo se validan los cupones?`) answers from the cache with no `answer_language_mismatch` line in the log
 - [ ] 8.2 Error cases unchanged: an empty question gives `400`; an unknown project id gives `404`
 - [ ] 8.3 Restore the author's database: `npm run db:seed` (deletes by cascade the live rows of acme-shop and reloads the seed and the golden cache), then `npm run verify` exits `0`
 - [ ] 8.4 Re-check the 0.4 counts (equal to the baseline after the reseed, or the difference explained); list any acme-shop rows of the 0.4 baseline that the reseed removed; report `openspec/changes/answer-language/reports/YYYY-MM-DD-8-manual-interface-testing.md` with every command and response
 
 ## 9. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
-- [ ] 9.1 Not applicable to the web: the event is not shown in the web or in the public API response (non-goal). The end-to-end path of the change (CLI and API against the real model) is covered by 1.3, 7.1 and 7.2; state it in the step 8 report
+- [ ] 9.1 Not applicable to the web: the event is not shown in the web or in the public API response (non-goal). The end-to-end path of the change (CLI and API against the real model) is covered by 1.3, 7.1 and 7.2a-c; state it in the step 8 report
 
 ## 10. Update Technical Documentation (MANDATORY)
 
-- [ ] 10.1 `docs/DEMO.md` → `Probar con un modelo real`: replace the pasted output with the 7.2 output, add one sentence in Spanish on `answer_language_mismatch`, update `Cómo se capturó` (date, model, duration); `npx vitest run tests/unit/docs` green
+- [ ] 10.1 `docs/DEMO.md` → `Probar con un modelo real`: replace the pasted output with the 7.1 CLI output, add one sentence in Spanish on `answer_language_mismatch`, update `Cómo se capturó` (date, model, duration); `npx vitest run tests/unit/docs` green
 - [ ] 10.2 `docs/project-context.md`: the event list of `explain` gains `answer_language_mismatch` (codes only, `info` level, never on a hit or an `UNKNOWN`; the answer stays cacheable) and the language rule of `question-language.ts`
 - [ ] 10.3 `/update-docs`: the docs gate passes; `prompts.md` gains the DIS-104 prompts with its Índice entry in the same edit
 - [ ] 10.4 ADR not warranted (design D7): record it in the step 6 report (6.6)

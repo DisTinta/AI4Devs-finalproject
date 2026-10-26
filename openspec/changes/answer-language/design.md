@@ -43,8 +43,9 @@ New module `packages/core/src/explain/question-language.ts` exporting
 exported through `packages/core/src/explain/index.ts`. It implements exactly the rule of the delta
 spec (requirement "Question and answer language"): backtick pairs ignored (an unmatched last
 backtick is a plain character), whitespace tokens with every leading and trailing character of the
-closed punctuation set stripped, code-like tokens skipped (a non-`\p{L}` character, or an uppercase
-letter after the first unless every letter is uppercase), the two closed word lists as
+closed punctuation set stripped, code-like tokens skipped (any token with a non-`\p{L}` character; a
+token made only of letters with an uppercase letter after the first, unless all its letters are
+uppercase), the two closed word lists as
 `ReadonlySet<string>`, `¿`/`¡` and accented/`ñ` tokens as Spanish signals, threshold of two signals
 and a strict majority. No regular expression with nested quantifiers (linear in the text; the
 question is already bounded by `parseExplainRequest`, and the answer by the model output limit of
@@ -157,8 +158,11 @@ first. One event per answer is enough to notice the problem. Checking each state
   db:seed` restores the sample project (it deletes by cascade the sample's rows and reloads the seed
   and the golden cache), and `npm run verify` must exit `0`. The reseed restores the seed state, not
   the 0.4 baseline: any acme-shop row of the baseline that it removes is listed in the step 8 report
-  (decided by the agent in correction round 1, Follow-ups R3). The reseed is deferred to after both
-  runs, so step 6 runs against a database that still holds the "before" rows. No integration test runs while a live
+  (decided by the agent in correction round 1, Follow-ups R3). A first reseed (task 7.0) clears the
+  "before" rows ahead of the "after" run, so that the CLI capture of D6 reaches the model instead of
+  the answer cache (the CLI has no `useCache` option, and `useCache: false` still saves); step 6 runs
+  against a database that still holds the "before" rows; the final reseed is task 8.3 (Follow-ups
+  R6). No integration test runs while a live
   `ask` is in flight (`docs/project-context.md`: the `query_log` insert locks the project row).
 - **Fallback:** if Ollama does not answer in task 1 or 7, the measurement becomes destination **C**
   (explicit debt): a Spanish checklist comment on DIS-104 and a Follow-ups line here; the code and
@@ -169,7 +173,9 @@ first. One event per answer is enough to notice the problem. Checking each state
 
 The pasted CLI output of `Probar con un modelo real` is replaced by the "after" output of
 `¿Qué hace DiscountService?` taken with the CLI (`npm run cli -- ask acme-shop "¿Qué hace DiscountService?"`
-with the same `LLM_*` environment), whatever its language, and one sentence in Spanish (the guide is
+with the same `LLM_*` environment) as the first call after the reseed of task 7.0, so it is a cache
+miss and a live `answer` call (a cache hit would carry no event and no model duration), whatever its
+language, and one sentence in Spanish (the guide is
 in Spanish) explains that an English
 answer to a Spanish question adds the `answer_language_mismatch` line. `Cómo se capturó` gains the date,
 model and duration of that capture. `tests/unit/docs/guides.spec.ts` keeps passing (it pins commands
@@ -193,12 +199,14 @@ adds no dependency or cross-module contract beyond one event type. A design deci
   Claims stored before keep their old hash in their provenance, which is correct (it is what was sent
   then).
 - [The live measurement takes long on CPU (seven `answer` calls of minutes each: 3 before, 3 after,
-  1 CLI capture, plus their `verify` calls, up to 20 each)] → `LLM_TIMEOUT_MS=1200000`; one question
+  1 CLI capture, live because it runs right after the reseed of task 7.0, plus their `verify` calls,
+  up to 20 each)] → `LLM_TIMEOUT_MS=1200000`; one question
   per task, each run in the background with `Monitor`; fallback D5.
 - [An English answer to a Spanish question is cached, and its repeats are served in English with no
   event] → Accepted (D3, Follow-ups R2): the event is on the call that reached the model, and the
   API request log keeps it.
-- [The live run mutates the author's local database] → Restored with `npm run db:seed`, checked with
+- [The live run mutates the author's local database] → Restored with `npm run db:seed` (once before
+  the "after" run, task 7.0, and once at the end, task 8.3), checked with
   `npm run verify` and the counts recorded in 0.4; baseline rows the reseed removes are listed in the
   step 8 report (Follow-ups R3).
 - [Mutation testing of the word lists] → Each list entry is a string literal Stryker can mutate; the
@@ -236,3 +244,13 @@ run 1"). *Agent's text: decided as lead engineer in an autonomous run, without t
 | R3 | Audit question 3: restoring the author's local database with `npm run db:seed` after both live runs is acceptable (the project's documented restore); acme-shop rows of the 0.4 baseline that it removes are listed in the step 8 report (D5, tasks 1.4, 8.4) | **A** — this change |
 | R4 | Audit I5: the module keeps the name `question-language.ts` (the ticket's reality-map names it; its one public concept is the language rule) | **D** — accepted, rename rejected |
 | R5 | Audit correction 18 (adding the D5 classification to AC5 of the ticket's `[enhanced]` section): not applied; D5 is the authority and the round's Linear comment records it | **D** — accepted |
+
+Decisions of spec-audit correction round 2 (report `reports/2026-10-26-spec-audit.md`, "Resolution of
+run 2"). *Agent's text: decided as lead engineer in an autonomous run, without the author.* Run 2
+asked no question for the author; these are the agent's choices in applying its findings.
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| R6 | Audit run 2 B1: the CLI capture for `docs/DEMO.md` would be a cache hit. A reseed is added before the "after" run (task 7.0) and the CLI capture becomes its first call (task 7.1), rather than adding a `--no-cache` option to the CLI, which would widen the scope of the ticket | **A** — this change |
+| R7 | Audit run 2 I1: evaluation mode in task 8.1 is reached with `LLM_BASE_URL=` and `LLM_API_KEY=` set empty in the command's environment, so the agent never reads `.env` | **A** — this change |
+| R8 | Audit run 2 I2: the all-uppercase exception of the rule applies only to tokens made only of letters; a token with a non-letter character is always code (`AÑO-2024 PÁGINA_1` gives no decision; spec, task 2.1) | **A** — this change |
