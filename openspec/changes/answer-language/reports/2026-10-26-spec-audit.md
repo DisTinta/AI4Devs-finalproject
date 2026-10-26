@@ -232,3 +232,193 @@ in a Spanish comment on DIS-104.* `openspec validate answer-language --strict` p
 | I9 Deferred restoration (correction 15) | Fixed in 1.4, 6.4, 8.4 and D5. |
 | Correction 17 (Linear comment) | Replaced by this round's Spanish comment on DIS-104, which summarises the blocking points and the agent's decisions. |
 | Correction 18 (edit AC5 of the ticket) | Rejected (R5): optional; D5 is the authority and the round's comment records the classification. |
+
+---
+
+## Run 2 (2026-10-26)
+
+CHANGES REQUIRED
+
+# Spec audit: `answer-language` (Linear DIS-104), run 2
+
+- Date: 2026-10-26
+- Change: `openspec/changes/answer-language/`. Read: `proposal.md`, `design.md`, `specs/explain/spec.md`, `tasks.md`, and `reports/2026-10-26-spec-audit.md` (run 1 and its resolution).
+- Ticket: DIS-104 and its 5 comments, loaded through the Linear MCP. DIS-104 has **no parent** (`parentId` empty; it is only `relatedTo` DIS-103). The reference is the ticket's own `[enhanced]` AC1-AC5.
+- Project inputs: `docs/base-standards.md`, `docs/openspec-tasks-mandatory-steps.md`, `docs/project-context.md` (LLM mode, line 41), `docs/AUTONOMOUS-RUN.md` §5 and `docs/adr/20261020-kit-autonomous-mode.md` (merge gate), `openspec/specs/explain/spec.md:477-524, 894-997`.
+- Real code checked: `packages/core/src/explain/prompt.ts`, `packages/core/src/explain/explain.ts:205-373`, `packages/core/src/cache/response-cache.ts:31-34`, `packages/adapters/store-postgres/src/postgres-store.ts:380-396`, `packages/cli/src/commands/ask.ts`, `scripts/load-env.mjs`, `scripts/env.mjs:102-104`, and the tests that use `COMO SE CALCULA…`.
+
+The round-1 decisions R1-R5, marked as the agent's text, are accepted. None of them contradicts the ticket or the project.
+
+## Questions for the author
+
+None. The one blocking finding is a process defect that the agent can fix inside the change.
+
+## 1. Scope against the ticket: clean
+
+Everything traces to DIS-104:
+- AC1: the Spanish prompt.
+- AC2: the generic prompt stays unchanged.
+- AC3: the detector.
+- AC4: the event.
+- AC5: the measurement.
+- Contexto técnico: `docs/DEMO.md`.
+
+The R1 all-caps rule and the R2/R3 decisions answer run-1 questions and stay within the ticket. Nothing to cut.
+
+## 2. Inherited acceptance criteria: not applicable (no parent); the ticket's own ACs are covered
+
+| AC | Requirement | Scenario |
+|---|---|---|
+| AC1 | Prompt and evidence ids | A Spanish question gets the explicit Spanish instruction |
+| AC2 | Prompt and evidence ids | An English or undecided question keeps the generic system message |
+| AC3 | Question and answer language | The language rule decides Spanish, English or nothing (superset of the AC's examples) |
+| AC4 | Question and answer language; Explain events and logging | An English answer…  is reported and still returned; No language event…; The language event follows… |
+| AC5 | none (process deliverable) | design D5, tasks 1.x and 7.x; see blocking finding B1 |
+
+## 3. Missing scenarios: clean
+
+Every MUST clause has a scenario:
+- the rule, both WHEN/THEN pairs;
+- the event, both the positive case and the five negative cases (Spanish answer, English question, cache hit, `no-evidence`, `broken-evidence`);
+- "otherwise unchanged": `persisted: true` and one cache save;
+- the codes-only payload;
+- the position of the event in the ordering;
+- the Spanish and the generic system message.
+
+I checked every example of the rule's scenario by hand against the rule, and all the stated results hold. Some examples:
+- `«¿Dónde se aplica el cupón?»` gives 5 Spanish signals.
+- `` the price `of `` leaves one English signal: `` `of `` holds a backtick, so it is code.
+- `[the] (of)` gives 2 English signals.
+
+## 4. Ambiguity: clean
+
+The only listed word left in the change is "however many statements cite it" (`specs/explain/spec.md:165`). It is copied unchanged from the main spec and is not vague. The "typed fast" of run 1 is gone.
+
+## 5. Open decisions
+
+- **B1 (blocking): the CLI capture in task 7.2 / design D6 is served from the answer cache, not from the model.**
+  - `npm run cli -- ask` calls `explain` without `useCache` (`packages/cli/src/commands/ask.ts:107`), and the CLI has no option to turn the cache off. So the cache is on.
+  - `useCache: false` still saves a cacheable answer (design D5 → State, `explain.ts:213-215`), and `saveCacheEntry` replaces the entry of its key (`postgres-store.ts:389-391`).
+  - So by task 7.2 the key of `¿Qué hace DiscountService?` holds the answer of 1.3a, replaced by the answer of 7.1a. The reseed is deferred to 8.3, so nothing clears it.
+  - The CLI "capture" is therefore a cache hit:
+    - `events: []`, so no `answer_language_mismatch` line;
+    - near-zero duration;
+    - no model call.
+  - This contradicts:
+    - D6, "the 'after' output … whatever its language", with the duration of that capture in `Cómo se capturó` (a live-model section of `docs/DEMO.md`);
+    - the call counts ("seven `answer` calls … 1 CLI capture") in `proposal.md` → Impact and in design Risks;
+    - task 10.1.
+
+  The implementer would have to decide alone whether a cache hit is acceptable, or how to force a live call.
+
+  **Correction:** clear the live rows before the "after" run, and make the CLI capture the first call of step 7:
+  1. add task 7.0: `npm run db:seed` and `npm run verify` exit `0`;
+  2. run the CLI capture (today's 7.2) before starting the API;
+  3. then run 7.1a-c, which use `useCache: false`, so the CLI's entry does not affect them.
+
+  Update D5 → State, D6 and tasks 1.4 / 6.4 to match: one reseed before step 7 and one in 8.3.
+
+## 6. Contradictions inside the change: one, part of B1
+
+The call count "seven `answer` calls (3 before, 3 after, 1 CLI capture)" (`proposal.md` → Impact, design Risks) is false today, because the CLI capture is a cache hit. It becomes true once B1 is applied. No other contradiction:
+- the proposal, D2/D3 and the delta agree on the message texts, the event placement, the cacheability (R2) and the ordering;
+- task 3.1 agrees with the delta's nine lines.
+
+## 7. Contradictions with the project: clean
+
+- The two MODIFIED requirements match `openspec/specs/explain/spec.md:477-524` and `:894-997` word for word, except for the added paragraph, the new event bullet, the order clause and the privacy sentence.
+- Task 12.7, where the agent merges through `gh pr merge <n> --merge`, is sanctioned for autonomous runs by `docs/AUTONOMOUS-RUN.md` §5 and `docs/adr/20261020-kit-autonomous-mode.md` (D4).
+- The base branch `final-project-CRN` and the branch name follow `docs/project-context.md`.
+
+## 8. Contrast with the real code
+
+- **D2 is consistent.** `EXPLAIN_SYSTEM_PROMPT` has eight lines and the fifth is `Answer in the language of the question.` (`prompt.ts:15-24`). `ExplainPrompt` is built only by `buildPrompt` (`prompt.ts:46-69`).
+- **D3 is consistent.** `events` is built at `explain.ts:354` and returned by `broken-evidence` at `:355`. `storedAnswer` and `unsavedAnswer` receive it at `:368` and `:371`. `unsavedAnswer` appends `claims_not_persisted` (`:464`). `finish` appends `answer_not_cached` and `query_not_logged` (`:221, 276-280`). The order in the delta holds.
+- **The cache claims hold.** `isCacheable` (`response-cache.ts:31-34`) makes an unsaved answer not cacheable, which matches the last scenario ("so no `answer_not_cached`"). It makes the `no-evidence` `UNKNOWN` cacheable, which is harmless to the scenario "No language event…" because its later steps use `useCache: false`.
+- **B1 (above)** concerns the CLI path: `packages/cli/src/commands/ask.ts:107` and `postgres-store.ts:389-391`.
+- **I1 (improvable): evaluation mode in task 8.1.**
+  - 8.1 says to start the API "in evaluation mode (no `LLM_*` variables)".
+  - `scripts/env.mjs:103` fills from `.env` every variable that is not already set, so a `LLM_BASE_URL` in the author's `.env` would put the API in live mode.
+  - In live mode, `¿Qué hace DiscountService?` would reach Ollama instead of answering `llm-required`.
+  - The agent may not read `.env`.
+  - Correction: "with `LLM_BASE_URL=` and `LLM_API_KEY=` set empty in the command's environment (an empty variable is kept over `.env`; both empty is evaluation mode, `docs/project-context.md:41`)".
+- **I2 (improvable): the code-token clause of the rule.** The sentence "A token that still holds a non-`\p{L}` character … or an uppercase letter after its first character … is code … unless every letter of the token is uppercase" can be read as applying the exception to both conditions. Under that reading:
+  - `PÁGINA_1` or `AÑO-2024` would count as Spanish signals;
+  - a token with no letter at all (`123`) would be vacuously "all uppercase".
+
+  D1 attaches the exception only to the uppercase condition. Write the spec the same way (see corrections).
+
+## 9. Task size: clean
+
+The live calls are one per task (1.3a-c, 7.1a-c) and run in the background with `Monitor`. Mutation testing has its own task (6.3). Tasks 4.1 (three scenario tests) and 5.1 (reading nine test files) fit in one turn.
+
+## 10. Mandatory steps
+
+- Step 0 is first and 0.1 is the branch. The required sections are present, labelled and in order:
+  - 5, review existing tests;
+  - 6, run tests and verify data state, with its report path;
+  - 8, manual interface testing, AGENT MUST EXECUTE, with error cases;
+  - 9, end-to-end, not applicable with a reason;
+  - 10, documentation;
+  - 12, pre-merge review, last, with the archive commit before the merge.
+- Mutating tasks restore state: one reseed in 8.3, re-checked against 0.4 in 8.4. B1 adds one reseed before step 7.
+- **I3 (improvable):** task 5.1 does not name `tests/integration/cli/seed-load.spec.ts:350`. That test sends the all-caps question, which is now `es` under R1. It is a cache hit in evaluation mode, so no prompt is built and nothing changes. Add it to the list for completeness.
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| Question and answer language (ADDED) | The language rule decides Spanish, English or nothing | 2.1, 2.2, 2.3 |
+| Question and answer language | An English answer to a Spanish question is reported and still returned | 4.1, 4.2 |
+| Question and answer language | No language event for a Spanish answer, an English question, a cache hit or an UNKNOWN | 4.1, 4.2 |
+| Prompt and evidence ids (MODIFIED) | Each span of the pack gets one evidence id in rank order | existing test (`tests/unit/explain/explain.spec.ts`); 5.1, 5.2 |
+| Prompt and evidence ids | The prompt hash covers the whole prompt | existing tests; 5.1, 5.2 |
+| Prompt and evidence ids | A change only in the omitted lines keeps the prompt hash | existing tests; 5.2 |
+| Prompt and evidence ids | A Spanish question gets the explicit Spanish instruction | 3.1, 3.2 |
+| Prompt and evidence ids | An English or undecided question keeps the generic system message | 3.1, 3.2 |
+| Explain events and logging (MODIFIED) | Explaining writes nothing to the console | existing tests; 5.2 |
+| Explain events and logging | Sanitisation events come first in every answer that reached the prompt | existing tests; 5.2 |
+| Explain events and logging | No sanitisation event without a prompt | existing tests; 5.2 |
+| Explain events and logging | Evidence broken events follow the sanitisation events and carry no content | existing tests; 5.2 |
+| Explain events and logging | Entailment unverified events follow the evidence broken events and carry no content | existing tests; 5.2 |
+| Explain events and logging | The language event follows the verification events and precedes the write events | 4.1, 4.2 |
+| (AC5, process) | none (not system behaviour) | 1.1-1.4, 7.1-7.3 (B1 affects 7.2) |
+| (Ticket: `docs/DEMO.md`) | none | 7.2, 10.1 (B1) |
+
+No empty row.
+
+## Corrections to apply
+
+### `openspec/changes/answer-language/tasks.md`
+
+1. **(B1)** Section 7. Add as the first item:
+
+   `- [ ] 7.0 Clear the live rows of step 1 before the "after" run: \`npm run db:seed\` (API stopped), then \`npm run verify\` exits \`0\`; the 1.3 results are already in the 1.4 report`
+
+   Then move today's 7.2 (CLI capture) before 7.1, with this wording:
+
+   `- [ ] 7.1 \`npm run cli -- ask acme-shop "¿Qué hace DiscountService?"\` with the \`LLM_*\` variables of 1.2 in the command's environment, in the background with \`Monitor\`, timed; it is the first call after the reseed, so a cache miss and a live \`answer\` call (check that the output is not a cache hit); keep the full output and the \`explain event\` lines for \`docs/DEMO.md\` (design D6)`
+
+   Then start the API (today's 7.1), run 7.1a-c with `useCache: false` as they are, and stop the API. Renumber the items and update the references in 7.3, 8.1, 9.1, 10.1 and 12.3.
+2. **(B1)** 1.4: replace "Restoration deferred to 8.3 (one reseed after both runs); step 6 runs against a database that still holds the 1.3 rows" with "The 1.3 rows are cleared by the reseed of 7.0 and the final state is restored in 8.3; step 6 runs against a database that still holds the 1.3 rows".
+3. **(I1)** 8.1: replace "with the API in evaluation mode (no `LLM_*` variables)" with "with the API in evaluation mode (`LLM_BASE_URL=` and `LLM_API_KEY=` set empty in the `npm run dev` command's environment: an empty variable is kept over `.env`, and both empty is evaluation mode)".
+4. **(I3)** 5.1: add `tests/integration/cli/seed-load.spec.ts` ("COMO SE CALCULA…", an evaluation-mode cache hit, no prompt built).
+
+### `openspec/changes/answer-language/design.md`
+
+5. **(B1)** D5 → State: replace "The reseed is deferred to after both runs, so step 6 runs against a database that still holds the "before" rows." with "A first reseed (task 7.0) clears the "before" rows ahead of the "after" run, so that the CLI capture of D6 reaches the model instead of the answer cache (the CLI has no `useCache` option, and `useCache: false` still saves); step 6 runs against a database that still holds the "before" rows; the final reseed is task 8.3."
+6. **(B1)** D6: after "taken with the CLI", add "as the first call after the reseed of task 7.0, so it is a cache miss and a live `answer` call (a cache hit would carry no event and no model duration)".
+7. **(B1)** Risks → "The live run mutates the author's local database": "Restored with `npm run db:seed` (once before the "after" run, task 7.0, and once at the end, 8.3)…".
+
+### `openspec/changes/answer-language/specs/explain/spec.md`
+
+8. **(I2)** Requirement "Question and answer language", second bullet. Replace it with: "A token that still holds a character that is not a Unicode letter (`\p{L}`) (`::`, `_`, `.`, `/`, `-`, a digit, a backtick) is code and SHALL NOT count. A token made only of letters is code and SHALL NOT count when it has an uppercase letter after its first character (`DiscountService`), unless every one of its letters is uppercase (`COMO`), in which case it is a word. Every token that counts SHALL be compared in lowercase." Optionally, add `AÑO-2024` → no decision to the second WHEN/THEN pair of the rule's scenario, and to task 2.1.
+
+### `openspec/changes/answer-language/proposal.md`
+
+9. **(B1)** What Changes → measured comparison and Impact → Live measurement: add "the CLI capture of `docs/DEMO.md` runs right after a reseed, so it is a live call and not a cache hit".
+
+### Linear DIS-104 (Spanish; never edit the `[original]` block)
+
+10. Comment:
+    > **Auditoría de la spec, ronda 2 (spec-auditor, 2026-10-26): CHANGES REQUIRED, 1 punto bloqueante.** La captura de la CLI para `docs/DEMO.md` (tarea 7.2, design D6) saldría de la caché de respuestas y no del modelo: la CLI no tiene `useCache: false` y las llamadas 1.3a y 7.1a ya guardan la respuesta de `¿Qué hace DiscountService?`. Así no tendría el evento `answer_language_mismatch` ni la duración real. Se corrige en el propio change con un `npm run db:seed` antes de la tanda «después» (tarea 7.0) y con la captura de la CLI como primera llamada tras el reseed. Mejoras menores: modo evaluación de la tarea 8.1 con `LLM_BASE_URL=` y `LLM_API_KEY=` vacías en el entorno, redacción de la excepción de mayúsculas en la regla de idioma y un test más en la lista de la 5.1. Las decisiones R1-R5 de la ronda 1 se aceptan.
