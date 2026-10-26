@@ -42,8 +42,9 @@ el aviso solo llega al agente: pregúntale al empezar.
   `bunx` y un `npx` que tendría que descargar se deniegan; `npx vitest run` (binario ya instalado)
   pasa. Otros gestores (`pip`, `composer`…) se deniegan.
 - **Artefactos de OpenSpec, tests existentes, doctrina y migraciones:** en una ejecución autónoma, los
-  artefactos del cambio activo se pueden reescribir antes de la primera auditoría y, después, solo si
-  la última auditoría es `APPROVED`. Un test existente solo se puede cambiar si `tasks.md` lo nombra o
+  artefactos del cambio activo se pueden reescribir antes de la primera auditoría, si la última
+  auditoría es `APPROVED` y en las rondas de corrección tras una auditoría `CHANGES REQUIRED` (como
+  mucho `AUTONOMOUS_AUDIT_ROUNDS` rondas, 5 por defecto; ver la sección 6). Un test existente solo se puede cambiar si `tasks.md` lo nombra o
   si lo creó la propia rama. La doctrina del kit y las migraciones ya versionadas no se tocan.
 - **Puerta de merge:** ver la sección 5.
 - **Lecturas de secretos:** `.env` y similares siguen denegados, también a través de `Grep` y `Glob` (en Cursor, `Grep`), en los dos modos.
@@ -130,6 +131,7 @@ ADR y en la nota de parche local de `docs/project-context.md`.
 | §3, regla 4 | Un test no se modifica para que pase | Solo se editan tests nombrados en `tasks.md` o creados en la rama |
 | §3, regla 8 | El «porqué» de PR y ADR lo escribe una persona | Lo escribe el agente y lo marca como texto suyo |
 | §3, regla 9 | Los merges los firma una persona | El agente hace merge a través de la puerta de merge |
+| §7.1, punto 3 | Tras una auditoría `CHANGES REQUIRED`, las decisiones de producto o de alcance las toma la autora | El agente las toma como lead engineer en una ronda de corrección (sección 6), las marca como suyas y las deja en `design.md` → Follow-ups y en el ticket; la nueva auditoría las revisa |
 | `docs/openspec-tasks-mandatory-steps.md` §3, Pre-merge Review, punto 5 | El agente nunca hace merge | El agente hace merge después del commit de archivo, a través de la puerta |
 
 ## 3. El perfil autónomo de Claude Code
@@ -274,9 +276,30 @@ Lo que el script del workflow y cada agente cumplen en una ejecución autónoma.
 que `.cursor/rules/20-openspec.mdc` (punto 9).
 
 **Pasos por ticket**, cada uno en un subagente nuevo: `/enrich-us` → `/opsx:propose` → `spec-auditor`
-→ `/opsx:apply` en TDD → PR → `/show-spec-working`, `/verify-against-spec` y `/adversarial-review` →
-correcciones en el mismo PR → `/opsx:archive` → merge. **Modelos:** Opus en los pasos de juicio
-(enriquecer, proponer, auditar, revisar), Sonnet en los mecánicos.
+→ rondas de corrección hasta `APPROVED` → `/opsx:apply` en TDD → PR → `/show-spec-working`,
+`/verify-against-spec` y `/adversarial-review` → correcciones en el mismo PR → `/opsx:archive` →
+merge. **Modelos:** Opus en los pasos de juicio (enriquecer, proponer, auditar, corregir la
+auditoría, revisar), Sonnet en los mecánicos.
+
+**Rondas de corrección de la auditoría.** Una auditoría `CHANGES REQUIRED` no para el ticket: abre una
+ronda de corrección, como en `docs/base-standards.md` §7.1, punto 3, pero sin la autora.
+
+1. Un subagente nuevo (Opus) lee el informe y responde cada pregunta para la autora como lead
+   engineer: elige la opción que mejor cumple el ticket y, ante la duda, la que menos amplía el
+   alcance; la marca como texto suyo y la deja
+   en `design.md` → Follow-ups (con su destino A/B/C/D) y en un comentario del ticket.
+2. Aplica las «Corrections to apply» a los artefactos del cambio (`/opsx:update` o una edición
+   equivalente) y cierra el informe con una sección que dice, por hallazgo, cómo se resolvió:
+   corregido, rechazado con el motivo o decidido por el agente.
+3. Un `spec-auditor` nuevo, sin el contexto de la ronda, audita el cambio entero. Su informe se guarda
+   como un fichero nuevo (`<fecha>-spec-audit-<n>.md`) y su veredicto es el que cuenta.
+
+El hook `protect-specs-and-tests` deja reescribir los artefactos mientras el número de veredictos
+`CHANGES REQUIRED` del cambio no pase de `AUTONOMOUS_AUDIT_ROUNDS` (en `.claude/sdd-harness.env`; 5
+si no está, y 0 si no es un número entero). Es un techo, no un número fijo: en cuanto una auditoría
+sale `APPROVED` no hay más rondas. En los cambios archivados hasta el 26-10-2026, 16 de 17 se
+aprobaron en 5 rondas o menos. La puerta del `spec-auditor` sigue sin dejar escribir código ni tests
+hasta `APPROVED`. Una auditoría `CHANGES REQUIRED` después de la última ronda sí para el ticket.
 
 **Reglas:**
 
@@ -305,8 +328,8 @@ correcciones en el mismo PR → `/opsx:archive` → merge. **Modelos:** Opus en 
 **Paradas limpias** (ticket a *In Review* con un comentario en español; los tickets independientes
 siguen):
 
-- una auditoría `CHANGES REQUIRED`: en una ejecución autónoma los artefactos ya auditados no se
-  pueden reescribir, así que el ticket vuelve a la autora con el informe de la auditoría;
+- una auditoría `CHANGES REQUIRED` después de la última ronda de corrección: el hook ya no deja
+  reescribir los artefactos, así que el ticket vuelve a la autora con los informes de las auditorías;
 - la CI en rojo después de 2 correcciones;
 - un conflicto de merge;
 - el límite de uso;

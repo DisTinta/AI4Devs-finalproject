@@ -106,7 +106,13 @@ if unattended; then
           if [[ -z "$VERDICT" || "$VERDICT" == "APPROVED" ]]; then
             allow "Active change ${CHANGE}: no spec audit yet (propose) or latest verdict APPROVED."
           fi
-          deny "Unattended run: the spec audit has not approved the change ${CHANGE} (latest verdict: ${VERDICT}). The ticket must stop cleanly; the author applies or approves the fixes."
+          # A CHANGES REQUIRED audit opens a correction round, then the auditor runs again; after the
+          # last round the ticket stops cleanly.
+          FAILED=$(failed_audits "$CHANGE"); ROUNDS=$(audit_rounds)
+          if [[ "$VERDICT" == "CHANGES REQUIRED" ]] && (( FAILED <= ROUNDS )); then
+            allow "Active change ${CHANGE}: correction round ${FAILED} of ${ROUNDS} after a CHANGES REQUIRED spec audit. Apply its corrections, close the report with how each finding was resolved and run the spec-auditor again."
+          fi
+          deny "Unattended run: the spec audit has not approved the change ${CHANGE} (latest verdict: ${VERDICT}) after ${ROUNDS} correction rounds. The ticket must stop cleanly; the author applies or approves the fixes."
           ;;
         openspec/specs/*/spec.md)
           CAP="${REL#openspec/specs/}"; CAP="${CAP%/spec.md}"

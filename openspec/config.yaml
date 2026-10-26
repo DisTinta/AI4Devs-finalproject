@@ -61,7 +61,7 @@ rules:
     - Include TDD red→green→refactor where behaviour changes.
     - BRANCH_PREFIX in .claude/sdd-harness.env must match the branch naming in step 0.
     - Last step, always - Pre-merge Review (MANDATORY - AGENT MUST EXECUTE) - with the PR open, run /show-spec-working, /verify-against-spec and /adversarial-review in that order; fix findings in this change and commit them to the same PR; then /opsx:archive and commit it to the same PR; the author merges after that (docs/openspec-tasks-mandatory-steps.md, Pre-merge Review).
-    - Once tasks.md is written (the last artifact of the propose), run the spec-auditor subagent over the whole change, save its full report as reports/<YYYY-MM-DD>-spec-audit.md, on CHANGES REQUIRED apply its corrections to the artifacts (product or scope decisions go to the author; no new issues or tasks), close the report with how each finding was resolved and re-run the auditor; only present the change as ready on an APPROVED verdict (docs/base-standards.md §7.1).
+    - Once tasks.md is written (the last artifact of the propose), run the spec-auditor subagent over the whole change, save its full report as reports/<YYYY-MM-DD>-spec-audit.md, on CHANGES REQUIRED apply its corrections to the artifacts (product or scope decisions go to the author, or in an autonomous run are taken by the agent as lead engineer in a correction round, docs/AUTONOMOUS-RUN.md §6; no new issues or tasks), close the report with how each finding was resolved and re-run the auditor; only present the change as ready on an APPROVED verdict (docs/base-standards.md §7.1).
 
 # Optional operation guidance (OpenSpec apply / archive)
 operations:

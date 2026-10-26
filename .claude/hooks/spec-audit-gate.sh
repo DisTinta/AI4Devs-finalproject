@@ -66,6 +66,10 @@ if unattended; then
   VERDICT=$(latest_verdict "$CHANGE")
   [[ "$VERDICT" == "APPROVED" ]] && done_ok
   if [[ "$VERDICT" == "CHANGES REQUIRED" ]]; then
+    # In an autonomous run the artifacts get a correction round first (protect-specs-and-tests.sh).
+    if autonomous_run && (( $(failed_audits "$CHANGE") <= $(audit_rounds) )); then
+      deny "Spec audit gate (autonomous run): the latest spec audit of '${CHANGE}' is CHANGES REQUIRED. No code or test is written yet: apply its corrections to the change's artifacts in a correction round, close the report with how each finding was resolved and run the spec-auditor again."
+    fi
     deny "Spec audit gate (unattended run): the latest spec audit of '${CHANGE}' is CHANGES REQUIRED, so the ticket stops cleanly here. The author applies or approves the fixes; no code is written until the verdict is APPROVED."
   fi
   # A report exists but holds no readable verdict line (none, or only inside fenced code blocks).
