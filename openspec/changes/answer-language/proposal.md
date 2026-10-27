@@ -35,8 +35,11 @@ Out of scope (non-goals):
 
 - Translating the answer or calling the model again when it answers in another language.
 - Languages other than Spanish and English, and any language-detection dependency.
-- Changing the default model, the golden answers or the answer cache (its key is the normalized
-  question, not the prompt hash, so the golden answers keep being served).
+- Changing the default model or the answer cache (its key is the normalized question, not the prompt
+  hash, so the golden answers keep being served). The golden answers themselves are regenerated, not
+  by choice: `prompt.ts` and, after the pre-merge review, `question-language.ts` are inputs of the
+  answer fingerprint, so `npm run verify` fails until `npm run cache:build` runs again (design
+  Follow-ups A1 and V1; agent's text, autonomous run).
 - Showing the event in the public API response or in the web.
 
 ## Capabilities
@@ -51,12 +54,19 @@ None.
   question detected as Spanish (the generic one stays for the rest); a new requirement "Question and
   answer language" fixes the detection rule and the `answer_language_mismatch` check; the requirement
   "Explain events and logging" adds that event to `ExplainEvent` and to the order of the events.
+- `golden-answers`: the requirement "Golden answer fingerprint" adds
+  `packages/core/src/explain/question-language.ts` to its declared inputs, since the rule chooses the
+  system message of every golden question (added by the pre-merge review, design Follow-ups V1;
+  agent's text, autonomous run).
 
 ## Impact
 
-- Code: `packages/core/src/explain/` only — a new pure module for the language rule, `prompt.ts`
-  (choice of system message), `explain-event.ts` (new event type), `explain.ts` (the check). No port,
+- Code: `packages/core/src/explain/` — a new pure module for the language rule, `prompt.ts`
+  (choice of system message), `explain-event.ts` (new event type), `explain.ts` (the check) — and one
+  line of `packages/cli/src/cache/answer-fingerprint.ts` (the rule as a fingerprint input). No port,
   adapter, Zod schema or route changes; no migration; no new dependency.
+- Data: `seeds/cache/acme-shop.json` regenerated with `npm run cache:build` (design Follow-ups A1, V1),
+  with the agent's review in `docs/golden-review/`.
 - Tests: new unit tests for the rule, the prompt and the event; existing tests are expected to stay as
   they are (named in `tasks.md`).
 - Docs: `docs/DEMO.md` (`Probar con un modelo real`), `docs/project-context.md` (the event list of

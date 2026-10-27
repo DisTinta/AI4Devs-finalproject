@@ -195,7 +195,9 @@ adds no dependency or cross-module contract beyond one event type. A design deci
 - [The 7B model ignores even the explicit instruction] → The event makes it visible in the logs and
   the report says the cause is the model; changing the model is out of scope (D).
 - [Prompt hashes of Spanish questions change] → Expected and covered by the spec (the hash is over
-  what is sent). The golden cache is keyed by the normalized question, so no golden answer moves.
+  what is sent). The golden cache is keyed by the normalized question, so the golden answers keep
+  being served; but `prompt.ts` and `question-language.ts` are answer fingerprint inputs, so the golden
+  file is regenerated in this change (Follow-ups A1, V1).
   Claims stored before keep their old hash in their provenance, which is correct (it is what was sent
   then).
 - [The live measurement takes long on CPU (seven `answer` calls of minutes each: 3 before, 3 after,
@@ -228,7 +230,7 @@ findings here.
 | E1 | Explicit Spanish instruction only for questions detected as Spanish; English and undecided questions keep the prompt byte for byte (D1, D2) | **A** — this change |
 | E2 | Code-only event `answer_language_mismatch`; the answer is still returned (D3) | **A** — this change |
 | E3 | Measured comparison on the local Ollama, 3 Spanish questions × current/new prompt, report in `reports/` (D5) | **A** — this change; **C** only if Ollama does not answer (D5 fallback) |
-| E4 | Golden answers and the answer cache are not touched: the cache key is the normalized question | **D** — accepted, no work needed |
+| E4 | The answer cache is not touched: the cache key is the normalized question. The golden answers were expected not to move; superseded by A1 and V1 (the golden file is regenerated because `prompt.ts` and `question-language.ts` are answer fingerprint inputs) | **D** — accepted for the cache; golden answers: see A1, V1 |
 | E5 | Translating or retrying the answer, other languages, changing the default model, showing the event in the public API or the web | **D** — ticket non-goals |
 | E6 | `docs/DEMO.md` output replaced by the measured one (D6) | **A** — this change |
 | P1 | The statements' texts are not checked for language (D4) | **D** — accepted |
@@ -261,7 +263,22 @@ run, without the author.*
 
 | Id | Decision or finding | Destination |
 |---|---|---|
-| A1 | Finding: `packages/core/src/explain/prompt.ts` is an input of the answer fingerprint (`ANSWER_FINGERPRINT_FILES`), so editing it stales `seeds/cache/acme-shop.json` and `npm run verify` (and the CI `verify` job) fails with `FINGERPRINT_MISMATCH` (`reason: golden`) until `npm run cache:build` is run again (ADR 20261017-stale-fingerprint-fails-verify). Design D2 and the Risks section said no golden answer moves: the cache key is unchanged, but the golden file is out of date. Decision: regenerate it with `npm run cache:build` on the local Ollama and commit it, as the policy requires (Q1, Q3 and Q4 are Spanish questions, so their golden answers are now generated with the Spanish prompt); the agent reviews the three regenerated entries as DIS-34 did and the author signs a sample later | **A** — this change |
+| A1 | Finding: `packages/core/src/explain/prompt.ts` is an input of the answer fingerprint (`ANSWER_FINGERPRINT_FILES`), so editing it stales `seeds/cache/acme-shop.json` and `npm run verify` (and the CI `verify` job) fails with `FINGERPRINT_MISMATCH` (`reason: golden`) until `npm run cache:build` is run again (ADR 20261017-stale-fingerprint-fails-verify). Design D2 and the Risks section said no golden answer moves: the cache key is unchanged, but the golden file is out of date. Decision: regenerate it with `npm run cache:build` on the local Ollama and commit it, as the policy requires (Q1, Q3 and Q4 are Spanish questions, so their golden answers are now generated with the Spanish prompt); the agent reviews the three regenerated entries as DIS-34 did (regenerated again by V1); the author's signature is V7 | **A** — this change (signature: V7, **B**) |
 | A2 | Finding: the author's Ollama on `localhost:11434` cannot load the model on this machine (CUDA error), and its default context (4096) makes every answer `invalid-model-output`. The measurement and the golden build use a second CPU-only instance on port 11435 with `OLLAMA_CONTEXT_LENGTH=16384` (the DIS-72 gotcha); the author's server is untouched | **D** — accepted, recorded in the measurement report |
 | A3 | Round 3 optional improvements: `\s` is the JavaScript whitespace class (it is what the code uses); the text is not normalised to NFC, so a decomposed accent makes its token code (pinned by a test) | **D** — accepted |
 | A4 | Mutation run: `question-language.ts` scored 86.61 before three extra tests (backtick tail read once, capital letters); the survivors left are equivalent mutants of the loop bounds of `stripEdges` and of `split(/\s+/)` against `split(/\s/)` (an empty token counts for nothing) | **D** — accepted |
+
+Findings of the pre-merge review (reports `2026-10-27-show-spec-working.md`,
+`2026-10-27-verify-against-spec.md`, `2026-10-27-adversarial-review.md`). *Agent's text: decided as lead
+engineer in an autonomous run, without the author.*
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| V1 | Major: `question-language.ts` chooses the system message of every golden question but was not an answer fingerprint input, so a later edit of the rule would leave `verify` green on golden answers made with another prompt. It is added to `ANSWER_FINGERPRINT_FILES` through a delta of the `golden-answers` spec ("Golden answer fingerprint", twelve files), `tests/unit/cache/answer-fingerprint.spec.ts` follows, and the golden file is regenerated and reviewed again (tasks 12.6a-12.6d). Fixing it later would need the same regeneration, so it is done while the golden file is already being replaced | **A** — this change |
+| V2 | Major: `docs/DEMO.md` pasted the evaluation-mode output of the pre-DIS-104 golden Q1 (Paso 1, Paso 2, Paso 5, web items 8-9). Recaptured after V1 (task 12.6e) | **A** — this change |
+| V3 | Minor: `docs/DEMO.md` → `Probar con un modelo real` gave the DIS-103 duration under the DIS-104 CLI output and did not say the `demo:ask` block is the DIS-103 capture | **A** — this change |
+| V4 | Minor: proposal non-goals, design E4 and Risks still said the golden answers do not move | **A** — this change |
+| V5 | Minor: `fixtures/README.md` linked only the DIS-34 golden review | **A** — this change |
+| V6 | Minor: a noise assertion (`expect(ClaimWriteFailed).toBeDefined()`) in `tests/unit/explain/explain-language.spec.ts` | **A** — this change |
+| V7 | Question: the author's signature of the regenerated golden answers (A1, V1) is a human action this PR cannot do; it stays in the review report ("needs the author's") and in a hand-off comment on DIS-104 | **B** — hand-off comment on DIS-104 |
+| V8 | The "after" half of the measurement read no event from the API log (not captured); the event through both transports is shown by the show-spec-working run with a scripted model and by the live CLI capture of task 7.1 | **D** — accepted |

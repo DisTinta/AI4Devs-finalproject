@@ -20,6 +20,7 @@ variable ya definida en la terminal gana sobre `.env`.
 | Node / npm | v24.11.1 / 11.19.0 (el proyecto necesita Node 20.11 o posterior; la CI usa Node 20) |
 | LLM | ninguno: **modo evaluación**, todas las variables `LLM_*` vacías |
 | Base de datos | una base de datos nueva y vacía (ver el paso 0) |
+| Respuestas golden (pasos 1, 2 y 5; web, puntos 8 y 9) | recapturadas el 2026-10-27 en la rama `feature/dis-104-answer-language` (Git Bash, modo evaluación, base de datos local recién sembrada con `npm run db:seed`), porque DIS-104 regeneró las respuestas golden: la salida de `ask` del paso 1, los recuentos y latencias de `demo:ask` de los pasos 1 y 5 y el valor de confianza de la web. El resto de la guía es de la captura de 2026-10-20 |
 | `Probar con un modelo real` | 2026-10-20, rama `feature/DIS-103-real-model-clean-clone` clonada en una carpeta nueva, Git Bash: Ollama 0.40.5 **solo en CPU**, `qwen2.5-coder`, `OLLAMA_CONTEXT_LENGTH=16384`, `LLM_TIMEOUT_MS=1200000`. Duraciones medidas: CLI 8 min 28 s; API 300,9 s (pregunta repetida con la caché desactivada); web en Chromium 597,7 s (otra pregunta, «¿Qué hace ShippingService?»). La salida de la CLI pegada en esa sección es de otra captura, la de DIS-104 (2026-10-26, rama `feature/dis-104-answer-language`, Git Bash, Ollama 0.40.11 solo en CPU con `OLLAMA_CONTEXT_LENGTH=16384`, `qwen2.5-coder`, `LLM_TIMEOUT_MS=1200000`, primera llamada tras `npm run db:seed`, así que no salió de la caché): 598 s, con la salida de error mezclada como en las anteriores |
 
 Los únicos cambios hechos a la salida pegada:
@@ -234,16 +235,22 @@ npm run cli -- ask acme-shop "¿Cómo se calcula el precio final de un pedido?"
 > codemind@0.0.1 cli
 > tsx --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts ask acme-shop ¿Cómo se calcula el precio final de un pedido?
 
-El precio final de un pedido se calcula mediante el método `compute()` en la clase `PriceCalculator`. Este método toma en cuenta el subtotal, realiza descuentos, agrega impuestos y envío, y devuelve el total final. El descuento y la tax se aplican en ese orden específico.
+El precio final de un pedido se calcula mediante el método `compute` de la clase `PriceCalculator`. Este método considera el subtotal, los descuentos aplicados, las tarifas de impuesto y el costo de envío. La logica principal de este proceso se encuentra en el archivo `app/Services/PriceCalculator.php`.
 
 statements:
-1. [FACT] El método `compute()` en la clase `PriceCalculator` es el encargado de calcular el precio final de un pedido.
+1. [FACT] El método `compute` de la clase `PriceCalculator` calcula el precio final de un pedido.
    evidence: app/Services/PriceCalculator.php:16-44
-2. [FACT] Primero se aplica el descuento al subtotal.
+2. [INFERENCE] El subtotal del pedido se obtiene desde el atributo `subtotal` del objeto `Order`.
+   evidence: app/Models/Order.php:19-57
+3. [FACT] Los descuentos se aplican al subtotal usando el método `discountFor` de la clase `DiscountService`.
    evidence: app/Services/PriceCalculator.php:16-44
-3. [INFERENCE] Luego se calcula el impuesto sobre el valor descontado.
+4. [INFERENCE] Las tarifas de impuesto se calculan sobre el monto exensible (taxable base), que es el subtotal menos los descuentos, usando el método `taxFor` de la clase `TaxService`.
+   evidence: app/Support/Money.php:14-75, app/Services/PriceCalculator.php:16-44
+5. [INFERENCE] El costo de envío se calcula sobre el monto exensible usando el método `shippingFor` de la clase `ShippingService`.
+   evidence: tests/Unit/DiscountServiceTest.php:44-56, app/Listeners/RecordDiscountAudit.php:16-22
+6. [INFERENCE] El monto exensible es el resultado de sustraer los descuentos del subtotal.
    evidence: app/Services/PriceCalculator.php:16-44
-4. [INFERENCE] Finalmente se suman el impuesto y el envío al valor descontado para obtener el precio final.
+7. [INFERENCE] El monto final se calcula sumando el subtotal neto (taxable base), las tarifas de impuesto y el costo de envío.
    evidence: app/Services/PriceCalculator.php:16-44
 
 evidence:
@@ -254,7 +261,39 @@ app/Services/PriceCalculator.php:16-44
             private readonly DiscountService $discounts,
             private readonly TaxService $taxes,
     … (+24 lines)
+app/Models/Order.php:19-57
+    class Order extends Model
+    {
+        use HasFactory;
+
+        protected $fillable = ['customer_id', 'status', 'coupon_code', 'shipping_country'];
+    … (+34 lines)
+app/Support/Money.php:14-75
+    final class Money
+    {
+        private function __construct(
+            public readonly int $cents,
+            public readonly string $currency = 'EUR',
+    … (+57 lines)
+tests/Unit/DiscountServiceTest.php:44-56
+        public function test_volume_bonus_applies_above_five_lines(): void
+        {
+            Event::fake();
+            $coupons = Mockery::mock(CouponValidator::class);
+            $coupons->shouldReceive('percentFor')->andReturn(0.0);
+    … (+8 lines)
+app/Listeners/RecordDiscountAudit.php:16-22
+        public function handle(DiscountApplied $event): void
+        {
+            Log::info('discount.applied', [
+                'order_id' => $event->order->id,
+                'amount' => $event->amount->amount(),
+    … (+2 lines)
 ```
+
+Es una respuesta *golden*, generada por un modelo de 7B y revisada (`docs/golden-review/`): las
+afirmaciones `INFERENCE` son las que el sistema no pudo comprobar del todo, y la 5 cita fragmentos que
+no la respaldan. El sistema no la oculta: la marca como inferencia.
 
 La CLI no imprime el uso de tokens; la API sí. `npm run demo:ask` envía la pregunta a
 `POST /api/projects/{projectId}/ask` (el id es el que imprimió `projects`) y muestra el estado HTTP,
@@ -272,8 +311,8 @@ npm run demo:ask -- a794456d-6d1b-5b55-a360-13fec83dc7bc "¿Cómo se calcula el 
 
 HTTP 200
 {
-  "statements": 4,
-  "evidence": 4,
+  "statements": 7,
+  "evidence": 9,
   "usage": {
     "inputTokens": 0,
     "outputTokens": 0,
@@ -281,7 +320,7 @@ HTTP 200
     "baselineEstimator": "chars-div-4",
     "savingsPct": 100,
     "costUsd": 0,
-    "latencyMs": 66,
+    "latencyMs": 52,
     "cacheHit": true,
     "generation": {
       "inputTokens": 0,
@@ -308,7 +347,7 @@ HTTP 200
 
 ## Paso 2 — Abrir una evidencia
 
-Todas las afirmaciones de arriba citan `app/Services/PriceCalculator.php:16-44`. La cita es relativa a
+Cinco de las siete afirmaciones de arriba citan `app/Services/PriceCalculator.php:16-44`. La cita es relativa a
 la raíz del proyecto de muestra, `fixtures/acme-shop`; `npm run demo:excerpt` imprime esas líneas del
 fichero:
 
@@ -409,8 +448,8 @@ npm run demo:ask -- a794456d-6d1b-5b55-a360-13fec83dc7bc "¿Cómo se calcula el 
 
 HTTP 200
 {
-  "statements": 4,
-  "evidence": 4,
+  "statements": 7,
+  "evidence": 9,
   "usage": {
     "inputTokens": 0,
     "outputTokens": 0,
@@ -418,7 +457,7 @@ HTTP 200
     "baselineEstimator": "chars-div-4",
     "savingsPct": 100,
     "costUsd": 0,
-    "latencyMs": 26,
+    "latencyMs": 28,
     "cacheHit": true,
     "generation": {
       "inputTokens": 0,
@@ -451,8 +490,8 @@ npm run demo:ask -- a794456d-6d1b-5b55-a360-13fec83dc7bc "como se calcula el pre
 
 HTTP 200
 {
-  "statements": 4,
-  "evidence": 4,
+  "statements": 7,
+  "evidence": 9,
   "usage": {
     "inputTokens": 0,
     "outputTokens": 0,
@@ -460,7 +499,7 @@ HTTP 200
     "baselineEstimator": "chars-div-4",
     "savingsPct": 100,
     "costUsd": 0,
-    "latencyMs": 26,
+    "latencyMs": 28,
     "cacheHit": true,
     "generation": {
       "inputTokens": 0,
@@ -557,7 +596,7 @@ wireframes de `readme.md` §1.3 (`images/pantalla-1-seleccion.svg`, `images/pant
 8. «Evidencia»: una entrada por cita, «ev-1 · app/Services/PriceCalculator.php:16-44». Al pulsarla (o
    con Intro o Espacio) se despliega el mismo fragmento que imprimió `npm run demo:excerpt` en el
    paso 2; al pulsarla otra vez se pliega.
-9. Debajo, el panel de uso: «Confianza» con su valor (0.78 en la captura), los tokens («0 tokens»), el
+9. Debajo, el panel de uso: «Confianza» con su valor (0.71 con las respuestas golden de DIS-104), los tokens («0 tokens»), el
    coste («$0»), la latencia en milisegundos, «ahorro 100 % vs bruto», «caché ✓» y la línea base («7 123
    tokens sin selección de contexto → 0 con CODEMIND»). En modo evaluación todas las preguntas sugeridas son aciertos de caché.
 10. Una pregunta libre escrita en el campo, como «¿Qué hace ShippingService con los pedidos
@@ -735,7 +774,7 @@ las afirmaciones en español). Cuando la respuesta del modelo a una pregunta en 
 la última línea JSON (`answer_language_mismatch`) lo avisa en el registro; la respuesta se devuelve tal
 cual y el aviso no sale en la respuesta pública de la API ni en la web.
 
-En la captura (Ollama en CPU) tardó 8 min 28 s. La respuesta generada en vivo cambia de una
+En la captura (Ollama en CPU) tardó 598 s (casi 10 minutos). La respuesta generada en vivo cambia de una
 ejecución a otra: el texto, las afirmaciones y sus evidencias no tienen por qué coincidir con estas.
 Una afirmación que el modelo no pudo comprobar aparece como `INFERENCE` y deja un evento
 `entailment_unverified` en stderr. La respuesta queda guardada en la caché de la base de datos.
@@ -782,7 +821,8 @@ HTTP 200
 ```
 
 Como la CLI acaba de guardar esa respuesta, la API la sirve desde la caché al instante
-(`"cacheHit": true`, 0 tokens). Una pregunta nueva por la API va al modelo y, como por la CLI, tarda
+(`"cacheHit": true`, 0 tokens). Esta salida es de la captura anterior (DIS-103, 2026-10-20), cuya
+respuesta por la CLI tenía dos afirmaciones; con la respuesta de arriba, los recuentos son los suyos. Una pregunta nueva por la API va al modelo y, como por la CLI, tarda
 minutos: en la captura, la misma pregunta con la caché desactivada tardó 300,9 s por la API
 (`"cacheHit": false`, 6 591 tokens de generación y 9 llamadas de verificación).
 

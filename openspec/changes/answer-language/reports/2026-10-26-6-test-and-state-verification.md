@@ -74,3 +74,14 @@
 
 - Status: PASS
 - Blocking issues: none
+
+## Addendum: CI of the PR (task 12.2, 2026-10-27)
+
+- PR #68, head `b287a78`: workflow `CI`, run
+  [40422354715](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/40422354715), `success`
+  (it waited queued for a runner; the earlier run 40422316168 was cancelled by the newer push), and
+  `Frontend` run 40422354744 `success`.
+- The review fixes (design Follow-ups V1-V6) are a new head of PR #68; its CI runs are on the PR's
+  checks. Local run before that push: `npx vitest run` with the test database, 196 files and 2037 tests
+  passed; `npm run lint`, `npm run typecheck`, `npm run docs:coverage` exit 0; `npm run lint:architecture`
+  0 errors (3 warnings).

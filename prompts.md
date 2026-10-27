@@ -5132,3 +5132,27 @@ vez de dejar el `verify` en rojo (queda su revisión del agente y la muestra par
 `docs/golden-review/`); no normalizar a NFC; y aceptar los mutantes equivalentes de los bucles de la regla.
 Resultado de la medición: no se reproduce con el prompt actual en 2 de 3 preguntas, así que el evento, que
 sí salió con el modelo real, es la parte con evidencia viva.
+
+### Prompt 3 — Revisión previa al merge dentro del workflow autónomo
+
+El script del workflow envió a este paso, entre otras reglas, este texto literal:
+
+```
+Ticket: DIS-104. Branch: feature/dis-104-answer-language. Change: openspec/changes/answer-language. Step: review.
+
+Run, inline (their Inline mode, never as a fork), /show-spec-working, /verify-against-spec and /adversarial-review on change answer-language / PR #68. Save their reports under the change's reports/. Fix every real finding in the same PR (code fixes must happen now, before archive), commit, push and wait for green CI with Monitor (max 2 CI fixes). Return ok=false if a blocking verdict cannot be resolved.
+```
+
+**Por qué funcionó.** La demostración usó la API y la CLI reales con un modelo guionizado (un endpoint
+local compatible con OpenAI que devuelve la salida que pide cada paso), así que cada rama del aviso de
+idioma se vio a propósito y en segundos, en vez de esperar a que el modelo de 7B contestara en inglés. La
+revisión adversarial siguió los datos que el change reescribió y encontró dos huecos que los tests no
+veían: `question-language.ts` decide el mensaje de sistema de las preguntas golden pero no entraba en la
+huella de las respuestas (un cambio futuro de las listas dejaría `verify` en verde con golden de otro
+prompt), y `docs/DEMO.md` seguía pegando la golden Q1 anterior.
+
+**Ajuste humano.** Ninguno: ejecución autónoma. Decisiones del agente (`design.md` → V1–V8): añadir la regla
+a la huella con un delta de la spec `golden-answers` y regenerar las golden ahora, ya que más tarde costaría
+la misma regeneración; quedarse con la primera Q1 regenerada y descartar una segunda que llamaba
+«reembolsación» al descuento; recapturar las salidas de la guía que dependen de la golden; y dejar la firma
+de la autora como traspaso en el ticket.

@@ -81,9 +81,15 @@
 ## 12. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
 - [x] 12.1 Open the PR against `final-project-CRN`; DIS-104 to In Review with a Spanish comment linking it
-- [ ] 12.2 CI green (wait with `Monitor`); link the run in an addendum to the step 6 report (6.6)
-- [ ] 12.3 `/show-spec-working` (may reuse the 1, 7 and 8 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
-- [ ] 12.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
-- [ ] 12.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`
-- [ ] 12.6 Fix every finding in this change (TDD for behaviour), each with an A/B/C/D destination in `design.md` → Follow-ups; re-run what each fix invalidates; commit to the same PR; re-run a check whose findings led to non-trivial fixes until no Blocker or Major
+- [x] 12.2 CI green (wait with `Monitor`); link the run in an addendum to the step 6 report (6.6). Done: run 40422354715 on `b287a78`
+- [x] 12.3 `/show-spec-working` (may reuse the 1, 7 and 8 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`. Done: `reports/2026-10-27-show-spec-working.md` (real API and CLI with a scripted model)
+- [x] 12.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`. Done: `reports/2026-10-27-verify-against-spec.md`
+- [x] 12.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`. Done: `reports/2026-10-27-adversarial-review.md`, PASS WITH GAPS (Follow-ups V1-V8)
+- [x] 12.6 Fix every finding in this change (TDD for behaviour), each with an A/B/C/D destination in `design.md` → Follow-ups; re-run what each fix invalidates; commit to the same PR; re-run a check whose findings led to non-trivial fixes until no Blocker or Major
+  - [x] 12.6a RED (V1; delta `specs/golden-answers/spec.md`, "Golden answer fingerprint"): in the existing test `tests/unit/cache/answer-fingerprint.spec.ts`, add `packages/core/src/explain/question-language.ts` to `DECLARED` (second, after `prompt.ts`) and rename "declares exactly the eleven files of the spec" to twelve; see "The answer fingerprint covers exactly its declared inputs" and the declared-files case fail
+  - [x] 12.6b GREEN: `packages/cli/src/cache/answer-fingerprint.ts` — the same file in `ANSWER_FINGERPRINT_FILES`, at the same place; the fingerprint test green; `docs/project-context.md` (the list of fingerprint inputs) names the rule
+  - [x] 12.6c `npm run cache:build` on the local Ollama (the CPU instance of Follow-ups A2, `LLM_*` in the command's environment), then `npm run db:seed` and `npm run verify` exit `0`; `tests/integration/cli/verify.spec.ts` and `tests/integration/cli/seed-load.spec.ts` green against the new golden file
+  - [x] 12.6d The agent reviews the regenerated entries in `docs/golden-review/2026-10-acme-shop-golden-review-dis-104.md` (V7: the author's signature stays pending); `fixtures/README.md` links that report (V5)
+  - [x] 12.6e `docs/DEMO.md`: recapture the evaluation-mode outputs that depend on the golden Q1 (Paso 1 CLI and `demo:ask`, Paso 2 text, Paso 5 `demo:ask`, web items 8-9) and record the recapture in `Cómo se capturó` (V2); fix the duration and label the `demo:ask` capture of `Probar con un modelo real` (V3); `npx vitest run tests/unit/docs` green
+  - [x] 12.6f `tests/unit/explain/explain-language.spec.ts` (created by this branch): drop the noise assertion (V6)
 - [ ] 12.7 `/opsx:archive`, commit it to the same PR; merge (`gh pr merge <n> --merge`, through the merge gate) only after the archive commit and with CI green
