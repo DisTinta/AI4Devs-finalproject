@@ -78,6 +78,10 @@ scheduled job — the agent must exercise it directly and verify the real respon
 5. **Document** every command executed and the response received.
 6. **Mark the task complete** only after all of them pass and the state is restored.
 
+In an autonomous run (`docs/AUTONOMOUS-RUN.md` §6), a check that must run in PowerShell is planned in
+`tasks.md` as a destination C follow-up for the author, with the Git Bash half executed by the agent,
+and every step that started a service ends with `node scripts/dev-processes.mjs stop`.
+
 ### End-to-End Testing
 
 Applies when the change affects a user workflow, the integration between interface layers, or any

@@ -44,7 +44,11 @@ When you are asked to implement a change from `openspec/changes/<id>/`:
      appended to the same `reports/<date>-spec-audit.md`, never written to a new file.
    - One `git` command per call (never chain `git switch`, `git merge` or `git push` with `&&`). A step
      that waits for CI returns only when no check is pending. Leave no `vitest`, `vite` or server
-     process running, and no session's working directory inside `openspec/changes/<change>/`.
+     process running (end every step that started one with `node scripts/dev-processes.mjs stop`), and
+     no session's working directory inside `openspec/changes/<change>/`.
+   - PowerShell checks (`docs/DEMO.md` captures, a guide command in a new PowerShell terminal) go to
+     the author: run them in Git Bash and plan the PowerShell half as a destination C follow-up in
+     `tasks.md`, since the auto-mode classifier denies PowerShell commands that set `$env:` variables.
    - Stop cleanly — ticket In Review with a comment — on: a `CHANGES REQUIRED` spec audit after the
      last correction round, CI red
      after 2 fixes, a merge conflict, the usage limit, a denied permission with no alternative, or a
