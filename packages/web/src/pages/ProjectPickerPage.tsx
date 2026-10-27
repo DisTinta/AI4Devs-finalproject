@@ -61,7 +61,7 @@ export function ProjectPickerPage(): ReactElement {
         </code>
       </p>
       <p className="mt-2 text-xs text-ink-subtle">
-        Desde la terminal · requiere Docker, Node 20+ y Git 2.45.1+ · por ahora solo PHP
+        Desde la terminal · requiere Docker, Node 22.12+ y Git 2.45.1+ · por ahora solo PHP
       </p>
     </PageFrame>
   );

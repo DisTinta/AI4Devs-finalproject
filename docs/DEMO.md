@@ -13,11 +13,12 @@ variable ya definida en la terminal gana sobre `.env`.
 
 | Dato | Valor |
 |---|---|
+| Salida de `npm run up` del paso 0 (DIS-105) | 2026-10-27, commit `4b1435a` (rama `feature/dis-105-npm-audit-debt`), clon nuevo de GitHub, Git Bash, Node v24.11.1 / npm 11.19.0, sin `.env` y con `POSTGRES_PORT=5433`, su `DATABASE_URL` y `PORT=3001` en el entorno del comando porque la máquina tenía otra API en el puerto 3000; el clon cambió además el proxy de `packages/web/vite.config.ts` a 3001 (solo en el clon). Los nombres de Docker llevan el prefijo `dis105-pwsh` (carpeta del clon, que se capturó en Git Bash). En el bloque del paso 0, la salida es literal salvo la ruta del clon (a), el nombre de la máquina (d) y el puerto de la API, que se deja en 3000 como en el resto de la guía. No se capturó en PowerShell 7 (el clasificador de permisos denegó el comando). El resto de la guía es de la captura de abajo |
 | Fecha | 2026-10-20 |
 | Commit | `da94264` (rama `feature/DIS-103-real-model-clean-clone`), clonado de GitHub en una carpeta nueva para cada terminal |
 | Máquina | Windows 11 Pro, Docker Desktop (Docker Engine 29.8.1, Compose v5.5.1), Git 2.45.1 |
 | Terminales | PowerShell 7.6.6 y Git Bash (GNU bash 5.2.26): la guía entera salvo `Probar con un modelo real` en cada una, con salidas idénticas salvo los campos que cambian en cada ejecución |
-| Node / npm | v24.11.1 / 11.19.0 (el proyecto necesita Node 20.11 o posterior; la CI usa Node 20) |
+| Node / npm | v24.11.1 / 11.19.0 (el proyecto necesita Node 22.12 o posterior, una línea LTS; la CI usa Node 22) |
 | LLM | ninguno: **modo evaluación**, todas las variables `LLM_*` vacías |
 | Base de datos | una base de datos nueva y vacía (ver el paso 0) |
 | Respuestas golden (pasos 1, 2 y 5; web, puntos 8 y 9) | recapturadas el 2026-10-27 en la rama `feature/dis-104-answer-language` (Git Bash, modo evaluación, base de datos local recién sembrada con `npm run db:seed`), porque DIS-104 regeneró las respuestas golden: la salida de `ask` del paso 1, los recuentos y latencias de `demo:ask` de los pasos 1 y 5 y el valor de confianza de la web. El resto de la guía es de la captura de 2026-10-20 |
@@ -54,7 +55,7 @@ fija la semilla.
 
 ## Antes de empezar
 
-Comprueba que Docker está en marcha, que Node es la versión 20.11 o posterior y que Git está instalado:
+Comprueba que Docker está en marcha, que Node es la versión 22.12 o posterior (una línea LTS, 22 o 24) y que Git está instalado:
 
 ```shell
 docker info
@@ -63,7 +64,7 @@ git --version
 ```
 
 `docker info` debe terminar sin error (si dice que no puede conectar con el daemon, arranca Docker
-Desktop); `node -v` debe mostrar `v20.11.0` o posterior.
+Desktop); `node -v` debe mostrar `v22.12.0` o posterior.
 
 Desde la raíz de un clon del repositorio (`readme.md` §1.4), copia la configuración de ejemplo, que
 deja todas las variables `LLM_*` vacías (modo evaluación, sin cuenta ni API key):
@@ -126,28 +127,18 @@ npm run up
  Container dis103-bash-postgres-1 Waiting 
  Container dis103-bash-postgres-1 Healthy 
 [up] npm install
-npm warn deprecated @babel/plugin-proposal-explicit-resource-management@7.27.4: This proposal has been merged to the ECMAScript standard and thus this plugin is no longer maintained. Please use @babel/plugin-transform-explicit-resource-management instead.
 npm warn deprecated whatwg-encoding@3.1.1: Use @exodus/bytes instead for a more spec-conformant and faster implementation
 npm warn deprecated eslint@9.39.5: This version is no longer supported. Please see https://eslint.org/version-support for other options.
 
-added 609 packages, and audited 619 packages in 1m
+added 583 packages, and audited 593 packages in 1m
 
-168 packages are looking for funding
+159 packages are looking for funding
   run `npm fund` for details
 
-18 vulnerabilities (5 low, 6 moderate, 4 high, 3 critical)
-
-To address issues that do not require attention, run:
-  npm audit fix
-
-To address all issues (including breaking changes), run:
-  npm audit fix --force
-
-Run `npm audit` for details.
-npm warn install-scripts 3 packages have install scripts not yet covered by allowScripts:
+found 0 vulnerabilities
+npm warn install-scripts 2 packages have install scripts not yet covered by allowScripts:
 npm warn install-scripts   esbuild@0.28.2 (postinstall: node install.js)
 npm warn install-scripts   tree-sitter-php@0.24.2 (install: node-gyp-build)
-npm warn install-scripts   esbuild@0.21.5 (postinstall: node install.js)
 npm warn install-scripts
 npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.
 [up] npm run db:migrate
@@ -189,7 +180,7 @@ acme-shop: 32 commits, 3 authors -> <repo>\fixtures\acme-shop\.git
 [1] > vite
 [1] 
 [1] 
-[1]   VITE v5.4.21  ready in 1332 ms
+[1]   VITE v8.3.4  ready in 1098 ms
 [1] 
 [1]   ➜  Local:   http://localhost:5173/
 [1]   ➜  Network: use --host to expose

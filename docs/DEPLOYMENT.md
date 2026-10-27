@@ -17,7 +17,7 @@ evaluación el 5 sep 2026: coste, dominio y un único punto de fallo (`readme.md
 
 - **Docker** con Compose v2.1.1 o posterior (por `docker compose up --wait`; Docker Desktop ya lo
   trae), para PostgreSQL 16 con pgvector.
-- **Node 20.11 o posterior** y npm.
+- **Node 22.12 o posterior** (una línea LTS: 22 o 24) y npm.
 - Cualquier terminal: los comandos son los mismos en PowerShell y en Bash. **GNU make** es opcional:
   `make up` y `make down` son atajos de `npm run up` y `npm run down` para Git Bash o WSL.
 - **Git 2.45.1 o posterior** (o 2.43.4 / 2.44.1) solo para indexar un repositorio propio (ver
@@ -68,7 +68,7 @@ push a `main`.
 | `CI` → `verify` | `npm run db:migrate`, `npm run db:seed`, `npm run verify` | Servicio Postgres con su propia base de datos `verify`, nunca la de `test`; sin `LLM_*` |
 | `CI` → `mutation` | `npm run test:mutation` (incremental) en los pull requests, `npm run test:mutation:full` en los push | Sin base de datos; falla por debajo de una puntuación de mutación de 80; solo cuando cambiaron `packages/core`, `packages/cli`, `packages/api`, `tests` o su configuración |
 | `CI` → `secrets` | gitleaks 8.30.1 sobre el árbol de trabajo y los commits del evento | Se ejecuta siempre, también en los push que solo tocan documentación |
-| `Frontend` → `frontend` | `npm run lint`, `npm run typecheck`, `npx vitest run --exclude 'tests/integration/**'`, `npm run test:a11y` | Solo cuando cambiaron ficheros del front-end (`dorny/paths-filter`: ficheros `.tsx`/`.css`, `packages/web/**`, `tests/a11y/**`, `tests/unit/web/**`, `tests/support/jsdom-setup.ts`, el lock file y las configuraciones de Vite/Vitest/TS); `test:a11y` ejecuta la puerta de accesibilidad (ver `docs/TESTING.md`) |
+| `Frontend` → `frontend` | `npm run lint`, `npm run typecheck`, `npx vitest run tests/unit tests/harness tests/a11y packages/web`, `npm run test:a11y` | Sin base de datos: con Vitest 4 y posteriores el `--exclude` de la línea de comandos no llega a los proyectos de `test.projects`, así que el paso lista los directorios (DIS-105 D14). Solo cuando cambiaron ficheros del front-end (`dorny/paths-filter`: ficheros `.tsx`/`.css`, `packages/web/**`, `tests/a11y/**`, `tests/unit/web/**`, `tests/support/jsdom-setup.ts`, el lock file y las configuraciones de Vite/Vitest/TS); `test:a11y` ejecuta la puerta de accesibilidad (ver `docs/TESTING.md`) |
 
 `docs/TESTING.md` explica cada nivel de tests que ejecutan estos jobs.
 

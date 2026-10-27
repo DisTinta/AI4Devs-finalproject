@@ -175,6 +175,29 @@ describe('Requirement: Model output quarantine', () => {
     expect(event.issues).toEqual([{ path: 'statements', code: 'too_big' }]);
   });
 
+  // DIS-105 D13, D18: since Zod 4.6.6 an array above its maximum is one issue and its elements are not checked.
+  it('The elements of an oversized array are not checked', () => {
+    // Arrange
+    const typed = output([
+      ...Array.from({ length: MAX_STATEMENTS }, () => statement()),
+      { ...statement(), type: 'FACT' },
+    ]);
+    const empty = JSON.stringify({ answer: 'a', statements: Array.from({ length: 21_000 }, () => ({})) });
+
+    // Act
+    const results = [typed, empty].map((text) => parseModelOutput(text, new Set(['E1'])));
+
+    // Assert
+    expect(Buffer.byteLength(empty, 'utf8')).toBe(63_029);
+    for (const result of results) {
+      expect(result.ok).toBe(false);
+      if (result.ok) continue;
+      expect(result.event.subcode).toBe('limit_exceeded');
+      expect(result.event.issues).toEqual([{ path: 'statements', code: 'too_big' }]);
+      expect(result.event.issueCount).toBe(1);
+    }
+  });
+
   it('The statement length limit accepts its bound and rejects one more', () => {
     // Arrange
     const atBound = output([statement(['E1'], 'a'.repeat(MAX_STATEMENT_CHARS))]);
@@ -379,17 +402,19 @@ describe('Requirement: Audit event of a discarded output', () => {
 
   it('The issues of an event are bounded', () => {
     // Arrange
-    const text = JSON.stringify({ answer: 'a', statements: Array.from({ length: 21_000 }, () => ({})) });
+    // The elements of an array above its maximum are not checked (DIS-105 D13, D18), so the fixture
+    // stays at the maximum: each empty statement fails twice (text and evidenceIds).
+    const text = JSON.stringify({ answer: 'a', statements: Array.from({ length: MAX_STATEMENTS }, () => ({})) });
 
     // Act
     const event = discarded(text);
 
     // Assert
-    expect(Buffer.byteLength(text, 'utf8')).toBe(63_029);
+    expect(Buffer.byteLength(text, 'utf8')).toBe(89);
     expect(event.subcode).toBe('invalid_shape');
     expect(event.issues).toHaveLength(MAX_EVENT_ISSUES);
     expect(MAX_EVENT_ISSUES).toBe(20);
-    expect(event.issueCount).toBe(42_001);
+    expect(event.issueCount).toBe(40);
     expect(Buffer.byteLength(JSON.stringify(event), 'utf8')).toBeLessThan(4_096);
   });
 

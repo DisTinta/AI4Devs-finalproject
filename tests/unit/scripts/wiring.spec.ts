@@ -108,8 +108,8 @@ describe('Which commands load .env', () => {
     for (const name of QUALITY) expect(root.scripts[name], name).not.toContain('load-env');
     expect(source('packages/api/dev-register.mjs')).not.toContain('load-env');
 
-    // Assert: engines unchanged, no Node .env API that the supported versions lack
-    expect(root.engines?.node).toBe('>=20.11');
+    // Assert: engines on the Node 22.12 baseline; one .env reader (`scripts/env.mjs`), never Node's own .env APIs
+    expect(root.engines?.node).toBe('>=22.12');
     for (const file of scriptFiles()) {
       const text = source(file);
       expect(text, file).not.toContain('process.loadEnvFile');

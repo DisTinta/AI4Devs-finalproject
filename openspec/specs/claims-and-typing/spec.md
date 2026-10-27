@@ -159,10 +159,13 @@ otherwise SHALL be discarded **whole** (no statement of it survives) with an aud
    and `statements` (0 to 20 objects, each with `text`, a string of 1 to 500 characters, and
    `evidenceIds`, 1 to 10 strings). No other field is allowed at any level; in particular a `type`
    field SHALL be rejected, because the type is decided by the typing rule. No string of the output
-   (the answer, a statement text, an evidence id) SHALL contain the character U+0000. A failure
-   caused only by
+   (the answer, a statement text, an evidence id) SHALL contain the character U+0000. The elements of
+   an array longer than its maximum (`statements`, `evidenceIds`) are not checked: such an array SHALL
+   yield one issue at its own path and its elements none, while the other fields keep being checked.
+   A failure caused only by
    an empty `evidenceIds` SHALL have subcode `empty_evidence`; one caused only by values above a limit
-   SHALL have subcode `limit_exceeded`; any other failure SHALL have subcode `invalid_shape`.
+   SHALL have subcode `limit_exceeded`; any other failure SHALL have subcode `invalid_shape`. The
+   subcode SHALL follow from the issues found.
 4. No statement cites the same evidence id twice; duplicates SHALL NOT be removed (subcode
    `duplicate_evidence_id`).
 5. Every cited evidence id is one of the ids given to the model (subcode `unknown_evidence_id`).
@@ -234,6 +237,15 @@ counts as one); the minimum lengths (1 character) are measured the same way.
 - **WHEN** conforming outputs with 20 and 21 statements are checked
 - **THEN** the first is accepted and the second is discarded with subcode `limit_exceeded` and the
   issue path `statements`
+
+#### Scenario: The elements of an oversized array are not checked
+
+- **GIVEN** the known evidence id `E1`
+- **WHEN** an output with 21 conforming statements, the last one carrying `"type":"FACT"`, is checked,
+  and the output `{"answer":"a","statements":[{},{},…]}` with 21 000 empty statements (63 029 bytes,
+  under the size limit)
+- **THEN** each is discarded with subcode `limit_exceeded`, its event carries exactly one issue, with
+  path `statements` and code `too_big`, and `issueCount` 1, and no statement of either is returned
 
 #### Scenario: The statement length limit accepts its bound and rejects one more
 
@@ -331,10 +343,10 @@ tests use the same definitions.
 
 #### Scenario: The issues of an event are bounded
 
-- **WHEN** the output `{"answer":"a","statements":[{},{},…]}` with 21 000 empty statements (63 029
-  bytes, under the size limit) is checked
+- **WHEN** the output `{"answer":"a","statements":[{},{},…]}` with 20 empty statements (89 bytes) is
+  checked
 - **THEN** it is discarded with subcode `invalid_shape`, its event carries exactly 20 issues and
-  `issueCount` 42 001, and the serialised event is under 4 096 bytes
+  `issueCount` 40, and the serialised event is under 4 096 bytes
 
 #### Scenario: Checking an output writes nothing to the console
 

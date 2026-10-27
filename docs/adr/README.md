@@ -16,3 +16,4 @@ Decisions that affect more than one module or cost more than a day to revert. Ne
 | 2026-10-17 | [A stale seed or golden fingerprint fails `verify`, locally and in CI; the author regenerates locally](./20261017-stale-fingerprint-fails-verify.md) | Accepted |
 | 2026-10-20 | [The kit gets a manual autonomous-run switch, and the doctrine it relaxes holds only while it is on](./20261020-kit-autonomous-mode.md) | Accepted (amended 2026-10-26) |
 | 2026-10-26 | [A CHANGES REQUIRED spec audit opens correction rounds in an autonomous run instead of stopping the ticket](./20261026-autonomous-audit-correction-rounds.md) | Accepted |
+| 2026-10-26 | [The project's Node baseline is 22.12, in `engines`, in CI and in every guide](./20261026-node-22-baseline.md) | Accepted |
