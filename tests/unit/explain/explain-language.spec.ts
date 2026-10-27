@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ClaimWriteFailed, explain, normalizeQuestion, QueryLogWriteFailed } from '@codemind/core';
+import { explain, normalizeQuestion, QueryLogWriteFailed } from '@codemind/core';
 import type { ExplainAnswer } from '@codemind/core';
 import { cachedAnswer } from '../../support/cached-answer';
 import { doubles, linesOf, ownGraph } from '../../support/explain-doubles';
@@ -120,7 +120,6 @@ describe('Requirement: Explain events and logging (language)', () => {
     const answer = await explain(d.deps, { projectId: d.projectId, question });
 
     // Assert
-    expect(ClaimWriteFailed).toBeDefined();
     expect(answer.kind).toBe('answered');
     expect(answer.events.map((event) => event.type)).toEqual([
       'untrusted_content_flagged',
