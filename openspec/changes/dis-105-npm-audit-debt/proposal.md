@@ -24,7 +24,8 @@ Delivered in one pull request with two phases, each in its own commit and verifi
     exactly today's paths; `stryker.config.json` reviewed against the Stryker 9 and 10 migration notes,
     thresholds unchanged;
   - **BREAKING (contributors):** `engines.node` becomes `>=22.12`; CI uses Node 22 in every job;
-  - the web's indexing hint says «Node 22+» instead of «Node 20+».
+  - the web's indexing hint says «Node 22.12+» instead of «Node 20+», the same floor as
+    `engines.node` (design D10, decided by the agent).
 - Documentation: `docs/DEMO.md` (Node requirement and a fresh capture of the `Paso 0` install output),
   `docs/DEPLOYMENT.md`, `docs/backend-standards.md`, `docs/project-context.md` (engines line and the
   hook-order note: Vitest 2 and later run hooks in series), `readme.md`, the comment of
@@ -52,7 +53,10 @@ None.
   CI workflows uses Node 22) and "A clean install reports no high or critical advisory" (checked on a
   clean clone, not in CI).
 - `project-picker`: requirement "Indexing a repository of one's own is a hint, not a control" says
-  «Node 22+» instead of «Node 20+».
+  «Node 22.12+» instead of «Node 20+».
+
+`engines.node` stays `>=22.12`, as the ticket's acceptance criterion 5 says; it also admits Node 23
+and 25, which are out of support and which Vitest 5 does not list (design D2).
 
 `web-foundation` → "Component test environment" does not change: the same files run in jsdom, and
 the migration must keep it that way (its existing scenarios are part of the verification).
@@ -68,8 +72,10 @@ the migration must keep it that way (its existing scenarios are part of the veri
 - **CI:** `.github/workflows/ci.yml` (`quality`, `verify`, `mutation`) and
   `.github/workflows/frontend.yml` move to Node 22. The Stryker incremental cache key includes the
   lockfile, so the first mutation run of the PR is a full one (40-minute job limit).
-- **Existing tests that change:** `tests/unit/scripts/wiring.spec.ts` (engines assertion) and
-  `packages/web/src/pages/ProjectPickerPage.test.tsx` (hint text).
+- **Existing tests that change:** `tests/unit/scripts/wiring.spec.ts` (engines assertion and the
+  comment above it at l.111), `packages/web/src/pages/ProjectPickerPage.test.tsx` (hint text) and
+  `tests/unit/analyzers/php/parser-load.spec.ts` (the comment on Vitest 1.6 mock semantics; its code
+  only if it fails under Vitest 5).
 - **Product code:** only the hint text in `packages/web/src/pages/ProjectPickerPage.tsx`. No API,
   CLI or database behaviour changes. No personal data, auth or logging is touched.
 - Commands as listed in `docs/project-context.md` and `.claude/sdd-harness.env`.

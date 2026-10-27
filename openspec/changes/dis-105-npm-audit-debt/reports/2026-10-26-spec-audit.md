@@ -188,3 +188,50 @@ Add a comment:
 > - comprobar que `--exclude 'tests/integration/**'` de `frontend.yml` y las exclusiones de Stryker llegan a todos los proyectos de `test.projects`;
 > - el escenario de `npm audit` exige que un aviso restante no tenga arreglo publicado (CA1);
 > - la captura del `Paso 0` sale de un `npm run up` en un clon nuevo.
+
+---
+
+## Resolution of run 1
+
+Correction round 1 of 5, 2026-10-27, autonomous run (agent's text, as lead engineer). Every decision is also in `design.md` → Follow-ups with its destination. `openspec validate dis-105-npm-audit-debt --strict` passes after the edits.
+
+### Questions for the author
+
+| Question | Outcome |
+|---|---|
+| Q1 (hint scope) | **Decided by the agent.** The added scope is kept (a false «Node 20+» on Screen 1 would contradict AC5); the hint says «Node 22.12+», the `engines.node` floor. Updated in the `project-picker` delta, proposal, design D10, tasks 5.5, 5.6, 9.1. Destination A. |
+| Q2 (engines range) | **Decided by the agent.** `engines.node` stays `>=22.12` (ticket AC5, the asserted value). D2 now says it is the lower bound of Vitest 5's range, not the range, and that Node 23 and 25 are accepted by `engines` but are out-of-support odd releases that Vitest 5 does not list; npm only warns on a mismatch; guides ask for an LTS line. Destination D. |
+| Q3 (inherited prohibition) | **Decided by the agent.** The prohibition stays with a new reason: `scripts/env.mjs` is the single `.env` reader (the specified grammar, the `CODEMIND_SKIP_DOTENV` switch, one warning per process). Design D12 states it; the comments at `wiring.spec.ts:111` and in `scripts/env.mjs` are rewritten (tasks 5.3, 5.4). Destination D. |
+
+### Findings
+
+| Finding | Severity | Resolution |
+|---|---|---|
+| 1. Hint scope (D10) | improvable | Decided by the agent (Q1). |
+| 2. AC1 weakened: "no published fix" unchecked | blocking | Fixed: the scenario "npm audit on a clean clone" now requires `fixAvailable: false` from `npm audit --json`; tasks 3.4 and 8.1 record it. |
+| 2. AC2 not in the 6.2 mapping | improvable | Fixed: task 6.2 maps AC2 to 0.4, 7.3, 7.4 and AC3 Stryker exclusions to 4.2. |
+| 2. AC3 Stryker exclusions checked on one project | blocking | Fixed: task 4.2 lists the files of every project under the Stryker config; design D8 says the same. |
+| 3. "No published fix" clause without a check | blocking | Fixed (same as AC1). |
+| 3. CI scenario does not compare with `engines.node` | improvable | Fixed: AND clause added to "Every CI job installs Node 22"; task 5.1 checks it. |
+| 3. "Supported" undefined in the requirement | improvable | Fixed: "a Node version that satisfies the root `engines.node`". |
+| 4. "safer" in D5 | improvable | Fixed with the proposed wording. |
+| 5.1 Which output replaces `Paso 0` | blocking | Fixed: task 8.1 runs `npm run up` first in a fresh clone of the pushed branch, captures in PowerShell 7 and Git Bash; task 10.2 names the `Cómo se capturó` rows and the Vite banner. |
+| 5.2 How the `node` project excludes the other sets | blocking | Fixed: design D8 names each project's `include`/`exclude`; the `node` project restates the root globs so the result does not depend on concatenation versus replacement; task 4.5 checks the sum and that no file is in two projects. |
+| 5.3 `timeout-minutes` value | improvable | Fixed: 40 → 60 in design Risks and task 12.2. |
+| 6.1 Phase 2 not committed before the clean clone | blocking | Fixed: new task 5.7 commits and pushes phase 2 code; 11.1 commits only docs, ADR and reports; Migration Plan updated. |
+| 6.2 e2e after the teardown | blocking | Fixed: 8.3 keeps the clone running; new 9.2 restores and writes the step 9 report. |
+| 6.3 RED in 5.3 not real | improvable | Fixed: `engines.node` removed from 3.2, left to 5.4. |
+| 6.4 Requirement vs scenario name in 5.1 | improvable | Fixed. |
+| 6.5 D2 "Vitest's floor" | improvable | Fixed (Q2). |
+| 7.1 `project-context.md` seed-build note | improvable | Fixed: task 10.4 names it; the line is now l.1101–1102 after the base merge. |
+| 7.2 Mock semantics after Vitest 1.6 | improvable | Fixed: design Risks; task 2.1 checks it; new task 4.7 names `tests/unit/analyzers/php/parser-load.spec.ts` as an existing test that changes (comment, code only if it fails); task 10.4 names `project-context.md` l.1444–1445 (shifted from l.1428–1430). |
+| 7.3 ADR supersedes the node-pg-migrate Node line; index row | improvable | Fixed in task 10.1. |
+| 7.4 Comment at `wiring.spec.ts:111` | improvable | Fixed: task 5.3 allows and specifies it; proposal Impact and design D12 name it (Q3). |
+| 8.1 `frontend.yml` CLI `--exclude` across projects | blocking | Fixed: design D8 requires CLI filters to reach every project, with a fallback through `/opsx:update`; task 4.5 checks the Frontend command with `CI=1` and no `DATABASE_URL`, and the `ci.yml:147` hook-timing file list. |
+| 8.2 Stryker exclusions on one project; runner support | blocking | Fixed: task 4.2 covers every project; design Risks and task 2.3 confirm `test.projects` support in the vitest-runner 10. The report said 11 excluded globs; `vitest.stryker.config.ts` has nine, so the artifacts say nine. |
+| 9. Task 2.1 too large | improvable | Fixed: split into 2.1 Vitest, 2.2 Vite and plugin-react, 2.3 Stryker. |
+| 9. Task 7.3 chains the mutation run | improvable | Fixed: mutation is task 7.4; the state check is 7.5. |
+| 9. Task 12.6 open loop | improvable | Rejected: the report itself accepts the standard wording; unchanged. |
+| 10. Manual testing without the error half | improvable | Fixed: task 8.2 runs the `MISSING_CONFIG` exit `1` half. |
+| 10. Screenshot linked from a closed step 8 report | improvable | Fixed: step 9 has its own report (9.2), which links the screenshot. |
+| Linear comment suggested by the report | — | Replaced by the correction-round comment on DIS-105 with the decisions above. |

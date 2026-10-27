@@ -58,10 +58,11 @@ the root `package.json`. No workflow SHALL request Node 20 or an unpinned versio
 - **WHEN** every step of every job that uses `actions/setup-node` is collected
 - **THEN** there is at least one such step in each file, and each one has `with.node-version` equal to
   the string `'22'`
+- **AND** `22` is the major of the lower bound of `engines.node` in the root `package.json`
 
 ### Requirement: A clean install reports no high or critical advisory
 
-On a clean clone with a supported Node version, installing the locked dependencies SHALL leave no
+On a clean clone with a Node version that satisfies the root `engines.node`, installing the locked dependencies SHALL leave no
 `npm audit` advisory of severity high or critical. Any remaining advisory of lower severity SHALL have
 no published fix at the time of the change and SHALL be listed, with its destination, in the change's
 design.
@@ -71,5 +72,6 @@ design.
 - **GIVEN** a clean clone of the branch and Node 22.12 or later
 - **WHEN** `npm ci` runs and then `npm audit --audit-level=high`
 - **THEN** `npm audit --audit-level=high` exits `0`
-- **AND** `npm audit` prints `found 0 vulnerabilities`, or every advisory it lists is low or moderate
-  and appears in the design's Follow-ups with its destination
+- **AND** `npm audit` prints `found 0 vulnerabilities`, or every advisory it lists is low or moderate,
+  `npm audit --json` reports `fixAvailable: false` for it, and it appears in the design's Follow-ups
+  with its destination
