@@ -467,3 +467,248 @@ input of the delta, with and without the callee-identity check.
 
 `openspec validate ts-calls-exact --strict`: `Change 'ts-calls-exact' is valid`. The `[original]`
 block of DIS-31 is not touched; the decisions are carried by the Linear comment of this round.
+
+---
+
+## Run 3 (2026-10-27)
+
+APPROVED
+
+**Spec audit of `ts-calls-exact` (DIS-31, parent DIS-20), run 3, 2026-10-27**
+
+### What I read
+
+The change as it stands after correction round 2:
+
+- `proposal.md`
+- `design.md`, including Follow-ups E1–E8, P1–P7, SA1–SA10 and SA11–SA14
+- `specs/code-analysis/spec.md`
+- `tasks.md`
+
+I read runs 1 and 2 of `reports/2026-10-27-spec-audit.md` and their resolution sections for context only.
+
+- **Linear:**
+  - DIS-31: description with the `[original]`, `[reality-map]` and `[enhanced]` blocks and the agent decisions 1–8, plus 6 comments, including the round 1 and round 2 correction comments.
+  - Its parent DIS-20: description and 1 comment (the AC5 clarification).
+- **Project:**
+  - `docs/base-standards.md` §7.1
+  - `docs/openspec-tasks-mandatory-steps.md`
+  - `docs/project-context.md` l.1392
+  - Main spec `openspec/specs/code-analysis/spec.md`: "Analysis contract", "PHP unresolved report" (l.951–993), "TypeScript code relation edges" (l.1378–1403) and the l.1206–1214 rules of "TypeScript symbol extraction".
+- **Code:**
+  - `packages/analyzers/typescript/src/{symbols,edges,ts-analyzer,shared}.ts`
+  - `fixtures/task-api/src/controllers/tasks.controller.ts`
+  - `fixtures/task-api/src/domain/errors.ts`
+  - a grep of `packages/` for a self-edge constraint (none found).
+
+### Questions for the author
+
+- **Q1, carried from runs 1 and 2. It does not block.**
+  - **The issue.** The DoD of the `[original]` block of DIS-31 says "Los 10 sitios salen `exact`", and the first criterion of DIS-20 says the same. The change reads it as:
+    - 8 `exact` edges;
+    - no edge for sites 7 (`fastify`) and 10 (`Array.prototype.includes`);
+    - no `heuristic` `calls`.
+  - **What DIS-20 prescribed instead.** Its escalation path was to stop and open a story on core first. The agent did not take that path.
+  - **Why it does not block.** The agent kept this reading as lead engineer (design SA1, marked as agent's text). It is consistent with the enhanced part of DIS-31 (agent decision 2) and with DIS-30 E3. Per the caller's rule it is an acceptable answer.
+  - **What is left for you.** Under ADR 20261020 (Consequences) you review it after the merge. It remains the main scope risk of the change.
+
+---
+
+### 1. Scope against the ticket: clean
+
+Everything follows from DIS-31:
+
+- the reality-map;
+- criteria C1–C5;
+- the technical context (extract `kept` / `refOf` rather than duplicating it);
+- agent decisions 1–8.
+
+The additions of rounds 1 and 2 answer audit findings that came from DIS-20 AC5 and from DIS-31 C3/C4. They are therefore not invented scope:
+
+- the definition of an overload signature;
+- type errors;
+- union and intersection receivers;
+- callee identity;
+- merged interfaces;
+- the array-element reference.
+
+Nothing widens the change to the whole of DIS-20: the CLI, the seed and the golden answers stay in DIS-32.
+
+### 2. Inherited acceptance criteria: clean (Q1 noted)
+
+| Criterion | Covered by |
+|---|---|
+| DIS-31 C1 | "The calls of task-api" (the 8 sites plus the full list of 37 edges) |
+| DIS-31 C2 | "What the compiler cannot resolve has no calls edge" |
+| DIS-31 C3 | "Compiler-resolved call forms", "An overloaded call targets the implementation" |
+| DIS-31 C4 | "Call sites outside a function or method symbol, and targets that are not symbols, have no edge"; "A file with a syntax error neither originates nor receives calls" |
+| DIS-31 C5 | existing "The task-api analysis is a valid deterministic graph"; the at-most-one-edge rule (pinned by "Compiler-resolved call forms"); tasks 0.4, 2.3, 3.1, 5.2, 5.3 |
+| DIS-20 AC5 (type errors keep resolvable edges) | "A call with a type error keeps its compiler-resolved target" |
+| DIS-20 AC1 (10 sites `exact`) | Q1, settled by the agent in SA1 |
+
+### 3. Missing scenarios: clean
+
+Every MUST clause of "TypeScript calls" is exercised by at least one scenario:
+
+- **Sources:**
+  - boundaries;
+  - arrow functions, function expressions and object-literal methods;
+  - accessors, property initializers, static blocks and decorators;
+  - module level and `const` initializers;
+  - dropped duplicates.
+- **Call forms:** `super(...)`, `super.m()`, `f?.()`, `new`, and inherited and interface targets.
+- **Overloads:** functions, methods and constructors; abstract and interface signatures; merged interfaces.
+- **Type errors, including overloaded calls that match no overload.**
+- **Callees and references:**
+  - union receivers and callee identity, through the four forms `viaType`, `viaUnion`, `viaResult` and `viaLocal`;
+  - references in argument and non-argument positions (assignment, object literal, array element, `return`).
+- **Targets that are not symbols.**
+- **Tagged templates.**
+- **Non-class `new`, and `super` on a non-class base.** The `extends Error` of `DomainError` in task-api is part of the 37-edge list.
+- **Syntax errors.**
+- **Self-edges and deduplication.**
+
+The clause on skipped subtrees has no observable effect beyond "TypeScript symbol extraction", so it needs no scenario of its own.
+
+### 4. Ambiguity: clean
+
+A search of `proposal.md`, `design.md`, the delta spec and `tasks.md` finds none of "fast", "easy", "secure", "efficient", "many", "appropriate" or "robust". The timing risk has a threshold: a slowdown above 2× the baseline. See I1 for how the baseline is taken.
+
+### 5. Open decisions: no blocking finding
+
+I looked for cases that the rules leave to the implementer. Every case I checked is decided by the current text:
+
+| Case | Result | Rule that decides it |
+|---|---|---|
+| `h!()`, `(h)()`, `h as any` as a callee | no edge | "any other expression" |
+| Spread or cast argument (`f(...hs)`, `f(h as any)`) | no edge | "written directly as an argument" |
+| A method with a computed name | no source | it is not a symbol (main spec l.1206) |
+| `new` on a class expression bound to a `const` | no edge | "not a class declaration" |
+| A class merged with an interface | one owner | owners grouped by symbol (D4) |
+| Inherited or overridden member on the receiver | a single owner | `getSymbolAtLocation` |
+| Union member missing on one side | no edge | no symbol → callee identity fails |
+
+- **I1, improvable: how the timing baseline is taken.**
+  - `design.md` Risks and task 5.6 record "task-api analysis time before and after" and treat more than 2× the baseline as a finding.
+  - No task measures the "before" while the code is still unchanged. Task 0.4 records only the vitest totals, `packages/core` and `lint:architecture`.
+  - The method is also unfixed: whether compiler load counts, how many runs, and mean or median.
+  - **Correction:** add to task 0.4 "measure the task-api analysis time with a throwaway scratchpad script (`npx tsx --tsconfig packages/cli/tsconfig.run.json`): one analyzer instance, one warm-up call (compiler load), then the median wall-clock of 5 `analyze` calls over the 38 tracked files; record it", and have 5.6 repeat the same measurement.
+
+### 6. Contradictions inside the change: clean
+
+The parts of the change agree with each other:
+
+- **D1, task 2.2a and Impact** use the same signature, `buildTypeScriptCalls(ts, built, parsed, symbolOf)`.
+- **Boundaries.** The proposal, D3 and the "Source" paragraph of the spec agree.
+- **The reference rule.** The spec's "exactly one of that name's declarations is a `function` or `method` symbol" agrees with D4's "the one declaration of that symbol present in `symbolOf`".
+- **Callee identity.** The proposal's fourth bullet, D4 (SA11), the spec paragraph "Callee identity" and task 2.2a agree.
+- **The 8 + 2 reading.** The proposal (DoD paragraph), SA1, SA14 and task 9.1 all say "after the merge (ADR 20261020, Consequences)".
+- **The scenario count.** Task 2.1 lists 13 scenarios, and 4.2 says 13. Tasks 2.2a, 2.2b and 2.2c split them 8 + 2 + 3, with no overlap and none missing.
+
+### 7. Contradictions with the project: clean, with one improvable note
+
+- **The MODIFIED "Analysis contract"** is the main-spec text, with "TypeScript calls" added to the list of requirements that define edges.
+- **"PHP unresolved report"** (main spec l.951–958) is explicitly PHP-only, so the TypeScript analyzer needs no `unresolved` field. The delta's "no diagnostic for an unresolved call" matches "TypeScript analysis input" and "TypeScript syntax errors".
+- **Self-edges:** no graph validation in `packages/core` and no constraint in `packages/` rejects them (grep), so P3 / D5 hold.
+- **I2, improvable: merged interfaces are handled differently by two requirements.**
+  - "TypeScript code relation edges" (main spec l.1395–1396) treats a name declared more than once ("merged interfaces, a class merged with an interface") as ambiguous: no heritage edge.
+  - The delta's "Type errors and undetermined callees" (SA12) treats the members of a merged interface as one owner and targets the signature the compiler resolves.
+  - This is not a contradiction. A heritage edge targets the interface declaration itself, which is ambiguous. A call targets one method signature, which the compiler picks. The delta's reference rule (kind 2) stays aligned with the heritage rule: "exactly one declaration".
+  - A reader comparing the two requirements will see opposite outcomes, and the design does not explain why.
+  - **Correction:** add one sentence to D4 (SA12): "This differs on purpose from 'TypeScript code relation edges' (main spec l.1395–1396), where a merged interface name gives no heritage edge: there the target would be one of several interface declarations, here it is the single signature declaration the compiler resolves."
+
+### 8. Contrast with the real code: clean
+
+- **D2 refactor.** `keepFirst` (`packages/analyzers/typescript/src/shared.ts:26–39`) keys on `startLine:name` per file and returns the same `GraphSymbol` objects, so a node → `SymbolRef` map built after it, by object identity, reproduces the `emitted` + `kept` rule of `edges.ts:72–96`. That includes a function and a class that share a name and a line.
+- **The nodes match.** `symbols.ts:72–91` records exactly the nodes that `getResolvedSignature(...).declaration` can return:
+  - `FunctionDeclaration` with a body;
+  - `MethodDeclaration` with a body or `abstract`;
+  - `ConstructorDeclaration` with a body;
+  - `MethodSignature`.
+
+  So the map lookup is valid. Overload signatures without a body are not symbols, which is why D4 maps them to the declaration with a body.
+- **The task-api lists are plausible against the sources:**
+  - `TasksController` (`tasks.controller.ts:10–48`) calls only through the `fastify`-typed `request.server` and `reply`, so no edge comes from that file.
+  - `TaskNotFoundError` and `IllegalStatusTransitionError` declare constructors that call `super(...)` on `DomainError` (`errors.ts:18–26`).
+  - `DomainError`'s own `super(message)` targets `Error`, which is not in the input, so it has no edge.
+- **D1's insertion point** is `ts-analyzer.ts:73`.
+- **One checker.** `edges.ts:100` already creates the checker lazily, and `program.getTypeChecker()` is cached, so the two modules share one checker.
+- **`docs/project-context.md` l.1392** still says "There are no `calls` yet (DIS-31)". Task 8.1 replaces it.
+- **No abstraction is duplicated:** the change removes the second copy of `kept`.
+
+### 9. Task size: clean
+
+Task 2.2a remains the largest: one walk with the lookup rules (overloads, abstract and interface targets, type errors, union owners, callee identity), turning 8 scenarios green. Each rule is a short predicate on the resolved declaration, so it fits one agent turn. Tasks 2.2b, 2.2c and every other task are small.
+
+### 10. Mandatory steps: clean
+
+- **Step 0** is the branch `feature/dis-31-ts-calls-exact`. Steps 0.2–0.4 follow: Linear status, `git status` and the baseline.
+- **Mandatory steps:** steps 4, 5, 6, 7 and 8 are present and labelled.
+  - Step 5 names its report and the template.
+  - Steps 6 and 7 say "AGENT MUST EXECUTE". Step 7 is marked not applicable, with the reason.
+- **Step 10, Pre-merge Review**, is last. It runs `/show-spec-working`, `/verify-against-spec` and `/adversarial-review` in order, fixes findings on the same PR, and archives before the merge.
+- **No task mutates state.** Task 6.3 confirms there is nothing to restore (`git status --short fixtures/` is empty).
+
+### 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| TypeScript calls (ADDED) | The calls of task-api | 2.1, 2.2c, 3.1, 6.1 |
+| TypeScript calls | What the compiler cannot resolve has no calls edge | 2.1, 2.2c, 3.1, 6.2 |
+| TypeScript calls | Compiler-resolved call forms | 2.1, 2.2b |
+| TypeScript calls | An overloaded call targets the implementation | 2.1, 2.2a |
+| TypeScript calls | Abstract and interface methods are targets themselves | 2.1, 2.2a |
+| TypeScript calls | A callee typed by a function's type is not that function | 2.1, 2.2a |
+| TypeScript calls | A call with a type error keeps its compiler-resolved target | 2.1, 2.2a |
+| TypeScript calls | Only a constructor declared in the class itself is a target | 2.1, 2.2b |
+| TypeScript calls | Callbacks belong to their symbol and nested symbols keep their own calls | 2.1, 2.2a |
+| TypeScript calls | Only references passed as arguments are calls | 2.1, 2.2c |
+| TypeScript calls | Call sites outside a function or method symbol, and targets that are not symbols, have no edge | 2.1, 2.2a |
+| TypeScript calls | A file with a syntax error neither originates nor receives calls | 2.1, 2.2a, 6.2 |
+| TypeScript calls | A dropped duplicate declaration is neither source nor target of a call | 2.1, 1.2 (shared map), 2.2a |
+| Analysis contract (MODIFIED) | The acme-shop analysis is a valid deterministic graph | 4.1, 4.2 (existing test) |
+| Analysis contract | The analyzer reads only the content it receives | 4.1, 4.2 (existing) |
+| Analysis contract | Duplicate input paths keep the first | 4.1, 4.2 (existing) |
+| Analysis contract | A failed parser load does not poison later calls | 4.1, 4.2 (existing) |
+| Analysis contract | Symbols that start on one line are ordered by span, then name | 4.1, 4.2 (existing) |
+| (non-spec) shared node → symbol map, D2 | existing "A dropped duplicate declaration is neither source nor target of an edge" | 1.1–1.3, 4.1 |
+| (non-spec) `fixtures/README.md` oracle | (documentation) | 3.1, 5.3 |
+| (non-spec) `docs/project-context.md` | (documentation) | 8.1 |
+
+No row is empty.
+
+---
+
+### Corrections to apply
+
+Both are improvable. Neither blocks the apply.
+
+#### `openspec/changes/ts-calls-exact/tasks.md`
+
+1. **I1.** At the end of task 0.4, append:
+   > "; measure the task-api analysis time with a throwaway scratchpad script run with `npx tsx --tsconfig packages/cli/tsconfig.run.json`: one analyzer instance, one warm-up call (compiler load), then the median wall-clock of 5 `analyze` calls over the 38 tracked files of `fixtures/task-api`; record it as the baseline"
+2. **I1.** In task 5.6, replace "the analysis time of task-api before and after" with:
+   > "the analysis time of task-api measured as in 0.4, next to the 0.4 baseline (above 2× is a finding)"
+
+#### `openspec/changes/ts-calls-exact/design.md`
+
+1. **I1.** In Risks, last bullet, after "recorded in the step 5 report", add "(baseline taken in task 0.4, median of 5 warm calls)".
+2. **I2.** In D4, at the end of the *Union and intersection receivers* sub-bullet (SA12), add:
+   > "This differs on purpose from 'TypeScript code relation edges' (main spec l.1395–1396), where a merged interface name gives no heritage edge: there the target would be one of several interface declarations, here it is the single signature declaration the compiler resolves."
+3. **Follow-ups.** Add a table "Spec audit, run 3" with:
+   - SA15: I1, the timing baseline method → **A**;
+   - SA16: I2, the merged-interface difference from heritage explained → **A**.
+
+#### Linear DIS-31
+
+Add a comment in Spanish. Do not touch the `[original]` block.
+
+> **Auditoría de spec, tercera pasada (texto del agente, 2026-10-27).** Veredicto `APPROVED`, sin hallazgos bloqueantes.
+>
+> - **Pregunta abierta (no bloquea).** La lectura 8 + 2 del DoD (SA1) sigue pendiente de la revisión de la autora después del merge (ADR 20261020).
+> - **Mejora 1.** Se fija cómo se mide el tiempo de análisis de task-api: línea base en la tarea 0.4, mediana de 5 llamadas en caliente, y se repite en la 5.6.
+> - **Mejora 2.** `design.md` D4 explica por qué una interfaz fusionada sí tiene destino de llamada, cuando en herencia no da arista: en la llamada el compilador elige una única firma.
+
+#### Linear DIS-20
+
+No change.
