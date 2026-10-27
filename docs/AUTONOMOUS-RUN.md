@@ -273,7 +273,8 @@ determinista; si deniega, se aplica la alternativa de la sección 6.
 ## 6. El contrato del workflow
 
 Lo que el script del workflow y cada agente cumplen en una ejecución autónoma. Es el mismo contrato
-que `.cursor/rules/20-openspec.mdc` (punto 9).
+que `.cursor/rules/20-openspec.mdc` (punto 9). En Claude Code lo implementa el workflow guardado
+`.claude/workflows/autonomous-sdd.js` (sección 10, paso 9).
 
 **Pasos por ticket**, cada uno en un subagente nuevo: `/enrich-us` → `/opsx:propose` → `spec-auditor`
 → rondas de corrección hasta `APPROVED` → `/opsx:apply` en TDD → PR → `/show-spec-working`,
@@ -505,11 +506,23 @@ del repositorio (comandos en la sección 3, «Lanzar una sesión con el perfil»
   como primer mensaje.
 
 **Paso 9. Pide el workflow en un solo mensaje.** La herramienta Workflow solo se usa si se pide
-explícitamente, así que el mensaje tiene que decir «usa un workflow». Cambia los tickets y pégalo en
-una sola línea (un texto largo pegado desde la terminal puede llegar cortado):
+explícitamente, así que el mensaje tiene que nombrar el workflow. El script es
+`.claude/workflows/autonomous-sdd.js`: recorre los pasos de la sección 6 para cada ticket, con las
+rondas de corrección, y es el mismo en todas las tandas. Recibe la lista de tickets en `args`:
+
+| Campo | Qué es |
+|---|---|
+| `id` | El ticket de Linear. |
+| `dependsOn` | Tickets **de la misma tanda** que tienen que estar integrados antes. Si uno se para, este se salta. Un bloqueador de una tanda anterior lo comprueba el paso de enriquecer en Linear. |
+| `ollama` | El ticket necesita el modelo local. El workflow comprueba Ollama al empezar; si no responde, el ticket se para. |
+| `notes` | Instrucciones extra que reciben todos los pasos del ticket. |
+| `panel` | El juicio del ticket (anotar, revisar) lo hacen agentes independientes, uno por modelo de `models`, a ciegas entre sí y fuera del apply. Con dos o más, otro agente resuelve solo los desacuerdos. El `tasks.md` del cambio lleva un grupo `Panel` con las entradas, el criterio, las rutas de salida y la concordancia. |
+
+Cambia los tickets y pégalo en una sola línea (un texto largo pegado desde la terminal puede llegar
+cortado):
 
 ```
-Usa un workflow para la ejecución autónoma de estos tickets de Linear, en este orden: DIS-a, DIS-b, DIS-c. Sigue para cada ticket el contrato de docs/AUTONOMOUS-RUN.md §6, con la rama desde final-project-CRN. Si un ticket se para, salta los que dependen de él y sigue con los demás. No me preguntes nada mientras corre. Al terminar escribe solo: tickets cerrados con su PR, tickets parados con el motivo y lo que queda pendiente para mí.
+Ejecuta el workflow guardado autonomous-sdd con args {"tickets":[{"id":"DIS-a"},{"id":"DIS-b","dependsOn":["DIS-a"]}]}. No me preguntes nada mientras corre. Al terminar escribe solo: tickets cerrados con su PR, tickets parados o saltados con el motivo y lo que queda pendiente para mí.
 ```
 
 Claude Code enseña la descripción del workflow en un diálogo de permiso: apruébalo. Desde ahí, la
