@@ -32,7 +32,9 @@ DIS-54 showed cannot be `exact` edges under the current contract.
   fixture's code is unchanged.
 - A call with a type error keeps the target the compiler resolves (the analyzer has no standard
   library, so type errors are normal); a call on a receiver typed by a union or an intersection of
-  classes or interfaces that declare the method has no edge, because its callee is not determined.
+  classes or interfaces that declare the method has no edge, because its callee is not determined; a
+  call whose callee is a variable, a parameter or an expression typed by a function's type, rather
+  than the function itself, has no edge.
 - No change to `packages/core` (`calls` is already an edge kind), to the PHP analyzer or to the CLI.
 
 Out of scope (non-goals of DIS-31): the seed, the golden answers of task-api and wiring the analyzer
@@ -49,7 +51,7 @@ The DoD of DIS-31, "los 10 sitios salen `exact`; ninguna arista `heuristic` emit
 spec audit of 2026-10-27 asked whether to accept this reading or follow DIS-20's path (stop and open a
 story on core first); in correction round 1 the agent, as lead engineer, kept this reading on
 2026-10-27, because both remedies widen scope against CM-HU-18 or DIS-30 E3 (design Follow-ups SA1,
-agent's text; the author may reverse it at the merge review).
+agent's text; the author may reverse it in the review after the merge, ADR 20261020, Consequences).
 
 ## Capabilities
 

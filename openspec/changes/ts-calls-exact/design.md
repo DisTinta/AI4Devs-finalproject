@@ -100,7 +100,21 @@ Rejected: a class is not a `function` / `method` symbol, and the non-goals of DI
     whose declarations live in two classes. Picking `A::m` would be a guess, so a property-access callee
     whose member name resolves to declarations in more than one class or interface gives no edge. A
     receiver typed `F | undefined` (optional chaining) or `F & { k: number }` keeps its edge: its name
-    resolves to declarations in `F` only.
+    resolves to declarations in `F` only. The declarations of one interface merged from several
+    `interface` declarations count as one interface (SA12): their members share the parent symbol, so
+    the owners are grouped by the class or interface *symbol*, not by declaration node; the prototype
+    of correction round 2 gives `j.n(1)` → the `J::n` on line 6 (the signature the compiler resolves).
+  - *Callee identity* (SA11): `getResolvedSignature` works from the callee's *type*, so a callee typed
+    `typeof a` resolves to `a` although any compatible function can be passed. For a call expression
+    (not `new`, not `super(...)`) whose callee is an identifier or a property access (`super.m` and
+    optional calls included), the resolved declaration must be one of the declarations of
+    `getSymbolAtLocation(callee name)`, aliases followed; any other callee (a call result, an element
+    access, a parenthesised or conditional expression) gives no edge. Prototype of correction round 2:
+    without the check, `viaType` (`cb: typeof a; cb()`), `viaUnion` (`const g = c ? a : b; g()`),
+    `viaResult` (`get()()` with `get: () => typeof a`) and `viaLocal` (`const fn = a; fn()`) each give
+    an edge to `a`; with it, none. The 37 task-api edges and every other inline scenario are
+    unchanged (none of their callees is typed by a function's type; `this.clock()` is typed
+    `() => string` and has no symbol target anyway).
   - *No edge by construction* (SA6): `new` on an expression that does not resolve to a class
     declaration (`new (pick())()`), `super(...)` whose direct base is not a class declaration
     (`extends mixin(Base)`, `extends Error`) and tagged templates (not call sites, although the
@@ -191,7 +205,7 @@ engineer in an autonomous run, without the author (docs/AUTONOMOUS-RUN.md §6).*
 
 | Id | Decision or finding | Destination |
 |---|---|---|
-| SA1 | B1 / Q1: the DoD "los 10 sitios salen `exact`" is read as 8 `exact` edges plus 2 sites with no edge and no `heuristic` `calls` (E1, E2). DIS-20's alternative (stop and open a story on core first) is not taken: the only remedies are `references` in `AnalyzerInput` (changes core, against CM-HU-18's empty-diff criterion) or reading `node_modules` / the standard library (against DIS-30 E3, and impossible when indexing from Git); both widen scope and neither is needed for every emitted edge to be `exact`. The author may reverse it at the merge review | **D** — accepted (the oracle change of `fixtures/README.md` is applied here, task 3.1) |
+| SA1 | B1 / Q1: the DoD "los 10 sitios salen `exact`" is read as 8 `exact` edges plus 2 sites with no edge and no `heuristic` `calls` (E1, E2). DIS-20's alternative (stop and open a story on core first) is not taken: the only remedies are `references` in `AnalyzerInput` (changes core, against CM-HU-18's empty-diff criterion) or reading `node_modules` / the standard library (against DIS-30 E3, and impossible when indexing from Git); both widen scope and neither is needed for every emitted edge to be `exact`. The author may reverse it in the review after the merge (ADR 20261020, Consequences) | **D** — accepted (the oracle change of `fixtures/README.md` is applied here, task 3.1) |
 | SA2 | B2: "overload signature" is defined (a bodyless function, method or constructor declaration whose symbol has a declaration with a body); abstract methods and interface method signatures are targets themselves; new scenario "Abstract and interface methods are targets themselves" | **A** — this change (spec, D4) |
 | SA3 | B3: a call with a type error keeps the target the compiler resolves; an overloaded call that matches no overload maps to the implementation; a property-access callee whose member name resolves to declarations in more than one class or interface (union / intersection receiver) gives no edge; a signature with no declaration gives none. Confirmed with a prototype; new scenario "A call with a type error keeps its compiler-resolved target" | **A** — this change (spec, D4) |
 | SA4 | I1: `super.m()`, `f?.()`, object-literal methods, static blocks, overloaded constructors and non-symbol targets (parameter of function type, arrow `const`) are pinned by extending four inline scenarios; "Call sites outside a function or method symbol have no edge" is renamed "… and targets that are not symbols, have no edge" | **A** — this change (spec) |
@@ -201,3 +215,13 @@ engineer in an autonomous run, without the author (docs/AUTONOMOUS-RUN.md §6).*
 | SA8 | I5: "The calls of task-api" lists the 14 remaining edges per file, so "exactly 37" is a list (recomputed with the round 1 prototype) | **A** — this change (spec) |
 | SA9 | I6: task 2.2 is split into 2.2a (walk, calls, overloads, type errors), 2.2b (constructor rule) and 2.2c (references and task-api) | **A** — this change (tasks) |
 | SA10 | I8: task 3.1 fixes the exact sentence for `fixtures/README.md` | **A** — this change (tasks) |
+
+Spec audit, run 2 (2026-10-27), resolved in correction round 2. *Agent's text: decided as lead
+engineer in an autonomous run, without the author (docs/AUTONOMOUS-RUN.md §6).*
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| SA11 | B1: callee identity, option (A) of the audit. A call expression whose callee is an identifier or a property access targets the resolved declaration only when it is a declaration of the symbol the callee name resolves to; any other callee gives no edge. Option (B) (follow the callee's type) was rejected: the prototype shows it links `cb: typeof a`, `c ? a : b`, `get()()` and `const fn = a` to `a`, the same guess rejected for union receivers (SA3), against "calls that the compiler resolves, never guesses". New scenario "A callee typed by a function's type is not that function"; the 37 task-api edges are unchanged | **A** — this change (spec, D4, task 2.2a) |
+| SA12 | I2: the declarations of one merged interface count as one interface; the target is the signature the compiler resolves (`useJ` → the `J::n` on line 6), pinned in "Abstract and interface methods are targets themselves". Counting them as two would drop an edge the compiler resolves exactly, as it does for several signatures of one interface method | **A** — this change (spec, D4) |
+| SA13 | I1: "Only references passed as arguments are calls" adds an array element (`const a = [helper];`), with the THEN unchanged (prototype: still only `s` → `helper`) | **A** — this change (spec) |
+| SA14 | I3: the 8 + 2 reading is reviewed by the author after the merge, not at a merge review (ADR 20261020, Consequences): wording fixed in the proposal, SA1 and task 9.1 | **A** — this change (proposal, design, tasks) |

@@ -444,3 +444,26 @@ The only empty row is the B1 rule, which has no scenario and no task. It is bloc
 ### Linear DIS-20
 
 No change.
+
+---
+
+## Resolution of run 2
+
+*Agent's text: correction round 2 of an autonomous run (docs/AUTONOMOUS-RUN.md §6), 2026-10-27,
+decided as lead engineer without the author.* Every decision is recorded in `design.md` →
+Follow-ups, table "Spec audit, run 2" (SA11–SA14). A throwaway prototype in the session scratchpad
+(the analyzer's own `program.ts`, the symbol rules of `symbols.ts`, and the rules of the corrected
+requirement, run with `npx tsx`) was run over the 38 tracked files of task-api and over every inline
+input of the delta, with and without the callee-identity check.
+
+| Finding | Resolution |
+|---|---|
+| Q1 (carried from run 1, not blocking) | Decided by the agent in round 1 (SA1), unchanged; only its wording about when the author reviews it is fixed (see I3) |
+| B1 (callee resolved from its type) | Fixed with option (A), decided by the agent (SA11). New paragraph "Callee identity" in the requirement, referenced from "Call sites and targets" 1: for a call expression whose callee is an identifier or a property access, the resolved declaration must be a declaration of the symbol the callee name resolves to; any other callee gives no edge; `new` and `super(...)` keep their own rule. The prototype confirms the finding (without the check, `viaType`, `viaUnion`, `viaResult` and `viaLocal` each give an edge to `a`) and the fix (with it, none). New scenario "A callee typed by a function's type is not that function"; the 37 task-api edges and every other scenario's edges are unchanged. D4 gains the sub-bullet *Callee identity*; the proposal's fourth bullet names the case; task 2.1 lists the scenario, 2.2a implements the check and turns it green, 4.2 says 13 |
+| I2 (merged interfaces) | Fixed, decided by the agent (SA12): the declarations of one merged interface count as one interface, so the target is the signature the compiler resolves. "Abstract and interface methods are targets themselves" gains a merged `J` and `useJ` → `J::n` (line 6), the prototype's output; D4 states that owners are grouped by class or interface symbol |
+| I3 (merge review vs review after the merge) | Fixed (SA14): `proposal.md` (DoD paragraph), `design.md` SA1 and task 9.1 now say the author reviews the 8 + 2 reading after the merge (ADR 20261020, Consequences). E2 had no such wording |
+| I1 (array-element reference) | Fixed (SA13): `r` in "Only references passed as arguments are calls" gains `const a = [helper];`; the THEN is unchanged, confirmed by the prototype |
+| Traceability (empty row for the B1 rule) | Fixed: the scenario exists and is listed in tasks 2.1 and 2.2a |
+
+`openspec validate ts-calls-exact --strict`: `Change 'ts-calls-exact' is valid`. The `[original]`
+block of DIS-31 is not touched; the decisions are carried by the Linear comment of this round.

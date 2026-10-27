@@ -23,7 +23,7 @@ contain none.
 
 1. A call expression (including `super(...)`, `super.m(...)` and optional calls `f?.()`) or a `new`
    expression. Its target is the declaration of the signature the TypeScript compiler resolves for it,
-   import aliases followed: an inherited method resolves to the class that declares it, and a call on
+   import aliases followed, subject to "Callee identity" below: an inherited method resolves to the class that declares it, and a call on
    a value typed by an interface resolves to the interface's method signature. When that declaration
    is an overload signature — a function, method or constructor declaration without a body whose
    symbol also has a declaration with a body — the target is that declaration with a body. An
@@ -47,9 +47,20 @@ it, as any other call; for an overloaded call that matches no overload the compi
 its overload signatures, which maps to the declaration with a body as above. A call whose callee is a
 property access whose member name the compiler resolves to declarations in more than one class or
 interface (a receiver typed by a union or an intersection of them) SHALL produce no edge and no
-diagnostic: the compiler resolves the signature of one member, but the callee is not determined. A
-resolved signature with no declaration (an unresolvable callee) SHALL produce no edge and no
-diagnostic.
+diagnostic: the compiler resolves the signature of one member, but the callee is not determined. The
+declarations of one interface merged from several `interface` declarations of the same name count
+as one interface: the target is the signature the compiler resolves. A resolved signature with no
+declaration (an unresolvable callee) SHALL produce no edge and no diagnostic.
+
+**Callee identity.** The compiler resolves a signature from the *type* of the callee, not from the
+function the callee holds. When the callee of a call expression (not a `new` expression and not
+`super(...)`, whose rule is above) is an identifier or a property access (`super.m` and optional
+calls included), the declaration of the resolved signature SHALL also be one of the declarations of
+the symbol the compiler resolves for that callee name, import aliases followed; otherwise — a callee
+typed by `typeof f`, by a union of function types, or a local variable or parameter that holds a
+function — the call site SHALL produce no edge and no diagnostic. A call whose callee is any other
+expression (the result of a call, an element access, a parenthesised or conditional expression)
+SHALL produce no edge.
 
 A call site SHALL produce an edge only when its target is a `function` or `method` symbol of the
 result: the first declaration of its file, name and start line, not one dropped as a duplicate. A
@@ -133,10 +144,19 @@ that link them. A symbol that calls itself SHALL have one `calls` edge to itself
 #### Scenario: Abstract and interface methods are targets themselves
 
 - **WHEN** `src/s.ts` with content
-  `export abstract class S { abstract area(): number; total(): number { return this.area(); } }\nexport interface I { m(x: string): void;\n m(x: number): void; }\nexport function use(i: I): void { i.m(1); }\n`
+  `export abstract class S { abstract area(): number; total(): number { return this.area(); } }\nexport interface I { m(x: string): void;\n m(x: number): void; }\nexport function use(i: I): void { i.m(1); }\nexport interface J { n(): void }\nexport interface J { n(x: number): void }\nexport function useJ(j: J): void { j.n(1); }\n`
   is analysed
-- **THEN** the `calls` edges are exactly `S::total` → `S::area` and `use` → `I::m` (the symbol on
-  line 3, the signature the compiler resolves for `i.m(1)`)
+- **THEN** the `calls` edges are exactly `S::total` → `S::area`, `use` → `I::m` (the symbol on
+  line 3, the signature the compiler resolves for `i.m(1)`) and `useJ` → `J::n` (the symbol on
+  line 6: the two declarations of the merged interface `J` count as one interface)
+
+#### Scenario: A callee typed by a function's type is not that function
+
+- **WHEN** `src/v.ts` with content
+  `export function a(): void {}\nexport function b(): void {}\nexport function viaType(cb: typeof a): void { cb(); }\nexport function viaUnion(c: boolean): void { const g = c ? a : b; g(); }\nexport function viaResult(get: () => typeof a): void { get()(); }\nexport function viaLocal(): void { const fn = a; fn(); }\n`
+  is analysed
+- **THEN** there is no `calls` edge (the compiler resolves each of the four calls to `a` from the
+  callee's type, but no callee name resolves to `a`), and `diagnostics` is empty
 
 #### Scenario: A call with a type error keeps its compiler-resolved target
 
@@ -171,7 +191,7 @@ that link them. A symbol that calls itself SHALL have one `calls` edge to itself
 #### Scenario: Only references passed as arguments are calls
 
 - **WHEN** `src/a.ts` with content `export function helper(): void {}\n` and `src/r.ts` with content
-  `import { helper } from './a.js';\nexport function r(): unknown { const k = helper; const o = { helper }; return helper; }\nexport function s(): void { setTimeout(helper); }\n`
+  `import { helper } from './a.js';\nexport function r(): unknown { const k = helper; const o = { helper }; const a = [helper]; return helper; }\nexport function s(): void { setTimeout(helper); }\n`
   are analysed together
 - **THEN** the `calls` edges are exactly one, `s` → `helper` (`setTimeout` itself resolves to
   nothing); `r` has none
