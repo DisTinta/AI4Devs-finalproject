@@ -291,8 +291,13 @@ ronda de corrección, como en `docs/base-standards.md` §7.1, punto 3, pero sin 
 2. Aplica las «Corrections to apply» a los artefactos del cambio (`/opsx:update` o una edición
    equivalente) y cierra el informe con una sección que dice, por hallazgo, cómo se resolvió:
    corregido, rechazado con el motivo o decidido por el agente.
-3. Un `spec-auditor` nuevo, sin el contexto de la ronda, audita el cambio entero. Su informe se guarda
-   como un fichero nuevo (`<fecha>-spec-audit-<n>.md`) y su veredicto es el que cuenta.
+3. Un `spec-auditor` nuevo, sin el contexto de la ronda, audita el cambio entero. Su informe se añade
+   al final del mismo informe (`reports/<fecha>-spec-audit.md`), bajo `## Run <n>`, y su veredicto es
+   el que cuenta. No se crea otro fichero: los hooks leen los informes por orden de nombre y
+   `…-spec-audit-2.md` va antes que `…-spec-audit.md`, así que contaría como la primera auditoría.
+   Una línea que sea exactamente `APPROVED` o `CHANGES REQUIRED` solo puede ser la línea de veredicto
+   de una ejecución; en cualquier otro sitio esas palabras van dentro de una frase o entre comillas
+   invertidas.
 
 El hook `protect-specs-and-tests` deja reescribir los artefactos mientras el número de veredictos
 `CHANGES REQUIRED` del cambio no pase de `AUTONOMOUS_AUDIT_ROUNDS` (en `.claude/sdd-harness.env`; 5
@@ -306,7 +311,9 @@ hasta `APPROVED`. Una auditoría `CHANGES REQUIRED` después de la última ronda
 - No se pregunta nada: se decide como lead engineer y cada decisión queda en el ticket y en
   `design.md` → Follow-ups, con su destino A/B/C/D.
 - `verify-against-spec` y `adversarial-review` se ejecutan en línea (su sección *Inline mode*), nunca
-  como fork: un fork no deja su informe a quien lo lanzó.
+  como fork: un fork no deja su informe a quien lo lanzó. No se invoca la skill: se lee su `SKILL.md`
+  y se siguen sus instrucciones (en el piloto de DIS-104 y DIS-105 se lanzó una vez como fork en cada
+  ticket y no devolvió nada).
 - `tasks.md` nombra cada test existente que cambia una tarea; si no, la protección lo deniega.
 - El código no se escribe por la shell (`cat > fichero`, `sed -i`): se usan las herramientas de
   edición, que la puerta del `spec-auditor` sí ve.
@@ -321,7 +328,18 @@ hasta `APPROVED`. Una auditoría `CHANGES REQUIRED` después de la última ronda
   explícitas, nunca `git add -A` ni `git commit -a`.
 - No se usan worktrees aislados: un subagente en un worktree nuevo leería el `KIT_AUTONOMOUS_RUN="0"`
   del commit, y sus hooks volverían a preguntar.
-- Las esperas (CI, merges) se hacen con la herramienta `Monitor`, nunca con `sleep`.
+- Las esperas (CI, merges) se hacen con la herramienta `Monitor`, nunca con `sleep`. Un paso que espera
+  la CI no termina hasta que ningún check está pendiente: no deja un monitor en segundo plano y
+  devuelve su resultado sin el veredicto de la CI.
+- Un comando `git` por llamada: no se encadenan `git switch`, `git merge` o `git push` con `&&`. Los
+  hooks juzgan la línea entera con la rama en la que se está al lanzarla, y un `git merge` encadenado
+  tras un `git switch` desde la base se deniega como si fuera un merge sobre la base.
+- No se deja en marcha ningún proceso al terminar un paso: `vitest run`, nunca en modo watch, y se
+  para cualquier servidor (`vite`, API) que se arranque. Un `vitest` huérfano bloquea en Windows los
+  binarios de `node_modules`, y el siguiente `npm ci` falla con `EPERM`.
+- Ninguna sesión, tampoco la principal, deja su directorio de trabajo dentro de
+  `openspec/changes/<cambio>/`: en Windows esa carpeta queda bloqueada y `/opsx:archive` no la puede
+  mover.
 - El merge es solo `gh pr merge <n> --merge`, a través de la puerta. Si la puerta lo deniega, se vuelve
   a leer el PR antes de reintentar: puede haber cambiado entretanto.
 

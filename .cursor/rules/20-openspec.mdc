@@ -37,10 +37,14 @@ When you are asked to implement a change from `openspec/changes/<id>/`:
    - Ask no questions: decide as lead engineer and record each decision in the ticket and in
      `design.md` → Follow-ups with its A/B/C/D destination.
    - Run `verify-against-spec` and `adversarial-review` inline (their `Inline mode` section), never as
-     forks.
+     forks: read their `SKILL.md` instead of invoking them.
    - A `CHANGES REQUIRED` spec audit opens a correction round (`docs/AUTONOMOUS-RUN.md` §6): answer
      the author's questions as lead engineer, apply the corrections, close the report and run a
-     fresh `spec-auditor`, at most `AUTONOMOUS_AUDIT_ROUNDS` times (default 5).
+     fresh `spec-auditor`, at most `AUTONOMOUS_AUDIT_ROUNDS` times (default 5). Each new audit run is
+     appended to the same `reports/<date>-spec-audit.md`, never written to a new file.
+   - One `git` command per call (never chain `git switch`, `git merge` or `git push` with `&&`). A step
+     that waits for CI returns only when no check is pending. Leave no `vitest`, `vite` or server
+     process running, and no session's working directory inside `openspec/changes/<change>/`.
    - Stop cleanly — ticket In Review with a comment — on: a `CHANGES REQUIRED` spec audit after the
      last correction round, CI red
      after 2 fixes, a merge conflict, the usage limit, a denied permission with no alternative, or a
