@@ -28,3 +28,14 @@ All at least 7 days old when installed, with their official repository and no in
 ## Data state
 
 Local database (`codemind`, the author's), before and after: `project` 1, `query_log` 0, `cache_entry` 3 with `sum(hit_count)` 0. The suite and `verify` ran against `codemind_test`, which they own. `.stryker-tmp/` (gitignored) is left by Stryker runs; `reports/stryker-incremental.json` (gitignored) was rewritten. No other temporary file; the clone folders are in the session scratchpad.
+
+## Addendum: CI of PR #69 (task 12.2)
+
+- At `f473bdd` (end of the apply): scope, secrets, verify, quality, frontend and mutation green; the
+  mutation job, the first full run on Node 22 and Stryker 10, took 33 min 41 s
+  ([run 40481582423](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/40481582423),
+  [frontend 40481582252](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/40481582252)).
+- At `6a8d06c` (review fixes: `claims-and-typing` delta, two tests): all six checks green
+  ([run 40489657157](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/40489657157),
+  [frontend 40489657280](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/40489657280));
+  mutation 1 min 15 s, since no file of its `mutate` set changed.
