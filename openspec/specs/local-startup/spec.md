@@ -117,7 +117,7 @@ else. The scripts `test`, `test:a11y`, `test:mutation`, `test:mutation:full`, `l
 `lint:architecture`, `typecheck` and `docs:coverage` SHALL NOT load it. Product code SHALL keep
 reading its configuration from the process environment only: no file under `packages/*/src` SHALL
 import from `scripts/` or name `load-env` or `.env` in an import specifier. The root `package.json`
-SHALL keep `engines.node` = `>=20.11`, and no file of `scripts/` SHALL use `process.loadEnvFile`,
+SHALL declare `engines.node` = `>=22.12`, and no file of `scripts/` SHALL use `process.loadEnvFile`,
 `util.parseEnv` or `--env-file`. When run as entry modules, `up` and `demo:ask` SHALL pass the repository root's `.env`
 path (`DOTENV_PATH` of `scripts/env.mjs`) as their `.env` path, and loading `.env` SHALL print its
 warning at most once per process.
@@ -134,7 +134,7 @@ warning at most once per process.
 - **AND** none of `test`, `test:a11y`, `test:mutation`, `test:mutation:full`, `lint`,
   `lint:architecture`, `typecheck` and `docs:coverage` contains `load-env`, and
   `packages/api/dev-register.mjs` does not contain `load-env`
-- **AND** `engines.node` is `>=20.11`
+- **AND** `engines.node` is `>=22.12`
 - **AND** `scripts/up.mjs` and `scripts/demo-ask.mjs` import `DOTENV_PATH` from `./env.mjs`, pass it in
   the call of their entry guard and do not import `./load-env.mjs`, `scripts/demo-excerpt.mjs` imports
   neither `./env.mjs` nor `./load-env.mjs`, and no source text of `scripts/` contains
@@ -670,3 +670,33 @@ or the four guides to a section of one of the four guides SHALL point to a headi
   say that the guide's npm scripts read `.env` and that `npm run up` starts the system in any shell
 - **AND** `readme.md` §1.2, §1.4 and §2.4 give `npm run up` as the start command, and the start block of
   §1.4 contains no `&&`
+
+### Requirement: CI runs on the supported Node baseline
+
+Every step that installs Node in the repository's CI workflows (`.github/workflows/ci.yml` and
+`.github/workflows/frontend.yml`) SHALL request Node `22`, the same major as the `engines.node` floor of
+the root `package.json`. No workflow SHALL request Node 20 or an unpinned version.
+
+#### Scenario: Every CI job installs Node 22
+
+- **GIVEN** `.github/workflows/ci.yml` and `.github/workflows/frontend.yml`, read as YAML
+- **WHEN** every step of every job that uses `actions/setup-node` is collected
+- **THEN** there is at least one such step in each file, and each one has `with.node-version` equal to
+  the string `'22'`
+- **AND** `22` is the major of the lower bound of `engines.node` in the root `package.json`
+
+### Requirement: A clean install reports no high or critical advisory
+
+On a clean clone with a Node version that satisfies the root `engines.node`, installing the locked dependencies SHALL leave no
+`npm audit` advisory of severity high or critical. Any remaining advisory of lower severity SHALL have
+no published fix at the time of the change and SHALL be listed, with its destination, in the change's
+design.
+
+#### Scenario: npm audit on a clean clone
+
+- **GIVEN** a clean clone of the branch and Node 22.12 or later
+- **WHEN** `npm ci` runs and then `npm audit --audit-level=high`
+- **THEN** `npm audit --audit-level=high` exits `0`
+- **AND** `npm audit` prints `found 0 vulnerabilities`, or every advisory it lists is low or moderate,
+  `npm audit --json` reports `fixAvailable: false` for it, and it appears in the design's Follow-ups
+  with its destination
