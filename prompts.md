@@ -77,6 +77,7 @@
 60. [Interruptor de ejecución autónoma en el kit, para Claude Code y Cursor (DIS-106)](#60-interruptor-de-ejecución-autónoma-en-el-kit-para-claude-code-y-cursor-dis-106)
 61. [Respuestas en el idioma de la pregunta (DIS-104)](#61-respuestas-en-el-idioma-de-la-pregunta-dis-104)
 62. [Deuda de `npm audit`: Vitest, Vite, Stryker y la base de Node 22 (DIS-105)](#62-deuda-de-npm-audit-vitest-vite-stryker-y-la-base-de-node-22-dis-105)
+63. [Analizador TypeScript: estructura, spans y aristas (DIS-30)](#63-analizador-typescript-estructura-spans-y-aristas-dis-30)
 
 ---
 
@@ -5178,3 +5179,25 @@ horas para un resultado inservible.
 **Ajuste humano.** Ninguno: ejecución autónoma. Decisiones del agente (`design.md` → D16, D17): quedarse en
 Vitest 4.1.12 con Stryker 10 y Vite 8, y registrar lo que no se pudo ejecutar (el `.env` y la captura en
 PowerShell 7 por permisos, y la captura de pantalla por falta de navegador).
+
+# 63. Analizador TypeScript: estructura, spans y aristas (DIS-30)
+
+### Prompt 1 — Aplicar el cambio dentro del workflow autónomo
+
+El script del workflow envió a este paso, entre otras reglas, este texto literal:
+
+```
+Ticket: DIS-30. Branch: feature/dis-30-ts-analyzer-structure. Change: openspec/changes/ts-analyzer-structure. Step: apply.
+Run /opsx:apply on change ts-analyzer-structure: every task in TDD (failing test first, then implementation, in the layer order), marking tasks.md as you go, with the mandatory verification steps. Run the tests, lint and typecheck. Commit, push and open the PR to final-project-CRN with /pr-describe (write the "why" yourself and mark it as agent-written). Return pr.
+```
+
+**Por qué funcionó.** La spec ya fijaba cada cifra de task-api (38 archivos, 7 clases, 7 interfaces, 24
+funciones, 26 métodos, 54 `imports`, 3 `tested_by`), así que cada escenario se convirtió en un test con el
+mismo nombre y falló por la razón correcta antes de escribir el analizador. El compilador de TypeScript
+sobre un `CompilerHost` en memoria, sin biblioteca estándar, dio justo el resultado de la spec a la primera
+sin tocar `packages/core`.
+
+**Ajuste humano.** Ninguno: ejecución autónoma. Decisiones del agente (`design.md` → Follow-ups): las
+partes de arista de los escenarios de `tsconfig.json` se comprueban en el mismo `it` de `structure.spec.ts`
+y no en un segundo `it` con el mismo nombre, y la prueba manual se hizo con un script de la carpeta
+temporal sobre los 38 ficheros rastreados.

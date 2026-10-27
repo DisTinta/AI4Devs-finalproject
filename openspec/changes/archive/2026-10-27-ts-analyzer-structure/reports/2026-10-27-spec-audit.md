@@ -1,0 +1,636 @@
+CHANGES REQUIRED
+
+**Change:** `openspec/changes/ts-analyzer-structure` · **Ticket:** DIS-30 (sub-issue) · **Parent:** DIS-20 (CM-HU-18) · **Audit date:** 2026-10-27 · first audit.
+Inputs read: `proposal.md`, `design.md`, `specs/code-analysis/spec.md`, `tasks.md`; DIS-30 and DIS-20 with the comments on DIS-30 (Linear); `docs/project-context.md`, `docs/backend-standards.md`, `docs/openspec-tasks-mandatory-steps.md`, `docs/AUTONOMOUS-RUN.md` §5, `openspec/specs/code-analysis/spec.md`, `docs/adr/20260928-edge-endpoints-as-fk-pairs.md`, `docs/adr/20261002-php-parser-web-tree-sitter.md`, and the code cited below.
+
+## Questions for the author
+
+- **Q1. Type errors and the parent's acceptance criterion.** DIS-20 AC 5 says: «Dado un fichero `.ts` con error de tipos, cuando se analiza, entonces se extraen símbolos y aristas resolubles y **el error se anota en el informe** sin abortar.» DIS-30 (enhanced E4, decision 11) and the delta («TypeScript syntax errors»: "Type errors … SHALL NOT produce a diagnostic") do the opposite. `design.md` Follow-ups E11 records this as **D — accepted**, but the agent made that call without you. Do you accept that type errors are never reported (and DIS-20 AC 5 is read as "does not abort, extracts what resolves")? Or should some report, in this change or in DIS-32's CLI report, record them? The sub-issue and the parent disagree here, so this audit does not settle it.
+- **Q2. Non-canonical `.ts` paths (P1).** No ticket asks for the rule "a `.ts` path with `./`, `..`, `\`, an empty segment or a leading `/` is not parsed, with diagnostic `non-canonical path "<path>"; not parsed`". It also widens the shared «Analysis contract» diagnostics list for every analyzer. Keep it (it stops the compiler from normalising two inputs into one) or cut it?
+
+---
+
+## 1. Scope against the ticket
+
+The change stays inside DIS-30: structure, spans, `imports`/`extends`/`implements`/`tested_by`. Calls (DIS-31) and CLI wiring, seed and golden answers (DIS-32) are explicit non-goals. It does not widen to the parent's whole story.
+
+Things that do not come from the sub-issue:
+
+- **Improvable — non-canonical path rule (design D2, P1; spec «TypeScript analysis input», 3rd sentence onward; MODIFIED «Analysis contract», diagnostics bullet; scenario "A non-canonical TypeScript path is not parsed").** This is invented scope that also edits a cross-analyzer requirement. Keep or cut it per Q2. If it is cut, remove the scenario, the diagnostics clause of «Analysis contract», P1 and the canonical-path work in task 2.2.
+- **Improvable — side-effect imports (`import './x.js'`).** DIS-30 E2 lists "import/`export … from` relativo, incluidos `import type` y `export *`". The bare side-effect import is a small addition. It is harmless, but note it in Follow-ups as a propose decision (destination A) so it is traceable.
+- Excluding symbols inside `namespace`/`module` blocks narrows scope rather than widening it. That is fine.
+
+## 2. Inherited acceptance criteria
+
+| DIS-20 AC | Inherited by DIS-30? | Requirement / scenario | Status |
+|---|---|---|---|
+| 38 files get a `kind`; every function/class/method/interface has a span | Yes | «TypeScript analysis input» / "The task-api files are classified"; «TypeScript symbol extraction» / "The task-api errors and repository have exact spans" | Partial (improvable, see below) |
+| 10 batch sites give `calls` `exact` | No (DIS-31) | Non-goal | OK |
+| `git diff --stat … -- packages/core` empty; `lint:architecture` green | Yes (DoD) | Tasks 2.4, 4.3, 6.3. This is a repository constraint, not behaviour | OK |
+| `src/config/env.ts:7` secret redacted as in PHP | No (gateway / CLI path, DIS-32) | Not listed as a non-goal | Improvable |
+| `seed:build`, `db:seed`, `verify` with task-api | No (DIS-32) | Non-goal | OK |
+| `.ts` file with type errors: symbols and resolvable edges extracted, error annotated, no abort | Yes, in part | «TypeScript syntax errors» / "Type errors are not diagnostics" | **Question Q1**; scenario incomplete (improvable) |
+
+- **Improvable — no fixture-wide symbol inventory.** The parent says *every* function/class/method/interface has a span. The scenarios pin only `src/domain/errors.ts` and `src/repositories/task.repository.ts`. The PHP counterpart has "Every named class of acme-shop is listed". Add a TypeScript scenario that lists every class, interface and top-level function symbol of task-api by file. A grep of the fixture finds, for example, `interface BuildAppOptions` (`src/app.ts:12`), `function buildApp`, `function main` (`src/server.ts`), `class TasksController`, `class HealthController`, `class TaskService`, `class InMemoryTaskRepository`, `interface TaskQuery`, `interface Task`/`CreateTaskInput`/`UpdateTaskInput`, `interface Page`, `function buildPage`, the domain predicates, the `task.filters.ts` helpers and `tests/helpers/build-app.ts` `buildTestApp`/`makeTask`. Count them from the fixture when writing the scenario.
+- **Improvable — "aristas resolubles" not covered.** "Type errors are not diagnostics" checks only symbols and diagnostics. Add a second file the broken one imports, so the scenario also proves that a resolvable edge is still emitted (see corrections).
+- **Improvable — redaction non-goal.** Add to the proposal's out-of-scope list: "redaction of `src/config/env.ts:7` (the core gateway is unchanged and runs before any analyzer; it is exercised on task-api once DIS-32 wires the CLI)".
+
+## 3. Missing scenarios
+
+- **BLOCKING — the ignored `tsconfig.json` fields and unaccepted options have no scenario.** «TypeScript analysis input» says, under SHALL: `extends`, `references`, `files`, `include` and `exclude` are ignored, unaccepted options are ignored without a diagnostic, and whatever the options no standard library is loaded. No scenario uses any of these fields. The task-api `tsconfig.json` has `include: ["src/**/*.ts", "tests/**/*.ts"]` (`fixtures/task-api/tsconfig.json:19`), which already covers every test file. The only file outside it, `vitest.config.ts`, is only checked for "no symbol", which an unparsed file also satisfies. So an implementation that honours `include`/`exclude`, or reports option errors as diagnostics, passes every scenario. Decision E2's own justification ("tests usually sit outside `include` and are needed for `tested_by`") is never tested. Fix: add the scenario "The tsconfig never selects files or loads declarations" (exact text under Corrections).
+- Improvable: SHALL clauses with no scenario. None of these alone lets a wrong implementation through a central decision:
+  - "a file SHALL NOT import itself" (`imports`);
+  - "`require()`, dynamic `import()` and `import x = require()` SHALL produce none";
+  - heritage names "with … type arguments" (`extends Base<T>`) and "any other expression (a call, a mixin) SHALL produce no edge";
+  - private-identifier members "named with its `#`" (`X::#m`, a name a test will pin);
+  - `tsconfig.json` "comments and trailing commas allowed";
+  - "when known, the 1-based `line`" of the `tsconfig.json` diagnostic: the scenario "An unreadable tsconfig falls back to the default options" does not pin it, although design D4 records that the error is known (`Expression expected.`). Pin `line` 1;
+  - non-canonical forms `..`, a leading `/` and an empty segment (only `./` and `\` are exercised).
+
+## 4. Ambiguity
+
+- Improvable — `spec.md` line 457, «TypeScript code relation edges»: "a pair of files SHALL have at most one such edge **however many** statements link them". Replace with: "a pair of files SHALL have at most one such edge, whatever the number of statements that link them".
+- No other occurrence of fast / easy / secure / efficient / many / appropriate / robust in proposal, design, spec or tasks.
+
+## 5. Open decisions
+
+- **BLOCKING — `tsconfig.json` in an input with no TypeScript file.** «TypeScript analysis input» says, with no condition, that an unparsable `tsconfig.json` adds a diagnostic. Design D3 and the scenario "A failed compiler load does not poison later calls" (last AND) say that an input with no TypeScript file does not load the compiler. Reading `tsconfig.json` needs the compiler (`ts.parseConfigFileTextToJson`, design D2). For the input `{README.md, tsconfig.json: "{ "compilerOptions": "}` the implementer must pick one: load the compiler (breaking the no-load rule) or emit no diagnostic (breaking the tsconfig rule). Fix it in the requirement and pin it in the scenario (see corrections). The proposed reading: `tsconfig.json` is read only when there is at least one TypeScript file.
+- **BLOCKING — a `tsconfig.json` that is valid JSON-with-comments but not an object, or a partial parse.** The spec only says "cannot be parsed". Design D2 does `json.compilerOptions ?? {}`. With content `null`, `parseConfigFileTextToJson` can return `config: null`, so that line throws and the call rejects, against "the call SHALL NOT reject". The spec does not say whether a root `[]`/`42`/`"x"`/`null`, or a `compilerOptions` that is not an object, is "cannot be parsed" (defaults plus a diagnostic) or "no options" (defaults, no diagnostic). It also does not say what happens when the compiler returns both a config and an error. Design D2 says "on a JSON error, the default options", but the spec does not. Fix it in the requirement, in a scenario and in design D2 (see corrections).
+- Improvable — the signature of an interface member separated by `,` (`interface I { a(): void, b(): void }`). The spec cuts at "its terminating `;` (to its end when it has none)". The TS parser includes the `,` separator in the member node, so the signature would be `a(): void,`. Write "its terminating `;` or `,`".
+- Improvable — the order of `diagnostics` is fixed only in design D6 (by `path`, stable) and in the PHP code (`packages/analyzers/php/src/php-analyzer.ts:153`). It is not in the spec. Tests that compare `diagnostics` with `toEqual` on several paths depend on it. State it in «TypeScript analysis input».
+
+## 6. Contradictions inside the change
+
+- **BLOCKING (same defect as the first finding of point 5):** design D3 and the scenario "A failed compiler load does not poison later calls" (no compiler without a TypeScript file) contradict the unconditional `tsconfig.json` diagnostic of «TypeScript analysis input». Counted once.
+- Improvable: `design.md` Follow-ups E11 is "D — accepted", while the parent AC says the opposite (Q1). Until the author answers, mark it "pending author decision (Q1)".
+- No other contradiction: the proposal, design D1–D10 and the spec agree on file kinds, roots, forced options, symbol rules, edge rules and test layout.
+
+## 7. Contradictions with the project
+
+- **BLOCKING — main requirements that are not scoped to PHP.** `openspec/specs/code-analysis/spec.md` «Test coverage edges» (l.890–897) says "A class `XTest` declared in a file of kind `test` SHALL produce one `tested_by` edge from the class symbol `X` … with … `extractor` `php-treesitter-laravel`". Nothing scopes it to PHP. The MODIFIED «Analysis contract» keeps it in the list of edge sources next to the new «TypeScript test coverage edges». For a TypeScript test file declaring `class FooTest` that imports `Foo`, the merged spec would require a class → class `tested_by` with the PHP extractor as well as the file → file one. «Code relation edges» (l.312–323) has the same problem: it opens with "The analyzer SHALL emit, with … `extractor` `php-treesitter-laravel`". The delta already scopes «Symbol extraction» for exactly this reason, so it must do the same for these two. Add both as MODIFIED requirements, with their full text and unchanged scenarios (see corrections).
+- Improvable — `docs/project-context.md` l.397 ("`adapters/git`, `adapters/llm` and `analyzers/php` have a project reference to core") and l.655–657 ("the analyzer/adapter ones are empty stubs") become stale once task 1.2 and the implementation land. Task 9.1 does not name them.
+- Improvable — design D10 (no ADR) against the precedent `docs/adr/20261002-php-parser-web-tree-sitter.md`, which recorded the PHP analyzer's parser choice and its runtime dependency. Either write the analogous ADR for "`typescript` compiler API, in-memory host, `noLib`" or state in D10 why this choice differs from the precedent. The ADR "why" is the author's (rule 8), so at most a draft marked as the agent's text.
+- Consistent with the project: file → file `imports` is backed by `docs/adr/20260928-edge-endpoints-as-fk-pairs.md` ("an import links two files"); `analyzers-are-siblings` and `analyzers-no-io` (`.dependency-cruiser.cjs:43–61`) are respected by D7 and by importing only `typescript`; PH-22 (fixtures read-only) is respected; Linear text is in Spanish and the PR in Spanish (tasks 0.2, 10.1).
+
+## 8. Contrast with the real code
+
+- `readFixtureFiles(root, ignoredDirs)` exists with that signature (`tests/support/read-fixture-files.ts:10`), so D8's `readFixtureFiles(TASK_API, ['.git', 'node_modules'])` works. `package-lock.json` must be filtered by the test, as D8 says.
+- The lazy load forgotten on failure copies `packages/analyzers/php/src/php-analyzer.ts:93–99`. The `vi.mock` pattern copies `tests/unit/analyzers/php/parser-load.spec.ts:9–27`. For the mock to apply, `ts-analyzer.ts` must call the `loadTypeScript` it imports from `program.ts`. D3 implies this; spelling it out in task 2.3 is cheap.
+- The helpers copied by D7 (`uniqueInputs`, `keepFirst`, `bySymbolOrder`, `byPath`) are private in `php-analyzer.ts:14–85`. Copying them is the only option that respects both the DoD and `analyzers-are-siblings`. It is recorded as debt E10.
+- `packages/analyzers/typescript/tsconfig.json` has no `references`, while `packages/analyzers/php/tsconfig.json:9` does. Task 1.2 is correct.
+- The seed fingerprint lists only `packages/analyzers/php/src` (`packages/cli/src/seed/fingerprint.ts:28`), so task 6.4's claim holds.
+- `typedoc.json` already lists `packages/analyzers/typescript` as an entry point, so task 9.2 will be enforced by `docs:coverage`.
+- Improvable — task 7.1 runs a scratchpad script with plain `npx tsx`. The analyzer imports `@codemind/core`, whose `package.json` `main` is `dist/index.js`. Only `vitest.config.ts` (alias) and `packages/cli/tsconfig.run.json` (paths) map it to `src/`. `docs/project-context.md` l.221 records the stale or missing `dist/` trap. Run the script with `npx tsx --tsconfig packages/cli/tsconfig.run.json <script>`.
+- The fixture facts were checked: the `TaskRepository` spans 22–28 and methods 23–27 (`fixtures/task-api/src/repositories/task.repository.ts`); `src/types/index.ts` has `import type` of `task.repository.js` and its interface sits inside `declare module 'fastify'`; the `README.md` code spans name only `TaskRepository` and `TaskService`, and `docs/api.md` names no symbol (2 `describes` confirmed).
+
+## 9. Task size
+
+Clean. Each GREEN task (2.2, 3.2, 4.2) creates one or a few modules with a bounded spec. 11.6 is an open loop by nature (fix until no Blocker/Major), which the pre-merge process accepts.
+
+## 10. Mandatory steps
+
+- Step 0 is the branch, and it comes first. The verification steps are present and labelled: 5 Review and Update Existing Tests (MANDATORY), 6 Run Tests and Verify Data State (MANDATORY, report `…-6-test-and-state-verification.md`), 7 Manual Interface Testing (MANDATORY – AGENT MUST EXECUTE), 8 End-to-End (marked N/A with its reason), 9 Docs (MANDATORY), 11 Pre-merge Review last, in the fixed order. State restoration: no mutating step (`npm install` changes the lockfile on purpose; 7.3 checks `fixtures/`). Under an autonomous run the agent may merge through the merge gate (`docs/AUTONOMOUS-RUN.md` §5 and the override table l.133–135), so 11.7 is legitimate.
+- Improvable — the branch is `feature/dis-30-ts-analyzer-structure`, but `docs/project-context.md` l.528 sets `feature/DIS-n-slug`, and `dis-30` does not match the ticket-id pattern `[A-Z][A-Z0-9]+-[0-9]+` of `docs/base-standards.md` §2. The branch is already pushed, so do not rename it. Record in 0.1 that commit scopes are still `DIS-30` and that the lowercase name comes from the autonomous workflow.
+- Improvable — scenarios split across tasks ("Names outside the input resolve to nothing" in 2.1 and 4.1; "A TypeScript syntax error does not stop the analysis" in 3.1 and 4.1). Say that 4.1 adds assertions to the existing `it` of that name during RED, never a second `it` with the same name, and never removes an assertion.
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| MODIFIED Analysis contract | 5 existing PHP scenarios (unchanged) | 5.1 (existing tests stay green) |
+| MODIFIED Analysis contract (non-canonical diagnostic clause) | A non-canonical TypeScript path is not parsed | 2.1, 2.2 |
+| MODIFIED Symbol extraction | 7 existing PHP scenarios (unchanged) | 5.1 |
+| TypeScript analysis input | The task-api files are classified | 2.1, 2.2 |
+| | The task-api analysis is a valid deterministic graph | 2.1, 2.2 |
+| | A TypeScript file is analysed from its content only | 2.1, 2.2 |
+| | Duplicate TypeScript input paths keep the first | 2.1, 2.2 |
+| | Files that are not TypeScript are not parsed | 2.1, 2.2 |
+| | A non-canonical TypeScript path is not parsed | 2.1, 2.2 |
+| | Compiler options come from the input tsconfig | 4.1, 4.2 |
+| | An unreadable tsconfig falls back to the default options | 4.1, 4.2 |
+| | Names outside the input resolve to nothing | 2.1/2.2 (symbols, diagnostics), 4.1/4.2 (edges) |
+| | A failed compiler load does not poison later calls | 2.3 |
+| TypeScript symbol extraction | The task-api errors and repository have exact spans | 3.1, 3.2 |
+| | task-api files without such declarations have no symbols | 3.1, 3.2 |
+| | Anonymous and expression classes yield only their methods | 3.1, 3.2 |
+| | Only the implementation of an overload is a symbol | 3.1, 3.2 |
+| | TypeScript spans include decorators and modifiers, not JSDoc | 3.1, 3.2 |
+| | Variables, types, accessors and ambient declarations are not symbols | 3.1, 3.2 |
+| | Duplicate TypeScript symbols are dropped with a diagnostic | 3.1, 3.2 |
+| TypeScript syntax errors | A TypeScript syntax error does not stop the analysis | 3.1/3.2, 4.1/4.2 |
+| | Type errors are not diagnostics | 3.1, 3.2 |
+| TypeScript code relation edges | The structural edges of task-api | 4.1, 4.2 |
+| | Inheritance follows aliases and namespace imports | 4.1, 4.2 |
+| | A merged declaration is not an inheritance target | 4.1, 4.2 |
+| | Every import form is one file edge | 4.1, 4.2 |
+| TypeScript test coverage edges | The unit tests of task-api cover their files | 4.1, 4.2 |
+| | A test file that does not import its subject has no edge | 4.1, 4.2 |
+| | The base name and the import pick the subject | 4.1, 4.2 |
+
+No empty row. The scenarios that the corrections below add must be added to tasks 2.1/2.3/3.1/4.1 and to the count in 5.2.
+
+---
+
+## Corrections to apply
+
+### `specs/code-analysis/spec.md`
+
+1. **(Blocking, points 5/6)** «TypeScript analysis input», 2nd paragraph. Replace "The input whose path is exactly `tsconfig.json`, when there is one, SHALL supply the compiler options:" with:
+   "When the input has at least one TypeScript file, the input whose path is exactly `tsconfig.json`, when there is one, SHALL supply the compiler options:"
+   and add at the end of that paragraph:
+   "When the input has no TypeScript file, `tsconfig.json` SHALL NOT be read and SHALL add no diagnostic, whatever its content, and the compiler SHALL NOT be loaded."
+   In the scenario "A failed compiler load does not poison later calls", replace the last AND with:
+   "- **AND** an input with no TypeScript file (`README.md` with content `# Readme` and `tsconfig.json` with content `{ "compilerOptions": `) resolves without loading the compiler, with empty `diagnostics`"
+2. **(Blocking, point 5)** «TypeScript analysis input». Replace "When the content of `tsconfig.json` cannot be parsed, …" with:
+   "The content of `tsconfig.json` cannot be parsed when the compiler reports any error while reading it as a `tsconfig.json`, or when its root value is not an object. It SHALL then be ignored entirely: the default options SHALL be used and one diagnostic SHALL be added with `path` `tsconfig.json`, a non-empty `message` and, when the compiler gives a position, the 1-based `line` of the error; the call SHALL NOT reject. A `compilerOptions` that is absent or not an object SHALL be read as no options, without a diagnostic."
+   Add the scenario:
+   "#### Scenario: A tsconfig whose root is not an object falls back to the default options
+   - **WHEN** `tsconfig.json` with content `null`, `src/b.ts` with content `export class B {}` and `src/a.ts` with content `import { B } from './b.js';\nexport class A extends B {}\n` are analysed together
+   - **THEN** the call resolves, there is an `imports` edge from `src/a.ts` to `src/b.ts` and an `extends` edge from `A` to `B`
+   - **AND** `diagnostics` is exactly one entry, with `path` `tsconfig.json` and a non-empty `message`"
+   In "An unreadable tsconfig falls back to the default options", change the last AND to: "`diagnostics` is exactly one entry, with `path` `tsconfig.json`, `line` 1 and a non-empty `message`".
+3. **(Blocking, point 3)** Add to «TypeScript analysis input»:
+   "#### Scenario: The tsconfig never selects files or loads declarations
+   - **WHEN** `tsconfig.json` with content `{ "extends": "./base.json", "files": [], "include": ["src/**/*.ts"], "exclude": ["tests"], "references": [{ "path": "./other" }], "compilerOptions": { "lib": ["ES2022"], "types": ["node"], "noLib": false, "notAnOption": true, }, }`, `src/foo.ts` with content `export class Foo extends Error {}` and `tests/foo.test.ts` with content `import { Foo } from '../src/foo.js';\nexport class FooCheck {}\n` are analysed together
+   - **THEN** `tests/foo.test.ts` has the symbol `class FooCheck`, there is an `imports` edge from `tests/foo.test.ts` to `src/foo.ts` and a `tested_by` edge from `src/foo.ts` to `tests/foo.test.ts`, and no `extends` edge (`Error` is not declared in the input)
+   - **AND** `diagnostics` is empty (the unknown option, `extends`, `references`, `files`, `include` and `exclude` add none)"
+   (The trailing commas also cover "comments and trailing commas allowed".)
+4. **(Blocking, point 7)** Add under `## MODIFIED Requirements`, with the full text and the unchanged scenarios of the main spec:
+   - «Code relation edges»: first sentence becomes "The PHP analyzer SHALL emit, with `resolution` `exact` and `extractor` `php-treesitter-laravel`:". Add at the end of the paragraph: "The code relation edges of the TypeScript analyzer are defined by "TypeScript code relation edges"."
+   - «Test coverage edges»: first sentence becomes "A class `XTest` declared in a PHP file of kind `test` SHALL produce …". Add: "The `tested_by` edges of the TypeScript analyzer are defined by "TypeScript test coverage edges"."
+5. (Improvable) «TypeScript code relation edges», l.457: "however many statements link them" → "whatever the number of statements that link them".
+6. (Improvable) «TypeScript symbol extraction», signature sentence: "up to and excluding its terminating `;`" → "up to and excluding its terminating `;` or `,`".
+7. (Improvable) «TypeScript analysis input»: add "`diagnostics` SHALL be ordered by `path` (UTF-16 code unit); the diagnostics of one path keep the order in which they were produced: duplicate paths first, then, in tree-walk order, the syntax error or the duplicate symbols."
+8. (Improvable) «TypeScript syntax errors», "Type errors are not diagnostics": add `src/missing-dep.ts` with content `export class Dep {}` and change the first line of `src/t.ts` to `import { Dep } from './missing-dep.js';\nimport { Missing } from './missing.js';`. THEN: "`diagnostics` is empty, the symbols of `src/t.ts` are `function f` and `class T`, and there is an `imports` edge from `src/t.ts` to `src/missing-dep.ts`" (covers the parent's "aristas resolubles").
+9. (Improvable) Add a scenario with the full list of class, interface and function symbols of task-api by file (counted from the fixture), modelled on "Every named class of acme-shop is listed".
+10. (Improvable) Add one-line scenarios for: a self-import (`src/s.ts` with `import './s.js';` → no edge); `require('./b')`, `import('./b.js')` and `import b = require('./b')` → no edge; `class K extends Base<string>` → `extends` edge; `class M extends mixin(Base)` → no edge; a member `#run() {}` of `class P` → `method P::#run`; non-canonical `src/../a.ts`, `/a.ts` and `src//a.ts`.
+
+### `design.md`
+
+- D2 "Options": replace "`ts.convertCompilerOptionsFromJson(json.compilerOptions ?? {}, '/repo')` … On a JSON error, the default options and one diagnostic" with: "If `parseConfigFileTextToJson` returns an `error`, or its `config` is not a non-null, non-array object, the default options and one diagnostic (`path` `tsconfig.json`, flattened message, line of `error.start` when there is one). Otherwise `compilerOptions` is used only when it is a non-null, non-array object, else `{}`." Add: "`tsconfig.json` is read only when the input has a TypeScript file (spec «TypeScript analysis input»), after the compiler is loaded."
+- D3: add "the input `tsconfig.json` alone never triggers a load".
+- D10: either reference a new ADR or add one sentence explaining why, unlike `docs/adr/20261002-php-parser-web-tree-sitter.md`, the parser choice gets no ADR.
+- Follow-ups: E11 → "**Pending** — author decision (Q1 of the spec audit 2026-10-27)". Add P5 "Side-effect imports are `imports` edges (D5) — **A** — this change". If kept, P1 stays as it is; if the author cuts it, remove it.
+
+### `proposal.md`
+
+- Out of scope: add "redaction of `src/config/env.ts:7` (the core gateway is unchanged; DIS-32 exercises it on task-api through the CLI)".
+- What Changes: add the `tsconfig.json`-only-with-TypeScript-files rule, and the scoping of «Code relation edges» / «Test coverage edges» to PHP under Modified Capabilities.
+
+### `tasks.md`
+
+- 0.1: add "The branch name is lowercase `dis-30` (autonomous workflow); every commit scope is still `DIS-30`."
+- 2.1 / 2.3 / 3.1 / 4.1: add the new scenarios (tsconfig root not an object → 4.1; tsconfig never selects files → 4.1; the improvable ones in their natural task). In 4.1 add: "the edge parts of a scenario already created in 2.1/3.1 are new assertions in its existing `it`; never a second `it` with the same name, never a removed assertion". In 2.3 add: "`ts-analyzer.ts` calls the `loadTypeScript` imported from `program.ts`, so the mock applies".
+- 5.1: add `tests/unit/analyzers/php/edges.spec.ts` "Test coverage" and "Code relation" scenarios to the list that must stay green after their requirements are scoped to PHP. 5.2: update the scenario count.
+- 7.1: "run with `npx tsx --tsconfig packages/cli/tsconfig.run.json <script>` so `@codemind/core` resolves to its sources".
+- 9.1: also update `docs/project-context.md` l.397 (project references: add `analyzers/typescript`) and l.655–657 (the TypeScript analyzer is no longer a stub).
+
+### Linear — DIS-30 (comment, in Spanish; the `[original]` block is not edited)
+
+> **Auditoría de spec (texto del agente, 2026-10-27): CHANGES REQUIRED, 4 bloqueantes.** (1) `tsconfig.json` sin ficheros TypeScript: se fija que no se lee ni se carga el compilador. (2) `tsconfig.json` que no es un objeto o con error parcial: opciones por defecto + diagnostic, sin rechazar la llamada. (3) Nuevo scenario que prueba que `include`/`exclude`/`files`/`extends` y las opciones desconocidas se ignoran. (4) «Code relation edges» y «Test coverage edges» de la spec principal pasan a ser del analizador PHP.
+> **Preguntas para la autora:** (Q1) DIS-20 dice que un error de tipos «se anota en el informe»; DIS-30 decide que los errores de tipos no son diagnostics (E11). ¿Se acepta, o algún informe debe registrarlos? (Q2) La regla de rutas `.ts` no canónicas (diagnostic `non-canonical path`) no viene del ticket y toca el contrato común: ¿se mantiene o se quita?
+
+### Linear — DIS-20
+
+No change to the description. If the author answers Q1 by accepting E11, add a Spanish comment on DIS-20 clarifying that AC 5 means "no aborta y extrae lo resoluble; los errores de tipos no se registran como diagnostics (decisión en DIS-30)".
+
+---
+
+## Resolution of run 1
+
+*Agent's text: correction round 1 of an autonomous run (`docs/AUTONOMOUS-RUN.md` §6), decided as lead engineer without the author. Every decision is in `design.md` → Follow-ups (A1–A7, P5) and in a Spanish comment on DIS-30.* `openspec validate ts-analyzer-structure --strict` passes after the edits. Before writing the new scenarios, the agent checked with the installed `typescript` 5.9.3: `parseConfigFileTextToJson` reports `The root value of a 'tsconfig.json' file must be an object.` at position 0 for `null`, `[]` and `42` (and returns `config: {}`), and `Expression expected.` for `{ "compilerOptions": `; trailing commas and comments give no error; an interface member separated by `,` includes the `,` in its node text; `#run() {}` is a `MethodDeclaration` named `#run`; `import b = require('./b')`, `require()` and `import()` give no syntactic diagnostic.
+
+### Questions for the author
+
+- **Q1 — decided by the agent (A1, destination D).** Type errors are never diagnostics; E11 stands as accepted. DIS-20 AC 5 is read, for the analyzer, as "does not abort and extracts what resolves". Reason: the program has no standard library (E3), so the semantic checker would flag `Error`, `Promise`, `process` and every package import in almost every file; the annotation would be noise. The scenario "Type errors are not diagnostics" now also pins a resolvable `imports` edge. A Spanish comment on DIS-20 records the reading.
+- **Q2 — decided by the agent (A2, destination A): kept.** "Analysis contract" already requires that paths are never normalised and that inputs with different strings are different files. The compiler normalises `./src/a.ts` and `src/a.ts` into one source file, so without the rule the analyzer could not meet that requirement and the collision would be an open decision. The scenario now also covers `..`, a leading `/` and an empty segment.
+
+### Findings
+
+| # | Point | Finding | Resolution |
+|---|---|---|---|
+| 1 | 1 | Non-canonical path rule is invented scope (improvable) | Decided by the agent (Q2/A2): kept, justified by "Analysis contract" |
+| 2 | 1 | Side-effect imports not in the ticket (improvable) | Fixed: Follow-ups P5, destination A |
+| 3 | 2 | No fixture-wide symbol inventory (improvable) | Fixed: scenario "Every class, interface and function of task-api is listed" (7 classes, 7 interfaces, 24 functions, counted from the fixture); task 3.1 |
+| 4 | 2 | "Aristas resolubles" not covered (improvable) | Fixed: "Type errors are not diagnostics" adds `src/dep.ts` and an `imports` edge from `src/t.ts`; tasks 3.1 and 4.1 |
+| 5 | 2 | Redaction of `src/config/env.ts:7` not a listed non-goal (improvable) | Fixed: proposal out of scope |
+| 6 | 3 | Ignored `tsconfig.json` fields and unaccepted options have no scenario (blocking) | Fixed: scenario "The tsconfig never selects files or loads declarations" (also covers trailing commas); task 4.1 |
+| 7 | 3 | SHALL clauses without a scenario (improvable) | Fixed: "Self-imports and CommonJS forms produce no edge", "Type arguments are followed, other heritage expressions are not", "Private members and comma-separated signatures are named exactly"; `line` 1 pinned in "An unreadable tsconfig falls back to the default options"; `..`, `/` and empty segment added to the non-canonical scenario |
+| 8 | 4 | "however many" (improvable) | Fixed: "whatever the number of statements that link them" |
+| 9 | 5, 6 | `tsconfig.json` in an input with no TypeScript file (blocking) | Fixed: requirement reads `tsconfig.json` only with a TypeScript file; the compiler-load scenario pins `README.md` plus an unparsable `tsconfig.json` with empty `diagnostics`; design D2 and D3; Follow-ups A3; task 2.3 |
+| 10 | 5 | Non-object root or partial parse of `tsconfig.json` (blocking) | Fixed: requirement defines "cannot be parsed" (any compiler error or non-object root, ignored entirely) and non-object `compilerOptions` (no options, no diagnostic); scenario "A tsconfig whose root is not an object falls back to the default options"; design D2; Follow-ups A4; tasks 2.2 and 4.1 |
+| 11 | 5 | Interface member separated by `,` (improvable) | Fixed: signature ends at `;` or `,`; pinned by the private-members scenario |
+| 12 | 5 | Order of `diagnostics` only in design (improvable) | Fixed: stated in «TypeScript analysis input» |
+| 13 | 6 | E11 "accepted" against the parent AC (improvable) | Decided by the agent (Q1/A1): E11 stays accepted, with the reading recorded |
+| 14 | 7 | «Code relation edges» and «Test coverage edges» not scoped to PHP (blocking) | Fixed: both added under MODIFIED with "The PHP analyzer" / "a PHP file of kind `test`", a pointer to the TypeScript requirements and their scenarios unchanged; proposal; Follow-ups A5; task 5.1 |
+| 15 | 7 | `docs/project-context.md` project references and stub passage (improvable) | Fixed: task 9.1 names both |
+| 16 | 7 | D10 against the PHP parser ADR precedent (improvable) | Decided by the agent (A6): no ADR; D10 explains the difference, marked as the agent's text |
+| 17 | 8 | Task 7.1 `npx tsx` without the run tsconfig (improvable) | Fixed: task 7.1 uses `--tsconfig packages/cli/tsconfig.run.json` |
+| 18 | 8 | `loadTypeScript` imported from `program.ts` (improvable) | Fixed: design D3 and task 2.3 |
+| 19 | 10 | Lowercase branch name (improvable) | Decided by the agent (A7): kept, recorded in task 0.1; commit scopes stay `DIS-30` |
+| 20 | 10 | Scenarios split across tasks (improvable) | Fixed: tasks 2.1 and 4.1 say the later part adds assertions to the existing `it`, never a second `it`, never a removed assertion |
+| 21 | 11 | New scenarios missing from tasks and the 5.2 count | Fixed: tasks 2.3, 3.1, 4.1; 5.2 counts 32 new TypeScript scenarios |
+
+Rejected: none.
+
+---
+
+## Run 2 (2026-10-27)
+
+CHANGES REQUIRED
+
+**Change:** `openspec/changes/ts-analyzer-structure` · **Ticket:** DIS-30 (sub-issue) · **Parent:** DIS-20 (CM-HU-18) · **Audit date:** 2026-10-27 · run 2. This run judges the change after "Resolution of run 1".
+**Inputs read:** `proposal.md`, `design.md`, `specs/code-analysis/spec.md`, `tasks.md` and the run-1 report; DIS-30 with its 6 comments and DIS-20 with its comment (Linear); `docs/base-standards.md` §7.1, `docs/openspec-tasks-mandatory-steps.md` (structure), `openspec/specs/code-analysis/spec.md`, `packages/analyzers/php/src/php-analyzer.ts`, `packages/core/src/knowledge/validate-graph.ts`, and the `.ts` declarations and test imports of `fixtures/task-api`.
+
+## Questions for the author
+
+None new. Run 1's Q1 (type errors are not diagnostics, A1) and Q2 (non-canonical paths, A2) were decided by the agent. Those decisions do not contradict DIS-30. A1 reads DIS-20 AC 5 in a narrow way, but the clarifying comment on DIS-20 records that reading. Both are accepted.
+
+---
+
+## 1. Scope against the ticket
+
+Clean. The run-1 additions are recorded with their destination: the non-canonical path rule (P1/A2) and side-effect imports (P5). Nothing else goes beyond DIS-30 E1–E5. Calls (DIS-31) and the CLI, seed and golden work (DIS-32) remain non-goals.
+
+## 2. Inherited acceptance criteria
+
+| DIS-20 AC | Inherited | Covered by | Status |
+|---|---|---|---|
+| 38 files get a `kind`; every function/class/method/interface has a span | Yes | "The task-api files are classified", "Every class, interface and function of task-api is listed" (38 symbols; I checked them against the fixture with a grep: 7 classes, 7 interfaces, 24 functions, all match), "The task-api errors and repository have exact spans" | OK; methods: improvable, see below |
+| 10 batch `calls` | No (DIS-31) | Non-goal | OK |
+| Empty `git diff -- packages/core`; `lint:architecture` green | Yes (DoD) | Tasks 2.4, 4.3, 6.3 | OK |
+| Redaction of `env.ts:7` | No (DIS-32) | Proposal out of scope | OK |
+| seed / verify | No (DIS-32) | Non-goal | OK |
+| `.ts` file with type errors | Yes | "Type errors are not diagnostics" (A1, plus the DIS-20 comment) | OK |
+
+- **Improvable:** AC 1 says that every **method** has a span. Method spans are pinned only for `errors.ts` (constructors) and `TaskRepository`. The methods of `TaskService`, `TasksController`, `HealthController` and `InMemoryTaskRepository` are never listed. A wrong walk of class bodies that contain arrow-function properties or decorators would still pass. Add to "Every class, interface and function of task-api is listed" the count of `method` symbols per class, counted from the fixture.
+
+## 3. Missing scenarios
+
+- Clean as far as MUST clauses go: every SHALL added in run 1 now has a scenario.
+- **Improvable:** the `tsconfig.json` diagnostic must carry "when the compiler gives a position, the 1-based `line`". Design D2 says that TypeScript reports the `null` root at position 0. Even so, the scenario "A tsconfig whose root is not an object falls back to the default options" does not pin `line`. Pin `line` 1.
+
+## 4. Ambiguity
+
+Clean. None of fast / easy / secure / efficient / many / appropriate / robust appears in the proposal, design, spec or tasks.
+
+## 5. Open decisions
+
+- **BLOCKING B1: `tested_by` from a subject file that has a syntax error.** The two requirements conflict:
+  - "TypeScript syntax errors" says that such a file "SHALL originate no edge of any kind" but "MAY still be the target of an `imports` edge".
+  - "TypeScript test coverage edges" emits `S → T` whenever an `imports` edge `T → S` exists, and does not exclude a broken `S`.
+
+  Take `src/foo.ts` with a syntax error and `tests/foo.test.ts` importing it. One requirement demands a `tested_by` edge whose source is the broken file; the other forbids it. Design D5 derives `tested_by` from the `imports` edges, so it would emit the edge and break the syntax-error rule. A test will pin one answer or the other. Fix it in the requirement, in a scenario and in D5 (see Corrections).
+- **BLOCKING B2: what a "TypeScript file" is when the `.ts` path is non-canonical.** «TypeScript analysis input» defines the term with a parenthetical: "the inputs whose path ends in `.ts` but not in `.d.ts` (its *TypeScript files*) and whose path is canonical". Grammatically, a non-canonical `.ts` path is a TypeScript file. Two rules then conflict with the rest of the requirement:
+  - "All the TypeScript files of the input SHALL be analysed together as one program" contradicts "not parsed".
+  - "When the input has at least one TypeScript file, … `tsconfig.json` … SHALL supply the compiler options" makes an input with only `./src/a.ts` and an unparsable `tsconfig.json` read the config (diagnostic) and load the compiler. Design D6 ("split TypeScript / other / non-canonical → load the compiler if needed") suggests the opposite.
+
+  The diagnostics, and whether the compiler loads, differ between the two readings. Fix the definition and pin it in a scenario (see Corrections).
+- **Improvable:** «TypeScript symbol extraction» says function declarations are emitted "wherever it is declared (at the top level or inside a function or method body)". The parenthetical can be read as a closed list. Design D4 walks `VariableStatement`s, so a function declared inside an arrow function body, a constructor body or a class static block would be emitted, and the spec does not say so. Write "at any depth, except inside the declarations this requirement skips (bodies of functions, methods, constructors, arrow functions and class expressions included)".
+- **Improvable, design D5:** "The target is the symbol of the result whose file and start line match the single declaration". Two classes declared on one line (`export class A {} export class B extends A {}`) share file and start line, so this lookup has two candidates. Match on file, start line **and name**, as the duplicate key of "Symbol extraction" does.
+
+## 6. Contradictions inside the change
+
+- B1 and B2 above are contradictions between requirements of the delta. They are counted once, under point 5.
+- **Improvable, `tasks.md` 2.2 against 4.1:**
+  - Task 2.2 implements the `tsconfig.json` rules (error, non-object root, non-object `compilerOptions`), but no RED test from 2.1 exercises them. They first get a test in 4.1, which breaks the RED → GREEN order.
+  - Task 4.1 speaks of "the edge parts of 'Compiler options come from the input tsconfig'" and of "'An unreadable tsconfig falls back to the default options'", and says edge parts are added to an `it` "already created in 2.1 or 3.1". No task creates those two `it`s.
+
+  Move the three tsconfig scenarios (diagnostics part) into 2.1, or state in 4.1 that these two are created there.
+- Proposal, design D1–D10 and spec otherwise agree with one another.
+
+## 7. Contradictions with the project
+
+- Clean.
+- The MODIFIED «Analysis contract», «Symbol extraction», «Code relation edges» and «Test coverage edges» keep the full text and the unchanged scenarios of `openspec/specs/code-analysis/spec.md` (l.12–107, 160–251, 312–344, 890–913). The only edits are the PHP scoping and the TS pointers.
+- «Syntax errors do not stop the analysis» (l.253) and «PHP name resolution» were already PHP-scoped.
+- File → file `imports` agrees with `docs/adr/20260928-edge-endpoints-as-fk-pairs.md`.
+- A6 (no ADR) is justified in D10.
+
+## 8. Contrast with the real code
+
+- The composition copies `packages/analyzers/php/src/php-analyzer.ts:92–160`: lazy load forgotten on failure at l.95–99, `diagnostics.sort(byPath)` at l.153 (stable, as the spec's diagnostics order requires), and `sortUniqueEdges([...own, ...docMentionEdges(inputs, symbols)])` at l.156.
+- `validate-graph.ts` places no constraint on symbol names (l.34, 50–53), so `P::#run` is valid.
+- The task-api facts check out:
+  - the 38 symbols of the inventory match `grep` over `fixtures/task-api/**/*.ts`, including the non-exported `matchesSearch`, `compareBy`, `compareNullableDate`, `pruneUndefined` and `main`;
+  - `tests/integration/*.test.ts` import only `tests/helpers/build-app.ts` (no `tested_by`);
+  - the three unit tests import their namesakes.
+- **Improvable, design D2:** "`ts.convertCompilerOptionsFromJson(compilerOptions, '/repo')` (the base path anchors `paths` without `baseUrl`)". To my knowledge, `pathsBasePath` is set by `parseJsonConfigFileContent`, not by `convertCompilerOptionsFromJson`. Without `baseUrl`, module resolution then falls back to `host.getCurrentDirectory()`, which is `/repo` here, so the scenario would still pass. Correct the rationale, or set `pathsBasePath: '/repo'` explicitly, so the behaviour does not depend on that fallback. The scenario "Compiler options come from the input tsconfig" is the final check.
+
+## 9. Task size
+
+Clean. 2.2, 3.2 and 4.2 each create one to three bounded modules. 11.6 is open by nature.
+
+## 10. Mandatory steps
+
+Clean.
+- Step 0 is the branch, and the lowercase name is recorded (A7).
+- These steps are present and labelled MANDATORY: 5 (existing tests), 6 (run tests, report `…-6-test-and-state-verification.md`) and 9 (docs). Step 7 (manual interface) is labelled AGENT MUST EXECUTE, 8 (E2E) is marked N/A with its reason, and 11 (pre-merge review) comes last.
+- State restoration: nothing mutable. `npm install` changes the lockfile on purpose, and tasks 6.3 and 7.3 check `git status --short fixtures/`.
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| MODIFIED Analysis contract | 5 PHP scenarios, unchanged | 5.1 |
+| MODIFIED Symbol extraction | 7 PHP scenarios, unchanged | 5.1 |
+| MODIFIED Code relation edges | 2 PHP scenarios, unchanged | 5.1 |
+| MODIFIED Test coverage edges | 2 PHP scenarios, unchanged | 5.1 |
+| TypeScript analysis input | The task-api files are classified | 2.1, 2.2 |
+| | The task-api analysis is a valid deterministic graph | 2.1, 2.2 |
+| | A TypeScript file is analysed from its content only | 2.1, 2.2 |
+| | Duplicate TypeScript input paths keep the first | 2.1, 2.2 |
+| | Files that are not TypeScript are not parsed | 2.1, 2.2 |
+| | A non-canonical TypeScript path is not parsed | 2.1, 2.2 |
+| | Compiler options come from the input tsconfig | 4.1, 4.2 (creation step ambiguous, see 6) |
+| | An unreadable tsconfig falls back to the default options | 4.1, 4.2 (creation step ambiguous, see 6) |
+| | A tsconfig whose root is not an object falls back to the default options | 4.1, 4.2 |
+| | The tsconfig never selects files or loads declarations | 4.1, 4.2 |
+| | Names outside the input resolve to nothing | 2.1/2.2, 4.1/4.2 |
+| | A failed compiler load does not poison later calls | 2.3 |
+| TypeScript symbol extraction | The task-api errors and repository have exact spans | 3.1, 3.2 |
+| | Every class, interface and function of task-api is listed | 3.1, 3.2 |
+| | task-api files without such declarations have no symbols | 3.1, 3.2 |
+| | Anonymous and expression classes yield only their methods | 3.1, 3.2 |
+| | Only the implementation of an overload is a symbol | 3.1, 3.2 |
+| | TypeScript spans include decorators and modifiers, not JSDoc | 3.1, 3.2 |
+| | Private members and comma-separated signatures are named exactly | 3.1, 3.2 |
+| | Variables, types, accessors and ambient declarations are not symbols | 3.1, 3.2 |
+| | Duplicate TypeScript symbols are dropped with a diagnostic | 3.1, 3.2 |
+| TypeScript syntax errors | A TypeScript syntax error does not stop the analysis | 3.1/3.2, 4.1/4.2 |
+| | Type errors are not diagnostics | 3.1/3.2, 4.1/4.2 |
+| TypeScript code relation edges | The structural edges of task-api | 4.1, 4.2 |
+| | Inheritance follows aliases and namespace imports | 4.1, 4.2 |
+| | A merged declaration is not an inheritance target | 4.1, 4.2 |
+| | Every import form is one file edge | 4.1, 4.2 |
+| | Self-imports and CommonJS forms produce no edge | 4.1, 4.2 |
+| | Type arguments are followed, other heritage expressions are not | 4.1, 4.2 |
+| TypeScript test coverage edges | The unit tests of task-api cover their files | 4.1, 4.2 |
+| | A test file that does not import its subject has no edge | 4.1, 4.2 |
+| | The base name and the import pick the subject | 4.1, 4.2 |
+| | *(missing: subject with a syntax error, B1)* | to add in 4.1, 4.2 |
+
+32 TypeScript scenarios, which matches the count in 5.2. No row is empty for the existing scenarios. The scenario that B1 adds must go into 4.1, and the count in 5.2 becomes 33.
+
+---
+
+## Corrections to apply
+
+### `specs/code-analysis/spec.md`
+
+1. **(Blocking B1)** «TypeScript test coverage edges», first sentence. Replace "`S` is a TypeScript file of a kind other than `test` whose file name is `<base>.ts` (in any directory)" with:
+   "`S` is a TypeScript file of a kind other than `test`, parsed without a syntax error, whose file name is `<base>.ts` (in any directory)".
+   Add the scenario:
+   "#### Scenario: A subject with a syntax error has no tested_by edge
+   - **WHEN** `src/foo.ts` with content `export class Foo { run( }` and `tests/foo.test.ts` with content `import { Foo } from '../src/foo.js';\n` are analysed together
+   - **THEN** there is an `imports` edge from `tests/foo.test.ts` to `src/foo.ts` and no `tested_by` edge
+   - **AND** `diagnostics` is exactly one entry, for `src/foo.ts`, with `line` 1 and a non-empty `message`"
+2. **(Blocking B2)** «TypeScript analysis input», first paragraph. Replace "It SHALL parse as TypeScript only the inputs whose path ends in `.ts` but not in `.d.ts` (its *TypeScript files*) and whose path is canonical: one or more non-empty segments separated by `/`, none of them `.` or `..`, with no `\` and no leading `/`." with:
+   "Its *TypeScript files* are the inputs whose path ends in `.ts` but not in `.d.ts` and is canonical: one or more non-empty segments separated by `/`, none of them `.` or `..`, with no `\` and no leading `/`. It SHALL parse as TypeScript only its TypeScript files. An input with a non-canonical `.ts` path is not a TypeScript file: it is not part of the program, and on its own it neither causes `tsconfig.json` to be read nor the compiler to be loaded."
+   In the scenario "A failed compiler load does not poison later calls", replace the last AND with:
+   "- **AND** an input with no TypeScript file (`README.md` with content `# Readme`, `tsconfig.json` with content `{ "compilerOptions": ` and `./src/a.ts` with content `export class A {}`) resolves without loading the compiler, and its `diagnostics` is exactly one entry: `path` `./src/a.ts`, no `line`, `message` `non-canonical path "./src/a.ts"; not parsed`"
+3. (Improvable) «A tsconfig whose root is not an object falls back to the default options», last AND: "with `path` `tsconfig.json`, `line` 1 and a non-empty `message`".
+4. (Improvable) «TypeScript symbol extraction», function bullet: replace "wherever it is declared (at the top level or inside a function or method body)" with "at any depth, except inside the declarations this requirement skips (bodies of functions, methods, constructors, arrow functions and class expressions included)".
+5. (Improvable) «Every class, interface and function of task-api is listed»: add an AND with the number of `method` symbols per class of task-api (`TaskService`, `TasksController`, `HealthController`, `InMemoryTaskRepository`), counted from the fixture.
+
+### `design.md`
+
+- D5, `extends` / `implements`: "whose file and start line match" → "whose file, start line and name match".
+- D5, `tested_by`: "`S` not of kind `test` named `<base>.ts`" → "`S` not of kind `test`, without a syntax error, named `<base>.ts`".
+- D6: state that non-canonical `.ts` inputs do not count when deciding whether to load the compiler and read `tsconfig.json`.
+- D2: correct the parenthetical "(the base path anchors `paths` without `baseUrl`)". Either set `pathsBasePath: '/repo'` explicitly, or say that resolution falls back to the host's `getCurrentDirectory()` (`/repo`).
+- Follow-ups: add rows A8 "A subject file with a syntax error originates no `tested_by` (B1, spec audit run 2)" and A9 "Non-canonical `.ts` paths are not TypeScript files and do not trigger the compiler or `tsconfig.json` (B2, spec audit run 2)", both with destination **A**, marked as the agent's text.
+
+### `tasks.md`
+
+- 2.1: add "Compiler options come from the input tsconfig", "An unreadable tsconfig falls back to the default options" and "A tsconfig whose root is not an object falls back to the default options" (their symbols and diagnostics part), so that task 2.2 has a RED test for the tsconfig rules. 4.1 keeps only their edge parts.
+- 2.3: the no-TypeScript input now includes `./src/a.ts` and expects exactly its non-canonical diagnostic.
+- 4.1: add "A subject with a syntax error has no tested_by edge".
+- 5.2: "the 32 new TypeScript scenarios" → "the 33 new TypeScript scenarios".
+
+### Linear — DIS-30 (comment in Spanish; the `[original]` block is not edited)
+
+> **Auditoría de spec, ejecución 2 (texto del agente, 2026-10-27): CHANGES REQUIRED, 2 bloqueantes.**
+> (1) Un fichero con error de sintaxis no origina aristas, pero la regla de `tested_by` lo admitía como sujeto si un test lo importa. Se fija que el sujeto debe estar libre de errores de sintaxis, con un scenario nuevo.
+> (2) La definición de «fichero TypeScript» incluía por gramática las rutas `.ts` no canónicas, y eso chocaba con «no se parsea» y con la carga del compilador. Se fija que una ruta no canónica no es fichero TypeScript y no provoca leer `tsconfig.json` ni cargar el compilador.
+> Mejorables: `line` 1 en el `tsconfig` con raíz `null`, funciones anidadas a cualquier profundidad, recuento de métodos de task-api, búsqueda del destino de herencia también por nombre, y los scenarios de `tsconfig` pasan a la tarea 2.1 para respetar el orden TDD.
+
+### Linear — DIS-20
+
+No change.
+
+---
+
+## Resolution of run 2
+
+*Agent's text: correction round 2 of an autonomous run (`docs/AUTONOMOUS-RUN.md` §6), decided as lead engineer without the author. Every decision is in `design.md` → Follow-ups (A8–A14) and in a Spanish comment on DIS-30.* `openspec validate ts-analyzer-structure --strict` passes after the edits. The run raised no new question for the author. Two facts were checked before the edits. First, the 26 `method` symbols of task-api, read from `fixtures/task-api/src` (constructors of the three errors, the 5 signatures of `TaskRepository`, 6 members of `InMemoryTaskRepository`, 6 of `TaskService`, 5 of `TasksController`, 1 of `HealthController`). Second, in the installed `typescript`, the internal `pathsBasePath` is set only by `parseConfig` (the `parseJsonConfigFileContent` path), and the module resolver falls back to `host.getCurrentDirectory()` (`typescript.js` l.20352 and l.43455).
+
+| # | Point | Finding | Resolution |
+|---|---|---|---|
+| 1 | 2 | AC 1: method spans of the task-api classes not pinned (improvable) | Fixed: "Every class, interface and function of task-api is listed" gains an AND listing the 26 `method` symbols by class and interface (Follow-ups A13); task 3.1 already holds the scenario |
+| 2 | 3 | `line` not pinned in "A tsconfig whose root is not an object falls back to the default options" (improvable) | Fixed: `line` 1 |
+| 3 | 5 | B1: `tested_by` from a subject file with a syntax error (blocking) | Fixed: «TypeScript test coverage edges» requires the subject to be parsed without a syntax error; new scenario "A subject with a syntax error has no tested_by edge"; design D5; proposal; Follow-ups A8; tasks 4.1, 4.2 and 5.2 (33 scenarios) |
+| 4 | 5 | B2: definition of "TypeScript file" with a non-canonical `.ts` path (blocking) | Fixed: «TypeScript analysis input» defines TypeScript files as canonical `.ts` paths only; a non-canonical one is not in the program and neither reads `tsconfig.json` nor loads the compiler; the last AND of "A failed compiler load does not poison later calls" adds `./src/a.ts` and pins its single diagnostic; design D6; proposal; Follow-ups A9; task 2.3 |
+| 5 | 5 | Function declarations "wherever declared" read as a closed list (improvable) | Fixed: "at any depth" with the bodies walked listed (constructors, accessors, arrow functions, function expressions, static blocks, class expressions included), stopping only at the skipped ambient and namespace blocks; design D4; Follow-ups A12 |
+| 6 | 5 | D5 heritage target matched by file and start line only (improvable) | Fixed: matched by file, start line and name; task 4.2; Follow-ups A10 |
+| 7 | 6 | Tasks 2.2 and 4.1: `tsconfig.json` rules implemented before any RED test, and two `it`s never created (improvable) | Fixed: task 2.1 creates the four `tsconfig.json` scenarios with their symbols, `files` and diagnostics part; 4.1 adds only their edge parts; Follow-ups A14 |
+| 8 | 8 | D2 rationale for `paths` without `baseUrl` (improvable) | Fixed: D2 now says that `convertCompilerOptionsFromJson` does not set `pathsBasePath` and that resolution falls back to the in-memory host's `getCurrentDirectory()` (`/repo`), so both `createProgram` and `resolveModuleName` receive that host. The agent decided not to set the internal option by hand, because it is not in the public typings (Follow-ups A11) |
+| 9 | 11 | Traceability: missing row for B1 and count 32 | Fixed: the scenario is in task 4.1 and 5.2 counts 33 |
+
+Rejected: none.
+
+---
+
+## Run 3 (2026-10-27)
+
+APPROVED
+
+**Change:** `openspec/changes/ts-analyzer-structure` · **Ticket:** DIS-30 (sub-issue) · **Parent:** DIS-20 (CM-HU-18) · **Audit date:** 2026-10-27 · run 3. This run judges the change as it stands after "Resolution of run 2".
+
+**Inputs read:**
+- The change: `proposal.md`, `design.md`, `specs/code-analysis/spec.md`, `tasks.md`, and the report with runs 1–2 and their resolutions.
+- Linear: DIS-30 (description and its 7 comments) and DIS-20 (description and its comment).
+- Project docs: `docs/base-standards.md` §7.1 and `docs/openspec-tasks-mandatory-steps.md`.
+- Code: `packages/core/src/knowledge/file-kind.ts`, `packages/analyzers/php/src/php-analyzer.ts:87–161`, the root `package.json` scripts, and the existence of `packages/cli/tsconfig.run.json`, `scripts/dev-processes.mjs`, `tests/support/read-fixture-files.ts` and `tests/unit/analyzers/php/parser-load.spec.ts`.
+
+## Questions for the author
+
+None. Earlier rounds produced decisions marked as the agent's text: A1 (type errors are not diagnostics; DIS-20 has a clarifying comment), A2/A9 (non-canonical `.ts` paths), A7 (lowercase branch name), and A8, A10–A14. None of them contradicts DIS-30, DIS-20 or the project, so all are accepted.
+
+---
+
+## 1. Scope against the ticket
+
+Clean.
+- Everything in the change follows from DIS-30 E1–E5 and its "Decisiones del agente".
+- The two additions that do not come from the ticket are recorded with destination A: the non-canonical path rule (P1/A2/A9) and side-effect imports (P5).
+- Calls stay with DIS-31. CLI wiring, seed, golden answers and `env.ts:7` redaction stay with DIS-32. All are explicit non-goals in the proposal.
+
+## 2. Inherited acceptance criteria
+
+| DIS-20 AC | Inherited by DIS-30 | Requirement / scenario | Status |
+|---|---|---|---|
+| 38 files get a `kind`; every function/class/method/interface has a span | Yes | "The task-api files are classified"; "Every class, interface and function of task-api is listed" (38 + 26 methods); "The task-api errors and repository have exact spans" | OK |
+| 10 batch `calls` `exact` | No (DIS-31) | Non-goal | OK |
+| Empty `git diff -- packages/core`; `lint:architecture` green | Yes (DoD) | Tasks 2.4, 4.3, 6.3 | OK |
+| `env.ts:7` redacted | No (DIS-32) | Proposal, out of scope | OK |
+| `seed:build` / `db:seed` / `verify` | No (DIS-32) | Non-goal | OK |
+| `.ts` file with type errors: resolvable symbols and edges, no abort | Yes | "Type errors are not diagnostics" (with a resolvable `imports` edge) and A1 + the DIS-20 comment | OK |
+
+DIS-30's own criteria are all covered:
+- E1 is covered by the classification, spans and no-symbol scenarios.
+- E2 is covered by "The structural edges of task-api" and "The unit tests of task-api cover their files".
+- E3 is covered by the anonymous/expression, overload, no-import, `paths` and unreadable-tsconfig scenarios.
+- E4 is covered by "A TypeScript syntax error does not stop the analysis".
+- E5 is covered by the determinism, duplicate-path and ghost-file scenarios plus task 6.3.
+
+## 3. Missing scenarios
+
+Clean: every SHALL / SHALL NOT clause of the five ADDED requirements and the new clause of the MODIFIED «Analysis contract» has a scenario.
+
+- Improvable: the list of statements that produce `imports` edges is closed ("for each top-level `import … from`, side-effect `import '…'`, `export … from` or `export * from` statement"), so a triple-slash `/// <reference path="./x.ts" />` already produces no edge by implication. The negative list names `require()`, `import()` and `import x = require()` but not triple-slash directives. Adding them removes the last guess. No scenario is needed if the sentence is added.
+
+## 4. Ambiguity
+
+Clean. None of fast / easy / secure / efficient / many / appropriate / robust appears in `proposal.md`, `design.md`, the delta spec or `tasks.md`.
+
+## 5. Open decisions
+
+Clean. These were checked against the current text:
+- **Formats and names.** Diagnostic messages, symbol names (`X::constructor`, `X::#m`, bare names for expression or anonymous classes), signatures (cut at the member-list `{` or the body `{`, and at `;` or `,`) and the extractor `ts-compiler` are all fixed.
+- **Empty, absent and degenerate input.** The spec defines no TypeScript file, `tsconfig.json` with no TypeScript file, a non-object root or a compiler error in `tsconfig.json`, absent or non-object `compilerOptions`, non-canonical paths, `.d.ts`, and duplicate paths.
+- **Ordering.** The order of files, symbols (including equal spans), edges and diagnostics is fixed, both across paths and within one path.
+- **Errors.** Syntax errors and a failed compiler load are defined. A subject file with a syntax error originates no `tested_by` (A8).
+- **Heritage.** Heritage resolution is defined: aliases, namespace members, type arguments, merged declarations, call expressions, and anonymous or expression classes.
+
+I checked the expected orders against UTF-16 by hand and they are correct:
+- the non-canonical scenario: `./src/a.ts` < `/e.ts` < `src/../d.ts` < `src//f.ts` < `src\b.ts`;
+- the duplicate scenario: `README.md` < `src/A.ts` < `src/a.ts`;
+- equal spans: `inner` before `outer`; `I` before `I::a` before `I::b`.
+
+## 6. Contradictions inside the change
+
+No blocking contradiction.
+- Improvable — `TS_COMPILER_EXTRACTOR` across tasks 2.2 and 4.2:
+  - Task 2.2 has `index.ts` export `TS_COMPILER_EXTRACTOR`.
+  - Task 4.2 creates that constant in `edges.ts`, and design D5 puts it there too. `edges.ts` does not exist when 2.2 runs.
+  - The implementer would either define it somewhere else and move it later, or break 2.2's typecheck.
+  - Fix: in 2.2, export only `createTypeScriptAnalyzer`; in 4.2, add the `TS_COMPILER_EXTRACTOR` export to `index.ts`.
+- Everything else agrees on file kinds, program roots, forced options, the canonical-path rule, the lazy load, symbol rules, edge rules and the test layout (D8 against tasks 2.1, 2.3, 3.1 and 4.1). That covers the proposal, design D1–D10 with Follow-ups E1–E13 / P1–P5 / A1–A14, and the spec.
+
+## 7. Contradictions with the project
+
+Clean.
+- The MODIFIED «Analysis contract», «Symbol extraction», «Code relation edges» and «Test coverage edges» keep the main-spec text and scenarios. The only edits are the PHP scoping and the pointers to the TypeScript requirements.
+- File → file `imports` agrees with `docs/adr/20260928-edge-endpoints-as-fk-pairs.md`.
+- `analyzers-are-siblings` is respected by D7 (helpers copied, not imported).
+- PH-19 and PH-22 are respected: no I/O, no execution, fixture read-only.
+- Linear text and the PR are in Spanish; artifacts are in English.
+- D10 justifies why there is no ADR (A6).
+- Task 11.7 merges through the merge gate. `docs/openspec-tasks-mandatory-steps.md` §3 says "The agent never merges", but the autonomous-run override (`docs/AUTONOMOUS-RUN.md` §5, accepted in run 1) applies.
+
+## 8. Contrast with the real code
+
+Clean.
+- **File kinds.** `packages/core/src/knowledge/file-kind.ts:4–42` classifies `tests/**` and `*.test.*` / `*.spec.*` as `test`, `docs/**` as `doc`, and `*.config.*` as `config`. So `vitest.config.ts` is `config` and `tests/helpers/build-app.ts` is `test`, as the scenarios assume.
+- **Composition.** The composition D3/D6 copies `packages/analyzers/php/src/php-analyzer.ts:92–99` (load forgotten on rejection), l.145–150 (load only when the language's files exist), l.153 (`diagnostics.sort(byPath)`, stable) and l.156 (`sortUniqueEdges` with `docMentionEdges`).
+- **Tooling.**
+  - `packages/cli/tsconfig.run.json` exists (task 7.1).
+  - `scripts/dev-processes.mjs` exists.
+  - The `typecheck`, `lint`, `lint:architecture`, `verify` and `docs:coverage` scripts exist in the root `package.json:23–39`.
+  - `readFixtureFiles` and the `parser-load.spec.ts` pattern exist (D8, task 2.3).
+- **No duplicated abstraction.** The only duplication is the helpers copied by D7, which is recorded debt (E10, destination C).
+
+## 9. Task size
+
+Clean. Tasks 2.2, 3.2 and 4.2 each create one to three bounded modules against an exact spec. Task 11.6 is an open loop by nature.
+
+## 10. Mandatory steps
+
+Clean.
+- **Step 0.** It is the branch, it comes first, and the lowercase name is recorded (A7).
+- **Labels.**
+  - Steps 5, 6 and 9 carry `(MANDATORY)`.
+  - Step 7 carries `MANDATORY - AGENT MUST EXECUTE`.
+  - Step 8 is N/A with its reason.
+  - Step 11, the pre-merge review, comes last in the fixed order (show-spec-working, verify-against-spec, adversarial-review, fixes on the same PR, archive commit, merge).
+- **Reports.** The step 6 report path and pattern are named.
+- **State restoration.** There is no mutable state. The `npm install` lockfile change is intended, and tasks 6.3 and 7.3 check `git status --short fixtures/`.
+- **Every scenario maps to a task:** 33 TypeScript scenarios, which matches the count in 5.2.
+- Improvable — task 1.1 compares `npm audit --audit-level=high` "with the baseline of `final-project-CRN`", but task 0.4 does not record that baseline. Add it to 0.4 so the comparison in 1.1 has something to compare with.
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| MODIFIED Analysis contract | 5 PHP scenarios, unchanged | 5.1 |
+| MODIFIED Analysis contract (non-canonical diagnostic clause) | A non-canonical TypeScript path is not parsed | 2.1, 2.2 |
+| MODIFIED Symbol extraction | 7 PHP scenarios, unchanged | 5.1 |
+| MODIFIED Code relation edges | 2 PHP scenarios, unchanged | 5.1 |
+| MODIFIED Test coverage edges | 2 PHP scenarios, unchanged | 5.1 |
+| TypeScript analysis input | The task-api files are classified | 2.1, 2.2 |
+| | The task-api analysis is a valid deterministic graph | 2.1, 2.2 |
+| | A TypeScript file is analysed from its content only | 2.1, 2.2 |
+| | Duplicate TypeScript input paths keep the first | 2.1, 2.2 |
+| | Files that are not TypeScript are not parsed | 2.1, 2.2 |
+| | A non-canonical TypeScript path is not parsed | 2.1, 2.2 |
+| | Compiler options come from the input tsconfig | 2.1/2.2 (diagnostics), 4.1/4.2 (edges) |
+| | An unreadable tsconfig falls back to the default options | 2.1/2.2, 4.1/4.2 |
+| | A tsconfig whose root is not an object falls back to the default options | 2.1/2.2, 4.1/4.2 |
+| | The tsconfig never selects files or loads declarations | 2.1/2.2, 4.1/4.2 |
+| | Names outside the input resolve to nothing | 2.1/2.2, 4.1/4.2 |
+| | A failed compiler load does not poison later calls | 2.3 |
+| TypeScript symbol extraction | The task-api errors and repository have exact spans | 3.1, 3.2 |
+| | Every class, interface and function of task-api is listed | 3.1, 3.2 |
+| | task-api files without such declarations have no symbols | 3.1, 3.2 |
+| | Anonymous and expression classes yield only their methods | 3.1, 3.2 |
+| | Only the implementation of an overload is a symbol | 3.1, 3.2 |
+| | TypeScript spans include decorators and modifiers, not JSDoc | 3.1, 3.2 |
+| | Private members and comma-separated signatures are named exactly | 3.1, 3.2 |
+| | Variables, types, accessors and ambient declarations are not symbols | 3.1, 3.2 |
+| | Duplicate TypeScript symbols are dropped with a diagnostic | 3.1, 3.2 |
+| TypeScript syntax errors | A TypeScript syntax error does not stop the analysis | 3.1/3.2, 4.1/4.2 |
+| | Type errors are not diagnostics | 3.1/3.2, 4.1/4.2 |
+| TypeScript code relation edges | The structural edges of task-api | 4.1, 4.2 |
+| | Inheritance follows aliases and namespace imports | 4.1, 4.2 |
+| | A merged declaration is not an inheritance target | 4.1, 4.2 |
+| | Every import form is one file edge | 4.1, 4.2 |
+| | Self-imports and CommonJS forms produce no edge | 4.1, 4.2 |
+| | Type arguments are followed, other heritage expressions are not | 4.1, 4.2 |
+| TypeScript test coverage edges | The unit tests of task-api cover their files | 4.1, 4.2 |
+| | A test file that does not import its subject has no edge | 4.1, 4.2 |
+| | The base name and the import pick the subject | 4.1, 4.2 |
+| | A subject with a syntax error has no tested_by edge | 4.1, 4.2 |
+
+No empty row. The 33 TypeScript scenarios are distributed as 11 in 2.1, 1 in 2.3, 11 in 3.1 and 10 in 4.1, which matches task 5.2.
+
+---
+
+## Corrections to apply
+
+All are improvable; none blocks the apply.
+
+### `specs/code-analysis/spec.md`
+
+1. «TypeScript code relation edges», last sentence. Replace "`require()`, dynamic `import()` and `import x = require()` SHALL produce none." with:
+   "`require()`, dynamic `import()`, `import x = require()` and triple-slash `/// <reference … />` directives SHALL produce none."
+
+### `tasks.md`
+
+1. 0.4: after "record the totals", add "; record the output of `npm audit --audit-level=high` (baseline for 1.1)".
+2. 2.2: replace "`index.ts` (exports `createTypeScriptAnalyzer`, `TS_COMPILER_EXTRACTOR`)" with "`index.ts` (exports `createTypeScriptAnalyzer`)".
+3. 4.2: after "constant `TS_COMPILER_EXTRACTOR`)", add "exported from `index.ts`".
+
+### `design.md`
+
+1. Follow-ups: add a short table "Decisions of the spec audit correction round 3" with the two rows below, marked as the agent's text:
+   - "triple-slash directives produce no `imports` edge" — destination A;
+   - "`TS_COMPILER_EXTRACTOR` is exported from `index.ts` in task 4.2, when `edges.ts` exists" — destination A.
+
+### Linear — DIS-30 (comment in Spanish; the `[original]` block is not edited)
+
+> **Auditoría de spec, ejecución 3 (texto del agente, 2026-10-27): APPROVED, 0 bloqueantes.** Las decisiones de las rondas 1 y 2 (A1–A14) se aceptan: ninguna contradice el ticket ni el proyecto. Mejorables opcionales: (1) la spec nombra las directivas `/// <reference … />` entre las formas que no producen arista `imports`; (2) la tarea 0.4 registra el `npm audit --audit-level=high` de base que la 1.1 compara; (3) `TS_COMPILER_EXTRACTOR` se exporta desde `index.ts` en la tarea 4.2, cuando existe `edges.ts`, y no en la 2.2. Se puede empezar el apply.
+
+### Linear — DIS-20
+
+No change.
