@@ -106,6 +106,7 @@ describe('typescript analyzer calls', () => {
     expect(edges.filter((e) => e.source.symbol?.name === 'applyFilters').map((e) => e.target.symbol?.name)).toEqual(['matchesSearch']);
     const taskRoutesTargets = edges.filter((e) => e.source.symbol?.name === 'taskRoutes').map((e) => e.target.symbol?.name);
     expect(taskRoutesTargets).not.toContain('TasksController::constructor');
+    expect(taskApi.symbols.some((s) => s.name === 'TasksController::constructor')).toBe(false);
     expect(taskRoutesTargets).not.toContain('TasksController');
     expect(taskApi.diagnostics).toEqual([]);
   });

@@ -236,3 +236,13 @@ author (docs/AUTONOMOUS-RUN.md §6).*
 | AP3 | The timing of the step 5 report was measured by switching off the line that adds the calls for one run and restoring it; the ratio (median 1.3x, mean 1.7x) is below the 2x threshold | **D** — accepted |
 | AP4 | One run of the whole suite with the database showed 2 failing tests outside the analyzers that did not reproduce in an identical re-run (2097 passed); not investigated further | **C** — author, if it reappears in CI |
 | AP5 | Task 8.3 was done by hand (the docs gate runs at commit): `docs/project-context.md`, `prompts.md` with its Índice entry and `fixtures/README.md` were updated | **A** — this change |
+
+Pre-merge reviews (2026-10-27: show-spec-working, verify-against-spec, adversarial-review; reports
+under `reports/`). *Agent's text: decided as lead engineer in an autonomous run, without the author
+(docs/AUTONOMOUS-RUN.md §6).*
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| R1 | Minor: the test of "What the compiler cannot resolve has no calls edge" did not assert that no `TasksController::constructor` symbol exists, as its THEN says; assertion added (the test file was created in this branch) | **A** — this change (fixed) |
+| R2 | Minor: `ROOT_PREFIX` of `edges.ts` had become exported with no importer; private again | **A** — this change (fixed) |
+| R3 | Minor: no scenario pins a reference passed as an argument of a `new` expression. Same loop over `node.arguments` as for calls, and shown working by the adversarial probe (`new W(helper)` → `helper`); not worth editing the approved spec after the implementation | **D** — accepted |

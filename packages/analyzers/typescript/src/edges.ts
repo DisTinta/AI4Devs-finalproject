@@ -16,7 +16,7 @@ export interface ParsedFile {
 export type SymbolOf = ReadonlyMap<TS.Node, SymbolRef>;
 
 /** Path prefix of the files of the in-memory program. */
-export const ROOT_PREFIX = `${VIRTUAL_ROOT}/`;
+const ROOT_PREFIX = `${VIRTUAL_ROOT}/`;
 
 function baseName(path: string): string {
   return path.slice(path.lastIndexOf('/') + 1);

@@ -63,8 +63,8 @@
 
 - [ ] 10.1 Open the PR against `final-project-CRN`; DIS-31 to In Review with a Spanish comment linking it
 - [ ] 10.2 CI green (wait with `Monitor` until no check is pending); link the run in an addendum to the step 5 report
-- [ ] 10.3 `/show-spec-working` (may reuse the step 6 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
-- [ ] 10.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
-- [ ] 10.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`
-- [ ] 10.6 Fix every finding in this change (TDD for behaviour), each with an A/B/C/D destination in `design.md` → Follow-ups; re-run what each fix invalidates; commit to the same PR; re-run a check whose findings led to non-trivial fixes until no Blocker or Major
+- [x] 10.3 `/show-spec-working` (may reuse the step 6 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
+- [x] 10.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
+- [x] 10.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`
+- [x] 10.6 Fix every finding in this change (TDD for behaviour), each with an A/B/C/D destination in `design.md` → Follow-ups; re-run what each fix invalidates; commit to the same PR; re-run a check whose findings led to non-trivial fixes until no Blocker or Major
 - [ ] 10.7 `/opsx:archive`, commit it to the same PR; merge (`gh pr merge <n> --merge`, through the merge gate) only after the archive commit and with CI green
