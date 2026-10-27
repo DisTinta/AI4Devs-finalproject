@@ -69,8 +69,13 @@ followed by `npm audit --audit-level=high` (a new high or critical finding stops
   must be an object.` at position 0 for `null`, `[]` or `42`, and returns `config: {}` with it, so the
   `error` check comes first). Otherwise `compilerOptions` is used only when it is a non-null,
   non-array object, else `{}`, and passed to `ts.convertCompilerOptionsFromJson(compilerOptions,
-  '/repo')` (the base path anchors `paths` without `baseUrl`); its `errors` are ignored (an
-  unaccepted option is dropped). The options are `{ module: ESNext, moduleResolution: Bundler, ...input,
+  '/repo')`; its `errors` are ignored (an unaccepted option is dropped). *Agent's text (spec audit
+  run 2):* this call does not set the internal `pathsBasePath` (only `parseJsonConfigFileContent`
+  does), so `paths` without `baseUrl` are anchored by the module resolver's fallback to
+  `host.getCurrentDirectory()`, which is `/repo`; therefore both `ts.createProgram` and
+  `ts.resolveModuleName` receive the in-memory `CompilerHost` (never a bare `ModuleResolutionHost`
+  without `getCurrentDirectory`). The internal option is not set by hand because it is not part of
+  the public typings; the scenario "Compiler options come from the input tsconfig" is the check. The options are `{ module: ESNext, moduleResolution: Bundler, ...input,
   noEmit: true, noLib: true, types: [], allowJs: false, noResolve: false }`: the forced ones go last so
   the input cannot re-enable the standard library or `@types` (spike DIS-54; spec "Names outside the
   input resolve to nothing"). `extends`, `references`, `files`, `include` and `exclude` are never read:
@@ -99,9 +104,10 @@ A recursive walk of each source file without syntax errors, in document order:
 - `ClassDeclaration` with a name → `class`; without a name (anonymous `export default class`) → no
   symbol, members bare; `ClassExpression` → no symbol, members bare.
 - `InterfaceDeclaration` → `interface`; its `MethodSignature` members → `method I::m`.
-- `FunctionDeclaration` with a name and a `body` → `function`, at any depth (bodies of functions and
-  methods are walked; object literals are walked only to find nested classes and functions, never
-  for their own methods).
+- `FunctionDeclaration` with a name and a `body` → `function`, at any depth (bodies of functions,
+  methods, constructors, accessors, arrow functions, function expressions, class static blocks and
+  class expressions are walked; object literals are walked only to find nested classes and
+  functions, never for their own methods); only the skipped subtrees below stop the walk.
 - In a class: `MethodDeclaration` with a `body` or the `abstract` modifier → `method`;
   `Constructor` with a `body` → `X::constructor`. A member whose name is not an `Identifier` or a
   `PrivateIdentifier` is skipped.
@@ -130,11 +136,14 @@ Verified on the fixture: `src/domain/errors.ts` gives the six spans of the spec;
 - **`extends` / `implements`.** For each `HeritageClause` of a class or interface symbol, each
   `ExpressionWithTypeArguments`: `checker.getSymbolAtLocation(expr.expression)`, then
   `checker.getAliasedSymbol` while the symbol is an alias. The target is the symbol of the result
-  whose file and start line match the single declaration of that TS symbol, and only when that
+  whose file, start line and name match the single declaration of that TS symbol (two classes can
+  share a line, as in `export class A {} export class B extends A {}`), and only when that
   declaration is a `ClassDeclaration` or `InterfaceDeclaration` that produced a symbol; more than one
   declaration → no edge. The checker is used only here.
 - **`tested_by`** (file → file). From the `imports` edges already built: `T` of kind `test` named
-  `<base>.test.ts` / `<base>.spec.ts`, `S` not of kind `test` named `<base>.ts`, edge `S → T`. The
+  `<base>.test.ts` / `<base>.spec.ts`, `S` not of kind `test`, without a syntax error, named
+  `<base>.ts`, edge `S → T` (a file with a syntax error originates no edge, `tested_by` included,
+  although it can be the target of the test's `imports` edge). The
   tests of task-api have no classes, so PHP's `XTest` rule cannot apply; the file pair is what links
   them.
 - Constant `TS_COMPILER_EXTRACTOR = 'ts-compiler'`, `resolution: 'exact'`. Files with a syntax error
@@ -144,7 +153,9 @@ Verified on the fixture: `src/domain/errors.ts` gives the six spans of the spec;
 ### D6. Composition (`ts-analyzer.ts`)
 
 Same skeleton as `php-analyzer.ts`: `uniqueInputs` → `describeFile` (sorted by path) → split
-TypeScript / other / non-canonical → load the compiler if needed → program → per file syntax check
+TypeScript / other / non-canonical → load the compiler and read `tsconfig.json` only when the
+TypeScript group is non-empty (non-canonical `.ts` inputs are not TypeScript files and never count
+for this; they only add their diagnostic) → program → per file syntax check
 and symbols → `keepFirst` → sort (`bySymbolOrder`) → edges → `docMentionEdges` → `sortUniqueEdges`;
 diagnostics sorted by path (stable, so the per-file order is kept). `index.ts` exports
 `createTypeScriptAnalyzer` and `TS_COMPILER_EXTRACTOR`. The return type is `AnalyzerPort`; there is no
@@ -245,3 +256,17 @@ author.*
 | A5 | The main requirements "Code relation edges" and "Test coverage edges" are scoped to the PHP analyzer, as "Symbol extraction" already was | **A** — this change |
 | A6 | No ADR for the compiler choice; D10 explains why the PHP parser precedent does not apply | **D** — accepted |
 | A7 | The branch keeps its lowercase name `feature/dis-30-ts-analyzer-structure` (created by the autonomous workflow and already pushed; renaming it would break the run); commit scopes stay `DIS-30` | **D** — accepted |
+
+Decisions of the spec audit correction round 2 (report `reports/2026-10-27-spec-audit.md`, section
+"Resolution of run 2"). *Agent's text: decided as lead engineer in an autonomous run, without the
+author.*
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| A8 | A subject file with a syntax error originates no `tested_by` edge, even when a test imports it (B1 of run 2); "TypeScript syntax errors" wins over "TypeScript test coverage edges", which now requires the subject to parse without a syntax error; new scenario "A subject with a syntax error has no tested_by edge" (D5) | **A** — this change |
+| A9 | A non-canonical `.ts` path is not a TypeScript file: it is not in the program and on its own neither reads `tsconfig.json` nor loads the compiler; it only adds its diagnostic (B2 of run 2; D6) | **A** — this change |
+| A10 | Heritage targets are matched by file, start line and name, not by file and start line alone (D5) | **A** — this change |
+| A11 | `paths` without `baseUrl` rely on the module resolver's fallback to the in-memory host's `getCurrentDirectory()` (`/repo`); the internal `pathsBasePath` is not set by hand (D2) | **A** — this change |
+| A12 | Function declarations are symbols at any depth outside the skipped ambient and namespace blocks, arrow-function, constructor, accessor and static-block bodies included (D4) | **A** — this change |
+| A13 | The task-api inventory scenario also lists the 26 `method` symbols by class and interface, counted from the fixture | **A** — this change |
+| A14 | The four `tsconfig.json` scenarios get their symbols and diagnostics part in task 2.1 (RED before the GREEN of 2.2) and their edge part in 4.1 | **A** — this change |

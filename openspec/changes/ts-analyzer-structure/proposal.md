@@ -14,7 +14,8 @@ golden answers of task-api (DIS-32) build on it.
   - classifies every input file and counts its lines with the existing domain rule;
   - builds one in-memory TypeScript program from the `.ts` inputs (no `.d.ts`), reading the compiler
     options of the input's root `tsconfig.json` (never the disk, never its `extends`), only when
-    there is at least one `.ts` input; an unreadable or non-object `tsconfig.json` falls back to the
+    there is at least one `.ts` input with a canonical path (a non-canonical `.ts` path is not parsed
+    and only adds a diagnostic); an unreadable or non-object `tsconfig.json` falls back to the
     default options with one diagnostic;
   - emits `class`, `interface`, `function` and `method` symbols (constructors as `Class::constructor`,
     interface method signatures as `Interface::method`) with the span of the declaration, modifiers
@@ -22,7 +23,7 @@ golden answers of task-api (DIS-32) build on it.
   - emits `imports` edges file → file (relative and `paths` imports, `import type`, `export … from`,
     side-effect imports), `extends` and `implements` edges between class and interface symbols of the
     input, and `tested_by` edges file → file (a `<name>.test.ts` / `<name>.spec.ts` that imports
-    `<name>.ts`), all `exact` with extractor `ts-compiler`, plus the shared `describes` edges;
+    `<name>.ts` parsed without a syntax error), all `exact` with extractor `ts-compiler`, plus the shared `describes` edges;
   - reports a file with a syntax error as a diagnostic without stopping the call, and never reports
     type errors.
 - `typescript` (`^5.5.0`, the root's range) becomes a runtime dependency of the analyzer package.

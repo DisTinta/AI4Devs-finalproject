@@ -259,9 +259,11 @@ its `Test` suffix. A test class with no such reference SHALL produce no `tested_
 ### Requirement: TypeScript analysis input
 
 The TypeScript analyzer SHALL satisfy "Analysis contract", with the file classification and line
-count of "File classification". It SHALL parse as TypeScript only the inputs whose path ends in `.ts`
-but not in `.d.ts` (its *TypeScript files*) and whose path is canonical: one or more non-empty
-segments separated by `/`, none of them `.` or `..`, with no `\` and no leading `/`. Every other input
+count of "File classification". Its *TypeScript files* are the inputs whose path ends in `.ts` but
+not in `.d.ts` and is canonical: one or more non-empty segments separated by `/`, none of them `.` or
+`..`, with no `\` and no leading `/`. It SHALL parse as TypeScript only its TypeScript files. An input
+with a non-canonical `.ts` path is not a TypeScript file: it is not part of the program, and on its
+own it neither causes `tsconfig.json` to be read nor the compiler to be loaded. Every other input
 SHALL appear in `files` with no symbols and SHALL originate no edge other than the `describes` edges
 of "Documentation mention edges". A path that ends in `.ts` but not in `.d.ts` and is not canonical
 SHALL add one diagnostic with that `path`, no `line` and `message`
@@ -371,7 +373,8 @@ diagnostics in tree-walk order.
   together
 - **THEN** the call resolves, there is an `imports` edge from `src/a.ts` to `src/b.ts` and an
   `extends` edge from `A` to `B`
-- **AND** `diagnostics` is exactly one entry, with `path` `tsconfig.json` and a non-empty `message`
+- **AND** `diagnostics` is exactly one entry, with `path` `tsconfig.json`, `line` 1 and a non-empty
+  `message`
 
 #### Scenario: The tsconfig never selects files or loads declarations
 
@@ -401,9 +404,10 @@ diagnostics in tree-walk order.
 - **THEN** the first call rejects
 - **AND** the second call resolves with one `class` symbol `Ghost` in `src/ghost.ts`, and the compiler
   was loaded twice
-- **AND** an input with no TypeScript file (`README.md` with content `# Readme` and `tsconfig.json`
-  with content `{ "compilerOptions": `) resolves without loading the compiler, with empty
-  `diagnostics`
+- **AND** an input with no TypeScript file (`README.md` with content `# Readme`, `tsconfig.json` with
+  content `{ "compilerOptions": ` and `./src/a.ts` with content `export class A {}`) resolves without
+  loading the compiler, and its `diagnostics` is exactly one entry: `path` `./src/a.ts`, no `line`,
+  `message` `non-canonical path "./src/a.ts"; not parsed`
 
 ### Requirement: TypeScript symbol extraction
 
@@ -411,8 +415,11 @@ For each TypeScript file parsed without a syntax error, the TypeScript analyzer 
 
 - one `class` symbol per class declaration with a name, named by that name;
 - one `interface` symbol per interface declaration, named by its name;
-- one `function` symbol per function declaration with a name and a body, wherever it is declared
-  (at the top level or inside a function or method body), named by its name;
+- one `function` symbol per function declaration with a name and a body, at any depth (the bodies
+  of functions, methods, constructors, accessors, arrow functions, function expressions, class
+  static blocks and class expressions included), except inside the declarations this requirement
+  skips (`declare` declarations and `declare module`, `declare global`, `namespace` and `module`
+  blocks), named by its name;
 - one `method` symbol per member of a class that is a method with a body, an abstract method, or a
   constructor with a body, named `X::m` (`X::constructor` for a constructor) when the class is a
   declaration with a name `X`, and by the bare member name otherwise (a class expression or an
@@ -483,6 +490,17 @@ diagnostic, never rename) SHALL apply.
   `tests/helpers/build-app.ts`: `function buildTestApp`, `function makeTask`
 - **AND** that is 7 `class`, 7 `interface` and 24 `function` symbols; the interface
   `FastifyInstance` inside `declare module 'fastify'` of `src/types/index.ts` is not among them
+- **AND** the `method` symbols are exactly these 26, by class or interface:
+  `DomainError::constructor`, `TaskNotFoundError::constructor` and
+  `IllegalStatusTransitionError::constructor`; `TaskRepository::findById`, `TaskRepository::list`,
+  `TaskRepository::create`, `TaskRepository::update` and `TaskRepository::delete`;
+  `InMemoryTaskRepository::constructor`, `InMemoryTaskRepository::findById`,
+  `InMemoryTaskRepository::list`, `InMemoryTaskRepository::create`, `InMemoryTaskRepository::update`
+  and `InMemoryTaskRepository::delete` (the property `tasks` is not a symbol);
+  `TaskService::constructor`, `TaskService::get`, `TaskService::list`, `TaskService::create`,
+  `TaskService::update` and `TaskService::delete`; `TasksController::list`,
+  `TasksController::getById`, `TasksController::create`, `TasksController::update` and
+  `TasksController::remove`; and `HealthController::check`
 
 #### Scenario: task-api files without such declarations have no symbols
 
@@ -667,8 +685,9 @@ SHALL produce no edge; `require()`, dynamic `import()` and `import x = require()
 The TypeScript analyzer SHALL emit one `tested_by` edge from a file `S` to a file `T`, with
 `resolution` `exact` and `extractor` `ts-compiler`, when `T` is a TypeScript file of kind `test` whose
 file name is `<base>.test.ts` or `<base>.spec.ts`, `S` is a TypeScript file of a kind other than
-`test` whose file name is `<base>.ts` (in any directory), and the result has an `imports` edge from
-`T` to `S`. A test file that imports no such file SHALL produce no `tested_by` edge.
+`test`, parsed without a syntax error, whose file name is `<base>.ts` (in any directory), and the
+result has an `imports` edge from `T` to `S`. A test file that imports no such file SHALL produce no
+`tested_by` edge.
 
 #### Scenario: The unit tests of task-api cover their files
 
@@ -695,3 +714,11 @@ file name is `<base>.test.ts` or `<base>.spec.ts`, `S` is a TypeScript file of a
   and `src/bar.ts` with content `export class Bar {}` are analysed together
 - **THEN** the `tested_by` edges are exactly two: from `src/a/foo.ts` and from `src/b/foo.ts` to
   `tests/foo.spec.ts` (`src/bar.ts` is imported but its name does not match)
+
+#### Scenario: A subject with a syntax error has no tested_by edge
+
+- **WHEN** `src/foo.ts` with content `export class Foo { run( }` and `tests/foo.test.ts` with content
+  `import { Foo } from '../src/foo.js';\n` are analysed together
+- **THEN** there is an `imports` edge from `tests/foo.test.ts` to `src/foo.ts` and no `tested_by` edge
+- **AND** `diagnostics` is exactly one entry, for `src/foo.ts`, with `line` 1 and a non-empty
+  `message`

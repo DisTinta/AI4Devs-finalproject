@@ -418,3 +418,23 @@ Clean.
 ### Linear — DIS-20
 
 No change.
+
+---
+
+## Resolution of run 2
+
+*Agent's text: correction round 2 of an autonomous run (`docs/AUTONOMOUS-RUN.md` §6), decided as lead engineer without the author. Every decision is in `design.md` → Follow-ups (A8–A14) and in a Spanish comment on DIS-30.* `openspec validate ts-analyzer-structure --strict` passes after the edits. The run raised no new question for the author. Two facts were checked before the edits. First, the 26 `method` symbols of task-api, read from `fixtures/task-api/src` (constructors of the three errors, the 5 signatures of `TaskRepository`, 6 members of `InMemoryTaskRepository`, 6 of `TaskService`, 5 of `TasksController`, 1 of `HealthController`). Second, in the installed `typescript`, the internal `pathsBasePath` is set only by `parseConfig` (the `parseJsonConfigFileContent` path), and the module resolver falls back to `host.getCurrentDirectory()` (`typescript.js` l.20352 and l.43455).
+
+| # | Point | Finding | Resolution |
+|---|---|---|---|
+| 1 | 2 | AC 1: method spans of the task-api classes not pinned (improvable) | Fixed: "Every class, interface and function of task-api is listed" gains an AND listing the 26 `method` symbols by class and interface (Follow-ups A13); task 3.1 already holds the scenario |
+| 2 | 3 | `line` not pinned in "A tsconfig whose root is not an object falls back to the default options" (improvable) | Fixed: `line` 1 |
+| 3 | 5 | B1: `tested_by` from a subject file with a syntax error (blocking) | Fixed: «TypeScript test coverage edges» requires the subject to be parsed without a syntax error; new scenario "A subject with a syntax error has no tested_by edge"; design D5; proposal; Follow-ups A8; tasks 4.1, 4.2 and 5.2 (33 scenarios) |
+| 4 | 5 | B2: definition of "TypeScript file" with a non-canonical `.ts` path (blocking) | Fixed: «TypeScript analysis input» defines TypeScript files as canonical `.ts` paths only; a non-canonical one is not in the program and neither reads `tsconfig.json` nor loads the compiler; the last AND of "A failed compiler load does not poison later calls" adds `./src/a.ts` and pins its single diagnostic; design D6; proposal; Follow-ups A9; task 2.3 |
+| 5 | 5 | Function declarations "wherever declared" read as a closed list (improvable) | Fixed: "at any depth" with the bodies walked listed (constructors, accessors, arrow functions, function expressions, static blocks, class expressions included), stopping only at the skipped ambient and namespace blocks; design D4; Follow-ups A12 |
+| 6 | 5 | D5 heritage target matched by file and start line only (improvable) | Fixed: matched by file, start line and name; task 4.2; Follow-ups A10 |
+| 7 | 6 | Tasks 2.2 and 4.1: `tsconfig.json` rules implemented before any RED test, and two `it`s never created (improvable) | Fixed: task 2.1 creates the four `tsconfig.json` scenarios with their symbols, `files` and diagnostics part; 4.1 adds only their edge parts; Follow-ups A14 |
+| 8 | 8 | D2 rationale for `paths` without `baseUrl` (improvable) | Fixed: D2 now says that `convertCompilerOptionsFromJson` does not set `pathsBasePath` and that resolution falls back to the in-memory host's `getCurrentDirectory()` (`/repo`), so both `createProgram` and `resolveModuleName` receive that host. The agent decided not to set the internal option by hand, because it is not in the public typings (Follow-ups A11) |
+| 9 | 11 | Traceability: missing row for B1 and count 32 | Fixed: the scenario is in task 4.1 and 5.2 counts 33 |
+
+Rejected: none.
