@@ -235,3 +235,203 @@ Correction round 1 of 5, 2026-10-27, autonomous run (agent's text, as lead engin
 | 10. Manual testing without the error half | improvable | Fixed: task 8.2 runs the `MISSING_CONFIG` exit `1` half. |
 | 10. Screenshot linked from a closed step 8 report | improvable | Fixed: step 9 has its own report (9.2), which links the screenshot. |
 | Linear comment suggested by the report | — | Replaced by the correction-round comment on DIS-105 with the decisions above. |
+
+---
+
+## Run 2 (2026-10-26)
+
+APPROVED
+
+# Spec audit, run 2: dis-105-npm-audit-debt (DIS-105)
+
+- Date: 2026-10-27
+- Change: `openspec/changes/dis-105-npm-audit-debt/` (`proposal.md`, `design.md`, `specs/local-startup/spec.md`, `specs/project-picker/spec.md`, `tasks.md`), read as it stands after correction round 1 (commit `3ac9f2c`).
+- Ticket: I loaded DIS-105 from Linear with its five comments. `parentId` is `null`, so no acceptance criteria are inherited. The ticket's own five acceptance criteria in `[enhanced]` are the reference for points 1, 2 and 11.
+- Project sources read:
+  - `docs/base-standards.md` §7 and §7.1, `docs/openspec-tasks-mandatory-steps.md`, `docs/AUTONOMOUS-RUN.md` (l.25–27 and l.133–135 on the agent merge);
+  - the main specs `openspec/specs/local-startup/spec.md` (l.110–152) and `openspec/specs/project-picker/spec.md` (l.187–201);
+  - the real code: `package.json`, `vitest.config.ts`, `vitest.stryker.config.ts`, `.github/workflows/*.yml`, `tests/unit/scripts/wiring.spec.ts`, `docs/DEMO.md`;
+  - every remaining mention in the repository of `Node 20`, `>=20.11`, `Vitest 1.6`, `poolMatchGlobs` and `environmentMatchGlobs`;
+  - the migrations that create `project`, `query_log` and `cache_entry` (used by task 7.1).
+- Run 1 report and its "Resolution of run 1": every blocking finding of run 1 is fixed in the current artifacts. I checked each one again below.
+
+## Questions for the author
+
+None are open. The agent decided Q1, Q2 and Q3 of run 1. The decisions are recorded in `design.md` D2, D10 and D12 and Follow-ups, and in the DIS-105 comment of 27-10-2026. None of them contradicts the ticket or the project:
+
+- Q1: «Node 22.12+» follows from AC5.
+- Q2: `>=22.12` is AC5's literal value.
+- Q3: the prohibition keeps the main spec's rule and gives it a new reason that still holds.
+
+---
+
+## 1. Scope against the ticket
+
+**Clean.** Everything follows from DIS-105:
+
+- the two phases;
+- the Node 22 baseline (AC5);
+- `zod` and `markdown-it` (`[enhanced]` D1);
+- the tested CI baseline (AC5);
+- the guides, `docs/DEPLOYMENT.md` and `docs/backend-standards.md` (AC5: "docs … piden Node 22.12").
+
+The Screen 1 hint (D10) is product code outside the ticket text. The agent decided Q1 and kept it, because a «Node 20+» line would contradict AC5. That is acceptable and recorded. There is no parent, so nothing widens to a parent story.
+
+## 2. Inherited acceptance criteria
+
+**Clean.** There is no parent. The ticket's own criteria:
+
+- **AC1:** covered by "A clean install reports no high or critical advisory" / "npm audit on a clean clone". The scenario now pins `fixAvailable: false` and the Follow-ups listing, which matches the ticket's "sin arreglo publicado". Tasks: 1.1, 3.4, 8.1.
+- **AC2:** recorded checks 0.4, 1.2, 7.3, 7.4 and 11.1 (file counts before and after, mutation ≥ 80). Task 6.2 maps them.
+- **AC3:**
+  - jsdom, forks and Node per file: D8, tasks 4.1 and 4.5.
+  - Stryker exclusions: task 4.2, now for all three projects.
+- **AC4:** the `web-foundation` proxy scenario (unchanged) and task 8.2 (`/` and `/health` 200 through Vite 8).
+- **AC5:** the modified "Which commands load .env" (`>=22.12`), the new "CI runs on the supported Node baseline", and tasks 10.2 and 10.3 for the guides.
+
+## 3. Missing scenarios
+
+Every MUST clause has a scenario. One improvable item:
+
+- **Improvable.** `local-startup` → "CI runs on the supported Node baseline". The clause "No workflow SHALL request Node 20 or an unpinned version" reads wider than the scenario. The repository has four workflows (`claude-interactive.yml` and `claude-auto-review.yml` besides the two named), and the scenario reads only `ci.yml` and `frontend.yml`. Today neither Claude workflow uses `actions/setup-node`, so nothing is untested in practice. Still, the text should match what the test proves. Correction: replace the sentence with "No `actions/setup-node` step of those two workflows SHALL request a version other than `'22'`."
+
+## 4. Ambiguity
+
+**Clean for the listed words.** None of "fast", "easy", "secure", "efficient", "many", "appropriate" or "robust" appears in the artifacts. `fast-uri` is a package name. Run 1's "safer" in D5 was replaced. One related item:
+
+- **Improvable.** "unpinned version" in the requirement above is undefined: `'22'` is itself a major-only request. The correction in point 3 removes the word.
+
+## 5. Open decisions
+
+**Clean (none blocking).** Run 1's open decisions are now fixed:
+
+- the `Paso 0` capture: task 8.1, `npm run up` first in a fresh clone of the pushed branch, PowerShell 7 and Git Bash, and the `Cómo se capturó` rows in 10.2;
+- each project's `include`/`exclude` and the merge behaviour: D8, with the `node` project restating the root globs;
+- the mutation `timeout-minutes`: 40 → 60.
+
+The test name the new spec pins ("Every CI job installs Node 22") and its file path are named. Two improvable items:
+
+- **Improvable.** Task 10.5 asks for "one Spanish checklist comment on DIS-105 with design D7 and D9". DIS-105 already has the D7 checklist in the `enrich` comment of 26-10-2026. Say whether 10.5 posts a new comment that supersedes it (and says so) or completes that list, so there are not two divergent checklists.
+- **Improvable.** The proposal says the two phases are delivered "each in its own commit". Design D6, the Migration Plan and tasks 5.7 and 11.1 put phase 2 in a code commit followed by documentation and report commits, and the ticket says "cada una en su commit". This is not a real conflict, but the proposal should use the design's wording (see Corrections).
+
+## 6. Contradictions inside the change
+
+**Clean.** Run 1's contradictions are resolved:
+
+- 5.7 commits and pushes phase 2 before steps 8 and 9.
+- 8.3 keeps the clone running and 9.2 restores it.
+- 3.2 no longer sets `engines.node`, so 5.3 is a real RED.
+- 5.1 names the requirement and the scenario correctly.
+- D2 no longer calls `>=22.12` "Vitest's floor".
+
+The proposal, design, specs and tasks agree on «Node 22.12+», `>=22.12`, `'22'` in CI, the nine Stryker globs and the three existing tests that change. The only item is the improvable wording in point 5.
+
+## 7. Contradictions with the project
+
+**Clean for specs and ADRs:**
+
+- The MODIFIED requirements copy `openspec/specs/local-startup/spec.md` l.110–152 and `openspec/specs/project-picker/spec.md` l.187–201 word for word. Only the intended values change ("SHALL keep `>=20.11`" → "SHALL declare `>=22.12`", «Node 20+» → «Node 22.12+»).
+- No main spec names `poolMatchGlobs` or `environmentMatchGlobs`.
+- The new ADR supersedes the Node line of `docs/adr/20260928-node-pg-migrate-sql-migrations.md:34` (task 10.1).
+- The agent merge in 12.7 is allowed in autonomous mode by `docs/AUTONOMOUS-RUN.md` l.27 and l.135, which override `docs/openspec-tasks-mandatory-steps.md` §3 point 5. The autonomous switch is set, as the author says.
+
+Three improvable gaps in stale text:
+
+- **Improvable.** `docs/project-context.md:284` names `environmentMatchGlobs`. Task 10.4 covers it only as "where the config is described". Name l.284 explicitly.
+- **Improvable.** `tests/support/jsdom-setup.ts:2` says the file is the setup "for the tests that run in jsdom (`vitest.config.ts` → `environmentMatchGlobs`". This becomes false after 4.1. Task 4.4 allows edits to that file "only if … a failing run requires it". Allow this comment edit explicitly (comment only; code untouched).
+- **Improvable (optional).** `images/pantalla-1-seleccion.svg:76` still reads "Node 20+". It is a design mockup whose text already differs from the product («PHP 8.2+ o Node 20+»), so leaving it is acceptable. Mention it in the step 10 notes as intentionally unchanged.
+
+The historical mentions in `prompts.md`, `docs/ai-sessions/`, `docs/adr/20261016-fastify-5-and-zod-json-schema.md:36` and `fixtures/**` are records or fixture content. They correctly stay out of scope.
+
+## 8. Contrast with the real code
+
+**Clean.** Checked against the real files:
+
+- `vitest.config.ts:25` (root `exclude`, three globs), l.33 (`poolMatchGlobs`) and l.36–39 (`environmentMatchGlobs`) match the design's Context.
+- `vitest.stryker.config.ts:16–30` has exactly nine excluded globs, as D8 and task 4.2 now say.
+- `.github/workflows/ci.yml` has `setup-node` at l.111, 178 and 239, all `'20'`, and the hook-timing command at l.147 with four `tests/harness/` files. `frontend.yml` has `setup-node` at l.41/44 and `--exclude 'tests/integration/**'` at l.63. All are named in D8 and task 4.5.
+- `tests/unit/scripts/wiring.spec.ts:111–112` matches the comment and assertion that task 5.3 rewrites.
+- `ProjectPickerPage.test.tsx:421`, `ProjectPickerPage.tsx:64`, `parser-load.spec.ts:20` and `scripts/env.mjs:4` match the tasks.
+- `packages/web` has no `*.spec.*` file, so the `dom` include `packages/web/**/*.test.tsx` loses nothing. The a11y tests are `*.a11y.test.tsx`, which the `dom` glob matches.
+- The tables of task 7.1 exist (`0001_graph-l1.up.sql:15`, `0002_history-claims.up.sql:81, 99`).
+- D11 reuses the real pattern of `tests/unit/ci/verify-job.spec.ts`. No existing test asserts `node-version`, so there is no duplication.
+
+## 9. Task size
+
+**Clean (improvable only).**
+
+- **Improvable.** Task 8.1 is the largest:
+  - two fresh clones;
+  - a full `npm run up` in each terminal;
+  - the `Paso 0` capture;
+  - three `npm audit` runs.
+
+  It fits in one turn, but splitting it would make the evidence easier to follow: 8.1a PowerShell 7 clone and capture plus the audit commands; 8.1b Git Bash clone and capture.
+- 12.6 keeps the standard open-loop wording, which run 1 accepted.
+
+## 10. Mandatory steps
+
+**Clean:**
+
+- Step 0 is first and labelled, and the branch `feature/dis-105-npm-audit-debt` follows `BRANCH_PREFIX=feature/`.
+- Steps 6, 7, 8, 9, 10 and 12 are present with `(MANDATORY)` and `AGENT MUST EXECUTE` where required.
+- 7.1/7.5 capture and restore the database state, and the step 7 report path is named.
+- 8.2 runs the `MISSING_CONFIG` error half and puts `.env` back.
+- 9.2 restores both clones and has its own report, which links the screenshot.
+- Pre-merge Review is last, in the fixed order, and the archive is committed before the merge.
+
+One improvable item:
+
+- **Improvable.** Inside step 0, 0.1 (Linear status) comes before 0.2 (the branch). The branch already exists, so no harm follows, but the checklist expects the branch item first. Swap 0.1 and 0.2.
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) | Status |
+|---|---|---|---|
+| local-startup → Which commands load .env (MODIFIED) | The guide's scripts load .env and the quality scripts do not | 5.3 (RED), 5.4 (GREEN), 6.2 | OK |
+| local-startup → Which commands load .env (MODIFIED) | A guide command reads DATABASE_URL from .env (both halves) | 8.2 | OK |
+| local-startup → CI runs on the supported Node baseline (ADDED) | Every CI job installs Node 22 | 5.1 (RED), 5.2, 5.4 (GREEN) | OK |
+| local-startup → A clean install reports no high or critical advisory (ADDED) | npm audit on a clean clone | 1.1, 3.4, 5.7 (push), 8.1 | OK |
+| project-picker → Indexing a repository of one's own is a hint, not a control (MODIFIED) | The indexing hint is text, not a control | 5.5 (RED), 5.6 (GREEN), 9.1 | OK |
+| web-foundation → Component test environment (unchanged, verified) | Rendered output does not leak between tests | 4.1, 4.5 | OK |
+| web-foundation → dev proxy (unchanged, verified; ticket AC4) | `/health` through the proxy | 8.2 | OK |
+| seed-build (unchanged, verified) | The time zone does not change the file | 4.1, 4.5 | OK |
+| Ticket AC2: quality unchanged (recorded check) | — | 0.4, 1.2, 7.3, 7.4, 11.1 | OK |
+| Ticket AC3: Stryker exclusions unchanged (recorded check) | — | 2.3, 4.2 | OK |
+
+No empty row.
+
+---
+
+## Corrections to apply
+
+None of these is blocking. Apply them in one pass if convenient.
+
+### `openspec/changes/dis-105-npm-audit-debt/specs/local-startup/spec.md`
+
+- Requirement "CI runs on the supported Node baseline": replace "No workflow SHALL request Node 20 or an unpinned version." with "No `actions/setup-node` step of those two workflows SHALL request a version other than `'22'`."
+
+### `openspec/changes/dis-105-npm-audit-debt/proposal.md`
+
+- What Changes, first line: replace "Delivered in one pull request with two phases, each in its own commit and verified on its own." with "Delivered in one pull request with two phases, verified on their own: phase 1 in one commit, phase 2 code in one commit (task 5.7), followed by the documentation, ADR and report commits."
+
+### `openspec/changes/dis-105-npm-audit-debt/tasks.md`
+
+- Step 0: swap 0.1 and 0.2, so the branch check comes first.
+- 4.4: add "the header comment of `tests/support/jsdom-setup.ts` (l.2, which names `environmentMatchGlobs`) is updated to name the `dom` project of `test.projects`; its code changes only if 2.1, 2.2 or a failing run requires it".
+- 8.1 (optional): split into 8.1 (PowerShell 7 clone: `npm run up` capture, then the three `npm audit` commands) and 8.1b (Git Bash clone: `npm run up` capture).
+- 10.2: update the line references to `docs/DEMO.md` l.57 and l.66 (they moved after the base merge), or anchor them to the section "Antes de empezar".
+- 10.4: add "`docs/project-context.md` l.284 (`environmentMatchGlobs` → the `dom` project of `test.projects`)".
+- 10.5: say "complete the D7 checklist of the `enrich` comment of 26-10-2026 with the 3.4 lines and add D9, in a new Spanish comment that says it supersedes that list".
+- Step 10 notes (optional): record that `images/pantalla-1-seleccion.svg` (a design mockup) is left unchanged on purpose.
+
+### Linear DIS-105 (Spanish; the `[original]` block is not touched)
+
+Add a comment:
+
+> **Auditoría de la especificación, ronda 2 (spec-auditor, 27-10-2026): APROBADA.** Las correcciones de la ronda 1 están aplicadas y no queda ningún hallazgo bloqueante. Mejoras opcionales que se pueden aplicar en el cambio antes de implementar:
+>
+> - acotar la frase «No workflow SHALL request Node 20 or an unpinned version» a los pasos `actions/setup-node` de `ci.yml` y `frontend.yml`;
+> - actualizar el comentario de `tests/support/jsdom-setup.ts:2` y `docs/project-context.md:284`, que nombran `environmentMatchGlobs`;
+> - aclarar que la tarea 10.5 sustituye la checklist D7 del comentario de `enrich`;
+> - ordenar el paso 0 con la rama primero.
