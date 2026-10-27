@@ -291,7 +291,7 @@ El paso 3 es el más característico: un sistema que sabe callarse.
 
 ### **1.4. Instrucciones de instalación:**
 
-Al ser el arranque local **la única evidencia de que el sistema funciona ante quien evalúa**, esta sección se trata como crítica. El camino corto no requiere nada más que **Docker y Node 20+**: ni PHP instalado, ni clonar repositorios ajenos, ni esperar un indexado, **ni una API key de LLM**. Para indexar un repositorio hace falta además **Git 2.45.1 o posterior** (o las versiones de mantenimiento de mayo de 2024 2.43.4 y 2.44.1): las anteriores ignoran `GIT_NO_LAZY_FETCH`, que impide que un *partial clone* ejecute el programa de su remoto al leer un objeto que falta, o no leen `attr.tree`, que hace que los atributos salgan siempre del `.gitattributes` de `HEAD`.
+Al ser el arranque local **la única evidencia de que el sistema funciona ante quien evalúa**, esta sección se trata como crítica. El camino corto no requiere nada más que **Docker y Node 22.12 o posterior**: ni PHP instalado, ni clonar repositorios ajenos, ni esperar un indexado, **ni una API key de LLM**. Para indexar un repositorio hace falta además **Git 2.45.1 o posterior** (o las versiones de mantenimiento de mayo de 2024 2.43.4 y 2.44.1): las anteriores ignoran `GIT_NO_LAZY_FETCH`, que impide que un *partial clone* ejecute el programa de su remoto al leer un objeto que falta, o no leen `attr.tree`, que hace que los atributos salgan siempre del `.gitattributes` de `HEAD`.
 
 #### Camino corto — sistema operativo en cuatro comandos
 
@@ -468,7 +468,7 @@ flowchart TB
         CLI["CLI · commander<br/>index · ask · impact · projects<br/>drift · previsto F6"]
     end
 
-    subgraph api["API · Node 20 + Fastify"]
+    subgraph api["API · Node 22 + Fastify"]
         REST["REST: POST /ask · GET /health<br/>(/impact en la Entrega 3)<br/>OpenAPI + validación por esquema"]
         RATE["Rate limiting<br/>+ modo demo"]
         ORCH["Orquestador<br/>intención · plan · política"]
@@ -546,7 +546,7 @@ flowchart TB
 | Componente | Tecnología | Responsabilidad |
 |---|---|---|
 | CLI | TypeScript + `commander` | `index`, `ask`, `impact`, `projects`; `drift` **previsto** (F6) |
-| API | Node 20 + **Fastify** 5 + Zod | `POST /api/projects/{projectId}/ask` y `GET /health`, validación por esquema, OpenAPI generado en `/docs` (DIS-76, DIS-78); `/impact` en la Entrega 3 |
+| API | Node 22 + **Fastify** 5 + Zod | `POST /api/projects/{projectId}/ask` y `GET /health`, validación por esquema, OpenAPI generado en `/docs` (DIS-76, DIS-78); `/impact` en la Entrega 3 |
 | Web | React 18 + TypeScript + **Vite** + Tailwind | Andamiaje, rutas y cliente tipado (DIS-58); selección de proyecto (DIS-60) y consulta con panel de uso y estados (DIS-65, DIS-66); impacto en la Entrega 3 |
 | Orquestador | TypeScript | Clasifica intención, coordina el bucle, aplica política de seguridad |
 | **Analizador PHP** | **Tree-sitter** (`tree-sitter-php`) + reglas Laravel | Ficheros, clases, métodos, rutas, spans, llamadas |

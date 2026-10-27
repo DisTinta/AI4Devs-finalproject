@@ -9,7 +9,7 @@ alwaysApply: true
 ## 1. Technology stack
 
 - **Fastify** as the HTTP transport, with `@fastify/*` plugins only at the edge
-- **TypeScript** in strict mode, Node 20+, ESM
+- **TypeScript** in strict mode, Node 22.12 or later, ESM
 - **npm workspaces** monorepo: one package per responsibility
 - **PostgreSQL** behind a repository port; SQL lives in the adapter, never in the domain
 - **Zod** for every schema: request validation, response serialisation and LLM output parsing

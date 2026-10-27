@@ -91,7 +91,8 @@ Verified against `package.json` (root and per package). If a command is not here
   (`test`, `test:a11y`, `test:mutation*`, `lint`, `lint:architecture`, `typecheck`, `docs:coverage`)
   never load it, and product code (`packages/*/src`) never imports it. `scripts/` imports only Node
   built-ins, so `npm run up` works before `npm install`; no `process.loadEnvFile` / `--env-file`
-  (`engines.node` stays `>=20.11`). An unreadable `.env` prints one `warning: .env not read (<code>)`;
+  (`engines.node` is `>=22.12`, DIS-105: Node 22.12 does have those APIs, but `scripts/env.mjs` stays
+  the one `.env` reader, with one grammar, the `CODEMIND_SKIP_DOTENV` switch and one warning per process). An unreadable `.env` prints one `warning: .env not read (<code>)`;
   no key or value is ever printed.
 - Development environment: `npm run dev` (root) — runs `packages/api` + `packages/web` via
   `concurrently`, kills all on first failure. The API's `dev` (DIS-76, DIS-45, DIS-102) is `node --watch
@@ -281,7 +282,7 @@ Verified against `package.json` (root and per package). If a command is not here
   `tests/unit/scripts/` (typed through sibling `.d.mts` files) and the guides' structure tests in
   `tests/unit/docs/guides.spec.ts`; `scripts/` is outside Stryker's scope.
 - **Web tests (DIS-58).** Next to the code: `packages/web/src/**/*.test.ts(x)`. Only
-  `packages/web/**/*.test.tsx` and `tests/a11y/**` run in **jsdom** (`environmentMatchGlobs`); every
+  `packages/web/**/*.test.tsx` and `tests/a11y/**` run in **jsdom** (the `dom` project of `test.projects` in `vitest.config.ts`, DIS-105; each project has `extends: true`); every
   other test, the web's `.test.ts` files included (API client, theme), stays in Node — under jsdom the
   global `AbortSignal` is jsdom's while `fetch` stays Node's, and Node's `fetch` rejects it. The setup
   file `tests/support/jsdom-setup.ts` (guarded by `'document' in globalThis`) unmounts after every
@@ -424,14 +425,17 @@ Verified against `package.json` (root and per package). If a command is not here
   `acme-shop` for its "no project" case. Every test injects `seedFingerprints` and `answerFingerprint`
   with the files' own values: freshness of the versioned files is the `verify` CI job's alone, so a
   PR touching a fingerprint input turns one job red, not the suite.
-- **Hook order: Vitest 1.6 runs all hooks of one suite in parallel.** This is
-  `sequence.hooks = 'parallel'`, the default here, and it applies to `beforeAll`, `beforeEach` and
-  `afterEach` alike. A parent suite's hooks do run before a nested suite's.
-  - Set up data in the test body, or in a `beforeEach` of a **nested** `describe`, which runs
-    after the harness has opened the transaction.
-  - A `beforeEach` next to `useTransactionPerTest()` calls `db()` too early. It fails with
-    "db() is only available while a harness test is running…".
-  - A `beforeAll` there races the shared migration.
+- **Hook order: Vitest 4 runs the hooks of one suite in series.** This is `sequence.hooks = 'stack'`,
+  the default since Vitest 2 (DIS-105 D5; Vitest 1.6 ran them in parallel): the hooks of one suite run
+  one after another in declaration order (`afterEach` in reverse), and a parent suite's hooks run
+  before a nested suite's.
+  - A `beforeEach` declared after `useTransactionPerTest()` runs inside the transaction the harness
+    opened, so it can call `db()`; one declared before it still runs too early and fails with
+    "db() is only available while a harness test is running…". Declare it after the harness call.
+  - A `beforeAll` next to the harness runs in declaration order too, so it sees the migrated database
+    only if it is declared after the harness call. The nested `describe` stays the safe place. The
+    comments of `tests/integration/helpers/db.ts` still describe the Vitest 1.x parallel order
+    (DIS-105 Follow-ups, R2).
   - Clean up in the test body, never in an `afterEach` that uses `db()`. The rollback removes the
     rows anyway.
 - **Factory overrides set to `undefined` are ignored:** the default applies.
@@ -1098,8 +1102,9 @@ services that must be started first, quirks of the local environment.
   `git clean -ndX fixtures/acme-shop` must both print nothing: ignored files under the fixture
   (`vendor/`, `.env`, logs) change the fingerprint but not the rows. The empty `git diff` holds only with the same salt
   (PH-11): another salt changes every `author_hash`. In Git Bash, `TZ=… npm …` is rewritten for
-  Windows programs; Vitest 1.6 worker threads ignore `process.env.TZ`, so
-  `tests/integration/cli/seed-build.spec.ts` runs in the `forks` pool (`poolMatchGlobs`).
+  Windows programs; worker threads ignore `process.env.TZ`, so
+  `tests/integration/cli/seed-build.spec.ts` runs in the `forks` pool, through the `seed-build`
+  project of `test.projects` (DIS-105; it replaced `poolMatchGlobs`, removed in Vitest 4).
   Since DIS-92 the build also writes the web's sample-project constant
   `packages/web/src/data/sample-projects.ts` (`SAMPLE_PROJECTS`: id, name, language, framework and
   the file, symbol, edge and commit counts), **before** the seed, each with `writeAtomically`; a seed
@@ -1268,7 +1273,8 @@ services that must be started first, quirks of the local environment.
 - **DB integration specs are kept out of jobs that have no Postgres.** With `CI` set and no
   `DATABASE_URL`, `tests/integration/helpers/db.ts` throws on import, and so does
   `store/support.ts` through it (by design). The Frontend
-  workflow therefore runs `npx vitest run --exclude 'tests/integration/**'`, and Stryker uses
+  workflow therefore runs `npx vitest run tests/unit tests/harness tests/a11y packages/web` (since
+  Vitest 4 the CLI `--exclude` does not reach the `test.projects`, DIS-105 D14), and Stryker uses
   `vitest.stryker.config.ts`, which excludes the same folder. New integration suites go under
   `tests/integration/` so they stay excluded. Locally, an aborted Stryker run leaves
   `.stryker-tmp/` behind (gitignored); since DIS-84 `vitest.config.ts` excludes it, so the suite no
@@ -1441,8 +1447,9 @@ services that must be started first, quirks of the local environment.
   which are not imports: only code review guards them (the Ghost scenario only proves the given path
   is not read). Symbols on one line are ordered by `endLine` descending, then `name` (not by
   containment: a later-ending sibling comes first). `tests/unit/analyzers/php/parser-load.spec.ts` is the first `vi.mock` of the repository: reset
-  the mock and restore its delegating default in a `beforeEach` (Vitest 1.6 `mockClear` keeps queued
-  `…Once` values; `mockReset` drops the default implementation).
+  the mock and restore its delegating default in a `beforeEach` (Vitest 3 and later: `mockClear` only clears the
+  call history; `mockReset` drops queued `…Once` values and restores the implementation the mock was
+  created with, here the real loader, DIS-105 D12).
 - **The security gateway is pure core: `redactSecrets` returns events, `confinePath` is lexical**
   (DIS-84, `packages/core/src/index/`). Rules, highest priority first: `private-key`, `jwt`,
   `aws-access-key-id`, `generic-high-entropy` (secret-like key, quoted value of ≥ 20 characters,
