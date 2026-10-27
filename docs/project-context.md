@@ -81,6 +81,12 @@ Verified against `package.json` (root and per package). If a command is not here
   exit `1` for an unknown project, an outside path, a missing file or a range past the end, `2` for a
   usage error. Neither replaces the CLI: they exist so `docs/DEMO.md` runs the same in PowerShell and
   Bash.
+- Leftover dev processes: `node scripts/dev-processes.mjs list|stop [--since <ISO date>]` lists or ends
+  the `node`/`esbuild` processes whose command line names the repository, the session scratchpad
+  (`<tmp>/claude/<repo path with : \ / as ->`) or `scripts/load-env.mjs` (the API runs with relative
+  paths); never itself or its ancestors; `stop` kills each tree from its topmost selected process
+  (`taskkill /T` on Windows); exit `2` for a usage error. Autonomous steps end with `stop`
+  (`docs/AUTONOMOUS-RUN.md` §6). It also ends dev servers the author started in this checkout.
 - `.env` loading (DIS-102): `scripts/env.mjs` parses the root `.env` (a hand-written subset of the
   dotenv grammar: comments, blank lines, matched quotes, no expansion, the last assignment wins) and
   fills only the variables the environment lacks (a variable set in the shell, even empty, wins). The

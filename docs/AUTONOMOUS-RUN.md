@@ -336,7 +336,17 @@ hasta `APPROVED`. Una auditoría `CHANGES REQUIRED` después de la última ronda
   tras un `git switch` desde la base se deniega como si fuera un merge sobre la base.
 - No se deja en marcha ningún proceso al terminar un paso: `vitest run`, nunca en modo watch, y se
   para cualquier servidor (`vite`, API) que se arranque. Un `vitest` huérfano bloquea en Windows los
-  binarios de `node_modules`, y el siguiente `npm ci` falla con `EPERM`.
+  binarios de `node_modules`, y el siguiente `npm ci` falla con `EPERM`. Cada paso que haya
+  arrancado algo termina con `node scripts/dev-processes.mjs stop`, que cierra los procesos `node` y
+  `esbuild` del repositorio y de los clones del scratchpad (`list` los enseña sin cerrarlos). El
+  clasificador de auto mode deniega las consultas de procesos en PowerShell (`Get-CimInstance`), así
+  que el agente no tiene otra forma de encontrarlos. Cierra también los que haya arrancado la autora
+  en ese repositorio; `--since <fecha>` limita a los arrancados desde entonces.
+- Las comprobaciones en PowerShell (capturas de `docs/DEMO.md`, una orden de la guía en una terminal
+  PowerShell nueva) las hace la autora: el clasificador deniega las órdenes de PowerShell que cambian
+  variables de entorno (`$env:…`). El agente las hace en Git Bash y las deja en `design.md` →
+  Follow-ups con destino C desde el `tasks.md`, no al descubrirlo en el apply (en el piloto de DIS-105
+  se denegaron dos veces).
 - Ninguna sesión, tampoco la principal, deja su directorio de trabajo dentro de
   `openspec/changes/<cambio>/`: en Windows esa carpeta queda bloqueada y `/opsx:archive` no la puede
   mover.
