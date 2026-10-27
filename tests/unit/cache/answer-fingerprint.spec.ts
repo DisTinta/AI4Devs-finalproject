@@ -15,6 +15,8 @@ import { fingerprint } from '../../../packages/cli/src/seed/fingerprint';
 
 const DECLARED = [
   'packages/core/src/explain/prompt.ts',
+  // DIS-104 (answer-language, golden-answers delta): the language rule chooses the system message.
+  'packages/core/src/explain/question-language.ts',
   'packages/core/src/explain/untrusted-text.ts',
   'packages/core/src/explain/sanitize.ts',
   'packages/core/src/explain/limits.ts',
@@ -73,7 +75,7 @@ describe('answer fingerprint', () => {
     expect(answerFingerprint(root)).toBe(base);
   });
 
-  it('declares exactly the eleven files of the spec, and they exist in this repository', () => {
+  it('declares exactly the twelve files of the spec, and they exist in this repository', () => {
     expect([...ANSWER_FINGERPRINT_FILES]).toEqual(DECLARED);
     for (const path of ANSWER_FINGERPRINT_FILES) expect(existsSync(resolve(path))).toBe(true);
   });

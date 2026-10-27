@@ -1174,7 +1174,8 @@ services that must be started first, quirks of the local environment.
   author signs a sample; a regenerated entry comes back empty and must be reviewed again; report in
   `docs/golden-review/`); no generation time; canonical render = 2-space JSON in that key
   order, LF, final newline. **`answerFingerprint`** (`answer-fingerprint.ts`) = the seed's
-  `fingerprint()` over `ANSWER_FINGERPRINT_FILES` (explain prompt, untrusted-text, sanitize, limits,
+  `fingerprint()` over `ANSWER_FINGERPRINT_FILES` (explain prompt and its language rule
+  `question-language.ts` (DIS-104), untrusted-text, sanitize, limits,
   statement schema, typing rules; verify prompt and policy; confidence weights; normalize and
   response-cache); `context/` is out on purpose (DIS-26 D11). **Touching a seed fingerprint input stales
   the seed and, through `seed.*`, the golden file: regenerate in the order `seed:build` →
