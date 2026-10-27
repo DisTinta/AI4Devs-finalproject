@@ -235,3 +235,212 @@ task-api and over every inline input of the delta; its outputs are the edge list
 `openspec validate ts-calls-exact --strict`: `Change 'ts-calls-exact' is valid`. The enhanced part
 of DIS-31 is not edited by this round (the `[original]` block untouched); the C3 example the report
 suggests is carried by the Linear comment of the round.
+
+---
+
+## Run 2 (2026-10-27)
+
+CHANGES REQUIRED
+
+**Spec audit of `ts-calls-exact` (DIS-31, parent DIS-20), run 2, 2026-10-27**
+
+I read the change as it stands after correction round 1: `proposal.md`, `design.md`, `specs/code-analysis/spec.md` and `tasks.md`. The run 1 report and its "Resolution of run 1" were read for context only.
+
+- **Linear:** DIS-31 (description and 5 comments, the round 1 comment included) and its parent DIS-20 (description and 1 comment).
+- **Project docs:** `docs/base-standards.md`, `docs/openspec-tasks-mandatory-steps.md`, `docs/project-context.md` l.1384–1405 and `docs/adr/20261020-kit-autonomous-mode.md`.
+- **Main spec, `openspec/specs/code-analysis/spec.md`:** "Analysis contract" l.12–53, "TypeScript analysis input" l.1035–1094, "TypeScript symbol extraction" l.1188–1225, "TypeScript syntax errors" l.1344–1376 and "TypeScript code relation edges" l.1378–1403.
+- **Code:** `packages/analyzers/typescript/src/{ts-analyzer,edges,symbols}.ts`, `tests/unit/analyzers/typescript/{edges,structure}.spec.ts`, `fixtures/README.md` l.353–369 and `fixtures/task-api/src/services/task.service.ts`.
+
+## Questions for the author
+
+- **Q1, carried from run 1 (not blocking in this run).** Run 1 asked whether to accept the 8 + 2 reading of the DoD: 8 `exact` edges, sites 7 and 10 with no edge, and no `heuristic` `calls`. The alternative was DIS-20's path ("se para y se abre una HU sobre core antes"). In correction round 1 the agent kept the 8 + 2 reading as lead engineer (design SA1, marked as the agent's text).
+  - The caller's rule is that an agent decision stands unless it contradicts the ticket or the project. This one is consistent with DIS-31's enhanced part (agent decision 2) and with DIS-30 E3.
+  - It does still depart from the `[original]` DoD ("Los 10 sitios salen `exact`") and from DIS-20's escalation path, so it stays the main scope risk of the change.
+  - Under ADR `20261020-kit-autonomous-mode` (Consequences) you review agent decisions **after** the merge, not at a merge review. See I3.
+
+---
+
+## 1. Scope against the ticket: clean
+
+Everything follows from DIS-31:
+
+- the reality-map;
+- criteria C1–C5;
+- the technical context (extract `kept` / `refOf` rather than duplicating them);
+- agent decisions 1–8.
+
+Round 1 added the union / intersection rule, type-error handling, tagged templates and the definition of an overload signature. They answer run 1's B2 and B3, which came from DIS-20 AC5 and DIS-31 C3, so they are not invented scope. Nothing widens the change to DIS-20's whole story: the CLI, seed and golden answers stay in DIS-32.
+
+## 2. Inherited acceptance criteria: clean (Q1 noted)
+
+| Criterion | Where it is covered |
+|---|---|
+| DIS-31 C1 | "The calls of task-api" (the 8 sites, plus the full list of 37 edges) |
+| DIS-31 C2 | "What the compiler cannot resolve has no calls edge" |
+| DIS-31 C3 | "Compiler-resolved call forms" and "An overloaded call targets the implementation" |
+| DIS-31 C4 | "Call sites outside a function or method symbol, and targets that are not symbols, have no edge" (`src/top.ts`: `helper();` and `export const x = () => helper();`), and "A file with a syntax error neither originates nor receives calls" |
+| DIS-31 C5 | The existing "The task-api analysis is a valid deterministic graph"; the at-most-one-edge-per-pair rule (pinned by "Compiler-resolved call forms"); tasks 5.3, 2.3 and 3.1 |
+| DIS-20 AC5 (type errors keep resolvable edges) | "A call with a type error keeps its compiler-resolved target" |
+| DIS-20 AC1 (10 sites `exact`) | Q1, settled by the agent in SA1 |
+
+## 3. Missing scenarios
+
+- **I1, improvable.** "References in any other position (… array elements) SHALL produce no edge" has no input. "Only references passed as arguments are calls" covers assignment, object literal and `return`, but no array element.
+  - Correction: in `r`, add `const a = [helper];` before `return helper;`. The THEN stays as it is.
+- Every other MUST clause is exercised: the call forms, overloads, abstract and interface targets, type errors, unions, constructors, boundaries, decorators, tagged templates, syntax errors, duplicates and self-edges.
+- The clause about skipped subtrees has no observable effect beyond "TypeScript symbol extraction": a function inside a `namespace` is not a symbol. It needs no scenario of its own.
+- The scenario that B1 needs is listed under point 5.
+
+## 4. Ambiguity: clean
+
+None of "fast", "easy", "secure", "efficient", "many", "appropriate" or "robust" appears in the proposal, the design, the delta spec or the tasks. The timing risk is measurable: it is recorded in the step 5 report, and a slowdown above 2× the baseline is a finding.
+
+## 5. Open decisions
+
+### B1, blocking: a callee whose resolved declaration comes from its type, not from its value
+
+"Call sites and targets" 1 takes as target "the declaration of the signature the TypeScript compiler resolves". For an identifier or a call-result callee, that declaration comes from the callee's **type**, not from the function the callee **is**:
+
+- `function q(cb: typeof helper): void { cb(); }`: the signature's `declaration` is helper's `FunctionDeclaration`. The rule as written gives `q` → `helper`, although any compatible function can be passed.
+- `const g = c ? a : b; g();`: the type is reduced to `typeof a`, so the call resolves to `a`. Picking `a` is the same guess that D4 (SA3) rejects for `x: A | B`.
+- `getFn()()` with a declared return type of `typeof helper`: same result.
+- `const fn = helper; fn();` gives `→ helper`. It is harmless, but it is a variable rather than an import alias, and the spec only speaks of "import aliases".
+
+The requirement contradicts itself on this point. Its non-target list says "a property or parameter of function type … SHALL produce no edge", yet `cb: typeof helper` is a parameter of function type that the general rule turns into an edge. The proposal's premise ("calls that the compiler resolves, never guesses") and D4's union rationale point the other way. No scenario pins either behaviour, so the implementer's first green test will decide it.
+
+Where to fix it: in the requirement paragraph "Type errors and undetermined callees", in D4, and in a scenario. Two acceptable answers:
+
+- **(A), recommended.** Require the callee name to resolve to the target:
+  > "When the callee of a call expression is an identifier or a property access (`super.m` and optional calls included), its target SHALL also be one of the declarations of the symbol the compiler resolves for that callee name, import aliases followed; otherwise — a callee typed by `typeof f`, by a union of function types, or a local variable or parameter that holds a function — the call site SHALL produce no edge and no diagnostic. A call whose callee is any other expression (the result of a call, an element access, a parenthesised or conditional expression) SHALL produce no edge."
+
+  This keeps every edge that the current scenarios pin: `this.hello()`, `h()`, `h?.()`, `super.hello()`, `this.m(1)`, `i.m(1)` and `x.m()` (which stays excluded by the union rule). Re-run the prototype over task-api to confirm that the 37 edges are unchanged. A grep of task-api finds no `typeof`-typed callee; `this.clock()` is typed `() => string`.
+- **(B).** Keep "the declaration of the callee's type" and say so explicitly:
+  - narrow the non-target list to "a property or parameter whose type is a function type literal";
+  - add the union-of-function-types exclusion.
+
+New scenario, "A callee typed by a function's type is not that function" (expected values under (A); under (B), take them from the prototype):
+
+> **WHEN** `src/v.ts` with content `export function a(): void {}\nexport function b(): void {}\nexport function viaType(cb: typeof a): void { cb(); }\nexport function viaUnion(c: boolean): void { const g = c ? a : b; g(); }\nexport function viaResult(get: () => typeof a): void { get()(); }\nexport function viaLocal(): void { const fn = a; fn(); }\n` is analysed
+> **THEN** there is no `calls` edge, and `diagnostics` is empty
+
+Record the decision as SA11 in `design.md` → Follow-ups (agent's text, destination **A**).
+
+### I2, improvable: "more than one class or interface" and declaration merging
+
+The wording does not say whether an interface declared twice and merged counts as one interface or two:
+
+- `interface I { m(): void }` on line 1 and `interface I { m(x: number): void }` on line 2;
+- a call `i.m(1)` on a value of type `I`;
+- both `I::m` are symbols.
+
+Correction: append to that sentence "(two declarations of one merged interface count as one interface: the target is the signature the compiler resolves)", or "count as two: no edge". Whichever is chosen, pin it by extending "Abstract and interface methods are targets themselves", with the result taken from the prototype.
+
+## 6. Contradictions inside the change
+
+- **B1** (see point 5): the requirement's non-target list ("a … parameter of function type") contradicts its general target rule for `typeof`-typed parameters.
+- **I3, improvable.** `proposal.md` (DoD paragraph), `design.md` SA1 and E2, and task 9.1 say "the author may reverse it at the merge review". The project's ADR `docs/adr/20261020-kit-autonomous-mode.md` (Consequences, l.88–89) says that in an autonomous run "the author reviews the agent's decisions after the merge, not before".
+  - Correction: replace "at the merge review" with "in the author's review after the merge (ADR 20261020, Consequences)".
+- No other contradictions:
+  - D1, the tasks and the Impact section agree on the signature `buildTypeScriptCalls(ts, built, parsed, symbolOf)`.
+  - The boundaries are the same in the proposal, D3 and the spec's "Source".
+  - Tasks 2.2a–c divide the 12 scenarios without overlap. "Compiler-resolved call forms" can go green in 2.2b without references, because `h()` already yields the `→ helper` edge.
+
+## 7. Contradictions with the project: clean
+
+- The MODIFIED "Analysis contract" is the main spec's text (l.12–53) plus "TypeScript calls" in the list.
+- The delta matches the following requirements:
+  - "TypeScript analysis input" (l.1061–1063): a name outside the input resolves to nothing, with no edge and no diagnostic.
+  - "TypeScript syntax errors" (l.1346–1352): no edge from a broken file, and type errors are not diagnostics.
+  - "TypeScript symbol extraction" (l.1207–1214): overloads, accessors, arrow `const`s and object-literal methods are not symbols.
+- The deliberate difference from PHP closures and typed parameters (`docs/project-context.md` l.1397–1405) is documented in D3 and planned in task 8.1.
+- The agent merge in 10.7 and the Why written by the agent in 9.1 are covered by ADR 20261020 (l.68–72).
+
+## 8. Contrast with the real code: clean
+
+- **The D2 refactor is sound.** `keepFirst` keeps the `GraphSymbol` objects (`ts-analyzer.ts:65`). Today's rule (`edges.ts:72–96`) is that the first class or interface declaration of each file, line and name is an endpoint only if it was emitted. A node → `SymbolRef` map built after `keepFirst` reproduces that rule, including the case of a function and a class sharing name and line.
+- **The nodes match.** `symbols.ts:40–91` records the same `MethodDeclaration`, `MethodSignature`, `ConstructorDeclaration` and `FunctionDeclaration` nodes that `getResolvedSignature(...).declaration` returns, from the same `built.program` source files, so the map lookup by identity is valid.
+- **D1 has its insertion point** at `ts-analyzer.ts:73`, and `TS_COMPILER_EXTRACTOR` is at `edges.ts:7`. `getTypeChecker()` is cached by the program, so `edges.ts:100` and `calls.ts` share one checker.
+- **D6 holds.** No inline input of `edges.spec.ts` (l.99–228) or `structure.spec.ts` (l.93–197) has a call inside a function or method symbol whose target is a symbol. `mixin(Base)` (`edges.spec.ts:158`) is at module level. The exact-list assertions at `edges.spec.ts:109,124,137,150,161,174,226` and `structure.spec.ts:105,195` stay valid.
+- No abstraction is duplicated.
+
+## 9. Task size: clean
+
+2.2a is the largest task: the walk, call resolution, overloads, abstract and interface targets, type errors, unions, decorators and tagged templates, turning 7 scenarios green. It is one function with lookup rules and should fit in one turn. If B1 (A) is taken, add the callee-symbol check to 2.2a; it does not justify a further split.
+
+## 10. Mandatory steps: clean
+
+- Step 0 is the branch `feature/dis-31-ts-calls-exact`, followed by baseline 0.4.
+- Steps 4, 5, 6, 7 and 8 are present and labelled. Step 5 names its report path. Step 6 says "AGENT MUST EXECUTE", and so does step 7, which is marked not applicable with the reason.
+- Step 10, Pre-merge Review, is last, with the three checks in order, fixes on the same PR and the archive before the merge.
+- There is no mutating task; 6.3 confirms `git status --short fixtures/` is empty.
+- The commands exist (`packages/cli/tsconfig.run.json`, `scripts/dev-processes.mjs`, `docs:coverage`, `lint:architecture` in `docs/project-context.md`).
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| TypeScript calls (ADDED) | The calls of task-api | 2.1, 2.2c, 3.1, 6.1 |
+| TypeScript calls | What the compiler cannot resolve has no calls edge | 2.1, 2.2c, 3.1, 6.2 |
+| TypeScript calls | Compiler-resolved call forms | 2.1, 2.2b |
+| TypeScript calls | An overloaded call targets the implementation | 2.1, 2.2a |
+| TypeScript calls | Abstract and interface methods are targets themselves | 2.1, 2.2a |
+| TypeScript calls | A call with a type error keeps its compiler-resolved target | 2.1, 2.2a |
+| TypeScript calls | Only a constructor declared in the class itself is a target | 2.1, 2.2b |
+| TypeScript calls | Callbacks belong to their symbol and nested symbols keep their own calls | 2.1, 2.2a |
+| TypeScript calls | Only references passed as arguments are calls | 2.1, 2.2c |
+| TypeScript calls | Call sites outside a function or method symbol, and targets that are not symbols, have no edge | 2.1, 2.2a |
+| TypeScript calls | A file with a syntax error neither originates nor receives calls | 2.1, 2.2a, 6.2 |
+| TypeScript calls | A dropped duplicate declaration is neither source nor target of a call | 2.1, 1.2, 2.2a |
+| TypeScript calls (B1 rule) | *(missing: "A callee typed by a function's type is not that function")* | *(to add to 2.1 and 2.2a)* |
+| Analysis contract (MODIFIED) | The acme-shop analysis is a valid deterministic graph | 4.1, 4.2 (existing test) |
+| Analysis contract | The analyzer reads only the content it receives | 4.1, 4.2 (existing) |
+| Analysis contract | Duplicate input paths keep the first | 4.1, 4.2 (existing) |
+| Analysis contract | A failed parser load does not poison later calls | 4.1, 4.2 (existing) |
+| Analysis contract | Symbols that start on one line are ordered by span, then name | 4.1, 4.2 (existing) |
+| (non-spec) shared node → symbol map, D2 | existing "A dropped duplicate declaration is neither source nor target of an edge" | 1.1–1.3, 4.1 |
+| (non-spec) `fixtures/README.md` oracle | (documentation) | 3.1, 5.3 |
+| (non-spec) `docs/project-context.md` | (documentation) | 8.1 |
+
+The only empty row is the B1 rule, which has no scenario and no task. It is blocking, and it disappears once B1 is fixed.
+
+---
+
+## Corrections to apply
+
+### `openspec/changes/ts-calls-exact/specs/code-analysis/spec.md`, Requirement "TypeScript calls"
+
+1. **B1.** Append to the paragraph "Type errors and undetermined callees", recommended option (A):
+   > "When the callee of a call expression is an identifier or a property access (`super.m` and optional calls included), its target SHALL also be one of the declarations of the symbol the compiler resolves for that callee name, import aliases followed; otherwise — a callee typed by `typeof f`, by a union of function types, or a local variable or parameter that holds a function — the call site SHALL produce no edge and no diagnostic. A call whose callee is any other expression (the result of a call, an element access, a parenthesised or conditional expression) SHALL produce no edge."
+
+   Under option (B), state instead that the target follows the callee's declared type. Then narrow "a property or parameter of function type" to "a property or parameter whose type is a function type literal", and add the union-of-function-types exclusion.
+2. **B1.** Add the scenario "A callee typed by a function's type is not that function", with the text given in point 5. Under (A) the THEN is "there is no `calls` edge, and `diagnostics` is empty". Under (B), take the expected values from the prototype.
+3. **I2.** In the union sentence, add after "in more than one class or interface": "(two declarations of one merged interface count as one interface)", or "as two". Extend "Abstract and interface methods are targets themselves" with a merged interface and the edge the prototype gives.
+4. **I1.** In "Only references passed as arguments are calls", change the body of `r` to `const k = helper; const o = { helper }; const a = [helper]; return helper;`.
+
+### `openspec/changes/ts-calls-exact/design.md`
+
+1. **B1.** In D4, under "Call and `new` expressions", add a sub-bullet *Callee identity* (SA11) with the rule of correction 1 and the prototype's output for `viaType`, `viaUnion`, `viaResult` and `viaLocal`.
+2. **I3.** In SA1 and E2, replace "The author may reverse it at the merge review" with "The author may reverse it in the review after the merge (ADR 20261020, Consequences)".
+3. **Follow-ups.** Add a "Spec audit, run 2" table: SA11 (B1, callee identity) → **A**; SA12 (I2, merged interfaces) → **A**; SA13 (I1, array-element reference) → **A**; SA14 (I3, ADR wording) → **A**.
+
+### `openspec/changes/ts-calls-exact/proposal.md`
+
+1. **B1.** In "What Changes", fourth bullet ("A call with a type error …"), append: "a call whose callee is a variable, a parameter or an expression typed by a function's type, rather than the function itself, has no edge".
+2. **I3.** In the DoD paragraph, replace "the author may reverse it at the merge review" with "the author may reverse it in the review after the merge (ADR 20261020, Consequences)".
+
+### `openspec/changes/ts-calls-exact/tasks.md`
+
+1. **B1.** In 2.1, add "A callee typed by a function's type is not that function" to the list of scenarios. In 2.2a, add "callee identity (design D4, SA11)" to the implementation and that scenario to the list it turns green. In 4.2, change "the 12 new scenarios" to "the 13 new scenarios".
+2. **I3.** In 9.1, keep the 8 + 2 reading in the PR and add "the author reviews it after the merge (ADR 20261020)".
+
+### Linear DIS-31 (comment in Spanish; the `[original]` block is not touched)
+
+> **Auditoría de spec, segunda pasada (texto del agente, 2026-10-27).** Veredicto `CHANGES REQUIRED`, 1 hallazgo bloqueante.
+>
+> (1) **Destino según el tipo del llamado.** El compilador resuelve la firma por el *tipo* de la expresión llamada, no por la función que contiene. Por eso `function q(cb: typeof helper) { cb(); }` daría hoy una arista `q` → `helper`, aunque se le puede pasar cualquier función compatible. Lo mismo ocurre con `const g = c ? a : b; g()` y con `getFn()()`. Es la misma suposición que ya se descartó para los receptores de tipo unión. La spec exigirá que el nombre llamado resuelva al propio destino; si no, no hay arista. Se añade un scenario.
+>
+> (2) Mejoras: se aclara cómo cuentan las interfaces fusionadas, se prueba una referencia dentro de un array literal, y se corrige que la autora revisa la lectura 8 + 2 después del merge (ADR 20261020), no antes.
+
+### Linear DIS-20
+
+No change.
