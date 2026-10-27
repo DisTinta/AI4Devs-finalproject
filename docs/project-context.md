@@ -1389,8 +1389,19 @@ services that must be started first, quirks of the local environment.
   `ts-compiler`: file → file `imports` (every import / export-from form, one per pair), class / interface
   `extends` and `implements` resolved by the `TypeChecker` (aliases followed, merged declarations never a
   target) and file → file `tested_by` (`<base>.test.ts` / `<base>.spec.ts` importing `<base>.ts`); `describes`
-  edges come from core. There are no `calls` yet (DIS-31). The compiler options come from the `compilerOptions`
-  of the input `tsconfig.json` (`extends`, `references`, `files`, `include`, `exclude` ignored; unreadable →
+  edges come from core. Since DIS-31 (`calls.ts`) it also emits symbol → symbol `calls` (`exact`,
+  `ts-compiler`, never `heuristic`) for the signature the compiler resolves with `getResolvedSignature`: an
+  overload signature maps to the implementation with a body, abstract and interface method signatures are
+  targets themselves, `new X()` / `super()` target only a constructor declared in `X` / the direct base,
+  and an identifier or property access passed directly as an argument is a call to its one function or
+  method declaration (how handlers are registered). A callee that only has a function *type* (a parameter,
+  a local `const fn = a`, a union receiver) gives no edge. Callbacks (arrow functions, function
+  expressions, object-literal methods) belong to the enclosing symbol, unlike PHP closures. It does not
+  emit calls from module level, accessors, property initializers or static blocks, nor to receivers typed by
+  a package or the standard library. Gotcha: sites 7 and 10 of the task-api batch (`fixtures/README.md`)
+  have no edge by design (`fastify` and `Array.prototype.includes` are outside the input), so the
+  "10 sites `exact`" of the DoD is 8 `exact` edges plus 2 sites without an edge (design Follow-ups E2, SA1).
+  The compiler options come from the `compilerOptions` of the input `tsconfig.json` (`extends`, `references`, `files`, `include`, `exclude` ignored; unreadable →
   defaults plus one diagnostic). Not wired into the CLI until DIS-32. Gotcha (design D8): tests walk
   `fixtures/task-api` without `node_modules/` and `package-lock.json`, which exist only where someone ran
   `npm install` in the fixture.

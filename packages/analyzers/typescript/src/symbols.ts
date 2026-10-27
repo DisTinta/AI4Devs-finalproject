@@ -28,8 +28,15 @@ export function isSkippedDeclaration(ts: TypeScriptModule, node: TS.Node): boole
  * @param ts The compiler namespace.
  * @param path Repository-relative path of `sourceFile`.
  * @param sourceFile The parsed file, with parent pointers.
+ * @param declarations Optional sink: receives, for each symbol returned, the declaration node it came
+ *   from (DIS-31, design D2), so that the names stay computed here and nowhere else.
  */
-export function extractSymbols(ts: TypeScriptModule, path: string, sourceFile: TS.SourceFile): GraphSymbol[] {
+export function extractSymbols(
+  ts: TypeScriptModule,
+  path: string,
+  sourceFile: TS.SourceFile,
+  declarations?: Map<GraphSymbol, TS.Node>,
+): GraphSymbol[] {
   const found: GraphSymbol[] = [];
 
   const hasModifier = (node: TS.Node, kind: TS.SyntaxKind): boolean =>
@@ -39,14 +46,16 @@ export function extractSymbols(ts: TypeScriptModule, path: string, sourceFile: T
 
   const add = (kind: SymbolKind, name: string, node: TS.Node, signatureEnd: number): void => {
     const start = node.getStart(sourceFile);
-    found.push({
+    const symbol: GraphSymbol = {
       file: path,
       kind,
       name,
       startLine: lineOf(start),
       endLine: lineOf(node.getEnd()),
       signature: collapse(sourceFile.text.slice(start, signatureEnd)),
-    });
+    };
+    found.push(symbol);
+    declarations?.set(symbol, node);
   };
 
   /** The start of the `{` that opens the member list of a class or an interface. */
