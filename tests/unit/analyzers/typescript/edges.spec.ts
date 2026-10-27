@@ -161,6 +161,23 @@ describe('typescript analyzer edges', () => {
       expect(result.edges).toEqual([symbolEdge(result, 'extends', ['src/h.ts', 'K'], ['src/h.ts', 'Base'])]);
     });
 
+    // Review finding R1 (design Follow-ups): a declaration dropped by the duplicate-symbol rule must
+    // not lend its heritage to, or receive it through, the symbol that was kept.
+    it('A dropped duplicate declaration is neither source nor target of an edge', async () => {
+      const result = await analyse([
+        file('src/b.ts', 'export class B {}'),
+        file(
+          'src/a.ts',
+          "import { B } from './b.js';\nfunction f() { class A {} } function g() { class A extends B {} }\nfunction h() { class C {} } function k() { class C {} class D extends C {} }\n",
+        ),
+      ]);
+      expect(result.edges).toEqual([fileEdge('imports', 'src/a.ts', 'src/b.ts')]);
+      expect(result.diagnostics).toEqual([
+        { path: 'src/a.ts', line: 2, message: 'duplicate symbol "A"; kept the first' },
+        { path: 'src/a.ts', line: 3, message: 'duplicate symbol "C"; kept the first' },
+      ]);
+    });
+
     // The edge parts of the tsconfig, "Names outside the input", syntax-error and type-error scenarios
     // are assertions of the `it` of the same name in structure.spec.ts (design Follow-ups A14).
   });

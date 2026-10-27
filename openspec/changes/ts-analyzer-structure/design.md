@@ -280,3 +280,14 @@ author.*
 | X2 | `isSkippedDeclaration` is exported from `symbols.ts` and shared with `edges.ts`, so the heritage walk skips exactly what the symbol walk skips | **A** — this change |
 | X3 | `index.ts` also exports `TS_COMPILER_EXTRACTOR` (design D6); `typescript` is loaded with `import('typescript')` and the namespace is its default export when present | **A** — this change |
 | X4 | `npm install` added `typescript` to the package; `npm audit --audit-level=high` reports 0 vulnerabilities, as the baseline of `final-project-CRN` | **D** — accepted |
+
+Findings of the pre-merge reviews (reports `reports/2026-10-27-show-spec-working.md`,
+`…-verify-against-spec.md`, `…-adversarial-review.md`). *Agent's text: decided as lead engineer in an
+autonomous run, without the author.*
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| R1 | Major (adversarial review): a class or interface dropped as a duplicate symbol lent its `extends` / `implements` to the symbol kept, and was resolved as the kept one when targeted. Fixed in `edges.ts` (an endpoint must be the first class or interface declaration of its file, start line and name, in walk order); the spec "TypeScript code relation edges" gains one sentence and the scenario "A dropped duplicate declaration is neither source nor target of an edge" (test seen RED first) | **A** — this change |
+| W1 | Minor (verify-against-spec): the test of "The task-api analysis is a valid deterministic graph" did not assert the order of `symbols` and `edges`; assertions added to the same `it` | **A** — this change |
+| W2 | Minor: TSDoc of `isTypeScriptName` claimed a canonical-path check it does not do; corrected | **A** — this change |
+| R2 | Question: an input `tsconfig.json` that sets `module` but not `moduleResolution` keeps the default `bundler` (tsc would derive it from `module`), and `resolveModuleName` gets no import/require mode. It is the specified behaviour ("over the default options"), task-api sets `bundler` explicitly, and it can only add a resolvable file → file edge, never a wrong one | **D** — accepted |

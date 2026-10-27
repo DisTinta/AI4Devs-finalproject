@@ -70,14 +70,29 @@ export function buildTypeScriptEdges(
 
   // extends / implements: the checker resolves each heritage name, aliases followed.
   const emitted = new Set(symbols.filter((s) => s.kind === 'class' || s.kind === 'interface').map(symbolKey));
-  const refOf = (path: string, node: TS.ClassDeclaration | TS.InterfaceDeclaration, sourceFile: TS.SourceFile): SymbolRef | undefined => {
-    if (!node.name) return undefined;
-    const ref = {
-      file: path,
-      name: node.name.text,
-      startLine: sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1,
+  const keyOf = (path: string, node: TS.ClassDeclaration | TS.InterfaceDeclaration, sourceFile: TS.SourceFile): SymbolRef | undefined =>
+    node.name
+      ? { file: path, name: node.name.text, startLine: sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1 }
+      : undefined;
+  // The first class or interface declaration of each (file, start line, name), in the walk order of
+  // `extractSymbols`: a later one was dropped as a duplicate symbol and is no edge endpoint (review R1).
+  const kept = new Map<string, TS.Node>();
+  for (const { path, sourceFile } of parsed) {
+    const collect = (node: TS.Node): void => {
+      if (isSkippedDeclaration(ts, node)) return;
+      if (ts.isClassDeclaration(node) || ts.isInterfaceDeclaration(node)) {
+        const ref = keyOf(path, node, sourceFile);
+        if (ref && !kept.has(symbolKey(ref))) kept.set(symbolKey(ref), node);
+      }
+      ts.forEachChild(node, collect);
     };
-    return emitted.has(symbolKey(ref)) ? ref : undefined;
+    collect(sourceFile);
+  }
+  const refOf = (path: string, node: TS.ClassDeclaration | TS.InterfaceDeclaration, sourceFile: TS.SourceFile): SymbolRef | undefined => {
+    const ref = keyOf(path, node, sourceFile);
+    if (!ref) return undefined;
+    const key = symbolKey(ref);
+    return emitted.has(key) && kept.get(key) === node ? ref : undefined;
   };
   let checker: TS.TypeChecker | undefined;
   const targetOf = (expression: TS.Expression): SymbolRef | undefined => {

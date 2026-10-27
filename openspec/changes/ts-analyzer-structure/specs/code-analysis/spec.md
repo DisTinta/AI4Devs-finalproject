@@ -619,7 +619,10 @@ import aliases, and SHALL be a target only when it resolves to exactly one decla
 declaration is a `class` or `interface` symbol of the same result; a name declared more than once
 (merged interfaces, a class merged with an interface), a name outside the input and any other
 expression (a call, a mixin) SHALL produce no edge. A class expression and an anonymous class SHALL
-originate no `extends` or `implements` edge (they have no symbol). Module specifiers that do not
+originate no `extends` or `implements` edge (they have no symbol). A class or interface declaration
+dropped as a duplicate symbol (see "TypeScript symbol extraction") has no symbol either: it SHALL
+originate no edge and SHALL be the target of none, and its edges SHALL NOT be given to the symbol
+that was kept. Module specifiers that do not
 resolve to a TypeScript file of the input (packages, `node:` modules, missing files, `.d.ts` files)
 SHALL produce no edge; `require()`, dynamic `import()` and `import x = require()` SHALL produce none.
 
@@ -679,6 +682,18 @@ SHALL produce no edge; `require()`, dynamic `import()` and `import x = require()
   `export class Base<T> {}\nexport function mixin<T>(b: T): T { return b; }\nexport class K extends Base<string> {}\nexport class M extends mixin(Base) {}\n`
   is analysed
 - **THEN** the edges are exactly one `extends` edge, from `K` to `Base`
+
+#### Scenario: A dropped duplicate declaration is neither source nor target of an edge
+
+- **WHEN** `src/b.ts` with content `export class B {}` and `src/a.ts` with content
+  `import { B } from './b.js';\nfunction f() { class A {} } function g() { class A extends B {} }\nfunction h() { class C {} } function k() { class C {} class D extends C {} }\n`
+  are analysed together
+- **THEN** the edges are exactly one `imports` edge, from `src/a.ts` to `src/b.ts` (the `A` of `g`,
+  dropped as a duplicate, originates no `extends` edge, and `D` extends the `C` of `k`, also dropped,
+  so it has none)
+- **AND** `diagnostics` is exactly two entries for `src/a.ts`: `line` 2 with `message`
+  `duplicate symbol "A"; kept the first`, and `line` 3 with `message`
+  `duplicate symbol "C"; kept the first`
 
 ### Requirement: TypeScript test coverage edges
 

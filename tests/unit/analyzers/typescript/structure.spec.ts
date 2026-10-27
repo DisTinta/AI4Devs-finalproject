@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { validateGraph } from '@codemind/core';
+import { compareEdges, validateGraph } from '@codemind/core';
 import type { AnalysisResult, EdgeEndpoint, KnowledgeGraph, SourceFile } from '@codemind/core';
 import { createTypeScriptAnalyzer } from '../../../../packages/analyzers/typescript/src/index';
 import { readFixtureFiles } from '../../../support/read-fixture-files';
@@ -59,6 +59,14 @@ describe('typescript analyzer structure', () => {
       expect(again).toEqual(taskApi);
       const paths = taskApi.files.map((f) => f.path);
       expect(paths).toEqual([...paths].sort());
+      // Review finding W1: the order of `symbols` and `edges` is part of the scenario too.
+      const code = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+      const symbolOrder = [...taskApi.symbols].sort(
+        (a, b) => code(a.file, b.file) || a.startLine - b.startLine || b.endLine - a.endLine || code(a.name, b.name),
+      );
+      expect(taskApi.symbols).toEqual(symbolOrder);
+      expect(taskApi.edges.length).toBeGreaterThan(0);
+      expect(taskApi.edges).toEqual([...taskApi.edges].sort(compareEdges));
       expect(validateGraph(graphOf(taskApi))).toEqual([]);
     });
 

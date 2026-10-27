@@ -17,15 +17,17 @@ export async function loadTypeScript(): Promise<TypeScriptModule> {
 }
 
 /**
- * Whether `path` is a TypeScript file in the sense of the spec "TypeScript analysis input": it ends in
- * `.ts` but not in `.d.ts`, and is canonical (non-empty segments separated by `/`, none of them `.` or
- * `..`, no `\`, no leading `/`).
+ * Whether `path` has a TypeScript file name: it ends in `.ts` but not in `.d.ts`. A TypeScript file of
+ * the spec "TypeScript analysis input" also needs a canonical path ({@link isCanonicalPath}).
  */
 export function isTypeScriptName(path: string): boolean {
   return path.endsWith('.ts') && !path.endsWith('.d.ts');
 }
 
-/** Whether `path` is canonical (see {@link isTypeScriptName}). */
+/**
+ * Whether `path` is canonical: one or more non-empty segments separated by `/`, none of them `.` or
+ * `..`, with no `\` and no leading `/`.
+ */
 export function isCanonicalPath(path: string): boolean {
   if (path.includes('\\')) return false;
   return path.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..');

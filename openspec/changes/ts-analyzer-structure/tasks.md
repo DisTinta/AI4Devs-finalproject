@@ -69,8 +69,10 @@
 
 - [ ] 11.1 Open the PR against `final-project-CRN`; DIS-30 to In Review with a Spanish comment linking it
 - [ ] 11.2 CI green (wait with `Monitor` until no check is pending); link the run in an addendum to the step 6 report
-- [ ] 11.3 `/show-spec-working` (may reuse the step 7 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
-- [ ] 11.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
-- [ ] 11.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`
-- [ ] 11.6 Fix every finding in this change (TDD for behaviour), each with an A/B/C/D destination in `design.md` → Follow-ups; re-run what each fix invalidates; commit to the same PR; re-run a check whose findings led to non-trivial fixes until no Blocker or Major
+- [x] 11.3 `/show-spec-working` (may reuse the step 7 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
+- [x] 11.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
+- [x] 11.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`
+- [x] 11.6a Review finding R1 (adversarial review, design Follow-ups R1): RED in `tests/unit/analyzers/typescript/edges.spec.ts` with the new scenario "A dropped duplicate declaration is neither source nor target of an edge" (a new `it`; no existing assertion changes), then GREEN in `packages/analyzers/typescript/src/edges.ts` (a heritage endpoint is the first class or interface declaration of its file, name and start line, in walk order); `npx vitest run tests/unit/analyzers/typescript` green
+- [x] 11.6b Review finding W1 (verify-against-spec, design Follow-ups W1): the `it` "The task-api analysis is a valid deterministic graph" of `tests/unit/analyzers/typescript/structure.spec.ts` gains the `symbols` and `edges` order assertions its scenario states (only `files` order was asserted); no assertion removed. `program.ts`: TSDoc of `isTypeScriptName` / `isCanonicalPath` corrected (W2)
+- [x] 11.6 Fix every finding in this change (TDD for behaviour), each with an A/B/C/D destination in `design.md` → Follow-ups; re-run what each fix invalidates; commit to the same PR; re-run a check whose findings led to non-trivial fixes until no Blocker or Major
 - [ ] 11.7 `/opsx:archive`, commit it to the same PR; merge (`gh pr merge <n> --merge`, through the merge gate) only after the archive commit and with CI green
