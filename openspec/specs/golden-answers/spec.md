@@ -309,7 +309,8 @@ golden order, LF line endings and a final line feed. The build SHALL write the c
 ### Requirement: Golden answer fingerprint
 
 `answerFingerprint` SHALL be computed with the algorithm of the seed's fingerprints over exactly these
-repository files: `packages/core/src/explain/prompt.ts`, `packages/core/src/explain/untrusted-text.ts`,
+repository files: `packages/core/src/explain/prompt.ts`, `packages/core/src/explain/question-language.ts`,
+`packages/core/src/explain/untrusted-text.ts`,
 `packages/core/src/explain/sanitize.ts`, `packages/core/src/explain/limits.ts`,
 `packages/core/src/explain/statement-schema.ts`, `packages/core/src/explain/typing-rules.ts`,
 `packages/core/src/verify/verify-prompt.ts`, `packages/core/src/verify/policy.ts`,

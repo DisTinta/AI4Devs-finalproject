@@ -92,4 +92,4 @@
   - [x] 12.6d The agent reviews the regenerated entries in `docs/golden-review/2026-10-acme-shop-golden-review-dis-104.md` (V7: the author's signature stays pending); `fixtures/README.md` links that report (V5)
   - [x] 12.6e `docs/DEMO.md`: recapture the evaluation-mode outputs that depend on the golden Q1 (Paso 1 CLI and `demo:ask`, Paso 2 text, Paso 5 `demo:ask`, web items 8-9) and record the recapture in `Cómo se capturó` (V2); fix the duration and label the `demo:ask` capture of `Probar con un modelo real` (V3); `npx vitest run tests/unit/docs` green
   - [x] 12.6f `tests/unit/explain/explain-language.spec.ts` (created by this branch): drop the noise assertion (V6)
-- [ ] 12.7 `/opsx:archive`, commit it to the same PR; merge (`gh pr merge <n> --merge`, through the merge gate) only after the archive commit and with CI green
+- [x] 12.7 `/opsx:archive`, commit it to the same PR; merge (`gh pr merge <n> --merge`, through the merge gate) only after the archive commit and with CI green
