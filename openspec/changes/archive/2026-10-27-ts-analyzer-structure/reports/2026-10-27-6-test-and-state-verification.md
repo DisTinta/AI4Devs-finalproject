@@ -59,3 +59,8 @@ Not warranted (design D10, decision A6): the decisions are local to one adapter 
 
 - Status: PASS
 - Blocking issues: none
+
+## Addendum: CI of PR 74 (task 11.2)
+
+- Commit `df5f6b5`: the checks `frontend`, `mutation`, `quality`, `scope`, `secrets` and `verify` passed.
+- Run: https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/40568874401

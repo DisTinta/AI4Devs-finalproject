@@ -63,12 +63,12 @@
 
 ## 10. Pull request preparation
 
-- [ ] 10.1 `/pr-describe` in Spanish against `final-project-CRN`: the Why marked as the agent's text, the empty `git diff --stat final-project-CRN -- packages/core` output, the dependency added and its `npm audit` result, existing tests unchanged
+- [x] 10.1 `/pr-describe` in Spanish against `final-project-CRN`: the Why marked as the agent's text, the empty `git diff --stat final-project-CRN -- packages/core` output, the dependency added and its `npm audit` result, existing tests unchanged
 
 ## 11. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 11.1 Open the PR against `final-project-CRN`; DIS-30 to In Review with a Spanish comment linking it
-- [ ] 11.2 CI green (wait with `Monitor` until no check is pending); link the run in an addendum to the step 6 report
+- [x] 11.1 Open the PR against `final-project-CRN`; DIS-30 to In Review with a Spanish comment linking it
+- [x] 11.2 CI green (wait with `Monitor` until no check is pending); link the run in an addendum to the step 6 report
 - [x] 11.3 `/show-spec-working` (may reuse the step 7 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
 - [x] 11.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
 - [x] 11.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`
