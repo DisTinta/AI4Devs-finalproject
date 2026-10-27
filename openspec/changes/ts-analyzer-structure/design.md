@@ -270,3 +270,13 @@ author.*
 | A12 | Function declarations are symbols at any depth outside the skipped ambient and namespace blocks, arrow-function, constructor, accessor and static-block bodies included (D4) | **A** — this change |
 | A13 | The task-api inventory scenario also lists the 26 `method` symbols by class and interface, counted from the fixture | **A** — this change |
 | A14 | The four `tsconfig.json` scenarios get their symbols and diagnostics part in task 2.1 (RED before the GREEN of 2.2) and their edge part in 4.1 | **A** — this change |
+
+Decisions of the apply step. *Agent's text: decided as lead engineer in an autonomous run, without the
+author.*
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| X1 | The edge parts of the scenarios shared by `structure.spec.ts` and the edge requirements are assertions of the same `it` in `structure.spec.ts` (helper `edgeKeys`), never a second `it` of the same name in `edges.spec.ts`, so each of the 33 scenarios has exactly one test | **A** — this change |
+| X2 | `isSkippedDeclaration` is exported from `symbols.ts` and shared with `edges.ts`, so the heritage walk skips exactly what the symbol walk skips | **A** — this change |
+| X3 | `index.ts` also exports `TS_COMPILER_EXTRACTOR` (design D6); `typescript` is loaded with `import('typescript')` and the namespace is its default export when present | **A** — this change |
+| X4 | `npm install` added `typescript` to the package; `npm audit --audit-level=high` reports 0 vulnerabilities, as the baseline of `final-project-CRN` | **D** — accepted |

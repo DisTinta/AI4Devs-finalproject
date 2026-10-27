@@ -394,7 +394,7 @@ Verified against `package.json` (root and per package). If a command is not here
   `tests/tsconfig.json` has the matching `paths` entries. `npm run cli` does the same through
   `packages/cli/tsconfig.run.json`. Any other `tsx` script resolves them through `node_modules` to
   `packages/*/dist/`, so run `npx tsc --build` first or you run stale code. `store-postgres`,
-  `adapters/git`, `adapters/llm` and `analyzers/php` have a project reference to core; `packages/cli` references all
+  `adapters/git`, `adapters/llm`, `analyzers/php` and `analyzers/typescript` have a project reference to core; `packages/cli` references all
   five (core and the four adapters/analyzers).
 - `tests/support/` holds helpers shared by unit and integration tests, such as `sample-graph.ts`,
   a synthetic `KnowledgeGraph` builder.
@@ -472,8 +472,8 @@ Verified against `package.json` (root and per package). If a command is not here
   Postgres (template of `tests/integration/cli/ask-command.spec.ts`).
 - Test data comes from `fixtures/` (`acme-shop`, `task-api`, `history`, `build-history.mjs`) and
   `seeds/graph-dump.sql`. `fixtures/**` is excluded from Vitest collection.
-- **PH-22 — fixtures are an analyzer's input, never test-writable (DIS-47).** `createPhpAnalyzer()`
-  (`packages/analyzers/php`) does no I/O over the analysed repository: it only reads the `SourceFile[]`
+- **PH-22 — fixtures are an analyzer's input, never test-writable (DIS-47, DIS-30).** `createPhpAnalyzer()`
+  (`packages/analyzers/php`) and `createTypeScriptAnalyzer()` (`packages/analyzers/typescript`) do no I/O over the analysed repository: it only reads the `SourceFile[]`
   content it is given. `tests/unit/analyzers/php/structure.spec.ts` walks `fixtures/acme-shop` with
   `node:fs` read-only to build that input; no test modifies the fixture. Edge-case expectations (a
   syntax error, a non-existent path) are built with inline content, not by editing the fixture. A
@@ -654,7 +654,8 @@ services that must be started first, quirks of the local environment.
   are value-only. Read gitleaks JSON as UTF-8 on Windows, or non-ASCII text no longer matches.
 - **The infra packages are stubs, not empty.** All 9 workspaces (`core`, `analyzers/{php,typescript}`,
   `adapters/{store-postgres,llm,git}`, `api`, `cli`, `web`) have a `package.json` and a `src/index.ts`,
-  but the analyzer/adapter ones are empty stubs (dependency-cruiser flags them as `no-orphans` warns).
+  but the analyzer/adapter ones are empty stubs (dependency-cruiser flags them as `no-orphans` warns);
+  since DIS-30 `analyzers/typescript` is no longer one (see "The TypeScript analyzer" below).
   They resolve in `npm ls`; do not expect real behaviour from them yet. Exceptions: `store-postgres`
   implements `StorePort`: writes (`createProject`, `saveGraph`, DIS-23) and reads (`getProject`,
   `listProjects`, `findSymbols`, `neighbors`, DIS-24); `adapters/git` implements `GitPort`
@@ -1380,6 +1381,19 @@ services that must be started first, quirks of the local environment.
   pure, language-independent rules in core, reused as-is by the TypeScript analyzer (DIS-30) with no
   changes to `packages/core`.
   The type gate is `npm run typecheck` (also in CI). A finer per-file check is a later chore.
+- **The TypeScript analyzer** (DIS-30, `packages/analyzers/typescript`, `createTypeScriptAnalyzer()`).
+  It parses every canonical `.ts` input (not `.d.ts`) with the `typescript` compiler API as one
+  in-memory program, with no standard library, no `@types` and no disk access. It emits `class`,
+  `interface`, `function` (any depth) and `method` symbols (`X::m`, `X::constructor`, `I::m`); variables,
+  types, enums, accessors and `declare` blocks are not symbols. Edges, all `exact` with extractor
+  `ts-compiler`: file → file `imports` (every import / export-from form, one per pair), class / interface
+  `extends` and `implements` resolved by the `TypeChecker` (aliases followed, merged declarations never a
+  target) and file → file `tested_by` (`<base>.test.ts` / `<base>.spec.ts` importing `<base>.ts`); `describes`
+  edges come from core. There are no `calls` yet (DIS-31). The compiler options come from the `compilerOptions`
+  of the input `tsconfig.json` (`extends`, `references`, `files`, `include`, `exclude` ignored; unreadable →
+  defaults plus one diagnostic). Not wired into the CLI until DIS-32. Gotcha (design D8): tests walk
+  `fixtures/task-api` without `node_modules/` and `package-lock.json`, which exist only where someone ran
+  `npm install` in the fixture.
 - **Calls inside method bodies are `exact` only when the receiver type is declared** (DIS-52). The
   PHP analyzer emits `calls` (`exact`, `php-treesitter-laravel`) from a method `Type::m` for
   `$this->p->m()` (property `p` of the same type, promoted or declared, with a single named type — not
