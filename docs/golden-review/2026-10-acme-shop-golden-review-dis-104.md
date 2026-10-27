@@ -35,3 +35,7 @@ evidence, systematic under-typing, loose wording).
 `{"by": "<author>", "date": "YYYY-MM-DD"}` next to the agent's review in each entry's `reviews`. If the
 author rejects one, `npm run cache:build -- <id>` regenerates it alone while the fingerprints stay as they
 are (handed off on DIS-104, design Follow-ups V7).
+
+**Result:** on 2026-10-27 the author read the review and accepted all three answers, Q1 included with
+its two flaws noted above, and signed them (`author:cristina-rodriguez`). Every golden of
+`seeds/cache/acme-shop.json` carries the agent's review and the author's signature.
