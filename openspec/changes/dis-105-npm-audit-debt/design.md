@@ -18,8 +18,8 @@ See `proposal.md` → Why. Current state that shapes the approach (checked on 20
   `node-version: '20'`. The mutation job caches Stryker's incremental file keyed on the lockfile and the
   configs, with a 40-minute timeout.
 - `npm audit`: 20 advisories (5 low, 6 moderate, 6 high, 3 critical).
-- Registry facts used below: `vitest` 5.0.5 (2026-10-15) needs Node `^22.12 || ^24 || >=26` and peers
-  `vite ^6.4 || ^7 || ^8`; `vite` 8.3.4 (2026-10-08) needs `^20.19 || >=22.12`; Stryker 10.0.0
+- Registry facts used below (the Vitest line was first planned as 5.0.5, see D16): `vitest` 4.1.12
+  (2026-10-15) needs Node `^20 || ^22 || >=24` and peers `vite ^6 || ^7 || ^8`; `vite` 8.3.4 (2026-10-08) needs `^20.19 || >=22.12`; Stryker 10.0.0
   (2026-08-14) needs `>=22`; `@vitejs/plugin-react` 6.1.2 (2026-10-05) peers `vite ^8`;
   `@types/node` 22.20.5 (2026-10-01).
 
@@ -46,17 +46,17 @@ fixed by `npm audit fix` without `--force` (zod 4.6.6 is inside `^4.6.5`), so th
 
 ### D2. Node 22 baseline (Enhanced D2, destination A)
 
-Vitest 5 and Stryker 10 refuse Node 20, and Node 20 has had no upstream security patches since April
-2026. `engines.node` becomes `>=22.12`, as the ticket's acceptance criterion 5 says. That is the lower
-bound of Vitest 5's range (`^22.12 || ^24 || >=26`), not the same range: it also covers Vite 8
-(`^20.19 || >=22.12`), plugin-react 6 and Stryker 10 (`>=22`), but it **accepts Node 23 and 25**,
-which Vitest 5 does not list. *Agent's decision (audit Q2, destination D):* `engines.node` stays
+Stryker 10 refuses Node 20 (`>=22`), Vite 8 needs `^20.19 || >=22.12`, and Node 20 has had no upstream
+security patches since April 2026. `engines.node` becomes `>=22.12`, as the ticket's acceptance
+criterion 5 says. That is the lower bound of Vite 8's range on Node 22 and the first Node 22 with
+`require(esm)` on by default; it also covers plugin-react 6 and Stryker 10, but it **accepts Node 23
+and 25**. *Agent's decision (audit Q2, destination D):* `engines.node` stays
 `>=22.12`. Node 23 and 25 are odd, non-LTS releases already out of upstream support; npm only warns
 on an engines mismatch (no `engine-strict` in the repository), so a wider `engines` range would block
 nobody, while a three-part range would diverge from the ticket and from every guide. The guides ask
 for "Node 22.12 or later, an LTS line (22 or 24)". Every CI `setup-node` step requests `'22'`. A new
 ADR `docs/adr/20261026-node-22-baseline.md` records it (platform decision, costly to revert).
-*Alternative rejected:* Vitest 4.1.12 + Vite 7 + Stryker 9.6.1, which still run on Node 20 but keep
+*Alternative rejected:* Vite 7 + Stryker 9.6.1, which still run on Node 20 but keep
 the project on an unpatched runtime and postpone the same migration.
 
 ### D3. Only versions at least 7 days old (Enhanced D3, destination D)
@@ -167,7 +167,7 @@ and the comment above it at l.111, which today reads "engines unchanged, no Node
 supported versions lack" and becomes false on both counts),
 `packages/web/src/pages/ProjectPickerPage.test.tsx` (the hint text at l.421) and
 `tests/unit/analyzers/php/parser-load.spec.ts` (the comment at l.19–21 that describes Vitest 1.6
-`mockClear`/`mockReset` semantics; its code changes only if the run under Vitest 5 fails). Any other
+`mockClear`/`mockReset` semantics; its code changes only if the run under Vitest 4 fails). Any other
 test the migration breaks is fixed only as far as the migration requires, named in a task added
 through `/opsx:update`, and listed in the step 7 report.
 
@@ -182,12 +182,28 @@ behaviours coexist. The comment at l.111 becomes "Assert: engines on the Node 22
 reader (`scripts/env.mjs`), never Node's own .env APIs", and the comment of `scripts/env.mjs` names
 the same reason and `>=22.12`.
 
+### D16. Vitest 4.1.12, not 5.0.5 (agent's decision, found by the first full mutation run, destination A)
+
+The change was planned on Vitest 5.0.5. The full mutation run of task 7.4 under Vitest 5.0.5 with
+`@stryker-mutator/vitest-runner` 10.0.0 killed almost no mutant: after 2,987 mutants, 2,924 had survived,
+and a run restricted to `packages/core/src/knowledge/confidence.ts` scored 9.86 % (7 killed, 64 survived,
+for example `if (true) throw …` survived with the covering tests passing), against 97.18 % for the same
+file under Vitest 4.1.12, with the same `vitest.stryker.config.ts` and the `test.projects` kept (a flattened
+single-project config gave 9.86 % under Vitest 5 too, so the projects are not the cause). Stryker 10.0.0
+(2026-08-14) predates Vitest 5.0.0 (2026-09-03) and does not activate its mutants under it. *Decision:*
+`vitest` `^4.1.12` (2026-10-15, 12 days old, peers `vite ^6 || ^7 || ^8`, 0 advisories), Stryker stays 10.0.0
+and Vite 8.3.4. Everything else of D8 holds: `test.projects` exists in Vitest 4, and the CLI `--exclude` still
+does not reach the projects (D14) and the default reporter still hides the warning (D15), both re-checked
+under 4.1.12. The Node baseline (D2) stays `>=22.12`. A later move to Vitest 5 waits for a Stryker release
+that supports it (Follow-ups, R3). *Alternative rejected:* keep Vitest 5 and lower the mutation
+gate (it would give up the signal the ticket asks to keep, acceptance criterion 2).
+
 ## Risks / Trade-offs
 
 - [The `projects` split changes which files run] → count test files and tests before and after; the
   existing `web-foundation` scenario "Rendered output does not leak between tests" and the
   `seed-build` time-zone scenario must still pass.
-- [Vitest 5 or Stryker 10 changes defaults that move results] (coverage analysis, isolation, timeout
+- [Vitest 4 or Stryker 10 changes defaults that move results] (coverage analysis, isolation, timeout
   semantics) → read the migration notes of Vitest 2, 3, 4 and 5 and of Stryker 9 and 10 before
   editing; record each relevant change in the step 2 notes of the PR.
 - [Mock semantics changed after Vitest 1.6] (`mockReset` restores the original implementation
@@ -227,10 +243,13 @@ lockfile returns with it. Contributors switch to Node 22.12 or later before `npm
 | D7 | `npm warn deprecated` lines (e.g. `eslint@9.39.5`) | **C** — Spanish checklist comment on DIS-105 (list completed after the phase 2 install) |
 | D9 | No `npm audit` gate in CI | **C** — same checklist comment on DIS-105 |
 | D10 | Hint text «Node 22.12+» (agent's decision on audit Q1: added scope kept, floor matches `engines.node`) | **A** — this change |
-| Q2 | Agent's decision: `engines.node` stays `>=22.12` (ticket AC5); Node 23 and 25 are accepted by `engines` but out of support and not listed by Vitest 5; guides ask for an LTS line, 22.12+ or 24 (design D2) | **D** — no follow-up |
+| Q2 | Agent's decision: `engines.node` stays `>=22.12` (ticket AC5); Node 23 and 25 are accepted by `engines` but out of support; guides ask for an LTS line, 22.12+ or 24 (design D2) | **D** — no follow-up |
 | Q3 | Agent's decision: the `process.loadEnvFile` / `util.parseEnv` / `--env-file` prohibition in `scripts/` stays, with the new reason "one .env reader and one grammar" (design D12); the comment at `wiring.spec.ts:111` and in `scripts/env.mjs` is rewritten | **D** — no follow-up |
 | A1 | Spec audit run 1 corrections (phase 2 commit before the clean clone, e2e restoration, CLI filters and Stryker exclusions across projects, `fixAvailable: false` clause, `Paso 0` capture) | **A** — applied to this change in correction round 1 |
 | D13 | Agent's decision: zod 4.6.7 (the security fix of phase 1) reports one `too_big` issue for an array above its maximum instead of validating every element, so the test "The issues of an event are bounded" in `tests/unit/explain/statement-schema.spec.ts` changes its fixture (20 empty statements, 40 issues) and the old fixture becomes a new test of the one-issue `limit_exceeded` case; production code unchanged (the quarantine is stricter and cheaper: no per-element issues for an oversized array) | **A** — this change (task 1.2a) |
-| D14 | Agent's decision (task 4.5, the design D8 fallback): with Vitest 5 the CLI `--exclude 'tests/integration/**'` of `frontend.yml` does not reach the `test.projects` (29 integration files failed on import without `DATABASE_URL`); the Frontend step runs `npx vitest run tests/unit tests/harness tests/a11y packages/web` (positional filters do reach the projects: 164 files, the 196 of the baseline minus the 32 integration files); the comment of the step explains it, and `docs/DEPLOYMENT.md` l.71 and `docs/project-context.md` l.1271 name the new command | **A** — this change (task 4.5a) |
-| D15 | Agent's decision: Vitest 5's default reporter hides the `console.warn` of a file whose tests are all skipped, so the "DATABASE_URL is not set" warning of `tests/integration/helpers/db.ts` is written with `fs.writeSync(2, …)` (not intercepted); the gate spec is unchanged | **A** — this change (task 4.6a) |
+| D14 | Agent's decision (task 4.5, the design D8 fallback): with Vitest 4 and later (seen on 5.0.5, re-checked on 4.1.12) the CLI `--exclude 'tests/integration/**'` of `frontend.yml` does not reach the `test.projects` (29 integration files failed on import without `DATABASE_URL`); the Frontend step runs `npx vitest run tests/unit tests/harness tests/a11y packages/web` (positional filters do reach the projects: 164 files, the 196 of the baseline minus the 32 integration files); the comment of the step explains it, and `docs/DEPLOYMENT.md` l.71 and `docs/project-context.md` l.1271 name the new command | **A** — this change (task 4.5a) |
+| D15 | Agent's decision: the default reporter of Vitest 4.1 and later (seen on 5.0.5, re-checked on 4.1.12) hides the `console.warn` of a file whose tests are all skipped, so the "DATABASE_URL is not set" warning of `tests/integration/helpers/db.ts` is written with `fs.writeSync(2, …)` (not intercepted); the gate spec is unchanged | **A** — this change (task 4.6a) |
+| D16 | Agent's decision: Vitest 4.1.12 instead of 5.0.5, because Stryker 10.0.0 kills almost no mutant under Vitest 5 (9.86 % against 97.18 % on one file); see design D16 | **A** — this change (task 3.5) |
+| R3 | Move to Vitest 5 once a Stryker release supports it (check the release notes of `@stryker-mutator/vitest-runner` after 10.1.1) | **C** — checklist comment on DIS-105 |
+| R2 | The comments and the error text of `tests/integration/helpers/db.ts` (`useTransactionPerTest`) still say that Vitest 1.x runs one suite's hooks in parallel | **C** — checklist comment on DIS-105 (the text of a thrown error and its tests are outside this change) |
 | R1 | `fingerprint.ts` could use `readdir({ recursive })` on Node 22 | **D** — comment stays true; no behaviour gain |

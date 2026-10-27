@@ -15,9 +15,9 @@ Delivered in one pull request with two phases, each in its own commit and verifi
   major if npm decides so). Closes `brace-expansion`, `fast-uri`, `shell-quote`, `source-map-js`,
   `markdown-it` and `zod` (4.6.6, inside `^4.6.5`).
 - **Phase 2, major bumps and Node 22:**
-  - root devDependencies: `vitest` `^5.0.5`, `@stryker-mutator/core` and
-    `@stryker-mutator/vitest-runner` `^10.0.0`, `@types/node` `^22.20.5`, and `vite` `^8.3.4`
-    declared in the root (Vitest 5 peer, one copy);
+  - root devDependencies: `vitest` `^4.1.12` (not 5.0.5: Stryker 10.0.0 kills no mutant under
+    Vitest 5, design D16), `@stryker-mutator/core` and `@stryker-mutator/vitest-runner` `^10.0.0`,
+    `@types/node` `^22.20.5`, and `vite` `^8.3.4` declared in the root (Vitest peer, one copy);
   - `packages/web`: `vite` `^8.3.4`, `@vitejs/plugin-react` `^6.1.2` (4.x does not accept Vite 8);
   - `vitest.config.ts`: `poolMatchGlobs` and `environmentMatchGlobs` (removed in Vitest 4) replaced by
     `test.projects`, keeping today's environments per file; `vitest.stryker.config.ts` keeps excluding
@@ -37,7 +37,7 @@ Delivered in one pull request with two phases, each in its own commit and verifi
   flag. `npm warn deprecated` lines (for example `eslint@9.39.5`) are recorded as debt (design D7).
 - Changing the mutation threshold, Stryker's `mutate` or the test exclusion lists.
 - Approving or changing npm `install-scripts`; only their warning is captured again in `DEMO.md`.
-- Rewriting tests to use new Vitest 5 APIs: only the tests the migration breaks are touched.
+- Rewriting tests to use new Vitest 4 APIs: only the tests the migration breaks are touched.
 - Adding an `npm audit` gate to CI (design D9).
 
 ## Capabilities
@@ -56,7 +56,7 @@ None.
   «Node 22.12+» instead of «Node 20+».
 
 `engines.node` stays `>=22.12`, as the ticket's acceptance criterion 5 says; it also admits Node 23
-and 25, which are out of support and which Vitest 5 does not list (design D2).
+and 25, which are odd, non-LTS releases out of support (design D2).
 
 `web-foundation` → "Component test environment" does not change: the same files run in jsdom, and
 the migration must keep it that way (its existing scenarios are part of the verification).
@@ -75,7 +75,7 @@ the migration must keep it that way (its existing scenarios are part of the veri
 - **Existing tests that change:** `tests/unit/scripts/wiring.spec.ts` (engines assertion and the
   comment above it at l.111), `packages/web/src/pages/ProjectPickerPage.test.tsx` (hint text) and
   `tests/unit/analyzers/php/parser-load.spec.ts` (the comment on Vitest 1.6 mock semantics; its code
-  only if it fails under Vitest 5).
+  only if it fails under Vitest 4).
 - **Product code:** only the hint text in `packages/web/src/pages/ProjectPickerPage.tsx`. No API,
   CLI or database behaviour changes. No personal data, auth or logging is touched.
 - Commands as listed in `docs/project-context.md` and `.claude/sdd-harness.env`.

@@ -17,7 +17,7 @@ vi.mock('../../../../packages/analyzers/php/src/parser', async (importOriginal) 
 const GHOST = { files: [{ path: 'app/Ghost.php', content: '<?php class Ghost {}' }] };
 
 describe('php analyzer parser load', () => {
-  // In Vitest 5 `mockClear` only clears the call history, while `mockReset` drops the queued `…Once`
+  // In Vitest 3 and later `mockClear` only clears the call history, while `mockReset` drops the queued `…Once`
   // values and restores the implementation the mock was created with (here the real loader), so each
   // test starts from an empty queue and a default that delegates to the real loader; the explicit
   // `mockImplementation(real)` keeps that intent visible (design D3, DIS-105 D12).
