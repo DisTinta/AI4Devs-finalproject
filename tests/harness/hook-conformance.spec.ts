@@ -135,7 +135,8 @@ describe('Conformance: free paths match whole segments (V26)', { timeout: 120_00
   const edit = (p: Project, path: string) => runHook(p, 'protect-specs-and-tests', editInput(`${p.dir}/${path}`));
 
   it('a reports or tasks.md name nested in another folder of a change is not free', async () => {
-    project = changeProject('CHANGES REQUIRED\n');
+    // No correction round: the change's own artifacts are protected, so only free paths pass.
+    project = changeProject('CHANGES REQUIRED\n', { AUTONOMOUS_AUDIT_ROUNDS: '0' });
     for (const path of [`${CHANGE}/specs/reports/spec.md`, `${CHANGE}/specs/x/tasks.md`, 'openspec/changes/other-change/specs/reports/a.md']) {
       expect((await edit(project, path)).decision, path).toBe('deny');
     }

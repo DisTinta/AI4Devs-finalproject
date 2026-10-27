@@ -5,12 +5,15 @@ import type { FingerprintInput } from '../seed/fingerprint.js';
 
 /**
  * The repository files whose content decides a golden answer beyond the seed (DIS-26 decision D11,
- * amended in design C3): the prompts and their limits, the statement schema and typing rules, the
+ * amended in design C3): the prompts, the language rule that chooses the explain system message
+ * (DIS-104) and their limits, the statement schema and typing rules, the
  * verification prompt and policy, the confidence weights, the question normalization and the stored
  * response format. The Context Engine (`context/`) is left out on purpose (accepted risk of D11).
  */
 export const ANSWER_FINGERPRINT_FILES: readonly string[] = [
   'packages/core/src/explain/prompt.ts',
+  // The language rule chooses the system message of every prompt (DIS-104, follow-up V1).
+  'packages/core/src/explain/question-language.ts',
   'packages/core/src/explain/untrusted-text.ts',
   'packages/core/src/explain/sanitize.ts',
   'packages/core/src/explain/limits.ts',

@@ -25,6 +25,7 @@ import { parseExplainRequest } from './explain-request.js';
 import type { ExplainRequest } from './explain-request.js';
 import { toPriorClaim } from './prior-claims.js';
 import { buildPrompt } from './prompt.js';
+import { detectLanguage } from './question-language.js';
 import { sanitizeForPrompt } from './sanitize.js';
 import { parseModelOutput } from './statement-schema.js';
 import type { ModelOutput } from './statement-schema.js';
@@ -107,7 +108,9 @@ interface CallState {
  * citation is `entailed`) and stores each kept statement as a claim whose evidence rows carry the
  * verdict of their pair and whose `confidence` is that of the statement alone (`docs/CONFIDENCE.md`).
  * Every answer that reached the prompt carries the sanitisation events first, then the
- * `evidence_broken` events, then the `entailment_unverified` events; an answered one carries the usage
+ * `evidence_broken` events, then the `entailment_unverified` events, then (answered answers only) the
+ * `answer_language_mismatch` event when the question is Spanish and the `answer` reads as English
+ * (DIS-104; the answer is returned unchanged), before `claims_not_persisted`; an answered one carries the usage
  * (DIS-74: the `answer` call and the semantic check, priced with `costTable`, the savings against the
  * pack's baseline and the latency) and the `confidence` of all its statements together, an `UNKNOWN`
  * one neither. When the store fails with `ClaimWriteFailed` the answer is still returned,
@@ -362,13 +365,19 @@ async function answerQuestion(
   );
   const priorClaims = prior.map(toPriorClaim);
   const verification = verified.usage;
+  // DIS-104 design D3: only the `answer` text is read, and the answer is returned as it is.
+  const languageEvents: ExplainEvent[] =
+    prompt.questionLanguage === 'es' && detectLanguage(parsed.output.answer) === 'en'
+      ? [{ type: 'answer_language_mismatch', expected: 'es' }]
+      : [];
+  const answeredEvents = [...events, ...languageEvents];
   try {
     // The pack's commit: claims read at code the project no longer indexes are written stale.
     const saved = await store.saveClaims(projectId, items, pack.commit);
-    return { answer: storedAnswer(parsed.output.answer, statements, saved, priorClaims, events, answerConfidence), verification };
+    return { answer: storedAnswer(parsed.output.answer, statements, saved, priorClaims, answeredEvents, answerConfidence), verification };
   } catch (error) {
     if (!(error instanceof ClaimWriteFailed)) throw error;
-    return { answer: unsavedAnswer(parsed.output.answer, statements, priorClaims, events, answerConfidence), verification };
+    return { answer: unsavedAnswer(parsed.output.answer, statements, priorClaims, answeredEvents, answerConfidence), verification };
   }
 }
 

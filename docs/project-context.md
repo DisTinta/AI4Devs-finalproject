@@ -868,7 +868,19 @@ services that must be started first, quirks of the local environment.
     `pg_advisory_xact_lock` + delete + insert, and a lookup takes the newest of duplicates.
     `invalidateCache(projectId)` has no caller yet (DIS-9, PH-07).
   - Gotcha: `ExplainEvent` (`SchemaViolationEvent | ClaimsNotPersistedEvent | SanitizationEvent |
-    EvidenceBrokenEvent | EntailmentUnverifiedEvent | AnswerNotCachedEvent | QueryNotLoggedEvent`) is **not** part of `AuditEvent`. Core never logs; the transport does.
+    EvidenceBrokenEvent | EntailmentUnverifiedEvent | AnswerLanguageMismatchEvent | AnswerNotCachedEvent |
+    QueryNotLoggedEvent`) is **not** part of `AuditEvent`. Core never logs; the transport does.
+  - Gotcha (DIS-104, `core/explain/question-language.ts`, `prompt.ts`): `detectLanguage(text)` is a pure
+    rule with two closed word lists (`es`, `en`, or `null` with fewer than two signals or no strict
+    majority; backtick pairs ignored, code-like tokens skipped, `¿`/`¡` and accented words count as
+    Spanish). A question it decides is `es` gets `EXPLAIN_SYSTEM_PROMPT_ES` (the generic message with an
+    explicit Spanish instruction and a Spanish last line); English and undecided questions keep
+    `EXPLAIN_SYSTEM_PROMPT` byte for byte, so their prompt hash does not move. `ExplainPrompt` carries
+    `questionLanguage`. When the question is `es` and the live `answer` text (not the statements) reads
+    `en`, an answered answer gets `{ type: 'answer_language_mismatch', expected: 'es' }` (codes only, `info`
+    level in the transports, after `entailment_unverified` and before `claims_not_persisted`); never on
+    a cache hit or an `UNKNOWN`. The answer is returned unchanged and stays cacheable, so a later hit
+    serves it with `events: []`.
   - Gotcha (DIS-74, `core/explain/usage.ts`, `usage-meter.ts`): `explain` wraps the model it was given
     in `meterLlm` (outside `withDailyBudget`, so a call the ceiling blocks never counts) and writes **one
     `query_log` row per call** through `StorePort.saveQueryLog`, after the claim write and on its own:
@@ -1162,7 +1174,8 @@ services that must be started first, quirks of the local environment.
   author signs a sample; a regenerated entry comes back empty and must be reviewed again; report in
   `docs/golden-review/`); no generation time; canonical render = 2-space JSON in that key
   order, LF, final newline. **`answerFingerprint`** (`answer-fingerprint.ts`) = the seed's
-  `fingerprint()` over `ANSWER_FINGERPRINT_FILES` (explain prompt, untrusted-text, sanitize, limits,
+  `fingerprint()` over `ANSWER_FINGERPRINT_FILES` (explain prompt and its language rule
+  `question-language.ts` (DIS-104), untrusted-text, sanitize, limits,
   statement schema, typing rules; verify prompt and policy; confidence weights; normalize and
   response-cache); `context/` is out on purpose (DIS-26 D11). **Touching a seed fingerprint input stales
   the seed and, through `seed.*`, the golden file: regenerate in the order `seed:build` →
@@ -1308,8 +1321,10 @@ services that must be started first, quirks of the local environment.
   profile are denied, and this doctrine is relaxed: `docs/base-standards.md` §3 rules 2 (the
   `spec-auditor` `APPROVED` replaces the human plan gate), 3 (tests written without supervision),
   4 (only tests named in `tasks.md` or created on the branch change), 8 (the agent writes the "why"
-  and marks it) and 9 (the agent merges through the gate), and the "agent never merges" item of
-  `docs/openspec-tasks-mandatory-steps.md`. A background agent with the switch `"0"` gets none of the
+  and marks it) and 9 (the agent merges through the gate), §7.1 step 3 (a `CHANGES REQUIRED` audit
+  opens up to `AUTONOMOUS_AUDIT_ROUNDS` correction rounds, default 5, where the agent takes the
+  author's decisions; ADR `docs/adr/20261026-autonomous-audit-correction-rounds.md`), and the
+  "agent never merges" item of `docs/openspec-tasks-mandatory-steps.md`. A background agent with the switch `"0"` gets none of the
   relaxations. Always on: the shell guard parses commands (`shell-words.mjs`, one Node process per
   line), install detection sees flags before the package (`npm i -D x` asks), removing the kit
   contract is a write, a lone `rm` in the session scratchpad gets no decision, `.env.example` is
