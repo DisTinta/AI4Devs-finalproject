@@ -41,7 +41,7 @@ jobs:
       - uses: actions/setup-node@v4
         if: steps.changes.outputs.frontend == 'true'
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -58,9 +58,12 @@ jobs:
 
       # DB integration specs run only in ci.yml (the job with Postgres); here
       # they would throw on import because CI is set and DATABASE_URL is not (design D5).
+      # Since Vitest 5 a CLI `--exclude` no longer reaches the `test.projects` of `vitest.config.ts`
+      # (DIS-105 design D8, D14), so the job names the directories it runs instead: every test directory
+      # but `tests/integration/`.
       - name: Unit / component tests
         if: steps.changes.outputs.frontend == 'true'
-        run: npx vitest run --exclude 'tests/integration/**'
+        run: npx vitest run tests/unit tests/harness tests/a11y packages/web
 
       # A real gate since DIS-58: no fallback when the script is missing, so removing or renaming
       # `test:a11y` fails the job instead of turning the gate into a warning (web-foundation design D32).

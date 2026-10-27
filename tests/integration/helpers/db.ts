@@ -1,3 +1,4 @@
+import { writeSync } from 'node:fs';
 import { Client } from 'pg';
 import { afterEach, beforeAll, beforeEach, describe } from 'vitest';
 import { migrateUp } from '../../../packages/adapters/store-postgres/src/migrate';
@@ -12,9 +13,12 @@ if (!databaseUrl && process.env.CI) {
   throw new Error('DATABASE_URL must be set in CI: the database integration tests cannot be skipped there.');
 }
 if (!databaseUrl) {
-  console.warn(
+  // Written to the file descriptor: Vitest 5's default reporter hides the `console` output of a file
+  // whose tests are all skipped, which is exactly where this warning matters (DIS-105 design D15).
+  writeSync(
+    2,
     'WARNING: DATABASE_URL is not set — skipping database integration tests that need PostgreSQL. ' +
-      'Run `docker compose up -d` and export DATABASE_URL to run them.',
+      'Run `docker compose up -d` and export DATABASE_URL to run them.\n',
   );
 }
 

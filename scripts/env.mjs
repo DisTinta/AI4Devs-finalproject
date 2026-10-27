@@ -1,8 +1,11 @@
 /**
  * The `.env` reader of the start-up tooling (DIS-102 design D2, D3, D12): a hand-written parser of
  * the subset of the dotenv grammar `.env.example` uses, plus matched quotes, so the result is the
- * same on every supported Node version (`engines.node` `>=20.11`) without a dependency. It imports
- * only Node built-in modules, so `npm run up` works before `npm install`.
+ * same on every supported Node version (`engines.node` `>=22.12`) without a dependency. Node 22.12 has
+ * its own `.env` APIs, but they parse a different grammar (multi-line values, for example), ignore
+ * `CODEMIND_SKIP_DOTENV` and warn on their own terms: this file stays the one `.env` reader and the
+ * one grammar (DIS-105 design D12). It imports only Node built-in modules, so
+ * `npm run up` works before `npm install`.
  *
  * Spec: `local-startup` → "The .env file grammar" and "Loading .env into a process".
  */
