@@ -207,8 +207,11 @@ documentation-drift question, added with the drift story, and its terms anchor
 no symbol of the seed; Q6 answers `UNKNOWN` `no-anchor` before the cache is
 read, without a model and at zero cost.
 
-**Golden review (DIS-34).** Each entry's `reviews` lists who checked it
-against this fixture and when; the report, with a verdict per golden, is
+**Golden review (DIS-34, DIS-104).** Each entry's `reviews` lists who checked it
+against this fixture and when; the report of the current golden answers, with a
+verdict per golden, is
+[`docs/golden-review/2026-10-acme-shop-golden-review-dis-104.md`](../docs/golden-review/2026-10-acme-shop-golden-review-dis-104.md)
+(DIS-104 regenerated them); the first review, of the answers it replaced, is
 [`docs/golden-review/2026-10-acme-shop-golden-review.md`](../docs/golden-review/2026-10-acme-shop-golden-review.md).
 `npm run cache:build` empties the `reviews` of every entry it regenerates, so a
 regenerated answer must be reviewed again.

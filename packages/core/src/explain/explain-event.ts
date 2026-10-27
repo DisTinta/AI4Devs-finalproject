@@ -188,6 +188,19 @@ export interface EntailmentUnverifiedEvent {
   reason: EntailmentUnverifiedReason;
 }
 
+/**
+ * A live answer to a Spanish question reads as English (DIS-104 design D3): the answer was still
+ * returned as it is, not discarded, retried or translated. It carries only its code and the expected
+ * language: no part, prefix or hash of the question or the answer, and no count of the signals the
+ * rule found.
+ */
+export interface AnswerLanguageMismatchEvent {
+  /** Discriminant. */
+  type: 'answer_language_mismatch';
+  /** The language the question is in, so the one the answer should have been in. */
+  expected: 'es';
+}
+
 /** An event of an explain answer. */
 export type ExplainEvent =
   | SchemaViolationEvent
@@ -195,5 +208,6 @@ export type ExplainEvent =
   | SanitizationEvent
   | EvidenceBrokenEvent
   | EntailmentUnverifiedEvent
+  | AnswerLanguageMismatchEvent
   | AnswerNotCachedEvent
   | QueryNotLoggedEvent;

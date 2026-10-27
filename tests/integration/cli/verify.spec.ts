@@ -140,8 +140,10 @@ describeWithDatabase('verify (integration)', () => {
       await loadVersioned(db());
       const altered = JSON.parse(GOLDEN_TEXT) as typeof GOLDEN;
       const q3 = altered.entries.find((entry) => entry.questionNormalized.includes('cupones'))!;
-      expect(q3.response.statements[0].type).toBe('INFERENCE');
-      q3.response.statements[0].type = 'FACT';
+      // The golden type of the first statement is whatever the last `cache:build` produced; flip it.
+      const original = q3.response.statements[0].type;
+      const flipped = original === 'FACT' ? 'INFERENCE' : 'FACT';
+      q3.response.statements[0].type = flipped;
       const cacheDir = mkdtempSync(join(tmpdir(), 'codemind-verify-golden-'));
       dirs.push(cacheDir);
       writeFileSync(join(cacheDir, 'acme-shop.json'), `${JSON.stringify(altered, null, 2)}\n`);
@@ -154,7 +156,7 @@ describeWithDatabase('verify (integration)', () => {
       expect(result.stdoutLines).toEqual([
         MATCHING[0],
         '✗ acme-shop Q3 ¿Cómo se validan los cupones?',
-        '    statements[0].type: expected "FACT", got "INFERENCE"',
+        `    statements[0].type: expected "${flipped}", got "${original}"`,
         MATCHING[2],
         'acme-shop: 2/3 golden answers match',
       ]);
