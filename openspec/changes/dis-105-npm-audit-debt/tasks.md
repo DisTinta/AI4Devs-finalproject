@@ -1,14 +1,15 @@
 ## 0. Setup: Create Feature Branch (MANDATORY - FIRST STEP)
 
-- [ ] 0.1 First action of the apply: confirm DIS-105 is In Progress in Linear, with a short Spanish comment naming the change `dis-105-npm-audit-debt` and the branch `feature/dis-105-npm-audit-debt`
-- [ ] 0.2 Feature branch `feature/dis-105-npm-audit-debt` (`BRANCH_PREFIX=feature/`), created from `final-project-CRN` before `/opsx:propose`; confirm `git merge-base --is-ancestor origin/final-project-CRN HEAD` and that `openspec/changes/dis-105-npm-audit-debt/` is on it. `git fetch`; if `origin/final-project-CRN` moved, merge it before any code (never force-push a published branch)
-- [ ] 0.3 Verify the current branch and `git status`; nothing under `.claude/` or `.cursor/` is ever staged (explicit paths only)
-- [ ] 0.4 Baseline (recorded in the step 7 report): `node -v`, `npm -v`; `npm audit` summary line and `npm audit --json` counts by severity; `npx vitest run` once with Postgres up (`docker compose up -d`, as `docs/TESTING.md` says) and the totals of test files and tests; `npm run test:a11y` totals; the last `mutation` score and duration on `final-project-CRN` (`gh run list`); the `npm warn deprecated` lines of a clean `npm ci`
+- [x] 0.1 First action of the apply: confirm DIS-105 is In Progress in Linear, with a short Spanish comment naming the change `dis-105-npm-audit-debt` and the branch `feature/dis-105-npm-audit-debt`
+- [x] 0.2 Feature branch `feature/dis-105-npm-audit-debt` (`BRANCH_PREFIX=feature/`), created from `final-project-CRN` before `/opsx:propose`; confirm `git merge-base --is-ancestor origin/final-project-CRN HEAD` and that `openspec/changes/dis-105-npm-audit-debt/` is on it. `git fetch`; if `origin/final-project-CRN` moved, merge it before any code (never force-push a published branch)
+- [x] 0.3 Verify the current branch and `git status`; nothing under `.claude/` or `.cursor/` is ever staged (explicit paths only)
+- [x] 0.4 Baseline (recorded in the step 7 report): `node -v`, `npm -v`; `npm audit` summary line and `npm audit --json` counts by severity; `npx vitest run` once with Postgres up (`docker compose up -d`, as `docs/TESTING.md` says) and the totals of test files and tests; `npm run test:a11y` totals; the last `mutation` score and duration on `final-project-CRN` (`gh run list`); the `npm warn deprecated` lines of a clean `npm ci`
 
 ## 1. Phase 1: `npm audit fix` without `--force` (design D1, D6) — `local-startup` → "A clean install reports no high or critical advisory"
 
-- [ ] 1.1 `npm audit fix` (no `--force`); review the diff of `package.json` files and `package-lock.json` (only lockfile entries and same-major ranges); confirm `zod` resolves to 4.6.6 or later in every workspace and `markdown-it` to 14.3.3 or later; `npm audit --audit-level=high` and record the remaining advisories (only the ones phase 2 fixes)
-- [ ] 1.2 Verify phase 1: `npm run lint`, `npm run typecheck`, `npx vitest run` (same file and test totals as 0.4), `npm run test:a11y`
+- [x] 1.1 `npm audit fix` (no `--force`); review the diff of `package.json` files and `package-lock.json` (only lockfile entries and same-major ranges); confirm `zod` resolves to 4.6.6 or later in every workspace and `markdown-it` to 14.3.3 or later; `npm audit --audit-level=high` and record the remaining advisories (only the ones phase 2 fixes)
+- [x] 1.2 Verify phase 1: `npm run lint`, `npm run typecheck`, `npx vitest run` (same file and test totals as 0.4), `npm run test:a11y`
+- [x] 1.2a **existing test changes** (found by 1.2, agent's decision D13): `zod` 4.6.7 stops validating the elements of an array that already exceeds its maximum, so in `tests/unit/explain/statement-schema.spec.ts` the test "The issues of an event are bounded" (21,000 empty statements) now yields one `too_big` issue and the subcode `limit_exceeded`, not 42,001 issues. RED: the test fails under zod 4.6.7 (seen). The test keeps its name and its intent (an event carries at most `MAX_EVENT_ISSUES` issues and stays under 4,096 bytes, `issueCount` keeps the total) with a fixture of `MAX_STATEMENTS` empty statements (two issues each, `issueCount` 40, subcode `invalid_shape`); the 21,000-statement fixture moves to a new test "An oversized statements array is one limit issue" (63,029 bytes, `limit_exceeded`, one issue). No assertion of the original is weakened. Production code unchanged
 - [ ] 1.3 Commit phase 1 alone (explicit paths: `package-lock.json` and any `package.json` npm changed), message naming DIS-105 phase 1
 
 ## 2. Migration notes (design D8, Risks)
@@ -53,7 +54,7 @@ Each task reads the official migration pages (dated) and lists every change that
 
 ## 6. Review and Update Existing Tests (MANDATORY)
 
-- [ ] 6.1 Confirm the only existing tests edited are `tests/unit/scripts/wiring.spec.ts` (5.3), `packages/web/src/pages/ProjectPickerPage.test.tsx` (5.5) and `tests/unit/analyzers/php/parser-load.spec.ts` (4.7), plus any named through `/opsx:update` in 4.6 or 4.7; no assertion weakened (`git diff` of `tests/` and `packages/web/src/**/*.test.*`)
+- [ ] 6.1 Confirm the only existing tests edited are `tests/unit/scripts/wiring.spec.ts` (5.3), `packages/web/src/pages/ProjectPickerPage.test.tsx` (5.5) `tests/unit/analyzers/php/parser-load.spec.ts` (4.7) and `tests/unit/explain/statement-schema.spec.ts` (1.2a), plus any named through `/opsx:update` in 4.6 or 4.7; no assertion weakened (`git diff` of `tests/` and `packages/web/src/**/*.test.*`)
 - [ ] 6.2 Every `#### Scenario:` of the deltas maps to a test or recorded check: "The guide's scripts load .env and the quality scripts do not" → `wiring.spec.ts`; "Every CI job installs Node 22" → `node-baseline.spec.ts`; "The indexing hint is text, not a control" → `ProjectPickerPage.test.tsx`; "A guide command reads DATABASE_URL from .env" (both halves) and "npm audit on a clean clone" → recorded checks of step 8; ticket AC2 (quality unchanged) → recorded checks 0.4, 7.3, 7.4; ticket AC3 Stryker exclusions → recorded check 4.2
 
 ## 7. Run Tests and Verify Data State (MANDATORY)

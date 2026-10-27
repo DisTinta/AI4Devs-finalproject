@@ -379,6 +379,24 @@ describe('Requirement: Audit event of a discarded output', () => {
 
   it('The issues of an event are bounded', () => {
     // Arrange
+    // DIS-105: Zod 4.6.6+ no longer validates the elements of an array above its maximum, so the
+    // fixture stays at the maximum: each empty statement fails twice (text and evidenceIds).
+    const text = JSON.stringify({ answer: 'a', statements: Array.from({ length: MAX_STATEMENTS }, () => ({})) });
+
+    // Act
+    const event = discarded(text);
+
+    // Assert
+    expect(event.subcode).toBe('invalid_shape');
+    expect(event.issues).toHaveLength(MAX_EVENT_ISSUES);
+    expect(MAX_EVENT_ISSUES).toBe(20);
+    expect(event.issueCount).toBe(40);
+    expect(Buffer.byteLength(JSON.stringify(event), 'utf8')).toBeLessThan(4_096);
+  });
+
+  // Not a scenario: the old fixture of the test above, whose result changed with Zod 4.6.6 (DIS-105 D13).
+  it('An oversized statements array is one limit issue', () => {
+    // Arrange
     const text = JSON.stringify({ answer: 'a', statements: Array.from({ length: 21_000 }, () => ({})) });
 
     // Act
@@ -386,11 +404,9 @@ describe('Requirement: Audit event of a discarded output', () => {
 
     // Assert
     expect(Buffer.byteLength(text, 'utf8')).toBe(63_029);
-    expect(event.subcode).toBe('invalid_shape');
-    expect(event.issues).toHaveLength(MAX_EVENT_ISSUES);
-    expect(MAX_EVENT_ISSUES).toBe(20);
-    expect(event.issueCount).toBe(42_001);
-    expect(Buffer.byteLength(JSON.stringify(event), 'utf8')).toBeLessThan(4_096);
+    expect(event.subcode).toBe('limit_exceeded');
+    expect(event.issues).toEqual([{ path: 'statements', code: 'too_big' }]);
+    expect(event.issueCount).toBe(1);
   });
 
   // Not a scenario: the cut keeps the first issues in the order they were found, not any 20.
