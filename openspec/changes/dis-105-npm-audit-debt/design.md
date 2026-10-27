@@ -198,6 +198,22 @@ under 4.1.12. The Node baseline (D2) stays `>=22.12`. A later move to Vitest 5 w
 that supports it (Follow-ups, R3). *Alternative rejected:* keep Vitest 5 and lower the mutation
 gate (it would give up the signal the ticket asks to keep, acceptance criterion 2).
 
+### D18. The quarantine spec follows zod's oversized arrays (agent's decision, found in the review step, destination A)
+
+*Agent's text.* The review (`reports/2026-10-27-verify-against-spec.md` V1-V2,
+`reports/2026-10-27-adversarial-review.md`) found that D13 had changed a domain behaviour without a
+spec: with zod 4.6.7 an array above its maximum (`statements` > 20, `evidenceIds` > 10) yields one
+`too_big` issue and its elements are not checked, so an output whose 21 statements include a `type`
+field is discarded with `limit_exceeded` instead of `invalid_shape`, and the main scenario "The issues of
+an event are bounded" (21 000 empty statements, `issueCount` 42 001) no longer holds. *Decision:* the
+specification follows the library. A `claims-and-typing` delta states that such elements are not
+checked, adds the scenario "The elements of an oversized array are not checked" and moves "The issues of
+an event are bounded" to 20 empty statements (89 bytes, `issueCount` 40). *Alternative rejected:*
+re-checking the elements in `statement-schema.ts` to keep `invalid_shape`: the output is discarded
+either way and the event never carries its content, while re-checking would bring back the per-element
+cost that the zod security fix removed. The test of `node-baseline.spec.ts` also stops coercing
+`node-version` to a string (V2).
+
 ## Risks / Trade-offs
 
 - [The `projects` split changes which files run] → count test files and tests before and after; the
@@ -251,6 +267,9 @@ lockfile returns with it. Contributors switch to Node 22.12 or later before `npm
 | D15 | Agent's decision: the default reporter of Vitest 4.1 and later (seen on 5.0.5, re-checked on 4.1.12) hides the `console.warn` of a file whose tests are all skipped, so the "DATABASE_URL is not set" warning of `tests/integration/helpers/db.ts` is written with `fs.writeSync(2, …)` (not intercepted); the gate spec is unchanged | **A** — this change (task 4.6a) |
 | D16 | Agent's decision: Vitest 4.1.12 instead of 5.0.5, because Stryker 10.0.0 kills almost no mutant under Vitest 5 (9.86 % against 97.18 % on one file); see design D16 | **A** — this change (task 3.5) |
 | D17 | Agent's decision (steps 8 and 9): the clean clone ran with `PORT=3001` and a clone-only proxy change because another process held port 3000; no `.env` could be written by the agent, so the `.env` half of "A guide command reads DATABASE_URL from .env" and the PowerShell 7 capture of `Paso 0` were not executed, and no browser tool was available for the Screen 1 screenshot; the reports say so | **C** — the author repeats the three checks by hand (checklist comment on DIS-105) |
+| D18 | Agent's decision (review step): the `claims-and-typing` delta records that zod 4.6.7 does not check the elements of an array above its maximum (subcode `limit_exceeded`, one `too_big` issue) and moves "The issues of an event are bounded" to 20 empty statements; `node-baseline.spec.ts` compares the parsed `node-version` with `'22'`; proposal Capabilities and Impact updated (design D18, task 12.6a) | **A** — this change |
+| RV1 | Agent's decision (adversarial review, Question): the Frontend job lists its test directories (D14), so a new top-level test directory would not run there; `ci.yml` `quality` runs `npx vitest run` with no filter, so every file still runs in CI | **D** — no follow-up |
+| RV2 | Agent's decision (review step): the review re-ran the `.env` half of "A guide command reads DATABASE_URL from .env" in Bash against the real database (`reports/2026-10-27-show-spec-working.md` E3); D17 now leaves to the author only the PowerShell 7 run and the browser check of Screen 1 | **C** — same checklist comment on DIS-105 |
 | R3 | Move to Vitest 5 once a Stryker release supports it (check the release notes of `@stryker-mutator/vitest-runner` after 10.1.1) | **C** — checklist comment on DIS-105 |
 | R2 | The comments and the error text of `tests/integration/helpers/db.ts` (`useTransactionPerTest`) still say that Vitest 1.x runs one suite's hooks in parallel | **C** — checklist comment on DIS-105 (the text of a thrown error and its tests are outside this change) |
 | R1 | `fingerprint.ts` could use `readdir({ recursive })` on Node 22 | **D** — comment stays true; no behaviour gain |

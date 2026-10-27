@@ -94,10 +94,11 @@ Each task reads the official migration pages (dated) and lists every change that
 
 ## 12. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 12.1 Open the PR against `final-project-CRN`; DIS-105 to In Review with a Spanish comment linking it
+- [x] 12.1 Open the PR against `final-project-CRN`; DIS-105 to In Review with a Spanish comment linking it
 - [ ] 12.2 CI green (`quality`, `verify`, `mutation`, `secrets`, Frontend), waited with `Monitor`; a mutation timeout gets one re-run, then `timeout-minutes` of `mutation` goes from 40 to 60 with its reason (design Risks); link the run in an addendum to the step 7 report
-- [ ] 12.3 `/show-spec-working` (may reuse the 8 and 9 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
-- [ ] 12.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
-- [ ] 12.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`
-- [ ] 12.6 Fix every finding in this change (TDD for behaviour), each with an A/B/C/D destination in `design.md` → Follow-ups; re-run what each fix invalidates; commit to the same PR; re-run a check whose findings led to non-trivial fixes until no Blocker or Major
+- [x] 12.3 `/show-spec-working` (may reuse the 8 and 9 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
+- [x] 12.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
+- [x] 12.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`
+- [x] 12.6 Fix every finding in this change (TDD for behaviour), each with an A/B/C/D destination in `design.md` → Follow-ups; re-run what each fix invalidates; commit to the same PR; re-run a check whose findings led to non-trivial fixes until no Blocker or Major
+- [x] 12.6a (found by 12.4 V1-V2 and 12.5, agent's decision D18) `claims-and-typing` delta `specs/claims-and-typing/spec.md`: "Model output quarantine" states that the elements of an array above its maximum are not checked and gains the scenario "The elements of an oversized array are not checked"; "Audit event of a discarded output" → "The issues of an event are bounded" uses 20 empty statements (89 bytes, `issueCount` 40). **Existing test changes:** in `tests/unit/explain/statement-schema.spec.ts`, the test "An oversized statements array is one limit issue" becomes the scenario test "The elements of an oversized array are not checked" (its 21,000-statement case kept, plus 21 conforming statements whose last carries `"type":"FACT"`), and the test "The issues of an event are bounded" gains the 89-byte assertion; in `tests/unit/ci/node-baseline.spec.ts`, test "Every CI job installs Node 22" compares the parsed `node-version` with `'22'` without `String(…)`. Proposal Capabilities and Impact name `claims-and-typing`. `npx vitest run tests/unit/explain tests/unit/ci` green
 - [ ] 12.7 `/opsx:archive`, commit it to the same PR; merge only after the archive commit and with CI green, through the merge gate (`gh pr merge <n> --merge`)

@@ -54,6 +54,10 @@ None.
   clean clone, not in CI).
 - `project-picker`: requirement "Indexing a repository of one's own is a hint, not a control" says
   «Node 22.12+» instead of «Node 20+».
+- `claims-and-typing` (added in the review step, design D18): zod 4.6.7 does not check the elements of
+  an array above its maximum, so requirement "Model output quarantine" says so and gains the scenario
+  "The elements of an oversized array are not checked", and "Audit event of a discarded output" →
+  "The issues of an event are bounded" uses 20 empty statements instead of 21 000.
 
 `engines.node` stays `>=22.12`, as the ticket's acceptance criterion 5 says; it also admits Node 23
 and 25, which are odd, non-LTS releases out of support (design D2).
@@ -77,5 +81,9 @@ the migration must keep it that way (its existing scenarios are part of the veri
   `tests/unit/analyzers/php/parser-load.spec.ts` (the comment on Vitest 1.6 mock semantics; its code
   only if it fails under Vitest 4).
 - **Product code:** only the hint text in `packages/web/src/pages/ProjectPickerPage.tsx`. No API,
-  CLI or database behaviour changes. No personal data, auth or logging is touched.
+  CLI or database behaviour changes. One domain behaviour changes through the zod bump, with no line
+  of product code edited: an output whose `statements` or `evidenceIds` array is above its maximum is
+  discarded with one `too_big` issue and subcode `limit_exceeded`, whatever its elements hold (it was
+  `invalid_shape` with one issue per bad element when an element also failed; it is discarded either
+  way; design D13, D18). No personal data, auth or logging is touched.
 - Commands as listed in `docs/project-context.md` and `.claude/sdd-harness.env`.

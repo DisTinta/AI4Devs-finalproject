@@ -38,7 +38,7 @@ describe('CI Node baseline', () => {
       '.github/workflows/ci.yml:verify',
       '.github/workflows/frontend.yml:frontend',
     ]);
-    for (const { file, job, step } of steps) expect(String(step.with?.['node-version']), `${file}:${job}`).toBe('22');
+    for (const { file, job, step } of steps) expect(step.with?.['node-version'], `${file}:${job}`).toBe('22');
     // Assert: the major of the lower bound of engines.node is the one CI installs
     expect(/^>=(\d+)\./.exec(engines)?.[1]).toBe('22');
   });
