@@ -85,6 +85,26 @@ Rejected: a class is not a `function` / `method` symbol, and the non-goals of DI
   `super(...)`, to the direct base class. Otherwise there is no target, because the compiler would
   otherwise hand back an ancestor's constructor (enrich E3, parity with `__construct` of DIS-52;
   P2 below for `super`).
+  - *Overload signature* (SA2): a function, method or constructor declaration without a body whose
+    symbol also has a declaration with a body. An abstract method and an interface method signature
+    have no body but are symbols, so when the compiler resolves one it is the target itself; with
+    several signatures of one interface method, the one the compiler resolves (prototype of correction
+    round 1: `this.area()` → the abstract `S::area`; `i.m(1)` → the `I::m` on line 3, `i.m('a')` → the
+    one on line 2).
+  - *Type errors* (SA3): the prototype of correction round 1 shows that `getResolvedSignature` keeps a
+    declaration for calls with a type error (`one('x')` and `one()` against `one(n: number)` → `one`)
+    and, for an overloaded call that matches no overload (`f(true)`, `f()`), returns the first overload
+    signature, which maps to the implementation as above. Those calls keep their edge.
+  - *Union and intersection receivers* (SA3): for `x.m()` with `x: A | B` (or `A & B`) the compiler
+    returns the signature of the first member (`A::m`); the name symbol of `m` is a synthetic property
+    whose declarations live in two classes. Picking `A::m` would be a guess, so a property-access callee
+    whose member name resolves to declarations in more than one class or interface gives no edge. A
+    receiver typed `F | undefined` (optional chaining) or `F & { k: number }` keeps its edge: its name
+    resolves to declarations in `F` only.
+  - *No edge by construction* (SA6): `new` on an expression that does not resolve to a class
+    declaration (`new (pick())()`), `super(...)` whose direct base is not a class declaration
+    (`extends mixin(Base)`, `extends Error`) and tagged templates (not call sites, although the
+    compiler resolves them).
 - **References:** an `Identifier` or `PropertyAccessExpression` that is directly one of
   `node.arguments` of a call or `new` expression; `getSymbolAtLocation`, aliases followed; the target
   is the one declaration of that symbol present in `symbolOf`, when there is exactly one (enrich E5).
@@ -133,7 +153,8 @@ DIS-30 E3 for the input boundary).
 - [Callbacks attributed to the enclosing symbol may surprise a reader who compares with PHP] →
   documented in the spec, in `docs/project-context.md` and here (D3).
 - [Cost: one more walk per file plus one `getResolvedSignature` per call] → the checker already
-  exists for heritage; task-api analysis time stays in the same order (measured in the step 6 report).
+  exists for heritage; task-api analysis time before and after is recorded in the step 5 report; a
+  slowdown above 2× the baseline is a finding of that report.
 
 ## Migration Plan
 
@@ -164,3 +185,19 @@ author.* The spec audit and the pre-merge reviews add their findings here.
 | P5 | `extractSymbols` records the declaration node of each symbol, and one node → symbol map replaces the private `kept` / `refOf` of `edges.ts` (D2) | **A** — this change |
 | P6 | No PowerShell check is planned: the change is a library with unit tests and no command, script or document a PowerShell user runs | **D** — accepted |
 | P7 | No Stryker and no ADR (D7) | **D** — accepted |
+
+Spec audit, run 1 (2026-10-27), resolved in correction round 1. *Agent's text: decided as lead
+engineer in an autonomous run, without the author (docs/AUTONOMOUS-RUN.md §6).*
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| SA1 | B1 / Q1: the DoD "los 10 sitios salen `exact`" is read as 8 `exact` edges plus 2 sites with no edge and no `heuristic` `calls` (E1, E2). DIS-20's alternative (stop and open a story on core first) is not taken: the only remedies are `references` in `AnalyzerInput` (changes core, against CM-HU-18's empty-diff criterion) or reading `node_modules` / the standard library (against DIS-30 E3, and impossible when indexing from Git); both widen scope and neither is needed for every emitted edge to be `exact`. The author may reverse it at the merge review | **D** — accepted (the oracle change of `fixtures/README.md` is applied here, task 3.1) |
+| SA2 | B2: "overload signature" is defined (a bodyless function, method or constructor declaration whose symbol has a declaration with a body); abstract methods and interface method signatures are targets themselves; new scenario "Abstract and interface methods are targets themselves" | **A** — this change (spec, D4) |
+| SA3 | B3: a call with a type error keeps the target the compiler resolves; an overloaded call that matches no overload maps to the implementation; a property-access callee whose member name resolves to declarations in more than one class or interface (union / intersection receiver) gives no edge; a signature with no declaration gives none. Confirmed with a prototype; new scenario "A call with a type error keeps its compiler-resolved target" | **A** — this change (spec, D4) |
+| SA4 | I1: `super.m()`, `f?.()`, object-literal methods, static blocks, overloaded constructors and non-symbol targets (parameter of function type, arrow `const`) are pinned by extending four inline scenarios; "Call sites outside a function or method symbol have no edge" is renamed "… and targets that are not symbols, have no edge" | **A** — this change (spec) |
+| SA5 | I2 / I3: the timing risk is measurable (recorded in the step 5 report, above 2× the baseline is a finding) and names the step 5 report | **A** — this change (design) |
+| SA6 | I7: `new` on a non-class expression, `super(...)` on a non-class base and tagged templates give no edge, written in the requirement and pinned in two scenarios | **A** — this change (spec, D4) |
+| SA7 | I4: the proposal lists the rewrite of row 3 of `fixtures/README.md` | **A** — this change (proposal) |
+| SA8 | I5: "The calls of task-api" lists the 14 remaining edges per file, so "exactly 37" is a list (recomputed with the round 1 prototype) | **A** — this change (spec) |
+| SA9 | I6: task 2.2 is split into 2.2a (walk, calls, overloads, type errors), 2.2b (constructor rule) and 2.2c (references and task-api) | **A** — this change (tasks) |
+| SA10 | I8: task 3.1 fixes the exact sentence for `fixtures/README.md` | **A** — this change (tasks) |

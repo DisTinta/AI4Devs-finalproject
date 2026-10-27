@@ -25,9 +25,14 @@ DIS-54 showed cannot be `exact` edges under the current contract.
   by a package (`fastify`), the standard library (`Array.prototype.includes`), a file with a syntax
   error. No `calls` edge is ever `heuristic`.
 - `fixtures/README.md`: batch sites 7 (`TasksController::create` → `TaskService::create`) and 10
-  (`applyFilters` → `Task.tags.includes`) are annotated as having no edge, with the reason, and the
-  sentence "Every task-api site is `exact` by construction" is rewritten (every edge emitted is
-  `exact`; two of the ten sites have none). The fixture's code is unchanged.
+  (`applyFilters` → `Task.tags.includes`) are annotated as having no edge, with the reason; row 3
+  names the two edges of the chain (`TaskService::update` → `TaskService::get` →
+  `TaskNotFoundError::constructor`); and the sentence "Every task-api site is `exact` by
+  construction" is rewritten (every edge emitted is `exact`; two of the ten sites have none). The
+  fixture's code is unchanged.
+- A call with a type error keeps the target the compiler resolves (the analyzer has no standard
+  library, so type errors are normal); a call on a receiver typed by a union or an intersection of
+  classes or interfaces that declare the method has no edge, because its callee is not determined.
 - No change to `packages/core` (`calls` is already an edge kind), to the PHP analyzer or to the CLI.
 
 Out of scope (non-goals of DIS-31): the seed, the golden answers of task-api and wiring the analyzer
@@ -40,7 +45,11 @@ references outside call arguments (assignments, `return f`, object literals) and
 
 The DoD of DIS-31, "los 10 sitios salen `exact`; ninguna arista `heuristic` emitida", is read as: the
 8 sites whose target is declared in the input come out as `exact` edges, the other 2 produce no edge
-(neither `exact` nor `heuristic`), and no `calls` edge is `heuristic` (design Follow-ups E2).
+(neither `exact` nor `heuristic`), and no `calls` edge is `heuristic` (design Follow-ups E2). The
+spec audit of 2026-10-27 asked whether to accept this reading or follow DIS-20's path (stop and open a
+story on core first); in correction round 1 the agent, as lead engineer, kept this reading on
+2026-10-27, because both remedies widen scope against CM-HU-18 or DIS-30 E3 (design Follow-ups SA1,
+agent's text; the author may reverse it at the merge review).
 
 ## Capabilities
 

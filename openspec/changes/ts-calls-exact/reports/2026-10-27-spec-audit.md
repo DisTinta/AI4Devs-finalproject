@@ -206,3 +206,32 @@ Enhanced part, criterion C3 (append):
 ### Linear DIS-20
 
 No change. Q1 is answered in DIS-31.
+
+---
+
+## Resolution of run 1
+
+*Agent's text: correction round 1 of an autonomous run (docs/AUTONOMOUS-RUN.md §6), 2026-10-27,
+decided as lead engineer without the author.* Every decision is recorded in `design.md` →
+Follow-ups (SA1–SA10). A throwaway prototype in the session scratchpad (compiler with `noLib`,
+`types: []`, `strict`, the rules of the corrected requirement) was run over the 38 tracked files of
+task-api and over every inline input of the delta; its outputs are the edge lists now pinned.
+
+| Finding | Resolution |
+|---|---|
+| Q1 / B1 (10 → 8 + 2) | Decided by the agent: the 8 + 2 reading is kept (8 `exact` edges, sites 7 and 10 with no edge, no `heuristic` `calls`). DIS-20's alternative is not taken because both remedies widen scope (`references` in `AnalyzerInput` changes core, against CM-HU-18; reading `node_modules` or the standard library contradicts DIS-30 E3). Recorded in the proposal (paragraph on the DoD, with the date), `design.md` SA1 (destination **D**) and the DIS-31 comment of this round; the author may reverse it at the merge review |
+| B2 (overload signature) | Fixed: the requirement defines an overload signature; abstract methods and interface method signatures are targets themselves. New scenario "Abstract and interface methods are targets themselves". The prototype confirms `this.area()` → `S::area` and `i.m(1)` → the `I::m` on line 3. D4 updated (SA2) |
+| B3 (type errors, synthesized signatures) | Fixed, with one difference from the suggested text, found by the prototype: an overloaded call that matches no overload is not resolved to a composed signature but to the first overload signature, so it keeps an edge to the implementation; a union-typed receiver is not resolved to a synthesized signature but to the first member's method, which would be a guess. New paragraph "Type errors and undetermined callees": type errors keep the compiler's target; a property-access callee whose member name resolves to declarations in more than one class or interface gives no edge; a signature with no declaration gives none. New scenario "A call with a type error keeps its compiler-resolved target" (includes the union case). D4 updated (SA3) |
+| I1 (missing scenarios) | Fixed: "Compiler-resolved call forms" gains `h?.()` and `Child::again` with `super.hello()`; "Callbacks…" gains an object-literal method; "Call sites outside…" gains a static block, a parameter of function type, an arrow `const` and a tagged template, and is renamed "Call sites outside a function or method symbol, and targets that are not symbols, have no edge"; "Only a constructor declared in the class itself…" gains overloaded constructors (`f` → `V::constructor`) and `new (pick())(1)` (SA4) |
+| I2 (timing not measurable) | Fixed: recorded in the step 5 report, a slowdown above 2× the baseline is a finding (SA5) |
+| I3 (step 6 vs step 5 report) | Fixed together with I2 (SA5) |
+| I4 (row 3 not in the proposal) | Fixed: "What Changes" names the rewrite of row 3 (SA7) |
+| I5 (37 is only a count) | Fixed: a further AND lists the 14 remaining edges per file; the prototype gives the same 37 (SA8) |
+| I6 (task 2.2 too large) | Fixed: split into 2.2a, 2.2b and 2.2c, each with its named scenarios green (SA9) |
+| I7 (implicit no-edge cases) | Fixed: one sentence in "Call sites and targets" 1 (non-class `new`, non-class `super` base, tagged templates), pinned in two scenarios (SA6) |
+| I8 ("or equivalent wording") | Fixed: task 3.1 gives the exact sentence (SA10) |
+| Traceability note (2.1 list and 4.2 count) | Fixed: 2.1 lists the 12 scenarios, 4.2 says 12 |
+
+`openspec validate ts-calls-exact --strict`: `Change 'ts-calls-exact' is valid`. The enhanced part
+of DIS-31 is not edited by this round (the `[original]` block untouched); the C3 example the report
+suggests is carried by the Linear comment of the round.

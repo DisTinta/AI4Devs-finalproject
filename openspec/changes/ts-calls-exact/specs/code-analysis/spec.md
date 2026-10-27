@@ -25,15 +25,31 @@ contain none.
    expression. Its target is the declaration of the signature the TypeScript compiler resolves for it,
    import aliases followed: an inherited method resolves to the class that declares it, and a call on
    a value typed by an interface resolves to the interface's method signature. When that declaration
-   is an overload signature without a body, the target is the implementation with a body of the same
-   function or method. For `new X(...)` the target SHALL be a constructor declared in the body of the
-   class `X` itself, and for `super(...)` a constructor declared in the body of the direct base class:
-   when that class declares no constructor, there is no target, even if a class it extends declares
-   one.
+   is an overload signature — a function, method or constructor declaration without a body whose
+   symbol also has a declaration with a body — the target is that declaration with a body. An
+   abstract method and an interface method signature have no body but are symbols: when the compiler
+   resolves one, it is the target itself (with several signatures of one interface method, the one
+   the compiler resolves). For `new X(...)` the target SHALL be a constructor declared in the body of
+   the class `X` itself, and for `super(...)` a constructor declared in the body of the direct base
+   class: when that class declares no constructor, there is no target, even if a class it extends
+   declares one. `new` on an expression that does not resolve to a class declaration, and `super(...)`
+   when the direct base is not a class declaration, SHALL produce no edge. Tagged templates
+   (`` tag`…` ``) are not call sites and SHALL produce no edge.
 2. An identifier or a property access (such as `h` or `controller.create`) written directly as an
    argument of a call or `new` expression, whether or not that call has a target itself. Its target
    is the declaration the compiler resolves for the name, import aliases followed, when exactly one of
    that name's declarations is a `function` or `method` symbol of the result.
+
+**Type errors and undetermined callees.** The analyzer runs without the standard library, so type
+errors are normal and are not diagnostics (see "TypeScript syntax errors"). A call with a type error
+(wrong number or types of arguments) SHALL have the target of the signature the compiler resolves for
+it, as any other call; for an overloaded call that matches no overload the compiler resolves one of
+its overload signatures, which maps to the declaration with a body as above. A call whose callee is a
+property access whose member name the compiler resolves to declarations in more than one class or
+interface (a receiver typed by a union or an intersection of them) SHALL produce no edge and no
+diagnostic: the compiler resolves the signature of one member, but the callee is not determined. A
+resolved signature with no declaration (an unresolvable callee) SHALL produce no edge and no
+diagnostic.
 
 A call site SHALL produce an edge only when its target is a `function` or `method` symbol of the
 result: the first declaration of its file, name and start line, not one dropped as a duplicate. A
@@ -74,6 +90,14 @@ that link them. A symbol that calls itself SHALL have one `calls` edge to itself
 - **AND** `TaskNotFoundError::constructor` and `IllegalStatusTransitionError::constructor` each have
   one `calls` edge, to `DomainError::constructor` (`super(...)`), and `applyFilters` has exactly one,
   to `matchesSearch` (a call inside the arrow function passed to `tasks.filter`)
+- **AND** the other 14 `calls` edges are exactly: `buildApp` → `registerDb`, →
+  `registerErrorHandler` and → `registerRoutes` (`src/app.ts`); `registerDb` →
+  `InMemoryTaskRepository::constructor` and → `TaskService::constructor` (`src/plugins/db.ts`);
+  `healthRoutes` → `HealthController::check` (`src/routes/health.routes.ts`); `registerRoutes` →
+  `healthRoutes` and → `taskRoutes` (`src/routes/index.ts`); `main` → `buildApp` and → `loadEnv`
+  (`src/server.ts`); `sortTasks` → `compareBy`, `compareBy` → `priorityRank` and →
+  `compareNullableDate` (`src/services/task.filters.ts`); `buildTestApp` → `buildApp`
+  (`tests/helpers/build-app.ts`)
 
 #### Scenario: What the compiler cannot resolve has no calls edge
 
@@ -92,11 +116,12 @@ that link them. A symbol that calls itself SHALL have one `calls` edge to itself
 - **WHEN** `src/a.ts` with content
   `export class Base { constructor(n: number) {} hello(): void {} }\nexport function helper(): void {}\n`
   and `src/b.ts` with content
-  `import { Base, helper as h } from './a.js';\nexport class Child extends Base { constructor() { super(1); } run(): void { this.hello(); h(); [1].forEach(h); new Base(2); } }\n`
+  `import { Base, helper as h } from './a.js';\nexport class Child extends Base { constructor() { super(1); } run(): void { this.hello(); h(); h?.(); [1].forEach(h); new Base(2); } again(): void { super.hello(); } }\n`
   are analysed together
 - **THEN** the `calls` edges are exactly: `Child::constructor` → `Base::constructor`;
-  `Child::run` → `Base::hello` (inherited method), → `helper` (one edge for the aliased call and the
-  reference passed to `forEach`) and → `Base::constructor`
+  `Child::run` → `Base::hello` (inherited method), → `helper` (one edge for the aliased call, the
+  optional call and the reference passed to `forEach`) and → `Base::constructor`; `Child::again` →
+  `Base::hello` (`super.hello()`)
 
 #### Scenario: An overloaded call targets the implementation
 
@@ -105,21 +130,42 @@ that link them. A symbol that calls itself SHALL have one `calls` edge to itself
   is analysed
 - **THEN** the `calls` edges are exactly `g` → `f` (the symbol on line 3) and `K::n` → `K::m`
 
+#### Scenario: Abstract and interface methods are targets themselves
+
+- **WHEN** `src/s.ts` with content
+  `export abstract class S { abstract area(): number; total(): number { return this.area(); } }\nexport interface I { m(x: string): void;\n m(x: number): void; }\nexport function use(i: I): void { i.m(1); }\n`
+  is analysed
+- **THEN** the `calls` edges are exactly `S::total` → `S::area` and `use` → `I::m` (the symbol on
+  line 3, the signature the compiler resolves for `i.m(1)`)
+
+#### Scenario: A call with a type error keeps its compiler-resolved target
+
+- **WHEN** `src/t.ts` with content
+  `export function one(n: number): void {}\nexport function g(): void { one('x'); one(); }\nfunction f(x: string): void;\nfunction f(x: number): void;\nfunction f(x: unknown): void {}\nexport function h(): void { f(true); }\nexport class A { m(): void {} }\nexport class B { m(): void {} }\nexport function u(x: A | B): void { x.m(); }\n`
+  is analysed
+- **THEN** the `calls` edges are exactly `g` → `one` and `h` → `f` (the symbol on line 5: the call
+  matches no overload and the compiler resolves an overload signature); `u` has none (`x.m` names
+  methods of two classes)
+- **AND** `diagnostics` is empty
+
 #### Scenario: Only a constructor declared in the class itself is a target
 
 - **WHEN** `src/c.ts` with content
-  `export class A { constructor() {} }\nexport class B extends A {}\nexport class C extends B { constructor() { super(); } }\nexport function f(): void { new B(); new A(); }\n`
+  `export class A { constructor() {} }\nexport class B extends A {}\nexport class C extends B { constructor() { super(); } }\nexport class V { constructor(a: string); constructor(a: number); constructor(a: unknown) {} }\nexport function pick(): typeof V { return V; }\nexport function f(): void { new B(); new A(); new V(1); new (pick())(1); }\n`
   is analysed
-- **THEN** the `calls` edges are exactly one, `f` → `A::constructor` (`new B()` and the `super()` of
-  `C`, whose direct base `B` declares no constructor, have none)
+- **THEN** the `calls` edges are exactly: `f` → `A::constructor`, `f` → `V::constructor` (the
+  symbol of the constructor with a body; the overloaded `new V(1)`) and `f` → `pick` (the call
+  `pick()`); `new B()` and the `super()` of `C`, whose direct base `B` declares no constructor, have
+  none, and `new (pick())(1)`, whose expression does not resolve to a class declaration, has none
 
 #### Scenario: Callbacks belong to their symbol and nested symbols keep their own calls
 
 - **WHEN** `src/n.ts` with content
-  `export function leaf(): void {}\nexport function outer(): void { [1].map(() => leaf()); const g = function () { leaf(); }; function inner(): void { leaf(); inner(); } }\n`
+  `export function leaf(): void {}\nexport function outer(): void { [1].map(() => leaf()); const g = function () { leaf(); }; const o = { m() { leaf(); } }; function inner(): void { leaf(); inner(); } }\n`
   is analysed
 - **THEN** the `calls` edges are exactly: `outer` → `leaf` (one edge for the calls in the arrow
-  function and the function expression), `inner` → `leaf` and `inner` → `inner` (a recursive call);
+  function, the function expression and the object-literal method), `inner` → `leaf` and `inner` →
+  `inner` (a recursive call);
   `outer` has no edge to `inner`
 
 #### Scenario: Only references passed as arguments are calls
@@ -130,14 +176,15 @@ that link them. A symbol that calls itself SHALL have one `calls` edge to itself
 - **THEN** the `calls` edges are exactly one, `s` → `helper` (`setTimeout` itself resolves to
   nothing); `r` has none
 
-#### Scenario: Call sites outside a function or method symbol have no edge
+#### Scenario: Call sites outside a function or method symbol, and targets that are not symbols, have no edge
 
 - **WHEN** `src/a.ts` with content `export function helper(): any { return () => {}; }\n` and
   `src/top.ts` with content
-  `import { helper } from './a.js';\nhelper();\nexport const x = () => helper();\nexport class P { y = helper(); get z(): number { helper(); return 1; } @helper() m(): void {} }\n`
+  `` import { helper } from './a.js';\nhelper();\nexport const x = () => helper();\nexport class P { y = helper(); static { helper(); } get z(): number { helper(); return 1; } @helper() m(): void {} }\nexport const k = (): void => {};\nexport function q(f: () => void): void { f(); k(); helper`t`; }\n ``
   are analysed together
-- **THEN** there is no `calls` edge (module level, `const` initializer, property initializer,
-  accessor and decorator)
+- **THEN** there is no `calls` edge (module level, `const` initializer, property initializer, static
+  block, accessor and decorator as sources; a parameter of function type and an arrow function
+  assigned to a `const` as targets; a tagged template is not a call site)
 - **AND** the analysis resolves and `diagnostics` is empty
 
 #### Scenario: A file with a syntax error neither originates nor receives calls
