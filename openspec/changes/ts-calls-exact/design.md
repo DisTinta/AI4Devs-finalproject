@@ -225,3 +225,14 @@ engineer in an autonomous run, without the author (docs/AUTONOMOUS-RUN.md §6).*
 | SA12 | I2: the declarations of one merged interface count as one interface; the target is the signature the compiler resolves (`useJ` → the `J::n` on line 6), pinned in "Abstract and interface methods are targets themselves". Counting them as two would drop an edge the compiler resolves exactly, as it does for several signatures of one interface method | **A** — this change (spec, D4) |
 | SA13 | I1: "Only references passed as arguments are calls" adds an array element (`const a = [helper];`), with the THEN unchanged (prototype: still only `s` → `helper`) | **A** — this change (spec) |
 | SA14 | I3: the 8 + 2 reading is reviewed by the author after the merge, not at a merge review (ADR 20261020, Consequences): wording fixed in the proposal, SA1 and task 9.1 | **A** — this change (proposal, design, tasks) |
+
+Apply step (2026-10-27). *Agent's text: decided as lead engineer in an autonomous run, without the
+author (docs/AUTONOMOUS-RUN.md §6).*
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| AP1 | The sink of D2 is an optional `Map<GraphSymbol, TS.Node>` out-parameter of `extractSymbols`; `ts-analyzer.ts` inverts it into `Map<TS.Node, SymbolRef>` over the symbols kept by `keepFirst`. `edges.ts` takes that map instead of the symbol list | **A** — this change (D2) |
+| AP2 | Four of the 13 scenarios of `calls.spec.ts` (the ones that expect no edge) pass before the implementation, so the RED run has 9 failures; they guard the implementation against over-emitting | **D** — accepted |
+| AP3 | The timing of the step 5 report was measured by switching off the line that adds the calls for one run and restoring it; the ratio (median 1.3x, mean 1.7x) is below the 2x threshold | **D** — accepted |
+| AP4 | One run of the whole suite with the database showed 2 failing tests outside the analyzers that did not reproduce in an identical re-run (2097 passed); not investigated further | **C** — author, if it reappears in CI |
+| AP5 | Task 8.3 was done by hand (the docs gate runs at commit): `docs/project-context.md`, `prompts.md` with its Índice entry and `fixtures/README.md` were updated | **A** — this change |

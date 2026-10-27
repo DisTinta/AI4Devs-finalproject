@@ -1,4 +1,4 @@
-import type { FileKind, GraphEdge, GraphSymbol, SymbolRef } from '@codemind/core';
+import type { FileKind, GraphEdge, SymbolRef } from '@codemind/core';
 import type * as TS from 'typescript';
 import { VIRTUAL_ROOT, type InMemoryProgram, type TypeScriptModule } from './program.js';
 import { isSkippedDeclaration } from './symbols.js';
@@ -12,9 +12,11 @@ export interface ParsedFile {
   sourceFile: TS.SourceFile;
 }
 
-const ROOT_PREFIX = `${VIRTUAL_ROOT}/`;
+/** Declaration node → the symbol emitted for it (only symbols kept after duplicates; DIS-31, design D2). */
+export type SymbolOf = ReadonlyMap<TS.Node, SymbolRef>;
 
-const symbolKey = (ref: SymbolRef): string => `${ref.file}:${ref.startLine}:${ref.name}`;
+/** Path prefix of the files of the in-memory program. */
+export const ROOT_PREFIX = `${VIRTUAL_ROOT}/`;
 
 function baseName(path: string): string {
   return path.slice(path.lastIndexOf('/') + 1);
@@ -35,7 +37,8 @@ function testBase(path: string): string | undefined {
  * @param built The program of the call and the host that serves it.
  * @param parsed The TypeScript files without a syntax error, in path order.
  * @param inputPaths Every TypeScript file of the program, syntax errors included.
- * @param symbols The symbols of the call, after duplicates were dropped.
+ * @param symbolOf Declaration node → emitted symbol, after duplicates were dropped (DIS-31, design D2:
+ *   a declaration dropped as a duplicate is no edge endpoint, review R1 of DIS-30).
  * @param kindOf The `kind` of every input file by path.
  */
 export function buildTypeScriptEdges(
@@ -43,7 +46,7 @@ export function buildTypeScriptEdges(
   built: InMemoryProgram,
   parsed: ParsedFile[],
   inputPaths: ReadonlySet<string>,
-  symbols: GraphSymbol[],
+  symbolOf: SymbolOf,
   kindOf: ReadonlyMap<string, FileKind>,
 ): GraphEdge[] {
   const edges: GraphEdge[] = [];
@@ -69,31 +72,6 @@ export function buildTypeScriptEdges(
   }
 
   // extends / implements: the checker resolves each heritage name, aliases followed.
-  const emitted = new Set(symbols.filter((s) => s.kind === 'class' || s.kind === 'interface').map(symbolKey));
-  const keyOf = (path: string, node: TS.ClassDeclaration | TS.InterfaceDeclaration, sourceFile: TS.SourceFile): SymbolRef | undefined =>
-    node.name
-      ? { file: path, name: node.name.text, startLine: sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1 }
-      : undefined;
-  // The first class or interface declaration of each (file, start line, name), in the walk order of
-  // `extractSymbols`: a later one was dropped as a duplicate symbol and is no edge endpoint (review R1).
-  const kept = new Map<string, TS.Node>();
-  for (const { path, sourceFile } of parsed) {
-    const collect = (node: TS.Node): void => {
-      if (isSkippedDeclaration(ts, node)) return;
-      if (ts.isClassDeclaration(node) || ts.isInterfaceDeclaration(node)) {
-        const ref = keyOf(path, node, sourceFile);
-        if (ref && !kept.has(symbolKey(ref))) kept.set(symbolKey(ref), node);
-      }
-      ts.forEachChild(node, collect);
-    };
-    collect(sourceFile);
-  }
-  const refOf = (path: string, node: TS.ClassDeclaration | TS.InterfaceDeclaration, sourceFile: TS.SourceFile): SymbolRef | undefined => {
-    const ref = keyOf(path, node, sourceFile);
-    if (!ref) return undefined;
-    const key = symbolKey(ref);
-    return emitted.has(key) && kept.get(key) === node ? ref : undefined;
-  };
   let checker: TS.TypeChecker | undefined;
   const targetOf = (expression: TS.Expression): SymbolRef | undefined => {
     if (!ts.isIdentifier(expression) && !ts.isPropertyAccessExpression(expression)) return undefined;
@@ -103,15 +81,13 @@ export function buildTypeScriptEdges(
     const declarations = found?.declarations;
     const declaration = declarations?.length === 1 ? declarations[0] : undefined;
     if (!declaration || !(ts.isClassDeclaration(declaration) || ts.isInterfaceDeclaration(declaration))) return undefined;
-    const fileName = declaration.getSourceFile().fileName;
-    if (!fileName.startsWith(ROOT_PREFIX)) return undefined;
-    return refOf(fileName.slice(ROOT_PREFIX.length), declaration, declaration.getSourceFile());
+    return symbolOf.get(declaration);
   };
-  for (const { path, sourceFile } of parsed) {
+  for (const { sourceFile } of parsed) {
     const walk = (node: TS.Node): void => {
       if (isSkippedDeclaration(ts, node)) return;
       if (ts.isClassDeclaration(node) || ts.isInterfaceDeclaration(node)) {
-        const source = refOf(path, node, sourceFile);
+        const source = symbolOf.get(node);
         if (source) {
           for (const clause of node.heritageClauses ?? []) {
             const kind = clause.token === ts.SyntaxKind.ImplementsKeyword ? 'implements' : 'extends';

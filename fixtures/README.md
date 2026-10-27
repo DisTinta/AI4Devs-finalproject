@@ -356,14 +356,13 @@ Columns: source symbol → target symbol · expected resolution · reason.
 |---|---|---|---|
 | 1 | `TaskService::create` → `newId` | exact | explicit import, resolved by compiler |
 | 2 | `TaskService::update` → `canTransition` | exact | explicit import |
-| 3 | `TaskService::update` → `TaskNotFoundError` (via `get`) | exact | explicit import |
+| 3 | `TaskService::update` → `TaskNotFoundError` (via `get`) | exact | two edges: `TaskService::update` → `TaskService::get` → `TaskNotFoundError::constructor` (explicit import) |
 | 4 | `InMemoryTaskRepository::list` → `applyFilters` | exact | explicit import |
 | 5 | `InMemoryTaskRepository::list` → `sortTasks` | exact | explicit import |
 | 6 | `InMemoryTaskRepository::list` → `buildPage` | exact | explicit import |
-| 7 | `TasksController::create` → `TaskService::create` | exact | typed `request.server.taskService` |
+| 7 | `TasksController::create` → `TaskService::create` | no edge | the receiver `request.server` is typed by `fastify`, outside the analyzer input (DIS-31) |
 | 8 | `taskRoutes` → `TasksController::create` | exact | method reference |
 | 9 | `TaskService::get` → `TaskRepository::findById` | exact | interface method, typed |
-| 10 | `applyFilters` → `Task.tags.includes` | exact | typed array member |
+| 10 | `applyFilters` → `Task.tags.includes` | no edge | `Array.prototype.includes` is the standard library, outside the analyzer input (DIS-31) |
 
-Every task-api site is `exact` by construction — that contrast with acme-shop is
-the whole point of Table 2.
+Every edge emitted for task-api is `exact` by construction; sites 7 and 10 have no edge because their target is outside the analyzer input — that contrast with acme-shop is the whole point of Table 2.

@@ -1,5 +1,7 @@
-import type { AnalyzerDiagnostic, AnalyzerInput, AnalyzerPort, GraphEdge, GraphSymbol } from '@codemind/core';
+import type { AnalyzerDiagnostic, AnalyzerInput, AnalyzerPort, GraphEdge, GraphSymbol, SymbolRef } from '@codemind/core';
 import { describeFile, docMentionEdges, sortUniqueEdges } from '@codemind/core';
+import type * as TS from 'typescript';
+import { buildTypeScriptCalls } from './calls.js';
 import { buildTypeScriptEdges, type ParsedFile } from './edges.js';
 import {
   createInMemoryProgram,
@@ -53,6 +55,8 @@ export function createTypeScriptAnalyzer(): AnalyzerPort {
         );
         const built = createInMemoryProgram(ts, tsFiles, options);
         const parsed: ParsedFile[] = [];
+        // Declaration node → emitted symbol, only for the symbols kept after duplicates (DIS-31, design D2).
+        const symbolOf = new Map<TS.Node, SymbolRef>();
         for (const file of tsFiles) {
           const sourceFile = built.program.getSourceFile(`${VIRTUAL_ROOT}/${file.path}`);
           if (!sourceFile) continue;
@@ -62,11 +66,18 @@ export function createTypeScriptAnalyzer(): AnalyzerPort {
             continue;
           }
           parsed.push({ path: file.path, sourceFile });
-          symbols.push(...keepFirst(file.path, extractSymbols(ts, file.path, sourceFile), diagnostics));
+          const declarations = new Map<GraphSymbol, TS.Node>();
+          const kept = keepFirst(file.path, extractSymbols(ts, file.path, sourceFile, declarations), diagnostics);
+          for (const symbol of kept) {
+            const node = declarations.get(symbol);
+            if (node) symbolOf.set(node, { file: symbol.file, name: symbol.name, startLine: symbol.startLine });
+          }
+          symbols.push(...kept);
         }
         symbols.sort(bySymbolOrder);
         const kindOf = new Map(files.map((described) => [described.path, described.kind]));
-        edges.push(...buildTypeScriptEdges(ts, built, parsed, new Set(tsFiles.map((file) => file.path)), symbols, kindOf));
+        edges.push(...buildTypeScriptEdges(ts, built, parsed, new Set(tsFiles.map((file) => file.path)), symbolOf, kindOf));
+        edges.push(...buildTypeScriptCalls(ts, built, parsed, symbolOf));
       }
 
       diagnostics.sort(byPath);

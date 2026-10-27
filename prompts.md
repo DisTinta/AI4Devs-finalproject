@@ -78,6 +78,7 @@
 61. [Respuestas en el idioma de la pregunta (DIS-104)](#61-respuestas-en-el-idioma-de-la-pregunta-dis-104)
 62. [Deuda de `npm audit`: Vitest, Vite, Stryker y la base de Node 22 (DIS-105)](#62-deuda-de-npm-audit-vitest-vite-stryker-y-la-base-de-node-22-dis-105)
 63. [Analizador TypeScript: estructura, spans y aristas (DIS-30)](#63-analizador-typescript-estructura-spans-y-aristas-dis-30)
+64. [Analizador TypeScript: llamadas `exact` con el `TypeChecker` (DIS-31)](#64-analizador-typescript-llamadas-exact-con-el-typechecker-dis-31)
 
 ---
 
@@ -5201,3 +5202,24 @@ sin tocar `packages/core`.
 partes de arista de los escenarios de `tsconfig.json` se comprueban en el mismo `it` de `structure.spec.ts`
 y no en un segundo `it` con el mismo nombre, y la prueba manual se hizo con un script de la carpeta
 temporal sobre los 38 ficheros rastreados.
+
+# 64. Analizador TypeScript: llamadas `exact` con el `TypeChecker` (DIS-31)
+
+### Prompt 1 — Aplicar el cambio dentro del workflow autónomo
+
+El script del workflow envió a este paso, entre otras reglas, este texto literal:
+
+```
+Ticket: DIS-31. Branch: feature/dis-31-ts-calls-exact. Change: openspec/changes/ts-calls-exact. Step: apply.
+Run /opsx:apply on change ts-calls-exact: every task in TDD (failing test first, then implementation, in the layer order), marking tasks.md as you go, with the mandatory verification steps. Run the tests, lint and typecheck. Commit, push and open the PR to final-project-CRN with /pr-describe (write the "why" yourself and mark it as agent-written). Return pr.
+```
+
+**Por qué funcionó.** Tres auditorías de la spec ya habían fijado la lista exacta de las 37 aristas de
+task-api y cada forma de llamada (sobrecargas, firmas abstractas, receptores unión, callee tipado por
+`typeof`), así que los 13 escenarios se convirtieron en 13 tests con el mismo nombre; 9 fallaron por la
+razón correcta y la implementación (`calls.ts`, con el mapa nodo → símbolo compartido con `edges.ts`) los
+puso en verde a la primera.
+
+**Ajuste humano.** Ninguno: ejecución autónoma. Decisiones del agente (`design.md` → Follow-ups): los
+escenarios que esperan «ninguna arista» pasan ya en la fase roja y solo los positivos fallan; el tiempo de análisis
+de task-api se midió quitando temporalmente la línea que añade las llamadas.
