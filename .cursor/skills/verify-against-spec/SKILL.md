@@ -1,6 +1,6 @@
 ---
 name: verify-against-spec
-description: Use before opening a pull request for a change, or when asked to verify against the spec. Checks whether the implementation does exactly what the specification says, no less and no more.
+description: Use before opening a pull request for a change, or when asked to verify against the spec. Checks whether the implementation does exactly what the specification says, no less and no more. In a workflow step or an autonomous run, do not invoke it: follow its Inline mode.
 author: sdd-harness-kit
 version: 1.0.0
 argument-hint: [change-id]

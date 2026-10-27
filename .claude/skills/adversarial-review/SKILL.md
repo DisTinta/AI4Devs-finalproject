@@ -1,6 +1,6 @@
 ---
 name: adversarial-review
-description: Use before archiving a change, or when the user asks for a hostile review, a second opinion, or a pre-merge audit. Tries to refute that the change is done, and returns an explicit verdict.
+description: Use before archiving a change, or when the user asks for a hostile review, a second opinion, or a pre-merge audit. Tries to refute that the change is done, and returns an explicit verdict. In a workflow step or an autonomous run, do not invoke it: follow its Inline mode.
 author: sdd-harness-kit
 version: 1.1.0
 argument-hint: [change-id or pull request reference]
