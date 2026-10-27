@@ -61,11 +61,16 @@ followed by `npm audit --audit-level=high` (a new high or critical finding stops
   normalised by the compiler and could collide with another input; it is kept out of the program with
   the `non-canonical path` diagnostic (spec "TypeScript analysis input"). Inputs from Git are always
   canonical, so this is an edge case, not a path the seed takes.
-- **Options.** `ts.parseConfigFileTextToJson('tsconfig.json', content)` then
-  `ts.convertCompilerOptionsFromJson(json.compilerOptions ?? {}, '/repo')` (the base path anchors
-  `paths` without `baseUrl`); its `errors` are ignored (an unaccepted option is dropped). On a JSON
-  error, the default options and one diagnostic: `path` `tsconfig.json`, the flattened message, the
-  line of `error.start`. The options are `{ module: ESNext, moduleResolution: Bundler, ...input,
+- **Options.** `tsconfig.json` is read only when the input has a TypeScript file (spec "TypeScript
+  analysis input"), after the compiler is loaded. `ts.parseConfigFileTextToJson('tsconfig.json',
+  content)`: if it returns an `error`, or its `config` is not a non-null, non-array object, the
+  default options and one diagnostic (`path` `tsconfig.json`, flattened message, line of
+  `error.start` when there is one; TypeScript 5.9 reports `The root value of a 'tsconfig.json' file
+  must be an object.` at position 0 for `null`, `[]` or `42`, and returns `config: {}` with it, so the
+  `error` check comes first). Otherwise `compilerOptions` is used only when it is a non-null,
+  non-array object, else `{}`, and passed to `ts.convertCompilerOptionsFromJson(compilerOptions,
+  '/repo')` (the base path anchors `paths` without `baseUrl`); its `errors` are ignored (an
+  unaccepted option is dropped). The options are `{ module: ESNext, moduleResolution: Bundler, ...input,
   noEmit: true, noLib: true, types: [], allowJs: false, noResolve: false }`: the forced ones go last so
   the input cannot re-enable the standard library or `@types` (spike DIS-54; spec "Names outside the
   input resolve to nothing"). `extends`, `references`, `files`, `include` and `exclude` are never read:
@@ -79,8 +84,10 @@ followed by `npm audit --audit-level=high` (a new high or critical finding stops
 
 `loadTypeScript()` (in `program.ts`) does `import('typescript')` and returns the module's namespace
 (the default export of the CommonJS package). `createTypeScriptAnalyzer()` keeps the promise as
-`createPhpAnalyzer()` does and drops it on rejection; a call with no TypeScript file does not load it.
-The test mocks `loadTypeScript` with `vi.mock`, like `tests/unit/analyzers/php/parser-load.spec.ts`
+`createPhpAnalyzer()` does and drops it on rejection; a call with no TypeScript file does not load it,
+and the input `tsconfig.json` alone never triggers a load. `ts-analyzer.ts` calls the
+`loadTypeScript` it imports from `program.ts`, so the mock applies. The test mocks `loadTypeScript`
+with `vi.mock`, like `tests/unit/analyzers/php/parser-load.spec.ts`
 (spec "A failed compiler load does not poison later calls").
 *Alternative:* a static `import ts from 'typescript'` — rejected: a failed load would break the module
 import instead of rejecting the call, against "Analysis contract".
@@ -171,6 +178,13 @@ either); the ticket keeps that parity. The scenario tests pin exact spans and ed
 The decisions are local to one adapter package and reversible; none crosses a module boundary.
 `docs/project-context.md` records what the analyzer emits.
 
+*Agent's text (spec audit 2026-10-27, run 1):* `docs/adr/20261002-php-parser-web-tree-sitter.md`
+recorded the PHP parser because it chose between several third-party parsers and brought a new
+runtime technology (a WASM grammar loaded at run time). Here there is no comparable choice: the
+`typescript` compiler is the language's own reference parser, it is already a root dependency of the
+repository, `ts-morph` only wraps it (D1), and the approach was validated in spike DIS-54. The
+author may still ask for an ADR; it would be written then from this section.
+
 ## Risks / Trade-offs
 
 - [The 54 `imports` and 2 `describes` of task-api are counts the agent derived] → verified before the
@@ -209,10 +223,25 @@ author.* The spec audit and the pre-merge reviews add their findings here.
 | E8 | No symbols for `const` / `type` / `enum`; golden Q1 of task-api cites Zod `const` schemas, DIS-32 decides how | **B** — DIS-32 (comment of 2026-10-27) |
 | E9 | Arrow functions assigned to `const` (`export const f = () => …`) produce no symbol; task-api has none | **C** — checklist comment on DIS-30 (2026-10-27) |
 | E10 | Helpers `uniqueInputs`, `keepFirst`, `bySymbolOrder`, `byPath` copied instead of moved to core (D7) | **C** — checklist comment on DIS-30 (2026-10-27) |
-| E11 | Type errors are not diagnostics; only syntactic ones (D2) | **D** — accepted |
+| E11 | Type errors are not diagnostics; only syntactic ones (D2). Confirmed in the spec audit run 1, see A1 | **D** — accepted |
 | E12 | Wiring the analyzer in `packages/cli/src/compose-index.ts` by `--language` | **B** — DIS-32 (comment of 2026-10-27) |
 | E13 | No Stryker for the package (D9) | **D** — accepted |
 | P1 | Non-canonical `.ts` paths are not parsed, with a diagnostic (D2) | **A** — this change |
 | P2 | Lazy compiler load forgotten on failure, like the PHP parser (D3) | **A** — this change |
 | P3 | Tests read task-api without `node_modules/` and `package-lock.json` (D8) | **A** — this change |
 | P4 | No PowerShell check is planned: the change is a library with unit tests and no command, script or document a PowerShell user runs | **D** — accepted |
+| P5 | Side-effect imports (`import './x.js'`) are `imports` edges (D5); not listed in DIS-30 E2, added by the proposal because the statement links two files like any other import | **A** — this change |
+
+Decisions of the spec audit correction round 1 (report `reports/2026-10-27-spec-audit.md`, section
+"Resolution of run 1"). *Agent's text: decided as lead engineer in an autonomous run, without the
+author.*
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| A1 | Q1: type errors are never diagnostics (E11 stands). DIS-20 AC 5 («se extraen símbolos y aristas resolubles y el error se anota en el informe sin abortar») is read, for the analyzer, as "does not abort and extracts what resolves"; the scenario "Type errors are not diagnostics" now also pins a resolvable `imports` edge. Reporting type errors would need the semantic checker over a program without the standard library, where almost every file has spurious errors (`Error`, `Promise`, `process` do not resolve), so the annotation would be noise. Clarifying comment on DIS-20 | **D** — accepted |
+| A2 | Q2: the non-canonical `.ts` path rule (P1) is kept. "Analysis contract" already says paths are never normalised and two inputs are distinct when their strings differ; the compiler normalises `./src/a.ts` and `src/a.ts` into one source file, so without the rule that requirement could not be met by this analyzer and the spec would leave the collision undefined. Inputs from Git are always canonical, so the seed never hits it | **A** — this change |
+| A3 | `tsconfig.json` is read only when the input has a TypeScript file; with none it is ignored and the compiler is not loaded (D2, D3) | **A** — this change |
+| A4 | A `tsconfig.json` with any compiler error or a non-object root is ignored entirely (defaults plus one diagnostic); a `compilerOptions` that is absent or not an object is no options, without a diagnostic (D2) | **A** — this change |
+| A5 | The main requirements "Code relation edges" and "Test coverage edges" are scoped to the PHP analyzer, as "Symbol extraction" already was | **A** — this change |
+| A6 | No ADR for the compiler choice; D10 explains why the PHP parser precedent does not apply | **D** — accepted |
+| A7 | The branch keeps its lowercase name `feature/dis-30-ts-analyzer-structure` (created by the autonomous workflow and already pushed; renaming it would break the run); commit scopes stay `DIS-30` | **D** — accepted |

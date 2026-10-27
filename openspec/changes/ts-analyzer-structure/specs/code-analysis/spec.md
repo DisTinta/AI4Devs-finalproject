@@ -193,6 +193,67 @@ apart.
 - **AND** wrapping the result in a graph with `commits: []` and `fileCommits: []` makes the graph
   validation return no error
 
+### Requirement: Code relation edges
+
+The PHP analyzer SHALL emit, with `resolution` `exact` and `extractor` `php-treesitter-laravel`:
+
+- one `imports` edge from a parsed PHP file to the class, interface or trait symbol that each of its
+  top-level `use` imports resolves to;
+- one `extends` edge from a class symbol to the class its `extends` clause resolves to, and from an
+  interface symbol to each interface its `extends` clause resolves to;
+- one `implements` edge from a class symbol to each interface its `implements` clause resolves to.
+
+An anonymous class SHALL originate no edge (it has no symbol). A file that could not be parsed SHALL
+originate no edge of any kind and SHALL contribute no symbol as a target. The code relation edges of
+the TypeScript analyzer are defined by "TypeScript code relation edges".
+
+#### Scenario: Inheritance and imports of acme-shop
+
+- **GIVEN** the content of the 53 tracked files of `fixtures/acme-shop`
+- **WHEN** they are analysed
+- **THEN** there are exactly 7 `extends` edges: from `OrderController` and from `CheckoutController`
+  to the `Controller` of `app/Http/Controllers/Controller.php` (same namespace, no `use`), and from
+  `CheckoutTest`, `OrderPricingTest`, `DiscountServiceTest`, `ShippingServiceTest` and
+  `TaxServiceTest` to the `TestCase` of `tests/TestCase.php`; and there is no `implements` edge
+- **AND** there are exactly 79 `imports` edges, among them one from the file `routes/api.php` to
+  `OrderController`, and exactly 6 from the file `tests/Unit/PriceCalculatorTest.php`, to
+  `PriceCalculator`, `DiscountService`, `TaxService`, `ShippingService`, `Order` and `Money`
+- **AND** every one of them has `resolution` `exact` and `extractor` `php-treesitter-laravel`
+
+#### Scenario: A file with a syntax error originates no edge
+
+- **WHEN** `app/Broken.php` with content `<?php namespace App; use App\Ok; class Broken extends Ok { public function x( }`
+  and `app/Ok.php` with content `<?php namespace App; class Ok {}` are analysed in the same call
+- **THEN** no edge has `app/Broken.php`, or a symbol of it, as source
+- **AND** `diagnostics` has one entry for `app/Broken.php`, and the graph validation of the wrapped
+  result returns no error
+
+### Requirement: Test coverage edges
+
+A class `XTest` declared in a PHP file of kind `test` SHALL produce one `tested_by` edge from the
+class symbol `X` to the class symbol `XTest`, with `resolution` `exact` and `extractor`
+`php-treesitter-laravel`, when the file that declares `XTest` contains a class name (in a `use`
+import, an `extends` or `implements` clause, a type, `new X`, `X::class` or a static call) that
+resolves to the fully-qualified name of a class `X` of the input whose short name is `XTest` without
+its `Test` suffix. A test class with no such reference SHALL produce no `tested_by` edge. The
+`tested_by` edges of the TypeScript analyzer are defined by "TypeScript test coverage edges".
+
+#### Scenario: The unit tests of acme-shop cover their classes
+
+- **GIVEN** the content of the 53 tracked files of `fixtures/acme-shop`
+- **WHEN** they are analysed
+- **THEN** there are exactly 4 `tested_by` edges, `exact`: from `PriceCalculator` to
+  `PriceCalculatorTest`, from `DiscountService` to `DiscountServiceTest`, from `ShippingService` to
+  `ShippingServiceTest` and from `TaxService` to `TaxServiceTest`
+- **AND** `CheckoutTest` and `OrderPricingTest` are the target of no `tested_by` edge
+
+#### Scenario: A test class that does not reference its subject has no edge
+
+- **WHEN** `app/Foo.php` with content `<?php namespace App; class Foo {}` and `tests/Unit/FooTest.php`
+  with content `<?php namespace Tests\Unit; class FooTest { public function test_it(): void {} }` are
+  analysed
+- **THEN** there is no `tested_by` edge
+
 ## ADDED Requirements
 
 ### Requirement: TypeScript analysis input
@@ -206,17 +267,27 @@ of "Documentation mention edges". A path that ends in `.ts` but not in `.d.ts` a
 SHALL add one diagnostic with that `path`, no `line` and `message`
 `non-canonical path "<path>"; not parsed`.
 
-All the TypeScript files of the input SHALL be analysed together as one program. The input whose
-path is exactly `tsconfig.json`, when there is one, SHALL supply the compiler options: its
-`compilerOptions`, read as the TypeScript compiler reads a `tsconfig.json` (comments and trailing
-commas allowed), over the default options (module `esnext`, module resolution `bundler`). Its
-`extends`, `references`, `files`, `include` and `exclude` SHALL be ignored, and an option the
-compiler does not accept SHALL be ignored without a diagnostic. When the content of `tsconfig.json`
-cannot be parsed, the default options SHALL be used and one diagnostic SHALL be added with `path`
-`tsconfig.json`, a non-empty `message` and, when known, the 1-based `line` of the error; the call
-SHALL NOT reject. Whatever the options, the analyzer SHALL NOT load the standard library or any
-declaration outside its input: a module, type or name that is not declared in a TypeScript file of
-the input resolves to nothing, and SHALL produce neither an edge nor a diagnostic.
+All the TypeScript files of the input SHALL be analysed together as one program. When the input has
+at least one TypeScript file, the input whose path is exactly `tsconfig.json`, when there is one,
+SHALL supply the compiler options: its `compilerOptions`, read as the TypeScript compiler reads a
+`tsconfig.json` (comments and trailing commas allowed), over the default options (module `esnext`,
+module resolution `bundler`). Its `extends`, `references`, `files`, `include` and `exclude` SHALL be
+ignored, and an option the compiler does not accept SHALL be ignored without a diagnostic. The
+content of `tsconfig.json` cannot be parsed when the compiler reports any error while reading it as
+a `tsconfig.json`, or when its root value is not an object. It SHALL then be ignored entirely: the
+default options SHALL be used and one diagnostic SHALL be added with `path` `tsconfig.json`, a
+non-empty `message` and, when the compiler gives a position, the 1-based `line` of the error; the
+call SHALL NOT reject. A `compilerOptions` that is absent or not an object SHALL be read as no
+options, without a diagnostic. When the input has no TypeScript file, `tsconfig.json` SHALL NOT be
+read and SHALL add no diagnostic, whatever its content, and the compiler SHALL NOT be loaded.
+Whatever the options, the analyzer SHALL NOT load the standard library or any declaration outside
+its input: a module, type or name that is not declared in a TypeScript file of the input resolves to
+nothing, and SHALL produce neither an edge nor a diagnostic.
+
+`diagnostics` SHALL be ordered by `path` (UTF-16 code unit); the diagnostics of one path SHALL keep
+the order in which they were produced: its duplicate-path diagnostics first, then its other
+diagnostic (non-canonical path, unparsable `tsconfig.json` or syntax error) or its duplicate-symbol
+diagnostics in tree-walk order.
 
 #### Scenario: The task-api files are classified
 
@@ -265,11 +336,14 @@ the input resolves to nothing, and SHALL produce neither an edge nor a diagnosti
 
 #### Scenario: A non-canonical TypeScript path is not parsed
 
-- **WHEN** `./src/a.ts` with content `export class A {}`, `src\b.ts` with content `export class B {}`
-  and `src/c.ts` with content `export class C {}` are analysed together
-- **THEN** all three are in `files`, the only symbol is `class C` in `src/c.ts`
-- **AND** `diagnostics` is exactly two entries with no `line`: `non-canonical path "./src/a.ts"; not parsed`
-  for `./src/a.ts` and `non-canonical path "src\b.ts"; not parsed` for `src\b.ts`
+- **WHEN** `./src/a.ts` with content `export class A {}`, `src\b.ts` with content `export class B {}`,
+  `src/../d.ts` with content `export class D {}`, `/e.ts` with content `export class E {}`,
+  `src//f.ts` with content `export class F {}` and `src/c.ts` with content `export class C {}` are
+  analysed together
+- **THEN** all six are in `files`, the only symbol is `class C` in `src/c.ts`
+- **AND** `diagnostics` is exactly five entries with no `line`, in this order of `path`, each with
+  `message` `non-canonical path "<path>"; not parsed`: `./src/a.ts`, `/e.ts`, `src/../d.ts`,
+  `src//f.ts` and `src\b.ts`
 
 #### Scenario: Compiler options come from the input tsconfig
 
@@ -287,7 +361,29 @@ the input resolves to nothing, and SHALL produce neither an edge nor a diagnosti
 - **THEN** the call resolves; `tsconfig.json` is in `files` with kind `config`
 - **AND** there is an `imports` edge from `src/a.ts` to `src/b.ts` and an `extends` edge from `A` to
   `B`
+- **AND** `diagnostics` is exactly one entry, with `path` `tsconfig.json`, `line` 1 and a non-empty
+  `message`
+
+#### Scenario: A tsconfig whose root is not an object falls back to the default options
+
+- **WHEN** `tsconfig.json` with content `null`, `src/b.ts` with content `export class B {}` and
+  `src/a.ts` with content `import { B } from './b.js';\nexport class A extends B {}\n` are analysed
+  together
+- **THEN** the call resolves, there is an `imports` edge from `src/a.ts` to `src/b.ts` and an
+  `extends` edge from `A` to `B`
 - **AND** `diagnostics` is exactly one entry, with `path` `tsconfig.json` and a non-empty `message`
+
+#### Scenario: The tsconfig never selects files or loads declarations
+
+- **WHEN** `tsconfig.json` with content
+  `{ "extends": "./base.json", "files": [], "include": ["src/**/*.ts"], "exclude": ["tests"], "references": [{ "path": "./other" }], "compilerOptions": { "lib": ["ES2022"], "types": ["node"], "noLib": false, "notAnOption": true, }, }`,
+  `src/foo.ts` with content `export class Foo extends Error {}` and `tests/foo.test.ts` with content
+  `import { Foo } from '../src/foo.js';\nexport class FooCheck {}\n` are analysed together
+- **THEN** `tests/foo.test.ts` has the symbol `class FooCheck`, there is an `imports` edge from
+  `tests/foo.test.ts` to `src/foo.ts` and a `tested_by` edge from `src/foo.ts` to
+  `tests/foo.test.ts`, and there is no `extends` edge (`Error` is not declared in the input)
+- **AND** `diagnostics` is empty (the unknown option, `extends`, `references`, `files`, `include`,
+  `exclude` and the trailing commas add none)
 
 #### Scenario: Names outside the input resolve to nothing
 
@@ -305,7 +401,9 @@ the input resolves to nothing, and SHALL produce neither an edge nor a diagnosti
 - **THEN** the first call rejects
 - **AND** the second call resolves with one `class` symbol `Ghost` in `src/ghost.ts`, and the compiler
   was loaded twice
-- **AND** an input with no TypeScript file (`README.md` alone) resolves without loading the compiler
+- **AND** an input with no TypeScript file (`README.md` with content `# Readme` and `tsconfig.json`
+  with content `{ "compilerOptions": `) resolves without loading the compiler, with empty
+  `diagnostics`
 
 ### Requirement: TypeScript symbol extraction
 
@@ -338,7 +436,7 @@ A symbol's span SHALL go from the first line of its declaration — its decorato
 last line of the declaration, as 1-based lines. Its `signature` SHALL be the text of the declaration
 from that start up to, and excluding, the opening `{` of its body (the member list of a class or an
 interface, the body of a function or method), or, for a declaration without a body, up to and
-excluding its terminating `;` (to its end when it has none), with every run of whitespace collapsed
+excluding its terminating `;` or `,` (to its end when it has none), with every run of whitespace collapsed
 to one space and trimmed. The rule of "Symbol extraction" on two symbols sharing file, name and start
 line (keep the first in tree-walk order, add the `duplicate symbol "<name>"; kept the first`
 diagnostic, never rename) SHALL apply.
@@ -358,6 +456,33 @@ diagnostic, never rename) SHALL apply.
   `TaskRepository::create`, `TaskRepository::update` and `TaskRepository::delete`, on lines 23 to 27
   in that order, each spanning one line; the signature of `TaskRepository::findById` is
   `findById(id: string): Promise<Task | null>`
+
+#### Scenario: Every class, interface and function of task-api is listed
+
+- **GIVEN** the content of the 38 tracked files of `fixtures/task-api`
+- **WHEN** they are analysed
+- **THEN** the `class`, `interface` and `function` symbols are exactly these 38, by file:
+  `src/app.ts`: `interface BuildAppOptions`, `function buildApp`; `src/config/env.ts`:
+  `function loadEnv`; `src/controllers/health.controller.ts`: `class HealthController`;
+  `src/controllers/tasks.controller.ts`: `class TasksController`; `src/domain/errors.ts`:
+  `class DomainError`, `class TaskNotFoundError`, `class IllegalStatusTransitionError`;
+  `src/domain/pagination.ts`: `interface Page`, `function buildPage`; `src/domain/task-priority.ts`:
+  `function isTaskPriority`, `function priorityRank`; `src/domain/task-status.ts`:
+  `function isTaskStatus`, `function canTransition`, `function allowedTransitions`;
+  `src/domain/task.entity.ts`: `interface Task`, `interface CreateTaskInput`,
+  `interface UpdateTaskInput`; `src/plugins/db.ts`: `function registerDb`;
+  `src/plugins/error-handler.ts`: `function registerErrorHandler`; `src/plugins/swagger.ts`:
+  `function registerSwagger`; `src/repositories/in-memory-task.repository.ts`:
+  `class InMemoryTaskRepository`; `src/repositories/task.repository.ts`: `interface TaskQuery`,
+  `interface TaskRepository`; `src/routes/health.routes.ts`: `function healthRoutes`;
+  `src/routes/index.ts`: `function registerRoutes`; `src/routes/tasks.routes.ts`:
+  `function taskRoutes`; `src/server.ts`: `function main`; `src/services/id.ts`: `function newId`;
+  `src/services/task.filters.ts`: `function applyFilters`, `function matchesSearch`,
+  `function sortTasks`, `function compareBy`, `function compareNullableDate`;
+  `src/services/task.service.ts`: `class TaskService`, `function pruneUndefined`;
+  `tests/helpers/build-app.ts`: `function buildTestApp`, `function makeTask`
+- **AND** that is 7 `class`, 7 `interface` and 24 `function` symbols; the interface
+  `FastifyInstance` inside `declare module 'fastify'` of `src/types/index.ts` is not among them
 
 #### Scenario: task-api files without such declarations have no symbols
 
@@ -395,6 +520,14 @@ diagnostic, never rename) SHALL apply.
   `@Entity() export class Model`, `method Model::save` 5–6 with signature
   `@Column() public async save(): Promise<void>`, and `method Model::constructor` 7–7 with signature
   `constructor(private readonly id: string)`
+
+#### Scenario: Private members and comma-separated signatures are named exactly
+
+- **WHEN** `src/p.ts` with content
+  `export class P {\n  #run(): void {}\n}\nexport interface I { a(): void, b(): void }\n` is analysed
+- **THEN** its symbols are exactly, in this order: `class P` 1–3, `method P::#run` 2–2 with signature
+  `#run(): void`, `interface I` 4–4, `method I::a` 4–4 with signature `a(): void` and `method I::b`
+  4–4 with signature `b(): void`
 
 #### Scenario: Variables, types, accessors and ambient declarations are not symbols
 
@@ -441,10 +574,12 @@ diagnostic.
 
 #### Scenario: Type errors are not diagnostics
 
-- **WHEN** `src/t.ts` with content
-  `import { Missing } from './missing.js';\nexport function f(): number { return 'x'; }\nexport class T extends Missing {}\n`
-  is analysed alone
-- **THEN** `diagnostics` is empty and the symbols are `function f` and `class T`
+- **WHEN** `src/dep.ts` with content `export class Dep {}` and `src/t.ts` with content
+  `import { Dep } from './dep.js';\nimport { Missing } from './missing.js';\nexport function f(): number { return 'x'; }\nexport class T extends Missing {}\n`
+  are analysed together
+- **THEN** `diagnostics` is empty, the symbols of `src/t.ts` are `function f` and `class T`, and
+  there is an `imports` edge from `src/t.ts` to `src/dep.ts` (the edges that resolve are still
+  emitted)
 
 ### Requirement: TypeScript code relation edges
 
@@ -454,7 +589,8 @@ The TypeScript analyzer SHALL emit, with `resolution` `exact` and `extractor` `t
   top-level `import … from`, side-effect `import '…'`, `export … from` or `export * from` statement of
   the first file, `import type` and `export type` included, whose module specifier resolves, with the
   compiler options of "TypeScript analysis input", to the second file; a pair of files SHALL have at
-  most one such edge however many statements link them, and a file SHALL NOT import itself;
+  most one such edge, whatever the number of statements that link them, and a file SHALL NOT import
+  itself;
 - one `extends` edge from a class symbol to the class or interface its `extends` clause names, and
   from an interface symbol to each class or interface its `extends` clause names;
 - one `implements` edge from a class symbol to each class or interface its `implements` clause names.
@@ -511,6 +647,20 @@ SHALL produce no edge; `require()`, dynamic `import()` and `import x = require()
   are analysed together
 - **THEN** the edges are exactly three `imports` edges, from `src/a.ts` to `src/side.ts`, to
   `src/t.ts` and to `src/v.ts`, and `diagnostics` is empty
+
+#### Scenario: Self-imports and CommonJS forms produce no edge
+
+- **WHEN** `src/b.ts` with content `export class B {}` and `src/s.ts` with content
+  `import './s.js';\nconst r = require('./b');\nconst d = import('./b.js');\nimport b = require('./b');\nexport class S {}\n`
+  are analysed together
+- **THEN** `edges` is empty and `diagnostics` is empty
+
+#### Scenario: Type arguments are followed, other heritage expressions are not
+
+- **WHEN** `src/h.ts` with content
+  `export class Base<T> {}\nexport function mixin<T>(b: T): T { return b; }\nexport class K extends Base<string> {}\nexport class M extends mixin(Base) {}\n`
+  is analysed
+- **THEN** the edges are exactly one `extends` edge, from `K` to `Base`
 
 ### Requirement: TypeScript test coverage edges
 

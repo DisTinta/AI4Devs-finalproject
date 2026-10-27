@@ -13,7 +13,9 @@ golden answers of task-api (DIS-32) build on it.
   content it receives and nothing else:
   - classifies every input file and counts its lines with the existing domain rule;
   - builds one in-memory TypeScript program from the `.ts` inputs (no `.d.ts`), reading the compiler
-    options of the input's root `tsconfig.json` (never the disk, never its `extends`);
+    options of the input's root `tsconfig.json` (never the disk, never its `extends`), only when
+    there is at least one `.ts` input; an unreadable or non-object `tsconfig.json` falls back to the
+    default options with one diagnostic;
   - emits `class`, `interface`, `function` and `method` symbols (constructors as `Class::constructor`,
     interface method signatures as `Interface::method`) with the span of the declaration, modifiers
     and decorators included, JSDoc excluded, and the declaration header as signature;
@@ -32,7 +34,8 @@ analyzer into the CLI, seed and golden answers of task-api (DIS-32); `.tsx`, `.j
 and `.d.ts` files, JSX, `require()`, dynamic `import()` and `import x = require()`; symbols for
 `const`, `type`, `enum`, arrow functions, accessors and declarations inside `declare module`,
 `declare global` or `namespace` blocks; type-error diagnostics; running or installing anything of
-the analysed repository.
+the analysed repository; redaction of `src/config/env.ts:7` (the core gateway is unchanged and runs
+before any analyzer; DIS-32 exercises it on task-api through the CLI).
 
 ## Capabilities
 
@@ -42,8 +45,9 @@ None.
 
 ### Modified Capabilities
 
-- `code-analysis`: "Analysis contract" lists the TypeScript edge requirements; "Symbol extraction"
-  scopes its `.php` rule to the PHP analyzer; new requirements for the TypeScript analyzer's input
+- `code-analysis`: "Analysis contract" lists the TypeScript edge requirements; "Symbol extraction",
+  "Code relation edges" and "Test coverage edges" are scoped to the PHP analyzer (their text and
+  scenarios are otherwise unchanged); new requirements for the TypeScript analyzer's input
   and compiler options, symbols, syntax errors, code relation edges and test coverage edges.
 
 ## Impact

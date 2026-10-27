@@ -193,3 +193,42 @@ No empty row. The scenarios that the corrections below add must be added to task
 ### Linear — DIS-20
 
 No change to the description. If the author answers Q1 by accepting E11, add a Spanish comment on DIS-20 clarifying that AC 5 means "no aborta y extrae lo resoluble; los errores de tipos no se registran como diagnostics (decisión en DIS-30)".
+
+---
+
+## Resolution of run 1
+
+*Agent's text: correction round 1 of an autonomous run (`docs/AUTONOMOUS-RUN.md` §6), decided as lead engineer without the author. Every decision is in `design.md` → Follow-ups (A1–A7, P5) and in a Spanish comment on DIS-30.* `openspec validate ts-analyzer-structure --strict` passes after the edits. Before writing the new scenarios, the agent checked with the installed `typescript` 5.9.3: `parseConfigFileTextToJson` reports `The root value of a 'tsconfig.json' file must be an object.` at position 0 for `null`, `[]` and `42` (and returns `config: {}`), and `Expression expected.` for `{ "compilerOptions": `; trailing commas and comments give no error; an interface member separated by `,` includes the `,` in its node text; `#run() {}` is a `MethodDeclaration` named `#run`; `import b = require('./b')`, `require()` and `import()` give no syntactic diagnostic.
+
+### Questions for the author
+
+- **Q1 — decided by the agent (A1, destination D).** Type errors are never diagnostics; E11 stands as accepted. DIS-20 AC 5 is read, for the analyzer, as "does not abort and extracts what resolves". Reason: the program has no standard library (E3), so the semantic checker would flag `Error`, `Promise`, `process` and every package import in almost every file; the annotation would be noise. The scenario "Type errors are not diagnostics" now also pins a resolvable `imports` edge. A Spanish comment on DIS-20 records the reading.
+- **Q2 — decided by the agent (A2, destination A): kept.** "Analysis contract" already requires that paths are never normalised and that inputs with different strings are different files. The compiler normalises `./src/a.ts` and `src/a.ts` into one source file, so without the rule the analyzer could not meet that requirement and the collision would be an open decision. The scenario now also covers `..`, a leading `/` and an empty segment.
+
+### Findings
+
+| # | Point | Finding | Resolution |
+|---|---|---|---|
+| 1 | 1 | Non-canonical path rule is invented scope (improvable) | Decided by the agent (Q2/A2): kept, justified by "Analysis contract" |
+| 2 | 1 | Side-effect imports not in the ticket (improvable) | Fixed: Follow-ups P5, destination A |
+| 3 | 2 | No fixture-wide symbol inventory (improvable) | Fixed: scenario "Every class, interface and function of task-api is listed" (7 classes, 7 interfaces, 24 functions, counted from the fixture); task 3.1 |
+| 4 | 2 | "Aristas resolubles" not covered (improvable) | Fixed: "Type errors are not diagnostics" adds `src/dep.ts` and an `imports` edge from `src/t.ts`; tasks 3.1 and 4.1 |
+| 5 | 2 | Redaction of `src/config/env.ts:7` not a listed non-goal (improvable) | Fixed: proposal out of scope |
+| 6 | 3 | Ignored `tsconfig.json` fields and unaccepted options have no scenario (blocking) | Fixed: scenario "The tsconfig never selects files or loads declarations" (also covers trailing commas); task 4.1 |
+| 7 | 3 | SHALL clauses without a scenario (improvable) | Fixed: "Self-imports and CommonJS forms produce no edge", "Type arguments are followed, other heritage expressions are not", "Private members and comma-separated signatures are named exactly"; `line` 1 pinned in "An unreadable tsconfig falls back to the default options"; `..`, `/` and empty segment added to the non-canonical scenario |
+| 8 | 4 | "however many" (improvable) | Fixed: "whatever the number of statements that link them" |
+| 9 | 5, 6 | `tsconfig.json` in an input with no TypeScript file (blocking) | Fixed: requirement reads `tsconfig.json` only with a TypeScript file; the compiler-load scenario pins `README.md` plus an unparsable `tsconfig.json` with empty `diagnostics`; design D2 and D3; Follow-ups A3; task 2.3 |
+| 10 | 5 | Non-object root or partial parse of `tsconfig.json` (blocking) | Fixed: requirement defines "cannot be parsed" (any compiler error or non-object root, ignored entirely) and non-object `compilerOptions` (no options, no diagnostic); scenario "A tsconfig whose root is not an object falls back to the default options"; design D2; Follow-ups A4; tasks 2.2 and 4.1 |
+| 11 | 5 | Interface member separated by `,` (improvable) | Fixed: signature ends at `;` or `,`; pinned by the private-members scenario |
+| 12 | 5 | Order of `diagnostics` only in design (improvable) | Fixed: stated in «TypeScript analysis input» |
+| 13 | 6 | E11 "accepted" against the parent AC (improvable) | Decided by the agent (Q1/A1): E11 stays accepted, with the reading recorded |
+| 14 | 7 | «Code relation edges» and «Test coverage edges» not scoped to PHP (blocking) | Fixed: both added under MODIFIED with "The PHP analyzer" / "a PHP file of kind `test`", a pointer to the TypeScript requirements and their scenarios unchanged; proposal; Follow-ups A5; task 5.1 |
+| 15 | 7 | `docs/project-context.md` project references and stub passage (improvable) | Fixed: task 9.1 names both |
+| 16 | 7 | D10 against the PHP parser ADR precedent (improvable) | Decided by the agent (A6): no ADR; D10 explains the difference, marked as the agent's text |
+| 17 | 8 | Task 7.1 `npx tsx` without the run tsconfig (improvable) | Fixed: task 7.1 uses `--tsconfig packages/cli/tsconfig.run.json` |
+| 18 | 8 | `loadTypeScript` imported from `program.ts` (improvable) | Fixed: design D3 and task 2.3 |
+| 19 | 10 | Lowercase branch name (improvable) | Decided by the agent (A7): kept, recorded in task 0.1; commit scopes stay `DIS-30` |
+| 20 | 10 | Scenarios split across tasks (improvable) | Fixed: tasks 2.1 and 4.1 say the later part adds assertions to the existing `it`, never a second `it`, never a removed assertion |
+| 21 | 11 | New scenarios missing from tasks and the 5.2 count | Fixed: tasks 2.3, 3.1, 4.1; 5.2 counts 32 new TypeScript scenarios |
+
+Rejected: none.
