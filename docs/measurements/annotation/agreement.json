@@ -1,0 +1,56 @@
+{
+  "languages": [
+    {
+      "fixture": "acme-shop",
+      "n": 50,
+      "agreed": 50,
+      "percent": 100,
+      "kappa": 1,
+      "disagreements": [],
+      "control": [
+        {
+          "panelist": 1,
+          "n": 12,
+          "agreed": 12,
+          "percent": 100,
+          "kappa": 1,
+          "indicative": true
+        },
+        {
+          "panelist": 2,
+          "n": 12,
+          "agreed": 12,
+          "percent": 100,
+          "kappa": 1,
+          "indicative": true
+        }
+      ]
+    },
+    {
+      "fixture": "task-api",
+      "n": 50,
+      "agreed": 50,
+      "percent": 100,
+      "kappa": 1,
+      "disagreements": [],
+      "control": [
+        {
+          "panelist": 1,
+          "n": 10,
+          "agreed": 10,
+          "percent": 100,
+          "kappa": 1,
+          "indicative": true
+        },
+        {
+          "panelist": 2,
+          "n": 10,
+          "agreed": 10,
+          "percent": 100,
+          "kappa": 1,
+          "indicative": true
+        }
+      ]
+    }
+  ]
+}
