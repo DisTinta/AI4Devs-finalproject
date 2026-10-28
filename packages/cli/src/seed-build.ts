@@ -11,11 +11,18 @@ import type { TextSink } from './logger.js';
 import { toTerminalSafeJson } from './safe-json.js';
 import { collectFingerprintInputs, fingerprint } from './seed/fingerprint.js';
 import { renderSeedDump } from './seed/render-dump.js';
+import type { SeedProject } from './seed/render-dump.js';
 import { renderSampleProjects } from './seed/render-sample-projects.js';
 import { createSeedTransaction } from './seed/seed-transaction.js';
 
-/** The sample project the seed holds (Entrega 2: acme-shop only, PH-02). */
-export const SEED_PROJECT = 'acme-shop';
+/**
+ * The sample projects the seed holds, in name order (DIS-32, design D4): each is a fixture under
+ * `fixtures/<name>`, indexed with the analyzer of its language.
+ */
+export const SEED_PROJECTS = [
+  { name: 'acme-shop', language: 'php' },
+  { name: 'task-api', language: 'typescript' },
+] as const;
 
 /**
  * The name the sample is indexed under inside the never-committed transaction, so an `acme-shop`
@@ -59,19 +66,22 @@ export interface SeedBuildDeps {
 }
 
 /**
- * Runs `npm run seed:build` (DIS-91): checks the configuration, computes the fingerprints, rebuilds
- * acme-shop's history, indexes it under {@link SEED_BUILD_PROJECT_NAME} in a transaction that reads
- * the rows back and always rolls back, renders the seed and the web's sample-project constant
- * deterministically and replaces the constant, then the seed file, each atomically (DIS-92 design D3).
- * Prints no progress. On success stdout gets exactly one summary line and stderr nothing;
- * on failure stdout gets nothing and stderr exactly one `{"error":{…}}` line: `PARTIAL_WRITE` when the
- * constant was written and the seed was not, `INTERNAL` for any other unexpected failure, which always
- * happens before any file is written.
+ * Runs `npm run seed:build` (DIS-91; two projects, DIS-32 design D4): checks the configuration,
+ * computes the fingerprints, rebuilds the history of both samples, indexes each one in turn under
+ * {@link SEED_BUILD_PROJECT_NAME} in its own transaction that reads the rows back and always rolls
+ * back, renders the seed and the web's sample-project constant deterministically once both are read
+ * back and replaces the constant, then the seed file, each atomically (DIS-92 design D3).
+ * Prints no progress. On success stdout gets exactly one summary line per project and stderr nothing;
+ * on failure stdout gets nothing and stderr exactly one `{"error":{…}}` line, whose typed path is the
+ * sample whose indexing failed: `PARTIAL_WRITE` when the constant was written and the seed was not,
+ * `INTERNAL` for any other unexpected failure, which always happens before any file is written.
  *
  * @param deps The environment, the streams and the optional test seams.
  * @returns The exit code: `0` success, `1` any failure.
  */
 export async function runSeedBuild(deps: SeedBuildDeps): Promise<number> {
+  // The sample being indexed: the typed path of an error that names a repository.
+  let failing: string = SEED_PROJECTS[0].name;
   try {
     const { env } = deps;
     try {
@@ -92,34 +102,41 @@ export async function runSeedBuild(deps: SeedBuildDeps): Promise<number> {
     await (deps.buildHistory ?? defaultBuildHistory)(fixturesRoot, repoRoot);
 
     const exportRows = deps.exportRows ?? exportSeedRows;
-    const seed = createSeedTransaction(deps.openTransaction ?? defaultOpenTransaction(databaseUrl), (client) =>
-      exportRows(client, SEED_BUILD_PROJECT_NAME),
-    );
-    await indexWithEnvironment(
-      { path: SEED_PROJECT, name: SEED_BUILD_PROJECT_NAME, language: 'php' },
-      {
-        env: { ...env, ALLOWED_REPOS_DIR: fixturesRoot },
-        onProgress: () => undefined,
-        openTransaction: seed.openTransaction,
-        ports: deps.ports,
-      },
-    );
-    const rows = seed.rows();
-    const seedText = renderSeedDump(rows, fingerprints, SEED_PROJECT);
+    const openTransaction = deps.openTransaction ?? defaultOpenTransaction(databaseUrl);
+    // One transaction per project, one after the other: the temporary name would collide in one.
+    const projects: SeedProject[] = [];
+    for (const sample of SEED_PROJECTS) {
+      failing = sample.name;
+      const seed = createSeedTransaction(openTransaction, (client) => exportRows(client, SEED_BUILD_PROJECT_NAME));
+      await indexWithEnvironment(
+        { path: sample.name, name: SEED_BUILD_PROJECT_NAME, language: sample.language },
+        {
+          env: { ...env, ALLOWED_REPOS_DIR: fixturesRoot },
+          onProgress: () => undefined,
+          openTransaction: seed.openTransaction,
+          ports: deps.ports,
+        },
+      );
+      projects.push({ name: sample.name, rows: seed.rows() });
+    }
+    // Both read back: only now is anything rendered, so a failure of either writes nothing.
+    const seedText = renderSeedDump(projects, fingerprints);
     // The constant first, so the seed `db:seed` loads is the last file to change (DIS-92 design D3).
-    writeAtomically(sampleProjectsPath, renderSampleProjects(rows, SEED_PROJECT));
+    writeAtomically(sampleProjectsPath, renderSampleProjects(projects));
     try {
       writeAtomically(outputPath, seedText);
     } catch {
       throw partialWrite(displayPath(repoRoot, sampleProjectsPath), displayPath(repoRoot, outputPath));
     }
-    deps.stdout.write(
-      `${SEED_PROJECT}: ${rows.files.length} files, ${rows.symbols.length} symbols, ${rows.edges.length} edges, ` +
-        `${rows.commits.length} commits -> ${displayPath(repoRoot, outputPath)}\n`,
-    );
+    for (const { name, rows } of projects) {
+      deps.stdout.write(
+        `${name}: ${rows.files.length} files, ${rows.symbols.length} symbols, ${rows.edges.length} edges, ` +
+          `${rows.commits.length} commits -> ${displayPath(repoRoot, outputPath)}\n`,
+      );
+    }
     return 0;
   } catch (error) {
-    const failure = toCliError(error, { path: SEED_PROJECT, name: SEED_BUILD_PROJECT_NAME });
+    const failure = toCliError(error, { path: failing, name: SEED_BUILD_PROJECT_NAME });
     // Nothing is ever committed, so "may have been saved" (`CommitUncertain`) is never true here.
     const internal = failure.code === 'INTERNAL';
     const line = {
@@ -145,15 +162,17 @@ function missingConfig(variable: string): CliError {
   return new CliError('MISSING_CONFIG', 1, `${variable} is not set`, { variable });
 }
 
-/** `buildOne('acme-shop', …)` of the repository's history rebuilder, without its summary line. */
+/** `buildOne(<name>, …)` of the repository's history rebuilder for each sample, without its summary line. */
 async function defaultBuildHistory(fixturesRoot: string, repoRoot: string): Promise<void> {
   type BuildOne = (name: string, cfg: { dir: string; manifest: string }, options?: { log?: (line: string) => void }) => Promise<void>;
   const { buildOne } = (await import(pathToFileURL(join(repoRoot, 'fixtures', 'build-history.mjs')).href)) as { buildOne: BuildOne };
-  await buildOne(
-    SEED_PROJECT,
-    { dir: join(fixturesRoot, SEED_PROJECT), manifest: join(repoRoot, 'fixtures', 'history', `${SEED_PROJECT}.commits.mjs`) },
-    { log: () => undefined },
-  );
+  for (const { name } of SEED_PROJECTS) {
+    await buildOne(
+      name,
+      { dir: join(fixturesRoot, name), manifest: join(repoRoot, 'fixtures', 'history', `${name}.commits.mjs`) },
+      { log: () => undefined },
+    );
+  }
 }
 
 /** Writes `content` next to `path` and renames it over `path`; on failure removes the temporary file. */

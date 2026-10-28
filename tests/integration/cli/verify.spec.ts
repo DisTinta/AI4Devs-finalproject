@@ -27,6 +27,7 @@ const SEED_PATH = resolve(WORKSPACE_ROOT, 'seeds/graph-dump.sql');
 const GOLDEN_PATH = resolve(WORKSPACE_ROOT, 'seeds/cache/acme-shop.json');
 const SEED = readFileSync(SEED_PATH, 'utf8');
 const GOLDEN_TEXT = readFileSync(GOLDEN_PATH, 'utf8');
+const TASK_GOLDEN_TEXT = readFileSync(resolve(WORKSPACE_ROOT, 'seeds/cache/task-api.json'), 'utf8');
 const GOLDEN = JSON.parse(GOLDEN_TEXT) as {
   answerFingerprint: string;
   entries: Array<{ questionNormalized: string; response: StoredResponse & { statements: Array<{ type: string }> } }>;
@@ -38,14 +39,21 @@ const HEADER = {
 /** The seed's `project.indexed_commit` for acme-shop. */
 const SEED_COMMIT = indexedCommitOf(SEED, 'acme-shop')!;
 const ACME_ID = seedProjects(SEED).find((project) => project.name === 'acme-shop')!.id;
+const TASK_ID = seedProjects(SEED).find((project) => project.name === 'task-api')!.id;
+const TASK_GOLDEN = JSON.parse(TASK_GOLDEN_TEXT) as typeof GOLDEN;
 const ENV = { DATABASE_URL: databaseUrl };
 /** Loading the seed, then three questions over it. */
 const TIMEOUT_MS = 60_000;
+// DIS-32: two golden projects, so six `✓` lines and then one summary line per project.
 const MATCHING = [
   '✓ acme-shop Q1 ¿Cómo se calcula el precio final de un pedido?',
   '✓ acme-shop Q3 ¿Cómo se validan los cupones?',
   '✓ acme-shop Q4 ¿Qué hace OrderObserver al crear un pedido?',
+  '✓ task-api Q1 ¿Cómo valida taskRoutes las peticiones entrantes?',
+  '✓ task-api Q2 ¿Qué hace buildPage con los resultados paginados?',
+  '✓ task-api Q3 ¿Qué transiciones de estado son válidas?',
   'acme-shop: 3/3 golden answers match',
+  'task-api: 3/3 golden answers match',
 ];
 
 /** Temporary golden directories, removed at the end. */
@@ -106,6 +114,7 @@ async function loadVersioned(client: Client, options: { golden?: boolean } = {})
   if (options.golden === false) return;
   const store = createPostgresStore({ transaction: client });
   for (const entry of GOLDEN.entries) await store.saveCacheEntry(ACME_ID, entry.questionNormalized, entry.response);
+  for (const entry of TASK_GOLDEN.entries) await store.saveCacheEntry(TASK_ID, entry.questionNormalized, entry.response);
 }
 
 function errorOf(result: Run): { code: string; message: string; details: Record<string, unknown> } {
@@ -147,6 +156,7 @@ describeWithDatabase('verify (integration)', () => {
       const cacheDir = mkdtempSync(join(tmpdir(), 'codemind-verify-golden-'));
       dirs.push(cacheDir);
       writeFileSync(join(cacheDir, 'acme-shop.json'), `${JSON.stringify(altered, null, 2)}\n`);
+      writeFileSync(join(cacheDir, 'task-api.json'), TASK_GOLDEN_TEXT);
 
       // Act
       const result = await verify(db(), { cacheDir });
@@ -158,7 +168,11 @@ describeWithDatabase('verify (integration)', () => {
         '✗ acme-shop Q3 ¿Cómo se validan los cupones?',
         `    statements[0].type: expected "${flipped}", got "${original}"`,
         MATCHING[2],
+        MATCHING[3],
+        MATCHING[4],
+        MATCHING[5],
         'acme-shop: 2/3 golden answers match',
+        MATCHING[7],
       ]);
       expect(result.stderr).toBe('');
     },
@@ -184,7 +198,14 @@ describeWithDatabase('verify (integration)', () => {
         miss,
         MATCHING[2].replace('✓', '✗'),
         miss,
+        MATCHING[3].replace('✓', '✗'),
+        miss,
+        MATCHING[4].replace('✓', '✗'),
+        miss,
+        MATCHING[5].replace('✓', '✗'),
+        miss,
         'acme-shop: 0/3 golden answers match',
+        'task-api: 0/3 golden answers match',
       ]);
       expect(result.stderr).toBe('');
     },

@@ -222,33 +222,42 @@ entry matches.
 #### Scenario: Every golden answer matches
 
 - **GIVEN** a migrated database where `db:seed` (as `make up` runs it) loaded the versioned seed and
-  the versioned
-  `seeds/cache/acme-shop.json` (Q1, Q3 and Q4), current fingerprints and no `LLM_*` variable
+  the versioned golden files `seeds/cache/acme-shop.json` (Q1, Q3 and Q4) and
+  `seeds/cache/task-api.json` (Q1, Q2 and Q3), current fingerprints and no `LLM_*` variable
 - **WHEN** verify runs
 - **THEN** it exits with `0`; stdout is exactly
   `✓ acme-shop Q1 ¿Cómo se calcula el precio final de un pedido?`,
   `✓ acme-shop Q3 ¿Cómo se validan los cupones?`,
-  `✓ acme-shop Q4 ¿Qué hace OrderObserver al crear un pedido?` and
-  `acme-shop: 3/3 golden answers match`, one per line; stderr is empty
+  `✓ acme-shop Q4 ¿Qué hace OrderObserver al crear un pedido?`,
+  `✓ task-api Q1 ¿Cómo valida taskRoutes las peticiones entrantes?`,
+  `✓ task-api Q2 ¿Qué hace buildPage con los resultados paginados?`,
+  `✓ task-api Q3 ¿Qué transiciones de estado son válidas?`,
+  `acme-shop: 3/3 golden answers match` and `task-api: 3/3 golden answers match`, one per line;
+  stderr is empty
 
 #### Scenario: An altered golden answer is reported field by field
 
-- **GIVEN** the database of "Every golden answer matches" and, after the load, a golden file on disk
-  with the same fingerprints whose Q3 `statements[0].type` is `FACT` instead of `INFERENCE`
+- **GIVEN** the database of "Every golden answer matches" and, after the load, an acme-shop golden file
+  on disk with the same fingerprints whose Q3 `statements[0].type` is flipped (`FACT` becomes
+  `INFERENCE` and `INFERENCE` becomes `FACT`)
 - **WHEN** verify runs
-- **THEN** it exits with `1`; stdout is the `✓` line of Q1, the line
+- **THEN** it exits with `1`; stdout is the `✓` line of acme-shop's Q1, the line
   `✗ acme-shop Q3 ¿Cómo se validan los cupones?`, the line
-  `    statements[0].type: expected "FACT", got "INFERENCE"`, the `✓` line of Q4 and
-  `acme-shop: 2/3 golden answers match`; stderr is empty
+  `    statements[0].type: expected "<flipped>", got "<served>"`, `<served>` being the type stored in
+  the versioned golden file and `<flipped>` the other one, the `✓` line of acme-shop's Q4, the three
+  `✓` lines of task-api, `acme-shop: 2/3 golden answers match` and
+  `task-api: 3/3 golden answers match`; stderr is empty
 
 #### Scenario: A missing cache entry is reported as a cache miss
 
 - **GIVEN** a migrated database with the versioned seed loaded and no golden answer saved in the
   answer cache, and current golden files
 - **WHEN** verify runs
-- **THEN** it exits with `1`; each of Q1, Q3 and Q4 has a `✗` line followed by
+- **THEN** it exits with `1`; each of acme-shop's Q1, Q3 and Q4 and of task-api's Q1, Q2 and Q3 has a
+  `✗` line followed by
   `    expected an answer from the golden cache, got UNKNOWN (llm-required): run npm run db:seed`;
-  the last line is `acme-shop: 0/3 golden answers match`; stderr is empty
+  the last two lines are `acme-shop: 0/3 golden answers match` and
+  `task-api: 0/3 golden answers match`; stderr is empty
 
 #### Scenario: Count and span differences are listed in a fixed order
 
@@ -300,9 +309,10 @@ jobs when it is not green. A failing `verify` job SHALL fail the run.
 
 - **GIVEN** the pull request of this change
 - **WHEN** its CI run finishes
-- **THEN** the `verify` job succeeded, printing the three `✓` lines and `acme-shop: 3/3 golden
-  answers match`, and the `quality` job succeeded with `tests/integration/store/graph-read.spec.ts`
-  "Listing with no project returns an empty list" unchanged
+- **THEN** the `verify` job succeeded, printing `2 projects loaded` in its `db:seed` step, the six `✓`
+  lines, `acme-shop: 3/3 golden answers match` and `task-api: 3/3 golden answers match`, and the
+  `quality` job succeeded with `tests/integration/store/graph-read.spec.ts` "Listing with no project
+  returns an empty list" unchanged
 
 This scenario is checked by the CI run itself, a recorded check linked from an addendum to the
-step 9 report (task 14.3), not by a test.
+test-and-state report of this change, not by a test.

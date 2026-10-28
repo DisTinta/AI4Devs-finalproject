@@ -78,7 +78,8 @@ push a `main`.
 npm run verify
 ```
 
-Salida sobre la base de datos de `docs/DEMO.md` (2026-10-19, commit `c129278`; termina con código `0`):
+Salida sobre la base de datos de `docs/DEMO.md` (2026-10-28, commit `8c125f9`, con los dos proyectos de
+muestra de DIS-32; termina con código `0`):
 
 ```text
 
@@ -88,7 +89,11 @@ Salida sobre la base de datos de `docs/DEMO.md` (2026-10-19, commit `c129278`; t
 ✓ acme-shop Q1 ¿Cómo se calcula el precio final de un pedido?
 ✓ acme-shop Q3 ¿Cómo se validan los cupones?
 ✓ acme-shop Q4 ¿Qué hace OrderObserver al crear un pedido?
+✓ task-api Q1 ¿Cómo valida taskRoutes las peticiones entrantes?
+✓ task-api Q2 ¿Qué hace buildPage con los resultados paginados?
+✓ task-api Q3 ¿Qué transiciones de estado son válidas?
 acme-shop: 3/3 golden answers match
+task-api: 3/3 golden answers match
 ```
 
 Solo necesita el `DATABASE_URL` (lo lee de `.env`) de una base de datos donde `npm run db:seed` cargó

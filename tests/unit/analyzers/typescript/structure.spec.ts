@@ -355,12 +355,56 @@ describe('typescript analyzer structure', () => {
       ]);
     });
 
+    // DIS-32, design D1: spec code-analysis → "Module-level const functions are function symbols".
+    it('Module-level const functions are function symbols', async () => {
+      const symbols = await only(
+        'src/k.ts',
+        '/** Adds one. */\nexport const f = (a: number): number => a + 1;\nconst g = async () => {\n  function inner(): void {}\n  return 1;\n};\nexport const h = function (x: string) {\n  return x;\n};\nconst t = <T,>(x: T): T => x;\n',
+      );
+      expect(symbols.map((s) => `${span(s)} ${s.signature}`)).toEqual([
+        'function f 2-2 export const f = (a: number): number =>',
+        'function g 3-6 const g = async () =>',
+        'function inner 4-4 function inner(): void',
+        'function h 7-9 export const h = function (x: string)',
+        'function t 10-10 const t = <T,>(x: T): T =>',
+      ]);
+      const result = await analyzer.analyze({ files: [file('src/k.ts', '/** Adds one. */\nexport const f = (a: number): number => a + 1;\n')] });
+      expect(result.diagnostics).toEqual([]);
+    });
+
+    // DIS-32, design D1: spec code-analysis → "Other variable forms are not function symbols".
+    it('Other variable forms are not function symbols', async () => {
+      const result = await analyzer.analyze({
+        files: [
+          file(
+            'src/v.ts',
+            'let a = () => 1;\nvar b = () => 1;\nconst c = () => 1, d = () => 2;\nconst { e } = { e: () => 1 };\nconst z = 3;\nconst w = (() => 1);\nconst y = (() => 1) as () => number;\ndeclare const q: () => void;\nconst K = class { run() {} };\nexport function outer(): void { const inside = () => 1; }\nif (z) { const blocked = () => 1; }\n',
+          ),
+        ],
+      });
+      expect(result.symbols.map(span)).toEqual(['method run 9-9', 'function outer 10-10']);
+      expect(result.diagnostics).toEqual([]);
+    });
+
+    // DIS-32, design D1: spec code-analysis → "Const functions are no endpoint of calls edges".
+    it('Const functions are no endpoint of calls edges', async () => {
+      const result = await analyzer.analyze({
+        files: [file('src/c.ts', 'export function target(): void {}\nexport const f = (): void => { target(); };\nexport function caller(): void { f(); [1].forEach(f); }\n')],
+      });
+      expect(result.symbols.map(span)).toEqual(['function target 1-1', 'function f 2-2', 'function caller 3-3']);
+      expect(result.edges.filter((e) => e.kind === 'calls')).toEqual([]);
+      const involvesF = result.edges.filter((e) =>
+        [e.source, e.target].some((end) => end.symbol !== undefined && end.symbol.name === 'f'),
+      );
+      expect(involvesF).toEqual([]);
+    });
+
     it('Variables, types, accessors and ambient declarations are not symbols', async () => {
       const result = await analyzer.analyze({
         files: [
           file(
             'src/n.ts',
-            "export const a = () => 1;\nexport type T = { run(): void };\nexport enum E { A }\nexport class C {\n  handler = () => 1;\n  get v(): number { return 1; }\n  ['x']() {}\n}\nconst o = { m() {} };\ndeclare global { interface Window { x: number } }\nexport namespace N { export function g() {} }\ndeclare function h(): void;\nexport function outer(): void { function inner(): void {} }\n",
+            "export let a = () => 1;\nexport type T = { run(): void };\nexport enum E { A }\nexport class C {\n  handler = () => 1;\n  get v(): number { return 1; }\n  ['x']() {}\n}\nconst o = { m() {} };\ndeclare global { interface Window { x: number } }\nexport namespace N { export function g() {} }\ndeclare function h(): void;\nexport function outer(): void { function inner(): void {} }\n",
           ),
         ],
       });

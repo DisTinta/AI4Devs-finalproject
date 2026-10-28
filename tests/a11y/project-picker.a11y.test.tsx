@@ -56,7 +56,8 @@ describe('Accessibility of Screen 1 and of the error screen', () => {
     // Act
     vi.stubGlobal('fetch', available);
     const first = renderAt(routes, '/');
-    await screen.findByText('listo');
+    // Two cards (DIS-32): the badge is shown once per sample project.
+    await screen.findAllByText('listo');
     const withApiAvailable = violatedRules(await axe.run(document));
     first.unmount();
 

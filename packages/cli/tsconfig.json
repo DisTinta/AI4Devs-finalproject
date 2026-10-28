@@ -11,6 +11,7 @@
     { "path": "../adapters/git" },
     { "path": "../adapters/llm" },
     { "path": "../adapters/store-postgres" },
-    { "path": "../analyzers/php" }
+    { "path": "../analyzers/php" },
+    { "path": "../analyzers/typescript" }
   ]
 }

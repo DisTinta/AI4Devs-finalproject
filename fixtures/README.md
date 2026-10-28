@@ -55,11 +55,11 @@ node fixtures/build-history.mjs task-api   # one
 ```
 
 The generated `.git` is gitignored and fully regenerable (fixed authors, dates
-and messages — no wall-clock dependency). `npm run seed:build` runs it (for acme-shop only in
-Entrega 2) before indexing the fixture into `seeds/graph-dump.sql`. `npm run up` also rebuilds
-`acme-shop`'s history on every start, as its step `node fixtures/build-history.mjs acme-shop`
-after `npm run db:seed` (about 11 s): live answers read the fixture's code from that `.git`, which a
-clean clone does not have. Whoever starts the system without `npm run up` runs that command once
+and messages — no wall-clock dependency). `npm run seed:build` runs it for both fixtures
+before indexing them into `seeds/graph-dump.sql`. `npm run up` also rebuilds both histories on
+every start, as its steps `node fixtures/build-history.mjs acme-shop` and
+`node fixtures/build-history.mjs task-api` after `npm run db:seed` (about 11 s each): live answers
+read the fixture's code from that `.git`, which a clean clone does not have. Whoever starts the system without `npm run up` runs that command once
 from the repository root; without it, a live question ends with `SOURCE_UNAVAILABLE`
 (`not-a-repository`). The built `HEAD` is the seed's `indexed_commit`, and the build changes neither
 the seed's fingerprint nor evaluation mode. This choice keeps the real `simple-git` extractor
@@ -199,7 +199,7 @@ anchored to symbols so it survives edits.
 `seeds/cache/acme-shop.json`, generated with `npm run cache:build` (a live
 model, after `npm run seed:build`) and loaded into the answer cache by
 `npm run db:seed`, so they answer in evaluation mode without a model. Their ids
-and texts are `GOLDEN_QUESTIONS` of `packages/cli/src/cache/demo-questions.ts`,
+and texts are the acme-shop entry of `GOLDEN_PROJECTS` in `packages/cli/src/cache/demo-questions.ts`,
 which `tests/unit/seed/golden-questions.spec.ts` checks against this table:
 change a question here and there together, then regenerate. The others have
 none: Q2 is an impact question (CM-HU-16, not an `explain` answer); Q5 is the
@@ -311,10 +311,21 @@ so the strong historical coupling is not obvious from the import graph.
 
 | # | Question | Expected answer | Evidence (symbol) |
 |---|---|---|---|
-| Q1 | ¿Cómo se validan las peticiones entrantes? | schema-first: each route attaches a Zod schema; parsed/typed before the controller; 400 on failure | `createTaskSchema`/`listTasksQuerySchema` in `task.schema.ts`/`pagination.schema.ts`; `taskRoutes`; `validation.test.ts` |
-| Q2 | ¿Cómo se paginan los resultados? | query schema bounds `page`/`pageSize`; `applyFilters`+`sortTasks`; `buildPage` builds the page | `listTasksQuerySchema`; `sortTasks`; `buildPage`; `task.filters.test.ts` |
+| Q1 | ¿Cómo valida taskRoutes las peticiones entrantes? | schema-first: each route attaches a Zod schema; parsed/typed before the controller; 400 on failure | `createTaskSchema`/`listTasksQuerySchema` in `task.schema.ts`/`pagination.schema.ts`; `taskRoutes`; `validation.test.ts` |
+| Q2 | ¿Qué hace buildPage con los resultados paginados? | query schema bounds `page`/`pageSize`; `applyFilters`+`sortTasks`; `buildPage` builds the page | `listTasksQuerySchema`; `sortTasks`; `buildPage`; `task.filters.test.ts` |
 | Q3 | ¿Qué transiciones de estado son válidas? | the `TRANSITIONS` table; illegal moves throw `IllegalStatusTransitionError` (409) | `canTransition` in `task-status.ts`; `TaskService::update`; `task-status.test.ts` |
 | Q4 (UNKNOWN) | ¿Cómo se autentican los usuarios? | **UNKNOWN** — there is no authentication in the repo | — (no evidence) |
+
+**Golden answers (DIS-32).** Q1, Q2 and Q3 are golden: their answers are in
+`seeds/cache/task-api.json` (generated with `npm run cache:build`, loaded by `npm run db:seed`), and
+they answer in evaluation mode without a model. Q4 is `UNKNOWN` `no-anchor` and has no golden answer:
+its terms (`autentican`, `usuarios` and their prefixes) name no symbol of task-api, so `ask` answers it
+before the cache is read, without a model. Every golden question must anchor a symbol of its project
+(a question that anchors none answers `UNKNOWN` `no-anchor` and could never be golden): Q1 anchors
+through `taskRoutes`, Q2 through `buildPage` and Q3 through `canTransition`, which is why Q1 and Q2
+name a symbol (the validation and pagination wording of the first version anchored nothing). The
+texts are the task-api entry of `GOLDEN_PROJECTS`, which `tests/unit/seed/golden-questions.spec.ts`
+checks against this table.
 
 ## Planted secret
 

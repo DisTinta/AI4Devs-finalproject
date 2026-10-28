@@ -10,7 +10,7 @@ import { LlmUnavailable, normalizeQuestion, parseStoredResponse } from '@codemin
 import { runCacheBuild } from '../../../packages/cli/src/cache-build';
 import type { CacheBuildDeps } from '../../../packages/cli/src/cache-build';
 import { answerFingerprint } from '../../../packages/cli/src/cache/answer-fingerprint';
-import { GOLDEN_QUESTIONS } from '../../../packages/cli/src/cache/demo-questions';
+import { GOLDEN_PROJECTS } from '../../../packages/cli/src/cache/demo-questions';
 import { checkGoldenFile, renderGoldenFile } from '../../../packages/cli/src/cache/golden-file';
 import type { GoldenFile } from '../../../packages/cli/src/cache/golden-file';
 import type { OpenTransaction } from '../../../packages/cli/src/compose-index';
@@ -41,6 +41,10 @@ const AWS_KEY = 'AKIA' + 'ABCDEFGHIJKLMNOP';
 
 type BuildOne = (name: string, cfg: { dir: string; manifest: string }) => Promise<void>;
 
+/** The golden questions of acme-shop, the project these scenarios build (DIS-32: `--project acme-shop`). */
+const ACME_QUESTIONS = GOLDEN_PROJECTS.find(({ name }) => name === 'acme-shop')?.questions ?? [];
+const ACME = ['--project', 'acme-shop'];
+
 let T = '';
 
 beforeAll(async () => {
@@ -57,7 +61,7 @@ afterAll(() => {
 
 /** The golden question id a prompt asks about. */
 function questionId(prompt: PromptView): string {
-  const golden = GOLDEN_QUESTIONS.find(({ question }) => prompt.question.includes(question));
+  const golden = ACME_QUESTIONS.find(({ question }) => prompt.question.includes(question));
   return golden?.id ?? '?';
 }
 
@@ -109,13 +113,14 @@ async function build(
   const model = createScriptedLlm('live', options.script ?? ((prompt) => validAnswer(prompt)));
   let stdout = '';
   let stderr = '';
-  const exit = await runCacheBuild(options.argv ?? [], {
+  const exit = await runCacheBuild(options.argv ?? ACME, {
     env: options.env ?? ENV,
     stdout: { write: (chunk: string) => void (stdout += chunk) },
     stderr: { write: (chunk: string) => void (stderr += chunk) },
     workspaceRoot: T,
     seedPath: options.seedPath ?? SEED_PATH,
-    outputPath: options.output,
+    // The directory of the acme-shop file `options.output` names (DIS-32: golden files are per project).
+    outputDir: dirname(options.output),
     buildHistory: async () => void log.push('history'),
     seedFingerprints: () => HEADER,
     openTransaction: savepointTransaction(client, log),
@@ -216,7 +221,7 @@ describeWithDatabase('cache build (integration)', () => {
       expect(file.answerFingerprint).toBe(answerFingerprint(WORKSPACE_ROOT));
       expect(file.generatedWith).toEqual({ model: 'qwen2.5-coder', verifyModel: 'qwen2.5-coder' });
       expect(file.entries.map(({ id, question, questionNormalized, reviews }) => ({ id, question, questionNormalized, reviews }))).toEqual(
-        GOLDEN_QUESTIONS.map(({ id, question }) => ({ id, question, questionNormalized: normalizeQuestion(question), reviews: [] })),
+        ACME_QUESTIONS.map(({ id, question }) => ({ id, question, questionNormalized: normalizeQuestion(question), reviews: [] })),
       );
       const files = seedFiles();
       for (const entry of file.entries) {
@@ -337,7 +342,7 @@ describeWithDatabase('cache build (integration)', () => {
       // Act
       const partial = await build(db(), {
         output,
-        argv: ['Q3'],
+        argv: [...ACME, 'Q3'],
         script: (prompt) => validAnswer(prompt, 'Los cupones se validan en CouponValidator.'),
       });
 

@@ -337,6 +337,49 @@ describeWithDatabase('ask (integration)', () => {
     TIMEOUT_MS,
   );
 
+  // DIS-32, Follow-ups SA3 and Q-A: spec golden-answers → "task-api's Q4 is answered UNKNOWN without anchor
+  // in evaluation mode". The versioned seed and golden files are loaded; Q4 has no golden answer.
+  it(
+    "task-api's Q4 is answered UNKNOWN without anchor in evaluation mode",
+    async () => {
+      // Arrange
+      const { store, deps } = await seeded();
+      for (const name of ['acme-shop', 'task-api']) {
+        const golden = JSON.parse(readFileSync(resolve(WORKSPACE_ROOT, `seeds/cache/${name}.json`), 'utf8')) as {
+          entries: Array<{ questionNormalized: string; response: Parameters<typeof store.saveCacheEntry>[2] }>;
+        };
+        const { rows } = await db().query<{ id: string }>('SELECT id FROM project WHERE name = $1', [name]);
+        for (const entry of golden.entries) await store.saveCacheEntry(rows[0]!.id, entry.questionNormalized, entry.response);
+      }
+      const taskCache = async (): Promise<number> =>
+        (await db().query<{ n: number }>(`SELECT count(*)::int AS n FROM cache_entry WHERE project_id = (SELECT id FROM project WHERE name = 'task-api')`)).rows[0]!.n;
+      const claimsBefore = await claimCount();
+      const cacheBefore = await taskCache();
+      let llmBuilt = 0;
+
+      // Act: no LLM_* variable, so evaluation mode; the question's terms match no symbol of task-api.
+      const result = await ask(['ask', 'task-api', '¿Cómo se autentican los usuarios?'], {
+        env: { DATABASE_URL: 'postgres://injected-transaction' },
+        ...deps,
+        createLlm: (config) => {
+          llmBuilt += 1;
+          return createScriptedLlm(config.mode === 'live' ? 'live' : 'evaluation').llm;
+        },
+      });
+
+      // Assert
+      expect(result.exit).toBe(0);
+      expect(result.stdout).toBe('UNKNOWN (no-anchor)\n');
+      expect(result.stderr).toBe('');
+      expect(cacheBefore).toBe(3);
+      expect(await taskCache()).toBe(cacheBefore);
+      expect(await claimCount()).toBe(claimsBefore);
+      // No request reaches a model: the evaluation model has none, and the scripted one records any.
+      expect(llmBuilt).toBeLessThanOrEqual(1);
+    },
+    TIMEOUT_MS,
+  );
+
   it(
     'A discarded model output answers invalid-model-output',
     async () => {

@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -21,11 +22,14 @@ export interface FingerprintInputs {
 /**
  * Directories whose every file feeds the analyzer fingerprint: every repository file that produces
  * the seed's rows — the analyzer, the indexing core, the history and store adapters, the seed renderer and the
- * sample fixture with its history manifest (DIS-91 design D4). Paths with a `.git` segment are skipped
- * (`fixtures/acme-shop/.git` exists after the history rebuild).
+ * sample fixtures with their history manifest (DIS-91 design D4; the TypeScript analyzer and
+ * `fixtures/task-api` are added by DIS-32, design D5). Paths with a `.git` or `node_modules` segment
+ * are skipped (`fixtures/acme-shop/.git` exists after the history rebuild); the directories of
+ * {@link TRACKED_DIRECTORIES} contribute only the files tracked by the repository.
  */
 const ANALYZER_DIRECTORIES = [
   'packages/analyzers/php/src',
+  'packages/analyzers/typescript/src',
   'packages/core/src/index',
   'packages/core/src/knowledge',
   'packages/cli/src/seed',
@@ -33,13 +37,21 @@ const ANALYZER_DIRECTORIES = [
   'packages/adapters/store-postgres/src',
   'fixtures/history',
   'fixtures/acme-shop',
+  'fixtures/task-api',
 ];
+
+/**
+ * The fixtures: under them only the files in the repository's index are inputs (DIS-32, design D5),
+ * the same files the history rebuild commits, so an untracked or ignored file a local run leaves
+ * there (`node_modules/`, `dist/`, `.env`) never makes the local fingerprint differ from CI's.
+ */
+const TRACKED_DIRECTORIES = new Set(['fixtures/acme-shop', 'fixtures/task-api']);
 
 /** Single files that feed the analyzer fingerprint, for the same reason. */
 const ANALYZER_FILES = ['packages/cli/src/seed-build.ts', 'packages/cli/src/compose-index.ts', 'fixtures/build-history.mjs'];
 
 /** Parser packages whose resolved version feeds the analyzer fingerprint. */
-const PARSER_DEPENDENCIES = ['tree-sitter-php', 'web-tree-sitter'];
+const PARSER_DEPENDENCIES = ['tree-sitter-php', 'typescript', 'web-tree-sitter'];
 
 const ANALYZER_PORT = 'packages/core/src/ports/AnalyzerPort.ts';
 const MIGRATIONS_DIRECTORY = 'packages/adapters/store-postgres/migrations';
@@ -69,7 +81,11 @@ export function fingerprint(inputs: FingerprintInput[]): string {
  *
  * @param repoRoot The repository root.
  * @returns The analyzer and contract inputs.
- * @throws Error when `package-lock.json` does not resolve a parser dependency, or a file cannot be read.
+ * Under `fixtures/acme-shop` and `fixtures/task-api` only the files tracked by the repository count
+ * (DIS-32, design D5).
+ *
+ * @throws Error when `package-lock.json` does not resolve a parser dependency, a file cannot be read,
+ *   or `git ls-files` fails (the commands that fingerprint need a git clone, not a ZIP).
  */
 export function collectFingerprintInputs(repoRoot: string): FingerprintInputs {
   const lock = JSON.parse(readFileSync(join(repoRoot, 'package-lock.json'), 'utf8')) as {
@@ -82,7 +98,9 @@ export function collectFingerprintInputs(repoRoot: string): FingerprintInputs {
   });
   const analyzer = [
     ...deps,
-    ...ANALYZER_DIRECTORIES.flatMap((directory) => filesUnder(repoRoot, directory)),
+    ...ANALYZER_DIRECTORIES.flatMap((directory) =>
+      TRACKED_DIRECTORIES.has(directory) ? trackedFilesUnder(repoRoot, directory) : filesUnder(repoRoot, directory),
+    ),
     ...ANALYZER_FILES.map((path) => read(repoRoot, path)),
   ];
   const migrations = readdirSync(join(repoRoot, MIGRATIONS_DIRECTORY))
@@ -95,11 +113,30 @@ export function collectFingerprintInputs(repoRoot: string): FingerprintInputs {
 /** Every file under `directory`, recursively (no `recursive` option: `Dirent.parentPath` needs Node 20.12). */
 function filesUnder(repoRoot: string, directory: string): FingerprintInput[] {
   return readdirSync(join(repoRoot, directory), { withFileTypes: true }).flatMap((entry) => {
-    if (entry.name === '.git') return [];
+    if (entry.name === '.git' || entry.name === 'node_modules') return [];
     const path = `${directory}/${entry.name}`;
     if (entry.isDirectory()) return filesUnder(repoRoot, path);
     return entry.isFile() ? [read(repoRoot, path)] : [];
   });
+}
+
+/**
+ * Every file of `directory` in the repository's index (`git ls-files -z` at `repoRoot`), with its
+ * content read from the working tree (DIS-32, design D5).
+ *
+ * @throws Error when `git` cannot list the files (no `git`, or `repoRoot` is not a working tree).
+ */
+function trackedFilesUnder(repoRoot: string, directory: string): FingerprintInput[] {
+  const listing = execFileSync('git', ['ls-files', '-z', '--', directory], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+    stdio: ['ignore', 'pipe', 'ignore'],
+  });
+  return listing
+    .split('\0')
+    .filter((path) => path !== '')
+    .map((path) => read(repoRoot, path));
 }
 
 function read(repoRoot: string, path: string): FingerprintInput {

@@ -40,6 +40,12 @@ beforeAll(async () => {
   execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', '-c', 'commit.gpgsign=false', 'commit', '-q', '--allow-empty', '-m', message], {
     cwd: ACME_SHOP,
   });
+  // DIS-32, design D3: a copy of task-api (no `.git`, no `node_modules`) with its history rebuilt.
+  cpSync(resolve('fixtures/task-api'), join(T, 'task-api'), {
+    recursive: true,
+    filter: (source) => basename(source) !== '.git' && basename(source) !== 'node_modules',
+  });
+  await buildOne('task-api', { dir: join(T, 'task-api'), manifest: resolve('fixtures/history/task-api.commits.mjs') });
   mkdirSync(join(T, 'no-repo'));
   mkdirSync(join(T, 'vacio'));
   execFileSync('git', ['init', '-q'], { cwd: join(T, 'vacio') });
@@ -274,6 +280,33 @@ describeWithDatabase('cli index on acme-shop', () => {
       expect(result.exit).toBe(1);
       expect(errorOf(result)).toEqual({ code: 'NOT_A_GIT_REPOSITORY', message: '"no-repo" is not the root of a git repository', details: {} });
       expectNoRealRoot(result);
+    },
+    INDEXING_TIMEOUT_MS,
+  );
+
+  it(
+    'A TypeScript repository is indexed with the TypeScript analyzer',
+    async () => {
+      // Act
+      const result = await runCli(['task-api', '--name', unique('task-api'), '--language', 'typescript'], {
+        openTransaction: savepointTransaction(db()),
+      });
+
+      // Assert
+      expect(result.exit).toBe(0);
+      const projectId = /^Indexed project (\S+)$/m.exec(result.stdout)?.[1];
+      expect(projectId).toBeDefined();
+      const project = (await db().query('SELECT language, framework FROM project WHERE id = $1', [projectId])).rows[0];
+      expect(project).toEqual({ language: 'typescript', framework: 'fastify' });
+      const names = (
+        await db().query('SELECT s.name FROM symbol s JOIN file f ON f.id = s.file_id WHERE f.project_id = $1', [projectId])
+      ).rows.map((row) => row.name as string);
+      expect(names).toContain('taskRoutes');
+      expect(names).toContain('TaskService');
+      const calls = (
+        await db().query(`SELECT DISTINCT resolution, extractor FROM edge WHERE project_id = $1 AND kind = 'calls'`, [projectId])
+      ).rows;
+      expect(calls).toEqual([{ resolution: 'exact', extractor: 'ts-compiler' }]);
     },
     INDEXING_TIMEOUT_MS,
   );
