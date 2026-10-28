@@ -428,3 +428,14 @@ their findings here.
 | AP-3 | `instances` are counted by the definitions of AP-1 over `app/**`, `routes/**` and `src/**` (comments excluded), by search and reading; they are a record of the selection, not an input of any measure, and the test checks the minimum rule against them | **D** — accepted |
 | AP-4 | Where a line holds two calls of the same text (`priorityRank(` in `task.filters.ts:35`), the site is the first on the line; where one line holds a call and a reference (`routes/api.php:12`, `app.ts:31`), they are two sites with different `call` | **A** — site lists |
 | AP-5 | The first test of the site lists also checks the selection record (labels and order of D5, ids partition the 50 sites, the minimum per construction); no new scenario, the 28 stay | **A** — task 2.1 |
+
+*Apply, after the panel (2026-10-28) — decisions of the agent, as lead engineer, without the author.*
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| AF-1 | The panel agreed on all 100 sites, also with the control: no disagreement, an empty resolution, no control discrepancy. The report says so without interpreting it and lists, as a limitation, that two models of one family are not independent annotators in the sense of different people. No discrepancy means no Spanish checklist comment on DIS-80 for task 6.4 | **A** — report (`## Desacuerdos`, `## Discrepancias con el control`, limitations) |
+| AF-2 | The `reexport` row of task-api has 0 instances (AP-2): the report states it as a limitation for the author, who may want a fixture with a call through a re-export before Table 2 is read | **C** — note for the author in the report and in the Spanish comment on DIS-80 |
+| AF-3 | P1 (`form` in format 1) needs no new comment on DIS-79: the comment of spec audit run 1 already lists `form` with `read` and the matching key | **B** — already covered (task 6.4) |
+| AF-4 | The scratchpad copy of task 9 was not deleted because the repository policy blocks `rm -rf`; it holds only copies outside the repository | **D** — accepted |
+| AF-5 | `origin/final-project-CRN` moved during the ticket (PR #77, DIS-32): merged into the branch before the freeze, as task 0.1 says; it touches `fixtures/README.md` outside the Table 2 section only. The apply ran in the existing worktree `.worktrees/dis-32` (the branch is checked out in the main checkout) and published with a push of `HEAD` to the branch | **D** — accepted |
+| AF-6 | `README.md` §2.6 (`readme.md` on disk) and `fixtures/README.md` say the annotation was made by two independent agents, with the control rows described as written by hand in `fixtures/README.md` only; `docs/project-context.md` documents where the reference lives and that it is regenerated only with the `merge` command | **A** — task 11 |

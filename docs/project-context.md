@@ -1430,6 +1430,12 @@ services that must be started first, quirks of the local environment.
   defaults plus one diagnostic). Not wired into the CLI until DIS-32. Gotcha (design D8): tests walk
   `fixtures/task-api` without `node_modules/` and `package-lock.json`, which exist only where someone ran
   `npm install` in the fixture.
+- **The Table 2 reference lives in `fixtures/annotations/`** (DIS-80): 50 call sites per sample project
+  in format 1 (`*.callsites.json`), annotated by two independent agents of different models and
+  frozen by `tests/unit/docs/annotation-freeze.spec.ts` against the hashes of
+  `docs/measurements/annotation-agreement.md`. Regenerate only with
+  `node scripts/annotation-agreement.mjs merge`, which changes the hashes and fails that test; never
+  edit those files.
 - **Calls inside method bodies are `exact` only when the receiver type is declared** (DIS-52). The
   PHP analyzer emits `calls` (`exact`, `php-treesitter-laravel`) from a method `Type::m` for
   `$this->p->m()` (property `p` of the same type, promoted or declared, with a single named type — not
