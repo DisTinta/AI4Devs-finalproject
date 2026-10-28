@@ -33,8 +33,13 @@ P1–P8 are taken in this proposal (agent's text, lead engineer in an autonomous
 `{ "fixture", "language", "formatVersion": 1, "sites": [ { "id", "control", "site": {"file","line"}, "form", "call", "source": {"symbol"} | {"file"}, "target": {"file","symbol"} | null, "expected": "exact"|"heuristic"|"none", "reason", "decidedBy": "agreement"|"tiebreak" } ] }`.
 Endpoints mirror `EdgeEndpoint` (file or symbol); symbol names follow the analyzers (`Class::method`,
 a function by its name; PHP constructors `Class::__construct`, TypeScript `Class::constructor`);
-paths are relative to the fixture root; DIS-79 matches by `file` + `symbol`. `form` is an addition
-of this proposal (P1), told to DIS-79 by comment.
+paths are relative to the fixture root. `form` is `call`, `new`, `read` or `reference`, an addition
+of this proposal (P1), told to DIS-79 by comment. *Matching key for DIS-79 (agent's text, spec audit
+run 1):* a site matches an emitted `calls` edge when the edge's target has the site's `target.file`
+and `target.symbol`, and the site's `site.file` + `site.line` lie inside the span of the edge's
+source symbol; source names are not compared, because for routes the PHP analyzer's source is a
+`route` symbol spanning the whole statement (`docs/project-context.md:1431-1437`) while format 1
+records `source: { "file": "routes/..." }`.
 
 **D2 — Criterion of `expected`, written before any judgement** (copied verbatim into the Panel group).
 The resolution a static analyzer **should** give when it reads only the fixture's own source files
@@ -59,10 +64,29 @@ The resolution a static analyzer **should** give when it reads only the fixture'
 - `form: reference` sites are judged as the call the reference stands for: the target is the
   function or method it names.
 
-**D3 — Unit = one call expression or one reference passed as an argument.** 50 sites per language
-including the controls (12 + 38, 10 + 40). When a README row describes two edges (task-api row 3),
-the control site is the call that leaves the row's source symbol (`TaskService::update` →
-`this.get(`); the other call may be a new site.
+*Additions of spec audit run 1 (agent's text, decided as lead engineer), copied into the Panel group:*
+- Precedence: the `heuristic` list wins over `none` when one of its conventions applies to fixture
+  code (for example `event(new E)` or a job dispatch), even if the outer call is a framework function.
+- `X::dispatch(...)` (also `dispatchSync`, `dispatchIf`, `dispatchUnless`, `dispatchAfterResponse`)
+  on a fixture class that uses `Dispatchable` and declares `handle` → `heuristic`, target
+  `X::handle`; `dispatch(new X(...))` likewise.
+- `new X(...)` where `X` declares no constructor (neither itself nor a fixture parent) → `none`: no
+  symbol exists to target.
+- A method inherited from a fixture class → the symbol of the class that declares it
+  (`Parent::m`).
+- "Declared first", when a call can reach several symbols: first in the registration list when
+  there is one (the `$listen` array, a container binding), otherwise by file path, then line.
+- A `form: read` site is judged as the access `__get` serves: a declared accessor
+  (`get{Studly}Attribute`) or relation method → `heuristic` with that target; a plain column with no
+  declared accessor or relation → `none`.
+
+**D3 — Unit = one call expression, one property read served by `__get`, or one reference passed as
+an argument.** 50 sites per language including the controls (12 + 38, 10 + 40). A `read` site and a
+route action passed as a `reference` (array callable or `'Controller@method'` string) are each one
+site; for a route, the framework call on the same line (`Route::get(`) is a different site. When a
+README row describes two edges (task-api row 3), the control site is the call that leaves the row's
+source symbol (`TaskService::update` → `this.get(`), and its control target is that call's target
+(`TaskService::get`, `exact`); the other call may be a new site.
 
 **D4 — Sources (allowlist).** A panelist may read only: `fixtures/acme-shop/{app,routes,config,database}/**`
 and `fixtures/acme-shop/composer.json`; `fixtures/task-api/src/**`, `fixtures/task-api/package.json`
@@ -73,8 +97,12 @@ traps and expected edges), `fixtures/annotations/**`, the rest of `docs/measurem
 `docs/project-context.md` and every other repository doc, `packages/**`, `tests/**`, `seeds/**`,
 the rest of `openspec/**`, `prompts.md`, and the **comments** of DIS-80 and of every other ticket
 (a comment from DIS-31 on DIS-80 states two control answers: P2). The resolver may also read
-`panelist-1.json`, `panelist-2.json` and `agreement.json`. Each output declares what it read in
-`sourcesRead`; the script rejects any path outside the allowlist of its role.
+`panelist-1.json`, `panelist-2.json` and `agreement.json` (`agreement.json` is the list of
+disagreement ids between the two panel outputs, not a measurement of the graph; the resolver may
+instead derive the same ids from the two panel outputs). Each output declares what it read in
+`sourcesRead`, one entry per **file** (a repository-relative path) or the literal
+`linear:DIS-80/description`; a directory or a glob is rejected, and so is any path outside the
+allowlist of its role.
 
 **D5 — Selection** by the preparation (apply, not a panelist), from application code only (PHP
 `app/**`, `routes/**`; TypeScript `src/**`), covering every hard construction the fixture has: in
@@ -82,13 +110,22 @@ PHP the seven "Analyzer traps" (facade, container binding, `__call`, Eloquent ma
 string route, job, event) with at least 2 new sites each where the fixture has 2 or more instances,
 plus framework and PHP built-in calls; in TypeScript calls to imported functions, interface
 methods, `new`, method references and callbacks (`.map`, `.filter`, `register(plugin)`), calls
-through `index.ts` re-exports, standard library, Zod and Fastify calls. The count per construction
-goes in the report, written after the panel (never in the site list, so as not to hint answers).
+through `index.ts` re-exports, standard library, Zod and Fastify calls. *Construction rows (agent's
+text, spec audit run 1), each with a minimum of 2 new sites, or every remaining instance outside the
+controls when fewer than 2 remain:* PHP — facade, container binding by string, `__call` /
+`__callStatic`, Eloquent attribute or relation read (`read`), string route action, array route
+action, job dispatch, event, PHP or framework function; TypeScript — imported function, interface
+method, `new`, method reference, callback, call through an `index.ts` re-export, standard library,
+Zod, Fastify. One more row per fixture, "other call" (no minimum), takes every remaining site, so
+every site belongs to exactly one row. The count per construction goes in the report's selection
+table (construction, instances in application code, control ids, new ids), written after the panel
+(never in the site list, so as not to hint answers).
 The order of the new sites is file path then line, so it carries no hint either.
 
 **D6 — Measures.** Agreement = same `expected` and same `target` (`file` and `symbol`); percent =
-agreed / n × 100, one decimal. Cohen's kappa over `expected` with three categories: p_o = sites with
-the same `expected` / n, p_e = Σ_k (a_k / n)(b_k / n), κ = (p_o − p_e) / (1 − p_e), three decimals;
+agreed / n × 100, one decimal (half away from zero, as in the spec). Cohen's kappa over `expected`
+with three categories: p_o = sites with the same `expected` / n, p_e = Σ_k (a_k / n)(b_k / n),
+κ = (p_o − p_e) / (1 − p_e), three decimals (half away from zero);
 undefined (`null`) when p_e = 1. Per panelist and language, the same against the control reference
 (n = 12 / 10), kappa flagged indicative.
 
@@ -106,8 +143,13 @@ C) for the author.
 
 **D10 — Script with tests**, so figures are reproducible. `scripts/annotation-agreement.mjs`
 exports pure functions (`validateOutput`, `agreement`, `cohenKappa`, `mergeAnnotations`, `sha256`,
-`checkFreeze` — compares the hashes a report records with the files) and a CLI with three commands, all with repository-relative fixed paths and an optional root for
-tests (like `fixturesRoot` in `demo-excerpt`):
+`checkFreeze` — compares the hashes a report records with the files) and a CLI
+`node scripts/annotation-agreement.mjs <agreement|merge|hashes> [--root <dir>]` with three commands,
+all with repository-relative fixed paths resolved under `--root` (for tests, like `fixturesRoot` in
+`demo-excerpt`). Exit codes (spec "Agreement CLI"): `0` success; `1` validation or merge failure,
+every problem on stderr, no file written; `2` usage error (missing or unknown command, unknown
+option), following the project convention (`docs/project-context.md:78-88`,
+`scripts/demo-excerpt.mjs:15-16`).
 - `agreement` — validates `panelist-1.json` and `panelist-2.json` against the site lists, the
   fixtures and the allowlist; on any error prints every problem and exits 1 without writing;
   otherwise writes `docs/measurements/annotation/agreement.json`.
@@ -125,12 +167,17 @@ No npm script is added (P5). It reads JSON and fixture text only: no graph, no d
 
 **D12 — Documentation.** `fixtures/README.md` § "Table 2 seed": the sentences "the remainder is
 pending" and the "38 pending" / "40 pending" headings become a pointer to `fixtures/annotations/`
-and the report; the 22 rows are untouched. `README.md` §2.6: "anotados a mano" → "anotados por dos
+and the report; the section title and its first sentence stop saying "hand-annotated" for the 50
+sites (the 22 control rows stay described as written by hand; agent's decision, spec audit run 1,
+so that the README does not keep a false claim); the 22 rows are untouched. Nothing else in the
+file changes. `README.md` §2.6: "anotados a mano" → "anotados por dos
 agentes independientes"; in the limitations, the annotation stops being the author's (the Table 1
 questions stay hers).
 
-**P1 — `form` field.** A site says whether it is a `call`, a `new` or a `reference`, and `call` is
-the text up to the opening parenthesis (or the reference). Without it, a reference passed as an
+**P1 — `form` field.** A site says whether it is a `call`, a `new`, a `read` (property read served
+by `__get`) or a `reference` (including PHP array callables and route action strings), and `call` is
+the text up to the opening parenthesis, the receiver and property name, or the reference (spec
+"Call-site lists"). Without it, a reference passed as an
 argument (`app.post(..., controller.create)`, control `ts-08`) and the call that receives it are the
 same line and could be annotated as different things. `form` restates what the text already shows,
 so it gives no hint. It is carried into format 1 (additive for DIS-79).
@@ -145,7 +192,7 @@ Panelists may not read it (D4). Without it the per-panelist control agreement wo
 transcription made after seeing the outputs.
 
 **P4 — Citations are machine-checked.** A citation is `<path>:<line>` with the path relative to the
-fixture root of the site (`app/Services/TaxService.php:21`, `src/services/task.service.ts:40`); the
+fixture root of the site (`app/<Dir>/<File>.php:<line>`, `src/<dir>/<file>.ts:<line>`); the
 regular expression is `([A-Za-z0-9_./-]+\.(php|ts)):([0-9]+)`. At least one citation per answer
 must name an existing file of that fixture and a line within it.
 
@@ -177,8 +224,14 @@ the Stryker `mutate` globs.
   string route action, facade, `__call`). That is the rule the ticket asks to write before judging,
   not an answer: it names no site, file, line or target, and the panelist still has to find which
   construction each site is and where its target lives.
-- **TypeScript has fewer hard constructions** than PHP, so many TS sites are `exact` or `none`; that
-  is the expected contrast of Table 2, not a selection bias, and the report gives the counts.
+- **TypeScript has fewer hard constructions** than PHP: the report gives, per language, the number
+  of sites per `expected` value, and TypeScript is expected to have fewer `heuristic` sites than PHP;
+  that is the expected contrast of Table 2, not a selection bias.
+- **Criterion contamination.** The criterion (D2 and its audit additions) was written by an agent
+  that had read the README control, and the workflow's run notes given to every panelist name
+  `fixtures/README.md` as the location of the control. Mitigation: the README stays forbidden and
+  the criterion names classes of construction, never sites; the report states both facts in its
+  limitations.
 
 ## Migration Plan
 
@@ -217,3 +270,28 @@ their findings here.
 | P6 | Report in Spanish | **D** — accepted |
 | P7 | No PowerShell check planned | **D** — accepted |
 | P8 | No ADR, no Stryker run | **D** — accepted |
+
+*Spec audit run 1 (2026-10-28) — resolution by the agent, as lead engineer, without the author.*
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| Q1 | Parent DIS-53 still says "anotación humana" / "por la autora"; DIS-80 records the author's decision of 2026-10-27 to use two annotator agents. Decided: the sub-issue supersedes the parent on this point (it is the author's later, explicit decision); this change follows DIS-80 | **A** — this change (D8, D12); **B** — Spanish comment on DIS-53 |
+| B1 | Site model could not represent property reads (`read`) nor route actions; `form` gains `read`, `reference` covers array callables and route action strings, chained calls start at the member operator | **A** — spec "Call-site lists", D1, D3, P1, Panel group; **B** — comment on DIS-79 (`form: "read"`) |
+| B2 | Criterion gaps: static `X::dispatch`, `heuristic` over `none` precedence, `new` with no constructor, inherited methods, "declared first" ordering, `read` sites | **A** — D2 additions and Panel group criterion |
+| B3 | Control target of ts-03 undefined and targets not tested: the control target is the target of the control call (rule in the spec and D3 only, never in `tasks.md` or the ticket description); the control test checks targets | **A** — spec "Control reference", D3, task 2.1 |
+| B4 | Validation list incomplete: `none`⇔`null`, unknown `expected`, no citation, missing fields, missing target file, `target.symbol` last segment, resolver allowlist, `sourcesRead` entry format | **A** — spec "Panel output validation" (5 new scenarios), D4, task 1.1 |
+| B5 | Selection coverage of hard constructions had no requirement: minimum per construction row, table in the report | **A** — spec "Call-site lists", D5, tasks 2.2a/2.2b, 6.1 |
+| B6 | Control discrepancies were not tested | **A** — spec scenario "The report lists every control discrepancy", task 6.1 |
+| B7 | CLI contract (commands, `--root`, exit codes 0/1/2) moved into the spec | **A** — spec "Agreement CLI", D10, tasks 1.1, 9.2 |
+| I1 | § "Table 2 seed" title: included in D12 (the README must not keep "hand-annotated" for the 50 sites); 8.3 and 11.1 aligned | **A** — D12, tasks 8.3, 11.1 |
+| I2 | Freeze before `measure-graph` checked in step 8 (`scripts/measure-graph.mjs` absent at the freeze commit) | **A** — spec, task 8.3 |
+| I3 | Ambiguous "many TS sites" replaced by counts per `expected` value | **A** — Risks |
+| I4 | Example citation `app/Services/TaxService.php:21` replaced by a neutral placeholder | **A** — P4, Panel group |
+| I5 | Resolver prompt forbids "measurement output": `agreement.json` is the disagreement id list, or the resolver derives the ids itself | **A** — D4, task 4.4 |
+| I6 | DIS-79 matching key: target `file` + `symbol`, site inside the edge source's span | **A** — D1; **B** — comment on DIS-79 |
+| I7 | Chained calls spread over several lines | **A** — spec "Call-site lists" |
+| I8 | `isProject` of `demo-excerpt` sees `fixtures/annotations` | **D** — accepted, task 7.1 already reviews it |
+| I9 | Task 2.2 split into 2.2a (PHP) and 2.2b (TS) | **A** — tasks.md |
+| I10 | Rounding moved into the spec | **A** — spec "Agreement measures" |
+| I11 | Criterion contamination (author of the criterion read the control; run notes name the README) | **A** — Risks, task 6.2 limitations |
+| I12 | `target.symbol` checked: its last segment must appear in `target.file` | **A** — spec "Panel output validation" |

@@ -220,3 +220,42 @@ Empty rows: B1, B3, B4, B5, B6, B7 (all blocking, counted above).
 - **DIS-80:** a Spanish comment summarising this audit's corrections (form `read`, route actions as `reference`, criterion additions, CLI exit codes, ts-03 control rule). **Do not write any control answer in the description:** panelists read the description (design D4). Rule-level changes to the criterion may go in the enhanced part. The ts-03 target goes only in the spec and the design. The `[original]` block is not edited.
 - **DIS-79:** a Spanish comment: format 1 gains `form: "read"`; a site is matched by target `file` + `symbol` and by `site.file` + `site.line` inside the edge source's span (for routes the source is the `route` symbol of the statement).
 - **DIS-53** (after Q1 is answered): a Spanish comment saying that, by the author's decision recorded in DIS-80 (2026-10-27), the Table 2 annotation is made by two independent annotator agents of different models, not by the author, and that the limitations paragraph of README §2.6 says so.
+
+---
+
+## Resolution of run 1
+
+*Agent's text (correction round 1, 2026-10-28), decided as lead engineer in an autonomous run without the author. Each decision is also in `design.md` → Follow-ups with its destination. `openspec validate callsite-annotations --strict` passes after the edits.*
+
+**Question for the author**
+
+- **Q1 — decided by the agent.** The sub-issue supersedes the parent on this point: DIS-80 records the author's explicit, later decision (2026-10-27) to replace human annotation with two annotator agents. The change keeps following DIS-80 (D8, D12). A Spanish comment on DIS-53 records it (destination B); the parent's text is not edited.
+
+**Blocking findings**
+
+- **B1 — fixed.** Spec "Call-site lists": `form` is `call`, `new`, `read` or `reference`; `read` covers property reads served by `__get` (`call` = receiver and property name); `reference` covers identifiers or property accesses, PHP array callables and route action strings; a chained call whose receiver starts on an earlier line starts at the member operator on its line. Design D1, D3 and P1 and the Panel group's input description updated. The spec examples use neutral shapes, not fixture sites.
+- **B2 — fixed.** Design D2 and the Panel group criterion gain: precedence of `heuristic` over `none`; static `X::dispatch` (and its variants) on a `Dispatchable` fixture class → `heuristic`, target `X::handle`; `new X(...)` with no declared constructor → `none`; inherited method → declaring class's symbol; "declared first" ordering (registration list, else file path then line); judgement of `read` sites (declared accessor or relation → `heuristic`, plain column → `none`). All are rule-level and name no site, file, line or target.
+- **B3 — fixed.** Spec "Control reference": the control target is the target of the control call identified by D3; for task-api row 3 it is `TaskService::get` (`exact`). The scenario now checks every non-null `target.symbol` against the README row. The ts-03 rule is written only in the spec and in design D3 (both forbidden to panelists), never in `tasks.md` or the ticket description. Task 2.1 extended to targets.
+- **B4 — fixed.** Spec "Panel output validation": explicit rejection of missing `sites` / `sourcesRead`, unknown `expected`, `none`⇔`null` inconsistency, a reason with no citation, a missing `target.file`, a `target.symbol` whose last segment does not appear in `target.file`, and `sourcesRead` entries that are a directory, a glob or outside the role's allowlist. Entry format fixed (one file path or `linear:DIS-80/description`); both allowlists written out as exact lists. Five new scenarios; task 1.1 has their `it` cases; design D4 and the Panel group updated.
+- **B5 — fixed.** Spec "Call-site lists" gains the coverage requirement (minimum 2 new sites per construction row of design D5, or every remaining instance when fewer than 2 remain) and the scenario "The report counts the selection per construction", tested in `annotation-freeze.spec.ts` (task 6.1). Design D5 lists the construction rows and an "other call" row without minimum; tasks 2.2a/2.2b record each site's row in the scratchpad, task 6.2 writes the table.
+- **B6 — fixed.** Scenario "The report lists every control discrepancy" added to the frozen-report requirement and to task 6.1; the requirement compares with `control.json` (same `expected` and `target`).
+- **B7 — fixed.** New requirement "Agreement CLI": `node scripts/annotation-agreement.mjs <agreement|merge|hashes> [--root <dir>]`, exit `0` / `1` (every problem on stderr, nothing written) / `2` (usage line). Three scenarios, three `it` cases in task 1.1; task 9.2 now expects exit `2` for an unknown command without condition; design D10 updated.
+
+**Improvable findings**
+
+- **§ "Table 2 seed" title (point 1 and point 6) — decided by the agent.** The title and first sentence change too, because leaving "hand-annotated" for the 50 sites would keep a false claim; design D12, task 11.1 and task 8.3 now name the same set (title, intro sentences, two headings; rows untouched).
+- **Freeze before `measure-graph` (point 3) — fixed.** Stated in the spec as checked in step 8; task 8.3 verifies that `scripts/measure-graph.mjs` is absent at the freeze commit.
+- **"many TS sites" (point 4) — fixed.** Design Risks now say the report gives the number of sites per `expected` value per language; task 6.2 adds that count.
+- **Example citation hint (point 6) — fixed.** P4 and the Panel group use `app/<Dir>/<File>.php:<line>` and `src/<dir>/<file>.ts:<line>`.
+- **Resolver prompt vs. `agreement.json` (point 7) — fixed.** Task 4.4 and design D4 say `agreement.json` is the list of disagreement ids, not a graph measurement, and allow deriving the ids from the two panel outputs.
+- **DIS-79 matching key for routes (point 7) — fixed.** Design D1 states the key (target `file` + `symbol`; `site.file` + `site.line` inside the edge source's span); Spanish comment on DIS-79 (destination B).
+- **Multi-line chained call (point 8) — fixed** in the spec's `call` rule (member operator on the site's line).
+- **`isProject` of `demo-excerpt` (point 8) — rejected as a change:** harmless, and task 7.1 already reviews it (destination D).
+- **Task 2.2 size (point 9) — fixed.** Split into 2.2a (PHP) and 2.2b (TypeScript), each running the site-list checks for its file.
+- **Rounding — fixed.** Moved into the spec "Agreement measures" (one decimal / three decimals, half away from zero); D6 refers to it.
+- **Criterion contamination — fixed.** Design Risks and the limitations of task 6.2 state that the criterion's author had read the control and that the run notes given to the panelists name `fixtures/README.md`.
+- **Unchecked `target.symbol` — fixed.** Validation checks that its last segment appears in `target.file` (part of B4's scenario "A target that does not exist in the fixture is rejected").
+
+**Linear.** Spanish comments on DIS-80 (summary of this round, with no control answer), DIS-79 (`form: "read"`, route actions as `reference`, matching key) and DIS-53 (Q1). The DIS-80 description is not edited in this round.
+
+Scenario count after the round: 19 in `annotation-agreement.spec.ts`, 4 in `annotation-sites.spec.ts`, 5 in `annotation-freeze.spec.ts` (task 7.2).
