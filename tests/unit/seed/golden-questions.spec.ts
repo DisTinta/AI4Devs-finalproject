@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { questionTerms } from '@codemind/core';
 import { GOLDEN_PROJECTS } from '../../../packages/cli/src/cache/demo-questions';
 
 // Spec: openspec/changes/golden-cache-build/specs/golden-answers/spec.md → "Golden questions", as
@@ -58,5 +59,39 @@ describe('golden questions', () => {
     ]);
     expect(table.size).toBe(4);
     for (const { id, question } of golden) expect(question).toBe(table.get(id));
+  });
+
+  // DIS-32, design D6, Follow-ups SA10: a golden question that anchors no symbol answers UNKNOWN
+  // `no-anchor` before the cache is read, so `cache:build` could never make it golden.
+  it('Every golden question anchors a symbol of its project', () => {
+    // Arrange: the symbol names of each project of the versioned seed, through their file rows.
+    const seed = readFileSync(resolve('seeds/graph-dump.sql'), 'utf8').replace(/\r\n/g, '\n');
+    const projectOfName = new Map<string, string>();
+    const projectOfFile = new Map<string, string>();
+    const namesOfProject = new Map<string, string[]>();
+    for (const line of seed.split('\n')) {
+      const project = /^INSERT INTO project \(id, name,[^)]*\) VALUES \('([^']+)', '((?:[^']|'')*)'/.exec(line);
+      if (project !== null) projectOfName.set(project[2].replace(/''/g, "'"), project[1]);
+      const file = /^INSERT INTO file \(id, project_id,[^)]*\) VALUES \('([^']+)', '([^']+)'/.exec(line);
+      if (file !== null) projectOfFile.set(file[1], file[2]);
+    }
+    for (const line of seed.split('\n')) {
+      const symbol = /^INSERT INTO symbol \(id, file_id, name,[^)]*\) VALUES \('([^']+)', '([^']+)', '((?:[^']|'')*)'/.exec(line);
+      if (symbol === null) continue;
+      const project = projectOfFile.get(symbol[2]);
+      if (project === undefined) continue;
+      namesOfProject.set(project, [...(namesOfProject.get(project) ?? []), symbol[3].replace(/''/g, "'").toLowerCase()]);
+    }
+
+    // Act + Assert: at least one of the first 16 terms is contained in the name of a symbol of the project.
+    for (const { name, questions } of GOLDEN_PROJECTS) {
+      const names = namesOfProject.get(projectOfName.get(name) ?? '') ?? [];
+      expect(names.length, `${name} has symbol rows in the seed`).toBeGreaterThan(0);
+      for (const { id, question } of questions) {
+        const terms = questionTerms(question).slice(0, 16);
+        const anchored = terms.some((term) => names.some((symbolName) => symbolName.includes(term.toLowerCase())));
+        expect(anchored, `${name} ${id}`).toBe(true);
+      }
+    }
   });
 });
