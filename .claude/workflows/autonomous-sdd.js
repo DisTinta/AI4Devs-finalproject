@@ -66,7 +66,7 @@ const COMMON = `You are one step of an autonomous SDD run (KIT_AUTONOMOUS_RUN="1
 - Shell commands use literal values, not variables. Never cd into openspec/changes/<change>/.
 - After any validated npm install run npm audit --audit-level=high; a new high or critical finding stops the ticket.
 - PowerShell checks are planned in tasks.md for the author (design.md → Follow-ups, destination C); you do them in Git Bash.
-- Waiting for CI: use Monitor with an until-loop on gh pr checks <n> until no check is pending, queued or in progress, and do not return before it reports. The mutation job takes 30-60 minutes. Never return while a check is pending.
+- Waiting for CI: never use Monitor or run_in_background (inside a workflow step they end your turn and you must return at once). Wait in the foreground with the Bash tool: run gh pr checks <n> --watch --interval 60 with timeout 600000, and repeat that call until no check is pending, queued or in progress. The mutation job takes 30-60 minutes. Never return ok=true while a check is pending.
 - vitest run, never watch mode. Before returning, run node scripts/dev-processes.mjs stop if you started any test run, build or server.
 Base branch: ${BASE}. Use the Linear MCP for the ticket (load its tools with ToolSearch). Linear comments in Spanish. On a clean-stop condition of §6 return ok=false with stop_reason; never work around a hook denial.
 
@@ -96,8 +96,33 @@ async function step(t, name, prompt, model) {
   return r
 }
 
+// Steps that wait for CI. A step that cannot finish its wait in one turn returns ci_pending=true
+// and is run again, instead of stopping the ticket with a CI that has not failed.
+const WAIT_STEP = {
+  ...STEP,
+  properties: {
+    ...STEP.properties,
+    ci_pending: { type: 'boolean', description: 'true if you return while a CI check is still pending, queued or in progress' },
+  },
+}
+const MAX_WAITS = 10
+
+async function waitStep(t, name, prompt, model) {
+  let note = ''
+  for (let i = 1; i <= MAX_WAITS; i++) {
+    const r = await agent(`${COMMON}\n\n${context(t)}\nStep: ${name}.\nFirst make sure the working copy is on branch ${t.branch} and up to date (git switch ${t.branch}, then git pull, separate calls). If you cannot finish the CI wait, return ok=false with ci_pending=true and say in summary what is left; the step will be run again.${note}\n\n${prompt}`,
+      { label: `${t.id}:${name}${i > 1 ? `-${i}` : ''}`, phase: t.id, schema: WAIT_STEP, model })
+    if (!r) return { ok: false, stop_reason: `El paso ${name} no devolvió resultado`, summary: '' }
+    t.log.push(`${name}${i > 1 ? ` (intento ${i})` : ''}: ${r.summary}`)
+    for (const key of ['branch', 'change', 'report', 'pr']) if (r[key]) t[key] = r[key]
+    if (r.ok || !r.ci_pending) return r
+    note = `\nThis step is being resumed (attempt ${i + 1}). The previous attempt returned while CI was pending; do not redo work it already finished. Its summary: ${r.summary}`
+  }
+  return { ok: false, stop_reason: `La CI del PR #${t.pr} sigue pendiente tras ${MAX_WAITS} intentos de espera`, summary: '' }
+}
+
 async function stop(t, reason) {
-  await agent(`${COMMON}\n\n${context(t)}\nThe run stops cleanly for this ticket. Reason: ${reason}\nProgress: ${JSON.stringify(t.log)}\nMove the Linear ticket to "In Review" and add a comment in Spanish with the reason, what was done (branch, PR, change, reports, audit rounds) and what the author must do next. If the reason is that the auto-mode classifier denied the merge, after commenting watch the PR with Monitor until the author merges or closes it, then return. Leave the working copy on ${BASE}: git switch ${BASE}, then git pull (separate calls). Run node scripts/dev-processes.mjs stop. Return a one-line summary.`,
+  await agent(`${COMMON}\n\n${context(t)}\nThe run stops cleanly for this ticket. Reason: ${reason}\nProgress: ${JSON.stringify(t.log)}\nMove the Linear ticket to "In Review" and add a comment in Spanish with the reason, what was done (branch, PR, change, reports, audit rounds) and what the author must do next. If the reason is that the auto-mode classifier denied the merge, say in the comment that the PR is ready for the author to merge and that the tickets depending on it were skipped in this run. Leave the working copy on ${BASE}: git switch ${BASE}, then git pull (separate calls). Run node scripts/dev-processes.mjs stop. Return a one-line summary.`,
     { label: `${t.id}:stop`, phase: t.id, model: 'sonnet' })
   return { ticket: t.id, status: 'stopped', reason, pr: t.pr, branch: t.branch, log: t.log }
 }
@@ -173,16 +198,16 @@ async function runTicket(t) {
   if (!r.ok) return stop(t, r.stop_reason)
   if (!t.pr) return stop(t, 'El paso apply no devolvió el número del PR')
 
-  r = await step(t, 'ci', `Wait for the CI of PR #${t.pr} until no check is pending. If one fails, read the failing log, fix it in the same branch, push and wait again: at most 2 fixes. If it is still red after 2 fixes, return ok=false ("CI en rojo tras 2 correcciones").`, 'sonnet')
+  r = await waitStep(t, 'ci', `Wait for the CI of PR #${t.pr} until no check is pending. If one fails, read the failing log, fix it in the same branch, push and wait again: at most 2 fixes. If it is still red after 2 fixes, return ok=false ("CI en rojo tras 2 correcciones").`, 'sonnet')
   if (!r.ok) return stop(t, r.stop_reason)
 
-  r = await step(t, 'review', `Run /show-spec-working, then verify-against-spec and adversarial-review in their Inline mode: read their SKILL.md and follow it yourself, never invoke them as a skill or a fork. Change ${t.change}, PR #${t.pr}. Save their reports under the change's reports/. Fix every real finding in the same PR (code fixes happen now, before the archive), commit, push and wait for the CI until no check is pending (at most 2 CI fixes). Return ok=false if a blocking verdict cannot be resolved.`, 'opus')
+  r = await waitStep(t, 'review', `Run /show-spec-working, then verify-against-spec and adversarial-review in their Inline mode: read their SKILL.md and follow it yourself, never invoke them as a skill or a fork. Change ${t.change}, PR #${t.pr}. Save their reports under the change's reports/. Fix every real finding in the same PR (code fixes happen now, before the archive), commit, push and wait for the CI until no check is pending (at most 2 CI fixes). Return ok=false if a blocking verdict cannot be resolved.`, 'opus')
   if (!r.ok) return stop(t, r.stop_reason)
 
-  r = await step(t, 'archive', `Run /opsx:archive on change ${t.change} (sync the specs) from the repository root, run /update-docs for the docs gate, commit, push and wait for the CI of PR #${t.pr} until no check is pending. No code changes at this point: if one is needed, return ok=false ("corrección de código necesaria después del archive").`, 'sonnet')
+  r = await waitStep(t, 'archive', `Run /opsx:archive on change ${t.change} (sync the specs) from the repository root, run /update-docs for the docs gate, commit, push and wait for the CI of PR #${t.pr} until no check is pending. No code changes at this point: if one is needed, return ok=false ("corrección de código necesaria después del archive").`, 'sonnet')
   if (!r.ok) return stop(t, r.stop_reason)
 
-  r = await step(t, 'merge', `Check that gh pr checks ${t.pr} shows no pending or failing check (wait if one is pending). Merge with exactly \`gh pr merge ${t.pr} --merge\`, alone on the line, through the merge gate. If the gate denies, re-read the PR (gh pr view ${t.pr}, gh pr checks ${t.pr}), fix the condition if it is only waiting and retry once. If the auto-mode classifier denies, return ok=false with stop_reason "el clasificador denegó el merge". On success move the Linear ticket to "Done" with a short Spanish comment linking the PR, then git switch ${BASE} and git pull (separate calls).`, 'sonnet')
+  r = await waitStep(t, 'merge', `Check that gh pr checks ${t.pr} shows no pending or failing check (wait if one is pending). Merge with exactly \`gh pr merge ${t.pr} --merge\`, alone on the line, through the merge gate. If the gate denies, re-read the PR (gh pr view ${t.pr}, gh pr checks ${t.pr}), fix the condition if it is only waiting and retry once. If the auto-mode classifier denies, return ok=false with stop_reason "el clasificador denegó el merge". On success move the Linear ticket to "Done" with a short Spanish comment linking the PR, then git switch ${BASE} and git pull (separate calls).`, 'sonnet')
   if (!r.ok) return stop(t, r.stop_reason)
 
   return { ticket: t.id, status: 'merged', pr: t.pr, branch: t.branch, log: t.log }

@@ -329,9 +329,12 @@ hasta `APPROVED`. Una auditoría `CHANGES REQUIRED` después de la última ronda
   explícitas, nunca `git add -A` ni `git commit -a`.
 - No se usan worktrees aislados: un subagente en un worktree nuevo leería el `KIT_AUTONOMOUS_RUN="0"`
   del commit, y sus hooks volverían a preguntar.
-- Las esperas (CI, merges) se hacen con la herramienta `Monitor`, nunca con `sleep`. Un paso que espera
-  la CI no termina hasta que ningún check está pendiente: no deja un monitor en segundo plano y
-  devuelve su resultado sin el veredicto de la CI.
+- La espera de la CI se hace en primer plano, con `gh pr checks <n> --watch --interval 60` en Bash y
+  el tiempo máximo de la llamada (10 minutos), repetida hasta que ningún check está pendiente. Nunca
+  con `Monitor` ni en segundo plano: dentro de un paso del workflow, `Monitor` termina el turno del
+  agente y el paso devuelve su resultado sin el veredicto de la CI (le pasó a DIS-30 el 2026-10-27).
+  Si un paso que espera la CI (`ci`, `review`, `archive`, `merge`) no la termina en su turno, devuelve
+  `ci_pending` y el workflow lo relanza, hasta 10 veces, en vez de parar el ticket.
 - Un comando `git` por llamada: no se encadenan `git switch`, `git merge` o `git push` con `&&`. Los
   hooks juzgan la línea entera con la rama en la que se está al lanzarla, y un `git merge` encadenado
   tras un `git switch` desde la base se deniega como si fuera un merge sobre la base.
@@ -364,8 +367,9 @@ siguen):
 - el límite de uso;
 - un permiso denegado sin alternativa;
 - una corrección de código necesaria después de `/opsx:archive` (ya no hay cambio activo);
-- **el clasificador deniega el merge:** el ticket queda en *In Review* con el comentario y se vigila
-  el PR con `Monitor` hasta que la autora lo integre.
+- **el clasificador deniega el merge:** el ticket queda en *In Review* con un comentario que dice que
+  el PR está listo para que la autora lo integre; los tickets que dependen de él se saltan en esa
+  ejecución.
 
 ## 7. Cursor
 
