@@ -312,6 +312,7 @@ npm install
 npm run db:migrate                 # esquema
 npm run db:seed                    # ← el repositorio de muestra YA indexado (+ caché de evaluación)
 node fixtures/build-history.mjs acme-shop   # historial de Git del fixture (~11 s), lo leen las respuestas en vivo
+node fixtures/build-history.mjs task-api    # ídem para task-api (`npm run up` hace los dos)
 npm run dev                        # API en :3000 · web en :5173
 ```
 
@@ -336,6 +337,8 @@ Lo que imprime al terminar (extracto de la ejecución real del 20-10-2026, en Po
   acme-shop  php/laravel  174 nodes · 170 edges
 [up] node fixtures/build-history.mjs acme-shop
 acme-shop: 32 commits, 3 authors -> <repo>\fixtures\acme-shop\.git
+[up] node fixtures/build-history.mjs task-api
+task-api: 28 commits, 3 authors -> <repo>\fixtures\task-api\.git
 [up] npm run dev
 …
 [1]   ➜  Local:   http://localhost:5173/
@@ -415,7 +418,7 @@ Los 2–3 min que cita la propuesta de DIS-74 no son el tiempo de una pregunta: 
 
 La receta paso a paso, igual en PowerShell y en Bash, está en [`docs/DEMO.md` → Probar con un modelo real](docs/DEMO.md#probar-con-un-modelo-real): Ollama con GPU o en CPU, una API alojada compatible con OpenAI y Claude por el endpoint compatible con OpenAI de Anthropic (estos dos, no verificados). Lo esencial para Ollama:
 
-- **El historial de `acme-shop`.** Las respuestas en vivo leen el código del fixture desde `fixtures/acme-shop/.git`, que no viaja con el clon; `npm run up` lo construye en cada arranque (`node fixtures/build-history.mjs acme-shop` para quien no use `up`). Sin él, la pregunta termina con `SOURCE_UNAVAILABLE` (`not-a-repository`).
+- **El historial de `acme-shop` y de `task-api`.** Las respuestas en vivo leen el código del fixture desde `fixtures/<nombre>/.git`, que no viaja con el clon; `npm run up` construye los dos en cada arranque (`node fixtures/build-history.mjs acme-shop` y `… task-api` para quien no use `up`). Sin él, la pregunta termina con `SOURCE_UNAVAILABLE` (`not-a-repository`).
 - **`OLLAMA_CONTEXT_LENGTH=16384`.** El prompt de `explain` ocupa entre 5 000 y 7 000 tokens. Con el contexto por defecto, Ollama lo recorta (`truncating input prompt` en su log), se pierde el *system prompt* y toda respuesta sale `UNKNOWN (invalid-model-output)`.
 - **`LLM_TIMEOUT_MS=1200000` en CPU.** `LLM_TIMEOUT_MS` admite de 1 a 3 600 000 ms (una hora); el cliente envía con `node:http`, así que no hay otro límite por debajo (el `fetch` de Node cortaba a los 300 s). Con GPU o una API alojada basta el valor por defecto, 120 000 ms.
 - **Reiniciar tras editar `.env`.** La API lee `.env` al arrancar: Ctrl+C en la terminal de `npm run up` y otra vez `npm run up`. `npm run cli` lo lee en cada ejecución.

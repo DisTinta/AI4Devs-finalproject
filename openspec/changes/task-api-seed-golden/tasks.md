@@ -95,7 +95,7 @@
 
 - [x] 13.1 RED: `tests/unit/scripts/up.spec.ts` (existing, changed by this task): the `it` "Up runs the start sequence in order" expects seven calls and seven `[up]` lines, with `node fixtures/build-history.mjs task-api` after acme-shop's, and `printedBeforeStep` of length 7; no assertion is weakened. See it fail
 - [x] 13.2 GREEN: `scripts/up.mjs` adds the step (same Node, same `defer-ctrl-c` preload, `fixtures/build-history.mjs task-api`); its header comment names both histories; `npx vitest run tests/unit/scripts tests/unit/docs`
-- [ ] 13.3 Docs: remove the P7 debt notes and document the new behaviour in `docs/DEMO.md` and `readme.md` (and `docs/project-context.md` where it describes `up`); `tests/unit/docs/guides.spec.ts` changes only if a check names the old text
+- [x] 13.3 Docs: remove the P7 debt notes and document the new behaviour in `docs/DEMO.md` and `readme.md` (and `docs/project-context.md` where it describes `up`); `tests/unit/docs/guides.spec.ts` changes only if a check names the old text
 - [ ] 13.4 At archive (task 12.7) the main `local-startup` spec's six-step scenario and its `acme-shop`-only history scenario are reconciled with the ADDED requirement; DIS-32 gets a short Spanish comment confirming P7 is applied
 
 ## 12. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)

@@ -56,13 +56,14 @@ Verified against `package.json` (root and per package). If a command is not here
 - Start and stop (DIS-102): `npm run up` (`node scripts/up.mjs`) loads the root `.env` and runs
   `docker compose up -d --wait`, `npm install`, `npm run db:migrate`, `npm run db:seed`,
   `node fixtures/build-history.mjs acme-shop` (DIS-103: the fixture's `.git`, which live answers read
-  and a clean clone lacks; rebuilt every time, ~11 s) and `npm run dev` in order from the repository
+  and a clean clone lacks; rebuilt every time, ~11 s), `node fixtures/build-history.mjs task-api` (DIS-32,
+  design Follow-ups P7, the author's decision of 2026-10-28: the same for task-api) and `npm run dev` in order from the repository
   root, printing `[up] <command>` before each step; a
   failing step stops it with `[up] "<command>" failed with exit code <n>` and that code, Ctrl+C ends it
   with `[up] stopped (Ctrl+C)` and exit `130`, and without `npm_execpath` (not started by npm) it
   prints `[up] run it with npm run up` and exits `1`. It spawns npm as `process.execPath` +
-  `npm_execpath`, never `npm` by name through a shell. The history step runs
-  `process.execPath --import ./scripts/defer-ctrl-c.mjs fixtures/build-history.mjs acme-shop`: the
+  `npm_execpath`, never `npm` by name through a shell. The history steps run
+  `process.execPath --import ./scripts/defer-ctrl-c.mjs fixtures/build-history.mjs <fixture>`: the
   preload (no imports) only registers a no-op SIGINT listener, so Ctrl+C never ends Node before the
   builder's `finally` restores the fixture's tracked files. The builder itself is not edited because
   it is a seed fingerprint input (any byte change fails `npm run verify` until `seed:build` and
@@ -487,8 +488,8 @@ Verified against `package.json` (root and per package). If a command is not here
   parallel (Vitest runs files concurrently) then see e.g. a `DiscountService.php` without
   `volumeBonus` and fail at random — seen in CI only, where the DB-backed files also run. To refresh
   the real fixtures' `.git` by hand, run `node fixtures/build-history.mjs`; no test does it. Since
-  DIS-103 `npm run up` rebuilds `acme-shop`'s `.git` on every start (its step
-  `node fixtures/build-history.mjs acme-shop`, ~11 s): never run the suite in the same checkout while
+  DIS-103 `npm run up` rebuilds the `.git` of `acme-shop` and `task-api` on every start (its steps
+  `node fixtures/build-history.mjs <fixture>`, ~11 s each): never run the suite in the same checkout while
   that step runs, for the same reason. Other
   cases use throwaway repositories under the OS temp dir with synthetic
   identities (`git -c user.name=… -c user.email=…`). They need `git` on `PATH`. Only the two

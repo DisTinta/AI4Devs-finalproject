@@ -164,6 +164,8 @@ npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install
   acme-shop  php/laravel  174 nodes · 170 edges
 [up] node fixtures/build-history.mjs acme-shop
 acme-shop: 32 commits, 3 authors -> <repo>\fixtures\acme-shop\.git
+[up] node fixtures/build-history.mjs task-api
+task-api: 28 commits, 3 authors -> <repo>\fixtures\task-api\.git
 [up] npm run dev
 
 > codemind@0.0.1 dev
@@ -628,15 +630,17 @@ compatible con OpenAI, configurado en `.env`. Hay tres caminos: Ollama en la pro
 probado de principio a fin), una API alojada compatible con OpenAI y Claude por el endpoint compatible
 con OpenAI de Anthropic (estos dos, **no verificados**).
 
-### El historial de `acme-shop`
+### El historial de `acme-shop` y de `task-api`
 
-Una respuesta en vivo lee el código de `fixtures/acme-shop` desde su propio historial de Git
-(`fixtures/acme-shop/.git`), que no viaja con el clon (está en `.gitignore`). `npm run up` lo construye
-en cada arranque: es la línea `[up] node fixtures/build-history.mjs acme-shop` del paso 0. Si arrancas
-el sistema sin `npm run up`, constrúyelo una vez desde la raíz del clon:
+Una respuesta en vivo lee el código de un proyecto de muestra desde su propio historial de Git
+(`fixtures/acme-shop/.git`, `fixtures/task-api/.git`), que no viaja con el clon (está en `.gitignore`).
+`npm run up` construye los dos en cada arranque: son las líneas
+`[up] node fixtures/build-history.mjs acme-shop` y `[up] node fixtures/build-history.mjs task-api` del
+paso 0. Si arrancas el sistema sin `npm run up`, constrúyelos una vez desde la raíz del clon:
 
 ```shell
 node fixtures/build-history.mjs acme-shop
+node fixtures/build-history.mjs task-api
 ```
 
 Sin él, una pregunta en vivo termina con `SOURCE_UNAVAILABLE` (`not-a-repository`). Siempre genera el
