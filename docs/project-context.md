@@ -959,13 +959,21 @@ services that must be started first, quirks of the local environment.
     cuts `explain`'s 5–7k-token prompt to about 2 000 tokens (`truncating input prompt` in its log),
     the system prompt is lost and every answer is `invalid-model-output`. On CPU one answer takes
     3.5–9 min: set `LLM_TIMEOUT_MS=1200000` (DIS-103 removed the 300 s cap; `docs/DEMO.md` →
-    `Probar con un modelo real`). `cache:build` (DIS-26) passes its own `timeoutMs` to `createLlm`. On this project's Windows machine Ollama only runs on
-    pure CPU (its CUDA and Vulkan backends crash): stop the tray app and every `ollama.exe` /
-    `llama-server`, then run `CUDA_VISIBLE_DEVICES=-1 GGML_VK_VISIBLE_DEVICES=-1 OLLAMA_VULKAN=0
-    OLLAMA_LLM_LIBRARY=cpu OLLAMA_CONTEXT_LENGTH=16384 ollama serve` (its log must show `library=cpu`)
-    and `DATABASE_URL=… LLM_BASE_URL=http://127.0.0.1:11434/v1 LLM_MODEL=qwen2.5-coder npm run
-    cache:build` in the background, logging to a file (one answer is several minutes of prompt
-    evaluation at ~18 tokens/s); stop `ollama.exe` and any orphan `llama-server` afterwards.
+    `Probar con un modelo real`). `cache:build` (DIS-26) passes its own `timeoutMs` to `createLlm`. On this project's Windows machine
+    (GeForce GTX 970, 4 GB) Ollama's CUDA and Vulkan backends used to crash, so it ran on pure CPU.
+    Since the NVIDIA driver update (582.66, CUDA 13.0) with Ollama 0.40.11 the GPU works: stop the
+    tray app and every `ollama.exe` / `llama-server`, then run `OLLAMA_CONTEXT_LENGTH=16384 ollama
+    serve` (its log shows `inference compute … library=CUDA compute=5.2`, through the `cuda_v12`
+    library; the `cuda_v13` one skips the card, `cc=520`, which is expected). `qwen2.5-coder` does not
+    fit in 4 GB: 9 of 29 layers go to the GPU (`offloaded 9/29 layers`, about 2.4 GB of VRAM). Measured
+    on 2026-10-28 with the same 1 340-token prompt: prompt evaluation 48.5 tokens/s on the GPU against
+    19.5 on pure CPU, generation about 5.5 tokens/s on both, so a `cache:build` answer, dominated by
+    its prompt, takes roughly 2.5 times less. If the GPU crashes again, fall back to pure CPU with
+    `CUDA_VISIBLE_DEVICES=-1 GGML_VK_VISIBLE_DEVICES=-1 OLLAMA_VULKAN=0 OLLAMA_LLM_LIBRARY=cpu
+    OLLAMA_CONTEXT_LENGTH=16384 ollama serve` (its log must show `library=cpu`). Either way, run
+    `DATABASE_URL=… LLM_BASE_URL=http://127.0.0.1:11434/v1 LLM_MODEL=qwen2.5-coder npm run
+    cache:build` in the background, logging to a file; stop `ollama.exe` and any orphan
+    `llama-server` afterwards.
     `llama3.2` does not produce strict JSON (`invalid-model-output`).
   - Gotcha (DIS-70, test doubles): `tests/support/scripted-llm.ts` routes `purpose: 'verify'` to
     `options.verify`, whose default entails every pair, so a test that does not set it gets
