@@ -1,0 +1,263 @@
+{
+  "panelist": 1,
+  "model": "claude-opus-5-5",
+  "date": "2026-10-28",
+  "sourcesRead": [
+    "openspec/changes/golden-independent-review/tasks.md",
+    "docs/golden-review/panel/2026-10-golden-review-input.json",
+    "linear:DIS-33/description",
+    "fixtures/task-api/package.json",
+    "fixtures/task-api/src/app.ts",
+    "fixtures/task-api/src/server.ts",
+    "fixtures/task-api/src/config/env.ts",
+    "fixtures/task-api/src/routes/index.ts",
+    "fixtures/task-api/src/routes/tasks.routes.ts",
+    "fixtures/task-api/src/routes/health.routes.ts",
+    "fixtures/task-api/src/controllers/tasks.controller.ts",
+    "fixtures/task-api/src/controllers/health.controller.ts",
+    "fixtures/task-api/src/services/task.service.ts",
+    "fixtures/task-api/src/domain/pagination.ts",
+    "fixtures/task-api/src/domain/task-status.ts",
+    "fixtures/task-api/src/plugins/db.ts",
+    "fixtures/task-api/src/plugins/error-handler.ts",
+    "fixtures/task-api/src/plugins/swagger.ts",
+    "fixtures/task-api/src/types/index.ts",
+    "fixtures/task-api/src/schemas/index.ts",
+    "fixtures/task-api/src/schemas/task.schema.ts",
+    "fixtures/acme-shop/app/Services/PriceCalculator.php",
+    "fixtures/acme-shop/app/Models/Order.php",
+    "fixtures/acme-shop/app/Services/DiscountService.php",
+    "fixtures/acme-shop/app/Services/TaxService.php",
+    "fixtures/acme-shop/app/Services/ShippingService.php",
+    "fixtures/acme-shop/app/Services/CouponValidator.php",
+    "fixtures/acme-shop/app/Observers/OrderObserver.php",
+    "fixtures/acme-shop/app/Jobs/RecalculateTotals.php",
+    "fixtures/acme-shop/app/Models/Coupon.php",
+    "fixtures/acme-shop/app/Events/OrderPlaced.php"
+  ],
+  "items": [
+    {
+      "project": "task-api",
+      "id": "Q1",
+      "answer": "true",
+      "verdict": "partial",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "false",
+          "cites": [
+            "fixtures/task-api/src/routes/tasks.routes.ts:15",
+            "fixtures/task-api/src/routes/tasks.routes.ts:16"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/routes/tasks.routes.ts:18",
+            "fixtures/task-api/src/routes/tasks.routes.ts:26",
+            "fixtures/task-api/src/routes/tasks.routes.ts:30"
+          ]
+        },
+        {
+          "n": 3,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/controllers/tasks.controller.ts:9",
+            "fixtures/task-api/src/controllers/tasks.controller.ts:34"
+          ]
+        },
+        {
+          "n": 4,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/controllers/tasks.controller.ts:14",
+            "fixtures/task-api/src/controllers/tasks.controller.ts:38",
+            "fixtures/task-api/src/services/task.service.ts:49"
+          ]
+        },
+        {
+          "n": 5,
+          "judgement": "unverifiable",
+          "cites": [
+            "fixtures/task-api/src/services/task.service.ts:49",
+            "fixtures/task-api/src/services/task.service.ts:71",
+            "fixtures/task-api/src/app.ts:22"
+          ]
+        }
+      ],
+      "notes": "The answer is true: each route attaches a Zod schema at fixtures/task-api/src/routes/tasks.routes.ts:18 and the validator compiler is set at fixtures/task-api/src/app.ts:25. S1 is false because the controller is a TasksController instance (fixtures/task-api/src/routes/tasks.routes.ts:16), and taskRoutes is the route function, not a controller type. S5 cites src/app.ts:22-34, which does not back a claim about TaskService (calling pruneUndefined at fixtures/task-api/src/services/task.service.ts:71 a validation is also loose). S2 and S3 list six paths for five routes, and the answer and S2 misspell 'schemas' as 'shemas': imprecisions, not errors."
+    },
+    {
+      "project": "task-api",
+      "id": "Q2",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/domain/pagination.ts:13"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/domain/pagination.ts:14",
+            "fixtures/task-api/src/domain/pagination.ts:19"
+          ]
+        }
+      ],
+      "notes": "buildPage takes items, total, page and pageSize and returns a Page with those fields plus pageCount (fixtures/task-api/src/domain/pagination.ts:13). The answer does not mention that pageCount is ceil(total / pageSize), or 0 when pageSize is 0 (fixtures/task-api/src/domain/pagination.ts:19). This is an omission, not an error."
+    },
+    {
+      "project": "task-api",
+      "id": "Q3",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/domain/task-status.ts:29",
+            "fixtures/task-api/src/domain/task-status.ts:30"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/domain/task-status.ts:25",
+            "fixtures/task-api/src/domain/task-status.ts:26"
+          ]
+        },
+        {
+          "n": 3,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/services/task.service.ts:48",
+            "fixtures/task-api/src/services/task.service.ts:49"
+          ]
+        }
+      ],
+      "notes": "The valid transitions are the TRANSITIONS table at fixtures/task-api/src/domain/task-status.ts:13, so the answer is true. It does not list the transitions themselves, which makes it uninformative but not false. The update check in fixtures/task-api/src/services/task.service.ts:49 runs before the merge and save."
+    },
+    {
+      "project": "task-api",
+      "id": "Q4",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [],
+      "notes": "The fixture has no authentication. Only health and task routes are registered (fixtures/task-api/src/routes/index.ts:7), with no hook, middleware or auth plugin in buildApp (fixtures/task-api/src/app.ts:25), and the package has no auth dependency (fixtures/task-api/package.json:18). A JWT_SECRET env entry exists at fixtures/task-api/src/config/env.ts:13, but nothing reads it: server.ts uses only PORT and HOST (fixtures/task-api/src/server.ts:13). So UNKNOWN is the due answer."
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q1",
+      "answer": "true",
+      "verdict": "incorrect",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/PriceCalculator.php:16",
+            "fixtures/acme-shop/app/Services/PriceCalculator.php:25"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Models/Order.php:45",
+            "fixtures/acme-shop/app/Models/Order.php:48"
+          ]
+        },
+        {
+          "n": 3,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/DiscountService.php:34",
+            "fixtures/acme-shop/app/Services/DiscountService.php:42"
+          ]
+        },
+        {
+          "n": 4,
+          "judgement": "unverifiable",
+          "cites": [
+            "fixtures/acme-shop/app/Services/TaxService.php:20",
+            "fixtures/acme-shop/app/Services/PriceCalculator.php:31"
+          ]
+        },
+        {
+          "n": 5,
+          "judgement": "false",
+          "cites": [
+            "fixtures/acme-shop/app/Services/PriceCalculator.php:32",
+            "fixtures/acme-shop/app/Services/ShippingService.php:26"
+          ]
+        },
+        {
+          "n": 6,
+          "judgement": "false",
+          "cites": [
+            "fixtures/acme-shop/app/Services/PriceCalculator.php:29",
+            "fixtures/acme-shop/app/Services/PriceCalculator.php:34"
+          ]
+        }
+      ],
+      "notes": "FACT S6 is false: the total is (subtotal - discount) + tax + shipping, so the discount is subtracted, not added (fixtures/acme-shop/app/Services/PriceCalculator.php:29 and :34). S5 is false because shipping gets the discounted taxable base, not the subtotal minus taxes (fixtures/acme-shop/app/Services/PriceCalculator.php:32). S4 is true in substance, but the cited TaxService lines 18-28 only show a generic base: the discounted base appears at fixtures/acme-shop/app/Services/TaxService.php:14 and PriceCalculator.php:29, outside its evidence. The '(E4)', '(E12)' labels in the statements do not match the evidence numbers."
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q3",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/CouponValidator.php:16",
+            "fixtures/acme-shop/app/Services/CouponValidator.php:24",
+            "fixtures/acme-shop/app/Services/CouponValidator.php:28"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/DiscountService.php:37"
+          ]
+        }
+      ],
+      "notes": "CouponValidator::percentFor returns 0 for a missing, unknown, inactive or expired code, and the coupon's percent_off otherwise (fixtures/acme-shop/app/Services/CouponValidator.php:18 to :32). DiscountService::discountFor adds it to the discount percent at fixtures/acme-shop/app/Services/DiscountService.php:37. The answer's hedge that the code 'does not detail' how coupons enter the final price undersells it, and S1 misspells 'validez' as 'validad': neither is an error."
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q4",
+      "answer": "false",
+      "verdict": "incorrect",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Observers/OrderObserver.php:16",
+            "fixtures/acme-shop/app/Observers/OrderObserver.php:18"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Observers/OrderObserver.php:19"
+          ]
+        }
+      ],
+      "notes": "The answer says OrderObserver updates the order's database. On created it only queues RecalculateTotals and fires OrderPlaced (fixtures/acme-shop/app/Observers/OrderObserver.php:18 and :19), and the job only computes the total and logs it, writing nothing (fixtures/acme-shop/app/Jobs/RecalculateTotals.php:32 and :34). So the answer is false even though both statements are true. The answer's 'eventos' is plural, but one event is fired, and S2 spells 'despacha' as 'despatcha'."
+    }
+  ]
+}
