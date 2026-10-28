@@ -36,9 +36,12 @@ resolver Opus in a fresh context, only over the items whose verdicts differ. Bot
 than the generator (`qwen2.5-coder`), which meets the ticket's rule "if Opus generated them, Sonnet
 reviews". The signature uses the `model` each panelist writes in its own output
 (`agent:<model>`). That `model` is the exact model id, matching `^claude-[a-z]+-[0-9]+(-[0-9]+)*$`;
-the Panel group tells panelist 1 to write `claude-opus-5-5` and panelist 2 `claude-sonnet-5-5`, so
-the signatures are those of AC 3 and of the DIS-34 precedent (`agent:claude-opus-5-5`). The test
-checks the pattern (a free-text `model` such as `Opus` rejects the output), not the literal ids. *Alternative rejected:* one reviewer (the ticket's
+the Panel group tells each panelist to write its exact id as its own system states it, expecting
+`claude-opus-5-5` for panelist 1 and `claude-sonnet-5-5` for panelist 2, so the signatures are
+normally those of AC 3 and of the DIS-34 precedent (`agent:claude-opus-5-5`). The test checks the
+pattern (a free-text `model` such as `Opus` rejects the output), not the literal ids; task 8.3
+records whether the signatures equal the AC 3 literals and, if not, the real ids and a Follow-ups
+row (spec audit run 2, I3). *Alternative rejected:* one reviewer (the ticket's
 original wording) — two give an agreement measure and catch a single reviewer's slips.
 
 **D2 — Blindness (R2).** Allowed to a panelist: the Panel group of this `tasks.md` (it holds the
@@ -57,7 +60,10 @@ tests), `scripts/**`, the database and the other panelist's output. Every file r
 the spec fixes it (panelists: the five exact entries, `linear:DIS-33/description` among them, plus
 the prefixes `fixtures/task-api/` and `fixtures/acme-shop/` minus their `README.md`, `docs/` and
 `node_modules/`; resolver: the same plus the two panelist outputs and `docs/AUTONOMOUS-RUN.md`),
-like `sourceProblem` of `scripts/annotation-agreement.mjs` (DIS-80). The forbidden list of the
+like `sourceProblem` of `scripts/annotation-agreement.mjs` (DIS-80). Entries are checked by string,
+never for existence (the panelists' `tasks.md` entry must keep matching after `/opsx:archive` moves
+the file); a `..` segment is rejected; an entry ending in `/` or naming an existing directory is a
+directory (spec audit run 2, B1 and I4). The forbidden list of the
 Panel group is explanatory: what it names is outside the allowlist. *Alternative rejected:* a
 denylist check — it lets through any path nobody thought to list. *Alternative rejected:* an
 allowlist of the cited files only — the behaviour item and a `false` judgement need the rest of the
@@ -71,7 +77,9 @@ golden entries by project and id.
 **D4 — Criterion (R4), made mechanical.** Each statement is judged `true`, `false`, `unverifiable`
 or `overtyped`; an *error* is any judgement other than `true` (a false statement, a citation that
 cannot be checked or does not back the statement, a `FACT` the code does not state literally). The
-item's `answer` text is judged `"true"` / `"false"`. Verdict: `incorrect` if the answer is false,
+item's `answer` text is judged `"true"` / `"false"`. When more than one judgement applies to a
+statement, the first that applies in the order `false` > `unverifiable` > `overtyped` > `true` is
+used, so the derived verdict does not depend on the panelist's pick (spec audit run 2, I1). Verdict: `incorrect` if the answer is false,
 or a `FACT` is judged `false`, or every statement has an error; else `correct` with zero errors;
 else `partial`. Model typos ("shemas") are noted, not errors. Behaviour item task-api Q4: answer
 `"true"` iff the fixture has no authentication (no route, middleware, hook or plugin that does it),
@@ -88,7 +96,9 @@ existing tests (`tests/unit/seed/golden-questions.spec.ts`, `tests/unit/seed/sug
 panel says which item, and a plan that cannot name the tests it changes is refused by the kit.
 Regenerating needs Ollama and a second panel, and `runPanel` runs once per ticket. So an entry whose
 final verdict is `incorrect` stays in its file **unsigned** (`reviews: []`), the report lists it
-under `## Pending`, and a successor ticket (destination B) regenerates or retires it and has it
+under `## Pending`, and a successor ticket (destination B: successor issue created by the agent in
+the autonomous run, task 6.4, to be confirmed by the author at review, and listed in the PR's
+remaining-gaps table) regenerates or retires it and has it
 reviewed again. The DoD bullet "the incorrect ones are regenerated or retired" is thereby met by the
 successor ticket, not by this PR; `verify` keeps its counts. Spec-audit question Q-A (run 1) asked
 whether this bullet moves out of DIS-33 or a conditional retirement group is planned here (the
@@ -138,7 +148,13 @@ the report before the commit that creates the panel input; the step 8 report rec
 SHAs and that `git log -p` shows no later change to the `## Criterion` section. A test does not
 check git order (CI clones may be shallow). The spec requirement "Criterion first and immutable panel
 record" fixes this: its verbatim-equality scenario is a test, its git-history scenario is verified
-in the step 8 report (task 8.3).
+in the step 8 report (task 8.3). The Criterion block is the non-blank lines between the line
+starting with `**Criterion**` and the line starting with `**Output format.**`, both excluded, each a
+`- ` bullet; `## Criterion` holds exactly those lines and no other non-blank line (spec audit run 2,
+B2). The criterion test reads the tasks file at its active path
+(`openspec/changes/golden-independent-review/tasks.md`) or, once archived, at the single match of
+`openspec/changes/archive/*-golden-independent-review/tasks.md`, so it survives `/opsx:archive` and
+the main-spec sync; task 13.7 re-runs it after the archive commit (spec audit run 2, B1).
 
 **Layer order.** No production code: test (`tests/unit/seed/golden-reviews.spec.ts`) → data
 (`docs/golden-review/panel/*.json`, `seeds/cache/*.json`) → docs. ADR not warranted: no
@@ -168,8 +184,8 @@ None: data and docs only. Rollback = revert the PR (the `reviews` return to empt
 ## Open Questions
 
 None open. The three questions of spec-audit run 1 (Q-A, Q-B, Q-C) were answered by the agent as
-lead engineer in correction round 1 (rows SA-Q-A, SA-Q-B, SA-Q-C below); every other choice is
-recorded above and below as the agent's decision.
+lead engineer in correction round 1 (rows SA-Q-A, SA-Q-B, SA-Q-C below); spec-audit run 2 asked no
+question; every other choice is recorded above and below as the agent's decision.
 
 ## Follow-ups
 
@@ -184,7 +200,7 @@ their findings here.
 | R2 / D2 | Allowed and forbidden sources; `sourcesRead` per file | **A** — this change (Panel group, test) |
 | R3 / D3 | `reviews` stays `{by, date}`; verdict in the report and panel files | **A** — this change |
 | R4 / D4 | Criterion with four statement judgements and a derived verdict | **A** — this change (Panel group, report) |
-| R5 / D5 | An `incorrect` golden is left unsigned and handed off instead of retired here | **A** — this change (report `## Pending`); **B** — a successor ticket per incorrect item, created in task 6.6 only if one exists |
+| R5 / D5 | An `incorrect` golden is left unsigned and handed off instead of retired here | **A** — this change (report `## Pending`); **B** — a successor issue per incorrect item, created by the agent in the autonomous run in task 6.4 only if one exists, to be confirmed by the author at review |
 | R6 / D6 | Blind input by projection, statements keep their evidence numbers, no excerpts | **A** — this change |
 | R7 / D7 | Output shapes with `date` and `sourcesRead`; at least one valid citation | **A** — this change |
 | R8 / D8 | Agreement over 7 verdicts with `cohenKappa`; no new script | **A** — this change |
@@ -199,7 +215,7 @@ text: decided as lead engineer in an autonomous run, without the author.*
 
 | Id | Decision or finding | Destination |
 |---|---|---|
-| SA-Q-A | DoD bullet «las incorrectas se regeneran o se retiran» and AC 4: moved to the successor ticket of D5 (option a, least scope); `[enhanced]` AC 4 and R9 amended in Linear | **A** — this change (unsigned + `## Pending`); **B** — successor ticket, task 6.6, only if an item is `incorrect` |
+| SA-Q-A | DoD bullet «las incorrectas se regeneran o se retiran» and AC 4: moved to the successor ticket of D5 (option a, least scope); `[enhanced]` AC 4 and R9 amended in Linear | **A** — this change (unsigned + `## Pending`); **B** — successor ticket, task 6.4 (6.6 before the round-2 renumbering), only if an item is `incorrect` |
 | SA-Q-B | The DoD's «y el veredicto» is met by the report's `## Verdicts` table, joined to each entry by project and id in the test (D3); `reviews` stays `{by, date}` | **A** — this change |
 | SA-Q-C | Confirmed in scope: the three acme-shop golden answers (the demo serves them; DIS-32 E7 reset their reviews), two panelists plus a resolver (agreement measure, D1), the TSDoc of `golden-file.ts` (documentation only) | **A** — this change |
 | SA-1 (B1) | New requirement "Criterion first and immutable panel record" with a test scenario (verbatim criterion) and a step-8-report scenario (git order, one commit per panel file) | **A** — this change (spec, tasks 6.2, 7.2, 8.3) |
@@ -211,3 +227,23 @@ text: decided as lead engineer in an autonomous run, without the author.*
 | SA-7 (B7) | Citation pattern of any extension, a range read as its first line, exact keys in every object | **A** — this change (spec, D7, Panel group) |
 | SA-8 (B8) | Report rendering fixed: section order with `## Pending` before `## Limitations`, bare verdicts, `Errors` cell grammar and error source, `<x.y>%`, `<k.kkk>`, `Resolved by the resolver: <k> of 7`, `## Pending` line format; compared as text | **A** — this change (spec, tasks 6.2, 6.4) |
 | SA-9 | Improvable findings: quoted forbidden keys in the input scenario and task 2.1; measurable "imprecise but true" rule in the criterion; "task 6.2" → task 6.4 in the Agreement measure; task 6.1 split into 6.1 and 6.2; helper duplication accepted (D8); `verify` unchanged named in the "Signatures" requirement | **A** — this change |
+
+Spec audit run 2 (`reports/2026-10-28-spec-audit.md`), resolved in correction round 2. *Agent's
+text: decided and applied as lead engineer in an autonomous run, without the author.* Run 2 asked no
+question for the author.
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| SA2-B1 | The criterion test resolves the tasks file at its active path or the single archived match (fails naming the paths tried otherwise); the spec names that path instead of "this change's `tasks.md`"; `sourcesRead` entries are checked by string, never for existence; the report writes paths as code; task 13.7 re-runs the test after the archive commit | **A** — this change (spec, D2, D9, tasks 1.1, 5.2, 6.2, 6.5, 13.7; proposal Impact) |
+| SA2-B2 | Criterion block defined: the non-blank lines between the `**Criterion**` line and the `**Output format.**` line, both excluded, each a `- ` bullet; `## Criterion` holds exactly those lines. *Agent's decision:* the audit's suggested wording ("bullet lines … up to the next blank line") would select nothing, because a blank line follows the lead-in line in `tasks.md`; the end marker is therefore the `**Output format.**` line | **A** — this change (spec, D9, tasks 1.1, 6.2) |
+| SA2-I1 | Judgement precedence `false` > `unverifiable` > `overtyped` > `true` added to the Criterion block before it becomes immutable at task 1.2 | **A** — this change (Panel group, D4) |
+| SA2-I2 | What to cite for an `unverifiable` statement whose cited file or lines do not exist, added to the Output format | **A** — this change (Panel group) |
+| SA2-I3 | `model` placeholder: exact id as the panelist's own system states it, expected `claude-opus-5-5` / `claude-sonnet-5-5`; task 8.3 records whether the signatures equal the AC 3 literals and, if not, the real ids and a Follow-ups row | **A** — this change (Panel group, spec, D1, task 8.3) |
+| SA2-I4 | `sourcesRead`: a trailing `/` or an existing directory is a directory; a `..` segment is outside every allowlist; two more invalid copies in the rejection scenario | **A** — this change (spec, D2, Panel group, tasks 5.1, 5.2) |
+| SA2-I5 | Task order: successor issues (6.4) before the report (6.5), refactor 6.6, commit 6.7; Agreement measure points at task 6.5 | **A** — this change (tasks) |
+| SA2-I6 | Destination B of the successor issue relabelled "created by the agent in the autonomous run, to be confirmed by the author at review"; listed in the PR's remaining-gaps table (task 12.1) | **A** — this change (D5, R5/D5 row, tasks 6.4, 12.1) |
+| SA2-I7 | `## Panel` must contain every exact panelist allowlist entry, both fixture prefixes, `fixtures/README.md` and `seeds/`; `## Limitations` holds four fixed lines verbatim | **A** — this change (spec, tasks 1.1, 6.2, 6.5) |
+| SA2-I8 | When the final verdict matches neither panelist, `Errors` shows panelist 1's judgements: stated in the spec rule. *Agent's decision:* no extra line in `## Limitations`, which stays at the four fixed lines the test checks; the rule is deterministic and recomputed by the test | **A** — this change (spec) |
+| SA2-I9 | Task 6.1: the first test fails, the second may already pass when no item is `incorrect` (recorded) | **A** — this change (tasks) |
+| SA2-I10 | No pipe character in any `## Verdicts` cell, in the spec, the report scenario and tasks 6.2 and 6.5 | **A** — this change (spec, tasks) |
+| SA2-I11 | Each resolution item carries at least one valid citation in `cites` or `justification`, now stated in the Output format | **A** — this change (Panel group) |

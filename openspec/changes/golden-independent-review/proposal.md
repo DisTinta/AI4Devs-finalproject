@@ -70,7 +70,9 @@ None.
 - Code: no production behaviour changes; only the TSDoc of `GoldenReview` / `reviews` in
   `packages/cli/src/cache/golden-file.ts`. `git diff --stat final-project-CRN -- packages/core` stays
   empty. No new dependency; the test reuses `cohenKappa` of `scripts/annotation-agreement.mjs`.
-- Tests: new `tests/unit/seed/golden-reviews.spec.ts`; no existing test changes.
+- Tests: new `tests/unit/seed/golden-reviews.spec.ts`; no existing test changes. The criterion test
+  reads the change's tasks file at its active or archived path, so it keeps passing after
+  `/opsx:archive`.
 - `npm run verify` keeps printing `acme-shop: 3/3 …` and `task-api: 3/3 …` (`verify` does not read
   `reviews`; `seeds/cache/` is no fingerprint input).
 - No personal data, no network, no model call from code: the panel agents are run by the autonomous

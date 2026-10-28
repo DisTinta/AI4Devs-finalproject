@@ -408,3 +408,29 @@ No empty row. The ninth row is filled but defective until B1 is fixed.
 
 Comment:
 > **Auditoría de spec, ejecución 2 (texto del agente, 2026-10-28): CHANGES REQUIRED, 2 bloqueantes.** (B1) El test que compara `## Criterion` con el bloque del grupo Panel lee `openspec/changes/golden-independent-review/tasks.md`, que `/opsx:archive` (tarea 13.7, antes del merge) mueve a `openspec/changes/archive/…`: el test fallaría desde el commit de archivo y en todas las CI posteriores de la base. Corrección: el test busca el `tasks.md` activo o el archivado, `sourcesRead` se comprueba solo como texto y la spec nombra la ruta. (B2) No está definido dónde empieza y acaba el «bloque Criterion»; como `## Criterion` no se puede cambiar después del commit 1.2, un desajuste no tendría arreglo. Corrección: el bloque son las líneas de viñeta tras la línea `**Criterion**` hasta la siguiente línea en blanco. Mejoras: precedencia de juicios (`false` > `unverifiable` > `overtyped`), qué citar en un statement inverificable, `..` y directorios en `sourcesRead`, orden de las tareas 6.4/6.6, etiqueta del destino B del ticket sucesor y registro de si las firmas coinciden con los identificadores del AC 3.
+
+---
+
+## Resolution of run 2
+
+Correction round 2, 2026-10-28. *Agent's text: decided and applied as lead engineer in an autonomous run, without the author.* Run 2 asked no question for the author. Every decision is also in `design.md` → Follow-ups (rows SA2-B1 … SA2-I11, destination A) and in a Spanish comment on DIS-33. `openspec validate golden-independent-review --strict` passes after the edits.
+
+### Blocking findings
+
+- **B1 — fixed.** The "Criterion first and immutable panel record" requirement now names the change's tasks file as `openspec/changes/golden-independent-review/tasks.md` while active and the single `openspec/changes/archive/*-golden-independent-review/tasks.md` once archived; its test scenario resolves either and fails naming the paths tried when there is none or more than one (task 6.2). The Allowlists say entries are checked by string only, never for existence (spec, D2, task 5.2). The report writes repository paths as code, never as links (spec, tasks 1.1 and 6.5). Task 13.7 re-runs `golden-reviews.spec.ts` after the archive commit. D9 and the proposal's Impact record it. The other references to "the Panel group of `tasks.md`" in the spec now say "the change's tasks file".
+- **B2 — fixed, with one detail decided by the agent.** The Criterion block is the non-blank lines between the line starting with `**Criterion**` and the line starting with `**Output format.**`, both excluded, each a `- ` bullet; `## Criterion` holds exactly those lines and no other non-blank line (spec, D9, tasks 1.1 and 6.2). The suggested wording "up to the next blank line" was not taken literally: in `tasks.md` a blank line follows the lead-in line, so that rule would select nothing; the end marker is the `**Output format.**` line instead.
+
+### Improvable findings
+
+- **I1 — fixed.** The Criterion block gains the bullet on judgement precedence (`false`, `unverifiable`, `overtyped`, `true`); D4 records it. The block is still editable: task 1.2 has not run.
+- **I2 — fixed.** The Output format says what to cite for an `unverifiable` statement whose cited file or lines do not exist.
+- **I3 — fixed.** The `model` placeholder asks for the exact id as the panelist's own system states it, with the expected ids; the spec and D1 follow; task 8.3 records whether the signatures equal the AC 3 literals and, if not, the real ids and a Follow-ups row.
+- **I4 — fixed.** A trailing `/` or an existing directory is a directory; a `..` segment is outside every allowlist; the rejection scenario and task 5.1 add both copies (an existing directory without slash, a `..` entry).
+- **I5 — fixed.** New order: 6.3 data, 6.4 successor issues (only if an item is `incorrect`), 6.5 report, 6.6 refactor, 6.7 commit; the Agreement measure now points at task 6.5.
+- **I6 — fixed.** Destination B relabelled in D5, the R5/D5 row and task 6.4 as a successor issue created by the agent in the autonomous run, to be confirmed by the author at review; task 12.1 lists it in the PR's remaining gaps.
+- **I7 — fixed.** `## Panel` must contain every exact panelist allowlist entry, both fixture prefixes, `fixtures/README.md` and `seeds/`; `## Limitations` holds four fixed lines verbatim (spec, both report scenarios' wording, tasks 1.1, 6.2, 6.5).
+- **I8 — decided by the agent.** The spec rule states that when the final verdict matches neither panelist, `Errors` shows panelist 1's judgements; no fifth line is added to `## Limitations`, which stays at the four fixed lines the test checks.
+- **I9 — fixed.** Task 6.1: the first test fails; the second may already pass when no item is `incorrect` (recorded).
+- **I10 — fixed.** No pipe character in any `## Verdicts` cell (spec, scenario, tasks 6.2 and 6.5).
+- **I11 — fixed.** The resolution sentence of the Output format requires at least one valid citation in `cites` or `justification` per resolution item.
+- **§7 main-spec references — fixed through B1.**

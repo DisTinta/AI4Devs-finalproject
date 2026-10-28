@@ -37,12 +37,13 @@ Each panelist SHALL write one output, `docs/golden-review/panel/2026-10-golden-r
 and `…-panelist-2.json`, shaped
 `{ "panelist", "model", "date", "sourcesRead", "items" }`: `panelist` equal to the number in its
 file name; `model` the panelist's exact model id, matching `^claude-[a-z]+-[0-9]+(-[0-9]+)*$`
-(the Panel group of `tasks.md` names `claude-opus-5-5` for panelist 1 and `claude-sonnet-5-5` for
-panelist 2 in this run), different between the two outputs and different from the generator model of
+(the Panel group of the change's tasks file expects `claude-opus-5-5` for panelist 1 and
+`claude-sonnet-5-5` for panelist 2 in this run, and tells a panelist whose own id differs to write
+its own), different between the two outputs and different from the generator model of
 both golden files (`generatedWith.model`); `date` a real `YYYY-MM-DD` day; `sourcesRead` the list of
 every source read, one entry per file: a repository-relative file path or the literal
 `linear:DIS-33/description`, never a directory nor a glob (an entry with `*`, `?`, `[` or `{`), and
-every entry in the allowlist of its role; `items` the seven input items in input order, each
+every entry in the allowlist of its role (see Allowlists); `items` the seven input items in input order, each
 `{ "project", "id", "answer", "verdict", "statements", "notes" }` where:
 
 - `answer` is `"true"` when the item's answer is true against the fixture code (for the behaviour
@@ -73,7 +74,9 @@ follows the same entry rules as a panelist's, against the resolver allowlist.
 `<fixture>/README.md` and the files under `<fixture>/docs/` and `<fixture>/node_modules/`. Resolver:
 the panelist allowlist plus `docs/golden-review/panel/2026-10-golden-review-panelist-1.json`,
 `docs/golden-review/panel/2026-10-golden-review-panelist-2.json` and `docs/AUTONOMOUS-RUN.md`. The
-check is by path string; an entry outside its role's allowlist rejects the output.
+check is by path string only: an entry is never checked for existence. An entry is a directory when
+it ends in `/` or names an existing directory. An entry with a `..` segment is outside every
+allowlist. An entry outside its role's allowlist rejects the output.
 
 **Citations.** A citation is a match of
 `/fixtures\/(task-api|acme-shop)\/([A-Za-z0-9_.\/-]+):([0-9]+)/g` in a `cites` entry, a `notes` or a
@@ -113,7 +116,8 @@ when they differ. Panel outputs and the resolution SHALL NOT be edited after the
 
 - **GIVEN** a valid panelist output built in the test and, one at a time, copies of it with a
   `verdict` different from the derived one, a `sourcesRead` entry outside the panelist allowlist, a
-  directory entry, a glob entry, a missing statement judgement, a statement with no valid citation,
+  directory entry (ending in `/`, or naming an existing directory without it), a glob entry, an
+  entry with a `..` segment, a missing statement judgement, a statement with no valid citation,
   a `notes` with no valid citation, a citation of a line past the end of its file, the generator's
   model, a `model` not matching the pattern, and an extra key; plus a resolution that answers an
   item on which both panelists agree
@@ -154,7 +158,10 @@ nothing `verify` reads changes.
 `incorrect`) and `## Limitations`, in this order.
 
 `## Panel` SHALL name both panelists' `model` and `date`, the resolver's model, and list the allowed
-and the forbidden sources of the Panel group of `tasks.md`.
+and the forbidden sources of the Panel group of the change's tasks file: it SHALL contain each exact
+entry of the panelist allowlist, the prefixes `fixtures/task-api/` and `fixtures/acme-shop/`, and the
+forbidden paths `fixtures/README.md` and `seeds/`. Repository paths in the report are written as
+code, never as Markdown links.
 
 `## Verdicts` SHALL hold one table with the header
 `| Project | Id | Panelist 1 | Panelist 2 | Final | Justification | Errors |` and one row per input
@@ -163,7 +170,9 @@ equal the panel files; the justification SHALL hold at least one valid citation 
 outputs of the golden review"). The `Errors` cell SHALL be `none` or a `; `-separated list of
 `S<n> <judgement>`, in statement order, of the item's statements judged other than `true` by its
 error source: panelist 1 when its verdict equals the final one, otherwise panelist 2 when its
-verdict equals the final one, otherwise panelist 1.
+verdict equals the final one, otherwise panelist 1 (so when the final verdict matches neither
+panelist, the `Errors` cell shows panelist 1's judgements). No cell of the `## Verdicts` table SHALL
+contain `|`.
 
 `## Agreement` SHALL state `n = 7`, the line `Percent agreement: <x.y>%` (agreed items / 7 × 100,
 exactly one decimal, half away from zero with integer arithmetic, for example `100.0%`), the line
@@ -174,9 +183,10 @@ are compared as text with the values the test recomputes from the panel files.
 
 Each line of `## Pending` SHALL be `- <project> <id>: DIS-<n>`, naming the successor ticket.
 
-`## Limitations` SHALL state that two models of one family are not independent reviewers in the
-sense of two people, that the generator is a local 7B model, that `sourcesRead` is self-declared,
-and that the criterion was written by an agent that had read the golden answers.
+`## Limitations` SHALL contain these four lines verbatim:
+`- Two models of one family are not independent reviewers in the sense of two people.`,
+`- The generator is a local 7B model (qwen2.5-coder).`, `- sourcesRead is self-declared.` and
+`- The criterion was written by an agent that had read the golden answers.`
 
 The report SHALL NOT contain the words `human`, `humana` nor `a mano`, and SHALL NOT quote the
 planted secret.
@@ -186,8 +196,8 @@ planted secret.
 - **GIVEN** the report and the panel files
 - **WHEN** the verdicts table and the agreement figures are parsed and recomputed from the panel
   files
-- **THEN** every row's verdicts equal the panelists' and the final verdict, every justification has a
-  valid citation, every `Errors` cell equals the one computed from its error source, and the
+- **THEN** every row's verdicts equal the panelists' and the final verdict, no cell contains `|`,
+  every justification has a valid citation, every `Errors` cell equals the one computed from its error source, and the
   `Percent agreement:`, `Cohen's kappa:` and `Resolved by the resolver:` lines equal, as text, the
   recomputed ones
 
@@ -196,14 +206,20 @@ planted secret.
 - **GIVEN** the report
 - **WHEN** its sections are read
 - **THEN** the sections above are present in order, `## Criterion` defines `correct`, `partial`,
-  `incorrect` and an error, `## Panel` names both panelists' models and dates, the resolver, and
-  the allowed and forbidden sources, `## Limitations` contains the four points above, and the
+  `incorrect` and an error, `## Panel` names both panelists' models and dates and the resolver and
+  contains every exact panelist allowlist entry, both fixture prefixes, `fixtures/README.md` and
+  `seeds/`, `## Limitations` contains the four lines above verbatim, and the
   report contains neither `human`, `humana`, `a mano` nor an `AKIA` key
 
 ### Requirement: Criterion first and immutable panel record
 
-The `## Criterion` section of `docs/golden-review/2026-10-task-api-golden-review.md` SHALL equal,
-line for line, the **Criterion** block of the Panel group of this change's `tasks.md`. The commit
+The `## Criterion` section of `docs/golden-review/2026-10-task-api-golden-review.md` SHALL consist
+of exactly the lines of the Criterion block of the Panel group of the change's tasks file, and no
+other non-blank line. The Criterion block is the non-blank lines between the line starting with
+`**Criterion**` (excluded) and the line starting with `**Output format.**` (excluded); each of them
+starts with `- `. The change's tasks file is `openspec/changes/golden-independent-review/tasks.md`
+while the change is active, and the single `openspec/changes/archive/*-golden-independent-review/tasks.md`
+once it is archived. The commit
 that creates the report with that section SHALL be an ancestor of the commit that creates
 `docs/golden-review/panel/2026-10-golden-review-input.json`; no later commit SHALL change the
 `## Criterion` section; and each panel output and the resolution SHALL be changed by exactly one
@@ -211,9 +227,10 @@ commit, the one that creates it.
 
 #### Scenario: The report's criterion is the Panel group's criterion
 
-- **GIVEN** the report and this change's `tasks.md`
-- **WHEN** the `## Criterion` section and the **Criterion** block of the Panel group are extracted
-- **THEN** their lines are equal
+- **GIVEN** the report and the change's tasks file, active or archived
+- **WHEN** the non-blank lines of `## Criterion` and the Criterion block are extracted
+- **THEN** they are equal, and the test fails naming the paths it tried when no tasks file, or more
+  than one, is found
 
 #### Scenario: The criterion precedes the input and nothing in the record is rewritten
 
