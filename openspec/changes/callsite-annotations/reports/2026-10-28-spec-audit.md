@@ -259,3 +259,225 @@ Empty rows: B1, B3, B4, B5, B6, B7 (all blocking, counted above).
 **Linear.** Spanish comments on DIS-80 (summary of this round, with no control answer), DIS-79 (`form: "read"`, route actions as `reference`, matching key) and DIS-53 (Q1). The DIS-80 description is not edited in this round.
 
 Scenario count after the round: 19 in `annotation-agreement.spec.ts`, 4 in `annotation-sites.spec.ts`, 5 in `annotation-freeze.spec.ts` (task 7.2).
+
+---
+
+## Run 2 (2026-10-28)
+
+CHANGES REQUIRED
+
+**Questions for the author**
+
+None. Every finding below can be fixed inside the change and in the enhanced part of DIS-80 without a product or scope decision. The run 1 decision Q1 (the sub-issue supersedes the parent on "anotación humana") is acceptable: it matches the `[original]` text of DIS-80, and DIS-53 now carries the comment.
+
+Inputs read:
+- **The change:** `proposal.md`, `design.md`, `specs/graph-annotations/spec.md`, `tasks.md`, and `reports/2026-10-28-spec-audit.md` (run 1 and its resolution).
+- **Linear:** DIS-80 (description, with `[original]`, `[reality-map]` and `[enhanced]`, plus 4 comments) and its parent DIS-53 (description and 1 comment).
+- **Project docs:** `docs/base-standards.md` §7.1 and `docs/openspec-tasks-mandatory-steps.md`.
+- **Workflow:** `.claude/workflows/autonomous-sdd.js` (`step`, `runPanel`, the `apply-prepare` / `apply-finish` split).
+- **Code and docs:** `scripts/demo-excerpt.mjs`, `README.md` §2.6 (lines 845 and 854), `fixtures/README.md` § "Table 2 seed", and the file layout of `fixtures/*/{README.md,docs,tests}`.
+
+---
+
+## 1. Scope against the ticket
+
+Clean. Everything traces to DIS-80: its `[original]` DoD and procedure, its enhanced D1–D12, and the run 1 corrections:
+- site lists, `control.json`, panel, tie-break, merge, report, hashes and the freeze test;
+- the README §2.6 wording and the `fixtures/README.md` pointer.
+
+The change does not widen toward DIS-53's Table 1, `measure-graph` or the filled Table 2. All three are explicit non-goals in the proposal and design.
+
+## 2. Inherited acceptance criteria
+
+Clean. The DoD of DIS-80 is covered by a requirement and a scenario:
+- 50 entries per language with a resolution and a `file:line` reason: "Deterministic merge" and "Panel output validation".
+- Agreement report with percent and kappa per language, disagreements and their resolution: "Agreement measures" and "Frozen annotations and agreement report".
+- SHA-256 committed before any `measure-graph` run: "Frozen annotations…" and task 8.3.
+
+Enhanced AC 1–5 are each covered:
+- AC 5 "control discrepancy": scenario "The report lists every control discrepancy".
+- AC 5 "panelist output not used, ticket stops": the validation scenarios and task 4.3.
+
+Of DIS-53's criteria, only "Dado 50 sitios anotados por lenguaje" is inherited, and it is covered.
+
+## 3. Missing scenarios
+
+Clean. Every MUST clause added in run 1 now has a scenario: the validation list, the CLI exit codes, control discrepancies and coverage per construction. The "precedes any `measure-graph` run" clause is checked by task 8.3, as the spec states.
+
+## 4. Ambiguity
+
+Clean. None of fast / easy / secure / efficient / many / appropriate / robust occurs in the change's artifacts. The only hits are the run 1 quotations in `design.md:288` and in the report.
+
+## 5. Open decisions
+
+- **B2 — blocking. The per-site construction record does not survive from preparation to the report.**
+  - Tasks 2.2a/2.2b record "each site's construction row and the instance count per row in the scratchpad for the report (task 6.2)".
+  - In the workflow, tasks 2.x run in the `apply-prepare` agent and task 6.2 runs in a different agent, `apply-finish` (`.claude/workflows/autonomous-sdd.js:190` and `:194`, two separate `step` calls). The scratchpad is per session, so 6.2 cannot read it.
+  - The implementer would then have to rebuild the classification after seeing the panel's answers. That is the very thing D5 ("written after the panel… so as not to hint answers") and the blindness of the procedure try to keep apart.
+  - It also leaves the scenario "The report counts the selection per construction" without a fixed input.
+  - Correction: persist the record as a committed file that panelists may not read. For example, `docs/measurements/annotation/selection.json`, shaped `{ "fixture", "rows": [ { "construction", "instances", "ids": [...] } ] }`, written in 2.2a/2.2b and committed in 2.4. It is already forbidden to panelists under "`docs/**` otherwise", but name it explicitly in the Panel group's forbidden list and in D4. Task 6.2 copies the table from it. Decide whether it joins the hashed set (if it does, "nine files" becomes ten in the spec "Agreement CLI", D10 and tasks 1.1/8.3); if it does not, say why in D10.
+- **B3 — blocking. The report sections that the freeze tests parse have no fixed name or shape.**
+  - Only `## Hashes SHA-256` and its row format are fixed (D10).
+  - The tests of task 6.1 also parse three other parts of the report:
+    - "the selection table" (scenario "The report counts the selection per construction");
+    - "the report's discrepancy section", where "no other id appears there";
+    - the list of disagreements with "its resolution".
+  - None of them has a fixed heading, and the selection table has no fixed column order or construction labels. The labels matter because the test has to know which rows have a minimum (D5 lists them in prose: "facade", "container binding by string", …).
+  - Those are names a test pins, and the implementer would pick them alone.
+  - Correction: in design D10 (or a new P9) and in task 6.2, fix:
+    - the headings, for example `## Selección por construcción`, `## Desacuerdos`, `## Discrepancias con el control`;
+    - the table columns: `| Construcción | Instancias | Control | Nuevos |` for the selection, and `| Id | Panelista 1 | Panelista 2 | Resolución |` for the disagreements;
+    - the exact construction labels of D5, with the minimum flag per row;
+    - that the discrepancy section holds a table with one id per row, or the line "Ninguna." when it is empty.
+- **B4 — blocking. The shape of the resolution output is defined two ways.**
+  - Spec "Panel output validation" says a resolution has "the same shape with `resolver` instead of `panelist`", which implies `resolver`, `model`, `date`, `sourcesRead` and `sites`, with `resolver` of unstated type.
+  - The Panel group (tasks.md:50) says `"resolver": "<model id>"` instead of `"panelist"` and does not mention `model`.
+  - A resolver that follows `tasks.md` writes no `model`. If the validator requires `model` (as the spec's wording implies), task 5.1 fails and the ticket stops after the whole panel has run.
+  - Correction: one definition in the spec, copied into the Panel group. For example: "A resolution output SHALL be `{ resolver: <model id>, date, sourcesRead, sites }` (no `panelist`, no `model`)". Alternatively, `{ resolver: 1, model, date, sourcesRead, sites }`. Add the case to the scenario "A complete panel output is accepted" or to a resolution case in task 1.1.
+- **B5 — blocking. The citation rule says "at least one" in one place and "every" in another.**
+  - Design P4 and the requirement's first sentence: at least one citation per answer must name an existing fixture file and a line inside it.
+  - The rejection list: "whose citations name a missing file or a line beyond the end of the file". Read literally, any bad citation rejects.
+  - The scenario: "cites **only** a file that does not exist… or a line beyond the end".
+  - Task 9.2: "a citation beyond the end of its file".
+  - The difference decides whether the ticket stops. A `none` reason may well mention a framework path that matches the P4 regex, such as `Illuminate/Support/Facades/Route.php:1`, next to a valid fixture citation.
+  - Other edge cases are also left open: line `0`, and a citation of a file of the *other* fixture.
+  - Correction, in the requirement "Panel output validation" and in the Panel group: "An answer is rejected when none of its P4 citations names an existing file of the site's fixture with a line between 1 and the file's last line; other citations are ignored" (or the strict "every P4 citation must…", if that is preferred). Align the scenario and the 9.2 case wording with whichever rule is chosen.
+
+## 6. Contradictions inside the change
+
+- **B1 — blocking. Panelists are told to read the ticket description, and its enhanced D2/D4 contradict the Panel group.**
+  - The workflow prompt tells every panelist "Read the ticket (Linear MCP) and the group titled Panel" (`.claude/workflows/autonomous-sdd.js:145`), and the allowlist includes `linear:DIS-80/description`.
+  - The description was not edited in run 1, so it still carries the enrich-step versions:
+    - **Enhanced D2:** "`exact` si el destino queda fijado por … `new X` dentro del fixture". The Panel group says `new X(...)` with no declared constructor → `none`. The description also has none of the run 1 rules: precedence of `heuristic`, static `X::dispatch`, inherited methods, ordering, `read` sites.
+    - **Enhanced D4:** "Permitido al panelista: `fixtures/acme-shop/**` y `fixtures/task-api/**`". The Panel group forbids `fixtures/*/README.md`, `fixtures/*/docs/**` and `fixtures/*/tests/**`, which exist (`fixtures/acme-shop/tests/Unit/TaxServiceTest.php`, `fixtures/task-api/tests/unit/task.service.test.ts`, `fixtures/acme-shop/docs/pricing.md`, …). A panelist who follows the description and honestly declares a fixture test makes validation stop the ticket. One who does not declare it is no longer blind.
+    - **Enhanced AC 1:** each site gives "solo `id`, `site`, `call` y `source`". The site lists also carry `control` and `form`.
+  - Nothing says which text wins, so each panelist decides alone, and the two panelists may decide differently. That inflates disagreement for a reason that has nothing to do with the code.
+  - Correction, both:
+    - (a) In the Panel group, add a first line: "Where the description of DIS-80 differs from this group (criterion, allowed sources, site fields), this group prevails."
+    - (b) In the DIS-80 description, enhanced part only, update D2, D4 and AC 1 to the rule-level text of the Panel group. Name no site, file, line or control answer; the ts-03 rule stays out. The `[original]` block is not touched.
+- *Improvable.* Task 3.1 says "no tracked file written by this change … contains an answer of a control site". But `control.json`, the spec "Control reference" and design D3 are written by this change and do contain control answers on purpose (`TaskService::get`). Reword it: "no file a panelist may read (allowlist of design D4) and nothing in the Panel group contains an answer of a control site".
+- Otherwise proposal, design and spec agree on the files, the nine hashed files, format 1, the measures, the merge and the CLI.
+
+## 7. Contradictions with the project
+
+Clean.
+- **Main specs:** `openspec/specs/` has no capability on annotations, so nothing is duplicated.
+- **ADRs:** no ADR bears on measurement data, and design P8 records why none is written.
+- **Project docs:**
+  - Exit code `2` for a usage error follows `scripts/demo-excerpt.mjs:15-16`.
+  - English artifacts with a Spanish report, PR and Linear text follow `docs/base-standards.md` §2 and the project's Linear rule, with design P6.
+  - Agent merge in 13.7 follows the autonomous profile, as run 1 noted.
+
+The workflow's resolver prompt ("any measurement output") is reconciled by task 4.4 and D4.
+
+## 8. Contrast with the real code
+
+- Clean on abstractions. The script follows the `scripts/demo-excerpt.mjs` pattern (`.mjs` + `.d.mts` + pure functions + a thin CLI, `--root` like `fixturesRoot`), and no existing abstraction is duplicated.
+- The README targets of D12 and task 11.2 exist as described: `README.md:845` "anotados a mano" and `README.md:854` "preguntas y anotación realizadas por la autora".
+- The `fixtures/README.md` targets of task 11.1 exist: `:328` and `:330` "hand-annotated", `:332` "pending", and the headings at `:336` and `:353`.
+- The fixture `tests/`, `docs/` and `README.md` files exist, which is what makes B1 concrete.
+- The `apply-prepare` / `apply-finish` split at `autonomous-sdd.js:190-194` is what makes B2 concrete.
+
+## 9. Task size
+
+Clean. After the run 1 split (2.2a / 2.2b), every task fits one agent turn. Task 6.2 is the heaviest; it fits once its inputs are fixed (B2, B3).
+
+## 10. Mandatory steps
+
+Clean.
+- Step 0 comes first and is labelled `(MANDATORY - FIRST STEP)`, with the branch name and prefix.
+- These steps are present and labelled:
+  - 7 Review existing tests;
+  - 8 Run tests and verify data state, with the baseline in 0.4, the report path and the §6 template;
+  - 9 Manual interface testing, `AGENT MUST EXECUTE`, with success and error paths;
+  - 10 E2E, justified N/A;
+  - 11 Docs;
+  - 13 Pre-merge review, last, with the three checks in order, fixes on the same PR and the archive before the merge.
+- Mutating tasks restore state: 9.1/9.2 work on a scratchpad copy and 9.3 deletes it and checks `git status`. The dev-process stops are present.
+- Every scenario maps to a task (7.2: 19 + 4 + 5 = 28; matches the spec).
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| Call-site lists | Each site list has 50 sites with the controls first | 2.1, 2.2a, 2.2b |
+| Call-site lists | Every site points at its call in the fixture | 2.1, 2.2a, 2.2b |
+| Call-site lists | A site list carries no answer | 2.1, 2.2a, 2.2b, 3.1 |
+| Call-site lists | The report counts the selection per construction | 2.2a, 2.2b (record; see B2), 6.1, 6.2 |
+| Control reference | The control reference transcribes the 22 README rows | 2.1, 2.3 |
+| Panel output validation | A complete panel output is accepted | 1.1, 1.2, 4.3 |
+| Panel output validation | An incomplete panel output is rejected | 1.1, 1.2, 4.3, 9.2 |
+| Panel output validation | A citation to a line that does not exist is rejected | 1.1, 1.2, 4.3, 9.2 |
+| Panel output validation | A reason without a citation is rejected | 1.1, 1.2, 4.3 |
+| Panel output validation | An answer inconsistent between expected and target is rejected | 1.1, 1.2, 4.3 |
+| Panel output validation | A target that does not exist in the fixture is rejected | 1.1, 1.2, 4.3 |
+| Panel output validation | A declared forbidden source is rejected | 1.1, 1.2, 4.3, 9.2 |
+| Panel output validation | A sourcesRead entry that is a directory or a glob is rejected | 1.1, 1.2, 4.3 |
+| Panel output validation | A resolution with a source outside the resolver allowlist is rejected | 1.1, 1.2, 5.1 |
+| Agreement measures | Percent agreement and Cohen's kappa per language | 1.1, 1.2, 4.3 |
+| Agreement measures | Kappa is undefined when the expected agreement is 1 | 1.1, 1.2 |
+| Agreement measures | Agreement with the control per panelist | 1.1, 1.2, 4.3 |
+| Deterministic merge | Agreed sites take the common answer | 1.1, 1.2, 5.1 |
+| Deterministic merge | Disagreements take the resolution | 1.1, 1.2, 5.1 |
+| Deterministic merge | A missing or extra resolution fails the merge | 1.1, 1.2, 5.1, 9.2 |
+| Deterministic merge | The merge is deterministic | 1.1, 1.2, 5.2 |
+| Agreement CLI | An unknown command is a usage error | 1.1, 1.2, 9.2 |
+| Agreement CLI | A rejected panel output writes no agreement file | 1.1, 1.2, 4.3, 9.2 |
+| Agreement CLI | hashes prints the nine files in order | 1.1, 1.2, 6.2, 9.1 |
+| Frozen annotations and report | The recorded hashes match the frozen files | 6.1, 6.2, 6.3, 8.3 |
+| Frozen annotations and report | A changed annotation file fails the freeze check | 6.1 |
+| Frozen annotations and report | The report states the method and every disagreement | 6.1, 6.2 |
+| Frozen annotations and report | The report lists every control discrepancy | 6.1, 6.2, 6.4 |
+
+No empty row. The construction-per-selection row depends on B2 being fixed: its input does not currently reach task 6.2.
+
+---
+
+## Corrections to apply
+
+### `specs/graph-annotations/spec.md`
+
+1. **Requirement "Panel output validation" (B4).** Replace "A resolution output SHALL have the same shape with `resolver` instead of `panelist` and one answer per disagreement" with: "A resolution output SHALL be `{ resolver, date, sourcesRead, sites }`, where `resolver` is the model id, with no `panelist` and no `model` field, and one answer per disagreement." (Or the alternative shape, if it is preferred; the Panel group must use the same one.)
+2. **Requirement "Panel output validation" (B5).** Replace "whose `reason` contains no citation, whose citations name a missing file or a line beyond the end of the file" with: "whose `reason` contains no design-P4 citation that names an existing file of the site's fixture with a line between 1 and the file's last line (other citations in the reason are ignored)". Adjust the scenario "A citation to a line that does not exist is rejected" so its WHEN reads: "an answer's reason has no citation to an existing file of the site's fixture with a line inside it (only a missing file, line 0, or a line beyond the end)".
+3. **Requirement "Frozen annotations and agreement report" (B3).** Add: "The report SHALL contain the sections `## Selección por construcción` (table `| Construcción | Instancias | Control | Nuevos |`, construction labels as in design D5), `## Desacuerdos` (table `| Id | Panelista 1 | Panelista 2 | Resolución |`), `## Discrepancias con el control` (one id per table row, or the line `Ninguna.`) and `## Hashes SHA-256`."
+4. **If B2 adds `selection.json` to the hashed set:** "nine" becomes "ten" in the requirements "Agreement CLI" and "Frozen annotations…", with the file named in the order list.
+
+### `design.md`
+
+- **D4 (B2):** name `docs/measurements/annotation/selection.json` among the files forbidden to panelists and to the resolver.
+- **D5 (B2, B3):**
+  - the per-site construction record is committed in `docs/measurements/annotation/selection.json` before the panel, never in the site lists;
+  - list the exact construction labels the report and the test use, and mark which ones have a minimum.
+- **D10 (B2, B3, B4):**
+  - the report's section headings and table columns (as in spec correction 3);
+  - whether `selection.json` is hashed;
+  - the resolution shape (spec correction 1).
+- **P4 (B5):** "An answer is valid when at least one P4 citation names an existing file of the site's fixture with a line between 1 and its last line; other citations are ignored."
+- **Follow-ups:** one row per finding of this run (B1–B5 and the 3.1 wording), destination A. For B1, also destination B: the enhanced part of the DIS-80 description.
+
+### `tasks.md`
+
+- **Panel group, first paragraph (B1):** add "Where the description of DIS-80 differs from this group (criterion, allowed sources, site fields), this group prevails."
+- **Panel group, Output format (B4, B5):**
+  - the resolution is `{ "resolver": "<model id>", "date", "sourcesRead", "sites" }`, with no `panelist` and no `model`;
+  - "at least one citation must name an existing file of the site's fixture with a line inside it; other citations are ignored".
+- **Panel group, Forbidden sources (B2):** add `docs/measurements/annotation/selection.json`.
+- **2.2a / 2.2b (B2):** replace "Record each site's construction row and the instance count per row in the scratchpad" with "Write each site's construction row and the instance count per row in `docs/measurements/annotation/selection.json` (labels of design D5)".
+- **2.4 (B2):** add `selection.json` to the commit's explicit paths.
+- **3.1:** reword to "no file a panelist may read (allowlist of design D4) and nothing in the Panel group contains an answer of a control site".
+- **6.1 / 6.2 (B2, B3):** 6.2 builds the selection table from `selection.json` and uses the section headings and columns of design D10; 6.1's real-report cases parse those headings.
+- **1.1 (B4, B5):** the accepted-output case includes a resolution of the fixed shape. The citation case covers an answer whose reason has one valid and one out-of-range citation (accepted) and one with only invalid ones (rejected).
+- **8.3 / 1.1:** if `selection.json` is hashed, the hash count changes from nine to ten.
+
+### Linear
+
+- **DIS-80, description, enhanced part only (B1).** Update the rules there so they match the Panel group, at rule level:
+  - D2: `new X(...)` with no declared constructor → `none`; the run 1 additions (precedence of `heuristic`, static `X::dispatch`, inherited method, "declared first" ordering, `read` sites).
+  - D4: allowed sources = `fixtures/acme-shop/{app,routes,config,database}/**`, `composer.json`, `fixtures/task-api/src/**`, `package.json`, `tsconfig.json`; the fixtures' `README.md`, `docs/` and `tests/` are forbidden.
+  - AC 1: the site lists also carry `control` and `form`.
+
+  Rules for this edit:
+  - Write it in Spanish, marked as agent's text.
+  - Name no site, file, line or control answer; keep the ts-03 rule out.
+  - Do not edit the `[original]` block.
+- **DIS-80, comment in Spanish:** a summary of this round: the description is aligned with the Panel group, which prevails; the selection record is committed in `selection.json`, forbidden to the panel; the report headings are fixed; the resolution shape is fixed; and the citation rule is "at least one valid citation".
