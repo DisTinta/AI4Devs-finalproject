@@ -67,9 +67,9 @@ The acme-shop Q1 output was captured in full and pasted into `docs/DEMO.md` Paso
 E6 — golden files:
 
 ```
-task-api sha256:46a57023b011a50320f71228de7c502d51b4c0537735cb532cf2769f632045ce Q1:2 Q2:2 Q3:2
-acme-shop sha256:46a57023b011a50320f71228de7c502d51b4c0537735cb532cf2769f632045ce Q1:2 Q3:2 Q4:2
--- analyzer-fingerprint: sha256:46a57023b011a50320f71228de7c502d51b4c0537735cb532cf2769f632045ce
+task-api sha256:46a57023… Q1:2 Q2:2 Q3:2
+acme-shop sha256:46a57023… Q1:2 Q3:2 Q4:2
+-- analyzer-fingerprint: sha256:46a57023…
 [{"by":"agent:claude-opus-5-5","date":"2026-10-28"},{"by":"agent:claude-sonnet-5-5","date":"2026-10-28"}]
 ```
 
