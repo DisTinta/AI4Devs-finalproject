@@ -268,6 +268,8 @@ describe('runSeedLoad', () => {
       stdout: { write: () => undefined },
       stderr: { write: (chunk: string) => void (captured += chunk) },
       seedPath: join(dir, 'graph-dump.sql'),
+      // DIS-32: the versioned golden files name task-api, which this one-project seed lacks.
+      cacheDir: join(dir, 'no-golden-files'),
       openTransaction: async () => {
         throw new DatabaseUnavailable();
       },

@@ -18,6 +18,8 @@ describe('sample-project constant', () => {
 
     // Assert
     expect(seed.length).toBeGreaterThan(0);
+    // DIS-32: the two samples, in name order.
+    expect(constant.map((project) => project.name)).toEqual(['acme-shop', 'task-api']);
     expect(constant).toEqual(
       seed.map((project) => ({
         id: project.id,

@@ -235,17 +235,23 @@ Verified against `package.json` (root and per package). If a command is not here
   claims `stale` when a file's `content_hash` changes) and `0004_query-log-verification` (DIS-74:
   the five nullable `verify_*` columns of `query_log`). Each `db:rollback` reverts **one** migration, the latest. Both need `DATABASE_URL` (non-zero exit without it); locally
   `postgres://codemind:codemind@localhost:5432/codemind` with the compose defaults.
-- `npm run seed:build` (DIS-91) rebuilds acme-shop's history, indexes it without committing and
-  rewrites `packages/web/src/data/sample-projects.ts` and then `seeds/graph-dump.sql`; needs
+- `npm run seed:build` (DIS-91; two samples since DIS-32) rebuilds the history of acme-shop and
+  task-api, indexes each one in its own never-committed transaction (acme-shop as `php`, task-api as
+  `typescript`), prints one summary line per project and rewrites
+  `packages/web/src/data/sample-projects.ts` and then `seeds/graph-dump.sql`; an error names the
+  failing project as the typed path (`"task-api" is not the root of a git repository`); needs
   `AUTHOR_HASH_SALT` (the author's development salt, read from `.env` by the script's preload) and
   `DATABASE_URL` of a migrated database (see Gotchas → seed). `npm run db:seed`
   (DIS-92) loads the seed: needs only `DATABASE_URL`, replaces every sample project in one
-  transaction and prints `1 project loaded` plus one line per sample (see Gotchas → seed load).
+  transaction and prints `2 projects loaded` plus one line per sample (see Gotchas → seed load).
   Since DIS-26 it also loads every `seeds/cache/*.json` golden file into the answer cache of the
-  sample projects. `npm run cache:build [-- <id>...]` (DIS-26) regenerates those golden answers
-  (`seeds/cache/acme-shop.json`: Q1, Q3 and Q4 of `fixtures/README.md`) with a **live** model: needs
+  sample projects. `npm run cache:build [-- --project <name> [<id>...]]` (DIS-26; per project since
+  DIS-32) regenerates those golden answers (`seeds/cache/acme-shop.json`: Q1, Q3 and Q4, and
+  `seeds/cache/task-api.json`: Q1, Q2 and Q3, of `fixtures/README.md`) with a **live** model: ids need
+  `--project`, a bare id or `--project=<name>` is `USAGE`, each project's file is written right after
+  its last question and a later failure keeps it (`INTERNAL` names the files written); needs
   `DATABASE_URL` of a migrated database and `LLM_BASE_URL`/`LLM_MODEL` (reference: local Ollama
-  `qwen2.5-coder` on CPU, about 30 minutes; see Gotchas → golden answers); `CACHE_BUILD_TIMEOUT_MS`
+  `qwen2.5-coder` on CPU, about an hour for both projects; see Gotchas → golden answers); `CACHE_BUILD_TIMEOUT_MS`
   (1..3 600 000, default 1 200 000) is its per-request limit, `LLM_TIMEOUT_MS` is not used. Run it
   after `seed:build`, never in CI.
 - `npm run verify` (DIS-44, `packages/cli/src/verify.ts`) is the no-model smoke check of the readme
@@ -1049,7 +1055,8 @@ services that must be started first, quirks of the local environment.
   builds a fresh `commander` command per call (`exitOverride`, output to the injected streams,
   `outputError` a no-op so `commander` never prints its own error text) and returns the exit code:
   `0` success, help or version; `1` domain, configuration or runtime error; `2` usage
-  (`USAGE`, `UNSUPPORTED_LANGUAGE` — only `php`, `typescript` says "not available yet (CM-HU-18)" —,
+  (`USAGE`, `UNSUPPORTED_LANGUAGE` — `php` and `typescript` are supported since DIS-32, each with its
+  analyzer chosen by `defaultPorts(salt, language)`; `details.allowed` is `["php","typescript"]` —,
   `UNSUPPORTED_FRAMEWORK`). `index.ts` delegates to it when `argv[2] === 'index'`. Order: arguments,
   then trimmed `ALLOWED_REPOS_DIR` + lexical `confinePath`, then `AUTHOR_HASH_SALT` and
   `DATABASE_URL` (`MISSING_CONFIG`, `details.variable`), all before connecting; then one transaction
@@ -1106,9 +1113,14 @@ services that must be started first, quirks of the local environment.
   UTC timestamps, `String(n)` doubles, `E'…'` with `\uXXXX` for controls other than LF (a raw `\r`
   would fight `eol=lf`); no free text right before a hash or sha (gitleaks' `generic-api-key` counts
   the comma as an assignment), so `commit` writes `author_hash` before `message`. **Changing anything under the fingerprint inputs means rerunning
-  `seed:build` and committing the seed.** Before regenerating, `git status --porcelain fixtures` and
-  `git clean -ndX fixtures/acme-shop` must both print nothing: ignored files under the fixture
-  (`vendor/`, `.env`, logs) change the fingerprint but not the rows. The empty `git diff` holds only with the same salt
+  `seed:build` and committing the seed.** Since DIS-32 (design D5) the analyzer fingerprint hashes, under
+  `fixtures/acme-shop` and `fixtures/task-api`, only the files tracked by git (`git ls-files -z` at the
+  repository root), so untracked or ignored files (`node_modules/`, `vendor/`, `.env`, logs, `dist/`)
+  never change it and the old precondition `git clean -ndX fixtures/acme-shop` is gone; `seed:build`,
+  `cache:build` and `verify` therefore need a git clone, not a ZIP (a failing `git ls-files` is their
+  `INTERNAL`). `fixtures/task-api/package-lock.json` is tracked, so it is a fingerprint input: a local
+  `npm install` inside `fixtures/task-api` that rewrites it changes the analyzer fingerprint. The
+  fingerprint also covers `packages/analyzers/typescript/src` and `deps:typescript@…`. The empty `git diff` holds only with the same salt
   (PH-11): another salt changes every `author_hash`. In Git Bash, `TZ=… npm …` is rewritten for
   Windows programs; worker threads ignore `process.env.TZ`, so
   `tests/integration/cli/seed-build.spec.ts` runs in the `forks` pool, through the `seed-build`
@@ -1158,7 +1170,11 @@ services that must be started first, quirks of the local environment.
   the projects they depend on inside their harness transaction first.
 - **Golden answers (`cache:build`, DIS-26, `packages/cli/src/cache-build.ts` +
   `packages/cli/src/cache/`; a dev script, not a `codemind` subcommand).** Order, each step only after
-  the previous one: the ids (`USAGE`, exit 1, `details.allowed`), `DATABASE_URL`, the model
+  the previous one: the arguments `[--project <name>] [<id>...]` (`USAGE`, exit 1, `details.allowed`;
+  every golden question must anchor a symbol of its project, DIS-32 SA10: a question whose first 16
+  `questionTerms` match no symbol name answers `UNKNOWN` `no-anchor` before the cache is read and could
+  never be golden, which is why task-api's Q1 and Q2 name `taskRoutes` and `buildPage`;
+  `tests/unit/seed/golden-questions.spec.ts` checks it against the versioned seed), `DATABASE_URL`, the model
   configuration as `ask` reads it (evaluation mode → `MISSING_CONFIG` `LLM_BASE_URL`),
   `CACHE_BUILD_TIMEOUT_MS` (`INVALID_CONFIG`); the seed, read and checked as `db:seed` does, whose
   header fingerprints must equal the ones `seed:build` would write now (else `GOLDEN_STALE` reason
@@ -1385,8 +1401,14 @@ services that must be started first, quirks of the local environment.
 - **The TypeScript analyzer** (DIS-30, `packages/analyzers/typescript`, `createTypeScriptAnalyzer()`).
   It parses every canonical `.ts` input (not `.d.ts`) with the `typescript` compiler API as one
   in-memory program, with no standard library, no `@types` and no disk access. It emits `class`,
-  `interface`, `function` (any depth) and `method` symbols (`X::m`, `X::constructor`, `I::m`); variables,
-  types, enums, accessors and `declare` blocks are not symbols. Edges, all `exact` with extractor
+  `interface`, `function` (any depth) and `method` symbols (`X::m`, `X::constructor`, `I::m`); since
+  DIS-32 (design D1) a module-level `const` with one declarator whose initializer is directly an arrow
+  or a function expression is a `function` symbol too (the whole statement is its span, `export`
+  included, JSDoc excluded; no `calls` edge has it as endpoint, `let` / `var`, nested and destructured
+  forms are not symbols); other variables, types, enums, accessors and `declare` blocks are not symbols.
+  `bySymbolOrder`, `keepFirst` and `uniqueInputs` live in `packages/core/src/index/analyzer-helpers.ts`
+  and both analyzers import them from `@codemind/core` (the author's core exception of 2026-10-28;
+  `byPath` stays duplicated). `index --language typescript` uses this analyzer. Edges, all `exact` with extractor
   `ts-compiler`: file → file `imports` (every import / export-from form, one per pair), class / interface
   `extends` and `implements` resolved by the `TypeChecker` (aliases followed, merged declarations never a
   target) and file → file `tested_by` (`<base>.test.ts` / `<base>.spec.ts` importing `<base>.ts`); `describes`

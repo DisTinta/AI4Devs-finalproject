@@ -28,7 +28,13 @@ import { unique } from '../helpers/factories';
 
 const ACME_ID = 'a794456d-6d1b-5b55-a360-13fec83dc7bc';
 const SEED = readFileSync(resolve('seeds/graph-dump.sql'), 'utf8');
-const ACME_LINES = ['1 project loaded', '  acme-shop  php/laravel  174 nodes · 170 edges'];
+const TASK_ID = 'fba8e26b-1fb4-5b74-8352-d5d71ded7fe8';
+// DIS-32: the seed holds two samples, so the command prints `2 projects loaded` and one line per sample.
+const SAMPLE_LINES = [
+  '2 projects loaded',
+  '  acme-shop  php/laravel  174 nodes · 170 edges',
+  '  task-api  typescript/fastify  102 nodes · 100 edges',
+];
 const WORKSPACE_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 /** Temporary golden directories of the golden scenarios (DIS-26), removed at the end. */
 const goldenDirs: string[] = [];
@@ -173,7 +179,7 @@ describeWithDatabase('db:seed (integration)', () => {
   it('The seed is loaded into an empty database', async () => {
     // Arrange
     await db().query('DELETE FROM project');
-    const [expected] = seedProjects(SEED);
+    const [expected, expectedTask] = seedProjects(SEED);
     const fileCommitInserts = SEED.split('\n').filter((line) => line.startsWith('INSERT INTO file_commit (')).length;
 
     // Act
@@ -182,21 +188,33 @@ describeWithDatabase('db:seed (integration)', () => {
     // Assert
     expect(result.exit).toBe(0);
     expect(result.stderr).toBe('');
-    expect(result.stdout.split('\n')).toEqual([...ACME_LINES, '']);
+    expect(result.stdout.split('\n')).toEqual([...SAMPLE_LINES, '']);
     const store = createPostgresStore({ transaction: db() });
     const project = await store.getProject(ACME_ID);
     expect(project).toMatchObject({ name: 'acme-shop', isSample: true, nodeCount: 174, edgeCount: 170 });
     const stored = await counts(db(), ACME_ID);
     expect(stored.files + stored.symbols).toBe(174);
     expect(stored.edges).toBe(170);
-    expect(stored).toEqual({
-      files: expected.fileCount,
-      symbols: expected.symbolCount,
-      edges: expected.edgeCount,
-      commits: expected.commitCount,
+    const storedTask = await counts(db(), TASK_ID);
+    expect(await store.getProject(TASK_ID)).toMatchObject({ name: 'task-api', isSample: true, language: 'typescript', nodeCount: 102, edgeCount: 100 });
+    expect(storedTask.files + storedTask.symbols).toBe(102);
+    expect(storedTask.edges).toBe(100);
+    // Both projects together hold exactly the rows of the seed.
+    expect({
+      files: stored.files + storedTask.files,
+      symbols: stored.symbols + storedTask.symbols,
+      edges: stored.edges + storedTask.edges,
+      commits: stored.commits + storedTask.commits,
+      fileCommits: stored.fileCommits + storedTask.fileCommits,
+    }).toEqual({
+      files: expected.fileCount + expectedTask.fileCount,
+      symbols: expected.symbolCount + expectedTask.symbolCount,
+      edges: expected.edgeCount + expectedTask.edgeCount,
+      commits: expected.commitCount + expectedTask.commitCount,
       fileCommits: fileCommitInserts,
     });
     expect((await store.findSymbols(ACME_ID, 'Checkout')).length).toBeGreaterThan(0);
+    expect((await store.findSymbols(TASK_ID, 'taskRoutes')).length).toBeGreaterThan(0);
   });
 
   it("Loading again changes nothing and keeps the user's projects", async () => {
@@ -221,8 +239,8 @@ describeWithDatabase('db:seed (integration)', () => {
     // ids and the user's project, with its claim, evidence, query log and cache rows, is untouched. The
     // samples' golden cache entries (DIS-26) come back with new ids, so only their id is not compared.
     expect(await reloadSnapshot(db(), [mine])).toEqual(before);
-    const { rows } = await db().query<{ id: string }>("SELECT id FROM project WHERE name = 'acme-shop'");
-    expect(rows).toEqual([{ id: ACME_ID }]);
+    const { rows } = await db().query<{ id: string }>("SELECT id FROM project WHERE is_sample ORDER BY name");
+    expect(rows).toEqual([{ id: ACME_ID }, { id: TASK_ID }]);
   });
 
   it('A user project named acme-shop is left intact', async () => {
@@ -356,7 +374,7 @@ describeWithDatabase('db:seed (integration)', () => {
     // Assert
     expect(loaded.exit).toBe(0);
     expect(loaded.stderr).toBe('');
-    expect(loaded.stdout.split('\n')).toEqual([...ACME_LINES, '']);
+    expect(loaded.stdout.split('\n')).toEqual([...SAMPLE_LINES, '']);
     const before = [q1, q3].map((entry) => ({ question_normalized: entry.questionNormalized, response: entry.response, hit_count: 0, last_hit_at: null }));
     expect(afterLoad).toEqual(before.sort((a, b) => (a.question_normalized < b.question_normalized ? -1 : 1)));
     expect(response.statusCode).toBe(200);
@@ -389,7 +407,7 @@ describeWithDatabase('db:seed (integration)', () => {
       // Assert
       expect(result.exit).toBe(0);
       expect(result.stderr).toBe('');
-      expect(result.stdout.split('\n')).toEqual([...ACME_LINES, '']);
+      expect(result.stdout.split('\n')).toEqual([...SAMPLE_LINES, '']);
       expect(await cacheRows(db(), ACME_ID)).toEqual([]);
     }
   });

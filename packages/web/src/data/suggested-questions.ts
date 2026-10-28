@@ -15,6 +15,14 @@ const QUESTIONS_BY_NAME: ReadonlyArray<readonly [name: string, questions: readon
       '¿Qué hace OrderObserver al crear un pedido?',
     ],
   ],
+  [
+    'task-api',
+    [
+      '¿Cómo valida taskRoutes las peticiones entrantes?',
+      '¿Qué hace buildPage con los resultados paginados?',
+      '¿Qué transiciones de estado son válidas?',
+    ],
+  ],
 ];
 
 /**
