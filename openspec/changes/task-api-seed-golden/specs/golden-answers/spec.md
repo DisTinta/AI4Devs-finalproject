@@ -139,13 +139,29 @@ demo-question table of acme-shop in `fixtures/README.md`. Q2 (impact), Q5 (docum
 Q6 (an `UNKNOWN` answered without the model) SHALL NOT be golden questions.
 
 The golden questions of task-api SHALL be exactly, in this order, `Q1`
-`¿Cómo se validan las peticiones entrantes?`, `Q2` `¿Cómo se paginan los resultados?` and `Q3`
+`¿Cómo valida taskRoutes las peticiones entrantes?`, `Q2`
+`¿Qué hace buildPage con los resultados paginados?` and `Q3`
 `¿Qué transiciones de estado son válidas?`, each with the id and the exact text of its row in the
 demo-question table of task-api in `fixtures/README.md`. Q4 (an `UNKNOWN`: the repository has no
 authentication) SHALL NOT be a golden question: its terms (`autentican`, `usuarios` and their
 prefixes `auten`, `usuar`) name no symbol of task-api, so `ask` answers it `UNKNOWN` of reason
 `no-anchor` before the answer cache is read, without a model, in evaluation mode as in live mode. It
 is not checked by `verify`, which compares golden answers only; the scenario below checks it.
+
+Every golden question SHALL anchor in its project: at least one of the first 16 terms the context
+engine derives from the question (`questionTerms`) SHALL be contained, case-insensitively, in the
+name of a symbol of that project in the versioned seed. A question that anchors nothing is answered
+`UNKNOWN` of reason `no-anchor` before the answer cache is read and SHALL NOT be a golden question
+(as acme-shop's Q5).
+
+#### Scenario: Every golden question anchors a symbol of its project
+
+- **GIVEN** the versioned `seeds/graph-dump.sql` and the golden questions of every golden project
+- **WHEN** the first 16 terms of each question are compared with the names of the symbols of its
+  project's rows in the seed
+- **THEN** every golden question has at least one term contained, case-insensitively, in one of those
+  names; in particular task-api's Q1 anchors `taskRoutes`, Q2 anchors `buildPage` and Q3 anchors
+  `canTransition`
 
 #### Scenario: The golden questions match the demo-question table
 

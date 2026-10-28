@@ -31,5 +31,6 @@ box"); the focus SHALL stay on the pressed button.
   suggested-question constant is the id of a sample project that has a golden file; the suggested
   questions of acme-shop are «¿Cómo se calcula el precio final de un pedido?», «¿Cómo se validan los
   cupones?» and «¿Qué hace OrderObserver al crear un pedido?»; and the suggested questions of task-api
-  are «¿Cómo se validan las peticiones entrantes?», «¿Cómo se paginan los resultados?» and «¿Qué
+  are «¿Cómo valida taskRoutes las peticiones entrantes?», «¿Qué hace buildPage con los resultados
+  paginados?» and «¿Qué
   transiciones de estado son válidas?»

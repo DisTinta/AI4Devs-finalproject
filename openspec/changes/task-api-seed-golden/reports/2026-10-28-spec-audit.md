@@ -450,3 +450,62 @@ Hay una fila vacía (anclaje de las preguntas golden, B1) y es bloqueante. Las d
 ### Linear DIS-20 (padre)
 
 No se edita.
+
+---
+
+## Resolution of run 2
+
+*Texto del agente (ronda de corrección 2, ejecución autónoma 2026-10-28). Las preguntas para la
+autora las decide el agente como lead engineer; cada decisión queda en `design.md` → Follow-ups
+(tabla «Spec audit, run 2») con su destino A/B/C/D.*
+
+### Preguntas para la autora
+
+- **Q-C — decidida por el agente: opción (a).** Se mantienen Q1, Q2 y Q3 como golden de task-api
+  (AC 5 de la sub-issue, «3/3») y se reescriben los textos de Q1 y Q2 para que nombren un símbolo del
+  grafo, como Q4 de acme-shop con `OrderObserver`:
+  - Q1 «¿Cómo valida taskRoutes las peticiones entrantes?»: los términos `taskroutes` y `taskr`
+    anclan `taskRoutes` (y, por `taskr`, también `TaskRepository` e `InMemoryTaskRepository`).
+  - Q2 «¿Qué hace buildPage con los resultados paginados?»: `buildpage` ancla `buildPage`. Se descarta
+    el ejemplo de la auditoría («¿Cómo construye buildPage…?») porque el prefijo `const` de
+    «construye» anclaría además cualquier símbolo con «constructor» en el nombre.
+  - Las columnas de respuesta esperada y evidencia de `fixtures/README.md` no cambian.
+  - (b) se descarta porque contradice el AC 5; (c) porque queda fuera de la excepción de core.
+  - Follow-ups Q-C: destino **A** (este cambio) y **B** (comentario en DIS-33, tarea 11.7).
+
+### Bloqueantes
+
+- **B1 — corregido.**
+  - Requisito «Golden questions» de golden-answers: textos nuevos de Q1 y Q2, y la regla de que toda
+    pregunta golden ancla un símbolo de su proyecto (primeros 16 términos de `questionTerms`,
+    contención sin distinguir mayúsculas en el nombre de un símbolo de la semilla versionada).
+  - Escenario nuevo «Every golden question anchors a symbol of its project».
+  - Textos nuevos llevados a verify-smoke («Every golden answer matches») y a ask-page («The
+    suggested questions are the golden questions»). «An altered golden answer…» y «A missing cache
+    entry…» no citan los textos de task-api, así que no cambian.
+  - D6 explica la regla y la decisión; la frase falsa de Risks se sustituye.
+  - Tareas: el `it` de anclaje se añade en la 6.1, antes de `seed:build` (rojo solo para task-api,
+    porque la semilla versionada aún no tiene sus filas) y debe estar verde antes de la 6.2, de modo
+    que el defecto aparece en un test unitario antes de gastar una hora de Ollama. Se elige la 6.1 y
+    no la 5.1 para que el test no quede en rojo entre secciones. La 5.2 cambia la tabla de
+    `fixtures/README.md`; 5.1, 6.3, 9.1, 9.4, 11.1, 11.3 (`readme.md:355`) y 11.7 usan los textos
+    nuevos.
+  - Follow-ups SA10 y Q-C, destino **A**.
+
+### Mejorables
+
+- **D5, fallo de `git ls-files` — corregido.** D5 dice que es un `INTERNAL` del comando y que
+  `seed:build`, `cache:build` y `verify` necesitan un clon git, no un ZIP; la tarea 11.4 lo documenta
+  en `docs/project-context.md`. Follow-ups SA11.
+- **Tamaño de la 5.3 — corregido.** Se parte en 5.3 (`it` nuevos) y 5.4 (`it` movidos a `--project`
+  y `outputDir`); la antigua 5.4 pasa a 5.5 y la 5.5 a 5.6. SA6 apunta ahora a la 5.4. Follow-ups
+  SA12.
+- **Tamaño de la 4.6 — rechazado.** Seis `it` de integración sobre la misma preparación de dos
+  fixtures; partirla duplicaría esa preparación sin reducir el riesgo, y la auditoría no lo bloquea.
+
+### Linear
+
+Comentario en español en DIS-32 con las decisiones de esta ronda. El comentario a DIS-33 sobre los
+textos nuevos queda en la tarea 11.7, tras el merge. DIS-20 (padre) no se edita.
+
+`openspec validate task-api-seed-golden --strict`: el cambio es válido.

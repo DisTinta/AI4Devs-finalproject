@@ -42,8 +42,8 @@ entry matches.
   `✓ acme-shop Q1 ¿Cómo se calcula el precio final de un pedido?`,
   `✓ acme-shop Q3 ¿Cómo se validan los cupones?`,
   `✓ acme-shop Q4 ¿Qué hace OrderObserver al crear un pedido?`,
-  `✓ task-api Q1 ¿Cómo se validan las peticiones entrantes?`,
-  `✓ task-api Q2 ¿Cómo se paginan los resultados?`,
+  `✓ task-api Q1 ¿Cómo valida taskRoutes las peticiones entrantes?`,
+  `✓ task-api Q2 ¿Qué hace buildPage con los resultados paginados?`,
   `✓ task-api Q3 ¿Qué transiciones de estado son válidas?`,
   `acme-shop: 3/3 golden answers match` and `task-api: 3/3 golden answers match`, one per line;
   stderr is empty

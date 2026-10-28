@@ -128,13 +128,20 @@ and the acme-shop precondition of `docs/project-context.md` (`git clean -ndX fix
 empty) is no longer needed. `git` is already required by the seed build, the cache build and the CI
 checkout. Alternative: a skip list (`node_modules`, `package-lock.json`, `dist`, `.env`, `*.log`)
 inside the fixtures — rejected: it repeats each fixture's `.gitignore` by hand and still lets any
-other untracked file in. The analyzer fingerprint changes (core `index/`, the new directories), the
+other untracked file in. A failure of `git ls-files` (no `git`, or `repoRoot` not a working tree)
+is an unexpected error of the command (`INTERNAL`), so `seed:build`, `cache:build` and `verify` need
+a git clone, not a ZIP (spec audit run 2; documented in `docs/project-context.md`, task 11.4;
+Follow-ups SA11). The analyzer fingerprint changes (core `index/`, the new directories), the
 contract fingerprint does not.
 
 ### D6 — Multi-project cache build (enrich E6)
 
 `cache/demo-questions.ts` exports `GOLDEN_PROJECTS: readonly { name, questions }[]` (acme-shop Q1, Q3,
-Q4; task-api Q1, Q2, Q3, texts copied from `fixtures/README.md`) instead of `GOLDEN_PROJECT` and
+Q4; task-api Q1, Q2, Q3, texts copied from `fixtures/README.md`; every golden question must anchor
+a symbol of its project (spec golden-answers "Every golden question anchors a symbol of its
+project"); task-api's Q1 and Q2 as first written did not (spec audit run 2, B1), so their texts in
+`fixtures/README.md` become «¿Cómo valida taskRoutes las peticiones entrantes?» and «¿Qué hace
+buildPage con los resultados paginados?», per Follow-ups Q-C) instead of `GOLDEN_PROJECT` and
 `GOLDEN_QUESTIONS`. `cache-build.ts`: a small argument parser (no `commander` dependency needed; the
 order of checks is the spec's) produces the list of `{ project, ids | all }`; the configuration
 checks run once; ids and `--project <name>` may come in any order, the value is always the next
@@ -192,8 +199,9 @@ the author's decision, recorded in Linear and here.
 ## Risks / Trade-offs
 
 - [Ollama produces an answer that fails the cache rules for a task-api question] → three attempts per
-  question, then one targeted retry (D7); task-api Q2/Q3 have clear anchors (`buildPage`,
-  `canTransition`).
+  question, then one targeted retry (D7); the golden questions are checked to anchor before any
+  model call (task 6.1, B1 of spec audit run 2): Q3 anchors through `canTransition`, Q1 and Q2
+  through the symbols named in their texts (`taskRoutes`, `buildPage`).
 - [A task-api golden answer cites weak evidence for Q1 (schemas are not symbols)] → accepted for now,
   judged by DIS-33 (D8).
 - [`fixtures/task-api/node_modules` or the untracked `package-lock.json` locally make the fingerprint
@@ -252,7 +260,17 @@ text: questions for the author answered as lead engineer in an autonomous run, w
 | SA3 | (B3) task-api's Q4 answers `UNKNOWN (no-anchor)`: its terms `autentican`, `auten`, `usuarios`, `usuar` match no symbol name of task-api (`anchor.ts` searches names only), so no model and no cache read | **A** — this change (spec golden-answers, task 6.4) |
 | SA4 | `cache:build` arguments in any order; `--project=<name>` is an unknown option (`USAGE`), not an accepted form | **A** — this change (D6, spec golden-answers, task 5.3) |
 | SA5 | (B5) `seed:build` errors name the failing project as the typed path | **A** — this change (D4, spec seed-build, tasks 4.6, 4.7) |
-| SA6 | (B4) "Retries and failures of a golden answer" is modified: a failure leaves the failing project's file and the later ones as they were; its scenarios run with `--project acme-shop` | **A** — this change (spec golden-answers, task 5.3) |
+| SA6 | (B4) "Retries and failures of a golden answer" is modified: a failure leaves the failing project's file and the later ones as they were; its scenarios run with `--project acme-shop` | **A** — this change (spec golden-answers, task 5.4) |
 | SA7 | The `ask-page` delta names task-api's three suggested questions, backing the coherence assertion of D9 | **A** — this change (spec ask-page, task 6.3) |
 | SA8 | The sentence "The other edge kinds treat it as any other `function` symbol" of code-analysis is removed: it states no observable behaviour the change tests | **D** — accepted |
 | SA9 | Spec and plan fixes: broken scenario reference in seed-build, generic flipped type in verify-smoke, E12 task number, task 8.1 check, tasks 4.5, 5.3 and 6.4 split into 4.5–4.6, 5.3–5.4 and 6.4–6.6 | **A** — this change |
+
+Spec audit, run 2 (`reports/2026-10-28-spec-audit.md`, section "Resolution of run 2"). *Agent's
+text: questions for the author answered as lead engineer in an autonomous run, without the author.*
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| Q-C | task-api's golden questions stay Q1, Q2, Q3 (sub-issue AC 5, "3/3"); the texts of Q1 and Q2 in the task-api table of `fixtures/README.md` are rewritten to name a symbol of the graph, as acme-shop's Q4 names `OrderObserver`: Q1 «¿Cómo valida taskRoutes las peticiones entrantes?» (terms `taskroutes`/`taskr` anchor `taskRoutes`, and through `taskr` also `TaskRepository` and `InMemoryTaskRepository`), Q2 «¿Qué hace buildPage con los resultados paginados?» (`buildpage` anchors `buildPage`). Option (b), only Q3 golden, contradicts AC 5; option (c), changing the anchoring in core, is outside the author's core exception. The expected answer and evidence columns do not change | **A** — this change (spec golden-answers, verify-smoke, ask-page; D6; tasks 5.1, 5.2, 6.3, 9.1, 9.4, 11.1, 11.3); **B** — Spanish comment on DIS-33 (task 11.7) |
+| SA10 | (B1) task-api's Q1 and Q2 as first written anchored no symbol (`valid`, `petic`, `entra`, `pagin`, `resul` are in no symbol name), so they would answer `UNKNOWN (no-anchor)` and `cache:build` could not make them golden; requirement and scenario "Every golden question anchors a symbol of its project" added, checked by a unit test right after the seed is regenerated and before any model call (task 6.1); the false Risks sentence fixed | **A** — this change (spec golden-answers, D6, Risks, tasks 6.1, 11.1, 11.4) |
+| SA11 | A failure of `git ls-files` in the fingerprint is the command's `INTERNAL`; `verify` needs a git clone, not a ZIP | **A** — this change (D5, task 11.4) |
+| SA12 | Task 5.3 split into 5.3 (new `it`s) and 5.4 (moved `it`s); the old 5.4 and 5.5 become 5.5 and 5.6; SA6 now points to 5.4 | **A** — this change |
