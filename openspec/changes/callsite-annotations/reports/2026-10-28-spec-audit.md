@@ -987,3 +987,230 @@ No empty row. The scenario count is 19 + 4 + 5 = 28 and matches task 7.2.
 - **Enhanced D1/D3 of DIS-80 — fixed (Linear), decided by the agent to take it.** Enhanced D1 now includes `"form": "call"|"new"|"read"|"reference"` in format 1; enhanced D3 says a `__get` read (`read`) and a reference passed as an argument (`reference`, route actions included) count as one site each, marked as agent's text. `[original]` untouched; no site or control answer named (row R4-I2, destination B).
 
 **Linear.** DIS-80: description, enhanced part only (D1, D3); Spanish comment summarising this round.
+
+---
+
+## Run 5 (2026-10-28)
+
+CHANGES REQUIRED
+
+**Questions for the author**
+
+None. The one blocking finding can be fixed inside the change and in the enhanced part of DIS-80, with no product or scope decision. The earlier decisions marked as the agent's text are accepted, because none of them contradicts DIS-80 or the project:
+- Q1: the sub-issue supersedes DIS-53 on "anotación humana". DIS-53 carries the comment.
+- R2-B5: the lenient citation rule. Enhanced AC 5 is aligned with it.
+- R3-B1: the resolver derives the disagreements itself and does not read `agreement.json`.
+- R3-B2: the process documents are allowed.
+- R4-B1: `sourcesRead` is checked by path string.
+- R4-B2: the control target of an event row is the first registered listener's `handle`.
+
+Inputs read:
+- **The change:** `proposal.md`, `design.md`, `specs/graph-annotations/spec.md`, `tasks.md`, and `reports/2026-10-28-spec-audit.md` (runs 1–4 and their resolutions).
+- **Linear:** DIS-80 (description `[original]` / `[reality-map]` / `[enhanced]` and its 7 comments) and its parent DIS-53 (description and 1 comment).
+- **Workflow:** `.claude/workflows/autonomous-sdd.js`, lines 43-73, 90-97 and 143-155.
+- **Fixtures:**
+  - `fixtures/README.md:328-368`;
+  - `fixtures/acme-shop/app/Providers/EventServiceProvider.php`;
+  - `fixtures/task-api/src/controllers/tasks.controller.ts`, `src/types/index.ts`, `src/plugins/db.ts`, `src/routes/tasks.routes.ts`, and the three `findById` declarations and uses.
+- **Code:** `packages/analyzers/typescript/src/symbols.ts:78-100`.
+- **Config and docs:** `.gitattributes`; `docs/project-context.md`, searched for CRLF handling.
+
+---
+
+### 1. Scope against the ticket
+
+Clean. Everything traces to one of three sources:
+- the `[original]` DoD and procedure of DIS-80;
+- its enhanced D1–D12;
+- a correction from runs 1–4.
+
+Nothing widens the change toward DIS-53's Table 1, `measure-graph` or the filled Table 2. All three stay explicit non-goals in the proposal and the design.
+
+### 2. Inherited acceptance criteria
+
+Clean.
+- **DoD of DIS-80:** each item has a requirement and a scenario:
+  - 50 entries per language, each with a `file:line` reason;
+  - a report with percent, kappa, the disagreements and their resolution;
+  - the SHA-256 committed before any `measure-graph` run.
+- **Enhanced AC 1–5:** each is covered.
+- **DIS-53:** only "Dado 50 sitios anotados por lenguaje" is inherited, and it is covered.
+
+### 3. Missing scenarios
+
+Clean. All 28 scenarios exist (19 + 4 + 5), and every MUST clause has one. Task 8.3 checks the freeze-before-`measure-graph` clause, as the spec states.
+
+### 4. Ambiguity
+
+Clean. None of fast / easy / secure / efficient / many / appropriate / robust occurs in the artifacts. The only hit is the quotation in Follow-up row I3 of `design.md`.
+
+### 5. Open decisions
+
+**R5-B1 — blocking. The criterion does not say which symbol is the target of a call on a receiver typed by a fixture interface. Read literally, its tie-break rule picks the implementation, which contradicts the control.**
+
+The facts:
+- The TypeScript analyzer makes interface method signatures symbols, named `Interface::method` (`packages/analyzers/typescript/src/symbols.ts:83-88`).
+- `TaskService::get` calls `this.repository.findById(id)` (`fixtures/task-api/src/services/task.service.ts:20`). The receiver is typed by the fixture interface `TaskRepository`, whose method signature is at `src/repositories/task.repository.ts:23`. Its one implementation is `InMemoryTaskRepository::findById`, at `src/repositories/in-memory-task.repository.ts:20`.
+
+What the criterion says (D2 and the Panel group, lines 35, 39 and 45):
+- `exact` covers "a declared or inferred type of the receiver declared in the fixture". This says *that* the call is exact, not *which* symbol is its target.
+- "When a call can reach several symbols, `target` is the one declared first in the code". "Declared first" means "first in the registration list when there is one …, otherwise by file path, then line".
+
+Why this breaks the measurement:
+- A panelist who reads the interface call as one that "can reach" both the signature and the implementation applies that ordering. `src/repositories/in-memory-task.repository.ts` sorts before `src/repositories/task.repository.ts` (`i` < `t`), so the panelist answers `InMemoryTaskRepository::findById`.
+- A panelist who takes the declared type answers `TaskRepository::findById`. That is the control reference (README row 9, "interface method, typed") and the analyzers' convention.
+- Each panelist decides alone which rule applies. The result feeds:
+  - the TypeScript agreement figures;
+  - control site `ts-09` (n = 10);
+  - every site of the `interface-method` construction row, which needs at least 2 new sites.
+- A disagreement here is not about the code. A discrepancy here would be produced by the criterion, not by the panel.
+
+Correction: add one rule-level line to design D2 and to the Panel group criterion. Then align the enhanced D2 of DIS-80 with it (see Corrections). The line:
+
+> "A call on a receiver whose declared or inferred type is a fixture interface (or a fixture class whose method is abstract) targets that type's method: `Interface::m`, `exact`; implementations are not targets. 'Can reach several symbols' applies only when no declared type fixes one symbol: event listeners, container bindings, a union type."
+
+Like the other criterion rules, this names a construction class, not a site. The Risks bullet "The criterion names construction classes that some control rows use" already covers that trade-off.
+
+### 6. Contradictions inside the change
+
+Clean apart from R5-B1, which is a clash between two rules of the same criterion. Proposal, design and spec agree on all of the following:
+- the files;
+- the nine hashed files, and `selection.json` not hashed, with its reason;
+- format 1;
+- the measures and the shape of `agreement.json`;
+- the merge, the CLI and the report sections;
+- the two allowlists and the path-string rule for `sourcesRead`.
+
+### 7. Contradictions with the project
+
+Clean.
+- `openspec/specs/` has no capability on annotations, so nothing is duplicated.
+- No ADR bears on this change (design P8).
+- Exit code `2` for a usage error follows `scripts/demo-excerpt.mjs:15-16`.
+- The resolver's workflow prompt ("any measurement output", `autonomous-sdd.js:154`) is consistent: the resolver does not read `agreement.json` and does not run the script.
+- The Panel group paragraph "Resolver and its step contract" neutralises `COMMON` (`autonomous-sdd.js:62-71`).
+
+*Improvable — hashes and line endings.* `.gitattributes` (`* text=auto eol=lf`) makes **checked-out** files LF. It does not normalise a file that an edit tool newly writes on Windows before the commit. Six of the nine hashed files are written by agents with the edit tools:
+- the two site lists;
+- `control.json`;
+- the two panel outputs;
+- `resolution.json`.
+
+`hashes` reads working-tree bytes. If any of these files is written with CRLF or a BOM, the hash recorded in task 6.2 will differ from the LF checkout in CI, and the freeze test fails at task 13.2. Only the files that `merge` and `agreement` write are guaranteed LF.
+
+Correction: in tasks 6.2 and 8.3, before filling the hash table, require that `git ls-files --eol docs/measurements/annotation fixtures/annotations` shows `i/lf w/lf` for every hashed file and that no file starts with a BOM. If one does not, re-checkout that file from the index (it is already committed LF) before running `hashes`. Do not edit its content.
+
+### 8. Contrast with the real code
+
+- The script follows the `scripts/demo-excerpt.mjs` pattern and duplicates no abstraction.
+- R5-B1 comes from `symbols.ts:83-88` and the `findById` declarations cited above.
+- *Improvable — Fastify module augmentation.*
+  - `fixtures/task-api/src/types/index.ts:8-13` augments `FastifyInstance` with `taskService: TaskService` (`declare module 'fastify'`).
+  - The five controller calls `request.server.taskService.{list,get,create,update,delete}(` (`src/controllers/tasks.controller.ts:14,22,30,38,46`) have a final receiver whose type is declared in the fixture. Their chain, however, passes through `request.server`, whose type exists only in the package. One of these calls is control `ts-07`; the other four are likely new sites.
+  - The `none` clause ("only reachable through a receiver whose type is declared outside the fixture") arguably settles this, and the design's Risks say so. Still, "through a receiver" is read either as the immediate receiver or as the whole chain, and an augmentation declared in the fixture invites the `exact` reading.
+  - Correction: add to D2 and to the Panel group: "A member-access chain is judged link by link: when a link before the called method has a type known only from a package or the standard library, the call is `none`, even if a later link's type is declared or augmented (`declare module`) in the fixture."
+- *Improvable — control sites are not located by the test.* The scenario "Each site list has 50 sites with the controls first" checks ids and the `control` flag only. Nothing checks that `php-01`…`php-12` / `ts-01`…`ts-10` sit in the README row's source. Correction: in task 2.1, have the site test also compare each control site's `source` with the source of its README row: the symbol, or `{ file }` for `routes/*.php`. This cheap check catches a control placed on the wrong line, and it adds no new scenario.
+
+### 9. Task size
+
+Clean.
+- Task 1.1 (19 `it` cases), tasks 2.2a/2.2b (38 / 40 new sites plus `selection.json`) and task 6.2 are the heaviest.
+- Each fits one agent turn now that its inputs and formats are fixed.
+
+### 10. Mandatory steps
+
+Clean.
+- Step 0 comes first and is labelled `(MANDATORY - FIRST STEP)`, with the branch and its prefix.
+- These steps are present and labelled:
+  - 7, review existing tests;
+  - 8, run tests and verify data state, with the baseline in 0.4 and the §6 report template;
+  - 9, manual interface testing (`AGENT MUST EXECUTE`), with success and error cases on a scratchpad copy;
+  - 10, E2E, justified N/A;
+  - 11, docs;
+  - 13, pre-merge review, last, with the three checks, fixes on the same PR and the archive before the merge.
+- Mutating tasks restore state: 9.3 deletes the copy and checks `git status`. The dev-process stops are present.
+
+### 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| Call-site lists | Each site list has 50 sites with the controls first | 2.1, 2.2a, 2.2b |
+| Call-site lists | Every site points at its call in the fixture | 2.1, 2.2a, 2.2b |
+| Call-site lists | A site list carries no answer | 2.1, 2.2a, 2.2b, 3.1 |
+| Call-site lists | The report counts the selection per construction | 2.2a, 2.2b, 2.4, 6.1, 6.2 |
+| Control reference | The control reference transcribes the 22 README rows | 2.1, 2.3 |
+| Panel output validation | A complete panel output is accepted | 1.1, 1.2, 4.3 |
+| Panel output validation | An incomplete panel output is rejected | 1.1, 1.2, 4.3, 9.2 |
+| Panel output validation | A citation to a line that does not exist is rejected | 1.1, 1.2, 4.3, 9.2 |
+| Panel output validation | A reason without a citation is rejected | 1.1, 1.2, 4.3 |
+| Panel output validation | An answer inconsistent between expected and target is rejected | 1.1, 1.2, 4.3 |
+| Panel output validation | A target that does not exist in the fixture is rejected | 1.1, 1.2, 4.3 |
+| Panel output validation | A declared forbidden source is rejected | 1.1, 1.2, 4.3, 9.2 |
+| Panel output validation | A sourcesRead entry that is a directory or a glob is rejected | 1.1, 1.2, 4.3 |
+| Panel output validation | A resolution with a source outside the resolver allowlist is rejected | 1.1, 1.2, 5.1 |
+| Agreement measures | Percent agreement and Cohen's kappa per language | 1.1, 1.2, 4.3 |
+| Agreement measures | Kappa is undefined when the expected agreement is 1 | 1.1, 1.2 |
+| Agreement measures | Agreement with the control per panelist | 1.1, 1.2, 4.3 |
+| Deterministic merge | Agreed sites take the common answer | 1.1, 1.2, 5.1 |
+| Deterministic merge | Disagreements take the resolution | 1.1, 1.2, 5.1 |
+| Deterministic merge | A missing or extra resolution fails the merge | 1.1, 1.2, 5.1, 9.2 |
+| Deterministic merge | The merge is deterministic | 1.1, 1.2, 5.2 |
+| Agreement CLI | An unknown command is a usage error | 1.1, 1.2, 9.2 |
+| Agreement CLI | A rejected panel output writes no agreement file | 1.1, 1.2, 4.3, 9.2 |
+| Agreement CLI | hashes prints the nine files in order | 1.1, 1.2, 6.2, 8.3, 9.1 |
+| Frozen annotations and report | The recorded hashes match the frozen files | 6.1, 6.2, 6.3, 8.3 |
+| Frozen annotations and report | A changed annotation file fails the freeze check | 6.1 |
+| Frozen annotations and report | The report states the method and every disagreement | 6.1, 6.2 |
+| Frozen annotations and report | The report lists every control discrepancy | 6.1, 6.2, 6.4 |
+
+No row is empty. The scenario count is 19 + 4 + 5 = 28, which matches task 7.2. R5-B1 concerns the criterion text the panelists apply (Panel group, tasks 4.1, 4.2 and 4.4), not a missing link in this table.
+
+**Improvable findings not listed above**
+- **"a mano" in the report.** The scenario "The report states the method and every disagreement" fails if the report contains "a mano" anywhere. D12 keeps the 22 control rows of the README "described as written by hand", and a report that says the same about the control in Spanish ("filas de control escritas a mano") would fail its own test. Correction: in task 6.2, describe the control as "las 22 filas de control de `fixtures/README.md`, anteriores a este ticket", never "a mano".
+- **`instances` of the `other` row and the hash-table header.**
+  - `instances` is defined as "the number of instances of that construction in application code". For `other` (every remaining call), that count is not defined.
+  - The `## Hashes SHA-256` table has no fixed header row.
+  - Correction:
+    - in the spec "Call-site lists" and design D5: "`instances` of `other` is the number of its sites";
+    - in the spec and design D10: the table header is `| Fichero | SHA-256 |`, and `checkFreeze` reads only the rows whose second cell is 64 hex characters.
+
+---
+
+### Corrections to apply
+
+#### `design.md`
+
+- **D2 (R5-B1), in the list of run-1 additions.** Add:
+  > "A call on a receiver whose declared or inferred type is a fixture interface (or a fixture class whose method is abstract) targets that type's method: `Interface::m`, `exact`; implementations are not targets. 'Can reach several symbols' applies only when no declared type fixes one symbol: event listeners, container bindings, a union type."
+- **D2 (improvable, augmentation).** Add:
+  > "A member-access chain is judged link by link: when a link before the called method has a type known only from a package or the standard library, the call is `none`, even if a later link's type is declared or augmented (`declare module`) in the fixture."
+- **D5 (improvable):** "`instances` of `other` is the number of its sites."
+- **D10 (improvable):** the `## Hashes SHA-256` table header is `| Fichero | SHA-256 |`, and `checkFreeze` reads only the rows whose second cell is 64 hex characters.
+- **Follow-ups:**
+  - row R5-B1, destination A (Panel group, D2) and B (enhanced D2 of the DIS-80 description);
+  - rows R5-I1 (line endings), R5-I2 (augmentation), R5-I3 (control `source` check), R5-I4 ("a mano" in the report) and R5-I5 (`instances` of `other`, hash header), each destination A if taken or D if not.
+
+#### `tasks.md`
+
+- **Panel group, Criterion (R5-B1):** after the bullet "A method inherited from a fixture class…", add the same interface-receiver line as in D2, word for word. If R5-I2 is taken, also add the link-by-link chain line.
+- **2.1 (R5-I3):** the scenario "Each site list has 50 sites with the controls first" also checks that each control site's `source` equals its README row's source: the symbol, or `{ "file": "routes/…" }` for rows 11 and 12.
+- **6.2 (R5-I1, R5-I4):**
+  - before running `hashes`, `git ls-files --eol docs/measurements/annotation fixtures/annotations` shows `i/lf w/lf` for every hashed file and no file starts with a BOM; a file that does not is re-checked-out from the index, never edited;
+  - the report describes the control as "las 22 filas de control de `fixtures/README.md`, anteriores a este ticket", never "a mano".
+- **8.3 (R5-I1):** repeat the `git ls-files --eol` check.
+
+#### `specs/graph-annotations/spec.md`
+
+- **"Call-site lists" (R5-I5, improvable):** after "`instances` the number of instances of that construction in application code", add "(for `other`, the number of its sites)".
+- **"Frozen annotations and agreement report" (R5-I5, improvable):** change "`## Hashes SHA-256`, a table `| <repository path> | <64 hex> |`" to "`## Hashes SHA-256`, a table with header `| Fichero | SHA-256 |` and rows `| <repository path> | <64 hex> |`".
+
+#### Linear
+
+- **DIS-80, description, enhanced part only (R5-B1).** Write it in Spanish, marked as the agent's text. Do not touch `[original]`, and name no site, line or control answer. Add to D2:
+  > "Una llamada sobre un receptor cuyo tipo declarado o inferido es una interfaz del fixture (o una clase del fixture con el método abstracto) tiene como destino el método de ese tipo (`Interfaz::m`, `exact`), no sus implementaciones; «puede llegar a varios símbolos» solo se aplica cuando ningún tipo declarado fija un único símbolo (listeners de un evento, bindings del contenedor, un tipo unión)."
+
+  If R5-I2 is taken, also add:
+  > "Una cadena de accesos se juzga eslabón a eslabón: si un eslabón anterior al método llamado tiene un tipo conocido solo por un paquete o la biblioteca estándar, la llamada es `none`, aunque un eslabón posterior esté declarado o aumentado (`declare module`) en el fixture."
+- **DIS-80, comment in Spanish:** a summary of round 5:
+  - the target of a call on a receiver typed by an interface is the interface method, not the implementation;
+  - if taken: the chain rule, the line-ending check before recording the hashes, the control `source` check in the site test, and "a mano" avoided in the report.
