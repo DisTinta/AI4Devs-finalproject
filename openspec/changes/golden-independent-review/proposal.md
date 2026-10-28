@@ -29,14 +29,17 @@ the evaluator can trust it without any review by the author.
   the two panelists' signatures `{"by": "agent:<model>", "date": "<panel day>"}`; never the
   author's. The golden format does not change.
 - **Incorrect answers.** A golden whose final verdict is `incorrect` is left unsigned, named in the
-  report and handed to a successor ticket that regenerates (or retires) it and has it reviewed again
-  (design D5).
+  report's `## Pending` and handed to a successor ticket that regenerates (or retires) it and has it
+  reviewed again (design D5). The DoD bullet «las incorrectas se regeneran o se retiran» thereby moves
+  to that successor ticket (agent's decision on spec-audit question Q-A, design Follow-ups SA-Q-A).
 - **Report.** The rest of the report: one row per item (each panelist's verdict, the final one, the
-  justification with `file:line`, the errors), the agreement (percent and Cohen's kappa over the
-  seven verdicts, kappa indicative) and the limitations.
+  justification with `file:line`, the errors), the agreement (`Percent agreement: <x.y>%` and
+  `Cohen's kappa: <k.kkk>` over the seven verdicts, kappa indicative, and
+  `Resolved by the resolver: <k> of 7`), `## Pending` (only when an item is `incorrect`) and, last,
+  the limitations.
 - **Coherence test.** `tests/unit/seed/golden-reviews.spec.ts` ties the golden files, the panel
-  files and the report together (input projection, output shape and citations, resolution =
-  disagreements, signatures, recomputed agreement).
+  files and the report together (input projection, output shape and citations, rejection of invalid
+  outputs, resolution = disagreements, signatures, recomputed agreement, verbatim criterion).
 - **Docs.** `fixtures/README.md` (who reviewed the golden answers and where the report is),
   `docs/project-context.md` (no more "the author signs a sample"), `readme.md` (the
   `golden-review/` tree comment), `docs/DEMO.md` (reviewed by a panel of agents), and the TSDoc of

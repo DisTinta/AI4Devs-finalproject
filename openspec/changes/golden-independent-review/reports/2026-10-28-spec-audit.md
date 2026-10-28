@@ -177,3 +177,35 @@ Comment:
 > **Auditoría de spec (texto del agente, 2026-10-28): CHANGES REQUIRED, 8 bloqueantes.** Preguntas para la autora: (Q-A) el DoD dice «las incorrectas se regeneran o se retiran» y el AC 4/R9 dice que no puede quedar ninguna golden `incorrect`; el diseño D5 la deja sin firmar y la pasa a un ticket de seguimiento. ¿Se acepta que ese punto del DoD salga de este ticket, o se planifica aquí la retirada condicionada (los ficheros y tests afectados son conocidos)? (Q-B) ¿El «veredicto» del DoD se da por cumplido en el informe y no en `reviews` (R3)? (Q-C) ¿Se confirman en el alcance las tres golden de acme-shop, los dos panelistas con resolutor y el TSDoc de `golden-file.ts`? Correcciones en curso en el change: requisito de orden e inmutabilidad del criterio (AC 1), identificador exacto del modelo en la firma (AC 3), contenido de `## Panel` y `## Limitations` (AC 5), escenario de rechazo de salidas inválidas, lista permitida de `sourcesRead`, gramática de las citas y formato exacto del informe.
 
 Enhanced part (`[enhanced]` → AC 3): once B3 is applied, add "el `model` de cada salida del panel es el identificador exacto (`claude-opus-5-5`, `claude-sonnet-5-5`)". In AC 4, record the author's decision on Q-A when it arrives.
+
+## Resolution of run 1
+
+Correction round 1, 2026-10-28. *Agent's text: decided and applied as lead engineer in an autonomous run, without the author.* Every decision is also in `design.md` → Follow-ups (rows SA-Q-A … SA-9) and in a Spanish comment on DIS-33. `openspec validate golden-independent-review --strict` passes after the edits.
+
+### Questions for the author
+
+- **Q-A — decided by the agent: option (a).** The DoD bullet «las incorrectas se regeneran o se retiran» moves to the successor ticket of D5 (destination B, created in task 6.6 only if an item is `incorrect`). Reason: least scope; a conditional retirement group would change `GOLDEN_PROJECTS`, the main spec and three existing tests for a case that probably never happens. Recorded in D5, in the proposal and in the "Signatures" requirement ("stays in its file, not retired by this change"). In Linear, the `[enhanced]` AC 4 and R9 are amended (agent's text; the `[original]` block is untouched).
+- **Q-B — decided by the agent: accepted.** The DoD's «y el veredicto» is met by the report's `## Verdicts` table, joined to each golden entry by project and id in the test (D3). Row SA-Q-B.
+- **Q-C — decided by the agent: all three confirmed in scope.** The acme-shop golden answers are served by the demo and lost their reviews in DIS-32 E7; two panelists plus a resolver give the agreement measure; the TSDoc edit is documentation only. Row SA-Q-C.
+
+### Blocking findings
+
+- **B1 — fixed.** New requirement "Criterion first and immutable panel record" with the scenarios "The report's criterion is the Panel group's criterion" (test, task 6.2) and "The criterion precedes the input and nothing in the record is rewritten" (verified in the step 8 report, task 8.3, D9). Task 7.2 recounted: 10 scenarios, 9 with tests, 1 in the step 8 report. (Run 1 counted "8 with tests"; the delta has 9 test scenarios after B1 and B5.)
+- **B2 — fixed through Q-A (option a).** The "Signatures" requirement states that an `incorrect` entry stays, unsigned, listed in `## Pending`; D5 and R9 in the Follow-ups carry the decision; the ticket's AC 4 is amended.
+- **B3 — fixed.** `model` must match `^claude-[a-z]+-[0-9]+(-[0-9]+)*$`; the Panel group names `claude-opus-5-5` (panelist 1) and `claude-sonnet-5-5` (panelist 2); D1 updated; the ticket's AC 3 gains the exact ids. The test checks the pattern, not the literal ids, so a correct but differently versioned id does not stop the ticket.
+- **B4 — fixed.** "Golden review report" requires the content of `## Panel` (both models and dates, the resolver, allowed and forbidden sources) and the four points of `## Limitations`; the second scenario's THEN checks them.
+- **B5 — fixed.** Scenario "Invalid panel outputs are rejected" added (synthetic valid output plus one copy per defect, and a resolution answering an agreed item). Task 5.1 is now RED (see it fail), 5.2 GREEN.
+- **B6 — fixed.** The spec fixes an allowlist check per role, by path string, including the literal `linear:DIS-33/description` and the resolver's wider list; the resolution scenario checks its `sourcesRead`. D2 and the Panel group updated; task 5.2 cites the spec's allowlist, not a denylist.
+- **B7 — fixed.** Citation pattern `/fixtures\/(task-api|acme-shop)\/([A-Za-z0-9_.\/-]+):([0-9]+)/g`, any extension, in `cites`, `notes` and `justification`; the line-count rule of `fixtureLines`. Decided by the agent on one detail: the suggested wording "ranges are not citations" cannot be enforced by that pattern, which matches `path:15` inside `path:15-31`; the spec and the Panel group therefore say a range is read as a citation of its first line and tell panelists to cite single lines. Exact keys in every object; an extra or missing key rejects the output.
+- **B8 — fixed.** Section order with `## Pending` before `## Limitations`; bare lowercase verdict cells; `Errors` cell `none` or `S<n> <judgement>` joined by `; `; `Percent agreement: <x.y>%`, `Cohen's kappa: <k.kkk>` or `undefined`, `Resolved by the resolver: <k> of 7`, compared as text; `## Pending` lines `- <project> <id>: DIS-<n>`. Decided by the agent on one detail: the suggested error source ("the panelists' judgements when they agree") is ambiguous when the verdicts agree but the statement judgements differ, so the error source is panelist 1 when its verdict equals the final one, otherwise panelist 2 when its verdict does, otherwise panelist 1.
+
+### Improvable findings and notes
+
+- §1 scope additions — decided by the agent (Q-C): kept.
+- §1 note on task 6.5 (now 6.6) — resolved through Q-A: the successor ticket is the planned destination B of D5.
+- §2 "nothing `verify` reads changes" — fixed in the "Signatures" requirement.
+- §4 `Resolved by the resolver: <k> of 7` — fixed (spec, task 6.4). "Loose wording" — fixed with the measurable rule in the Criterion.
+- §6 "task 6.2" in the Agreement measure — fixed; after the split of task 6.1 the report is written in task 6.4, so it now says "task 6.4". Quoted forbidden keys — fixed in the spec scenario and task 2.1. D5 risk versus R9 — fixed: R9's row in the Follow-ups carries its full ticket text and the moved clause.
+- §8 helper duplication — decided by the agent: accepted, recorded in D8 (copy of `roundRatio` and the `fixtureLines` line rule; the script is out of scope).
+- §9 task 6.1 split — fixed as tasks 6.1 (signatures) and 6.2 (report and criterion); later tasks renumbered 6.3–6.7 and their references updated. Task 5.1 split — fixed (B5).
+- §10 task 7.2 — fixed (B1).
