@@ -1,0 +1,26 @@
+{
+  "sites": [
+    { "id": "php-01", "target": { "file": "app/Services/DiscountService.php", "symbol": "DiscountService::discountFor" }, "expected": "exact" },
+    { "id": "php-02", "target": { "file": "app/Services/TaxService.php", "symbol": "TaxService::taxFor" }, "expected": "exact" },
+    { "id": "php-03", "target": { "file": "app/Services/ShippingService.php", "symbol": "ShippingService::shippingFor" }, "expected": "exact" },
+    { "id": "php-04", "target": { "file": "app/Models/Order.php", "symbol": "Order::getSubtotalAttribute" }, "expected": "heuristic" },
+    { "id": "php-05", "target": { "file": "app/Services/CouponValidator.php", "symbol": "CouponValidator::percentFor" }, "expected": "exact" },
+    { "id": "php-06", "target": { "file": "app/Listeners/RecordDiscountAudit.php", "symbol": "RecordDiscountAudit::handle" }, "expected": "heuristic" },
+    { "id": "php-07", "target": { "file": "app/Services/CarrierGateway.php", "symbol": "CarrierGateway::__call" }, "expected": "heuristic" },
+    { "id": "php-08", "target": { "file": "app/Services/PriceCalculator.php", "symbol": "PriceCalculator::compute" }, "expected": "heuristic" },
+    { "id": "php-09", "target": { "file": "app/Services/PriceCalculator.php", "symbol": "PriceCalculator::compute" }, "expected": "heuristic" },
+    { "id": "php-10", "target": { "file": "app/Jobs/RecalculateTotals.php", "symbol": "RecalculateTotals::handle" }, "expected": "heuristic" },
+    { "id": "php-11", "target": { "file": "app/Http/Controllers/OrderController.php", "symbol": "OrderController::show" }, "expected": "exact" },
+    { "id": "php-12", "target": { "file": "app/Http/Controllers/CheckoutController.php", "symbol": "CheckoutController::store" }, "expected": "heuristic" },
+    { "id": "ts-01", "target": { "file": "src/services/id.ts", "symbol": "newId" }, "expected": "exact" },
+    { "id": "ts-02", "target": { "file": "src/domain/task-status.ts", "symbol": "canTransition" }, "expected": "exact" },
+    { "id": "ts-03", "target": { "file": "src/services/task.service.ts", "symbol": "TaskService::get" }, "expected": "exact" },
+    { "id": "ts-04", "target": { "file": "src/services/task.filters.ts", "symbol": "applyFilters" }, "expected": "exact" },
+    { "id": "ts-05", "target": { "file": "src/services/task.filters.ts", "symbol": "sortTasks" }, "expected": "exact" },
+    { "id": "ts-06", "target": { "file": "src/domain/pagination.ts", "symbol": "buildPage" }, "expected": "exact" },
+    { "id": "ts-07", "target": null, "expected": "none" },
+    { "id": "ts-08", "target": { "file": "src/controllers/tasks.controller.ts", "symbol": "TasksController::create" }, "expected": "exact" },
+    { "id": "ts-09", "target": { "file": "src/repositories/task.repository.ts", "symbol": "TaskRepository::findById" }, "expected": "exact" },
+    { "id": "ts-10", "target": null, "expected": "none" }
+  ]
+}
