@@ -1,9 +1,10 @@
 /**
  * `npm run up` (DIS-102 design D5): loads the repository root's `.env` and starts the whole system
  * with the same command in PowerShell and in Bash: `docker compose up -d --wait`, `npm install`,
- * `npm run db:migrate`, `npm run db:seed`, `node fixtures/build-history.mjs acme-shop` and
- * `npm run dev`, in order, from the repository root (six steps). The history step builds
- * `fixtures/acme-shop/.git`, which live answers read (change `real-model-clean-clone`, design D1).
+ * `npm run db:migrate`, `npm run db:seed`, `node fixtures/build-history.mjs acme-shop`,
+ * `node fixtures/build-history.mjs task-api` and `npm run dev`, in order, from the repository root
+ * (seven steps). The history steps build `fixtures/<name>/.git`, which live answers read (change
+ * `real-model-clean-clone`, design D1; task-api's step is DIS-32, design Follow-ups P7).
  * It imports only Node built-in modules and files of `scripts/`, so it works before `npm install`.
  *
  * Spec: `local-startup` → "One command starts the system".
@@ -70,11 +71,11 @@ function startSequence(npmCli) {
     npm('install'),
     npm('run', 'db:migrate'),
     npm('run', 'db:seed'),
-    {
-      label: 'node fixtures/build-history.mjs acme-shop',
+    ...['acme-shop', 'task-api'].map((fixture) => ({
+      label: `node fixtures/build-history.mjs ${fixture}`,
       command: process.execPath,
-      args: ['--import', './scripts/defer-ctrl-c.mjs', 'fixtures/build-history.mjs', 'acme-shop'],
-    },
+      args: ['--import', './scripts/defer-ctrl-c.mjs', 'fixtures/build-history.mjs', fixture],
+    })),
     npm('run', 'dev'),
   ];
 }

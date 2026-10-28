@@ -249,7 +249,7 @@ pre-merge reviews add their findings here.
 | P4 | Attempt lines keep the `<id>:` form without the project name | **D** — accepted |
 | P5 | The `cli-projects`, `project-picker`, `seed-load` and `verify-smoke` scenarios that assumed a single sample are updated (deltas), not left contradicting the versioned seed | **A** — this change |
 | P6 | No ADR (D10) | **D** — accepted |
-| P7 | `npm run up` keeps rebuilding only acme-shop's history; a live (non-golden) question about task-api needs `node fixtures/build-history.mjs task-api` first, documented in `docs/DEMO.md` and `readme.md` | **C** — explicit debt, Spanish checklist comment on DIS-32 |
+| P7 | Revised by the author on 2026-10-28 (Linear comment e2237f60, reply to thread 5b63b6cc: «sí, `npm run up` debe reconstruir también la historia de task-api»): `npm run up` also rebuilds task-api's history, as a sixth step `node fixtures/build-history.mjs task-api` right after acme-shop's (seven steps in all), so a live question about task-api works after `up`. The old destination C (debt) no longer applies. Added as the ADDED requirement of the `local-startup` delta, without rewriting the existing requirement (the main spec's six-step scenario is reconciled at archive time, tasks 13.x) | **A** — this change (author's decision; tasks 13.1–13.4) |
 
 Spec audit, run 1 (`reports/2026-10-28-spec-audit.md`, section "Resolution of run 1"). *Agent's
 text: questions for the author answered as lead engineer in an autonomous run, without the author.*

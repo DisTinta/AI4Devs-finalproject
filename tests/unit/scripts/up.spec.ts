@@ -108,6 +108,7 @@ describe('One command starts the system', () => {
       [process.execPath, NPM_EXECPATH, 'run', 'db:migrate'],
       [process.execPath, NPM_EXECPATH, 'run', 'db:seed'],
       [process.execPath, '--import', './scripts/defer-ctrl-c.mjs', 'fixtures/build-history.mjs', 'acme-shop'],
+      [process.execPath, '--import', './scripts/defer-ctrl-c.mjs', 'fixtures/build-history.mjs', 'task-api'],
       [process.execPath, NPM_EXECPATH, 'run', 'dev'],
     ]);
     for (const { options } of steps.calls) {
@@ -123,6 +124,7 @@ describe('One command starts the system', () => {
         '[up] npm run db:migrate',
         '[up] npm run db:seed',
         '[up] node fixtures/build-history.mjs acme-shop',
+        '[up] node fixtures/build-history.mjs task-api',
         '[up] npm run dev',
         '',
       ].join('\n'),
@@ -132,7 +134,7 @@ describe('One command starts the system', () => {
     printedBeforeStep.forEach((printed, index) => {
       expect(printed, `before step ${index + 1}`).toBe(lines.slice(0, index + 1).join('\n') + '\n');
     });
-    expect(printedBeforeStep).toHaveLength(6);
+    expect(printedBeforeStep).toHaveLength(7);
     expect(stderr.text()).toBe('');
     expect(code).toBe(0);
   });
