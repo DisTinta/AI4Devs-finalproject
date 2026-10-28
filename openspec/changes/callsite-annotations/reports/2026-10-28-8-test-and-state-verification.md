@@ -46,3 +46,9 @@
 ## Outcome
 - Status: PASS
 - Blocking issues: none
+
+## Addendum: CI (task 13.2, agent's text, `review` step)
+- PR #78, head `90db49b`: every check green — `scope`, `secrets`, `quality`, `verify`, `mutation`
+  (run https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/40721587024) and `frontend`
+  (run https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/40721587254).
+- The review fixes of task 13.6 are re-checked by the CI of their own commit on the same PR.

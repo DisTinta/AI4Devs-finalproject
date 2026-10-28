@@ -124,6 +124,12 @@ La anotación final de los 22 sitios de control coincide con `docs/measurements/
 - Los dos panelistas son modelos de una misma familia: no son anotadores independientes en el sentido
   de personas distintas, y un sesgo compartido no se vería en la concordancia. El 100 % de concordancia
   se informa tal cual, sin interpretarlo más allá de su valor.
+- La convergencia va más allá de las respuestas: las dos salidas reparten igual los valores de
+  `expected` (40 `exact`, 17 `heuristic`, 43 `none`), citan el mismo conjunto de `fichero:línea` en la
+  razón de 61 de los 100 sitios y la misma primera cita en 74. Las dos salidas se commitearon juntas,
+  después de que ambos agentes terminaran, así que ninguno pudo leer la del otro en el repositorio; la
+  coincidencia de citas refleja sobre todo que el criterio y la lista de sitios llevan a las mismas
+  declaraciones del código, y no prueba por sí sola que los juicios sean independientes.
 - El criterio de `exact`, `heuristic` y `none` lo escribió un agente que había leído el control de
   `fixtures/README.md` (nombra clases de construcción, nunca sitios), y las notas de ejecución dadas a
   los panelistas nombran `fixtures/README.md` como el lugar del control. El README siguió prohibido
