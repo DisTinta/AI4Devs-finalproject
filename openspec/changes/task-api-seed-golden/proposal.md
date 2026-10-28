@@ -35,11 +35,13 @@ regenerated):
   projects in name order) and a `packages/web/src/data/sample-projects.ts` with both; one stdout line
   per project. The analyzer fingerprint covers the TypeScript analyzer, `fixtures/task-api` and the
   `typescript` version; under the two fixtures it hashes only the files tracked by the repository,
-  so a local `node_modules`, an untracked `package-lock.json` or an ignored file never reaches it.
+  so a local `node_modules`, an untracked file or an ignored file never reaches it.
   An indexing error names the failing project (`"task-api" is not the root of a git repository`).
 - `npm run db:seed` prints `2 projects loaded` (it already supported N projects).
 - `npm run cache:build` builds the golden answers of every sample project (`acme-shop`: Q1, Q3, Q4;
-  `task-api`: Q1, Q2, Q3 of the task-api table of `fixtures/README.md`), one file per project in
+  `task-api`: Q1, Q2, Q3 of the task-api table of `fixtures/README.md`; the texts of task-api's Q1
+  and Q2 in that table are rewritten to name a symbol of the graph, `taskRoutes` and `buildPage`, so
+  that every golden question anchors, design D6, Follow-ups Q-C), one file per project in
   `seeds/cache/`. **BREAKING** (author-only command): partial regeneration now needs
   `--project <name>`; question ids without it are a usage error.
 - `seeds/graph-dump.sql`, `seeds/cache/acme-shop.json`, a new `seeds/cache/task-api.json` and

@@ -11,9 +11,11 @@ See `proposal.md` for the why. The state this design starts from (`final-project
   `--language typescript` with `typescript: not available yet (CM-HU-18)`.
 - `packages/cli/src/seed/fingerprint.ts` hashes the PHP analyzer, core's `index/` and `knowledge/`,
   the adapters, the seed renderer, `fixtures/history/` and `fixtures/acme-shop/`; it skips only
-  `.git`. `fixtures/task-api/node_modules/` (ignored by git) and `fixtures/task-api/package-lock.json`
-  (untracked, not ignored) exist locally, so walking `fixtures/task-api/` would give a local
-  fingerprint CI never reproduces (D5).
+  `.git`. `fixtures/task-api/node_modules/` (ignored by git) exists locally, and any other ignored or
+  untracked file a local run leaves there would be walked too, so walking `fixtures/task-api/` would
+  give a local fingerprint CI never reproduces (D5). `fixtures/task-api/package-lock.json` is tracked
+  (commit `6410f99`, already on `final-project-CRN`), so it is an input like any tracked file
+  (Follow-ups SA15).
 - `packages/cli/src/cache-build.ts` + `cache/demo-questions.ts`: `GOLDEN_PROJECT = 'acme-shop'` and
   `GOLDEN_QUESTIONS` fixed; argv = ids; default output `seeds/cache/acme-shop.json`.
 - `seed-load.ts`, `parse-seed.ts`, `verify.ts` and the golden-file readers already handle N projects
@@ -118,10 +120,11 @@ transaction (rejected: the temporary name would collide).
 `PARSER_DEPENDENCIES` gains `typescript`. Under `fixtures/acme-shop` and `fixtures/task-api` the
 analyzer fingerprint hashes only the files tracked by the repository (`git ls-files -z -- <dir>` run
 at `repoRoot`, contents read from the working tree), so `.git`, `node_modules`, an untracked
-`package-lock.json` or any ignored file (`dist/`, `.env`, `*.log`, `vendor/`) never reaches it; the
+file or any ignored file (`dist/`, `.env`, `*.log`, `vendor/`) never reaches it; the
 other input directories keep today's walk, skipping `.git` and `node_modules`. Reason (spec audit
-run 1, B1): `fixtures/task-api/package-lock.json` exists locally, untracked and not ignored; walking
-it would give a local fingerprint CI never reproduces, and the `verify` job would fail with
+run 1, B1, premise corrected in run 3, Follow-ups SA15): any untracked or ignored file left under a
+fixture by a local run would be walked and give a local fingerprint CI never reproduces
+(`fixtures/task-api/package-lock.json` is tracked, so it is an input in both places), and the `verify` job would fail with
 `FINGERPRINT_MISMATCH` right after the merge. The rows already come only from tracked files
 (`buildOne` commits the manifest's paths), so the fingerprint now has the same inputs as the rows,
 and the acme-shop precondition of `docs/project-context.md` (`git clean -ndX fixtures/acme-shop`
@@ -204,7 +207,7 @@ the author's decision, recorded in Linear and here.
   through the symbols named in their texts (`taskRoutes`, `buildPage`).
 - [A task-api golden answer cites weak evidence for Q1 (schemas are not symbols)] → accepted for now,
   judged by DIS-33 (D8).
-- [`fixtures/task-api/node_modules` or the untracked `package-lock.json` locally make the fingerprint
+- [`fixtures/task-api/node_modules` or another untracked or ignored local file make the fingerprint
   differ from CI] → only tracked files of the fixtures are hashed (D5); the CI `verify` job proves
   the fingerprints match.
 - [acme-shop loses the DIS-104 reviews] → recorded for DIS-33 (D7).
@@ -274,3 +277,13 @@ text: questions for the author answered as lead engineer in an autonomous run, w
 | SA10 | (B1) task-api's Q1 and Q2 as first written anchored no symbol (`valid`, `petic`, `entra`, `pagin`, `resul` are in no symbol name), so they would answer `UNKNOWN (no-anchor)` and `cache:build` could not make them golden; requirement and scenario "Every golden question anchors a symbol of its project" added, checked by a unit test right after the seed is regenerated and before any model call (task 6.1); the false Risks sentence fixed | **A** — this change (spec golden-answers, D6, Risks, tasks 6.1, 11.1, 11.4) |
 | SA11 | A failure of `git ls-files` in the fingerprint is the command's `INTERNAL`; `verify` needs a git clone, not a ZIP | **A** — this change (D5, task 11.4) |
 | SA12 | Task 5.3 split into 5.3 (new `it`s) and 5.4 (moved `it`s); the old 5.4 and 5.5 become 5.5 and 5.6; SA6 now points to 5.4 | **A** — this change |
+
+Spec audit, run 3 (`reports/2026-10-28-spec-audit.md`, section "Resolution of run 3"). *Agent's
+text: findings resolved as lead engineer in an autonomous run, without the author.*
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| SA13 | (B1) Task 8.4 checked "fixture code untouched" with `git status --short fixtures/task-api` empty. The audit's premise (an untracked local `package-lock.json` makes it fail) is false in this checkout, but the check was still weak: it misses fixture changes already committed on the branch. Replaced by `git diff --name-only` against `origin/final-project-CRN...HEAD` and against `HEAD`, over tracked files only; untracked or ignored files are neither deleted nor committed | **A** — this change (task 8.4) |
+| SA14 | The proposal names the rewrite of task-api's Q1 and Q2 texts in `fixtures/README.md` (Q-C), a table that DIS-33 and DIS-80 read | **A** — this change (proposal) |
+| SA15 | Factual correction: `fixtures/task-api/package-lock.json` is tracked (commit `6410f99`, on `final-project-CRN`), not untracked as run 1 and the Context said. D5 (only tracked files under the fixtures) stands, with its reason restated as any untracked or ignored local file; the lock file is a fingerprint input in local and CI alike; Context, D5, Risks, proposal, seed-build and tasks 4.1, 8.1, 11.4 corrected | **A** — this change |
+| SA16 | The DIS-32 checklist comment of destination C (E12) uses the new Q1 text «¿Cómo valida taskRoutes las peticiones entrantes?» | **A** — this change (task 11.7); **C** — author (task 9.4) |

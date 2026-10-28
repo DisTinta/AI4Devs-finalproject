@@ -188,7 +188,7 @@ content with line endings normalised to LF:
   `deps:web-tree-sitter@<version>`, with the versions resolved in `package-lock.json`. Under
   `fixtures/acme-shop/` and `fixtures/task-api/` only the files tracked by the repository (its
   index at the repository root) are inputs, so an untracked file (such as a
-  `fixtures/task-api/package-lock.json` left by a local `npm install`) or an ignored one (`.env`,
+  scratch file left under `fixtures/task-api/` by a local run) or an ignored one (`.env`,
   `dist/`, `vendor/`, logs) never is; elsewhere any path with a `.git` or a `node_modules` segment is
   excluded;
 - contract: `packages/core/src/ports/AnalyzerPort.ts` and every
@@ -216,7 +216,7 @@ are listed, or on any other file.
 - **GIVEN** a git repository tree holding every declared input, tracked, and files outside them
   (`packages/api/src/x.ts`, `packages/cli/src/index.ts`, `fixtures/README.md`, a `.down.sql`
   migration, `fixtures/acme-shop/.git/`, `fixtures/task-api/.git/`,
-  `fixtures/task-api/node_modules/`, the untracked `fixtures/task-api/package-lock.json` and the
+  `fixtures/task-api/node_modules/`, an untracked `fixtures/task-api/package-lock.json` and the
   ignored `fixtures/task-api/dist/x.js`)
 - **WHEN** a file changes under each analyzer input directory and in each analyzer input file, in
   `AnalyzerPort.ts` and in one `.up.sql` migration, and then every outside file changes and a file is

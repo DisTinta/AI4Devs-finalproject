@@ -715,3 +715,49 @@ No hay filas vacías. La última fila tiene tarea, pero su comprobación no pued
 ### Linear DIS-20 (padre)
 
 No se edita.
+
+---
+
+## Resolution of run 3
+
+*Texto del agente (ronda de corrección 3, ejecución autónoma 2026-10-28). No hay preguntas nuevas
+para la autora; cada hallazgo queda en `design.md` → Follow-ups (tabla «Spec audit, run 3») con su
+destino A/B/C/D.*
+
+### Bloqueantes
+
+- **B1 (tarea 8.4) — corregido, con la premisa rechazada.**
+  - La premisa es falsa en este checkout: `fixtures/task-api/package-lock.json` está versionado desde
+    el commit `6410f99`, que ya está en `final-project-CRN`. `git ls-files` lo lista y
+    `git status --short fixtures/task-api` no imprime nada; el único fichero local fuera del índice es
+    `fixtures/task-api/node_modules/`, que está ignorado.
+  - Aun así, la comprobación de la 8.4 era débil: un estado limpio no detecta cambios del fixture ya
+    commiteados en la rama. Se aplica la sustitución propuesta por la auditoría: `git diff --name-only`
+    contra `origin/final-project-CRN...HEAD` y contra `HEAD`, solo sobre ficheros versionados; los no
+    versionados o ignorados no se borran ni se commitean.
+  - Follow-ups SA13, destino **A**.
+- **Corrección derivada del mismo hallazgo — decidida por el agente.** La afirmación «untracked, not
+  ignored» de la ronda 1 se había propagado a Context, al motivo de D5, a Risks, a la propuesta, a
+  seed-build («Fingerprints») y a las tareas 4.1, 8.1 y 11.4. Se corrige en todos esos sitios.
+  - D5 (solo ficheros versionados bajo los fixtures) se mantiene: su motivo pasa a ser cualquier fichero
+    no versionado o ignorado que deje una ejecución local.
+  - El lock versionado es una entrada de la huella igual en local y en CI.
+  - La 11.4 documenta ahora que un `npm install` local que lo reescriba cambia la huella.
+  - El escenario «Each fingerprint covers exactly its declared inputs» conserva un `package-lock.json`
+    no versionado, pero solo en su árbol temporal; la redacción pasa de «the untracked» a «an
+    untracked».
+  - Follow-ups SA15, destino **A**.
+
+### Mejorables
+
+- **Propuesta sin la reescritura de Q1 y Q2 — corregido.** What Changes, viñeta de `cache:build`,
+  nombra la reescritura de los textos de Q1 y Q2 de task-api (`taskRoutes`, `buildPage`; D6, Q-C).
+  Follow-ups SA14, destino **A**.
+- **Tarea 11.7, checklist E12 con el texto antiguo — corregido.** El comentario de destino C en DIS-32
+  usará el texto nuevo de Q1. Follow-ups SA16, destinos **A** y **C**.
+
+### Linear
+
+Comentario en español en DIS-32 con las decisiones de esta ronda. DIS-20 (padre) no se edita.
+
+`openspec validate task-api-seed-golden --strict`: el cambio es válido.
