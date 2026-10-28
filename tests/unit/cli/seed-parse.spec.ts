@@ -3,7 +3,14 @@ import { describe, expect, it } from 'vitest';
 import type { SeedRows } from '@codemind/adapter-store-postgres';
 import { projectKey, seedId } from '../../../packages/cli/src/seed/deterministic-ids';
 import { seedProjects } from '../../../packages/cli/src/seed/parse-seed';
-import { renderSeedDump } from '../../../packages/cli/src/seed/render-dump';
+import { renderSeedDump as renderProjects } from '../../../packages/cli/src/seed/render-dump';
+import type { SeedFingerprints } from '../../../packages/cli/src/seed/render-dump';
+
+// DIS-32, design D4: the renderer takes a list of `{ name, rows }`; these cases render one project
+// through this wrapper, with every assertion unchanged.
+function renderSeedDump(rows: SeedRows, fingerprints: SeedFingerprints, name: string): string {
+  return renderProjects([{ name, rows }], fingerprints);
+}
 
 // Design D7 of openspec/changes/seed-load-and-projects: the seed reader shared by `db:seed` and the
 // coherence test. Not a scenario of its own; it backs "An invalid seed file fails before connecting"

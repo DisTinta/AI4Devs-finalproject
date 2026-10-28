@@ -1,5 +1,5 @@
 import type { AnalyzerDiagnostic, AnalyzerInput, AnalyzerPort, GraphEdge, GraphSymbol, SymbolRef } from '@codemind/core';
-import { describeFile, docMentionEdges, sortUniqueEdges } from '@codemind/core';
+import { bySymbolOrder, describeFile, docMentionEdges, keepFirst, sortUniqueEdges, uniqueInputs } from '@codemind/core';
 import type * as TS from 'typescript';
 import { buildTypeScriptCalls } from './calls.js';
 import { buildTypeScriptEdges, type ParsedFile } from './edges.js';
@@ -13,7 +13,7 @@ import {
   VIRTUAL_ROOT,
   type TypeScriptModule,
 } from './program.js';
-import { byPath, bySymbolOrder, keepFirst, uniqueInputs } from './shared.js';
+import { byPath } from './shared.js';
 import { extractSymbols } from './symbols.js';
 
 /**

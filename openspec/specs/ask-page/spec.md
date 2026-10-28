@@ -140,9 +140,12 @@ box"); the focus SHALL stay on the pressed button.
 - **WHEN** the coherence test compares them
 - **THEN** for every golden file, the sample project whose name is the file's `project` has as suggested
   questions exactly the `question` of the file's entries, in the file's order; every key of the
-  suggested-question constant is the id of a sample project that has a golden file; and the suggested
+  suggested-question constant is the id of a sample project that has a golden file; the suggested
   questions of acme-shop are «¿Cómo se calcula el precio final de un pedido?», «¿Cómo se validan los
-  cupones?» and «¿Qué hace OrderObserver al crear un pedido?»
+  cupones?» and «¿Qué hace OrderObserver al crear un pedido?»; and the suggested questions of task-api
+  are «¿Cómo valida taskRoutes las peticiones entrantes?», «¿Qué hace buildPage con los resultados
+  paginados?» and «¿Qué
+  transiciones de estado son válidas?»
 
 ### Requirement: Pending question
 

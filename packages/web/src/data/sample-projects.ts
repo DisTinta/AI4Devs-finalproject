@@ -11,4 +11,14 @@ export const SAMPLE_PROJECTS = [
     edgeCount: 170,
     commitCount: 32,
   },
+  {
+    id: 'fba8e26b-1fb4-5b74-8352-d5d71ded7fe8',
+    name: 'task-api',
+    language: 'typescript',
+    framework: 'fastify',
+    fileCount: 38,
+    symbolCount: 64,
+    edgeCount: 100,
+    commitCount: 28,
+  },
 ] as const;

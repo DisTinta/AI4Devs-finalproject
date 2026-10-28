@@ -1,9 +1,10 @@
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import type { ClientBase } from 'pg';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { ProjectNameTaken } from '@codemind/core';
+import { NotAGitRepository, ProjectNameTaken } from '@codemind/core';
 import type { AnalysisResult, KnowledgeGraph, SaveGraphResult, SourceFile, StorePort } from '@codemind/core';
 import type { SeedRows } from '@codemind/adapter-store-postgres';
 import type { IndexPorts, OpenTransaction } from '../../../packages/cli/src/compose-index';
@@ -23,9 +24,14 @@ const PREVIOUS_CONSTANT = '// previous constant\n';
 /** What the fakes do; every field has a working default. */
 interface FakeOptions {
   env?: Record<string, string | undefined>;
+  /** Thrown when the files of the project named by `failIn` are read. */
   indexError?: Error;
+  /** Thrown when the project named by `failIn` is created. */
   createProjectError?: Error;
+  /** Thrown when the rows of the project named by `failIn` are read back. */
   exportError?: Error;
+  /** Which of the two sample projects the three errors above hit; defaults to the first, acme-shop. */
+  failIn?: SampleName;
   outputPath?: string;
   /** Where the sample-project constant goes; defaults to a file in the test directory, never the checkout. */
   sampleProjectsPath?: string;
@@ -43,6 +49,9 @@ function scratchRepository(): string {
   const root = mkdtempSync(join(tmpdir(), 'codemind-seed-repo-'));
   const directories = [
     'packages/analyzers/php/src',
+    'packages/analyzers/typescript/src',
+    'fixtures/task-api/src',
+    'fixtures/acme-shop/app',
     'packages/core/src/index',
     'packages/core/src/knowledge',
     'packages/cli/src/seed',
@@ -58,10 +67,23 @@ function scratchRepository(): string {
   for (const file of ['packages/cli/src/seed-build.ts', 'packages/cli/src/compose-index.ts', 'fixtures/build-history.mjs', 'packages/core/src/ports/AnalyzerPort.ts']) {
     writeFileSync(join(root, file), '');
   }
-  const packages = { 'node_modules/tree-sitter-php': { version: '0.24.2' }, 'node_modules/web-tree-sitter': { version: '0.27.0' } };
+  const packages = {
+    'node_modules/tree-sitter-php': { version: '0.24.2' },
+    'node_modules/typescript': { version: '5.5.4' },
+    'node_modules/web-tree-sitter': { version: '0.27.0' },
+  };
   writeFileSync(join(root, 'package-lock.json'), JSON.stringify({ packages }));
+  // The fixtures' files are fingerprint inputs only when tracked (DIS-32, design D5): a git repository.
+  writeFileSync(join(root, 'fixtures/acme-shop/app/A.php'), '<?php\n');
+  writeFileSync(join(root, 'fixtures/task-api/src/a.ts'), 'export {};\n');
+  execFileSync('git', ['init', '-q'], { cwd: root });
+  execFileSync('git', ['add', '--', 'fixtures/acme-shop/app/A.php', 'fixtures/task-api/src/a.ts'], { cwd: root });
   return root;
 }
+
+/** The two sample projects of the seed, in name order. */
+type SampleName = 'acme-shop' | 'task-api';
+const SAMPLES: SampleName[] = ['acme-shop', 'task-api'];
 
 interface Run {
   exit: number;
@@ -77,16 +99,19 @@ let dir = '';
 let output = '';
 let constant = '';
 
-function rows(): SeedRows {
+/** The rows read back for a sample: acme-shop has one file, task-api two (so their summary lines differ). */
+function rows(sample: SampleName = 'acme-shop'): SeedRows {
   const file = '00000000-0000-4000-8000-000000000002';
+  const second = '00000000-0000-4000-8000-000000000004';
   const commit = '00000000-0000-4000-8000-000000000003';
+  const task = sample === 'task-api';
   return {
     project: {
       id: '00000000-0000-4000-8000-000000000001',
       name: '__codemind_seed_build__',
       root_path: dir,
-      language: 'php',
-      framework: 'laravel',
+      language: task ? 'typescript' : 'php',
+      framework: task ? 'fastify' : 'laravel',
       is_sample: false,
       indexed_commit: SHA,
       node_count: 1,
@@ -94,7 +119,10 @@ function rows(): SeedRows {
       indexed_at: new Date(),
       created_at: new Date(),
     },
-    files: [{ id: file, project_id: 'x', path: 'app/A.php', kind: 'source', loc: 1, content_hash: 'h', redacted: false }],
+    files: [
+      { id: file, project_id: 'x', path: task ? 'src/a.ts' : 'app/A.php', kind: 'source', loc: 1, content_hash: 'h', redacted: false },
+      ...(task ? [{ id: second, project_id: 'x', path: 'src/b.ts', kind: 'source', loc: 1, content_hash: 'h', redacted: false }] : []),
+    ],
     symbols: [],
     edges: [],
     commits: [{ id: commit, project_id: 'x', sha: SHA, message: 'feat: a', author_hash: 'a1', committed_at: new Date('2024-01-02T03:04:05Z'), pr_number: null }],
@@ -120,11 +148,14 @@ async function run(options: FakeOptions = {}): Promise<Run> {
       release: async () => void log.push('base.release'),
     };
   };
+  const failIn = options.failIn ?? 'acme-shop';
+  const sampleOf = (language: string): SampleName => (language === 'typescript' ? 'task-api' : 'acme-shop');
+  let reads = 0;
   const store = {
     async createProject(project: { name: string; language: string }) {
       log.push('createProject');
       created.push({ name: project.name, language: project.language });
-      if (options.createProjectError) throw options.createProjectError;
+      if (options.createProjectError && sampleOf(project.language) === failIn) throw options.createProjectError;
       return 'project-1';
     },
     async saveGraph(_id: string, graph: KnowledgeGraph): Promise<SaveGraphResult> {
@@ -132,11 +163,11 @@ async function run(options: FakeOptions = {}): Promise<Run> {
       return { files: graph.files.length, filesDeleted: 0, symbols: 0, edges: 0, commits: graph.commits.length, fileCommits: 0 };
     },
   } as unknown as StorePort;
-  const ports = (): IndexPorts => ({
+  const ports = (_salt: string, language: string): IndexPorts => ({
     sourceTree: {
       realPath: async (requested) => requested,
       readFiles: async () => {
-        if (options.indexError) throw options.indexError;
+        if (options.indexError && sampleOf(language) === failIn) throw options.indexError;
         return { files: [{ path: 'app/A.php', content: '<?php\n' }], skipped: [] };
       },
       readFileAt: async () => {
@@ -164,8 +195,10 @@ async function run(options: FakeOptions = {}): Promise<Run> {
     ports,
     exportRows: async (_client, name) => {
       log.push(`export:${name}`);
-      if (options.exportError) throw options.exportError;
-      return rows();
+      const sample = SAMPLES[reads];
+      reads += 1;
+      if (options.exportError && sample === failIn) throw options.exportError;
+      return rows(sample);
     },
   });
   return { exit, stdout, stderr, stderrLines: stderr.split('\n').filter((line) => line !== ''), log, created };
@@ -220,31 +253,51 @@ describe('runSeedBuild', () => {
   });
 
   it('A failed indexing leaves the previous seed intact', async () => {
-    // Act
-    const result = await run({ indexError: new Error('boom at /secret/path') });
+    // Act: first the indexing of acme-shop fails, then, in another run, only that of task-api.
+    const first = await run({ indexError: new Error('boom at /secret/path'), failIn: 'acme-shop' });
+    const second = await run({ indexError: new Error('boom at /secret/path'), failIn: 'task-api' });
 
     // Assert
-    expect(result.exit).toBe(1);
-    expect(result.stdout).toBe('');
-    expect(errorOf(result)).toEqual({ code: 'INTERNAL', message: 'seed build failed; nothing was written', details: {} });
-    expect(result.stderr).not.toContain('/secret/path');
+    for (const result of [first, second]) {
+      expect(result.exit).toBe(1);
+      expect(result.stdout).toBe('');
+      expect(errorOf(result)).toEqual({ code: 'INTERNAL', message: 'seed build failed; nothing was written', details: {} });
+      expect(result.stderr).not.toContain('/secret/path');
+      expectPreviousSeedIntact();
+      expect(readFileSync(constant, 'utf8')).toBe(PREVIOUS_CONSTANT);
+    }
     // The files are read before the project is created, so the indexing fails before any write.
-    expect(result.log).toEqual(['buildHistory', 'open', 'base.rollback', 'base.release']);
-    expectPreviousSeedIntact();
+    expect(first.log).toEqual(['buildHistory', 'open', 'base.rollback', 'base.release']);
+    // acme-shop was indexed, read back and rolled back before task-api's transaction failed in turn.
+    expect(second.log).toEqual([
+      'buildHistory',
+      'open',
+      'createProject',
+      'saveGraph',
+      'export:__codemind_seed_build__',
+      'base.rollback',
+      'base.release',
+      'open',
+      'base.rollback',
+      'base.release',
+    ]);
   });
 
   it('A failed read-back is not reported as saved', async () => {
-    // Act
-    const result = await run({ exportError: new Error('read failed') });
+    for (const failIn of SAMPLES) {
+      // Act
+      const result = await run({ exportError: new Error('read failed'), failIn });
 
-    // Assert
-    expect(result.exit).toBe(1);
-    expect(result.stdout).toBe('');
-    expect(errorOf(result)).toEqual({ code: 'INTERNAL', message: 'seed build failed; nothing was written', details: {} });
-    expect(result.stderr).not.toContain('may have been saved');
-    expect(result.log).not.toContain('base.commit');
-    expect(result.log.slice(-2)).toEqual(['base.rollback', 'base.release']);
-    expectPreviousSeedIntact();
+      // Assert
+      expect(result.exit).toBe(1);
+      expect(result.stdout).toBe('');
+      expect(errorOf(result)).toEqual({ code: 'INTERNAL', message: 'seed build failed; nothing was written', details: {} });
+      expect(result.stderr).not.toContain('may have been saved');
+      expect(result.log).not.toContain('base.commit');
+      expect(result.log.slice(-2)).toEqual(['base.rollback', 'base.release']);
+      expect(result.log.filter((entry) => entry === 'base.rollback')).toHaveLength(failIn === 'acme-shop' ? 1 : 2);
+      expectPreviousSeedIntact();
+    }
   });
 
   it('A failed write of the constant leaves both files intact', async () => {
@@ -264,20 +317,16 @@ describe('runSeedBuild', () => {
     expectPreviousSeedIntact();
   });
 
-  it('a successful build reads back, rolls back, never commits, and prints one line', async () => {
+  it('a successful build reads back, rolls back, never commits, and prints one line per project', async () => {
     const result = await run();
     expect(result.exit).toBe(0);
     expect(result.stderr).toBe('');
-    expect(result.stdout).toBe('acme-shop: 1 files, 0 symbols, 0 edges, 1 commits -> graph-dump.sql\n');
-    expect(result.log).toEqual([
-      'buildHistory',
-      'open',
-      'createProject',
-      'saveGraph',
-      'export:__codemind_seed_build__',
-      'base.rollback',
-      'base.release',
-    ]);
+    expect(result.stdout).toBe(
+      'acme-shop: 1 files, 0 symbols, 0 edges, 1 commits -> graph-dump.sql\ntask-api: 2 files, 0 symbols, 0 edges, 1 commits -> graph-dump.sql\n',
+    );
+    // One history rebuild, then one transaction per project, one after the other.
+    const perProject = ['open', 'createProject', 'saveGraph', 'export:__codemind_seed_build__', 'base.rollback', 'base.release'];
+    expect(result.log).toEqual(['buildHistory', ...perProject, ...perProject]);
     const seed = readFileSync(output, 'utf8');
     expect(seed.startsWith('-- codemind-seed-format: 1\n-- analyzer-fingerprint: sha256:')).toBe(true);
     expect(seed).not.toContain(dir);
@@ -288,7 +337,9 @@ describe('runSeedBuild', () => {
     const repoRoot = scratchRepository();
     try {
       const result = await run({ repoRoot, outputPath: join(repoRoot, 'seeds', 'graph-dump.sql') });
-      expect(result.stdout).toBe('acme-shop: 1 files, 0 symbols, 0 edges, 1 commits -> seeds/graph-dump.sql\n');
+      expect(result.stdout).toBe(
+        'acme-shop: 1 files, 0 symbols, 0 edges, 1 commits -> seeds/graph-dump.sql\ntask-api: 2 files, 0 symbols, 0 edges, 1 commits -> seeds/graph-dump.sql\n',
+      );
     } finally {
       rmSync(repoRoot, { recursive: true, force: true });
     }
@@ -333,7 +384,9 @@ describe('runSeedBuild', () => {
       mkdirSync(join(repoRoot, 'packages', 'web', 'src', 'data'), { recursive: true });
       const result = await run({ repoRoot, defaultPaths: true });
       expect(result.exit).toBe(0);
-      expect(result.stdout).toBe('acme-shop: 1 files, 0 symbols, 0 edges, 1 commits -> seeds/graph-dump.sql\n');
+      expect(result.stdout).toBe(
+        'acme-shop: 1 files, 0 symbols, 0 edges, 1 commits -> seeds/graph-dump.sql\ntask-api: 2 files, 0 symbols, 0 edges, 1 commits -> seeds/graph-dump.sql\n',
+      );
       expect(readFileSync(join(repoRoot, 'seeds', 'graph-dump.sql'), 'utf8')).toMatch(/^-- codemind-seed-format: 1\n/);
       expect(readFileSync(join(repoRoot, 'packages', 'web', 'src', 'data', 'sample-projects.ts'), 'utf8')).toMatch(/^\/\/ Generated by/);
     } finally {
@@ -359,9 +412,12 @@ describe('runSeedBuild', () => {
     }
   });
 
-  it('indexes under the temporary name as php and reports a missing variable by name', async () => {
+  it('indexes each sample under the temporary name with its language and reports a missing variable by name', async () => {
     const ok = await run();
-    expect(ok.created).toEqual([{ name: '__codemind_seed_build__', language: 'php' }]);
+    expect(ok.created).toEqual([
+      { name: '__codemind_seed_build__', language: 'php' },
+      { name: '__codemind_seed_build__', language: 'typescript' },
+    ]);
     const missing = await run({ env: { AUTHOR_HASH_SALT: 'test-salt' } });
     expect(errorOf(missing).message).toBe('DATABASE_URL is not set');
   });
@@ -373,6 +429,21 @@ describe('runSeedBuild', () => {
     expect(error.code).toBe('PROJECT_NAME_TAKEN');
     expect(error.message).toContain('__codemind_seed_build__');
     expectPreviousSeedIntact();
+  });
+
+  it('a repository failure names the sample whose indexing failed (acme-shop, then task-api)', async () => {
+    for (const failIn of SAMPLES) {
+      const result = await run({ indexError: new NotAGitRepository('C:\\real\\path'), failIn });
+      expect(result.exit).toBe(1);
+      expect(errorOf(result)).toEqual({
+        code: 'NOT_A_GIT_REPOSITORY',
+        message: `"${failIn}" is not the root of a git repository`,
+        details: {},
+      });
+      expect(result.stderr).not.toContain('real');
+      expectPreviousSeedIntact();
+      expect(readFileSync(constant, 'utf8')).toBe(PREVIOUS_CONSTANT);
+    }
   });
 });
 

@@ -146,7 +146,7 @@ Desarrolladores que trabajan sobre código que no escribieron: incorporaciones a
 
 - **Local, en cuatro comandos.** Se clona el repositorio, se copia `.env.example` a `.env` (sin obligar a una API key) y se levanta con `npm run up`, el mismo comando en PowerShell y en Bash (`make up` es su atajo en Git Bash o WSL). Los dos proyectos de muestra quedan consultables. **Sin PHP instalado, sin clonar repositorios ajenos, sin esperar ningún indexado**, porque los grafos y las respuestas de evaluación van versionados como semillas SQL / caché.
 
-*Estado en la Entrega 2:* la semilla carga `acme-shop` (174 nodos y 170 aristas) con tres respuestas *golden*; `task-api` entra con el analizador TypeScript (CM-HU-18, Entrega 3). F1, F2, F4 y F5 funcionan por CLI y por `POST /ask`; F3 (impacto) y F6 (deriva documental) son de la Entrega 3, y F7 tiene hoy el acierto exacto por pregunta normalizada, sin similitud de embedding (CM-HU-19).
+*Estado en la Entrega 2:* la semilla carga `acme-shop` (174 nodos y 170 aristas) y `task-api` (102 nodos y 100 aristas, analizador TypeScript, CM-HU-18), cada uno con tres respuestas *golden*. F1, F2, F4 y F5 funcionan por CLI y por `POST /ask`; F3 (impacto) y F6 (deriva documental) son de la Entrega 3, y F7 tiene hoy el acierto exacto por pregunta normalizada, sin similitud de embedding (CM-HU-19).
 
 **Modo híbrido LLM (parte de F4):**
 
@@ -312,6 +312,7 @@ npm install
 npm run db:migrate                 # esquema
 npm run db:seed                    # ← el repositorio de muestra YA indexado (+ caché de evaluación)
 node fixtures/build-history.mjs acme-shop   # historial de Git del fixture (~11 s), lo leen las respuestas en vivo
+node fixtures/build-history.mjs task-api    # ídem para task-api (`npm run up` hace los dos)
 npm run dev                        # API en :3000 · web en :5173
 ```
 
@@ -332,10 +333,13 @@ Lo que imprime al terminar (extracto de la ejecución real del 20-10-2026, en Po
 ### MIGRATION 0004_query-log-verification (UP) ###
 [up] npm run db:seed
 …
-1 project loaded
+2 projects loaded
   acme-shop  php/laravel  174 nodes · 170 edges
+  task-api  typescript/fastify  102 nodes · 100 edges
 [up] node fixtures/build-history.mjs acme-shop
 acme-shop: 32 commits, 3 authors -> <repo>\fixtures\acme-shop\.git
+[up] node fixtures/build-history.mjs task-api
+task-api: 28 commits, 3 authors -> <repo>\fixtures\task-api\.git
 [up] npm run dev
 …
 [1]   ➜  Local:   http://localhost:5173/
@@ -352,7 +356,7 @@ Sin necesidad de abrir la web (`projects` y `ask` leen `DATABASE_URL` de `.env`)
 npm run cli -- projects
 npm run cli -- ask acme-shop "¿Cómo se calcula el precio final de un pedido?"
 npm run cli -- impact acme-shop "cambiar el cálculo de descuentos"
-npm run cli -- ask task-api "¿Cómo se validan las peticiones entrantes?"
+npm run cli -- ask task-api "¿Cómo valida taskRoutes las peticiones entrantes?"
 ```
 
 **Estado en Entrega 2:** desde DIS-21, sin `LLM_*` (modo evaluación) `ask` responde desde la caché de respuestas del proyecto cualquier pregunta que ya tenga entrada (misma pregunta normalizada: sin distinguir mayúsculas, tildes, signos ni espacios), sin llamar al modelo y a coste 0. Desde DIS-26, `npm run db:seed` (y con él `npm run up`) carga además las respuestas *golden* versionadas en `seeds/cache/acme-shop.json` para tres preguntas de muestra de acme-shop: Q1 «¿Cómo se calcula el precio final de un pedido?», Q3 «¿Cómo se validan los cupones?» y Q4 «¿Qué hace OrderObserver al crear un pedido?». Esas tres responden al instante, sin modelo y a coste 0 (también escritas con otras mayúsculas, tildes o signos). Una pregunta sin entrada responde:
@@ -362,11 +366,11 @@ UNKNOWN (llm-required)
 evaluation mode (cache-only): set LLM_* to enable free-form asks
 ```
 
-`impact` sigue siendo un stub, y `task-api` aún no está en la semilla: `ask task-api …` responde `PROJECT_NOT_FOUND` (exit `1`) hasta CM-HU-18.
+`impact` sigue siendo un stub. `task-api` está en la semilla con tres preguntas golden (la de arriba es la primera; las otras dos son «¿Qué hace buildPage con los resultados paginados?» y «¿Qué transiciones de estado son válidas?»), así que en modo evaluación `ask task-api …` las responde desde la caché; una pregunta sin ancla, como «¿Cómo se autentican los usuarios?», responde `UNKNOWN (no-anchor)`.
 
 #### Camino completo — indexar tu propio repositorio o pregunta libre
 
-**Indexar no necesita LLM ni PHP**: el analizador PHP usa Tree-sitter (WebAssembly) y solo lee los objetos de Git del repositorio, sin ejecutar nada de él. Hacen falta `ALLOWED_REPOS_DIR`, `AUTHOR_HASH_SALT` y `DATABASE_URL`, y el repositorio tiene que estar **dentro** de `ALLOWED_REPOS_DIR` (la ruta puede ser absoluta dentro de él o relativa a él). Por ahora solo se indexa PHP (`--language php`); TypeScript responde «not available yet» hasta CM-HU-18. Preguntar (`ask`) sí requiere un LLM configurado (recomendado en desarrollo: **Ollama** local):
+**Indexar no necesita LLM ni PHP**: el analizador PHP usa Tree-sitter (WebAssembly) y solo lee los objetos de Git del repositorio, sin ejecutar nada de él. Hacen falta `ALLOWED_REPOS_DIR`, `AUTHOR_HASH_SALT` y `DATABASE_URL`, y el repositorio tiene que estar **dentro** de `ALLOWED_REPOS_DIR` (la ruta puede ser absoluta dentro de él o relativa a él). Se indexa PHP (`--language php`) y TypeScript (`--language typescript`), cada uno con su analizador. Preguntar (`ask`) sí requiere un LLM configurado (recomendado en desarrollo: **Ollama** local):
 
 ```bash
 # Indexar: ALLOWED_REPOS_DIR=/ruta/a/repos  AUTHOR_HASH_SALT=…  DATABASE_URL=postgres://…
@@ -415,7 +419,7 @@ Los 2–3 min que cita la propuesta de DIS-74 no son el tiempo de una pregunta: 
 
 La receta paso a paso, igual en PowerShell y en Bash, está en [`docs/DEMO.md` → Probar con un modelo real](docs/DEMO.md#probar-con-un-modelo-real): Ollama con GPU o en CPU, una API alojada compatible con OpenAI y Claude por el endpoint compatible con OpenAI de Anthropic (estos dos, no verificados). Lo esencial para Ollama:
 
-- **El historial de `acme-shop`.** Las respuestas en vivo leen el código del fixture desde `fixtures/acme-shop/.git`, que no viaja con el clon; `npm run up` lo construye en cada arranque (`node fixtures/build-history.mjs acme-shop` para quien no use `up`). Sin él, la pregunta termina con `SOURCE_UNAVAILABLE` (`not-a-repository`).
+- **El historial de `acme-shop` y de `task-api`.** Las respuestas en vivo leen el código del fixture desde `fixtures/<nombre>/.git`, que no viaja con el clon; `npm run up` construye los dos en cada arranque (`node fixtures/build-history.mjs acme-shop` y `… task-api` para quien no use `up`). Sin él, la pregunta termina con `SOURCE_UNAVAILABLE` (`not-a-repository`).
 - **`OLLAMA_CONTEXT_LENGTH=16384`.** El prompt de `explain` ocupa entre 5 000 y 7 000 tokens. Con el contexto por defecto, Ollama lo recorta (`truncating input prompt` en su log), se pierde el *system prompt* y toda respuesta sale `UNKNOWN (invalid-model-output)`.
 - **`LLM_TIMEOUT_MS=1200000` en CPU.** `LLM_TIMEOUT_MS` admite de 1 a 3 600 000 ms (una hora); el cliente envía con `node:http`, así que no hay otro límite por debajo (el `fetch` de Node cortaba a los 300 s). Con GPU o una API alojada basta el valor por defecto, 120 000 ms.
 - **Reiniciar tras editar `.env`.** La API lee `.env` al arrancar: Ctrl+C en la terminal de `npm run up` y otra vez `npm run up`. `npm run cli` lo lee en cada ejecución.
@@ -705,7 +709,7 @@ Cada pull request y cada push a una rama de entrega ejecutan, en `.github/workfl
 
 | Tipo de consulta | Comportamiento | Coste |
 |---|---|---|
-| Una de las ~12 preguntas sugeridas (sin LLM) | Se sirve desde las respuestas *golden* versionadas en `seeds/cache/`, que `db:seed` carga en la caché (DIS-26: hoy Q1, Q3 y Q4 de acme-shop; el resto llega con las HU de impacto, deriva documental y task-api) | **0 $** |
+| Una de las ~12 preguntas sugeridas (sin LLM) | Se sirve desde las respuestas *golden* versionadas en `seeds/cache/`, que `db:seed` carga en la caché (DIS-26 y DIS-32: hoy Q1, Q3 y Q4 de acme-shop y Q1, Q2 y Q3 de task-api; el resto llega con las HU de impacto y deriva documental) | **0 $** |
 | Pregunta ya respondida, escrita igual salvo mayúsculas, tildes, signos o espacios | Acierto de caché exacto por la pregunta normalizada (DIS-21), en modo vivo y en modo evaluación; `useCache: false` lo salta | **0 $** |
 | Pregunta libre semánticamente equivalente a una cacheada | Acierto de caché por similitud de embedding: solo con CM-HU-19 (hoy no hay acierto por similitud) | **0 $** |
 | Pregunta libre nueva | Requiere LLM configurado (Ollama u otro); opcionalmente con presupuesto si el proveedor es de pago | 0 $ con Ollama; acotado con cloud |
@@ -820,7 +824,7 @@ Los tests forman parte de la **definición de hecho de cada ticket**, no de una 
 | Accesibilidad | axe-core + jsdom (`npm run test:a11y`) | Cada ruta de la web sin violaciones de axe (DIS-58) |
 | **Mutación** | **Stryker** | Que los tests detecten cambios en el código de los caminos críticos; umbral de rotura 80 |
 | **E2E** | **Playwright** | *(pendiente, Entrega 3)*: el flujo elegir proyecto → preguntar → evidencia y coste, y el caso `UNKNOWN`, sobre las pantallas 1 y 2 ya construidas |
-| **Prueba de humo** | `npm run verify` | Cada golden de `acme-shop` comparada por estructura con la respuesta servida, sin LLM (DIS-44) |
+| **Prueba de humo** | `npm run verify` | Cada golden de `acme-shop` y de `task-api` comparada por estructura con la respuesta servida, sin LLM (DIS-44) |
 | Estáticos | ESLint + `tsc --noEmit` | En CI |
 
 **Estado medido (19-10-2026).** `npx vitest run` en local, sin `DATABASE_URL`: 153 ficheros de test, **1 415 tests pasan** y 221 se saltan (los de integración, que necesitan base de datos; en CI corren con PostgreSQL). Último job `mutation` en `feature/entrega-2-CRN` (ejecución completa tras el merge del PR #56, 19-10-2026): **95,94 %** (5 549 mutantes eliminados, 51 por tiempo, 176 supervivientes y 61 sin cobertura).

@@ -87,13 +87,13 @@ is outside the repository root.
 
 #### Scenario: An invalid golden file fails before connecting
 
-- **GIVEN** a valid `DATABASE_URL`, the versioned seed, and a golden directory holding, one at a
-  time: `acme-shop.json` with broken JSON; a valid golden file whose `project` is `task-api` named
-  `task-api.json`; a valid acme-shop golden file named `other.json`; one whose entry's
-  `questionNormalized` is the question unnormalized; one with two entries of the same `id`; one with
-  two entries of different ids and the same `questionNormalized`; one whose
-  entry's `response` has a statement citing an evidence id absent from its `evidence`; and one with
-  `format` `2`
+- **GIVEN** a valid `DATABASE_URL`, a seed whose only project is `acme-shop`, and a golden directory
+  holding, one at a time: `acme-shop.json` with broken JSON; a valid golden file whose `project` is
+  `other-api` (a project absent from the seed) named `other-api.json`; a valid acme-shop golden file
+  named `other.json`; one whose entry's `questionNormalized` is the question unnormalized; one with
+  two entries of the same `id`; one with two entries of different ids and the same
+  `questionNormalized`; one whose entry's `response` has a statement citing an evidence id absent from
+  its `evidence`; and one with `format` `2`
 - **WHEN** the seed load runs
 - **THEN** each run exits with `1`, stdout is empty, stderr holds one error line with code
   `INVALID_SEED`, `details.reason` = `cache`, `details.file` = the golden file's displayed path and
@@ -122,20 +122,24 @@ last hit.
 
 - **GIVEN** a migrated database without projects and the versioned seed file
 - **WHEN** the seed load runs
-- **THEN** it exits with `0`; stdout is exactly the two lines `1 project loaded` and
-  `  acme-shop  php/laravel  174 nodes · 170 edges`; the project
+- **THEN** it exits with `0`; stdout is exactly the three lines `2 projects loaded`,
+  `  acme-shop  php/laravel  174 nodes · 170 edges` and
+  `  task-api  typescript/fastify  <n> nodes · <m> edges`, `<n>` and `<m>` being the `node_count` and
+  `edge_count` of task-api's project row in the versioned seed; the project
   `a794456d-6d1b-5b55-a360-13fec83dc7bc` exists with `is_sample = true`, `node_count = 174` and
-  `edge_count = 170`; its `file` plus `symbol` rows are 174 and its `edge` rows are 170; its `commit`
-  and `file_commit` rows are as many as the seed's `INSERT`s into those tables; and a symbol search
-  for `Checkout` in it returns at least one symbol
+  `edge_count = 170`; its `file` plus `symbol` rows are 174 and its `edge` rows are 170; task-api
+  exists with `is_sample = true` and its `file` plus `symbol` rows are `<n>` and its `edge` rows are
+  `<m>`; the `commit` and `file_commit` rows of each project are as many as the seed's `INSERT`s into
+  those tables for it; a symbol search for `Checkout` in acme-shop returns at least one symbol; and a
+  symbol search for `TaskService` in task-api returns at least one symbol
 
 #### Scenario: Loading again changes nothing and keeps the user's projects
 
 - **GIVEN** the database of "The seed is loaded into an empty database" and a non-sample project with
   a saved graph
 - **WHEN** the seed load runs again
-- **THEN** it exits with `0` with the same stdout; acme-shop keeps its id and the same number of rows
-  in every table; and the non-sample project keeps its id, its counts and all its rows
+- **THEN** it exits with `0` with the same stdout; acme-shop and task-api keep their ids and the same
+  number of rows in every table; and the non-sample project keeps its id, its counts and all its rows
 
 ### Requirement: Golden answers are loaded with the seed
 

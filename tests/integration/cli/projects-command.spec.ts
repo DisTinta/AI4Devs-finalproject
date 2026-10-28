@@ -62,7 +62,7 @@ describeWithDatabase('projects (integration)', () => {
   const db = useTransactionPerTest();
 
   it('Sample and user projects are listed', async () => {
-    // Arrange: the acme-shop sample, one indexed project and one never indexed.
+    // Arrange: the two samples (acme-shop and task-api), one indexed project and one never indexed.
     await db().query('DELETE FROM project');
     await loadSeed(db(), { sql: SEED, projectNames: seedProjects(SEED).map((p) => p.name) });
     const store = createPostgresStore({ transaction: db() });
@@ -82,6 +82,7 @@ describeWithDatabase('projects (integration)', () => {
     expect(result.stderr).toBe('');
     const expected = new Map([
       ['acme-shop', 'acme-shop  a794456d-6d1b-5b55-a360-13fec83dc7bc  php/laravel  174 nodes · 170 edges  2024-05-06T09:31:00.000Z sample'],
+      ['task-api', 'task-api  fba8e26b-1fb4-5b74-8352-d5d71ded7fe8  typescript/fastify  102 nodes · 100 edges  2024-09-02T13:07:00.000Z sample'],
       [
         indexedName,
         `${indexedName}  ${indexed}  php/laravel  ${stored.nodeCount} nodes · ${stored.edgeCount} edges  ${stored.indexedAt?.toISOString()}`,

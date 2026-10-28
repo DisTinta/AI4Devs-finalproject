@@ -156,18 +156,19 @@ warning at most once per process.
 `npm run up` SHALL load `.env` (as in "Loading .env into a process", by default the repository root's
 file) into the environment it gives every step, and then run, from the repository root and in this
 order, each with the standard input, output and error of `up`: `docker compose up -d --wait`, `npm install`,
-`npm run db:migrate`, `npm run db:seed`, `node fixtures/build-history.mjs acme-shop` and `npm run dev`.
+`npm run db:migrate`, `npm run db:seed`, `node fixtures/build-history.mjs acme-shop`,
+`node fixtures/build-history.mjs task-api` and `npm run dev`.
 Before each step it SHALL print one line `[up] <command>` to stdout. The npm steps SHALL run the npm
 that started `up` (the `npm_execpath` npm gives its scripts, run by the same Node executable), never
 through a shell; `npm_execpath` SHALL be read from the environment `up` was started with, before
 `.env` is loaded, so a line of `.env` never names it; when it is not set there or is empty, `up` SHALL
-run no step, write `[up] run it with npm run up` to stderr and exit `1`. The fixture history step
-SHALL run `fixtures/build-history.mjs` with the argument `acme-shop` with the same Node executable,
-never through a shell, every time `up` runs (the build is deterministic: its `HEAD` is the
-`indexed_commit` of the seed `seeds/graph-dump.sql`), and in a process that does not end on SIGINT
-before the builder has finished, so a Ctrl+C during the step never leaves the fixture's tracked files
-modified; the step's own exit code after a Ctrl+C is not specified, and `up` reports the stop as for
-any step. When a
+run no step, write `[up] run it with npm run up` to stderr and exit `1`. The two fixture history steps
+SHALL run `fixtures/build-history.mjs` with the argument `acme-shop` and then with the argument
+`task-api`, with the same Node executable, never through a shell, every time `up` runs (each build is
+deterministic: its `HEAD` is the `indexed_commit` of its project in the seed `seeds/graph-dump.sql`),
+and each in a process that does not end on SIGINT before the builder has finished, so a Ctrl+C during
+either step never leaves the fixture's tracked files modified; a step's own exit code after a Ctrl+C is
+not specified, and `up` reports the stop as for any step. When a
 step exits with a code other than `0`, `up` SHALL run no further step, write
 `[up] "<command>" failed with exit code <n>` to stderr and exit with that code; when a step ends by
 a signal, the line SHALL be `[up] "<command>" failed (<signal>)` and the exit code `1`; when a step
@@ -178,7 +179,8 @@ SIGINT itself (the step receives the console's Ctrl+C on its own); when `up` has
 the running step then ends, whatever its code or signal, `up` SHALL run no further step, write
 `[up] stopped (Ctrl+C)` to stderr instead of a failure line and exit `130`. `up` and the `.env` loader SHALL import only
 Node built-in modules and files of `scripts/`, so `npm run up` works before `npm install`. Building
-the fixture history SHALL change neither the seed's fingerprints nor the answers of evaluation mode.
+either fixture history SHALL change neither the seed's fingerprints nor the answers of evaluation mode
+(a fixture's `.git` is ignored by git and is not a fingerprint input).
 
 #### Scenario: Up runs the start sequence in order
 
@@ -189,10 +191,13 @@ the fixture history SHALL change neither the seed's fingerprints nor the answers
 - **THEN** the runner received, in order, `docker compose up -d --wait`, then the Node executable with
   `npm_execpath` and `install`, `run db:migrate` and `run db:seed`, then the Node executable with the
   arguments `--import`, `./scripts/defer-ctrl-c.mjs`, `fixtures/build-history.mjs`, `acme-shop`, then the
-  Node executable with `npm_execpath` and `run dev`; each from the repository root, with inherited
-  standard streams, without a shell and with `POSTGRES_PORT` = `5433` in its environment
-- **AND** stdout holds the six `[up] <command>` lines in that order (the fifth is
-  `[up] node fixtures/build-history.mjs acme-shop`), each printed before its step started, and `up`
+  Node executable with the arguments `--import`, `./scripts/defer-ctrl-c.mjs`,
+  `fixtures/build-history.mjs`, `task-api`, then the Node executable with `npm_execpath` and `run dev`;
+  each from the repository root, with inherited standard streams, without a shell and with
+  `POSTGRES_PORT` = `5433` in its environment
+- **AND** stdout holds the seven `[up] <command>` lines in that order (the fifth is
+  `[up] node fixtures/build-history.mjs acme-shop` and the sixth
+  `[up] node fixtures/build-history.mjs task-api`), each printed before its step started, and `up`
   exits `0`
 
 #### Scenario: Up ignores an npm_execpath of .env
@@ -216,7 +221,7 @@ the fixture history SHALL change neither the seed's fingerprints nor the answers
 - **GIVEN** a step runner double whose `npm run dev` call ends with exit code `3221225786` after `up`
   received SIGINT while that call was running
 - **WHEN** `up` runs
-- **THEN** the runner received the six calls, stderr holds `[up] stopped (Ctrl+C)` and no line with
+- **THEN** the runner received the seven calls, stderr holds `[up] stopped (Ctrl+C)` and no line with
   `failed`, and `up` exits `130`
 
 #### Scenario: The history step finishes its work before ending on Ctrl+C
@@ -259,17 +264,19 @@ the fixture history SHALL change neither the seed's fingerprints nor the answers
 
 #### Scenario: Up builds the fixture history the seed indexed
 
-- **GIVEN** a clean clone of the change's branch without `fixtures/acme-shop/.git`, with its own
-  Compose project name and a free `POSTGRES_PORT`
+- **GIVEN** a clean clone of the change's branch without `fixtures/acme-shop/.git` nor
+  `fixtures/task-api/.git`, with its own Compose project name and a free `POSTGRES_PORT`
 - **WHEN** `npm run up` runs (a recorded check), is stopped (Ctrl+C, or by ending its process tree
   where the tool cannot send Ctrl+C) once the API listens, and runs a second time
-- **THEN** each run prints `[up] node fixtures/build-history.mjs acme-shop` after `[up] npm run db:seed`
-  and before `[up] npm run dev`, and that step exits `0`
+- **THEN** each run prints `[up] node fixtures/build-history.mjs acme-shop` after `[up] npm run db:seed`,
+  then `[up] node fixtures/build-history.mjs task-api`, both before `[up] npm run dev`, and both steps
+  exit `0`
 - **AND** after each run `git -C fixtures/acme-shop rev-parse HEAD` is
-  `4f028db4d51a3321031f3a24b3f36240410ed38c` (the `indexed_commit` of `seeds/graph-dump.sql`),
-  `git status --porcelain` of the clone is empty, `npm run verify` exits `0`, and `git hash-object` of
-  `seeds/graph-dump.sql`, `seeds/cache/acme-shop.json` and `fixtures/build-history.mjs` is the one of
-  the branch
+  `4f028db4d51a3321031f3a24b3f36240410ed38c` and `git -C fixtures/task-api rev-parse HEAD` is
+  `83397076ae519d2cd8dc43af627e4efacae6ca21` (the `indexed_commit` of each project in
+  `seeds/graph-dump.sql`), `git status --porcelain` of the clone is empty, `npm run verify` exits `0`,
+  and `git hash-object` of `seeds/graph-dump.sql`, `seeds/cache/acme-shop.json`,
+  `seeds/cache/task-api.json` and `fixtures/build-history.mjs` is the one of the branch
 
 ### Requirement: Stopping the system and the Makefile
 

@@ -12,7 +12,14 @@ import {
   uuidV5,
   withOccurrence,
 } from '../../../packages/cli/src/seed/deterministic-ids';
-import { renderSeedDump } from '../../../packages/cli/src/seed/render-dump';
+import { renderSeedDump as renderProjects } from '../../../packages/cli/src/seed/render-dump';
+import type { SeedFingerprints } from '../../../packages/cli/src/seed/render-dump';
+
+// DIS-32, design D4: the renderer takes a list of `{ name, rows }`. The single-project cases below keep
+// their assertions and call it through this one-element wrapper.
+function renderSeedDump(rows: SeedRows, fingerprints: SeedFingerprints, name: string): string {
+  return renderProjects([{ name, rows }], fingerprints);
+}
 
 // Spec: openspec/changes/seed-build/specs/seed-build/spec.md → "Deterministic identifiers" and
 // "Canonical values and ordering". The `it` named after a scenario is that scenario; the rest are
@@ -313,5 +320,47 @@ describe('renderSeedDump', () => {
     const rows = sampleRows();
     rows.edges[2].weight = Number.NaN;
     expect(() => renderSeedDump(rows, FINGERPRINTS, 'acme-shop')).toThrow(/not finite/);
+  });
+});
+
+// DIS-32, design D4: spec seed-build → "Seed content" (one header, one block per project in name order).
+describe('renderSeedDump with several projects', () => {
+  it('writes one header and the blocks in name order whatever the input order', () => {
+    const acme = { name: 'acme-shop', rows: sampleRows() };
+    const task = { name: 'task-api', rows: shuffled(sampleRows()) };
+
+    const forward = renderProjects([acme, task], FINGERPRINTS);
+    const backward = renderProjects([task, acme], FINGERPRINTS);
+
+    expect(forward).toBe(backward);
+    expect(forward.match(/^-- codemind-seed-format: 1$/gm)).toHaveLength(1);
+    const names = inserts(forward, 'project').map((line) => line.split(' VALUES (')[1].split(', ')[1]);
+    expect(names).toEqual(["'acme-shop'", "'task-api'"]);
+    const tables = forward.split('\n').filter((l) => l.startsWith('INSERT INTO ')).map((l) => l.split(' ')[2]);
+    const alone = renderSeedDump(sampleRows(), FINGERPRINTS, 'acme-shop')
+      .split('\n')
+      .filter((l) => l.startsWith('INSERT INTO '))
+      .map((l) => l.split(' ')[2]);
+    expect(tables).toEqual([...alone, ...alone]);
+  });
+
+  it('writes each block exactly as the same project rendered alone, after the shared header', () => {
+    const acme = renderSeedDump(sampleRows(), FINGERPRINTS, 'acme-shop');
+    const task = renderSeedDump(sampleRows(), FINGERPRINTS, 'task-api');
+    const both = renderProjects(
+      [
+        { name: 'task-api', rows: sampleRows() },
+        { name: 'acme-shop', rows: sampleRows() },
+      ],
+      FINGERPRINTS,
+    );
+    const header = acme.slice(0, acme.indexOf('\n\nINSERT INTO project'));
+    expect(both.startsWith(`${header}\n\n`)).toBe(true);
+    const body = (dump: string): string => dump.slice(dump.indexOf('INSERT INTO project'));
+    expect(both).toBe(`${header}\n\n${body(acme).trimEnd()}\n\n${body(task)}`);
+  });
+
+  it('writes the header of an empty list and nothing else', () => {
+    expect(renderProjects([], FINGERPRINTS).split('\n').filter((l) => l.startsWith('INSERT'))).toEqual([]);
   });
 });

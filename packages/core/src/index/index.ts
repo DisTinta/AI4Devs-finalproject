@@ -5,3 +5,4 @@ export * from './index-report.js';
 export * from './framework-detect.js';
 export * from './index-repository.js';
 export * from './source-path.js';
+export * from './analyzer-helpers.js';

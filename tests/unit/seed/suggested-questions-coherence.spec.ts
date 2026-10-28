@@ -53,5 +53,11 @@ describe('Suggested questions', () => {
       '¿Cómo se validan los cupones?',
       '¿Qué hace OrderObserver al crear un pedido?',
     ]);
+    // DIS-32, design D9, Follow-ups SA7: task-api's three golden questions, in order.
+    expect(SUGGESTED_QUESTIONS[idByName.get('task-api') ?? '']).toEqual([
+      '¿Cómo valida taskRoutes las peticiones entrantes?',
+      '¿Qué hace buildPage con los resultados paginados?',
+      '¿Qué transiciones de estado son válidas?',
+    ]);
   });
 });

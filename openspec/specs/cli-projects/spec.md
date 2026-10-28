@@ -38,12 +38,14 @@ output SHALL contain the database URL or its credentials.
 
 #### Scenario: Sample and user projects are listed
 
-- **GIVEN** a database holding the loaded acme-shop sample, a non-sample project indexed with a saved
-  graph, and a non-sample project created and never indexed
+- **GIVEN** a database holding the loaded samples of the versioned seed (acme-shop and task-api), a
+  non-sample project indexed with a saved graph, and a non-sample project created and never indexed
 - **WHEN** `projects` runs
 - **THEN** it exits with `0`, stderr is empty, and stdout holds exactly one line per project in name
   order; the acme-shop line is exactly
   `acme-shop  a794456d-6d1b-5b55-a360-13fec83dc7bc  php/laravel  174 nodes · 170 edges  2024-05-06T09:31:00.000Z sample`;
+  the task-api line is the template filled with task-api's project row of the versioned seed
+  (`typescript/fastify`, its `node_count`, `edge_count` and `indexed_at`) and ends with ` sample`;
   the indexed project's line is the template filled with its stored values and ends with its
   `indexedAt`, without ` sample`; the never-indexed project's line ends with
   `0 nodes · 0 edges  not indexed`; and the database is unchanged

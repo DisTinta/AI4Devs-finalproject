@@ -7,6 +7,7 @@ import { routes } from '../router';
 
 /** The acme-shop project of the seed. */
 const PROJECT_ID = 'a794456d-6d1b-5b55-a360-13fec83dc7bc';
+const TASK_PROJECT_ID = 'fba8e26b-1fb4-5b74-8352-d5d71ded7fe8';
 
 /** The ellipsis of «comprobando…» and «Reintentando…» (U+2026), written by code point. */
 const ELLIPSIS = String.fromCodePoint(0x2026);
@@ -120,29 +121,52 @@ describe('Sample-project cards without HTTP', () => {
     expect(comesAfter(heading, subtitle)).toBe(true);
     expect(comesAfter(subtitle, list)).toBe(true);
 
-    expect(within(list).getAllByRole('article')).toHaveLength(1);
-    const article = within(list).getByRole('article', { name: 'acme-shop' });
-    expect(within(article).getByRole('heading', { level: 2, name: 'acme-shop' })).toBeDefined();
-    expect(within(article).getByText('PHP / Laravel')).toBeDefined();
-    const counts = within(article).getAllByRole('listitem');
-    const expectedCounts = ['53 ficheros', '121 símbolos', '170 aristas', '32 commits'];
-    expect(counts).toHaveLength(expectedCounts.length);
-    expectedCounts.forEach((text, index) => {
-      expect(within(counts[index]).getByText(text)).toBeDefined();
-    });
-    expect(within(article).getByText('indexado')).toBeDefined();
-    const link = within(article).getByRole('link', { name: 'Explorar proyecto acme-shop' });
-    expect(link.getAttribute('href')).toBe(`/p/${PROJECT_ID}`);
-    for (const icon of CARD_ICONS) {
-      const nodes = textNodesContaining(article, icon);
-      expect(nodes.length, `icon ${icon} is rendered`).toBeGreaterThan(0);
-      for (const node of nodes) {
-        expect(node.parentElement?.closest('[aria-hidden="true"]'), `icon ${icon} is hidden`).not.toBeNull();
+    // DIS-32: two cards, in name order, each with its own stack, counts, link and icons.
+    const articles = within(list).getAllByRole('article');
+    expect(articles).toHaveLength(2);
+    // The heading starts with the decorative language icon.
+    expect(articles.map((card) => (within(card).getByRole('heading', { level: 2 }).textContent ?? '').replace(/^[^a-z]+/, ''))).toEqual([
+      'acme-shop',
+      'task-api',
+    ]);
+    const cards = [
+      {
+        name: 'acme-shop',
+        stack: 'PHP / Laravel',
+        counts: ['53 ficheros', '121 símbolos', '170 aristas', '32 commits'],
+        id: PROJECT_ID,
+        icons: CARD_ICONS,
+      },
+      {
+        name: 'task-api',
+        stack: 'TypeScript / Fastify',
+        counts: ['38 ficheros', '64 símbolos', '100 aristas', '28 commits'],
+        id: TASK_PROJECT_ID,
+        icons: CARD_ICONS.map((icon) => (icon === '🐘' ? '📘' : icon)),
+      },
+    ];
+    for (const card of cards) {
+      const article = within(list).getByRole('article', { name: card.name });
+      expect(within(article).getByRole('heading', { level: 2, name: card.name })).toBeDefined();
+      expect(within(article).getByText(card.stack)).toBeDefined();
+      const counts = within(article).getAllByRole('listitem');
+      expect(counts).toHaveLength(card.counts.length);
+      card.counts.forEach((text, index) => {
+        expect(within(counts[index]).getByText(text)).toBeDefined();
+      });
+      expect(within(article).getByText('indexado')).toBeDefined();
+      const link = within(article).getByRole('link', { name: `Explorar proyecto ${card.name}` });
+      expect(link.getAttribute('href')).toBe(`/p/${card.id}`);
+      for (const icon of card.icons) {
+        const nodes = textNodesContaining(article, icon);
+        expect(nodes.length, `${card.name}: icon ${icon} is rendered`).toBeGreaterThan(0);
+        for (const node of nodes) {
+          expect(node.parentElement?.closest('[aria-hidden="true"]'), `${card.name}: icon ${icon} is hidden`).not.toBeNull();
+        }
       }
+      expect(within(article).getByText(CHECKING)).toBeDefined();
+      expect(within(article).queryByText('listo')).toBeNull();
     }
-
-    expect(within(article).getByText(CHECKING)).toBeDefined();
-    expect(within(article).queryByText('listo')).toBeNull();
     expect(screen.queryByRole('alert')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Reintentar' })).toBeNull();
     expect(requests).toHaveLength(1);
@@ -224,7 +248,7 @@ describe('API status on Screen 1', () => {
         beforeList: comesAfter(alert, list),
         linkRendered: within(article).queryByRole('link', { name: 'Explorar proyecto acme-shop' }) !== null,
         showsReady: screen.queryByText('listo') !== null,
-        showsChecking: screen.queryByText(CHECKING) !== null,
+        showsChecking: screen.queryAllByText(CHECKING).length > 0,
         focusOnBody: document.activeElement === document.body,
         requests: requests.length,
       };
@@ -255,15 +279,16 @@ describe('API status on Screen 1', () => {
 
     // Act
     await act(() => vi.advanceTimersByTimeAsync(4_999));
+    // With two cards the status text is shown once per card: any of them counts.
     const at4999 = {
       alert: screen.queryByRole('alert') !== null,
-      checking: screen.queryByText(CHECKING) !== null,
+      checking: screen.queryAllByText(CHECKING).length > 0,
     };
     await act(() => vi.advanceTimersByTimeAsync(1));
     const alertAt5000 = screen.queryByRole('alert');
     const at5000 = {
       alert: alertAt5000?.textContent?.includes(UNAVAILABLE) ?? false,
-      checking: screen.queryByText(CHECKING) !== null,
+      checking: screen.queryAllByText(CHECKING).length > 0,
     };
     await act(() => vi.advanceTimersByTimeAsync(60_000));
 

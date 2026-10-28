@@ -17,9 +17,12 @@ export function isSkippedDeclaration(ts: TypeScriptModule, node: TS.Node): boole
 /**
  * The symbols of one TypeScript file parsed without a syntax error, in tree-walk order (DIS-30, design
  * D4): classes with a name, interfaces, function declarations with a body (at any depth), methods and
- * constructors of classes, method signatures of interfaces. Variables, types, enums, accessors,
- * properties, `declare` declarations and `declare module` / `declare global` / `namespace` blocks
- * yield none.
+ * constructors of classes, method signatures of interfaces, and (DIS-32, design D1) module-level
+ * `const` functions: a `const` statement of the file with one declarator whose initializer is directly
+ * an arrow or a function expression, a `function` symbol whose node is the whole statement and whose
+ * signature ends at the body's `{` or after the arrow's `=>`. Other variables, types, enums,
+ * accessors, properties, `declare` declarations and `declare module` / `declare global` /
+ * `namespace` blocks yield none.
  *
  * Spans are 1-based lines from `getStart` (decorators and modifiers included, JSDoc excluded) to the
  * end of the declaration. A signature is the text from that start to the opening `{` of the body, or
@@ -88,6 +91,22 @@ export function extractSymbols(
       }
     } else if (ts.isFunctionDeclaration(node) && node.name && node.body) {
       add('function', node.name.text, node, node.body.getStart(sourceFile));
+    } else if (ts.isVariableStatement(node) && ts.isSourceFile(node.parent)) {
+      const list = node.declarationList;
+      const [declaration] = list.declarations;
+      const initializer = declaration?.initializer;
+      if (
+        list.declarations.length === 1 &&
+        (list.flags & ts.NodeFlags.Const) !== 0 &&
+        ts.isIdentifier(declaration.name) &&
+        initializer &&
+        (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer))
+      ) {
+        const signatureEnd = ts.isBlock(initializer.body)
+          ? initializer.body.getStart(sourceFile)
+          : (initializer as TS.ArrowFunction).equalsGreaterThanToken.getEnd();
+        add('function', declaration.name.text, node, signatureEnd);
+      }
     } else if (ts.isMethodDeclaration(node) && ts.isClassLike(node.parent)) {
       const name = memberName(node.name);
       if (name !== undefined && (node.body || hasModifier(node, ts.SyntaxKind.AbstractKeyword))) {

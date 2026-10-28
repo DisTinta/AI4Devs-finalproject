@@ -21,24 +21,41 @@ import { goldenEntry, goldenFile } from '../../support/golden-file';
 
 const REPO_ROOT = resolve('.');
 const ACME_ID = 'a794456d-6d1b-5b55-a360-13fec83dc7bc';
+const TASK_ID = '3f1b0c9e-5b6a-4f6e-8c1d-2a7e9d4b6c10';
 const INDEXED_COMMIT = '4f028db4d51a3321031f3a24b3f36240410ed38c';
+const TASK_INDEXED_COMMIT = '9d2c7e41b0a85f36c1d4e7a92b6f03e85a1c4d7b';
 const ANALYZER = `sha256:${'1'.repeat(64)}`;
 const CONTRACT = `sha256:${'2'.repeat(64)}`;
-const SEED = [
+const SEED_HEADER = [
   '-- codemind-seed-format: 1',
   `-- analyzer-fingerprint: ${ANALYZER}`,
   `-- contract-fingerprint: ${CONTRACT}`,
   '',
+];
+const ACME_ROW =
   'INSERT INTO project (id, name, root_path, language, framework, is_sample, indexed_commit, node_count, edge_count) VALUES ' +
-    `('${ACME_ID}', 'acme-shop', 'fixtures/acme-shop', 'php', 'laravel', true, '${INDEXED_COMMIT}', 174, 170);`,
-  '',
-].join('\n');
+  `('${ACME_ID}', 'acme-shop', 'fixtures/acme-shop', 'php', 'laravel', true, '${INDEXED_COMMIT}', 174, 170);`;
+const TASK_ROW =
+  'INSERT INTO project (id, name, root_path, language, framework, is_sample, indexed_commit, node_count, edge_count) VALUES ' +
+  `('${TASK_ID}', 'task-api', 'fixtures/task-api', 'typescript', 'fastify', true, '${TASK_INDEXED_COMMIT}', 120, 90);`;
+/** The seed of both golden projects (DIS-32), and the seed of acme-shop alone. */
+const SEED = [...SEED_HEADER, ACME_ROW, TASK_ROW, ''].join('\n');
+const ACME_ONLY_SEED = [...SEED_HEADER, ACME_ROW, ''].join('\n');
 const VALID_ENV = { DATABASE_URL: 'postgres://fake/db', LLM_BASE_URL: 'http://127.0.0.1:11434/v1', LLM_MODEL: 'qwen2.5-coder' };
-const QUESTIONS: Record<string, string> = {
-  Q1: '¿Cómo se calcula el precio final de un pedido?',
-  Q3: '¿Cómo se validan los cupones?',
-  Q4: '¿Qué hace OrderObserver al crear un pedido?',
+const QUESTIONS: Record<string, Record<string, string>> = {
+  'acme-shop': {
+    Q1: '¿Cómo se calcula el precio final de un pedido?',
+    Q3: '¿Cómo se validan los cupones?',
+    Q4: '¿Qué hace OrderObserver al crear un pedido?',
+  },
+  'task-api': {
+    Q1: '¿Cómo valida taskRoutes las peticiones entrantes?',
+    Q2: '¿Qué hace buildPage con los resultados paginados?',
+    Q3: '¿Qué transiciones de estado son válidas?',
+  },
 };
+/** The arguments of a run that names acme-shop (DIS-32: bare ids are a usage error). */
+const ACME = ['--project', 'acme-shop'];
 
 /** What the explain double answers for one call: an answer, or an error to throw. */
 type Scripted = ExplainAnswer | Error;
@@ -46,12 +63,16 @@ type Scripted = ExplainAnswer | Error;
 interface FakeOptions {
   argv?: string[];
   env?: Record<string, string | undefined>;
+  /** The previous golden file of acme-shop; none when absent. */
   previous?: string | null;
-  answers?: (id: string, attempt: number) => Scripted;
+  /** The previous golden file of task-api; none when absent. */
+  previousTask?: string | null;
+  /** What `explain` does for one call of the question `id` of `project`, `attempt` counting per question. */
+  answers?: (id: string, attempt: number, project: string) => Scripted;
   write?: CacheBuildDeps['write'];
   /** The seed file's content; `SEED` when absent. */
   seed?: string;
-  /** What `headCommit` returns; the seed's indexed commit when absent. */
+  /** What `headCommit` returns for acme-shop; its seed indexed commit when absent. */
   head?: string;
   /** Seams that replace the doubles of `run` (an `undefined` value restores the command's default). */
   seams?: Partial<CacheBuildDeps>;
@@ -64,14 +85,21 @@ interface Run {
   stderrLines: string[];
   log: string[];
   asked: string[];
+  /** The same calls as `project:id`. */
+  askedIn: string[];
   configs: LiveLlmConfig[];
   fetches: Array<OpenAiCompatibleLlmOptions['fetch']>;
   llms: { built: LlmPort[]; used: LlmPort[] };
+  /** The golden file of acme-shop. */
   output: string;
+  /** The golden file of task-api. */
+  taskOutput: string;
   /** The dependencies `explain` received, one per call. */
   explainDeps: ExplainDependencies[];
-  /** The arguments of `buildHistory` and `headCommit`. */
+  /** The arguments of `buildHistory` (without the project) and `headCommit`. */
   history: string[][];
+  /** The project each `buildHistory` call rebuilt. */
+  historyProjects: string[];
 }
 
 let dir = '';
@@ -85,13 +113,20 @@ function unknownAnswer(reason: UnknownReason): ExplainAnswer {
   return { kind: 'unknown', answer: 'UNKNOWN', reason, statements: [], evidence: [], events: [] };
 }
 
-function idOf(question: string): string {
-  return Object.keys(QUESTIONS).find((id) => QUESTIONS[id] === question) ?? '?';
+/** The project and id of a golden question text. */
+function idOf(question: string): { project: string; id: string } {
+  for (const [project, questions] of Object.entries(QUESTIONS)) {
+    const id = Object.keys(questions).find((candidate) => questions[candidate] === question);
+    if (id !== undefined) return { project, id };
+  }
+  return { project: '?', id: '?' };
 }
 
 async function run(options: FakeOptions = {}): Promise<Run> {
   const log: string[] = [];
   const asked: string[] = [];
+  const askedIn: string[] = [];
+  const historyProjects: string[] = [];
   const configs: LiveLlmConfig[] = [];
   const fetches: Array<OpenAiCompatibleLlmOptions['fetch']> = [];
   const llms = { built: [] as LlmPort[], used: [] as LlmPort[] };
@@ -103,31 +138,37 @@ async function run(options: FakeOptions = {}): Promise<Run> {
   const seedPath = join(dir, 'graph-dump.sql');
   writeFileSync(seedPath, options.seed ?? SEED);
   const output = join(dir, 'cache', 'acme-shop.json');
-  const previous = options.previous === undefined ? null : options.previous;
-  if (previous !== null) {
-    mkdirSync(join(dir, 'cache'), { recursive: true });
-    writeFileSync(output, previous);
+  const taskOutput = join(dir, 'cache', 'task-api.json');
+  for (const [path, previous] of [
+    [output, options.previous],
+    [taskOutput, options.previousTask],
+  ] as const) {
+    if (previous !== undefined && previous !== null) {
+      mkdirSync(join(dir, 'cache'), { recursive: true });
+      writeFileSync(path, previous);
+    }
   }
   const answers = options.answers ?? (() => answered());
-  const exit = await runCacheBuild(options.argv ?? [], {
+  const exit = await runCacheBuild(options.argv ?? ACME, {
     env: options.env ?? VALID_ENV,
     stdout: { write: (chunk: string) => void (stdout += chunk) },
     stderr: { write: (chunk: string) => void (stderr += chunk) },
     repoRoot: REPO_ROOT,
     workspaceRoot: dir,
     seedPath,
-    outputPath: output,
+    outputDir: join(dir, 'cache'),
     seedFingerprints: () => {
       log.push('fingerprints');
       return { analyzer: ANALYZER, contract: CONTRACT };
     },
-    buildHistory: async (fixturesRoot, repoRoot) => {
+    buildHistory: async (fixturesRoot, repoRoot, project) => {
       log.push('history');
       history.push([fixturesRoot, repoRoot]);
+      historyProjects.push(project);
     },
     headCommit: (repository) => {
       history.push([repository]);
-      return options.head ?? INDEXED_COMMIT;
+      return repository.endsWith('task-api') ? TASK_INDEXED_COMMIT : (options.head ?? INDEXED_COMMIT);
     },
     openTransaction: async () => {
       log.push('open');
@@ -154,12 +195,13 @@ async function run(options: FakeOptions = {}): Promise<Run> {
       llms.used.push(deps.llm);
       explainDeps.push(deps);
       expect(request.useCache).toBe(false);
-      expect(request.projectId).toBe(ACME_ID);
-      const id = idOf(request.question);
+      const { project, id } = idOf(request.question);
+      expect(request.projectId).toBe(project === 'task-api' ? TASK_ID : ACME_ID);
       asked.push(id);
-      const attempt = (attempts.get(id) ?? 0) + 1;
-      attempts.set(id, attempt);
-      const scripted = answers(id, attempt);
+      askedIn.push(`${project}:${id}`);
+      const attempt = (attempts.get(`${project}:${id}`) ?? 0) + 1;
+      attempts.set(`${project}:${id}`, attempt);
+      const scripted = answers(id, attempt, project);
       if (scripted instanceof Error) throw scripted;
       return scripted;
     },
@@ -174,12 +216,15 @@ async function run(options: FakeOptions = {}): Promise<Run> {
     stderrLines: stderr.split('\n').filter((line) => line !== ''),
     log,
     asked,
+    askedIn,
     configs,
     fetches,
     llms,
     output,
+    taskOutput,
     explainDeps,
     history,
+    historyProjects,
   };
 }
 
@@ -230,7 +275,13 @@ describe('runCacheBuild', () => {
   });
 
   it('An unknown or repeated question id is a usage error', async () => {
-    for (const argv of [['Q2'], ['Q3', 'Q3'], ['q3']]) {
+    const cases: [string[], string[]][] = [
+      [[...ACME, 'Q2'], ['Q1', 'Q3', 'Q4']],
+      [[...ACME, 'Q3', 'Q3'], ['Q1', 'Q3', 'Q4']],
+      [[...ACME, 'q3'], ['Q1', 'Q3', 'Q4']],
+      [['--project', 'task-api', 'Q4'], ['Q1', 'Q2', 'Q3']],
+    ];
+    for (const [argv, allowed] of cases) {
       for (const env of [VALID_ENV, {}]) {
         // Act
         const result = await run({ argv, env });
@@ -241,11 +292,152 @@ describe('runCacheBuild', () => {
         expect(errorOf(result)).toEqual({
           code: 'USAGE',
           message: 'unknown or repeated golden question id',
-          details: { allowed: ['Q1', 'Q3', 'Q4'] },
+          details: { allowed },
         });
         expect(result.log).toEqual([]);
       }
     }
+  });
+
+  // DIS-32, design D6, Follow-ups SA4: spec golden-answers → "Project arguments are checked before anything else".
+  it('Project arguments are checked before anything else', async () => {
+    const usage = 'usage: npm run cache:build [-- --project <name> [<id>...]]';
+    const allowed = ['acme-shop', 'task-api'];
+    const cases: [string[], string, Record<string, unknown>][] = [
+      [['Q1'], 'golden question ids need --project <name>', { allowed }],
+      [['--project', 'nope'], 'unknown golden project', { allowed }],
+      [['--project'], usage, {}],
+      [['--project', 'acme-shop', '--project', 'task-api'], usage, {}],
+      [['--all'], usage, {}],
+      [['--project=acme-shop'], usage, {}],
+      [['--project', 'nope', '--all'], usage, {}],
+      [['Q1', '--project', 'nope'], 'unknown golden project', { allowed }],
+    ];
+    for (const [argv, message, details] of cases) {
+      // Act
+      const result = await run({ argv, env: {}, previous: PREVIOUS });
+
+      // Assert
+      expect(result.exit, argv.join(' ')).toBe(1);
+      expect(result.stdout).toBe('');
+      expect(errorOf(result)).toEqual({ code: 'USAGE', message, details });
+      expect(result.log).toEqual([]);
+      expect(readFileSync(result.output, 'utf8')).toBe(PREVIOUS);
+    }
+  });
+
+  it('accepts the project and the ids in any order', async () => {
+    const current = { seed: { analyzerFingerprint: ANALYZER, contractFingerprint: CONTRACT }, answerFingerprint: answerFingerprint(REPO_ROOT) };
+    const previous = renderGoldenFile(goldenFile(current));
+    for (const argv of [[...ACME, 'Q3'], ['Q3', ...ACME]]) {
+      const result = await run({ argv, previous });
+      expect(result.exit).toBe(0);
+      expect(result.askedIn).toEqual(['acme-shop:Q3']);
+      rmSync(join(dir, 'cache'), { recursive: true, force: true });
+    }
+  });
+
+  // DIS-32, design D6: spec golden-answers → "A seed without the second project is refused before any question".
+  it('A seed without the second project is refused before any question', async () => {
+    for (const argv of [[], ['--project', 'task-api']]) {
+      // Act
+      const result = await run({ argv, seed: ACME_ONLY_SEED, previous: PREVIOUS });
+
+      // Assert
+      expect(result.exit).toBe(1);
+      expect(result.stdout).toBe('');
+      expect(errorOf(result)).toEqual({ code: 'GOLDEN_STALE', message: 'seed out of date: run npm run seed:build', details: { reason: 'seed' } });
+      expect(result.log).toEqual(['fingerprints']);
+      expect(result.asked).toEqual([]);
+      expect(readFileSync(result.output, 'utf8')).toBe(PREVIOUS);
+    }
+  });
+
+  // DIS-32, design D6: spec golden-answers → "Every golden project is built without arguments".
+  it('Every golden project is built without arguments', async () => {
+    // Act: acme-shop's file must exist when the first task-api question is asked.
+    const acmeWrittenBeforeTask: boolean[] = [];
+    let acmeOutput = '';
+    const result = await run({
+      argv: [],
+      answers: (id, attempt, project) => {
+        if (project === 'task-api' && id === 'Q1' && attempt === 1) acmeWrittenBeforeTask.push(readdirSync(join(dir, 'cache')).includes('acme-shop.json'));
+        return answered();
+      },
+    });
+    acmeOutput = readFileSync(result.output, 'utf8');
+
+    // Assert
+    expect(result.exit).toBe(0);
+    expect(result.stderr).toBe('');
+    expect(acmeWrittenBeforeTask).toEqual([true]);
+    expect(result.askedIn).toEqual(['acme-shop:Q1', 'acme-shop:Q3', 'acme-shop:Q4', 'task-api:Q1', 'task-api:Q2', 'task-api:Q3']);
+    expect(result.stdout).toBe(
+      [
+        ...['Q1', 'Q3', 'Q4'].map((id) => `${id}: answered in 0 s (attempt 1/3)`),
+        'acme-shop: 3 golden answers -> acme-shop.json',
+        ...['Q1', 'Q2', 'Q3'].map((id) => `${id}: answered in 0 s (attempt 1/3)`),
+        'task-api: 3 golden answers -> task-api.json',
+        '',
+      ].join('\n'),
+    );
+    const task = JSON.parse(readFileSync(result.taskOutput, 'utf8')) as ReturnType<typeof goldenFile>;
+    expect(task.project).toBe('task-api');
+    expect(task.entries.map((entry) => `${entry.id} ${entry.question}`)).toEqual(
+      Object.entries(QUESTIONS['task-api']).map(([id, question]) => `${id} ${question}`),
+    );
+    expect((JSON.parse(acmeOutput) as ReturnType<typeof goldenFile>).project).toBe('acme-shop');
+    expect(result.historyProjects).toEqual(['acme-shop', 'task-api']);
+    expect(result.log.filter((entry) => entry === 'rollback')).toHaveLength(6);
+  });
+
+  // DIS-32, design D6: spec golden-answers → "A failure in the second project keeps the first project's new file".
+  it("A failure in the second project keeps the first project's new file", async () => {
+    // Arrange
+    const previousAcme = PREVIOUS;
+    const previousTask = renderGoldenFile(goldenFile({ project: 'task-api', entries: [] }));
+
+    // Act: first the three answers to task-api's Q2 are not valid, then task-api's file cannot be written.
+    const invalid = await run({
+      argv: [],
+      previous: previousAcme,
+      previousTask,
+      answers: (id, _attempt, project) => (project === 'task-api' && id === 'Q2' ? unknownAnswer('invalid-model-output') : answered()),
+    });
+    const acmeAfterInvalid = readFileSync(invalid.output, 'utf8');
+    const taskAfterInvalid = readFileSync(invalid.taskOutput, 'utf8');
+    rmSync(join(dir, 'cache'), { recursive: true, force: true });
+    const writes: string[] = [];
+    const unwritable = await run({
+      argv: [],
+      previous: previousAcme,
+      previousTask,
+      write: (path, content) => {
+        if (path.endsWith('task-api.json')) throw new Error('disk full');
+        writes.push(path);
+        writeFileSync(path, content);
+      },
+    });
+
+    // Assert
+    expect(invalid.exit).toBe(1);
+    expect(invalid.stdout.split('\n')).toContain('acme-shop: 3 golden answers -> acme-shop.json');
+    expect(errorOf(invalid)).toEqual({
+      code: 'GOLDEN_NOT_CACHEABLE',
+      message: 'Q2 has no cacheable answer (invalid-model-output)',
+      details: { id: 'Q2', reason: 'invalid-model-output' },
+    });
+    expect(acmeAfterInvalid).not.toBe(previousAcme);
+    expect(taskAfterInvalid).toBe(previousTask);
+    expect(unwritable.exit).toBe(1);
+    expect(unwritable.stdout.split('\n')).toContain('acme-shop: 3 golden answers -> acme-shop.json');
+    expect(errorOf(unwritable)).toEqual({
+      code: 'INTERNAL',
+      message: 'cache build failed after writing acme-shop.json; task-api.json was not written — run npm run cache:build -- --project task-api',
+      details: {},
+    });
+    expect(writes).toHaveLength(1);
+    expect(readdirSync(join(dir, 'cache')).filter((name) => /^\..*\.tmp$/.test(name))).toEqual([]);
   });
 
   it("The build's request limit applies and the daily ceiling does not", async () => {
@@ -282,7 +474,7 @@ describe('runCacheBuild', () => {
     ];
     for (const [previous, reason] of cases) {
       // Act
-      const result = await run({ argv: ['Q3'], previous });
+      const result = await run({ argv: [...ACME, 'Q3'], previous });
 
       // Assert
       expect(result.exit).toBe(1);
@@ -363,7 +555,7 @@ describe('runCacheBuild', () => {
   it('gives explain the workspace, the clock, the source and a fresh verification cache per attempt', async () => {
     const source = { readFileAt: async () => '', readFilesAt: async () => [], readFiles: async () => [], realPath: async () => '' } as unknown as SourceTreePort;
     const result = await run({
-      argv: [],
+      argv: ACME,
       answers: (id, attempt) => (id === 'Q1' && attempt === 1 ? unknownAnswer('broken-evidence') : answered()),
       seams: { source },
     });
@@ -416,7 +608,7 @@ describe('runCacheBuild', () => {
       let calls = 0;
       const start = Date.parse('2026-10-17T10:00:00.000Z');
       const result = await run({
-        argv: ['Q1'],
+        argv: [...ACME, 'Q1'],
         previous: renderGoldenFile(
           goldenFile({ seed: { analyzerFingerprint: ANALYZER, contractFingerprint: CONTRACT }, answerFingerprint: answerFingerprint(REPO_ROOT) }),
         ),
@@ -525,7 +717,7 @@ describe('runCacheBuild', () => {
     const reviewed = goldenEntry('Q1', { reviews: [{ by: 'author', date: '2026-10-17' }], response: cachedAnswer({ answer: 'old Q1' }) });
     const previous = goldenFile({ ...current, entries: [reviewed, goldenEntry('Q3', { response: cachedAnswer({ answer: 'old Q3' }) })] });
 
-    const result = await run({ argv: ['Q3'], previous: renderGoldenFile(previous), answers: () => answered({ answer: 'new Q3' } as Partial<ExplainAnswer>) });
+    const result = await run({ argv: [...ACME, 'Q3'], previous: renderGoldenFile(previous), answers: () => answered({ answer: 'new Q3' } as Partial<ExplainAnswer>) });
 
     expect(result.exit).toBe(0);
     expect(result.asked).toEqual(['Q3']);
@@ -535,7 +727,7 @@ describe('runCacheBuild', () => {
     expect(written.entries[0]).toEqual(JSON.parse(JSON.stringify(reviewed)));
     expect(written.entries[1]).toMatchObject({ id: 'Q3', reviews: [], response: { answer: 'new Q3' } });
 
-    const both = await run({ argv: ['Q4', 'Q1'], previous: renderGoldenFile(previous), answers: () => answered() });
+    const both = await run({ argv: [...ACME, 'Q4', 'Q1'], previous: renderGoldenFile(previous), answers: () => answered() });
     expect(both.asked).toEqual(['Q1', 'Q4']);
     expect((JSON.parse(readFileSync(both.output, 'utf8')) as ReturnType<typeof goldenFile>).entries.map((entry) => entry.id)).toEqual(['Q1', 'Q3', 'Q4']);
   });
@@ -556,14 +748,14 @@ describe('runCacheBuild', () => {
       ],
     ];
     for (const [file, reason] of cases) {
-      const result = await run({ argv: ['Q1'], previous: renderGoldenFile(file) });
+      const result = await run({ argv: [...ACME, 'Q1'], previous: renderGoldenFile(file) });
       expect(errorOf(result).details).toEqual({ reason });
       rmSync(join(dir, 'cache'), { recursive: true, force: true });
     }
     const renamed = await run({
-      argv: ['Q1'],
+      argv: [...ACME, 'Q1'],
       previous: renderGoldenFile(goldenFile({ seed: { analyzerFingerprint: ANALYZER, contractFingerprint: CONTRACT }, answerFingerprint: answer })),
-      seams: { outputPath: join(dir, 'cache', 'other.json') },
+      seams: { outputDir: join(dir, 'other') },
     });
     expect(errorOf(renamed).details).toEqual({ reason: 'missing' });
   });
@@ -608,7 +800,7 @@ describe('runCacheBuild', () => {
       [' 5000 ', 5000],
       ['   ', 1_200_000],
     ] as const) {
-      const result = await run({ argv: ['Q1'], env: { ...VALID_ENV, CACHE_BUILD_TIMEOUT_MS: raw }, previous: null, seams: { outputPath: join(dir, 'x', 'acme-shop.json') } });
+      const result = await run({ argv: [...ACME, 'Q1'], env: { ...VALID_ENV, CACHE_BUILD_TIMEOUT_MS: raw }, previous: null, seams: { outputDir: join(dir, 'x') } });
       expect(result.configs.map((config) => config.timeoutMs)).toEqual([]);
       expect(errorOf(result).details).toEqual({ reason: 'missing' });
       const full = await run({ env: { ...VALID_ENV, CACHE_BUILD_TIMEOUT_MS: raw } });
