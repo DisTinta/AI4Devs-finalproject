@@ -97,7 +97,7 @@
 - [x] 13.2 GREEN: `scripts/up.mjs` adds the step (same Node, same `defer-ctrl-c` preload, `fixtures/build-history.mjs task-api`); its header comment names both histories; `npx vitest run tests/unit/scripts tests/unit/docs`
 - [x] 13.3 Docs: remove the P7 debt notes and document the new behaviour in `docs/DEMO.md` and `readme.md` (and `docs/project-context.md` where it describes `up`); `tests/unit/docs/guides.spec.ts` changes only if a check names the old text
 - [x] 13.4 Before archive (design Follow-ups AR1): the `local-startup` delta replaces its ADDED requirement with a MODIFIED "One command starts the system" whose scenarios say seven steps and both histories; `openspec validate task-api-seed-golden --strict`
-- [ ] 13.5 `tests/unit/scripts/up.spec.ts` "Ctrl+C stops up without a failure line" fires SIGINT during `npm run dev` (call index 6) and expects seven calls, the last `run dev` (design Follow-ups AR2); `npx vitest run tests/unit/scripts`
+- [x] 13.5 `tests/unit/scripts/up.spec.ts` "Ctrl+C stops up without a failure line" fires SIGINT during `npm run dev` (call index 6) and expects seven calls, the last `run dev` (design Follow-ups AR2); `npx vitest run tests/unit/scripts`
 - [x] 13.6 Recorded check "Up builds the fixture history the seed indexed" in a clean clone of the branch (own Compose project name, free `POSTGRES_PORT`), two runs; record both `[up]` history lines, both fixture `HEAD`s, `git status --porcelain`, `npm run verify` and the `git hash-object` values in `reports/YYYY-MM-DD-13-up-recorded-check.md`
 - [ ] 13.7 DIS-32 gets a short Spanish comment confirming P7 is applied and the archive is complete
 

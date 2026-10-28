@@ -169,7 +169,7 @@ describe('One command starts the system', () => {
     const installedDuringSteps: number[] = [];
     const steps = runner((index) => {
       installedDuringSteps.push(signals.installed());
-      if (index === 5) {
+      if (index === 6) {
         signals.fire();
         return { code: 3221225786, signal: null };
       }
@@ -181,8 +181,9 @@ describe('One command starts the system', () => {
     const code = await runUp({ ...baseOptions(), run: steps.run, stderr, onInterrupt: signals.onInterrupt });
 
     // Assert
-    expect(steps.calls).toHaveLength(6);
-    expect(installedDuringSteps).toEqual([1, 1, 1, 1, 1, 1]);
+    expect(steps.calls).toHaveLength(7);
+    expect(steps.calls[6]?.args).toEqual([NPM_EXECPATH, 'run', 'dev']);
+    expect(installedDuringSteps).toEqual([1, 1, 1, 1, 1, 1, 1]);
     expect(signals.installed()).toBe(0);
     expect(stderr.text()).toContain('[up] stopped (Ctrl+C)');
     expect(stderr.text()).not.toContain('failed');
