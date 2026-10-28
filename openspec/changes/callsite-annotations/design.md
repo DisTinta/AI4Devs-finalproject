@@ -86,7 +86,10 @@ route action passed as a `reference` (array callable or `'Controller@method'` st
 site; for a route, the framework call on the same line (`Route::get(`) is a different site. When a
 README row describes two edges (task-api row 3), the control site is the call that leaves the row's
 source symbol (`TaskService::update` → `this.get(`), and its control target is that call's target
-(`TaskService::get`, `exact`); the other call may be a new site.
+(`TaskService::get`, `exact`); the other call may be a new site. When a README row's target is a
+framework convention with no named symbol (an event's listeners), its control target is the
+`handle` method of the listener registered first for that event in the fixture's
+`EventServiceProvider::$listen` (*agent's text, spec audit run 4*).
 
 **D4 — Sources (allowlist).** A panelist may read only: `fixtures/acme-shop/{app,routes,config,database}/**`
 and `fixtures/acme-shop/composer.json`; `fixtures/task-api/src/**`, `fixtures/task-api/package.json`
@@ -108,7 +111,13 @@ it has no fixture or Table 2 content). The resolver may also read
 reference. The resolver derives the disagreement ids from the two panel outputs (D8). Each output declares what it read in
 `sourcesRead`, one entry per **file** (a repository-relative path) or the literal
 `linear:DIS-80/description`; a directory or a glob is rejected, and so is any path outside the
-allowlist of its role.
+allowlist of its role. `sourcesRead` is checked by path string, with no existence check: a glob is
+an entry containing `*`, `?`, `[` or `{`; a directory is an entry ending with `/`, equal to a
+directory named in the allowlist, or existing under the root as a directory. Reason: the hashed
+panel outputs list `openspec/changes/callsite-annotations/tasks.md`, which the archive moves, and
+`agreement` must stay re-runnable after the archive and on a partial `--root` copy (task 9.1). The
+existence checks of cited fixture files and of `target.file` are unchanged (*agent's text, spec
+audit run 4*).
 
 **D5 — Selection** by the preparation (apply, not a panelist), from application code only (PHP
 `app/**`, `routes/**`; TypeScript `src/**`), covering every hard construction the fixture has: in
@@ -203,7 +212,7 @@ option), following the project convention (`docs/project-context.md:78-88`,
   `fixtures/annotations/*.callsites.json`; exits 1 writing nothing on error.
 - `hashes` — prints `<sha256>  <path>` for the nine frozen files (two site lists, `control.json`,
   `panelist-1.json`, `panelist-2.json`, `resolution.json`, `agreement.json`, two annotation files),
-  in that order. The report records them in a table under the heading `## Hashes SHA-256`, one row
+  in that order, each path repository-relative with forward slashes on every platform. The report records them in a table under the heading `## Hashes SHA-256`, one row
   `| <repository path> | <64 hex> |` per file, which `checkFreeze` parses.
 `resolution.json` exists even when there is no disagreement (empty `sites`), so the set of frozen
 files is always the same.
@@ -381,3 +390,7 @@ their findings here.
 | R3-I2 | `source` for calls inside closures, arrow functions or anonymous callbacks was undefined. Decided: anonymous functions are transparent (innermost named function or method, otherwise the file) | **A** — spec "Call-site lists", Panel group input set |
 | R3-I3 | Cells of `## Discrepancias con el control` had no format. Decided: same format as `## Desacuerdos` | **A** — spec "Frozen annotations and agreement report", D10 |
 | R3-I4 | `panelist` field not checked against its file. Decided: validation rejects a mismatch (cheap check against a swapped file), folded into the existing accepted and incomplete scenarios; scenario count unchanged (28) | **A** — spec "Panel output validation", tasks 1.1, 1.2 |
+| R4-B1 | How validation treats a `sourcesRead` entry was undecided; a file-system check would break task 9.1 and re-running `agreement` after the archive. Decided (recommended correction): path-string check with no existence check; glob = contains `*`, `?`, `[` or `{`; directory = ends with `/`, equals an allowlisted directory or exists under the root as a directory | **A** — spec "Panel output validation" (requirement and directory/glob scenario), D4, Panel group output format, tasks 1.1, 1.2 |
+| R4-B2 | The control target of an event row (a README row naming listeners, no symbol) was undefined. Decided: the `handle` method of the listener registered first for that event in the fixture's `EventServiceProvider::$listen`; the rule stays out of the DIS-80 description (no site or answer named there) | **A** — spec "Control reference" (rule and scenario), D3, task 2.1 |
+| R4-I1 | `hashes` path separator unspecified (Windows `path.join` gives backslashes). Decided: repository-relative path with forward slashes, matching the report table | **A** — spec "Agreement CLI", D10 |
+| R4-I2 | Enhanced D1/D3 of DIS-80 lagged the change (no `form` field; unit only "expresión de llamada"). Decided: taken, aligned at rule level, no site or answer named | **B** — DIS-80 description, enhanced part only |

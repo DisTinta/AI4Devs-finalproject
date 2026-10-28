@@ -67,14 +67,16 @@ forbidden to the panelists and to the resolver.
 in README order, before any panelist
 runs: `target` is `{ file, symbol }` or `null`, and is the target of the call that design D3
 identifies as the control site: the row's graph target when the row names one, otherwise the row's
-target, and, for a row that describes two edges, the target of the first call that leaves the row's
+target; for a row whose target is a framework convention with no named symbol (an event's
+listeners), the `handle` method of the listener registered first for that event in the fixture's
+`EventServiceProvider::$listen`; and, for a row that describes two edges, the target of the first call that leaves the row's
 source symbol (task-api row 3: `TaskService::get`, `exact`). `expected` is `exact`, `heuristic` or
 `none` (a row that says "no edge" is `none` with a `null` target). The rows of `fixtures/README.md`
 SHALL NOT be edited by this change.
 
 #### Scenario: The control reference transcribes the 22 README rows
 - **WHEN** the control reference is read next to the README table
-- **THEN** it has exactly the ids `php-01`…`php-12` and `ts-01`…`ts-10`, each `expected` equals the README row's resolution (`no edge` read as `none`), every `none` entry has a `null` target, every other entry has a target whose `file` exists in its fixture, and every non-null `target.symbol` is the symbol named by its README row (its graph target when given), except task-api row 3, whose target is `TaskService::get`
+- **THEN** it has exactly the ids `php-01`…`php-12` and `ts-01`…`ts-10`, each `expected` equals the README row's resolution (`no edge` read as `none`), every `none` entry has a `null` target, every other entry has a target whose `file` exists in its fixture, and every non-null `target.symbol` is the symbol named by its README row (its graph target when given), except task-api row 3, whose target is `TaskService::get`, and an event row, whose target is the `handle` of the first listener registered for that event in the fixture's `EventServiceProvider::$listen`
 
 ### Requirement: Panel output validation
 
@@ -88,7 +90,12 @@ fixture, line `0` or a line beyond the end, are ignored). A resolution output SH
 `{ resolver, date, sourcesRead, sites }`, where `resolver` is the model id, with no `panelist` and no
 `model` field, and `sites` holds one answer of the same shape per disagreement. Each `sourcesRead` entry SHALL be either a
 repository-relative path of a single file or the literal `linear:DIS-80/description`; a directory or
-a glob is rejected.
+a glob is rejected. `sourcesRead` SHALL be checked by path string: an entry need not exist under the
+root, so the committed outputs stay valid after the change is archived and on a partial `--root`
+copy. An entry is a glob when it contains `*`, `?`, `[` or `{`; it is a directory when it ends with
+`/`, equals a directory named in the allowlist (for example `fixtures/acme-shop/app`), or exists
+under the root as a directory. The existence checks of cited fixture files and of `target.file` are
+unchanged.
 The panelist allowlist SHALL be: files under `fixtures/acme-shop/app/`, `fixtures/acme-shop/routes/`,
 `fixtures/acme-shop/config/` and `fixtures/acme-shop/database/`; `fixtures/acme-shop/composer.json`;
 files under `fixtures/task-api/src/`; `fixtures/task-api/package.json`; `fixtures/task-api/tsconfig.json`;
@@ -140,7 +147,7 @@ output SHALL NOT be used, completed or corrected; the ticket stops instead.
 - **THEN** validation rejects it naming the forbidden path
 
 #### Scenario: A sourcesRead entry that is a directory or a glob is rejected
-- **WHEN** a `sourcesRead` entry is a directory (`fixtures/acme-shop/app`) or contains a glob (`fixtures/acme-shop/app/**`)
+- **WHEN** a `sourcesRead` entry is a directory (`fixtures/acme-shop/app`, or a subdirectory under an allowed prefix that exists under the root, such as `fixtures/acme-shop/app/Services`) or contains a glob (`fixtures/acme-shop/app/**`), while an allowlisted file absent under the root (`openspec/changes/callsite-annotations/tasks.md`) is accepted
 - **THEN** validation rejects it naming the entry
 
 #### Scenario: A resolution with a source outside the resolver allowlist is rejected
@@ -209,7 +216,8 @@ command over the repository-relative fixed paths, resolved under `--root` when g
 repository root). It SHALL exit `0` on success; `1` when validation or the merge fails, after
 printing every problem to stderr and writing no file; and `2` with a usage line on stderr for a
 missing or unknown command or an unknown option. `hashes` SHALL print one line `<sha256>  <path>` per
-frozen file, in this order: the two site lists, `control.json`, `panelist-1.json`, `panelist-2.json`,
+frozen file, where `<path>` is the repository-relative path with forward slashes, as recorded in the
+report's `## Hashes SHA-256` table, in this order: the two site lists, `control.json`, `panelist-1.json`, `panelist-2.json`,
 `resolution.json`, `agreement.json` and the two annotation files.
 
 #### Scenario: An unknown command is a usage error

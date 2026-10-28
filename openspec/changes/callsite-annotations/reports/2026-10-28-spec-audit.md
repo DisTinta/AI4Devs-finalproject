@@ -967,3 +967,23 @@ No empty row. The scenario count is 19 + 4 + 5 = 28 and matches task 7.2.
   - `sourcesRead` is validated as a path string, so the outputs stay valid after the archive and on partial copies;
   - the control target of an event row is the `handle` of the first listener registered in `$listen`, a rule written only in the spec and the design;
   - `hashes` prints paths with `/`.
+
+---
+
+## Resolution of run 4
+
+*Agent's text (correction round 4, 2026-10-28), decided as lead engineer in an autonomous run without the author. Each decision is also in `design.md` → Follow-ups (rows R4-*) with its destination. `openspec validate callsite-annotations --strict` passes after the edits.*
+
+**Questions for the author:** none in this run.
+
+**Blocking findings**
+
+- **R4-B1 — fixed, decided by the agent: the recommended correction.** `sourcesRead` is checked by path string, with no existence check, so the committed panel outputs stay valid after the archive moves `tasks.md` and on the partial `--root` copy of task 9.1. A glob is an entry containing `*`, `?`, `[` or `{`; a directory is an entry ending with `/`, equal to a directory named in the allowlist, or existing under the root as a directory. The existence checks of cited fixture files and of `target.file` are unchanged. Edited: spec "Panel output validation" (requirement, and the directory/glob scenario now covers a subdirectory under an allowed prefix, rejected, and an allowlisted file absent under the root, accepted), design D4 (rule and reason), Panel group output format, tasks 1.1 and 1.2. Task 9.1 needs no change. The `stat`-based alternative was rejected: it breaks re-running `agreement` after the archive and narrows the proposal's recompute claim.
+- **R4-B2 — fixed.** Spec "Control reference": for a row whose target is a framework convention with no named symbol (an event's listeners), the control target is the `handle` method of the listener registered first for that event in the fixture's `EventServiceProvider::$listen`; the scenario's exception names the event row with the same rule. Mirrored in design D3 and task 2.1 (the test derives the expected target from `fixtures/acme-shop/app/Providers/EventServiceProvider.php`). The rule is not written in the DIS-80 description; no site or answer is named there.
+
+**Improvable findings**
+
+- **Hash path separator — fixed.** Spec "Agreement CLI" and D10: `<path>` is the repository-relative path with forward slashes, as recorded in the report's `## Hashes SHA-256` table (row R4-I1).
+- **Enhanced D1/D3 of DIS-80 — fixed (Linear), decided by the agent to take it.** Enhanced D1 now includes `"form": "call"|"new"|"read"|"reference"` in format 1; enhanced D3 says a `__get` read (`read`) and a reference passed as an argument (`reference`, route actions included) count as one site each, marked as agent's text. `[original]` untouched; no site or control answer named (row R4-I2, destination B).
+
+**Linear.** DIS-80: description, enhanced part only (D1, D3); Spanish comment summarising this round.
