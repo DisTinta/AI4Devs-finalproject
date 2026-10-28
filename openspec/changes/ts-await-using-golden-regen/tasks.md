@@ -118,11 +118,11 @@ This group is done by independent agents launched by the workflow, outside the a
 
 ## 14. Pull request preparation
 
-- [ ] 14.1 `/pr-describe` in Spanish against `final-project-CRN`: the Why marked as the agent's text; the fix; the fingerprint before and after; the regeneration (model, durations); the panel (models, dates, verdict per item, agreement, items resolved, pending items and their tickets); the existing tests changed (task 9.1); the remaining-gaps table with every destination B row
+- [x] 14.1 `/pr-describe` in Spanish against `final-project-CRN`: the Why marked as the agent's text; the fix; the fingerprint before and after; the regeneration (model, durations); the panel (models, dates, verdict per item, agreement, items resolved, pending items and their tickets); the existing tests changed (task 9.1); the remaining-gaps table with every destination B row
 
 ## 15. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 15.1 Open the PR against `final-project-CRN`; DIS-107 to In Review with a Spanish comment linking it
+- [x] 15.1 Open the PR against `final-project-CRN`; DIS-107 to In Review with a Spanish comment linking it
 - [ ] 15.2 CI green, including the `verify` job: wait in the foreground with `gh pr checks <n> --watch --interval 60` (timeout 600000), repeated until no check is pending; link the run in an addendum to the step 10 report
 - [ ] 15.3 `/show-spec-working` (may reuse the step 11 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
 - [ ] 15.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
