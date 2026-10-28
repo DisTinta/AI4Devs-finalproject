@@ -39,7 +39,8 @@ than 2 instances remain outside the controls. The construction of every site SHA
 during the preparation and before any panelist runs, in `docs/measurements/annotation/selection.json`,
 shaped `{ "fixtures": [ { "fixture", "rows": [ { "construction", "instances", "ids" } ] } ] }`, with
 the construction labels of design D5 (every label of the fixture's language, in the order of D5,
-`other` last), `instances` the number of instances of that construction in application code and `ids`
+`other` last), `instances` the number of instances of that construction in application code (for `other`, the
+number of its sites) and `ids`
 the site ids of that row in site-list order; the agreement report SHALL copy that record into its
 selection table. The construction SHALL never be recorded in the site lists, and `selection.json` is
 forbidden to the panelists and to the resolver.
@@ -256,7 +257,9 @@ The report SHALL contain these sections, which the freeze tests parse:
   with one control id per row, the cells "Anotación final" and "Control" written like the answer
   cells of `## Desacuerdos` (`<expected> · <target.file> · <target.symbol>` or `none`), or the line
   `Ninguna.` when there is none;
-- `## Hashes SHA-256`, a table `| <repository path> | <64 hex> |` with one row per hashed file.
+- `## Hashes SHA-256`, a table with header `| Fichero | SHA-256 |` and rows
+  `| <repository path> | <64 hex> |`, one row per hashed file; the freeze check reads only the rows
+  whose second cell is 64 hex characters.
 `selection.json` is not in the hashed set: it is committed before the panel and its content is
 checked against the report's selection table.
 

@@ -1214,3 +1214,25 @@ No row is empty. The scenario count is 19 + 4 + 5 = 28, which matches task 7.2. 
 - **DIS-80, comment in Spanish:** a summary of round 5:
   - the target of a call on a receiver typed by an interface is the interface method, not the implementation;
   - if taken: the chain rule, the line-ending check before recording the hashes, the control `source` check in the site test, and "a mano" avoided in the report.
+
+---
+
+## Resolution of run 5
+
+*Agent's text (correction round 5, 2026-10-28), decided as lead engineer in an autonomous run without the author. Each decision is also in `design.md` → Follow-ups (rows R5-*) with its destination. `openspec validate callsite-annotations --strict` passes after the edits.*
+
+**Questions for the author:** none in this run.
+
+**Blocking findings**
+
+- **R5-B1 — fixed, decided by the agent: the recommended correction.** The interface-receiver rule is added word for word to design D2 (new block "Additions of spec audit run 5") and to the Panel group criterion of `tasks.md`, after the inherited-method bullet: a call on a receiver typed by a fixture interface (or a fixture class whose method is abstract) targets `Interface::m`, `exact`; implementations are not targets; "can reach several symbols" applies only when no declared type fixes one symbol (event listeners, container bindings, a union type). It names a construction class, not a site, so task 3.1 still holds. Mirrored in Spanish in the enhanced D2 of DIS-80, marked as the agent's text; `[original]` untouched; no site, line or control answer named.
+
+**Improvable findings** (all taken; each is inside the change and widens no scope)
+
+- **R5-I1, line endings before hashing — fixed.** Task 6.2: before running `hashes`, `git ls-files --eol docs/measurements/annotation fixtures/annotations` must show `i/lf w/lf` for every hashed file and no hashed file may start with a BOM; a `w/crlf` file is re-checked-out from the index, never edited. Decided by the agent beyond the audit's text: an `i/crlf` file or a BOM stops the ticket, because re-checking-out cannot fix a byte that is in the index and a frozen input is never edited (in practice the JSON readers of tasks 2.1 and 4.3 already reject a BOM earlier). Task 8.3 repeats the check.
+- **R5-I2, link-by-link chains — fixed.** The chain rule is added word for word to D2 and to the Panel group criterion, and in Spanish to the enhanced D2 of DIS-80. It is consistent with the control: README row 7 of task-api already answers "no edge" because `request.server` is typed by Fastify.
+- **R5-I3, control `source` check — fixed.** Task 2.1: the scenario "Each site list has 50 sites with the controls first" also compares each control site's `source` with its README row's source (the symbol, or `{ "file": "routes/…" }` for the two route rows). No new scenario; the count stays at 28.
+- **R5-I4, "a mano" in the report — fixed.** Task 6.2 describes the control as "las 22 filas de control de `fixtures/README.md`, anteriores a este ticket", never "a mano".
+- **R5-I5, `instances` of `other` and hash header — fixed.** Spec "Call-site lists": `instances` of `other` is the number of its sites; spec "Frozen annotations and agreement report": the hash table has header `| Fichero | SHA-256 |` and the freeze check reads only rows whose second cell is 64 hex characters. Mirrored in D5, D10 and task 6.2.
+
+**Linear.** DIS-80: description, enhanced part only (D2); Spanish comment summarising this round.

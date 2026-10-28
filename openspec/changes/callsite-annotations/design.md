@@ -80,6 +80,16 @@ The resolution a static analyzer **should** give when it reads only the fixture'
   (`get{Studly}Attribute`) or relation method → `heuristic` with that target; a plain column with no
   declared accessor or relation → `none`.
 
+*Additions of spec audit run 5 (agent's text, decided as lead engineer), copied word for word into
+the Panel group:*
+- A call on a receiver whose declared or inferred type is a fixture interface (or a fixture class
+  whose method is abstract) targets that type's method: `Interface::m`, `exact`; implementations are
+  not targets. "Can reach several symbols" applies only when no declared type fixes one symbol:
+  event listeners, container bindings, a union type.
+- A member-access chain is judged link by link: when a link before the called method has a type
+  known only from a package or the standard library, the call is `none`, even if a later link's type
+  is declared or augmented (`declare module`) in the fixture.
+
 **D3 — Unit = one call expression, one property read served by `__get`, or one reference passed as
 an argument.** 50 sites per language including the controls (12 + 38, 10 + 40). A `read` site and a
 route action passed as a `reference` (array callable or `'Controller@method'` string) are each one
@@ -168,7 +178,8 @@ labels, used verbatim in `selection.json`, in the report and by the freeze test,
 | task-api | `other` | other call | no |
 
 "Minimum" = at least 2 new sites, or every remaining instance outside the controls when fewer than
-2 remain (spec "Call-site lists").
+2 remain (spec "Call-site lists"). `instances` of `other` is the number of its sites (*agent's text,
+spec audit run 5*).
 The order of the new sites is file path then line, so it carries no hint either.
 
 **D6 — Measures.** Agreement = same `expected` and same `target` (`file` and `symbol`); percent =
@@ -212,8 +223,10 @@ option), following the project convention (`docs/project-context.md:78-88`,
   `fixtures/annotations/*.callsites.json`; exits 1 writing nothing on error.
 - `hashes` — prints `<sha256>  <path>` for the nine frozen files (two site lists, `control.json`,
   `panelist-1.json`, `panelist-2.json`, `resolution.json`, `agreement.json`, two annotation files),
-  in that order, each path repository-relative with forward slashes on every platform. The report records them in a table under the heading `## Hashes SHA-256`, one row
-  `| <repository path> | <64 hex> |` per file, which `checkFreeze` parses.
+  in that order, each path repository-relative with forward slashes on every platform. The report records them in a table under the heading `## Hashes SHA-256`, with the
+  header row `| Fichero | SHA-256 |` and one row `| <repository path> | <64 hex> |` per file, which
+  `checkFreeze` parses, reading only the rows whose second cell is 64 hex characters (*agent's text,
+  spec audit run 5*).
 `resolution.json` exists even when there is no disagreement (empty `sites`), so the set of frozen
 files is always the same.
 *Agent's text, spec audit run 2:*
@@ -394,3 +407,14 @@ their findings here.
 | R4-B2 | The control target of an event row (a README row naming listeners, no symbol) was undefined. Decided: the `handle` method of the listener registered first for that event in the fixture's `EventServiceProvider::$listen`; the rule stays out of the DIS-80 description (no site or answer named there) | **A** — spec "Control reference" (rule and scenario), D3, task 2.1 |
 | R4-I1 | `hashes` path separator unspecified (Windows `path.join` gives backslashes). Decided: repository-relative path with forward slashes, matching the report table | **A** — spec "Agreement CLI", D10 |
 | R4-I2 | Enhanced D1/D3 of DIS-80 lagged the change (no `form` field; unit only "expresión de llamada"). Decided: taken, aligned at rule level, no site or answer named | **B** — DIS-80 description, enhanced part only |
+
+*Spec audit run 5 (2026-10-28) — resolution by the agent, as lead engineer, without the author.*
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| R5-B1 | The criterion did not say which symbol a call on a receiver typed by a fixture interface targets; read literally, the "declared first" tie-break picked the implementation. Decided (recommended correction): the interface (or abstract) method is the target, `exact`; "can reach several symbols" applies only when no declared type fixes one symbol (event listeners, container bindings, a union type). Rule-level, names a construction class, no site | **A** — D2, Panel group criterion; **B** — enhanced D2 of the DIS-80 description |
+| R5-I1 | Hashed files written by agents on Windows may carry CRLF in the working tree while CI hashes the LF checkout. Decided: taken; before filling and before re-checking the hash table, `git ls-files --eol` must show `i/lf w/lf` for every hashed file and no file may start with a BOM; a `w/crlf` file is re-checked-out from the index, never edited; an `i/crlf` file or a BOM stops the ticket (a frozen input cannot be edited) | **A** — tasks 6.2, 8.3 |
+| R5-I2 | A member-access chain through a package-typed link (`request.server…`, augmented by `declare module` in the fixture) could be read as `exact`. Decided: taken; the chain is judged link by link, a package or standard-library link before the called method makes the call `none` | **A** — D2, Panel group criterion; **B** — enhanced D2 of the DIS-80 description |
+| R5-I3 | The site test did not check that the control sites sit in their README row's source. Decided: taken; task 2.1 compares each control site's `source` with its README row's source (the symbol, or `{ "file": "routes/…" }` for the route rows); no new scenario | **A** — task 2.1 |
+| R5-I4 | A report describing the control as "escritas a mano" would fail its own scenario. Decided: taken; task 6.2 describes the control as "las 22 filas de control de `fixtures/README.md`, anteriores a este ticket" | **A** — task 6.2 |
+| R5-I5 | `instances` of `other` was undefined and the hash table had no fixed header. Decided: taken; `instances` of `other` is its number of sites; the header is `| Fichero | SHA-256 |` and `checkFreeze` reads only rows whose second cell is 64 hex characters | **A** — spec "Call-site lists", "Frozen annotations and agreement report"; D5, D10 |
