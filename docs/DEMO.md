@@ -286,9 +286,13 @@ app/Listeners/RecordDiscountAudit.php:16-22
     … (+2 lines)
 ```
 
-Es una respuesta *golden*, generada por un modelo de 7B y revisada por un panel de agentes independientes (`docs/golden-review/`): las
-afirmaciones `INFERENCE` son las que el sistema no pudo comprobar del todo, y la 5 cita fragmentos que
-no la respaldan. El sistema no la oculta: la marca como inferencia.
+Es una respuesta *golden*, generada por un modelo de 7B: las afirmaciones `INFERENCE` son las que el
+sistema no pudo comprobar del todo, y la 5 cita fragmentos que no la respaldan. El sistema no la
+oculta: la marca como inferencia. La golden que sirve hoy la semilla para esta pregunta (acme-shop
+`Q1`, regenerada en DIS-32 después de esta captura) la revisó en DIS-33 un panel de agentes
+independientes (su informe está en `docs/golden-review/`) y la juzgó `incorrect`: dice
+que el total suma los descuentos, y el código los resta. Queda sin firmar hasta que DIS-108 la
+regenere o la retire.
 
 La CLI no imprime el uso de tokens; la API sí. `npm run demo:ask` envía la pregunta a
 `POST /api/projects/{projectId}/ask` (el id es el que imprimió `projects`) y muestra el estado HTTP,

@@ -551,6 +551,11 @@ describe('golden review: signatures', () => {
 
     // Assert
     expect(synthetic).toEqual([]);
+    const incorrect = [...verdicts].filter(([, verdict]) => verdict === 'incorrect').map(([key]) => key);
+    for (const line of pendingLines(report)) {
+      expect(line, 'a ## Pending line is - <project> <id>: DIS-<n>').toMatch(/^- (task-api|acme-shop) Q\d+: DIS-\d+$/);
+    }
+    expect(pendingLines(report).map((line) => line.slice(2, line.indexOf(':'))), '## Pending names exactly the incorrect items').toEqual(incorrect);
     for (const project of ['task-api', 'acme-shop'] as const) {
       for (const entry of readGolden(project).entries) {
         const key = `${project} ${entry.id}`;

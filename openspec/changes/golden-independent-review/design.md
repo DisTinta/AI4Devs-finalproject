@@ -256,3 +256,17 @@ Apply (agent's text: decided as lead engineer in an autonomous run, without the 
 | AP-2 | Two golden answers have the final verdict `incorrect`: acme-shop Q1 (FACT S6 false) and acme-shop Q4 (the answer says the observer updates the database). They stay unsigned and are listed under `## Pending`. Successor tickets created by the agent in task 6.4: DIS-108 (acme-shop Q1) and DIS-109 (acme-shop Q4) | **B** — successor issues DIS-108 and DIS-109, to be confirmed by the author at review |
 | AP-3 | The signatures written are `agent:claude-opus-5-5` and `agent:claude-sonnet-5-5`, dated 2026-10-28: equal to the literals of AC 3 (task 8.3) | **D** — accepted |
 | AP-4 | Statement-level differences that do not change a verdict: task-api Q1 S4 (panelist 1 `true`, panelist 2 `unverifiable`) and S5 (panelist 1 `unverifiable`, panelist 2 `true`); the resolver had nothing to decide | **D** — accepted |
+
+Pre-merge reviews (`reports/2026-10-28-show-spec-working.md`, `reports/2026-10-28-verify-against-spec.md`,
+`reports/2026-10-28-adversarial-review.md`; verdict PASS WITH GAPS). *Agent's text: decided as lead
+engineer in an autonomous run, without the author.* No panel file was edited.
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| RV-1 (Major) | `docs/DEMO.md` called the demo's price answer "revisada por un panel", but the panel judged acme-shop Q1 `incorrect`; the paragraph now says so and names DIS-108 | **A** — fixed in this change |
+| RV-2 | `fixtures/README.md` named two different reports as the one of the current acme-shop golden answers; the DIS-33 report is now the current one, the DIS-104 and DIS-34 reports the earlier ones | **A** — fixed in this change |
+| RV-3 | The `## Pending` test now checks the line format and that the lines name exactly the incorrect items (spec "Golden review report") | **A** — fixed in this change |
+| RV-4 | `sourcesRead` accepts `.` or empty path segments (for example `fixtures/task-api/./README.md`); the spec checks by string and rejects only `..`; no committed output has such an entry; `sourcesRead` is self-declared (report `## Limitations`) | **D** — accepted |
+| RV-5 | Panelist 2 cites `fixtures/task-api/src/routes/index.ts:27` (9 lines) in task-api Q4 `notes`; ignored by the citation rule, the same notes carry a valid one; panel files are never edited | **D** — accepted |
+| RV-6 | The step 1 capture of `docs/DEMO.md` predates the DIS-32 regeneration of acme-shop Q1 (pre-existing, not from this change) | **C** — author, at the next demo recapture (PowerShell) or with DIS-108 |
+| RV-7 | Panelist 2's blindness to panelist 1's committed output rests on its own `sourcesRead` (AP-1) | **D** — accepted, stated in the report |
