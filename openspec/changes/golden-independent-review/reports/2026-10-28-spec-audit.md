@@ -209,3 +209,202 @@ Correction round 1, 2026-10-28. *Agent's text: decided and applied as lead engin
 - §8 helper duplication — decided by the agent: accepted, recorded in D8 (copy of `roundRatio` and the `fixtureLines` line rule; the script is out of scope).
 - §9 task 6.1 split — fixed as tasks 6.1 (signatures) and 6.2 (report and criterion); later tasks renumbered 6.3–6.7 and their references updated. Task 5.1 split — fixed (B5).
 - §10 task 7.2 — fixed (B1).
+
+---
+
+## Run 2 (2026-10-28)
+
+CHANGES REQUIRED
+
+Spec audit of `openspec/changes/golden-independent-review` (Linear DIS-33, parent DIS-20), run 2, 2026-10-28. This run judges the change as it stands after correction round 1.
+
+**Inputs read.**
+- The change: `proposal.md`, `design.md`, `specs/golden-answers/spec.md`, `tasks.md`, and `reports/2026-10-28-spec-audit.md` (run 1 and its resolution).
+- Linear: DIS-33 (description `[original]`, `[reality-map]` and `[enhanced]` as amended in correction 1, plus its 6 comments) and the parent DIS-20.
+- Project docs: `docs/base-standards.md`, `docs/openspec-tasks-mandatory-steps.md`, `docs/project-context.md` (l. 554–583 and l. 1204–1206), `docs/AUTONOMOUS-RUN.md` (§2, §6) and `openspec/specs/golden-answers/spec.md`.
+- Code: `scripts/annotation-agreement.mjs` (l. 61–157, 274–303), `packages/cli/src/cache/golden-file.ts`, `packages/cli/src/cache/answer-fingerprint.ts`, `seeds/cache/*.json` and `.claude/workflows/autonomous-sdd.js` (`runPanel` l. 143–155, `apply-prepare`/`apply-finish` l. 189–194).
+
+## Questions for the author
+
+None. The agent answered Q-A, Q-B and Q-C of run 1 as lead engineer (design Follow-ups SA-Q-A … SA-Q-C, and the amended `[enhanced]` AC 3, AC 4 and R9). Those answers contradict neither the amended ticket nor the project, so this run accepts them.
+
+## 1. Scope against the ticket
+
+Clean. Everything follows from DIS-33, and the scope additions (acme-shop goldens, two panelists plus a resolver, the TSDoc) were confirmed in SA-Q-C. Nothing widens the change to DIS-20's analyzer story. The non-goals are explicit in the proposal and the design.
+
+## 2. Inherited acceptance criteria
+
+The DIS-20 criteria (analyzer, empty core diff, redaction, seed, type errors) are not part of DIS-33's DoD. DIS-33's own DoD and its amended AC 1–5 are each covered:
+
+- **AC 1** → requirement "Criterion first and immutable panel record".
+- **AC 2** → "Panel outputs of the golden review". `overtyped` is a refinement, and the Panel group says it prevails.
+- **AC 3** → "Signatures of the reviewed golden answers".
+- **AC 4** (amended) → "A golden answer judged incorrect carries no signature" plus `## Pending`.
+- **AC 5** → "Golden review report".
+- **DoD «y el veredicto»** → met by the `## Verdicts` table (SA-Q-B).
+
+- **Improvable (I3), AC 3 literals.** The amended AC 3 pins `agent:claude-opus-5-5` and `agent:claude-sonnet-5-5`. The test checks only the pattern `^claude-[a-z]+-[0-9]+(-[0-9]+)*$`; that was a deliberate decision of round 1 (B3). Two consequences follow:
+  - A panelist whose real id differs would sign with a valid id that is not the AC 3 literal, and nothing would record the difference.
+  - The Panel group's wording ("your exact model id: claude-opus-5-5 for panelist 1, claude-sonnet-5-5 for panelist 2") tells a panelist both to write its real id and to write a fixed literal. Those conflict if the two differ.
+
+  Correction: see Corrections → tasks.md Panel group and 8.3.
+
+## 3. Missing scenarios
+
+Clean. Every MUST clause of the four ADDED requirements plus "Criterion first…" is exercised by a scenario:
+- input projection;
+- acceptance and rejection of panel outputs;
+- resolution = disagreements;
+- signatures, both correct/partial and incorrect;
+- report figures;
+- report sections and limitations;
+- criterion equality;
+- git order (step 8 report).
+
+## 4. Ambiguity
+
+Clean. A search of `proposal.md`, `design.md`, `spec.md` and `tasks.md` finds no fast, easy, secure, efficient, many, appropriate or robust.
+
+## 5. Open decisions
+
+- **B2 — blocking. The boundaries of the "Criterion block" are undefined, and the section that depends on them can never be edited.** Three facts combine:
+  - The spec requires the report's `## Criterion` to "equal, line for line, the **Criterion** block of the Panel group". It does not say where that block starts and ends. Is the bold lead-in line `**Criterion** (judge against the fixture code at this commit; the golden answers are in Spanish):` part of it? Are blank lines? Does the block end at `**Output format.**`?
+  - Task 1.1 writes `## Criterion` in `apply-prepare`. The test that pins the comparison (task 6.2) is written later, by a different agent (`apply-finish`, `autonomous-sdd.js` l. 190–194).
+  - No later commit may change `## Criterion` (same requirement, design D9).
+
+  So if 1.1 copies a slightly different extent (the lead-in line, an intro sentence), the mismatch is unrecoverable: the test cannot go green without editing an immutable section, and the ticket stops. Correction: define the block and the section explicitly in the spec, in task 1.1 and in task 6.2 (see Corrections).
+- **Improvable (I1). No precedence between statement judgements.** A `FACT` can be contradicted by the code *and* cite lines that do not back it. It can also be true only by inference *and* cite the wrong lines. The derived verdict depends on which judgement the panelist picks: `false` on a `FACT` gives `incorrect`, while `unverifiable` or `overtyped` gives `partial`. The criterion becomes immutable at task 1.2, so fix the precedence now. Add to the Criterion block: "When more than one judgement applies, use the first that applies in this order: `false`, `unverifiable`, `overtyped`, `true`."
+- **Improvable (I2). Citation of an `unverifiable` statement whose cited file or lines do not exist.** The rule "every statement carries at least one valid citation" still applies, but the Panel group does not say what to cite. A rejected output stops the ticket (D7). Add: "for an `unverifiable` statement whose cited file or lines do not exist, cite the fixture line that shows the code the statement is about, or line 1 of the cited file if the file exists."
+- **Improvable (I4). `sourcesRead` edge cases.**
+  - The spec says "the check is by path string", but "never a directory" cannot be decided from the string alone. `fixtures/task-api/src` with no trailing slash passes the prefix check.
+  - A `..` segment (`fixtures/task-api/../../seeds/cache/task-api.json`) also passes the prefix check.
+  - The DIS-80 precedent handles both (`scripts/annotation-agreement.mjs` l. 151 checks the filesystem for directories; l. 154 rejects `..`).
+
+  Correction: state "an entry is a directory when it ends in `/` or names an existing directory; an entry with a `..` segment is outside the allowlist; entries are not checked for existence (see B1)".
+- **Improvable (I7). How the test recognises the content of `## Panel` and `## Limitations` is not pinned.** The report is written in 6.4, after the test (6.2), and only `## Criterion` is immutable, so the risk is low. Still, pin it:
+  - `## Panel` contains every exact entry of the panelist allowlist, the two prefixes, `fixtures/README.md` and `seeds/`.
+  - `## Limitations` contains four fixed sentences (see Corrections).
+- **Improvable (I8). The `Errors` cell can contradict the final verdict.** When the resolver picks a verdict neither panelist gave (e.g. p1 `correct`, p2 `incorrect`, final `partial`), the error source is panelist 1, whose cell may read `none` beside a `partial`. This is deterministic, so it is acceptable. Add one line to `## Limitations` or to the table note: "when the final verdict comes from the resolver and matches neither panelist, `Errors` shows panelist 1's judgements."
+- **Improvable (I10). Table safety.** A `|` inside a Justification cell breaks the `## Verdicts` parser. Add "no `|` in any cell" to the spec and to task 6.4.
+
+## 6. Contradictions inside the change
+
+- **Improvable (I5). Task 6.4 versus task 6.6.**
+  - Task 6.4 ends "`npx vitest run tests/unit/seed/golden-reviews.spec.ts` green". It also says the `## Pending` lines `- <project> <id>: DIS-<n>` are "filled in task 6.6".
+  - The test of task 6.1 checks those lines.
+  - So if any item is `incorrect`, 6.4 cannot be green before 6.6 has created the issue.
+
+  Correction: move the issue creation before the report (new order: 6.3 data, 6.4 successor issues if any, 6.5 report, 6.6 refactor), or make 6.4's green conditional on 6.6.
+- **Improvable (I9).** Task 6.1 says "See them fail". When no item is `incorrect`, "A golden answer judged incorrect carries no signature" may pass at once, because its synthetic part only needs the helper. Say "the first fails; the second may already pass (record it)", as 6.2 already does.
+- **Improvable (I11).** The spec requires every resolution item to carry "at least one valid citation in its `cites` or its `justification`". The Panel group states that rule for statements and `notes` only. Add it to the resolution sentence of the Output format, because a rejection stops the ticket.
+- Otherwise clean: proposal, design D1–D9 and the spec agree on the paths, the shapes, the derivation, the agreement formats and the order of the sections.
+
+## 7. Contradictions with the project
+
+- **Improvable (I6). Task 6.6 and the destination model.** Task 6.6 creates new Linear issues and labels them destination **B**. `docs/project-context.md` l. 565 defines B as "A later sub-issue **already** owns it". It also says (l. 583) "humans confirm Linear creates/comments before the agent opens issues", and the autonomous exceptions table in `docs/AUTONOMOUS-RUN.md` §2 does not relax that rule. This is conditional (it only runs if an item is `incorrect`), it is an agent decision (SA-Q-A) and it is recorded in the ticket's amended AC 4, so it is not blocking. Still, label it honestly in D5, in Follow-ups R5/D5 and in task 6.6: "B (successor issue created by the agent in the autonomous run; the author confirms it at review)". Also list it in the PR's remaining-gaps table (task 12.1).
+- The agent merging (13.7) and writing the PR's "why" (12.1) are allowed by `docs/AUTONOMOUS-RUN.md` §2. Clean.
+- The delta only ADDs requirements and does not touch "Golden file format" or "Partial regeneration" of `openspec/specs/golden-answers/spec.md`. However, the new requirements name "this change's `tasks.md`" and "the Panel group of `tasks.md`". Once `/opsx:archive` syncs them into the main spec, those references no longer resolve (folded into B1).
+
+## 8. Contrast with the real code
+
+- **B1 — blocking. The criterion test breaks at `/opsx:archive`, before the merge.**
+  - The spec requirement "Criterion first and immutable panel record" and the test of task 6.2 read `openspec/changes/golden-independent-review/tasks.md`.
+  - Task 13.7 runs `/opsx:archive` *before* the merge. That moves the file to `openspec/changes/archive/<date>-golden-independent-review/tasks.md`, the shape of `openspec/changes/archive/2026-10-28-callsite-annotations/`.
+  - From then on "The report's criterion is the Panel group's criterion" fails on the PR's archive commit, and on every later CI run of `final-project-CRN`, whichever ticket triggers it.
+  - No existing test reads a change's `tasks.md` from disk: a grep of `tests/` finds the DIS-80 precedent only as an allowlist *string* (`tests/unit/scripts/annotation-agreement.spec.ts` l. 348). This change would be the first.
+  - The same risk applies to the validator if it checked that `sourcesRead` entries exist, since `openspec/changes/golden-independent-review/tasks.md` is a panelist allowlist entry.
+
+  Correction:
+  - (a) The test resolves the tasks file as the active path when it exists, otherwise as the single match of `openspec/changes/archive/*-golden-independent-review/tasks.md`, and fails with a message if there are none or more than one.
+  - (b) The spec says so, and names that path instead of "this change's `tasks.md`", so the main spec stays meaningful after the sync.
+  - (c) The spec states that `sourcesRead` entries are checked by string only, never for existence.
+  - (d) Task 13.7 re-runs `npx vitest run tests/unit/seed/golden-reviews.spec.ts` after the archive commit.
+  - (e) The report writes repository paths as code, not as Markdown links (a link to the change's `tasks.md` would break after the archive).
+- Checked against the code, consistent:
+  - `cohenKappa` is the only helper exported by `scripts/annotation-agreement.mjs` (l. 288). It already rounds to three decimals and returns `null` only when expected agreement is 1, which matches D8's "`undefined` when it is `null`"; rendering with `toFixed(3)` gives `<k.kkk>`.
+  - `roundRatio` (l. 274) and `fixtureLines` (l. 121) are where D8 says they are, and the duplication is accepted.
+  - `golden-file.ts` l. 75–83: `reviews` is strict `{by, date}` with a calendar date, so the signatures fit (D3).
+  - `answer-fingerprint.ts` l. 13–27: neither `seeds/cache/` nor `golden-file.ts` is a fingerprint input, so `verify` keeps 3/3.
+  - No existing test asserts on the real seeds' `reviews` (grep `reviews` in `tests/`). Task 7.1 is correct.
+  - `runPanel` (l. 145–154) matches the Panel group: the panelists return their files, `panel-record` writes them, and `panel-resolve` is Opus.
+
+## 9. Task size
+
+Clean. 5.2 (validator plus two `it`s over real files) and 6.2 (table parser plus three `it`s) are the largest tasks, but each fits in one agent turn after the run-1 split.
+
+## 10. Mandatory steps
+
+Clean:
+- Step 0 is the branch (0.1).
+- Each mandatory group is present with its label: 7 (MANDATORY), 8 (MANDATORY, report path in 8.6), 9 (MANDATORY - AGENT MUST EXECUTE, report 9.4), 10 (MANDATORY if applicable - AGENT MUST EXECUTE, marked not applicable), 11 (MANDATORY).
+- 13 (MANDATORY - AGENT MUST EXECUTE) is last, with the three checks in order and the archive before the merge.
+- State restoration is covered: 9.3 records the counts and git status, and `dev-processes stop` follows every step that starts processes.
+- Every scenario maps to a task (7.2: 10 scenarios, 9 tests plus 1 in the step 8 report; recount correct).
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| Blind panel input of the golden review | The panel input projects the golden answers without their verification | 2.1, 2.2, 2.3 |
+| Panel outputs of the golden review | Each panelist output judges every item under the criterion | 4.1, 4.2, 4.3, 5.2 |
+| Panel outputs of the golden review | The resolution answers exactly the disagreements | 4.4, 5.2 |
+| Panel outputs of the golden review | Invalid panel outputs are rejected | 5.1, 5.2 |
+| Signatures of the reviewed golden answers | Every golden answer judged correct or partial carries both panel signatures | 6.1, 6.3 |
+| Signatures of the reviewed golden answers | A golden answer judged incorrect carries no signature | 6.1, 6.3, 6.4, 6.6 |
+| Golden review report | The report's verdicts and agreement match the panel files | 6.2, 6.4 |
+| Golden review report | The report states its criterion, panel and limitations | 1.1, 6.2, 6.4 |
+| Criterion first and immutable panel record | The report's criterion is the Panel group's criterion | 1.1, 6.2 (breaks after 13.7 — B1) |
+| Criterion first and immutable panel record | The criterion precedes the input and nothing in the record is rewritten | 1.2, 2.3, 4.3, 4.4, 8.3 |
+
+No empty row. The ninth row is filled but defective until B1 is fixed.
+
+## Corrections to apply
+
+### `specs/golden-answers/spec.md`
+
+1. **"Criterion first and immutable panel record" (B1, B2).** Replace the first sentence with:
+   > The `## Criterion` section of `docs/golden-review/2026-10-task-api-golden-review.md` SHALL consist of exactly the lines of the Criterion block of the Panel group of the change's tasks file, and no other non-blank line. The Criterion block is the bullet lines (each starting with `- `) that follow the line starting with `**Criterion**` up to the next blank line, excluding that bold lead-in line. The change's tasks file is `openspec/changes/golden-independent-review/tasks.md` while the change is active, and the single `openspec/changes/archive/*-golden-independent-review/tasks.md` once it is archived.
+
+   Scenario "The report's criterion is the Panel group's criterion", replace GIVEN, WHEN and THEN:
+   > **GIVEN** the report and the change's tasks file, active or archived **WHEN** the non-blank lines of `## Criterion` and the Criterion block are extracted **THEN** they are equal, and the test fails naming the paths it tried when no tasks file, or more than one, is found
+2. **"Panel outputs of the golden review" → Allowlists (B1, I4).** Append:
+   > The check is by path string only: an entry is never checked for existence. An entry is a directory when it ends in `/` or names an existing directory. An entry with a `..` segment is outside every allowlist.
+3. **"Golden review report" (I7, I8, I10).** Add the following:
+   - > `## Panel` SHALL contain each exact entry of the panelist allowlist, the prefixes `fixtures/task-api/` and `fixtures/acme-shop/`, and the forbidden paths `fixtures/README.md` and `seeds/`. Repository paths are written as code, never as Markdown links.
+   - Replace the `## Limitations` sentence with:
+     > `## Limitations` SHALL contain these four lines verbatim: `- Two models of one family are not independent reviewers in the sense of two people.`, `- The generator is a local 7B model (qwen2.5-coder).`, `- sourcesRead is self-declared.`, `- The criterion was written by an agent that had read the golden answers.`
+   - > No cell of the `## Verdicts` table SHALL contain `|`. When the final verdict matches neither panelist, the `Errors` cell shows panelist 1's judgements.
+
+### `tasks.md`
+
+- **Panel group → Criterion block (I1, I2).** Edit before task 1.1 runs: the block becomes immutable at 1.2.
+  - Add the bullet: "- When more than one judgement applies to a statement, use the first that applies in this order: `false`, `unverifiable`, `overtyped`, `true`."
+  - Add to the Output format: "For an `unverifiable` statement whose cited file or lines do not exist, cite the fixture line that shows the code the statement is about, or line 1 of the cited file if the file exists."
+- **Panel group → Output format (I3, I11).**
+  - Replace the `model` placeholder with "<your exact model id as your own system states it; expected claude-opus-5-5 for panelist 1 and claude-sonnet-5-5 for panelist 2; if yours differs, write yours>".
+  - Add to the resolution sentence: "each resolution item carries at least one valid citation in `cites` or `justification`".
+- **1.1 (B2).** Add: "`## Criterion` holds exactly the bullet lines of the Criterion block (without the bold `**Criterion**` lead-in line), nothing else. Paths are written as code, not links."
+- **5.2 (B1, I4).** Add: "sourcesRead entries are checked by string, never for existence. A trailing `/` or an existing directory is a directory. A `..` segment is outside the allowlist."
+- **6.1 (I9).** Replace "See them fail" with "See the first fail; the second may already pass when no item is `incorrect` (record it)".
+- **6.2 (B1, B2).** The criterion `it` resolves the tasks file as in the spec (active path, else the single archived match) and compares the non-blank lines of `## Criterion` with the bullet lines of the Criterion block.
+- **6.4/6.6 order (I5).** Move the successor-issue task before the report task, and renumber.
+- **6.6 (I6).** Replace "(destination B, agent's text)" with "(destination B: successor issue created by the agent in the autonomous run, to be confirmed by the author at review; agent's text)". Task 12.1 lists it among the remaining gaps.
+- **8.3 (I3).** Add: "record whether the two signatures equal `agent:claude-opus-5-5` and `agent:claude-sonnet-5-5` of AC 3; if not, record the real ids and add a Follow-ups row".
+- **13.7 (B1).** After the archive commit, and before the merge, run `npx vitest run tests/unit/seed/golden-reviews.spec.ts` green.
+
+### `design.md`
+
+- **D9:** add that the criterion test reads the tasks file at its active or archived path, so that it survives `/opsx:archive` and the main-spec sync (B1). Name the block boundaries (B2).
+- **D2:** add "entries are checked by string, never for existence; `..` is rejected; a trailing `/` or an existing directory is a directory" (I4, B1).
+- **D4:** add the judgement precedence `false` > `unverifiable` > `overtyped` > `true` (I1).
+- **D5 / Follow-ups R5/D5:** relabel destination B as in task 6.6 (I6).
+- **Follow-ups:** add rows SA2-B1, SA2-B2 and SA2-I1 … SA2-I11 for this run, each with destination A.
+
+### `proposal.md`
+
+- **Impact:** add "the criterion test reads the change's tasks file at its active or archived path".
+
+### Linear DIS-33 (Spanish; the `[original]` block is never touched)
+
+Comment:
+> **Auditoría de spec, ejecución 2 (texto del agente, 2026-10-28): CHANGES REQUIRED, 2 bloqueantes.** (B1) El test que compara `## Criterion` con el bloque del grupo Panel lee `openspec/changes/golden-independent-review/tasks.md`, que `/opsx:archive` (tarea 13.7, antes del merge) mueve a `openspec/changes/archive/…`: el test fallaría desde el commit de archivo y en todas las CI posteriores de la base. Corrección: el test busca el `tasks.md` activo o el archivado, `sourcesRead` se comprueba solo como texto y la spec nombra la ruta. (B2) No está definido dónde empieza y acaba el «bloque Criterion»; como `## Criterion` no se puede cambiar después del commit 1.2, un desajuste no tendría arreglo. Corrección: el bloque son las líneas de viñeta tras la línea `**Criterion**` hasta la siguiente línea en blanco. Mejoras: precedencia de juicios (`false` > `unverifiable` > `overtyped`), qué citar en un statement inverificable, `..` y directorios en `sourcesRead`, orden de las tareas 6.4/6.6, etiqueta del destino B del ticket sucesor y registro de si las firmas coinciden con los identificadores del AC 3.
