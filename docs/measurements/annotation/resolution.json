@@ -1,0 +1,10 @@
+{
+  "resolver": "claude-opus-5-5",
+  "date": "2026-10-28",
+  "sourcesRead": [
+    "openspec/changes/callsite-annotations/tasks.md",
+    "docs/measurements/annotation/panelist-1.json",
+    "docs/measurements/annotation/panelist-2.json"
+  ],
+  "sites": []
+}
