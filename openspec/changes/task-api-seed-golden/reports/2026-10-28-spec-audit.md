@@ -509,3 +509,209 @@ Comentario en español en DIS-32 con las decisiones de esta ronda. El comentario
 textos nuevos queda en la tarea 11.7, tras el merge. DIS-20 (padre) no se edita.
 
 `openspec validate task-api-seed-golden --strict`: el cambio es válido.
+
+---
+
+## Run 3 (2026-10-28)
+
+CHANGES REQUIRED
+
+**Preguntas para la autora:** ninguna nueva. Las decisiones del agente de las rondas 1 y 2 (Q-A, Q-B, Q-C, SA1–SA12) no contradicen el ticket ni el proyecto, así que las doy por buenas.
+
+Ronda 3 de la auditoría de `openspec/changes/task-api-seed-golden` (DIS-32, padre DIS-20).
+
+He releído:
+- el cambio completo: `proposal.md`, `design.md`, los 9 deltas y `tasks.md`;
+- la sub-issue DIS-32 con sus 6 comentarios y la descripción del padre DIS-20;
+- el informe de las rondas 1 y 2 con sus resoluciones.
+
+También he comprobado contra el código:
+- `packages/core/src/context/anchor.ts`: `questionTerms`, `ANCHOR_STOPWORDS`, `MIN_TOKEN_LENGTH` = 3, prefijo de 5 caracteres para los tokens de 6 o más, y `MAX_QUESTION_TERMS` = 16;
+- `packages/adapters/store-postgres/src/queries.ts:135-146` (`FIND_SYMBOLS`, `ILIKE` sobre `sy.name`);
+- `packages/cli/src/seed/fingerprint.ts:79-100`;
+- `packages/analyzers/typescript/src/edges.ts:7` (`ts-compiler`);
+- `.gitignore:15-22`;
+- la existencia de `fixtures/task-api/package-lock.json` en este checkout.
+
+---
+
+## 1. Alcance frente al ticket: limpio
+
+Todo sale de la sub-issue:
+- la deuda de DIS-30 del bloque [original];
+- E1–E12 del bloque [enhanced];
+- los deltas de `cli-projects`, `project-picker`, `seed-load`, `verify-smoke` y `ask-page`, que son consecuencia directa de que la semilla versionada tenga dos proyectos (P5, SA7).
+
+Q-C reescribe los textos de Q1 y Q2 de task-api en `fixtures/README.md`. No es alcance nuevo: es la condición para que el AC 5 («3/3») se pueda cumplir, y los ids y el conjunto Q1–Q3 no cambian. No hay Tabla 2, ni endpoint de indexado, ni kinds nuevos en core.
+
+## 2. Criterios de aceptación heredados: limpio
+
+- DoD «`db:seed` carga 2 proyectos»: seed-load, «The seed is loaded into an empty database».
+- DoD «`verify` verde con task-api»: verify-smoke, «Every golden answer matches» y «The verify job is green on the pull request». Ahora se puede cumplir: las tres preguntas golden de task-api anclan (punto 8).
+- DoD «`sample-projects.ts` incluye task-api»: seed-build, «The versioned constant matches the versioned seed».
+- DoD, diff de core: tareas 2.4, 8.4 y 12.1.
+- AC 1: tres escenarios nuevos de code-analysis.
+- AC 2: tareas 2.1–2.3 y «Adding task-api leaves the acme-shop rows unchanged».
+- AC 3: seed-build, escenarios de contenido y de reproducibilidad.
+- AC 4: seed-load.
+- AC 5: golden-answers y verify-smoke, más el escenario de Q4.
+- AC 6: tareas 2.4 y 12.1.
+- Seguridad (secreto plantado): «The task-api block of the seed is generated» exige `redacted = true`.
+- AC 4 del padre (Q4 UNKNOWN): cubierto por el escenario de `ask` (Q-A).
+
+## 3. Escenarios que faltan: limpio
+
+Todas las cláusulas SHALL nuevas o modificadas tienen escenario. Eso incluye:
+- la regla de anclaje: «Every golden question anchors a symbol of its project»;
+- los argumentos en cualquier orden y `--project=`;
+- los errores con nombre de proyecto;
+- la huella de solo ficheros versionados.
+
+## 4. Ambigüedad: limpio
+
+Ninguno de los términos vagos aparece en el cambio. La única coincidencia es «as many as» (`specs/seed-load/spec.md:125`), que es una igualdad medible.
+
+## 5. Decisiones abiertas
+
+- **B1 (bloqueante): ver punto 6.** La tarea 8.4 deja al implementador decidir solo si borra un fichero local no versionado o si da por fallido un paso obligatorio.
+- No queda ninguna otra decisión abierta. Están fijados:
+  - el formato de las líneas de salida;
+  - el orden de las comprobaciones de argumentos;
+  - el motivo de la UNKNOWN de Q4;
+  - el `<path>` de los errores de `seed:build`;
+  - el comportamiento si falla `git ls-files` (D5, `INTERNAL`).
+
+## 6. Contradicciones dentro del cambio
+
+- **B1, bloqueante. La tarea 8.4 no puede pasar en la máquina de ejecución y contradice la 8.1 y el contexto del diseño.**
+  - La 8.4 exige «`git status --short fixtures/task-api` empty (fixture code untouched)».
+  - Sin embargo, `fixtures/task-api/package-lock.json` existe en este checkout y no está versionado ni ignorado. `.gitignore:15-22` solo ignora `fixtures/*/vendor/`, `fixtures/*/node_modules/` y `fixtures/*/.git/`, y el propio `design.md` → Context lo dice («untracked, not ignored»). Por tanto ese comando imprime `?? fixtures/task-api/package-lock.json`.
+  - La 8.1 sí acepta los ficheros no versionados. La 8.4, que es la comprobación del DoD, no.
+  - El agente tendría que elegir solo entre borrar un fichero local de la autora o dejar en rojo un paso MANDATORY.
+  - Corrección: comprobar que los ficheros versionados del fixture no cambian, en los commits y en el árbol de trabajo, sin mirar los no versionados (ver «Correcciones a aplicar»).
+- **Mejorable.** `proposal.md` → What Changes dice «`task-api`: Q1, Q2, Q3 of the task-api table of `fixtures/README.md`» sin decir que el cambio reescribe los textos de Q1 y Q2 (Q-C). Esa tabla es un artefacto que otros tickets (DIS-33, DIS-80) leen, así que conviene que la propuesta lo diga.
+- Fuera de eso, proposal, design y deltas coinciden. Los textos nuevos de Q1 y Q2 son idénticos en:
+  - golden-answers, «Golden questions»;
+  - verify-smoke, «Every golden answer matches»;
+  - ask-page;
+  - D6;
+  - las tareas 5.1, 6.3, 9.1, 9.4 y 11.3.
+
+## 7. Contradicciones con el proyecto: limpio
+
+- La regla de anclaje nueva es la que ya aplica `fixtures/README.md:204-208` a Q5 de acme-shop.
+- Ninguna spec principal de `openspec/specs/` cita los textos antiguos de task-api.
+- `readme.md:355` los cita, pero lo cubre la tarea 11.3.
+- `prompts.md:756` y `docs/ai-sessions/03-planificacion-historias-de-usuario.md` también los citan, pero son registros históricos y no se tocan.
+- No hay conflicto con los ADR. La excepción de core sigue limitada a D2.
+
+## 8. Contraste con el código real: limpio
+
+Anclaje de las preguntas nuevas, comprobado con `anchor.ts` y `FIND_SYMBOLS`:
+
+| Pregunta | Términos (tras quitar stopwords y tokens de menos de 3 caracteres) | Ancla |
+|---|---|---|
+| Q1 «¿Cómo valida taskRoutes las peticiones entrantes?» | `valida`, `valid`, `taskroutes`, `taskr`, `peticiones`, `petic`, `entrantes`, `entra` | `taskRoutes`; por `taskr`, también `TaskRepository`, `InMemoryTaskRepository` y sus métodos `X::m`. Son menos de 32 (`MAX_ANCHORS`) |
+| Q2 «¿Qué hace buildPage con los resultados paginados?» | `buildpage`, `build`, `resultados`, `resul`, `paginados`, `pagin` (`que`, `hace`, `con` y `los` son stopwords) | `buildPage`; por `build`, también `buildApp` y `buildTestApp` |
+| Q3 | `trans` y otros | `canTransition`, `allowedTransitions`, `IllegalStatusTransitionError` |
+| Q4 | `autentican`, `auten`, `usuarios`, `usuar` | ninguno, así que `UNKNOWN (no-anchor)` es correcto |
+
+Otras comprobaciones:
+- `questionTerms` se exporta por `packages/core/src/context/index.ts:1`, así que el test de la tarea 6.1 puede importarlo de `@codemind/core`.
+- `ts-compiler` existe como `TS_COMPILER_EXTRACTOR` (`packages/analyzers/typescript/src/edges.ts:7`), así que el escenario de cli-indexing es correcto.
+- D5: `filesUnder` es síncrono (`fingerprint.ts:96`), así que el listado con `git ls-files` encaja con `execFileSync`, que ya usa la CLI. El checkout de CI es un clon git.
+- Los escenarios de code-analysis (`src/k.ts`, `src/v.ts`, `src/c.ts`) son coherentes con D1 en tres puntos:
+  - el orden por línea de inicio, fin descendente y nombre;
+  - la firma hasta `{` o incluyendo `=>`;
+  - el JSDoc fuera del span.
+
+## 9. Tamaño de las tareas: limpio
+
+- La 4.6 sigue al límite de un turno, pero la ronda 2 la rechazó con un motivo razonable.
+- La 6.2 (Ollama, unos 60 min) ya prevé ejecutarse en segundo plano con sondeo.
+- El resto cabe en un turno.
+
+## 10. Pasos obligatorios
+
+- El paso 0 es la rama `feature/dis-32-task-api-seed-golden`.
+- Los pasos 7–12 están presentes y etiquetados (MANDATORY / AGENT MUST EXECUTE), y la revisión pre-merge es el último.
+- Hay informes con nombre (8.6, 9.5, 10.4).
+- Las tareas que mutan datos restauran el estado (9.2 y 8.5).
+- **B1 afecta a un paso obligatorio (8.4):** ver punto 6.
+
+## 11. Trazabilidad
+
+| Requisito (delta) | Escenario | Tareas |
+|---|---|---|
+| code-analysis · TypeScript symbol extraction | 8 escenarios ya existentes | 1.2, 7.2 |
+| 〃 | Variables, types, accessors and ambient declarations are not symbols (entrada cambiada) | 1.1, 1.2 |
+| 〃 | Module-level const functions are function symbols | 1.1, 1.2 |
+| 〃 | Other variable forms are not function symbols | 1.1, 1.2 |
+| 〃 | Const functions are no endpoint of calls edges | 1.1, 1.2 |
+| (AC 2) helpers en core, refactor | `tests/unit/index/analyzer-helpers.spec.ts` | 2.1–2.4 |
+| cli-indexing · Command line contract | Help and version / framework / name | 3.3, 7.2 |
+| 〃 | An unsupported language is a usage error | 3.1, 3.3, 9.3 |
+| 〃 | A TypeScript repository is indexed with the TypeScript analyzer | 3.1, 3.3, 9.2 |
+| cli-indexing · Errors in the project format | 3 escenarios ya existentes | 3.3, 7.2 |
+| seed-build · Command contract | Missing config / unreachable DB / allowed dir | 4.5, 4.6, 9.3 |
+| 〃 | A failure of the second project's repository names it | 4.6, 4.7 |
+| seed-build · Seed content | The acme-shop seed is generated | 4.6, 4.7 |
+| 〃 | The task-api block of the seed is generated | 4.6, 6.1 |
+| 〃 | Adding task-api leaves the acme-shop rows unchanged | 6.1 (comprobación registrada) |
+| seed-build · The database is never changed | unchanged after a build / existing acme-shop and task-api | 4.6, 4.7 |
+| seed-build · Reproducibility | Two consecutive builds / time zone | 4.6, 6.1 |
+| seed-build · Fingerprints | 3 escenarios | 4.1, 4.2 |
+| seed-build · A failed build never leaves a broken seed | 4 escenarios | 4.5, 4.7 |
+| seed-build · Sample-project constant | 4 escenarios | 4.3–4.7, 6.4, 8.3 |
+| seed-load · Command contract | An invalid golden file fails before connecting (+3 ya existentes) | 6.4 |
+| seed-load · Sample projects loaded idempotently | empty DB / loading again | 6.4, 6.7 |
+| golden-answers · Cache build command contract | config / unknown id / project args / unreachable / request limit / slow model | 5.3, 5.4, 9.3 |
+| golden-answers · Golden questions | acme-shop table / task-api table | 5.1, 5.2 |
+| 〃 | Every golden question anchors a symbol of its project | 6.1 |
+| 〃 | task-api's Q4 is answered UNKNOWN without anchor in evaluation mode | 6.4, 9.1 |
+| golden-answers · Seed is current | missing or outdated / without second project | 5.3, 5.4 |
+| golden-answers · How a golden answer is produced | scripted model / every project / non-sample | 5.3, 5.4, 5.5, 6.2 |
+| golden-answers · Retries and failures | 4 escenarios con `--project acme-shop` | 5.4 |
+| golden-answers · Partial regeneration | only named (y orden de argumentos) / stale | 5.4 |
+| golden-answers · Failed build never leaves broken file | failed write / failure in second project | 5.3, 5.4, 5.6 |
+| golden-answers · Versioned golden file coherent | acme-shop / task-api | 6.2, 6.4 |
+| verify-smoke · Compared on structure only | every match / altered / cache miss / counts / free text | 6.5, 6.7 |
+| verify-smoke · CI job | workflow parsed / green on PR | 12.2 |
+| project-picker · Sample-project cards | Screen 1 shows two cards / keyboard | 6.6, 10.2, 10.3 |
+| ask-page · Suggested questions | sent at once / suggested = golden | 6.3, 10.2 |
+| cli-projects · Project listing | listed / empty / errors | 6.5, 9.1 |
+| DoD · código del fixture sin tocar | — (comprobación registrada) | 8.4 (**incumplible tal como está, B1**) |
+
+No hay filas vacías. La última fila tiene tarea, pero su comprobación no puede pasar (B1).
+
+---
+
+## Correcciones a aplicar
+
+### `openspec/changes/task-api-seed-golden/tasks.md`
+
+- **8.4 (B1).** Sustituir «`git status --short fixtures/task-api` empty (fixture code untouched)» por:
+  > «`git diff --name-only origin/final-project-CRN...HEAD -- fixtures/task-api` and `git diff --name-only HEAD -- fixtures/task-api` both print nothing (no tracked fixture file changed, committed or not); untracked or ignored files under `fixtures/task-api` (such as the local `package-lock.json` recorded in 8.1) are neither deleted nor committed, and design D5 keeps them out of the fingerprint»
+- **11.7 (mejorable).** En el checklist de destino C para DIS-32, añadir:
+  > «E12 with the new Q1 text «¿Cómo valida taskRoutes las peticiones entrantes?» (the checklist of the proposal comment still names the old text)»
+
+### `openspec/changes/task-api-seed-golden/proposal.md`
+
+- **What Changes, viñeta de `npm run cache:build` (mejorable).** Después de «(`acme-shop`: Q1, Q3, Q4; `task-api`: Q1, Q2, Q3 of the task-api table of `fixtures/README.md`)» añadir:
+  > «; the texts of task-api's Q1 and Q2 in that table are rewritten to name a symbol of the graph (`taskRoutes`, `buildPage`) so that every golden question anchors (design D6, Follow-ups Q-C)»
+
+### `openspec/changes/task-api-seed-golden/design.md`
+
+- **Follow-ups.** Tabla nueva «Spec audit, run 3» con la fila:
+  > «SA13 | (B1) Task 8.4 checked `git status --short fixtures/task-api` empty, impossible with the untracked local `package-lock.json`; replaced by `git diff --name-only` over tracked files, untracked files neither deleted nor committed | **A** — this change (task 8.4)»
+- Si se aplica la corrección de la propuesta, añadir la fila «SA14 | Proposal names the rewrite of task-api's Q1/Q2 texts | **A**».
+
+### Linear DIS-32 (comentario en español; el bloque [original] no se toca)
+
+> **Auditoría de spec, ronda 3 (texto del agente, ejecución autónoma 2026-10-28).**
+> - **B1:** la comprobación del DoD de la tarea 8.4 (`git status --short fixtures/task-api` vacío) no podía pasar, porque `fixtures/task-api/package-lock.json` existe en local sin versionar ni ignorar. Se sustituye por `git diff --name-only` sobre los ficheros versionados. Los ficheros no versionados no se borran ni se commitean.
+> - La comprobación en PowerShell pendiente para la autora (E12) usa el texto nuevo de Q1: `npm run cli -- ask task-api "¿Cómo valida taskRoutes las peticiones entrantes?"`. El comentario de la propuesta aún cita el texto antiguo.
+
+### Linear DIS-20 (padre)
+
+No se edita.
