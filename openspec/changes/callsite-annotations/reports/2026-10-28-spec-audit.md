@@ -505,3 +505,214 @@ No empty row. The construction-per-selection row depends on B2 being fixed: its 
 **Other edits.** The proposal names `selection.json` and the exact hashed set. Scenario count unchanged: 19 + 4 + 5 = 28 (task 7.2).
 
 **Linear.** DIS-80: description, enhanced part only, aligned (B1); Spanish comment summarising this round.
+
+---
+
+## Run 3 (2026-10-28)
+
+CHANGES REQUIRED
+
+**Questions for the author**
+
+None. The three blocking findings below can be fixed inside the change and in the enhanced part of DIS-80. Earlier decisions marked as the agent's text are accepted except where noted: the lenient citation rule (R2-B5) conflicts with enhanced AC 5 of DIS-80 (finding B3).
+
+Inputs read:
+- **The change:** `proposal.md`, `design.md`, `specs/graph-annotations/spec.md`, `tasks.md`, and `reports/2026-10-28-spec-audit.md` (runs 1–2 and their resolutions).
+- **Linear:** DIS-80 (description `[original]` / `[reality-map]` / `[enhanced]`, and its 5 comments) and its parent DIS-53.
+- **Workflow:** `.claude/workflows/autonomous-sdd.js` (`COMMON`, `step`, `runPanel`).
+- **Docs:** `docs/AUTONOMOUS-RUN.md` §6 and `docs/base-standards.md` (searched for fixture or Table 2 content: none).
+
+---
+
+## 1. Scope against the ticket
+
+Clean. Everything traces to DIS-80's `[original]` DoD and procedure, its enhanced D1–D12, or a correction from runs 1–2. Nothing widens toward DIS-53's Table 1, `measure-graph` or the filled Table 2, which stay explicit non-goals.
+
+## 2. Inherited acceptance criteria
+
+The DoD of DIS-80 and enhanced AC 1–4 each have a requirement and a scenario. From DIS-53, only "Dado 50 sitios anotados por lenguaje" is inherited, and it is covered.
+
+- **B3 — blocking. Enhanced AC 5 contradicts the citation rule of the change.**
+  - AC 5 of the DIS-80 description (enhanced part, which the panelists read) says: "*Si* un panelista … cita una línea que no existe en el fixture … su salida no se usa y el ticket se para".
+  - Run 2 decided the lenient rule instead (R2-B5): an answer is valid when **at least one** citation is valid, and other citations, including lines beyond the end of a file, are ignored. That is now in the spec "Panel output validation", P4, the Panel group and tasks 4.3/9.2.
+  - So the ticket's acceptance criterion and the change's requirement give opposite results for an answer with one valid and one out-of-range citation. The scenario "A complete panel output is accepted" pins acceptance of exactly that answer.
+  - `/verify-against-spec` will compare the PR with AC 5 as written.
+  - Run 2 aligned AC 1, D2 and D4 of the description but not AC 5.
+  - Correction: in the enhanced part of DIS-80 (never `[original]`), reword AC 5's first sentence at rule level: "… o una respuesta no tiene ninguna cita válida (fichero existente del fixture del sitio y línea dentro del fichero; las demás citas se ignoran) …".
+
+## 3. Missing scenarios
+
+Clean. Every MUST clause has a scenario:
+- the validation list;
+- the CLI exit codes;
+- the selection per construction;
+- the control discrepancies;
+- the merge failure.
+
+The "precedes any `measure-graph` run" clause is checked by task 8.3, as the spec states.
+
+## 4. Ambiguity
+
+Clean. None of fast / easy / secure / efficient / many / appropriate / robust occurs in the artifacts. The only hit is the quotation in `design.md:340` (Follow-up I3).
+
+## 5. Open decisions
+
+- **B1 — blocking. The resolver may read `agreement.json`, which holds each panelist's agreement with the control. This breaks the blindness of the tie-break with respect to the control.**
+  - **The file's content.** The spec "Agreement measures" says the computation "SHALL write `docs/measurements/annotation/agreement.json` with these figures and the ids of the disagreements". "These figures" include, per panelist and language, the agreement with the control reference (agreed count, percent, kappa).
+  - **Who reads it.** The spec's resolver allowlist, design D4, D8, the Panel group allowlist and task 4.4 all let the resolver read `agreement.json`.
+  - **What the resolver can infer.** The site lists mark every control site with `control: true`. A resolver that reads "panelist 1: 10/10 on the TS control, panelist 2: 7/10" knows which panelist matches the hidden reference. On any disagreement at a control site, it can side with that panelist without judging the code.
+  - **What that breaks:**
+    - D8 and enhanced D8 of the ticket: the resolver sees "only the disagreement ids, both answers and the fixture code (… no el control)".
+    - The "Discrepancias con el control" section: its count would be biased towards zero.
+  - **The change contradicts itself.** Task 4.4 and D4 call `agreement.json` "the list of disagreement ids … not a measurement". The spec makes it hold percent and kappa, which is precisely the "measurement output" that the workflow's resolver prompt forbids (`.claude/workflows/autonomous-sdd.js:154`).
+  - **Also open:** the content of `agreement.json` is not fixed beyond "these figures and the ids", so the implementer could also add per-site control results.
+  - **Correction, preferred:** remove `agreement.json` from the resolver allowlist. The resolver derives the disagreement ids from `panelist-1.json` and `panelist-2.json`, which task 4.4 already allows. Edit:
+    - spec "Panel output validation": the resolver allowlist, and the scenario "A resolution with a source outside the resolver allowlist is rejected", which must now reject `agreement.json`;
+    - design D4 and D8;
+    - the Panel group allowlist;
+    - tasks 1.1/1.2 and 4.4.
+  - **Alternative:** fix the shape of `agreement.json` in the spec with no control figures, and move the control figures to a separate file that the resolver may not read. This changes the hashed set from nine to ten.
+- **B2 — blocking. The resolver's own workflow instructions direct it to files outside its allowlist.** An honest resolver therefore stops the ticket after the whole panel has run.
+  - **What the workflow tells the resolver.** The resolver runs as a workflow `step` (`autonomous-sdd.js:154` → `step()` at `:90-91`), so its prompt starts with `COMMON` (`:62-73`):
+    - "Follow the contract in docs/AUTONOMOUS-RUN.md §6 strictly";
+    - "record each decision in the Linear ticket and in design.md → Follow-ups";
+    - "Use the Linear MCP for the ticket".
+  - **What that conflicts with:**
+    - `docs/AUTONOMOUS-RUN.md` is outside the resolver allowlist ("`docs/**` otherwise" is forbidden). If declared in `sourcesRead`, `merge` (task 5.1) rejects the resolution and the ticket stops. If not declared, `sourcesRead` is false.
+    - `design.md` is forbidden, and D3 in it states the control target of ts-03. Writing a Follow-up there means reading it.
+    - Linear comments are forbidden (P2): the DIS-31 comment on DIS-80 gives the answers of ts-07 and ts-10.
+  - **The same applies to every agent.** The project `CLAUDE.md` points every agent at `docs/base-standards.md`, which is also outside both allowlists. I searched it for fixture or Table 2 content and found none, so allowing it costs no blindness.
+  - **Nothing in the change reconciles this.** The Panel group never tells the resolver how to treat its step contract.
+  - **Correction:**
+    - In the spec "Panel output validation", design D4 and the Panel group allowlist, add `docs/base-standards.md` to both allowlists and `docs/AUTONOMOUS-RUN.md` to the resolver allowlist. Both are process documents with no fixture content.
+    - In the Panel group, add a resolver paragraph: "The general contract of your workflow step applies to git and commits only: the resolver records no decision in `design.md` and writes no Linear comment; it reads neither `design.md`, the specs, the spec-audit report nor any Linear comment; every process document it reads goes in `sourcesRead`."
+    - Add an accepted case for these process documents to task 1.1, under the scenario "A complete panel output is accepted".
+
+## 6. Contradictions inside the change
+
+- B1 (task 4.4 and D4 say `agreement.json` is "not a measurement"; the spec "Agreement measures" makes it hold percent and kappa) is counted above.
+- Otherwise, the proposal, the design and the spec agree on:
+  - the files and the nine hashed files;
+  - format 1;
+  - the measures;
+  - the merge;
+  - the CLI;
+  - the report sections.
+
+## 7. Contradictions with the project
+
+- B2 (the workflow step contract against the panel allowlists) is counted above.
+- No main spec is duplicated: `openspec/specs/` has no capability on annotations.
+- No ADR bears on this change (P8).
+- Exit code `2` for usage errors follows the project convention.
+- The agent merge follows the autonomous profile.
+
+## 8. Contrast with the real code
+
+- The script follows the `scripts/demo-excerpt.mjs` pattern and duplicates no abstraction.
+- The README targets of D12 and the fixture-layout facts were confirmed in run 2 and are unchanged.
+- The workflow code at `autonomous-sdd.js:62-73`, `:90-91` and `:154` makes B2 concrete.
+- *Improvable.* `source` is "the function or method that contains the call". It does not say what happens for a call inside a closure, an arrow function or an anonymous callback (`.map(t => …)` in `src/**`, `Route::get(…, function () {…})`). Add to the spec "Call-site lists": "anonymous functions and closures are transparent: `source` is the innermost named function or method, or the file". Impact is low, because the D1 matching key does not compare source names, but the site-list test pins it.
+
+## 9. Task size
+
+Clean. Tasks 2.2a/2.2b and 6.2 are the heaviest. Each fits one agent turn now that its inputs are fixed.
+
+## 10. Mandatory steps
+
+Clean.
+- Step 0 comes first and is labelled `(MANDATORY - FIRST STEP)`, with the branch.
+- These steps are present and labelled:
+  - 7 Review existing tests;
+  - 8 Run tests and verify data state, with the baseline in 0.4, the report path and the §6 template;
+  - 9 Manual interface testing (`AGENT MUST EXECUTE`), with error cases and restoration in 9.3;
+  - 10 E2E, justified N/A;
+  - 11 Docs;
+  - 13 Pre-merge review, last, with the archive before the merge.
+- The scenario count is 19 + 4 + 5 = 28, and it matches the spec.
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| Call-site lists | Each site list has 50 sites with the controls first | 2.1, 2.2a, 2.2b |
+| Call-site lists | Every site points at its call in the fixture | 2.1, 2.2a, 2.2b |
+| Call-site lists | A site list carries no answer | 2.1, 2.2a, 2.2b, 3.1 |
+| Call-site lists | The report counts the selection per construction | 2.2a, 2.2b, 2.4, 6.1, 6.2 |
+| Control reference | The control reference transcribes the 22 README rows | 2.1, 2.3 |
+| Panel output validation | A complete panel output is accepted | 1.1, 1.2, 4.3 |
+| Panel output validation | An incomplete panel output is rejected | 1.1, 1.2, 4.3, 9.2 |
+| Panel output validation | A citation to a line that does not exist is rejected | 1.1, 1.2, 4.3, 9.2 |
+| Panel output validation | A reason without a citation is rejected | 1.1, 1.2, 4.3 |
+| Panel output validation | An answer inconsistent between expected and target is rejected | 1.1, 1.2, 4.3 |
+| Panel output validation | A target that does not exist in the fixture is rejected | 1.1, 1.2, 4.3 |
+| Panel output validation | A declared forbidden source is rejected | 1.1, 1.2, 4.3, 9.2 |
+| Panel output validation | A sourcesRead entry that is a directory or a glob is rejected | 1.1, 1.2, 4.3 |
+| Panel output validation | A resolution with a source outside the resolver allowlist is rejected | 1.1, 1.2, 5.1 (content changes with B1/B2) |
+| Agreement measures | Percent agreement and Cohen's kappa per language | 1.1, 1.2, 4.3 |
+| Agreement measures | Kappa is undefined when the expected agreement is 1 | 1.1, 1.2 |
+| Agreement measures | Agreement with the control per panelist | 1.1, 1.2, 4.3 |
+| Deterministic merge | Agreed sites take the common answer | 1.1, 1.2, 5.1 |
+| Deterministic merge | Disagreements take the resolution | 1.1, 1.2, 5.1 |
+| Deterministic merge | A missing or extra resolution fails the merge | 1.1, 1.2, 5.1, 9.2 |
+| Deterministic merge | The merge is deterministic | 1.1, 1.2, 5.2 |
+| Agreement CLI | An unknown command is a usage error | 1.1, 1.2, 9.2 |
+| Agreement CLI | A rejected panel output writes no agreement file | 1.1, 1.2, 4.3, 9.2 |
+| Agreement CLI | hashes prints the nine files in order | 1.1, 1.2, 6.2, 8.3, 9.1 |
+| Frozen annotations and report | The recorded hashes match the frozen files | 6.1, 6.2, 6.3, 8.3 |
+| Frozen annotations and report | A changed annotation file fails the freeze check | 6.1 |
+| Frozen annotations and report | The report states the method and every disagreement | 6.1, 6.2 |
+| Frozen annotations and report | The report lists every control discrepancy | 6.1, 6.2, 6.4 |
+
+No empty row.
+
+**Improvable findings not listed above**
+- **File shapes the tests read are fixed only in tasks.**
+  - The top-level shape of the site lists (`{ fixture, language, sites }`) is in task 2.2a only, and that of `control.json` (`{ sites: [...] }`) in task 2.3 only.
+  - The shape of `agreement.json` is fixed nowhere, yet task 6.1's real-report test reads its disagreement ids.
+  - Move all three into the spec, with "Agreement measures" fixing `agreement.json` as, for example, `{ "languages": [ { "fixture", "n", "agreed", "percent", "kappa", "disagreements": [ids], "control": [ { "panelist", "n", "agreed", "percent", "kappa", "indicative": true } ] } ] }`.
+  - State in D10 that `agreement` reads `control.json`.
+- **Discrepancy table cells.** The cells "Anotación final" and "Control" of `## Discrepancias con el control` have no fixed format. Use the format of `## Desacuerdos` (`<expected> · <target.file> · <target.symbol>` or `none`).
+- **`panelist` field not checked against its file.** Validation could require `panelist` to equal 1 in `panelist-1.json` and 2 in `panelist-2.json`. It is a cheap check against a swapped file.
+
+---
+
+## Corrections to apply
+
+### `specs/graph-annotations/spec.md`
+1. **"Panel output validation" (B1, B2).**
+   - Resolver allowlist: replace "the panelist allowlist plus `docs/measurements/annotation/panelist-1.json`, `panelist-2.json` and `agreement.json`" with "the panelist allowlist plus `docs/measurements/annotation/panelist-1.json`, `docs/measurements/annotation/panelist-2.json` and `docs/AUTONOMOUS-RUN.md`".
+   - Panelist allowlist: add `docs/base-standards.md`.
+   - Scenario "A resolution with a source outside the resolver allowlist is rejected": WHEN "… includes `docs/measurements/annotation/control.json`, `docs/measurements/annotation/selection.json`, `docs/measurements/annotation/agreement.json` or `fixtures/README.md`, while `panelist-1.json`, `panelist-2.json` and `docs/AUTONOMOUS-RUN.md` are accepted".
+2. **"Agreement measures" (improvable).** Fix the shape of `agreement.json`.
+3. **"Call-site lists" (improvable).**
+   - Add the top-level shape `{ fixture, language, sites }`.
+   - Add the closure rule for `source`.
+4. **"Control reference" (improvable).** Add the shape `{ sites: [ { id, target, expected } ] }`.
+5. **"Frozen annotations and agreement report" (improvable).** The cells of `## Discrepancias con el control` are written like those of `## Desacuerdos`.
+
+### `design.md`
+- **D4:** apply B1 (drop `agreement.json` from the resolver's reads) and B2 (add `docs/base-standards.md` to both roles and `docs/AUTONOMOUS-RUN.md` to the resolver).
+- **D8:** "the resolver derives the disagreement ids from the two panel outputs; it never reads `agreement.json`, which holds the control figures".
+- **D10:** `agreement` reads `control.json`; the shape of `agreement.json` is as in the spec.
+- **Follow-ups:** rows R3-B1, R3-B2, R3-B3 (destination A; R3-B3 also B, the enhanced part of the DIS-80 description), plus one row per improvable finding that is taken.
+
+### `tasks.md`
+- **Panel group:**
+  - **Allowed sources.** Drop `agreement.json` from the resolver's list. Add `docs/base-standards.md` (all roles) and `docs/AUTONOMOUS-RUN.md` (resolver).
+  - **New resolver paragraph (B2).** "The general contract of your workflow step applies to git and commits only: you record no decision in `design.md` and write no Linear comment; you read neither `design.md`, the specs, the spec-audit report nor any Linear comment; every process document you read goes in `sourcesRead`."
+- **4.4:** "Derive the disagreement ids from `panelist-1.json` and `panelist-2.json` (same `expected` and same `target` = agreed); do not read `agreement.json`."
+- **1.1:**
+  - the resolver-allowlist case rejects `agreement.json`;
+  - the accepted-output case accepts `docs/base-standards.md` (panelist) and `docs/AUTONOMOUS-RUN.md` (resolver).
+- **1.2:** the allowlists as above.
+
+### Linear
+- **DIS-80, description, enhanced part only (B3).** In AC 5, replace "cita una línea que no existe en el fixture" with "tiene una respuesta sin ninguna cita válida (fichero existente del fixture del sitio y línea dentro del fichero; las demás citas se ignoran)".
+  - Optionally, also in enhanced D8: "el desempate deduce los desacuerdos de las dos salidas y no lee `agreement.json`".
+  - Write it in Spanish, marked as agent's text. Do not touch `[original]`. Name no site and no control answer.
+- **DIS-80, comment in Spanish:** a summary of round 3:
+  - the resolver no longer reads `agreement.json`, because it holds the panelists' agreement with the control;
+  - process documents (`docs/base-standards.md`, `docs/AUTONOMOUS-RUN.md`) are now allowed;
+  - the resolver does not write to `design.md` or Linear;
+  - AC 5 is aligned with the citation rule.
