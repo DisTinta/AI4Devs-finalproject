@@ -1210,8 +1210,9 @@ services that must be started first, quirks of the local environment.
   `project`, `seed` (the seed header's two fingerprints), `answerFingerprint`, `generatedWith`
   (`model`, `verifyModel`), `entries` (`id`, `question`, `questionNormalized`, `response`,
   `reviews` — `{by, date}` per review: DIS-34 added `agent:claude-opus-5-5` to every entry; the
-  golden answers are now reviewed by an independent agent panel (DIS-33: blind input, criterion first,
-  signatures `agent:<model>`, report in `docs/golden-review/`); an `incorrect` one stays unsigned and
+  golden answers are now reviewed by an independent agent panel (DIS-33, then DIS-107 after the
+  analyzer fix regenerated them: blind input, criterion first, signatures `agent:<model>`, report in
+  `docs/golden-review/`, the DIS-107 round's files suffixed `-dis-107`); an `incorrect` one stays unsigned and
   goes to a successor ticket; a regenerated entry comes back with empty `reviews` and needs a new
   panel); no generation time; canonical render = 2-space JSON in that key
   order, LF, final newline. **`answerFingerprint`** (`answer-fingerprint.ts`) = the seed's
@@ -1417,7 +1418,8 @@ services that must be started first, quirks of the local environment.
   DIS-32 (design D1) a module-level `const` with one declarator whose initializer is directly an arrow
   or a function expression is a `function` symbol too (the whole statement is its span, `export`
   included, JSDoc excluded; no `calls` edge has it as endpoint, `let` / `var`, nested and destructured
-  forms are not symbols); other variables, types, enums, accessors and `declare` blocks are not symbols.
+  forms are not symbols; since DIS-107 `using` and `await using` declarations are excluded too, the
+  rule being a `const` list, not any block-scoped one); other variables, types, enums, accessors and `declare` blocks are not symbols.
   `bySymbolOrder`, `keepFirst` and `uniqueInputs` live in `packages/core/src/index/analyzer-helpers.ts`
   and both analyzers import them from `@codemind/core` (the author's core exception of 2026-10-28;
   `byPath` stays duplicated). `index --language typescript` uses this analyzer. Edges, all `exact` with extractor

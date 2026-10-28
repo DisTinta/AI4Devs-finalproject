@@ -19,3 +19,7 @@ cb4e6aa71c5cea7667a75fc475a1e92f4a0d4e22:openspec/changes/security-gateway/specs
 # DIS-74: the step 12 report addendum quoted that synthetic sentinel with its old constant name;
 # reworded in the next commit.
 ea1b4f280cf060efb083b85dfe07bbd8590b6692:openspec/changes/query-usage-log/reports/2026-10-16-12-test-and-state-verification.md:generic-api-key:118
+
+# DIS-107: the show-spec-working report quoted the full analyzer fingerprint (a public sha256 of the
+# analyzer sources, not a secret) next to a project name; shortened in the next commit.
+f4a5ae7530f25fcb8cf93bf788031d8c9dd0510d:openspec/changes/ts-await-using-golden-regen/reports/2026-10-28-show-spec-working.md:generic-api-key:70

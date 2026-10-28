@@ -6,7 +6,7 @@ import type { StoredResponse } from '@codemind/core';
 // The versioned golden answers of a sample project (DIS-26 design C2, decisions D9 and D10): the
 // shape of a golden file and its canonical render.
 
-/** A review of a golden answer, filled by the independent agent panel of DIS-33 (`agent:<model>`): who reviewed it and when. */
+/** A review of a golden answer, filled by the independent agent panel of the current round, DIS-107 (`agent:<model>`): who reviewed it and when. */
 export interface GoldenReview {
   /** Who reviewed the answer. */
   by: string;
@@ -24,7 +24,7 @@ export interface GoldenEntry {
   questionNormalized: string;
   /** The stored response the answer cache keeps for the answer. */
   response: StoredResponse;
-  /** The reviews of the answer: the two panel signatures of DIS-33, empty until the panel signs it (or when it judged it incorrect). */
+  /** The reviews of the answer: the two panel signatures of the current round (DIS-107), empty until the panel signs it (or when it judged it incorrect). */
   reviews: GoldenReview[];
 }
 

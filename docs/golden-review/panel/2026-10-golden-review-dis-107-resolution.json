@@ -1,0 +1,25 @@
+{
+  "resolver": "claude-opus-5-5",
+  "date": "2026-10-28",
+  "sourcesRead": [
+    "openspec/changes/ts-await-using-golden-regen/tasks.md",
+    "docs/golden-review/panel/2026-10-golden-review-dis-107-panelist-1.json",
+    "docs/golden-review/panel/2026-10-golden-review-dis-107-panelist-2.json",
+    "docs/golden-review/panel/2026-10-golden-review-dis-107-input.json",
+    "fixtures/acme-shop/app/Services/CouponValidator.php",
+    "fixtures/acme-shop/app/Http/Requests/StoreOrderRequest.php"
+  ],
+  "items": [
+    {
+      "project": "acme-shop",
+      "id": "Q3",
+      "verdict": "partial",
+      "justification": "S1 is true against the code, since isRedeemable returns percentFor($code) > 0.0 (fixtures/acme-shop/app/Services/CouponValidator.php:37), but it also cites evidence entry 2, StoreOrderRequest lines 41-47, a validated() override that only drops the lines key (fixtures/acme-shop/app/Http/Requests/StoreOrderRequest.php:44) and does not back the statement; under the criterion a cited entry whose lines do not back the statement makes it unverifiable, even if the statement is true elsewhere. S2 is true (fixtures/acme-shop/app/Services/CouponValidator.php:32) and the answer is true, so the item has one error but not all statements in error and the verdict is partial.",
+      "cites": [
+        "fixtures/acme-shop/app/Services/CouponValidator.php:37",
+        "fixtures/acme-shop/app/Http/Requests/StoreOrderRequest.php:41",
+        "fixtures/acme-shop/app/Services/CouponValidator.php:32"
+      ]
+    }
+  ]
+}

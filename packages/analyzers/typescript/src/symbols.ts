@@ -97,7 +97,7 @@ export function extractSymbols(
       const initializer = declaration?.initializer;
       if (
         list.declarations.length === 1 &&
-        (list.flags & ts.NodeFlags.Const) !== 0 &&
+        (list.flags & ts.NodeFlags.BlockScoped) === ts.NodeFlags.Const &&
         ts.isIdentifier(declaration.name) &&
         initializer &&
         (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer))

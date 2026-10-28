@@ -1,0 +1,436 @@
+{
+  "items": [
+    {
+      "project": "task-api",
+      "id": "Q1",
+      "kind": "golden",
+      "question": "¿Cómo valida taskRoutes las peticiones entrantes?",
+      "answer": "taskRoutes valida las peticiones entrantes utilizando esquemas de validación definidos en los métodos de las rutas.",
+      "statements": [
+        {
+          "n": 1,
+          "text": "Las rutas están definidas en el archivo 'src/routes/tasks.routes.ts' (ids: E1).",
+          "type": "FACT",
+          "evidence": [
+            1
+          ]
+        },
+        {
+          "n": 2,
+          "text": "Cada ruta tiene un esquema de validación asociado, como 'listTasksQuerySchema' (id: E1), 'taskIdParamsSchema' (id: E1), 'createTaskSchema' (id: E1), etc.",
+          "type": "INFERENCE",
+          "evidence": [
+            2
+          ]
+        },
+        {
+          "n": 3,
+          "text": "Los esquemas de validación se aplican automáticamente en el middleware de Fastify, lo que asegura que las peticiones entrantes cumplen con los requisitos antes de que lleguen a los controladores (ids: E1, E4, E5, E6, E7, E8).",
+          "type": "INFERENCE",
+          "evidence": [
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ]
+        },
+        {
+          "n": 4,
+          "text": "Los controladores, definidos en 'src/controllers/tasks.controller.ts' (ids: E4, E5, E6, E7, E8), ocurren después del middleware de validación, y no realizan ninguna validación adicional en las peticiones entrantes.",
+          "type": "INFERENCE",
+          "evidence": [
+            9,
+            10,
+            11,
+            12,
+            13
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "n": 1,
+          "path": "src/routes/tasks.routes.ts",
+          "startLine": 15,
+          "endLine": 31
+        },
+        {
+          "n": 2,
+          "path": "src/routes/tasks.routes.ts",
+          "startLine": 15,
+          "endLine": 31
+        },
+        {
+          "n": 3,
+          "path": "src/routes/tasks.routes.ts",
+          "startLine": 15,
+          "endLine": 31
+        },
+        {
+          "n": 4,
+          "path": "src/controllers/tasks.controller.ts",
+          "startLine": 10,
+          "endLine": 16
+        },
+        {
+          "n": 5,
+          "path": "src/controllers/tasks.controller.ts",
+          "startLine": 18,
+          "endLine": 24
+        },
+        {
+          "n": 6,
+          "path": "src/controllers/tasks.controller.ts",
+          "startLine": 26,
+          "endLine": 32
+        },
+        {
+          "n": 7,
+          "path": "src/controllers/tasks.controller.ts",
+          "startLine": 34,
+          "endLine": 40
+        },
+        {
+          "n": 8,
+          "path": "src/controllers/tasks.controller.ts",
+          "startLine": 42,
+          "endLine": 48
+        },
+        {
+          "n": 9,
+          "path": "src/controllers/tasks.controller.ts",
+          "startLine": 10,
+          "endLine": 16
+        },
+        {
+          "n": 10,
+          "path": "src/controllers/tasks.controller.ts",
+          "startLine": 18,
+          "endLine": 24
+        },
+        {
+          "n": 11,
+          "path": "src/controllers/tasks.controller.ts",
+          "startLine": 26,
+          "endLine": 32
+        },
+        {
+          "n": 12,
+          "path": "src/controllers/tasks.controller.ts",
+          "startLine": 34,
+          "endLine": 40
+        },
+        {
+          "n": 13,
+          "path": "src/controllers/tasks.controller.ts",
+          "startLine": 42,
+          "endLine": 48
+        }
+      ]
+    },
+    {
+      "project": "task-api",
+      "id": "Q2",
+      "kind": "golden",
+      "question": "¿Qué hace buildPage con los resultados paginados?",
+      "answer": "Los resultados paginados son procesados por la función buildPage, que toma los elementos, el total, la página actual y el tamaño de la página como argumentos, y devuelve un objeto de página con la información correspondiente.",
+      "statements": [
+        {
+          "n": 1,
+          "text": "buildPage toma como argumento los elementos, el total, la página actual y el tamaño de la página.",
+          "type": "INFERENCE",
+          "evidence": [
+            1
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "n": 1,
+          "path": "src/domain/pagination.ts",
+          "startLine": 13,
+          "endLine": 21
+        }
+      ]
+    },
+    {
+      "project": "task-api",
+      "id": "Q3",
+      "kind": "golden",
+      "question": "¿Qué transiciones de estado son válidas?",
+      "answer": "Las transiciones de estado válidas dependen de la implementación en los archivos 'src/domain/task-status.ts' y 'src/domain/errors.ts'. En general, las transiciones se definen en la función 'canTransition' y se manejan errores en transiciones ilícitas mediante la clase 'IllegalStatusTransitionError'.",
+      "statements": [
+        {
+          "n": 1,
+          "text": "Las transiciones de estado válidas se definen en la función 'canTransition' en 'src/domain/task-status.ts'.",
+          "type": "INFERENCE",
+          "evidence": [
+            1,
+            2
+          ]
+        },
+        {
+          "n": 2,
+          "text": "Las transiciones de estado inválidas o ilegales generan una instancia de la clase 'IllegalStatusTransitionError'",
+          "type": "FACT",
+          "evidence": [
+            3
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "n": 1,
+          "path": "src/domain/task-status.ts",
+          "startLine": 25,
+          "endLine": 27
+        },
+        {
+          "n": 2,
+          "path": "src/domain/task-status.ts",
+          "startLine": 29,
+          "endLine": 31
+        },
+        {
+          "n": 3,
+          "path": "src/domain/errors.ts",
+          "startLine": 23,
+          "endLine": 27
+        }
+      ]
+    },
+    {
+      "project": "task-api",
+      "id": "Q4",
+      "kind": "unknown",
+      "question": "¿Cómo se autentican los usuarios?",
+      "answer": "UNKNOWN (no-anchor)",
+      "statements": [],
+      "evidence": []
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q1",
+      "kind": "golden",
+      "question": "¿Cómo se calcula el precio final de un pedido?",
+      "answer": "El precio final de un pedido se calcula considerando el subtotal, los descuentos aplicados, impuestos, y gastos de envío.",
+      "statements": [
+        {
+          "n": 1,
+          "text": "El precio final se calcula en la clase `PriceCalculator::compute()`. (E4)",
+          "type": "FACT",
+          "evidence": [
+            1
+          ]
+        },
+        {
+          "n": 2,
+          "text": "El subtotal se obtiene desde el pedido, y a partir de él se calculan el descuento y los impuestos. (E4)",
+          "type": "FACT",
+          "evidence": [
+            2
+          ]
+        },
+        {
+          "n": 3,
+          "text": "Los descuentos se calculan utilizando el servicio `DiscountService::discount()`. (E4, E5)",
+          "type": "FACT",
+          "evidence": [
+            3,
+            4
+          ]
+        },
+        {
+          "n": 4,
+          "text": "Los impuestos se calculan sobre el subtotal descontado utilizando el servicio `TaxService::taxFor()`. (E4, E7)",
+          "type": "INFERENCE",
+          "evidence": [
+            5,
+            6
+          ]
+        },
+        {
+          "n": 5,
+          "text": "Los gastos de envío se calculan utilizando el servicio `ShippingService::shippingFor()`. (E4, E6)",
+          "type": "INFERENCE",
+          "evidence": [
+            7,
+            8
+          ]
+        },
+        {
+          "n": 6,
+          "text": "El precio final se obtiene sumando el subtotal descontado, los impuestos y los gastos de envío. (E4)",
+          "type": "FACT",
+          "evidence": [
+            9
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "n": 1,
+          "path": "app/Services/PriceCalculator.php",
+          "startLine": 16,
+          "endLine": 44
+        },
+        {
+          "n": 2,
+          "path": "app/Services/PriceCalculator.php",
+          "startLine": 16,
+          "endLine": 44
+        },
+        {
+          "n": 3,
+          "path": "app/Services/PriceCalculator.php",
+          "startLine": 16,
+          "endLine": 44
+        },
+        {
+          "n": 4,
+          "path": "app/Services/DiscountService.php",
+          "startLine": 21,
+          "endLine": 66
+        },
+        {
+          "n": 5,
+          "path": "app/Services/PriceCalculator.php",
+          "startLine": 16,
+          "endLine": 44
+        },
+        {
+          "n": 6,
+          "path": "app/Services/TaxService.php",
+          "startLine": 18,
+          "endLine": 28
+        },
+        {
+          "n": 7,
+          "path": "app/Services/PriceCalculator.php",
+          "startLine": 16,
+          "endLine": 44
+        },
+        {
+          "n": 8,
+          "path": "app/Services/ShippingService.php",
+          "startLine": 16,
+          "endLine": 35
+        },
+        {
+          "n": 9,
+          "path": "app/Services/PriceCalculator.php",
+          "startLine": 16,
+          "endLine": 44
+        }
+      ]
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q3",
+      "kind": "golden",
+      "question": "¿Cómo se validan los cupones?",
+      "answer": "Los cupones se validan en el método `isRedeemable` de la clase `CouponValidator`. Este método comprueba que el código del cupón no esté vacío, que el cupón exista y esté activo, y que no haya expirado. El método `percentFor` devuelve el porcentaje de descuento del cupón si es válido, y `isRedeemable` devuelve verdadero si el porcentaje devuelto es mayor que cero.",
+      "statements": [
+        {
+          "n": 1,
+          "text": "El método `isRedeemable` en la clase `CouponValidator` comprueba la validez del cupón.",
+          "type": "INFERENCE",
+          "evidence": [
+            1,
+            2
+          ]
+        },
+        {
+          "n": 2,
+          "text": "El método `percentFor` devuelve el porcentaje de descuento del cupón si es válido.",
+          "type": "INFERENCE",
+          "evidence": [
+            3
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "n": 1,
+          "path": "app/Services/CouponValidator.php",
+          "startLine": 14,
+          "endLine": 39
+        },
+        {
+          "n": 2,
+          "path": "app/Http/Requests/StoreOrderRequest.php",
+          "startLine": 41,
+          "endLine": 47
+        },
+        {
+          "n": 3,
+          "path": "app/Services/CouponValidator.php",
+          "startLine": 14,
+          "endLine": 39
+        }
+      ]
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q4",
+      "kind": "golden",
+      "question": "¿Qué hace OrderObserver al crear un pedido?",
+      "answer": "OrderObserver recalculariza totales y emite un evento de pedido realizado cuando se crea un pedido.",
+      "statements": [
+        {
+          "n": 1,
+          "text": "OrderObserver recalculariza totales usando el job RecalculateTotals::dispatch(), como se evidencia en la clase OrderObserver (E1).",
+          "type": "FACT",
+          "evidence": [
+            1
+          ]
+        },
+        {
+          "n": 2,
+          "text": "OrderObserver emite un evento OrderPlaced cuando se crea un pedido, tal como se muestra en la clase OrderObserver (E1).",
+          "type": "FACT",
+          "evidence": [
+            2
+          ]
+        },
+        {
+          "n": 3,
+          "text": "OrderPlaced es un evento que puede ser escuchado por el listener SendOrderConfirmation, que registra información del pedido en el log, como mostrado en la clase OrderPlaced (E2) y SendOrderConfirmation (E5).",
+          "type": "INFERENCE",
+          "evidence": [
+            3,
+            4
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "n": 1,
+          "path": "app/Observers/OrderObserver.php",
+          "startLine": 14,
+          "endLine": 28
+        },
+        {
+          "n": 2,
+          "path": "app/Observers/OrderObserver.php",
+          "startLine": 14,
+          "endLine": 28
+        },
+        {
+          "n": 3,
+          "path": "app/Events/OrderPlaced.php",
+          "startLine": 14,
+          "endLine": 21
+        },
+        {
+          "n": 4,
+          "path": "app/Listeners/SendOrderConfirmation.php",
+          "startLine": 15,
+          "endLine": 26
+        }
+      ]
+    }
+  ]
+}

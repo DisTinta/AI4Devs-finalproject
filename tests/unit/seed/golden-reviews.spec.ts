@@ -3,12 +3,12 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { cohenKappa } from '../../../scripts/annotation-agreement.mjs';
 
-// Spec: openspec/changes/golden-independent-review/specs/golden-answers/spec.md (DIS-33), delta of
-// `golden-answers`: "Blind panel input of the golden review". The independent review of the versioned
-// golden answers is done by a blind panel; this file ties the golden files, the panel files and the
-// review report together.
+// Spec: openspec/changes/ts-await-using-golden-regen/specs/golden-answers/spec.md (DIS-107, round of the
+// golden review after the TypeScript analyzer fix; previous round DIS-33), delta of `golden-answers`:
+// "Blind panel input of the golden review". The independent review of the versioned golden answers is
+// done by a blind panel; this file ties the golden files, the panel files and the review report together.
 
-const INPUT_PATH = 'docs/golden-review/panel/2026-10-golden-review-input.json';
+const INPUT_PATH = 'docs/golden-review/panel/2026-10-golden-review-dis-107-input.json';
 
 interface GoldenStatement {
   text: string;
@@ -168,8 +168,16 @@ interface Resolution {
 }
 
 const PANEL_DIR = 'docs/golden-review/panel';
-const PANELIST_PATHS = [`${PANEL_DIR}/2026-10-golden-review-panelist-1.json`, `${PANEL_DIR}/2026-10-golden-review-panelist-2.json`];
-const RESOLUTION_PATH = `${PANEL_DIR}/2026-10-golden-review-resolution.json`;
+const PANELIST_PATHS = [
+  `${PANEL_DIR}/2026-10-golden-review-dis-107-panelist-1.json`,
+  `${PANEL_DIR}/2026-10-golden-review-dis-107-panelist-2.json`,
+];
+const RESOLUTION_PATH = `${PANEL_DIR}/2026-10-golden-review-dis-107-resolution.json`;
+const TASKS_PATH = 'openspec/changes/ts-await-using-golden-regen/tasks.md';
+const REPORT_PATH = 'docs/golden-review/2026-10-golden-review-dis-107.md';
+const PREVIOUS_ROUND_REPORT = 'docs/golden-review/2026-10-task-api-golden-review.md';
+const PREVIOUS_ROUND_PANELIST = `${PANEL_DIR}/2026-10-golden-review-panelist-1.json`;
+const PREVIOUS_ROUND_TASKS = 'openspec/changes/archive/2026-10-28-golden-independent-review/tasks.md';
 
 function readJson<T>(path: string): T {
   return JSON.parse(readFileSync(resolve(path), 'utf8')) as T;
@@ -184,13 +192,7 @@ const CITATION = /fixtures\/(task-api|acme-shop)\/([A-Za-z0-9_./-]+):([0-9]+)/g;
 const GLOB = /[*?[{]/;
 const JUDGEMENTS = ['true', 'false', 'unverifiable', 'overtyped'];
 const VERDICTS = ['correct', 'partial', 'incorrect'];
-const PANELIST_FILES = [
-  'openspec/changes/golden-independent-review/tasks.md',
-  'docs/golden-review/2026-10-task-api-golden-review.md',
-  INPUT_PATH,
-  'docs/base-standards.md',
-  'linear:DIS-33/description',
-];
+const PANELIST_FILES = [TASKS_PATH, REPORT_PATH, INPUT_PATH, 'docs/base-standards.md'];
 const RESOLVER_FILES = [...PANELIST_FILES, ...PANELIST_PATHS, 'docs/AUTONOMOUS-RUN.md'];
 const FIXTURE_PREFIXES = ['fixtures/task-api/', 'fixtures/acme-shop/'];
 
@@ -370,7 +372,7 @@ function validPanelistOutput(number: number, model: string): PanelOutput {
     panelist: number,
     model,
     date: '2026-10-28',
-    sourcesRead: ['openspec/changes/golden-independent-review/tasks.md', 'linear:DIS-33/description', 'fixtures/task-api/src/app.ts'],
+    sourcesRead: [TASKS_PATH, 'fixtures/task-api/src/app.ts'],
     items: readInput().map((item) => ({
       project: item.project,
       id: item.id,
@@ -394,6 +396,8 @@ describe('golden review: panel outputs', () => {
       ['allowlist', 'sourcesRead entry outside the allowlist', (o) => o.sourcesRead.push('seeds/cache/task-api.json')],
       ['directory', 'directory entry with a trailing slash', (o) => o.sourcesRead.push('fixtures/task-api/src/')],
       ['directory', 'existing directory without a trailing slash', (o) => o.sourcesRead.push('fixtures/task-api/src')],
+      ['allowlist', 'a Linear description entry', (o) => o.sourcesRead.push('linear:DIS-107/description')],
+      ['allowlist', 'the panelist output of the previous round', (o) => o.sourcesRead.push(PREVIOUS_ROUND_PANELIST)],
       ['glob', 'glob entry', (o) => o.sourcesRead.push('fixtures/task-api/src/*.ts')],
       ['dotdot', 'entry with a .. segment', (o) => o.sourcesRead.push('fixtures/task-api/../acme-shop/app/Models/Order.php')],
       ['statements', 'missing statement judgement', (o) => o.items[0]!.statements.pop()],
@@ -416,7 +420,7 @@ describe('golden review: panel outputs', () => {
     const lateResolution: Resolution = {
       resolver: 'claude-opus-5-5',
       date: '2026-10-28',
-      sourcesRead: ['openspec/changes/golden-independent-review/tasks.md'],
+      sourcesRead: [TASKS_PATH],
       items: [{ project: 'task-api', id: 'Q1', verdict: 'correct', justification: 'See fixtures/task-api/src/app.ts:1.', cites: ['fixtures/task-api/src/app.ts:1'] }],
     };
     const resolutionProblems = validateResolution(lateResolution, first, agreeing, input);
@@ -468,8 +472,6 @@ describe('golden review: panel outputs', () => {
 // ---------------------------------------------------------------------------------------------------
 // Delta of `golden-answers`: "Signatures of the reviewed golden answers" (design D3, D5).
 // ---------------------------------------------------------------------------------------------------
-
-const REPORT_PATH = 'docs/golden-review/2026-10-task-api-golden-review.md';
 
 interface Panel {
   first: PanelOutput;
@@ -598,7 +600,7 @@ function errorsCell(index: number, panel: Panel, final: Verdict): string {
 
 /** The tasks file of the change: the active one, or the single archived one. */
 function changeTasksPath(): string {
-  const active = 'openspec/changes/golden-independent-review/tasks.md';
+  const active = TASKS_PATH;
   const archiveDir = 'openspec/changes/archive';
   const tried = [active];
   try {
@@ -609,7 +611,7 @@ function changeTasksPath(): string {
   let archived: string[] = [];
   try {
     archived = readdirSync(resolve(archiveDir))
-      .filter((name) => name.endsWith('-golden-independent-review'))
+      .filter((name) => name.endsWith('-ts-await-using-golden-regen'))
       .map((name) => `${archiveDir}/${name}/tasks.md`)
       .filter((path) => {
         try {
@@ -621,7 +623,7 @@ function changeTasksPath(): string {
   } catch {
     archived = [];
   }
-  tried.push(`${archiveDir}/*-golden-independent-review/tasks.md`);
+  tried.push(`${archiveDir}/*-ts-await-using-golden-regen/tasks.md`);
   if (archived.length !== 1) throw new Error(`expected one tasks file of the change, found ${archived.length}; tried ${tried.join(' and ')}`);
   return archived[0]!;
 }
@@ -695,7 +697,7 @@ describe('golden review: report', () => {
     for (const text of [panel.first.model, panel.first.date, panel.second.model, panel.second.date, panel.resolution.resolver]) {
       expect(panelSection, `## Panel names ${text}`).toContain(text);
     }
-    for (const entry of [...PANELIST_FILES, ...FIXTURE_PREFIXES, 'fixtures/README.md', 'seeds/']) {
+    for (const entry of [...PANELIST_FILES, ...FIXTURE_PREFIXES, 'fixtures/README.md', 'seeds/', PREVIOUS_ROUND_REPORT]) {
       expect(panelSection, `## Panel names ${entry}`).toContain(entry);
     }
     for (const line of LIMITATIONS) expect(nonBlankLines(sections.get('Limitations') ?? ''), line).toContain(line);
@@ -714,11 +716,18 @@ describe('golden review: report', () => {
     const end = tasks.findIndex((line) => line.startsWith('**Output format.**'));
     const block = nonBlankLines(tasks.slice(start + 1, end).join('\n'));
     const criterion = nonBlankLines(sectionsOf(report).get('Criterion') ?? '');
+    const previousTasks = readFileSync(resolve(PREVIOUS_ROUND_TASKS), 'utf8').split('\n');
+    const previousStart = previousTasks.findIndex((line) => line.startsWith('**Criterion**'));
+    const previousEnd = previousTasks.findIndex((line) => line.startsWith('**Output format.**'));
+    const previousBlock = nonBlankLines(previousTasks.slice(previousStart + 1, previousEnd).join('\n'));
 
     // Assert
     expect(start).toBeGreaterThanOrEqual(0);
     expect(end).toBeGreaterThan(start);
     expect(block.every((line) => line.startsWith('- '))).toBe(true);
     expect(criterion).toEqual(block);
+    expect(previousStart).toBeGreaterThanOrEqual(0);
+    expect(previousEnd).toBeGreaterThan(previousStart);
+    expect(block, 'the criterion is the DIS-33 criterion, copied verbatim').toEqual(previousBlock);
   });
 });

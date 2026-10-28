@@ -493,8 +493,13 @@ that project. Each file SHALL be the canonical render of its value and SHALL NOT
 
 ### Requirement: Blind panel input of the golden review
 
-The file `docs/golden-review/panel/2026-10-golden-review-input.json` SHALL be the input of the
-independent review of the versioned golden answers. It SHALL be a JSON object
+The file `docs/golden-review/panel/2026-10-golden-review-dis-107-input.json` SHALL be the input of
+the current round (DIS-107) of the independent review of the versioned golden answers, the round
+over the answers regenerated after the analyzer fix of DIS-107. The files of the previous round
+(DIS-33: `docs/golden-review/panel/2026-10-golden-review-input.json`, `…-panelist-1.json`,
+`…-panelist-2.json`, `…-resolution.json` and `docs/golden-review/2026-10-task-api-golden-review.md`)
+are history: they SHALL stay unchanged and no requirement checks them against the current golden
+files. The current input SHALL be a JSON object
 `{ "items": [ ... ] }` with exactly seven items, in this order: the entries of
 `seeds/cache/task-api.json` (`Q1`, `Q2`, `Q3`), the behaviour item task-api `Q4`, then the entries of
 `seeds/cache/acme-shop.json` (`Q1`, `Q3`, `Q4`).
@@ -516,7 +521,7 @@ JSON with LF line endings and a final line feed.
 #### Scenario: The panel input projects the golden answers without their verification
 
 - **GIVEN** the versioned `seeds/cache/task-api.json`, `seeds/cache/acme-shop.json` and
-  `docs/golden-review/panel/2026-10-golden-review-input.json`
+  `docs/golden-review/panel/2026-10-golden-review-dis-107-input.json`
 - **WHEN** the projection above is computed from the two golden files
 - **THEN** the input file equals it item by item and key by key, has seven items in the order above,
   and its text contains none of the quoted keys `"excerpt":`, `"verification":`, `"status":`,
@@ -524,16 +529,18 @@ JSON with LF line endings and a final line feed.
 
 ### Requirement: Panel outputs of the golden review
 
-Each panelist SHALL write one output, `docs/golden-review/panel/2026-10-golden-review-panelist-1.json`
-and `…-panelist-2.json`, shaped
+Each panelist of the current round SHALL write one output,
+`docs/golden-review/panel/2026-10-golden-review-dis-107-panelist-1.json` and
+`docs/golden-review/panel/2026-10-golden-review-dis-107-panelist-2.json`, shaped
 `{ "panelist", "model", "date", "sourcesRead", "items" }`: `panelist` equal to the number in its
 file name; `model` the panelist's exact model id, matching `^claude-[a-z]+-[0-9]+(-[0-9]+)*$`
 (the Panel group of the change's tasks file expects `claude-opus-5-5` for panelist 1 and
 `claude-sonnet-5-5` for panelist 2 in this run, and tells a panelist whose own id differs to write
 its own), different between the two outputs and different from the generator model of
 both golden files (`generatedWith.model`); `date` a real `YYYY-MM-DD` day; `sourcesRead` the list of
-every source read, one entry per file: a repository-relative file path or the literal
-`linear:DIS-33/description`, never a directory nor a glob (an entry with `*`, `?`, `[` or `{`), and
+every source read, one entry per file: a repository-relative file path (no Linear source is allowed
+in this round, so an entry starting with `linear:` is outside every allowlist), never a directory
+nor a glob (an entry with `*`, `?`, `[` or `{`), and
 every entry in the allowlist of its role (see Allowlists); `items` the seven input items in input order, each
 `{ "project", "id", "answer", "verdict", "statements", "notes" }` where:
 
@@ -550,7 +557,7 @@ every entry in the allowlist of its role (see Allowlists); `items` the seven inp
   statement is judged `false`, or the item has statements and every one is judged other than `true`;
   otherwise `correct` when every statement is judged `true`; otherwise `partial`.
 
-The resolution `docs/golden-review/panel/2026-10-golden-review-resolution.json` SHALL be
+The resolution `docs/golden-review/panel/2026-10-golden-review-dis-107-resolution.json` SHALL be
 `{ "resolver", "date", "sourcesRead", "items" }` (no `panelist`, no `model`), whose `items` answer
 exactly the items where the two panelists' verdicts differ, in input order, each
 `{ "project", "id", "verdict", "justification", "cites" }` with at least one valid citation in its
@@ -558,13 +565,14 @@ exactly the items where the two panelists' verdicts differ, in input order, each
 model id matching the same pattern as `model`; its `date` a real `YYYY-MM-DD` day; its `sourcesRead`
 follows the same entry rules as a panelist's, against the resolver allowlist.
 
-**Allowlists.** Panelists: `openspec/changes/golden-independent-review/tasks.md`,
-`docs/golden-review/2026-10-task-api-golden-review.md`,
-`docs/golden-review/panel/2026-10-golden-review-input.json`, `docs/base-standards.md`,
-`linear:DIS-33/description`, and any file under `fixtures/task-api/` or `fixtures/acme-shop/` except
-`<fixture>/README.md` and the files under `<fixture>/docs/` and `<fixture>/node_modules/`. Resolver:
-the panelist allowlist plus `docs/golden-review/panel/2026-10-golden-review-panelist-1.json`,
-`docs/golden-review/panel/2026-10-golden-review-panelist-2.json` and `docs/AUTONOMOUS-RUN.md`. The
+**Allowlists.** Panelists: `openspec/changes/ts-await-using-golden-regen/tasks.md`,
+`docs/golden-review/2026-10-golden-review-dis-107.md`,
+`docs/golden-review/panel/2026-10-golden-review-dis-107-input.json`, `docs/base-standards.md`, and
+any file under `fixtures/task-api/` or `fixtures/acme-shop/` except `<fixture>/README.md` and the
+files under `<fixture>/docs/` and `<fixture>/node_modules/`. Resolver: the panelist allowlist plus
+`docs/golden-review/panel/2026-10-golden-review-dis-107-panelist-1.json`,
+`docs/golden-review/panel/2026-10-golden-review-dis-107-panelist-2.json` and
+`docs/AUTONOMOUS-RUN.md`. No file of the DIS-33 round is in any allowlist. The
 check is by path string only: an entry is never checked for existence. An entry is a directory when
 it ends in `/` or names an existing directory. An entry with a `..` segment is outside every
 allowlist. An entry outside its role's allowlist rejects the output.
@@ -608,7 +616,8 @@ when they differ. Panel outputs and the resolution SHALL NOT be edited after the
 - **GIVEN** a valid panelist output built in the test and, one at a time, copies of it with a
   `verdict` different from the derived one, a `sourcesRead` entry outside the panelist allowlist, a
   directory entry (ending in `/`, or naming an existing directory without it), a glob entry, an
-  entry with a `..` segment, a missing statement judgement, a statement with no valid citation,
+  entry with a `..` segment, a `linear:DIS-107/description` entry, a file of the DIS-33 round
+  (`docs/golden-review/panel/2026-10-golden-review-panelist-1.json`), a missing statement judgement, a statement with no valid citation,
   a `notes` with no valid citation, a citation of a line past the end of its file, the generator's
   model, a `model` not matching the pattern, and an extra key; plus a resolution that answers an
   item on which both panelists agree
@@ -618,15 +627,15 @@ when they differ. Panel outputs and the resolution SHALL NOT be edited after the
 
 ### Requirement: Signatures of the reviewed golden answers
 
-After the review, every entry of `seeds/cache/task-api.json` and `seeds/cache/acme-shop.json` whose
-final verdict is `correct` or `partial` SHALL have `reviews` equal to
+After the current round of the review, every entry of `seeds/cache/task-api.json` and
+`seeds/cache/acme-shop.json` whose final verdict is `correct` or `partial` SHALL have `reviews` equal to
 `[{"by": "agent:<model of panelist 1>", "date": "<date of panelist 1>"}, {"by": "agent:<model of
 panelist 2>", "date": "<date of panelist 2>"}]`. An entry whose final verdict is `incorrect` SHALL
 have `reviews` empty, SHALL stay in its file (it is not retired by this change), and SHALL be named
 in the report's `## Pending` section with the successor ticket that regenerates or retires it and
 has it reviewed again. No review in a versioned golden file SHALL start with `author:`. Each file
-SHALL stay the canonical render of its value, and nothing but `reviews` SHALL change in it, so
-nothing `verify` reads changes.
+SHALL stay the canonical render of its value, and, against the regenerated version committed before
+the panel input, nothing but `reviews` SHALL change in it, so nothing `verify` reads changes.
 
 #### Scenario: Every golden answer judged correct or partial carries both panel signatures
 
@@ -644,14 +653,16 @@ nothing `verify` reads changes.
 
 ### Requirement: Golden review report
 
-`docs/golden-review/2026-10-task-api-golden-review.md` SHALL have the sections `## Criterion`,
+The report of the current round, `docs/golden-review/2026-10-golden-review-dis-107.md`, SHALL have
+the sections `## Criterion`,
 `## Panel`, `## Verdicts`, `## Agreement`, `## Pending` (only when some final verdict is
 `incorrect`) and `## Limitations`, in this order.
 
 `## Panel` SHALL name both panelists' `model` and `date`, the resolver's model, and list the allowed
 and the forbidden sources of the Panel group of the change's tasks file: it SHALL contain each exact
 entry of the panelist allowlist, the prefixes `fixtures/task-api/` and `fixtures/acme-shop/`, and the
-forbidden paths `fixtures/README.md` and `seeds/`. Repository paths in the report are written as
+forbidden paths `fixtures/README.md`, `seeds/` and `docs/golden-review/2026-10-task-api-golden-review.md`
+(the DIS-33 report). Repository paths in the report are written as
 code, never as Markdown links.
 
 `## Verdicts` SHALL hold one table with the header
@@ -698,36 +709,47 @@ planted secret.
 - **WHEN** its sections are read
 - **THEN** the sections above are present in order, `## Criterion` defines `correct`, `partial`,
   `incorrect` and an error, `## Panel` names both panelists' models and dates and the resolver and
-  contains every exact panelist allowlist entry, both fixture prefixes, `fixtures/README.md` and
-  `seeds/`, `## Limitations` contains the four lines above verbatim, and the
+  contains every exact panelist allowlist entry, both fixture prefixes, `fixtures/README.md`,
+  `seeds/` and `docs/golden-review/2026-10-task-api-golden-review.md`, `## Limitations` contains the four lines above verbatim, and the
   report contains neither `human`, `humana`, `a mano` nor an `AKIA` key
 
 ### Requirement: Criterion first and immutable panel record
 
-The `## Criterion` section of `docs/golden-review/2026-10-task-api-golden-review.md` SHALL consist
+The `## Criterion` section of `docs/golden-review/2026-10-golden-review-dis-107.md` SHALL consist
 of exactly the lines of the Criterion block of the Panel group of the change's tasks file, and no
 other non-blank line. The Criterion block is the non-blank lines between the line starting with
 `**Criterion**` (excluded) and the line starting with `**Output format.**` (excluded); each of them
-starts with `- `. The change's tasks file is `openspec/changes/golden-independent-review/tasks.md`
-while the change is active, and the single `openspec/changes/archive/*-golden-independent-review/tasks.md`
-once it is archived. The commit
-that creates the report with that section SHALL be an ancestor of the commit that creates
-`docs/golden-review/panel/2026-10-golden-review-input.json`; no later commit SHALL change the
-`## Criterion` section; and each panel output and the resolution SHALL be changed by exactly one
-commit, the one that creates it.
+starts with `- `. The change's tasks file is `openspec/changes/ts-await-using-golden-regen/tasks.md`
+while the change is active, and the single
+`openspec/changes/archive/*-ts-await-using-golden-regen/tasks.md` once it is archived. The Criterion
+block SHALL equal, line by line, the Criterion block of the DIS-33 round's tasks file
+`openspec/changes/archive/2026-10-28-golden-independent-review/tasks.md`: the criterion is not
+rewritten between rounds.
+
+The commit that creates the report with that section SHALL be an ancestor of the commit that writes
+the regenerated golden files, and that commit SHALL be an ancestor of the commit that creates
+`docs/golden-review/panel/2026-10-golden-review-dis-107-input.json`; no later commit SHALL change
+the `## Criterion` section; each panel output and the resolution of the current round SHALL be
+changed by exactly one commit, the one that creates it; and the change SHALL leave the files of the
+DIS-33 round unchanged.
 
 #### Scenario: The report's criterion is the Panel group's criterion
 
-- **GIVEN** the report and the change's tasks file, active or archived
-- **WHEN** the non-blank lines of `## Criterion` and the Criterion block are extracted
-- **THEN** they are equal, and the test fails naming the paths it tried when no tasks file, or more
-  than one, is found
+- **GIVEN** the report, the change's tasks file, active or archived, and the DIS-33 round's tasks
+  file
+- **WHEN** the non-blank lines of `## Criterion` and the two Criterion blocks are extracted
+- **THEN** the three are equal, and the test fails naming the paths it tried when no tasks file of
+  this change, or more than one, is found
 
 #### Scenario: The criterion precedes the input and nothing in the record is rewritten
 
 - **GIVEN** the branch history
-- **WHEN** `git merge-base --is-ancestor` over the two creating commits, `git log -p` over the report
-  and `git log --format=%H` over each file of `docs/golden-review/panel/` run
-- **THEN** the report's commit is an ancestor of the input's, no later commit touches
-  `## Criterion`, and each panel output and the resolution has exactly one commit (verified and
-  recorded in the step 8 report, not by a test: CI clones may be shallow, design D9)
+- **WHEN** `git merge-base --is-ancestor` over the creating commits of the report, the regenerated
+  golden files and the input, `git log -p` over the report, `git log --format=%H` over each file of
+  the current round in `docs/golden-review/panel/`, and `git diff` against the base branch over the
+  files of the DIS-33 round run, and `git diff` of `seeds/cache/` from the regeneration commit runs
+- **THEN** the report's commit is an ancestor of the regeneration commit and that one of the input's,
+  no later commit touches `## Criterion`, each panel output and the resolution of the current round
+  has exactly one commit, the DIS-33 round files have no diff, and that diff of `seeds/cache/` touches
+  only `reviews` (verified and recorded in the step 10 report, not by a test: CI clones may be
+  shallow, design D10)

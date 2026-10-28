@@ -372,13 +372,14 @@ describe('typescript analyzer structure', () => {
       expect(result.diagnostics).toEqual([]);
     });
 
-    // DIS-32, design D1: spec code-analysis → "Other variable forms are not function symbols".
+    // DIS-32, design D1, and DIS-107, design D1/D2: spec code-analysis → "Other variable forms are not
+    // function symbols" (delta of DIS-107: `await using` and `using` declarations are no function symbols).
     it('Other variable forms are not function symbols', async () => {
       const result = await analyzer.analyze({
         files: [
           file(
             'src/v.ts',
-            'let a = () => 1;\nvar b = () => 1;\nconst c = () => 1, d = () => 2;\nconst { e } = { e: () => 1 };\nconst z = 3;\nconst w = (() => 1);\nconst y = (() => 1) as () => number;\ndeclare const q: () => void;\nconst K = class { run() {} };\nexport function outer(): void { const inside = () => 1; }\nif (z) { const blocked = () => 1; }\n',
+            'let a = () => 1;\nvar b = () => 1;\nconst c = () => 1, d = () => 2;\nconst { e } = { e: () => 1 };\nconst z = 3;\nconst w = (() => 1);\nconst y = (() => 1) as () => number;\ndeclare const q: () => void;\nconst K = class { run() {} };\nexport function outer(): void { const inside = () => 1; }\nif (z) { const blocked = () => 1; }\nawait using f = async () => 1;\nusing g = () => 1;\n',
           ),
         ],
       });

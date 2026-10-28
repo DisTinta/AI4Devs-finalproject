@@ -1,0 +1,220 @@
+{
+  "panelist": 2,
+  "model": "claude-sonnet-5-5",
+  "date": "2026-10-28",
+  "sourcesRead": [
+    "openspec/changes/ts-await-using-golden-regen/tasks.md",
+    "docs/golden-review/panel/2026-10-golden-review-dis-107-input.json",
+    "fixtures/task-api/src/routes/tasks.routes.ts",
+    "fixtures/task-api/src/controllers/tasks.controller.ts",
+    "fixtures/task-api/src/domain/pagination.ts",
+    "fixtures/task-api/src/domain/task-status.ts",
+    "fixtures/task-api/src/domain/errors.ts",
+    "fixtures/task-api/src/services/task.service.ts",
+    "fixtures/task-api/src/app.ts",
+    "fixtures/task-api/src/routes/index.ts",
+    "fixtures/task-api/src/config/env.ts",
+    "fixtures/task-api/src/plugins/error-handler.ts",
+    "fixtures/task-api/.env.example",
+    "fixtures/task-api/package.json",
+    "fixtures/acme-shop/app/Services/PriceCalculator.php",
+    "fixtures/acme-shop/app/Services/DiscountService.php",
+    "fixtures/acme-shop/app/Services/TaxService.php",
+    "fixtures/acme-shop/app/Services/ShippingService.php",
+    "fixtures/acme-shop/app/Services/CouponValidator.php",
+    "fixtures/acme-shop/app/Http/Requests/StoreOrderRequest.php",
+    "fixtures/acme-shop/app/Observers/OrderObserver.php",
+    "fixtures/acme-shop/app/Events/OrderPlaced.php",
+    "fixtures/acme-shop/app/Listeners/SendOrderConfirmation.php"
+  ],
+  "items": [
+    {
+      "project": "task-api",
+      "id": "Q1",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/routes/tasks.routes.ts:15"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/routes/tasks.routes.ts:18"
+          ]
+        },
+        {
+          "n": 3,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/routes/tasks.routes.ts:22"
+          ]
+        },
+        {
+          "n": 4,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/controllers/tasks.controller.ts:14"
+          ]
+        }
+      ],
+      "notes": "Each route attaches a Zod schema (fixtures/task-api/src/routes/tasks.routes.ts:18) and the handlers use the request without further checks (fixtures/task-api/src/controllers/tasks.controller.ts:14). Calling Fastify's schema validation a middleware is imprecise, and some evidence entries repeat the same lines."
+    },
+    {
+      "project": "task-api",
+      "id": "Q2",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/domain/pagination.ts:13"
+          ]
+        }
+      ],
+      "notes": "buildPage takes items, total, page and pageSize and returns a Page object (fixtures/task-api/src/domain/pagination.ts:13). The answer omits the computed pageCount (fixtures/task-api/src/domain/pagination.ts:19), which is an omission rather than an error."
+    },
+    {
+      "project": "task-api",
+      "id": "Q3",
+      "answer": "true",
+      "verdict": "partial",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/domain/task-status.ts:25"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "unverifiable",
+          "cites": [
+            "fixtures/task-api/src/services/task.service.ts:50"
+          ]
+        }
+      ],
+      "notes": "S2 is true elsewhere (fixtures/task-api/src/services/task.service.ts:50 throws IllegalStatusTransitionError), but its cited lines only define the class (fixtures/task-api/src/domain/errors.ts:23), so they do not back it. The transition table is the TRANSITIONS constant (fixtures/task-api/src/domain/task-status.ts:13) and canTransition only consults it, so S1 is imprecise but true."
+    },
+    {
+      "project": "task-api",
+      "id": "Q4",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [],
+      "notes": "The app registers only the error handler, the db and the routes, with no authentication hook or check (fixtures/task-api/src/app.ts:28), and the route schemas carry no auth either (fixtures/task-api/src/routes/tasks.routes.ts:18). A JWT secret is only declared as a configuration value (fixtures/task-api/src/config/env.ts:13) and is not used by any check, so UNKNOWN is the due answer."
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q1",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/PriceCalculator.php:25"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/PriceCalculator.php:27"
+          ]
+        },
+        {
+          "n": 3,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/PriceCalculator.php:28"
+          ]
+        },
+        {
+          "n": 4,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/PriceCalculator.php:31"
+          ]
+        },
+        {
+          "n": 5,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/PriceCalculator.php:32"
+          ]
+        },
+        {
+          "n": 6,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/PriceCalculator.php:34"
+          ]
+        }
+      ],
+      "notes": "compute() returns taxable plus tax plus shipping (fixtures/acme-shop/app/Services/PriceCalculator.php:34). S3 names DiscountService::discount() but the method is discountFor (fixtures/acme-shop/app/Services/DiscountService.php:34); I treated this as a naming slip since the claim that DiscountService computes the discount is true. S2 is imprecise because tax is computed on the discounted subtotal, not directly on the subtotal."
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q3",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/CouponValidator.php:35"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/CouponValidator.php:32"
+          ]
+        }
+      ],
+      "notes": "The empty, missing, inactive and expired checks live in percentFor (fixtures/acme-shop/app/Services/CouponValidator.php:18) and isRedeemable only tests that result is above zero (fixtures/acme-shop/app/Services/CouponValidator.php:37), so the answer attributes the checks to isRedeemable indirectly. Evidence entry 2 for S1 (fixtures/acme-shop/app/Http/Requests/StoreOrderRequest.php:41) is irrelevant to coupons, but E1 backs the statement."
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q4",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Observers/OrderObserver.php:18"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Observers/OrderObserver.php:19"
+          ]
+        },
+        {
+          "n": 3,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Listeners/SendOrderConfirmation.php:17"
+          ]
+        }
+      ],
+      "notes": "created() dispatches RecalculateTotals and fires OrderPlaced (fixtures/acme-shop/app/Observers/OrderObserver.php:18), and the listener handles OrderPlaced and logs the order (fixtures/acme-shop/app/Listeners/SendOrderConfirmation.php:21). The word 'recalculariza' is a typo of the model and is not counted as an error."
+    }
+  ]
+}

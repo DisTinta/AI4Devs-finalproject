@@ -2,7 +2,7 @@
   "format": 1,
   "project": "task-api",
   "seed": {
-    "analyzerFingerprint": "sha256:a0262b2af548e33d5607d51d6e0a5b3f092c8917038ee6cd09a01b5ed90edf87",
+    "analyzerFingerprint": "sha256:46a57023b011a50320f71228de7c502d51b4c0537735cb532cf2769f632045ce",
     "contractFingerprint": "sha256:e94eef9665a038116a244342915af3743028225330fec41614260f1603fb392f"
   },
   "answerFingerprint": "sha256:9a2246d6df27425589519f44fe7de51e7d238dca2e9193c937f78a3783736766",
@@ -18,68 +18,57 @@
       "response": {
         "kind": "answered",
         "persisted": true,
-        "answer": "taskRoutes valida las peticiones entrantes mediante la definición de shemas de validación para rutas específicas y su asociación con controladores correspondientes.",
+        "answer": "taskRoutes valida las peticiones entrantes utilizando esquemas de validación definidos en los métodos de las rutas.",
         "statements": [
           {
-            "text": "Las rutas están definidas en 'src/routes/tasks.routes.ts' y cada una está asociada con un controlador del tipo 'taskRoutes'.",
-            "type": "INFERENCE",
-            "status": "current",
-            "verification": "cited",
-            "evidenceIds": [
-              "f12564ca-3f7f-4da6-8432-4b7eef25fcc9"
-            ]
-          },
-          {
-            "text": "Las rutas especifican shemas de validación para rutas como '/tasks', '/tasks/:id', '/tasks', '/tasks/:id', '/tasks/:id' y '/tasks/:id' en 'src/routes/tasks.routes.ts'.",
+            "text": "Las rutas están definidas en el archivo 'src/routes/tasks.routes.ts' (ids: E1).",
             "type": "FACT",
             "status": "current",
             "verification": "entailed",
             "evidenceIds": [
-              "9aee290c-1447-46e3-8c29-18a1c2bb3543"
+              "bd06c819-c991-4ce3-bf20-05243234529c"
             ]
           },
           {
-            "text": "El controlador 'TasksController' se encuentra en 'src/controllers/tasks.controller.ts', donde los controladores asociados a rutas como '/tasks', '/tasks/:id', '/tasks', '/tasks/:id', '/tasks/:id' y '/tasks/:id' están implementados con las funciones correspondientes.",
+            "text": "Cada ruta tiene un esquema de validación asociado, como 'listTasksQuerySchema' (id: E1), 'taskIdParamsSchema' (id: E1), 'createTaskSchema' (id: E1), etc.",
             "type": "INFERENCE",
             "status": "current",
             "verification": "cited",
             "evidenceIds": [
-              "3833c4e5-feb4-4e51-9be7-c2aec73f6ae9",
-              "2cafc8a1-7d37-4be7-933f-ca1e2229be42",
-              "3fb1b88e-7a45-4c73-b07f-a673f458ce4d",
-              "2726672b-4bd9-40a2-be8e-b7c89bf6e013",
-              "1ea128c5-5dd5-4d41-83be-257a41852fa7"
+              "d7bc87b3-bf8a-4034-84ad-31f56cf35382"
             ]
           },
           {
-            "text": "Cada controlador llama a métodos del servicio 'TaskService' para manejar las peticiones, demostrando la validación implícita por parte del servicio.",
+            "text": "Los esquemas de validación se aplican automáticamente en el middleware de Fastify, lo que asegura que las peticiones entrantes cumplen con los requisitos antes de que lleguen a los controladores (ids: E1, E4, E5, E6, E7, E8).",
             "type": "INFERENCE",
             "status": "current",
             "verification": "cited",
             "evidenceIds": [
-              "1ca16b44-3194-4bcc-b268-eaf6e2961fa1",
-              "8675c1f2-5674-487c-bb08-7d14eadb906d",
-              "9b830a36-ca40-42bb-8a06-cb3643d64e99",
-              "81f2ba85-b0ef-40e2-9c8b-e1cbacc4387a",
-              "09e9387c-1467-4217-a3de-dfb15309d39e",
-              "578a7016-a3cc-4054-9f42-0336984bfbd8"
+              "5e59ce35-da84-49ad-835a-0c4299fc20d6",
+              "5a3ae28e-3c22-4f7b-a67c-a7ce03c7ab8a",
+              "dca8a4e4-ae86-4299-8891-8c73e8b14b07",
+              "96b83a38-8736-4290-9195-3601c05e16bc",
+              "b24fab04-db16-4a2e-b3cd-4c01521ead7b",
+              "fd81102d-2c34-46b2-8efd-e9075b70ad0a"
             ]
           },
           {
-            "text": "El servicio 'TaskService' en 'src/services/task.service.ts' se encarga de las validaciones adicionales como la verificación del estado de la tarea y la prunning de propiedades indefinidas.",
+            "text": "Los controladores, definidos en 'src/controllers/tasks.controller.ts' (ids: E4, E5, E6, E7, E8), ocurren después del middleware de validación, y no realizan ninguna validación adicional en las peticiones entrantes.",
             "type": "INFERENCE",
             "status": "current",
             "verification": "cited",
             "evidenceIds": [
-              "337a544e-5545-42ab-839b-0cbac9573f9a",
-              "3f3e401b-3a43-4db4-a125-5a107b8b9d2d",
-              "a9cc7ffb-2683-419c-a6ae-bea0572f91ca"
+              "22d77b08-79ac-4352-a040-7d00b9ffa90f",
+              "817733a3-322d-4563-84e9-cb5228bb423c",
+              "96db962e-b571-44ed-98ca-02be95cbfa30",
+              "7a078364-a0b9-4e80-8b0b-6e5ab0340f7b",
+              "3d5ebd93-7c3d-4ad8-a598-d7b7945298be"
             ]
           }
         ],
         "evidence": [
           {
-            "id": "f12564ca-3f7f-4da6-8432-4b7eef25fcc9",
+            "id": "bd06c819-c991-4ce3-bf20-05243234529c",
             "fileId": "7685ace1-b62d-53c0-a1d0-3378a4a41a0a",
             "path": "src/routes/tasks.routes.ts",
             "startLine": 15,
@@ -87,7 +76,7 @@
             "excerpt": "export async function taskRoutes(app: FastifyInstance): Promise<void> {\n  const controller = new TasksController();\n\n  app.get('/tasks', { schema: { querystring: listTasksQuerySchema } }, controller.list);\n\n  app.get('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.getById);\n\n  app.post('/tasks', { schema: { body: createTaskSchema } }, controller.create);\n\n  app.patch(\n    '/tasks/:id',\n    { schema: { params: taskIdParamsSchema, body: updateTaskSchema } },\n    controller.update,\n  );\n\n  app.delete('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.remove);\n}"
           },
           {
-            "id": "9aee290c-1447-46e3-8c29-18a1c2bb3543",
+            "id": "d7bc87b3-bf8a-4034-84ad-31f56cf35382",
             "fileId": "7685ace1-b62d-53c0-a1d0-3378a4a41a0a",
             "path": "src/routes/tasks.routes.ts",
             "startLine": 15,
@@ -95,7 +84,15 @@
             "excerpt": "export async function taskRoutes(app: FastifyInstance): Promise<void> {\n  const controller = new TasksController();\n\n  app.get('/tasks', { schema: { querystring: listTasksQuerySchema } }, controller.list);\n\n  app.get('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.getById);\n\n  app.post('/tasks', { schema: { body: createTaskSchema } }, controller.create);\n\n  app.patch(\n    '/tasks/:id',\n    { schema: { params: taskIdParamsSchema, body: updateTaskSchema } },\n    controller.update,\n  );\n\n  app.delete('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.remove);\n}"
           },
           {
-            "id": "3833c4e5-feb4-4e51-9be7-c2aec73f6ae9",
+            "id": "5e59ce35-da84-49ad-835a-0c4299fc20d6",
+            "fileId": "7685ace1-b62d-53c0-a1d0-3378a4a41a0a",
+            "path": "src/routes/tasks.routes.ts",
+            "startLine": 15,
+            "endLine": 31,
+            "excerpt": "export async function taskRoutes(app: FastifyInstance): Promise<void> {\n  const controller = new TasksController();\n\n  app.get('/tasks', { schema: { querystring: listTasksQuerySchema } }, controller.list);\n\n  app.get('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.getById);\n\n  app.post('/tasks', { schema: { body: createTaskSchema } }, controller.create);\n\n  app.patch(\n    '/tasks/:id',\n    { schema: { params: taskIdParamsSchema, body: updateTaskSchema } },\n    controller.update,\n  );\n\n  app.delete('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.remove);\n}"
+          },
+          {
+            "id": "5a3ae28e-3c22-4f7b-a67c-a7ce03c7ab8a",
             "fileId": "99ebf394-a600-58d0-9f17-8578082a1209",
             "path": "src/controllers/tasks.controller.ts",
             "startLine": 10,
@@ -103,7 +100,7 @@
             "excerpt": "  async list(\n    request: FastifyRequest<{ Querystring: ListTasksQuery }>,\n    reply: FastifyReply,\n  ): Promise<void> {\n    const page = await request.server.taskService.list(request.query);\n    await reply.send(page);\n  }"
           },
           {
-            "id": "2cafc8a1-7d37-4be7-933f-ca1e2229be42",
+            "id": "dca8a4e4-ae86-4299-8891-8c73e8b14b07",
             "fileId": "99ebf394-a600-58d0-9f17-8578082a1209",
             "path": "src/controllers/tasks.controller.ts",
             "startLine": 18,
@@ -111,7 +108,7 @@
             "excerpt": "  async getById(\n    request: FastifyRequest<{ Params: TaskIdParams }>,\n    reply: FastifyReply,\n  ): Promise<void> {\n    const task = await request.server.taskService.get(request.params.id);\n    await reply.send(task);\n  }"
           },
           {
-            "id": "3fb1b88e-7a45-4c73-b07f-a673f458ce4d",
+            "id": "96b83a38-8736-4290-9195-3601c05e16bc",
             "fileId": "99ebf394-a600-58d0-9f17-8578082a1209",
             "path": "src/controllers/tasks.controller.ts",
             "startLine": 26,
@@ -119,7 +116,7 @@
             "excerpt": "  async create(\n    request: FastifyRequest<{ Body: CreateTaskBody }>,\n    reply: FastifyReply,\n  ): Promise<void> {\n    const task = await request.server.taskService.create(request.body);\n    await reply.code(201).send(task);\n  }"
           },
           {
-            "id": "2726672b-4bd9-40a2-be8e-b7c89bf6e013",
+            "id": "b24fab04-db16-4a2e-b3cd-4c01521ead7b",
             "fileId": "99ebf394-a600-58d0-9f17-8578082a1209",
             "path": "src/controllers/tasks.controller.ts",
             "startLine": 34,
@@ -127,7 +124,7 @@
             "excerpt": "  async update(\n    request: FastifyRequest<{ Params: TaskIdParams; Body: UpdateTaskBody }>,\n    reply: FastifyReply,\n  ): Promise<void> {\n    const task = await request.server.taskService.update(request.params.id, request.body);\n    await reply.send(task);\n  }"
           },
           {
-            "id": "1ea128c5-5dd5-4d41-83be-257a41852fa7",
+            "id": "fd81102d-2c34-46b2-8efd-e9075b70ad0a",
             "fileId": "99ebf394-a600-58d0-9f17-8578082a1209",
             "path": "src/controllers/tasks.controller.ts",
             "startLine": 42,
@@ -135,7 +132,7 @@
             "excerpt": "  async remove(\n    request: FastifyRequest<{ Params: TaskIdParams }>,\n    reply: FastifyReply,\n  ): Promise<void> {\n    await request.server.taskService.delete(request.params.id);\n    await reply.code(204).send();\n  }"
           },
           {
-            "id": "1ca16b44-3194-4bcc-b268-eaf6e2961fa1",
+            "id": "22d77b08-79ac-4352-a040-7d00b9ffa90f",
             "fileId": "99ebf394-a600-58d0-9f17-8578082a1209",
             "path": "src/controllers/tasks.controller.ts",
             "startLine": 10,
@@ -143,7 +140,7 @@
             "excerpt": "  async list(\n    request: FastifyRequest<{ Querystring: ListTasksQuery }>,\n    reply: FastifyReply,\n  ): Promise<void> {\n    const page = await request.server.taskService.list(request.query);\n    await reply.send(page);\n  }"
           },
           {
-            "id": "8675c1f2-5674-487c-bb08-7d14eadb906d",
+            "id": "817733a3-322d-4563-84e9-cb5228bb423c",
             "fileId": "99ebf394-a600-58d0-9f17-8578082a1209",
             "path": "src/controllers/tasks.controller.ts",
             "startLine": 18,
@@ -151,7 +148,7 @@
             "excerpt": "  async getById(\n    request: FastifyRequest<{ Params: TaskIdParams }>,\n    reply: FastifyReply,\n  ): Promise<void> {\n    const task = await request.server.taskService.get(request.params.id);\n    await reply.send(task);\n  }"
           },
           {
-            "id": "9b830a36-ca40-42bb-8a06-cb3643d64e99",
+            "id": "96db962e-b571-44ed-98ca-02be95cbfa30",
             "fileId": "99ebf394-a600-58d0-9f17-8578082a1209",
             "path": "src/controllers/tasks.controller.ts",
             "startLine": 26,
@@ -159,7 +156,7 @@
             "excerpt": "  async create(\n    request: FastifyRequest<{ Body: CreateTaskBody }>,\n    reply: FastifyReply,\n  ): Promise<void> {\n    const task = await request.server.taskService.create(request.body);\n    await reply.code(201).send(task);\n  }"
           },
           {
-            "id": "81f2ba85-b0ef-40e2-9c8b-e1cbacc4387a",
+            "id": "7a078364-a0b9-4e80-8b0b-6e5ab0340f7b",
             "fileId": "99ebf394-a600-58d0-9f17-8578082a1209",
             "path": "src/controllers/tasks.controller.ts",
             "startLine": 34,
@@ -167,71 +164,39 @@
             "excerpt": "  async update(\n    request: FastifyRequest<{ Params: TaskIdParams; Body: UpdateTaskBody }>,\n    reply: FastifyReply,\n  ): Promise<void> {\n    const task = await request.server.taskService.update(request.params.id, request.body);\n    await reply.send(task);\n  }"
           },
           {
-            "id": "09e9387c-1467-4217-a3de-dfb15309d39e",
+            "id": "3d5ebd93-7c3d-4ad8-a598-d7b7945298be",
             "fileId": "99ebf394-a600-58d0-9f17-8578082a1209",
             "path": "src/controllers/tasks.controller.ts",
             "startLine": 42,
             "endLine": 48,
             "excerpt": "  async remove(\n    request: FastifyRequest<{ Params: TaskIdParams }>,\n    reply: FastifyReply,\n  ): Promise<void> {\n    await request.server.taskService.delete(request.params.id);\n    await reply.code(204).send();\n  }"
-          },
-          {
-            "id": "578a7016-a3cc-4054-9f42-0336984bfbd8",
-            "fileId": "fbc78701-beb9-5ead-8afe-d1d52e62e189",
-            "path": "src/services/task.service.ts",
-            "startLine": 13,
-            "endLine": 68,
-            "excerpt": "export class TaskService {\n  constructor(\n    private readonly repository: TaskRepository,\n    private readonly clock: () => string = () => new Date().toISOString(),\n  ) {}\n\n  async get(id: string): Promise<Task> {\n    const task = await this.repository.findById(id);\n    if (!task) throw new TaskNotFoundError(id);\n    return task;\n  }\n\n  async list(query: TaskQuery): Promise<Page<Task>> {\n    return this.repository.list(query);\n  }\n\n  async create(input: CreateTaskInput): Promise<Task> {\n    const now = this.clock();\n    const task: Task = {\n      id: newId(),\n      title: input.title,\n      description: input.description ?? null,\n      status: input.status ?? 'todo',\n      priority: input.priority ?? 'medium',\n      tags: input.tags ?? [],\n      dueDate: input.dueDate ?? null,\n      createdAt: now,\n      updatedAt: now,\n    };\n    return this.repository.create(task);\n  }\n\n  async update(id: string, input: UpdateTaskInput): Promise<Task> {\n    const current = await this.get(id);\n\n    if (input.status && input.status !== current.status) {\n      if (!canTransition(current.status, input.status)) {\n        throw new IllegalStatusTransitionError(current.status, input.status);\n      }\n    }\n\n    const updated: Task = {\n      ...current,\n      ...pruneUndefined(input),\n      id: current.id,\n      createdAt: current.createdAt,\n      updatedAt: this.clock(),\n    };\n    return this.repository.update(updated);\n  }\n\n  async delete(id: string): Promise<void> {\n    const deleted = await this.repository.delete(id);\n    if (!deleted) throw new TaskNotFoundError(id);\n  }\n}"
-          },
-          {
-            "id": "337a544e-5545-42ab-839b-0cbac9573f9a",
-            "fileId": "fbc78701-beb9-5ead-8afe-d1d52e62e189",
-            "path": "src/services/task.service.ts",
-            "startLine": 13,
-            "endLine": 68,
-            "excerpt": "export class TaskService {\n  constructor(\n    private readonly repository: TaskRepository,\n    private readonly clock: () => string = () => new Date().toISOString(),\n  ) {}\n\n  async get(id: string): Promise<Task> {\n    const task = await this.repository.findById(id);\n    if (!task) throw new TaskNotFoundError(id);\n    return task;\n  }\n\n  async list(query: TaskQuery): Promise<Page<Task>> {\n    return this.repository.list(query);\n  }\n\n  async create(input: CreateTaskInput): Promise<Task> {\n    const now = this.clock();\n    const task: Task = {\n      id: newId(),\n      title: input.title,\n      description: input.description ?? null,\n      status: input.status ?? 'todo',\n      priority: input.priority ?? 'medium',\n      tags: input.tags ?? [],\n      dueDate: input.dueDate ?? null,\n      createdAt: now,\n      updatedAt: now,\n    };\n    return this.repository.create(task);\n  }\n\n  async update(id: string, input: UpdateTaskInput): Promise<Task> {\n    const current = await this.get(id);\n\n    if (input.status && input.status !== current.status) {\n      if (!canTransition(current.status, input.status)) {\n        throw new IllegalStatusTransitionError(current.status, input.status);\n      }\n    }\n\n    const updated: Task = {\n      ...current,\n      ...pruneUndefined(input),\n      id: current.id,\n      createdAt: current.createdAt,\n      updatedAt: this.clock(),\n    };\n    return this.repository.update(updated);\n  }\n\n  async delete(id: string): Promise<void> {\n    const deleted = await this.repository.delete(id);\n    if (!deleted) throw new TaskNotFoundError(id);\n  }\n}"
-          },
-          {
-            "id": "3f3e401b-3a43-4db4-a125-5a107b8b9d2d",
-            "fileId": "e6182677-e3bf-50f8-a537-e94348b5f274",
-            "path": "src/app.ts",
-            "startLine": 22,
-            "endLine": 34,
-            "excerpt": "export function buildApp(options: BuildAppOptions = {}): FastifyInstance {\n  const app = Fastify({ logger: options.logger ?? false }).withTypeProvider<ZodTypeProvider>();\n\n  app.setValidatorCompiler(validatorCompiler);\n  app.setSerializerCompiler(serializerCompiler);\n\n  registerErrorHandler(app);\n  registerDb(app, options.seed ?? []);\n\n  app.register(registerRoutes);\n\n  return app;\n}"
-          },
-          {
-            "id": "a9cc7ffb-2683-419c-a6ae-bea0572f91ca",
-            "fileId": "fbc78701-beb9-5ead-8afe-d1d52e62e189",
-            "path": "src/services/task.service.ts",
-            "startLine": 71,
-            "endLine": 79,
-            "excerpt": "function pruneUndefined<T extends object>(input: T): { [K in keyof T]?: Exclude<T[K], undefined> } {\n  const out: Partial<T> = {};\n  for (const [key, value] of Object.entries(input)) {\n    if (value !== undefined) {\n      out[key as keyof T] = value as T[keyof T];\n    }\n  }\n  return out as { [K in keyof T]?: Exclude<T[K], undefined> };\n}"
           }
         ],
         "priorClaims": [],
         "usage": {
-          "inputTokens": 10810,
-          "outputTokens": 543,
+          "inputTokens": 9239,
+          "outputTokens": 456,
           "baselineTokens": 4227,
           "baselineEstimator": "chars-div-4",
-          "savingsPct": -155.7,
+          "savingsPct": -118.6,
           "costUsd": 0,
-          "latencyMs": 552402,
+          "latencyMs": 187828,
           "cacheHit": false,
           "generation": {
             "inputTokens": 4235,
-            "outputTokens": 419,
+            "outputTokens": 357,
             "costUsd": 0
           },
           "verification": {
-            "calls": 16,
+            "calls": 13,
             "cacheHits": 0,
-            "inputTokens": 6575,
-            "outputTokens": 124,
+            "inputTokens": 5004,
+            "outputTokens": 99,
             "costUsd": 0,
-            "latencyMs": 176131
+            "latencyMs": 50605
           }
         },
-        "confidence": 0.7981867777396212
+        "confidence": 0.7117392466946214
       },
       "reviews": [
         {
@@ -251,38 +216,21 @@
       "response": {
         "kind": "answered",
         "persisted": true,
-        "answer": "La función buildPage convierte los resultados paginados en un objeto Page.",
+        "answer": "Los resultados paginados son procesados por la función buildPage, que toma los elementos, el total, la página actual y el tamaño de la página como argumentos, y devuelve un objeto de página con la información correspondiente.",
         "statements": [
           {
-            "text": "La función buildPage toma cuatro parámetros: items, total, page y pageSize.",
-            "type": "FACT",
+            "text": "buildPage toma como argumento los elementos, el total, la página actual y el tamaño de la página.",
+            "type": "INFERENCE",
             "status": "current",
-            "verification": "entailed",
+            "verification": "cited",
             "evidenceIds": [
-              "884f8867-792c-4f11-9f5a-a37489138db9"
-            ]
-          },
-          {
-            "text": "La función buildPage devuelve un objeto Page con las propiedades items, total, page, pageSize y pageCount.",
-            "type": "FACT",
-            "status": "current",
-            "verification": "entailed",
-            "evidenceIds": [
-              "90329223-d0e6-4ad4-a750-a212777d9caa"
+              "58c5efa6-934b-42c0-9415-fbb12296dd84"
             ]
           }
         ],
         "evidence": [
           {
-            "id": "884f8867-792c-4f11-9f5a-a37489138db9",
-            "fileId": "48138400-9673-5335-b64a-4729e2eabbd6",
-            "path": "src/domain/pagination.ts",
-            "startLine": 13,
-            "endLine": 21,
-            "excerpt": "export function buildPage<T>(items: T[], total: number, page: number, pageSize: number): Page<T> {\n  return {\n    items,\n    total,\n    page,\n    pageSize,\n    pageCount: pageSize > 0 ? Math.ceil(total / pageSize) : 0,\n  };\n}"
-          },
-          {
-            "id": "90329223-d0e6-4ad4-a750-a212777d9caa",
+            "id": "58c5efa6-934b-42c0-9415-fbb12296dd84",
             "fileId": "48138400-9673-5335-b64a-4729e2eabbd6",
             "path": "src/domain/pagination.ts",
             "startLine": 13,
@@ -292,29 +240,29 @@
         ],
         "priorClaims": [],
         "usage": {
-          "inputTokens": 3046,
-          "outputTokens": 128,
+          "inputTokens": 2717,
+          "outputTokens": 109,
           "baselineTokens": 3368,
           "baselineEstimator": "chars-div-4",
-          "savingsPct": 9.6,
+          "savingsPct": 19.3,
           "costUsd": 0,
-          "latencyMs": 44031,
+          "latencyMs": 54719,
           "cacheHit": false,
           "generation": {
             "inputTokens": 2383,
-            "outputTokens": 114,
+            "outputTokens": 98,
             "costUsd": 0
           },
           "verification": {
-            "calls": 2,
+            "calls": 1,
             "cacheHits": 0,
-            "inputTokens": 663,
-            "outputTokens": 14,
+            "inputTokens": 334,
+            "outputTokens": 11,
             "costUsd": 0,
-            "latencyMs": 19156
+            "latencyMs": 5188
           }
         },
-        "confidence": 0.8519528019683106
+        "confidence": 0.6224593312018546
       },
       "reviews": [
         {
@@ -334,47 +282,31 @@
       "response": {
         "kind": "answered",
         "persisted": true,
-        "answer": "Las transiciones de estado válidas son las que están definidas en la constante TRANSITIONS.",
+        "answer": "Las transiciones de estado válidas dependen de la implementación en los archivos 'src/domain/task-status.ts' y 'src/domain/errors.ts'. En general, las transiciones se definen en la función 'canTransition' y se manejan errores en transiciones ilícitas mediante la clase 'IllegalStatusTransitionError'.",
         "statements": [
           {
-            "text": "La función allowedTransitions devuelve las transiciones permitidas desde un estado específico.",
-            "type": "FACT",
-            "status": "current",
-            "verification": "entailed",
-            "evidenceIds": [
-              "a882e74f-2c03-46a3-99a7-b1600d35ecf6"
-            ]
-          },
-          {
-            "text": "La función canTransition verifica si una transición de estado es válida.",
-            "type": "FACT",
-            "status": "current",
-            "verification": "entailed",
-            "evidenceIds": [
-              "dfe48135-078f-4d74-9483-bacb15bc9e9d"
-            ]
-          },
-          {
-            "text": "La función update en el servicio task.service.ts verifica las transiciones de estado antes de actualizar una tarea.",
+            "text": "Las transiciones de estado válidas se definen en la función 'canTransition' en 'src/domain/task-status.ts'.",
             "type": "INFERENCE",
             "status": "current",
             "verification": "cited",
             "evidenceIds": [
-              "79907507-4b8e-4fb2-8874-e57aad5e7fb0"
+              "0bf9a515-d240-47e3-bad4-ee1c1d209625",
+              "ced17932-1ca0-4780-9a29-081594f6597f"
+            ]
+          },
+          {
+            "text": "Las transiciones de estado inválidas o ilegales generan una instancia de la clase 'IllegalStatusTransitionError'",
+            "type": "FACT",
+            "status": "current",
+            "verification": "entailed",
+            "evidenceIds": [
+              "35f81e43-31cb-46fe-a1e5-ca493acef86d"
             ]
           }
         ],
         "evidence": [
           {
-            "id": "a882e74f-2c03-46a3-99a7-b1600d35ecf6",
-            "fileId": "e3708666-46ba-5017-859c-4cc272ec322c",
-            "path": "src/domain/task-status.ts",
-            "startLine": 29,
-            "endLine": 31,
-            "excerpt": "export function allowedTransitions(from: TaskStatus): readonly TaskStatus[] {\n  return TRANSITIONS[from];\n}"
-          },
-          {
-            "id": "dfe48135-078f-4d74-9483-bacb15bc9e9d",
+            "id": "0bf9a515-d240-47e3-bad4-ee1c1d209625",
             "fileId": "e3708666-46ba-5017-859c-4cc272ec322c",
             "path": "src/domain/task-status.ts",
             "startLine": 25,
@@ -382,36 +314,44 @@
             "excerpt": "export function canTransition(from: TaskStatus, to: TaskStatus): boolean {\n  return TRANSITIONS[from].includes(to);\n}"
           },
           {
-            "id": "79907507-4b8e-4fb2-8874-e57aad5e7fb0",
-            "fileId": "fbc78701-beb9-5ead-8afe-d1d52e62e189",
-            "path": "src/services/task.service.ts",
-            "startLine": 45,
-            "endLine": 62,
-            "excerpt": "  async update(id: string, input: UpdateTaskInput): Promise<Task> {\n    const current = await this.get(id);\n\n    if (input.status && input.status !== current.status) {\n      if (!canTransition(current.status, input.status)) {\n        throw new IllegalStatusTransitionError(current.status, input.status);\n      }\n    }\n\n    const updated: Task = {\n      ...current,\n      ...pruneUndefined(input),\n      id: current.id,\n      createdAt: current.createdAt,\n      updatedAt: this.clock(),\n    };\n    return this.repository.update(updated);\n  }"
+            "id": "ced17932-1ca0-4780-9a29-081594f6597f",
+            "fileId": "e3708666-46ba-5017-859c-4cc272ec322c",
+            "path": "src/domain/task-status.ts",
+            "startLine": 29,
+            "endLine": 31,
+            "excerpt": "export function allowedTransitions(from: TaskStatus): readonly TaskStatus[] {\n  return TRANSITIONS[from];\n}"
+          },
+          {
+            "id": "35f81e43-31cb-46fe-a1e5-ca493acef86d",
+            "fileId": "d2c8d3b2-9ef3-561a-a88d-b731b4b071e4",
+            "path": "src/domain/errors.ts",
+            "startLine": 23,
+            "endLine": 27,
+            "excerpt": "export class IllegalStatusTransitionError extends DomainError {\n  constructor(from: string, to: string) {\n    super(`Cannot move task from '${from}' to '${to}'`, 409, 'ILLEGAL_STATUS_TRANSITION');\n  }\n}"
           }
         ],
         "priorClaims": [],
         "usage": {
-          "inputTokens": 2515,
-          "outputTokens": 173,
+          "inputTokens": 2460,
+          "outputTokens": 196,
           "baselineTokens": 1565,
           "baselineEstimator": "chars-div-4",
-          "savingsPct": -60.7,
+          "savingsPct": -57.2,
           "costUsd": 0,
-          "latencyMs": 133396,
+          "latencyMs": 59892,
           "cacheHit": false,
           "generation": {
             "inputTokens": 1555,
-            "outputTokens": 148,
+            "outputTokens": 175,
             "costUsd": 0
           },
           "verification": {
             "calls": 3,
             "cacheHits": 0,
-            "inputTokens": 960,
-            "outputTokens": 25,
+            "inputTokens": 905,
+            "outputTokens": 21,
             "costUsd": 0,
-            "latencyMs": 27594
+            "latencyMs": 10419
           }
         },
         "confidence": 0.823706878903768
