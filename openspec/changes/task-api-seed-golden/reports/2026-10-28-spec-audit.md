@@ -251,3 +251,202 @@ con su destino A/B/C/D.*
 Comentario en español en DIS-32 con las decisiones de esta ronda. DIS-20 (padre) no se edita.
 
 `openspec validate task-api-seed-golden --strict`: el cambio es válido.
+
+---
+
+## Run 2 (2026-10-28)
+
+CHANGES REQUIRED
+
+**Preguntas para la autora** (no las resuelvo yo; en ejecución autónoma las decide la sesión principal como lead engineer y las anota en `design.md` → Follow-ups):
+
+- **Q-C. Las preguntas golden Q1 y Q2 de task-api no anclan ningún símbolo.** La sub-issue (E6, AC 5) fija como golden de task-api Q1, Q2 y Q3, con el texto de `fixtures/README.md:314-316`. Con el anclaje léxico actual, Q1 y Q2 responden `UNKNOWN (no-anchor)` antes de leer la caché (ver B1). Hay tres salidas y elegir una es decisión de alcance:
+  - **(a) Recomendada.** Mantener los ids y el conjunto Q1–Q3, y reescribir el texto de Q1 y Q2 en la tabla de `fixtures/README.md` para que nombren un símbolo del grafo, como ya hace Q4 de acme-shop con `OrderObserver`. Por ejemplo: Q1 «¿Cómo valida taskRoutes las peticiones entrantes?» (ancla `taskRoutes`) y Q2 «¿Cómo construye buildPage la página de resultados?» (ancla `buildPage`).
+  - **(b)** Dejar como golden solo Q3 y documentar Q1 y Q2 sin golden, igual que Q5 de acme-shop. Esto contradice el AC 5 de la sub-issue («3/3»).
+  - **(c)** Cambiar el anclaje en `packages/core/src/context/`. Queda fuera de la excepción de core aprobada por la autora, así que no es viable en este cambio.
+
+Ronda 2 de la auditoría de `openspec/changes/task-api-seed-golden` (DIS-32, padre DIS-20).
+
+He releído:
+- el cambio completo: `proposal.md`, `design.md`, los 9 deltas y `tasks.md`;
+- la sub-issue y el padre, con sus comentarios;
+- `docs/openspec-tasks-mandatory-steps.md` y las specs principales que tocan los deltas (`seed-build`, `golden-answers`, `seed-load`, `verify-smoke`, `cli-indexing`, `local-startup`);
+- el código de `packages/cli/src/seed/fingerprint.ts`, `packages/cli/src/verify.ts`, `packages/analyzers/typescript/src/calls.ts`, `packages/core/src/context/anchor.ts`, `packages/core/src/context/context-pack.ts`, `packages/core/src/explain/explain.ts` y `packages/adapters/store-postgres/src/queries.ts` (`FIND_SYMBOLS`).
+
+Las decisiones del agente de la ronda 1 (Q-A, Q-B, SA1–SA9) no contradicen el ticket ni el proyecto, así que las doy por buenas. Los bloqueantes B1–B5 de la ronda 1 están bien corregidos en los artefactos.
+
+---
+
+## 1. Alcance frente al ticket: limpio
+
+Todo sale de la sub-issue: la deuda de DIS-30 del [original] y E1–E12 del [enhanced]. Los deltas de `cli-projects`, `project-picker`, `seed-load`, `verify-smoke` y `ask-page` son consecuencia directa de que la semilla versionada tenga dos proyectos (P5, SA7). No hay Tabla 2, ni endpoint de indexado, ni kinds nuevos en core.
+
+## 2. Criterios de aceptación heredados
+
+- DoD de DIS-32:
+  - «`db:seed` carga 2 proyectos»: seed-load, «The seed is loaded into an empty database».
+  - «`verify` verde con task-api»: verify-smoke, «Every golden answer matches» y «The verify job is green on the pull request».
+  - «`sample-projects.ts` incluye task-api»: seed-build, «The versioned constant matches the versioned seed».
+  - Diff de core: tareas 2.4, 8.4 y 12.1.
+- AC 3 del padre (secreto redactado): «The task-api block of the seed is generated» exige `redacted = true` y la ausencia del valor.
+- AC 4 del padre (Q4 UNKNOWN): escenario «task-api's Q4 is answered UNKNOWN without anchor in evaluation mode» (Q-A).
+- **El AC 5 de la sub-issue y el DoD «`verify` verde con task-api» no se pueden cumplir tal como están escritos.** Lo explica B1 (punto 8). Los escenarios existen, pero describen un resultado que el código no puede producir.
+
+## 3. Escenarios que faltan
+
+- **B1, parte (bloqueante).** Ningún escenario comprueba que cada pregunta golden ancla al menos un símbolo de su proyecto. Ese escenario es lo que habría detectado el defecto de B1 en un test unitario, sin gastar una hora de Ollama en la tarea 6.2. La corrección está en «Correcciones a aplicar».
+- El resto de requisitos MUST tienen escenario.
+
+## 4. Ambigüedad: limpio
+
+Ninguno de los términos vagos («fast», «easy», «secure», «efficient», «many», «appropriate», «robust») aparece en el cambio. La única coincidencia es «as many as» (seed-load), que es una igualdad medible.
+
+## 5. Decisiones abiertas
+
+- **Mejorable.** D5 hace que la huella del analizador dependa de `git ls-files`. Eso afecta a `seed:build`, a `cache:build` y también a `npm run verify`, que hasta ahora no necesitaba git para la huella. Ni D5 ni el delta dicen qué pasa si `git` falla o si `repoRoot` no es un árbol de trabajo git. Hoy caería en el `INTERNAL` genérico de cada comando, así que no queda nada sin decidir que bloquee. Aun así conviene escribirlo en D5 («un fallo de `git ls-files` es un error inesperado: `INTERNAL` de cada comando») y anotar en `docs/project-context.md` (tarea 11.4) que `verify` necesita un clon git, no un ZIP.
+
+## 6. Contradicciones dentro del cambio
+
+- **B1, parte.** En `design.md` → Risks, la frase «task-api Q2/Q3 have clear anchors (`buildPage`, `canTransition`)» es falsa para Q2. Los términos de Q2 son `paginan`, `pagin`, `resultados` y `resul`, y ninguno es subcadena de `buildPage` («buildpage» no contiene «pagin»). Hay que corregirla junto con B1.
+- Fuera de eso, proposal, design y deltas coinciden.
+- Las referencias cruzadas de la ronda 1 son correctas: E12 → 9.4, Q-A → 6.4, Q-B → 11.7, SA2 → 4.6 y 6.1, SA5 → 4.6 y 4.7, SA6 → 5.3, SA7 → 6.3.
+
+## 7. Contradicciones con el proyecto
+
+- Las specs principales que siguen hablando de una sola muestra quedan cubiertas o no chocan con la semilla nueva:
+  - seed-load, «Golden answers are loaded…» y «A seed without golden files…», remiten a la salida del escenario que el delta modifica.
+  - local-startup, «Up builds the fixture history the seed indexed»: `verify` sirve las golden de task-api desde la caché, sin la historia de task-api.
+  - verify-smoke, escenarios de huella y de `GOLDEN_MISSING`: usan semillas de prueba.
+- `fixtures/README.md:204-208` ya fija la regla del proyecto: Q5 de acme-shop no es golden porque «its terms anchor no symbol of the seed». El cambio aplica a task-api un conjunto de preguntas que incumple esa misma regla (B1).
+- No hay conflicto con los ADR. Las llamadas a `git` desde la CLI ya existen (`packages/cli/src/cache-build.ts:1,346`, `execFileSync`). `.dependency-cruiser.cjs` solo prohíbe `child_process` en core y en los analizadores.
+
+## 8. Contraste con el código real
+
+- **B1 (bloqueante). Las preguntas golden Q1 y Q2 de task-api responden `UNKNOWN (no-anchor)` y no pueden ser golden.**
+  - `packages/core/src/explain/explain.ts:302-303`: `explain` ancla la pregunta y, si no encuentra nada, devuelve `unknown('no-anchor')` antes de leer la caché o de llamar al modelo.
+  - `packages/core/src/context/anchor.ts:57-67`: los términos son los tokens normalizados, más un prefijo de 5 caracteres para los tokens de 6 o más.
+  - `packages/adapters/store-postgres/src/queries.ts:142`: el anclaje busca solo por nombre de símbolo (`sy.name ILIKE '%term%'`).
+  - Términos de Q1 «¿Cómo se validan las peticiones entrantes?»: `validan`, `valid`, `peticiones`, `petic`, `entrantes`, `entra`.
+  - Términos de Q2 «¿Cómo se paginan los resultados?»: `paginan`, `pagin`, `resultados`, `resul`.
+  - Ninguno es subcadena de los 38 `class`/`interface`/`function` ni de los 26 `method` que la spec code-analysis lista para task-api. Tampoco habrá símbolos nuevos: task-api no tiene funciones en `const`, lo he comprobado con grep. Solo Q3 ancla, a través de `trans` en `canTransition`, `allowedTransitions` e `IllegalStatusTransitionError`.
+  - Consecuencias si no se corrige:
+    - En la tarea 6.2, `cache:build` falla en el primer intento con `GOLDEN_NOT_CACHEABLE {"id":"Q1","reason":"no-anchor"}`. Según «Retries and failures of a golden answer», `no-anchor` falla al momento, y el reintento de D7 con `--project task-api Q1` fallaría igual.
+    - No pueden cumplirse «Every golden answer matches» (`task-api: 3/3`), «The versioned task-api golden file matches…», el job `verify` de CI ni el AC 5.
+    - Las preguntas sugeridas Q1 y Q2 de la pantalla 2 responderían `UNKNOWN` en modo evaluación, en contra del requisito de `ask-page` («answered from the answer cache»), y la tarea 10.2 («asking the first one shows an answer served from the cache») fallaría.
+  - Corrección: decidir Q-C y añadir el escenario de anclaje (ver «Correcciones a aplicar»).
+- Comprobado y correcto:
+  - D1: `calls.ts:45-46,70-71,123-129`. Un `VariableStatement` no es frontera ni destino invocable. En el escenario «Const functions are no endpoint of calls edges», `target()` dentro de `f` queda sin origen y `f()`/`forEach(f)` sin destino, así que «no `calls` edge at all» se cumple.
+  - D2: `packages/core/src/index/index.ts` existe.
+  - D5: `fingerprint.ts:27-42,96-103`. Hoy solo salta `.git`, y el cambio de D5 encaja con la función.
+  - D3: el framework de task-api se detecta por `package.json` (`packages/core/src/index/framework-detect.ts:15`).
+  - Q4: los términos `autentican`, `auten`, `usuarios` y `usuar` no anclan, así que `UNKNOWN (no-anchor)` es correcto. La salida coincide con `packages/cli/src/commands/ask.ts:159`.
+- No se duplica ninguna abstracción.
+
+## 9. Tamaño de las tareas
+
+- **Mejorable.** La 5.3 (cinco `it` nuevos y unos diez movidos a `--project`/`outputDir`) y la 4.6 (seis `it` de integración con dos fixtures) siguen al límite de un turno. Si se quiere margen, se puede partir la 5.3 en «nuevos» y «movidos». No bloquea.
+- La 6.2 (unos 60 min de Ollama) ya prevé lanzarla redirigida a un fichero y consultarla en primer plano.
+
+## 10. Pasos obligatorios: limpio
+
+- El paso 0 es la rama `feature/dis-32-task-api-seed-golden`.
+- Los pasos 7–12 están presentes y etiquetados (MANDATORY / AGENT MUST EXECUTE), y la revisión pre-merge es el último.
+- Las tareas que mutan datos restauran el estado: la 9.2 borra el proyecto indexado y la 8.5 vuelve a sembrar con `db:seed` sin tocar los proyectos que no son muestra.
+- Hay informes con nombre (8.6, 9.5, 10.4).
+
+## 11. Trazabilidad
+
+| Requisito (delta) | Escenario | Tareas |
+|---|---|---|
+| code-analysis · TypeScript symbol extraction | 8 escenarios ya existentes | 1.2, 7.2 |
+| 〃 | Variables, types, accessors and ambient declarations are not symbols (entrada cambiada) | 1.1, 1.2 |
+| 〃 | Module-level const functions are function symbols | 1.1, 1.2 |
+| 〃 | Other variable forms are not function symbols | 1.1, 1.2 |
+| 〃 | Const functions are no endpoint of calls edges | 1.1, 1.2 |
+| (AC 2, refactor sin comportamiento) helpers en core | — (refactor; `tests/unit/index/analyzer-helpers.spec.ts`) | 2.1–2.4 |
+| cli-indexing · Command line contract | Help and version / framework / name | 3.3, 7.2 |
+| 〃 | An unsupported language is a usage error | 3.1, 3.3, 9.3 |
+| 〃 | A TypeScript repository is indexed with the TypeScript analyzer | 3.1, 3.3, 9.2 |
+| cli-indexing · Errors in the project format | 3 escenarios ya existentes | 3.3, 7.2 |
+| seed-build · Command contract | Missing config / unreachable DB / allowed dir | 4.5, 4.6, 9.3 |
+| 〃 | A failure of the second project's repository names it | 4.6, 4.7 |
+| seed-build · Seed content | The acme-shop seed is generated | 4.6, 4.7 |
+| 〃 | The task-api block of the seed is generated | 4.6, 6.1 |
+| 〃 | Adding task-api leaves the acme-shop rows unchanged | 6.1 (comprobación registrada) |
+| seed-build · The database is never changed | unchanged after a build / existing acme-shop and task-api | 4.6, 4.7 |
+| seed-build · Reproducibility | Two consecutive builds / time zone | 4.6, 6.1 |
+| seed-build · Fingerprints | 3 escenarios | 4.1, 4.2 |
+| seed-build · A failed build never leaves a broken seed | 4 escenarios | 4.5, 4.7 |
+| seed-build · Sample-project constant | 4 escenarios | 4.3–4.7, 6.4, 8.3 |
+| seed-load · Command contract | An invalid golden file fails before connecting (+3 ya existentes) | 6.4 |
+| seed-load · Sample projects loaded idempotently | empty DB / loading again | 6.4, 6.7 |
+| golden-answers · Cache build command contract | config / unknown id / project args / unreachable / request limit / slow model | 5.3, 9.3 |
+| golden-answers · Golden questions | acme-shop table / task-api table | 5.1, 5.2 |
+| 〃 | task-api's Q4 is answered UNKNOWN without anchor | 6.4, 9.1 |
+| 〃 (anclaje de cada pregunta golden, B1) | **— (sin escenario)** | **—** |
+| golden-answers · Seed is current | missing or outdated / without second project | 5.3 |
+| golden-answers · How a golden answer is produced | scripted model / every project / non-sample | 5.3, 5.4, 6.2 |
+| golden-answers · Retries and failures | 4 escenarios con `--project acme-shop` | 5.3 |
+| golden-answers · Partial regeneration | only named (y orden de argumentos) / stale | 5.3 |
+| golden-answers · Failed build never leaves broken file | failed write / failure in second project | 5.3, 5.5 |
+| golden-answers · Versioned golden file coherent | acme-shop / task-api (**inalcanzable para Q1 y Q2 por B1**) | 6.2, 6.4 |
+| verify-smoke · Compared on structure only | every match (**inalcanzable por B1**) / altered / cache miss / counts / free text | 6.5, 6.7 |
+| verify-smoke · CI job | workflow parsed / green on PR | 12.2 |
+| project-picker · Sample-project cards | Screen 1 shows two cards / keyboard | 6.6, 10.2, 10.3 |
+| ask-page · Suggested questions | sent at once / suggested = golden | 6.3, 10.2 |
+| cli-projects · Project listing | listed / empty / errors | 6.5, 9.1 |
+
+Hay una fila vacía (anclaje de las preguntas golden, B1) y es bloqueante. Las dos filas marcadas como inalcanzables tienen escenario y tarea, pero dependen de la misma corrección.
+
+---
+
+## Correcciones a aplicar
+
+### `openspec/changes/task-api-seed-golden/specs/golden-answers/spec.md`
+
+- Requisito «Golden questions» (B1). Añadir al final:
+  > «Every golden question SHALL anchor in its project: at least one of the first 16 terms the context engine derives from the question (`questionTerms`) SHALL be contained, case-insensitively, in the name of a symbol of that project in the versioned seed. A question that anchors nothing is answered `UNKNOWN` of reason `no-anchor` before the answer cache is read and SHALL NOT be a golden question (as acme-shop's Q5).»
+- Escenario nuevo en ese requisito:
+  > «#### Scenario: Every golden question anchors a symbol of its project — **GIVEN** the versioned `seeds/graph-dump.sql` and the golden questions of every golden project — **WHEN** each question's terms are compared with the symbol names of its project's rows in the seed — **THEN** every golden question has at least one term contained in one of those names.»
+- Según Q-C:
+  - **(a)** Sustituir los textos de task-api `Q1` y `Q2` del requisito por los nuevos (por ejemplo «¿Cómo valida taskRoutes las peticiones entrantes?» y «¿Cómo construye buildPage la página de resultados?»), comprobando a mano que anclan.
+  - **(b)** Dejar solo `Q3` como golden de task-api y escribir que Q1 y Q2 no lo son porque no anclan. En ese caso hay que cambiar en cascada los escenarios «An unknown or repeated question id…» (`details.allowed` = `["Q3"]`), «Every golden project is built without arguments» y «A failure in the second project…» (que hoy usa Q2).
+
+### `openspec/changes/task-api-seed-golden/specs/verify-smoke/spec.md`, `specs/ask-page/spec.md`
+
+- Llevar los textos de task-api que se decidan en Q-C a «Every golden answer matches», «An altered golden answer…» y «A missing cache entry…» (con (b), también `task-api: 1/1`), y a «The suggested questions are the golden questions».
+
+### `openspec/changes/task-api-seed-golden/design.md`
+
+- D6: después de «texts copied from `fixtures/README.md`» añadir:
+  > «every golden question must anchor a symbol of its project (spec golden-answers "Every golden question anchors a symbol of its project"); task-api's Q1 and Q2 as first written did not (spec audit run 2, B1), resolved per Q-C.»
+- Risks: sustituir «task-api Q2/Q3 have clear anchors (`buildPage`, `canTransition`)» por:
+  > «the golden questions are checked to anchor before any model call (B1); Q3 anchors through `canTransition`, Q1 and Q2 through the symbols named in their texts.»
+- D5 (mejorable): añadir:
+  > «A failure of `git ls-files` (no git, or `repoRoot` not a working tree) is an unexpected error of the command (`INTERNAL`); `verify` therefore needs a git clone.»
+- Follow-ups: fila nueva «SA10 | (B1) task-api Q1/Q2 anchored no symbol; anchoring check added; texts per Q-C | **A** — this change».
+
+### `openspec/changes/task-api-seed-golden/tasks.md`
+
+- 5.1 (B1): añadir el `it` «Every golden question anchors a symbol of its project» en `tests/unit/seed/golden-questions.spec.ts`. Lee las filas `symbol` de `seeds/graph-dump.sql` por proyecto y `questionTerms` de `@codemind/core`. Hasta que la 6.1 regenere la semilla, la parte de task-api se ejecuta sobre las filas de la semilla nueva, así que el `it` debe correr de nuevo tras la 6.1 y antes de la 6.2. Añadir a la 6.1: «run `npx vitest run tests/unit/seed/golden-questions.spec.ts` on the regenerated seed before 6.2».
+- 5.2 / 11.1, con la opción (a): actualizar la tabla de task-api de `fixtures/README.md` (Q1 y Q2) en la 5.2, ya que la 5.1 compara con esa tabla, y el ejemplo de `readme.md:355` en la 11.3.
+- 6.3, 9.1, 9.4 y 10.2: usar los textos de Q-C.
+
+### `fixtures/README.md` (con la opción (a), en este cambio)
+
+- Tabla de task-api, filas Q1 y Q2: texto nuevo. Añadir, como en el párrafo de acme-shop, que las golden de task-api son Q1–Q3 y que cada una ancla un símbolo.
+
+### Linear DIS-32 (comentario en español; el bloque [original] no se toca)
+
+> **Auditoría de spec, ronda 2 (texto del agente, ejecución autónoma 2026-10-28).**
+> - **B1:** las preguntas golden Q1 («¿Cómo se validan las peticiones entrantes?») y Q2 («¿Cómo se paginan los resultados?») de task-api no anclan ningún símbolo (sus términos `valid`, `petic`, `entra`, `pagin`, `resul` no aparecen en ningún nombre de símbolo de task-api), así que `ask` responde `UNKNOWN (no-anchor)` antes de leer la caché y `cache:build` no puede generarlas. Solo Q3 ancla (`canTransition`).
+> - Pregunta Q-C: (a) reescribir Q1 y Q2 en `fixtures/README.md` nombrando un símbolo (`taskRoutes`, `buildPage`) y mantener Q1–Q3 (recomendada); (b) dejar solo Q3 como golden (contradice el AC 5); (c) cambiar el anclaje de core (fuera de la excepción aprobada, descartada).
+> - Se añade un escenario y un test que comprueban que toda pregunta golden ancla un símbolo de su proyecto antes de llamar al modelo.
+
+### Linear DIS-33 (comentario en español, solo si se elige (a))
+
+> Las preguntas Q1 y Q2 de task-api cambian de texto en DIS-32 para que anclen un símbolo (B1 de la auditoría de spec, ronda 2); la revisión independiente debe usar los textos de `fixtures/README.md` tras el merge.
+
+### Linear DIS-20 (padre)
+
+No se edita.
