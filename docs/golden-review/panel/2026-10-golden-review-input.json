@@ -1,0 +1,436 @@
+{
+  "items": [
+    {
+      "project": "task-api",
+      "id": "Q1",
+      "kind": "golden",
+      "question": "¿Cómo valida taskRoutes las peticiones entrantes?",
+      "answer": "taskRoutes valida las peticiones entrantes mediante la definición de shemas de validación para rutas específicas y su asociación con controladores correspondientes.",
+      "statements": [
+        {
+          "n": 1,
+          "text": "Las rutas están definidas en 'src/routes/tasks.routes.ts' y cada una está asociada con un controlador del tipo 'taskRoutes'.",
+          "type": "INFERENCE",
+          "evidence": [
+            1
+          ]
+        },
+        {
+          "n": 2,
+          "text": "Las rutas especifican shemas de validación para rutas como '/tasks', '/tasks/:id', '/tasks', '/tasks/:id', '/tasks/:id' y '/tasks/:id' en 'src/routes/tasks.routes.ts'.",
+          "type": "FACT",
+          "evidence": [
+            2
+          ]
+        },
+        {
+          "n": 3,
+          "text": "El controlador 'TasksController' se encuentra en 'src/controllers/tasks.controller.ts', donde los controladores asociados a rutas como '/tasks', '/tasks/:id', '/tasks', '/tasks/:id', '/tasks/:id' y '/tasks/:id' están implementados con las funciones correspondientes.",
+          "type": "INFERENCE",
+          "evidence": [
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "n": 4,
+          "text": "Cada controlador llama a métodos del servicio 'TaskService' para manejar las peticiones, demostrando la validación implícita por parte del servicio.",
+          "type": "INFERENCE",
+          "evidence": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13
+          ]
+        },
+        {
+          "n": 5,
+          "text": "El servicio 'TaskService' en 'src/services/task.service.ts' se encarga de las validaciones adicionales como la verificación del estado de la tarea y la prunning de propiedades indefinidas.",
+          "type": "INFERENCE",
+          "evidence": [
+            14,
+            15,
+            16
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "n": 1,
+          "path": "src/routes/tasks.routes.ts",
+          "startLine": 15,
+          "endLine": 31
+        },
+        {
+          "n": 2,
+          "path": "src/routes/tasks.routes.ts",
+          "startLine": 15,
+          "endLine": 31
+        },
+        {
+          "n": 3,
+          "path": "src/controllers/tasks.controller.ts",
+          "startLine": 10,
+          "endLine": 16
+        },
+        {
+          "n": 4,
+          "path": "src/controllers/tasks.controller.ts",
+          "startLine": 18,
+          "endLine": 24
+        },
+        {
+          "n": 5,
+          "path": "src/controllers/tasks.controller.ts",
+          "startLine": 26,
+          "endLine": 32
+        },
+        {
+          "n": 6,
+          "path": "src/controllers/tasks.controller.ts",
+          "startLine": 34,
+          "endLine": 40
+        },
+        {
+          "n": 7,
+          "path": "src/controllers/tasks.controller.ts",
+          "startLine": 42,
+          "endLine": 48
+        },
+        {
+          "n": 8,
+          "path": "src/controllers/tasks.controller.ts",
+          "startLine": 10,
+          "endLine": 16
+        },
+        {
+          "n": 9,
+          "path": "src/controllers/tasks.controller.ts",
+          "startLine": 18,
+          "endLine": 24
+        },
+        {
+          "n": 10,
+          "path": "src/controllers/tasks.controller.ts",
+          "startLine": 26,
+          "endLine": 32
+        },
+        {
+          "n": 11,
+          "path": "src/controllers/tasks.controller.ts",
+          "startLine": 34,
+          "endLine": 40
+        },
+        {
+          "n": 12,
+          "path": "src/controllers/tasks.controller.ts",
+          "startLine": 42,
+          "endLine": 48
+        },
+        {
+          "n": 13,
+          "path": "src/services/task.service.ts",
+          "startLine": 13,
+          "endLine": 68
+        },
+        {
+          "n": 14,
+          "path": "src/services/task.service.ts",
+          "startLine": 13,
+          "endLine": 68
+        },
+        {
+          "n": 15,
+          "path": "src/app.ts",
+          "startLine": 22,
+          "endLine": 34
+        },
+        {
+          "n": 16,
+          "path": "src/services/task.service.ts",
+          "startLine": 71,
+          "endLine": 79
+        }
+      ]
+    },
+    {
+      "project": "task-api",
+      "id": "Q2",
+      "kind": "golden",
+      "question": "¿Qué hace buildPage con los resultados paginados?",
+      "answer": "La función buildPage convierte los resultados paginados en un objeto Page.",
+      "statements": [
+        {
+          "n": 1,
+          "text": "La función buildPage toma cuatro parámetros: items, total, page y pageSize.",
+          "type": "FACT",
+          "evidence": [
+            1
+          ]
+        },
+        {
+          "n": 2,
+          "text": "La función buildPage devuelve un objeto Page con las propiedades items, total, page, pageSize y pageCount.",
+          "type": "FACT",
+          "evidence": [
+            2
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "n": 1,
+          "path": "src/domain/pagination.ts",
+          "startLine": 13,
+          "endLine": 21
+        },
+        {
+          "n": 2,
+          "path": "src/domain/pagination.ts",
+          "startLine": 13,
+          "endLine": 21
+        }
+      ]
+    },
+    {
+      "project": "task-api",
+      "id": "Q3",
+      "kind": "golden",
+      "question": "¿Qué transiciones de estado son válidas?",
+      "answer": "Las transiciones de estado válidas son las que están definidas en la constante TRANSITIONS.",
+      "statements": [
+        {
+          "n": 1,
+          "text": "La función allowedTransitions devuelve las transiciones permitidas desde un estado específico.",
+          "type": "FACT",
+          "evidence": [
+            1
+          ]
+        },
+        {
+          "n": 2,
+          "text": "La función canTransition verifica si una transición de estado es válida.",
+          "type": "FACT",
+          "evidence": [
+            2
+          ]
+        },
+        {
+          "n": 3,
+          "text": "La función update en el servicio task.service.ts verifica las transiciones de estado antes de actualizar una tarea.",
+          "type": "INFERENCE",
+          "evidence": [
+            3
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "n": 1,
+          "path": "src/domain/task-status.ts",
+          "startLine": 29,
+          "endLine": 31
+        },
+        {
+          "n": 2,
+          "path": "src/domain/task-status.ts",
+          "startLine": 25,
+          "endLine": 27
+        },
+        {
+          "n": 3,
+          "path": "src/services/task.service.ts",
+          "startLine": 45,
+          "endLine": 62
+        }
+      ]
+    },
+    {
+      "project": "task-api",
+      "id": "Q4",
+      "kind": "unknown",
+      "question": "¿Cómo se autentican los usuarios?",
+      "answer": "UNKNOWN (no-anchor)",
+      "statements": [],
+      "evidence": []
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q1",
+      "kind": "golden",
+      "question": "¿Cómo se calcula el precio final de un pedido?",
+      "answer": "El precio final de un pedido se calcula en varios pasos, incluyendo subtotal, descuentos, impuestos y gastos de envío. Cada paso utiliza sus propios cálculos, basándose en los datos del pedido y las reglas establecidas.",
+      "statements": [
+        {
+          "n": 1,
+          "text": "El cálculo del precio final de un pedido se realiza en la clase `PriceCalculator` en el archivo `app/Services/PriceCalculator.php` (E4).",
+          "type": "INFERENCE",
+          "evidence": [
+            1
+          ]
+        },
+        {
+          "n": 2,
+          "text": "El subtotal, que es la suma total de todos los productos en el pedido, se obtiene del modelo `Order` a través del método `getSubtotalAttribute` (E12).",
+          "type": "INFERENCE",
+          "evidence": [
+            2
+          ]
+        },
+        {
+          "n": 3,
+          "text": "Para aplicar descuentos se usa la clase `DiscountService` en el archivo `app/Services/DiscountService.php` (E5). Este servicio calcula el descuento a partir del subtotal del pedido.",
+          "type": "FACT",
+          "evidence": [
+            3
+          ]
+        },
+        {
+          "n": 4,
+          "text": "Los impuestos se calculan en la clase `TaxService` dentro del archivo `app/Services/TaxService.php` (E7). Los impuestos se basan en el subtotal del pedido menos cualquier descuento aplicable.",
+          "type": "INFERENCE",
+          "evidence": [
+            4
+          ]
+        },
+        {
+          "n": 5,
+          "text": "El servicio `ShippingService`, ubicado en `app/Services/ShippingService.php` (E6), calcula el costo de envío basado en el subtotal menos los impuestos aplicados.",
+          "type": "INFERENCE",
+          "evidence": [
+            5
+          ]
+        },
+        {
+          "n": 6,
+          "text": "El resultado final del cálculo del precio se obtiene sumando el subtotal, los descuentos, los impuestos y los costos de envío (E4).",
+          "type": "FACT",
+          "evidence": [
+            6
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "n": 1,
+          "path": "app/Services/PriceCalculator.php",
+          "startLine": 16,
+          "endLine": 44
+        },
+        {
+          "n": 2,
+          "path": "app/Models/Order.php",
+          "startLine": 19,
+          "endLine": 57
+        },
+        {
+          "n": 3,
+          "path": "app/Services/DiscountService.php",
+          "startLine": 21,
+          "endLine": 66
+        },
+        {
+          "n": 4,
+          "path": "app/Services/TaxService.php",
+          "startLine": 18,
+          "endLine": 28
+        },
+        {
+          "n": 5,
+          "path": "app/Services/ShippingService.php",
+          "startLine": 16,
+          "endLine": 35
+        },
+        {
+          "n": 6,
+          "path": "app/Services/PriceCalculator.php",
+          "startLine": 16,
+          "endLine": 44
+        }
+      ]
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q3",
+      "kind": "golden",
+      "question": "¿Cómo se validan los cupones?",
+      "answer": "El proceso de validación de cupones en el código base está centralizado en el método `CouponValidator::percentFor()` en el archivo `CouponValidator.php`. Este método verifica si un cupón es válido basándose en su código, si éste es activo, si no ha expirado, y devuelve el porcentaje de descuento asociado. El código no detalla cómo se manejan los cupones directamente en el cálculo final del precio, pero indica que la información sobre los descuentos se utiliza en la clase `DiscountService.php` mediante el método `discountFor()`. La clase `PriceCalculator.php` en conjunto con `DiscountService.php` es encargada de determinar el precio final del pedido, y a través de estos mecanismos, los descuentos, incluyendo los de los cupones, son aplicados.",
+      "statements": [
+        {
+          "n": 1,
+          "text": "El método CouponValidator::percentFor() verifica la validad de un cupón.",
+          "type": "INFERENCE",
+          "evidence": [
+            1
+          ]
+        },
+        {
+          "n": 2,
+          "text": "La clase DiscountService utiliza los descuentos, incluyendo los cupones, en su método discountFor().",
+          "type": "FACT",
+          "evidence": [
+            2
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "n": 1,
+          "path": "app/Services/CouponValidator.php",
+          "startLine": 14,
+          "endLine": 39
+        },
+        {
+          "n": 2,
+          "path": "app/Services/DiscountService.php",
+          "startLine": 21,
+          "endLine": 66
+        }
+      ]
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q4",
+      "kind": "golden",
+      "question": "¿Qué hace OrderObserver al crear un pedido?",
+      "answer": "OrderObserver actualiza la base de datos del pedido y envía eventos.",
+      "statements": [
+        {
+          "n": 1,
+          "text": "OrderObserver ejecuta 'RecalculateTotals::dispatch($order);' al crear un pedido, lo que recalculará los totales del pedido.",
+          "type": "FACT",
+          "evidence": [
+            1
+          ]
+        },
+        {
+          "n": 2,
+          "text": "OrderObserver despatcha el evento 'new OrderPlaced($order);' cuando se crea un pedido.",
+          "type": "INFERENCE",
+          "evidence": [
+            2
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "n": 1,
+          "path": "app/Observers/OrderObserver.php",
+          "startLine": 14,
+          "endLine": 28
+        },
+        {
+          "n": 2,
+          "path": "app/Observers/OrderObserver.php",
+          "startLine": 14,
+          "endLine": 28
+        }
+      ]
+    }
+  ]
+}
