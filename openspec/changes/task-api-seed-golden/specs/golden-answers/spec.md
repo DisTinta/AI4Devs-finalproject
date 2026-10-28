@@ -2,7 +2,10 @@
 
 ### Requirement: Cache build command contract and configuration
 
-`npm run cache:build` SHALL take the arguments `[--project <name>] [<id>...]`, in any order. The
+`npm run cache:build` SHALL take the arguments `[--project <name>] [<id>...]`, in any order: the
+ids and the option with its value may come before or after one another (`Q3 --project acme-shop`
+is the same as `--project acme-shop Q3`), and the value is always the next argument
+(`--project=<name>` is an unknown option). The
 **golden projects** SHALL be the sample projects that have golden questions, `acme-shop` and
 `task-api`, in name order. Without arguments the build SHALL regenerate every golden question of
 every golden project, project by project in that order; with `--project <name>` alone, every golden
@@ -93,11 +96,11 @@ or a question's answer text.
 
 - **GIVEN** an empty environment
 - **WHEN** the cache build runs with `Q1`, then with `--project nope`, then with `--project`, then with
-  `--project acme-shop --project task-api`, then with `--all`
+  `--project acme-shop --project task-api`, then with `--all`, then with `--project=acme-shop`
 - **THEN** each run exits with `1`, stdout is empty and stderr holds one error line with code `USAGE`:
   the message `golden question ids need --project <name>` and `details.allowed` =
   `["acme-shop","task-api"]`; then `unknown golden project` with the same `details.allowed`; then
-  three times the message `usage: npm run cache:build [-- --project <name> [<id>...]]` with `details`
+  four times the message `usage: npm run cache:build [-- --project <name> [<id>...]]` with `details`
   = `{}`; no golden file is read
 
 #### Scenario: Unreachable services are reported without their URLs
@@ -139,7 +142,10 @@ The golden questions of task-api SHALL be exactly, in this order, `Q1`
 `¿Cómo se validan las peticiones entrantes?`, `Q2` `¿Cómo se paginan los resultados?` and `Q3`
 `¿Qué transiciones de estado son válidas?`, each with the id and the exact text of its row in the
 demo-question table of task-api in `fixtures/README.md`. Q4 (an `UNKNOWN`: the repository has no
-authentication) SHALL NOT be a golden question.
+authentication) SHALL NOT be a golden question: its terms (`autentican`, `usuarios` and their
+prefixes `auten`, `usuar`) name no symbol of task-api, so `ask` answers it `UNKNOWN` of reason
+`no-anchor` before the answer cache is read, without a model, in evaluation mode as in live mode. It
+is not checked by `verify`, which compares golden answers only; the scenario below checks it.
 
 #### Scenario: The golden questions match the demo-question table
 
@@ -155,6 +161,15 @@ authentication) SHALL NOT be a golden question.
 - **THEN** each golden question's id and text equal those of the row with the same id (the row id
   written without its `(UNKNOWN)` note), the ids are `Q1`, `Q2` and `Q3` in that order, and the golden
   projects are exactly `acme-shop` and `task-api`, in that order
+
+#### Scenario: task-api's Q4 is answered UNKNOWN without anchor in evaluation mode
+
+- **GIVEN** a migrated database where `db:seed` loaded the versioned seed and the versioned golden
+  files, and no `LLM_*` variable (evaluation mode)
+- **WHEN** `ask task-api "¿Cómo se autentican los usuarios?"` runs
+- **THEN** it exits with `0`; stdout is exactly `UNKNOWN (no-anchor)` followed by a line feed;
+  stderr is empty; no request reaches a model; and the number of `claim` rows and of task-api's
+  `cache_entry` rows is unchanged
 
 ### Requirement: The seed the answers are built on is current
 
@@ -241,6 +256,71 @@ non-sample project named as a requested project SHALL fail the build with `PROJE
   the model is not called; the existing project keeps its id and rows; the previous golden file is
   unchanged
 
+### Requirement: Retries and failures of a golden answer
+
+An attempt SHALL be retried, up to 3 attempts per question, when its answer is an `UNKNOWN` of reason
+`invalid-model-output`, `broken-evidence` or `no-evidence`, when it is an answer the cache would not
+keep (reason `not-cacheable`), or when the model request fails as `LLM_UNAVAILABLE` with reason
+`timeout` or `network`. An `UNKNOWN` of reason `no-anchor` or `over-budget` SHALL fail at once. A
+response whose JSON text matches `/AKIA[A-Z0-9]{16}/`, or contains, as written or as escaped inside a
+JSON string, the absolute path of the repository root or of the workspace the sample is rebuilt in,
+the value of `DATABASE_URL`, of `LLM_BASE_URL` or, when set, of `LLM_API_KEY`, SHALL fail at once with
+reason `unsafe-content`. A failure of the model with any other reason SHALL fail at once as
+`LLM_UNAVAILABLE`. After 3 failed attempts the
+build SHALL fail as `LLM_UNAVAILABLE` when the last attempt failed that way, and otherwise with
+`GOLDEN_NOT_CACHEABLE`. A `GOLDEN_NOT_CACHEABLE` failure SHALL have the message
+`<id> has no cacheable answer (<reason>)` and `details` = `{ id, reason }`, `<reason>` being one of
+`no-anchor`, `over-budget`, `invalid-model-output`, `no-evidence`, `broken-evidence`,
+`not-cacheable` or `unsafe-content`. Any failure SHALL leave the failing project's golden file, and
+those of the projects after it, byte for byte as they were, with no temporary file next to them (see
+"A failed build never leaves a broken golden file").
+
+#### Scenario: An invalid model output is retried
+
+- **GIVEN** the setting of "The golden answers are generated with a scripted model", with a model
+  whose first answer to Q3 is not valid JSON and whose second is valid
+- **WHEN** the cache build runs with `--project acme-shop`
+- **THEN** it exits with `0`; Q3 is in the file; stdout holds `Q3: attempt 1/3 not cacheable
+  (invalid-model-output)` followed by `Q3: answered in <s> s (attempt 2/3)`
+
+#### Scenario: A question without a cacheable answer fails without writing
+
+- **GIVEN** a previous golden file with known content, and the setting of "The golden answers are
+  generated with a scripted model" with a model whose three answers to Q3 are not valid JSON; then
+  one whose three answers to Q1 hold no statement; then one whose answer to Q4 quotes
+  `AKIAABCDEFGHIJKLMNOP` in a statement
+- **WHEN** the cache build runs with `--project acme-shop`
+- **THEN** each run exits with `1`; stderr holds one error line with code `GOLDEN_NOT_CACHEABLE` and
+  `details` = `{"id":"Q3","reason":"invalid-model-output"}`, then `{"id":"Q1","reason":"no-evidence"}`
+  after three attempts, then `{"id":"Q4","reason":"unsafe-content"}` after one attempt; stdout ends
+  with `Q3: attempt 3/3 not cacheable (invalid-model-output)`, `Q1: attempt 3/3 not cacheable
+  (no-evidence)` and `Q4: attempt 1/3 not cacheable (unsafe-content)` respectively; no output
+  contains `AKIAABCDEFGHIJKLMNOP`; the previous golden file is unchanged and no `.tmp` file remains
+  next to it; and the database rows are unchanged
+
+#### Scenario: Answers that cannot become golden fail at once
+
+- **GIVEN** a previous golden file with known content and a build whose answer to Q1 is an `UNKNOWN`
+  of reason `no-anchor`; then one whose answer is an `UNKNOWN` of reason `over-budget`; then one whose
+  model request fails as `LLM_UNAVAILABLE` with reason `http-status` and status `500`
+- **WHEN** the cache build runs with `--project acme-shop`
+- **THEN** each run exits with `1` after one attempt at Q1; stdout is exactly
+  `Q1: attempt 1/3 not cacheable (no-anchor)`, then `Q1: attempt 1/3 not cacheable (over-budget)`,
+  then `Q1: attempt 1/3 not cacheable (http-status)`; stderr holds one error line with code
+  `GOLDEN_NOT_CACHEABLE` and `details` = `{"id":"Q1","reason":"no-anchor"}`, then
+  `{"id":"Q1","reason":"over-budget"}`, then code `LLM_UNAVAILABLE` with `details.reason` =
+  `http-status` and `details.status` = `500`; the previous golden file is unchanged
+
+#### Scenario: A model that keeps timing out is reported as unavailable
+
+- **GIVEN** a previous golden file with known content and a model whose every request fails as a
+  timeout
+- **WHEN** the cache build runs with `--project acme-shop`
+- **THEN** it exits with `1` after three attempts at Q1; stdout is exactly the three lines
+  `Q1: attempt 1/3 not cacheable (timeout)`, `Q1: attempt 2/3 not cacheable (timeout)` and
+  `Q1: attempt 3/3 not cacheable (timeout)`; stderr holds one error line with code
+  `LLM_UNAVAILABLE` and `details.reason` = `timeout`; the previous golden file is unchanged
+
 ### Requirement: Partial regeneration
 
 With `--project <name>` and question ids the build SHALL read that project's existing golden file
@@ -263,8 +343,10 @@ requested project SHALL be regenerated and every `reviews` list of its file SHAL
 - **WHEN** the cache build runs with `--project acme-shop Q3`
 - **THEN** it exits with `0`; the model is asked only Q3; the Q1 and Q4 entries of the new file,
   Q1's review included, are identical to the previous ones; the Q3 entry holds the new answer with
-  empty `reviews`; and the final line counts `3 golden answers`; and a run with `--project acme-shop`
-  over that file then regenerates the three questions and leaves every `reviews` list empty
+  empty `reviews`; and the final line counts `3 golden answers`; a run with `Q3 --project acme-shop`
+  over the same previous file behaves exactly the same (the arguments may come in any order); and a
+  run with `--project acme-shop` over that file then regenerates the three questions and leaves every
+  `reviews` list empty
 
 #### Scenario: A stale golden file is not partially regenerated
 

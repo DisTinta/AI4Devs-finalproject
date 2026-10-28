@@ -38,7 +38,7 @@ body of a module-level `const` function SHALL still be emitted as well.
 
 A module-level `const` function SHALL be neither the source nor the target of any `calls` edge (see
 "TypeScript calls"): a call inside its body has no edge, and neither has a call of it nor a reference
-to it passed as an argument. The other edge kinds treat it as any other `function` symbol.
+to it passed as an argument.
 
 A symbol's span SHALL go from the first line of its declaration — its decorators, `export`,
 `default` and other modifiers included, any comment before it (a JSDoc included) excluded — to the

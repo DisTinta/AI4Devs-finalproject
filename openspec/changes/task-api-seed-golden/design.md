@@ -11,8 +11,9 @@ See `proposal.md` for the why. The state this design starts from (`final-project
   `--language typescript` with `typescript: not available yet (CM-HU-18)`.
 - `packages/cli/src/seed/fingerprint.ts` hashes the PHP analyzer, core's `index/` and `knowledge/`,
   the adapters, the seed renderer, `fixtures/history/` and `fixtures/acme-shop/`; it skips only
-  `.git`. `fixtures/task-api/node_modules/` exists locally (ignored by git), so hashing
-  `fixtures/task-api/` without skipping it would give a local fingerprint CI never reproduces.
+  `.git`. `fixtures/task-api/node_modules/` (ignored by git) and `fixtures/task-api/package-lock.json`
+  (untracked, not ignored) exist locally, so walking `fixtures/task-api/` would give a local
+  fingerprint CI never reproduces (D5).
 - `packages/cli/src/cache-build.ts` + `cache/demo-questions.ts`: `GOLDEN_PROJECT = 'acme-shop'` and
   `GOLDEN_QUESTIONS` fixed; argv = ids; default output `seeds/cache/acme-shop.json`.
 - `seed-load.ts`, `parse-seed.ts`, `verify.ts` and the golden-file readers already handle N projects
@@ -104,16 +105,31 @@ rows read back. Only when both are read back are the files rendered and written 
 seed), so any failure of either indexing writes nothing. `renderSeedDump` takes
 `(projects: { name, rows }[], fingerprints)`: one header, then each project's block in name order with
 the existing per-project rendering; `renderSampleProjects` takes the same list. The default
-`buildHistory` calls `buildOne` for both fixtures. One summary line per project. Alternatives: two
+`buildHistory` calls `buildOne` for both fixtures. One summary line per project. Errors are mapped
+with the failing project's name as the typed path, as today with `acme-shop`: a `NOT_A_GIT_REPOSITORY`
+of task-api says `"task-api" is not the root of a git repository` (spec scenario "A failure of the
+second project's repository names it"; Follow-ups SA5). Alternatives: two
 seed files (rejected: `db:seed` reads one file and `verify` one header); indexing both in one
 transaction (rejected: the temporary name would collide).
 
 ### D5 — Analyzer fingerprint inputs (enrich E5)
 
 `ANALYZER_DIRECTORIES` gains `packages/analyzers/typescript/src` and `fixtures/task-api`;
-`PARSER_DEPENDENCIES` gains `typescript`; `filesUnder` skips entries named `node_modules` as it skips
-`.git`. The analyzer fingerprint changes (core `index/`, the new directories), the contract
-fingerprint does not.
+`PARSER_DEPENDENCIES` gains `typescript`. Under `fixtures/acme-shop` and `fixtures/task-api` the
+analyzer fingerprint hashes only the files tracked by the repository (`git ls-files -z -- <dir>` run
+at `repoRoot`, contents read from the working tree), so `.git`, `node_modules`, an untracked
+`package-lock.json` or any ignored file (`dist/`, `.env`, `*.log`, `vendor/`) never reaches it; the
+other input directories keep today's walk, skipping `.git` and `node_modules`. Reason (spec audit
+run 1, B1): `fixtures/task-api/package-lock.json` exists locally, untracked and not ignored; walking
+it would give a local fingerprint CI never reproduces, and the `verify` job would fail with
+`FINGERPRINT_MISMATCH` right after the merge. The rows already come only from tracked files
+(`buildOne` commits the manifest's paths), so the fingerprint now has the same inputs as the rows,
+and the acme-shop precondition of `docs/project-context.md` (`git clean -ndX fixtures/acme-shop`
+empty) is no longer needed. `git` is already required by the seed build, the cache build and the CI
+checkout. Alternative: a skip list (`node_modules`, `package-lock.json`, `dist`, `.env`, `*.log`)
+inside the fixtures — rejected: it repeats each fixture's `.gitignore` by hand and still lets any
+other untracked file in. The analyzer fingerprint changes (core `index/`, the new directories), the
+contract fingerprint does not.
 
 ### D6 — Multi-project cache build (enrich E6)
 
@@ -121,7 +137,9 @@ fingerprint does not.
 Q4; task-api Q1, Q2, Q3, texts copied from `fixtures/README.md`) instead of `GOLDEN_PROJECT` and
 `GOLDEN_QUESTIONS`. `cache-build.ts`: a small argument parser (no `commander` dependency needed; the
 order of checks is the spec's) produces the list of `{ project, ids | all }`; the configuration
-checks run once; the plan is built for every requested project before any connection (seed check,
+checks run once; ids and `--project <name>` may come in any order, the value is always the next
+argument, and `--project=<name>` is an unknown option (`USAGE` with the usage message; Follow-ups
+SA4); the plan is built for every requested project before any connection (seed check,
 project row and `indexed_commit`, partial-file checks, history rebuilt and `HEAD` compared); then
 projects run in order, each writing its file right after its last question. The seams change from
 `outputPath` to `outputDir` (default `seeds/cache`), and `buildHistory` receives the project name. The
@@ -162,7 +180,8 @@ rely on a `TasksController` → `TaskService` edge (none exists, DIS-31 E1).
 `sample-projects.ts` is regenerated by `seed:build`; `suggested-questions.ts` gains the task-api entry
 with its three golden questions. The existing coherence tests (`sample-projects-coherence`,
 `suggested-questions-coherence`) guard both; the latter is extended with an explicit task-api
-assertion.
+assertion, backed by the `ask-page` delta ("The suggested questions are the golden questions" names
+task-api's three questions; Follow-ups SA7).
 
 ### D10 — No ADR
 
@@ -177,8 +196,9 @@ the author's decision, recorded in Linear and here.
   `canTransition`).
 - [A task-api golden answer cites weak evidence for Q1 (schemas are not symbols)] → accepted for now,
   judged by DIS-33 (D8).
-- [`fixtures/task-api/node_modules` locally makes the fingerprint differ from CI] → skipped (D5);
-  the CI `verify` job proves the fingerprints match.
+- [`fixtures/task-api/node_modules` or the untracked `package-lock.json` locally make the fingerprint
+  differ from CI] → only tracked files of the fixtures are hashed (D5); the CI `verify` job proves
+  the fingerprints match.
 - [acme-shop loses the DIS-104 reviews] → recorded for DIS-33 (D7).
 - [Mutation score on the new CLI code] → unit tests for the argument parser, per-project plan and
   failure messages; the CI mutation job is the gate.
@@ -205,13 +225,13 @@ pre-merge reviews add their findings here.
 | E2 | Only `bySymbolOrder`, `keepFirst` and `uniqueInputs` move to core; `byPath` stays duplicated (the author's exception covers only those three) | **A** — this change (D2) |
 | E3 | One `seeds/graph-dump.sql`, format 1, one header, projects in name order | **A** — this change (D4) |
 | E4 | `defaultPorts` picks the analyzer by language; `index --language typescript` is enabled | **A** — this change (D3) |
-| E5 | Fingerprint covers `packages/analyzers/typescript/src`, `fixtures/task-api` and `typescript`; skips `node_modules` | **A** — this change (D5) |
+| E5 | Fingerprint covers `packages/analyzers/typescript/src`, `fixtures/task-api` and `typescript`; under the fixtures only tracked files (revised by SA1) | **A** — this change (D5) |
 | E6 | `cache:build` per project with `--project`; task-api golden Q1, Q2, Q3; Q4 (authentication) has no golden answer | **A** — this change (D6) |
 | E7 | Revised: no review preservation (JSON equality never holds because of `usage.latencyMs`); acme-shop's regenerated entries carry no reviews and DIS-33's review covers them too | **B** — Spanish comment on DIS-33 |
 | E8 | task-api Q1 cites what the graph offers; judged by DIS-33 | **B** — DIS-33 |
 | E10 | Docs: `fixtures/README.md`, `docs/DEMO.md`, `readme.md`, `docs/project-context.md` | **A** — this change |
 | E11 | The agent runs `seed:build`, `cache:build` and `verify` locally with Ollama; CI runs only `verify` | **A** — this change (D7) |
-| E12 | PowerShell checks (the `docs/DEMO.md` commands in a new PowerShell terminal: `npm run db:seed`, `npm run verify`, `npm run cli -- ask task-api "…"`) are for the author; the agent runs the same commands in Git Bash | **C** — author (tasks 9.6) |
+| E12 | PowerShell checks (the `docs/DEMO.md` commands in a new PowerShell terminal: `npm run db:seed`, `npm run verify`, `npm run cli -- ask task-api "…"`) are for the author; the agent runs the same commands in Git Bash | **C** — author (task 9.4) |
 | P1 | A `const` statement with several declarators gives no symbol (unambiguous spans) | **D** — accepted |
 | P2 | `cache:build` arguments: ids need `--project`; unknown project and malformed arguments are `USAGE` | **A** — this change (D6) |
 | P3 | Golden files are written per project; an `INTERNAL` failure after a written file names it | **A** — this change (D6) |
@@ -219,3 +239,20 @@ pre-merge reviews add their findings here.
 | P5 | The `cli-projects`, `project-picker`, `seed-load` and `verify-smoke` scenarios that assumed a single sample are updated (deltas), not left contradicting the versioned seed | **A** — this change |
 | P6 | No ADR (D10) | **D** — accepted |
 | P7 | `npm run up` keeps rebuilding only acme-shop's history; a live (non-golden) question about task-api needs `node fixtures/build-history.mjs task-api` first, documented in `docs/DEMO.md` and `readme.md` | **C** — explicit debt, Spanish checklist comment on DIS-32 |
+
+Spec audit, run 1 (`reports/2026-10-28-spec-audit.md`, section "Resolution of run 1"). *Agent's
+text: questions for the author answered as lead engineer in an autonomous run, without the author.*
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| Q-A | `verify` does not check task-api's Q4: it compares golden answers only, and Q4 has no golden answer by design (sub-issue E6, AC 5). The parent DIS-20 AC 4 ("`verify` runs Q1–Q4 of task-api, including the authentication UNKNOWN") is met by an automated test of `ask` over the versioned seed (golden-answers scenario "task-api's Q4 is answered UNKNOWN without anchor in evaluation mode"), not by `verify`. Least scope: no change to `verify.ts` nor to the golden-file format | **A** — this change (spec golden-answers, task 6.4) |
+| Q-B | The DIS-104 reviews of acme-shop's golden entries are lost on regeneration (E7 revised accepted as is): keeping them for entries whose verify fields do not change would be new behaviour; DIS-33's independent review covers the regenerated acme-shop entries | **B** — Spanish comment on DIS-33 (task 11.7) |
+| SA1 | (B1) Fixture fingerprint inputs are the tracked files only (untracked `fixtures/task-api/package-lock.json` would break CI `verify`) | **A** — this change (D5, spec seed-build "Fingerprints", tasks 4.1, 4.2) |
+| SA2 | (B2) The task-api `file` row of `src/config/env.ts` has `redacted = true` and the planted value is absent from the seed | **A** — this change (spec seed-build, tasks 4.6, 6.1) |
+| SA3 | (B3) task-api's Q4 answers `UNKNOWN (no-anchor)`: its terms `autentican`, `auten`, `usuarios`, `usuar` match no symbol name of task-api (`anchor.ts` searches names only), so no model and no cache read | **A** — this change (spec golden-answers, task 6.4) |
+| SA4 | `cache:build` arguments in any order; `--project=<name>` is an unknown option (`USAGE`), not an accepted form | **A** — this change (D6, spec golden-answers, task 5.3) |
+| SA5 | (B5) `seed:build` errors name the failing project as the typed path | **A** — this change (D4, spec seed-build, tasks 4.6, 4.7) |
+| SA6 | (B4) "Retries and failures of a golden answer" is modified: a failure leaves the failing project's file and the later ones as they were; its scenarios run with `--project acme-shop` | **A** — this change (spec golden-answers, task 5.3) |
+| SA7 | The `ask-page` delta names task-api's three suggested questions, backing the coherence assertion of D9 | **A** — this change (spec ask-page, task 6.3) |
+| SA8 | The sentence "The other edge kinds treat it as any other `function` symbol" of code-analysis is removed: it states no observable behaviour the change tests | **D** — accepted |
+| SA9 | Spec and plan fixes: broken scenario reference in seed-build, generic flipped type in verify-smoke, E12 task number, task 8.1 check, tasks 4.5, 5.3 and 6.4 split into 4.5–4.6, 5.3–5.4 and 6.4–6.6 | **A** — this change |

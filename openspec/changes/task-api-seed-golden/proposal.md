@@ -34,7 +34,9 @@ regenerated):
   never-committed transaction, and writes one `seeds/graph-dump.sql` (format 1, one header, the two
   projects in name order) and a `packages/web/src/data/sample-projects.ts` with both; one stdout line
   per project. The analyzer fingerprint covers the TypeScript analyzer, `fixtures/task-api` and the
-  `typescript` version, and skips `node_modules` as it skips `.git`.
+  `typescript` version; under the two fixtures it hashes only the files tracked by the repository,
+  so a local `node_modules`, an untracked `package-lock.json` or an ignored file never reaches it.
+  An indexing error names the failing project (`"task-api" is not the root of a git repository`).
 - `npm run db:seed` prints `2 projects loaded` (it already supported N projects).
 - `npm run cache:build` builds the golden answers of every sample project (`acme-shop`: Q1, Q3, Q4;
   `task-api`: Q1, Q2, Q3 of the task-api table of `fixtures/README.md`), one file per project in
@@ -44,7 +46,9 @@ regenerated):
   `sample-projects.ts` are regenerated with Ollama (`qwen2.5-coder`). The fingerprint change forces
   acme-shop's golden answers to be regenerated; the regenerated entries carry no reviews.
 - Screen 1 shows two sample cards; Screen 2 of `task-api` suggests its three golden questions.
-  `npm run verify` prints `acme-shop: 3/3 …` and `task-api: 3/3 golden answers match`.
+  `npm run verify` prints `acme-shop: 3/3 …` and `task-api: 3/3 golden answers match`. task-api's Q4
+  (authentication) answers `UNKNOWN (no-anchor)` without a model, pinned by a test of `ask`; it is
+  not part of `verify`, which compares golden answers only.
 - Docs: `fixtures/README.md`, `docs/DEMO.md`, `readme.md`, `docs/project-context.md`.
 - The PR carries `git diff --stat origin/final-project-CRN...HEAD -- packages/core`, which lists only
   the helpers file and the barrel's export line.
@@ -77,6 +81,8 @@ None.
   per-project files and checks, and both versioned golden files coherent.
 - `verify-smoke`: the expected output with task-api's golden answers.
 - `project-picker`: Screen 1 shows the two sample cards.
+- `ask-page`: "Suggested questions" — the coherence scenario names task-api's three suggested
+  questions.
 - `cli-projects`: the listing scenario with both samples loaded.
 
 ## Impact

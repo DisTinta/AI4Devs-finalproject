@@ -175,3 +175,79 @@ Añadir en la parte [enhanced] o en un comentario:
 ### Linear DIS-20 (padre)
 
 No se edita. La discrepancia del AC 4 queda como pregunta Q-A en el comentario de DIS-32.
+
+---
+
+## Resolution of run 1
+
+*Texto del agente (ronda de corrección 1, ejecución autónoma 2026-10-28). Las preguntas para la
+autora las decide el agente como lead engineer; cada decisión queda en `design.md` → Follow-ups
+con su destino A/B/C/D.*
+
+### Preguntas para la autora
+
+- **Q-A — decidida por el agente.** `verify` no comprueba Q4 de task-api: compara solo respuestas
+  golden y Q4 no tiene golden por diseño (E6, AC 5 de la sub-issue). El AC 4 del padre DIS-20 queda
+  cubierto por un test automático de `ask` sobre la semilla versionada (escenario nuevo «task-api's Q4
+  is answered UNKNOWN without anchor in evaluation mode», tarea 6.4), sin tocar `verify.ts` ni el
+  formato de las golden. Es la opción que menos amplía el alcance. Follow-ups Q-A, destino **A**.
+- **Q-B — decidida por el agente.** Se acepta la pérdida de las revisiones de DIS-104 (E7 revisada
+  tal cual): conservarlas en las entradas cuyos campos de `verify` no cambian sería comportamiento
+  nuevo. La revisión independiente de DIS-33 cubre las entradas regeneradas de acme-shop. Follow-ups
+  Q-B, destino **B** (comentario en DIS-33, tarea 11.7).
+
+### Bloqueantes
+
+- **B1 — corregido.** D5 y el requisito «Fingerprints» de seed-build: bajo `fixtures/acme-shop` y
+  `fixtures/task-api` la huella usa solo los ficheros versionados (`git ls-files -z` en `repoRoot`);
+  en el resto de directorios sigue el recorrido actual sin `.git` ni `node_modules`. Se descarta la
+  lista de exclusiones a mano (repite cada `.gitignore` y deja pasar otros no versionados). El
+  escenario «Each fingerprint covers exactly its declared inputs» añade `package-lock.json` no
+  versionado, `dist/x.js` ignorado y un no versionado en acme-shop; tareas 4.1, 4.2, 8.1 y 11.4.
+  Follow-ups SA1, destino **A**.
+- **B2 — corregido.** El escenario «The task-api block of the seed is generated» exige `redacted =
+  true` en la fila de `src/config/env.ts`, la ausencia del valor plantado y ninguna coincidencia con
+  `/AKIA[A-Z0-9]{16}/`; tareas 4.6 y 6.1. Follow-ups SA2.
+- **B3 — corregido, motivo decidido por el agente.** Comprobado en `packages/core/src/context/anchor.ts`:
+  los términos de «¿Cómo se autentican los usuarios?» son `autentican`, `auten`, `usuarios` y `usuar`,
+  y el ancla busca solo nombres de símbolo; ningún símbolo de task-api los contiene. El motivo queda
+  fijado en `no-anchor` (sin modelo, antes de leer la caché), en el requisito «Golden questions» y en
+  su escenario nuevo; tareas 6.4 y 9.1. Follow-ups SA3.
+- **B4 — corregido.** Delta MODIFIED de «Retries and failures of a golden answer»: un fallo deja como
+  estaban el fichero del proyecto que falla y los de los proyectos posteriores, y sus cuatro escenarios
+  corren con `--project acme-shop`; tarea 5.3. Follow-ups SA6.
+- **B5 — corregido.** Requisito «Command contract and configuration» de seed-build: el `<path>` de los
+  errores es el nombre del proyecto cuya indexación falla; escenario nuevo «A failure of the second
+  project's repository names it»; D4; tareas 4.6 y 4.7. Follow-ups SA5.
+
+### Mejorables
+
+- **Orden de argumentos y `--project=` — corregido, decidido por el agente.** `--project=<name>` es una
+  opción desconocida (`USAGE`); los argumentos pueden ir en cualquier orden. Requisito y escenarios
+  «Project arguments are checked before anything else» y «Only the named question is regenerated»
+  ampliados; D6; tarea 5.3. Follow-ups SA4.
+- **Frase de code-analysis sobre las otras aristas — corregido borrándola.** No describe comportamiento
+  observable que el cambio pruebe. Follow-ups SA8, destino **D**.
+- **Delta de `ask-page` — corregido.** Nuevo `specs/ask-page/spec.md` (MODIFIED «Suggested questions»)
+  con las tres preguntas de task-api; `ask-page` añadido a `proposal.md`; D9 y tarea 6.3 lo citan.
+  Follow-ups SA7.
+- **Referencia rota en «Two consecutive builds produce identical files» — corregido** (remite a «The
+  acme-shop seed is generated»).
+- **E12 «tasks 9.6» — corregido** a la tarea 9.4.
+- **Tarea 8.1 — corregida**: `git status --porcelain fixtures` y `git clean -ndX fixtures/acme-shop
+  fixtures/task-api`, aceptando solo no versionados o ignorados que D5 deja fuera de la huella.
+- **Tipo invertido en verify-smoke — corregido**: el escenario muestra la diferencia de forma genérica
+  (`expected "<flipped>", got "<served>"`).
+- **Ambigüedad en `design.md` («enough for real code», etc.) — rechazado**: son frases de justificación,
+  no normativas; la auditoría no las bloquea.
+- **Tamaño de tareas — corregido**: 4.5 se parte en 4.5 (unitarios) y 4.6 (integración), con la verde
+  en 4.7; 5.3 en 5.3 (unitarios) y 5.4 (integración), con la verde en 5.5; 6.4 en 6.4 (coherencia,
+  `seed-load` y Q4), 6.5 (`verify` y `projects`) y 6.6 (`ProjectPickerPage` y revisión); la antigua 6.5
+  pasa a 6.7. La 6.2 (Ollama) se deja como está.
+- Follow-ups SA9 recoge estas correcciones de spec y plan.
+
+### Linear
+
+Comentario en español en DIS-32 con las decisiones de esta ronda. DIS-20 (padre) no se edita.
+
+`openspec validate task-api-seed-golden --strict`: el cambio es válido.

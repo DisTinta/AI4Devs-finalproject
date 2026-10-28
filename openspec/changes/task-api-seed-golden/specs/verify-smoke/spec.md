@@ -51,11 +51,13 @@ entry matches.
 #### Scenario: An altered golden answer is reported field by field
 
 - **GIVEN** the database of "Every golden answer matches" and, after the load, an acme-shop golden file
-  on disk with the same fingerprints whose Q3 `statements[0].type` is `FACT` instead of `INFERENCE`
+  on disk with the same fingerprints whose Q3 `statements[0].type` is flipped (`FACT` becomes
+  `INFERENCE` and `INFERENCE` becomes `FACT`)
 - **WHEN** verify runs
 - **THEN** it exits with `1`; stdout is the `✓` line of acme-shop's Q1, the line
   `✗ acme-shop Q3 ¿Cómo se validan los cupones?`, the line
-  `    statements[0].type: expected "FACT", got "INFERENCE"`, the `✓` line of acme-shop's Q4, the three
+  `    statements[0].type: expected "<flipped>", got "<served>"`, `<served>` being the type stored in
+  the versioned golden file and `<flipped>` the other one, the `✓` line of acme-shop's Q4, the three
   `✓` lines of task-api, `acme-shop: 2/3 golden answers match` and
   `task-api: 3/3 golden answers match`; stderr is empty
 

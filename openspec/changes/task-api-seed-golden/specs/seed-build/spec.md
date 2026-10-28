@@ -21,7 +21,8 @@ under the OS temporary directory, or on another drive on Windows), `<output>` SH
 name. On failure, stdout SHALL stay empty and stderr SHALL hold exactly one line,
 `{"error":{"code","message","details"}}`, and nothing else, with the codes of the `index` command
 for the same failures (`MISSING_CONFIG`, `DATABASE_UNAVAILABLE`, `PROJECT_NAME_TAKEN`,
-`FORBIDDEN_PATH`, `INVALID_GRAPH`, `NOT_A_GIT_REPOSITORY`, `EMPTY_REPOSITORY`), `PARTIAL_WRITE` when
+`FORBIDDEN_PATH`, `INVALID_GRAPH`, `NOT_A_GIT_REPOSITORY`, `EMPTY_REPOSITORY`), whose `<path>` is
+the name of the sample project whose indexing failed (`"acme-shop"` or `"task-api"`), `PARTIAL_WRITE` when
 the sample-project constant was written and the seed file was not, and `INTERNAL` for anything else.
 An `INTERNAL` failure, which always happens before any file is written, SHALL have the message
 `seed build failed; nothing was written`. No output SHALL contain an absolute path, the database URL
@@ -52,6 +53,17 @@ or its credentials, or the text `may have been saved`.
   unrelated existing directory
 - **WHEN** the seed build runs
 - **THEN** each run exits with `0` and writes the same seed as a run without `ALLOWED_REPOS_DIR`
+
+#### Scenario: A failure of the second project's repository names it
+
+- **GIVEN** a migrated database, a valid salt, a previous seed file and a previous sample-project
+  constant with known contents, the build pointed at a valid copy of acme-shop and at a copy of
+  task-api without history (no `.git`, its history not rebuilt)
+- **WHEN** the seed build runs
+- **THEN** it exits with `1`; stdout is empty; stderr holds exactly one line with code
+  `NOT_A_GIT_REPOSITORY` and the message `"task-api" is not the root of a git repository`; every
+  transaction opened is rolled back and released; and the previous seed file and the previous
+  constant are unchanged
 
 ### Requirement: Seed content
 
@@ -100,7 +112,9 @@ it, or a commit author's name or e-mail address (authors appear only as `author_
   `commit` and `file_commit` rows in that order, every one of them with task-api's project id; its
   `node_count` and `edge_count` equal its row counts in the output and the counts of the task-api
   stdout line; it holds a `file` row for `src/config/env.ts`, a `symbol` row `function taskRoutes`,
-  `calls` edges only with `resolution` `exact`; and the output does not contain `@taskapi.test`
+  `calls` edges only with `resolution` `exact`; the `file` row of `src/config/env.ts` has
+  `redacted = true`; and the output does not contain `@taskapi.test` nor the planted value of
+  `fixtures/task-api/src/config/env.ts` line 7, and does not match `/AKIA[A-Z0-9]{16}/`
 
 #### Scenario: Adding task-api leaves the acme-shop rows unchanged
 
@@ -144,8 +158,8 @@ the order in which the database returns rows.
 
 #### Scenario: Two consecutive builds produce identical files
 
-- **GIVEN** a migrated database that already holds other projects, and the build of "The seed of both
-  samples is generated"
+- **GIVEN** a migrated database that already holds other projects, and the build of "The acme-shop
+  seed is generated"
 - **WHEN** the seed build runs twice in a row with the same salt
 - **THEN** both outputs are identical byte for byte, both sample-project constants are identical
   byte for byte, and none of their ids equals an id in the database
@@ -171,8 +185,12 @@ content with line endings normalised to LF:
   `fixtures/task-api/`; the files `packages/cli/src/seed-build.ts`,
   `packages/cli/src/compose-index.ts` and `fixtures/build-history.mjs`; and one synthetic input per
   parser dependency, `deps:tree-sitter-php@<version>`, `deps:typescript@<version>` and
-  `deps:web-tree-sitter@<version>`, with the versions resolved in `package-lock.json`. Any path with a
-  `.git` or a `node_modules` segment is excluded;
+  `deps:web-tree-sitter@<version>`, with the versions resolved in `package-lock.json`. Under
+  `fixtures/acme-shop/` and `fixtures/task-api/` only the files tracked by the repository (its
+  index at the repository root) are inputs, so an untracked file (such as a
+  `fixtures/task-api/package-lock.json` left by a local `npm install`) or an ignored one (`.env`,
+  `dist/`, `vendor/`, logs) never is; elsewhere any path with a `.git` or a `node_modules` segment is
+  excluded;
 - contract: `packages/core/src/ports/AnalyzerPort.ts` and every
   `packages/adapters/store-postgres/migrations/*.up.sql`.
 
@@ -195,14 +213,15 @@ are listed, or on any other file.
 
 #### Scenario: Each fingerprint covers exactly its declared inputs
 
-- **GIVEN** a repository tree holding every declared input and files outside them
+- **GIVEN** a git repository tree holding every declared input, tracked, and files outside them
   (`packages/api/src/x.ts`, `packages/cli/src/index.ts`, `fixtures/README.md`, a `.down.sql`
-  migration, `fixtures/acme-shop/.git/`, `fixtures/task-api/.git/` and
-  `fixtures/task-api/node_modules/`)
+  migration, `fixtures/acme-shop/.git/`, `fixtures/task-api/.git/`,
+  `fixtures/task-api/node_modules/`, the untracked `fixtures/task-api/package-lock.json` and the
+  ignored `fixtures/task-api/dist/x.js`)
 - **WHEN** a file changes under each analyzer input directory and in each analyzer input file, in
   `AnalyzerPort.ts` and in one `.up.sql` migration, and then every outside file changes and a file is
   added under `fixtures/acme-shop/.git/`, `fixtures/task-api/.git/` and
-  `fixtures/task-api/node_modules/`
+  `fixtures/task-api/node_modules/`, and an untracked file is added under `fixtures/acme-shop/`
 - **THEN** each analyzer change alters only the analyzer fingerprint, each contract change alters only
   the contract fingerprint, and the outside changes alter neither
 
