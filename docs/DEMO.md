@@ -21,7 +21,7 @@ variable ya definida en la terminal gana sobre `.env`.
 | Node / npm | v24.11.1 / 11.19.0 (el proyecto necesita Node 22.12 o posterior, una línea LTS; la CI usa Node 22) |
 | LLM | ninguno: **modo evaluación**, todas las variables `LLM_*` vacías |
 | Base de datos | una base de datos nueva y vacía (ver el paso 0) |
-| Respuestas golden (pasos 1, 2 y 5; web, puntos 8 y 9) | recapturadas el 2026-10-27 en la rama `feature/dis-104-answer-language` (Git Bash, modo evaluación, base de datos local recién sembrada con `npm run db:seed`), porque DIS-104 regeneró las respuestas golden: la salida de `ask` del paso 1, los recuentos y latencias de `demo:ask` de los pasos 1 y 5 y el valor de confianza de la web. El resto de la guía es de la captura de 2026-10-20. El 2026-10-28 DIS-107 volvió a regenerar las respuestas golden (corrección del analizador de TypeScript) después de esa captura de DIS-104: la salida de `ask` del paso 6 se recapturó ese día en Git Bash, pero los recuentos y latencias de `demo:ask` de los pasos 1 y 5, el valor de confianza de la web y las capturas de pantalla siguen siendo los de DIS-104 y no se han vuelto a tomar |
+| Respuestas golden (pasos 1, 2 y 5; web, puntos 8 y 9) | recapturadas el 2026-10-27 en la rama `feature/dis-104-answer-language` (Git Bash, modo evaluación, base de datos local recién sembrada con `npm run db:seed`), porque DIS-104 regeneró las respuestas golden: la salida de `ask` del paso 1, los recuentos y latencias de `demo:ask` de los pasos 1 y 5 y el valor de confianza de la web. El resto de la guía es de la captura de 2026-10-20. El 2026-10-28 DIS-107 volvió a regenerar las respuestas golden (corrección del analizador de TypeScript) después de esa captura de DIS-104: la salida de `ask` de los pasos 1 y 6 se recapturó ese día en Git Bash, pero los recuentos y latencias de `demo:ask` de los pasos 1 y 5, el valor de confianza de la web y las capturas de pantalla siguen siendo los de DIS-104 y no se han vuelto a tomar |
 | `Probar con un modelo real` | 2026-10-20, rama `feature/DIS-103-real-model-clean-clone` clonada en una carpeta nueva, Git Bash: Ollama 0.40.5 **solo en CPU**, `qwen2.5-coder`, `OLLAMA_CONTEXT_LENGTH=16384`, `LLM_TIMEOUT_MS=1200000`. Duraciones medidas: CLI 8 min 28 s; API 300,9 s (pregunta repetida con la caché desactivada); web en Chromium 597,7 s (otra pregunta, «¿Qué hace ShippingService?»). La salida de la CLI pegada en esa sección es de otra captura, la de DIS-104 (2026-10-26, rama `feature/dis-104-answer-language`, Git Bash, Ollama 0.40.11 solo en CPU con `OLLAMA_CONTEXT_LENGTH=16384`, `qwen2.5-coder`, `LLM_TIMEOUT_MS=1200000`, primera llamada tras `npm run db:seed`, así que no salió de la caché): 598 s, con la salida de error mezclada como en las anteriores |
 
 Los únicos cambios hechos a la salida pegada:
@@ -230,22 +230,20 @@ npm run cli -- ask acme-shop "¿Cómo se calcula el precio final de un pedido?"
 > codemind@0.0.1 cli
 > tsx --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts ask acme-shop ¿Cómo se calcula el precio final de un pedido?
 
-El precio final de un pedido se calcula mediante el método `compute` de la clase `PriceCalculator`. Este método considera el subtotal, los descuentos aplicados, las tarifas de impuesto y el costo de envío. La logica principal de este proceso se encuentra en el archivo `app/Services/PriceCalculator.php`.
+El precio final de un pedido se calcula considerando el subtotal, los descuentos aplicados, impuestos, y gastos de envío.
 
 statements:
-1. [FACT] El método `compute` de la clase `PriceCalculator` calcula el precio final de un pedido.
+1. [FACT] El precio final se calcula en la clase `PriceCalculator::compute()`. (E4)
    evidence: app/Services/PriceCalculator.php:16-44
-2. [INFERENCE] El subtotal del pedido se obtiene desde el atributo `subtotal` del objeto `Order`.
-   evidence: app/Models/Order.php:19-57
-3. [FACT] Los descuentos se aplican al subtotal usando el método `discountFor` de la clase `DiscountService`.
+2. [FACT] El subtotal se obtiene desde el pedido, y a partir de él se calculan el descuento y los impuestos. (E4)
    evidence: app/Services/PriceCalculator.php:16-44
-4. [INFERENCE] Las tarifas de impuesto se calculan sobre el monto exensible (taxable base), que es el subtotal menos los descuentos, usando el método `taxFor` de la clase `TaxService`.
-   evidence: app/Support/Money.php:14-75, app/Services/PriceCalculator.php:16-44
-5. [INFERENCE] El costo de envío se calcula sobre el monto exensible usando el método `shippingFor` de la clase `ShippingService`.
-   evidence: tests/Unit/DiscountServiceTest.php:44-56, app/Listeners/RecordDiscountAudit.php:16-22
-6. [INFERENCE] El monto exensible es el resultado de sustraer los descuentos del subtotal.
-   evidence: app/Services/PriceCalculator.php:16-44
-7. [INFERENCE] El monto final se calcula sumando el subtotal neto (taxable base), las tarifas de impuesto y el costo de envío.
+3. [FACT] Los descuentos se calculan utilizando el servicio `DiscountService::discount()`. (E4, E5)
+   evidence: app/Services/PriceCalculator.php:16-44, app/Services/DiscountService.php:21-66
+4. [INFERENCE] Los impuestos se calculan sobre el subtotal descontado utilizando el servicio `TaxService::taxFor()`. (E4, E7)
+   evidence: app/Services/PriceCalculator.php:16-44, app/Services/TaxService.php:18-28
+5. [INFERENCE] Los gastos de envío se calculan utilizando el servicio `ShippingService::shippingFor()`. (E4, E6)
+   evidence: app/Services/PriceCalculator.php:16-44, app/Services/ShippingService.php:16-35
+6. [FACT] El precio final se obtiene sumando el subtotal descontado, los impuestos y los gastos de envío. (E4)
    evidence: app/Services/PriceCalculator.php:16-44
 
 evidence:
@@ -256,44 +254,38 @@ app/Services/PriceCalculator.php:16-44
             private readonly DiscountService $discounts,
             private readonly TaxService $taxes,
     … (+24 lines)
-app/Models/Order.php:19-57
-    class Order extends Model
+app/Services/DiscountService.php:21-66
+    class DiscountService
     {
-        use HasFactory;
+        private const LOYALTY_SILVER_PERCENT = 5.0;
+        private const LOYALTY_GOLD_PERCENT = 10.0;
 
-        protected $fillable = ['customer_id', 'status', 'coupon_code', 'shipping_country'];
-    … (+34 lines)
-app/Support/Money.php:14-75
-    final class Money
+    … (+41 lines)
+app/Services/TaxService.php:18-28
+    class TaxService
     {
-        private function __construct(
-            public readonly int $cents,
-            public readonly string $currency = 'EUR',
-    … (+57 lines)
-tests/Unit/DiscountServiceTest.php:44-56
-        public function test_volume_bonus_applies_above_five_lines(): void
+        public function taxFor(Order $order, Money $base): Money
         {
-            Event::fake();
-            $coupons = Mockery::mock(CouponValidator::class);
-            $coupons->shouldReceive('percentFor')->andReturn(0.0);
-    … (+8 lines)
-app/Listeners/RecordDiscountAudit.php:16-22
-        public function handle(DiscountApplied $event): void
+            $rates = config('shop.tax_rates', []);
+    … (+6 lines)
+app/Services/ShippingService.php:16-35
+    class ShippingService
+    {
+        public function __construct(private readonly CarrierGateway $carrier)
         {
-            Log::info('discount.applied', [
-                'order_id' => $event->order->id,
-                'amount' => $event->amount->amount(),
-    … (+2 lines)
+        }
+    … (+15 lines)
 ```
 
 Es una respuesta *golden*, generada por un modelo de 7B: las afirmaciones `INFERENCE` son las que el
-sistema no pudo comprobar del todo, y la 5 cita fragmentos que no la respaldan. El sistema no la
-oculta: la marca como inferencia. La golden que sirve hoy la semilla para esta pregunta (acme-shop
-`Q1`, regenerada en DIS-32 y otra vez en DIS-107, después de esta captura) la revisó en DIS-107 un
-panel de agentes independientes (su informe es `docs/golden-review/2026-10-golden-review-dis-107.md`)
-y la juzgó `correct`: quedó firmada con las dos firmas del panel y no hay ningún pendiente. La
-ronda anterior (DIS-33) había juzgado `incorrect` la golden de DIS-32; DIS-108 queda resuelto por la
-ronda de DIS-107 y lo cierra la autora.
+sistema no pudo comprobar del todo, y el sistema no las oculta: las marca como inferencia. Esta
+salida se recapturó el 2026-10-28 en Git Bash con la golden que sirve hoy la semilla para esta
+pregunta (acme-shop `Q1`, regenerada en DIS-107; las marcas como «(E4)» son texto del modelo). La
+revisó en DIS-107 un panel de agentes independientes (su informe es
+`docs/golden-review/2026-10-golden-review-dis-107.md`) y la juzgó `correct`: el método se llama
+`discountFor`, no `discount`, un desliz de nombre que el criterio no cuenta como error. Quedó firmada
+con las dos firmas del panel y no hay ningún pendiente. La ronda anterior (DIS-33) había juzgado
+`incorrect` la golden de DIS-32; DIS-108 queda resuelto por la ronda de DIS-107 y lo cierra la autora.
 
 La CLI no imprime el uso de tokens; la API sí. `npm run demo:ask` envía la pregunta a
 `POST /api/projects/{projectId}/ask` (el id es el que imprimió `projects`) y muestra el estado HTTP,

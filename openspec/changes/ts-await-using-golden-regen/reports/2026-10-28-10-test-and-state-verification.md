@@ -51,3 +51,7 @@
 ## Outcome
 - Status: PASS
 - Blocking issues: none
+
+## Addendum — CI of PR #81 (task 15.2)
+- Before the review fixes, every check of PR #81 passed: frontend, mutation, quality, scope, secrets and verify (run https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/40764709268, frontend in run 40764709334).
+- The review commit (DEMO.md Paso 1, review reports) is checked by a new CI run of the same PR, awaited in the review step until no check is pending.
