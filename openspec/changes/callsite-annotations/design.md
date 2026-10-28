@@ -98,10 +98,14 @@ and `docs/measurements/annotation/selection.json` (the construction of each site
 forbidden to the resolver too), the rest of `docs/measurements/**`,
 `docs/project-context.md` and every other repository doc, `packages/**`, `tests/**`, `seeds/**`,
 the rest of `openspec/**`, `prompts.md`, and the **comments** of DIS-80 and of every other ticket
-(a comment from DIS-31 on DIS-80 states two control answers: P2). The resolver may also read
-`panelist-1.json`, `panelist-2.json` and `agreement.json` (`agreement.json` is the list of
-disagreement ids between the two panel outputs, not a measurement of the graph; the resolver may
-instead derive the same ids from the two panel outputs). Each output declares what it read in
+(a comment from DIS-31 on DIS-80 states two control answers: P2). *Agent's text, spec audit run 3:*
+both roles may also read `docs/base-standards.md` (the project `CLAUDE.md` points every agent at it;
+it has no fixture or Table 2 content). The resolver may also read
+`docs/measurements/annotation/panelist-1.json`, `docs/measurements/annotation/panelist-2.json` and
+`docs/AUTONOMOUS-RUN.md` (the contract of its workflow step; no fixture content). The resolver may
+**not** read `agreement.json`: it holds each panelist's agreement with the control, and with the
+`control: true` flags of the site lists it would tell the resolver which panelist matches the hidden
+reference. The resolver derives the disagreement ids from the two panel outputs (D8). Each output declares what it read in
 `sourcesRead`, one entry per **file** (a repository-relative path) or the literal
 `linear:DIS-80/description`; a directory or a glob is rejected, and so is any path outside the
 allowlist of its role.
@@ -169,7 +173,9 @@ undefined (`null`) when p_e = 1. Per panelist and language, the same against the
 `agreement`; disagreement → resolution, `tiebreak`); nobody edits the final files.
 
 **D8 — Models.** Panelist 1 Opus, panelist 2 Sonnet, resolver Opus in a fresh context that sees only
-the disagreement ids (from `agreement.json`), both answers and the fixture code. The report names
+the disagreement ids, both answers and the fixture code. The resolver derives the disagreement ids
+from the two panel outputs (same `expected` and same `target` = agreed); it never reads
+`agreement.json`, which holds the control figures (agent's text, spec audit run 3). The report names
 models and date and says "dos agentes anotadores independientes de modelos distintos"; never
 "anotación humana" or "a mano".
 
@@ -188,7 +194,11 @@ option), following the project convention (`docs/project-context.md:78-88`,
 `scripts/demo-excerpt.mjs:15-16`).
 - `agreement` — validates `panelist-1.json` and `panelist-2.json` against the site lists, the
   fixtures and the allowlist; on any error prints every problem and exits 1 without writing;
-  otherwise writes `docs/measurements/annotation/agreement.json`.
+  otherwise reads `control.json` for the per-panelist control figures and writes
+  `docs/measurements/annotation/agreement.json` in the shape fixed by the spec "Agreement measures"
+  (`{ languages: [ { fixture, n, agreed, percent, kappa, disagreements, control: [ { panelist, n,
+  agreed, percent, kappa, indicative } ] } ] }`; no per-site answer or control result; agent's text,
+  spec audit run 3).
 - `merge` — validates `resolution.json` (exactly the disagreement ids), then writes the two
   `fixtures/annotations/*.callsites.json`; exits 1 writing nothing on error.
 - `hashes` — prints `<sha256>  <path>` for the nine frozen files (two site lists, `control.json`,
@@ -206,7 +216,8 @@ files is always the same.
   with the labels of D5, ids comma-separated or `—`), `## Desacuerdos`
   (`| Id | Panelista 1 | Panelista 2 | Resolución |`, answer cells `<expected> · <file> · <symbol>` or
   `none`, or `Ninguno.`), `## Discrepancias con el control`
-  (`| Id | Anotación final | Control | Justificación |`, or `Ninguna.`) and `## Hashes SHA-256`.
+  (`| Id | Anotación final | Control | Justificación |`, answer cells as in `## Desacuerdos` — spec
+  audit run 3 — or `Ninguna.`) and `## Hashes SHA-256`.
 - **`selection.json` is not hashed** (the set stays at nine files): it is committed before the panel
   in task 2.4, it is not an input of DIS-79 nor a panel output, and the freeze test checks that the
   report's selection table equals it, so a later edit fails that test anyway.
@@ -339,7 +350,7 @@ their findings here.
 | I2 | Freeze before `measure-graph` checked in step 8 (`scripts/measure-graph.mjs` absent at the freeze commit) | **A** — spec, task 8.3 |
 | I3 | Ambiguous "many TS sites" replaced by counts per `expected` value | **A** — Risks |
 | I4 | Example citation `app/Services/TaxService.php:21` replaced by a neutral placeholder | **A** — P4, Panel group |
-| I5 | Resolver prompt forbids "measurement output": `agreement.json` is the disagreement id list, or the resolver derives the ids itself | **A** — D4, task 4.4 |
+| I5 | Resolver prompt forbids "measurement output": `agreement.json` is the disagreement id list, or the resolver derives the ids itself (superseded by R3-B1: the resolver derives the ids itself and never reads `agreement.json`) | **A** — D4, task 4.4 |
 | I6 | DIS-79 matching key: target `file` + `symbol`, site inside the edge source's span | **A** — D1; **B** — comment on DIS-79 |
 | I7 | Chained calls spread over several lines | **A** — spec "Call-site lists" |
 | I8 | `isProject` of `demo-excerpt` sees `fixtures/annotations` | **D** — accepted, task 7.1 already reviews it |
@@ -358,3 +369,15 @@ their findings here.
 | R2-B4 | Resolution shape defined two ways. Decided: `{ resolver: <model id>, date, sourcesRead, sites }`, no `panelist`, no `model` | **A** — spec "Panel output validation", D10, Panel group, task 1.1 |
 | R2-B5 | Citation rule "at least one" vs. "every". Decided: at least one valid citation (existing file of the site's fixture, line 1..last); other citations ignored | **A** — spec, P4, Panel group, tasks 1.1, 4.3, 9.2 |
 | R2-I1 | Task 3.1 wording contradicted the control answers that `control.json`, the spec and D3 hold on purpose. Reworded to the panelist allowlist and the Panel group | **A** — task 3.1 |
+
+*Spec audit run 3 (2026-10-28) — resolution by the agent, as lead engineer, without the author.*
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| R3-B1 | The resolver could read `agreement.json`, which holds each panelist's agreement with the control, breaking the blindness of the tie-break. Decided (preferred correction, narrowest scope): `agreement.json` leaves the resolver allowlist; the resolver derives the disagreement ids from the two panel outputs. The hashed set stays at nine files | **A** — spec "Panel output validation" (allowlist and resolver scenario), D4, D8, Panel group, tasks 1.1, 1.2, 4.4; **B** — enhanced D8 of the DIS-80 description |
+| R3-B2 | The workflow step contract sent the resolver to files outside its allowlist. Decided: `docs/base-standards.md` allowed to both roles and `docs/AUTONOMOUS-RUN.md` to the resolver (process documents, no fixture content); a Panel group paragraph limits the resolver's step contract to git and commits (no `design.md`, no Linear comment; every process document read goes in `sourcesRead`) | **A** — spec "Panel output validation", D4, Panel group, tasks 1.1, 1.2 |
+| R3-B3 | Enhanced AC 5 of DIS-80 ("cita una línea que no existe") contradicted the lenient citation rule R2-B5. Decided: AC 5 reworded at rule level to "ninguna cita válida; las demás se ignoran" | **B** — DIS-80 description, enhanced part only |
+| R3-I1 | File shapes read by the tests were fixed only in tasks. Decided: the spec fixes the shapes of the site lists, `control.json` and `agreement.json` (no per-site answer or control result); D10 says `agreement` reads `control.json` | **A** — spec "Call-site lists", "Control reference", "Agreement measures"; D10 |
+| R3-I2 | `source` for calls inside closures, arrow functions or anonymous callbacks was undefined. Decided: anonymous functions are transparent (innermost named function or method, otherwise the file) | **A** — spec "Call-site lists", Panel group input set |
+| R3-I3 | Cells of `## Discrepancias con el control` had no format. Decided: same format as `## Desacuerdos` | **A** — spec "Frozen annotations and agreement report", D10 |
+| R3-I4 | `panelist` field not checked against its file. Decided: validation rejects a mismatch (cheap check against a swapped file), folded into the existing accepted and incomplete scenarios; scenario count unchanged (28) | **A** — spec "Panel output validation", tasks 1.1, 1.2 |

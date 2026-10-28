@@ -10,7 +10,7 @@ disagreements resolved by a third agent, and the result frozen by hash before an
 
 The repository SHALL hold one site list per sample project, `docs/measurements/annotation/acme-shop.sites.json`
 (language `php`) and `docs/measurements/annotation/task-api.sites.json` (language `typescript`), each
-with exactly 50 sites. A site SHALL have exactly these fields: `id`, `control`, `site` (`file`, a
+shaped `{ "fixture", "language", "sites" }` with exactly 50 sites. A site SHALL have exactly these fields: `id`, `control`, `site` (`file`, a
 path relative to the fixture root, and `line`, 1-based), `form`, `call` and `source`. `form` SHALL be
 `call`, `new`, `read` or `reference`. For `call` or `new`, `call` SHALL be the text of the call
 expression on that line from the start of its callee up to and including its opening parenthesis
@@ -24,7 +24,10 @@ a PHP array callable (shape `[SomeController::class, 'method']`) or a route acti
 `'App\Http\Controllers\SomeController@method'`).
 `source` SHALL be `{ "symbol": <name> }` for the function or method that contains the call, named as
 the analyzers name symbols (`Class::method`, a function by its name), or `{ "file": <path> }` when
-the call is not inside a function or method. The first 12 PHP sites (`php-01`…`php-12`) and the
+the call is not inside a function or method. Anonymous functions, closures and arrow functions are
+transparent: `source` is the innermost enclosing named function or method, or the file when there is
+none (for example a call inside `.map(t => …)` in a method takes that method; a call inside an
+anonymous route closure in `routes/**` takes the file). The first 12 PHP sites (`php-01`…`php-12`) and the
 first 10 TypeScript sites (`ts-01`…`ts-10`) SHALL be the control sites of `fixtures/README.md`
 § "Table 2 seed", in its order, with `control: true`; the others SHALL have ids `php-13`…`php-50`
 and `ts-11`…`ts-50` and `control: false`. Sites SHALL come from application code only (PHP `app/**`
@@ -60,7 +63,8 @@ forbidden to the panelists and to the resolver.
 ### Requirement: Control reference
 
 `docs/measurements/annotation/control.json` SHALL transcribe the 22 rows of `fixtures/README.md`
-§ "Table 2 seed" as `{ id, target, expected }` entries, one per control site, before any panelist
+§ "Table 2 seed", shaped `{ "sites": [ { id, target, expected } ] }` with one entry per control site
+in README order, before any panelist
 runs: `target` is `{ file, symbol }` or `null`, and is the target of the call that design D3
 identifies as the control site: the row's graph target when the row names one, otherwise the row's
 target, and, for a row that describes two edges, the target of the first call that leaves the row's
@@ -88,11 +92,17 @@ a glob is rejected.
 The panelist allowlist SHALL be: files under `fixtures/acme-shop/app/`, `fixtures/acme-shop/routes/`,
 `fixtures/acme-shop/config/` and `fixtures/acme-shop/database/`; `fixtures/acme-shop/composer.json`;
 files under `fixtures/task-api/src/`; `fixtures/task-api/package.json`; `fixtures/task-api/tsconfig.json`;
-the two `*.sites.json`; `openspec/changes/callsite-annotations/tasks.md`; and
-`linear:DIS-80/description`. The resolver allowlist SHALL be the panelist allowlist plus
-`docs/measurements/annotation/panelist-1.json`, `panelist-2.json` and `agreement.json`.
+the two `*.sites.json`; `openspec/changes/callsite-annotations/tasks.md`; `docs/base-standards.md`
+(a process document with no fixture content); and `linear:DIS-80/description`. The resolver
+allowlist SHALL be the panelist allowlist plus `docs/measurements/annotation/panelist-1.json`,
+`docs/measurements/annotation/panelist-2.json` and `docs/AUTONOMOUS-RUN.md` (the contract of its
+workflow step, with no fixture content). `docs/measurements/annotation/agreement.json` is NOT in the
+resolver allowlist, because it holds each panelist's agreement with the control; the resolver derives
+the disagreement ids from the two panel outputs.
 Validation SHALL reject an output missing a field of its shape (`panelist`, `model`, `date`,
 `sourcesRead`, `sites` for a panelist; `resolver`, `date`, `sourcesRead`, `sites` for a resolution);
+a panelist output whose `panelist` differs from the number of the file it is read from (`1` for
+`panelist-1.json`, `2` for `panelist-2.json`);
 whose answers do not cover exactly the expected ids; with an answer whose `expected` is not one of
 the three values, whose `expected` is `none` with a non-null `target` or another value with a `null`
 target, whose `reason` contains no valid citation as defined above, whose
@@ -102,12 +112,12 @@ an entry that is a directory, a glob or a path outside the allowlist of its role
 output SHALL NOT be used, completed or corrected; the ticket stops instead.
 
 #### Scenario: A complete panel output is accepted
-- **WHEN** a panelist output answers every site id once with valid fields and at least one valid citation per answer (an answer whose reason also holds an out-of-range citation next to a valid one included), or a resolution `{ resolver, date, sourcesRead, sites }` answers exactly the disagreement ids
+- **WHEN** a panelist output answers every site id once with valid fields, a `panelist` equal to its file's number and at least one valid citation per answer (an answer whose reason also holds an out-of-range citation next to a valid one included, and `docs/base-standards.md` in `sourcesRead`), or a resolution `{ resolver, date, sourcesRead, sites }` answers exactly the disagreement ids with `docs/AUTONOMOUS-RUN.md` in `sourcesRead`
 - **THEN** validation accepts it with no error
 
 #### Scenario: An incomplete panel output is rejected
-- **WHEN** an output misses a site id, repeats one or answers an id that is not in the site lists, or lacks a field of its shape (`sites` or `sourcesRead`, `panelist` or `model` for a panelist output, `resolver` for a resolution)
-- **THEN** validation rejects it naming each missing, repeated or unknown id or missing field
+- **WHEN** an output misses a site id, repeats one or answers an id that is not in the site lists, or lacks a field of its shape (`sites` or `sourcesRead`, `panelist` or `model` for a panelist output, `resolver` for a resolution), or is a panelist output whose `panelist` differs from its file's number
+- **THEN** validation rejects it naming each missing, repeated or unknown id, missing field or mismatched `panelist`
 
 #### Scenario: A citation to a line that does not exist is rejected
 - **WHEN** an answer's reason has no citation to an existing file of the site's fixture with a line inside it (its citations name only a missing file, a file of the other fixture, line 0 or a line beyond the end)
@@ -134,7 +144,7 @@ output SHALL NOT be used, completed or corrected; the ticket stops instead.
 - **THEN** validation rejects it naming the entry
 
 #### Scenario: A resolution with a source outside the resolver allowlist is rejected
-- **WHEN** a resolution's `sourcesRead` includes `docs/measurements/annotation/control.json`, `docs/measurements/annotation/selection.json` or `fixtures/README.md`, while `panelist-1.json`, `panelist-2.json` and `agreement.json` are accepted
+- **WHEN** a resolution's `sourcesRead` includes `docs/measurements/annotation/control.json`, `docs/measurements/annotation/selection.json`, `docs/measurements/annotation/agreement.json` or `fixtures/README.md`, while `docs/measurements/annotation/panelist-1.json`, `docs/measurements/annotation/panelist-2.json` and `docs/AUTONOMOUS-RUN.md` are accepted
 - **THEN** validation rejects it naming the forbidden path
 
 ### Requirement: Agreement measures
@@ -146,8 +156,11 @@ and `none`. The percent SHALL be rounded to one decimal and kappa to three decim
 zero. When the expected chance agreement is 1, kappa SHALL be reported as undefined (`null`), never as
 `NaN` or an infinite value. For each panelist and language, the agreement with the control reference
 SHALL be computed the same way over the control sites, and its kappa SHALL be flagged as indicative.
-The computation SHALL write `docs/measurements/annotation/agreement.json` with these figures and the
-ids of the disagreements per language, and SHALL be deterministic.
+The computation reads the two panel outputs, the two site lists and `control.json`, SHALL write
+`docs/measurements/annotation/agreement.json` with exactly this shape, and SHALL be deterministic:
+`{ "languages": [ { "fixture", "n", "agreed", "percent", "kappa", "disagreements": [<ids in site-list order>], "control": [ { "panelist", "n", "agreed", "percent", "kappa", "indicative": true } ] } ] }`,
+with one entry per fixture (`acme-shop` then `task-api`) and one `control` entry per panelist (1
+then 2). It SHALL hold no per-site answer and no per-site control result.
 
 #### Scenario: Percent agreement and Cohen's kappa per language
 - **WHEN** two panel outputs with a hand-computed contingency table are compared
@@ -232,7 +245,9 @@ The report SHALL contain these sections, which the freeze tests parse:
   disagreement id of `agreement.json`, each answer cell written `<expected> · <target.file> · <target.symbol>`
   or `none`, or the line `Ninguno.` when there is no disagreement;
 - `## Discrepancias con el control`, a table `| Id | Anotación final | Control | Justificación |`
-  with one control id per row, or the line `Ninguna.` when there is none;
+  with one control id per row, the cells "Anotación final" and "Control" written like the answer
+  cells of `## Desacuerdos` (`<expected> · <target.file> · <target.symbol>` or `none`), or the line
+  `Ninguna.` when there is none;
 - `## Hashes SHA-256`, a table `| <repository path> | <64 hex> |` with one row per hashed file.
 `selection.json` is not in the hashed set: it is committed before the panel and its content is
 checked against the report's selection table.

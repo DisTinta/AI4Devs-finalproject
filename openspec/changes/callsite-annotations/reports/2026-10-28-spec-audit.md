@@ -716,3 +716,26 @@ No empty row.
   - process documents (`docs/base-standards.md`, `docs/AUTONOMOUS-RUN.md`) are now allowed;
   - the resolver does not write to `design.md` or Linear;
   - AC 5 is aligned with the citation rule.
+
+---
+
+## Resolution of run 3
+
+*Agent's text (correction round 3, 2026-10-28), decided as lead engineer in an autonomous run without the author. Each decision is also in `design.md` → Follow-ups (rows R3-*) with its destination. `openspec validate callsite-annotations --strict` passes after the edits.*
+
+**Questions for the author:** none in this run.
+
+**Blocking findings**
+
+- **B1 — fixed, decided by the agent: the preferred correction.** `docs/measurements/annotation/agreement.json` leaves the resolver allowlist; the resolver derives the disagreement ids from `panelist-1.json` and `panelist-2.json`. Edited: spec "Panel output validation" (allowlist, with the reason stated, and the scenario "A resolution with a source outside the resolver allowlist is rejected", which now rejects `agreement.json` and accepts the two panel outputs and `docs/AUTONOMOUS-RUN.md`), design D4 and D8, Panel group (allowed and forbidden sources), tasks 1.1, 1.2 and 4.4; Follow-up I5 marked as superseded. The alternative (splitting the control figures into a tenth hashed file) was rejected because it widens scope. The shape of `agreement.json` is now fixed by the spec (see the improvable findings), with no per-site answer and no per-site control result.
+- **B2 — fixed.** `docs/base-standards.md` is in both allowlists and `docs/AUTONOMOUS-RUN.md` in the resolver allowlist (spec, D4, Panel group, task 1.2). The Panel group has a new paragraph "Resolver and its step contract": the step contract applies to git and commits only; no `design.md` decision, no Linear comment, no reading of `design.md`, the specs, the report or Linear comments; every process document read goes in `sourcesRead`. Task 1.1 adds the accepted cases for both process documents; the scenario "A complete panel output is accepted" names them.
+- **B3 — fixed (Linear).** Enhanced AC 5 of the DIS-80 description now reads "tiene una respuesta sin ninguna cita válida (fichero existente del fixture del sitio y línea dentro del fichero; las demás citas se ignoran)", marked as agent's text. Enhanced D8 also says the resolver derives the disagreements from the two outputs and does not read `agreement.json`, and enhanced D4 names `docs/base-standards.md` and the resolver's extra reads. `[original]` untouched; no site, line or control answer named.
+
+**Improvable findings**
+
+- **File shapes only in tasks — fixed.** The spec fixes `{ "fixture", "language", "sites" }` for the site lists ("Call-site lists"), `{ "sites": [ { id, target, expected } ] }` for `control.json` ("Control reference") and the exact shape of `agreement.json` ("Agreement measures": `languages[]` with `fixture`, `n`, `agreed`, `percent`, `kappa`, `disagreements`, `control[]` per panelist with `indicative: true`). D10 says `agreement` reads `control.json`. Task 1.1's control-agreement case checks the shape.
+- **`source` inside closures — fixed.** Spec "Call-site lists" and the Panel group input set: anonymous functions, closures and arrow functions are transparent; `source` is the innermost named function or method, or the file.
+- **Discrepancy table cells — fixed.** The cells "Anotación final" and "Control" use the format of `## Desacuerdos` (spec and D10).
+- **`panelist` field against its file — fixed, decided by the agent.** Validation rejects a panelist output whose `panelist` differs from its file's number; folded into the scenarios "A complete panel output is accepted" and "An incomplete panel output is rejected" and into tasks 1.1/1.2, so the scenario count stays 19 + 4 + 5 = 28 (task 7.2).
+
+**Linear.** DIS-80: description, enhanced part only (AC 5, D4, D8); Spanish comment summarising this round.
