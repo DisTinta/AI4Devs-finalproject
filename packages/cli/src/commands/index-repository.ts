@@ -9,8 +9,8 @@ import { renderProgress, renderReport } from '../render-report.js';
 import { toTerminalSafeJson } from '../safe-json.js';
 import { CLI_VERSION } from '../version.js';
 
-/** Languages the command can index today; TypeScript waits for its analyzer (CM-HU-18). */
-const SUPPORTED_LANGUAGES = ['php'] as const;
+/** Languages the command can index: each has its analyzer (DIS-32, design D3). */
+const SUPPORTED_LANGUAGES = ['php', 'typescript'] as const;
 
 /** What `runIndexCommand` writes to and reads from, plus the optional test seams (design D5). */
 export interface IndexCommandDeps {
@@ -117,12 +117,12 @@ function parseArguments(argv: string[], deps: IndexCommandDeps): ParsedArguments
 /** Checks the values `commander` cannot: a blank name, the language and the framework. */
 function validate(parsed: ParsedArguments): IndexOptions {
   if (parsed.name.trim() === '') throw new CliError('USAGE', 2, '--name must not be blank');
-  if (parsed.language !== 'php') {
-    const message = parsed.language === 'typescript' ? 'typescript: not available yet (CM-HU-18)' : `${parsed.language}: not supported`;
-    throw new CliError('UNSUPPORTED_LANGUAGE', 2, message, { allowed: [...SUPPORTED_LANGUAGES] });
+  const language = SUPPORTED_LANGUAGES.find((supported) => supported === parsed.language);
+  if (language === undefined) {
+    throw new CliError('UNSUPPORTED_LANGUAGE', 2, `${parsed.language}: not supported`, { allowed: [...SUPPORTED_LANGUAGES] });
   }
   if (parsed.framework !== undefined && !(PROJECT_FRAMEWORKS as readonly string[]).includes(parsed.framework)) {
     throw new CliError('UNSUPPORTED_FRAMEWORK', 2, `${parsed.framework}: not supported`, { allowed: [...PROJECT_FRAMEWORKS] });
   }
-  return { path: parsed.path, name: parsed.name, language: 'php', framework: parsed.framework as ProjectFramework | undefined };
+  return { path: parsed.path, name: parsed.name, language, framework: parsed.framework as ProjectFramework | undefined };
 }

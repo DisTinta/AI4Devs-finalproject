@@ -9,7 +9,8 @@
       "@codemind/adapter-git": ["../adapters/git/src/index.ts"],
       "@codemind/adapter-llm": ["../adapters/llm/src/index.ts"],
       "@codemind/adapter-store-postgres": ["../adapters/store-postgres/src/index.ts"],
-      "@codemind/analyzer-php": ["../analyzers/php/src/index.ts"]
+      "@codemind/analyzer-php": ["../analyzers/php/src/index.ts"],
+      "@codemind/analyzer-typescript": ["../analyzers/typescript/src/index.ts"]
     }
   }
 }

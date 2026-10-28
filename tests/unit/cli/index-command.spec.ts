@@ -183,17 +183,18 @@ describe('index command: arguments', () => {
   it('An unsupported language is a usage error', async () => {
     // Act
     const cobol = await run(['index', 'acme-shop', '--name', 'acme-shop', '--language', 'cobol']);
-    const typescript = await run(['index', 'acme-shop', '--name', 'acme-shop', '--language', 'typescript']);
+    const typescript = await run(['index', 'acme-shop', '--name', 'acme-shop', '--language', 'TypeScript']);
 
-    // Assert
+    // Assert (DIS-32, design D3: typescript is supported now; the match is exact and case-sensitive)
     for (const result of [cobol, typescript]) {
       expect(result.exit).toBe(2);
-      expect(errorOf(result)).toMatchObject({ code: 'UNSUPPORTED_LANGUAGE', details: { allowed: ['php'] } });
+      expect(errorOf(result)).toMatchObject({ code: 'UNSUPPORTED_LANGUAGE', details: { allowed: ['php', 'typescript'] } });
       expect(result.log).toEqual([]);
       expect(result.stdout).toBe('');
+      expect(result.stderr).not.toContain('not available yet');
     }
     expect(errorOf(cobol).message).toBe('cobol: not supported');
-    expect(errorOf(typescript).message).toBe('typescript: not available yet (CM-HU-18)');
+    expect(errorOf(typescript).message).toBe('TypeScript: not supported');
   });
 
   it('An unsupported framework is a usage error', async () => {
@@ -583,11 +584,20 @@ describe('index command: transaction, report and log', () => {
 
 describe('default ports', () => {
   it('builds the real adapters, with the store bound to the given client', () => {
-    const ports = defaultPorts('test-salt');
+    const ports = defaultPorts('test-salt', 'php');
 
     expect(typeof ports.sourceTree.readFiles).toBe('function');
     expect(typeof ports.git.readHistory).toBe('function');
     expect(typeof ports.analyzer.analyze).toBe('function');
     expect(typeof ports.store({} as ClientBase).saveGraph).toBe('function');
+  });
+
+  it('picks the analyzer by language (DIS-32, design D3)', async () => {
+    const php = defaultPorts('test-salt', 'php').analyzer;
+    const typescript = defaultPorts('test-salt', 'typescript').analyzer;
+    const file = { path: 'src/a.ts', content: 'export function a(): void {}\n' };
+
+    expect((await typescript.analyze({ files: [file] })).symbols.map((s) => s.name)).toEqual(['a']);
+    expect((await php.analyze({ files: [file] })).symbols).toEqual([]);
   });
 });

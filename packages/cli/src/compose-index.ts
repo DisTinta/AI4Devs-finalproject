@@ -3,6 +3,7 @@ import type { ClientBase } from 'pg';
 import { authorHashSaltFromEnv, createGitSourceTree, createSimpleGitHistory } from '@codemind/adapter-git';
 import { createPostgresStore } from '@codemind/adapter-store-postgres';
 import { createPhpAnalyzer } from '@codemind/analyzer-php';
+import { createTypeScriptAnalyzer } from '@codemind/analyzer-typescript';
 import { confinePath, DomainError, indexRepository, InvalidGraph } from '@codemind/core';
 import type {
   AnalyzerPort,
@@ -53,7 +54,7 @@ export interface IndexPorts {
 }
 
 /** Builds the ports from the author-hash salt. A test seam: the default is {@link defaultPorts}. */
-export type PortsFactory = (authorHashSalt: string) => IndexPorts;
+export type PortsFactory = (authorHashSalt: string, language: ProjectLanguage) => IndexPorts;
 
 /** The validated arguments of an indexing. */
 export interface IndexOptions {
@@ -174,17 +175,19 @@ function failure(code: string, message: string, details: Record<string, unknown>
 }
 
 /**
- * The real adapters: the Git source tree and history, the PHP analyzer, and the Postgres store on
- * the transaction's client.
+ * The real adapters: the Git source tree and history, the analyzer of the project's language (the
+ * TypeScript analyzer for `typescript`, the PHP analyzer for `php`; DIS-32, design D3), and the
+ * Postgres store on the transaction's client.
  *
  * @param authorHashSalt Trimmed `AUTHOR_HASH_SALT`.
+ * @param language Language of the repository to index.
  * @returns The ports.
  */
-export function defaultPorts(authorHashSalt: string): IndexPorts {
+export function defaultPorts(authorHashSalt: string, language: ProjectLanguage): IndexPorts {
   return {
     sourceTree: createGitSourceTree(),
     git: createSimpleGitHistory({ authorHashSalt }),
-    analyzer: createPhpAnalyzer(),
+    analyzer: language === 'typescript' ? createTypeScriptAnalyzer() : createPhpAnalyzer(),
     store: (client) => createPostgresStore({ transaction: client }),
   };
 }
@@ -247,7 +250,7 @@ export async function indexWithEnvironment(options: IndexOptions, environment: I
   const databaseUrl = env.DATABASE_URL?.trim() ?? '';
   if (databaseUrl === '') throw missingConfig('DATABASE_URL');
 
-  const ports = (environment.ports ?? defaultPorts)(authorHashSalt);
+  const ports = (environment.ports ?? defaultPorts)(authorHashSalt, options.language);
   const transaction = await (environment.openTransaction ?? defaultOpenTransaction(databaseUrl))();
   try {
     const report = await indexRepository(

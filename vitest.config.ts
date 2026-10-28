@@ -19,6 +19,7 @@ export default defineConfig({
         new URL('./packages/adapters/store-postgres/src/index.ts', import.meta.url),
       ),
       '@codemind/analyzer-php': fileURLToPath(new URL('./packages/analyzers/php/src/index.ts', import.meta.url)),
+      '@codemind/analyzer-typescript': fileURLToPath(new URL('./packages/analyzers/typescript/src/index.ts', import.meta.url)),
     },
   },
   test: {
