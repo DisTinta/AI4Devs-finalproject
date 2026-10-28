@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { normalizeQuestion, parseStoredResponse } from '@codemind/core';
-import { GOLDEN_QUESTIONS } from '../../../packages/cli/src/cache/demo-questions';
+import { GOLDEN_PROJECTS } from '../../../packages/cli/src/cache/demo-questions';
 import { checkGoldenFile, renderGoldenFile } from '../../../packages/cli/src/cache/golden-file';
 import { seedProjects } from '../../../packages/cli/src/seed/parse-seed';
 
@@ -41,7 +41,11 @@ describe('versioned golden file', () => {
     expect(renderGoldenFile(file!)).toBe(TEXT);
     expect(TEXT).not.toMatch(/AKIA[A-Z0-9]{16}/);
     expect(file!.entries.map(({ id, question, questionNormalized }) => ({ id, question, questionNormalized }))).toEqual(
-      GOLDEN_QUESTIONS.map(({ id, question }) => ({ id, question, questionNormalized: normalizeQuestion(question) })),
+      (GOLDEN_PROJECTS.find(({ name }) => name === 'acme-shop')?.questions ?? []).map(({ id, question }) => ({
+        id,
+        question,
+        questionNormalized: normalizeQuestion(question),
+      })),
     );
     expect(files.size).toBeGreaterThan(0);
     for (const entry of file!.entries) {

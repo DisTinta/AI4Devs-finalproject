@@ -19,7 +19,8 @@ import {
 } from '@codemind/core';
 import type { explain, ExplainAnswer, LlmPort, SourceTreePort, StoredResponse } from '@codemind/core';
 import { answerFingerprint } from './cache/answer-fingerprint.js';
-import { GOLDEN_PROJECT, GOLDEN_QUESTIONS } from './cache/demo-questions.js';
+import { GOLDEN_PROJECTS } from './cache/demo-questions.js';
+import type { GoldenProject } from './cache/demo-questions.js';
 import { checkGoldenFile, readGoldenFile, renderGoldenFile } from './cache/golden-file.js';
 import type { GoldenEntry, GoldenFile } from './cache/golden-file.js';
 import { currentSeedFingerprints, headerFingerprints, indexedCommitOf } from './cache/seed-header.js';
@@ -75,16 +76,19 @@ export interface CacheBuildDeps {
   /** Repository root: fingerprint inputs, seed, default output, displayed paths. Defaults to this checkout. */
   repoRoot?: string;
   /**
-   * Where `fixtures/acme-shop` is rebuilt and the seed's relative `root_path` resolves for `explain`
+   * Where the fixtures are rebuilt and the seed's relative `root_path` resolves for `explain`
    * (decision D17). Defaults to `repoRoot`.
    */
   workspaceRoot?: string;
   /** Seed file. Defaults to `<repoRoot>/seeds/graph-dump.sql`. */
   seedPath?: string;
-  /** Golden file. Defaults to `<repoRoot>/seeds/cache/acme-shop.json`. */
-  outputPath?: string;
-  /** Rebuilds the sample's history under `<workspaceRoot>/fixtures`. Defaults to `buildOne` of `fixtures/build-history.mjs`. */
-  buildHistory?: (fixturesRoot: string, repoRoot: string) => Promise<void>;
+  /** Directory of the golden files, `<project>.json` each (DIS-32, design D6). Defaults to `<repoRoot>/seeds/cache`. */
+  outputDir?: string;
+  /**
+   * Rebuilds the history of the sample `project` under `<workspaceRoot>/fixtures`. Defaults to `buildOne`
+   * of `fixtures/build-history.mjs`.
+   */
+  buildHistory?: (fixturesRoot: string, repoRoot: string, project: string) => Promise<void>;
   /** The `HEAD` commit of a repository. Defaults to `git rev-parse HEAD`. */
   headCommit?: (repository: string) => string;
   /** Opens the transaction of one attempt, always rolled back. Defaults to `defaultOpenTransaction(DATABASE_URL)`. */
@@ -105,21 +109,37 @@ export interface CacheBuildDeps {
   seedFingerprints?: (repoRoot: string) => SeedFingerprints;
 }
 
-/** Everything the build checked before connecting. */
-interface Plan {
-  repoRoot: string;
-  workspaceRoot: string;
+/** What the build does for one golden project, checked before connecting. */
+interface ProjectPlan {
+  /** The golden project and its questions. */
+  project: GoldenProject;
+  /** Its golden file, `<outputDir>/<name>.json`. */
   outputPath: string;
-  databaseUrl: string;
-  config: LiveLlmConfig;
-  seed: SeedToLoad;
+  /** Its project id in the seed. */
   projectId: string;
-  seedFingerprints: SeedFingerprints;
-  answerFingerprint: string;
   /** The questions to ask, in golden order. */
   asked: GoldenEntry['id'][];
   /** The entries of the existing file kept as they are (partial regeneration). */
   kept: GoldenEntry[];
+}
+
+/** Everything the build checked before connecting. */
+interface Plan {
+  repoRoot: string;
+  workspaceRoot: string;
+  databaseUrl: string;
+  config: LiveLlmConfig;
+  seed: SeedToLoad;
+  seedFingerprints: SeedFingerprints;
+  answerFingerprint: string;
+  /** The requested golden projects, in name order. */
+  projects: ProjectPlan[];
+}
+
+/** The arguments of the command: the named project, if any, and the question ids. */
+interface Arguments {
+  project?: string;
+  ids: string[];
 }
 
 /** The outcome of one attempt that ended with an answer or a failed model request. */
@@ -133,55 +153,111 @@ interface Failed {
 }
 
 /**
- * Runs `npm run cache:build [-- <id>...]` (DIS-26): checks the arguments and the configuration, checks
- * that the versioned seed matches the current code and, with ids, that the existing golden file can
- * be partially regenerated; rebuilds acme-shop's history and checks its `HEAD` against the seed; then,
- * per requested golden question, up to three attempts each in its own transaction that loads the seed,
- * asks `explain` with a live model and the answer cache off, and is always rolled back; and finally
- * writes the golden file atomically. stdout gets one line per attempt that ended with an answer or a
- * failed model request, then, on success, one final line; on failure stderr gets exactly one
- * `{"error":{…}}` line and the golden file is unchanged.
+ * Runs `npm run cache:build [-- --project <name> [<id>...]]` (DIS-26; per project since DIS-32, design
+ * D6): checks the arguments and the configuration, checks that the versioned seed matches the current
+ * code and holds every requested project and, with ids, that the existing golden file can be partially
+ * regenerated; rebuilds the history of each requested project and checks its `HEAD` against the seed;
+ * then, project by project, per requested golden question, up to three attempts each in its own
+ * transaction that loads the seed, asks `explain` with a live model and the answer cache off, and is
+ * always rolled back; and writes each project's golden file atomically right after its last question.
+ * stdout gets one line per attempt that ended with an answer or a failed model request, and one final
+ * line per project written; on failure stderr gets exactly one `{"error":{…}}` line, the failing
+ * project's golden file is unchanged and the ones written before it keep their new content.
  *
- * @param argv The golden question ids to regenerate; none means all of them.
+ * @param argv `[--project <name>] [<id>...]`: the golden project and question ids to regenerate; none
+ *   means every question of every golden project.
  * @param deps The environment, the streams and the optional test seams.
  * @returns The exit code: `0` success, `1` any failure.
  */
 export async function runCacheBuild(argv: string[], deps: CacheBuildDeps): Promise<number> {
+  const repoRoot = deps.repoRoot ?? DEFAULT_REPO_ROOT;
+  const written: string[] = [];
+  let failing: { project: string; path: string } | undefined;
   try {
     const plan = await prepare(argv, deps);
     const now = deps.now ?? (() => new Date());
-    const regenerated = new Map<string, StoredResponse>();
-    for (const id of plan.asked) regenerated.set(id, await answerOne(id, plan, deps, now));
-    const entries = GOLDEN_QUESTIONS.flatMap(({ id, question }): GoldenEntry[] => {
-      const response = regenerated.get(id);
-      if (response !== undefined) return [{ id, question, questionNormalized: normalizeQuestion(question), response, reviews: [] }];
-      return plan.kept.filter((entry) => entry.id === id);
-    });
-    const file: GoldenFile = {
-      format: 1,
-      project: GOLDEN_PROJECT,
-      seed: { analyzerFingerprint: plan.seedFingerprints.analyzer, contractFingerprint: plan.seedFingerprints.contract },
-      answerFingerprint: plan.answerFingerprint,
-      generatedWith: { model: plan.config.model, verifyModel: plan.config.verifyModel },
-      entries,
-    };
-    const text = renderGoldenFile(file);
-    mkdirSync(dirname(plan.outputPath), { recursive: true });
-    (deps.write ?? writeAtomically)(plan.outputPath, text);
-    deps.stdout.write(`${GOLDEN_PROJECT}: ${entries.length} golden answers -> ${displayPath(plan.repoRoot, plan.outputPath)}\n`);
+    for (const projectPlan of plan.projects) {
+      const { project, outputPath } = projectPlan;
+      failing = { project: project.name, path: outputPath };
+      const regenerated = new Map<string, StoredResponse>();
+      for (const id of projectPlan.asked) regenerated.set(id, await answerOne(id, plan, projectPlan, deps, now));
+      const entries = project.questions.flatMap(({ id, question }): GoldenEntry[] => {
+        const response = regenerated.get(id);
+        if (response !== undefined) return [{ id, question, questionNormalized: normalizeQuestion(question), response, reviews: [] }];
+        return projectPlan.kept.filter((entry) => entry.id === id);
+      });
+      const file: GoldenFile = {
+        format: 1,
+        project: project.name,
+        seed: { analyzerFingerprint: plan.seedFingerprints.analyzer, contractFingerprint: plan.seedFingerprints.contract },
+        answerFingerprint: plan.answerFingerprint,
+        generatedWith: { model: plan.config.model, verifyModel: plan.config.verifyModel },
+        entries,
+      };
+      const text = renderGoldenFile(file);
+      mkdirSync(dirname(outputPath), { recursive: true });
+      (deps.write ?? writeAtomically)(outputPath, text);
+      written.push(displayPath(repoRoot, outputPath));
+      deps.stdout.write(`${project.name}: ${entries.length} golden answers -> ${displayPath(repoRoot, outputPath)}\n`);
+    }
     return 0;
   } catch (error) {
-    deps.stderr.write(`${toTerminalSafeJson({ error: toFailure(error) })}\n`);
+    const failure = toFailure(error);
+    if (failure.code === 'INTERNAL' && written.length > 0 && failing !== undefined) {
+      failure.message =
+        `cache build failed after writing ${written.join(', ')}; ${displayPath(repoRoot, failing.path)} was not written — ` +
+        `run npm run cache:build -- --project ${failing.project}`;
+    }
+    deps.stderr.write(`${toTerminalSafeJson({ error: failure })}\n`);
     return 1;
   }
 }
 
-/** The arguments, the configuration, the seed, the existing golden file and the history, in that order. */
-async function prepare(argv: string[], deps: CacheBuildDeps): Promise<Plan> {
-  const allowed = GOLDEN_QUESTIONS.map(({ id }) => id);
-  if (argv.some((id, i) => !allowed.includes(id) || argv.indexOf(id) !== i)) {
-    throw new CliError('USAGE', 1, 'unknown or repeated golden question id', { allowed });
+/** The message of a `USAGE` failure about the shape of the arguments. */
+const USAGE_MESSAGE = 'usage: npm run cache:build [-- --project <name> [<id>...]]';
+
+/**
+ * Parses `[--project <name>] [<id>...]` (design D6, Follow-ups SA4) and checks it in the spec's order:
+ * the shape (an unknown option, a `--project` without a value or given twice; `--project=<name>` is
+ * an unknown option), the project, ids without a project, then the ids of the named project. The
+ * ids and the option may come in any order, and the value is always the next argument.
+ */
+function parseArguments(argv: string[]): Arguments {
+  const names = GOLDEN_PROJECTS.map(({ name }) => name);
+  let project: string | undefined;
+  const ids: string[] = [];
+  for (let i = 0; i < argv.length; i += 1) {
+    const argument = argv[i];
+    if (argument === '--project') {
+      const value = argv[i + 1];
+      if (project !== undefined || value === undefined) throw new CliError('USAGE', 1, USAGE_MESSAGE);
+      project = value;
+      i += 1;
+    } else if (argument.startsWith('-')) {
+      throw new CliError('USAGE', 1, USAGE_MESSAGE);
+    } else {
+      ids.push(argument);
+    }
   }
+  if (project !== undefined && !names.includes(project)) {
+    throw new CliError('USAGE', 1, 'unknown golden project', { allowed: names });
+  }
+  if (project === undefined && ids.length > 0) {
+    throw new CliError('USAGE', 1, 'golden question ids need --project <name>', { allowed: names });
+  }
+  if (project !== undefined) {
+    const allowed = GOLDEN_PROJECTS.find(({ name }) => name === project)!.questions.map(({ id }) => id);
+    if (ids.some((id, i) => !allowed.includes(id) || ids.indexOf(id) !== i)) {
+      throw new CliError('USAGE', 1, 'unknown or repeated golden question id', { allowed });
+    }
+  }
+  return { project, ids };
+}
+
+/** The arguments, the configuration, the seed, the existing golden files and the histories, in that order. */
+async function prepare(argv: string[], deps: CacheBuildDeps): Promise<Plan> {
+  const { project: requested, ids } = parseArguments(argv);
+  const golden = GOLDEN_PROJECTS.filter(({ name }) => requested === undefined || name === requested);
 
   const { env } = deps;
   const databaseUrl = env.DATABASE_URL?.trim() ?? '';
@@ -193,41 +269,48 @@ async function prepare(argv: string[], deps: CacheBuildDeps): Promise<Plan> {
   const repoRoot = deps.repoRoot ?? DEFAULT_REPO_ROOT;
   const workspaceRoot = deps.workspaceRoot ?? repoRoot;
   const seedPath = deps.seedPath ?? join(repoRoot, 'seeds', 'graph-dump.sql');
-  const outputPath = deps.outputPath ?? join(repoRoot, 'seeds', 'cache', `${GOLDEN_PROJECT}.json`);
+  const outputDir = deps.outputDir ?? join(repoRoot, 'seeds', 'cache');
 
   const seed = readSeed(seedPath, displayPath(repoRoot, seedPath));
   const header = headerFingerprints(seed.sql);
   const current = (deps.seedFingerprints ?? currentSeedFingerprints)(repoRoot);
   if (header === undefined || header.analyzer !== current.analyzer || header.contract !== current.contract) throw staleSeed();
-  const project = seedProjects(seed.sql).find((candidate) => candidate.name === GOLDEN_PROJECT);
-  const indexedCommit = indexedCommitOf(seed.sql, GOLDEN_PROJECT);
-  if (project === undefined || indexedCommit === undefined) throw staleSeed();
+  // Every requested project must be in the seed, with an indexed commit, before any history is rebuilt.
+  const seeded = golden.map((project) => {
+    const row = seedProjects(seed.sql).find((candidate) => candidate.name === project.name);
+    const indexedCommit = indexedCommitOf(seed.sql, project.name);
+    if (row === undefined || indexedCommit === undefined) throw staleSeed();
+    return { project, projectId: row.id, indexedCommit };
+  });
 
   const fingerprintNow = answerFingerprint(repoRoot);
-  const kept =
-    argv.length === 0
-      ? []
-      : existingEntries(outputPath, { seed: seed.projectNames, fingerprints: current, answerFingerprint: fingerprintNow, config }).filter(
-          (entry) => !argv.includes(entry.id),
-        );
+  const projects = seeded.map(({ project, projectId }): ProjectPlan => {
+    const outputPath = join(outputDir, `${project.name}.json`);
+    const kept =
+      ids.length === 0
+        ? []
+        : existingEntries(outputPath, project, {
+            seed: seed.projectNames,
+            fingerprints: current,
+            answerFingerprint: fingerprintNow,
+            config,
+          }).filter((entry) => !ids.includes(entry.id));
+    return {
+      project,
+      outputPath,
+      projectId,
+      asked: project.questions.map(({ id }) => id).filter((id) => ids.length === 0 || ids.includes(id)),
+      kept,
+    };
+  });
 
-  await (deps.buildHistory ?? defaultBuildHistory)(join(workspaceRoot, 'fixtures'), repoRoot);
-  const head = (deps.headCommit ?? gitHead)(join(workspaceRoot, 'fixtures', GOLDEN_PROJECT));
-  if (head !== indexedCommit) throw staleSeed();
+  for (const { project, indexedCommit } of seeded) {
+    await (deps.buildHistory ?? defaultBuildHistory)(join(workspaceRoot, 'fixtures'), repoRoot, project.name);
+    const head = (deps.headCommit ?? gitHead)(join(workspaceRoot, 'fixtures', project.name));
+    if (head !== indexedCommit) throw staleSeed();
+  }
 
-  return {
-    repoRoot,
-    workspaceRoot,
-    outputPath,
-    databaseUrl,
-    config,
-    seed,
-    projectId: project.id,
-    seedFingerprints: current,
-    answerFingerprint: fingerprintNow,
-    asked: allowed.filter((id) => argv.length === 0 || argv.includes(id)),
-    kept,
-  };
+  return { repoRoot, workspaceRoot, databaseUrl, config, seed, seedFingerprints: current, answerFingerprint: fingerprintNow, projects };
 }
 
 /** `CACHE_BUILD_TIMEOUT_MS`: blank means the default; otherwise decimal digits naming 1..3 600 000. */
@@ -248,12 +331,13 @@ function readBuildTimeout(raw: string | undefined): number {
  */
 function existingEntries(
   outputPath: string,
+  project: GoldenProject,
   current: { seed: string[]; fingerprints: SeedFingerprints; answerFingerprint: string; config: LiveLlmConfig },
 ): GoldenEntry[] {
   const read = readGoldenFile(outputPath);
   if (!read.ok) throw notPartial(read.reason);
   const file = checkGoldenFile(read.value, { seedProjectNames: current.seed, fileName: basename(outputPath) });
-  const golden = GOLDEN_QUESTIONS.map(({ id }) => id);
+  const golden = project.questions.map(({ id }) => id);
   if (file === undefined || file.entries.some((entry) => !golden.includes(entry.id))) throw notPartial('invalid');
   const sameFingerprints =
     file.seed.analyzerFingerprint === current.fingerprints.analyzer &&
@@ -270,11 +354,11 @@ function existingEntries(
  * Asks one golden question, up to {@link MAX_ATTEMPTS} times (decision D7), and returns the response
  * to keep. Prints one line per attempt that ended with an answer or a failed model request.
  */
-async function answerOne(id: string, plan: Plan, deps: CacheBuildDeps, now: () => Date): Promise<StoredResponse> {
-  const question = GOLDEN_QUESTIONS.find((golden) => golden.id === id)!.question;
+async function answerOne(id: string, plan: Plan, projectPlan: ProjectPlan, deps: CacheBuildDeps, now: () => Date): Promise<StoredResponse> {
+  const question = projectPlan.project.questions.find((golden) => golden.id === id)!.question;
   for (let attempt = 1; ; attempt += 1) {
     const started = now().getTime();
-    const outcome = await attemptOne(question, plan, deps, now);
+    const outcome = await attemptOne(question, plan, projectPlan.projectId, deps, now);
     if ('kept' in outcome) {
       const seconds = Math.round((now().getTime() - started) / 1000);
       deps.stdout.write(`${id}: answered in ${seconds} s (attempt ${attempt}/${MAX_ATTEMPTS})\n`);
@@ -296,7 +380,7 @@ function failureOf(id: string, failed: Failed): Error {
  * whatever happens; then the classification of its outcome. Errors other than a model failure
  * propagate.
  */
-async function attemptOne(question: string, plan: Plan, deps: CacheBuildDeps, now: () => Date): Promise<Attempt> {
+async function attemptOne(question: string, plan: Plan, projectId: string, deps: CacheBuildDeps, now: () => Date): Promise<Attempt> {
   const transaction = await (deps.openTransaction ?? defaultOpenTransaction(plan.databaseUrl))();
   let answer: ExplainAnswer;
   try {
@@ -311,7 +395,7 @@ async function attemptOne(question: string, plan: Plan, deps: CacheBuildDeps, no
         // A fresh cache per attempt, so a retry verifies again.
         verificationCache: createInMemoryVerificationCache(),
       },
-      { projectId: plan.projectId, question, useCache: false },
+      { projectId, question, useCache: false },
     );
   } catch (error) {
     if (!(error instanceof LlmUnavailable)) throw error;
@@ -346,13 +430,13 @@ function gitHead(repository: string): string {
   return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repository, encoding: 'utf8' }).trim();
 }
 
-/** `buildOne('acme-shop', …)` of the repository's history rebuilder, without its summary line. */
-async function defaultBuildHistory(fixturesRoot: string, repoRoot: string): Promise<void> {
+/** `buildOne(<project>, …)` of the repository's history rebuilder, without its summary line. */
+async function defaultBuildHistory(fixturesRoot: string, repoRoot: string, project: string): Promise<void> {
   type BuildOne = (name: string, cfg: { dir: string; manifest: string }, options?: { log?: (line: string) => void }) => Promise<void>;
   const { buildOne } = (await import(pathToFileURL(join(repoRoot, 'fixtures', 'build-history.mjs')).href)) as { buildOne: BuildOne };
   await buildOne(
-    GOLDEN_PROJECT,
-    { dir: join(fixturesRoot, GOLDEN_PROJECT), manifest: join(repoRoot, 'fixtures', 'history', `${GOLDEN_PROJECT}.commits.mjs`) },
+    project,
+    { dir: join(fixturesRoot, project), manifest: join(repoRoot, 'fixtures', 'history', `${project}.commits.mjs`) },
     { log: () => undefined },
   );
 }

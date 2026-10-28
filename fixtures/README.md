@@ -311,8 +311,8 @@ so the strong historical coupling is not obvious from the import graph.
 
 | # | Question | Expected answer | Evidence (symbol) |
 |---|---|---|---|
-| Q1 | ¿Cómo se validan las peticiones entrantes? | schema-first: each route attaches a Zod schema; parsed/typed before the controller; 400 on failure | `createTaskSchema`/`listTasksQuerySchema` in `task.schema.ts`/`pagination.schema.ts`; `taskRoutes`; `validation.test.ts` |
-| Q2 | ¿Cómo se paginan los resultados? | query schema bounds `page`/`pageSize`; `applyFilters`+`sortTasks`; `buildPage` builds the page | `listTasksQuerySchema`; `sortTasks`; `buildPage`; `task.filters.test.ts` |
+| Q1 | ¿Cómo valida taskRoutes las peticiones entrantes? | schema-first: each route attaches a Zod schema; parsed/typed before the controller; 400 on failure | `createTaskSchema`/`listTasksQuerySchema` in `task.schema.ts`/`pagination.schema.ts`; `taskRoutes`; `validation.test.ts` |
+| Q2 | ¿Qué hace buildPage con los resultados paginados? | query schema bounds `page`/`pageSize`; `applyFilters`+`sortTasks`; `buildPage` builds the page | `listTasksQuerySchema`; `sortTasks`; `buildPage`; `task.filters.test.ts` |
 | Q3 | ¿Qué transiciones de estado son válidas? | the `TRANSITIONS` table; illegal moves throw `IllegalStatusTransitionError` (409) | `canTransition` in `task-status.ts`; `TaskService::update`; `task-status.test.ts` |
 | Q4 (UNKNOWN) | ¿Cómo se autentican los usuarios? | **UNKNOWN** — there is no authentication in the repo | — (no evidence) |
 
