@@ -434,3 +434,211 @@ Correction round 2, 2026-10-28. *Agent's text: decided and applied as lead engin
 - **I10 — fixed.** No pipe character in any `## Verdicts` cell (spec, scenario, tasks 6.2 and 6.5).
 - **I11 — fixed.** The resolution sentence of the Output format requires at least one valid citation in `cites` or `justification` per resolution item.
 - **§7 main-spec references — fixed through B1.**
+
+---
+
+## Run 3 (2026-10-28)
+
+APPROVED
+
+Spec audit of `openspec/changes/golden-independent-review` (Linear DIS-33, parent DIS-20), run 3, 2026-10-28. This run judges the change as it stands after correction round 2.
+
+**Inputs read.**
+- The change: `proposal.md`, `design.md`, `specs/golden-answers/spec.md`, `tasks.md`, plus `reports/2026-10-28-spec-audit.md` (runs 1 and 2 and their resolutions).
+- Linear: DIS-33 (description `[original]`, `[reality-map]` and `[enhanced]` as amended in correction rounds 1 and 2, and its 7 comments) and the parent DIS-20.
+- Project docs: `docs/base-standards.md`, `docs/openspec-tasks-mandatory-steps.md`, `docs/project-context.md` (l. 207–215, 1185–1209), `docs/AUTONOMOUS-RUN.md` §6, and `openspec/specs/golden-answers/spec.md` (requirement list, l. 348–373, 469–493).
+- Code: `.claude/workflows/autonomous-sdd.js` (l. 43–60, 62–73, 143–155, 189–194), `scripts/annotation-agreement.mjs` (l. 115–299 and its exports), `scripts/annotation-agreement.d.mts`, `tests/unit/scripts/annotation-agreement.spec.ts` (imports), `seeds/cache/task-api.json` (l. 1–140), the questions and `evidenceIds` of both golden files, and the tree of `docs/golden-review/` and `fixtures/*/`.
+
+## Questions for the author
+
+None. The agent's earlier answers (SA-Q-A, SA-Q-B, SA-Q-C; the round-2 decisions on B2 and I8) contradict neither the amended ticket nor the project, so this run accepts them.
+
+## 1. Scope against the ticket
+
+Clean. Everything follows from DIS-33 as amended:
+- The acme-shop golden answers, two panelists plus a resolver, and the TSDoc edit were confirmed in SA-Q-C.
+- The successor ticket of D5 is created only if an item is `incorrect` (destination B, labelled as created by the agent).
+
+Nothing widens the change to DIS-20's analyzer story. The non-goals are explicit in the proposal and the design.
+
+## 2. Inherited acceptance criteria
+
+DIS-20's criteria (analyzer, empty core diff, redaction, seed, `verify` Q1–Q4) are not inherited by DIS-33's DoD. Each of DIS-33's amended AC 1–5 has a requirement and a scenario:
+- **AC 1** → "Criterion first and immutable panel record". Two scenarios: one a test, one verified in the step 8 report.
+- **AC 2** → "Panel outputs of the golden review". Three scenarios. `overtyped` is a refinement the Panel group says prevails.
+- **AC 3** → "Signatures of the reviewed golden answers". The pattern is checked by the test. Task 8.3 records whether the ids are the AC 3 literals. The `verify` 3/3 output is covered by the requirement text and task 8.4.
+- **AC 4** (amended) → "A golden answer judged incorrect carries no signature", plus `## Pending`.
+- **AC 5** → "Golden review report". See improvable I5 for the `n = 7` and "indicative" parts.
+- **DoD «y el veredicto»** → the `## Verdicts` table, joined to each entry in the test (SA-Q-B).
+
+## 3. Missing scenarios
+
+- **Improvable (I5).**
+  - "Golden review report" requires `## Agreement` to state `n = 7` and the word `indicative` for the kappa (AC 5 asks for both). Neither scenario's THEN checks them.
+  - "Panel outputs…" requires the resolution's `resolver` to match the model pattern and its `date` to be a real day. The scenario "The resolution answers exactly the disagreements" checks only that a `resolver` exists.
+
+  Correction: see Corrections → spec.md.
+- Otherwise clean. Every MUST clause of the five requirements is exercised.
+
+## 4. Ambiguity
+
+Clean. A search of `proposal.md`, `design.md`, `spec.md` and `tasks.md` finds none of fast, easy, secure, efficient, many, appropriate or robust. "Several" appears once, in design D5, in a rationale followed by an explicit list of tests; it pins nothing.
+
+## 5. Open decisions
+
+No blocking open decision: every format, limit, ordering and name a test pins is fixed. Four improvable points remain. Two of them touch the Criterion block, which becomes immutable at task 1.2. Task 1.1 has not run, so fix those two now or not at all.
+
+- **Improvable (I1). Statements that cite several evidence entries, and compound statements.** Real items hit this:
+  - task-api Q1 S3 cites 5 evidence entries and Q1 S4 cites 6. Each entry backs one part of the statement (one controller method per route).
+  - The `unverifiable` bullet says "a cited evidence entry does not exist (file or lines) or **its** lines do not back the statement". Read per entry, together with the precedence rule, any single entry that backs only its part makes the statement `unverifiable`. Read jointly, the statement is `true`. The two readings give `partial` versus `correct`.
+  - Likewise, a statement with one true part and one contradicted part (Q1 S1: "un controlador del tipo 'taskRoutes'") is not clearly `false`.
+
+  The resolver absorbs the disagreement, but the agreement figure then measures an ambiguity in the criterion rather than in the answers. Correction: add one bullet to the Criterion block (see Corrections).
+- **Improvable (I2). The planted secret in the panel outputs.**
+  - Panelists may read `fixtures/task-api/src/config/env.ts`.
+  - Nothing tells them not to quote its value in `notes` or `cites`.
+  - The outputs are committed and can never be edited (D7).
+  - CI's gitleaks allows the value by exact match (`docs/project-context.md` l. 207–215), so it would not catch it.
+
+  The proposal's Impact says the secret "does not leave the fixture", but that holds only for the input and the report. Correction: add a rule to the Output format, and have the validator reject `/AKIA[A-Z0-9]{16}/` in an output (a rejection stops the ticket, as for any other defect).
+- **Improvable (I6). `sourcesRead` and files the harness loads.**
+  - `CLAUDE.md` and the memory files are loaded into every agent's context automatically. A conscientious panelist may list `CLAUDE.md`, which is outside the allowlist and would reject the output.
+  - Nothing requires `sourcesRead` to be non-empty, or to include the fixture files the output cites.
+
+  Correction: the Panel group says "files loaded automatically by the harness (`CLAUDE.md`, memory) are not listed". Optionally, the validator requires every file named by a valid citation to appear in `sourcesRead`.
+- **Improvable (I7). Task 4.3** says "write both outputs exactly as returned (two-space JSON, LF, final newline)". If a panelist returns content that is not two-space JSON, the recording agent must either reformat it (which arguably edits it) or break the stated format. Correction: "write the content exactly as returned; only line endings are normalised to LF and a final newline is added; nothing else is reformatted (no test checks the indentation of the outputs)".
+
+## 6. Contradictions inside the change
+
+- **Improvable (I3). D5 versus D7 on stopping the ticket.**
+  - D5 rejects the alternative "stopping the ticket" because it is "not a clean-stop condition of the run contract".
+  - D7 and task 5.2 plan exactly such a stop when the test rejects a panel output.
+  - The `docs/AUTONOMOUS-RUN.md` §6 list of clean stops does not name a rejected panel output either.
+
+  Correction: reword D5's reason as "stopping would leave an expected outcome (an `incorrect` verdict) without a path", and state in D7 that a rejected output is a ticket-specific clean stop: return `ok=false` with the failing check; the author decides.
+- Otherwise clean. The proposal, D1–D9, the spec and the Panel group agree on:
+  - paths, shapes and strictness;
+  - the citation grammar, the derivation and the precedence;
+  - the allowlists, the section order and the formats;
+  - the task order 6.3–6.7.
+
+## 7. Contradictions with the project
+
+Clean:
+- **`docs/project-context.md` l. 1204–1206** ("the author signs a sample") is updated by task 11.2.
+- **Main spec "Partial regeneration"** (l. 358–361: a regenerated entry has empty `reviews`) agrees with D5 and task 11.2.
+- **Main spec "The versioned golden file is coherent"** (l. 469–477: canonical render, no `AKIA`) is kept by task 6.3.
+- **Requirement names.** The four ADDED requirements plus "Criterion first…" duplicate no requirement name of the main spec.
+- **Merge and PR text.** The agent merging (13.7) and writing the PR's "why" (12.1) are covered by `docs/AUTONOMOUS-RUN.md` §2/§6.
+- **Spanish PR.** The project exception in base-standards §2 covers it.
+
+## 8. Contrast with the real code
+
+- **Improvable (I4).**
+  - D8 says "Only `cohenKappa` is exported by the script". In fact `scripts/annotation-agreement.mjs` also exports `validateOutput` (l. 212), `agreement` (l. 360), `mergeAnnotations` (l. 404), `sha256` (l. 439), `checkFreeze` (l. 452) and `runAnnotationAgreement` (l. 634). The claim D8 needs is narrower: `roundRatio` (l. 274) and `fixtureLines` (l. 121) are not exported, and `validateOutput` is bound to the DIS-80 `sites` shape. Reword.
+  - `fixtureLines` also rejects a path with a `..` segment or a leading `/` (l. 122). The spec's citation regex `[A-Za-z0-9_.\/-]+` admits `..`, so `fixtures/task-api/../acme-shop/x.php:3` escapes the fixture. The spec's "names an existing file inside that fixture" implies the rejection; state it explicitly, since the test copies the rule.
+- **Improvable (I8). The citation check is pinned to today's fixture lines.**
+  - The coherence test validates the immutable panel files against the fixture files at HEAD.
+  - A later ticket that shortens a cited fixture file would make this test fail on its branch.
+  - That failure is arguably right, since the review would be stale, but it is not documented.
+
+  Correction: state in D7 and in the project-context line of task 11.2 that a fixture change that breaks a panel citation invalidates the review and needs a new panel, as a regenerated entry does.
+- Consistent with the code:
+  - `cohenKappa` is declared in `scripts/annotation-agreement.d.mts` l. 106, so the TypeScript test typechecks, like `tests/unit/scripts/annotation-agreement.spec.ts` l. 8–16.
+  - Every golden statement has at least one `evidenceIds` entry, so no input statement has empty `evidence`.
+  - The golden question texts match task 9.1.
+  - `docs/golden-review/2026-10-task-api-golden-review.md` does not exist yet.
+  - `fixtures/task-api/README.md` and `fixtures/acme-shop/README.md` exist, and neither fixture has a `docs/` directory, so the exclusions are harmless.
+  - `runPanel` (l. 143–155) matches the Panel group: panelists return files, `panel-record` writes them, `panel-resolve` (Opus) always writes the resolution.
+  - The Panel group's "Resolver and its step contract" paragraph neutralises the COMMON prompt's instructions to record decisions in Linear and `design.md`.
+  - The Criterion block (tasks.md l. 32–37) lies between the unique line starting with `**Criterion**` (l. 30) and the unique line starting with `**Output format.**` (l. 39), and every one of its lines starts with `- `. The extraction rule selects exactly six bullets.
+
+## 9. Task size
+
+Clean. The largest tasks are 5.2 (validator plus two `it`s), 6.2 (table parser plus three `it`s) and 6.5 (the report). Each fits in one agent turn.
+
+## 10. Mandatory steps
+
+Clean:
+- Step 0 is the branch (0.1–0.4).
+- Each mandatory group is present and labelled:
+  - 7 Review and Update Existing Tests (MANDATORY);
+  - 8 Run Tests and Verify Data State (MANDATORY), report path in 8.6;
+  - 9 Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE), report in 9.4;
+  - 10 End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE), marked not applicable;
+  - 11 Update Technical Documentation (MANDATORY);
+  - 13 Pre-merge Review (MANDATORY - AGENT MUST EXECUTE), last, with the three checks in order and the archive commit before the merge.
+- State restoration: 9.3 records counts and `git status`; `dev-processes stop` follows every step that starts processes.
+- Task 7.2 recount is correct: 10 scenarios, 9 with tests plus 1 in the step 8 report.
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| Blind panel input of the golden review | The panel input projects the golden answers without their verification | 2.1, 2.2, 2.3 |
+| Panel outputs of the golden review | Each panelist output judges every item under the criterion | 4.1, 4.2, 4.3, 5.2 |
+| Panel outputs of the golden review | The resolution answers exactly the disagreements | 4.4, 5.2 |
+| Panel outputs of the golden review | Invalid panel outputs are rejected | 5.1, 5.2 |
+| Signatures of the reviewed golden answers | Every golden answer judged correct or partial carries both panel signatures | 6.1, 6.3 |
+| Signatures of the reviewed golden answers | A golden answer judged incorrect carries no signature | 6.1, 6.3, 6.4, 6.5 |
+| Golden review report | The report's verdicts and agreement match the panel files | 6.2, 6.5 |
+| Golden review report | The report states its criterion, panel and limitations | 1.1, 6.2, 6.5 |
+| Criterion first and immutable panel record | The report's criterion is the Panel group's criterion | 1.1, 1.2, 6.2, 13.7 |
+| Criterion first and immutable panel record | The criterion precedes the input and nothing in the record is rewritten | 1.2, 2.3, 4.3, 4.4, 8.3 |
+
+No empty row.
+
+## Corrections to apply
+
+All corrections are improvable. None blocks the apply. I1 and I2 touch the Panel group and should be applied before task 1.1 runs, because the Criterion block becomes immutable at task 1.2.
+
+### `tasks.md`
+
+- **Panel group → Criterion block (I1).** Add the bullet before task 1.1 runs:
+  > - A statement is backed when the lines of all the evidence entries it cites, taken together, show everything it claims; it is `unverifiable` when some claimed part is shown by none of them, or when a cited entry does not exist. A statement with any part contradicted by the code is `false`.
+- **Panel group → Output format (I2, I6).** Add:
+  > Never quote a secret value from the fixture (cite its line instead); an output containing `AKIA` followed by 16 upper-case letters or digits is rejected. Files loaded automatically by the harness (`CLAUDE.md`, memory files) are not read by you and are not listed in `sourcesRead`.
+- **4.3 (I7).** Replace "write both outputs exactly as returned (two-space JSON, LF, final newline)" with:
+  > write both outputs with the content exactly as returned; only line endings are normalised to LF and a final newline is added; nothing else is reformatted
+- **5.1 / 5.2 (I2).** Add a copy containing an `AKIA…` value to the rejection cases, and the matching check to the validator.
+
+### `specs/golden-answers/spec.md`
+
+- **"Panel outputs of the golden review" → Citations (I4).** Append: "A path with a `..` segment is not inside the fixture."
+- **"Panel outputs of the golden review" (I2).** Add: "No output SHALL match `/AKIA[A-Z0-9]{16}/`." Add "an `AKIA` value" to the copies of the scenario "Invalid panel outputs are rejected".
+- **Scenario "The resolution answers exactly the disagreements" (I5).** THEN: replace "the resolution has a `resolver`" with "the resolution has a `resolver` matching the model pattern and a real `date`".
+- **Scenario "The report's verdicts and agreement match the panel files" (I5).** THEN: add "`## Agreement` contains `n = 7` and the word `indicative`". Update task 6.2 to match.
+
+### `design.md`
+
+- **D5 (I3).** Replace "stopping the ticket (not a clean-stop condition of the run contract)" with "stopping the ticket (an `incorrect` verdict is an expected outcome and must have a path that finishes the change)".
+- **D7 (I3, I8).** Add the following:
+  > A rejected output is a ticket-specific clean stop: the step returns `ok=false` with the failing check and the author decides. A later fixture change that breaks a panel citation invalidates the review and needs a new panel, like a regenerated entry.
+- **D8 (I4).** Replace "Only `cohenKappa` is exported by the script" with:
+  > `roundRatio` and `fixtureLines` are not exported, and the exported `validateOutput` is bound to the DIS-80 `sites` shape; the test imports only `cohenKappa`.
+
+  Also add that `fixtureLines`' rejection of `..` and of a leading `/` is copied.
+- **Follow-ups.** Add rows SA3-I1 … SA3-I8 with destination A.
+
+### `proposal.md`
+
+- **Impact (I2).** "The panel input copies no `excerpt`, so the planted secret … does not leave the fixture" → "The panel input copies no `excerpt`, and neither the panel outputs nor the report may quote the planted secret of `fixtures/task-api/src/config/env.ts`".
+
+### Task 11.2 (`docs/project-context.md` text it will write) (I8)
+
+- Add: "a fixture change that breaks a citation of the panel files invalidates the review and needs a new panel".
+
+### Linear DIS-33 (Spanish; the `[original]` block is never touched)
+
+Comment:
+> **Auditoría de spec, ejecución 3 (texto del agente, 2026-10-28): APPROVED, 0 bloqueantes.** Mejoras recomendadas antes de la tarea 1.1, porque el bloque Criterion queda inmutable en la 1.2:
+> - (I1) Cómo se juzga un statement que cita varias evidencias o que es en parte falso.
+> - (I2) Las salidas del panel no deben citar el secreto plantado de `env.ts`, y el validador las rechaza si lo hacen.
+> - (I6) `CLAUDE.md` y la memoria no se listan en `sourcesRead`.
+>
+> Otras mejoras:
+> - (I3) Coherencia entre D5 y D7 sobre la parada del ticket.
+> - (I4) Corregir en D8 qué exporta `scripts/annotation-agreement.mjs`, y que un `..` no vale en una cita.
+> - (I5) Los escenarios comprueban `n = 7`, «indicative» y el `resolver` y la fecha de la resolución.
+> - (I7) La tarea 4.3 no reformatea las salidas.
+> - (I8) Un cambio posterior del fixture que rompa una cita exige un panel nuevo.
