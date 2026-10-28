@@ -739,3 +739,231 @@ No empty row.
 - **`panelist` field against its file — fixed, decided by the agent.** Validation rejects a panelist output whose `panelist` differs from its file's number; folded into the scenarios "A complete panel output is accepted" and "An incomplete panel output is rejected" and into tasks 1.1/1.2, so the scenario count stays 19 + 4 + 5 = 28 (task 7.2).
 
 **Linear.** DIS-80: description, enhanced part only (AC 5, D4, D8); Spanish comment summarising this round.
+
+---
+
+## Run 4 (2026-10-28)
+
+CHANGES REQUIRED
+
+**Questions for the author**
+
+None. Both blocking findings can be fixed inside the change without a product or scope decision. The earlier decisions marked as the agent's text are accepted. They do not contradict DIS-80 or the project:
+- Q1: the sub-issue supersedes DIS-53 on "anotación humana".
+- R2-B5: the lenient citation rule. Enhanced AC 5 is now aligned with it.
+- R3-B1: the resolver derives the disagreements itself and does not read `agreement.json`.
+- R3-B2: the process documents are allowed.
+
+Inputs read:
+- **The change:** `proposal.md`, `design.md`, `specs/graph-annotations/spec.md`, `tasks.md`, and `reports/2026-10-28-spec-audit.md` (runs 1–3 and their resolutions).
+- **Linear:** DIS-80 (description `[original]` / `[reality-map]` / `[enhanced]`, and its 6 comments) and its parent DIS-53.
+- **Workflow:** `.claude/workflows/autonomous-sdd.js`, lines 62-73 (`COMMON`), 90-97 (`step`), 143-155 (`runPanel`) and 187-194 (`apply-prepare` / `apply-finish`).
+- **Docs:** `docs/AUTONOMOUS-RUN.md`, searched for fixture, control or Table 2 content (none found).
+- **Fixtures:** `fixtures/README.md` § "Table 2 seed" (lines 328-368).
+
+---
+
+## 1. Scope against the ticket
+
+Clean. Everything traces to one of these sources:
+- the `[original]` DoD and procedure of DIS-80;
+- its enhanced D1–D12;
+- a correction from runs 1–3.
+
+Nothing widens toward DIS-53's Table 1, `measure-graph` or the filled Table 2. All three stay explicit non-goals.
+
+## 2. Inherited acceptance criteria
+
+Clean.
+- **DoD of DIS-80:** 50 entries per language with a `file:line` reason; a report with percent, kappa, disagreements and resolution; SHA-256 committed before `measure-graph`. Each has a requirement and a scenario.
+- **Enhanced AC 1–5:** each covered. AC 5 now matches the citation rule.
+- **DIS-53:** only "Dado 50 sitios anotados por lenguaje" is inherited, and it is covered.
+
+## 3. Missing scenarios
+
+Clean. All 28 scenarios exist, and every MUST clause has one:
+- the validation list, including the `panelist` / file-number check folded in run 3;
+- the `agreement.json` shape (checked in the control-agreement case of task 1.1);
+- the CLI exit codes;
+- the selection per construction;
+- the control discrepancies.
+
+The freeze-before-`measure-graph` clause is checked by task 8.3, as the spec states.
+
+## 4. Ambiguity
+
+Clean. None of fast / easy / secure / efficient / many / appropriate / robust occurs in the artifacts. The only hit is the quotation in the Follow-up row I3 of `design.md`.
+
+## 5. Open decisions
+
+**R4-B1 (blocking). How validation treats a `sourcesRead` entry is undecided. Both readings break a task, or the goal that the figures can be recomputed.**
+
+What the change says today:
+- **Spec "Panel output validation":** an entry is "a repository-relative path of a single file"; "a directory or a glob is rejected"; the allowlist is "files under `fixtures/acme-shop/app/`" and so on.
+- **Task 1.2:** "one file per `sourcesRead` entry".
+- **Nowhere:**
+  - whether validation requires the file to exist under `--root`;
+  - how a directory is recognised. `fixtures/acme-shop/app/Services` is "under `app/`" as a string, so it can only be caught by a `stat` or a syntactic rule.
+
+Why each reading fails:
+- **If validation checks the file system** (the natural way to tell a file from a directory), two tasks break:
+  - **Task 9.1** runs `agreement` with `--root` on a scratchpad copy of `docs/measurements/annotation/` and `fixtures/` only. Every panelist lists `openspec/changes/callsite-annotations/tasks.md` (it is where the criterion lives), and possibly `docs/base-standards.md`. Neither exists in that root, so 9.1 gets exit `1` instead of `0`, or the implementer decides alone how a missing file is treated.
+  - **Task 13.7** (`/opsx:archive`) moves `tasks.md` to `openspec/changes/archive/...`. After the merge, `node scripts/annotation-agreement.mjs agreement` at the repository root fails on the committed, hashed panel outputs. That breaks the design goal "agreement figures that anyone can recompute from committed files" and the proposal's "so every figure can be recomputed".
+- **If validation is purely by string**, a subdirectory entry under an allowlisted prefix passes. The scenario "A sourcesRead entry that is a directory or a glob is rejected" uses only `fixtures/acme-shop/app`, which fails the allowlist anyway, so the scenario does not pin the rule.
+
+Correction:
+- In the requirement "Panel output validation", fix the rule. Suggested text: "`sourcesRead` is checked by path string only: the file need not exist under the root. An entry is a glob when it contains `*`, `?`, `[` or `{`. It is a directory when it ends with `/`, or when it exists under the root as a directory, or when it equals an allowlisted directory (`fixtures/acme-shop/app`, …). Existence of the cited fixture files and of `target.file` is still checked."
+- Add to the scenario's WHEN a case of a subdirectory under an allowed prefix, plus an allowlisted file that is absent under the root (accepted).
+- Mirror the rule in design D4, the Panel group (Output format) and tasks 1.1/1.2.
+- Alternatively, keep a `stat`-based rule, but then:
+  - task 9.1 must also copy `openspec/changes/callsite-annotations/tasks.md`, `docs/base-standards.md` and `docs/AUTONOMOUS-RUN.md`;
+  - the design must state that `agreement` cannot be re-run after the archive (and the proposal's recompute claim must be narrowed).
+
+  This alternative is not recommended.
+
+**R4-B2 (blocking). The control target of php-06 is undefined in the spec, and the control scenario cannot pass for it as written.**
+- **The README row** (`fixtures/README.md:345`) is "`DiscountService::discountFor` → `event(DiscountApplied)` listeners · heuristic". It names no symbol and no graph target.
+- **The requirement "Control reference"** says `target` is "the row's graph target when the row names one, otherwise the row's target". For this row, the "row's target" is not a `{ file, symbol }`.
+- **The scenario** requires "every non-null `target.symbol` is the symbol named by its README row (its graph target when given), except task-api row 3". For php-06 no symbol is named, so the test of task 2.1 cannot be written without the implementer inventing the comparison.
+- **The rule exists only in task 2.3:** "a listener or job reached by a convention as its `handle` method". It is not a requirement, and the test does not know which listener.
+- **Impact:** this target feeds the published control agreement for PHP (n = 12).
+
+Correction:
+- In the spec "Control reference", add to the target rule: "for a row whose target is a convention without a named symbol (an event's listeners), the target is the `handle` method of the listener registered first for that event in `EventServiceProvider::$listen` (`{ file: <listener file>, symbol: <Listener>::handle }`)".
+- Extend the scenario's exception: "…except task-api row 3, whose target is `TaskService::get`, and an event row, whose target is the `handle` of the first listener registered for the event in the fixture's `$listen` (the test reads `EventServiceProvider.php` to derive it)".
+- Keep the rule out of the DIS-80 description. `tasks.md` already holds it at rule level in task 2.3, with no site or answer named, and needs no change.
+
+## 6. Contradictions inside the change
+
+Clean apart from R4-B1:
+- The proposal ("every figure can be recomputed") and design Goals ("agreement figures that anyone can recompute from committed files") conflict with a `stat`-based reading of the `sourcesRead` rule combined with task 13.7.
+- Proposal, design and spec otherwise agree on:
+  - the files, the nine hashed files and `selection.json` (not hashed, with its reason);
+  - format 1;
+  - the measures and the `agreement.json` shape;
+  - the merge, the CLI and the report sections;
+  - the two allowlists.
+
+## 7. Contradictions with the project
+
+Clean.
+- `openspec/specs/` has no capability on annotations, so nothing is duplicated.
+- No ADR bears on this change (P8).
+- Exit code `2` for usage errors follows `scripts/demo-excerpt.mjs:15-16`.
+- The workflow's resolver prompt (`autonomous-sdd.js:154`, "any measurement output") is now consistent: the resolver no longer reads `agreement.json`.
+- `COMMON` (`autonomous-sdd.js:62-71`) sends the resolver to `docs/AUTONOMOUS-RUN.md`, which is allowed, and to `design.md` and Linear writes, which the Panel group paragraph "Resolver and its step contract" neutralises.
+- Panelists are launched without `COMMON` (`autonomous-sdd.js:145`), so they get no conflicting contract.
+
+*Improvable.* DIS-80's enhanced part still lags the change in two places that panelists read. The Panel group prevails (stated in its first paragraph), so neither is blocking:
+- **Enhanced D1:** format 1 has no `form` field.
+- **Enhanced D3:** "Unidad = una expresión de llamada", while the change also counts a `read` and a `reference` as one site each.
+
+Align both at rule level (see Corrections → Linear).
+
+## 8. Contrast with the real code
+
+- The script follows the `scripts/demo-excerpt.mjs` pattern and duplicates no abstraction.
+- The README targets of tasks 11.1/11.2 were confirmed in run 2 and are unchanged (`fixtures/README.md:328-336,353`).
+- Reading `fixtures/README.md:340-366` against the spec "Control reference" gives R4-B2 (row 6). The other 21 rows name a symbol or a graph target, or say "no edge".
+- *Improvable.* The spec "Agreement CLI" prints `<sha256>  <path>`, and D10's report row is `| <repository path> | <64 hex> |`. Neither says which path separator is used. On Windows, `path.join` yields backslashes, and the output would then differ from the report row. Tasks 8.3 and 9.1 compare the two, and the test pins the format. Add to the requirement: "`<path>` is the repository-relative path with forward slashes".
+
+## 9. Task size
+
+Clean.
+- Task 1.1 (19 `it` cases over a temporary root) and tasks 2.2a/2.2b (38 / 40 sites with `selection.json`) are the heaviest. Each fits one agent turn now that its inputs are fixed.
+- Task 6.2 fits because `selection.json` and the section formats are fixed.
+
+## 10. Mandatory steps
+
+Clean.
+- Step 0 comes first and is labelled `(MANDATORY - FIRST STEP)`, with the branch and its prefix.
+- These steps are present and labelled:
+  - 7 Review existing tests;
+  - 8 Run tests and verify data state, with the baseline in 0.4 and the §6 report template;
+  - 9 Manual interface testing (`AGENT MUST EXECUTE`), with success and error cases;
+  - 10 E2E, justified N/A;
+  - 11 Docs;
+  - 13 Pre-merge review, last, with the three checks, fixes on the same PR and the archive before the merge.
+- Mutating tasks restore state: 9.1/9.2 work on a scratchpad copy and 9.3 deletes it and checks `git status`. The dev-process stops are present.
+- Task 9.1 is affected by R4-B1: what it copies must match the `sourcesRead` rule chosen there.
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| Call-site lists | Each site list has 50 sites with the controls first | 2.1, 2.2a, 2.2b |
+| Call-site lists | Every site points at its call in the fixture | 2.1, 2.2a, 2.2b |
+| Call-site lists | A site list carries no answer | 2.1, 2.2a, 2.2b, 3.1 |
+| Call-site lists | The report counts the selection per construction | 2.2a, 2.2b, 2.4, 6.1, 6.2 |
+| Control reference | The control reference transcribes the 22 README rows | 2.1, 2.3 (php-06 target undefined: R4-B2) |
+| Panel output validation | A complete panel output is accepted | 1.1, 1.2, 4.3 |
+| Panel output validation | An incomplete panel output is rejected | 1.1, 1.2, 4.3, 9.2 |
+| Panel output validation | A citation to a line that does not exist is rejected | 1.1, 1.2, 4.3, 9.2 |
+| Panel output validation | A reason without a citation is rejected | 1.1, 1.2, 4.3 |
+| Panel output validation | An answer inconsistent between expected and target is rejected | 1.1, 1.2, 4.3 |
+| Panel output validation | A target that does not exist in the fixture is rejected | 1.1, 1.2, 4.3 |
+| Panel output validation | A declared forbidden source is rejected | 1.1, 1.2, 4.3, 9.2 |
+| Panel output validation | A sourcesRead entry that is a directory or a glob is rejected | 1.1, 1.2, 4.3 (rule open: R4-B1) |
+| Panel output validation | A resolution with a source outside the resolver allowlist is rejected | 1.1, 1.2, 5.1 |
+| Agreement measures | Percent agreement and Cohen's kappa per language | 1.1, 1.2, 4.3 |
+| Agreement measures | Kappa is undefined when the expected agreement is 1 | 1.1, 1.2 |
+| Agreement measures | Agreement with the control per panelist | 1.1, 1.2, 4.3 |
+| Deterministic merge | Agreed sites take the common answer | 1.1, 1.2, 5.1 |
+| Deterministic merge | Disagreements take the resolution | 1.1, 1.2, 5.1 |
+| Deterministic merge | A missing or extra resolution fails the merge | 1.1, 1.2, 5.1, 9.2 |
+| Deterministic merge | The merge is deterministic | 1.1, 1.2, 5.2 |
+| Agreement CLI | An unknown command is a usage error | 1.1, 1.2, 9.2 |
+| Agreement CLI | A rejected panel output writes no agreement file | 1.1, 1.2, 4.3, 9.2 |
+| Agreement CLI | hashes prints the nine files in order | 1.1, 1.2, 6.2, 8.3, 9.1 |
+| Frozen annotations and report | The recorded hashes match the frozen files | 6.1, 6.2, 6.3, 8.3 |
+| Frozen annotations and report | A changed annotation file fails the freeze check | 6.1 |
+| Frozen annotations and report | The report states the method and every disagreement | 6.1, 6.2 |
+| Frozen annotations and report | The report lists every control discrepancy | 6.1, 6.2, 6.4 |
+
+No empty row. The scenario count is 19 + 4 + 5 = 28 and matches task 7.2.
+
+---
+
+## Corrections to apply
+
+### `specs/graph-annotations/spec.md`
+
+1. **"Panel output validation" (R4-B1).** After "a directory or a glob is rejected", add:
+
+   "`sourcesRead` is checked by path string: an entry need not exist under the root. An entry is a glob when it contains `*`, `?`, `[` or `{`; it is a directory when it ends with `/`, equals a directory named in the allowlist (for example `fixtures/acme-shop/app`), or exists under the root as a directory. The existence checks of cited fixture files and of `target.file` are unchanged."
+
+   Extend the WHEN of the scenario "A sourcesRead entry that is a directory or a glob is rejected" to: "…a directory (`fixtures/acme-shop/app`, or a subdirectory under an allowed prefix that exists under the root, such as `fixtures/acme-shop/app/Services`) or contains a glob (`fixtures/acme-shop/app/**`), while an allowlisted file absent under the root (`openspec/changes/callsite-annotations/tasks.md`) is accepted".
+2. **"Control reference" (R4-B2).** In the target rule, after "otherwise the row's target", add:
+
+   "; for a row whose target is a framework convention with no named symbol (an event's listeners), the `handle` method of the listener registered first for that event in the fixture's `EventServiceProvider::$listen`".
+
+   In the scenario's THEN, replace "except task-api row 3, whose target is `TaskService::get`" with:
+
+   "except task-api row 3, whose target is `TaskService::get`, and an event row, whose target is the `handle` of the first listener registered for that event in the fixture's `EventServiceProvider::$listen`".
+3. **"Agreement CLI" (improvable).** After "one line `<sha256>  <path>`", add: "where `<path>` is the repository-relative path with forward slashes, as recorded in the report's `## Hashes SHA-256` table".
+
+### `design.md`
+
+- **D4 (R4-B1):** add the path-string rule for `sourcesRead`: no existence check, and the glob and directory definitions as in spec correction 1. Add the reason: the hashed panel outputs must stay valid after the archive and on a partial `--root` copy.
+- **D10 (improvable):** `hashes` prints paths with forward slashes.
+- **Follow-ups:** rows R4-B1 and R4-B2 (destination A), and R4-I1 (hash path separator, A). Add R4-I2 (enhanced D1/D3 of the DIS-80 description, destination B) if it is taken.
+
+### `tasks.md`
+
+- **1.1 (R4-B1):** in the directory/glob case, add:
+  - a subdirectory under an allowed prefix that exists in the temporary root (rejected);
+  - an allowlisted file absent from the temporary root, `openspec/changes/callsite-annotations/tasks.md` (accepted).
+- **1.2 (R4-B1):** "`sourcesRead` checked by path string (design D4), no existence check".
+- **2.1 (R4-B2):** "The control reference transcribes the 22 README rows" derives the event row's expected target from `fixtures/acme-shop/app/Providers/EventServiceProvider.php` (first listener registered for the event, `::handle`).
+- **Panel group, Output format (R4-B1):** after "Each `sourcesRead` entry names one file (never a directory or a glob…)", add "; entries are checked as path strings".
+- **9.1:** no change if the path-string rule is chosen. If a `stat` rule is chosen instead, copy `openspec/changes/callsite-annotations/tasks.md`, `docs/base-standards.md` and `docs/AUTONOMOUS-RUN.md` into the scratchpad root as well.
+
+### Linear
+
+- **DIS-80, description, enhanced part only (improvable R4-I2).** Write it in Spanish, marked as agent's text; do not touch `[original]`; name no site and no control answer.
+  - In D1, add `"form": "call"|"new"|"read"|"reference"` to the format.
+  - In D3, add: "una lectura de propiedad servida por `__get` (`read`) y una referencia pasada como argumento (`reference`, incluidas las acciones de ruta) cuentan como un sitio cada una".
+- **DIS-80, comment in Spanish:** a summary of round 4:
+  - `sourcesRead` is validated as a path string, so the outputs stay valid after the archive and on partial copies;
+  - the control target of an event row is the `handle` of the first listener registered in `$listen`, a rule written only in the spec and the design;
+  - `hashes` prints paths with `/`.
