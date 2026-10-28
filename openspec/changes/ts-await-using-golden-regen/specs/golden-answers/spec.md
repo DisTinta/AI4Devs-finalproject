@@ -256,8 +256,9 @@ DIS-33 round unchanged.
 - **WHEN** `git merge-base --is-ancestor` over the creating commits of the report, the regenerated
   golden files and the input, `git log -p` over the report, `git log --format=%H` over each file of
   the current round in `docs/golden-review/panel/`, and `git diff` against the base branch over the
-  files of the DIS-33 round run
+  files of the DIS-33 round run, and `git diff` of `seeds/cache/` from the regeneration commit runs
 - **THEN** the report's commit is an ancestor of the regeneration commit and that one of the input's,
   no later commit touches `## Criterion`, each panel output and the resolution of the current round
-  has exactly one commit, and the DIS-33 round files have no diff (verified and recorded in the step
-  8 report, not by a test: CI clones may be shallow, design D10)
+  has exactly one commit, the DIS-33 round files have no diff, and that diff of `seeds/cache/` touches
+  only `reviews` (verified and recorded in the step 10 report, not by a test: CI clones may be
+  shallow, design D10)

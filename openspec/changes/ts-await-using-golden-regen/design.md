@@ -91,6 +91,9 @@ and Q4 `incorrect`) and DIS-33's describes the previous answers; the Panel group
 Forbidden, in addition to DIS-33's list: every file of the DIS-33 round, the DIS-34 and DIS-104
 reports, `openspec/changes/archive/**`, and any Linear content (DIS-33, DIS-107, DIS-108, DIS-109).
 The resolver may also read the two panelist outputs of this round and `docs/AUTONOMOUS-RUN.md`.
+The per-item verdicts of the previous round and their pending tickets are written only in this design
+(Context, D9), never in `tasks.md` outside the Panel group, because a panelist reads the whole
+`tasks.md` (task 5.1 checks it).
 
 **D7 — Round files and the coherence test (ticket E6).** New files with the suffix `-dis-107`
 (precedent: `2026-10-acme-shop-golden-review-dis-104.md`); the DIS-33 files stay unchanged as history.
@@ -100,13 +103,13 @@ The resolver may also read the two panelist outputs of this round and `docs/AUTO
 tasks-file resolution (`ts-await-using-golden-regen`, active or archived) and the forbidden paths
 checked in `## Panel`; and it gains the comparison of this round's Criterion block with the DIS-33
 one. The DIS-33 round is no longer checked by a test: its files cannot match the regenerated golden
-files, and their immutability is checked by `git diff` in the step 8 report (D10). *Alternative
+files, and their immutability is checked by `git diff` in the step 10 report (D10). *Alternative
 rejected:* parametrising the test over both rounds — the DIS-33 projection would need the old golden
 files from git history, which a shallow CI clone may not have.
 
 **D8 — The test is red between the preparation and the after-panel tasks.** The retargeting of the
 input `it` happens in the preparation (task 4), but the `it`s over panel outputs, signatures and the
-report can only pass once the panel has run. Between the preparation commit and task 7.5 those `it`s
+report can only pass once the panel has run. Between the preparation commit and task 8.5 (task 7.1 for the panel-output `it`s) those `it`s
 fail; no PR exists in that window, so no CI run is affected, and the preparation step runs only the
 targeted `it` (`-t`). *Alternatives rejected:* `it.skip` or an existence guard — either could leave
 the checks silently off.
@@ -120,7 +123,8 @@ resolves it and the author confirms and closes it (destination B).
 
 **D10 — Order and immutability checked from git, not by a test.** As DIS-33 D9: CI clones may be
 shallow, so the ancestor relations (report → regeneration → input), the single commit of each panel
-file and the empty diff of the DIS-33 files are verified with git in the step 8 report.
+file, the empty diff of the DIS-33 files and the `reviews`-only diff of the golden files after the
+regeneration commit are verified with git in the step 10 report (task 10.3).
 
 **D11 — Running a one-hour `cache:build` in an agent step.** A foreground Bash call lasts at most 10
 minutes, and the workflow forbids the tool's background mode and `Monitor`. As in DIS-32 (its task
@@ -171,7 +175,12 @@ the pre-merge reviews add their findings here.
 | D8 | Red window of the panel `it`s between preparation and after-panel tasks, no PR in it | **A** — this change |
 | E7 / D9 | acme-shop Q1/Q4 `correct`/`partial` → signed here, comment on DIS-108/DIS-109 for the author to close; else they stay pending there | **B** — existing tickets, to be confirmed by the author |
 | E8 / D9 | Any other `incorrect` answer → unsigned, successor issue created by the agent | **B** — successor issue of the agent, to be confirmed by the author |
-| E9 | No PowerShell check is planned: no guide command or screenshot changes. If `docs/DEMO.md` needed a new capture, it is left to the author | **C** — author, only if it appears |
+| E9 | No PowerShell check is planned. The guide transcripts that quote the regenerated answers are updated in task 13.2 (Paso 6 recaptured in Git Bash; dated note for the `demo:ask` figures and the web confidence); a web screenshot, if it has to be retaken, is left to the author (spec audit run 1, B2) | **A** (transcripts) / **C** (screenshots, author, only if needed) |
 | E10 | Golden format, `cache:build`, `verify`, `seed:build` and the criterion are out of scope | **D** — out of scope |
-| D10 | Order and immutability verified with git in the step 8 report | **A** — this change |
+| D10 | Order and immutability verified with git in the step 10 report (task 10.3) | **A** — this change |
 | D11 | Detached `cache:build` with a log polled in the foreground; Ollama with 16384 context | **A** — this change |
+| Audit 1 Q1 | *Agent's text.* Question for the author answered by the agent as lead engineer: (a) the regeneration covers both golden files (task-api and acme-shop), because the analyzer fingerprint is shared and `verify` would fail on an acme-shop file left with the old one; regenerating only task-api cannot meet AC3; (b) the regenerated acme-shop Q1 and Q4 go through the same panel, and if judged `correct`/`partial` they are signed here and their existing tickets (D9) get a Spanish comment for the author to confirm and close them; the agent closes no ticket | **A** — this change (regeneration, panel) / **B** — existing tickets, closure confirmed by the author |
+| Audit 1 B1 | Per-item verdicts, signature states and pending tickets removed from `tasks.md` outside the Panel group (tasks 0.4, 8.3); task 5.1 checks it; D6 states it | **A** — this change |
+| Audit 1 I1–I3, I5 | Step 10 report named consistently (spec, D7, D10); D8 red window ends at 7.1 / 8.5; `reviews`-only diff of `seeds/cache/` added to the git scenario; `ALLOWED_REPOS_DIR` set per command in task 11.1 | **A** — this change |
+| I4 | `LLM_MODEL_VERIFY=qwen2.5-coder` set for `cache:build`, `generatedWith.verifyModel` checked | **A** — this change |
+| I6 | TSDoc of `golden-file.ts` names the current round (task 13.3) | **A** — this change |

@@ -177,3 +177,22 @@ The table has no empty row. The only uncovered clause is the one in I3 (a MUST w
 ### Linear DIS-107 (Spanish comment; the `[original]` block is not edited)
 
 > Texto del agente (auditoría de la spec, ts-await-using-golden-regen). Correcciones antes del apply: (1) `tasks.md` deja de nombrar fuera del grupo Panel los veredictos y tickets pendientes de la ronda DIS-33 (tareas 0.4 y 8.3), porque los panelistas leen el fichero entero; la correspondencia queda solo en `design.md` → D9. (2) E9 se corrige: `docs/DEMO.md` cita literalmente la golden task-api Q2 (paso 6) y cifras de `demo:ask` y de confianza que dependen de las golden; el paso 6 se recaptura en Git Bash y el resto lleva una nota fechada; las capturas de la web, si hicieran falta, quedan para la autora (destino C). (3) `cache:build` fija también `LLM_MODEL_VERIFY=qwen2.5-coder`. Pregunta para la autora: confirmar que se regeneran también las golden de acme-shop (huella compartida, E3) y que DIS-108/DIS-109 pueden resolverse en este cambio si salen `correct`/`partial`.
+
+---
+
+## Resolution of run 1
+
+*Agent's text: correction round 1 of an autonomous run (docs/AUTONOMOUS-RUN.md §6), decided as lead engineer without the author.* `openspec validate ts-await-using-golden-regen --strict` passes after the edits.
+
+| Finding | Resolution | Where |
+|---|---|---|
+| Q1 (question for the author) | Decided by the agent: (a) both golden files are regenerated, because the analyzer fingerprint is shared and AC3 cannot be met otherwise; (b) the regenerated acme-shop Q1 and Q4 go through the same panel and, if judged `correct` or `partial`, are signed here, with a Spanish comment on their existing tickets for the author to confirm and close (the agent closes no ticket) | `design.md` → Follow-ups, row "Audit 1 Q1" (A / B) |
+| B1 (blocking) | Fixed as proposed: task 0.4 no longer states per-item signatures; task 8.3 refers to the ticket that D9 names per entry instead of naming items and tickets; task 5.1 checks that no line outside the Panel group names a per-item verdict, signature state or pending ticket; D6 gains the sentence on where that mapping lives | `tasks.md` 0.4, 5.1, 8.3; `design.md` D6; Follow-ups "Audit 1 B1" |
+| B2 (blocking) | Fixed as proposed: task 13.2 now covers the acme-shop Q1 paragraph, the Paso 6 transcript (recaptured in Git Bash from task 11.2) and a dated note (or a Git Bash recapture) for the figures of line 24, pasos 1 and 5 and line 635; web screenshots stay with the author only if needed | `tasks.md` 13.2; `design.md` Follow-ups E9 (A / C); `proposal.md` Docs |
+| I1 (improvable) | Fixed: "step 8 report" replaced by "step 10 report" in the spec scenario, D7, D10 and the D10 Follow-ups row | spec golden-answers; `design.md` D7, D10 |
+| I2 (improvable) | Fixed: D8 window ends at task 8.5 (7.1 for the panel-output `it`s); task 4.2 names 7.1 and 8.5 | `design.md` D8; `tasks.md` 4.2 |
+| I3 (improvable) | Fixed: the scenario "The criterion precedes the input and nothing in the record is rewritten" adds `git diff` of `seeds/cache/` from the regeneration commit to WHEN and "touches only `reviews`" to THEN; D10 names it | spec golden-answers; `design.md` D10 |
+| I4 (improvable) | Fixed: task 3.2 sets `LLM_MODEL_VERIFY=qwen2.5-coder` for the command; task 3.3 checks `generatedWith.verifyModel` | `tasks.md` 3.2, 3.3; Follow-ups I4 |
+| I5 (improvable) | Fixed: task 11.1 sets `ALLOWED_REPOS_DIR` to the scratchpad directory for that command only, never editing `.env` | `tasks.md` 11.1 |
+| I6 (improvable) | Fixed: task 13.3 updates the TSDoc of `GoldenReview` and `GoldenEntry.reviews` in `packages/cli/src/cache/golden-file.ts` (covered by the "doc-only edits of task 13" allowance of task 10.3) | `tasks.md` 13.3; `proposal.md` Docs; Follow-ups I6 |
+| Linear comment | Posted on DIS-107 in Spanish with the decisions of this round | Linear DIS-107 |

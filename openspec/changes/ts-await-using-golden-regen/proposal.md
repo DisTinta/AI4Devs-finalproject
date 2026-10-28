@@ -28,8 +28,10 @@ golden answer the demo serves has a current, traceable verdict.
   stay untouched as history.
 - **Coherence test retargeted.** `tests/unit/seed/golden-reviews.spec.ts` checks the DIS-107 round
   instead of the DIS-33 one (the DIS-33 input no longer matches the regenerated golden files).
-- **Docs.** `fixtures/README.md`, `docs/DEMO.md`, `readme.md` and `docs/project-context.md` name the
-  current round and its verdicts.
+- **Docs.** `fixtures/README.md`, `docs/DEMO.md` (the acme-shop Q1 paragraph, the Paso 6 transcript
+  and a dated note on the figures captured before the regeneration), `readme.md`,
+  `docs/project-context.md` and the TSDoc of `packages/cli/src/cache/golden-file.ts` name the current
+  round and its verdicts.
 
 ## Capabilities
 
