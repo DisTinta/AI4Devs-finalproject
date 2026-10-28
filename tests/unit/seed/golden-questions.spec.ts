@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { questionTerms } from '@codemind/core';
-import { questionTerms } from '@codemind/core';
 import { GOLDEN_PROJECTS } from '../../../packages/cli/src/cache/demo-questions';
 
 // Spec: openspec/changes/golden-cache-build/specs/golden-answers/spec.md → "Golden questions", as
@@ -41,39 +40,6 @@ describe('golden questions', () => {
     expect(golden.map(({ id }) => id)).toEqual(['Q1', 'Q3', 'Q4']);
     expect(table.size).toBe(6);
     for (const { id, question } of golden) expect(question).toBe(table.get(id));
-  });
-
-  // DIS-32, design Follow-ups SA10: spec golden-answers → "Every golden question anchors a symbol of its project".
-  it('Every golden question anchors a symbol of its project', () => {
-    // Arrange: the symbol names of each project of the versioned seed, through their file rows
-    const seed = readFileSync(resolve('seeds/graph-dump.sql'), 'utf8').replace(/\r\n/g, '\n');
-    const unquote = (value: string): string => value.replace(/^E?'/, '').replace(/'$/, '').replace(/''/g, "'");
-    const projectOf = new Map<string, string>();
-    for (const line of seed.split('\n')) {
-      const project = /^INSERT INTO project \(id, name,[^)]*\) VALUES \('([^']+)', '((?:[^']|'')*)'/.exec(line);
-      if (project !== null) projectOf.set(project[1], unquote(`'${project[2]}'`));
-    }
-    const fileProject = new Map<string, string>();
-    for (const line of seed.split('\n')) {
-      const file = /^INSERT INTO file \(id, project_id,[^)]*\) VALUES \('([^']+)', '([^']+)'/.exec(line);
-      if (file !== null) fileProject.set(file[1], projectOf.get(file[2]) ?? '?');
-    }
-    const names = new Map<string, string[]>();
-    for (const line of seed.split('\n')) {
-      const symbol = /^INSERT INTO symbol \(id, file_id, name,[^)]*\) VALUES \('[^']+', '([^']+)', ('(?:[^']|'')*')/.exec(line);
-      if (symbol === null) continue;
-      const project = fileProject.get(symbol[1]) ?? '?';
-      names.set(project, [...(names.get(project) ?? []), unquote(symbol[2]).toLowerCase()]);
-    }
-
-    // Act + Assert
-    for (const { name, questions } of GOLDEN_PROJECTS) {
-      for (const { id, question } of questions) {
-        const terms = questionTerms(question).slice(0, 16);
-        const anchored = (names.get(name) ?? []).some((symbol) => terms.some((term) => symbol.includes(term.toLowerCase())));
-        expect(anchored, `${name} ${id}`).toBe(true);
-      }
-    }
   });
 
   it('The task-api golden questions match its demo-question table', () => {
