@@ -100,10 +100,10 @@
 
 ## 12. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 12.1 `/pr-describe` in Spanish against `final-project-CRN`: the Why marked as the agent's text, the `git diff --stat origin/final-project-CRN...HEAD -- packages/core` output pasted (only the D2 files, with the author's exception of 2026-10-28), the existing tests changed and why; open the PR; DIS-32 to In Review with a Spanish comment linking it
-- [ ] 12.2 CI green: wait in the foreground with `gh pr checks <n> --watch --interval 60` (Bash, 10-minute calls, repeated until no check is pending); the `verify` job prints `2 projects loaded`, the six `✓` lines and both `3/3` lines; link the run in an addendum to the step 8 report
-- [ ] 12.3 `/show-spec-working` (may reuse the evidence of steps 6, 9 and 10) → `reports/YYYY-MM-DD-show-spec-working.md`
-- [ ] 12.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
-- [ ] 12.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`
-- [ ] 12.6 Fix every finding in this change (TDD for behaviour), each with an A/B/C/D destination in `design.md` → Follow-ups; re-run what each fix invalidates; commit to the same PR; re-run a check whose findings led to non-trivial fixes until no Blocker or Major
+- [x] 12.1 `/pr-describe` in Spanish against `final-project-CRN`: the Why marked as the agent's text, the `git diff --stat origin/final-project-CRN...HEAD -- packages/core` output pasted (only the D2 files, with the author's exception of 2026-10-28), the existing tests changed and why; open the PR; DIS-32 to In Review with a Spanish comment linking it
+- [x] 12.2 CI green: wait in the foreground with `gh pr checks <n> --watch --interval 60` (Bash, 10-minute calls, repeated until no check is pending); the `verify` job prints `2 projects loaded`, the six `✓` lines and both `3/3` lines; link the run in an addendum to the step 8 report
+- [x] 12.3 `/show-spec-working` (may reuse the evidence of steps 6, 9 and 10) → `reports/YYYY-MM-DD-show-spec-working.md`
+- [x] 12.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
+- [x] 12.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`
+- [x] 12.6 Fix every finding in this change (TDD for behaviour), each with an A/B/C/D destination in `design.md` → Follow-ups; re-run what each fix invalidates; commit to the same PR; re-run a check whose findings led to non-trivial fixes until no Blocker or Major
 - [ ] 12.7 `/opsx:archive`, commit it to the same PR; merge (`gh pr merge <n> --merge`, through the merge gate) only after the archive commit and with CI green

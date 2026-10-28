@@ -137,3 +137,12 @@ See `./2026-10-28-10-end-to-end.md` and its screenshots.
 
 - Status: PASS (the mutation job is pending in CI, see the addendum)
 - Blocking issues: none
+
+## Addendum: CI on PR #77 (task 12.2)
+
+*Agent's text, added in the pre-merge review step.* Head `8c125f9`: CI run
+https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/40694904642 (`quality`, `scope`, `secrets`,
+`verify`, `mutation` 37m50s, all passing) and Frontend run
+https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/40694904647 (passing). The `verify` job
+printed `2 projects loaded`, the six `✓` lines, `acme-shop: 3/3 golden answers match` and
+`task-api: 3/3 golden answers match`. The mutation job is the gate of task 8.3 and passed.
