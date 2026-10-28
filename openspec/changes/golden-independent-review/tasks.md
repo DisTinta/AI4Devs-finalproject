@@ -50,8 +50,8 @@ This group is done by independent agents launched by the workflow, outside the a
 **Agreement measure** (design D8). n = 7 items; agreed item = same `verdict`; percent agreement = agreed / 7 × 100, one decimal, half away from zero; Cohen's kappa over the seven verdicts (categories `correct`, `partial`, `incorrect`) with `cohenKappa` of `scripts/annotation-agreement.mjs`, `undefined` when it returns `null`, indicative with n = 7. It is computed after this group (task 6.5), not by the recording agent.
 
 - [ ] 4.1 Panelist 1 (Opus): judge the seven items under the criterion above, from the allowlist only; output `docs/golden-review/panel/2026-10-golden-review-panelist-1.json`
-- [ ] 4.2 Panelist 2 (Sonnet): the same, blind to panelist 1; output `docs/golden-review/panel/2026-10-golden-review-panelist-2.json`
-- [ ] 4.3 Recording agent: write both outputs exactly as returned (two-space JSON, LF, final newline), commit them (explicit paths) and push. Do not complete, reorder or correct any content
+- [x] 4.2 Panelist 2 (Sonnet): the same, blind to panelist 1; output `docs/golden-review/panel/2026-10-golden-review-panelist-2.json`
+- [x] 4.3 Recording agent: write both outputs exactly as returned (two-space JSON, LF, final newline), commit them (explicit paths) and push. Do not complete, reorder or correct any content
 - [ ] 4.4 Resolver (Opus, fresh context): derive the disagreement items from the two panelist outputs (different `verdict`); for each, and only those, read both judgements and the fixture code and decide the verdict under the same criterion, justifying with `file:line`; output `docs/golden-review/panel/2026-10-golden-review-resolution.json` (`"items": []` when there is no disagreement); commit it (explicit path) and push
 
 ## 5. After the panel: validate the panel files (TDD; spec "Panel outputs of the golden review"; design D4, D7)
