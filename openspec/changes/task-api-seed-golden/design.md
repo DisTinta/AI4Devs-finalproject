@@ -45,7 +45,7 @@ reproducible; Ollama (`qwen2.5-coder`, CPU) is the only model available to build
 - No generic "list of samples" configuration file: the two samples are a constant of the CLI.
 - No new seed format version: format 1 already allows several projects.
 - No change to `verify.ts`, `seed-load.ts` or the golden-file format.
-- No change to `npm run up` (it keeps rebuilding only acme-shop's history; see Follow-ups P7).
+- No other change to `npm run up` than the task-api history step (Follow-ups P7, revised by the author).
 
 ## Decisions
 
@@ -249,7 +249,7 @@ pre-merge reviews add their findings here.
 | P4 | Attempt lines keep the `<id>:` form without the project name | **D** — accepted |
 | P5 | The `cli-projects`, `project-picker`, `seed-load` and `verify-smoke` scenarios that assumed a single sample are updated (deltas), not left contradicting the versioned seed | **A** — this change |
 | P6 | No ADR (D10) | **D** — accepted |
-| P7 | Revised by the author on 2026-10-28 (Linear comment e2237f60, reply to thread 5b63b6cc: «sí, `npm run up` debe reconstruir también la historia de task-api»): `npm run up` also rebuilds task-api's history, as a sixth step `node fixtures/build-history.mjs task-api` right after acme-shop's (seven steps in all), so a live question about task-api works after `up`. The old destination C (debt) no longer applies. Added as the ADDED requirement of the `local-startup` delta, without rewriting the existing requirement (the main spec's six-step scenario is reconciled at archive time, tasks 13.x) | **A** — this change (author's decision; tasks 13.1–13.4) |
+| P7 | Revised by the author on 2026-10-28 (Linear comment e2237f60, reply to thread 5b63b6cc: «sí, `npm run up` debe reconstruir también la historia de task-api»): `npm run up` also rebuilds task-api's history, as a sixth step `node fixtures/build-history.mjs task-api` right after acme-shop's (seven steps in all), so a live question about task-api works after `up`. The old destination C (debt) no longer applies. First added as an ADDED requirement of the `local-startup` delta, with the six-step scenarios of the main spec left for archive time; replaced before archive by a MODIFIED "One command starts the system" (see AR1) | **A** — this change (author's decision; tasks 13.1–13.4) |
 
 Spec audit, run 1 (`reports/2026-10-28-spec-audit.md`, section "Resolution of run 1"). *Agent's
 text: questions for the author answered as lead engineer in an autonomous run, without the author.*
@@ -306,3 +306,10 @@ lead engineer in an autonomous run, without the author.*
 | R2 | (Minor) `docs/project-context.md` still gave `1 project loaded` as the `make up` summary and `docs/DEPLOYMENT.md` a `verify` output with only acme-shop; both now show the two samples | **A** — this change (fixed in the review step) |
 | R3 | (Minor) With `repoRoot` inside another repository's working tree without being its root, `git ls-files` lists no fixture file and the fixtures drop out of the fingerprint silently; it fails safe (`verify` reports `FINGERPRINT_MISMATCH`), the seed is built only in a clone, and the Stryker sandbox relies on it (A2) | **D** — accepted |
 | R4 | (Minor) "Every golden project is built without arguments" runs with doubles and does not check that every evidence `fileId` names a task-api file of the seed; `tests/unit/seed/golden-coherence.spec.ts` asserts it on the real versioned file | **D** — accepted |
+
+Archive (run of 2026-10-28, resumed by the coordinator after the autonomous archive step stopped). *Agent's text: decided as lead engineer, with the author's go-ahead to finish the change.*
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| AR1 | The first archive synced the ADDED requirement of P7 next to the main spec's "One command starts the system", whose scenarios still said six steps and acme-shop only; reconciling them after the sync meant editing a main spec with no active change, which the spec protection hook rightly denied. The reconciliation is made in the delta instead: the ADDED requirement is replaced by a MODIFIED "One command starts the system" (seven steps; "Up runs the start sequence in order", "Ctrl+C stops up without a failure line" and the recorded check "Up builds the fixture history the seed indexed" updated). Its scenario "Up rebuilds the history of task-api after acme-shop's" is folded into "Up runs the start sequence in order", the test that already covered it | **A** — this change (tasks 13.4, 13.5) |
+| AR2 | `tests/unit/scripts/up.spec.ts` "Ctrl+C stops up without a failure line" fired SIGINT on call index 5, the task-api history step since P7, not on `npm run dev` as its comment and scenario say; it now fires on index 6 and expects seven calls, the last `run dev` | **A** — this change (task 13.5) |
