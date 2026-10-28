@@ -286,7 +286,7 @@ app/Listeners/RecordDiscountAudit.php:16-22
     … (+2 lines)
 ```
 
-Es una respuesta *golden*, generada por un modelo de 7B y revisada (`docs/golden-review/`): las
+Es una respuesta *golden*, generada por un modelo de 7B y revisada por un panel de agentes independientes (`docs/golden-review/`): las
 afirmaciones `INFERENCE` son las que el sistema no pudo comprobar del todo, y la 5 cita fragmentos que
 no la respaldan. El sistema no la oculta: la marca como inferencia.
 

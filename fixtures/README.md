@@ -214,7 +214,10 @@ verdict per golden, is
 (DIS-104 regenerated them); the first review, of the answers it replaced, is
 [`docs/golden-review/2026-10-acme-shop-golden-review.md`](../docs/golden-review/2026-10-acme-shop-golden-review.md).
 `npm run cache:build` empties the `reviews` of every entry it regenerates, so a
-regenerated answer must be reviewed again.
+regenerated answer must be reviewed again. The current golden answers were reviewed in
+DIS-33 by a blind panel of two agents of models other than the generator; the report is
+[`docs/golden-review/2026-10-task-api-golden-review.md`](../docs/golden-review/2026-10-task-api-golden-review.md).
+An answer the panel judged incorrect stays unsigned and goes to a successor ticket.
 
 ## Planted secret
 
@@ -325,7 +328,9 @@ before the cache is read, without a model. Every golden question must anchor a s
 through `taskRoutes`, Q2 through `buildPage` and Q3 through `canTransition`, which is why Q1 and Q2
 name a symbol (the validation and pagination wording of the first version anchored nothing). The
 texts are the task-api entry of `GOLDEN_PROJECTS`, which `tests/unit/seed/golden-questions.spec.ts`
-checks against this table.
+checks against this table. The golden answers were reviewed in DIS-33 by a blind panel of two agents
+of models other than the generator; the report is
+[`docs/golden-review/2026-10-task-api-golden-review.md`](../docs/golden-review/2026-10-task-api-golden-review.md).
 
 ## Planted secret
 
