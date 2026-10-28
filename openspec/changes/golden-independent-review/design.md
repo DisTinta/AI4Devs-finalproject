@@ -247,3 +247,12 @@ question for the author.
 | SA2-I9 | Task 6.1: the first test fails, the second may already pass when no item is `incorrect` (recorded) | **A** — this change (tasks) |
 | SA2-I10 | No pipe character in any `## Verdicts` cell, in the spec, the report scenario and tasks 6.2 and 6.5 | **A** — this change (spec, tasks) |
 | SA2-I11 | Each resolution item carries at least one valid citation in `cites` or `justification`, now stated in the Output format | **A** — this change (Panel group) |
+
+Apply (agent's text: decided as lead engineer in an autonomous run, without the author).
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| AP-1 | Panelist 2 (Sonnet) ran in a resumed run: the first run of this ticket was started with one panel model by mistake and stopped after panelist 1. Panelist 1's output (commit `59cc9cd`) was kept unchanged and panelist 2 was launched afterwards, blind to it. Both outputs, and the resolution (no disagreement, 7 of 7), were committed once and not edited | **D** — accepted, recorded for the author's review |
+| AP-2 | Two golden answers have the final verdict `incorrect`: acme-shop Q1 (FACT S6 false) and acme-shop Q4 (the answer says the observer updates the database). They stay unsigned and are listed under `## Pending`. Successor tickets created by the agent in task 6.4: DIS-108 (acme-shop Q1) and DIS-109 (acme-shop Q4) | **B** — successor issues DIS-108 and DIS-109, to be confirmed by the author at review |
+| AP-3 | The signatures written are `agent:claude-opus-5-5` and `agent:claude-sonnet-5-5`, dated 2026-10-28: equal to the literals of AC 3 (task 8.3) | **D** — accepted |
+| AP-4 | Statement-level differences that do not change a verdict: task-api Q1 S4 (panelist 1 `true`, panelist 2 `unverifiable`) and S5 (panelist 1 `unverifiable`, panelist 2 `true`); the resolver had nothing to decide | **D** — accepted |
