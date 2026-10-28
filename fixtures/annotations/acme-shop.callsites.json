@@ -1,0 +1,950 @@
+{
+  "fixture": "acme-shop",
+  "language": "php",
+  "formatVersion": 1,
+  "sites": [
+    {
+      "id": "php-01",
+      "control": true,
+      "site": {
+        "file": "app/Services/PriceCalculator.php",
+        "line": 28
+      },
+      "form": "call",
+      "call": "$this->discounts->discountFor(",
+      "source": {
+        "symbol": "PriceCalculator::compute"
+      },
+      "target": {
+        "file": "app/Services/DiscountService.php",
+        "symbol": "DiscountService::discountFor"
+      },
+      "expected": "exact",
+      "reason": "$this->discounts is a promoted property typed DiscountService (app/Services/PriceCalculator.php:19), which declares discountFor (app/Services/DiscountService.php:34).",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-02",
+      "control": true,
+      "site": {
+        "file": "app/Services/PriceCalculator.php",
+        "line": 31
+      },
+      "form": "call",
+      "call": "$this->taxes->taxFor(",
+      "source": {
+        "symbol": "PriceCalculator::compute"
+      },
+      "target": {
+        "file": "app/Services/TaxService.php",
+        "symbol": "TaxService::taxFor"
+      },
+      "expected": "exact",
+      "reason": "$this->taxes is typed TaxService (app/Services/PriceCalculator.php:20), which declares taxFor (app/Services/TaxService.php:20).",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-03",
+      "control": true,
+      "site": {
+        "file": "app/Services/PriceCalculator.php",
+        "line": 32
+      },
+      "form": "call",
+      "call": "$this->shipping->shippingFor(",
+      "source": {
+        "symbol": "PriceCalculator::compute"
+      },
+      "target": {
+        "file": "app/Services/ShippingService.php",
+        "symbol": "ShippingService::shippingFor"
+      },
+      "expected": "exact",
+      "reason": "$this->shipping is typed ShippingService (app/Services/PriceCalculator.php:21), which declares shippingFor (app/Services/ShippingService.php:22).",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-04",
+      "control": true,
+      "site": {
+        "file": "app/Services/PriceCalculator.php",
+        "line": 27
+      },
+      "form": "read",
+      "call": "$order->subtotal",
+      "source": {
+        "symbol": "PriceCalculator::compute"
+      },
+      "target": {
+        "file": "app/Models/Order.php",
+        "symbol": "Order::getSubtotalAttribute"
+      },
+      "expected": "heuristic",
+      "reason": "$order is typed Order (app/Services/PriceCalculator.php:25) and has no subtotal property; Eloquent __get serves it through the declared accessor getSubtotalAttribute (app/Models/Order.php:45).",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-05",
+      "control": true,
+      "site": {
+        "file": "app/Services/DiscountService.php",
+        "line": 37
+      },
+      "form": "call",
+      "call": "$this->coupons->percentFor(",
+      "source": {
+        "symbol": "DiscountService::discountFor"
+      },
+      "target": {
+        "file": "app/Services/CouponValidator.php",
+        "symbol": "CouponValidator::percentFor"
+      },
+      "expected": "exact",
+      "reason": "$this->coupons is a promoted property typed CouponValidator (app/Services/DiscountService.php:30), which declares percentFor (app/Services/CouponValidator.php:16).",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-06",
+      "control": true,
+      "site": {
+        "file": "app/Services/DiscountService.php",
+        "line": 45
+      },
+      "form": "call",
+      "call": "event(",
+      "source": {
+        "symbol": "DiscountService::discountFor"
+      },
+      "target": {
+        "file": "app/Listeners/RecordDiscountAudit.php",
+        "symbol": "RecordDiscountAudit::handle"
+      },
+      "expected": "heuristic",
+      "reason": "event(new DiscountApplied(...)) at app/Services/DiscountService.php:45; EventServiceProvider::$listen registers RecordDiscountAudit for DiscountApplied (app/Providers/EventServiceProvider.php:24), whose handle is at app/Listeners/RecordDiscountAudit.php:16.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-07",
+      "control": true,
+      "site": {
+        "file": "app/Services/ShippingService.php",
+        "line": 31
+      },
+      "form": "call",
+      "call": "$this->carrier->flatRateFor(",
+      "source": {
+        "symbol": "ShippingService::shippingFor"
+      },
+      "target": {
+        "file": "app/Services/CarrierGateway.php",
+        "symbol": "CarrierGateway::__call"
+      },
+      "expected": "heuristic",
+      "reason": "$this->carrier is typed CarrierGateway (app/Services/ShippingService.php:18), which declares no flatRateFor; the call is served by its magic __call (app/Services/CarrierGateway.php:20).",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-08",
+      "control": true,
+      "site": {
+        "file": "app/Http/Controllers/OrderController.php",
+        "line": 18
+      },
+      "form": "call",
+      "call": "Pricing::compute(",
+      "source": {
+        "symbol": "OrderController::show"
+      },
+      "target": {
+        "file": "app/Services/PriceCalculator.php",
+        "symbol": "PriceCalculator::compute"
+      },
+      "expected": "heuristic",
+      "reason": "Pricing is a fixture facade whose accessor returns 'pricing' (app/Facades/Pricing.php:24), bound in AppServiceProvider to a closure that builds PriceCalculator (app/Providers/AppServiceProvider.php:43); the call at app/Http/Controllers/OrderController.php:18 reaches PriceCalculator::compute (app/Services/PriceCalculator.php:25) only through that facade convention.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-09",
+      "control": true,
+      "site": {
+        "file": "app/Http/Controllers/CheckoutController.php",
+        "line": 31
+      },
+      "form": "call",
+      "call": "Pricing::compute(",
+      "source": {
+        "symbol": "CheckoutController::store"
+      },
+      "target": {
+        "file": "app/Services/PriceCalculator.php",
+        "symbol": "PriceCalculator::compute"
+      },
+      "expected": "heuristic",
+      "reason": "Pricing is a fixture facade whose accessor returns 'pricing' (app/Facades/Pricing.php:24), bound in AppServiceProvider to a closure that builds PriceCalculator (app/Providers/AppServiceProvider.php:43); the call at app/Http/Controllers/CheckoutController.php:31 reaches PriceCalculator::compute (app/Services/PriceCalculator.php:25) only through that facade convention.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-10",
+      "control": true,
+      "site": {
+        "file": "app/Observers/OrderObserver.php",
+        "line": 18
+      },
+      "form": "call",
+      "call": "RecalculateTotals::dispatch(",
+      "source": {
+        "symbol": "OrderObserver::created"
+      },
+      "target": {
+        "file": "app/Jobs/RecalculateTotals.php",
+        "symbol": "RecalculateTotals::handle"
+      },
+      "expected": "heuristic",
+      "reason": "RecalculateTotals::dispatch at app/Observers/OrderObserver.php:18 on a fixture job that uses Dispatchable (app/Jobs/RecalculateTotals.php:22) and declares handle (app/Jobs/RecalculateTotals.php:30).",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-11",
+      "control": true,
+      "site": {
+        "file": "routes/api.php",
+        "line": 13
+      },
+      "form": "reference",
+      "call": "[OrderController::class, 'show']",
+      "source": {
+        "file": "routes/api.php"
+      },
+      "target": {
+        "file": "app/Http/Controllers/OrderController.php",
+        "symbol": "OrderController::show"
+      },
+      "expected": "exact",
+      "reason": "Array callable with an explicit class name, [OrderController::class, 'show'] (routes/api.php:13), naming the declared method OrderController::show (app/Http/Controllers/OrderController.php:16).",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-12",
+      "control": true,
+      "site": {
+        "file": "routes/web.php",
+        "line": 13
+      },
+      "form": "reference",
+      "call": "'App\\Http\\Controllers\\CheckoutController@store'",
+      "source": {
+        "file": "routes/web.php"
+      },
+      "target": {
+        "file": "app/Http/Controllers/CheckoutController.php",
+        "symbol": "CheckoutController::store"
+      },
+      "expected": "heuristic",
+      "reason": "Route action written as the string 'App\\Http\\Controllers\\CheckoutController@store' (routes/web.php:13), resolved by the Controller@method convention to CheckoutController::store (app/Http/Controllers/CheckoutController.php:19).",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-13",
+      "control": false,
+      "site": {
+        "file": "app/Http/Controllers/CheckoutController.php",
+        "line": 21
+      },
+      "form": "call",
+      "call": "Order::create(",
+      "source": {
+        "symbol": "CheckoutController::store"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "Order declares no create (app/Models/Order.php:19); Order::create is served by the vendor Eloquent Model through __callStatic, not by fixture code.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-14",
+      "control": false,
+      "site": {
+        "file": "app/Http/Controllers/CheckoutController.php",
+        "line": 23
+      },
+      "form": "call",
+      "call": "$request->lines(",
+      "source": {
+        "symbol": "CheckoutController::store"
+      },
+      "target": {
+        "file": "app/Http/Requests/StoreOrderRequest.php",
+        "symbol": "StoreOrderRequest::lines"
+      },
+      "expected": "exact",
+      "reason": "$request is typed StoreOrderRequest (app/Http/Controllers/CheckoutController.php:19), which declares lines (app/Http/Requests/StoreOrderRequest.php:35).",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-15",
+      "control": false,
+      "site": {
+        "file": "app/Http/Controllers/CheckoutController.php",
+        "line": 29
+      },
+      "form": "call",
+      "call": "response(",
+      "source": {
+        "symbol": "CheckoutController::store"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "response() at app/Http/Controllers/CheckoutController.php:29 is a Laravel helper function declared in vendor, not in the fixture.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-16",
+      "control": false,
+      "site": {
+        "file": "app/Http/Controllers/OrderController.php",
+        "line": 23
+      },
+      "form": "read",
+      "call": "$order->subtotal",
+      "source": {
+        "symbol": "OrderController::show"
+      },
+      "target": {
+        "file": "app/Models/Order.php",
+        "symbol": "Order::getSubtotalAttribute"
+      },
+      "expected": "heuristic",
+      "reason": "$order is typed Order (app/Http/Controllers/OrderController.php:16); the subtotal read is served by __get through the declared accessor getSubtotalAttribute (app/Models/Order.php:45).",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-17",
+      "control": false,
+      "site": {
+        "file": "app/Http/Controllers/OrderController.php",
+        "line": 30
+      },
+      "form": "call",
+      "call": "Order::query(",
+      "source": {
+        "symbol": "OrderController::index"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "Order::query() at app/Http/Controllers/OrderController.php:30 is a static method of the vendor Eloquent Model; Order declares no query (app/Models/Order.php:19).",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-18",
+      "control": false,
+      "site": {
+        "file": "app/Http/Controllers/OrderController.php",
+        "line": 35
+      },
+      "form": "call",
+      "call": "Pricing::compute(",
+      "source": {
+        "symbol": "OrderController::index"
+      },
+      "target": {
+        "file": "app/Services/PriceCalculator.php",
+        "symbol": "PriceCalculator::compute"
+      },
+      "expected": "heuristic",
+      "reason": "Pricing is a fixture facade whose accessor returns 'pricing' (app/Facades/Pricing.php:24), bound in AppServiceProvider to a closure that builds PriceCalculator (app/Providers/AppServiceProvider.php:43); the call at app/Http/Controllers/OrderController.php:35 (inside a transparent arrow function) reaches PriceCalculator::compute (app/Services/PriceCalculator.php:25) only through that facade convention.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-19",
+      "control": false,
+      "site": {
+        "file": "app/Http/Middleware/EnsureCartNotEmpty.php",
+        "line": 19
+      },
+      "form": "call",
+      "call": "$request->input(",
+      "source": {
+        "symbol": "EnsureCartNotEmpty::handle"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "$request is typed Illuminate\\Http\\Request (app/Http/Middleware/EnsureCartNotEmpty.php:17), a vendor class; input is declared outside the fixture.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-20",
+      "control": false,
+      "site": {
+        "file": "app/Http/Middleware/EnsureCartNotEmpty.php",
+        "line": 21
+      },
+      "form": "call",
+      "call": "is_array(",
+      "source": {
+        "symbol": "EnsureCartNotEmpty::handle"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "is_array at app/Http/Middleware/EnsureCartNotEmpty.php:21 is a PHP built-in function.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-21",
+      "control": false,
+      "site": {
+        "file": "app/Http/Requests/StoreOrderRequest.php",
+        "line": 43
+      },
+      "form": "call",
+      "call": "parent::validated(",
+      "source": {
+        "symbol": "StoreOrderRequest::validated"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "parent::validated() refers to FormRequest::validated (app/Http/Requests/StoreOrderRequest.php:13), declared in vendor, not in the fixture.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-22",
+      "control": false,
+      "site": {
+        "file": "app/Jobs/RecalculateTotals.php",
+        "line": 32
+      },
+      "form": "call",
+      "call": "Pricing::compute(",
+      "source": {
+        "symbol": "RecalculateTotals::handle"
+      },
+      "target": {
+        "file": "app/Services/PriceCalculator.php",
+        "symbol": "PriceCalculator::compute"
+      },
+      "expected": "heuristic",
+      "reason": "Pricing is a fixture facade whose accessor returns 'pricing' (app/Facades/Pricing.php:24), bound in AppServiceProvider to a closure that builds PriceCalculator (app/Providers/AppServiceProvider.php:43); the call at app/Jobs/RecalculateTotals.php:32 reaches PriceCalculator::compute (app/Services/PriceCalculator.php:25) only through that facade convention.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-23",
+      "control": false,
+      "site": {
+        "file": "app/Jobs/RecalculateTotals.php",
+        "line": 34
+      },
+      "form": "call",
+      "call": "Log::info(",
+      "source": {
+        "symbol": "RecalculateTotals::handle"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "Log is Illuminate\\Support\\Facades\\Log (app/Jobs/RecalculateTotals.php:13), a vendor facade with a vendor binding; no fixture code is reached.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-24",
+      "control": false,
+      "site": {
+        "file": "app/Listeners/SendOrderConfirmation.php",
+        "line": 19
+      },
+      "form": "call",
+      "call": "Pricing::compute(",
+      "source": {
+        "symbol": "SendOrderConfirmation::handle"
+      },
+      "target": {
+        "file": "app/Services/PriceCalculator.php",
+        "symbol": "PriceCalculator::compute"
+      },
+      "expected": "heuristic",
+      "reason": "Pricing is a fixture facade whose accessor returns 'pricing' (app/Facades/Pricing.php:24), bound in AppServiceProvider to a closure that builds PriceCalculator (app/Providers/AppServiceProvider.php:43); the call at app/Listeners/SendOrderConfirmation.php:19 reaches PriceCalculator::compute (app/Services/PriceCalculator.php:25) only through that facade convention.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-25",
+      "control": false,
+      "site": {
+        "file": "app/Models/Customer.php",
+        "line": 25
+      },
+      "form": "call",
+      "call": "$this->hasMany(",
+      "source": {
+        "symbol": "Customer::orders"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "$this->hasMany at app/Models/Customer.php:25 is inherited from the vendor Eloquent Model (app/Models/Customer.php:17); not declared in the fixture.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-26",
+      "control": false,
+      "site": {
+        "file": "app/Models/Customer.php",
+        "line": 30
+      },
+      "form": "call",
+      "call": "in_array(",
+      "source": {
+        "symbol": "Customer::isLoyal"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "in_array at app/Models/Customer.php:30 is a PHP built-in function.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-27",
+      "control": false,
+      "site": {
+        "file": "app/Models/Order.php",
+        "line": 47
+      },
+      "form": "read",
+      "call": "$this->lines",
+      "source": {
+        "symbol": "Order::getSubtotalAttribute"
+      },
+      "target": {
+        "file": "app/Models/Order.php",
+        "symbol": "Order::lines"
+      },
+      "expected": "heuristic",
+      "reason": "$this->lines inside Order (app/Models/Order.php:47) is not a declared property; __get serves it through the relation method lines (app/Models/Order.php:30).",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-28",
+      "control": false,
+      "site": {
+        "file": "app/Models/Order.php",
+        "line": 49
+      },
+      "form": "call",
+      "call": "Money::zero(",
+      "source": {
+        "symbol": "Order::getSubtotalAttribute"
+      },
+      "target": {
+        "file": "app/Support/Money.php",
+        "symbol": "Money::zero"
+      },
+      "expected": "exact",
+      "reason": "Explicit class name Money (imported at app/Models/Order.php:7) with the declared static method zero (app/Support/Money.php:32).",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-29",
+      "control": false,
+      "site": {
+        "file": "app/Models/OrderLine.php",
+        "line": 39
+      },
+      "form": "call",
+      "call": "Money::fromCents(",
+      "source": {
+        "symbol": "OrderLine::lineTotal"
+      },
+      "target": {
+        "file": "app/Support/Money.php",
+        "symbol": "Money::fromCents"
+      },
+      "expected": "exact",
+      "reason": "Explicit class name Money (imported at app/Models/OrderLine.php:7) with the declared static method fromCents (app/Support/Money.php:22).",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-30",
+      "control": false,
+      "site": {
+        "file": "app/Observers/OrderObserver.php",
+        "line": 19
+      },
+      "form": "call",
+      "call": "event(",
+      "source": {
+        "symbol": "OrderObserver::created"
+      },
+      "target": {
+        "file": "app/Listeners/SendOrderConfirmation.php",
+        "symbol": "SendOrderConfirmation::handle"
+      },
+      "expected": "heuristic",
+      "reason": "event(new OrderPlaced($order)) at app/Observers/OrderObserver.php:19; $listen registers SendOrderConfirmation for OrderPlaced (app/Providers/EventServiceProvider.php:22), handle at app/Listeners/SendOrderConfirmation.php:17.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-31",
+      "control": false,
+      "site": {
+        "file": "app/Observers/OrderObserver.php",
+        "line": 25
+      },
+      "form": "call",
+      "call": "RecalculateTotals::dispatch(",
+      "source": {
+        "symbol": "OrderObserver::updated"
+      },
+      "target": {
+        "file": "app/Jobs/RecalculateTotals.php",
+        "symbol": "RecalculateTotals::handle"
+      },
+      "expected": "heuristic",
+      "reason": "RecalculateTotals::dispatch at app/Observers/OrderObserver.php:25 on a fixture job using Dispatchable (app/Jobs/RecalculateTotals.php:22) that declares handle (app/Jobs/RecalculateTotals.php:30).",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-32",
+      "control": false,
+      "site": {
+        "file": "app/Providers/AppServiceProvider.php",
+        "line": 34
+      },
+      "form": "call",
+      "call": "$app->make(",
+      "source": {
+        "symbol": "AppServiceProvider::register"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "$app is an untyped closure parameter (the vendor container) and make is declared outside the fixture; the CouponValidator binding builds new CouponValidator() (app/Providers/AppServiceProvider.php:29), which declares no constructor (app/Services/CouponValidator.php:14), so no fixture symbol is reached.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-33",
+      "control": false,
+      "site": {
+        "file": "app/Providers/AppServiceProvider.php",
+        "line": 39
+      },
+      "form": "call",
+      "call": "$app->make(",
+      "source": {
+        "symbol": "AppServiceProvider::register"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "$app is the untyped vendor container; the CarrierGateway binding builds new CarrierGateway() (app/Providers/AppServiceProvider.php:28), which declares no constructor (app/Services/CarrierGateway.php:17), so no fixture symbol is reached.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-34",
+      "control": false,
+      "site": {
+        "file": "app/Providers/AppServiceProvider.php",
+        "line": 43
+      },
+      "form": "call",
+      "call": "$this->app->singleton(",
+      "source": {
+        "symbol": "AppServiceProvider::register"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "$this->app is inherited from the vendor ServiceProvider (app/Providers/AppServiceProvider.php:24); singleton is a container method declared outside the fixture.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-35",
+      "control": false,
+      "site": {
+        "file": "app/Providers/AppServiceProvider.php",
+        "line": 44
+      },
+      "form": "call",
+      "call": "$app->make(",
+      "source": {
+        "symbol": "AppServiceProvider::register"
+      },
+      "target": {
+        "file": "app/Services/DiscountService.php",
+        "symbol": "DiscountService::__construct"
+      },
+      "expected": "heuristic",
+      "reason": "$app->make(DiscountService::class) resolves through the container binding registered at app/Providers/AppServiceProvider.php:33, whose closure builds new DiscountService(...), declared constructor at app/Services/DiscountService.php:30.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-36",
+      "control": false,
+      "site": {
+        "file": "app/Providers/AppServiceProvider.php",
+        "line": 52
+      },
+      "form": "call",
+      "call": "Order::observe(",
+      "source": {
+        "symbol": "AppServiceProvider::boot"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "Order::observe at app/Providers/AppServiceProvider.php:52 is a static method of the vendor Eloquent Model; Order declares no observe (app/Models/Order.php:19).",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-37",
+      "control": false,
+      "site": {
+        "file": "app/Services/CouponValidator.php",
+        "line": 22
+      },
+      "form": "call",
+      "call": "Coupon::query(",
+      "source": {
+        "symbol": "CouponValidator::percentFor"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "Coupon::query() at app/Services/CouponValidator.php:22 is a vendor Eloquent Model static method; Coupon declares no query (app/Models/Coupon.php:17).",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-38",
+      "control": false,
+      "site": {
+        "file": "app/Services/DiscountService.php",
+        "line": 42
+      },
+      "form": "call",
+      "call": "$subtotal->percentage(",
+      "source": {
+        "symbol": "DiscountService::discountFor"
+      },
+      "target": {
+        "file": "app/Support/Money.php",
+        "symbol": "Money::percentage"
+      },
+      "expected": "exact",
+      "reason": "$subtotal is typed Money (app/Services/DiscountService.php:34), which declares percentage (app/Support/Money.php:52).",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-39",
+      "control": false,
+      "site": {
+        "file": "app/Services/DiscountService.php",
+        "line": 44
+      },
+      "form": "call",
+      "call": "$discount->isGreaterThan(",
+      "source": {
+        "symbol": "DiscountService::discountFor"
+      },
+      "target": {
+        "file": "app/Support/Money.php",
+        "symbol": "Money::isGreaterThan"
+      },
+      "expected": "exact",
+      "reason": "$discount is inferred Money from Money::percentage returning self (app/Services/DiscountService.php:42, app/Support/Money.php:52); isGreaterThan is declared at app/Support/Money.php:57.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-40",
+      "control": false,
+      "site": {
+        "file": "app/Services/DiscountService.php",
+        "line": 53
+      },
+      "form": "read",
+      "call": "$order->customer",
+      "source": {
+        "symbol": "DiscountService::loyaltyPercent"
+      },
+      "target": {
+        "file": "app/Models/Order.php",
+        "symbol": "Order::customer"
+      },
+      "expected": "heuristic",
+      "reason": "$order is typed Order (app/Services/DiscountService.php:51); the customer read is served by __get through the relation method customer (app/Models/Order.php:25).",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-41",
+      "control": false,
+      "site": {
+        "file": "app/Services/DiscountService.php",
+        "line": 62
+      },
+      "form": "call",
+      "call": "$order->lineCount(",
+      "source": {
+        "symbol": "DiscountService::volumeBonus"
+      },
+      "target": {
+        "file": "app/Models/Order.php",
+        "symbol": "Order::lineCount"
+      },
+      "expected": "exact",
+      "reason": "$order is typed Order (app/Services/DiscountService.php:60), which declares lineCount (app/Models/Order.php:53).",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-42",
+      "control": false,
+      "site": {
+        "file": "app/Services/PriceCalculator.php",
+        "line": 40
+      },
+      "form": "read",
+      "call": "$order->subtotal",
+      "source": {
+        "symbol": "PriceCalculator::taxableBase"
+      },
+      "target": {
+        "file": "app/Models/Order.php",
+        "symbol": "Order::getSubtotalAttribute"
+      },
+      "expected": "heuristic",
+      "reason": "$order is typed Order (app/Services/PriceCalculator.php:38); subtotal is served by __get through the accessor getSubtotalAttribute (app/Models/Order.php:45).",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-43",
+      "control": false,
+      "site": {
+        "file": "app/Services/PriceCalculator.php",
+        "line": 42
+      },
+      "form": "call",
+      "call": "$this->discounts->discountFor(",
+      "source": {
+        "symbol": "PriceCalculator::taxableBase"
+      },
+      "target": {
+        "file": "app/Services/DiscountService.php",
+        "symbol": "DiscountService::discountFor"
+      },
+      "expected": "exact",
+      "reason": "$this->discounts is typed DiscountService (app/Services/PriceCalculator.php:19), which declares discountFor (app/Services/DiscountService.php:34).",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-44",
+      "control": false,
+      "site": {
+        "file": "app/Services/ShippingService.php",
+        "line": 24
+      },
+      "form": "call",
+      "call": "config(",
+      "source": {
+        "symbol": "ShippingService::shippingFor"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "config() at app/Services/ShippingService.php:24 is a Laravel helper function declared in vendor.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-45",
+      "control": false,
+      "site": {
+        "file": "app/Services/TaxService.php",
+        "line": 22
+      },
+      "form": "call",
+      "call": "config(",
+      "source": {
+        "symbol": "TaxService::taxFor"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "config() at app/Services/TaxService.php:22 is a Laravel helper function declared in vendor.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-46",
+      "control": false,
+      "site": {
+        "file": "app/Services/TaxService.php",
+        "line": 23
+      },
+      "form": "read",
+      "call": "$order->shipping_country",
+      "source": {
+        "symbol": "TaxService::taxFor"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "$order is typed Order (app/Services/TaxService.php:20), but shipping_country is a plain column (app/Models/Order.php:23) with no declared accessor or relation.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-47",
+      "control": false,
+      "site": {
+        "file": "app/Services/TaxService.php",
+        "line": 26
+      },
+      "form": "call",
+      "call": "$base->percentage(",
+      "source": {
+        "symbol": "TaxService::taxFor"
+      },
+      "target": {
+        "file": "app/Support/Money.php",
+        "symbol": "Money::percentage"
+      },
+      "expected": "exact",
+      "reason": "$base is typed Money (app/Services/TaxService.php:20), which declares percentage (app/Support/Money.php:52).",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-48",
+      "control": false,
+      "site": {
+        "file": "app/Support/Money.php",
+        "line": 29
+      },
+      "form": "call",
+      "call": "round(",
+      "source": {
+        "symbol": "Money::fromFloat"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "round at app/Support/Money.php:29 is a PHP built-in function.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-49",
+      "control": false,
+      "site": {
+        "file": "routes/api.php",
+        "line": 12
+      },
+      "form": "call",
+      "call": "Route::get(",
+      "source": {
+        "file": "routes/api.php"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "Route is the vendor facade Illuminate\\Support\\Facades\\Route (routes/api.php:6); Route::get is declared outside the fixture.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "php-50",
+      "control": false,
+      "site": {
+        "file": "routes/api.php",
+        "line": 12
+      },
+      "form": "reference",
+      "call": "[OrderController::class, 'index']",
+      "source": {
+        "file": "routes/api.php"
+      },
+      "target": {
+        "file": "app/Http/Controllers/OrderController.php",
+        "symbol": "OrderController::index"
+      },
+      "expected": "exact",
+      "reason": "Array callable [OrderController::class, 'index'] with an explicit class name (routes/api.php:12) naming the declared method OrderController::index (app/Http/Controllers/OrderController.php:28).",
+      "decidedBy": "agreement"
+    }
+  ]
+}

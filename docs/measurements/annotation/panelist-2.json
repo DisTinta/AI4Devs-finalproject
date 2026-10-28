@@ -1,0 +1,667 @@
+{
+  "panelist": 2,
+  "model": "claude-sonnet-5-5",
+  "date": "2026-10-28",
+  "sourcesRead": [
+    "openspec/changes/callsite-annotations/tasks.md",
+    "linear:DIS-80/description",
+    "docs/measurements/annotation/acme-shop.sites.json",
+    "docs/measurements/annotation/task-api.sites.json",
+    "fixtures/acme-shop/app/Events/DiscountApplied.php",
+    "fixtures/acme-shop/app/Events/OrderPlaced.php",
+    "fixtures/acme-shop/app/Facades/Pricing.php",
+    "fixtures/acme-shop/app/Http/Controllers/CheckoutController.php",
+    "fixtures/acme-shop/app/Http/Controllers/Controller.php",
+    "fixtures/acme-shop/app/Http/Controllers/OrderController.php",
+    "fixtures/acme-shop/app/Http/Middleware/EnsureCartNotEmpty.php",
+    "fixtures/acme-shop/app/Http/Requests/StoreOrderRequest.php",
+    "fixtures/acme-shop/app/Jobs/RecalculateTotals.php",
+    "fixtures/acme-shop/app/Listeners/RecordDiscountAudit.php",
+    "fixtures/acme-shop/app/Listeners/SendOrderConfirmation.php",
+    "fixtures/acme-shop/app/Models/Coupon.php",
+    "fixtures/acme-shop/app/Models/Customer.php",
+    "fixtures/acme-shop/app/Models/Order.php",
+    "fixtures/acme-shop/app/Models/OrderLine.php",
+    "fixtures/acme-shop/app/Models/Product.php",
+    "fixtures/acme-shop/app/Observers/OrderObserver.php",
+    "fixtures/acme-shop/app/Providers/AppServiceProvider.php",
+    "fixtures/acme-shop/app/Providers/EventServiceProvider.php",
+    "fixtures/acme-shop/app/Services/CarrierGateway.php",
+    "fixtures/acme-shop/app/Services/CouponValidator.php",
+    "fixtures/acme-shop/app/Services/DiscountService.php",
+    "fixtures/acme-shop/app/Services/PriceCalculator.php",
+    "fixtures/acme-shop/app/Services/ShippingService.php",
+    "fixtures/acme-shop/app/Services/TaxService.php",
+    "fixtures/acme-shop/app/Support/Money.php",
+    "fixtures/acme-shop/routes/api.php",
+    "fixtures/acme-shop/routes/web.php",
+    "fixtures/acme-shop/config/shop.php",
+    "fixtures/task-api/package.json",
+    "fixtures/task-api/tsconfig.json",
+    "fixtures/task-api/src/app.ts",
+    "fixtures/task-api/src/config/env.ts",
+    "fixtures/task-api/src/controllers/health.controller.ts",
+    "fixtures/task-api/src/controllers/tasks.controller.ts",
+    "fixtures/task-api/src/domain/errors.ts",
+    "fixtures/task-api/src/domain/pagination.ts",
+    "fixtures/task-api/src/domain/task-priority.ts",
+    "fixtures/task-api/src/domain/task-status.ts",
+    "fixtures/task-api/src/plugins/db.ts",
+    "fixtures/task-api/src/plugins/error-handler.ts",
+    "fixtures/task-api/src/repositories/in-memory-task.repository.ts",
+    "fixtures/task-api/src/repositories/task.repository.ts",
+    "fixtures/task-api/src/routes/health.routes.ts",
+    "fixtures/task-api/src/routes/index.ts",
+    "fixtures/task-api/src/routes/tasks.routes.ts",
+    "fixtures/task-api/src/schemas/index.ts",
+    "fixtures/task-api/src/schemas/pagination.schema.ts",
+    "fixtures/task-api/src/schemas/task.schema.ts",
+    "fixtures/task-api/src/server.ts",
+    "fixtures/task-api/src/services/id.ts",
+    "fixtures/task-api/src/services/task.filters.ts",
+    "fixtures/task-api/src/services/task.service.ts",
+    "fixtures/task-api/src/types/index.ts"
+  ],
+  "sites": [
+    {
+      "id": "php-01",
+      "target": { "file": "app/Services/DiscountService.php", "symbol": "DiscountService::discountFor" },
+      "expected": "exact",
+      "reason": "The property is declared `private readonly DiscountService $discounts` (app/Services/PriceCalculator.php:19), and discountFor is declared at app/Services/DiscountService.php:34."
+    },
+    {
+      "id": "php-02",
+      "target": { "file": "app/Services/TaxService.php", "symbol": "TaxService::taxFor" },
+      "expected": "exact",
+      "reason": "The property is typed `TaxService $taxes` (app/Services/PriceCalculator.php:20), and taxFor is declared at app/Services/TaxService.php:20."
+    },
+    {
+      "id": "php-03",
+      "target": { "file": "app/Services/ShippingService.php", "symbol": "ShippingService::shippingFor" },
+      "expected": "exact",
+      "reason": "The property is typed `ShippingService $shipping` (app/Services/PriceCalculator.php:21), and shippingFor is declared at app/Services/ShippingService.php:22."
+    },
+    {
+      "id": "php-04",
+      "target": { "file": "app/Models/Order.php", "symbol": "Order::getSubtotalAttribute" },
+      "expected": "heuristic",
+      "reason": "`$order->subtotal` is an Eloquent attribute read through __get; the accessor getSubtotalAttribute is declared at app/Models/Order.php:45 (the call site is app/Services/PriceCalculator.php:27)."
+    },
+    {
+      "id": "php-05",
+      "target": { "file": "app/Services/CouponValidator.php", "symbol": "CouponValidator::percentFor" },
+      "expected": "exact",
+      "reason": "`$coupons` is declared `CouponValidator` in the constructor (app/Services/DiscountService.php:30), and percentFor is declared at app/Services/CouponValidator.php:16."
+    },
+    {
+      "id": "php-06",
+      "target": { "file": "app/Listeners/RecordDiscountAudit.php", "symbol": "RecordDiscountAudit::handle" },
+      "expected": "heuristic",
+      "reason": "`event(new DiscountApplied(...))` (app/Services/DiscountService.php:45) reaches the listener registered for DiscountApplied in $listen (app/Providers/EventServiceProvider.php:24-26), whose handle is declared at app/Listeners/RecordDiscountAudit.php:16."
+    },
+    {
+      "id": "php-07",
+      "target": { "file": "app/Services/CarrierGateway.php", "symbol": "CarrierGateway::__call" },
+      "expected": "heuristic",
+      "reason": "`$carrier` is a CarrierGateway (app/Services/ShippingService.php:18), which does not declare flatRateFor; the call is served by __call at app/Services/CarrierGateway.php:20."
+    },
+    {
+      "id": "php-08",
+      "target": { "file": "app/Services/PriceCalculator.php", "symbol": "PriceCalculator::compute" },
+      "expected": "heuristic",
+      "reason": "Pricing is a facade whose accessor is 'pricing' (app/Facades/Pricing.php:22-25), bound to PriceCalculator at app/Providers/AppServiceProvider.php:43; compute is declared at app/Services/PriceCalculator.php:25."
+    },
+    {
+      "id": "php-09",
+      "target": { "file": "app/Services/PriceCalculator.php", "symbol": "PriceCalculator::compute" },
+      "expected": "heuristic",
+      "reason": "Same facade: `Pricing::compute` goes through the 'pricing' accessor (app/Facades/Pricing.php:24) and the binding at app/Providers/AppServiceProvider.php:43 to app/Services/PriceCalculator.php:25."
+    },
+    {
+      "id": "php-10",
+      "target": { "file": "app/Jobs/RecalculateTotals.php", "symbol": "RecalculateTotals::handle" },
+      "expected": "heuristic",
+      "reason": "RecalculateTotals uses Dispatchable (app/Jobs/RecalculateTotals.php:22) and declares handle at line 30, so `RecalculateTotals::dispatch($order)` (app/Observers/OrderObserver.php:18) runs handle."
+    },
+    {
+      "id": "php-11",
+      "target": { "file": "app/Http/Controllers/OrderController.php", "symbol": "OrderController::show" },
+      "expected": "exact",
+      "reason": "The array callable `[OrderController::class, 'show']` (routes/api.php:13) names an imported class (routes/api.php:5), and show is declared at app/Http/Controllers/OrderController.php:16."
+    },
+    {
+      "id": "php-12",
+      "target": { "file": "app/Http/Controllers/CheckoutController.php", "symbol": "CheckoutController::store" },
+      "expected": "heuristic",
+      "reason": "The route action is a string `'App\\Http\\Controllers\\CheckoutController@store'` (routes/web.php:13), resolved by Laravel convention to the method declared at app/Http/Controllers/CheckoutController.php:19."
+    },
+    {
+      "id": "php-13",
+      "target": null,
+      "expected": "none",
+      "reason": "Order does not declare `create`; it is served by the vendor Eloquent Model (app/Models/Order.php:19 extends Model), which is outside the fixture (call site app/Http/Controllers/CheckoutController.php:21)."
+    },
+    {
+      "id": "php-14",
+      "target": { "file": "app/Http/Requests/StoreOrderRequest.php", "symbol": "StoreOrderRequest::lines" },
+      "expected": "exact",
+      "reason": "`$request` is typed StoreOrderRequest (app/Http/Controllers/CheckoutController.php:19), which declares lines at app/Http/Requests/StoreOrderRequest.php:35."
+    },
+    {
+      "id": "php-15",
+      "target": null,
+      "expected": "none",
+      "reason": "`response()` is a Laravel framework helper with no declaration in the fixture (call site app/Http/Controllers/CheckoutController.php:29)."
+    },
+    {
+      "id": "php-16",
+      "target": { "file": "app/Models/Order.php", "symbol": "Order::getSubtotalAttribute" },
+      "expected": "heuristic",
+      "reason": "`$order->subtotal` (app/Http/Controllers/OrderController.php:23) is an attribute read through __get, served by the accessor declared at app/Models/Order.php:45."
+    },
+    {
+      "id": "php-17",
+      "target": null,
+      "expected": "none",
+      "reason": "`Order::query()` (app/Http/Controllers/OrderController.php:30) is not declared in Order; it is a method of the vendor Eloquent Model (app/Models/Order.php:19)."
+    },
+    {
+      "id": "php-18",
+      "target": { "file": "app/Services/PriceCalculator.php", "symbol": "PriceCalculator::compute" },
+      "expected": "heuristic",
+      "reason": "Facade call (app/Http/Controllers/OrderController.php:35); accessor 'pricing' (app/Facades/Pricing.php:24) is bound at app/Providers/AppServiceProvider.php:43 to PriceCalculator, whose compute is at app/Services/PriceCalculator.php:25."
+    },
+    {
+      "id": "php-19",
+      "target": null,
+      "expected": "none",
+      "reason": "`$request` is Illuminate\\Http\\Request (app/Http/Middleware/EnsureCartNotEmpty.php:8,17), a vendor type whose `input` is not declared in the fixture."
+    },
+    {
+      "id": "php-20",
+      "target": null,
+      "expected": "none",
+      "reason": "`is_array` is a PHP built-in function (app/Http/Middleware/EnsureCartNotEmpty.php:21), outside the fixture."
+    },
+    {
+      "id": "php-21",
+      "target": null,
+      "expected": "none",
+      "reason": "`parent::validated()` refers to the vendor Illuminate FormRequest (app/Http/Requests/StoreOrderRequest.php:7,13), whose method is not declared in the fixture."
+    },
+    {
+      "id": "php-22",
+      "target": { "file": "app/Services/PriceCalculator.php", "symbol": "PriceCalculator::compute" },
+      "expected": "heuristic",
+      "reason": "Facade `Pricing::compute` (app/Jobs/RecalculateTotals.php:32) resolves through accessor 'pricing' (app/Facades/Pricing.php:24) and the binding at app/Providers/AppServiceProvider.php:43 to app/Services/PriceCalculator.php:25."
+    },
+    {
+      "id": "php-23",
+      "target": null,
+      "expected": "none",
+      "reason": "`Log` is the Illuminate Log facade imported from vendor (app/Jobs/RecalculateTotals.php:13); no binding or method of it exists in the fixture."
+    },
+    {
+      "id": "php-24",
+      "target": { "file": "app/Services/PriceCalculator.php", "symbol": "PriceCalculator::compute" },
+      "expected": "heuristic",
+      "reason": "Facade call (app/Listeners/SendOrderConfirmation.php:19) through accessor 'pricing' (app/Facades/Pricing.php:24) and binding at app/Providers/AppServiceProvider.php:43 to app/Services/PriceCalculator.php:25."
+    },
+    {
+      "id": "php-25",
+      "target": null,
+      "expected": "none",
+      "reason": "`$this->hasMany` is inherited from the vendor Eloquent Model (app/Models/Customer.php:17 extends Model, imported at line 8); not declared in the fixture."
+    },
+    {
+      "id": "php-26",
+      "target": null,
+      "expected": "none",
+      "reason": "`in_array` is a PHP built-in function (app/Models/Customer.php:30)."
+    },
+    {
+      "id": "php-27",
+      "target": { "file": "app/Models/Order.php", "symbol": "Order::lines" },
+      "expected": "heuristic",
+      "reason": "`$this->lines` (app/Models/Order.php:47) is a relation read through __get, served by the relation method lines declared at app/Models/Order.php:30."
+    },
+    {
+      "id": "php-28",
+      "target": { "file": "app/Support/Money.php", "symbol": "Money::zero" },
+      "expected": "exact",
+      "reason": "`Money` is imported at app/Models/Order.php:7 and zero is declared at app/Support/Money.php:32."
+    },
+    {
+      "id": "php-29",
+      "target": { "file": "app/Support/Money.php", "symbol": "Money::fromCents" },
+      "expected": "exact",
+      "reason": "`Money` is imported at app/Models/OrderLine.php:7 and fromCents is declared at app/Support/Money.php:22."
+    },
+    {
+      "id": "php-30",
+      "target": { "file": "app/Listeners/SendOrderConfirmation.php", "symbol": "SendOrderConfirmation::handle" },
+      "expected": "heuristic",
+      "reason": "`event(new OrderPlaced(...))` (app/Observers/OrderObserver.php:19) reaches the listener registered for OrderPlaced in app/Providers/EventServiceProvider.php:21-23, with handle at app/Listeners/SendOrderConfirmation.php:17."
+    },
+    {
+      "id": "php-31",
+      "target": { "file": "app/Jobs/RecalculateTotals.php", "symbol": "RecalculateTotals::handle" },
+      "expected": "heuristic",
+      "reason": "`RecalculateTotals::dispatch` (app/Observers/OrderObserver.php:25) on a Dispatchable job (app/Jobs/RecalculateTotals.php:22) that declares handle at line 30."
+    },
+    {
+      "id": "php-32",
+      "target": null,
+      "expected": "none",
+      "reason": "`$app->make(CouponValidator::class)` (app/Providers/AppServiceProvider.php:34) is bound at line 29 to `new CouponValidator()`, and app/Services/CouponValidator.php:14 declares no constructor, so there is no symbol to target."
+    },
+    {
+      "id": "php-33",
+      "target": null,
+      "expected": "none",
+      "reason": "`$app->make(CarrierGateway::class)` (app/Providers/AppServiceProvider.php:39) is bound at line 28 to `new CarrierGateway()`, and app/Services/CarrierGateway.php:17 declares no constructor (only __call), so there is no symbol to target."
+    },
+    {
+      "id": "php-34",
+      "target": null,
+      "expected": "none",
+      "reason": "`$this->app->singleton` (app/Providers/AppServiceProvider.php:43) is a method of the vendor container reached through the ServiceProvider base class (line 15, 24); it is not declared in the fixture."
+    },
+    {
+      "id": "php-35",
+      "target": { "file": "app/Services/DiscountService.php", "symbol": "DiscountService::__construct" },
+      "expected": "heuristic",
+      "reason": "`$app->make(DiscountService::class)` (app/Providers/AppServiceProvider.php:44) resolves the container binding registered at lines 32-35, which builds `new DiscountService(...)` whose constructor is declared at app/Services/DiscountService.php:30."
+    },
+    {
+      "id": "php-36",
+      "target": null,
+      "expected": "none",
+      "reason": "`Order::observe` (app/Providers/AppServiceProvider.php:52) is a static method of the vendor Eloquent Model (app/Models/Order.php:19), not declared in the fixture."
+    },
+    {
+      "id": "php-37",
+      "target": null,
+      "expected": "none",
+      "reason": "`Coupon::query()` (app/Services/CouponValidator.php:22) is a vendor Eloquent Model method (app/Models/Coupon.php:17); not declared in the fixture."
+    },
+    {
+      "id": "php-38",
+      "target": { "file": "app/Support/Money.php", "symbol": "Money::percentage" },
+      "expected": "exact",
+      "reason": "`$subtotal` is declared `Money` (app/Services/DiscountService.php:34), and percentage is declared at app/Support/Money.php:52."
+    },
+    {
+      "id": "php-39",
+      "target": { "file": "app/Support/Money.php", "symbol": "Money::isGreaterThan" },
+      "expected": "exact",
+      "reason": "`$discount` is the result of Money::percentage, declared to return `self` (app/Support/Money.php:52, assigned at app/Services/DiscountService.php:42); isGreaterThan is declared at app/Support/Money.php:57."
+    },
+    {
+      "id": "php-40",
+      "target": { "file": "app/Models/Order.php", "symbol": "Order::customer" },
+      "expected": "heuristic",
+      "reason": "`$order->customer` (app/Services/DiscountService.php:53) is a relation read through __get, served by the relation method customer declared at app/Models/Order.php:25."
+    },
+    {
+      "id": "php-41",
+      "target": { "file": "app/Models/Order.php", "symbol": "Order::lineCount" },
+      "expected": "exact",
+      "reason": "`$order` is typed Order (app/Services/DiscountService.php:60), which declares lineCount at app/Models/Order.php:53."
+    },
+    {
+      "id": "php-42",
+      "target": { "file": "app/Models/Order.php", "symbol": "Order::getSubtotalAttribute" },
+      "expected": "heuristic",
+      "reason": "`$order->subtotal` (app/Services/PriceCalculator.php:40) is an attribute read through __get, served by the accessor declared at app/Models/Order.php:45."
+    },
+    {
+      "id": "php-43",
+      "target": { "file": "app/Services/DiscountService.php", "symbol": "DiscountService::discountFor" },
+      "expected": "exact",
+      "reason": "`$discounts` is typed DiscountService (app/Services/PriceCalculator.php:19); discountFor is declared at app/Services/DiscountService.php:34."
+    },
+    {
+      "id": "php-44",
+      "target": null,
+      "expected": "none",
+      "reason": "`config()` is a Laravel framework helper with no declaration in the fixture (app/Services/ShippingService.php:24)."
+    },
+    {
+      "id": "php-45",
+      "target": null,
+      "expected": "none",
+      "reason": "`config()` is a Laravel framework helper with no declaration in the fixture (app/Services/TaxService.php:22)."
+    },
+    {
+      "id": "php-46",
+      "target": null,
+      "expected": "none",
+      "reason": "`shipping_country` is a plain column listed in $fillable (app/Models/Order.php:23); Order declares no accessor getShippingCountryAttribute or relation of that name, and the read is at app/Services/TaxService.php:23."
+    },
+    {
+      "id": "php-47",
+      "target": { "file": "app/Support/Money.php", "symbol": "Money::percentage" },
+      "expected": "exact",
+      "reason": "`$base` is typed Money (app/Services/TaxService.php:20) and percentage is declared at app/Support/Money.php:52."
+    },
+    {
+      "id": "php-48",
+      "target": null,
+      "expected": "none",
+      "reason": "`round` is a PHP built-in function (app/Support/Money.php:29), outside the fixture."
+    },
+    {
+      "id": "php-49",
+      "target": null,
+      "expected": "none",
+      "reason": "`Route::get` (routes/api.php:12) uses the vendor Route facade imported at routes/api.php:6; no declaration exists in the fixture."
+    },
+    {
+      "id": "php-50",
+      "target": { "file": "app/Http/Controllers/OrderController.php", "symbol": "OrderController::index" },
+      "expected": "exact",
+      "reason": "The array callable `[OrderController::class, 'index']` (routes/api.php:12) names the class imported at routes/api.php:5; index is declared at app/Http/Controllers/OrderController.php:28."
+    },
+    {
+      "id": "ts-01",
+      "target": { "file": "src/services/id.ts", "symbol": "newId" },
+      "expected": "exact",
+      "reason": "`newId` is imported at src/services/task.service.ts:6 and declared at src/services/id.ts:7."
+    },
+    {
+      "id": "ts-02",
+      "target": { "file": "src/domain/task-status.ts", "symbol": "canTransition" },
+      "expected": "exact",
+      "reason": "`canTransition` is imported at src/services/task.service.ts:4 and declared at src/domain/task-status.ts:25."
+    },
+    {
+      "id": "ts-03",
+      "target": { "file": "src/services/task.service.ts", "symbol": "TaskService::get" },
+      "expected": "exact",
+      "reason": "`this.get` calls the method declared in the same class at src/services/task.service.ts:19."
+    },
+    {
+      "id": "ts-04",
+      "target": { "file": "src/services/task.filters.ts", "symbol": "applyFilters" },
+      "expected": "exact",
+      "reason": "`applyFilters` is imported at src/repositories/in-memory-task.repository.ts:4 and declared at src/services/task.filters.ts:10."
+    },
+    {
+      "id": "ts-05",
+      "target": { "file": "src/services/task.filters.ts", "symbol": "sortTasks" },
+      "expected": "exact",
+      "reason": "`sortTasks` is imported at src/repositories/in-memory-task.repository.ts:4 and declared at src/services/task.filters.ts:27."
+    },
+    {
+      "id": "ts-06",
+      "target": { "file": "src/domain/pagination.ts", "symbol": "buildPage" },
+      "expected": "exact",
+      "reason": "`buildPage` is imported at src/repositories/in-memory-task.repository.ts:3 and declared at src/domain/pagination.ts:13."
+    },
+    {
+      "id": "ts-07",
+      "target": null,
+      "expected": "none",
+      "reason": "`request` is a FastifyRequest from the fastify package (src/controllers/tasks.controller.ts:1,27), so the `.server` link has a package type; the later `taskService` declaration (src/types/index.ts:11) does not rescue the call under the link-by-link rule."
+    },
+    {
+      "id": "ts-08",
+      "target": { "file": "src/controllers/tasks.controller.ts", "symbol": "TasksController::create" },
+      "expected": "exact",
+      "reason": "`controller` is `new TasksController()` (src/routes/tasks.routes.ts:16) and `controller.create` names the method declared at src/controllers/tasks.controller.ts:26."
+    },
+    {
+      "id": "ts-09",
+      "target": { "file": "src/repositories/task.repository.ts", "symbol": "TaskRepository::findById" },
+      "expected": "exact",
+      "reason": "`this.repository` is declared `TaskRepository` (src/services/task.service.ts:15), a fixture interface that declares findById at src/repositories/task.repository.ts:23; implementations are not targets."
+    },
+    {
+      "id": "ts-10",
+      "target": null,
+      "expected": "none",
+      "reason": "`task.tags` is an array (`tags` typed in the Task entity used at src/services/task.filters.ts:10) so `includes` is the standard-library Array method at src/services/task.filters.ts:14."
+    },
+    {
+      "id": "ts-11",
+      "target": null,
+      "expected": "none",
+      "reason": "`app` comes from `Fastify(...)` of the fastify package (src/app.ts:1,23), so setValidatorCompiler (src/app.ts:25) is declared outside the fixture."
+    },
+    {
+      "id": "ts-12",
+      "target": { "file": "src/plugins/error-handler.ts", "symbol": "registerErrorHandler" },
+      "expected": "exact",
+      "reason": "`registerErrorHandler` is imported at src/app.ts:9 and declared at src/plugins/error-handler.ts:10."
+    },
+    {
+      "id": "ts-13",
+      "target": { "file": "src/plugins/db.ts", "symbol": "registerDb" },
+      "expected": "exact",
+      "reason": "`registerDb` is imported at src/app.ts:8 and declared at src/plugins/db.ts:11."
+    },
+    {
+      "id": "ts-14",
+      "target": null,
+      "expected": "none",
+      "reason": "`app.register` (src/app.ts:31) is a method of the Fastify instance from the fastify package (src/app.ts:23), not declared in the fixture."
+    },
+    {
+      "id": "ts-15",
+      "target": { "file": "src/routes/index.ts", "symbol": "registerRoutes" },
+      "expected": "exact",
+      "reason": "The reference `registerRoutes` passed to app.register (src/app.ts:31) is imported at src/app.ts:10 and declared at src/routes/index.ts:6."
+    },
+    {
+      "id": "ts-16",
+      "target": null,
+      "expected": "none",
+      "reason": "`z.object` is Zod, imported from the package 'zod' (src/config/env.ts:1,9), outside the fixture."
+    },
+    {
+      "id": "ts-17",
+      "target": null,
+      "expected": "none",
+      "reason": "`envSchema` is a Zod schema built at src/config/env.ts:9, so `parse` (src/config/env.ts:19) belongs to the zod package."
+    },
+    {
+      "id": "ts-18",
+      "target": null,
+      "expected": "none",
+      "reason": "`request.server` is typed by the fastify package (src/controllers/tasks.controller.ts:1,11,14), so the chain is none even though taskService is augmented at src/types/index.ts:11."
+    },
+    {
+      "id": "ts-19",
+      "target": null,
+      "expected": "none",
+      "reason": "`Math.ceil` is a standard-library function (src/domain/pagination.ts:19)."
+    },
+    {
+      "id": "ts-20",
+      "target": null,
+      "expected": "none",
+      "reason": "`TRANSITIONS[from]` is a readonly array (src/domain/task-status.ts:13), so `includes` is the standard-library Array method (call at src/domain/task-status.ts:26)."
+    },
+    {
+      "id": "ts-21",
+      "target": { "file": "src/repositories/in-memory-task.repository.ts", "symbol": "InMemoryTaskRepository::constructor" },
+      "expected": "exact",
+      "reason": "`InMemoryTaskRepository` is imported at src/plugins/db.ts:3 and declares a constructor at src/repositories/in-memory-task.repository.ts:14."
+    },
+    {
+      "id": "ts-22",
+      "target": { "file": "src/services/task.service.ts", "symbol": "TaskService::constructor" },
+      "expected": "exact",
+      "reason": "`TaskService` is imported at src/plugins/db.ts:4 and declares a constructor at src/services/task.service.ts:14."
+    },
+    {
+      "id": "ts-23",
+      "target": null,
+      "expected": "none",
+      "reason": "`app` is a FastifyInstance from the fastify package (src/plugins/error-handler.ts:1,10); setErrorHandler (line 11) is declared outside the fixture."
+    },
+    {
+      "id": "ts-24",
+      "target": null,
+      "expected": "none",
+      "reason": "`error` is narrowed to ZodError (src/plugins/error-handler.ts:12), a package type, and `issues` is an array, so `map` (line 17) is the standard-library Array method."
+    },
+    {
+      "id": "ts-25",
+      "target": null,
+      "expected": "none",
+      "reason": "`this.tasks` is a standard-library `Map` (src/repositories/in-memory-task.repository.ts:12), so `get` (line 21) is outside the fixture."
+    },
+    {
+      "id": "ts-26",
+      "target": null,
+      "expected": "none",
+      "reason": "`sorted` is a Task[] (src/repositories/in-memory-task.repository.ts:27, return type of sortTasks at src/services/task.filters.ts:27), so `slice` is the standard-library Array method."
+    },
+    {
+      "id": "ts-27",
+      "target": null,
+      "expected": "none",
+      "reason": "HealthController declares no constructor (src/controllers/health.controller.ts:3-7), so `new HealthController()` (src/routes/health.routes.ts:5) has no symbol to target."
+    },
+    {
+      "id": "ts-28",
+      "target": { "file": "src/controllers/health.controller.ts", "symbol": "HealthController::check" },
+      "expected": "exact",
+      "reason": "`controller` is `new HealthController()` (src/routes/health.routes.ts:5) and `controller.check` names the method declared at src/controllers/health.controller.ts:4."
+    },
+    {
+      "id": "ts-29",
+      "target": null,
+      "expected": "none",
+      "reason": "`app.get` (src/routes/tasks.routes.ts:18) is a method of FastifyInstance from the fastify package (src/routes/tasks.routes.ts:1,15)."
+    },
+    {
+      "id": "ts-30",
+      "target": { "file": "src/controllers/tasks.controller.ts", "symbol": "TasksController::getById" },
+      "expected": "exact",
+      "reason": "`controller` is `new TasksController()` (src/routes/tasks.routes.ts:16), and getById is declared at src/controllers/tasks.controller.ts:18."
+    },
+    {
+      "id": "ts-31",
+      "target": { "file": "src/controllers/tasks.controller.ts", "symbol": "TasksController::update" },
+      "expected": "exact",
+      "reason": "`controller` is `new TasksController()` (src/routes/tasks.routes.ts:16), and update is declared at src/controllers/tasks.controller.ts:34."
+    },
+    {
+      "id": "ts-32",
+      "target": null,
+      "expected": "none",
+      "reason": "`z.object` is Zod, imported from the package 'zod' (src/schemas/pagination.schema.ts:1,10)."
+    },
+    {
+      "id": "ts-33",
+      "target": null,
+      "expected": "none",
+      "reason": "`z.object` is Zod, imported from the package 'zod' (src/schemas/task.schema.ts:1,19)."
+    },
+    {
+      "id": "ts-34",
+      "target": null,
+      "expected": "none",
+      "reason": "`.refine` is chained on a Zod schema built at src/schemas/task.schema.ts:28-37, so it is a method of the zod package."
+    },
+    {
+      "id": "ts-35",
+      "target": null,
+      "expected": "none",
+      "reason": "`z.string` is Zod, imported from the package 'zod' (src/schemas/task.schema.ts:1,43)."
+    },
+    {
+      "id": "ts-36",
+      "target": { "file": "src/config/env.ts", "symbol": "loadEnv" },
+      "expected": "exact",
+      "reason": "`loadEnv` is imported at src/server.ts:2 and declared at src/config/env.ts:18."
+    },
+    {
+      "id": "ts-37",
+      "target": null,
+      "expected": "none",
+      "reason": "`app` is the FastifyInstance returned by buildApp (src/server.ts:10; src/app.ts:22), a fastify package type, so `listen` is not declared in the fixture."
+    },
+    {
+      "id": "ts-38",
+      "target": null,
+      "expected": "none",
+      "reason": "`process.exit` is a Node.js standard-library function (src/server.ts:16)."
+    },
+    {
+      "id": "ts-39",
+      "target": null,
+      "expected": "none",
+      "reason": "`randomUUID` is imported from 'node:crypto' (src/services/id.ts:1,8), outside the fixture."
+    },
+    {
+      "id": "ts-40",
+      "target": null,
+      "expected": "none",
+      "reason": "`tasks` is a Task[] parameter (src/services/task.filters.ts:10), so `filter` (line 11) is the standard-library Array method."
+    },
+    {
+      "id": "ts-41",
+      "target": { "file": "src/services/task.filters.ts", "symbol": "matchesSearch" },
+      "expected": "exact",
+      "reason": "`matchesSearch` is a function declared in the same file at src/services/task.filters.ts:20 and called at line 15."
+    },
+    {
+      "id": "ts-42",
+      "target": { "file": "src/domain/task-priority.ts", "symbol": "priorityRank" },
+      "expected": "exact",
+      "reason": "`priorityRank` is imported at src/services/task.filters.ts:2 and declared at src/domain/task-priority.ts:20."
+    },
+    {
+      "id": "ts-43",
+      "target": { "file": "src/services/task.filters.ts", "symbol": "compareNullableDate" },
+      "expected": "exact",
+      "reason": "`compareNullableDate` is declared in the same file at src/services/task.filters.ts:47 and called at line 37."
+    },
+    {
+      "id": "ts-44",
+      "target": { "file": "src/domain/errors.ts", "symbol": "TaskNotFoundError::constructor" },
+      "expected": "exact",
+      "reason": "`TaskNotFoundError` is imported at src/services/task.service.ts:3 and declares a constructor at src/domain/errors.ts:18."
+    },
+    {
+      "id": "ts-45",
+      "target": { "file": "src/repositories/task.repository.ts", "symbol": "TaskRepository::list" },
+      "expected": "exact",
+      "reason": "`this.repository` is declared `TaskRepository` (src/services/task.service.ts:15), a fixture interface declaring list at src/repositories/task.repository.ts:24."
+    },
+    {
+      "id": "ts-46",
+      "target": null,
+      "expected": "none",
+      "reason": "`this.clock` is an injected `() => string` constructor parameter with an anonymous default (src/services/task.service.ts:16), so no named symbol can be determined statically for the call at line 30."
+    },
+    {
+      "id": "ts-47",
+      "target": { "file": "src/repositories/task.repository.ts", "symbol": "TaskRepository::create" },
+      "expected": "exact",
+      "reason": "`this.repository` is declared `TaskRepository` (src/services/task.service.ts:15); the interface declares create at src/repositories/task.repository.ts:25."
+    },
+    {
+      "id": "ts-48",
+      "target": { "file": "src/domain/errors.ts", "symbol": "IllegalStatusTransitionError::constructor" },
+      "expected": "exact",
+      "reason": "`IllegalStatusTransitionError` is imported at src/services/task.service.ts:3 and declares a constructor at src/domain/errors.ts:24."
+    },
+    {
+      "id": "ts-49",
+      "target": { "file": "src/services/task.service.ts", "symbol": "pruneUndefined" },
+      "expected": "exact",
+      "reason": "`pruneUndefined` is a function declared in the same file at src/services/task.service.ts:71 and called at line 56."
+    },
+    {
+      "id": "ts-50",
+      "target": { "file": "src/repositories/task.repository.ts", "symbol": "TaskRepository::update" },
+      "expected": "exact",
+      "reason": "`this.repository` is declared `TaskRepository` (src/services/task.service.ts:15); the interface declares update at src/repositories/task.repository.ts:26."
+    }
+  ]
+}

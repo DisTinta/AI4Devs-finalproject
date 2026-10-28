@@ -1,0 +1,34 @@
+{
+  "fixtures": [
+    {
+      "fixture": "acme-shop",
+      "rows": [
+        { "construction": "facade", "instances": 12, "ids": ["php-08", "php-09", "php-18", "php-22", "php-23", "php-24", "php-49"] },
+        { "construction": "container-binding", "instances": 11, "ids": ["php-32", "php-33", "php-34", "php-35"] },
+        { "construction": "magic-call", "instances": 5, "ids": ["php-07", "php-13", "php-17", "php-36", "php-37"] },
+        { "construction": "eloquent-read", "instances": 27, "ids": ["php-04", "php-16", "php-27", "php-40", "php-42", "php-46"] },
+        { "construction": "string-route", "instances": 1, "ids": ["php-12"] },
+        { "construction": "array-route", "instances": 2, "ids": ["php-11", "php-50"] },
+        { "construction": "job-dispatch", "instances": 2, "ids": ["php-10", "php-31"] },
+        { "construction": "event", "instances": 2, "ids": ["php-06", "php-30"] },
+        { "construction": "framework-function", "instances": 44, "ids": ["php-15", "php-19", "php-20", "php-25", "php-26", "php-44", "php-45", "php-48"] },
+        { "construction": "other", "instances": 13, "ids": ["php-01", "php-02", "php-03", "php-05", "php-14", "php-21", "php-28", "php-29", "php-38", "php-39", "php-41", "php-43", "php-47"] }
+      ]
+    },
+    {
+      "fixture": "task-api",
+      "rows": [
+        { "construction": "imported-function", "instances": 11, "ids": ["ts-01", "ts-02", "ts-04", "ts-05", "ts-06", "ts-12", "ts-13", "ts-36", "ts-42"] },
+        { "construction": "interface-method", "instances": 5, "ids": ["ts-09", "ts-45", "ts-47", "ts-50"] },
+        { "construction": "new", "instances": 7, "ids": ["ts-21", "ts-22", "ts-27", "ts-44", "ts-48"] },
+        { "construction": "method-reference", "instances": 11, "ids": ["ts-08", "ts-15", "ts-28", "ts-30", "ts-31"] },
+        { "construction": "callback", "instances": 5, "ids": ["ts-23", "ts-24", "ts-34", "ts-40"] },
+        { "construction": "reexport", "instances": 0, "ids": [] },
+        { "construction": "stdlib", "instances": 29, "ids": ["ts-10", "ts-19", "ts-20", "ts-25", "ts-26", "ts-38", "ts-39"] },
+        { "construction": "zod", "instances": 81, "ids": ["ts-16", "ts-17", "ts-32", "ts-33", "ts-35"] },
+        { "construction": "fastify", "instances": 38, "ids": ["ts-07", "ts-11", "ts-14", "ts-18", "ts-29", "ts-37"] },
+        { "construction": "other", "instances": 5, "ids": ["ts-03", "ts-41", "ts-43", "ts-46", "ts-49"] }
+      ]
+    }
+  ]
+}

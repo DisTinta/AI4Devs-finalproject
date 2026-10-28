@@ -846,7 +846,7 @@ Los tests forman parte de la **definición de hecho de cada ticket**, no de una 
 | `acme-shop` (PHP/Laravel) | *(pendiente)* | *(pendiente)* | *(pendiente)* | *(pendiente)* |
 | `task-api` (TypeScript) | *(pendiente)* | *(pendiente)* | *(pendiente)* | *(pendiente)* |
 
-**Tabla 2 — Calidad del grafo por analizador** (50 sitios de llamada anotados a mano por lenguaje)
+**Tabla 2 — Calidad del grafo por analizador** (50 sitios de llamada por lenguaje anotados por dos agentes independientes; [método, concordancia y hashes](docs/measurements/annotation-agreement.md))
 
 | Analizador | Cobertura | Precisión | Aristas `exact` | Aristas `heuristic` |
 |---|---|---|---|---|
@@ -855,7 +855,7 @@ Los tests forman parte de la **definición de hecho de cada ticket**, no de una 
 
 La Tabla 2 es la medición más interesante del proyecto: se espera que TypeScript salga claramente mejor porque el compilador resuelve referencias, mientras PHP depende de heurísticas sobre las convenciones de Laravel. **Medir el límite del propio sistema y explicar por qué existe es mejor material que ocultarlo**, y da contenido concreto al primer sacrificio de [2.1](#21-diagrama-de-arquitectura).
 
-**Limitaciones a declarar junto a las tablas:** una sola ejecución, sin repeticiones; preguntas y anotación realizadas por la autora; repositorios de muestra pequeños y creados a propósito. No son resultados de investigación, son mediciones de producto.
+**Limitaciones a declarar junto a las tablas:** una sola ejecución, sin repeticiones; preguntas de la Tabla 1 realizadas por la autora; anotación de los sitios de llamada de la Tabla 2 realizada por dos agentes anotadores independientes de modelos distintos; repositorios de muestra pequeños y creados a propósito. No son resultados de investigación, son mediciones de producto.
 
 ---
 

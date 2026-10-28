@@ -336,15 +336,17 @@ must store it redacted.
 
 ---
 
-# Table 2 seed — hand-annotated call sites
+# Table 2 seed — annotated call sites
 
-readme §2.6 asks for **50 hand-annotated call sites per language** for Table 2
-(graph quality by analyzer). Below is the **format and a first batch**; the
-remainder is pending (see final report).
+readme §2.6 asks for **50 annotated call sites per language** for Table 2
+(graph quality by analyzer). The 22 control rows below were written by hand; the 50 sites per
+language were annotated by two independent agents of different models, with the disagreements
+resolved by a third agent. The result is frozen in `fixtures/annotations/` and its method, agreement
+figures and hashes are in `docs/measurements/annotation-agreement.md`.
 
 Columns: source symbol → target symbol · expected resolution · reason.
 
-## acme-shop (PHP) — first batch (12 of 50; **38 pending**)
+## acme-shop (PHP) — control rows (12 of 50; the other 38 are in `fixtures/annotations/`)
 
 | # | Call site | Expected | Reason |
 |---|---|---|---|
@@ -361,7 +363,7 @@ Columns: source symbol → target symbol · expected resolution · reason.
 | 11 | `routes/api.php` → `OrderController::show` | exact | array action `[Class, 'method']` |
 | 12 | `routes/web.php` → `CheckoutController::store` | heuristic | string; fully qualified—no namespace lookup needed; analyzer must apply Laravel's `Controller@method` convention to split class and method |
 
-## task-api (TypeScript) — first batch (10 sites listed of 50; **40 pending**)
+## task-api (TypeScript) — control rows (10 of 50; the other 40 are in `fixtures/annotations/`)
 
 | # | Call site | Expected | Reason |
 |---|---|---|---|
