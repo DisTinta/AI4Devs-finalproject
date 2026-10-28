@@ -1,0 +1,935 @@
+{
+  "fixture": "task-api",
+  "language": "typescript",
+  "formatVersion": 1,
+  "sites": [
+    {
+      "id": "ts-01",
+      "control": true,
+      "site": {
+        "file": "src/services/task.service.ts",
+        "line": 32
+      },
+      "form": "call",
+      "call": "newId(",
+      "source": {
+        "symbol": "TaskService::create"
+      },
+      "target": {
+        "file": "src/services/id.ts",
+        "symbol": "newId"
+      },
+      "expected": "exact",
+      "reason": "newId is explicitly imported from ./id.js (src/services/task.service.ts:6) and declared at src/services/id.ts:7.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-02",
+      "control": true,
+      "site": {
+        "file": "src/services/task.service.ts",
+        "line": 49
+      },
+      "form": "call",
+      "call": "canTransition(",
+      "source": {
+        "symbol": "TaskService::update"
+      },
+      "target": {
+        "file": "src/domain/task-status.ts",
+        "symbol": "canTransition"
+      },
+      "expected": "exact",
+      "reason": "canTransition is imported (src/services/task.service.ts:4) and declared at src/domain/task-status.ts:25.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-03",
+      "control": true,
+      "site": {
+        "file": "src/services/task.service.ts",
+        "line": 46
+      },
+      "form": "call",
+      "call": "this.get(",
+      "source": {
+        "symbol": "TaskService::update"
+      },
+      "target": {
+        "file": "src/services/task.service.ts",
+        "symbol": "TaskService::get"
+      },
+      "expected": "exact",
+      "reason": "this is TaskService, which declares get at src/services/task.service.ts:19.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-04",
+      "control": true,
+      "site": {
+        "file": "src/repositories/in-memory-task.repository.ts",
+        "line": 26
+      },
+      "form": "call",
+      "call": "applyFilters(",
+      "source": {
+        "symbol": "InMemoryTaskRepository::list"
+      },
+      "target": {
+        "file": "src/services/task.filters.ts",
+        "symbol": "applyFilters"
+      },
+      "expected": "exact",
+      "reason": "applyFilters is imported (src/repositories/in-memory-task.repository.ts:4) and declared at src/services/task.filters.ts:10.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-05",
+      "control": true,
+      "site": {
+        "file": "src/repositories/in-memory-task.repository.ts",
+        "line": 27
+      },
+      "form": "call",
+      "call": "sortTasks(",
+      "source": {
+        "symbol": "InMemoryTaskRepository::list"
+      },
+      "target": {
+        "file": "src/services/task.filters.ts",
+        "symbol": "sortTasks"
+      },
+      "expected": "exact",
+      "reason": "sortTasks is imported (src/repositories/in-memory-task.repository.ts:4) and declared at src/services/task.filters.ts:27.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-06",
+      "control": true,
+      "site": {
+        "file": "src/repositories/in-memory-task.repository.ts",
+        "line": 31
+      },
+      "form": "call",
+      "call": "buildPage(",
+      "source": {
+        "symbol": "InMemoryTaskRepository::list"
+      },
+      "target": {
+        "file": "src/domain/pagination.ts",
+        "symbol": "buildPage"
+      },
+      "expected": "exact",
+      "reason": "buildPage is imported (src/repositories/in-memory-task.repository.ts:3) and declared at src/domain/pagination.ts:13.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-07",
+      "control": true,
+      "site": {
+        "file": "src/controllers/tasks.controller.ts",
+        "line": 30
+      },
+      "form": "call",
+      "call": "request.server.taskService.create(",
+      "source": {
+        "symbol": "TasksController::create"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "request is FastifyRequest from the fastify package (src/controllers/tasks.controller.ts:1) and request.server is the package type FastifyInstance; taskService is only augmented via declare module (src/types/index.ts:11), so by the link-by-link rule the call create at src/controllers/tasks.controller.ts:30 is none.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-08",
+      "control": true,
+      "site": {
+        "file": "src/routes/tasks.routes.ts",
+        "line": 22
+      },
+      "form": "reference",
+      "call": "controller.create",
+      "source": {
+        "symbol": "taskRoutes"
+      },
+      "target": {
+        "file": "src/controllers/tasks.controller.ts",
+        "symbol": "TasksController::create"
+      },
+      "expected": "exact",
+      "reason": "controller is new TasksController() (src/routes/tasks.routes.ts:16); the reference controller.create names the declared method at src/controllers/tasks.controller.ts:26.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-09",
+      "control": true,
+      "site": {
+        "file": "src/services/task.service.ts",
+        "line": 20
+      },
+      "form": "call",
+      "call": "this.repository.findById(",
+      "source": {
+        "symbol": "TaskService::get"
+      },
+      "target": {
+        "file": "src/repositories/task.repository.ts",
+        "symbol": "TaskRepository::findById"
+      },
+      "expected": "exact",
+      "reason": "this.repository is typed with the fixture interface TaskRepository (src/services/task.service.ts:15), which declares findById at src/repositories/task.repository.ts:23; implementations are not targets.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-10",
+      "control": true,
+      "site": {
+        "file": "src/services/task.filters.ts",
+        "line": 14
+      },
+      "form": "call",
+      "call": "task.tags.includes(",
+      "source": {
+        "symbol": "applyFilters"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "task.tags is string[] (src/domain/task.entity.ts:14); includes at src/services/task.filters.ts:14 is the standard-library Array.prototype.includes.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-11",
+      "control": false,
+      "site": {
+        "file": "src/app.ts",
+        "line": 25
+      },
+      "form": "call",
+      "call": "app.setValidatorCompiler(",
+      "source": {
+        "symbol": "buildApp"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "app is a Fastify instance (src/app.ts:23); setValidatorCompiler at src/app.ts:25 is declared by the fastify package.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-12",
+      "control": false,
+      "site": {
+        "file": "src/app.ts",
+        "line": 28
+      },
+      "form": "call",
+      "call": "registerErrorHandler(",
+      "source": {
+        "symbol": "buildApp"
+      },
+      "target": {
+        "file": "src/plugins/error-handler.ts",
+        "symbol": "registerErrorHandler"
+      },
+      "expected": "exact",
+      "reason": "registerErrorHandler is imported (src/app.ts:9) and declared at src/plugins/error-handler.ts:10.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-13",
+      "control": false,
+      "site": {
+        "file": "src/app.ts",
+        "line": 29
+      },
+      "form": "call",
+      "call": "registerDb(",
+      "source": {
+        "symbol": "buildApp"
+      },
+      "target": {
+        "file": "src/plugins/db.ts",
+        "symbol": "registerDb"
+      },
+      "expected": "exact",
+      "reason": "registerDb is imported (src/app.ts:8) and declared at src/plugins/db.ts:11.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-14",
+      "control": false,
+      "site": {
+        "file": "src/app.ts",
+        "line": 31
+      },
+      "form": "call",
+      "call": "app.register(",
+      "source": {
+        "symbol": "buildApp"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "app.register at src/app.ts:31 is a method of the Fastify instance declared by the fastify package.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-15",
+      "control": false,
+      "site": {
+        "file": "src/app.ts",
+        "line": 31
+      },
+      "form": "reference",
+      "call": "registerRoutes",
+      "source": {
+        "symbol": "buildApp"
+      },
+      "target": {
+        "file": "src/routes/index.ts",
+        "symbol": "registerRoutes"
+      },
+      "expected": "exact",
+      "reason": "registerRoutes is imported from ./routes/index.js (src/app.ts:10) and declared at src/routes/index.ts:6.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-16",
+      "control": false,
+      "site": {
+        "file": "src/config/env.ts",
+        "line": 9
+      },
+      "form": "call",
+      "call": "z.object(",
+      "source": {
+        "file": "src/config/env.ts"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "z is imported from the zod package (src/config/env.ts:1); z.object at src/config/env.ts:9 is declared outside the fixture.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-17",
+      "control": false,
+      "site": {
+        "file": "src/config/env.ts",
+        "line": 19
+      },
+      "form": "call",
+      "call": "envSchema.parse(",
+      "source": {
+        "symbol": "loadEnv"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "envSchema is a Zod object (src/config/env.ts:9); parse at src/config/env.ts:19 is a Zod method declared outside the fixture.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-18",
+      "control": false,
+      "site": {
+        "file": "src/controllers/tasks.controller.ts",
+        "line": 14
+      },
+      "form": "call",
+      "call": "request.server.taskService.list(",
+      "source": {
+        "symbol": "TasksController::list"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "request is FastifyRequest from the fastify package (src/controllers/tasks.controller.ts:1) and request.server is the package type FastifyInstance; taskService is only augmented via declare module (src/types/index.ts:11), so by the link-by-link rule the call list at src/controllers/tasks.controller.ts:14 is none.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-19",
+      "control": false,
+      "site": {
+        "file": "src/domain/pagination.ts",
+        "line": 19
+      },
+      "form": "call",
+      "call": "Math.ceil(",
+      "source": {
+        "symbol": "buildPage"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "Math.ceil at src/domain/pagination.ts:19 is a standard-library function.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-20",
+      "control": false,
+      "site": {
+        "file": "src/domain/task-status.ts",
+        "line": 26
+      },
+      "form": "call",
+      "call": "TRANSITIONS[from].includes(",
+      "source": {
+        "symbol": "canTransition"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "TRANSITIONS[from] is a readonly TaskStatus[] (src/domain/task-status.ts:13); includes at src/domain/task-status.ts:26 is the standard-library array method.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-21",
+      "control": false,
+      "site": {
+        "file": "src/plugins/db.ts",
+        "line": 12
+      },
+      "form": "new",
+      "call": "new InMemoryTaskRepository(",
+      "source": {
+        "symbol": "registerDb"
+      },
+      "target": {
+        "file": "src/repositories/in-memory-task.repository.ts",
+        "symbol": "InMemoryTaskRepository::constructor"
+      },
+      "expected": "exact",
+      "reason": "InMemoryTaskRepository is imported (src/plugins/db.ts:3) and declares a constructor at src/repositories/in-memory-task.repository.ts:14.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-22",
+      "control": false,
+      "site": {
+        "file": "src/plugins/db.ts",
+        "line": 13
+      },
+      "form": "new",
+      "call": "new TaskService(",
+      "source": {
+        "symbol": "registerDb"
+      },
+      "target": {
+        "file": "src/services/task.service.ts",
+        "symbol": "TaskService::constructor"
+      },
+      "expected": "exact",
+      "reason": "TaskService is imported (src/plugins/db.ts:4) and declares a constructor at src/services/task.service.ts:14.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-23",
+      "control": false,
+      "site": {
+        "file": "src/plugins/error-handler.ts",
+        "line": 11
+      },
+      "form": "call",
+      "call": "app.setErrorHandler(",
+      "source": {
+        "symbol": "registerErrorHandler"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "app is FastifyInstance (src/plugins/error-handler.ts:10); setErrorHandler at src/plugins/error-handler.ts:11 is declared by the fastify package.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-24",
+      "control": false,
+      "site": {
+        "file": "src/plugins/error-handler.ts",
+        "line": 17
+      },
+      "form": "call",
+      "call": "error.issues.map(",
+      "source": {
+        "symbol": "registerErrorHandler"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "error is narrowed to ZodError from the zod package (src/plugins/error-handler.ts:12); issues.map at src/plugins/error-handler.ts:17 is a package/standard-library member.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-25",
+      "control": false,
+      "site": {
+        "file": "src/repositories/in-memory-task.repository.ts",
+        "line": 21
+      },
+      "form": "call",
+      "call": "this.tasks.get(",
+      "source": {
+        "symbol": "InMemoryTaskRepository::findById"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "this.tasks is a Map<string, Task> (src/repositories/in-memory-task.repository.ts:12); get at src/repositories/in-memory-task.repository.ts:21 is the standard-library Map method.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-26",
+      "control": false,
+      "site": {
+        "file": "src/repositories/in-memory-task.repository.ts",
+        "line": 30
+      },
+      "form": "call",
+      "call": "sorted.slice(",
+      "source": {
+        "symbol": "InMemoryTaskRepository::list"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "sorted is a Task[] returned by sortTasks (src/repositories/in-memory-task.repository.ts:27); slice at src/repositories/in-memory-task.repository.ts:30 is the standard-library array method.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-27",
+      "control": false,
+      "site": {
+        "file": "src/routes/health.routes.ts",
+        "line": 5
+      },
+      "form": "new",
+      "call": "new HealthController(",
+      "source": {
+        "symbol": "healthRoutes"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "HealthController declares no constructor and has no parent class (src/controllers/health.controller.ts:3), so new HealthController() at src/routes/health.routes.ts:5 has no symbol to target.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-28",
+      "control": false,
+      "site": {
+        "file": "src/routes/health.routes.ts",
+        "line": 6
+      },
+      "form": "reference",
+      "call": "controller.check",
+      "source": {
+        "symbol": "healthRoutes"
+      },
+      "target": {
+        "file": "src/controllers/health.controller.ts",
+        "symbol": "HealthController::check"
+      },
+      "expected": "exact",
+      "reason": "controller is new HealthController() (src/routes/health.routes.ts:5); controller.check names the declared method at src/controllers/health.controller.ts:4.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-29",
+      "control": false,
+      "site": {
+        "file": "src/routes/tasks.routes.ts",
+        "line": 18
+      },
+      "form": "call",
+      "call": "app.get(",
+      "source": {
+        "symbol": "taskRoutes"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "app is FastifyInstance (src/routes/tasks.routes.ts:15); get at src/routes/tasks.routes.ts:18 is declared by the fastify package.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-30",
+      "control": false,
+      "site": {
+        "file": "src/routes/tasks.routes.ts",
+        "line": 20
+      },
+      "form": "reference",
+      "call": "controller.getById",
+      "source": {
+        "symbol": "taskRoutes"
+      },
+      "target": {
+        "file": "src/controllers/tasks.controller.ts",
+        "symbol": "TasksController::getById"
+      },
+      "expected": "exact",
+      "reason": "controller is new TasksController() (src/routes/tasks.routes.ts:16); controller.getById names the method at src/controllers/tasks.controller.ts:18.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-31",
+      "control": false,
+      "site": {
+        "file": "src/routes/tasks.routes.ts",
+        "line": 27
+      },
+      "form": "reference",
+      "call": "controller.update",
+      "source": {
+        "symbol": "taskRoutes"
+      },
+      "target": {
+        "file": "src/controllers/tasks.controller.ts",
+        "symbol": "TasksController::update"
+      },
+      "expected": "exact",
+      "reason": "controller is new TasksController() (src/routes/tasks.routes.ts:16); controller.update names the method at src/controllers/tasks.controller.ts:34.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-32",
+      "control": false,
+      "site": {
+        "file": "src/schemas/pagination.schema.ts",
+        "line": 10
+      },
+      "form": "call",
+      "call": "z.object(",
+      "source": {
+        "file": "src/schemas/pagination.schema.ts"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "z is imported from zod (src/schemas/pagination.schema.ts:1); z.object at src/schemas/pagination.schema.ts:10 is declared outside the fixture.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-33",
+      "control": false,
+      "site": {
+        "file": "src/schemas/task.schema.ts",
+        "line": 19
+      },
+      "form": "call",
+      "call": "z.object(",
+      "source": {
+        "file": "src/schemas/task.schema.ts"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "z is imported from zod (src/schemas/task.schema.ts:1); z.object at src/schemas/task.schema.ts:19 is declared outside the fixture.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-34",
+      "control": false,
+      "site": {
+        "file": "src/schemas/task.schema.ts",
+        "line": 38
+      },
+      "form": "call",
+      "call": ".refine(",
+      "source": {
+        "file": "src/schemas/task.schema.ts"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": ".refine at src/schemas/task.schema.ts:38 is chained on a Zod schema built from z.object (src/schemas/task.schema.ts:29); it is a Zod method declared outside the fixture.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-35",
+      "control": false,
+      "site": {
+        "file": "src/schemas/task.schema.ts",
+        "line": 43
+      },
+      "form": "call",
+      "call": "z.string(",
+      "source": {
+        "file": "src/schemas/task.schema.ts"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "z is imported from zod (src/schemas/task.schema.ts:1); z.string at src/schemas/task.schema.ts:43 is declared outside the fixture.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-36",
+      "control": false,
+      "site": {
+        "file": "src/server.ts",
+        "line": 9
+      },
+      "form": "call",
+      "call": "loadEnv(",
+      "source": {
+        "symbol": "main"
+      },
+      "target": {
+        "file": "src/config/env.ts",
+        "symbol": "loadEnv"
+      },
+      "expected": "exact",
+      "reason": "loadEnv is imported (src/server.ts:2) and declared at src/config/env.ts:18.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-37",
+      "control": false,
+      "site": {
+        "file": "src/server.ts",
+        "line": 13
+      },
+      "form": "call",
+      "call": "app.listen(",
+      "source": {
+        "symbol": "main"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "app is the FastifyInstance returned by buildApp (src/app.ts:22); listen at src/server.ts:13 is declared by the fastify package.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-38",
+      "control": false,
+      "site": {
+        "file": "src/server.ts",
+        "line": 16
+      },
+      "form": "call",
+      "call": "process.exit(",
+      "source": {
+        "symbol": "main"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "process.exit at src/server.ts:16 is a Node.js standard-library function.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-39",
+      "control": false,
+      "site": {
+        "file": "src/services/id.ts",
+        "line": 8
+      },
+      "form": "call",
+      "call": "randomUUID(",
+      "source": {
+        "symbol": "newId"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "randomUUID is imported from node:crypto (src/services/id.ts:1), the standard library.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-40",
+      "control": false,
+      "site": {
+        "file": "src/services/task.filters.ts",
+        "line": 11
+      },
+      "form": "call",
+      "call": "tasks.filter(",
+      "source": {
+        "symbol": "applyFilters"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "tasks is Task[] (src/services/task.filters.ts:10); filter at src/services/task.filters.ts:11 is the standard-library array method.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-41",
+      "control": false,
+      "site": {
+        "file": "src/services/task.filters.ts",
+        "line": 15
+      },
+      "form": "call",
+      "call": "matchesSearch(",
+      "source": {
+        "symbol": "applyFilters"
+      },
+      "target": {
+        "file": "src/services/task.filters.ts",
+        "symbol": "matchesSearch"
+      },
+      "expected": "exact",
+      "reason": "matchesSearch is declared in the same module at src/services/task.filters.ts:20.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-42",
+      "control": false,
+      "site": {
+        "file": "src/services/task.filters.ts",
+        "line": 35
+      },
+      "form": "call",
+      "call": "priorityRank(",
+      "source": {
+        "symbol": "compareBy"
+      },
+      "target": {
+        "file": "src/domain/task-priority.ts",
+        "symbol": "priorityRank"
+      },
+      "expected": "exact",
+      "reason": "priorityRank is imported (src/services/task.filters.ts:2) and declared at src/domain/task-priority.ts:20.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-43",
+      "control": false,
+      "site": {
+        "file": "src/services/task.filters.ts",
+        "line": 37
+      },
+      "form": "call",
+      "call": "compareNullableDate(",
+      "source": {
+        "symbol": "compareBy"
+      },
+      "target": {
+        "file": "src/services/task.filters.ts",
+        "symbol": "compareNullableDate"
+      },
+      "expected": "exact",
+      "reason": "compareNullableDate is declared in the same module at src/services/task.filters.ts:47.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-44",
+      "control": false,
+      "site": {
+        "file": "src/services/task.service.ts",
+        "line": 21
+      },
+      "form": "new",
+      "call": "new TaskNotFoundError(",
+      "source": {
+        "symbol": "TaskService::get"
+      },
+      "target": {
+        "file": "src/domain/errors.ts",
+        "symbol": "TaskNotFoundError::constructor"
+      },
+      "expected": "exact",
+      "reason": "TaskNotFoundError is imported (src/services/task.service.ts:3) and declares a constructor at src/domain/errors.ts:18.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-45",
+      "control": false,
+      "site": {
+        "file": "src/services/task.service.ts",
+        "line": 26
+      },
+      "form": "call",
+      "call": "this.repository.list(",
+      "source": {
+        "symbol": "TaskService::list"
+      },
+      "target": {
+        "file": "src/repositories/task.repository.ts",
+        "symbol": "TaskRepository::list"
+      },
+      "expected": "exact",
+      "reason": "this.repository is typed TaskRepository (src/services/task.service.ts:15), a fixture interface declaring list at src/repositories/task.repository.ts:24.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-46",
+      "control": false,
+      "site": {
+        "file": "src/services/task.service.ts",
+        "line": 30
+      },
+      "form": "call",
+      "call": "this.clock(",
+      "source": {
+        "symbol": "TaskService::create"
+      },
+      "target": null,
+      "expected": "none",
+      "reason": "this.clock is a parameter of function type () => string whose value is an injected or default arrow function (src/services/task.service.ts:16); no named declared function is fixed statically.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-47",
+      "control": false,
+      "site": {
+        "file": "src/services/task.service.ts",
+        "line": 42
+      },
+      "form": "call",
+      "call": "this.repository.create(",
+      "source": {
+        "symbol": "TaskService::create"
+      },
+      "target": {
+        "file": "src/repositories/task.repository.ts",
+        "symbol": "TaskRepository::create"
+      },
+      "expected": "exact",
+      "reason": "this.repository is typed TaskRepository (src/services/task.service.ts:15), which declares create at src/repositories/task.repository.ts:25.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-48",
+      "control": false,
+      "site": {
+        "file": "src/services/task.service.ts",
+        "line": 50
+      },
+      "form": "new",
+      "call": "new IllegalStatusTransitionError(",
+      "source": {
+        "symbol": "TaskService::update"
+      },
+      "target": {
+        "file": "src/domain/errors.ts",
+        "symbol": "IllegalStatusTransitionError::constructor"
+      },
+      "expected": "exact",
+      "reason": "IllegalStatusTransitionError is imported (src/services/task.service.ts:3) and declares a constructor at src/domain/errors.ts:24.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-49",
+      "control": false,
+      "site": {
+        "file": "src/services/task.service.ts",
+        "line": 56
+      },
+      "form": "call",
+      "call": "pruneUndefined(",
+      "source": {
+        "symbol": "TaskService::update"
+      },
+      "target": {
+        "file": "src/services/task.service.ts",
+        "symbol": "pruneUndefined"
+      },
+      "expected": "exact",
+      "reason": "pruneUndefined is declared in the same module at src/services/task.service.ts:71.",
+      "decidedBy": "agreement"
+    },
+    {
+      "id": "ts-50",
+      "control": false,
+      "site": {
+        "file": "src/services/task.service.ts",
+        "line": 61
+      },
+      "form": "call",
+      "call": "this.repository.update(",
+      "source": {
+        "symbol": "TaskService::update"
+      },
+      "target": {
+        "file": "src/repositories/task.repository.ts",
+        "symbol": "TaskRepository::update"
+      },
+      "expected": "exact",
+      "reason": "this.repository is typed TaskRepository (src/services/task.service.ts:15), which declares update at src/repositories/task.repository.ts:26.",
+      "decidedBy": "agreement"
+    }
+  ]
+}
