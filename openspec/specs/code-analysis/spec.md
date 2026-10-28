@@ -1196,6 +1196,10 @@ For each TypeScript file parsed without a syntax error, the TypeScript analyzer 
   static blocks and class expressions included), except inside the declarations this requirement
   skips (`declare` declarations and `declare module`, `declare global`, `namespace` and `module`
   blocks), named by its name;
+- one `function` symbol per **module-level `const` function**: a `const` variable statement that is
+  a direct statement of the file (exported or not, without the `declare` modifier), that has exactly
+  one declarator, whose name is an identifier and whose initializer is directly an arrow function or
+  a function expression (`async` and generic ones included), named by that identifier;
 - one `method` symbol per member of a class that is a method with a body, an abstract method, or a
   constructor with a body, named `X::m` (`X::constructor` for a constructor) when the class is a
   declaration with a name `X`, and by the bare member name otherwise (a class expression or an
@@ -1208,19 +1212,29 @@ function, method or constructor declaration without a body that is neither abstr
 an interface (an overload signature, or an ambient declaration) SHALL produce no symbol: of an
 overloaded function or method only the implementation is a symbol. A declaration with the `declare`
 modifier, and every declaration inside a `declare module`, `declare global`, `namespace` or `module`
-block, SHALL produce no symbol. Variables (`const`, `let`, `var`) and the class expressions, function
-expressions and arrow functions assigned to them, object-literal methods, `type` aliases, enums,
-class properties (whatever their value), property signatures, index signatures and `get` / `set`
-accessors SHALL produce no symbol. The methods of a class expression SHALL still be emitted, with
-their bare name.
+block, SHALL produce no symbol. Every other variable SHALL produce no symbol: `let` and `var`
+statements, a `const` statement with more than one declarator, a `const` declared inside a function,
+a method, a block or any other statement, a destructuring `const`, and a `const` whose initializer is
+anything else (a class expression, a call, a parenthesised, asserted or `satisfies` function, a
+literal). Object-literal methods, `type` aliases, enums, class properties (whatever their value),
+property signatures, index signatures and `get` / `set` accessors SHALL produce no symbol. The methods
+of a class expression SHALL still be emitted, with their bare name; a function declaration inside the
+body of a module-level `const` function SHALL still be emitted as well.
+
+A module-level `const` function SHALL be neither the source nor the target of any `calls` edge (see
+"TypeScript calls"): a call inside its body has no edge, and neither has a call of it nor a reference
+to it passed as an argument.
 
 A symbol's span SHALL go from the first line of its declaration — its decorators, `export`,
 `default` and other modifiers included, any comment before it (a JSDoc included) excluded — to the
-last line of the declaration, as 1-based lines. Its `signature` SHALL be the text of the declaration
-from that start up to, and excluding, the opening `{` of its body (the member list of a class or an
-interface, the body of a function or method), or, for a declaration without a body, up to and
-excluding its terminating `;` or `,` (to its end when it has none), with every run of whitespace collapsed
-to one space and trimmed. The rule of "Symbol extraction" on two symbols sharing file, name and start
+last line of the declaration, as 1-based lines; for a module-level `const` function the declaration
+is the whole variable statement, from its `export` or `const` keyword to its end. Its `signature`
+SHALL be the text of the declaration from that start up to, and excluding, the opening `{` of its
+body (the member list of a class or an interface, the body of a function or method, the block body of
+an arrow function or of a function expression), or, for an arrow function whose body is an
+expression, up to and including its `=>`; or, for a declaration without a body, up to and excluding
+its terminating `;` or `,` (to its end when it has none), with every run of whitespace collapsed to
+one space and trimmed. The rule of "Symbol extraction" on two symbols sharing file, name and start
 line (keep the first in tree-walk order, add the `duplicate symbol "<name>"; kept the first`
 diagnostic, never rename) SHALL apply.
 
@@ -1326,12 +1340,40 @@ diagnostic, never rename) SHALL apply.
 #### Scenario: Variables, types, accessors and ambient declarations are not symbols
 
 - **WHEN** `src/n.ts` with content
-  `export const a = () => 1;\nexport type T = { run(): void };\nexport enum E { A }\nexport class C {\n  handler = () => 1;\n  get v(): number { return 1; }\n  ['x']() {}\n}\nconst o = { m() {} };\ndeclare global { interface Window { x: number } }\nexport namespace N { export function g() {} }\ndeclare function h(): void;\nexport function outer(): void { function inner(): void {} }\n`
+  `export let a = () => 1;\nexport type T = { run(): void };\nexport enum E { A }\nexport class C {\n  handler = () => 1;\n  get v(): number { return 1; }\n  ['x']() {}\n}\nconst o = { m() {} };\ndeclare global { interface Window { x: number } }\nexport namespace N { export function g() {} }\ndeclare function h(): void;\nexport function outer(): void { function inner(): void {} }\n`
   is analysed
 - **THEN** its symbols are exactly, in this order: `class C` 4–8, `function inner` 13–13 and
   `function outer` 13–13 (the enclosing `outer` and the `inner` it contains have the same span, so
   they are ordered by name)
 - **AND** `diagnostics` is empty
+
+#### Scenario: Module-level const functions are function symbols
+
+- **WHEN** `src/k.ts` with content
+  `/** Adds one. */\nexport const f = (a: number): number => a + 1;\nconst g = async () => {\n  function inner(): void {}\n  return 1;\n};\nexport const h = function (x: string) {\n  return x;\n};\nconst t = <T,>(x: T): T => x;\n`
+  is analysed
+- **THEN** its symbols are exactly, in this order: `function f` 2–2 with signature
+  `export const f = (a: number): number =>`, `function g` 3–6 with signature
+  `const g = async () =>`, `function inner` 4–4, `function h` 7–9 with signature
+  `export const h = function (x: string)`, and `function t` 10–10 with signature
+  `const t = <T,>(x: T): T =>` (the JSDoc on line 1 is outside the span of `f`)
+- **AND** `diagnostics` is empty
+
+#### Scenario: Other variable forms are not function symbols
+
+- **WHEN** `src/v.ts` with content
+  `let a = () => 1;\nvar b = () => 1;\nconst c = () => 1, d = () => 2;\nconst { e } = { e: () => 1 };\nconst z = 3;\nconst w = (() => 1);\nconst y = (() => 1) as () => number;\ndeclare const q: () => void;\nconst K = class { run() {} };\nexport function outer(): void { const inside = () => 1; }\nif (z) { const blocked = () => 1; }\n`
+  is analysed
+- **THEN** its symbols are exactly, in this order: `method run` 9–9 and `function outer` 10–10
+- **AND** `diagnostics` is empty
+
+#### Scenario: Const functions are no endpoint of calls edges
+
+- **WHEN** `src/c.ts` with content
+  `export function target(): void {}\nexport const f = (): void => { target(); };\nexport function caller(): void { f(); [1].forEach(f); }\n`
+  is analysed
+- **THEN** its symbols are exactly `function target` 1–1, `function f` 2–2 and `function caller` 3–3
+- **AND** no edge has `f` as its source or its target, and there is no `calls` edge at all
 
 #### Scenario: Duplicate TypeScript symbols are dropped with a diagnostic
 

@@ -99,7 +99,7 @@
 - [x] 13.4 Before archive (design Follow-ups AR1): the `local-startup` delta replaces its ADDED requirement with a MODIFIED "One command starts the system" whose scenarios say seven steps and both histories; `openspec validate task-api-seed-golden --strict`
 - [x] 13.5 `tests/unit/scripts/up.spec.ts` "Ctrl+C stops up without a failure line" fires SIGINT during `npm run dev` (call index 6) and expects seven calls, the last `run dev` (design Follow-ups AR2); `npx vitest run tests/unit/scripts`
 - [x] 13.6 Recorded check "Up builds the fixture history the seed indexed" in a clean clone of the branch (own Compose project name, free `POSTGRES_PORT`), two runs; record both `[up]` history lines, both fixture `HEAD`s, `git status --porcelain`, `npm run verify` and the `git hash-object` values in `reports/YYYY-MM-DD-13-up-recorded-check.md`
-- [ ] 13.7 DIS-32 gets a short Spanish comment confirming P7 is applied and the archive is complete
+- [x] 13.7 DIS-32 gets a short Spanish comment confirming P7 is applied and the archive is complete
 
 ## 12. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
@@ -109,4 +109,4 @@
 - [x] 12.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
 - [x] 12.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`
 - [x] 12.6 Fix every finding in this change (TDD for behaviour), each with an A/B/C/D destination in `design.md` → Follow-ups; re-run what each fix invalidates; commit to the same PR; re-run a check whose findings led to non-trivial fixes until no Blocker or Major
-- [ ] 12.7 `/opsx:archive`, commit it to the same PR; merge (`gh pr merge <n> --merge`, through the merge gate) only after the archive commit and with CI green
+- [x] 12.7 `/opsx:archive`, commit it to the same PR; merge (`gh pr merge <n> --merge`, through the merge gate) only after the archive commit and with CI green

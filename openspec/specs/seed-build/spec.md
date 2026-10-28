@@ -14,23 +14,24 @@ tells when the seed no longer matches the code.
 `npm run seed:build` SHALL take no arguments. It SHALL read `AUTHOR_HASH_SALT` and `DATABASE_URL`
 from the environment, trimmed; a variable that is unset, empty or only whitespace SHALL fail with
 `MISSING_CONFIG` and `details.variable` naming it (`AUTHOR_HASH_SALT` is checked first). Both
-checks SHALL happen before the history is rebuilt, before any database connection and before the
+checks SHALL happen before any history is rebuilt, before any database connection and before the
 seed file or the sample-project constant is touched.
 
 `ALLOWED_REPOS_DIR` of the environment SHALL be ignored: the allowed root of the build SHALL be the
 repository's `fixtures/` directory.
 
 The exit code SHALL be `0` on success and `1` on any failure. The build SHALL print no progress. On
-success, stdout SHALL be exactly one line,
-`acme-shop: <files> files, <symbols> symbols, <edges> edges, <commits> commits -> <output>`, with the
-counts of the written seed, and stderr SHALL be empty; the line SHALL NOT mention the sample-project
-constant. `<output>` SHALL be the seed file's path relative to the repository root, with `/`
-separators, when the file is inside the repository root; when it is outside (for example under the
-OS temporary directory, or on another drive on Windows), `<output>` SHALL be only the file name. On
-failure, stdout SHALL stay empty and stderr SHALL hold exactly one line,
+success, stdout SHALL be exactly one line per sample project of the seed, in name order (code-unit
+order), `<name>: <files> files, <symbols> symbols, <edges> edges, <commits> commits -> <output>`, with
+that project's counts in the written seed, and stderr SHALL be empty; no line SHALL mention the
+sample-project constant. `<output>` SHALL be the seed file's path relative to the repository root,
+with `/` separators, when the file is inside the repository root; when it is outside (for example
+under the OS temporary directory, or on another drive on Windows), `<output>` SHALL be only the file
+name. On failure, stdout SHALL stay empty and stderr SHALL hold exactly one line,
 `{"error":{"code","message","details"}}`, and nothing else, with the codes of the `index` command
 for the same failures (`MISSING_CONFIG`, `DATABASE_UNAVAILABLE`, `PROJECT_NAME_TAKEN`,
-`FORBIDDEN_PATH`, `INVALID_GRAPH`, `NOT_A_GIT_REPOSITORY`, `EMPTY_REPOSITORY`), `PARTIAL_WRITE` when
+`FORBIDDEN_PATH`, `INVALID_GRAPH`, `NOT_A_GIT_REPOSITORY`, `EMPTY_REPOSITORY`), whose `<path>` is
+the name of the sample project whose indexing failed (`"acme-shop"` or `"task-api"`), `PARTIAL_WRITE` when
 the sample-project constant was written and the seed file was not, and `INTERNAL` for anything else.
 An `INTERNAL` failure, which always happens before any file is written, SHALL have the message
 `seed build failed; nothing was written`. No output SHALL contain an absolute path, the database URL
@@ -43,7 +44,7 @@ or its credentials, or the text `may have been saved`.
   unset, then `'   '`
 - **WHEN** the seed build runs
 - **THEN** each run exits with `1`, stdout is empty, stderr holds one error line with code
-  `MISSING_CONFIG` and `details.variable` = `AUTHOR_HASH_SALT` or `DATABASE_URL`; the history is not
+  `MISSING_CONFIG` and `details.variable` = `AUTHOR_HASH_SALT` or `DATABASE_URL`; no history is
   rebuilt, no database connection is opened, and the previous seed file and the previous constant
   are unchanged
 
@@ -62,42 +63,87 @@ or its credentials, or the text `may have been saved`.
 - **WHEN** the seed build runs
 - **THEN** each run exits with `0` and writes the same seed as a run without `ALLOWED_REPOS_DIR`
 
+#### Scenario: A failure of the second project's repository names it
+
+- **GIVEN** a migrated database, a valid salt, a previous seed file and a previous sample-project
+  constant with known contents, the build pointed at a valid copy of acme-shop and at a copy of
+  task-api without history (no `.git`, its history not rebuilt)
+- **WHEN** the seed build runs
+- **THEN** it exits with `1`; stdout is empty; stderr holds exactly one line with code
+  `NOT_A_GIT_REPOSITORY` and the message `"task-api" is not the root of a git repository`; every
+  transaction opened is rolled back and released; and the previous seed file and the previous
+  constant are unchanged
+
 ### Requirement: Seed content
 
-The seed SHALL hold exactly one project, `acme-shop`, built from the sample repository with its
-history rebuilt from the versioned manifest, and SHALL contain, in this order: one `INSERT` into
-`project`, then the `INSERT`s into `file`, `symbol`, `edge`, `commit` and `file_commit`. Every
-`INSERT` SHALL name its columns explicitly. The seed SHALL NOT contain rows of `claim`, `evidence`,
-`query_log` or `cache_entry`, any `embedding` value, any `DELETE`, `ON CONFLICT`, transaction
-statement or session setting.
+The seed SHALL hold exactly two projects, `acme-shop` and `task-api`, each built from its sample
+repository under `fixtures/` with its history rebuilt from its versioned manifest, acme-shop indexed
+as `php` and task-api as `typescript`. After the header, the seed SHALL hold one block per project,
+in name order (`acme-shop`, then `task-api`); each block SHALL contain, in this order: one `INSERT`
+into `project`, then the `INSERT`s of that project into `file`, `symbol`, `edge`, `commit` and
+`file_commit`. Every `INSERT` SHALL name its columns explicitly. The seed SHALL NOT contain rows of
+`claim`, `evidence`, `query_log` or `cache_entry`, any `embedding` value, any `DELETE`,
+`ON CONFLICT`, transaction statement or session setting.
 
-The project row SHALL have `name = 'acme-shop'`, `is_sample = true`, `language = 'php'`,
-`framework = 'laravel'`, `root_path = 'fixtures/acme-shop'`, `indexed_commit` = the `HEAD` commit
-of the rebuilt history, `created_at` and `indexed_at` = that commit's date, `node_count` = the
-number of `file` plus `symbol` rows of the seed and `edge_count` = the number of `edge` rows.
+Each project row SHALL have `is_sample = true`, `root_path` = `fixtures/<name>`, `indexed_commit` =
+the `HEAD` commit of its rebuilt history, `created_at` and `indexed_at` = that commit's date,
+`node_count` = the number of `file` plus `symbol` rows of that project in the seed and `edge_count` =
+the number of its `edge` rows. acme-shop's row SHALL have `language = 'php'` and
+`framework = 'laravel'`; task-api's row SHALL have `language = 'typescript'` and
+`framework = 'fastify'`. The rows of acme-shop SHALL depend only on acme-shop's sources, history and
+the analyzer: adding task-api SHALL NOT change any of them.
 
 The seed SHALL NOT contain a secret the indexing redacts, an absolute path of the machine that built
 it, or a commit author's name or e-mail address (authors appear only as `author_hash`).
 
 #### Scenario: The acme-shop seed is generated
 
-- **GIVEN** a migrated database, `AUTHOR_HASH_SALT=test-salt`, and the build pointed at a copy of
-  the sample repository under a temporary directory and at a temporary output file
+- **GIVEN** a migrated database, `AUTHOR_HASH_SALT=test-salt`, and the build pointed at copies of the
+  two sample repositories (without `.git` nor `node_modules`) under a temporary directory and at a
+  temporary output file
 - **WHEN** the seed build runs
-- **THEN** it exits with `0`; the output holds one `project` row with the attributes above and
-  `indexed_commit` = `git rev-parse HEAD` of the copy; `file`, `symbol`, `edge`, `commit` and
-  `file_commit` rows in that order; `node_count` and `edge_count` equal to the row counts of the
-  output; stdout is exactly one line naming the same counts and the output file name, and stderr is
-  empty; and the output does not match
+- **THEN** it exits with `0`; the output holds one header, then the acme-shop block and then the
+  task-api block; the acme-shop block holds one `project` row with the attributes above and
+  `indexed_commit` = `git rev-parse HEAD` of its copy, then `file`, `symbol`, `edge`, `commit` and
+  `file_commit` rows in that order; its `node_count` and `edge_count` equal its row counts in the
+  output; stdout is exactly two lines, the acme-shop line and then the task-api line, each naming that
+  project's counts and the output file name, and stderr is empty; and the output does not match
   `/AKIA[A-Z0-9]{16}/`, does not contain the temporary directory's path, and does not contain
   `@acme.test`
 
+#### Scenario: The task-api block of the seed is generated
+
+- **GIVEN** the build of "The acme-shop seed is generated"
+- **WHEN** its output is read
+- **THEN** the task-api block holds one `project` row with `name = 'task-api'`, `is_sample = true`,
+  `language = 'typescript'`, `framework = 'fastify'`, `root_path = 'fixtures/task-api'` and
+  `indexed_commit` = `git rev-parse HEAD` of the task-api copy, then `file`, `symbol`, `edge`,
+  `commit` and `file_commit` rows in that order, every one of them with task-api's project id; its
+  `node_count` and `edge_count` equal its row counts in the output and the counts of the task-api
+  stdout line; it holds a `file` row for `src/config/env.ts`, a `symbol` row `function taskRoutes`,
+  `calls` edges only with `resolution` `exact`; the `file` row of `src/config/env.ts` has
+  `redacted = true`; and the output does not contain `@taskapi.test` nor the planted value of
+  `fixtures/task-api/src/config/env.ts` line 7, and does not match `/AKIA[A-Z0-9]{16}/`
+
+#### Scenario: Adding task-api leaves the acme-shop rows unchanged
+
+- **GIVEN** the build of "The acme-shop seed is generated" and the versioned
+  `seeds/graph-dump.sql` of `final-project-CRN` before this change
+- **WHEN** their acme-shop blocks are compared
+- **THEN** every line of the acme-shop block of the new seed is identical to the corresponding line of
+  the old seed; of the header, only the analyzer fingerprint line differs
+
+This scenario is checked once, on the regenerated versioned seed of this change, by a recorded
+comparison in the test-and-state report (the old seed is the one of the merge base), not by a test.
+
 ### Requirement: The database is never changed
 
-The build SHALL NOT commit anything to the database: every row the indexing writes SHALL be read
-back and then rolled back, on success and on failure, and the connection SHALL always be closed. The
-build SHALL index under the temporary project name `__codemind_seed_build__` and write `acme-shop`
-in the seed, so an existing project named `acme-shop` neither blocks the build nor is touched.
+The build SHALL NOT commit anything to the database: each project SHALL be indexed in its own
+transaction, one after the other, and every row the indexing writes SHALL be read back and then
+rolled back, on success and on failure, and every connection SHALL always be closed. The build SHALL
+index each project under the temporary project name `__codemind_seed_build__` and write its real name
+in the seed, so an existing project named `acme-shop` or `task-api` neither blocks the build nor is
+touched.
 
 #### Scenario: The database is unchanged after a build
 
@@ -108,10 +154,10 @@ in the seed, so an existing project named `acme-shop` neither blocks the build n
 
 #### Scenario: An existing acme-shop project does not block the build
 
-- **GIVEN** a database that already holds a project named `acme-shop`
+- **GIVEN** a database that already holds a project named `acme-shop` and one named `task-api`
 - **WHEN** the seed build runs
-- **THEN** it exits with `0`, writes the seed, and the existing `acme-shop` project keeps its id and
-  its row counts
+- **THEN** it exits with `0`, writes the seed, and the existing `acme-shop` and `task-api` projects
+  keep their ids and their row counts
 
 ### Requirement: Deterministic identifiers
 
@@ -179,7 +225,7 @@ end with a line feed.
 
 ### Requirement: Byte-for-byte reproducibility
 
-Two builds with the same sources, the same history manifest and the same `AUTHOR_HASH_SALT` SHALL
+Two builds with the same sources, the same history manifests and the same `AUTHOR_HASH_SALT` SHALL
 write identical files, whatever the ids already in the database, the time zone of the process or
 the order in which the database returns rows.
 
@@ -188,8 +234,8 @@ the order in which the database returns rows.
 - **GIVEN** a migrated database that already holds other projects, and the build of "The acme-shop
   seed is generated"
 - **WHEN** the seed build runs twice in a row with the same salt
-- **THEN** both outputs are identical byte for byte and none of their ids equals an id in the
-  database
+- **THEN** both outputs are identical byte for byte, both sample-project constants are identical
+  byte for byte, and none of their ids equals an id in the database
 
 #### Scenario: The time zone does not change the file
 
@@ -201,17 +247,23 @@ the order in which the database returns rows.
 
 The seed SHALL start with the header lines `-- codemind-seed-format: 1`,
 `-- analyzer-fingerprint: sha256:<64 lowercase hex>` and
-`-- contract-fingerprint: sha256:<64 lowercase hex>`. Each fingerprint SHALL be the SHA-256 of its
-inputs, taken in path order, each one as its repository-relative path and its content with line
-endings normalised to LF:
+`-- contract-fingerprint: sha256:<64 lowercase hex>`, once for the whole seed. Each fingerprint SHALL
+be the SHA-256 of its inputs, taken in path order, each one as its repository-relative path and its
+content with line endings normalised to LF:
 
 - analyzer — every repository file that produces the seed's rows: every file under
-  `packages/analyzers/php/src/`, `packages/core/src/index/`, `packages/core/src/knowledge/`,
-  `packages/cli/src/seed/`, `packages/adapters/git/src/`, `packages/adapters/store-postgres/src/`,
-  `fixtures/history/` and `fixtures/acme-shop/`; the files `packages/cli/src/seed-build.ts`,
+  `packages/analyzers/php/src/`, `packages/analyzers/typescript/src/`, `packages/core/src/index/`,
+  `packages/core/src/knowledge/`, `packages/cli/src/seed/`, `packages/adapters/git/src/`,
+  `packages/adapters/store-postgres/src/`, `fixtures/history/`, `fixtures/acme-shop/` and
+  `fixtures/task-api/`; the files `packages/cli/src/seed-build.ts`,
   `packages/cli/src/compose-index.ts` and `fixtures/build-history.mjs`; and one synthetic input per
-  parser dependency, `deps:tree-sitter-php@<version>` and `deps:web-tree-sitter@<version>`, with the
-  versions resolved in `package-lock.json`. Any path with a `.git` segment is excluded;
+  parser dependency, `deps:tree-sitter-php@<version>`, `deps:typescript@<version>` and
+  `deps:web-tree-sitter@<version>`, with the versions resolved in `package-lock.json`. Under
+  `fixtures/acme-shop/` and `fixtures/task-api/` only the files tracked by the repository (its
+  index at the repository root) are inputs, so an untracked file (such as a
+  scratch file left under `fixtures/task-api/` by a local run) or an ignored one (`.env`,
+  `dist/`, `vendor/`, logs) never is; elsewhere any path with a `.git` or a `node_modules` segment is
+  excluded;
 - contract: `packages/core/src/ports/AnalyzerPort.ts` and every
   `packages/adapters/store-postgres/migrations/*.up.sql`.
 
@@ -229,28 +281,32 @@ are listed, or on any other file.
 
 - **GIVEN** a set of inputs and its fingerprint
 - **WHEN** one byte of one input changes, then one input is added, then the resolved version of
-  `tree-sitter-php`, and then of `web-tree-sitter`, changes
-- **THEN** each of the four fingerprints differs from the original
+  `tree-sitter-php`, then of `typescript`, and then of `web-tree-sitter`, changes
+- **THEN** each of the five fingerprints differs from the original
 
 #### Scenario: Each fingerprint covers exactly its declared inputs
 
-- **GIVEN** a repository tree holding every declared input and files outside them
-  (`packages/api/src/x.ts`, `packages/cli/src/index.ts`, `fixtures/task-api/src/app.ts`, a `.down.sql`
-  migration, and `fixtures/acme-shop/.git/`)
+- **GIVEN** a git repository tree holding every declared input, tracked, and files outside them
+  (`packages/api/src/x.ts`, `packages/cli/src/index.ts`, `fixtures/README.md`, a `.down.sql`
+  migration, `fixtures/acme-shop/.git/`, `fixtures/task-api/.git/`,
+  `fixtures/task-api/node_modules/`, an untracked `fixtures/task-api/package-lock.json` and the
+  ignored `fixtures/task-api/dist/x.js`)
 - **WHEN** a file changes under each analyzer input directory and in each analyzer input file, in
   `AnalyzerPort.ts` and in one `.up.sql` migration, and then every outside file changes and a file is
-  added under `fixtures/acme-shop/.git/`
+  added under `fixtures/acme-shop/.git/`, `fixtures/task-api/.git/` and
+  `fixtures/task-api/node_modules/`, and an untracked file is added under `fixtures/acme-shop/`
 - **THEN** each analyzer change alters only the analyzer fingerprint, each contract change alters only
   the contract fingerprint, and the outside changes alter neither
 
 ### Requirement: A failed build never leaves a broken seed
 
-The build SHALL write the sample-project constant first and the seed file second. Each of the two
-files SHALL be replaced only once its whole new content is written: a failed write SHALL leave that
-file byte for byte as it was, and no partial or temporary file SHALL remain next to either of them.
-A failure before the constant is written leaves both files as they were. A failure after the
-indexing, while its rows are being read back, SHALL be reported as `INTERNAL` with the message
-`seed build failed; nothing was written`, with the indexing's writes rolled back and the connection
+The build SHALL write the sample-project constant first and the seed file second, only after both
+projects were indexed and read back. Each of the two files SHALL be replaced only once its whole new
+content is written: a failed write SHALL leave that file byte for byte as it was, and no partial or
+temporary file SHALL remain next to either of them. A failure before the constant is written leaves
+both files as they were, whichever project it happens in. A failure after an indexing, while its rows
+are being read back, SHALL be reported as `INTERNAL` with the message
+`seed build failed; nothing was written`, with that indexing's writes rolled back and its connection
 closed. A failure to write the constant SHALL be reported as `INTERNAL` with the message
 `seed build failed; nothing was written`, and the seed file SHALL NOT be written. A failure to write
 the seed file after the constant was written SHALL be reported as `PARTIAL_WRITE` with the message
@@ -260,12 +316,13 @@ and `details` = `{"written":["<constant>"]}`, where `<constant>` and `<seed>` fo
 
 #### Scenario: A failed indexing leaves the previous seed intact
 
-- **GIVEN** a previous seed file with known content and an indexing that throws
+- **GIVEN** a previous seed file with known content and an indexing that throws, first for acme-shop
+  and then, in another run, only for task-api (after acme-shop was indexed)
 - **WHEN** the seed build runs
-- **THEN** it exits with `1` and `INTERNAL` with the message `seed build failed; nothing was
-  written`; stderr holds exactly one line; the transaction is rolled back and released; the seed
-  file is unchanged and no temporary
-  file remains next to it
+- **THEN** each run exits with `1` and `INTERNAL` with the message `seed build failed; nothing was
+  written`; stdout is empty and stderr holds exactly one line; every transaction opened is rolled
+  back and released; the seed file and the sample-project constant are unchanged and no temporary
+  file remains next to them
 
 #### Scenario: A failed read-back is not reported as saved
 
@@ -320,7 +377,8 @@ export const SAMPLE_PROJECTS = [
 ] as const;
 ```
 
-with one object per project of the seed, ordered by name; `<id>` the project's id in the seed;
+with one object per project of the seed (the block between `[` and `]` repeated, with nothing
+between two objects), ordered by name; `<id>` the project's id in the seed;
 `<framework>` quoted, or `null` without quotes when the project has none; and the four counts equal
 to the number of `file`, `symbol`, `edge` and `commit` rows of that project in the seed. The text
 SHALL depend only on the rows, not on their order, and SHALL pass the repository's lint and type
@@ -331,16 +389,17 @@ checks (`packages/web/tsconfig.json`) without any lint exception for the file.
 - **GIVEN** the build of "The acme-shop seed is generated", with the constant directed to a
   temporary file
 - **WHEN** the seed build runs
-- **THEN** it exits with `0`; the constant is exactly the template above with one acme-shop object
-  whose `id` equals the project id written in the seed and whose `fileCount`, `symbolCount`,
-  `edgeCount` and `commitCount` equal the counts of the stdout line; and stdout is the same single
-  line as without the constant
+- **THEN** it exits with `0`; the constant is exactly the template above with an acme-shop object and
+  then a task-api object, each with the `id` the seed writes for that project and the `fileCount`,
+  `symbolCount`, `edgeCount` and `commitCount` of that project's stdout line, and task-api's object
+  with `language: 'typescript'` and `framework: 'fastify'`; and stdout is the same two lines as
+  without the constant
 
 #### Scenario: The constant does not depend on row order
 
-- **GIVEN** the rows of one project with random ids
-- **WHEN** the constant is rendered, and rendered again with the rows of each table shuffled and
-  other random ids
+- **GIVEN** the rows of two projects with random ids
+- **WHEN** the constant is rendered, and rendered again with the projects given in the other order,
+  the rows of each table shuffled and other random ids
 - **THEN** both texts are identical byte for byte
 
 #### Scenario: The versioned constant matches the versioned seed
@@ -349,7 +408,8 @@ checks (`packages/web/tsconfig.json`) without any lint exception for the file.
 - **WHEN** they are compared
 - **THEN** the constant holds exactly one object per `INSERT INTO project` of the seed, with the same
   `id`, `name`, `language` and `framework`, and counts equal to the number of `INSERT`s into `file`,
-  `symbol`, `edge` and `commit` for that `project_id`
+  `symbol`, `edge` and `commit` for that `project_id`; and the names are `acme-shop` and `task-api`, in
+  that order
 
 #### Scenario: The generated constant passes lint and type checks
 

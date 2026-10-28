@@ -16,9 +16,10 @@ The command SHALL be `index <path> --name <name> --language <language> [--framew
 
 - `--name` and `--language` SHALL be required. A `--name` that is empty or only whitespace SHALL be
   a usage error (`USAGE`).
-- `--language` SHALL accept only `php`. `typescript` SHALL be rejected with `UNSUPPORTED_LANGUAGE`
-  and the message `typescript: not available yet (CM-HU-18)`; any other value SHALL be rejected with
-  `UNSUPPORTED_LANGUAGE`. `details.allowed` SHALL be `["php"]`.
+- `--language` SHALL accept only `php` and `typescript`. `php` SHALL index the repository with the PHP
+  analyzer and `typescript` with the TypeScript analyzer (`code-analysis`), through the same indexing,
+  store and report as `php`. Any other value SHALL be rejected with `UNSUPPORTED_LANGUAGE`, the message
+  `<language>: not supported` and `details.allowed` = `["php","typescript"]`.
 - `--framework`, when given, SHALL be one of `laravel`, `fastify`, `none`, and SHALL be passed to the
   indexing as an explicit framework that wins over detection; any other value SHALL be rejected with
   `UNSUPPORTED_FRAMEWORK` and `details.allowed` = `["laravel","fastify","none"]`.
@@ -39,11 +40,20 @@ Arguments are checked in this order, and the first failure is reported: argument
 
 #### Scenario: An unsupported language is a usage error
 
-- **GIVEN** `--language cobol`, and then `--language typescript`, with every other argument valid
+- **GIVEN** `--language cobol`, and then `--language TypeScript`, with every other argument valid
 - **WHEN** the command runs
 - **THEN** each run exits with `2` and writes `{"error":{"code":"UNSUPPORTED_LANGUAGE",…}}` to stderr
-  with `details.allowed` = `["php"]`; the `typescript` message is
-  `typescript: not available yet (CM-HU-18)`; no database transaction is opened
+  with the message `cobol: not supported`, then `TypeScript: not supported`, and `details.allowed` =
+  `["php","typescript"]`; no output contains `not available yet`; no database transaction is opened
+
+#### Scenario: A TypeScript repository is indexed with the TypeScript analyzer
+
+- **GIVEN** a copy of `fixtures/task-api` with its history rebuilt inside the allowed root `T`, a
+  valid configuration and a transaction that is rolled back after the run
+- **WHEN** the command runs `index task-api --name <unique> --language typescript`
+- **THEN** it exits with `0`; the stored project has `language` `typescript` and `framework`
+  `fastify`; its symbols include `function taskRoutes` and `class TaskService`; and every stored
+  `calls` edge has `resolution` `exact` and `extractor` `ts-compiler`
 
 #### Scenario: An unsupported framework is a usage error
 
@@ -266,7 +276,7 @@ credential. The codes and exits SHALL be:
 | `DATABASE_UNAVAILABLE` | 1 | `cannot connect to the database` |
 | `INTERNAL` | 1 | `unexpected error; nothing was saved`, or `unexpected error; the project may have been saved` when the commit or anything after it fails |
 | `USAGE` | 2 | the reason of the usage error |
-| `UNSUPPORTED_LANGUAGE` | 2 | `<language>: not supported`, or `typescript: not available yet (CM-HU-18)` (`details.allowed`) |
+| `UNSUPPORTED_LANGUAGE` | 2 | `<language>: not supported` (`details.allowed`) |
 | `UNSUPPORTED_FRAMEWORK` | 2 | `<framework>: not supported` (`details.allowed`) |
 
 `<path>` and `<name>` SHALL be written as JSON string literals. Any error that is not one of the

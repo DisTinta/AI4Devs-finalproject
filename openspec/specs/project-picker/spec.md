@@ -33,14 +33,18 @@ API answers, and SHALL NOT cause any HTTP request: the only request the page sen
 - **WHEN** the initial path is `/`
 - **THEN** the banner shows «CODEMIND» and «Comprensión de repositorios con evidencia verificable»; the
   main landmark holds the level-1 heading «Elige un proyecto para explorar», the paragraph «Repositorios
-  precargados · sin registro · sin instalación» and a list named «Proyectos de muestra» with exactly one
-  article, named «acme-shop»; that article holds the level-2 heading «acme-shop», the text «PHP /
-  Laravel», the counts «53 ficheros», «121 símbolos», «170 aristas» and «32 commits» in this order, the
-  text «indexado», and a link named «Explorar proyecto acme-shop» whose target is
-  `/p/a794456d-6d1b-5b55-a360-13fec83dc7bc`; every icon of the card (🐘, 📁, 🔷, ↔, 📝, ✓ and →) is
-  inside an element hidden from assistive technology; the article shows the badge «comprobando…» and no
-  text «listo»; there is no element with role `alert` and no button «Reintentar»; and the double
-  recorded exactly one request, `GET /health`
+  precargados · sin registro · sin instalación» and a list named «Proyectos de muestra» with exactly two
+  articles, named «acme-shop» and «task-api» in this order; the acme-shop article holds the level-2
+  heading «acme-shop», the text «PHP / Laravel», the counts «53 ficheros», «121 símbolos», «170 aristas»
+  and «32 commits» in this order, the text «indexado», and a link named «Explorar proyecto acme-shop»
+  whose target is `/p/a794456d-6d1b-5b55-a360-13fec83dc7bc`; the task-api article holds the level-2
+  heading «task-api», the text «TypeScript / Fastify», the four counts of task-api's object in the
+  constant, written as "How a project is written on its card" says, in the same order, the text
+  «indexado», and a link named «Explorar proyecto task-api» whose target is `/p/<task-api's id in the
+  constant>`; every icon of each card (🐘 or 📘, 📁, 🔷, ↔, 📝, ✓ and →) is inside an element hidden
+  from assistive technology; each article shows the badge «comprobando…» and no text «listo»; there is
+  no element with role `alert` and no button «Reintentar»; and the double recorded exactly one request,
+  `GET /health`
 
 #### Scenario: The project link is reached and followed with the keyboard
 
