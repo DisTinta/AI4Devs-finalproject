@@ -19,7 +19,8 @@ honestly how it was obtained.
   rest cover the fixture's hard constructions (facade, container binding, `__call`, Eloquent magic
   attribute, string route action, job, event, imports, interface methods, `new`, method references
   and callbacks, re-exports, standard library, Zod, Fastify). A site carries where the call is and
-  what it is, never an answer.
+  what it is, never an answer. The construction of each site is recorded apart, before the panel,
+  in `docs/measurements/annotation/selection.json`, which no panelist reads.
 - **Control reference (preparation).** `docs/measurements/annotation/control.json` transcribes the
   22 README rows (target and expected resolution) before any panelist runs, so the control is fixed
   first; the README rows are not edited.
@@ -38,7 +39,7 @@ honestly how it was obtained.
 - **Agreement report.** `docs/measurements/annotation-agreement.md`: method, models and date;
   per language n, percent agreement and kappa; control agreement per panelist (kappa marked as
   indicative); every disagreement with both answers and its resolution; the discrepancies with the
-  control; the SHA-256 of every input, raw output and frozen file. A test fails if a recorded hash
+  control; the SHA-256 of the site lists, the control reference, every raw output and frozen file. A test fails if a recorded hash
   stops matching its file.
 - **Docs.** `fixtures/README.md` § "Table 2 seed" points at the frozen files and the report instead
   of "pending" (the 22 rows unchanged); `README.md` §2.6 no longer says the sites are annotated "a

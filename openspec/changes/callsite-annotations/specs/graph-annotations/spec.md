@@ -32,8 +32,14 @@ and `routes/**`, TypeScript `src/**`), and no two sites of a list SHALL share `f
 `call`. A site list SHALL NOT carry a target, an expected resolution or a reason.
 The selection SHALL include, per fixture, for each construction of design D5 that has a minimum, at
 least 2 new sites (beyond the controls), or every remaining instance in application code when fewer
-than 2 instances remain outside the controls. The count per construction SHALL be recorded in the
-agreement report, never in the site lists.
+than 2 instances remain outside the controls. The construction of every site SHALL be recorded,
+during the preparation and before any panelist runs, in `docs/measurements/annotation/selection.json`,
+shaped `{ "fixtures": [ { "fixture", "rows": [ { "construction", "instances", "ids" } ] } ] }`, with
+the construction labels of design D5 (every label of the fixture's language, in the order of D5,
+`other` last), `instances` the number of instances of that construction in application code and `ids`
+the site ids of that row in site-list order; the agreement report SHALL copy that record into its
+selection table. The construction SHALL never be recorded in the site lists, and `selection.json` is
+forbidden to the panelists and to the resolver.
 
 #### Scenario: Each site list has 50 sites with the controls first
 - **WHEN** the two site lists are read
@@ -48,8 +54,8 @@ agreement report, never in the site lists.
 - **THEN** each site has exactly the fields `id`, `control`, `site`, `form`, `call` and `source`, and none named `target`, `expected` or `reason`
 
 #### Scenario: The report counts the selection per construction
-- **WHEN** the selection table of the agreement report is read next to the two site lists
-- **THEN** per fixture every site id appears in exactly one construction row of design D5, the rows add up to 50, and every construction with a minimum has at least 2 new sites, or all its instances outside the controls when fewer than 2 remain
+- **WHEN** the selection table of the agreement report is read next to the two site lists and `selection.json`
+- **THEN** per fixture the table has one row per construction label of design D5 with the same instances and ids as `selection.json`, every site id appears in exactly one row, the rows add up to 50, and every construction other than `other` has at least 2 new sites, or all its instances outside the controls when fewer than 2 remain
 
 ### Requirement: Control reference
 
@@ -71,9 +77,12 @@ SHALL NOT be edited by this change.
 A panelist output SHALL be a JSON object with `panelist` (1 or 2), `model`, `date`, `sourcesRead`
 and `sites`: one answer per site of both lists, each `{ id, target, expected, reason }`, where
 `target` is `{ file, symbol }` or `null`, `expected` is `exact`, `heuristic` or `none`, `expected` is
-`none` exactly when `target` is `null`, and `reason` cites at least one `file:line` of the site's
-fixture in the form of design P4. A resolution output SHALL have the same shape with `resolver`
-instead of `panelist` and one answer per disagreement. Each `sourcesRead` entry SHALL be either a
+`none` exactly when `target` is `null`, and `reason` holds at least one valid citation: a citation in
+the form of design P4 that names an existing file of the site's fixture with a line between 1 and
+that file's last line (other citations in the reason, such as a framework path, a file of the other
+fixture, line `0` or a line beyond the end, are ignored). A resolution output SHALL be
+`{ resolver, date, sourcesRead, sites }`, where `resolver` is the model id, with no `panelist` and no
+`model` field, and `sites` holds one answer of the same shape per disagreement. Each `sourcesRead` entry SHALL be either a
 repository-relative path of a single file or the literal `linear:DIS-80/description`; a directory or
 a glob is rejected.
 The panelist allowlist SHALL be: files under `fixtures/acme-shop/app/`, `fixtures/acme-shop/routes/`,
@@ -82,26 +91,27 @@ files under `fixtures/task-api/src/`; `fixtures/task-api/package.json`; `fixture
 the two `*.sites.json`; `openspec/changes/callsite-annotations/tasks.md`; and
 `linear:DIS-80/description`. The resolver allowlist SHALL be the panelist allowlist plus
 `docs/measurements/annotation/panelist-1.json`, `panelist-2.json` and `agreement.json`.
-Validation SHALL reject an output missing `sites` or `sourcesRead`; whose answers do not cover
-exactly the expected ids; with an answer whose `expected` is not one of the three values, whose
-`expected` is `none` with a non-null `target` or another value with a `null` target, whose `reason`
-contains no citation, whose citations name a missing file or a line beyond the end of the file, whose
+Validation SHALL reject an output missing a field of its shape (`panelist`, `model`, `date`,
+`sourcesRead`, `sites` for a panelist; `resolver`, `date`, `sourcesRead`, `sites` for a resolution);
+whose answers do not cover exactly the expected ids; with an answer whose `expected` is not one of
+the three values, whose `expected` is `none` with a non-null `target` or another value with a `null`
+target, whose `reason` contains no valid citation as defined above, whose
 `target.file` does not exist in the fixture, or whose `target.symbol` has a last segment (the method
 or function name after `::`) that does not appear in `target.file`; or whose `sourcesRead` includes
 an entry that is a directory, a glob or a path outside the allowlist of its role. A rejected panelist
 output SHALL NOT be used, completed or corrected; the ticket stops instead.
 
 #### Scenario: A complete panel output is accepted
-- **WHEN** an output answers every site id once, with valid fields and citations to existing lines
+- **WHEN** a panelist output answers every site id once with valid fields and at least one valid citation per answer (an answer whose reason also holds an out-of-range citation next to a valid one included), or a resolution `{ resolver, date, sourcesRead, sites }` answers exactly the disagreement ids
 - **THEN** validation accepts it with no error
 
 #### Scenario: An incomplete panel output is rejected
-- **WHEN** an output misses a site id, repeats one or answers an id that is not in the site lists, or lacks the `sites` or `sourcesRead` field
+- **WHEN** an output misses a site id, repeats one or answers an id that is not in the site lists, or lacks a field of its shape (`sites` or `sourcesRead`, `panelist` or `model` for a panelist output, `resolver` for a resolution)
 - **THEN** validation rejects it naming each missing, repeated or unknown id or missing field
 
 #### Scenario: A citation to a line that does not exist is rejected
-- **WHEN** an answer's reason cites only a file that does not exist in the fixture or a line beyond the end of the file
-- **THEN** validation rejects it naming the site and the citation
+- **WHEN** an answer's reason has no citation to an existing file of the site's fixture with a line inside it (its citations name only a missing file, a file of the other fixture, line 0 or a line beyond the end)
+- **THEN** validation rejects it naming the site and the citations
 
 #### Scenario: A reason without a citation is rejected
 - **WHEN** an answer's reason contains no `file:line` citation
@@ -124,7 +134,7 @@ output SHALL NOT be used, completed or corrected; the ticket stops instead.
 - **THEN** validation rejects it naming the entry
 
 #### Scenario: A resolution with a source outside the resolver allowlist is rejected
-- **WHEN** a resolution's `sourcesRead` includes `docs/measurements/annotation/control.json` or `fixtures/README.md`, while `panelist-1.json`, `panelist-2.json` and `agreement.json` are accepted
+- **WHEN** a resolution's `sourcesRead` includes `docs/measurements/annotation/control.json`, `docs/measurements/annotation/selection.json` or `fixtures/README.md`, while `panelist-1.json`, `panelist-2.json` and `agreement.json` are accepted
 - **THEN** validation rejects it naming the forbidden path
 
 ### Requirement: Agreement measures
@@ -214,6 +224,18 @@ the two panel outputs, the resolution, `agreement.json` and the two frozen annot
 report SHALL NOT describe the annotation as human or made by hand. Every recorded hash SHALL match
 its file, and the commit that records them SHALL precede any run of `measure-graph` (checked in the
 test and state verification: `scripts/measure-graph.mjs` does not exist at the freeze commit).
+The report SHALL contain these sections, which the freeze tests parse:
+- `## Selección por construcción`, with one subsection per fixture (`### acme-shop`, `### task-api`),
+  each a table `| Construcción | Instancias | Control | Nuevos |` with one row per construction label
+  of design D5 in its order (`other` last), the ids of each cell comma-separated, or `—` when empty;
+- `## Desacuerdos`, a table `| Id | Panelista 1 | Panelista 2 | Resolución |` with one row per
+  disagreement id of `agreement.json`, each answer cell written `<expected> · <target.file> · <target.symbol>`
+  or `none`, or the line `Ninguno.` when there is no disagreement;
+- `## Discrepancias con el control`, a table `| Id | Anotación final | Control | Justificación |`
+  with one control id per row, or the line `Ninguna.` when there is none;
+- `## Hashes SHA-256`, a table `| <repository path> | <64 hex> |` with one row per hashed file.
+`selection.json` is not in the hashed set: it is committed before the panel and its content is
+checked against the report's selection table.
 
 #### Scenario: The recorded hashes match the frozen files
 - **WHEN** the SHA-256 of every file listed in the report is computed

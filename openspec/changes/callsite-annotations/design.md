@@ -93,7 +93,9 @@ and `fixtures/acme-shop/composer.json`; `fixtures/task-api/src/**`, `fixtures/ta
 and `fixtures/task-api/tsconfig.json`; the two `*.sites.json`; `openspec/changes/callsite-annotations/tasks.md`
 (the Panel group); and the **description** of Linear DIS-80. Everything else is forbidden, in
 particular `fixtures/README.md` and the fixtures' `README.md`, `docs/` and `tests/` (they describe
-traps and expected edges), `fixtures/annotations/**`, the rest of `docs/measurements/**`,
+traps and expected edges), `fixtures/annotations/**`, `docs/measurements/annotation/control.json`
+and `docs/measurements/annotation/selection.json` (the construction of each site hints its answer;
+forbidden to the resolver too), the rest of `docs/measurements/**`,
 `docs/project-context.md` and every other repository doc, `packages/**`, `tests/**`, `seeds/**`,
 the rest of `openspec/**`, `prompts.md`, and the **comments** of DIS-80 and of every other ticket
 (a comment from DIS-31 on DIS-80 states two control answers: P2). The resolver may also read
@@ -120,6 +122,40 @@ Zod, Fastify. One more row per fixture, "other call" (no minimum), takes every r
 every site belongs to exactly one row. The count per construction goes in the report's selection
 table (construction, instances in application code, control ids, new ids), written after the panel
 (never in the site list, so as not to hint answers).
+
+*Construction labels and record (agent's text, spec audit run 2).* The preparation writes the
+construction of every site, before the panel, in `docs/measurements/annotation/selection.json`
+(`{ "fixtures": [ { "fixture", "rows": [ { "construction", "instances", "ids" } ] } ] }`) and commits
+it with the site lists (task 2.4); the report's selection table is copied from it after the panel, so
+the classification is never rebuilt after seeing answers, and it survives the change of agent
+between `apply-prepare` and `apply-finish`. Panelists and the resolver may not read it (D4). The
+labels, used verbatim in `selection.json`, in the report and by the freeze test, in this order:
+
+| Fixture | Label | Construction | Minimum |
+|---|---|---|---|
+| acme-shop | `facade` | Laravel facade | yes |
+| acme-shop | `container-binding` | container binding by string | yes |
+| acme-shop | `magic-call` | `__call` / `__callStatic` | yes |
+| acme-shop | `eloquent-read` | Eloquent attribute or relation read (`read`) | yes |
+| acme-shop | `string-route` | string route action | yes |
+| acme-shop | `array-route` | array route action | yes |
+| acme-shop | `job-dispatch` | job dispatch | yes |
+| acme-shop | `event` | event dispatch | yes |
+| acme-shop | `framework-function` | PHP or framework function | yes |
+| acme-shop | `other` | other call | no |
+| task-api | `imported-function` | imported function | yes |
+| task-api | `interface-method` | interface method | yes |
+| task-api | `new` | `new` | yes |
+| task-api | `method-reference` | method reference | yes |
+| task-api | `callback` | callback | yes |
+| task-api | `reexport` | call through an `index.ts` re-export | yes |
+| task-api | `stdlib` | standard library | yes |
+| task-api | `zod` | Zod | yes |
+| task-api | `fastify` | Fastify | yes |
+| task-api | `other` | other call | no |
+
+"Minimum" = at least 2 new sites, or every remaining instance outside the controls when fewer than
+2 remain (spec "Call-site lists").
 The order of the new sites is file path then line, so it carries no hint either.
 
 **D6 — Measures.** Agreement = same `expected` and same `target` (`file` and `symbol`); percent =
@@ -161,6 +197,19 @@ option), following the project convention (`docs/project-context.md:78-88`,
   `| <repository path> | <64 hex> |` per file, which `checkFreeze` parses.
 `resolution.json` exists even when there is no disagreement (empty `sites`), so the set of frozen
 files is always the same.
+*Agent's text, spec audit run 2:*
+- **Resolution shape:** `{ "resolver": "<model id>", "date", "sourcesRead", "sites" }`, with no
+  `panelist` and no `model` field; `sites` holds one `{ id, target, expected, reason }` per
+  disagreement. The Panel group uses the same shape.
+- **Report sections** (spec "Frozen annotations and agreement report"): `## Selección por
+  construcción` (`### acme-shop`, `### task-api`, each `| Construcción | Instancias | Control | Nuevos |`
+  with the labels of D5, ids comma-separated or `—`), `## Desacuerdos`
+  (`| Id | Panelista 1 | Panelista 2 | Resolución |`, answer cells `<expected> · <file> · <symbol>` or
+  `none`, or `Ninguno.`), `## Discrepancias con el control`
+  (`| Id | Anotación final | Control | Justificación |`, or `Ninguna.`) and `## Hashes SHA-256`.
+- **`selection.json` is not hashed** (the set stays at nine files): it is committed before the panel
+  in task 2.4, it is not an input of DIS-79 nor a panel output, and the freeze test checks that the
+  report's selection table equals it, so a later edit fails that test anyway.
 No npm script is added (P5). It reads JSON and fixture text only: no graph, no database, no network.
 
 **D11 — Freeze by test**, `tests/unit/docs/annotation-freeze.spec.ts`, not by hook.
@@ -193,8 +242,11 @@ transcription made after seeing the outputs.
 
 **P4 — Citations are machine-checked.** A citation is `<path>:<line>` with the path relative to the
 fixture root of the site (`app/<Dir>/<File>.php:<line>`, `src/<dir>/<file>.ts:<line>`); the
-regular expression is `([A-Za-z0-9_./-]+\.(php|ts)):([0-9]+)`. At least one citation per answer
-must name an existing file of that fixture and a line within it.
+regular expression is `([A-Za-z0-9_./-]+\.(php|ts)):([0-9]+)`. *Rule (agent's text, spec audit
+run 2):* an answer is valid when at least one P4 citation names an existing file of the site's
+fixture with a line between 1 and that file's last line; other citations (a framework path, a file
+of the other fixture, line `0`, a line beyond the end) are ignored. The lenient rule is chosen
+because a `none` reason may legitimately mention a framework path next to the fixture line.
 
 **P5 — No npm script.** The CLI runs three times in this change, by agents; `node scripts/annotation-agreement.mjs <command>`
 works the same in PowerShell and Bash, so no wrapper is needed.
@@ -295,3 +347,14 @@ their findings here.
 | I10 | Rounding moved into the spec | **A** — spec "Agreement measures" |
 | I11 | Criterion contamination (author of the criterion read the control; run notes name the README) | **A** — Risks, task 6.2 limitations |
 | I12 | `target.symbol` checked: its last segment must appear in `target.file` | **A** — spec "Panel output validation" |
+
+*Spec audit run 2 (2026-10-28) — resolution by the agent, as lead engineer, without the author.*
+
+| Id | Decision or finding | Destination |
+|---|---|---|
+| R2-B1 | The enhanced D2, D4 and AC 1 of the DIS-80 description (read by panelists) contradicted the Panel group. Decided: the Panel group prevails (stated in its first paragraph), and the enhanced part of the description is aligned at rule level (no site, file, line or control answer; the ts-03 rule stays out; `[original]` untouched) | **A** — Panel group; **B** — DIS-80 description, enhanced part |
+| R2-B2 | The per-site construction record lived in the scratchpad and did not reach task 6.2 (different agent). Decided: `docs/measurements/annotation/selection.json`, committed in 2.4 before the panel, forbidden to panelists and resolver; not hashed (nine files stay; reason in D10) | **A** — spec "Call-site lists", D4, D5, D10, tasks 2.2a/2.2b/2.4/6.2, Panel group |
+| R2-B3 | Report sections parsed by the freeze tests had no fixed headings, columns or labels. Decided: four fixed sections and columns; construction labels table in D5 | **A** — spec "Frozen annotations and agreement report", D5, D10, tasks 6.1/6.2 |
+| R2-B4 | Resolution shape defined two ways. Decided: `{ resolver: <model id>, date, sourcesRead, sites }`, no `panelist`, no `model` | **A** — spec "Panel output validation", D10, Panel group, task 1.1 |
+| R2-B5 | Citation rule "at least one" vs. "every". Decided: at least one valid citation (existing file of the site's fixture, line 1..last); other citations ignored | **A** — spec, P4, Panel group, tasks 1.1, 4.3, 9.2 |
+| R2-I1 | Task 3.1 wording contradicted the control answers that `control.json`, the spec and D3 hold on purpose. Reworded to the panelist allowlist and the Panel group | **A** — task 3.1 |

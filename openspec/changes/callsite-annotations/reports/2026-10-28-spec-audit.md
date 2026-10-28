@@ -481,3 +481,27 @@ No empty row. The construction-per-selection row depends on B2 being fixed: its 
   - Name no site, file, line or control answer; keep the ts-03 rule out.
   - Do not edit the `[original]` block.
 - **DIS-80, comment in Spanish:** a summary of this round: the description is aligned with the Panel group, which prevails; the selection record is committed in `selection.json`, forbidden to the panel; the report headings are fixed; the resolution shape is fixed; and the citation rule is "at least one valid citation".
+
+---
+
+## Resolution of run 2
+
+*Agent's text (correction round 2, 2026-10-28), decided as lead engineer in an autonomous run without the author. Each decision is also in `design.md` → Follow-ups (rows R2-*) with its destination. `openspec validate callsite-annotations --strict` passes after the edits.*
+
+**Questions for the author:** none in this run.
+
+**Blocking findings**
+
+- **B1 — fixed (both corrections).** (a) The Panel group's first paragraph now says that where the DIS-80 description differs from the group (criterion, allowed sources, site fields, output format), the group prevails. (b) The enhanced part of the DIS-80 description was edited, in Spanish and marked as agent's text: AC 1 lists `control` and `form`; D2 says `new X` is `exact` only for a fixture class that declares a constructor and carries the run 1 additions (precedence of `heuristic`, static `X::dispatch` and variants, `new` with no constructor, inherited method, "declared first" ordering, `read` sites); D4 has the closed allowlist and forbids the fixtures' `README.md`, `docs/`, `tests/`, `control.json` and `selection.json`. No site, file line or control answer is named; the ts-03 rule stays out; `[original]` is untouched.
+- **B2 — fixed, decided by the agent.** The construction record is `docs/measurements/annotation/selection.json` (`{ "fixtures": [ { "fixture", "rows": [ { "construction", "instances", "ids" } ] } ] }`), written in tasks 2.2a/2.2b and committed in 2.4 with the site lists, before the panel. It is forbidden to panelists and resolver (D4, Panel group, spec scenario for the resolver allowlist). Task 6.2 copies the report table from it. Decided **not** to hash it (the set stays at nine files): it is committed before the panel, it is neither a panel output nor an input of DIS-79, and the freeze test compares the report's selection table with it, so a later edit fails that test anyway (reason in D10).
+- **B3 — fixed.** The spec "Frozen annotations and agreement report" fixes four sections and their columns: `## Selección por construcción` (`### acme-shop` / `### task-api`, `| Construcción | Instancias | Control | Nuevos |`), `## Desacuerdos` (`| Id | Panelista 1 | Panelista 2 | Resolución |`, or `Ninguno.`), `## Discrepancias con el control` (`| Id | Anotación final | Control | Justificación |`, or `Ninguna.`) and `## Hashes SHA-256`. Design D5 gains the exact construction labels per fixture, with the minimum flag (`other` has none). Tasks 6.1 and 6.2 use them.
+- **B4 — fixed.** One shape: a resolution is `{ resolver: <model id>, date, sourcesRead, sites }`, with no `panelist` and no `model`. Spec, design D10 and the Panel group say the same; the validation list names the required fields per shape; the accepted-output scenario includes a resolution and the incomplete-output scenario a resolution without `resolver`; task 1.1 has both cases.
+- **B5 — fixed, decided by the agent: the lenient rule.** An answer is valid when at least one P4 citation names an existing file of the site's fixture with a line between 1 and its last line; other citations (a framework path, a file of the other fixture, line 0, a line beyond the end) are ignored. Chosen because a `none` reason may legitimately cite a framework path next to the fixture line. Spec, P4, Panel group, task 4.3, task 9.2 and the scenarios "A complete panel output is accepted" (one valid and one out-of-range citation) and "A citation to a line that does not exist is rejected" are aligned.
+
+**Improvable findings**
+
+- **Task 3.1 wording — fixed.** It now checks that no file a panelist may read (the two site lists, `tasks.md`, the DIS-80 description) and nothing in the Panel group contains a control answer or a site's construction label.
+
+**Other edits.** The proposal names `selection.json` and the exact hashed set. Scenario count unchanged: 19 + 4 + 5 = 28 (task 7.2).
+
+**Linear.** DIS-80: description, enhanced part only, aligned (B1); Spanish comment summarising this round.
