@@ -1199,7 +1199,8 @@ For each TypeScript file parsed without a syntax error, the TypeScript analyzer 
 - one `function` symbol per **module-level `const` function**: a `const` variable statement that is
   a direct statement of the file (exported or not, without the `declare` modifier), that has exactly
   one declarator, whose name is an identifier and whose initializer is directly an arrow function or
-  a function expression (`async` and generic ones included), named by that identifier;
+  a function expression (`async` and generic ones included), named by that identifier; a `using` or
+  `await using` statement is not a `const` statement;
 - one `method` symbol per member of a class that is a method with a body, an abstract method, or a
   constructor with a body, named `X::m` (`X::constructor` for a constructor) when the class is a
   declaration with a name `X`, and by the bare member name otherwise (a class expression or an
@@ -1212,8 +1213,8 @@ function, method or constructor declaration without a body that is neither abstr
 an interface (an overload signature, or an ambient declaration) SHALL produce no symbol: of an
 overloaded function or method only the implementation is a symbol. A declaration with the `declare`
 modifier, and every declaration inside a `declare module`, `declare global`, `namespace` or `module`
-block, SHALL produce no symbol. Every other variable SHALL produce no symbol: `let` and `var`
-statements, a `const` statement with more than one declarator, a `const` declared inside a function,
+block, SHALL produce no symbol. Every other variable SHALL produce no symbol: `let`, `var`, `using`
+and `await using` statements (whatever their initializer), a `const` statement with more than one declarator, a `const` declared inside a function,
 a method, a block or any other statement, a destructuring `const`, and a `const` whose initializer is
 anything else (a class expression, a call, a parenthesised, asserted or `satisfies` function, a
 literal). Object-literal methods, `type` aliases, enums, class properties (whatever their value),
@@ -1362,9 +1363,10 @@ diagnostic, never rename) SHALL apply.
 #### Scenario: Other variable forms are not function symbols
 
 - **WHEN** `src/v.ts` with content
-  `let a = () => 1;\nvar b = () => 1;\nconst c = () => 1, d = () => 2;\nconst { e } = { e: () => 1 };\nconst z = 3;\nconst w = (() => 1);\nconst y = (() => 1) as () => number;\ndeclare const q: () => void;\nconst K = class { run() {} };\nexport function outer(): void { const inside = () => 1; }\nif (z) { const blocked = () => 1; }\n`
+  `let a = () => 1;\nvar b = () => 1;\nconst c = () => 1, d = () => 2;\nconst { e } = { e: () => 1 };\nconst z = 3;\nconst w = (() => 1);\nconst y = (() => 1) as () => number;\ndeclare const q: () => void;\nconst K = class { run() {} };\nexport function outer(): void { const inside = () => 1; }\nif (z) { const blocked = () => 1; }\nawait using f = async () => 1;\nusing g = () => 1;\n`
   is analysed
 - **THEN** its symbols are exactly, in this order: `method run` 9–9 and `function outer` 10–10
+  (neither the `await using` statement of line 12 nor the `using` statement of line 13 is a symbol)
 - **AND** `diagnostics` is empty
 
 #### Scenario: Const functions are no endpoint of calls edges
