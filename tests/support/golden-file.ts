@@ -3,10 +3,12 @@ import type { GoldenEntry, GoldenFile } from '../../packages/cli/src/cache/golde
 import { GOLDEN_PROJECTS } from '../../packages/cli/src/cache/demo-questions';
 import type { GoldenQuestion } from '../../packages/cli/src/cache/demo-questions';
 
-/** The golden questions of `project` (DIS-32: two golden projects). */
+/**
+ * The golden questions of `project` (DIS-32: two golden projects). A name that is not a golden project
+ * (a test may build a file for any name, e.g. one with a terminal-unsafe character) gets acme-shop's.
+ */
 function questionsOf(project: string): readonly GoldenQuestion[] {
-  const golden = GOLDEN_PROJECTS.find(({ name }) => name === project);
-  if (golden === undefined) throw new Error(`golden-file: ${project} is not a golden project`);
+  const golden = GOLDEN_PROJECTS.find(({ name }) => name === project) ?? GOLDEN_PROJECTS[0];
   return golden.questions;
 }
 import { cachedAnswer } from './cached-answer';
