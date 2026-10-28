@@ -120,4 +120,4 @@ This group is done by independent agents launched by the workflow, outside the a
 - [x] 13.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
 - [x] 13.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`
 - [x] 13.6 Fix every finding in this change (TDD for behaviour), each with an A/B/C/D destination in `design.md` → Follow-ups; a finding on the annotations themselves is never fixed by editing a frozen file (it goes to the report and to the author, destination C); re-run what each fix invalidates; commit to the same PR; re-run a check whose findings led to non-trivial fixes until no Blocker or Major
-- [ ] 13.7 `/opsx:archive`, commit it to the same PR; merge (`gh pr merge <n> --merge`, through the merge gate) only after the archive commit and with CI green
+- [x] 13.7 `/opsx:archive`, commit it to the same PR; merge (`gh pr merge <n> --merge`, through the merge gate) only after the archive commit and with CI green
