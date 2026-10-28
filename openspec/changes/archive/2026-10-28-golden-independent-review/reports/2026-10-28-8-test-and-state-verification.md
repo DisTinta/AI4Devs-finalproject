@@ -49,3 +49,7 @@ the start, as expected since task 1.1.
 - ADR not warranted (design P2).
 - Final verdicts: task-api Q1 partial, Q2 correct, Q3 correct, Q4 correct; acme-shop Q1 incorrect,
   Q3 correct, Q4 incorrect. The two `incorrect` items are unsigned and handed to DIS-108 and DIS-109.
+
+## Addendum: CI of PR #79
+
+- All six checks pass on `6ebb0f1`: https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/40742158832 (quality, mutation, verify, scope, secrets) and https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/40742158828 (frontend).
