@@ -761,3 +761,173 @@ destino A/B/C/D.*
 Comentario en español en DIS-32 con las decisiones de esta ronda. DIS-20 (padre) no se edita.
 
 `openspec validate task-api-seed-golden --strict`: el cambio es válido.
+
+---
+
+## Run 4 (2026-10-28)
+
+APPROVED
+
+**Preguntas para la autora:** ninguna nueva. Las decisiones que el agente tomó en las rondas 1 a 3 (Q-A, Q-B, Q-C, SA1–SA16) no contradicen el ticket ni el proyecto, así que las doy por válidas.
+
+Ronda 4 de la auditoría de `openspec/changes/task-api-seed-golden` (DIS-32, padre DIS-20).
+
+He releído:
+- `proposal.md`, `design.md`, los 9 deltas (`code-analysis`, `cli-indexing`, `seed-build`, `seed-load`, `golden-answers`, `verify-smoke`, `project-picker`, `ask-page`, `cli-projects`) y `tasks.md`;
+- la sub-issue DIS-32 con sus 7 comentarios (el último es la resolución de la ronda 3; no hay nada posterior);
+- el informe de las rondas 1 a 3 con sus resoluciones.
+
+También he contrastado con el repositorio: `tests/unit/analyzers/typescript/structure.spec.ts:12-45`, `openspec/specs/code-analysis/spec.md:1072-1073`, `.gitignore:15-22`, `fixtures/README.md:198-324` y el contenido de `fixtures/task-api/`.
+
+---
+
+## 1. Alcance frente al ticket: limpio
+
+Todo sale de la sub-issue:
+- la deuda de DIS-30 del bloque [original];
+- E1–E12 del bloque [enhanced];
+- los deltas que hacen falta porque la semilla versionada pasa a tener dos proyectos (P5, SA7).
+
+La reescritura de Q1 y Q2 (Q-C) es la condición para que se pueda cumplir el AC 5 («3/3»). La propuesta la nombra (SA14). No hay Tabla 2, ni endpoint de indexado, ni kinds nuevos en core.
+
+## 2. Criterios de aceptación heredados: limpio
+
+- DoD «2 projects loaded»: seed-load, «The seed is loaded into an empty database».
+- DoD «`verify` verde con task-api»: verify-smoke, «Every golden answer matches» y «The verify job is green on the pull request».
+- DoD `sample-projects.ts`: seed-build, «The versioned constant matches the versioned seed».
+- DoD, diff de core: tareas 2.4, 8.4 y 12.1.
+- AC 1 a AC 6: cubiertos (detalle en la tabla del punto 11).
+- Seguridad: `redacted = true` y la ausencia del valor plantado (seed-build, «The task-api block of the seed is generated»).
+- AC 4 del padre (Q4 UNKNOWN): escenario de `ask` (Q-A).
+
+## 3. Escenarios que faltan: limpio
+
+Todas las cláusulas SHALL nuevas o modificadas tienen escenario, también:
+- el anclaje de las preguntas golden;
+- el orden de los argumentos y `--project=`;
+- los errores que nombran el proyecto;
+- la huella calculada solo sobre ficheros versionados;
+- la UNKNOWN de Q4.
+
+## 4. Ambigüedad: limpio
+
+Ninguno de los términos vagos aparece fuera de los informes. La única coincidencia es «as many as» (`specs/seed-load/spec.md:125`), que es una igualdad medible.
+
+## 5. Decisiones abiertas: limpio
+
+Están fijados:
+- los formatos de salida;
+- el orden de las comprobaciones;
+- el `<path>` de los errores de `seed:build`;
+- el motivo `no-anchor` de Q4;
+- qué pasa si falla `git ls-files` (`INTERNAL`);
+- la escritura de las golden por proyecto y su mensaje `INTERNAL`;
+- el orden de los proyectos.
+
+La tarea 8.4 ya no obliga a elegir entre borrar ficheros locales o dejar un paso en rojo (SA13).
+
+## 6. Contradicciones dentro del cambio: limpio
+
+- Los textos nuevos de Q1 y Q2 son idénticos en golden-answers, verify-smoke, ask-page, D6, la propuesta y las tareas 5.1, 6.3, 9.1, 9.4, 11.3 y 11.7.
+- La corrección de hechos de SA15 (el `package-lock.json` de task-api está versionado) se aplica bien en Context, D5, Risks, la propuesta, seed-build «Fingerprints» y las tareas 4.1, 8.1, 8.4 y 11.4.
+
+## 7. Contradicciones con el proyecto
+
+- **I1, mejorable. Queda un rastro de «untracked package-lock.json» fuera de lo que corrigió SA15.**
+  - `openspec/specs/code-analysis/spec.md:1072-1073` sigue diciendo «the 38 tracked files of `fixtures/task-api` (… `node_modules` and the untracked `package-lock.json` excluded)».
+  - El delta de code-analysis repite «the 38 tracked files» en sus escenarios.
+  - Si el lock está versionado (SA15, commit `6410f99`), los ficheros versionados son 39. Las 38 son los ficheros fuente que lee el test, que excluye el lock por ruta (`tests/unit/analyzers/typescript/structure.spec.ts:26`; su comentario de la línea 12 también lo llama «untracked»).
+  - No cambia el comportamiento: el lock no es `.ts` y no produce símbolos, y las filas de la semilla salen del manifiesto de historia. Aun así, la spec principal afirma un hecho que este mismo cambio declara falso.
+  - Corrección: ver «Correcciones a aplicar».
+- Fuera de eso, no hay conflicto:
+  - con los ADR (`20261017-stale-fingerprint-fails-verify.md` es coherente con una sola huella);
+  - con la excepción de core (limitada a D2);
+  - con la regla de anclaje de `fixtures/README.md:204-208`.
+
+## 8. Contraste con el código real: limpio
+
+- `.gitignore:15-22` solo ignora `fixtures/*/vendor/`, `node_modules/` y `.git/`, así que D5 (solo ficheros versionados bajo los fixtures) es la protección correcta para cualquier otro fichero local.
+- La tabla de preguntas demo de task-api (`fixtures/README.md:312-317`) tiene todavía los textos antiguos. Es lo esperado: la tarea 5.2 la cambia después de que la 5.1 vea el test en rojo.
+- El resto de comprobaciones de la ronda 3 sigue vigente: `questionTerms` exportado, `FIND_SYMBOLS` sobre `sy.name`, `calls.ts` sin frontera en `VariableStatement` y `TS_COMPILER_EXTRACTOR`.
+
+## 9. Tamaño de las tareas: limpio
+
+- La 4.6 sigue al límite de un turno; se rechazó en la ronda 2 con un motivo razonable.
+- La 6.2 (Ollama, unos 60 min) ya prevé ejecutarse en segundo plano con sondeo.
+- El resto cabe en un turno.
+
+## 10. Pasos obligatorios: limpio
+
+- El paso 0 es la rama `feature/dis-32-task-api-seed-golden`.
+- Los pasos 7–12 están presentes y etiquetados (MANDATORY / AGENT MUST EXECUTE).
+- Los informes tienen nombre (8.6, 9.5, 10.4).
+- Las tareas que mutan datos restauran el estado (9.2 borra el proyecto indexado; 8.5 vuelve a sembrar).
+- El archivo se commitea antes del merge (12.7).
+
+## 11. Trazabilidad
+
+| Requisito (delta) | Escenario | Tareas |
+|---|---|---|
+| code-analysis · TypeScript symbol extraction | 8 escenarios ya existentes | 1.2, 7.2 |
+| 〃 | Variables, types, accessors and ambient declarations are not symbols (entrada cambiada) | 1.1, 1.2 |
+| 〃 | Module-level const functions are function symbols | 1.1, 1.2 |
+| 〃 | Other variable forms are not function symbols | 1.1, 1.2 |
+| 〃 | Const functions are no endpoint of calls edges | 1.1, 1.2 |
+| (AC 2) helpers en core, refactor | `tests/unit/index/analyzer-helpers.spec.ts` | 2.1–2.4 |
+| cli-indexing · Command line contract | Help and version / framework / name | 3.3, 7.2 |
+| 〃 | An unsupported language is a usage error | 3.1, 3.3, 9.3 |
+| 〃 | A TypeScript repository is indexed with the TypeScript analyzer | 3.1, 3.3, 9.2 |
+| cli-indexing · Errors in the project format | 3 escenarios ya existentes | 3.3, 7.2 |
+| seed-build · Command contract | Missing config / unreachable DB / allowed dir | 4.5, 4.6, 9.3 |
+| 〃 | A failure of the second project's repository names it | 4.6, 4.7 |
+| seed-build · Seed content | The acme-shop seed is generated | 4.6, 4.7 |
+| 〃 | The task-api block of the seed is generated | 4.6, 6.1 |
+| 〃 | Adding task-api leaves the acme-shop rows unchanged | 6.1 (comprobación registrada) |
+| seed-build · The database is never changed | unchanged after a build / existing acme-shop and task-api | 4.6, 4.7 |
+| seed-build · Reproducibility | Two consecutive builds / time zone | 4.6, 6.1 |
+| seed-build · Fingerprints | 3 escenarios | 4.1, 4.2 |
+| seed-build · A failed build never leaves a broken seed | 4 escenarios | 4.5, 4.7 |
+| seed-build · Sample-project constant | 4 escenarios | 4.3–4.7, 6.4, 8.3 |
+| seed-load · Command contract | An invalid golden file fails before connecting (+3 ya existentes) | 6.4 |
+| seed-load · Sample projects loaded idempotently | empty DB / loading again | 6.4, 6.7 |
+| golden-answers · Cache build command contract | config / unknown id / project args / unreachable / request limit / slow model | 5.3, 5.4, 9.3 |
+| golden-answers · Golden questions | acme-shop table / task-api table | 5.1, 5.2 |
+| 〃 | Every golden question anchors a symbol of its project | 6.1 |
+| 〃 | task-api's Q4 is answered UNKNOWN without anchor in evaluation mode | 6.4, 9.1 |
+| golden-answers · Seed is current | missing or outdated / without second project | 5.3, 5.4 |
+| golden-answers · How a golden answer is produced | scripted model / every project / non-sample | 5.3, 5.4, 5.5, 6.2 |
+| golden-answers · Retries and failures | 4 escenarios con `--project acme-shop` | 5.4 |
+| golden-answers · Partial regeneration | only named (y orden de argumentos) / stale | 5.4 |
+| golden-answers · Failed build never leaves broken file | failed write / failure in second project | 5.3, 5.4, 5.6 |
+| golden-answers · Versioned golden file coherent | acme-shop / task-api | 6.2, 6.4 |
+| verify-smoke · Compared on structure only | every match / altered / cache miss / counts / free text | 6.5, 6.7 |
+| verify-smoke · CI job | workflow parsed / green on PR | 12.2 |
+| project-picker · Sample-project cards | Screen 1 shows two cards / keyboard | 6.6, 10.2, 10.3 |
+| ask-page · Suggested questions | sent at once / suggested = golden | 6.3, 10.2 |
+| cli-projects · Project listing | listed / empty / errors | 6.5, 9.1 |
+| DoD · código del fixture sin tocar | — (comprobación registrada) | 8.4 |
+
+No hay filas vacías.
+
+---
+
+## Correcciones a aplicar (mejorables, no bloquean la apply)
+
+### `openspec/changes/task-api-seed-golden/specs/code-analysis/spec.md`
+
+- En los escenarios «The task-api errors and repository have exact spans», «Every class, interface and function of task-api is listed» y «task-api files without such declarations have no symbols», sustituir «the content of the 38 tracked files of `fixtures/task-api`» por:
+  > «the content of the 38 source files of `fixtures/task-api` (its tracked files except `package-lock.json`)»
+
+### `openspec/changes/task-api-seed-golden/design.md`
+
+- Follow-ups, tabla nueva «Spec audit, run 4», con la fila:
+  > «SA17 | The main code-analysis spec (`openspec/specs/code-analysis/spec.md:1072-1073`) and the comment of `tests/unit/analyzers/typescript/structure.spec.ts:12` still call `fixtures/task-api/package-lock.json` untracked; the delta says "38 source files (tracked files except `package-lock.json`)", and the main spec's inventory scenario is corrected at archive time (`/opsx:archive`, task 12.7) or by adding that requirement as MODIFIED to this delta | **A** — this change»
+- Opcional: en la tarea 12.7, recordar que al archivar se corrige el paréntesis «the untracked `package-lock.json` excluded» de la spec principal. El comentario del test solo se cambia si se toca ese fichero por otro motivo (tarea 1.1), sin tocar ninguna aserción.
+
+### Linear DIS-32 (comentario en español; el bloque [original] no se toca)
+
+> **Auditoría de spec, ronda 4 (texto del agente, ejecución autónoma 2026-10-28).** Veredicto: APPROVED, sin bloqueantes. Una mejora: la spec principal de code-analysis y un comentario del test de estructura siguen llamando «untracked» al `package-lock.json` de task-api; el delta pasa a hablar de «38 ficheros fuente (los versionados salvo `package-lock.json`)» y la spec principal se corrige al archivar (SA17).
+
+### Linear DIS-20 (padre)
+
+No se edita.
