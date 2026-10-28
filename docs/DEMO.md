@@ -21,7 +21,7 @@ variable ya definida en la terminal gana sobre `.env`.
 | Node / npm | v24.11.1 / 11.19.0 (el proyecto necesita Node 22.12 o posterior, una línea LTS; la CI usa Node 22) |
 | LLM | ninguno: **modo evaluación**, todas las variables `LLM_*` vacías |
 | Base de datos | una base de datos nueva y vacía (ver el paso 0) |
-| Respuestas golden (pasos 1, 2 y 5; web, puntos 8 y 9) | recapturadas el 2026-10-27 en la rama `feature/dis-104-answer-language` (Git Bash, modo evaluación, base de datos local recién sembrada con `npm run db:seed`), porque DIS-104 regeneró las respuestas golden: la salida de `ask` del paso 1, los recuentos y latencias de `demo:ask` de los pasos 1 y 5 y el valor de confianza de la web. El resto de la guía es de la captura de 2026-10-20 |
+| Respuestas golden (pasos 1, 2 y 5; web, puntos 8 y 9) | recapturadas el 2026-10-27 en la rama `feature/dis-104-answer-language` (Git Bash, modo evaluación, base de datos local recién sembrada con `npm run db:seed`), porque DIS-104 regeneró las respuestas golden: la salida de `ask` del paso 1, los recuentos y latencias de `demo:ask` de los pasos 1 y 5 y el valor de confianza de la web. El resto de la guía es de la captura de 2026-10-20. El 2026-10-28 DIS-107 volvió a regenerar las respuestas golden (corrección del analizador de TypeScript) después de esa captura de DIS-104: la salida de `ask` del paso 6 se recapturó ese día en Git Bash, pero los recuentos y latencias de `demo:ask` de los pasos 1 y 5, el valor de confianza de la web y las capturas de pantalla siguen siendo los de DIS-104 y no se han vuelto a tomar |
 | `Probar con un modelo real` | 2026-10-20, rama `feature/DIS-103-real-model-clean-clone` clonada en una carpeta nueva, Git Bash: Ollama 0.40.5 **solo en CPU**, `qwen2.5-coder`, `OLLAMA_CONTEXT_LENGTH=16384`, `LLM_TIMEOUT_MS=1200000`. Duraciones medidas: CLI 8 min 28 s; API 300,9 s (pregunta repetida con la caché desactivada); web en Chromium 597,7 s (otra pregunta, «¿Qué hace ShippingService?»). La salida de la CLI pegada en esa sección es de otra captura, la de DIS-104 (2026-10-26, rama `feature/dis-104-answer-language`, Git Bash, Ollama 0.40.11 solo en CPU con `OLLAMA_CONTEXT_LENGTH=16384`, `qwen2.5-coder`, `LLM_TIMEOUT_MS=1200000`, primera llamada tras `npm run db:seed`, así que no salió de la caché): 598 s, con la salida de error mezclada como en las anteriores |
 
 Los únicos cambios hechos a la salida pegada:
@@ -289,10 +289,11 @@ app/Listeners/RecordDiscountAudit.php:16-22
 Es una respuesta *golden*, generada por un modelo de 7B: las afirmaciones `INFERENCE` son las que el
 sistema no pudo comprobar del todo, y la 5 cita fragmentos que no la respaldan. El sistema no la
 oculta: la marca como inferencia. La golden que sirve hoy la semilla para esta pregunta (acme-shop
-`Q1`, regenerada en DIS-32 después de esta captura) la revisó en DIS-33 un panel de agentes
-independientes (su informe está en `docs/golden-review/`) y la juzgó `incorrect`: dice
-que el total suma los descuentos, y el código los resta. Queda sin firmar hasta que DIS-108 la
-regenere o la retire.
+`Q1`, regenerada en DIS-32 y otra vez en DIS-107, después de esta captura) la revisó en DIS-107 un
+panel de agentes independientes (su informe es `docs/golden-review/2026-10-golden-review-dis-107.md`)
+y la juzgó `correct`: quedó firmada con las dos firmas del panel y no hay ningún pendiente. La
+ronda anterior (DIS-33) había juzgado `incorrect` la golden de DIS-32; DIS-108 queda resuelto por la
+ronda de DIS-107 y lo cierra la autora.
 
 La CLI no imprime el uso de tokens; la API sí. `npm run demo:ask` envía la pregunta a
 `POST /api/projects/{projectId}/ask` (el id es el que imprimió `projects`) y muestra el estado HTTP,
@@ -541,12 +542,10 @@ npm run cli -- ask task-api "¿Qué hace buildPage con los resultados paginados?
 > codemind@0.0.1 cli
 > tsx --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts ask task-api ¿Qué hace buildPage con los resultados paginados?
 
-La función buildPage convierte los resultados paginados en un objeto Page.
+Los resultados paginados son procesados por la función buildPage, que toma los elementos, el total, la página actual y el tamaño de la página como argumentos, y devuelve un objeto de página con la información correspondiente.
 
 statements:
-1. [FACT] La función buildPage toma cuatro parámetros: items, total, page y pageSize.
-   evidence: src/domain/pagination.ts:13-21
-2. [FACT] La función buildPage devuelve un objeto Page con las propiedades items, total, page, pageSize y pageCount.
+1. [INFERENCE] buildPage toma como argumento los elementos, el total, la página actual y el tamaño de la página.
    evidence: src/domain/pagination.ts:13-21
 
 evidence:
@@ -632,7 +631,7 @@ wireframes de `readme.md` §1.3 (`images/pantalla-1-seleccion.svg`, `images/pant
 8. «Evidencia»: una entrada por cita, «ev-1 · app/Services/PriceCalculator.php:16-44». Al pulsarla (o
    con Intro o Espacio) se despliega el mismo fragmento que imprimió `npm run demo:excerpt` en el
    paso 2; al pulsarla otra vez se pliega.
-9. Debajo, el panel de uso: «Confianza» con su valor (0.71 con las respuestas golden de DIS-104), los tokens («0 tokens»), el
+9. Debajo, el panel de uso: «Confianza» con su valor (0.71 con las respuestas golden de DIS-104; DIS-107 las regeneró el 2026-10-28 y esta cifra no se ha vuelto a capturar), los tokens («0 tokens»), el
    coste («$0»), la latencia en milisegundos, «ahorro 100 % vs bruto», «caché ✓» y la línea base («7 123
    tokens sin selección de contexto → 0 con CODEMIND»). En modo evaluación todas las preguntas sugeridas son aciertos de caché.
 10. Una pregunta libre escrita en el campo, como «¿Qué hace ShippingService con los pedidos

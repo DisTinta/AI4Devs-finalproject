@@ -82,6 +82,7 @@
 65. [Semilla y golden de task-api, dos proyectos de muestra (DIS-32)](#65-semilla-y-golden-de-task-api-dos-proyectos-de-muestra-dis-32)
 66. [Anotación de sitios de llamada por un panel de agentes, congelada por hash (DIS-80)](#66-anotación-de-sitios-de-llamada-por-un-panel-de-agentes-congelada-por-hash-dis-80)
 67. [Revisión independiente de las golden por un panel de agentes (DIS-33)](#67-revisión-independiente-de-las-golden-por-un-panel-de-agentes-dis-33)
+68. [Corrección de `await using` en el analizador de TypeScript y nueva ronda del panel (DIS-107)](#68-corrección-de-await-using-en-el-analizador-de-typescript-y-nueva-ronda-del-panel-dis-107)
 
 ---
 
@@ -5271,3 +5272,19 @@ Run /opsx:apply on change golden-independent-review: every task in TDD, marking 
 **Por qué funcionó.** El criterio, el formato de salida y las listas de fuentes estaban fijados en el grupo Panel antes de que juzgase nadie, así que los validadores se escribieron contra reglas ya cerradas y aceptaron los tres ficheros del panel sin tocarlos. Los veredictos derivados de los juicios hicieron comprobable la concordancia.
 
 **Ajuste humano.** Ninguno: ejecución autónoma (texto del agente). El panel (Opus y Sonnet) coincidió en los 7 veredictos; dos golden de acme-shop (Q1 y Q4) salieron `incorrect`, quedan sin firmar y pasan a los tickets sucesores DIS-108 y DIS-109. El panelista 2 se lanzó en una ejecución reanudada porque la primera se había iniciado con un solo modelo de panel por error.
+
+# 68. Corrección de `await using` en el analizador de TypeScript y nueva ronda del panel (DIS-107)
+
+### Prompt 1 — Terminar el apply tras el panel, dentro del workflow autónomo
+
+El script del workflow envió a este paso, entre otras reglas, este texto literal:
+
+```
+Ticket: DIS-107. Branch: feature/dis-107-ts-await-using-golden-regen. Change: openspec/changes/ts-await-using-golden-regen. Step: apply-finish.
+Instructions for this ticket from the author: El arreglo del analizador TS cambia su huella: regenera las golden de task-api con Ollama y las respuestas regeneradas pasan de nuevo por el panel independiente (como DIS-33) antes de firmarse.
+Run /opsx:apply on change ts-await-using-golden-regen: every task in TDD, marking tasks.md as you go. The tasks up to and including the Panel group are done (the panel outputs are committed): do the tasks after it, without changing any panel output. Commit, push and open the PR to final-project-CRN with /pr-describe.
+```
+
+**Por qué funcionó.** El criterio del panel se copió literal de DIS-33 y se fijó, con las listas de fuentes y el formato, antes de que existiera la entrada del panel; los validadores ya retargeteados a la ronda de DIS-107 aceptaron los tres ficheros del panel sin tocarlos, y el informe se completó contra reglas ya cerradas.
+
+**Ajuste humano.** Ninguno: ejecución autónoma (texto del agente). La corrección es una condición de `symbols.ts`; el panel coincidió en seis de siete veredictos y el resolutor decidió el séptimo (acme-shop Q3, `partial`); ninguna golden salió `incorrect`, así que no hay pendientes. El clasificador denegó los comentarios del agente en DIS-108 y DIS-109, y quedan para la autora.

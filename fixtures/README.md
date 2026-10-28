@@ -207,13 +207,16 @@ documentation-drift question, added with the drift story, and its terms anchor
 no symbol of the seed; Q6 answers `UNKNOWN` `no-anchor` before the cache is
 read, without a model and at zero cost.
 
-**Golden review (DIS-34, DIS-104, DIS-33).** Each entry's `reviews` lists who checked it
-against this fixture and when. The current golden answers (regenerated in DIS-32)
-were reviewed in DIS-33 by a blind panel of two agents of models other than the
-generator; the report, with a verdict per golden, is
-[`docs/golden-review/2026-10-task-api-golden-review.md`](../docs/golden-review/2026-10-task-api-golden-review.md).
-An answer the panel judged incorrect (Q1 and Q4) stays unsigned and goes to a successor
-ticket (DIS-108, DIS-109). The earlier reviews, of the answers DIS-32 replaced, are
+**Golden review (DIS-34, DIS-104, DIS-33, DIS-107).** Each entry's `reviews` lists who checked it
+against this fixture and when. The current golden answers were regenerated in DIS-107 (after the
+TypeScript analyzer fix, which changed the analyzer fingerprint) and reviewed in DIS-107 by a blind
+panel of two agents of models other than the generator; the report, with a verdict per golden, is
+[`docs/golden-review/2026-10-golden-review-dis-107.md`](../docs/golden-review/2026-10-golden-review-dis-107.md).
+The panel judged no answer incorrect, so every entry carries both signatures and no item is pending;
+DIS-108 and DIS-109 (the acme-shop Q1 and Q4 answers that the previous round judged incorrect) are
+resolved by this round, and the author confirms and closes them. The previous round is DIS-33
+([`docs/golden-review/2026-10-task-api-golden-review.md`](../docs/golden-review/2026-10-task-api-golden-review.md),
+of the answers DIS-32 generated; it stays as history). The earlier reviews, of the answers DIS-32 replaced, are
 [`docs/golden-review/2026-10-acme-shop-golden-review-dis-104.md`](../docs/golden-review/2026-10-acme-shop-golden-review-dis-104.md)
 (DIS-104) and
 [`docs/golden-review/2026-10-acme-shop-golden-review.md`](../docs/golden-review/2026-10-acme-shop-golden-review.md)
@@ -329,9 +332,11 @@ before the cache is read, without a model. Every golden question must anchor a s
 through `taskRoutes`, Q2 through `buildPage` and Q3 through `canTransition`, which is why Q1 and Q2
 name a symbol (the validation and pagination wording of the first version anchored nothing). The
 texts are the task-api entry of `GOLDEN_PROJECTS`, which `tests/unit/seed/golden-questions.spec.ts`
-checks against this table. The golden answers were reviewed in DIS-33 by a blind panel of two agents
-of models other than the generator; the report is
-[`docs/golden-review/2026-10-task-api-golden-review.md`](../docs/golden-review/2026-10-task-api-golden-review.md).
+checks against this table. The golden answers were regenerated in DIS-107 (analyzer fix) and reviewed
+in DIS-107 by a blind panel of two agents of models other than the generator; the report is
+[`docs/golden-review/2026-10-golden-review-dis-107.md`](../docs/golden-review/2026-10-golden-review-dis-107.md).
+The previous round is DIS-33
+([`docs/golden-review/2026-10-task-api-golden-review.md`](../docs/golden-review/2026-10-task-api-golden-review.md)).
 
 ## Planted secret
 

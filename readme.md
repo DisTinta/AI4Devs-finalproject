@@ -615,7 +615,7 @@ AI4Devs-finalproject/
 │   ├── DEPLOYMENT.md
 │   ├── adr/                        # decisiones de arquitectura (9 ADR)
 │   ├── ai-sessions/                # sesiones con IA citadas en prompts.md
-│   ├── golden-review/              # revisión de las respuestas golden (DIS-34, DIS-33)
+│   ├── golden-review/              # revisión de las respuestas golden (DIS-34, DIS-33, DIS-107)
 │   │                               # ── del harness: se reemplazan al actualizarlo ──
 │   ├── base-standards.md
 │   ├── documentation-standards.md
