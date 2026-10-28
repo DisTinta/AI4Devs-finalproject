@@ -349,7 +349,8 @@ describe('runSeedLoad', () => {
     const [q1, q3] = valid.entries;
     const cases: [string, string][] = [
       ['acme-shop.json', '{"format": 1,'],
-      ['task-api.json', renderGoldenFile(goldenFile({ project: 'task-api' }))],
+      // DIS-32: task-api is a sample project now, so the file of a project the seed lacks is another name.
+      ['other-api.json', renderGoldenFile(goldenFile({ project: 'other-api' }))],
       ['other.json', renderGoldenFile(valid)],
       ['acme-shop.json', renderGoldenFile(goldenFile({ entries: [{ ...q1, questionNormalized: q1.question }] }))],
       ['acme-shop.json', renderGoldenFile(goldenFile({ entries: [q1, { ...q3, id: 'Q1' }] }))],

@@ -160,8 +160,9 @@ npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install
 > codemind@0.0.1 db:seed
 > tsx --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json packages/cli/src/seed-load.ts
 
-1 project loaded
+2 projects loaded
   acme-shop  php/laravel  174 nodes · 170 edges
+  task-api  typescript/fastify  102 nodes · 100 edges
 [up] node fixtures/build-history.mjs acme-shop
 acme-shop: 32 commits, 3 authors -> <repo>\fixtures\acme-shop\.git
 [up] node fixtures/build-history.mjs task-api
@@ -192,13 +193,13 @@ task-api: 28 commits, 3 authors -> <repo>\fixtures\task-api\.git
 
 `npm run up` escribe una línea `[up] <comando>` antes de cada paso: arranca PostgreSQL y espera a que
 acepte conexiones, instala las dependencias, migra la base de datos, carga la semilla, construye el
-historial de Git de `acme-shop` (`fixtures/acme-shop/.git`, unos 11 s; solo lo leen las respuestas en
-vivo, ver [Probar con un modelo real](#probar-con-un-modelo-real)) y arranca la API
+historial de Git de `acme-shop` y de `task-api` (`fixtures/<nombre>/.git`, unos 11 s cada uno; solo lo
+leen las respuestas en vivo, ver [Probar con un modelo real](#probar-con-un-modelo-real)) y arranca la API
 (`http://127.0.0.1:3000`) y la web (`http://localhost:5173/`). Se queda en primer plano: el resto de la
 demo va en una **segunda terminal**, abierta en la misma carpeta.
 
-> **Entrega 2.** La semilla carga **un** proyecto, `1 project loaded`; `task-api` entra en la semilla
-> con CM-HU-18 (PH-02). `readme.md` §1.4 cita un extracto de esta salida.
+> La semilla carga **dos** proyectos de muestra, `2 projects loaded`: `acme-shop` (PHP/Laravel) y
+> `task-api` (TypeScript/Fastify). `readme.md` §1.4 cita un extracto de esta salida.
 
 Terminal 2. `npm run cli` lee `DATABASE_URL` de `.env`, así que basta con:
 
@@ -212,6 +213,7 @@ npm run cli -- projects
 > tsx --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts projects
 
 acme-shop  a794456d-6d1b-5b55-a360-13fec83dc7bc  php/laravel  174 nodes · 170 edges  2024-05-06T09:31:00.000Z sample
+task-api  fba8e26b-1fb4-5b74-8352-d5d71ded7fe8  typescript/fastify  102 nodes · 100 edges  2024-09-02T13:07:00.000Z sample
 ```
 
 ## Paso 1 — Preguntar cómo se calcula el precio final
@@ -520,21 +522,52 @@ HTTP 200
 
 ## Paso 6 — Cambiar a `task-api` y repetir el paso 1
 
+`task-api`, la muestra en TypeScript, está en la semilla con tres preguntas golden: Q1
+«¿Cómo valida taskRoutes las peticiones entrantes?», Q2 «¿Qué hace buildPage con los resultados
+paginados?» y Q3 «¿Qué transiciones de estado son válidas?». Las dos primeras nombran un símbolo del
+grafo (`taskRoutes`, `buildPage`) porque toda pregunta golden tiene que anclar un símbolo de su
+proyecto. En modo evaluación se responden desde la caché:
+
 ```shell
-npm run cli -- ask task-api "¿Cómo se calcula el precio final de un pedido?"
+npm run cli -- ask task-api "¿Qué hace buildPage con los resultados paginados?"
 ```
 
 ```text
 
 > codemind@0.0.1 cli
-> tsx --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts ask task-api ¿Cómo se calcula el precio final de un pedido?
+> tsx --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts ask task-api ¿Qué hace buildPage con los resultados paginados?
 
-{"error":{"code":"PROJECT_NOT_FOUND","message":"project not found","details":{}}}
+La función buildPage convierte los resultados paginados en un objeto Page.
+
+statements:
+1. [FACT] La función buildPage toma cuatro parámetros: items, total, page y pageSize.
+   evidence: src/domain/pagination.ts:13-21
+2. [FACT] La función buildPage devuelve un objeto Page con las propiedades items, total, page, pageSize y pageCount.
+   evidence: src/domain/pagination.ts:13-21
+
+evidence:
+src/domain/pagination.ts:13-21
+    export function buildPage<T>(items: T[], total: number, page: number, pageSize: number): Page<T> {
+      return {
+        items,
+        total,
+        page,
+    … (+4 lines)
 ```
 
-> **Entrega 2.** `task-api`, la muestra en TypeScript, todavía no está en la semilla (`projects` en el
-> paso 0 solo listó `acme-shop`), así que la CLI responde `PROJECT_NOT_FOUND` en stderr y termina con
-> código `1`. Entra en la semilla con CM-HU-18 (PH-02).
+Una pregunta sobre algo que `task-api` no tiene, como la autenticación, no ancla ningún símbolo y
+responde `UNKNOWN (no-anchor)` sin llamar a ningún modelo:
+
+```shell
+npm run cli -- ask task-api "¿Cómo se autentican los usuarios?"
+```
+
+```text
+UNKNOWN (no-anchor)
+```
+
+Una pregunta libre en vivo sobre `task-api` necesita su historial de Git: `npm run up` lo construye
+(ver [El historial de `acme-shop` y de `task-api`](#el-historial-de-acme-shop-y-de-task-api)).
 
 ## Comprobar la instalación
 
@@ -555,7 +588,11 @@ npm run verify
 ✓ acme-shop Q1 ¿Cómo se calcula el precio final de un pedido?
 ✓ acme-shop Q3 ¿Cómo se validan los cupones?
 ✓ acme-shop Q4 ¿Qué hace OrderObserver al crear un pedido?
+✓ task-api Q1 ¿Cómo valida taskRoutes las peticiones entrantes?
+✓ task-api Q2 ¿Qué hace buildPage con los resultados paginados?
+✓ task-api Q3 ¿Qué transiciones de estado son válidas?
 acme-shop: 3/3 golden answers match
+task-api: 3/3 golden answers match
 ```
 
 ## Recorrido por la web
@@ -568,10 +605,12 @@ wireframes de `readme.md` §1.3 (`images/pantalla-1-seleccion.svg`, `images/pant
 1. Arriba, la cabecera «CODEMIND» con «Comprensión de repositorios con evidencia verificable»; debajo,
    el título «Elige un proyecto para explorar» y «Repositorios precargados · sin registro · sin
    instalación».
-2. La tarjeta de acme-shop: «PHP / Laravel» y sus cuatro recuentos (ficheros, símbolos, aristas y
-   commits del grafo de la semilla), la insignia «✓ indexado» y, en cuanto la API contesta a su
-   comprobación de salud, la insignia «listo» (mientras tanto, «comprobando…»).
-3. El enlace «Explorar proyecto →» abre la pantalla 2 de ese proyecto.
+2. Dos tarjetas, `acme-shop` («PHP / Laravel») y `task-api` («TypeScript / Fastify»), cada una con sus
+   cuatro recuentos (ficheros, símbolos, aristas y commits del grafo de la semilla), la insignia
+   «✓ indexado» y, en cuanto la API contesta a su comprobación de salud, la insignia «listo»
+   (mientras tanto, «comprobando…»).
+3. El enlace «Explorar proyecto →» de cada tarjeta abre la pantalla 2 de ese proyecto, con sus tres
+   preguntas sugeridas (las golden de ese proyecto).
 4. Debajo de la tarjeta, «+ Indexar mi propio repositorio» es una indicación, no un botón: muestra el
    comando de la CLI (`npm run cli -- index <carpeta> --name <nombre> --language php`) y sus
    requisitos.
@@ -608,14 +647,14 @@ wireframes de `readme.md` §1.3 (`images/pantalla-1-seleccion.svg`, `images/pant
 npm -w packages/web run dev
 ```
 
-12. En `http://localhost:5173/` la tarjeta de acme-shop sigue visible, sin «listo», y entre el subtítulo
-    y la tarjeta aparece la alerta «La API de CODEMIND no está disponible. Puedes ver los proyectos, pero
+12. En `http://localhost:5173/` las dos tarjetas siguen visibles, sin «listo», y entre el subtítulo
+    y las tarjetas aparece la alerta «La API de CODEMIND no está disponible. Puedes ver los proyectos, pero
     no preguntar hasta que vuelva. Arráncala con npm run up y pulsa Reintentar.» con el botón
     «Reintentar». Pulsarlo vuelve a comprobar la API una sola vez; si sigue parada, la alerta se queda.
     Para la web con Ctrl+C.
 
-**Diferencias con los wireframes**, por los datos de la Entrega 2: hay una sola tarjeta (`task-api`
-entra en la semilla con CM-HU-18), los recuentos son los del grafo de la semilla y no los ilustrativos
+**Diferencias con los wireframes**, por los datos de la semilla: hay dos tarjetas, `acme-shop` y
+`task-api`, los recuentos son los del grafo de la semilla y no los ilustrativos
 del wireframe, la pantalla 2 no tiene el botón «⟳» ni evidencias de PR (el historial de Git como
 evidencia llega en la Entrega 3), las preguntas sugeridas son las golden y no las del wireframe, y el
 indexado de un repositorio propio es una indicación del comando de la CLI en lugar de un botón. Los

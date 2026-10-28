@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -260,8 +260,14 @@ describe('fingerprint', () => {
     expect(inputs.analyzer.map((i) => i.path)).toContain('deps:tree-sitter-php@0.24.2');
     expect(inputs.analyzer.some((i) => i.path === 'packages/analyzers/php/src/php-analyzer.ts')).toBe(true);
     expect(inputs.analyzer.some((i) => i.path === 'packages/analyzers/typescript/src/ts-analyzer.ts')).toBe(true);
-    expect(inputs.analyzer.some((i) => i.path === 'fixtures/task-api/src/app.ts')).toBe(true);
     expect(inputs.analyzer.some((i) => /^deps:typescript@\d/.test(i.path))).toBe(true);
+    // The fixtures' files are listed by `git ls-files` at the root, so they are inputs only where the root is
+    // a repository's own: not in a copy of the checkout, such as the Stryker sandbox (`.stryker-tmp/`),
+    // which sits inside the repository without being its root.
+    if (existsSync(resolve('.git'))) {
+      expect(inputs.analyzer.some((i) => i.path === 'fixtures/task-api/src/app.ts')).toBe(true);
+      expect(inputs.analyzer.some((i) => i.path === 'fixtures/acme-shop/composer.json')).toBe(true);
+    }
     expect(inputs.analyzer.some((i) => i.path.includes('/node_modules/') || i.path.includes('/.git/'))).toBe(false);
     expect(inputs.contract.some((i) => i.path.endsWith('0001_graph-l1.up.sql'))).toBe(true);
     expect(inputs.contract.some((i) => i.path.endsWith('.down.sql'))).toBe(false);
