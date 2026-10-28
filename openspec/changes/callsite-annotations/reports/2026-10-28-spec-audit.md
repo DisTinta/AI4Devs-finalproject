@@ -1236,3 +1236,207 @@ No row is empty. The scenario count is 19 + 4 + 5 = 28, which matches task 7.2. 
 - **R5-I5, `instances` of `other` and hash header — fixed.** Spec "Call-site lists": `instances` of `other` is the number of its sites; spec "Frozen annotations and agreement report": the hash table has header `| Fichero | SHA-256 |` and the freeze check reads only rows whose second cell is 64 hex characters. Mirrored in D5, D10 and task 6.2.
 
 **Linear.** DIS-80: description, enhanced part only (D2); Spanish comment summarising this round.
+
+---
+
+## Run 6 (2026-10-28)
+
+APPROVED
+
+**Questions for the author**
+
+None. I accept the earlier decisions marked as the agent's text, because none contradicts DIS-80 or the project:
+- Q1: DIS-80 supersedes DIS-53 on «anotación humana». DIS-53 carries the comment.
+- R2-B5: the lenient citation rule. Enhanced AC 5 is aligned with it.
+- R3-B1 / R3-B2: the resolver derives the disagreement ids itself and does not read `agreement.json`; the process documents are allowed.
+- R4-B1 / R4-B2: `sourcesRead` is checked by path string; the control target of the event row is the `handle` of the first listener.
+- R5-B1 / R5-I1…I5: the interface-receiver rule, the link-by-link chain rule, the line-ending check, the control `source` check, no «a mano» in the report, `instances` of `other` and the hash table header.
+
+Inputs read:
+- **The change:** `proposal.md`, `design.md`, `specs/graph-annotations/spec.md`, `tasks.md`, and `reports/2026-10-28-spec-audit.md` (runs 1–5 and their resolutions).
+- **Linear:** DIS-80 (description `[original]` / `[reality-map]` / `[enhanced]` and its 8 comments) and its parent DIS-53 (description and 1 comment).
+- **Workflow:** `.claude/workflows/autonomous-sdd.js` lines 43-199 (`COMMON`, `step`, `audit`, `runPanel`, `apply-prepare` / `apply-finish`). This includes the author's run note, which is passed to every panelist.
+- **Project docs:** `docs/openspec-tasks-mandatory-steps.md` §2–§4.
+- **Fixtures:**
+  - `fixtures/README.md:328-368`;
+  - `fixtures/task-api/src/{schemas,routes,types}/index.ts`;
+  - the exported functions of `fixtures/task-api/src/**`;
+  - `fixtures/acme-shop/app/Services/`.
+
+---
+
+### 1. Scope against the ticket
+
+Clean. Everything in the change traces to one of three sources:
+- the `[original]` DoD and procedure of DIS-80;
+- its enhanced D1–D12;
+- a correction from runs 1–5.
+
+The change does not widen toward DIS-53's Table 1, `measure-graph` or the filled Table 2. All three stay explicit non-goals in the proposal and the design.
+
+The author's run note for this ticket says: "Sigue el procedimiento de la descripción del ticket: los 22 sitios ya listados en fixtures/README.md son el control; las anotaciones se commitean con su SHA-256 en el informe de concordancia antes de cerrar". The change matches it:
+- the 22 README rows are the control (spec "Control reference", P3, D9);
+- the hashes are committed in the report at freeze task 6.3, before the PR closes (13.7).
+
+### 2. Inherited acceptance criteria
+
+Clean.
+- **DoD of DIS-80.** Each item has a requirement and a scenario:
+  - 50 entries per language with an expected resolution and a `file:line` reason: "Deterministic merge" and "Panel output validation";
+  - a report with percent and kappa per language, the disagreements and their resolution: "Agreement measures" and "Frozen annotations and agreement report";
+  - SHA-256 committed before any `measure-graph` run: "Frozen annotations…" and task 8.3.
+- **Original procedure, steps 1–5.** Covered:
+  - selection covering the hard cases: "Call-site lists" and the D5 labels;
+  - blind panel A/B with the forbidden reads;
+  - control agreement per panelist;
+  - a tie-break justified by line;
+  - a freeze after which nothing modifies `fixtures/annotations/` (6.3).
+- **Enhanced AC 1–5.** Each is covered. AC 5 matches the citation rule.
+- **DIS-53.** Only "Dado 50 sitios anotados por lenguaje" is inherited, and it is covered.
+
+*Improvable.* Original procedure step 1 says the batches of `fixtures/README.md` are completed "con el formato de ese README (origen → destino · resolución esperada · razón)". The change does two things here:
+- It keeps the 50 sites in JSON (format 1). That is enhanced D1 and D12, agent's decisions that do not contradict the ticket.
+- It points the README at those files instead of adding 78 rows to the README.
+
+Format 1 carries exactly those four columns (`source`, `target`, `expected`, `reason`), but no artifact says so. Add one sentence to design D1 or D12 stating it, so that `/verify-against-spec` does not read the pointer as a departure from the procedure.
+
+### 3. Missing scenarios
+
+Clean. All 28 scenarios exist (19 + 4 + 5), and every MUST clause has a scenario:
+- the validation list, including the `panelist` / file check and the path-string rule for `sourcesRead`;
+- the `agreement.json` shape;
+- the CLI exit codes and the hash order;
+- the selection per construction;
+- the control discrepancies;
+- the merge failure and determinism.
+
+Task 8.3 checks the freeze-before-`measure-graph` clause, as the spec states.
+
+### 4. Ambiguity
+
+Clean. None of fast / easy / secure / efficient / many / appropriate / robust occurs in the artifacts. The only hit is the quotation in Follow-up row I3 of `design.md:373`.
+
+### 5. Open decisions
+
+No blocking finding. I checked the decisions a test or a panelist would pin:
+- formats (site list, `control.json`, `selection.json`, panelist and resolution outputs, `agreement.json`, format 1, report sections and the hash table);
+- limits (50 / 12 / 10; at least 2 new sites per construction, or every remaining instance);
+- error cases and exit codes;
+- empty inputs: `resolution.json` with empty `sites`, `Ninguno.` / `Ninguna.`, and a construction row with no instance (`—`);
+- rounding;
+- names: labels, ids, test names.
+
+*Improvable — order inside the pairs of `hashes`.* The spec "Agreement CLI" fixes the order as "the two site lists, `control.json`, …, `agreement.json` and the two annotation files", and the scenario "hashes prints the nine files in order" pins that order. But it does not say which file of each pair comes first. The impact is nil: the same agent writes the test, the script and the report table from the same output. Still, make it explicit (acme-shop before task-api, as in `agreement.json`'s `languages`).
+
+*Checked, no finding — calls through an `index.ts` re-export.* The only barrel in `src/**` is `src/schemas/index.ts` (`export * from …`). It re-exports Zod schemas and types only; every exported function lives elsewhere. So a call through it is a Zod call (`none`) or does not occur. The validation rule "the last segment of `target.symbol` appears in `target.file`" already forces the declaring file over the barrel. When the `reexport` row has fewer than 2 instances, it takes every remaining instance, as the spec allows.
+
+### 6. Contradictions inside the change
+
+Clean. The proposal, the design and the spec agree on all of the following:
+- the files: nine hashed files, with `selection.json` committed before the panel and not hashed, for the reason given in D10;
+- format 1, including `form`;
+- the criterion, which is word for word in D2 and in the Panel group;
+- the two allowlists and the path-string rule;
+- the measures and the shape of `agreement.json`;
+- the merge, the CLI and its exit codes;
+- the report sections;
+- the line-ending check of 6.2 and 8.3.
+
+The Panel group says it prevails over the DIS-80 description. The enhanced description is aligned with it at rule level and names no site, line or control answer.
+
+### 7. Contradictions with the project
+
+Clean.
+- **Main specs:** `openspec/specs/` has no capability on annotations, so nothing is duplicated.
+- **ADRs:** none bears on measurement data (design P8).
+- **Exit codes:** `2` for a usage error follows `scripts/demo-excerpt.mjs:15-16` and `docs/project-context.md:78-88`.
+- **Workflow:**
+  - The resolver prompt (`autonomous-sdd.js:154`, "any measurement output") is consistent: the resolver neither reads `agreement.json` nor runs the script.
+  - The `COMMON` contract (`:62-71`) is neutralised for the resolver by the Panel group paragraph "Resolver and its step contract".
+  - Panelists are launched without `COMMON` (`:145`).
+  - The recording step (`:152`) runs task 4.3.
+- **Agent merge in 13.7:** it differs from `docs/openspec-tasks-mandatory-steps.md` §3 ("The agent never merges"). It follows the autonomous profile, as runs 1–5 noted. The author's run note asks for closure, which confirms this.
+
+### 8. Contrast with the real code
+
+Clean.
+- The script follows the `scripts/demo-excerpt.mjs` pattern (`.mjs` + `.d.mts` + pure functions + thin CLI, `--root` like `fixturesRoot`) and duplicates no abstraction.
+- `fixtures/README.md:328-366` matches what tasks 2.1, 2.3 and 11.1 expect:
+  - the section title and intro;
+  - the two headings with "pending";
+  - 12 + 10 rows: row 4 with a graph target, row 6 an event row, row 7 with a graph target `__call`, rows 11/12 routes, task-api row 3 with two edges, rows 7/10 "no edge".
+- `fixtures/acme-shop/app/Services/` exists, so the directory/glob scenario's example `fixtures/acme-shop/app/Services` is real.
+- The re-export facts are those of point 5.
+
+### 9. Task size
+
+Clean. The heaviest tasks are 1.1 (19 `it` cases over a temporary root), 2.2a / 2.2b (38 / 40 new sites plus `selection.json`) and 6.2. Each fits one agent turn now that its inputs and formats are fixed.
+
+### 10. Mandatory steps
+
+Clean.
+- Step 0 comes first and is labelled `(MANDATORY - FIRST STEP)`, with the branch and its prefix.
+- The mandatory steps are present and labelled:
+  - 7, review existing tests;
+  - 8, run tests and verify data state: baseline in 0.4, report path `YYYY-MM-DD-8-test-and-state-verification.md` and the §6 template;
+  - 9, manual interface testing (`AGENT MUST EXECUTE`): success and error paths on a scratchpad copy, restoration in 9.3, report in 9.4;
+  - 10, E2E, justified N/A;
+  - 11, documentation;
+  - 13, pre-merge review, last: the three checks in order, fixes on the same PR, the archive commit before the merge.
+- Mutating tasks restore state, and the dev-process stops are present.
+- Every scenario maps to a task (7.2).
+
+### 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| Call-site lists | Each site list has 50 sites with the controls first | 2.1, 2.2a, 2.2b |
+| Call-site lists | Every site points at its call in the fixture | 2.1, 2.2a, 2.2b |
+| Call-site lists | A site list carries no answer | 2.1, 2.2a, 2.2b, 3.1 |
+| Call-site lists | The report counts the selection per construction | 2.2a, 2.2b, 2.4, 6.1, 6.2 |
+| Control reference | The control reference transcribes the 22 README rows | 2.1, 2.3 |
+| Panel output validation | A complete panel output is accepted | 1.1, 1.2, 4.3 |
+| Panel output validation | An incomplete panel output is rejected | 1.1, 1.2, 4.3, 9.2 |
+| Panel output validation | A citation to a line that does not exist is rejected | 1.1, 1.2, 4.3, 9.2 |
+| Panel output validation | A reason without a citation is rejected | 1.1, 1.2, 4.3 |
+| Panel output validation | An answer inconsistent between expected and target is rejected | 1.1, 1.2, 4.3 |
+| Panel output validation | A target that does not exist in the fixture is rejected | 1.1, 1.2, 4.3 |
+| Panel output validation | A declared forbidden source is rejected | 1.1, 1.2, 4.3, 9.2 |
+| Panel output validation | A sourcesRead entry that is a directory or a glob is rejected | 1.1, 1.2, 4.3 |
+| Panel output validation | A resolution with a source outside the resolver allowlist is rejected | 1.1, 1.2, 5.1 |
+| Agreement measures | Percent agreement and Cohen's kappa per language | 1.1, 1.2, 4.3 |
+| Agreement measures | Kappa is undefined when the expected agreement is 1 | 1.1, 1.2 |
+| Agreement measures | Agreement with the control per panelist | 1.1, 1.2, 4.3 |
+| Deterministic merge | Agreed sites take the common answer | 1.1, 1.2, 5.1 |
+| Deterministic merge | Disagreements take the resolution | 1.1, 1.2, 5.1 |
+| Deterministic merge | A missing or extra resolution fails the merge | 1.1, 1.2, 5.1, 9.2 |
+| Deterministic merge | The merge is deterministic | 1.1, 1.2, 5.2 |
+| Agreement CLI | An unknown command is a usage error | 1.1, 1.2, 9.2 |
+| Agreement CLI | A rejected panel output writes no agreement file | 1.1, 1.2, 4.3, 9.2 |
+| Agreement CLI | hashes prints the nine files in order | 1.1, 1.2, 6.2, 8.3, 9.1 |
+| Frozen annotations and report | The recorded hashes match the frozen files | 6.1, 6.2, 6.3, 8.3 |
+| Frozen annotations and report | A changed annotation file fails the freeze check | 6.1 |
+| Frozen annotations and report | The report states the method and every disagreement | 6.1, 6.2 |
+| Frozen annotations and report | The report lists every control discrepancy | 6.1, 6.2, 6.4 |
+
+No row is empty. The scenario count is 19 + 4 + 5 = 28, which matches task 7.2.
+
+---
+
+### Corrections to apply
+
+These are optional; both findings are improvable and none blocks the apply.
+
+#### `specs/graph-annotations/spec.md`
+- **Requirement "Agreement CLI" (point 5, improvable).** Replace "in this order: the two site lists, `control.json`, `panelist-1.json`, `panelist-2.json`, `resolution.json`, `agreement.json` and the two annotation files" with "in this order: `acme-shop.sites.json`, `task-api.sites.json`, `control.json`, `panelist-1.json`, `panelist-2.json`, `resolution.json`, `agreement.json`, `acme-shop.callsites.json`, `task-api.callsites.json`".
+
+#### `design.md`
+- **D10 (point 5, improvable).** Use the same explicit order in the `hashes` bullet.
+- **D1 or D12 (point 2, improvable).** Add: "Format 1 carries the README's columns (source → target · expected resolution · reason) as `source`, `target`, `expected` and `reason`; this is how the 50 sites follow the format of `fixtures/README.md` § "Table 2 seed" required by procedure step 1 of DIS-80, without adding rows to the control table."
+- **Follow-ups.** If these are taken, add rows R6-I1 (hash order) and R6-I2 (format 1 = README columns), destination A; otherwise destination D.
+
+#### `tasks.md`
+- No change required.
+
+#### Linear
+- **DIS-80:** optional Spanish comment: «Ronda 6 de la auditoría de spec: APPROVED, sin hallazgos bloqueantes; mejoras menores opcionales (orden explícito de los nueve ficheros en `hashes` y nota de que el formato 1 lleva las columnas del README: origen → destino · resolución esperada · razón)». The `[original]` block is not edited.
