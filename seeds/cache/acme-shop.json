@@ -178,7 +178,16 @@
         },
         "confidence": 0.8554222495341228
       },
-      "reviews": []
+      "reviews": [
+        {
+          "by": "agent:claude-opus-5-5",
+          "date": "2026-10-28"
+        },
+        {
+          "by": "agent:claude-sonnet-5-5",
+          "date": "2026-10-28"
+        }
+      ]
     },
     {
       "id": "Q3",
@@ -261,7 +270,16 @@
         },
         "confidence": 0.6224593312018546
       },
-      "reviews": []
+      "reviews": [
+        {
+          "by": "agent:claude-opus-5-5",
+          "date": "2026-10-28"
+        },
+        {
+          "by": "agent:claude-sonnet-5-5",
+          "date": "2026-10-28"
+        }
+      ]
     },
     {
       "id": "Q4",
@@ -361,7 +379,16 @@
         },
         "confidence": 0.8354835371034369
       },
-      "reviews": []
+      "reviews": [
+        {
+          "by": "agent:claude-opus-5-5",
+          "date": "2026-10-28"
+        },
+        {
+          "by": "agent:claude-sonnet-5-5",
+          "date": "2026-10-28"
+        }
+      ]
     }
   ]
 }
