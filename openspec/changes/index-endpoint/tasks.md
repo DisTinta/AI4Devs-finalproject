@@ -117,7 +117,7 @@ This group is done by independent agents launched outside the apply: panelist 1 
 - [x] 10c.1 Panelist 1 (Opus): judge the seven items under the criterion above, from the allowlist only; output `docs/golden-review/panel/2026-10-golden-review-dis-9-panelist-1.json`
 - [x] 10c.2 Panelist 2 (Sonnet): the same, blind to panelist 1; output `docs/golden-review/panel/2026-10-golden-review-dis-9-panelist-2.json`
 - [x] 10c.3 Recording: write both outputs exactly as returned (two-space JSON, LF, final newline), commit them (explicit paths) and push. Do not complete, reorder or correct any content
-- [ ] 10c.4 Resolver (Opus, fresh context): derive the disagreement items from the two panelist outputs (different `verdict`); for each, and only those, read both judgements and the fixture code and decide the verdict under the same criterion, justifying with `file:line`; output `docs/golden-review/panel/2026-10-golden-review-dis-9-resolution.json` (`"items": []` when there is no disagreement); commit it (explicit path) and push
+- [x] 10c.4 Resolver (Opus, fresh context): derive the disagreement items from the two panelist outputs (different `verdict`); for each, and only those, read both judgements and the fixture code and decide the verdict under the same criterion, justifying with `file:line`; output `docs/golden-review/panel/2026-10-golden-review-dis-9-resolution.json` (`"items": []` when there is no disagreement); commit it (explicit path) and push
 
 ## 10d. After the panel: validate, sign and record (spec golden-answers "Panel outputs of the golden review", "Signatures of the reviewed golden answers", "Golden review report")
 
