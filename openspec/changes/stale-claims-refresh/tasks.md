@@ -152,11 +152,11 @@ This group is done by independent agents launched outside the apply: panelist 1 
 
 ## 14. Pull request preparation
 
-- [ ] 14.1 `/pr-describe` in Spanish against `final-project-CRN`: the Why marked as the agent's text (R1–R14, P1–P11), the in-place rewrite and its ADR, the existing tests changed (8.1), the Stryker score, the regenerated seed and golden files and the DIS-42 round (verdicts, agreement, pending tickets), and what is pending for the author: the PowerShell check (R13, destination C)
+- [x] 14.1 `/pr-describe` in Spanish against `final-project-CRN`: the Why marked as the agent's text (R1–R14, P1–P11), the in-place rewrite and its ADR, the existing tests changed (8.1), the Stryker score, the regenerated seed and golden files and the DIS-42 round (verdicts, agreement, pending tickets), and what is pending for the author: the PowerShell check (R13, destination C)
 
 ## 15. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 15.1 Open the PR against `final-project-CRN`; DIS-42 to In Review with a Spanish comment linking it
+- [x] 15.1 Open the PR against `final-project-CRN`; DIS-42 to In Review with a Spanish comment linking it
 - [ ] 15.2 CI green, including the `verify` and mutation jobs: wait in the foreground with `gh pr checks <n> --watch --interval 60` (timeout 600000), repeated until no check is pending; link the run in an addendum to the step 9 report
 - [ ] 15.3 `/show-spec-working` (may reuse the step 11 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
 - [ ] 15.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
