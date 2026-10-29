@@ -3,13 +3,13 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { cohenKappa } from '../../../scripts/annotation-agreement.mjs';
 
-// Spec: openspec/changes/incremental-indexing/specs/golden-answers/spec.md (DIS-10 r2, the second DIS-10 round
-// of the golden review after the incremental indexing; previous rounds the first DIS-10 round, DIS-9, DIS-107
-// and DIS-33), delta of `golden-answers`:
+// Spec: openspec/changes/stale-claims-refresh/specs/golden-answers/spec.md (DIS-42, round of the golden
+// review after the stale claim refresh, prepared again on the code merged with DIS-10; previous rounds
+// DIS-10 r2, DIS-10, DIS-9, DIS-107 and DIS-33), delta of `golden-answers`:
 // "Blind panel input of the golden review". The independent review of the versioned golden answers is
 // done by a blind panel; this file ties the golden files, the panel files and the review report together.
 
-const INPUT_PATH = 'docs/golden-review/panel/2026-10-golden-review-dis-10-r2-input.json';
+const INPUT_PATH = 'docs/golden-review/panel/2026-10-golden-review-dis-42-input.json';
 
 interface GoldenStatement {
   text: string;
@@ -170,27 +170,31 @@ interface Resolution {
 
 const PANEL_DIR = 'docs/golden-review/panel';
 const PANELIST_PATHS = [
-  `${PANEL_DIR}/2026-10-golden-review-dis-10-r2-panelist-1.json`,
-  `${PANEL_DIR}/2026-10-golden-review-dis-10-r2-panelist-2.json`,
+  `${PANEL_DIR}/2026-10-golden-review-dis-42-panelist-1.json`,
+  `${PANEL_DIR}/2026-10-golden-review-dis-42-panelist-2.json`,
 ];
-const RESOLUTION_PATH = `${PANEL_DIR}/2026-10-golden-review-dis-10-r2-resolution.json`;
-const CHANGE = 'incremental-indexing';
+const RESOLUTION_PATH = `${PANEL_DIR}/2026-10-golden-review-dis-42-resolution.json`;
+const CHANGE = 'stale-claims-refresh';
 const TASKS_PATH = `openspec/changes/${CHANGE}/tasks.md`;
-const REPORT_PATH = 'docs/golden-review/2026-10-golden-review-dis-10-r2.md';
-/** The previous rounds, newest first: the first DIS-10 round, then DIS-9, then DIS-107, then DIS-33. */
+const REPORT_PATH = 'docs/golden-review/2026-10-golden-review-dis-42.md';
+/** The previous rounds, newest first: DIS-10 r2, then the first DIS-10 round, then DIS-9, then DIS-107, then DIS-33. */
 const PREVIOUS_ROUND_REPORTS = [
+  'docs/golden-review/2026-10-golden-review-dis-10-r2.md',
   'docs/golden-review/2026-10-golden-review-dis-10.md',
   'docs/golden-review/2026-10-golden-review-dis-9.md',
   'docs/golden-review/2026-10-golden-review-dis-107.md',
   'docs/golden-review/2026-10-task-api-golden-review.md',
 ];
 const PREVIOUS_ROUND_PANELISTS = [
+  `${PANEL_DIR}/2026-10-golden-review-dis-10-r2-panelist-1.json`,
   `${PANEL_DIR}/2026-10-golden-review-dis-10-panelist-1.json`,
   `${PANEL_DIR}/2026-10-golden-review-dis-9-panelist-1.json`,
   `${PANEL_DIR}/2026-10-golden-review-dis-107-panelist-1.json`,
   `${PANEL_DIR}/2026-10-golden-review-panelist-1.json`,
 ];
+/** The previous rounds' tasks files; the DIS-10 one holds two Criterion blocks (the first DIS-10 round and r2). */
 const PREVIOUS_ROUND_TASKS = [
+  'openspec/changes/archive/2026-10-29-incremental-indexing/tasks.md',
   'openspec/changes/archive/2026-10-29-index-endpoint/tasks.md',
   'openspec/changes/archive/2026-10-28-ts-await-using-golden-regen/tasks.md',
   'openspec/changes/archive/2026-10-28-golden-independent-review/tasks.md',
@@ -413,7 +417,7 @@ describe('golden review: panel outputs', () => {
       ['allowlist', 'sourcesRead entry outside the allowlist', (o) => o.sourcesRead.push('seeds/cache/task-api.json')],
       ['directory', 'directory entry with a trailing slash', (o) => o.sourcesRead.push('fixtures/task-api/src/')],
       ['directory', 'existing directory without a trailing slash', (o) => o.sourcesRead.push('fixtures/task-api/src')],
-      ['allowlist', 'a Linear description entry', (o) => o.sourcesRead.push('linear:DIS-10/description')],
+      ['allowlist', 'a Linear description entry', (o) => o.sourcesRead.push('linear:DIS-42/description')],
       ...PREVIOUS_ROUND_PANELISTS.map((path): [string, string, (output: PanelOutput) => void] => [
         'allowlist',
         `the panelist output of a previous round (${path})`,
@@ -733,29 +737,30 @@ describe('golden review: report', () => {
     const report = readFileSync(resolve(REPORT_PATH), 'utf8');
 
     // Act
-    // The change's tasks file holds two Criterion blocks: the Panel group of the first DIS-10 round and the r2 one.
-    const blocks = tasks.flatMap((line, start) => {
-      if (!line.startsWith('**Criterion**')) return [];
-      const end = tasks.findIndex((candidate, index) => index > start && candidate.startsWith('**Output format.**'));
-      return [{ start, end, lines: nonBlankLines(tasks.slice(start + 1, end).join('\n')) }];
-    });
+    /** Every Criterion block of a tasks file: the non-blank lines between `**Criterion**` and the next `**Output format.**`. */
+    const criterionBlocks = (lines: string[]) =>
+      lines.flatMap((line, start) => {
+        if (!line.startsWith('**Criterion**')) return [];
+        const end = lines.findIndex((candidate, index) => index > start && candidate.startsWith('**Output format.**'));
+        return [{ start, end, lines: nonBlankLines(lines.slice(start + 1, end).join('\n')) }];
+      });
+    const blocks = criterionBlocks(tasks);
     const criterion = nonBlankLines(sectionsOf(report).get('Criterion') ?? '');
-    const previousBlocks = PREVIOUS_ROUND_TASKS.map((path) => {
-      const previousTasks = readFileSync(resolve(path), 'utf8').split('\n');
-      const previousStart = previousTasks.findIndex((line) => line.startsWith('**Criterion**'));
-      const previousEnd = previousTasks.findIndex((line) => line.startsWith('**Output format.**'));
-      return { path, previousStart, previousEnd, lines: nonBlankLines(previousTasks.slice(previousStart + 1, previousEnd).join('\n')) };
-    });
+    const previousBlocks = PREVIOUS_ROUND_TASKS.map((path) => ({ path, blocks: criterionBlocks(readFileSync(resolve(path), 'utf8').split('\n')) }));
 
     // Assert
-    expect(blocks, 'the tasks file has the Criterion blocks of the first DIS-10 round and of r2').toHaveLength(2);
-    for (const { start, end, lines: block } of blocks) {
-      expect(end).toBeGreaterThan(start);
-      expect(block.length).toBeGreaterThan(0);
-      expect(block.every((line) => line.startsWith('- '))).toBe(true);
-      expect(criterion).toEqual(block);
-      for (const { path, previousStart, previousEnd, lines } of previousBlocks) {
-        expect(previousStart, path).toBeGreaterThanOrEqual(0);
+    expect(blocks, 'the tasks file has the Criterion block of its Panel group').toHaveLength(1);
+    expect(
+      previousBlocks.map(({ blocks: found }) => found.length),
+      'the DIS-10 tasks file has two Criterion blocks, the DIS-9, DIS-107 and DIS-33 ones one each',
+    ).toEqual([2, 1, 1, 1]);
+    const [{ start, end, lines: block }] = blocks as [(typeof blocks)[number]];
+    expect(end).toBeGreaterThan(start);
+    expect(block.length).toBeGreaterThan(0);
+    expect(block.every((line) => line.startsWith('- '))).toBe(true);
+    expect(criterion).toEqual(block);
+    for (const { path, blocks: found } of previousBlocks) {
+      for (const { start: previousStart, end: previousEnd, lines } of found) {
         expect(previousEnd, path).toBeGreaterThan(previousStart);
         expect(block, `the criterion is the criterion of ${path}, copied verbatim`).toEqual(lines);
       }
