@@ -286,6 +286,10 @@ revisó en DIS-107 un panel de agentes independientes (su informe es
 `discountFor`, no `discount`, un desliz de nombre que el criterio no cuenta como error. Quedó firmada
 con las dos firmas del panel y no hay ningún pendiente. La ronda anterior (DIS-33) había juzgado
 `incorrect` la golden de DIS-32; DIS-108 queda resuelto por la ronda de DIS-107 y lo cierra la autora.
+El 2026-10-29, DIS-9 volvió a regenerar las golden (nueva huella de la semilla), así que el texto de
+esta salida es el de la golden de DIS-107 y no se ha vuelto a capturar. La golden actual de
+acme-shop `Q1` la revisó la ronda DIS-9 (`docs/golden-review/2026-10-golden-review-dis-9.md`), que la
+juzgó `correct` y la firmó con las dos firmas del panel.
 
 La CLI no imprime el uso de tokens; la API sí. `npm run demo:ask` envía la pregunta a
 `POST /api/projects/{projectId}/ask` (el id es el que imprimió `projects`) y muestra el estado HTTP,

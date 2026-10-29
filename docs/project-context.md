@@ -1216,8 +1216,9 @@ services that must be started first, quirks of the local environment.
   (`model`, `verifyModel`), `entries` (`id`, `question`, `questionNormalized`, `response`,
   `reviews` — `{by, date}` per review: DIS-34 added `agent:claude-opus-5-5` to every entry; the
   golden answers are now reviewed by an independent agent panel (DIS-33, then DIS-107 after the
-  analyzer fix regenerated them: blind input, criterion first, signatures `agent:<model>`, report in
-  `docs/golden-review/`, the DIS-107 round's files suffixed `-dis-107`); an `incorrect` one stays unsigned and
+  analyzer fix regenerated them, then DIS-9 after the index pipeline extraction regenerated them:
+  blind input, criterion first, signatures `agent:<model>`, report in `docs/golden-review/`, each
+  round's files suffixed with its ticket, the current DIS-9 round's `-dis-9`); an `incorrect` one stays unsigned and
   goes to a successor ticket; a regenerated entry comes back with empty `reviews` and needs a new
   panel); no generation time; canonical render = 2-space JSON in that key
   order, LF, final newline. **`answerFingerprint`** (`answer-fingerprint.ts`) = the seed's
