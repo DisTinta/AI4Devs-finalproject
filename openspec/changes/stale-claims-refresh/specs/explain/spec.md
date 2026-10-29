@@ -5,8 +5,8 @@
 When explain returns an answered answer (stored or not), it SHALL, after the answer's claim write
 (whatever its result) and before the cache save and the `query_log` row, refresh the due prior
 claims of the answer. A prior claim is due when its status is `stale`, its layer `L2`, its type
-`INFERENCE`, its object is not null and its provenance holds a statement type (the claims explain
-writes); at most `MAX_STALE_REFRESHES` (3, an exported constant) are due, the first ones in
+`INFERENCE`, its object is not null and its provenance holds a statement type, `FACT` or
+`INFERENCE` (the claims explain writes; any other value, `null` included, is not one); at most `MAX_STALE_REFRESHES` (3, an exported constant) are due, the first ones in
 prior-claims order (newest first). Every other prior claim (current, `L1`, `L2` `UNKNOWN`, an `L2`
 `INFERENCE` claim without object or without statement type, or past the limit) SHALL be
 shown as requirement "Prior claims" says, with no model call and no event. An `UNKNOWN` answer, an
@@ -20,7 +20,9 @@ The due claims SHALL be refreshed one at a time, in that order. Refreshing a cla
    model call;
 2. call the model once with the purpose `answer` and a refresh prompt: a fixed system message of its
    own (not explain's), which asks to restate or correct the earlier statement using only the
-   evidence, in the language of that statement, and to return the same JSON object as an answer; and
+   evidence, in the language of that statement, citing only the evidence ids given, and to return
+   the same JSON object as an answer, with an empty statement list when the evidence does not
+   support the statement; and
    a user message that is a JSON object with exactly `claim` (the stored object, neutralised and
    wrapped between the untrusted-data markers under the id `claim`, as the question is in the explain
    prompt), `claimFlags` (the codes of `INSTRUCTION_PATTERNS` the stored object matched, in their
@@ -42,7 +44,10 @@ The due claims SHALL be refreshed one at a time, in that order. Refreshing a cla
    hash, every sanitised span of the pack as input spans and the clock's first instant of the call),
    one evidence per kept citation with its verdict and its span's redacted text as excerpt, and the
    pack's commit as the commit it was read at. When the store writes nothing the code is
-   `superseded`; when it rejects with `ClaimWriteFailed` the code is `store-write-failed`;
+   `superseded`; when it rejects with `InvalidStoreQuery` naming `claims` (a cited file is no longer
+   a file of the project, as after a re-index that deleted it between the pack's read and the write)
+   the code is also `superseded`; when it rejects with `ClaimWriteFailed` the code is
+   `store-write-failed`;
 6. when rewritten, show the prior claim at the same position with the same id, the new statement as
    text, its statement type as displayed type, status `current`, no warning, and the new evidence
    (its new ids, file id, file path, lines and excerpt).
@@ -55,7 +60,8 @@ A claim that is not rewritten SHALL be shown as it was read (`stale`, with `warn
 of a refresh failing with either leaves its pairs `cited`, as for an answer. Any other failure of a
 refresh (the refresh's `answer` call with an error other than `LlmUnavailable` and
 `BudgetExhausted`, a verification read other than a missing file, a `verify` call, or the claim
-refresh other than `ClaimWriteFailed` and its not-written result) SHALL propagate unchanged, after
+refresh other than `ClaimWriteFailed`, `InvalidStoreQuery` naming `claims` and its not-written
+result) SHALL propagate unchanged, after
 the row of requirement "Query log".
 
 The sanitisation, schema-violation, `evidence_broken` and `entailment_unverified` events of a refresh
@@ -144,11 +150,14 @@ rewritten is cached `stale`, with its warning, until the entry is invalidated).
 
 - **GIVEN** a due stale claim `c1` and a live model whose refresh would rewrite it
 - **WHEN** the question is explained with the project's indexed commit moved between the refresh call
-  and its write, again with `c1` turned `current` by another call before its write, and again with
-  the claim refresh rejecting with `ClaimWriteFailed` whose message holds a sentinel text
+  and its write, again with `c1` turned `current` by another call before its write, again with
+  the claim refresh rejecting with `ClaimWriteFailed` whose message holds a sentinel text, and again
+  with the claim refresh rejecting with `InvalidStoreQuery` naming `claims` (a cited file deleted by
+  a re-index before the write)
 - **THEN** each answer is `answered`, and `c1` is shown as it was read, `stale` with its warning
-- **AND** the events hold `stale_claim_not_refreshed` for `c1` with code `superseded`, `superseded`
-  and `store-write-failed` respectively, and the serialised answers do not hold the sentinel
+- **AND** the events hold `stale_claim_not_refreshed` for `c1` with code `superseded`, `superseded`,
+  `store-write-failed` and `superseded` respectively, and the serialised answers do not hold the
+  sentinel
 
 #### Scenario: At most three stale claims are refreshed per question
 

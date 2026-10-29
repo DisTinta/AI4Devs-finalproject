@@ -1,5 +1,5 @@
 import type { ContextSpan } from '../context/context-pack.js';
-import { ClaimWriteFailed } from '../knowledge/errors.js';
+import { ClaimWriteFailed, InvalidStoreQuery } from '../knowledge/errors.js';
 import type { ClaimItem, StoredClaim, StoredEvidence } from '../knowledge/stored-claim.js';
 import { BudgetExhausted, LlmUnavailable } from '../llm/errors.js';
 import type { CostTable } from '../llm/cost-table.js';
@@ -83,7 +83,7 @@ type Refreshed = { claim: StoredClaim } | { code: StaleClaimNotRefreshedCode };
 
 /**
  * Whether a prior claim is due for a refresh: stale, `L2`, `INFERENCE`, with an object and a
- * provenance holding a statement type (the shape `toClaimItems` writes).
+ * provenance holding a statement type, `FACT` or `INFERENCE` (the shape `toClaimItems` writes).
  */
 function isDue(claim: StoredClaim): boolean {
   const statementType = (claim.provenance as { statementType?: unknown } | undefined)?.statementType;
@@ -92,7 +92,7 @@ function isDue(claim: StoredClaim): boolean {
     claim.layer === 'L2' &&
     claim.type === 'INFERENCE' &&
     claim.object !== null &&
-    statementType !== undefined
+    (statementType === 'FACT' || statementType === 'INFERENCE')
   );
 }
 
@@ -117,7 +117,8 @@ function overlaps(span: SanitizedSpan, evidence: StoredEvidence): boolean {
  * @returns The prior claims to show, the events and the usage of the semantic checks.
  * @throws Any failure of the refresh's `answer` call other than `LlmUnavailable` and `BudgetExhausted`,
  *   of a verification read other than a missing file, of a `verify` call other than those two, or of
- *   the claim refresh other than `ClaimWriteFailed`, unchanged.
+ *   the claim refresh other than `ClaimWriteFailed` (code `store-write-failed`) and `InvalidStoreQuery`
+ *   naming `claims` (code `superseded`: a re-index deleted a cited file before the write), unchanged.
  */
 export async function refreshStaleClaims(deps: StaleRefreshDependencies, input: StaleRefreshInput): Promise<StaleRefreshResult> {
   const due = input.prior.filter(isDue).slice(0, MAX_STALE_REFRESHES);
@@ -211,6 +212,9 @@ async function refreshOne(
     refresh = await deps.store.refreshClaim(input.projectId, claim.id, item, input.commit);
   } catch (error) {
     if (error instanceof ClaimWriteFailed) return { code: 'store-write-failed' };
+    // A cited file that is no longer a file of the project: a re-index deleted it after the pack was
+    // read, so the claim is no longer due against the indexed code (spec "Stale claim refresh" step 5).
+    if (error instanceof InvalidStoreQuery && error.argument === 'claims') return { code: 'superseded' };
     throw error;
   }
   if (!refresh.refreshed) return { code: 'superseded' };

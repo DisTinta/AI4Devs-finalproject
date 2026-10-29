@@ -140,21 +140,59 @@ describeWithDatabase('graph store claim refresh (DIS-42)', () => {
         [a, 8, 9],
       ]),
     );
+    // A newer claim on `b.php`: the refreshed `c1` must stay after it in the newest-first retrieval.
+    const [newer] = await store.saveClaims(projectId, [claimItem(projectId, [[b, 1, 2]], 'a newer claim')]);
     const before = await db().query<{ created_at: Date; updated_at: Date }>('SELECT created_at, updated_at FROM claim WHERE id = $1', [c1]);
     const previousEvidence = await db().query<{ id: string }>('SELECT id FROM evidence WHERE claim_id = $1', [c1]);
-    const item = claimItem(projectId, [[b, 4, 6]], 'compute rounds the total', 'new excerpt');
+    // Every replaceable column differs from the stored claim's: subject, confidence, provenance and verification.
+    const base = claimItem(projectId, [[b, 4, 6]], 'compute rounds the total', 'new excerpt');
+    const provenance = {
+      model: 'qwen2.5-coder',
+      promptHash: 'b'.repeat(64),
+      inputSpans: [{ fileId: b, startLine: 4, endLine: 6 }],
+      createdAt: '2026-10-14T10:00:00Z',
+      statementType: 'FACT' as const,
+    };
+    const item: ClaimItem = {
+      claim: { ...base.claim, subject: 'PriceCalculator::total', confidence: 0.5, provenance },
+      evidence: [{ ...base.evidence[0]!, verification: 'entailed' }],
+    };
 
     // Act
     const result = await store.refreshClaim(projectId, c1, item, C2);
 
     // Assert
     expect(result).toEqual({ refreshed: true, evidenceIds: [expect.any(String)] });
-    const claim = await db().query<{ id: string; object: string; status: string; created_at: Date; updated_at: Date; confidence: number | null }>(
-      'SELECT id, object, status::text AS status, created_at, updated_at, confidence FROM claim WHERE id = $1',
+    const claim = await db().query<{
+      id: string;
+      subject: string;
+      predicate: string;
+      object: string;
+      layer: string;
+      type: string;
+      status: string;
+      created_at: Date;
+      updated_at: Date;
+      confidence: number | null;
+      provenance: unknown;
+    }>(
+      `SELECT id, subject, predicate, object, layer::text AS layer, type::text AS type, status::text AS status, created_at, updated_at,
+              confidence, provenance
+         FROM claim WHERE id = $1`,
       [c1],
     );
     expect(claim.rows).toHaveLength(1);
-    expect(claim.rows[0]).toMatchObject({ id: c1, object: 'compute rounds the total', status: 'current', confidence: null });
+    expect(claim.rows[0]).toMatchObject({
+      id: c1,
+      subject: 'PriceCalculator::total',
+      predicate: 'explains',
+      object: 'compute rounds the total',
+      layer: 'L2',
+      type: 'INFERENCE',
+      status: 'current',
+      provenance,
+    });
+    expect(Number(claim.rows[0]!.confidence)).toBe(0.5);
     expect(claim.rows[0]!.created_at.getTime()).toBe(before.rows[0]!.created_at.getTime());
     expect(claim.rows[0]!.updated_at.getTime()).toBeGreaterThan(before.rows[0]!.updated_at.getTime());
     const evidence = await db().query<{ id: string; file_id: string; start_line: number; end_line: number }>(
@@ -167,11 +205,12 @@ describeWithDatabase('graph store claim refresh (DIS-42)', () => {
     const old = await db().query('SELECT 1 FROM evidence WHERE id = ANY($1::uuid[])', [previousEvidence.rows.map((row) => row.id)]);
     expect(old.rows).toEqual([]);
     const read = await store.findClaimsOverlapping(projectId, [{ fileId: b, startLine: 1, endLine: 10 }]);
-    expect(read.map((entry) => entry.id)).toEqual([c1]);
-    expect(read[0]!.evidence).toEqual([
-      { id: newIds[0], fileId: b, path: 'b.php', startLine: 4, endLine: 6, verification: 'none', excerpt: 'new excerpt' },
+    // At the position its unchanged creation instant gives it: after the newer claim.
+    expect(read.map((entry) => entry.id)).toEqual([newer!.claimId, c1]);
+    expect(read[1]!.evidence).toEqual([
+      { id: newIds[0], fileId: b, path: 'b.php', startLine: 4, endLine: 6, verification: 'entailed', excerpt: 'new excerpt' },
     ]);
-    expect(read[0]!.object).toBe('compute rounds the total');
+    expect(read[1]!.object).toBe('compute rounds the total');
   });
 
   it('A refresh that is no longer due writes nothing', async () => {

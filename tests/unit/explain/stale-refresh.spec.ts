@@ -5,6 +5,7 @@ import {
   ClaimWriteFailed,
   EXPLAIN_SYSTEM_PROMPT,
   explain,
+  InvalidStoreQuery,
   LlmUnavailable,
   MAX_STALE_REFRESHES,
   QueryLogWriteFailed,
@@ -55,7 +56,8 @@ const restate: RefreshScript = () => modelOutput('ok', [{ text: REFRESHED, evide
 const restateEach: RefreshScript = (prompt) => modelOutput('ok', [{ text: `restated: ${prompt.claim}`, evidenceIds: ['E1'] }]);
 
 /** An output without statements. */
-const noStatements: RefreshScript = () => modelOutput('ok', []);
+const NO_STATEMENTS_OUTPUT = 'refresh output without statements';
+const noStatements: RefreshScript = () => modelOutput(NO_STATEMENTS_OUTPUT, []);
 
 /** A script that answers the question with one statement citing the test file and every refresh with `refresh`. */
 function scriptOf(refresh: RefreshScript): Script {
@@ -403,6 +405,7 @@ describe('Requirement: Stale claim refresh', () => {
       expect(answer.events.filter((event) => ['schema_violation', 'evidence_broken', 'entailment_unverified'].includes(event.type))).toEqual([]);
       const serialised = JSON.stringify(answer);
       expect(serialised).not.toContain('refresh output that is not JSON');
+      expect(serialised).not.toContain(NO_STATEMENTS_OUTPUT);
       expect(serialised).not.toContain(REFRESHED);
     }
   });
@@ -420,10 +423,15 @@ describe('Requirement: Stale claim refresh', () => {
     const failing: DoubleOptions = {
       failClaimRefresh: () => Object.assign(new ClaimWriteFailed(), { message: OTHER_SENTINEL }),
     };
+    // A re-index that deleted a cited file before the write: the store no longer owns that file.
+    const fileDeleted: DoubleOptions = {
+      failClaimRefresh: () => new InvalidStoreQuery('claims', 'must cite only files of the project'),
+    };
     const cases: Array<[(d: () => Doubles) => DoubleOptions, StaleClaimNotRefreshedCode]> = [
       [movedCommit, 'superseded'],
       [alreadyCurrent, 'superseded'],
       [() => failing, 'store-write-failed'],
+      [() => fileDeleted, 'superseded'],
     ];
     for (const [options, code] of cases) {
       const d: Doubles = doubles({ script: scriptOf(restate), ...options(() => d) });
@@ -606,13 +614,16 @@ describe('Requirement: Stale claim refresh (selection rules)', () => {
     seed(d, 1, { type: 'UNKNOWN', statementType: 'INFERENCE' });
     seed(d, 2, { statementType: null });
     seed(d, 3, { object: null });
+    // A provenance whose statement type is stored as `null`: not a statement type.
+    const nullType = seed(d, 4);
+    (stored(d, nullType).provenance as { statementType: unknown }).statementType = null;
 
     // Act
     const answer = await ask(d);
 
     // Assert
     expect(d.model.requests.filter((request) => request.purpose === 'answer')).toHaveLength(1);
-    expect(answer.priorClaims.map((prior) => prior.status)).toEqual(['stale', 'stale', 'stale', 'stale']);
+    expect(answer.priorClaims.map((prior) => prior.status)).toEqual(['stale', 'stale', 'stale', 'stale', 'stale']);
     expect(staleEvents(answer.events)).toEqual([]);
   });
 

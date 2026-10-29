@@ -541,13 +541,14 @@ export function createInMemoryStore({
       if (!item.evidence.every((e) => ownsFile(e.fileId))) {
         throw new InvalidStoreQuery('claims', 'must cite only files of the project');
       }
-      injected(failClaimRefresh === undefined ? undefined : () => failClaimRefresh(claimId));
       beforeRefreshCheck?.(claimId);
       const row = claimRows.find((r) => r.projectId === project.id && r.claim.id === claimId.toLowerCase());
       // Read after the callback: it may have moved the indexed commit, as a re-index does.
       if (row === undefined || row.claim.status !== 'stale' || readAtCommit !== projectOf(projectId).indexedCommit) {
         return { refreshed: false };
       }
+      // An injected failure happens once the write has started, so only for a claim that is due.
+      injected(failClaimRefresh === undefined ? undefined : () => failClaimRefresh(claimId));
       const evidence = item.evidence.map((e) => ({
         ...e,
         fileId: e.fileId.toLowerCase(),

@@ -828,10 +828,28 @@ describe('in-memory StorePort double', () => {
       return { ...item, claim: { ...item.claim, status: 'stale' }, createdAt: SEEDED_AT };
     }
 
-    /** The refreshed record: a new object, `current`, with one evidence on `b.php` lines 4–6. */
+    /**
+     * The refreshed record: `current`, with a new subject, object, confidence and provenance, and one
+     * entailed evidence on `b.php` lines 4–6 with a new excerpt.
+     */
     function refreshItem(projectId: string, fileId: string): ClaimItem {
       const item = claimItem(projectId, fileId, 4, 6);
-      return { ...item, claim: { ...item.claim, object: 'compute rounds the total' } };
+      return {
+        claim: {
+          ...item.claim,
+          subject: 'PriceCalculator::total',
+          object: 'compute rounds the total',
+          confidence: 0.5,
+          provenance: {
+            model: 'qwen2.5-coder',
+            promptHash: 'b'.repeat(64),
+            inputSpans: [{ fileId, startLine: 4, endLine: 6 }],
+            createdAt: '2026-10-14T10:00:00Z',
+            statementType: 'FACT',
+          },
+        } as ClaimItem['claim'],
+        evidence: [{ ...item.evidence[0]!, verification: 'entailed', excerpt: 'new excerpt' }],
+      };
     }
 
     /** A double of a project indexed at `C2` with files `a.php` and `b.php`. */
@@ -853,8 +871,10 @@ describe('in-memory StorePort double', () => {
       const id = loaded.seedClaim(staleSeed(loaded.projectId, loaded.a));
       const other = loaded.seedClaim({ ...claimItem(loaded.projectId, loaded.a, 1, 2), createdAt: '2026-10-13T11:00:00.000Z' });
 
+      const item = refreshItem(loaded.projectId, loaded.b);
+
       // Act
-      const result = await loaded.store.refreshClaim(loaded.projectId, id, refreshItem(loaded.projectId, loaded.b), C2);
+      const result = await loaded.store.refreshClaim(loaded.projectId, id, item, C2);
 
       // Assert
       expect(result).toEqual({ refreshed: true, evidenceIds: [expect.any(String)] });
@@ -862,6 +882,10 @@ describe('in-memory StorePort double', () => {
       expect(stored.map((claim) => claim.id)).toEqual([id, other]);
       const claim = stored[0]!;
       expect(claim).toMatchObject({ id, status: 'current', object: 'compute rounds the total', createdAt: SEEDED_AT });
+      // The whole new record: every replaced column is the item's.
+      const { subject, predicate, layer, type, confidence, provenance } = item.claim;
+      expect(claim).toMatchObject({ projectId: loaded.projectId, subject, predicate, layer, type, confidence, provenance });
+      expect(claim.evidence[0]).toMatchObject({ verification: item.evidence[0]!.verification, excerpt: item.evidence[0]!.excerpt });
       expect(claim.evidence).toHaveLength(1);
       expect(claim.evidence[0]).toMatchObject({ id: (result as { evidenceIds: string[] }).evidenceIds[0], fileId: loaded.b, path: 'b.php', startLine: 4, endLine: 6 });
       expect(Date.parse(loaded.claimUpdatedAt(id)!)).toBeGreaterThan(Date.parse(claim.createdAt));
@@ -889,11 +913,17 @@ describe('in-memory StorePort double', () => {
       const unchangedAfterNotDue = JSON.stringify(loaded.storedClaims());
       moveTo = undefined;
       const first = await loaded.store.refreshClaim(loaded.projectId, id, item, C3);
+      const afterFirst = JSON.stringify(loaded.storedClaims());
+      const updatedAfterFirst = loaded.claimUpdatedAt(id);
       const second = await loaded.store.refreshClaim(loaded.projectId, id, item, C3);
 
       // Assert
       expect([atOlder, moved, first.refreshed, second]).toEqual([{ refreshed: false }, { refreshed: false }, true, { refreshed: false }]);
       expect(unchangedAfterNotDue).toBe(before);
+      // Only the third call changed `c1`: the fourth left it exactly as the third wrote it.
+      expect(afterFirst).not.toBe(before);
+      expect(JSON.stringify(loaded.storedClaims())).toBe(afterFirst);
+      expect(loaded.claimUpdatedAt(id)).toBe(updatedAfterFirst);
       expect(loaded.storedClaims()[0]!.status).toBe('current');
       expect(loaded.calls.refreshClaim).toBe(4);
     });
