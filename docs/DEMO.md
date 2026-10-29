@@ -289,9 +289,11 @@ con las dos firmas del panel y no hay ningún pendiente. La ronda anterior (DIS-
 El 2026-10-29, DIS-9, DIS-10 y después DIS-42 volvieron a regenerar las golden (nueva huella de la
 semilla), así que el texto de esta salida es el de la golden de DIS-107 y no se ha vuelto a capturar.
 La golden de acme-shop `Q1` de DIS-10 la revisaron las rondas DIS-10 y DIS-10 r2
-(`docs/golden-review/2026-10-golden-review-dis-10-r2.md`). La golden actual, regenerada en DIS-42, la
-revisó la ronda DIS-42 (`docs/golden-review/2026-10-golden-review-dis-42.md`), la ronda actual, que
-la juzgó `incorrect`: queda sin firmas y se regenera y se revisa de nuevo en la ronda DIS-42 r2.
+(`docs/golden-review/2026-10-golden-review-dis-10-r2.md`). La golden regenerada en DIS-42 la juzgó
+`incorrect` la ronda DIS-42 (`docs/golden-review/2026-10-golden-review-dis-42.md`); se volvió a
+regenerar sola y la golden actual la revisó la ronda DIS-42 r2
+(`docs/golden-review/2026-10-golden-review-dis-42-r2.md`), la ronda actual, que también la juzgó
+`incorrect`: queda sin firmas y se regenera y se revisa de nuevo en la ronda DIS-42 r3.
 
 La CLI no imprime el uso de tokens; la API sí. `npm run demo:ask` envía la pregunta a
 `POST /api/projects/{projectId}/ask` (el id es el que imprimió `projects`) y muestra el estado HTTP,
