@@ -1,6 +1,13 @@
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
+/**
+ * On Windows the kit's hook tests run after every other project with two workers (DIS-111). On Linux
+ * (CI) they keep the default and run alongside the rest: there they never timed out, and running them
+ * last made the CI `quality` job exceed its 10-minute limit.
+ */
+const HARNESS_POOL = process.platform === 'win32' ? { maxWorkers: 2, sequence: { groupOrder: 1 } } : {};
+
 export default defineConfig({
   // The root config has no React plugin: compile the `.tsx` tests with the React 17+ JSX runtime
   // whatever tsconfig the transformer finds (DIS-58 design D23). Vite 8 transforms with Oxc, which
@@ -58,15 +65,14 @@ export default defineConfig({
         // The kit's hook tests spawn bash scripts many times per test; on Windows, with the whole suite
         // in parallel, a few went past their timeouts (they pass alone and on CI). Two workers keep that
         // load bounded without running the 31 files one by one, about 48 min (DIS-111, DIS-9 E28).
-        // Vitest runs projects with a different `maxWorkers` in different groups, so this one runs after
-        // the others have finished.
+        // Vitest runs projects with a different `maxWorkers` in different groups, so on Windows this one
+        // runs after the others have finished (`HARNESS_POOL`).
         extends: true,
         test: {
           name: 'harness',
           include: ['tests/harness/**/*.{spec,test}.{ts,tsx}'],
           environment: 'node',
-          maxWorkers: 2,
-          sequence: { groupOrder: 1 },
+          ...HARNESS_POOL,
         },
       },
       {
