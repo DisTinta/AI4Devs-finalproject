@@ -55,6 +55,21 @@ export default defineConfig({
         },
       },
       {
+        // The kit's hook tests spawn bash scripts many times per test; on Windows, with the whole suite
+        // in parallel, a few went past their timeouts (they pass alone and on CI). Two workers keep that
+        // load bounded without running the 31 files one by one, about 48 min (DIS-111, DIS-9 E28).
+        // Vitest runs projects with a different `maxWorkers` in different groups, so this one runs after
+        // the others have finished.
+        extends: true,
+        test: {
+          name: 'harness',
+          include: ['tests/harness/**/*.{spec,test}.{ts,tsx}'],
+          environment: 'node',
+          maxWorkers: 2,
+          sequence: { groupOrder: 1 },
+        },
+      },
+      {
         // Every other test, the web's `.test.ts` files included, keeps running in Node (DIS-58 design D17).
         // The root globs are restated, and the two sets above excluded, so the effective `exclude` is the
         // same whether Vitest concatenates or replaces the arrays.
@@ -69,6 +84,7 @@ export default defineConfig({
             'packages/web/**/*.test.tsx',
             'tests/a11y/**/*.{spec,test}.{ts,tsx}',
             'tests/integration/cli/seed-build.spec.ts',
+            'tests/harness/**',
           ],
         },
       },
