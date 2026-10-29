@@ -7,7 +7,9 @@ import type { SourceTreePort } from '../ports/SourceTreePort.js';
 // The syntactic check of citations (DIS-68 design V1, V3, V4): every citation must point at lines that
 // exist at a commit, and its frozen excerpt must be the text the pack's rule gives those lines. Pure
 // but for the reads through the port: the commit is a parameter (D1), never read from the project,
-// so DIS-42 can reuse it with another commit. Nothing is logged; a verdict holds no text.
+// so a caller names the code it checked against. The stale claim refresh (DIS-42) reuses it through
+// `verifyAnswer` at the pack's own commit, never with another one (design R3, A4). Nothing is logged; a
+// verdict holds no text.
 
 /** How the sanitisation of `explain` cut a span: at a line boundary, or inside its first line. */
 export type CitationCut = 'lines' | 'line-cut';

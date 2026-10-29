@@ -10,7 +10,7 @@ import type {
 import type { NewProject, Project } from '../knowledge/project.js';
 import type { CacheEntry } from '../knowledge/cache-entry.js';
 import type { QueryLogEntry } from '../knowledge/query-log.js';
-import type { ClaimItem, ClaimSpan, SavedClaim, StoredClaim } from '../knowledge/stored-claim.js';
+import type { ClaimItem, ClaimRefresh, ClaimSpan, SavedClaim, StoredClaim } from '../knowledge/stored-claim.js';
 
 /**
  * Persists the knowledge graph. The domain talks to this port and never sees SQL.
@@ -121,6 +121,30 @@ export interface StorePort {
    *   it carries no text of the database error. A failure to obtain a connection propagates unchanged.
    */
   saveClaims(projectId: string, items: ClaimItem[], readAtCommit?: string): Promise<SavedClaim[]>;
+
+  /**
+   * Rewrites one stale claim in place (DIS-42 design D6), in one atomic and conditional operation, and
+   * resolves to `{ refreshed: true, evidenceIds }` (the ids the new evidence was stored under, in the
+   * order of `item.evidence`) or to `{ refreshed: false }` when it wrote nothing. Checks, in this
+   * order: `projectId` well formed; `claimId` well formed; `item` passes the checks of `saveClaims` for
+   * one item and its claim status is `current`, all before any statement; then, inside the write, the
+   * project exists and every cited file belongs to it. Under the project lock of `saveClaims` and with
+   * the claim's row locked, it writes only when the claim belongs to the project, is `stale` and
+   * `readAtCommit` is the project's indexed commit at that moment; otherwise nothing is written. When
+   * it writes, the claim keeps its id, project and creation instant; its subject, predicate, object,
+   * layer, type, confidence and provenance become the item's, its status `current` and the instant it
+   * was last written the time of the write; its evidence rows are deleted and the item's inserted with
+   * new ids. On its own connections the write commits before returning; on a caller-owned transaction
+   * it neither commits nor rolls it back, and on failure undoes only its own writes.
+   *
+   * @throws ProjectNotFound when `projectId` is malformed (before any statement) or names no project.
+   * @throws InvalidStoreQuery naming `claimId` when it is malformed, or `claims` when the item is
+   *   invalid, its claim is not `current`, or an evidence cites a file of another project; its message
+   *   never holds a record value.
+   * @throws ClaimWriteFailed when the database fails once the write has started, rollback included;
+   *   it carries no text of the database error. A failure to obtain a connection propagates unchanged.
+   */
+  refreshClaim(projectId: string, claimId: string, item: ClaimItem, readAtCommit: string): Promise<ClaimRefresh>;
 
   /**
    * Reads the project's claims with at least one evidence on the file of one of `spans` whose lines

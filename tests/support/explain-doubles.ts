@@ -47,6 +47,10 @@ export interface DoubleOptions extends ScriptedLlmOptions {
   /** Path to the error the reads after the model call reject with. */
   verificationFailures?: Record<string, unknown>;
   failClaimWrite?: ClaimWriteFailure;
+  /** Called by each valid `refreshClaim` with the claim id; a value other than `undefined` is thrown (DIS-42). */
+  failClaimRefresh?: (claimId: string) => unknown;
+  /** Called by each `refreshClaim` just before it checks the condition (DIS-42). */
+  beforeRefreshCheck?: (claimId: string) => void;
   /** Called on each valid `saveQueryLog`; a value other than `undefined` is thrown instead of writing. */
   failQueryLogWrite?: () => unknown;
   /** Failures of the answer cache calls, each thrown when its function returns a value. */
@@ -74,6 +78,8 @@ export function doubles(options: DoubleOptions = {}) {
   const loaded = createInMemoryStore({
     projects: [{ project, graph }],
     failClaimWrite: options.failClaimWrite,
+    failClaimRefresh: options.failClaimRefresh,
+    beforeRefreshCheck: options.beforeRefreshCheck,
     failQueryLogWrite: options.failQueryLogWrite,
     failCacheCall: options.failCacheCall,
   });
@@ -114,6 +120,10 @@ export function doubles(options: DoubleOptions = {}) {
     saveClaims: (...args) => {
       order.push('saveClaims');
       return base.saveClaims(...args);
+    },
+    refreshClaim: (...args) => {
+      order.push('refreshClaim');
+      return base.refreshClaim(...args);
     },
     saveQueryLog: (...args) => {
       order.push('saveQueryLog');

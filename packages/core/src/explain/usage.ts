@@ -70,6 +70,27 @@ export function aggregateUsage(parts: UsageParts): AnswerUsage {
   };
 }
 
+/**
+ * The usage of several semantic checks of one call added up (DIS-42 design D9): the answer's check and
+ * those of its stale claim refreshes. Calls, cache hits, tokens and latency are summed and the summed
+ * cost is rounded once to 6 decimals, as {@link aggregateUsage} rounds a total.
+ *
+ * @param first The usage of the first check.
+ * @param rest The usage of every later check, in order.
+ */
+export function sumVerificationUsage(first: VerificationUsage, ...rest: VerificationUsage[]): VerificationUsage {
+  const checks = [first, ...rest];
+  const sum = (pick: (usage: VerificationUsage) => number): number => checks.reduce((total, usage) => total + pick(usage), 0);
+  return {
+    calls: sum((usage) => usage.calls),
+    cacheHits: sum((usage) => usage.cacheHits),
+    inputTokens: sum((usage) => usage.inputTokens),
+    outputTokens: sum((usage) => usage.outputTokens),
+    costUsd: roundCost(sum((usage) => usage.costUsd)),
+    latencyMs: sum((usage) => usage.latencyMs),
+  };
+}
+
 /** The verification part of a `query_log` row: its tokens, cost, calls and latency (`null` when unknown). */
 export interface VerificationRowUsage {
   /** Input tokens of the resolved `verify` calls. */

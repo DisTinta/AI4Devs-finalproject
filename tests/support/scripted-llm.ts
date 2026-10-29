@@ -24,10 +24,20 @@ export interface PromptEvidence {
   flags?: string[];
 }
 
-/** What the script receives: the question (wrapped in markers) and the evidence of the prompt. */
+/**
+ * What the script receives: the question (wrapped in markers) and the evidence of the prompt. Since
+ * DIS-42 (design D11) a refresh prompt (its user message holds `claim`, not `question`) is parsed with
+ * `kind: 'refresh'`, the stored statement unwrapped as `claim` and its `claimFlags`; an answer prompt
+ * has `kind: 'answer'`, so one script answers both.
+ */
 export interface PromptView {
+  kind: 'answer' | 'refresh';
   question: string;
   questionFlags?: string[];
+  /** The stored statement of a refresh prompt, without its markers; absent for an answer prompt. */
+  claim?: string;
+  /** The flags of the stored statement of a refresh prompt, when there are some. */
+  claimFlags?: string[];
   evidence: PromptEvidence[];
 }
 
@@ -71,7 +81,11 @@ export const SCRIPTED_MODEL = 'scripted-model';
 export function promptView(request: CompletionRequest): PromptView {
   const user = request.messages.find((message) => message.role === 'user');
   if (user === undefined) throw new Error('the prompt has no user message');
-  return JSON.parse(user.content) as PromptView;
+  const parsed = JSON.parse(user.content) as Omit<PromptView, 'kind'>;
+  if (parsed.claim === undefined) return { kind: 'answer', ...parsed };
+  // The stored statement is wrapped as `<<<UNTRUSTED_DATA claim>>>\n…\n<<<END_UNTRUSTED_DATA claim>>>`.
+  const lines = parsed.claim.split('\n');
+  return { kind: 'refresh', ...parsed, claim: lines.slice(1, -1).join('\n') };
 }
 
 /** Reads the pair out of the user message of a `verify` request. */

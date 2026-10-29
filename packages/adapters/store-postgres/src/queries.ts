@@ -268,6 +268,31 @@ export const INSERT_EVIDENCE = `
          AS e(id, claim_id, file_id, start_line, end_line, verification, excerpt)`;
 
 /**
+ * Locks claim `$1` of project `$2` against another refresh and reads its status (DIS-42 design D6).
+ * No row means the project owns no such claim. Run after `CHECK_CLAIM_FILES`, which holds the project
+ * row `FOR SHARE`, so the claim is checked against the commit that was read under that lock.
+ */
+export const LOCK_CLAIM_FOR_REFRESH = `
+  SELECT status::text AS status FROM claim WHERE id = $1 AND project_id = $2 FOR UPDATE`;
+
+/**
+ * Rewrites claim `$1` of project `$2` in place with the record of a refresh (DIS-42 design D6): subject
+ * `$3`, predicate `$4`, object `$5`, layer `$6`, type `$7`, confidence `$8` and provenance `$9`, status
+ * `current`, and `updated_at` the instant of the write (`clock_timestamp()`, as `INSERT_CLAIMS` does for
+ * `created_at`). `created_at` is not touched, so the claim keeps its place in the newest-first
+ * retrieval order.
+ */
+export const UPDATE_REFRESHED_CLAIM = `
+  UPDATE claim
+     SET subject = $3, predicate = $4, object = $5, layer = $6::claim_layer, type = $7::claim_type,
+         confidence = $8, provenance = $9::jsonb, status = 'current', updated_at = clock_timestamp()
+   WHERE id = $1 AND project_id = $2`;
+
+/** Deletes every evidence row of claim `$1`, before the refreshed claim's evidence is inserted. */
+export const DELETE_CLAIM_EVIDENCE = `
+  DELETE FROM evidence WHERE claim_id = $1`;
+
+/**
  * The most recent claims of project `$1` with an evidence overlapping, inclusively, one of the spans
  * given as the parallel arrays `$2` (file ids), `$3` (first lines) and `$4` (last lines), at most `$5`
  * of them, newest first, each with all its evidence ordered by first line and id (DIS-39 design D11).

@@ -32,7 +32,8 @@ import type { ModelOutput } from './statement-schema.js';
 import { typeStatement } from './typing-rules.js';
 import { unknown } from './unknown-policy.js';
 import type { UnknownExplain } from './unknown-policy.js';
-import { aggregateUsage, latencyMs, queryLogEntry } from './usage.js';
+import { refreshStaleClaims } from './stale-refresh.js';
+import { aggregateUsage, latencyMs, queryLogEntry, sumVerificationUsage } from './usage.js';
 import type { VerificationRowUsage } from './usage.js';
 import { meterLlm } from './usage-meter.js';
 
@@ -86,6 +87,11 @@ interface CallState {
    * runs (an error raised inside it leaves its time unknown), its own `latencyMs` once it returned.
    */
   verifyLatencyMs: number | null;
+  /**
+   * The sum of the latencies of the semantic checks that returned, the answer's then each stale claim
+   * refresh's (DIS-42 design D8); `verifyLatencyMs` is this sum once a check returned.
+   */
+  verifySumMs: number;
 }
 
 /**
@@ -107,6 +113,12 @@ interface CallState {
  * hold, in sequence), caps each statement's type by the entailment policy (`FACT` only when every
  * citation is `entailed`) and stores each kept statement as a claim whose evidence rows carry the
  * verdict of their pair and whose `confidence` is that of the statement alone (`docs/CONFIDENCE.md`).
+ * An answered answer, stored or not, then refreshes its due stale prior claims (DIS-42, `stale-refresh.ts`):
+ * at most `MAX_STALE_REFRESHES` stale `L2` `INFERENCE` claims, newest first, each with one more `answer`
+ * call over the spans that overlap its evidence and its own `verify` calls, rewritten in place when
+ * verified and still due; the ones that are not are shown stale with one `stale_claim_not_refreshed`
+ * event each, after `claims_not_persisted`. An `UNKNOWN` answer, a cache hit and evaluation mode refresh
+ * nothing. The refresh's calls count in the usage and the row.
  * Every answer that reached the prompt carries the sanitisation events first, then the
  * `evidence_broken` events, then the `entailment_unverified` events, then (answered answers only) the
  * `answer_language_mismatch` event when the question is Spanish and the `answer` reads as English
@@ -126,8 +138,9 @@ interface CallState {
  * answer fails with `QueryLogWriteFailed`, `ProjectNotFound` or `InvalidStoreQuery`, the answer is still returned with
  * `query_not_logged` as its last event. The row of a hit has the cache flag and zero counters. Explain
  * reads its clock twice in a call that writes a row (after validating the request, which is also every
- * claim's provenance instant and a hit's instant, and just before the cache save and the row); in
- * `live` mode the semantic check reads it twice more between them.
+ * claim's provenance instant, a refreshed claim's included, and a hit's instant, and just before the cache
+ * save and the row); in `live` mode each semantic check (the answer's and each refresh's) reads it twice
+ * more between them.
  *
  * @param dependencies The store, the source reader, the model, the workspace root, the clock, the
  *   verification cache and, optionally, the cost table.
@@ -139,7 +152,9 @@ interface CallState {
  *   call, with no row), of the prior-claims read, of the verification reads (other than a missing
  *   file, which breaks its citations), of a `verify` call other than LlmUnavailable and
  *   BudgetExhausted (which leave its citations `cited`), or of the claim write other than
- *   `ClaimWriteFailed`, unchanged; any failure of the cache save other than `CacheWriteFailed` and
+ *   `ClaimWriteFailed`, or of a stale claim refresh (its `answer` call other than LlmUnavailable and
+ *   BudgetExhausted, its verification reads and `verify` calls as above, its claim refresh other than
+ *   `ClaimWriteFailed`), unchanged, after the row; any failure of the cache save other than `CacheWriteFailed` and
  *   `ProjectNotFound`, unchanged, after the row was sent; any failure of the row write of a returned answer other than
  *   `QueryLogWriteFailed`, `ProjectNotFound` and `InvalidStoreQuery`, unchanged.
  */
@@ -150,7 +165,7 @@ export async function explain(dependencies: ExplainDependencies, request: Explai
 
   const startedAt = now();
   const meter = meterLlm(llm, dependencies.costTable ?? COST_TABLE);
-  const state: CallState = { baselineTokens: null, verifyLatencyMs: 0 };
+  const state: CallState = { baselineTokens: null, verifyLatencyMs: 0, verifySumMs: 0 };
   // The answer-cache key (DIS-21 design C1); empty only for a question without letters or digits.
   const key = normalizeQuestion(parsed.question);
   const row = (verification: VerificationRowUsage, latency: number, cacheHit = false): QueryLogEntry =>
@@ -353,7 +368,7 @@ async function answerQuestion(
     typed,
     prompt.evidenceIds,
   );
-  state.verifyLatencyMs = verified.usage.latencyMs;
+  semanticCheckReturned(state, verified.usage);
   const events: ExplainEvent[] = [...sanitized.events, ...verified.events];
   if (verified.statements.length === 0) return { answer: unknown('broken-evidence', events) };
   const statements = verified.statements;
@@ -364,21 +379,52 @@ async function answerQuestion(
     statements,
   );
   const priorClaims = prior.map(toPriorClaim);
-  const verification = verified.usage;
   // DIS-104 design D3: only the `answer` text is read, and the answer is returned as it is.
   const languageEvents: ExplainEvent[] =
     prompt.questionLanguage === 'es' && detectLanguage(parsed.output.answer) === 'en'
       ? [{ type: 'answer_language_mismatch', expected: 'es' }]
       : [];
   const answeredEvents = [...events, ...languageEvents];
+  let answer: UnpricedAnswer;
   try {
     // The pack's commit: claims read at code the project no longer indexes are written stale.
     const saved = await store.saveClaims(projectId, items, pack.commit);
-    return { answer: storedAnswer(parsed.output.answer, statements, saved, priorClaims, answeredEvents, answerConfidence), verification };
+    answer = storedAnswer(parsed.output.answer, statements, saved, priorClaims, answeredEvents, answerConfidence);
   } catch (error) {
     if (!(error instanceof ClaimWriteFailed)) throw error;
-    return { answer: unsavedAnswer(parsed.output.answer, statements, priorClaims, answeredEvents, answerConfidence), verification };
+    answer = unsavedAnswer(parsed.output.answer, statements, priorClaims, answeredEvents, answerConfidence);
   }
+  // DIS-42 design D1: the answered answer, stored or not, refreshes its due stale prior claims; the
+  // cache save and the row come after, in `finish`. The refresh changes only what is shown: the prior
+  // claims, and the events appended after the write event.
+  const refreshed = await refreshStaleClaims(
+    {
+      store,
+      source,
+      llm,
+      verificationCache,
+      now,
+      ...(costTable !== undefined && { costTable }),
+      onSemanticStart: () => {
+        state.verifyLatencyMs = null;
+      },
+      onSemanticDone: (usage) => semanticCheckReturned(state, usage),
+    },
+    { projectId, root: pack.root, commit: pack.commit, startedAt, rawSpans: pack.spans, sanitizedSpans: spans, prior },
+  );
+  return {
+    answer: { ...answer, priorClaims: refreshed.priorClaims, events: [...answer.events, ...refreshed.events] },
+    verification: sumVerificationUsage(verified.usage, ...refreshed.verifications),
+  };
+}
+
+/**
+ * Records in `state` that a semantic check returned (DIS-42 design D8): the latency of a rejection row
+ * is the sum of the checks that returned, the answer's first and then each refresh's.
+ */
+function semanticCheckReturned(state: CallState, usage: VerificationUsage): void {
+  state.verifySumMs += usage.latencyMs;
+  state.verifyLatencyMs = state.verifySumMs;
 }
 
 /** Each statement of an accepted output with its cited spans, in the model's order, and its type. */

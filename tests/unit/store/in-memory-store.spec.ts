@@ -766,6 +766,131 @@ describe('in-memory StorePort double', () => {
     });
   });
 
+  // DIS-42 (change stale-claims-refresh, specs/graph-store/spec.md): the claim refresh of the double,
+  // with the same checks and the same conditional write as the Postgres adapter.
+  describe('Requirement: Claim refresh', () => {
+    const C1 = 'c1'.repeat(20);
+    const C2 = 'c2'.repeat(20);
+    const C3 = 'c3'.repeat(20);
+    const SEEDED_AT = '2026-10-13T10:00:00.000Z';
+
+    /** A `stale` claim item over `a.php` lines 3–5 and 8–9, seeded at {@link SEEDED_AT}. */
+    function staleSeed(projectId: string, fileId: string): ClaimItem & { createdAt: string } {
+      const item = claimItem(projectId, fileId, 3, 5);
+      item.evidence.push({ ...item.evidence[0]!, startLine: 8, endLine: 9 });
+      return { ...item, claim: { ...item.claim, status: 'stale' }, createdAt: SEEDED_AT };
+    }
+
+    /** The refreshed record: a new object, `current`, with one evidence on `b.php` lines 4–6. */
+    function refreshItem(projectId: string, fileId: string): ClaimItem {
+      const item = claimItem(projectId, fileId, 4, 6);
+      return { ...item, claim: { ...item.claim, object: 'compute rounds the total' } };
+    }
+
+    /** A double of a project indexed at `C2` with files `a.php` and `b.php`. */
+    function indexed(options: Partial<Parameters<typeof createInMemoryStore>[0]> = {}): InMemoryStore & {
+      projectId: string;
+      a: string;
+      b: string;
+    } {
+      const loaded = createInMemoryStore({
+        projects: [{ project: newProject(), graph: { ...graphOf([file('a.php'), file('b.php')], []), indexedCommit: C2 } }],
+        ...options,
+      });
+      return { ...loaded, projectId: loaded.projectIds[0]!, a: loaded.fileIds[0]!.get('a.php')!, b: loaded.fileIds[0]!.get('b.php')! };
+    }
+
+    it('A stale claim is refreshed in place (in-memory double)', async () => {
+      // Arrange
+      const loaded = indexed();
+      const id = loaded.seedClaim(staleSeed(loaded.projectId, loaded.a));
+      const other = loaded.seedClaim({ ...claimItem(loaded.projectId, loaded.a, 1, 2), createdAt: '2026-10-13T11:00:00.000Z' });
+
+      // Act
+      const result = await loaded.store.refreshClaim(loaded.projectId, id, refreshItem(loaded.projectId, loaded.b), C2);
+
+      // Assert
+      expect(result).toEqual({ refreshed: true, evidenceIds: [expect.any(String)] });
+      const stored = loaded.storedClaims();
+      expect(stored.map((claim) => claim.id)).toEqual([id, other]);
+      const claim = stored[0]!;
+      expect(claim).toMatchObject({ id, status: 'current', object: 'compute rounds the total', createdAt: SEEDED_AT });
+      expect(claim.evidence).toHaveLength(1);
+      expect(claim.evidence[0]).toMatchObject({ id: (result as { evidenceIds: string[] }).evidenceIds[0], fileId: loaded.b, path: 'b.php', startLine: 4, endLine: 6 });
+      expect(Date.parse(loaded.claimUpdatedAt(id)!)).toBeGreaterThan(Date.parse(claim.createdAt));
+      expect(loaded.claimUpdatedAt(other)).toBe(stored[1]!.createdAt);
+      expect(loaded.claimUpdatedAt(randomUUID())).toBeUndefined();
+      expect(loaded.calls.refreshClaim).toBe(1);
+    });
+
+    it('A refresh that is no longer due writes nothing (in-memory double)', async () => {
+      // Arrange
+      let moveTo: string | undefined;
+      const loaded: ReturnType<typeof indexed> = indexed({
+        beforeRefreshCheck: () => {
+          if (moveTo !== undefined) loaded.setIndexedCommit(loaded.projectId, moveTo);
+        },
+      });
+      const id = loaded.seedClaim(staleSeed(loaded.projectId, loaded.a));
+      const before = JSON.stringify(loaded.storedClaims());
+      const item = refreshItem(loaded.projectId, loaded.b);
+
+      // Act
+      const atOlder = await loaded.store.refreshClaim(loaded.projectId, id, item, C1);
+      moveTo = C3;
+      const moved = await loaded.store.refreshClaim(loaded.projectId, id, item, C2);
+      const unchangedAfterNotDue = JSON.stringify(loaded.storedClaims());
+      moveTo = undefined;
+      const first = await loaded.store.refreshClaim(loaded.projectId, id, item, C3);
+      const second = await loaded.store.refreshClaim(loaded.projectId, id, item, C3);
+
+      // Assert
+      expect([atOlder, moved, first.refreshed, second]).toEqual([{ refreshed: false }, { refreshed: false }, true, { refreshed: false }]);
+      expect(unchangedAfterNotDue).toBe(before);
+      expect(loaded.storedClaims()[0]!.status).toBe('current');
+      expect(loaded.calls.refreshClaim).toBe(4);
+    });
+
+    it('A failure while refreshing leaves the claim as it was (in-memory double)', async () => {
+      // Arrange
+      const loaded = indexed({ failClaimRefresh: () => new ClaimWriteFailed() });
+      const id = loaded.seedClaim(staleSeed(loaded.projectId, loaded.a));
+      const before = JSON.stringify(loaded.storedClaims());
+
+      // Act
+      const error = await rejectionOf(() => loaded.store.refreshClaim(loaded.projectId, id, refreshItem(loaded.projectId, loaded.b), C2));
+
+      // Assert
+      expect(error).toBeInstanceOf(ClaimWriteFailed);
+      expect(JSON.stringify(loaded.storedClaims())).toBe(before);
+      expect(loaded.storedClaims()[0]!.status).toBe('stale');
+      expect(loaded.claimUpdatedAt(id)).toBe(SEEDED_AT);
+    });
+
+    it('Invalid refresh arguments are rejected (in-memory double)', async () => {
+      // Arrange
+      const loaded = indexed();
+      const id = loaded.seedClaim(staleSeed(loaded.projectId, loaded.a));
+      const item = refreshItem(loaded.projectId, loaded.b);
+      const staleItem: ClaimItem = { ...item, claim: { ...item.claim, status: 'stale' } };
+
+      // Act
+      const errors = [
+        await rejectionOf(() => loaded.store.refreshClaim('not-a-uuid', id, item, C2)),
+        await rejectionOf(() => loaded.store.refreshClaim(loaded.projectId, 'x', item, C2)),
+        await rejectionOf(() => loaded.store.refreshClaim(loaded.projectId, id, staleItem, C2)),
+      ];
+
+      // Assert
+      expect(errors[0]).toBeInstanceOf(ProjectNotFound);
+      expect(errors[1]).toBeInstanceOf(InvalidStoreQuery);
+      expect((errors[1] as InvalidStoreQuery).argument).toBe('claimId');
+      expect(errors[2]).toBeInstanceOf(InvalidStoreQuery);
+      expect((errors[2] as InvalidStoreQuery).argument).toBe('claims');
+      expect(loaded.storedClaims()[0]!.status).toBe('stale');
+    });
+  });
+
   describe('Requirement: Query log write', () => {
     it('The in-memory double checks, keeps and fails query log entries', async () => {
       // Arrange
