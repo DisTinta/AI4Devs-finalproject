@@ -73,3 +73,37 @@ Not warranted (task 13.3): the decision is local to this endpoint and reversible
 ## Outcome
 - Status: PASS
 - Blocking issues: none. Open, not blocking: the unrelated failure of `tests/harness/doctor-autonomous.spec.ts` in the whole suite (E28, C).
+
+## Addendum: golden review round DIS-9 (tasks 10b–10d, 2026-10-29)
+
+**Commits.** Plan and spec audit runs 4–5 `b8b08bc`; report with `## Criterion` `35a7dd5`; input and
+retargeted test `cb96611`; panelist outputs `2851844`; resolution `3ee9631`; signatures and verdict
+report `bec617e`; docs of the round `ff4afd9`.
+
+**10d.6, spec scenario "The criterion precedes the input and nothing in the record is rewritten"
+(checked with git).**
+- `git merge-base --is-ancestor 35a7dd5 cb96611`: yes (report before input).
+- `git log ad180f7..cb96611 -- seeds/cache`: no commit.
+- `## Criterion` of the report: the same SHA-256 at `35a7dd5` and at `HEAD` (only `## Panel` and later
+  sections changed afterwards).
+- One commit each for the DIS-9 panelist 1, panelist 2 and resolution files.
+- The ten DIS-33 and DIS-107 round files keep the SHA-256 recorded in 10b.1.
+- `git diff ad180f7 -- seeds/cache`: only `reviews` lines.
+- Signatures are `agent:claude-opus-5-5` and `agent:claude-sonnet-5-5`, dated 2026-10-29, as
+  expected.
+- `npm run db:seed` (2 projects loaded) and `npm run verify` with empty `LLM_*`: `acme-shop: 3/3`,
+  `task-api: 3/3`, exit `0`.
+
+**10d.7.**
+- `npx vitest run tests/unit/seed tests/unit/cache`: 13 files, 54 tests passed.
+- `npm run lint`, `npm run typecheck`, `npm run docs:coverage`: exit `0`.
+- `npx vitest run` (full suite, run while the Stop hook ran a second full suite at the same time): 1
+  failure, `tests/harness/doctor-autonomous.spec.ts` › "GitHub problems fail the preflight" (timeout,
+  E28). The Stop hook's concurrent run had 4 harness failures (timeouts in `merge-gate.spec.ts` and
+  `doctor-autonomous.spec.ts`, and one assertion in `guard-round3.spec.ts`).
+- `npx vitest run --no-file-parallelism tests/harness`, without other load: 31 files, 280 tests passed
+  (2907 s). The harness failures above are load-dependent on this Windows machine; no file under
+  `tests/harness`, `.claude/` or `scripts/` is changed by this change.
+- Privacy check over the round's diff: no secret, `AKIA` key, e-mail address or local user path.
+- Red-CI window: from `cb96611` to `bec617e`, as planned (E31). CI on `ff4afd9`: `scope`, `secrets`,
+  `quality`, `verify`, `mutation` and `frontend` pass.
