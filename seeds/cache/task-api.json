@@ -18,30 +18,57 @@
       "response": {
         "kind": "answered",
         "persisted": true,
-        "answer": "taskRoutes valida las peticiones entrantes utilizando esquemas JSON que se definen en el código fuente.",
+        "answer": "taskRoutes valida las peticiones entrantes mediante el uso de esquemas de validación definidos en Zod. Cada ruta tiene asociado un esquema de validación específico que se ejecuta antes de que el controlador correspondiente se ejecute. Por ejemplo, la ruta '/tasks' tiene asociado el esquema 'listTasksQuerySchema', la ruta '/tasks/:id' tiene asociado el esquema 'taskIdParamsSchema', la ruta '/tasks' tiene asociado el esquema 'createTaskSchema', la ruta '/tasks/:id' tiene asociado el esquema 'taskIdParamsSchema' y el 'updateTaskSchema', y la ruta '/tasks/:id' tiene asociado el esquema 'taskIdParamsSchema'.",
         "statements": [
           {
-            "text": "Las rutas están configuradas con esquemas de validación en la función taskRoutes en src/routes/tasks.routes.ts.",
+            "text": "El método 'taskRoutes' exportado en 'src/routes/tasks.routes.ts' define las rutas y asocia esquemas de validación a cada una de ellas.",
             "type": "FACT",
             "status": "current",
             "verification": "entailed",
             "evidenceIds": [
-              "dc5e0c16-5b13-4aa6-8c93-4db14d60a623"
+              "6b60c75e-bd90-4430-9ed7-ee1c3223c5b6"
             ]
           },
           {
-            "text": "Ejemplos de rutas con esquemas de validación incluyen app.get('/tasks', { schema: { querystring: listTasksQuerySchema } }, controller.list); en la misma ubicación.",
+            "text": "La ruta '/tasks' utiliza el esquema 'listTasksQuerySchema' para validar las peticiones entrantes de tipo GET con parámetros de consulta.",
+            "type": "INFERENCE",
+            "status": "current",
+            "verification": "cited",
+            "evidenceIds": [
+              "de868230-e4b2-4916-bcad-bedddbc1f03d"
+            ]
+          },
+          {
+            "text": "La ruta '/tasks/:id' utiliza el esquema 'taskIdParamsSchema' para validar las peticiones entrantes de tipo GET y DELETE con parámetros de ruta.",
+            "type": "INFERENCE",
+            "status": "current",
+            "verification": "cited",
+            "evidenceIds": [
+              "3163ad81-9407-48b9-ab7d-fc3069176fd5"
+            ]
+          },
+          {
+            "text": "La ruta '/tasks' utiliza el esquema 'createTaskSchema' para validar las peticiones entrantes de tipo POST con el cuerpo de la solicitud.",
             "type": "FACT",
             "status": "current",
             "verification": "entailed",
             "evidenceIds": [
-              "4902abef-591c-4e7d-9fe7-68ecb4d5614a"
+              "deb14d17-deb4-478f-a636-2f68a4a59013"
+            ]
+          },
+          {
+            "text": "La ruta '/tasks/:id' utiliza el esquema 'taskIdParamsSchema' y el 'updateTaskSchema' para validar las peticiones entrantes de tipo PATCH con el parámetro de ruta y el cuerpo de la solicitud.",
+            "type": "FACT",
+            "status": "current",
+            "verification": "entailed",
+            "evidenceIds": [
+              "211ac8c6-8f1a-4512-9241-2b0361c0ca18"
             ]
           }
         ],
         "evidence": [
           {
-            "id": "dc5e0c16-5b13-4aa6-8c93-4db14d60a623",
+            "id": "6b60c75e-bd90-4430-9ed7-ee1c3223c5b6",
             "fileId": "7685ace1-b62d-53c0-a1d0-3378a4a41a0a",
             "path": "src/routes/tasks.routes.ts",
             "startLine": 15,
@@ -49,7 +76,31 @@
             "excerpt": "export async function taskRoutes(app: FastifyInstance): Promise<void> {\n  const controller = new TasksController();\n\n  app.get('/tasks', { schema: { querystring: listTasksQuerySchema } }, controller.list);\n\n  app.get('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.getById);\n\n  app.post('/tasks', { schema: { body: createTaskSchema } }, controller.create);\n\n  app.patch(\n    '/tasks/:id',\n    { schema: { params: taskIdParamsSchema, body: updateTaskSchema } },\n    controller.update,\n  );\n\n  app.delete('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.remove);\n}"
           },
           {
-            "id": "4902abef-591c-4e7d-9fe7-68ecb4d5614a",
+            "id": "de868230-e4b2-4916-bcad-bedddbc1f03d",
+            "fileId": "7685ace1-b62d-53c0-a1d0-3378a4a41a0a",
+            "path": "src/routes/tasks.routes.ts",
+            "startLine": 15,
+            "endLine": 31,
+            "excerpt": "export async function taskRoutes(app: FastifyInstance): Promise<void> {\n  const controller = new TasksController();\n\n  app.get('/tasks', { schema: { querystring: listTasksQuerySchema } }, controller.list);\n\n  app.get('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.getById);\n\n  app.post('/tasks', { schema: { body: createTaskSchema } }, controller.create);\n\n  app.patch(\n    '/tasks/:id',\n    { schema: { params: taskIdParamsSchema, body: updateTaskSchema } },\n    controller.update,\n  );\n\n  app.delete('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.remove);\n}"
+          },
+          {
+            "id": "3163ad81-9407-48b9-ab7d-fc3069176fd5",
+            "fileId": "7685ace1-b62d-53c0-a1d0-3378a4a41a0a",
+            "path": "src/routes/tasks.routes.ts",
+            "startLine": 15,
+            "endLine": 31,
+            "excerpt": "export async function taskRoutes(app: FastifyInstance): Promise<void> {\n  const controller = new TasksController();\n\n  app.get('/tasks', { schema: { querystring: listTasksQuerySchema } }, controller.list);\n\n  app.get('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.getById);\n\n  app.post('/tasks', { schema: { body: createTaskSchema } }, controller.create);\n\n  app.patch(\n    '/tasks/:id',\n    { schema: { params: taskIdParamsSchema, body: updateTaskSchema } },\n    controller.update,\n  );\n\n  app.delete('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.remove);\n}"
+          },
+          {
+            "id": "deb14d17-deb4-478f-a636-2f68a4a59013",
+            "fileId": "7685ace1-b62d-53c0-a1d0-3378a4a41a0a",
+            "path": "src/routes/tasks.routes.ts",
+            "startLine": 15,
+            "endLine": 31,
+            "excerpt": "export async function taskRoutes(app: FastifyInstance): Promise<void> {\n  const controller = new TasksController();\n\n  app.get('/tasks', { schema: { querystring: listTasksQuerySchema } }, controller.list);\n\n  app.get('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.getById);\n\n  app.post('/tasks', { schema: { body: createTaskSchema } }, controller.create);\n\n  app.patch(\n    '/tasks/:id',\n    { schema: { params: taskIdParamsSchema, body: updateTaskSchema } },\n    controller.update,\n  );\n\n  app.delete('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.remove);\n}"
+          },
+          {
+            "id": "211ac8c6-8f1a-4512-9241-2b0361c0ca18",
             "fileId": "7685ace1-b62d-53c0-a1d0-3378a4a41a0a",
             "path": "src/routes/tasks.routes.ts",
             "startLine": 15,
@@ -59,29 +110,29 @@
         ],
         "priorClaims": [],
         "usage": {
-          "inputTokens": 5111,
-          "outputTokens": 163,
+          "inputTokens": 6444,
+          "outputTokens": 501,
           "baselineTokens": 4227,
           "baselineEstimator": "chars-div-4",
-          "savingsPct": -20.9,
+          "savingsPct": -52.4,
           "costUsd": 0,
-          "latencyMs": 76192,
+          "latencyMs": 187920,
           "cacheHit": false,
           "generation": {
             "inputTokens": 4235,
-            "outputTokens": 149,
+            "outputTokens": 462,
             "costUsd": 0
           },
           "verification": {
-            "calls": 2,
+            "calls": 5,
             "cacheHits": 0,
-            "inputTokens": 876,
-            "outputTokens": 14,
+            "inputTokens": 2209,
+            "outputTokens": 39,
             "costUsd": 0,
-            "latencyMs": 7826
+            "latencyMs": 27353
           }
         },
-        "confidence": 0.8519528019683106
+        "confidence": 0.7941296281990528
       },
       "reviews": []
     },
