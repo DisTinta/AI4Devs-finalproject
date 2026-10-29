@@ -115,6 +115,11 @@ Scope: a stored model statement returns to a prompt; new store write; new event;
 - 25.7: `npx vitest run tests/unit/seed tests/unit/cache` 54 passed; `npx vitest run --project dom --project seed-build --project node` 1677 passed, 246 skipped, 0 failed; `npm run lint`, `npm run typecheck` and `npm run docs:coverage` clean; privacy check over the r3 diff: only agent model ids, dates, verdicts and fixture citations (the configuration name `JWT_SECRET`, no value), no personal data, the planted secret not copied (no `AKIA` in the diff); `node scripts/dev-processes.mjs stop`. Red-CI window on `golden-reviews.spec.ts`: from `b3d4069` to `dbcda41`.
 - 25.8: `fixtures/README.md`, `docs/project-context.md`, the `golden-review/` tree line of `readme.md`, the acme-shop `Q1` paragraph of `docs/DEMO.md` and the TSDoc of `packages/cli/src/cache/golden-file.ts` name the DIS-42 r3 round as the current one; none is a seed or answer fingerprint input; the PR description gains the r3 round.
 
+## Addendum: pre-merge review (group 15)
+- 15.2: CI on PR #85 green after the r3 round (`c8c5780`), and again after the review fixes (`737e8b8`): frontend, mutation (4m53s), quality, scope, secrets and verify all pass, https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/40974965799. The archive commit's run is recorded in the PR.
+- 15.3–15.5: `reports/2026-10-30-show-spec-working.md` (demonstrably working), `reports/2026-10-30-verify-against-spec.md` (conforms; Minor findings only), `reports/2026-10-30-adversarial-review.md` (PASS WITH GAPS: one Major, fixed; re-run over the fix: PASS WITH GAPS, no Blocker and no Major).
+- 15.6: design X2–X15. Fixed in this change (A): X2 (the Major), X3, X4, X5 and X12. Accepted and recorded (D): X6–X11 and X13–X15. Tests added or strengthened, none weakened (task 8.1). No seed or answer fingerprint input changed, so the r3 round stays valid. After the fixes: `DATABASE_URL=… npx vitest run --project dom --project seed-build --project node` gives 185 files and 1975 tests passed (plus the new `it` of X12), and lint, typecheck and docs coverage are clean.
+
 ## UI evidence (if applicable)
 - none: the change has no browser UI (task 12.1, not applicable beyond step 11: `packages/web` does not show prior claims and is untouched).
 

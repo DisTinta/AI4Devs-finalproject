@@ -607,6 +607,21 @@ describe('Requirement: Stale claim refresh', () => {
 // Not scenarios: they pin the rules of "Stale claim refresh" the scenarios leave open (found by the
 // step 9 mutation run): which claims are due, which spans are a claim's, and the claims no span covers.
 describe('Requirement: Stale claim refresh (selection rules)', () => {
+  it('propagates an InvalidStoreQuery of the claim refresh that does not name claims', async () => {
+    // Arrange: only `InvalidStoreQuery` naming `claims` reads `superseded` (design X2); this one names `claimId`.
+    const failure = new InvalidStoreQuery('claimId', 'must be a well-formed UUID');
+    const d = doubles({ script: scriptOf(restate), failClaimRefresh: () => failure });
+    const c1 = seed(d, 0);
+
+    // Act
+    const error = await rejection(explain(d.deps, { projectId: d.projectId, question: Q1 }));
+
+    // Assert
+    expect(error).toBe(failure);
+    expect(stored(d, c1).status).toBe('stale');
+    expect(d.loaded.queryLog()).toHaveLength(1);
+  });
+
   it('refreshes no stale claim that misses one of the conditions of being due', async () => {
     // Arrange: each claim breaks exactly one condition (layer, type, statement type, object).
     const d = doubles({ script: scriptOf(restateEach) });
