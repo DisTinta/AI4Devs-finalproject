@@ -22,9 +22,11 @@ verbatim.
 
 ## Panel
 
-- **Panelist 1:** Opus. **Panelist 2:** Sonnet. They judge the seven items blind to each other and to
+- **Panelist 1:** Opus, model `claude-opus-5-5`, date 2026-10-29. **Panelist 2:** Sonnet, model
+  `claude-sonnet-5-5`, date 2026-10-29. They judge the seven items blind to each other and to
   every earlier round, the first DIS-42 round and DIS-42 r2 included.
-- **Resolver:** Opus, in a fresh context, only over the items where the two panelist verdicts differ.
+- **Resolver:** Opus, model `claude-opus-5-5`, date 2026-10-29, in a fresh context, only over the
+  items where the two panelist verdicts differ (none in this run).
 - **Outputs:** under `docs/golden-review/panel/` (the input, the two panelist outputs and the
   resolution, with the `-dis-42-r3` suffix).
 
@@ -51,3 +53,47 @@ r2); the other reports of `docs/golden-review/`; the other panelist's output; th
 `packages/`, `tests/`, `scripts/` and `openspec/`; the git history; any Linear content. A panelist
 does not run the analyzers, `ask`, `verify`, the fixtures' tests or any script, and does not read the
 database or the answer cache.
+
+## Verdicts
+
+The panel outputs and the resolution are unchanged since the commits that created them. The panelists
+agreed on all seven items, so the resolver decided none. No item is judged `incorrect`, so every
+golden entry carries both r3 signatures and nothing is pending.
+
+| Project | Id | Panelist 1 | Panelist 2 | Final | Justification | Errors |
+|---|---|---|---|---|---|---|
+| task-api | Q1 | partial | partial | partial | S2 cites the controller handlers (`fixtures/task-api/src/controllers/tasks.controller.ts:14`) and the repository interface, so no cited line shows the service applying business rules or validating data (S2) | S2 unverifiable |
+| task-api | Q2 | correct | correct | correct | pageCount is derived from total and pageSize (`fixtures/task-api/src/domain/pagination.ts:19`); the statement on the test helper is true but off-topic, and tareas de tarea is a slip of the model | none |
+| task-api | Q3 | correct | correct | correct | canTransition and allowedTransitions read the TRANSITIONS table (`fixtures/task-api/src/domain/task-status.ts:13`); the word devuelta is a slip of the model | none |
+| task-api | Q4 | correct | correct | correct | No route, hook, plugin or check authenticates a user; JWT_SECRET is only parsed as configuration (`fixtures/task-api/src/config/env.ts:13`), so UNKNOWN is the due answer | none |
+| acme-shop | Q1 | partial | partial | partial | The answer and its FACT statement hold; S6 is contradicted, since only shipping depends on the free-shipping threshold (`fixtures/acme-shop/app/Services/ShippingService.php:26`), and the total adds the discounted base, not the subtotal (`fixtures/acme-shop/app/Services/PriceCalculator.php:34`) | S4 false; S6 false |
+| acme-shop | Q3 | correct | correct | correct | percentFor looks the coupon up and rejects inactive and expired ones (`fixtures/acme-shop/app/Services/CouponValidator.php:22`); it returns a percentage rather than a boolean, an imprecision | none |
+| acme-shop | Q4 | correct | correct | correct | The observer dispatches RecalculateTotals and fires OrderPlaced (`fixtures/acme-shop/app/Observers/OrderObserver.php:18`); calling both of them events is an imprecision | none |
+
+The two panelists agree on every verdict but not on every statement of acme-shop `Q1`: panelist 1
+judges S4 `false` (an `INFERENCE`, so the item stays `partial`), panelist 2 judges it `true` with the
+imprecision noted. The Errors column follows panelist 1, as the spec's error source says.
+
+Panelist 1's `sourcesRead` lists two Git sample hooks, `fixtures/task-api/.git/hooks/commit-msg.sample`
+and `fixtures/task-api/.git/hooks/fsmonitor-watchman.sample`. They are under the allowed prefix
+`fixtures/task-api/`, so the validation check accepts the output, but they are Git's stock files, not
+fixture code, and no judgement cites them. The output is recorded as returned.
+
+## Agreement
+
+n = 7
+
+Percent agreement: 100.0%
+
+Cohen's kappa: 1.000
+
+The kappa is indicative: with seven items it has a wide uncertainty.
+
+Resolved by the resolver: 0 of 7
+
+## Limitations
+
+- Two models of one family are not independent reviewers in the sense of two people.
+- The generator is a local 7B model (qwen2.5-coder).
+- sourcesRead is self-declared.
+- The criterion was written by an agent that had read the golden answers.
