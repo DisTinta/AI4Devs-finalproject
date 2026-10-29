@@ -171,7 +171,7 @@ describeWithDatabase('stale claim refresh over the indexed acme-shop (DIS-42)', 
           analyzerFor: () => createPhpAnalyzer(),
           inTransaction: (work) => work(createPostgresStore({ transaction: db() })),
         },
-        { projectId, allowedRoot: T, workspaceRoot: WORKSPACE_ROOT },
+        { projectId, allowedRoot: T, workspaceRoot: WORKSPACE_ROOT, incremental: false },
       );
       const [c1Stale] = await claimsOf(projectId);
       expect(c1Stale).toMatchObject({ id: c1, status: 'stale' });
