@@ -99,11 +99,11 @@ Placed after step 9 so the mutation fixes of 9.4 are already in; it must be the 
 
 ## 14. Pull request preparation
 
-- [ ] 14.1 `/pr-describe` in Spanish against `final-project-CRN`: the Why marked as the agent's text (E1–E26, P1–P3), the conflict with DIS-101 and how E1 resolves it, the `202` deviation (U9), the existing tests changed (8.1), the `npm audit` result, the Stryker score, the regenerated seed and golden files (step 10), and what is pending for the author: the PowerShell check (E13) and the new review of the regenerated golden entries (E16), both destination C
+- [x] 14.1 `/pr-describe` in Spanish against `final-project-CRN`: the Why marked as the agent's text (E1–E26, P1–P3), the conflict with DIS-101 and how E1 resolves it, the `202` deviation (U9), the existing tests changed (8.1), the `npm audit` result, the Stryker score, the regenerated seed and golden files (step 10), and what is pending for the author: the PowerShell check (E13) and the new review of the regenerated golden entries (E16), both destination C
 
 ## 15. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 15.1 Open the PR against `final-project-CRN`; DIS-9 to In Review with a Spanish comment linking it
+- [x] 15.1 Open the PR against `final-project-CRN`; DIS-9 to In Review with a Spanish comment linking it
 - [ ] 15.2 CI green, including the `verify` and mutation jobs: wait in the foreground with `gh pr checks <n> --watch --interval 60` (timeout 600000), repeated until no check is pending; link the run in an addendum to the step 9 report
 - [ ] 15.3 `/show-spec-working` (may reuse the step 11 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
 - [ ] 15.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
