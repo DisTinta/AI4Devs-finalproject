@@ -1,11 +1,11 @@
 # Independent review of the golden answers, round DIS-42 (October 2026)
 
 **Ticket:** DIS-42. **Scope:** the six golden answers regenerated after the stale claim refresh of
-DIS-42 changed the store adapter (a new seed fingerprint, the same seed rows),
-`seeds/cache/task-api.json` (`Q1`, `Q2`, `Q3`) and `seeds/cache/acme-shop.json` (`Q1`, `Q3`, `Q4`), plus
-the behaviour item task-api `Q4` (`UNKNOWN (no-anchor)`, no golden answer).
-**Generator of the golden answers:** `qwen2.5-coder`. This is the fourth round of the independent
-golden review; the previous rounds are DIS-9, DIS-107 and DIS-33. The review is done by a panel of
+DIS-42 changed the store adapter (a new seed fingerprint, the same seed rows), regenerated on the code
+merged with DIS-10, `seeds/cache/task-api.json` (`Q1`, `Q2`, `Q3`) and `seeds/cache/acme-shop.json`
+(`Q1`, `Q3`, `Q4`), plus the behaviour item task-api `Q4` (`UNKNOWN (no-anchor)`, no golden answer).
+**Generator of the golden answers:** `qwen2.5-coder`. This is the sixth round of the independent
+golden review; the previous rounds are DIS-10 r2, DIS-10, DIS-9, DIS-107 and DIS-33. The review is done by a panel of
 agents of models other than the generator, under the criterion below, which is the DIS-33 criterion
 copied verbatim.
 
@@ -40,7 +40,8 @@ The resolver may also read the two panelist outputs of this round and `docs/AUTO
 Forbidden sources: `fixtures/README.md` (it holds the expected answers); `seeds/` (the golden files:
 the panel input replaces them); the fixtures' `README.md`, `docs/` and `node_modules/`; every file of
 the previous rounds, `docs/golden-review/2026-10-task-api-golden-review.md`,
-`docs/golden-review/2026-10-golden-review-dis-107.md` and `docs/golden-review/2026-10-golden-review-dis-9.md`,
+`docs/golden-review/2026-10-golden-review-dis-107.md`, `docs/golden-review/2026-10-golden-review-dis-9.md`,
+`docs/golden-review/2026-10-golden-review-dis-10.md` and `docs/golden-review/2026-10-golden-review-dis-10-r2.md`,
 and their files under `docs/golden-review/panel/`; the other reports of `docs/golden-review/`; the
 other panelist's output; the rest of `docs/`, `packages/`, `tests/`, `scripts/` and `openspec/`; the
 git history; any Linear content. A panelist does not run the analyzers, `ask`, `verify`, the fixtures'
