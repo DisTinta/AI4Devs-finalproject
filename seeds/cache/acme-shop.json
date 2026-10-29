@@ -2,7 +2,7 @@
   "format": 1,
   "project": "acme-shop",
   "seed": {
-    "analyzerFingerprint": "sha256:3812fa169beadd62360ca8532628ab3d0c0fde8675966bced7c1a76b6aad5f5e",
+    "analyzerFingerprint": "sha256:b80b43e25bede640887f9c4e9cebf6e4f0283755b3a9eb192eb6ae5a786679f3",
     "contractFingerprint": "sha256:e94eef9665a038116a244342915af3743028225330fec41614260f1603fb392f"
   },
   "answerFingerprint": "sha256:9a2246d6df27425589519f44fe7de51e7d238dca2e9193c937f78a3783736766",
@@ -18,57 +18,84 @@
       "response": {
         "kind": "answered",
         "persisted": true,
-        "answer": "El precio final de un pedido se calcula considerando el subtotal, descuentos, impuestos y tarifas de envío. Los descuentos se aplican antes de calcular el impuesto, y el impuesto se calcula sobre el monto descontado. Las tarifas de envío pueden variar según el país de destino.",
+        "answer": "El precio final de un pedido se calcula utilizando el servicio `PriceCalculator`, que incorpora descuentos, impuestos y gastos de envío.",
         "statements": [
           {
-            "text": "El método `PriceCalculator::compute()` es el autoritativo para calcular el precio final de un pedido. Este método está definido en el archivo `app/Services/PriceCalculator.php`.",
+            "text": "El método `compute` de la clase `PriceCalculator` es responsable del cálculo del precio final de un pedido.",
             "type": "FACT",
             "status": "current",
             "verification": "entailed",
             "evidenceIds": [
-              "0d0001d2-73d9-4fdc-bf7d-f5747f9d0b4c"
+              "20e68c0b-e4e3-4321-8b6d-7d7dcd040dca"
             ]
           },
           {
-            "text": "El subtotal se calcula sumando el costo de todas las líneas del pedido, lo que se define en el método `Order::subtotal` del archivo `app/Models/Order.php`.",
+            "text": "Este proceso incluye el cálculo del subtotal, descuentos aplicados, base gravable y el importe de los impuestos.",
+            "type": "FACT",
+            "status": "current",
+            "verification": "entailed",
+            "evidenceIds": [
+              "5554b7a5-1ded-42a4-80dd-bd217b88aef5"
+            ]
+          },
+          {
+            "text": "El subtotal se obtiene de la suma de todas las líneas de pedido.",
             "type": "INFERENCE",
             "status": "current",
             "verification": "entailed",
             "evidenceIds": [
-              "5d852dc2-c2ba-4ae7-aaf1-bcb23362598f"
+              "6790b6d3-afbb-468f-9d56-a325a850cf9b"
             ]
           },
           {
-            "text": "Los descuentos se aplican al subtotal antes de calcular el impuesto. Esto se demuestra en el método `Test_order_discounts_before_tax` del archivo `tests/Feature/OrderPricingTest.php`.",
-            "type": "INFERENCE",
+            "text": "Descuentos adicionales pueden ser aplicados basándose en los niveles de lealtad del cliente y códigos promocionales.",
+            "type": "FACT",
             "status": "current",
-            "verification": "cited",
+            "verification": "entailed",
             "evidenceIds": [
-              "d4d34beb-4b0a-493a-92f8-550247f139e6"
+              "e4996ddf-3a62-4525-9d94-dc78ce3e5bec"
             ]
           },
           {
-            "text": "El impuesto se calcula sobre el subtotal descontado. Esto se muestra en el método `Test_order_discounts_before_tax` del archivo `tests/Feature/OrderPricingTest.php`.",
-            "type": "INFERENCE",
+            "text": "La base gravable se calcula restando los descuentos al subtotal.",
+            "type": "FACT",
             "status": "current",
-            "verification": "cited",
+            "verification": "entailed",
             "evidenceIds": [
-              "2889947d-c768-42ac-b7a2-94cc4632d091"
+              "6476a700-d459-4758-9faf-9b00d0fa2cae"
             ]
           },
           {
-            "text": "Las tarifas de envío pueden variar según el país de destino y no afectan directamente el subtotal o el impuesto. Esto se demuestra en el método `Test_shipping_charges` del archivo `tests/Feature/OrderPricingTest.php`.",
-            "type": "INFERENCE",
+            "text": "Los impuestos se calculan sobre la base gravable.",
+            "type": "FACT",
             "status": "current",
-            "verification": "cited",
+            "verification": "entailed",
             "evidenceIds": [
-              "61229836-7391-4d32-926e-ce4e932b0348"
+              "6db4a24e-a0c6-4114-9b55-9fd8fcbd0cbb"
+            ]
+          },
+          {
+            "text": "El costo de envío se determina según el país de envío y si la base gravable supera un umbral específico.",
+            "type": "FACT",
+            "status": "current",
+            "verification": "entailed",
+            "evidenceIds": [
+              "9d46b9f2-2110-4546-9085-f369333ba85b"
+            ]
+          },
+          {
+            "text": "El precio final se obtiene sumando el subtotal, impuestos y costo de envío.",
+            "type": "FACT",
+            "status": "current",
+            "verification": "entailed",
+            "evidenceIds": [
+              "aa4152b0-4c76-4284-9835-bffa7300d763"
             ]
           }
         ],
         "evidence": [
           {
-            "id": "0d0001d2-73d9-4fdc-bf7d-f5747f9d0b4c",
+            "id": "20e68c0b-e4e3-4321-8b6d-7d7dcd040dca",
             "fileId": "006db799-610d-5a10-a926-5ebc658d747c",
             "path": "app/Services/PriceCalculator.php",
             "startLine": 16,
@@ -76,7 +103,15 @@
             "excerpt": "class PriceCalculator\n{\n    public function __construct(\n        private readonly DiscountService $discounts,\n        private readonly TaxService $taxes,\n        private readonly ShippingService $shipping,\n    ) {\n    }\n\n    public function compute(Order $order): Money\n    {\n        $subtotal = $order->subtotal;                       // magic accessor\n        $discount = $this->discounts->discountFor($order, $subtotal);\n        $taxable = $subtotal->subtract($discount);\n\n        $tax = $this->taxes->taxFor($order, $taxable);\n        $shipping = $this->shipping->shippingFor($order, $taxable);\n\n        return $taxable->add($tax)->add($shipping);\n    }\n\n    /** Returns the discounted amount before tax and shipping. */\n    public function taxableBase(Order $order): Money\n    {\n        $subtotal = $order->subtotal;\n\n        return $subtotal->subtract($this->discounts->discountFor($order, $subtotal));\n    }\n}"
           },
           {
-            "id": "5d852dc2-c2ba-4ae7-aaf1-bcb23362598f",
+            "id": "5554b7a5-1ded-42a4-80dd-bd217b88aef5",
+            "fileId": "006db799-610d-5a10-a926-5ebc658d747c",
+            "path": "app/Services/PriceCalculator.php",
+            "startLine": 16,
+            "endLine": 44,
+            "excerpt": "class PriceCalculator\n{\n    public function __construct(\n        private readonly DiscountService $discounts,\n        private readonly TaxService $taxes,\n        private readonly ShippingService $shipping,\n    ) {\n    }\n\n    public function compute(Order $order): Money\n    {\n        $subtotal = $order->subtotal;                       // magic accessor\n        $discount = $this->discounts->discountFor($order, $subtotal);\n        $taxable = $subtotal->subtract($discount);\n\n        $tax = $this->taxes->taxFor($order, $taxable);\n        $shipping = $this->shipping->shippingFor($order, $taxable);\n\n        return $taxable->add($tax)->add($shipping);\n    }\n\n    /** Returns the discounted amount before tax and shipping. */\n    public function taxableBase(Order $order): Money\n    {\n        $subtotal = $order->subtotal;\n\n        return $subtotal->subtract($this->discounts->discountFor($order, $subtotal));\n    }\n}"
+          },
+          {
+            "id": "6790b6d3-afbb-468f-9d56-a325a850cf9b",
             "fileId": "239a682f-84bf-5833-8ca1-fa51cabb3945",
             "path": "app/Models/Order.php",
             "startLine": 19,
@@ -84,66 +119,73 @@
             "excerpt": "class Order extends Model\n{\n    use HasFactory;\n\n    protected $fillable = ['customer_id', 'status', 'coupon_code', 'shipping_country'];\n\n    public function customer(): BelongsTo\n    {\n        return $this->belongsTo(Customer::class);\n    }\n\n    public function lines(): HasMany\n    {\n        return $this->hasMany(OrderLine::class);\n    }\n\n    public function coupon(): BelongsTo\n    {\n        // Resolved by string column, not by id — the coupon_code magic attribute.\n        return $this->belongsTo(Coupon::class, 'coupon_code', 'code');\n    }\n\n    /**\n     * Accessor exposed as $order->subtotal. Sums the order lines. Because this is\n     * a magic accessor, callers reference a property the analyzer cannot see.\n     */\n    public function getSubtotalAttribute(): Money\n    {\n        return $this->lines->reduce(\n            fn (Money $carry, OrderLine $line) => $carry->add($line->lineTotal()),\n            Money::zero(),\n        );\n    }\n\n    public function lineCount(): int\n    {\n        return $this->lines->count();\n    }\n}"
           },
           {
-            "id": "d4d34beb-4b0a-493a-92f8-550247f139e6",
-            "fileId": "e5308583-ec97-5efd-b128-fb41e3048d31",
-            "path": "tests/Feature/OrderPricingTest.php",
-            "startLine": 31,
-            "endLine": 51,
-            "excerpt": "    public function test_final_price_applies_discount_before_tax(): void\n    {\n        config(['shop.free_shipping_threshold' => 75.00, 'shop.shipping_rates' => ['ES' => 490]]);\n\n        $customer = Customer::factory()->create(['loyalty_tier' => 'gold', 'country' => 'ES']);\n        $widget = Product::factory()->create(['price_cents' => 1500]);\n        $gadget = Product::factory()->create(['price_cents' => 3200]);\n\n        $order = Order::factory()->create([\n            'customer_id' => $customer->id,\n            'shipping_country' => 'ES',\n        ]);\n        $order->lines()->create(['product_id' => $widget->id, 'quantity' => 2, 'unit_price_cents' => 1500]);\n        $order->lines()->create(['product_id' => $gadget->id, 'quantity' => 1, 'unit_price_cents' => 3200]);\n        $order->refresh();\n\n        $total = Pricing::compute($order);\n\n        $this->assertSame(7242, $total->cents);\n        $this->assertEqualsWithDelta(72.42, $total->amount(), 0.001);\n    }"
+            "id": "e4996ddf-3a62-4525-9d94-dc78ce3e5bec",
+            "fileId": "e550ad1b-a1c7-5c89-b13f-6fd19f308451",
+            "path": "app/Services/DiscountService.php",
+            "startLine": 21,
+            "endLine": 66,
+            "excerpt": "class DiscountService\n{\n    private const LOYALTY_SILVER_PERCENT = 5.0;\n    private const LOYALTY_GOLD_PERCENT = 10.0;\n\n    private const VOLUME_LINE_THRESHOLD = 5;\n    private const VOLUME_BONUS_PERCENT = 5.0;\n    private const MAX_DISCOUNT_PERCENT = 30.0;\n\n    public function __construct(private readonly CouponValidator $coupons)\n    {\n    }\n\n    public function discountFor(Order $order, Money $subtotal): Money\n    {\n        $percent = $this->loyaltyPercent($order);\n        $percent += $this->coupons->percentFor($order->coupon_code);\n        $percent += $this->volumeBonus($order);\n\n        $percent = min($percent, self::MAX_DISCOUNT_PERCENT);\n\n        $discount = $subtotal->percentage($percent);\n\n        if ($discount->isGreaterThan(Money::zero())) {\n            event(new DiscountApplied($order, $discount));\n        }\n\n        return $discount;\n    }\n\n    private function loyaltyPercent(Order $order): float\n    {\n        return match ($order->customer->loyalty_tier) {\n            'gold' => self::LOYALTY_GOLD_PERCENT,\n            'silver' => self::LOYALTY_SILVER_PERCENT,\n            default => 0.0,\n        };\n    }\n\n    private function volumeBonus(Order $order): float\n    {\n        return $order->lineCount() > self::VOLUME_LINE_THRESHOLD\n            ? self::VOLUME_BONUS_PERCENT\n            : 0.0;\n    }\n}"
           },
           {
-            "id": "2889947d-c768-42ac-b7a2-94cc4632d091",
-            "fileId": "e5308583-ec97-5efd-b128-fb41e3048d31",
-            "path": "tests/Feature/OrderPricingTest.php",
-            "startLine": 31,
-            "endLine": 51,
-            "excerpt": "    public function test_final_price_applies_discount_before_tax(): void\n    {\n        config(['shop.free_shipping_threshold' => 75.00, 'shop.shipping_rates' => ['ES' => 490]]);\n\n        $customer = Customer::factory()->create(['loyalty_tier' => 'gold', 'country' => 'ES']);\n        $widget = Product::factory()->create(['price_cents' => 1500]);\n        $gadget = Product::factory()->create(['price_cents' => 3200]);\n\n        $order = Order::factory()->create([\n            'customer_id' => $customer->id,\n            'shipping_country' => 'ES',\n        ]);\n        $order->lines()->create(['product_id' => $widget->id, 'quantity' => 2, 'unit_price_cents' => 1500]);\n        $order->lines()->create(['product_id' => $gadget->id, 'quantity' => 1, 'unit_price_cents' => 3200]);\n        $order->refresh();\n\n        $total = Pricing::compute($order);\n\n        $this->assertSame(7242, $total->cents);\n        $this->assertEqualsWithDelta(72.42, $total->amount(), 0.001);\n    }"
+            "id": "6476a700-d459-4758-9faf-9b00d0fa2cae",
+            "fileId": "006db799-610d-5a10-a926-5ebc658d747c",
+            "path": "app/Services/PriceCalculator.php",
+            "startLine": 16,
+            "endLine": 44,
+            "excerpt": "class PriceCalculator\n{\n    public function __construct(\n        private readonly DiscountService $discounts,\n        private readonly TaxService $taxes,\n        private readonly ShippingService $shipping,\n    ) {\n    }\n\n    public function compute(Order $order): Money\n    {\n        $subtotal = $order->subtotal;                       // magic accessor\n        $discount = $this->discounts->discountFor($order, $subtotal);\n        $taxable = $subtotal->subtract($discount);\n\n        $tax = $this->taxes->taxFor($order, $taxable);\n        $shipping = $this->shipping->shippingFor($order, $taxable);\n\n        return $taxable->add($tax)->add($shipping);\n    }\n\n    /** Returns the discounted amount before tax and shipping. */\n    public function taxableBase(Order $order): Money\n    {\n        $subtotal = $order->subtotal;\n\n        return $subtotal->subtract($this->discounts->discountFor($order, $subtotal));\n    }\n}"
           },
           {
-            "id": "61229836-7391-4d32-926e-ce4e932b0348",
-            "fileId": "e5308583-ec97-5efd-b128-fb41e3048d31",
-            "path": "tests/Feature/OrderPricingTest.php",
-            "startLine": 31,
-            "endLine": 51,
-            "excerpt": "    public function test_final_price_applies_discount_before_tax(): void\n    {\n        config(['shop.free_shipping_threshold' => 75.00, 'shop.shipping_rates' => ['ES' => 490]]);\n\n        $customer = Customer::factory()->create(['loyalty_tier' => 'gold', 'country' => 'ES']);\n        $widget = Product::factory()->create(['price_cents' => 1500]);\n        $gadget = Product::factory()->create(['price_cents' => 3200]);\n\n        $order = Order::factory()->create([\n            'customer_id' => $customer->id,\n            'shipping_country' => 'ES',\n        ]);\n        $order->lines()->create(['product_id' => $widget->id, 'quantity' => 2, 'unit_price_cents' => 1500]);\n        $order->lines()->create(['product_id' => $gadget->id, 'quantity' => 1, 'unit_price_cents' => 3200]);\n        $order->refresh();\n\n        $total = Pricing::compute($order);\n\n        $this->assertSame(7242, $total->cents);\n        $this->assertEqualsWithDelta(72.42, $total->amount(), 0.001);\n    }"
+            "id": "6db4a24e-a0c6-4114-9b55-9fd8fcbd0cbb",
+            "fileId": "ba1bcc82-3fe1-5e7c-9e17-5d1d3e1a9f38",
+            "path": "app/Services/TaxService.php",
+            "startLine": 18,
+            "endLine": 28,
+            "excerpt": "class TaxService\n{\n    public function taxFor(Order $order, Money $base): Money\n    {\n        $rates = config('shop.tax_rates', []);\n        $country = $order->shipping_country ?? config('shop.default_country');\n        $rate = $rates[$country] ?? config('shop.default_tax_rate');\n\n        return $base->percentage((float) $rate);\n    }\n}"
+          },
+          {
+            "id": "9d46b9f2-2110-4546-9085-f369333ba85b",
+            "fileId": "40d7d89c-3292-5c50-aeb5-7f0ca2ab9b94",
+            "path": "app/Services/ShippingService.php",
+            "startLine": 16,
+            "endLine": 35,
+            "excerpt": "class ShippingService\n{\n    public function __construct(private readonly CarrierGateway $carrier)\n    {\n    }\n\n    public function shippingFor(Order $order, Money $base): Money\n    {\n        $threshold = Money::fromFloat((float) config('shop.free_shipping_threshold'));\n\n        if ($base->isGreaterThan($threshold)) {\n            return Money::zero();\n        }\n\n        // Dynamic method: CarrierGateway has no flatRateFor() declared.\n        $cents = $this->carrier->flatRateFor($order->shipping_country);\n\n        return Money::fromCents((int) $cents);\n    }\n}"
+          },
+          {
+            "id": "aa4152b0-4c76-4284-9835-bffa7300d763",
+            "fileId": "006db799-610d-5a10-a926-5ebc658d747c",
+            "path": "app/Services/PriceCalculator.php",
+            "startLine": 16,
+            "endLine": 44,
+            "excerpt": "class PriceCalculator\n{\n    public function __construct(\n        private readonly DiscountService $discounts,\n        private readonly TaxService $taxes,\n        private readonly ShippingService $shipping,\n    ) {\n    }\n\n    public function compute(Order $order): Money\n    {\n        $subtotal = $order->subtotal;                       // magic accessor\n        $discount = $this->discounts->discountFor($order, $subtotal);\n        $taxable = $subtotal->subtract($discount);\n\n        $tax = $this->taxes->taxFor($order, $taxable);\n        $shipping = $this->shipping->shippingFor($order, $taxable);\n\n        return $taxable->add($tax)->add($shipping);\n    }\n\n    /** Returns the discounted amount before tax and shipping. */\n    public function taxableBase(Order $order): Money\n    {\n        $subtotal = $order->subtotal;\n\n        return $subtotal->subtract($this->discounts->discountFor($order, $subtotal));\n    }\n}"
           }
         ],
         "priorClaims": [],
         "usage": {
-          "inputTokens": 9856,
-          "outputTokens": 444,
+          "inputTokens": 10902,
+          "outputTokens": 410,
           "baselineTokens": 7123,
           "baselineEstimator": "chars-div-4",
-          "savingsPct": -38.4,
+          "savingsPct": -53.1,
           "costUsd": 0,
-          "latencyMs": 205781,
+          "latencyMs": 379285,
           "cacheHit": false,
           "generation": {
             "inputTokens": 6972,
-            "outputTokens": 409,
+            "outputTokens": 354,
             "costUsd": 0
           },
           "verification": {
-            "calls": 5,
+            "calls": 8,
             "cacheHits": 0,
-            "inputTokens": 2884,
-            "outputTokens": 35,
+            "inputTokens": 3930,
+            "outputTokens": 56,
             "costUsd": 0,
-            "latencyMs": 25722
+            "latencyMs": 88459
           }
         },
-        "confidence": 0.7518182627028918
+        "confidence": 0.8833970308388606
       },
-      "reviews": [
-        {
-          "by": "agent:claude-opus-5-5",
-          "date": "2026-10-29"
-        },
-        {
-          "by": "agent:claude-sonnet-5-5",
-          "date": "2026-10-29"
-        }
-      ]
+      "reviews": []
     },
     {
       "id": "Q3",
@@ -152,38 +194,21 @@
       "response": {
         "kind": "answered",
         "persisted": true,
-        "answer": "Los cupones se validan en el servicio CouponValidator.",
+        "answer": "Los cupones se validan utilizando la clase CouponValidator.",
         "statements": [
           {
-            "text": "El método percentFor en CouponValidator valida los cupones comprobando el código, si el cupón es activo y si no ha expirado.",
+            "text": "La clase CouponValidator contiene el método percentFor que verifica si un código de cupón es válido. Este método busca el cupón en la base de datos y verifica si está activo y no ha expirado.",
             "type": "FACT",
             "status": "current",
             "verification": "entailed",
             "evidenceIds": [
-              "c6518007-1c62-4366-afda-de127ff242cb"
-            ]
-          },
-          {
-            "text": "El método isRedeemable en CouponValidator verifica si el código es válido.",
-            "type": "FACT",
-            "status": "current",
-            "verification": "entailed",
-            "evidenceIds": [
-              "62848952-2d52-43cd-af22-b06f6f1c048d"
+              "0207bf52-7956-4ee7-b446-737ae47a2bd3"
             ]
           }
         ],
         "evidence": [
           {
-            "id": "c6518007-1c62-4366-afda-de127ff242cb",
-            "fileId": "5b05b76b-733a-59d8-b4cd-284b2783f184",
-            "path": "app/Services/CouponValidator.php",
-            "startLine": 14,
-            "endLine": 39,
-            "excerpt": "class CouponValidator\n{\n    public function percentFor(?string $code): float\n    {\n        if ($code === null || $code === '') {\n            return 0.0;\n        }\n\n        $coupon = Coupon::query()->find($code);\n\n        if (! $coupon instanceof Coupon || ! $coupon->active) {\n            return 0.0;\n        }\n\n        if ($coupon->expires_at !== null && $coupon->expires_at->isPast()) {\n            return 0.0;\n        }\n\n        return $coupon->percent_off;\n    }\n\n    public function isRedeemable(?string $code): bool\n    {\n        return $this->percentFor($code) > 0.0;\n    }\n}"
-          },
-          {
-            "id": "62848952-2d52-43cd-af22-b06f6f1c048d",
+            "id": "0207bf52-7956-4ee7-b446-737ae47a2bd3",
             "fileId": "5b05b76b-733a-59d8-b4cd-284b2783f184",
             "path": "app/Services/CouponValidator.php",
             "startLine": 14,
@@ -193,40 +218,31 @@
         ],
         "priorClaims": [],
         "usage": {
-          "inputTokens": 5181,
-          "outputTokens": 131,
+          "inputTokens": 4761,
+          "outputTokens": 101,
           "baselineTokens": 4422,
           "baselineEstimator": "chars-div-4",
-          "savingsPct": -17.2,
+          "savingsPct": -7.7,
           "costUsd": 0,
-          "latencyMs": 69021,
+          "latencyMs": 33845,
           "cacheHit": false,
           "generation": {
             "inputTokens": 4302,
-            "outputTokens": 117,
+            "outputTokens": 94,
             "costUsd": 0
           },
           "verification": {
-            "calls": 2,
+            "calls": 1,
             "cacheHits": 0,
-            "inputTokens": 879,
-            "outputTokens": 14,
+            "inputTokens": 459,
+            "outputTokens": 7,
             "costUsd": 0,
-            "latencyMs": 7992
+            "latencyMs": 10741
           }
         },
         "confidence": 0.8519528019683106
       },
-      "reviews": [
-        {
-          "by": "agent:claude-opus-5-5",
-          "date": "2026-10-29"
-        },
-        {
-          "by": "agent:claude-sonnet-5-5",
-          "date": "2026-10-29"
-        }
-      ]
+      "reviews": []
     },
     {
       "id": "Q4",
@@ -235,39 +251,30 @@
       "response": {
         "kind": "answered",
         "persisted": true,
-        "answer": "OrderObserver ejecuta dos acciones cuando se crea un pedido: recalcula los totales del pedido y emite un evento OrderPlaced.",
+        "answer": "Al crear un pedido, OrderObserver dispara dos eventos: RecalculateTotals::dispatch($order) y event(new OrderPlaced($order)).",
         "statements": [
           {
-            "text": "OrderObserver tiene un método llamado created que se ejecuta cuando se crea un pedido.",
+            "text": "El método created() de OrderObserver dispara RecalculateTotals::dispatch($order).",
             "type": "FACT",
             "status": "current",
             "verification": "entailed",
             "evidenceIds": [
-              "8e0c4117-1652-4a63-a34b-b562d55d6610"
+              "1efed8e1-05f1-48c6-9b88-ac8c94d798a2"
             ]
           },
           {
-            "text": "El método created dispara un job llamado RecalculateTotals para recalcular los totales del pedido.",
+            "text": "El método created() de OrderObserver dispara event(new OrderPlaced($order)).",
             "type": "FACT",
             "status": "current",
             "verification": "entailed",
             "evidenceIds": [
-              "1b64d6f8-d064-46b2-a1e4-f939b6af494f"
-            ]
-          },
-          {
-            "text": "El método created emite un evento OrderPlaced para indicar que un pedido ha sido creado.",
-            "type": "FACT",
-            "status": "current",
-            "verification": "entailed",
-            "evidenceIds": [
-              "1256720e-bfe7-4971-af83-2b85a506974d"
+              "3a360bff-1f5b-4eea-aa64-ae3a40850f18"
             ]
           }
         ],
         "evidence": [
           {
-            "id": "8e0c4117-1652-4a63-a34b-b562d55d6610",
+            "id": "1efed8e1-05f1-48c6-9b88-ac8c94d798a2",
             "fileId": "8ab77787-1c95-5f14-8965-f5656078d84b",
             "path": "app/Observers/OrderObserver.php",
             "startLine": 14,
@@ -275,15 +282,7 @@
             "excerpt": "class OrderObserver\n{\n    public function created(Order $order): void\n    {\n        RecalculateTotals::dispatch($order);\n        event(new OrderPlaced($order));\n    }\n\n    public function updated(Order $order): void\n    {\n        if ($order->wasChanged('status') && $order->status === 'paid') {\n            RecalculateTotals::dispatch($order);\n        }\n    }\n}"
           },
           {
-            "id": "1b64d6f8-d064-46b2-a1e4-f939b6af494f",
-            "fileId": "8ab77787-1c95-5f14-8965-f5656078d84b",
-            "path": "app/Observers/OrderObserver.php",
-            "startLine": 14,
-            "endLine": 28,
-            "excerpt": "class OrderObserver\n{\n    public function created(Order $order): void\n    {\n        RecalculateTotals::dispatch($order);\n        event(new OrderPlaced($order));\n    }\n\n    public function updated(Order $order): void\n    {\n        if ($order->wasChanged('status') && $order->status === 'paid') {\n            RecalculateTotals::dispatch($order);\n        }\n    }\n}"
-          },
-          {
-            "id": "1256720e-bfe7-4971-af83-2b85a506974d",
+            "id": "3a360bff-1f5b-4eea-aa64-ae3a40850f18",
             "fileId": "8ab77787-1c95-5f14-8965-f5656078d84b",
             "path": "app/Observers/OrderObserver.php",
             "startLine": 14,
@@ -293,40 +292,31 @@
         ],
         "priorClaims": [],
         "usage": {
-          "inputTokens": 8410,
-          "outputTokens": 182,
+          "inputTokens": 8045,
+          "outputTokens": 139,
           "baselineTokens": 7341,
           "baselineEstimator": "chars-div-4",
-          "savingsPct": -14.6,
+          "savingsPct": -9.6,
           "costUsd": 0,
-          "latencyMs": 118396,
+          "latencyMs": 239726,
           "cacheHit": false,
           "generation": {
             "inputTokens": 7329,
-            "outputTokens": 161,
+            "outputTokens": 125,
             "costUsd": 0
           },
           "verification": {
-            "calls": 3,
+            "calls": 2,
             "cacheHits": 0,
-            "inputTokens": 1081,
-            "outputTokens": 21,
+            "inputTokens": 716,
+            "outputTokens": 14,
             "costUsd": 0,
-            "latencyMs": 9638
+            "latencyMs": 15012
           }
         },
         "confidence": 0.8519528019683106
       },
-      "reviews": [
-        {
-          "by": "agent:claude-opus-5-5",
-          "date": "2026-10-29"
-        },
-        {
-          "by": "agent:claude-sonnet-5-5",
-          "date": "2026-10-29"
-        }
-      ]
+      "reviews": []
     }
   ]
 }
