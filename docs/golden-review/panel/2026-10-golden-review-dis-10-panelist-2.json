@@ -1,0 +1,226 @@
+{
+  "panelist": 2,
+  "model": "claude-sonnet-5-5",
+  "date": "2026-10-29",
+  "sourcesRead": [
+    "openspec/changes/incremental-indexing/tasks.md",
+    "docs/golden-review/2026-10-golden-review-dis-10.md",
+    "docs/golden-review/panel/2026-10-golden-review-dis-10-input.json",
+    "fixtures/task-api/src/routes/tasks.routes.ts",
+    "fixtures/task-api/src/domain/pagination.ts",
+    "fixtures/task-api/src/services/task.service.ts",
+    "fixtures/task-api/src/domain/task-status.ts",
+    "fixtures/task-api/src/config/env.ts",
+    "fixtures/task-api/src/app.ts",
+    "fixtures/task-api/src/routes/index.ts",
+    "fixtures/acme-shop/app/Services/PriceCalculator.php",
+    "fixtures/acme-shop/app/Models/Order.php",
+    "fixtures/acme-shop/tests/Feature/OrderPricingTest.php",
+    "fixtures/acme-shop/app/Services/CouponValidator.php",
+    "fixtures/acme-shop/app/Observers/OrderObserver.php"
+  ],
+  "items": [
+    {
+      "project": "task-api",
+      "id": "Q1",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/routes/tasks.routes.ts:18"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/routes/tasks.routes.ts:18"
+          ]
+        }
+      ],
+      "notes": "Routes attach schemas (fixtures/task-api/src/routes/tasks.routes.ts:18) and the quoted example is literal. The answer says 'JSON schemas' but they are Zod schemas (fixtures/task-api/src/routes/tasks.routes.ts:11); imprecise, not an error."
+    },
+    {
+      "project": "task-api",
+      "id": "Q2",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/domain/pagination.ts:13"
+          ]
+        }
+      ],
+      "notes": "buildPage takes items, total, page and pageSize and returns a Page with pageCount (fixtures/task-api/src/domain/pagination.ts:13)."
+    },
+    {
+      "project": "task-api",
+      "id": "Q3",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/services/task.service.ts:45"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/services/task.service.ts:48"
+          ]
+        },
+        {
+          "n": 3,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/services/task.service.ts:49"
+          ]
+        },
+        {
+          "n": 4,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/domain/task-status.ts:25"
+          ]
+        },
+        {
+          "n": 5,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/domain/task-status.ts:26"
+          ]
+        },
+        {
+          "n": 6,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/services/task.service.ts:61"
+          ]
+        },
+        {
+          "n": 7,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/services/task.service.ts:50"
+          ]
+        }
+      ],
+      "notes": "The transition check is at fixtures/task-api/src/services/task.service.ts:49 and uses TRANSITIONS at fixtures/task-api/src/domain/task-status.ts:26. The answer is generic and 'entidad_task' is a slip of the model, not an error."
+    },
+    {
+      "project": "task-api",
+      "id": "Q4",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [],
+      "notes": "No route, hook, middleware or plugin authenticates a user (fixtures/task-api/src/app.ts:25 to 31 registers only validators, error handler, db and routes); only a JWT_SECRET config default exists at fixtures/task-api/src/config/env.ts:13 and is never used for a check, so UNKNOWN is the due answer."
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q1",
+      "answer": "true",
+      "verdict": "partial",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/PriceCalculator.php:25"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Models/Order.php:45"
+          ]
+        },
+        {
+          "n": 3,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/tests/Feature/OrderPricingTest.php:31"
+          ]
+        },
+        {
+          "n": 4,
+          "judgement": "unverifiable",
+          "cites": [
+            "fixtures/acme-shop/app/Services/PriceCalculator.php:31"
+          ]
+        },
+        {
+          "n": 5,
+          "judgement": "unverifiable",
+          "cites": [
+            "fixtures/acme-shop/app/Services/PriceCalculator.php:32"
+          ]
+        }
+      ],
+      "notes": "Statements 4 and 5 are true in substance (fixtures/acme-shop/app/Services/PriceCalculator.php:31) but the cited test lines 31-51 only assert the final total and never show tax on the discounted base or country shipping logic; the cited methods Test_order_discounts_before_tax and Test_shipping_charges do not exist (the test is named at fixtures/acme-shop/tests/Feature/OrderPricingTest.php:31). Statement 3 is accepted only because that test name states discount before tax."
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q3",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/CouponValidator.php:16"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/CouponValidator.php:35"
+          ]
+        }
+      ],
+      "notes": "percentFor checks empty code, existence, active and expiry (fixtures/acme-shop/app/Services/CouponValidator.php:18). Statement 2 is imprecise: isRedeemable returns whether percentFor is above zero (fixtures/acme-shop/app/Services/CouponValidator.php:37), not only whether the code is valid; judged true."
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q4",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Observers/OrderObserver.php:16"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Observers/OrderObserver.php:18"
+          ]
+        },
+        {
+          "n": 3,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Observers/OrderObserver.php:19"
+          ]
+        }
+      ],
+      "notes": "created dispatches RecalculateTotals and fires OrderPlaced (fixtures/acme-shop/app/Observers/OrderObserver.php:18), all literal in the code."
+    }
+  ]
+}
