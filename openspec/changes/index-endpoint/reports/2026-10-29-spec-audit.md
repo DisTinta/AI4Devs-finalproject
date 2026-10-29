@@ -529,3 +529,208 @@ Run 2 raised none. The destination-C items stay as they were: the PowerShell che
 ### Linear
 
 The Spanish comment of this round is posted on DIS-9. The `[enhanced]` description is not edited; E25 and E26 live in `design.md` → Follow-ups and in that comment.
+
+---
+
+## Run 3 (2026-10-29)
+
+APPROVED
+
+# Spec audit: `index-endpoint` (DIS-9, parent DIS-6), 2026-10-29, run 3
+
+**Inputs read**
+- The change: `proposal.md`, `design.md`, `tasks.md`, the deltas `specs/http-index`, `specs/repository-indexing`, `specs/graph-store` and `specs/api-foundation`, and `reports/2026-10-29-spec-audit.md` (runs 1 and 2 with their resolutions).
+- Linear: DIS-9 (description with `[original]`, `[reality-map]` and `[enhanced]`, plus 4 comments) and its parent DIS-6.
+- Project: `docs/base-standards.md`, `docs/openspec-tasks-mandatory-steps.md` (structure) and `openspec/specs/api-foundation/spec.md` (error log clause).
+
+**Code checked**
+- API: `packages/api/src/app.ts`, `plugins/openapi.ts`, `plugins/zod-compiler.ts`, `plugins/error-handler.ts`, `plugins/rate-limit.ts`, `routes/ask.ts` and `schemas/ask.ts`.
+- Core: `packages/core/src/index/path-policy.ts` and `packages/core/src/knowledge/errors.ts`.
+- Seed: `packages/cli/src/seed/fingerprint.ts`.
+- Tests: `tests/unit/api/health-docs.spec.ts` and `tests/unit/api/support.ts`.
+- Libraries: `node_modules/@fastify/swagger/lib/spec/openapi/{index,utils}.js` (9.9.2) and `node_modules/zod/v4/core/json-schema-processors.js`.
+
+## Questions for the author
+
+There are no new questions. These items stay pending for the author, all with destination C:
+- the PowerShell check (E13);
+- the new review of the regenerated golden entries (E16);
+- whether DIS-6 can close on the adapted reading of its AC1 and AC2 (E18).
+
+The agent's earlier decisions E15–E26 do not contradict the ticket or the project, so I accept them.
+
+---
+
+## 1. Scope against the ticket
+
+Clean. Every item traces to DIS-9 `[enhanced]` E1–E14 or to the audit decisions E15–E26.
+
+- **Route items:** the route, its schema, its error table and the completion log.
+- **Core and adapter:** the core use case and the pooled transaction runner.
+- **Configuration and docs:** the optional variables and the docs.
+- **Forced by the project:** the seed and golden regeneration, which ADR `20261017-stale-fingerprint-fails-verify` forces.
+- **Needed by the route:** the OpenAPI `transformObject` (E25), which E19 makes necessary.
+
+Nothing pulls in DIS-10 (the incremental plan) or DIS-42 (lazy recomputation of `stale` claims).
+
+## 2. Inherited acceptance criteria
+
+Clean.
+
+- **DoD "four codes in an integration test":** four seed scenarios cover `202`, `400`, `403` and `404`.
+- **DoD "route in `/docs`":** covered by "The document lists index…".
+- **DoD "`cacheHit = false` after a reindex":** covered by the seed `202` scenario.
+- **DIS-9 `[enhanced]` AC1–AC5:** all covered. AC5's partial write is covered by the core scenario "A failed cache invalidation fails the unit of work" together with the adapter scenario "Work that rejects leaves nothing". Run 1 rejected a single Postgres test for this, and I accept that.
+- **DIS-6 AC2 and AC3:** covered. These include `language: ruby` → `400`, unknown project → `404`, and every `cache_entry` invalidated.
+- **DIS-6 AC1 and AC2, `rootPath` and `jobId`:** met in the adapted form (E1/E3/E18). Closing the parent is pending for the author (C).
+
+## 3. Missing scenarios
+
+Clean. Every MUST clause of the four deltas has a scenario. Two clauses of the `graph-store` requirement are explicitly not tested, and design U3 records them with their reason (E21, D): rollback failure and commit failure.
+
+## 4. Ambiguity
+
+Clean. A case-insensitive search for fast, easy, secure, efficient, many, appropriate and robust finds no occurrence in `proposal.md`, `design.md`, the specs or `tasks.md`. The only hits are in the reports.
+
+## 5. Open decisions
+
+Clean. The run 2 blocker (`requestBody.required`) now has an implementation path that I checked against the installed libraries:
+
+- **`transformObject` is supported.** `@fastify/swagger` 9.9.2 calls `transformObject({ openapiObject })` after building the document (`lib/spec/openapi/index.js` l. 77-79), so the U5 transform can set `requestBody.required = false`.
+- **The body schema publishes no `required` key.** Zod 4 writes `required` only when an object has a required key (`json-schema-processors.js` l. 405-406). So `z.strictObject({ incremental: z.boolean().optional() })` publishes no `required` key, as the scenario expects, and keeps `additionalProperties: false`.
+- **Existing documents are unaffected.** `/ask` and the test route `POST /api/test-only` (`tests/unit/api/support.ts` l. 15) have a required key, so the transform leaves them unchanged. `tests/unit/api/health-docs.spec.ts` asserts with `toContain`, not on the exact list of paths (l. 47-50), so the new path does not break it.
+- **The `uuid` format comes from the existing pattern.** `askParamsSchema` already publishes `format: 'uuid'` (`schemas/ask.ts` l. 30), and `projectIdParamsSchema` reuses it.
+
+## 6. Contradictions inside the change
+
+**Improvable: the proposal promises more about logs than the design and the main spec deliver.**
+
+- **What the proposal says.** `proposal.md` → Impact → Security and privacy: "error bodies and the log carry no path". Task 9.5 checks "no path in error bodies or logs".
+- **What the design does.** Design U5 sends `INVALID_GRAPH` and every unmapped failure to the global handler, which "logs it at `error`".
+- **What the main spec requires.** `openspec/specs/api-foundation/spec.md` (l. 292) requires: "An error answered with `500` SHALL be logged at level `error` with the original error".
+- **Why the two conflict.**
+  - `InvalidGraph` carries `element: message` for each violation (`knowledge/errors.ts` l. 48, 198-201).
+  - An unexpected file-system or driver failure carries its own text, which can include the absolute root path.
+
+  So a `500` log line can hold a path. The `http-index` requirement "Index completion log" is correct, because it covers only the success line. The broad wording of the proposal and of task 9.5 is what conflicts with the main spec. The fix is to narrow that wording, not to change behaviour (see Corrections).
+
+The rest is consistent:
+- the signatures in U1–U4;
+- the error table, which matches the `readme.md` error list in U8 and the OpenAPI responses `400`/`403`/`404`/`429`/`500`/`503`;
+- the `202` deviation (U9);
+- the E15 guarantee;
+- the scenario counts in task 8.2: 16 in `http-index` (12 unit + 4 integration), 10 in `repository-indexing`, 4 in `graph-store` and 2 in `api-foundation`. I counted each against the deltas, and each matches.
+
+## 7. Contradictions with the project
+
+Clean, apart from the log wording under point 6.
+
+- **Recorded deviations.** The `202` deviation from `docs/backend-standards.md` §6 is recorded (U9, E17), and so is the timing in the route against §3 (U6, E20).
+- **Fingerprint inputs.** The inputs named in task 10 match `packages/cli/src/seed/fingerprint.ts` l. 30-51. The change touches `packages/core/src/index`, `packages/adapters/store-postgres/src` and `packages/analyzers/php/src`. It does not touch `packages/core/src/knowledge`, and `packages/api` is not an input.
+- **Branch name.** The lowercase branch name is recorded (E24).
+
+## 8. Contrast with the real code
+
+Clean. These points check out against the code:
+
+- **Domain errors reach the route table.** `IndexingDisabled` and `ForbiddenPathError` are `DomainError`s with stable codes (`path-policy.ts` l. 5-25). The route's `config.domainErrors` is consulted before the global table (`error-handler.ts` l. 100), so the U5 table works as written.
+- **The empty JSON body is already handled.** It is answered `400` `VALIDATION_ERROR` (`error-handler.ts` l. 27, `FST_ERR_CTP_EMPTY_JSON_BODY`).
+- **Rejected requests count toward the rate limit.** The limit counts in `onRequest`, before validation, and exempts only `/health` and `/docs` (`rate-limit.ts` l. 25-27, 50-60). This matches the unit scenario "The index route is rate limited".
+- **The response schemas follow `/ask`.** The `/ask` route declares one error schema per status (`routes/ask.ts` l. 134), the pattern U5 follows for `202` and the error codes.
+- **The `preValidation` hook runs in time.** Fastify runs `preValidation` before schema validation, so the U5 hook sees an absent body before the strict schema does.
+
+## 9. Task size
+
+Clean. Every task fits one agent turn. Task 5.3 is the largest and stays bounded, and the OpenAPI transform lives in 5.6.
+
+## 10. Mandatory steps
+
+Clean overall:
+- Step 0 creates or verifies the branch first.
+- The mandatory steps are present, in order and labelled:
+  - 8 Review and Update Existing Tests;
+  - 9 Run Tests and Verify Data State, with the report path and the §6 template;
+  - 11 Manual Interface Testing, executed by the agent, with restoration in 11.6;
+  - 12 End-to-End Testing, not applicable and justified;
+  - 13 Update Technical Documentation;
+  - 15 Pre-merge Review last, with the archive before the merge.
+- Mutating tasks restore state: 3.3 deletes what it commits, and 9.6 and 11.6 restore and re-check the 0.4 indicators.
+
+**Improvable: tasks 11.3 and 11.4 use up the rate limit before the `404` check.**
+
+- **The count.** The instance started in 11.2 has `RATE_LIMIT_MAX=8` and the default 60 s window. 11.3 sends five counted requests: `/ask`, three `/index` and `/ask` (`/docs/json` is exempt). 11.4 then sends four more on the same instance, all counted because the limit counts before validation (`rate-limit.ts` l. 44-45): the `rootPath` body, `not-a-uuid`, the empty JSON body and the random UUID.
+- **The effect.** If those nine requests fall inside one window, the random UUID check answers `429` instead of `404`. The expected status then depends on timing.
+
+The fix is to restart the API with the 11.2 command before the error paths of 11.4. The final rate limit check already runs on a fresh instance.
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| http-index · Index request validation | A body with a path or a language answers VALIDATION_ERROR without indexing | 5.4 |
+| | A malformed project id answers VALIDATION_ERROR without indexing | 5.4 |
+| | A request without a body is a full reindex | 5.3 (hook), 5.4 |
+| | An invalid request answers VALIDATION_ERROR over the seed | 7.3 |
+| http-index · Index accepted response | A reindex answers 202 and invalidates the cache over the seed | 7.1 |
+| | An incremental request is accepted as a full reindex | 5.4 |
+| | A TypeScript project answers with the ts-compiler analyzer | 5.4 |
+| http-index · Index error answers | Indexing disabled answers 403 without touching the store | 5.2, 5.3 |
+| | An unknown project answers PROJECT_NOT_FOUND | 5.4 |
+| | A stored root outside the allowed root answers FORBIDDEN_PATH without a path over the seed | 7.2 |
+| | An unknown project answers PROJECT_NOT_FOUND over the seed | 7.3 |
+| | An unreadable stored repository answers 503 without a path | 5.4 |
+| | An invalid graph answers INTERNAL and saves nothing | 5.4 |
+| | The index route is rate limited | 5.5 |
+| http-index · Index completion log | A reindex logs its counters without paths | 5.5 |
+| http-index · Index in the OpenAPI document | The document lists index with its parameter, body and responses | 5.6 (incl. `transformObject`, E25) |
+| repository-indexing · Reindexing an existing project | A reindex saves over the stored project and then invalidates its cache | 2.1, 2.2 |
+| | A relative stored root resolves against the workspace root | 2.3 |
+| | Reindexing is disabled without an allowed root, before reading the project | 2.3 |
+| | An unknown project is not reindexed | 2.3 |
+| | A stored root outside the allowed root is rejected before reading | 1.1, 2.3 |
+| | An allowed root that does not exist disables reindexing | 2.3 |
+| | A reindex keeps the stored project fields and detects no framework | 1.2, 2.3 |
+| | A workspace root that is not absolute is rejected before any call | 2.4 |
+| | A failed cache invalidation fails the unit of work | 2.3 |
+| | An invalid graph writes nothing | 2.3 |
+| graph-store · Running work in one transaction on a pooled store | Work that resolves is committed | 3.1, 3.2 |
+| | Work that rejects leaves nothing | 3.3 |
+| | Work's writes are invisible to another connection before the commit | 3.3 |
+| | Every connection is released after a run | 3.3 |
+| api-foundation · Configuration from the environment (modified) | Defaults apply… / An invalid variable fails… (unchanged, DIS-76 tests) | 8.2 |
+| | Missing indexing variables do not stop the API | 6.3, 6.4 |
+| api-foundation · Composition from the environment (modified) | five unchanged DIS-76 scenarios | 8.2 |
+| | Both indexing variables compose the indexing dependencies | 6.2, 6.3, 6.4 |
+| (design Risks, ADR 20261017) | seed and golden regeneration | 10.1–10.5 |
+
+No row is empty, and every task maps to a requirement or to a recorded project obligation.
+
+---
+
+## Corrections to apply
+
+All corrections are improvable. None blocks the apply.
+
+### `openspec/changes/index-endpoint/proposal.md`
+
+Impact → Security and privacy. Replace "error bodies and the log carry no path" with:
+> error bodies and the `reindex completed` log line carry no path; a failure answered `500` is logged at `error` with its original error, as `api-foundation` requires for every route.
+
+### `openspec/changes/index-endpoint/tasks.md`
+
+1. **Task 9.5.** Replace "(no path in error bodies or logs; …" with:
+   > (no path in error bodies nor in the `reindex completed` line; a `500` logs its original error as `api-foundation` requires; …
+2. **Task 11.4.** At its start, add:
+   > Restart the API with the exact command of 11.2 before these error paths, so the rate-limit counter starts at zero (11.3 already used five of the eight requests, and rejected requests count).
+
+### Linear: DIS-9 (comment in Spanish; `[original]` not touched)
+
+> *Texto del agente: tercera auditoría de especificación (spec-auditor) del change `index-endpoint`, sin la autora.*
+>
+> Veredicto: `APPROVED`, 0 hallazgos bloqueantes. He comprobado E25 contra las librerías instaladas. `@fastify/swagger` 9.9.2 aplica `transformObject` después de construir el documento, y Zod 4 no escribe la clave `required` cuando ningún campo es obligatorio. El cuerpo de `/index` saldrá como no obligatorio, y el documento de `/ask` no cambia.
+>
+> Mejoras, sin bloqueo:
+> - La propuesta y la tarea 9.5 dicen que ningún log lleva rutas. Pero `api-foundation` obliga a registrar el error original de un `500` (por ejemplo `InvalidGraph`). Hay que acotar el texto a la línea `reindex completed`.
+> - En la tarea 11.4 hay que reiniciar la API antes de probar los errores. Si no, la novena petición del mismo minuto (el UUID aleatorio) puede responder `429` en lugar de `404`.
+>
+> Siguen pendientes para la autora (C): la comprobación en PowerShell (E13), la revisión de las respuestas golden regeneradas (E16) y el cierre de DIS-6 (E18).
