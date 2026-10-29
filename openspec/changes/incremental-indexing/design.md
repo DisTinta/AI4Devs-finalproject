@@ -223,6 +223,7 @@ in spec or non-goals.*
 | P7 | An unchanged repository keeps the graph of an older analyzer on the fast path; `incremental: false` is the documented way to rebuild after an analyzer upgrade. | D |
 | P9 | In `http-index`, "Index request validation" and "Index accepted response" are REMOVED and re-ADDED as "Index request validation and mode selection" and "Index accepted response with the plan's counters": each loses one scenario that no longer holds ("A request without a body is a full reindex", "An incremental request is accepted as a full reindex"), and `openspec validate` refuses a MODIFIED block that drops a scenario. Every other rule and scenario is kept word for word. | A |
 | P8 | PowerShell check for the author: run the `readme.md` §4 `POST /index` example in a new PowerShell terminal against a local API and confirm `mode: "incremental"`; the agent runs the Git Bash half (task 15.8). | C |
+| G1 | The DIS-10 golden round judged task-api `Q1` `incorrect` (panelists disagreed; the resolver decided): its `reviews` stay empty and the entry stays in `seeds/cache/task-api.json`. Successor ticket DIS-112 («Regenerar o retirar la golden task-api Q1 y revisarla de nuevo», related to DIS-10) regenerates or retires it and has it reviewed again. | B |
 
 *Agent's text: spec audit run 1 (`reports/2026-10-29-spec-audit.md`), correction round 1. Answers to
 the questions for the author, taken by the agent as lead engineer without the author, and the

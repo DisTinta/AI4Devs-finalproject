@@ -19,9 +19,11 @@ criterion below, which is the DIS-33 criterion copied verbatim.
 
 ## Panel
 
-- **Panelist 1:** Opus. **Panelist 2:** Sonnet. They judge the seven items blind to each other and to
+- **Panelist 1:** Opus, model `claude-opus-5-5`, date 2026-10-29. **Panelist 2:** Sonnet, model
+  `claude-sonnet-5-5`, date 2026-10-29. They judge the seven items blind to each other and to
   every earlier round.
-- **Resolver:** Opus, in a fresh context, only over the items where the two panelist verdicts differ.
+- **Resolver:** Opus, model `claude-opus-5-5`, date 2026-10-29, in a fresh context, only over the
+  items where the two panelist verdicts differ (one in this run: task-api `Q1`).
 - **Outputs:** under `docs/golden-review/panel/` (the input, the two panelist outputs and the
   resolution).
 
@@ -44,3 +46,41 @@ and their files under `docs/golden-review/panel/`; the other reports of `docs/go
 other panelist's output; the rest of `docs/`, `packages/`, `tests/`, `scripts/` and `openspec/`; the
 git history; any Linear content. A panelist does not run the analyzers, `ask`, `verify`, the
 fixtures' tests or any script, and does not read the database or the answer cache.
+
+## Verdicts
+
+The panel outputs and the resolution are unchanged since the commits that created them. The panelists
+disagreed on one item, task-api `Q1`, which the resolver decided.
+
+| Project | Id | Panelist 1 | Panelist 2 | Final | Justification | Errors |
+|---|---|---|---|---|---|---|
+| task-api | Q1 | incorrect | correct | incorrect | Both statements are true, but the answer names JSON schemas while the schemas are Zod objects (`fixtures/task-api/src/schemas/task.schema.ts:19`) validated through the Zod compiler (`fixtures/task-api/src/app.ts:25`), so the answer misstates the mechanism the question asks about | none |
+| task-api | Q2 | correct | correct | correct | buildPage takes items, total, page and pageSize and returns a Page with pageCount (`fixtures/task-api/src/domain/pagination.ts:13`) | none |
+| task-api | Q3 | correct | correct | correct | The transition check uses the TRANSITIONS table (`fixtures/task-api/src/services/task.service.ts:49`); the answer is generic and the odd identifier is a slip of the model | none |
+| task-api | Q4 | correct | correct | correct | No route, hook, plugin or check authenticates a user; JWT_SECRET is parsed but never used to verify anyone (`fixtures/task-api/src/config/env.ts:13`), so UNKNOWN is the due answer | none |
+| acme-shop | Q1 | partial | partial | partial | S4 and S5 cite tests whose lines do not back them, although the service code does what they say (`fixtures/acme-shop/app/Services/PriceCalculator.php:31`), and S1 calls compute authoritative without the code saying so (`fixtures/acme-shop/app/Services/PriceCalculator.php:25`) | S1 overtyped; S5 unverifiable |
+| acme-shop | Q3 | correct | correct | correct | percentFor checks the code, its existence, active and expiry (`fixtures/acme-shop/app/Services/CouponValidator.php:18`); S2 is imprecise about isRedeemable but true | none |
+| acme-shop | Q4 | correct | correct | correct | The observer dispatches RecalculateTotals and fires OrderPlaced (`fixtures/acme-shop/app/Observers/OrderObserver.php:18`) | none |
+
+## Agreement
+
+n = 7
+
+Percent agreement: 85.7%
+
+Cohen's kappa: 0.611
+
+The kappa is indicative: with seven items it has a wide uncertainty.
+
+Resolved by the resolver: 1 of 7
+
+## Pending
+
+- task-api Q1: DIS-112
+
+## Limitations
+
+- Two models of one family are not independent reviewers in the sense of two people.
+- The generator is a local 7B model (qwen2.5-coder).
+- sourcesRead is self-declared.
+- The criterion was written by an agent that had read the golden answers.
