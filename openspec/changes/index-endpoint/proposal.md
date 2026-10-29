@@ -70,6 +70,8 @@ Follow-ups with their A/B/C/D destination.)*
 - `api-foundation`: "Configuration from the environment" (two optional indexing variables that never
   fail start-up) and "Composition from the environment" (the indexing dependencies are composed only
   when both variables are set).
+- `golden-answers`: the four round-specific requirements of the blind golden review retargeted to the
+  DIS-9 round (input, outputs, report, criterion-first record; E30, E31).
 
 ## Impact
 
@@ -83,7 +85,7 @@ Follow-ups with their A/B/C/D destination.)*
 - Versioned data: `seeds/graph-dump.sql`, `seeds/cache/acme-shop.json` and `seeds/cache/task-api.json`
   are regenerated (`seed:build` then `cache:build`), because the change touches seed fingerprint
   inputs; `cache:build` needs a live model (the local Ollama). The seed's rows must not change, only its
-  `analyzer-fingerprint` header; the regenerated golden entries need a new review (E16, destination C).
+  `analyzer-fingerprint` header; the regenerated golden entries are reviewed in this change by a blind agent panel, round DIS-9 (E30).
 - Tests: new `tests/unit/index/reindex-project.spec.ts`, `tests/unit/api/reindex.spec.ts`,
   `tests/integration/api/reindex.spec.ts`; new scenarios in `tests/integration/store/open-store.spec.ts`
   and `tests/unit/api/composition.spec.ts`; existing tests that change are named in `tasks.md`.

@@ -734,3 +734,49 @@ Impact → Security and privacy. Replace "error bodies and the log carry no path
 > - En la tarea 11.4 hay que reiniciar la API antes de probar los errores. Si no, la novena petición del mismo minuto (el UUID aleatorio) puede responder `429` en lugar de `404`.
 >
 > Siguen pendientes para la autora (C): la comprobación en PowerShell (E13), la revisión de las respuestas golden regeneradas (E16) y el cierre de DIS-6 (E18).
+
+## Run 4 (2026-10-29)
+
+Scope: the addition for the DIS-9 golden review round (delta `golden-answers`, tasks groups 10b–10d,
+design E30 and E31), after the PR's CI stopped on the empty `reviews` of the regenerated golden files.
+
+`CHANGES REQUIRED` (5 blocking).
+
+E31 judged sound: the criterion is pinned by being, line for line, the DIS-33 and DIS-107 Criterion
+blocks merged before `ad180f7` (compared by test), which is stronger than commit order; report →
+input and no `seeds/cache/` commit between the regeneration and the input still hold; the delta
+declares the deviation in its own text.
+
+- B1. The Panel group lacked the "Resolver and its step contract" paragraph of DIS-107.
+- B2. Tasks 10.5 and 15.6 left open a regeneration after the panel input, which would void the round.
+- B3. Task 8.1/8.2 said no other existing test changes and mapped four deltas; the retargeted
+  `golden-reviews.spec.ts` and the eight `golden-answers` scenarios were unmapped.
+- B4. No verification step (full suite, lint, typecheck, docs coverage, privacy check) covered
+  groups 10b–10d.
+- B5. The proposal (capabilities, Impact) and tasks 10.4 and 14.1 still sent the review to the author,
+  against E30.
+- Improvable: I1 leak check on `tasks.md` before the hand-off; I2 docs of the round as their own
+  committed step (with `readme.md` and `docs/DEMO.md`); I3 the rest of the Panel group post-dates the
+  regeneration; I4 the regeneration commit and the step 9 report named in the spec; I5 the red-CI
+  window recorded; I6 the retargeting constants named precisely.
+
+## Resolution of run 4
+
+- B1: the paragraph copied verbatim after **Allowed sources** in group 10c.
+- B2: 10.5 now covers steps 10b–15 and, once 10b.4 is committed, sends such a commit to the author
+  (destination C) unless the whole round is rerun on new files; 15.6 says the same and that a finding
+  on a panel judgement is never fixed by editing a panel file.
+- B3, B4: new task 10d.7 names the changed test, maps the 8 delta scenarios and the 2 unchanged
+  "Signatures" scenarios, and runs the targeted and full suites, lint, typecheck, docs coverage and
+  the privacy check, recorded in the step 9 report addendum.
+- B5: `golden-answers` added to the proposal's Modified Capabilities and its Impact rewritten; 10.4
+  points at groups 10b–10d; E16 marked as superseded by E30; new task 14.2 updates the PR description.
+- I1 and I5 in 10b.5 (leak check, SHA-256 recheck, Linear comment naming the red-CI window); I2 as
+  task 10d.8; I3 and I5 in E31; I4 in the delta's wording; I6 in 10b.3.
+
+## Run 5 (2026-10-29)
+
+`APPROVED` (0 blocking). The five blocking findings of run 4 and the improvable I1, I2, I4, I5 and
+I6 are fixed. Remaining improvable, applied after the run: E31 now lists every difference of the
+Panel group from DIS-107's (the dropped "and stops the ticket", the generic forbidden-list wording);
+8.1 points at 10d.7; 15.7 runs `golden-reviews.spec.ts` after the archive commit.
