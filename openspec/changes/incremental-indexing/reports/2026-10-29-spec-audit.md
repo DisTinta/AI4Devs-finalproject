@@ -246,3 +246,45 @@ No empty row. The counts in task 8.2 match the deltas: repository-indexing 23, g
     «**Seed y respuestas golden**: el change toca entradas del fingerprint del seed (`packages/core/src/index`, `packages/core/src/knowledge`, `packages/adapters/store-postgres/src`), así que regenera `seeds/graph-dump.sql` y `seeds/cache/*.json` con Ollama local y hace la ronda de revisión golden DIS-10 (P6)».
 
     Under «Etiquetas y estimación», add: «la regeneración con Ollama (≈1 h) y la ronda de panel no estaban en la estimación M».
+
+---
+
+## Resolution of run 1
+
+*Agent's text: correction round 1 of the autonomous run (`docs/AUTONOMOUS-RUN.md` §6), 29-10-2026, by
+the agent as lead engineer, without the author. Each decision is recorded in `design.md` →
+Follow-ups (block "spec audit run 1") with its A/B/C/D destination. `openspec validate
+incremental-indexing --strict` passes after the edits. This section carries no verdict: the next
+audit run decides.*
+
+**Questions for the author (decided by the agent):**
+
+| Question | Resolution |
+|---|---|
+| Q1 CLI | Decided by the agent: D5 kept, the CLI reindex command is debt (destination C). The `[original]` description and the DoD of DIS-10 do not name the CLI; least scope. |
+| Q2 Kinds of dependents | Decided by the agent: D3 kept (`imports`, `calls`, `extends`, `implements`), destination A. Inheritance and implementation are dependencies in the same sense; the analyzer already receives every file (D1), so no work widens. |
+| Q3 Default `true` (BREAKING) | Decided by the agent: D2 kept, destination A. It is the contract already published in `readme.md` §4; `incremental: false` keeps the full mode. |
+| Q4 Cost of the golden round | Decided by the agent: accepted inside this ticket, destination A. The fingerprint ADR and `golden-reviews.spec.ts` make CI red otherwise. The estimate gap goes into the Linear comment of this round. |
+
+**Findings:**
+
+| Finding | Resolution |
+|---|---|
+| B1 | Fixed: the Postgres DoD scenario requires N ≥ 1 (the test fails at 0) and names the N dependents exactly in THEN (correction 1); task 6.1 asserts it. |
+| B2 | Fixed: task 11.1 records the 0.4 indicators before the regeneration; new task 11.6 records them after 11.3 and documents or restores the drift; 14.6 records them before and after its `db:seed`; 15.6 re-checks the indicators of 15.1 (correction 19). |
+| I-1 | Fixed: "An incremental request answers the plan's counters" names the logger test stream and asserts `mode` and `filesSkipped` of the three `reindex completed` lines (correction 7). |
+| I-2 | Fixed: "An unknown project is not reindexed" runs in both modes (correction 5); task 4.3 changes that existing `it`, and task 8.1 names it. |
+| I-3 | Fixed: new scenario "A failed cache invalidation on the fast path fails the reindex" (correction 3), implemented in task 4.4. |
+| I-4 | Fixed: the `decide` row says a project with no stored `indexedCommit` is never unchanged, and "A new HEAD with no changed file runs the whole reindex" has that second GIVEN case (correction 2). Its THEN now says "the repository's `HEAD`" so it covers both cases. |
+| I-5 | Fixed: the sentence on `filesSkipped` against the hygiene's `skipped` entries is in "Incremental reindex" (correction 4). |
+| I-6 | Fixed: task 6.1 uses a fresh copy per `it`, built in `beforeEach` and removed in `afterEach` (correction 17). |
+| I-7 | Fixed: the second claim's file is the first stored path in byte order outside the changed file and its N dependents, in the scenario and in task 6.1 (correction 1). |
+| I-8 | Fixed: design I2 orders by `kind::text COLLATE "C"`; the graph-store scenario adds an `extends` and an `imports` edge between `app/C.php` and `app/A.php` and expects `extends` first (corrections 6 and 8). |
+| I-9 | Fixed: `packages/core/src/knowledge` is named as a fingerprint input in `proposal.md` and in design Context (corrections 10 and 12). |
+| I-10 | Fixed: the comparator moves to `packages/core/src/knowledge/byte-order.ts` and replaces `compareByteOrder` of `co-change.ts` (design I1, task 1.1 with `tests/unit/knowledge` in its run, the mutation list of 9.4, the proposal's Impact) (corrections 9 and 13). |
+| I-11 | Fixed: task 4.2 amends the TSDoc of `INDEX_PHASES`/`IndexPhase` (correction 15). |
+| I-12 | Fixed: task 4.4 split into 4.4 (fast path, with the I-3 scenario), 4.5 (full path) and 4.6 (phases); task 8.2 counts `repository-indexing` 24 with 7 incremental unit scenarios; design I7 says 7 (correction 16). |
+| I-13 | Fixed: task 12.1 split into 12.1a (current round, tasks-file resolution, archive filter, header) and 12.1b (previous-round constants, rejection copies, criterion comparison) (correction 18); task 8.1 now points to 12.1a–12.1b instead of the stale "task 12.2". |
+| I-14 | Fixed: task 4.1's RED is seen through `npm run typecheck` (correction 14). |
+| Correction 11 (Follow-ups rows) | Fixed: rows Q1–Q4, B1, B2 and I-1…I-14 added to `design.md` → Follow-ups. While there, P8's task reference was corrected from 11.8 (which does not exist) to 15.8. |
+| Corrections 20–21 (Linear) | Correction 20 fixed: a Spanish comment on DIS-10 summarises the audit and the decisions of this round. Correction 21 decided by the agent: the `[enhanced]` description is not edited in this round (the round's contract is a comment, and rewriting the description risks the `[original]` block); the comment carries the same two facts (the fingerprint inputs that force the regeneration, and that the Ollama regeneration and the panel round were not in the estimate M). |

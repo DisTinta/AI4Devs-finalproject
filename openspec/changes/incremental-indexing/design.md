@@ -18,7 +18,7 @@ See `proposal.md` → Why. Current state the approach builds on:
   repository to produce correct edges for any one of them.
 - The API route (`packages/api/src/routes/reindex.ts`) answers `mode: 'full'`, `filesQueued:
   report.files`, `filesSkipped: 0`; the body schema accepts `incremental` without effect.
-- The change touches seed fingerprint inputs (`packages/core/src/index`,
+- The change touches seed fingerprint inputs (`packages/core/src/index`, `packages/core/src/knowledge`,
   `packages/adapters/store-postgres/src`; `packages/cli/src/seed/fingerprint.ts`), so CI `verify`
   fails until `seeds/graph-dump.sql` and the golden files are regenerated (ADR
   `20261017-stale-fingerprint-fails-verify`), and the regenerated golden entries come back with empty
@@ -47,8 +47,10 @@ operation.
 (I2) returns `IncrementalPlan { queued: string[]; skipped: string[]; deleted: string[] }`, exactly the
 contract of the `repository-indexing` requirement "Incremental reindex plan". Sets and maps, then one
 sort per list in UTF-8 byte order. The byte-order comparison is today a private function of
-`build-snapshot.ts`; it moves to `packages/core/src/index/byte-order.ts` (`compareBytes`) and both
-modules import it (no behaviour change). The dependency kinds are a frozen constant
+`build-snapshot.ts` (`compareBytes`) and, identically, of `packages/core/src/knowledge/co-change.ts`
+(`compareByteOrder`); it moves to `packages/core/src/knowledge/byte-order.ts` (`compareBytes`, so
+`knowledge` never imports `index`), which replaces both private copies; `build-snapshot.ts`,
+`incremental-plan.ts` and `co-change.ts` import it (no behaviour change). The dependency kinds are a frozen constant
 `DEPENDENCY_KINDS = ['calls', 'extends', 'implements', 'imports']` in the plan module, filtered again
 by the plan even though the store already filters them, so the plan's contract does not depend on the
 store's. Exported through `packages/core/src/index/index.ts` and `packages/core/src/index.ts`, with
@@ -74,8 +76,9 @@ Postgres (`queries.ts`, `read-graph.ts`, `postgres-store.ts`), after the usual w
 2. Dependencies: each `edge` of the project of the four kinds, its source resolved to a file id as
    `COALESCE(source_file_id, source symbol's file_id)` and its target likewise, both joined to `file`
    rows **of the same project** (so an end in another project drops the edge), `from <> to`,
-   `SELECT DISTINCT from.path, to.path, kind`, ordered by the two paths `COLLATE "C"` and the kind's
-   text.
+   `SELECT DISTINCT from.path, to.path, kind`, ordered by `from.path COLLATE "C"`,
+   `to.path COLLATE "C"`, `kind::text COLLATE "C"` (`edge_kind` is an enum whose declaration order,
+   `calls, imports, extends, implements`, is not byte order).
 
 Both run on the store's client (or the caller's transaction) like the other reads; the
 `file_project_content_hash_idx` and the existing edge indexes serve them. The in-memory double
@@ -138,7 +141,7 @@ report; the completion log gains `filesSkipped` and logs the report's `mode`. Er
 ### I7. Tests
 
 - New: `tests/unit/index/incremental-plan.spec.ts` (5 scenarios); new `it`s in
-  `tests/unit/index/reindex-project.spec.ts` (6 unit scenarios of "Incremental reindex");
+  `tests/unit/index/reindex-project.spec.ts` (7 unit scenarios of "Incremental reindex");
   `tests/integration/index/incremental-reindex.spec.ts` (the 2 Postgres scenarios; template
   `tests/integration/index/acme-shop.spec.ts` for the copy and the real adapters, plus
   `tests/integration/store/indexes-stale.spec.ts` for claims); new `it`s in
@@ -219,4 +222,31 @@ in spec or non-goals.*
 | P6 | The change regenerates the seed and the golden files with the local Ollama and runs a DIS-10 blind panel round, with the criterion committed before the regeneration (I8). This run's ticket entry carries no `ollama` flag: the apply starts Ollama from its local install if it is not serving; if it cannot serve, the ticket stops. | A |
 | P7 | An unchanged repository keeps the graph of an older analyzer on the fast path; `incremental: false` is the documented way to rebuild after an analyzer upgrade. | D |
 | P9 | In `http-index`, "Index request validation" and "Index accepted response" are REMOVED and re-ADDED as "Index request validation and mode selection" and "Index accepted response with the plan's counters": each loses one scenario that no longer holds ("A request without a body is a full reindex", "An incremental request is accepted as a full reindex"), and `openspec validate` refuses a MODIFIED block that drops a scenario. Every other rule and scenario is kept word for word. | A |
-| P8 | PowerShell check for the author: run the `readme.md` §4 `POST /index` example in a new PowerShell terminal against a local API and confirm `mode: "incremental"`; the agent runs the Git Bash half (task 11.8). | C |
+| P8 | PowerShell check for the author: run the `readme.md` §4 `POST /index` example in a new PowerShell terminal against a local API and confirm `mode: "incremental"`; the agent runs the Git Bash half (task 15.8). | C |
+
+*Agent's text: spec audit run 1 (`reports/2026-10-29-spec-audit.md`), correction round 1. Answers to
+the questions for the author, taken by the agent as lead engineer without the author, and the
+destination of each finding applied.*
+
+| Id | Decision | Destination |
+|---|---|---|
+| Q1 | D5 confirmed: the CLI reindex command stays out. The sub-issue's `[original]` description and its DoD (the integration test) do not name the CLI; only its title and the parent DIS-6 do, and `codemind index` only creates projects. Least scope: debt `codemind reindex <projectId> [--full] [--json]`, already in the checklist comment of DIS-10. | C |
+| Q2 | D3 confirmed: dependents are `imports`, `calls`, `extends` and `implements` edges. A change to a parent class or an interface changes what its subclasses and implementers resolve to, exactly as a change to a called or imported file does; leaving them out would under-count `filesQueued`. It widens no work: the analyzer already receives every file (D1). | A |
+| Q3 | D2 confirmed: `incremental` defaults to `true`. It is the contract already published in `readme.md` §4 ("sin efecto hasta DIS-10"), the graph after the reindex is the same in both modes, and `incremental: false` keeps the full mode; the BREAKING note stays in the proposal and goes into the PR. | A |
+| Q4 | The cost of regenerating the seed and the golden files with the local Ollama and of the DIS-10 panel round (groups 10–14) is accepted inside this ticket: ADR `20261017-stale-fingerprint-fails-verify` and `tests/unit/seed/golden-reviews.spec.ts` make CI red without it, so it cannot be split off without a red base branch. The estimate gap is stated in the Linear comment of this round; the `[enhanced]` description is not edited. | A |
+| B1 | The Postgres DoD scenario requires N ≥ 1 direct dependents of `app/Services/PriceCalculator.php` and names them exactly. | A |
+| B2 | Steps 11 and 14.6 record the 0.4 indicators before and after `db:seed`/`cache:build` and document or restore any drift (tasks 11.1, 11.6, 14.6); 15.6 re-checks the 15.1 indicators. | A |
+| I-1 | The completion log's `mode` and `filesSkipped` are asserted for incremental, default and full requests ("An incremental request answers the plan's counters"). | A |
+| I-2 | "An unknown project is not reindexed" runs in both modes. | A |
+| I-3 | New scenario "A failed cache invalidation on the fast path fails the reindex". | A |
+| I-4 | A project with no stored `indexedCommit` is never unchanged: in the `decide` row and in "A new HEAD with no changed file runs the whole reindex". | A |
+| I-5 | `filesSkipped` counts the plan's `skipped`, never the hygiene's `skipped` entries. | A |
+| I-6 | Task 6.1: a fresh copy per `it`, built in `beforeEach`, removed in `afterEach`. | A |
+| I-7 | The second claim's file is the first stored path in byte order outside the changed file and its N dependents. | A |
+| I-8 | Dependencies ordered by `kind::text COLLATE "C"`; the graph-store scenario has an `extends` and an `imports` edge between the same pair. | A |
+| I-9 | `packages/core/src/knowledge` named as a touched fingerprint input in the proposal and in Context. | A |
+| I-10 | The byte-order comparator moves to `packages/core/src/knowledge/byte-order.ts` and replaces `compareByteOrder` of `co-change.ts` too (I1, task 1.1). | A |
+| I-11 | Task 4.2 amends the TSDoc of `INDEX_PHASES`/`IndexPhase`. | A |
+| I-12 | Task 4.4 split into 4.4 (fast path), 4.5 (full path) and 4.6 (phases). | A |
+| I-13 | Task 12.1 split into 12.1a and 12.1b. | A |
+| I-14 | Task 4.1's RED is seen through `npm run typecheck`. | A |

@@ -63,8 +63,8 @@ number of cache entries deleted. In full mode `mode` SHALL be `full`, `filesQueu
 #### Scenario: An unknown project is not reindexed
 
 - **GIVEN** no project with the requested id
-- **WHEN** it is reindexed
-- **THEN** it rejects with `ProjectNotFound` and the source tree received no call
+- **WHEN** it is reindexed with `incremental` `false`, then with `incremental` `true`
+- **THEN** each rejects with `ProjectNotFound` and the source tree received no call
 
 #### Scenario: A stored root outside the allowed root is rejected before reading
 
@@ -189,7 +189,7 @@ propagating unchanged with no later step started:
 | read | read, apply the input hygiene and redact as the full mode does, and compute each indexable file's current hash |
 | plan | read the project's index state (graph-store, "Index state read") and compute the plan of "Incremental reindex plan" |
 | history | read the history, with the rules of the full mode; it is read once per reindex |
-| decide | the reindex is **unchanged** when the plan's `queued` and `deleted` are empty and the history's `HEAD` equals the project's stored `indexedCommit` |
+| decide | the reindex is **unchanged** when the plan's `queued` and `deleted` are empty and the history's `HEAD` equals the project's stored `indexedCommit`; a project with no stored `indexedCommit` is never unchanged |
 | fast path (unchanged) | in **one** unit of work, delete every answer cache entry of the project; nothing else is written and the analyzer is not called |
 | full path (otherwise) | analyse **every** indexable file (not only the queued ones), redact the commit messages, add the `co_changed` edges and validate the graph as the full mode does (rejecting with `InvalidGraph` before any unit of work); then, in one unit of work, save the whole graph and delete every answer cache entry, as the full mode's `save` step |
 
@@ -204,7 +204,9 @@ indexable files. On the full path its other fields are those of the full mode. O
 `indexedCommit` SHALL be the stored one; `files`, `filesDeleted`, `symbols`, `commits`,
 `fileCommits` and every count of `edges` SHALL be `0` (nothing was written); `diagnostics` and
 `commitEvents` SHALL be empty; `events` and `skipped` SHALL be those of the files read, ordered as in
-"Index report"; and `cacheEntriesInvalidated` the number of entries deleted.
+"Index report"; and `cacheEntriesInvalidated` the number of entries deleted. `filesSkipped` counts
+the plan's `skipped` paths only; it never counts the report's `skipped` entries (files left out by
+the input hygiene), which are not indexable files.
 
 #### Scenario: An unchanged repository takes the fast path
 
@@ -216,14 +218,21 @@ indexable files. On the full path its other fields are those of the full mode. O
   the stored one, `files` 0, `symbols` 0 and `cacheEntriesInvalidated` 1; the analyzer received no
   call; and the only unit of work received `invalidateCache` and no `saveGraph`
 
+#### Scenario: A failed cache invalidation on the fast path fails the reindex
+
+- **GIVEN** the project of "An unchanged repository takes the fast path" and a unit of work whose
+  store's `invalidateCache` rejects with an error `E`
+- **WHEN** the project is reindexed with `incremental` `true`
+- **THEN** the reindex rejects with `E` and `saveGraph` was never called
+
 #### Scenario: A new HEAD with no changed file runs the whole reindex
 
 - **GIVEN** the project of "An unchanged repository takes the fast path" whose stored `indexedCommit`
-  differs from the repository's `HEAD`
-- **WHEN** the project is reindexed with `incremental` `true`
-- **THEN** the analyzer received both files, one unit of work received `saveGraph` and then
+  differs from the repository's `HEAD`; then the same project with no stored `indexedCommit`
+- **WHEN** each is reindexed with `incremental` `true`
+- **THEN** for each, the analyzer received both files, one unit of work received `saveGraph` and then
   `invalidateCache`, and the report has `mode` `incremental`, `filesQueued` 0, `filesSkipped` 2 and
-  `indexedCommit` the new `HEAD`
+  `indexedCommit` the repository's `HEAD`
 
 #### Scenario: A changed file is reprocessed with the whole snapshot
 
@@ -261,15 +270,17 @@ indexable files. On the full path its other fields are those of the full mode. O
 #### Scenario: An incremental reindex over Postgres reprocesses the changed file and its direct dependents
 
 - **GIVEN** a copy of `fixtures/acme-shop` with its history built, under an allowed root, indexed into
-  Postgres with the real adapters and the PHP analyzer; one `current` claim with evidence on
-  `app/Services/PriceCalculator.php` and one `current` claim with evidence on a file that, by the
-  stored dependencies, is neither `app/Services/PriceCalculator.php` nor a direct dependent of it; one
-  answer cache entry of the project; and the number N of distinct files with a stored `imports`,
-  `calls`, `extends` or `implements` dependency into `app/Services/PriceCalculator.php`, read before
-  the change
+  Postgres with the real adapters and the PHP analyzer; the number N of distinct files with a stored
+  `imports`, `calls`, `extends` or `implements` dependency into `app/Services/PriceCalculator.php`,
+  read with the index state before the change, N being at least 1 (the test fails when it is 0); one
+  `current` claim with evidence on `app/Services/PriceCalculator.php` and one `current` claim with
+  evidence on the first stored path in byte order that is neither `app/Services/PriceCalculator.php`
+  nor one of those N dependents; and one answer cache entry of the project
 - **WHEN** a commit changes the content of `app/Services/PriceCalculator.php` in the copy and the
   project is reindexed with `incremental` `true`
-- **THEN** the report has `mode` `incremental`, `filesQueued` 1 + N, `filesSkipped` equal to the
+- **THEN** the report has `mode` `incremental`, `filesQueued` 1 + N, the N dependents being exactly
+  the stored `imports`, `calls`, `extends` or `implements` sources into
+  `app/Services/PriceCalculator.php`, `filesSkipped` equal to the
   project's `file` rows minus `filesQueued`, `indexedCommit` the copy's new `HEAD` and
   `cacheEntriesInvalidated` 1; the first claim is `stale` and the second `current`; the `file` row of
   `app/Services/PriceCalculator.php` keeps its id, and its `file_commit` rows and the first claim's

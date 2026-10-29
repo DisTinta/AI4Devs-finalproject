@@ -24,12 +24,15 @@ in-memory double SHALL implement the same contract over its stored graph.
 
 - **GIVEN** a saved project whose graph has the files `app/A.php` (hash `h1`), `app/B.php` (hash `h2`)
   and `app/C.php` (no hash), a symbol `B::run` in `app/B.php` with a `calls` edge to a symbol of
-  `app/A.php`, a second `calls` edge between the same two files, and an `imports` edge from the file
-  `app/C.php` to the file `app/B.php`
+  `app/A.php`, a second `calls` edge between the same two files, an `imports` edge from the file
+  `app/C.php` to the file `app/B.php`, and an `extends` edge and an `imports` edge from the file
+  `app/C.php` to the file `app/A.php`
 - **WHEN** its index state is read
 - **THEN** `files` is `app/A.php` with `h1`, `app/B.php` with `h2` and `app/C.php` without
   `contentHash`, in that order, and `dependencies` is exactly
-  `{ app/B.php → app/A.php, calls }` and `{ app/C.php → app/B.php, imports }`, in that order
+  `{ app/B.php → app/A.php, calls }`, `{ app/C.php → app/A.php, extends }`,
+  `{ app/C.php → app/A.php, imports }` and `{ app/C.php → app/B.php, imports }`, in that order
+  (`extends` before `imports` is byte order, not the declaration order of the `edge_kind` enum)
 
 #### Scenario: Edges that are not dependencies are left out of the index state
 

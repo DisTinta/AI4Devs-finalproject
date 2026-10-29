@@ -35,7 +35,7 @@ Scope comes from DIS-10 only; its parent DIS-6 gives context. The decisions D1â€
   request without `incremental` being a full reindex: it now gets an incremental one (same graph
   afterwards, different counters).
 - **Seed and golden answers**: the change touches seed fingerprint inputs (`packages/core/src/index`,
-  `packages/adapters/store-postgres/src`), so `seeds/graph-dump.sql` and the two golden files are
+  `packages/core/src/knowledge`, `packages/adapters/store-postgres/src`), so `seeds/graph-dump.sql` and the two golden files are
   regenerated (same seed rows, new header), and the regenerated golden answers get a new blind panel
   review round (DIS-10), as DIS-9 did.
 - No CLI change: `codemind index` only creates projects and there is no reindex command (D5,
@@ -73,7 +73,8 @@ None.
 
 - Core: `packages/core/src/index/` (new `incremental-plan.ts`, `reindex-project.ts`,
   `build-snapshot.ts` split, `index-report.ts`), `packages/core/src/ports/StorePort.ts`,
-  `packages/core/src/knowledge/graph-read.ts`, exports.
+  `packages/core/src/knowledge/graph-read.ts`, the shared byte-order comparator
+  `packages/core/src/knowledge/byte-order.ts` (also used by `co-change.ts`), exports.
 - Adapter: `packages/adapters/store-postgres/src/` (`postgres-store.ts`, `queries.ts`,
   `read-graph.ts`); no migration (uses `file_project_content_hash_idx` of `0003`).
 - API: `packages/api/src/schemas/reindex.ts`, `packages/api/src/routes/reindex.ts`.

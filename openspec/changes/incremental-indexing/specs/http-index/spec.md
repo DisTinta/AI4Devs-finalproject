@@ -120,14 +120,16 @@ U9).
 
 #### Scenario: An incremental request answers the plan's counters
 
-- **GIVEN** the app built with doubles, indexing configured, and a stored PHP project whose stored
-  `indexedCommit` is its repository's `HEAD` and whose index state holds the repository's only
-  indexable file with its current hash
+- **GIVEN** the app built with doubles, a logger writing to a test stream, indexing configured, and a
+  stored PHP project whose stored `indexedCommit` is its repository's `HEAD` and whose index state
+  holds the repository's only indexable file with its current hash
 - **WHEN** `POST /api/projects/{id}/index` is sent `{ "incremental": true }`, then `{}`, then
   `{ "incremental": false }`
 - **THEN** the first two answer `202` with `mode` `incremental`, `filesQueued` 0 and `filesSkipped` 1,
   and their bodies are equal; the third answers `202` with `mode` `full`, `filesQueued` 1 and
-  `filesSkipped` 0; and the store received `saveGraph` only for the third
+  `filesSkipped` 0; the store received `saveGraph` only for the third; and the three
+  `reindex completed` log lines carry `mode` `incremental`, `incremental` and `full` and
+  `filesSkipped` 1, 1 and 0
 
 #### Scenario: A TypeScript project answers with the ts-compiler analyzer
 
