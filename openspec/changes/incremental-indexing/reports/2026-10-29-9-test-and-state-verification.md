@@ -61,3 +61,28 @@ Not warranted: the decisions are local to the reindex use case and reversible (`
 
 - Status: PASS
 - Blocking issues: none
+
+## Addendum 1: the regeneration (tasks 10.1, 11.1, 11.6, 12.4)
+
+- SHA-256 of the fifteen files of the previous rounds (task 10.1), recorded before the round and compared again after the input commit (all unchanged):
+  - `docs/golden-review/2026-10-task-api-golden-review.md` 71a210ce24260c9bc803564ebeb3236f352d5e7dba42175ff635eb71e8204961
+  - `docs/golden-review/2026-10-golden-review-dis-107.md` 646908ca1ef2c93a18c5d121583b84a80ebb29498a51b4d676015f4dbbcc69d5
+  - `docs/golden-review/2026-10-golden-review-dis-9.md` 2139e360965f12c01565580328c31c67f32a25e0ff87d3460813610c6d8be52b
+  - `docs/golden-review/panel/2026-10-golden-review-input.json` b8343d818ddb5f77adf23b96366afb49897258d43a5145bf0114e56266f42182
+  - `docs/golden-review/panel/2026-10-golden-review-panelist-1.json` f2da49437729f134b33861d24b5c4096b26708a622d62811cf4cdc44f7b1b1b9
+  - `docs/golden-review/panel/2026-10-golden-review-panelist-2.json` bc1d49490fc487fcbb043a8ca6a835e101696af2d9a216cb7fdd206ee08a3e96
+  - `docs/golden-review/panel/2026-10-golden-review-resolution.json` 8a0612c63150a93fc785d6f566839dbe991b57e74bec55efac03d34fb67fec6d
+  - `docs/golden-review/panel/2026-10-golden-review-dis-107-input.json` 93d478256a24a328b3d30a2d17cf0a075ab8558a0ffd5033e321a9f810e6a49f
+  - `docs/golden-review/panel/2026-10-golden-review-dis-107-panelist-1.json` ab46cd71c3feac7ab00746cdb42f5dfdad366e7a9fbe279d963183047d412fdb
+  - `docs/golden-review/panel/2026-10-golden-review-dis-107-panelist-2.json` ab9af5c8f5dfefd8fa41d717a02e1eb5c884d0f0ee859b32862a39c396fe496f
+  - `docs/golden-review/panel/2026-10-golden-review-dis-107-resolution.json` 260a64f8cdd2d3be5591f176a4efa352fe75e5677c66aaca1bc726cfd58f2b92
+  - `docs/golden-review/panel/2026-10-golden-review-dis-9-input.json` cd9fa50c332432881ccd57459ef249f7cbed680b8b66cfe9dcd213ffadcc4a62
+  - `docs/golden-review/panel/2026-10-golden-review-dis-9-panelist-1.json` 9dbb38e2628c6f49e221c5e64e3e25b266d4364e549eefba02c9b680750f914d
+  - `docs/golden-review/panel/2026-10-golden-review-dis-9-panelist-2.json` dab43dfd84dca814ec96805350a159a1ea5c15db72887476e0bc1ed9537da52a
+  - `docs/golden-review/panel/2026-10-golden-review-dis-9-resolution.json` 83089bf711ed964fc183a9febc25cd66a32dda22b28f9ff034e04dc790a9ee0e
+- Indicators before the regeneration (11.1): `project` 2 (0 not sample), `claim` 0, `cache_entry` 6, `query_log` 0; acme-shop `indexed_at` 2024-05-06 09:31:00+00 and `indexed_commit` 4f028db4….
+- `npm run seed:build`: `git diff seeds/graph-dump.sql` touched only the `analyzer-fingerprint` header line (a77d4d11… to 3812fa16…); `packages/web/src/data/sample-projects.ts` unchanged.
+- `npm run cache:build` with the local Ollama (`qwen2.5-coder`, `OLLAMA_CONTEXT_LENGTH=16384`, started by this run and stopped after it): acme-shop Q1 206 s, Q3 69 s, Q4 119 s; task-api Q1 76 s, Q2 47 s, Q3 97 s; every question on attempt 1 of 3. Both golden files carry the new fingerprint, `generatedWith.model` and `verifyModel` `qwen2.5-coder`, the same question ids, and no `AKIA` key. `npm run db:seed` loaded 2 projects and `npm run verify` matched 3 of 3 golden answers of each project, exit 0.
+- Indicators after `db:seed` (11.6): identical to before (`project` 2, `claim` 0, `cache_entry` 6, `query_log` 0; both projects' `indexed_at` and `indexed_commit` as before); no non-sample project rows exist, so none could change. No restoration needed.
+- 12.4: the input and the report hold no verdict; `git status --short seeds fixtures` is empty; the fifteen hashes above are unchanged.
+- Red-CI window: from the input commit (97a8f5b) until the golden files and the report are completed (task 14.4), `tests/unit/seed/golden-reviews.spec.ts` fails on the `it`s over panel outputs, signatures and the report (expected; three `it`s pass now: the input, the rejection of invalid outputs and the criterion).
