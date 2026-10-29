@@ -1202,7 +1202,9 @@ paths:
       # úsalo tras actualizar un analizador, porque un repositorio sin cambios conserva el grafo del
       # analizador anterior. Los mensajes son fijos y los detalles `{}`: ninguna respuesta
       # ni línea de log lleva una ruta. Un cuerpo ausente (sin `Content-Type`) es `{}`; uno declarado
-      # `application/json` y vacío responde 400.
+      # `application/json` y vacío responde 400. En PowerShell (5.1 y 7), `Invoke-RestMethod -Method
+      # Post` sin `-Body` declara `application/x-www-form-urlencoded` y responde 415; envía
+      # `-ContentType 'application/json' -Body '{}'` (incremental) o `-Body '{"incremental":false}'`.
 
   /api/projects/{projectId}/ask:
     post:

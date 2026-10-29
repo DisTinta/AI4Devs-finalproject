@@ -214,7 +214,7 @@ This group is done by independent agents launched outside the apply: panelist 1 
 - [x] 15.5 Stop the server and `node scripts/dev-processes.mjs stop`; no `codemind-api` session left in `pg_stat_activity`
 - [x] 15.6 Restore the state: `npm run db:seed` to bring acme-shop back to the seed's snapshot, golden cache entries and `root_path`; remove the scratchpad copy; re-check the indicators recorded in 15.1 (`query_log` rows created after the 15.1 baseline deleted by `created_at`)
 - [x] 15.7 Report `openspec/changes/incremental-indexing/reports/YYYY-MM-DD-15-manual-interface-testing.md` with every command, status, body and the measured durations of the full, fast-path and changed-file reindexes (mask the OS user name in paths) and the restoration of 15.6
-- [x] 15.8 PowerShell check for the author (design Follow-ups P8, destination C): not run by the agent; the agent runs the same `readme.md` §4 example in Git Bash in 15.3, and the report names the PowerShell run as pending for the author
+- [x] 15.8 PowerShell check (design Follow-ups P8, destination A since the author delegated it to the agent): the agent runs the same `readme.md` §4 example in Git Bash in 15.3 and, with `powershell.exe -NoProfile -Command …` from the shell and the setup and restoration of 15.1–15.6 (API environment set for that command only, never `.env`), runs it in PowerShell and confirms `mode: "incremental"`; the same run covers E13 of the archived DIS-9 change (`Invoke-RestMethod -Method Post` to `/api/projects/<id>/index`, the route in `/docs`); result in an addendum to the step 15 report, and any doc gap it finds fixed in `readme.md` §4 (design X-6)
 
 ## 16. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
