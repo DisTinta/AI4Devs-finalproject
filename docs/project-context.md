@@ -1262,10 +1262,12 @@ services that must be started first, quirks of the local environment.
   `reviews` — `{by, date}` per review: DIS-34 added `agent:claude-opus-5-5` to every entry; the
   golden answers are now reviewed by an independent agent panel (DIS-33, then DIS-107 after the
   analyzer fix regenerated them, then DIS-9 after the index pipeline extraction and DIS-10 after the incremental indexing regenerated them,
-  then the DIS-10 r2 round after task-api `Q1` alone was regenerated:
+  then the DIS-10 r2 round after task-api `Q1` alone was regenerated, then the DIS-42 round after
+  the stale claim refresh regenerated them:
   blind input, criterion first, signatures `agent:<model>`, report in `docs/golden-review/`, each
-  round's files suffixed with its ticket, the current DIS-10 r2 round's `-dis-10-r2`); an `incorrect` one stays unsigned and
-  goes to a successor ticket; a regenerated entry comes back with empty `reviews` and needs a new
+  round's files suffixed with its ticket, the current DIS-42 round's `-dis-42`); an `incorrect` one stays unsigned and
+  goes to a successor ticket or, when the author keeps it in the same ticket, to a second round of
+  that ticket (DIS-10 r2, DIS-42 r2); a regenerated entry comes back with empty `reviews` and needs a new
   panel); no generation time; canonical render = 2-space JSON in that key
   order, LF, final newline. **`answerFingerprint`** (`answer-fingerprint.ts`) = the seed's
   `fingerprint()` over `ANSWER_FINGERPRINT_FILES` (explain prompt and its language rule
