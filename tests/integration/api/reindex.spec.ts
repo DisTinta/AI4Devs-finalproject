@@ -17,7 +17,10 @@ import { cachedAnswer } from '../../support/cached-answer';
 import { createScriptedLlm, modelOutput } from '../../support/scripted-llm';
 import type { ScriptedLlm } from '../../support/scripted-llm';
 
-// Spec: openspec/changes/index-endpoint/specs/http-index/spec.md, the scenarios over the seed. Each
+// Spec: openspec/changes/index-endpoint/specs/http-index/spec.md, the scenarios over the seed, with the
+// delta of openspec/changes/incremental-indexing/specs/http-index/spec.md (DIS-10): the reindex
+// scenario sends `{ "incremental": false }`, because with the default the seed's state would take the
+// fast path. Each
 // `it` is the scenario it is named after. As in tests/integration/api/ask.spec.ts, `fixtures/acme-shop`
 // is copied (without `.git`) under a temporary directory `T` and its history built there with
 // `buildOne`, whose `HEAD` is the seed's indexed commit; inside the harness transaction (reverted when
@@ -134,7 +137,11 @@ describeWithDatabase('POST /api/projects/{projectId}/index over the seed (integr
       const target = await appOver(store, T, model.llm);
 
       // Act
-      const reindexed = await target.inject({ method: 'POST', url: `/api/projects/${projectId}/index`, payload: {} });
+      const reindexed = await target.inject({
+        method: 'POST',
+        url: `/api/projects/${projectId}/index`,
+        payload: { incremental: false },
+      });
       const entriesAfterReindex = await cacheCount(projectId);
       const asked = await target.inject({ method: 'POST', url: `/api/projects/${projectId}/ask`, payload: { question: Q1 } });
 

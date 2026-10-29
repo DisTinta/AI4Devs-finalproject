@@ -4,7 +4,7 @@ import type { reindexProject } from '@codemind/core';
 import type { DomainErrorMapping, DomainErrorTable } from '../plugins/error-handler.js';
 import { errorSchema } from '../schemas/common.js';
 import { reindexBodySchema, reindexParamsSchema, reindexResponseSchema } from '../schemas/reindex.js';
-import type { ReindexParams, ReindexResponse } from '../schemas/reindex.js';
+import type { ReindexBody, ReindexParams, ReindexResponse } from '../schemas/reindex.js';
 
 /** The `503` answer of a stored repository that can no longer be read. */
 const SOURCE_UNREADABLE: DomainErrorMapping = { status: 503, message: "the project's source cannot be read", details: () => ({}) };
@@ -79,14 +79,20 @@ export function registerReindexRoute(app: FastifyInstance, options: ReindexRoute
           analyzerFor: indexing.analyzerFor,
           inTransaction: indexing.inTransaction,
         },
-        { projectId, allowedRoot: indexing.allowedRoot, workspaceRoot: app.deps.workspaceRoot },
+        {
+          projectId,
+          allowedRoot: indexing.allowedRoot,
+          workspaceRoot: app.deps.workspaceRoot,
+          incremental: (request.body as ReindexBody).incremental ?? true,
+        },
       );
       // Counters only: an event carries a file path, so events are counted, never logged.
       request.log.info(
         {
           projectId: report.projectId,
-          mode: 'full',
-          filesQueued: report.files,
+          mode: report.mode,
+          filesQueued: report.filesQueued,
+          filesSkipped: report.filesSkipped,
           redactions: report.events.length + report.commitEvents.length,
           cacheEntriesInvalidated: report.cacheEntriesInvalidated,
           durationMs: Math.round(performance.now() - started),
@@ -96,11 +102,11 @@ export function registerReindexRoute(app: FastifyInstance, options: ReindexRoute
       void reply.code(202);
       return {
         projectId: report.projectId,
-        mode: 'full',
+        mode: report.mode,
         analyzer: indexing.analyzerName(report.language),
         indexedCommit: report.indexedCommit,
-        filesQueued: report.files,
-        filesSkipped: 0,
+        filesQueued: report.filesQueued,
+        filesSkipped: report.filesSkipped,
         cacheEntriesInvalidated: report.cacheEntriesInvalidated,
       };
     },

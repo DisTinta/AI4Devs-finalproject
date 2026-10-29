@@ -250,3 +250,13 @@ destination of each finding applied.*
 | I-12 | Task 4.4 split into 4.4 (fast path), 4.5 (full path) and 4.6 (phases). | A |
 | I-13 | Task 12.1 split into 12.1a and 12.1b. | A |
 | I-14 | Task 4.1's RED is seen through `npm run typecheck`. | A |
+
+*Agent's text: decisions taken by the agent as lead engineer during the apply.*
+
+| Id | Decision | Destination |
+|---|---|---|
+| X-1 | Task 6.1 amended: the history of the acme-shop copy is built once in `beforeAll` into a template and each `it` gets its own copy of it (with its `.git`) in `beforeEach`, removed in `afterEach`. The fresh-copy-per-`it` rule of I-6 holds; only the build is shared. Building it twice made the shared-database suite flaky under load. | A |
+| X-2 | `SnapshotSources` carries `realRepo` and the sorted `events`, so `completeSnapshot(deps, sources, history?)` keeps the three arguments of task 3.1 and the full and incremental paths report the same events. | A |
+| X-3 | `REINDEX_MODES` (a documented constant, `z.literal(REINDEX_MODES)`) is the `mode` schema, so `docs:coverage` has no undocumented enum member and the OpenAPI document still lists `enum ["full", "incremental"]`. | A |
+| X-4 | Four mutation survivors of `incremental-plan.ts`/`reindex-project.ts` are equivalent or unobservable (added-file branch, self edge, framework options of a reindex, hash encoding argument); the others got tests. Recorded in the step 9 report. | D |
+| X-5 | The import lists of `postgres-store.ts` were extended with a shell `sed` by mistake instead of the edit tool (contract of `docs/AUTONOMOUS-RUN.md` §6); the result was reviewed and left, and no further code was written through the shell. | D |

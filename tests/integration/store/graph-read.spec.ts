@@ -823,6 +823,161 @@ describeWithDatabase('graph store reads (DIS-24)', () => {
     });
   });
 
+  // Spec: openspec/changes/incremental-indexing/specs/graph-store/spec.md → "Index state read" (DIS-10).
+  describe('Requirement: Index state read', () => {
+    /** The graph of the first scenario: three files, symbols in two of them and the dependencies. */
+    function dependencyGraph(): KnowledgeGraph {
+      const run = symbol('app/B.php', 'B::run', 1);
+      const other = symbol('app/B.php', 'B::other', 5);
+      const target = symbol('app/A.php', 'A::target', 1);
+      return {
+        files: [
+          file('app/A.php', { contentHash: 'h1' }),
+          file('app/B.php', { contentHash: 'h2' }),
+          file('app/C.php', { contentHash: undefined }),
+        ],
+        symbols: [run, other, target],
+        edges: [
+          edge({ symbol: ref(run) }, { symbol: ref(target) }, { kind: 'calls' }),
+          edge({ symbol: ref(other) }, { symbol: ref(target) }, { kind: 'calls' }),
+          edge({ file: 'app/C.php' }, { file: 'app/B.php' }, { kind: 'imports' }),
+          edge({ file: 'app/C.php' }, { file: 'app/A.php' }, { kind: 'extends' }),
+          edge({ file: 'app/C.php' }, { file: 'app/A.php' }, { kind: 'imports' }),
+        ],
+        commits: [],
+        fileCommits: [],
+      };
+    }
+
+    it('The index state lists the stored files and their file dependencies', async () => {
+      // Arrange
+      const { writer, reader } = stores();
+      const projectId = await projectWith(writer, dependencyGraph());
+
+      // Act
+      const state = await reader.readIndexState(projectId);
+
+      // Assert
+      expect(state.files).toEqual([
+        { path: 'app/A.php', contentHash: 'h1' },
+        { path: 'app/B.php', contentHash: 'h2' },
+        { path: 'app/C.php' },
+      ]);
+      expect(state.files[2]).not.toHaveProperty('contentHash');
+      expect(state.dependencies).toEqual([
+        { fromPath: 'app/B.php', toPath: 'app/A.php', kind: 'calls' },
+        { fromPath: 'app/C.php', toPath: 'app/A.php', kind: 'extends' },
+        { fromPath: 'app/C.php', toPath: 'app/A.php', kind: 'imports' },
+        { fromPath: 'app/C.php', toPath: 'app/B.php', kind: 'imports' },
+      ]);
+    });
+
+    it('Edges that are not dependencies are left out of the index state', async () => {
+      // Arrange
+      const { writer, reader } = stores();
+      const first = symbol('app/A.php', 'A::one', 1);
+      const second = symbol('app/A.php', 'A::two', 5);
+      const graph: KnowledgeGraph = {
+        files: [file('app/A.php'), file('app/B.php')],
+        symbols: [first, second],
+        edges: [
+          edge({ file: 'app/A.php' }, { file: 'app/B.php' }, { kind: 'co_changed', weight: 0.5 }),
+          edge({ file: 'app/B.php' }, { symbol: ref(first) }, { kind: 'tested_by', resolution: 'heuristic' }),
+          edge({ file: 'app/B.php' }, { file: 'app/A.php' }, { kind: 'describes', resolution: 'heuristic' }),
+          edge({ symbol: ref(first) }, { symbol: ref(second) }, { kind: 'calls' }),
+        ],
+        commits: [],
+        fileCommits: [],
+      };
+      const projectId = await projectWith(writer, graph);
+
+      // Act
+      const state = await reader.readIndexState(projectId);
+
+      // Assert
+      expect(state.dependencies).toEqual([]);
+    });
+
+    it('A project without a graph has an empty index state', async () => {
+      // Arrange
+      const { writer, reader } = stores();
+      const projectId = await writer.createProject(newProject());
+
+      // Act
+      const state = await reader.readIndexState(projectId);
+
+      // Assert
+      expect(state).toEqual({ files: [], dependencies: [] });
+    });
+
+    it("The index state never holds another project's rows", async () => {
+      // Arrange: the writer never produces a cross-project edge, so insert one directly.
+      const { writer, reader } = stores();
+      const first = await projectWith(writer, graphOf([file('app/A.php', { contentHash: 'first' })], [symbol('app/A.php', 'A::one', 1)]));
+      const second = await projectWith(writer, graphOf([file('app/A.php', { contentHash: 'second' })], [symbol('app/A.php', 'A::one', 1)]));
+      const firstFile = await fileId(first, 'app/A.php');
+      const secondSymbol = await symbolId(reader, second, 'A::one');
+      await db().query(
+        `INSERT INTO edge (project_id, source_symbol_id, source_file_id, target_symbol_id, kind, resolution, extractor)
+         VALUES ($1, NULL, $2, $3, 'imports', 'exact', 'test-extractor')`,
+        [first, firstFile, secondSymbol],
+      );
+
+      // Act
+      const state = await reader.readIndexState(first);
+
+      // Assert
+      expect(state.files).toEqual([{ path: 'app/A.php', contentHash: 'first' }]);
+      expect(state.dependencies).toEqual([]);
+    });
+
+    it('Reading the index state of an unknown project fails', async () => {
+      // Arrange
+      const { reader, statements } = stores();
+
+      // Act
+      const unknown = await reader.readIndexState(randomUUID()).then(
+        () => undefined,
+        (rejection: unknown) => rejection,
+      );
+      const afterUnknown = statements();
+      const malformed = await reader.readIndexState('not-a-uuid').then(
+        () => undefined,
+        (rejection: unknown) => rejection,
+      );
+
+      // Assert
+      expect(unknown).toBeInstanceOf(ProjectNotFound);
+      expect(malformed).toBeInstanceOf(ProjectNotFound);
+      expect(statements()).toBe(afterUnknown);
+    });
+
+    it('The index state is read in at most two statements', async () => {
+      // Arrange
+      const { writer, reader, statements } = stores();
+      const run = symbol('app/B.php', 'B::run', 1);
+      const target = symbol('app/A.php', 'A::target', 1);
+      const graph: KnowledgeGraph = {
+        files: [file('app/A.php'), file('app/B.php'), file('app/C.php')],
+        symbols: [run, target],
+        edges: [
+          edge({ symbol: ref(run) }, { symbol: ref(target) }, { kind: 'calls' }),
+          edge({ file: 'app/C.php' }, { file: 'app/B.php' }, { kind: 'imports' }),
+        ],
+        commits: [],
+        fileCommits: [],
+      };
+      const projectId = await projectWith(writer, graph);
+      const before = statements();
+
+      // Act
+      await reader.readIndexState(projectId);
+
+      // Assert
+      expect(statements() - before).toBeLessThanOrEqual(2);
+    });
+  });
+
   describe('Requirement: Project isolation of reads', () => {
     it("A symbol search never returns another project's symbols", async () => {
       // Arrange

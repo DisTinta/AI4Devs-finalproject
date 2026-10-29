@@ -1,6 +1,8 @@
 import type {
+  EdgeKind,
   EdgeResolution,
   FileKind,
+  IndexState,
   Neighbor,
   Project,
   ProjectFramework,
@@ -41,6 +43,30 @@ export function toProject(row: ProjectRow): Project {
     nodeCount: row.node_count,
     edgeCount: row.edge_count,
     createdAt: row.created_at,
+  };
+}
+
+/** A row of the index state's files statement: the project id plus a file (`NULL` when it has none). */
+export interface IndexFileRow {
+  project_id: string;
+  path: string | null;
+  content_hash: string | null;
+}
+
+/** A row of the index state's dependencies statement. */
+export interface IndexDependencyRow {
+  from_path: string;
+  to_path: string;
+  kind: EdgeKind;
+}
+
+/** Maps the rows of the two index state statements to an `IndexState`. */
+export function toIndexState(fileRows: IndexFileRow[], dependencyRows: IndexDependencyRow[]): IndexState {
+  return {
+    files: fileRows
+      .filter((row) => row.path !== null)
+      .map((row) => ({ path: row.path as string, ...(row.content_hash !== null && { contentHash: row.content_hash }) })),
+    dependencies: dependencyRows.map((row) => ({ fromPath: row.from_path, toPath: row.to_path, kind: row.kind })),
   };
 }
 
