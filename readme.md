@@ -381,6 +381,8 @@ npm run cli -- index mi-repo --name otro --language php --framework none --json 
 npm run cli -- ask mi-proyecto "¿Cómo funciona el módulo de pagos?"
 ```
 
+En PowerShell (5.1 y 7), `npm` es el script `npm.ps1` y PowerShell se come el `--` suelto, así que las opciones (`--name`, `--language`, `--json`…) le llegan a npm y no a la CLI (`required option '--name <name>' not specified`): escribe `'--'` entre comillas (`npm run cli '--' index mi-repo --name mi-proyecto --language php`) o usa `npm.cmd run cli -- …`. Los comandos sin opciones, como `ask` con su pregunta, funcionan tal cual (DIS-42).
+
 `index` escribe el progreso por fase y los eventos de redacción de secretos (JSON por línea) en stderr, y solo el informe en stdout. Sale con `0` si todo va bien, `1` ante un error de dominio, configuración o ejecución (por ejemplo, ruta fuera de `ALLOWED_REPOS_DIR` o nombre de proyecto repetido) y `2` ante un uso incorrecto; el error es una línea `{"error":{"code","message","details"}}` en stderr.
 
 `ask <proyecto> "<pregunta>"` busca el proyecto por su **nombre exacto** (sin recortar espacios ni ignorar mayúsculas) y escribe en stdout solo la respuesta: el texto del modelo, cada afirmación numerada y tipada (`[FACT]` o `[INFERENCE]`, más `[stale]` si está desactualizada) con sus evidencias `ruta:inicio-fin`, los extractos citados (como mucho 5 líneas cada uno), las afirmaciones previas sobre el mismo código si las hay y, al final, `note: claims not saved` si no pudieron guardarse. Por ejemplo:

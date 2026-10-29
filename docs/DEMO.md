@@ -7,7 +7,10 @@ el paso lo dice y muestra lo que hace hoy el sistema.
 
 **Los comandos son los mismos en PowerShell y en Bash** (Windows, macOS o Linux): se escriben tal cual,
 sin exportar variables ni definir funciones. Los comandos que lee `.env` lo cargan solos, y una
-variable ya definida en la terminal gana sobre `.env`.
+variable ya definida en la terminal gana sobre `.env`. Una excepción en PowerShell (5.1 y 7): se come
+el `--` suelto de `npm run cli -- …`, así que un comando con opciones (`index … --name … --language …`)
+se escribe con `'--'` entre comillas o con `npm.cmd`; los de esta guía sin opciones funcionan tal cual
+(DIS-42).
 
 ## Cómo se capturó
 

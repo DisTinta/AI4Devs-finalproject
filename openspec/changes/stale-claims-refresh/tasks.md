@@ -277,7 +277,7 @@ This group is done by independent agents launched outside the apply: panelist 1 
 - [x] 11.5 Error paths: a third ask with `LLM_BASE_URL` pointing at a closed port answers as before (`LlmUnavailable` of the answer call, no row) and changes no claim; an ask in evaluation mode (empty `LLM_*`) answers `llm-required` and refreshes nothing (claims unchanged by SQL)
 - [x] 11.6 Stop the server and `node scripts/dev-processes.mjs stop`; restore the state: delete the project `dis-42-manual` (its claims, evidence, query log and cache rows cascade), remove the scratchpad copy, re-check the 0.4 indicators (delete the `query_log` rows created after the 11.1 baseline by `created_at` if any remain)
 - [x] 11.7 Report `openspec/changes/stale-claims-refresh/reports/YYYY-MM-DD-11-manual-interface-testing.md` with every command, status, output and SQL result (mask the OS user name in paths) and the restoration of 11.6
-- [x] 11.8 PowerShell check for the author (design Follow-ups R13, destination C): not run by the agent; the report names it as pending for the author
+- [x] 11.8 PowerShell check (design Follow-ups R13): first recorded as pending for the author (destination C); the author delegated it to the agent (destination A), which ran it through `powershell.exe -NoProfile -Command …` with the setup and restoration of 11.1–11.6, `.env` untouched, and recorded it in an addendum to the step 11 report (its finding on `--` in PowerShell: design X1)
 
 ## 12. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
