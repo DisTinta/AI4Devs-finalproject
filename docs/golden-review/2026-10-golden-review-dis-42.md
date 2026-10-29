@@ -20,9 +20,11 @@ copied verbatim.
 
 ## Panel
 
-- **Panelist 1:** Opus. **Panelist 2:** Sonnet. They judge the seven items blind to each other and to
+- **Panelist 1:** Opus, model `claude-opus-5-5`, date 2026-10-29. **Panelist 2:** Sonnet, model
+  `claude-sonnet-5-5`, date 2026-10-29. They judge the seven items blind to each other and to
   every earlier round.
-- **Resolver:** Opus, in a fresh context, only over the items where the two panelist verdicts differ.
+- **Resolver:** Opus, model `claude-opus-5-5`, date 2026-10-29, in a fresh context, only over the
+  items where the two panelist verdicts differ (none in this run).
 - **Outputs:** under `docs/golden-review/panel/` (the input, the two panelist outputs and the
   resolution).
 
@@ -46,3 +48,45 @@ and their files under `docs/golden-review/panel/`; the other reports of `docs/go
 other panelist's output; the rest of `docs/`, `packages/`, `tests/`, `scripts/` and `openspec/`; the
 git history; any Linear content. A panelist does not run the analyzers, `ask`, `verify`, the fixtures'
 tests or any script, and does not read the database or the answer cache.
+
+## Verdicts
+
+The panel outputs and the resolution are unchanged since the commits that created them. The panelists
+agreed on all seven items, so the resolver decided none.
+
+| Project | Id | Panelist 1 | Panelist 2 | Final | Justification | Errors |
+|---|---|---|---|---|---|---|
+| task-api | Q1 | partial | partial | partial | The cited controller lines only delegate to taskService (`fixtures/task-api/src/controllers/tasks.controller.ts:14`) and the other evidence is the repository port, so no cited line shows the service applying rules or validating data (S2) | S2 unverifiable |
+| task-api | Q2 | incorrect | incorrect | incorrect | buildPage takes four parameters (items, total, page, pageSize), not a query object (`fixtures/task-api/src/domain/pagination.ts:13`), and its items are the already-sliced page (`fixtures/task-api/src/repositories/in-memory-task.repository.ts:30`), so the answer and the FACT statements S1 and S3 are false | S1 false; S3 false |
+| task-api | Q3 | correct | correct | correct | The valid transitions are the TRANSITIONS table (`fixtures/task-api/src/domain/task-status.ts:13`), read by canTransition and allowedTransitions; the word devuelta in S2 is a slip of the model | none |
+| task-api | Q4 | correct | correct | correct | No route, hook, plugin or check authenticates a user; JWT_SECRET is only parsed as configuration (`fixtures/task-api/src/config/env.ts:13`), so UNKNOWN is the due answer | none |
+| acme-shop | Q1 | incorrect | incorrect | incorrect | The final price is the discounted taxable base plus tax plus shipping (`fixtures/acme-shop/app/Services/PriceCalculator.php:34`), not the subtotal plus tax plus shipping, so the FACT statement S8 is false | S8 false |
+| acme-shop | Q3 | correct | correct | correct | percentFor looks the coupon up and rejects inactive and expired ones (`fixtures/acme-shop/app/Services/CouponValidator.php:22`), as the statement says | none |
+| acme-shop | Q4 | correct | correct | correct | The observer dispatches RecalculateTotals and fires OrderPlaced (`fixtures/acme-shop/app/Observers/OrderObserver.php:18`); calling both of them events is an imprecision | none |
+
+## Agreement
+
+n = 7
+
+Percent agreement: 100.0%
+
+Cohen's kappa: 1.000
+
+The kappa is indicative: with seven items it has a wide uncertainty.
+
+Resolved by the resolver: 0 of 7
+
+## Pending
+
+- task-api Q2: DIS-42
+- acme-shop Q1: DIS-42
+
+No new ticket is opened for them: both are regenerated and judged again, with the other five items,
+in the second round of this same ticket, DIS-42 r2 (suffix `-dis-42-r2`).
+
+## Limitations
+
+- Two models of one family are not independent reviewers in the sense of two people.
+- The generator is a local 7B model (qwen2.5-coder).
+- sourcesRead is self-declared.
+- The criterion was written by an agent that had read the golden answers.

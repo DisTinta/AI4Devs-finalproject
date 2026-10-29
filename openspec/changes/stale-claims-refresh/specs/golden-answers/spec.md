@@ -187,7 +187,10 @@ seven verdicts with exactly three decimals, for example `0.500`, or `undefined` 
 the word `indicative` for the kappa, and the line `Resolved by the resolver: <k> of 7`. These lines
 are compared as text with the values the test recomputes from the panel files.
 
-Each line of `## Pending` SHALL be `- <project> <id>: DIS-<n>`, naming the successor ticket.
+Each list line of `## Pending` SHALL be `- <project> <id>: DIS-<n>`, naming the ticket that
+regenerates or retires the item and has it reviewed again: in this change no new ticket is opened,
+so it names DIS-42 itself, whose second round (DIS-42 r2) does it, and a sentence after the list
+names that round.
 
 `## Limitations` SHALL contain these four lines verbatim:
 `- Two models of one family are not independent reviewers in the sense of two people.`,
