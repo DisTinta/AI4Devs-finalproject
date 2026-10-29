@@ -159,11 +159,11 @@ This group is done by independent agents launched outside the apply: panelist 1 
 
 ## 18. Pull request preparation
 
-- [ ] 18.1 `/pr-describe` in Spanish against `final-project-CRN`: the Why marked as the agent's text (D1–D8, P1–P9), the default change of `incremental` (BREAKING note), the existing tests changed (8.1), the Stryker score, the regenerated seed and golden files (step 11), the DIS-10 golden round (models, dates, verdict per item, agreement, resolved items, pending tickets), and what is pending for the author: the PowerShell check (P8) and the debt of D1, D5 and D8 (destination C)
+- [x] 18.1 `/pr-describe` in Spanish against `final-project-CRN`: the Why marked as the agent's text (D1–D8, P1–P9), the default change of `incremental` (BREAKING note), the existing tests changed (8.1), the Stryker score, the regenerated seed and golden files (step 11), the DIS-10 golden round (models, dates, verdict per item, agreement, resolved items, pending tickets), and what is pending for the author: the PowerShell check (P8) and the debt of D1, D5 and D8 (destination C)
 
 ## 19. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 19.1 Open the PR against `final-project-CRN`; DIS-10 to In Review with a Spanish comment linking it
+- [x] 19.1 Open the PR against `final-project-CRN`; DIS-10 to In Review with a Spanish comment linking it
 - [ ] 19.2 CI green, including the `verify` and mutation jobs: wait in the foreground with `gh pr checks <n> --watch --interval 60` (timeout 600000), repeated until no check is pending; link the run in an addendum to the step 9 report
 - [ ] 19.3 `/show-spec-working` (may reuse the step 15 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
 - [ ] 19.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
