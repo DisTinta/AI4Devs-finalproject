@@ -300,3 +300,199 @@ Impact: add "`seeds/graph-dump.sql` and `seeds/cache/acme-shop.json` / `seeds/ca
 ### Linear
 
 The Spanish comment of this round is posted on DIS-9. The `[enhanced]` description is not edited in this round: the new decisions E15–E24 live in `design.md` → Follow-ups and in that comment, which is where §6 asks for them.
+
+---
+
+## Run 2 (2026-10-29)
+
+CHANGES REQUIRED
+
+# Spec audit: `index-endpoint` (DIS-9, parent DIS-6), 2026-10-29, run 2
+
+Inputs read: `proposal.md`, `design.md`, `tasks.md`, the deltas `specs/http-index`, `specs/repository-indexing`, `specs/graph-store` and `specs/api-foundation`, and `reports/2026-10-29-spec-audit.md` (run 1 and its resolution). From Linear: DIS-9 (description and 3 comments) and its parent DIS-6 (description, no comments). From the project: `docs/project-context.md`, `docs/openspec-tasks-mandatory-steps.md` and the main spec `openspec/specs/api-foundation/spec.md`. Code checked: `packages/core/src/index/path-policy.ts`, `index-repository.ts`, `packages/adapters/store-postgres/src/open-store.ts`, `packages/api/src/composition.ts`, `routes/ask.ts`, `plugins/error-handler.ts`, `plugins/openapi.ts`, `plugins/zod-compiler.ts`, `packages/cli/src/seed/fingerprint.ts`, `packages/adapters/git/src/config.ts`, `packages/analyzers/*/src/index.ts`, `tests/integration/store/open-store.spec.ts`, `tests/integration/api/ask.spec.ts`, `seeds/graph-dump.sql`, `.env.example`, and `node_modules/@fastify/swagger/lib/spec/openapi/utils.js` (v9.9.2).
+
+## Questions for the author
+
+None new. Run 1's Q1–Q3 were answered by the agent as E18, E17 and E16. Those answers do not contradict the ticket or the project, so I accept them. Three items stay pending for the author, all destination C: closing DIS-6 on the adapted reading (E18), the PowerShell check (E13), and the new review of the regenerated golden entries (E16).
+
+---
+
+## 1. Scope against the ticket
+
+Clean. Every item comes from DIS-9 `[enhanced]` E1–E14 or from the run-1 corrections E15–E24:
+- the route, its schema and its error table;
+- the core use case;
+- the pooled transaction runner;
+- the optional variables;
+- the completion log;
+- the documentation;
+- the seed and golden regeneration that the fingerprint ADR forces.
+
+The `projectIdParamsSchema` move and the `PHP_EXTRACTOR` export are refactors the route needs. Nothing pulls in DIS-10 (the incremental plan) or DIS-42 (lazy `stale` recomputation).
+
+## 2. Inherited acceptance criteria
+
+Clean.
+- **DoD "test de integración de los cuatro códigos":** covered over Postgres by 4 seed scenarios.
+  - `202`: "A reindex answers 202 and invalidates the cache over the seed".
+  - `400`: "An invalid request answers VALIDATION_ERROR over the seed".
+  - `403`: "A stored root outside the allowed root answers FORBIDDEN_PATH without a path over the seed".
+  - `404`: "An unknown project answers PROJECT_NOT_FOUND over the seed".
+- **DoD "ruta visible en `/docs`":** covered by "The document lists index…".
+- **DoD "cacheHit = false" after a reindex:** covered by the seed `202` scenario.
+- **DIS-6 AC1, AC2 and AC3:** AC3 (every `cache_entry` invalidated) is covered. AC2 asks for `language: ruby` → `400` and an unknown project → `404`; both are covered. AC1 and AC2's `rootPath` and `jobId` are met in the adapted form of E1/E3/E18 (accepted, closing DIS-6 is C).
+- **DIS-9 `[enhanced]` AC1–AC5:** all covered. AC5 ("fallo después de `saveGraph`") is covered by the core scenario plus the adapter scenario. The rejection of a single Postgres test was argued in run 1, and I accept it.
+
+## 3. Missing scenarios
+
+Clean. Every MUST clause of the four deltas now has a scenario. Two clauses are not tested, and design U3 records them with their reason (E21, D):
+- `graph-store`: rollback failure;
+- `graph-store`: commit failure.
+
+## 4. Ambiguity
+
+Clean. The forbidden words (fast, easy, secure, efficient, many, appropriate, robust) do not appear in the proposal, the design, the specs or the tasks. The only hits outside the reports are "a short Spanish comment" in task 0.2 (not a behaviour) and a non-matching hit in 10.1. The run-1 vague wording ("large", "short") was replaced by acme-shop's size, the duration measured in step 11 and the 300 s `requestTimeout`.
+
+## 5. Open decisions
+
+- **B1 (blocking): `requestBody.required` cannot be "absent or `false`" with the route as designed.**
+  - **What the change promises.** `http-index` "Index in the OpenAPI document" says the request body is "not required", and its scenario demands `requestBody.required` "absent or `false`". Task 5.6 tests exactly that. Design U5 says the operation "leaves `requestBody.required` absent or `false` (the schema has no required key)".
+  - **Why that is wrong.** The rationale is false for the installed `@fastify/swagger` 9.9.2. `node_modules/@fastify/swagger/lib/spec/openapi/utils.js:482-486` always writes `openapiMethod.requestBody = { required: true, content: {} }` when a route declares `schema.body`. The comment there says "requestBody.required should always be true". `resolveBodyParams` (l. 276-297) never resets it. The project's `transform` (`packages/api/src/plugins/zod-compiler.ts:84`, `zodToOpenApi`) only converts schemas, and `registerOpenApi` (`packages/api/src/plugins/openapi.ts:19-31`) sets no `transformObject`.
+  - **What it leaves open.** As written, task 5.6 cannot pass, and the implementer would have to choose alone among three options:
+    - a document post-processor (`transformObject`) in `plugins/openapi.ts`;
+    - removing `schema.body` and validating in the handler, which breaks the "validation by schema" pattern;
+    - dropping the clause.
+  - **Where to fix it.** Design U5, the `http-index` OpenAPI requirement, proposal Impact and tasks 5.3/5.6/9.4.
+  - **Recommended decision.** A generic `transformObject` in `registerOpenApi`. It sets `requestBody.required = false` on every operation whose `application/json` body schema has no `required` key, and leaves every other document field untouched. `/ask`'s body has required `question`, so its document does not change, and `tests/unit/api/health-docs.spec.ts` stays unedited. `plugins/openapi.ts` joins the Impact list and the Stryker `--mutate` list.
+- **Improvable: a relative `ALLOWED_REPOS_DIR`.** `confinePath` resolves the allowed root against the process cwd (`path-policy.ts:39`). The API is started with `npm -w packages/api run dev`, whose cwd is `packages/api`, while the CLI runs from the repository root. So the same relative value names two different directories. The behaviour comes from the existing code (the CLI has it too), but no artifact states it. Add one line to `api-foundation` "Configuration from the environment" or to design U4. Recommended text: "a relative `ALLOWED_REPOS_DIR` resolves against the process working directory, as in the CLI; `.env.example` asks for an absolute path". The alternative is to resolve it against `workspaceRoot`.
+
+## 6. Contradictions inside the change
+
+- **Improvable: the composition wording in the proposal.** `proposal.md` → What Changes → Composition says the indexing dependencies hold the "(Git source tree and history, …)". Design U4 and E23, and the `api-foundation` delta, say `IndexingDeps` holds **no** source tree and that `AppDeps.source` is reused. Replace "(Git source tree and history, the analyzer of each language, the transaction runner)" with "(the Git history reader, the analyzer and extractor name of each language, the transaction runner; the existing source tree is reused)".
+- **Improvable: design B1 rationale (linked to point 5).** U5's sentence "(the schema has no required key)" is the false premise. Replace it with the decision taken for B1.
+
+Everything else is consistent across the proposal, design U1–U9, E1–E24 and the deltas: the signatures, the error table, the `202` deviation, the E15 guarantee and the scenario counts in 8.2. Those counts are 16 = 12 + 4, 10, 4 and 2, and I checked each against the deltas.
+
+## 7. Contradictions with the project
+
+Clean. The `202` deviation from `docs/backend-standards.md` §6 is recorded (U9, E17), and so is the timing in the route against §3 (U6, E20). The seed and golden regeneration follows ADR `20261017-stale-fingerprint-fails-verify`. The fingerprint inputs named in task 10 match `packages/cli/src/seed/fingerprint.ts:30-51`: `packages/core/src/index`, `packages/adapters/store-postgres/src` and `packages/analyzers/php/src` are touched, while `packages/api/src` and `packages/core/src/knowledge` are not inputs. The base branch `final-project-CRN` matches `docs/project-context.md` l. 535. The lowercase branch name is recorded (E24).
+
+## 8. Contrast with the real code
+
+- B1 above (`@fastify/swagger` `utils.js:482-486`, `plugins/openapi.ts:19-31`).
+- These points check out against the code:
+  - **The `IndexingDisabled` message.** It is `indexing disabled (fixtures-only mode)` (`path-policy.ts:10`) and matches the table.
+  - **An allowed root that does not exist.** It gives `IndexingDisabled` through `realPath` (`index-repository.ts:151-153`), as the new scenario expects.
+  - **Re-wrapping the lexical failure.** `confineRepository` must re-wrap the **lexical** `ForbiddenPathError` (`index-repository.ts:149`, today raised with `requested`) with `requestedName` as well, not only the real-path one (l. 158). Design U1 ("`requestedName` is the only name `ForbiddenPathError` carries") already implies it, and the third case of the scenario pins it.
+  - **The empty JSON body.** `FST_ERR_CTP_EMPTY_JSON_BODY` is already answered `400` `VALIDATION_ERROR` (`error-handler.ts:27`).
+  - **The seed and the cache.** `seeds/graph-dump.sql` holds no `cache_entry`, so `cacheEntriesInvalidated 1` in the seed scenario holds.
+  - **The salt rule.** It is "trimmed, non-empty" (`adapters/git/src/config.ts:19-21`), the same as `indexingConfigFromEnv`.
+  - **The TypeScript extractor.** `TS_COMPILER_EXTRACTOR` is already exported (`analyzers/typescript/src/index.ts:10`).
+- **Improvable: task 3.1** says "the two existing ones untouched", but `tests/integration/store/open-store.spec.ts` has **three** `it`s (l. 40, 64, 84). Write "the three existing ones untouched".
+
+## 9. Task size
+
+Clean. Every task fits one agent turn. Task 5.3 is the largest and stays bounded. If B1 adds the `transformObject`, put it in its own sub-step of 5.6 rather than growing 5.3.
+
+## 10. Mandatory steps
+
+Clean overall:
+- Step 0 creates or verifies the branch first.
+- The mandatory steps are present, in order and labelled: 8 Review tests, 9 Run tests and verify data state (report path and §6 template), 11 Manual (agent executes, restoration in 11.6), 12 E2E (N/A justified), 13 Docs, and 15 Pre-merge Review last, with the archive before the merge.
+- Mutating tasks restore state: 3.3 deletes what it commits; 9.6 and 11.6 restore.
+
+Improvable:
+- **Task 11.4, rate limit.** The task restarts the API twice before "the ninth request within the window", but it does not say on which instance, nor that every restart sets `RATE_LIMIT_MAX=8`. With a 60 s default window the count is also fragile. Write: "after the last restart (also with `RATE_LIMIT_MAX=8`), send nine requests within 60 s; the ninth answers `429` `RATE_LIMITED`".
+- **Tasks 11.2/11.3, model mode.** The expected "`UNKNOWN` `llm-required`" after the reindex assumes evaluation mode, but `.env` may set `LLM_*`, and `scripts/load-env.mjs` would fill it, giving live mode and possibly a `503`. Add to 11.2: "with `LLM_BASE_URL=`, `LLM_MODEL=` and `LLM_API_KEY=` empty for that command (evaluation mode)".
+- **Task 3.3 / scenario "Every connection is released after a run".** `pool.end()` waits for checked-out clients, so a leaked client shows up as a test timeout rather than an assertion. Add "and `close()` resolves within 2 s".
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| http-index · Index request validation | A body with a path or a language answers VALIDATION_ERROR without indexing | 5.4 |
+| | A malformed project id answers VALIDATION_ERROR without indexing | 5.4 |
+| | A request without a body is a full reindex | 5.3 (hook), 5.4 |
+| | An invalid request answers VALIDATION_ERROR over the seed | 7.3 |
+| http-index · Index accepted response | A reindex answers 202 and invalidates the cache over the seed | 7.1 |
+| | An incremental request is accepted as a full reindex | 5.4 |
+| | A TypeScript project answers with the ts-compiler analyzer | 5.4 |
+| http-index · Index error answers | Indexing disabled answers 403 without touching the store | 5.2, 5.3 |
+| | An unknown project answers PROJECT_NOT_FOUND | 5.4 |
+| | A stored root outside the allowed root answers FORBIDDEN_PATH without a path over the seed | 7.2 |
+| | An unknown project answers PROJECT_NOT_FOUND over the seed | 7.3 |
+| | An unreadable stored repository answers 503 without a path | 5.4 |
+| | An invalid graph answers INTERNAL and saves nothing | 5.4 |
+| | The index route is rate limited | 5.5 |
+| http-index · Index completion log | A reindex logs its counters without paths | 5.5 |
+| http-index · Index in the OpenAPI document | The document lists index with its parameter, body and responses | 5.6, **but `requestBody.required` has no implementing task (B1)** |
+| repository-indexing · Reindexing an existing project | A reindex saves over the stored project and then invalidates its cache | 2.1, 2.2 |
+| | A relative stored root resolves against the workspace root | 2.3 |
+| | Reindexing is disabled without an allowed root, before reading the project | 2.3 |
+| | An unknown project is not reindexed | 2.3 |
+| | A stored root outside the allowed root is rejected before reading | 1.1, 2.3 |
+| | An allowed root that does not exist disables reindexing | 2.3 |
+| | A reindex keeps the stored project fields and detects no framework | 1.2, 2.3 |
+| | A workspace root that is not absolute is rejected before any call | 2.4 |
+| | A failed cache invalidation fails the unit of work | 2.3 |
+| | An invalid graph writes nothing | 2.3 |
+| graph-store · Running work in one transaction on a pooled store | Work that resolves is committed | 3.1, 3.2 |
+| | Work that rejects leaves nothing | 3.3 |
+| | Work's writes are invisible to another connection before the commit | 3.3 |
+| | Every connection is released after a run | 3.3 |
+| api-foundation · Configuration from the environment (modified) | Defaults apply… / An invalid variable fails… (unchanged, DIS-76 tests) | 8.2 |
+| | Missing indexing variables do not stop the API | 6.3, 6.4 |
+| api-foundation · Composition from the environment (modified) | five unchanged DIS-76 scenarios | 8.2 |
+| | Both indexing variables compose the indexing dependencies | 6.2, 6.3, 6.4 |
+| (design Risks, ADR 20261017) | seed and golden regeneration | 10.1–10.5 |
+
+No row is empty. The OpenAPI row has a task, but the clause it tests has no implementation path (B1). Task 2.4, an orphan in run 1, is now linked.
+
+---
+
+## Corrections to apply
+
+### `openspec/changes/index-endpoint/design.md`
+
+1. **U5 (B1).** Replace the sentence "The OpenAPI operation leaves `requestBody.required` absent or `false` (the schema has no required key)." with:
+   > `@fastify/swagger` (9.9.2, `lib/spec/openapi/utils.js` l. 482-486) always writes `requestBody.required: true` for a route with `schema.body`. `registerOpenApi` (`packages/api/src/plugins/openapi.ts`) therefore gains a `transformObject` that sets `requestBody.required = false` on every operation whose `application/json` body schema has no `required` key, and changes nothing else. `/ask`'s body requires `question`, so its document is unchanged and `tests/unit/api/health-docs.spec.ts` stays unedited.
+2. **Follow-ups**: add a row with the next free id, `E25 | (run-2 B1) requestBody.required set to false through a generic transformObject in plugins/openapi.ts | A`.
+3. **U4 (improvable)**: add "A relative `ALLOWED_REPOS_DIR` resolves against the process working directory, as in the CLI (`confinePath`); `.env.example` asks for an absolute path."
+
+### `openspec/changes/index-endpoint/specs/http-index/spec.md`
+
+No change of behaviour. Optionally, append to "Index in the OpenAPI document": "(`requestBody.required` `false`)" after "not required", so the requirement and the scenario name the same value.
+
+### `openspec/changes/index-endpoint/specs/api-foundation/spec.md` (improvable)
+
+In "Configuration from the environment", after the indexing-variables paragraph, add: "A relative `ALLOWED_REPOS_DIR` is resolved against the process working directory."
+
+### `openspec/changes/index-endpoint/specs/graph-store/spec.md` (improvable)
+
+In "Every connection is released after a run", replace "THEN no session…" with "THEN `close()` resolves within 2 s and no session…".
+
+### `openspec/changes/index-endpoint/proposal.md`
+
+1. **Impact → Code (B1)**: add `packages/api/src/plugins/openapi.ts` (a `transformObject` for non-required bodies).
+2. **What Changes → Composition (improvable)**: replace "(Git source tree and history, the analyzer of each language, the transaction runner)" with "(the Git history reader, the analyzer and extractor name of each language, the transaction runner; the existing source tree is reused)".
+3. **What Changes → Composition (improvable)**, optionally: add one sentence saying a relative `ALLOWED_REPOS_DIR` resolves against the working directory.
+
+### `openspec/changes/index-endpoint/tasks.md`
+
+1. **Task 5.6 (B1)**: replace it with "RED → GREEN: 'The document lists index with its parameter, body and responses' (`GET /docs/json`, `requestBody.required` `false`); GREEN adds the `transformObject` of design U5 to `packages/api/src/plugins/openapi.ts` (TSDoc); `tests/unit/api/health-docs.spec.ts` and the `/ask` document unchanged (`npx vitest run tests/unit/api`)".
+2. **Task 9.4 (B1)**: add `packages/api/src/plugins/openapi.ts` to the `--mutate` list.
+3. **Task 3.1**: "the two existing ones untouched" → "the three existing ones untouched".
+4. **Task 3.3**: add "and `close()` resolves within 2 s" to "Every connection is released after a run".
+5. **Task 11.2**: add "with `LLM_BASE_URL=`, `LLM_MODEL=` and `LLM_API_KEY=` empty for that command (evaluation mode; `.env` only fills unset variables)".
+6. **Task 11.4**: replace "the ninth request within the window (429)" with "after the last restart (also with `RATE_LIMIT_MAX=8`), nine requests within 60 s: the ninth answers `429` `RATE_LIMITED`".
+
+### Linear: DIS-9 (comment in Spanish; `[original]` not touched)
+
+> *Texto del agente: segunda auditoría de especificación (spec-auditor) del change `index-endpoint`, sin la autora.*
+>
+> Veredicto: `CHANGES REQUIRED`, 1 hallazgo bloqueante:
+> - **B1:** `@fastify/swagger` 9.9.2 marca siempre `requestBody.required: true` cuando la ruta declara `schema.body` (`lib/spec/openapi/utils.js` l. 482-486). La spec pide «no requerido» y el diseño lo atribuía a que el esquema no tiene claves obligatorias, lo que es falso. Se decide en `design.md` U5 (propuesta: un `transformObject` genérico en `plugins/openapi.ts` que pone `required: false` cuando el cuerpo no tiene claves obligatorias; `/ask` no cambia) y se añade a las tareas 5.6 y 9.4.
+>
+> Mejoras: redacción de la composición en `proposal.md` (no hay segundo árbol de fuentes, E23), `ALLOWED_REPOS_DIR` relativo, tareas 3.1 (son tres `it` existentes), 3.3 (`close()` en 2 s), 11.2 (forzar modo evaluación) y 11.4 (límite de peticiones tras el último reinicio).
+>
+> Siguen pendientes para la autora (C): comprobación en PowerShell (E13), revisión de las golden regeneradas (E16) y cierre de DIS-6 (E18).
