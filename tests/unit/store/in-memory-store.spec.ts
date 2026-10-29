@@ -589,6 +589,53 @@ describe('in-memory StorePort double', () => {
     });
   });
 
+  // Spec: openspec/changes/incremental-indexing/specs/graph-store/spec.md → "Index state read" (DIS-10).
+  describe('Requirement: Index state read', () => {
+    it('The in-memory double reads the same index state', async () => {
+      // Arrange: the graph of "The index state lists the stored files and their file dependencies".
+      const run = symbol('app/B.php', 'B::run', 1);
+      const other = symbol('app/B.php', 'B::other', 5);
+      const target = symbol('app/A.php', 'A::target', 1);
+      const graph: KnowledgeGraph = {
+        files: [
+          file('app/C.php', { contentHash: undefined }),
+          file('app/B.php', { contentHash: 'h2' }),
+          file('app/A.php', { contentHash: 'h1' }),
+        ],
+        symbols: [run, other, target],
+        edges: [
+          edge({ symbol: ref(run) }, { symbol: ref(target) }, { kind: 'calls' }),
+          edge({ symbol: ref(other) }, { symbol: ref(target) }, { kind: 'calls' }),
+          edge({ file: 'app/C.php' }, { file: 'app/B.php' }, { kind: 'imports' }),
+          edge({ file: 'app/C.php' }, { file: 'app/A.php' }, { kind: 'extends' }),
+          edge({ file: 'app/C.php' }, { file: 'app/A.php' }, { kind: 'imports' }),
+          edge({ file: 'app/A.php' }, { file: 'app/B.php' }, { kind: 'co_changed', weight: 0.5 }),
+          edge({ symbol: ref(run) }, { symbol: ref(other) }, { kind: 'calls' }),
+        ],
+        commits: [],
+        fileCommits: [],
+      };
+      const { store, projectId } = single(graph);
+
+      // Act
+      const state = await store.readIndexState(projectId);
+      const unknown = await rejectionOf(() => store.readIndexState(randomUUID()));
+
+      // Assert
+      expect(state).toEqual({
+        files: [{ path: 'app/A.php', contentHash: 'h1' }, { path: 'app/B.php', contentHash: 'h2' }, { path: 'app/C.php' }],
+        dependencies: [
+          { fromPath: 'app/B.php', toPath: 'app/A.php', kind: 'calls' },
+          { fromPath: 'app/C.php', toPath: 'app/A.php', kind: 'extends' },
+          { fromPath: 'app/C.php', toPath: 'app/A.php', kind: 'imports' },
+          { fromPath: 'app/C.php', toPath: 'app/B.php', kind: 'imports' },
+        ],
+      });
+      expect(state.files[2]).not.toHaveProperty('contentHash');
+      expect(unknown).toBeInstanceOf(ProjectNotFound);
+    });
+  });
+
   describe('Requirement: Validity of ids returned by reads', () => {
     it('A symbol result carries the id of its file (in-memory double)', async () => {
       // Arrange

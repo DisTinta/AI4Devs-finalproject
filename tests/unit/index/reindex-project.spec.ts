@@ -1,11 +1,13 @@
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { ForbiddenPathError, IndexingDisabled, InvalidGraph, NotAGitRepository, ProjectNotFound, reindexProject } from '@codemind/core';
+import { EmptyRepository, ForbiddenPathError, IndexingDisabled, InvalidGraph, NotAGitRepository, ProjectNotFound, reindexProject } from '@codemind/core';
 import type {
   AnalysisResult,
   AnalyzerPort,
   GitHistory,
   GitPort,
+  IndexState,
   KnowledgeGraph,
   Project,
   ReindexDependencies,
@@ -34,6 +36,8 @@ interface FakeOptions {
   history?: GitHistory;
   invalidateCacheError?: Error;
   invalidated?: number;
+  /** What `readIndexState` returns; empty by default. */
+  indexState?: IndexState;
 }
 
 /** The fakes, their shared call log, and what they received. */
@@ -129,6 +133,10 @@ function world(options: FakeOptions = {}): World {
         fileCommits: graph.fileCommits.length,
       };
     },
+    async readIndexState(projectId: string) {
+      log.push(`readIndexState ${projectId}`);
+      return options.indexState ?? { files: [], dependencies: [] };
+    },
     async invalidateCache(projectId: string) {
       log.push(`invalidateCache ${projectId}`);
       if (options.invalidateCacheError) throw options.invalidateCacheError;
@@ -157,9 +165,9 @@ function world(options: FakeOptions = {}): World {
   return { deps, log, analyzedBy, analyzed, saved, settled };
 }
 
-/** The default input: the stored root `/repos/acme-shop` inside `/repos`. */
+/** The default input: the stored root `/repos/acme-shop` inside `/repos`, in the full mode. */
 function input(overrides: Partial<ReindexInput> = {}): ReindexInput {
-  return { projectId: PROJECT_ID, allowedRoot: '/repos', workspaceRoot: path.resolve('/work'), ...overrides };
+  return { projectId: PROJECT_ID, allowedRoot: '/repos', workspaceRoot: path.resolve('/work'), incremental: false, ...overrides };
 }
 
 const ROOT = path.resolve('/repos');
@@ -194,6 +202,10 @@ describe('reindex project', () => {
     expect(report.indexedCommit).toBe(SHA);
     expect(report.files).toBe(1);
     expect(report.cacheEntriesInvalidated).toBe(2);
+    expect(report.mode).toBe('full');
+    expect(report.filesQueued).toBe(report.files);
+    expect(report.filesSkipped).toBe(0);
+    expect(w.log.filter((call) => call.startsWith('readIndexState'))).toEqual([]);
     expect(JSON.parse(JSON.stringify(report))).toEqual(report);
   });
 
@@ -224,15 +236,17 @@ describe('reindex project', () => {
   });
 
   it('An unknown project is not reindexed', async () => {
-    // Arrange
-    const w = world({ project: null });
+    for (const incremental of [false, true]) {
+      // Arrange
+      const w = world({ project: null });
 
-    // Act
-    const run = reindexProject(w.deps, input());
+      // Act
+      const run = reindexProject(w.deps, input({ incremental }));
 
-    // Assert
-    await expect(run).rejects.toBeInstanceOf(ProjectNotFound);
-    expect(w.log).toEqual([`getProject ${PROJECT_ID}`]);
+      // Assert
+      await expect(run).rejects.toBeInstanceOf(ProjectNotFound);
+      expect(w.log).toEqual([`getProject ${PROJECT_ID}`]);
+    }
   });
 
   it('A stored root outside the allowed root is rejected before reading', async () => {
@@ -351,6 +365,215 @@ describe('reindex project', () => {
     await expect(run).rejects.toBeInstanceOf(InvalidGraph);
     expect(w.log).not.toContain('transaction begin');
     expect(w.saved).toEqual([]);
+  });
+
+  // Spec: openspec/changes/incremental-indexing/specs/repository-indexing/spec.md → "Incremental
+  // reindex" and "Reindexing an existing project" (DIS-10).
+  describe('incremental reindex', () => {
+    const OTHER = 'b'.repeat(40);
+    const files = (...names: string[]): SourceFile[] => names.map((name) => ({ path: name, content: `<?php\n// ${name}\n` }));
+    const hashOf = (file: SourceFile): string => createHash('sha256').update(file.content, 'utf8').digest('hex');
+    const stateOf = (tree: SourceFile[], overrides: Record<string, string> = {}, dependencies: IndexState['dependencies'] = []): IndexState => ({
+      files: tree.map((file) => ({ path: file.path, contentHash: overrides[file.path] ?? hashOf(file) })),
+      dependencies,
+    });
+    const TWO = files('app/A.php', 'app/B.php');
+    const HISTORY: GitHistory = { head: SHA, commits: [{ sha: SHA, message: 'feat: a' }], fileCommits: [] };
+
+    /** The unchanged project of the first scenario. */
+    function unchanged(extra: FakeOptions = {}): World {
+      return world({
+        project: { indexedCommit: SHA },
+        tree: { files: TWO, skipped: [] },
+        indexState: stateOf(TWO),
+        history: HISTORY,
+        invalidated: 1,
+        ...extra,
+      });
+    }
+
+    it('An unchanged repository takes the fast path', async () => {
+      // Arrange
+      const w = unchanged();
+
+      // Act
+      const report = await reindexProject(w.deps, input({ incremental: true }));
+
+      // Assert
+      expect(report).toMatchObject({
+        mode: 'incremental',
+        filesQueued: 0,
+        filesSkipped: 2,
+        indexedCommit: SHA,
+        files: 0,
+        filesDeleted: 0,
+        symbols: 0,
+        commits: 0,
+        fileCommits: 0,
+        edges: { total: 0, exact: 0, heuristic: 0 },
+        diagnostics: [],
+        commitEvents: [],
+        cacheEntriesInvalidated: 1,
+      });
+      expect(w.analyzed).toEqual([]);
+      expect(w.log.slice(w.log.indexOf('transaction begin'))).toEqual(['transaction begin', `invalidateCache ${PROJECT_ID}`, 'transaction commit']);
+      expect(w.saved).toEqual([]);
+    });
+
+    it('A failed cache invalidation on the fast path fails the reindex', async () => {
+      // Arrange
+      const failure = new Error('cache write failed');
+      const w = unchanged({ invalidateCacheError: failure });
+
+      // Act
+      const run = reindexProject(w.deps, input({ incremental: true }));
+
+      // Assert
+      await expect(run).rejects.toBe(failure);
+      expect(w.log.filter((call) => call.startsWith('saveGraph'))).toEqual([]);
+    });
+
+    it('A new HEAD with no changed file runs the whole reindex', async () => {
+      for (const indexedCommit of [OTHER, undefined]) {
+        // Arrange
+        const w = unchanged({ project: { indexedCommit } });
+
+        // Act
+        const report = await reindexProject(w.deps, input({ incremental: true }));
+
+        // Assert
+        expect(w.analyzed).toEqual([TWO]);
+        expect(w.log.slice(w.log.indexOf('transaction begin'))).toEqual([
+          'transaction begin',
+          `saveGraph ${PROJECT_ID}`,
+          `invalidateCache ${PROJECT_ID}`,
+          'transaction commit',
+        ]);
+        expect(report).toMatchObject({ mode: 'incremental', filesQueued: 0, filesSkipped: 2, indexedCommit: SHA });
+      }
+    });
+
+    it('A changed file is reprocessed with the whole snapshot', async () => {
+      // Arrange
+      const tree = files('app/A.php', 'app/B.php', 'app/C.php');
+      const w = world({
+        project: { indexedCommit: SHA },
+        tree: { files: tree, skipped: [] },
+        indexState: stateOf(tree, { 'app/A.php': 'stale-hash' }, [{ fromPath: 'app/B.php', toPath: 'app/A.php', kind: 'calls' }]),
+        history: HISTORY,
+      });
+
+      // Act
+      const report = await reindexProject(w.deps, input({ incremental: true }));
+
+      // Assert
+      expect(w.analyzed).toEqual([tree]);
+      expect(w.saved).toHaveLength(1);
+      expect(w.saved[0].files.map((file) => file.path)).toEqual(['app/A.php', 'app/B.php', 'app/C.php']);
+      expect(report).toMatchObject({ mode: 'incremental', filesQueued: 2, filesSkipped: 1, files: 3 });
+    });
+
+    it('A full reindex ignores the stored index state', async () => {
+      // Arrange
+      const w = unchanged({ invalidated: 2 });
+
+      // Act
+      const report = await reindexProject(w.deps, input({ incremental: false }));
+
+      // Assert
+      expect(w.log.filter((call) => call.startsWith('readIndexState'))).toEqual([]);
+      expect(w.analyzed).toEqual([TWO]);
+      expect(w.log.slice(w.log.indexOf('transaction begin'))).toEqual([
+        'transaction begin',
+        `saveGraph ${PROJECT_ID}`,
+        `invalidateCache ${PROJECT_ID}`,
+        'transaction commit',
+      ]);
+      expect(report).toMatchObject({ mode: 'full', filesQueued: 2, filesSkipped: 0 });
+    });
+
+    it('The phases of an incremental reindex are reported in order', async () => {
+      // Arrange
+      const tree = files('app/A.php', 'app/B.php', 'app/C.php');
+      const changed = world({
+        project: { indexedCommit: SHA },
+        tree: { files: tree, skipped: [] },
+        indexState: stateOf(tree, { 'app/A.php': 'stale-hash' }),
+        history: HISTORY,
+      });
+      const cases: Array<[World, string[]]> = [
+        [unchanged(), ['confine', 'read', 'redact', 'history', 'save']],
+        [changed, ['confine', 'read', 'redact', 'history', 'analyze', 'save']],
+      ];
+
+      for (const [w, expected] of cases) {
+        // Act
+        const phases: string[] = [];
+        await reindexProject({ ...w.deps, onProgress: (phase) => phases.push(phase) }, input({ incremental: true }));
+
+        // Assert
+        expect(phases).toEqual(expected);
+      }
+    });
+
+    // Beyond the scenarios of the spec (kills the survivors of the mutation run).
+    it('A deleted file alone runs the whole reindex', async () => {
+      // Arrange: the stored state also holds `app/Gone.php`, which the repository no longer has.
+      const state = stateOf(TWO);
+      const w = unchanged({ indexState: { ...state, files: [...state.files, { path: 'app/Gone.php', contentHash: 'gone' }] } });
+
+      // Act
+      const report = await reindexProject(w.deps, input({ incremental: true }));
+
+      // Assert
+      expect(w.analyzed).toEqual([TWO]);
+      expect(w.saved).toHaveLength(1);
+      expect(report).toMatchObject({ mode: 'incremental', filesQueued: 0, filesSkipped: 2 });
+    });
+
+    it('A repository without a commit is rejected with EmptyRepository', async () => {
+      // Arrange: with a stored commit, and with none (where "no HEAD" must not equal "no stored commit").
+      for (const indexedCommit of [SHA, undefined]) {
+        const w = unchanged({ project: { indexedCommit }, history: { head: undefined, commits: [], fileCommits: [] } });
+
+        // Act
+        const run = reindexProject(w.deps, input({ incremental: true }));
+
+        // Assert
+        await expect(run).rejects.toBeInstanceOf(EmptyRepository);
+        expect(w.log).not.toContain('transaction begin');
+      }
+    });
+
+    it('An invalid graph in an incremental reindex writes nothing', async () => {
+      // Arrange
+      const tree = files('app/A.php', 'app/B.php', 'app/C.php');
+      const w = world({
+        project: { indexedCommit: SHA },
+        tree: { files: tree, skipped: [] },
+        indexState: stateOf(tree, { 'app/A.php': 'stale-hash' }),
+        history: HISTORY,
+        analyze: (given) => ({
+          ...plainAnalysis(given),
+          edges: [
+            {
+              kind: 'calls',
+              source: { file: 'app/A.php' },
+              target: { symbol: { file: 'app/A.php', name: 'Missing', startLine: 1 } },
+              resolution: 'exact',
+              extractor: 'test',
+            },
+          ],
+        }),
+      });
+
+      // Act
+      const run = reindexProject(w.deps, input({ incremental: true }));
+
+      // Assert
+      await expect(run).rejects.toBeInstanceOf(InvalidGraph);
+      expect(w.log).not.toContain('transaction begin');
+    });
   });
 
   // Beyond the scenarios of the spec: the phases a reindex reports, as `indexRepository` does.

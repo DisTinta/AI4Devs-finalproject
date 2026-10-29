@@ -615,7 +615,7 @@ AI4Devs-finalproject/
 │   ├── DEPLOYMENT.md
 │   ├── adr/                        # decisiones de arquitectura (9 ADR)
 │   ├── ai-sessions/                # sesiones con IA citadas en prompts.md
-│   ├── golden-review/              # revisión de las respuestas golden (DIS-34, DIS-33, DIS-107, DIS-9)
+│   ├── golden-review/              # revisión de las respuestas golden (DIS-34, DIS-33, DIS-107, DIS-9, DIS-10, DIS-10 r2)
 │   │                               # ── del harness: se reemplazan al actualizarlo ──
 │   ├── base-standards.md
 │   ├── documentation-standards.md
@@ -1173,7 +1173,7 @@ paths:
               type: object
               additionalProperties: false
               properties:
-                incremental: {type: boolean}   # aceptado y sin efecto hasta DIS-10
+                incremental: {type: boolean}   # por defecto true: reindexado incremental; false: completo
       responses:
         '202':
           description: Reindexado completado
@@ -1181,11 +1181,11 @@ paths:
             application/json:
               example:
                 projectId: "7c1d2f3a-5b6e-4f80-9a1b-2c3d4e5f6a7b"
-                mode: "full"
+                mode: "incremental"          # "full" o "incremental"
                 analyzer: "php-treesitter-laravel"
                 indexedCommit: "4f028db4d51a3321031f3a24b3f36240410ed38c"
-                filesQueued: 31
-                filesSkipped: 0
+                filesQueued: 2
+                filesSkipped: 29
                 cacheEntriesInvalidated: 1
         '400': {description: "VALIDATION_ERROR (id mal formado, clave desconocida como rootPath o language, JSON vacío o mal formado)"}
         '403': {description: "INDEXING_DISABLED o FORBIDDEN_PATH"}
@@ -1193,11 +1193,18 @@ paths:
         '429': {description: "RATE_LIMITED"}
         '500': {description: "INTERNAL"}
         '503': {description: "NOT_A_GIT_REPOSITORY o EMPTY_REPOSITORY"}
-      # Implementado en DIS-9 (CM-HU-05b.2). `filesQueued` es el número de ficheros que escribe la
-      # instantánea y `filesSkipped` vale 0 hasta DIS-10 (reindexado incremental); `incremental: true`
-      # se acepta y da la misma respuesta. Los mensajes son fijos y los detalles `{}`: ninguna respuesta
+      # Implementado en DIS-9 (CM-HU-05b.2) y DIS-10 (CM-HU-05b.1). `incremental` vale `true` por defecto
+      # (cambio de comportamiento respecto a DIS-9): se calcula un plan por `content_hash` y los
+      # dependientes directos (`imports`, `calls`, `extends`, `implements`, un salto); `filesQueued` son
+      # los ficheros que el plan reprocesa y `filesSkipped` los demás. Si no cambió ningún fichero y
+      # `HEAD` es el `indexed_commit` guardado, no se analiza ni se reescribe el grafo (solo se vacía la
+      # caché). `incremental: false` fuerza el reindexado completo (`mode: "full"`, `filesSkipped: 0`);
+      # úsalo tras actualizar un analizador, porque un repositorio sin cambios conserva el grafo del
+      # analizador anterior. Los mensajes son fijos y los detalles `{}`: ninguna respuesta
       # ni línea de log lleva una ruta. Un cuerpo ausente (sin `Content-Type`) es `{}`; uno declarado
-      # `application/json` y vacío responde 400.
+      # `application/json` y vacío responde 400. En PowerShell (5.1 y 7), `Invoke-RestMethod -Method
+      # Post` sin `-Body` declara `application/x-www-form-urlencoded` y responde 415; envía
+      # `-ContentType 'application/json' -Body '{}'` (incremental) o `-Body '{"incremental":false}'`.
 
   /api/projects/{projectId}/ask:
     post:

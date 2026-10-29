@@ -1,6 +1,7 @@
 import type { KnowledgeGraph, SaveGraphResult } from '../knowledge/graph.js';
 import type { EdgeKind } from '../knowledge/graph-edge.js';
 import type {
+  IndexState,
   Neighbor,
   NodeRef,
   StoredSymbol,
@@ -90,6 +91,20 @@ export interface StorePort {
     kinds?: EdgeKind[],
     direction?: TraversalDirection,
   ): Promise<Neighbor[]>;
+
+  /**
+   * Reads what an incremental reindex compares against, from the project's stored graph only
+   * (graph-store requirement "Index state read"): every stored file with its stored content hash
+   * (absent when unset), ordered by path in byte order, and every distinct file-to-file dependency
+   * `{ fromPath, toPath, kind }` of kind `imports`, `calls`, `extends` or `implements` (a file or one
+   * of its symbols at each end, both files of the project, from and to different), ordered by
+   * `fromPath`, `toPath`, `kind` in byte order. Writes nothing and uses at most two statements. A
+   * project without a graph answers `{ files: [], dependencies: [] }`.
+   *
+   * @throws ProjectNotFound when `projectId` is no project's id or is not a hyphenated UUID (a
+   *   malformed one before querying).
+   */
+  readIndexState(projectId: string): Promise<IndexState>;
 
   /**
    * Sums `query_log.cost_usd` over every row created at or after `since`, across every project (the

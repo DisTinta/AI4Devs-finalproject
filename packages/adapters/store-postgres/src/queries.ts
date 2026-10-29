@@ -112,6 +112,39 @@ export const SELECT_PROJECT = `SELECT ${PROJECT_COLUMNS} FROM project p WHERE p.
 export const LIST_PROJECTS = `SELECT ${PROJECT_COLUMNS} FROM project p ORDER BY p.name COLLATE "C"`;
 
 /**
+ * The stored files of the project with their hashes (index state, first statement), by path in byte
+ * order. Starts from the project row, so no row means no project and one row with a `NULL` path
+ * means a project without files.
+ */
+export const INDEX_STATE_FILES = `
+  SELECT p.id AS project_id, f.path, f.content_hash
+    FROM project p
+    LEFT JOIN file f ON f.project_id = p.id
+   WHERE p.id = $1
+   ORDER BY f.path COLLATE "C"`;
+
+/**
+ * The file-to-file dependencies of the project (index state, second statement): each edge of kind
+ * `calls`, `extends`, `implements` or `imports`, both ends resolved to a file of the same project
+ * (the file itself or the file of its symbol), the two files different; distinct, by from path, to
+ * path and kind in byte order (`edge_kind` is an enum, so its own order is not byte order).
+ */
+export const INDEX_STATE_DEPENDENCIES = `
+  SELECT d.from_path, d.to_path, d.kind
+    FROM (
+      SELECT DISTINCT ff.path AS from_path, tf.path AS to_path, e.kind::text AS kind
+        FROM edge e
+        LEFT JOIN symbol ss ON ss.id = e.source_symbol_id
+        LEFT JOIN symbol ts ON ts.id = e.target_symbol_id
+        JOIN file ff ON ff.id = COALESCE(e.source_file_id, ss.file_id) AND ff.project_id = $1
+        JOIN file tf ON tf.id = COALESCE(e.target_file_id, ts.file_id) AND tf.project_id = $1
+       WHERE e.project_id = $1
+         AND e.kind IN ('imports', 'calls', 'extends', 'implements')
+         AND ff.id <> tf.id
+    ) d
+   ORDER BY d.from_path COLLATE "C", d.to_path COLLATE "C", d.kind COLLATE "C"`;
+
+/**
  * Sum of `query_log.cost_usd` of every project from `$1` on; `NULL` costs are ignored and no row
  * gives `0`. Cast to text so the exact `numeric` reaches the adapter, which converts it to a number.
  */

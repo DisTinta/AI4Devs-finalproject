@@ -11,9 +11,9 @@ export const reindexParamsSchema = projectIdParamsSchema;
 export type ReindexParams = z.infer<typeof reindexParamsSchema>;
 
 /**
- * The body of `POST /api/projects/{projectId}/index`: an optional `incremental` flag, accepted and
- * without effect until the incremental plan exists. Any other key (`rootPath`, `language`…) is
- * rejected. It has no required key, so an absent body is the same as `{}`.
+ * The body of `POST /api/projects/{projectId}/index`: an optional `incremental` flag, `true` when
+ * absent (an incremental reindex) and `false` for a full one. Any other key (`rootPath`,
+ * `language`…) is rejected. It has no required key, so an absent body is the same as `{}`.
  */
 export const reindexBodySchema = z.strictObject({
   incremental: z.boolean().optional(),
@@ -22,10 +22,13 @@ export const reindexBodySchema = z.strictObject({
 /** The body of `POST /api/projects/{projectId}/index`. */
 export type ReindexBody = z.infer<typeof reindexBodySchema>;
 
+/** The modes a reindex answers with: `full` rebuilds everything, `incremental` follows the plan. */
+export const REINDEX_MODES = ['full', 'incremental'] as const;
+
 /** The `202` body of `POST /api/projects/{projectId}/index`: the counters of the completed reindex. */
 export const reindexResponseSchema = z.object({
   projectId: z.string(),
-  mode: z.literal('full'),
+  mode: z.literal(REINDEX_MODES),
   analyzer: z.string(),
   indexedCommit: z.string(),
   filesQueued: z.int(),

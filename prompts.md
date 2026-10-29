@@ -84,7 +84,8 @@
 67. [Revisión independiente de las golden por un panel de agentes (DIS-33)](#67-revisión-independiente-de-las-golden-por-un-panel-de-agentes-dis-33)
 68. [Corrección de `await using` en el analizador de TypeScript y nueva ronda del panel (DIS-107)](#68-corrección-de-await-using-en-el-analizador-de-typescript-y-nueva-ronda-del-panel-dis-107)
 69. [Endpoint `POST /api/projects/{id}/index`: reindexado de un proyecto existente (DIS-9)](#69-endpoint-post-apiprojectsidindex-reindexado-de-un-proyecto-existente-dis-9)
-70. [Recálculo perezoso de afirmaciones `stale` al recuperarlas (DIS-42)](#70-recálculo-perezoso-de-afirmaciones-stale-al-recuperarlas-dis-42)
+70. [Reindexado incremental por `content_hash` y dependientes directos (DIS-10)](#70-reindexado-incremental-por-content_hash-y-dependientes-directos-dis-10)
+71. [Recálculo perezoso de afirmaciones `stale` al recuperarlas (DIS-42)](#71-recálculo-perezoso-de-afirmaciones-stale-al-recuperarlas-dis-42)
 
 ---
 
@@ -5306,7 +5307,22 @@ Run /opsx:apply on change index-endpoint: every task in TDD (failing test first,
 
 **Ajuste humano.** Ninguno: ejecución autónoma (texto del agente). Quedan para la autora la comprobación en PowerShell (E13) y la nueva revisión independiente de las respuestas golden regeneradas (E16).
 
-# 70. Recálculo perezoso de afirmaciones `stale` al recuperarlas (DIS-42)
+# 70. Reindexado incremental por `content_hash` y dependientes directos (DIS-10)
+
+### Prompt 1 — Aplicar el cambio dentro del workflow autónomo
+
+El script del workflow envió a este paso, entre otras reglas, este texto literal:
+
+```
+Ticket: DIS-10. Branch: feature/dis-10-incremental-indexing. Change: openspec/changes/incremental-indexing. Step: apply.
+Run /opsx:apply on change incremental-indexing: every task in TDD (failing test first, then implementation, in the layer order), marking tasks.md as you go, with the mandatory verification steps. Run the tests, lint and typecheck. Commit, push and open the PR to final-project-CRN with /pr-describe (write the "why" yourself and mark it as agent-written). Return pr.
+```
+
+**Por qué funcionó.** El `tasks.md` fijaba el orden de capas (plan puro, lectura del estado del índice en el puerto y el adaptador, división del `buildSnapshot` bajo su red de seguridad, caso de uso, API, integración sobre Postgres) y el nombre de cada test existente que cambia; los escenarios del spec salieron como tests con su mismo nombre, y la mutación sobre los seis ficheros tocados dejó solo mutantes equivalentes.
+
+**Ajuste humano.** Ninguno: ejecución autónoma (texto del agente). Quedan para la autora la comprobación en PowerShell (P8) y la deuda de D1, D5 y D8.
+
+# 71. Recálculo perezoso de afirmaciones `stale` al recuperarlas (DIS-42)
 
 ### Prompt 1 — Aplicar el cambio dentro del workflow autónomo
 

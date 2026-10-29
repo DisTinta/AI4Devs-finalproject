@@ -1,4 +1,4 @@
-import type { EdgeResolution } from './graph-edge.js';
+import type { EdgeKind, EdgeResolution } from './graph-edge.js';
 import type { FileKind } from './graph-file.js';
 import type { SymbolKind, SymbolRef } from './graph-symbol.js';
 
@@ -63,6 +63,32 @@ export type Neighbor = GraphNode & {
    */
   resolution: EdgeResolution;
 };
+
+/** A stored file's path and the hash of its redacted content, as the last snapshot wrote it. */
+export interface StoredFileHash {
+  /** Repository-relative path. */
+  path: string;
+  /** Lowercase hexadecimal SHA-256 of the redacted content; absent when the stored hash is unset. */
+  contentHash?: string;
+}
+
+/** A file-to-file dependency of the stored graph, aggregated by pair of paths and kind. */
+export interface StoredDependency {
+  /** Path of the file holding the dependency (the source end). */
+  fromPath: string;
+  /** Path of the file depended on (the target end). */
+  toPath: string;
+  /** Kind of the edge. */
+  kind: EdgeKind;
+}
+
+/** What an incremental reindex needs from the stored graph of a project. */
+export interface IndexState {
+  /** Every stored file of the project with its stored hash, ordered by path in byte order. */
+  files: StoredFileHash[];
+  /** The file-to-file edges between files of the project, by from path, to path and kind (byte order). */
+  dependencies: StoredDependency[];
+}
 
 /** Optional narrowing of a symbol search. */
 export interface SymbolSearchOptions {

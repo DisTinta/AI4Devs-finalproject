@@ -1,0 +1,401 @@
+{
+  "items": [
+    {
+      "project": "task-api",
+      "id": "Q1",
+      "kind": "golden",
+      "question": "¿Cómo valida taskRoutes las peticiones entrantes?",
+      "answer": "taskRoutes valida las peticiones entrantes mediante el uso de esquemas de validación definidos en Zod. Cada ruta tiene asociado un esquema de validación específico que se ejecuta antes de que el controlador correspondiente se ejecute. Por ejemplo, la ruta '/tasks' tiene asociado el esquema 'listTasksQuerySchema', la ruta '/tasks/:id' tiene asociado el esquema 'taskIdParamsSchema', la ruta '/tasks' tiene asociado el esquema 'createTaskSchema', la ruta '/tasks/:id' tiene asociado el esquema 'taskIdParamsSchema' y el 'updateTaskSchema', y la ruta '/tasks/:id' tiene asociado el esquema 'taskIdParamsSchema'.",
+      "statements": [
+        {
+          "n": 1,
+          "text": "El método 'taskRoutes' exportado en 'src/routes/tasks.routes.ts' define las rutas y asocia esquemas de validación a cada una de ellas.",
+          "type": "FACT",
+          "evidence": [
+            1
+          ]
+        },
+        {
+          "n": 2,
+          "text": "La ruta '/tasks' utiliza el esquema 'listTasksQuerySchema' para validar las peticiones entrantes de tipo GET con parámetros de consulta.",
+          "type": "INFERENCE",
+          "evidence": [
+            2
+          ]
+        },
+        {
+          "n": 3,
+          "text": "La ruta '/tasks/:id' utiliza el esquema 'taskIdParamsSchema' para validar las peticiones entrantes de tipo GET y DELETE con parámetros de ruta.",
+          "type": "INFERENCE",
+          "evidence": [
+            3
+          ]
+        },
+        {
+          "n": 4,
+          "text": "La ruta '/tasks' utiliza el esquema 'createTaskSchema' para validar las peticiones entrantes de tipo POST con el cuerpo de la solicitud.",
+          "type": "FACT",
+          "evidence": [
+            4
+          ]
+        },
+        {
+          "n": 5,
+          "text": "La ruta '/tasks/:id' utiliza el esquema 'taskIdParamsSchema' y el 'updateTaskSchema' para validar las peticiones entrantes de tipo PATCH con el parámetro de ruta y el cuerpo de la solicitud.",
+          "type": "FACT",
+          "evidence": [
+            5
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "n": 1,
+          "path": "src/routes/tasks.routes.ts",
+          "startLine": 15,
+          "endLine": 31
+        },
+        {
+          "n": 2,
+          "path": "src/routes/tasks.routes.ts",
+          "startLine": 15,
+          "endLine": 31
+        },
+        {
+          "n": 3,
+          "path": "src/routes/tasks.routes.ts",
+          "startLine": 15,
+          "endLine": 31
+        },
+        {
+          "n": 4,
+          "path": "src/routes/tasks.routes.ts",
+          "startLine": 15,
+          "endLine": 31
+        },
+        {
+          "n": 5,
+          "path": "src/routes/tasks.routes.ts",
+          "startLine": 15,
+          "endLine": 31
+        }
+      ]
+    },
+    {
+      "project": "task-api",
+      "id": "Q2",
+      "kind": "golden",
+      "question": "¿Qué hace buildPage con los resultados paginados?",
+      "answer": "La función `buildPage` toma resultados paginados y construye una estructura de página que incluye los elementos, el total de elementos, la página actual, el tamaño de página y el número de páginas totales.",
+      "statements": [
+        {
+          "n": 1,
+          "text": "La función `buildPage` puede construir una estructura de página a partir de una lista de elementos, el total de elementos, la página de la lista a mostrar y el tamaño de la página.",
+          "type": "FACT",
+          "evidence": [
+            1
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "n": 1,
+          "path": "src/domain/pagination.ts",
+          "startLine": 13,
+          "endLine": 21
+        }
+      ]
+    },
+    {
+      "project": "task-api",
+      "id": "Q3",
+      "kind": "golden",
+      "question": "¿Qué transiciones de estado son válidas?",
+      "answer": "Se consideran válidas las transiciones de estado definidas en el código.",
+      "statements": [
+        {
+          "n": 1,
+          "text": "Se verifica la transición de estado en el método update de la clase TaskService (E6).",
+          "type": "FACT",
+          "evidence": [
+            1
+          ]
+        },
+        {
+          "n": 2,
+          "text": "Verifica si el nuevo estado es diferente al estado actual (E6).",
+          "type": "FACT",
+          "evidence": [
+            2
+          ]
+        },
+        {
+          "n": 3,
+          "text": "Llama a la función canTransition para determinar si la transición es permitida (E6).",
+          "type": "FACT",
+          "evidence": [
+            3
+          ]
+        },
+        {
+          "n": 4,
+          "text": "La función canTransition se define en el archivo task-status.ts (E2).",
+          "type": "FACT",
+          "evidence": [
+            4
+          ]
+        },
+        {
+          "n": 5,
+          "text": "La función canTransition utiliza la variable TRANSITIONS para verificar la transición (E2).",
+          "type": "FACT",
+          "evidence": [
+            5
+          ]
+        },
+        {
+          "n": 6,
+          "text": "Si la transición es permitida, la entidad_task se actualiza (E6).",
+          "type": "FACT",
+          "evidence": [
+            6
+          ]
+        },
+        {
+          "n": 7,
+          "text": "Si la transición no es permitida, se lanza una excepción IllegalStatusTransitionError (E6).",
+          "type": "FACT",
+          "evidence": [
+            7
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "n": 1,
+          "path": "src/services/task.service.ts",
+          "startLine": 45,
+          "endLine": 62
+        },
+        {
+          "n": 2,
+          "path": "src/services/task.service.ts",
+          "startLine": 45,
+          "endLine": 62
+        },
+        {
+          "n": 3,
+          "path": "src/services/task.service.ts",
+          "startLine": 45,
+          "endLine": 62
+        },
+        {
+          "n": 4,
+          "path": "src/domain/task-status.ts",
+          "startLine": 25,
+          "endLine": 27
+        },
+        {
+          "n": 5,
+          "path": "src/domain/task-status.ts",
+          "startLine": 25,
+          "endLine": 27
+        },
+        {
+          "n": 6,
+          "path": "src/services/task.service.ts",
+          "startLine": 45,
+          "endLine": 62
+        },
+        {
+          "n": 7,
+          "path": "src/services/task.service.ts",
+          "startLine": 45,
+          "endLine": 62
+        }
+      ]
+    },
+    {
+      "project": "task-api",
+      "id": "Q4",
+      "kind": "unknown",
+      "question": "¿Cómo se autentican los usuarios?",
+      "answer": "UNKNOWN (no-anchor)",
+      "statements": [],
+      "evidence": []
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q1",
+      "kind": "golden",
+      "question": "¿Cómo se calcula el precio final de un pedido?",
+      "answer": "El precio final de un pedido se calcula considerando el subtotal, descuentos, impuestos y tarifas de envío. Los descuentos se aplican antes de calcular el impuesto, y el impuesto se calcula sobre el monto descontado. Las tarifas de envío pueden variar según el país de destino.",
+      "statements": [
+        {
+          "n": 1,
+          "text": "El método `PriceCalculator::compute()` es el autoritativo para calcular el precio final de un pedido. Este método está definido en el archivo `app/Services/PriceCalculator.php`.",
+          "type": "FACT",
+          "evidence": [
+            1
+          ]
+        },
+        {
+          "n": 2,
+          "text": "El subtotal se calcula sumando el costo de todas las líneas del pedido, lo que se define en el método `Order::subtotal` del archivo `app/Models/Order.php`.",
+          "type": "INFERENCE",
+          "evidence": [
+            2
+          ]
+        },
+        {
+          "n": 3,
+          "text": "Los descuentos se aplican al subtotal antes de calcular el impuesto. Esto se demuestra en el método `Test_order_discounts_before_tax` del archivo `tests/Feature/OrderPricingTest.php`.",
+          "type": "INFERENCE",
+          "evidence": [
+            3
+          ]
+        },
+        {
+          "n": 4,
+          "text": "El impuesto se calcula sobre el subtotal descontado. Esto se muestra en el método `Test_order_discounts_before_tax` del archivo `tests/Feature/OrderPricingTest.php`.",
+          "type": "INFERENCE",
+          "evidence": [
+            4
+          ]
+        },
+        {
+          "n": 5,
+          "text": "Las tarifas de envío pueden variar según el país de destino y no afectan directamente el subtotal o el impuesto. Esto se demuestra en el método `Test_shipping_charges` del archivo `tests/Feature/OrderPricingTest.php`.",
+          "type": "INFERENCE",
+          "evidence": [
+            5
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "n": 1,
+          "path": "app/Services/PriceCalculator.php",
+          "startLine": 16,
+          "endLine": 44
+        },
+        {
+          "n": 2,
+          "path": "app/Models/Order.php",
+          "startLine": 19,
+          "endLine": 57
+        },
+        {
+          "n": 3,
+          "path": "tests/Feature/OrderPricingTest.php",
+          "startLine": 31,
+          "endLine": 51
+        },
+        {
+          "n": 4,
+          "path": "tests/Feature/OrderPricingTest.php",
+          "startLine": 31,
+          "endLine": 51
+        },
+        {
+          "n": 5,
+          "path": "tests/Feature/OrderPricingTest.php",
+          "startLine": 31,
+          "endLine": 51
+        }
+      ]
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q3",
+      "kind": "golden",
+      "question": "¿Cómo se validan los cupones?",
+      "answer": "Los cupones se validan en el servicio CouponValidator.",
+      "statements": [
+        {
+          "n": 1,
+          "text": "El método percentFor en CouponValidator valida los cupones comprobando el código, si el cupón es activo y si no ha expirado.",
+          "type": "FACT",
+          "evidence": [
+            1
+          ]
+        },
+        {
+          "n": 2,
+          "text": "El método isRedeemable en CouponValidator verifica si el código es válido.",
+          "type": "FACT",
+          "evidence": [
+            2
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "n": 1,
+          "path": "app/Services/CouponValidator.php",
+          "startLine": 14,
+          "endLine": 39
+        },
+        {
+          "n": 2,
+          "path": "app/Services/CouponValidator.php",
+          "startLine": 14,
+          "endLine": 39
+        }
+      ]
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q4",
+      "kind": "golden",
+      "question": "¿Qué hace OrderObserver al crear un pedido?",
+      "answer": "OrderObserver ejecuta dos acciones cuando se crea un pedido: recalcula los totales del pedido y emite un evento OrderPlaced.",
+      "statements": [
+        {
+          "n": 1,
+          "text": "OrderObserver tiene un método llamado created que se ejecuta cuando se crea un pedido.",
+          "type": "FACT",
+          "evidence": [
+            1
+          ]
+        },
+        {
+          "n": 2,
+          "text": "El método created dispara un job llamado RecalculateTotals para recalcular los totales del pedido.",
+          "type": "FACT",
+          "evidence": [
+            2
+          ]
+        },
+        {
+          "n": 3,
+          "text": "El método created emite un evento OrderPlaced para indicar que un pedido ha sido creado.",
+          "type": "FACT",
+          "evidence": [
+            3
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "n": 1,
+          "path": "app/Observers/OrderObserver.php",
+          "startLine": 14,
+          "endLine": 28
+        },
+        {
+          "n": 2,
+          "path": "app/Observers/OrderObserver.php",
+          "startLine": 14,
+          "endLine": 28
+        },
+        {
+          "n": 3,
+          "path": "app/Observers/OrderObserver.php",
+          "startLine": 14,
+          "endLine": 28
+        }
+      ]
+    }
+  ]
+}

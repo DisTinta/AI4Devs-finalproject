@@ -25,6 +25,7 @@ import type {
   EdgeResolution,
   FileKind,
   GraphNode,
+  IndexState,
   KnowledgeGraph,
   Neighbor,
   NewProject,
@@ -33,6 +34,7 @@ import type {
   QueryLogEntry,
   SavedClaim,
   StoredClaim,
+  StoredDependency,
   StoredEvidence,
   StoredSymbol,
   StorePort,
@@ -161,11 +163,15 @@ interface StoredClaimRow {
 /** The base of the double's write instants: before any instant a test seeds. */
 const STAMP_BASE = Date.UTC(2000, 0, 1);
 
+/** The edge kinds that make a file depend on another, as the Postgres adapter filters them. */
+const INDEX_DEPENDENCY_KINDS: readonly EdgeKind[] = ['calls', 'extends', 'implements', 'imports'];
+
 interface StoredFileRow {
   id: string;
   projectId: string;
   path: string;
   kind: FileKind;
+  contentHash?: string;
 }
 
 interface StoredSymbolRow {
@@ -259,7 +265,7 @@ export function createInMemoryStore({
     for (const f of graph.files) {
       const id = randomUUID();
       idByPath.set(f.path, id);
-      files.set(id, { id, projectId, path: f.path, kind: f.kind });
+      files.set(id, { id, projectId, path: f.path, kind: f.kind, ...(f.contentHash !== undefined && { contentHash: f.contentHash }) });
     }
     fileIds.push(idByPath);
     const idBySymbol = new Map<string, string>();
@@ -584,6 +590,33 @@ export function createInMemoryStore({
         .filter((s) => s.name.toLowerCase().includes(term))
         .filter((s) => options.kinds === undefined || options.kinds.includes(s.kind))
         .sort((a, b) => byteOrder(a.file, b.file) || a.startLine - b.startLine || byteOrder(a.name, b.name));
+    },
+
+    async readIndexState(projectId: string): Promise<IndexState> {
+      const project = projectOf(projectId);
+      const ownFiles = [...files.values()].filter((row) => row.projectId === project.id);
+      const pathOf = (key: string): string | undefined => {
+        const [type, id] = key.split(':');
+        if (type === 'file') return files.get(id)?.path;
+        const fileId = symbols.get(id)?.symbol.fileId;
+        return fileId === undefined ? undefined : files.get(fileId)?.path;
+      };
+      const pairs = new Map<string, StoredDependency>();
+      for (const e of edges) {
+        if (e.projectId !== project.id || !INDEX_DEPENDENCY_KINDS.includes(e.kind)) continue;
+        const fromPath = pathOf(e.source);
+        const toPath = pathOf(e.target);
+        if (fromPath === undefined || toPath === undefined || fromPath === toPath) continue;
+        pairs.set(`${fromPath}\0${toPath}\0${e.kind}`, { fromPath, toPath, kind: e.kind });
+      }
+      return {
+        files: ownFiles
+          .map((row) => ({ path: row.path, ...(row.contentHash !== undefined && { contentHash: row.contentHash }) }))
+          .sort((a, b) => byteOrder(a.path, b.path)),
+        dependencies: [...pairs.values()].sort(
+          (a, b) => byteOrder(a.fromPath, b.fromPath) || byteOrder(a.toPath, b.toPath) || byteOrder(a.kind, b.kind),
+        ),
+      };
     },
 
     async neighbors(
