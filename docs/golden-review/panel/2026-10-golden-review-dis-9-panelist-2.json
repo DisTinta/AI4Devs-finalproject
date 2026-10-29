@@ -1,0 +1,228 @@
+{
+  "panelist": 2,
+  "model": "claude-sonnet-5-5",
+  "date": "2026-10-29",
+  "sourcesRead": [
+    "openspec/changes/index-endpoint/tasks.md",
+    "docs/golden-review/panel/2026-10-golden-review-dis-9-input.json",
+    "fixtures/task-api/src/routes/tasks.routes.ts",
+    "fixtures/task-api/src/domain/pagination.ts",
+    "fixtures/task-api/src/domain/task-status.ts",
+    "fixtures/task-api/src/domain/errors.ts",
+    "fixtures/task-api/src/config/env.ts",
+    "fixtures/task-api/src/services/task.service.ts",
+    "fixtures/acme-shop/app/Services/PriceCalculator.php",
+    "fixtures/acme-shop/app/Services/DiscountService.php",
+    "fixtures/acme-shop/app/Services/TaxService.php",
+    "fixtures/acme-shop/app/Services/ShippingService.php",
+    "fixtures/acme-shop/app/Services/CouponValidator.php",
+    "fixtures/acme-shop/app/Models/Coupon.php",
+    "fixtures/acme-shop/app/Observers/OrderObserver.php",
+    "fixtures/acme-shop/app/Listeners/SendOrderConfirmation.php",
+    "fixtures/acme-shop/app/Events/OrderPlaced.php"
+  ],
+  "items": [
+    {
+      "project": "task-api",
+      "id": "Q1",
+      "answer": "true",
+      "verdict": "partial",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "unverifiable",
+          "cites": [
+            "fixtures/task-api/src/routes/tasks.routes.ts:18"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/routes/tasks.routes.ts:20"
+          ]
+        }
+      ],
+      "notes": "The cited lines 15-31 attach named schemas to routes but never mention Zod; that is only in the comment at fixtures/task-api/src/routes/tasks.routes.ts:12 (outside the cited range), so statement 1 is not backed by its evidence. The route in statement 2 is literal at fixtures/task-api/src/routes/tasks.routes.ts:20."
+    },
+    {
+      "project": "task-api",
+      "id": "Q2",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/domain/pagination.ts:13"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/domain/pagination.ts:13"
+          ]
+        },
+        {
+          "n": 3,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/domain/pagination.ts:13"
+          ]
+        },
+        {
+          "n": 4,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/domain/pagination.ts:14"
+          ]
+        }
+      ],
+      "notes": "buildPage is exported with the four stated parameters and returns a Page with items, total, page, pageSize and pageCount (fixtures/task-api/src/domain/pagination.ts:13). The answer is accurate."
+    },
+    {
+      "project": "task-api",
+      "id": "Q3",
+      "answer": "true",
+      "verdict": "partial",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/domain/task-status.ts:26"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "unverifiable",
+          "cites": [
+            "fixtures/task-api/src/domain/errors.ts:23"
+          ]
+        }
+      ],
+      "notes": "IllegalStatusTransitionError is a class that only defines the error (fixtures/task-api/src/domain/errors.ts:23); the throw happens in fixtures/task-api/src/services/task.service.ts:50, outside the cited lines, so statement 2 is not backed. The answer is loosely worded (a class, not a function; the table is TRANSITIONS at fixtures/task-api/src/domain/task-status.ts:13) but substantively true."
+    },
+    {
+      "project": "task-api",
+      "id": "Q4",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [],
+      "notes": "The fixture has no authentication route, hook, plugin or check; JWT_SECRET is only parsed as an env variable and never used to verify a user (fixtures/task-api/src/config/env.ts:13), so UNKNOWN is the due answer."
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q1",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/PriceCalculator.php:25"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/PriceCalculator.php:27"
+          ]
+        },
+        {
+          "n": 3,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/PriceCalculator.php:28"
+          ]
+        },
+        {
+          "n": 4,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/PriceCalculator.php:29"
+          ]
+        },
+        {
+          "n": 5,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/PriceCalculator.php:31"
+          ]
+        },
+        {
+          "n": 6,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/PriceCalculator.php:32"
+          ]
+        },
+        {
+          "n": 7,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/PriceCalculator.php:34"
+          ]
+        }
+      ],
+      "notes": "compute applies discount, then tax and shipping on the discounted base, and sums them (fixtures/acme-shop/app/Services/PriceCalculator.php:34). The wording is clumsy (\"servicio gravable\", \"costo gravable\", cross-references like E4) but not wrong."
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q3",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/CouponValidator.php:18"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/CouponValidator.php:37"
+          ]
+        },
+        {
+          "n": 3,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/CouponValidator.php:22"
+          ]
+        }
+      ],
+      "notes": "The coupon is looked up by code and then checked for active and not expired (fixtures/acme-shop/app/Services/CouponValidator.php:24); statement 3 is slightly imprecise (the lookup finds by code, then active is checked) but true. The answer omits the active and expiry checks yet is not false."
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q4",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Observers/OrderObserver.php:18"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Listeners/SendOrderConfirmation.php:17"
+          ]
+        }
+      ],
+      "notes": "created dispatches RecalculateTotals and fires OrderPlaced (fixtures/acme-shop/app/Observers/OrderObserver.php:19); the answer's phrase that the observer \"crea un pedido\" is imprecise (it reacts to creation) but the content is true. Statement 2 rests on the handle(OrderPlaced) type hint and a log call, with typos in the text (fixtures/acme-shop/app/Listeners/SendOrderConfirmation.php:21)."
+    }
+  ]
+}
