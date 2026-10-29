@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
   BudgetExhausted,
@@ -9,13 +9,15 @@ import {
   MAX_STALE_REFRESHES,
   QueryLogWriteFailed,
   REFRESH_SYSTEM_PROMPT,
+  refreshStaleClaims,
+  sanitizeForPrompt,
   SourceUnavailable,
   STALE_CLAIM_NOT_REFRESHED_CODES,
   sumVerificationUsage,
 } from '@codemind/core';
-import type { Claim, ExplainEvent, LlmPort, StaleClaimNotRefreshedCode, VerificationUsage } from '@codemind/core';
+import type { Claim, ExplainEvent, LlmPort, StaleClaimNotRefreshedCode, StoredClaim, VerificationUsage } from '@codemind/core';
 import { acmeShopGraph } from '../../support/acme-shop-graph';
-import { doubles, linesOf, NOW, ownGraph, Q1, rejection } from '../../support/explain-doubles';
+import { doubles, linesOf, NOW, ownGraph, packOf, Q1, rejection, threeSpans } from '../../support/explain-doubles';
 import type { DoubleOptions } from '../../support/explain-doubles';
 import { modelOutput, promptView } from '../../support/scripted-llm';
 import type { PromptView, Script } from '../../support/scripted-llm';
@@ -75,6 +77,8 @@ interface SeedOptions {
   object?: string | null;
   lines?: [number, number];
   fileId?: string;
+  /** More evidence of the claim, each `[fileId, startLine, endLine]`. */
+  moreEvidence?: Array<[string, number, number]>;
 }
 
 /** Seeds a stale `L2` `INFERENCE` claim `claim <i>` over `PriceCalculator::compute`, `i` giving its age; returns its id. */
@@ -92,7 +96,8 @@ function seed(d: Doubles, i: number, options: SeedOptions = {}): string {
     type: options.type ?? (layer === 'L1' ? 'FACT' : 'INFERENCE'),
     status: options.status ?? 'stale',
     confidence: null,
-    ...(layer === 'L2' && {
+    // An `L1` claim has no provenance, unless the test gives it a statement type to isolate its layer.
+    ...((layer === 'L2' || options.statementType !== undefined) && {
       provenance: {
         model: 'm',
         promptHash: 'a'.repeat(64),
@@ -104,7 +109,16 @@ function seed(d: Doubles, i: number, options: SeedOptions = {}): string {
   } as Claim;
   return d.loaded.seedClaim({
     claim,
-    evidence: [{ fileId, startLine, endLine, verification: 'cited', excerpt: 'old excerpt' }],
+    evidence: [
+      { fileId, startLine, endLine, verification: 'cited', excerpt: 'old excerpt' },
+      ...(options.moreEvidence ?? []).map(([moreFileId, start, end]) => ({
+        fileId: moreFileId,
+        startLine: start,
+        endLine: end,
+        verification: 'cited' as const,
+        excerpt: 'old excerpt',
+      })),
+    ],
     createdAt: new Date(Date.UTC(2026, 9, 12, 10, 0, i)).toISOString(),
   });
 }
@@ -522,6 +536,7 @@ describe('Requirement: Stale claim refresh', () => {
     const verifierFailure = new Error('the verifier exploded');
     const readFailure = new SourceUnavailable('too-large', PRICE);
     const refreshFailure = new Error('the store exploded');
+    const answerFailure = new Error('the refresh call exploded');
     // Per case: the tokens of the calls that resolved (each reports 100 / 10), how many of them were
     // `verify` calls, and the verification latency of the row (the clock never moves).
     interface Row {
@@ -543,6 +558,16 @@ describe('Requirement: Stale claim refresh', () => {
       ],
       // The read of the refresh's syntactic check failed before any refresh verify call.
       [{ verificationFailures: { [PRICE]: readFailure } }, readFailure, { calls: 3, verifyCalls: 1, verifyLatencyMs: 0 }],
+      // The refresh's own `answer` call failed with an error that is neither unavailable nor budget.
+      [
+        {
+          script: scriptOf(() => {
+            throw answerFailure;
+          }),
+        },
+        answerFailure,
+        { calls: 2, verifyCalls: 1, verifyLatencyMs: 0 },
+      ],
       // The refresh's verify call resolved; the claim refresh failed after it.
       [{ failClaimRefresh: () => refreshFailure }, refreshFailure, { calls: 4, verifyCalls: 2, verifyLatencyMs: 0 }],
     ];
@@ -568,6 +593,105 @@ describe('Requirement: Stale claim refresh', () => {
       });
       expect(rows[0]!.verifyLatencyMs).toBe(expected.verifyLatencyMs);
     }
+  });
+});
+
+// Not scenarios: they pin the rules of "Stale claim refresh" the scenarios leave open (found by the
+// step 9 mutation run): which claims are due, which spans are a claim's, and the claims no span covers.
+describe('Requirement: Stale claim refresh (selection rules)', () => {
+  it('refreshes no stale claim that misses one of the conditions of being due', async () => {
+    // Arrange: each claim breaks exactly one condition (layer, type, statement type, object).
+    const d = doubles({ script: scriptOf(restateEach) });
+    seed(d, 0, { layer: 'L1', type: 'INFERENCE', statementType: 'INFERENCE' });
+    seed(d, 1, { type: 'UNKNOWN', statementType: 'INFERENCE' });
+    seed(d, 2, { statementType: null });
+    seed(d, 3, { object: null });
+
+    // Act
+    const answer = await ask(d);
+
+    // Assert
+    expect(d.model.requests.filter((request) => request.purpose === 'answer')).toHaveLength(1);
+    expect(answer.priorClaims.map((prior) => prior.status)).toEqual(['stale', 'stale', 'stale', 'stale']);
+    expect(staleEvents(answer.events)).toEqual([]);
+  });
+
+  it('refreshes a claim one of whose evidence overlaps a span of the pack', async () => {
+    // Arrange: its other evidence cites a file the pack does not hold.
+    const d = doubles({ script: scriptOf(restate) });
+    const c1 = seed(d, 0, { moreEvidence: [[d.loaded.fileIds[0]!.get('docs/pricing.md')!, 1, 5]] });
+
+    // Act
+    const answer = await ask(d);
+
+    // Assert
+    expect(answer.priorClaims.map((prior) => [prior.id, prior.status])).toEqual([[c1, 'current']]);
+    expect(staleEvents(answer.events)).toEqual([]);
+  });
+
+  it("gives the refresh prompt only the spans the claim's evidence overlaps, its bounds included", async () => {
+    // Arrange: F1 holds the spans of lines 1–3 and 10–12 of the pack; the claims touch one line of each.
+    const d = threeSpans({
+      script: (prompt) =>
+        prompt.kind === 'refresh' ? noStatements(prompt) : modelOutput('ok', [{ text: ANSWER_STATEMENT, evidenceIds: ['E1'] }]),
+    });
+    const f1 = d.loaded.fileIds[0]!.get('app/F1.php')!;
+    const onFirst = seed(d, 0, { fileId: f1, lines: [3, 5] });
+    const onSecond = seed(d, 1, { fileId: f1, lines: [8, 10] });
+
+    // Act
+    const answer = await explain(d.deps, { projectId: d.projectId, question: 'price' });
+
+    // Assert
+    expect(answer.kind).toBe('answered');
+    const prompts = refreshPrompts(d);
+    expect(prompts.map((prompt) => prompt.evidence.map((entry) => [entry.id, entry.path, entry.startLine, entry.endLine]))).toEqual([
+      [['E1', 'app/F1.php', 10, 12]],
+      [['E1', 'app/F1.php', 1, 3]],
+    ]);
+    expect(staleEvents(answer.events)).toEqual([
+      { type: 'stale_claim_not_refreshed', claimId: onSecond, code: 'no-evidence' },
+      { type: 'stale_claim_not_refreshed', claimId: onFirst, code: 'no-evidence' },
+    ]);
+  });
+
+  it('gives no-evidence, without a model call, to a due claim no span of the pack overlaps', async () => {
+    // Arrange: called directly, with no callback and no cost table.
+    const d = doubles({ script: scriptOf(restate) });
+    const pack = await packOf(d);
+    const sanitized = sanitizeForPrompt(Q1, pack.spans);
+    const stale = (id: string, fileId: string, startLine: number, endLine: number): StoredClaim =>
+      ({
+        id,
+        projectId: d.projectId,
+        subject: 'S',
+        predicate: 'explains',
+        object: 'a stored statement',
+        layer: 'L2',
+        type: 'INFERENCE',
+        status: 'stale',
+        confidence: null,
+        provenance: { model: 'm', promptHash: 'a'.repeat(64), inputSpans: [], createdAt: '2026-10-12T10:00:00Z', statementType: 'INFERENCE' },
+        createdAt: '2026-10-12T10:00:00.000Z',
+        evidence: [{ id: randomUUID(), fileId, path: 'x', startLine, endLine, verification: 'cited', excerpt: 'old' }],
+      }) as StoredClaim;
+    const away = stale(randomUUID(), d.loaded.fileIds[0]!.get('docs/pricing.md')!, 1, 5);
+    const over = stale(randomUUID(), priceFileId(d), 25, 35);
+
+    // Act
+    const result = await refreshStaleClaims(
+      { store: d.deps.store, source: d.deps.source, llm: d.deps.llm, verificationCache: d.deps.verificationCache, now: d.deps.now },
+      { projectId: d.projectId, root: pack.root, commit: pack.commit, startedAt: NOW, rawSpans: pack.spans, sanitizedSpans: sanitized.spans, prior: [away, over] },
+    );
+
+    // Assert: the second claim has no stored row, so its refresh reaches the store, which writes nothing.
+    expect(result.events).toEqual([
+      { type: 'stale_claim_not_refreshed', claimId: away.id, code: 'no-evidence' },
+      { type: 'stale_claim_not_refreshed', claimId: over.id, code: 'superseded' },
+    ]);
+    expect(d.model.requests.filter((request) => request.purpose === 'answer')).toHaveLength(1);
+    expect(result.priorClaims.map((prior) => prior.status)).toEqual(['stale', 'stale']);
+    expect(result.verifications).toHaveLength(1);
   });
 });
 
