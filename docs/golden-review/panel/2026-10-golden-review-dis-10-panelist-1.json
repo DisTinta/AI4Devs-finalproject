@@ -1,0 +1,232 @@
+{
+  "panelist": 1,
+  "model": "claude-opus-5-5",
+  "date": "2026-10-29",
+  "sourcesRead": [
+    "openspec/changes/incremental-indexing/tasks.md",
+    "docs/golden-review/2026-10-golden-review-dis-10.md",
+    "docs/golden-review/panel/2026-10-golden-review-dis-10-input.json",
+    "fixtures/task-api/src/routes/tasks.routes.ts",
+    "fixtures/task-api/src/domain/pagination.ts",
+    "fixtures/task-api/src/services/task.service.ts",
+    "fixtures/task-api/src/domain/task-status.ts",
+    "fixtures/task-api/src/schemas/task.schema.ts",
+    "fixtures/task-api/src/app.ts",
+    "fixtures/task-api/src/config/env.ts",
+    "fixtures/task-api/src/routes/index.ts",
+    "fixtures/acme-shop/app/Services/PriceCalculator.php",
+    "fixtures/acme-shop/app/Models/Order.php",
+    "fixtures/acme-shop/tests/Feature/OrderPricingTest.php",
+    "fixtures/acme-shop/app/Services/CouponValidator.php",
+    "fixtures/acme-shop/app/Observers/OrderObserver.php",
+    "fixtures/acme-shop/app/Services/ShippingService.php",
+    "fixtures/acme-shop/app/Facades/Pricing.php",
+    "fixtures/acme-shop/app/Jobs/RecalculateTotals.php"
+  ],
+  "items": [
+    {
+      "project": "task-api",
+      "id": "Q1",
+      "answer": "false",
+      "verdict": "incorrect",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/routes/tasks.routes.ts:18"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/routes/tasks.routes.ts:18"
+          ]
+        }
+      ],
+      "notes": "Both statements match the route definitions, but the answer says validation uses JSON schemas, while the route schemas are Zod schemas validated through the Zod type provider (fixtures/task-api/src/schemas/task.schema.ts:7, fixtures/task-api/src/app.ts:25). That misstates the validation mechanism the question asks about, so the answer is judged false."
+    },
+    {
+      "project": "task-api",
+      "id": "Q2",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/domain/pagination.ts:13"
+          ]
+        }
+      ],
+      "notes": "buildPage returns items, total, page, pageSize and a computed pageCount (fixtures/task-api/src/domain/pagination.ts:19), which matches the answer. The statement does not mention pageCount, but it is not wrong."
+    },
+    {
+      "project": "task-api",
+      "id": "Q3",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/services/task.service.ts:49"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/services/task.service.ts:48"
+          ]
+        },
+        {
+          "n": 3,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/services/task.service.ts:49"
+          ]
+        },
+        {
+          "n": 4,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/domain/task-status.ts:25"
+          ]
+        },
+        {
+          "n": 5,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/domain/task-status.ts:26"
+          ]
+        },
+        {
+          "n": 6,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/services/task.service.ts:61"
+          ]
+        },
+        {
+          "n": 7,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/services/task.service.ts:50"
+          ]
+        }
+      ],
+      "notes": "The answer is true but says almost nothing: it never lists the allowed transitions in the TRANSITIONS table (fixtures/task-api/src/domain/task-status.ts:13). Statement 6 uses an odd identifier, 'entidad_task', for the updated task (fixtures/task-api/src/services/task.service.ts:54); this is noted but not counted as an error."
+    },
+    {
+      "project": "task-api",
+      "id": "Q4",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [],
+      "notes": "No route, middleware, hook, plugin or check authenticates a user. JWT_SECRET is parsed from the environment (fixtures/task-api/src/config/env.ts:13) but nothing uses it, and the routes are registered without any auth hook (fixtures/task-api/src/routes/index.ts:8). UNKNOWN is the right answer."
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q1",
+      "answer": "true",
+      "verdict": "partial",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "overtyped",
+          "cites": [
+            "fixtures/acme-shop/app/Services/PriceCalculator.php:25"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Models/Order.php:45"
+          ]
+        },
+        {
+          "n": 3,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/tests/Feature/OrderPricingTest.php:31"
+          ]
+        },
+        {
+          "n": 4,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/tests/Feature/OrderPricingTest.php:31"
+          ]
+        },
+        {
+          "n": 5,
+          "judgement": "unverifiable",
+          "cites": [
+            "fixtures/acme-shop/app/Services/ShippingService.php:31"
+          ]
+        }
+      ],
+      "notes": "Statement 1 calls compute() 'authoritative', which the code does not state literally (fixtures/acme-shop/app/Services/PriceCalculator.php:25). Statements 3 and 4 name a method that does not exist, 'Test_order_discounts_before_tax'; the cited method is test_final_price_applies_discount_before_tax (fixtures/acme-shop/tests/Feature/OrderPricingTest.php:31). Statement 5 cites a method that also does not exist, 'Test_shipping_charges', and the cited test lines do not back the per-country claim or the no-effect-on-tax claim, although both are true in the service code (fixtures/acme-shop/app/Services/ShippingService.php:31)."
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q3",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/CouponValidator.php:18",
+            "fixtures/acme-shop/app/Services/CouponValidator.php:24",
+            "fixtures/acme-shop/app/Services/CouponValidator.php:28"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/CouponValidator.php:37"
+          ]
+        }
+      ],
+      "notes": "Statement 2 is imprecise: isRedeemable checks that percentFor returns a positive percentage, not validity as such (fixtures/acme-shop/app/Services/CouponValidator.php:37). It is judged true and the imprecision is noted here."
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q4",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Observers/OrderObserver.php:16"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Observers/OrderObserver.php:18"
+          ]
+        },
+        {
+          "n": 3,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Observers/OrderObserver.php:19"
+          ]
+        }
+      ],
+      "notes": "created() dispatches RecalculateTotals and fires OrderPlaced (fixtures/acme-shop/app/Observers/OrderObserver.php:18), exactly as the answer says."
+    }
+  ]
+}

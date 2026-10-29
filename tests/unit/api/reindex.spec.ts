@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
@@ -7,6 +8,7 @@ import type {
   AnalyzerPort,
   GitHistory,
   GitPort,
+  IndexState,
   KnowledgeGraph,
   Project,
   ProjectLanguage,
@@ -20,7 +22,8 @@ import { buildApp } from '../../../packages/api/src/app';
 import type { AppOptions } from '../../../packages/api/src/app';
 import { defaultDeps, errorBody, logStream } from './support';
 
-// Spec: openspec/changes/index-endpoint/specs/http-index/spec.md. Each `it` is the scenario it is
+// Spec: openspec/changes/index-endpoint/specs/http-index/spec.md, with the delta of
+// openspec/changes/incremental-indexing/specs/http-index/spec.md (DIS-10). Each `it` is the scenario it is
 // named after. The app is built with `buildApp` over doubles that record every call in one log, so
 // "without touching the store" is observed as an empty log.
 
@@ -42,8 +45,10 @@ afterEach(async () => {
 interface ReindexAppOptions {
   /** Whether the indexing dependencies are present; `true` when absent. */
   indexing?: boolean;
-  /** The stored project's fields; no project at all when `null`. */
+  /** The stored project's fields (`indexedCommit` included); no project at all when `null`. */
   project?: Partial<Project> | null;
+  /** What the store's `readIndexState` returns; empty when absent. */
+  indexState?: IndexState;
   /** The tree the source tree reads. */
   tree?: SourceTree;
   /** What the analyzers return. */
@@ -111,6 +116,10 @@ async function reindexApp(options: ReindexAppOptions = {}): Promise<ReindexApp> 
         commits: graph.commits.length,
         fileCommits: graph.fileCommits.length,
       };
+    },
+    async readIndexState() {
+      log.push('store.readIndexState');
+      return options.indexState ?? { files: [], dependencies: [] };
     },
     async invalidateCache() {
       log.push('store.invalidateCache');
@@ -215,7 +224,7 @@ describe('POST /api/projects/{projectId}/index', () => {
     expect(world.log).toEqual([]);
   });
 
-  it('A request without a body is a full reindex', async () => {
+  it('A request without a body is an incremental reindex', async () => {
     // Arrange
     const world = await reindexApp();
     const url = `/api/projects/${PROJECT_ID}/index`;
@@ -223,12 +232,16 @@ describe('POST /api/projects/{projectId}/index', () => {
     // Act
     const bare = await world.app.inject({ method: 'POST', url });
     const empty = await world.app.inject({ method: 'POST', url, payload: {} });
+    const explicit = await world.app.inject({ method: 'POST', url, payload: { incremental: true } });
     const declared = await world.app.inject({ method: 'POST', url, headers: { 'content-type': 'application/json' }, payload: '' });
 
     // Assert
     expect(bare.statusCode).toBe(202);
     expect(empty.statusCode).toBe(202);
+    expect(explicit.statusCode).toBe(202);
+    expect(bare.json().mode).toBe('incremental');
     expect(bare.json()).toEqual(empty.json());
+    expect(bare.json()).toEqual(explicit.json());
     expect(declared.statusCode).toBe(400);
     expect(declared.json().error.code).toBe('VALIDATION_ERROR');
   });
@@ -290,28 +303,48 @@ describe('POST /api/projects/{projectId}/index', () => {
     expect(world.log).not.toContain('store.invalidateCache');
   });
 
-  it('An incremental request is accepted as a full reindex', async () => {
-    // Arrange
-    const world = await reindexApp();
+  it("An incremental request answers the plan's counters", async () => {
+    // Arrange: the stored state is exactly the repository's only indexable file.
+    const { stream, lines } = logStream();
+    const world = await reindexApp({
+      logger: { level: 'info', stream },
+      project: { indexedCommit: SHA },
+      indexState: {
+        files: [{ path: 'app/A.php', contentHash: createHash('sha256').update('<?php\n', 'utf8').digest('hex') }],
+        dependencies: [],
+      },
+    });
     const url = `/api/projects/${PROJECT_ID}/index`;
 
     // Act
-    const incremental = await world.app.inject({ method: 'POST', url, payload: { incremental: true } });
-    const plain = await world.app.inject({ method: 'POST', url, payload: {} });
+    const explicit = await world.app.inject({ method: 'POST', url, payload: { incremental: true } });
+    const defaulted = await world.app.inject({ method: 'POST', url, payload: {} });
+    const savedBefore = world.saved.length;
+    const full = await world.app.inject({ method: 'POST', url, payload: { incremental: false } });
 
     // Assert
-    expect(incremental.statusCode).toBe(202);
-    expect(plain.statusCode).toBe(202);
-    expect(incremental.json()).toEqual(plain.json());
-    expect(incremental.json()).toEqual({
+    expect(explicit.statusCode).toBe(202);
+    expect(defaulted.statusCode).toBe(202);
+    expect(full.statusCode).toBe(202);
+    expect(explicit.json()).toEqual({
       projectId: PROJECT_ID,
-      mode: 'full',
+      mode: 'incremental',
       analyzer: 'php-treesitter-laravel',
       indexedCommit: SHA,
-      filesQueued: 1,
-      filesSkipped: 0,
+      filesQueued: 0,
+      filesSkipped: 1,
       cacheEntriesInvalidated: 3,
     });
+    expect(defaulted.json()).toEqual(explicit.json());
+    expect(full.json()).toMatchObject({ mode: 'full', filesQueued: 1, filesSkipped: 0 });
+    expect(savedBefore).toBe(0);
+    expect(world.saved).toHaveLength(1);
+    const completed = lines.filter((line) => line.msg === 'reindex completed');
+    expect(completed.map((line) => [line.mode, line.filesSkipped])).toEqual([
+      ['incremental', 1],
+      ['incremental', 1],
+      ['full', 0],
+    ]);
   });
 
   it('A TypeScript project answers with the ts-compiler analyzer', async () => {
@@ -342,6 +375,9 @@ describe('POST /api/projects/{projectId}/index', () => {
         return {
           projectId: input.projectId,
           language: 'php',
+          mode: 'full',
+          filesQueued: 1,
+          filesSkipped: 0,
           indexedCommit: SHA,
           files: 1,
           filesDeleted: 0,
@@ -393,7 +429,14 @@ describe('POST /api/projects/{projectId}/index', () => {
     expect(response.statusCode).toBe(202);
     const completed = lines.filter((line) => line.msg === 'reindex completed');
     expect(completed).toHaveLength(1);
-    expect(completed[0]).toMatchObject({ level: 30, projectId: PROJECT_ID, mode: 'full', filesQueued: 1, cacheEntriesInvalidated: 3 });
+    expect(completed[0]).toMatchObject({
+      level: 30,
+      projectId: PROJECT_ID,
+      mode: 'incremental',
+      filesQueued: 1,
+      filesSkipped: 0,
+      cacheEntriesInvalidated: 3,
+    });
     // One redaction in the file and one in the commit message.
     expect(completed[0]!.redactions).toBe(2);
     expect(completed[0]!.durationMs).toBeGreaterThanOrEqual(0);
@@ -438,7 +481,9 @@ describe('POST /api/projects/{projectId}/index', () => {
     expect(Object.keys(body.properties)).toEqual(['incremental']);
     expect(body.properties.incremental.type).toBe('boolean');
     expect(operation.requestBody.required).toBe(false);
-    expect(Object.keys(operation.responses['202'].content['application/json'].schema.properties).sort()).toEqual([
+    const accepted = operation.responses['202'].content['application/json'].schema.properties;
+    expect(accepted.mode.enum).toEqual(['full', 'incremental']);
+    expect(Object.keys(accepted).sort()).toEqual([
       'analyzer',
       'cacheEntriesInvalidated',
       'filesQueued',

@@ -7,5 +7,6 @@ export * from './confine-repository.js';
 export * from './build-snapshot.js';
 export * from './index-repository.js';
 export * from './reindex-project.js';
+export * from './incremental-plan.js';
 export * from './source-path.js';
 export * from './analyzer-helpers.js';

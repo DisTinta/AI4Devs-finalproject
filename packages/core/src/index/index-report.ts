@@ -2,14 +2,19 @@ import type { ProjectFramework, ProjectLanguage } from '../knowledge/project.js'
 import type { AnalyzerDiagnostic } from '../ports/AnalyzerPort.js';
 import type { AuditEvent, SecretRule } from './audit-event.js';
 
-/** The phases of an indexing, in the order they run. Each is reported once, when it starts. */
+/**
+ * The phases of an indexing, in the order they run; a full reindex runs them in the same order. Each
+ * is reported once, when it starts. An incremental reindex reports `history` before `analyze`
+ * (repository-indexing, "Incremental reindex"), and no `analyze` on its fast path.
+ */
 export const INDEX_PHASES = ['confine', 'read', 'redact', 'analyze', 'history', 'save'] as const;
 
 /**
  * One phase of an indexing: `confine` (lexical and real-path confinement), `read` (read the files and
  * apply the input hygiene), `redact` (redact the files and detect the framework), `analyze`,
  * `history` (read and redact the history, drop orphan links, add `co_changed` edges) and `save`
- * (validate the graph, create the project, save the graph).
+ * (validate the graph, create the project, save the graph). The order is that of an indexing and of
+ * a full reindex; an incremental reindex reports `history` before `analyze`.
  */
 export type IndexPhase = (typeof INDEX_PHASES)[number];
 
@@ -102,6 +107,12 @@ export interface IndexReport {
 export interface ReindexReport extends Omit<IndexReport, 'framework' | 'frameworkSource'> {
   /** Language of the stored project, which selected the analyzer. */
   language: ProjectLanguage;
+  /** The mode the reindex ran in: `full`, or `incremental` (the plan of DIS-10). */
+  mode: 'full' | 'incremental';
+  /** Files the plan queued: in `full` mode every indexed file, in `incremental` mode the changed files and their direct dependents. */
+  filesQueued: number;
+  /** Indexable files the plan skipped (`0` in `full` mode); never counts the hygiene's `skipped` entries. */
+  filesSkipped: number;
   /** Answer cache entries of the project deleted by the reindex. */
   cacheEntriesInvalidated: number;
 }

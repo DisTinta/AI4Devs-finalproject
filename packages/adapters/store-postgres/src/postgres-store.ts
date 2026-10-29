@@ -24,6 +24,7 @@ import type {
   ClaimItem,
   ClaimSpan,
   EdgeKind,
+  IndexState,
   KnowledgeGraph,
   Neighbor,
   NewProject,
@@ -45,6 +46,8 @@ import {
   FIND_CACHE_ENTRY,
   FIND_CLAIMS_OVERLAPPING,
   FIND_SYMBOLS,
+  INDEX_STATE_DEPENDENCIES,
+  INDEX_STATE_FILES,
   INSERT_CACHE_ENTRY,
   INSERT_PROJECT,
   INSERT_QUERY_LOG,
@@ -58,9 +61,12 @@ import {
 } from './queries.js';
 import {
   escapeLikeTerm,
+  toIndexState,
   toNeighbor,
   toProject,
   toStoredSymbol,
+  type IndexDependencyRow,
+  type IndexFileRow,
   type NeighborRow,
   type ProjectRow,
   type SymbolSearchRow,
@@ -329,6 +335,14 @@ export function createPostgresStore(connection: StoreConnection): StorePort {
         MAX_PRIOR_CLAIMS,
       ]);
       return rows.filter((row) => row.id !== null).map((row) => toStoredClaim(projectId, row));
+    },
+
+    async readIndexState(projectId: string): Promise<IndexState> {
+      // The first statement proves the project exists; a project without files answers one row with
+      // a NULL path. Two statements in all, whatever the size of the graph.
+      const fileRows = await runProjectQuery<IndexFileRow>(connection, projectId, INDEX_STATE_FILES, []);
+      const dependencyRows = await runQuery<IndexDependencyRow>(connection, INDEX_STATE_DEPENDENCIES, [projectId]);
+      return toIndexState(fileRows, dependencyRows);
     },
 
     async sumCostSince(since: Date): Promise<number> {

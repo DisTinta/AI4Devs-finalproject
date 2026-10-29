@@ -1,3 +1,4 @@
+import { compareBytes } from './byte-order.js';
 import type { GraphFileCommit } from './graph-commit.js';
 import type { GraphEdge } from './graph-edge.js';
 
@@ -43,7 +44,7 @@ export function coChangeEdges(fileCommits: readonly GraphFileCommit[], knownPath
   for (const files of filesByCommit.values()) {
     if (files.size > MAX_FILES_PER_COMMIT) continue;
     for (const file of files) commitsByFile.set(file, (commitsByFile.get(file) ?? 0) + 1);
-    const known = [...files].filter((file) => knownPaths.has(file)).sort(compareByteOrder);
+    const known = [...files].filter((file) => knownPaths.has(file)).sort(compareBytes);
     for (let i = 0; i < known.length; i++) {
       for (let j = i + 1; j < known.length; j++) {
         const key = `${known[i]}\0${known[j]}`;
@@ -58,7 +59,7 @@ export function coChangeEdges(fileCommits: readonly GraphFileCommit[], knownPath
       const [source, target] = key.split('\0');
       return { source, target, shared };
     })
-    .sort((a, b) => compareByteOrder(a.source, b.source) || compareByteOrder(a.target, b.target))
+    .sort((a, b) => compareBytes(a.source, b.source) || compareBytes(a.target, b.target))
     .map(({ source, target, shared }) => ({
       source: { file: source },
       target: { file: target },
@@ -67,16 +68,4 @@ export function coChangeEdges(fileCommits: readonly GraphFileCommit[], knownPath
       extractor: CO_CHANGE_EXTRACTOR,
       weight: shared / ((commitsByFile.get(source) ?? 0) + (commitsByFile.get(target) ?? 0) - shared),
     }));
-}
-
-/** Compares two strings by Unicode code point, which is UTF-8 byte order (Postgres `COLLATE "C"`). */
-function compareByteOrder(a: string, b: string): number {
-  const left = [...a];
-  const right = [...b];
-  const length = Math.min(left.length, right.length);
-  for (let i = 0; i < length; i++) {
-    const difference = (left[i].codePointAt(0) ?? 0) - (right[i].codePointAt(0) ?? 0);
-    if (difference !== 0) return difference;
-  }
-  return left.length - right.length;
 }

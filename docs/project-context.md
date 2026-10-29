@@ -487,6 +487,9 @@ Verified against `package.json` (root and per package). If a command is not here
   `tests/unit/api/reindex.spec.ts` (`/index` over doubles with a recording log) and
   `tests/integration/api/reindex.spec.ts` (over the seed, the harness transaction as the unit of
   work); `store/open-store.spec.ts` also covers the transaction runner and deletes what it commits.
+  Since DIS-10, `tests/unit/index/incremental-plan.spec.ts` (the pure plan) and
+  `tests/integration/index/incremental-reindex.spec.ts` (the changed file and its dependents, and the
+  fast path, over Postgres with a copy of acme-shop whose history is built once).
 - Test data comes from `fixtures/` (`acme-shop`, `task-api`, `history`, `build-history.mjs`) and
   `seeds/graph-dump.sql`. `fixtures/**` is excluded from Vitest collection.
 - **PH-22 — fixtures are an analyzer's input, never test-writable (DIS-47, DIS-30).** `createPhpAnalyzer()`
@@ -1222,9 +1225,10 @@ services that must be started first, quirks of the local environment.
   (`model`, `verifyModel`), `entries` (`id`, `question`, `questionNormalized`, `response`,
   `reviews` — `{by, date}` per review: DIS-34 added `agent:claude-opus-5-5` to every entry; the
   golden answers are now reviewed by an independent agent panel (DIS-33, then DIS-107 after the
-  analyzer fix regenerated them, then DIS-9 after the index pipeline extraction regenerated them:
+  analyzer fix regenerated them, then DIS-9 after the index pipeline extraction and DIS-10 after the incremental indexing regenerated them,
+  then the DIS-10 r2 round after task-api `Q1` alone was regenerated:
   blind input, criterion first, signatures `agent:<model>`, report in `docs/golden-review/`, each
-  round's files suffixed with its ticket, the current DIS-9 round's `-dis-9`); an `incorrect` one stays unsigned and
+  round's files suffixed with its ticket, the current DIS-10 r2 round's `-dis-10-r2`); an `incorrect` one stays unsigned and
   goes to a successor ticket; a regenerated entry comes back with empty `reviews` and needs a new
   panel); no generation time; canonical render = 2-space JSON in that key
   order, LF, final newline. **`answerFingerprint`** (`answer-fingerprint.ts`) = the seed's
@@ -1294,9 +1298,15 @@ services that must be started first, quirks of the local environment.
   **`POST /api/projects/{projectId}/index`** (DIS-9, `routes/reindex.ts`, `schemas/reindex.ts`) is the
   third product route: it **re-indexes a project that already exists** from its stored `root_path`,
   language and framework (it never receives a path, a language or a framework; body
-  `z.strictObject({ incremental? })`, accepted and without effect until DIS-10; a request with no body
-  is `{}`, through a `preValidation` hook), runs `reindexProject` (`packages/core/src/index/reindex-project.ts`,
-  which shares `confineRepository` and `buildSnapshot` with `indexRepository`) to completion inside the
+  `z.strictObject({ incremental? })`; since DIS-10 `incremental` defaults to `true` (an incremental
+  reindex) and `false` forces the full one; a request with no body is `{}`, through a `preValidation`
+  hook), runs `reindexProject` (`packages/core/src/index/reindex-project.ts`, which shares
+  `confineRepository` and `buildSnapshot` with `indexRepository`; since DIS-10 it also reads the index
+  state with `StorePort.readIndexState` and plans with `planIncremental` in
+  `packages/core/src/index/incremental-plan.ts`: files whose redacted-content hash changed plus their
+  direct dependents are queued, and an unchanged repository at the stored `HEAD` takes a fast path that
+  only invalidates the cache; the answer carries `mode`, `filesQueued` and `filesSkipped`; the analyzer
+  still receives every file) to completion inside the
   request and answers `202` with the counters (a recorded deviation from backend-standards §6). The
   graph save and `invalidateCache` run in **one transaction** through `OpenedStore.transaction`, the
   transaction runner of the pooled store (`open-store.ts`: connect, `BEGIN`, a store bound to the
