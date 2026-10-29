@@ -207,13 +207,16 @@ documentation-drift question, added with the drift story, and its terms anchor
 no symbol of the seed; Q6 answers `UNKNOWN` `no-anchor` before the cache is
 read, without a model and at zero cost.
 
-**Golden review (DIS-34, DIS-104, DIS-33, DIS-107, DIS-9, DIS-10).** Each entry's `reviews` lists who checked it
+**Golden review (DIS-34, DIS-104, DIS-33, DIS-107, DIS-9, DIS-10, DIS-10 r2).** Each entry's `reviews` lists who checked it
 against this fixture and when. The current golden answers were regenerated in DIS-10 (after the
-incremental indexing, which changed the analyzer fingerprint) and reviewed in DIS-10 by a blind
-panel of two agents of models other than the generator; the report, with a verdict per golden, is
-[`docs/golden-review/2026-10-golden-review-dis-10.md`](../docs/golden-review/2026-10-golden-review-dis-10.md).
-The panel judged task-api `Q1` incorrect, so that entry stays unsigned and is pending in DIS-112; every
-other entry carries both signatures. The previous round is DIS-9
+incremental indexing, which changed the analyzer fingerprint; task-api `Q1` was regenerated again,
+alone, for the second DIS-10 round) and reviewed in the DIS-10 r2 round by a blind panel of two
+agents of models other than the generator; the report, with a verdict per golden, is
+[`docs/golden-review/2026-10-golden-review-dis-10-r2.md`](../docs/golden-review/2026-10-golden-review-dis-10-r2.md).
+No item was judged incorrect, so every entry carries both r2 signatures. The previous round is the
+first DIS-10 round
+([`docs/golden-review/2026-10-golden-review-dis-10.md`](../docs/golden-review/2026-10-golden-review-dis-10.md),
+which judged the earlier task-api `Q1` incorrect; it stays as history). The round before is DIS-9
 ([`docs/golden-review/2026-10-golden-review-dis-9.md`](../docs/golden-review/2026-10-golden-review-dis-9.md),
 of the answers regenerated after the index pipeline extraction; it stays as history). The round before is DIS-107
 ([`docs/golden-review/2026-10-golden-review-dis-107.md`](../docs/golden-review/2026-10-golden-review-dis-107.md),
@@ -336,10 +339,13 @@ before the cache is read, without a model. Every golden question must anchor a s
 through `taskRoutes`, Q2 through `buildPage` and Q3 through `canTransition`, which is why Q1 and Q2
 name a symbol (the validation and pagination wording of the first version anchored nothing). The
 texts are the task-api entry of `GOLDEN_PROJECTS`, which `tests/unit/seed/golden-questions.spec.ts`
-checks against this table. The golden answers were regenerated in DIS-10 (incremental indexing) and
-reviewed in DIS-10 by a blind panel of two agents of models other than the generator; the report is
-[`docs/golden-review/2026-10-golden-review-dis-10.md`](../docs/golden-review/2026-10-golden-review-dis-10.md).
-The previous rounds are DIS-9
+checks against this table. The golden answers were regenerated in DIS-10 (incremental indexing; `Q1`
+again, alone, for the second DIS-10 round) and reviewed in the DIS-10 r2 round by a blind panel of
+two agents of models other than the generator; the report is
+[`docs/golden-review/2026-10-golden-review-dis-10-r2.md`](../docs/golden-review/2026-10-golden-review-dis-10-r2.md).
+The previous rounds are the first DIS-10 round
+([`docs/golden-review/2026-10-golden-review-dis-10.md`](../docs/golden-review/2026-10-golden-review-dis-10.md)),
+DIS-9
 ([`docs/golden-review/2026-10-golden-review-dis-9.md`](../docs/golden-review/2026-10-golden-review-dis-9.md)),
 DIS-107
 ([`docs/golden-review/2026-10-golden-review-dis-107.md`](../docs/golden-review/2026-10-golden-review-dis-107.md))
