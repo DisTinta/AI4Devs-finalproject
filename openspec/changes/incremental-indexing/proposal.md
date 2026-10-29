@@ -37,7 +37,9 @@ Scope comes from DIS-10 only; its parent DIS-6 gives context. The decisions D1â€
 - **Seed and golden answers**: the change touches seed fingerprint inputs (`packages/core/src/index`,
   `packages/core/src/knowledge`, `packages/adapters/store-postgres/src`), so `seeds/graph-dump.sql` and the two golden files are
   regenerated (same seed rows, new header), and the regenerated golden answers get a new blind panel
-  review round (DIS-10), as DIS-9 did.
+  review round (DIS-10), as DIS-9 did. After that round, task-api `Q1` alone is regenerated and the
+  whole round is rerun on new files as a second DIS-10 round (r2), which signs every golden entry
+  again (design G1); no successor ticket is opened.
 - No CLI change: `codemind index` only creates projects and there is no reindex command (D5,
   destination C).
 
@@ -58,7 +60,7 @@ None.
   (`filesSkipped`) and OpenAPI (`mode` enum) are modified.
 - `graph-store`: new read "Index state read".
 - `golden-answers`: the round-specific golden review requirements move from the DIS-9 round to the
-  DIS-10 round (DIS-9 becomes history).
+  DIS-10 r2 round (the first DIS-10 round and DIS-9 become history).
 
 ## Non-goals
 
