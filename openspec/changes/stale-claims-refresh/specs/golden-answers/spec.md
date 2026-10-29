@@ -198,9 +198,8 @@ are compared as text with the values the test recomputes from the panel files.
 Each list line of `## Pending` SHALL be `- <project> <id>: DIS-<n>`, naming the ticket that
 regenerates or retires the item and has it reviewed again. In this change no new ticket is opened:
 the first DIS-42 round's report names `DIS-42` itself for each of its `incorrect` items, with a
-sentence naming the DIS-42 r2 round that regenerates and judges them again; an r2 final verdict
-`incorrect` stops the round before signing and goes to the author, so the r2 report is written
-without `## Pending`.
+sentence naming the DIS-42 r2 round that regenerates and judges them again; the r2 report likewise
+names `DIS-42` for each of its `incorrect` items, with a sentence naming the DIS-42 r3 round.
 
 `## Limitations` SHALL contain these four lines verbatim:
 `- Two models of one family are not independent reviewers in the sense of two people.`,
