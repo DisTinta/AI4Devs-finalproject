@@ -3,13 +3,14 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { cohenKappa } from '../../../scripts/annotation-agreement.mjs';
 
-// Spec: openspec/changes/stale-claims-refresh/specs/golden-answers/spec.md (DIS-42, round of the golden
-// review after the stale claim refresh, prepared again on the code merged with DIS-10; previous rounds
-// DIS-10 r2, DIS-10, DIS-9, DIS-107 and DIS-33), delta of `golden-answers`:
+// Spec: openspec/changes/stale-claims-refresh/specs/golden-answers/spec.md (DIS-42 r2, the second DIS-42
+// round of the golden review after the stale claim refresh, once task-api Q2 and acme-shop Q1 alone were
+// regenerated again; previous rounds the first DIS-42 round, DIS-10 r2, DIS-10, DIS-9, DIS-107 and
+// DIS-33), delta of `golden-answers`:
 // "Blind panel input of the golden review". The independent review of the versioned golden answers is
 // done by a blind panel; this file ties the golden files, the panel files and the review report together.
 
-const INPUT_PATH = 'docs/golden-review/panel/2026-10-golden-review-dis-42-input.json';
+const INPUT_PATH = 'docs/golden-review/panel/2026-10-golden-review-dis-42-r2-input.json';
 
 interface GoldenStatement {
   text: string;
@@ -170,15 +171,16 @@ interface Resolution {
 
 const PANEL_DIR = 'docs/golden-review/panel';
 const PANELIST_PATHS = [
-  `${PANEL_DIR}/2026-10-golden-review-dis-42-panelist-1.json`,
-  `${PANEL_DIR}/2026-10-golden-review-dis-42-panelist-2.json`,
+  `${PANEL_DIR}/2026-10-golden-review-dis-42-r2-panelist-1.json`,
+  `${PANEL_DIR}/2026-10-golden-review-dis-42-r2-panelist-2.json`,
 ];
-const RESOLUTION_PATH = `${PANEL_DIR}/2026-10-golden-review-dis-42-resolution.json`;
+const RESOLUTION_PATH = `${PANEL_DIR}/2026-10-golden-review-dis-42-r2-resolution.json`;
 const CHANGE = 'stale-claims-refresh';
 const TASKS_PATH = `openspec/changes/${CHANGE}/tasks.md`;
-const REPORT_PATH = 'docs/golden-review/2026-10-golden-review-dis-42.md';
-/** The previous rounds, newest first: DIS-10 r2, then the first DIS-10 round, then DIS-9, then DIS-107, then DIS-33. */
+const REPORT_PATH = 'docs/golden-review/2026-10-golden-review-dis-42-r2.md';
+/** The previous rounds, newest first: the first DIS-42 round, DIS-10 r2, the first DIS-10 round, DIS-9, DIS-107, DIS-33. */
 const PREVIOUS_ROUND_REPORTS = [
+  'docs/golden-review/2026-10-golden-review-dis-42.md',
   'docs/golden-review/2026-10-golden-review-dis-10-r2.md',
   'docs/golden-review/2026-10-golden-review-dis-10.md',
   'docs/golden-review/2026-10-golden-review-dis-9.md',
@@ -186,6 +188,7 @@ const PREVIOUS_ROUND_REPORTS = [
   'docs/golden-review/2026-10-task-api-golden-review.md',
 ];
 const PREVIOUS_ROUND_PANELISTS = [
+  `${PANEL_DIR}/2026-10-golden-review-dis-42-panelist-1.json`,
   `${PANEL_DIR}/2026-10-golden-review-dis-10-r2-panelist-1.json`,
   `${PANEL_DIR}/2026-10-golden-review-dis-10-panelist-1.json`,
   `${PANEL_DIR}/2026-10-golden-review-dis-9-panelist-1.json`,
@@ -749,20 +752,21 @@ describe('golden review: report', () => {
     const previousBlocks = PREVIOUS_ROUND_TASKS.map((path) => ({ path, blocks: criterionBlocks(readFileSync(resolve(path), 'utf8').split('\n')) }));
 
     // Assert
-    expect(blocks, 'the tasks file has the Criterion block of its Panel group').toHaveLength(1);
+    expect(blocks, 'the tasks file has the Criterion blocks of its two Panel groups (the first DIS-42 round and r2)').toHaveLength(2);
     expect(
       previousBlocks.map(({ blocks: found }) => found.length),
       'the DIS-10 tasks file has two Criterion blocks, the DIS-9, DIS-107 and DIS-33 ones one each',
     ).toEqual([2, 1, 1, 1]);
-    const [{ start, end, lines: block }] = blocks as [(typeof blocks)[number]];
-    expect(end).toBeGreaterThan(start);
-    expect(block.length).toBeGreaterThan(0);
-    expect(block.every((line) => line.startsWith('- '))).toBe(true);
-    expect(criterion).toEqual(block);
-    for (const { path, blocks: found } of previousBlocks) {
-      for (const { start: previousStart, end: previousEnd, lines } of found) {
-        expect(previousEnd, path).toBeGreaterThan(previousStart);
-        expect(block, `the criterion is the criterion of ${path}, copied verbatim`).toEqual(lines);
+    for (const { start, end, lines: block } of blocks) {
+      expect(end).toBeGreaterThan(start);
+      expect(block.length).toBeGreaterThan(0);
+      expect(block.every((line) => line.startsWith('- '))).toBe(true);
+      expect(criterion).toEqual(block);
+      for (const { path, blocks: found } of previousBlocks) {
+        for (const { start: previousStart, end: previousEnd, lines } of found) {
+          expect(previousEnd, path).toBeGreaterThan(previousStart);
+          expect(block, `the criterion is the criterion of ${path}, copied verbatim`).toEqual(lines);
+        }
       }
     }
   });
