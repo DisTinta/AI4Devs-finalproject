@@ -160,8 +160,8 @@ This group is done by independent agents launched outside the apply: panelist 1 
 ## 15. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
 - [x] 15.1 Open the PR against `final-project-CRN`; DIS-9 to In Review with a Spanish comment linking it
-- [ ] 15.2 CI green, including the `verify` and mutation jobs: wait in the foreground with `gh pr checks <n> --watch --interval 60` (timeout 600000), repeated until no check is pending; link the run in an addendum to the step 9 report
-- [ ] 15.3 `/show-spec-working` (may reuse the step 11 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
+- [x] 15.2 CI green, including the `verify` and mutation jobs: wait in the foreground with `gh pr checks <n> --watch --interval 60` (timeout 600000), repeated until no check is pending; link the run in an addendum to the step 9 report
+- [x] 15.3 `/show-spec-working` (may reuse the step 11 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
 - [ ] 15.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
 - [ ] 15.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`
 - [ ] 15.6 Fix every finding in this change (TDD for behaviour), each with an A/B/C/D destination in `design.md` → Follow-ups; re-run what each fix invalidates (step 10 again if a fix touches a seed fingerprint input, but once 10b.4 is committed such a fix goes to the author, destination C, unless the whole round 10b–10d is rerun on new files; a finding on a panel judgement is never fixed by editing a panel file) and add an addendum to the affected report; commit to the same PR; re-run a check whose findings led to non-trivial fixes until no Blocker or Major
