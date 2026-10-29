@@ -1,0 +1,401 @@
+{
+  "items": [
+    {
+      "project": "task-api",
+      "id": "Q1",
+      "kind": "golden",
+      "question": "¿Cómo valida taskRoutes las peticiones entrantes?",
+      "answer": "Las peticiones entrantes se validan utilizando esquemas definidos con Zod antes de que los controladores ejecuten cualquier lógica de negocio. Los esquemas se asocian directamente con las rutas en los archivos `task.routes.ts`, como por ejemplo la validación de los parámetros en `app.get('/tasks/:id', { schema: { params: taskIdParamsSchema } })`.",
+      "statements": [
+        {
+          "n": 1,
+          "text": "Las validaciones se realizan mediante esquemas definidos con Zod.",
+          "type": "FACT",
+          "evidence": [
+            1
+          ]
+        },
+        {
+          "n": 2,
+          "text": "El esquema se asocia con la ruta `app.get('/tasks/:id', { schema: { params: taskIdParamsSchema } })`.",
+          "type": "FACT",
+          "evidence": [
+            2
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "n": 1,
+          "path": "src/routes/tasks.routes.ts",
+          "startLine": 15,
+          "endLine": 31
+        },
+        {
+          "n": 2,
+          "path": "src/routes/tasks.routes.ts",
+          "startLine": 15,
+          "endLine": 31
+        }
+      ]
+    },
+    {
+      "project": "task-api",
+      "id": "Q2",
+      "kind": "golden",
+      "question": "¿Qué hace buildPage con los resultados paginados?",
+      "answer": "La función `buildPage` construye una página de resultados paginados a partir de una matriz de elementos, el número total de elementos, la página actual y el tamaño de la página. Devuelve un objeto que contiene los elementos de la página, el número total de elementos, la página actual, el tamaño de la página y el número de páginas en total.",
+      "statements": [
+        {
+          "n": 1,
+          "text": "La función `buildPage` construye una página de resultados paginados a partir de una matriz de elementos, el número total de elementos, la página actual y el tamaño de la página.",
+          "type": "FACT",
+          "evidence": [
+            1
+          ]
+        },
+        {
+          "n": 2,
+          "text": "La función `buildPage` es exportada desde el módulo `src/domain/pagination.ts`.",
+          "type": "FACT",
+          "evidence": [
+            2
+          ]
+        },
+        {
+          "n": 3,
+          "text": "La función `buildPage` recibe cuatro parámetros: `items`, `total`, `page` y `pageSize`. La matriz `items` contiene los elementos a estar en la página, `total` es el número total de elementos, `page` es el número de la página actual y `pageSize` es el tamaño de la página.",
+          "type": "FACT",
+          "evidence": [
+            3
+          ]
+        },
+        {
+          "n": 4,
+          "text": "La función `buildPage` construye y devuelve un objeto de tipo `Page` que contiene la información sobre la página.",
+          "type": "FACT",
+          "evidence": [
+            4
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "n": 1,
+          "path": "src/domain/pagination.ts",
+          "startLine": 13,
+          "endLine": 21
+        },
+        {
+          "n": 2,
+          "path": "src/domain/pagination.ts",
+          "startLine": 13,
+          "endLine": 21
+        },
+        {
+          "n": 3,
+          "path": "src/domain/pagination.ts",
+          "startLine": 13,
+          "endLine": 21
+        },
+        {
+          "n": 4,
+          "path": "src/domain/pagination.ts",
+          "startLine": 13,
+          "endLine": 21
+        }
+      ]
+    },
+    {
+      "project": "task-api",
+      "id": "Q3",
+      "kind": "golden",
+      "question": "¿Qué transiciones de estado son válidas?",
+      "answer": "La función `canTransition` define las transiciones de estado válidas, mientras que la función `IllegalStatusTransitionError` lanza un error cuando una transición no es válida.",
+      "statements": [
+        {
+          "n": 1,
+          "text": "La función `canTransition` determina si una transición de estado es válida basándose en un conjunto predefinido de transiciones permitidas.",
+          "type": "INFERENCE",
+          "evidence": [
+            1
+          ]
+        },
+        {
+          "n": 2,
+          "text": "La función `IllegalStatusTransitionError` lanza un error cuando se intenta realizar una transición de estado que no está permitida.",
+          "type": "FACT",
+          "evidence": [
+            2
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "n": 1,
+          "path": "src/domain/task-status.ts",
+          "startLine": 25,
+          "endLine": 27
+        },
+        {
+          "n": 2,
+          "path": "src/domain/errors.ts",
+          "startLine": 23,
+          "endLine": 27
+        }
+      ]
+    },
+    {
+      "project": "task-api",
+      "id": "Q4",
+      "kind": "unknown",
+      "question": "¿Cómo se autentican los usuarios?",
+      "answer": "UNKNOWN (no-anchor)",
+      "statements": [],
+      "evidence": []
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q1",
+      "kind": "golden",
+      "question": "¿Cómo se calcula el precio final de un pedido?",
+      "answer": "El precio final de un pedido se calcula en `App\\Services\\PriceCalculator::compute()`. Este método aplica primero la descuento, luego el servicio gravable y finalmente el costo de envío.",
+      "statements": [
+        {
+          "n": 1,
+          "text": "El cálculo de precio final se realiza en el método `compute` de la clase `PriceCalculator` (E4)",
+          "type": "FACT",
+          "evidence": [
+            1
+          ]
+        },
+        {
+          "n": 2,
+          "text": "El método `compute` primero obtiene el subtotal del pedido (E4)",
+          "type": "INFERENCE",
+          "evidence": [
+            2
+          ]
+        },
+        {
+          "n": 3,
+          "text": "Luego, el método `discountFor` dentro del servicio de descuentos se aplica a partir del subtotal (E4, E5)",
+          "type": "INFERENCE",
+          "evidence": [
+            3,
+            4
+          ]
+        },
+        {
+          "n": 4,
+          "text": "A partir del subtotal y el descuento, se calcula el monto gravable (E4)",
+          "type": "INFERENCE",
+          "evidence": [
+            5
+          ]
+        },
+        {
+          "n": 5,
+          "text": "El servicio de impuestos luego calcula el impuesto sobre el monto gravable (E7)",
+          "type": "INFERENCE",
+          "evidence": [
+            6
+          ]
+        },
+        {
+          "n": 6,
+          "text": "Luego, el servicio de envío se encarga de calcular el costo del envío (E6)",
+          "type": "INFERENCE",
+          "evidence": [
+            7
+          ]
+        },
+        {
+          "n": 7,
+          "text": "Por último, el costo gravable, el impuesto y el costo de envío se suman para obtener el precio final del pedido (E4, E5, E6, E7)",
+          "type": "INFERENCE",
+          "evidence": [
+            8,
+            9,
+            10,
+            11
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "n": 1,
+          "path": "app/Services/PriceCalculator.php",
+          "startLine": 16,
+          "endLine": 44
+        },
+        {
+          "n": 2,
+          "path": "app/Services/PriceCalculator.php",
+          "startLine": 16,
+          "endLine": 44
+        },
+        {
+          "n": 3,
+          "path": "app/Services/PriceCalculator.php",
+          "startLine": 16,
+          "endLine": 44
+        },
+        {
+          "n": 4,
+          "path": "app/Services/DiscountService.php",
+          "startLine": 21,
+          "endLine": 66
+        },
+        {
+          "n": 5,
+          "path": "app/Services/PriceCalculator.php",
+          "startLine": 16,
+          "endLine": 44
+        },
+        {
+          "n": 6,
+          "path": "app/Services/TaxService.php",
+          "startLine": 18,
+          "endLine": 28
+        },
+        {
+          "n": 7,
+          "path": "app/Services/ShippingService.php",
+          "startLine": 16,
+          "endLine": 35
+        },
+        {
+          "n": 8,
+          "path": "app/Services/PriceCalculator.php",
+          "startLine": 16,
+          "endLine": 44
+        },
+        {
+          "n": 9,
+          "path": "app/Services/DiscountService.php",
+          "startLine": 21,
+          "endLine": 66
+        },
+        {
+          "n": 10,
+          "path": "app/Services/ShippingService.php",
+          "startLine": 16,
+          "endLine": 35
+        },
+        {
+          "n": 11,
+          "path": "app/Services/TaxService.php",
+          "startLine": 18,
+          "endLine": 28
+        }
+      ]
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q3",
+      "kind": "golden",
+      "question": "¿Cómo se validan los cupones?",
+      "answer": "Los cupones se validan en el servicio CouponValidator.",
+      "statements": [
+        {
+          "n": 1,
+          "text": "El método percentFor en CouponValidator comprueba si el código de cupón es nulo o vacío y devuelve 0.0 si lo es.",
+          "type": "INFERENCE",
+          "evidence": [
+            1
+          ]
+        },
+        {
+          "n": 2,
+          "text": "El método isRedeemable verifica si el código de cupón es redeemable llamando a percentFor y retorna verdadero si el porcentaje devuelto es mayor que 0.0.",
+          "type": "FACT",
+          "evidence": [
+            2
+          ]
+        },
+        {
+          "n": 3,
+          "text": "El código de cupón es utilizado para buscar un cupón activo en la base de datos en el método percentFor de CouponValidator.",
+          "type": "INFERENCE",
+          "evidence": [
+            3,
+            4
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "n": 1,
+          "path": "app/Services/CouponValidator.php",
+          "startLine": 14,
+          "endLine": 39
+        },
+        {
+          "n": 2,
+          "path": "app/Services/CouponValidator.php",
+          "startLine": 14,
+          "endLine": 39
+        },
+        {
+          "n": 3,
+          "path": "app/Services/CouponValidator.php",
+          "startLine": 14,
+          "endLine": 39
+        },
+        {
+          "n": 4,
+          "path": "app/Models/Coupon.php",
+          "startLine": 17,
+          "endLine": 30
+        }
+      ]
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q4",
+      "kind": "golden",
+      "question": "¿Qué hace OrderObserver al crear un pedido?",
+      "answer": "OrderObserver crea un pedido recalculando los totales y desencadenando un evento de pedido colocado.",
+      "statements": [
+        {
+          "n": 1,
+          "text": "OrderObserver tiene un método `created` que se ejecuta al crear un pedido, lo que llama a `RecalculateTotals::dispatch($order)` e `event(new OrderPlaced($order))`.",
+          "type": "FACT",
+          "evidence": [
+            1
+          ]
+        },
+        {
+          "n": 2,
+          "text": "El evento `OrderPlaced` se utiliza para desencadenar `SendOrderConfirmation::handle` que registra la confirguración de la confimación del pedido.",
+          "type": "INFERENCE",
+          "evidence": [
+            2,
+            3
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "n": 1,
+          "path": "app/Observers/OrderObserver.php",
+          "startLine": 14,
+          "endLine": 28
+        },
+        {
+          "n": 2,
+          "path": "app/Listeners/SendOrderConfirmation.php",
+          "startLine": 15,
+          "endLine": 26
+        },
+        {
+          "n": 3,
+          "path": "app/Events/OrderPlaced.php",
+          "startLine": 14,
+          "endLine": 21
+        }
+      ]
+    }
+  ]
+}

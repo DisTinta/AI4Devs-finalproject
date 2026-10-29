@@ -305,7 +305,8 @@ response still never carries it.
 
 ### Requirement: Configuration from the environment
 
-The API SHALL read its configuration once, at start-up, only from these variables, each trimmed; a
+The API SHALL read its configuration once, at start-up, from these variables, then the LLM variables
+and the indexing variables below, each trimmed; a
 variable that is unset or empty after trimming takes its default:
 
 | Variable | Rule | Default |
@@ -324,6 +325,12 @@ SHALL then read the LLM configuration (`LLM_*`, `DAILY_BUDGET_USD`) with the rul
 `llm-adapter` capability, failing with `LLM_CONFIG_INVALID`. Every check SHALL happen before any
 connection is opened.
 
+It SHALL also read the two indexing variables, each trimmed, which are **optional** and SHALL never
+fail start-up: `ALLOWED_REPOS_DIR` (the allowed repositories root) and `AUTHOR_HASH_SALT` (the salt of
+the author hashes of the history). When either is unset or empty after trimming, indexing is disabled
+(requirement "Composition from the environment"). A relative `ALLOWED_REPOS_DIR` is resolved against
+the process working directory, as the CLI does.
+
 #### Scenario: Defaults apply to unset and empty variables
 
 - **GIVEN** an environment with only `DATABASE_URL` set, then the same with `PORT`, `HOST`,
@@ -341,6 +348,14 @@ connection is opened.
 - **THEN** each fails with an error whose `code` is `INVALID_CONFIG` and whose `variable` is that
   variable, and its message does not contain the value
 
+#### Scenario: Missing indexing variables do not stop the API
+
+- **GIVEN** a valid `DATABASE_URL`, no `LLM_*` variable, an `openStore` seam returning a store double,
+  and, in turn, neither indexing variable, only `ALLOWED_REPOS_DIR`, only `AUTHOR_HASH_SALT`, and both
+  set to `'   '`
+- **WHEN** the dependencies are composed
+- **THEN** each composition resolves and its dependencies hold no indexing dependencies
+
 ### Requirement: Composition from the environment
 
 The composition SHALL build, from a valid configuration, the API's dependencies: the store on
@@ -350,6 +365,13 @@ repository root. In live mode with `DAILY_BUDGET_USD` set, every model call SHAL
 spend ceiling over that store and clock; in evaluation mode, or without a ceiling, the model SHALL be
 used as built. A configuration or LLM configuration error SHALL be raised before the store is opened.
 Closing the API SHALL close the store's connections.
+
+When both `ALLOWED_REPOS_DIR` and `AUTHOR_HASH_SALT` are set, the composition SHALL also build the
+indexing dependencies: the trimmed allowed root; the Git history reader with that salt; for each
+project language its analyzer (PHP or TypeScript) and its extractor name; and the
+runner of work in one transaction of the opened store (`graph-store`, "Running work in one transaction
+on a pooled store"). When either is missing, the dependencies SHALL hold no indexing dependencies, and
+`POST /api/projects/{projectId}/index` answers `INDEXING_DISABLED` (`http-index`).
 
 #### Scenario: Configuration errors are raised before the store is opened
 
@@ -391,6 +413,15 @@ Closing the API SHALL close the store's connections.
   double
 - **WHEN** the dependencies are composed
 - **THEN** `workspaceRoot` is an absolute path and `packages/api/package.json` exists under it
+
+#### Scenario: Both indexing variables compose the indexing dependencies
+
+- **GIVEN** a valid `DATABASE_URL`, no `LLM_*` variable, `ALLOWED_REPOS_DIR` = `'  /repos  '`,
+  `AUTHOR_HASH_SALT` set, and an `openStore` seam returning a store double with a transaction runner
+- **WHEN** the dependencies are composed
+- **THEN** the indexing dependencies hold the allowed root `/repos`, the PHP analyzer for `php`, the
+  TypeScript analyzer for `typescript`, the extractor names `php-treesitter-laravel` for `php` and
+  `ts-compiler` for `typescript`, and the transaction runner of the opened store
 
 ### Requirement: Start-up failure
 

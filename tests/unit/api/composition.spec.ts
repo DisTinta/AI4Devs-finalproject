@@ -6,6 +6,7 @@ import type { CompletionResult, LlmPort, StorePort } from '@codemind/core';
 import { LlmConfigError } from '@codemind/adapter-llm';
 import type { LlmConfig } from '@codemind/adapter-llm';
 import { DatabaseUnavailable } from '@codemind/adapter-store-postgres';
+import type { OpenedStore } from '@codemind/adapter-store-postgres';
 import { API_APPLICATION_NAME, apiConfigFromEnv, ApiConfigError, composeFromEnv } from '../../../packages/api/src/composition';
 import type { ComposeSeams } from '../../../packages/api/src/composition';
 import { createInMemoryStore } from '../../support/in-memory-store';
@@ -98,7 +99,7 @@ function recordingOpenStore(store: StorePort = createInMemoryStore({ projects: [
     opened,
     openStore: async (databaseUrl: string) => {
       opened.push(databaseUrl);
-      return { store, close: async () => undefined };
+      return { store, transaction: (work) => work(store), close: async () => undefined };
     },
   };
 }
@@ -252,5 +253,47 @@ describe('configuration and composition boundaries', () => {
     // Assert
     expect((error as Error).message).toBe('model cannot be built');
     expect(opened).toEqual([]);
+  });
+  // Spec: api-foundation → "Configuration from the environment" and "Composition from the
+  // environment" (index-endpoint design U4).
+  it('Missing indexing variables do not stop the API', async () => {
+    // Arrange
+    const { openStore } = recordingOpenStore();
+    const environments = [
+      { DATABASE_URL },
+      { DATABASE_URL, ALLOWED_REPOS_DIR: '/repos' },
+      { DATABASE_URL, AUTHOR_HASH_SALT: 'salt' },
+      { DATABASE_URL, ALLOWED_REPOS_DIR: '   ', AUTHOR_HASH_SALT: '   ' },
+    ];
+
+    for (const env of environments) {
+      // Act
+      const composed = await composeFromEnv(env, { openStore });
+
+      // Assert
+      expect(composed.deps.indexing).toBeUndefined();
+    }
+  });
+
+  it('Both indexing variables compose the indexing dependencies', async () => {
+    // Arrange
+    const store = createInMemoryStore({ projects: [] }).store;
+    const transaction: OpenedStore['transaction'] = (work) => work(store);
+    const openStore: NonNullable<ComposeSeams['openStore']> = async () => ({ store, transaction, close: async () => undefined });
+
+    // Act
+    const composed = await composeFromEnv({ DATABASE_URL, ALLOWED_REPOS_DIR: '  /repos  ', AUTHOR_HASH_SALT: 'salt' }, { openStore });
+
+    // Assert
+    const indexing = composed.deps.indexing!;
+    expect(indexing.allowedRoot).toBe('/repos');
+    expect(indexing.analyzerName('php')).toBe('php-treesitter-laravel');
+    expect(indexing.analyzerName('typescript')).toBe('ts-compiler');
+    expect(indexing.inTransaction).toBe(transaction);
+    const php = await indexing.analyzerFor('php').analyze({ files: [{ path: 'app/A.php', content: '<?php\nclass Alpha {}\n' }] });
+    const typescript = await indexing.analyzerFor('typescript').analyze({ files: [{ path: 'src/b.ts', content: 'export class Beta {}\n' }] });
+    expect(php.symbols.map((symbol) => symbol.name)).toContain('Alpha');
+    expect(typescript.symbols.map((symbol) => symbol.name)).toContain('Beta');
+    expect(typeof indexing.git.readHistory).toBe('function');
   });
 });

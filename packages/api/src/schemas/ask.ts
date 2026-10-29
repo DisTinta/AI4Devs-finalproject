@@ -9,6 +9,7 @@ import {
   TOKEN_ESTIMATOR,
   UNKNOWN_REASONS,
 } from '@codemind/core';
+import { projectIdParamsSchema } from './common.js';
 
 // The payload of `POST /api/projects/{projectId}/ask` (DIS-78 design U1, U2): the only description
 // of it. Limits and closed sets come from `@codemind/core`, never copied (backend-standards §4).
@@ -19,16 +20,8 @@ const QUESTION_MIN = 5;
 /** Most Unicode code points of a question (`readme.md` §4). */
 const QUESTION_MAX = 500;
 
-/**
- * The form of a project id the store accepts: 8-4-4-4-12 hexadecimal digits, any letter case (D8).
- * Both cases are spelt out instead of the `i` flag, which the OpenAPI document would not publish.
- */
-const PROJECT_ID_PATTERN = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
-
 /** The path parameters of `POST /api/projects/{projectId}/ask`: the project id (D8). */
-export const askParamsSchema = z.object({
-  projectId: z.string().regex(PROJECT_ID_PATTERN).meta({ format: 'uuid' }),
-});
+export const askParamsSchema = projectIdParamsSchema;
 
 /** The path parameters of `POST /api/projects/{projectId}/ask`. */
 export type AskParams = z.infer<typeof askParamsSchema>;

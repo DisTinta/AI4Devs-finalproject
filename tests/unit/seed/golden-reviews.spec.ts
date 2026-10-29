@@ -3,12 +3,12 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { cohenKappa } from '../../../scripts/annotation-agreement.mjs';
 
-// Spec: openspec/changes/ts-await-using-golden-regen/specs/golden-answers/spec.md (DIS-107, round of the
-// golden review after the TypeScript analyzer fix; previous round DIS-33), delta of `golden-answers`:
+// Spec: openspec/changes/index-endpoint/specs/golden-answers/spec.md (DIS-9, round of the golden review
+// after the index pipeline extraction; previous rounds DIS-107 and DIS-33), delta of `golden-answers`:
 // "Blind panel input of the golden review". The independent review of the versioned golden answers is
 // done by a blind panel; this file ties the golden files, the panel files and the review report together.
 
-const INPUT_PATH = 'docs/golden-review/panel/2026-10-golden-review-dis-107-input.json';
+const INPUT_PATH = 'docs/golden-review/panel/2026-10-golden-review-dis-9-input.json';
 
 interface GoldenStatement {
   text: string;
@@ -169,15 +169,20 @@ interface Resolution {
 
 const PANEL_DIR = 'docs/golden-review/panel';
 const PANELIST_PATHS = [
-  `${PANEL_DIR}/2026-10-golden-review-dis-107-panelist-1.json`,
-  `${PANEL_DIR}/2026-10-golden-review-dis-107-panelist-2.json`,
+  `${PANEL_DIR}/2026-10-golden-review-dis-9-panelist-1.json`,
+  `${PANEL_DIR}/2026-10-golden-review-dis-9-panelist-2.json`,
 ];
-const RESOLUTION_PATH = `${PANEL_DIR}/2026-10-golden-review-dis-107-resolution.json`;
-const TASKS_PATH = 'openspec/changes/ts-await-using-golden-regen/tasks.md';
-const REPORT_PATH = 'docs/golden-review/2026-10-golden-review-dis-107.md';
-const PREVIOUS_ROUND_REPORT = 'docs/golden-review/2026-10-task-api-golden-review.md';
-const PREVIOUS_ROUND_PANELIST = `${PANEL_DIR}/2026-10-golden-review-panelist-1.json`;
-const PREVIOUS_ROUND_TASKS = 'openspec/changes/archive/2026-10-28-golden-independent-review/tasks.md';
+const RESOLUTION_PATH = `${PANEL_DIR}/2026-10-golden-review-dis-9-resolution.json`;
+const CHANGE = 'index-endpoint';
+const TASKS_PATH = `openspec/changes/${CHANGE}/tasks.md`;
+const REPORT_PATH = 'docs/golden-review/2026-10-golden-review-dis-9.md';
+/** The previous rounds, newest first: DIS-107, then DIS-33. */
+const PREVIOUS_ROUND_REPORTS = ['docs/golden-review/2026-10-golden-review-dis-107.md', 'docs/golden-review/2026-10-task-api-golden-review.md'];
+const PREVIOUS_ROUND_PANELISTS = [`${PANEL_DIR}/2026-10-golden-review-dis-107-panelist-1.json`, `${PANEL_DIR}/2026-10-golden-review-panelist-1.json`];
+const PREVIOUS_ROUND_TASKS = [
+  'openspec/changes/archive/2026-10-28-ts-await-using-golden-regen/tasks.md',
+  'openspec/changes/archive/2026-10-28-golden-independent-review/tasks.md',
+];
 
 function readJson<T>(path: string): T {
   return JSON.parse(readFileSync(resolve(path), 'utf8')) as T;
@@ -396,8 +401,12 @@ describe('golden review: panel outputs', () => {
       ['allowlist', 'sourcesRead entry outside the allowlist', (o) => o.sourcesRead.push('seeds/cache/task-api.json')],
       ['directory', 'directory entry with a trailing slash', (o) => o.sourcesRead.push('fixtures/task-api/src/')],
       ['directory', 'existing directory without a trailing slash', (o) => o.sourcesRead.push('fixtures/task-api/src')],
-      ['allowlist', 'a Linear description entry', (o) => o.sourcesRead.push('linear:DIS-107/description')],
-      ['allowlist', 'the panelist output of the previous round', (o) => o.sourcesRead.push(PREVIOUS_ROUND_PANELIST)],
+      ['allowlist', 'a Linear description entry', (o) => o.sourcesRead.push('linear:DIS-9/description')],
+      ...PREVIOUS_ROUND_PANELISTS.map((path): [string, string, (output: PanelOutput) => void] => [
+        'allowlist',
+        `the panelist output of a previous round (${path})`,
+        (o) => o.sourcesRead.push(path),
+      ]),
       ['glob', 'glob entry', (o) => o.sourcesRead.push('fixtures/task-api/src/*.ts')],
       ['dotdot', 'entry with a .. segment', (o) => o.sourcesRead.push('fixtures/task-api/../acme-shop/app/Models/Order.php')],
       ['statements', 'missing statement judgement', (o) => o.items[0]!.statements.pop()],
@@ -611,7 +620,7 @@ function changeTasksPath(): string {
   let archived: string[] = [];
   try {
     archived = readdirSync(resolve(archiveDir))
-      .filter((name) => name.endsWith('-ts-await-using-golden-regen'))
+      .filter((name) => name.endsWith(`-${CHANGE}`))
       .map((name) => `${archiveDir}/${name}/tasks.md`)
       .filter((path) => {
         try {
@@ -623,7 +632,7 @@ function changeTasksPath(): string {
   } catch {
     archived = [];
   }
-  tried.push(`${archiveDir}/*-ts-await-using-golden-regen/tasks.md`);
+  tried.push(`${archiveDir}/*-${CHANGE}/tasks.md`);
   if (archived.length !== 1) throw new Error(`expected one tasks file of the change, found ${archived.length}; tried ${tried.join(' and ')}`);
   return archived[0]!;
 }
@@ -697,7 +706,7 @@ describe('golden review: report', () => {
     for (const text of [panel.first.model, panel.first.date, panel.second.model, panel.second.date, panel.resolution.resolver]) {
       expect(panelSection, `## Panel names ${text}`).toContain(text);
     }
-    for (const entry of [...PANELIST_FILES, ...FIXTURE_PREFIXES, 'fixtures/README.md', 'seeds/', PREVIOUS_ROUND_REPORT]) {
+    for (const entry of [...PANELIST_FILES, ...FIXTURE_PREFIXES, 'fixtures/README.md', 'seeds/', ...PREVIOUS_ROUND_REPORTS]) {
       expect(panelSection, `## Panel names ${entry}`).toContain(entry);
     }
     for (const line of LIMITATIONS) expect(nonBlankLines(sections.get('Limitations') ?? ''), line).toContain(line);
@@ -716,18 +725,22 @@ describe('golden review: report', () => {
     const end = tasks.findIndex((line) => line.startsWith('**Output format.**'));
     const block = nonBlankLines(tasks.slice(start + 1, end).join('\n'));
     const criterion = nonBlankLines(sectionsOf(report).get('Criterion') ?? '');
-    const previousTasks = readFileSync(resolve(PREVIOUS_ROUND_TASKS), 'utf8').split('\n');
-    const previousStart = previousTasks.findIndex((line) => line.startsWith('**Criterion**'));
-    const previousEnd = previousTasks.findIndex((line) => line.startsWith('**Output format.**'));
-    const previousBlock = nonBlankLines(previousTasks.slice(previousStart + 1, previousEnd).join('\n'));
+    const previousBlocks = PREVIOUS_ROUND_TASKS.map((path) => {
+      const previousTasks = readFileSync(resolve(path), 'utf8').split('\n');
+      const previousStart = previousTasks.findIndex((line) => line.startsWith('**Criterion**'));
+      const previousEnd = previousTasks.findIndex((line) => line.startsWith('**Output format.**'));
+      return { path, previousStart, previousEnd, lines: nonBlankLines(previousTasks.slice(previousStart + 1, previousEnd).join('\n')) };
+    });
 
     // Assert
     expect(start).toBeGreaterThanOrEqual(0);
     expect(end).toBeGreaterThan(start);
     expect(block.every((line) => line.startsWith('- '))).toBe(true);
     expect(criterion).toEqual(block);
-    expect(previousStart).toBeGreaterThanOrEqual(0);
-    expect(previousEnd).toBeGreaterThan(previousStart);
-    expect(block, 'the criterion is the DIS-33 criterion, copied verbatim').toEqual(previousBlock);
+    for (const { path, previousStart, previousEnd, lines } of previousBlocks) {
+      expect(previousStart, path).toBeGreaterThanOrEqual(0);
+      expect(previousEnd, path).toBeGreaterThan(previousStart);
+      expect(block, `the criterion is the criterion of ${path}, copied verbatim`).toEqual(lines);
+    }
   });
 });

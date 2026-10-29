@@ -1,4 +1,4 @@
-import type { ProjectFramework } from '../knowledge/project.js';
+import type { ProjectFramework, ProjectLanguage } from '../knowledge/project.js';
 import type { AnalyzerDiagnostic } from '../ports/AnalyzerPort.js';
 import type { AuditEvent, SecretRule } from './audit-event.js';
 
@@ -92,4 +92,16 @@ export interface IndexReport {
   diagnostics: AnalyzerDiagnostic[];
   /** Every entry left out, from the source tree and from the input hygiene, ordered by path then reason (byte order). */
   skipped: SkippedEntry[];
+}
+
+/**
+ * What a reindex saved, skipped, redacted and invalidated: the {@link IndexReport} fields minus
+ * `framework` and `frameworkSource` (a reindex keeps the stored framework and detects none), plus the
+ * project's `language` and the number of answer cache entries deleted. Plain JSON-serialisable data.
+ */
+export interface ReindexReport extends Omit<IndexReport, 'framework' | 'frameworkSource'> {
+  /** Language of the stored project, which selected the analyzer. */
+  language: ProjectLanguage;
+  /** Answer cache entries of the project deleted by the reindex. */
+  cacheEntriesInvalidated: number;
 }

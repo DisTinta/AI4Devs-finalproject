@@ -31,7 +31,7 @@ Proyecto Final del Máster AI4Devs · Cristina Rodríguez Núñez
 > | Confinamiento de rutas con `startsWith` | Ya resuelto antes de la revisión | `path.relative` en `path-policy.ts` ([2.5](#25-seguridad)) |
 > | Acceso a Git detrás de un puerto | Ya resuelto antes de la revisión | `GitPort` (DIS-35) |
 > | Harness de trabajo con IA instalado en el repositorio | Ya resuelto antes de la revisión | `ai-specs/`, `.claude/`, `openspec/` ([8.1](#81-el-kit-sdd-harness-kit)) |
-> | Que el servidor no acepte rutas de repositorio | Ya resuelto antes de la revisión | El indexado es solo por la CLI local; la API no recibe rutas |
+> | Que el servidor no acepte rutas de repositorio | Ya resuelto antes de la revisión | La API no recibe rutas: solo reindexa un proyecto creado por la CLI desde su raíz guardada |
 > | Acotar el proyecto a un solo analizador | **No aplicado** | La planificación en Linear (hitos M1–M9) ya ordena las entregas: PHP en la Entrega 2 y TypeScript en la 3 |
 >
 > **Decisión (5 sep 2026).** Antes: evidencia = demo alojada + local. Ahora: **solo local**. Motivo: sin coste de hosting/dominio y un único entorno fiable el día de la revisión. Detalle en `proposal-codemind/05-propuesta-v4-evidencia-local-hibrido-ollama.md`.
@@ -615,7 +615,7 @@ AI4Devs-finalproject/
 │   ├── DEPLOYMENT.md
 │   ├── adr/                        # decisiones de arquitectura (9 ADR)
 │   ├── ai-sessions/                # sesiones con IA citadas en prompts.md
-│   ├── golden-review/              # revisión de las respuestas golden (DIS-34, DIS-33, DIS-107)
+│   ├── golden-review/              # revisión de las respuestas golden (DIS-34, DIS-33, DIS-107, DIS-9)
 │   │                               # ── del harness: se reemplazan al actualizarlo ──
 │   ├── base-standards.md
 │   ├── documentation-standards.md
@@ -1098,7 +1098,7 @@ Desde DIS-74 `explain` escribe **una fila por llamada**: en toda respuesta, tamb
 
 #### CACHE_ENTRY
 
-Sostiene F7 y el modo demo. Desde DIS-21 el acierto es **exacto por la pregunta normalizada** (`question_normalized`: descomposición NFKD, sin tildes, en minúsculas, signos y símbolos como espacios y espacios colapsados), de modo que «¿Cómo se calcula el precio final de un pedido?» y «COMO SE CALCULA EL PRECIO FINAL DE UN PEDIDO» comparten entrada; el acierto por similitud de embedding (que «explícame el cálculo del precio final» comparta entrada) llega con CM-HU-19, y hasta entonces `question_embedding` queda vacío. Hay **una entrada por proyecto y pregunta normalizada**, pero no la garantiza una clave única (no hay migración nueva): la mantiene el almacén, que al guardar bloquea el par con un *advisory lock*, borra sus entradas y escribe la nueva; si alguien escribe duplicados por fuera, la lectura toma la más reciente. `response` guarda la respuesta sin sus eventos y se valida al leerla (si no la supera, es un fallo de caché, no un error). Solo se guardan las respuestas con afirmaciones guardadas y todas vigentes, y los `UNKNOWN` `no-evidence`. `hit_count` y `last_hit_at` registran cada acierto y alimentan la métrica de acierto que se muestra en la interfaz. `invalidateCache(projectId)` borra la caché de un proyecto (la llamará el reindexado, DIS-9). Desde DIS-26, `db:seed` guarda en ella las respuestas *golden* de `seeds/cache/*.json` para los proyectos de muestra, en la misma transacción que la semilla: en cada carga se sustituyen por entradas con ids nuevos y `hit_count` 0.
+Sostiene F7 y el modo demo. Desde DIS-21 el acierto es **exacto por la pregunta normalizada** (`question_normalized`: descomposición NFKD, sin tildes, en minúsculas, signos y símbolos como espacios y espacios colapsados), de modo que «¿Cómo se calcula el precio final de un pedido?» y «COMO SE CALCULA EL PRECIO FINAL DE UN PEDIDO» comparten entrada; el acierto por similitud de embedding (que «explícame el cálculo del precio final» comparta entrada) llega con CM-HU-19, y hasta entonces `question_embedding` queda vacío. Hay **una entrada por proyecto y pregunta normalizada**, pero no la garantiza una clave única (no hay migración nueva): la mantiene el almacén, que al guardar bloquea el par con un *advisory lock*, borra sus entradas y escribe la nueva; si alguien escribe duplicados por fuera, la lectura toma la más reciente. `response` guarda la respuesta sin sus eventos y se valida al leerla (si no la supera, es un fallo de caché, no un error). Solo se guardan las respuestas con afirmaciones guardadas y todas vigentes, y los `UNKNOWN` `no-evidence`. `hit_count` y `last_hit_at` registran cada acierto y alimentan la métrica de acierto que se muestra en la interfaz. `invalidateCache(projectId)` borra la caché de un proyecto; la llama el reindexado de `POST /api/projects/{projectId}/index` (DIS-9), en la misma transacción que guarda el grafo nuevo. Desde DIS-26, `db:seed` guarda en ella las respuestas *golden* de `seeds/cache/*.json` para los proyectos de muestra, en la misma transacción que la semilla: en cada carga se sustituyen por entradas con ids nuevos y `hit_count` 0.
 
 #### Índices
 
@@ -1134,9 +1134,9 @@ Los tres índices HNSW existen desde DIS-13, pero en la Entrega 2 están vacíos
 
 ## 4. Especificación de la API
 
-La plantilla permite documentar como máximo tres endpoints. El contrato recoge los dos de producto: `POST /api/projects/{projectId}/ask`, implementado en la Entrega 2 (DIS-78), y `POST /api/projects/{projectId}/impact`, de la Entrega 3.
+La plantilla permite documentar como máximo tres endpoints. El contrato recoge los tres de producto: `POST /api/projects/{projectId}/index`, que vuelve en la Entrega 3 (DIS-9), `POST /api/projects/{projectId}/ask`, implementado en la Entrega 2 (DIS-78), y `POST /api/projects/{projectId}/impact`, de la Entrega 3.
 
-> **Alineado con el código en la Entrega 2 (DIS-101).** La versión de la Entrega 1 publicaba también `POST /api/projects/{projectId}/index`, que devolvía un `jobId` que nadie podía consultar. Se ha quitado del contrato: **el indexado es solo por la CLI local** (`npm run cli -- index`, decisión PH-01 de DIS-51), de modo que la API nunca recibe una ruta del sistema de ficheros. Tampoco hay `GET /api/projects`: la web lee los proyectos de muestra de la constante `packages/web/src/data/sample-projects.ts`, que genera `seed:build`. La API expone además `GET /health` (estado del proceso, sin límite de peticiones) y la documentación OpenAPI generada desde los esquemas Zod en `/docs` (`/docs/json`), que quedan fuera del YAML para no pasar de los tres endpoints de la plantilla.
+> **Alineado con el código (DIS-101, DIS-9).** La versión de la Entrega 1 publicaba `POST /api/projects/{projectId}/index` con un `jobId` que nadie podía consultar; DIS-101 lo quitó del contrato y DIS-9 lo devuelve con otra forma: **la API nunca recibe una ruta del sistema de ficheros: reindexa un proyecto creado por la CLI (`npm run cli -- index`, decisión PH-01 de DIS-51) desde su raíz guardada.** Crear proyectos sigue siendo solo de la CLI. El reindexado es **síncrono**: la petición no termina hasta que el grafo nuevo está guardado y la caché de respuestas del proyecto vaciada, y responde `202` con los contadores reales (desviación consciente de la regla de `docs/backend-standards.md` §6, que reserva `202` para trabajo asíncrono: el ticket fija `202`). Tampoco hay `GET /api/projects`: la web lee los proyectos de muestra de la constante `packages/web/src/data/sample-projects.ts`, que genera `seed:build`. La API expone además `GET /health` (estado del proceso, sin límite de peticiones) y la documentación OpenAPI generada desde los esquemas Zod en `/docs` (`/docs/json`), que quedan fuera del YAML para no pasar de los tres endpoints de la plantilla.
 
 ```yaml
 openapi: 3.0.3
@@ -1152,6 +1152,53 @@ servers:
     description: Local
 
 paths:
+  /api/projects/{projectId}/index:
+    post:
+      summary: Reindexa un proyecto ya creado (DIS-9)
+      description: |
+        Reconstruye el grafo del proyecto desde su raíz guardada, con su lenguaje
+        y su framework, y vacía su caché de respuestas en la misma transacción.
+        No recibe ruta, lenguaje ni framework, y no crea proyectos (eso es de la
+        CLI). Se ejecuta de forma síncrona y responde 202 con los contadores.
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: false   # un cuerpo ausente equivale a {}
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                incremental: {type: boolean}   # aceptado y sin efecto hasta DIS-10
+      responses:
+        '202':
+          description: Reindexado completado
+          content:
+            application/json:
+              example:
+                projectId: "7c1d2f3a-5b6e-4f80-9a1b-2c3d4e5f6a7b"
+                mode: "full"
+                analyzer: "php-treesitter-laravel"
+                indexedCommit: "4f028db4d51a3321031f3a24b3f36240410ed38c"
+                filesQueued: 31
+                filesSkipped: 0
+                cacheEntriesInvalidated: 1
+        '400': {description: "VALIDATION_ERROR (id mal formado, clave desconocida como rootPath o language, JSON vacío o mal formado)"}
+        '403': {description: "INDEXING_DISABLED o FORBIDDEN_PATH"}
+        '404': {description: "PROJECT_NOT_FOUND"}
+        '429': {description: "RATE_LIMITED"}
+        '500': {description: "INTERNAL"}
+        '503': {description: "NOT_A_GIT_REPOSITORY o EMPTY_REPOSITORY"}
+      # Implementado en DIS-9 (CM-HU-05b.2). `filesQueued` es el número de ficheros que escribe la
+      # instantánea y `filesSkipped` vale 0 hasta DIS-10 (reindexado incremental); `incremental: true`
+      # se acepta y da la misma respuesta. Los mensajes son fijos y los detalles `{}`: ninguna respuesta
+      # ni línea de log lleva una ruta. Un cuerpo ausente (sin `Content-Type`) es `{}`; uno declarado
+      # `application/json` y vacío responde 400.
+
   /api/projects/{projectId}/ask:
     post:
       summary: Explica cómo funciona una parte del proyecto
@@ -1339,7 +1386,17 @@ Una ruta puede declarar su propia tabla de errores de dominio, que se consulta a
 | El código del proyecto no se puede leer | 503 | `SOURCE_UNAVAILABLE` | `the project's source cannot be read` | `{ reason }` y, si la trae, `path` (relativa al repositorio) |
 | Presupuesto diario del LLM agotado | 429 | `BUDGET_EXHAUSTED` | `the daily LLM budget is exhausted` | `{ spentUsd, dailyBudgetUsd, resetsAt, cacheOnly: true }` |
 
-Fuera de `/ask`, `PROJECT_NOT_FOUND` sigue respondiendo `500 INTERNAL`: solo es un `404` donde se recibe un `projectId`.
+La de `POST /api/projects/{projectId}/index` (DIS-9) usa mensajes fijos y `details` siempre `{}`:
+
+| Situación | Estado | `code` | `message` |
+|---|---|---|---|
+| La API no tiene raíz de repositorios permitida o sal de autores (`ALLOWED_REPOS_DIR`, `AUTHOR_HASH_SALT`) | 403 | `INDEXING_DISABLED` | `indexing disabled (fixtures-only mode)` |
+| El proyecto no existe | 404 | `PROJECT_NOT_FOUND` | `project not found` |
+| La raíz guardada del proyecto queda fuera de la raíz permitida | 403 | `FORBIDDEN_PATH` | `the project's repository is outside the allowed repositories directory` |
+| El repositorio guardado ya no es un repositorio git o no tiene commits | 503 | `NOT_A_GIT_REPOSITORY` o `EMPTY_REPOSITORY` | `the project's source cannot be read` |
+| Grafo inválido, fallo de la caché o del commit, cualquier otro | 500 | `INTERNAL` | `unexpected error` |
+
+Fuera de `/ask` y `/index`, `PROJECT_NOT_FOUND` sigue respondiendo `500 INTERNAL`: solo es un `404` donde se recibe un `projectId`.
 
 Si la API no puede arrancar, escribe una sola línea `{"error":{code,message,details}}` en stderr y sale con `1`: `INVALID_CONFIG` (`details.variable`: `DATABASE_URL`, `PORT`, `HOST`, `RATE_LIMIT_MAX` o `RATE_LIMIT_WINDOW_MS`, ausente o inválida), `LLM_CONFIG_INVALID` (`details.variable` y, si falta el precio de un modelo, `details.modelVariable`), `DATABASE_UNAVAILABLE` (la base de datos no acepta la conexión) o `STARTUP_FAILED` (por ejemplo, el puerto ocupado: `details.systemCode` `EADDRINUSE`). Ojo: para `DATABASE_URL` ausente la API responde `INVALID_CONFIG`, mientras que el CLI responde `MISSING_CONFIG`. La línea nunca contiene el valor de una variable.
 
