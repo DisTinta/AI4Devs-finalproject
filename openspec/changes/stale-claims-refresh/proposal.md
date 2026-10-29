@@ -50,7 +50,8 @@ None.
   call, the refresh's included.
 - `graph-store`: new requirement "Claim refresh" (`refreshClaim`).
 - `golden-answers`: the current review round becomes DIS-42 (input, panel outputs, report, criterion
-  and immutable record), DIS-9 joining the previous rounds.
+  and immutable record), DIS-9 and the two DIS-10 rounds (DIS-10 and DIS-10 r2, merged into the base
+  before this round's panel) joining the previous rounds.
 
 ## Impact
 
