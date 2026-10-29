@@ -297,7 +297,13 @@ Verified against `package.json` (root and per package). If a command is not here
 - **Web tests (DIS-58).** Next to the code: `packages/web/src/**/*.test.ts(x)`. Only
   `packages/web/**/*.test.tsx` and `tests/a11y/**` run in **jsdom** (the `dom` project of `test.projects` in `vitest.config.ts`, DIS-105; each project has `extends: true`); every
   other test, the web's `.test.ts` files included (API client, theme), stays in Node — under jsdom the
-  global `AbortSignal` is jsdom's while `fetch` stays Node's, and Node's `fetch` rejects it. The setup
+  global `AbortSignal` is jsdom's while `fetch` stays Node's, and Node's `fetch` rejects it.
+  `tests/harness/**` is the `harness` project (DIS-111). On Windows only it has `maxWorkers: 2` and
+  `sequence.groupOrder: 1`, so the kit's hook tests run after every other project with two workers
+  (the full suite takes about 25 min instead of 9): under the full suite's parallel load a few of them
+  went past their timeouts (they pass alone and on CI; DIS-9 E28), and running them one by one would
+  take about 48 min. On Linux (CI) they run alongside the rest, as before: running them last made the
+  `quality` job exceed its 10-minute limit. The setup
   file `tests/support/jsdom-setup.ts` (guarded by `'document' in globalThis`) unmounts after every
   jsdom test (RTL's auto-cleanup needs Vitest `globals`, off here) and replaces `Request` with a
   subclass that drops `init.signal`, because React Router builds `new Request(url, { signal })` on
