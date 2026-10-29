@@ -13,6 +13,8 @@
     "@codemind/adapter-git": "*",
     "@codemind/adapter-llm": "*",
     "@codemind/adapter-store-postgres": "*",
+    "@codemind/analyzer-php": "*",
+    "@codemind/analyzer-typescript": "*",
     "@codemind/core": "*",
     "@fastify/rate-limit": "^11.2.1",
     "@fastify/swagger": "^9.9.2",

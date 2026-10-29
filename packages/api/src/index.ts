@@ -6,7 +6,7 @@
  *
  * @module
  */
-export { buildApp, BODY_LIMIT_BYTES, serializeRequest, type AppDeps, type AppOptions, type LoggedRequest } from './app.js';
+export { buildApp, BODY_LIMIT_BYTES, serializeRequest, type AppDeps, type AppOptions, type IndexingDeps, type LoggedRequest } from './app.js';
 export {
   API_APPLICATION_NAME,
   apiConfigFromEnv,
@@ -36,3 +36,12 @@ export {
   type AskUsage,
 } from './schemas/ask.js';
 export { registerAskRoute, type AskRouteOptions } from './routes/ask.js';
+export {
+  reindexBodySchema,
+  reindexParamsSchema,
+  reindexResponseSchema,
+  type ReindexBody,
+  type ReindexParams,
+  type ReindexResponse,
+} from './schemas/reindex.js';
+export { registerReindexRoute, type ReindexRouteOptions } from './routes/reindex.js';

@@ -1,12 +1,14 @@
 import { fileURLToPath } from 'node:url';
-import { createGitSourceTree } from '@codemind/adapter-git';
+import { createGitSourceTree, createSimpleGitHistory } from '@codemind/adapter-git';
 import { createLlm, llmConfigFromEnv } from '@codemind/adapter-llm';
 import type { LlmConfig } from '@codemind/adapter-llm';
 import { openPostgresStore } from '@codemind/adapter-store-postgres';
 import type { OpenedStore } from '@codemind/adapter-store-postgres';
+import { createPhpAnalyzer, PHP_EXTRACTOR } from '@codemind/analyzer-php';
+import { createTypeScriptAnalyzer, TS_COMPILER_EXTRACTOR } from '@codemind/analyzer-typescript';
 import { withDailyBudget } from '@codemind/core';
-import type { LlmPort, SourceTreePort } from '@codemind/core';
-import type { AppDeps } from './app.js';
+import type { LlmPort, ProjectLanguage, SourceTreePort } from '@codemind/core';
+import type { AppDeps, IndexingDeps } from './app.js';
 
 /** `application_name` of the API's sessions, so they can be observed in `pg_stat_activity`. */
 export const API_APPLICATION_NAME = 'codemind-api';
@@ -86,6 +88,28 @@ export function apiConfigFromEnv(env: Environment): ApiConfig {
   return { databaseUrl, port, host, rateLimit: { max, windowMs } };
 }
 
+/** The two optional variables that enable indexing, both trimmed and non-empty. */
+export interface IndexingConfig {
+  /** The allowed repositories root (`ALLOWED_REPOS_DIR`). */
+  allowedRoot: string;
+  /** The salt of the author hashes of the history (`AUTHOR_HASH_SALT`). */
+  authorHashSalt: string;
+}
+
+/**
+ * Reads the two optional indexing variables, each trimmed. It never throws: when either is unset or
+ * empty after trimming the API simply has no indexing (the route answers `INDEXING_DISABLED`). A
+ * relative `ALLOWED_REPOS_DIR` resolves against the process working directory, as in the CLI.
+ *
+ * @param env The environment.
+ * @returns Both values, or `undefined` when either is missing.
+ */
+export function indexingConfigFromEnv(env: Environment): IndexingConfig | undefined {
+  const allowedRoot = env.ALLOWED_REPOS_DIR?.trim() ?? '';
+  const authorHashSalt = env.AUTHOR_HASH_SALT?.trim() ?? '';
+  return allowedRoot === '' || authorHashSalt === '' ? undefined : { allowedRoot, authorHashSalt };
+}
+
 /** The test seams of {@link composeFromEnv}; each defaults to the real adapter. */
 export interface ComposeSeams {
   /** Opens the store on `DATABASE_URL`. Defaults to `openPostgresStore` with the application name `codemind-api`. */
@@ -127,10 +151,21 @@ export async function composeFromEnv(env: Environment, seams: ComposeSeams = {})
   const source = seams.source ?? createGitSourceTree();
   const now = seams.now ?? (() => new Date());
   const openStore = seams.openStore ?? ((url: string) => openPostgresStore(url, { applicationName: API_APPLICATION_NAME }));
-  const { store, close } = await openStore(config.databaseUrl);
+  const { store, transaction, close } = await openStore(config.databaseUrl);
   const llm =
     llmConfig.mode === 'live' && llmConfig.dailyBudgetUsd !== undefined
       ? withDailyBudget(model, { store, dailyBudgetUsd: llmConfig.dailyBudgetUsd, now })
       : model;
-  return { config, deps: { store, llm, source, now, workspaceRoot: REPO_ROOT }, close };
+  const indexingConfig = indexingConfigFromEnv(env);
+  const indexing: IndexingDeps | undefined =
+    indexingConfig === undefined
+      ? undefined
+      : {
+          allowedRoot: indexingConfig.allowedRoot,
+          git: createSimpleGitHistory({ authorHashSalt: indexingConfig.authorHashSalt }),
+          analyzerFor: (language: ProjectLanguage) => (language === 'typescript' ? createTypeScriptAnalyzer() : createPhpAnalyzer()),
+          analyzerName: (language: ProjectLanguage) => (language === 'typescript' ? TS_COMPILER_EXTRACTOR : PHP_EXTRACTOR),
+          inTransaction: transaction,
+        };
+  return { config, deps: { store, llm, source, now, workspaceRoot: REPO_ROOT, ...(indexing !== undefined && { indexing }) }, close };
 }

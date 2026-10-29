@@ -477,6 +477,10 @@ Verified against `package.json` (root and per package). If a command is not here
   scenarios' "a use case that…" is the `explain` seam of `buildApp`), `route-errors.spec.ts` builds its own app for
   a per-route error table, and `tests/integration/api/ask.spec.ts` runs `/ask` over the seed in
   Postgres (template of `tests/integration/cli/ask-command.spec.ts`).
+  Since DIS-9, `tests/unit/index/reindex-project.spec.ts` (core use case over fakes),
+  `tests/unit/api/reindex.spec.ts` (`/index` over doubles with a recording log) and
+  `tests/integration/api/reindex.spec.ts` (over the seed, the harness transaction as the unit of
+  work); `store/open-store.spec.ts` also covers the transaction runner and deletes what it commits.
 - Test data comes from `fixtures/` (`acme-shop`, `task-api`, `history`, `build-history.mjs`) and
   `seeds/graph-dump.sql`. `fixtures/**` is excluded from Vitest collection.
 - **PH-22 — fixtures are an analyzer's input, never test-writable (DIS-47, DIS-30).** `createPhpAnalyzer()`
@@ -592,7 +596,8 @@ Verified against `package.json` (root and per package). If a command is not here
   `authorHashSaltFromEnv(process.env)`; `createSimpleGitHistory({ authorHashSalt })` takes it as a
   parameter.
 - LLM behaviour follows **Closed product decisions** above (optional credentials, evaluation mode).
-- `ALLOWED_REPOS_DIR` empty = indexing disabled (fixtures-only mode). Indexing only runs inside that
+- `ALLOWED_REPOS_DIR` empty = indexing disabled (fixtures-only mode); the API reads it too since DIS-9
+  (with `AUTHOR_HASH_SALT`, for `POST /api/projects/{projectId}/index`). Indexing only runs inside that
   root. It must be a directory **only the user running Codemind can write to**, holding only trusted
   repositories: whoever can write inside it can swap a directory of a repository path for a link
   between the confinement check and git's read, or point git at objects outside the root with a
@@ -1279,6 +1284,26 @@ services that must be started first, quirks of the local environment.
   forwards `useCache` only when sent; a cached question answers `200` (`usage.cacheHit: true`) even
   with the daily budget spent, and evaluation mode answers from the cache when an entry exists. `AppOptions.explain`
   replaces the use case: a test seam only, as `AskCommandDeps.explain` in the CLI.
+  **`POST /api/projects/{projectId}/index`** (DIS-9, `routes/reindex.ts`, `schemas/reindex.ts`) is the
+  third product route: it **re-indexes a project that already exists** from its stored `root_path`,
+  language and framework (it never receives a path, a language or a framework; body
+  `z.strictObject({ incremental? })`, accepted and without effect until DIS-10; a request with no body
+  is `{}`, through a `preValidation` hook), runs `reindexProject` (`packages/core/src/index/reindex-project.ts`,
+  which shares `confineRepository` and `buildSnapshot` with `indexRepository`) to completion inside the
+  request and answers `202` with the counters (a recorded deviation from backend-standards §6). The
+  graph save and `invalidateCache` run in **one transaction** through `OpenedStore.transaction`, the
+  transaction runner of the pooled store (`open-store.ts`: connect, `BEGIN`, a store bound to the
+  client, `COMMIT`/`ROLLBACK`, release); core sees it as a plain `inTransaction` function. It has its
+  own domain error table `REINDEX_DOMAIN_ERRORS` (fixed messages, details `{}`: `INDEXING_DISABLED`
+  and `FORBIDDEN_PATH` `403`, `PROJECT_NOT_FOUND` `404`, `NOT_A_GIT_REPOSITORY`/`EMPTY_REPOSITORY`
+  `503`; an invalid graph is `500 INTERNAL`), logs `reindex completed` with counters only and
+  publishes `requestBody.required: false` in `/docs` (a `transformObject` in `plugins/openapi.ts`).
+  `AppDeps.indexing?` (`IndexingDeps`) is composed only when **both** `ALLOWED_REPOS_DIR` and
+  `AUTHOR_HASH_SALT` are set (the API reads them, optional, never failing start-up; give an absolute
+  `ALLOWED_REPOS_DIR`, a relative one resolves against the process cwd `packages/api`); absent means
+  `INDEXING_DISABLED`. `AppOptions.reindex` replaces the use case: a test seam only. The API now
+  depends on `@codemind/analyzer-php` and `@codemind/analyzer-typescript`. Reindexing a sample project
+  changes its seed fingerprint until `npm run db:seed` restores it.
   `composition.ts` is the API's only reader of `env` (`apiConfigFromEnv` → `INVALID_CONFIG`, then
   `llmConfigFromEnv`, then the store). **No `pg` in `packages/api`** (`api-no-sql`): the store
   comes from `openPostgresStore(url, { applicationName: 'codemind-api' })` of

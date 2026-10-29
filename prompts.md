@@ -83,6 +83,7 @@
 66. [Anotación de sitios de llamada por un panel de agentes, congelada por hash (DIS-80)](#66-anotación-de-sitios-de-llamada-por-un-panel-de-agentes-congelada-por-hash-dis-80)
 67. [Revisión independiente de las golden por un panel de agentes (DIS-33)](#67-revisión-independiente-de-las-golden-por-un-panel-de-agentes-dis-33)
 68. [Corrección de `await using` en el analizador de TypeScript y nueva ronda del panel (DIS-107)](#68-corrección-de-await-using-en-el-analizador-de-typescript-y-nueva-ronda-del-panel-dis-107)
+69. [Endpoint `POST /api/projects/{id}/index`: reindexado de un proyecto existente (DIS-9)](#69-endpoint-post-apiprojectsidindex-reindexado-de-un-proyecto-existente-dis-9)
 
 ---
 
@@ -5288,3 +5289,18 @@ Run /opsx:apply on change ts-await-using-golden-regen: every task in TDD, markin
 **Por qué funcionó.** El criterio del panel se copió literal de DIS-33 y se fijó, con las listas de fuentes y el formato, antes de que existiera la entrada del panel; los validadores ya retargeteados a la ronda de DIS-107 aceptaron los tres ficheros del panel sin tocarlos, y el informe se completó contra reglas ya cerradas.
 
 **Ajuste humano.** Ninguno: ejecución autónoma (texto del agente). La corrección es una condición de `symbols.ts`; el panel coincidió en seis de siete veredictos y el resolutor decidió el séptimo (acme-shop Q3, `partial`); ninguna golden salió `incorrect`, así que no hay pendientes. El clasificador denegó los comentarios del agente en DIS-108 y DIS-109, y quedan para la autora.
+
+# 69. Endpoint `POST /api/projects/{id}/index`: reindexado de un proyecto existente (DIS-9)
+
+### Prompt 1 — Aplicar el cambio dentro del workflow autónomo
+
+El script del workflow envió a este paso, entre otras reglas, este texto literal:
+
+```
+Ticket: DIS-9. Branch: feature/dis-9-index-endpoint. Change: openspec/changes/index-endpoint. Step: apply.
+Run /opsx:apply on change index-endpoint: every task in TDD (failing test first, then implementation, in the layer order), marking tasks.md as you go, with the mandatory verification steps. Run the tests, lint and typecheck. Commit, push and open the PR to final-project-CRN with /pr-describe (write the "why" yourself and mark it as agent-written). Return pr.
+```
+
+**Por qué funcionó.** El `tasks.md` ya traía el orden de capas (extraer la tubería compartida bajo la red de seguridad existente, caso de uso, ejecutor de transacción del almacén, esquemas y ruta, composición, integración sobre la semilla) y el nombre de cada test existente que cambia, así que la protección de tests existentes no denegó nada y cada escenario del spec tiene un test con su mismo nombre.
+
+**Ajuste humano.** Ninguno: ejecución autónoma (texto del agente). Quedan para la autora la comprobación en PowerShell (E13) y la nueva revisión independiente de las respuestas golden regeneradas (E16).

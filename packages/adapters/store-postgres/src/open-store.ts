@@ -5,6 +5,9 @@ import { createPostgresStore } from './postgres-store.js';
 /** How long the probe connection waits for the database to accept it. */
 const CONNECTION_TIMEOUT_MS = 10_000;
 
+/** The message of the error a failed commit rejects with; the driver's text never reaches it. */
+const COMMIT_FAILED_MESSAGE = 'the transaction could not be committed';
+
 /** The database did not accept a connection. Its message never holds the driver's text, host, port or credentials. */
 export class DatabaseUnavailable extends Error {
   constructor() {
@@ -17,6 +20,13 @@ export class DatabaseUnavailable extends Error {
 export interface OpenedStore {
   /** The store, each write committing on its own pooled connection. */
   store: StorePort;
+  /**
+   * Runs `work` in one transaction of the pool: takes one connection, begins, gives `work` a store
+   * bound to that transaction, then commits when `work` resolves or rolls back when it rejects. The
+   * connection is released in every case. A failed rollback never hides the error of `work`; a
+   * failed commit rejects with a fixed message, never the driver's.
+   */
+  transaction<T>(work: (store: StorePort) => Promise<T>): Promise<T>;
   /** Ends every connection of the pool. */
   close(): Promise<void>;
 }
@@ -53,5 +63,28 @@ export async function openPostgresStore(databaseUrl: string, options: OpenStoreO
     await pool.end().catch(() => undefined);
     throw new DatabaseUnavailable();
   }
-  return { store: createPostgresStore({ pool }), close: () => pool.end() };
+  const transaction = async <T>(work: (store: StorePort) => Promise<T>): Promise<T> => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      let result: T;
+      try {
+        result = await work(createPostgresStore({ transaction: client }));
+      } catch (error) {
+        // The first error wins: a rollback that fails too (a lost connection) must not hide it.
+        await client.query('ROLLBACK').catch(() => undefined);
+        throw error;
+      }
+      try {
+        await client.query('COMMIT');
+      } catch {
+        await client.query('ROLLBACK').catch(() => undefined);
+        throw new Error(COMMIT_FAILED_MESSAGE);
+      }
+      return result;
+    } finally {
+      client.release();
+    }
+  };
+  return { store: createPostgresStore({ pool }), transaction, close: () => pool.end() };
 }
