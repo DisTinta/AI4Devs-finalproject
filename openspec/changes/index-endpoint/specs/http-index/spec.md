@@ -218,7 +218,7 @@ path, the allowed repositories root, any file path of the repository nor any fil
 
 The OpenAPI document of the API SHALL list `POST /api/projects/{projectId}/index` with the path
 parameter `projectId` (required, a string of format `uuid`), the request body generated from its
-schema and not required, the `202` response generated from its schema, and the error responses `400`, `403`, `404`,
+schema and not required (`requestBody.required` `false`), the `202` response generated from its schema, and the error responses `400`, `403`, `404`,
 `429`, `500` and `503` in the error format.
 
 #### Scenario: The document lists index with its parameter, body and responses
@@ -228,6 +228,6 @@ schema and not required, the `202` response generated from its schema, and the e
 - **THEN** `paths` has `/api/projects/{projectId}/index` with a `post` operation whose parameters
   include `projectId` in `path`, required, of type `string` and format `uuid`; whose request body
   schema has `additionalProperties` `false`, no `required` key and only the property `incremental`
-  of type `boolean`, and whose `requestBody.required` is absent or `false`; whose `202` response schema has the properties `projectId`, `mode`, `analyzer`,
+  of type `boolean`, and whose `requestBody.required` is `false`; whose `202` response schema has the properties `projectId`, `mode`, `analyzer`,
   `indexedCommit`, `filesQueued`, `filesSkipped` and `cacheEntriesInvalidated`; and whose responses
   include `400`, `403`, `404`, `429`, `500` and `503`

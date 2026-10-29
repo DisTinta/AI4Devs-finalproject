@@ -496,3 +496,36 @@ In "Every connection is released after a run", replace "THEN no session…" with
 > Mejoras: redacción de la composición en `proposal.md` (no hay segundo árbol de fuentes, E23), `ALLOWED_REPOS_DIR` relativo, tareas 3.1 (son tres `it` existentes), 3.3 (`close()` en 2 s), 11.2 (forzar modo evaluación) y 11.4 (límite de peticiones tras el último reinicio).
 >
 > Siguen pendientes para la autora (C): comprobación en PowerShell (E13), revisión de las golden regeneradas (E16) y cierre de DIS-6 (E18).
+
+---
+
+## Resolution of run 2
+
+*Agent's text: correction round 2 of the autonomous run (`docs/AUTONOMOUS-RUN.md` §6), done by the agent as lead engineer without the author. The new decisions are E25 and E26 in `design.md` → Follow-ups, with their A/B/C/D destination, and in a Spanish comment on DIS-9. `openspec validate index-endpoint --strict` passes after the edits.*
+
+### Questions for the author
+
+Run 2 raised none. The destination-C items stay as they were: the PowerShell check (E13), the new review of the regenerated golden entries (E16) and closing DIS-6 (E18).
+
+### Blocking findings
+
+| Finding | Resolution |
+|---|---|
+| B1 (`requestBody.required` cannot be absent or `false`) | Decided by the agent and fixed, E25 (A). Checked against `node_modules/@fastify/swagger/lib/spec/openapi/utils.js` l. 482-486: the claim holds. The body stays declared by schema, and `registerOpenApi` gains a generic `transformObject` that sets `requestBody.required = false` only on operations whose `application/json` body schema has no `required` key, so `/ask` keeps `required: true` and `tests/unit/api/health-docs.spec.ts` stays unedited. Design U5 replaces the false premise; the `http-index` OpenAPI requirement and its scenario now name `requestBody.required` `false` (no longer "absent or `false`"); proposal What Changes and Impact name `plugins/openapi.ts`; task 5.6 implements the transform; task 9.4 adds the file to `--mutate`. Rejected alternatives: validating in the handler (breaks the schema-validation pattern) and dropping the clause (the document would contradict E19). |
+
+### Improvable findings
+
+| Finding | Resolution |
+|---|---|
+| Point 5, relative `ALLOWED_REPOS_DIR` | Decided by the agent and fixed, E26 (A): the existing behaviour is kept (resolved against the process working directory, as the CLI does) and stated in `api-foundation` "Configuration from the environment" and design U4; task 13.2 makes the `.env.example` comment ask for an absolute path, and task 11.2 uses an absolute one. Resolving against `workspaceRoot` was rejected: it would make the API and the CLI read the same value differently. |
+| Point 6, composition wording in the proposal | Fixed: What Changes → Composition now lists the Git history reader, the analyzer and extractor name of each language and the transaction runner, and says the existing source tree is reused (E23). |
+| Point 6, design U5's false premise | Fixed with B1. |
+| Point 8, task 3.1 counts two existing `it`s | Fixed: "the three existing ones untouched" (`open-store.spec.ts` l. 40, 64, 84). |
+| Point 9, the `transformObject` in its own sub-step | Fixed: it sits in task 5.6, not in 5.3. |
+| Point 10, task 11.4 rate limit | Fixed: every restart keeps `RATE_LIMIT_MAX=8` and the empty `LLM_*`; after the last restart, nine requests within 60 s and the ninth answers `429` `RATE_LIMITED`. |
+| Point 10, tasks 11.2/11.3 model mode | Fixed: task 11.2 sets `LLM_BASE_URL=`, `LLM_MODEL=` and `LLM_API_KEY=` empty for the command (evaluation mode). |
+| Point 10, task 3.3 connection release | Fixed: the `graph-store` scenario "Every connection is released after a run" now says `close()` resolves within 2 s, and task 3.3 repeats it. |
+
+### Linear
+
+The Spanish comment of this round is posted on DIS-9. The `[enhanced]` description is not edited; E25 and E26 live in `design.md` → Follow-ups and in that comment.

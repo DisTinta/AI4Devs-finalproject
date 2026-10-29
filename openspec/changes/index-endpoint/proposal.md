@@ -39,9 +39,13 @@ Follow-ups with their A/B/C/D destination.)*
 - **Store adapter**: the pooled store (`openPostgresStore`) gains a way to run work on a store bound to
   one transaction of the pool (`BEGIN`/`COMMIT`/`ROLLBACK`, connection always released).
 - **Composition**: the API reads `ALLOWED_REPOS_DIR` and `AUTHOR_HASH_SALT` **without making them
-  required** (E8): with both set it composes the indexing dependencies (Git source tree and history,
-  the analyzer of each language, the transaction runner); with either missing the API still starts
-  and the route answers `403` `INDEXING_DISABLED`.
+  required** (E8): with both set it composes the indexing dependencies (the Git history reader, the
+  analyzer and extractor name of each language, the transaction runner; the existing source tree is
+  reused, E23); with either missing the API still starts and the route answers `403`
+  `INDEXING_DISABLED`. A relative `ALLOWED_REPOS_DIR` resolves against the process working directory,
+  as in the CLI (E26).
+- **OpenAPI document**: a generic document transform publishes `requestBody.required: false` for
+  operations whose JSON body has no required key, so the index body appears as optional (E25).
 - **Log**: one `info` line per completed reindex with counters and duration, never a path nor file
   content.
 - **Docs**: `readme.md` §4 gets `/index` back as its third endpoint (body without paths) and the
@@ -72,7 +76,8 @@ Follow-ups with their A/B/C/D destination.)*
 - Code: `packages/core/src/index/` (new `reindex-project.ts`, the pipeline extracted from
   `index-repository.ts`), `packages/adapters/store-postgres/src/open-store.ts`,
   `packages/analyzers/php/src/index.ts` (exports `PHP_EXTRACTOR`), `packages/api/src/` (new
-  `schemas/reindex.ts`, `routes/reindex.ts`; `app.ts`, `composition.ts`, `index.ts`),
+  `schemas/reindex.ts`, `routes/reindex.ts`; `app.ts`, `composition.ts`, `index.ts`,
+  `plugins/openapi.ts` with a `transformObject` for non-required bodies, E25),
   `packages/api/package.json` (the two workspace analyzer packages become dependencies of the API;
   no external dependency is added).
 - Versioned data: `seeds/graph-dump.sql`, `seeds/cache/acme-shop.json` and `seeds/cache/task-api.json`

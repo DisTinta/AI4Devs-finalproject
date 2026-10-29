@@ -38,4 +38,4 @@ connections before the commit, and none SHALL remain after a rollback.
 
 - **GIVEN** a reachable, migrated database and a store opened on its URL with a unique application name
 - **WHEN** one run that resolves and one that rejects have finished and the store is closed
-- **THEN** no session with that application name remains (polled for up to 2 s)
+- **THEN** `close()` resolves within 2 s and no session with that application name remains (polled for up to 2 s)

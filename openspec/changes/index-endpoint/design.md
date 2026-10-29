@@ -121,7 +121,10 @@ is recorded as decision E21 (D).
 
 - New `indexingConfigFromEnv(env)`: trimmed `ALLOWED_REPOS_DIR` and `AUTHOR_HASH_SALT`; returns
   `undefined` when either is blank. It never throws, and `ApiConfig`/`apiConfigFromEnv` do not change
-  (so their existing tests do not change).
+  (so their existing tests do not change). A relative `ALLOWED_REPOS_DIR` resolves against the
+  process working directory (`confinePath`, `path-policy.ts`), as in the CLI; since
+  `npm -w packages/api run dev` runs with cwd `packages/api`, the comment of `.env.example` asks for
+  an absolute path (E26).
 - `AppDeps` gains an **optional** `indexing?: IndexingDeps`:
   `{ allowedRoot: string; git; analyzerFor(language); analyzerName(language); inTransaction }`.
   Optional so `tests/unit/api/support.ts` → `defaultDeps()` and `app.spec.ts` stay as they are, and
@@ -155,8 +158,15 @@ debt only if a third caller appears.
   schema validation then sees `{}`. Fastify validates after `preValidation`, so the strict schema is
   unchanged. A body declared `application/json` but empty never reaches the hook: Fastify's parser
   fails with `FST_ERR_CTP_EMPTY_JSON_BODY`, which the error handler already answers `400`
-  `VALIDATION_ERROR`. The OpenAPI operation leaves `requestBody.required` absent or `false` (the
-  schema has no required key).
+  `VALIDATION_ERROR`.
+- **`requestBody.required` in the document** (E25): `@fastify/swagger` (9.9.2,
+  `lib/spec/openapi/utils.js` l. 482-486) always writes `requestBody.required: true` for a route with
+  `schema.body`, whatever the schema says. `registerOpenApi` (`packages/api/src/plugins/openapi.ts`)
+  therefore gains a `transformObject` that sets `requestBody.required = false` on every operation
+  whose `application/json` body schema has no `required` key (or an empty one), and changes nothing
+  else in the document. `/ask`'s body requires `question`, so its operation keeps `required: true`
+  and `tests/unit/api/health-docs.spec.ts` stays unedited. The index operation's body
+  (`{ incremental? }`) has no required key, so it is published with `requestBody.required: false`.
 - `reindexResponseSchema` (`202`): `projectId` (string), `mode` (`z.literal('full')`), `analyzer`
   (string), `indexedCommit` (string), `filesQueued`, `filesSkipped`, `cacheEntriesInvalidated`
   (integers).
@@ -297,3 +307,11 @@ and its open decisions.*
 | E22 | The `RangeError` guard for a non-absolute `workspaceRoot` is spec'd in the `enabled` step with its own scenario (task 2.4 no longer orphan). `buildSnapshot` takes `{ framework?, detectFramework }`; the reindex passes `detectFramework: false`, so a project stored without a framework keeps none. `confineRepository` separates the confined path from the name in `ForbiddenPathError` (U1, U2). | A |
 | E23 | `AppDeps.source` is reused as the indexing source tree; `IndexingDeps` holds no second one (U4). | A |
 | E24 | The branch is `feature/dis-9-index-endpoint` (lowercase), while `docs/project-context.md` writes `feature/DIS-n-slug`. The branch already exists with commits; it is kept and only recorded. | D — recorded |
+
+*Agent's text: decisions of correction round 2 of the spec audit (`reports/2026-10-29-spec-audit.md`,
+run 2), taken by the agent as lead engineer without the author.*
+
+| Id | Decision | Destination |
+|---|---|---|
+| E25 | (run-2 B1) `@fastify/swagger` 9.9.2 always publishes `requestBody.required: true` for a route with `schema.body`. The body stays declared by schema (the project's validation pattern) and a generic `transformObject` in `packages/api/src/plugins/openapi.ts` sets `requestBody.required = false` on operations whose JSON body schema has no required key; `/ask`'s document does not change (U5). The file joins the Stryker `--mutate` list. Rejected: validating in the handler (breaks the schema-validation pattern) and dropping the clause (the document would contradict E19). | A |
+| E26 | (run 2, improvable) A relative `ALLOWED_REPOS_DIR` keeps resolving against the process working directory, as the CLI does today (`confinePath`); it is stated in `api-foundation` and U4, and `.env.example` asks for an absolute path. Resolving it against `workspaceRoot` instead was rejected: it would make the API and the CLI read the same value differently and change existing code beyond the ticket. | A |

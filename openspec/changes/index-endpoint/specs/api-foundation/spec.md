@@ -25,7 +25,8 @@ connection is opened.
 It SHALL also read the two indexing variables, each trimmed, which are **optional** and SHALL never
 fail start-up: `ALLOWED_REPOS_DIR` (the allowed repositories root) and `AUTHOR_HASH_SALT` (the salt of
 the author hashes of the history). When either is unset or empty after trimming, indexing is disabled
-(requirement "Composition from the environment").
+(requirement "Composition from the environment"). A relative `ALLOWED_REPOS_DIR` is resolved against
+the process working directory, as the CLI does.
 
 #### Scenario: Defaults apply to unset and empty variables
 
