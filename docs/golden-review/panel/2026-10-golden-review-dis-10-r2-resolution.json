@@ -1,0 +1,23 @@
+{
+  "resolver": "claude-opus-5-5",
+  "date": "2026-10-29",
+  "sourcesRead": [
+    "openspec/changes/incremental-indexing/tasks.md",
+    "docs/golden-review/panel/2026-10-golden-review-dis-10-r2-panelist-1.json",
+    "docs/golden-review/panel/2026-10-golden-review-dis-10-r2-panelist-2.json",
+    "docs/golden-review/panel/2026-10-golden-review-dis-10-r2-input.json",
+    "fixtures/acme-shop/app/Services/CouponValidator.php"
+  ],
+  "items": [
+    {
+      "project": "acme-shop",
+      "id": "Q3",
+      "verdict": "partial",
+      "justification": "The answer is true and statement 1 (FACT) is true: percentFor checks the empty code, the active flag and the expiry (fixtures/acme-shop/app/Services/CouponValidator.php:18, fixtures/acme-shop/app/Services/CouponValidator.php:24, fixtures/acme-shop/app/Services/CouponValidator.php:28). Statement 2 (FACT) is overtyped: isRedeemable only returns percentFor(...) > 0.0 (fixtures/acme-shop/app/Services/CouponValidator.php:37), so 'verifies the code is valid' is an inference, not stated literally (an active, unexpired coupon with percent_off 0 would not be redeemable). One error out of two statements and no false FACT, so the verdict is partial.",
+      "cites": [
+        "fixtures/acme-shop/app/Services/CouponValidator.php:24",
+        "fixtures/acme-shop/app/Services/CouponValidator.php:37"
+      ]
+    }
+  ]
+}
