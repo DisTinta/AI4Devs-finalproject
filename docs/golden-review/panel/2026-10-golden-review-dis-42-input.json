@@ -1,0 +1,233 @@
+{
+  "items": [
+    {
+      "project": "task-api",
+      "id": "Q1",
+      "kind": "golden",
+      "question": "¿Cómo valida taskRoutes las peticiones entrantes?",
+      "answer": "taskRoutes no valida las peticiones entrantes por sí misma, sino que las valida a través de esquemas definidos en las rutas.",
+      "statements": [
+        {
+          "n": 1,
+          "text": "Las rutas 'taskRoutes' definen esquemas para los parámetros y el cuerpo de las peticiones utilizando 'schema'",
+          "type": "FACT",
+          "evidence": [
+            1
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "n": 1,
+          "path": "src/routes/tasks.routes.ts",
+          "startLine": 15,
+          "endLine": 31
+        }
+      ]
+    },
+    {
+      "project": "task-api",
+      "id": "Q2",
+      "kind": "golden",
+      "question": "¿Qué hace buildPage con los resultados paginados?",
+      "answer": "buildPage organiza los resultados paginados en una estrutura de página.",
+      "statements": [
+        {
+          "n": 1,
+          "text": "buildPage recibe una lista de elementos, el número total de elementos, la página actual y el tamaño de la página.",
+          "type": "FACT",
+          "evidence": [
+            1
+          ]
+        },
+        {
+          "n": 2,
+          "text": "buildPage devuelve los elementos, el número total, la página, el tamaño de la página y el número de páginas totales.",
+          "type": "FACT",
+          "evidence": [
+            2
+          ]
+        },
+        {
+          "n": 3,
+          "text": "buildPage se utiliza en el repositorio InMemoryTaskRepository para construir la página de resultados paginados de tareas.",
+          "type": "FACT",
+          "evidence": [
+            3
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "n": 1,
+          "path": "src/domain/pagination.ts",
+          "startLine": 13,
+          "endLine": 21
+        },
+        {
+          "n": 2,
+          "path": "src/domain/pagination.ts",
+          "startLine": 13,
+          "endLine": 21
+        },
+        {
+          "n": 3,
+          "path": "src/repositories/in-memory-task.repository.ts",
+          "startLine": 24,
+          "endLine": 32
+        }
+      ]
+    },
+    {
+      "project": "task-api",
+      "id": "Q3",
+      "kind": "golden",
+      "question": "¿Qué transiciones de estado son válidas?",
+      "answer": "Las transiciones de estado válidas se determinan por la función `canTransition` que verifica si el estado actual puede transitar al estado siguiente.",
+      "statements": [
+        {
+          "n": 1,
+          "text": "La función `canTransition` se define en 'src/domain/task-status.ts' y verifica si el estado actual puede transitar al estado siguiente usando el objeto `TRANSITIONS`.",
+          "type": "FACT",
+          "evidence": [
+            1
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "n": 1,
+          "path": "src/domain/task-status.ts",
+          "startLine": 25,
+          "endLine": 27
+        }
+      ]
+    },
+    {
+      "project": "task-api",
+      "id": "Q4",
+      "kind": "unknown",
+      "question": "¿Cómo se autentican los usuarios?",
+      "answer": "UNKNOWN (no-anchor)",
+      "statements": [],
+      "evidence": []
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q1",
+      "kind": "golden",
+      "question": "¿Cómo se calcula el precio final de un pedido?",
+      "answer": "El precio final de un pedido se calcula en el servicio `PriceCalculator::compute()`. Este servicio considera el subtotal, el descuento aplicado, la tasa de impuestos y el costo de envío, aplicando los descuentos, impuestos y envío uno tras otro para calcular el monto final del pedido. Los descuentos se aplican antes de los impuestos, el costo de envío se calcula sobre la base total, incluyendo los descuentos pero no los impuestos. El precio final se almacena en el objeto `Order` a través de la clase `Pricing` y se actualiza en varios lugares del código, como en el proceso de creación y actualización de pedidos y en la finalización de una compra.",
+      "statements": [
+        {
+          "n": 1,
+          "text": "El servicio `PriceCalculator::compute()` es el responsable del cálculo del precio final de un pedido. Este servicio se encuentra en el archivo `app/Services/PriceCalculator.php`.",
+          "type": "FACT",
+          "evidence": [
+            1
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "n": 1,
+          "path": "app/Services/PriceCalculator.php",
+          "startLine": 16,
+          "endLine": 44
+        }
+      ]
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q3",
+      "kind": "golden",
+      "question": "¿Cómo se validan los cupones?",
+      "answer": "Los cupones se validan en la clase CouponValidator, que verifica la validez del código de cupón, su actividad, fecha de expiración y el porcentaje de descuento asociado.",
+      "statements": [
+        {
+          "n": 1,
+          "text": "La clase CouponValidator contiene métodos para validar el código de cupón, como percentFor() y isRedeemable().",
+          "type": "FACT",
+          "evidence": [
+            1
+          ]
+        },
+        {
+          "n": 2,
+          "text": "El método percentFor() verifica la validez del código de cupón, si es activo y no ha expirado, devolviendo el porcentaje de descuento.",
+          "type": "INFERENCE",
+          "evidence": [
+            2
+          ]
+        },
+        {
+          "n": 3,
+          "text": "El método isRedeemable() utiliza percentFor() para determinar si el código de cupón puede usarse.",
+          "type": "FACT",
+          "evidence": [
+            3
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "n": 1,
+          "path": "app/Services/CouponValidator.php",
+          "startLine": 14,
+          "endLine": 39
+        },
+        {
+          "n": 2,
+          "path": "app/Services/CouponValidator.php",
+          "startLine": 14,
+          "endLine": 39
+        },
+        {
+          "n": 3,
+          "path": "app/Services/CouponValidator.php",
+          "startLine": 14,
+          "endLine": 39
+        }
+      ]
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q4",
+      "kind": "golden",
+      "question": "¿Qué hace OrderObserver al crear un pedido?",
+      "answer": "OrderObserver recalcule los totales y emite un evento cuando se crea o actualiza un pedido.",
+      "statements": [
+        {
+          "n": 1,
+          "text": "OrderObserver dispatches RecalculateTotals cuando se crea un pedido (E1).",
+          "type": "INFERENCE",
+          "evidence": [
+            1
+          ]
+        },
+        {
+          "n": 2,
+          "text": "OrderObserver dispara el evento OrderPlaced cuando se crea un pedido (E1).",
+          "type": "FACT",
+          "evidence": [
+            2
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "n": 1,
+          "path": "app/Observers/OrderObserver.php",
+          "startLine": 14,
+          "endLine": 28
+        },
+        {
+          "n": 2,
+          "path": "app/Observers/OrderObserver.php",
+          "startLine": 14,
+          "endLine": 28
+        }
+      ]
+    }
+  ]
+}
