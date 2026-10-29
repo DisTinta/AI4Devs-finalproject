@@ -3,12 +3,12 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { cohenKappa } from '../../../scripts/annotation-agreement.mjs';
 
-// Spec: openspec/changes/index-endpoint/specs/golden-answers/spec.md (DIS-9, round of the golden review
-// after the index pipeline extraction; previous rounds DIS-107 and DIS-33), delta of `golden-answers`:
+// Spec: openspec/changes/incremental-indexing/specs/golden-answers/spec.md (DIS-10, round of the golden
+// review after the incremental indexing; previous rounds DIS-9, DIS-107 and DIS-33), delta of `golden-answers`:
 // "Blind panel input of the golden review". The independent review of the versioned golden answers is
 // done by a blind panel; this file ties the golden files, the panel files and the review report together.
 
-const INPUT_PATH = 'docs/golden-review/panel/2026-10-golden-review-dis-9-input.json';
+const INPUT_PATH = 'docs/golden-review/panel/2026-10-golden-review-dis-10-input.json';
 
 interface GoldenStatement {
   text: string;
@@ -169,17 +169,26 @@ interface Resolution {
 
 const PANEL_DIR = 'docs/golden-review/panel';
 const PANELIST_PATHS = [
-  `${PANEL_DIR}/2026-10-golden-review-dis-9-panelist-1.json`,
-  `${PANEL_DIR}/2026-10-golden-review-dis-9-panelist-2.json`,
+  `${PANEL_DIR}/2026-10-golden-review-dis-10-panelist-1.json`,
+  `${PANEL_DIR}/2026-10-golden-review-dis-10-panelist-2.json`,
 ];
-const RESOLUTION_PATH = `${PANEL_DIR}/2026-10-golden-review-dis-9-resolution.json`;
-const CHANGE = 'index-endpoint';
+const RESOLUTION_PATH = `${PANEL_DIR}/2026-10-golden-review-dis-10-resolution.json`;
+const CHANGE = 'incremental-indexing';
 const TASKS_PATH = `openspec/changes/${CHANGE}/tasks.md`;
-const REPORT_PATH = 'docs/golden-review/2026-10-golden-review-dis-9.md';
-/** The previous rounds, newest first: DIS-107, then DIS-33. */
-const PREVIOUS_ROUND_REPORTS = ['docs/golden-review/2026-10-golden-review-dis-107.md', 'docs/golden-review/2026-10-task-api-golden-review.md'];
-const PREVIOUS_ROUND_PANELISTS = [`${PANEL_DIR}/2026-10-golden-review-dis-107-panelist-1.json`, `${PANEL_DIR}/2026-10-golden-review-panelist-1.json`];
+const REPORT_PATH = 'docs/golden-review/2026-10-golden-review-dis-10.md';
+/** The previous rounds, newest first: DIS-9, then DIS-107, then DIS-33. */
+const PREVIOUS_ROUND_REPORTS = [
+  'docs/golden-review/2026-10-golden-review-dis-9.md',
+  'docs/golden-review/2026-10-golden-review-dis-107.md',
+  'docs/golden-review/2026-10-task-api-golden-review.md',
+];
+const PREVIOUS_ROUND_PANELISTS = [
+  `${PANEL_DIR}/2026-10-golden-review-dis-9-panelist-1.json`,
+  `${PANEL_DIR}/2026-10-golden-review-dis-107-panelist-1.json`,
+  `${PANEL_DIR}/2026-10-golden-review-panelist-1.json`,
+];
 const PREVIOUS_ROUND_TASKS = [
+  'openspec/changes/archive/2026-10-29-index-endpoint/tasks.md',
   'openspec/changes/archive/2026-10-28-ts-await-using-golden-regen/tasks.md',
   'openspec/changes/archive/2026-10-28-golden-independent-review/tasks.md',
 ];
@@ -401,7 +410,7 @@ describe('golden review: panel outputs', () => {
       ['allowlist', 'sourcesRead entry outside the allowlist', (o) => o.sourcesRead.push('seeds/cache/task-api.json')],
       ['directory', 'directory entry with a trailing slash', (o) => o.sourcesRead.push('fixtures/task-api/src/')],
       ['directory', 'existing directory without a trailing slash', (o) => o.sourcesRead.push('fixtures/task-api/src')],
-      ['allowlist', 'a Linear description entry', (o) => o.sourcesRead.push('linear:DIS-9/description')],
+      ['allowlist', 'a Linear description entry', (o) => o.sourcesRead.push('linear:DIS-10/description')],
       ...PREVIOUS_ROUND_PANELISTS.map((path): [string, string, (output: PanelOutput) => void] => [
         'allowlist',
         `the panelist output of a previous round (${path})`,
