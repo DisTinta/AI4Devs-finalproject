@@ -208,6 +208,12 @@ the `golden-answers` delta retargeting the round from DIS-9 to DIS-42. The regen
 only by the model's sampling: no golden question reaches a stale claim. Without a working Ollama the
 ticket stops cleanly (P8).
 
+The first DIS-42 round judged two golden answers `incorrect`. As in DIS-10 (its r2 round), no
+successor ticket is opened: those two are regenerated alone (`cache:build -- --project <name> <id>`,
+requirement "Partial regeneration") and a second round, DIS-42 r2 (groups 16–20, suffix
+`-dis-42-r2`), judges all seven items again on new files with the same criterion; the `golden-answers`
+delta's current round is DIS-42 r2 and the first DIS-42 round joins the previous rounds (G1).
+
 ### D13. ADR
 
 `docs/adr/20261029-stale-claims-refreshed-in-place.md`: a refreshed claim keeps its id and row, its
@@ -237,8 +243,9 @@ to reverse (a later history table or versioned claims would need a migration and
   cache entries (DIS-9), and `superseded` only happens after a re-index. Making such answers
   non-cacheable would modify the `answer-cache` rules, beyond the ticket.
 - [The regeneration needs Ollama and a panel round, which can fail or find an incorrect golden
-  answer] → handled as in DIS-9 (a successor ticket per `incorrect` item); a missing Ollama stops the
-  ticket (P8).
+  answer] → by the author's decision no successor ticket is opened: the `incorrect` items are
+  regenerated alone and the whole round is rerun on new files as DIS-42 r2 (G1); an `incorrect` r2
+  verdict stops the round for the author; a missing Ollama stops the ticket (P8).
 - [Another change of this block (DIS-10) may merge its own golden round first] → this change then
   merges the base, regenerates again after the merge (its fingerprint changes too) and rebases the
   `golden-answers` delta: that round becomes a previous round in every list of the delta (P9).
