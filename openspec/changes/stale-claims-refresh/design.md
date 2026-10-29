@@ -56,7 +56,10 @@ the `stale_claim_not_refreshed` events in prior-claims order, and the summed ver
 the refresh's semantic checks. `explain` appends those events after `claims_not_persisted` (or at
 the end of the answered events when there is none), replaces `priorClaims`, and adds the refresh
 verification usage to the answer's before `aggregateUsage`. The cache save and the row come after, in
-`finish`, unchanged: the cached response holds the prior claims as shown.
+`finish`, unchanged: the cached response holds the prior claims as shown. In the spec this is the new
+step 14 of the modified "Precedence and UNKNOWN answers" (step 8 is the answer's single `answer` call;
+step 14 adds the refresh calls; the cache save follows the refresh), so the two requirements agree
+after sync (spec audit run 1, B1).
 
 *Alternative rejected:* refreshing before the answer's model call, so the answer's prompt could see
 current claims. The answer prompt does not include prior claims, so nothing would gain, and an
@@ -66,7 +69,9 @@ current claims. The answer prompt does not include prior claims, so nothing woul
 
 `MAX_STALE_REFRESHES = 3` (exported). Due = `status === 'stale'`, `layer === 'L2'`,
 `type === 'INFERENCE'`, `object !== null` and a provenance with `statementType` (the shape
-`toClaimItems` writes; `claimSchema` requires `statementType` on `L2` `INFERENCE`). The first three
+`toClaimItems` writes; `claimSchema` requires `statementType` on `L2` `INFERENCE` but allows a null
+`object` on any layer). This is the spec's clause "its type `INFERENCE`, its object is not null and
+its provenance holds a statement type" (spec audit run 1, B2). The first three
 due claims in the order `findClaimsOverlapping` returned (newest first) are refreshed, sequentially.
 Sequential, not parallel: the verification cache and the meter are shared, the order of events is
 deterministic, and an `LlmUnavailable` can stop the rest (R8).
@@ -82,13 +87,14 @@ and the stored object is checked against `INSTRUCTION_PATTERNS` like a question.
 sanitisation are not returned (P2): the spans' events are already in the answer's events, and the
 object's flags appear in the prompt as `claimFlags`. A due claim with no overlapping span (not
 possible today, since the claim was read by overlap with these spans) gets `no-evidence` without a
-call.
+call, as step 1 of the spec's "Stale claim refresh" says.
 
 ### D4. The refresh prompt (`packages/core/src/explain/refresh-prompt.ts`, new)
 
 `buildRefreshPrompt(sanitized)` returns `{ messages, evidenceIds, promptHash }` like `buildPrompt`:
-system message `REFRESH_SYSTEM_PROMPT` (exported; same untrusted-data and output-format lines as the
-explain prompt, but asking to restate or correct the earlier statement using only the evidence, in
+system message `REFRESH_SYSTEM_PROMPT` (exported; the untrusted-data and output-format lines of the
+explain prompt, with the untrusted-data line naming `claimFlags` and `claim` instead of
+`questionFlags` and `question`, so the model is never told about a key the message lacks; asking to restate or correct the earlier statement using only the evidence, in
 the earlier statement's language, and to return an empty `statements` list when the evidence does
 not support it); user message `JSON.stringify({ claim, claimFlags?, evidence })`, `claim` being
 `wrapUntrusted('claim', neutralise(object))`, each evidence entry built as in `buildPrompt` (path
@@ -134,10 +140,21 @@ as `saveClaims`:
    `randomUUID()` ids.
 
 Any database error after the write started → `ClaimWriteFailed` (same mapping as `saveClaims`). A
-second concurrent refresh waits on the row lock and then sees `current` (R9). The in-memory double
-gets the same checks, `failClaimRefresh?: (claimId: string) => unknown` (a value is thrown instead of
-writing) and `beforeRefreshCheck?: (claimId: string) => void` (to move the indexed commit or change
-the claim between the call and the check), and counts `calls.refreshClaim`.
+second concurrent refresh waits on the row lock and then sees `current` (R9). The row lock is tested
+only through the sequential case (two refreshes in a row, the second writes nothing): the store
+integration specs run inside one harness transaction on one connection, so a two-connection race is
+not exercised; the lock statement itself is asserted by the statement list. A failure to obtain a
+connection propagates unchanged, as for "Claim write", which has no scenario for it either; it reuses
+the same wrapper as `saveClaims`, already covered there.
+
+The in-memory double gets the same checks, `failClaimRefresh?: (claimId: string) => unknown` (a value
+is thrown instead of writing) and `beforeRefreshCheck?: (claimId: string) => void` (to move the
+indexed commit or change the claim between the call and the check), and counts `calls.refreshClaim`.
+Its claim row gains `updatedAt: string` (spec audit run 1, B3): `seedClaim` and `saveClaims` set it
+to the row's `createdAt`; `refreshClaim` sets it to `nextStamp()`, which is later than every stamp so
+far, and keeps `createdAt`. A new accessor `claimUpdatedAt(claimId: string): string | undefined` on
+`InMemoryStore` returns it (`undefined` for an unknown id); `storedClaims()` and the core type
+`StoredClaim` do not change.
 
 ### D7. Event (`explain-event.ts`)
 
@@ -152,10 +169,11 @@ Inside one refresh: `LlmUnavailable` / `BudgetExhausted` from the `answer` call 
 remaining due claims get the matching code and the loop stops; `ClaimWriteFailed` from
 `refreshClaim` → `store-write-failed`, the loop continues. Every other error propagates unchanged
 (R7), which `explain`'s existing `catch` turns into a rejection row (the meter already counts every
-resolved call). `CallState.verifyLatencyMs` becomes the running sum of the semantic checks that
-returned (the answer's, then each refresh's): `onSemanticStart` sets it to `null` and each returned
-check adds its `latencyMs` back, so a rejection raised inside any check leaves it `null` and one
-raised between checks reports the sum.
+resolved call). The refresh's `answer` call failing with any other error also propagates. `CallState`
+gains `verifySumMs` (the sum of the latencies of the semantic checks that returned, the answer's then
+each refresh's, starting at 0); `onSemanticStart` sets `verifyLatencyMs` to `null`; when a check
+returns, `verifySumMs += latencyMs` and `verifyLatencyMs = verifySumMs`. A rejection raised inside any
+check therefore leaves `verifyLatencyMs` `null`, and one raised between checks reports the sum.
 
 ### D9. Usage
 
@@ -174,7 +192,7 @@ file's comment ("they are not recomputed (DIS-42)") is rewritten.
 ### D11. Test doubles
 
 - `tests/support/in-memory-store.ts`: `refreshClaim`, `failClaimRefresh`, `beforeRefreshCheck`,
-  `calls.refreshClaim` (D6).
+  `calls.refreshClaim`, the row's `updatedAt` and the accessor `claimUpdatedAt` (D6).
 - `tests/support/scripted-llm.ts`: the parsed prompt given to a `Script` gains
   `kind: 'answer' | 'refresh'` and, for a refresh, `claim` (the unwrapped text) and `claimFlags`, so
   one script answers both prompts.
@@ -210,6 +228,14 @@ to reverse (a later history table or versioned claims would need a migration and
 - [A re-index between the refresh's read and its write] → `readAtCommit` compared with the indexed
   commit under the project lock; the claim stays `stale` (`superseded`).
 - [Two refreshes of one claim at once] → row lock; the second sees `current` and writes nothing.
+  Only the sequential case is tested (D6).
+- [A cacheable answer is saved with a due claim that was not refreshed (past the cap of 3,
+  `llm-unavailable`, `budget-exhausted`, `superseded`, `store-write-failed`): later hits of that
+  question show it `stale` until the entry is invalidated, since a hit never refreshes] → accepted
+  (decision A1, destination D): the claim is shown honestly as `stale` with its warning, never as
+  `FACT`; any other question that reaches it still refreshes it; a re-index invalidates the project's
+  cache entries (DIS-9), and `superseded` only happens after a re-index. Making such answers
+  non-cacheable would modify the `answer-cache` rules, beyond the ticket.
 - [The regeneration needs Ollama and a panel round, which can fail or find an incorrect golden
   answer] → handled as in DIS-9 (a successor ticket per `incorrect` item); a missing Ollama stops the
   ticket (P8).
@@ -258,3 +284,19 @@ ticket; C = the author; D = out of scope, recorded.*
 | P9 | If another golden round merges into the base first, this change regenerates after merging it and turns that round into a previous round of the `golden-answers` delta. | A |
 | P10 | No history of a refreshed claim's previous version is kept. | D |
 | P11 | The refresh re-sanitises the raw pack spans at the overlapping indices, so its spans equal the answer prompt's. | A |
+
+*Agent's text: decisions of correction round 1 of the spec audit
+(`reports/2026-10-29-spec-audit.md`, run 1), taken by the agent as lead engineer without the author.*
+
+| Id | Decision | Destination |
+|---|---|---|
+| A0 | Q1: the seed and golden regeneration and the DIS-42 blind panel round (groups 10–10d and the `golden-answers` delta) stay in this change. They are not optional: the store adapter and `packages/core/src/knowledge` are seed fingerprint inputs and, by ADR `20261017-stale-fingerprint-fails-verify`, a stale fingerprint fails `verify` in CI, so without them the PR cannot merge (DIS-9 precedent). The Linear issues task 10d.3 may open for `incorrect` items are part of that round's rule, not new scope. | A |
+| A1 | Q2: an answer that carries a due claim that was not refreshed stays cacheable (the current design); the cached entry shows that claim `stale` with its warning until the entry is invalidated. Making it non-cacheable would change the `answer-cache` rules, beyond the ticket. Recorded in Risks. | D |
+| A2 | Q3: `provenance.inputSpans` of a refreshed claim keeps every sanitised span of the pack, as AC 1 of the ticket says («`inputSpans` = los spans del pack actual») and as an answer's claims record it: the field names the context retrieved for the call, and the refresh prompt's spans are the subset of it that overlaps the claim's evidence, recoverable from the evidence itself. | A |
+| A3 | P4 (unsaved answers also refresh) is kept: R5 of the ticket says «respuestas `answered`», and an unsaved answer is answered and shows prior claims. | A |
+| A4 | Task 5.6 keeps rewriting the comment of `packages/core/src/verify/syntactic.ts`: it says «so DIS-42 can reuse it with another commit», which this design makes false (R3). The file is not a fingerprint input; it is now named in the proposal's Impact. | A |
+| A5 | The groups 10, 10b, 10c and 10d keep their numbers (DIS-9 precedent): they are sub-steps of one step (the regeneration and its review round), and renumbering would shift every mandatory step and every cross-reference of the file. | A |
+| A6 | The double's last-written instant is a row field `updatedAt` with the accessor `claimUpdatedAt` (D6); the core type `StoredClaim` does not change. | A |
+| A7 | The row lock against a concurrent refresh is tested only sequentially; the connection failure of `refreshClaim` has no scenario, as for "Claim write" (D6). | A |
+| A8 | The Purpose header of the main `explain` spec («asks the model once») is updated when the delta is synced at archive (task 15.7). | A |
+| A9 | Task 15.7 merges only in an autonomous run (`KIT_AUTONOMOUS_RUN="1"`) through the merge gate; otherwise the author merges. | A |

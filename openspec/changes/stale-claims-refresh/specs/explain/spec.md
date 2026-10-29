@@ -5,9 +5,10 @@
 When explain returns an answered answer (stored or not), it SHALL, after the answer's claim write
 (whatever its result) and before the cache save and the `query_log` row, refresh the due prior
 claims of the answer. A prior claim is due when its status is `stale`, its layer `L2`, its type
-`INFERENCE` and its provenance holds a statement type (the claims explain writes); at most
-`MAX_STALE_REFRESHES` (3, an exported constant) are due, the first ones in prior-claims order
-(newest first). Every other prior claim (current, `L1`, `L2` `UNKNOWN`, or past the limit) SHALL be
+`INFERENCE`, its object is not null and its provenance holds a statement type (the claims explain
+writes); at most `MAX_STALE_REFRESHES` (3, an exported constant) are due, the first ones in
+prior-claims order (newest first). Every other prior claim (current, `L1`, `L2` `UNKNOWN`, an `L2`
+`INFERENCE` claim without object or without statement type, or past the limit) SHALL be
 shown as requirement "Prior claims" says, with no model call and no event. An `UNKNOWN` answer, an
 answer served from the answer cache and an answer in evaluation mode SHALL refresh nothing.
 
@@ -15,7 +16,8 @@ The due claims SHALL be refreshed one at a time, in that order. Refreshing a cla
 
 1. take as its spans the sanitised spans of the pack (each with its cut; a cut span covers only its
    kept lines) that overlap at least one evidence of the claim (same file id, lines overlapping
-   inclusively), in pack order;
+   inclusively), in pack order; a due claim with no such span gets the code `no-evidence` without a
+   model call;
 2. call the model once with the purpose `answer` and a refresh prompt: a fixed system message of its
    own (not explain's), which asks to restate or correct the earlier statement using only the
    evidence, in the language of that statement, and to return the same JSON object as an answer; and
@@ -51,14 +53,16 @@ A claim that is not rewritten SHALL be shown as it was read (`stale`, with `warn
 `BudgetExhausted`, that claim and every due claim after it SHALL get the event with the code
 `llm-unavailable` or `budget-exhausted`, and no further refresh call SHALL be made; a `verify` call
 of a refresh failing with either leaves its pairs `cited`, as for an answer. Any other failure of a
-refresh (a verification read other than a missing file, a `verify` call, or the claim refresh other
-than `ClaimWriteFailed` and its not-written result) SHALL propagate unchanged, after the row of
-requirement "Query log".
+refresh (the refresh's `answer` call with an error other than `LlmUnavailable` and
+`BudgetExhausted`, a verification read other than a missing file, a `verify` call, or the claim
+refresh other than `ClaimWriteFailed` and its not-written result) SHALL propagate unchanged, after
+the row of requirement "Query log".
 
 The sanitisation, schema-violation, `evidence_broken` and `entailment_unverified` events of a refresh
 SHALL NOT be added to the answer's events (they would name ids of another prompt). The refresh SHALL
 NOT change the answer's statements, evidence, confidence or claims; the answer stays cacheable or not
-by the same rule, and its cache entry holds the prior claims as shown.
+by the same rule, and its cache entry holds the prior claims as shown (a due claim that was not
+rewritten is cached `stale`, with its warning, until the entry is invalidated).
 
 #### Scenario: A stale prior claim is refreshed on the first question that reaches it
 
@@ -76,6 +80,22 @@ by the same rule, and its cache entry holds the prior claims as shown.
   `promptHash` is the hash of the refresh prompt and whose `statementType` is `FACT`, and one evidence
   with verification `entailed`; its previous evidence no longer exists
 - **AND** the answer has no `stale_claim_not_refreshed` event
+- **AND** the saved cache entry's `priorClaims` holds `c1` `current`, without warning
+
+#### Scenario: A refresh whose verifier is unavailable stores cited evidence
+
+- **GIVEN** the stored claim `c1` of "A stale prior claim is refreshed on the first question that
+  reaches it", and a live model that answers the price question with one statement citing another
+  span whose `verify` call answers `{"entails":true}`, answers the refresh prompt with one statement
+  citing `E1`, and fails the refresh's `verify` call with `LlmUnavailable`
+- **WHEN** the price question is explained, and again with that `verify` call failing with
+  `BudgetExhausted`
+- **THEN** each answer is `answered`, and its prior claims hold `c1`, same id, `current`, without
+  warning, with type `INFERENCE`
+- **AND** the store holds `c1` `current` with statement type `INFERENCE` and one evidence with
+  verification `cited`
+- **AND** the answer has no `stale_claim_not_refreshed` event and no `entailment_unverified` event of
+  the refresh
 
 #### Scenario: A stale claim is refreshed after a re-index
 
@@ -141,10 +161,11 @@ by the same rule, and its cache entry holds the prior claims as shown.
 
 #### Scenario: Only stale L2 inference claims are refreshed
 
-- **GIVEN** a stale `L1` claim, a stale `L2` `UNKNOWN` claim and a current `L2` `INFERENCE` claim
-  whose evidence overlaps the pack
+- **GIVEN** a stale `L1` claim, a stale `L2` `UNKNOWN` claim, a stale `L2` `INFERENCE` claim with a
+  statement type and no object, and a current `L2` `INFERENCE` claim, whose evidence overlaps the
+  pack
 - **WHEN** the question is explained with a live model returning a valid answer
-- **THEN** the model received a single `answer` request, the three claims are shown as requirement
+- **THEN** the model received a single `answer` request, the four claims are shown as requirement
   "Prior claims" says, and the answer has no `stale_claim_not_refreshed` event
 
 #### Scenario: Nothing is refreshed without a live answered answer
@@ -196,8 +217,211 @@ by the same rule, and its cache entry holds the prior claims as shown.
 - **THEN** explain fails with that same error, and the answer's claims were stored
 - **AND** the store received one row with 300 input and 30 output tokens, 100 and 10 of them as
   verification, 1 verification call and no verification latency
+- **AND** when the question is explained again with the refresh's verification read rejecting with
+  `SourceUnavailable` with reason `too-large`, and again with the claim refresh rejecting with an
+  `Error` that is not a `ClaimWriteFailed`, explain fails each time with that same error after the
+  answer's claims were stored and one row was sent to the store, and `c1` is stored `stale` as before
 
 ## MODIFIED Requirements
+
+### Requirement: Precedence and UNKNOWN answers
+
+Explain SHALL decide its answer in this order, and each step SHALL make exactly the calls below:
+
+1. Validate the request (requirement "Explain request"). An invalid request is an error, not an
+   `UNKNOWN` answer.
+2. Anchor the question once. An empty anchor SHALL answer `UNKNOWN` with reason `no-anchor`, in live
+   and in evaluation mode, without building the pack.
+3. Unless the request sets `useCache: false`, look the question's cache key up once in the answer
+   cache of the project (requirement "Answer cache"). An entry whose stored response is accepted
+   SHALL answer from the cache, in live and in evaluation mode, without building the pack, and its hit
+   SHALL be recorded; anything else is a miss and goes on to step 4.
+4. When the model is in evaluation mode, answer `UNKNOWN` with reason `llm-required` and the message
+   `evaluation mode (cache-only): set LLM_* to enable free-form asks`, without building the pack.
+5. Build the context pack from the anchor already computed. A pack with no span SHALL answer
+   `UNKNOWN` with reason `over-budget`.
+6. Sanitise the question and the pack's spans (requirement "Untrusted content sanitization"). From
+   here on, the spans of the pack are the sanitised spans.
+7. Read the prior claims of the pack's spans (requirement "Prior claims"), once.
+8. Ask the model once, with the purpose `answer`, for the answer.
+9. Quarantine the output. A discarded output SHALL answer `UNKNOWN` with reason
+   `invalid-model-output` and carry the sanitisation events followed by the schema-violation event.
+10. An accepted output with no statement SHALL answer `UNKNOWN` with reason `no-evidence` and carry
+    the sanitisation events.
+11. Type the statements, then verify their citations (requirement "Answer with typed statements"):
+    the syntactic check of `evidence-verification` over the distinct cited spans, at the commit the
+    pack was read at and from the root it was read from, then the output policy. When no statement is
+    left, answer `UNKNOWN` with reason `broken-evidence`, carrying the sanitisation events followed by
+    the `evidence_broken` events.
+12. Check semantically every remaining citation of every remaining statement (the semantic check of
+    `evidence-verification`, with the verification cache explain was given), then apply the
+    entailment policy.
+13. Store the verified statements (requirements "Answer with typed statements" and "Persistence
+    failure").
+14. When the answer is answered (stored or not), refresh the due stale prior claims (requirement
+    "Stale claim refresh"), then return the answer. An `UNKNOWN` answer, a cache hit and evaluation
+    mode refresh nothing.
+
+A cacheable answer of steps 10 and 14 SHALL be saved in the answer cache after the claim write and,
+for an answered answer, after the stale claim refresh, and before its `query_log` row (requirement
+"Answer cache").
+
+Before returning any answer of the steps above, `UNKNOWN` included, explain SHALL send its
+`query_log` row to the store (requirement "Query log").
+
+The prior-claims read SHALL therefore be called 0 times for an invalid request, `no-anchor`, a cache
+hit, `llm-required` and `over-budget`, and once, before the model, for `invalid-model-output`,
+`no-evidence`, `broken-evidence` and an answer with statements. The model SHALL be called 0 times up
+to step 7 (a cache hit included), once with the purpose `answer` at step 8, with the purpose `verify`
+at step 12, and at step 14 only for an answered answer with due stale prior claims (at most one
+`answer` call per refreshed claim, each followed by its own `verify` calls): 0 times with the purpose
+`verify` for `invalid-model-output`, `no-evidence` and `broken-evidence`. The source reader SHALL
+receive no call for a cache hit (no pack is built). Otherwise it SHALL receive the pack's batched
+read and, for `broken-evidence` and an answer with statements only, the verification reads of step
+11 after the model (and, for an answered answer, those of each refresh at step 14);
+`invalid-model-output` and `no-evidence` get no verification read. The answer cache SHALL be looked up 0 times for an invalid request, `no-anchor` and a
+request with `useCache: false`, and once otherwise.
+
+An `UNKNOWN` answer SHALL have exactly `kind: 'unknown'`, `answer: 'UNKNOWN'`, `reason` (one of the
+closed set `no-anchor`, `llm-required`, `over-budget`, `invalid-model-output`, `no-evidence`,
+`broken-evidence`, declared once in that order), `message` only for `llm-required`,
+`statements: []`, `evidence: []` and `events`. It SHALL NOT
+carry `persisted`, prior claims, `usage` nor `confidence`, SHALL NOT carry the model's answer text, and no claim or
+evidence SHALL be written for it; only its `query_log` row is written and, for a cacheable `UNKNOWN`
+(requirement "Answer cache"), its cache entry.
+
+Errors SHALL propagate unchanged and write no claim and no evidence (a `query_log` row is written
+before an error only when a model call resolved before it, requirement "Query log"): `ProjectNotFound`, `SourceUnavailable`, the
+`LlmUnavailable` and `BudgetExhausted` of the `answer` call, any failure of the answer cache lookup
+or of the recording of a hit (then no pack is built and the model SHALL NOT have been called), any
+failure of the prior-claims read (then the model SHALL NOT have been called), any failure of the verification reads that the syntactic
+check propagates, and any failure of a `verify` call that the semantic check propagates. An
+`LlmUnavailable` or `BudgetExhausted` of a `verify` call SHALL NOT propagate: it degrades the
+citations it could not check (`evidence-verification`, "Semantic citation check"). The failures of
+step 14 follow requirement "Stale claim refresh": the `LlmUnavailable` and `BudgetExhausted` of a
+refresh's `answer` call do not propagate, and an error that a refresh propagates is raised after the
+answer's own claim write, which it does not undo.
+
+#### Scenario: A question without anchor is unknown in both modes without building the pack
+
+- **WHEN** acme-shop is loaded and `¿Dónde vive el ornitorrinco?` is explained with a live model and
+  with an evaluation model
+- **THEN** both answers are `UNKNOWN` with reason `no-anchor`
+- **AND** the model, the source reader and the prior-claims read received 0 calls, and no claim was
+  written
+
+#### Scenario: Evaluation mode answers llm-required without building the pack
+
+- **WHEN** acme-shop is loaded and `¿Cómo se calcula el precio final de un pedido?` is explained with
+  an evaluation model and no cache entry of the project
+- **THEN** the answer is `UNKNOWN` with reason `llm-required` and the message `evaluation mode
+  (cache-only): set LLM_* to enable free-form asks`
+- **AND** the model, the source reader, the traversal, the project read and the prior-claims read
+  received 0 calls, and no claim was written
+
+#### Scenario: A question without anchor is not looked up in the cache
+
+- **GIVEN** a cache entry of acme-shop whose key is the normalized form of `¿Dónde vive el ornitorrinco?`
+  and whose stored response is a valid answered response
+- **WHEN** `¿Dónde vive el ornitorrinco?` is explained with an evaluation model
+- **THEN** the answer is `UNKNOWN` with reason `no-anchor`
+- **AND** the answer cache received 0 lookups and the entry's hit count is unchanged
+
+#### Scenario: A pack where nothing fits is unknown over budget
+
+- **WHEN** a question is explained with a live model and a budget of 1000, where the anchor span and
+  every candidate span are larger than that budget
+- **THEN** the answer is `UNKNOWN` with reason `over-budget`
+- **AND** the prior-claims read and the model received 0 calls
+
+#### Scenario: A discarded model output is unknown and carries its event
+
+- **WHEN** the price question is explained with a live model whose output carries `"type":"FACT"` in a
+  statement, then with one citing an unknown evidence id, then with one whose statement text holds
+  U+0000
+- **THEN** each answer is `UNKNOWN` with reason `invalid-model-output`, without prior claims and
+  without the model's answer, and its events hold one schema-violation event with subcode
+  `invalid_shape`, `unknown_evidence_id` and `invalid_shape`
+- **AND** the prior-claims read was called once before the model each time, the model received no
+  `verify` request, and no claim or evidence was written
+
+#### Scenario: An output without statements is unknown with no evidence
+
+- **WHEN** the price question is explained with a live model whose output is
+  `{"answer":"Se calcula sumando todo.","statements":[]}`
+- **THEN** the answer is `UNKNOWN` with reason `no-evidence`, without prior claims, and no part of it
+  holds `Se calcula sumando todo.`
+- **AND** the prior-claims read was called once before the model, the model received no `verify`
+  request, and no claim or evidence was written
+
+#### Scenario: A failing prior-claims read stops before the model
+
+- **WHEN** the price question is explained with a live model and the prior-claims read fails
+- **THEN** explain fails with that error
+- **AND** the model received 0 calls and no claim was written
+
+#### Scenario: An unknown project or an unindexed one fails without calling the model
+
+- **WHEN** the price question is explained with a live model in a well-formed UUID that names no
+  project, and then in a project whose graph anchors the question but that has no indexed commit
+- **THEN** the first call fails with `ProjectNotFound` and the second with `SourceUnavailable` with
+  reason `not-indexed`
+- **AND** the model received 0 calls and no claim was written
+
+#### Scenario: Model failures propagate without writing
+
+- **WHEN** the price question is explained with a live model whose `answer` call fails with
+  `LlmUnavailable`, and with one whose `answer` call fails with `BudgetExhausted`
+- **THEN** explain fails with that same error each time, and no claim was written
+
+#### Scenario: Every citation broken is unknown with broken evidence
+
+- **GIVEN** a live model whose output has two statements citing `E1` and `E2`, and the files of both
+  spans changed between the pack's read and the verification read, both at the pack's commit
+- **WHEN** the price question is explained
+- **THEN** the answer is exactly `{ kind: 'unknown', answer: 'UNKNOWN', reason: 'broken-evidence',
+  statements: [], evidence: [], events }`, without prior claims, without `usage` and without the
+  model's answer, and `events` are the sanitisation events followed by one `evidence_broken` event for
+  `E1` and one for `E2`, each with reason `excerpt-mismatch`
+- **AND** the prior-claims read was called once before the model, the model received no `verify`
+  request, and the claim write received 0 calls
+
+#### Scenario: A verification read failure propagates without writing
+
+- **GIVEN** a live model whose output cites `E1`, and a source whose verification read rejects with
+  `SourceUnavailable` with reason `too-large`
+- **WHEN** the price question is explained
+- **THEN** explain fails with that same error
+- **AND** the claim write received 0 calls
+- **AND** no claim is written; the store received one query log row with the tokens and cost of the
+  `answer` call, 0 verification calls and a verification latency of 0 (requirement "Query log")
+
+#### Scenario: No verification read without statements
+
+- **WHEN** the price question is explained with a live model whose output is not JSON, and then with
+  one whose output has no statement
+- **THEN** each time the source reader received only the pack's batched read
+
+#### Scenario: The question is anchored once
+
+- **WHEN** the price question is explained with a live model that returns a valid answer
+- **THEN** the store received as many symbol searches as one anchoring of that question sends
+
+#### Scenario: A verifier failure other than unavailable or budget propagates without writing
+
+- **GIVEN** a live model whose output cites `E1`, and whose `verify` call fails with an error that is
+  neither `LlmUnavailable` nor `BudgetExhausted`
+- **WHEN** the price question is explained
+- **THEN** explain fails with that same error
+- **AND** the claim write received 0 calls
+- **AND** no claim is written; the store received one query log row with the tokens and cost of the
+  `answer` call (requirement "Query log")
+
+#### Scenario: An unknown answer has no confidence
+
+- **WHEN** a question without an anchor is explained, and a question is explained with an output
+  whose every citation is `broken`
+- **THEN** each answer is `UNKNOWN` and has no `confidence` property
 
 ### Requirement: Prior claims
 

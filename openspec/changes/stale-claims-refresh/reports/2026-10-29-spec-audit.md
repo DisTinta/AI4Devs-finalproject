@@ -176,3 +176,67 @@ The empty row (Precedence and UNKNOWN answers) is blocking and is resolved by B1
 
 19. In the `[enhanced]` part, under "Contexto técnico → Seguridad", replace «eventos de saneado incluidos» with: «los eventos de saneado, cuarentena y verificación del recálculo no se añaden a la respuesta (nombrarían ids de otro prompt); las marcas del enunciado guardado van en el prompt como `claimFlags` (P2)». Under "Re-inferencia (R2)", change the ids `e1…` to `E1…`.
 20. Comment in Spanish: «Auditoría de especificación del cambio `stale-claims-refresh` (2026-10-29): `CHANGES REQUIRED` con tres hallazgos bloqueantes: (1) el delta de `explain` debe modificar «Precedence and UNKNOWN answers» (el paso 8 dice «una sola llamada `answer`» y el recálculo añade llamadas tras el paso 13); (2) la definición de afirmación «due» de la spec omite `object` no nulo, que sí exigen el diseño y R10; (3) el doble en memoria no guarda el instante de última escritura que pide un escenario. Preguntas para la autora: aceptar la ronda golden DIS-42 dentro del ticket; si una respuesta con afirmaciones `stale` sin recalcular debe guardarse en la caché; y si `inputSpans` debe ser todo el pack o solo los spans del prompt de recálculo.»
+
+## Resolution of run 1
+
+*Agent's text: correction round 1 of 5 (`docs/AUTONOMOUS-RUN.md` §6), 2026-10-29. The questions were
+decided by the agent as lead engineer, without the author; each decision is in `design.md` →
+Follow-ups (A0–A9) with its destination. `openspec validate stale-claims-refresh --strict` passes
+after the corrections.*
+
+### Questions for the author
+
+- **Q1 (scope)** — decided by the agent (A0, destination A): the seed and golden regeneration and the
+  DIS-42 panel round stay in the change; they follow from the seed fingerprint invariant, and without
+  them the `verify` job fails and the PR cannot merge.
+- **Q2 (cache)** — decided by the agent (A1, destination D): such an answer stays cacheable; the
+  cached claim is shown `stale` with its warning until the entry is invalidated. Added to design
+  Risks and as a sentence of "Stale claim refresh".
+- **Q3 (provenance)** — decided by the agent (A2, destination A): `inputSpans` keeps every sanitised
+  span of the pack, as AC 1 of the ticket says and as an answer's claims record it.
+
+### Blocking findings
+
+- **B1** — fixed: the explain delta now modifies "Precedence and UNKNOWN answers" (copied whole from
+  the main spec with its scenarios unchanged): step 8 is the answer's `answer` call, step 13 stores,
+  new step 14 refreshes and returns, the cache paragraph puts the save after the refresh, and the
+  call counts, source reads and error paragraph name the refresh calls. Design D1 points to it;
+  tasks 5 and 5.6 name it; 8.2 maps its unchanged scenarios to their existing tests.
+- **B2** — fixed: the due clause requires a non-null object, and the list of claims not refreshed
+  names an `L2` `INFERENCE` claim without object or without statement type. The scenario "Only stale
+  L2 inference claims are refreshed" gains such a claim; design D2 quotes the clause; proposal What
+  Changes says "with an object and a statement type".
+- **B3** — fixed: the in-memory double keeps `updatedAt` per claim row and exposes it through
+  `claimUpdatedAt(claimId)` (design D6, D11, A6; task 2.3); the graph-store requirement says the
+  double exposes the last-written instant and its in-memory "refreshed in place" scenario asserts it.
+
+### Improvable findings
+
+- 1 (groups 10–10d and the `golden-answers` delta) — decided by the agent: kept (Q1, A0).
+- 1 (task 5.6, comment of `syntactic.ts`) — decided by the agent: kept, since the comment becomes
+  false (A4); the file is now in the proposal's Impact.
+- 1 (P4, unsaved answers refresh) — decided by the agent: kept (A3).
+- 3.1 — fixed: new scenario "A refresh whose verifier is unavailable stores cited evidence".
+- 3.2 — fixed: the failure list names the refresh's `answer` call with another error; "A failure
+  inside a refresh propagates after the row" gains the verification read and claim refresh variants.
+- 3.3 — fixed: the first scenario asserts the saved cache entry's `priorClaims`.
+- 3.4 — fixed by a design note (D6, A7): the row lock is tested only sequentially, and the
+  connection failure has no scenario, as for "Claim write".
+- 5 (no overlapping span) — fixed: moved into step 1 of the spec; D3 references it.
+- 5 (latency accumulator) — fixed: D8 rewritten with `verifySumMs`; task 5.6 names it.
+- 6 (Impact) — fixed: `usage.ts`, `syntactic.ts` and `prompts.md` added to the proposal.
+- 7 (Purpose header) — decided by the agent: updated at sync (A8, task 15.7).
+- 8 (duplicated evidence mapping) — accepted as the audit says; task 4.1 keeps the guard.
+- 8 (untrusted-data line) — fixed: D4 says the refresh prompt names `claimFlags` and `claim`.
+- 9 (task size) — fixed: 5.2 split into 5.2a–5.2c and 5.5 into 5.5a–5.5c.
+- 10 (numbering of 10–10d) — rejected: the groups are sub-steps of one step (DIS-9 precedent), and
+  renumbering would shift every mandatory step and cross-reference (A5).
+- 10 (task 15.7 merge) — fixed: the merge happens only in an autonomous run through the merge gate,
+  otherwise the author merges (A9).
+
+### Linear
+
+- Correction 19 — fixed: the `[enhanced]` "Seguridad" bullet now says the refresh's sanitisation,
+  quarantine and verification events are not added (P2), and "Re-inferencia (R2)" uses `E1…`.
+- Correction 20 — fixed: a Spanish comment on DIS-42 summarises the audit and the decisions of this
+  round.

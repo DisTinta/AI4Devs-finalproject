@@ -36,7 +36,9 @@ new evidence was stored under in the order given, or to `{ refreshed: false }` w
 - The operation SHALL cooperate with a caller-owned transaction as "Claim write" does.
 - The in-memory store double SHALL behave the same way, SHALL let a test inject a `ClaimWriteFailed`
   at the refresh of a given claim, and SHALL let a test run a callback just before the condition is
-  checked (to move the indexed commit or change the claim in between).
+  checked (to move the indexed commit or change the claim in between). It SHALL let a test read, per
+  claim id, the instant the claim was last written: its creation instant until a refresh rewrites
+  it, then an instant later than every instant the double stamped before.
 
 #### Scenario: A stale claim is refreshed in place
 
@@ -57,6 +59,7 @@ new evidence was stored under in the order given, or to `{ refreshed: false }` w
 - **WHEN** `c1` is refreshed, read at `C2`, with a new `current` record and one evidence
 - **THEN** the result is `{ refreshed: true }` with one new evidence id, and the double holds `c1`
   `current` with the new record and only the new evidence, at the same position among the claims
+- **AND** `c1`'s creation instant is unchanged and its last-written instant is later than it
 
 #### Scenario: A refresh that is no longer due writes nothing
 

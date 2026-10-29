@@ -10,7 +10,7 @@ it every re-index makes the stored knowledge of the touched files permanently st
 
 - When `explain` returns an answered answer, it recomputes, after the answer's claim write, up to
   `MAX_STALE_REFRESHES` (3) of the stale prior claims the question reached (the most recent ones,
-  `L2` `INFERENCE` only): one re-inference per claim with the purpose `answer` (a prompt of its own
+  `L2` `INFERENCE` only, with an object and a statement type): one re-inference per claim with the purpose `answer` (a prompt of its own
   holding the stored statement as untrusted data and the pack's spans that overlap the claim's
   evidence), the same quarantine, typing rule, syntactic and semantic verification and entailment
   policy as an answer, at the pack's commit and root.
@@ -43,7 +43,8 @@ None.
 
 ### Modified Capabilities
 
-- `explain`: new requirement "Stale claim refresh"; "Prior claims" no longer says stale claims are
+- `explain`: new requirement "Stale claim refresh"; "Precedence and UNKNOWN answers" gains step 14
+  (the refresh, after the claim write and before the cache save) and its call counts; "Prior claims" no longer says stale claims are
   never recomputed; "Explain events and logging" gains `stale_claim_not_refreshed` and its place in
   the order; "Answer usage" and "Query log" count every `answer` call and every semantic check of the
   call, the refresh's included.
@@ -53,9 +54,10 @@ None.
 
 ## Impact
 
-- Core: `packages/core/src/explain/explain.ts`, `prior-claims.ts`, `explain-event.ts`, new
-  `stale-refresh.ts` and `refresh-prompt.ts`; `packages/core/src/ports/StorePort.ts`;
-  `packages/core/src/knowledge/stored-claim.ts` (the refresh result type).
+- Core: `packages/core/src/explain/explain.ts`, `prior-claims.ts`, `explain-event.ts`, `usage.ts`
+  (`sumVerificationUsage`), new `stale-refresh.ts` and `refresh-prompt.ts`;
+  `packages/core/src/ports/StorePort.ts`; `packages/core/src/knowledge/stored-claim.ts` (the refresh
+  result type); `packages/core/src/verify/syntactic.ts` (a comment only, design A4).
 - Adapter: `packages/adapters/store-postgres/src/claims.ts`, `queries.ts`, `postgres-store.ts` (no
   migration: the columns and the partial index `claim_stale_idx` exist).
 - Tests: new unit, store-integration and explain-integration specs; existing doubles
@@ -64,7 +66,8 @@ None.
   `tests/unit/explain/explain.spec.ts` change (named in `tasks.md`).
 - Seed and golden files: `seeds/graph-dump.sql` header, `seeds/cache/*.json` regenerated with
   Ollama (`qwen2.5-coder`), a DIS-42 golden review round under `docs/golden-review/`.
-- Docs: `readme.md` §3.2, `docs/project-context.md`, a new ADR (claims refreshed in place).
+- Docs: `readme.md` §3.2, `docs/project-context.md`, `prompts.md`, a new ADR (claims refreshed in
+  place).
 - Privacy and security: no personal data. The stored statement returns to a prompt: it is treated as
   untrusted text (neutralised, wrapped, flagged in the prompt); events carry only a claim id and a
   closed code; no model output, statement or excerpt reaches a log. Cost: at most three extra
