@@ -243,3 +243,60 @@ Impact: add "`seeds/graph-dump.sql` and `seeds/cache/acme-shop.json` / `seeds/ca
 - Under the decisions table, add:
   - "E15: `/ask` concurrente con un reindexado (destino A o D)";
   - "E16: regeneración de semilla y golden por tocar entradas de la huella (A; requiere Ollama)".
+
+---
+
+## Resolution of run 1
+
+*Agent's text: correction round 1 of the autonomous run (`docs/AUTONOMOUS-RUN.md` §6), done by the agent as lead engineer without the author. Every decision is recorded in `design.md` → Follow-ups (E15–E24) with its A/B/C/D destination and in a Spanish comment on DIS-9. `openspec validate index-endpoint --strict` passes after the edits.*
+
+### Questions for the author (decided by the agent)
+
+| Question | Resolution |
+|---|---|
+| Q1 (scope against DIS-6) | Decided by the agent, E18 (A): the parent's AC1 and AC2 are met in the adapted form of E1/E3; `jobId` is dropped (gate question 5, nobody could query it). Closing DIS-6 on this reading is left to the author (C). |
+| Q2 (`202` against backend-standards §6) | Decided by the agent, E17 (A): `202` is kept, as the ticket title, its DoD and DIS-6 AC2 fix it; the deviation from §6 is recorded as design U9. |
+| Q3 (Ollama for the golden regeneration) | Decided by the agent, E16 (A): the regeneration is done in this change (tasks group 10), with the local Ollama install (present on the machine), started by the apply step if it is not serving; if it cannot serve, the ticket stops. No rerun of DIS-9 is needed. The new review of the regenerated golden entries goes to the author (C), since `verify` does not read `reviews`. |
+
+### Blocking findings
+
+| Finding | Resolution |
+|---|---|
+| B1 (seed and golden fingerprints) | Fixed. New tasks group 10 "Regenerate the seed and the golden answers with Ollama" (modelled on DIS-107 3.1–3.4, with the rule that it is the last commit touching an input, 10.5, and the repeat in 15.6); design Risks gains the stale-fingerprint risk; proposal Impact names the three files. The group sits after step 9 instead of before step 8, so the mutation fixes of 9.4 land before the regeneration and it is not repeated needlessly. |
+| B2 (integration test of the four codes) | Fixed. `http-index` gains "An invalid request answers VALIDATION_ERROR over the seed" and "An unknown project answers PROJECT_NOT_FOUND over the seed"; task 7.3; counts in 8.2 updated (16 = 12 unit + 4 integration). |
+| B3 (`confineRepository` path against name) | Fixed. Design U1: `confineRepository(sourceTree, repoPath, allowedRoot, requestedName = repoPath)`; U2 calls it with the resolved root and `project.rootPath`; the `confine` step of `repository-indexing` says the error names the stored root as stored; the scenario "A stored root outside the allowed root is rejected before reading" gains the relative third case; tasks 1.1, 2.2 and 2.3. |
+| B4 (absent body) | Fixed, E19. `http-index` "Index request validation" states that no body equals `{}` and an empty `application/json` body is `400`; new scenario "A request without a body is a full reindex" (it also checks the empty JSON body); design U5 specifies a `preValidation` hook and `requestBody.required` absent or `false`; the OpenAPI requirement and scenario say the body is not required; tasks 5.3, 5.4, 5.6, 11.3 and 11.4. |
+| B5 (`202` against §6) | Decided by the agent, E17: design U9 names §6 and records the deviation and its reason; E3's rationale rewritten; `http-index` "Index accepted response" points at U9. |
+| B6 (concurrent `/ask` during a reindex) | Decided by the agent, E15 (D): not mitigated; the `http-index` guarantee is narrowed to "no answer cache entry saved before the reindex's commit remains", stated for questions asked after the `202`; design Risks records it. A mitigation would change the answer cache contract, which this ticket does not own. |
+
+### Improvable findings
+
+| Finding | Resolution |
+|---|---|
+| Point 1, `RangeError` guard without a requirement | Fixed, E22: spec'd in the `enabled` step with the scenario "A workspace root that is not absolute is rejected before any call"; task 2.4 now maps to it. |
+| Point 2, AC5 without a single Postgres test | Rejected: the two scenarios together ("A failed cache invalidation fails the unit of work" in core and "Work that rejects leaves nothing" in the adapter) prove it, and the integration harness's own transaction cannot exercise the pooled runner's rollback without duplicating "Work that rejects leaves nothing". |
+| Point 3, missing allowed root rejects with `IndexingDisabled` | Fixed: scenario "An allowed root that does not exist disables reindexing". |
+| Point 3, framework not detected and fields unchanged | Fixed: scenario "A reindex keeps the stored project fields and detects no framework". |
+| Point 3, rollback-failure and commit-failure clauses | Decided by the agent, E21 (D): not tested, no pool seam added; the reason is in design U3. |
+| Point 3, writes invisible before the commit | Fixed: `graph-store` scenario "Work's writes are invisible to another connection before the commit"; task 3.3. |
+| Point 3, `ts-compiler` without a scenario | Fixed: `http-index` scenario "A TypeScript project answers with the ts-compiler analyzer"; task 5.4. |
+| Point 3, extractor names in the composition scenario | Fixed: "Both indexing variables compose the indexing dependencies" checks `php-treesitter-laravel` and `ts-compiler`. |
+| Point 4, vague wording in design Risks | Fixed: the request-duration and lock risks name acme-shop, the duration measured in the manual step (task 11.3, report 11.7) and Node's default `requestTimeout` (300 s). |
+| Point 4, `filesQueued` count before or after | Fixed: "the number of `file` rows of acme-shop after the request". |
+| Point 5, `buildSnapshot` framework option | Fixed, E22: `buildSnapshot(deps, realRepo, { framework?, detectFramework })`; the reindex passes `detectFramework: false`. |
+| Point 5, unmapped failures | Fixed: `http-index` error table gains the row "Any other failure (the cache invalidation or the commit included)"; design U5 says so. |
+| Point 6, E3's rationale | Fixed with B5 (U9, E3 row rewritten). |
+| Point 6, "only from these variables" | Fixed in `api-foundation` "Configuration from the environment". |
+| Point 6, "for each project language, the Git source tree…" | Fixed in `api-foundation` "Composition from the environment" (the source tree is no longer part of the indexing dependencies, see point 8). |
+| Point 6, readme error list without `500` | Fixed: design U8 and task 13.1 list `400`/`403`/`404`/`429`/`500`/`503`. |
+| Point 7, backend-standards §3 (timing in the route) | Decided by the agent, E20 (A): timing and the log stay in the route, as `/ask` does; design U6 says why. |
+| Point 7, `readme.md` l. 34 | Fixed: task 13.1 and design U8 give the fixed new text of the third column; l. 26 is historical and not edited. |
+| Point 8, duplicate source tree | Fixed, E23: `IndexingDeps` holds no source tree; the route passes `AppDeps.source` (design U2, U4; tasks 5.3, 6.4). |
+| Point 8, project deleted between `getProject` and `saveGraph` | Fixed: one line in design U2 (rolled back, `404`). |
+| Point 10, task 10.4 `AUTHOR_HASH_SALT` unset | Fixed: now task 11.4 restarts with `AUTHOR_HASH_SALT=` (empty, set for that command) and 11.2 states that `.env` only fills unset variables; `ALLOWED_REPOS_DIR` is likewise set for the command. |
+| Point 10, task 10.3 trivially true | Fixed: now task 11.3 first asks Q1 and expects `usage.cacheHit: true` from the golden entry, then reindexes, then asks again. |
+| Point 10, branch name in lowercase | Decided by the agent, E24 (D): kept and recorded (task 0.1). |
+
+### Linear
+
+The Spanish comment of this round is posted on DIS-9. The `[enhanced]` description is not edited in this round: the new decisions E15–E24 live in `design.md` → Follow-ups and in that comment, which is where §6 asks for them.

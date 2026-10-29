@@ -2,7 +2,8 @@
 
 ### Requirement: Configuration from the environment
 
-The API SHALL read its configuration once, at start-up, only from these variables, each trimmed; a
+The API SHALL read its configuration once, at start-up, from these variables, then the LLM variables
+and the indexing variables below, each trimmed; a
 variable that is unset or empty after trimming takes its default:
 
 | Variable | Rule | Default |
@@ -62,8 +63,8 @@ used as built. A configuration or LLM configuration error SHALL be raised before
 Closing the API SHALL close the store's connections.
 
 When both `ALLOWED_REPOS_DIR` and `AUTHOR_HASH_SALT` are set, the composition SHALL also build the
-indexing dependencies: the trimmed allowed root; for each project language, the Git source tree, the
-Git history reader with that salt and the analyzer of that language (PHP or TypeScript); and the
+indexing dependencies: the trimmed allowed root; the Git history reader with that salt; for each
+project language its analyzer (PHP or TypeScript) and its extractor name; and the
 runner of work in one transaction of the opened store (`graph-store`, "Running work in one transaction
 on a pooled store"). When either is missing, the dependencies SHALL hold no indexing dependencies, and
 `POST /api/projects/{projectId}/index` answers `INDEXING_DISABLED` (`http-index`).
@@ -115,4 +116,5 @@ on a pooled store"). When either is missing, the dependencies SHALL hold no inde
   `AUTHOR_HASH_SALT` set, and an `openStore` seam returning a store double with a transaction runner
 - **WHEN** the dependencies are composed
 - **THEN** the indexing dependencies hold the allowed root `/repos`, the PHP analyzer for `php`, the
-  TypeScript analyzer for `typescript`, and the transaction runner of the opened store
+  TypeScript analyzer for `typescript`, the extractor names `php-treesitter-laravel` for `php` and
+  `ts-compiler` for `typescript`, and the transaction runner of the opened store

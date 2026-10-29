@@ -26,6 +26,14 @@ connections before the commit, and none SHALL remain after a rollback.
   transaction
 - **THEN** the run rejects with `E`, and no project with that name exists afterwards
 
+#### Scenario: Work's writes are invisible to another connection before the commit
+
+- **GIVEN** a reachable, migrated database and a store opened on its URL
+- **WHEN** work that creates a project with a unique name runs in one transaction and, before
+  resolving, lists the projects through another connection
+- **THEN** that listing holds no project with that name, a listing after the run holds it, and it is
+  deleted afterwards to restore the database
+
 #### Scenario: Every connection is released after a run
 
 - **GIVEN** a reachable, migrated database and a store opened on its URL with a unique application name

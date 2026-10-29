@@ -23,7 +23,9 @@ Follow-ups with their A/B/C/D destination.)*
 - **New route** `POST /api/projects/{projectId}/index`: strict body `{ incremental?: boolean }` (any other
   key, such as `rootPath` or `language`, is `400`); runs the reindex **synchronously inside the request**
   and answers `202` with `{ projectId, mode: "full", analyzer, indexedCommit, filesQueued, filesSkipped: 0, cacheEntriesInvalidated }`.
-  `incremental` is accepted and has no effect until DIS-10 (E2, E3, E4).
+  `incremental` is accepted and has no effect until DIS-10 (E2, E3, E4). A request without a body is
+  handled as `{}` (E19). The synchronous `202` is a recorded deviation from
+  `docs/backend-standards.md` §6 (E17, design U9).
 - **Error answers** through a route-level domain error table: `403` `INDEXING_DISABLED` (the API has
   no `ALLOWED_REPOS_DIR` or no `AUTHOR_HASH_SALT`), `404` `PROJECT_NOT_FOUND`, `403` `FORBIDDEN_PATH`
   (the stored root is outside `ALLOWED_REPOS_DIR`, re-checked on every reindex), `503` when the
@@ -73,6 +75,10 @@ Follow-ups with their A/B/C/D destination.)*
   `schemas/reindex.ts`, `routes/reindex.ts`; `app.ts`, `composition.ts`, `index.ts`),
   `packages/api/package.json` (the two workspace analyzer packages become dependencies of the API;
   no external dependency is added).
+- Versioned data: `seeds/graph-dump.sql`, `seeds/cache/acme-shop.json` and `seeds/cache/task-api.json`
+  are regenerated (`seed:build` then `cache:build`), because the change touches seed fingerprint
+  inputs; `cache:build` needs a live model (the local Ollama). The seed's rows must not change, only its
+  `analyzer-fingerprint` header; the regenerated golden entries need a new review (E16, destination C).
 - Tests: new `tests/unit/index/reindex-project.spec.ts`, `tests/unit/api/reindex.spec.ts`,
   `tests/integration/api/reindex.spec.ts`; new scenarios in `tests/integration/store/open-store.spec.ts`
   and `tests/unit/api/composition.spec.ts`; existing tests that change are named in `tasks.md`.

@@ -9,10 +9,10 @@ project. It SHALL run these steps, in this order, and a failing step's error SHA
 
 | Step | Work |
 | -- | -- |
-| enabled | when `allowedRoot` is missing, empty or only whitespace, reject with `IndexingDisabled` before any call to the store |
+| enabled | when `workspaceRoot` is not an absolute path, throw `RangeError` before any call; when `allowedRoot` is missing, empty or only whitespace, reject with `IndexingDisabled` before any call to the store |
 | project | read the project; an unknown or malformed id rejects with `ProjectNotFound` |
-| confine | resolve a relative stored `rootPath` against `workspaceRoot` (an absolute one is used as is), then confine it to `allowedRoot` exactly as the `confine` phase of "Indexing order and no partial write" does (lexically, then on real paths; a missing allowed root rejects with `IndexingDisabled`); a `ForbiddenPathError` names the stored `rootPath`, never the resolved real path |
-| build | read, apply the input hygiene, redact, analyse with the analyzer of the stored `language`, read and redact the history and add the `co_changed` edges, with the same rules as the `read`, `redact`, `analyze` and `history` phases of "Indexing order and no partial write"; the framework is not detected |
+| confine | resolve a relative stored `rootPath` against `workspaceRoot` (an absolute one is used as is) and confine the resolved path to `allowedRoot` exactly as the `confine` phase of "Indexing order and no partial write" does (lexically, then on real paths; an allowed root that does not exist rejects with `IndexingDisabled`); a `ForbiddenPathError` names the stored `rootPath` as stored (relative or absolute), never the resolved path nor the real path |
+| build | read, apply the input hygiene, redact, analyse with the analyzer of the stored `language`, read and redact the history and add the `co_changed` edges, with the same rules as the `read`, `redact`, `analyze` and `history` phases of "Indexing order and no partial write"; the framework is not detected, not even when the stored project has none |
 | save | validate the graph (rejecting with `InvalidGraph` as indexing does); then, in **one** unit of work, save the graph over the existing project id and delete every answer cache entry of the project |
 
 Nothing SHALL be written to the store before the `save` step. Within it, the graph save SHALL come
@@ -60,10 +60,34 @@ JSON-serialisable data.
 #### Scenario: A stored root outside the allowed root is rejected before reading
 
 - **GIVEN** a stored project whose root is `/elsewhere/acme-shop` and the allowed root `/repos`; then
-  one whose root `/repos/link` is a symbolic link whose real path is `/secret/acme-shop`
+  one whose root `/repos/link` is a symbolic link whose real path is `/secret/acme-shop`; then one
+  whose stored root is the relative `fixtures/acme-shop`, with the workspace root `/work` and the
+  allowed root `/repos`
 - **WHEN** each is reindexed
-- **THEN** each rejects with `ForbiddenPathError` naming the stored root, the second's message does
-  not contain `/secret`, and no file was read and nothing was written
+- **THEN** each rejects with `ForbiddenPathError` naming the stored root as stored (the third names
+  `fixtures/acme-shop`, not `/work/fixtures/acme-shop`), the second's message does not contain
+  `/secret`, and no file was read and nothing was written
+
+#### Scenario: An allowed root that does not exist disables reindexing
+
+- **GIVEN** a stored project and an allowed root `/missing` that does not exist
+- **WHEN** the project is reindexed
+- **THEN** it rejects with `IndexingDisabled`, no file was read and no unit of work was opened
+
+#### Scenario: A reindex keeps the stored project fields and detects no framework
+
+- **GIVEN** a stored PHP project with no framework whose repository holds a `composer.json` declaring
+  `laravel/framework`
+- **WHEN** the project is reindexed
+- **THEN** `getProject` afterwards returns the same `name`, `rootPath`, `language`, `framework` (none)
+  and `isSample` as before
+
+#### Scenario: A workspace root that is not absolute is rejected before any call
+
+- **GIVEN** the workspace root `work` (relative) and a valid allowed root
+- **WHEN** a project is reindexed
+- **THEN** it throws `RangeError`, and the store, the source tree, the history reader and the analyzer
+  received no call
 
 #### Scenario: A failed cache invalidation fails the unit of work
 
