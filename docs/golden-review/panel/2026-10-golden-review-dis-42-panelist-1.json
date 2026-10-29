@@ -1,0 +1,253 @@
+{
+  "panelist": 1,
+  "model": "claude-opus-5-5",
+  "date": "2026-10-29",
+  "sourcesRead": [
+    "openspec/changes/stale-claims-refresh/tasks.md",
+    "docs/golden-review/2026-10-golden-review-dis-42.md",
+    "docs/golden-review/panel/2026-10-golden-review-dis-42-input.json",
+    "docs/base-standards.md",
+    "fixtures/task-api/src/routes/tasks.routes.ts",
+    "fixtures/task-api/src/controllers/tasks.controller.ts",
+    "fixtures/task-api/src/repositories/task.repository.ts",
+    "fixtures/task-api/src/services/task.service.ts",
+    "fixtures/task-api/src/domain/pagination.ts",
+    "fixtures/task-api/src/repositories/in-memory-task.repository.ts",
+    "fixtures/task-api/src/domain/task-status.ts",
+    "fixtures/task-api/tests/unit/task-status.test.ts",
+    "fixtures/task-api/tests/unit/task.filters.test.ts",
+    "fixtures/task-api/src/app.ts",
+    "fixtures/task-api/src/routes/index.ts",
+    "fixtures/task-api/src/schemas/index.ts",
+    "fixtures/task-api/package.json",
+    "fixtures/task-api/src/config/env.ts",
+    "fixtures/task-api/.env.example",
+    "fixtures/acme-shop/app/Services/PriceCalculator.php",
+    "fixtures/acme-shop/app/Models/Order.php",
+    "fixtures/acme-shop/app/Services/DiscountService.php",
+    "fixtures/acme-shop/app/Services/TaxService.php",
+    "fixtures/acme-shop/app/Services/ShippingService.php",
+    "fixtures/acme-shop/app/Services/CouponValidator.php",
+    "fixtures/acme-shop/app/Observers/OrderObserver.php"
+  ],
+  "items": [
+    {
+      "project": "task-api",
+      "id": "Q1",
+      "answer": "true",
+      "verdict": "partial",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/routes/tasks.routes.ts:18",
+            "fixtures/task-api/src/routes/tasks.routes.ts:22"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "unverifiable",
+          "cites": [
+            "fixtures/task-api/src/controllers/tasks.controller.ts:14",
+            "fixtures/task-api/src/repositories/task.repository.ts:22"
+          ]
+        },
+        {
+          "n": 3,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/services/task.service.ts:49"
+          ]
+        }
+      ],
+      "notes": "The controller lines only show handlers delegating to taskService (fixtures/task-api/src/controllers/tasks.controller.ts:14); none of the cited evidence (including the repository port at fixtures/task-api/src/repositories/task.repository.ts:22) shows TaskService applying business rules or validating data, so statement 2 is unverifiable. The status-transition check is at fixtures/task-api/src/services/task.service.ts:49."
+    },
+    {
+      "project": "task-api",
+      "id": "Q2",
+      "answer": "false",
+      "verdict": "incorrect",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "false",
+          "cites": [
+            "fixtures/task-api/src/domain/pagination.ts:13"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/repositories/in-memory-task.repository.ts:29"
+          ]
+        },
+        {
+          "n": 3,
+          "judgement": "false",
+          "cites": [
+            "fixtures/task-api/src/domain/pagination.ts:13",
+            "fixtures/task-api/src/repositories/in-memory-task.repository.ts:31"
+          ]
+        }
+      ],
+      "notes": "buildPage takes four parameters (items, total, page, pageSize), not a query object (fixtures/task-api/src/domain/pagination.ts:13), and it does receive the paginated results: the repository passes the already-sliced items (fixtures/task-api/src/repositories/in-memory-task.repository.ts:30). It wraps them in a Page with pageCount computed from total and pageSize (fixtures/task-api/src/domain/pagination.ts:19)."
+    },
+    {
+      "project": "task-api",
+      "id": "Q3",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/domain/task-status.ts:25"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/domain/task-status.ts:29"
+          ]
+        },
+        {
+          "n": 3,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/domain/task-status.ts:26",
+            "fixtures/task-api/tests/unit/task-status.test.ts:11"
+          ]
+        },
+        {
+          "n": 4,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/domain/task-status.ts:30"
+          ]
+        }
+      ],
+      "notes": "The answer is correct but does not list the transitions themselves, which are in the TRANSITIONS table (fixtures/task-api/src/domain/task-status.ts:13). Statement 2 has a wording slip ('devuelta' where 'definida' is meant), which is not an error."
+    },
+    {
+      "project": "task-api",
+      "id": "Q4",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [],
+      "notes": "The fixture has no authentication route, hook, plugin or check: the app wires only the error handler, db plugin and routes (fixtures/task-api/src/app.ts:28). A JWT_SECRET is parsed from the environment (fixtures/task-api/src/config/env.ts:13) but nothing uses it to authenticate users, so UNKNOWN is the due answer."
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q1",
+      "answer": "true",
+      "verdict": "incorrect",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/PriceCalculator.php:25"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/PriceCalculator.php:27",
+            "fixtures/acme-shop/app/Services/PriceCalculator.php:31"
+          ]
+        },
+        {
+          "n": 3,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Models/Order.php:47"
+          ]
+        },
+        {
+          "n": 4,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/DiscountService.php:36",
+            "fixtures/acme-shop/app/Services/DiscountService.php:37"
+          ]
+        },
+        {
+          "n": 5,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/PriceCalculator.php:29"
+          ]
+        },
+        {
+          "n": 6,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/TaxService.php:26"
+          ]
+        },
+        {
+          "n": 7,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/ShippingService.php:26",
+            "fixtures/acme-shop/app/Services/ShippingService.php:31"
+          ]
+        },
+        {
+          "n": 8,
+          "judgement": "false",
+          "cites": [
+            "fixtures/acme-shop/app/Services/PriceCalculator.php:34"
+          ]
+        }
+      ],
+      "notes": "The final price is the discounted taxable base plus tax plus shipping (fixtures/acme-shop/app/Services/PriceCalculator.php:34), not subtotal plus tax plus shipping, so FACT statement 8 is false and the item is incorrect. Statement 4 omits the volume discount (fixtures/acme-shop/app/Services/DiscountService.php:38), an imprecision, not an error."
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q3",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/CouponValidator.php:22",
+            "fixtures/acme-shop/app/Services/CouponValidator.php:24",
+            "fixtures/acme-shop/app/Services/CouponValidator.php:28"
+          ]
+        }
+      ],
+      "notes": "percentFor looks the coupon up (fixtures/acme-shop/app/Services/CouponValidator.php:22), rejects inactive and expired ones, and returns the percent off rather than a boolean. The boolean check is isRedeemable (fixtures/acme-shop/app/Services/CouponValidator.php:35), which the answer does not mention."
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q4",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Observers/OrderObserver.php:18"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Observers/OrderObserver.php:19"
+          ]
+        }
+      ],
+      "notes": "The answer calls both actions 'eventos', but RecalculateTotals is a queued job imported from App\\Jobs (fixtures/acme-shop/app/Observers/OrderObserver.php:8); only OrderPlaced is an event (fixtures/acme-shop/app/Observers/OrderObserver.php:19). This is an imprecision, not an error."
+    }
+  ]
+}
