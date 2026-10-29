@@ -32,7 +32,9 @@ it every re-index makes the stored knowledge of the touched files permanently st
 - Because the store adapter is a seed fingerprint input, the seed and the golden answers are
   regenerated and the regenerated golden answers go through a new blind panel review round (DIS-42),
   as in DIS-9. The answers that round judges `incorrect` are regenerated alone and the whole round is
-  rerun as DIS-42 r2, with no new ticket, as in DIS-10 (design G1).
+  rerun as DIS-42 r2, with no new ticket, as in DIS-10 (design G1); what r2 still judges
+  `incorrect` is regenerated alone once more and judged in a third and last round, DIS-42 r3, after
+  which an `incorrect` answer stays unsigned for the author (design G2, G3).
 - No HTTP or CLI contract change: `/ask` does not expose `priorClaims` and logs events as before; the
   CLI shows a refreshed prior claim without `[stale]`.
 
@@ -50,8 +52,8 @@ None.
   the order; "Answer usage" and "Query log" count every `answer` call and every semantic check of the
   call, the refresh's included.
 - `graph-store`: new requirement "Claim refresh" (`refreshClaim`).
-- `golden-answers`: the current review round becomes DIS-42 r2, the second DIS-42 round (input,
-  panel outputs, report, criterion and immutable record), the first DIS-42 round, DIS-9 and the two
+- `golden-answers`: the current review round becomes DIS-42 r3, the third DIS-42 round (input,
+  panel outputs, report, criterion and immutable record), DIS-42 r2, the first DIS-42 round, DIS-9 and the two
   DIS-10 rounds (DIS-10 and DIS-10 r2, merged into the base before the first DIS-42 panel) joining
   the previous rounds.
 
@@ -68,8 +70,9 @@ None.
   `tests/support/explain-doubles.ts`) and the prior-claims scenario of
   `tests/unit/explain/explain.spec.ts` change (named in `tasks.md`).
 - Seed and golden files: `seeds/graph-dump.sql` header, `seeds/cache/*.json` regenerated with
-  Ollama (`qwen2.5-coder`), then task-api `Q2` and acme-shop `Q1` alone again; two DIS-42 golden
-  review rounds (DIS-42 and DIS-42 r2) under `docs/golden-review/`.
+  Ollama (`qwen2.5-coder`), then task-api `Q2` and acme-shop `Q1` alone again, then acme-shop `Q1`
+  alone once more; three DIS-42 golden review rounds (DIS-42, DIS-42 r2 and DIS-42 r3) under
+  `docs/golden-review/`.
 - Docs: `readme.md` §3.2, `docs/project-context.md`, `prompts.md`, a new ADR (claims refreshed in
   place).
 - Privacy and security: no personal data. The stored statement returns to a prompt: it is treated as

@@ -214,6 +214,12 @@ requirement "Partial regeneration") and a second round, DIS-42 r2 (groups 16–2
 `-dis-42-r2`), judges all seven items again on new files with the same criterion; the `golden-answers`
 delta's current round is DIS-42 r2 and the first DIS-42 round joins the previous rounds (G1).
 
+DIS-42 r2 judged acme-shop `Q1` `incorrect` again. With the same rule, acme-shop `Q1` alone is
+regenerated once more, in a single run, and a third and last round, DIS-42 r3 (groups 21–25, suffix
+`-dis-42-r3`), judges all seven items again; the delta's current round is DIS-42 r3 and DIS-42 r2
+joins the previous rounds (G2, G3). If r3 still judges an item `incorrect`, it stays unsigned as a
+known unsigned golden answer for the author, with no further round and no ticket (G3).
+
 ### D13. ADR
 
 `docs/adr/20261029-stale-claims-refreshed-in-place.md`: a refreshed claim keeps its id and row, its
@@ -244,8 +250,10 @@ to reverse (a later history table or versioned claims would need a migration and
   non-cacheable would modify the `answer-cache` rules, beyond the ticket.
 - [The regeneration needs Ollama and a panel round, which can fail or find an incorrect golden
   answer] → by the author's decision no successor ticket is opened: the `incorrect` items are
-  regenerated alone and the whole round is rerun on new files as DIS-42 r2 (G1); an `incorrect` r2
-  verdict stops the round for the author; a missing Ollama stops the ticket (P8).
+  regenerated alone and the whole round is rerun on new files as DIS-42 r2 (G1) and, for what r2
+  still judges `incorrect`, as DIS-42 r3 (G2, G3); an `incorrect` r3 verdict is left unsigned as a
+  known unsigned golden answer for the author, with no further round; a missing Ollama stops the
+  ticket (P8).
 - [Another change of this block (DIS-10) may merge its own golden round first] → this change then
   merges the base, regenerates again after the merge (its fingerprint changes too) and rebases the
   `golden-answers` delta: that round becomes a previous round in every list of the delta (P9).
@@ -344,3 +352,4 @@ is resolved inside DIS-42.*
 | Id | Decision | Destination |
 |---|---|---|
 | G2 | The r2 panel (panelist 1 `claude-opus-5-5`, panelist 2 `claude-sonnet-5-5`, resolver `claude-opus-5-5` with no item; 7 of 7 agreed) judged acme-shop `Q1` `incorrect` again and the other six items `correct` or `partial`. By the author's decision the round does not stop for the author (task 20.2 is amended: its first wording stopped before signing, destination C) and no Linear issue is created: the r2 round is closed as the first one was (every entry judged `correct` or `partial` carries the two r2 signatures, acme-shop `Q1` keeps `reviews: []`, and the r2 report's `## Pending` names `DIS-42` for it, with a sentence naming the r3 round; the `golden-answers` delta says so), and becomes history. A third round, DIS-42 r3 (suffix `-dis-42-r3`, groups 21–25, mirroring groups 16–20), regenerates acme-shop `Q1` alone once and has all seven items judged again (decision G3). | A |
+| G3 | The DIS-42 r3 round, the last one. Groups 21–25 mirror groups 16–20: the r3 report with the same criterion is committed alone first; acme-shop `Q1` alone is regenerated with `npm run cache:build -- --project acme-shop Q1` (requirement "Partial regeneration": every other entry keeps its content, `reviews` included), run **once**: the command is never repeated to obtain a different answer, since choosing among samples by their verdict would bias the round; if the run fails after its three attempts, the round stops for the author (destination C). `seeds/cache/acme-shop.json` alone is committed, the r3 regeneration commit; the r3 input projects the seven items from both golden files; a new blind panel (Opus, Sonnet, Opus resolver) judges all seven with the Criterion block copied byte for byte, the files of the first DIS-42 round and of DIS-42 r2 forbidden to it; the r2 round joins the previous rounds of the `golden-answers` delta and of `tests/unit/seed/golden-reviews.spec.ts`. Group 25 signs every entry judged `correct` or `partial` from the r3 verdicts. If r3 still judges an item `incorrect`, no further round and no ticket follow: the entry keeps `reviews: []`, the r3 report's `## Pending` names it (`- <project> <id>: DIS-42`, with a sentence saying it stays as a known unsigned golden answer for the author), and a row of this table records it as a known unsigned golden answer (destination C, for the author); the change then continues with its pre-merge review (group 15). No commit after the r2 regeneration (`1cb8196`) touches a seed or answer fingerprint input, so `seeds/graph-dump.sql` and the other entries are not rebuilt. | A |
