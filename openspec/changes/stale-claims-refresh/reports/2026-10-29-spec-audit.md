@@ -240,3 +240,207 @@ after the corrections.*
   quarantine and verification events are not added (P2), and "Re-inferencia (R2)" uses `E1…`.
 - Correction 20 — fixed: a Spanish comment on DIS-42 summarises the audit and the decisions of this
   round.
+
+---
+
+## Run 2 (2026-10-29)
+
+APPROVED
+
+# Spec audit: `stale-claims-refresh` (DIS-42, parent DIS-29), run 2
+
+- Date: 2026-10-29
+- Inputs read:
+  - The change: `proposal.md`, `design.md` (Follow-ups R1–R14, P1–P11, A0–A9 included), `specs/explain/spec.md`, `specs/graph-store/spec.md`, `specs/golden-answers/spec.md`, `tasks.md`, and the run 1 report with its resolution section.
+  - Linear: DIS-42 (description and its 4 comments) and its parent DIS-29 (description and its comment).
+  - Project docs: `docs/base-standards.md`, `docs/openspec-tasks-mandatory-steps.md`, `docs/project-context.md` (stale, re-index and fingerprint sections), `docs/backend-standards.md`, the list of ADRs.
+  - Main specs: `openspec/specs/explain` (Purpose, Precedence, Untrusted content sanitization, Prompt and evidence ids, Answer with typed statements, Persistence failure, Prior claims, Question and answer language), `graph-store`, `graph-schema` (stale trigger) and `golden-answers`.
+  - Code: `packages/core/src/explain/explain.ts`, the exports of `untrusted-text.ts`, `sanitize.ts`, `usage.ts`, `prior-claims.ts` and `claim-items.ts`, `packages/cli/src/cache/answer-fingerprint.ts`, `packages/cli/src/seed/fingerprint.ts`, the migrations (`updated_at`, triggers), `tests/support/in-memory-store.ts`, `tests/support/explain-doubles.ts`, `tests/unit/explain/explain.spec.ts`, `tests/unit/explain/explain-cache.spec.ts`, `tests/integration/api/reindex.spec.ts`.
+
+## Questions for the author
+
+None. The three questions of run 1 were settled by the agent (A0, A1, A2). None of those answers contradicts the ticket or the project: A2 follows AC 1 literally, and A0 follows ADR `20261017-stale-fingerprint-fails-verify`.
+
+## 1. Scope against the ticket
+
+Clean.
+
+- The improvable scope points of run 1 have recorded decisions that fit the ticket:
+  - groups 10–10d and the `golden-answers` delta (A0);
+  - P4, unsaved answers also refresh (A3; R5 says «respuestas `answered`»);
+  - the comment of `syntactic.ts` (A4).
+- The change does not grow into the whole user story of DIS-29.
+
+## 2. Inherited acceptance criteria
+
+Clean. The DoD and ACs 1–5 of DIS-42 each map to a requirement and a scenario:
+
+| Criterion | Scenario(s) |
+|---|---|
+| AC1 / DoD | "A stale claim is refreshed after a re-index"; "A stale prior claim is refreshed on the first question that reaches it" |
+| AC2 | "A refresh without backing leaves the claim stale" (the last-written instant is now observable through `claimUpdatedAt`) |
+| AC3 | "An unavailable model or an exhausted budget stops the refresh" (resolved calls in the row) |
+| AC4 | "A refresh that is no longer due is superseded and a failed refresh write is reported"; graph-store "A refresh that is no longer due writes nothing" (two refreshes in a row) |
+| AC5 | "At most three stale claims are refreshed per question" |
+
+The parent's criterion "a stale claim is never shown as `FACT`" stays in the modified "Prior claims". The sub-issue and the parent do not conflict.
+
+## 3. Missing scenarios
+
+All improvable:
+
+- **I2.** Step 1 of "Stale claim refresh" says "a due claim with no such span gets the code `no-evidence` without a model call". No scenario covers it.
+  - It cannot be reached through `explain`: prior claims are read by the same overlap (design D3).
+  - Either cover it with a direct unit `it` of `refreshStaleClaims` (not a scenario) in task 5.5a, or state in D3 that the branch is defensive and only unit-tested.
+- **I3.** "A refresh whose verifier is unavailable stores cited evidence" runs twice ("and again with … `BudgetExhausted`"). After the first run `c1` is already `current`, so the second run is only meaningful on a new store.
+  - Fix: in the WHEN, write "and again, over a new store holding the same `c1`, with that `verify` call failing with `BudgetExhausted`".
+
+## 4. Ambiguity
+
+Clean. The only matches for the listed words are "as many symbol searches as one anchoring … sends" and "however many statements cite it". Both are copied verbatim from the main spec and are precise.
+
+## 5. Open decisions
+
+All improvable:
+
+- **I4.** Suppose a refresh propagates an error (for example the `verify` call of the second due claim) after an earlier refresh of the same call already rewrote its claim. The spec says the error "is raised after the answer's own claim write, which it does not undo". It says nothing about the refreshes already written.
+  - The implementation will not undo them; each `refreshClaim` is its own transaction.
+  - Fix: say so in "Stale claim refresh", failure paragraph.
+- **I5.** P9 (another golden round merges first) says only that the `golden-answers` delta gains that round as a previous round. Several places in `tasks.md` hard-code three previous rounds and would also change:
+  - 10b.1 ("the fifteen files");
+  - the `## Panel` forbidden paths of 10b.2;
+  - the previous-round constants and rejection copies of 10b.3;
+  - 10b.5 and 10d.6;
+  - the forbidden sources of the Panel group;
+  - and, in the delta, the "Invalid panel outputs are rejected" copies.
+
+  DIS-10 is being relaunched in parallel and touches `packages/core/src/index`, which is a seed fingerprint input, so this is a real possibility.
+  - Fix: extend P9 to list those tasks, to be updated before 10b.2 is committed. The Criterion block is never touched.
+
+## 6. Contradictions inside the change
+
+Clean. Proposal, design D1–D13, the three deltas and the tasks agree on all of the following:
+
+- due-claim definition, cap and order;
+- codes and event order;
+- the step 14 placement;
+- usage, row and latency accumulation (D8 `verifySumMs`);
+- the double's `updatedAt` and `claimUpdatedAt`.
+
+I recomputed the figures of "The refresh calls count in the answer usage and its row" and they are consistent:
+
+- generation 3900/280 and 0.0159;
+- verification 700/50, 0.00285, 3 calls and 1000 ms;
+- total 0.01875, savings 88.5, latency 1300.
+
+The figures of "A failure inside a refresh propagates after the row" are also consistent: 300/30 tokens, of which 100/10 are verification, 1 call, no latency.
+
+## 7. Contradictions with the project
+
+- **I1 (improvable).** The main requirement "Prompt and evidence ids" (`openspec/specs/explain/spec.md:477-510`) is written in general terms. It says "Explain SHALL give the model one evidence id per span of the pack, `E1` to `En` in the pack's rank order", and describes "the prompt" as `{ question, questionFlags?, evidence }` with a system message chosen by the question's language. The refresh prompt sends only the overlapping spans, renumbered `E1…`, under `{ claim, claimFlags?, evidence }`.
+  - The new requirement makes the difference explicit ("a fixed system message of its own (not explain's)", "as in the explain prompt"), so nothing is left for the implementer to decide.
+  - After sync, though, the general sentence reads wider than intended.
+  - Fix: add a scoping sentence to "Stale claim refresh" (correction 1 below).
+- **Improvable.** The ticket's `[enhanced]` → "Escritura (R4)" says `updated_at = now()`. Design D6 rightly uses `clock_timestamp()`:
+  - the stale trigger of `0003_indexes-stale.up.sql:45` writes `now()`;
+  - inside the harness transaction `now()` does not advance;
+  - so `now()` would break the DoD clause "`updated_at` is later than before the second call".
+
+  Update the ticket text (Linear correction below).
+- Checked and consistent:
+  - `graph-schema` l. 658-659 and `graph-store` l. 180 concern the trigger and the graph write; neither forbids `refreshClaim`.
+  - ADR `20261013-fact-statements-stored-as-l2-inference`: the record is `L2` `INFERENCE` and keeps `statementType`.
+  - ADR `20261014-broken-citations-not-stored`: the refresh drops broken citations through `verifyAnswer`.
+  - ADR `20261017-stale-fingerprint-fails-verify`: covered by groups 10–10d.
+  - The modified "Precedence and UNKNOWN answers" copies all 15 scenarios of the main spec unchanged and only adds the step 14 clauses.
+  - The Purpose header is updated at sync (A8).
+
+## 8. Contrast with the real code
+
+Clean. The design fits the code:
+
+- **`explain.ts`:**
+  - `answerQuestion` has the `saveClaims` `try`/`catch` with both branches (`packages/core/src/explain/explain.ts:374-381`);
+  - `onSemanticStart` sets `verifyLatencyMs` to `null` (`explain.ts:347-349`);
+  - the rejection row uses `state.verifyLatencyMs` (`explain.ts:167-171`), which is the reason for D8's accumulator;
+  - `finish` saves the cache and then the row (`explain.ts:208-225`).
+- **Helpers:** `neutralise`, `wrapUntrusted`, `evidenceIdAt`, `toClaimItems` and `toPriorClaim` exist and are exported.
+- **Fingerprint inputs:**
+  - `untrusted-text.ts` is an answer fingerprint input (`packages/cli/src/cache/answer-fingerprint.ts:17`); the design only imports it, and task 4.2 checks this.
+  - `packages/core/src/knowledge` and `packages/adapters/store-postgres/src` are seed fingerprint inputs (`packages/cli/src/seed/fingerprint.ts:30-41`), so step 10 is needed.
+- **No hidden trigger on `claim`:** the migrations have no trigger that sets `updated_at` on `claim` updates (only the stale trigger), so the explicit `clock_timestamp()` takes effect.
+- **In-memory double:** `nextStamp` and `seedClaim` exist (`tests/support/in-memory-store.ts:340-355`), so D6's `updatedAt` is implementable as written.
+- **Existing tests:**
+  - The only existing test that seeds due stale claims reached by an answered answer is "Prior claims show their displayed type and stale warning" (`tests/unit/explain/explain.spec.ts:773-829`). Task 5.3 names it, and its expected `claim 3` then `claim 2` and its `d.order` match the delta.
+  - The stale claims in `explain-cache.spec.ts:329-372` and `explain.spec.ts:638` are written by the call itself, never read back as prior claims.
+  - `tests/integration/api/reindex.spec.ts` re-indexes at the same commit over a seed without stale claims.
+  - The claim of task 8.1 ("no other existing test changes") therefore holds.
+- The evidence mapping repeated from `prompt.ts` is accepted as in run 1 (P1); task 4.1 keeps the field-by-field guard.
+
+## 9. Task size
+
+Clean. Since run 1, 5.2 and 5.5 are split into a–c and every task fits one turn. 10b.3 is long but follows the DIS-9 precedent and changes one file through its constants.
+
+## 10. Mandatory steps
+
+Clean.
+
+- Step 0 is first: branch `feature/dis-42-stale-claims-refresh` from `final-project-CRN`.
+- The mandatory groups are present and labelled:
+  - Review existing tests (8);
+  - Run tests and verify data state (9, with report path and template);
+  - Manual interface testing (11, AGENT MUST EXECUTE, success and error paths, restoration in 11.6, PowerShell half as destination C in 11.8);
+  - End-to-end (12, justified as not applicable);
+  - Documentation (13);
+  - Pre-merge review last (15, the three checks in order, fixes on the same PR, archive commit before merge).
+- Mutating steps restore state (0.4/6.2/9.5 and 11.6).
+- Groups 10–10d are not numbered sequentially. This was rejected with a reason (A5).
+- The merge in 15.7 is limited to an autonomous run through the merge gate (A9).
+
+## 11. Traceability
+
+| Requirement | Scenario(s) | Task(s) |
+|---|---|---|
+| explain · Stale claim refresh (ADDED) | "At most three…", "Only stale L2 inference claims…", "Nothing is refreshed without a live answered answer", "An unavailable model or an exhausted budget stops the refresh" | 5.1, 5.2a, 5.5a, 5.5c, 5.6 |
+| explain · Stale claim refresh (ADDED) | "A stale prior claim is refreshed on the first question…", "A refresh whose verifier is unavailable stores cited evidence", "A refresh without backing leaves the claim stale", "A refresh that is no longer due is superseded…" | 5.1, 5.2b, 5.5b, 5.5c, 5.6 |
+| explain · Stale claim refresh (ADDED) | "The refresh prompt holds the stored statement as untrusted data…", "The refresh calls count in the answer usage and its row", "A failure inside a refresh propagates after the row" | 4.1, 4.2, 5.2c, 5.4, 5.5a–c, 5.6 |
+| explain · Stale claim refresh (ADDED) | "A stale claim is refreshed after a re-index" (DoD) | 6.1, 6.2 |
+| explain · Precedence and UNKNOWN answers (MODIFIED) | 15 unchanged scenarios | 5.6 (stay green), 8.2 |
+| explain · Prior claims (MODIFIED) | "Prior claims show their displayed type and stale warning" (changed) | 5.3, 5.6 |
+| explain · Prior claims (MODIFIED) | "Prior claims are read over the kept lines of a cut span" | 8.2 (existing test) |
+| explain · Explain events and logging (MODIFIED) | "Stale claim events follow the write event and precede the row event" | 1.1, 1.2, 5.2c, 5.6 |
+| explain · Explain events and logging (MODIFIED) | unchanged scenarios | 8.2 |
+| explain · Answer usage (MODIFIED) | unchanged scenarios; refresh case in "The refresh calls count…" | 5.2c, 5.4, 5.6, 8.2 |
+| explain · Query log (MODIFIED) | unchanged scenarios; refresh case in "A failure inside a refresh propagates after the row" | 5.2c, 5.6, 8.2 |
+| graph-store · Claim refresh (ADDED) | 4 Postgres scenarios | 2.1, 3.1, 3.2, 3.3 |
+| graph-store · Claim refresh (ADDED) | 4 in-memory scenarios | 2.1, 2.2, 2.3 |
+| golden-answers · Blind panel input (MODIFIED) | "The panel input projects…" | 10b.3, 10b.4 |
+| golden-answers · Panel outputs (MODIFIED) | "Each panelist output judges…", "The resolution answers exactly the disagreements", "Invalid panel outputs are rejected" | 10b.3, 10b.4, 10c.1–10c.4, 10d.1 |
+| golden-answers · Golden review report (MODIFIED) | "The report's verdicts and agreement match…", "The report states its criterion, panel and limitations" | 10b.2, 10d.4 |
+| golden-answers · Criterion first and immutable panel record (MODIFIED) | "The report's criterion is the Panel group's criterion", "The criterion precedes the input…" | 10b.2, 10b.4, 10d.6 |
+
+No empty row. Task 8.2's count (12 + 8 scenarios, 11 unit and 1 integration for "Stale claim refresh") matches the deltas.
+
+## Corrections to apply
+
+All optional (improvable); none blocks the apply.
+
+### `specs/explain/spec.md`
+
+1. **(I1)** "Stale claim refresh", end of the first paragraph, add: "Requirements "Prompt and evidence ids" and "Question and answer language" describe the prompt of the answer's own `answer` call (step 8 of "Precedence and UNKNOWN answers"); a refresh prompt follows only this requirement."
+2. **(I4)** "Stale claim refresh", failure paragraph, after "SHALL propagate unchanged, after the row of requirement "Query log"", add: "; it undoes neither the answer's claim write nor the claims already rewritten by earlier refreshes of the call".
+3. **(I3)** Scenario "A refresh whose verifier is unavailable stores cited evidence", WHEN: "the price question is explained, and again, over a new store holding the same `c1`, with that `verify` call failing with `BudgetExhausted`".
+
+### `design.md`
+
+4. **(I2)** D3, last sentence, append: "The branch is covered by a direct unit `it` of `refreshStaleClaims` (not a scenario), since `explain` cannot reach it."
+5. **(I5)** Follow-ups, P9: append "In `tasks.md` that round's files are also added, before 10b.2 is committed, to 10b.1 (the SHA list), 10b.2 (`## Panel` forbidden paths), 10b.3 (previous-round constants and rejection copies), 10b.5, 10d.6 and the Panel group's forbidden sources; the Criterion block is not touched."
+
+### `tasks.md`
+
+6. **(I2)** 5.5a: append "with a direct unit `it` (not a scenario) for a due claim with no overlapping span: `no-evidence`, no model call".
+
+### Linear DIS-42 (never the `[original]` block)
+
+7. In `[enhanced]` → "Contexto técnico" → "Escritura (R4)", replace «`updated_at = now()`» with «`updated_at = clock_timestamp()` (el instante de la escritura; `now()` no avanza dentro de una transacción y el disparador de `stale` ya lo usa)». In `[reality-map]` → "Tubería reutilizable", change «ids de evidencia `e1…`» to «ids de evidencia `E1…`».
+8. Comment in Spanish: «Auditoría de especificación de `stale-claims-refresh`, ejecución 2 (2026-10-29): `APPROVED`, sin hallazgos bloqueantes. Mejoras opcionales: acotar en «Stale claim refresh» que «Prompt and evidence ids» describe solo el prompt de la respuesta; decir que un error propagado no deshace los recálculos ya escritos; usar un almacén nuevo en la segunda ejecución del escenario del verificador caído; cubrir con un test unitario directo el caso sin span solapado; y ampliar P9 a las tareas 10b.1–10b.5, 10d.6 y al grupo Panel si otra ronda golden (p. ej. DIS-10) se integra antes.»
