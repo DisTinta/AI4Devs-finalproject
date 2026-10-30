@@ -82,3 +82,7 @@ regexes = ['''^S[E]NTINEL\-hdr\-demo$''']
 [[allowlists]]
 description = "Synthetic AWS-shaped key of the unsafe-content scenario of the golden-cache-build change (DIS-26) - openspec/changes/golden-cache-build/specs/golden-answers/spec.md, aws-access-token, lines 208 and 215 when generated (tests build it by concatenation)"
 regexes = ['''^A[K]IAABCDEFGHIJKLMNOP$''']
+
+[[allowlists]]
+description = "Synthetic sentinel API key of the model-configuration scenario of the impact-risk-cli change (DIS-90) - openspec/changes/impact-risk-cli/specs/cli-impact/spec.md and tests/unit/cli/impact-command.spec.ts, generic-api-key, lines 82 and 191 when generated (also in the git history of this branch)"
+regexes = ['''^S[E]NTINEL\-key\-9a1f$''']
