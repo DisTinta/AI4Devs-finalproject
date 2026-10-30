@@ -15,7 +15,7 @@ and exit with `0`, without reading the environment or opening a connection. The 
 `codemind --help` SHALL list `impact` once. A missing argument, an extra argument, an unknown option
 or `--max-hops` without a value SHALL fail with `USAGE` and exit `2`, with a message that names the
 kind of error and SHALL NOT quote any argument the user typed; the argument parser SHALL NOT print
-an error text of its own. A change that starts with `-` MAY be passed after `--`.
+an error text of its own.
 
 The request SHALL then be checked as the impact use case checks it (`change` of 5 to 500 code points,
 not only whitespace, no U+0000; `maxHops` an integer from 1 to 3, 2 when the option is absent)
@@ -29,6 +29,12 @@ only with the digits 0 to 9 SHALL count as an invalid `maxHops`. An invalid requ
 - **WHEN** `impact --help` runs, then `impact -h`, then `impact --version`, then `impact -V`
 - **THEN** each exits with `0`, prints the help or the version to stdout, leaves stderr empty, reads
   no environment variable and opens no connection
+
+#### Scenario: The global help lists impact once
+
+- **GIVEN** `DATABASE_URL` and every `LLM_*` variable unset
+- **WHEN** `codemind --help` runs through the CLI entry point
+- **THEN** it exits with `0` and its stdout lists `impact <project> <change>` exactly once
 
 #### Scenario: Impact usage errors never quote the arguments
 

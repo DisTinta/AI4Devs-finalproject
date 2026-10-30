@@ -8,33 +8,35 @@
 ## 1. Core: the risk rule (TDD; spec impact "Risk level of a report"; design D1, D3, D4)
 
 - [ ] 1.1 Create `tests/unit/impact/risk.spec.ts` (header comment: spec path and DIS-90) over small graphs built with `tests/support/sample-graph.ts` in the in-memory double (template: `tests/unit/impact/relevance.spec.ts`); every test asserts its anchor first (DIS-89 design P5). RED: test "A direct component without a test makes the risk high" (exact `risk.level` and `risk.rationale`). See it fail (no `risk`)
-- [ ] 1.2 GREEN: `ImpactRisk`, `RiskLevel` and the `risk` field of the answered variant in `packages/core/src/impact/impact-report.ts`; `packages/core/src/impact/risk.ts` (`assessRisk`, the four word pairs, the plural helper), exported from `packages/core/src/impact/index.ts`; the per-component seeds and the test node refs as extra outputs of `findTests` and `directCoverage` (one `tested_by` read, direction `in`, skipped without test nodes) in `packages/core/src/impact/reverse-walk.ts`; `impact.ts` attaches `risk`. JSDoc on every export. `buildReport` keeps its signature
+- [ ] 1.2a GREEN: `ImpactRisk`, `RiskLevel` and the `risk` field of the answered variant in `packages/core/src/impact/impact-report.ts`; `packages/core/src/impact/risk.ts` (`assessRisk(report, facts)`, the four word pairs, the plural helper), exported from `packages/core/src/impact/index.ts`; `impact.ts` counts `U` over the entries of the report's `direct` (after `buildReport`, matched by `componentKey`; design D2) with the per-component coverage computed by the simplest correct means, and attaches `risk`. JSDoc on every export. `buildReport` keeps its signature
+- [ ] 1.2b RED: extra case, not a scenario (moved here from the last risk task): the coverage read is exactly one `neighbors` call with kinds `['tested_by']`, direction `in`, `hops` 1, seeded with the test nodes found, and none when no test is found (every direct component uncovered). See it fail. GREEN: the per-component seeds and the test node refs as extra outputs of `findTests` (statements and order unchanged) and `directCoverage` in `packages/core/src/impact/reverse-walk.ts` (design D2); `impact.ts` uses it. The 1.1 test stays green
 - [ ] 1.3 RED → GREEN: test "Every direct component tested and exact makes the risk low"
-- [ ] 1.4 RED → GREEN: test "Every direct component tested with one heuristic makes the risk medium"
-- [ ] 1.5 RED → GREEN: test "An untested heuristic direct component makes the risk high"
-- [ ] 1.6 RED → GREEN: test "The rationale counts in the singular"
-- [ ] 1.7 RED → GREEN: test "A test written file to file covers a direct component"
-- [ ] 1.8 RED → GREEN: test "The test of an indirect component does not cover a direct one". Extra cases, not scenarios: the rationale never contains the change text (a change with a sentinel term that anchors `Anchor`); the coverage read is exactly one `neighbors` call with kinds `['tested_by']`, direction `in`, `hops` 1, seeded with the test nodes found, and none when no test is found (every direct component uncovered); an `unknown` report has no `risk` key
+- [ ] 1.4 RED → GREEN: test "A covered direct component whose chains are all heuristic makes the risk high" (`H` and the heuristic-only clause of `HIGH`)
+- [ ] 1.5 RED → GREEN: test "A covered direct component with an exact chain beyond its first hop makes the risk medium" (assert the anchor and that `Caller` is in `direct` with `hops` 1 and `heuristic` first). GREEN: `exactChain` on `Component` in `packages/core/src/impact/relevance.ts` `groupComponents` (true for a component of the anchor and when any reached node of it is `exact`; never in `ImpactEntry`), and `H` = the report's `direct` entries whose component has `exactChain` false (design D1)
+- [ ] 1.6 RED → GREEN: test "An untested heuristic direct component makes the risk high"
+- [ ] 1.7 RED → GREEN: test "The rationale counts in the singular"
+- [ ] 1.8 RED → GREEN: test "A test written file to file covers a direct component"
+- [ ] 1.9 RED → GREEN: test "The test of an indirect component does not cover a direct one". Extra cases, not scenarios: the rationale never contains the change text (a change with a sentinel term that anchors `Anchor`); an `unknown` report has no `risk` key; a file reached at hop 1 that `buildReport` shadows because a symbol of the same file is a component at hop 2 is not counted in `U` (design D2)
 
 ## 2. Core: the query_log row (TDD; spec impact "Query log of an impact call"; design D5)
 
 - [ ] 2.1 Create `tests/unit/impact/query-log.spec.ts` (header comment: spec path and DIS-90) over `createInMemoryStore` loaded with `acmeShopGraph()` and an injected clock. RED: test "An answered call writes one impact row" (the whole row with `toEqual`, through `queryLog()`; no `events` key)
 - [ ] 2.2 GREEN: `packages/core/src/impact/query-log.ts` (`impactQueryLogEntry`, the tolerant `saveImpactRow` with the `explain` mapping), `ImpactEvent` and the optional `events` of both variants in `impact-report.ts`, and `impact(store, request, options?: { now?: () => Date })` in `impact.ts` (clock read after the parse and once the report is built; `latencyMs` of `explain/usage.ts`). JSDoc on every export
 - [ ] 2.3 RED → GREEN: test "A no-anchor call writes one impact row"
-- [ ] 2.4 RED → GREEN: test "A failed call writes no row" (`calls.saveQueryLog` 0 after both)
-- [ ] 2.5 RED → GREEN: test "A row that cannot be written leaves the report with an event" (`failQueryLogWrite: () => new QueryLogWriteFailed()`). Extra cases, not scenarios: a `failQueryLogWrite` returning an `Error` that is none of the three mapped errors is thrown unchanged; the event JSON holds no part of the change; the clock is read exactly twice
-- [ ] 2.6 Change the existing test "answers no-anchor for a change without search terms, even in an unknown project" of `tests/unit/impact/impact.spec.ts` (line 73, design P8): rename it to the scenario "A change without search terms in an unknown project reports the unlogged row" and expect `events: [{ type: 'query_not_logged', code: 'project-not-found' }]`; no other assertion of it changes
+- [ ] 2.4 RED → GREEN: test "A failed call writes no row" (`calls.saveQueryLog` 0 after both). Extra case, not a scenario: over a store whose `neighbors` rejects with an error, the call rejects with that same error and `calls.saveQueryLog` is 0
+- [ ] 2.5 RED → GREEN: test "A row that cannot be written leaves the report with an event" (`failQueryLogWrite: () => new QueryLogWriteFailed()`). Extra cases, not scenarios: `failQueryLogWrite: () => new InvalidStoreQuery(…)` gives `events: [{ type: 'query_not_logged', code: 'invalid-entry' }]`; a `failQueryLogWrite` returning an `Error` that is none of the three mapped errors is thrown unchanged; the event JSON holds no part of the change; the clock is read exactly twice; a call without `options` uses the system clock and writes a row with `latencyMs` ≥ 1
+- [ ] 2.6 Change the existing test "answers no-anchor for a change without search terms, even in an unknown project" of `tests/unit/impact/impact.spec.ts` (design P8): rename it to the scenario "A change without search terms in an unknown project reports the unlogged row" and expect `events: [{ type: 'query_not_logged', code: 'project-not-found' }]`; no other assertion of it changes
 
 ## 3. Integration over the seed (TDD; spec impact "Risk over the indexed acme-shop seed", "Query log of an impact call")
 
 - [ ] 3.1 In the existing `tests/integration/impact/acme-shop.spec.ts` (its two existing tests unchanged), RED → GREEN: test "Q2 over the seed is high risk" (exact level and rationale)
 - [ ] 3.2 RED → GREEN: test "An impact call over the seed writes its row" (count the rows of the seed's acme-shop project with `capability = 'impact'` inside the harness transaction before and after; `text`, `cost_usd`, `latency_ms`)
 
-## 4. CLI: shared opener and the command's arguments (TDD; spec cli-impact "Impact command arguments"; design D6, D7)
+## 4. CLI: the command's arguments (TDD; spec cli-impact "Impact command arguments"; design D6, D7)
 
-- [ ] 4.1 REFACTOR with `tests/unit/cli/ask-command.spec.ts` and `tests/integration/cli/ask-command.spec.ts` green before and after, no test edited: `packages/cli/src/open-store.ts` (`openPooledStore(databaseUrl, applicationName)`, `OpenedStore`); `packages/cli/src/commands/ask.ts` delegates `defaultOpenStore` to it and re-exports `OpenedStore`
+- [ ] 4.1 Confirm `packages/cli/src/commands/ask.ts` and `packages/cli/src/compose-index.ts` stay untouched for the whole change (design D7, decision R3): `git diff --stat origin/final-project-CRN -- packages/cli/src/commands/ask.ts packages/cli/src/compose-index.ts` prints nothing at the end of step 6
 - [ ] 4.2 Create `tests/unit/cli/impact-command.spec.ts` (header comment: spec path and DIS-90; template: `tests/unit/cli/ask-command.spec.ts`, doubles for `openStore` and `impact`, a recording `env`). RED: test "Impact help and version print without reading the environment"
-- [ ] 4.3 GREEN: `packages/cli/src/commands/impact.ts` (`runImpactCommand`, `IMPACT_APPLICATION_NAME`, `defaultOpenStore`, `toFailure`, the argument parser). JSDoc on every export
+- [ ] 4.3 GREEN: `packages/cli/src/commands/impact.ts` (`runImpactCommand`, `IMPACT_APPLICATION_NAME`, its own `defaultOpenStore` built as `ask`'s, with the `OpenedStore` type imported from `ask.ts`, `toFailure`, the argument parser). JSDoc on every export
 - [ ] 4.4 RED → GREEN: test "Impact usage errors never quote the arguments"
 - [ ] 4.5 RED → GREEN: test "An invalid impact request is rejected before any connection"
 
@@ -53,21 +55,21 @@
 
 ## 6. CLI integration (TDD; spec cli-impact, the scenarios that need a database or the entry point)
 
-- [ ] 6.1 Create `tests/integration/cli/impact-command.spec.ts` (header comment: spec path and DIS-90; template: `tests/integration/cli/ask-command.spec.ts`, without git history: the seed loaded inside the harness transaction as `tests/integration/impact/acme-shop.spec.ts` does, the command's store bound to it with a no-op `close`). RED → GREEN: test "An unreachable database fails without leaking the URL for impact" (no database needed)
+- [ ] 6.1 Create `tests/integration/cli/impact-command.spec.ts` (header comment: spec path and DIS-90; template: `tests/integration/cli/ask-command.spec.ts`, without git history: the seed loaded inside the harness transaction as `tests/integration/impact/acme-shop.spec.ts` does, the command's store bound to it with a no-op `close`). RED → GREEN: test "An unreachable database fails without leaking the URL for impact" (no database needed; it exercises the `defaultOpenStore` of `impact.ts`)
 - [ ] 6.2 RED → GREEN: test "The impact connections are closed after a run" (default connections; `pg_stat_activity` by `application_name` `codemind-impact`)
 - [ ] 6.3 RED → GREEN: test "Q2 over the seed is printed with its risk"
 - [ ] 6.4 RED → GREEN: test "A change without anchor answers no-anchor on the command line"
-- [ ] 6.5 Not a scenario: the entry point hands `impact` over to `runImpactCommand` (spawned `tsx` as the ask test does: `impact --help` shows `Usage: codemind impact [options] <project> <change>`, `impact` alone exits 2 with the `USAGE` line, and the global `--help` lists `impact <project> <change>` once)
-- [ ] 6.6 REFACTOR with the suite green (`/tdd-refactor`) over `packages/core/src/impact/` and `packages/cli/src/commands/impact.ts`; no behaviour change; `grep -rn "adapters\|store-postgres\|fastify" packages/core/src/impact` prints nothing
+- [ ] 6.5 RED → GREEN: test "The global help lists impact once" (spawned `tsx` over the entry point, as the ask test does; with task 5.10). Extra cases, not scenarios, in the same file: `impact --help` through the entry point shows `Usage: codemind impact [options] <project> <change>`, and `impact` alone exits 2 with the `USAGE` line
+- [ ] 6.6 REFACTOR with the suite green (`/tdd-refactor`) over `packages/core/src/impact/` and `packages/cli/src/commands/impact.ts`; no behaviour change; `grep -rn "adapters\|store-postgres\|fastify" packages/core/src/impact` prints nothing; then the check of task 4.1
 
 ## 7. Backend: Review and Update Existing Tests (MANDATORY)
 
 - [ ] 7.1 Existing tests that change (design P8), each named here before it is edited and without weakening its assertions:
-  - `tests/unit/impact/impact.spec.ts`, "sends one reverse traversal over the dependency kinds, seeded with the anchor symbols and their files" (line 161): the reverse traversal is selected by its dependency kinds (not only by direction `in`); the `tested_by` statements are the at most `maxHops + 1` outward ones plus exactly one inward coverage read; every other assertion stays
-  - `tests/unit/impact/impact.spec.ts`, "answers no-anchor for a change without search terms, even in an unknown project" (line 73): renamed and extended as task 2.6
+  - `tests/unit/impact/impact.spec.ts`, "sends one reverse traversal over the dependency kinds, seeded with the anchor symbols and their files": the reverse traversal is selected by its dependency kinds (not only by direction `in`); the `tested_by` statements are the at most `maxHops + 1` outward ones plus exactly one inward coverage read; every other assertion stays
+  - `tests/unit/impact/impact.spec.ts`, "answers no-anchor for a change without search terms, even in an unknown project": renamed and extended as task 2.6
   - `tests/integration/impact/acme-shop.spec.ts`: two tests added (tasks 3.1, 3.2); its existing tests unchanged
   Then `grep -rn "impact" tests` and `npm run typecheck` to find any other one; if another must change, add it to this list first
-- [ ] 7.2 Every `#### Scenario:` of `specs/impact/spec.md` and `specs/cli-impact/spec.md` maps 1:1 to a test with exactly the same name (grep each title in `tests/`): the 7 MODIFIED-requirement scenarios keep their DIS-89 tests; of the 14 ADDED impact scenarios, 13 have one new test each and one is the test renamed in 2.6; the 16 cli-impact scenarios have one new test each; none without a test, none with two
+- [ ] 7.2 Every `#### Scenario:` of `specs/impact/spec.md` and `specs/cli-impact/spec.md` maps 1:1 to a test with exactly the same name (grep each title in `tests/`): the 7 MODIFIED-requirement scenarios keep their DIS-89 tests; of the 15 ADDED impact scenarios, 14 have one new test each and one is the test renamed in 2.6; the 17 cli-impact scenarios have one new test each; none without a test, none with two
 
 ## 8. Backend: Run Tests and Verify Data State (MANDATORY)
 
@@ -99,7 +101,7 @@
 
 ## 11. Pull request preparation
 
-- [ ] 11.1 `/pr-describe` in Spanish against `final-project-CRN`: the Why marked as the agent's text (Follow-ups E1–E9, P1–P10), the corrected Q2 level (P1), what goes to DIS-94 and DIS-95, the existing tests changed (7.1), the `npm audit` result if any install happened, and the Stryker score
+- [ ] 11.1 `/pr-describe` in Spanish against `final-project-CRN`: the Why marked as the agent's text (Follow-ups E1–E9, P1–P10, R1–R11), the risk rule as PH-15 wrote it (R1), the corrected Q2 level (P1, R2), what goes to DIS-94 and DIS-95, the existing tests changed (7.1), the `npm audit` result if any install happened, and the Stryker score
 
 ## 12. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
@@ -109,4 +111,4 @@
 - [ ] 12.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
 - [ ] 12.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`
 - [ ] 12.6 Fix every finding in this change (TDD for behaviour), each with an A/B/C/D destination in `design.md` → Follow-ups; re-run what each fix invalidates and add an addendum to the affected report; commit to the same PR; re-run a check whose findings led to non-trivial fixes until no Blocker or Major
-- [ ] 12.7 `/opsx:archive`, commit it to the same PR; `node scripts/dev-processes.mjs stop`; merge (`gh pr merge <n> --merge`, through the merge gate) only after the archive commit and with CI green (autonomous run, `KIT_AUTONOMOUS_RUN=1`, only; otherwise the author merges)
+- [ ] 12.7 `/opsx:archive`; in the same archive commit, update the `## Purpose` of `openspec/specs/impact/spec.md` to name the risk level of an answered report and the `query_log` row of every returned report; commit it to the same PR; `node scripts/dev-processes.mjs stop`; merge (`gh pr merge <n> --merge`, through the merge gate) only after the archive commit and with CI green (autonomous run, `KIT_AUTONOMOUS_RUN=1`, only; otherwise the author merges)

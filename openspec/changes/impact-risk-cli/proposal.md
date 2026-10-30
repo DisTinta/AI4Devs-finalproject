@@ -13,11 +13,14 @@ de riesgo **con su justificación**, no solo la etiqueta", reachable as
 - **Risk level with its rationale** in the core report (`packages/core/src/impact/risk.ts`, pure):
   - a `direct` component is *covered* when a `tested_by` edge leaves one of its own seeds of the
     DIS-89 `tested_by` step (its nodes in the report, its file, its class);
-  - `HIGH` when some `direct` component is not covered; `LOW` when every one is covered and `exact`;
-    `MEDIUM` when every one is covered and at least one is `heuristic` (the operative reading of the
-    rule fixed at the PH-15 gate, enrich decision D1);
+  - a `direct` component has a *heuristic-only chain* when it is not of the anchor and none of its
+    nodes reached by the reverse traversal is `exact`;
+  - `HIGH` when some `direct` component is not covered or has a heuristic-only chain; `LOW` when
+    every one is covered and `exact`; `MEDIUM` otherwise (the rule fixed at the PH-15 gate, as
+    written; design D1, decision R1 of the spec audit);
   - a one-sentence Spanish rationale with four counts: affected files, covering tests, direct
-    components without a test, direct components with a heuristic-only chain, singular for 1;
+    components without a test, direct components with a heuristic-only chain, singular for 1, the
+    last two counted over the report's `direct`;
   - only on `answered` reports; an `unknown` report has no `risk`.
 - **`query_log` row** written by the core use case for every returned report (`answered` and
   `unknown`): capability `impact`, the change as the question, zero tokens and cost, `latencyMs ≥ 1`
@@ -29,8 +32,6 @@ de riesgo **con su justificación**, no solo la etiqueta", reachable as
   `LLM_*`); exact project name; sections `DIRECTO`, `INDIRECTO`, `TESTS`, each entry marked
   `[grafo]`, then `RIESGO <level>` and the rationale; `UNKNOWN (no-anchor)` with exit 0; errors as
   one JSON line on stderr that never holds the change. The stub in `packages/cli/src/index.ts` goes.
-- **Shared pooled store opener** for the CLI commands (`ask` and `impact`), so each only names its
-  `application_name`; `ask`'s behaviour is unchanged.
 - **Docs**: `readme.md` §1.4 (the CLI flow and the stub sentences), the tree in §2, `docs/DEMO.md`
   Paso 4 with the real output, `docs/project-context.md` (the two stub sentences and the impact module).
 
@@ -68,16 +69,21 @@ de riesgo **con su justificación**, no solo la etiqueta", reachable as
   writing the spec (design Context), the Q2 report has six `direct` components and four of them
   (`DiscountApplied`, `RecordDiscountAudit` and the two service-provider files) have no `tested_by`,
   so the rule answers `HIGH`. The agent, as lead engineer, keeps the rule and corrects the expected
-  level (design decision P1).
+  level (design decision P1), and accepts that every acme-shop demo shows `RIESGO HIGH` (decision
+  R2).
+- The risk rule is the PH-15 rule as the author wrote it, not the operative reading of enrich D1:
+  the spec audit (run 1, B1) showed that `MEDIUM` is not empty under the literal reading, and the
+  sub-issue forbids redefining the rule. Decided by the agent as lead engineer in correction round 1
+  (design decision R1), without the author, as `docs/AUTONOMOUS-RUN.md` §6 sets.
 
 ## Impact
 
-- **Core**: `packages/core/src/impact/` (`risk.ts` new; `impact-report.ts`, `impact.ts`,
-  `reverse-walk.ts` and `index.ts` changed). No port, adapter, migration or schema change:
+- **Core**: `packages/core/src/impact/` (`risk.ts` and `query-log.ts` new; `impact-report.ts`,
+  `impact.ts`, `relevance.ts` (the internal `Component.exactChain`), `reverse-walk.ts` and
+  `index.ts` changed). No port, adapter, migration or schema change:
   `StorePort.saveQueryLog` and the `impact` value of `query_capability` exist.
-- **CLI**: `packages/cli/src/commands/impact.ts` and `packages/cli/src/open-store.ts` new;
-  `packages/cli/src/commands/ask.ts` delegates its connection to the shared opener;
-  `packages/cli/src/index.ts` delegates `impact`.
+- **CLI**: `packages/cli/src/commands/impact.ts` new, with its own pooled store opener;
+  `packages/cli/src/index.ts` delegates `impact`. `packages/cli/src/commands/ask.ts` is not edited.
 - **Seed and golden file**: no fingerprint input changes (design P9), so no `seed:build` or
   `cache:build`.
 - **Tests**: new `tests/unit/impact/risk.spec.ts`, `tests/unit/impact/query-log.spec.ts`,

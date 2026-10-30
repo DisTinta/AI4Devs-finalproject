@@ -202,3 +202,32 @@ No empty row. M3 asks to turn the entry-point row into a scenario.
 ### Linear DIS-90 (never edit the `[original]` block)
 - **L1 — `[enhanced]` → AC3 and decision D2** still say Q2 over the seed gives `risk.level = 'LOW'` / «riesgo LOW». In the enhanced part, add after AC3: «*Corregido en el propose (P1):* sobre la semilla el nivel es `HIGH` (4 de 6 elementos directos sin `tested_by`: `DiscountApplied`, `RecordDiscountAudit`, `AppServiceProvider.php`, `EventServiceProvider.php`); frase `10 ficheros afectados, 3 tests que cubren el cambio, 4 elementos directos sin test, 0 elementos directos con cadena solo heurística.`». Apply the same correction to D2.
 - **Comment (Spanish):** «*Texto del agente (spec-audit, 2026-10-30).* Auditoría de `impact-risk-cli`: `CHANGES REQUIRED`, 1 bloqueante. B1: la regla de riesgo del change (D1) no es la de PH-15 tal como la fijó la autora: un directo con test cuya única cadena es heurística pasa de HIGH a MEDIUM. Además, la justificación de D1 («con la lectura literal MEDIUM queda vacío») no es exacta: un componente directo puede ser `heuristic` a 1 salto y tener una cadena `exact` a 2. Preguntas para la autora: (1) ¿regla literal de PH-15 o regla operativa D1? (2) ¿Se acepta que todo informe de acme-shop salga HIGH en la demo (P1), frente al «RIESGO MEDIO» de la maqueta del readme §1.3?»
+
+---
+
+## Resolution of run 1
+
+*Agent's text: correction round 1 of the autonomous run (`docs/AUTONOMOUS-RUN.md` §6), 2026-10-30.
+The questions for the author were answered by the agent as lead engineer; each decision is in
+`design.md` → Follow-ups (R1–R11) and in a Spanish comment on DIS-90. `openspec validate
+impact-risk-cli --strict` passes after the edits.*
+
+| Finding | Resolution | How |
+|---|---|---|
+| Q1 / B1 (blocking) | Decided by the agent, then fixed (option b) | The rule is PH-15 as written: `HIGH` when some direct component is uncovered or has a heuristic-only chain (not of the anchor, and none of its reached nodes `exact`); `LOW` when all are covered and `exact`; `MEDIUM` otherwise. Reason: the sub-issue forbids redefining the decided rule, and the "`MEDIUM` is empty" premise was false. Design D1 rewritten (with the internal `Component.exactChain` and the bound of a node's shortest-path resolution), D4 (`assessRisk(report, facts)`), proposal "What Changes" and "Scope notes", impact spec "Risk level of a report" (definition, levels, `H`). The MEDIUM scenario is now "A covered direct component with an exact chain beyond its first hop makes the risk medium"; new scenario "A covered direct component whose chains are all heuristic makes the risk high". Tasks 1.4 and 1.5. Follow-up R1 (A); E1 marked superseded. |
+| Q2 | Decided by the agent | The demo keeps `RIESGO HIGH` for acme-shop; no kind of direct component is excluded (an untested provider file is a real dependant). The readme §1.3 mock-up is the post-DIS-94 product picture and is not edited. Follow-up R2 (D), proposal "Scope notes". |
+| S1 | Decided by the agent: cut | Least scope: `open-store.ts` and the `ask.ts` refactor are removed from proposal, design D7 and tasks (4.1 now checks `ask.ts` stays untouched); `impact.ts` has its own `defaultOpenStore`. Follow-ups R3 (A), R9 (D), P4 superseded. |
+| M1 | Fixed | Task 2.4 extra case: a rejecting `neighbors` → the call rejects with that error and no row. |
+| M2 | Fixed | Task 2.5 extra cases: `InvalidStoreQuery` → `invalid-entry`; no `options` → system clock, `latencyMs` ≥ 1. |
+| M3 | Fixed | cli-impact scenario "The global help lists impact once"; task 6.5 is its RED → GREEN; task 7.2 counts 17 cli-impact scenarios. |
+| M4 | Fixed by deletion | The `MAY` sentence on `--` is removed from "Impact command arguments" (least scope). Follow-up R6. |
+| O1 | Fixed | Design D2 and the impact spec say `U` and `H` are counted over the report's `direct` after `buildReport`, matched by `componentKey`; task 1.9 has the shadowed-file extra case; task 1.2a counts over the report. Follow-up R4. |
+| C1 | Fixed | Tasks 2.6 and 7.1 cite the tests by name only. |
+| P1 | Fixed | Task 12.7 updates the `## Purpose` of `openspec/specs/impact/spec.md` at archive. |
+| P2 | No action | Noted; follow-up R11 (D). |
+| D1 (duplicate `saveRow`) | Rejected with reason | The duplicate is kept; design D5/P5 now give a reason other than the fingerprint: this change does not edit the paid `explain` use case, its suites or its mutation scope. Merging is a later refactor, follow-up R8 (D). |
+| T1 | Fixed | Task 1.2 split into 1.2a (types, `risk.ts`, `U` over the report's `direct` by the simplest correct means) and 1.2b (RED: the coverage-read shape case moved from the last risk task; GREEN: `findTests` outputs and `directCoverage`). |
+| L1 | Fixed | DIS-90 `[enhanced]`: correction notes after AC1, AC3, AC5, D1 and D2; `[original]` untouched. Follow-up R10. |
+
+Scenario counts after the round: impact keeps 7 MODIFIED scenarios and has 15 ADDED (8 of risk);
+cli-impact has 17. Task 7.2 states them.

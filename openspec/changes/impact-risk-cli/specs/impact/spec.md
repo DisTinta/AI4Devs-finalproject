@@ -101,18 +101,26 @@ the change" takes for that component: its anchor symbols and their file (for a c
 anchor), its nodes reached by the reverse traversal, its file, or its class. A test reached only
 through another component, or a test that only calls the component, SHALL not cover it.
 
+A component of `direct` SHALL have a *heuristic-only chain* when it is not a component of the anchor
+and none of its nodes reached by the reverse traversal has `resolution` `exact` (the resolution of a
+node's paths of minimum distance). A component of the anchor never has one.
+
 `level` SHALL be:
 
-- `HIGH` when at least one component of `direct` is not covered;
+- `HIGH` when at least one component of `direct` is not covered or has a heuristic-only chain;
 - `LOW` when every component of `direct` is covered and has `resolution` `exact`;
-- `MEDIUM` when every component of `direct` is covered and at least one has `resolution`
-  `heuristic`.
+- `MEDIUM` otherwise: every component of `direct` is covered, none has a heuristic-only chain, and
+  at least one has `resolution` `heuristic`.
+
+`U` and `H` SHALL be counted over the entries of the answered report's `direct`: a component that is
+not an entry of `direct` (a file component left out because a symbol of its file is a component)
+SHALL not be counted.
 
 `rationale` SHALL be exactly
 `<F> <files>, <T> <tests>, <U> <uncovered>, <H> <heuristic>.`, where `F` is the number of distinct
 `file` values of `direct` and `indirect`, `T` the number of entries of `tests`, `U` the number of
-components of `direct` that are not covered and `H` the number of components of `direct` with
-`resolution` `heuristic`. Each count SHALL be followed by its words, singular when the count is 1
+components of `direct` that are not covered and `H` the number of components of `direct` with a
+heuristic-only chain. Each count SHALL be followed by its words, singular when the count is 1
 and plural otherwise (0 included):
 
 | Count | Singular | Plural |
@@ -144,14 +152,27 @@ store read besides those of the report.
 - **AND** `risk.rationale` is `2 ficheros afectados, 2 tests que cubren el cambio, 0 elementos
   directos sin test, 0 elementos directos con cadena solo heurística.`
 
-#### Scenario: Every direct component tested with one heuristic makes the risk medium
+#### Scenario: A covered direct component whose chains are all heuristic makes the risk high
 
 - **GIVEN** the graph of the previous scenario with the edge from `Caller::a` to `Anchor::run`
   `heuristic`
 - **WHEN** impact is asked for `cambiar run` with `maxHops` 1
-- **THEN** `risk.level` is `MEDIUM`
+- **THEN** `risk.level` is `HIGH`
 - **AND** `risk.rationale` is `2 ficheros afectados, 2 tests que cubren el cambio, 0 elementos
   directos sin test, 1 elemento directo con cadena solo heurística.`
+
+#### Scenario: A covered direct component with an exact chain beyond its first hop makes the risk medium
+
+- **GIVEN** a graph where `Anchor::run` is anchored, the class `Anchor` (same file) is tested by
+  `AnchorTest`, `Anchor::helper` (same file, not anchored) calls `Anchor::run` with an `exact` edge,
+  `Caller::a` calls `Anchor::run` with a `heuristic` edge, `Caller::b` calls `Anchor::helper` with an
+  `exact` edge, the class `Caller` is in the file of `Caller::a` and `Caller::b` and is tested by
+  `CallerTest`, and each test is in a file of kind `test`
+- **WHEN** impact is asked for `cambiar run` with `maxHops` 2
+- **THEN** `direct` holds `Caller` with `hops` 1 and `resolution` `heuristic`, and `indirect` is empty
+- **AND** `risk.level` is `MEDIUM`
+- **AND** `risk.rationale` is `2 ficheros afectados, 2 tests que cubren el cambio, 0 elementos
+  directos sin test, 0 elementos directos con cadena solo heurística.`
 
 #### Scenario: An untested heuristic direct component makes the risk high
 
