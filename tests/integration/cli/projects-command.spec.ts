@@ -7,55 +7,19 @@ import type { OpenTransaction } from '../../../packages/cli/src/compose-index';
 import { runProjectsCommand } from '../../../packages/cli/src/commands/projects';
 import { seedProjects } from '../../../packages/cli/src/seed/parse-seed';
 import { sampleGraph } from '../../support/sample-graph';
-import { connect, databaseUrl, describeWithDatabase, migrateSharedDatabase } from '../helpers/db';
+import { databaseUrl, describeWithDatabase, migrateSharedDatabase } from '../helpers/db';
 import { unique } from '../helpers/factories';
+import { inOwnSnapshot } from '../helpers/snapshot';
 
 // Spec: openspec/changes/seed-load-and-projects/specs/cli-projects/spec.md → "Project listing". Each
 // `it` is the scenario it is named after. The command reads through the real store adapter on a
 // savepoint of a client of the test's own, in a REPEATABLE READ transaction that is always rolled
-// back; each test first deletes every project there, so local data is never listed nor touched. The
-// listing reads every project of the database: under READ COMMITTED (the harness transaction) it also
-// listed projects other spec files committed after the DELETE (DIS-110, integration-test-races
-// design D2); inside the snapshot they are invisible.
+// back (`inOwnSnapshot`); each test first deletes every project there, so local data is never listed
+// nor touched. The listing reads every project of the database: under READ COMMITTED (the harness
+// transaction) it also listed projects other spec files committed after the DELETE (DIS-110,
+// integration-test-races design D2, D8); inside the snapshot they are invisible.
 
 const SEED = readFileSync(resolve('seeds/graph-dump.sql'), 'utf8');
-
-/**
- * SQLSTATEs retried by {@link inOwnSnapshot}: a serialization failure (a row of the snapshot changed by
- * a concurrent commit) and a lock wait longer than the transaction's `lock_timeout`.
- */
-const RETRIED = new Set(['40001', '55P03']);
-/** How long {@link inOwnSnapshot} keeps retrying, and the pause between two attempts. */
-const RETRY_FOR_MS = 10_000;
-const RETRY_PAUSE_MS = 250;
-
-/**
- * Runs `work` on a connection of its own in a REPEATABLE READ transaction that is always rolled back,
- * and returns its result. Other files commit projects and then change or delete them many times per
- * second, so a whole-table `DELETE` here can meet one of them: a lock wait is bounded to 1 s (so this
- * transaction never holds its locks for long), and a serialization failure or a lock timeout retries
- * the whole of `work` after a short pause, for up to 10 s (DIS-110, integration-test-races design D2a).
- */
-async function inOwnSnapshot<T>(work: (client: Client) => Promise<T>): Promise<T> {
-  const own = await connect();
-  const started = Date.now();
-  try {
-    for (;;) {
-      await own.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
-      await own.query(`SET LOCAL lock_timeout = '1s'`);
-      try {
-        return await work(own);
-      } catch (error) {
-        if (!RETRIED.has((error as { code?: string }).code ?? '') || Date.now() - started >= RETRY_FOR_MS) throw error;
-      } finally {
-        await own.query('ROLLBACK');
-      }
-      await new Promise((resolve) => setTimeout(resolve, RETRY_PAUSE_MS));
-    }
-  } finally {
-    await own.end();
-  }
-}
 
 function savepointTransaction(client: Client, log: string[]): OpenTransaction {
   return async () => {

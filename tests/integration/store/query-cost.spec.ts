@@ -2,59 +2,18 @@ import { Pool, type ClientBase } from 'pg';
 import { describe, expect, it } from 'vitest';
 import { BudgetExhausted, withDailyBudget, type LlmPort, type StorePort } from '@codemind/core';
 import { createPostgresStore } from '../../../packages/adapters/store-postgres/src/index';
-import { connect, databaseUrl, describeWithDatabase, useTransactionPerTest } from '../helpers/db';
+import { databaseUrl, describeWithDatabase, useTransactionPerTest } from '../helpers/db';
 import { unique } from '../helpers/factories';
+import { inOwnSnapshot, isRetryableSnapshotError, SNAPSHOT_RETRY_PAUSE_MS } from '../helpers/snapshot';
 
 // Spec `graph-store` → Daily cost sum, and `llm-adapter` → Daily spend ceiling ("The ceiling survives
 // a restart"). The sum reads every `query_log` row of the database, so each test that sums runs in a
-// REPEATABLE READ transaction of its own, always rolled back, and first empties `query_log` there:
-// rows that other spec files commit while it runs (for example the `0.0165` of
+// REPEATABLE READ transaction of its own, always rolled back (`inOwnSnapshot`), and first empties
+// `query_log` there: rows that other spec files commit while it runs (for example the `0.0165` of
 // query-log-write.spec.ts's own-connections test) are outside its snapshot and never count. Under the
-// harness's READ COMMITTED they did (DIS-110, integration-test-races design D2).
+// harness's READ COMMITTED they did (DIS-110, integration-test-races design D2, D8).
 
 const SINCE = new Date('2026-10-09T00:00:00Z');
-
-/**
- * SQLSTATEs retried in this file: a serialization failure (a row of the snapshot changed by a
- * concurrent commit) and a lock wait longer than the transaction's `lock_timeout`.
- */
-const RETRIED = new Set(['40001', '55P03']);
-/** How long the snapshot tests keep retrying, and the pause between two attempts. */
-const RETRY_FOR_MS = 10_000;
-const RETRY_PAUSE_MS = 250;
-
-/** Whether `error` may be retried, `started` being the instant of the first attempt. */
-function retryable(error: unknown, started: number): boolean {
-  return RETRIED.has((error as { code?: string }).code ?? '') && Date.now() - started < RETRY_FOR_MS;
-}
-
-/**
- * Runs `work` on a connection of its own in a REPEATABLE READ transaction that is always rolled back,
- * and returns its result. Other files commit `query_log` rows and delete them with their project, so
- * the `DELETE FROM query_log` of a test can meet one of them: a lock wait is bounded to 1 s, and a
- * serialization failure or a lock timeout retries the whole of `work` after a short pause, for up to
- * 10 s (DIS-110, integration-test-races design D2a).
- */
-async function inOwnSnapshot<T>(work: (client: ClientBase) => Promise<T>): Promise<T> {
-  const own = await connect();
-  const started = Date.now();
-  try {
-    for (;;) {
-      await own.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
-      await own.query(`SET LOCAL lock_timeout = '1s'`);
-      try {
-        return await work(own);
-      } catch (error) {
-        if (!retryable(error, started)) throw error;
-      } finally {
-        await own.query('ROLLBACK');
-      }
-      await new Promise((resolve) => setTimeout(resolve, RETRY_PAUSE_MS));
-    }
-  } finally {
-    await own.end();
-  }
-}
 
 /** A project created through `store`, with a unique name. */
 function project(store: StorePort): Promise<string> {
@@ -145,7 +104,7 @@ describeWithDatabase('query cost (DIS-18)', () => {
             // Act: the pool's only connection is the one inside the open transaction.
             total = await createPostgresStore({ pool }).sumCostSince(SINCE);
           } catch (error) {
-            if (!retryable(error, started)) throw error;
+            if (!isRetryableSnapshotError(error, started)) throw error;
           } finally {
             // The same single connection either way; if set-up failed it was never released.
             const cleanup = released ? await pool.connect() : setup;
@@ -153,7 +112,7 @@ describeWithDatabase('query cost (DIS-18)', () => {
             cleanup.release();
           }
           // Still no total: the attempt failed with a retryable error.
-          if (total === undefined) await new Promise((resolve) => setTimeout(resolve, RETRY_PAUSE_MS));
+          if (total === undefined) await new Promise((resolve) => setTimeout(resolve, SNAPSHOT_RETRY_PAUSE_MS));
         }
 
         // Assert
