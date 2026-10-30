@@ -64,3 +64,13 @@ Every `#### Scenario:` title of `specs/impact/spec.md` (22) and `specs/cli-impac
 
 - Status: PASS
 - Blocking issues: none
+
+## Addendum: CI of the pull request (task 12.2)
+
+Agent's text. PR https://github.com/DisTinta/AI4Devs-finalproject/pull/91. The first run
+(https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/41106506753) was green except `secrets`: gitleaks
+flagged the synthetic sentinel API key of the model-configuration scenario (spec line 82, test line 191, and the
+two commits of the branch that carried them). It was allowed by its exact value in `.gitleaks.toml`, as the other
+synthetic findings (confirmed locally with `gitleaks dir` and `gitleaks git` before pushing). The second run
+(https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/41108086977) passed `scope`, `quality`, `verify`,
+`mutation`, `secrets` and `frontend`.

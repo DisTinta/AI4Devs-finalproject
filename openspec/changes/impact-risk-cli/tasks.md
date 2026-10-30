@@ -101,12 +101,12 @@
 
 ## 11. Pull request preparation
 
-- [ ] 11.1 `/pr-describe` in Spanish against `final-project-CRN`: the Why marked as the agent's text (Follow-ups E1–E9, P1–P10, R1–R11), the risk rule as PH-15 wrote it (R1), the corrected Q2 level (P1, R2), what goes to DIS-94 and DIS-95, the existing tests changed (7.1), the `npm audit` result if any install happened, and the Stryker score
+- [x] 11.1 `/pr-describe` in Spanish against `final-project-CRN`: the Why marked as the agent's text (Follow-ups E1–E9, P1–P10, R1–R11), the risk rule as PH-15 wrote it (R1), the corrected Q2 level (P1, R2), what goes to DIS-94 and DIS-95, the existing tests changed (7.1), the `npm audit` result if any install happened, and the Stryker score
 
 ## 12. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 12.1 Open the PR against `final-project-CRN`; DIS-90 to In Review with a Spanish comment linking it
-- [ ] 12.2 CI green, including the mutation job: wait in the foreground with `gh pr checks <n> --watch --interval 60` (timeout 600000), repeated until no check is pending; link the run in an addendum to the step 8 report
+- [x] 12.1 Open the PR against `final-project-CRN`; DIS-90 to In Review with a Spanish comment linking it
+- [x] 12.2 CI green, including the mutation job: wait in the foreground with `gh pr checks <n> --watch --interval 60` (timeout 600000), repeated until no check is pending; link the run in an addendum to the step 8 report
 - [ ] 12.3 `/show-spec-working` (may reuse the step 9 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
 - [ ] 12.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
 - [ ] 12.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`
