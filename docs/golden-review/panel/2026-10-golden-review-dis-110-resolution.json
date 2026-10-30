@@ -1,0 +1,41 @@
+{
+  "resolver": "claude-opus-5-5",
+  "date": "2026-10-30",
+  "sourcesRead": [
+    "openspec/changes/pool-transaction-release/tasks.md",
+    "docs/golden-review/2026-10-golden-review-dis-110.md",
+    "docs/golden-review/panel/2026-10-golden-review-dis-110-input.json",
+    "docs/golden-review/panel/2026-10-golden-review-dis-110-panelist-1.json",
+    "docs/golden-review/panel/2026-10-golden-review-dis-110-panelist-2.json",
+    "docs/AUTONOMOUS-RUN.md",
+    "fixtures/task-api/src/routes/tasks.routes.ts",
+    "fixtures/task-api/src/schemas/pagination.schema.ts",
+    "fixtures/task-api/src/services/task.filters.ts",
+    "fixtures/task-api/src/domain/task-status.ts",
+    "fixtures/task-api/src/services/task.service.ts"
+  ],
+  "items": [
+    {
+      "project": "task-api",
+      "id": "Q1",
+      "verdict": "incorrect",
+      "justification": "Statement 3 is typed FACT and says GET and DELETE use a querystring schema that includes taskIdParamsSchema. The code contradicts this: taskIdParamsSchema is attached as `params` on GET /tasks/:id (fixtures/task-api/src/routes/tasks.routes.ts:20) and on DELETE, which has no querystring schema at all (fixtures/task-api/src/routes/tasks.routes.ts:30). Because a FACT statement is judged false, the verdict is incorrect regardless of statement 4, which is also an error since filtering and sorting are done by applyFilters and sortTasks (fixtures/task-api/src/services/task.filters.ts:10), not by the schema (fixtures/task-api/src/schemas/pagination.schema.ts:15).",
+      "cites": [
+        "fixtures/task-api/src/routes/tasks.routes.ts:20",
+        "fixtures/task-api/src/routes/tasks.routes.ts:30",
+        "fixtures/task-api/src/services/task.filters.ts:10"
+      ]
+    },
+    {
+      "project": "task-api",
+      "id": "Q3",
+      "verdict": "correct",
+      "justification": "Statement 1 is typed INFERENCE and claims only that the valid transitions are defined in src/domain/task-status.ts. Its cited lines back that inference: they are in that file, and the rule that decides validity is written there, in canTransition (fixtures/task-api/src/domain/task-status.ts:26) and allowedTransitions (fixtures/task-api/src/domain/task-status.ts:30), both reading the module-local TRANSITIONS table (fixtures/task-api/src/domain/task-status.ts:13). Statements 2 to 4 are true by agreement of both panelists, with the illegal transition thrown at fixtures/task-api/src/services/task.service.ts:50, so every statement is true.",
+      "cites": [
+        "fixtures/task-api/src/domain/task-status.ts:26",
+        "fixtures/task-api/src/domain/task-status.ts:30",
+        "fixtures/task-api/src/domain/task-status.ts:13"
+      ]
+    }
+  ]
+}
