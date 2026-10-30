@@ -90,6 +90,7 @@
 73. [Segunda ronda golden de DIS-110: regenerar task-api Q1 (DIS-110 r2)](#73-segunda-ronda-golden-de-dis-110-regenerar-task-api-q1-dis-110-r2)
 74. [Quitar la carrera del test «Every connection is released after a run» (DIS-110)](#74-quitar-la-carrera-del-test-every-connection-is-released-after-a-run-dis-110)
 76. [Grafo de impacto: dependientes y tests de un cambio desde el grafo determinista (DIS-89)](#76-grafo-de-impacto-dependientes-y-tests-de-un-cambio-desde-el-grafo-determinista-dis-89)
+77. [Riesgo, fila de `query_log` y comando `impact` (DIS-90)](#77-riesgo-fila-de-query_log-y-comando-impact-dis-90)
 
 ---
 
@@ -5454,3 +5455,23 @@ del agente).
 **Ajuste humano.** Ninguno: ejecución autónoma (texto del agente). Los tests de grafos pequeños se
 escribieron después de la primera versión del recorrido y no antes, y el informe del paso 8 lo dice;
 los mutantes que sobrevivieron a Stryker llevaron a tres tests más.
+
+# 77. Riesgo, fila de `query_log` y comando `impact` (DIS-90)
+
+### Prompt 1 — Paso de apply del cambio `impact-risk-cli` en la ejecución autónoma
+
+Extracto literal del encargo que recibió el subagente:
+
+```
+Run /opsx:apply on change impact-risk-cli: every task in TDD (failing test first, then implementation, in the layer order), marking tasks.md as you go, with the mandatory verification steps. Run the tests, lint and typecheck. Commit, push and open the PR to final-project-CRN with /pr-describe (write the "why" yourself and mark it as agent-written).
+```
+
+**Por qué funcionó.** El `tasks.md` traía cada escenario del spec con el nombre exacto de su test y la
+capa en la que va (regla de riesgo, fila de `query_log`, semilla, comando), y el diseño fijaba la
+lectura de cobertura en una sola llamada `neighbors`. El agente no tuvo que decidir la forma, solo
+cumplirla (texto del agente).
+
+**Ajuste humano.** Ninguno: ejecución autónoma (texto del agente). El agente escribió la regla de riesgo
+y la lectura de cobertura de una vez, y los tests de las tareas 1.2b a 1.9 se escribieron después de ese
+código, no antes: el informe del paso 8 lo dice. Stryker enseñó varios mutantes vivos en las semillas
+que posee cada componente directo y llevaron a tres tests más.

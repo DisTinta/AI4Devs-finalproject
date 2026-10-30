@@ -66,13 +66,15 @@ describe('Requirement: Anchoring the change', () => {
     await expect(impact(loaded.store, { projectId: randomUUID(), change: Q2 })).rejects.toThrow(ProjectNotFound);
   });
 
-  // Not a scenario: design P6.
-  it('answers no-anchor for a change without search terms, even in an unknown project', async () => {
+  // DIS-90 (tasks 2.6): the DIS-89 case of design P6, renamed to its scenario; the answer now carries
+  // the event of the row that could not be written for an unknown project.
+  it('A change without search terms in an unknown project reports the unlogged row', async () => {
     const loaded = acmeShop();
 
     await expect(impact(loaded.store, { projectId: randomUUID(), change: 'de la en por' })).resolves.toEqual({
       status: 'unknown',
       reason: 'no-anchor',
+      events: [{ type: 'query_not_logged', code: 'project-not-found' }],
     });
   });
 });
@@ -175,7 +177,9 @@ describe('Requirement: Tests covering the change', () => {
 
     await impact(recording, { projectId: loaded.projectId, change: Q2, maxHops: 2 });
 
-    const reverse = sent.filter((args) => args[4] === 'in');
+    // DIS-90 (tasks 7.1): the reverse traversal is selected by its dependency kinds, since the coverage
+    // read of the risk is also an inward statement (over `tested_by`).
+    const reverse = sent.filter((args) => args[4] === 'in' && !(args[3] as string[]).includes('tested_by'));
     expect(reverse).toHaveLength(1);
     const [projectId, seeds, hops, kinds, direction] = reverse[0];
     expect(projectId).toBe(loaded.projectId);
@@ -189,14 +193,16 @@ describe('Requirement: Tests covering the change', () => {
       ]),
     );
     expect((seeds as unknown[]).length).toBe(anchored.length + new Set(anchored.map((s) => s.fileId)).size);
-    // At most maxHops + 1 `tested_by` traversals, all outgoing.
+    // At most maxHops + 1 outgoing `tested_by` traversals, plus exactly one inward coverage read (DIS-90).
     const tested = sent.filter((args) => (args[3] as string[]).includes('tested_by'));
-    expect(tested.length).toBeGreaterThan(0);
-    expect(tested.length).toBeLessThanOrEqual(3);
+    const outward = tested.filter((args) => args[4] === 'out');
+    const inward = tested.filter((args) => args[4] === 'in');
+    expect(outward.length).toBeGreaterThan(0);
+    expect(outward.length).toBeLessThanOrEqual(3);
+    expect(inward).toHaveLength(1);
     for (const args of tested) {
       expect(args[2]).toBe(1);
       expect(args[3]).toEqual(['tested_by']);
-      expect(args[4]).toBe('out');
     }
   });
 

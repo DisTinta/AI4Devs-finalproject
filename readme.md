@@ -180,7 +180,7 @@ Los wireframes de las tres pantallas muestran el flujo completo del producto. La
 | Andamiaje web: Tailwind con los colores de los wireframes, rutas, cliente tipado de la API, puerta de accesibilidad `test:a11y` | Fusionado (DIS-58, PR #53) |
 | Pantalla 1 — tarjetas de los proyectos de muestra desde `data/sample-projects.ts`, aviso de API caída y pantalla de error | Fusionado (DIS-60, PR #54) |
 | Pantalla 2 — pregunta, preguntas sugeridas (las *golden*), afirmaciones tipadas con distintivos de tipo y de verificación, evidencia desplegable, panel de uso (confianza, tokens, coste, latencia, ahorro y caché), estados `UNKNOWN` y avisos de `429` y de error | Fusionado (DIS-65, PR #56; DIS-66, PR #57) |
-| Pantalla 3 — impacto | Entrega 3 (la CLI `impact` es un stub) |
+| Pantalla 3 — impacto | Entrega 3 (la CLI `impact` ya funciona, DIS-90; la pantalla web, no) |
 
 Con `npm run up` (web en http://localhost:5173), los pasos 1 a 3 del recorrido de abajo se hacen ya en el navegador; el 4 (impacto) y el 6 (`task-api`) siguen siendo de la Entrega 3. [`docs/DEMO.md`](docs/DEMO.md) ejecuta los seis pasos por la CLI contra `acme-shop`, dice en cada uno qué hace hoy el sistema y recorre las dos pantallas en [Recorrido por la web](docs/DEMO.md#recorrido-por-la-web).
 
@@ -350,12 +350,12 @@ task-api: 28 commits, 3 authors -> <repo>\fixtures\task-api\.git
 
 #### El mismo flujo por CLI
 
-Sin necesidad de abrir la web (`projects` y `ask` leen `DATABASE_URL` de `.env`):
+Sin necesidad de abrir la web (`projects`, `ask` e `impact` leen `DATABASE_URL` de `.env`):
 
 ```shell
 npm run cli -- projects
 npm run cli -- ask acme-shop "¿Cómo se calcula el precio final de un pedido?"
-npm run cli -- impact acme-shop "cambiar el cálculo de descuentos"
+npm run cli -- impact acme-shop "cambiar los descuentos de DiscountService"
 npm run cli -- ask task-api "¿Cómo valida taskRoutes las peticiones entrantes?"
 ```
 
@@ -366,7 +366,33 @@ UNKNOWN (llm-required)
 evaluation mode (cache-only): set LLM_* to enable free-form asks
 ```
 
-`impact` sigue siendo un stub. `task-api` está en la semilla con tres preguntas golden (la de arriba es la primera; las otras dos son «¿Qué hace buildPage con los resultados paginados?» y «¿Qué transiciones de estado son válidas?»), así que en modo evaluación `ask task-api …` las responde desde la caché; una pregunta sin ancla, como «¿Cómo se autentican los usuarios?», responde `UNKNOWN (no-anchor)`.
+`impact` (DIS-90) no llama al modelo: lee el grafo y escribe una fila `impact` en `query_log` por cada informe que devuelve. Sobre la semilla imprime esto (`--max-hops` de 1 a 3, 2 por omisión):
+
+```text
+DIRECTO
+  DiscountApplied  app/Events/DiscountApplied.php  0 saltos  exact  [grafo]
+  DiscountService  app/Services/DiscountService.php  0 saltos  exact  [grafo]
+  RecordDiscountAudit  app/Listeners/RecordDiscountAudit.php  0 saltos  exact  [grafo]
+  PriceCalculator  app/Services/PriceCalculator.php  1 salto  exact  [grafo]
+  app/Providers/AppServiceProvider.php  1 salto  exact  [grafo]
+  app/Providers/EventServiceProvider.php  1 salto  exact  [grafo]
+
+INDIRECTO
+  CheckoutController  app/Http/Controllers/CheckoutController.php  2 saltos  heuristic  [grafo]
+  OrderController  app/Http/Controllers/OrderController.php  2 saltos  heuristic  [grafo]
+  RecalculateTotals  app/Jobs/RecalculateTotals.php  2 saltos  heuristic  [grafo]
+  SendOrderConfirmation  app/Listeners/SendOrderConfirmation.php  2 saltos  heuristic  [grafo]
+
+TESTS
+  DiscountServiceTest  tests/Unit/DiscountServiceTest.php  [grafo]
+  OrderPricingTest  tests/Feature/OrderPricingTest.php  [grafo]
+  PriceCalculatorTest  tests/Unit/PriceCalculatorTest.php  [grafo]
+
+RIESGO HIGH
+10 ficheros afectados, 3 tests que cubren el cambio, 4 elementos directos sin test, 0 elementos directos con cadena solo heurística.
+```
+
+El nivel es `HIGH` porque cuatro de los seis componentes directos no tienen un test (`tested_by`): la clase de evento, su listener y los dos ficheros de service providers. La regla es la de PH-15: `HIGH` si algún directo no tiene test o solo se alcanza por cadenas heurísticas, `LOW` si todos tienen test y son `exact`, `MEDIUM` en otro caso. Nota sobre el texto: el literal «cambiar el cálculo de descuentos» no ancla `DiscountService` (el ancla es léxico: `descu` no es `disco`), por eso la demo usa «cambiar los descuentos de DiscountService». `task-api` está en la semilla con tres preguntas golden (la de arriba es la primera; las otras dos son «¿Qué hace buildPage con los resultados paginados?» y «¿Qué transiciones de estado son válidas?»), así que en modo evaluación `ask task-api …` las responde desde la caché; una pregunta sin ancla, como «¿Cómo se autentican los usuarios?», responde `UNKNOWN (no-anchor)`.
 
 #### Camino completo — indexar tu propio repositorio o pregunta libre
 
@@ -599,7 +625,7 @@ AI4Devs-finalproject/
 │   │   └── git/                    #   historial y lectura del árbol con simple-git
 │   │
 │   ├── api/                        # Fastify: /ask, /health, /docs, errores, límite por IP
-│   ├── cli/                        # projects · index · ask · impact (stub) · db:seed · cache:build · verify
+│   ├── cli/                        # projects · index · ask · impact · db:seed · cache:build · verify
 │   └── web/                        # React + Vite + Tailwind: rutas, cliente tipado, Pantallas 1 y 2
 │
 ├── fixtures/                       # los 2 repositorios de muestra
@@ -1309,8 +1335,8 @@ paths:
     post:
       summary: Analiza qué se vería afectado por un cambio (Entrega 3)
       description: |
-        Entrega 3: todavía no implementado (la ruta no existe y la CLI `impact`
-        es un stub). Separará explícitamente lo derivado del grafo determinista
+        Entrega 3: todavía no implementado (la ruta no existe; la CLI `impact`
+        ya funciona desde DIS-90, la ruta es de DIS-95). Separará explícitamente lo derivado del grafo determinista
         de lo derivado de la señal histórica de co-cambio, indicando el origen y
         la fiabilidad de cada elemento.
       parameters:

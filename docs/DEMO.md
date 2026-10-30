@@ -427,21 +427,51 @@ termina con código `0` porque `UNKNOWN` es una respuesta.
 ## Paso 4 — Preguntar por el impacto de cambiar los descuentos
 
 ```shell
-npm run cli -- impact acme-shop "cambiar el cálculo de descuentos"
+npm run cli -- impact acme-shop "cambiar los descuentos de DiscountService"
 ```
 
 ```text
 
 > codemind@0.0.1 cli
-> tsx --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts impact acme-shop cambiar el cálculo de descuentos
+> tsx --import=./scripts/load-env.mjs --tsconfig packages/cli/tsconfig.run.json packages/cli/src/index.ts impact acme-shop cambiar los descuentos de DiscountService
 
-not implemented — pending Ticket 1/2
+DIRECTO
+  DiscountApplied  app/Events/DiscountApplied.php  0 saltos  exact  [grafo]
+  DiscountService  app/Services/DiscountService.php  0 saltos  exact  [grafo]
+  RecordDiscountAudit  app/Listeners/RecordDiscountAudit.php  0 saltos  exact  [grafo]
+  PriceCalculator  app/Services/PriceCalculator.php  1 salto  exact  [grafo]
+  app/Providers/AppServiceProvider.php  1 salto  exact  [grafo]
+  app/Providers/EventServiceProvider.php  1 salto  exact  [grafo]
+
+INDIRECTO
+  CheckoutController  app/Http/Controllers/CheckoutController.php  2 saltos  heuristic  [grafo]
+  OrderController  app/Http/Controllers/OrderController.php  2 saltos  heuristic  [grafo]
+  RecalculateTotals  app/Jobs/RecalculateTotals.php  2 saltos  heuristic  [grafo]
+  SendOrderConfirmation  app/Listeners/SendOrderConfirmation.php  2 saltos  heuristic  [grafo]
+
+TESTS
+  DiscountServiceTest  tests/Unit/DiscountServiceTest.php  [grafo]
+  OrderPricingTest  tests/Feature/OrderPricingTest.php  [grafo]
+  PriceCalculatorTest  tests/Unit/PriceCalculatorTest.php  [grafo]
+
+RIESGO HIGH
+10 ficheros afectados, 3 tests que cubren el cambio, 4 elementos directos sin test, 0 elementos directos con cadena solo heurística.
 ```
 
-Termina con código `0`.
+Termina con código `0`. Sin `--max-hops` recorre 2 saltos; acepta de 1 a 3. Cada informe devuelto escribe una
+fila `impact` en `query_log`.
 
-> **Entrega 2.** `impact` todavía es un stub. El análisis de impacto, que separa el grafo determinista
-> de la señal histórica, es CM-HU-16, previsto para la Entrega 3.
+> **Por qué `HIGH`.** La regla (PH-15): `HIGH` si algún componente directo no tiene test (`tested_by`) o solo
+> se alcanza por cadenas heurísticas; `LOW` si todos tienen test y son `exact`; `MEDIUM` en otro caso. Aquí
+> cuatro de los seis directos no tienen test: el evento `DiscountApplied`, su listener `RecordDiscountAudit`
+> y los dos ficheros de service providers. La frase de la rationale lo cuenta.
+>
+> **Sobre el texto.** El literal «cambiar el cálculo de descuentos» no ancla `DiscountService`: el ancla es
+> léxico y `descu` no es `disco` (límite de la spec `impact`). Por eso este paso usa «cambiar los descuentos
+> de DiscountService».
+>
+> **Entrega 3.** La pantalla web de impacto y la ruta `POST /impact` (DIS-95) siguen pendientes; el
+> «documento desalineado» en el nivel de riesgo es de DIS-94.
 
 ## Paso 5 — Repetir el paso 1
 
