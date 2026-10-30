@@ -184,3 +184,52 @@ Audited the artifacts and the working-tree helpers against `graph-read.spec.ts:2
 | I4a | Fixed: "step 5 report". |
 | I4b | Fixed: task 5.6. |
 | Linear comment | Applied at task 9.8. |
+
+## Run 5 (second phase: RC5, D7–D10, delta spec)
+
+CHANGES REQUIRED
+
+Audited proposal, design (Second phase), tasks, the `test-db-isolation` delta, runs 1–4 and the step 5 report, against `postgres-store.ts` (`atomically`, `runQuery`, `saveQueryLog`, `saveCacheEntry`), `claims.ts`, `queries.ts`, the five trigger tests, `helpers/db.ts`, `vitest.config.ts`, `vitest.stryker.config.ts`, `ci.yml` and Vitest 4.1's globalSetup code. DIS-110 loaded (Done, no parent). No blocking question for the author.
+
+- Focus: `rejectingWrites` still proves the five scenarios (P0001 raised at the same point inside `atomically`'s savepoint; the earlier statements of `writeClaims`/`rewriteClaim` still run before the rejected insert, so the rollback is still proven; explain rejects only `evidence`, so its exact events hold). The run's own commits cannot trip the guard (globalSetup runs before the pool). No production code changes; all 12 changed test files are named.
+- **B1 (blocking):** D10 points at "tasks 10–12", which do not exist (task 5.8 says 4.1/4.3).
+- **B2 (blocking):** D10 does not say what to do with projects left committed between series (both first-phase failures left one), nor whether a run refused by the start-up check counts.
+- **B3 (blocking):** where `global-setup.ts` takes `DATABASE_URL` is not fixed; importing `helpers/db.ts` would throw in the CI `mutation` job (CI set, no URL; Stryker inherits the config).
+- Improvable: missing scenarios (no lock / no object; non-matching insert passes; snapshot settings; URL unset); D7 types, insert regex, fixed dollar tag, array-aware `when`, explain's second store, `withThrowawayMigrated` alternative; D9 error propagation and once-per-project wording; stale text (D6 heading, D5/F6 merge, task 9.6 → D10, D4 check); D10 to mention 5.3–5.5; the historical clause of "Existing store test helpers keep their API"; unit-only runs checked too; task order 4.2/4.3 and 8.3/8.4.
+
+### Resolution of run 5
+
+| Finding | Resolution |
+|---|---|
+| B1 | Fixed: D10 "tasks 4.1 or 4.3 (the second-phase files of tasks 3.3–3.7)". |
+| B2 | Fixed: D10 and task 5.8 (count 0 before run 1 and after any failed run, leftovers recorded and deleted; a refused run counts as failed). |
+| B3 | Fixed: D9 and task 3.7 (`global-setup.ts` reads `process.env.DATABASE_URL`, imports nothing that imports `helpers/db.ts`, does nothing when unset); proposal. |
+| Missing scenarios | Fixed in the delta (Req 1 "No database configured"; Req 2 settings; Req 3 no lock / no object, non-matching insert); task 3.5. |
+| D7 details | Fixed: types, regex, `$rejected$`, `valuesInclude`, explain's second store, `withThrowawayMigrated` alternative; task 3.6. |
+| D9 details | Fixed: error propagation, URL never in the message, once per registered project, unit-only runs; task 8.4. |
+| Stale text | Fixed: D6 heading, D5/F6 "(superseded by L4)", task 9.6 → D10, D4 check. |
+| D10 5.3–5.5 | Fixed. |
+| Historical clause | Recorded in D9 as historical; not modified. |
+| Task order | Fixed (4.2/4.3, 8.3/8.4). |
+
+## Run 6
+
+APPROVED
+
+Audited the whole change again (proposal, design with its Second phase, tasks, delta, runs 1–5, step 5 report) against the store code, the five trigger tests, `helpers/db.ts`, `vitest.config.ts`, `vitest.stryker.config.ts`, `ci.yml`, Vitest 4.1's `initializeGlobalSetup` and the main specs. DIS-110 loaded (Done, no parent). Run 5's B1–B3 are fixed; nothing makes the apply wrong or ambiguous.
+
+- Questions for the author, not blocking: QA1, the start-up check also refuses a unit-only run when `DATABASE_URL` points at a database with committed projects (recorded in D9); QA2, the D2b amendment, accepted by the lead (L1).
+- Improvable: missing scenarios (retryable error after the window; connection closed; how "no database configured" is observed); I1 client type of `inOwnSnapshot`; I2 shape of `global-setup.ts`; I3 throwaway databases dropped; I4 the `$do$` tag in the quote guard; I5 scope the `pg_trigger`/`pg_proc` checks; I6 D2's "left as a follow-up" superseded by D8; I7 an invalid URL's Node error carries the input; I8 Req 1's "integration run" wording; I9 `helpers/db.ts`'s "only place that reads it" comment; I10 the `mutation` job's cache keys hash `vitest.config.ts` (full Stryker pass expected).
+
+### Resolution of run 6
+
+| Finding | Resolution |
+|---|---|
+| QA1, QA2 | For the author: DIS-110 comment and the final report. |
+| Missing scenarios | Fixed in the delta (window scenario, connection closed, "resolves without querying any database"); tasks 3.3, 3.7. |
+| I1, I2, I3 | Fixed: D8 signature; D9 `setup()`; tasks 3.3, 3.7. |
+| I4, I5 | Fixed: D7, delta Req 3, task 3.5. |
+| I6 | Fixed: D2 "(superseded by D8…)". |
+| I7 | Fixed: D9 (errors without SQLSTATE rethrown as a generic error without the URL). |
+| I8, I9 | Fixed: delta Req 1 wording and "not an availability gate"; D9, tasks 3.7 and 4.3, proposal Impact (`db.ts` comment only). |
+| I10 | Fixed: design Risks, task 9.2. |

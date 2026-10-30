@@ -120,15 +120,18 @@ queue longer.
 - Restore the local test database to its documented state (RC3) and document how to check it.
 - Record in `docs/TESTING.md` → Carreras conocidas every race that is not removed, with its cause and
   mitigation.
+- Second phase: remove RC5 (D7), share the snapshot helper (D8), refuse a test database with
+  committed projects at the start of a run (D9).
 
 **Non-Goals:**
 
 - No production code: RC1–RC3 are test and environment issues, not product defects. The `FOR SHARE`
   read and the unscoped statements belong to the tests or to the test transaction around production
   code.
-- No change to `claims-refresh.spec.ts`, `claims-write.spec.ts`, `seed-load.spec.ts`,
-  `cache-build.spec.ts`, `seed-build.spec.ts`, the harness or the specs (D3, D6); `graph-read.spec.ts`
-  only in its listing's retry policy (D2b).
+- No change to `seed-load.spec.ts`, `cache-build.spec.ts` or `seed-build.spec.ts`;
+  `graph-read.spec.ts` only in its listing's retry policy (D2b, D8). (First phase: the five trigger
+  tests, the harness and the `test-db-isolation` spec were non-goals too; the second phase drops those
+  three non-goals because the lead decided to remove RC5 and add D8–D9 in this change.)
 - No test timeout raised and no existing `lock_timeout` raised (D2a and D2b add a 1 s bound to the
   test's own snapshot transactions, which had none).
 
@@ -184,7 +187,7 @@ assertions.
 The helper is local to each file (four copies of the D2a policy with `graph-read.spec.ts`'s inline
 loop and the own-connections test): a shared
 helper in `tests/integration/helpers/db.ts` would add behaviour to the `test-db-isolation` capability
-and is left as a follow-up (F4).
+and is left as a follow-up (F4). (Superseded by D8: the copies are replaced by the shared helper.)
 
 *Alternatives:* (a) instants far in the future for the cost tests: no other file writes there, but the
 `graph-store` scenarios fix the 2026 instants, so the tests would no longer match them; (b) a
@@ -290,7 +293,7 @@ sum read twice; the existing entry on
 `projects-command.spec.ts` is replaced by D2, and the one on seed-load's "A failed golden save leaves
 the database unchanged" is dropped because that test already scopes its snapshot to the seed's and its
 own projects), and a check that the test database holds no committed seed
-(`SELECT count(*) FROM project WHERE is_sample`, expected `0`) with the command that empties it.
+(`SELECT count(*) FROM project`, expected `0`; the start-up check of D9 does it too) with the command that empties it.
 `docs/project-context.md` → "Golden answers tests" repeats that two scenarios race; it is updated to
 match.
 
@@ -313,7 +316,7 @@ All runs are on the restored `codemind_test` (D4), after every edit of this chan
   `graph-read.spec.ts`, recorded with its reason; the pass criterion, run counts and cycle cap never
   changed. Any outcome other than "passed" (this one or a third failure) is a clean stop: the change's
   work is committed and pushed, the PR may be opened for the author, and tasks 9.3–9.8 (reviews,
-  archive, merge) are not run. The merge (9.8) requires the step 5 report to record 5.2 and 5.3 as
+  archive, merge) are not run. The merge (9.8; merge by the agent superseded by L4) requires the step 5 report to record 5.2 and 5.3 as
   PASS.
 - Each run is one tool call with a timeout of at least 420 000 ms.
 - Every run executed counts toward the series; a failing run beyond the minimum stops it like any
@@ -322,12 +325,140 @@ All runs are on the restored `codemind_test` (D4), after every edit of this chan
   5.3 under this rule before 9.8; the result goes to an addendum of the step 5 report.
 - Each restart and its reason is recorded in the step 5 report.
 
-### D6. No golden round and no spec delta
+### D6. No golden round
 
 The seed fingerprint (`packages/cli/src/seed/fingerprint.ts`) hashes no file under `tests/` or
 `docs/`, so the CI `verify` job is unaffected. Every changed test keeps its scenario's data and
 expected results; no requirement mentions the global count, the isolation of a test's own transaction
-or the scope of a test's clean-up statement: `skip_specs: true`.
+or the scope of a test's clean-up statement. (First phase: `skip_specs: true`; the second phase adds
+the `test-db-isolation` delta of D7–D9 and drops that flag. No golden round either way.)
+
+## Second phase (after the stability stop S1)
+
+*Agent's text.* The lead of the run (the coordinator of the autonomous session, acting for the
+author, who asked the main session to handle everything) decided on 2026-10-30: D2b accepted
+(destination A); remove the remaining cause inside this change, preferably without DDL, isolating the
+files that need DDL only if one does; add the start-up check of F4 and the shared snapshot helper if
+it removes duplication this change introduced; run the stability rule again; then the pre-merge
+reviews and the archive. No merge by the agent.
+
+### RC5. Trigger tests queue every writer of their table
+
+Five tests make a write fail by creating, inside their harness transaction, a trigger on a shared
+table: `claims-write.spec.ts` and `claims-refresh.spec.ts` on `evidence` (`lock_timeout` 10 s),
+`explain/explain.spec.ts` on `evidence` (60 s), `cache-entry.spec.ts` on `cache_entry` (10 s) and
+`query-log-write.spec.ts` on `query_log` (10 s). `CREATE TRIGGER` takes `SHARE ROW EXCLUSIVE`, which
+waits for every open transaction of another file that wrote the table (`ROW EXCLUSIVE`, held until
+that test ends). While it waits, every later writer of the table queues behind it, and once it holds
+the lock it blocks them until its own test ends. Observed: stability series C, whole run 2 (S1): both
+`CREATE TRIGGER`s at their 10 s bound and five tests at 20 s behind the queue. `indexes-stale.spec.ts`
+also creates a trigger, but on a throwaway database of its own: not affected.
+
+### D7. Make the write fail without DDL: `rejectingWrites`
+
+New harness helper `tests/integration/helpers/rejecting-writes.ts` (requirement "A database write
+can be made to fail without DDL"): `rejectingWrites(client: ClientBase, rejection: { table: string;
+when?: (values: readonly unknown[]) => boolean; quote: (values: readonly unknown[]) => string }):
+ClientBase` returns a client whose `query(sql, values)` forwards everything to `client`, except a call
+whose SQL text matches `/^\s*INSERT\s+INTO\s+<table>\b/i` and whose values match `when` (every such
+call when `when` is absent). For that call it sends, on the same client, a `DO` block that raises
+`RAISE EXCEPTION USING MESSAGE = '<table> rejected: <quote>', DETAIL = <quote>, HINT = <quote>`, each
+text dollar-quoted with the fixed tag `$rejected$` (the block itself uses `$do$`); a quote containing
+`$rejected$` or `$do$` throws a test error instead. The helper's test checks the absence of DDL with
+the `pg_trigger` rows of `query_log` (`tgrelid = 'query_log'::regclass`) and the `pg_proc` rows of
+the backend's temporary schema, so a parallel file cannot change the counts. The tests' `when` is "any string value, or any string
+element of an array value, includes `SENTINEL`" (`INSERT_EVIDENCE` passes the excerpts as a `text[]`);
+the helper exports it as `valuesInclude(text)`. PostgreSQL itself raises the
+error inside the caller's transaction or savepoint, exactly where the insert would have run, and the
+transaction is aborted as by a failing insert. No object is created and no table is locked.
+
+The five tests drop their `SET LOCAL lock_timeout`, `CREATE FUNCTION pg_temp…` and `CREATE TRIGGER`
+statements (and the comments that describe them) and build the store under test on
+`rejectingWrites(db(), …)` (or the counting client the file already uses). `explain.spec.ts` keeps
+`indexed()` as it is (indexing writes no evidence) and builds a second store
+`createPostgresStore({ transaction: rejectingWrites(db(), …) })` after it, used only by `explain`:
+
+| Test | table | when | quote |
+|---|---|---|---|
+| claims-write "A failure while writing evidence leaves no claim" | `evidence` | values contain `SENTINEL` | `SENTINEL` |
+| claims-refresh "A failure while refreshing leaves the claim as it was" | `evidence` | values contain `SENTINEL` | `SENTINEL` |
+| explain "A failed write over the database still answers without leaking" | `evidence` | every insert | the excerpts of the insert and `SENTINEL` |
+| cache-entry "A failed cache write does not leak" | `cache_entry` | values contain `SENTINEL` | `SENTINEL` |
+| query-log-write "A failed query log write does not leak" | `query_log` | values contain `SENTINEL` | `SENTINEL` |
+
+Every assertion stays, except that the text checked as "not leaked" becomes the new message prefix
+(`'evidence rejected'`, `'cache_entry rejected'`, `'query_log rejected'`) where it differed. Each test
+still proves its scenario: the database rejects that insert with an error whose `detail` quotes the
+sentinel, and the store must turn it into its own error without leaking and leave the data as it was.
+Difference, recorded: the statement PostgreSQL rejects is the `DO` block sent in place of the store's
+`INSERT`, not the `INSERT` itself; the store's code path, transaction and savepoint handling are the
+same. No file needs DDL, so no Vitest project or sequencing is added.
+
+*Alternatives:* a value the database itself rejects (a NUL byte, an over-long text) is refused by the
+store's own validation before any statement, or yields an error without the sentinel in `detail`;
+the unit tests' in-memory doubles do not exercise the PostgreSQL adapter; the in-repo pattern for DDL
+in tests, `withThrowawayMigrated` of `indexes-stale.spec.ts`, migrates one database per test and
+would need the indexed acme-shop (explain) rebuilt there; a dedicated sequential
+Vitest project for the five files would keep the DDL but still let them queue behind each other and
+slow the suite.
+
+### D8. Shared `inOwnSnapshot`
+
+New harness helper `tests/integration/helpers/snapshot.ts` (requirement "A rolled-back snapshot of a
+test's own"): `inOwnSnapshot<T>(work: (client: Client) => Promise<T>, connectionString = databaseUrl):
+Promise<T>` with the D2a policy, plus the
+exported `isRetryableSnapshotError(error, started)` and `SNAPSHOT_RETRY_PAUSE_MS`. It replaces the
+local copies in `query-cost.spec.ts` and `projects-command.spec.ts` and the inline loop of
+`graph-read.spec.ts`'s listing; the own-connections test of `query-cost.spec.ts` keeps its loop (it
+must run on its one-connection pool) but uses the exported predicate and pause. The optional
+connection string lets the helper's own tests run on a throwaway database, so they commit nothing to
+the shared one.
+
+### D9. Start-up check against committed projects (F4)
+
+New `tests/integration/helpers/committed-projects.ts` exports
+`assertNoCommittedProjects(connectionString)` (requirement "A test database with committed projects is
+refused"): it counts `project` rows on a connection of its own; `42P01` (no such table) passes; a count
+above zero throws `Error` with the message
+`The test database holds <n> committed project(s); it must hold none before an integration run (see
+docs/TESTING.md → Carreras conocidas).` — never the URL. `tests/integration/helpers/global-setup.ts` is
+the Vitest `globalSetup` of the `node` and `seed-build` projects in `vitest.config.ts`: when
+`DATABASE_URL` is set it calls the check before any test file runs (Vitest 4.1 runs the
+`globalSetup` of every project that has test files in the run before the pool starts, once per such
+project). `global-setup.ts` default-exports `setup(): Promise<void>`, which reads
+`process.env.DATABASE_URL` when called. A
+run's own committed projects appear only after tests start, so the check never sees them.
+`global-setup.ts` reads `process.env.DATABASE_URL` itself and imports nothing that imports
+`tests/integration/helpers/db.ts` (that module throws on import in CI without a URL, and
+`vitest.stryker.config.ts` inherits this `globalSetup` in the CI `mutation` job, which has no
+database); with the variable unset it does nothing, `CI` or not, and `helpers/db.ts` stays the only
+gate that skips or fails database tests (its header comment "the only place that reads it" becomes
+"the only gate for a missing value; the start-up check also reads it and does nothing without it").
+A PostgreSQL error other than `42P01` propagates unchanged; an error without a SQLSTATE (for example
+an invalid URL, whose Node error carries the input) is rethrown as
+`Error('The test database URL could not be used')`, so neither error nor refusal carries the URL. Runs of unit tests only in the `node` project are checked too when
+`DATABASE_URL` is set. `docs/TESTING.md` says what the message means and how to empty the database.
+
+The existing requirement "Existing store test helpers keep their API" says the store spec files
+"MUST pass without being edited", and its scenario checks that no file under `tests/integration/store/`
+changed: both were written for the harness change that introduced the support module (2026-09-29,
+"after this change"), as a property of that diff. They are historical and do not forbid editing store
+specs in later changes (this change, like others before it, does); not modified here.
+
+### D10. Stability rule of the second phase (fixed before its runs)
+
+Same as D5, run again from scratch after D7–D9 on the restored database: at least five consecutive
+runs of `tests/integration/store` and three of `tests/integration`, every run green, every executed
+run counts, one tool call per run (timeout ≥ 420 000 ms). Any failure stops the series and is
+diagnosed; a cause removable in a file of tasks 4.1 or 4.3 (the second-phase files of tasks 3.3–3.7)
+is fixed after updating the artifacts and both series restart from run 1. Two correction cycles are
+allowed in the second phase; its third failing series, or a cause that needs another file, is a clean
+stop reported to the coordinator (no reviews, no archive). Before run 1 of every series, and after
+any failed run, `SELECT count(*) FROM project` on `codemind_test` must be 0; any project left is
+recorded by name in the step 5 report and deleted (`DELETE FROM project`). A run refused by the
+start-up check counts as a failed run and is diagnosed like any other. Then 5.3 (one run, 0 failed; a
+failure handled as above) and 5.4–5.5. The step 5 report gets a "Second phase" section with every
+run.
 
 ## Risks / Trade-offs
 
@@ -336,8 +467,13 @@ or the scope of a test's clean-up statement: `skip_specs: true`.
 - [D3 narrows the clean-up of three helpers] → `loadSeed` already deletes the samples and refuses a
   user project with a seed name; no test of those files creates a project of another name before
   `seeded()`.
-- [RC3 can come back] → whoever runs `db:seed` against the test database again; the check is
-  documented, and a guard in the harness is F4.
+- [Editing `vitest.config.ts` changes every key of the `mutation` job's Stryker cache (`ci.yml`
+  254-257)] → the PR runs a full mutation pass (once 29 min 34 s against a 40 min limit); a slow
+  `mutation` job on this PR is expected, not a regression.
+- [RC3 can come back] → whoever runs `db:seed` against the test database again; the start-up check
+  of D9 now refuses the run with a clear message.
+- [The `DO` block of D7 is not the store's `INSERT`] → the store cannot tell the difference: it sees a
+  PostgreSQL error raised by its insert call inside its transaction or savepoint; recorded in D7.
 
 ## Follow-ups
 
@@ -354,4 +490,13 @@ ticket; C = the author; D = out of scope, recorded.*
 | F4 | A shared "own snapshot" helper and a harness guard that fails at once on a test database holding a committed sample (`is_sample`) would remove the three local copies of D2 and catch RC3 early. Both add behaviour to `tests/integration/helpers/db.ts` and the `test-db-isolation` spec; left out to keep this change minimal. | C, author |
 | F5 | The scope of this change grew from F1–F3 to the RC1/RC2 failures found in the reproduction (`query-cost`, `projects-command`, `ask`, `reindex`, `ask-command`), under the run's goal "remove the remaining intermittent integration-test failures". | A |
 | S1 | Stability step 5.2 did not pass: after correction cycle 2, whole-suite run 2 failed seven tests in one lock pile-up (`CREATE TRIGGER` of `cache-entry.spec.ts` and `query-log-write.spec.ts` at their 10 s `lock_timeout`; five tests at 20 s behind it; `projects-command.spec.ts` at the end of its D2a window). By D5 this third failure is a clean stop: the work is committed and pushed and the PR is opened for the author; tasks 9.3–9.8 (reviews, archive, merge) are not run, so the merge the author asked for (F6) is not done. Removing the remaining queue needs the trigger tests to fail their writes without DDL (`claims-refresh`, `claims-write`, `explain`, `cache-entry`, `query-log-write`), outside this change's scope. Recorded in Carreras conocidas. | C, author |
-| F6 | The run's first instruction said not to merge; during the run (2026-10-30) the author wrote in this session, in Spanish, to take care of everything and merge so the next batch can start (spec audit run 1, Q2: confirmed by that message). The merge goes through the merge gate only (tasks 9.8). | A |
+| F6 | (Merge superseded by L4.) The run's first instruction said not to merge; during the run (2026-10-30) the author wrote in this session, in Spanish, to take care of everything and merge so the next batch can start (spec audit run 1, Q2: confirmed by that message). The merge goes through the merge gate only (tasks 9.8). | A |
+
+*Agent's text: second phase, decisions of the lead of the run (coordinator), 2026-10-30.*
+
+| Id | Decision | Destination |
+|---|---|---|
+| L1 | D2b (fix scope extended to `graph-read.spec.ts`) accepted by the lead. | A |
+| L2 | RC5 removed in this change (D7): supersedes Q1 (option b taken) and the "remains" entries of the trigger tests; the first-phase S1 stop stays recorded as the reason for the second phase. | A |
+| L3 | F4 done: the start-up check (D9) and the shared snapshot helper (D8, it removes copies this change introduced). | A |
+| L4 | The merge stays with the author (instruction of the lead); F6's agent merge is withdrawn. | C, author |
