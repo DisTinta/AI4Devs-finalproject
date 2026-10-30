@@ -214,12 +214,18 @@ describeWithDatabase('graph store reads (DIS-24)', () => {
       // REPEATABLE READ, unlike the harness's (which has already run a query, so its level is fixed):
       // under READ COMMITTED the listing also saw a project another spec file committed between the
       // DELETE and the read (DIS-41 review). A concurrent commit can abort the DELETE with a
-      // serialization failure (40001), the expected outcome at this level: it is retried.
+      // serialization failure (40001), the expected outcome at this level: it is retried. Other files
+      // commit projects and change or delete them many times per second, so three immediate attempts
+      // were not enough (DIS-110): a lock wait is bounded to 1 s (55P03), so this transaction never holds
+      // its locks for long, and both errors are retried after a 250 ms pause for up to 10 s
+      // (integration-test-races design D2b).
       const own = await connect();
       try {
         let projects: unknown;
-        for (let attempt = 1; ; attempt++) {
+        const started = Date.now();
+        for (;;) {
           await own.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
+          await own.query(`SET LOCAL lock_timeout = '1s'`);
           try {
             await own.query('DELETE FROM project');
 
@@ -227,10 +233,12 @@ describeWithDatabase('graph store reads (DIS-24)', () => {
             projects = await createPostgresStore({ transaction: own }).listProjects();
             break;
           } catch (error) {
-            if ((error as { code?: string }).code !== '40001' || attempt === 3) throw error;
+            const code = (error as { code?: string }).code;
+            if ((code !== '40001' && code !== '55P03') || Date.now() - started >= 10_000) throw error;
           } finally {
             await own.query('ROLLBACK');
           }
+          await new Promise((resolve) => setTimeout(resolve, 250));
         }
 
         // Assert
