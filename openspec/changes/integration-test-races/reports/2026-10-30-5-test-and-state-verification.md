@@ -125,3 +125,59 @@ Entry 75 added (the run's commission, as entry 74 did for the previous change).
   restored test database, the documentation of task 8.
 - Blocking issue: the `CREATE TRIGGER` lock queue (design S1). Tasks 9.3–9.8 (reviews, archive,
   merge) were not run; the PR is left open for the author.
+
+## Second phase (design → Second phase, D7–D10)
+
+After the stop above, the lead of the run decided to remove RC5 (the trigger tests) in this change and
+to add the start-up check and the shared snapshot helper (design L1–L4). The stability rule D10 was
+fixed in the artifacts (spec audit run 6, `APPROVED`) before these runs.
+
+### Commands executed
+
+- 3.3/3.5/3.7 (TDD): each new helper spec run red (module missing), then green:
+  `DB npx vitest run tests/integration/helpers/snapshot.spec.ts` (4 passed),
+  `… rejecting-writes.spec.ts` (3 passed), `… committed-projects.spec.ts global-setup.spec.ts` (6 passed)
+- 3.7 manual check: `INSERT INTO project …('guard-check'…)` in `codemind_test`, then
+  `DB npx vitest run tests/integration/store/open-store.spec.ts` → refused before any test with
+  `Error: The test database holds 1 committed project; it must hold none before an integration run (see docs/TESTING.md → Carreras conocidas).`;
+  the project deleted (count 0). A unit-only run without `DATABASE_URL`
+  (`npx vitest run tests/unit/cache`): 7 files, 37 tests passed.
+- 4.3: the twelve changed or new spec files of the second phase, one at a time
+  (`--no-file-parallelism`): 12 files, 107 tests passed (46.8 s).
+- 5.8: `DB npx vitest run tests/integration/store` ×5 and `DB npx vitest run tests/integration` ×3, one
+  tool call per run; before run 1, `SELECT count(*) FROM project` → 0.
+- 5.3: `DB npx vitest run --project dom --project seed-build --project node`; `npm run lint`,
+  `npm run typecheck`, `npm run docs:coverage`.
+- 5.4/5.5: as in the first phase.
+
+### Stability series (D10)
+
+| Run | Files | Tests | Failures |
+|---|---|---|---|
+| store 1 | 13 passed | 200 passed | — |
+| store 2 | 13 passed | 200 passed | — |
+| store 3 | 13 passed | 200 passed | — |
+| store 4 | 13 passed | 200 passed | — |
+| store 5 | 13 passed | 200 passed | — |
+| whole 1 (289 s) | 40 passed | 404 passed | — |
+| whole 2 (288 s) | 40 passed | 404 passed | — |
+| whole 3 (290 s) | 40 passed | 404 passed | — |
+
+Every run green; no correction cycle was needed. (The whole suite has 40 files: the four new helper
+specs.)
+
+### Broader suite and gates (5.3)
+
+- `DB npx vitest run --project dom --project seed-build --project node`: 190 files passed, 1997 tests
+  passed (316.7 s).
+- `npm run lint`: exit 0. `npm run typecheck`: exit 0. `npm run docs:coverage`: exit 0.
+
+### Seed fingerprint and post-state (5.4, 5.5)
+
+- `git diff --stat origin/final-project-CRN -- packages seeds fixtures package-lock.json`: empty.
+- `codemind_test`: `project` 0, `codemind-tx%` sessions 0; `node scripts/dev-processes.mjs stop` →
+  "no dev process of the repository is running".
+
+### Outcome of the second phase
+
+- Status: PASS (5.8 and 5.3).
