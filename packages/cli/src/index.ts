@@ -1,12 +1,13 @@
 import { Command } from 'commander';
 import { runAskCommand } from './commands/ask.js';
+import { runImpactCommand } from './commands/impact.js';
 import { runIndexCommand } from './commands/index-repository.js';
 import { runProjectsCommand } from './commands/projects.js';
 import { CLI_VERSION } from './version.js';
 
-// `index`, `projects` and `ask` run on their own fresh command with injected streams and return their
-// exit code (DIS-86 design D1, DIS-92 design D4, DIS-40 design D8); the other subcommands stay on the
-// global program below.
+// `index`, `projects`, `ask` and `impact` run on their own fresh command with injected streams and return
+// their exit code (DIS-86 design D1, DIS-92 design D4, DIS-40 design D8, DIS-90 design D8); the other
+// subcommands stay on the global program below.
 const io = { env: process.env, stdout: process.stdout, stderr: process.stderr };
 if (process.argv[2] === 'index') {
   process.exitCode = await runIndexCommand(process.argv.slice(2), io);
@@ -14,6 +15,8 @@ if (process.argv[2] === 'index') {
   process.exitCode = await runProjectsCommand(process.argv.slice(2), io);
 } else if (process.argv[2] === 'ask') {
   process.exitCode = await runAskCommand(process.argv.slice(2), io);
+} else if (process.argv[2] === 'impact') {
+  process.exitCode = await runImpactCommand(process.argv.slice(2), io);
 } else {
   const program = new Command();
 
@@ -28,12 +31,10 @@ if (process.argv[2] === 'index') {
   // Listed so `codemind --help` shows it; never reached, since `ask` is delegated above.
   program.command('ask <project> <question>').description('Ask a question about a project (see `codemind ask --help`)');
 
+  // Listed so `codemind --help` shows it; never reached, since `impact` is delegated above.
   program
     .command('impact <project> <change>')
-    .description('Analyze impact of a change')
-    .action(() => {
-      console.log('not implemented — pending Ticket 1/2');
-    });
+    .description('Analyze the impact of a change on a project (see `codemind impact --help`)');
 
   // Listed so `codemind --help` shows it; never reached, since `index` is delegated above.
   program.command('index <path>').description('Index a repository (see `codemind index --help`)');

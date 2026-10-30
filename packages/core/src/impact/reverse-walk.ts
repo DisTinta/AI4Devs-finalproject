@@ -1,7 +1,7 @@
 import type { EdgeKind } from '../knowledge/graph-edge.js';
 import type { Neighbor, NodeRef, StoredSymbol } from '../knowledge/graph-read.js';
 import type { StorePort } from '../ports/StorePort.js';
-import { componentName } from './relevance.js';
+import { componentKey, componentName } from './relevance.js';
 import type { Component, TestComponent } from './relevance.js';
 
 // The two reads of `impact` (DIS-89 design D2): the reverse walk from the anchor, and the `tested_by`
@@ -52,6 +52,16 @@ export interface TestSearch {
   direct: readonly Component[];
 }
 
+/** What {@link findTests} returns: the tests, and what the coverage of the direct components needs. */
+export interface TestSearchResult {
+  /** The test components, each once, at their smallest distance. */
+  tests: TestComponent[];
+  /** The seeds each direct component owns, by component key. */
+  seedsOf: Map<string, NodeRef[]>;
+  /** Every node the `tested_by` statements returned, each once. */
+  testNodes: NodeRef[];
+}
+
 /**
  * Finds the tests of the change: the targets of one `tested_by` step from source to target, seeded
  * with the anchor symbols and their files, every reached node outside `test` files and outside the
@@ -63,10 +73,11 @@ export interface TestSearch {
  * @param store The graph store.
  * @param projectId The project.
  * @param search The anchor, the walk and the direct components.
- * @returns The test components, each once, at their smallest distance (from 1).
+ * @returns The test components, each once, at their smallest distance (from 1), and for the coverage
+ *   read of {@link directCoverage} the seeds each direct component owns and every test node found.
  * @throws ProjectNotFound when `projectId` names no project.
  */
-export async function findTests(store: StorePort, projectId: string, search: TestSearch): Promise<TestComponent[]> {
+export async function findTests(store: StorePort, projectId: string, search: TestSearch): Promise<TestSearchResult> {
   const { anchors, reached, direct } = search;
   const anchorFiles = new Set(anchors.map((symbol) => symbol.fileId));
   const seeds = new Map<string, { seed: NodeRef; distance: number }>();
@@ -75,18 +86,34 @@ export async function findTests(store: StorePort, projectId: string, search: Tes
     const known = seeds.get(key);
     if (known === undefined || distance < known.distance) seeds.set(key, { seed: node, distance });
   };
+  // The seeds each direct component owns (design D2), by component key, each node once.
+  const directKeys = new Set(direct.map(componentKey));
+  const seedsOf = new Map<string, Map<string, NodeRef>>();
+  const own = (key: string, node: NodeRef): void => {
+    if (!directKeys.has(key)) return;
+    const owned = seedsOf.get(key) ?? new Map<string, NodeRef>();
+    owned.set(`${node.type}:${node.id}`, node);
+    seedsOf.set(key, owned);
+  };
 
-  for (const symbol of anchors) seed(ref('symbol', symbol.id), 0);
+  for (const symbol of anchors) {
+    seed(ref('symbol', symbol.id), 0);
+    own(componentKey({ fileNode: false, fileId: symbol.fileId, name: componentName(symbol.name) }), ref('symbol', symbol.id));
+  }
   for (const fileId of anchorFiles) seed(ref('file', fileId), 0);
   for (const node of reached) {
     if (node.type === 'file') {
+      // A file component owns its file through the `direct` loop below, which owns every file.
       if (!anchorFiles.has(node.id) && node.kind !== 'test') seed(ref('file', node.id), node.distance);
     } else if (!anchorFiles.has(node.fileId) && node.fileKind !== 'test') {
       seed(ref('symbol', node.id), node.distance);
+      own(componentKey({ fileNode: false, fileId: node.fileId, name: componentName(node.name) }), ref('symbol', node.id));
     }
   }
   for (const component of direct) {
+    const key = componentKey(component);
     seed(ref('file', component.fileId), component.hops);
+    own(key, ref('file', component.fileId));
     if (component.fileNode || !component.method) continue;
     const known =
       anchors.find((symbol) => symbol.fileId === component.fileId && symbol.name === component.name) ??
@@ -104,14 +131,20 @@ export async function findTests(store: StorePort, projectId: string, search: Tes
       (await store.findSymbols(projectId, component.name)).find(
         (symbol) => symbol.name === component.name && symbol.fileId === component.fileId,
       );
-    if (lookedUp !== undefined) seed(ref('symbol', lookedUp.id), component.hops);
+    if (lookedUp !== undefined) {
+      seed(ref('symbol', lookedUp.id), component.hops);
+      own(key, ref('symbol', lookedUp.id));
+    }
   }
 
   const distances = [...new Set([...seeds.values()].map(({ distance }) => distance))].sort((a, b) => a - b);
   const tests = new Map<string, TestComponent>();
+  const testNodes = new Map<string, NodeRef>();
   for (const distance of distances) {
     const group = [...seeds.values()].filter((entry) => entry.distance === distance).map((entry) => entry.seed);
     for (const node of await store.neighbors(projectId, group, 1, ['tested_by'], 'out')) {
+      const testRef = ref(node.type, node.id);
+      testNodes.set(`${testRef.type}:${testRef.id}`, testRef);
       const test: TestComponent =
         node.type === 'file'
           ? { name: node.path, file: node.path, fileId: node.id, fileNode: true, distance: distance + 1 }
@@ -120,5 +153,32 @@ export async function findTests(store: StorePort, projectId: string, search: Tes
       if (!tests.has(key)) tests.set(key, test);
     }
   }
-  return [...tests.values()];
+  return {
+    tests: [...tests.values()],
+    seedsOf: new Map([...seedsOf].map(([key, owned]) => [key, [...owned.values()]])),
+    testNodes: [...testNodes.values()],
+  };
+}
+
+/**
+ * The direct components that a `tested_by` edge covers (DIS-90 design D2): one reverse read of
+ * `tested_by` into the test nodes the step found, and a component is covered when one of the seeds it
+ * owns is among the sources. The read is skipped when no test node was found.
+ *
+ * @param store The graph store.
+ * @param projectId The project.
+ * @param found What {@link findTests} returned.
+ * @returns The keys of the covered components.
+ * @throws ProjectNotFound when `projectId` names no project.
+ */
+export async function directCoverage(store: StorePort, projectId: string, found: TestSearchResult): Promise<Set<string>> {
+  if (found.testNodes.length === 0) return new Set();
+  const sources = new Set(
+    (await store.neighbors(projectId, found.testNodes, 1, ['tested_by'], 'in')).map((node) => `${node.type}:${node.id}`),
+  );
+  const covered = new Set<string>();
+  for (const [key, owned] of found.seedsOf) {
+    if (owned.some((node) => sources.has(`${node.type}:${node.id}`))) covered.add(key);
+  }
+  return covered;
 }

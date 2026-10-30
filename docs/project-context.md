@@ -224,8 +224,8 @@ Verified against `package.json` (root and per package). If a command is not here
   [--framework laravel|fastify|none] [--json]` (see the gotcha on the `index` command) and
   `npm run cli -- projects` (DIS-92: every stored project, one line each, read through
   `StorePort.listProjects` in a transaction it always rolls back; needs `DATABASE_URL`) and
-  `npm run cli -- ask <project> "<question>"` (DIS-40, see the gotcha on the `ask` command);
-  `impact` is a stub.
+  `npm run cli -- ask <project> "<question>"` (DIS-40, see the gotcha on the `ask` command) and
+  `npm run cli -- impact <project> "<change>"` (DIS-90, see the gotcha on the `impact` command).
 - Migrations: `npm run db:migrate` (apply all pending) / `npm run db:rollback` (revert the latest
   one) — `tsx packages/adapters/store-postgres/src/migrate.ts up|down`, node-pg-migrate with SQL
   files `NNNN_name.up.sql` / `NNNN_name.down.sql` in `packages/adapters/store-postgres/migrations/`
@@ -417,8 +417,9 @@ Verified against `package.json` (root and per package). If a command is not here
 - **Impact tests** (DIS-89): `tests/unit/impact/` (`impact-request.spec.ts`, `impact.spec.ts` over the
   acme-shop subset, `components.spec.ts` and `relevance.spec.ts` over the small graphs of
   `tests/unit/impact/small-graph.ts`, built with `tests/support/sample-graph.ts`; each asserts its
-  anchor first) and `tests/integration/impact/acme-shop.spec.ts` (the seed loaded in the harness
-  transaction, as `api/ask.spec.ts`). Integration runs need an empty database: use a second one
+  anchor first; DIS-90 adds `risk.spec.ts` and `query-log.spec.ts`) and
+  `tests/integration/impact/acme-shop.spec.ts` (the seed loaded in the harness
+  transaction, as `api/ask.spec.ts`; since DIS-90 it also checks the risk of Q2 and the `query_log` row). Integration runs need an empty database: use a second one
   (`codemind_it`) when the local `codemind` holds the loaded seed.
 - **acme-shop test subset** (`tests/support/acme-shop-graph.ts`): a real slice of
   `seeds/graph-dump.sql` (the `PriceCalculator` and `DiscountService` neighbourhoods, `CouponValidator`,
@@ -911,9 +912,30 @@ services that must be started first, quirks of the local environment.
   distance, `exact` before `heuristic`, lexical match through `context/lexical-match.ts`
   `containsAnyTerm`, shared with `rank.ts`, then `compareBytes` of symbol and file). The lexical anchor
   is the limit: the literal Q2 text `cambiar el cálculo de descuentos` does not anchor `DiscountService`
-  (design D7; Q2 is reproduced with `cambiar los descuentos de DiscountService`). `risk`, the CLI
-  command, `query_log` and `POST /impact` are DIS-90 and DIS-95; `impact` writes nothing. No fingerprint
-  input changes, so no `seed:build`.
+  (design D7; Q2 is reproduced with `cambiar los descuentos de DiscountService`). DIS-90 adds the
+  **risk**, the **`query_log` row** and the CLI command; `POST /impact` is DIS-95's. An answered report
+  carries `risk: { level, rationale }` (`risk.ts` `assessRisk`; PH-15 as written: `HIGH` when some
+  `direct` component has no `tested_by` edge or only heuristic chains, `LOW` when all are covered and
+  `exact`, `MEDIUM` otherwise; the rationale is `<F> ficheros afectados, <T> tests …, <U> elementos
+  directos sin test, <H> … cadena solo heurística.` and never holds the change). Coverage is one extra
+  `neighbors` read (`tested_by`, direction `in`, seeded with the test nodes `findTests` found,
+  `directCoverage` in `reverse-walk.ts`); `Component.exactChain` (`relevance.ts`) feeds `H`. Every
+  returned report (`answered` or `unknown`) writes one `query_log` row with capability `impact`
+  (`query-log.ts`, tolerant of `QueryLogWriteFailed`/`ProjectNotFound`/`InvalidStoreQuery`, which become
+  `events: [{ type: 'query_not_logged', code }]`; any other failure throws); `impact(store, request,
+  { now })` reads the clock exactly twice; a call that throws writes no row. The change text is stored
+  only in `query_log.question`, never in an error, event or log line. Every acme-shop report is `HIGH`
+  (the service-provider files are untested direct dependants), so the demo shows `RIESGO HIGH` with its
+  rationale. No fingerprint input changes, so no `seed:build`.
+- **The `impact` command** (DIS-90, `packages/cli/src/commands/impact.ts`): `npm run cli -- impact
+  <project> <change> [--max-hops <n>]`, delegated from `index.ts` before `commander`, shaped like `ask`
+  (exit `2` for `USAGE`/`INVALID_IMPACT_REQUEST` before any connection, `1` for `MISSING_CONFIG`,
+  `DATABASE_UNAVAILABLE`, `PROJECT_NOT_FOUND`, `INTERNAL`; one JSON error line that never holds the
+  change), with its own `defaultOpenStore` (`application_name` `codemind-impact`) and no `LLM_*` read.
+  It prints `DIRECTO`, `INDIRECTO`, `TESTS` and `RIESGO <level>` (Spanish labels, the level as the code)
+  or `UNKNOWN (no-anchor)`; `query_not_logged` events go to stderr as `info` JSON lines. Tests:
+  `tests/unit/impact/risk.spec.ts`, `query-log.spec.ts`, `tests/unit/cli/impact-command.spec.ts` and
+  `tests/integration/cli/impact-command.spec.ts`.
 - **`explain` is the one-pass use case over the Context Engine** (DIS-39,
   `packages/core/src/explain/explain.ts`). `explain({ store, source, llm, workspaceRoot, now,
   verificationCache, costTable? }, { projectId, question, tokenBudget?, hops?, useCache? })`, in this order: Zod request check

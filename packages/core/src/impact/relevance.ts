@@ -2,7 +2,8 @@ import { containsAnyTerm } from '../context/lexical-match.js';
 import type { EdgeResolution } from '../knowledge/graph-edge.js';
 import { compareBytes } from '../knowledge/byte-order.js';
 import type { Neighbor, StoredSymbol } from '../knowledge/graph-read.js';
-import type { ImpactEntry, ImpactReport, ImpactTestEntry } from './impact-report.js';
+import type { ImpactEntry, ImpactTestEntry } from './impact-report.js';
+import type { ReportBody } from './risk.js';
 
 // The component as the unit of the report, its classification and its order (DIS-89 design D3, D4,
 // D5). A lexicographic key without weights, as `context/rank.ts`: every position can be explained.
@@ -31,6 +32,11 @@ export interface Component {
   test: boolean;
   /** Whether one of its nodes is a symbol whose name differs from the component's (a method). */
   method: boolean;
+  /**
+   * Whether the component has an all-`exact` chain (DIS-90 design D1): true for a component of the
+   * anchor and when any node of it reached by the walk is `exact`. Never in `ImpactEntry`.
+   */
+  exactChain: boolean;
 }
 
 /** The identity of a component: a symbol component by file and name, a file component by file. */
@@ -64,6 +70,7 @@ export function groupComponents(anchors: readonly StoredSymbol[], reached: reado
         fileNode: false,
         test: false,
         method: symbol.name !== name,
+        exactChain: true,
       });
     } else if (symbol.name !== name) {
       known.method = true;
@@ -82,6 +89,7 @@ export function groupComponents(anchors: readonly StoredSymbol[], reached: reado
       fileNode: node.type === 'file',
       test: (node.type === 'file' ? node.kind : node.fileKind) === 'test',
       method: node.type === 'symbol' && node.name !== name,
+      exactChain: node.resolution === 'exact',
     };
     const key = componentKey(component);
     const known = components.get(key);
@@ -90,6 +98,7 @@ export function groupComponents(anchors: readonly StoredSymbol[], reached: reado
       continue;
     }
     known.method ||= component.method;
+    known.exactChain ||= component.exactChain;
     if (component.hops < known.hops) {
       known.hops = component.hops;
       known.resolution = component.resolution;
@@ -149,7 +158,7 @@ export function buildReport(
   terms: readonly string[],
   walked: readonly Component[],
   found: readonly TestComponent[],
-): Extract<ImpactReport, { status: 'answered' }> {
+): ReportBody {
   const filesWithSymbols = new Set(
     [...walked, ...found].filter((component) => !component.fileNode).map((component) => component.fileId),
   );

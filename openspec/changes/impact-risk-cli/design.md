@@ -251,3 +251,16 @@ engineer.*
 | R9 | S1 follow-on | The duplicated 15-line `defaultOpenStore` of `ask` and `impact` is a later refactor. | D — accepted |
 | R10 | L1 | DIS-90 `[enhanced]`: correction notes added after AC1, AC3, AC5, D1 and D2 (the `[original]` block is not edited). | A |
 | R11 | P2 | Branch name in lower case, as DIS-89; no action. | D — accepted |
+
+*Agent's text: apply step (`/opsx:apply`), 2026-10-30. Decisions the agent took as lead engineer while
+implementing; the author was not asked.*
+
+| Id | Decision | Destination |
+|---|---|---|
+| A1 | The spec says the `query_log` row has `text` (scenario "An impact call over the seed writes its row"); the column is `question` (`text` is the name in the readme's data model). The integration test reads `question`; the spec wording is left as written, since the behaviour is the same. | D — accepted |
+| A2 | Tasks 1.2b to 1.9 (the risk scenarios) were written after the code of 1.2a, the coverage read and `exactChain`, not before: the agent wrote the rule and the read in one pass because they depend on each other. Only the first test (1.1) and every test of sections 2, 4 and 5 were seen failing first. Stryker then showed which seeds of a direct component no test isolated, and three tests were added (anchor symbol, reached node, file component). | D — accepted |
+| A3 | The redundant `own` of the reached file node in `findTests` was removed after Stryker: the `direct` loop already owns the file of every direct component. | A |
+| A4 | Surviving mutants accepted: `reverse-walk.ts` line 93 (the `directKeys` guard of `own` only avoids storing seeds of components `impact.ts` never reads) and `impact.ts` `if (component === undefined) continue` (unreachable: every report entry comes from a component); the DIS-89 survivors of `relevance.ts` and `reverse-walk.ts`; `defaultOpenStore` of `impact.ts` (the unit mutation run does not run the integration specs, which cover it). | D — accepted |
+| A5 | Integration suites ran against `codemind_test` (empty, as `docs/TESTING.md` requires), manual testing and `npm run verify` against the dev database `codemind`, restored after step 9. | D — accepted |
+| A6 | `readme.md` §4 `/impact` description said "la CLI `impact` es un stub"; the sentence now says the CLI works since DIS-90 and the route is DIS-95's. The OpenAPI schema itself is untouched. | A |
+| A7 | PowerShell captures of `docs/DEMO.md` Paso 4 stay with the author (E9); the agent ran the same commands in Git Bash (step 9 report). | C — author |
