@@ -102,18 +102,9 @@ describeWithDatabase('opening a pooled store on a database', () => {
 });
 
 // Spec: graph-store → "Running work in one transaction on a pooled store" (index-endpoint design U3).
-// Every scenario deletes what it commits; the project count is checked before and after.
-
-/** Number of projects, read with a connection of its own. */
-async function projectCount(): Promise<number> {
-  const client = await connect();
-  try {
-    const { rows } = await client.query<{ n: number }>('SELECT count(*)::int AS n FROM project');
-    return rows[0]!.n;
-  } finally {
-    await client.end();
-  }
-}
+// Projects created here get a name no other test uses (`uniqueName`) and are deleted in a `finally`; the three work
+// scenarios then check that no project of that name is left. Checks never count every project: other files commit and
+// delete projects in parallel.
 
 /** The ids of the projects named `name`, read with a connection of its own (committed data only). */
 async function projectIds(name: string): Promise<string[]> {
@@ -164,7 +155,6 @@ describeWithDatabase('running work in one transaction on a pooled store', () => 
   it('Work that resolves is committed', async () => {
     // Arrange
     const name = uniqueName('commit');
-    const before = await projectCount();
     const opened = await openPostgresStore(databaseUrl as string, { applicationName: 'codemind-tx-test' });
     try {
       // Act
@@ -176,13 +166,12 @@ describeWithDatabase('running work in one transaction on a pooled store', () => 
       await deleteProjects(name);
       await opened.close();
     }
-    expect(await projectCount()).toBe(before);
+    expect(await projectIds(name)).toEqual([]);
   });
 
   it('Work that rejects leaves nothing', async () => {
     // Arrange
     const name = uniqueName('rollback');
-    const before = await projectCount();
     const failure = new Error('work failed');
     const opened = await openPostgresStore(databaseUrl as string, { applicationName: 'codemind-tx-test' });
     try {
@@ -199,13 +188,12 @@ describeWithDatabase('running work in one transaction on a pooled store', () => 
       await deleteProjects(name);
       await opened.close();
     }
-    expect(await projectCount()).toBe(before);
+    expect(await projectIds(name)).toEqual([]);
   });
 
   it("Work's writes are invisible to another connection before the commit", async () => {
     // Arrange
     const name = uniqueName('isolation');
-    const before = await projectCount();
     const opened = await openPostgresStore(databaseUrl as string, { applicationName: 'codemind-tx-test' });
     try {
       // Act
@@ -223,7 +211,7 @@ describeWithDatabase('running work in one transaction on a pooled store', () => 
       await deleteProjects(name);
       await opened.close();
     }
-    expect(await projectCount()).toBe(before);
+    expect(await projectIds(name)).toEqual([]);
   });
 
   it('Every connection is released after a run', async () => {
