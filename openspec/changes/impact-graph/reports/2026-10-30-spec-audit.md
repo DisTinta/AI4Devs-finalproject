@@ -563,3 +563,18 @@ None is blocking. The two improvable items below are optional wording fixes. The
 
 - **DIS-89**: do not edit the `[original]` block. Optionally add a short Spanish comment, for example: "*Texto del agente (auditoría de la especificación, ronda 3, 2026-10-30).* La tercera auditoría de `impact-graph` aprueba el cambio sin hallazgos bloqueantes. Quedan dos mejoras de redacción opcionales: la regla del componente «fichero» nombra también los ficheros que alcanza el paso `tested_by`, y el límite de búsquedas de clase incluye los componentes del ancla. Se puede pasar al apply."
 - **DIS-83**: nothing to edit.
+
+## Resolution of run 3
+
+*Agent's text: written in the review step (`docs/AUTONOMOUS-RUN.md` §6), 2026-10-30, after the
+adversarial review found this section missing (`reports/2026-10-30-adversarial-review.md`, design
+Follow-ups V5). Run 3 has the approving verdict and no blocking finding; its two improvable items were
+applied as R12. The spec wording reached the repository in commit `28b36e6`, after the implementation
+commit `c71ab0f`; it changes no behaviour and no scenario.*
+
+| Finding | Resolution |
+|---|---|
+| Improvable: `specs/impact/spec.md`, the file-component rule | Fixed (R12): the rule names "a file reached by the reverse traversal or by the `tested_by` step", the wording run 3 proposed. |
+| Improvable: `design.md` Goals and Risks, the class-lookup bound | Fixed (R12): both say "one search per distinct direct component (the anchor's components included) whose node in the report is a method". |
+| Follow-ups row R12 | Done. |
+| Linear comment of run 3 | Done in the review step: a Spanish comment on DIS-89 records the resolution of run 3 together with the review findings. |

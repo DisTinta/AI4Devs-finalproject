@@ -49,3 +49,8 @@
 ## Outcome
 - Status: PASS
 - Blocking issues: none
+
+## Addendum: review step fixes (2026-10-30, tasks 12.6.1–12.6.3)
+- New case in `tests/unit/impact/components.spec.ts` ("adds no class and still answers for a direct component whose name is blank"): red first (`InvalidStoreQuery: name must not be blank` from `findTests`), green after the guard in `packages/core/src/impact/reverse-walk.ts`.
+- The two Q2 tests now check the files of kind `test` instead of the `tests/` path prefix.
+- Re-run: `npx vitest run tests/unit/impact tests/integration/impact` (integration on `codemind_it`): 5 files, 38 tests passed, none skipped (36 unit, 2 integration); `npx vitest run tests/unit/impact tests/unit/context`: 11 files, 112 passed before the fix; `npm run typecheck` and `npm run lint` clean. The scenario map is unchanged (22 scenarios, 22 tests). Mutation and the full suite run in the CI of PR #90.

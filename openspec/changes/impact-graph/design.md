@@ -282,3 +282,17 @@ author; D = accepted and recorded.*
 | A3 | Stryker (`impact/` rows: 77.5 % overall, `impact.ts` 100, `impact-request.ts` 83.7, `relevance.ts` 79, `reverse-walk.ts` 69.9; global score 92.88 ≥ the 80 break threshold). Surviving mutants accepted: string literals of the seed `type` (`'symbol'`/`'file'`), redundant guards whose other branch gives the same result (for example `if (anchorFiles.has(fileId)) continue` for a node whose component merges into the anchor's), the `||=`/`<` merge of minimum distance (the store returns nodes in distance order), the `sort` of seed distances (insertion order already ascends in every graph the tests build) and `?.` over an issue list that is never empty. | D — accepted |
 | A3b | Killing the seed-distance survivors needs a graph where a larger seed distance is inserted before a smaller one for the same node; none of the 22 scenarios produces it. If the author wants them killed, a property test over random graphs (DIS-94 or later). | D — accepted |
 | A4 | The manual run (step 9) on the real seed matches the spec: `maxHops` 1 gives no `indirect` and tests `DiscountServiceTest`, `PriceCalculatorTest`; 2 adds the four `heuristic` callers and `OrderPricingTest`; 3 adds `OrderObserver` and two routes. The literal Q2 text anchors `PriceCalculator` and `RecalculateTotals` only. | D — accepted |
+
+*Agent's text: decisions taken in the review step (`/show-spec-working`, `/verify-against-spec` and
+`/adversarial-review` in inline mode, `docs/AUTONOMOUS-RUN.md` §6), without the author. Reports:
+`reports/2026-10-30-show-spec-working.md`, `reports/2026-10-30-verify-against-spec.md`,
+`reports/2026-10-30-adversarial-review.md`.*
+
+| Id | Decision | Destination |
+|---|---|---|
+| V1 | (Minor, fixed) A direct method component with a blank name (`::run`) made `findTests` send a blank `findSymbols`, which the store rejects; the call failed instead of adding no class. A blank component now has no class and sends no search (task 12.6.1). The analyzers never write such a name; the fix makes the spec's "adds no class" hold for any graph. | A |
+| V2 | (Unspecified behaviour) `context/index.ts` re-exports `containsAnyTerm`, as it re-exports every `context/` module. Kept: pure helper, and leaving one module out of the barrel would break its convention. | D — accepted |
+| V3 | (Minor, fixed) The two Q2 tests checked "no `direct`/`indirect` entry in a `test` file" with the `tests/` path prefix; they now check the files of kind `test` of the graph and of the loaded seed (task 12.6.2). | A |
+| V4 | (Minor) The redundant `hopsOf(...).length > 0` assertion of "The literal Q2 text does not anchor the discount service" is left: both `THEN`s are asserted exactly, so it weakens nothing. | D — accepted |
+| V5 | (Minor, process) The R12 wording reached the spec in the commit after the implementation, and the spec-audit report lacked "Resolution of run 3". The wording is the one run 3 proposed and changes no behaviour; the resolution section is appended (task 12.6.3). | A |
+| V6 | The scenario "A change that anchors only tests answers no-anchor" holds over the acme-shop subset; on the full seed `tocar applies` also anchors `DiscountApplied` (prefix `appli`), the accepted over-reach of the lexical anchor (Risks, D7). | D — accepted |
