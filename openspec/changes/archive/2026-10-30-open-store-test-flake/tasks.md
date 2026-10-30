@@ -42,4 +42,4 @@
 - [x] 7.4 `/verify-against-spec` (inline mode, verified against `proposal.md`, `design.md` and the `graph-store` scenario, `skip_specs: true`; DIS-110's acceptance criteria 1-6 were delivered by `pool-transaction-release` and do not apply, the author's instruction in `proposal.md` → Why and What Changes stands in for them) → `reports/YYYY-MM-DD-verify-against-spec.md`
 - [x] 7.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`
 - [x] 7.6 Every finding gets an A/C/D destination in `design.md` → Follow-ups (no new tickets); fixes on the same PR, re-running what each fix invalidates
-- [ ] 7.7 `/opsx:archive`, commit it to the same PR, push, CI green; `node scripts/dev-processes.mjs stop`. The agent does not merge (instruction of this run): the author merges. A short Spanish comment on DIS-110, which stays Done
+- [x] 7.7 `/opsx:archive`, commit it to the same PR, push, CI green; `node scripts/dev-processes.mjs stop`. The agent does not merge (instruction of this run): the author merges. A short Spanish comment on DIS-110, which stays Done
