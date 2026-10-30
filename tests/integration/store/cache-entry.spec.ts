@@ -7,6 +7,7 @@ import type { StorePort } from '@codemind/core';
 import { createPostgresStore } from '../../../packages/adapters/store-postgres/src/index';
 import { connect, databaseUrl, describeWithDatabase, useTransactionPerTest } from '../helpers/db';
 import { createProject, unique } from '../helpers/factories';
+import { rejectingWrites, valuesInclude } from '../helpers/rejecting-writes';
 
 // Spec: openspec/changes/evaluation-cache/specs/graph-store/spec.md → "Answer cache entries" (DIS-21
 // design C4). Each test is one scenario, named after it. The stores run on the harness transaction,
@@ -248,24 +249,14 @@ describeWithDatabase('graph store answer cache entries (DIS-21)', () => {
 
     it('A failed cache write does not leak', async () => {
       // Arrange
-      const { store } = stores();
-      const project = await createProject(db());
       const SENTINEL = 'SENTINEL-cache-key-4e7a';
-      // CREATE TRIGGER waits for parallel tests holding ROW EXCLUSIVE on cache_entry; a stuck lock fails
-      // the test instead of hanging the suite.
-      await db().query(`SET LOCAL lock_timeout = '10s'`);
-      await db().query(`
-        CREATE FUNCTION pg_temp.reject_cache_entry() RETURNS trigger LANGUAGE plpgsql AS $$
-        BEGIN
-          IF NEW.question_normalized = '${SENTINEL}' THEN
-            RAISE EXCEPTION 'cache entry rejected: %', NEW.question_normalized
-              USING DETAIL = 'key ' || NEW.question_normalized, HINT = NEW.question_normalized;
-          END IF;
-          RETURN NEW;
-        END $$`);
-      await db().query(
-        `CREATE TRIGGER reject_cache_entry BEFORE INSERT ON cache_entry FOR EACH ROW EXECUTE FUNCTION pg_temp.reject_cache_entry()`,
-      );
+      // The database rejects the insert of that key, quoting it in the error's message, `detail` and
+      // `hint`. No trigger: creating one queued every other writer of `cache_entry` (DIS-110,
+      // integration-test-races design D7).
+      const store = createPostgresStore({
+        transaction: rejectingWrites(db(), { table: 'cache_entry', when: valuesInclude(SENTINEL), quote: () => SENTINEL }),
+      });
+      const project = await createProject(db());
 
       // Act
       const error = await rejection(store.saveCacheEntry(project.id, SENTINEL, R1));
@@ -276,7 +267,7 @@ describeWithDatabase('graph store answer cache entries (DIS-21)', () => {
         JSON.stringify(error) +
         JSON.stringify(Object.getOwnPropertyNames(error).map((key) => (error as Record<string, unknown>)[key]));
       expect(serialised).not.toContain(SENTINEL);
-      expect(serialised).not.toContain('cache entry rejected');
+      expect(serialised).not.toContain('cache_entry rejected');
       expect('cause' in (error as object)).toBe(false);
       expect(await entriesOf(project.id)).toEqual([]);
     });

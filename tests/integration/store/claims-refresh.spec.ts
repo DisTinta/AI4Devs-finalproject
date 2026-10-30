@@ -7,6 +7,7 @@ import type { Claim, ClaimItem, StorePort } from '@codemind/core';
 import { createPostgresStore } from '../../../packages/adapters/store-postgres/src/index';
 import { describeWithDatabase, useTransactionPerTest } from '../helpers/db';
 import { createFile, createProject } from '../helpers/factories';
+import { rejectingWrites, valuesInclude } from '../helpers/rejecting-writes';
 
 // Spec: openspec/changes/stale-claims-refresh/specs/graph-store/spec.md → "Claim refresh" (DIS-42),
 // following tests/integration/store/claims-write.spec.ts. Each test is one scenario, named after it.
@@ -110,20 +111,15 @@ describeWithDatabase('graph store claim refresh (DIS-42)', () => {
     return JSON.stringify([claims.rows, evidence.rows]);
   }
 
-  /** Makes every later evidence insert of the transaction whose excerpt is `excerpt` fail, quoting it. */
-  async function rejectEvidence(excerpt: string): Promise<void> {
-    await db().query(`SET LOCAL lock_timeout = '10s'`);
-    await db().query(`
-      CREATE FUNCTION pg_temp.reject_evidence() RETURNS trigger LANGUAGE plpgsql AS $$
-      BEGIN
-        IF NEW.excerpt = '${excerpt}' THEN
-          RAISE EXCEPTION 'evidence rejected: %', NEW.excerpt USING DETAIL = 'excerpt ' || NEW.excerpt, HINT = NEW.excerpt;
-        END IF;
-        RETURN NEW;
-      END $$`);
-    await db().query(
-      `CREATE TRIGGER reject_evidence BEFORE INSERT ON evidence FOR EACH ROW EXECUTE FUNCTION pg_temp.reject_evidence()`,
-    );
+  /**
+   * A store on the harness transaction whose evidence inserts holding `excerpt` fail inside the
+   * database, quoting it in the error's message, `detail` and `hint`. No trigger: creating one
+   * queued every other writer of `evidence` (DIS-110, integration-test-races design D7).
+   */
+  function storeRejectingEvidence(excerpt: string): StorePort {
+    return createPostgresStore({
+      transaction: rejectingWrites(db(), { table: 'evidence', when: valuesInclude(excerpt), quote: () => excerpt }),
+    });
   }
 
   it('A stale claim is refreshed in place', async () => {
@@ -246,11 +242,10 @@ describeWithDatabase('graph store claim refresh (DIS-42)', () => {
 
   it('A failure while refreshing leaves the claim as it was', async () => {
     // Arrange
-    const { store } = stores();
+    const store = storeRejectingEvidence(SENTINEL);
     const { projectId, fileId } = await projectWith('a.php', 'b.php');
     const c1 = await staleClaim(store, projectId, claimItem(projectId, [[fileId.get('a.php')!, 3, 5]]));
     const before = await snapshot(c1);
-    await rejectEvidence(SENTINEL);
 
     // Act
     const error = await rejection(
