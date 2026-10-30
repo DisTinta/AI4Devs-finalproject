@@ -186,3 +186,192 @@ spec now has 21 scenarios (19 unit, 2 integration).*
 | Improvable: End-to-End step | Fixed: task 9.7 says it is not applicable. |
 | Improvable: 12.7 merge | Fixed: "(autonomous run, `KIT_AUTONOMOUS_RUN=1`, only; otherwise the author merges)". |
 | Traceability | Fixed: task 7.2 counts 21 scenarios (19 unit, 2 integration); the new rows are 3.5, 4.6 and 5.2b. |
+
+---
+
+## Run 2 (2026-10-30)
+
+CHANGES REQUIRED
+
+## Spec audit, run 2: `impact-graph` (DIS-89, parent DIS-83)
+
+- Date: 2026-10-30. Second audit. It judges the change as it stands after correction round 1.
+- Inputs read:
+  - The change: `proposal.md`, `design.md`, `specs/impact/spec.md`, `tasks.md`, and `reports/2026-10-30-spec-audit.md` (run 1 and how it was resolved).
+  - Linear: DIS-89 (description and its 5 comments), its parent DIS-83 (no comments), and the comments on DIS-90 (the destination B trace of R1).
+  - Project docs: `docs/base-standards.md`, `docs/project-context.md` (OpenSpec workflow, Tracking deferred findings), `docs/backend-standards.md`, `docs/openspec-tasks-mandatory-steps.md`, `docs/AUTONOMOUS-RUN.md` (§2 table row for §7.1 point 3, and §6).
+  - Specs and ADRs: the `openspec/specs/` list (no `impact` capability yet), and `openspec/specs/context-engine/spec.md` for the lexical-match rule. No ADR in `docs/adr/` bears on this change.
+  - Code: listed under point 8.
+
+### Questions for the author
+
+None. The two questions from run 1 (the literal Q2 text, and TypeScript graphs) were answered by the agent as lead engineer (R1, R2). Both are marked as the agent's text. `docs/AUTONOMOUS-RUN.md` §2 allows this for §7.1 point 3, and neither answer contradicts the ticket or the project:
+- R1 does not drop the literal-text clause of DIS-83 AC1. It hands it to DIS-90, and DIS-90 has the Spanish comment for it.
+- R2 refines ticket D2, and a DIS-89 comment records that.
+
+## 1. Scope against the ticket — clean
+
+Everything follows from DIS-89: its description, `[enhanced]` D1–D8, DoD and non-goals. One edit is not named in the ticket: moving `matchesLexically` out of `context/rank.ts` into `context/lexical-match.ts`. That is reuse requested by the run-1 audit, not new scope, and `rankCandidates` keeps its behaviour. Nothing extends the change to the parent's risk rule, CLI or `query_log` (proposal → Non-goals, design D8).
+
+## 2. Inherited acceptance criteria — clean
+
+- Each of DIS-89 AC1 to AC6 has a requirement and a scenario, including:
+  - all six clauses of AC1;
+  - the seed variant of AC2, with `OrderObserver` absent at 2 hops;
+  - AC3 for `maxHops` 1, 3, absent, and 4/0/1.5;
+  - AC4 (exact before heuristic, and not alphabetical);
+  - AC5 (no-anchor, test-only anchor, invalid `change`, `ProjectNotFound`);
+  - AC6 (characterisation of the literal text).
+- DIS-83 AC2, AC3 and AC5 are covered. AC4 (risk) belongs to DIS-90 by non-goal.
+- The literal-text clause of AC1 is carried by DIS-90 (R1, destination B). The comment on DIS-90 dated 2026-10-30 records it.
+
+## 3. Missing scenarios
+
+- **B1 — blocking.** In "Tests covering the change" (spec.md:158-169), the bullet "the file of each `direct` component" has no scenario that exercises it. The same holds for the seed distance it carries, "the component's `hops` … for the … file found for a `direct` component" (spec.md:207-208). Every scenario gets its tests some other way:
+  - the TypeScript scenario through the anchor file (bullet 1) and a reached file node (bullet 2);
+  - "Tests are ordered by the distance of what they cover" and both Q2 scenarios through class lookups (bullet 4).
+
+  An implementation that drops bullet 3 passes the whole suite. Yet bullet 3 is the only way to find the tests of a TypeScript direct component reached through `extends`/`implements` when its file is not itself reached within `maxHops`, for example through a barrel re-export, or with `maxHops` 1. The TypeScript analyzer writes `tested_by` only file → file (`packages/analyzers/typescript/src/edges.ts:33-34, :113`). Correction: add the scenario "The tests of a direct component's file are found" and a task for it (see Corrections).
+- Improvable (not new, accepted in run 1 as R8): these branches are tested only as extra cases, not scenarios:
+  - malformed `projectId`;
+  - a class lookup that finds nothing;
+  - the lexical-match position of the relevance key.
+
+  That is acceptable.
+
+## 4. Ambiguity — clean
+
+None of "fast", "easy", "secure", "efficient", "many", "appropriate" or "robust" appears in `proposal.md`, `design.md`, `specs/impact/spec.md` or `tasks.md` (searched case-insensitively).
+
+## 5. Open decisions — clean (one wording improvement)
+
+Run 1's B2 is settled: test distance, seed distance per source, smallest wins, class lookup for the anchor's components. The terms are no longer truncated (R6). The nodes of the anchor's file seed nothing (R4). Every scenario that introduces a new case now gives its `change` text, and I checked that each one anchors only the intended symbol:
+- `cambiar run` gives the terms `cambiar`, `cambi`, `run` (`MIN_TOKEN_LENGTH` 3, `packages/core/src/context/anchor.ts:10`);
+- `cambiar Anchor` gives `anchor`, `ancho`;
+- `tocar applies` matches only `OrderPricingTest::test_final_price_applies_discount_before_tax` in the subset (`tests/support/acme-shop-graph.ts:56`).
+
+- Improvable (wording): spec.md:107-108, "a reached file whose own file contributes no symbol component", is circular for a file node. Use design D3's wording instead: "a reached file none of whose symbols is a component of the report (in any list) SHALL be its own component, named by its path".
+
+## 6. Contradictions inside the change
+
+- Improvable. Design D2 step 2 skips the class lookup "when no anchored or reached node already is that class". That disagrees with the spec in two corner cases:
+  - (a) A class reached by the walk inside an anchor symbol's file. D2 step 3 and the spec (spec.md:162-164) exclude it from the `tested_by` seeds, so skipping the lookup loses its tests. The spec, however, says the class of every `direct` component (the anchor's included) seeds the step.
+  - (b) A class reached at a larger distance than its component's `hops`, for example class `X` at 2 through `extends` while `X::m` is at 1. If the lookup is skipped, its seed distance is the traversal distance (2), not the component's `hops` (1) that spec.md:207-208 gives it.
+
+  Both cases are rare in the seeds, but the design should not invite them. Correction: see design item 2.
+- Everything else is consistent across the three artifacts. Proposal → What Changes, design Goals ("one reverse traversal and at most `maxHops + 1` … `tested_by` traversals") and Risks (R7) now agree. The PHP/TypeScript facts in design Context match the code.
+
+## 7. Contradictions with the project — clean
+
+- `docs/backend-standards.md` §5 (N+1): the deviation is recorded and bounded in design → Risks (R7, destination D).
+- `docs/backend-standards.md:79` (`z.strictObject`): design D6 follows it.
+- `docs/project-context.md` → OpenSpec workflow point 3 (parent vs sub): settled by R1 under `docs/AUTONOMOUS-RUN.md` §2 (row for §7.1 point 3), with a destination B trace on DIS-90, as "Tracking deferred findings" requires.
+- `openspec/specs/context-engine/spec.md:169-170` (lexical match of the ranking): unchanged by the move to `containsAnyTerm`. Task 5.2 keeps `tests/unit/context` green with no test edited.
+- No main spec is duplicated. No ADR applies.
+
+## 8. Contrast with the real code — clean
+
+Checked:
+- `anchor()`, `questionTerms`, `MAX_QUESTION_TERMS`, `MAX_ANCHORS` (`packages/core/src/context/anchor.ts:57-105`).
+- `matchesLexically` is private, with texts `[name, file]` or `[path]` (`packages/core/src/context/rank.ts:33-40`). The extraction is feasible as described.
+- `GraphNode`/`Neighbor` carry `kind` for files and `fileId`/`fileKind` for symbols (`packages/core/src/knowledge/graph-read.ts:23-65`). The file of an anchor or direct component can be seeded by `fileId`.
+- `explainRequestSchema` and `parseExplainRequest` (`packages/core/src/explain/explain-request.ts:39-71`). D6 mirrors them; `hasNoNul` is there to reuse.
+- The in-memory double:
+  - its `findSymbols` is a case-insensitive substring search (`tests/support/in-memory-store.ts:583-594`);
+  - its `neighbors` takes file seeds and follows `direction`, and seeds never come back (`:623-668`);
+  - it throws `ProjectNotFound` for an unknown project (`:311-314`).
+- The acme-shop subset (`tests/support/acme-shop-graph.ts:44-77`) replays the oracle:
+  - `maxHops` 1 gives `tests` = [`DiscountServiceTest` (distance 1, through `tested_by` from the anchored class), `PriceCalculatorTest` (distance 2, through the class lookup of `PriceCalculator`, `hops` 1)];
+  - the literal Q2 text anchors `PriceCalculator*` and `RecalculateTotals::handle` but not `DiscountService`.
+- The seed: no acme-shop edge (project `a794456d-…`) of kind `calls`, `imports`, `extends`, `implements` or `tested_by` has a file as its target. No acme-shop `tested_by` edge has a file as its source (regex over `INSERT INTO edge` rows of `seeds/graph-dump.sql`). The `task-api` rows from line 597 are file → file `imports`. Design Context's claim holds.
+- Fingerprints: `packages/cli/src/seed/fingerprint.ts:30-41` walks the directories `packages/core/src/index` and `packages/core/src/knowledge`, not `index.ts`, `impact/` or `context/`. `packages/cli/src/cache/answer-fingerprint.ts:14-26` lists neither. P4 holds.
+- The integration template exists as cited (`tests/integration/api/ask.spec.ts:9-14, 85-89`).
+
+## 9. Task size — clean
+
+Each task is one RED → GREEN step or one bounded refactor. The largest are 3.4 (class lookup plus the per-distance `tested_by` step) and 5.2 (the extraction plus extra cases). Both fit in one turn now that 3.2 is limited to the reverse walk and the grouping.
+
+## 10. Mandatory steps — clean
+
+- Step 0 is the branch, labelled "(MANDATORY - FIRST STEP)", from `final-project-CRN`.
+- These steps are present and labelled:
+  - Review existing tests (7).
+  - Run tests and verify data state (8). It has a baseline in 0.4/8.1, restoration in 8.5, and the report path and template in 8.6.
+  - Manual interface testing (9, "AGENT MUST EXECUTE"). It restores after a possible `db:seed` (9.4). 9.6 states that no PowerShell check is needed (E9), and 9.7 states that End-to-End does not apply.
+  - Documentation (10).
+  - Pre-merge Review (12), last in the list: the three checks in order, fixes on the same PR, archive before merge. The agent merges only when `KIT_AUTONOMOUS_RUN=1`.
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| Impact request validation | An out-of-range hop count is rejected before any read | 1.1, 1.2 |
+| Impact request validation | An invalid change is rejected before any read | 1.3 |
+| Impact request validation | The hop count defaults to two | 4.5 |
+| Anchoring the change | A change that anchors nothing answers no-anchor | 2.1, 2.2 |
+| Anchoring the change | A change that anchors only tests answers no-anchor | 2.3 |
+| Anchoring the change | Impact in an unknown project fails | 2.4 |
+| Reverse traversal of dependants | Only dependants within the hop limit are reported | 3.1, 3.2 |
+| Reverse traversal of dependants | Callees, documents and co-changed files are not dependants | 3.3 |
+| Report by component | Q2 is reproduced over the acme-shop subset | 4.1 |
+| Report by component | A component appears once at its minimum distance | 4.2 |
+| Report by component | A reached file without symbols is reported by its path | 4.3 |
+| Report by component | The anchor's own file is not a dependant | 4.4 |
+| Tests covering the change | Tests come from the walk and from the classes of direct components | 3.4 |
+| Tests covering the change | A reached node's own tests are found | 3.5 |
+| Tests covering the change | Importers and tests written file to file are found | 4.6 |
+| Tests covering the change | *(missing — B1)* The tests of a direct component's file are found | *(to add: 4.7)* |
+| Relevance order | Exact dependants come before heuristic ones at the same distance | 5.1 |
+| Relevance order | The order does not follow the names | 5.2 |
+| Relevance order | Tests are ordered by the distance of what they cover | 5.2b |
+| Impact over the indexed acme-shop seed | Q2 is reproduced over the seed | 6.1 |
+| Impact over the indexed acme-shop seed | A dependant three hops away needs three hops | 6.2 |
+| Limit of the lexical anchor | The literal Q2 text does not anchor the discount service | 5.3 |
+
+Each of the 21 existing scenarios has a task, and the 7.2 count (21 = 19 unit + 2 integration) matches the spec. The only hole is the missing scenario of B1. After the fix there are 22 scenarios (20 unit, 2 integration).
+
+## Corrections to apply
+
+### `specs/impact/spec.md`
+
+1. **B1.** Under "Tests covering the change", after "Importers and tests written file to file are found", add:
+
+   ```
+   #### Scenario: The tests of a direct component's file are found
+
+   - **GIVEN** a graph where the class `Anchor` of `src/anchor.ts` is anchored, the class `Caller` of
+     `src/caller.ts` extends `Anchor` with an `exact` edge, no edge reaches the file `src/caller.ts`,
+     and `src/caller.ts` is tested by the file `src/caller.test.ts`, of kind `test`
+   - **WHEN** impact is asked for `cambiar Anchor` with `maxHops` 1
+   - **THEN** `direct` holds `Caller` with `hops` 1
+   - **AND** `tests` holds an entry whose `symbol` and `file` are both `src/caller.test.ts`
+   ```
+
+   This scenario tells the cases apart: `Caller` has no `::`, so no class lookup happens; `src/caller.ts` is neither reached nor an anchor file; only bullet 3 finds the test.
+2. Improvable. In "Report by component", first bullet, replace "a reached file whose own file contributes no symbol component to the report SHALL be its own component, named by its path" with "a reached file none of whose symbols is a component of the report (in any list) SHALL be its own component, named by its path".
+
+### `design.md`
+
+1. D2 step 3: after "the file of each direct component", add "(the only route to the tests of a direct component whose file the walk did not reach; scenario "The tests of a direct component's file are found")".
+2. Improvable. D2 step 2: replace "when no anchored or reached node already is that class" with "when no anchor symbol is that class and no node reached outside the anchor symbols' files is that class; a class of a direct component counts that component's `hops` as its seed distance whenever that is smaller than its traversal distance (step 3)".
+3. Follow-ups: add a row for run 2 (agent's text). For example: "R9 | (Audit run 2, B1) New scenario "The tests of a direct component's file are found" pins the file seed of a direct component and its seed distance; D2 step 2 skip condition aligned with the spec. | A".
+
+### `tasks.md`
+
+1. Add after 4.6: "- [ ] 4.7 RED → GREEN: test "The tests of a direct component's file are found" in `tests/unit/impact/components.spec.ts` (`Caller` extends `Anchor`, file → file `tested_by` from `src/caller.ts`, no edge into `src/caller.ts`, `change` `cambiar Anchor`, `maxHops` 1, anchor asserted first; design D2 step 3, R2)". Add "4.7" to the heading of section 4.
+2. 7.2: replace "(21)" with "(22)" and "19 under `tests/unit/impact/`" with "20 under `tests/unit/impact/`".
+
+### `proposal.md`
+
+- No change needed.
+
+### `reports/2026-10-30-spec-audit.md`
+
+- Append this run, then a "Resolution of run 2" section that records how each finding was resolved: B1, the wording improvement and the D2 alignment.
+
+### Linear
+
+- **DIS-89**: do not edit the `[original]` block. Add a Spanish comment, for example:
+  "*Texto del agente (auditoría de la especificación, ronda 2, 2026-10-30).* La segunda auditoría de `impact-graph` pide un cambio bloqueante: ningún escenario comprueba que el paso `tested_by` sale también del fichero de cada componente directo. En TypeScript es la única vía para encontrar los tests de un componente alcanzado por `extends` o `implements` cuando su fichero no se alcanza dentro de `maxHops`. Se añade el escenario «The tests of a direct component's file are found» (tarea 4.7) y la especificación pasa a 22 escenarios (20 unitarios y 2 de integración). Además, la D2 del diseño ajusta cuándo se omite la búsqueda de la clase de un componente directo, para que coincida con la especificación."
+- Improvable, DIS-89 `[enhanced]` (not `[original]`): D2 still says «Las semillas son solo los símbolos del ancla, no sus ficheros», and the non-functional note still says «dos travesías». Both are superseded by R2 and R7. Either edit those two sentences in the enhanced part, adding «(refinado por R2/R7, ver comentario del 2026-10-30)», or leave the comment from round 1 as the only record. The comment is already enough for traceability.
+- **DIS-83**: nothing to edit.
