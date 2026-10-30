@@ -173,3 +173,26 @@ Every task fits in one agent turn. Task 6.4 (Stryker over one file) and task 11.
 > Preguntas para la autora: (Q1) confirmar que el arrastre A8 de DIS-42 (`## Purpose` de `explain`) se queda en DIS-110; (Q2) confirmar la instrucción de que el agente ejecute él mismo la comprobación PowerShell (R9), que se aparta de `docs/openspec-tasks-mandatory-steps.md` §3.
 
 In the `[enhanced]` block, AC2: add the non-`Error` case with the same contract as spec correction 2 (or note that X2 is dropped).
+
+## Resolution of run 1
+
+*Agent's text: correction round 1 of the autonomous run (`docs/AUTONOMOUS-RUN.md` §6), 2026-10-30, without the author. Each decision is recorded in `design.md` → Follow-ups (X2, X4-X7) with its destination.*
+
+| Finding | Resolution | Where |
+|---|---|---|
+| Q1, `explain` Purpose bundled in DIS-110 | Decided by the agent: kept in DIS-110 as a separate `docs(DIS-110)` commit. It is the author's per-ticket instruction for this run, matches R5/AC6, and R8 forbids a new ticket. | design Follow-ups X4 (A) |
+| Q2, agent runs the PowerShell check | Decided by the agent: task 7.4 stays executed by the agent. The source is the author's instruction for DIS-110 in this run's notes, now quoted in a DIS-110 Linear comment; recorded as a deviation from `docs/openspec-tasks-mandatory-steps.md` §3; destination stays C. | design Follow-ups X5 (C); tasks 7.4 |
+| B1, non-`Error` wrapper (points 3, 5, 6, 11) | Decided by the agent and fixed: X2 is dropped, the option that widens scope least. The thrown value goes to `release` unchanged; `pg` rejects only with `Error` instances and the ticket asks for the statement's own error. The spec sentence "released with the error of that failed statement" now holds without exception, so the contradiction is gone and no scenario is needed. Spec correction 2 was not applied, by design. | design D2, Follow-ups X2 (D, recorded); tasks 1.5 (old 1.8 wrapper removed); proposal What Changes |
+| B2, listener removal (points 3, 5, 11) | Fixed: requirement clause "The run SHALL remove the `error` listener it added before releasing the connection…" and scenario "A run leaves no error listener on its connection"; task 1.10 is its own RED `it` (same function to `on` and `removeListener`, removal before `release` by `mock.invocationCallOrder`), 1.11 its GREEN. | spec; design D3, D5, X6; tasks 1.10, 1.11; proposal |
+| Point 3, "released exactly once in every case" | Fixed: "Once a connection has been taken from the pool, it SHALL be released exactly once." | spec |
+| Point 4, unmeasurable "the driver's text" | Fixed: "that has no cause, and whose message and stack hold neither `terminat`, `57P01` nor `administrator command`"; mirrored in task 2.2. | spec; tasks 2.2 |
+| Point 5, integration application names | Fixed: `codemind-tx-terminated-reject-test` and `codemind-tx-terminated-commit-test` pinned. | design D5; tasks 2.1, 2.2 |
+| Point 8, intended divergence from `atomically` | Fixed: D2 states the runner sends no `ROLLBACK` after a failed `BEGIN` (AC2), unlike `postgres-store.ts:128-136`. | design D2 |
+| Point 8, `pg-pool` discards non-queryable clients | Fixed: D5 records that against the old code the integration scenarios can only go red through the uncaught `error` event, that destroy-versus-return is proven by the stub-pool scenarios, and that the real risk is a still-queryable connection; the decision is unchanged. | design D5; tasks 1.3 |
+| Point 9, 2.1 run "against the code of 1.2" unreachable | Fixed by reordering, not by a worktree: new task 1.3 writes the two integration `it`s right after 1.2 and runs them on the old code; step 2 re-runs them on the final code. Later tasks of step 1 renumbered. | design X7; tasks 1.3, 2.1, 2.2, 6.6 |
+| Point 1, task 7.3 not evidence of the change | Fixed: 7.3 now says it exercises the unchanged `pool.on('error')` and is a regression check only. | tasks 7.3 |
+| Point 1, R4 listener and X3 Stryker | Kept, as the audit judged them reasonable; no change. | — |
+| Point 11 / tasks correction 4, scenario count | Fixed: five stub-pool scenarios (clean end, failed begin, failed rollback, failed commit, no listener left); D6 says seven scenarios added. | tasks 5.2, step 1 title; design D6 |
+| Linear, `[enhanced]` AC2 | Not edited: X2 is dropped, so AC2 needs no non-`Error` case; the drop is noted in the round's Linear comment. | Linear DIS-110 comment |
+
+`openspec validate pool-transaction-release --strict` passes after these edits.

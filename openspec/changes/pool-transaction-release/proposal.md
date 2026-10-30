@@ -21,15 +21,17 @@ they are copied to `design.md` → Follow-ups with their A/B/C/D destination.)*
 
 - The pooled store's transaction runner **destroys** the connection (releases it with the error) when
   its `BEGIN` or its `ROLLBACK` fails, instead of returning it to the pool. A `COMMIT` that fails and
-  whose `ROLLBACK` then succeeds returns the connection, as `atomically` does (R2).
+  whose `ROLLBACK` then succeeds returns the connection, as `atomically` does (R2). The failed
+  statement's own error is passed to `release` unchanged (no wrapper; design X2 dropped).
 - While the runner holds a connection it listens for that connection's `error` event, so a backend
-  terminated between two queries cannot crash the process; the next query reports the failure (R4).
+  terminated between two queries cannot crash the process; the next query reports the failure, and
+  it removes that listener before releasing the connection (R4).
 - The runner moves to an internal module of the adapter (`transaction.ts`, not exported from the
   package index), which takes the pool as an argument; this is the seam the red test needs.
   `OpenStoreOptions`, `OpenedStore` and the package's public API do not change, so decision E21 of
   DIS-9 (no test seam in `OpenStoreOptions`) still holds (R1).
 - New tests: a unit test over a stub pool for the commit, rollback, failed `BEGIN`, failed rollback
-  and failed commit paths, and two integration scenarios against a real Postgres that terminate the
+  and failed commit paths and the removal of the `error` listener, and two integration scenarios against a real Postgres that terminate the
   runner's backend from another connection during the work (R3).
 - Carry-over A8 of DIS-42 (stale-claims-refresh): the `## Purpose` header of
   `openspec/specs/explain/spec.md`, which still says the model is asked once, is corrected in a
@@ -48,7 +50,8 @@ resolutions and rejections.
 
 - `graph-store`: requirement "Running work in one transaction on a pooled store" gains the rule that
   a connection whose `BEGIN` or `ROLLBACK` failed is destroyed instead of being returned to the pool,
-  and scenarios for a failed `BEGIN`, a failed rollback, a failed commit and a connection terminated
+  the rule that the run removes its `error` listener before releasing, and scenarios for a clean end,
+  a failed `BEGIN`, a failed rollback, a failed commit, no listener left and a connection terminated
   during the work.
 
 The Purpose header of `explain` is edited directly in the main spec (a delta cannot change a Purpose),

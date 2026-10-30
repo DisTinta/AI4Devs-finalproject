@@ -6,7 +6,7 @@ A store opened by "Opening a pooled store from a URL" SHALL also offer to run a 
 transaction of its pool: it SHALL take one connection from the pool, begin a transaction, give the work
 a store bound to that transaction (requirement "Cooperation with a caller-owned transaction"), and
 commit when the work resolves or roll back when it rejects, resolving or rejecting with what the work
-did. The connection SHALL be released exactly once in every case. A connection whose `BEGIN` or
+did. Once a connection has been taken from the pool, it SHALL be released exactly once. A connection whose `BEGIN` or
 `ROLLBACK` failed SHALL be destroyed instead of being returned to the pool: it is released with the
 error of that failed statement, so the pool discards it. A connection whose transaction ended with a
 successful `COMMIT` or a successful `ROLLBACK` SHALL be returned to the pool. When `BEGIN` fails, the
@@ -16,7 +16,8 @@ commit SHALL reject with an error whose message is exactly `the transaction coul
 without a cause and without the driver's text, host, port or credentials, whether the rollback that
 follows it succeeds or fails. While the run holds the connection, an `error` event of that connection
 (a backend terminated between two queries) SHALL NOT crash the process; the next statement reports the
-failure. No write of the work SHALL be visible to other connections before the commit, and none SHALL
+failure. The run SHALL remove the `error` listener it added before releasing the connection, so no
+listener of the run remains on a pooled connection. No write of the work SHALL be visible to other connections before the commit, and none SHALL
 remain after a rollback or a failed commit.
 
 #### Scenario: Work that resolves is committed
@@ -85,6 +86,14 @@ remain after a rollback or a failed commit.
 - **AND** in the first variant the connection is released exactly once and returned to the pool; in
   the second it is released exactly once, with `R`, so the pool destroys it
 
+#### Scenario: A run leaves no error listener on its connection
+
+- **GIVEN** a pool whose connection answers every statement successfully, and a second pool whose
+  connection fails `BEGIN` with an error `B`
+- **WHEN** work that resolves runs in one transaction on the first, and any work runs on the second
+- **THEN** on each connection the `error` listener the run added is the same function it removed, and
+  it was removed before the connection was released
+
 #### Scenario: A connection terminated during rejecting work keeps the work's error
 
 - **GIVEN** a reachable, migrated database and a store opened on its URL with a unique application name
@@ -101,8 +110,9 @@ remain after a rollback or a failed commit.
 - **WHEN** work that creates a project with a unique name, then terminates from another connection
   every backend with that application name, then resolves runs in one transaction
 - **THEN** the run rejects with an error whose message is exactly
-  `the transaction could not be committed`, holding neither `terminat` nor the driver's text, and no
-  project with that name exists afterwards
+  `the transaction could not be committed`, that has no cause, and whose message and stack hold
+  neither `terminat`, `57P01` nor `administrator command`, and no project with that name exists
+  afterwards
 - **AND** a later run on the same store resolves, `close()` resolves within 2 s, no session with that
   application name remains (polled for up to 2 s), and the test process recorded no unhandled `error`
   event

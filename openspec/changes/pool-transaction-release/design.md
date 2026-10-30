@@ -73,8 +73,13 @@ One local `broken: Error | undefined` receives the error of a failed `BEGIN` or 
 `finally` calls `client.release(broken)`. A failed `COMMIT` alone does not destroy the connection: the
 `ROLLBACK` that follows tells whether the session is usable, the same rule as `atomically`. If
 `pool.connect()` itself rejects there is no client and its error propagates unchanged (no change).
-A thrown non-`Error` value from `BEGIN` or `ROLLBACK` is wrapped so `release` always receives a truthy
-value (`pg` treats a falsy argument as "return to the pool").
+The value thrown by a failed `BEGIN` or `ROLLBACK` is stored as is and passed to `release` unchanged;
+it is not wrapped (X2, dropped in correction round 1 of the spec audit): `pg` rejects `client.query`
+only with `Error` instances, and the ticket asks to pass the statement's own error to `release`. A
+non-`Error` value is outside the contract and has no scenario.
+
+Unlike `atomically` (`postgres-store.ts:128-136`), the runner sends no `ROLLBACK` after a failed
+`BEGIN` (DIS-110 AC2). This divergence is intended; a reviewer must not align it back.
 
 *Alternative:* destroy after any failure, including a failed commit with a successful rollback.
 Rejected: it diverges from `atomically` without evidence, and the session is known clean then.
@@ -83,6 +88,9 @@ Rejected: it diverges from `atomically` without evidence, and the session is kno
 
 After `pool.connect()` the runner adds a no-op `error` listener to the client and removes it in the
 `finally`, before `release`. The next statement on a terminated connection rejects, which feeds D2.
+The listener is removed before `release` on every path, so none accumulates on a pooled client
+(otherwise `MaxListenersExceededWarning` after 10 runs, and a no-op listener would mask errors of
+idle clients); scenario "A run leaves no error listener on its connection".
 If the integration test (D5) shows `pg` does not emit the event in this path, the listener is kept as
 defence and the observation is added to this decision during the apply.
 
@@ -98,10 +106,15 @@ the rollback error text can be serialised with it. The first error wins on every
   `{ connect: async () => client } as unknown as Pool`, template
   `tests/unit/store/postgres-cache-write-errors.spec.ts`. One `it` per new unit scenario of the delta
   (names identical to the scenario titles): clean end, failed begin, failed rollback, failed commit
-  (both variants in one `it`). It also asserts that the `error` listener added is the one removed.
+  (both variants in one `it`), and "A run leaves no error listener on its connection" as its own `it`
+  (the same function passed to `client.on('error', …)` and `client.removeListener('error', …)`, the
+  removal ordered before `release` in `mock.invocationCallOrder`). These five stub-pool scenarios are
+  the only proof of "destroyed rather than returned" (D1(c)).
 - **Integration** `tests/integration/store/open-store.spec.ts`: two new `it`s in the block "running
-  work in one transaction on a pooled store", named as the two terminated-connection scenarios. Each
-  opens the store with a unique `applicationName` (`withApplicationName`), creates a project with
+  work in one transaction on a pooled store", named as the two terminated-connection scenarios, with
+  the application names `codemind-tx-terminated-reject-test` and `codemind-tx-terminated-commit-test`
+  (so the `LIKE 'codemind-tx%'` counts of tasks 0.4 and 6.5 see them). Each
+  opens the store with its `applicationName` (`withApplicationName`), creates a project with
   `uniqueName`, and terminates the backend from another connection with
   `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name = $1 AND pid <> pg_backend_pid()`
   through `connect()` of `tests/integration/helpers/db.ts`; it then waits until `sessions(name)` is 0
@@ -110,12 +123,18 @@ the rollback error text can be serialised with it. The first error wins on every
   `projectCount()` equals the baseline; `deleteProjects` in `finally`. "No unhandled `error` event" is
   enforced by Vitest, which fails the run on an uncaught exception or unhandled rejection (the
   project does not set `dangerouslyIgnoreUnhandledErrors`); the poll keeps the event inside the test.
+  `pg-pool` already discards a non-queryable client on release (`node_modules/pg-pool/index.js:392`,
+  `!client._queryable || client._ending`), even when it is released without an error, so against the
+  code of task 1.2 these integration scenarios can only fail through the uncaught `error` event;
+  destroy-versus-return is proven by the stub-pool scenarios. The real-world risk the destruction rule
+  closes is a connection that is still queryable after a failed `BEGIN` or `ROLLBACK` (for example a
+  statement timeout); this does not change the decision.
 - No existing test changes: the four existing scenarios keep their tests and assertions.
 
 ### D6. Spec and Purpose edits (R5)
 
 The `graph-store` delta MODIFIES the requirement with the whole block (four existing scenarios kept
-verbatim, six added). The Purpose of `openspec/specs/explain/spec.md` is edited directly (a delta
+verbatim, seven added: five over a stub pool and two against a real Postgres). The Purpose of `openspec/specs/explain/spec.md` is edited directly (a delta
 cannot change a Purpose) in a separate commit `docs(DIS-110): …`, to say that explain asks the model
 for the answer and then lazily refreshes the due stale prior claims (requirement "Stale claim
 refresh"), instead of "asks the model once".
@@ -161,5 +180,15 @@ existing ticket; C = the author; D = out of scope, recorded.*
 | R8 | No new tickets: any finding of this change is resolved inside DIS-110 (author's instruction). Non-goals stay as recorded D items. | D, recorded |
 | R9 | PowerShell check: planned in `tasks.md` (task 7.4) for the author as destination C; by the author's instruction for this run the agent executes it with `powershell.exe -NoProfile -Command …` (no `$env:` changes; the API is started from Git Bash) and records it in the step 7 report. | C, author (executed by the agent) |
 | X1 | `atomically` of `postgres-store.ts` also lacks a borrowed-client `error` listener; not changed here (ticket non-goal). | D, recorded |
-| X2 | A thrown non-`Error` from `BEGIN` or `ROLLBACK` is wrapped so `release` always destroys (D2). | A |
+| X2 | Dropped in correction round 1 (spec audit B1): a thrown non-`Error` from `BEGIN` or `ROLLBACK` is not wrapped; the thrown value goes to `release` unchanged. `pg` rejects only with `Error` instances and the ticket asks for the statement's own error, so the wrapper widened scope without need (D2). | D, recorded |
 | X3 | Stryker runs once locally on `transaction.ts` (informational); `stryker.config.json` is not changed. | A |
+
+*Agent's text: decisions of correction round 1 of the spec audit
+(`reports/2026-10-30-spec-audit.md`, run 1), taken by the agent as lead engineer without the author.*
+
+| Id | Decision | Destination |
+|---|---|---|
+| X4 | Q1 of the audit: the carry-over A8 of DIS-42 (`## Purpose` of `explain`) stays bundled in DIS-110 as a separate `docs(DIS-110)` commit. It is the author's instruction for this ticket in the autonomous run (also recorded as R5 and AC6 of the `[enhanced]` block), and a separate ticket is forbidden by R8. | A |
+| X5 | Q2 of the audit: task 7.4 keeps the agent running the PowerShell check with `powershell.exe`. The source is the author's instruction for DIS-110 in the notes of this autonomous run ("Comprobaciones PowerShell las ejecuta el agente con powershell.exe"), now also quoted in a Linear comment of DIS-110 so it is traceable; it is a recorded deviation from `docs/openspec-tasks-mandatory-steps.md` §3. The destination stays C: the author may repeat the check. | C, author (executed by the agent) |
+| X6 | B2 of the audit: the requirement gains the clause that the run removes its `error` listener before releasing, with the scenario "A run leaves no error listener on its connection", tested as its own `it` (D3, D5). | A |
+| X7 | Task ordering (audit point 9): the two integration `it`s are written and run right after task 1.2, against the code that still releases without argument and has no listener, and the result is recorded; they are run again on the final code in step 2. No `git worktree` is used. | A |
