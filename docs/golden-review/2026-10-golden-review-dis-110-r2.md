@@ -20,9 +20,11 @@ below, which is the DIS-33 criterion copied verbatim.
 
 ## Panel
 
-- **Panelist 1:** Opus. **Panelist 2:** Sonnet. They judge the seven items blind to each other and
-  to every earlier round, the first DIS-110 round included.
-- **Resolver:** Opus, in a fresh context, only over the items where the two panelist verdicts differ.
+- **Panelist 1:** Opus, model `claude-opus-5-5`, date 2026-10-30. **Panelist 2:** Sonnet, model
+  `claude-sonnet-5-5`, date 2026-10-30. They judge the seven items blind to each other and to every
+  earlier round, the first DIS-110 round included.
+- **Resolver:** Opus, model `claude-opus-5-5`, date 2026-10-30, in a fresh context, only over the
+  items where the two panelist verdicts differ (one in this run: task-api `Q3`).
 - **Outputs:** under `docs/golden-review/panel/` (the input, the two panelist outputs and the
   resolution, with the `-dis-110-r2` suffix).
 
@@ -50,3 +52,44 @@ the other groups of the tasks file; the other reports of `docs/golden-review/`; 
 output; the rest of `docs/`, `packages/`, `tests/`, `scripts/` and `openspec/`; the git history; any
 Linear content. A panelist does not run the analyzers, `ask`, `verify`, the fixtures' tests or any
 script, and does not read the database or the answer cache.
+
+## Verdicts
+
+The panel outputs and the resolution are unchanged since the commits that created them. task-api
+`Q1` was regenerated alone for this round; the panelists judged it `partial` and it is now signed.
+The panelists disagreed only on task-api `Q3`, which the resolver decided. No item is judged
+`incorrect`: every golden entry carries both DIS-110 r2 signatures and nothing is pending.
+
+| Project | Id | Panelist 1 | Panelist 2 | Final | Justification | Errors |
+|---|---|---|---|---|---|---|
+| task-api | Q1 | partial | partial | partial | The answer is true: each route attaches a schema imported from src/schemas (`fixtures/task-api/src/routes/tasks.routes.ts:18`); S4 says the schemas are defined in README.md, contradicted by the import (`fixtures/task-api/src/routes/tasks.routes.ts:8`), but it is an INFERENCE | S4 false |
+| task-api | Q2 | correct | correct | correct | buildPage takes items, total, page and pageSize and returns a Page (`fixtures/task-api/src/domain/pagination.ts:13`); the omitted pageCount is not an error | none |
+| task-api | Q3 | partial | correct | partial | S1 cites only the lines that look up TRANSITIONS, not the table that defines it (`fixtures/task-api/src/domain/task-status.ts:13`), so its evidence does not back it | S1 unverifiable |
+| task-api | Q4 | correct | correct | correct | No route, hook, plugin or check authenticates a user; JWT_SECRET is parsed but never used (`fixtures/task-api/src/config/env.ts:13`), so UNKNOWN is the due answer | none |
+| acme-shop | Q1 | partial | partial | partial | Discount, tax and shipping are applied as stated (`fixtures/acme-shop/app/Services/PriceCalculator.php:25`), but S2 attributes the discount logic to a document while citing README lines, so it is not backed | S2 unverifiable |
+| acme-shop | Q3 | partial | partial | partial | The coupon is checked in percentFor (`fixtures/acme-shop/app/Services/CouponValidator.php:16`); S3 and S4 cite StoreOrderRequest lines that never touch the coupon (`fixtures/acme-shop/app/Http/Requests/StoreOrderRequest.php:44`) | S3 false; S4 false |
+| acme-shop | Q4 | correct | correct | correct | The observer dispatches RecalculateTotals and fires OrderPlaced (`fixtures/acme-shop/app/Observers/OrderObserver.php:18`) | none |
+
+Panelist 1's `sourcesRead` lists `fixtures/task-api/package.json`, under the allowed prefix
+`fixtures/task-api/`; panelist 2's does not list `docs/base-standards.md`, which is allowed but not
+required. Both outputs are recorded as returned. The resolver's justification has four sentences
+instead of one to three; no check reads its length, and it is recorded as returned.
+
+## Agreement
+
+n = 7
+
+Percent agreement: 85.7%
+
+Cohen's kappa: 0.720
+
+The kappa is indicative: with seven items it has a wide uncertainty.
+
+Resolved by the resolver: 1 of 7
+
+## Limitations
+
+- Two models of one family are not independent reviewers in the sense of two people.
+- The generator is a local 7B model (qwen2.5-coder).
+- sourcesRead is self-declared.
+- The criterion was written by an agent that had read the golden answers.
