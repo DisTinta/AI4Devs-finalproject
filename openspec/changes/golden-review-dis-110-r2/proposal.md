@@ -42,7 +42,8 @@ listed in `design.md` → Follow-ups with their A/B/C/D destination.)*
 - The docs that name the current golden round (`fixtures/README.md`, `docs/project-context.md`,
   `readme.md`, `docs/DEMO.md`, the TSDoc of `packages/cli/src/cache/golden-file.ts`) name DIS-110 r2.
 
-No product code changes, no breaking change, no migration.
+No behaviour change (the only edit under `packages/` is the TSDoc of
+`packages/cli/src/cache/golden-file.ts`), no breaking change, no migration.
 
 ## Capabilities
 

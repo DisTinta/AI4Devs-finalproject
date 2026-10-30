@@ -88,3 +88,13 @@ Not applicable (task 9.1): no browser UI changes; `packages/web` is untouched.
 All checks pass. The round's final verdicts: task-api `Q1` partial, `Q2` correct, `Q3` partial, `Q4`
 correct, acme-shop `Q1` partial, `Q3` partial, `Q4` correct; agreement 85.7 %, kappa 0.720; no item
 `incorrect`, so no r3 round.
+
+## Addendum — CI and pre-merge review (tasks 13.2, 13.6)
+
+- PR #87 (`feature/dis-110-golden-review-r2` → `final-project-CRN`), head `2501307`: CI run
+  41026140461 (`scope`, `quality`, `verify`, `mutation`, `secrets`) and 41026140444 (`frontend`), all
+  `pass`.
+- After the review fixes (design F10: `docs/DEMO.md`, `docs/project-context.md`, the proposal, the r2
+  report's `## Verdicts` notes): `npx vitest run tests/unit/seed/golden-reviews.spec.ts
+  tests/unit/seed/golden-coherence.spec.ts` 11/11; `npm run docs:coverage` exit 0. The panel files and
+  `## Criterion` are unchanged.

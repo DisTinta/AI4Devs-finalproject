@@ -1268,7 +1268,7 @@ services that must be started first, quirks of the local environment.
   then the DIS-10 r2 round after task-api `Q1` alone was regenerated, then the DIS-42 round after
   the stale claim refresh regenerated them, then the DIS-42 r2 round after task-api `Q2` and
   acme-shop `Q1` alone were regenerated, then the DIS-42 r3 round, the last DIS-42 round, after
-  acme-shop `Q1` alone was regenerated once more, then the DIS-110 round, a single round, after the
+  acme-shop `Q1` alone was regenerated once more, then the first DIS-110 round after the
   pooled transaction runner changed the store adapter and both golden files were regenerated, then
   the DIS-110 r2 round after task-api `Q1` alone was regenerated (change `golden-review-dis-110-r2`):
   blind input, criterion first, signatures `agent:<model>`, report in `docs/golden-review/`, each

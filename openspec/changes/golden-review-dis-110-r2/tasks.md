@@ -112,10 +112,10 @@ This group is done by independent agents launched outside the apply: panelist 1 
 
 ## 13. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 13.1 Open the PR against `final-project-CRN`
-- [ ] 13.2 CI green, including `verify`: wait in the foreground with `gh pr checks <n> --watch --interval 60` (timeout 600000), repeated until no check is pending; link the run in an addendum to the step 7 report
-- [ ] 13.3 `/show-spec-working` (reuses the step 7 and 8 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
-- [ ] 13.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
-- [ ] 13.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`
-- [ ] 13.6 Fix every finding in this change, each with an A/C/D destination in `design.md` → Follow-ups (no new tickets); the panel outputs, the resolution and the `## Criterion` are never edited; re-run what each fix invalidates and add an addendum to the affected report; commit to the same PR
+- [x] 13.1 Open the PR against `final-project-CRN`
+- [x] 13.2 CI green, including `verify`: wait in the foreground with `gh pr checks <n> --watch --interval 60` (timeout 600000), repeated until no check is pending; link the run in an addendum to the step 7 report
+- [x] 13.3 `/show-spec-working` (reuses the step 7 and 8 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
+- [x] 13.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
+- [x] 13.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`
+- [x] 13.6 Fix every finding in this change, each with an A/C/D destination in `design.md` → Follow-ups (no new tickets); the panel outputs, the resolution and the `## Criterion` are never edited; re-run what each fix invalidates and add an addendum to the affected report; commit to the same PR
 - [ ] 13.7 `/opsx:archive` (sync the delta into `openspec/specs/golden-answers/spec.md`), commit it to the same PR, push, CI green; `node scripts/dev-processes.mjs stop`. The agent does not merge (author's instruction for this run): the merge is left to the author (destination C); DIS-110 stays Done with a Spanish comment

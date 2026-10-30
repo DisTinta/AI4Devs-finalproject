@@ -75,6 +75,17 @@ Panelist 1's `sourcesRead` lists `fixtures/task-api/package.json`, under the all
 required. Both outputs are recorded as returned. The resolver's justification has four sentences
 instead of one to three; no check reads its length, and it is recorded as returned.
 
+The `Errors` cell shows the judgements of the error source the specification fixes (panelist 1
+when its verdict is the final one). Where the panelists agree on the verdict but not on a judgement,
+the cell does not show a consensus: on acme-shop `Q3` panelist 1 judged S3 and S4 `false` and
+panelist 2 `unverifiable`; on task-api `Q3` the resolver confirmed panelist 1's S1 `unverifiable`.
+Panelist 2 judged task-api `Q4` without listing `fixtures/task-api/src/app.ts` in its `sourcesRead`;
+panelist 1 read it (`fixtures/task-api/src/app.ts:28`) and reached the same verdict.
+
+The r2 signatures are textually identical to the DIS-110 ones (same models, same date, 2026-10-30),
+so in `seeds/cache/acme-shop.json` and in task-api `Q2` and `Q3` the signature step changed no byte;
+only task-api `Q1` gained the two signatures.
+
 ## Agreement
 
 n = 7

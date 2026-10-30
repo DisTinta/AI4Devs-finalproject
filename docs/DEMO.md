@@ -299,9 +299,9 @@ también la juzgó `incorrect`. Se regeneró sola una vez más y la ronda DIS-42
 (`docs/golden-review/2026-10-golden-review-dis-42-r3.md`), la última de DIS-42, la juzgó `partial`.
 DIS-110 cambió el adaptador del store y con él la huella del seed, así que las seis golden se
 regeneraron y la ronda DIS-110 (`docs/golden-review/2026-10-golden-review-dis-110.md`) la juzgó
-`partial`; esa ronda juzgó `incorrect` la golden de task-api `Q1`. Se regeneró sola task-api `Q1` y
-la golden actual de acme-shop `Q1` la revisó la ronda DIS-110 r2
-(`docs/golden-review/2026-10-golden-review-dis-110-r2.md`), la ronda actual, que la juzgó `partial`:
+`partial`; esa ronda juzgó `incorrect` la golden de task-api `Q1`, que se regeneró sola para la
+ronda DIS-110 r2 (`docs/golden-review/2026-10-golden-review-dis-110-r2.md`), la ronda actual. Esa
+ronda volvió a revisar las siete golden; la de acme-shop `Q1` no cambió y la juzgó `partial`:
 queda firmada con las dos firmas del panel. Esa ronda no juzgó `incorrect` ninguna golden (task-api
 `Q1` quedó `partial`), así que no hay ningún pendiente.
 
