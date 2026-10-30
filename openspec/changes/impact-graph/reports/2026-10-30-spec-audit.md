@@ -158,3 +158,31 @@ There are no empty rows. The scenario count (18: 16 unit, 2 integration) matches
 - **DIS-89**: do not edit the `[original]` block. Add a comment in Spanish, for example:
   "*Texto del agente (auditoría de la especificación, 2026-10-30).* La auditoría de `impact-graph` pide cambios antes de aplicar. (1) La reproducción de Q2 sobre la semilla comprobará también `status: 'answered'`, `origin: 'graph'` en todas las entradas y que ningún componente de un fichero `test` sale en `direct` ni en `indirect`, como hereda el criterio 2. (2) Se fija la distancia de un test para ordenar `tests`: la menor entre la de la travesía y la de cada arista `tested_by` más uno; la clase buscada de un componente directo cuenta con los saltos de ese componente. (3) La nota no funcional «dos travesías» pasa a «una travesía inversa y como máximo `maxHops + 1` travesías `tested_by`». (4) Pregunta para la autora: el analizador TypeScript escribe `imports` y `tested_by` de fichero a fichero, así que con semillas solo de símbolos `impact` no encuentra importadores ni tests en un proyecto TypeScript. Hay que decidir si se siembran también los ficheros del ancla o si se declara como no-objetivo. (5) Pregunta para la autora: el criterio 1 de DIS-83 usa el texto literal «cambiar el cálculo de descuentos»; este cambio lo sustituye y fija lo contrario como requisito. Hace falta su conformidad."
 - **DIS-83**: nothing to edit. Q1 is answered on DIS-89.
+
+## Resolution of run 1
+
+*Agent's text: correction round 1 (`docs/AUTONOMOUS-RUN.md` §6), 2026-10-30. The questions for the
+author were answered by the agent as lead engineer; each decision is in `design.md` → Follow-ups
+(R1–R8) and in a Spanish comment on DIS-89. `openspec validate impact-graph --strict` passes; the
+spec now has 21 scenarios (19 unit, 2 integration).*
+
+| Finding | Resolution |
+|---|---|
+| Q1 (parent AC1 literal text) | Decided by the agent (R1, destination B — DIS-90): DIS-89 reproduces the graph part of Q2 with `cambiar los descuentos de DiscountService`; the literal text stays characterised by "The literal Q2 text does not anchor the discount service"; the literal-text clause of DIS-83 AC1 is carried by DIS-90 (owner of the `impact` command and the demo), and a comment on DIS-90 records it. Widening the anchor is semantic anchoring (CM-HU-19). Recorded in design D7 and proposal → Scope notes. |
+| Q2 / B4 (TypeScript graphs) | Decided by the agent (R2, destination A): option (a). Spec "Reverse traversal of dependants" seeds the anchor symbols and their files; "Tests covering the change" seeds the anchor files and the file of each `direct` component too; new scenario "Importers and tests written file to file are found" (task 4.6). Design Context corrected (PHP: `tested_by` class to class, `imports` file to class; TypeScript: both file to file), D2 rewritten, a Risks line for the TypeScript granularity, proposal → What Changes updated. Checked over `seeds/graph-dump.sql`: no acme-shop edge of kind `calls`, `imports`, `extends`, `implements` or `tested_by` touches a file, so the PHP oracle is unchanged. Option (b) rejected: it leaves `task-api`, a seed project, with almost no report. |
+| B1 (seed scenario clauses) | Fixed (R5): "Q2 is reproduced over the seed" now asserts `status` `answered`, `origin` `graph` and no `test` component in `direct` or `indirect`; task 6.1 says so. |
+| B2 (test distance) | Fixed (R3): the `tests` bullet of "Relevance order" defines the test distance and each source's seed distance (anchor symbol or file 0, reached node its traversal distance, class or file found for a direct component that component's `hops`), smallest wins; "Tests covering the change" applies the class lookup to the anchor's components; new scenario "Tests are ordered by the distance of what they cover" (task 5.2b); design D2 states the same rule and "one per distinct seed distance present". |
+| B3 (reached node's own tests) | Fixed (R4): new scenario "A reached node's own tests are found" (task 3.5, which also creates `components.spec.ts`); the empty class lookup is an extra case of 3.5; the requirement says the lookup that finds nothing adds no class. |
+| Improvable: missing scenarios for scoping and `projectId` | Fixed (R8): the spec says project scoping is the `StorePort` contract and is not tested again; task 1.3 adds `projectId` given as a number (blames `projectId`). The lexical-match position is pinned by the extra cases of 5.2; malformed `projectId` stays in step 9.3. |
+| Improvable: terms of the lexical match | Fixed (R6): "every term of `questionTerms(change)` (all of them, not truncated)" in spec and design D5; extra case in 5.2. |
+| Improvable: nodes of the anchor's file | Fixed (R4): the spec and design D2 say they seed no `tested_by` step and that the walk's distances still count paths through them. |
+| Improvable: `change` text of small-graph scenarios | Decided by the agent (R8): the three new scenarios write their `change` text; the older ones keep it in the tests, which assert the anchor first (design P5). |
+| Improvable: "two traversals" / "in practice 2 or 3" | Fixed: design Goals and D2 reworded as proposed. |
+| Improvable: Context sentence on `tested_by` | Fixed with Q2/B4. |
+| Improvable: `docs/backend-standards.md` §5 (N+1) | Fixed (R7, destination D): design → Risks records the deviation, its bound and why. |
+| Improvable: `Buffer.compare` | Fixed (R6): design D5 uses `compareBytes`; task 5.1 names it. |
+| Improvable: copy of `matchesLexically` | Fixed (R6): design D5 and task 5.2 extract `containsAnyTerm` into a new `packages/core/src/context/lexical-match.ts`, shared by `rank.ts` and `relevance.ts`; `anchor.ts` is not edited, no existing test changes (task 7.1), and `context/` is not a fingerprint input (P4 holds). Proposal → What Changes and Impact updated. |
+| Improvable: task 3.2 size | Fixed: 3.2 builds only the reverse walk and the grouping; the class lookup and the per-distance `tested_by` step move to the GREEN of 3.4. |
+| Improvable: End-to-End step | Fixed: task 9.7 says it is not applicable. |
+| Improvable: 12.7 merge | Fixed: "(autonomous run, `KIT_AUTONOMOUS_RUN=1`, only; otherwise the author merges)". |
+| Traceability | Fixed: task 7.2 counts 21 scenarios (19 unit, 2 integration); the new rows are 3.5, 4.6 and 5.2b. |

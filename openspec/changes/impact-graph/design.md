@@ -10,10 +10,19 @@ See `proposal.md` → Why. What exists and is reused unchanged:
   each node once with its minimum distance and its `resolution` (`exact` when some minimum-distance
   path follows only `exact` edges); seeds never come back; `hops` in 1..`MAX_HOPS` (3).
 - `StorePort.findSymbols(projectId, name)`: case-insensitive substring search by name.
-- `knowledge/graph-edge.ts`: there is no "contains" edge between a method and its class, and
-  `tested_by` edges go class to class (`DiscountService → DiscountServiceTest`,
-  `PriceCalculator → PriceCalculatorTest`).
-- `context/rank.ts` (DIS-28 D7): the lexicographic, weightless ranking this design copies.
+- `knowledge/graph-edge.ts`: there is no "contains" edge between a method and its class. The PHP
+  analyzer writes `tested_by` class to class (`DiscountService → DiscountServiceTest`,
+  `PriceCalculator → PriceCalculatorTest`) and `imports` file to class
+  (`packages/analyzers/php/src/edges.ts`); the TypeScript analyzer writes both `imports` and
+  `tested_by` file to file (`packages/analyzers/typescript/src/edges.ts:32-34` and `:113`; the
+  `task-api` rows of `seeds/graph-dump.sql`). In the acme-shop seed no edge of kind `calls`,
+  `imports`, `extends`, `implements` or `tested_by` has a file as its target or as the source of a
+  `tested_by` (checked with `grep` over the seed's `INSERT INTO edge` rows), so seeding files
+  (D2) leaves the PHP oracle unchanged.
+- `context/rank.ts` (DIS-28 D7): the lexicographic, weightless ranking this design follows; its
+  private `matchesLexically` is extracted and shared (D5).
+- `knowledge/byte-order.ts`: `compareBytes`, the UTF-8 byte order already used by
+  `index/incremental-plan.ts` and `knowledge/co-change.ts`.
 - `explain/explain-request.ts`: the strict Zod request and the `InvalidExplainRequest(field)` error
   that names the field without its value.
 - Test support: `tests/support/in-memory-store.ts` (the `StorePort` double, with call counters, that
@@ -38,12 +47,15 @@ two routes and `OrderObserver::created`/`updated`. The seed scenarios therefore 
 - A pure core use case whose report keys (`direct`, `indirect`, `tests`, and `symbol`, `origin`,
   `resolution`, `hops` per entry) match `readme.md` §4 `/impact`, so DIS-90 and DIS-95 only project
   it (the core report adds `file` per entry and `hops` on `direct`; a projection may drop them).
-- Bounded work: at most 16 searches for the anchor, at most one search per direct component reached
-  through a method, and two traversals.
+- Bounded work: at most 16 searches for the anchor, at most one search per distinct direct
+  component reached through a method, one reverse traversal and at most `maxHops + 1` (≤ 4)
+  `tested_by` traversals.
 
 **Non-Goals:**
 
-- Any change to `anchor`, `StorePort`, the Postgres adapter or the double.
+- Any change to the behaviour of `anchor`, `StorePort`, the Postgres adapter or the double. The only
+  edit outside `impact/` is the extraction of the lexical-match helper from `context/rank.ts` (D5),
+  which keeps `rankCandidates` unchanged.
 - `risk`, `usage`, `query_log`, cache, CLI, HTTP (proposal → Non-goals).
 
 ## Decisions
@@ -59,26 +71,35 @@ for a case the HTTP layer (DIS-95) can check itself.
 
 ### D2. Traversal (enrich D2) — `impact/reverse-walk.ts`
 
-1. `neighbors(projectId, anchorSymbolSeeds, maxHops, ['calls','imports','extends','implements'], 'in')`.
-   Seeds are the anchor symbols only, not their files: seeding the file would make every importer
-   of any symbol of that file a dependant. These are the dependency kinds `readIndexState` uses for
-   the incremental reindex. `co_changed` and `describes` belong to DIS-94.
-2. For each direct component (distance ≤ 1, not a `test` file) reached through a symbol whose name
-   differs from the component's (a method), when no node of the report already is that class:
-   `findSymbols(projectId, component)` and keep the symbol whose name equals the component exactly
-   and whose `fileId` equals the method's. Only direct components: their coverage is what the risk
-   rule of DIS-90 reads; the coverage of indirect components comes from the walk only.
-3. `neighbors(projectId, seeds, 1, ['tested_by'], 'out')`, seeds = the anchor symbols, every reached
-   node outside `test` files (symbols and files) and the classes of step 2, deduplicated. Skipped
-   when the seed list is empty (it never is once the anchor is not empty).
+1. `neighbors(projectId, seeds, maxHops, ['calls','imports','extends','implements'], 'in')`, seeds =
+   the anchor symbols and their files (decision R2). These are the dependency kinds `readIndexState`
+   uses for the incremental reindex. `co_changed` and `describes` belong to DIS-94. The file seeds
+   are needed for analyzers that write `imports` file to file (TypeScript): there, every importer of
+   the anchor's file is a dependant, which is the granularity that analyzer records. With the PHP
+   analyzer `imports` target the class symbol, so the file seeds add nothing (Context).
+2. For each direct component (distance ≤ 1, not a `test` file, the anchor's components included)
+   whose node in the report is a symbol whose name differs from the component's (a method), when no
+   anchored or reached node already is that class: `findSymbols(projectId, component)` and keep the
+   symbol whose name equals the component exactly and whose `fileId` equals the method's. Only
+   direct components: their coverage is what the risk rule of DIS-90 reads; the coverage of indirect
+   components comes from the walk only. When no symbol matches, the component adds no class.
+3. `neighbors(projectId, seeds, 1, ['tested_by'], 'out')`, seeds = the anchor symbols and their
+   files, every reached node outside `test` files and outside the anchor symbols' files (symbols and
+   files), the file of each direct component and the classes of step 2, deduplicated. The nodes of
+   the anchor symbols' files are not seeds: they are left out of the report (D3), and the anchor
+   file seed and the class lookup of the anchor's components already cover them. Skipped when the
+   seed list is empty (it never is once the anchor is not empty).
 
-The test distance used for ordering (D5) is computed here: a `tested_by` target's distance is one
-more than the smallest distance of the seeds it is reached from. Because `neighbors` returns only
-the target and its distance (1) from the whole seed set, the walk keeps the per-seed distance by
-grouping the seeds by distance and sending one `tested_by` traversal per distinct seed distance
-(at most `maxHops + 1` traversals, in practice 2 or 3), smallest distance first; a test already
-found keeps its first distance. Alternative rejected: one traversal and a fixed test order by name
-only, which loses "the test of what changes first" (decision P2).
+The test distance used for ordering (D5) is computed here (decision R3). The seed distance of a
+source is the smallest value that applies to it: 0 for an anchor symbol or its file; the traversal
+distance for a reached node; the component's `hops` (0 or 1) for the class or the file found for a
+direct component. A `tested_by` target's distance is one more than the smallest seed distance it is
+reached from; a test component also reached by the walk keeps the smaller of the two distances.
+Because `neighbors` returns only the target and its distance (1) from the whole seed set, the walk
+keeps the per-seed distance by grouping the seeds by seed distance and sending one `tested_by`
+traversal per distinct seed distance present (at most `maxHops + 1`), smallest distance first; a
+test already found keeps its first, and so smallest, distance. Alternative rejected: one traversal
+and a fixed test order by name only, which loses "the test of what changes first" (decision P2).
 
 ### D3. Unit of the report: the component (enrich D3) — `impact/relevance.ts`
 
@@ -100,10 +121,17 @@ entry `origin: 'graph'`. Test entries are `{ symbol, file, origin }` (decision P
 ### D5. Relevance (enrich D5)
 
 A lexicographic key, no weights, as `rank.ts`: `hops`, `exact` before `heuristic`, lexical match
-(`normaliseText` of `symbol` or `file` contains a term of `questionTerms(change)`), `symbol` then
-`file` by `Buffer.compare` (byte order, the same order the store uses). For `tests` the first
-position is the test distance of D2. The sort is stable, but byte order makes every key unique per
-list, so input order never decides.
+(`normaliseText` of `symbol` or `file` contains a term of `questionTerms(change)`, every term, not
+truncated to the `MAX_QUESTION_TERMS` that anchoring searched), `symbol` then `file` by
+`compareBytes` (`packages/core/src/knowledge/byte-order.ts`, byte order, the same order the store
+uses). For `tests` the first position is the test distance of D2. The sort is stable, but byte
+order makes every key unique per list, so input order never decides.
+
+The lexical match reuses a helper extracted from `context/rank.ts` `matchesLexically`:
+`containsAnyTerm(texts, terms)` in a new `packages/core/src/context/lexical-match.ts`, exported and
+used by both `rank.ts` and `impact/relevance.ts`, not copied (decision R6). `anchor.ts` is not
+edited. `context/` is not a seed or answer fingerprint input
+(`packages/cli/src/cache/answer-fingerprint.ts` leaves it out on purpose), so P4 holds.
 
 ### D6. Validation (enrich D6) — `impact/impact-request.ts`
 
@@ -120,7 +148,10 @@ The literal Q2 text does not anchor `DiscountService` (`descu` is not `disco`) a
 `PriceCalculator*` and `RecalculateTotals*` through `calcu`. The Q2 reproduction uses
 `cambiar los descuentos de DiscountService`; the scenario "The literal Q2 text does not anchor the
 discount service" characterises the limit and its test names D7 in a comment. No glossary, no
-embeddings. What the CLI and `docs/DEMO.md` show is DIS-90's call.
+embeddings. What the CLI and `docs/DEMO.md` show is DIS-90's call. The parent DIS-83 AC1 names the
+literal text; after the first spec audit the agent confirmed, as lead engineer, that DIS-89 reproduces
+the graph part of Q2 with the rewritten text and that the literal-text clause of DIS-83 AC1 is
+carried by DIS-90 (decision R1, destination B).
 
 ### D8. Out of the use case (enrich D8)
 
@@ -145,7 +176,9 @@ fingerprint list does not include them either. `npm run verify` in step 9 confir
 The small-graph scenarios (component, file node, own file, relevance) are built with
 `tests/support/sample-graph.ts` and loaded into the double; their `change` text is chosen so that
 it anchors only the intended symbol (for example `cambiar run` for `Anchor::run`, whose terms do not
-name `Anchor::helper`), and each test asserts its anchor before asserting the report.
+name `Anchor::helper`), and each test asserts its anchor before asserting the report. The scenarios
+added after the first spec audit write their `change` text in the spec; the older small-graph
+scenarios leave it to the test, which asserts the anchor first (decision R8).
 
 ### P7. No ADR
 
@@ -165,6 +198,17 @@ The design follows `explain` and `rank.ts` and is reversible; no ADR.
 - [Up to `maxHops + 1` `tested_by` traversals instead of one] → bounded (≤ 4 statements) and
   answered by the indexed traversal; documented in the non-functional note of DIS-89 as "two
   traversals" in the ticket, refined here (P2).
+- [Deviation from `docs/backend-standards.md` §5, "Avoid N+1: a graph traversal is one recursive
+  query, not a loop of queries"] → D2 step 2 runs one `findSymbols` per distinct direct component
+  reached through a method (at most one per component, so bounded by the direct components of at
+  most `MAX_ANCHORS` = 32 anchors), and D2 step 3 runs at most `maxHops + 1` `tested_by`
+  statements. Each traversal itself is still one recursive statement. Why: `StorePort` has no batch
+  symbol lookup, and changing the port is a non-goal; the ticket's non-functional note accepts the
+  cost. Recorded as R7.
+- [On a TypeScript project, seeding the anchor's file makes every importer of that file a
+  dependant, even an importer of another symbol of the file] → accepted: it is the granularity the
+  TypeScript analyzer records (file → file `imports`); a finer one needs symbol-level imports from
+  that analyzer, not this ticket.
 
 ## Migration Plan
 
@@ -181,7 +225,7 @@ author; D = accepted and recorded.*
 | Id | Decision | Destination |
 |---|---|---|
 | E1 | (D1) `anchor()` unchanged, `test` symbols dropped, empty anchor → `unknown`/`no-anchor` without traversal. | D — accepted |
-| E2 | (D2) Reverse walk over `calls`, `imports`, `extends`, `implements` from the anchor symbols; tests from the walk and from one `tested_by` step that includes the class of each direct component. | D — accepted |
+| E2 | (D2) Reverse walk over `calls`, `imports`, `extends`, `implements` from the anchor symbols; tests from the walk and from one `tested_by` step that includes the class of each direct component. Refined by R2 (the anchor's files are seeds too) and R3 (test distance). | D — accepted |
 | E2b | (D2) If the risk rule needs the coverage of each direct element, DIS-90 adds that field to the report. | B — DIS-90 |
 | E3 | (D3) The component is the unit of the report; the anchor's files are left out; minimum distance and `exact` when one shortest node is `exact`. | D — accepted |
 | E4 | (D4) `direct` = anchor + distance 1; `indirect` = 2..`maxHops`; `test` components only in `tests`; `origin: 'graph'`. | D — accepted |
@@ -197,3 +241,18 @@ author; D = accepted and recorded.*
 | P5 | Small-graph unit tests choose a `change` that anchors only the intended symbol and assert the anchor first. | A |
 | P6 | A `change` without search terms answers `no-anchor` without checking the project, as `anchor()` and `explain` do; the HTTP 404 for an unknown project is DIS-95's. | B — DIS-95 |
 | P7 | No ADR. | D — accepted |
+
+*Agent's text: decisions of correction round 1 of the spec audit
+(`reports/2026-10-30-spec-audit.md`, run 1), taken by the agent as lead engineer without the author
+(`docs/AUTONOMOUS-RUN.md` §2 and §6). Each one answers a question or a finding of that run.*
+
+| Id | Decision | Destination |
+|---|---|---|
+| R1 | (Audit Q1) DIS-89 reproduces the graph part of Q2 with `cambiar los descuentos de DiscountService`; the literal text of DIS-83 AC1 stays characterised here (it does not anchor `DiscountService`) and its clause is carried by DIS-90, owner of the `impact` command and of what the demo shows. Widening the anchor (glossary, translation, embeddings) is semantic anchoring (CM-HU-19), not this ticket. | B — DIS-90 |
+| R2 | (Audit Q2, B4) Option (a): the reverse walk and the `tested_by` step are also seeded with the files of the anchor symbols, and the `tested_by` step with the file of each direct component, so that a TypeScript project (file → file `imports` and `tested_by`) gets its importers and tests. It fulfils ticket D2 for every analyzer of the seed (`task-api` included) at no extra statement; the PHP oracle does not change (no acme-shop edge of those kinds touches a file). Refines E2 and ticket D2 ("only the anchor symbols"). New scenario "Importers and tests written file to file are found". | A |
+| R3 | (B2) Test distance: the smallest of the walk distance and, per `tested_by` edge, one more than the source's seed distance (0 for an anchor symbol or its file, the traversal distance for a reached node, the component's `hops` for the class or file found for a direct component). The class lookup applies to the anchor's components too. New scenario "Tests are ordered by the distance of what they cover". | A |
+| R4 | (B3) The `tested_by` step seeds every reached node outside `test` files and outside the anchor's files; the nodes of the anchor's files seed nothing and their paths still count in the walk distances. New scenario "A reached node's own tests are found"; the case of a class lookup that finds nothing is an extra case of task 3.5. | A |
+| R5 | (B1) The seed scenario also asserts `status` `answered`, `origin` `graph` and no `test` component in `direct` or `indirect`, as DIS-89 AC2 inherits from AC1. | A |
+| R6 | (Improvable, code reuse) Byte order through `compareBytes` (`knowledge/byte-order.ts`); the lexical match through `containsAnyTerm`, extracted from `rank.ts` into `context/lexical-match.ts` and shared, with `rankCandidates` unchanged and its tests untouched. The lexical match uses every term of `questionTerms(change)`, not truncated. | A |
+| R7 | (Improvable, `docs/backend-standards.md` §5) The per-component `findSymbols` and the per-distance `tested_by` statements are a recorded, bounded deviation from "Avoid N+1" (design → Risks), because `StorePort` has no batch lookup and changing it is a non-goal. | D — accepted |
+| R8 | (Improvable) Project scoping is guaranteed by the `StorePort` contract and not tested again; a `projectId` given as a number is an extra case of task 1.3; the new scenarios write their `change` text; End-to-End testing is not applicable (no UI); the merge of 12.7 is for the autonomous run only. | A |

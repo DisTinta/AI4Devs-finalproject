@@ -76,10 +76,13 @@ term, as anchoring does.
 ### Requirement: Reverse traversal of dependants
 
 The impact use case SHALL find the dependants of the anchor by following, from the anchor symbols
-only, the edges of kinds `calls`, `imports`, `extends` and `implements` from target to source (who
-calls, imports, extends or implements), in 1 to `maxHops` steps, within the project. It SHALL not
-follow any other edge kind for dependants, nor edges from source to target, and every read SHALL be
-scoped to the project.
+and the files of the anchor symbols, the edges of kinds `calls`, `imports`, `extends` and
+`implements` from target to source (who calls, imports, extends or implements), in 1 to `maxHops`
+steps, within the project. The files are seeds too because an analyzer may write these edges file
+to file (the TypeScript analyzer writes `imports` that way). It SHALL not follow any other edge kind
+for dependants, nor edges from source to target. Every read SHALL be scoped to the project; that
+scoping is the `StorePort` contract (every read names the project and returns only its rows) and is
+not tested again by this capability.
 
 #### Scenario: Only dependants within the hop limit are reported
 
@@ -153,10 +156,17 @@ component:
 ### Requirement: Tests covering the change
 
 `tests` SHALL hold, each once by component, the components of `test` files that the reverse
-traversal reached and the targets of one `tested_by` step from source to target taken from the
-anchor symbols, from every node the traversal reached outside `test` files, and from the class of
-each `direct` component reached through one of its methods: the symbol named exactly as the
-component, in the same file, when the project has one.
+traversal reached and the targets of one `tested_by` step from source to target taken from:
+
+- the anchor symbols and their files;
+- every node the traversal reached outside `test` files and outside the files of the anchor
+  symbols (those nodes are left out of the report and seed no `tested_by` step; the traversal
+  distances of other nodes still count paths that pass through them);
+- the file of each `direct` component;
+- the class of each `direct` component (the anchor's components included) whose node in the report
+  is one of its methods, that is, a symbol whose name differs from the component's: the symbol named
+  exactly as the component, in the same file, when the project has one. When the project has none,
+  that component adds no class to the step.
 
 #### Scenario: Tests come from the walk and from the classes of direct components
 
@@ -165,18 +175,37 @@ component, in the same file, when the project has one.
 - **THEN** `tests` is exactly `DiscountServiceTest` then `PriceCalculatorTest`, in that order
 - **AND** `OrderPricingTest`, two hops away, is not in `tests`
 
+#### Scenario: A reached node's own tests are found
+
+- **GIVEN** a graph where `Anchor::run` is anchored, the function `helperFn` (no `::`) calls it, the
+  function `outerFn` calls `helperFn`, `helperFn` is tested by `HelperFnTest` and `outerFn` by
+  `OuterFnTest`, each test in a file of kind `test`
+- **WHEN** impact is asked for `cambiar run` with `maxHops` 2
+- **THEN** `tests` holds `HelperFnTest` and `OuterFnTest`
+
+#### Scenario: Importers and tests written file to file are found
+
+- **GIVEN** a graph where the symbol `Anchor` of `src/anchor.ts` is anchored, the file
+  `src/caller.ts`, none of whose symbols is reached, imports the file `src/anchor.ts`, and
+  `src/anchor.ts` is tested by the file `src/anchor.test.ts`, of kind `test`
+- **WHEN** impact is asked for `cambiar Anchor` with `maxHops` 1
+- **THEN** `direct` holds an entry whose `symbol` and `file` are both `src/caller.ts`, with `hops` 1
+- **AND** `tests` holds an entry whose `symbol` and `file` are both `src/anchor.test.ts`
+
 ### Requirement: Relevance order
 
 Each list of an answered report SHALL be ordered by a lexicographic key without weights, so that the
 order is deterministic and every position can be explained:
 
 - `direct` and `indirect`: `hops` ascending; then `exact` before `heuristic`; then the entries whose
-  `symbol` or `file`, normalised as the change's terms are, contains one of the change's terms;
-  then `symbol` and then `file` in byte order.
-- `tests`: the distance at which each test is found (for a test reached by the traversal, its
-  distance; for a test found through `tested_by`, one more than the distance of the node it covers,
-  that node at its own distance or 0 for the anchor); then the lexical match; then `symbol` and
-  `file` in byte order.
+  `symbol` or `file`, normalised as the change's terms are, contains one of the terms of
+  `questionTerms(change)` (all of them, not truncated); then `symbol` and then `file` in byte order.
+- `tests`: the test distance, ascending; then the lexical match; then `symbol` and `file` in byte
+  order. The test distance of a test component is the smallest of: the traversal distance of any of
+  its nodes the reverse traversal reached; and, for each `tested_by` edge reaching it, one more than
+  the seed distance of the edge's source. The seed distance of a source is the smallest value that
+  applies to it: 0 for an anchor symbol or the file of one; its traversal distance for a reached
+  node; the component's `hops` (0 or 1) for the class or the file found for a `direct` component.
 
 #### Scenario: Exact dependants come before heuristic ones at the same distance
 
@@ -194,6 +223,14 @@ order is deterministic and every position can be explained:
 - **WHEN** impact is asked with `maxHops` 2
 - **THEN** at each distance the `exact` dependant still comes before the `heuristic` one
 
+#### Scenario: Tests are ordered by the distance of what they cover
+
+- **GIVEN** a graph where `Anchor::run` is anchored, the class `Anchor` (same file) is tested by
+  `ZetaTest`, `Alpha::b` calls `Anchor::run` with an `exact` edge, and the class `Alpha` (same file
+  as `Alpha::b`) is tested by `AlphaTest`, each test in a file of kind `test`
+- **WHEN** impact is asked for `cambiar run` with `maxHops` 1
+- **THEN** `tests` is exactly `ZetaTest` then `AlphaTest`
+
 ### Requirement: Impact over the indexed acme-shop seed
 
 Over the acme-shop graph loaded from the versioned seed into the database, the impact use case SHALL
@@ -204,12 +241,15 @@ away only when `maxHops` is 3.
 
 - **GIVEN** acme-shop loaded from `seeds/graph-dump.sql` and the Postgres store
 - **WHEN** impact is asked for `cambiar los descuentos de DiscountService` with `maxHops` 2
-- **THEN** `direct` holds `DiscountService` with `hops` 0 and `PriceCalculator` with `hops` 1 and
+- **THEN** the answer has `status` `answered`
+- **AND** `direct` holds `DiscountService` with `hops` 0 and `PriceCalculator` with `hops` 1 and
   `resolution` `exact`
 - **AND** `indirect` holds `CheckoutController`, `OrderController`, `RecalculateTotals` and
   `SendOrderConfirmation`, each with `hops` 2 and `resolution` `heuristic`
 - **AND** `tests` holds `DiscountServiceTest`, `PriceCalculatorTest` and `OrderPricingTest`
 - **AND** `indirect` does not hold `OrderObserver`
+- **AND** every entry has `origin` `graph`, and no entry of `direct` or `indirect` belongs to a
+  `test` file
 
 #### Scenario: A dependant three hops away needs three hops
 

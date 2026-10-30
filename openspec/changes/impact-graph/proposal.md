@@ -18,14 +18,19 @@ use case over the graph. The risk rule, the CLI command and `query_log` (DIS-90)
   - anchors `change` with the existing `anchor()` and drops the symbols of `test` files; an empty
     anchor answers `{ status: 'unknown', reason: 'no-anchor' }` without traversing;
   - walks the graph backwards (`direction: 'in'`, kinds `calls`, `imports`, `extends`,
-    `implements`) up to `maxHops`, then collects the covering tests with one `tested_by` step
-    outwards from the anchor, the reached nodes and the class of each direct component;
+    `implements`) up to `maxHops` from the anchor symbols and their files (the files, for analyzers
+    that write `imports` file to file, such as TypeScript), then collects the covering tests with a
+    `tested_by` step outwards from the anchor and its files, the reached nodes, and the file and the
+    class of each direct component;
   - groups what it reached by component (the name up to the first `::`, or the path of a reached
     file), classifies it into `direct` (the anchor's components at 0 hops and those at 1),
     `indirect` (2..`maxHops`) and `tests`, every entry with `origin: 'graph'`;
   - orders each list by a lexicographic relevance key without weights (hops, `exact` before
     `heuristic`, lexical match with the change's terms, byte order).
 - **Exports** from `packages/core/src/index.ts` through a new `impact/index.ts`.
+- **Shared lexical match**: the private `matchesLexically` of `context/rank.ts` is extracted into an
+  exported `containsAnyTerm` in a new `packages/core/src/context/lexical-match.ts`, used by
+  `rank.ts` (behaviour unchanged) and by the impact relevance order.
 - **Tests**: unit tests over the in-memory `StorePort` double (`tests/support/in-memory-store.ts`)
   with the acme-shop subset and small graphs; one integration file that reproduces Q2 of
   `fixtures/README.md` over `seeds/graph-dump.sql` in Postgres.
@@ -63,13 +68,15 @@ Two refinements recorded on DIS-89 (agent decisions, enrich step, 2026-10-30):
 - The parent's Q2 criterion uses the literal text «cambiar el cálculo de descuentos»; with the
   lexical anchor that text does not reach `DiscountService`, so the Q2 reproduction here uses
   «cambiar los descuentos de DiscountService» and a separate test characterises the literal text.
-  What the CLI and the demo show is DIS-90's call.
+  What the CLI and the demo show is DIS-90's call. After the first spec audit the agent confirmed
+  this as lead engineer: the literal-text clause of DIS-83 AC1 is carried by DIS-90 (design R1).
 
 ## Impact
 
 - **Core**: new `packages/core/src/impact/` (`impact.ts`, `reverse-walk.ts`, `relevance.ts`,
-  `impact-request.ts`, `impact-report.ts`, `index.ts`) and one export line in
-  `packages/core/src/index.ts`. No port, adapter, migration or schema change.
+  `impact-request.ts`, `impact-report.ts`, `index.ts`), one export line in
+  `packages/core/src/index.ts`, and the new `packages/core/src/context/lexical-match.ts` with the
+  matching refactor of `context/rank.ts`. No port, adapter, migration or schema change.
 - **Seed and golden file**: none of the new files, nor `packages/core/src/index.ts`, is a seed
   (`packages/cli/src/seed/fingerprint.ts`) or answer fingerprint input, so no `seed:build` or
   `cache:build`.
