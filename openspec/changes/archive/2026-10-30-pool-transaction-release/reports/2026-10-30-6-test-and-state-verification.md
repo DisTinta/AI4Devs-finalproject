@@ -124,3 +124,11 @@ The latest test that might've caused the error is "A connection terminated durin
   node` (no `DATABASE_URL`, integration skipped): 1684 passed, 248 skipped; `npm run lint`,
   `npm run typecheck`, `npm run docs:coverage`: clean; `node scripts/dev-processes.mjs stop`: nothing
   running. The red-CI window on `golden-reviews.spec.ts` ran from `e188823` to `5655676`.
+
+## Addendum 3 (2026-10-30): CI of the PR (task 11.2)
+
+- Run 40983358304 on `a9c0a59`: `verify` failed (`FINGERPRINT_MISMATCH` `{reason:"seed"}`, Addendum 2);
+  `quality`, `mutation`, `scope`, `secrets`, `frontend` passed.
+- Run 40988529010 on `7a99646` (after the DIS-110 golden round):
+  https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/40988529010 — `scope`, `secrets`,
+  `verify`, `quality` and `mutation` all `success`; `frontend` (run 40988529077) `success`.

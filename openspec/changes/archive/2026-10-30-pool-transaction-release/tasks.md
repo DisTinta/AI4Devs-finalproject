@@ -76,13 +76,13 @@
 
 ## 11. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 11.1 Open the PR against `final-project-CRN`; DIS-110 to In Review with a Spanish comment linking it
-- [ ] 11.2 CI green, including the `verify` and mutation jobs: wait in the foreground with `gh pr checks <n> --watch --interval 60` (timeout 600000), repeated until no check is pending; link the run in an addendum to the step 6 report
+- [x] 11.1 Open the PR against `final-project-CRN`; DIS-110 to In Review with a Spanish comment linking it
+- [x] 11.2 CI green, including the `verify` and mutation jobs: wait in the foreground with `gh pr checks <n> --watch --interval 60` (timeout 600000), repeated until no check is pending; link the run in an addendum to the step 6 report
 - [x] 11.3 `/show-spec-working` (may reuse the step 7 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
 - [x] 11.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
 - [x] 11.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`
 - [x] 11.6 Fix every finding in this change (TDD for behaviour), each with an A/B/C/D destination in `design.md` → Follow-ups (no new tickets, R8); re-run what each fix invalidates (a golden round inside DIS-110 with a blind Opus/Sonnet panel only if a fix touches a seed fingerprint input, R6) and add an addendum to the affected report; commit to the same PR; re-run a check whose findings led to non-trivial fixes until no Blocker or Major
-- [ ] 11.7 `/opsx:archive`, commit it to the same PR; `node scripts/dev-processes.mjs stop`. Only in an autonomous run (`KIT_AUTONOMOUS_RUN="1"`), through the merge gate: merge (`gh pr merge <n> --merge`) only after the archive commit and with CI green, then DIS-110 to Done with a Spanish comment; otherwise the author merges
+- [x] 11.7 `/opsx:archive`, commit it to the same PR; `node scripts/dev-processes.mjs stop`. Only in an autonomous run (`KIT_AUTONOMOUS_RUN="1"`), through the merge gate: merge (`gh pr merge <n> --merge`) only after the archive commit and with CI green, then DIS-110 to Done with a Spanish comment; otherwise the author merges. Archive done; by the instruction of this run's orchestrator the agent neither merges nor changes the Linear state: the merge and DIS-110 to Done are left to the author (destination C)
 
 ## 12. Golden review round DIS-110: criterion first, then regenerate the seed and the golden answers with Ollama (design X11, X12, X13; spec golden-answers "Criterion first and immutable panel record"; ADR `20261017-stale-fingerprint-fails-verify`)
 
