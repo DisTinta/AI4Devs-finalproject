@@ -22,7 +22,7 @@
 
 ## 2. Integration over Postgres: a terminated connection (TDD; spec graph-store, the two terminated-connection scenarios; design D5)
 
-- [x] 2.1 GREEN check on the final code: the `it` "A connection terminated during rejecting work keeps the work's error", written in 1.3 in the existing `tests/integration/store/open-store.spec.ts`, block "running work in one transaction on a pooled store" (`applicationName` `codemind-tx-terminated-reject-test` through `withApplicationName`, project created with `uniqueName`, `pg_terminate_backend` from `connect()` of `tests/integration/helpers/db.ts`, poll `sessions` to 0 up to 2 s, then throw `E`; assert `E` itself, `projectIds` empty, a later run resolves, `close()` < 2 s, `sessionsLeft` 0, `projectCount()` back to the baseline, `deleteProjects` in `finally`), passes after step 1; its 1.3 result against the old code is in the step 6 report
+- [x] 2.1 GREEN check on the final code: the `it` "A connection terminated during rejecting work keeps the work's error", written in 1.3 in the existing `tests/integration/store/open-store.spec.ts`, block "running work in one transaction on a pooled store" (`applicationName` `codemind-tx-terminated-reject-test` through `withApplicationName`, project created with `uniqueName`, `pg_terminate_backend` from `connect()` of `tests/integration/helpers/db.ts`, poll `sessions` to 0 up to 2 s, then throw `E`; assert `E` itself, `projectIds` empty, a later run resolves, `close()` < 2 s, `sessionsLeft` 0, `deleteProjects` in `finally`; the global `projectCount()` baseline first planned here was dropped in the apply as a defect of the test, design X9, and `projectIds` empty is the scenario's assertion), passes after step 1; its 1.3 result against the old code is in the step 6 report
 - [x] 2.2 Same for the `it` "A connection terminated during resolving work fails the commit without driver text" (`applicationName` `codemind-tx-terminated-commit-test`; message exactly `the transaction could not be committed`, `cause` undefined, and message and stack hold neither `terminat`, `57P01` nor `administrator command`)
 - [x] 2.3 If the 2.1 or 2.2 run shows `pg` does not emit `error` on the borrowed client, add that observation to design D3 (the listener stays, R4); if `pg_terminate_backend` is refused to the test role, stop the ticket (design Risks), do not skip the scenarios
 - [x] 2.4 The four existing `it`s of the block are not edited (names and assertions unchanged)
@@ -72,7 +72,7 @@
 
 ## 10. Pull request preparation
 
-- [ ] 10.1 `/pr-describe` in Spanish against `final-project-CRN`: the Why marked as the agent's text (R1–R9, X1–X3), the separate `docs(DIS-110)` commit of the `explain` Purpose, the existing test file changed (5.1), the Stryker score, and the PowerShell check executed by the agent (R9)
+- [ ] 10.1 `/pr-describe` in Spanish against `final-project-CRN`: the Why marked as the agent's text (R1–R9, X1–X3), the `explain` Purpose edit left out of this change for the author (design X8; there is no `docs(DIS-110)` commit for it), the existing test files changed (5.1), the DIS-110 golden round (group 12d.8), the Stryker score, and the PowerShell check executed by the agent (R9)
 
 ## 11. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
