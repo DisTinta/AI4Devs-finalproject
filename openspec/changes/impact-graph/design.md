@@ -79,13 +79,18 @@ for a case the HTTP layer (DIS-95) can check itself.
    analyzer `imports` target the class symbol, so the file seeds add nothing (Context).
 2. For each direct component (distance ≤ 1, not a `test` file, the anchor's components included)
    whose node in the report is a symbol whose name differs from the component's (a method), when no
-   anchored or reached node already is that class: `findSymbols(projectId, component)` and keep the
+   anchor symbol is that class and no node reached outside the anchor symbols' files is that class
+   (decision R10): `findSymbols(projectId, component)` and keep the
    symbol whose name equals the component exactly and whose `fileId` equals the method's. Only
    direct components: their coverage is what the risk rule of DIS-90 reads; the coverage of indirect
-   components comes from the walk only. When no symbol matches, the component adds no class.
+   components comes from the walk only. When no symbol matches, the component adds no class. A
+   class of a direct component counts that component's `hops` as its seed distance whenever that is
+   smaller than its traversal distance (step 3), whether it was looked up or already reached.
 3. `neighbors(projectId, seeds, 1, ['tested_by'], 'out')`, seeds = the anchor symbols and their
    files, every reached node outside `test` files and outside the anchor symbols' files (symbols and
-   files), the file of each direct component and the classes of step 2, deduplicated. The nodes of
+   files), the file of each direct component (the only route to the tests of a direct component
+   whose file the walk did not reach; scenario "The tests of a direct component's file are found",
+   decision R9) and the classes of step 2, deduplicated. The nodes of
    the anchor symbols' files are not seeds: they are left out of the report (D3), and the anchor
    file seed and the class lookup of the anchor's components already cover them. Skipped when the
    seed list is empty (it never is once the anchor is not empty).
@@ -256,3 +261,13 @@ author; D = accepted and recorded.*
 | R6 | (Improvable, code reuse) Byte order through `compareBytes` (`knowledge/byte-order.ts`); the lexical match through `containsAnyTerm`, extracted from `rank.ts` into `context/lexical-match.ts` and shared, with `rankCandidates` unchanged and its tests untouched. The lexical match uses every term of `questionTerms(change)`, not truncated. | A |
 | R7 | (Improvable, `docs/backend-standards.md` §5) The per-component `findSymbols` and the per-distance `tested_by` statements are a recorded, bounded deviation from "Avoid N+1" (design → Risks), because `StorePort` has no batch lookup and changing it is a non-goal. | D — accepted |
 | R8 | (Improvable) Project scoping is guaranteed by the `StorePort` contract and not tested again; a `projectId` given as a number is an extra case of task 1.3; the new scenarios write their `change` text; End-to-End testing is not applicable (no UI); the merge of 12.7 is for the autonomous run only. | A |
+
+*Agent's text: decisions of correction round 2 of the spec audit
+(`reports/2026-10-30-spec-audit.md`, run 2), taken by the agent as lead engineer without the author
+(`docs/AUTONOMOUS-RUN.md` §2 and §6). Run 2 asked no question for the author.*
+
+| Id | Decision | Destination |
+|---|---|---|
+| R9 | (Audit run 2, B1) New scenario "The tests of a direct component's file are found" (task 4.7) pins the file seed of a direct component in the `tested_by` step and its seed distance (the component's `hops`); the spec has 22 scenarios (20 unit, 2 integration). | A |
+| R10 | (Audit run 2, improvable) D2 step 2 skips the class lookup only when the class is an anchor symbol or a node reached outside the anchor symbols' files, and a direct component's class always counts the component's `hops` as seed distance when smaller, so the design matches the spec in both corner cases of the audit; the spec's "reached file" component bullet uses D3's wording (no circular "own file"). | A |
+| R11 | (Audit run 2, improvable, Linear) The `[enhanced]` text of DIS-89 (D2 "solo los símbolos del ancla", "dos travesías") is not edited: the round 1 and round 2 comments on DIS-89 record the refinements R2 and R7 and are enough for traceability; this widens nothing. | D — accepted |

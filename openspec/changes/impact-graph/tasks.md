@@ -23,10 +23,10 @@
 - [ ] 3.1 RED: test "Only dependants within the hop limit are reported" in `tests/unit/impact/impact.spec.ts`
 - [ ] 3.2 GREEN, only what 3.1 asks for: `packages/core/src/impact/reverse-walk.ts` (`IMPACT_EDGE_KINDS` and the reverse traversal with `direction: 'in'`, seeded with the anchor symbols and their files, design D2 step 1 and R2) and a first `packages/core/src/impact/relevance.ts` grouping by component (design D3, D4) so that `direct` and `indirect` are built. No class lookup and no `tested_by` step yet (they come with 3.4). JSDoc on every export
 - [ ] 3.3 RED → GREEN: test "Callees, documents and co-changed files are not dependants" (`maxHops` 3; assert by `symbol` equality, not substring)
-- [ ] 3.4 RED → GREEN: test "Tests come from the walk and from the classes of direct components" (`maxHops` 1, `tests` exactly `[DiscountServiceTest, PriceCalculatorTest]`). GREEN adds to `reverse-walk.ts` the class lookup of direct components, the anchor's components included (design D2 step 2: `findSymbols` with exact name and same `fileId`), and the `tested_by` step grouped by seed distance (design D2 step 3, R3), with the test distance. Extra cases, not scenarios: the number of `findSymbols` calls after the anchor equals the number of distinct direct components reached through a method whose class is not already anchored or reached; the reverse traversal is called once with kinds `calls`, `imports`, `extends`, `implements`, direction `in` and, as seeds, exactly the anchor symbols and their files
+- [ ] 3.4 RED → GREEN: test "Tests come from the walk and from the classes of direct components" (`maxHops` 1, `tests` exactly `[DiscountServiceTest, PriceCalculatorTest]`). GREEN adds to `reverse-walk.ts` the class lookup of direct components, the anchor's components included (design D2 step 2: `findSymbols` with exact name and same `fileId`), and the `tested_by` step grouped by seed distance (design D2 step 3, R3), with the test distance. Extra cases, not scenarios: the number of `findSymbols` calls after the anchor equals the number of distinct direct components reached through a method whose class is neither an anchor symbol nor a node reached outside the anchor symbols' files (design D2 step 2, R10); the reverse traversal is called once with kinds `calls`, `imports`, `extends`, `implements`, direction `in` and, as seeds, exactly the anchor symbols and their files
 - [ ] 3.5 Create `tests/unit/impact/components.spec.ts` (header comment: spec path and DIS-89) with small graphs built with `tests/support/sample-graph.ts` in the in-memory double; every test asserts its anchor first (design P5). RED → GREEN: test "A reached node's own tests are found" (`change` `cambiar run`, `maxHops` 2; design R4). Extra case, not a scenario: a direct component reached through a method whose class symbol does not exist adds no test and the call still answers (design D2 step 2)
 
-## 4. Core: components and classification (TDD; spec impact "Report by component", and "Tests covering the change" for 4.6; design D3, D4, P3, P5, R2)
+## 4. Core: components and classification (TDD; spec impact "Report by component", and "Tests covering the change" for 4.6 and 4.7; design D3, D4, P3, P5, R2, R9)
 
 - [ ] 4.1 RED → GREEN: test "Q2 is reproduced over the acme-shop subset" (`cambiar los descuentos de DiscountService`, `maxHops` 2; "holds" by `symbol` with its `hops` and `resolution`; every entry `origin: 'graph'`; no `direct`/`indirect` entry in a `test` file)
 - [ ] 4.2 In `tests/unit/impact/components.spec.ts` (created in 3.5; small graphs, anchor asserted first, design P5). RED → GREEN: test "A component appears once at its minimum distance"
@@ -34,6 +34,7 @@
 - [ ] 4.4 RED → GREEN: test "The anchor's own file is not a dependant" (`change` `cambiar run`, so `Anchor::helper` is not anchored)
 - [ ] 4.5 RED → GREEN: test "The hop count defaults to two" (in `tests/unit/impact/impact.spec.ts`: deep equality with the `maxHops` 2 report)
 - [ ] 4.6 RED → GREEN: test "Importers and tests written file to file are found" in `tests/unit/impact/components.spec.ts` (file → file `imports` and `tested_by` edges built with `tests/support/sample-graph.ts`, `change` `cambiar Anchor`, `maxHops` 1; design R2)
+- [ ] 4.7 RED → GREEN: test "The tests of a direct component's file are found" in `tests/unit/impact/components.spec.ts` (`Caller` extends `Anchor`, file → file `tested_by` from `src/caller.ts`, no edge into `src/caller.ts`, `change` `cambiar Anchor`, `maxHops` 1, anchor asserted first; design D2 step 3, R9)
 
 ## 5. Core: relevance order and the lexical limit (TDD; spec impact "Relevance order", "Limit of the lexical anchor"; design D5, D7)
 
@@ -51,7 +52,7 @@
 ## 7. Backend: Review and Update Existing Tests (MANDATORY)
 
 - [ ] 7.1 Identify tests affected by the change: `grep -rn "impact" tests` and `npm run typecheck`. Expected: no existing test changes (the change adds a module, one export line and the `context/lexical-match.ts` extraction, which keeps `rankCandidates` and its tests unchanged). If one must change, name it in this task before editing it, without weakening its assertions
-- [ ] 7.2 Every `#### Scenario:` of `specs/impact/spec.md` (21) maps 1:1 to a test with exactly the same name (grep each title in `tests/`): 19 under `tests/unit/impact/`, 2 in `tests/integration/impact/acme-shop.spec.ts`; no scenario without a test, none with two
+- [ ] 7.2 Every `#### Scenario:` of `specs/impact/spec.md` (22) maps 1:1 to a test with exactly the same name (grep each title in `tests/`): 20 under `tests/unit/impact/`, 2 in `tests/integration/impact/acme-shop.spec.ts`; no scenario without a test, none with two
 
 ## 8. Backend: Run Tests and Verify Data State (MANDATORY)
 

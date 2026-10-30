@@ -375,3 +375,19 @@ Each of the 21 existing scenarios has a task, and the 7.2 count (21 = 19 unit + 
   "*Texto del agente (auditoría de la especificación, ronda 2, 2026-10-30).* La segunda auditoría de `impact-graph` pide un cambio bloqueante: ningún escenario comprueba que el paso `tested_by` sale también del fichero de cada componente directo. En TypeScript es la única vía para encontrar los tests de un componente alcanzado por `extends` o `implements` cuando su fichero no se alcanza dentro de `maxHops`. Se añade el escenario «The tests of a direct component's file are found» (tarea 4.7) y la especificación pasa a 22 escenarios (20 unitarios y 2 de integración). Además, la D2 del diseño ajusta cuándo se omite la búsqueda de la clase de un componente directo, para que coincida con la especificación."
 - Improvable, DIS-89 `[enhanced]` (not `[original]`): D2 still says «Las semillas son solo los símbolos del ancla, no sus ficheros», and the non-functional note still says «dos travesías». Both are superseded by R2 and R7. Either edit those two sentences in the enhanced part, adding «(refinado por R2/R7, ver comentario del 2026-10-30)», or leave the comment from round 1 as the only record. The comment is already enough for traceability.
 - **DIS-83**: nothing to edit.
+
+## Resolution of run 2
+
+*Agent's text: correction round 2 (`docs/AUTONOMOUS-RUN.md` §6), 2026-10-30. Run 2 asked no
+question for the author. Each decision is in `design.md` → Follow-ups (R9–R11) and in a Spanish
+comment on DIS-89. `openspec validate impact-graph --strict` passes; the spec now has 22 scenarios
+(20 unit, 2 integration).*
+
+| Finding | Resolution |
+|---|---|
+| B1 (no scenario for the file of a `direct` component) | Fixed (R9): spec "Tests covering the change" gains the scenario "The tests of a direct component's file are found", as proposed (`Caller` extends `Anchor`, no edge into `src/caller.ts`, file → file `tested_by` to `src/caller.test.ts`, `cambiar Anchor`, `maxHops` 1); task 4.7 added and named in the heading of section 4; design D2 step 3 names it as the only route to those tests; task 7.2 counts 22 scenarios (20 unit, 2 integration). |
+| Improvable: circular wording of the reached-file component | Fixed (R10): spec "Report by component" now says "a reached file none of whose symbols is a component of the report (in any list)", the wording of design D3. |
+| Improvable: D2 step 2 skip condition vs the spec | Fixed (R10): D2 step 2 skips the class lookup only when the class is an anchor symbol or a node reached outside the anchor symbols' files, and a direct component's class counts that component's `hops` as seed distance whenever smaller than its traversal distance; the extra case of task 3.4 uses the same condition. |
+| Improvable: extra cases instead of scenarios (malformed `projectId`, empty class lookup, lexical-match position) | No change: the audit accepts them (R8). |
+| Improvable: DIS-89 `[enhanced]` text (D2 seeds, "dos travesías") | Decided by the agent (R11, destination D): the `[enhanced]` text is not edited; the round 1 and round 2 comments on DIS-89 record the refinements R2 and R7, which the audit says is enough for traceability. |
+| Linear comment of run 2 | Done: Spanish comment on DIS-89 summarising R9–R11. |

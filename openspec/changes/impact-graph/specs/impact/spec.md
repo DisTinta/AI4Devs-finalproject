@@ -104,8 +104,8 @@ An answered report SHALL be `{ status: 'answered', direct, indirect, tests }`. I
 component:
 
 - A symbol's component SHALL be its name up to the first `::` (the whole name when it has none), in
-  the symbol's file; a reached file whose own file contributes no symbol component to the report
-  SHALL be its own component, named by its path.
+  the symbol's file; a reached file none of whose symbols is a component of the report (in any
+  list) SHALL be its own component, named by its path.
 - The components of the anchor SHALL be in `direct` with `hops` 0 and `resolution` `exact`. Every
   other node of an anchor symbol's file SHALL be left out (it is part of the change).
 - Every other component SHALL appear once, at the minimum distance of its nodes, with `resolution`
@@ -191,6 +191,15 @@ traversal reached and the targets of one `tested_by` step from source to target 
 - **WHEN** impact is asked for `cambiar Anchor` with `maxHops` 1
 - **THEN** `direct` holds an entry whose `symbol` and `file` are both `src/caller.ts`, with `hops` 1
 - **AND** `tests` holds an entry whose `symbol` and `file` are both `src/anchor.test.ts`
+
+#### Scenario: The tests of a direct component's file are found
+
+- **GIVEN** a graph where the class `Anchor` of `src/anchor.ts` is anchored, the class `Caller` of
+  `src/caller.ts` extends `Anchor` with an `exact` edge, no edge reaches the file `src/caller.ts`,
+  and `src/caller.ts` is tested by the file `src/caller.test.ts`, of kind `test`
+- **WHEN** impact is asked for `cambiar Anchor` with `maxHops` 1
+- **THEN** `direct` holds `Caller` with `hops` 1
+- **AND** `tests` holds an entry whose `symbol` and `file` are both `src/caller.test.ts`
 
 ### Requirement: Relevance order
 
