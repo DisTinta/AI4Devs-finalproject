@@ -1,0 +1,247 @@
+{
+  "panelist": 2,
+  "model": "claude-sonnet-5-5",
+  "date": "2026-10-30",
+  "sourcesRead": [
+    "openspec/changes/golden-review-dis-110-r2/tasks.md",
+    "docs/golden-review/2026-10-golden-review-dis-110-r2.md",
+    "docs/golden-review/panel/2026-10-golden-review-dis-110-r2-input.json",
+    "fixtures/task-api/src/routes/tasks.routes.ts",
+    "fixtures/task-api/src/controllers/tasks.controller.ts",
+    "fixtures/task-api/src/services/task.service.ts",
+    "fixtures/task-api/src/domain/pagination.ts",
+    "fixtures/task-api/src/domain/task-status.ts",
+    "fixtures/task-api/src/config/env.ts",
+    "fixtures/acme-shop/app/Services/PriceCalculator.php",
+    "fixtures/acme-shop/app/Http/Controllers/CheckoutController.php",
+    "fixtures/acme-shop/app/Services/DiscountService.php",
+    "fixtures/acme-shop/app/Services/TaxService.php",
+    "fixtures/acme-shop/app/Services/ShippingService.php",
+    "fixtures/acme-shop/app/Services/CouponValidator.php",
+    "fixtures/acme-shop/app/Http/Requests/StoreOrderRequest.php",
+    "fixtures/acme-shop/app/Observers/OrderObserver.php"
+  ],
+  "items": [
+    {
+      "project": "task-api",
+      "id": "Q1",
+      "answer": "true",
+      "verdict": "partial",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/routes/tasks.routes.ts:15"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/controllers/tasks.controller.ts:14",
+            "fixtures/task-api/src/services/task.service.ts:25"
+          ]
+        },
+        {
+          "n": 3,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/services/task.service.ts:26",
+            "fixtures/task-api/src/services/task.service.ts:49"
+          ]
+        },
+        {
+          "n": 4,
+          "judgement": "false",
+          "cites": [
+            "fixtures/task-api/src/routes/tasks.routes.ts:18"
+          ]
+        }
+      ],
+      "notes": "The answer is true: each route attaches a schema (fixtures/task-api/src/routes/tasks.routes.ts:18) and the controllers only call the service. Statement 4 is false because the validation schemas are imported from src/schemas (fixtures/task-api/src/routes/tasks.routes.ts:3-8), not defined in a README.md."
+    },
+    {
+      "project": "task-api",
+      "id": "Q2",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/domain/pagination.ts:13"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/domain/pagination.ts:13"
+          ]
+        },
+        {
+          "n": 3,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/domain/pagination.ts:14"
+          ]
+        }
+      ],
+      "notes": "buildPage returns a Page with items, total, page and pageSize (fixtures/task-api/src/domain/pagination.ts:14). The answer and statements omit the computed pageCount at fixtures/task-api/src/domain/pagination.ts:19, an imprecision but not an error."
+    },
+    {
+      "project": "task-api",
+      "id": "Q3",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/domain/task-status.ts:13"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/domain/task-status.ts:25"
+          ]
+        },
+        {
+          "n": 3,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/domain/task-status.ts:29"
+          ]
+        },
+        {
+          "n": 4,
+          "judgement": "true",
+          "cites": [
+            "fixtures/task-api/src/services/task.service.ts:50"
+          ]
+        }
+      ],
+      "notes": "The TRANSITIONS table is defined at fixtures/task-api/src/domain/task-status.ts:13 and consulted by canTransition at line 26. The cited lines 25-31 use the table rather than define it, which is accepted as backing for statement 1."
+    },
+    {
+      "project": "task-api",
+      "id": "Q4",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [],
+      "notes": "The fixture has no authentication route, hook, plugin or check; the only trace is an unused JWT_SECRET env default at fixtures/task-api/src/config/env.ts:13 and the routes carry no auth handlers (fixtures/task-api/src/routes/tasks.routes.ts:18). UNKNOWN is the due answer."
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q1",
+      "answer": "true",
+      "verdict": "partial",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/PriceCalculator.php:25",
+            "fixtures/acme-shop/app/Http/Controllers/CheckoutController.php:31"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "unverifiable",
+          "cites": [
+            "fixtures/acme-shop/app/Services/DiscountService.php:34"
+          ]
+        },
+        {
+          "n": 3,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/TaxService.php:23",
+            "fixtures/acme-shop/app/Services/TaxService.php:24"
+          ]
+        },
+        {
+          "n": 4,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/ShippingService.php:24",
+            "fixtures/acme-shop/app/Services/ShippingService.php:26"
+          ]
+        }
+      ],
+      "notes": "compute() applies discount, tax and shipping at fixtures/acme-shop/app/Services/PriceCalculator.php:28-34, so the answer is true. Statement 2 is unverifiable: the claim that docs/pricing.md documents the discount logic (evidence E15) is backed by no readable line, and the cited entry 4 is a README.md outside the allowed sources."
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q3",
+      "answer": "true",
+      "verdict": "partial",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/CouponValidator.php:16"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/CouponValidator.php:35"
+          ]
+        },
+        {
+          "n": 3,
+          "judgement": "unverifiable",
+          "cites": [
+            "fixtures/acme-shop/app/Http/Requests/StoreOrderRequest.php:41"
+          ]
+        },
+        {
+          "n": 4,
+          "judgement": "unverifiable",
+          "cites": [
+            "fixtures/acme-shop/app/Http/Requests/StoreOrderRequest.php:35"
+          ]
+        },
+        {
+          "n": 5,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Services/DiscountService.php:37"
+          ]
+        }
+      ],
+      "notes": "Coupon validity is checked in CouponValidator::percentFor (fixtures/acme-shop/app/Services/CouponValidator.php:24-30), so the answer is true. Statements 3 and 4 are speculative ('podria'): the cited StoreOrderRequest lines only strip and return the lines array (fixtures/acme-shop/app/Http/Requests/StoreOrderRequest.php:44) and contain no coupon validation."
+    },
+    {
+      "project": "acme-shop",
+      "id": "Q4",
+      "answer": "true",
+      "verdict": "correct",
+      "statements": [
+        {
+          "n": 1,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Observers/OrderObserver.php:18"
+          ]
+        },
+        {
+          "n": 2,
+          "judgement": "true",
+          "cites": [
+            "fixtures/acme-shop/app/Observers/OrderObserver.php:19"
+          ]
+        }
+      ],
+      "notes": "created() dispatches the RecalculateTotals job and fires OrderPlaced (fixtures/acme-shop/app/Observers/OrderObserver.php:18-19). The answer says it recalculates totals, which is imprecise because the observer only dispatches a job, but it is true in effect."
+    }
+  ]
+}
