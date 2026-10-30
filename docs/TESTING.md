@@ -84,7 +84,16 @@ tests:
   `api/ask.spec.ts` y `cli/ask-command.spec.ts` a los proyectos de la semilla). Los que leen la tabla
   entera por definición (`query-cost.spec.ts`, `cli/projects-command.spec.ts` y el listado vacío de
   `graph-read.spec.ts`) trabajan en una transacción propia `REPEATABLE READ`, siempre deshecha, con
-  `lock_timeout = '1s'` y reintentos ante `40001` y `55P03` durante 10 s.
+  `lock_timeout = '1s'` y reintentos ante `40001` y `55P03` durante 10 s: el ayudante
+  `inOwnSnapshot(work)` de `tests/integration/helpers/snapshot.ts`.
+- **Triggers creados por un test.** Para provocar un fallo de escritura, cinco tests creaban un trigger
+  en su transacción (`claims-write`, `claims-refresh` y `explain` sobre `evidence`, `cache-entry` sobre
+  `cache_entry`, `query-log-write` sobre `query_log`). `CREATE TRIGGER` esperaba a cualquier
+  transacción de otro fichero que hubiera escrito en la tabla, y las demás escrituras hacían cola
+  detrás: el 2026-10-30 una ejecución completa acumuló esa cola (dos `lock timeout` y cinco tests a
+  20 s). Ahora usan `rejectingWrites(client, …)` de `tests/integration/helpers/rejecting-writes.ts`:
+  en lugar del `INSERT` elegido envía un bloque `DO` que hace que PostgreSQL lance el error, sin DDL
+  ni bloqueos. Para un test nuevo que necesite un fallo de escritura, úsalo en vez de un trigger.
 - **Escrituras sin acotar.** Un `DELETE FROM project` o `UPDATE project` sin `WHERE` en la
   transacción del arnés bloquea hasta el final del test los proyectos que otros ficheros han
   confirmado; junto con los ids fijos de la semilla, eso producía `deadlock detected`. Los `seeded()`
@@ -105,19 +114,20 @@ tests:
   Un test que agota su tiempo no llega a su `finally` y puede dejar confirmado su proyecto (por
   ejemplo `claims-recent-…`); la misma comprobación lo encuentra.
 
+  **Comprobación al arrancar.** Desde DIS-110, si `DATABASE_URL` está definida, la ejecución se niega a
+  empezar cuando la base de datos tiene proyectos confirmados (`globalSetup` de los proyectos `node` y
+  `seed-build` de Vitest, `tests/integration/helpers/global-setup.ts`), con este mensaje:
+
+  ```text
+  Error: The test database holds 1 committed project; it must hold none before an integration run (see docs/TESTING.md → Carreras conocidas).
+  ```
+
+  Vacíala con la orden de arriba y vuelve a ejecutar. La comprobación corre también en una ejecución
+  solo de tests unitarios si `DATABASE_URL` sigue definida (en PowerShell, `$env:DATABASE_URL` dura
+  toda la sesión); sin `DATABASE_URL` no hace nada.
+
 Quedan estas carreras, que no se eliminaron:
 
-- Varios tests crean un trigger en su transacción para provocar un fallo de escritura:
-  `claims-refresh.spec.ts` y `claims-write.spec.ts` sobre `evidence`, `explain/explain.spec.ts` («A
-  failed write over the database still answers without leaking») sobre `evidence`,
-  `cache-entry.spec.ts` sobre `cache_entry` y `query-log-write.spec.ts` sobre `query_log`. `CREATE
-  TRIGGER` espera a cualquier transacción de otro fichero que haya escrito en esa tabla (o borrado en
-  cascada sobre ella), con un `lock_timeout` de 10 s (60 s en `explain`); mientras espera, las demás
-  escrituras en la tabla hacen cola detrás de él. El 2026-10-30, con la base de datos limpia, una de
-  ocho ejecuciones completas acumuló esa cola: `cache-entry` y `query-log-write` fallaron por
-  `lock timeout`, y otros cinco tests agotaron sus 20 s detrás (`claims-write`,
-  `graph-schema-constraints`, `graph-write`, `seed-load`, `projects-command`). Quitarla exige que esos
-  tests provoquen el fallo sin DDL (pendiente de decisión de la autora).
 - `query-cost.spec.ts`, `projects-command.spec.ts` y el listado vacío de `graph-read.spec.ts` esperan un
   bloqueo como mucho 1 s y reintentan durante 10 s: si otro fichero retiene una fila más tiempo,
   fallan con `canceling statement due to lock timeout` en lugar de esperar hasta los 20 s del test.

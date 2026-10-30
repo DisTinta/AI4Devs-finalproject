@@ -4,8 +4,9 @@ import { afterEach, beforeAll, beforeEach, describe } from 'vitest';
 import { migrateUp } from '../../../packages/adapters/store-postgres/src/migrate';
 
 /**
- * The database every integration test uses, from `DATABASE_URL`. This module is the only place that
- * reads it and the only gate for a missing value (the store `support.ts` re-exports it).
+ * The database every integration test uses, from `DATABASE_URL`. This module is the only gate for a
+ * missing value (the store `support.ts` re-exports it); the start-up check (`global-setup.ts`) also
+ * reads it and does nothing without it.
  */
 export const databaseUrl = process.env.DATABASE_URL;
 

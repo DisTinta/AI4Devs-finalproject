@@ -8,6 +8,12 @@ import { defineConfig } from 'vitest/config';
  */
 const HARNESS_POOL = process.platform === 'win32' ? { maxWorkers: 2, sequence: { groupOrder: 1 } } : {};
 
+/**
+ * Before any file of the projects that run database tests, refuses a test database holding committed
+ * projects; does nothing without `DATABASE_URL` (DIS-110, integration-test-races design D9).
+ */
+const DATABASE_START_UP_CHECK = ['tests/integration/helpers/global-setup.ts'];
+
 export default defineConfig({
   // The root config has no React plugin: compile the `.tsx` tests with the React 17+ JSX runtime
   // whatever tsconfig the transformer finds (DIS-58 design D23). Vite 8 transforms with Oxc, which
@@ -59,6 +65,7 @@ export default defineConfig({
           include: ['tests/integration/cli/seed-build.spec.ts'],
           environment: 'node',
           pool: 'forks',
+          globalSetup: DATABASE_START_UP_CHECK,
         },
       },
       {
@@ -83,6 +90,7 @@ export default defineConfig({
         test: {
           name: 'node',
           environment: 'node',
+          globalSetup: DATABASE_START_UP_CHECK,
           exclude: [
             'fixtures/**',
             'node_modules/**',
