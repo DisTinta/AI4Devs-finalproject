@@ -98,7 +98,7 @@ This group is done by independent agents launched outside the apply: panelist 1 
 
 ## 10. The explain Purpose (design G5, F4)
 
-- [ ] 10.1 Edit `## Purpose` of `openspec/specs/explain/spec.md` to the text of design G5 (the answer call plus the lazy refresh of the due stale prior claims, requirement "Stale claim refresh", instead of "asks the model once"); no requirement changes. Check: `grep -n "asks the model once" openspec/specs/explain/spec.md` returns nothing and the Purpose names "Stale claim refresh"
+- [ ] 10.1 Edit `## Purpose` of `openspec/specs/explain/spec.md` to the text of design G5 (the answer call plus the lazy refresh of the due stale prior claims, requirement "Stale claim refresh", instead of "asks the model once"); no requirement changes. Check: `grep -n "asks the model once" openspec/specs/explain/spec.md` returns nothing and the Purpose names "Stale claim refresh". Blocked (design F4): the hook `protect-specs-and-tests` denied the edit in this unattended run; left to the author (destination C)
 - [ ] 10.2 Commit it alone as `docs(DIS-110): …` (explicit path) and push
 
 ## 11. Update Technical Documentation (MANDATORY)
