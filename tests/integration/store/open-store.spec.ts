@@ -136,6 +136,23 @@ async function deleteProjects(name: string): Promise<void> {
   }
 }
 
+/**
+ * Terminates every backend named `applicationName` from another connection and waits (up to 2 s)
+ * until none is left, so the termination has landed before the caller's work settles.
+ */
+async function terminateSessions(applicationName: string): Promise<void> {
+  const client = await connect();
+  try {
+    await client.query(
+      'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name = $1 AND pid <> pg_backend_pid()',
+      [applicationName],
+    );
+  } finally {
+    await client.end();
+  }
+  expect(await sessionsLeft(applicationName)).toBe(0);
+}
+
 /** A project name no other test uses. */
 function uniqueName(label: string): string {
   return `tx-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -228,5 +245,74 @@ describeWithDatabase('running work in one transaction on a pooled store', () => 
     expect(Date.now() - started).toBeLessThan(2_000);
     expect(await sessionsLeft(applicationName)).toBe(0);
     expect(await projectCount()).toBe(before);
+  });
+
+  it("A connection terminated during rejecting work keeps the work's error", async () => {
+    // Arrange
+    const applicationName = 'codemind-tx-terminated-reject-test';
+    const url = withApplicationName(databaseUrl as string, applicationName);
+    const name = uniqueName('terminated-reject');
+    const failure = new Error('work failed');
+    const opened = await openPostgresStore(url, { applicationName });
+    try {
+      // Act
+      const run = opened.transaction(async (tx) => {
+        await tx.createProject({ name, rootPath: 'fixtures/tx', language: 'php' });
+        await terminateSessions(applicationName);
+        throw failure;
+      });
+
+      // Assert
+      await expect(run).rejects.toBe(failure);
+      expect(await projectIds(name)).toEqual([]);
+      await expect(opened.transaction(async () => 'after')).resolves.toBe('after');
+      const started = Date.now();
+      await opened.close();
+      expect(Date.now() - started).toBeLessThan(2_000);
+      expect(await sessionsLeft(applicationName)).toBe(0);
+    } finally {
+      await deleteProjects(name);
+      await opened.close().catch(() => undefined);
+    }
+  });
+
+  it('A connection terminated during resolving work fails the commit without driver text', async () => {
+    // Arrange
+    const applicationName = 'codemind-tx-terminated-commit-test';
+    const url = withApplicationName(databaseUrl as string, applicationName);
+    const name = uniqueName('terminated-commit');
+    const opened = await openPostgresStore(url, { applicationName });
+    try {
+      // Act
+      const rejection = await opened
+        .transaction(async (tx) => {
+          await tx.createProject({ name, rootPath: 'fixtures/tx', language: 'php' });
+          await terminateSessions(applicationName);
+          return 'resolved';
+        })
+        .then(
+          () => undefined,
+          (error: unknown) => error as Error,
+        );
+
+      // Assert
+      expect(rejection).toBeInstanceOf(Error);
+      expect(rejection!.message).toBe('the transaction could not be committed');
+      expect(rejection!.cause).toBeUndefined();
+      for (const text of [rejection!.message, rejection!.stack ?? '']) {
+        expect(text).not.toContain('terminat');
+        expect(text).not.toContain('57P01');
+        expect(text).not.toContain('administrator command');
+      }
+      expect(await projectIds(name)).toEqual([]);
+      await expect(opened.transaction(async () => 'after')).resolves.toBe('after');
+      const started = Date.now();
+      await opened.close();
+      expect(Date.now() - started).toBeLessThan(2_000);
+      expect(await sessionsLeft(applicationName)).toBe(0);
+    } finally {
+      await deleteProjects(name);
+      await opened.close().catch(() => undefined);
+    }
   });
 });
