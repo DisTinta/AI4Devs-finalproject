@@ -231,3 +231,222 @@ impact-risk-cli --strict` passes after the edits.*
 
 Scenario counts after the round: impact keeps 7 MODIFIED scenarios and has 15 ADDED (8 of risk);
 cli-impact has 17. Task 7.2 states them.
+
+---
+
+## Run 2 (2026-10-30)
+
+APPROVED
+
+**Questions for the author:** none. Run 1 raised Q1 (which risk rule) and Q2 (the demo level for acme-shop). The agent answered both as lead engineer: R1 adopts the PH-15 rule as written, and R2 accepts `RIESGO HIGH` in the demo. Both answers are recorded in `design.md` → Follow-ups, in the "Resolution of run 1" section of this report and in a Spanish comment on DIS-90. Neither contradicts the ticket or the project. R1 actually brings the change back to the sub-issue's own requirement that the spec "parte de la regla ya decidida, no la redefine".
+
+**Inputs read**
+- **The change:** `proposal.md`, `design.md`, `specs/impact/spec.md`, `specs/cli-impact/spec.md`, `tasks.md`, and `reports/2026-10-30-spec-audit.md` (run 1 and its resolution).
+- **Linear:** DIS-90 (description and its 5 comments) and its parent DIS-83 (no comments).
+- **Project docs:** `docs/base-standards.md`, `docs/openspec-tasks-mandatory-steps.md`, `docs/project-context.md` (CLI, impact module, fingerprint inputs), `docs/backend-standards.md` §8–9, the list of `docs/adr/`.
+- **Main spec:** `openspec/specs/impact/spec.md`.
+- **readme.md:** §1.3, §1.4, §2 and the §4 `/impact` block.
+- **Core code (`packages/core/src/`):** `impact/{impact,impact-request,relevance,reverse-walk}.ts`, `explain/{explain,explain-event,usage}.ts`, `knowledge/query-log.ts`, `ports/StorePort.ts`.
+- **CLI code (`packages/cli/src/`):** `index.ts`, `logger.ts`, `commands/ask.ts`.
+- **Other:** `.dependency-cruiser.cjs` and `tests/unit/impact/impact.spec.ts`.
+
+---
+
+### 1. Scope against the ticket
+
+Clean. Everything follows from DIS-90:
+- `risk.ts` and its rule (description and DoD);
+- the rationale (enhanced AC2);
+- the `query_log` row (AC4; DIS-83 technical context);
+- the CLI `impact` command with `[grafo]` sections and `RIESGO` (DoD, AC5);
+- `--max-hops` (enrich D7, agent's text, consistent with the parent's AC2);
+- the docs that still describe the stub.
+
+Run 1's invented scope (S1: the shared `open-store.ts` opener and the `ask.ts` refactor) is gone. Task 4.1 now checks that `ask.ts` and `compose-index.ts` stay untouched. Nothing is widened to the parent's whole story: `[git]`, stale documentation, HTTP and the web screen are explicit non-goals that point to DIS-94 and DIS-95.
+
+### 2. Inherited acceptance criteria
+
+| Parent / sub-issue criterion | Requirement | Scenario(s) | Status |
+|---|---|---|---|
+| DIS-83 AC4: `risk.level` by the PH-15 rule, one test per level | impact "Risk level of a report" | HIGH (uncovered), LOW, HIGH (covered, heuristic-only), MEDIUM (exact chain beyond first hop), HIGH (untested heuristic) | Covered; the rule is PH-15 as written (R1) |
+| DIS-83 AC4: the rationale cites files, direct elements without a test, heuristic-only chains | same | every risk scenario pins the exact sentence; "The rationale counts in the singular" | Covered (adds `T` from DIS-90 AC2) |
+| DIS-83 AC5: no anchor → `UNKNOWN`/`no-anchor`, `risk` absent | "Anchoring the change" + "Risk level of a report" | "A change that anchors nothing answers no-anchor"; extra case in 1.9 (no `risk` key) | Covered |
+| DIS-83 AC2: `maxHops = 4` rejected before traversal | main "Impact request validation"; cli-impact "Impact command arguments" | "An invalid impact request is rejected before any connection" | Covered |
+| DIS-83 technical context: `query_log` with `capability = 'impact'` | "Query log of an impact call" | 6 scenarios | Covered |
+| DIS-90 DoD / AC5: CLI prints `[grafo]` sections and `RIESGO` with its sentence | cli-impact "Impact report output" | "An impact report is printed by section with its risk", "Q2 over the seed is printed with its risk" | Covered |
+| DIS-90 AC2: singular/plural sentence (F=1, T=0, U=1, H=0) | "Risk level of a report" | "The rationale counts in the singular" | Covered |
+| DIS-90 AC3 (corrected by P1): Q2 over the seed → `HIGH` with the exact sentence | "Risk over the indexed acme-shop seed" | "Q2 over the seed is high risk" | Covered; the ticket carries the correction note |
+| DIS-90 AC4: row, no row on failure, `query_not_logged` event | "Query log of an impact call" | 6 scenarios, plus the extra cases of 2.4 and 2.5 | Covered |
+| DIS-90 AC5: CLI errors and exit codes | cli-impact requirements | see section 11 | Covered |
+
+There is no disagreement left between the sub-issue and the parent. The parent's AC1 asks for the literal text «cambiar el cálculo de descuentos». DIS-89 handles it through the "Limit of the lexical anchor" requirement, and this change answers it with the demo note (design D9, task 10.1).
+
+### 3. Missing scenarios
+
+- **M5 (improvable): a test that only calls a direct component has no scenario.** The MUST clause is in "Risk level of a report": "a test that only calls the component, SHALL not cover it". The scenario "The test of an indirect component does not cover a direct one" covers only the first half of that sentence. Design D3 gives the reason for the second half, but no test pins it. Correction: add a scenario to the impact delta and a RED → GREEN task after 1.9:
+  - Scenario name: "A test that calls a direct component does not cover it".
+  - GIVEN: `Anchor::run` is anchored and tested through the class `Anchor` by `AnchorTest`; `Caller::a` calls it with an `exact` edge; `CallerTest::t`, in a file of kind `test`, calls `Caller::a` with an `exact` edge; nothing has a `tested_by` edge to `Caller`.
+  - WHEN: impact is asked for `cambiar run` with `maxHops` 2.
+  - THEN: `tests` holds `AnchorTest` and `CallerTest`, `risk.level` is `HIGH`, and the rationale counts `1 elemento directo sin test`.
+  - Task 7.2 then counts 16 ADDED impact scenarios.
+- **M6 (improvable): the shortest-path bound has no test.** The heuristic-only definition says it uses "the resolution of a node's paths of minimum distance". So a node whose only `exact` path is longer than its shortest path counts as heuristic. Design D1 and Risks accept this bound, but nothing pins it. Because it can turn a PH-15 `MEDIUM` into `HIGH`, record it rather than leave it implicit:
+  - add an extra case to task 1.9: a covered direct `Caller::a`, `heuristic` at hop 1, with a longer all-`exact` path to the same node only, gives `H` = 1 and `HIGH`;
+  - add a Follow-ups row (destination D) for the accepted bound.
+
+### 4. Ambiguity
+
+Clean. I searched the proposal, design, specs and tasks for "fast", "easy", "secure", "efficient", "many", "appropriate", "robust" (and "simple", "quickly", "large"). The only hits are:
+- "unbounded on a large project" in design D2, which explains why an alternative was rejected; it is not a requirement;
+- "computed by the simplest correct means" in task 1.2a, a TDD step whose final shape task 1.2b pins with an exact statement-shape test.
+
+### 5. Open decisions
+
+No blocking open decision. These are all pinned:
+- **Rule and counts:** the level rule, the counts `F`/`T`/`U`/`H` and the list they are counted over (the report's `direct` after `buildReport`), the four singular/plural word pairs.
+- **Query log:** every field of the row, the two clock reads, and the event codes with their mapping.
+- **CLI:** the parsing of `--max-hops` (`^[0-9]+$`, otherwise `NaN`), the exit codes and error codes, the line formats (`salto`/`saltos`, file components printed once, `  (ninguno)`), the order of the sections, the event line and the `application_name`.
+
+One improvable point:
+- **O2 (improvable): which field is blamed when both are invalid.** When `change` and `--max-hops` are both invalid, the CLI reports whatever `parseImpactRequest` names first (Zod issue order: `change`). The behaviour is deterministic because the use case's parser is reused, but no text states it. Add one sentence to cli-impact "Impact command arguments": "When both are invalid, `details.field` is `change`." No scenario is needed.
+
+### 6. Contradictions inside the change
+
+- **C2 (improvable): the stub sentence of readme §4 stays.**
+  - The proposal (What Changes → Docs) promises to update "the stub sentences" of `readme.md`.
+  - Task 10.1 says "The OpenAPI block of §4 `/impact` stays (DIS-95's)".
+  - That block's `description` (readme.md:1312-1313) says «todavía no implementado (la ruta no existe y la CLI `impact` es un stub)», which is false once this change merges.
+  - Correction: task 10.1 edits only that parenthetical, for example «la ruta no existe todavía; la CLI `impact` responde desde DIS-90». The schema and the example stay with DIS-95.
+- **C3 (improvable): the proposal's definition of "covered" is looser than the spec's.**
+  - Proposal What Changes says covered means "its nodes in the report, its file, its class".
+  - The spec says "its anchor symbols and their file (for a component of the anchor), its nodes reached by the reverse traversal, its file, or its class".
+  - The report holds components, not nodes, and the proposal's wording drops the anchor file. Align the proposal with the spec.
+- Otherwise the proposal, design and specs agree on:
+  - the rule (R1);
+  - `U` and `H` counted over the report's `direct`;
+  - the order of reads and the row;
+  - `risk` only on `answered`;
+  - `events` only when the row was not written;
+  - exit codes, labels and the own `defaultOpenStore`.
+- The scenario counts in task 7.2 are correct:
+  - impact keeps 7 MODIFIED scenarios;
+  - impact has 15 ADDED scenarios: 8 risk, 1 seed risk, 6 query-log;
+  - cli-impact has 17 scenarios.
+
+### 7. Contradictions with the project
+
+- **Main spec, no contradiction.** The MODIFIED requirements "Anchoring the change" and "Report by component" repeat the text of `openspec/specs/impact/spec.md` word for word, plus the `events` and `risk` clauses. Their scenarios are unchanged. "Impact request validation" ("no store method SHALL be called") agrees with "an invalid request writes no row". "Tests covering the change" is not contradicted: the new inward read only attributes coverage and adds no test.
+- **Fingerprint inputs (P9) hold.** `packages/core/src/impact/` is neither a seed nor an answer fingerprint input (`docs/project-context.md:1318-1334`). `compose-index.ts` and `packages/core/src/index.ts` are untouched.
+- **Backend standards, no conflict.** Rows at zero cost do not change the `withDailyBudget` sum (§8). The change text is stored only in `query_log.text` (§9).
+- **Process.** ADR `20261026-autonomous-audit-correction-rounds.md` and `docs/AUTONOMOUS-RUN.md` §6 back the agent's answers to the questions for the author. The agent merge in task 12.7 is limited to `KIT_AUTONOMOUS_RUN=1`.
+- **K1 (improvable): one more stale sentence in `docs/project-context.md`.** Lines 901-905 describe the impact reads as "`tested_by` statements (direction `out`, one per distinct seed distance, at most `maxHops + 1`)". After this change there is also exactly one inward `tested_by` coverage read. Task 10.3 only replaces lines ~228 and ~915. Add the coverage read and `exactChain` to the 10.3 edit.
+- **K2 (improvable): the readme §4 example rationale has another format.** The example in readme.md:1356 («4 ficheros afectados, 2 cubiertos por tests, 1 documento desalineado.») differs from the rationale format this change fixes. The block belongs to DIS-95 and the extra term to DIS-94, so no edit is due here. Record a Follow-ups row with destination B (DIS-95) so that the HTTP contract adopts the spec's sentence.
+
+### 8. Contrast with the real code
+
+All checked, with no clash:
+- `findTests` merges every seed of one distance into one `tested_by` statement and loses the per-component attribution (`packages/core/src/impact/reverse-walk.ts:110-122`). That is why design D2 needs the extra outputs and the single inward read.
+- `StorePort.neighbors` returns each node once, with the resolution of its minimum-distance paths, and never returns the seeds (`packages/core/src/ports/StorePort.ts:74-81`). This confirms the bound in design D1. The coverage read is seeded with test nodes, which are never a direct component's seeds (those are outside `test` files), so the "seeds never appear" rule does not hide a source.
+- `groupComponents` keeps the resolution only at the minimum distance (`packages/core/src/impact/relevance.ts:93-98`). So the MEDIUM scenario holds: `Caller` is `heuristic` at hop 1 through `Caller::a`, and `exactChain` is true through `Caller::b`, which is `exact` at hop 2 via `Anchor::helper`, a node of the anchor file that is left out of the report but still counts for path distances.
+- `buildReport` drops shadowed file components (`relevance.ts:153-157`), which the counts over the report's `direct` account for.
+- The module-private `saveRow` (`packages/core/src/explain/explain.ts:272-283`), `QUERY_NOT_LOGGED_CODES` (`explain/explain-event.ts:30`) and `latencyMs` (`explain/usage.ts:33`, at least 1) are as design D5 says. Cross-module imports inside core are already common (`verify/`, `cache/`), and `.dependency-cruiser.cjs` has no rule against them.
+- `OpenedStore` and `defaultOpenStore` are exported by `packages/cli/src/commands/ask.ts:37` and `:134`. `createLogger(...).info` writes `{"level":"info",...fields}` (`packages/cli/src/logger.ts:30`), which matches the stderr line of the events scenario exactly. The stub is in `packages/cli/src/index.ts:31-36`.
+- The existing test "looks classes up once per distinct direct component whose node is a method" (`tests/unit/impact/impact.spec.ts:203-216`) needs the final coverage computation to add no `findSymbols` call. Design D2 reuses the class "known or looked up" by `findTests`, so it holds once task 1.2b is green. A temporary per-component lookup in 1.2a must not survive 1.2b.
+- The duplicated `saveRow` and `defaultOpenStore` are accepted, with a reason, as follow-ups R8 and R9 (destination D).
+
+### 9. Task size
+
+Clean. Run 1's T1 is resolved: task 1.2 is now 1.2a and 1.2b. Every task fits in one agent turn.
+
+### 10. Mandatory steps
+
+Clean against `docs/openspec-tasks-mandatory-steps.md`:
+- Step 0 is the branch, and it comes first.
+- These sections are present and labelled, in order: 7 (Review and Update Existing Tests), 8 (Run Tests and Verify Data State, with the 0.4 baseline, the post-test check in 8.5 and the report path in 8.6), 9 (Manual Interface Testing — AGENT MUST EXECUTE), 10 (Update Technical Documentation) and 12 (Pre-merge Review — AGENT MUST EXECUTE), which is last.
+- 9.7 states that end-to-end testing does not apply.
+- The mutating step 9.4 restores state (it deletes the `impact` rows added since the 9.1 timestamp and re-checks the counts).
+- The PowerShell half is a destination-C follow-up (9.6), and every step that starts services ends with `node scripts/dev-processes.mjs stop`.
+- The two existing tests that change are named in 7.1 before they are edited.
+
+### 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| impact · Anchoring the change (MOD) | A change that anchors nothing answers no-anchor | existing DIS-89 test, 7.2 |
+| | A change that anchors only tests answers no-anchor | existing DIS-89 test, 7.2 |
+| | Impact in an unknown project fails | existing DIS-89 test, 7.2 |
+| impact · Report by component (MOD) | Q2 is reproduced over the acme-shop subset | existing DIS-89 test, 7.2 |
+| | A component appears once at its minimum distance | existing DIS-89 test, 7.2 |
+| | A reached file without symbols is reported by its path | existing DIS-89 test, 7.2 |
+| | The anchor's own file is not a dependant | existing DIS-89 test, 7.2 |
+| impact · Risk level of a report | A direct component without a test makes the risk high | 1.1, 1.2a, 1.2b |
+| | Every direct component tested and exact makes the risk low | 1.3 |
+| | A covered direct component whose chains are all heuristic makes the risk high | 1.4 |
+| | A covered direct component with an exact chain beyond its first hop makes the risk medium | 1.5 |
+| | An untested heuristic direct component makes the risk high | 1.6 |
+| | The rationale counts in the singular | 1.7 |
+| | A test written file to file covers a direct component | 1.8 |
+| | The test of an indirect component does not cover a direct one | 1.9 |
+| | *(proposed by M5)* A test that calls a direct component does not cover it | *(new task after 1.9)* |
+| impact · Risk over the indexed acme-shop seed | Q2 over the seed is high risk | 3.1 |
+| impact · Query log of an impact call | An answered call writes one impact row | 2.1, 2.2 |
+| | A no-anchor call writes one impact row | 2.3 |
+| | A failed call writes no row | 2.4 |
+| | A row that cannot be written leaves the report with an event | 2.5 |
+| | A change without search terms in an unknown project reports the unlogged row | 2.6, 7.1 |
+| | An impact call over the seed writes its row | 3.2 |
+| cli-impact · Impact command arguments | Impact help and version print without reading the environment | 4.2, 4.3 |
+| | The global help lists impact once | 5.10, 6.5 |
+| | Impact usage errors never quote the arguments | 4.4 |
+| | An invalid impact request is rejected before any connection | 4.5 |
+| cli-impact · Impact configuration and connection | A missing database URL fails before any connection | 5.1 |
+| | The model configuration is not read | 5.2 |
+| | An unreachable database fails without leaking the URL for impact | 6.1 |
+| | The impact connections are closed after a run | 6.2 |
+| cli-impact · Impact project resolution | Only the exact name resolves the impact project | 5.3 |
+| cli-impact · Impact report output | An impact report is printed by section with its risk | 5.4 |
+| | Impact receives only the project id, the change and the hop count | 5.5 |
+| | Q2 over the seed is printed with its risk | 6.3 |
+| cli-impact · Impact UNKNOWN output | A change without anchor answers no-anchor on the command line | 6.4 |
+| cli-impact · Impact events and failures | A row that was not logged is reported on stderr | 5.6 |
+| | An unexpected impact failure is internal | 5.7 |
+| | A project removed during the run is not found | 5.8 |
+| cli-impact · Impact terminal safety | Control characters in a report are escaped | 5.9 |
+
+Every existing scenario has at least one task. The only open row is the scenario that M5 proposes, which does not exist yet. When it is added, it gets its own task.
+
+---
+
+### Corrections to apply
+
+#### `specs/impact/spec.md`
+- "Risk level of a report": add `#### Scenario: A test that calls a direct component does not cover it`, with the GIVEN/WHEN/THEN of M5. (M5)
+
+#### `specs/cli-impact/spec.md`
+- "Impact command arguments": after "...`details.field` naming the field (`change` or `maxHops`), and exit `2`.", add "When both are invalid, `details.field` is `change`." (O2)
+
+#### `proposal.md`
+- What Changes → the "covered" bullet: replace "(its nodes in the report, its file, its class)" with "(its anchor symbols and their file for a component of the anchor, its nodes reached by the reverse traversal, its file, its class)". (C3)
+- What Changes → Docs: add "the stub parenthetical of the §4 `/impact` description" to the `readme.md` items. (C2)
+
+#### `design.md`
+- Follow-ups, agent's text, spec audit run 2 — add these rows:
+  - M5 → A: new scenario for a test that only calls a direct component.
+  - M6 → D: the shortest-path bound of the heuristic-only chain, accepted and pinned by an extra case in task 1.9.
+  - C2 → A: readme §4 parenthetical.
+  - K1 → A: `docs/project-context.md` impact reads.
+  - K2 → B (DIS-95): the readme §4 example rationale adopts the spec's sentence when the HTTP contract is written.
+
+#### `tasks.md`
+- After 1.9, add a task: "1.10 RED → GREEN: test 'A test that calls a direct component does not cover it'". (M5)
+- 1.9: add the extra case "a covered `Caller::a`, `heuristic` at its minimum distance, whose only all-`exact` path to the same node is longer, gives `H` = 1 and `HIGH` (design D1 bound)". (M6)
+- 7.2: "of the 16 ADDED impact scenarios, 15 have one new test each and one is the test renamed in 2.6". (M5)
+- 10.1: replace "The OpenAPI block of §4 `/impact` stays (DIS-95's)" with "In the §4 `/impact` block, change only the parenthetical of `description` to «la ruta no existe todavía; la CLI `impact` responde desde DIS-90»; the schema and the example stay (DIS-95's)". (C2)
+- 10.3: add "and the description of the impact reads (lines ~901-905): one inward `tested_by` coverage read besides the outward ones, and `Component.exactChain`". (K1)
+
+#### Linear DIS-90 (never edit the `[original]` block)
+- `[enhanced]` → Technical context: two passages are stale against design D2 and D4:
+  - «`assessRisk(report, coverage)`»;
+  - «p. ej. una lectura `tested_by` por componente directo, acotada por `|direct|`».
+
+  After that bullet, add: «*Corregido en el propose (P2, D2; texto del agente):* la cobertura por directo se obtiene con una sola lectura `tested_by` en sentido `in` desde los tests encontrados, no con una lectura por componente; `assessRisk(report, facts: { uncovered, heuristicOnly })`.»
+- Comment, in Spanish: «*Texto del agente (spec-audit, ejecución 2, 2026-10-30).* Auditoría de `impact-risk-cli`: `APPROVED`, 0 bloqueantes. Mejoras pendientes de aplicar en el change: escenario nuevo «A test that calls a direct component does not cover it» (M5); caso extra y follow-up D para el límite de la resolución a distancia mínima (M6); frase de `details.field` cuando `change` y `maxHops` son inválidos a la vez (O2); el paréntesis «la CLI `impact` es un stub» de la descripción §4 del readme (C2); la descripción de lecturas de `impact` en `docs/project-context.md` (K1); el ejemplo de `rationale` de §4 queda para DIS-95 (K2, destino B).»
