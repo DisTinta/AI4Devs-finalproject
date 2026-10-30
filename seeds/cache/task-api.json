@@ -2,7 +2,7 @@
   "format": 1,
   "project": "task-api",
   "seed": {
-    "analyzerFingerprint": "sha256:b80b43e25bede640887f9c4e9cebf6e4f0283755b3a9eb192eb6ae5a786679f3",
+    "analyzerFingerprint": "sha256:153d943ed77bce5c58308fab13e3d49664723cb85eb07c89b151d3490edfc44f",
     "contractFingerprint": "sha256:e94eef9665a038116a244342915af3743028225330fec41614260f1603fb392f"
   },
   "answerFingerprint": "sha256:9a2246d6df27425589519f44fe7de51e7d238dca2e9193c937f78a3783736766",
@@ -18,44 +18,55 @@
       "response": {
         "kind": "answered",
         "persisted": true,
-        "answer": "El código verifica las peticiones entrantes utilizando esquemas de validación definidos en `src/schemas/` y verifica los cambios en el estado de las tareas utilizando métodos en la capa de servicio.",
+        "answer": "taskRoutes valida las peticiones entrantes mediante el uso de esquemas de validación definidos en src/schemas/",
         "statements": [
           {
-            "text": "La función `taskRoutes` en `src/routes/tasks.routes.ts` asocia esquemas de validación con cada método de ruta.",
+            "text": "Las rutas CRUD (GET, POST, PATCH, DELETE) están definidas en taskRoutes, que valida las peticiones usando los esquemas de validación adjuntos.",
             "type": "FACT",
             "status": "current",
             "verification": "entailed",
             "evidenceIds": [
-              "2efad442-bd50-4f91-872c-f12e7595a770"
+              "89858579-18ab-4c1f-988a-94b734561806"
             ]
           },
           {
-            "text": "Las funciones del controlador en `src/controllers/tasks.controller.ts` utilizan servicios para manejar las peticiones y los servicios, como `TaskService`, aplican reglas de negocio y validan datos.",
+            "text": "Para las peticiones POST y PATCH, el esquema de validación body (createTaskSchema, updateTaskSchema) se utiliza para asegurar que el cuerpo de la solicitud cumpla con los requisitos definidos.",
             "type": "INFERENCE",
             "status": "current",
             "verification": "cited",
             "evidenceIds": [
-              "46a41c20-6f1a-4e6b-800c-03a2d5e2b3ec",
-              "bb31f410-2362-41a6-aee7-4fd55cd2adfb",
-              "c388a17e-cefd-4c98-9b18-571dc008ba7f",
-              "ecdafad0-4343-4957-9b78-8b8bf764ce9f",
-              "77fbff90-1352-4495-a684-37f1bf7b08dc",
-              "3b2d9cb7-fc1b-4789-828c-91a83698f000"
+              "228b02cb-8ef7-4385-915d-505865dec222"
             ]
           },
           {
-            "text": "El servicio `TaskService` en `src/services/task.service.ts` realiza validaciones adicionales, como verificar si un cambio de estado de la tarea es legal.",
+            "text": "Para las peticiones GET y DELETE, el esquema de validación querystring (listTasksQuerySchema, taskIdParamsSchema) garantiza que los parámetros de búsqueda y identificación sean correctos.",
             "type": "FACT",
             "status": "current",
             "verification": "entailed",
             "evidenceIds": [
-              "8611564b-99b4-4e97-8501-231362d1a676"
+              "89910c7b-e3d3-4aa7-93bd-af6fef0a5e00"
+            ]
+          },
+          {
+            "text": "Los esquemas de validación pueden aplicar filtros, ordenaciones y paginación al procesamiento de los datos, lo que ayuda a validar los parámetros de búsqueda y ordenación pasados en las peticiones.",
+            "type": "INFERENCE",
+            "status": "current",
+            "verification": "cited",
+            "evidenceIds": [
+              "abdf731a-248b-4b70-86fe-92b2ba1f42b4",
+              "a969d77d-9009-46d8-a08e-d5a660fc489e",
+              "43902a1c-c34f-4d36-b3c5-0a8ff1f6e781",
+              "d499b596-0947-495a-94d7-c7dc857a5fc0",
+              "af48a422-2b02-4667-9191-93cc58f9a2c9",
+              "91f7feec-4f4b-4750-9b65-c1d116ea14e2",
+              "af82658a-6c5b-4e88-b07a-c6f0be0046b4",
+              "b3b2ee2b-c35d-4a3c-823f-3575c325b7ee"
             ]
           }
         ],
         "evidence": [
           {
-            "id": "2efad442-bd50-4f91-872c-f12e7595a770",
+            "id": "89858579-18ab-4c1f-988a-94b734561806",
             "fileId": "7685ace1-b62d-53c0-a1d0-3378a4a41a0a",
             "path": "src/routes/tasks.routes.ts",
             "startLine": 15,
@@ -63,7 +74,23 @@
             "excerpt": "export async function taskRoutes(app: FastifyInstance): Promise<void> {\n  const controller = new TasksController();\n\n  app.get('/tasks', { schema: { querystring: listTasksQuerySchema } }, controller.list);\n\n  app.get('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.getById);\n\n  app.post('/tasks', { schema: { body: createTaskSchema } }, controller.create);\n\n  app.patch(\n    '/tasks/:id',\n    { schema: { params: taskIdParamsSchema, body: updateTaskSchema } },\n    controller.update,\n  );\n\n  app.delete('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.remove);\n}"
           },
           {
-            "id": "46a41c20-6f1a-4e6b-800c-03a2d5e2b3ec",
+            "id": "228b02cb-8ef7-4385-915d-505865dec222",
+            "fileId": "7685ace1-b62d-53c0-a1d0-3378a4a41a0a",
+            "path": "src/routes/tasks.routes.ts",
+            "startLine": 15,
+            "endLine": 31,
+            "excerpt": "export async function taskRoutes(app: FastifyInstance): Promise<void> {\n  const controller = new TasksController();\n\n  app.get('/tasks', { schema: { querystring: listTasksQuerySchema } }, controller.list);\n\n  app.get('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.getById);\n\n  app.post('/tasks', { schema: { body: createTaskSchema } }, controller.create);\n\n  app.patch(\n    '/tasks/:id',\n    { schema: { params: taskIdParamsSchema, body: updateTaskSchema } },\n    controller.update,\n  );\n\n  app.delete('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.remove);\n}"
+          },
+          {
+            "id": "89910c7b-e3d3-4aa7-93bd-af6fef0a5e00",
+            "fileId": "7685ace1-b62d-53c0-a1d0-3378a4a41a0a",
+            "path": "src/routes/tasks.routes.ts",
+            "startLine": 15,
+            "endLine": 31,
+            "excerpt": "export async function taskRoutes(app: FastifyInstance): Promise<void> {\n  const controller = new TasksController();\n\n  app.get('/tasks', { schema: { querystring: listTasksQuerySchema } }, controller.list);\n\n  app.get('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.getById);\n\n  app.post('/tasks', { schema: { body: createTaskSchema } }, controller.create);\n\n  app.patch(\n    '/tasks/:id',\n    { schema: { params: taskIdParamsSchema, body: updateTaskSchema } },\n    controller.update,\n  );\n\n  app.delete('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.remove);\n}"
+          },
+          {
+            "id": "abdf731a-248b-4b70-86fe-92b2ba1f42b4",
             "fileId": "a96b1bab-778d-549b-a7ae-5d0bd0927619",
             "path": "src/repositories/task.repository.ts",
             "startLine": 22,
@@ -71,7 +98,7 @@
             "excerpt": "export interface TaskRepository {\n  findById(id: string): Promise<Task | null>;\n  list(query: TaskQuery): Promise<Page<Task>>;\n  create(task: Task): Promise<Task>;\n  update(task: Task): Promise<Task>;\n  delete(id: string): Promise<boolean>;\n}"
           },
           {
-            "id": "bb31f410-2362-41a6-aee7-4fd55cd2adfb",
+            "id": "a969d77d-9009-46d8-a08e-d5a660fc489e",
             "fileId": "99ebf394-a600-58d0-9f17-8578082a1209",
             "path": "src/controllers/tasks.controller.ts",
             "startLine": 10,
@@ -79,7 +106,7 @@
             "excerpt": "  async list(\n    request: FastifyRequest<{ Querystring: ListTasksQuery }>,\n    reply: FastifyReply,\n  ): Promise<void> {\n    const page = await request.server.taskService.list(request.query);\n    await reply.send(page);\n  }"
           },
           {
-            "id": "c388a17e-cefd-4c98-9b18-571dc008ba7f",
+            "id": "43902a1c-c34f-4d36-b3c5-0a8ff1f6e781",
             "fileId": "99ebf394-a600-58d0-9f17-8578082a1209",
             "path": "src/controllers/tasks.controller.ts",
             "startLine": 18,
@@ -87,7 +114,7 @@
             "excerpt": "  async getById(\n    request: FastifyRequest<{ Params: TaskIdParams }>,\n    reply: FastifyReply,\n  ): Promise<void> {\n    const task = await request.server.taskService.get(request.params.id);\n    await reply.send(task);\n  }"
           },
           {
-            "id": "ecdafad0-4343-4957-9b78-8b8bf764ce9f",
+            "id": "d499b596-0947-495a-94d7-c7dc857a5fc0",
             "fileId": "99ebf394-a600-58d0-9f17-8578082a1209",
             "path": "src/controllers/tasks.controller.ts",
             "startLine": 26,
@@ -95,7 +122,7 @@
             "excerpt": "  async create(\n    request: FastifyRequest<{ Body: CreateTaskBody }>,\n    reply: FastifyReply,\n  ): Promise<void> {\n    const task = await request.server.taskService.create(request.body);\n    await reply.code(201).send(task);\n  }"
           },
           {
-            "id": "77fbff90-1352-4495-a684-37f1bf7b08dc",
+            "id": "af48a422-2b02-4667-9191-93cc58f9a2c9",
             "fileId": "99ebf394-a600-58d0-9f17-8578082a1209",
             "path": "src/controllers/tasks.controller.ts",
             "startLine": 34,
@@ -103,7 +130,7 @@
             "excerpt": "  async update(\n    request: FastifyRequest<{ Params: TaskIdParams; Body: UpdateTaskBody }>,\n    reply: FastifyReply,\n  ): Promise<void> {\n    const task = await request.server.taskService.update(request.params.id, request.body);\n    await reply.send(task);\n  }"
           },
           {
-            "id": "3b2d9cb7-fc1b-4789-828c-91a83698f000",
+            "id": "91f7feec-4f4b-4750-9b65-c1d116ea14e2",
             "fileId": "99ebf394-a600-58d0-9f17-8578082a1209",
             "path": "src/controllers/tasks.controller.ts",
             "startLine": 42,
@@ -111,50 +138,49 @@
             "excerpt": "  async remove(\n    request: FastifyRequest<{ Params: TaskIdParams }>,\n    reply: FastifyReply,\n  ): Promise<void> {\n    await request.server.taskService.delete(request.params.id);\n    await reply.code(204).send();\n  }"
           },
           {
-            "id": "8611564b-99b4-4e97-8501-231362d1a676",
-            "fileId": "fbc78701-beb9-5ead-8afe-d1d52e62e189",
-            "path": "src/services/task.service.ts",
-            "startLine": 13,
-            "endLine": 68,
-            "excerpt": "export class TaskService {\n  constructor(\n    private readonly repository: TaskRepository,\n    private readonly clock: () => string = () => new Date().toISOString(),\n  ) {}\n\n  async get(id: string): Promise<Task> {\n    const task = await this.repository.findById(id);\n    if (!task) throw new TaskNotFoundError(id);\n    return task;\n  }\n\n  async list(query: TaskQuery): Promise<Page<Task>> {\n    return this.repository.list(query);\n  }\n\n  async create(input: CreateTaskInput): Promise<Task> {\n    const now = this.clock();\n    const task: Task = {\n      id: newId(),\n      title: input.title,\n      description: input.description ?? null,\n      status: input.status ?? 'todo',\n      priority: input.priority ?? 'medium',\n      tags: input.tags ?? [],\n      dueDate: input.dueDate ?? null,\n      createdAt: now,\n      updatedAt: now,\n    };\n    return this.repository.create(task);\n  }\n\n  async update(id: string, input: UpdateTaskInput): Promise<Task> {\n    const current = await this.get(id);\n\n    if (input.status && input.status !== current.status) {\n      if (!canTransition(current.status, input.status)) {\n        throw new IllegalStatusTransitionError(current.status, input.status);\n      }\n    }\n\n    const updated: Task = {\n      ...current,\n      ...pruneUndefined(input),\n      id: current.id,\n      createdAt: current.createdAt,\n      updatedAt: this.clock(),\n    };\n    return this.repository.update(updated);\n  }\n\n  async delete(id: string): Promise<void> {\n    const deleted = await this.repository.delete(id);\n    if (!deleted) throw new TaskNotFoundError(id);\n  }\n}"
+            "id": "af82658a-6c5b-4e88-b07a-c6f0be0046b4",
+            "fileId": "a16fe8a7-4976-561d-bff8-0ffbbd587be9",
+            "path": "src/services/task.filters.ts",
+            "startLine": 10,
+            "endLine": 18,
+            "excerpt": "export function applyFilters(tasks: Task[], query: Pick<TaskQuery, 'status' | 'priority' | 'tag' | 'search'>): Task[] {\n  return tasks.filter((task) => {\n    if (query.status && task.status !== query.status) return false;\n    if (query.priority && task.priority !== query.priority) return false;\n    if (query.tag && !task.tags.includes(query.tag)) return false;\n    if (query.search && !matchesSearch(task, query.search)) return false;\n    return true;\n  });\n}"
+          },
+          {
+            "id": "b3b2ee2b-c35d-4a3c-823f-3575c325b7ee",
+            "fileId": "a16fe8a7-4976-561d-bff8-0ffbbd587be9",
+            "path": "src/services/task.filters.ts",
+            "startLine": 27,
+            "endLine": 30,
+            "excerpt": "export function sortTasks(tasks: Task[], sort: TaskQuery['sort'], order: TaskQuery['order']): Task[] {\n  const direction = order === 'asc' ? 1 : -1;\n  return [...tasks].sort((a, b) => compareBy(a, b, sort) * direction);\n}"
           }
         ],
         "priorClaims": [],
         "usage": {
-          "inputTokens": 7439,
-          "outputTokens": 309,
+          "inputTokens": 8452,
+          "outputTokens": 411,
           "baselineTokens": 4227,
           "baselineEstimator": "chars-div-4",
-          "savingsPct": -76,
+          "savingsPct": -100,
           "costUsd": 0,
-          "latencyMs": 226533,
+          "latencyMs": 206511,
           "cacheHit": false,
           "generation": {
             "inputTokens": 4235,
-            "outputTokens": 249,
+            "outputTokens": 326,
             "costUsd": 0
           },
           "verification": {
-            "calls": 8,
+            "calls": 11,
             "cacheHits": 0,
-            "inputTokens": 3204,
-            "outputTokens": 60,
+            "inputTokens": 4217,
+            "outputTokens": 85,
             "costUsd": 0,
-            "latencyMs": 60101
+            "latencyMs": 60265
           }
         },
-        "confidence": 0.8519528019683106
+        "confidence": 0.7963500664977807
       },
-      "reviews": [
-        {
-          "by": "agent:claude-opus-5-5",
-          "date": "2026-10-29"
-        },
-        {
-          "by": "agent:claude-sonnet-5-5",
-          "date": "2026-10-29"
-        }
-      ]
+      "reviews": []
     },
     {
       "id": "Q2",
@@ -163,48 +189,39 @@
       "response": {
         "kind": "answered",
         "persisted": true,
-        "answer": "buildPage se encarga de construir una página de resultados paginados a partir de la selección de elementos, el total de elementos, el número de página y el tamaño de la página. La función toma estos parámetros y devuelve un objeto Page con la información correspondiente.",
+        "answer": "La función `buildPage` es utilizada para crear y devolver una respuesta paginada, que incluye los elementos de la página, el número total de items, el número de página actual y el tamaño de la página.",
         "statements": [
           {
-            "text": "La función buildPage construye una página de resultados paginados a partir de los parámetros proporcionados.",
-            "type": "INFERENCE",
-            "status": "current",
-            "verification": "cited",
-            "evidenceIds": [
-              "d701a038-4b87-4633-aa38-9c66e4522420"
-            ]
-          },
-          {
-            "text": "La función buildTestApp prepara un entorno de prueba usando buildApp con un conjunto opcional de tareas de tarea como semilla.",
+            "text": "La función `buildPage` se define en el archivo 'src/domain/pagination.ts'.",
             "type": "FACT",
             "status": "current",
             "verification": "entailed",
             "evidenceIds": [
-              "ffaea31d-fa40-40ad-b61a-b4c98bc7223f"
+              "5abe8146-3323-4f1a-80e8-8d641986c42c"
             ]
           },
           {
-            "text": "La función buildPage toma cuatro parámetros: items, total, page y pageSize.",
+            "text": "La función `buildPage` toma una lista de items, el número total de items, el número de página actual y el tamaño de la página como argumentos.",
             "type": "FACT",
             "status": "current",
             "verification": "entailed",
             "evidenceIds": [
-              "3d22b8fa-c6ca-45e0-bc5f-61705ebd9bda"
+              "1a13f00b-99c7-47e4-b118-32666e89e123"
             ]
           },
           {
-            "text": "La función buildPage utiliza el tamaño de la página para calcular el número total de páginas.",
+            "text": "La función `buildPage` construye y devuelve un objeto `Page` que contiene la lista de items para la página actual, el número total de items, el número de página actual y el tamaño de la página.",
             "type": "FACT",
             "status": "current",
             "verification": "entailed",
             "evidenceIds": [
-              "fe2880fa-8e21-47bd-b493-d4dafe55a692"
+              "79b6c039-9ea1-497b-baab-490a166bd83a"
             ]
           }
         ],
         "evidence": [
           {
-            "id": "d701a038-4b87-4633-aa38-9c66e4522420",
+            "id": "5abe8146-3323-4f1a-80e8-8d641986c42c",
             "fileId": "48138400-9673-5335-b64a-4729e2eabbd6",
             "path": "src/domain/pagination.ts",
             "startLine": 13,
@@ -212,15 +229,7 @@
             "excerpt": "export function buildPage<T>(items: T[], total: number, page: number, pageSize: number): Page<T> {\n  return {\n    items,\n    total,\n    page,\n    pageSize,\n    pageCount: pageSize > 0 ? Math.ceil(total / pageSize) : 0,\n  };\n}"
           },
           {
-            "id": "ffaea31d-fa40-40ad-b61a-b4c98bc7223f",
-            "fileId": "7ddd4ce3-1ccb-523e-a0cc-63298b6da5cc",
-            "path": "tests/helpers/build-app.ts",
-            "startLine": 9,
-            "endLine": 13,
-            "excerpt": "export async function buildTestApp(seed: Task[] = []): Promise<FastifyInstance> {\n  const app = buildApp({ logger: false, seed });\n  await app.ready();\n  return app;\n}"
-          },
-          {
-            "id": "3d22b8fa-c6ca-45e0-bc5f-61705ebd9bda",
+            "id": "1a13f00b-99c7-47e4-b118-32666e89e123",
             "fileId": "48138400-9673-5335-b64a-4729e2eabbd6",
             "path": "src/domain/pagination.ts",
             "startLine": 13,
@@ -228,7 +237,7 @@
             "excerpt": "export function buildPage<T>(items: T[], total: number, page: number, pageSize: number): Page<T> {\n  return {\n    items,\n    total,\n    page,\n    pageSize,\n    pageCount: pageSize > 0 ? Math.ceil(total / pageSize) : 0,\n  };\n}"
           },
           {
-            "id": "fe2880fa-8e21-47bd-b493-d4dafe55a692",
+            "id": "79b6c039-9ea1-497b-baab-490a166bd83a",
             "fileId": "48138400-9673-5335-b64a-4729e2eabbd6",
             "path": "src/domain/pagination.ts",
             "startLine": 13,
@@ -238,26 +247,26 @@
         ],
         "priorClaims": [],
         "usage": {
-          "inputTokens": 3694,
-          "outputTokens": 272,
+          "inputTokens": 3413,
+          "outputTokens": 244,
           "baselineTokens": 3368,
           "baselineEstimator": "chars-div-4",
-          "savingsPct": -9.7,
+          "savingsPct": -1.3,
           "costUsd": 0,
-          "latencyMs": 74172,
+          "latencyMs": 101582,
           "cacheHit": false,
           "generation": {
             "inputTokens": 2383,
-            "outputTokens": 244,
+            "outputTokens": 220,
             "costUsd": 0
           },
           "verification": {
-            "calls": 4,
+            "calls": 3,
             "cacheHits": 0,
-            "inputTokens": 1311,
-            "outputTokens": 28,
+            "inputTokens": 1030,
+            "outputTokens": 24,
             "costUsd": 0,
-            "latencyMs": 24602
+            "latencyMs": 16637
           }
         },
         "confidence": 0.8519528019683106
@@ -265,11 +274,11 @@
       "reviews": [
         {
           "by": "agent:claude-opus-5-5",
-          "date": "2026-10-29"
+          "date": "2026-10-30"
         },
         {
           "by": "agent:claude-sonnet-5-5",
-          "date": "2026-10-29"
+          "date": "2026-10-30"
         }
       ]
     },
@@ -280,50 +289,49 @@
       "response": {
         "kind": "answered",
         "persisted": true,
-        "answer": "Las transiciones de estado válidas son las que están definidas en la constante TRANSITIONS en el archivo src/domain/task-status.ts.",
+        "answer": "Las transiciones de estado válidas son aquellas que están definidas en el objeto `TRANSITIONS` en el archivo `src/domain/task-status.ts`.",
         "statements": [
           {
-            "text": "El código en src/domain/task-status.ts define una función canTransition que verifica si una transición de estado es válida.",
+            "text": "Se definen las transiciones válidas de estados en el archivo `src/domain/task-status.ts`.",
+            "type": "INFERENCE",
+            "status": "current",
+            "verification": "cited",
+            "evidenceIds": [
+              "85c22f8e-745d-4420-bd90-4dc43bd981d3",
+              "4755dedf-4c07-492c-ab87-7cf9c26140c2"
+            ]
+          },
+          {
+            "text": "La función `canTransition` verifica si una transición de estado es válida.",
+            "type": "INFERENCE",
+            "status": "current",
+            "verification": "cited",
+            "evidenceIds": [
+              "1c1ad7e3-0e67-4863-9fb5-8ff5361b591c"
+            ]
+          },
+          {
+            "text": "La función `allowedTransitions` devuelve una lista de transiciones válidas desde un estado dado.",
             "type": "FACT",
             "status": "current",
             "verification": "entailed",
             "evidenceIds": [
-              "945202e8-58b2-493f-bb89-bed4d3476ba8"
+              "35c706c3-30d4-4a55-8fb4-eb97f86e16a1"
             ]
           },
           {
-            "text": "La función allowedTransitions devuelta en src/domain/task-status.ts devuelve un array de estados en los cuales se puede transitar a partir de un estado dado.",
+            "text": "Se manejan errores de transición ilegal en el archivo `src/services/task.service.ts`.",
             "type": "INFERENCE",
             "status": "current",
             "verification": "cited",
             "evidenceIds": [
-              "899b5015-b5e0-446d-9451-6d55ba435923"
-            ]
-          },
-          {
-            "text": "El código en src/domain/task-status.ts utiliza la constante TRANSITIONS para determinar si una transición de estado es válida mediante la función canTransition.",
-            "type": "INFERENCE",
-            "status": "current",
-            "verification": "cited",
-            "evidenceIds": [
-              "03e36904-9de9-4029-9e0d-98eea7063e77",
-              "32dcb5f2-08b4-4ef6-b174-c96613b31624"
-            ]
-          },
-          {
-            "text": "Las transiciones de estado válidas son aquellas que están incluidas en el array proporcionado por la función allowedTransitions en el archivo src/domain/task-status.ts.",
-            "type": "INFERENCE",
-            "status": "current",
-            "verification": "cited",
-            "evidenceIds": [
-              "86bd8b12-b1e6-418c-9a57-794778d6b639",
-              "0de826c4-f646-4541-b00e-8d333775493e"
+              "73b92c39-e0bf-4aa6-9fe8-583afc644b5d"
             ]
           }
         ],
         "evidence": [
           {
-            "id": "945202e8-58b2-493f-bb89-bed4d3476ba8",
+            "id": "85c22f8e-745d-4420-bd90-4dc43bd981d3",
             "fileId": "e3708666-46ba-5017-859c-4cc272ec322c",
             "path": "src/domain/task-status.ts",
             "startLine": 25,
@@ -331,7 +339,7 @@
             "excerpt": "export function canTransition(from: TaskStatus, to: TaskStatus): boolean {\n  return TRANSITIONS[from].includes(to);\n}"
           },
           {
-            "id": "899b5015-b5e0-446d-9451-6d55ba435923",
+            "id": "4755dedf-4c07-492c-ab87-7cf9c26140c2",
             "fileId": "e3708666-46ba-5017-859c-4cc272ec322c",
             "path": "src/domain/task-status.ts",
             "startLine": 29,
@@ -339,7 +347,7 @@
             "excerpt": "export function allowedTransitions(from: TaskStatus): readonly TaskStatus[] {\n  return TRANSITIONS[from];\n}"
           },
           {
-            "id": "03e36904-9de9-4029-9e0d-98eea7063e77",
+            "id": "1c1ad7e3-0e67-4863-9fb5-8ff5361b591c",
             "fileId": "e3708666-46ba-5017-859c-4cc272ec322c",
             "path": "src/domain/task-status.ts",
             "startLine": 25,
@@ -347,64 +355,56 @@
             "excerpt": "export function canTransition(from: TaskStatus, to: TaskStatus): boolean {\n  return TRANSITIONS[from].includes(to);\n}"
           },
           {
-            "id": "32dcb5f2-08b4-4ef6-b174-c96613b31624",
-            "fileId": "7e7aa502-9593-5544-8388-b49051727324",
-            "path": "tests/unit/task-status.test.ts",
-            "startLine": 1,
-            "endLine": 26,
-            "excerpt": "import { describe, expect, it } from 'vitest';\nimport { allowedTransitions, canTransition, isTaskStatus } from '../../src/domain/task-status.js';\n\ndescribe('task-status', () => {\n  it('accepts known statuses and rejects unknown ones', () => {\n    expect(isTaskStatus('in_progress')).toBe(true);\n    expect(isTaskStatus('nonsense')).toBe(false);\n  });\n\n  it('allows todo -> in_progress', () => {\n    expect(canTransition('todo', 'in_progress')).toBe(true);\n  });\n\n  it('rejects done -> in_progress', () => {\n    expect(canTransition('done', 'in_progress')).toBe(false);\n  });\n\n  it('lets any active status be archived', () => {\n    expect(canTransition('todo', 'archived')).toBe(true);\n    expect(canTransition('blocked', 'archived')).toBe(true);\n  });\n\n  it('reports an empty transition set for archived', () => {\n    expect(allowedTransitions('archived')).toHaveLength(0);\n  });\n});"
-          },
-          {
-            "id": "86bd8b12-b1e6-418c-9a57-794778d6b639",
-            "fileId": "e3708666-46ba-5017-859c-4cc272ec322c",
-            "path": "src/domain/task-status.ts",
-            "startLine": 25,
-            "endLine": 27,
-            "excerpt": "export function canTransition(from: TaskStatus, to: TaskStatus): boolean {\n  return TRANSITIONS[from].includes(to);\n}"
-          },
-          {
-            "id": "0de826c4-f646-4541-b00e-8d333775493e",
+            "id": "35c706c3-30d4-4a55-8fb4-eb97f86e16a1",
             "fileId": "e3708666-46ba-5017-859c-4cc272ec322c",
             "path": "src/domain/task-status.ts",
             "startLine": 29,
             "endLine": 31,
             "excerpt": "export function allowedTransitions(from: TaskStatus): readonly TaskStatus[] {\n  return TRANSITIONS[from];\n}"
+          },
+          {
+            "id": "73b92c39-e0bf-4aa6-9fe8-583afc644b5d",
+            "fileId": "fbc78701-beb9-5ead-8afe-d1d52e62e189",
+            "path": "src/services/task.service.ts",
+            "startLine": 45,
+            "endLine": 62,
+            "excerpt": "  async update(id: string, input: UpdateTaskInput): Promise<Task> {\n    const current = await this.get(id);\n\n    if (input.status && input.status !== current.status) {\n      if (!canTransition(current.status, input.status)) {\n        throw new IllegalStatusTransitionError(current.status, input.status);\n      }\n    }\n\n    const updated: Task = {\n      ...current,\n      ...pruneUndefined(input),\n      id: current.id,\n      createdAt: current.createdAt,\n      updatedAt: this.clock(),\n    };\n    return this.repository.update(updated);\n  }"
           }
         ],
         "priorClaims": [],
         "usage": {
-          "inputTokens": 3570,
-          "outputTokens": 306,
+          "inputTokens": 3095,
+          "outputTokens": 248,
           "baselineTokens": 1565,
           "baselineEstimator": "chars-div-4",
-          "savingsPct": -128.1,
+          "savingsPct": -97.8,
           "costUsd": 0,
-          "latencyMs": 89776,
+          "latencyMs": 87596,
           "cacheHit": false,
           "generation": {
             "inputTokens": 1555,
-            "outputTokens": 256,
+            "outputTokens": 209,
             "costUsd": 0
           },
           "verification": {
-            "calls": 6,
+            "calls": 5,
             "cacheHits": 0,
-            "inputTokens": 2015,
-            "outputTokens": 50,
+            "inputTokens": 1540,
+            "outputTokens": 39,
             "costUsd": 0,
-            "latencyMs": 41493
+            "latencyMs": 23021
           }
         },
-        "confidence": 0.7772998611746911
+        "confidence": 0.7211151780228631
       },
       "reviews": [
         {
           "by": "agent:claude-opus-5-5",
-          "date": "2026-10-29"
+          "date": "2026-10-30"
         },
         {
           "by": "agent:claude-sonnet-5-5",
-          "date": "2026-10-29"
+          "date": "2026-10-30"
         }
       ]
     }

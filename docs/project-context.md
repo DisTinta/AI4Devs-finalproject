@@ -497,6 +497,9 @@ Verified against `package.json` (root and per package). If a command is not here
   `tests/unit/api/reindex.spec.ts` (`/index` over doubles with a recording log) and
   `tests/integration/api/reindex.spec.ts` (over the seed, the harness transaction as the unit of
   work); `store/open-store.spec.ts` also covers the transaction runner and deletes what it commits.
+  Since DIS-110, `tests/unit/store/open-store-transaction-errors.spec.ts` drives `runInTransaction`
+  over a stub pool (failed `BEGIN`, `ROLLBACK` and `COMMIT`, destroy versus return, the `error`
+  listener), and `open-store.spec.ts` terminates the runner's backend with `pg_terminate_backend`.
   Since DIS-10, `tests/unit/index/incremental-plan.spec.ts` (the pure plan) and
   `tests/integration/index/incremental-reindex.spec.ts` (the changed file and its dependents, and the
   fast path, over Postgres with a copy of acme-shop whose history is built once).
@@ -1265,11 +1268,13 @@ services that must be started first, quirks of the local environment.
   then the DIS-10 r2 round after task-api `Q1` alone was regenerated, then the DIS-42 round after
   the stale claim refresh regenerated them, then the DIS-42 r2 round after task-api `Q2` and
   acme-shop `Q1` alone were regenerated, then the DIS-42 r3 round, the last DIS-42 round, after
-  acme-shop `Q1` alone was regenerated once more:
+  acme-shop `Q1` alone was regenerated once more, then the DIS-110 round, a single round, after the
+  pooled transaction runner changed the store adapter and both golden files were regenerated:
   blind input, criterion first, signatures `agent:<model>`, report in `docs/golden-review/`, each
-  round's files suffixed with its ticket, the current DIS-42 r3 round's `-dis-42-r3`); an `incorrect` one stays unsigned and
+  round's files suffixed with its ticket, the current DIS-110 round's `-dis-110`); an `incorrect` one stays unsigned and
   goes to a successor ticket or, when the author keeps it in the same ticket, to a further round of
-  that ticket (DIS-10 r2; DIS-42 r2 and r3); a regenerated entry comes back with empty `reviews` and needs a new
+  that ticket (DIS-10 r2; DIS-42 r2 and r3), or, in a single round (DIS-110, task-api `Q1`), stays
+  as a known unsigned golden answer for the author; a regenerated entry comes back with empty `reviews` and needs a new
   panel); no generation time; canonical render = 2-space JSON in that key
   order, LF, final newline. **`answerFingerprint`** (`answer-fingerprint.ts`) = the seed's
   `fingerprint()` over `ANSWER_FINGERPRINT_FILES` (explain prompt and its language rule
@@ -1349,8 +1354,12 @@ services that must be started first, quirks of the local environment.
   still receives every file) to completion inside the
   request and answers `202` with the counters (a recorded deviation from backend-standards §6). The
   graph save and `invalidateCache` run in **one transaction** through `OpenedStore.transaction`, the
-  transaction runner of the pooled store (`open-store.ts`: connect, `BEGIN`, a store bound to the
-  client, `COMMIT`/`ROLLBACK`, release); core sees it as a plain `inTransaction` function. It has its
+  transaction runner of the pooled store (`open-store.ts` delegates to the internal module
+  `transaction.ts`, `runInTransaction(pool, work)`, not exported from the package: connect, `BEGIN`, a
+  store bound to the client, `COMMIT`/`ROLLBACK`, release). Since DIS-110 the connection is destroyed
+  (released with the error) when its `BEGIN` or `ROLLBACK` fails and returned otherwise, and the run
+  holds a no-op `error` listener on the borrowed client that it removes before releasing; core sees it
+  as a plain `inTransaction` function. It has its
   own domain error table `REINDEX_DOMAIN_ERRORS` (fixed messages, details `{}`: `INDEXING_DISABLED`
   and `FORBIDDEN_PATH` `403`, `PROJECT_NOT_FOUND` `404`, `NOT_A_GIT_REPOSITORY`/`EMPTY_REPOSITORY`
   `503`; an invalid graph is `500 INTERNAL`), logs `reindex completed` with counters only and

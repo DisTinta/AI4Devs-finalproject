@@ -295,9 +295,13 @@ La golden de acme-shop `Q1` de DIS-10 la revisaron las rondas DIS-10 y DIS-10 r2
 (`docs/golden-review/2026-10-golden-review-dis-10-r2.md`). La golden regenerada en DIS-42 la juzgó
 `incorrect` la ronda DIS-42 (`docs/golden-review/2026-10-golden-review-dis-42.md`); se volvió a
 regenerar sola y la ronda DIS-42 r2 (`docs/golden-review/2026-10-golden-review-dis-42-r2.md`)
-también la juzgó `incorrect`. Se regeneró sola una vez más y la golden actual la revisó la ronda
-DIS-42 r3 (`docs/golden-review/2026-10-golden-review-dis-42-r3.md`), la ronda actual y la última de
-DIS-42, que la juzgó `partial`: queda firmada con las dos firmas del panel y no hay ningún pendiente.
+también la juzgó `incorrect`. Se regeneró sola una vez más y la ronda DIS-42 r3
+(`docs/golden-review/2026-10-golden-review-dis-42-r3.md`), la última de DIS-42, la juzgó `partial`.
+DIS-110 cambió el adaptador del store y con él la huella del seed, así que las seis golden se
+regeneraron y la golden actual la revisó la ronda DIS-110
+(`docs/golden-review/2026-10-golden-review-dis-110.md`), la ronda actual, que la juzgó `partial`:
+queda firmada con las dos firmas del panel. El único pendiente de esa ronda es task-api `Q1`, que
+juzgó `incorrect` y queda sin firmar para la autora.
 
 La CLI no imprime el uso de tokens; la API sí. `npm run demo:ask` envía la pregunta a
 `POST /api/projects/{projectId}/ask` (el id es el que imprimió `projects`) y muestra el estado HTTP,
