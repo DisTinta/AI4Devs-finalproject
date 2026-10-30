@@ -196,3 +196,178 @@ In the `[enhanced]` block, AC2: add the non-`Error` case with the same contract 
 | Linear, `[enhanced]` AC2 | Not edited: X2 is dropped, so AC2 needs no non-`Error` case; the drop is noted in the round's Linear comment. | Linear DIS-110 comment |
 
 `openspec validate pool-transaction-release --strict` passes after these edits.
+
+---
+
+## Run 2 (2026-10-30)
+
+APPROVED
+
+# Spec audit: pool-transaction-release (DIS-110), run 2
+
+- Date: 2026-10-30
+- Change: `openspec/changes/pool-transaction-release/`. Files: `proposal.md`, `design.md`, `specs/graph-store/spec.md`, `tasks.md`. This run judges the files as they are after the "Resolution of run 1".
+- Ticket: DIS-110, loaded from Linear with its three comments. It has **no parent** (`parentId: null`), relatedTo DIS-9 and DIS-42. Point 1 is judged against the `[original]` block. Point 2 is judged against the ticket's own acceptance criteria AC1-AC6 in the `[enhanced]` block.
+- Project sources read: `docs/base-standards.md`, `docs/openspec-tasks-mandatory-steps.md`, `docs/project-context.md` (commands at lines 160-184, the Testing list at lines 481/499, the runner at lines 1352-1353), `openspec/specs/graph-store/spec.md` (requirement at line 1194), `vitest.config.ts`, `vitest.stryker.config.ts`, `stryker.config.json`.
+- Code read: `packages/adapters/store-postgres/src/open-store.ts`, `tests/integration/store/open-store.spec.ts`, `node_modules/pg-pool/index.js` (lines 335-397).
+
+## Questions for the author
+
+None. The agent's decisions X2 (dropped), X4 (Q1), X5 (Q2), X6 and X7 answer the run-1 questions and findings. None of them contradicts the ticket: R5/AC6 and R9 are in the `[enhanced]` block, and the PowerShell instruction is quoted in a Linear comment. None of them contradicts the project either: the deviation from `docs/openspec-tasks-mandatory-steps.md` §3 is recorded as X5.
+
+## 1. Scope against the ticket — clean
+
+The `[original]` block asks for three things, and the change covers all of them:
+1. Pass the error of a failed `BEGIN`/`ROLLBACK` to `release`: spec, D2, tasks 1.4-1.9.
+2. Use TDD with a pool seam or a terminated backend: D1 and step 1 use a seam; D5 and step 2 terminate the backend.
+3. Test the two untested clauses: tasks 1.6 and 1.8 over a stub pool, 2.1 and 2.2 against Postgres.
+
+Some items go beyond the `[original]` block. Each traces to the `[enhanced]` block or to a recorded decision, so none is invented scope:
+- The borrowed-client listener: R4, AC5, X6.
+- The `explain` Purpose fix: R5, AC6, X4.
+- The local Stryker run: X3, informational only.
+- Regression check 7.3: now labelled as not evidence for this change.
+
+The X2 wrapper flagged in run 1 is gone from the design, the tasks and the proposal.
+
+## 2. Inherited acceptance criteria — clean (no parent)
+
+| AC of DIS-110 | Scenario of the delta |
+|---|---|
+| AC1 | A transaction that ends cleanly returns its connection to the pool |
+| AC2 | A failed begin destroys the connection |
+| AC3 | A failed rollback keeps the work's error and destroys the connection |
+| AC4 a/b | A failed commit rejects with a fixed message whatever its rollback does |
+| AC5 a | A connection terminated during rejecting work keeps the work's error |
+| AC5 b | A connection terminated during resolving work fails the commit without driver text |
+| AC6 | no requirement (a delta cannot change a Purpose); tasks 3.1-3.2, checked by reading |
+
+The `[enhanced]` "Contexto técnico" also asks to remove the listener before `release`. That is covered by "A run leaves no error listener on its connection".
+
+## 3. Missing scenarios — clean
+
+Each MUST clause of the modified requirement has a scenario:
+- Take, begin, bind, commit/rollback: the four existing scenarios.
+- Released exactly once once taken: the five stub-pool scenarios.
+- Destroyed on a failed `BEGIN`/`ROLLBACK`: failed begin, failed rollback, failed commit variant b.
+- Returned after a successful `COMMIT`/`ROLLBACK`: clean end, failed commit variant a.
+- `BEGIN` fails: no work, no `COMMIT`/`ROLLBACK`: failed begin.
+- The work's error wins over a failed rollback: failed rollback, terminated-rejecting.
+- Fixed commit message with no cause: failed commit, terminated-resolving.
+- An `error` event does not crash the process: both terminated scenarios.
+- The listener is removed before release: no-listener scenario.
+- Isolation, and nothing remains after a rollback or a failed commit: existing scenarios and terminated-resolving.
+
+The `pool.connect()` rejection is now outside "once a connection has been taken", so it needs no scenario.
+
+## 4. Ambiguity — clean
+
+A case-insensitive search of proposal, design, spec and tasks for fast, easy, secure, efficient, many, appropriate, robust, quickly, safe, properly and reasonable found no occurrence. The run-1 wording "the driver's text" in the integration scenario is now measurable: no cause, and neither `terminat`, `57P01` nor `administrator command`.
+
+## 5. Open decisions — clean of blocking items; two improvable
+
+- **I1 (improvable): how the test of task 1.1 asserts "released without an error".** Task 1.1 is written and made green (1.2) against code that calls `client.release()` with **no argument**. From task 1.5 the code calls `client.release(broken)`, which is `release(undefined)`. Vitest compares call arguments as arrays, so an assertion such as `toHaveBeenCalledWith()` or `toEqual([[]])` passes at 1.2 and goes red at 1.5. Rule 4 (`docs/base-standards.md` §3) then forbids fixing the test. AC1 ("sin argumento (`undefined`)") leaves both readings open. Pin the form in task 1.1: `expect(release).toHaveBeenCalledTimes(1)` and `expect(release.mock.calls[0]?.[0]).toBeUndefined()`. Use the same form for variant a of task 1.8.
+- **I2 (improvable): what the integration `it`s do when the poll times out.** D5 says "poll `sessions(name)` to 0 up to 2 s" but not what happens if the count is still above 0 after 2 s. Fix it in D5 and tasks 2.1/2.2: "if a session with that application name is still open after 2 s, the work throws an assertion error and the test fails". This keeps the "termination landed" precondition from passing silently.
+
+## 6. Contradictions inside the change — clean
+
+The proposal, design and spec agree on:
+- the destruction rule (R2/D2);
+- `release` receiving the statement's own error unchanged (X2 dropped);
+- the fixed commit message with no `cause` (D4);
+- the listener added and then removed before `release` (D3);
+- the seam: an internal, non-exported `transaction.ts` (D1);
+- seven added scenarios, five stub-pool and two integration (D6, tasks 5.2);
+- "no existing test is changed": the proposal Impact matches tasks 2.4 and 5.1.
+
+## 7. Contradictions with the project — clean
+
+- `openspec/specs/graph-store/spec.md:1194`: the delta MODIFIES the whole requirement block. Its four scenarios match lines 1205-1232 verbatim, and the old clause "released to the pool in every case" is replaced, not duplicated.
+- `docs/project-context.md:499` and `:1352-1353` describe the runner in `open-store.ts`. Task 9.1 updates both.
+- `vitest.config.ts` does not set `dangerouslyIgnoreUnhandledErrors`. D5's claim that Vitest fails the run on an uncaught `error` event holds.
+- The agent merge in task 11.7 and the PowerShell check run by the agent in task 7.4 are recorded deviations, gated or traced: `docs/AUTONOMOUS-RUN.md`, and X5 with its Linear comment.
+- No ADR (D7) is consistent with the ADR criterion in `docs/openspec-tasks-mandatory-steps.md` §7.
+
+## 8. Contrast with the real code — clean; one improvable
+
+- `open-store.ts:66-88` matches design Context. Line 86 is `client.release()` with no argument, and the TSDoc at lines 23-28 says "released in every case"; task 1.12 rewrites it.
+- `pg-pool/index.js:344` removes the idle listener on checkout. Line 385 re-adds it on every release, before the line-392 check, so removing the run's listener just before `release` (D3) leaves no window with no listener after release. Line 392 discards a non-queryable client, as D5 records.
+- No duplicate abstraction: the runner moves; it is not copied.
+- **I3 (improvable): the local Stryker run of task 6.4 overwrites the incremental cache.** `stryker.config.json` has `"incremental": true`. A run of `npx stryker run --mutate packages/adapters/store-postgres/src/transaction.ts` rewrites `reports/stryker-incremental.json` with only this file's mutants. The next local `npm run test:mutation` would then lose its reuse (a full run is about 14 min, `docs/project-context.md:181`). Add `--incrementalFile .stryker-tmp/dis-110-incremental.json` to task 6.4. Task 6.5 already checks that `.stryker-tmp/` is removed.
+
+## 9. Task size — clean; one improvable
+
+Every task fits in one agent turn. The run-1 ordering problem is solved: task 1.3 runs the integration `it`s on the old code right after 1.2.
+
+- **I4 (improvable): attributing the 1.3 red to each test.** Vitest reports an uncaught `error` event as an unhandled error of the **run**, not as a failure of the `it` that caused it. Task 1.3 asks to "record whether each fails there". Run each of the two `it`s alone (`npx vitest run tests/integration/store/open-store.spec.ts -t "<scenario title>"`) so each result can be attributed.
+
+## 10. Mandatory steps — clean; one improvable
+
+- Step 0 comes first and is labelled, and the branch is `feature/dis-110-pool-transaction-release`.
+- Steps 5, 6, 7, 8, 9 and 11 are present and labelled MANDATORY, and steps 7, 8 and 11 carry AGENT MUST EXECUTE.
+- The report paths are named in 6.6, 7.6 and 11.3-11.5.
+- Restoration is covered:
+  - the integration `it`s run `deleteProjects` in `finally` and check the project count;
+  - 6.5 checks the counts and `.stryker-tmp/`;
+  - 7.5 deletes `dis-110-manual` and the scratchpad copy;
+  - `dev-processes.mjs stop` follows every step that starts a service.
+- Pre-merge Review is last, with the archive before the merge.
+- **I5 (improvable): two stale cross-references in `tasks.md`.**
+  - Task 4.1 cites "assertions of 1.7 and 2.2". After the renumbering, the failed-commit assertions are in **1.8** (1.7 is the rollback GREEN).
+  - Task 10.1 lists "R1–R9, X1–X3". The Follow-ups now run to **X7**.
+
+## 11. Traceability
+
+| Requirement clause | Scenario | Task(s) |
+|---|---|---|
+| Commit on resolve | Work that resolves is committed | existing test kept (2.4, 5.1, 5.2) |
+| Rollback on reject, nothing remains | Work that rejects leaves nothing | existing test kept (2.4, 5.1, 5.2) |
+| No write visible before commit | Work's writes are invisible to another connection before the commit | existing test kept (2.4, 5.1, 5.2) |
+| Every connection released, close clean | Every connection is released after a run | existing test kept (2.4, 5.1, 5.2) |
+| Released exactly once; returned after successful COMMIT/ROLLBACK | A transaction that ends cleanly returns its connection to the pool | 1.1, 1.2 |
+| Failed `BEGIN`: destroyed, no work, no COMMIT/ROLLBACK, reject with B | A failed begin destroys the connection | 1.4, 1.5 |
+| Failed rollback: work's error wins, destroyed | A failed rollback keeps the work's error and destroys the connection | 1.6, 1.7 |
+| Failed commit: fixed message, no cause, release per rollback outcome | A failed commit rejects with a fixed message whatever its rollback does | 1.8, 1.9, 4.1 |
+| Listener removed before release | A run leaves no error listener on its connection | 1.10, 1.11 |
+| `error` event does not crash; terminated connection, rejecting work | A connection terminated during rejecting work keeps the work's error | 1.3, 2.1, 2.3 |
+| Terminated connection, resolving work; nothing remains after a failed commit | A connection terminated during resolving work fails the commit without driver text | 1.3, 2.2, 2.3 |
+| AC6 `explain` Purpose (no requirement, by design) | n/a: a delta cannot change a Purpose | 3.1, 3.2 |
+
+No empty row.
+
+## Corrections to apply
+
+All are improvable. None blocks the apply.
+
+### `openspec/changes/pool-transaction-release/tasks.md`
+
+1. **Task 1.1 (I1).** Append: "Assert the release as `expect(release).toHaveBeenCalledTimes(1)` and `expect(release.mock.calls[0]?.[0]).toBeUndefined()`, so the test holds for both `release()` (code of 1.2) and `release(undefined)` (from 1.5)."
+2. **Task 1.8 (I1).** Change "variant a `release` once with `undefined`" to "variant a `release` once, its first argument `undefined` (same assertion form as 1.1)".
+3. **Task 1.3 (I4).** Append: "Run each `it` alone with `-t \"<scenario title>\"` so an unhandled `error` event, which Vitest reports per run, is attributed to its test."
+4. **Tasks 2.1 and 2.2 (I2).** After "poll `sessions` to 0 up to 2 s", add: "; if a session remains after 2 s the work throws an assertion error and the test fails".
+5. **Task 4.1 (I5).** Replace "(assertions of 1.7 and 2.2)" with "(assertions of 1.8 and 2.2)".
+6. **Task 6.4 (I3).** Replace the command with `npx stryker run --mutate packages/adapters/store-postgres/src/transaction.ts --incrementalFile .stryker-tmp/dis-110-incremental.json` and add: "so `reports/stryker-incremental.json` is not overwritten".
+7. **Task 10.1 (I5).** Replace "(R1–R9, X1–X3)" with "(R1–R9, X1–X7)".
+
+### `openspec/changes/pool-transaction-release/design.md`
+
+1. **D5 (I2).** After "(poll up to 2 s) so the termination has landed before the work settles", add: "If a session with that application name is still open after 2 s, the work throws an assertion error and the test fails."
+2. **D5 (I4).** After the sentence on Vitest and unhandled errors, add: "Vitest attributes such an error to the run, not to an `it`; task 1.3 therefore runs each `it` alone."
+3. **Risks (I3).** In the Stryker bullet, add: "with its own `--incrementalFile` under `.stryker-tmp/`, so the checkout's incremental cache is not overwritten".
+
+### `openspec/changes/pool-transaction-release/specs/graph-store/spec.md`
+
+No change.
+
+### `openspec/changes/pool-transaction-release/proposal.md`
+
+No change.
+
+### Linear DIS-110 (comment in Spanish; the `[original]` block is not edited)
+
+> *Texto del agente (auditoría de la spec, run 2, 2026-10-30).* La auditoría de `pool-transaction-release` devuelve **APPROVED**, sin hallazgos bloqueantes. Las decisiones de la ronda 1 (X2 descartado, X4-X7) se aceptan. Quedan cinco mejoras menores, que se aplican en el propio cambio:
+> - Fijar la forma de la aserción de `release` sin error en las tareas 1.1 y 1.8 (`mock.calls[0]?.[0]` es `undefined`), para que el test no se rompa al pasar de `release()` a `release(undefined)`.
+> - Que los tests de integración fallen si el sondeo de sesiones no llega a 0 en 2 s.
+> - Ejecutar cada `it` de la tarea 1.3 por separado para atribuir el evento `error` no manejado.
+> - Usar un `--incrementalFile` propio en la ejecución local de Stryker.
+> - Corregir dos referencias desfasadas en las tareas 4.1 (1.7 → 1.8) y 10.1 (X1–X3 → X1–X7).
