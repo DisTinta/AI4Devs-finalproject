@@ -20,9 +20,11 @@ criterion copied verbatim.
 
 ## Panel
 
-- **Panelist 1:** Opus. **Panelist 2:** Sonnet. They judge the seven items blind to each other and
-  to every earlier round, DIS-42 r3 included.
-- **Resolver:** Opus, in a fresh context, only over the items where the two panelist verdicts differ.
+- **Panelist 1:** Opus, model `claude-opus-5-5`, date 2026-10-30. **Panelist 2:** Sonnet, model
+  `claude-sonnet-5-5`, date 2026-10-30. They judge the seven items blind to each other and to every
+  earlier round, DIS-42 r3 included.
+- **Resolver:** Opus, model `claude-opus-5-5`, date 2026-10-30, in a fresh context, only over the
+  items where the two panelist verdicts differ (two in this run: task-api `Q1` and `Q3`).
 - **Outputs:** under `docs/golden-review/panel/` (the input, the two panelist outputs and the
   resolution, with the `-dis-110` suffix).
 
@@ -49,3 +51,51 @@ the other groups of the tasks file; the other reports of `docs/golden-review/`; 
 output; the rest of `docs/`, `packages/`, `tests/`, `scripts/` and `openspec/`; the git history; any
 Linear content. A panelist does not run the analyzers, `ask`, `verify`, the fixtures' tests or any
 script, and does not read the database or the answer cache.
+
+## Verdicts
+
+The panel outputs and the resolution are unchanged since the commits that created them. The
+panelists disagreed on task-api `Q1` and `Q3`; the resolver decided both. task-api `Q1` is judged
+`incorrect`, so it stays unsigned and is listed under `## Pending`; every other golden entry carries
+both DIS-110 signatures.
+
+| Project | Id | Panelist 1 | Panelist 2 | Final | Justification | Errors |
+|---|---|---|---|---|---|---|
+| task-api | Q1 | incorrect | partial | incorrect | S3 is a FACT contradicted by the code: taskIdParamsSchema is a params schema, not a querystring one (`fixtures/task-api/src/routes/tasks.routes.ts:20`); filtering and sorting are done by applyFilters and sortTasks, not by the schemas (`fixtures/task-api/src/services/task.filters.ts:10`) | S3 false; S4 false |
+| task-api | Q2 | correct | correct | correct | buildPage takes items, total, page and pageSize and returns a Page (`fixtures/task-api/src/domain/pagination.ts:13`); the answer omits the computed pageCount without being wrong | none |
+| task-api | Q3 | correct | partial | correct | S1 is an INFERENCE backed by its cited lines: canTransition and allowedTransitions read the TRANSITIONS table of the same file (`fixtures/task-api/src/domain/task-status.ts:26`) | none |
+| task-api | Q4 | correct | correct | correct | No route, hook, plugin or check authenticates a user; JWT_SECRET is parsed but never used (`fixtures/task-api/src/config/env.ts:13`), so UNKNOWN is the due answer | none |
+| acme-shop | Q1 | partial | partial | partial | Discount, tax and shipping are applied as stated (`fixtures/acme-shop/app/Services/PriceCalculator.php:28`), but S2 attributes the discount logic to a document while citing README lines, so it is not backed; taxativas is a slip of the model | S2 unverifiable |
+| acme-shop | Q3 | partial | partial | partial | The coupon is checked in percentFor (`fixtures/acme-shop/app/Services/CouponValidator.php:16`); S3 and S4 cite StoreOrderRequest lines that never touch the coupon (`fixtures/acme-shop/app/Http/Requests/StoreOrderRequest.php:26`) | S3 unverifiable; S4 unverifiable |
+| acme-shop | Q4 | correct | correct | correct | The observer dispatches RecalculateTotals and fires OrderPlaced (`fixtures/acme-shop/app/Observers/OrderObserver.php:18`) | none |
+
+Panelist 1's `sourcesRead` lists `fixtures/task-api/.env.example`, `fixtures/task-api/package-lock.json`
+and `fixtures/task-api/tests/unit/task.filters.test.ts`; they are under the allowed prefix
+`fixtures/task-api/`, so the validation check accepts the output, and no judgement cites them. The
+output is recorded as returned.
+
+## Agreement
+
+n = 7
+
+Percent agreement: 71.4%
+
+Cohen's kappa: 0.517
+
+The kappa is indicative: with seven items it has a wide uncertainty.
+
+Resolved by the resolver: 2 of 7
+
+## Pending
+
+- task-api Q1: DIS-110
+
+DIS-110 is a single round: no further round and no ticket follow, and task-api `Q1` stays as a known
+unsigned golden answer for the author (`reviews` empty in `seeds/cache/task-api.json`).
+
+## Limitations
+
+- Two models of one family are not independent reviewers in the sense of two people.
+- The generator is a local 7B model (qwen2.5-coder).
+- sourcesRead is self-declared.
+- The criterion was written by an agent that had read the golden answers.

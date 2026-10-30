@@ -49,3 +49,63 @@
 ## Outcome
 - Status: PASS
 - Blocking issues: none for this step. Task 3 (the `## Purpose` of `explain`) was denied by a hook, see the PR description and the Linear comment.
+
+## Addendum 1 (2026-10-30, pre-merge review, adversarial finding A3): raw evidence of 1.3 and 6.4
+
+- Old-code check re-run: `git restore --source=origin/final-project-CRN -- packages/adapters/store-postgres/src/open-store.ts`
+  (the pre-change inline runner: `release()` without argument, no listener), then
+  `DATABASE_URL=postgresql://codemind:codemind@localhost:5432/codemind npx vitest run tests/integration/store/open-store.spec.ts -t "A connection terminated"`,
+  then `git restore -- packages/adapters/store-postgres/src/open-store.ts` (`git diff --stat -- packages`
+  empty afterwards). Raw output (trimmed to the relevant lines):
+
+```
+⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+Vitest caught 4 unhandled errors during the test run.
+error: terminating connection due to administrator command
+Serialized Error: { length: 116, severity: 'FATAL', code: '57P01', ... routine: 'ProcessInterrupts' }
+The latest test that might've caused the error is "A connection terminated during rejecting work keeps the work's error".
+Error: Connection terminated unexpectedly
+The latest test that might've caused the error is "A connection terminated during rejecting work keeps the work's error".
+error: terminating connection due to administrator command
+The latest test that might've caused the error is "A connection terminated during resolving work fails the commit without driver text".
+Error: Connection terminated unexpectedly
+The latest test that might've caused the error is "A connection terminated during resolving work fails the commit without driver text".
+ Test Files  1 passed (1)
+      Tests  2 passed | 7 skipped (9)
+     Errors  4 errors
+```
+
+  The run fails (non-zero exit) only through the uncaught `error` events of the borrowed client, as
+  design D5 predicted; the assertions themselves pass because `pg-pool` discards a non-queryable
+  client on release. This is also the evidence that the "no unhandled `error` event" clause is
+  enforced by Vitest (verify finding V1). On the final code both pass with no unhandled error
+  (`reports/2026-10-30-show-spec-working.md`).
+- Stryker re-run: `npx stryker run --mutate packages/adapters/store-postgres/src/transaction.ts`; summary
+  row `transaction.ts | 100.00 | 100.00 | 21 killed | 0 timeout | 0 survived | 0 no cov | 0 errors`;
+  all files 93.80 (break threshold 80). No `.stryker-tmp/` left.
+
+## Addendum 2 (2026-10-30): seed fingerprint and the DIS-110 golden round (design X11–X13, tasks group 12)
+
+- CI run 40983358304 (`verify` job) failed with `FINGERPRINT_MISMATCH` `{reason:"seed"}`: the whole
+  directory `packages/adapters/store-postgres/src` is an analyzer fingerprint input, so R6 was wrong.
+- 12.1: SHA-256 of the forty previous-round files recorded before the round (checked again in 12d.6).
+- 12.2: report with `## Criterion` created in `d9dc18c`; its criterion equals, line by line, the three
+  DIS-42 blocks, the two DIS-10 blocks and the DIS-9, DIS-107 and DIS-33 blocks.
+- 12.3: `npm run seed:build`: acme-shop 53 files, 121 symbols, 170 edges, 32 commits; task-api 38 files,
+  64 symbols, 100 edges, 28 commits; `git diff seeds/graph-dump.sql` touched only the
+  `analyzer-fingerprint` line (`sha256:b80b43e2…` → `sha256:153d943e…`);
+  `packages/web/src/data/sample-projects.ts` unchanged. Commit `c57e0e6`.
+- 12.4: Ollama 0.40.11 serving `qwen2.5-coder` on CUDA (GTX 970) with `OLLAMA_CONTEXT_LENGTH=16384`,
+  started by the agent (the tray app was running but not serving). `npm run cache:build` (both
+  projects): acme-shop Q1 281 s, Q3 182 s, Q4 171 s; task-api Q1 207 s, Q2 102 s, Q3 88 s; every one on
+  attempt 1/3.
+- 12.5: both files carry `seed.analyzerFingerprint` `sha256:153d943e…`, `generatedWith` `qwen2.5-coder`
+  for both models, the same ids, empty `reviews`, no `AKIA` key. `npm run db:seed`: `2 projects loaded`;
+  `npm run verify`: acme-shop 3/3, task-api 3/3 golden answers match. `golden-coherence` and
+  `golden-questions` specs: 5 passed.
+- 12.6: regeneration commit `ebc47ba`; `ollama.exe` stopped (no `llama-server` left).
+- 12b: delta `2260740`; input and retargeted test `e188823` (RED before the input: the input `it`
+  failed on the missing file; after it, 3 passed and the 6 panel `it`s failed as expected). The
+  forty SHA-256 unchanged; the input holds no verdict.
+- 12c: panelist outputs `fdcfc8e` (both pass "Each panelist output judges every item under the
+  criterion").

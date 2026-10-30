@@ -271,7 +271,16 @@
         },
         "confidence": 0.8519528019683106
       },
-      "reviews": []
+      "reviews": [
+        {
+          "by": "agent:claude-opus-5-5",
+          "date": "2026-10-30"
+        },
+        {
+          "by": "agent:claude-sonnet-5-5",
+          "date": "2026-10-30"
+        }
+      ]
     },
     {
       "id": "Q3",
@@ -388,7 +397,16 @@
         },
         "confidence": 0.7211151780228631
       },
-      "reviews": []
+      "reviews": [
+        {
+          "by": "agent:claude-opus-5-5",
+          "date": "2026-10-30"
+        },
+        {
+          "by": "agent:claude-sonnet-5-5",
+          "date": "2026-10-30"
+        }
+      ]
     }
   ]
 }
