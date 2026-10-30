@@ -3,14 +3,14 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { cohenKappa } from '../../../scripts/annotation-agreement.mjs';
 
-// Spec: openspec/changes/stale-claims-refresh/specs/golden-answers/spec.md (DIS-42 r3, the third and last
-// DIS-42 round of the golden review after the stale claim refresh, once acme-shop Q1 alone was regenerated
-// once more; previous rounds DIS-42 r2, the first DIS-42 round, DIS-10 r2, DIS-10, DIS-9, DIS-107 and
-// DIS-33), delta of `golden-answers`:
+// Spec: openspec/changes/pool-transaction-release/specs/golden-answers/spec.md (DIS-110, a single round of
+// the golden review over the six golden answers regenerated after the pooled transaction runner of DIS-110
+// changed the store adapter; previous rounds DIS-42 r3, DIS-42 r2, the first DIS-42 round, DIS-10 r2,
+// DIS-10, DIS-9, DIS-107 and DIS-33), delta of `golden-answers`:
 // "Blind panel input of the golden review". The independent review of the versioned golden answers is
 // done by a blind panel; this file ties the golden files, the panel files and the review report together.
 
-const INPUT_PATH = 'docs/golden-review/panel/2026-10-golden-review-dis-42-r3-input.json';
+const INPUT_PATH = 'docs/golden-review/panel/2026-10-golden-review-dis-110-input.json';
 
 interface GoldenStatement {
   text: string;
@@ -171,15 +171,16 @@ interface Resolution {
 
 const PANEL_DIR = 'docs/golden-review/panel';
 const PANELIST_PATHS = [
-  `${PANEL_DIR}/2026-10-golden-review-dis-42-r3-panelist-1.json`,
-  `${PANEL_DIR}/2026-10-golden-review-dis-42-r3-panelist-2.json`,
+  `${PANEL_DIR}/2026-10-golden-review-dis-110-panelist-1.json`,
+  `${PANEL_DIR}/2026-10-golden-review-dis-110-panelist-2.json`,
 ];
-const RESOLUTION_PATH = `${PANEL_DIR}/2026-10-golden-review-dis-42-r3-resolution.json`;
-const CHANGE = 'stale-claims-refresh';
+const RESOLUTION_PATH = `${PANEL_DIR}/2026-10-golden-review-dis-110-resolution.json`;
+const CHANGE = 'pool-transaction-release';
 const TASKS_PATH = `openspec/changes/${CHANGE}/tasks.md`;
-const REPORT_PATH = 'docs/golden-review/2026-10-golden-review-dis-42-r3.md';
-/** The previous rounds, newest first: DIS-42 r2, the first DIS-42 round, DIS-10 r2, the first DIS-10 round, DIS-9, DIS-107, DIS-33. */
+const REPORT_PATH = 'docs/golden-review/2026-10-golden-review-dis-110.md';
+/** The previous rounds, newest first: DIS-42 r3, DIS-42 r2, the first DIS-42 round, DIS-10 r2, the first DIS-10 round, DIS-9, DIS-107, DIS-33. */
 const PREVIOUS_ROUND_REPORTS = [
+  'docs/golden-review/2026-10-golden-review-dis-42-r3.md',
   'docs/golden-review/2026-10-golden-review-dis-42-r2.md',
   'docs/golden-review/2026-10-golden-review-dis-42.md',
   'docs/golden-review/2026-10-golden-review-dis-10-r2.md',
@@ -189,6 +190,7 @@ const PREVIOUS_ROUND_REPORTS = [
   'docs/golden-review/2026-10-task-api-golden-review.md',
 ];
 const PREVIOUS_ROUND_PANELISTS = [
+  `${PANEL_DIR}/2026-10-golden-review-dis-42-r3-panelist-1.json`,
   `${PANEL_DIR}/2026-10-golden-review-dis-42-r2-panelist-1.json`,
   `${PANEL_DIR}/2026-10-golden-review-dis-42-panelist-1.json`,
   `${PANEL_DIR}/2026-10-golden-review-dis-10-r2-panelist-1.json`,
@@ -197,8 +199,12 @@ const PREVIOUS_ROUND_PANELISTS = [
   `${PANEL_DIR}/2026-10-golden-review-dis-107-panelist-1.json`,
   `${PANEL_DIR}/2026-10-golden-review-panelist-1.json`,
 ];
-/** The previous rounds' tasks files; the DIS-10 one holds two Criterion blocks (the first DIS-10 round and r2). */
+/**
+ * The previous rounds' tasks files; the DIS-42 one holds three Criterion blocks (the first DIS-42 round, r2 and r3),
+ * the DIS-10 one two (the first DIS-10 round and r2).
+ */
 const PREVIOUS_ROUND_TASKS = [
+  'openspec/changes/archive/2026-10-30-stale-claims-refresh/tasks.md',
   'openspec/changes/archive/2026-10-29-incremental-indexing/tasks.md',
   'openspec/changes/archive/2026-10-29-index-endpoint/tasks.md',
   'openspec/changes/archive/2026-10-28-ts-await-using-golden-regen/tasks.md',
@@ -422,7 +428,7 @@ describe('golden review: panel outputs', () => {
       ['allowlist', 'sourcesRead entry outside the allowlist', (o) => o.sourcesRead.push('seeds/cache/task-api.json')],
       ['directory', 'directory entry with a trailing slash', (o) => o.sourcesRead.push('fixtures/task-api/src/')],
       ['directory', 'existing directory without a trailing slash', (o) => o.sourcesRead.push('fixtures/task-api/src')],
-      ['allowlist', 'a Linear description entry', (o) => o.sourcesRead.push('linear:DIS-42/description')],
+      ['allowlist', 'a Linear description entry', (o) => o.sourcesRead.push('linear:DIS-110/description')],
       ...PREVIOUS_ROUND_PANELISTS.map((path): [string, string, (output: PanelOutput) => void] => [
         'allowlist',
         `the panelist output of a previous round (${path})`,
@@ -754,11 +760,11 @@ describe('golden review: report', () => {
     const previousBlocks = PREVIOUS_ROUND_TASKS.map((path) => ({ path, blocks: criterionBlocks(readFileSync(resolve(path), 'utf8').split('\n')) }));
 
     // Assert
-    expect(blocks, 'the tasks file has the Criterion blocks of its three Panel groups (the first DIS-42 round, r2 and r3)').toHaveLength(3);
+    expect(blocks, 'the tasks file has the Criterion block of its single Panel group (the DIS-110 round, group 12c)').toHaveLength(1);
     expect(
       previousBlocks.map(({ blocks: found }) => found.length),
-      'the DIS-10 tasks file has two Criterion blocks, the DIS-9, DIS-107 and DIS-33 ones one each',
-    ).toEqual([2, 1, 1, 1]);
+      'the DIS-42 tasks file has three Criterion blocks, the DIS-10 one two, the DIS-9, DIS-107 and DIS-33 ones one each',
+    ).toEqual([3, 2, 1, 1, 1]);
     for (const { start, end, lines: block } of blocks) {
       expect(end).toBeGreaterThan(start);
       expect(block.length).toBeGreaterThan(0);
