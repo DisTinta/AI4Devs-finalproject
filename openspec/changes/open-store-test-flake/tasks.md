@@ -36,10 +36,10 @@
 
 ## 7. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 7.1 Commit (scope `DIS-110`, explicit paths), push and open the PR in Spanish against `final-project-CRN`
-- [ ] 7.2 CI green: wait in the foreground with `gh pr checks <n> --watch --interval 60` (timeout 600000), repeated until no check is pending; link the run in an addendum to the step 3 report. A failure covered by the pass criterion of 3.1 (an F1 `it` on its `projectCount()` assertion, a race listed in `docs/TESTING.md` → Carreras conocidas, or a test of another file this change does not touch, design F3) is re-run once and recorded; any other failure is handled as in 3.1 (design X1, X2). If the re-run fails again, the failing file is run alone locally and classified as in 3.1; a CI still red after two corrections is a clean stop (`docs/AUTONOMOUS-RUN.md` §6)
-- [ ] 7.3 `/show-spec-working`: reuse the step 3 evidence (the six runs) → `reports/YYYY-MM-DD-show-spec-working.md`
-- [ ] 7.4 `/verify-against-spec` (inline mode, verified against `proposal.md`, `design.md` and the `graph-store` scenario, `skip_specs: true`; DIS-110's acceptance criteria 1-6 were delivered by `pool-transaction-release` and do not apply, the author's instruction in `proposal.md` → Why and What Changes stands in for them) → `reports/YYYY-MM-DD-verify-against-spec.md`
-- [ ] 7.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`
-- [ ] 7.6 Every finding gets an A/C/D destination in `design.md` → Follow-ups (no new tickets); fixes on the same PR, re-running what each fix invalidates
+- [x] 7.1 Commit (scope `DIS-110`, explicit paths), push and open the PR in Spanish against `final-project-CRN`
+- [x] 7.2 CI green: wait in the foreground with `gh pr checks <n> --watch --interval 60` (timeout 600000), repeated until no check is pending; link the run in an addendum to the step 3 report. A failure covered by the pass criterion of 3.1 (an F1 `it` on its `projectCount()` assertion, a race listed in `docs/TESTING.md` → Carreras conocidas, or a test of another file this change does not touch, design F3) is re-run once and recorded; any other failure is handled as in 3.1 (design X1, X2). If the re-run fails again, the failing file is run alone locally and classified as in 3.1; a CI still red after two corrections is a clean stop (`docs/AUTONOMOUS-RUN.md` §6)
+- [x] 7.3 `/show-spec-working`: reuse the step 3 evidence (the six runs) → `reports/YYYY-MM-DD-show-spec-working.md`
+- [x] 7.4 `/verify-against-spec` (inline mode, verified against `proposal.md`, `design.md` and the `graph-store` scenario, `skip_specs: true`; DIS-110's acceptance criteria 1-6 were delivered by `pool-transaction-release` and do not apply, the author's instruction in `proposal.md` → Why and What Changes stands in for them) → `reports/YYYY-MM-DD-verify-against-spec.md`
+- [x] 7.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`
+- [x] 7.6 Every finding gets an A/C/D destination in `design.md` → Follow-ups (no new tickets); fixes on the same PR, re-running what each fix invalidates
 - [ ] 7.7 `/opsx:archive`, commit it to the same PR, push, CI green; `node scripts/dev-processes.mjs stop`. The agent does not merge (instruction of this run): the author merges. A short Spanish comment on DIS-110, which stays Done

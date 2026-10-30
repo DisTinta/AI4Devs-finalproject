@@ -75,3 +75,8 @@ Not applicable: test-only edit; no HTTP endpoint, CLI command or user interface 
 
 - Status: PASS
 - Blocking issues: none. F1 and F3 failures recorded for the author (design Follow-ups).
+
+## Addendum: CI of PR #88 (task 7.2) and run-alone limit
+
+- PR #88, run [41036062002](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/41036062002) (plus `frontend` run 41036062004): `scope`, `quality` (9 min 31 s, the whole suite with its own database), `verify`, `mutation`, `secrets` and `frontend` all `pass` on the first attempt; no re-run needed.
+- Limit of the F3 evidence (adversarial review, finding R2): each F3 file was run alone once, after the six runs, not repeated under the same load; the cause of the `graph-read.spec.ts` failure was not diagnosed beyond its whole-database read. The claim that F3 is unrelated rests on the change only removing a read from one test.

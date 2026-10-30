@@ -90,3 +90,16 @@ ticket; C = the author; D = out of scope, recorded.*
 | Id | Decision | Destination |
 |---|---|---|
 | X2 | Pass criterion of X1 widened during the apply, after runs 2 and 4 failed on tests of other files (F3) that passed when their files ran alone. The criterion for the changed `it` is unchanged (all six runs). A failure of a test of another file this change does not touch that passes when its file runs alone is recorded with that run-alone evidence, not fixed; one that also fails alone is run alone on `origin/final-project-CRN`: if it fails there too it is pre-existing, recorded for the author (C) with both commands and totals, and does not block the step; if it passes there it is treated as caused by this change, diagnosed and fixed here after updating the proposal non-goals, the design and tasks 1.2 and 2.1 under `docs/base-standards.md` §7, and the six runs are repeated. "Passes alone" means one run of its file alone, recorded in the report. In CI such a failure is re-run once and recorded; if the re-run fails again, the file is run alone locally and classified the same way, and a CI still red after two corrections is a clean stop (`docs/AUTONOMOUS-RUN.md` §6). (Spec audit runs 3 and 4.) Rationale: the change only removes a read from one test and cannot affect another file. | A |
+
+*Agent's text: pre-merge review findings (`reports/2026-10-30-verify-against-spec.md`, `reports/2026-10-30-adversarial-review.md`), each checked against the code by the agent.*
+
+| Id | Decision | Destination |
+|---|---|---|
+| V1 | `prompts.md` gained entry 74, not named in the proposal: it is the mandatory AI log of `docs/project-context.md` → "prompts.md — synchronous AI log"; kept. | D, recorded |
+| R1 | The remaining assertions cannot tell a leak on the resolve path from one on the reject path (one shared close); this matches the scenario, and the removed count could never catch a leak. | D, recorded |
+| R2 | The F3 run-alone evidence is one run per file, after the six runs; the limit is now stated in the step 3 report addendum. | A |
+| R3 | F1-F3 stay with the author with no Linear issue (this run forbids tickets): the Spanish comment on DIS-110 lists them, as the lighter destination C allows. | C, author |
+| R4 | Git history does not show the apply-time artifact edits (committed after the audit runs); the sequence is in the spec-audit report, and no requirement was edited. | D, recorded |
+| R5 | `.claude/sdd-harness.env` is modified locally (the author's run switches) and never staged. | D, recorded |
+| R6 | `reports/pr-description.md` is the repository copy of the PR body; committed with the review reports. | A |
+| R7, R8 | Data-state counts at two points only, and no report line for 0.1, 0.2 and 6.1: the change writes nothing, and the branch, base and files are visible in the PR. | D, recorded |
