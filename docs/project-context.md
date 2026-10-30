@@ -497,6 +497,9 @@ Verified against `package.json` (root and per package). If a command is not here
   `tests/unit/api/reindex.spec.ts` (`/index` over doubles with a recording log) and
   `tests/integration/api/reindex.spec.ts` (over the seed, the harness transaction as the unit of
   work); `store/open-store.spec.ts` also covers the transaction runner and deletes what it commits.
+  Since DIS-110, `tests/unit/store/open-store-transaction-errors.spec.ts` drives `runInTransaction`
+  over a stub pool (failed `BEGIN`, `ROLLBACK` and `COMMIT`, destroy versus return, the `error`
+  listener), and `open-store.spec.ts` terminates the runner's backend with `pg_terminate_backend`.
   Since DIS-10, `tests/unit/index/incremental-plan.spec.ts` (the pure plan) and
   `tests/integration/index/incremental-reindex.spec.ts` (the changed file and its dependents, and the
   fast path, over Postgres with a copy of acme-shop whose history is built once).
@@ -1349,8 +1352,12 @@ services that must be started first, quirks of the local environment.
   still receives every file) to completion inside the
   request and answers `202` with the counters (a recorded deviation from backend-standards §6). The
   graph save and `invalidateCache` run in **one transaction** through `OpenedStore.transaction`, the
-  transaction runner of the pooled store (`open-store.ts`: connect, `BEGIN`, a store bound to the
-  client, `COMMIT`/`ROLLBACK`, release); core sees it as a plain `inTransaction` function. It has its
+  transaction runner of the pooled store (`open-store.ts` delegates to the internal module
+  `transaction.ts`, `runInTransaction(pool, work)`, not exported from the package: connect, `BEGIN`, a
+  store bound to the client, `COMMIT`/`ROLLBACK`, release). Since DIS-110 the connection is destroyed
+  (released with the error) when its `BEGIN` or `ROLLBACK` fails and returned otherwise, and the run
+  holds a no-op `error` listener on the borrowed client that it removes before releasing; core sees it
+  as a plain `inTransaction` function. It has its
   own domain error table `REINDEX_DOMAIN_ERRORS` (fixed messages, details `{}`: `INDEXING_DISABLED`
   and `FORBIDDEN_PATH` `403`, `PROJECT_NOT_FOUND` `404`, `NOT_A_GIT_REPOSITORY`/`EMPTY_REPOSITORY`
   `503`; an invalid graph is `500 INTERNAL`), logs `reindex completed` with counters only and

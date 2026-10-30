@@ -192,3 +192,11 @@ existing ticket; C = the author; D = out of scope, recorded.*
 | X5 | Q2 of the audit: task 7.4 keeps the agent running the PowerShell check with `powershell.exe`. The source is the author's instruction for DIS-110 in the notes of this autonomous run ("Comprobaciones PowerShell las ejecuta el agente con powershell.exe"), now also quoted in a Linear comment of DIS-110 so it is traceable; it is a recorded deviation from `docs/openspec-tasks-mandatory-steps.md` §3. The destination stays C: the author may repeat the check. | C, author (executed by the agent) |
 | X6 | B2 of the audit: the requirement gains the clause that the run removes its `error` listener before releasing, with the scenario "A run leaves no error listener on its connection", tested as its own `it` (D3, D5). | A |
 | X7 | Task ordering (audit point 9): the two integration `it`s are written and run right after task 1.2, against the code that still releases without argument and has no listener, and the result is recorded; they are run again on the final code in step 2. No `git worktree` is used. | A |
+
+*Agent's text: decisions taken during the apply (step 6 report).*
+
+| Id | Decision | Destination |
+|---|---|---|
+| X8 | Task 3 (the `## Purpose` of `explain`) could not be done: the hook `protect-specs-and-tests` denied the edit of a main spec outside a sync of an approved delta ("the main spec explain is only synced from an approved delta of the active change"). A delta cannot change a Purpose and the denial is not worked around, so the edit stays pending (tasks 3.1 and 3.2 unchecked); the PR carries no `docs(DIS-110)` commit for it. | C, author |
+| X9 | The two new integration `it`s dropped the global `projectCount()` baseline: another test file running in parallel creates projects and made the count flaky (the same flake hit the existing "Every connection is released after a run" once). `projectIds(name)` empty remains the assertion. The existing `it` is not edited. | A (new `it`s), D (existing `it`) |
+| X10 | A unit `it` "The work receives a store bound to the borrowed connection" was added after Stryker showed one survivor; `transaction.ts` is at 100 %. | A |
