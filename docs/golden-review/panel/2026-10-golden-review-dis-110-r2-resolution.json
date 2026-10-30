@@ -1,0 +1,26 @@
+{
+  "resolver": "claude-opus-5-5",
+  "date": "2026-10-30",
+  "sourcesRead": [
+    "openspec/changes/golden-review-dis-110-r2/tasks.md",
+    "docs/golden-review/panel/2026-10-golden-review-dis-110-r2-panelist-1.json",
+    "docs/golden-review/panel/2026-10-golden-review-dis-110-r2-panelist-2.json",
+    "docs/golden-review/panel/2026-10-golden-review-dis-110-r2-input.json",
+    "fixtures/task-api/src/domain/task-status.ts",
+    "fixtures/task-api/src/services/task.service.ts"
+  ],
+  "items": [
+    {
+      "project": "task-api",
+      "id": "Q3",
+      "verdict": "partial",
+      "justification": "Statement 1 says the valid transitions are defined in src/domain/task-status.ts. That is true, but the table that defines them is at fixtures/task-api/src/domain/task-status.ts:13, and the statement cites only lines 25-27 and 29-31 (fixtures/task-api/src/domain/task-status.ts:26, fixtures/task-api/src/domain/task-status.ts:30). Those lines only look up TRANSITIONS and do not define it, so under the criterion the cited lines do not back the statement and it is unverifiable. Statements 2-4 are true (canTransition at fixtures/task-api/src/domain/task-status.ts:25, allowedTransitions at fixtures/task-api/src/domain/task-status.ts:29, the IllegalStatusTransitionError throw at fixtures/task-api/src/services/task.service.ts:50) and the answer is true, so one error among non-error statements gives partial.",
+      "cites": [
+        "fixtures/task-api/src/domain/task-status.ts:13",
+        "fixtures/task-api/src/domain/task-status.ts:26",
+        "fixtures/task-api/src/domain/task-status.ts:30",
+        "fixtures/task-api/src/services/task.service.ts:50"
+      ]
+    }
+  ]
+}
