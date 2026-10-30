@@ -124,7 +124,11 @@ tests:
 
   Vacíala con la orden de arriba y vuelve a ejecutar. La comprobación corre también en una ejecución
   solo de tests unitarios si `DATABASE_URL` sigue definida (en PowerShell, `$env:DATABASE_URL` dura
-  toda la sesión); sin `DATABASE_URL` no hace nada.
+  toda la sesión); sin `DATABASE_URL` no hace nada. Si la base de datos no responde, la ejecución se
+  para con `The test database URL could not be used` (sin la URL), también la de unitarios. Y como
+  varios tests confirman un proyecto propio durante un momento, una segunda ejecución lanzada mientras
+  otra está en marcha (o un runner del IDE) puede encontrarlo y negarse a empezar: espera a que
+  termine la primera.
 
 Quedan estas carreras, que no se eliminaron:
 

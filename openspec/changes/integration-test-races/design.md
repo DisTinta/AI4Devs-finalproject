@@ -500,3 +500,12 @@ ticket; C = the author; D = out of scope, recorded.*
 | L2 | RC5 removed in this change (D7): supersedes Q1 (option b taken) and the "remains" entries of the trigger tests; the first-phase S1 stop stays recorded as the reason for the second phase. | A |
 | L3 | F4 done: the start-up check (D9) and the shared snapshot helper (D8, it removes copies this change introduced). | A |
 | L4 | The merge stays with the author (instruction of the lead); F6's agent merge is withdrawn. | C, author |
+
+*Agent's text: pre-merge review findings (`reports/2026-10-30-verify-against-spec.md`, `reports/2026-10-30-adversarial-review.md`), each checked against the code by the agent.*
+
+| Id | Decision | Destination |
+|---|---|---|
+| R1 | No executed evidence that the five failure tests catch a leak or a missing rollback: throwaway mutations run and reverted; leak caught by the four graph-store tests (explain's events never carry the store error, by design), missing rollback caught by all five (step 5 report, addendum). | A |
+| R7ab, R9 | `docs/TESTING.md` names the unreachable-database and concurrent-run cases of the start-up check; the first-phase outcome of the step 5 report is marked superseded. | A |
+| H1 | Test-support hardening, one item for the author: `inOwnSnapshot` on a dead connection (a failing `ROLLBACK` masks `work`'s error; no `'error'` listener) and tests of its retry path through the helper itself (R2, R3); `rejectingWrites` quoting-tag edges, schema-qualified or `QueryConfig` statements, unescaped `table` (R5, R6, V3 part); an automated test that `vitest.config.ts` registers the start-up check in both projects (R7c, V1). None affects the current tests (all fail loudly or are unreachable). | C, author |
+| V2–V8, R4, R8, R10, Q1 | Recorded, not changed: same-backend `pg_proc` read is equivalent (catalogs are global); the `DO` block in place of the `INSERT` (D7); aggregate per-run evidence; retry absorbing a `40001` of code under test (no such path in the three users); open-store's post-clean-up check (as the removed count, D1); 5+3 runs under the fixed D10 rule; `--project dom` runs are not checked (Vitest runs only the selected projects' `globalSetup`). | D, recorded |

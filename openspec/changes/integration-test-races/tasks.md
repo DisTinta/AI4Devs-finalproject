@@ -68,9 +68,9 @@
 
 - [x] 9.1 Commit (scope `DIS-110`, explicit paths), push and open the PR in Spanish against `final-project-CRN` (PR #89; the second phase is pushed to the same PR and its description updated)
 - [ ] 9.2 CI green: wait in the foreground with `gh pr checks <n> --watch --interval 60` (timeout 600000), repeated until no check is pending (a full `mutation` run is expected on this PR, design Risks); link the run in an addendum to the step 5 report. A failure is diagnosed as in 5.2 (re-run once only if the cause is recorded in Carreras conocidas); a CI still red after two corrections is a clean stop (`docs/AUTONOMOUS-RUN.md` §6)
-- [ ] 9.3 `/show-spec-working`: reuse the step 5 evidence → `reports/YYYY-MM-DD-show-spec-working.md`
-- [ ] 9.4 `/verify-against-spec` (inline mode: a fresh read-only subagent reads, the agent checks each finding; against `proposal.md`, `design.md`, the `test-db-isolation` delta and the scenarios of the changed tests) → `reports/YYYY-MM-DD-verify-against-spec.md`
-- [ ] 9.5 `/adversarial-review` (inline mode, same way) → `reports/YYYY-MM-DD-adversarial-review.md`
-- [ ] 9.6 Every finding gets an A/C/D destination in `design.md` → Follow-ups (no new tickets); A items fixed on the same PR, re-running what each fix invalidates; a fix that edits any test file re-runs 5.8 (both series) and 5.3 under design D10 before 9.8, recorded in an addendum to the step 5 report
+- [x] 9.3 `/show-spec-working`: reuse the step 5 evidence → `reports/YYYY-MM-DD-show-spec-working.md`
+- [x] 9.4 `/verify-against-spec` (inline mode: a fresh read-only subagent reads, the agent checks each finding; against `proposal.md`, `design.md`, the `test-db-isolation` delta and the scenarios of the changed tests) → `reports/YYYY-MM-DD-verify-against-spec.md`
+- [x] 9.5 `/adversarial-review` (inline mode, same way) → `reports/YYYY-MM-DD-adversarial-review.md`
+- [x] 9.6 Every finding gets an A/C/D destination in `design.md` → Follow-ups (no new tickets); A items fixed on the same PR, re-running what each fix invalidates; a fix that edits any test file re-runs 5.8 (both series) and 5.3 under design D10 before 9.8, recorded in an addendum to the step 5 report
 - [ ] 9.7 `/opsx:archive`, commit it to the same PR, push, CI green; `node scripts/dev-processes.mjs stop`
 - [ ] 9.8 No merge by the agent (lead's instruction, design L4): after the archive commit's CI is green, the PR is left ready for the author, and only if the step 5 report records 5.2 (second phase) and 5.3 as PASS. A short Spanish comment on DIS-110, which stays Done

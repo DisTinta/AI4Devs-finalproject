@@ -120,7 +120,8 @@ Entry 75 added (the run's commission, as entry 74 did for the previous change).
 
 ## Outcome
 
-- Status: FAIL (stability step 5.2 not passed; clean stop by design D5).
+- Status: FAIL (stability step 5.2 not passed; clean stop by design D5). **Superseded by the
+  "Second phase" section below (PASS)**; task 4.1's file list is extended by task 4.3.
 - Delivered: the changes of tasks 1–3, 2.3 and 2.4 (RC1, RC2 and F3's graph-read listing), the
   restored test database, the documentation of task 8.
 - Blocking issue: the `CREATE TRIGGER` lock queue (design S1). Tasks 9.3–9.8 (reviews, archive,
@@ -181,3 +182,18 @@ specs.)
 ### Outcome of the second phase
 
 - Status: PASS (5.8 and 5.3).
+
+## Addendum: mutation check of the five failure tests (adversarial review, finding R1)
+
+Throwaway mutations of `packages/adapters/store-postgres/src/postgres-store.ts`, never committed,
+each reverted with `git restore` (afterwards `git diff --stat -- packages` is empty). Command, both
+times: `DB npx vitest run <the five files> -t "failure while writing evidence|failure while refreshing|failed cache write|failed query log write|failed write over the database"`.
+
+| Mutation | claims-write | claims-refresh | cache-entry | query-log-write | explain |
+|---|---|---|---|---|---|
+| Leak: `domainErrorOr` copies the database error's `detail` onto the store's error | failed (caught) | failed (caught) | failed (caught) | failed (caught) | passed |
+| No rollback: the caller-owned branch of `atomically` skips `ROLLBACK TO SAVEPOINT` / `RELEASE` | failed (caught) | failed (caught) | failed (caught) | failed (caught) | failed (caught) |
+
+The explain test passing under the leak mutation is expected: its scenario checks the answer's
+events, and the store's error object never reaches them (explain turns any store write failure into
+the fixed event `store-write-failed`); the store-level leak is the four graph-store scenarios' job.
