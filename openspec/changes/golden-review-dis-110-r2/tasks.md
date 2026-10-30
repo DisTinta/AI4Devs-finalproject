@@ -70,31 +70,31 @@ This group is done by independent agents launched outside the apply: panelist 1 
 - [x] 5.3 GREEN data: in `seeds/cache/task-api.json` and `seeds/cache/acme-shop.json`, with the edit tools, set `reviews` of every entry whose r2 final verdict is `correct` or `partial` to the two r2 signatures of the spec (they replace the DIS-110 signatures); set `reviews` to `[]` for an `incorrect` one; change nothing else. `npx vitest run tests/unit/seed/golden-coherence.spec.ts` stays green
 - [x] 5.4 GREEN report: complete `docs/golden-review/2026-10-golden-review-dis-110-r2.md` without touching `## Criterion`, with the exact formats of the spec (`## Panel` models, dates and resolver; `## Verdicts`; `## Agreement`; `## Pending` only if an item is `incorrect`, each line `- <project> <id>: DIS-110` with the sentence the requirement "Golden review report" fixes for r2; `## Limitations` verbatim). `npx vitest run tests/unit/seed/golden-reviews.spec.ts` fully green
 - [x] 5.5 Commit the golden files, the r2 report, this `tasks.md` and `design.md` if changed (scope `DIS-110`, explicit paths) and push. The r2 panel outputs and the resolution are frozen from here. If task-api `Q1` is `incorrect`, record it in `design.md` → Follow-ups and update this change for the r3 round before anything else (design G2); if another item is `incorrect`, record it there as a known unsigned golden answer (destination C)
-- [ ] 5.6 Spec scenario "The criterion precedes the input and nothing in the record is rewritten", checked with git and recorded in the step 7 report: the r2 report's creating commit (1.2) is an ancestor of the r2 regeneration commit (2.4), which is an ancestor of the r2 input's (3.4); `git log <regeneration>..<input commit> -- seeds/cache` is empty; no later commit touches the r2 `## Criterion`; one commit per r2 panel file; the SHA-256 of 1.1 unchanged and `git diff origin/final-project-CRN` over those files empty; `git log --format=%h d9dc18c..HEAD` (the DIS-110 report's creating commit) over the forty files of the rounds before DIS-110 lists nothing; `git diff <regeneration> -- seeds/cache` touches only `reviews` lines
+- [x] 5.6 Spec scenario "The criterion precedes the input and nothing in the record is rewritten", checked with git and recorded in the step 7 report: the r2 report's creating commit (1.2) is an ancestor of the r2 regeneration commit (2.4), which is an ancestor of the r2 input's (3.4); `git log <regeneration>..<input commit> -- seeds/cache` is empty; no later commit touches the r2 `## Criterion`; one commit per r2 panel file; the SHA-256 of 1.1 unchanged and `git diff origin/final-project-CRN` over those files empty; `git log --format=%h d9dc18c..HEAD` (the DIS-110 report's creating commit) over the forty files of the rounds before DIS-110 lists nothing; `git diff <regeneration> -- seeds/cache` touches only `reviews` lines
 
 ## 6. Backend: Review and Update Existing Tests (MANDATORY)
 
-- [ ] 6.1 Existing test files changed by this change: only `tests/unit/seed/golden-reviews.spec.ts` (every `it`, through its shared constants, retargeted to the DIS-110 r2 round and to this change, tasks 3.1 and 3.2; `PANELIST_FILES` accepts this change's tasks path `openspec/changes/golden-review-dis-110-r2/tasks.md`). No assertion is weakened: the checks stay the same, only the round's paths and the list of previous rounds change. No other existing test changes; if the apply needs to change one, name it here first
-- [ ] 6.2 Every `#### Scenario:` of the delta maps to a test with exactly the same name in `tests/unit/seed/golden-reviews.spec.ts` (grep each title), except "The criterion precedes the input and nothing in the record is rewritten", checked with git (task 5.6)
+- [x] 6.1 Existing test files changed by this change: only `tests/unit/seed/golden-reviews.spec.ts` (every `it`, through its shared constants, retargeted to the DIS-110 r2 round and to this change, tasks 3.1 and 3.2; `PANELIST_FILES` accepts this change's tasks path `openspec/changes/golden-review-dis-110-r2/tasks.md`). No assertion is weakened: the checks stay the same, only the round's paths and the list of previous rounds change. No other existing test changes; if the apply needs to change one, name it here first
+- [x] 6.2 Every `#### Scenario:` of the delta maps to a test with exactly the same name in `tests/unit/seed/golden-reviews.spec.ts` (grep each title), except "The criterion precedes the input and nothing in the record is rewritten", checked with git (task 5.6)
 
 ## 7. Backend: Run Tests and Verify Data State (MANDATORY)
 
-- [ ] 7.1 Capture the pre-test baseline: the 0.3 indicators
-- [ ] 7.2 Targeted: `npx vitest run tests/unit/seed tests/unit/cache`
-- [ ] 7.3 `npm run db:seed` (`2 projects loaded`) and `npm run verify` with no `LLM_*`: every golden answer of both projects matches (3/3 per project), exit `0`
-- [ ] 7.4 Broader suite and gates: `npx vitest run --project dom --project seed-build --project node`, `npm run lint`, `npm run typecheck`, `npm run docs:coverage`; privacy check over the diff (no secret, no personal data; the planted fixture secret not copied into any report). The known flaky test "Every connection is released after a run" (DIS-110 A7): if it fails, rerun it alone once and record both runs; any other failure stops
-- [ ] 7.5 Verify the post-test state: the 0.3 indicators unchanged except the reload of the sample projects; restore and document otherwise
-- [ ] 7.6 `node scripts/dev-processes.mjs stop` (Ollama is not a repository process and keeps running); report `openspec/changes/golden-review-dis-110-r2/reports/YYYY-MM-DD-7-test-and-state-verification.md` (template of `docs/openspec-tasks-mandatory-steps.md` §6) with the baseline, the regeneration log of 2.2–2.5, the checks of 5.6, the key-set checks of 4.3, the runs of 7.2–7.4 and the red-CI window (2.4 → 5.4)
-- [ ] 7.7 Mark complete only after the tests pass and the report exists
+- [x] 7.1 Capture the pre-test baseline: the 0.3 indicators
+- [x] 7.2 Targeted: `npx vitest run tests/unit/seed tests/unit/cache`
+- [x] 7.3 `npm run db:seed` (`2 projects loaded`) and `npm run verify` with no `LLM_*`: every golden answer of both projects matches (3/3 per project), exit `0`
+- [x] 7.4 Broader suite and gates: `npx vitest run --project dom --project seed-build --project node`, `npm run lint`, `npm run typecheck`, `npm run docs:coverage`; privacy check over the diff (no secret, no personal data; the planted fixture secret not copied into any report). The known flaky test "Every connection is released after a run" (DIS-110 A7): if it fails, rerun it alone once and record both runs; any other failure stops
+- [x] 7.5 Verify the post-test state: the 0.3 indicators unchanged except the reload of the sample projects; restore and document otherwise
+- [x] 7.6 `node scripts/dev-processes.mjs stop` (Ollama is not a repository process and keeps running); report `openspec/changes/golden-review-dis-110-r2/reports/YYYY-MM-DD-7-test-and-state-verification.md` (template of `docs/openspec-tasks-mandatory-steps.md` §6) with the baseline, the regeneration log of 2.2–2.5, the checks of 5.6, the key-set checks of 4.3, the runs of 7.2–7.4 and the red-CI window (2.4 → 5.4)
+- [x] 7.7 Mark complete only after the tests pass and the report exists
 
 ## 8. Backend: Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 8.1 The interfaces this change runs are the CLI commands `cache:build`, `db:seed` and `verify` (design F5). Success paths: the run of 2.2 (exit `0`, final line counting the golden answers) and of 7.3 (`2 projects loaded`; `verify` exit `0`). Error path: `npm run cache:build -- --project task-api Q9` (unknown question id: usage error, exit non-zero, no file changed, `git status --short seeds` empty). No HTTP route or UI changes, so no PowerShell check applies
-- [ ] 8.2 `node scripts/dev-processes.mjs stop`; report `openspec/changes/golden-review-dis-110-r2/reports/YYYY-MM-DD-8-manual-interface-testing.md` with every command, exit code and output (mask the OS user name in paths)
+- [x] 8.1 The interfaces this change runs are the CLI commands `cache:build`, `db:seed` and `verify` (design F5). Success paths: the run of 2.2 (exit `0`, final line counting the golden answers) and of 7.3 (`2 projects loaded`; `verify` exit `0`). Error path: `npm run cache:build -- --project task-api Q9` (unknown question id: usage error, exit non-zero, no file changed, `git status --short seeds` empty). No HTTP route or UI changes, so no PowerShell check applies
+- [x] 8.2 `node scripts/dev-processes.mjs stop`; report `openspec/changes/golden-review-dis-110-r2/reports/YYYY-MM-DD-8-manual-interface-testing.md` with every command, exit code and output (mask the OS user name in paths)
 
 ## 9. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
 
-- [ ] 9.1 Not applicable: no browser UI changes (`packages/web` is untouched); record it in the step 7 report
+- [x] 9.1 Not applicable: no browser UI changes (`packages/web` is untouched); record it in the step 7 report
 
 ## 10. The explain Purpose (design G5, F4)
 
@@ -103,8 +103,8 @@ This group is done by independent agents launched outside the apply: panelist 1 
 
 ## 11. Update Technical Documentation (MANDATORY)
 
-- [ ] 11.1 Docs of the round: `fixtures/README.md`, `docs/project-context.md`, the `golden-review/` tree line of `readme.md`, the acme-shop `Q1` paragraph of `docs/DEMO.md` and the TSDoc of `packages/cli/src/cache/golden-file.ts` (it feeds no fingerprint) name the DIS-110 r2 round where they name the DIS-110 round as the current one, and say what changed for task-api `Q1`
-- [ ] 11.2 No ADR (design G6); `/update-docs`: the docs gate passes; `prompts.md` gains this run's prompt with its Índice entry in the same edit. Commit (scope `DIS-110`, explicit paths) and push
+- [x] 11.1 Docs of the round: `fixtures/README.md`, `docs/project-context.md`, the `golden-review/` tree line of `readme.md`, the acme-shop `Q1` paragraph of `docs/DEMO.md` and the TSDoc of `packages/cli/src/cache/golden-file.ts` (it feeds no fingerprint) name the DIS-110 r2 round where they name the DIS-110 round as the current one, and say what changed for task-api `Q1`
+- [x] 11.2 No ADR (design G6); `/update-docs`: the docs gate passes; `prompts.md` gains this run's prompt with its Índice entry in the same edit. Commit (scope `DIS-110`, explicit paths) and push
 
 ## 12. Pull request preparation
 

@@ -207,15 +207,17 @@ documentation-drift question, added with the drift story, and its terms anchor
 no symbol of the seed; Q6 answers `UNKNOWN` `no-anchor` before the cache is
 read, without a model and at zero cost.
 
-**Golden review (DIS-34, DIS-104, DIS-33, DIS-107, DIS-9, DIS-10, DIS-10 r2, DIS-42, DIS-42 r2, DIS-42 r3, DIS-110).** Each entry's `reviews` lists who checked it
+**Golden review (DIS-34, DIS-104, DIS-33, DIS-107, DIS-9, DIS-10, DIS-10 r2, DIS-42, DIS-42 r2, DIS-42 r3, DIS-110, DIS-110 r2).** Each entry's `reviews` lists who checked it
 against this fixture and when. The current golden answers were regenerated in DIS-110 (after the
-pooled transaction runner changed the store adapter, a new seed fingerprint with the same seed rows)
-and reviewed in the DIS-110 round, a single round, by a blind panel of two agents of models other
-than the generator; the report, with a verdict per golden, is
-[`docs/golden-review/2026-10-golden-review-dis-110.md`](../docs/golden-review/2026-10-golden-review-dis-110.md).
-The round judged task-api `Q1` incorrect: it stays unsigned (`reviews: []`) as a known unsigned
-golden answer for the author, with no further round; every other entry carries both DIS-110
-signatures. The DIS-42 r3 round
+pooled transaction runner changed the store adapter, a new seed fingerprint with the same seed rows),
+task-api `Q1` again, alone, for the DIS-110 r2 round, and reviewed in the DIS-110 r2 round by a
+blind panel of two agents of models other than the generator; the report, with a verdict per golden,
+is
+[`docs/golden-review/2026-10-golden-review-dis-110-r2.md`](../docs/golden-review/2026-10-golden-review-dis-110-r2.md).
+No golden was judged incorrect: every entry carries both DIS-110 r2 signatures and nothing is
+pending. The first DIS-110 round
+([`docs/golden-review/2026-10-golden-review-dis-110.md`](../docs/golden-review/2026-10-golden-review-dis-110.md))
+judged the earlier task-api `Q1` incorrect; it stays as history. The DIS-42 r3 round
 ([`docs/golden-review/2026-10-golden-review-dis-42-r3.md`](../docs/golden-review/2026-10-golden-review-dis-42-r3.md))
 reviewed the answers DIS-42 had regenerated (after the stale claim refresh; task-api `Q2` and
 acme-shop `Q1` regenerated again for DIS-42 r2, and acme-shop `Q1` once more for r3); it stays as
@@ -354,11 +356,13 @@ through `taskRoutes`, Q2 through `buildPage` and Q3 through `canTransition`, whi
 name a symbol (the validation and pagination wording of the first version anchored nothing). The
 texts are the task-api entry of `GOLDEN_PROJECTS`, which `tests/unit/seed/golden-questions.spec.ts`
 checks against this table. The golden answers were regenerated in DIS-110 (pooled transaction
-runner, a new seed fingerprint) and reviewed in the DIS-110 round by a blind panel of two agents of
-models other than the generator, which judged `Q1` incorrect (left unsigned for the author); the
-report is
-[`docs/golden-review/2026-10-golden-review-dis-110.md`](../docs/golden-review/2026-10-golden-review-dis-110.md).
-The previous rounds are DIS-42 r3
+runner, a new seed fingerprint), `Q1` again, alone, for the DIS-110 r2 round, and reviewed in the
+DIS-110 r2 round by a blind panel of two agents of models other than the generator, which judged no
+answer incorrect; the report is
+[`docs/golden-review/2026-10-golden-review-dis-110-r2.md`](../docs/golden-review/2026-10-golden-review-dis-110-r2.md).
+The previous rounds are the first DIS-110 round
+([`docs/golden-review/2026-10-golden-review-dis-110.md`](../docs/golden-review/2026-10-golden-review-dis-110.md),
+which judged the earlier `Q1` incorrect), DIS-42 r3
 ([`docs/golden-review/2026-10-golden-review-dis-42-r3.md`](../docs/golden-review/2026-10-golden-review-dis-42-r3.md)),
 DIS-42 r2
 ([`docs/golden-review/2026-10-golden-review-dis-42-r2.md`](../docs/golden-review/2026-10-golden-review-dis-42-r2.md)),
