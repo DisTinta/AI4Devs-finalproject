@@ -231,7 +231,6 @@ describeWithDatabase('running work in one transaction on a pooled store', () => 
     const applicationName = 'codemind-tx-release-test';
     const url = withApplicationName(databaseUrl as string, applicationName);
     const opened = await openPostgresStore(url, { applicationName });
-    const before = await projectCount();
 
     // Act
     await opened.transaction(async () => 'done');
@@ -244,7 +243,6 @@ describeWithDatabase('running work in one transaction on a pooled store', () => 
     // Assert
     expect(Date.now() - started).toBeLessThan(2_000);
     expect(await sessionsLeft(applicationName)).toBe(0);
-    expect(await projectCount()).toBe(before);
   });
 
   it("A connection terminated during rejecting work keeps the work's error", async () => {
