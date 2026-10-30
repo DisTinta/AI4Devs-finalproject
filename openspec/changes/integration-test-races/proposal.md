@@ -33,15 +33,18 @@ detected` in `tests/integration/api/ask.spec.ts`, `tests/integration/api/reindex
 - `tests/integration/store/query-cost.spec.ts`: the three tests that empty `query_log` and then sum
   it ("The cost since an instant is summed across projects", "With no matching row the cost is zero",
   "The ceiling survives a restart") run on a connection of their own in a `REPEATABLE READ`
-  transaction that is always rolled back, retried on a serialization failure (the pattern
-  `graph-read.spec.ts` already uses for its listing); the non-scenario test "reads the cost sum on the
-  store's own connections" opens its transaction as `REPEATABLE READ` and retries its arrange and act on
-  a serialization failure (at most three attempts). A `query_log` row that another
+  transaction that is always rolled back, with a 1 s `lock_timeout`, retried on a serialization
+  failure or lock timeout with a 250 ms pause for up to 10 s (design D2, D2a); the non-scenario test
+  "reads the cost sum on the store's own connections" opens its transaction as `REPEATABLE READ` with
+  the same policy. A `query_log` row that another
   file commits during the test is then invisible to the sum. Rows, instants, amounts and expected sums
   stay exactly those of the scenarios.
 - `tests/integration/cli/projects-command.spec.ts`: both scenarios run the same way, on a connection
-  of their own in a `REPEATABLE READ` transaction that is always rolled back and retried on a
-  serialization failure, so a project another file commits during the test is not listed.
+  of their own in a `REPEATABLE READ` transaction that is always rolled back, with the same policy
+  (design D2a), so a project another file commits during the test is not listed.
+- `tests/integration/store/graph-read.spec.ts` (F3): the retry loop of "Listing with no project
+  returns an empty list" gets the same policy; its arrange, act and assertion are unchanged (design
+  D2b, correction cycle 2 of the stability runs).
 - `tests/integration/api/ask.spec.ts`, `tests/integration/api/reindex.spec.ts`,
   `tests/integration/cli/ask-command.spec.ts`: their `seeded()` helper deletes only the projects named
   like the seed's (not every project) and points only the sample projects at the fixture copy
@@ -62,13 +65,15 @@ detected` in `tests/integration/api/ask.spec.ts`, `tests/integration/api/reindex
 - No new check in the test harness (`tests/integration/helpers/db.ts`) and no change to the
   `test-db-isolation` spec: a guard that refuses a seeded test database is left to the author
   (design Follow-ups).
-- No change to `graph-read.spec.ts`, `claims-refresh.spec.ts`, `claims-write.spec.ts`,
-  `seed-load.spec.ts`, `cache-build.spec.ts` or `seed-build.spec.ts`: their failures came from the
-  committed seed in the test database (RC3) or from the helpers changed here (design D3, D4).
+- No change to `claims-refresh.spec.ts`, `claims-write.spec.ts`, `seed-load.spec.ts`,
+  `cache-build.spec.ts` or `seed-build.spec.ts`: their failures came from the committed seed in the
+  test database (RC3) or from the helpers changed here (design D3, D4). `graph-read.spec.ts` changes
+  only in the retry policy of its listing test (correction cycle 2 of the stability runs, design D2b).
   `claims-refresh.spec.ts` keeps its `CREATE TRIGGER` lock wait, which a clean database shortens but
   does not remove; it is recorded in Carreras conocidas (design F3, Q1) (not removed by decision;
   rewriting how the test makes the evidence insert fail without DDL is left to the author).
-- No timeout or lock bound is raised.
+- No timeout or lock bound is raised (a 1 s `lock_timeout` is added to the tests' own snapshot
+  transactions, which had none; design D2a, D2b).
 - No new Linear ticket; no golden round (tests are not an input of the seed fingerprint).
 - No change to `.claude/` or `.cursor/`.
 
@@ -88,7 +93,8 @@ isolation level of a test's own transaction.)
 
 - Tests: `tests/integration/store/open-store.spec.ts`, `tests/integration/store/query-cost.spec.ts`,
   `tests/integration/cli/projects-command.spec.ts`, `tests/integration/api/ask.spec.ts`,
-  `tests/integration/api/reindex.spec.ts`, `tests/integration/cli/ask-command.spec.ts`.
+  `tests/integration/api/reindex.spec.ts`, `tests/integration/cli/ask-command.spec.ts`,
+  `tests/integration/store/graph-read.spec.ts` (design D2b).
 - Environment: the local test database loses a committed sample left by an old `db:seed` (design D4).
 - Docs: `docs/TESTING.md` (Carreras conocidas); `docs/project-context.md` → "Golden answers tests"
   (lines 439-441 repeat Carreras conocidas).

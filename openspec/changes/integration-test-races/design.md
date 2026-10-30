@@ -126,9 +126,11 @@ queue longer.
 - No production code: RC1–RC3 are test and environment issues, not product defects. The `FOR SHARE`
   read and the unscoped statements belong to the tests or to the test transaction around production
   code.
-- No change to `graph-read.spec.ts`, `claims-refresh.spec.ts`, `claims-write.spec.ts`,
-  `seed-load.spec.ts`, `cache-build.spec.ts`, `seed-build.spec.ts`, the harness or the specs (D3, D6).
-- No timeout or `lock_timeout` raised.
+- No change to `claims-refresh.spec.ts`, `claims-write.spec.ts`, `seed-load.spec.ts`,
+  `cache-build.spec.ts`, `seed-build.spec.ts`, the harness or the specs (D3, D6); `graph-read.spec.ts`
+  only in its listing's retry policy (D2b).
+- No test timeout raised and no existing `lock_timeout` raised (D2a and D2b add a 1 s bound to the
+  test's own snapshot transactions, which had none).
 
 ## Decisions
 
@@ -157,7 +159,9 @@ statement, so rows committed afterwards by other files are invisible to every la
 including the code under test (which receives that client, as it received `db()`). This is the
 pattern `graph-read.spec.ts` "Listing with no project returns an empty list" already uses (DIS-41).
 At this level a statement that writes a row another transaction changed and committed after the
-snapshot fails with `40001`; the whole arrange-and-act is then retried, at most three attempts, and
+snapshot fails with `40001`; the whole arrange-and-act is then retried (policy superseded by D2a, and
+D2b for `graph-read.spec.ts`: `lock_timeout = '1s'`, retry on `40001`/`55P03` with a 250 ms pause for
+up to 10 s; originally at most three attempts), and
 the assertions run once on the result of the attempt that completed, as in `graph-read.spec.ts`.
 Every value an attempt builds (rows' ids, the `failures` and `calls` arrays of "The ceiling survives a
 restart", the `log` of `list()`) is created inside `work`; only `work`'s return value reaches the
@@ -168,7 +172,7 @@ assertions.
   helper `inOwnSnapshot(work)` with that behaviour; their rows, instants, amounts and expected values
   are unchanged. "reads the cost sum on the store's own connections" already runs its own transaction
   on a one-connection pool: its `BEGIN` becomes `BEGIN ISOLATION LEVEL REPEATABLE READ`, and its
-  arrange and act are retried on `40001` in the same way (at most three attempts, the transaction
+  arrange and act are retried in the same way (D2a policy, the transaction
   rolled back between attempts). "sums the cost with a single SELECT and writes nothing" asserts no sum and stays
   on `db()`. The file comment says why.
 - `cli/projects-command.spec.ts`: "Sample and user projects are listed" and "An empty database lists no
@@ -177,7 +181,8 @@ assertions.
   (`tableCounts` reads the snapshot client), so the `describe` drops `useTransactionPerTest()` and
   migrates with `beforeAll(migrateSharedDatabase, 60_000)` as `open-store.spec.ts` does. The file comment says why.
 
-The helper is local to each file (three copies with `graph-read.spec.ts`'s inline loop): a shared
+The helper is local to each file (four copies of the D2a policy with `graph-read.spec.ts`'s inline
+loop and the own-connections test): a shared
 helper in `tests/integration/helpers/db.ts` would add behaviour to the `test-db-isolation` capability
 and is left as a follow-up (F4).
 
@@ -186,6 +191,53 @@ and is left as a follow-up (F4).
 `REPEATABLE READ` option of `useTransactionPerTest()`: harness and spec change (F4); (c) filter the
 listing to the test's own names: "An empty database lists no projects" cannot be filtered;
 (d) `--no-file-parallelism`: hides the races and takes about four times longer.
+
+#### D2a. Retry policy of the own snapshot (correction cycle 1 of D5, 2026-10-30)
+
+*Agent's text.* Stability run "whole 1" failed (`reports/2026-10-30-5-test-and-state-verification.md`):
+`projects-command.spec.ts` "Sample and user projects are listed" threw `could not serialize access
+due to concurrent update` at its `DELETE FROM project` after 16 s, and a diagnostic run (not counted)
+failed "An empty database lists no projects" the same way in 196 ms. Other files commit projects and
+then update or delete them (and their child rows) many times per second, so three immediate attempts
+are not enough; and while a `DELETE` waits for a row lock, it keeps the locks it already took, which
+can delay other files (the same run timed out `claims-write.spec.ts` "The most recent claims come
+first, at most twenty" and `graph-schema-constraints.spec.ts` "Deleting a file deletes its symbols").
+The cause is in a file of this change, so it is fixed here (D5):
+
+- `inOwnSnapshot` of `projects-command.spec.ts` and of `query-cost.spec.ts` (same helper) sets
+  `SET LOCAL lock_timeout = '1s'` right after `BEGIN ISOLATION LEVEL REPEATABLE READ` (before the
+  first statement of `work`, so the snapshot is still taken by `work`'s first statement), and
+  retries on `40001` and on `55P03` (lock not available), with a pause of 250 ms, while less than
+  10 s have passed since the first attempt; then the last error is thrown. A wait for a row lock
+  therefore lasts at most 1 s, and the transaction never holds its locks longer than one attempt.
+- The own-connections test of `query-cost.spec.ts` gets the same policy.
+- Trade-off: a row lock held more than about 10 s by another file (RC4, D3's whole-table deletes) now
+  fails the test with `55P03` at the end of the window, where an unbounded wait could have lasted up
+  to the 20 s `testTimeout`; an attempt that starts near 10 s (projects-command's `loadSeed`) can
+  still reach 20 s. Recorded in Carreras conocidas.
+
+#### D2b. F3's graph-read listing: the same retry policy (correction cycle 2 of D5, 2026-10-30)
+
+*Agent's text.* After cycle 1, store run 2 failed `graph-read.spec.ts` "Listing with no project returns
+an empty list" with `could not serialize access due to concurrent update` at its `DELETE FROM project`
+(`graph-read.spec.ts:224`), all three of its immediate attempts within 89 ms, on the restored
+database. This is the first recorded error line of a failure of that test (F3's own failure in the
+previous change has none), and it is the mechanism
+of D2a: a whole-table `DELETE` at `REPEATABLE READ` meets a project another file committed and then
+changed or deleted, and three immediate attempts are not enough. It replaces the RC3 inference for
+this test (RC3 still explains its 20 s timeout of reproduction run "all 1").
+
+The fix is in `graph-read.spec.ts`, which was a non-goal and is outside the six files D5 allowed for a
+fix. *Decision of the agent (destination A, recorded for the author):* the six-file limit was set to
+keep the stability fixes from spreading to files outside F1–F3; this file is the F3 target named by the
+author's instruction ("investigate and fix the root cause of … graph-read.spec.ts 'Listing with no
+project returns an empty list'"), so the fix scope of D5 is extended to it, and only to it. The pass
+criterion is unchanged (every run green), the correction-cycle cap is unchanged (this is cycle 2, the
+last), and both series restart from run 1.
+
+- The listing test's loop gets the D2a policy: `SET LOCAL lock_timeout = '1s'` after its `BEGIN`,
+  retry on `40001` and `55P03` with a 250 ms pause while less than 10 s have passed since the first
+  attempt, then rethrow; its comment says why. Its arrange, act and assertion are unchanged.
 
 ### D3. RC2: scope the seed loaders' writes to the seed's projects
 
@@ -222,7 +274,7 @@ remaining wait is recorded in Carreras conocidas.
 
 Before the stability runs, the committed sample of the local `codemind_test` is removed with
 `DELETE FROM project WHERE is_sample = true` (cascade), its counts recorded before and after in the
-step 3 report; then the counts of `project`, `cache_entry` and `query_log` are 0. The scratch
+step 5 report; then the counts of `project`, `cache_entry` and `query_log` are 0. The scratch
 database `codemind_test_clean` of the analysis is dropped at the end. Neither is a file change.
 
 `docs/TESTING.md` → Carreras conocidas is rewritten from RC1–RC3: what was removed by this change,
@@ -250,13 +302,16 @@ All runs are on the restored `codemind_test` (D4), after every edit of this chan
   `tests/integration`, with files in parallel (the default).
 - The step passes only if **every** run is green (0 failed tests).
 - Any failure stops the series. It is diagnosed from its raw output (and, for a timeout or deadlock,
-  the Postgres log). If its cause can be removed in one of the six test files of task 4.1, the
+  the Postgres log). If its cause can be removed in one of the six test files of task 4.1 (extended
+  to `graph-read.spec.ts`, the F3 target, by correction cycle 2, D2b), the
   artifacts are updated first (`docs/base-standards.md` §7), the fix is applied and both series
   (store and whole suite) restart from run 1. At most two correct-and-restart cycles; a third failure
   is a clean stop reported to the author (destination C). A fix that needs any other test file, or
   a cause that cannot be removed in tests, is recorded in Carreras conocidas with its cause and
   mitigation, and the step is reported as not passed to the author (destination C); the rule is not
-  widened. Any outcome other than "passed" (this one or a third failure) is a clean stop: the change's
+  widened further: its only amendment after the runs began is D2b's extension of the fix scope to
+  `graph-read.spec.ts`, recorded with its reason; the pass criterion, run counts and cycle cap never
+  changed. Any outcome other than "passed" (this one or a third failure) is a clean stop: the change's
   work is committed and pushed, the PR may be opened for the author, and tasks 9.3–9.8 (reviews,
   archive, merge) are not run. The merge (9.8) requires the step 5 report to record 5.2 and 5.3 as
   PASS.
@@ -265,7 +320,7 @@ All runs are on the restored `codemind_test` (D4), after every edit of this chan
   other.
 - A test-file edit made after 5.2 passed (tasks 9.4–9.6) re-runs both series of 5.2 and the suite of
   5.3 under this rule before 9.8; the result goes to an addendum of the step 5 report.
-- Each restart and its reason is recorded in the step 3 report.
+- Each restart and its reason is recorded in the step 5 report.
 
 ### D6. No golden round and no spec delta
 
@@ -276,8 +331,8 @@ or the scope of a test's clean-up statement: `skip_specs: true`.
 
 ## Risks / Trade-offs
 
-- [A `40001` on all three attempts of D2] → needs three commits that touch a row of the snapshot in
-  the milliseconds between the snapshot and the first write; recorded in Carreras conocidas.
+- [A `40001` or `55P03` on every attempt within the 10 s window of D2a/D2b] → needs another file to
+  keep a row of the snapshot changed or locked for about 10 s; recorded in Carreras conocidas.
 - [D3 narrows the clean-up of three helpers] → `loadSeed` already deletes the samples and refuses a
   user project with a seed name; no test of those files creates a project of another name before
   `seeded()`.
@@ -294,8 +349,9 @@ ticket; C = the author; D = out of scope, recorded.*
 |---|---|---|
 | F1 | Follow-up F1 of `archive/2026-10-30-open-store-test-flake`: fixed by D1. | A |
 | F2 | Follow-up F2 of the same change (the block comment): fixed by D1. | A |
-| F3 | Follow-up F3 of the same change: `graph-read.spec.ts`'s listing timeout is RC3 (removed by D4) and needs no edit. `claims-refresh.spec.ts`'s lock bound is explained (RC3 lengthened a lock conflict that remains on a clean database), not reproduced; it is recorded in Carreras conocidas (D4) and the file is not edited (decision Q1 below). | A |
+| F3 | Follow-up F3 of the same change: `graph-read.spec.ts`'s listing failed for two reasons: a 20 s timeout behind the committed seed (RC3, removed by D4) and, on a clean database, a serialization failure on all three immediate attempts (fixed by D2b in correction cycle 2). `claims-refresh.spec.ts`'s lock bound is explained (RC3 lengthened a lock conflict that remains on a clean database), not reproduced; it is recorded in Carreras conocidas (D4) and the file is not edited (decision Q1 below). | A |
 | Q1 | Spec audit run 1, Q1: keep `claims-refresh.spec.ts` out of scope and record its `CREATE TRIGGER` lock conflict in Carreras conocidas (option a), instead of rewriting how the test makes the evidence insert fail (option b). Least scope; the failure was not reproduced in 17 runs. Not removed by decision, not because it cannot be removed: option (b) stays available to the author (with F4). | A (decided by the agent); C for option (b) |
 | F4 | A shared "own snapshot" helper and a harness guard that fails at once on a test database holding a committed sample (`is_sample`) would remove the three local copies of D2 and catch RC3 early. Both add behaviour to `tests/integration/helpers/db.ts` and the `test-db-isolation` spec; left out to keep this change minimal. | C, author |
 | F5 | The scope of this change grew from F1–F3 to the RC1/RC2 failures found in the reproduction (`query-cost`, `projects-command`, `ask`, `reindex`, `ask-command`), under the run's goal "remove the remaining intermittent integration-test failures". | A |
+| S1 | Stability step 5.2 did not pass: after correction cycle 2, whole-suite run 2 failed seven tests in one lock pile-up (`CREATE TRIGGER` of `cache-entry.spec.ts` and `query-log-write.spec.ts` at their 10 s `lock_timeout`; five tests at 20 s behind it; `projects-command.spec.ts` at the end of its D2a window). By D5 this third failure is a clean stop: the work is committed and pushed and the PR is opened for the author; tasks 9.3–9.8 (reviews, archive, merge) are not run, so the merge the author asked for (F6) is not done. Removing the remaining queue needs the trigger tests to fail their writes without DDL (`claims-refresh`, `claims-write`, `explain`, `cache-entry`, `query-log-write`), outside this change's scope. Recorded in Carreras conocidas. | C, author |
 | F6 | The run's first instruction said not to merge; during the run (2026-10-30) the author wrote in this session, in Spanish, to take care of everything and merge so the next batch can start (spec audit run 1, Q2: confirmed by that message). The merge goes through the merge gate only (tasks 9.8). | A |

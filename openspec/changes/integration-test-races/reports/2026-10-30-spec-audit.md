@@ -157,3 +157,30 @@ Audited from scratch (proposal, design, tasks, `.openspec.yaml`, reproduction re
 | I5 | Fixed: proposal. |
 | I6 | Fixed: design D3, task 3.1. |
 | Linear comment | Applied at task 9.8. |
+
+## Run 4 (after correction cycles D2a and D2b of the stability runs)
+
+APPROVED
+
+Audited the artifacts and the working-tree helpers against `graph-read.spec.ts:212-241`, `projects-command.spec.ts`, `query-cost.spec.ts` and `vitest.config.ts:38-39`. DIS-110 unchanged in Linear.
+
+- Focus question: extending D5's fix scope to `graph-read.spec.ts` is a recorded change, not a widening. The pass criterion, run counts, restart rule and cycle cap are unchanged; only where a fix may land changed. The file is the author's explicit F3 target, and the six-file limit was the agent's own, tighter than the instruction. The reason was recorded (D2b) and the artifacts were updated before the code (§7). Run 1's B3(c) concern (unbounded edits of non-goal files) does not return: one named file, cap unchanged.
+- The D2b fix matches the code: `SET LOCAL lock_timeout` takes no snapshot, so the snapshot is still taken by the `DELETE`.
+- Questions for the author (not blocking): QA1 (claims-refresh option b) still pending; QA2: confirm or reject the D2b amendment of the fix scope (rejecting it makes the step a clean stop with no merge).
+- Improvable: I1 (the 10 s window against the 20 s `testTimeout`: write the trade-off down); I2a–g (proposal What Changes/Impact/Non-goals, design D2 and Risks, tasks 2.1/2.2 still describe the three-attempt policy; D2b over-claims "first recorded error line of F3's failure"); I3 (D5 "not widened" next to the amendment; tasks 4.1/5.2 say "six"); I4a ("step 3 report" in D4/D5); I4b (task 5.6 must record both cycles, the amendment and the diagnostic run).
+- Linear comment: mention both correction cycles and the D2b amendment, and that the graph-read failure now has a recorded error line.
+
+### Resolution of run 4
+
+| Finding | Resolution |
+|---|---|
+| QA1, QA2 | For the author: listed in the DIS-110 comment and the final report. |
+| I1 | Fixed: D2a trade-off bullet; task 8.1. |
+| I2a–c | Fixed: proposal What Changes, new graph-read bullet, Impact, Non-goals. |
+| I2d–e | Fixed: design D2 (superseded note), Risks. |
+| I2f | Fixed: tasks 2.1 and 2.2 ("retry policy superseded by 2.3"). |
+| I2g | Fixed: D2b wording. |
+| I3 | Fixed: D5 ("not widened further…"), tasks 4.1 (seven) and 5.2. |
+| I4a | Fixed: "step 5 report". |
+| I4b | Fixed: task 5.6. |
+| Linear comment | Applied at task 9.8. |
