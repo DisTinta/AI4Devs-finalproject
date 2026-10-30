@@ -197,3 +197,11 @@ times: `DB npx vitest run <the five files> -t "failure while writing evidence|fa
 The explain test passing under the leak mutation is expected: its scenario checks the answer's
 events, and the store's error object never reaches them (explain turns any store write failure into
 the fixed event `store-write-failed`); the store-level leak is the four graph-store scenarios' job.
+
+## Addendum: CI of PR #89 (task 9.2)
+
+- Second-phase head `5e90b26`, run [41066971372](https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/41066971372)
+  (plus `frontend` run 41066971259): `scope`, `quality` (9 min 35 s, the whole suite on its own
+  database), `verify`, `mutation` (37 min 8 s: a full Stryker pass, since `vitest.config.ts` changed
+  every cache key — design Risks), `secrets` and `frontend` all `pass` on the first attempt.
+- First-phase head: the same checks passed (run 41056745269).
