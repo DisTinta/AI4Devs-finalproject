@@ -16,13 +16,15 @@ export interface RiskFacts {
 
 /**
  * `count` followed by its word: the singular when the count is 1, the plural otherwise (0 included).
+ * Private to the rationale: `risk.ts` is re-exported from the core's root, which must not carry a
+ * generic `plural` (adversarial review of DIS-90).
  *
  * @param count The number to print.
- * @param singular The word for 1.
- * @param plural The word for any other count.
+ * @param one The word for 1.
+ * @param many The word for any other count.
  */
-export function plural(count: number, singular: string, plural: string): string {
-  return `${count} ${count === 1 ? singular : plural}`;
+function plural(count: number, one: string, many: string): string {
+  return `${count} ${count === 1 ? one : many}`;
 }
 
 /**

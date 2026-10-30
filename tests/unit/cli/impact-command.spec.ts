@@ -199,6 +199,34 @@ describe('runImpactCommand: configuration and project', () => {
     expect(result.log).toEqual(['open', 'close']);
   });
 
+  // Not a scenario: the requirement "Impact configuration and connection" says the command reads no
+  // `LLM_*` variable nor `DAILY_BUDGET_USD`; the scenario above only checks the output (adversarial
+  // review of DIS-90, task 12.6.1).
+  it('reads DATABASE_URL and no other variable of the environment', async () => {
+    // Arrange: a full model configuration behind an environment that records every variable read.
+    const reads: string[] = [];
+    const values: Record<string, string> = {
+      DATABASE_URL,
+      LLM_BASE_URL: 'ftp://x',
+      LLM_API_KEY: 'unused',
+      LLM_MODEL: 'model',
+      DAILY_BUDGET_USD: '1',
+    };
+    const env = new Proxy<Record<string, string | undefined>>(values, {
+      get: (target, key) => {
+        reads.push(String(key));
+        return target[String(key)];
+      },
+    });
+
+    // Act
+    const result = await run(['impact', 'acme-shop', CHANGE], { env });
+
+    // Assert
+    expect(result.exit).toBe(0);
+    expect(reads).toEqual(['DATABASE_URL']);
+  });
+
   it('Only the exact name resolves the impact project', async () => {
     for (const name of ['no-existe', 'ACME-SHOP', ' acme-shop']) {
       const result = await run(['impact', name, 'cambiar algo'], { answer: sampleReport() });

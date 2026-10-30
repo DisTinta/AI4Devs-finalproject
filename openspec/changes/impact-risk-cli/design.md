@@ -264,3 +264,14 @@ implementing; the author was not asked.*
 | A5 | Integration suites ran against `codemind_test` (empty, as `docs/TESTING.md` requires), manual testing and `npm run verify` against the dev database `codemind`, restored after step 9. | D — accepted |
 | A6 | `readme.md` §4 `/impact` description said "la CLI `impact` es un stub"; the sentence now says the CLI works since DIS-90 and the route is DIS-95's. The OpenAPI schema itself is untouched. | A |
 | A7 | PowerShell captures of `docs/DEMO.md` Paso 4 stay with the author (E9); the agent ran the same commands in Git Bash (step 9 report). | C — author |
+
+*Agent's text: review step (show-spec-working, verify-against-spec and adversarial-review in inline
+mode), 2026-10-30. Verdict PASS WITH GAPS, no Blocker or Major; the author was not asked.*
+
+| Id | Finding | Decision | Destination |
+|---|---|---|---|
+| V1 | F1: `plural` of `risk.ts` was public through the core's root barrel | Made module-private (parameters `one`/`many`). | A |
+| V2 | F2: the requirement "SHALL NOT read any `LLM_*` nor `DAILY_BUDGET_USD`" was only asserted by the output | New unit test recording the environment reads, expecting only `DATABASE_URL` (task 12.6.1). | A |
+| V3 | F3: spec column `text` vs `question` | Kept as A1; the spec is not edited after implementation. | D — accepted |
+| V4 | F4: `U`/`H` match by file path and name, design D2/R4 say `componentKey` | Equivalent within one project; no change. | D — accepted |
+| V5 | Q1: project resolution lists every project | Same as `ask`, fine at the product's scale. | D — accepted |
