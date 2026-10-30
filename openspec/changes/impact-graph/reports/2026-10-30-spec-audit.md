@@ -391,3 +391,175 @@ comment on DIS-89. `openspec validate impact-graph --strict` passes; the spec no
 | Improvable: extra cases instead of scenarios (malformed `projectId`, empty class lookup, lexical-match position) | No change: the audit accepts them (R8). |
 | Improvable: DIS-89 `[enhanced]` text (D2 seeds, "dos travesías") | Decided by the agent (R11, destination D): the `[enhanced]` text is not edited; the round 1 and round 2 comments on DIS-89 record the refinements R2 and R7, which the audit says is enough for traceability. |
 | Linear comment of run 2 | Done: Spanish comment on DIS-89 summarising R9–R11. |
+
+---
+
+## Run 3 (2026-10-30)
+
+APPROVED
+
+## Spec audit, run 3: `impact-graph` (DIS-89, parent DIS-83)
+
+- Date: 2026-10-30. Third audit. It judges the change as it stands after correction round 2 (commit `dcb7c4d`).
+- Inputs read:
+  - The change: `proposal.md`, `design.md`, `specs/impact/spec.md`, `tasks.md`, and `reports/2026-10-30-spec-audit.md` (runs 1 and 2 and how each was resolved).
+  - Linear: DIS-89 (description and its 6 comments, including the round 1 and round 2 comments) and its parent DIS-83.
+  - Project docs: `docs/base-standards.md` §7.1 and `docs/openspec-tasks-mandatory-steps.md` §2 to §4.
+  - Code checked again for this run: `packages/core/src/ports/StorePort.ts:62-93`, `packages/adapters/store-postgres/src/queries.ts:163-179`, `packages/core/src/context/rank.ts:32-40`, `tests/support/acme-shop-graph.ts`, `tests/support/sample-graph.ts`, and the `OrderObserver` rows of `seeds/graph-dump.sql`.
+
+### Questions for the author
+
+None. The agent answered the earlier questions (R1, R2) and decisions R3 to R11 as lead engineer. They are marked as the agent's text and none contradicts the ticket or the project:
+- R1 hands the literal-text clause of DIS-83 AC1 to DIS-90 and leaves a trace there.
+- R2 and R7 refine ticket D2 and its non-functional note, and the DIS-89 comments record both.
+- R11 leaves the `[enhanced]` text as it is. The comments are enough for traceability.
+
+## 1. Scope against the ticket — clean
+
+Everything follows from DIS-89: its description, `[enhanced]` D1–D8, DoD and non-goals. Two items are not named literally in the ticket, and neither is invented scope:
+- the extraction of `matchesLexically` into `context/lexical-match.ts` is code reuse, and `rankCandidates` does not change;
+- the file seeds (R2) apply ticket D2 to the TypeScript analyzer.
+
+Nothing widens the change to the parent's risk rule, CLI, `query_log` or HTTP (proposal → Non-goals, design D8).
+
+## 2. Inherited acceptance criteria — clean
+
+- Each of DIS-89 AC1 to AC6 has a requirement and a scenario:
+  - all six clauses of AC1 are in "Q2 is reproduced over the acme-shop subset";
+  - AC2 adds those clauses and `OrderObserver` absent ("Q2 is reproduced over the seed");
+  - AC3 covers `maxHops` 1, 3, absent, and 4/0/1.5;
+  - AC4 covers exact before heuristic, and the order holding with the names swapped;
+  - AC5 covers no-anchor, a test-only anchor, an invalid `change` and `ProjectNotFound`;
+  - AC6 characterises the literal text.
+- DIS-83 AC2, AC3 and AC5 are covered. AC4 (risk) belongs to DIS-90 by non-goal. The literal-text clause of AC1 goes to DIS-90 (R1, destination B, with a trace on DIS-90).
+
+## 3. Missing scenarios — clean
+
+Every MUST clause has a scenario, with these exceptions, which runs 1 and 2 accepted as extra cases (R8):
+- a malformed `projectId` (manual step 9.3);
+- a class lookup that finds nothing (task 3.5);
+- the lexical-match position of the relevance key (task 5.2).
+
+Run 2's B1 is closed: "The tests of a direct component's file are found" exercises bullet 3 of "Tests covering the change" and its seed distance. It is discriminating:
+- `Caller` has no `::`, so no class lookup happens;
+- `src/caller.ts` is neither reached nor an anchor file.
+
+## 4. Ambiguity — clean
+
+None of "fast", "easy", "secure", "efficient", "many", "appropriate" or "robust" appears in `proposal.md`, `design.md`, `specs/impact/spec.md` or `tasks.md` (case-insensitive search).
+
+## 5. Open decisions — clean (one wording improvement)
+
+These are all fixed:
+- test distance and seed distance per source, with the smallest winning;
+- the class lookup for the anchor's components;
+- the non-truncated terms;
+- the nodes of the anchor's file, which seed nothing;
+- the shape of file entries (`symbol` = `file` = path);
+- the request limits and the error field.
+
+`findSymbols` has no result cap (`StorePort.ts:62-71`; `FIND_SYMBOLS` in `queries.ts:168-179` has no `LIMIT`). The exact-name class lookup therefore cannot lose its target behind other substring matches, even for a short component name like `Order`.
+
+- **Improvable (wording).** The first bullet of "Report by component" gives the rule for naming a file component only for "a reached file". The tests of the file-to-file scenarios (`src/anchor.test.ts`, `src/caller.test.ts`) are files that the `tested_by` step reaches, not the reverse traversal. Two scenarios pin their naming (`symbol` = `file` = path), so an implementer is not left to guess, but the requirement text should say so. Correction under Corrections → spec item 1.
+
+## 6. Contradictions inside the change — clean (one wording improvement)
+
+Proposal → What Changes, design D2 (steps 1–3, seed distances, R10 skip condition), the spec and tasks 3.2, 3.4, 4.6 and 4.7 now agree.
+
+- **Improvable.** Design Goals ("at most one search per distinct direct component reached through a method") and the R7 line of Risks ("one `findSymbols` per distinct direct component reached through a method") name only components *reached* through a method. Since R3, D2 step 2 and the spec also apply the lookup to the anchor's own components (hops 0), which are not "reached". The bound stays correct, because the anchor components are direct components. Only the wording is narrower than the rule. Correction under Corrections → design.
+
+## 7. Contradictions with the project — clean
+
+- `docs/backend-standards.md` §5 (N+1): the deviation is recorded and bounded (R7, destination D).
+- `z.strictObject` and the `InvalidXRequest(field)` pattern follow `explain-request.ts`.
+- The parent vs sub-issue disagreement is settled under `docs/AUTONOMOUS-RUN.md` §2, with a destination B trace (R1).
+- The ranking spec of `openspec/specs/context-engine` does not change: only the helper moves (task 5.2 keeps `tests/unit/context` green with no test edited).
+- No main spec is duplicated. No ADR applies.
+
+## 8. Contrast with the real code — clean
+
+Checked again for this run:
+- `matchesLexically` is private and takes texts `[name, file]` or `[path]` (`packages/core/src/context/rank.ts:33-40`), so extracting `containsAnyTerm(texts, terms)` is feasible.
+- `findSymbols` is a case-insensitive, literal, uncapped substring search ordered by path (`StorePort.ts:62-71`, `queries.ts:168-179`).
+- `tests/support/sample-graph.ts:22-44` builds edges with file endpoints and files with a `kind` override, so the file-to-file scenarios (4.6, 4.7) can be expressed.
+- In the subset, `tocar applies` (term `appli`) matches only `OrderPricingTest::test_final_price_applies_discount_before_tax` (`tests/support/acme-shop-graph.ts:56`).
+- `README.md` (`describes`), `app/Services/ShippingService.php` (`co_changed`), and `ShippingService`/`TaxService` (callees) are in the subset (`:27`, `:36-37`, `:62-63`, `:70-74`), so "Callees, documents and co-changed files are not dependants" has real inputs.
+- `OrderObserver` and its methods are in the seed (`seeds/graph-dump.sql:27`, `:104-106`), which the 3-hop scenario needs.
+
+The run 2 checks still hold: the double's `neighbors` with file seeds and `direction`, `ProjectNotFound`, the fingerprint inputs (P4), and the integration template.
+
+## 9. Task size — clean
+
+Each task is one RED → GREEN step, one bounded refactor or one verification step. The largest are 3.4 (class lookup plus the per-distance `tested_by` step) and 5.2 (the extraction plus extra cases), and both fit in one agent turn.
+
+## 10. Mandatory steps — clean
+
+- Step 0 creates the branch and is labelled "(MANDATORY - FIRST STEP)".
+- These steps are present and labelled `(MANDATORY)`:
+  - Review existing tests (7).
+  - Run tests and verify data state (8). It has the baseline in 0.4/8.1, restoration in 8.5, and the report from the §6 template in 8.6.
+  - Manual interface testing (9, "AGENT MUST EXECUTE"). It restores after a possible `db:seed` (9.4).
+  - Documentation (10).
+  - Pre-merge Review (12), last in the list.
+- End-to-End is declared not applicable (9.7, no UI).
+- The agent merges only under `KIT_AUTONOMOUS_RUN=1` (12.7).
+
+## 11. Traceability — clean
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| Impact request validation | An out-of-range hop count is rejected before any read | 1.1, 1.2 |
+| Impact request validation | An invalid change is rejected before any read | 1.3 |
+| Impact request validation | The hop count defaults to two | 4.5 |
+| Anchoring the change | A change that anchors nothing answers no-anchor | 2.1, 2.2 |
+| Anchoring the change | A change that anchors only tests answers no-anchor | 2.3 |
+| Anchoring the change | Impact in an unknown project fails | 2.4 |
+| Reverse traversal of dependants | Only dependants within the hop limit are reported | 3.1, 3.2 |
+| Reverse traversal of dependants | Callees, documents and co-changed files are not dependants | 3.3 |
+| Report by component | Q2 is reproduced over the acme-shop subset | 4.1 |
+| Report by component | A component appears once at its minimum distance | 4.2 |
+| Report by component | A reached file without symbols is reported by its path | 4.3 |
+| Report by component | The anchor's own file is not a dependant | 4.4 |
+| Tests covering the change | Tests come from the walk and from the classes of direct components | 3.4 |
+| Tests covering the change | A reached node's own tests are found | 3.5 |
+| Tests covering the change | Importers and tests written file to file are found | 4.6 |
+| Tests covering the change | The tests of a direct component's file are found | 4.7 |
+| Relevance order | Exact dependants come before heuristic ones at the same distance | 5.1 |
+| Relevance order | The order does not follow the names | 5.2 |
+| Relevance order | Tests are ordered by the distance of what they cover | 5.2b |
+| Impact over the indexed acme-shop seed | Q2 is reproduced over the seed | 6.1 |
+| Impact over the indexed acme-shop seed | A dependant three hops away needs three hops | 6.2 |
+| Limit of the lexical anchor | The literal Q2 text does not anchor the discount service | 5.3 |
+
+No row is empty. The spec has 22 scenarios (20 unit, 2 integration), which matches task 7.2.
+
+## Corrections to apply
+
+None is blocking. The two improvable items below are optional wording fixes. They can go in before the apply step, under rule 7, or be recorded as accepted.
+
+### `specs/impact/spec.md`
+
+1. Improvable. Requirement "Report by component", first bullet. Replace "a reached file none of whose symbols is a component of the report (in any list) SHALL be its own component, named by its path" with "a file reached by the reverse traversal or by the `tested_by` step, none of whose symbols is a component of the report (in any list), SHALL be its own component, named by its path".
+
+### `design.md`
+
+1. Improvable. Goals, second bullet. Replace "at most one search per distinct direct component reached through a method" with "at most one search per distinct direct component (the anchor's components included) whose node in the report is a method".
+2. Improvable. Risks, the `docs/backend-standards.md` §5 line. Replace "one `findSymbols` per distinct direct component reached through a method" with "one `findSymbols` per distinct direct component (the anchor's components included) whose node in the report is a method".
+3. If the two items above are applied: add to Follow-ups a row "R12 | (Audit run 3, improvable) The file-component rule names files reached by the `tested_by` step; Goals and Risks name the anchor's components in the class-lookup bound. | A".
+
+### `tasks.md`
+
+- No change needed.
+
+### `proposal.md`
+
+- No change needed.
+
+### `reports/2026-10-30-spec-audit.md`
+
+- Append this run, then a "Resolution of run 3" section that records, per improvable item, whether it was fixed or accepted.
+
+### Linear
+
+- **DIS-89**: do not edit the `[original]` block. Optionally add a short Spanish comment, for example: "*Texto del agente (auditoría de la especificación, ronda 3, 2026-10-30).* La tercera auditoría de `impact-graph` aprueba el cambio sin hallazgos bloqueantes. Quedan dos mejoras de redacción opcionales: la regla del componente «fichero» nombra también los ficheros que alcanza el paso `tested_by`, y el límite de búsquedas de clase incluye los componentes del ancla. Se puede pasar al apply."
+- **DIS-83**: nothing to edit.
