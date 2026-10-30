@@ -414,6 +414,12 @@ Verified against `package.json` (root and per package). If a command is not here
 - **Property tests use `fast-check`** (root devDependency since DIS-28,
   `tests/unit/context/budget.spec.ts`): `numRuns ≥ 200`, and `seed` fixed only when `CI` is set
   (`{ ...(process.env.CI ? { seed: 20261011 } : {}) }`), so CI replays and local runs explore.
+- **Impact tests** (DIS-89): `tests/unit/impact/` (`impact-request.spec.ts`, `impact.spec.ts` over the
+  acme-shop subset, `components.spec.ts` and `relevance.spec.ts` over the small graphs of
+  `tests/unit/impact/small-graph.ts`, built with `tests/support/sample-graph.ts`; each asserts its
+  anchor first) and `tests/integration/impact/acme-shop.spec.ts` (the seed loaded in the harness
+  transaction, as `api/ask.spec.ts`). Integration runs need an empty database: use a second one
+  (`codemind_it`) when the local `codemind` holds the loaded seed.
 - **acme-shop test subset** (`tests/support/acme-shop-graph.ts`): a real slice of
   `seeds/graph-dump.sql` (the `PriceCalculator` and `DiscountService` neighbourhoods, `CouponValidator`,
   `docs/pricing.md`). `tests/unit/context/acme-shop-graph-coherence.spec.ts` fails if any file,
@@ -887,6 +893,27 @@ services that must be started first, quirks of the local environment.
   - Gotcha: `SchemaViolationEvent` is **not** part of `AuditEvent` (`index/audit-event.ts`), whose
     `sortEvents` reads `file`. It carries subcode, byte size, SHA-256 and `{ path, code }` per issue —
     never a Zod `message`, `keys` or value; at most `MAX_EVENT_ISSUES` (20) issues plus `issueCount`. Core returns it; the transport logs it (DIS-39).
+- **`impact` is the pure core use case that answers "what depends on this change"** (DIS-89,
+  `packages/core/src/impact/`; `impact(store, request: unknown): Promise<ImpactReport>`). The request is
+  strict (`impact-request.ts`: `projectId`, `change` of 5 to 500 code points, not blank, no U+0000, and
+  `maxHops` 1..3, default 2; `InvalidImpactRequest(field)` never holds the value). The change is anchored
+  with `anchor()` unchanged and the symbols of `test` files are dropped (nothing left: `{ status:
+  'unknown', reason: 'no-anchor' }` with no traversal). `reverse-walk.ts` sends **one** `neighbors` call
+  in direction `in` over `calls`/`imports`/`extends`/`implements`, seeded with the anchor symbols **and
+  their files** (a TypeScript project writes `imports` file to file), then finds the tests with
+  `tested_by` statements (direction `out`, one per distinct seed distance, at most `maxHops + 1`) seeded
+  with the anchor, every reached node outside test files and outside the anchor's files, the file of each
+  direct component and the class of each direct component that is a method (one `findSymbols` per such
+  component; a recorded, bounded deviation from "avoid N+1", design R7). `relevance.ts` groups nodes by
+  component (name up to `::`, keyed by file; a reached file with no symbol component is named by its
+  path), leaves out the anchor's own file, puts distance 0..1 in `direct` and 2..`maxHops` in `indirect`,
+  components of `test` files only in `tests`, and orders every list by a weightless key (hops or test
+  distance, `exact` before `heuristic`, lexical match through `context/lexical-match.ts`
+  `containsAnyTerm`, shared with `rank.ts`, then `compareBytes` of symbol and file). The lexical anchor
+  is the limit: the literal Q2 text `cambiar el cálculo de descuentos` does not anchor `DiscountService`
+  (design D7; Q2 is reproduced with `cambiar los descuentos de DiscountService`). `risk`, the CLI
+  command, `query_log` and `POST /impact` are DIS-90 and DIS-95; `impact` writes nothing. No fingerprint
+  input changes, so no `seed:build`.
 - **`explain` is the one-pass use case over the Context Engine** (DIS-39,
   `packages/core/src/explain/explain.ts`). `explain({ store, source, llm, workspaceRoot, now,
   verificationCache, costTable? }, { projectId, question, tokenBudget?, hops?, useCache? })`, in this order: Zod request check

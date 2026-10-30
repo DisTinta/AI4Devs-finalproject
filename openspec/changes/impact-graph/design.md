@@ -48,7 +48,7 @@ two routes and `OrderObserver::created`/`updated`. The seed scenarios therefore 
   `resolution`, `hops` per entry) match `readme.md` §4 `/impact`, so DIS-90 and DIS-95 only project
   it (the core report adds `file` per entry and `hops` on `direct`; a projection may drop them).
 - Bounded work: at most 16 searches for the anchor, at most one search per distinct direct
-  component reached through a method, one reverse traversal and at most `maxHops + 1` (≤ 4)
+  component (the anchor's components included) whose node in the report is a method, one reverse traversal and at most `maxHops + 1` (≤ 4)
   `tested_by` traversals.
 
 **Non-Goals:**
@@ -205,7 +205,7 @@ The design follows `explain` and `rank.ts` and is reversible; no ADR.
   traversals" in the ticket, refined here (P2).
 - [Deviation from `docs/backend-standards.md` §5, "Avoid N+1: a graph traversal is one recursive
   query, not a loop of queries"] → D2 step 2 runs one `findSymbols` per distinct direct component
-  reached through a method (at most one per component, so bounded by the direct components of at
+  (the anchor's components included) whose node in the report is a method (at most one per component, so bounded by the direct components of at
   most `MAX_ANCHORS` = 32 anchors), and D2 step 3 runs at most `maxHops + 1` `tested_by`
   statements. Each traversal itself is still one recursive statement. Why: `StorePort` has no batch
   symbol lookup, and changing the port is a non-goal; the ticket's non-functional note accepts the
@@ -271,3 +271,14 @@ author; D = accepted and recorded.*
 | R9 | (Audit run 2, B1) New scenario "The tests of a direct component's file are found" (task 4.7) pins the file seed of a direct component in the `tested_by` step and its seed distance (the component's `hops`); the spec has 22 scenarios (20 unit, 2 integration). | A |
 | R10 | (Audit run 2, improvable) D2 step 2 skips the class lookup only when the class is an anchor symbol or a node reached outside the anchor symbols' files, and a direct component's class always counts the component's `hops` as seed distance when smaller, so the design matches the spec in both corner cases of the audit; the spec's "reached file" component bullet uses D3's wording (no circular "own file"). | A |
 | R11 | (Audit run 2, improvable, Linear) The `[enhanced]` text of DIS-89 (D2 "solo los símbolos del ancla", "dos travesías") is not edited: the round 1 and round 2 comments on DIS-89 record the refinements R2 and R7 and are enough for traceability; this widens nothing. | D — accepted |
+| R12 | (Audit run 3, improvable) The file-component rule names files reached by the `tested_by` step; Goals and Risks name the anchor's components in the class-lookup bound. Applied to the spec and the design before the apply. | A |
+
+*Agent's text: decisions taken in the apply step (`docs/AUTONOMOUS-RUN.md` §6), without the author.*
+
+| Id | Decision | Destination |
+|---|---|---|
+| A1 | The integration run uses a second database (`codemind_it`, created in the same container) because the local `codemind` database holds the loaded seed (2 projects) and `tests/integration/helpers/global-setup.ts` refuses a non-empty one; emptying it would have destroyed the state step 9 reads. | D — accepted |
+| A2 | The small-graph unit tests (`components.spec.ts`, `relevance.spec.ts`) were written after the first version of the walk, not before it: the request, anchor and Q2 tests were red first (module missing, `impact is not a function`). Stryker then showed surviving mutants and three tests were added from them. Recorded for honesty, not as a rule. | D — accepted |
+| A3 | Stryker (`impact/` rows: 77.5 % overall, `impact.ts` 100, `impact-request.ts` 83.7, `relevance.ts` 79, `reverse-walk.ts` 69.9; global score 92.88 ≥ the 80 break threshold). Surviving mutants accepted: string literals of the seed `type` (`'symbol'`/`'file'`), redundant guards whose other branch gives the same result (for example `if (anchorFiles.has(fileId)) continue` for a node whose component merges into the anchor's), the `||=`/`<` merge of minimum distance (the store returns nodes in distance order), the `sort` of seed distances (insertion order already ascends in every graph the tests build) and `?.` over an issue list that is never empty. | D — accepted |
+| A3b | Killing the seed-distance survivors needs a graph where a larger seed distance is inserted before a smaller one for the same node; none of the 22 scenarios produces it. If the author wants them killed, a property test over random graphs (DIS-94 or later). | D — accepted |
+| A4 | The manual run (step 9) on the real seed matches the spec: `maxHops` 1 gives no `indirect` and tests `DiscountServiceTest`, `PriceCalculatorTest`; 2 adds the four `heuristic` callers and `OrderPricingTest`; 3 adds `OrderObserver` and two routes. The literal Q2 text anchors `PriceCalculator` and `RecalculateTotals` only. | D — accepted |

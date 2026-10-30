@@ -104,8 +104,9 @@ An answered report SHALL be `{ status: 'answered', direct, indirect, tests }`. I
 component:
 
 - A symbol's component SHALL be its name up to the first `::` (the whole name when it has none), in
-  the symbol's file; a reached file none of whose symbols is a component of the report (in any
-  list) SHALL be its own component, named by its path.
+  the symbol's file; a file reached by the reverse traversal or by the `tested_by` step, none of
+  whose symbols is a component of the report (in any list), SHALL be its own component, named by its
+  path.
 - The components of the anchor SHALL be in `direct` with `hops` 0 and `resolution` `exact`. Every
   other node of an anchor symbol's file SHALL be left out (it is part of the change).
 - Every other component SHALL appear once, at the minimum distance of its nodes, with `resolution`
