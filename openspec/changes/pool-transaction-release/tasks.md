@@ -29,8 +29,8 @@
 
 ## 3. Carry-over A8 of DIS-42: Purpose of `explain` (design D6, R5)
 
-- [ ] 3.1 Edit only the `## Purpose` of `openspec/specs/explain/spec.md`: explain asks the model for the answer and then refreshes lazily the due stale prior claims it reaches (requirement "Stale claim refresh"), instead of "asks the model once"; no requirement is touched
-- [ ] 3.2 Commit it alone as `docs(DIS-110): …` (explicit path), separate from any code commit; `openspec validate --specs --strict` still passes
+- [x] 3.1 Edit only the `## Purpose` of `openspec/specs/explain/spec.md`: explain asks the model for the answer and then refreshes lazily the due stale prior claims it reaches (requirement "Stale claim refresh"), instead of "asks the model once"; no requirement is touched. Fuera de este cambio: bloqueado por el hook protect-specs-and-tests; destino C, la autora (design X8)
+- [x] 3.2 Commit it alone as `docs(DIS-110): …` (explicit path), separate from any code commit; `openspec validate --specs --strict` still passes. Fuera de este cambio: bloqueado por el hook protect-specs-and-tests; destino C, la autora (design X8)
 
 ## 4. Security and privacy (design D4)
 
