@@ -18,55 +18,53 @@
       "response": {
         "kind": "answered",
         "persisted": true,
-        "answer": "taskRoutes valida las peticiones entrantes mediante el uso de esquemas de validación definidos en src/schemas/",
+        "answer": "La validación de las peticiones entrantes en el sistema es realizada mediante el enrutamiento en Fastify con esquemas definidos. Para cada método y ruta especificada, se aplican esquemas que verifican la estructura y los datos de las peticiones. Luego, los controladores procesan las peticiones según la lógica de negocio definida en los servicios.",
         "statements": [
           {
-            "text": "Las rutas CRUD (GET, POST, PATCH, DELETE) están definidas en taskRoutes, que valida las peticiones usando los esquemas de validación adjuntos.",
+            "text": "La función `taskRoutes` en `src/routes/tasks.routes.ts` define las rutas y esquemas para las peticiones de tareas.",
             "type": "FACT",
             "status": "current",
             "verification": "entailed",
             "evidenceIds": [
-              "89858579-18ab-4c1f-988a-94b734561806"
+              "c7da63e0-36d9-434b-a4de-0873ee82f6dd"
             ]
           },
           {
-            "text": "Para las peticiones POST y PATCH, el esquema de validación body (createTaskSchema, updateTaskSchema) se utiliza para asegurar que el cuerpo de la solicitud cumpla con los requisitos definidos.",
+            "text": "Los controladores en `src/controllers/tasks.controller.ts` manejan las peticiones a través de servicios en `src/services/task.service.ts`.",
             "type": "INFERENCE",
             "status": "current",
             "verification": "cited",
             "evidenceIds": [
-              "228b02cb-8ef7-4385-915d-505865dec222"
+              "533ac83e-8896-41ac-8f87-1d79595c17f2",
+              "12475394-827f-447d-a401-f2ee452ad924",
+              "dfbca7e0-a919-47e0-9d6c-794804de21e8",
+              "b48ca132-9ed3-4d3f-b2ec-9dcee20655b6",
+              "dcc1ca2a-385b-4bf8-99b5-9577909236bb"
             ]
           },
           {
-            "text": "Para las peticiones GET y DELETE, el esquema de validación querystring (listTasksQuerySchema, taskIdParamsSchema) garantiza que los parámetros de búsqueda y identificación sean correctos.",
-            "type": "FACT",
-            "status": "current",
-            "verification": "entailed",
-            "evidenceIds": [
-              "89910c7b-e3d3-4aa7-93bd-af6fef0a5e00"
-            ]
-          },
-          {
-            "text": "Los esquemas de validación pueden aplicar filtros, ordenaciones y paginación al procesamiento de los datos, lo que ayuda a validar los parámetros de búsqueda y ordenación pasados en las peticiones.",
+            "text": "Los servicios en `src/services/task.service.ts` interactúan con el repositorio para realizar operaciones CRUD y aplican lógica de negocio como transiciones de estado de tareas.",
             "type": "INFERENCE",
             "status": "current",
             "verification": "cited",
             "evidenceIds": [
-              "abdf731a-248b-4b70-86fe-92b2ba1f42b4",
-              "a969d77d-9009-46d8-a08e-d5a660fc489e",
-              "43902a1c-c34f-4d36-b3c5-0a8ff1f6e781",
-              "d499b596-0947-495a-94d7-c7dc857a5fc0",
-              "af48a422-2b02-4667-9191-93cc58f9a2c9",
-              "91f7feec-4f4b-4750-9b65-c1d116ea14e2",
-              "af82658a-6c5b-4e88-b07a-c6f0be0046b4",
-              "b3b2ee2b-c35d-4a3c-823f-3575c325b7ee"
+              "15c6b3b2-9564-46f2-87d1-72fb42db677c"
+            ]
+          },
+          {
+            "text": "Los esquemas de validación para las peticiones se definen en el archivo `README.md` y su implementación se realiza en `src/routes/tasks.routes.ts`.",
+            "type": "INFERENCE",
+            "status": "current",
+            "verification": "cited",
+            "evidenceIds": [
+              "48873180-ffb0-47be-a1fa-4cb3e3714f37",
+              "1c622634-eb6c-4812-9487-13f19a99e41f"
             ]
           }
         ],
         "evidence": [
           {
-            "id": "89858579-18ab-4c1f-988a-94b734561806",
+            "id": "c7da63e0-36d9-434b-a4de-0873ee82f6dd",
             "fileId": "7685ace1-b62d-53c0-a1d0-3378a4a41a0a",
             "path": "src/routes/tasks.routes.ts",
             "startLine": 15,
@@ -74,31 +72,7 @@
             "excerpt": "export async function taskRoutes(app: FastifyInstance): Promise<void> {\n  const controller = new TasksController();\n\n  app.get('/tasks', { schema: { querystring: listTasksQuerySchema } }, controller.list);\n\n  app.get('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.getById);\n\n  app.post('/tasks', { schema: { body: createTaskSchema } }, controller.create);\n\n  app.patch(\n    '/tasks/:id',\n    { schema: { params: taskIdParamsSchema, body: updateTaskSchema } },\n    controller.update,\n  );\n\n  app.delete('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.remove);\n}"
           },
           {
-            "id": "228b02cb-8ef7-4385-915d-505865dec222",
-            "fileId": "7685ace1-b62d-53c0-a1d0-3378a4a41a0a",
-            "path": "src/routes/tasks.routes.ts",
-            "startLine": 15,
-            "endLine": 31,
-            "excerpt": "export async function taskRoutes(app: FastifyInstance): Promise<void> {\n  const controller = new TasksController();\n\n  app.get('/tasks', { schema: { querystring: listTasksQuerySchema } }, controller.list);\n\n  app.get('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.getById);\n\n  app.post('/tasks', { schema: { body: createTaskSchema } }, controller.create);\n\n  app.patch(\n    '/tasks/:id',\n    { schema: { params: taskIdParamsSchema, body: updateTaskSchema } },\n    controller.update,\n  );\n\n  app.delete('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.remove);\n}"
-          },
-          {
-            "id": "89910c7b-e3d3-4aa7-93bd-af6fef0a5e00",
-            "fileId": "7685ace1-b62d-53c0-a1d0-3378a4a41a0a",
-            "path": "src/routes/tasks.routes.ts",
-            "startLine": 15,
-            "endLine": 31,
-            "excerpt": "export async function taskRoutes(app: FastifyInstance): Promise<void> {\n  const controller = new TasksController();\n\n  app.get('/tasks', { schema: { querystring: listTasksQuerySchema } }, controller.list);\n\n  app.get('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.getById);\n\n  app.post('/tasks', { schema: { body: createTaskSchema } }, controller.create);\n\n  app.patch(\n    '/tasks/:id',\n    { schema: { params: taskIdParamsSchema, body: updateTaskSchema } },\n    controller.update,\n  );\n\n  app.delete('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.remove);\n}"
-          },
-          {
-            "id": "abdf731a-248b-4b70-86fe-92b2ba1f42b4",
-            "fileId": "a96b1bab-778d-549b-a7ae-5d0bd0927619",
-            "path": "src/repositories/task.repository.ts",
-            "startLine": 22,
-            "endLine": 28,
-            "excerpt": "export interface TaskRepository {\n  findById(id: string): Promise<Task | null>;\n  list(query: TaskQuery): Promise<Page<Task>>;\n  create(task: Task): Promise<Task>;\n  update(task: Task): Promise<Task>;\n  delete(id: string): Promise<boolean>;\n}"
-          },
-          {
-            "id": "a969d77d-9009-46d8-a08e-d5a660fc489e",
+            "id": "533ac83e-8896-41ac-8f87-1d79595c17f2",
             "fileId": "99ebf394-a600-58d0-9f17-8578082a1209",
             "path": "src/controllers/tasks.controller.ts",
             "startLine": 10,
@@ -106,7 +80,7 @@
             "excerpt": "  async list(\n    request: FastifyRequest<{ Querystring: ListTasksQuery }>,\n    reply: FastifyReply,\n  ): Promise<void> {\n    const page = await request.server.taskService.list(request.query);\n    await reply.send(page);\n  }"
           },
           {
-            "id": "43902a1c-c34f-4d36-b3c5-0a8ff1f6e781",
+            "id": "12475394-827f-447d-a401-f2ee452ad924",
             "fileId": "99ebf394-a600-58d0-9f17-8578082a1209",
             "path": "src/controllers/tasks.controller.ts",
             "startLine": 18,
@@ -114,7 +88,7 @@
             "excerpt": "  async getById(\n    request: FastifyRequest<{ Params: TaskIdParams }>,\n    reply: FastifyReply,\n  ): Promise<void> {\n    const task = await request.server.taskService.get(request.params.id);\n    await reply.send(task);\n  }"
           },
           {
-            "id": "d499b596-0947-495a-94d7-c7dc857a5fc0",
+            "id": "dfbca7e0-a919-47e0-9d6c-794804de21e8",
             "fileId": "99ebf394-a600-58d0-9f17-8578082a1209",
             "path": "src/controllers/tasks.controller.ts",
             "startLine": 26,
@@ -122,7 +96,7 @@
             "excerpt": "  async create(\n    request: FastifyRequest<{ Body: CreateTaskBody }>,\n    reply: FastifyReply,\n  ): Promise<void> {\n    const task = await request.server.taskService.create(request.body);\n    await reply.code(201).send(task);\n  }"
           },
           {
-            "id": "af48a422-2b02-4667-9191-93cc58f9a2c9",
+            "id": "b48ca132-9ed3-4d3f-b2ec-9dcee20655b6",
             "fileId": "99ebf394-a600-58d0-9f17-8578082a1209",
             "path": "src/controllers/tasks.controller.ts",
             "startLine": 34,
@@ -130,7 +104,7 @@
             "excerpt": "  async update(\n    request: FastifyRequest<{ Params: TaskIdParams; Body: UpdateTaskBody }>,\n    reply: FastifyReply,\n  ): Promise<void> {\n    const task = await request.server.taskService.update(request.params.id, request.body);\n    await reply.send(task);\n  }"
           },
           {
-            "id": "91f7feec-4f4b-4750-9b65-c1d116ea14e2",
+            "id": "dcc1ca2a-385b-4bf8-99b5-9577909236bb",
             "fileId": "99ebf394-a600-58d0-9f17-8578082a1209",
             "path": "src/controllers/tasks.controller.ts",
             "startLine": 42,
@@ -138,47 +112,55 @@
             "excerpt": "  async remove(\n    request: FastifyRequest<{ Params: TaskIdParams }>,\n    reply: FastifyReply,\n  ): Promise<void> {\n    await request.server.taskService.delete(request.params.id);\n    await reply.code(204).send();\n  }"
           },
           {
-            "id": "af82658a-6c5b-4e88-b07a-c6f0be0046b4",
-            "fileId": "a16fe8a7-4976-561d-bff8-0ffbbd587be9",
-            "path": "src/services/task.filters.ts",
-            "startLine": 10,
-            "endLine": 18,
-            "excerpt": "export function applyFilters(tasks: Task[], query: Pick<TaskQuery, 'status' | 'priority' | 'tag' | 'search'>): Task[] {\n  return tasks.filter((task) => {\n    if (query.status && task.status !== query.status) return false;\n    if (query.priority && task.priority !== query.priority) return false;\n    if (query.tag && !task.tags.includes(query.tag)) return false;\n    if (query.search && !matchesSearch(task, query.search)) return false;\n    return true;\n  });\n}"
+            "id": "15c6b3b2-9564-46f2-87d1-72fb42db677c",
+            "fileId": "fbc78701-beb9-5ead-8afe-d1d52e62e189",
+            "path": "src/services/task.service.ts",
+            "startLine": 13,
+            "endLine": 68,
+            "excerpt": "export class TaskService {\n  constructor(\n    private readonly repository: TaskRepository,\n    private readonly clock: () => string = () => new Date().toISOString(),\n  ) {}\n\n  async get(id: string): Promise<Task> {\n    const task = await this.repository.findById(id);\n    if (!task) throw new TaskNotFoundError(id);\n    return task;\n  }\n\n  async list(query: TaskQuery): Promise<Page<Task>> {\n    return this.repository.list(query);\n  }\n\n  async create(input: CreateTaskInput): Promise<Task> {\n    const now = this.clock();\n    const task: Task = {\n      id: newId(),\n      title: input.title,\n      description: input.description ?? null,\n      status: input.status ?? 'todo',\n      priority: input.priority ?? 'medium',\n      tags: input.tags ?? [],\n      dueDate: input.dueDate ?? null,\n      createdAt: now,\n      updatedAt: now,\n    };\n    return this.repository.create(task);\n  }\n\n  async update(id: string, input: UpdateTaskInput): Promise<Task> {\n    const current = await this.get(id);\n\n    if (input.status && input.status !== current.status) {\n      if (!canTransition(current.status, input.status)) {\n        throw new IllegalStatusTransitionError(current.status, input.status);\n      }\n    }\n\n    const updated: Task = {\n      ...current,\n      ...pruneUndefined(input),\n      id: current.id,\n      createdAt: current.createdAt,\n      updatedAt: this.clock(),\n    };\n    return this.repository.update(updated);\n  }\n\n  async delete(id: string): Promise<void> {\n    const deleted = await this.repository.delete(id);\n    if (!deleted) throw new TaskNotFoundError(id);\n  }\n}"
           },
           {
-            "id": "b3b2ee2b-c35d-4a3c-823f-3575c325b7ee",
-            "fileId": "a16fe8a7-4976-561d-bff8-0ffbbd587be9",
-            "path": "src/services/task.filters.ts",
-            "startLine": 27,
-            "endLine": 30,
-            "excerpt": "export function sortTasks(tasks: Task[], sort: TaskQuery['sort'], order: TaskQuery['order']): Task[] {\n  const direction = order === 'asc' ? 1 : -1;\n  return [...tasks].sort((a, b) => compareBy(a, b, sort) * direction);\n}"
+            "id": "48873180-ffb0-47be-a1fa-4cb3e3714f37",
+            "fileId": "643e9ac2-e61e-5e04-b78f-947836528ef1",
+            "path": "README.md",
+            "startLine": 1,
+            "endLine": 58,
+            "excerpt": "# task-api\n\nA small task-management HTTP API. TypeScript on Node 20, [Fastify](https://fastify.dev)\nfor routing, [Zod](https://zod.dev) for schema-first request validation.\n\nIt does one thing: CRUD over tasks, with filtering, pagination and a status\nlifecycle. It is intentionally small and intentionally boring — no dynamic\ndispatch, no reflection, no string-resolved handlers. Every reference resolves\nat compile time.\n\n## Design\n\n- **Schema-first validation.** Each route attaches a Zod schema. Requests are\n  parsed and typed before any controller runs, so *how requests are validated*\n  has one answer, in one place: `src/schemas/`.\n- **Ports over stores.** The service depends on the `TaskRepository` interface,\n  not on a concrete database. The in-memory implementation is the default;\n  swapping it is a one-line change in `src/plugins/db.ts`.\n- **Thin controllers.** Business rules (timestamps, status transitions) live in\n  `TaskService`; controllers only shape HTTP.\n\n## Layout\n\n```\nsrc/\n  config/env.ts            environment parsing\n  domain/                  entity, status/priority, pagination, errors\n  schemas/                 Zod request schemas (validation lives here)\n  repositories/            TaskRepository port + in-memory adapter\n  services/                TaskService (rules) + pure filters\n  controllers/             HTTP handlers\n  routes/                  route registration with schemas attached\n  plugins/                 error handler, db wiring, swagger\n  app.ts / server.ts       build + boot\ntests/\n  unit/                    service, filters, status transitions\n  integration/             routes + validation (via app.inject)\n```\n\n## Task lifecycle\n\n```\ntodo ─▶ in_progress ─▶ done ─▶ archived\n          ▲   │  ▲        │\n          │   ▼  └────────┘\n        blocked ───────────▶ archived\n```\n\nIllegal moves (e.g. `done → in_progress`) are rejected with `409`.\n\n## Scripts\n\n```bash\nnpm run dev        # watch mode\nnpm run test       # vitest\nnpm run typecheck  # tsc --noEmit\n```\n"
+          },
+          {
+            "id": "1c622634-eb6c-4812-9487-13f19a99e41f",
+            "fileId": "7685ace1-b62d-53c0-a1d0-3378a4a41a0a",
+            "path": "src/routes/tasks.routes.ts",
+            "startLine": 15,
+            "endLine": 31,
+            "excerpt": "export async function taskRoutes(app: FastifyInstance): Promise<void> {\n  const controller = new TasksController();\n\n  app.get('/tasks', { schema: { querystring: listTasksQuerySchema } }, controller.list);\n\n  app.get('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.getById);\n\n  app.post('/tasks', { schema: { body: createTaskSchema } }, controller.create);\n\n  app.patch(\n    '/tasks/:id',\n    { schema: { params: taskIdParamsSchema, body: updateTaskSchema } },\n    controller.update,\n  );\n\n  app.delete('/tasks/:id', { schema: { params: taskIdParamsSchema } }, controller.remove);\n}"
           }
         ],
         "priorClaims": [],
         "usage": {
-          "inputTokens": 8452,
-          "outputTokens": 411,
+          "inputTokens": 8252,
+          "outputTokens": 415,
           "baselineTokens": 4227,
           "baselineEstimator": "chars-div-4",
-          "savingsPct": -100,
+          "savingsPct": -95.2,
           "costUsd": 0,
-          "latencyMs": 206511,
+          "latencyMs": 103884,
           "cacheHit": false,
           "generation": {
             "inputTokens": 4235,
-            "outputTokens": 326,
+            "outputTokens": 340,
             "costUsd": 0
           },
           "verification": {
-            "calls": 11,
+            "calls": 9,
             "cacheHits": 0,
-            "inputTokens": 4217,
-            "outputTokens": 85,
+            "inputTokens": 4017,
+            "outputTokens": 75,
             "costUsd": 0,
-            "latencyMs": 60265
+            "latencyMs": 33244
           }
         },
-        "confidence": 0.7963500664977807
+        "confidence": 0.7808853674622834
       },
       "reviews": []
     },
