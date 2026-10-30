@@ -1,10 +1,7 @@
 # explain Specification
 
 ## Purpose
-Answers a natural-language question about one indexed project in a single pass: builds the context,
-asks the model once, types each statement from the code it cites, stores it as a claim with its
-evidence and provenance, shows the stored claims that already cover that code, and answers `UNKNOWN`
-with a reason instead of a plausible explanation when there is no anchor, no model or no evidence.
+Answers a natural-language question about one indexed project: builds the context, asks the model for the answer, types each statement from the code it cites, stores it as a claim with its evidence and provenance, shows the stored claims that already cover that code, lazily refreshes the due stale prior claims with at most MAX_STALE_REFRESHES further model calls (requirement "Stale claim refresh"), and answers UNKNOWN with a reason instead of a plausible explanation when there is no anchor, no model or no evidence.
 
 ## Requirements
 
