@@ -18,6 +18,7 @@ import {
 import type {
   CacheEntry,
   ClaimItem,
+  ClaimRefresh,
   ClaimSpan,
   EdgeEndpoint,
   EdgeKind,
@@ -76,6 +77,7 @@ export interface InMemoryStore {
     neighbors: number;
     getProject: number;
     saveClaims: number;
+    refreshClaim: number;
     findClaimsOverlapping: number;
     saveQueryLog: number;
     findCacheEntry: number;
@@ -90,6 +92,12 @@ export interface InMemoryStore {
   seedClaim(seed: SeedClaim): string;
   /** Every stored claim, in write order. */
   storedClaims(): StoredClaim[];
+  /**
+   * The instant the claim was last written (DIS-42 design D6): its `createdAt` until `refreshClaim`
+   * rewrites it, then an instant later than every instant the double stamped before; `undefined` for
+   * an unknown id.
+   */
+  claimUpdatedAt(claimId: string): string | undefined;
   /** Moves the project's indexed commit, as a re-index would. */
   setIndexedCommit(projectId: string, commit: string): void;
   /** Every query log entry `saveQueryLog` wrote, in write order. */
@@ -148,6 +156,8 @@ export interface ClaimWriteFailure {
 interface StoredClaimRow {
   projectId: string;
   claim: StoredClaim;
+  /** The instant the row was last written (DIS-42 design D6): its creation instant until a refresh. */
+  updatedAt: string;
 }
 
 /** The base of the double's write instants: before any instant a test seeds. */
@@ -207,11 +217,20 @@ function nodeKey(type: NodeRef['type'], id: string): string {
 export function createInMemoryStore({
   projects,
   failClaimWrite,
+  failClaimRefresh,
+  beforeRefreshCheck,
   failQueryLogWrite,
   failCacheCall = {},
 }: {
   projects: InMemoryProject[];
   failClaimWrite?: ClaimWriteFailure;
+  /**
+   * Called by `refreshClaim` once a call passed its checks, with the claim id; a value other than
+   * `undefined` is thrown instead of writing (DIS-42 design D6).
+   */
+  failClaimRefresh?: (claimId: string) => unknown;
+  /** Called by `refreshClaim` just before it checks the condition, to move the commit or change the claim. */
+  beforeRefreshCheck?: (claimId: string) => void;
   failQueryLogWrite?: () => unknown;
   failCacheCall?: CacheCallFailures;
 }): InMemoryStore {
@@ -228,6 +247,7 @@ export function createInMemoryStore({
     neighbors: 0,
     getProject: 0,
     saveClaims: 0,
+    refreshClaim: 0,
     findClaimsOverlapping: 0,
     saveQueryLog: 0,
     findCacheEntry: 0,
@@ -366,6 +386,7 @@ export function createInMemoryStore({
           path: files.get(e.fileId.toLowerCase())?.path ?? '',
         })),
       },
+      updatedAt: new Date(createdAt).toISOString(),
     });
     return id;
   }
@@ -497,10 +518,46 @@ export function createInMemoryStore({
           return { ...e, fileId: e.fileId.toLowerCase(), id: randomUUID(), path: files.get(e.fileId.toLowerCase())!.path };
         });
         const status = outdated ? 'stale' : item.claim.status;
-        return { projectId: project.id, claim: { ...item.claim, projectId: project.id, status, id, createdAt: nextStamp(), evidence } as StoredClaim };
+        const createdAt = nextStamp();
+        return {
+          projectId: project.id,
+          claim: { ...item.claim, projectId: project.id, status, id, createdAt, evidence } as StoredClaim,
+          updatedAt: createdAt,
+        };
       });
       claimRows.push(...rows);
       return rows.map((row) => ({ claimId: row.claim.id, evidenceIds: row.claim.evidence.map((e) => e.id), status: row.claim.status }));
+    },
+
+    async refreshClaim(projectId: string, claimId: string, item: ClaimItem, readAtCommit: string): Promise<ClaimRefresh> {
+      calls.refreshClaim += 1;
+      // Same order as the Postgres adapter (DIS-42 design D6): project id form, claim id form, record, project, files.
+      if (!UUID.test(projectId)) throw new ProjectNotFound(projectId);
+      if (!UUID.test(claimId)) throw new InvalidStoreQuery('claimId', 'must be a well-formed UUID');
+      assertValidClaimItems(projectId, [item]);
+      if (item.claim.status !== 'current') throw new InvalidStoreQuery('claims', 'must be valid claim and evidence records of the project');
+      const project = projectOf(projectId);
+      const ownsFile = (fileId: string): boolean => files.get(fileId.toLowerCase())?.projectId === project.id;
+      if (!item.evidence.every((e) => ownsFile(e.fileId))) {
+        throw new InvalidStoreQuery('claims', 'must cite only files of the project');
+      }
+      beforeRefreshCheck?.(claimId);
+      const row = claimRows.find((r) => r.projectId === project.id && r.claim.id === claimId.toLowerCase());
+      // Read after the callback: it may have moved the indexed commit, as a re-index does.
+      if (row === undefined || row.claim.status !== 'stale' || readAtCommit !== projectOf(projectId).indexedCommit) {
+        return { refreshed: false };
+      }
+      // An injected failure happens once the write has started, so only for a claim that is due.
+      injected(failClaimRefresh === undefined ? undefined : () => failClaimRefresh(claimId));
+      const evidence = item.evidence.map((e) => ({
+        ...e,
+        fileId: e.fileId.toLowerCase(),
+        id: randomUUID(),
+        path: files.get(e.fileId.toLowerCase())!.path,
+      }));
+      row.claim = { ...item.claim, projectId: project.id, id: row.claim.id, createdAt: row.claim.createdAt, evidence } as StoredClaim;
+      row.updatedAt = nextStamp();
+      return { refreshed: true, evidenceIds: evidence.map((e) => e.id) };
     },
 
     async findClaimsOverlapping(projectId: string, spans: ClaimSpan[]): Promise<StoredClaim[]> {
@@ -625,6 +682,7 @@ export function createInMemoryStore({
     seedClaim,
     setIndexedCommit,
     storedClaims: () => claimRows.map((row) => row.claim),
+    claimUpdatedAt: (claimId: string) => claimRows.find((row) => row.claim.id === claimId.toLowerCase())?.updatedAt,
     queryLog: () => queryLogRows.map((row) => ({ ...row })),
     cacheEntries: (projectId?: string) =>
       cacheRows

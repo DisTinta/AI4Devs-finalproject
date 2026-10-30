@@ -34,7 +34,7 @@ import {
   threeSpans,
   WORKSPACE,
 } from '../../support/explain-doubles';
-import { modelOutput, SCRIPTED_MODEL } from '../../support/scripted-llm';
+import { modelOutput, promptView, SCRIPTED_MODEL } from '../../support/scripted-llm';
 import type { Script } from '../../support/scripted-llm';
 import { file, symbol } from '../../support/sample-graph';
 
@@ -108,6 +108,7 @@ describe('Requirement: Explain request', () => {
       neighbors: 0,
       getProject: 0,
       saveClaims: 0,
+      refreshClaim: 0,
       findClaimsOverlapping: 0,
       saveQueryLog: 0,
       findCacheEntry: 0,
@@ -142,6 +143,7 @@ describe('Requirement: Explain request', () => {
       neighbors: 0,
       getProject: 0,
       saveClaims: 0,
+      refreshClaim: 0,
       findClaimsOverlapping: 0,
       saveQueryLog: 0,
       findCacheEntry: 0,
@@ -207,6 +209,7 @@ describe('Requirement: Explain request', () => {
       neighbors: 0,
       getProject: 0,
       saveClaims: 0,
+      refreshClaim: 0,
       findClaimsOverlapping: 0,
       saveQueryLog: 0,
       findCacheEntry: 0,
@@ -771,8 +774,9 @@ describe('Requirement: Persistence failure', () => {
 
 describe('Requirement: Prior claims', () => {
   it('Prior claims show their displayed type and stale warning', async () => {
-    // Arrange
-    const d = doubles({ script: citingIds('ok', [['E1']]) });
+    // Arrange: the price question gets a valid answer, every refresh prompt (DIS-42) an output without statements.
+    const answerScript = citingIds('ok', [['E1']]);
+    const d = doubles({ script: (prompt) => (prompt.kind === 'refresh' ? modelOutput('ok', []) : answerScript(prompt)) });
     const path = 'app/Services/PriceCalculator.php';
     const fileId = d.loaded.fileIds[0]!.get(path)!;
     const provenance = {
@@ -825,8 +829,19 @@ describe('Requirement: Prior claims', () => {
       expect(prior.id).toMatch(/^[0-9a-f-]{36}$/);
     }
     expect(answer.priorClaims.filter((c) => c.status === 'current').every((c) => !('warning' in c))).toBe(true);
-    expect(d.order).toEqual(['findCacheEntry', 'findClaimsOverlapping', 'complete', 'verify', 'saveClaims', 'saveCacheEntry', 'saveQueryLog']);
+    expect(d.order).toEqual(['findCacheEntry', 'findClaimsOverlapping', 'complete', 'verify', 'saveClaims', 'complete', 'complete', 'saveCacheEntry', 'saveQueryLog']);
     expect(d.loaded.calls.findClaimsOverlapping).toBe(1);
+    // DIS-42: two refresh `answer` calls, for the stale claims with `FACT` and with `INFERENCE`, newest first.
+    expect(d.model.requests.filter((request) => request.purpose === 'answer')).toHaveLength(3);
+    const [, ...refreshes] = d.model.requests.filter((request) => request.purpose === 'answer').map(promptView);
+    expect(refreshes.map((view) => [view.kind, view.claim])).toEqual([
+      ['refresh', 'claim 3'],
+      ['refresh', 'claim 2'],
+    ]);
+    expect(answer.events.slice(-2)).toEqual([
+      { type: 'stale_claim_not_refreshed', claimId: answer.priorClaims[1]!.id, code: 'no-evidence' },
+      { type: 'stale_claim_not_refreshed', claimId: answer.priorClaims[2]!.id, code: 'no-evidence' },
+    ]);
   });
 });
 

@@ -1,8 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import type { ClientBase } from 'pg';
 import { InvalidStoreQuery, ProjectNotFound } from '@codemind/core';
-import type { ClaimItem, ClaimStatus, SavedClaim, StoredClaim, StoredEvidence } from '@codemind/core';
-import { CHECK_CLAIM_FILES, INSERT_CLAIMS, INSERT_EVIDENCE } from './queries.js';
+import type { ClaimItem, ClaimRefresh, ClaimStatus, SavedClaim, StoredClaim, StoredEvidence } from '@codemind/core';
+import {
+  CHECK_CLAIM_FILES,
+  DELETE_CLAIM_EVIDENCE,
+  INSERT_CLAIMS,
+  INSERT_EVIDENCE,
+  LOCK_CLAIM_FOR_REFRESH,
+  UPDATE_REFRESHED_CLAIM,
+} from './queries.js';
 
 // The claim write and the row mapping of the overlap read (DIS-39 design D7, D11). The ids are
 // generated here, so each table is written by one statement and the ids map to the input order
@@ -62,6 +69,57 @@ export async function writeClaims(
     evidence.map((e) => e.excerpt),
   ]);
   return saved;
+}
+
+/**
+ * Rewrites one stale claim in place on `client`, which is already inside the transaction or savepoint
+ * of the call (DIS-42 design D6): checks the project and the ownership of every cited file, locks the
+ * claim, and only when it belongs to the project, is `stale` and `readAtCommit` is the commit the
+ * project is indexed at (read under the same lock) updates it, deletes its evidence and inserts the
+ * item's with new ids.
+ *
+ * @throws ProjectNotFound when the project does not exist.
+ * @throws InvalidStoreQuery naming `claims` when an evidence cites a file of another project.
+ */
+export async function rewriteClaim(
+  client: ClientBase,
+  projectId: string,
+  claimId: string,
+  item: ClaimItem,
+  readAtCommit: string,
+): Promise<ClaimRefresh> {
+  const fileIds = [...new Set(item.evidence.map((e) => e.fileId.toLowerCase()))];
+  const { rows } = await client.query<{ owned: number; indexed_commit: string | null }>(CHECK_CLAIM_FILES, [projectId, fileIds]);
+  if (rows.length === 0) throw new ProjectNotFound(projectId);
+  if (rows[0].owned !== fileIds.length) throw new InvalidStoreQuery('claims', 'must cite only files of the project');
+  if (readAtCommit !== rows[0].indexed_commit) return { refreshed: false };
+  const locked = await client.query<{ status: string }>(LOCK_CLAIM_FOR_REFRESH, [claimId, projectId]);
+  if (locked.rows.length === 0 || locked.rows[0].status !== 'stale') return { refreshed: false };
+
+  const { claim } = item;
+  await client.query(UPDATE_REFRESHED_CLAIM, [
+    claimId,
+    projectId,
+    claim.subject,
+    claim.predicate,
+    claim.object,
+    claim.layer,
+    claim.type,
+    claim.confidence,
+    claim.provenance === undefined ? null : JSON.stringify(claim.provenance),
+  ]);
+  await client.query(DELETE_CLAIM_EVIDENCE, [claimId]);
+  const evidenceIds = item.evidence.map(() => randomUUID());
+  await client.query(INSERT_EVIDENCE, [
+    evidenceIds,
+    item.evidence.map(() => claimId),
+    item.evidence.map((e) => e.fileId),
+    item.evidence.map((e) => e.startLine),
+    item.evidence.map((e) => e.endLine),
+    item.evidence.map((e) => e.verification),
+    item.evidence.map((e) => e.excerpt),
+  ]);
+  return { refreshed: true, evidenceIds };
 }
 
 /** A row of `FIND_CLAIMS_OVERLAPPING`; every column is `NULL` when no claim matched. */

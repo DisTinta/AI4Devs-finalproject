@@ -3,7 +3,9 @@ import type { StoredClaim } from '../knowledge/stored-claim.js';
 import type { PriorClaim } from './explain-answer.js';
 
 // How a stored claim over the pack's code is shown (DIS-39 design D11). Stale claims are shown,
-// marked and never as `FACT`; they are not recomputed (DIS-42).
+// marked and never as `FACT`. A due stale claim is refreshed before it is shown (DIS-42,
+// `stale-refresh.ts`): once rewritten it is passed here with its new values and is `current`;
+// otherwise it is shown as it was read.
 
 /**
  * The type a stored claim is shown with: its provenance's statement type when it has one, its stored

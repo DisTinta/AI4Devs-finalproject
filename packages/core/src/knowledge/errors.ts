@@ -53,7 +53,7 @@ export class InvalidGraph extends DomainError {
 /**
  * An argument the store checks: a read argument checked before querying, the claims of a write
  * (`claims`), checked before writing and, for the ownership of their files, by one query inside the
- * write (DIS-39 design D7), a query log entry (`entry`), checked before writing (DIS-74), or an
+ * write (DIS-39 design D7), the id of the claim a refresh rewrites (`claimId`, DIS-42), a query log entry (`entry`), checked before writing (DIS-74), or an
  * argument of an answer cache call (`question`, `response`, `entryId`, `at`), checked before any
  * statement (DIS-21).
  */
@@ -64,6 +64,7 @@ export type StoreQueryArgument =
   | 'direction'
   | 'since'
   | 'claims'
+  | 'claimId'
   | 'spans'
   | 'entry'
   | 'question'

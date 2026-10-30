@@ -14,6 +14,7 @@ import {
   CacheWriteFailed,
   ClaimWriteFailed,
   DomainError,
+  InvalidStoreQuery,
   MAX_PRIOR_CLAIMS,
   ProjectNameTaken,
   ProjectNotFound,
@@ -22,6 +23,7 @@ import {
 import type {
   CacheEntry,
   ClaimItem,
+  ClaimRefresh,
   ClaimSpan,
   EdgeKind,
   IndexState,
@@ -39,7 +41,7 @@ import type {
   SymbolSearchOptions,
   TraversalDirection,
 } from '@codemind/core';
-import { toStoredClaim, writeClaims, type ClaimRow } from './claims.js';
+import { rewriteClaim, toStoredClaim, writeClaims, type ClaimRow } from './claims.js';
 import { isWellFormedId } from './ids.js';
 import {
   DELETE_CACHE_KEY,
@@ -319,6 +321,16 @@ export function createPostgresStore(connection: StoreConnection): StorePort {
         return [];
       }
       return atomically(connection, (client) => writeClaims(client, projectId, items, readAtCommit), toClaimWriteError);
+    },
+
+    async refreshClaim(projectId: string, claimId: string, item: ClaimItem, readAtCommit: string): Promise<ClaimRefresh> {
+      // Order of DIS-42 design D6: the project id form, the claim id form, then the record and its
+      // status, before any statement; then, inside the write, the project and the cited files.
+      if (!isWellFormedId(projectId)) throw new ProjectNotFound(projectId);
+      if (!isWellFormedId(claimId)) throw new InvalidStoreQuery('claimId', 'must be a well-formed UUID');
+      assertValidClaimItems(projectId, [item]);
+      if (item.claim.status !== 'current') throw new InvalidStoreQuery('claims', 'must be valid claim and evidence records of the project');
+      return atomically(connection, (client) => rewriteClaim(client, projectId, claimId, item, readAtCommit), toClaimWriteError);
     },
 
     async findClaimsOverlapping(projectId: string, spans: ClaimSpan[]): Promise<StoredClaim[]> {

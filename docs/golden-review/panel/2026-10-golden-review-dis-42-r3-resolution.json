@@ -1,0 +1,10 @@
+{
+  "resolver": "claude-opus-5-5",
+  "date": "2026-10-29",
+  "sourcesRead": [
+    "openspec/changes/stale-claims-refresh/tasks.md",
+    "docs/golden-review/panel/2026-10-golden-review-dis-42-r3-panelist-1.json",
+    "docs/golden-review/panel/2026-10-golden-review-dis-42-r3-panelist-2.json"
+  ],
+  "items": []
+}

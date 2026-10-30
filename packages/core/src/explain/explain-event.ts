@@ -201,6 +201,39 @@ export interface AnswerLanguageMismatchEvent {
   expected: 'es';
 }
 
+/**
+ * Why a due stale claim was not refreshed (DIS-42 design D7): the claim has no span in the pack, or
+ * the model's output was discarded by the quarantine, had no statement, or had every citation
+ * broken; the model was unavailable; the daily budget was exhausted; the claim was no longer due when
+ * the store was asked to write it; or the store failed. A closed set, so no free text can leak.
+ */
+export const STALE_CLAIM_NOT_REFRESHED_CODES = [
+  'no-evidence',
+  'invalid-model-output',
+  'broken-evidence',
+  'llm-unavailable',
+  'budget-exhausted',
+  'superseded',
+  'store-write-failed',
+] as const;
+
+/** Why a due stale claim was not refreshed. */
+export type StaleClaimNotRefreshedCode = (typeof STALE_CLAIM_NOT_REFRESHED_CODES)[number];
+
+/**
+ * A due stale claim was not rewritten: it is shown as it was read, still `stale`. It carries the
+ * claim's id (a UUID the store generated) and its code only: no text of the claim, no excerpt, no
+ * model output and no text of the store's error.
+ */
+export interface StaleClaimNotRefreshedEvent {
+  /** Discriminant. */
+  type: 'stale_claim_not_refreshed';
+  /** The id of the claim that stayed stale. */
+  claimId: string;
+  /** Why it was not refreshed. */
+  code: StaleClaimNotRefreshedCode;
+}
+
 /** An event of an explain answer. */
 export type ExplainEvent =
   | SchemaViolationEvent
@@ -209,5 +242,6 @@ export type ExplainEvent =
   | EvidenceBrokenEvent
   | EntailmentUnverifiedEvent
   | AnswerLanguageMismatchEvent
+  | StaleClaimNotRefreshedEvent
   | AnswerNotCachedEvent
   | QueryNotLoggedEvent;

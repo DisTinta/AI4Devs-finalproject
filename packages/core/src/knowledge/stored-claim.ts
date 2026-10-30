@@ -33,6 +33,12 @@ export interface SavedClaim {
   status: ClaimStatus;
 }
 
+/**
+ * What `refreshClaim` resolves to (DIS-42 design D6): the ids the new evidence was stored under, in the
+ * order of the item's evidence, when the stale claim was rewritten in place; or nothing written.
+ */
+export type ClaimRefresh = { refreshed: true; evidenceIds: string[] } | { refreshed: false };
+
 /** A stored evidence: the record, the id it was stored under and the path of its file. */
 export type StoredEvidence = Evidence & {
   /** The id of the evidence row. */

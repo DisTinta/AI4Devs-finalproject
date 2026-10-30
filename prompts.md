@@ -85,6 +85,7 @@
 68. [Corrección de `await using` en el analizador de TypeScript y nueva ronda del panel (DIS-107)](#68-corrección-de-await-using-en-el-analizador-de-typescript-y-nueva-ronda-del-panel-dis-107)
 69. [Endpoint `POST /api/projects/{id}/index`: reindexado de un proyecto existente (DIS-9)](#69-endpoint-post-apiprojectsidindex-reindexado-de-un-proyecto-existente-dis-9)
 70. [Reindexado incremental por `content_hash` y dependientes directos (DIS-10)](#70-reindexado-incremental-por-content_hash-y-dependientes-directos-dis-10)
+71. [Recálculo perezoso de afirmaciones `stale` al recuperarlas (DIS-42)](#71-recálculo-perezoso-de-afirmaciones-stale-al-recuperarlas-dis-42)
 
 ---
 
@@ -5320,3 +5321,18 @@ Run /opsx:apply on change incremental-indexing: every task in TDD (failing test 
 **Por qué funcionó.** El `tasks.md` fijaba el orden de capas (plan puro, lectura del estado del índice en el puerto y el adaptador, división del `buildSnapshot` bajo su red de seguridad, caso de uso, API, integración sobre Postgres) y el nombre de cada test existente que cambia; los escenarios del spec salieron como tests con su mismo nombre, y la mutación sobre los seis ficheros tocados dejó solo mutantes equivalentes.
 
 **Ajuste humano.** Ninguno: ejecución autónoma (texto del agente). Quedan para la autora la comprobación en PowerShell (P8) y la deuda de D1, D5 y D8.
+
+# 71. Recálculo perezoso de afirmaciones `stale` al recuperarlas (DIS-42)
+
+### Prompt 1 — Aplicar el cambio dentro del workflow autónomo
+
+El script del workflow envió a este paso, entre otras reglas, este texto literal:
+
+```
+Ticket: DIS-42. Branch: feature/dis-42-stale-claims-refresh. Change: openspec/changes/stale-claims-refresh. Step: apply.
+Run /opsx:apply on change stale-claims-refresh: every task in TDD (failing test first, then implementation, in the layer order), marking tasks.md as you go, with the mandatory verification steps. Run the tests, lint and typecheck. Commit, push and open the PR to final-project-CRN with /pr-describe (write the "why" yourself and mark it as agent-written). Return pr.
+```
+
+**Por qué funcionó.** El `tasks.md` ya traía el orden de capas (evento, puerto y doble en memoria, adaptador Postgres, prompt de recálculo, orquestación en `explain`, integración sobre acme-shop) y el nombre de cada test existente que cambia; los escenarios de los tres deltas tienen un test con su mismo nombre y el informe del paso 9 recoge la puntuación de Stryker con los supervivientes que se mataron.
+
+**Ajuste humano.** Ninguno: ejecución autónoma (texto del agente). Tres `it` de `tests/unit/explain/explain.spec.ts` comparaban `calls` con `toEqual` sobre sus claves exactas y ganaron `refreshClaim: 0` al añadirse esa clave al doble; se anotó en la lista de la tarea 8.1 antes de editarlos. El grupo `Panel` (10c y 10d) no se ejecutó dentro de este paso: el ticket se lanzó sin la opción `panel` del workflow, así que quedan para el panel de agentes independientes y para la autora (ver el informe del paso 9).

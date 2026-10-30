@@ -207,13 +207,23 @@ documentation-drift question, added with the drift story, and its terms anchor
 no symbol of the seed; Q6 answers `UNKNOWN` `no-anchor` before the cache is
 read, without a model and at zero cost.
 
-**Golden review (DIS-34, DIS-104, DIS-33, DIS-107, DIS-9, DIS-10, DIS-10 r2).** Each entry's `reviews` lists who checked it
-against this fixture and when. The current golden answers were regenerated in DIS-10 (after the
-incremental indexing, which changed the analyzer fingerprint; task-api `Q1` was regenerated again,
-alone, for the second DIS-10 round) and reviewed in the DIS-10 r2 round by a blind panel of two
-agents of models other than the generator; the report, with a verdict per golden, is
-[`docs/golden-review/2026-10-golden-review-dis-10-r2.md`](../docs/golden-review/2026-10-golden-review-dis-10-r2.md).
-No item was judged incorrect, so every entry carries both r2 signatures. The previous round is the
+**Golden review (DIS-34, DIS-104, DIS-33, DIS-107, DIS-9, DIS-10, DIS-10 r2, DIS-42, DIS-42 r2, DIS-42 r3).** Each entry's `reviews` lists who checked it
+against this fixture and when. The current golden answers were regenerated in DIS-42 (after the
+stale claim refresh changed the store adapter, on the code merged with DIS-10; task-api `Q2` and
+acme-shop `Q1` were regenerated again, alone, for the second DIS-42 round, and acme-shop `Q1` once
+more, alone, for the third) and reviewed in the DIS-42 r3 round, the last DIS-42 round, by a blind
+panel of two agents of models other than the generator; the report, with a verdict per golden, is
+[`docs/golden-review/2026-10-golden-review-dis-42-r3.md`](../docs/golden-review/2026-10-golden-review-dis-42-r3.md).
+No golden was judged incorrect: every entry carries both r3 signatures and nothing is pending. The
+previous round is DIS-42 r2
+([`docs/golden-review/2026-10-golden-review-dis-42-r2.md`](../docs/golden-review/2026-10-golden-review-dis-42-r2.md),
+which judged the earlier acme-shop `Q1` incorrect; it stays as history). The round before is the
+first DIS-42 round
+([`docs/golden-review/2026-10-golden-review-dis-42.md`](../docs/golden-review/2026-10-golden-review-dis-42.md),
+which judged the earlier task-api `Q2` and acme-shop `Q1` incorrect; it stays as history). The round
+before is DIS-10 r2
+([`docs/golden-review/2026-10-golden-review-dis-10-r2.md`](../docs/golden-review/2026-10-golden-review-dis-10-r2.md),
+of the answers DIS-10 regenerated, task-api `Q1` again alone; it stays as history). The round before is the
 first DIS-10 round
 ([`docs/golden-review/2026-10-golden-review-dis-10.md`](../docs/golden-review/2026-10-golden-review-dis-10.md),
 which judged the earlier task-api `Q1` incorrect; it stays as history). The round before is DIS-9
@@ -339,11 +349,17 @@ before the cache is read, without a model. Every golden question must anchor a s
 through `taskRoutes`, Q2 through `buildPage` and Q3 through `canTransition`, which is why Q1 and Q2
 name a symbol (the validation and pagination wording of the first version anchored nothing). The
 texts are the task-api entry of `GOLDEN_PROJECTS`, which `tests/unit/seed/golden-questions.spec.ts`
-checks against this table. The golden answers were regenerated in DIS-10 (incremental indexing; `Q1`
-again, alone, for the second DIS-10 round) and reviewed in the DIS-10 r2 round by a blind panel of
-two agents of models other than the generator; the report is
-[`docs/golden-review/2026-10-golden-review-dis-10-r2.md`](../docs/golden-review/2026-10-golden-review-dis-10-r2.md).
-The previous rounds are the first DIS-10 round
+checks against this table. The golden answers were regenerated in DIS-42 (stale claim refresh, on
+the code merged with DIS-10; `Q2` again, alone, for the second DIS-42 round) and reviewed in the
+DIS-42 r3 round by a blind panel of two agents of models other than the generator; the report is
+[`docs/golden-review/2026-10-golden-review-dis-42-r3.md`](../docs/golden-review/2026-10-golden-review-dis-42-r3.md).
+The previous rounds are DIS-42 r2
+([`docs/golden-review/2026-10-golden-review-dis-42-r2.md`](../docs/golden-review/2026-10-golden-review-dis-42-r2.md)),
+the first DIS-42 round
+([`docs/golden-review/2026-10-golden-review-dis-42.md`](../docs/golden-review/2026-10-golden-review-dis-42.md),
+which judged the earlier `Q2` incorrect), DIS-10 r2
+([`docs/golden-review/2026-10-golden-review-dis-10-r2.md`](../docs/golden-review/2026-10-golden-review-dis-10-r2.md)),
+the first DIS-10 round
 ([`docs/golden-review/2026-10-golden-review-dis-10.md`](../docs/golden-review/2026-10-golden-review-dis-10.md)),
 DIS-9
 ([`docs/golden-review/2026-10-golden-review-dis-9.md`](../docs/golden-review/2026-10-golden-review-dis-9.md)),

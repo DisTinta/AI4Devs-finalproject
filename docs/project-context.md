@@ -357,7 +357,11 @@ Verified against `package.json` (root and per package). If a command is not here
   with `ClaimWriteFailed` at that evidence before storing anything; `seedClaim({ claim, evidence,
   createdAt })` stores a claim without the ownership check (a claim may cite another project's file);
   `storedClaims()` lists them. Write instants are a counter after the latest seeded `createdAt`,
-  never `Date.now()`. Since DIS-74 `saveQueryLog` checks like the adapter (id form, then
+  never `Date.now()`. Since DIS-42 it implements `refreshClaim` (same checks and conditional write as the
+  adapter, `calls.refreshClaim`), with the options `failClaimRefresh(claimId)` (a value other than
+  `undefined` is thrown) and `beforeRefreshCheck(claimId)` (a callback run just before the condition is
+  checked, to move the indexed commit or change the claim), and keeps a last-written instant per claim:
+  `claimUpdatedAt(claimId)` is its `createdAt` until a refresh rewrites it, then a later stamp. Since DIS-74 `saveQueryLog` checks like the adapter (id form, then
   `assertValidQueryLogEntry`, then the project), keeps the rows (`queryLog()`, counted in
   `calls.saveQueryLog`) and throws what `failQueryLogWrite()` returns when it is not `undefined`.
   Since DIS-21 it keeps the answer cache: `findCacheEntry` / `saveCacheEntry` / `touchCacheEntry` /
@@ -383,8 +387,14 @@ Verified against `package.json` (root and per package). If a command is not here
   with the store double. `tests/support/scripted-llm.ts` is the `LlmPort` double of the explain tests:
   it reads the evidence ids and spans from the prompt and builds the output from them. Since DIS-41 the
   `question` and each evidence `text` it sees are wrapped in `<<<UNTRUSTED_DATA <id>>>>` markers, and a
-  cut span ends at its kept last line: match spans by path and lines, never by text.
-  `tests/support/explain-doubles.ts` holds the doubles both explain unit specs share.
+  cut span ends at its kept last line: match spans by path and lines, never by text. Since DIS-42 the
+  `PromptView` a script receives has `kind: 'answer' | 'refresh'`: a refresh prompt (its user message
+  holds `claim`, not `question`) is parsed with the stored statement unwrapped as `claim` and its
+  `claimFlags`, so one script answers both prompts.
+  `tests/support/explain-doubles.ts` holds the doubles both explain unit specs share (since DIS-42 it
+  records `refreshClaim` in `order` and forwards `failClaimRefresh` and `beforeRefreshCheck`). The stale
+  claim refresh is tested in `tests/unit/explain/stale-refresh.spec.ts`, `refresh-prompt.spec.ts`,
+  `tests/integration/store/claims-refresh.spec.ts` and `tests/integration/explain/stale-refresh.spec.ts`.
   Since DIS-68 `createInMemorySourceTree(contents, failures?, options?)` takes `options.after:
   { when, contents, failures? }`: every read made while `when()` holds answers from those instead.
   `doubles()` wires it as `verificationContents` / `verificationFailures` with
@@ -883,6 +893,23 @@ services that must be started first, quirks of the local environment.
   served before any model call, so it answers with the ceiling spent, while a miss (or
   `useCache: false`) still propagates them (DIS-21 D11). Those of a `verify` call do not: they leave
   the citations `cited` (DIS-70).
+  - Gotcha (DIS-42, `core/explain/stale-refresh.ts`, `refresh-prompt.ts`): after the claim write (stored
+    or not) an `answered` answer refreshes its due stale prior claims through `refreshStaleClaims`: at
+    most `MAX_STALE_REFRESHES` (3) stale `L2` `INFERENCE` claims with an object and a
+    `provenance.statementType`, newest first, one at a time. Each gets one more `answer` call with its
+    own prompt (`buildRefreshPrompt`: the stored object as untrusted data under the id `claim`, its
+    `claimFlags`, and the pack's sanitised spans that overlap its evidence under `E1…En`;
+    `prompt.ts` and `sanitize.ts` are untouched, so the answer fingerprint does not change), the
+    quarantine, the typing and `verifyAnswer` at the pack's commit and root, then
+    `StorePort.refreshClaim`. Not refreshed → the claim is shown `stale` and one
+    `{ type: 'stale_claim_not_refreshed', claimId, code }` event follows `claims_not_persisted`
+    (`STALE_CLAIM_NOT_REFRESHED_CODES`: `no-evidence`, `invalid-model-output`, `broken-evidence`,
+    `llm-unavailable`, `budget-exhausted`, `superseded`, `store-write-failed`; only a UUID and a code, never
+    text). `LlmUnavailable` / `BudgetExhausted` of a refresh's `answer` call stop the rest; any other error
+    propagates after the row. The refresh's calls count in the usage and the row (`sumVerificationUsage`
+    adds its checks to the answer's; `CallState.verifySumMs` is the latency a rejection row reports). `UNKNOWN`
+    answers, cache hits and evaluation mode refresh nothing, and a cached answer keeps the prior claims
+    it was saved with (design R12).
   - Gotcha (DIS-21, `core/cache/`, `knowledge/cache-entry.ts`): the answer cache key is
     `normalizeQuestion` (NFKD, no combining marks, `toLowerCase`, `\p{P}`/`\p{S}` → space, spaces
     collapsed, trimmed), deliberately not the anchor's search terms. After `no-anchor` and before
@@ -900,8 +927,8 @@ services that must be started first, quirks of the local environment.
     `pg_advisory_xact_lock` + delete + insert, and a lookup takes the newest of duplicates.
     `invalidateCache(projectId)` has no caller yet (DIS-9, PH-07).
   - Gotcha: `ExplainEvent` (`SchemaViolationEvent | ClaimsNotPersistedEvent | SanitizationEvent |
-    EvidenceBrokenEvent | EntailmentUnverifiedEvent | AnswerLanguageMismatchEvent | AnswerNotCachedEvent |
-    QueryNotLoggedEvent`) is **not** part of `AuditEvent`. Core never logs; the transport does.
+    EvidenceBrokenEvent | EntailmentUnverifiedEvent | AnswerLanguageMismatchEvent |
+    StaleClaimNotRefreshedEvent | AnswerNotCachedEvent | QueryNotLoggedEvent`) is **not** part of `AuditEvent`. Core never logs; the transport does.
   - Gotcha (DIS-104, `core/explain/question-language.ts`, `prompt.ts`): `detectLanguage(text)` is a pure
     rule with two closed word lists (`es`, `en`, or `null` with fewer than two signals or no strict
     majority; backtick pairs ignored, code-like tokens skipped, `¿`/`¡` and accented words count as
@@ -1014,6 +1041,15 @@ services that must be started first, quirks of the local environment.
     claims show a stale `FACT` as `INFERENCE` with `warning: 'stale-evidence'`. `explain` passes the
     pack's `commit` as `readAtCommit`: when a re-index moved the project's indexed commit during the
     answer, the claims are written `stale` and the answer's statements are shown stale too.
+  - `StorePort.refreshClaim(projectId, claimId, item, readAtCommit)` (DIS-42, `store-postgres/src/claims.ts`
+    `rewriteClaim`) rewrites one stale claim in its own row inside the same `atomically` wrapper:
+    `CHECK_CLAIM_FILES` (project `FOR SHARE`, file ownership, indexed commit), then
+    `LOCK_CLAIM_FOR_REFRESH` (`FOR UPDATE`); only a claim of the project that is `stale`, read at the indexed
+    commit, is updated (`UPDATE_REFRESHED_CLAIM`: `status = 'current'`, `updated_at = clock_timestamp()`,
+    `created_at` untouched), its evidence deleted (`DELETE_CLAIM_EVIDENCE`) and the item's inserted with new
+    ids. It resolves `{ refreshed: true, evidenceIds }` or `{ refreshed: false }`; invalid arguments are
+    `ProjectNotFound` / `InvalidStoreQuery('claimId' | 'claims')` before any statement, any database failure
+    after the write started is `ClaimWriteFailed`. No migration. See ADR `20261029-stale-claims-refreshed-in-place`.
   - Gotcha: claims are written with `created_at = clock_timestamp()`, not the column default
     `now()` (the transaction start), so "newest first" holds for claims written in one transaction.
 - **`indexRepository` writes nothing until the whole graph is valid** (DIS-85,
@@ -1226,10 +1262,14 @@ services that must be started first, quirks of the local environment.
   `reviews` — `{by, date}` per review: DIS-34 added `agent:claude-opus-5-5` to every entry; the
   golden answers are now reviewed by an independent agent panel (DIS-33, then DIS-107 after the
   analyzer fix regenerated them, then DIS-9 after the index pipeline extraction and DIS-10 after the incremental indexing regenerated them,
-  then the DIS-10 r2 round after task-api `Q1` alone was regenerated:
+  then the DIS-10 r2 round after task-api `Q1` alone was regenerated, then the DIS-42 round after
+  the stale claim refresh regenerated them, then the DIS-42 r2 round after task-api `Q2` and
+  acme-shop `Q1` alone were regenerated, then the DIS-42 r3 round, the last DIS-42 round, after
+  acme-shop `Q1` alone was regenerated once more:
   blind input, criterion first, signatures `agent:<model>`, report in `docs/golden-review/`, each
-  round's files suffixed with its ticket, the current DIS-10 r2 round's `-dis-10-r2`); an `incorrect` one stays unsigned and
-  goes to a successor ticket; a regenerated entry comes back with empty `reviews` and needs a new
+  round's files suffixed with its ticket, the current DIS-42 r3 round's `-dis-42-r3`); an `incorrect` one stays unsigned and
+  goes to a successor ticket or, when the author keeps it in the same ticket, to a further round of
+  that ticket (DIS-10 r2; DIS-42 r2 and r3); a regenerated entry comes back with empty `reviews` and needs a new
   panel); no generation time; canonical render = 2-space JSON in that key
   order, LF, final newline. **`answerFingerprint`** (`answer-fingerprint.ts`) = the seed's
   `fingerprint()` over `ANSWER_FINGERPRINT_FILES` (explain prompt and its language rule

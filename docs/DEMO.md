@@ -7,7 +7,10 @@ el paso lo dice y muestra lo que hace hoy el sistema.
 
 **Los comandos son los mismos en PowerShell y en Bash** (Windows, macOS o Linux): se escriben tal cual,
 sin exportar variables ni definir funciones. Los comandos que lee `.env` lo cargan solos, y una
-variable ya definida en la terminal gana sobre `.env`.
+variable ya definida en la terminal gana sobre `.env`. Una excepción en PowerShell (5.1 y 7): se come
+el `--` suelto de `npm run cli -- …`, así que un comando con opciones (`index … --name … --language …`)
+se escribe con `'--'` entre comillas o con `npm.cmd`; los de esta guía sin opciones funcionan tal cual
+(DIS-42).
 
 ## Cómo se capturó
 
@@ -286,11 +289,15 @@ revisó en DIS-107 un panel de agentes independientes (su informe es
 `discountFor`, no `discount`, un desliz de nombre que el criterio no cuenta como error. Quedó firmada
 con las dos firmas del panel y no hay ningún pendiente. La ronda anterior (DIS-33) había juzgado
 `incorrect` la golden de DIS-32; DIS-108 queda resuelto por la ronda de DIS-107 y lo cierra la autora.
-El 2026-10-29, DIS-9 y después DIS-10 volvieron a regenerar las golden (nueva huella de la semilla),
-así que el texto de esta salida es el de la golden de DIS-107 y no se ha vuelto a capturar. La golden
-actual de acme-shop `Q1` la revisó la ronda DIS-10 (`docs/golden-review/2026-10-golden-review-dis-10.md`)
-y de nuevo la ronda DIS-10 r2 (`docs/golden-review/2026-10-golden-review-dis-10-r2.md`), la ronda
-actual, que la juzgó `partial` y la firmó con las dos firmas del panel.
+El 2026-10-29, DIS-9, DIS-10 y después DIS-42 volvieron a regenerar las golden (nueva huella de la
+semilla), así que el texto de esta salida es el de la golden de DIS-107 y no se ha vuelto a capturar.
+La golden de acme-shop `Q1` de DIS-10 la revisaron las rondas DIS-10 y DIS-10 r2
+(`docs/golden-review/2026-10-golden-review-dis-10-r2.md`). La golden regenerada en DIS-42 la juzgó
+`incorrect` la ronda DIS-42 (`docs/golden-review/2026-10-golden-review-dis-42.md`); se volvió a
+regenerar sola y la ronda DIS-42 r2 (`docs/golden-review/2026-10-golden-review-dis-42-r2.md`)
+también la juzgó `incorrect`. Se regeneró sola una vez más y la golden actual la revisó la ronda
+DIS-42 r3 (`docs/golden-review/2026-10-golden-review-dis-42-r3.md`), la ronda actual y la última de
+DIS-42, que la juzgó `partial`: queda firmada con las dos firmas del panel y no hay ningún pendiente.
 
 La CLI no imprime el uso de tokens; la API sí. `npm run demo:ask` envía la pregunta a
 `POST /api/projects/{projectId}/ask` (el id es el que imprimió `projects`) y muestra el estado HTTP,
