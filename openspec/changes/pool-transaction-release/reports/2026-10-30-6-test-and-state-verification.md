@@ -108,4 +108,19 @@ The latest test that might've caused the error is "A connection terminated durin
   failed on the missing file; after it, 3 passed and the 6 panel `it`s failed as expected). The
   forty SHA-256 unchanged; the input holds no verdict.
 - 12c: panelist outputs `fdcfc8e` (both pass "Each panelist output judges every item under the
-  criterion").
+  criterion"); resolution `76f6124` (task-api `Q1` → `incorrect`, task-api `Q3` → `correct`).
+- 12d: signatures and report `5655676`. Final verdicts: task-api Q1 incorrect, Q2 correct, Q3
+  correct, Q4 correct; acme-shop Q1 partial, Q3 partial, Q4 correct. Agreement 71.4 %, Cohen's kappa
+  0.517 (indicative), resolved 2 of 7. task-api `Q1` stays unsigned (design X15, destination C).
+- 12d.6 (scenario "The criterion precedes the input and nothing in the record is rewritten"):
+  `d9dc18c` (report) is an ancestor of `ebc47ba` (regeneration), which is an ancestor of `e188823`
+  (input); `git log ebc47ba..e188823 -- seeds/cache` is empty; the only later commit to the report
+  (`5655676`) changes `## Panel` and adds the result sections, never `## Criterion`; the input, the
+  resolution and the two panelist outputs were each written in exactly one commit and never changed
+  (the two panelist outputs share commit `fdcfc8e`, as task 12c.3 records them together); the forty
+  SHA-256 of 12.1 are unchanged; `git diff ebc47ba HEAD -- seeds/cache` touches only `reviews`
+  lines. `npm run db:seed`: `2 projects loaded`; `npm run verify`: 3/3 and 3/3 match.
+- 12d.7: `npx vitest run tests/unit/seed`: 17 passed; `--project dom --project seed-build --project
+  node` (no `DATABASE_URL`, integration skipped): 1684 passed, 248 skipped; `npm run lint`,
+  `npm run typecheck`, `npm run docs:coverage`: clean; `node scripts/dev-processes.mjs stop`: nothing
+  running. The red-CI window on `golden-reviews.spec.ts` ran from `e188823` to `5655676`.

@@ -1268,11 +1268,13 @@ services that must be started first, quirks of the local environment.
   then the DIS-10 r2 round after task-api `Q1` alone was regenerated, then the DIS-42 round after
   the stale claim refresh regenerated them, then the DIS-42 r2 round after task-api `Q2` and
   acme-shop `Q1` alone were regenerated, then the DIS-42 r3 round, the last DIS-42 round, after
-  acme-shop `Q1` alone was regenerated once more:
+  acme-shop `Q1` alone was regenerated once more, then the DIS-110 round, a single round, after the
+  pooled transaction runner changed the store adapter and both golden files were regenerated:
   blind input, criterion first, signatures `agent:<model>`, report in `docs/golden-review/`, each
-  round's files suffixed with its ticket, the current DIS-42 r3 round's `-dis-42-r3`); an `incorrect` one stays unsigned and
+  round's files suffixed with its ticket, the current DIS-110 round's `-dis-110`); an `incorrect` one stays unsigned and
   goes to a successor ticket or, when the author keeps it in the same ticket, to a further round of
-  that ticket (DIS-10 r2; DIS-42 r2 and r3); a regenerated entry comes back with empty `reviews` and needs a new
+  that ticket (DIS-10 r2; DIS-42 r2 and r3), or, in a single round (DIS-110, task-api `Q1`), stays
+  as a known unsigned golden answer for the author; a regenerated entry comes back with empty `reviews` and needs a new
   panel); no generation time; canonical render = 2-space JSON in that key
   order, LF, final newline. **`answerFingerprint`** (`answer-fingerprint.ts`) = the seed's
   `fingerprint()` over `ANSWER_FINGERPRINT_FILES` (explain prompt and its language rule
