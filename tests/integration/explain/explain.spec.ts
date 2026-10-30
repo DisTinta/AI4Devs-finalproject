@@ -20,6 +20,7 @@ import { runIndexCommand } from '../../../packages/cli/src/commands/index-reposi
 import type { OpenTransaction } from '../../../packages/cli/src/compose-index';
 import { describeWithDatabase, useTransactionPerTest } from '../helpers/db';
 import { unique } from '../helpers/factories';
+import { rejectingWrites } from '../helpers/rejecting-writes';
 import { createScriptedLlm, modelOutput, SCRIPTED_MODEL } from '../../support/scripted-llm';
 import type { PromptView } from '../../support/scripted-llm';
 
@@ -306,20 +307,17 @@ describeWithDatabase('explain over the indexed acme-shop (DIS-39)', () => {
   it(
     'A failed write over the database still answers without leaking',
     async () => {
-      // Arrange: every evidence insert of this transaction fails, quoting the excerpt and a sentinel.
-      // CREATE TRIGGER waits for parallel tests holding ROW EXCLUSIVE on evidence (design D13): with a
-      // committed sample project, a spec that empties the database (`DELETE FROM project`) holds it
-      // through the file -> evidence cascade until it rolls back, so the bound is 60 s (DIS-41 review).
-      const { store, projectId, pack } = await indexed();
-      await db().query(`SET LOCAL lock_timeout = '60s'`);
-      await db().query(`
-        CREATE FUNCTION pg_temp.reject_every_evidence() RETURNS trigger LANGUAGE plpgsql AS $$
-        BEGIN
-          RAISE EXCEPTION 'evidence rejected: % ${SENTINEL}', NEW.excerpt USING DETAIL = NEW.excerpt || ' ${SENTINEL}';
-        END $$`);
-      await db().query(
-        'CREATE TRIGGER reject_every_evidence BEFORE INSERT ON evidence FOR EACH ROW EXECUTE FUNCTION pg_temp.reject_every_evidence()',
-      );
+      // Arrange: every evidence insert of the explain fails inside the database, quoting the excerpts
+      // and a sentinel in the error's message, `detail` and `hint`. Indexing runs on the plain store;
+      // only the explain's store rejects. No trigger: creating one queued every other writer of
+      // `evidence` (DIS-110, integration-test-races design D7).
+      const { projectId, pack } = await indexed();
+      const store = createPostgresStore({
+        transaction: rejectingWrites(db(), {
+          table: 'evidence',
+          quote: (values) => `${(values[6] as string[]).join(' ')} ${SENTINEL}`,
+        }),
+      });
       const model = createScriptedLlm('live', (prompt) =>
         modelOutput('Respuesta.', [{ text: 'PriceCalculator::compute calcula el precio.', evidenceIds: [prompt.evidence[0]!.id] }]),
       );

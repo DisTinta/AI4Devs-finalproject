@@ -335,6 +335,15 @@ Verified against `package.json` (root and per package). If a command is not here
     - defaults are synthetic and unique per call, so they never assume an empty DB;
     - an edge endpoint is `{ symbol_id }` or `{ file_id }`.
   - The first spec using it is `helpers/harness.spec.ts`.
+  - `snapshot.ts` → `inOwnSnapshot(work)`: for a scenario that reads a whole table, runs `work` on a
+    connection of its own in a rolled-back `REPEATABLE READ` transaction (`lock_timeout` 1 s,
+    retried on `40001`/`55P03` for 10 s), so other files' commits stay invisible (DIS-110).
+  - `rejecting-writes.ts` → `rejectingWrites(client, { table, when?, quote })`: makes an insert fail
+    inside PostgreSQL with the given text in message, `detail` and `hint`, without a trigger. Never
+    create a trigger on a shared table in a test: it queues every other writer (DIS-110).
+  - `global-setup.ts` (Vitest `globalSetup` of the `node` and `seed-build` projects) refuses a run
+    whose `DATABASE_URL` database holds committed projects (`committed-projects.ts`); without the
+    variable it does nothing. `docs/TESTING.md` → Carreras conocidas.
 - **Code under test must not `COMMIT` or `ROLLBACK` on `db()`.** The harness then fails the test
   with "Harness transaction was committed or ended early".
   - A `SAVEPOINT` is fine, and so is a statement that fails (an aborted transaction).
@@ -436,9 +445,10 @@ Verified against `package.json` (root and per package). If a command is not here
   other integration files commit projects of their own in parallel. The golden scenarios of
   `tests/integration/cli/seed-load.spec.ts` pass a temporary `cacheDir`; its "Loading again" scenario
   compares the sample projects' cache entries without their id (`reloadSnapshot`), because each load
-  re-inserts them. Two scenarios still read every project and race those commits
-  (`projects-command.spec.ts` and seed-load's "A failed golden save leaves the database unchanged"):
-  `docs/TESTING.md` → Carreras conocidas; `npm test -- --no-file-parallelism` avoids them (DIS-45). Never run
+  re-inserts them. `projects-command.spec.ts` reads every project, so it runs in a `REPEATABLE READ`
+  transaction of its own, retried on `40001`/`55P03` (DIS-110); the races that remain, and the check
+  that the test database holds no committed project, are in `docs/TESTING.md` → Carreras conocidas;
+  `npm test -- --no-file-parallelism` avoids them (DIS-45). Never run
   DB integration tests while a real `cache:build` runs: its transaction
   holds the sample project's rows for minutes and tests that delete projects wait on it; so do a
   `db:seed` and any `ask` on acme-shop (CLI or API), whose `query_log` insert checks the locked

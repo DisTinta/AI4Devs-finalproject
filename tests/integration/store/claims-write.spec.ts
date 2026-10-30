@@ -7,6 +7,7 @@ import type { Claim, ClaimItem, ClaimSpan, StorePort } from '@codemind/core';
 import { createPostgresStore } from '../../../packages/adapters/store-postgres/src/index';
 import { connect, databaseUrl, describeWithDatabase, useTransactionPerTest } from '../helpers/db';
 import { createFile, createProject, unique } from '../helpers/factories';
+import { rejectingWrites, valuesInclude } from '../helpers/rejecting-writes';
 
 // Spec: openspec/changes/explain-use-case/specs/graph-store/spec.md → "Claim write" and "Claim
 // retrieval by overlapping span" (DIS-39). Each test is one scenario, named after it. The stores run
@@ -101,22 +102,15 @@ describeWithDatabase('graph store claim operations (DIS-39)', () => {
     return rows[0]!;
   }
 
-  /** Makes every later evidence insert of the transaction whose excerpt is `excerpt` fail, quoting it. */
-  async function rejectEvidence(excerpt: string): Promise<void> {
-    // CREATE TRIGGER waits for parallel tests holding ROW EXCLUSIVE on evidence; a stuck lock fails
-    // the test instead of hanging the suite (design D13).
-    await db().query(`SET LOCAL lock_timeout = '10s'`);
-    await db().query(`
-      CREATE FUNCTION pg_temp.reject_evidence() RETURNS trigger LANGUAGE plpgsql AS $$
-      BEGIN
-        IF NEW.excerpt = '${excerpt}' THEN
-          RAISE EXCEPTION 'evidence rejected: %', NEW.excerpt USING DETAIL = 'excerpt ' || NEW.excerpt, HINT = NEW.excerpt;
-        END IF;
-        RETURN NEW;
-      END $$`);
-    await db().query(
-      `CREATE TRIGGER reject_evidence BEFORE INSERT ON evidence FOR EACH ROW EXECUTE FUNCTION pg_temp.reject_evidence()`,
-    );
+  /**
+   * A store on the harness transaction whose evidence inserts holding `excerpt` fail inside the
+   * database, quoting it in the error's message, `detail` and `hint`. No trigger: creating one
+   * queued every other writer of `evidence` (DIS-110, integration-test-races design D7).
+   */
+  function storeRejectingEvidence(excerpt: string): StorePort {
+    return createPostgresStore({
+      transaction: rejectingWrites(db(), { table: 'evidence', when: valuesInclude(excerpt), quote: () => excerpt }),
+    });
   }
 
   describe('Requirement: Claim write', () => {
@@ -166,11 +160,10 @@ describeWithDatabase('graph store claim operations (DIS-39)', () => {
 
     it('A failure while writing evidence leaves no claim', async () => {
       // Arrange
-      const { store } = stores();
+      const store = storeRejectingEvidence(SENTINEL);
       const { projectId, fileId } = await projectWith('a.php');
       const a = fileId.get('a.php')!;
       const [earlier] = await store.saveClaims(projectId, [claimItem(projectId, [[a, 7, 8]], 'earlier')]);
-      await rejectEvidence(SENTINEL);
 
       // Act
       const error = await rejection(

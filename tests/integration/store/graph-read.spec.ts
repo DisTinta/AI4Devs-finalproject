@@ -16,8 +16,9 @@ import type {
 } from '@codemind/core';
 import { createPostgresStore } from '../../../packages/adapters/store-postgres/src/index';
 import { NEIGHBORS } from '../../../packages/adapters/store-postgres/src/queries';
-import { connect, describeWithDatabase, useTransactionPerTest } from '../helpers/db';
+import { describeWithDatabase, useTransactionPerTest } from '../helpers/db';
 import { unique } from '../helpers/factories';
+import { inOwnSnapshot } from '../helpers/snapshot';
 import { edge, file, ref, sampleGraph, SHA, symbol } from '../../support/sample-graph';
 
 // Spec: openspec/changes/store-graph-read/specs/graph-store/spec.md, with the traversal direction and
@@ -214,30 +215,19 @@ describeWithDatabase('graph store reads (DIS-24)', () => {
       // REPEATABLE READ, unlike the harness's (which has already run a query, so its level is fixed):
       // under READ COMMITTED the listing also saw a project another spec file committed between the
       // DELETE and the read (DIS-41 review). A concurrent commit can abort the DELETE with a
-      // serialization failure (40001), the expected outcome at this level: it is retried.
-      const own = await connect();
-      try {
-        let projects: unknown;
-        for (let attempt = 1; ; attempt++) {
-          await own.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
-          try {
-            await own.query('DELETE FROM project');
+      // serialization failure (40001), the expected outcome at this level: it is retried. Other files
+      // commit projects and change or delete them many times per second, so three immediate attempts
+      // were not enough (DIS-110): `inOwnSnapshot` bounds a lock wait to 1 s (55P03) and retries both
+      // errors after a 250 ms pause for up to 10 s (integration-test-races design D2b, D8).
+      const projects = await inOwnSnapshot(async (own) => {
+        await own.query('DELETE FROM project');
 
-            // Act
-            projects = await createPostgresStore({ transaction: own }).listProjects();
-            break;
-          } catch (error) {
-            if ((error as { code?: string }).code !== '40001' || attempt === 3) throw error;
-          } finally {
-            await own.query('ROLLBACK');
-          }
-        }
+        // Act
+        return createPostgresStore({ transaction: own }).listProjects();
+      });
 
-        // Assert
-        expect(projects).toEqual([]);
-      } finally {
-        await own.end();
-      }
+      // Assert
+      expect(projects).toEqual([]);
     });
 
     it('Projects are listed by name', async () => {

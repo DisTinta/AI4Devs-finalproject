@@ -69,15 +69,84 @@ Las últimas líneas de una ejecución (2026-10-17, commit `b9026be`, Windows 11
 Las duraciones cambian con la máquina, y los totales con la suite. Un fichero de tests suelto se
 ejecuta con `npx vitest run <patrón>`.
 
-**Carreras conocidas.** Dos specs de integración confirman un proyecto fuera de la transacción del
-arnés durante un momento: `tests/integration/cli/ask-command.spec.ts` (“answers through the default
-pool…”, proyecto `ask-pool-…`) y `tests/integration/store/cache-entry.spec.ts` (proyecto
-`cache-concurrent-…`). Vitest ejecuta los ficheros de integración en paralelo, así que un spec que lee
-todos los proyectos en ese momento ve uno de más y falla: `tests/integration/cli/projects-command.spec.ts`
-(que además puede agotar su tiempo) y “A failed golden save leaves the database unchanged” de
-`tests/integration/cli/seed-load.spec.ts`. El 2026-10-17, cuatro de seis ejecuciones locales tuvieron
-entre uno y tres de estos fallos, y ningún otro. Ejecutar los ficheros de uno en uno elimina la
-carrera, con unas cuatro veces la duración (misma máquina, 2026-10-17):
+**Carreras conocidas.** Vitest ejecuta los ficheros de integración en paralelo sobre la misma base de
+datos. Casi todos los tests trabajan en la transacción del arnés (`READ COMMITTED`, deshecha al
+terminar), pero varios confirman a propósito un proyecto propio durante un momento y lo borran en un
+`finally` (`open-store.spec.ts`, los tests «own connections» de `claims-write.spec.ts`,
+`query-log-write.spec.ts`, `cache-entry.spec.ts` y `graph-write-pool.spec.ts`, y «answers through the
+default pool…» de `ask-command.spec.ts`). El análisis de DIS-110 (cambio `integration-test-races`,
+`design.md` → Root-cause analysis) encontró tres causas de fallos intermitentes y las corrigió en los
+tests:
+
+- **Lecturas globales.** Un test que cuenta o suma toda una tabla dos veces en `READ COMMITTED` ve
+  las filas que otro fichero confirma entre medias. Los tests que pueden acotar la lectura a sus
+  propias filas la acotan (`open-store.spec.ts` por el nombre único del proyecto; `claimCount()` de
+  `api/ask.spec.ts` y `cli/ask-command.spec.ts` a los proyectos de la semilla). Los que leen la tabla
+  entera por definición (`query-cost.spec.ts`, `cli/projects-command.spec.ts` y el listado vacío de
+  `graph-read.spec.ts`) trabajan en una transacción propia `REPEATABLE READ`, siempre deshecha, con
+  `lock_timeout = '1s'` y reintentos ante `40001` y `55P03` durante 10 s: el ayudante
+  `inOwnSnapshot(work)` de `tests/integration/helpers/snapshot.ts`.
+- **Triggers creados por un test.** Para provocar un fallo de escritura, cinco tests creaban un trigger
+  en su transacción (`claims-write`, `claims-refresh` y `explain` sobre `evidence`, `cache-entry` sobre
+  `cache_entry`, `query-log-write` sobre `query_log`). `CREATE TRIGGER` esperaba a cualquier
+  transacción de otro fichero que hubiera escrito en la tabla, y las demás escrituras hacían cola
+  detrás: el 2026-10-30 una ejecución completa acumuló esa cola (dos `lock timeout` y cinco tests a
+  20 s). Ahora usan `rejectingWrites(client, …)` de `tests/integration/helpers/rejecting-writes.ts`:
+  en lugar del `INSERT` elegido envía un bloque `DO` que hace que PostgreSQL lance el error, sin DDL
+  ni bloqueos. Para un test nuevo que necesite un fallo de escritura, úsalo en vez de un trigger.
+- **Escrituras sin acotar.** Un `DELETE FROM project` o `UPDATE project` sin `WHERE` en la
+  transacción del arnés bloquea hasta el final del test los proyectos que otros ficheros han
+  confirmado; junto con los ids fijos de la semilla, eso producía `deadlock detected`. Los `seeded()`
+  de `api/ask.spec.ts`, `api/reindex.spec.ts` y `cli/ask-command.spec.ts` solo borran los proyectos
+  con nombre de la semilla y solo actualizan los de muestra.
+- **Una semilla confirmada en la base de datos de tests.** Si alguien ejecuta `db:seed` contra ella,
+  cada test que borra todos los proyectos o los de muestra bloquea esa misma fila y su cascada hasta
+  terminar, y los demás hacen cola detrás: tiempos agotados de 20 s en `graph-read.spec.ts`,
+  `claims-write.spec.ts`, `seed-load.spec.ts`, `projects-command.spec.ts`, y el `lock_timeout` de 10 s
+  de `claims-refresh.spec.ts`. La base de datos de tests no debe tener ningún proyecto confirmado
+  antes de una ejecución; compruébalo (debe salir `0`) y, si no, vacíala:
+
+  ```shell
+  docker compose exec postgres psql -U codemind -d codemind_test -tAc "SELECT count(*) FROM project"
+  docker compose exec postgres psql -U codemind -d codemind_test -c "DELETE FROM project"
+  ```
+
+  Un test que agota su tiempo no llega a su `finally` y puede dejar confirmado su proyecto (por
+  ejemplo `claims-recent-…`); la misma comprobación lo encuentra.
+
+  **Comprobación al arrancar.** Desde DIS-110, si `DATABASE_URL` está definida, la ejecución se niega a
+  empezar cuando la base de datos tiene proyectos confirmados (`globalSetup` de los proyectos `node` y
+  `seed-build` de Vitest, `tests/integration/helpers/global-setup.ts`), con este mensaje:
+
+  ```text
+  Error: The test database holds 1 committed project; it must hold none before an integration run (see docs/TESTING.md → Carreras conocidas).
+  ```
+
+  Vacíala con la orden de arriba y vuelve a ejecutar. La comprobación corre también en una ejecución
+  solo de tests unitarios si `DATABASE_URL` sigue definida (en PowerShell, `$env:DATABASE_URL` dura
+  toda la sesión); sin `DATABASE_URL` no hace nada. Si la base de datos no responde, la ejecución se
+  para con `The test database URL could not be used` (sin la URL), también la de unitarios. Y como
+  varios tests confirman un proyecto propio durante un momento, una segunda ejecución lanzada mientras
+  otra está en marcha (o un runner del IDE) puede encontrarlo y negarse a empezar: espera a que
+  termine la primera.
+
+Quedan estas carreras, que no se eliminaron:
+
+- `query-cost.spec.ts`, `projects-command.spec.ts` y el listado vacío de `graph-read.spec.ts` esperan un
+  bloqueo como mucho 1 s y reintentan durante 10 s: si otro fichero retiene una fila más tiempo,
+  fallan con `canceling statement due to lock timeout` en lugar de esperar hasta los 20 s del test.
+- Los tests que cargan la semilla versionada en su transacción (`api/ask`, `api/reindex`,
+  `cli/ask-command`, `cli/projects-command`, `cli/verify`, y los comandos de `seed-load`,
+  `cache-build` y `seed-build`) se esperan unos a otros en los ids fijos de la semilla, hasta lo que
+  dure el test que la cargó primero (se midieron esperas de hasta 14 s).
+- Los `DELETE FROM project` sin acotar que siguen (`seed-load`, `cache-build`, `seed-build`, y dentro
+  de su instantánea `projects-command` y `graph-read`) bloquean los proyectos confirmados en ese
+  momento hasta que su transacción termina.
+- `query-log-write.spec.ts:160` lee `sumCostSince(startOfUtcDay())` antes y después de escribir; una
+  pregunta confirmada por otro fichero entre medias la haría fallar. No se ha visto.
+
+Si una de ellas aparece, ejecutar los ficheros de uno en uno la elimina, con unas cuatro veces la
+duración (misma máquina, 2026-10-17):
 
 ```shell
 npm test -- --no-file-parallelism

@@ -7,6 +7,7 @@ import type { QueryLogEntry, StorePort } from '@codemind/core';
 import { createPostgresStore } from '../../../packages/adapters/store-postgres/src/index';
 import { connect, databaseUrl, describeWithDatabase, useTransactionPerTest } from '../helpers/db';
 import { createProject, unique } from '../helpers/factories';
+import { rejectingWrites, valuesInclude } from '../helpers/rejecting-writes';
 
 // Spec: openspec/changes/query-usage-log/specs/graph-store/spec.md → "Query log write" (DIS-74). Each
 // test is one scenario, named after it. The stores run on the harness transaction, so every row is
@@ -219,22 +220,13 @@ describeWithDatabase('graph store query log write (DIS-74)', () => {
 
     it('A failed query log write does not leak', async () => {
       // Arrange
-      const { store } = stores();
+      // The database rejects the insert of that question, quoting it in the error's message, `detail`
+      // and `hint`. No trigger: creating one queued every other writer of `query_log` (DIS-110,
+      // integration-test-races design D7).
+      const store = createPostgresStore({
+        transaction: rejectingWrites(db(), { table: 'query_log', when: valuesInclude(SENTINEL), quote: () => SENTINEL }),
+      });
       const project = await createProject(db());
-      // CREATE TRIGGER waits for parallel tests holding ROW EXCLUSIVE on query_log; a stuck lock fails
-      // the test instead of hanging the suite.
-      await db().query(`SET LOCAL lock_timeout = '10s'`);
-      await db().query(`
-        CREATE FUNCTION pg_temp.reject_query_log() RETURNS trigger LANGUAGE plpgsql AS $$
-        BEGIN
-          IF NEW.question = '${SENTINEL}' THEN
-            RAISE EXCEPTION 'query log rejected: %', NEW.question USING DETAIL = 'question ' || NEW.question, HINT = NEW.question;
-          END IF;
-          RETURN NEW;
-        END $$`);
-      await db().query(
-        `CREATE TRIGGER reject_query_log BEFORE INSERT ON query_log FOR EACH ROW EXECUTE FUNCTION pg_temp.reject_query_log()`,
-      );
 
       // Act
       const error = await rejection(store.saveQueryLog(entry(project.id, { question: SENTINEL })));
@@ -245,7 +237,7 @@ describeWithDatabase('graph store query log write (DIS-74)', () => {
         JSON.stringify(error) +
         JSON.stringify(Object.getOwnPropertyNames(error).map((key) => (error as Record<string, unknown>)[key]));
       expect(serialised).not.toContain(SENTINEL);
-      expect(serialised).not.toContain('query log rejected');
+      expect(serialised).not.toContain('query_log rejected');
       expect('cause' in (error as object)).toBe(false);
       expect(await rowsOf(project.id)).toEqual([]);
     });

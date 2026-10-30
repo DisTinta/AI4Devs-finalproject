@@ -1,19 +1,23 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Client } from 'pg';
-import { expect, it } from 'vitest';
+import { beforeAll, expect, it } from 'vitest';
 import { createPostgresStore, loadSeed } from '@codemind/adapter-store-postgres';
 import type { OpenTransaction } from '../../../packages/cli/src/compose-index';
 import { runProjectsCommand } from '../../../packages/cli/src/commands/projects';
 import { seedProjects } from '../../../packages/cli/src/seed/parse-seed';
 import { sampleGraph } from '../../support/sample-graph';
-import { databaseUrl, describeWithDatabase, useTransactionPerTest } from '../helpers/db';
+import { databaseUrl, describeWithDatabase, migrateSharedDatabase } from '../helpers/db';
 import { unique } from '../helpers/factories';
+import { inOwnSnapshot } from '../helpers/snapshot';
 
 // Spec: openspec/changes/seed-load-and-projects/specs/cli-projects/spec.md → "Project listing". Each
 // `it` is the scenario it is named after. The command reads through the real store adapter on a
-// savepoint of the harness client; each test first deletes every project inside the harness
-// transaction, so local data is never listed nor touched.
+// savepoint of a client of the test's own, in a REPEATABLE READ transaction that is always rolled
+// back (`inOwnSnapshot`); each test first deletes every project there, so local data is never listed
+// nor touched. The listing reads every project of the database: under READ COMMITTED (the harness
+// transaction) it also listed projects other spec files committed after the DELETE (DIS-110,
+// integration-test-races design D2, D8); inside the snapshot they are invisible.
 
 const SEED = readFileSync(resolve('seeds/graph-dump.sql'), 'utf8');
 
@@ -59,23 +63,35 @@ async function tableCounts(client: Client): Promise<Record<string, string>> {
 }
 
 describeWithDatabase('projects (integration)', () => {
-  const db = useTransactionPerTest();
+  beforeAll(migrateSharedDatabase, 60_000);
 
   it('Sample and user projects are listed', async () => {
-    // Arrange: the two samples (acme-shop and task-api), one indexed project and one never indexed.
-    await db().query('DELETE FROM project');
-    await loadSeed(db(), { sql: SEED, projectNames: seedProjects(SEED).map((p) => p.name) });
-    const store = createPostgresStore({ transaction: db() });
-    const indexedName = unique('indexed');
-    const indexed = await store.createProject({ name: indexedName, rootPath: '/repos/indexed', language: 'php', framework: 'laravel' });
-    await store.saveGraph(indexed, sampleGraph());
-    const fresh = await store.createProject({ name: unique('fresh'), rootPath: '/repos/fresh', language: 'typescript' });
-    const stored = await store.getProject(indexed);
-    const freshName = (await store.getProject(fresh)).name;
-    const before = await tableCounts(db());
+    const { indexedName, indexed, fresh, stored, freshName, before, result, after } = await inOwnSnapshot(async (client) => {
+      // Arrange: the two samples (acme-shop and task-api), one indexed project and one never indexed.
+      await client.query('DELETE FROM project');
+      await loadSeed(client, { sql: SEED, projectNames: seedProjects(SEED).map((p) => p.name) });
+      const store = createPostgresStore({ transaction: client });
+      const name = unique('indexed');
+      const indexedId = await store.createProject({ name, rootPath: '/repos/indexed', language: 'php', framework: 'laravel' });
+      await store.saveGraph(indexedId, sampleGraph());
+      const freshId = await store.createProject({ name: unique('fresh'), rootPath: '/repos/fresh', language: 'typescript' });
+      const indexedProject = await store.getProject(indexedId);
+      const freshProjectName = (await store.getProject(freshId)).name;
+      const counts = await tableCounts(client);
 
-    // Act
-    const result = await list(db());
+      // Act
+      const listed = await list(client);
+      return {
+        indexedName: name,
+        indexed: indexedId,
+        fresh: freshId,
+        stored: indexedProject,
+        freshName: freshProjectName,
+        before: counts,
+        result: listed,
+        after: await tableCounts(client),
+      };
+    });
 
     // Assert
     expect(result.exit).toBe(0);
@@ -93,15 +109,17 @@ describeWithDatabase('projects (integration)', () => {
     expect(result.stdout).toBe(names.map((name) => `${expected.get(name)}\n`).join(''));
     expect(stored.indexedAt).toBeInstanceOf(Date);
     expect(result.log).toEqual(['rollback']);
-    expect(await tableCounts(db())).toEqual(before);
+    expect(after).toEqual(before);
   });
 
   it('An empty database lists no projects', async () => {
-    // Arrange
-    await db().query('DELETE FROM project');
+    const result = await inOwnSnapshot(async (client) => {
+      // Arrange
+      await client.query('DELETE FROM project');
 
-    // Act
-    const result = await list(db());
+      // Act
+      return list(client);
+    });
 
     // Assert
     expect(result.exit).toBe(0);

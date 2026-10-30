@@ -24,8 +24,11 @@ import type { ScriptedLlm } from '../../support/scripted-llm';
 // `it` is the scenario it is named after. As in tests/integration/api/ask.spec.ts, `fixtures/acme-shop`
 // is copied (without `.git`) under a temporary directory `T` and its history built there with
 // `buildOne`, whose `HEAD` is the seed's indexed commit; inside the harness transaction (reverted when
-// the test ends) every project is deleted, the seed loaded and its `root_path` pointed at the copy.
-// The harness transaction is the unit of work of the reindex, so its rollback restores the data.
+// the test ends) the projects named like the seed's are deleted, the seed loaded and the sample
+// projects' `root_path` pointed at the copy. The harness transaction is the unit of work of the
+// reindex, so its rollback restores the data. Those writes are scoped to the seed's projects: other
+// spec files commit projects of their own in parallel, and an unscoped `DELETE`/`UPDATE` locked them
+// and deadlocked with other seed loaders (DIS-110, integration-test-races design D3).
 
 const Q1 = '¿Cómo se calcula el precio final de un pedido?';
 const SEED = readFileSync(resolve('seeds/graph-dump.sql'), 'utf8');
@@ -73,11 +76,15 @@ describeWithDatabase('POST /api/projects/{projectId}/index over the seed (integr
     app = undefined;
   });
 
-  /** Loads the seed in the harness transaction, pointed at the copy; returns the store and acme-shop's id. */
+  /**
+   * Loads the seed in the harness transaction (deleting only the projects named like the seed's) and points
+   * the sample projects at the copy; returns the store and acme-shop's id.
+   */
   async function seeded(): Promise<{ store: StorePort; projectId: string }> {
-    await db().query('DELETE FROM project');
-    await loadSeed(db(), { sql: SEED, projectNames: seedProjects(SEED).map((p) => p.name) });
-    await db().query('UPDATE project SET root_path = $1', [acmeShop]);
+    const names = seedProjects(SEED).map((p) => p.name);
+    await db().query('DELETE FROM project WHERE name = ANY($1::text[])', [names]);
+    await loadSeed(db(), { sql: SEED, projectNames: names });
+    await db().query('UPDATE project SET root_path = $1 WHERE is_sample = true', [acmeShop]);
     const store = createPostgresStore({ transaction: db() });
     const projectId = (await store.listProjects()).find((p) => p.name === 'acme-shop')!.id;
     return { store, projectId };
