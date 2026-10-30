@@ -97,6 +97,8 @@ export async function findTests(store: StorePort, projectId: string, search: Tes
           node.fileId === component.fileId &&
           node.name === component.name,
       );
+    // No symbol is named blank, and the store rejects a blank search: a blank component has no class.
+    if (known === undefined && component.name.trim() === '') continue;
     const lookedUp =
       known ??
       (await store.findSymbols(projectId, component.name)).find(

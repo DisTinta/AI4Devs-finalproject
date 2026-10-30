@@ -57,6 +57,20 @@ describe('Requirement: Tests covering the change', () => {
     expect(report.tests).toEqual([]);
   });
 
+  // Not a scenario: adversarial review of DIS-89 (task 12.6.1). A method whose class part is blank
+  // (`::run`) has a blank component, and no symbol can be named blank: it adds no class and the call
+  // answers, instead of sending the store a blank search, which the store rejects.
+  it('adds no class and still answers for a direct component whose name is blank', async () => {
+    const blank = symbol('src/anchor.ts', '::run', 1);
+    const loaded = smallStore({ files: [file('src/anchor.ts')], symbols: [blank], edges: [] });
+    expect(await anchored(loaded, 'cambiar run')).toEqual(['::run']);
+
+    const report = await reportOf(loaded, 'cambiar run', 1);
+
+    expect(report.direct).toEqual([{ symbol: '', file: 'src/anchor.ts', origin: 'graph', resolution: 'exact', hops: 0 }]);
+    expect(report.tests).toEqual([]);
+  });
+
   it('Importers and tests written file to file are found', async () => {
     // Arrange
     const anchorClass = symbol('src/anchor.ts', 'Anchor', 1, { kind: 'class' });

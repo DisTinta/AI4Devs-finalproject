@@ -48,7 +48,13 @@ describeWithDatabase('impact over the acme-shop seed (integration)', () => {
     expect(report.indirect.map((entry) => entry.symbol)).not.toContain('OrderObserver');
     const every = [...report.direct, ...report.indirect, ...report.tests];
     expect(every.every((entry) => entry.origin === 'graph')).toBe(true);
-    expect([...report.direct, ...report.indirect].some((entry) => entry.file.startsWith('tests/'))).toBe(false);
+    // The files of kind `test`, read from the loaded seed rather than guessed from the path (task 12.6.2).
+    const { rows } = await db().query<{ path: string }>(
+      "SELECT f.path FROM file f JOIN project p ON p.id = f.project_id WHERE p.name = 'acme-shop' AND f.kind = 'test'",
+    );
+    const testFiles = new Set(rows.map((row) => row.path));
+    expect(testFiles.size).toBeGreaterThan(0);
+    expect([...report.direct, ...report.indirect].filter((entry) => testFiles.has(entry.file))).toEqual([]);
   });
 
   it('A dependant three hops away needs three hops', async () => {

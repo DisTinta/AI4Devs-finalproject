@@ -89,8 +89,11 @@
 
 - [ ] 12.1 Open the PR against `final-project-CRN`; DIS-89 to In Review with a Spanish comment linking it
 - [ ] 12.2 CI green, including the mutation job: wait in the foreground with `gh pr checks <n> --watch --interval 60` (timeout 600000), repeated until no check is pending; link the run in an addendum to the step 8 report
-- [ ] 12.3 `/show-spec-working` (may reuse the step 9 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
-- [ ] 12.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
-- [ ] 12.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`
-- [ ] 12.6 Fix every finding in this change (TDD for behaviour), each with an A/B/C/D destination in `design.md` → Follow-ups; re-run what each fix invalidates and add an addendum to the affected report; commit to the same PR; re-run a check whose findings led to non-trivial fixes until no Blocker or Major
+- [x] 12.3 `/show-spec-working` (may reuse the step 9 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
+- [x] 12.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
+- [x] 12.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`
+- [x] 12.6 Fix every finding in this change (TDD for behaviour), each with an A/B/C/D destination in `design.md` → Follow-ups; re-run what each fix invalidates and add an addendum to the affected report; commit to the same PR; re-run a check whose findings led to non-trivial fixes until no Blocker or Major
+- [x] 12.6.1 (Review finding, spec "Tests covering the change", design Follow-ups V1) RED → GREEN: new case in `tests/unit/impact/components.spec.ts`, "adds no class and still answers for a direct component whose name is blank" (`::run`); GREEN in `packages/core/src/impact/reverse-walk.ts`: a blank component has no class and sends no `findSymbols`
+- [x] 12.6.2 (Review finding, spec "Report by component" and "Impact over the indexed acme-shop seed", design Follow-ups V3) Strengthen the existing tests "Q2 is reproduced over the acme-shop subset" in `tests/unit/impact/impact.spec.ts` and "Q2 is reproduced over the seed" in `tests/integration/impact/acme-shop.spec.ts`: "no entry of `direct` or `indirect` belongs to a `test` file" is checked against the files of kind `test` of the graph and of the loaded seed, not the `tests/` path prefix; no other assertion changes
+- [x] 12.6.3 (Review finding, process, design Follow-ups V5) Append "Resolution of run 3" to `reports/2026-10-30-spec-audit.md` (R12 applied) and re-run `npx vitest run tests/unit/impact tests/integration/impact`, `npm run typecheck` and `npm run lint`
 - [ ] 12.7 `/opsx:archive`, commit it to the same PR; `node scripts/dev-processes.mjs stop`; merge (`gh pr merge <n> --merge`, through the merge gate) only after the archive commit and with CI green (autonomous run, `KIT_AUTONOMOUS_RUN=1`, only; otherwise the author merges)

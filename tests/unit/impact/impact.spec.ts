@@ -138,7 +138,10 @@ describe('Requirement: Report by component', () => {
     );
     const every = [...report.direct, ...report.indirect, ...report.tests];
     expect(every.every((entry) => entry.origin === 'graph')).toBe(true);
-    expect([...report.direct, ...report.indirect].some((entry) => entry.file.startsWith('tests/'))).toBe(false);
+    // The files of kind `test`, read from the graph rather than guessed from the path (task 12.6.2).
+    const testFiles = new Set(acmeShopGraph().files.filter((f) => f.kind === 'test').map((f) => f.path));
+    expect(testFiles.size).toBeGreaterThan(0);
+    expect([...report.direct, ...report.indirect].filter((entry) => testFiles.has(entry.file))).toEqual([]);
   });
 });
 
