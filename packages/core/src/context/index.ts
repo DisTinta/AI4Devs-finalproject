@@ -2,6 +2,7 @@ export * from './anchor.js';
 export * from './expand.js';
 export * from './tokenizer.js';
 export * from './rank.js';
+export * from './lexical-match.js';
 export * from './budget.js';
 export * from './context-pack.js';
 export * from './span-text.js';

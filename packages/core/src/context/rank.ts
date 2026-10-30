@@ -1,7 +1,7 @@
 import type { EdgeResolution } from '../knowledge/graph-edge.js';
 import type { FileKind } from '../knowledge/graph-file.js';
 import type { GraphNode, Neighbor, StoredSymbol } from '../knowledge/graph-read.js';
-import { normaliseText } from './anchor.js';
+import { containsAnyTerm } from './lexical-match.js';
 
 // Ranking of a question's candidates (DIS-28 design D7): a lexicographic key, no weighted score.
 // Weights would be magic numbers with no data to calibrate them; the key is deterministic and each
@@ -32,11 +32,7 @@ export function candidateFileKind(candidate: Candidate): FileKind {
 /** Whether the candidate's name (symbols) or path, normalised, contains one of `terms`. */
 function matchesLexically(candidate: Candidate, terms: readonly string[]): boolean {
   const { node } = candidate;
-  const texts = node.type === 'file' ? [node.path] : [node.name, node.file];
-  return texts.some((text) => {
-    const normalised = normaliseText(text);
-    return terms.some((term) => normalised.includes(term));
-  });
+  return containsAnyTerm(node.type === 'file' ? [node.path] : [node.name, node.file], terms);
 }
 
 /**
