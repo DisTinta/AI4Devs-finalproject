@@ -249,3 +249,195 @@ rows S1–S9. `openspec validate e2e-playwright-suite --strict` passes after the
 | Linear — `[enhanced]` decisions A1–A3 | Applied by the agent in DIS-75's `[enhanced]` → Decisiones, in Spanish, marked as the agent's text. |
 | Linear — Q1 comment for the author | Replaced by the agent's decision (no question is left for the author): the round's Spanish comment on DIS-75 records it. |
 | Linear — DIS-50 comment | Applied: the widening is accepted, so the Spanish comment is posted on DIS-50. |
+
+---
+
+## Run 2 (2026-11-02)
+
+CHANGES REQUIRED
+
+**Questions for the author:** none. Run 1's scope question (Q1) was answered by the agent's decision S1. The decision is recorded in `design.md` → Follow-ups, in DIS-75 `[enhanced]` → Decisiones and in a comment on DIS-50. It is consistent with both hand-offs (DIS-14 P6, DIS-65), which point to DIS-75, so I accept it.
+
+Audit inputs (run 2):
+- the current `proposal.md`, `design.md`, `specs/e2e-suite/spec.md` and `tasks.md` of `openspec/changes/e2e-playwright-suite`, and run 1 of `reports/2026-11-02-spec-audit.md` with its resolution section;
+- Linear DIS-75 (description `[original]` / `[reality-map]` / `[enhanced]`, 6 comments) and its parent DIS-50 (description, 1 comment);
+- the docs `docs/base-standards.md` and `docs/openspec-tasks-mandatory-steps.md`;
+- the real code at `416d888`: `vitest.config.ts`, `vitest.stryker.config.ts`, `tests/tsconfig.json`, `tests/a11y/tsconfig.json`, `package.json`, `eslint.config.mjs`, `.github/workflows/ci.yml`, `tests/unit/ci/node-baseline.spec.ts`, `packages/api/package.json`, `packages/api/src/composition.ts`, `packages/web/vite.config.ts`, `packages/web/package.json`, `packages/web/src/components/{usage-display.ts,project-display.ts,UsagePanel.tsx,ProjectCard.tsx,ImpactSection.tsx,RiskBanner.tsx,StatementBadge.tsx,EvidenceItem.tsx,SuggestedQuestions.tsx}`, `packages/web/src/services/api-client.ts`, `tests/unit/web/api-contract.spec.ts`.
+
+---
+
+## 1. Scope against the ticket
+
+**Clean.**
+- The original sub-issue covers: the dependency, the specs, the job and the removal of the *target* note.
+- The widening to `impact-flow.spec.ts` and `ask-page.a11y.spec.ts` is decision E1/S1. It is recorded in the ticket and on the parent, and both inbound hand-offs point to this ticket. I do not report it again.
+- Out of scope, as it should be:
+  - coverage and mutation (DIS-77);
+  - indexing;
+  - `task-api`;
+  - the other browsers.
+- The two config tests and the edits to `verify-job.spec.ts` and `node-baseline.spec.ts` follow from the CI job the ticket asks for.
+
+## 2. Inherited acceptance criteria
+
+**Clean.**
+
+| DIS-50 AC inherited by DIS-75's DoD | Requirement / Scenario |
+|---|---|
+| ask-flow: acme-shop, Q1, at least one statement with a verification badge, evidence expanded with its excerpt, cost panel with `savingsPct` | "Ask flow on the seed" / "Asking Q1 on acme-shop shows verified evidence and the usage panel". The three patterns match `usage-display.ts:29-31,56-62,95-97` and `groupDigits` (U+00A0, which `\s` matches) |
+| unknown with Q6: `UNKNOWN`, no statement | "Honest unknown on the seed" / "Asking Q6 on acme-shop shows no verified answer" |
+| CI E2E job after `db:seed`, fails the pipeline, failure screenshots as an artifact | "The end-to-end suite runs in a CI job of its own" / "The CI workflow runs…", "A failing spec fails the suite…" |
+| DoD «pasan en local y en CI» | "The suite passes locally" + "The e2e job is green on the pull request" |
+| DoD «marca *target* retirada» | No scenario (docs only); traced to task 13.1 |
+| Coverage / Stryker gate | DIS-77, out of scope |
+
+## 3. Missing scenarios
+
+- **Improvable.** The requirement "Vitest never runs the end-to-end specs" says "the end-to-end specs … SHALL be type-checked by `npm run typecheck`". The scenario only checks the declared `include` of `tests/e2e/tsconfig.json`. That declared value does not prove which files are in the program (see B1 in point 5). The fix is in B1.
+- Everything else is covered. S9 (no separate `DATABASE_URL` scenario) is acceptable.
+
+## 4. Ambiguity
+
+**Clean.** There is no occurrence of "fast", "easy", "secure", "efficient", "many", "appropriate" or "robust" in the proposal, design, spec or tasks. The "far above / far below" of D3 comes with the figures (`1000` against a few dozen requests, ceiling `1_000_000`).
+
+## 5. Open decisions
+
+- **B1 — blocking. `tests/e2e/tsconfig.json` would inherit the new `exclude` and never type-check the specs.**
+  - D7 and task 2.3 make two edits:
+    - `tests/e2e/tsconfig.json` extends `../tsconfig.json` and sets only `include` (`**/*.ts`, `../../playwright.config.ts`);
+    - `tests/tsconfig.json` gains `"exclude": ["e2e/**"]`.
+  - In TypeScript, `files`, `include` and `exclude` are inherited through `extends` when the child does not set them. They resolve relative to the config that declares them. So the child inherits `exclude: ["e2e/**"]` relative to `tests/`, which removes every file under `tests/e2e/` from its program.
+  - What is left: `playwright.config.ts`, and `tests/e2e/support/config-options.ts` because that file imports it. The four specs are type-checked by neither program, and `tsc` gives no error.
+  - The scenario "The Vitest configuration excludes tests/e2e" asserts that the JSON's `include` lists the specs. It would pass while the specs are unchecked.
+  - Consequence: the D5 drift guard of the a11y mock (`import type { AskAnswered }`) and the Risks bullet "npm run typecheck catches a drift" would silently stop working.
+  - **Where to fix it:**
+    - design D7: `tests/e2e/tsconfig.json` sets its own `"exclude": []`, with a comment saying why;
+    - the scenario and task 2.1: check the resolved program, not the declared JSON. Use the TypeScript API (`ts.getParsedCommandLineOfConfigFile`, already available through the `typescript` devDependency), so the check costs no `tsc` process.
+- **Improvable — the retries assertion.** `retries: process.env.CI ? 1 : 0` is read when the options module loads, and the `quality` job runs with `CI=true`. A test that imports the module once checks only one branch. Name the mechanism in D10 and task 3.1: `vi.stubEnv('CI', …)`, then `vi.resetModules()` and a dynamic `import()` for each of `CI` set and unset.
+- **Improvable — choosing the acme-shop card.** `ProjectCard.tsx:53-90` renders an `article` named by its heading. The control is the link «Explorar proyecto» with a visually hidden « acme-shop». Its accessible name is «Explorar proyecto acme-shop». D4 says "chosen by its accessible name from `ProjectCard`". Name the locator: `getByRole('link', { name: 'Explorar proyecto acme-shop' })`.
+- **Improvable — the D7 fallback branch.** D7 still says: "if its compiler options clash … the mocked body is typed with a local interface … Follow-up". `api-client.ts` has no imports (lines 1-20). It is already compiled under `tests/tsconfig.json` by `tests/unit/web/api-contract.spec.ts:10`. So there is no clash to provide for. Remove the branch, as run 1 asked for D10.
+
+## 6. Contradictions inside the change
+
+- **Improvable.** D3 says the project is "`chromium` (`devices['Desktop Chrome']`)". D10 says the options module writes the device out as "its literal fields needed here (`browserName: 'chromium'` and the viewport)", with no Playwright runtime import. The second is what gets implemented. Align D3: "one project `chromium` with `use: { browserName: 'chromium', viewport: { width: 1280, height: 720 } }` (the fields of `devices['Desktop Chrome']` the suite needs; D10)".
+- **Improvable.** The proposal says ask-flow checks "at least one **verified** statement". The spec scenario checks "a verification badge («verificado» or «sin verificar»)", following DIS-50's «etiqueta de verificación». Reword the proposal: "at least one statement with its verification badge".
+- **Improvable.** D12 says "The four walkthrough scenarios are the four Playwright specs themselves". There are five Playwright scenarios in four spec files: the a11y spec holds two. Reword: "The five walkthrough scenarios are the tests of the four Playwright specs".
+
+## 7. Contradictions with the project
+
+**Clean.**
+- `openspec/specs/verify-smoke/spec.md` → "Verify runs in a CI job of its own" still holds, because the `scope` loop is checked by membership (D11).
+- The Node baseline `'22'` is kept (`ci.yml:126-129,193-196`).
+- The merge by the agent is covered by the autonomous-mode ADR.
+- The new dependency is checked against the registry first (task 1.1) and audited (task 1.2), per `docs/base-standards.md` §10.
+- PR language and Linear language follow the project exceptions.
+
+## 8. Contrast with the real code
+
+- **B1** (above): `tests/tsconfig.json:1-24`. It has no `exclude` today; the change adds one, and `tests/e2e/tsconfig.json` would inherit it.
+- Checked and consistent (no new finding):
+  - `vitest.config.ts:49-104`: `dom`, `seed-build` and `harness` have an `include`; `node` has an `exclude` and no `include`. This matches S2.
+  - `vitest.stryker.config.ts:12-33`: `mergeConfig` on the root `exclude`.
+  - `ci.yml:43-59`: the `scope` loop.
+  - `ci.yml:91-116`: the `runtime` filter, which lacks `playwright.config.ts` today; 8.2 adds it.
+  - `ci.yml:171-214`: the `verify` template.
+  - `ci.yml:286`: the Stryker cache key hashes `package-lock.json` and `vitest.config.ts`, so a full pass is expected.
+  - `composition.ts:84-87` reads `PORT`, `HOST` and `RATE_LIMIT_*`.
+  - `packages/api/package.json:8`: the `dev` command; D3 drops `--watch`.
+  - `vite.config.ts:19`: port `5173`; `packages/web/package.json:7`: `vite`, so `--strictPort` is passed through.
+  - `UsagePanel.tsx:45-71`: region «Uso» holding the tokens, cost and savings.
+  - `ImpactSection.tsx:35-36`: region named «Directo».
+  - `RiskBanner.tsx:25-29`: «Riesgo alto» as a heading.
+  - `EvidenceItem.tsx:29`: `aria-expanded`, which is the only one in the web package.
+  - `StatementBadge.tsx:15-17`.
+  - `eslint.config.mjs`: untyped lint, so `playwright.config.ts` needs no tsconfig project.
+  - No duplicated abstraction.
+
+## 9. Task size
+
+**Clean.**
+- 14.1 is split into a–c.
+- 7.1 (helpers, test and RED) and 11.1 (three shells) are large but bounded.
+- The other tasks fit one turn.
+
+## 10. Mandatory steps
+
+**Clean.**
+- Step 0 creates or confirms the branch first (0.1–0.4).
+- The labelled groups 9–14 are present and in order. The report paths are named (10.7, 11.5, 14.2–14.4).
+- State is restored: `query_log` is counted before group 4 and its rows are deleted in 10.6 and 11.4; generated folders are removed; `dev-processes.mjs stop` runs.
+- PowerShell runs with `-NoProfile` and without `$env:`.
+- The screenshot goes under `reports/`.
+- The archive is committed before the merge.
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| The suite starts its own API and web on the seed in evaluation mode | The Playwright configuration starts both servers in evaluation mode | 3.1, 3.2, 3.3 |
+| The suite starts its own API and web on the seed in evaluation mode | A taken port fails the run before any spec | 11.2 (evidence, D12) |
+| Vitest never runs the end-to-end specs | The Vitest configuration excludes tests/e2e | 2.1, 2.2, 2.3, 10.3, 10.4 (the type-check half is defective until B1 is fixed) |
+| Ask flow on the seed | Asking Q1 on acme-shop shows verified evidence and the usage panel | 4.1, 4.2 |
+| Honest unknown on the seed | Asking Q6 on acme-shop shows no verified answer | 5.1 |
+| Impact flow on the seed | Analysing a change to DiscountService reports high risk | 6.1 |
+| Accessibility of Screen 2 in a real browser | Every golden evidence expanded has no violation and no overflow | 7.1, 7.2 |
+| Accessibility of Screen 2 in a real browser | A mocked answer with a long path does not overflow | 7.3 |
+| The end-to-end suite runs in a CI job of its own | The CI workflow runs the end-to-end suite in a job of its own | 8.1, 8.2, 8.3, 8.4, 8.5 |
+| The end-to-end suite runs in a CI job of its own | A failing spec fails the suite and leaves its evidence | 11.3 (evidence, D12) |
+| The end-to-end suite runs in a CI job of its own | The suite passes locally | 11.1 (evidence, D12) |
+| The end-to-end suite runs in a CI job of its own | The e2e job is green on the pull request | 14.1b, 14.1c (evidence, D12) |
+| (DoD) *target* note removed | — (docs only) | 13.1 |
+
+No empty row.
+
+---
+
+## Corrections to apply
+
+### `design.md`
+
+- **D7 (B1).** Replace "It extends `../tsconfig.json` and adds `"lib": [...]` … and includes `**/*.ts` plus `../../playwright.config.ts`." with:
+  > It extends `../tsconfig.json`, adds `"lib": ["ES2022", "DOM", "DOM.Iterable"]`, includes `**/*.ts` plus `../../playwright.config.ts`, and sets `"exclude": []`: `exclude` is inherited through `extends` and resolved against the parent, so without it the child would inherit `tests/tsconfig.json`'s `e2e/**` and drop every spec from its own program.
+- **D7.** Delete the sentence "The type-only import of D5 pulls `api-client.ts` into the program; if its compiler options clash … recorded as a Follow-up." Replace it with:
+  > The type-only import of D5 pulls `api-client.ts` into the program; it has no imports and is already compiled under `tests/tsconfig.json` by `tests/unit/web/api-contract.spec.ts`.
+- **D3.** Replace "one project `chromium` (`devices['Desktop Chrome']`)" with:
+  > one project `chromium` with `use: { browserName: 'chromium', viewport: { width: 1280, height: 720 } }` (the fields of `devices['Desktop Chrome']` the suite needs, written out so the options module loads no Playwright runtime, D10)
+- **D4.** After "The acme-shop card is chosen by its accessible name from `ProjectCard`", add:
+  > : the link `getByRole('link', { name: 'Explorar proyecto acme-shop' })` (`ProjectCard.tsx`, visible «Explorar proyecto» plus the visually hidden project name)
+- **D10.** Add:
+  > The retries are checked in both branches: `vi.stubEnv('CI', 'true')` and then `vi.stubEnv('CI', '')`, each followed by `vi.resetModules()` and a dynamic `import()` of the options module, with `vi.unstubAllEnvs()` after.
+
+  Add to the `e2e-config.spec.ts` bullet:
+  > resolves `tests/e2e/tsconfig.json` and `tests/tsconfig.json` with `ts.getParsedCommandLineOfConfigFile` and asserts on their `fileNames`
+- **D12.** Replace "The four walkthrough scenarios are the four Playwright specs themselves." with "The five walkthrough scenarios are the tests of the four Playwright specs."
+- **Follow-ups.** Add a table "decisions of spec-audit correction round 2", marked as the agent's text, with these rows:
+  - S10 (B1, `exclude: []` and the resolved-program check), destination A;
+  - S11 (the improvables of run 2), destination A.
+
+### `specs/e2e-suite/spec.md`
+
+- **Scenario "The Vitest configuration excludes tests/e2e" (B1).** Replace the last AND with:
+  > **AND** the program TypeScript resolves from `tests/e2e/tsconfig.json` contains `playwright.config.ts`, `tests/e2e/support/config-options.ts` and every `tests/e2e/*.spec.ts` on disk, and the program resolved from `tests/tsconfig.json` contains no `tests/e2e/*.spec.ts`
+
+### `tasks.md`
+
+- **2.1 (B1).** Replace "and that `tests/e2e/tsconfig.json` includes `playwright.config.ts` and the specs while `tests/tsconfig.json` excludes `e2e/**`" with:
+  > and, resolving both tsconfigs with `ts.getParsedCommandLineOfConfigFile`, that the `fileNames` of `tests/e2e/tsconfig.json` contain `playwright.config.ts`, `tests/e2e/support/config-options.ts` and every `tests/e2e/*.spec.ts` on disk, and that those of `tests/tsconfig.json` contain no `tests/e2e/*.spec.ts`
+- **2.3 (B1).** After "includes `**/*.ts` and `../../playwright.config.ts`", add:
+  > , `"exclude": []` with a comment saying it stops the inherited `e2e/**` (design D7)
+- **4.2 or 10.3.** Add:
+  > After the first spec lands, re-run `npx vitest run tests/unit/ci/e2e-config.spec.ts` so the type-check assertion of 2.1 sees a real spec, and confirm `npm run typecheck` reports an error when a deliberate type error is put in `tests/e2e/ask-flow.spec.ts` (local edit, not committed; record it).
+- **3.1.** Add:
+  > retries checked in both branches with `vi.stubEnv` + `vi.resetModules()` + dynamic `import()` (design D10)
+- **4.1.** Add:
+  > the card is chosen with `getByRole('link', { name: 'Explorar proyecto acme-shop' })` (design D4)
+
+### `proposal.md`
+
+- **What Changes → `ask-flow.spec.ts`.** Replace "at least one verified statement" with "at least one statement with its verification badge".
+
+### Linear
+
+- **DIS-75**, `[enhanced]` → Decisiones (never `[original]`). Add in Spanish, marked as the agent's text:
+  > *Texto del agente (auditoría de specs, ronda de corrección 2, 2026-11-02).* S10 — `tests/e2e/tsconfig.json` fija `"exclude": []`, porque `exclude` se hereda por `extends` y el `e2e/**` nuevo de `tests/tsconfig.json` dejaría los specs fuera del typecheck; el test de configuración comprueba el programa resuelto por TypeScript, no el JSON declarado.
+- **DIS-75**, a short comment in Spanish summarising round 2 (one blocking finding fixed, the improvables applied), marked as the agent's text.
