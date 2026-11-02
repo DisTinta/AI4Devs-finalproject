@@ -441,3 +441,27 @@ No empty row.
 - **DIS-75**, `[enhanced]` → Decisiones (never `[original]`). Add in Spanish, marked as the agent's text:
   > *Texto del agente (auditoría de specs, ronda de corrección 2, 2026-11-02).* S10 — `tests/e2e/tsconfig.json` fija `"exclude": []`, porque `exclude` se hereda por `extends` y el `e2e/**` nuevo de `tests/tsconfig.json` dejaría los specs fuera del typecheck; el test de configuración comprueba el programa resuelto por TypeScript, no el JSON declarado.
 - **DIS-75**, a short comment in Spanish summarising round 2 (one blocking finding fixed, the improvables applied), marked as the agent's text.
+
+---
+
+## Resolution of run 2
+
+*Agent's text (autonomous run, correction round 2, 2026-11-02). Run 2 left no question for the author;
+the agent applied every correction as lead engineer (`docs/AUTONOMOUS-RUN.md` §6). The decisions are in
+`design.md` → Follow-ups, rows S10–S11. `openspec validate e2e-playwright-suite --strict` passes after the
+edits.*
+
+| Finding | Resolution |
+|---|---|
+| Questions for the author | None in run 2; S1 stands, as the auditor accepted. |
+| §3 type-check clause checked only on the declared JSON (improvable) | Fixed together with B1: the scenario now asserts the resolved programs. |
+| B1 — `tests/e2e/tsconfig.json` inherits `exclude: ["e2e/**"]` (blocking) | Fixed (S10, destination A). D7 sets `"exclude": []` in `tests/e2e/tsconfig.json` and explains the inheritance; task 2.3 adds it with a comment. The scenario "The Vitest configuration excludes tests/e2e" and task 2.1 resolve both tsconfigs with `ts.getParsedCommandLineOfConfigFile` and assert on `fileNames` (the e2e program contains `playwright.config.ts`, `tests/e2e/support/config-options.ts` and every `tests/e2e/*.spec.ts` on disk; the tests program contains no `tests/e2e/*.spec.ts`); D10 names the mechanism. Task 4.2 re-runs that test once a real spec exists and records a deliberate type error in `ask-flow.spec.ts` failing `npm run typecheck`. |
+| §5 retries asserted in one branch only (improvable) | Fixed (S11): D10 and task 3.1 check both branches with `vi.stubEnv('CI', 'true')` / `vi.stubEnv('CI', '')`, `vi.resetModules()`, a dynamic `import()`, and `vi.unstubAllEnvs()` after. |
+| §5 acme-shop card locator not named (improvable) | Fixed (S11): D4 and task 4.1 use `getByRole('link', { name: 'Explorar proyecto acme-shop' })`. |
+| §5 D7 fallback for a compiler clash (improvable) | Fixed (S11): the branch is removed; D7 states that `api-client.ts` has no imports and already compiles under `tests/tsconfig.json` through `tests/unit/web/api-contract.spec.ts`. |
+| §6 D3 `devices['Desktop Chrome']` against D10's literal fields (improvable) | Fixed (S11): D3 writes `use: { browserName: 'chromium', viewport: { width: 1280, height: 720 } }` and cites D10. |
+| §6 proposal "verified statement" against the scenario (improvable) | Fixed (S11): the proposal reads "at least one statement with its verification badge". |
+| §6 D12 "four walkthrough scenarios" (improvable) | Fixed (S11): "The five walkthrough scenarios are the tests of the four Playwright specs." |
+| §8 B1 in the real code | Fixed as B1 above. |
+| Linear — `[enhanced]` → Decisiones | Applied: S10 and S11 added in Spanish, marked as the agent's text. |
+| Linear — round 2 comment | Applied: a Spanish comment on DIS-75 summarises the round. |

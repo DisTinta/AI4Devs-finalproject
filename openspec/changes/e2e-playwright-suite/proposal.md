@@ -20,7 +20,7 @@ Screen 3 walkthrough).
   `5173` — never reusing a server that is already running. Its literal options live in
   `tests/e2e/support/config-options.ts`, which the root file passes to `defineConfig` unchanged.
 - **Four specs over the seed (acme-shop)**:
-  - `tests/e2e/ask-flow.spec.ts` — Screen 1 → acme-shop → golden Q1 → at least one verified statement,
+  - `tests/e2e/ask-flow.spec.ts` — Screen 1 → acme-shop → golden Q1 → at least one statement with its verification badge,
     one evidence expanded with its excerpt, the usage panel with tokens, cost and savings.
   - `tests/e2e/unknown.spec.ts` — Q6 (refunds) → «Sin respuesta verificada», «Motivo: no-anchor», no
     statement and no evidence.

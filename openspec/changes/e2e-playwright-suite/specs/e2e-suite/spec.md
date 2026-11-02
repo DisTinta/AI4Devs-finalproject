@@ -65,8 +65,9 @@ script `test:e2e` as `playwright test`.
   and the merged `exclude` of `vitest.stryker.config.ts` still matches it
 - **AND** the root `package.json` has the script `test:e2e` equal to `playwright test`, and its
   `typecheck` script checks `tests/e2e/tsconfig.json`
-- **AND** `tests/e2e/tsconfig.json` includes `playwright.config.ts` and the specs of `tests/e2e/`, and
-  `tests/tsconfig.json` excludes `e2e/**`
+- **AND** the program TypeScript resolves from `tests/e2e/tsconfig.json` contains `playwright.config.ts`,
+  `tests/e2e/support/config-options.ts` and every `tests/e2e/*.spec.ts` on disk, and the program resolved
+  from `tests/tsconfig.json` contains no `tests/e2e/*.spec.ts`
 
 ### Requirement: Ask flow on the seed
 

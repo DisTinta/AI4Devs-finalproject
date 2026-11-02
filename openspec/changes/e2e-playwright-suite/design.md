@@ -63,7 +63,9 @@ failure the test message lists each violation's id and targets.
 
 **D3 — `playwright.config.ts` at the root**, which passes the options of
 `tests/e2e/support/config-options.ts` to `defineConfig` unchanged (D10). The options: `testDir: 'tests/e2e'`; one project `chromium`
-(`devices['Desktop Chrome']`); `retries: process.env.CI ? 1 : 0`; `workers: 1` (the specs share one API
+with `use: { browserName: 'chromium', viewport: { width: 1280, height: 720 } }` (the fields of
+`devices['Desktop Chrome']` the suite needs, written out so the options module loads no Playwright
+runtime, D10); `retries: process.env.CI ? 1 : 0`; `workers: 1` (the specs share one API
 and one seeded database, and the impact and ask flows write `query_log` rows; serial keeps them
 independent of order); `use: { baseURL: 'http://127.0.0.1:5173', trace: 'retain-on-failure',
 screenshot: 'only-on-failure' }`; `reporter: [['list'], ['html', { open: 'never' }]]`. Two `webServer`
@@ -94,7 +96,9 @@ behaviour the spec requires (E3). *Alternative:* reuse a running `npm run dev` l
 `getByRole('heading', { name: 'Sin respuesta verificada' })`, `getByRole('region', { name: 'Uso' })`,
 `getByRole('link', { name: 'Analizar el impacto de un cambio' })`), as the RTL tests of
 `packages/web/src/pages/*.test.tsx` do. The question field is reached by its label, as in those tests.
-The acme-shop card is chosen by its accessible name from `ProjectCard`. The acme-shop id
+The acme-shop card is chosen by its accessible name from `ProjectCard`: the link
+`getByRole('link', { name: 'Explorar proyecto acme-shop' })` (`ProjectCard.tsx`, visible «Explorar
+proyecto» plus the visually hidden project name). The acme-shop id
 `a794456d-6d1b-5b55-a360-13fec83dc7bc`, Q1 and Q6 are restated in the specs as constants with a comment
 naming their source (`packages/web/src/data/sample-projects.ts`, `suggested-questions.ts`,
 `fixtures/README.md`): the specs import no runtime module of the web package, so the Playwright process
@@ -125,15 +129,18 @@ places get it). `vitest.stryker.config.ts` inherits it through `mergeConfig`; it
 keep the `.spec.ts` suffix the ticket names (enrich E2). *Alternative:* a `.e2e.ts` suffix that Vitest
 never matches — rejected: it departs from the ticket and from Playwright's default `testMatch`.
 
-**D7 — Type-checking: `tests/e2e/tsconfig.json`.** It extends `../tsconfig.json` and adds `"lib":
+**D7 — Type-checking: `tests/e2e/tsconfig.json`.** It extends `../tsconfig.json`, adds `"lib":
 ["ES2022", "DOM", "DOM.Iterable"]` (the `page.evaluate` callbacks use `document`; `ES2022` is the
-`target` of `tsconfig.base.json`), and includes `**/*.ts` plus `../../playwright.config.ts`. `tests/tsconfig.json` gains `"exclude": ["e2e/**"]`
+`target` of `tsconfig.base.json`), includes `**/*.ts` plus `../../playwright.config.ts`, and sets
+`"exclude": []`: `exclude` is inherited through `extends` and resolved against the parent, so without it
+the child would inherit `tests/tsconfig.json`'s `e2e/**` and drop every spec from its own program (a
+comment in the file says so). `tests/tsconfig.json` gains `"exclude": ["e2e/**"]`
 so no spec of `tests/e2e/` is checked twice with different `lib`s; the options module
 `tests/e2e/support/config-options.ts` is also compiled through `tests/unit/ci/e2e-config.spec.ts` (D10),
 which is harmless because it uses no DOM type. The `typecheck` script appends `&& tsc -p
-tests/e2e/tsconfig.json`. The type-only import of D5 pulls `api-client.ts` into the program; if its
-compiler options clash with the tests' (it compiles under the web's tsconfig), the mocked body is typed
-with a local interface that restates the fields it uses, and the clash is recorded as a Follow-up.
+tests/e2e/tsconfig.json`. The type-only import of D5 pulls `api-client.ts` into the program; it has no
+imports and is already compiled under `tests/tsconfig.json` by `tests/unit/web/api-contract.spec.ts`.
+The configuration test checks the resolved programs, not the declared JSON (D10).
 
 **D8 — Lint.** `eslint.config.mjs` adds `playwright-report/**`, `test-results/**` and `blob-report/**` to
 `ignores` (generated output on disk, already gitignored). The specs and the config are linted as any other
@@ -161,7 +168,9 @@ Chromium download (~1 min) is cheaper than the cache-key maintenance for one job
 - `e2e-config.spec.ts` — scenario "The Playwright configuration starts both servers in evaluation mode"
   and scenario "The Vitest configuration excludes tests/e2e" (imports `vitest.config.ts` and
   `vitest.stryker.config.ts`, matches the globs with `node:path`'s `matchesGlob`, reads `package.json`,
-  `tests/e2e/tsconfig.json` and `tests/tsconfig.json`).
+  and resolves `tests/e2e/tsconfig.json` and `tests/tsconfig.json` with
+  `ts.getParsedCommandLineOfConfigFile` (from the `typescript` devDependency, no `tsc` process) and
+  asserts on their `fileNames`).
 
 **The configuration is split in two files, by design.** `tests/e2e/support/config-options.ts` exports
 the literal options object (`e2eConfigOptions`, typed `PlaywrightTestConfig` with `import type`, so it
@@ -177,7 +186,10 @@ stripping comments, its only statements are the imports of `defineConfig` and `e
 the local runs of the scenario "The suite passes locally" (11.1). *Alternative:* load
 `playwright.config.ts` in a child process and print its JSON — rejected: the config is TypeScript that
 imports a `.ts` module, so the child would need a TypeScript loader the repository does not use for
-tests, for a check the text assertion already makes.
+tests, for a check the text assertion already makes. The retries are checked in both branches:
+`vi.stubEnv('CI', 'true')` and then `vi.stubEnv('CI', '')`, each followed by `vi.resetModules()` and a
+dynamic `import()` of the options module, with `vi.unstubAllEnvs()` after (the `quality` job runs with
+`CI=true`, so a single import would check one branch only).
 
 Both live in the `node` project and touch no mutated source; Stryker's dry run runs them as it runs
 `verify-job.spec.ts`.
@@ -200,7 +212,7 @@ same runner with no `continue-on-error` (asserted by `e2e-job.spec.ts`); no brok
 "A taken port fails the run before any spec" is checked in 11.2, once with `5173` taken and once with
 `3000` taken. "The suite passes locally" is checked in 11.1 (Bash, `pwsh -NoProfile`,
 `powershell.exe -NoProfile`). "The e2e job is green on the pull request" is checked on the PR's CI run.
-The four walkthrough scenarios are the four Playwright specs themselves.
+The five walkthrough scenarios are the tests of the four Playwright specs.
 
 **D13 — Local run.** Prerequisites: Docker Postgres up and seeded (`npm run up`, then stop its `npm run
 dev` so `3000` and `5173` are free) and `npx playwright install chromium` once. Then `npm run test:e2e`.
@@ -271,3 +283,12 @@ engineer without the author. S-ids follow the findings of run 1 of `reports/2026
 | S7 | `'playwright.config.ts'` joins the `runtime` paths filter of `quality` (D9). | A |
 | S8 | Smaller fixes: the mock sends Q1 and puts the path in the evidence `file` (D5); the D7 sentence on double checking is corrected; the taken-port risk is worded measurably; task 1.1 checks the version in the registry first; 13.3 also revises `docs/project-context.md` "Do not assume a working end-to-end flow exists"; 14.1 is split into 14.1a–c; the traceability table names 13.1 for the *target* note. | A |
 | S9 | The `DATABASE_URL` clause of the first requirement gets no scenario of its own: the CI scenario asserts it is set on the steps, and every local run (11.1) reads it from `.env`. | D — accepted |
+
+*Agent's text: decisions of spec-audit correction round 2 (2026-11-02), taken by the agent as lead
+engineer without the author. S-ids continue from round 1 and follow the findings of run 2 of
+`reports/2026-11-02-spec-audit.md`.*
+
+| Id | Decision | Destination |
+|---|---|---|
+| S10 (B1) | `tests/e2e/tsconfig.json` sets `"exclude": []`: `exclude` is inherited through `extends` and resolved against the parent, so the new `e2e/**` of `tests/tsconfig.json` would otherwise drop every spec from the e2e program and `tsc` would report nothing (D7). The configuration test resolves both tsconfigs with `ts.getParsedCommandLineOfConfigFile` and asserts on their `fileNames`, not on the declared JSON (D10, task 2.1); after the first spec lands, the check is re-run and a deliberate type error in `ask-flow.spec.ts` is shown to fail `npm run typecheck` (task 4.2). | A |
+| S11 | Run 2 improvables: retries checked in both `CI` branches with `vi.stubEnv` + `vi.resetModules()` + dynamic `import()` (D10, task 3.1); the acme-shop card is the link «Explorar proyecto acme-shop» (D4, task 4.1); the D7 fallback for a compiler clash is removed because `api-client.ts` has no imports and already compiles under `tests/tsconfig.json`; D3 writes the Chromium project as its literal `browserName` and viewport; the proposal says "a statement with its verification badge"; D12 counts five walkthrough scenarios in four spec files. | A |
