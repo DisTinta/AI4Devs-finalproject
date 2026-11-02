@@ -46,9 +46,13 @@ When you are asked to implement a change from `openspec/changes/<id>/`:
      that waits for CI returns only when no check is pending. Leave no `vitest`, `vite` or server
      process running (end every step that started one with `node scripts/dev-processes.mjs stop`), and
      no session's working directory inside `openspec/changes/<change>/`.
-   - PowerShell checks (`docs/DEMO.md` captures, a guide command in a new PowerShell terminal) go to
-     the author: run them in Git Bash and plan the PowerShell half as a destination C follow-up in
-     `tasks.md`, since the auto-mode classifier denies PowerShell commands that set `$env:` variables.
+   - PowerShell checks (`docs/DEMO.md` captures, a guide command in a new PowerShell terminal) are the
+     agent's: run them with `pwsh -NoProfile -Command '…'` and `powershell.exe -NoProfile -Command '…'`,
+     never setting `$env:` variables (the commands load `.env` themselves). Nothing goes to the author
+     as a destination C follow-up.
+   - A main spec (`openspec/specs/<capability>/spec.md`, its `## Purpose` included) is edited only
+     while the change is active, approved and has a delta for that capability, so those edits are
+     planned only for such capabilities and made before `/opsx:archive`.
    - Stop cleanly — ticket In Review with a comment — on: a `CHANGES REQUIRED` spec audit after the
      last correction round, CI red
      after 2 fixes, a merge conflict, the usage limit, a denied permission with no alternative, or a

@@ -347,10 +347,16 @@ hasta `APPROVED`. Una auditoría `CHANGES REQUIRED` después de la última ronda
   que el agente no tiene otra forma de encontrarlos. Cierra también los que haya arrancado la autora
   en ese repositorio; `--since <fecha>` limita a los arrancados desde entonces.
 - Las comprobaciones en PowerShell (capturas de `docs/DEMO.md`, una orden de la guía en una terminal
-  PowerShell nueva) las hace la autora: el clasificador deniega las órdenes de PowerShell que cambian
-  variables de entorno (`$env:…`). El agente las hace en Git Bash y las deja en `design.md` →
-  Follow-ups con destino C desde el `tasks.md`, no al descubrirlo en el apply (en el piloto de DIS-105
-  se denegaron dos veces).
+  PowerShell nueva) las hace el agente, desde Bash, con `pwsh -NoProfile -Command '…'` y
+  `powershell.exe -NoProfile -Command '…'`, y anota las versiones y el resultado. No define variables
+  con `$env:…`, que el clasificador deniega (en el piloto de DIS-105 se denegaron dos veces): los
+  comandos de la guía cargan `.env` solos. Así se capturó el paso 4 en DIS-90 y DIS-94. Nada se deja a
+  la autora con destino C.
+- Una spec principal (`openspec/specs/<capacidad>/spec.md`, también su `## Purpose`) solo se puede
+  editar mientras el cambio está activo, aprobado y tiene un delta para esa capacidad: el hook
+  `protect-specs-and-tests` lo deniega en cualquier otro caso. Esas ediciones se planifican solo para
+  capacidades con delta y se hacen antes de `/opsx:archive` (DIS-94 se paró por hacerla después, y
+  DIS-95 no pudo hacerla porque no tenía delta de `impact`).
 - Ninguna sesión, tampoco la principal, deja su directorio de trabajo dentro de
   `openspec/changes/<cambio>/`: en Windows esa carpeta queda bloqueada y `/opsx:archive` no la puede
   mover.
