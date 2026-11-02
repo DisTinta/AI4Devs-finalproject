@@ -519,6 +519,9 @@ Verified against `package.json` (root and per package). If a command is not here
   scenarios' "a use case that…" is the `explain` seam of `buildApp`), `route-errors.spec.ts` builds its own app for
   a per-route error table, and `tests/integration/api/ask.spec.ts` runs `/ask` over the seed in
   Postgres (template of `tests/integration/cli/ask-command.spec.ts`).
+  Since DIS-95, `tests/unit/api/impact.spec.ts` drives `POST /impact` the same way (its "a use case
+  that…" is the `impact` seam of `buildApp`; it runs under Stryker) and
+  `tests/integration/api/impact.spec.ts` runs it over the seed in Postgres.
   Since DIS-9, `tests/unit/index/reindex-project.spec.ts` (core use case over fakes),
   `tests/unit/api/reindex.spec.ts` (`/index` over doubles with a recording log) and
   `tests/integration/api/reindex.spec.ts` (over the seed, the harness transaction as the unit of
@@ -922,7 +925,8 @@ services that must be started first, quirks of the local environment.
   `containsAnyTerm`, shared with `rank.ts`, then `compareBytes` of symbol and file). The lexical anchor
   is the limit: the literal Q2 text `cambiar el cálculo de descuentos` does not anchor `DiscountService`
   (design D7; Q2 is reproduced with `cambiar los descuentos de DiscountService`). DIS-90 adds the
-  **risk**, the **`query_log` row** and the CLI command; `POST /impact` is DIS-95's. An answered report
+  **risk**, the **`query_log` row** and the CLI command; `POST /impact` (DIS-95) serves the same report
+  over HTTP, see the API gotcha on that route. An answered report
   carries `risk: { level, rationale }` (`risk.ts` `assessRisk`; PH-15 as written: `HIGH` when some
   `direct` component has no `tested_by` edge or only heuristic chains, `LOW` when all are covered and
   `exact`, `MEDIUM` otherwise; the rationale is `<F> ficheros afectados, <T> tests …, <U> elementos
@@ -1421,6 +1425,17 @@ services that must be started first, quirks of the local environment.
   forwards `useCache` only when sent; a cached question answers `200` (`usage.cacheHit: true`) even
   with the daily budget spent, and evaluation mode answers from the cache when an entry exists. `AppOptions.explain`
   replaces the use case: a test seam only, as `AskCommandDeps.explain` in the CLI.
+  **`POST /api/projects/{projectId}/impact`** (DIS-95, `routes/impact.ts`, `schemas/impact.ts`) is
+  the second route on the `/ask` template, over the `impact` use case, which makes no model call:
+  it resolves the project with `getProject` before the use case (so an unknown id answers `404` also
+  for a change with no search term, and the use case gets the stored id), forwards `maxHops` only
+  when sent, writes the report's events (`query_not_logged`) to `request.log` at `info`, and
+  returns `toPublicReport`: the core report without `events`, built field by field (`history` per
+  file, no `usage`; `staleSince` only on a stale document). Its own error table has
+  `PROJECT_NOT_FOUND` and `INVALID_IMPACT_REQUEST`; anything else is `500`. The response schemas are
+  `z.object` (the serializer drops undeclared keys); core exports `RiskLevel` and
+  `ImpactUnknownReason` as types only, so `schemas/impact.ts` repeats those literals with a two-way
+  compile-time equality check. `AppOptions.impact` replaces the use case: a test seam only.
   **`POST /api/projects/{projectId}/index`** (DIS-9, `routes/reindex.ts`, `schemas/reindex.ts`) is the
   third product route: it **re-indexes a project that already exists** from its stored `root_path`,
   language and framework (it never receives a path, a language or a framework; body

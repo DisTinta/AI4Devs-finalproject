@@ -488,7 +488,7 @@ fila `impact` en `query_log`.
 > `ShippingService`, en las PR #24, #33 y #55); `[grafo]`, lo que viene del análisis determinista: las dos
 > señales no se mezclan en una lista.
 >
-> **Entrega 3.** La pantalla web de impacto y la ruta `POST /impact` (DIS-95) siguen pendientes.
+> **Entrega 3.** La ruta `POST /impact` (DIS-95) ya existe y devuelve este mismo informe; solo la pantalla web de impacto (DIS-14) sigue pendiente.
 
 ## Paso 5 — Repetir el paso 1
 
