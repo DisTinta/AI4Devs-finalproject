@@ -79,17 +79,17 @@
 
 ## 12. Measure the CI cost (design D3)
 
-- [ ] 12.1 After the first CI run of the pull request (13.3), record the `quality` job duration and the `Tests` step duration against the last measured 9m51s; if the job took more than 13 minutes, raise `timeout-minutes` of `quality` to 20 with a comment giving the figure (design D3, E3), commit it and wait for CI again; otherwise record that the limit stays at 15
+- [x] 12.1 After the first CI run of the pull request (13.3), record the `quality` job duration and the `Tests` step duration against the last measured 9m51s; if the job took more than 13 minutes, raise `timeout-minutes` of `quality` to 20 with a comment giving the figure (design D3, E3), commit it and wait for CI again; otherwise record that the limit stays at 15
 
 ## 13. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 13.1 Open the pull request against `final-project-CRN` (title and body in Spanish via `/pr-describe`, the Why marked as the agent's text, the new dependency and the full mutation pass explained); commit by explicit paths only (nothing under `.claude/` or `.cursor/`), English messages ending with the co-author line; one `git` command per call; set DIS-77 to In Review with a Spanish comment linking the PR
-- [ ] 13.2 Wait for CI in the foreground with repeated bounded calls: `gh pr checks <n> --watch --interval 60` in Bash with the 10-minute tool timeout, re-run until no check is pending, queued or in progress (the `mutation` job runs a full pass, 30-60 min); never `Monitor` or a background run
-- [ ] 13.3 Confirm every check green and record: the job summary of `quality` with the per-package table (the run link), the `quality` duration (12.1), and the `mutation` job's score and log showing Stryker ran without Vitest coverage (design D2)
-- [ ] 13.4 Run `/show-spec-working`: the local outputs of 9.1 and 9.2, the CI job summary of 13.3 and the RED evidence of 5.1; may reuse step 9 evidence. Report `openspec/changes/informative-coverage/reports/YYYY-MM-DD-show-spec-working.md`
-- [ ] 13.5 Run `/verify-against-spec` (inline mode); report `openspec/changes/informative-coverage/reports/YYYY-MM-DD-verify-against-spec.md`
-- [ ] 13.6 Run `/adversarial-review` (inline mode); report `openspec/changes/informative-coverage/reports/YYYY-MM-DD-adversarial-review.md`
-- [ ] 13.7 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups (never C); re-run the verification each fix invalidates and add an addendum to the affected report
-- [ ] 13.8 Commit the fixes to the same pull request; re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
+- [x] 13.1 Open the pull request against `final-project-CRN` (title and body in Spanish via `/pr-describe`, the Why marked as the agent's text, the new dependency and the full mutation pass explained); commit by explicit paths only (nothing under `.claude/` or `.cursor/`), English messages ending with the co-author line; one `git` command per call; set DIS-77 to In Review with a Spanish comment linking the PR
+- [x] 13.2 Wait for CI in the foreground with repeated bounded calls: `gh pr checks <n> --watch --interval 60` in Bash with the 10-minute tool timeout, re-run until no check is pending, queued or in progress (the `mutation` job runs a full pass, 30-60 min); never `Monitor` or a background run
+- [x] 13.3 Confirm every check green and record: the job summary of `quality` with the per-package table (the run link), the `quality` duration (12.1), and the `mutation` job's score and log showing Stryker ran without Vitest coverage (design D2)
+- [x] 13.4 Run `/show-spec-working`: the local outputs of 9.1 and 9.2, the CI job summary of 13.3 and the RED evidence of 5.1; may reuse step 9 evidence. Report `openspec/changes/informative-coverage/reports/YYYY-MM-DD-show-spec-working.md`
+- [x] 13.5 Run `/verify-against-spec` (inline mode); report `openspec/changes/informative-coverage/reports/YYYY-MM-DD-verify-against-spec.md`
+- [x] 13.6 Run `/adversarial-review` (inline mode); report `openspec/changes/informative-coverage/reports/YYYY-MM-DD-adversarial-review.md`
+- [x] 13.7 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups (never C); re-run the verification each fix invalidates and add an addendum to the affected report
+- [x] 13.8 Commit the fixes to the same pull request; re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
 - [ ] 13.9 Main specs: this change has two deltas, the new capability `test-quality-gates` (with `## Purpose`) and MODIFIED `local-startup` ("Which commands load .env"); no main spec is edited by hand. The sync of `/opsx:archive` creates `openspec/specs/test-quality-gates/spec.md` and updates `openspec/specs/local-startup/spec.md`; confirm after the archive that the latter's requirement lists `test:coverage` and still has both scenarios
 - [ ] 13.10 `/opsx:archive`, and commit the archive to the same pull request (no test-file edits in that commit); merge only through the merge gate (`gh pr merge <n> --merge`), after the archive commit and with CI green (autonomous-run ADR)

@@ -239,3 +239,16 @@ accepted and recorded.*
 |---|---|---|
 | A9 | Task 2.4 found that the CLI `--exclude` does not reach the projects' own `exclude` lists, so the wall-clock specs still ran under coverage. The exclusion is also made in `vitest.config.ts` when `--coverage` is in `process.argv` (root and `node` project), with a guard test; the command strings of the spec stay unchanged (D7). | A |
 | A10 | The real pyramid in `docs/TESTING.md` is counted on `dc23f9d` plus this change's new specs (the count cannot name the commit that contains it); the counting command is in the section. | D — accepted |
+
+*Agent's text: decisions of the review step (reports `reports/2026-11-02-show-spec-working.md`,
+`-verify-against-spec.md`, `-adversarial-review.md`), taken by the agent as lead engineer without the author.*
+
+| Id | Decision | Destination |
+|---|---|---|
+| R1 | The guard "The wall-clock specs are excluded from every project when coverage is requested" built its plain case from the runner's argv, which holds `--coverage` in CI, and asserted only two lists. Fixed: the plain argv drops `--coverage` / `--coverage.*`, and every project with its own `exclude` is asserted (green plain, under `--coverage` and under `--pool threads`). | A — fixed |
+| R2 | `COVERAGE_RUN` does not recognise `--coverage=true` (timed specs stay under coverage) and treats `--coverage.enabled=false` as a coverage run. Only hand-typed runs; the npm script, CI and Stryker use the covered forms, and editing `vitest.config.ts` would force another full mutation pass. | D — accepted |
+| R3 | A package directory name with `|` or a line break would break the Markdown table; the names come from the repository's own `packages/`. | D — accepted |
+| R4 | `Timing budgets` does not run when `Tests` failed (implicit `success()`), as D3/D7 specify; the job is red anyway. | D — accepted |
+| R5 | `coverage.include` / `exclude` and the `text-summary` reporter are configuration details of "collected with the V8 provider", not in the spec; kept. | D — accepted |
+| R6 | The CI job-summary table cannot be read back through the API; evidence is the step's success, the V8 totals in the `Tests` log and the identical local table. | D — accepted |
+| R7 | Task 12.1: `quality` took 11 min 04 s (`Tests` 4 min 41 s) in run 41523599968, under 13 minutes; `timeout-minutes` stays 15. | D — accepted |

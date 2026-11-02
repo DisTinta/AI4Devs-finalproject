@@ -74,14 +74,21 @@ describe('Coverage informs and never blocks', () => {
       return [config.test?.exclude ?? [], ...projects.map((project) => project.test?.exclude ?? [])];
     };
 
+    // The plain case must not inherit a `--coverage` of the process running this spec (CI runs it under coverage)
+    const plain = original.filter((arg) => arg !== '--coverage' && !arg.startsWith('--coverage.'));
+
     try {
       // Act
-      const withCoverage = await excludes([...original, '--coverage']);
-      const withoutCoverage = await excludes([...original]);
+      const withCoverage = await excludes([...plain, '--coverage']);
+      const withoutCoverage = await excludes(plain);
 
-      // Assert: the root and the node project drop them under coverage; plain runs keep them
+      // Assert: the root and every project with its own `exclude` (the others inherit the root's) drop them
+      // under coverage; plain runs keep them
       expect(withCoverage[0]).toEqual(expect.arrayContaining(['**/*.linear.spec.ts', '**/*.scaling.spec.ts']));
       expect(withCoverage.at(-1)).toEqual(expect.arrayContaining(['**/*.linear.spec.ts', '**/*.scaling.spec.ts']));
+      for (const list of withCoverage.filter((own) => own.length > 0)) {
+        expect(list).toEqual(expect.arrayContaining(['**/*.linear.spec.ts', '**/*.scaling.spec.ts']));
+      }
       for (const list of withoutCoverage) {
         expect(list).not.toContain('**/*.linear.spec.ts');
         expect(list).not.toContain('**/*.scaling.spec.ts');
