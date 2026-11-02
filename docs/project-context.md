@@ -123,7 +123,8 @@ Verified against `package.json` (root and per package). If a command is not here
 - Web screens (DIS-60): `packages/web/src/router.tsx` exports `routes`, one pathless root route whose
   `errorElement` is the app's error screen (`pages/RouteErrorPage.tsx`, «Algo ha fallado», never the
   error's message) and whose children are `/` → Screen 1 (`pages/ProjectPickerPage.tsx`), `/p/:projectId`
-  → Screen 2 (`pages/AskPage.tsx`, DIS-65) and `*` → not found. Screen 1 paints one card per project of
+  → Screen 2 (`pages/AskPage.tsx`, DIS-65), `/p/:projectId/impact` → Screen 3 (`pages/ImpactPage.tsx`,
+  DIS-14) and `*` → not found. Screen 1 paints one card per project of
   `SAMPLE_PROJECTS` (`packages/web/src/data/sample-projects.ts`) with no request, and checks the API with
   `getHealth` in an effect (`pages/useApiHealth.ts`), not in a React Router loader, so the `Request`
   workaround of `tests/support/jsdom-setup.ts` still holds. «comprobando…» while the first check runs,
@@ -155,6 +156,21 @@ Verified against `package.json` (root and per package). If a command is not here
   verificada.», «Hace falta un modelo de lenguaje.», empty after an alert); the visible pending text is
   `aria-hidden`. A repeated invalid send re-mounts the box's alert (keyed by a send counter) so it is
   announced again. No state adds a tab stop or moves the focus.
+- Screen 3 (DIS-14): the route `/p/:projectId/impact` renders `<ImpactPage key={projectId} …/>`
+  (`pages/ImpactPage.tsx`), with the project bar of Screen 2 (`projectHeadingOf` in
+  `components/project-display.ts` is shared by both). `PageFrame` takes an optional `nav` rendered after
+  `<main>`: both screens pass a «Navegación del proyecto» landmark (`components/ProjectNav.tsx`) with one
+  link, so Screen 2 links to Screen 3 («Analizar el impacto de un cambio») and Screen 3 back («Volver a las
+  preguntas») without touching Screen 2's banner or tab order. No request on mount: `pages/useImpact.ts`
+  calls `impact()` (in `services/api-client.ts`) only when a valid change is sent (one at a time, no time
+  limit, aborted on unmount) with the body `{ change, maxHops }`; `maxHops` comes from a native `<select>`
+  1/2/3 with 2 selected. The change is checked by `validChange` in `components/impact-display.ts` (5–500
+  code points after trimming, no U+0000), which also writes hops, resolution, document, history and risk in
+  Spanish. The report (`components/ImpactReport.tsx`, `ImpactSection.tsx`, `OriginTag.tsx`,
+  `RiskBanner.tsx`) keeps the API's order, tags each entry «[grafo]» or «[git]» as text, and renders every
+  API text as text. `components/ImpactUnknownState.tsx` shows «Sin ancla en el grafo»; failures reuse
+  `AskErrorNotice`. There is no usage panel: `/impact` makes no model call. A persistent `role="status"`
+  region announces «Calculando impacto…», «Informe de impacto recibido.» and «Sin ancla en el grafo.».
 - Accessibility gate: `npm run test:a11y` (root) = `vitest run tests/a11y` — axe over the real routes
   (see Testing).
 - Tests (full): `npm test` or `npx vitest run` (root `vitest.config.ts`). `fixtures/**` is excluded

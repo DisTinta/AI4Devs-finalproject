@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, ApiUnavailableError, ask, getHealth } from './api-client';
+import { ApiError, ApiUnavailableError, ask, getHealth, impact } from './api-client';
 
 /** One request the network double received. */
 interface RecordedRequest {
@@ -418,5 +418,95 @@ describe('Cancellation by the caller', () => {
     expectCallerAbort(healthFailure);
     expectCallerAbort(askFailure);
     expect(requests).toHaveLength(0);
+  });
+});
+
+/** An answered impact report as the API serialises it: one entry in each list and a `HIGH` risk. */
+const IMPACT_ANSWERED_BODY = {
+  status: 'answered',
+  direct: [{ symbol: 'DiscountService', file: 'app/Services/DiscountService.php', origin: 'graph', resolution: 'exact', hops: 0 }],
+  indirect: [{ symbol: 'OrderController', file: 'app/Http/Controllers/OrderController.php', origin: 'graph', resolution: 'heuristic', hops: 2 }],
+  tests: [{ symbol: 'DiscountServiceTest', file: 'tests/Unit/DiscountServiceTest.php', origin: 'graph' }],
+  docs: [{ path: 'README.md', stale: false }],
+  history: [{ file: 'app/Services/ShippingService.php', coChangeRate: 1, prs: [24, 33, 55], origin: 'git' }],
+  risk: { level: 'HIGH', rationale: 'Touches the price calculation.' },
+};
+
+/** An honest `unknown` impact report as the API serialises it. */
+const IMPACT_UNKNOWN_BODY = { status: 'unknown', reason: 'no-anchor' };
+
+describe('Asking for the impact of a change through the API client', () => {
+  it('An impact report is resolved as received', async () => {
+    // Arrange
+    const requests = stubFetch(async () => jsonResponse(200, IMPACT_ANSWERED_BODY));
+
+    // Act
+    const report = await impact(PROJECT_ID, { change: 'cambiar los descuentos de DiscountService', maxHops: 2 });
+
+    // Assert
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toMatchObject({
+      method: 'POST',
+      url: `/api/projects/${PROJECT_ID}/impact`,
+      body: '{"change":"cambiar los descuentos de DiscountService","maxHops":2}',
+    });
+    expect(requests[0].headers['content-type']).toBe('application/json');
+    expect(report).toEqual(IMPACT_ANSWERED_BODY);
+  });
+
+  it('An unknown impact is resolved as received', async () => {
+    // Arrange
+    const requests = stubFetch(async () => jsonResponse(200, IMPACT_UNKNOWN_BODY));
+
+    // Act
+    const report = await impact('a/b?c', { change: 'mejorar el rendimiento' });
+
+    // Assert
+    expect(requests[0].url).toBe('/api/projects/a%2Fb%3Fc/impact');
+    expect(requests[0].body).toBe('{"change":"mejorar el rendimiento"}');
+    expect(report).toEqual(IMPACT_UNKNOWN_BODY);
+  });
+
+  it('Impact failures become API or unavailable-API errors', async () => {
+    // Arrange
+    const networkDown = new TypeError('fetch failed');
+    const request = { change: 'cambiar los descuentos de DiscountService' };
+
+    // Act
+    stubFetch(async () =>
+      jsonResponse(400, {
+        error: { code: 'INVALID_IMPACT_REQUEST', message: 'invalid request', details: { field: 'maxHops' } },
+      }),
+    );
+    const apiFailure = await rejectionOf(impact(PROJECT_ID, request));
+    stubFetch(() => Promise.reject(networkDown));
+    const unavailableFailure = await rejectionOf(impact(PROJECT_ID, request));
+
+    // Assert
+    expect(apiFailure).toBeInstanceOf(ApiError);
+    expect(apiFailure).toMatchObject({ status: 400, code: 'INVALID_IMPACT_REQUEST', details: { field: 'maxHops' } });
+    expect(unavailableFailure).toBeInstanceOf(ApiUnavailableError);
+    expect((unavailableFailure as ApiUnavailableError).cause).toBe(networkDown);
+  });
+
+  it('Aborting a pending impact request cancels it, and it has no time limit', async () => {
+    // Arrange
+    vi.useFakeTimers();
+    const requests = stubFetch(hangingNetwork);
+    const caller = new AbortController();
+
+    // Act
+    const call = track(impact(PROJECT_ID, { change: 'cambiar los descuentos de DiscountService' }, { signal: caller.signal }));
+    await vi.advanceTimersByTimeAsync(60_000);
+    const pendingAt60s = !call.settled();
+    const abortedAt60s = requests[0].signal?.aborted ?? false;
+    caller.abort();
+    const failure = await call.rejection;
+
+    // Assert
+    expect(pendingAt60s).toBe(true);
+    expect(abortedAt60s).toBe(false);
+    expect(requests[0].signal?.aborted).toBe(true);
+    expectCallerAbort(failure);
   });
 });

@@ -146,7 +146,7 @@ Desarrolladores que trabajan sobre código que no escribieron: incorporaciones a
 
 - **Local, en cuatro comandos.** Se clona el repositorio, se copia `.env.example` a `.env` (sin obligar a una API key) y se levanta con `npm run up`, el mismo comando en PowerShell y en Bash (`make up` es su atajo en Git Bash o WSL). Los dos proyectos de muestra quedan consultables. **Sin PHP instalado, sin clonar repositorios ajenos, sin esperar ningún indexado**, porque los grafos y las respuestas de evaluación van versionados como semillas SQL / caché.
 
-*Estado en la Entrega 2:* la semilla carga `acme-shop` (174 nodos y 170 aristas) y `task-api` (102 nodos y 100 aristas, analizador TypeScript, CM-HU-18), cada uno con tres respuestas *golden*. F1, F2, F4 y F5 funcionan por CLI y por `POST /ask`; F3 (impacto) funciona por la CLI `impact` y por `POST /impact` (DIS-95) y solo le falta la pantalla web (DIS-14, Entrega 3); F6 (deriva documental) es de la Entrega 3, y F7 tiene hoy el acierto exacto por pregunta normalizada, sin similitud de embedding (CM-HU-19).
+*Estado en la Entrega 2:* la semilla carga `acme-shop` (174 nodos y 170 aristas) y `task-api` (102 nodos y 100 aristas, analizador TypeScript, CM-HU-18), cada uno con tres respuestas *golden*. F1, F2, F4 y F5 funcionan por CLI y por `POST /ask`; F3 (impacto) funciona por la CLI `impact` y por `POST /impact` (DIS-95) y tiene ya su pantalla web (Pantalla 3, DIS-14); F6 (deriva documental) es de la Entrega 3, y F7 tiene hoy el acierto exacto por pregunta normalizada, sin similitud de embedding (CM-HU-19).
 
 **Modo híbrido LLM (parte de F4):**
 
@@ -173,16 +173,16 @@ Los wireframes de las tres pantallas muestran el flujo completo del producto. La
 
 > **Decisión (5 sep 2026).** Se eliminó la demo alojada de esta lista. La evidencia queda acotada a local + DEMO.md + verify.
 
-**Estado de la web en la Entrega 2.** Los wireframes se mantienen como referencia visual y de textos de la web. La web ya cubre las pantallas 1 y 2; la 3 es de la Entrega 3:
+**Estado de la web en la Entrega 2.** Los wireframes se mantienen como referencia visual y de textos de la web. La web ya cubre las tres pantallas:
 
 | Pieza | Estado |
 |---|---|
 | Andamiaje web: Tailwind con los colores de los wireframes, rutas, cliente tipado de la API, puerta de accesibilidad `test:a11y` | Fusionado (DIS-58, PR #53) |
 | Pantalla 1 — tarjetas de los proyectos de muestra desde `data/sample-projects.ts`, aviso de API caída y pantalla de error | Fusionado (DIS-60, PR #54) |
 | Pantalla 2 — pregunta, preguntas sugeridas (las *golden*), afirmaciones tipadas con distintivos de tipo y de verificación, evidencia desplegable, panel de uso (confianza, tokens, coste, latencia, ahorro y caché), estados `UNKNOWN` y avisos de `429` y de error | Fusionado (DIS-65, PR #56; DIS-66, PR #57) |
-| Pantalla 3 — impacto | Entrega 3 (la CLI `impact` ya funciona, DIS-90, y la ruta `POST /impact`, DIS-95; la pantalla web, DIS-14, no) |
+| Pantalla 3 — impacto: campo «Cambio», «Saltos del grafo», informe por secciones con la etiqueta de origen `[grafo]`/`[git]` de cada elemento, riesgo con su justificación, estado `unknown` y avisos de error (sin panel de tokens y coste: `/impact` no llama al modelo) | Hecho en la web (DIS-14); la CLI `impact` (DIS-90) y la ruta `POST /impact` (DIS-95) ya existían |
 
-Con `npm run up` (web en http://localhost:5173), los pasos 1 a 3 del recorrido de abajo se hacen ya en el navegador; el 4 (impacto) y el 6 (`task-api`) siguen siendo de la Entrega 3. [`docs/DEMO.md`](docs/DEMO.md) ejecuta los seis pasos por la CLI contra `acme-shop`, dice en cada uno qué hace hoy el sistema y recorre las dos pantallas en [Recorrido por la web](docs/DEMO.md#recorrido-por-la-web).
+Con `npm run up` (web en http://localhost:5173), los pasos 1 a 4 del recorrido de abajo se hacen ya en el navegador (el 4, impacto, en la Pantalla 3); el 6 (`task-api`) sigue siendo de la Entrega 3. [`docs/DEMO.md`](docs/DEMO.md) ejecuta los seis pasos por la CLI contra `acme-shop`, dice en cada uno qué hace hoy el sistema y recorre las tres pantallas en [Recorrido por la web](docs/DEMO.md#recorrido-por-la-web).
 
 #### Las tres pantallas
 

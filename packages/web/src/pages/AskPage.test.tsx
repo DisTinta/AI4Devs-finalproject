@@ -1284,3 +1284,47 @@ describe('Error, rate-limit and budget notices', () => {
     ]);
   });
 });
+
+describe('Link to the impact screen', () => {
+  it('Screen 2 links to the impact screen of its project', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const requests = stubFetch(neverAnswer);
+    await renderScreen2();
+    const link = screen.getByRole('link', { name: 'Analizar el impacto de un cambio' });
+    const nav = screen.getByRole('navigation', { name: 'Navegación del proyecto' });
+    const main = screen.getByRole('main');
+
+    // Act
+    const before = {
+      inNav: nav.contains(link),
+      afterMain: precedes(main, nav),
+      outsideMain: !main.contains(link),
+      target: link.getAttribute('href'),
+    };
+    await user.click(link);
+    await screen.findByRole('textbox', { name: 'Cambio' });
+
+    // Assert
+    expect(before).toEqual({ inNav: true, afterMain: true, outsideMain: true, target: `/p/${PROJECT_ID}/impact` });
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('acme-shop');
+    expect(requests).toHaveLength(0);
+  });
+
+  it('Following the impact link aborts a pending question', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const requests = stubFetch(neverAnswer);
+    await renderScreen2();
+
+    // Act
+    await user.click(screen.getByRole('button', { name: Q1 }));
+    await user.click(screen.getByRole('link', { name: 'Analizar el impacto de un cambio' }));
+    await screen.findByRole('textbox', { name: 'Cambio' });
+
+    // Assert
+    expect(requests).toHaveLength(1);
+    expect(requests[0].init?.signal?.aborted).toBe(true);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+});

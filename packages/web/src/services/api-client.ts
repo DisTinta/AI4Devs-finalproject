@@ -4,7 +4,9 @@
  * Every call uses a relative URL, so the page reaches the API from its own origin (the Vite proxy in
  * local development, design D8). The response types are declared once, here, and the contract test
  * `tests/unit/web/api-contract.spec.ts` makes `npm run typecheck` fail when they drift from the API's
- * schemas. This module never imports the API package.
+ * schemas. This module never imports the API package. Every call (the health check, `ask` and `impact`)
+ * accepts the caller's abort signal and rejects with its reason when the caller aborts (web-foundation,
+ * "Cancellation by the caller"; DIS-14 design D1).
  *
  * @module
  */
@@ -121,6 +123,90 @@ export interface AskUnknown {
 
 /** The `200` body of `POST /api/projects/{projectId}/ask`: an `UNKNOWN` or an answered question. */
 export type AskResponse = AskUnknown | AskAnswered;
+
+/** The body of `POST /api/projects/{projectId}/impact`. */
+export interface ImpactRequest {
+  /** The change in words, 5 to 500 code points. */
+  change: string;
+  /** How many hops of the graph to follow, 1 to 3; absent, the API's default (2). */
+  maxHops?: number;
+}
+
+/** A component of `direct` or `indirect`: where it is, how sure the edge is and how far. */
+export interface ImpactEntry {
+  /** The symbol name; equal to the file for a file-level component. */
+  symbol: string;
+  /** Repository-relative path of the file. */
+  file: string;
+  /** Always `'graph'`: static analysis. */
+  origin: 'graph';
+  /** How sure the edge is. */
+  resolution: 'exact' | 'heuristic';
+  /** Hops from the anchor. */
+  hops: number;
+}
+
+/** A test that covers the change. */
+export interface ImpactTest {
+  /** The symbol name; equal to the file for a file-level test. */
+  symbol: string;
+  /** Repository-relative path of the test file. */
+  file: string;
+  /** Always `'graph'`. */
+  origin: 'graph';
+}
+
+/** A document that describes code of the report: up to date, or stale since a commit. */
+export type ImpactDoc = { path: string; stale: false } | { path: string; stale: true; staleSince: string };
+
+/** A file that co-changed with the anchor in the repository history. */
+export interface ImpactHistory {
+  /** Repository-relative path of the file. */
+  file: string;
+  /** Share of the anchor's changes that included this file, from 0 to 1. */
+  coChangeRate: number;
+  /** The pull requests that changed both. */
+  prs: number[];
+  /** Always `'git'`: a historical signal. */
+  origin: 'git';
+}
+
+/** The risk of an answered report. */
+export interface ImpactRisk {
+  /** The level. */
+  level: 'HIGH' | 'MEDIUM' | 'LOW';
+  /** Why, in the API's words. */
+  rationale: string;
+}
+
+/** An answered impact report. */
+export interface ImpactAnswered {
+  /** Discriminant. */
+  status: 'answered';
+  /** Components that depend on the anchor directly. */
+  direct: ImpactEntry[];
+  /** Components reached through more hops. */
+  indirect: ImpactEntry[];
+  /** Tests that cover the change. */
+  tests: ImpactTest[];
+  /** Documents that describe the code. */
+  docs: ImpactDoc[];
+  /** Files that co-changed with the anchor. */
+  history: ImpactHistory[];
+  /** The risk. */
+  risk: ImpactRisk;
+}
+
+/** An honest `unknown`: the change anchors nothing in the graph. */
+export interface ImpactUnknown {
+  /** Discriminant. */
+  status: 'unknown';
+  /** Why. */
+  reason: 'no-anchor';
+}
+
+/** The `200` body of `POST /api/projects/{projectId}/impact`: an `unknown` or an answered report. */
+export type ImpactResponse = ImpactUnknown | ImpactAnswered;
 
 /** The single error format of the API (`api-foundation`, "Single error format"). */
 export interface ApiErrorBody {
@@ -358,4 +444,37 @@ export async function ask(projectId: string, body: AskRequest, { signal }: AskOp
     body: JSON.stringify(body),
   };
   return (await send(`/api/projects/${encodeURIComponent(projectId)}/ask`, init, () => true, { signal })) as AskResponse;
+}
+
+/** Options of {@link impact}. */
+export interface ImpactOptions {
+  /** Aborting it cancels the request; the call then rejects with the signal's reason. */
+  signal?: AbortSignal;
+}
+
+/**
+ * Asks for the impact of a change: `POST /api/projects/{projectId}/impact`. It has no time limit of its
+ * own, as {@link ask}; it shares its private `send` (DIS-14 design D1).
+ *
+ * @param projectId - The project id, percent-encoded as one path segment.
+ * @param body - The change and its optional hop limit.
+ * @param options - The caller's signal.
+ * @returns The response body unchanged: an answered report or an `unknown`.
+ * @throws The reason of the caller's signal when the caller aborted.
+ * @throws ApiError when the API answered in its error format.
+ * @throws ApiUnavailableError when the API is not answering as the API.
+ */
+export async function impact(
+  projectId: string,
+  body: ImpactRequest,
+  { signal }: ImpactOptions = {},
+): Promise<ImpactResponse> {
+  const init: RequestInit = {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  };
+  return (await send(`/api/projects/${encodeURIComponent(projectId)}/impact`, init, () => true, {
+    signal,
+  })) as ImpactResponse;
 }

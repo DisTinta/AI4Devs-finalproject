@@ -1,9 +1,11 @@
 /**
- * How a sample project is written on its card (project-picker, "How a project is written on its card";
- * DIS-60 design D4, D5): pure functions, no React.
+ * How a project is written on its card and in the project bar of Screens 2 and 3 (project-picker, "How a
+ * project is written on its card"; DIS-60 design D4, D5; DIS-14 design D14): pure functions, no React.
  *
  * @module
  */
+
+import { SAMPLE_PROJECTS } from '../data/sample-projects';
 
 /** The display label of each known language identifier; any other identifier is written as it is. */
 const LANGUAGE_LABELS: ReadonlyMap<string, string> = new Map([
@@ -78,4 +80,30 @@ export function groupDigits(value: number): string {
  */
 export function formatCount(count: number, singular: string, plural: string): string {
   return `${groupDigits(count)} ${count === 1 ? singular : plural}`;
+}
+
+/** What the project bar shows for a project. */
+export interface ProjectHeading {
+  /** The level-1 heading: the project's name, or its id when it is not a sample project. */
+  title: string;
+  /** The label and edge count, only for a sample project. */
+  detail?: string;
+}
+
+/**
+ * The sample project's name and figures, or only the id for any other project (DIS-65 design D3, D24;
+ * DIS-14 design D14), shared by the project bar of Screens 2 and 3.
+ *
+ * @param projectId - The project id of the path.
+ * @returns The level-1 heading and, for a sample project, its label and edge count.
+ */
+export function projectHeadingOf(projectId: string): ProjectHeading {
+  const project = SAMPLE_PROJECTS.find((candidate) => candidate.id === projectId);
+  if (project === undefined) {
+    return { title: projectId };
+  }
+  return {
+    title: project.name,
+    detail: `${stackLabel(project.language, project.framework)} · ${formatCount(project.edgeCount, 'arista', 'aristas')}`,
+  };
 }
