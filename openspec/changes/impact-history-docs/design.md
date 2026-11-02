@@ -226,3 +226,15 @@ and the choices the audit left open.*
 | R2-5c | Task 10.2's task-api command is `impact task-api "cambiar TaskService"`: the only symbols named `TaskService` are in `src/services/task.service.ts`, and the seed's only task-api `co_changed` edge joins it to `src/schemas/task.schema.ts` (weight 0.75, shared commits of PRs 15, 31, 40). | A |
 | R2-3ab | "Stale documents come first" gets dates and an exact `docs`; "Without commits no document is stale and the history is empty" says the graph has no `co_changed` edge (the smaller of the two options). | A |
 | R2-8b | Task 4.8's order case uses a graph with at least one test, so the coverage read happens. | A |
+
+*Agent's text, apply step (2026-11-02): decisions taken by the agent as lead engineer while implementing,
+without the author.*
+
+| Id | Decision | Destination |
+|---|---|---|
+| A1 | The plan said no fingerprint input is edited, but `packages/core/src/knowledge` and `packages/adapters/store-postgres/src` feed the analyzer fingerprint (`packages/cli/src/seed/fingerprint.ts`) and the change must edit both. So `npm run seed:build` was run: `seeds/graph-dump.sql` changes in one header line (`analyzer-fingerprint`), no row changes. | A |
+| A2 | Both golden files carry the seed's `analyzerFingerprint`, and `npm run verify` and `tests/integration/cli/verify.spec.ts` fail with it stale. `npm run cache:build` needs the model and the review panel and would drop the signed `reviews`; since the seed's rows are identical, the agent refreshed only `seed.analyzerFingerprint` of `seeds/cache/acme-shop.json` and `seeds/cache/task-api.json` by hand. The answers and their signatures are untouched; `verify` passes (6/6 golden answers match). The author may re-run `cache:build` and re-sign if she wants the files regenerated rather than refreshed. | C — author (optional) |
+| A3 | `StoreQueryArgument` gains `'paths'`, the argument `InvalidStoreQuery` names for a bad `paths` (spec graph-store "Validation of read arguments"). | A |
+| A4 | `buildReport` returns `ReportLists` (`status`, `direct`, `indirect`, `tests`), so `ReportBody` (which now holds `docs` and `history`) is built only in `answer()` (design D7). | A |
+| A5 | The task-api command of task 10.2 also prints `DOCUMENTACIÓN` with `README.md  al día` (task-api's README describes `TaskService`); the spec only fixes its `HISTORIAL` line, which matches. | D — accepted |
+| A6 | Several tests of steps 3 to 5 (history, staleness, risk) were written in the same sitting as the implementation of steps 3 and 4 rather than strictly one red test before each green; each was then checked by mutation (Stryker, `history.ts`, `doc-staleness.ts` and `risk.ts` at 100 % after four extra tests). Only step 1.1 was run red before its implementation; the Postgres tests of step 2 were written before the SQL but first run green. | D — accepted |

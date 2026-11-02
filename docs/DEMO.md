@@ -455,9 +455,17 @@ TESTS
   OrderPricingTest  tests/Feature/OrderPricingTest.php  [grafo]
   PriceCalculatorTest  tests/Unit/PriceCalculatorTest.php  [grafo]
 
+DOCUMENTACIÓN
+  README.md  al día
+
+HISTORIAL
+  app/Services/ShippingService.php  co-cambia 100 %  PR #24, #33, #55  [git]
+
 RIESGO HIGH
 10 ficheros afectados, 3 tests que cubren el cambio, 4 elementos directos sin test, 0 elementos directos con cadena solo heurística.
 ```
+
+> **Texto del agente (DIS-94).** La salida de arriba es la del agente en Git Bash (2026-11-02, rama `feature/dis-94-impact-history-docs`, base de datos local sembrada). Las capturas de este paso en una terminal PowerShell nueva están **pendientes de la autora** (la política del agente deniega las órdenes de PowerShell que cambian variables de entorno).
 
 Termina con código `0`. Sin `--max-hops` recorre 2 saltos; acepta de 1 a 3. Cada informe devuelto escribe una
 fila `impact` en `query_log`.
@@ -471,8 +479,16 @@ fila `impact` en `query_log`.
 > léxico y `descu` no es `disco` (límite de la spec `impact`). Por eso este paso usa «cambiar los descuentos
 > de DiscountService».
 >
-> **Entrega 3.** La pantalla web de impacto y la ruta `POST /impact` (DIS-95) siguen pendientes; el
-> «documento desalineado» en el nivel de riesgo es de DIS-94.
+> **`DOCUMENTACIÓN` e `HISTORIAL` (DIS-94).** `README.md` sale `al día` porque es el único documento con una
+> arista `describes` hacia el código de este informe y su último commit (2024-05-06) es posterior a todos los
+> del código que describe; `docs/pricing.md` no tiene ninguna arista `describes` (su desfase es la pregunta Q5,
+> DIS-71), así que no aparece. Si el código descrito cambia después, la línea pasa a
+> `README.md  desactualizado desde <sha>`, la rationale termina en `, 1 documento desalineado.` y un riesgo
+> que sería `LOW` pasa a `MEDIUM`. `[git]` marca lo que viene del historial de Git (el co-cambio con
+> `ShippingService`, en las PR #24, #33 y #55); `[grafo]`, lo que viene del análisis determinista: las dos
+> señales no se mezclan en una lista.
+>
+> **Entrega 3.** La pantalla web de impacto y la ruta `POST /impact` (DIS-95) siguen pendientes.
 
 ## Paso 5 — Repetir el paso 1
 

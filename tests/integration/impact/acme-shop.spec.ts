@@ -84,6 +84,62 @@ describeWithDatabase('impact over the acme-shop seed (integration)', () => {
     );
   });
 
+  // Spec: openspec/changes/impact-history-docs/specs/impact/spec.md (DIS-94) → "History and
+  // documentation over the indexed acme-shop seed".
+  it('Q2 history over the seed', async () => {
+    // Arrange / Act
+    const report = await q2(2);
+
+    // Assert
+    expect(report.history).toEqual([{ file: 'app/Services/ShippingService.php', coChangeRate: 1, prs: [24, 33, 55], origin: 'git' }]);
+    expect(report.direct).toContainEqual(expect.objectContaining({ symbol: 'DiscountService', hops: 0 }));
+    expect(report.direct).toContainEqual(expect.objectContaining({ symbol: 'PriceCalculator', hops: 1, resolution: 'exact' }));
+    expect(report.indirect.map((entry) => entry.symbol)).toEqual(
+      expect.arrayContaining(['CheckoutController', 'OrderController', 'RecalculateTotals', 'SendOrderConfirmation']),
+    );
+    expect(report.tests.map((test) => test.symbol)).toEqual(
+      expect.arrayContaining(['DiscountServiceTest', 'PriceCalculatorTest', 'OrderPricingTest']),
+    );
+    expect(report.risk).toEqual({
+      level: 'HIGH',
+      rationale:
+        '10 ficheros afectados, 3 tests que cubren el cambio, 4 elementos directos sin test, 0 elementos directos con cadena solo heurística.',
+    });
+  });
+
+  it('Q2 documentation over the seed is current', async () => {
+    // Arrange / Act
+    const report = await q2(2);
+
+    // Assert
+    expect(report.docs).toEqual([{ path: 'README.md', stale: false }]);
+  });
+
+  it('A later change to the price calculator makes the readme stale', async () => {
+    // Arrange: a new commit of acme-shop, dated after the readme's last one, touching the calculator.
+    const { store, projectId } = await loaded();
+    const sha = 'f'.repeat(40);
+    const { rows } = await db().query<{ id: string }>(
+      "INSERT INTO commit (project_id, sha, committed_at) VALUES ($1, $2, '2024-05-10T12:00:00Z') RETURNING id",
+      [projectId, sha],
+    );
+    await db().query(
+      "INSERT INTO file_commit (file_id, commit_id) SELECT f.id, $2 FROM file f WHERE f.project_id = $1 AND f.path = 'app/Services/PriceCalculator.php'",
+      [projectId, rows[0].id],
+    );
+
+    // Act
+    const report = await impact(store, { projectId, change: Q2, maxHops: 2 });
+
+    // Assert
+    if (report.status !== 'answered') throw new Error(`expected an answered report, got ${report.reason}`);
+    expect(report.docs).toEqual([{ path: 'README.md', stale: true, staleSince: sha }]);
+    expect(report.risk.level).toBe('HIGH');
+    expect(report.risk.rationale).toBe(
+      '10 ficheros afectados, 3 tests que cubren el cambio, 4 elementos directos sin test, 0 elementos directos con cadena solo heurística, 1 documento desalineado.',
+    );
+  });
+
   it('An impact call over the seed writes its row', async () => {
     // Arrange
     const { store, projectId } = await loaded();

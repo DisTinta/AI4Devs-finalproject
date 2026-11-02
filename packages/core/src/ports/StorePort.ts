@@ -4,6 +4,9 @@ import type {
   IndexState,
   Neighbor,
   NodeRef,
+  StoredCoChange,
+  StoredDocumentLink,
+  StoredFileCommit,
   StoredSymbol,
   SymbolSearchOptions,
   TraversalDirection,
@@ -105,6 +108,42 @@ export interface StorePort {
    *   malformed one before querying).
    */
   readIndexState(projectId: string): Promise<IndexState>;
+
+  /**
+   * Reads the stored `co_changed` edges between files with a set `weight`, one of whose ends is a file
+   * at one of `paths` (DIS-94, graph-store requirement "Co-change read"): each as `{ fromPath, toPath,
+   * weight, prNumbers }`, with the distinct pull request numbers, ascending, of the commits linked to
+   * both files. Ordered by `fromPath`, `toPath` in byte order. Writes nothing; a call that passes its
+   * checks is one statement. Checks, in this order: `projectId` well formed (before any statement);
+   * `paths` (`assertValidPaths`); then the project exists. An empty `paths`, or paths that name no
+   * file, give `[]`; a repeated path counts once. Never returns author data nor a commit message.
+   *
+   * @throws ProjectNotFound when `projectId` is malformed or names no project.
+   * @throws InvalidStoreQuery naming `paths` when it is not an array of non-empty strings without NUL.
+   */
+  readCoChanges(projectId: string, paths: string[]): Promise<StoredCoChange[]>;
+
+  /**
+   * Reads the distinct `{ docPath, describedPath }` such that a file of kind `doc` has a `describes`
+   * edge towards the file at `describedPath` (one of `paths`) or towards a symbol of it (graph-store
+   * requirement "Document link read"). Ordered by `docPath`, `describedPath` in byte order. Same
+   * contract, checks and failures as {@link readCoChanges}.
+   *
+   * @throws ProjectNotFound when `projectId` is malformed or names no project.
+   * @throws InvalidStoreQuery naming `paths` when it is invalid.
+   */
+  readDocumentLinks(projectId: string, paths: string[]): Promise<StoredDocumentLink[]>;
+
+  /**
+   * Reads one `{ path, sha, committedAt }` per link between a file at one of `paths` and a commit of
+   * the project with a commit date (graph-store requirement "File commit read"); commits without a date
+   * do not appear. Ordered by `path` (byte order), `committedAt` ascending, `sha` (byte order). Same
+   * contract, checks and failures as {@link readCoChanges}.
+   *
+   * @throws ProjectNotFound when `projectId` is malformed or names no project.
+   * @throws InvalidStoreQuery naming `paths` when it is invalid.
+   */
+  readFileCommits(projectId: string, paths: string[]): Promise<StoredFileCommit[]>;
 
   /**
    * Sums `query_log.cost_usd` over every row created at or after `since`, across every project (the

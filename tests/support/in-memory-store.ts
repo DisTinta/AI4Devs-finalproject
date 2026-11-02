@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import {
   assertValidCacheKey,
+  assertValidPaths,
   assertValidCacheResponse,
   assertValidEntryId,
   assertValidHitInstant,
@@ -34,6 +35,9 @@ import type {
   QueryLogEntry,
   SavedClaim,
   StoredClaim,
+  StoredCoChange,
+  StoredDocumentLink,
+  StoredFileCommit,
   StoredDependency,
   StoredEvidence,
   StoredSymbol,
@@ -84,6 +88,9 @@ export interface InMemoryStore {
     saveCacheEntry: number;
     touchCacheEntry: number;
     invalidateCache: number;
+    readCoChanges: number;
+    readDocumentLinks: number;
+    readFileCommits: number;
   };
   /**
    * Stores a claim as given and returns its id, bypassing the checks of `saveClaims` (so a claim of
@@ -185,6 +192,22 @@ interface StoredEdgeRow {
   resolution: EdgeResolution;
   source: string;
   target: string;
+  weight?: number;
+}
+
+/** A commit of a project as the history reads need it (DIS-94 design D9). */
+interface StoredCommitRow {
+  projectId: string;
+  sha: string;
+  prNumber?: number;
+  committedAt?: Date;
+}
+
+/** A link between a file (by id) and a commit (by sha) of one project. */
+interface StoredFileCommitRow {
+  projectId: string;
+  fileId: string;
+  sha: string;
 }
 
 /** A JSON round trip of `value`, as a `jsonb` column stores and returns it. */
@@ -238,6 +261,8 @@ export function createInMemoryStore({
   const files = new Map<string, StoredFileRow>();
   const symbols = new Map<string, StoredSymbolRow>();
   const edges: StoredEdgeRow[] = [];
+  const commitRows: StoredCommitRow[] = [];
+  const fileCommitRows: StoredFileCommitRow[] = [];
   const claimRows: StoredClaimRow[] = [];
   let lastStamp = STAMP_BASE;
   const queryLogRows: QueryLogEntry[] = [];
@@ -254,6 +279,9 @@ export function createInMemoryStore({
     saveCacheEntry: 0,
     touchCacheEntry: 0,
     invalidateCache: 0,
+    readCoChanges: 0,
+    readDocumentLinks: 0,
+    readFileCommits: 0,
   };
   const projectIds: string[] = [];
   const fileIds: Array<Map<string, string>> = [];
@@ -292,7 +320,25 @@ export function createInMemoryStore({
         ? nodeKey('file', idByPath.get(e.file) as string)
         : nodeKey('symbol', idBySymbol.get(symbolKey(e.symbol)) as string);
     for (const e of graph.edges) {
-      edges.push({ projectId, kind: e.kind, resolution: e.resolution, source: endpoint(e.source), target: endpoint(e.target) });
+      edges.push({
+        projectId,
+        kind: e.kind,
+        resolution: e.resolution,
+        source: endpoint(e.source),
+        target: endpoint(e.target),
+        ...(e.weight !== undefined && { weight: e.weight }),
+      });
+    }
+    for (const c of graph.commits) {
+      commitRows.push({
+        projectId,
+        sha: c.sha,
+        ...(c.prNumber !== undefined && { prNumber: c.prNumber }),
+        ...(c.committedAt !== undefined && { committedAt: c.committedAt }),
+      });
+    }
+    for (const fc of graph.fileCommits) {
+      fileCommitRows.push({ projectId, fileId: idByPath.get(fc.file) as string, sha: fc.sha });
     }
     projectRows.set(projectId, {
       id: projectId,
@@ -313,6 +359,17 @@ export function createInMemoryStore({
     const project = UUID.test(projectId) ? projectRows.get(projectId.toLowerCase()) : undefined;
     if (project === undefined) throw new ProjectNotFound(projectId);
     return project;
+  }
+
+  /**
+   * The checks every history read makes, in the order of the contract (DIS-94 design D3): a malformed
+   * id fails with `ProjectNotFound`, then `paths`, then an unknown id fails with `ProjectNotFound`.
+   * Returns the project and the distinct paths asked for.
+   */
+  function historyArguments(projectId: string, paths: string[]): { project: Project; wanted: Set<string> } {
+    if (!UUID.test(projectId)) throw new ProjectNotFound(projectId);
+    assertValidPaths(paths);
+    return { project: projectOf(projectId), wanted: new Set(paths) };
   }
 
   /** The node of the project with key `key`, or `undefined`. */
@@ -578,6 +635,66 @@ export function createInMemoryStore({
           ...claim,
           evidence: [...claim.evidence].sort((a, b) => a.startLine - b.startLine || byteOrder(a.id, b.id)),
         }));
+    },
+
+    async readCoChanges(projectId: string, paths: string[]): Promise<StoredCoChange[]> {
+      calls.readCoChanges += 1;
+      const { project, wanted } = historyArguments(projectId, paths);
+      const commitsOf = (fileId: string): Set<string> =>
+        new Set(fileCommitRows.filter((row) => row.projectId === project.id && row.fileId === fileId).map((row) => row.sha));
+      const rows: StoredCoChange[] = [];
+      for (const e of edges) {
+        if (e.projectId !== project.id || e.kind !== 'co_changed' || e.weight === undefined) continue;
+        const from = nodeOf(project.id, e.source);
+        const to = nodeOf(project.id, e.target);
+        if (from?.type !== 'file' || to?.type !== 'file') continue;
+        if (!wanted.has(from.path) && !wanted.has(to.path)) continue;
+        const shared = commitsOf(from.id);
+        const toCommits = commitsOf(to.id);
+        const prs = new Set<number>();
+        for (const row of commitRows) {
+          if (row.projectId === project.id && row.prNumber !== undefined && shared.has(row.sha) && toCommits.has(row.sha)) {
+            prs.add(row.prNumber);
+          }
+        }
+        rows.push({ fromPath: from.path, toPath: to.path, weight: e.weight, prNumbers: [...prs].sort((a, b) => a - b) });
+      }
+      return rows.sort((a, b) => byteOrder(a.fromPath, b.fromPath) || byteOrder(a.toPath, b.toPath));
+    },
+
+    async readDocumentLinks(projectId: string, paths: string[]): Promise<StoredDocumentLink[]> {
+      calls.readDocumentLinks += 1;
+      const { project, wanted } = historyArguments(projectId, paths);
+      const pathOfNode = (key: string): string | undefined => {
+        const node = nodeOf(project.id, key);
+        return node === undefined ? undefined : node.type === 'file' ? node.path : node.file;
+      };
+      const links = new Map<string, StoredDocumentLink>();
+      for (const e of edges) {
+        if (e.projectId !== project.id || e.kind !== 'describes') continue;
+        const source = nodeOf(project.id, e.source);
+        if (source?.type !== 'file' || source.kind !== 'doc') continue;
+        const describedPath = pathOfNode(e.target);
+        if (describedPath === undefined || !wanted.has(describedPath)) continue;
+        links.set(`${source.path}\0${describedPath}`, { docPath: source.path, describedPath });
+      }
+      return [...links.values()].sort((a, b) => byteOrder(a.docPath, b.docPath) || byteOrder(a.describedPath, b.describedPath));
+    },
+
+    async readFileCommits(projectId: string, paths: string[]): Promise<StoredFileCommit[]> {
+      calls.readFileCommits += 1;
+      const { project, wanted } = historyArguments(projectId, paths);
+      const rows: StoredFileCommit[] = [];
+      for (const link of fileCommitRows) {
+        const file = files.get(link.fileId);
+        if (link.projectId !== project.id || file === undefined || !wanted.has(file.path)) continue;
+        const found = commitRows.find((c) => c.projectId === project.id && c.sha === link.sha);
+        if (found?.committedAt === undefined) continue;
+        rows.push({ path: file.path, sha: found.sha, committedAt: new Date(found.committedAt.getTime()) });
+      }
+      return rows.sort(
+        (a, b) => byteOrder(a.path, b.path) || a.committedAt.getTime() - b.committedAt.getTime() || byteOrder(a.sha, b.sha),
+      );
     },
 
     async findSymbols(projectId: string, name: string, options: SymbolSearchOptions = {}): Promise<StoredSymbol[]> {

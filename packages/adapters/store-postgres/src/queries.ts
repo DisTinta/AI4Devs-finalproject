@@ -144,6 +144,71 @@ export const INDEX_STATE_DEPENDENCIES = `
     ) d
    ORDER BY d.from_path COLLATE "C", d.to_path COLLATE "C", d.kind COLLATE "C"`;
 
+// --- History reads (DIS-94 design D3). Each is one statement that starts from the project row and
+// LEFT JOINs a lateral subquery, so zero rows means no project and one row with NULL columns means no
+// result. `file`, `edge` and `commit` are each filtered by the project: nothing in the schema stops a
+// `file_commit` row from joining a file and a commit of two projects.
+
+/**
+ * The `co_changed` edges between two files of the project with a set weight, one of whose ends is at
+ * one of `$2`, with the distinct pull request numbers of the commits linked to both files; by from
+ * path, then to path, in byte order.
+ */
+export const CO_CHANGES = `
+  SELECT p.id AS project_id, c.from_path, c.to_path, c.weight, c.pr_numbers
+    FROM project p
+    LEFT JOIN LATERAL (
+      SELECT ff.path AS from_path, tf.path AS to_path, e.weight,
+             COALESCE((SELECT array_agg(DISTINCT cm.pr_number ORDER BY cm.pr_number)
+                         FROM file_commit a
+                         JOIN file_commit b ON b.commit_id = a.commit_id
+                         JOIN commit cm ON cm.id = a.commit_id AND cm.project_id = $1
+                        WHERE a.file_id = ff.id AND b.file_id = tf.id AND cm.pr_number IS NOT NULL),
+                      '{}')::integer[] AS pr_numbers
+        FROM edge e
+        JOIN file ff ON ff.id = e.source_file_id AND ff.project_id = $1
+        JOIN file tf ON tf.id = e.target_file_id AND tf.project_id = $1
+       WHERE e.project_id = $1 AND e.kind = 'co_changed' AND e.weight IS NOT NULL
+         AND (ff.path = ANY($2::text[]) OR tf.path = ANY($2::text[]))
+    ) c ON true
+   WHERE p.id = $1
+   ORDER BY c.from_path COLLATE "C", c.to_path COLLATE "C"`;
+
+/**
+ * The distinct `describes` links from a file of kind `doc` to a file at one of `$2`, or to a symbol of
+ * it; by doc path, then described path, in byte order.
+ */
+export const DOCUMENT_LINKS = `
+  SELECT p.id AS project_id, d.doc_path, d.described_path
+    FROM project p
+    LEFT JOIN LATERAL (
+      SELECT DISTINCT df.path AS doc_path, tf.path AS described_path
+        FROM edge e
+        JOIN file df ON df.id = e.source_file_id AND df.project_id = $1 AND df.kind = 'doc'
+        LEFT JOIN symbol ts ON ts.id = e.target_symbol_id
+        JOIN file tf ON tf.id = COALESCE(e.target_file_id, ts.file_id) AND tf.project_id = $1
+       WHERE e.project_id = $1 AND e.kind = 'describes' AND tf.path = ANY($2::text[])
+    ) d ON true
+   WHERE p.id = $1
+   ORDER BY d.doc_path COLLATE "C", d.described_path COLLATE "C"`;
+
+/**
+ * One row per link between a file at one of `$2` and a dated commit of the project; by path (byte
+ * order), commit date, sha (byte order). Neither the message nor the author is selected.
+ */
+export const FILE_COMMITS = `
+  SELECT p.id AS project_id, x.path, x.sha, x.committed_at
+    FROM project p
+    LEFT JOIN LATERAL (
+      SELECT f.path, cm.sha, cm.committed_at
+        FROM file f
+        JOIN file_commit fc ON fc.file_id = f.id
+        JOIN commit cm ON cm.id = fc.commit_id AND cm.project_id = $1
+       WHERE f.project_id = $1 AND f.path = ANY($2::text[]) AND cm.committed_at IS NOT NULL
+    ) x ON true
+   WHERE p.id = $1
+   ORDER BY x.path COLLATE "C", x.committed_at, x.sha COLLATE "C"`;
+
 /**
  * Sum of `query_log.cost_usd` of every project from `$1` on; `NULL` costs are ignored and no row
  * gives `0`. Cast to text so the exact `numeric` reaches the adapter, which converts it to a number.

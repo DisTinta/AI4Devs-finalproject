@@ -388,11 +388,19 @@ TESTS
   OrderPricingTest  tests/Feature/OrderPricingTest.php  [grafo]
   PriceCalculatorTest  tests/Unit/PriceCalculatorTest.php  [grafo]
 
+DOCUMENTACIÓN
+  README.md  al día
+
+HISTORIAL
+  app/Services/ShippingService.php  co-cambia 100 %  PR #24, #33, #55  [git]
+
 RIESGO HIGH
 10 ficheros afectados, 3 tests que cubren el cambio, 4 elementos directos sin test, 0 elementos directos con cadena solo heurística.
 ```
 
-El nivel es `HIGH` porque cuatro de los seis componentes directos no tienen un test (`tested_by`): la clase de evento, su listener y los dos ficheros de service providers. La regla es la de PH-15: `HIGH` si algún directo no tiene test o solo se alcanza por cadenas heurísticas, `LOW` si todos tienen test y son `exact`, `MEDIUM` en otro caso. Nota sobre el texto: el literal «cambiar el cálculo de descuentos» no ancla `DiscountService` (el ancla es léxico: `descu` no es `disco`), por eso la demo usa «cambiar los descuentos de DiscountService». `task-api` está en la semilla con tres preguntas golden (la de arriba es la primera; las otras dos son «¿Qué hace buildPage con los resultados paginados?» y «¿Qué transiciones de estado son válidas?»), así que en modo evaluación `ask task-api …` las responde desde la caché; una pregunta sin ancla, como «¿Cómo se autentican los usuarios?», responde `UNKNOWN (no-anchor)`.
+`DOCUMENTACIÓN` (DIS-94) lista los documentos con una arista `describes` hacia el código del informe y dice si están `al día` o `desactualizado desde <sha>` (un commit del código descrito posterior al último que tocó el documento; se compara por fecha de commit). `HISTORIAL` (DIS-94) lista los ficheros que co-cambian con los del ancla en el historial de Git, con el porcentaje de co-cambio y las PR; es la señal `[git]`, separada de la del grafo.
+
+El nivel es `HIGH` porque cuatro de los seis componentes directos no tienen un test (`tested_by`): la clase de evento, su listener y los dos ficheros de service providers. La regla es la de PH-15: `HIGH` si algún directo no tiene test o solo se alcanza por cadenas heurísticas, `LOW` si todos tienen test y son `exact`, `MEDIUM` en otro caso. Desde DIS-94, un documento desactualizado convierte un `LOW` en `MEDIUM` (nunca cambia un `HIGH` ni un `MEDIUM`), y la rationale añade `, <n> documento(s) desalineado(s)` solo cuando hay alguno. Nota sobre el texto: el literal «cambiar el cálculo de descuentos» no ancla `DiscountService` (el ancla es léxico: `descu` no es `disco`), por eso la demo usa «cambiar los descuentos de DiscountService». `task-api` está en la semilla con tres preguntas golden (la de arriba es la primera; las otras dos son «¿Qué hace buildPage con los resultados paginados?» y «¿Qué transiciones de estado son válidas?»), así que en modo evaluación `ask task-api …` las responde desde la caché; una pregunta sin ancla, como «¿Cómo se autentican los usuarios?», responde `UNKNOWN (no-anchor)`.
 
 #### Camino completo — indexar tu propio repositorio o pregunta libre
 

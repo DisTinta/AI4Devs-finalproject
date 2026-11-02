@@ -19,7 +19,25 @@ import { NEIGHBORS } from '../../../packages/adapters/store-postgres/src/queries
 import { describeWithDatabase, useTransactionPerTest } from '../helpers/db';
 import { unique } from '../helpers/factories';
 import { inOwnSnapshot } from '../helpers/snapshot';
-import { edge, file, ref, sampleGraph, SHA, symbol } from '../../support/sample-graph';
+import { commit, edge, file, fileCommit, ref, sampleGraph, SHA, symbol } from '../../support/sample-graph';
+import { coChangeGraph, documentLinkGraph, fileCommitGraph, sha } from '../../support/history-graphs';
+
+/** The three history reads of `store`, as functions of the project id and the paths. */
+function historyReads(store: StorePort): Array<(projectId: string, paths: string[]) => Promise<unknown[]>> {
+  return [
+    (projectId, paths) => store.readCoChanges(projectId, paths),
+    (projectId, paths) => store.readDocumentLinks(projectId, paths),
+    (projectId, paths) => store.readFileCommits(projectId, paths),
+  ];
+}
+
+/** The rejection of `call`, or `undefined` when it resolves. */
+async function rejectionOf(call: () => Promise<unknown>): Promise<unknown> {
+  return call().then(
+    () => undefined,
+    (rejection: unknown) => rejection,
+  );
+}
 
 // Spec: openspec/changes/store-graph-read/specs/graph-store/spec.md, with the traversal direction and
 // the symbol's file id of openspec/changes/context-engine-anchor-expand/specs/graph-store/spec.md
@@ -1179,6 +1197,234 @@ describeWithDatabase('graph store reads (DIS-24)', () => {
       expect(error).toBeInstanceOf(InvalidStoreQuery);
       expect((error as InvalidStoreQuery).argument).toBe('since');
       expect(statements()).toBe(0);
+    });
+
+    it('Invalid history read paths are rejected before querying', async () => {
+      // Arrange: a saved project, so only the argument check can produce InvalidStoreQuery.
+      const { writer, reader, statements } = stores();
+      const projectId = await projectWith(writer, coChangeGraph());
+      const before = statements();
+      const invalid: unknown[] = ['a.php', [42], [''], ['a\u0000.php']];
+
+      // Act / Assert
+      for (const paths of invalid) {
+        for (const read of historyReads(reader)) {
+          const error = await rejectionOf(() => read(projectId, paths as string[]));
+          expect(error).toBeInstanceOf(InvalidStoreQuery);
+          expect((error as InvalidStoreQuery).argument).toBe('paths');
+        }
+      }
+      expect(statements()).toBe(before);
+    });
+  });
+
+  // DIS-94 (openspec/changes/impact-history-docs/specs/graph-store/spec.md): the three history reads.
+  describe('Requirement: Co-change read', () => {
+    it('Co-changes are read from either end with their pull requests', async () => {
+      // Arrange
+      const { writer, reader } = stores();
+      const projectId = await projectWith(writer, coChangeGraph());
+
+      // Act
+      const first = await reader.readCoChanges(projectId, ['a.php']);
+      const second = await reader.readCoChanges(projectId, ['b.php']);
+
+      // Assert
+      const aToB = { fromPath: 'a.php', toPath: 'b.php', weight: 0.5, prNumbers: [2, 4] };
+      expect(first).toEqual([aToB, { fromPath: 'c.php', toPath: 'a.php', weight: 1, prNumbers: [9] }]);
+      expect(second).toEqual([aToB]);
+      for (const row of first) expect(Object.keys(row).sort()).toEqual(['fromPath', 'prNumbers', 'toPath', 'weight']);
+    });
+
+    it('Edges of other kinds are not co-changes', async () => {
+      // Arrange
+      const { writer, reader } = stores();
+      const s = symbol('a.php', 'S', 1);
+      const t = symbol('b.php', 'T', 1);
+      const graph: KnowledgeGraph = {
+        files: [file('a.php'), file('b.php'), file('test/b.php', { kind: 'test' }), file('docs/a.md', { kind: 'doc' })],
+        symbols: [s, t],
+        edges: [
+          edge({ file: 'a.php' }, { file: 'b.php' }, { kind: 'imports' }),
+          edge({ symbol: ref(s) }, { symbol: ref(t) }, { kind: 'calls' }),
+          edge({ file: 'b.php' }, { file: 'test/b.php' }, { kind: 'tested_by' }),
+          edge({ file: 'docs/a.md' }, { symbol: ref(s) }, { kind: 'describes' }),
+        ],
+        commits: [],
+        fileCommits: [],
+      };
+      const projectId = await projectWith(writer, graph);
+
+      // Act
+      const rows = await reader.readCoChanges(projectId, ['a.php', 'b.php']);
+
+      // Assert
+      expect(rows).toEqual([]);
+    });
+
+    it('A co-change without weight is not read', async () => {
+      // Arrange
+      const { writer, reader } = stores();
+      const graph: KnowledgeGraph = {
+        files: [file('a.php'), file('b.php')],
+        symbols: [],
+        edges: [edge({ file: 'a.php' }, { file: 'b.php' }, { kind: 'co_changed' })],
+        commits: [],
+        fileCommits: [],
+      };
+      const projectId = await projectWith(writer, graph);
+
+      // Act
+      const rows = await reader.readCoChanges(projectId, ['a.php']);
+
+      // Assert
+      expect(rows).toEqual([]);
+    });
+  });
+
+  describe('Requirement: Document link read', () => {
+    it('Document links are read through files and symbols', async () => {
+      // Arrange
+      const { writer, reader } = stores();
+      const projectId = await projectWith(writer, documentLinkGraph());
+
+      // Act
+      const all = await reader.readDocumentLinks(projectId, ['a.php', 'b.php', 'c.php']);
+      const some = await reader.readDocumentLinks(projectId, ['a.php', 'b.php']);
+
+      // Assert
+      expect(all).toEqual([
+        { docPath: 'README.md', describedPath: 'a.php' },
+        { docPath: 'README.md', describedPath: 'b.php' },
+        { docPath: 'docs/x.md', describedPath: 'c.php' },
+      ]);
+      expect(some).toEqual([
+        { docPath: 'README.md', describedPath: 'a.php' },
+        { docPath: 'README.md', describedPath: 'b.php' },
+      ]);
+    });
+  });
+
+  describe('Requirement: File commit read', () => {
+    it('Dated commits of each path are read in order', async () => {
+      // Arrange
+      const { writer, reader } = stores();
+      const projectId = await projectWith(writer, fileCommitGraph());
+
+      // Act
+      const rows = await reader.readFileCommits(projectId, ['a.php', 'b.php']);
+
+      // Assert
+      expect(rows).toEqual([
+        { path: 'a.php', sha: sha('k2'), committedAt: new Date('2024-01-01T00:00:00Z') },
+        { path: 'a.php', sha: sha('k1'), committedAt: new Date('2024-01-02T00:00:00Z') },
+        { path: 'b.php', sha: sha('k1'), committedAt: new Date('2024-01-02T00:00:00Z') },
+      ]);
+      for (const row of rows) {
+        expect(row.committedAt).toBeInstanceOf(Date);
+        expect(Object.keys(row).sort()).toEqual(['committedAt', 'path', 'sha']);
+      }
+    });
+  });
+
+  describe('Requirement: Contract of the history reads', () => {
+    it('The history reads of an unknown project fail', async () => {
+      // Arrange
+      const { reader, statements } = stores();
+      const reads = historyReads(reader);
+
+      // Act / Assert
+      for (const read of reads) {
+        for (const paths of [['a.php'], []]) {
+          const unknown = await rejectionOf(() => read(randomUUID(), paths));
+          expect(unknown).toBeInstanceOf(ProjectNotFound);
+          const before = statements();
+          const malformed = await rejectionOf(() => read('not-a-uuid', paths));
+          expect(malformed).toBeInstanceOf(ProjectNotFound);
+          expect(statements()).toBe(before);
+        }
+      }
+    });
+
+    it('Each history read is one statement', async () => {
+      // Arrange: a project with three files, a co_changed edge, a describes edge and two commits.
+      const { writer, reader, statements } = stores();
+      const graph: KnowledgeGraph = {
+        files: [file('a.php'), file('b.php'), file('README.md', { kind: 'doc' })],
+        symbols: [],
+        edges: [
+          edge({ file: 'a.php' }, { file: 'b.php' }, { kind: 'co_changed', weight: 1 }),
+          edge({ file: 'README.md' }, { file: 'a.php' }, { kind: 'describes' }),
+        ],
+        commits: [commit(sha('k1'), { committedAt: new Date('2024-01-01T00:00:00Z') }), commit(sha('k2'), { prNumber: 3 })],
+        fileCommits: [fileCommit('a.php', sha('k1')), fileCommit('b.php', sha('k2'))],
+      };
+      const projectId = await projectWith(writer, graph);
+      const paths = ['a.php', 'b.php', 'README.md'];
+
+      // Act / Assert
+      for (const read of historyReads(reader)) {
+        const before = statements();
+        await read(projectId, paths);
+        expect(statements() - before).toBe(1);
+      }
+    });
+
+    it('Empty and unknown paths give empty history reads', async () => {
+      // Arrange
+      const { writer, reader } = stores();
+      const projectId = await projectWith(writer, coChangeGraph());
+      const reads = historyReads(reader);
+
+      // Act / Assert
+      for (const read of reads) {
+        expect(await read(projectId, [])).toEqual([]);
+        expect(await read(projectId, ['nope.php'])).toEqual([]);
+        expect(await read(projectId, ['a.php', 'a.php'])).toEqual(await read(projectId, ['a.php']));
+      }
+    });
+
+    it("The history reads never hold another project's rows", async () => {
+      // Arrange: the second project has the same files and edges plus a commit, `c.php` and a document.
+      const { writer, reader } = stores();
+      const shared = (): KnowledgeGraph => ({
+        files: [file('a.php'), file('b.php'), file('README.md', { kind: 'doc' })],
+        symbols: [],
+        edges: [
+          edge({ file: 'a.php' }, { file: 'b.php' }, { kind: 'co_changed', weight: 0.5 }),
+          edge({ file: 'README.md' }, { file: 'a.php' }, { kind: 'describes' }),
+        ],
+        commits: [],
+        fileCommits: [],
+      });
+      const first = await projectWith(writer, shared());
+      const base = shared();
+      const second = await projectWith(writer, {
+        ...base,
+        files: [...base.files, file('c.php'), file('docs/second.md', { kind: 'doc' })],
+        edges: [
+          ...base.edges,
+          edge({ file: 'a.php' }, { file: 'c.php' }, { kind: 'co_changed', weight: 0.9 }),
+          edge({ file: 'docs/second.md' }, { file: 'a.php' }, { kind: 'describes' }),
+        ],
+        commits: [commit(sha('s77'), { prNumber: 77, committedAt: new Date('2024-02-01T00:00:00Z') })],
+        fileCommits: [fileCommit('a.php', sha('s77')), fileCommit('b.php', sha('s77'))],
+      });
+      const { rows } = await db().query<{ id: string }>('SELECT id FROM commit WHERE project_id = $1', [second]);
+      for (const path of ['a.php', 'b.php']) {
+        await db().query('INSERT INTO file_commit (file_id, commit_id) VALUES ($1, $2)', [await fileId(first, path), rows[0].id]);
+      }
+
+      // Act
+      const paths = ['a.php', 'b.php'];
+      const coChanges = await reader.readCoChanges(first, paths);
+      const links = await reader.readDocumentLinks(first, paths);
+      const commits = await reader.readFileCommits(first, paths);
+
+      // Assert
+      expect(coChanges).toEqual([{ fromPath: 'a.php', toPath: 'b.php', weight: 0.5, prNumbers: [] }]);
+      expect(links).toEqual([{ docPath: 'README.md', describedPath: 'a.php' }]);
+      expect(commits).toEqual([]);
     });
   });
 });

@@ -17,6 +17,7 @@ import type {
 import { createInMemoryStore } from '../../support/in-memory-store';
 import type { InMemoryStore } from '../../support/in-memory-store';
 import { edge, file, ref, symbol } from '../../support/sample-graph';
+import { coChangeGraph, documentLinkGraph, fileCommitGraph, sha } from '../../support/history-graphs';
 
 // The in-memory StorePort double (DIS-27 design D6) runs the read scenarios of the graph-store
 // spec (openspec/changes/context-engine-anchor-expand/specs/graph-store/spec.md). Each test is named
@@ -704,6 +705,92 @@ describe('in-memory StorePort double', () => {
       // Assert
       expect(error).toBeInstanceOf(InvalidStoreQuery);
       expect((error as InvalidStoreQuery).argument).toBe('direction');
+    });
+  });
+
+  // DIS-94 (openspec/changes/impact-history-docs/specs/graph-store/spec.md): the three history reads
+  // of the double, with the contract of the Postgres adapter.
+  describe('Requirement: Contract of the history reads', () => {
+    it('The in-memory double reads the same history', async () => {
+      // Arrange: the graphs of the three data scenarios, and an id the double does not hold.
+      const coChange = single(coChangeGraph());
+      const links = single(documentLinkGraph());
+      const commits = single(fileCommitGraph());
+      const unknown = randomUUID();
+
+      // Act
+      const first = await coChange.store.readCoChanges(coChange.projectId, ['a.php']);
+      const second = await coChange.store.readCoChanges(coChange.projectId, ['b.php']);
+      const allLinks = await links.store.readDocumentLinks(links.projectId, ['a.php', 'b.php', 'c.php']);
+      const someLinks = await links.store.readDocumentLinks(links.projectId, ['a.php', 'b.php']);
+      const fileCommits = await commits.store.readFileCommits(commits.projectId, ['a.php', 'b.php']);
+
+      // Assert
+      const aToB = { fromPath: 'a.php', toPath: 'b.php', weight: 0.5, prNumbers: [2, 4] };
+      expect(first).toEqual([aToB, { fromPath: 'c.php', toPath: 'a.php', weight: 1, prNumbers: [9] }]);
+      expect(second).toEqual([aToB]);
+      expect(allLinks).toEqual([
+        { docPath: 'README.md', describedPath: 'a.php' },
+        { docPath: 'README.md', describedPath: 'b.php' },
+        { docPath: 'docs/x.md', describedPath: 'c.php' },
+      ]);
+      expect(someLinks).toEqual([
+        { docPath: 'README.md', describedPath: 'a.php' },
+        { docPath: 'README.md', describedPath: 'b.php' },
+      ]);
+      expect(fileCommits).toEqual([
+        { path: 'a.php', sha: sha('k2'), committedAt: new Date('2024-01-01T00:00:00Z') },
+        { path: 'a.php', sha: sha('k1'), committedAt: new Date('2024-01-02T00:00:00Z') },
+        { path: 'b.php', sha: sha('k1'), committedAt: new Date('2024-01-02T00:00:00Z') },
+      ]);
+      for (const row of first) expect(Object.keys(row).sort()).toEqual(['fromPath', 'prNumbers', 'toPath', 'weight']);
+      for (const call of [
+        () => coChange.store.readCoChanges(unknown, ['a.php']),
+        () => links.store.readDocumentLinks(unknown, ['a.php']),
+        () => commits.store.readFileCommits(unknown, ['a.php']),
+      ]) {
+        expect(await rejectionOf(call)).toBeInstanceOf(ProjectNotFound);
+      }
+      expect(coChange.calls.readCoChanges).toBe(3);
+    });
+
+    it('The double checks the history read arguments in the order of the contract (extra cases)', async () => {
+      // Arrange
+      const { store, projectId, calls } = single(coChangeGraph());
+      const invalid: unknown[] = ['a.php', [42], [''], ['a\u0000.php']];
+
+      // Act / Assert: invalid paths of a known project name `paths`.
+      for (const paths of invalid) {
+        const error = await rejectionOf(() => store.readCoChanges(projectId, paths as string[]));
+        expect(error).toBeInstanceOf(InvalidStoreQuery);
+        expect((error as InvalidStoreQuery).argument).toBe('paths');
+      }
+      // An unknown or malformed id fails with ProjectNotFound, also with an empty paths.
+      expect(await rejectionOf(() => store.readDocumentLinks(randomUUID(), []))).toBeInstanceOf(ProjectNotFound);
+      expect(await rejectionOf(() => store.readFileCommits('not-a-uuid', []))).toBeInstanceOf(ProjectNotFound);
+      // A malformed id wins over invalid paths; a well-formed unknown id does not.
+      expect(await rejectionOf(() => store.readCoChanges('not-a-uuid', [42] as unknown as string[]))).toBeInstanceOf(ProjectNotFound);
+      expect(await rejectionOf(() => store.readCoChanges(randomUUID(), [42] as unknown as string[]))).toBeInstanceOf(InvalidStoreQuery);
+      // Empty paths of a known project, and a path given twice.
+      expect(await store.readCoChanges(projectId, [])).toEqual([]);
+      expect(await store.readCoChanges(projectId, ['a.php', 'a.php'])).toEqual(await store.readCoChanges(projectId, ['a.php']));
+      expect(calls.readCoChanges).toBeGreaterThan(0);
+    });
+
+    it('The double reads no co-change without weight and no author data (extra cases)', async () => {
+      // Arrange: the co-change graph with the edge a→b stripped of its weight.
+      const graph = coChangeGraph();
+      graph.edges[0] = edge({ file: 'a.php' }, { file: 'b.php' }, { kind: 'co_changed' });
+      const { store, projectId } = single(graph);
+
+      // Act
+      const rows = await store.readCoChanges(projectId, ['a.php', 'b.php', 'c.php']);
+      const dated = single(fileCommitGraph());
+      const commits = await dated.store.readFileCommits(dated.projectId, ['a.php']);
+
+      // Assert
+      expect(rows).toEqual([{ fromPath: 'c.php', toPath: 'a.php', weight: 1, prNumbers: [9] }]);
+      expect(JSON.stringify([rows, commits])).not.toMatch(/author|message/i);
     });
   });
 

@@ -91,6 +91,7 @@
 74. [Quitar la carrera del test «Every connection is released after a run» (DIS-110)](#74-quitar-la-carrera-del-test-every-connection-is-released-after-a-run-dis-110)
 76. [Grafo de impacto: dependientes y tests de un cambio desde el grafo determinista (DIS-89)](#76-grafo-de-impacto-dependientes-y-tests-de-un-cambio-desde-el-grafo-determinista-dis-89)
 77. [Riesgo, fila de `query_log` y comando `impact` (DIS-90)](#77-riesgo-fila-de-query_log-y-comando-impact-dis-90)
+78. [Historial por co-cambio y documentación con `stale` en el informe de impacto (DIS-94)](#78-historial-por-co-cambio-y-documentación-con-stale-en-el-informe-de-impacto-dis-94)
 
 ---
 
@@ -5475,3 +5476,23 @@ cumplirla (texto del agente).
 y la lectura de cobertura de una vez, y los tests de las tareas 1.2b a 1.9 se escribieron después de ese
 código, no antes: el informe del paso 8 lo dice. Stryker enseñó varios mutantes vivos en las semillas
 que posee cada componente directo y llevaron a tres tests más.
+
+# 78. Historial por co-cambio y documentación con `stale` en el informe de impacto (DIS-94)
+
+### Prompt 1 — Paso de apply del cambio `impact-history-docs` en la ejecución autónoma
+
+Extracto literal del encargo que recibió el subagente:
+
+```
+Run /opsx:apply on change impact-history-docs: every task in TDD (failing test first, then implementation, in the layer order), marking tasks.md as you go, with the mandatory verification steps. Run the tests, lint and typecheck. Commit, push and open the PR to final-project-CRN with /pr-describe (write the "why" yourself and mark it as agent-written). Return pr.
+```
+
+**Por qué funcionó.** El `tasks.md` traía las tres lecturas del puerto, las dos funciones puras del núcleo y
+la forma exacta de cada salida, así que el agente solo tenía que cumplirlas capa a capa (texto del agente).
+
+**Ajuste humano.** Ninguno: ejecución autónoma (texto del agente). Dos cosas no estaban en el plan: los
+directorios `knowledge/` y `store-postgres/src` alimentan la huella del analizador, así que hizo falta
+`npm run seed:build` y refrescar a mano `seed.analyzerFingerprint` de los dos ficheros golden (sin
+`cache:build`, que necesita el modelo y el panel); y varios tests de los pasos 3 a 5 se escribieron justo
+después de la implementación y no antes. Stryker enseñó siete mutantes vivos en `history.ts`,
+`doc-staleness.ts` y `risk.ts`, que llevaron a cuatro tests más.

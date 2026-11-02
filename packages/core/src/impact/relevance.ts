@@ -5,6 +5,9 @@ import type { Neighbor, StoredSymbol } from '../knowledge/graph-read.js';
 import type { ImpactEntry, ImpactTestEntry } from './impact-report.js';
 import type { ReportBody } from './risk.js';
 
+/** The lists of a report that the graph walk gives; `docs` and `history` are added after (DIS-94 design D7). */
+export type ReportLists = Pick<ReportBody, 'status' | 'direct' | 'indirect' | 'tests'>;
+
 // The component as the unit of the report, its classification and its order (DIS-89 design D3, D4,
 // D5). A lexicographic key without weights, as `context/rank.ts`: every position can be explained.
 
@@ -158,7 +161,7 @@ export function buildReport(
   terms: readonly string[],
   walked: readonly Component[],
   found: readonly TestComponent[],
-): ReportBody {
+): ReportLists {
   const filesWithSymbols = new Set(
     [...walked, ...found].filter((component) => !component.fileNode).map((component) => component.fileId),
   );

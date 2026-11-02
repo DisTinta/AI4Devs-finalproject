@@ -7,6 +7,9 @@ import type {
   Project,
   ProjectFramework,
   ProjectLanguage,
+  StoredCoChange,
+  StoredDocumentLink,
+  StoredFileCommit,
   StoredSymbol,
   SymbolKind,
 } from '@codemind/core';
@@ -125,4 +128,54 @@ export function toNeighbor(row: NeighborRow): Neighbor {
     return { type: 'file', id: row.id as string, path: row.path as string, kind: row.file_kind as FileKind, distance, resolution };
   }
   return { type: 'symbol', ...toStoredSymbol(row), distance, resolution };
+}
+
+/** A row of the co-change statement: the project id plus an edge (`NULL` columns when none matched). */
+export interface CoChangeRow {
+  project_id: string;
+  from_path: string | null;
+  to_path: string | null;
+  weight: number | null;
+  pr_numbers: number[] | null;
+}
+
+/** Maps the rows of the co-change statement, dropping the row that only proves the project exists. */
+export function toCoChanges(rows: CoChangeRow[]): StoredCoChange[] {
+  return rows
+    .filter((row) => row.from_path !== null)
+    .map((row) => ({
+      fromPath: row.from_path as string,
+      toPath: row.to_path as string,
+      weight: row.weight as number,
+      prNumbers: row.pr_numbers ?? [],
+    }));
+}
+
+/** A row of the document link statement (`NULL` paths when none matched). */
+export interface DocumentLinkRow {
+  project_id: string;
+  doc_path: string | null;
+  described_path: string | null;
+}
+
+/** Maps the rows of the document link statement, dropping the row that only proves the project exists. */
+export function toDocumentLinks(rows: DocumentLinkRow[]): StoredDocumentLink[] {
+  return rows
+    .filter((row) => row.doc_path !== null)
+    .map((row) => ({ docPath: row.doc_path as string, describedPath: row.described_path as string }));
+}
+
+/** A row of the file commit statement (`NULL` columns when none matched). */
+export interface FileCommitRow {
+  project_id: string;
+  path: string | null;
+  sha: string | null;
+  committed_at: Date | null;
+}
+
+/** Maps the rows of the file commit statement, dropping the row that only proves the project exists. */
+export function toFileCommits(rows: FileCommitRow[]): StoredFileCommit[] {
+  return rows
+    .filter((row) => row.path !== null)
+    .map((row) => ({ path: row.path as string, sha: row.sha as string, committedAt: row.committed_at as Date }));
 }
