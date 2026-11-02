@@ -16,12 +16,35 @@ problemas conocidos) están en `docs/project-context.md` → Testing; la CI se d
 | Integración | `npm test` con `DATABASE_URL` (abajo) | `tests/integration/`, arnés en `tests/integration/helpers/db.ts` | `CI` → `quality`, sobre su propia base de datos `test` |
 | Hooks del kit | `npx vitest run tests/harness` | `tests/harness/`: ejecuta los scripts reales de `.claude/hooks/` en un proyecto temporal (`support/run-hook.ts`), con `gh`, `claude` y `docker` simulados y un registro npm local; en Windows, `%TEMP%\harness-*` excluido de Defender. Ver `docs/AUTONOMOUS-RUN.md` | `CI` → `quality` (Ubuntu); fuera de Stryker |
 | Mutación | `npm run test:mutation` | `stryker.config.json`: muta los fuentes de `packages/core`, `packages/cli` y `packages/api` contra los specs unitarios (`vitest.stryker.config.ts`) | `CI` → `mutation`, falla por debajo de una puntuación de 80 |
+| Cobertura | `npm run test:coverage` | `vitest.config.ts` → `test.coverage` (V8, sin umbrales), resumen por paquete con `scripts/coverage-summary.mjs`; informativa, ver [Cobertura](#cobertura) | `CI` → `quality` (paso `Coverage summary (informative)`) |
 | Humo | `npm run verify` | `packages/cli/src/verify.ts`, respuestas golden en `seeds/cache/` | `CI` → `verify`, sobre su propia base de datos `verify` |
 | Estático | `npm run lint`, `npm run typecheck` | ESLint y `tsc` sobre los workspaces y `tests/` | `CI` → `quality`; `Frontend` |
 | Documentación | `npm run docs:coverage` | TypeDoc falla ante un export sin documentar | Solo en local |
 | Secretos | `gitleaks dir . --config .gitleaks.toml` (con gitleaks instalado) | `.gitleaks.toml`, `.gitleaksignore` | `CI` → `secrets` |
 | Accesibilidad | `npm run test:a11y` | `tests/a11y/smoke.a11y.test.tsx` (jsdom): axe sobre el documento entero en `/`, `/p/<id de acme-shop>` y una ruta desconocida de la tabla real de rutas, más un control negativo; el contraste lo comprueba `packages/web/src/theme.test.ts` (axe en jsdom no puede) | `Frontend`; `CI` → `quality` (la suite entera) |
 | Extremo a extremo | `npm run test:e2e` | `tests/e2e/`: `ask-flow`, `unknown`, `impact-flow` y `ask-page.a11y` (axe en Chromium a 320 y 1280 px), contra la API y la web que arranca la propia suite sobre la semilla, en modo evaluación (`playwright.config.ts`) | `CI` → `e2e`, sobre su propia base de datos `e2e` |
+
+## Pirámide de tests
+
+Número de ficheros de test por nivel, contados el 2026-11-02 sobre el commit `dc23f9d` más los specs
+nuevos de DIS-77 (texto del agente):
+
+```bash
+find tests/unit packages -path '*/node_modules' -prune -o -type f \( -name '*.spec.ts' -o -name '*.spec.tsx' -o -name '*.test.ts' -o -name '*.test.tsx' \) -print
+```
+
+El mismo `find` sobre `tests/integration`, `tests/harness`, `tests/a11y` y `tests/e2e` da el resto. El
+nivel unitario suma `tests/unit` (152) y los tests junto al código de `packages/web/src` (12).
+
+| Nivel | Ficheros | Dónde |
+|---|---|---|
+| Unitario | 164 | `tests/unit/` y `packages/web/src/` |
+| Integración | 43 | `tests/integration/` |
+| Hooks del kit | 31 | `tests/harness/` |
+| Accesibilidad | 4 | `tests/a11y/` |
+| Extremo a extremo | 4 | `tests/e2e/` |
+
+Los totales cambian con cada ticket; vuelve a contar con la orden de arriba antes de citarlos.
 
 ## Extremo a extremo en local
 
@@ -211,3 +234,24 @@ para corregir la deriva que el modo incremental no ve: un fichero que cambió si
 (`thresholds.break`); la cobertura no es una puerta. Un único fichero se ejecuta con
 `npx stryker run --mutate <ruta>`. Los specs de integración no forman parte: necesitan una base de
 datos o arrancan procesos. `scripts/` tampoco: la mutación se limita a los paquetes del producto.
+
+## Cobertura
+
+La cobertura es informativa y no bloquea: ningún porcentaje hace fallar una ejecución local ni la CI. La
+única puerta de calidad de los tests es la puntuación de mutación (`thresholds.break` de
+`stryker.config.json`); exigir un porcentaje de cobertura invita a escribir tests vacíos.
+
+- `npm run test:coverage` ejecuta `vitest run --coverage` con el proveedor V8 (`@vitest/coverage-v8`,
+  fijado a la misma versión exacta que `vitest`; deben subir juntos) y escribe
+  `coverage/coverage-summary.json` (ignorado por git). La cobertura está apagada salvo con `--coverage`
+  y `vitest.config.ts` no declara `thresholds`.
+- Los cuatro specs con presupuesto de tiempo (`*.linear.spec.ts` y `*.scaling.spec.ts`) no corren con
+  cobertura, que cambia justo lo que miden: `npm run test:coverage` y el paso `Tests` de CI los dejan
+  fuera, y el paso `Timing budgets` de CI los ejecuta sin cobertura. `npm test` los sigue ejecutando.
+- `node scripts/coverage-summary.mjs [ruta]` imprime la tabla por paquete (líneas, sentencias, funciones
+  y ramas) y marca con ✓ o ✗ los objetivos de `readme.md` §2.6 sobre líneas (80 % en `core`, 70 % en
+  cada analizador), sin hacerlos cumplir. Siempre sale con código 0; sin informe o con un informe
+  ilegible escribe una línea de aviso.
+- En CI, el paso `Coverage summary (informative)` de `quality` añade esa tabla al resumen del job
+  (pestaña *Summary* de la ejecución), también cuando `Tests` falla.
+- `packages/web` entra en la cobertura pero no en la mutación de Stryker (DIS-58, decisión D25).

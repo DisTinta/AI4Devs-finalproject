@@ -95,7 +95,7 @@ Verified against `package.json` (root and per package). If a command is not here
   `seed:build` preload it with `tsx --import=./scripts/load-env.mjs …` (one token: with a space, tsx
   4.23.13 forwards the following `--tsconfig` to Node and fails), the API's `dev` with
   `--import ../../scripts/load-env.mjs`, and `up` / `demo:ask` load it themselves. The quality scripts
-  (`test`, `test:a11y`, `test:mutation*`, `lint`, `lint:architecture`, `typecheck`, `docs:coverage`)
+  (`test`, `test:a11y`, `test:coverage`, `test:mutation*`, `lint`, `lint:architecture`, `typecheck`, `docs:coverage`)
   never load it, and product code (`packages/*/src`) never imports it. `scripts/` imports only Node
   built-ins, so `npm run up` works before `npm install`; no `process.loadEnvFile` / `--env-file`
   (`engines.node` is `>=22.12`, DIS-105: Node 22.12 does have those APIs, but `scripts/env.mjs` stays
@@ -307,6 +307,16 @@ Verified against `package.json` (root and per package). If a command is not here
 ## Testing
 
 - Framework: Vitest (root `vitest.config.ts`; no per-package vitest config yet).
+- **Coverage is informative (DIS-77, change `informative-coverage`, `docs/TESTING.md` → Cobertura).**
+  `npm run test:coverage` = `vitest run --coverage --exclude "**/*.linear.spec.ts" --exclude
+  "**/*.scaling.spec.ts"`; the V8 block lives in `test.coverage` of `vitest.config.ts` (off unless
+  `--coverage`, no `thresholds`, `json-summary` into `coverage/`, `reportOnFailure`). The CLI
+  `--exclude` reaches only the root config, not the projects' own `exclude` lists, so `vitest.config.ts`
+  also drops the wall-clock specs when `--coverage` is in `process.argv`. In CI, `quality` runs the same
+  command in `Tests`, then `Coverage summary (informative)` (`scripts/coverage-summary.mjs` appended to
+  `$GITHUB_STEP_SUMMARY`, `continue-on-error`) and `Timing budgets` (the four wall-clock specs without
+  coverage). **Gotcha:** `vitest` and `@vitest/coverage-v8` must move together (same exact version); a
+  mismatched pair makes `--coverage` fail the `Tests` step. The mutation score stays the only gate.
 - **The suite never reads `.env` (DIS-102 design D12).** `vitest.config.ts` sets
   `test.env: { CODEMIND_SKIP_DOTENV: '1' }` (inherited by `vitest.stryker.config.ts`), so every
   test and every process a test spawns (`npm run db:rollback` in `migrations.spec.ts`) leaves its

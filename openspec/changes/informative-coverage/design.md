@@ -167,7 +167,10 @@ step and the `test:coverage` script; the globs are written with double quotes so
 the same under `cmd.exe`, PowerShell and Bash. A new CI step `Timing budgets` (D3) runs the four files
 without coverage, so their budgets keep gating `quality` as before. Their modules keep coverage through
 their other specs (`secret-scanner.spec.ts`, `sanitize.spec.ts`). Plain `npx vitest run` and `npm test`
-still run them. Task 2.4 confirms that the coverage run lists none of the four files. Rejected
+still run them. Found at apply (task 2.4, A9): the CLI `--exclude` only reaches the root config, not the
+`exclude` lists of the `test.projects`, so the four files still ran. `vitest.config.ts` therefore also adds
+the two globs to the root and `node` project lists when `--coverage` is in `process.argv`; the CLI flags stay
+as the documented intent and a test (`tests/unit/ci/coverage-gate.spec.ts`) guards it. Task 2.4 confirms that the coverage run lists none of the four files. Rejected
 alternative: keep them under coverage and measure the margin, which turns a timing noise into a red
 `Tests` step the next time a runner is slow.
 
@@ -229,3 +232,10 @@ accepted and recorded.*
 | A6 | I7: the summary step uses `!cancelled()` instead of `always()`, the repository's pattern; the ticket's enhanced criterion 3 is updated in its `[enhanced]` section, never in `[original]`. | A |
 | A7 | I1, I2, I3, I4, I5, I6, I9: no-argument default path in a scenario; target on the unrounded percentage with the 79.96 % case; "no coverage figure fails a run"; the readme's ">" read as "at least"; the local coverage runs filtered to `dom`, `seed-build`, `node` and run once; `docs/project-context.md` quality-scripts list gains `test:coverage`. | A |
 | A8 | I8: `scripts/**` missing from the `runtime` filter is a pre-existing gap for every script; recorded in Risks and not widened here (least scope). | D — accepted |
+
+*Agent's text: decisions taken during the apply (autonomous run), without the author.*
+
+| Id | Decision | Destination |
+|---|---|---|
+| A9 | Task 2.4 found that the CLI `--exclude` does not reach the projects' own `exclude` lists, so the wall-clock specs still ran under coverage. The exclusion is also made in `vitest.config.ts` when `--coverage` is in `process.argv` (root and `node` project), with a guard test; the command strings of the spec stay unchanged (D7). | A |
+| A10 | The real pyramid in `docs/TESTING.md` is counted on `dc23f9d` plus this change's new specs (the count cannot name the commit that contains it); the counting command is in the section. | D — accepted |

@@ -79,6 +79,7 @@ const PRELOADED = {
 const QUALITY = [
   'test',
   'test:a11y',
+  'test:coverage',
   'test:mutation',
   'test:mutation:full',
   'lint',
