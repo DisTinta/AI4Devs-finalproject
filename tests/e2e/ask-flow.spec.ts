@@ -18,11 +18,15 @@ test('Asking Q1 on acme-shop shows verified evidence and the usage panel', async
   await expect(page).toHaveURL(`/p/${ACME_SHOP_ID}`);
   await expect(page.getByText(/^(verificado|sin verificar)$/).first()).toBeVisible();
 
-  // Assert: the first evidence expands and shows its excerpt
+  // Assert: the first evidence expands and shows its own excerpt, the element its `aria-controls` names
   const evidence = page.locator('button[aria-expanded]').first();
   await evidence.click();
   await expect(evidence).toHaveAttribute('aria-expanded', 'true');
-  await expect(page.locator('pre code').first()).toBeVisible();
+  const excerptId = await evidence.getAttribute('aria-controls');
+  expect(excerptId, 'aria-controls of the expanded evidence').toBeTruthy();
+  const excerpt = page.locator(`[id="${excerptId}"]`);
+  await expect(excerpt).toBeVisible();
+  await expect(excerpt).toHaveText(/\S/);
 
   // Assert: the usage panel shows tokens, cost and the savings badge
   const usage = page.getByRole('region', { name: 'Uso' });

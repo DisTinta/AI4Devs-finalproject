@@ -63,7 +63,9 @@ true); only its test's exact-text match of the loop is loosened, without weakeni
 - **Dependencies**: `@playwright/test@1.64.1` (devDependency; `package-lock.json` changes). The lock and
   `vitest.config.ts` changes invalidate the incremental Stryker cache: the `mutation` job of the PR runs a
   full pass (within its 60-minute limit).
-- **Code**: no production code changes (`packages/**` untouched). New: `playwright.config.ts`,
+- **Code**: no production source changes. The only file under `packages/**` that changes is the API's
+  run configuration `packages/api/tsconfig.run.json`, which maps the two analyzer packages to their
+  `src/` so the API starts on a clean checkout (CI fix, design → Follow-ups C1). New: `playwright.config.ts`,
   `tests/e2e/support/config-options.ts`, `tests/e2e/*.spec.ts`, `tests/e2e/tsconfig.json`, `tests/unit/ci/e2e-job.spec.ts`,
   `tests/unit/ci/e2e-config.spec.ts`. Changed: `vitest.config.ts`, `tests/tsconfig.json`, `package.json`
   (script, typecheck, devDependency), `eslint.config.mjs` (ignore the Playwright output folders),

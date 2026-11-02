@@ -308,3 +308,15 @@ engineer without the author. S-ids continue from round 1 and follow the findings
 | Id | Decision | Destination |
 |---|---|---|
 | C1 | CI fix 1 of 2: the first CI run had `e2e` red because the API `webServer` failed with `ERR_MODULE_NOT_FOUND` for `@codemind/analyzer-php/dist/index.js`: `packages/api/tsconfig.run.json` did not map the two analyzer packages to their `src/` and a clean checkout has no `dist/`. Both paths were added to that file (commit d052631) and `docs/project-context.md` was updated. In the new run all seven checks pass (`mutation` in 51m45s). | D — accepted |
+
+*Agent's text: decisions of the review step (2026-11-02: show-spec-working, verify-against-spec and
+adversarial-review, inline), as lead engineer without the author. R-ids follow
+`reports/2026-11-02-adversarial-review.md`; its verdict is `PASS`.*
+
+| Id | Decision | Destination |
+|---|---|---|
+| R1 | `ask-flow.spec.ts` asserted «its excerpt is visible» with the first `pre code` of the page. It now reads the expanded button's `aria-controls` and asserts that element is visible and non-empty; a mutant with `aria-controls="missing"` fails it. | A — fixed |
+| R2 | The proposal's Impact line said `packages/**` was untouched; it now names `packages/api/tsconfig.run.json` and points at C1. | A — fixed |
+| R3 | C1 also lets `npm -w packages/api run dev` start without built analyzers (the file is read only by `dev-register.mjs`); no scenario describes it, and it is a strict improvement covered by the green `e2e` job. | D — accepted |
+| R4 | `expandEveryEvidence` would end by Playwright's timeout, not a named assertion, if a button never toggled; the test still fails, so no false pass. | D — accepted |
+| R5 | `retries` treats any non-empty `CI` as CI, as the spec's «when `CI` is set» says; GitHub sets `CI=true`. | D — accepted |
