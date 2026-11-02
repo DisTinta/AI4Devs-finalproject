@@ -302,3 +302,9 @@ engineer without the author. S-ids continue from round 1 and follow the findings
 | A3 | The a11y spec, the specs and the CI job ran green with no production change; no defect of `packages/web` or `packages/api` surfaced (task 4.2, 7.2). | D — accepted |
 | A4 | The taken-port check (11.2) needs the competing server bound to `127.0.0.1`: Vite started without `--host` listens on `localhost` only and Playwright does not see it as taken. Recorded in `docs/project-context.md` → Testing. | D — accepted |
 | A5 | `query_log` baseline was 0 (deduced: the only row found after the first runs came from the 4.1 RED run); each run adds rows, restored with a `created_at` cutoff in 10.6 and 11.4. | D — accepted |
+
+*Agent's text: decision taken in the CI step (2026-11-02), as lead engineer without the author.*
+
+| Id | Decision | Destination |
+|---|---|---|
+| C1 | CI fix 1 of 2: the first CI run had `e2e` red because the API `webServer` failed with `ERR_MODULE_NOT_FOUND` for `@codemind/analyzer-php/dist/index.js`: `packages/api/tsconfig.run.json` did not map the two analyzer packages to their `src/` and a clean checkout has no `dist/`. Both paths were added to that file (commit d052631) and `docs/project-context.md` was updated. In the new run all seven checks pass (`mutation` in 51m45s). | D — accepted |
