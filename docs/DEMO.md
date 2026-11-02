@@ -488,7 +488,7 @@ fila `impact` en `query_log`.
 > `ShippingService`, en las PR #24, #33 y #55); `[grafo]`, lo que viene del análisis determinista: las dos
 > señales no se mezclan en una lista.
 >
-> **Entrega 3.** La ruta `POST /impact` (DIS-95) ya existe y devuelve este mismo informe; solo la pantalla web de impacto (DIS-14) sigue pendiente.
+> **En la web.** La ruta `POST /impact` (DIS-95) devuelve este mismo informe y la Pantalla 3 de la web (DIS-14, `/p/<id>/impact`) lo muestra por secciones con el mismo contenido: ver [Recorrido por la web](#recorrido-por-la-web). Este paso por la CLI no cambia.
 
 ## Paso 5 — Repetir el paso 1
 
@@ -657,8 +657,9 @@ task-api: 3/3 golden answers match
 
 ## Recorrido por la web
 
-Con `npm run up` en marcha, abre `http://localhost:5173/` en el navegador. Las dos pantallas siguen los
-wireframes de `readme.md` §1.3 (`images/pantalla-1-seleccion.svg`, `images/pantalla-2-consulta.svg`).
+Con `npm run up` en marcha, abre `http://localhost:5173/` en el navegador. Las tres pantallas siguen los
+wireframes de `readme.md` §1.3 (`images/pantalla-1-seleccion.svg`, `images/pantalla-2-consulta.svg`,
+`images/pantalla-3-impacto.svg`).
 
 **Pantalla 1 — Selección de proyecto** (`/`):
 
@@ -699,6 +700,30 @@ wireframes de `readme.md` §1.3 (`images/pantalla-1-seleccion.svg`, `images/pant
 11. Una pregunta que no nombra nada del código, como la del paso 3 («¿Cómo se gestionan los reembolsos
     de un pedido?»), muestra «Sin respuesta verificada», la frase que explica el motivo y «Motivo:
     no-anchor»: CODEMIND prefiere no inventar una respuesta.
+12. Debajo del resultado, tras la zona principal, el enlace «Analizar el impacto de un cambio» abre la
+    pantalla 3 de ese proyecto.
+
+**Pantalla 3 — Impacto de un cambio** (`/p/<id del proyecto>/impact`):
+
+13. La misma barra del proyecto que la pantalla 2; debajo, el campo «Cambio», la lista «Saltos del grafo»
+    (1, 2 o 3, con 2 elegido) y el botón «Analizar». Al abrirla no se envía ninguna petición. Abajo, el
+    enlace «Volver a las preguntas» vuelve a la pantalla 2.
+14. Escribir «cambiar los descuentos de DiscountService» y pulsar «Analizar» (o Intro) muestra el mismo
+    informe que el [paso 4](#paso-4--preguntar-por-el-impacto-de-cambiar-los-descuentos) por la CLI: las secciones «Directo» (6 elementos),
+    «Indirecto» (4), «Tests» (3), «Documentación» (`README.md` «al día») e «Historial»
+    (`app/Services/ShippingService.php`, «co-cambia 100 %», «PR #24, #33, #55»), y el bloque «Riesgo alto»
+    con su justificación. Cada elemento termina con su origen: «[grafo]» para el análisis estático
+    determinista y «[git]» para el historial; la leyenda de debajo lo explica. Los documentos no llevan
+    etiqueta. Una última línea dice «Informe determinista: sin llamada al modelo de lenguaje.».
+15. Con «Saltos del grafo» en 1 o en 3 el informe cambia de tamaño. Una sección vacía sigue visible con
+    «Sin elementos»; un documento desfasado dice «⚠ desactualizada desde el commit <sha corto>» y una entrada
+    de historial sin pull requests, «sin PR».
+16. Un cambio que no nombra nada del código, como «mejorar el rendimiento general», muestra «Sin ancla en
+    el grafo», la frase que sugiere nombrar una clase o un fichero y «Motivo: no-anchor». Un cambio de
+    menos de 5 caracteres muestra «Describe el cambio en 5 a 500 caracteres.» y no se envía.
+17. Los errores (`429`, API caída, proyecto desconocido) se muestran con la misma alerta que la pantalla 2.
+18. Diferencia con el wireframe: la pantalla 3 no dibuja el panel «Uso de esta consulta» (tokens, coste y
+    caché), porque `/impact` no llama al modelo y no devuelve `usage`; no se inventa ninguna cifra.
 
 **La API no disponible.** Para ver este estado, para el sistema (ver
 [Parar el sistema](#parar-el-sistema)) y arranca solo la web:

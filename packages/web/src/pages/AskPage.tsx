@@ -4,13 +4,13 @@ import { AskErrorNotice } from '../components/AskErrorNotice';
 import { validQuestion } from '../components/answer-display';
 import { LlmRequiredNotice } from '../components/LlmRequiredNotice';
 import { PageFrame } from '../components/PageFrame';
-import { formatCount, stackLabel } from '../components/project-display';
+import { projectHeadingOf } from '../components/project-display';
 import { ProjectBar } from '../components/ProjectBar';
+import { ProjectNav } from '../components/ProjectNav';
 import { QueryBox } from '../components/QueryBox';
 import { SuggestedQuestions } from '../components/SuggestedQuestions';
 import { UnknownState } from '../components/UnknownState';
 import { UsagePanel } from '../components/UsagePanel';
-import { SAMPLE_PROJECTS } from '../data/sample-projects';
 import { suggestedQuestionsOf } from '../data/suggested-questions';
 import { useAsk, type AskState } from './useAsk';
 
@@ -20,27 +20,12 @@ export interface AskPageProps {
   projectId: string;
 }
 
-/** What the project bar and the field show for a project. */
-interface ProjectHeading {
-  /** The level-1 heading. */
-  title: string;
-  /** The label and edge count, only for a sample project. */
-  detail?: string;
-  /** The field's placeholder. */
-  placeholder: string;
-}
-
-/** The sample project's name and figures, or only the id for any other project (design D3, D24). */
-function projectHeading(projectId: string): ProjectHeading {
-  const project = SAMPLE_PROJECTS.find((candidate) => candidate.id === projectId);
-  if (project === undefined) {
-    return { title: projectId, placeholder: 'Pregunta sobre el código del proyecto' };
-  }
-  return {
-    title: project.name,
-    detail: `${stackLabel(project.language, project.framework)} · ${formatCount(project.edgeCount, 'arista', 'aristas')}`,
-    placeholder: `Pregunta sobre el código de ${project.name}`,
-  };
+/**
+ * The field's placeholder: the sample project's name when it has one, a generic text for any other
+ * project (DIS-65 design D3, D24; DIS-14 design D14).
+ */
+function placeholderOf(title: string, detail: string | undefined): string {
+  return detail === undefined ? 'Pregunta sobre el código del proyecto' : `Pregunta sobre el código de ${title}`;
 }
 
 /** The text of the pending state, shown in the result area and announced by the status region. */
@@ -113,7 +98,8 @@ function ResultArea({ state, hasSuggestions }: { state: AskState; hasSuggestions
  * @returns The project query page.
  */
 export function AskPage({ projectId }: AskPageProps): ReactElement {
-  const { title, detail, placeholder } = projectHeading(projectId);
+  const { title, detail } = projectHeadingOf(projectId);
+  const placeholder = placeholderOf(title, detail);
   const suggestions = suggestedQuestionsOf(projectId);
   const { state, send } = useAsk(projectId);
   const [question, setQuestion] = useState('');
@@ -150,7 +136,10 @@ export function AskPage({ projectId }: AskPageProps): ReactElement {
   };
 
   return (
-    <PageFrame banner={<ProjectBar title={title} detail={detail} />}>
+    <PageFrame
+      banner={<ProjectBar title={title} detail={detail} />}
+      nav={<ProjectNav to={`/p/${encodeURIComponent(projectId)}/impact`} label="Analizar el impacto de un cambio" />}
+    >
       <div className="text-left wrap-break-word">
         <QueryBox
           value={question}

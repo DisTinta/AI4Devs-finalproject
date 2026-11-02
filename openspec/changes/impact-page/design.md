@@ -127,7 +127,7 @@ settle that ignores an aborted controller, `AskFailure` from `notice-display.ts`
 `<input type="text">` (Enter sends), a visible `<label>` «Saltos del grafo» for the `<select>`, a submit
 button «Analizar» never disabled; `aria-invalid` and `aria-describedby` to the alert «Describe el cambio
 en 5 a 500 caracteres.», keyed by an invalid-send counter so each invalid send inserts a new alert
-(DIS-66 D12, D29). Visible labels instead of Screen 2's `sr-only` one, because the screen has two
+(DIS-66 D12, D29). The field «Cambio» has no placeholder (the visible label names it). Visible labels instead of Screen 2's `sr-only` one, because the screen has two
 controls whose purpose is not obvious from a placeholder.
 
 **D14 — Project heading shared.** `projectHeading` moves from `AskPage.tsx` to
@@ -217,7 +217,8 @@ Screen 3.
 *Agent's text: decisions taken by the agent as lead engineer in the autonomous run
 (`docs/AUTONOMOUS-RUN.md` §6), without the author. E1–E8 are the DIS-14 enrich decisions D1–D8 (comment of
 2026-11-02 in the ticket); P1–P7 are design decisions of this proposal; P8–P13 are the agent's decisions
-on spec-audit run 1 (its questions Q1 and Q2 included). Destinations: A = this change; B =
+on spec-audit run 1 (its questions Q1 and Q2 included); P14 comes from spec-audit run 2 and P15–P16 from the
+apply step. Destinations: A = this change; B =
 another existing ticket; C = the author (none in this change, by the author's instruction); D = accepted
 and recorded.*
 
@@ -243,4 +244,7 @@ and recorded.*
 | P10 | (Spec audit 1, Q2) `INVALID_IMPACT_REQUEST`, `VALIDATION_ERROR` and `INTERNAL` show the generic alert «No se ha podido obtener la respuesta.» + «Código: X.» through `alertLinesOf` unchanged: the UI cannot produce an out-of-range `maxHops` or an invalid change, DIS-14 AC 4 accepts `alertLinesOf`, and a new line would edit Screen 2's `notice-display.ts` and spec. Departure from the parent DIS-8 «`code` traducido a mensaje legible», recorded here and in the PR (design D11). | D — accepted |
 | P11 | (Spec audit 1, I12) `impact()` stays in `api-client.ts`, a departure from `docs/frontend-standards.md` §2 "one module per resource", with the precedent of `ask()` and the private `send` (design D1). | D — accepted |
 | P12 | (Spec audit 1, B1) axe in jsdom cannot report `color-contrast`; the contrast of every new text is fixed per element in design D15 and checked by hand in 11.4, and the RED of the axe scan uses a rule jsdom detects (`<select>` without its `<label>`). | A |
+| P14 | (Spec audit 2, I1–I6) The six non-blocking improvements were applied before the code: the scenario "A pending report has no time limit of its own", a third run (unknown state) in the tab-order scenario, the focus element named per run in "A valid change is sent trimmed…", no placeholder in the field «Cambio» (D13), `unknown` also writes a `query_log` row (11.1) and a change with search terms for `PROJECT_NOT_FOUND` (11.3a). | A |
+| P15 | (Apply) The report components, the hook and the page were written before the tests of task groups 4 to 8; each guarding test was then checked with a local mutation, seen failing and reverted (step 10 report). The two small helper components that the tasks did not name, `ProjectNav` (the «Navegación del proyecto» landmark shared by Screens 2 and 3), are an implementation detail of design D3. | D — accepted |
+| P16 | (Apply) The real-browser walkthrough of step 11 was driven by a `playwright-core` script installed in the session scratchpad (no repository dependency), because the Playwright MCP server was not available to the step; contrast was computed from the rendered colours with the WCAG formula. The screen was also exercised with the API stopped (only the web started). | D — accepted |
 | P13 | (Spec audit 1, B2) Keyboard operation of «Saltos del grafo» is not claimed by an RTL test (jsdom does not move a native `<select>` on arrow keys); it is checked in the real-browser scenario "The walkthrough step 4 runs in a real browser" (task 11.4). | A |

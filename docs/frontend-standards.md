@@ -66,12 +66,15 @@ All frontend code lives under `packages/web/src/`; the folders below are relativ
 
 ### How `test:a11y` is wired
 
-- `npm run test:a11y` = `vitest run tests/a11y`; the file is `tests/a11y/smoke.a11y.test.tsx` (jsdom,
+- `npm run test:a11y` = `vitest run tests/a11y`; the gate is `tests/a11y/smoke.a11y.test.tsx` (jsdom,
   type-checked by `tests/a11y/tsconfig.json`, which extends the web's).
 - It renders the **real route table** (`routes` of `packages/web/src/router.tsx`) in a memory router at
-  `/`, `/p/<acme-shop id>` and an unknown path, inside a document with `lang="es"` and a title, and runs
-  `axe.run(document)` on each: any violation fails. A screen that replaces a placeholder on one of these
-  routes is scanned without editing the test; a new route needs its path added.
+  `/`, `/p/<acme-shop id>`, an unknown path (`SCANNED_PATHS`, one `it`) and `/p/<acme-shop id>/impact`
+  (its own `it`), inside a document with `lang="es"` and a title, and runs `axe.run(document)` on each:
+  any violation fails. A screen that replaces a placeholder on one of these routes is scanned without
+  editing the test. A new route gets its own scenario and its own `it` appended to the gate's test (an
+  existing gate scenario cannot be renamed or dropped through a MODIFIED delta, so `SCANNED_PATHS` is not
+  extended; DIS-14 design D16).
 - A negative control (an image without `alt`) proves axe really runs in that environment.
 - A screen with states the real routes cannot reach on their own (an API answer, a render error) gets its
   own file next to the gate that pins each state with a `fetch` double and scans it: Screen 1 with the API
@@ -79,7 +82,10 @@ All frontend code lives under `packages/web/src/`; the folders below are relativ
   Screen 2 in ten states in `tests/a11y/ask-page.a11y.test.tsx` (DIS-65, DIS-66): pending, answered with
   an evidence expanded and its usage panel, a cache hit, the invalid-question message, the `UNKNOWN`
   `no-anchor` state, the `llm-required` notice, and the alerts of `BUDGET_EXHAUSTED`, `RATE_LIMITED`,
-  `LLM_UNAVAILABLE` and an unavailable API.
+  `LLM_UNAVAILABLE` and an unavailable API; Screen 3 in eight states in
+  `tests/a11y/impact-page.a11y.test.tsx` (DIS-14): before any send, pending, the answered Q2 report, a
+  stale document with an empty section, the invalid-change message, the `unknown` state, and the alerts of
+  `RATE_LIMITED` and of an unavailable API.
 - axe in jsdom computes no styles, so it cannot judge colour contrast: the theme test
   (`packages/web/src/theme.test.ts`) checks every text/background pair of the `@theme` tokens at 4.5:1.
   Keyboard operation and visible focus are checked by hand in a real browser.

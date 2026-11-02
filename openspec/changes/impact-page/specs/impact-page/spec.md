@@ -81,8 +81,8 @@ message SHALL go away as soon as the person changes the field's text or sends a 
   and body exactly `{"change":"cambiar los descuentos de DiscountService","maxHops":2}`,
   `{"change":"cambiar los descuentos de DiscountService","maxHops":1}` and
   `{"change":"cambiar los descuentos de DiscountService","maxHops":3}` respectively; the field still
-  holds the untrimmed text; the list still shows the chosen number; and the focus is on the element the
-  person used last
+  holds the untrimmed text; the list still shows the chosen number; and the focus is on the button
+  «Analizar» in the first run and on the field «Cambio» in the second and third
 
 #### Scenario: An invalid change is not sent
 
@@ -122,6 +122,14 @@ page SHALL abort the pending request, and that abort SHALL show nothing.
   and presses Enter, then presses «Analizar»
 - **THEN** the double recorded exactly one request; the text «Calculando impacto…» is shown; the field is
   not marked invalid and there is no element with role `alert`
+
+#### Scenario: A pending report has no time limit of its own
+
+- **GIVEN** Screen 3 of acme-shop, `fetch` replaced by a double that never answers, and a clock that the
+  test advances
+- **WHEN** the person sends «cambiar los descuentos de DiscountService» and the clock advances 60 000 ms
+- **THEN** the text «Calculando impacto…» is still shown, the only element with role `status` holds
+  «Calculando impacto…», and there is no element with role `alert`
 
 #### Scenario: A new change replaces the report that was shown
 
@@ -336,8 +344,9 @@ indicator when it receives the focus from the keyboard.
 
 #### Scenario: The tab order of Screen 3 skips the report
 
-- **GIVEN** Screen 3 of acme-shop, in two runs: showing the Q2 report, and showing the alert of a `fetch`
-  that rejects with a `TypeError`; in each run the focus on the document body
+- **GIVEN** Screen 3 of acme-shop, in three runs: showing the Q2 report, showing the alert of a `fetch`
+  that rejects with a `TypeError`, and showing the unknown state of `{"status":"unknown","reason":"no-anchor"}`;
+  in each run the focus on the document body
 - **WHEN** the person presses Tab five times in each run
 - **THEN** in each run the focus visits, in this order, the link «Volver a la selección de proyecto», the
   field «Cambio», the list «Saltos del grafo», the button «Analizar» and the link «Volver a las preguntas»

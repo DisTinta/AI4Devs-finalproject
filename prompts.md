@@ -93,6 +93,7 @@
 77. [Riesgo, fila de `query_log` y comando `impact` (DIS-90)](#77-riesgo-fila-de-query_log-y-comando-impact-dis-90)
 78. [Historial por co-cambio y documentación con `stale` en el informe de impacto (DIS-94)](#78-historial-por-co-cambio-y-documentación-con-stale-en-el-informe-de-impacto-dis-94)
 79. [`POST /impact` con esquema Zod y tests `200`/`400`/`404` (DIS-95)](#79-post-impact-con-esquema-zod-y-tests-200400404-dis-95)
+80. [Pantalla 3 de impacto en la web (DIS-14)](#80-pantalla-3-de-impacto-en-la-web-dis-14)
 
 ---
 
@@ -5520,3 +5521,26 @@ niega a empezar con ellos, así que las pruebas con base de datos se lanzaron co
 (la URL en la línea de órdenes, sin leer `.env`); y Stryker enseñó siete mutantes vivos en los dos ficheros
 nuevos (un `prs` copiado, el `?? []` de los eventos, los dos mensajes de las reglas propias y el literal
 `HIGH`), que llevaron a tres tests más.
+
+---
+
+# 80. Pantalla 3 de impacto en la web (DIS-14)
+
+### Prompt 1 — Paso de apply del cambio `impact-page` en la ejecución autónoma
+
+Extracto literal del encargo que recibió el subagente:
+
+```
+Run /opsx:apply on change impact-page: every task in TDD (failing test first, then implementation, in the layer order), marking tasks.md as you go, with the mandatory verification steps. Run the tests, lint and typecheck. Commit, push and open the PR to final-project-CRN with /pr-describe (write the "why" yourself and mark it as agent-written). Return pr.
+```
+
+**Por qué funcionó.** La Pantalla 2 era una plantilla punto por punto (hook con `AbortController`, región
+`role="status"`, alerta por envío inválido, barra del proyecto) y el `design.md` fijaba textos, colores y
+orden de capas, así que el agente solo componía y escribía los estados (texto del agente).
+
+**Ajuste humano.** Ninguno: ejecución autónoma (texto del agente). Cosas que no siguieron el plan al pie de
+la letra: `impact()` se añadió a `api-client.ts` con una redirección de shell y no con la herramienta de
+edición (el contenido es el previsto); el hook, los componentes y la página se escribieron antes que los
+tests de los grupos 4 a 8, y por eso esos tests se comprobaron después con mutaciones locales (clave del
+contador de envíos inválidos, `key` de la ruta, aborto al desmontar, límite de tiempo, `dangerouslySetInnerHTML`,
+región de estado, `tabIndex`), cada una vista fallar y revertida.

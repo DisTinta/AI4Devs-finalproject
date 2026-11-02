@@ -7,12 +7,19 @@ import { routes } from '../../packages/web/src/router';
 
 // The accessibility gate of the web client (`npm run test:a11y`; web-foundation, "Accessibility gate on
 // the real routes"; DIS-58 design D11, D21). It renders the real route table, so it scans whatever
-// screen DIS-60/65/66 put on each route without being edited. axe in jsdom computes no styles: colour
+// screen DIS-60/65/66 put on each route without being edited; Screen 3's route (`/p/<id>/impact`, DIS-14)
+// is the fourth route and has its own test. axe in jsdom computes no styles: colour
 // contrast is the theme test's job (`packages/web/src/theme.test.ts`), and keyboard and focus are
 // checked by hand.
 
 /** The paths the gate scans: Screen 1, Screen 2 of the seed project, and an unknown path. */
 const SCANNED_PATHS = ['/', `/p/${SAMPLE_PROJECTS[0].id}`, '/ruta-que-no-existe'];
+
+/**
+ * The path of Screen 3 of the seed project, the fourth route (DIS-14 design D16): it has its own test below
+ * because OpenSpec refuses to rename the scenario of the three routes, so `SCANNED_PATHS` keeps three paths.
+ */
+const IMPACT_PATH = `/p/${SAMPLE_PROJECTS[0].id}/impact`;
 
 /** The ids of the rules axe found violated, for a readable failure. */
 function violatedRules(results: axe.AxeResults): string[] {
@@ -49,5 +56,23 @@ describe('Accessibility gate on the real routes', () => {
 
     // Assert
     expect(violationsByPath).toEqual(Object.fromEntries(SCANNED_PATHS.map((path) => [path, []])));
+  });
+
+  it('The impact route has no axe violations', async () => {
+    // Arrange: the document as index.html declares it.
+    document.documentElement.lang = 'es';
+    document.title = 'CODEMIND';
+    const { unmount } = render(
+      <RouterProvider router={createMemoryRouter(routes, { initialEntries: [IMPACT_PATH] })} />,
+    );
+    await screen.findByRole('heading', { level: 1 });
+    await screen.findByRole('textbox', { name: 'Cambio' });
+
+    // Act
+    const violations = violatedRules(await axe.run(document));
+    unmount();
+
+    // Assert
+    expect(violations).toEqual([]);
   });
 });
