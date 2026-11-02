@@ -308,7 +308,7 @@ Verified against `package.json` (root and per package). If a command is not here
   (the full suite takes about 25 min instead of 9): under the full suite's parallel load a few of them
   went past their timeouts (they pass alone and on CI; DIS-9 E28), and running them one by one would
   take about 48 min. On Linux (CI) they run alongside the rest, as before: running them last made the
-  `quality` job exceed its 10-minute limit. The setup
+  `quality` job exceed its limit (then 10 minutes, now 15). The setup
   file `tests/support/jsdom-setup.ts` (guarded by `'document' in globalThis`) unmounts after every
   jsdom test (RTL's auto-cleanup needs Vitest `globals`, off here) and replaces `Request` with a
   subclass that drops `init.signal`, because React Router builds `new Request(url, { signal })` on
