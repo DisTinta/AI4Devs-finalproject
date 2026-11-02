@@ -220,3 +220,172 @@ No change is needed beyond task 11.4's comment on DIS-14, unless the author's an
 | I7 (`always()` vs `!cancelled()`) | Fixed, decided by the agent | `!cancelled()`, the repository's pattern; spec, D3, task 4.1 and E4 updated; the enhanced criterion 3 of DIS-77 is updated in `[enhanced]`. A6. |
 | I8 (`scripts/**` not in the `runtime` filter) | Decided by the agent: recorded, not fixed | Pre-existing gap for every script; recorded in design → Risks to keep the scope least. A8, destination D. |
 | I9 (manual step too large) | Fixed | Task 9.1 runs the filtered suite once in Bash and only the summary command in the three shells. A7. |
+
+---
+
+## Run 2 (2026-11-02)
+
+APPROVED
+
+**Questions for the author:** none. Run 1 had one question (Q1, `packages/web` in Stryker's `mutate`). The agent answered it in design → Follow-ups A1, destination D. That answer is consistent with the DIS-77 DoD ("falla por mutación < 70 % en core") and with the author's instruction to limit the change to what is missing, so this run accepts it.
+
+Audit inputs (run 2):
+- **The change** (`openspec/changes/informative-coverage` at `c83f8a8`): `proposal.md`, `design.md`, `specs/test-quality-gates/spec.md`, `specs/local-startup/spec.md`, `tasks.md`, and `reports/2026-11-02-spec-audit.md` (run 1 and its resolution).
+- **Linear**: DIS-77 (`[original]`, `[reality-map]`, `[enhanced]` including "Decisiones de la auditoría de specs", and 7 comments) and its parent DIS-50.
+- **Project docs**: `docs/base-standards.md`, `docs/openspec-tasks-mandatory-steps.md`, `docs/project-context.md` (line 98 and the Testing section), `docs/TESTING.md` (levels table and headings), `docs/AUTONOMOUS-RUN.md` (lines 310-334), and the main spec `openspec/specs/local-startup/spec.md:110-150`.
+- **Real code**: `vitest.config.ts`, `.github/workflows/ci.yml` (lines 61-165 and 285-373), `package.json`, `tests/unit/scripts/wiring.spec.ts:79-108`, and the four `*.linear.spec.ts` / `*.scaling.spec.ts` files.
+
+---
+
+## 1. Scope against the ticket
+
+Clean. Every element follows from the sub-issue's DoD or from its enhanced criteria 1-5:
+- coverage-v8 with an informative summary;
+- the mutation gate kept and guarded;
+- `TESTING.md` with the pyramid and the policy.
+
+The following additions were accepted in run 1 and have not changed:
+- the `Objetivo (líneas)` column, inherited from DIS-50 AC 4;
+- `packages/web` in coverage only;
+- the `local-startup` delta;
+- the doc updates;
+- the conditional raise of `timeout-minutes`;
+- the DIS-14 comment.
+
+Run 1's correction added two things. Both are needed to keep coverage informative, not invented scope:
+- the `Timing budgets` step (D7), so the wall-clock specs never run under V8;
+- the `tests/unit/docs/testing-guide.spec.ts` test.
+
+The change does not widen into the E2E part of DIS-50.
+
+## 2. Inherited acceptance criteria
+
+| Inherited AC (DoD / enhanced / DIS-50) | Requirement → Scenario | Status |
+|---|---|---|
+| CI shows coverage per package, not blocking (DoD; enhanced 1-3; DIS-50 AC 4) | "Per-package coverage summary" (6 scenarios); "Coverage informs and never blocks" (2 scenarios) | Covered |
+| §2.6 targets (80 % core / 70 % analyzers) shown with ✓/✗, not blocking (DIS-50 AC 4) | "Coverage targets are marked, never enforced" | Covered |
+| Pipeline fails on mutation < 70 % in core (DoD; enhanced 4; DIS-50 AC 5) | "Mutation score is the only hard gate" → "The mutation gate stays hard" | Covered |
+| `TESTING.md` describes the real pyramid and the policy (DoD; enhanced 5) | "The testing guide states the pyramid and the policy" → "The testing guide documents the pyramid and the coverage policy" | Covered (B1 of run 1 resolved) |
+
+The sub-issue and the parent agree on scope. DIS-50 says "con umbrales por paquete" in its reality map, but its AC says the targets are shown and do not block, and the change follows the AC.
+
+## 3. Missing scenarios
+
+Clean. Every MUST clause has a scenario that covers it:
+- the default path → the AND line of "A missing coverage report…";
+- the unrounded comparison → the 79.96 % case;
+- the empty object → "An empty summary shows only the Total row";
+- `ENOENT` versus other read errors → the `EISDIR` case;
+- the `Timing budgets` step → the second AND of "The CI publishes coverage without blocking".
+
+"Also when a test fails" is pinned through `reportOnFailure: true`, and task 13.3 gives real evidence for it. That is acceptable for a configuration requirement.
+
+## 4. Ambiguity
+
+Clean. None of "fast", "easy", "secure", "efficient", "many", "appropriate" or "robust" appears in `proposal.md`, `design.md`, the two deltas or `tasks.md`.
+
+## 5. Open decisions
+
+All the decisions a test will pin are now fixed:
+- the input cases (D4 → Input cases, and the requirement);
+- the texts of the heading, the sentence and both notices (D4);
+- the number format, the row order and the target comparison;
+- the exact commands and step names;
+- the `if` expressions;
+- the five pyramid level names and the regexes the doc test uses.
+
+- **I1 (improvable): the fallback when the CLI `--exclude` does not reach the `node` project.** The `node` project redeclares its own `exclude` (`vitest.config.ts:95-105`). D7 and the spec pin the command `vitest run --coverage --exclude "**/*.linear.spec.ts" --exclude "**/*.scaling.spec.ts"`. Task 2.4 says that if the four files still run, "stop and fix the exclusion before going on", but no fallback is named. Any fallback (for example a `--project`-scoped config or an environment-driven `exclude` in the `node` project) would change the pinned command, the requirement and two scenarios. Vitest applies CLI `--exclude` across projects, so this is unlikely, which is why it is not blocking. Correction: in task 2.4, replace "stop and fix the exclusion before going on" with "stop; update design D7, the requirement 'Coverage informs and never blocks' and its two scenarios with the alternative exclusion under `docs/base-standards.md` §7 before writing more code, and record it in Follow-ups".
+- **I2 (improvable): `Unitario` versus `Componente web` in the pyramid.** D6 counts `packages/web/src` inside `Unitario`. `docs/TESTING.md:14-15` has a separate level "Componente web", and the requirement does not say where those 12 files go. The test only checks that a count exists, so an implementer could count them twice or not at all. Correction: in the requirement "The testing guide states the pyramid and the policy", after "giving its number of test files", add "(`Unitario` counts `tests/unit` and the component tests of `packages/web/src`; each test file is counted in exactly one level)".
+
+## 6. Contradictions inside the change
+
+Clean. The proposal, the design and the specs agree on each point:
+- the two deltas (proposal → Capabilities; task 13.9);
+- the commands of D3 and D7, the requirement and tasks 2.1, 2.2 and 4.1;
+- `!cancelled()` (D3, the spec, task 4.1, and E4 annotated by A6);
+- the ten scenario titles of `test-quality-gates` plus the `local-startup` one, which task 7.2 counts as eleven;
+- the six scenarios of "Per-package coverage summary" cited in D5.
+
+## 7. Contradictions with the project
+
+- **`local-startup`:** the MODIFIED delta reproduces `openspec/specs/local-startup/spec.md:110-150`. It adds `test:coverage` in the requirement and in the fourth bullet of the first scenario, and copies the second scenario unchanged. This is consistent.
+- **Mutation threshold:** the requirement's "70 or more" matches `MIN_MUTATION_SCORE=70`, and `break` 80 stays untouched.
+- **Merge by the agent:** task 13.10 says the agent merges. That contradicts `docs/openspec-tasks-mandatory-steps.md` §3 ("The agent never merges"), but the autonomous-mode ADR (`docs/adr/20261020-kit-autonomous-mode.md`) overrides it, as run 1 recorded. Clean.
+- **I3 (improvable): the "two weeks" rule is cited to the wrong source.** Design D1 and task 1.1 attribute "published more than two weeks ago" to `docs/base-standards.md` §10. That section only requires checking that the package exists in the official registry. `docs/AUTONOMOUS-RUN.md` (lines 310-334) has only the `npm audit` rule. The two-week rule exists only as a precedent in `openspec/changes/archive/2026-11-02-e2e-playwright-suite/design.md`. Correction: in D1 and task 1.1, cite the source correctly. Write "(`docs/base-standards.md` §10: the version exists in the official registry; the two-week age check is the practice of the e2e-playwright-suite change, D-…)", or drop the age condition as a stop criterion.
+
+## 8. Contrast with the real code
+
+The design's facts hold on the branch:
+
+| Fact | Where |
+|---|---|
+| `Tests` = `npx vitest run` under the gate | `ci.yml:152-157` |
+| `Hook timing` comes right after `Tests`; the new steps go between them, as D3 states | `ci.yml:161-165` |
+| Stale comment "Coverage is published as a signal." | `ci.yml:356` |
+| Cache key hashes `package-lock.json` and `vitest.config.ts` | `ci.yml:349-352` |
+| Mutation step: no `continue-on-error`, and its `run` contains `npm run test:mutation`, so the scenario's "contains" holds | `ci.yml:364-373` |
+| The `!cancelled()` pattern | `ci.yml:437` |
+| No `coverage` block | `vitest.config.ts` |
+| No `@vitest/coverage-v8`; `vitest` `^4.1.12` | `package.json:63` |
+| `QUALITY` list | `wiring.spec.ts:79` |
+
+- Exactly four files match `**/*.{linear,scaling}.spec.ts`, and they are the four D7 names, so the globs exclude nothing else.
+- `Timing budgets` runs without `DATABASE_URL`. The `node` project's `globalSetup` does nothing without it (`vitest.config.ts:12-15`).
+- No new abstraction duplicates an existing one. The script follows the pattern of `scripts/dev-processes.mjs`.
+- Observation, not a finding: in `Timing budgets` the four specs run alone instead of under the full parallel suite. Their budgets are therefore measured under less load than today. D7 could say so in one sentence.
+
+## 9. Task size
+
+Clean. 9.1 runs the heavy suite once (I9 of run 1 resolved). 13.2 splits the 30-60 minute CI wait into bounded calls. Every other task fits in one turn.
+
+## 10. Mandatory steps
+
+Clean.
+- Step 0 creates the branch `feature/dis-77-informative-coverage` and is first.
+- The labels are in place: 7, 8 and 11 are `(MANDATORY)`; 9 and 13 are `(MANDATORY - AGENT MUST EXECUTE)`; 10 is `(MANDATORY if applicable - AGENT MUST EXECUTE)` with a justified N/A.
+- The test step names its report pattern (8.7), and step 9 writes its own report (9.4).
+- State restoration is present:
+  - 5.1 restores `stryker.config.json` and `ci.yml` and checks with `git diff --stat`;
+  - 8.6 and 9.3 clean `coverage/` and stop processes;
+  - 9.2 deletes the temporary file.
+- Pre-merge Review is last, with the three checks in order, fixes on the same PR, and the archive commit before the merge.
+- Every scenario maps to a task (point 11).
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| Per-package coverage summary | The summary has one row per package | 3.1, 3.2 |
+| Per-package coverage summary | A package with nothing to measure shows n/a | 3.3 |
+| Per-package coverage summary | Coverage targets are marked, never enforced | 3.4 |
+| Per-package coverage summary | A missing coverage report is reported, not failed | 3.5 |
+| Per-package coverage summary | An unreadable coverage report is reported, not failed | 3.6 |
+| Per-package coverage summary | An empty summary shows only the Total row | 3.6b |
+| Coverage informs and never blocks | Coverage is off by default and has no thresholds | 2.1, 2.2 |
+| Coverage informs and never blocks | The CI publishes coverage without blocking | 4.1, 4.2 |
+| Mutation score is the only hard gate | The mutation gate stays hard | 5.1 |
+| The testing guide states the pyramid and the policy | The testing guide documents the pyramid and the coverage policy | 11.1, 11.1b |
+| local-startup → Which commands load .env (MODIFIED) | The guide's scripts load .env and the quality scripts do not | 2.3 |
+| local-startup → Which commands load .env (MODIFIED) | A guide command reads DATABASE_URL from .env | copied unchanged; existing evidence (7.2) |
+
+No empty rows.
+
+---
+
+## Corrections to apply
+
+None is blocking. These are optional improvements.
+
+### `openspec/changes/informative-coverage/tasks.md`
+- **2.4 (I1):** replace "if the CLI `--exclude` does not drop them, stop and fix the exclusion before going on" with "if the CLI `--exclude` does not drop them, stop; update design D7, the requirement 'Coverage informs and never blocks' and its two scenarios with the alternative exclusion (`docs/base-standards.md` §7) before writing more code, and record it in design → Follow-ups".
+- **1.1 (I3):** fix the source of the "more than two weeks" condition (see design D1).
+
+### `openspec/changes/informative-coverage/specs/test-quality-gates/spec.md`
+- **Requirement "The testing guide states the pyramid and the policy" (I2):** after "giving its number of test files", add "(`Unitario` counts `tests/unit` and the component tests of `packages/web/src`; each test file is counted in exactly one level)".
+
+### `openspec/changes/informative-coverage/design.md`
+- **D1 (I3):** replace "(`docs/base-standards.md` §10)" with "(`docs/base-standards.md` §10 requires that the version exists in the official registry; the two-week age is the practice already used by e2e-playwright-suite)", or remove the age condition.
+- **D7 (observation in point 8):** optionally add "Run alone, the four specs measure their budgets under less load than inside the full suite; this is accepted."
+
+### Linear DIS-77 (never in `[original]`; Spanish; marked as the agent's text)
+- **I4 (improvable):** the bullets of the `[enhanced]` → "Contexto técnico" section are stale. They still say `"test:coverage": "vitest run --coverage"`, `Tests` = `npx vitest run --coverage` and `if: always() && …`, while the audit decisions and the change use the `--exclude` globs, `Timing budgets` and `!cancelled()`. Task 11.4 already adds the decisions. Also add this note at the top of "Contexto técnico": "*Texto del agente: los comandos de esta sección son los del enrich; los vigentes (exclusión de los specs de tiempo, step `Timing budgets` y `!cancelled()`) están en «Decisiones de la auditoría de specs» y en `design.md` D3 y D7.*"
