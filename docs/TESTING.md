@@ -21,7 +21,33 @@ problemas conocidos) están en `docs/project-context.md` → Testing; la CI se d
 | Documentación | `npm run docs:coverage` | TypeDoc falla ante un export sin documentar | Solo en local |
 | Secretos | `gitleaks dir . --config .gitleaks.toml` (con gitleaks instalado) | `.gitleaks.toml`, `.gitleaksignore` | `CI` → `secrets` |
 | Accesibilidad | `npm run test:a11y` | `tests/a11y/smoke.a11y.test.tsx` (jsdom): axe sobre el documento entero en `/`, `/p/<id de acme-shop>` y una ruta desconocida de la tabla real de rutas, más un control negativo; el contraste lo comprueba `packages/web/src/theme.test.ts` (axe en jsdom no puede) | `Frontend`; `CI` → `quality` (la suite entera) |
-| Extremo a extremo | **Todavía no disponible**: Playwright llega con CM-HU-21 (DIS-75) | `tests/e2e/` está vacío | Ninguno todavía |
+| Extremo a extremo | `npm run test:e2e` | `tests/e2e/`: `ask-flow`, `unknown`, `impact-flow` y `ask-page.a11y` (axe en Chromium a 320 y 1280 px), contra la API y la web que arranca la propia suite sobre la semilla, en modo evaluación (`playwright.config.ts`) | `CI` → `e2e`, sobre su propia base de datos `e2e` |
+
+## Extremo a extremo en local
+
+`npm run test:e2e` arranca por su cuenta la API (sin `--watch`, con `LLM_BASE_URL` y `LLM_API_KEY`
+vacíos, así que responde en modo evaluación aunque `.env` diga otra cosa) y la web, y abre un Chromium
+contra la semilla. Antes:
+
+- Docker con PostgreSQL arrancado y sembrado (`npm run up`; `npm run cli -- projects` debe listar
+  acme-shop).
+- Para `npm run dev` si lo tienes abierto: la suite no reutiliza servidores, y con el puerto `3000` o `5173` ocupado falla
+  antes de ejecutar ningún spec, con el error de `webServer` que nombra la URL ocupada.
+- `npx playwright install chromium` una vez (sin `--with-deps` en Windows).
+
+El comando es el mismo en Bash y en PowerShell, y no hace falta ninguna variable `$env:` (la
+configuración vacía `LLM_*` y la API lee `DATABASE_URL` de `.env`):
+
+```bash
+npm run test:e2e
+```
+
+```powershell
+npm run test:e2e
+```
+
+Cada ejecución escribe filas en `query_log` de la base local. Si falla un spec, quedan la traza y la
+captura en `test-results/` y el informe en `playwright-report/` (ignorados por git).
 
 ## La suite entera
 

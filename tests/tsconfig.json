@@ -20,5 +20,7 @@
       "@codemind/analyzer-php": ["../packages/analyzers/php/src/index.ts"]
     }
   },
-  "include": ["**/*.ts"]
+  "include": ["**/*.ts"],
+  // The Playwright specs have their own program with the DOM `lib` (tests/e2e/tsconfig.json, design D7).
+  "exclude": ["e2e/**"]
 }

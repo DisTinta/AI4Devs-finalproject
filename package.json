@@ -20,7 +20,7 @@
     "dev": "concurrently --kill-others-on-fail \"npm -w packages/api run dev\" \"npm -w packages/web run dev\"",
     "up": "node scripts/up.mjs",
     "down": "docker compose down",
-    "typecheck": "tsc --build && tsc -p packages/web/tsconfig.json --noEmit && tsc -p tests/tsconfig.json && tsc -p tests/a11y/tsconfig.json",
+    "typecheck": "tsc --build && tsc -p packages/web/tsconfig.json --noEmit && tsc -p tests/tsconfig.json && tsc -p tests/a11y/tsconfig.json && tsc -p tests/e2e/tsconfig.json",
     "lint": "eslint .",
     "lint:architecture": "depcruise packages --config .dependency-cruiser.cjs",
     "db:migrate": "tsx --import=./scripts/load-env.mjs packages/adapters/store-postgres/src/migrate.ts up",
@@ -34,12 +34,14 @@
     "demo:excerpt": "node scripts/demo-excerpt.mjs",
     "test": "vitest run",
     "test:a11y": "vitest run tests/a11y",
+    "test:e2e": "playwright test",
     "test:mutation": "stryker run",
     "test:mutation:full": "stryker run --force",
     "docs:coverage": "typedoc --validation.notDocumented --logLevel Warn"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
+    "@playwright/test": "1.64.1",
     "@stryker-mutator/core": "^10.0.0",
     "@stryker-mutator/vitest-runner": "^10.0.0",
     "@testing-library/dom": "^10.4.2",

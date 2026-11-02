@@ -1,0 +1,13 @@
+{
+  // Type-checks the end-to-end specs and the Playwright configuration: the `page.evaluate` callbacks use
+  // `document`, so this program adds the DOM `lib` that tests/tsconfig.json does not have (e2e-playwright-suite
+  // design D7). Checked by `npm run typecheck`.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"]
+  },
+  "include": ["**/*.ts", "../../playwright.config.ts"],
+  // `exclude` is inherited through `extends`: without this, the `e2e/**` of tests/tsconfig.json would drop
+  // every spec from this program and `tsc` would report nothing (design D7).
+  "exclude": []
+}

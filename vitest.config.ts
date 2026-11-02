@@ -37,7 +37,8 @@ export default defineConfig({
   },
   test: {
     // `.stryker-tmp/` holds Stryker sandboxes; an aborted run leaves one behind with a full copy of the suite.
-    exclude: ['fixtures/**', 'node_modules/**', '.stryker-tmp/**'],
+    // `tests/e2e/**` are Playwright specs: Vitest must never collect them (e2e-playwright-suite design D6).
+    exclude: ['fixtures/**', 'node_modules/**', '.stryker-tmp/**', 'tests/e2e/**'],
     passWithNoTests: true,
     // The Git integration specs spawn `git` many times per test; under the full suite's load on Windows
     // a few of them took longer than the 5 s default (they pass alone). A slower machine is not a bug.
@@ -99,6 +100,8 @@ export default defineConfig({
             'tests/a11y/**/*.{spec,test}.{ts,tsx}',
             'tests/integration/cli/seed-build.spec.ts',
             'tests/harness/**',
+            // The `node` project has no `include`, so only this entry keeps the Playwright specs out (design D6).
+            'tests/e2e/**',
           ],
         },
       },

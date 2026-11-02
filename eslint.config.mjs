@@ -16,6 +16,10 @@ export default tseslint.config(
       '.claude/**',
       '.cursor/**',
       '**/*.cjs',
+      // Playwright output on disk (gitignored), e2e-playwright-suite design D8.
+      'playwright-report/**',
+      'test-results/**',
+      'blob-report/**',
     ],
   },
   js.configs.recommended,
