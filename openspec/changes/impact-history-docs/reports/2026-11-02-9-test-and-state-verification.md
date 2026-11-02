@@ -58,3 +58,11 @@ Scope: three new store reads, two new report sections, two new CLI sections; no 
 ## Outcome
 - Status: PASS
 - Blocking issues: none. One item for the author (optional): the golden files were refreshed by hand, not regenerated (design Follow-ups A2).
+
+## Addendum: CI of PR #94 (task 13.2) and review fixes (task 13.6)
+
+*Agent's text.* CI of PR #94 at `0a6b840`: `frontend`, `mutation` (10m35s), `quality`, `scope`, `secrets` and
+`verify` pass (https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/41436568345). The review step
+strengthened two tests (design Follow-ups V1, V2): `tests/unit/cli/impact-command.spec.ts` (22/22 green) and
+`tests/integration/impact/acme-shop.spec.ts` (7/7 green against `codemind_test`); no production code changed. The
+CI run of the review commit is the one PR #94 shows after it.

@@ -94,9 +94,10 @@ describeWithDatabase('impact over the acme-shop seed (integration)', () => {
     expect(report.history).toEqual([{ file: 'app/Services/ShippingService.php', coChangeRate: 1, prs: [24, 33, 55], origin: 'git' }]);
     expect(report.direct).toContainEqual(expect.objectContaining({ symbol: 'DiscountService', hops: 0 }));
     expect(report.direct).toContainEqual(expect.objectContaining({ symbol: 'PriceCalculator', hops: 1, resolution: 'exact' }));
-    expect(report.indirect.map((entry) => entry.symbol)).toEqual(
-      expect.arrayContaining(['CheckoutController', 'OrderController', 'RecalculateTotals', 'SendOrderConfirmation']),
-    );
+    for (const symbol of ['CheckoutController', 'OrderController', 'RecalculateTotals', 'SendOrderConfirmation']) {
+      expect(report.indirect).toContainEqual(expect.objectContaining({ symbol, hops: 2, resolution: 'heuristic' }));
+    }
+    expect(report.indirect.map((entry) => entry.symbol)).not.toContain('OrderObserver');
     expect(report.tests.map((test) => test.symbol)).toEqual(
       expect.arrayContaining(['DiscountServiceTest', 'PriceCalculatorTest', 'OrderPricingTest']),
     );

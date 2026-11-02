@@ -313,7 +313,7 @@ describe('runImpactCommand: output', () => {
       ].join('\n'),
     );
     const none = await run(['impact', 'acme-shop', CHANGE], { answer: sampleReport({ tests: [] }) });
-    expect(none.stdout).toContain('TESTS\n  (ninguno)\n\nDOCUMENTACIÓN');
+    expect(none.stdout).toContain('TESTS\n  (ninguno)\n\nDOCUMENTACIÓN\n  (ninguno)\n\nHISTORIAL\n  (ninguno)\n\nRIESGO HIGH');
   });
 
   it('Documents and history are printed with their state and origin', async () => {

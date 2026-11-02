@@ -238,3 +238,13 @@ without the author.*
 | A4 | `buildReport` returns `ReportLists` (`status`, `direct`, `indirect`, `tests`), so `ReportBody` (which now holds `docs` and `history`) is built only in `answer()` (design D7). | A |
 | A5 | The task-api command of task 10.2 also prints `DOCUMENTACIÓN` with `README.md  al día` (task-api's README describes `TaskService`); the spec only fixes its `HISTORIAL` line, which matches. | D — accepted |
 | A6 | Several tests of steps 3 to 5 (history, staleness, risk) were written in the same sitting as the implementation of steps 3 and 4 rather than strictly one red test before each green; each was then checked by mutation (Stryker, `history.ts`, `doc-staleness.ts` and `risk.ts` at 100 % after four extra tests). Only step 1.1 was run red before its implementation; the Postgres tests of step 2 were written before the SQL but first run green. | D — accepted |
+
+*Agent's text, review step (2026-11-02, `reports/2026-11-02-verify-against-spec.md` and
+`reports/2026-11-02-adversarial-review.md`, verdict PASS): the findings and their destinations.*
+
+| Id | Decision | Destination |
+|---|---|---|
+| V1 | The existing test "prints the entries of indirect and tests, a file test once, and an empty tests list" had its last assertion weakened (it stopped checking that `RIESGO HIGH` follows `TESTS`); it now expects the whole run `TESTS`, `DOCUMENTACIÓN`, `HISTORIAL` and `RIESGO HIGH`. | A |
+| V2 | "Q2 history over the seed" checked only the `indirect` symbols; it now checks `hops` 2, `heuristic` and the absence of `OrderObserver`, as "Q2 is reproduced over the seed", which its AND names. | A |
+| V3 | `relatedDocs` uses `Math.max(...own)`, which throws above roughly 10^5 commits of a single document; the reads are bounded by the report's files and the seeds hold 60 commits. | D — accepted |
+| V4 | The seed header and golden fingerprint refresh contradicts the Non-Goal wording "no seed or golden regeneration"; the rows are identical and A1/A2 already decide it. | D — accepted |

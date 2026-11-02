@@ -121,10 +121,10 @@
 
 ## 13. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
 
-- [ ] 13.1 Open the PR against `final-project-CRN`; DIS-94 to In Review with a Spanish comment linking it
-- [ ] 13.2 CI green, including the mutation job: wait in the foreground with `gh pr checks <n> --watch --interval 60` (timeout 600000), repeated until no check is pending; link the run in an addendum to the step 9 report
-- [ ] 13.3 `/show-spec-working` (may reuse the step 10 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
-- [ ] 13.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
-- [ ] 13.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`
-- [ ] 13.6 Fix every finding in this change (TDD for behaviour), each with an A/B/C/D destination in `design.md` → Follow-ups; re-run what each fix invalidates and add an addendum to the affected report; commit to the same PR; re-run a check whose findings led to non-trivial fixes until no Blocker or Major
+- [x] 13.1 Open the PR against `final-project-CRN`; DIS-94 to In Review with a Spanish comment linking it
+- [x] 13.2 CI green, including the mutation job: wait in the foreground with `gh pr checks <n> --watch --interval 60` (timeout 600000), repeated until no check is pending; link the run in an addendum to the step 9 report
+- [x] 13.3 `/show-spec-working` (may reuse the step 10 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`
+- [x] 13.4 `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`
+- [x] 13.5 `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`
+- [x] 13.6 Fix every finding in this change (TDD for behaviour), each with an A/B/C/D destination in `design.md` → Follow-ups; re-run what each fix invalidates and add an addendum to the affected report; commit to the same PR; re-run a check whose findings led to non-trivial fixes until no Blocker or Major
 - [ ] 13.7 `/opsx:archive`; in the same archive commit, update the `## Purpose` of `openspec/specs/impact/spec.md` to name the documentation and the co-change history of an answered report; commit it to the same PR; `node scripts/dev-processes.mjs stop`; merge (`gh pr merge <n> --merge`, through the merge gate) only after the archive commit and with CI green (autonomous run, `KIT_AUTONOMOUS_RUN=1`, only; otherwise the author merges)
