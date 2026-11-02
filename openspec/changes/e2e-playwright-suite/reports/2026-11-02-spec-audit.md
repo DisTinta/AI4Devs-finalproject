@@ -209,3 +209,43 @@ No empty row.
 - **DIS-75**, comment in Spanish: the question Q1 above (the scope of `impact-flow.spec.ts` against the parent's non-goal), for the author to decide.
 - **DIS-50**, only if the author accepts the widening: a comment in Spanish:
   > *Texto del agente.* DIS-75 incluye el E2E de impacto (`impact-flow.spec.ts`) por el traspaso de DIS-14; el non-goal «No E2E de impacto» queda superado para ese único recorrido; el indexado sigue fuera.
+
+---
+
+## Resolution of run 1
+
+*Agent's text (autonomous run, correction round 1, 2026-11-02). The agent answered the question for the
+author as lead engineer (`docs/AUTONOMOUS-RUN.md` §6); every decision is in `design.md` → Follow-ups,
+rows S1–S9. `openspec validate e2e-playwright-suite --strict` passes after the edits.*
+
+| Finding | Resolution |
+|---|---|
+| Q1 — scope of `impact-flow.spec.ts` / `ask-page.a11y.spec.ts` against DIS-50's non-goal | Decided by the agent (S1, destination A): the widening is kept. Both hand-offs point to DIS-75 with destination B, no new ticket may be created, and cutting them would leave them without an owner; the impact flow is step 4 of the walkthrough. A Spanish comment on DIS-50 records that the non-goal is superseded for that single walkthrough; indexing stays out. Requirements and groups 6 and 7 are unchanged. |
+| §1 scope — impact and a11y specs (improvable) | Decided by the agent, same as Q1 (S1). |
+| §1 scope — `docs/DEPLOYMENT.md` and `docs/project-context.md` | No action (the auditor accepted it). |
+| §2 "pasan en local" not covered by a scenario | Fixed: new scenario "The suite passes locally" under the CI requirement, plus a sentence in that requirement; verified by evidence in 11.1 (D12, S6). |
+| §2 AC 5 «pone el job en rojo» | Fixed: the negative scenario now states that a non-zero exit with no `continue-on-error` fails the job and that no broken spec is pushed to CI; D12 says the same; the reading is recorded as an agent decision in the `[enhanced]` decisions of DIS-75 (S6). |
+| §2 *target* note has no requirement | Fixed: task 13.1 now names the DoD item it traces. |
+| §3 taken port `3000` / `5173` not exercised | Fixed: new scenario "A taken port fails the run before any spec"; 11.2 runs both cases (S6). |
+| §3 HTML report in `playwright-report/` not checked | Fixed: the negative scenario and 11.3 check `playwright-report/index.html` and that no browser window opened. |
+| §3 `DATABASE_URL` clause without scenario | Rejected as a separate scenario, with the auditor's own allowance: the CI scenario asserts it on the steps and every local run reads it from `.env` (S9, destination D). |
+| §3 tsconfig contents not checked | Fixed: the Vitest isolation scenario and task 2.1 assert that `tests/e2e/tsconfig.json` includes `playwright.config.ts` and the specs and `tests/tsconfig.json` excludes `e2e/**`. |
+| §3 failing `e2e` job fails the run, no scenario | Fixed by stating the inference under the negative scenario (S6). |
+| §4 "fails fast" ambiguity | Fixed: Risks bullet reworded to "fails before any spec starts, with Playwright's `webServer` error naming the taken URL". |
+| B1 — `node` project has no `include` | Fixed: scenario THEN rewritten as proposed; task 2.1 aligned (S2). |
+| B2 — usage panel texts not pinned | Fixed: scenario pins the three patterns of `usage-display.ts` (the token digits grouped with a no-break space, which `\s` matches; the savings may carry one decimal); task 4.1 aligned (S3). |
+| B3 — API env reads `PORT`, `HOST`, `RATE_LIMIT_*` | Fixed: requirement, scenario, D3 and task 3.1 pin `PORT=3000`, `HOST=127.0.0.1`, `RATE_LIMIT_MAX=1000`; D3 explains why and why `RATE_LIMIT_WINDOW_MS` is not pinned (S4). |
+| §5 D5 "any valid question" | Fixed: D5 and 7.3 send Q1. |
+| §5 D5 "evidence location" | Fixed: D5 and 7.3 use the field `file` (and `excerpt`). |
+| §6 negative scenario WHEN vs task 11.3 | Fixed: the scenario's WHEN names `npx playwright test <file>`, the runner behind `npm run test:e2e`; 11.3 cites it. |
+| §6 D7 "no file is checked twice" | Fixed: D7 reworded; with the D10 decision the file compiled by both programs is the options module, which uses no DOM type. |
+| §7 registry check of the dependency | Fixed: task 1.1 runs `npm view @playwright/test@1.64.1 version time --json` first and records the date. |
+| §7 `docs/project-context.md:1505` stale sentence | Fixed: task 13.3 revises it. |
+| §8 importing `@playwright/test` under Vitest | Decided by the agent (S5): option (b). `tests/e2e/support/config-options.ts` holds the options as the primary design; the test imports it and asserts that `playwright.config.ts`, read as text, only passes it to `defineConfig` unchanged; the fallback branch is removed; the scenario's GIVEN names both files. Option (a) was rejected because the child process would need a TypeScript loader the tests do not use. |
+| §8 `runtime` paths filter lacks `playwright.config.ts` | Fixed: D9 and task 8.2 add it (S7). |
+| §9 task 14.1 too large | Fixed: split into 14.1a (PR and Linear), 14.1b (bounded repeated CI waits) and 14.1c (green `e2e` evidence); 9.2 updated. |
+| §10 11.2 only `5173` | Fixed: 11.2 runs the `5173` and `3000` cases. |
+| §11 traceability — *target* note | Fixed: task 13.1 names the DoD item. |
+| Linear — `[enhanced]` decisions A1–A3 | Applied by the agent in DIS-75's `[enhanced]` → Decisiones, in Spanish, marked as the agent's text. |
+| Linear — Q1 comment for the author | Replaced by the agent's decision (no question is left for the author): the round's Spanish comment on DIS-75 records it. |
+| Linear — DIS-50 comment | Applied: the widening is accepted, so the Spanish comment is posted on DIS-50. |

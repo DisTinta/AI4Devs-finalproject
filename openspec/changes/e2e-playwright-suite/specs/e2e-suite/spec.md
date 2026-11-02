@@ -15,7 +15,9 @@ API from `packages/api/src/server.ts`, without file watching, until `http://127.
 answers; and the web development server, until `http://127.0.0.1:5173` answers. Every spec SHALL open
 pages relative to `http://127.0.0.1:5173`. The API SHALL run in evaluation mode whatever `.env` says:
 its environment SHALL define `LLM_BASE_URL` and `LLM_API_KEY` as empty strings, which win over `.env`, so
-no answer calls a language model. `DATABASE_URL` SHALL come from the environment when set (CI) or from
+no answer calls a language model, and it SHALL also define `PORT` = `3000`, `HOST` = `127.0.0.1` and
+`RATE_LIMIT_MAX` = `1000`, so no `.env` value moves the API off the address the web proxies to or
+rate-limits the suite. `DATABASE_URL` SHALL come from the environment when set (CI) or from
 `.env` otherwise. The suite SHALL NOT reuse an API or web server that is already running: when port
 `3000` or `5173` is taken, the run SHALL fail before any spec runs. Each spec SHALL be retried once in CI
 and never locally, and a failed spec SHALL leave its trace and screenshot in `test-results/` and the HTML
@@ -23,17 +25,28 @@ report in `playwright-report/`, without opening a browser to show it.
 
 #### Scenario: The Playwright configuration starts both servers in evaluation mode
 
-- **GIVEN** the root `playwright.config.ts`
-- **WHEN** it is loaded
-- **THEN** its test directory is `tests/e2e`, it has exactly one project and that project uses Chromium,
-  and its base URL is `http://127.0.0.1:5173`
-- **AND** it has exactly two web servers: one whose command starts `packages/api/src/server.ts` without
-  `--watch` and waits for `http://127.0.0.1:3000/health`, with `LLM_BASE_URL` and `LLM_API_KEY` set to
-  `''` in its environment; and one whose command starts the web development server and waits for
-  `http://127.0.0.1:5173`
+- **GIVEN** the options module `tests/e2e/support/config-options.ts` and the root `playwright.config.ts`
+- **WHEN** both are loaded (the options module) and read (the configuration's source)
+- **THEN** the root `playwright.config.ts` default-exports `defineConfig` applied to that options object
+  unchanged, with no other option added or overridden
+- **AND** the options' test directory is `tests/e2e`, they have exactly one project and that project uses
+  Chromium, and their base URL is `http://127.0.0.1:5173`
+- **AND** they have exactly two web servers: one whose command starts `packages/api/src/server.ts` without
+  `--watch` and waits for `http://127.0.0.1:3000/health`, whose environment is exactly
+  `LLM_BASE_URL` = `''`, `LLM_API_KEY` = `''`, `PORT` = `3000`, `HOST` = `127.0.0.1` and
+  `RATE_LIMIT_MAX` = `1000`; and one whose command starts the web development server with
+  `--strictPort` and waits for `http://127.0.0.1:5173`
 - **AND** neither web server reuses an existing server
 - **AND** retries are `1` when `CI` is set and `0` otherwise, traces are retained on failure, screenshots
   are taken only on failure, and the HTML reporter never opens
+
+#### Scenario: A taken port fails the run before any spec
+
+- **GIVEN** a process already answering on `http://127.0.0.1:5173` (and, in a separate run, a process
+  already answering on `http://127.0.0.1:3000/health`)
+- **WHEN** `npm run test:e2e` runs
+- **THEN** it exits with a non-zero code before any spec starts, with Playwright's `webServer` error
+  naming the taken URL
 
 ### Requirement: Vitest never runs the end-to-end specs
 
@@ -47,10 +60,13 @@ script `test:e2e` as `playwright test`.
 - **GIVEN** the root `vitest.config.ts` and `vitest.stryker.config.ts`
 - **WHEN** they are loaded
 - **THEN** the root `exclude` and the `exclude` of the `node` project contain a glob that matches
-  `tests/e2e/ask-flow.spec.ts`, no project's `include` matches it, and the Stryker configuration
-  inherits that exclusion
+  `tests/e2e/ask-flow.spec.ts`; the `include` of the `dom`, `seed-build` and `harness` projects does not
+  match it; the `node` project, which declares no `include` of its own, is kept off it by its `exclude`;
+  and the merged `exclude` of `vitest.stryker.config.ts` still matches it
 - **AND** the root `package.json` has the script `test:e2e` equal to `playwright test`, and its
   `typecheck` script checks `tests/e2e/tsconfig.json`
+- **AND** `tests/e2e/tsconfig.json` includes `playwright.config.ts` and the specs of `tests/e2e/`, and
+  `tests/tsconfig.json` excludes `e2e/**`
 
 ### Requirement: Ask flow on the seed
 
@@ -68,7 +84,10 @@ excerpt; and the usage panel «Uso» shows the tokens, the cost and the savings 
 - **AND** at least one statement shows a verification badge («verificado» or «sin verificar»)
 - **AND** after activating the first evidence button, that button has `aria-expanded="true"` and its
   excerpt is visible
-- **AND** the region named «Uso» is visible and shows a token count, a cost in USD and the savings badge
+- **AND** the region named «Uso» is visible and contains a text matching `/\d[\d\s]* tokens?\b/` (the
+  digits grouped with a no-break space), a cost matching `/(\$0|< \$0\.001|\$\d+\.\d{3})/` and the
+  savings badge matching `/(ahorro \d+(\.\d)? % vs bruto|sin ahorro vs bruto)/` (the formats of
+  `packages/web/src/components/usage-display.ts`)
 
 ### Requirement: Honest unknown on the seed
 
@@ -135,7 +154,8 @@ and that runs, in this order, `npm ci`, the installation of Chromium only with i
 `LLM_*` variable or set `continue-on-error`. No other job SHALL use the database `e2e`. When a step
 fails, the job SHALL upload `playwright-report/` and `test-results/` as an artifact. The `scope` job
 SHALL treat a previous `e2e` result that is neither success nor skipped as it treats `quality`,
-`mutation` and `verify`. A failing `e2e` job SHALL fail the run.
+`mutation` and `verify`. A failing `e2e` job SHALL fail the run. The same suite SHALL also pass when run
+locally on the seeded local database, from Bash and from PowerShell.
 
 #### Scenario: The CI workflow runs the end-to-end suite in a job of its own
 
@@ -156,9 +176,19 @@ SHALL treat a previous `e2e` result that is neither success nor skipped as it tr
 #### Scenario: A failing spec fails the suite and leaves its evidence
 
 - **GIVEN** the suite with one spec whose expected text is deliberately wrong
-- **WHEN** `npm run test:e2e` runs
+- **WHEN** the suite runs that spec (`npx playwright test <file>`, the runner behind `npm run test:e2e`)
 - **THEN** it exits with a non-zero code
 - **AND** `test-results/` holds a screenshot and a trace of the failed spec
+- **AND** `playwright-report/index.html` exists and no browser window was opened
+
+Because the `e2e` job runs `npm run test:e2e` with no `continue-on-error`, a non-zero exit code fails the
+job and the run; no deliberately broken spec is pushed to CI.
+
+#### Scenario: The suite passes locally
+
+- **GIVEN** the local Docker Postgres seeded and ports `3000` and `5173` free
+- **WHEN** `npm run test:e2e` runs from Bash, from `pwsh -NoProfile` and from `powershell.exe -NoProfile`
+- **THEN** the four specs pass and the command exits `0` in each shell
 
 #### Scenario: The e2e job is green on the pull request
 

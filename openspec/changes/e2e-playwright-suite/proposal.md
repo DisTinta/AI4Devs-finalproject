@@ -15,8 +15,10 @@ Screen 3 walkthrough).
   design; only Chromium is installed.
 - **`playwright.config.ts`** at the root: tests in `tests/e2e/`, a single Chromium project, retries only in
   CI, trace and screenshot kept on failure, and two web servers it starts itself — the API without
-  `--watch` in evaluation mode (`LLM_BASE_URL` and `LLM_API_KEY` empty, which win over `.env`) and the Vite
-  dev server on `5173` — never reusing a server that is already running.
+  `--watch` in evaluation mode (`LLM_BASE_URL` and `LLM_API_KEY` empty, which win over `.env`, and `PORT`,
+  `HOST` and `RATE_LIMIT_MAX` pinned so `.env` cannot move or rate-limit it) and the Vite dev server on
+  `5173` — never reusing a server that is already running. Its literal options live in
+  `tests/e2e/support/config-options.ts`, which the root file passes to `defineConfig` unchanged.
 - **Four specs over the seed (acme-shop)**:
   - `tests/e2e/ask-flow.spec.ts` — Screen 1 → acme-shop → golden Q1 → at least one verified statement,
     one evidence expanded with its excerpt, the usage panel with tokens, cost and savings.
@@ -62,7 +64,7 @@ true); only its test's exact-text match of the loop is loosened, without weakeni
   `vitest.config.ts` changes invalidate the incremental Stryker cache: the `mutation` job of the PR runs a
   full pass (within its 60-minute limit).
 - **Code**: no production code changes (`packages/**` untouched). New: `playwright.config.ts`,
-  `tests/e2e/*.spec.ts`, `tests/e2e/tsconfig.json`, `tests/unit/ci/e2e-job.spec.ts`,
+  `tests/e2e/support/config-options.ts`, `tests/e2e/*.spec.ts`, `tests/e2e/tsconfig.json`, `tests/unit/ci/e2e-job.spec.ts`,
   `tests/unit/ci/e2e-config.spec.ts`. Changed: `vitest.config.ts`, `tests/tsconfig.json`, `package.json`
   (script, typecheck, devDependency), `eslint.config.mjs` (ignore the Playwright output folders),
   `.github/workflows/ci.yml`, and the existing tests `tests/unit/ci/verify-job.spec.ts` and
