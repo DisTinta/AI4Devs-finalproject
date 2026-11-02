@@ -58,15 +58,16 @@ describen en `readme.md` §1.4.
 ## Integración continua
 
 En cada pull request se ejecutan dos workflows (`.github/workflows/`). `CI` también se ejecuta en los
-push a `main` y a las ramas de entrega (`feature/entrega-*`, `final-project-*`); `Frontend`, en los
-push a `main`.
+push a `main` y a las ramas de entrega (`feature/entrega-*`, `final-project-*`), y a mano
+(`workflow_dispatch`: Actions → CI → Run workflow, o `gh workflow run CI --ref <rama>`); `Frontend`, en
+los push a `main`.
 
 | Workflow → job | Qué ejecuta | Notas |
 |---|---|---|
 | `CI` → `scope` | Decide si se ejecutan `quality`, `verify` y `mutation` | Un push a un PR abierto que solo toca `docs/`, `openspec/` o `*.md` se los salta cuando los tres estaban en verde en el head anterior |
 | `CI` → `quality` | `npm ci`, `npm run lint`, `npm run typecheck`, `npx depcruise --config .dependency-cruiser.cjs packages`, migraciones up, down y otra vez up, `npx vitest run` | Servicio Postgres con su propia base de datos `test`; las migraciones y los tests solo se ejecutan cuando cambiaron ficheros de runtime |
 | `CI` → `verify` | `npm run db:migrate`, `npm run db:seed`, `npm run verify` | Servicio Postgres con su propia base de datos `verify`, nunca la de `test`; sin `LLM_*` |
-| `CI` → `mutation` | `npm run test:mutation` (incremental) en los pull requests, `npm run test:mutation:full` en los push | Sin base de datos; falla por debajo de una puntuación de mutación de 80; solo cuando cambiaron `packages/core`, `packages/cli`, `packages/api`, `tests` o su configuración |
+| `CI` → `mutation` | `npm run test:mutation` (incremental) en los pull requests y en los push; `npm run test:mutation:full` solo en la ejecución manual | Sin base de datos; falla por debajo de una puntuación de mutación de 80; solo cuando cambiaron `packages/core`, `packages/cli`, `packages/api`, `tests` o su configuración (la ejecución manual muta siempre); límite de 60 min |
 | `CI` → `secrets` | gitleaks 8.30.1 sobre el árbol de trabajo y los commits del evento | Se ejecuta siempre, también en los push que solo tocan documentación |
 | `Frontend` → `frontend` | `npm run lint`, `npm run typecheck`, `npx vitest run tests/unit tests/harness tests/a11y packages/web`, `npm run test:a11y` | Sin base de datos: con Vitest 4 y posteriores el `--exclude` de la línea de comandos no llega a los proyectos de `test.projects`, así que el paso lista los directorios (DIS-105 D14). Solo cuando cambiaron ficheros del front-end (`dorny/paths-filter`: ficheros `.tsx`/`.css`, `packages/web/**`, `tests/a11y/**`, `tests/unit/web/**`, `tests/support/jsdom-setup.ts`, el lock file y las configuraciones de Vite/Vitest/TS); `test:a11y` ejecuta la puerta de accesibilidad (ver `docs/TESTING.md`) |
 

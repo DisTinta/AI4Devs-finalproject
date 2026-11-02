@@ -178,7 +178,10 @@ lo que significa cada código de fallo y cómo arreglarlo.
 
 `npm run test:mutation` ejecuta Stryker de forma incremental: solo se vuelven a ejecutar los mutantes
 cuyo código o cuyos tests que lo cubren cambiaron; el resto reutiliza `reports/stryker-incremental.json`.
-`npm run test:mutation:full` ejecuta todos los mutantes. El umbral de corte es una puntuación de 80
+`npm run test:mutation:full` ejecuta todos los mutantes. En CI, los pull requests y los push a las ramas
+base son incrementales; la ejecución completa solo se lanza a mano (`gh workflow run CI --ref <rama>`),
+para corregir la deriva que el modo incremental no ve: un fichero que cambió sin ser mutado ni test
+(fixtures, datos, adaptadores no mutados). El umbral de corte es una puntuación de 80
 (`thresholds.break`); la cobertura no es una puerta. Un único fichero se ejecuta con
 `npx stryker run --mutate <ruta>`. Los specs de integración no forman parte: necesitan una base de
 datos o arrancan procesos. `scripts/` tampoco: la mutación se limita a los paquetes del producto.

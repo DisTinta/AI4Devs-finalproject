@@ -186,13 +186,18 @@ Verified against `package.json` (root and per package). If a command is not here
   parallel to `quality` and without Postgres; it runs when its `business` paths filter matches
   (`packages/core/**`, `packages/cli/**`, `packages/api/**`, `tests/**`, Stryker/Vitest config, `package*.json`,
   `ci.yml`) and restores the report from the Actions cache (this branch, else the PR base branch;
-  the key hashes the lock file and the Stryker/Vitest configs). A PR runs `test:mutation`; a push to
-  a base branch runs `test:mutation:full` and saves the report the next PRs start from. It is
+  the key hashes the lock file and the Stryker/Vitest configs, so changing any of them runs
+  everything). PRs and pushes to a base branch run `test:mutation`; the push saves the report the
+  next PRs start from. Only a manual run (`gh workflow run CI --ref <branch>`, `workflow_dispatch`)
+  runs `test:mutation:full`: the forced full pass on every merge outgrew the 40 min timeout (7434
+  mutants, 1019 static ones taking ~68% of the time), and the job limit is now 60 min. It is
   guarded: it only runs once test files exist, otherwise it prints a warning and skips (Stryker's
   dry run fails with zero tests, and faking a test to force it green defeats the gate).
 - CI triggers: every PR, plus pushes to `main`, `feature/entrega-*` and `final-project-*` (the
-  delivery branches PRs merge into). A new push to a PR cancels the run of its previous head
-  (`concurrency`); pushes to a base branch always finish.
+  delivery branches PRs merge into), and by hand (`workflow_dispatch`), which runs every job with no
+  paths filter. A new push to a PR cancels the run of its previous head (`concurrency`); pushes to a
+  base branch always finish. The autonomous preflight (`.claude/doctor.*`) reads the latest run on
+  the base whatever its event, so a manual run that fails or times out blocks it too.
 - CI docs-only skip: the `scope` job of `ci.yml` skips the `quality`, `mutation` and `verify` jobs
   when a push to an open PR only touches `openspec/**`, `docs/**` or `*.md` (diff of that push,
   `before..after`) and all three were green or skipped on the previous head — e.g. the `/opsx:archive` commit. They always

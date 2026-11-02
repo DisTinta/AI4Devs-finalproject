@@ -1,10 +1,13 @@
 name: CI
 on:
   pull_request:
-  # The delivery branches are the PR base while `main` is untouched: a merge into one runs the full
+  # The delivery branches are the PR base while `main` is untouched: a merge into one runs the
   # mutation pass, whose incremental report seeds the cache the next PRs against it restore.
   push:
     branches: [main, 'feature/entrega-*', 'final-project-*']
+  # Run by hand on a base branch (Actions → CI → Run workflow, or `gh workflow run CI --ref <branch>`):
+  # the whole CI, with the full mutation pass (`test:mutation:full`) instead of the incremental one.
+  workflow_dispatch:
 # A new push to a PR cancels the run of the previous head; pushes to a base branch always finish.
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
@@ -77,9 +80,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # runtime: full monorepo (PATH_SOURCE = packages), not just an app/.
+      # runtime: full monorepo (PATH_SOURCE = packages), not just an app/. A manual run has no diff to
+      # filter: it always runs everything.
       - uses: dorny/paths-filter@v4
         id: changes
+        if: github.event_name != 'workflow_dispatch'
         with:
           filters: |
             runtime:
@@ -108,6 +113,14 @@ jobs:
               - '.cursor/skills/verify-against-spec/**'
               - '.cursor/skills/adversarial-review/**'
 
+      - id: gate
+        env:
+          EVENT: ${{ github.event_name }}
+          RUNTIME: ${{ steps.changes.outputs.runtime }}
+        run: |
+          if [ "$EVENT" = workflow_dispatch ] || [ "$RUNTIME" = true ]; then run=true; else run=false; fi
+          echo "run=$run" | tee -a "$GITHUB_OUTPUT"
+
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -128,13 +141,13 @@ jobs:
         run: npx depcruise --config .dependency-cruiser.cjs packages
 
       - name: Migrations (apply and roll back)
-        if: steps.changes.outputs.runtime == 'true'
+        if: steps.gate.outputs.run == 'true'
         run: npm run db:migrate && npm run db:rollback && npm run db:migrate
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/test
 
       - name: Tests
-        if: steps.changes.outputs.runtime == 'true'
+        if: steps.gate.outputs.run == 'true'
         run: npx vitest run
         env:
           NODE_ENV: test
@@ -143,7 +156,7 @@ jobs:
       # The hooks must decide long inputs well inside their 10 s timeout. Timed one file at a time, so
       # the figure measures the hook and not the load of the parallel suite (autonomous-run-switch).
       - name: Hook timing
-        if: steps.changes.outputs.runtime == 'true'
+        if: steps.gate.outputs.run == 'true'
         run: npx vitest run --no-file-parallelism tests/harness/paths-node.spec.ts tests/harness/secrets-round4.spec.ts tests/harness/paths-round6.spec.ts tests/harness/paths-round7.spec.ts
         env:
           HOOK_TIMING: '1'
@@ -201,25 +214,31 @@ jobs:
   # Mutation testing, its own job so it runs in parallel with `quality` (it needs no Postgres).
   # Incremental (`"incremental": true` in stryker.config.json): only mutants whose code or covering
   # tests changed run again; the rest reuse reports/stryker-incremental.json, restored from the
-  # cache of this branch, else of the PR base branch. A push to a base branch runs everything
-  # (`test:mutation:full`, i.e. --force) and saves the report the next PRs start from. The cache key
-  # hashes the lock file and the Stryker/Vitest configs: incremental mode cannot see those change.
+  # cache of this branch, else of the PR base branch. A push to a base branch is incremental too, and
+  # saves the report the next PRs start from: a forced full pass on every merge outgrew the timeout
+  # (7434 mutants, 1019 static ones taking ~68% of the time; PRs #89-#92 were cancelled at 40 min).
+  # The cache key hashes the lock file and the Stryker/Vitest configs, which incremental mode cannot
+  # see change, so changing any of them misses the cache and runs everything anyway. The drift it
+  # cannot see (a changed file that is neither mutated nor a test) is reset by a manual run
+  # (workflow_dispatch), the only one that runs `test:mutation:full` (--force).
   mutation:
     needs: scope
     if: needs.scope.outputs.code == 'true'
     runs-on: ubuntu-latest
     # 30 min was too tight for a branch whose incremental cache has no hit yet (DIS-26: the
-    # mutation step alone finished in 29m34s, and the job was cancelled mid cache-save at the
-    # 30 min mark even though its score, 95.64, was already above the break threshold).
-    timeout-minutes: 40
+    # mutation step alone finished in 29m34s), and 40 min for the full pass once the code grew (the
+    # mutation step of PR #88's merge took 35m53s, PR #92's was cut at 96% of its mutants).
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
       # business: PATH_BUSINESS (packages/core) + packages/cli (DIS-86) + packages/api (DIS-76) +
       # packages/adapters/llm/src/long-fetch.ts (DIS-103: the one adapter file Stryker mutates) +
-      # Stryker/Vitest config + tests/** + dependencies + this workflow.
+      # Stryker/Vitest config + tests/** + dependencies + this workflow. A manual run has no diff to
+      # filter: it always mutates.
       - uses: dorny/paths-filter@v4
         id: changes
+        if: github.event_name != 'workflow_dispatch'
         with:
           filters: |
             business:
@@ -236,22 +255,33 @@ jobs:
               - 'package-lock.json'
               - '.github/workflows/ci.yml'
 
+      - id: gate
+        env:
+          EVENT: ${{ github.event_name }}
+          BUSINESS: ${{ steps.changes.outputs.business }}
+        run: |
+          if [ "$EVENT" = workflow_dispatch ] || [ "$BUSINESS" = true ]; then run=true; else run=false; fi
+          echo "run=$run" | tee -a "$GITHUB_OUTPUT"
+
       - uses: actions/setup-node@v4
-        if: steps.changes.outputs.business == 'true'
+        if: steps.gate.outputs.run == 'true'
         with:
           node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
-        if: steps.changes.outputs.business == 'true'
+        if: steps.gate.outputs.run == 'true'
         run: npm ci
 
+      # The run id ends the key so that every run saves its report: a manual full pass on the commit
+      # of the last push would otherwise hit that push's key exactly, and actions/cache does not save
+      # on an exact hit.
       - name: Restore the incremental mutation report
-        if: steps.changes.outputs.business == 'true'
+        if: steps.gate.outputs.run == 'true'
         uses: actions/cache@v4
         with:
           path: reports/stryker-incremental.json
-          key: stryker-${{ hashFiles('package-lock.json', 'stryker.config.json', 'vitest.config.ts', 'vitest.stryker.config.ts') }}-${{ github.head_ref || github.ref_name }}-${{ github.sha }}
+          key: stryker-${{ hashFiles('package-lock.json', 'stryker.config.json', 'vitest.config.ts', 'vitest.stryker.config.ts') }}-${{ github.head_ref || github.ref_name }}-${{ github.sha }}-${{ github.run_id }}
           restore-keys: |
             stryker-${{ hashFiles('package-lock.json', 'stryker.config.json', 'vitest.config.ts', 'vitest.stryker.config.ts') }}-${{ github.head_ref || github.ref_name }}-
             stryker-${{ hashFiles('package-lock.json', 'stryker.config.json', 'vitest.config.ts', 'vitest.stryker.config.ts') }}-${{ github.base_ref }}-
@@ -267,12 +297,12 @@ jobs:
       # job does not have; the mutated core, cli and api sources and the LLM adapter's long-fetch.ts
       # are covered by the unit specs.
       - name: Mutation testing on critical paths
-        if: steps.changes.outputs.business == 'true'
+        if: steps.gate.outputs.run == 'true'
         env:
           EVENT: ${{ github.event_name }}
         run: |
           if find packages tests -path tests/integration -prune -o \( -name '*.test.*' -o -name '*.spec.*' \) -print 2>/dev/null | grep -q .; then
-            if [ "$EVENT" = push ]; then npm run test:mutation:full; else npm run test:mutation; fi
+            if [ "$EVENT" = workflow_dispatch ]; then npm run test:mutation:full; else npm run test:mutation; fi
           else
             echo "WARNING: no test files yet — skipping mutation testing until tests exist (Ticket 1/2)."
           fi
