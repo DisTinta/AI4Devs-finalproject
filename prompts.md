@@ -95,6 +95,7 @@
 79. [`POST /impact` con esquema Zod y tests `200`/`400`/`404` (DIS-95)](#79-post-impact-con-esquema-zod-y-tests-200400404-dis-95)
 80. [Pantalla 3 de impacto en la web (DIS-14)](#80-pantalla-3-de-impacto-en-la-web-dis-14)
 81. [Suite E2E con Playwright y job `e2e` en CI (DIS-75)](#81-suite-e2e-con-playwright-y-job-e2e-en-ci-dis-75)
+82. [Cobertura informativa y puerta de mutación (DIS-77)](#82-cobertura-informativa-y-puerta-de-mutación-dis-77)
 
 ---
 
@@ -5568,3 +5569,24 @@ letra: el campo de la pregunta se alcanza con `getByRole('textbox', { name: 'Pre
 modo que un elemento inyectado en `main` no ensanchaba el documento y la comprobación de desbordamiento mira
 también `main`; y un Vite arrancado sin `--host 127.0.0.1` solo escucha en `localhost`, así que no contaba
 como puerto ocupado en la prueba 11.2.
+
+---
+
+# 82. Cobertura informativa y puerta de mutación (DIS-77)
+
+### Prompt 1 — Paso de apply del cambio `informative-coverage` en la ejecución autónoma
+
+Extracto literal del encargo que recibió el subagente:
+
+```
+Run /opsx:apply on change informative-coverage: every task in TDD (failing test first, then implementation, in the layer order), marking tasks.md as you go, with the mandatory verification steps. Run the tests, lint and typecheck. Commit, push and open the PR to final-project-CRN with /pr-describe (write the "why" yourself and mark it as agent-written). Return pr.
+```
+
+**Por qué funcionó.** El `design.md` fijaba el bloque `coverage`, el script de resumen con sus casos de
+entrada y los pasos de CI, y la auditoría había cerrado los huecos, así que el agente solo tenía que escribir
+cada test en rojo y completarlo (texto del agente).
+
+**Ajuste humano.** Ninguno: ejecución autónoma (texto del agente). Una cosa no siguió el plan: el `--exclude`
+de la línea de comandos solo llega a la configuración raíz y no a las listas `exclude` de cada proyecto, así
+que los cuatro specs con presupuesto de tiempo seguían ejecutándose con cobertura; `vitest.config.ts` los
+excluye además cuando `--coverage` está en `process.argv`, con un test que lo comprueba (design D7, A9).

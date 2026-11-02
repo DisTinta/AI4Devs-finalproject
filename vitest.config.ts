@@ -14,6 +14,15 @@ const HARNESS_POOL = process.platform === 'win32' ? { maxWorkers: 2, sequence: {
  */
 const DATABASE_START_UP_CHECK = ['tests/integration/helpers/global-setup.ts'];
 
+/**
+ * The wall-clock specs (fixed time budgets and n/4n ratios) never run under V8 coverage, which changes
+ * exactly what they measure (DIS-77 design D7). The CLI `--exclude` of `npm run test:coverage` reaches
+ * only the root, not the projects' own file lists, so the exclusion is also made here when the run asks
+ * for coverage. The CI `Timing budgets` step runs them without it; Stryker passes no `--coverage`.
+ */
+const COVERAGE_RUN = process.argv.some((arg) => arg === '--coverage' || arg.startsWith('--coverage.'));
+const TIMED_SPECS_UNDER_COVERAGE = COVERAGE_RUN ? ['**/*.linear.spec.ts', '**/*.scaling.spec.ts'] : [];
+
 export default defineConfig({
   // The root config has no React plugin: compile the `.tsx` tests with the React 17+ JSX runtime
   // whatever tsconfig the transformer finds (DIS-58 design D23). Vite 8 transforms with Oxc, which
@@ -38,7 +47,7 @@ export default defineConfig({
   test: {
     // `.stryker-tmp/` holds Stryker sandboxes; an aborted run leaves one behind with a full copy of the suite.
     // `tests/e2e/**` are Playwright specs: Vitest must never collect them (e2e-playwright-suite design D6).
-    exclude: ['fixtures/**', 'node_modules/**', '.stryker-tmp/**', 'tests/e2e/**'],
+    exclude: ['fixtures/**', 'node_modules/**', '.stryker-tmp/**', 'tests/e2e/**', ...TIMED_SPECS_UNDER_COVERAGE],
     passWithNoTests: true,
     // The Git integration specs spawn `git` many times per test; under the full suite's load on Windows
     // a few of them took longer than the 5 s default (they pass alone). A slower machine is not a bug.
@@ -102,6 +111,7 @@ export default defineConfig({
             'tests/harness/**',
             // The `node` project has no `include`, so only this entry keeps the Playwright specs out (design D6).
             'tests/e2e/**',
+            ...TIMED_SPECS_UNDER_COVERAGE,
           ],
         },
       },
@@ -112,5 +122,16 @@ export default defineConfig({
     // `npm run db:rollback` in the migration specs) inherit this switch, so the `.env` preload leaves
     // their environment as the test set it (DIS-102 design D12). `vitest.stryker.config.ts` inherits it.
     env: { CODEMIND_SKIP_DOTENV: '1' },
+    // Coverage is informative: off unless `--coverage` is passed, and with no `thresholds`, because the
+    // mutation score is the only gate (DIS-77 design D2). It is a root-level option in Vitest 4 and
+    // covers every project of the run; `vitest.stryker.config.ts` inherits it but never enables it.
+    coverage: {
+      provider: 'v8',
+      include: ['packages/*/src/**/*.{ts,tsx}', 'packages/adapters/*/src/**/*.ts', 'packages/analyzers/*/src/**/*.ts'],
+      exclude: ['**/*.d.ts', '**/*.test.*'],
+      reporter: ['text-summary', 'json-summary'],
+      reportsDirectory: 'coverage',
+      reportOnFailure: true,
+    },
   },
 });

@@ -149,9 +149,26 @@ jobs:
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/test
 
+      # One pass collects V8 coverage (DIS-77, informative-coverage design D3). The wall-clock specs are
+      # left out of it, since coverage changes what they measure, and run in `Timing budgets` (design D7).
       - name: Tests
         if: steps.gate.outputs.run == 'true'
-        run: npx vitest run
+        run: npx vitest run --coverage --exclude "**/*.linear.spec.ts" --exclude "**/*.scaling.spec.ts"
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/test
+
+      # Coverage informs and never blocks: the summary also runs when `Tests` failed (not when the run was
+      # cancelled), and `continue-on-error` keeps even a crash of the script from turning the job red.
+      - name: Coverage summary (informative)
+        if: ${{ !cancelled() && steps.gate.outputs.run == 'true' }}
+        continue-on-error: true
+        run: node scripts/coverage-summary.mjs coverage/coverage-summary.json >> "$GITHUB_STEP_SUMMARY"
+
+      # The four timed specs keep gating `quality` as before, now without coverage (design D7).
+      - name: Timing budgets
+        if: steps.gate.outputs.run == 'true'
+        run: npx vitest run tests/unit/index/secret-scanner.linear.spec.ts tests/unit/index/secret-scanner.scaling.spec.ts tests/unit/explain/sanitize.linear.spec.ts tests/unit/explain/sanitize.scaling.spec.ts
         env:
           NODE_ENV: test
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/test
@@ -353,7 +370,8 @@ jobs:
 
       # The hard gate is the mutation score (`thresholds.break` 80 in stryker.config.json: a lower
       # score fails the job), not coverage: requiring a coverage
-      # percentage fabricates empty tests. Coverage is published as a signal.
+      # percentage fabricates empty tests. Coverage is published as a signal by the `Coverage summary
+      # (informative)` step of the `quality` job.
       # Skips cleanly until the first test exists: Stryker's dry run fails with
       # zero tests, and fabricating an empty test to force it green is exactly
       # what this gate is meant to prevent. It self-activates once tests land.

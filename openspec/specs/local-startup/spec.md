@@ -113,7 +113,7 @@ The root npm scripts `cli`, `verify`, `db:migrate`, `db:rollback`, `db:seed`, `c
 `seed:build` SHALL load `.env` before their program starts, keeping their current program and
 arguments; the API's `dev` script SHALL load it before the API starts, without changing
 `packages/api/dev-register.mjs`; `up` and `demo:ask` SHALL load it themselves before doing anything
-else. The scripts `test`, `test:a11y`, `test:mutation`, `test:mutation:full`, `lint`,
+else. The scripts `test`, `test:a11y`, `test:coverage`, `test:mutation`, `test:mutation:full`, `lint`,
 `lint:architecture`, `typecheck` and `docs:coverage` SHALL NOT load it. Product code SHALL keep
 reading its configuration from the process environment only: no file under `packages/*/src` SHALL
 import from `scripts/` or name `load-env` or `.env` in an import specifier. The root `package.json`
@@ -131,7 +131,7 @@ warning at most once per process.
 - **AND** the API's `dev` is `node --watch --import ../../scripts/load-env.mjs --import ./dev-register.mjs src/server.ts`
 - **AND** `up` is `node scripts/up.mjs`, `demo:ask` is `node scripts/demo-ask.mjs` and `demo:excerpt`
   is `node scripts/demo-excerpt.mjs`
-- **AND** none of `test`, `test:a11y`, `test:mutation`, `test:mutation:full`, `lint`,
+- **AND** none of `test`, `test:a11y`, `test:coverage`, `test:mutation`, `test:mutation:full`, `lint`,
   `lint:architecture`, `typecheck` and `docs:coverage` contains `load-env`, and
   `packages/api/dev-register.mjs` does not contain `load-env`
 - **AND** `engines.node` is `>=22.12`
