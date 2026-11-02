@@ -176,3 +176,30 @@ No empty row. The 1:1 test map is planned in 4.2.
 
 ### Linear DIS-95 (comment, in Spanish; the `[original]` block is not edited)
 "*Texto del agente (auditoría de spec, ejecución autónoma, 2026-11-02).* La primera auditoría de `http-impact` sale `CHANGES REQUIRED` con 2 hallazgos bloqueantes, que se corrigen en el propio cambio: (1) la estrictez de los esquemas de respuesta: el serializador ya descarta las claves no declaradas, así que el test de la tarea 2.4 no puede detectar un spread; se fija `z.object` como en `/ask` y se corrige la tarea; (2) la tarea 1.2 no podía pasar a verde sin una ruta mínima registrada; la ruta mínima y la semilla `impact` se adelantan a la 1.2. Pregunta del padre (DIS-93 AC 4 lista `usage` y no `status`): se mantiene P1 (destino D); el DoD «solo los campos de §4» se comprueba contra el §4 reescrito en este cambio. El destino del fallback del `## Purpose` (decisión 7) pasa de A a D. Nada queda para la autora."
+
+---
+
+## Resolution of run 1
+
+*Agent's text: correction round 1 of the autonomous run (`docs/AUTONOMOUS-RUN.md` §6), 2026-11-02. Decisions taken as lead engineer are recorded in `design.md` → Follow-ups R1–R5. `openspec validate http-impact --strict` passes after the edits.*
+
+| Finding | Severity | Resolution |
+|---|---|---|
+| Q1 (parent AC 4 lists `usage`, not `status`) | question | Decided by the agent: P1 confirmed (destination D); the DIS-95 DoD is checked against the §4 rewritten by this change; task 8.1 says so (Follow-ups R3). |
+| 2.a (graph/git separation in Q2) | improvable | Fixed: the Q2 scenario now says no entry of `direct`, `indirect` or `tests` has `file` `app/Services/ShippingService.php`. |
+| 3.a (events of an unknown report) | improvable | Fixed: "An unknown report with events sends no events" builds the app with a test log stream and checks the `info` line with `reqId`, `type` and `code`; task 2.4 names `logStream()`. |
+| 3.b (store failure inside the use case) | improvable | Fixed: the second half of "Another error on impact answers INTERNAL" resolves the project and fails the traversal read; task 2.5 names `getProject` resolving and `neighbors` rejecting (Follow-ups R4). |
+| 4.a ("negligible next to the traversal") | improvable | Fixed in design → Risks with the reads counted. |
+| 4.b ("meaningful survivors") | improvable | Fixed in task 5.4 as worded by the audit. |
+| 5.a (response-schema strictness; RED that cannot fail) | blocking | Fixed and decided by the agent: `z.object` as `/ask`; design D1 says the serializer is the guarantee and `toPublicReport` is defence in depth; the requirement is reworded to the observable behaviour; task 1.2 names `z.object`; task 2.4's RED now fails on `staleSince` of a current document (Follow-ups R1). |
+| 5.b (13th request) | improvable | Fixed in task 6.4: `{"change":"abc"}` repeated until `429`, which must be the 13th request, `Retry-After` an integer ≥ 1. |
+| 5.c (expected `query_log` count) | improvable | Fixed in task 6.5: expected 4, stop and record if different. |
+| 5.d (non-ASCII bytes from Git Bash) | improvable | Fixed in tasks 6.3 and 6.4 with JSON escapes (Follow-ups R5). |
+| 6.a (destination A for a future change) | improvable | Fixed: design D8, Follow-ups E7 and task 9.5 use destination D, accepted and recorded; no new ticket. |
+| 7.a (closed sets listed twice) | improvable | Fixed: design D6 names `docs/backend-standards.md` §4 as the rule departed from and adds the two-way compile-time equality check against `RiskLevel` and `ImpactUnknownReason`; P4 and task 1.2 updated. |
+| 7.b (readme lines 149 and 183) | improvable | Fixed: task 8.1 adds the *Estado en la Entrega 2* sentence and the «Pantalla 3 — impacto» row. |
+| 8.a (same defect as 5.a from the code) | blocking | Fixed by the 5.a correction. |
+| 8 minor (D7 registration order) | improvable | Fixed: design D7 and task 1.2 say between `registerAskRoute` and `registerReindexRoute`. |
+| 9.a (task 1.2 cannot reach GREEN) | blocking | Fixed and decided by the agent with option (a): task 1.2 also creates the minimal route answering `501`, the seam and its registration; 1.3 goes RED on `501` and GREEN in 2.2; 2.2 completes the route and no longer touches `app.ts` (Follow-ups R2). |
+
+Nothing is left for the author: no task or follow-up has destination C.

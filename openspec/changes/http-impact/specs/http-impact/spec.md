@@ -110,8 +110,8 @@ exactly `status`, `direct`, `indirect`, `tests`, `docs`, `history` and `risk`:
 - `risk`: exactly `{ level, rationale }`, `level` `HIGH`, `MEDIUM` or `LOW`, `rationale` the use case's
   sentence.
 
-Each entry SHALL be built field by field from the use case's report, so a field the use case adds is
-not sent. The body MUST NOT contain `events`, `usage`, `projectId`, the text of the change or any
+A field that the use case's report, one of its entries or its `risk` carries beyond those listed
+SHALL NOT be sent. The body MUST NOT contain `events`, `usage`, `projectId`, the text of the change or any
 database id. The endpoint makes no model call.
 
 #### Scenario: Q2 answers only the public fields over the seed
@@ -126,7 +126,8 @@ database id. The endpoint makes no model call.
   and `SendOrderConfirmation`, each with `hops` 2 and `resolution` `heuristic`; `tests` holds
   `DiscountServiceTest`, `PriceCalculatorTest` and `OrderPricingTest`; every entry of `direct` and
   `indirect` has exactly the keys `symbol`, `file`, `origin`, `resolution`, `hops`, every entry of
-  `tests` exactly `symbol`, `file`, `origin`, and every one of them `origin` `graph`
+  `tests` exactly `symbol`, `file`, `origin`, and every one of them `origin` `graph`; and no entry
+  of `direct`, `indirect` or `tests` has `file` `app/Services/ShippingService.php`
 - **AND** `docs` is exactly `[{ "path": "README.md", "stale": false }]`, `history` is exactly
   `[{ "file": "app/Services/ShippingService.php", "coChangeRate": 1, "prs": [24, 33, 55], "origin": "git" }]`,
   and `risk` is exactly `{ "level": "HIGH", "rationale": "10 ficheros afectados, 3 tests que cubren el cambio, 4 elementos directos sin test, 0 elementos directos con cadena solo heurística." }`
@@ -169,10 +170,13 @@ body exactly `{ "status": "unknown", "reason": "no-anchor" }`.
 
 #### Scenario: An unknown report with events sends no events
 
-- **GIVEN** the app built with doubles, a stored project and a use case that answers
+- **GIVEN** the app built with its log written to a test stream, a stored project and a use case that
+  answers
   `{ status: 'unknown', reason: 'no-anchor', events: [{ type: 'query_not_logged', code: 'store-write-failed' }] }`
 - **WHEN** a valid change is sent
-- **THEN** it answers `200` with the body exactly `{ "status": "unknown", "reason": "no-anchor" }`
+- **THEN** it answers `200` with the body exactly `{ "status": "unknown", "reason": "no-anchor" }`;
+  and one log line carrying the request's `reqId` holds `type` `query_not_logged` and `code`
+  `store-write-failed` at level `info` (30)
 
 ### Requirement: Impact error answers
 
@@ -203,8 +207,8 @@ the API's rate limit by IP ("Rate limit by IP" of `api-foundation`).
 #### Scenario: Another error on impact answers INTERNAL
 
 - **GIVEN** the app built with doubles and a stored project, first with a use case that rejects with
-  `new Error('pool failed at 10.0.0.5')`, then with core's use case over a store whose project read
-  rejects with `new Error('pool failed at 10.0.0.5')`
+  `new Error('pool failed at 10.0.0.5')`, then with core's use case over a store that resolves the
+  project and whose traversal read rejects with `new Error('pool failed at 10.0.0.5')`
 - **WHEN** a valid change is sent each time
 - **THEN** both answer `500` with the body exactly
   `{ "error": { "code": "INTERNAL", "message": "unexpected error", "details": {} } }`, without

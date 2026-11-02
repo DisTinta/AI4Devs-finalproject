@@ -51,6 +51,15 @@ Alternative rejected: an object spread of the core report minus `events`. It wou
 the core adds later without touching the schema; the projection is field by field (`toPublicReport`),
 as `toPublicAnswer` of `/ask`.
 
+Response-schema strictness (audit run 1, 5.a/8.a): the response schemas are `z.object` (as `/ask`),
+not `z.strictObject`. The serializer (`packages/api/src/plugins/zod-compiler.ts`, `zod.parse`) drops
+every undeclared key, which is the guarantee that a field core adds is not published (api-foundation,
+"Response serialisation by schema"); a strict response schema would turn such a field into a `500` in
+production until the schema learns it. `toPublicReport` builds each entry field by field as defence in
+depth, and so that `staleSince` is sent only on a stale document: an HTTP test cannot tell a spread
+from the projection (the serializer strips both alike), so the tests pin the observable shape, not the
+build method.
+
 ### D2. `unknown` → `200` `{ status: 'unknown', reason: 'no-anchor' }` (enrich decision 2)
 
 An honest `UNKNOWN` is an answer, as in `/ask`. The key is `status` (the core's discriminant), not
@@ -93,10 +102,18 @@ constant for the risk levels nor the unknown reason (only types); instead of cha
 `toPublicReport(report: ImpactReport): ImpactResponse` is typed, so a level or reason the core adds
 fails `npm run typecheck` until the schema learns it.
 
+This departs from `docs/backend-standards.md` §4 (closed sets of domain values declared once): core
+exports `RiskLevel` and `ImpactUnknownReason` as types only, and the ticket keeps core unchanged.
+`schemas/impact.ts` therefore adds a two-way compile-time equality check between each literal set and
+its core type (an `Equal<A, B>` helper asserted for `z.infer<typeof riskLevelSchema>` against
+`RiskLevel` and for the unknown reason against `ImpactUnknownReason`), so drift in either direction
+fails `npm run typecheck`.
+
 ### D7. App seam and registration
 
 `AppOptions.impact?: typeof impact` (test seam, as `explain` and `reindex`), and
-`registerImpactRoute(app, { impact: options.impact })` after `registerAskRoute`. The route passes
+`registerImpactRoute(app, { impact: options.impact })` between `registerAskRoute` and
+`registerReindexRoute`. The route passes
 `{ now: app.deps.now }` so the `query_log` latency uses the app's clock. `composition.ts` does not
 change: the route needs only `store` and `now`. `packages/api/src/index.ts` exports
 `impactParamsSchema`, `impactBodySchema`, `impactAnsweredSchema`, `impactUnknownSchema`,
@@ -108,8 +125,9 @@ This change has no delta for `impact`: its requirements do not change. The Purpo
 describes the DIS-90 report. Task 9.5 edits that `## Purpose` (names the related documentation,
 current or stale, and the co-change history from git of an answered report) while the change is
 active and its audit approved, before `/opsx:archive`. If `protect-specs-and-tests` denies the edit,
-the task records it here with destination A for the next change that touches `impact`, and the ticket
-says so.
+the task records it here with destination D — accepted and recorded (the `## Purpose` stays as it is,
+the hook's denial and its reason are recorded, and the next change that touches `impact` updates it),
+and the ticket says so. No new ticket.
 
 ### D9. Tests
 
@@ -132,8 +150,9 @@ A route following an existing template; no hard-to-reverse decision.
   as E1 (destination A) and in the PR; §4 is rewritten in the same change.
 - [The response schema duplicates the closed sets the core keeps as types] → D6: typed projection, so
   drift fails the typecheck.
-- [`getProject` adds one statement per request] → negligible next to the traversal; it buys a uniform
-  `404`.
+- [`getProject` adds one statement per request] → one primary-key read per request, besides the
+  reads of the report (traversal, tests, `docs`, `history`) and the `query_log` write; it buys a
+  uniform `404`.
 - [Mutation survivors in the projection] → each projected field is asserted by key equality in the
   unit spec; Stryker ≥ 80 (the configured break) over the two new files.
 
@@ -145,7 +164,8 @@ None: a new route, no schema or data change. Rollback is reverting the PR.
 
 *Agent's text: decisions taken by the agent as lead engineer in the autonomous run
 (`docs/AUTONOMOUS-RUN.md` §6), without the author. E1–E8 are the DIS-95 enrich decisions 1–8
-(comment of 2026-11-02 in the ticket); P1–P5 are design decisions of this proposal. Destinations: A =
+(comment of 2026-11-02 in the ticket); P1–P5 are design decisions of this proposal; R1–R5 are the agent's decisions of spec-audit
+correction round 1 (2026-11-02). Destinations: A =
 this change; B = another existing ticket; C = the author (none in this change, by the author's
 instruction for DIS-95); D = accepted and recorded.*
 
@@ -157,10 +177,15 @@ instruction for DIS-95); D = accepted and recorded.*
 | E4 | (4) Own error table with `PROJECT_NOT_FOUND` and `INVALID_IMPACT_REQUEST`; everything else `500` (design D4). | A |
 | E5 | (5) `query_not_logged` events to the request log at `info`, never in the body (design D5). | A |
 | E6 | (6) Limits imported from core; an absent `maxHops` is not forwarded (design D6). | A |
-| E7 | (7) `## Purpose` of `openspec/specs/impact/spec.md` edited before `/opsx:archive` (task 9.5, design D8). | A |
+| E7 | (7) `## Purpose` of `openspec/specs/impact/spec.md` edited before `/opsx:archive` (task 9.5, design D8); if the hook denies it, the fallback is destination D — accepted and recorded (audit run 1, 6.a), not A. | A |
 | E8 | (8) Author's instruction: nothing is left for the author. This change adds or recaptures no `docs/DEMO.md` command (Paso 4 keeps the CLI; only its "pending" sentence changes). If the apply ends up adding or recapturing one, the agent runs it from Bash with `pwsh -NoProfile -Command '…'` and `powershell.exe -NoProfile -Command '…'`, never setting variables with `$env:`, and records versions and result in «Cómo se capturó» (task 6.6). | D — accepted |
 | P1 | The parent AC 4 lists `usage`; dropped (E1). Departure recorded in the PR description. | D — accepted |
 | P2 | `unknown` keyed by `status`, not `answer` as `/ask` (design D2). | A |
 | P3 | `INVALID_IMPACT_REQUEST` mapped although the schema makes it unreachable today (design D4). | A |
-| P4 | No runtime constant added to core for risk levels or the unknown reason; the typed projection guards drift (design D6). | A |
+| P4 | No runtime constant added to core for risk levels or the unknown reason; departs from `docs/backend-standards.md` §4; the typed projection plus a two-way compile-time equality check against `RiskLevel` and `ImpactUnknownReason` guard drift in both directions (design D6, audit run 1, 7.a). | A |
 | P5 | No ADR (design D10). | D — accepted |
+| R1 | Audit run 1, 5.a/8.a: response schemas are `z.object` as `/ask`; the serializer is the guarantee, `toPublicReport` is defence in depth; task 2.4's RED fails on `staleSince` of a current document, not on a spread (design D1). | A |
+| R2 | Audit run 1, 9.a: option (a) — task 1.2 also creates a minimal route answering `501` with the seam and its registration, keeping the schema-first layer order. | A |
+| R3 | Audit run 1, Q1: P1 confirmed; the DIS-95 DoD («solo los campos de §4») is checked against the §4 rewritten by this change (task 8.1). | D — accepted |
+| R4 | Audit run 1, 3.b: the store-failure half of "Another error on impact answers INTERNAL" fails the use case's traversal read (`neighbors`), after the route's `getProject` resolved the project. | A |
+| R5 | Audit run 1, 5.d: in step 6 the non-ASCII bodies are sent with JSON escapes so Git Bash on Windows sends ASCII bytes. | A |
