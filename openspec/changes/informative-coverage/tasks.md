@@ -1,0 +1,93 @@
+## 0. Setup: Create Feature Branch (MANDATORY - FIRST STEP)
+
+- [ ] 0.1 Feature branch `feature/dis-77-informative-coverage` (`BRANCH_PREFIX=feature/`, `docs/project-context.md` → Branch and ticket conventions), created from `final-project-CRN` before `/opsx:propose`; confirm `git merge-base --is-ancestor origin/final-project-CRN HEAD` and that `openspec/changes/informative-coverage/` is on it. `git fetch`; if `origin/final-project-CRN` moved, merge it before any code (never force-push a published branch)
+- [ ] 0.2 Confirm DIS-77 is In Progress in Linear, with a short comment in Spanish naming the change `informative-coverage` and the branch `feature/dis-77-informative-coverage`
+- [ ] 0.3 Verify the current branch (`git branch --show-current`) and `git status`; nothing under `.claude/` or `.cursor/` is ever staged; one `git` command per call
+- [ ] 0.4 Baseline for the step 8 report: run `npx vitest run --project dom --project seed-build --project node` once, green, and record files, tests and duration; run `npm run typecheck` and `npm run lint`, green; record that `coverage/` does not exist (or is ignored) and that `npx vitest run --coverage` fails today because the provider is missing
+
+## 1. Dependency (design D1)
+
+- [ ] 1.1 Before installing, run `npm view @vitest/coverage-v8@4.1.12 version time --json` and record that the version exists in the official registry and its publication date (more than two weeks old, `docs/base-standards.md` §10; if not, stop and record the decision in design → Follow-ups). Then `npm install --save-dev --save-exact @vitest/coverage-v8@4.1.12` at the root; confirm `package.json` has `"@vitest/coverage-v8": "4.1.12"` (no caret), `vitest` is still 4.1.12 in `node_modules`, and `package-lock.json` changed only for it and its dependencies (`git diff --stat package-lock.json`, record the count)
+- [ ] 1.2 `npm audit --audit-level=high`: no new high or critical advisory against the state before 1.1 (a new one stops the ticket, `docs/AUTONOMOUS-RUN.md` §6); record the output
+
+## 2. Coverage configuration and script (TDD, design D2, D5) — `test-quality-gates` → "Coverage informs and never blocks"
+
+- [ ] 2.1 RED: create `tests/unit/ci/coverage-gate.spec.ts` with the test "Coverage is off by default and has no thresholds" (imports `vitest.config.ts` as `e2e-config.spec.ts` does and reads the root `package.json`; asserts every item of the scenario: provider `v8`, `enabled` not `true`, no `thresholds`, reporters include `json-summary`, `reportsDirectory` `coverage`, `reportOnFailure` `true`, script `test:coverage` = `vitest run --coverage`). See it fail (no `coverage` block)
+- [ ] 2.2 GREEN: add the `test.coverage` block of design D2 to `vitest.config.ts` at the root of `test` (comment naming DIS-77 and design D2: informative, no thresholds, mutation is the gate) and the script `"test:coverage": "vitest run --coverage"` to `package.json`; `vitest.stryker.config.ts` is not edited
+- [ ] 2.3 Changed existing test: in `tests/unit/scripts/wiring.spec.ts` → "The guide's scripts load .env and the quality scripts do not", add `'test:coverage'` to the `QUALITY` list (design D5, Follow-up P5); the assertion is extended, not weakened. Run `npx vitest run tests/unit/scripts/wiring.spec.ts tests/unit/ci/coverage-gate.spec.ts` (green)
+- [ ] 2.4 Run `npm run test:coverage` once locally and confirm `coverage/coverage-summary.json` is written and `git status` does not show `coverage/` (ignored); record the totals printed by `text-summary`
+
+## 3. Per-package summary script (TDD, design D4, D5) — `test-quality-gates` → "Per-package coverage summary"
+
+- [ ] 3.1 RED: create `tests/unit/scripts/coverage-summary.spec.ts` with the test "The summary has one row per package" (in-memory `readFile` and string `stdout` as `tests/unit/scripts/dev-processes.spec.ts`; absolute paths, some with `\`, the `total` entry and one file outside `packages/`; asserts heading, sentence, the six column headers, the row order `adapters/llm`, `analyzers/php`, `api`, `core`, `Total`, the computed percentages with one decimal, and exit code 0). Create `scripts/coverage-summary.d.mts` (types of design D4) so the test type-checks. See it fail (no module)
+- [ ] 3.2 GREEN: create `scripts/coverage-summary.mjs` (design D4: `packageOf`, `summarise`, `renderMarkdown`, `runCoverageSummary`, the entry guard of `scripts/dev-processes.mjs`; only `node:` imports, no `.env`; TSDoc header naming the spec and DIS-77)
+- [ ] 3.3 RED → GREEN: append "A package with nothing to measure shows n/a" (zero totals for branches in one package and for every metric in another; no `NaN`, no `Infinity`)
+- [ ] 3.4 RED → GREEN: append "Coverage targets are marked, never enforced" (`core` 79.9 % → `✗ 80 %`, `analyzers/typescript` 70.0 % → `✓ 70 %`, `api` and `Total` → `—`, exit 0)
+- [ ] 3.5 RED → GREEN: append "A missing coverage report is reported, not failed" (`readFile` throws `ENOENT`; one line `Sin informe de cobertura: <path> no existe.`, no table, exit 0)
+- [ ] 3.6 RED → GREEN: append "An unreadable coverage report is reported, not failed" (invalid JSON, then a JSON array; one line `Informe de cobertura ilegible: <path>.` each time, no table, exit 0)
+- [ ] 3.7 Run `node scripts/coverage-summary.mjs coverage/coverage-summary.json` on the real report of 2.4 and `node scripts/coverage-summary.mjs coverage/none.json`; record both outputs and exit codes; `npx vitest run tests/unit/scripts` and `npm run typecheck` green
+
+## 4. CI step (TDD, design D3) — `test-quality-gates` → "Coverage informs and never blocks"
+
+- [ ] 4.1 RED: append to `tests/unit/ci/coverage-gate.spec.ts` the test "The CI publishes coverage without blocking" (parses `ci.yml` and `frontend.yml` with `yaml`, local `Step`/`Job` interfaces as `e2e-job.spec.ts`; asserts the `quality` step `npx vitest run --coverage`, immediately followed by `Coverage summary (informative)` with its command, `continue-on-error: true` and an `if` containing `always()` and `steps.gate.outputs.run == 'true'`; and that no other step of either workflow contains `--coverage`). See it fail
+- [ ] 4.2 GREEN: in `.github/workflows/ci.yml` → `quality`, change the `Tests` step's `run` to `npx vitest run --coverage` and add the step of design D3 right after it, with a comment naming DIS-77 and design D3; rewrite the mutation step's comment sentence "Coverage is published as a signal." so it points to the `Coverage summary (informative)` step of `quality`. `frontend.yml` is not edited
+- [ ] 4.3 Run `npx vitest run tests/unit/ci` (green)
+
+## 5. Mutation gate guard (TDD, design D5) — `test-quality-gates` → "Mutation score is the only hard gate"
+
+- [ ] 5.1 Append to `tests/unit/ci/coverage-gate.spec.ts` the test "The mutation gate stays hard" (reads `stryker.config.json`, parses `ci.yml`: `thresholds.break` a number ≥ 70, `mutate` contains `packages/core/src/**/*.ts`, no `continue-on-error` on the `mutation` job nor on its step whose `run` contains `npm run test:mutation`). It passes against the current gate; as RED evidence, run it once with `break` set to 60 in a local, uncommitted edit of `stryker.config.json` and once with `continue-on-error: true` added to the `mutation` job, see it fail both times, restore both files (`git diff --stat` empty for them) and record it
+- [ ] 5.2 Run `npx vitest run tests/unit/ci tests/unit/scripts` (green)
+
+## 6. Refactor (design D4)
+
+- [ ] 6.1 With the suite green, refactor `scripts/coverage-summary.mjs` and the two new specs for naming and duplication only (shared fixture builders inside the spec), no behaviour change; re-run `npx vitest run tests/unit/ci tests/unit/scripts`
+
+## 7. Review and Update Existing Tests (MANDATORY)
+
+- [ ] 7.1 Identify the tests affected (`grep -rn "ci.yml\|vitest.config\|stryker.config\|QUALITY\|coverage" tests packages --include=*.ts --include=*.tsx`, every type error of `npm run typecheck`); the only existing test file edited is `tests/unit/scripts/wiring.spec.ts` (2.3). Confirm with `git diff --stat` that no other existing test file changed (`tests/unit/ci/e2e-job.spec.ts`, `verify-job.spec.ts`, `node-baseline.spec.ts`, `e2e-config.spec.ts` keep passing unchanged); if any other existing test fails, the fix goes in the configuration or the script, never in the test
+- [ ] 7.2 Confirm each `#### Scenario:` of `specs/test-quality-gates/spec.md` maps 1:1 to a test with exactly the same name (grep each of the eight titles in `tests/`)
+
+## 8. Run Tests and Verify Data State (MANDATORY)
+
+- [ ] 8.1 Capture the pre-test baseline: the 0.4 totals and duration; the change touches no database (no migration, no seed), so the data indicator is `git status` clean apart from the change's files and `coverage/` ignored
+- [ ] 8.2 Run the targeted tests: `npx vitest run tests/unit/ci tests/unit/scripts` (record passed, failed, duration)
+- [ ] 8.3 Run the required broader suite and gates: `npx vitest run --project dom --project seed-build --project node` (same totals as 0.4 plus the new tests), `npm run test:coverage` (record its duration against the plain run of 0.4: the local cost of V8 coverage), `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`
+- [ ] 8.4 Mutation testing: the change mutates no source of `stryker.config.json`'s `mutate`; record that the `package-lock.json` and `vitest.config.ts` changes make the CI `mutation` job run a full pass (design → Risks, P4) and that `npx stryker run` is left to that job, whose log must show no Vitest coverage run (design D2)
+- [ ] 8.5 Run `/privacy-ethics-check` over the diff (no personal data, no external service, the report stays on the runner, new dependency justified in design D1 and audited in 1.2) and record the result
+- [ ] 8.6 Verify the post-test state: remove `coverage/` or confirm it is ignored and not staged; no `.stryker-tmp/`; `node scripts/dev-processes.mjs stop`
+- [ ] 8.7 Create `openspec/changes/informative-coverage/reports/YYYY-MM-DD-8-test-and-state-verification.md` from the template of `docs/openspec-tasks-mandatory-steps.md` §6: baseline and after (totals, durations, coverage overhead), the changed existing test, the RED evidence of 5.1, the mutation note, the privacy check and the state check; mark complete only after the tests pass and the report exists
+
+## 9. Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE)
+
+- [ ] 9.1 The interfaces of this change are the npm script and the summary command. Run `npm run test:coverage` and then `node scripts/coverage-summary.mjs coverage/coverage-summary.json` from Bash, from `pwsh -NoProfile -Command '…'` and from `powershell.exe -NoProfile -Command '…'` (never setting `$env:` variables); record the PowerShell and Node versions, exit codes, the table and the duration; `node scripts/dev-processes.mjs stop` after each
+- [ ] 9.2 Error cases: `node scripts/coverage-summary.mjs coverage/none.json` (missing) and a temporary invalid file in the scratchpad directory (unreadable), each with exit code 0 and its notice; delete the temporary file
+- [ ] 9.3 Restore the state: `coverage/` ignored and not staged, `git status` shows only the change's files; `node scripts/dev-processes.mjs stop`
+- [ ] 9.4 Document every command, output summary and version in `openspec/changes/informative-coverage/reports/YYYY-MM-DD-9-manual-interface-testing.md` (OS user name masked in paths)
+
+## 10. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
+
+- [ ] 10.1 Not applicable to a user interface: the change reaches no screen of `packages/web` and no Playwright spec changes. Its end-to-end check is the CI run of the pull request (13.3): record it in the step 9 report as the end-to-end evidence
+
+## 11. Update Technical Documentation (MANDATORY)
+
+- [ ] 11.1 DoD item «`TESTING.md` describe la pirámide real y esta política» (no scenario; traced here, design D6): in `docs/TESTING.md`, add the row «Cobertura» to the levels table (`npm run test:coverage`, `vitest.config.ts` → `test.coverage`, `CI` → `quality`, informativa), a section «Pirámide de tests» with the file count per level, the command used to count, the date and the commit, and a section «Cobertura» with the policy (informative per package with the §2.6 targets marked ✓/✗, never a gate; the mutation score is the only gate) and how to read the job summary; keep the mutation section, correcting it only if a sentence contradicts the new one
+- [ ] 11.2 `docs/DEPLOYMENT.md` → CI jobs table: the `quality` row says it collects coverage and publishes the per-package summary (informative); `docs/project-context.md` → Testing: the coverage command and config, the summary script, and the gotcha that `vitest` and `@vitest/coverage-v8` must move together (design → Risks)
+- [ ] 11.3 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts of this change to `prompts.md` per `docs/project-context.md` → prompts.md rules, as a new section appended at the end of the file with its Índice entry in the same edit
+- [ ] 11.4 The `[enhanced]` description of DIS-77 holds E1–E9; add there, in Spanish and never inside `[original]`, every decision taken during the propose (P1–P6), the spec audit and the apply (design → Follow-ups), marked as the agent's text. Close the inbound hand-off of DIS-14 (P7, P18) with a Spanish comment on DIS-14, marked as the agent's text, saying the web is in coverage and why it stays out of `mutate` (Follow-up P2)
+
+## 12. Measure the CI cost (design D3)
+
+- [ ] 12.1 After the first CI run of the pull request (13.3), record the `quality` job duration and the `Tests` step duration against the last measured 9m51s; if the job took more than 13 minutes, raise `timeout-minutes` of `quality` to 20 with a comment giving the figure (design D3, E3), commit it and wait for CI again; otherwise record that the limit stays at 15
+
+## 13. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
+
+- [ ] 13.1 Open the pull request against `final-project-CRN` (title and body in Spanish via `/pr-describe`, the Why marked as the agent's text, the new dependency and the full mutation pass explained); commit by explicit paths only (nothing under `.claude/` or `.cursor/`), English messages ending with the co-author line; one `git` command per call; set DIS-77 to In Review with a Spanish comment linking the PR
+- [ ] 13.2 Wait for CI in the foreground with repeated bounded calls: `gh pr checks <n> --watch --interval 60` in Bash with the 10-minute tool timeout, re-run until no check is pending, queued or in progress (the `mutation` job runs a full pass, 30-60 min); never `Monitor` or a background run
+- [ ] 13.3 Confirm every check green and record: the job summary of `quality` with the per-package table (the run link), the `quality` duration (12.1), and the `mutation` job's score and log showing Stryker ran without Vitest coverage (design D2)
+- [ ] 13.4 Run `/show-spec-working`: the local outputs of 9.1 and 9.2, the CI job summary of 13.3 and the RED evidence of 5.1; may reuse step 9 evidence. Report `openspec/changes/informative-coverage/reports/YYYY-MM-DD-show-spec-working.md`
+- [ ] 13.5 Run `/verify-against-spec` (inline mode); report `openspec/changes/informative-coverage/reports/YYYY-MM-DD-verify-against-spec.md`
+- [ ] 13.6 Run `/adversarial-review` (inline mode); report `openspec/changes/informative-coverage/reports/YYYY-MM-DD-adversarial-review.md`
+- [ ] 13.7 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups (never C); re-run the verification each fix invalidates and add an addendum to the affected report
+- [ ] 13.8 Commit the fixes to the same pull request; re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
+- [ ] 13.9 Main specs: this change has a delta only for the new capability `test-quality-gates` (with `## Purpose`); no main spec is edited by hand. The sync of `/opsx:archive` creates `openspec/specs/test-quality-gates/spec.md`
+- [ ] 13.10 `/opsx:archive`, and commit the archive to the same pull request (no test-file edits in that commit); merge only through the merge gate (`gh pr merge <n> --merge`), after the archive commit and with CI green (autonomous-run ADR)
