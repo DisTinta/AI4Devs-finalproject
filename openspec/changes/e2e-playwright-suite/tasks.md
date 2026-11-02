@@ -1,0 +1,104 @@
+## 0. Setup: Create Feature Branch (MANDATORY - FIRST STEP)
+
+- [ ] 0.1 Feature branch `feature/dis-75-e2e-playwright-suite` (`BRANCH_PREFIX=feature/`, `docs/project-context.md` → Branch and ticket conventions), created from `final-project-CRN` before `/opsx:propose`; confirm `git merge-base --is-ancestor origin/final-project-CRN HEAD` and that `openspec/changes/e2e-playwright-suite/` is on it. `git fetch`; if `origin/final-project-CRN` moved, merge it before any code (never force-push a published branch)
+- [ ] 0.2 Confirm DIS-75 is In Progress in Linear (set it if not), with a short comment in Spanish naming the change `e2e-playwright-suite` and the branch `feature/dis-75-e2e-playwright-suite`
+- [ ] 0.3 Verify the current branch (`git branch --show-current`) and `git status`; nothing under `.claude/` or `.cursor/` is ever staged; one `git` command per call
+- [ ] 0.4 Baseline for the step 10 report: run `npx vitest run --project dom --project seed-build --project node` once, green, and record files, tests and duration; run `npm run typecheck` and `npm run lint`, green; record that `tests/e2e/` holds only `.gitkeep`
+
+## 1. Dependency (design D1)
+
+- [ ] 1.1 `npm install --save-dev --save-exact @playwright/test@1.64.1` at the root; confirm `package.json` has `"@playwright/test": "1.64.1"` (no caret) and `package-lock.json` changed only for it and its dependencies (`git diff --stat package-lock.json`, record the count)
+- [ ] 1.2 `npm audit --audit-level=high`: no new high or critical advisory against the 0.4 state (a new one stops the ticket, `docs/AUTONOMOUS-RUN.md` §6); record the output
+- [ ] 1.3 `npx playwright install chromium` locally (no `--with-deps` on Windows); record the Chromium build it reports
+
+## 2. Vitest isolation, script and type-checking (TDD, design D6, D7, D8, D10) — `e2e-suite` → "Vitest never runs the end-to-end specs"
+
+Every test of this change follows Arrange-Act-Assert with the three blocks commented and is named exactly as its scenario.
+
+- [ ] 2.1 RED: create `tests/unit/ci/e2e-config.spec.ts` with "The Vitest configuration excludes tests/e2e" (imports `vitest.config.ts` and `vitest.stryker.config.ts`; checks that the root `exclude` and the `node` project's `exclude` match `tests/e2e/ask-flow.spec.ts`, that no project's `include` matches it, that the Stryker config's merged `exclude` keeps it, that `package.json` has `test:e2e` = `playwright test` and that `typecheck` contains `tests/e2e/tsconfig.json`). See it fail
+- [ ] 2.2 GREEN: in `vitest.config.ts` append `'tests/e2e/**'` to the root `test.exclude` and to the `node` project's `exclude`, with a comment naming design D6; `vitest.stryker.config.ts` is not edited; in `package.json` add the script `"test:e2e": "playwright test"` and append `&& tsc -p tests/e2e/tsconfig.json` to `typecheck`
+- [ ] 2.3 Create `tests/e2e/tsconfig.json` (extends `../tsconfig.json`, `lib` `ES2022` + `DOM` + `DOM.Iterable`, includes `**/*.ts` and `../../playwright.config.ts`, header comment as `tests/a11y/tsconfig.json`) and add `"exclude": ["e2e/**"]` to `tests/tsconfig.json` (comment naming design D7); add `playwright-report/**`, `test-results/**` and `blob-report/**` to the `ignores` of `eslint.config.mjs` (design D8); delete `tests/e2e/.gitkeep` when the first spec lands (group 4)
+
+## 3. Playwright configuration (TDD, design D3, D10) — `e2e-suite` → "The suite starts its own API and web on the seed in evaluation mode"
+
+- [ ] 3.1 RED: append to `tests/unit/ci/e2e-config.spec.ts` the test "The Playwright configuration starts both servers in evaluation mode" (imports `playwright.config.ts` and asserts every item of the scenario: `testDir`, one Chromium project, `baseURL`, two web servers with their commands, URLs, `cwd`, `env` of the API with `LLM_BASE_URL` and `LLM_API_KEY` = `''`, no `--watch`, `reuseExistingServer` false on both, `--strictPort` on the web, retries by `CI`, trace, screenshot, HTML reporter `open: 'never'`). See it fail (file missing)
+- [ ] 3.2 GREEN: create `playwright.config.ts` at the root as design D3 (TSDoc header naming the spec and design D3, `workers: 1`); if importing `@playwright/test` from Vitest fails, apply the fallback of design D10 (`tests/e2e/support/config-options.ts`) and record it in design → Follow-ups
+- [ ] 3.3 Run `npx vitest run tests/unit/ci` (green) and `npm run typecheck` (green)
+
+## 4. Ask flow (design D4) — `e2e-suite` → "Ask flow on the seed"
+
+Preconditions for groups 4 to 7 (the specs run against the local database): Docker Postgres up and acme-shop seeded (`npm run cli -- projects`; `npm run db:seed` only if it is missing, recorded); `3000` and `5173` free (`node scripts/dev-processes.mjs list`). Record `count(*)` of `query_log` and the timestamp before the first run (restored in 10.6).
+
+- [ ] 4.1 RED: create `tests/e2e/ask-flow.spec.ts` with the test "Asking Q1 on acme-shop shows verified evidence and the usage panel" (constants for the acme-shop id and Q1 with their source named, design D4; roles and accessible names only). As RED, run it once with `npx playwright test tests/e2e/ask-flow.spec.ts` and a wrong expected URL (local edit, not committed) and see it fail with its trace in `test-results/`; record it. Delete `tests/e2e/.gitkeep` in the same task
+- [ ] 4.2 GREEN: the spec passes with `npm run test:e2e -- tests/e2e/ask-flow.spec.ts`; if it exposes a defect of `packages/web` or `packages/api`, fix it here with a failing Vitest test first (design → Non-Goals) and record it in design → Follow-ups; otherwise no production file is touched
+
+## 5. Honest unknown (design D4) — `e2e-suite` → "Honest unknown on the seed"
+
+- [ ] 5.1 RED → GREEN: create `tests/e2e/unknown.spec.ts` with "Asking Q6 on acme-shop shows no verified answer" (Q6 restated with `fixtures/README.md` as its source; asserts the heading, «Motivo: no-anchor», and zero badge texts «verificado» / «sin verificar» / «HECHO» / «INFERIDO» and zero buttons with `aria-expanded`). As RED, see it fail once with «Motivo: llm-required» expected (local edit, not committed); record it
+
+## 6. Impact flow (design D4) — `e2e-suite` → "Impact flow on the seed"
+
+- [ ] 6.1 RED → GREEN: create `tests/e2e/impact-flow.spec.ts` with "Analysing a change to DiscountService reports high risk" (link «Analizar el impacto de un cambio», field «Cambio», button «Analizar», URL `/p/<id>/impact`, heading «Riesgo alto», `DiscountService` inside the region named «Directo»). As RED, see it fail once with «Riesgo bajo» expected (local edit, not committed); record it
+
+## 7. Accessibility in a real browser (design D2, D5) — `e2e-suite` → "Accessibility of Screen 2 in a real browser"
+
+- [ ] 7.1 RED: create `tests/e2e/ask-page.a11y.spec.ts` with the shared helpers (inject `node_modules/axe-core/axe.min.js` with `page.addScriptTag`, run `axe.run(document)`, format violations with id and targets; the overflow check on `document.documentElement`) and the test "Every golden evidence expanded has no violation and no overflow" (widths 320 and 1280; each suggestion button of the group «Prueba:»; every collapsed evidence expanded). As RED, see the overflow assertion fail once by injecting a `<div style="width:2000px">` into `main` before the check (local edit, not committed); record it
+- [ ] 7.2 GREEN: the test passes; a real violation found here is fixed in `packages/web` with a failing jsdom or Vitest test first when one can show it, and recorded in design → Follow-ups
+- [ ] 7.3 RED → GREEN: append "A mocked answer with a long path does not overflow" (`page.route('**/api/projects/*/ask', …)` with a body typed as the web client's `AskAnswered` via `import type`, design D5, holding a 96-character path without spaces in the statement, the evidence location and the excerpt). As RED, see it fail once with the excerpt's `pre` given `white-space: pre` through `page.addStyleTag` (local, not committed); record it
+
+## 8. CI job `e2e` (TDD, design D9, D11) — `e2e-suite` → "The end-to-end suite runs in a CI job of its own"
+
+- [ ] 8.1 RED: create `tests/unit/ci/e2e-job.spec.ts` with "The CI workflow runs the end-to-end suite in a job of its own" (parses `.github/workflows/ci.yml` as YAML, pattern of `verify-job.spec.ts`; asserts every item of the scenario, the `scope` loop by list membership). See it fail (no job `e2e`)
+- [ ] 8.2 GREEN: add the job `e2e` to `.github/workflows/ci.yml` after `verify`, as design D9, with a header comment naming DIS-75 and design D9; change the `scope` loop to `for job in quality mutation verify e2e; do` and update its comments ("Decides whether `quality`, `mutation`, `verify` and `e2e` run"; "all four were green")
+- [ ] 8.3 Changed existing test: in `tests/unit/ci/verify-job.spec.ts` → "The CI workflow runs verify in a job of its own", replace the exact-text assertion `expect(decide).toMatch(/for job in quality mutation verify; do/)` with an extraction of the `for job in …; do` list and `expect(list).toEqual(expect.arrayContaining(['quality', 'mutation', 'verify']))` (design D11; still asserted, not weakened). As RED, before 8.2's loop change the old assertion passes and after it fails: run it after 8.2 with the old line and record the failure, then apply the new assertion
+- [ ] 8.4 Changed existing test: in `tests/unit/ci/node-baseline.spec.ts` → "Every CI job installs Node 22", add `'.github/workflows/ci.yml:e2e'` to the expected sorted list and change its comment to five jobs (design D11); see it fail after 8.2 and before this edit, record it
+- [ ] 8.5 Run `npx vitest run tests/unit/ci` (green)
+
+## 9. Review and Update Existing Tests (MANDATORY)
+
+- [ ] 9.1 Identify the tests affected (`grep -rn "ci.yml\|vitest.config\|tests/e2e\|typecheck" tests packages --include=*.ts --include=*.tsx`, every type error of `npm run typecheck`); the only existing test files edited are `tests/unit/ci/verify-job.spec.ts` (8.3) and `tests/unit/ci/node-baseline.spec.ts` (8.4). Confirm with `git diff --stat` that no other existing test file changed; if any other existing test fails, the fix goes in the configuration or production code, never in the test
+- [ ] 9.2 Confirm each `#### Scenario:` of `specs/e2e-suite/spec.md` maps 1:1 to a test with exactly the same name (grep each title in `tests/`), except the two verified by evidence (design D12): "A failing spec fails the suite and leaves its evidence" (11.3) and "The e2e job is green on the pull request" (14.1)
+- [ ] 9.3 Refactor with the suite green: the new specs and config for naming and duplication only (shared helpers in `tests/e2e/support/` if two specs repeat the same steps), no behaviour change
+
+## 10. Run Tests and Verify Data State (MANDATORY)
+
+- [ ] 10.1 Capture the pre-test baseline: the 0.4 totals and duration, and the `query_log` count and timestamp of group 4's preconditions
+- [ ] 10.2 Run the targeted tests: `npx vitest run tests/unit/ci` and `npm run test:e2e` (the four specs; record passed, failed, flaky and duration)
+- [ ] 10.3 Run the required broader suite and gates: `npx vitest run --project dom --project seed-build --project node` (same totals as 0.4 plus the new `tests/unit/ci` tests; no file of `tests/e2e/` collected — check the Vitest file list), `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`
+- [ ] 10.4 Mutation testing: the change mutates no source; record that the `vitest.config.ts` and lock changes make the CI `mutation` job run a full pass (design → Risks), and that `npx stryker run` is left to that job; confirm locally that `vitest.stryker.config.ts`'s resolved `exclude` contains `tests/e2e/**` (covered by 2.1)
+- [ ] 10.5 Run `/privacy-ethics-check` over the diff (sample seed only, no model call, no personal data in traces or screenshots, new dependency justified in design D1 and audited in 1.2) and record the result
+- [ ] 10.6 Verify the post-test state and restore it: delete the `query_log` rows created by the E2E runs (by `created_at` after the 10.1 timestamp), re-check the count equals 10.1; remove `playwright-report/` and `test-results/` (gitignored) or confirm they are not staged; no `.stryker-tmp/`; `node scripts/dev-processes.mjs stop`
+- [ ] 10.7 Create `openspec/changes/e2e-playwright-suite/reports/YYYY-MM-DD-10-test-and-state-verification.md` from the template of `docs/openspec-tasks-mandatory-steps.md` §6: baseline and after (totals, duration), the E2E run, the changed existing tests with their RED evidence, the mutation note (10.4), the privacy check (10.5) and the restoration; mark complete only after the tests pass and the report exists
+
+## 11. Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE)
+
+The interface this change adds is the command `npm run test:e2e` and its configuration.
+
+- [ ] 11.1 Run `npm run test:e2e` from Bash, from `pwsh -NoProfile -Command 'npm run test:e2e'` and from `powershell.exe -NoProfile -Command 'npm run test:e2e'` (never setting `$env:` variables: the config empties `LLM_*` itself and the API loads `.env`), with the local `.env` as it is (record whether it is in live or evaluation mode, values masked); record the PowerShell and Node versions, exit codes, totals and durations; `node scripts/dev-processes.mjs stop` after each
+- [ ] 11.2 Occupied port: start only the web (`npm -w packages/web run dev`), run `npm run test:e2e` and record that it fails before any spec with Playwright's message about the taken port; stop it (`node scripts/dev-processes.mjs stop`)
+- [ ] 11.3 Scenario "A failing spec fails the suite and leaves its evidence" (design D12): copy `tests/e2e/unknown.spec.ts` to a temporary `tests/e2e/zz-negative.spec.ts` with a wrong expected text, run `npx playwright test tests/e2e/zz-negative.spec.ts`, record the non-zero exit code and the screenshot and `trace.zip` under `test-results/`, then delete the copy (never committed) and confirm `git status` shows no trace of it
+- [ ] 11.4 Restore the state: delete the `query_log` rows created during 11.1–11.3 (by `created_at`), re-check the count against 10.1; `node scripts/dev-processes.mjs stop`
+- [ ] 11.5 Document every command, output summary and version in `openspec/changes/e2e-playwright-suite/reports/YYYY-MM-DD-11-manual-interface-testing.md` (OS user name masked in paths); copy one failure screenshot of 11.3 next to it as `YYYY-MM-DD-11-negative-failure.png`
+
+## 12. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
+
+- [ ] 12.1 The four Playwright specs are the end-to-end tests of this change: record in the step 11 report the run of 10.2 and 11.1 (the workflows "pick acme-shop → ask Q1 → expand evidence → usage", "Q6 → unknown", "Screen 2 → impact → high risk" and the accessibility pass at 320 px and 1280 px), and the `query_log` counts before and after showing the stored state was restored
+
+## 13. Update Technical Documentation (MANDATORY)
+
+- [ ] 13.1 Remove the *target* note of Playwright from `docs/frontend-standards.md` §1 and `docs/backend-standards.md` §1; in `docs/frontend-standards.md` → testing, one sentence on where the E2E specs live and the in-browser a11y spec (`tests/e2e/ask-page.a11y.spec.ts`) next to the jsdom gate
+- [ ] 13.2 `docs/TESTING.md`: the row «Extremo a extremo» (command `npm run test:e2e`, the four specs, `CI` → `e2e` on its own `e2e` database) and a short section «Extremo a extremo en local» with the prerequisites of design D13 in Bash and PowerShell (same command; stop `npm run dev` first; `npx playwright install chromium` once). Nothing else of the coverage or mutation policy (DIS-77, design → Follow-ups E7)
+- [ ] 13.3 `docs/DEPLOYMENT.md`: the CI jobs table gains `CI` → `e2e` and the `scope` row names the four jobs; `readme.md`: the `tests/e2e/` line of the tree, the CI paragraph and the E2E row of the tools table (no longer «pendiente»); `docs/project-context.md` → Testing: the E2E suite, its config, the evaluation-mode env and the free-ports gotcha
+- [ ] 13.4 Run `/update-docs` and confirm the docs gate passes. Add the relevant AI prompts of this change to `prompts.md` per `docs/project-context.md` → prompts.md rules, as a new section appended at the end of the file with its Índice entry in the same edit
+- [ ] 13.5 The `[enhanced]` description of DIS-75 holds E1–E7; add there, in Spanish and never inside `[original]`, every decision taken during the propose, the spec audit and the apply (design → Follow-ups), marked as the agent's text. Close the inbound hand-offs: a Spanish comment on DIS-14 and on DIS-65, marked as the agent's text, saying their destination-B items are covered by `tests/e2e/impact-flow.spec.ts` and `tests/e2e/ask-page.a11y.spec.ts`; for E7, a Spanish comment on DIS-77 if it does not already say the pyramid and the coverage and mutation policy of `docs/TESTING.md` are its own
+
+## 14. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
+
+- [ ] 14.1 Open the pull request against `final-project-CRN` (title and body in Spanish via `/pr-describe`, the Why marked as the agent's text, the new dependency and the full mutation pass explained); commit by explicit paths only (nothing under `.claude/` or `.cursor/`), English messages ending with the co-author line; one `git` command per call; set DIS-75 to In Review with a Spanish comment linking the PR; wait for CI in the foreground with `gh pr checks <n> --watch --interval 60` until no check is pending (the `mutation` job runs a full pass, 30-60 min), and confirm it green, the `e2e` job included — this is the evidence of the scenario "The e2e job is green on the pull request", recorded in the show-spec-working report
+- [ ] 14.2 Run `/show-spec-working`: the local `npm run test:e2e` output, the CI `e2e` job's log and duration, and the negative run of 11.3; may reuse step 11 evidence. Report `openspec/changes/e2e-playwright-suite/reports/YYYY-MM-DD-show-spec-working.md`
+- [ ] 14.3 Run `/verify-against-spec` (inline mode); report `openspec/changes/e2e-playwright-suite/reports/YYYY-MM-DD-verify-against-spec.md`
+- [ ] 14.4 Run `/adversarial-review` (inline mode); report `openspec/changes/e2e-playwright-suite/reports/YYYY-MM-DD-adversarial-review.md`
+- [ ] 14.5 Fix every finding in this change (behaviour changes via TDD) and give each one an A/B/C/D destination in `design.md` → Follow-ups (never C); re-run the verification each fix invalidates and add an addendum to the affected report
+- [ ] 14.6 Commit the fixes to the same pull request; re-run a check whose findings led to non-trivial fixes until it returns no Blocker or Major
+- [ ] 14.7 Main specs: this change has a delta only for the new capability `e2e-suite` (with `## Purpose`); no main spec is edited by hand, and no `## Purpose` of another capability changes (none has a delta here). The sync of `/opsx:archive` creates `openspec/specs/e2e-suite/spec.md`
+- [ ] 14.8 `/opsx:archive`, and commit the archive to the same pull request (no test-file edits in that commit); merge only through the merge gate (`gh pr merge <n> --merge`), after the archive commit and with CI green (autonomous-run ADR)
