@@ -4,8 +4,10 @@
 
 Tells a developer, before a change, which components of one indexed project depend on what the
 change describes, directly and transitively, and which tests cover it, from the deterministic graph
-only and ordered by relevance. An answered report also names the risk level of the change (`HIGH`,
-`MEDIUM` or `LOW`) with its rationale, and every returned report writes one `query_log` row.
+only and ordered by relevance. An answered report also names the documentation related to the
+change, marking each document as stale or current, and the co-change history of its files from git,
+and the risk level of the change (`HIGH`, `MEDIUM` or `LOW`) with its rationale. Every returned
+report writes one `query_log` row.
 
 ## Requirements
 
