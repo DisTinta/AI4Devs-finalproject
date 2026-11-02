@@ -149,7 +149,10 @@ separation the demo shows.
 `tests/support/in-memory-store.ts` implements the three reads over its stored `KnowledgeGraph`
 (`edges`, `files`, `symbols`, `commits`, `fileCommits`), with the same validation, ordering and
 `ProjectNotFound`, and counts each in `calls` (`readCoChanges`, `readDocumentLinks`,
-`readFileCommits`). The unit scenarios of `impact` build their commits with it.
+`readFileCommits`). The unit scenarios of `impact` build their commits with it. The three new
+counters change the shape of `calls`. The existing exact-match assertions on it
+(`tests/unit/explain/explain.spec.ts:106,141,207`) gain the three keys at 0; no assertion is
+weakened (task 1.3, listed in task 8.1).
 
 ### D10. No ADR
 
@@ -211,3 +214,15 @@ and the choices the audit left open.*
 | R1-6b | Rounding: the spec takes D8's `Math.round(coChangeRate * 100)` in double precision; "halves up" is removed. | A |
 | R1-6c | D7 keeps the claim of a fixed read order, and an extra case of task 4.8 asserts it on the double. | A |
 | R1-8a | `assertValidPaths` lives in `packages/core/src/knowledge/read-arguments.ts`, one copy for the store and the double. | A |
+
+*Agent's text, correction round 2 of the spec audit (2026-11-02, `reports/2026-11-02-spec-audit.md`
+→ "Resolution of run 2"): the choices the audit left open. No question for the author was raised.*
+
+| Id | Decision | Destination |
+|---|---|---|
+| R2-8a | Option (a) of the audit: the three new counters stay in the double's `calls`, and the three exact `toEqual(d.loaded.calls)` assertions of `tests/unit/explain/explain.spec.ts` (lines 106, 141, 207) gain them at 0 (task 1.3, listed in task 8.1). This strengthens those assertions, and it is a smaller change than a separate `historyCalls` object. | A |
+| R2-6a | The `cli-impact` requirement says `<prs>` is `PR ` then `#<n>` per pull request joined by `, ` (`PR #24, #33, #55`), as AC 5g and the scenarios already expect. | A |
+| R2-6b | "Exactly one database statement" applies to a call that passes its argument checks; a rejected call sends none. | A |
+| R2-5c | Task 10.2's task-api command is `impact task-api "cambiar TaskService"`: the only symbols named `TaskService` are in `src/services/task.service.ts`, and the seed's only task-api `co_changed` edge joins it to `src/schemas/task.schema.ts` (weight 0.75, shared commits of PRs 15, 31, 40). | A |
+| R2-3ab | "Stale documents come first" gets dates and an exact `docs`; "Without commits no document is stale and the history is empty" says the graph has no `co_changed` edge (the smaller of the two options). | A |
+| R2-8b | Task 4.8's order case uses a graph with at least one test, so the coverage read happens. | A |

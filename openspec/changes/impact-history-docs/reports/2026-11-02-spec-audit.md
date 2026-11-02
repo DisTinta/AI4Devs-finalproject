@@ -394,3 +394,21 @@ No empty rows. The counts in task 8.2 match the deltas:
 
 ### Linear DIS-94 (comment in Spanish; the `[original]` block is not edited)
 12. Comment: «*Texto del agente (spec-audit, ronda 2, 2026-11-02).* Auditoría 2 del cambio `impact-history-docs`: CHANGES REQUIRED, con 2 hallazgos bloqueantes. (1) El requisito de salida de `cli-impact` describe `<prs>` como `PR #<n>` por cada PR, lo que da `PR #24, PR #33, PR #55`. En cambio, los escenarios y el AC 5g esperan `PR #24, #33, #55`. Se corrige el requisito. (2) Los tres contadores nuevos del doble en memoria rompen tres aserciones exactas de `tests/unit/explain/explain.spec.ts` (líneas 106, 141 y 207), que la tarea 8.1 no nombraba. Se añaden a 8.1 y a la tarea 1.3, y se amplían con los tres contadores a 0. Las respuestas R1-QA1 y R1-QA2 de la ronda 1 se dan por válidas. No hay preguntas nuevas para la autora.»
+
+---
+
+## Resolution of run 2
+
+*Agent's text: correction round 2 of the autonomous run (`docs/AUTONOMOUS-RUN.md` §6), 2026-11-02. The decisions are recorded in `design.md` → Follow-ups (rows R2-…) and in a Linear comment of DIS-94. `openspec validate impact-history-docs --strict` passes after the corrections.*
+
+| Finding | Resolution |
+|---|---|
+| Questions for the author | None raised in run 2; R1-QA1 and R1-QA2 stand. |
+| 3a ("Stale documents come first") | Fixed: the GIVEN dates `s1` (2024-02-01), `a1` (2024-03-01) and `b1` (2024-01-01); the THEN is exactly `{ path: 'B.md', stale: true, staleSince: 's1' }` then `{ path: 'A.md', stale: false }` (R2-3ab). |
+| 3b ("Without commits no document is stale and the history is empty") | Fixed: the GIVEN says the graph has no `co_changed` edge (R2-3ab). |
+| 5a / 6a (`<prs>` format, blocking) | Fixed: the `cli-impact` requirement says `PR ` followed by `#<n>` per pull request, joined by `, ` (so `PR #24, #33, #55`), or `sin PR` (R2-6a). Tasks 7.3 and 7.5 need no change. |
+| 5b / 8a (new counters break `explain.spec.ts`, blocking) | Fixed with option (a): D9 states the shape change; task 1.3 adds the three counters at 0 to `tests/unit/explain/explain.spec.ts` lines 106, 141, 207; task 8.1 lists that file and adds `grep -rn "calls).toEqual" tests` to its safety nets. A repository-wide grep confirms those three are the only exact-match assertions on the double's `calls` (R2-8a). |
+| 5c (task-api command in task 10.2) | Fixed: task 10.2 runs `npm run cli -- impact task-api "cambiar TaskService"` and expects exactly `  src/schemas/task.schema.ts  co-cambia 75 %  PR #15, #31, #40  [git]`, checked against `seeds/graph-dump.sql` (the only task-api `co_changed` edge, weight 0.75; the shared commits carry PRs 15, 31 and 40; no other symbol is named `TaskService`) (R2-5c). |
+| 6b ("exactly one database statement") | Fixed: the first bullet of "Contract of the history reads" applies the one-statement rule to calls that pass their argument checks; a rejected call sends none (R2-6b). |
+| 8b (order case of task 4.8) | Fixed: the case runs over a graph with at least one test, so the coverage read is made (R2-8b). |
+| Task 8.2 counts | No change needed: no scenario was added or removed in this round. |

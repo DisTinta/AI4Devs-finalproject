@@ -107,15 +107,16 @@ values of `direct` and `indirect`.
 #### Scenario: Stale documents come first
 
 - **GIVEN** a graph where `Anchor::run` of `src/anchor.php` is anchored, the documents `A.md` and
-  `B.md` describe `Anchor::run`, `A.md` is touched after the last commit of `src/anchor.php` and
-  `B.md` before it
+  `B.md` describe `Anchor::run`, `src/anchor.php` is touched by the commit `s1` of 2024-02-01,
+  `A.md` by the commit `a1` of 2024-03-01 and `B.md` by the commit `b1` of 2024-01-01
 - **WHEN** impact is asked for `cambiar run` with `maxHops` 1
-- **THEN** `docs` lists `B.md` (stale) and then `A.md` (not stale)
+- **THEN** `docs` is exactly `{ path: 'B.md', stale: true, staleSince: 's1' }` then
+  `{ path: 'A.md', stale: false }`
 
 #### Scenario: Without commits no document is stale and the history is empty
 
-- **GIVEN** a graph without commits where `Anchor::run` of `src/anchor.php` is anchored and the
-  document `README.md` describes it
+- **GIVEN** a graph without commits and without any `co_changed` edge where `Anchor::run` of
+  `src/anchor.php` is anchored and the document `README.md` describes it
 - **WHEN** impact is asked for `cambiar run` with `maxHops` 1
 - **THEN** `docs` is exactly `{ path: 'README.md', stale: false }` and `history` is empty
 

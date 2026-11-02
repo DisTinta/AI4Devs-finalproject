@@ -23,8 +23,8 @@ SHALL be printed as `  <path>  al día` when it is not stale and as
 `  <path>  desactualizado desde <sha>` when it is, where `<sha>` is the first 7 characters of
 `staleSince`. An entry of `history` SHALL be printed as
 `  <file>  co-cambia <rate> %  <prs>  [git]`, where `<rate>` is `Math.round(coChangeRate * 100)` computed in
-double precision and `<prs>` is `PR #<n>` for each pull request, joined by `, `, or
-`sin PR` when `prs` is empty. The output SHALL end with a line feed. The command SHALL not print the
+double precision and `<prs>` is `PR ` followed by `#<n>` for each pull request, joined by `, `
+(so `PR #24, #33, #55`), or `sin PR` when `prs` is empty. The output SHALL end with a line feed. The command SHALL not print the
 change.
 
 #### Scenario: An impact report is printed by section with its risk

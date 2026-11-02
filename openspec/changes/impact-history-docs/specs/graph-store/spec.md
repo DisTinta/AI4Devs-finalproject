@@ -6,8 +6,9 @@ The store SHALL offer three reads of the stored history of one project, each tak
 and a list of repository paths, `paths`: the co-change read, the document link read and the file
 commit read (the next requirements). Each of them:
 
-- SHALL write nothing and SHALL be answered by exactly one database statement, whatever the number
-  of paths and the size of the graph;
+- SHALL write nothing; a call that passes its argument checks SHALL be answered by exactly one
+  database statement, whatever the number of paths and the size of the graph, and a call rejected
+  by them SHALL send none;
 - SHALL be isolated by project like every read ("Project isolation of reads"): no file, edge or
   commit of another project contributes to the result, even when a row links it to a row of the
   project (a `file_commit` row between a file of the project and a commit of another, which the
