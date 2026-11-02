@@ -146,7 +146,7 @@ Desarrolladores que trabajan sobre código que no escribieron: incorporaciones a
 
 - **Local, en cuatro comandos.** Se clona el repositorio, se copia `.env.example` a `.env` (sin obligar a una API key) y se levanta con `npm run up`, el mismo comando en PowerShell y en Bash (`make up` es su atajo en Git Bash o WSL). Los dos proyectos de muestra quedan consultables. **Sin PHP instalado, sin clonar repositorios ajenos, sin esperar ningún indexado**, porque los grafos y las respuestas de evaluación van versionados como semillas SQL / caché.
 
-*Estado en la Entrega 2:* la semilla carga `acme-shop` (174 nodos y 170 aristas) y `task-api` (102 nodos y 100 aristas, analizador TypeScript, CM-HU-18), cada uno con tres respuestas *golden*. F1, F2, F4 y F5 funcionan por CLI y por `POST /ask`; F3 (impacto) y F6 (deriva documental) son de la Entrega 3, y F7 tiene hoy el acierto exacto por pregunta normalizada, sin similitud de embedding (CM-HU-19).
+*Estado en la Entrega 2:* la semilla carga `acme-shop` (174 nodos y 170 aristas) y `task-api` (102 nodos y 100 aristas, analizador TypeScript, CM-HU-18), cada uno con tres respuestas *golden*. F1, F2, F4 y F5 funcionan por CLI y por `POST /ask`; F3 (impacto) funciona por la CLI `impact` y por `POST /impact` (DIS-95) y solo le falta la pantalla web (DIS-14, Entrega 3); F6 (deriva documental) es de la Entrega 3, y F7 tiene hoy el acierto exacto por pregunta normalizada, sin similitud de embedding (CM-HU-19).
 
 **Modo híbrido LLM (parte de F4):**
 
@@ -180,7 +180,7 @@ Los wireframes de las tres pantallas muestran el flujo completo del producto. La
 | Andamiaje web: Tailwind con los colores de los wireframes, rutas, cliente tipado de la API, puerta de accesibilidad `test:a11y` | Fusionado (DIS-58, PR #53) |
 | Pantalla 1 — tarjetas de los proyectos de muestra desde `data/sample-projects.ts`, aviso de API caída y pantalla de error | Fusionado (DIS-60, PR #54) |
 | Pantalla 2 — pregunta, preguntas sugeridas (las *golden*), afirmaciones tipadas con distintivos de tipo y de verificación, evidencia desplegable, panel de uso (confianza, tokens, coste, latencia, ahorro y caché), estados `UNKNOWN` y avisos de `429` y de error | Fusionado (DIS-65, PR #56; DIS-66, PR #57) |
-| Pantalla 3 — impacto | Entrega 3 (la CLI `impact` ya funciona, DIS-90; la pantalla web, no) |
+| Pantalla 3 — impacto | Entrega 3 (la CLI `impact` ya funciona, DIS-90, y la ruta `POST /impact`, DIS-95; la pantalla web, DIS-14, no) |
 
 Con `npm run up` (web en http://localhost:5173), los pasos 1 a 3 del recorrido de abajo se hacen ya en el navegador; el 4 (impacto) y el 6 (`task-api`) siguen siendo de la Entrega 3. [`docs/DEMO.md`](docs/DEMO.md) ejecuta los seis pasos por la CLI contra `acme-shop`, dice en cada uno qué hace hoy el sistema y recorre las dos pantallas en [Recorrido por la web](docs/DEMO.md#recorrido-por-la-web).
 
@@ -509,7 +509,7 @@ flowchart TB
     end
 
     subgraph api["API · Node 22 + Fastify"]
-        REST["REST: POST /ask · GET /health<br/>(/impact en la Entrega 3)<br/>OpenAPI + validación por esquema"]
+        REST["REST: POST /ask · POST /impact · GET /health<br/>OpenAPI + validación por esquema"]
         RATE["Rate limiting<br/>+ modo demo"]
         ORCH["Orquestador<br/>intención · plan · política"]
     end
@@ -586,7 +586,7 @@ flowchart TB
 | Componente | Tecnología | Responsabilidad |
 |---|---|---|
 | CLI | TypeScript + `commander` | `index`, `ask`, `impact`, `projects`; `drift` **previsto** (F6) |
-| API | Node 22 + **Fastify** 5 + Zod | `POST /api/projects/{projectId}/ask` y `GET /health`, validación por esquema, OpenAPI generado en `/docs` (DIS-76, DIS-78); `/impact` en la Entrega 3 |
+| API | Node 22 + **Fastify** 5 + Zod | `POST /api/projects/{projectId}/ask`, `POST /api/projects/{projectId}/impact` y `GET /health`, validación por esquema, OpenAPI generado en `/docs` (DIS-76, DIS-78, DIS-95) |
 | Web | React 18 + TypeScript + **Vite** + Tailwind | Andamiaje, rutas y cliente tipado (DIS-58); selección de proyecto (DIS-60) y consulta con panel de uso y estados (DIS-65, DIS-66); impacto en la Entrega 3 |
 | Orquestador | TypeScript | Clasifica intención, coordina el bucle, aplica política de seguridad |
 | **Analizador PHP** | **Tree-sitter** (`tree-sitter-php`) + reglas Laravel | Ficheros, clases, métodos, rutas, spans, llamadas |
@@ -1170,7 +1170,7 @@ Los tres índices HNSW existen desde DIS-13, pero en la Entrega 2 están vacíos
 
 ## 4. Especificación de la API
 
-La plantilla permite documentar como máximo tres endpoints. El contrato recoge los tres de producto: `POST /api/projects/{projectId}/index`, que vuelve en la Entrega 3 (DIS-9), `POST /api/projects/{projectId}/ask`, implementado en la Entrega 2 (DIS-78), y `POST /api/projects/{projectId}/impact`, de la Entrega 3.
+La plantilla permite documentar como máximo tres endpoints. El contrato recoge los tres de producto: `POST /api/projects/{projectId}/index`, que vuelve en la Entrega 3 (DIS-9), `POST /api/projects/{projectId}/ask`, implementado en la Entrega 2 (DIS-78), y `POST /api/projects/{projectId}/impact`, implementado en la Entrega 3 (DIS-95).
 
 > **Alineado con el código (DIS-101, DIS-9).** La versión de la Entrega 1 publicaba `POST /api/projects/{projectId}/index` con un `jobId` que nadie podía consultar; DIS-101 lo quitó del contrato y DIS-9 lo devuelve con otra forma: **la API nunca recibe una ruta del sistema de ficheros: reindexa un proyecto creado por la CLI (`npm run cli -- index`, decisión PH-01 de DIS-51) desde su raíz guardada.** Crear proyectos sigue siendo solo de la CLI. El reindexado es **síncrono**: la petición no termina hasta que el grafo nuevo está guardado y la caché de respuestas del proyecto vaciada, y responde `202` con los contadores reales (desviación consciente de la regla de `docs/backend-standards.md` §6, que reserva `202` para trabajo asíncrono: el ticket fija `202`). Tampoco hay `GET /api/projects`: la web lee los proyectos de muestra de la constante `packages/web/src/data/sample-projects.ts`, que genera `seed:build`. La API expone además `GET /health` (estado del proceso, sin límite de peticiones) y la documentación OpenAPI generada desde los esquemas Zod en `/docs` (`/docs/json`), que quedan fuera del YAML para no pasar de los tres endpoints de la plantilla.
 
@@ -1341,12 +1341,15 @@ paths:
 
   /api/projects/{projectId}/impact:
     post:
-      summary: Analiza qué se vería afectado por un cambio (Entrega 3)
+      summary: Analiza qué se vería afectado por un cambio
       description: |
-        Entrega 3: todavía no implementado (la ruta no existe; la CLI `impact`
-        ya funciona desde DIS-90, la ruta es de DIS-95). Separará explícitamente lo derivado del grafo determinista
-        de lo derivado de la señal histórica de co-cambio, indicando el origen y
-        la fiabilidad de cada elemento.
+        Devuelve el informe de impacto de un cambio descrito en palabras: lo
+        derivado del grafo determinista (`direct`, `indirect`, `tests`, cada
+        elemento con su origen `graph` y su fiabilidad `exact` o `heuristic`)
+        separado de la señal histórica de co-cambio de git (`history`, origen
+        `git`), la documentación relacionada (`docs`, al día o desalineada) y el
+        riesgo con su justificación. No llama al modelo: coste 0. Si el cambio no
+        ancla nada devuelve `unknown` en lugar de inventar un informe.
       parameters:
         - name: projectId
           in: path
@@ -1359,36 +1362,57 @@ paths:
             schema:
               type: object
               required: [change]
+              additionalProperties: false
               properties:
                 change:  {type: string, minLength: 5, maxLength: 500}
                 maxHops: {type: integer, default: 2, minimum: 1, maximum: 3}
             example:
-              change: "cambiar la forma en que se calculan los descuentos"
+              change: "cambiar los descuentos de DiscountService"
               maxHops: 2
       responses:
         '200':
-          description: Informe de impacto
+          description: Informe de impacto respondido, o `unknown` si el cambio no ancla nada
           content:
             application/json:
-              example:
-                direct:
-                  - {symbol: "PriceCalculator", origin: "graph", resolution: "exact"}
-                  - {symbol: "DiscountService", origin: "graph", resolution: "exact"}
-                indirect:
-                  - {symbol: "OrderService", origin: "graph", resolution: "heuristic", hops: 2}
-                  - {symbol: "OrdersController", origin: "graph", resolution: "exact", hops: 2}
-                tests:
-                  - {symbol: "PricingTest", origin: "graph"}
-                  - {symbol: "OrderPricingTest", origin: "graph"}
-                docs:
-                  - {path: "docs/pricing.md", stale: true, staleSince: "a3f9c21"}
-                history:
-                  - {pr: 381, coChangeRate: 0.8, origin: "git"}
-                  - {pr: 402, coChangeRate: 0.8, origin: "git"}
-                risk:
-                  level: "MEDIUM"
-                  rationale: "4 ficheros afectados, 2 cubiertos por tests, 1 documento desalineado."
-                usage: {inputTokens: 3140, costUsd: 0.009, cacheHit: false}
+              examples:
+                answered:
+                  value:   # salida real sobre la semilla de acme-shop (DIS-95), con `direct` e `indirect` abreviados
+                    status: "answered"
+                    direct:
+                      - {symbol: "DiscountService", file: "app/Services/DiscountService.php", origin: "graph", resolution: "exact", hops: 0}
+                      - {symbol: "PriceCalculator", file: "app/Services/PriceCalculator.php", origin: "graph", resolution: "exact", hops: 1}
+                    indirect:
+                      - {symbol: "OrderController", file: "app/Http/Controllers/OrderController.php", origin: "graph", resolution: "heuristic", hops: 2}
+                    tests:
+                      - {symbol: "DiscountServiceTest", file: "tests/Unit/DiscountServiceTest.php", origin: "graph"}
+                    docs:
+                      - {path: "README.md", stale: false}   # un documento desalineado lleva además `staleSince`: el sha completo
+                    history:
+                      - {file: "app/Services/ShippingService.php", coChangeRate: 1, prs: [24, 33, 55], origin: "git"}
+                    risk:
+                      level: "HIGH"
+                      rationale: "10 ficheros afectados, 3 tests que cubren el cambio, 4 elementos directos sin test, 0 elementos directos con cadena solo heurística."
+                unknown:
+                  value:
+                    status: "unknown"
+                    reason: "no-anchor"
+        '400': {description: "VALIDATION_ERROR (petición fuera de esquema) o INVALID_IMPACT_REQUEST"}
+        '404': {description: "PROJECT_NOT_FOUND"}
+        '429': {description: "RATE_LIMITED"}
+        '500': {description: "INTERNAL"}
+      # Implementado en DIS-95 (CM-HU-16b.2); el documento generado desde los esquemas Zod está en
+      # /docs/json. `change` se cuenta en code points, no puede ser solo espacios ni contener U+0000;
+      # `projectId` acepta mayúsculas y minúsculas (8-4-4-4-12 hexadecimal); `hops`, `projectId` en el
+      # cuerpo u otra clave responde 400. Sin `maxHops` se aplica el valor por omisión del caso de uso
+      # (2). Los límites son los del caso de uso `impact`. La respuesta `answered` lleva exactamente
+      # `status`, `direct`, `indirect`, `tests`, `docs`, `history` y `risk`: cada entrada de `direct` e
+      # `indirect` lleva `symbol`, `file`, `origin`, `resolution` y `hops`; `tests`, `symbol`, `file` y
+      # `origin`; `docs`, `path`, `stale` y, solo si está desalineado, `staleSince` (el sha completo);
+      # `history`, una entrada por fichero co-cambiado con `file`, `coChangeRate`, `prs` (números de PR en
+      # orden ascendente, posiblemente vacío) y `origin`; `risk`, `level` (`HIGH`, `MEDIUM`, `LOW`) y
+      # `rationale`. No lleva `usage` (el impacto no llama al modelo: no hay coste que medir), ni
+      # `events` (van al log del servidor), ni `projectId`, ni el texto del cambio, ni ids de base de
+      # datos. Un `projectId` desconocido responde 404 también con un cambio sin términos de búsqueda.
 
 components:
   schemas:
@@ -1429,6 +1453,13 @@ Una ruta puede declarar su propia tabla de errores de dominio, que se consulta a
 | El código del proyecto no se puede leer | 503 | `SOURCE_UNAVAILABLE` | `the project's source cannot be read` | `{ reason }` y, si la trae, `path` (relativa al repositorio) |
 | Presupuesto diario del LLM agotado | 429 | `BUDGET_EXHAUSTED` | `the daily LLM budget is exhausted` | `{ spentUsd, dailyBudgetUsd, resetsAt, cacheOnly: true }` |
 
+La de `POST /api/projects/{projectId}/impact` (DIS-95) usa mensajes fijos; no tiene `BUDGET_EXHAUSTED`, `LLM_UNAVAILABLE` ni `SOURCE_UNAVAILABLE` porque no llama al modelo ni lee el código:
+
+| Situación | Estado | `code` | `message` | `details` |
+|---|---|---|---|---|
+| El proyecto no existe | 404 | `PROJECT_NOT_FOUND` | `project not found` | `{}` |
+| El caso de uso rechaza la petición | 400 | `INVALID_IMPACT_REQUEST` | `invalid request` | `{ field }` |
+
 La de `POST /api/projects/{projectId}/index` (DIS-9) usa mensajes fijos y `details` siempre `{}`:
 
 | Situación | Estado | `code` | `message` |
@@ -1439,7 +1470,7 @@ La de `POST /api/projects/{projectId}/index` (DIS-9) usa mensajes fijos y `detai
 | El repositorio guardado ya no es un repositorio git o no tiene commits | 503 | `NOT_A_GIT_REPOSITORY` o `EMPTY_REPOSITORY` | `the project's source cannot be read` |
 | Grafo inválido, fallo de la caché o del commit, cualquier otro | 500 | `INTERNAL` | `unexpected error` |
 
-Fuera de `/ask` y `/index`, `PROJECT_NOT_FOUND` sigue respondiendo `500 INTERNAL`: solo es un `404` donde se recibe un `projectId`.
+Fuera de `/ask`, `/impact` y `/index`, `PROJECT_NOT_FOUND` sigue respondiendo `500 INTERNAL`: solo es un `404` donde se recibe un `projectId`.
 
 Si la API no puede arrancar, escribe una sola línea `{"error":{code,message,details}}` en stderr y sale con `1`: `INVALID_CONFIG` (`details.variable`: `DATABASE_URL`, `PORT`, `HOST`, `RATE_LIMIT_MAX` o `RATE_LIMIT_WINDOW_MS`, ausente o inválida), `LLM_CONFIG_INVALID` (`details.variable` y, si falta el precio de un modelo, `details.modelVariable`), `DATABASE_UNAVAILABLE` (la base de datos no acepta la conexión) o `STARTUP_FAILED` (por ejemplo, el puerto ocupado: `details.systemCode` `EADDRINUSE`). Ojo: para `DATABASE_URL` ausente la API responde `INVALID_CONFIG`, mientras que el CLI responde `MISSING_CONFIG`. La línea nunca contiene el valor de una variable.
 

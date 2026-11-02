@@ -1,12 +1,13 @@
 import Fastify from 'fastify';
 import type { FastifyInstance, FastifyRequest, FastifyServerOptions } from 'fastify';
-import type { AnalyzerPort, explain, GitPort, LlmPort, ProjectLanguage, reindexProject, SourceTreePort, StorePort } from '@codemind/core';
+import type { AnalyzerPort, explain, GitPort, impact, LlmPort, ProjectLanguage, reindexProject, SourceTreePort, StorePort } from '@codemind/core';
 import { installErrorHandler } from './plugins/error-handler.js';
 import { registerOpenApi } from './plugins/openapi.js';
 import { registerRateLimit } from './plugins/rate-limit.js';
 import { installZodCompilers } from './plugins/zod-compiler.js';
 import { registerAskRoute } from './routes/ask.js';
 import { registerHealthRoute } from './routes/health.js';
+import { registerImpactRoute } from './routes/impact.js';
 import { registerReindexRoute } from './routes/reindex.js';
 
 /** Largest request body accepted, in bytes (64 KiB). */
@@ -53,6 +54,8 @@ export interface AppOptions {
   logger?: Exclude<FastifyServerOptions['logger'], boolean>;
   /** The use case of `POST /api/projects/{projectId}/ask`; core's `explain` when absent. A test seam only. */
   explain?: typeof explain;
+  /** The use case of `POST /api/projects/{projectId}/impact`; core's `impact` when absent. A test seam only. */
+  impact?: typeof impact;
   /** The use case of `POST /api/projects/{projectId}/index`; core's `reindexProject` when absent. A test seam only. */
   reindex?: typeof reindexProject;
 }
@@ -120,6 +123,7 @@ export async function buildApp(deps: AppDeps, options: AppOptions): Promise<Fast
   await registerRateLimit(app, options.rateLimit);
   registerHealthRoute(app);
   registerAskRoute(app, { explain: options.explain });
+  registerImpactRoute(app, { impact: options.impact });
   registerReindexRoute(app, { reindex: options.reindex });
   return app;
 }

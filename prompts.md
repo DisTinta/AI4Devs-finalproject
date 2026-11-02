@@ -92,6 +92,7 @@
 76. [Grafo de impacto: dependientes y tests de un cambio desde el grafo determinista (DIS-89)](#76-grafo-de-impacto-dependientes-y-tests-de-un-cambio-desde-el-grafo-determinista-dis-89)
 77. [Riesgo, fila de `query_log` y comando `impact` (DIS-90)](#77-riesgo-fila-de-query_log-y-comando-impact-dis-90)
 78. [Historial por co-cambio y documentación con `stale` en el informe de impacto (DIS-94)](#78-historial-por-co-cambio-y-documentación-con-stale-en-el-informe-de-impacto-dis-94)
+79. [`POST /impact` con esquema Zod y tests `200`/`400`/`404` (DIS-95)](#79-post-impact-con-esquema-zod-y-tests-200400404-dis-95)
 
 ---
 
@@ -5496,3 +5497,26 @@ directorios `knowledge/` y `store-postgres/src` alimentan la huella del analizad
 `cache:build`, que necesita el modelo y el panel); y varios tests de los pasos 3 a 5 se escribieron justo
 después de la implementación y no antes. Stryker enseñó siete mutantes vivos en `history.ts`,
 `doc-staleness.ts` y `risk.ts`, que llevaron a cuatro tests más.
+
+---
+
+# 79. `POST /impact` con esquema Zod y tests `200`/`400`/`404` (DIS-95)
+
+### Prompt 1 — Paso de apply del cambio `http-impact` en la ejecución autónoma
+
+Extracto literal del encargo que recibió el subagente:
+
+```
+Run /opsx:apply on change http-impact: every task in TDD (failing test first, then implementation, in the layer order), marking tasks.md as you go, with the mandatory verification steps. Run the tests, lint and typecheck. Commit, push and open the PR to final-project-CRN with /pr-describe (write the "why" yourself and mark it as agent-written). Return pr.
+```
+
+**Por qué funcionó.** La ruta de `/ask` era una plantilla punto por punto y el `tasks.md` fijaba el orden
+de capas (esquemas, ruta mínima con `501`, ruta completa, integración sobre la semilla), así que el
+agente solo tenía que cumplirlo (texto del agente).
+
+**Ajuste humano.** Ninguno: ejecución autónoma (texto del agente). Dos cosas no estaban en el plan: la
+base de datos de desarrollo trae confirmados los dos proyectos de la semilla y el arnés de integración se
+niega a empezar con ellos, así que las pruebas con base de datos se lanzaron contra `codemind_test`
+(la URL en la línea de órdenes, sin leer `.env`); y Stryker enseñó siete mutantes vivos en los dos ficheros
+nuevos (un `prs` copiado, el `?? []` de los eventos, los dos mensajes de las reglas propias y el literal
+`HIGH`), que llevaron a tres tests más.

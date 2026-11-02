@@ -1,7 +1,8 @@
 /**
  * `@codemind/api` — the HTTP base of the API (DIS-76): `buildApp` builds the Fastify instance with
  * the error format, Zod validation, the OpenAPI document at `/docs`, the rate limit by IP,
- * `/health` and, since DIS-78, `POST /api/projects/{projectId}/ask`; `composeFromEnv` and `startApi`
+ * `/health`, since DIS-78 `POST /api/projects/{projectId}/ask` and, since DIS-95,
+ * `POST /api/projects/{projectId}/impact`; `composeFromEnv` and `startApi`
  * compose it from the environment. Importing this module starts nothing: the process entry is `src/server.ts`.
  *
  * @module
@@ -36,6 +37,19 @@ export {
   type AskUsage,
 } from './schemas/ask.js';
 export { registerAskRoute, type AskRouteOptions } from './routes/ask.js';
+export {
+  impactAnsweredSchema,
+  impactBodySchema,
+  impactParamsSchema,
+  impactResponseSchema,
+  impactUnknownSchema,
+  type ImpactAnswered,
+  type ImpactBody,
+  type ImpactParams,
+  type ImpactResponse,
+  type ImpactUnknown,
+} from './schemas/impact.js';
+export { registerImpactRoute, type ImpactRouteOptions } from './routes/impact.js';
 export {
   reindexBodySchema,
   reindexParamsSchema,
