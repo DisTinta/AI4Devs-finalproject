@@ -353,3 +353,241 @@ impact-page --strict` passes after the edits.
 | I16 — persistence not checked | Fixed. Task 11.2 checks one more `query_log` row with capability `impact` per answered or unknown send, and 12.1 records it. 11.5 already restores the state. |
 | I17 — destination-B comments on DIS-75 and DIS-77 | Fixed. Task 13.5 adds the Spanish comments on DIS-75 (P6) and DIS-77 (P7). |
 | I18 — 9.2 manual exceptions | Fixed. "The development server serves the three paths" is added to the manual exceptions. |
+
+---
+
+## Run 2 (2026-11-02)
+
+APPROVED
+
+**Questions for the author.** None open. In run 1 the agent decided Q1 (origin tag as text only, P9) and Q2 (generic alert for `INVALID_IMPACT_REQUEST` / `VALIDATION_ERROR` / `INTERNAL`, P10), both marked as the agent's text. Both decisions agree with DIS-14 AC 1 and AC 4. They are recorded as departures from DIS-8 in `design.md` → Follow-ups and listed for the PR in task 14.1. Neither contradicts the ticket or the project, so they are accepted.
+
+*Audit run 2 (2026-11-02).*
+
+**Inputs read:**
+- every artifact of `openspec/changes/impact-page/`;
+- DIS-14 and its three comments, and the parent DIS-8 (Linear);
+- `docs/base-standards.md` and `docs/openspec-tasks-mandatory-steps.md`;
+- the main specs `web-foundation`, `ask-page`, `http-impact` and `impact`;
+- `docs/frontend-standards.md` → «How `test:a11y` is wired»;
+- the code the design builds on.
+
+The run-1 report and its resolution section were used as context.
+
+---
+
+## 1. Scope against the ticket
+
+Clean. Everything follows from the DIS-14 DoD, its enhanced ACs 1–5 and decisions D1–D8:
+
+- **Code:** the route, the client call, the components, the Screen 2 link (AC 5), the `PageFrame` `nav` prop and the `projectHeadingOf` move (minimal refactors that make the screen possible).
+- **Process steps:** the docs (named in the ticket's technical context) and `prompts.md` and `project-context.md` (required by the project's workflow).
+
+Nothing widens the change to DIS-8 as a whole. The departures from the DIS-14 technical context (`router.test.tsx`, `SCANNED_PATHS`) are now recorded in P8 with the `openspec validate` evidence.
+
+## 2. Inherited acceptance criteria
+
+| AC | Requirement → scenario | Status |
+|---|---|---|
+| DIS-14 AC1 | Change box → "A valid change is sent trimmed with the selected hops"; Answered report → "The answered report shows its five sections, its origins and its risk" | covered |
+| DIS-14 AC2 | "An empty section, a stale document and a history entry without pull requests"; hops 1/3 in "A valid change is sent…"; keyboard operation in "The walkthrough step 4 runs in a real browser" | covered |
+| DIS-14 AC3 | "An unknown report says the change anchors nothing" | covered |
+| DIS-14 AC4 | "An invalid change is not sent"; "A rate limit, an API error and an unavailable API are alerted"; "A failure removes the report that was shown" | covered |
+| DIS-14 AC5 | Pending report (three scenarios); frame scenarios; ask-page "Screen 2 links…" and "Following the impact link aborts…"; axe in 8 states; real-browser walkthrough | covered |
+| DIS-8: tag «texto + icono» | text only | departure P9 (D), accepted |
+| DIS-8: tokens and cost | no `usage` in the API | departure E6, accepted |
+| DIS-8: reuse `ErrorBanner` | `AskErrorNotice` | departure E7, accepted |
+| DIS-8: 400 `maxHops` as a readable message | generic alert | departure P10 (D), accepted |
+| DIS-8: `maxHops` keyboard-operable and labelled | label in RTL, keyboard by hand (P13) | covered |
+
+No inherited AC is missing a requirement.
+
+## 3. Missing scenarios
+
+- **Improvable — I1. A page-level time limit could be added without any test failing.**
+  - The rule: "Pending report" says "The page SHALL NOT set a time limit of its own."
+  - What covers it: only the client scenario "Aborting a pending impact request cancels it, and it has no time limit". It pins `impact()`, not `useImpact`.
+  - The gap: a timer added in the hook or the page would pass every test.
+  - Correction, either one:
+    - Add to "Sending again while a report is pending sends no request" (or a new scenario): "after the clock advances 60 000 ms the text «Calculando impacto…» is still shown and there is no element with role `alert`".
+    - Or state in the requirement that it is covered by the client scenario and that `useImpact` arms no timer, and accept the gap.
+- **Improvable — I2. "Unknown report … add no tab stop" has no scenario.**
+  - "The tab order of Screen 3 skips the report" has two runs: the Q2 report and the unavailable-API alert.
+  - Correction: add a third run "showing the unknown state of «mejorar el rendimiento general»". Task 8.1 then says "three runs".
+
+## 4. Ambiguity
+
+Clean. Searching the change for the target words (fast, easy, secure, efficient, many, appropriate, robust) and for "acceptably" finds only `"too many requests"`, which is a literal API message inside a JSON body. The run-1 phrase "read acceptably" is gone from D11.
+
+## 5. Open decisions
+
+No blocking open decision. The run-1 blockers B3 (colour pairs, design D15 table) and B5 (separator « · » with an exact `textContent`, `projectId` percent-encoded as one path segment) are fixed in the requirement, the scenario and the design.
+
+- **Improvable — I3. "The element the person used last" is not named.**
+  - Where: "A valid change is sent trimmed with the selected hops", THEN, "the focus is on the element the person used last". A test will pin this.
+  - Correction: name the element per run: "on the button «Analizar» in the first run and on the field «Cambio» in the second and third".
+- **Improvable — I4. The field's placeholder is not fixed.**
+  - D14 removes `placeholder` from the shared shape. D13 gives visible labels, but neither says whether the field «Cambio» has a placeholder or what it says. The wireframe `images/pantalla-3-impacto.svg` may show one.
+  - Correction: add one sentence to D13, either "the field has no placeholder" or the exact text.
+
+## 6. Contradictions inside the change
+
+Clean. Proposal, design, specs and tasks agree on:
+- the signature `impact(projectId, body, options)`;
+- the four gate paths with a separate `it`;
+- `SCANNED_PATHS` keeping three paths;
+- the eight axe states;
+- the wording of every label;
+- the status texts;
+- the reuse of `alertLinesOf`.
+
+Two notes:
+- Design Goals ("every existing requirement and test of Screen 2 unchanged except …") and D14 ("no Screen 2 test changes") read as being about the refactor. Two tests are still appended to `AskPage.test.tsx`, and tasks 3.5, 3.7 and 9.1 say so explicitly. Not a contradiction.
+- **Improvable — I5. Task 11.1 and task 11.2 disagree on which sends write a row.**
+  - Task 11.1 says "every answered `/impact` writes an `impact` row".
+  - Task 11.2 counts a row per answered *or unknown* send, which is right: `openspec/specs/impact/spec.md` → "A no-anchor call writes one impact row".
+  - Correction: align 11.1 to "every answered or unknown `/impact` writes an `impact` row".
+
+## 7. Contradictions with the project
+
+Clean.
+
+- `web-foundation` (MODIFIED):
+  - Every scenario of the four main-spec requirements is kept by name (`openspec/specs/web-foundation/spec.md:29-44, 172-221, 301-319`).
+  - The only edits are additive wording (the explicit three paths, the second negative control, "every client call").
+- `ask-page`: the ADDED requirement keeps "Accessibility of Screen 2" (`openspec/specs/ask-page/spec.md:667-720`) intact, because the link is the last tab stop. "The tab order follows question, suggestions and evidence" presses Tab only eight times, and "The result states add no tab stop" filters only the main landmark.
+- `http-impact`: the 5–500 code-point rule (`openspec/specs/http-impact/spec.md:21`) matches `validChange`.
+- `docs/frontend-standards.md:74`: the departure from "a new route needs its path added" is recorded (P8), and task 13.3 rewrites the sentence. §2 "one module per resource" is recorded (P11).
+- Branch base `final-project-CRN`, merge through the gate, and Spanish for PRs and Linear match `docs/project-context.md` and `docs/base-standards.md` §2.
+
+## 8. Contrast with the real code
+
+The design matches the code:
+
+- `PageFrame` renders only the banner and `<main>`, so the new optional `nav` prop is needed (`packages/web/src/components/PageFrame.tsx:22-28`).
+- `ProjectQueryRoute` keyed by `projectId` is the template for `ProjectImpactRoute` (`packages/web/src/router.tsx:13-16`).
+- `projectHeading` is private, with `placeholder` in its shape, which D14 replaces with `detail !== undefined` (`packages/web/src/pages/AskPage.tsx:24-44`).
+- The `role="status"` paragraph comes after `ResultArea`, the pattern of D17 (`AskPage.tsx:164-167`).
+- `alertLinesOf` and `caseLinesOf` give exactly the lines the error scenario expects: `RATE_LIMITED`, `PROJECT_NOT_FOUND`, the default `[]` for `INVALID_IMPACT_REQUEST` and `INTERNAL`, and the unavailable case (`packages/web/src/components/notice-display.ts:96-140`).
+- Every token of the D15 table exists (`packages/web/src/index.css:17-33`).
+- The hand-declared types of D1 match the Zod schemas (`packages/api/src/schemas/impact.ts:22-122`):
+  - `ImpactDoc` is a union of stale and not-stale;
+  - `ImpactTest` has `symbol`, `file` and `origin`;
+  - `ImpactHistory` has `prs: number[]`.
+- The gate file has a `describe('Accessibility gate on the real routes')`, so task 8.3 can append its `it` there (`tests/a11y/smoke.a11y.test.tsx:15, 22-53`).
+- No existing web test enumerates every link or every landmark of the document, so a `nav` after `<main>` breaks none of them (grep of `getAllByRole('link'` / `navigation` in `packages/web/src` and `tests/a11y`).
+- **Improvable — I6. Task 11.3a's PROJECT_NOT_FOUND check does not name the change it sends.**
+  - Task 11.3a says "open `/p/0b5c7f2e-…/impact` with the API up and send a change → «Código: PROJECT_NOT_FOUND.»".
+  - The impact use case answers `unknown`/`no-anchor` with no error for a change without search terms in a project that does not exist (`openspec/specs/impact/spec.md:521-525`; `ProjectNotFound` only "whenever `change` has at least one search term", line 56-57).
+  - Correction: name the change, «cambiar los descuentos de DiscountService».
+
+No abstraction is duplicated. `ImpactUnknownState` and `useImpact` copy their templates on purpose (D10, design Non-Goals).
+
+## 9. Task size
+
+Clean. The run-1 splits (6.2a/6.2b, 11.3a/11.3b) are in place. Task 3.3 is the largest code task (frame `nav`, page shell, first `ChangeBox`, route), but each piece is a few lines over an existing template, and it fits one turn. Task 11.2 is a long browser pass but a single flow.
+
+## 10. Mandatory steps
+
+Clean.
+
+- Step 0 is first, and 0.1 is the branch.
+- Steps 9, 10, 11, 12, 13 and 14 are present, labelled `(MANDATORY)` / `AGENT MUST EXECUTE` as required.
+- Step 10 names the report path with the template.
+- Step 11 captures the `query_log` baseline (11.1) and restores it (11.5), including `db:seed`.
+- Step 12 records persistence through the `query_log` counts.
+- Step 14 is last: the three checks in order, fixes on the same PR, the archive commit before the merge through the gate.
+- `scripts/dev-processes.mjs stop` closes 10.6 and 11.5.
+- Every command named exists in the root `package.json`: `test:a11y`, `typecheck`, `lint`, `lint:architecture`, `docs:coverage`, `up`, `db:seed`, `cli`.
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| impact-page: Screen 3 frame and navigation | Screen 3 opens on a sample project without any request | 3.2, 3.3 |
+| | Screen 3 of a project outside the sample constant is shown by its id and leads back | 3.4 |
+| | Another project's Screen 3 starts empty | 3.4b |
+| impact-page: Change box | A valid change is sent trimmed with the selected hops | 4.1, 4.2 |
+| | An invalid change is not sent | 4.3 |
+| | Changing an invalid change clears the mark | 4.4 |
+| impact-page: Pending report | Sending again while a report is pending sends no request | 5.1 |
+| | A new change replaces the report that was shown | 6.3 |
+| | Leaving the page aborts the pending report | 5.2 |
+| impact-page: Answered report | The answered report shows its five sections, its origins and its risk | 6.1, 6.2a, 6.2b |
+| | An empty section, a stale document and a history entry without pull requests | 6.4 |
+| | Texts of the API in the report are shown as text | 6.5 |
+| impact-page: Risk | Every risk level is written in words | 6.6 |
+| impact-page: How a change and the entries of a report are written | Change length is counted in code points after trimming | 2.1, 2.2 |
+| | Hops, resolution, document and history are written in Spanish | 2.3 |
+| impact-page: Unknown report | An unknown report says the change anchors nothing | 7.1 |
+| impact-page: Error alerts | A rate limit, an API error and an unavailable API are alerted | 7.2 |
+| | A failure removes the report that was shown | 7.3 |
+| impact-page: Screen reader announcements of Screen 3 | The status region announces every outcome | 7.4 |
+| impact-page: Accessibility of Screen 3 | Screen 3 has no axe violations in any of its states | 8.2 |
+| | The tab order of Screen 3 skips the report | 8.1 |
+| | The walkthrough step 4 runs in a real browser | 11.2, 11.3a, 11.3b, 11.4, 14.2 |
+| ask-page: Link to the impact screen | Screen 2 links to the impact screen of its project | 3.5, 3.6 |
+| | Following the impact link aborts a pending question | 3.7 |
+| web-foundation: Paths (MODIFIED) | An unknown path shows the not-found screen and leads back | existing test, 9.1 |
+| | The development server serves the three paths | 11.2 |
+| | The development server serves Screen 3 | 11.2, 14.2 |
+| web-foundation: Cancellation by the caller (MODIFIED) | Aborting a pending question cancels the request | existing test, 9.1 |
+| | Aborting a pending health check cancels the request | existing test, 9.1 |
+| | Aborting while the body is read rejects with the caller's reason | existing test, 9.1 |
+| | An already-aborted signal sends no request | existing test, 9.1 |
+| web-foundation: API types follow the API's schemas (MODIFIED) | A drift between the client types and the API schemas fails the type check | 1.6 |
+| | The web does not import the API or the backend | 10.3 (probe) |
+| web-foundation: Accessibility gate on the real routes (MODIFIED) | The three routes have no axe violations | existing test, 9.1 |
+| | The impact route has no axe violations | 8.3 |
+| | The negative control proves axe runs | existing test, 9.1 |
+| | The gate runs in CI instead of warning | existing test, 8.4 |
+| web-foundation: Asking for the impact of a change through the API client (ADDED) | An impact report is resolved as received | 1.1, 1.2 |
+| | An unknown impact is resolved as received | 1.3 |
+| | Impact failures become API or unavailable-API errors | 1.4 |
+| | Aborting a pending impact request cancels it, and it has no time limit | 1.5 |
+
+No row is empty. Every run-1 blocker (B1, B2, B4) now has a task whose RED can actually fail:
+- 8.2 uses an unlabelled `<select>`, a rule axe detects in jsdom;
+- keyboard operation is checked in 11.4;
+- 4.3 presses Enter twice on unchanged text, and the counter `key` is removed as its RED.
+
+---
+
+## Corrections to apply
+
+All six are improvable and none blocks the apply. They can be applied in one pass before task 1.1, or recorded as destination D in `design.md` → Follow-ups.
+
+### `specs/impact-page/spec.md`
+
+1. **I1 — Pending report.** Add a scenario, or extend "Sending again while a report is pending sends no request":
+   - GIVEN: "`fetch` replaced by a double that never answers, and a clock that the test advances".
+   - WHEN: "the person sends «cambiar los descuentos de DiscountService» and the clock advances 60 000 ms".
+   - THEN: "the text «Calculando impacto…» is still shown, the only element with role `status` holds «Calculando impacto…», and there is no element with role `alert`".
+2. **I2 — Accessibility of Screen 3 → "The tab order of Screen 3 skips the report".**
+   - GIVEN: change «in two runs» to «in three runs: showing the Q2 report, showing the alert of a `fetch` that rejects with a `TypeError`, and showing the unknown state of `{"status":"unknown","reason":"no-anchor"}`».
+   - THEN: «in each run».
+3. **I3 — Change box → "A valid change is sent trimmed with the selected hops", THEN.** Replace «the focus is on the element the person used last» with «the focus is on the button «Analizar» in the first run and on the field «Cambio» in the second and third».
+
+### `design.md`
+
+4. **I4 — D13.** Add one sentence: «The field «Cambio» has no placeholder (the visible label names it)», or the exact placeholder text, so the implementer does not choose it.
+
+### `tasks.md`
+
+5. **I5 — 11.1.** Change «every answered `/impact` writes an `impact` row» to «every answered or unknown `/impact` writes an `impact` row (`impact` → "A no-anchor call writes one impact row")».
+6. **I6 — 11.3a.** Change «send a change → «Código: PROJECT_NOT_FOUND.»» to «send «cambiar los descuentos de DiscountService» (a change with search terms; one without them answers `unknown` for a missing project) → «Código: PROJECT_NOT_FOUND.»».
+7. **I1, I2.** If the scenarios above are added:
+   - 5.1 (or a new 5.3): "RED → GREEN with fake timers; it may pass at once: then see it fail by adding a local 30 s timeout in `useImpact`, not committed, and record it".
+   - 8.1: "three runs".
+
+### Linear
+
+DIS-14: one comment in Spanish. The `[original]` block is not touched.
+
+> *Texto del agente (auditoría de spec, ronda 2, 2026-11-02).* Resultado: APPROVED, 0 hallazgos bloqueantes. Los cinco bloqueantes de la ronda 1 están corregidos y las decisiones P8–P13 se aceptan; no contradicen el ticket ni el proyecto. Quedan seis mejoras no bloqueantes, que se aplican en los artefactos del cambio antes de la tarea 1.1:
+> 1. Un escenario de página que compruebe que no hay límite de tiempo propio.
+> 2. Una tercera pasada del orden de tabulación con el estado `unknown`.
+> 3. Nombrar el elemento con foco en cada pasada de «A valid change is sent…».
+> 4. Fijar si el campo «Cambio» lleva placeholder.
+> 5. En la tarea 11.1, también el `unknown` escribe una fila `impact` en `query_log`.
+> 6. En la tarea 11.3a, enviar un cambio con términos de búsqueda para obtener `PROJECT_NOT_FOUND`.
