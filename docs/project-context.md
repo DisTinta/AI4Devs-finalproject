@@ -104,8 +104,9 @@ Verified against `package.json` (root and per package). If a command is not here
 - Development environment: `npm run dev` (root) — runs `packages/api` + `packages/web` via
   `concurrently`, kills all on first failure. The API's `dev` (DIS-76, DIS-45, DIS-102) is `node --watch
   --import ../../scripts/load-env.mjs --import ./dev-register.mjs src/server.ts`: `packages/api/dev-register.mjs` registers tsx with
-  `packages/api/tsconfig.run.json`, which maps `@codemind/core` and the three adapters to their
-  `src/` (as the CLI's), so it never runs a stale `dist/`. Not `tsx watch`: it reads its stdin and
+  `packages/api/tsconfig.run.json`, which maps `@codemind/core`, the three adapters and the two
+  analyzers (`analyzer-php`, `analyzer-typescript`; DIS-75: without them a clean checkout, such as the CI `e2e` job, failed with
+  `ERR_MODULE_NOT_FOUND` on `dist/index.js`) to their `src/` (as the CLI's), so it never runs a stale or missing `dist/`. Not `tsx watch`: it reads its stdin and
   passes the same pipe to the API, and under `concurrently` (whose children get an open stdin pipe)
   the API never started on Windows (`tests/integration/api/dev-script.spec.ts`). It needs
   `DATABASE_URL`, which its `dev` reads from the root `.env` (a variable already set wins); without it the API prints one
