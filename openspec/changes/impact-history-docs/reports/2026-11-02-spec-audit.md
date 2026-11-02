@@ -412,3 +412,220 @@ No empty rows. The counts in task 8.2 match the deltas:
 | 6b ("exactly one database statement") | Fixed: the first bullet of "Contract of the history reads" applies the one-statement rule to calls that pass their argument checks; a rejected call sends none (R2-6b). |
 | 8b (order case of task 4.8) | Fixed: the case runs over a graph with at least one test, so the coverage read is made (R2-8b). |
 | Task 8.2 counts | No change needed: no scenario was added or removed in this round. |
+
+---
+
+## Run 3 (2026-11-02)
+
+APPROVED
+
+**Questions for the author:** none new. In run 1 the agent answered QA1 and QA2 as lead engineer (design Follow-ups R1-QA1 and R1-QA2, destination D). Both answers stay acceptable because neither contradicts the ticket or the project:
+- R1-QA1 follows the signed DIS-49 note in the comments of DIS-94 ("anclarla a `README.md`"). It also follows the sub-issue's own enhanced AC 2 and AC 3, which already describe `README.md` as current over the seed and stale only with the commit added in the test transaction.
+- R1-QA2 follows the main spec `openspec/specs/impact/spec.md` → "Limit of the lexical anchor". It also follows the sub-issue's enhanced AC 1, which already uses «cambiar los descuentos de DiscountService».
+
+Ticket inputs: I loaded DIS-94 (the sub-issue, with its seven comments, the two run-correction comments included) and its parent DIS-93 from Linear. This is run 3. It judges the change as it stands after "Resolution of run 2".
+
+---
+
+## 1. Scope against the ticket
+
+Clean. Every part of the change follows from the enhanced description of DIS-94 (§2 AC 1–5, §3 Contexto técnico, §4 Fuera de alcance):
+- the pure functions `history.ts` and `doc-staleness.ts`;
+- the three port reads that replace `lastCommitTouching` (enrich decision 3);
+- the widened risk (decision 2);
+- the CLI sections `DOCUMENTACIÓN` and `HISTORIAL` (AC 5g);
+- the four documentation targets.
+
+Three items are routine or follow from the change, so they are not invented scope:
+- task 11.4's `prompts.md` entry;
+- task 13.7's `## Purpose` update;
+- task 3.3's JSDoc update of `coChangeEdges`.
+
+Correctly excluded and not widened to the parent story: `POST /impact` (DIS-95), screen 3 (CM-HU-17) and drift (DIS-71).
+
+## 2. Inherited acceptance criteria
+
+| Parent DIS-93 AC | Covered by | State |
+|---|---|---|
+| AC 1: `history` with `ShippingService.php`, PRs 24/33/55, `origin: 'git'`, not in `direct`/`indirect` | "Q2 history over the seed"; main spec "Callees, documents and co-changed files are not dependants" | Covered (change text per R1-QA2) |
+| AC 2: stale doc with `staleSince` | "A later change to the price calculator makes the readme stale" | Covered as adapted by the DIS-49 note and R1-QA1 |
+| AC 3: doc changed after the code → `stale: false`, no `staleSince` | "A document touched with or after its code is not stale", "Q2 documentation over the seed is current" | Covered |
+| AC 4: `POST /impact` | DIS-95 | Correctly excluded |
+| AC 5: «1 documento desalineado» in the rationale | "A stale document turns a low risk into medium", "A stale document leaves a high risk high", the seed stale scenario | Covered |
+
+Every sub-issue AC (1–4 and 5a–5g) has a requirement and a scenario:
+- 5a: "A document touched with or after its code is not stale"
+- 5b: "Without commits no document is stale and the history is empty"
+- 5c: "A co-change whose commits have no pull request has no PR"
+- 5d: "A file of the anchor is not in the history"
+- 5e: "An unknown report has neither documents nor history"
+- 5f: "A failing history read fails the call without a row"
+- 5g: the modified `cli-impact` scenarios
+
+No inherited criterion is missing.
+
+## 3. Missing scenarios
+
+Every MUST/SHALL clause has a scenario or a named extra case. Two improvable points, both about whether a scenario can actually fail:
+
+- **3a (improvable). The duplicate-path check is vacuous for two of the three reads.**
+  - Scenario: `specs/graph-store/spec.md` → "Empty and unknown paths give empty history reads".
+  - It reuses the project of "Co-changes are read from either end with their pull requests". That project has no `describes` edge, and its commits have no date (the helper `commit()` of `tests/support/sample-graph.ts:46` sets no `committedAt`).
+  - So the document-link read and the file-commit read with `['a.php', 'a.php']` both return `[]`, the same as with `['a.php']`, whatever the implementation does. Only the co-change read can detect a duplicate.
+  - Correction: in the GIVEN, give the commits of that project dates and add a `describes` edge from `README.md` (kind `doc`) to `a.php`. Or base the scenario on the union of the three data scenarios.
+- **3b (improvable). The isolation scenario cannot detect a file-commit leak if the second project's commit is undated.**
+  - Scenario: "The history reads never hold another project's rows".
+  - It says "a commit with pull request 77" and gives no date. The file-commit read leaves out undated commits anyway. So "the file commit read returns no commit of the second project" holds even when the read ignores `commit.project_id`.
+  - Correction: "a commit dated 2024-01-01 with pull request 77".
+
+## 4. Ambiguity
+
+Clean. None of "fast", "easy", "secure", "efficient", "many", "appropriate" or "robust" appears in `proposal.md`, `design.md`, the three deltas or `tasks.md`. The only matches are quotations inside earlier runs of this report.
+
+## 5. Open decisions
+
+Clean of blocking items. Everything a test will pin is fixed by a requirement, a scenario or a design decision:
+- the formats (`<prs>`, `<rate>`, the 7-character sha);
+- the orders (store reads, `history`, `docs`, the read sequence);
+- the tie-breaks (sha in byte order);
+- the empty and absent inputs (empty `paths`, `(ninguno)`, no dated commits, a NULL `weight`);
+- the error precedence (malformed id → `paths` → statement);
+- the names of the test files and the counters.
+
+One small typing choice is left to the implementer; it is listed under 8a.
+
+## 6. Contradictions inside the change
+
+Clean. Proposal, design and specs agree on all of these:
+- the three reads and their row types (D3 ↔ graph-store);
+- the NULL-weight filter in the read (P2 ↔ "A co-change without weight is not read");
+- the rounding (D8 ↔ `cli-impact`);
+- the `<prs>` format (requirement ↔ scenarios ↔ AC 5g);
+- the one-statement rule, limited to calls that pass their checks;
+- the read order (D7 ↔ task 4.8);
+- `D` and the risk rule (D2 ↔ "Risk level of a report").
+
+Improvable: proposal → Impact → Code leaves out two files the change touches. One is `packages/core/src/knowledge/read-arguments.ts`, where `assertValidPaths` goes (D3, task 1.2). The other is `packages/core/src/impact/relevance.ts` (see 8a). Correction: add both to the list.
+
+## 7. Contradictions with the project
+
+Clean:
+- The MODIFIED requirements carry every existing scenario:
+  - `openspec/specs/impact/spec.md`: "Report by component" 4, "Risk level of a report" 8;
+  - `openspec/specs/graph-store/spec.md`: "Validation of read arguments" 3;
+  - `openspec/specs/cli-impact/spec.md`: "Impact report output" 3, "Impact terminal safety" 1.
+- "Q2 over the seed is high risk" is unchanged, and the stale seed scenario reuses its four counts.
+- The new reads follow the contract of the existing reads: project isolation, `ProjectNotFound`, one statement.
+- No ADR in `docs/adr/` is affected (D10).
+- The base branch `final-project-CRN` and the commands (`npx vitest run`, `npm run lint`, `npm run typecheck`, `npx stryker run`) match `docs/project-context.md`.
+- The `## Purpose` line of the main `impact` spec ("from the deterministic graph only") is corrected at archive time by task 13.7.
+
+## 8. Contrast with the real code
+
+- **8a (improvable): `buildReport` is declared to return `ReportBody`.**
+  - `packages/core/src/impact/relevance.ts:157-161` declares `buildReport(...): ReportBody`.
+  - `ReportBody` is `Omit<answered, 'risk' | 'events'>` (`packages/core/src/impact/risk.ts:7`). Once the answered variant gains `docs` and `history`, `buildReport` no longer type-checks, because it does not build those two keys.
+  - D7 and task 3.3 say that `answer()` (`packages/core/src/impact/impact.ts:58-70`) adds `docs` and `history` to the body that `buildReport` returns. They do not say what `buildReport` returns from then on, and `relevance.ts` is in neither the proposal nor the tasks.
+  - The compiler forces a choice, and no test pins it, so this is not blocking.
+  - Correction: in D7 and task 3.3, say "`buildReport` (`relevance.ts:161`) returns `Omit<ReportBody, 'docs' | 'history'>`; `answer()` completes it". Add `relevance.ts` to proposal → Impact.
+- Checked and consistent:
+  - `KnowledgeGraph` holds `commits` and `fileCommits` (`packages/core/src/knowledge/graph.ts:20-23`). `GraphCommit` has an optional `committedAt` and `prNumber` (`graph-commit.ts:2-13`).
+  - `GraphEdge.weight` is optional (`graph-edge.ts:39`), so a `co_changed` edge without a weight can be saved (task 2.4).
+  - `validate-graph.ts:65-81` asks only for a non-empty, unique sha, so the short shas of the scenarios (`d1`, `c1`, `k1`, `s1`) are valid.
+  - `smallStore` (`tests/unit/impact/small-graph.ts:16-26`) loads one undated commit and no links today, so task 3.1's defaults leave existing callers unchanged.
+  - No existing impact test compares a whole answered report with `toEqual`. The only whole-report assertions are on `unknown` reports (`tests/unit/impact/impact.spec.ts:42,57`).
+  - The only other consumer of `ImpactReport` is `packages/cli/src/commands/impact.ts:115`, and task 7.2 changes it.
+  - The double's `calls` object is at `tests/support/in-memory-store.ts:245`. Its three exact-match consumers are named in tasks 1.3 and 8.1.
+
+## 9. Task size
+
+Clean. Every task fits in one agent turn. Task 4.8, with six extra cases over one pure function and the double, is the largest and still fits.
+
+## 10. Mandatory steps
+
+Clean, checked against `docs/openspec-tasks-mandatory-steps.md` §2:
+- Step 0 creates the branch first (`feature/dis-94-impact-history-docs`).
+- These steps are present and labelled MANDATORY:
+  - 8, Review and Update Existing Tests;
+  - 9, Run Tests and Verify Data State, with the report following the §6 template;
+  - 10, Manual Interface Testing, marked AGENT MUST EXECUTE, with E2E marked not applicable in 10.8;
+  - 11, Update Technical Documentation;
+  - 13, Pre-merge Review, marked AGENT MUST EXECUTE and placed last.
+- The mutating tasks restore state:
+  - 10.3 deletes the commit and the `file_commit` row it inserted;
+  - 10.5 deletes the `query_log` rows created since the 10.1 timestamp;
+  - 9.5 checks the 0.4 counts and the fingerprints again.
+- The PowerShell check is destination C (10.6, E7).
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| graph-store: Contract of the history reads | The history reads of an unknown project fail | 2.7 (double: 1.4) |
+| | Each history read is one statement | 2.8 |
+| | Empty and unknown paths give empty history reads | 2.9 |
+| | The history reads never hold another project's rows | 2.10 |
+| | The in-memory double reads the same history | 1.1, 1.2, 1.3 |
+| graph-store: Co-change read | Co-changes are read from either end with their pull requests | 2.1, 2.2 |
+| | Edges of other kinds are not co-changes | 2.3 |
+| | A co-change without weight is not read | 2.4 (double: 1.4) |
+| graph-store: Document link read | Document links are read through files and symbols | 2.5 |
+| graph-store: File commit read | Dated commits of each path are read in order | 2.6 |
+| graph-store: Validation of read arguments (modified) | 3 existing scenarios | unchanged tests (2.11, 8.2) |
+| | Invalid history read paths are rejected before querying | 2.11 (double: 1.4) |
+| impact: Co-change history | Files co-changed with the anchor's file are the history | 3.2, 3.3 |
+| | A co-change whose commits have no pull request has no PR | 3.4 |
+| | A file of the anchor is not in the history | 3.5 |
+| | A file co-changed with several anchor files appears once | 3.6 |
+| impact: Related documentation | A document older than the code it describes is stale since the first change it missed | 4.1, 4.2 |
+| | A document touched with or after its code is not stale | 4.3 |
+| | A document described through a file and a symbol appears once | 4.4 |
+| | Stale documents come first | 4.5 |
+| | Without commits no document is stale and the history is empty | 4.6 |
+| | A failing history read fails the call without a row | 4.7 (extra cases 4.8) |
+| impact: History and documentation over the indexed acme-shop seed | Q2 history over the seed | 6.1 |
+| | Q2 documentation over the seed is current | 6.2 |
+| | A later change to the price calculator makes the readme stale | 6.3 |
+| impact: Report by component (modified) | 4 existing scenarios | unchanged tests (8.2) |
+| | An unknown report has neither documents nor history | 4.9 |
+| impact: Risk level of a report (modified) | 8 existing scenarios | unchanged tests (8.2) |
+| | A stale document turns a low risk into medium | 5.1, 5.2 |
+| | Two stale documents are counted in the plural | 5.3 |
+| | A stale document leaves a high risk high | 5.4 |
+| cli-impact: Impact report output (modified) | An impact report is printed by section with its risk | 7.1, 7.2 |
+| | Documents and history are printed with their state and origin | 7.3 |
+| | Impact receives only the project id, the change and the hop count | unchanged test (8.2) |
+| | Q2 over the seed is printed with its risk | 7.5 |
+| cli-impact: Impact terminal safety (modified) | Control characters in a report are escaped | unchanged test (7.4) |
+| | Control characters in documents and history are escaped | 7.4 |
+
+No row is empty. The counts in task 8.2 match the deltas:
+
+| Capability | Unchanged | Changed | New |
+|---|---|---|---|
+| `impact` | 12 | 0 | 17 (4 + 6 + 3 + 1 + 3) |
+| `graph-store` | 3 | 0 | 11 (5 + 3 + 1 + 1 + 1) |
+| `cli-impact` | 2 | 2 | 2 |
+
+---
+
+## Corrections to apply
+
+All of them are improvable. None blocks the apply.
+
+### `openspec/changes/impact-history-docs/specs/graph-store/spec.md`
+1. **"Empty and unknown paths give empty history reads" (3a).** Change the GIVEN to: "the saved project of the scenario "Co-changes are read from either end with their pull requests", with every commit dated (2024-01-01 to 2024-01-05) and a `describes` edge from the document `README.md` (kind `doc`) towards the file `a.php`".
+2. **"The history reads never hold another project's rows" (3b).** In the GIVEN, change "a commit with pull request 77" to "a commit dated 2024-01-01 with pull request 77".
+
+### `openspec/changes/impact-history-docs/design.md`
+3. **D7 (8a).** After "adds `docs` and `history` to the body that `buildReport` returned", add: "`buildReport` (`packages/core/src/impact/relevance.ts:161`) then returns `Omit<ReportBody, 'docs' | 'history'>`."
+
+### `openspec/changes/impact-history-docs/proposal.md`
+4. **Impact → Code (6, 8a).** Add `packages/core/src/knowledge/read-arguments.ts` (`assertValidPaths`) and `packages/core/src/impact/relevance.ts` (the return type of `buildReport`).
+
+### `openspec/changes/impact-history-docs/tasks.md`
+5. **Task 3.3 (8a).** Add: "change the return type of `buildReport` (`packages/core/src/impact/relevance.ts:161`) to `Omit<ReportBody, 'docs' | 'history'>`".
+6. **Task 2.9 (3a)** and **task 2.10 (3b).** No text change beyond the scenario edits. The tests follow the updated GIVENs.
+
+### Linear DIS-94 (comment in Spanish; the `[original]` block is not edited)
+7. Comment: «*Texto del agente (spec-audit, ronda 3, 2026-11-02).* Auditoría 3 del cambio `impact-history-docs`: APPROVED, sin hallazgos bloqueantes. Quedan tres mejoras opcionales. (1) Dos escenarios de `graph-store` no pueden fallar en parte de sus comprobaciones: el de rutas duplicadas, sobre las lecturas de enlaces y de commits, y el de aislamiento, sobre la lectura de commits. Se arreglan dando fecha a los commits y un enlace `describes` al proyecto base. (2) `buildReport` (`relevance.ts:161`) devuelve `ReportBody` y deja de compilar al añadir `docs` e `history`. Se fija su tipo de retorno en D7 y en la tarea 3.3. (3) La propuesta no lista `read-arguments.ts` ni `relevance.ts`. Las respuestas R1-QA1 y R1-QA2 siguen siendo válidas. No hay preguntas para la autora.»
