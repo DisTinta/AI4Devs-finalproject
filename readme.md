@@ -182,7 +182,7 @@ Los wireframes de las tres pantallas muestran el flujo completo del producto. La
 | Pantalla 2 — pregunta, preguntas sugeridas (las *golden*), afirmaciones tipadas con distintivos de tipo y de verificación, evidencia desplegable, panel de uso (confianza, tokens, coste, latencia, ahorro y caché), estados `UNKNOWN` y avisos de `429` y de error | Fusionado (DIS-65, PR #56; DIS-66, PR #57) |
 | Pantalla 3 — impacto: campo «Cambio», «Saltos del grafo», informe por secciones con la etiqueta de origen `[grafo]`/`[git]` de cada elemento, riesgo con su justificación, estado `unknown` y avisos de error (sin panel de tokens y coste: `/impact` no llama al modelo) | Hecho en la web (DIS-14); la CLI `impact` (DIS-90) y la ruta `POST /impact` (DIS-95) ya existían |
 
-Con `npm run up` (web en http://localhost:5173), los pasos 1 a 4 del recorrido de abajo se hacen ya en el navegador (el 4, impacto, en la Pantalla 3); el 6 (`task-api`) sigue siendo de la Entrega 3. [`docs/DEMO.md`](docs/DEMO.md) ejecuta los seis pasos por la CLI contra `acme-shop`, dice en cada uno qué hace hoy el sistema y recorre las dos pantallas en [Recorrido por la web](docs/DEMO.md#recorrido-por-la-web).
+Con `npm run up` (web en http://localhost:5173), los pasos 1 a 4 del recorrido de abajo se hacen ya en el navegador (el 4, impacto, en la Pantalla 3); el 6 (`task-api`) sigue siendo de la Entrega 3. [`docs/DEMO.md`](docs/DEMO.md) ejecuta los seis pasos por la CLI contra `acme-shop`, dice en cada uno qué hace hoy el sistema y recorre las tres pantallas en [Recorrido por la web](docs/DEMO.md#recorrido-por-la-web).
 
 #### Las tres pantallas
 

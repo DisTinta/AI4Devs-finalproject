@@ -217,8 +217,8 @@ Screen 3.
 *Agent's text: decisions taken by the agent as lead engineer in the autonomous run
 (`docs/AUTONOMOUS-RUN.md` §6), without the author. E1–E8 are the DIS-14 enrich decisions D1–D8 (comment of
 2026-11-02 in the ticket); P1–P7 are design decisions of this proposal; P8–P13 are the agent's decisions
-on spec-audit run 1 (its questions Q1 and Q2 included); P14 comes from spec-audit run 2 and P15–P16 from the
-apply step. Destinations: A = this change; B =
+on spec-audit run 1 (its questions Q1 and Q2 included); P14 comes from spec-audit run 2, P15–P16 from the
+apply step and P17–P20 from the pre-merge review (`reports/2026-11-02-adversarial-review.md`). Destinations: A = this change; B =
 another existing ticket; C = the author (none in this change, by the author's instruction); D = accepted
 and recorded.*
 
@@ -248,3 +248,7 @@ and recorded.*
 | P15 | (Apply) The report components, the hook and the page were written before the tests of task groups 4 to 8; each guarding test was then checked with a local mutation, seen failing and reverted (step 10 report). The two small helper components that the tasks did not name, `ProjectNav` (the «Navegación del proyecto» landmark shared by Screens 2 and 3), are an implementation detail of design D3. | D — accepted |
 | P16 | (Apply) The real-browser walkthrough of step 11 was driven by a `playwright-core` script installed in the session scratchpad (no repository dependency), because the Playwright MCP server was not available to the step; contrast was computed from the rendered colours with the WCAG formula. The screen was also exercised with the API stopped (only the web started). | D — accepted |
 | P13 | (Spec audit 1, B2) Keyboard operation of «Saltos del grafo» is not claimed by an RTL test (jsdom does not move a native `<select>` on arrow keys); it is checked in the real-browser scenario "The walkthrough step 4 runs in a real browser" (task 11.4). | A |
+| P17 | (Review, adversarial Minor) `readme.md` §1.3 still said `docs/DEMO.md` walks «las dos pantallas»; fixed to «las tres pantallas» in this PR. | A |
+| P18 | (Review, adversarial Minor) The `controller.signal.aborted` guard of `useImpact`'s `settle` survives its removal (20 tests green): an equivalent mutant, since the controller aborts only on unmount and React ignores updates on an unmounted component; same pattern as `useAsk`. Handed to DIS-77, which brings `packages/web` into the mutation gate. | B — DIS-77 |
+| P19 | (Review, adversarial Minor) The colour pair of the risk block per level is not asserted by an automated test; the level is always in the heading text (tested) and the pairs were measured in a real browser for the three levels (`reports/2026-11-02-show-spec-working.md`). | D — accepted |
+| P20 | (Review, adversarial Minor and Question) Tests after code in groups 4–8 (P15) and the delta tightened in the implementation commit with the spec-audit run 2 improvements (P14): process record, no further action. | D — accepted |
