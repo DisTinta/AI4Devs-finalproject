@@ -15,8 +15,7 @@ alwaysApply: true
   (`packages/web/src/index.css`: `@import "tailwindcss"` + `@theme` with the wireframe tokens).
 - **Vitest** + **React Testing Library** (+ `user-event`) on **jsdom** — component tests.
 - **React Router** (data mode) — the route table in `packages/web/src/router.tsx`.
-- **Playwright** — end-to-end, for critical flows only.
-  _(target; not yet a dependency — remove this note when installed.)_
+- **Playwright** — end-to-end, for critical flows only (`@playwright/test`, `npm run test:e2e`).
 - Accessibility automation via the project script **`test:a11y`** (axe-core or equivalent).
 
 ## 2. Architecture
@@ -91,6 +90,9 @@ All frontend code lives under `packages/web/src/`; the folders below are relativ
   Keyboard operation and visible focus are checked by hand in a real browser.
 - `.github/workflows/frontend.yml` runs the script in its `Accessibility (test:a11y)` step. Do not add a
   no-op script that always exits 0: a green run must mean the routes were scanned.
+- The end-to-end specs live in `tests/e2e/` (Playwright, `npm run test:e2e`, the `e2e` job of `CI`). Next
+  to the jsdom gate, `tests/e2e/ask-page.a11y.spec.ts` runs axe on Screen 2 in a real Chromium at 320 px
+  and 1280 px, where the layout exists, and checks there is no horizontal overflow.
 
 ## 5. Definition of done for a frontend change
 

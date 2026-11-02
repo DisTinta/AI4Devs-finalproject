@@ -17,8 +17,8 @@ permissions:
   pull-requests: read
   checks: read
 jobs:
-  # Decides whether `quality`, `mutation` and `verify` run. A push to an open PR that only touches
-  # documentation (openspec/**, docs/**, *.md) skips them, as long as all three were green (or
+  # Decides whether `quality`, `mutation`, `verify` and `e2e` run. A push to an open PR that only touches
+  # documentation (openspec/**, docs/**, *.md) skips them, as long as all four were green (or
   # themselves skipped) on the previous head: e.g. the /opsx:archive commit. A job skipped by `if:` counts as passed for
   # required checks. paths-filter cannot do this: on pull_request it always diffs the whole PR.
   # Never skipped: PR opened/reopened, pushes to main, force-pushes, or a previous head that was not
@@ -46,7 +46,7 @@ jobs:
             changed=$(git diff --name-only "$BEFORE" "$AFTER")
             code_files=$(printf '%s\n' "$changed" | grep -vE '^(openspec/|docs/)|\.md$' | grep . || true)
             green=true
-            for job in quality mutation verify; do
+            for job in quality mutation verify e2e; do
               previous=$(gh api "repos/$REPO/commits/$BEFORE/check-runs?check_name=$job" --jq '.check_runs[0].conclusion' 2>/dev/null || true)
               echo "Previous $job: ${previous:-unknown}"
               case "$previous" in success|skipped) ;; *) green=false ;; esac
@@ -98,6 +98,7 @@ jobs:
               - '.dependency-cruiser.cjs'
               - 'vitest.config.*'
               - 'vitest.stryker.config.*'
+              - 'playwright.config.ts'
               - 'stryker.config.*'
               - 'stryker.conf.*'
               - '.github/workflows/ci.yml'
@@ -212,6 +213,68 @@ jobs:
         run: npm run verify
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/verify
+
+  # The end-to-end suite (DIS-75, openspec change e2e-playwright-suite, design D9): `npm run test:e2e`
+  # starts its own API (evaluation mode, no `LLM_*`) and web on the seed, and drives Chromium. Its own
+  # database `e2e`: `quality`'s integration tests assume an unseeded `test` database (PH-23) and `verify`
+  # owns `verify`. A failure uploads the HTML report and the traces; no `continue-on-error`.
+  e2e:
+    needs: scope
+    if: needs.scope.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: e2e
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Migrations
+        run: npm run db:migrate
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/e2e
+
+      - name: Seed and golden answers
+        run: npm run db:seed
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/e2e
+
+      - name: End-to-end suite
+        run: npm run test:e2e
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/e2e
+
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
 
   # Mutation testing, its own job so it runs in parallel with `quality` (it needs no Postgres).
   # Incremental (`"incremental": true` in stryker.config.json): only mutants whose code or covering

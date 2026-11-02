@@ -31,8 +31,9 @@ describe('CI Node baseline', () => {
     const engines = (JSON.parse(readFileSync(resolve('package.json'), 'utf8')) as { engines: { node: string } })
       .engines.node;
 
-    // Assert: the four jobs that install Node (quality, verify, mutation, Frontend) all ask for 22
+    // Assert: the five jobs that install Node (e2e, quality, verify, mutation, Frontend) all ask for 22
     expect(steps.map(({ file, job }) => `${file}:${job}`).sort()).toEqual([
+      '.github/workflows/ci.yml:e2e',
       '.github/workflows/ci.yml:mutation',
       '.github/workflows/ci.yml:quality',
       '.github/workflows/ci.yml:verify',

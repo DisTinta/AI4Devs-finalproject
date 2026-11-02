@@ -292,3 +292,13 @@ engineer without the author. S-ids continue from round 1 and follow the findings
 |---|---|---|
 | S10 (B1) | `tests/e2e/tsconfig.json` sets `"exclude": []`: `exclude` is inherited through `extends` and resolved against the parent, so the new `e2e/**` of `tests/tsconfig.json` would otherwise drop every spec from the e2e program and `tsc` would report nothing (D7). The configuration test resolves both tsconfigs with `ts.getParsedCommandLineOfConfigFile` and asserts on their `fileNames`, not on the declared JSON (D10, task 2.1); after the first spec lands, the check is re-run and a deliberate type error in `ask-flow.spec.ts` is shown to fail `npm run typecheck` (task 4.2). | A |
 | S11 | Run 2 improvables: retries checked in both `CI` branches with `vi.stubEnv` + `vi.resetModules()` + dynamic `import()` (D10, task 3.1); the acme-shop card is the link «Explorar proyecto acme-shop» (D4, task 4.1); the D7 fallback for a compiler clash is removed because `api-client.ts` has no imports and already compiles under `tests/tsconfig.json`; D3 writes the Chromium project as its literal `browserName` and viewport; the proposal says "a statement with its verification badge"; D12 counts five walkthrough scenarios in four spec files. | A |
+
+*Agent's text: decisions taken during the apply (2026-11-02), as lead engineer without the author.*
+
+| Id | Decision | Destination |
+|---|---|---|
+| A1 | The overflow helper of `ask-page.a11y.spec.ts` checks `main.scrollWidth` as well as the document: the page frame (`PageFrame`) has `overflow-hidden`, so a wide element inside `main` never widens the document and the document-only check of D5 could not fail (the 7.1 RED injection passed). The spec scenario's wording (the document's scroll width) is still asserted. | D — accepted |
+| A2 | The question field is read with `getByRole('textbox', { name: 'Pregunta' })`: `getByLabel('Pregunta')` also matched the button «Preguntar» (strict-mode violation). Same rule as D4 (role and accessible name). | D — accepted |
+| A3 | The a11y spec, the specs and the CI job ran green with no production change; no defect of `packages/web` or `packages/api` surfaced (task 4.2, 7.2). | D — accepted |
+| A4 | The taken-port check (11.2) needs the competing server bound to `127.0.0.1`: Vite started without `--host` listens on `localhost` only and Playwright does not see it as taken. Recorded in `docs/project-context.md` → Testing. | D — accepted |
+| A5 | `query_log` baseline was 0 (deduced: the only row found after the first runs came from the 4.1 RED run); each run adds rows, restored with a `created_at` cutoff in 10.6 and 11.4. | D — accepted |

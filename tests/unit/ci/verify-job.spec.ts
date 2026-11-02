@@ -72,7 +72,9 @@ describe('CI workflow', () => {
 
     // Assert: scope looks at verify's previous result as it does at quality's and mutation's
     const decide = (jobs.scope.steps ?? []).map((step) => step.run ?? '').join('\n');
-    expect(decide).toMatch(/for job in quality mutation verify; do/);
+    // (the list is read, not matched as text, so a job added to it, as `e2e`, does not break this test)
+    const list = /for job in ([a-z0-9 ]+); do/.exec(decide)?.[1].split(' ') ?? [];
+    expect(list).toEqual(expect.arrayContaining(['quality', 'mutation', 'verify']));
   });
 
   it('gives verify no LLM_* variable from the workflow level either', () => {

@@ -676,7 +676,7 @@ AI4Devs-finalproject/
 │   ├── integration/                #   con PostgreSQL; se saltan sin DATABASE_URL
 │   ├── a11y/                       #   puerta de accesibilidad con axe (test:a11y)
 │   ├── support/                    #   dobles y factorías compartidas
-│   └── e2e/                        #   vacío: el E2E con Playwright es de la Entrega 3
+│   └── e2e/                        #   specs de Playwright (npm run test:e2e)
 │
 ├── .github/workflows/              # ci.yml · frontend.yml · claude-auto-review.yml · claude-interactive.yml
 ├── scripts/                        # npm run up · demo:ask · demo:excerpt y la carga de .env (solo módulos de Node)
@@ -730,7 +730,7 @@ Cada pull request y cada push a una rama de entrega ejecutan, en `.github/workfl
 | `mutation` | Stryker sobre los caminos críticos, con umbral de rotura 80: incremental en los PR y completo en cada push |
 | `secrets` | `gitleaks` 8.30.1 sobre el árbol y los commits del evento (DIS-87) |
 
-`frontend.yml` ejecuta las comprobaciones de la web cuando cambia código de frontend. `claude-auto-review.yml` y `claude-interactive.yml` vienen del kit y están en el repositorio, pero **no están activados** en GitHub (dependen de la variable `CLAUDE_ENABLED` y de una clave que no se han configurado), así que no cuentan como evidencia de uso. No hay E2E en CI: `tests/e2e/` está vacío hasta que existan las pantallas (Entrega 3). No hay `Dockerfile`: `docker-compose.yml` solo levanta PostgreSQL con la imagen `pgvector/pgvector:pg16` para [1.4](#14-instrucciones-de-instalación), y los jobs `quality` y `verify` de CI levantan esa misma imagen como contenedor de servicio.
+`frontend.yml` ejecuta las comprobaciones de la web cuando cambia código de frontend. `claude-auto-review.yml` y `claude-interactive.yml` vienen del kit y están en el repositorio, pero **no están activados** en GitHub (dependen de la variable `CLAUDE_ENABLED` y de una clave que no se han configurado), así que no cuentan como evidencia de uso. El job `e2e` de CI ejecuta `npm run test:e2e` (Playwright, Chromium) contra la API y la web que arranca la propia suite sobre la semilla, en modo evaluación, y sube el informe si falla. No hay `Dockerfile`: `docker-compose.yml` solo levanta PostgreSQL con la imagen `pgvector/pgvector:pg16` para [1.4](#14-instrucciones-de-instalación), y los jobs `quality`, `verify` y `e2e` de CI levantan esa misma imagen como contenedor de servicio.
 
 #### Dos entornos de ejecución
 
@@ -859,7 +859,7 @@ Los tests forman parte de la **definición de hecho de cada ticket**, no de una 
 | Integración | Vitest + PostgreSQL en contenedor | Indexado de `acme-shop`, travesía del grafo, `/ask` y `/health`, migraciones reversibles, git real en repositorios temporales |
 | Accesibilidad | axe-core + jsdom (`npm run test:a11y`) | Cada ruta de la web sin violaciones de axe (DIS-58) |
 | **Mutación** | **Stryker** | Que los tests detecten cambios en el código de los caminos críticos; umbral de rotura 80 |
-| **E2E** | **Playwright** | *(pendiente, Entrega 3)*: el flujo elegir proyecto → preguntar → evidencia y coste, y el caso `UNKNOWN`, sobre las pantallas 1 y 2 ya construidas |
+| **E2E** | **Playwright** (`npm run test:e2e`) | El flujo elegir proyecto → preguntar → evidencia y coste, el caso `UNKNOWN`, el informe de impacto y axe a 320 y 1280 px sobre la pantalla 2, con la API y la web arrancadas por la suite sobre la semilla (DIS-75) |
 | **Prueba de humo** | `npm run verify` | Cada golden de `acme-shop` y de `task-api` comparada por estructura con la respuesta servida, sin LLM (DIS-44) |
 | Estáticos | ESLint + `tsc --noEmit` | En CI |
 

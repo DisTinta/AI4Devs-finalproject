@@ -16,7 +16,6 @@ alwaysApply: true
   (a dependency of `packages/adapters/llm` since DIS-17 and of `packages/core` since DIS-38;
   and of `packages/api` since DIS-76, where it is the only schema language of the routes)
 - **Vitest** as the test runner, **Playwright** for end-to-end
-  _(Playwright is a target; not yet a dependency — remove this note when installed)_
 - **ESLint** + `tsc --noEmit` + **dependency-cruiser** for the dependency rule
 - **simple-git** only inside `packages/adapters/git`, behind `GitPort`; it shells out to the `git`
   binary, so `git` must be on `PATH` wherever the adapter or its tests run

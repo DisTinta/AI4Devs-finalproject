@@ -94,6 +94,7 @@
 78. [Historial por co-cambio y documentación con `stale` en el informe de impacto (DIS-94)](#78-historial-por-co-cambio-y-documentación-con-stale-en-el-informe-de-impacto-dis-94)
 79. [`POST /impact` con esquema Zod y tests `200`/`400`/`404` (DIS-95)](#79-post-impact-con-esquema-zod-y-tests-200400404-dis-95)
 80. [Pantalla 3 de impacto en la web (DIS-14)](#80-pantalla-3-de-impacto-en-la-web-dis-14)
+81. [Suite E2E con Playwright y job `e2e` en CI (DIS-75)](#81-suite-e2e-con-playwright-y-job-e2e-en-ci-dis-75)
 
 ---
 
@@ -5544,3 +5545,26 @@ edición (el contenido es el previsto); el hook, los componentes y la página se
 tests de los grupos 4 a 8, y por eso esos tests se comprobaron después con mutaciones locales (clave del
 contador de envíos inválidos, `key` de la ruta, aborto al desmontar, límite de tiempo, `dangerouslySetInnerHTML`,
 región de estado, `tabIndex`), cada una vista fallar y revertida.
+
+---
+
+# 81. Suite E2E con Playwright y job `e2e` en CI (DIS-75)
+
+### Prompt 1 — Paso de apply del cambio `e2e-playwright-suite` en la ejecución autónoma
+
+Extracto literal del encargo que recibió el subagente:
+
+```
+Run /opsx:apply on change e2e-playwright-suite: every task in TDD (failing test first, then implementation, in the layer order), marking tasks.md as you go, with the mandatory verification steps. Run the tests, lint and typecheck. Commit, push and open the PR to final-project-CRN with /pr-describe (write the "why" yourself and mark it as agent-written). Return pr.
+```
+
+**Por qué funcionó.** El `design.md` fijaba las opciones de Playwright, el módulo de opciones separado del
+fichero raíz, los selectores por rol y el job de CI copiado del de `verify`, así que el agente solo tenía que
+escribir cada test en rojo y completarlo (texto del agente).
+
+**Ajuste humano.** Ninguno: ejecución autónoma (texto del agente). Tres cosas no seguían el plan al pie de la
+letra: el campo de la pregunta se alcanza con `getByRole('textbox', { name: 'Pregunta' })`, porque
+`getByLabel('Pregunta')` también casa con el botón «Preguntar»; el marco de página tiene `overflow-hidden`, de
+modo que un elemento inyectado en `main` no ensanchaba el documento y la comprobación de desbordamiento mira
+también `main`; y un Vite arrancado sin `--host 127.0.0.1` solo escucha en `localhost`, así que no contaba
+como puerto ocupado en la prueba 11.2.

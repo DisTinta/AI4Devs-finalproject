@@ -583,6 +583,17 @@ Verified against `package.json` (root and per package). If a command is not here
   excludes `.stryker-tmp/**` (before that, Vitest collected the copy, which rebuilt fixtures in
   parallel and failed; a sandbox also links `fixtures/task-api/node_modules`, so thousands of
   third-party specs ran). The folder is still worth deleting by hand to free disk space.
+- **End-to-end suite (DIS-75, change `e2e-playwright-suite`).** `npm run test:e2e` = `playwright test`
+  (`@playwright/test@1.64.1`, exact). The options live in `tests/e2e/support/config-options.ts` and the root
+  `playwright.config.ts` only applies `defineConfig` to them (a Vitest test cannot load Playwright's runtime,
+  so `tests/unit/ci/e2e-config.spec.ts` imports the options module and reads the root file as text). The suite
+  starts its own API (`node --import … src/server.ts` from `packages/api`, no `--watch`) with `LLM_BASE_URL`
+  and `LLM_API_KEY` empty, `PORT=3000`, `HOST=127.0.0.1` and `RATE_LIMIT_MAX=1000` pinned over `.env`, and the
+  Vite web on `5173` with `--strictPort`; neither is ever reused, so **a taken `3000` or `5173` fails the run
+  before any spec** (stop `npm run dev` first; a Vite bound only to `localhost` is not seen on `127.0.0.1`).
+  `tests/e2e/**` is excluded from every Vitest project and from Stryker, and is type-checked by
+  `tests/e2e/tsconfig.json` (`"exclude": []`, because `exclude` is inherited through `extends`). Each run
+  writes `query_log` rows to the local database. CI: job `e2e` on its own database `e2e`.
 
 ## Branch and ticket conventions
 
@@ -1502,7 +1513,8 @@ services that must be started first, quirks of the local environment.
   (DIS-85) composes them, and the CLI `index` command (DIS-86) is its only caller outside tests.
   `db:migrate` / `db:rollback` are real and need `DATABASE_URL`: `npm run db:*` reads it from the
   root `.env` (a variable set in the shell wins), and `npm run up` loads `.env` before every step.
-  Do not assume a working end-to-end flow exists.
+  The end-to-end suite (`npm run test:e2e`, DIS-75) covers the ask, unknown and impact flows of the web
+  against the seed in evaluation mode; do not assume more than that exists (no indexing flow).
 - **Migration runner edge cases (known behaviour, DIS-11).** `db:rollback` with nothing applied
   prints `No migrations to run!` and exits 0 (no-op, symmetric with `db:migrate` when up to date).
   A whitespace-only `DATABASE_URL` is treated as unset (same error, exit 1). Rollback never drops
