@@ -220,3 +220,177 @@ No empty rows. The counts in task 8.2 (impact 12 unchanged + 17 new; graph-store
 | 9 (task 1.2 too large) | Fixed: split into 1.2 (port side) and 1.3 (double); the old 1.3 is now 1.4. Renumbered references in 8.1. |
 | 9 (task 4.7 too large) | Fixed: the extra cases moved to a new 4.8; the old 4.8 is now 4.9 (reference in 8.1 updated). |
 | 18 (Linear comment of the audit) | Posted with this round's comment, which also gives the answers to the two questions. |
+
+---
+
+## Run 2 (2026-11-02)
+
+CHANGES REQUIRED
+
+**Questions for the author:** none new. The two questions of run 1 (QA1, QA2) were answered by the agent as lead engineer (design Follow-ups R1-QA1, R1-QA2, destination D). Both answers are acceptable: neither contradicts the ticket nor the project. R1-QA1 follows the signed DIS-49 note in DIS-94's comments, which explicitly asks to anchor the AC on `README.md`. R1-QA2 follows the main spec `impact` → "Limit of the lexical anchor".
+
+Ticket inputs: DIS-94 (sub-issue, with its six comments) and its parent DIS-93 (no comments) were loaded from Linear. This is run 2. It judges the change as it is after "Resolution of run 1".
+
+---
+
+## 1. Scope against the ticket
+
+Clean. Everything follows from DIS-94's enhanced description (§3 Contexto técnico, §2 AC 1–5):
+- `history.ts` and `doc-staleness.ts`;
+- the three port reads that replace `lastCommitTouching` (enrich decision 3);
+- the widened risk;
+- the CLI sections (AC 5g);
+- the four documentation targets.
+
+`POST /impact`, the readme §4 projection (DIS-95), screen 3 and drift (DIS-71) remain out of scope. Task 11.4's `prompts.md` entry and task 13.7's `## Purpose` update are project routine and a consequence of the change, not new scope.
+
+## 2. Inherited acceptance criteria
+
+| Parent DIS-93 AC | Covered by | State |
+|---|---|---|
+| AC 1: `history` with `ShippingService.php`, PRs 24/33/55, `origin: 'git'`, not in `direct`/`indirect` | "Q2 history over the seed"; main spec "Callees, documents and co-changed files are not dependants" | Covered (change text per R1-QA2) |
+| AC 2: stale doc with `staleSince` | "A later change to the price calculator makes the readme stale" | Covered as adapted by the DIS-49 note and R1-QA1 |
+| AC 3: doc after the code → `stale: false`, no `staleSince` | "A document touched with or after its code is not stale", "Q2 documentation over the seed is current" | Covered |
+| AC 4: `POST /impact` | DIS-95 | Correctly excluded |
+| AC 5: «1 documento desalineado» | three risk scenarios and the seed stale scenario | Covered |
+
+Sub-issue AC 1–5(a)–(g) each have a requirement and a scenario. No inherited criterion is missing.
+
+## 3. Missing scenarios
+
+Clean on MUST clauses: every behaviour stated in a SHALL has a scenario or a named extra case. Two improvable points:
+- **3a (improvable).** `specs/impact/spec.md` → "Stale documents come first". The THEN says "`docs` lists `B.md` (stale) and then `A.md`". That pins neither the exact entries nor `staleSince`, and the GIVEN gives no dates. Correction: give dates (for example `src/anchor.php` touched by `s1` of 2024-02-01, `A.md` by `a1` of 2024-03-01, `B.md` by `b1` of 2024-01-01). The THEN becomes "`docs` is exactly `{ path: 'B.md', stale: true, staleSince: 's1' }` then `{ path: 'A.md', stale: false }`".
+- **3b (improvable).** "Without commits no document is stale and the history is empty" does not say the graph has no `co_changed` edge. The store accepts an edge without commits, so `history` could still be empty for the wrong reason, or not empty at all. Correction: add "and no `co_changed` edge" to the GIVEN, or add an edge and expect it in `history` with `prs: []`.
+
+## 4. Ambiguity
+
+Clean. None of "fast", "easy", "secure", "efficient", "many", "appropriate" or "robust" appears in `proposal.md`, `design.md`, the three deltas or `tasks.md`. The only hits are quotations inside the run-1 report.
+
+## 5. Open decisions
+
+- **5a (blocking): see 6a.** The format of `<prs>` in the `HISTORIAL` line is decided twice, in two different ways. A test pins it.
+- **5b (blocking): see 8a.** Adding three keys to the double's `calls` breaks three existing tests that no task names. The implementer would have to choose alone between editing unlisted tests (rule 4) and diverging from D9.
+- **5c (improvable).** Task 10.2 asks for "one change of task-api that anchors a symbol with co-changes" but names no change text. Correction: write the exact command, for example `npm run cli -- impact task-api "<text that anchors TaskSchema>"`, after checking it against the seed. Also give the expected `HISTORIAL` line (`  src/.../task.service.ts  co-cambia 75 %  …  [git]`).
+
+## 6. Contradictions inside the change
+
+- **6a (blocking): `<prs>` format, requirement against its own scenarios.** The `cli-impact` "Impact report output" requirement says: "`<prs>` is `PR #<n>` for each pull request, joined by `, `". Read literally, that prints `PR #24, PR #33, PR #55`. The scenarios "Documents and history are printed with their state and origin" and "Q2 over the seed is printed with its risk", the ticket (AC 5g, `PR #a, #b`) and task 10.2 all expect `PR #24, #33, #55`. Correction: the requirement says "`<prs>` is `PR ` followed by `#<n>` for each pull request, joined by `, ` (so `PR #24, #33, #55`), or `sin PR` when `prs` is empty".
+- **6b (improvable).** The graph-store "Contract of the history reads" says each read "SHALL be answered by exactly one database statement". The same requirement and the scenario "Invalid history read paths are rejected before querying" say a malformed id or an invalid `paths` sends none. Correction: "a call that passes its argument checks SHALL be answered by exactly one database statement; a call rejected by them SHALL send none".
+
+## 7. Contradictions with the project
+
+Clean:
+- The MODIFIED requirements carry every existing scenario of `openspec/specs/impact/spec.md` ("Report by component" 4, "Risk level of a report" 8), of `openspec/specs/graph-store/spec.md` ("Validation of read arguments" 3) and of `openspec/specs/cli-impact/spec.md` ("Impact report output" 3, "Impact terminal safety" 1). Their text extends the main text without dropping a clause.
+- "Q2 over the seed is high risk" (`openspec/specs/impact/spec.md:411`) is unchanged and is reused by the new seed scenarios. Its rationale `10 ficheros afectados, 3 tests …, 4 …, 0 …` matches the delta's stale variant.
+- `README.md` is kind `doc` in the seed (`seeds/graph-dump.sql:10`). Its last commit, 2024-05-06, is the last of the history (`fixtures/history/acme-shop.commits.mjs:117`), so "Q2 documentation over the seed is current" holds.
+- No ADR in `docs/adr/` is affected (D10).
+- The `## Purpose` of the main `impact` spec ("from the deterministic graph only") is fixed by task 13.7.
+
+## 8. Contrast with the real code
+
+- **8a (blocking): new counters break existing exact-match tests.**
+  - D9 and task 1.3 add `readCoChanges`, `readDocumentLinks` and `readFileCommits` to the double's `calls` (`tests/support/in-memory-store.ts:75-87`, `:245-257`).
+  - `tests/unit/explain/explain.spec.ts:106`, `:141` and `:207` assert `expect(d.loaded.calls).toEqual({ findSymbols: 0, … invalidateCache: 0 })` with exactly the eleven current keys. All three fail as soon as task 1.3 lands.
+  - Task 8.1 does not list `explain.spec.ts`. Its safety nets, `npm run typecheck` and `grep -rn "status: 'answered'" tests`, do not catch a `toEqual` on an object.
+  - Correction, choose one:
+    - (a) Add `tests/unit/explain/explain.spec.ts` to the task 8.1 list: its three `toEqual(calls)` assertions gain `readCoChanges: 0, readDocumentLinks: 0, readFileCommits: 0`. This strengthens them, so the assertion is not weakened. Name it in task 1.3 too.
+    - (b) Keep `calls` unchanged and count the history reads in a separate `historyCalls` object of the double. Then update D9, task 1.3, task 4.9 and the scenario "An unknown report has neither documents nor history" (which reads the counters).
+    - Option (a) is the smaller change.
+- **8b (improvable).** Task 4.8's order case expects "the coverage read, then `readCoChanges` …". `directCoverage` (`packages/core/src/impact/reverse-walk.ts:177`) only reads when tests were found ("none without tests", existing test named in task 5.4). Correction: say that the case uses a graph with at least one test, so the coverage read happens.
+- Checked and consistent:
+  - `assertValidPaths` goes beside the existing checks in `packages/core/src/knowledge/read-arguments.ts:18-48`;
+  - the order malformed id → arguments → statement matches `packages/adapters/store-postgres/src/postgres-store.ts:233-235`;
+  - `ReportBody` at `packages/core/src/impact/risk.ts:7` gains the fields through `Omit`, and `answer()` (`packages/core/src/impact/impact.ts:58-70`) is where D7 adds them;
+  - the four `neighbors` call sites named in D3 exist (`packages/core/src/context/expand.ts:41`, `packages/core/src/impact/reverse-walk.ts:42,145,177`);
+  - `packages/core/src/knowledge/co-change.ts:28` is the JSDoc that task 3.3 updates;
+  - the acme-shop subset has `describes` edges from `README.md` (kind `doc`) and no commits (`tests/support/acme-shop-graph.ts:27,71-74,101-102`), so the failing `readFileCommits` of task 4.7 is actually reached;
+  - `terminalSafeText` (`packages/cli/src/safe-json.ts:31`) is the helper D8 reuses;
+  - `countingClient` (`tests/integration/store/graph-read.spec.ts:31`) is the statement counter that task 2.8 reuses;
+  - `commit.sha` has no length check (`0002_history-claims.up.sql:17`), so short shas such as `k1` and `c1` are valid in the scenarios.
+
+## 9. Task size
+
+Clean. After the run-1 split (1.2/1.3, 4.7/4.8) every task fits in one agent turn. Task 4.8 is the largest (six extra cases over one pure function and the double) but stays within one turn.
+
+## 10. Mandatory steps
+
+Clean:
+- Step 0 is the branch (`feature/dis-94-impact-history-docs`).
+- Steps 8, 9, 10 (AGENT MUST EXECUTE, E2E marked not applicable in 10.8), 11 and 13 (last, AGENT MUST EXECUTE) are present and labelled MANDATORY. Step 12 sits before 13.
+- The mutating tasks restore state: 10.3 deletes the inserted commit and `file_commit`, 10.5 deletes the `query_log` rows, and 9.5 checks the 0.4 counts.
+- Gap tied to 8a: the task 8.1 list misses `tests/unit/explain/explain.spec.ts`. That is counted under 8a, not twice.
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| graph-store: Contract of the history reads | The history reads of an unknown project fail | 2.7 |
+| | Each history read is one statement | 2.8 |
+| | Empty and unknown paths give empty history reads | 2.9 |
+| | The history reads never hold another project's rows | 2.10 |
+| | The in-memory double reads the same history | 1.1, 1.2, 1.3 |
+| graph-store: Co-change read | Co-changes are read from either end with their pull requests | 2.1, 2.2 |
+| | Edges of other kinds are not co-changes | 2.3 |
+| | A co-change without weight is not read | 2.4 (double: 1.4) |
+| graph-store: Document link read | Document links are read through files and symbols | 2.5 |
+| graph-store: File commit read | Dated commits of each path are read in order | 2.6 |
+| graph-store: Validation of read arguments (modified) | 3 existing scenarios | unchanged tests (2.11, 8.2) |
+| | Invalid history read paths are rejected before querying | 2.11 (double: 1.4) |
+| impact: Co-change history | Files co-changed with the anchor's file are the history | 3.2, 3.3 |
+| | A co-change whose commits have no pull request has no PR | 3.4 |
+| | A file of the anchor is not in the history | 3.5 |
+| | A file co-changed with several anchor files appears once | 3.6 |
+| impact: Related documentation | A document older than the code it describes is stale since the first change it missed | 4.1, 4.2 |
+| | A document touched with or after its code is not stale | 4.3 |
+| | A document described through a file and a symbol appears once | 4.4 |
+| | Stale documents come first | 4.5 |
+| | Without commits no document is stale and the history is empty | 4.6 |
+| | A failing history read fails the call without a row | 4.7 (extra cases 4.8) |
+| impact: History and documentation over the indexed acme-shop seed | Q2 history over the seed | 6.1 |
+| | Q2 documentation over the seed is current | 6.2 |
+| | A later change to the price calculator makes the readme stale | 6.3 |
+| impact: Report by component (modified) | 4 existing scenarios | unchanged tests (8.2) |
+| | An unknown report has neither documents nor history | 4.9 |
+| impact: Risk level of a report (modified) | 8 existing scenarios | unchanged tests (8.2) |
+| | A stale document turns a low risk into medium | 5.1, 5.2 |
+| | Two stale documents are counted in the plural | 5.3 |
+| | A stale document leaves a high risk high | 5.4 |
+| cli-impact: Impact report output (modified) | An impact report is printed by section with its risk | 7.1, 7.2 |
+| | Documents and history are printed with their state and origin | 7.3 |
+| | Impact receives only the project id, the change and the hop count | unchanged test (8.2) |
+| | Q2 over the seed is printed with its risk | 7.5 |
+| cli-impact: Impact terminal safety (modified) | Control characters in a report are escaped | unchanged test (7.4) |
+| | Control characters in documents and history are escaped | 7.4 |
+
+No empty rows. The counts in task 8.2 match the deltas:
+- impact: 12 unchanged + 17 new;
+- graph-store: 3 unchanged + 11 new;
+- cli-impact: 2 changed + 2 unchanged + 2 new.
+
+---
+
+## Corrections to apply
+
+### `openspec/changes/impact-history-docs/specs/cli-impact/spec.md`
+1. **"Impact report output" (blocking 6a).** Replace "`<prs>` is `PR #<n>` for each pull request, joined by `, `, or `sin PR` when `prs` is empty" with "`<prs>` is `PR ` followed by `#<n>` for each pull request, joined by `, ` (so `PR #24, #33, #55`), or `sin PR` when `prs` is empty".
+
+### `openspec/changes/impact-history-docs/specs/graph-store/spec.md`
+2. **"Contract of the history reads" (6b, improvable).** First bullet: "SHALL write nothing; a call that passes its argument checks SHALL be answered by exactly one database statement, whatever the number of paths and the size of the graph, and a call rejected by them SHALL send none".
+
+### `openspec/changes/impact-history-docs/specs/impact/spec.md`
+3. **"Stale documents come first" (3a, improvable).** GIVEN: "`src/anchor.php` is touched by the commit `s1` of 2024-02-01, `A.md` by `a1` of 2024-03-01 and `B.md` by `b1` of 2024-01-01". THEN: "`docs` is exactly `{ path: 'B.md', stale: true, staleSince: 's1' }` then `{ path: 'A.md', stale: false }`".
+4. **"Without commits no document is stale and the history is empty" (3b, improvable).** GIVEN: add "and no `co_changed` edge".
+
+### `openspec/changes/impact-history-docs/design.md`
+5. **D9 (blocking 8a, option a).** Add: "The three new counters change the shape of `calls`. The existing exact-match assertions on it (`tests/unit/explain/explain.spec.ts:106,141,207`) gain the three keys at 0; no assertion is weakened." If option (b) is chosen instead, rewrite D9 to count the history reads in a separate `historyCalls` object, and adapt task 4.9 and the scenario "An unknown report has neither documents nor history".
+6. **Follow-ups.** Add a row for the 8a choice (agent's text, destination A).
+
+### `openspec/changes/impact-history-docs/tasks.md`
+7. **Task 1.3 (8a).** Append: "then add `readCoChanges: 0, readDocumentLinks: 0, readFileCommits: 0` to the three `toEqual(d.loaded.calls)` assertions of `tests/unit/explain/explain.spec.ts` (lines 106, 141, 207), listed in 8.1 first".
+8. **Task 8.1 (8a).** Add the bullet: "`tests/unit/explain/explain.spec.ts`: the three exact `calls` assertions gain the three new counters at 0 (task 1.3); nothing else changes". Also add `grep -rn "calls).toEqual" tests` to the safety-net commands.
+9. **Task 4.8 (8b, improvable).** In the order case: "over a graph with at least one test, so the coverage read is made".
+10. **Task 10.2 (5c, improvable).** Replace "one change of task-api that anchors a symbol with co-changes" with the exact command and its expected `HISTORIAL` line, checked against the seed.
+11. **Tasks 7.3 and 7.5.** No text change. After correction 1 they assert `PR #24, #33, #55` as now.
+
+### Linear DIS-94 (comment in Spanish; the `[original]` block is not edited)
+12. Comment: «*Texto del agente (spec-audit, ronda 2, 2026-11-02).* Auditoría 2 del cambio `impact-history-docs`: CHANGES REQUIRED, con 2 hallazgos bloqueantes. (1) El requisito de salida de `cli-impact` describe `<prs>` como `PR #<n>` por cada PR, lo que da `PR #24, PR #33, PR #55`. En cambio, los escenarios y el AC 5g esperan `PR #24, #33, #55`. Se corrige el requisito. (2) Los tres contadores nuevos del doble en memoria rompen tres aserciones exactas de `tests/unit/explain/explain.spec.ts` (líneas 106, 141 y 207), que la tarea 8.1 no nombraba. Se añaden a 8.1 y a la tarea 1.3, y se amplían con los tres contadores a 0. Las respuestas R1-QA1 y R1-QA2 de la ronda 1 se dan por válidas. No hay preguntas nuevas para la autora.»
