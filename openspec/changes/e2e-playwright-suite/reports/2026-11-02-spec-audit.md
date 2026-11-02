@@ -465,3 +465,156 @@ edits.*
 | §8 B1 in the real code | Fixed as B1 above. |
 | Linear — `[enhanced]` → Decisiones | Applied: S10 and S11 added in Spanish, marked as the agent's text. |
 | Linear — round 2 comment | Applied: a Spanish comment on DIS-75 summarises the round. |
+
+---
+
+## Run 3 (2026-11-02)
+
+APPROVED
+
+**Questions for the author:** none. S1 (scope widening to `impact-flow.spec.ts` and `ask-page.a11y.spec.ts`) is the agent's decision. It is recorded in `design.md` → Follow-ups, in DIS-75 `[enhanced]` → Decisiones and in a comment on DIS-50. It matches both inbound hand-offs (DIS-14 P6, DIS-65), so I accept it.
+
+Audit inputs (run 3):
+- the current `proposal.md`, `design.md`, `specs/e2e-suite/spec.md` and `tasks.md` of `openspec/changes/e2e-playwright-suite`;
+- runs 1–2 of `reports/2026-11-02-spec-audit.md` and their resolution sections;
+- Linear DIS-75: description (`[original]` / `[reality-map]` / `[enhanced]` with E1–E7, S1–S11) and its 7 comments; parent DIS-50 as reported in runs 1–2;
+- the real code at `e619cc4`: `tests/tsconfig.json`, `tests/a11y/tsconfig.json`, `tsconfig.base.json`, root `tsconfig.json`, `package.json` (`engines`, `typecheck`), `packages/api/src/composition.ts`, `packages/web/src/components/SuggestedQuestions.tsx`, `packages/web/src/pages/AskPage.tsx`, `packages/web/src/data/suggested-questions.ts`, `packages/core/src/explain/explain.ts`, `packages/adapters/store-postgres/migrations/0002_history-claims.up.sql`.
+
+---
+
+## 1. Scope against the ticket
+
+**Clean.** The original sub-issue covers the dependency, `playwright.config.ts`, the `ask-flow` and `unknown` specs, the CI job, and removing the *target* note. The widening (E1/S1) is recorded and accepted. These stay out:
+- coverage and mutation (DIS-77);
+- indexing;
+- `task-api`;
+- other browsers.
+
+The two configuration tests and the edits to `verify-job.spec.ts` and `node-baseline.spec.ts` follow from the CI job.
+
+## 2. Inherited acceptance criteria
+
+**Clean.** Every AC of DIS-50 that the DoD inherits, and every AC of the sub-issue's `[enhanced]` §2, has a requirement and a scenario:
+
+| AC | Requirement / Scenario |
+|---|---|
+| ask-flow | "Ask flow on the seed" / "Asking Q1 on acme-shop shows verified evidence and the usage panel" |
+| unknown Q6 | "Honest unknown on the seed" / "Asking Q6 on acme-shop shows no verified answer". The `no-anchor` reason is confirmed: `explain.ts:318` runs before the evaluation-mode branch at `:331` |
+| impact (AC 3) | "Impact flow on the seed" / "Analysing a change to DiscountService reports high risk" |
+| a11y (AC 4) | "Accessibility of Screen 2 in a real browser" / two scenarios |
+| CI (AC 5), incl. «spec roto pone el job en rojo» | "The end-to-end suite runs in a CI job of its own" / "The CI workflow runs…" plus "A failing spec fails the suite…", with the stated inference (A2/S6) |
+| DoD «pasan en local y en CI» | "The suite passes locally" plus "The e2e job is green on the pull request" |
+| DoD «marca *target* retirada» | docs only, task 13.1 |
+
+## 3. Missing scenarios
+
+**Clean.** Every MUST clause is covered by a scenario or by stated evidence (D12). S9 (no separate `DATABASE_URL` scenario) is accepted.
+
+## 4. Ambiguity
+
+**Clean.** None of "fast", "easy", "secure", "efficient", "many", "appropriate" or "robust" appears in the proposal, design, spec or tasks (checked by search; the only matches are in earlier audit runs).
+
+## 5. Open decisions
+
+None is blocking. Three are improvable: the implementer can settle each one, but naming it makes the RED/GREEN record reproducible.
+
+- **Improvable — typing the `axe` global.** D2 runs `page.evaluate(() => axe.run(document))`. `tests/e2e/tsconfig.json` is strict with the `DOM` lib. `axe-core` ships module types (`export = axe`), not a global, so `axe` is "Cannot find name" under `tsc -p tests/e2e/tsconfig.json`.
+  - Fix in D2 and task 7.1: the helper declares the global in `tests/e2e/support/axe.ts`, for example `declare global { interface Window { axe: typeof import('axe-core') } }`, and calls `window.axe.run(document)`.
+- **Improvable — "wait for the answer" in D5 test 1.** `AskPage.onPick` (`AskPage.tsx:129-136`) ignores a pick while one is pending. After the second pick, the previous answer's evidence buttons may still be on the page. Name the signal.
+  - Fix in D5 and task 7.1: each click is wrapped in `Promise.all([page.waitForResponse((r) => r.url().includes('/ask') && r.ok()), button.click()])`, then the spec waits until the new answer's first evidence button is visible.
+- **Improvable — task 11.2(b) starts the API with `npm -w packages/api run dev`.** That command reads `PORT`/`HOST` from `.env` (`composition.ts:84-85`). A local `.env` with another port means the API never occupies `3000`, and the wait for `http://127.0.0.1:3000/health` hangs.
+  - Fix in task 11.2(b): start it from Bash as `PORT=3000 HOST=127.0.0.1 npm -w packages/api run dev`, or record that `.env` leaves them at their defaults.
+
+## 6. Contradictions inside the change
+
+- **Improvable.** D4 says "The a11y spec clicks the suggestion buttons themselves, so it needs no restated text". D5 test 2 and task 7.3, however, send **Q1 with the button «Preguntar»**, which needs Q1's text typed into the field.
+  - Fix: in D4, replace that sentence with "The a11y spec's golden test clicks the suggestion buttons; its mocked test types Q1, restated like the other specs (or shared from `tests/e2e/support/`, task 9.3)."
+- Otherwise the proposal, design and spec agree. The fixes of runs 1–2 checked out:
+  - D3 literal Chromium project;
+  - D7 `"exclude": []`;
+  - D10 options module plus text assertion;
+  - both retry branches;
+  - the card locator;
+  - "statement with its verification badge";
+  - five scenarios in four spec files.
+
+## 7. Contradictions with the project
+
+**Clean.**
+- `openspec/specs/verify-smoke/spec.md` → "Verify runs in a CI job of its own" still holds through the membership check (D11).
+- `openspec/specs/local-startup/spec.md` → Node `'22'` baseline is kept.
+- `docs/base-standards.md` §10: the registry check (1.1) and the audit (1.2) are present.
+- The agent's merge is covered by the autonomous-mode ADR.
+- PR and Linear language follow the project exceptions.
+- `node:path`'s `matchesGlob` (D10) is available on the declared `engines.node` `>=22.12` (`package.json:5-7`).
+
+## 8. Contrast with the real code
+
+**Clean**, apart from the improvables above. Checked:
+- `tests/tsconfig.json`: no `exclude` today; `module: ESNext` and `moduleResolution: Bundler`, so the extensionless import of the options module from `playwright.config.ts` type-checks. It inherits `noEmit`, and `types: ["node"]` from `tsconfig.base.json`. With the child's `"exclude": []`, D7's program holds.
+- The root `tsconfig.json` (`files: []`, references only), so `tsc --build` does not pick up `playwright.config.ts`.
+- `SuggestedQuestions.tsx:26-36`: a group named «Prueba:» with one button per question. `AskPage.tsx:129-136`: a pick sends at once.
+- `suggested-questions.ts:13-15`: the three acme-shop goldens, Q1 first.
+- `query_log.created_at` (`0002_history-claims.up.sql:92`), so the restoration by timestamp in 10.6 and 11.4 is feasible.
+- `composition.ts:81-89`: only `DATABASE_URL` is mandatory. CI sets it on the steps, so the API starts without a `.env`.
+
+No duplicated abstraction.
+
+## 9. Task size
+
+**Clean.** 14.1 is split into a–c. 7.1 and 11.1 are large but bounded. Every other task fits one turn.
+
+## 10. Mandatory steps
+
+**Clean.**
+- Step 0 is first: the branch from `final-project-CRN`, plus the Linear state and the baseline.
+- The labelled groups 9–14 are present, in order, with report paths: 10.7, 11.5, 14.2–14.4.
+- State is restored: `query_log` is counted before group 4 and its rows are deleted in 10.6 and 11.4; the generated folders are removed; `dev-processes.mjs stop` runs.
+- PowerShell runs use `-NoProfile` and no `$env:`.
+- The screenshot goes under `reports/`.
+- The archive is committed before the merge.
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| The suite starts its own API and web on the seed in evaluation mode | The Playwright configuration starts both servers in evaluation mode | 3.1, 3.2, 3.3 |
+| The suite starts its own API and web on the seed in evaluation mode | A taken port fails the run before any spec | 11.2 (evidence, D12) |
+| Vitest never runs the end-to-end specs | The Vitest configuration excludes tests/e2e | 2.1, 2.2, 2.3, 4.2, 10.3, 10.4 |
+| Ask flow on the seed | Asking Q1 on acme-shop shows verified evidence and the usage panel | 4.1, 4.2 |
+| Honest unknown on the seed | Asking Q6 on acme-shop shows no verified answer | 5.1 |
+| Impact flow on the seed | Analysing a change to DiscountService reports high risk | 6.1 |
+| Accessibility of Screen 2 in a real browser | Every golden evidence expanded has no violation and no overflow | 7.1, 7.2 |
+| Accessibility of Screen 2 in a real browser | A mocked answer with a long path does not overflow | 7.3 |
+| The end-to-end suite runs in a CI job of its own | The CI workflow runs the end-to-end suite in a job of its own | 8.1, 8.2, 8.3, 8.4, 8.5 |
+| The end-to-end suite runs in a CI job of its own | A failing spec fails the suite and leaves its evidence | 11.3 (evidence, D12) |
+| The end-to-end suite runs in a CI job of its own | The suite passes locally | 11.1 (evidence, D12) |
+| The end-to-end suite runs in a CI job of its own | The e2e job is green on the pull request | 14.1b, 14.1c (evidence, D12) |
+| (DoD) *target* note removed | — (docs only) | 13.1 |
+
+No empty row.
+
+---
+
+## Corrections to apply
+
+All are improvable. None blocks the apply.
+
+### `design.md`
+
+- **D2.** Append: "In `tests/e2e/support/axe.ts` the global is declared for the type-checker (`declare global { interface Window { axe: typeof import('axe-core') } }`) and the scan is `page.evaluate(() => window.axe.run(document))`."
+- **D4.** Replace "The a11y spec clicks the suggestion buttons themselves, so it needs no restated text." with: "The a11y spec's golden test clicks the suggestion buttons themselves; its mocked test types Q1, restated as in the other specs."
+- **D5, step 1.** Replace "click it, wait for the answer" with: "click it inside `Promise.all([page.waitForResponse((r) => r.url().includes('/ask') && r.ok()), button.click()])`, then wait until the answer's first evidence button is visible".
+- **Follow-ups.** Add a row, marked as the agent's text, for the run-3 improvables (destination A).
+
+### `tasks.md`
+
+- **7.1.** Add "declare the `axe` global in `tests/e2e/support/axe.ts` (design D2)" and "wait for each answer with `page.waitForResponse` on `/ask` (design D5)".
+- **7.3.** Add "Q1 restated as a constant with its source named (design D4)".
+- **11.2(b).** Replace "start only the API (`npm -w packages/api run dev`)" with: "start only the API from Bash with `PORT=3000 HOST=127.0.0.1 npm -w packages/api run dev`".
+
+### Linear
+
+- **DIS-75**, `[enhanced]` → Decisiones (never `[original]`). Add in Spanish, marked as the agent's text:
+  > *Texto del agente (auditoría de specs, ejecución 3, 2026-11-02).* Auditoría aprobada sin bloqueantes. Mejoras aplicadas: el global `axe` se declara para el typecheck en `tests/e2e/support/axe.ts`; el spec de a11y espera cada respuesta con `page.waitForResponse` sobre `/ask`; el test simulado reescribe Q1 como constante; la prueba de puerto ocupado arranca el API con `PORT=3000 HOST=127.0.0.1`.
+- **DIS-75**, a short comment in Spanish, marked as the agent's text, saying that run 3 of the spec audit is `APPROVED` and the apply can start.
