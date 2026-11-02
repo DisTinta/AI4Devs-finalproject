@@ -62,7 +62,9 @@ jobs:
     needs: scope
     if: needs.scope.outputs.code == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # 10 min had no margin left: the merge of PR #92 took 9m51s (Tests ~4m, Hook timing ~4.5m), and
+    # PR #93's run was cancelled at 10m10s, a fraction of a second after Hook timing passed.
+    timeout-minutes: 15
 
     services:
       postgres:
