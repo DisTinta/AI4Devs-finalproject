@@ -1,0 +1,74 @@
+## 0. Setup: Create Feature Branch (MANDATORY - FIRST STEP)
+
+- [ ] 0.1 Feature branch `feature/dis-95-http-impact` (`BRANCH_PREFIX=feature/`), created from `final-project-CRN` before `/opsx:propose`; confirm `git merge-base --is-ancestor origin/final-project-CRN HEAD` and that `openspec/changes/http-impact/` is on it. `git fetch`; if `origin/final-project-CRN` moved, merge it before any code change (never force-push a published branch). Every commit scope is `DIS-95`
+- [ ] 0.2 Confirm DIS-95 is In Progress in Linear, with a short Spanish comment naming the change `http-impact` and the branch
+- [ ] 0.3 Verify the current branch and `git status`; nothing under `.claude/` or `.cursor/` is ever staged (explicit paths only, never `git add -A` nor `git commit -a`); one git command per Bash call
+- [ ] 0.4 Baseline: `npx vitest run tests/unit/api tests/integration/api tests/unit/impact tests/integration/impact` green, totals recorded for the step 5 report; in the local database record `SELECT count(*) FROM project` and `SELECT capability, count(*), max(created_at) FROM query_log GROUP BY capability`; then `node scripts/dev-processes.mjs stop`
+
+## 1. Backend: Zod schemas of the route (TDD; spec http-impact "Impact request validation", "Impact in the OpenAPI document"; design D1, D2, D6)
+
+- [ ] 1.1 RED: in the new `tests/unit/api/impact.spec.ts` (template `tests/unit/api/ask.spec.ts`, helpers of `tests/unit/api/support.ts`: `counting`, `defaultDeps`, `errorBody`, `logStream`; store `createInMemoryStore` with `acmeShopGraph()` of `tests/support/acme-shop-graph.ts`), write the scenario "An invalid change answers VALIDATION_ERROR without a store call"; it fails because the route does not exist (404 `NOT_FOUND`)
+- [ ] 1.2 GREEN: create `packages/api/src/schemas/impact.ts`: `impactParamsSchema = projectIdParamsSchema`; `impactBodySchema` strict `{ change, maxHops? }` with `MIN_CHANGE_CHARS`, `MAX_CHANGE_CHARS`, `MAX_HOPS`, `DEFAULT_IMPACT_HOPS` and `hasNoNul` imported from `@codemind/core` (never copied); `impactAnsweredSchema` (entries closed to the keys of design D1, `origin` literals, `resolution` from `EDGE_RESOLUTIONS`, `docs` as a union on `stale`), `impactUnknownSchema` (`status: 'unknown'`, `reason: 'no-anchor'`), `impactResponseSchema = z.union([unknown, answered])`, with their inferred types and TSDoc
+- [ ] 1.3 Scenarios "A change at the length bounds is accepted", "An invalid hop limit or an extra key answers VALIDATION_ERROR" and "A malformed project id answers VALIDATION_ERROR on impact": RED then GREEN each (the bounds scenario needs the route of step 2 to answer `200`; write it after 2.2 if it cannot fail for the right reason before)
+
+## 2. Backend: the route (TDD; spec http-impact "Impact project resolution", "Impact answered response", "Impact unknown response", "Impact error answers", "Impact events", "Impact in the OpenAPI document"; design D3, D4, D5, D7)
+
+- [ ] 2.1 RED: scenario "The hop limit is forwarded only when sent" with the `impact` seam of `buildApp` recording its `(store, request, options)`
+- [ ] 2.2 GREEN: create `packages/api/src/routes/impact.ts`: `IMPACT_DOMAIN_ERRORS` (design D4), `ImpactRouteOptions { impact?: typeof impact }`, `toPublicReport(report: ImpactReport): ImpactResponse` built field by field (never a spread of the report or of an entry; `staleSince` only when `stale`), `registerImpactRoute(app, options)` with `coreImpact` by default: `getProject(projectId)` first, then the use case with `{ projectId: project.id, change, ...(maxHops !== undefined && { maxHops }) }` and `{ now: app.deps.now }`, events to `request.log.info({ ...event }, 'impact event')`, declared responses `200`, `400`, `404`, `429`, `500`. In `packages/api/src/app.ts`: `AppOptions.impact?: typeof impact` (TSDoc: a test seam only) and `registerImpactRoute(app, { impact: options.impact })` after `registerAskRoute`
+- [ ] 2.3 Scenarios "An unknown project answers PROJECT_NOT_FOUND on impact" (both changes, use case counted), "An answered report over the in-memory subset makes no model call" and "A change without search terms answers unknown" over the in-memory subset with core's use case: RED then GREEN
+- [ ] 2.4 Scenarios "Fields the use case adds are not sent" and "An unknown report with events sends no events" with the seam: RED then GREEN (a spread in `toPublicReport` must make the first fail)
+- [ ] 2.5 Scenarios "Domain errors of the impact use case map to their answers", "Another error on impact answers INTERNAL" (the seam, then core's use case over a store whose `getProject` rejects) and "The impact route is rate limited": RED then GREEN
+- [ ] 2.6 Scenario "A report's query_not_logged event is logged" with `logStream()`: RED then GREEN
+- [ ] 2.7 Scenario "The document lists impact with its parameter, body and responses" over `GET /docs/json`: RED then GREEN
+- [ ] 2.8 Export from `packages/api/src/index.ts` the five schemas, their types, `registerImpactRoute` and `ImpactRouteOptions` (design D7); update the module TSDoc to name the route
+
+## 3. Backend: integration over the seed (TDD; spec http-impact "Impact answered response", "Impact project resolution"; design D9)
+
+- [ ] 3.1 RED → GREEN: new `tests/integration/api/impact.spec.ts` (template `tests/integration/api/ask.spec.ts`: `describeWithDatabase`, `useTransactionPerTest`, the app's store bound to the test transaction), scenario "Q2 answers only the public fields over the seed", including the `query_log` count of acme-shop with `capability` `impact` before and after
+- [ ] 3.2 RED → GREEN: scenario "An upper-case project id resolves the same project on impact" in the same file
+
+## 4. Backend: Review and Update Existing Tests (MANDATORY)
+
+- [ ] 4.1 Identify the tests affected: no existing test changes. `tests/unit/api/health-docs.spec.ts` asserts the OpenAPI paths with `toContain`, and `tests/unit/api/app.spec.ts` and `tests/unit/api/route-errors.spec.ts` do not list routes exhaustively; confirm by running `npx vitest run tests/unit/api tests/integration/api` after step 2 and record it in the step 5 report. If any existing test must change, stop and add a task here that names it before editing it (the protection hook denies an unnamed edit)
+- [ ] 4.2 Scenario map: every `#### Scenario:` of `specs/http-impact/spec.md` has an `it` of the same name in `tests/unit/api/impact.spec.ts` or `tests/integration/api/impact.spec.ts`; list the 1:1 map in the step 5 report
+
+## 5. Backend: Run Tests and Verify Data State (MANDATORY)
+
+- [ ] 5.1 Capture the pre-test baseline: the 0.4 indicators
+- [ ] 5.2 Run the targeted tests: `npx vitest run tests/unit/api tests/integration/api tests/unit/impact tests/integration/impact`
+- [ ] 5.3 Run the required broader suite and gates: `npx vitest run --project dom --project seed-build --project node`, `npm run lint`, `npm run typecheck`, `npm run lint:architecture`, `npm run docs:coverage`, `npm run verify`
+- [ ] 5.4 Mutation: `npx stryker run --mutate "packages/api/src/routes/impact.ts,packages/api/src/schemas/impact.ts"` (score ≥ 80, the configured break, above `MIN_MUTATION_SCORE=70`); kill the meaningful survivors with red-first tests; record accepted survivors in `design.md` → Follow-ups (destination D)
+- [ ] 5.5 `/privacy-ethics-check` over the diff (no received value in an error body or log line; the change text only in `query_log`; no database id in the body); record the outcome in the report
+- [ ] 5.6 Verify the post-test state: the 0.4 counts unchanged (the integration specs roll back); no `.stryker-tmp/` left; restore and document if not; `node scripts/dev-processes.mjs stop`
+- [ ] 5.7 Create `openspec/changes/http-impact/reports/YYYY-MM-DD-5-test-and-state-verification.md` from the template of `docs/openspec-tasks-mandatory-steps.md` §6, with the baseline, the totals, the Stryker score, the scenario map of 4.2, the results of 4.1 and 5.5, and `npm audit --audit-level=high` only if an install happened
+- [ ] 5.8 Mark complete only after the tests pass and the report exists
+
+## 6. Backend: Manual Interface Testing (MANDATORY - AGENT MUST EXECUTE)
+
+- [ ] 6.1 Preconditions in Git Bash: local database up and migrated; acme-shop listed by `npm run cli -- projects` (`npm run db:seed` only if it is not, recording that it ran); record the 0.4 indicators and the `max(created_at)` of `query_log`
+- [ ] 6.2 Start the API in one Bash call, never with the tool's background mode: `RATE_LIMIT_MAX=12 npm -w packages/api run dev` started with `&` inside that same call, waiting for `GET /health`, then the curls of 6.3–6.4, then `node scripts/dev-processes.mjs stop` in the same call (the dev script loads `.env` on its own; no `$env:`)
+- [ ] 6.3 Success paths with `curl -i`: `POST /api/projects/<acme-shop id>/impact` `{"change":"cambiar los descuentos de DiscountService","maxHops":2}` (200, the keys and values of the Q2 scenario); the same with the id in upper case; `{"change":"cambiar los descuentos de DiscountService","maxHops":3}` (`OrderObserver` with `hops` 3 in `indirect`); `{"change":"cómo se gestionan los reembolsos"}` (200 exactly `{"status":"unknown","reason":"no-anchor"}`); `GET /docs/json` lists `/api/projects/{projectId}/impact`
+- [ ] 6.4 Error paths: `maxHops` 4, `change` `"abc"`, an extra key `hops`, `/api/projects/not-a-uuid/impact` (400 `VALIDATION_ERROR`, no value echoed); a random UUID with a change with terms and with five U+1F600 (404 exact body); the thirteenth request within the window (429 `RATE_LIMITED`, `Retry-After`)
+- [ ] 6.5 Restore the state: delete exactly the `query_log` rows with `capability = 'impact'` created after the 6.1 `max(created_at)` (each answered or unknown report wrote one), and the projects `db:seed` added in 6.1 if it ran; re-check the 0.4 indicators equal the 6.1 values; `node scripts/dev-processes.mjs stop`
+- [ ] 6.6 PowerShell (design Follow-ups E8, destination D, nothing for the author): this change adds and recaptures no `docs/DEMO.md` command, only the Paso 4 "pending" sentence changes. If the apply does add or recapture one, the agent runs it itself from Bash with `pwsh -NoProfile -Command '…'` and `powershell.exe -NoProfile -Command '…'`, never setting variables with `$env:`, and records the two PowerShell versions and the result in `docs/DEMO.md` «Cómo se capturó» and in the step 6 report; otherwise the report says no PowerShell check applies
+- [ ] 6.7 Document every command, status and body in `openspec/changes/http-impact/reports/YYYY-MM-DD-6-manual-interface-testing.md` (mask the OS user name in paths), with the restoration of 6.5
+
+## 7. End-to-End Testing (MANDATORY if applicable - AGENT MUST EXECUTE)
+
+- [ ] 7.1 Not applicable: the change reaches no browser interface (`packages/web` is untouched; DIS-14 consumes the route); the HTTP interface is exercised in step 6. Record it in the step 5 report
+
+## 8. Update Technical Documentation (MANDATORY)
+
+- [ ] 8.1 `readme.md` §4: the `/impact` OpenAPI block with the real body schema, the two `200` shapes and an example taken from the seed output of 6.3 (no `usage`, `history` per file, full `staleSince`), the responses `400`/`404`/`429`/`500`, the "todavía no implementado" text removed; the `/impact` error table (`PROJECT_NOT_FOUND`, `INVALID_IMPACT_REQUEST`); the sentence «Fuera de `/ask` y `/index`, `PROJECT_NOT_FOUND` sigue respondiendo `500 INTERNAL`» extended to `/impact`; the paragraph of §4 that lists the three documented endpoints; the architecture diagram line `(/impact en la Entrega 3)` and the API stack row
+- [ ] 8.2 `docs/project-context.md`: the route, the `impact` seam of `buildApp` and the two new test files; the «`POST /impact` is DIS-95's» sentence
+- [ ] 8.3 `docs/DEMO.md` Paso 4: the "pending" sentence says only the web screen (DIS-14) is pending and the route exists; no command added (task 6.6)
+- [ ] 8.4 `/update-docs`: the docs gate passes; `prompts.md` gains the DIS-95 prompts with its Índice entry in the same edit; no ADR (design D10)
+
+## 9. Pre-merge Review (MANDATORY - AGENT MUST EXECUTE)
+
+- [ ] 9.1 `/pr-describe` in Spanish against `final-project-CRN`: the Why marked as the agent's text (Follow-ups E1–E8, P1–P5 and any correction round), the departure from the parent AC 4 (`usage`, P1), no existing test changed (4.1), the Stryker score; open the PR; DIS-95 to In Review with a Spanish comment linking it
+- [ ] 9.2 CI green, including the mutation job: wait in the foreground with `gh pr checks <n> --watch --interval 60` (timeout 600000), repeated until no check is pending; link the run in an addendum to the step 5 report
+- [ ] 9.3 `/show-spec-working` (may reuse the step 6 evidence) → `reports/YYYY-MM-DD-show-spec-working.md`; `/verify-against-spec` (inline mode) → `reports/YYYY-MM-DD-verify-against-spec.md`; `/adversarial-review` (inline mode) → `reports/YYYY-MM-DD-adversarial-review.md`, in this order
+- [ ] 9.4 Fix every finding in this change (TDD for behaviour), each with an A/B/C/D destination in `design.md` → Follow-ups (never C); re-run what each fix invalidates and add an addendum to the affected report; commit to the same PR; re-run a check whose findings led to non-trivial fixes until no Blocker or Major
+- [ ] 9.5 Before `/opsx:archive`, with the change still active and its audit approved: edit the `## Purpose` of `openspec/specs/impact/spec.md` so it also names the related documentation (current or stale) and the co-change history from git of an answered report (design D8, DIS-94 task 13.7); commit it to the same PR. If `protect-specs-and-tests` denies the edit, record it in `design.md` → Follow-ups with destination A for the next change that touches `impact`, and say so in a Spanish comment on DIS-95
+- [ ] 9.6 `/opsx:archive`; commit the archive to the same PR; `node scripts/dev-processes.mjs stop`; merge (`gh pr merge <n> --merge`, through the merge gate) only after the archive commit and with CI green (autonomous run, `KIT_AUTONOMOUS_RUN=1`, only; otherwise the author merges)
