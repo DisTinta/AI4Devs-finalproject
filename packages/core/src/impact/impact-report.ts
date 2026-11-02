@@ -28,6 +28,24 @@ export interface ImpactTestEntry {
   origin: 'graph';
 }
 
+/** A file that has changed together with the files of the anchor in the repository history (DIS-94). */
+export interface ImpactHistoryEntry {
+  /** Repository path of the co-changed file. */
+  file: string;
+  /** The largest stored co-change weight of the file's edges towards the anchor files, in [0, 1]. */
+  coChangeRate: number;
+  /** Distinct pull request numbers, ascending, of the commits that touch the file and an anchor file; may be empty. */
+  prs: number[];
+  /** Where the entry comes from: always the repository history. */
+  origin: 'git';
+}
+
+/**
+ * A document that describes code of the report (DIS-94): `staleSince` exists only on a stale entry, the
+ * full sha of the first commit of the described code that the document missed.
+ */
+export type ImpactDocEntry = { path: string; stale: false } | { path: string; stale: true; staleSince: string };
+
 /** Why `impact` could not answer. */
 export type ImpactUnknownReason = 'no-anchor';
 
@@ -60,6 +78,10 @@ export type ImpactReport =
       direct: ImpactEntry[];
       indirect: ImpactEntry[];
       tests: ImpactTestEntry[];
+      /** The documents that describe the code of the report, stale ones first; empty when none. */
+      docs: ImpactDocEntry[];
+      /** The files co-changed with the anchor's files, by rate; empty when none. */
+      history: ImpactHistoryEntry[];
       risk: ImpactRisk;
       events?: ImpactEvent[];
     }

@@ -1,5 +1,8 @@
 import { anchor, questionTerms } from '../context/anchor.js';
+import type { StoredDocumentLink } from '../knowledge/graph-read.js';
 import type { StorePort } from '../ports/StorePort.js';
+import { relatedDocs } from './doc-staleness.js';
+import { coChangeHistory } from './history.js';
 import { DEFAULT_IMPACT_HOPS, parseImpactRequest } from './impact-request.js';
 import type { ImpactReport } from './impact-report.js';
 import { impactQueryLogEntry, saveImpactRow } from './query-log.js';
@@ -24,8 +27,10 @@ export interface ImpactOptions {
  * nothing is left the answer is `unknown`/`no-anchor` and the graph is not traversed. Otherwise one
  * reverse traversal (`calls`, `imports`, `extends`, `implements`, target to source) runs from the
  * anchor symbols and their files, the reached nodes are grouped by component, the tests are found with
- * one `tested_by` step and the coverage of the direct components is read with one more. Every list is
- * ordered by a lexicographic relevance key. Once the report is built, its `query_log` row is written;
+ * one `tested_by` step and the coverage of the direct components is read with one more. Then, in this
+ * order, the co-changes of the anchor files (`history`), the document links of the report files and, only
+ * when a document is related, the dated commits of the documents and their described files (`docs`,
+ * DIS-94). Every list is ordered by a lexicographic relevance key. Once the report is built, its `query_log` row is written;
  * when the store cannot write it, the report is still returned, with a `query_not_logged` event.
  *
  * @param store The graph store.
@@ -46,6 +51,11 @@ export async function impact(store: StorePort, request: unknown, options: Impact
   return code === undefined ? report : { ...report, events: [{ type: 'query_not_logged', code }] };
 }
 
+/** The documents and the described files of `links`, once each: the paths whose commits decide staleness. */
+function historyPaths(links: readonly StoredDocumentLink[]): string[] {
+  return [...new Set(links.flatMap((link) => [link.docPath, link.describedPath]))];
+}
+
 /** The report of a checked request, before its row. */
 async function answer(store: StorePort, projectId: string, change: string, maxHops: number): Promise<ImpactReport> {
   const anchors = (await anchor(store, projectId, change)).filter((symbol) => symbol.fileKind !== 'test');
@@ -55,8 +65,15 @@ async function answer(store: StorePort, projectId: string, change: string, maxHo
   const walked = groupComponents(anchors, reached);
   const direct = walked.filter((component) => !component.test && component.hops <= 1);
   const found = await findTests(store, projectId, { anchors, reached, direct });
-  const body = buildReport(questionTerms(change), walked, found.tests);
+  const lists = buildReport(questionTerms(change), walked, found.tests);
   const covered = await directCoverage(store, projectId, found);
+  // The history reads run in sequence, in this order (design D7); a failure propagates unchanged.
+  const anchorFiles = [...new Set(anchors.map((symbol) => symbol.file))];
+  const history = coChangeHistory(anchorFiles, await store.readCoChanges(projectId, anchorFiles));
+  const reportFiles = [...new Set([...lists.direct, ...lists.indirect].map((entry) => entry.file))];
+  const links = await store.readDocumentLinks(projectId, reportFiles);
+  const docs = links.length === 0 ? [] : relatedDocs(links, await store.readFileCommits(projectId, historyPaths(links)));
+  const body = { ...lists, docs, history };
   // U and H are counted over the entries of the report's `direct`, matched to their component (design D2).
   const byEntry = new Map(walked.map((component) => [`${component.file}\0${component.name}`, component]));
   let uncovered = 0;

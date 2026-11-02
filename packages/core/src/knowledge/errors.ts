@@ -70,7 +70,8 @@ export type StoreQueryArgument =
   | 'question'
   | 'response'
   | 'entryId'
-  | 'at';
+  | 'at'
+  | 'paths';
 
 /**
  * A store operation was called with an invalid argument. Nothing was written, and nothing was sent to

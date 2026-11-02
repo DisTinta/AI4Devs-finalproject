@@ -115,6 +115,9 @@ describe('Requirement: Explain request', () => {
       saveCacheEntry: 0,
       touchCacheEntry: 0,
       invalidateCache: 0,
+      readCoChanges: 0,
+      readDocumentLinks: 0,
+      readFileCommits: 0,
     });
     expect(d.sourceCalls).toEqual({ readFileAt: 0, readFilesAt: 0 });
     expect(d.model.requests).toHaveLength(0);
@@ -150,6 +153,9 @@ describe('Requirement: Explain request', () => {
       saveCacheEntry: 0,
       touchCacheEntry: 0,
       invalidateCache: 0,
+      readCoChanges: 0,
+      readDocumentLinks: 0,
+      readFileCommits: 0,
     });
     expect(d.sourceCalls).toEqual({ readFileAt: 0, readFilesAt: 0 });
     expect(d.model.requests).toHaveLength(0);
@@ -216,6 +222,9 @@ describe('Requirement: Explain request', () => {
       saveCacheEntry: 0,
       touchCacheEntry: 0,
       invalidateCache: 0,
+      readCoChanges: 0,
+      readDocumentLinks: 0,
+      readFileCommits: 0,
     });
     expect(d.sourceCalls).toEqual({ readFileAt: 0, readFilesAt: 0 });
     expect(d.model.requests).toHaveLength(0);

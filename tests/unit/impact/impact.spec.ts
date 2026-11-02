@@ -229,6 +229,25 @@ async function countTermSearches(text: string): Promise<number> {
   return probe.calls.findSymbols;
 }
 
+// DIS-94 (openspec/changes/impact-history-docs/specs/impact/spec.md) → "Report by component".
+describe('Requirement: Report by component (documents and history)', () => {
+  it('An unknown report has neither documents nor history', async () => {
+    // Arrange
+    const loaded = acmeShop();
+
+    // Act
+    const report = await impact(loaded.store, { projectId: loaded.projectId, change: 'cómo se gestionan los reembolsos' });
+
+    // Assert
+    expect(report).toEqual({ status: 'unknown', reason: 'no-anchor' });
+    expect(report).not.toHaveProperty('docs');
+    expect(report).not.toHaveProperty('history');
+    expect(loaded.calls.readCoChanges).toBe(0);
+    expect(loaded.calls.readDocumentLinks).toBe(0);
+    expect(loaded.calls.readFileCommits).toBe(0);
+  });
+});
+
 describe('Requirement: Limit of the lexical anchor', () => {
   it('The literal Q2 text does not anchor the discount service', async () => {
     // The literal text of DIS-83 AC1: `descu` is not `disco` (design D7). What the CLI and the demo

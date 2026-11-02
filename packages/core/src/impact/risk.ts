@@ -28,11 +28,13 @@ function plural(count: number, one: string, many: string): string {
 }
 
 /**
- * Rates the change (PH-15 as written, design D1): `HIGH` when some `direct` component is uncovered or
- * has a heuristic-only chain, `LOW` when every one is covered and `exact`, `MEDIUM` otherwise. The
- * rationale names the four counts that decided it and never the text of the change.
+ * Rates the change (PH-15 as written, design D1; DIS-94 design D2): `HIGH` when some `direct` component
+ * is uncovered or has a heuristic-only chain, `LOW` when every one is covered and `exact` and no related
+ * document is stale, `MEDIUM` otherwise. `D`, the stale entries of `report.docs`, never changes a `HIGH`
+ * or a `MEDIUM`; it turns a `LOW` into `MEDIUM`. The rationale names the counts that decided it (the
+ * stale-document count only when `D` is at least 1) and never the text of the change.
  *
- * @param report The report before its risk.
+ * @param report The report before its risk, with its `docs` and `history`.
  * @param facts The `U` and `H` counts, over the report's `direct`.
  * @returns The level and its rationale.
  */
@@ -43,8 +45,10 @@ export function assessRisk(report: ReportBody, facts: RiskFacts): ImpactRisk {
     plural(report.tests.length, 'test que cubre el cambio', 'tests que cubren el cambio'),
     plural(facts.uncovered, 'elemento directo sin test', 'elementos directos sin test'),
     plural(facts.heuristicOnly, 'elemento directo con cadena solo heurística', 'elementos directos con cadena solo heurística'),
-  ].join(', ');
+  ];
+  const stale = report.docs.filter((doc) => doc.stale).length;
+  if (stale >= 1) rationale.push(plural(stale, 'documento desalineado', 'documentos desalineados'));
   const allExact = report.direct.every((entry) => entry.resolution === 'exact');
-  const level = facts.uncovered > 0 || facts.heuristicOnly > 0 ? 'HIGH' : allExact ? 'LOW' : 'MEDIUM';
-  return { level, rationale: `${rationale}.` };
+  const level = facts.uncovered > 0 || facts.heuristicOnly > 0 ? 'HIGH' : allExact && stale === 0 ? 'LOW' : 'MEDIUM';
+  return { level, rationale: `${rationale.join(', ')}.` };
 }

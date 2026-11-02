@@ -25,7 +25,7 @@ se escribe con `'--'` entre comillas o con `npm.cmd`; los de esta guía sin opci
 | LLM | ninguno: **modo evaluación**, todas las variables `LLM_*` vacías |
 | Base de datos | una base de datos nueva y vacía (ver el paso 0) |
 | Respuestas golden (pasos 1, 2 y 5; web, puntos 8 y 9) | recapturadas el 2026-10-27 en la rama `feature/dis-104-answer-language` (Git Bash, modo evaluación, base de datos local recién sembrada con `npm run db:seed`), porque DIS-104 regeneró las respuestas golden: la salida de `ask` del paso 1, los recuentos y latencias de `demo:ask` de los pasos 1 y 5 y el valor de confianza de la web. El resto de la guía es de la captura de 2026-10-20. El 2026-10-28 DIS-107 volvió a regenerar las respuestas golden (corrección del analizador de TypeScript) después de esa captura de DIS-104: la salida de `ask` de los pasos 1 y 6 se recapturó ese día en Git Bash, pero los recuentos y latencias de `demo:ask` de los pasos 1 y 5, el valor de confianza de la web y las capturas de pantalla siguen siendo los de DIS-104 y no se han vuelto a tomar |
-| Paso 4 (`impact`, DIS-90) | 2026-10-30, commit `66411f6` (`final-project-CRN`), copia de trabajo del repositorio con la base de datos local sembrada, modo evaluación. Ejecutado por el agente en PowerShell 7.6.9 y en Windows PowerShell 5.1 (`powershell.exe -NoProfile`): las dos salidas son idénticas entre sí y a la pegada, que es la de Git Bash, y el comando termina con código `0`. Las comillas de la pregunta funcionan igual en las dos versiones de PowerShell |
+| Paso 4 (`impact`, DIS-90) | 2026-10-30, commit `66411f6` (`final-project-CRN`), copia de trabajo del repositorio con la base de datos local sembrada, modo evaluación. Ejecutado por el agente en PowerShell 7.6.9 y en Windows PowerShell 5.1 (`powershell.exe -NoProfile`): las dos salidas son idénticas entre sí y a la pegada, que es la de Git Bash, y el comando termina con código `0`. Las comillas de la pregunta funcionan igual en las dos versiones de PowerShell. DIS-94 añadió las secciones `DOCUMENTACIÓN` e `HISTORIAL`: recapturado el 2026-11-02 sobre el commit `a7fb8d8` (rama `feature/dis-94-impact-history-docs`) en Git Bash, PowerShell 7.6.9 y Windows PowerShell 5.1, con las tres salidas idénticas y código `0` |
 | `Probar con un modelo real` | 2026-10-20, rama `feature/DIS-103-real-model-clean-clone` clonada en una carpeta nueva, Git Bash: Ollama 0.40.5 **solo en CPU**, `qwen2.5-coder`, `OLLAMA_CONTEXT_LENGTH=16384`, `LLM_TIMEOUT_MS=1200000`. Duraciones medidas: CLI 8 min 28 s; API 300,9 s (pregunta repetida con la caché desactivada); web en Chromium 597,7 s (otra pregunta, «¿Qué hace ShippingService?»). La salida de la CLI pegada en esa sección es de otra captura, la de DIS-104 (2026-10-26, rama `feature/dis-104-answer-language`, Git Bash, Ollama 0.40.11 solo en CPU con `OLLAMA_CONTEXT_LENGTH=16384`, `qwen2.5-coder`, `LLM_TIMEOUT_MS=1200000`, primera llamada tras `npm run db:seed`, así que no salió de la caché): 598 s, con la salida de error mezclada como en las anteriores |
 
 Los únicos cambios hechos a la salida pegada:
@@ -455,9 +455,17 @@ TESTS
   OrderPricingTest  tests/Feature/OrderPricingTest.php  [grafo]
   PriceCalculatorTest  tests/Unit/PriceCalculatorTest.php  [grafo]
 
+DOCUMENTACIÓN
+  README.md  al día
+
+HISTORIAL
+  app/Services/ShippingService.php  co-cambia 100 %  PR #24, #33, #55  [git]
+
 RIESGO HIGH
 10 ficheros afectados, 3 tests que cubren el cambio, 4 elementos directos sin test, 0 elementos directos con cadena solo heurística.
 ```
+
+> **Texto del agente (DIS-94).** La salida de arriba es la del agente en Git Bash (2026-11-02, rama `feature/dis-94-impact-history-docs`, base de datos local sembrada). El agente la repitió en PowerShell 7.6.9 y en Windows PowerShell 5.1 (`-NoProfile`, sin definir variables de entorno) sobre el commit `a7fb8d8`: las dos salidas son idénticas a la pegada y terminan con código `0`.
 
 Termina con código `0`. Sin `--max-hops` recorre 2 saltos; acepta de 1 a 3. Cada informe devuelto escribe una
 fila `impact` en `query_log`.
@@ -471,8 +479,16 @@ fila `impact` en `query_log`.
 > léxico y `descu` no es `disco` (límite de la spec `impact`). Por eso este paso usa «cambiar los descuentos
 > de DiscountService».
 >
-> **Entrega 3.** La pantalla web de impacto y la ruta `POST /impact` (DIS-95) siguen pendientes; el
-> «documento desalineado» en el nivel de riesgo es de DIS-94.
+> **`DOCUMENTACIÓN` e `HISTORIAL` (DIS-94).** `README.md` sale `al día` porque es el único documento con una
+> arista `describes` hacia el código de este informe y su último commit (2024-05-06) es posterior a todos los
+> del código que describe; `docs/pricing.md` no tiene ninguna arista `describes` (su desfase es la pregunta Q5,
+> DIS-71), así que no aparece. Si el código descrito cambia después, la línea pasa a
+> `README.md  desactualizado desde <sha>`, la rationale termina en `, 1 documento desalineado.` y un riesgo
+> que sería `LOW` pasa a `MEDIUM`. `[git]` marca lo que viene del historial de Git (el co-cambio con
+> `ShippingService`, en las PR #24, #33 y #55); `[grafo]`, lo que viene del análisis determinista: las dos
+> señales no se mezclan en una lista.
+>
+> **Entrega 3.** La pantalla web de impacto y la ruta `POST /impact` (DIS-95) siguen pendientes.
 
 ## Paso 5 — Repetir el paso 1
 

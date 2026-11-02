@@ -29,6 +29,8 @@ function sampleReport(overrides: Partial<Answered> = {}): Answered {
     ],
     indirect: [],
     tests: [{ symbol: 'DiscountServiceTest', file: 'tests/Unit/DiscountServiceTest.php', origin: 'graph' }],
+    docs: [],
+    history: [],
     risk: { level: 'HIGH', rationale: RATIONALE },
     ...overrides,
   };
@@ -266,6 +268,12 @@ describe('runImpactCommand: output', () => {
         'TESTS',
         '  DiscountServiceTest  tests/Unit/DiscountServiceTest.php  [grafo]',
         '',
+        'DOCUMENTACIÓN',
+        '  (ninguno)',
+        '',
+        'HISTORIAL',
+        '  (ninguno)',
+        '',
         'RIESGO HIGH',
         RATIONALE,
         '',
@@ -293,13 +301,61 @@ describe('runImpactCommand: output', () => {
         'TESTS',
         '  tests/a.test.ts  [grafo]',
         '',
+        'DOCUMENTACIÓN',
+        '  (ninguno)',
+        '',
+        'HISTORIAL',
+        '  (ninguno)',
+        '',
         'RIESGO HIGH',
         RATIONALE,
         '',
       ].join('\n'),
     );
     const none = await run(['impact', 'acme-shop', CHANGE], { answer: sampleReport({ tests: [] }) });
-    expect(none.stdout).toContain('TESTS\n  (ninguno)\n\nRIESGO HIGH');
+    expect(none.stdout).toContain('TESTS\n  (ninguno)\n\nDOCUMENTACIÓN\n  (ninguno)\n\nHISTORIAL\n  (ninguno)\n\nRIESGO HIGH');
+  });
+
+  it('Documents and history are printed with their state and origin', async () => {
+    const report = sampleReport({
+      docs: [
+        { path: 'docs/a.md', stale: true, staleSince: '0123456789abcdef0123456789abcdef01234567' },
+        { path: 'README.md', stale: false },
+      ],
+      history: [
+        { file: 'app/Services/ShippingService.php', coChangeRate: 1, prs: [24, 33, 55], origin: 'git' },
+        { file: 'app/Services/TaxService.php', coChangeRate: 0.625, prs: [], origin: 'git' },
+      ],
+    });
+
+    const result = await run(['impact', 'acme-shop', CHANGE], { answer: report });
+
+    expect(result.exit).toBe(0);
+    expect(result.stdout).toBe(
+      [
+        'DIRECTO',
+        '  DiscountService  app/Services/DiscountService.php  0 saltos  exact  [grafo]',
+        '  app/Providers/AppServiceProvider.php  1 salto  exact  [grafo]',
+        '',
+        'INDIRECTO',
+        '  (ninguno)',
+        '',
+        'TESTS',
+        '  DiscountServiceTest  tests/Unit/DiscountServiceTest.php  [grafo]',
+        '',
+        'DOCUMENTACIÓN',
+        '  docs/a.md  desactualizado desde 0123456',
+        '  README.md  al día',
+        '',
+        'HISTORIAL',
+        '  app/Services/ShippingService.php  co-cambia 100 %  PR #24, #33, #55  [git]',
+        '  app/Services/TaxService.php  co-cambia 63 %  sin PR  [git]',
+        '',
+        'RIESGO HIGH',
+        RATIONALE,
+        '',
+      ].join('\n'),
+    );
   });
 
   it('prints UNKNOWN (no-anchor) for an unknown report', async () => {
@@ -430,5 +486,19 @@ describe('runImpactCommand: terminal safety', () => {
     // eslint-disable-next-line no-control-regex
     expect(result.stdout.replaceAll('\n', '')).not.toMatch(/[\u0000-\u001f\u007f]/);
     expect(result.stdout).toContain('Evil');
+  });
+
+  it('Control characters in documents and history are escaped', async () => {
+    const report = sampleReport({
+      docs: [{ path: 'docs/evil\u001b[2J.md', stale: true, staleSince: '\u0007\u0007\u0007abcd' }],
+      history: [{ file: 'src/evil\u0008.php', coChangeRate: 0.5, prs: [], origin: 'git' }],
+    });
+
+    const result = await run(['impact', 'acme-shop', CHANGE], { answer: report });
+
+    expect(result.exit).toBe(0);
+    // eslint-disable-next-line no-control-regex
+    expect(result.stdout.replaceAll('\n', '')).not.toMatch(/[\u0000-\u001f\u007f]/);
+    expect(result.stdout).toContain('evil');
   });
 });

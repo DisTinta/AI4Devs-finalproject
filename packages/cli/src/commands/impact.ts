@@ -2,7 +2,7 @@ import pg from 'pg';
 import { Command, CommanderError } from 'commander';
 import { createPostgresStore } from '@codemind/adapter-store-postgres';
 import { impact as coreImpact, InvalidImpactRequest, parseImpactRequest, ProjectNotFound } from '@codemind/core';
-import type { ImpactEntry, ImpactReport, impact } from '@codemind/core';
+import type { ImpactDocEntry, ImpactEntry, ImpactHistoryEntry, ImpactReport, impact } from '@codemind/core';
 import { CliError, CONNECTION_TIMEOUT_MS, DatabaseUnavailable } from '../compose-index.js';
 import type { CliFailure, Environment } from '../compose-index.js';
 import { createLogger } from '../logger.js';
@@ -105,9 +105,10 @@ export async function defaultOpenStore(databaseUrl: string): Promise<OpenedStore
 }
 
 /**
- * The text of a report: `UNKNOWN (<reason>)` for an unknown one; otherwise the `DIRECTO`, `INDIRECTO`
- * and `TESTS` sections, each entry on one line, and `RIESGO <level>` with its rationale. Every symbol
- * and file goes through {@link terminalSafeText}. The change is never printed.
+ * The text of a report: `UNKNOWN (<reason>)` for an unknown one; otherwise the `DIRECTO`, `INDIRECTO`,
+ * `TESTS`, `DOCUMENTACIÓN` and `HISTORIAL` sections, each entry on one line, and `RIESGO <level>` with
+ * its rationale (DIS-94 adds the two middle sections). Every symbol, file, path and the printed part of
+ * a sha goes through {@link terminalSafeText}. The change is never printed.
  *
  * @param report The report.
  * @returns The text, with its final line feed.
@@ -123,6 +124,12 @@ export function formatReport(report: ImpactReport): string {
     '',
     'TESTS',
     ...entryLines(report.tests.map((test) => `  ${named(test.symbol, test.file)}  [grafo]`)),
+    '',
+    'DOCUMENTACIÓN',
+    ...entryLines(report.docs.map(docLine)),
+    '',
+    'HISTORIAL',
+    ...entryLines(report.history.map(historyLine)),
     '',
     `RIESGO ${report.risk.level}`,
     report.risk.rationale,
@@ -143,6 +150,18 @@ function named(symbol: string, file: string): string {
 /** One entry of `direct` or `indirect`. */
 function dependantLine(entry: ImpactEntry): string {
   return `  ${named(entry.symbol, entry.file)}  ${entry.hops} ${entry.hops === 1 ? 'salto' : 'saltos'}  ${entry.resolution}  [grafo]`;
+}
+
+/** One entry of `docs`: `al día`, or `desactualizado desde` the first 7 characters of `staleSince`. */
+function docLine(entry: ImpactDocEntry): string {
+  const path = terminalSafeText(entry.path);
+  return entry.stale ? `  ${path}  desactualizado desde ${terminalSafeText(entry.staleSince.slice(0, 7))}` : `  ${path}  al día`;
+}
+
+/** One entry of `history`: the rate as a whole percentage, the pull requests and the `[git]` origin. */
+function historyLine(entry: ImpactHistoryEntry): string {
+  const prs = entry.prs.length === 0 ? 'sin PR' : `PR ${entry.prs.map((pr) => `#${pr}`).join(', ')}`;
+  return `  ${terminalSafeText(entry.file)}  co-cambia ${Math.round(entry.coChangeRate * 100)} %  ${prs}  [git]`;
 }
 
 /**

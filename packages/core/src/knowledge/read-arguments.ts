@@ -39,6 +39,21 @@ export function assertValidTraversal(hops: number, kinds?: EdgeKind[], direction
 }
 
 /**
+ * Checks the `paths` of a history read (DIS-94 design D3): an array of non-empty strings, none with a
+ * NUL character (the database rejects it as text). A caller without types can pass anything.
+ *
+ * @throws InvalidStoreQuery naming `paths`.
+ */
+export function assertValidPaths(paths: unknown): void {
+  if (!Array.isArray(paths)) throw new InvalidStoreQuery('paths', 'must be an array of paths');
+  for (const path of paths as unknown[]) {
+    if (typeof path !== 'string') throw new InvalidStoreQuery('paths', 'must hold only strings');
+    if (path === '') throw new InvalidStoreQuery('paths', 'must not hold an empty path');
+    if (path.includes('\u0000')) throw new InvalidStoreQuery('paths', 'must not hold a NUL character');
+  }
+}
+
+/**
  * Checks the instant of a daily cost sum: it must be a valid date.
  *
  * @throws InvalidStoreQuery naming `since`.

@@ -424,7 +424,11 @@ Verified against `package.json` (root and per package). If a command is not here
   `tests/unit/impact/small-graph.ts`, built with `tests/support/sample-graph.ts`; each asserts its
   anchor first; DIS-90 adds `risk.spec.ts` and `query-log.spec.ts`) and
   `tests/integration/impact/acme-shop.spec.ts` (the seed loaded in the harness
-  transaction, as `api/ask.spec.ts`; since DIS-90 it also checks the risk of Q2 and the `query_log` row). Integration runs need an empty database: use a second one
+  transaction, as `api/ask.spec.ts`; since DIS-90 it also checks the risk of Q2 and the `query_log` row).
+  DIS-94 adds `tests/unit/impact/history.spec.ts` and `doc-staleness.spec.ts`, the shared graphs of the
+  history reads in `tests/support/history-graphs.ts`, and the report's `docs` and `history` (Q2 history,
+  the readme current and, with a commit added in the test transaction, stale) in the integration spec.
+  Integration runs need an empty database: use a second one
   (`codemind_it`) when the local `codemind` holds the loaded seed.
 - **acme-shop test subset** (`tests/support/acme-shop-graph.ts`): a real slice of
   `seeds/graph-dump.sql` (the `PriceCalculator` and `DiscountService` neighbourhoods, `CouponValidator`,
@@ -932,13 +936,25 @@ services that must be started first, quirks of the local environment.
   only in `query_log.question`, never in an error, event or log line. Every acme-shop report is `HIGH`
   (the service-provider files are untested direct dependants), so the demo shows `RIESGO HIGH` with its
   rationale. No fingerprint input changes, so no `seed:build`.
+- **The `StorePort` reads the history of the files** (DIS-94, `packages/core/src/ports/StorePort.ts`):
+  `readCoChanges(projectId, paths)` (the `co_changed` edges with a weight, from either end, with the
+  distinct PR numbers of the commits linked to both files), `readDocumentLinks(projectId, paths)` (the
+  `describes` links from `doc` files to a file or one of its symbols) and `readFileCommits(projectId,
+  paths)` (the dated commits of each path). Each is one statement that also checks the project, filters
+  `file`, `edge` and `commit` by the project (a `file_commit` row can join two projects) and returns no
+  author data nor commit message; `paths` is checked by `assertValidPaths` (`read-arguments.ts`), after the
+  id form and before the statement. `impact` uses them for `history` (`coChangeHistory`) and `docs`
+  (`relatedDocs`, stale when a commit of a described file is later than the document's latest one) of an
+  answered report; a stale document turns a `LOW` risk into `MEDIUM`. Note: `knowledge/` and
+  `store-postgres/src` feed the analyzer fingerprint, so a change there needs `npm run seed:build` and the
+  golden files' `seed.analyzerFingerprint` refreshed (`npm run cache:build`).
 - **The `impact` command** (DIS-90, `packages/cli/src/commands/impact.ts`): `npm run cli -- impact
   <project> <change> [--max-hops <n>]`, delegated from `index.ts` before `commander`, shaped like `ask`
   (exit `2` for `USAGE`/`INVALID_IMPACT_REQUEST` before any connection, `1` for `MISSING_CONFIG`,
   `DATABASE_UNAVAILABLE`, `PROJECT_NOT_FOUND`, `INTERNAL`; one JSON error line that never holds the
   change), with its own `defaultOpenStore` (`application_name` `codemind-impact`) and no `LLM_*` read.
-  It prints `DIRECTO`, `INDIRECTO`, `TESTS` and `RIESGO <level>` (Spanish labels, the level as the code)
-  or `UNKNOWN (no-anchor)`; `query_not_logged` events go to stderr as `info` JSON lines. Tests:
+  It prints `DIRECTO`, `INDIRECTO`, `TESTS`, `DOCUMENTACIÓN`, `HISTORIAL` (both DIS-94) and
+  `RIESGO <level>` (Spanish labels, the level as the code) or `UNKNOWN (no-anchor)`; `query_not_logged` events go to stderr as `info` JSON lines. Tests:
   `tests/unit/impact/risk.spec.ts`, `query-log.spec.ts`, `tests/unit/cli/impact-command.spec.ts` and
   `tests/integration/cli/impact-command.spec.ts`.
 - **`explain` is the one-pass use case over the Context Engine** (DIS-39,

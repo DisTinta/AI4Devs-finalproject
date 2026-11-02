@@ -90,6 +90,39 @@ export interface IndexState {
   dependencies: StoredDependency[];
 }
 
+/**
+ * A stored `co_changed` edge between two files, as the co-change read returns it (DIS-94 design D3).
+ * An edge is stored once per pair, so either end may be the file that was asked for.
+ */
+export interface StoredCoChange {
+  /** Path of the edge's source file. */
+  fromPath: string;
+  /** Path of the edge's target file. */
+  toPath: string;
+  /** The stored weight (Jaccard rate over the shared commits), always set. */
+  weight: number;
+  /** Distinct pull request numbers, ascending, of the commits that touch both files; may be empty. */
+  prNumbers: number[];
+}
+
+/** A `describes` link from a documentation file to a file (itself or through one of its symbols). */
+export interface StoredDocumentLink {
+  /** Path of the file of kind `doc` that describes. */
+  docPath: string;
+  /** Path of the described file. */
+  describedPath: string;
+}
+
+/** A commit with a commit date that touches a file. Carries no author data and no message. */
+export interface StoredFileCommit {
+  /** Path of the touched file. */
+  path: string;
+  /** Full sha of the commit. */
+  sha: string;
+  /** When the commit was made. */
+  committedAt: Date;
+}
+
 /** Optional narrowing of a symbol search. */
 export interface SymbolSearchOptions {
   /** Only symbols of these kinds; when given, must not be empty. */

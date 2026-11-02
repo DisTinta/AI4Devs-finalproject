@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { anchor, impact } from '@codemind/core';
-import type { GraphEdge } from '@codemind/core';
-import { edge, file, ref, symbol } from '../../support/sample-graph';
+import type { GraphEdge, GraphSymbol } from '@codemind/core';
+import { commit, edge, file, fileCommit, ref, symbol } from '../../support/sample-graph';
 import { names, reportOf, smallStore } from './small-graph';
 import type { SmallStore } from './small-graph';
 
@@ -379,6 +379,166 @@ describe('Requirement: Risk level of a report', () => {
     expect(names(report.direct)).toEqual(['Anchor', 'Caller']);
     expect(report.indirect.map((entry) => entry.symbol)).toEqual(['Mixed']);
     expect(report.risk.rationale).toContain('1 elemento directo sin test');
+  });
+});
+
+// DIS-94 (openspec/changes/impact-history-docs/specs/impact/spec.md) → "Risk level of a report": the
+// widened risk. The graphs are those of the scenarios above, with documents and dated commits.
+describe('Requirement: Risk level of a report (stale documents)', () => {
+  /** A `describes` edge from a document to a symbol. */
+  const describes = (doc: string, target: GraphSymbol): GraphEdge =>
+    edge({ file: doc }, { symbol: ref(target) }, { kind: 'describes' });
+
+  /**
+   * The graph of the scenarios "Every direct component tested and exact makes the risk low" (`callerTested`)
+   * or "A direct component without a test makes the risk high", where `docs/a.md` describes `Caller::a`
+   * and, with `second`, `docs/b.md` describes `Anchor::run`; each document is older than the code it
+   * describes.
+   */
+  function staleGraph(options: { callerTested: boolean; second?: boolean; fresh?: boolean }): SmallStore {
+    const run = symbol('src/anchor.ts', 'Anchor::run', 1);
+    const anchorClass = symbol('src/anchor.ts', 'Anchor', 10, { kind: 'class' });
+    const callerA = symbol('src/caller.ts', 'Caller::a', 1);
+    const callerClass = symbol('src/caller.ts', 'Caller', 10, { kind: 'class' });
+    const anchorTest = symbol('tests/anchor.test.ts', 'AnchorTest', 1, { kind: 'class' });
+    const callerTest = symbol('tests/caller.test.ts', 'CallerTest', 1, { kind: 'class' });
+    const touches = [
+      { sha: 'd1', at: options.fresh === true ? '2024-03-01T00:00:00Z' : '2024-01-01T00:00:00Z', files: ['docs/a.md', 'docs/b.md'] },
+      { sha: 'c1', at: '2024-02-01T00:00:00Z', files: ['src/caller.ts', 'src/anchor.ts'] },
+    ];
+    return smallStore({
+      files: [
+        file('src/anchor.ts'),
+        file('src/caller.ts'),
+        file('tests/anchor.test.ts', { kind: 'test' }),
+        file('docs/a.md', { kind: 'doc' }),
+        ...(options.callerTested ? [file('tests/caller.test.ts', { kind: 'test' })] : []),
+        ...(options.second === true ? [file('docs/b.md', { kind: 'doc' })] : []),
+      ],
+      symbols: [run, anchorClass, callerA, callerClass, anchorTest, ...(options.callerTested ? [callerTest] : [])],
+      edges: [
+        edge({ symbol: ref(callerA) }, { symbol: ref(run) }),
+        edge({ symbol: ref(anchorClass) }, { symbol: ref(anchorTest) }, { kind: 'tested_by' }),
+        describes('docs/a.md', callerA),
+        ...(options.callerTested ? [edge({ symbol: ref(callerClass) }, { symbol: ref(callerTest) }, { kind: 'tested_by' })] : []),
+        ...(options.second === true ? [describes('docs/b.md', run)] : []),
+      ],
+      commits: touches.map((t) => commit(t.sha, { committedAt: new Date(t.at) })),
+      fileCommits: touches.flatMap((t) =>
+        t.files
+          .filter((path) => options.second === true || path !== 'docs/b.md')
+          .map((path) => fileCommit(path, t.sha)),
+      ),
+    });
+  }
+
+  it('A stale document turns a low risk into medium', async () => {
+    // Arrange
+    const loaded = staleGraph({ callerTested: true });
+    await expectAnchor(loaded, 'cambiar run', ['Anchor::run']);
+
+    // Act
+    const report = await reportOf(loaded, 'cambiar run', 1);
+
+    // Assert
+    expect(report.docs).toEqual([{ path: 'docs/a.md', stale: true, staleSince: 'c1' }]);
+    expect(report.risk.level).toBe('MEDIUM');
+    expect(report.risk.rationale).toBe(`${RATIONALE.allTested.slice(0, -1)}, 1 documento desalineado.`);
+  });
+
+  it('Two stale documents are counted in the plural', async () => {
+    // Arrange
+    const loaded = staleGraph({ callerTested: true, second: true });
+    await expectAnchor(loaded, 'cambiar run', ['Anchor::run']);
+
+    // Act
+    const report = await reportOf(loaded, 'cambiar run', 1);
+
+    // Assert
+    expect(report.docs.map((doc) => doc.stale)).toEqual([true, true]);
+    expect(report.risk.level).toBe('MEDIUM');
+    expect(report.risk.rationale.endsWith(', 2 documentos desalineados.')).toBe(true);
+  });
+
+  it('A stale document leaves a high risk high', async () => {
+    // Arrange
+    const loaded = staleGraph({ callerTested: false });
+    await expectAnchor(loaded, 'cambiar run', ['Anchor::run']);
+
+    // Act
+    const report = await reportOf(loaded, 'cambiar run', 1);
+
+    // Assert
+    expect(report.risk.level).toBe('HIGH');
+    expect(report.risk.rationale).toBe(`${RATIONALE.untestedCaller.slice(0, -1)}, 1 documento desalineado.`);
+  });
+
+  // Not a scenario: only the stale entries of `docs` are counted; a current document changes nothing.
+  it('counts only stale documents, so a current one leaves a low risk low', async () => {
+    // Arrange
+    const loaded = staleGraph({ callerTested: true, fresh: true });
+    await expectAnchor(loaded, 'cambiar run', ['Anchor::run']);
+
+    // Act
+    const report = await reportOf(loaded, 'cambiar run', 1);
+
+    // Assert
+    expect(report.docs).toEqual([{ path: 'docs/a.md', stale: false }]);
+    expect(report.risk.level).toBe('LOW');
+    expect(report.risk.rationale).toBe(RATIONALE.allTested);
+  });
+
+  // Not a scenario: a stale document never changes a MEDIUM level, and the coverage is still one read.
+  it('keeps a medium risk medium, gains the clause and still reads the coverage once', async () => {
+    // Arrange: the graph of "A covered direct component with an exact chain beyond its first hop makes
+    // the risk medium", plus a document older than `src/caller.ts`.
+    const run = symbol('src/anchor.ts', 'Anchor::run', 1);
+    const helper = symbol('src/anchor.ts', 'Anchor::helper', 5);
+    const anchorClass = symbol('src/anchor.ts', 'Anchor', 10, { kind: 'class' });
+    const callerA = symbol('src/caller.ts', 'Caller::a', 1);
+    const callerB = symbol('src/caller.ts', 'Caller::b', 5);
+    const callerClass = symbol('src/caller.ts', 'Caller', 10, { kind: 'class' });
+    const anchorTest = symbol('tests/anchor.test.ts', 'AnchorTest', 1, { kind: 'class' });
+    const callerTest = symbol('tests/caller.test.ts', 'CallerTest', 1, { kind: 'class' });
+    const loaded = smallStore({
+      files: [
+        file('src/anchor.ts'),
+        file('src/caller.ts'),
+        file('tests/anchor.test.ts', { kind: 'test' }),
+        file('tests/caller.test.ts', { kind: 'test' }),
+        file('docs/a.md', { kind: 'doc' }),
+      ],
+      symbols: [run, helper, anchorClass, callerA, callerB, callerClass, anchorTest, callerTest],
+      edges: [
+        edge({ symbol: ref(helper) }, { symbol: ref(run) }),
+        edge({ symbol: ref(callerA) }, { symbol: ref(run) }, { resolution: 'heuristic' }),
+        edge({ symbol: ref(callerB) }, { symbol: ref(helper) }),
+        edge({ symbol: ref(anchorClass) }, { symbol: ref(anchorTest) }, { kind: 'tested_by' }),
+        edge({ symbol: ref(callerClass) }, { symbol: ref(callerTest) }, { kind: 'tested_by' }),
+        describes('docs/a.md', callerA),
+      ],
+      commits: [commit('d1', { committedAt: new Date('2024-01-01T00:00:00Z') }), commit('c1', { committedAt: new Date('2024-02-01T00:00:00Z') })],
+      fileCommits: [fileCommit('docs/a.md', 'd1'), fileCommit('src/caller.ts', 'c1')],
+    });
+    await expectAnchor(loaded, 'cambiar run', ['Anchor::run']);
+    const sent: unknown[][] = [];
+    const neighbors = loaded.store.neighbors.bind(loaded.store);
+    const recording = {
+      ...loaded.store,
+      neighbors: (...args: Parameters<typeof neighbors>) => {
+        sent.push(args);
+        return neighbors(...args);
+      },
+    };
+
+    // Act
+    const report = await impact(recording, { projectId: loaded.projectId, change: 'cambiar run', maxHops: 2 });
+
+    // Assert
+    if (report.status !== 'answered') throw new Error('expected an answered report');
+    expect(report.risk.level).toBe('MEDIUM');
+    expect(report.risk.rationale).toBe(`${RATIONALE.allTested.slice(0, -1)}, 1 documento desalineado.`);
+    expect(sent.filter((args) => args[4] === 'in' && (args[3] as string[]).includes('tested_by'))).toHaveLength(1);
   });
 });
 

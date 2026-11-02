@@ -8,6 +8,7 @@ import {
   assertValidEntryId,
   assertValidGraph,
   assertValidHitInstant,
+  assertValidPaths,
   assertValidQueryLogEntry,
   assertValidSymbolSearch,
   assertValidTraversal,
@@ -36,6 +37,9 @@ import type {
   SavedClaim,
   SaveGraphResult,
   StoredClaim,
+  StoredCoChange,
+  StoredDocumentLink,
+  StoredFileCommit,
   StoredSymbol,
   StorePort,
   SymbolSearchOptions,
@@ -44,6 +48,9 @@ import type {
 import { rewriteClaim, toStoredClaim, writeClaims, type ClaimRow } from './claims.js';
 import { isWellFormedId } from './ids.js';
 import {
+  CO_CHANGES,
+  DOCUMENT_LINKS,
+  FILE_COMMITS,
   DELETE_CACHE_KEY,
   FIND_CACHE_ENTRY,
   FIND_CLAIMS_OVERLAPPING,
@@ -63,10 +70,16 @@ import {
 } from './queries.js';
 import {
   escapeLikeTerm,
+  toCoChanges,
+  toDocumentLinks,
+  toFileCommits,
   toIndexState,
   toNeighbor,
   toProject,
   toStoredSymbol,
+  type CoChangeRow,
+  type DocumentLinkRow,
+  type FileCommitRow,
   type IndexDependencyRow,
   type IndexFileRow,
   type NeighborRow,
@@ -347,6 +360,25 @@ export function createPostgresStore(connection: StoreConnection): StorePort {
         MAX_PRIOR_CLAIMS,
       ]);
       return rows.filter((row) => row.id !== null).map((row) => toStoredClaim(projectId, row));
+    },
+
+    async readCoChanges(projectId: string, paths: string[]): Promise<StoredCoChange[]> {
+      // Order of design D3: the id form, then `paths`, before any statement; then the one statement.
+      if (!isWellFormedId(projectId)) throw new ProjectNotFound(projectId);
+      assertValidPaths(paths);
+      return toCoChanges(await runProjectQuery<CoChangeRow>(connection, projectId, CO_CHANGES, [paths]));
+    },
+
+    async readDocumentLinks(projectId: string, paths: string[]): Promise<StoredDocumentLink[]> {
+      if (!isWellFormedId(projectId)) throw new ProjectNotFound(projectId);
+      assertValidPaths(paths);
+      return toDocumentLinks(await runProjectQuery<DocumentLinkRow>(connection, projectId, DOCUMENT_LINKS, [paths]));
+    },
+
+    async readFileCommits(projectId: string, paths: string[]): Promise<StoredFileCommit[]> {
+      if (!isWellFormedId(projectId)) throw new ProjectNotFound(projectId);
+      assertValidPaths(paths);
+      return toFileCommits(await runProjectQuery<FileCommitRow>(connection, projectId, FILE_COMMITS, [paths]));
     },
 
     async readIndexState(projectId: string): Promise<IndexState> {

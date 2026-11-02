@@ -168,6 +168,9 @@ describeWithDatabase('impact (integration)', () => {
     expect(lines).toContain('  CheckoutController  app/Http/Controllers/CheckoutController.php  2 saltos  heuristic  [grafo]');
     expect(lines).toContain('  DiscountServiceTest  tests/Unit/DiscountServiceTest.php  [grafo]');
     expect(result.stdout).toContain(
+      '\nDOCUMENTACIÓN\n  README.md  al día\n\nHISTORIAL\n  app/Services/ShippingService.php  co-cambia 100 %  PR #24, #33, #55  [git]\n\nRIESGO HIGH\n',
+    );
+    expect(result.stdout).toContain(
       '\nRIESGO HIGH\n10 ficheros afectados, 3 tests que cubren el cambio, 4 elementos directos sin test, 0 elementos directos con cadena solo heurística.\n',
     );
     expect(await impactRows()).toBe(before + 1);

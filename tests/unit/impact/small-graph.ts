@@ -1,5 +1,5 @@
 import { impact } from '@codemind/core';
-import type { GraphEdge, GraphFile, GraphSymbol, ImpactReport, NewProject } from '@codemind/core';
+import type { GraphCommit, GraphEdge, GraphFile, GraphFileCommit, GraphSymbol, ImpactReport, NewProject } from '@codemind/core';
 import { createInMemoryStore } from '../../support/in-memory-store';
 import type { InMemoryStore } from '../../support/in-memory-store';
 import { commit, SHA } from '../../support/sample-graph';
@@ -13,14 +13,18 @@ const PROJECT: NewProject = { name: 'impact-small', rootPath: 'fixtures/impact-s
 export type SmallStore = InMemoryStore & { projectId: string };
 
 /** Loads `files`, `symbols` and `edges` into a fresh double. */
-export function smallStore(parts: { files: GraphFile[]; symbols: GraphSymbol[]; edges: GraphEdge[] }): SmallStore {
+export function smallStore(parts: {
+  files: GraphFile[];
+  symbols: GraphSymbol[];
+  edges: GraphEdge[];
+  /** The commits of the history; today's single commit when absent. */
+  commits?: GraphCommit[];
+  /** The links between files and commits; none when absent. */
+  fileCommits?: GraphFileCommit[];
+}): SmallStore {
+  const { commits = [commit(SHA.first)], fileCommits = [], ...graph } = parts;
   const loaded = createInMemoryStore({
-    projects: [
-      {
-        project: PROJECT,
-        graph: { indexedCommit: SHA.first, ...parts, commits: [commit(SHA.first)], fileCommits: [] },
-      },
-    ],
+    projects: [{ project: PROJECT, graph: { indexedCommit: SHA.first, ...graph, commits, fileCommits } }],
   });
   return { ...loaded, projectId: loaded.projectIds[0] };
 }
