@@ -16,8 +16,9 @@ project bar of Screen 2 as its banner landmark (`ask-page` → "Screen 2 frame a
 order: the change box ("Change box") and the result area, which shows nothing before the first send, then
 the pending state, the answered report, the unknown state or an error alert. After the main landmark the
 screen SHALL hold a navigation landmark named «Navegación del proyecto» with one link, «Volver a las
-preguntas», that leads to `/p/{projectId}`. Opening Screen 3 SHALL NOT send any request. Going to another
-project's Screen 3 SHALL start from an empty Screen 3.
+preguntas», that leads to `/p/{projectId}` with the `projectId` percent-encoded as one path segment.
+Opening Screen 3 SHALL NOT send any request. Going to another project's Screen 3 SHALL start from an empty
+Screen 3.
 
 #### Scenario: Screen 3 opens on a sample project without any request
 
@@ -42,6 +43,14 @@ project's Screen 3 SHALL start from an empty Screen 3.
   shows no text «aristas»; after it the path is `/p/0b5c7f2e-1d3a-4e6b-8f90-1a2b3c4d5e6f`, the field
   «Pregunta» of Screen 2 is shown and there is no field «Cambio»; and the double recorded no request
 
+#### Scenario: Another project's Screen 3 starts empty
+
+- **GIVEN** Screen 3 of acme-shop showing the answered report of "The answered report shows its five
+  sections, its origins and its risk", with «Saltos del grafo» set to «3»
+- **WHEN** the path becomes `/p/0b5c7f2e-1d3a-4e6b-8f90-1a2b3c4d5e6f/impact`
+- **THEN** the level-1 heading is «0b5c7f2e-1d3a-4e6b-8f90-1a2b3c4d5e6f», no level-2 heading is shown, the
+  field «Cambio» is empty, «Saltos del grafo» shows «2», and the only element with role `status` is empty
+
 ### Requirement: Change box
 
 The change box SHALL be a form with a one-line text field whose visible label is «Cambio», a single-choice
@@ -64,8 +73,9 @@ message SHALL go away as soon as the person changes the field's text or sends a 
 - **GIVEN** Screen 3 of acme-shop, and `fetch` replaced by a double that records every request and never
   answers, in three runs
 - **WHEN** the person writes «  cambiar los descuentos de DiscountService  » in the field and presses the
-  button «Analizar» with a pointer in the first run; selects «1» with the keyboard and presses Enter in the
-  field in the second; selects «3» and presses Enter in the field in the third
+  button «Analizar» with a pointer in the first run; selects «1» in the list «Saltos del grafo» and presses
+  Enter in the field in the second; selects «3» in the list «Saltos del grafo» and presses Enter in the
+  field in the third
 - **THEN** in each run the double recorded exactly one request, with method `POST`, URL
   `/api/projects/a794456d-6d1b-5b55-a360-13fec83dc7bc/impact`, header `content-type: application/json`
   and body exactly `{"change":"cambiar los descuentos de DiscountService","maxHops":2}`,
@@ -80,11 +90,12 @@ message SHALL go away as soon as the person changes the field's text or sends a 
   answers
 - **WHEN** the person sends with Enter, one after the other, the field holding «hola», then «     » (five
   spaces), then «  hola  », then 501 times the letter «a», then «cambiar\u0000descuentos» (with the
-  character U+0000)
+  character U+0000), then presses Enter again without changing the field
 - **THEN** after each send the double has recorded no request; the field has `aria-invalid="true"` and the
   accessible description «Describe el cambio en 5 a 500 caracteres.»; exactly one element with role
-  `alert` holds that message, and it is a different element from the one shown after the previous send;
-  the focus is on the field; and there is no text «Calculando impacto…»
+  `alert` holds that message, and it is a different element from the one shown after the previous send —
+  including after the last Enter, which repeats the previous send on the same unchanged text; the focus is
+  on the field; and there is no text «Calculando impacto…»
 
 #### Scenario: Changing an invalid change clears the mark
 
@@ -140,7 +151,9 @@ be written as "How a change and the entries of a report are written" says. Every
 `indirect` and `tests` SHALL end with the origin tag «[grafo]» and every entry of `history` with the origin
 tag «[git]», each a visible text, not colour alone; documents carry no origin tag (the API sends none).
 Every text the API sends (symbols, files, paths, the rationale) SHALL be shown as text, never interpreted
-as markup. The report adds no tab stop and does not move the focus.
+as markup. The report adds no tab stop and does not move the focus. Every text of the report SHALL use a
+text/background pair of `web-foundation` → "Theme colours and minimum contrast"; the tertiary text colour
+(`#6c757d`) only on white.
 
 #### Scenario: The answered report shows its five sections, its origins and its risk
 
@@ -154,15 +167,16 @@ as markup. The report adds no tab stop and does not move the focus.
   `HIGH` with its rationale
 - **WHEN** the person sends «cambiar los descuentos de DiscountService»
 - **THEN** the level-2 headings are, in this order, «Directo», «Indirecto», «Tests», «Documentación»,
-  «Historial» and «Riesgo alto»; «Directo» lists six entries in the order received (the fourth holds
-  «PriceCalculator», «app/Services/PriceCalculator.php», «1 salto» and «exacta»; the fifth holds the text
-  «app/Providers/AppServiceProvider.php» once and no other symbol); every entry of «Indirecto» holds
+  «Historial» and «Riesgo alto»; «Directo» lists six entries in the order received (the text of the fourth
+  is exactly «PriceCalculator · app/Services/PriceCalculator.php · 1 salto · exacta · [grafo]»; the text
+  of the fifth is exactly «app/Providers/AppServiceProvider.php · 1 salto · exacta · [grafo]»); every
+  entry of «Indirecto» holds
   «2 saltos» and «heurística»; every entry of «Directo», «Indirecto» and «Tests» ends with «[grafo]»; the
   document entry holds «README.md» and «al día» and no origin tag; the history entry holds
   «app/Services/ShippingService.php», «co-cambia 100 %», «PR #24, #33, #55» and ends with «[git]»; the
   rationale is shown verbatim after «Riesgo alto»; the legend and the line «Informe determinista: sin
-  llamada al modelo de lenguaje.» come after it; and the only element with role `status` holds «Informe de
-  impacto recibido.»
+  llamada al modelo de lenguaje.» come after it; the only element with role `status` holds «Informe de
+  impacto recibido.»; and the focus is on the field
 
 #### Scenario: An empty section, a stale document and a history entry without pull requests
 
@@ -207,8 +221,12 @@ for 1, «<n> saltos» otherwise, «0 saltos» included), its resolution («exact
 `heuristic`) and the tag «[grafo]». A test SHALL be written as its symbol (left out when it equals its
 file), its file and «[grafo]». A document SHALL be written as its path and «al día», or as its path and
 «⚠ desactualizada desde el commit <the first 7 characters of `staleSince`>». A history entry SHALL be
-written as its file, «co-cambia <the rate times 100, rounded to a whole number> %», «PR #<a>, #<b>…» in the
-order received or «sin PR» when there are none, and «[git]».
+written as its file, «co-cambia <the rate times 100, rounded to a whole number> %» with a normal space
+(U+0020) before «%», «PR #<a>, #<b>…» in the order received or «sin PR» when there are none, and «[git]».
+The parts of an entry SHALL be separated by « · » (U+00B7 with a normal space on each side), in the order
+listed above, with the origin tag last, so the entry's text reads the same to a screen reader as on the
+screen. The risk heading SHALL be «Riesgo alto» for `HIGH`, «Riesgo medio» for `MEDIUM` and «Riesgo bajo»
+for `LOW`.
 
 #### Scenario: Change length is counted in code points after trimming
 
@@ -221,11 +239,11 @@ order received or «sin PR» when there are none, and «[git]».
 
 - **GIVEN** the entry writers
 - **WHEN** they write hops 0, 1 and 2; the resolutions `exact` and `heuristic`; a document with `staleSince`
-  «abcdef0123456789»; the co-change rates 1, 0.8 and 0.333; and the pull-request lists [24, 33, 55], [7] and
-  []
+  «abcdef0123456789»; the co-change rates 1, 0.8 and 0.333; the pull-request lists [24, 33, 55], [7] and
+  []; and the risk levels `HIGH`, `MEDIUM` and `LOW`
 - **THEN** they give «0 saltos», «1 salto», «2 saltos»; «exacta», «heurística»; «desactualizada desde el
-  commit abcdef0»; «co-cambia 100 %», «co-cambia 80 %», «co-cambia 33 %»; «PR #24, #33, #55», «PR #7» and
-  «sin PR»
+  commit abcdef0»; «co-cambia 100 %», «co-cambia 80 %», «co-cambia 33 %» (each with U+0020 before «%»);
+  «PR #24, #33, #55», «PR #7» and «sin PR»; «Riesgo alto», «Riesgo medio» and «Riesgo bajo»
 
 ### Requirement: Unknown report
 
@@ -267,7 +285,8 @@ before SHALL remain, the status region SHALL be empty, and the alert SHALL add n
   de proyecto o indéxalo con la CLI.», «Código: PROJECT_NOT_FOUND.» in the second; «No se ha podido obtener
   la respuesta.», «Código: INVALID_IMPACT_REQUEST.» in the third; «No se ha podido obtener la respuesta.»,
   «Código: INTERNAL.» in the fourth; «No se ha podido obtener la respuesta.», «La API de CODEMIND no
-  responde.» in the fifth; in every run there is no level-2 heading and the status region is empty
+  responde.» in the fifth; in every run there is no level-2 heading, the status region is empty and the
+  focus is on the field
 
 #### Scenario: A failure removes the report that was shown
 
@@ -317,18 +336,22 @@ indicator when it receives the focus from the keyboard.
 
 #### Scenario: The tab order of Screen 3 skips the report
 
-- **GIVEN** Screen 3 of acme-shop showing the Q2 report, and the focus on the document body
-- **WHEN** the person presses Tab five times
-- **THEN** the focus visits, in this order, the link «Volver a la selección de proyecto», the field
-  «Cambio», the list «Saltos del grafo», the button «Analizar» and the link «Volver a las preguntas»
+- **GIVEN** Screen 3 of acme-shop, in two runs: showing the Q2 report, and showing the alert of a `fetch`
+  that rejects with a `TypeError`; in each run the focus on the document body
+- **WHEN** the person presses Tab five times in each run
+- **THEN** in each run the focus visits, in this order, the link «Volver a la selección de proyecto», the
+  field «Cambio», the list «Saltos del grafo», the button «Analizar» and the link «Volver a las preguntas»
 
 #### Scenario: The walkthrough step 4 runs in a real browser
 
 - **GIVEN** the system started with `npm run up` in evaluation mode, with the seed loaded
 - **WHEN** a browser opens `http://localhost:5173/`, opens acme-shop, follows «Analizar el impacto de un
-  cambio», sends «cambiar los descuentos de DiscountService» with «Saltos del grafo» at 2, and then moves
-  through the page with Tab and Shift+Tab
+  cambio», sends «cambiar los descuentos de DiscountService» with «Saltos del grafo» at 2, changes «Saltos
+  del grafo» to 1 and then to 3 with the arrow keys only and sends each time, and then moves through the
+  page with Tab and Shift+Tab
 - **THEN** the report shows the sections, entries and risk of `docs/DEMO.md` «Paso 4» («Riesgo alto», 6
-  direct, 4 indirect, 3 tests, `README.md` «al día», one history entry «[git]»), every control shows a
-  visible outline while focused, and the page has no horizontal scroll at 320 px wide (validated in the
+  direct, 4 indirect, 3 tests, `README.md` «al día», one history entry «[git]»); the list changes value
+  with the arrow keys and each send shows its report; every control shows a visible outline while
+  focused; every text of the report uses a contrast pair of the theme table (checked with the browser's
+  contrast inspector, at least 4.5:1); and the page has no horizontal scroll at 320 px wide (validated in the
   manual interface test and in `/show-spec-working`, with screenshots saved next to the report)

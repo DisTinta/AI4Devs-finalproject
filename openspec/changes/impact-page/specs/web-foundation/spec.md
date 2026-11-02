@@ -51,7 +51,9 @@ pass a signal to the network request that aborts when the caller's signal aborts
 caller SHALL reject with the reason of the caller's signal, neither an API error nor an unavailable-API
 error, so the screen can ignore it; this holds while the request is pending and while the response body is
 being read. A signal already aborted when the call starts SHALL make the call reject with its reason
-without sending any request.
+without sending any request. `impact` shares the request path of `ask` (the client's private `send`), so
+its body-read and already-aborted cases are those of `ask`; its pending abort is covered by "Aborting a
+pending impact request cancels it, and it has no time limit".
 
 #### Scenario: Aborting a pending question cancels the request
 
@@ -111,8 +113,10 @@ the API package at build or run time.
 `npm run test:a11y` (root) SHALL run the accessibility tests under `tests/a11y/`, which render the routes
 of the web client, not a placeholder of the kit, at `/`, at `/p/a794456d-6d1b-5b55-a360-13fec83dc7bc`, at
 `/p/a794456d-6d1b-5b55-a360-13fec83dc7bc/impact` and at an unknown path, inside a document with
-`lang="es"` and a title, and SHALL fail when `axe-core` reports any violation on any of them. The first
-three paths are scanned by the gate's own test; the impact path by its own test under `tests/a11y/`. A negative
+`lang="es"` and a title, and SHALL fail when `axe-core` reports any violation on any of them. The four
+paths are scanned by the gate's own test (`tests/a11y/smoke.a11y.test.tsx`): the first three by "The three
+routes have no axe violations" and the impact path by "The impact route has no axe violations"; the states
+of each screen are scanned by that screen's own test under `tests/a11y/`. A negative
 control SHALL prove that axe really runs in that environment. The kit scaffold `tests/a11y/smoke.example.tsx`
 SHALL no longer exist, and the frontend CI workflow SHALL run the script instead of printing that it is
 missing.
@@ -149,7 +153,8 @@ missing.
 
 ### Requirement: Asking for the impact of a change through the API client
 
-The API client SHALL expose `impact(projectId, body)` that sends `POST /api/projects/{projectId}/impact`
+The API client SHALL expose `impact(projectId, body, options)`, where `options.signal` is the caller's
+abort signal, that sends `POST /api/projects/{projectId}/impact`
 to the same origin, with the `projectId` percent-encoded as one path segment, the header
 `content-type: application/json` and the JSON serialisation of `body` (the fields of the API's impact body:
 `change` and optional `maxHops`) as the request body. On a `2xx` answer it SHALL resolve with the response

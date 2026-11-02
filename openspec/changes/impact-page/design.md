@@ -44,7 +44,9 @@ compared in `api-contract.spec.ts` with `ImpactBody` and `ImpactResponse` of
 `packages/api/src/schemas/impact.ts`, with a second negative control (`change` renamed). `send`'s
 `accept` callback is `() => true`, as `ask()`: the body is returned unchanged (`web-foundation` → "Asking
 for the impact of a change through the API client"). *Alternative:* runtime validation with Zod in the
-web — rejected: the web does not depend on Zod and `ask()` trusts the contract test the same way.
+web — rejected: the web does not depend on Zod and `ask()` trusts the contract test the same way. *Departure:* this departs
+from `docs/frontend-standards.md` §2 "Service layer: one module per resource", with the precedent of
+`ask()` and the reason above (the private `send`); recorded in Follow-ups P11.
 
 **D2 — Route `/p/:projectId/impact`, rendered as `<ImpactPage key={projectId} …/>`** by a
 `ProjectImpactRoute` in `router.tsx`, same pattern as `ProjectQueryRoute` (another project remounts, so
@@ -74,18 +76,24 @@ U+0000 is reported by the API, `ask-page` → "Question box"). The trimmed text 
 **D6 — Wording (Spanish for a reader):** headings «Directo», «Indirecto», «Tests», «Documentación»,
 «Historial» (wireframe `images/pantalla-3-impacto.svg` order); «exacta» / «heurística»; «N salto(s)»;
 «al día» / «⚠ desactualizada desde el commit <sha7>» (⚠ `aria-hidden`); «co-cambia N %» with
-`Math.round(rate * 100)` and a normal space before «%» (as the CLI); «PR #a, #b» / «sin PR»; «Sin
-elementos» for an empty list; «Riesgo alto/medio/bajo». The symbol is left out when it equals the file
-(file-level components, as the CLI's `named`). The pure writers live in `components/impact-display.ts`
-(no React), unit-tested in `impact-display.test.ts`.
+`Math.round(rate * 100)` and a normal space (U+0020, not the U+00A0 of `project-display.ts`'s digit
+groups) before «%» (as the CLI); «PR #a, #b» / «sin PR»; «Sin elementos» for an empty list; «Riesgo
+alto/medio/bajo» (`riskHeading`). The symbol is left out when it equals the file (file-level components,
+as the CLI's `named`). The parts of an entry are separated by « · » (U+00B7 with a normal space on each
+side), origin tag last, written as text nodes between the spans, so the `li`'s `textContent` — what a
+screen reader reads — is for example «PriceCalculator · app/Services/PriceCalculator.php · 1 salto ·
+exacta · [grafo]». The pure writers live in `components/impact-display.ts` (no React), unit-tested in
+`impact-display.test.ts`.
 
 **D7 — No tokens or cost panel.** The wireframe draws «Uso de esta consulta» (tokens, coste, caché), but
 `/impact` returns no `usage` and calls no model; `UsagePanel` is not reused and no figure is invented. The
 report ends with «Informe determinista: sin llamada al modelo de lenguaje.». The wireframe image in
 `readme.md` §1.3 is product imagery and is not edited; the difference is noted in `docs/DEMO.md`.
 
-**D8 — Origin tags.** `OriginTag` renders the visible text «[grafo]» or «[git]» (the brackets are text),
-using theme pairs only. Documents get no tag: the API's document entry has no `origin` field and the CLI
+**D8 — Origin tags.** `OriginTag` renders the visible text «[grafo]» or «[git]» (the brackets are text)
+with the blue badge pair `text-accent` on `bg-accent-soft` (`#1971c2` / `#e7f5ff`) for both; the text, not
+the colour, tells them apart. No icon: DIS-14 AC 1 asks for the text only; the parent DIS-8's «texto +
+icono» is a departure recorded in Follow-ups P9. Documents get no tag: the API's document entry has no `origin` field and the CLI
 prints none; inventing «[grafo]» in the web would claim more than the contract says. The legend «Origen:
 [grafo] análisis estático determinista · [git] señal histórica de co-cambio» follows the wireframe's
 «Origen de cada elemento» box and `readme.md` §1.3 (why origins are declared).
@@ -102,8 +110,12 @@ its title «Sin respuesta verificada» and its sentence table are Screen 2's.
 
 **D11 — Errors reuse `AskErrorNotice` and `alertLinesOf` unchanged.** They already cover
 `RATE_LIMITED` (with `retryAfterSeconds`), `PROJECT_NOT_FOUND`, any other code as «Código: X.» and an
-unavailable API. Their first line, «No se ha podido obtener la respuesta.», and «vuelve a preguntar» read
-acceptably for a report; changing them would edit Screen 2's spec and tests. `ErrorBanner` is not used: it
+unavailable API. The alert's first line stays «No se ha podido obtener la respuesta.» and the rate-limit
+line keeps «vuelve a preguntar»; both are accepted wording for Screen 3 (Follow-ups P3); changing them
+would edit Screen 2's spec and tests. `INVALID_IMPACT_REQUEST`, `VALIDATION_ERROR` and `INTERNAL` get no
+sentence of their own, only «Código: X.»: the UI cannot send an out-of-range `maxHops` (the list offers
+1–3) nor an invalid change (local validation), and DIS-14 AC 4 accepts `alertLinesOf`; the parent DIS-8's
+«`code` traducido a mensaje legible» is a departure recorded in Follow-ups P10. `ErrorBanner` is not used: it
 is the health banner with a retry button of Screen 1.
 
 **D12 — Hook `useImpact(projectId)`** copied from `useAsk`: states `idle | pending | answered | unknown |
@@ -120,23 +132,57 @@ controls whose purpose is not obvious from a placeholder.
 
 **D14 — Project heading shared.** `projectHeading` moves from `AskPage.tsx` to
 `components/project-display.ts` as an exported `projectHeadingOf(projectId)` returning `{ title, detail? }`
-(TSDoc); `AskPage` keeps its placeholder text. Pure refactor: no Screen 2 test changes.
+(TSDoc); `placeholder` leaves the shared shape. `AskPage` derives its placeholder from it: «Pregunta sobre
+el código de <title>» when `detail !== undefined` (a sample project), «Pregunta sobre el código del
+proyecto» otherwise — the same two texts as today. The module TSDoc of `project-display.ts`, which now
+describes only "how a sample project is written on its card", is widened to "how a project is written on
+its card and in the project bar of Screens 2 and 3", since the new function imports `SAMPLE_PROJECTS`.
+Pure refactor: no Screen 2 test changes.
 
 **D15 — Components:** `ImpactSection` (`<section aria-labelledby>` with `<h2>` and `<ul>` or `<p>` «Sin
 elementos»), `ImpactReport` (the five sections, `RiskBanner`, legend, deterministic line), `OriginTag`,
 `RiskBanner`, `ImpactUnknownState`, `ChangeBox`. Files and paths in `<code>`-styled spans; every API text
 is a React text child. List keys are the index plus the text (lists may repeat an entry).
 
+*Colour pairs* (only rows of `web-foundation` → "Theme colours and minimum contrast"; the report sits on
+the frame's white `bg-surface`, `PageFrame`; never `text-ink-subtle` on `bg-canvas`):
+
+| Element | Text / background utilities | Table row |
+|---|---|---|
+| Section headings, entry symbols | `text-ink` on `bg-surface` | `#212529` / `#ffffff` |
+| File and path `<code>` spans, hops, resolution, « · » separators | `text-ink-muted` on `bg-surface` | `#495057` / `#ffffff` |
+| `OriginTag` «[grafo]» / «[git]» | `text-accent` on `bg-accent-soft` | `#1971c2` / `#e7f5ff` |
+| «Sin elementos» | `text-ink-muted` on `bg-surface` | `#495057` / `#ffffff` |
+| Document line «al día», history line (rate, PR list) | `text-ink-muted` on `bg-surface` | `#495057` / `#ffffff` |
+| Stale document «⚠ desactualizada desde el commit …» | `text-warning-ink` on `bg-warning-soft` | `#5c3d00` / `#fff9db` |
+| Risk block `HIGH`: heading and rationale | `text-warning-ink` on `bg-warning-soft` | `#5c3d00` / `#fff9db` |
+| Risk block `MEDIUM` / `LOW`: heading | `text-ink` on `bg-canvas` | `#212529` / `#f8f9fa` |
+| Risk block `MEDIUM` / `LOW`: rationale | `text-ink-muted` on `bg-canvas` | `#495057` / `#f8f9fa` |
+| Legend and deterministic line | `text-ink-muted` on `bg-surface` | `#495057` / `#ffffff` |
+| `ImpactUnknownState` (as `UnknownState`) | `text-ink` heading, `text-ink-muted` text on `bg-canvas` | `#212529` and `#495057` / `#f8f9fa` |
+| Navigation links | `text-accent` on `bg-surface` | `#1971c2` / `#ffffff` |
+
+axe in jsdom cannot judge contrast (`docs/frontend-standards.md` → «How `test:a11y` is wired»), so the
+pairs are fixed here, kept by `theme.test.ts` for the tokens, and checked by hand with the browser's
+contrast inspector in task 11.4.
+
 **D16 — Tests.** RTL in `pages/ImpactPage.test.tsx` mounting `routes` in a memory router with `fetch`
 doubled at the network edge (template `AskPage.test.tsx`), each test named exactly as its scenario and
 written Arrange-Act-Assert; unit tests in `impact-display.test.ts`; client tests appended to
 `api-client.test.ts`; the Screen 2 link test appended to `AskPage.test.tsx`; axe in
-`tests/a11y/impact-page.a11y.test.tsx` (template `ask-page.a11y.test.tsx`), which also holds the
-gate's new scenario "The impact route has no axe violations". The gate's own test
-`tests/a11y/smoke.a11y.test.tsx` is not edited: OpenSpec cannot rename a scenario inside a MODIFIED
-requirement, so "The three routes have no axe violations" keeps its three paths and a new scenario covers
-the fourth (the same for "The development server serves the three paths" and the new manual scenario
-"The development server serves Screen 3").
+`tests/a11y/impact-page.a11y.test.tsx` (template `ask-page.a11y.test.tsx`) for the eight states of
+Screen 3. The gate's new scenario "The impact route has no axe violations" is a new `it` appended to the
+gate's own test `tests/a11y/smoke.a11y.test.tsx` (no existing test of that file is edited), so the gate
+file scans the four routes. `SCANNED_PATHS` keeps its three paths: OpenSpec refuses to drop or rename a
+scenario of a MODIFIED requirement — verified in spec-audit round 1 with `openspec validate impact-page
+--strict` on a draft renaming it to "The four routes have no axe violations" ("MODIFIED … omits
+scenario(s) the current spec still has … archive refuses to drop them") — so "The three routes have no
+axe violations" keeps its name and its three paths (the same for "The development server serves the three
+paths" and the new manual scenario "The development server serves Screen 3"). The route itself is covered
+by `ImpactPage.test.tsx`, which mounts `routes` in a memory router as `AskPage.test.tsx` does;
+`router.test.tsx` is not edited. Both are departures from the DIS-14 technical context and from the
+frontend-standards sentence "a new route needs its path added", recorded in Follow-ups P8; task 13.3
+rewrites that sentence.
 The Q2 report fixture is written once in the test files from `docs/DEMO.md` «Paso 4».
 
 **D17 — Status region** as Screen 2: one `<p role="status" className="sr-only">` always rendered after the
@@ -170,7 +216,8 @@ Screen 3.
 
 *Agent's text: decisions taken by the agent as lead engineer in the autonomous run
 (`docs/AUTONOMOUS-RUN.md` §6), without the author. E1–E8 are the DIS-14 enrich decisions D1–D8 (comment of
-2026-11-02 in the ticket); P1–P7 are design decisions of this proposal. Destinations: A = this change; B =
+2026-11-02 in the ticket); P1–P7 are design decisions of this proposal; P8–P13 are the agent's decisions
+on spec-audit run 1 (its questions Q1 and Q2 included). Destinations: A = this change; B =
 another existing ticket; C = the author (none in this change, by the author's instruction); D = accepted
 and recorded.*
 
@@ -191,3 +238,9 @@ and recorded.*
 | P5 | `projectHeading` moves to `project-display.ts` and is shared (design D14). | A |
 | P6 | E2E with Playwright is out of scope; DIS-75 owns the suite and can add Screen 3 to it. | B — DIS-75 |
 | P7 | `packages/web` stays outside Stryker's `mutate`; DIS-77 owns the mutation and coverage gate. | B — DIS-77 |
+| P8 | (Spec audit 1, I1/I10) The gate's scenario "The three routes have no axe violations" and `SCANNED_PATHS` keep three paths, because OpenSpec refuses to rename or drop a scenario of a MODIFIED requirement (verified with `openspec validate --strict`); the impact path gets its own `it` "The impact route has no axe violations" appended to `tests/a11y/smoke.a11y.test.tsx`, so the gate file still scans every route. `router.test.tsx` is not edited: the route is covered by `ImpactPage.test.tsx`, which mounts `routes`. Departure from the DIS-14 technical context and from the frontend-standards sentence "a new route needs its path added"; task 13.3 rewrites that sentence (design D16). | D — accepted |
+| P9 | (Spec audit 1, Q1) Origin tag as text only, «[grafo]» / «[git]», no icon: DIS-14 AC 1 asks for the text; the text already avoids colour alone (WCAG 1.4.1); an `aria-hidden` icon would widen the scope with no accessibility gain. Departure from the parent DIS-8 AC 1 «texto + icono», recorded here and in the PR, like E6 and E7 (design D8). | D — accepted |
+| P10 | (Spec audit 1, Q2) `INVALID_IMPACT_REQUEST`, `VALIDATION_ERROR` and `INTERNAL` show the generic alert «No se ha podido obtener la respuesta.» + «Código: X.» through `alertLinesOf` unchanged: the UI cannot produce an out-of-range `maxHops` or an invalid change, DIS-14 AC 4 accepts `alertLinesOf`, and a new line would edit Screen 2's `notice-display.ts` and spec. Departure from the parent DIS-8 «`code` traducido a mensaje legible», recorded here and in the PR (design D11). | D — accepted |
+| P11 | (Spec audit 1, I12) `impact()` stays in `api-client.ts`, a departure from `docs/frontend-standards.md` §2 "one module per resource", with the precedent of `ask()` and the private `send` (design D1). | D — accepted |
+| P12 | (Spec audit 1, B1) axe in jsdom cannot report `color-contrast`; the contrast of every new text is fixed per element in design D15 and checked by hand in 11.4, and the RED of the axe scan uses a rule jsdom detects (`<select>` without its `<label>`). | A |
+| P13 | (Spec audit 1, B2) Keyboard operation of «Saltos del grafo» is not claimed by an RTL test (jsdom does not move a native `<select>` on arrow keys); it is checked in the real-browser scenario "The walkthrough step 4 runs in a real browser" (task 11.4). | A |

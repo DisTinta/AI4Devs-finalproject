@@ -38,10 +38,10 @@ status region, accessibility gate).
   impacto recibido.» or «Sin ancla en el grafo.» (empty before the first send and on a failure).
 - **Screen 2 link**: after Screen 2's main landmark, a navigation link «Analizar el impacto de un cambio»
   to `/p/{projectId}/impact`, so step 4 is reachable in the browser.
-- **API client**: `impact(projectId, body, { signal })` in the existing typed client, with its request
+- **API client**: `impact(projectId, body, options)` (`options.signal` the caller's signal) in the existing typed client, with its request
   and response types declared by hand and checked against the API's schemas by the contract test.
 - **Accessibility**: a new axe test scans Screen 3 in every state, and the gate of `web-foundation` gains
-  the path `/p/<acme-shop id>/impact`.
+  the path `/p/<acme-shop id>/impact` as a new test appended to its own file.
 
 ## Capabilities
 
@@ -76,8 +76,9 @@ status region, accessibility gate).
 - Tests: new `packages/web/src/pages/ImpactPage.test.tsx`, `packages/web/src/components/impact-display.test.ts`,
   `tests/a11y/impact-page.a11y.test.tsx`; new tests added to the existing
   `packages/web/src/services/api-client.test.ts` and `packages/web/src/pages/AskPage.test.tsx`; the
-  existing `tests/unit/web/api-contract.spec.ts` gains the impact comparisons. `tests/a11y/smoke.a11y.test.tsx`
-  is not edited.
+  existing `tests/unit/web/api-contract.spec.ts` gains the impact comparisons; the existing
+  `tests/a11y/smoke.a11y.test.tsx` gains one appended test, "The impact route has no axe violations" (no
+  existing test of it is edited).
 - Dependencies: none.
 - Docs: `readme.md` §1.3 (status row of Screen 3 and the browser-steps sentence), `docs/DEMO.md`
   («Recorrido por la web» with Screen 3, note in «Paso 4»), `docs/frontend-standards.md` («How

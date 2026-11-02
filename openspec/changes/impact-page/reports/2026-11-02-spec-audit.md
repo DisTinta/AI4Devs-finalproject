@@ -302,3 +302,54 @@ DIS-75: comment in Spanish.
 DIS-77: comment in Spanish.
 
 > *Texto del agente.* Desde `impact-page` (DIS-14), destino B: `packages/web` sigue fuera del `mutate` de Stryker y de `docs:coverage`; los nuevos `impact-display.ts`, `useImpact.ts` y componentes de la Pantalla 3 entran en el alcance de la puerta de mutación y cobertura de esta issue.
+
+---
+
+## Resolution of run 1
+
+*Agent's text (correction round 1, 2026-11-02, autonomous run, `docs/AUTONOMOUS-RUN.md` §6).* Every
+blocking and improvable finding was applied to the change artifacts; the two questions for the author were
+decided by the agent as lead engineer and recorded in `design.md` → Follow-ups. `openspec validate
+impact-page --strict` passes after the edits.
+
+### Questions for the author
+
+| Finding | Resolution |
+|---|---|
+| Q1 — origin tag «texto + icono» | Decided by the agent: option (a), text only. DIS-14 AC 1 asks for the text; the text already avoids colour alone; an icon widens scope with no accessibility gain. Recorded as a departure from DIS-8 in design D8 and Follow-ups P9 (D), and listed for the PR in task 14.1. |
+| Q2 — readable message for `INVALID_IMPACT_REQUEST` / `VALIDATION_ERROR` | Decided by the agent: option (a), generic alert through `alertLinesOf` unchanged. The UI cannot produce an out-of-range `maxHops` nor an invalid change, and DIS-14 AC 4 accepts `alertLinesOf`. Recorded in design D11 and Follow-ups P10 (D), listed for the PR in task 14.1. |
+
+### Blocking findings
+
+| Finding | Resolution |
+|---|---|
+| B1 — RED of task 8.2 impossible in jsdom | Fixed. Task 8.2's RED is now the `<select>` rendered without its `<label>` (axe `select-name` / `label`). Contrast is fixed per element in design D15 and checked by hand in 11.4 (Follow-ups P12, A). |
+| B2 — "with the keyboard" not testable in RTL | Fixed. Run 2 of "A valid change is sent trimmed with the selected hops" now says «selects «1» in the list «Saltos del grafo»». Keyboard operation moved to "The walkthrough step 4 runs in a real browser" (arrow keys at 1 and 3, counts change). Tasks 4.1 and 11.4 reference that scenario (Follow-ups P13, A). |
+| B3 — colour pairs of the new texts not fixed | Fixed. Design D15 gains a table with the text/background utilities and the `web-foundation` row of every new element, stating "never `text-ink-subtle` on `bg-canvas`". "Answered report" gains the clause on theme pairs. "The walkthrough step 4…" and task 11.4 add the manual contrast check. |
+| B4 — re-announcement MUST had no failing scenario | Fixed. "An invalid change is not sent" ends with Enter pressed again on the unchanged text, and its THEN requires a different alert element after it. Task 4.3's RED removes the counter `key` and sees that assertion fail. |
+| B5a — entry separator unspecified | Fixed. "How a change and the entries of a report are written" fixes « · » (U+00B7 with spaces), tag last. "The answered report shows…" asserts the exact `textContent` of the fourth and fifth «Directo» entries. Design D6 and task 2.3 match. |
+| B5b — encoding of the project id in links | Fixed. "Screen 3 frame and navigation" and ask-page "Link to the impact screen" say "with the `projectId` percent-encoded as one path segment". Tasks 3.4 and 3.6 name `encodeURIComponent`. |
+
+### Improvable findings
+
+| Finding | Resolution |
+|---|---|
+| I1 — departures from the DIS-14 technical context not recorded | Fixed together with I10. Recorded in Follow-ups P8 (D) and design D16. |
+| I2 — "another project starts empty" without scenario | Fixed. New scenario "Another project's Screen 3 starts empty", task 3.4b. |
+| I3 — focus and tab stop not asserted | Fixed. "The answered report shows…" and "A rate limit, an API error…" assert the focus on the field. "The tab order of Screen 3 skips the report" gains a run with the unavailable-API alert (task 8.1). |
+| I4 — abort of a pending question by the link without scenario | Fixed. New ask-page scenario "Following the impact link aborts a pending question", task 3.7. |
+| I5 — cancellation cases of `impact` | Fixed with the second option: "Cancellation by the caller" states that `impact` shares the `send` path of `ask`, and names the scenario that covers its pending abort. |
+| I6 — `riskHeading` outside its unit scenario | Fixed. "Hops, resolution, document and history are written in Spanish" adds the three risk levels, and the requirement names the risk headings. |
+| I7 — "read acceptably" in D11 | Fixed with the suggested wording, which points to P3. |
+| I8 — space before «%» | Fixed. The requirement, the unit scenario and design D6 say U+0020, and task 2.3 asserts it by code point. |
+| I9 — `impact()` signature | Fixed. The ADDED requirement, the proposal and task 1.2 write `impact(projectId, body, options)` with `options.signal`. |
+| I10 — gate test not extended | Decided by the agent after checking option (a). A draft renaming the scenario to "The four routes have no axe violations" fails `openspec validate impact-page --strict`: «MODIFIED … omits scenario(s) the current spec still has … archive refuses to drop them». The D16 claim therefore holds, and option (a) is not viable as worded. The change takes option (b) and goes further: "The impact route has no axe violations" becomes a new `it` appended to `tests/a11y/smoke.a11y.test.tsx`, so the gate file scans all four routes. `SCANNED_PATHS` and `router.test.tsx` stay unchanged. Recorded in design D16 and Follow-ups P8 (D). Task 13.3 rewrites the frontend-standards sentence. The web-foundation requirement text, the proposal and tasks 8.3 and 9.1 are aligned. |
+| I11 — Screen 2 link focus | Fixed. The ask-page requirement requires a visible focus indicator on the link, and task 11.4 checks it on Screen 2. |
+| I12 — D1 vs "one module per resource" | Fixed. D1 names the departure, recorded as Follow-ups P11 (D). |
+| I13 — placeholder derivation and module TSDoc | Fixed. D14 says how `AskPage` derives its placeholder from `detail`, and widens the module TSDoc. Task 3.1 includes both. |
+| I14 — task 6.2 too large | Fixed. Split into 6.2a (`OriginTag`, `ImpactSection`) and 6.2b (`RiskBanner`, `ImpactReport`, wiring). |
+| I14 — task 11.3 too large | Fixed. Split into 11.3a (real API: unknown, double invalid send, PROJECT_NOT_FOUND) and 11.3b (intercepted 429, API stopped). |
+| I15 — Step 0 order | Fixed. 0.1 is the branch verification and 0.2 the Linear status. |
+| I16 — persistence not checked | Fixed. Task 11.2 checks one more `query_log` row with capability `impact` per answered or unknown send, and 12.1 records it. 11.5 already restores the state. |
+| I17 — destination-B comments on DIS-75 and DIS-77 | Fixed. Task 13.5 adds the Spanish comments on DIS-75 (P6) and DIS-77 (P7). |
+| I18 — 9.2 manual exceptions | Fixed. "The development server serves the three paths" is added to the manual exceptions. |
