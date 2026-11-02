@@ -189,3 +189,34 @@ No empty rows. The counts in task 8.2 (impact 12 unchanged + 17 new; graph-store
 
 ### Linear DIS-94 (comment in Spanish; the `[original]` block is not edited)
 18. Comment: «*Texto del agente (spec-audit, 2026-11-02).* Auditoría del cambio `impact-history-docs`: CHANGES REQUIRED, 1 hallazgo bloqueante: dónde se descarta una arista `co_changed` sin `weight`. Se fija en la lectura de co-cambios, con su escenario. Preguntas para la autora: (1) el DoD «Q2 completa (… doc stale)» se cumple con `README.md` al día sobre la semilla real y desalineado solo con un commit añadido en la transacción del test, no con `docs/pricing.md` desde el #61 (decisión E1, sin firmar); (2) el AC 1 del padre usa «cambiar el cálculo de descuentos», que según la spec `impact` no ancla `DiscountService`, y el cambio usa «cambiar los descuentos de DiscountService». ¿Se aceptan ambas lecturas?»
+
+---
+
+## Resolution of run 1
+
+*Agent's text: correction round 1 of the autonomous run (`docs/AUTONOMOUS-RUN.md` §6), 2026-11-02. The decisions are recorded in `design.md` → Follow-ups (rows R1-…) and in a Linear comment of DIS-94. `openspec validate impact-history-docs --strict` passes after the corrections.*
+
+| Finding | Resolution |
+|---|---|
+| QA1 (Q2's stale document) | Decided by the agent (R1-QA1, destination D): E1's reading is accepted. Over the real seed `README.md` is current; the stale state is proven with the commit added in the test transaction and by hand in task 10.3. Giving `docs/pricing.md` a `describes` edge would be a new linking rule owned by DIS-49/DIS-71, which widens scope. |
+| QA2 (text of parent AC 1) | Decided by the agent (R1-QA2, destination D): the AC is met with «cambiar los descuentos de DiscountService», as in DIS-89/DIS-90, because the main spec already says the literal text anchors `PriceCalculator`. Task 10.2 now states the expected output of the literal text. |
+| 3a (isolation scenario) | Fixed: the second project has an extra `c.php` with a `co_changed` edge `a.php`→`c.php` and an extra `docs/second.md` → `a.php` link; the THEN states the exact co-change and document-link results. Task 2.10. |
+| 3b (duplicate path) | Fixed: "Empty and unknown paths give empty history reads" compares `['a.php', 'a.php']` with `['a.php']`. Task 2.9. |
+| 3c (no author data or message) | Fixed: both data scenarios save commits with a message and an author hash and check the exact key set of each row. Tasks 2.1, 2.6. |
+| 3d (`describes` from a non-`doc` file) | Fixed: "Document links are read through files and symbols" adds the edge from the `source` file `src/x.php`, which does not appear. Task 2.5. |
+| 3e (`co_changed` without `weight`) | Fixed with 6a. |
+| 4 (D3 "many callers") | Fixed: D3 names the four call sites in two modules. |
+| 4 (GIVEN of "A document touched with or after its code is not stale") | Fixed with the suggested wording (two graphs, `d1` kept in both, `d2` named). |
+| 5a / 6a (NULL `weight`, blocking) | Fixed with option (a): new scenario "A co-change without weight is not read"; P2 rewritten; extra case removed from task 3.6; double case added to task 1.4; new task 2.4; `weight IS NOT NULL` in task 2.2; graph-store count in 8.2 is now 11 new. |
+| 5b (error precedence) | Fixed: "Contract of the history reads" states the order (malformed id, then `paths`, then the statement) and that the double follows it; D3 says the same; task 1.4 has the case of an unknown id with invalid `paths`. |
+| 5c (expected output of the literal Q2 text) | Fixed: task 10.2 expects `HISTORIAL` `  (ninguno)` and `DOCUMENTACIÓN` `  README.md  al día`. |
+| 6b (rounding) | Fixed: the `cli-impact` spec now says `Math.round(coChangeRate * 100)` computed in double precision, the same as D8; "halves up" removed (R1-6b). |
+| 6c (statement order) | Fixed: D7 says after `directCoverage`, in the order `readCoChanges`, `readDocumentLinks`, `readFileCommits`; the claim is kept and task 4.8 asserts the order on the double (R1-6c). |
+| 7 (`## Purpose` of the main `impact` spec) | No change needed: task 13.7 already updates it. |
+| 8a (validation helper) | Fixed: `assertValidPaths` in `packages/core/src/knowledge/read-arguments.ts`, one copy (D3, tasks 1.2, 1.3, 2.2; R1-8a). |
+| 8b (JSDoc of `coChangeEdges`) | Fixed: task 3.3 updates the JSDoc at `packages/core/src/knowledge/co-change.ts:28`. |
+| 8c (`ReportBody`) | Fixed: D7 and task 3.3 say `answer()` adds `docs`/`history` to the body before `assessRisk`. |
+| 8d (project row when nothing matches) | Fixed: D3 says each statement left-joins the lateral subquery to the `project` row, as `INDEX_STATE_FILES` does, so only an unknown id gives zero rows; task 2.2 drops the NULL row in the mapping. |
+| 9 (task 1.2 too large) | Fixed: split into 1.2 (port side) and 1.3 (double); the old 1.3 is now 1.4. Renumbered references in 8.1. |
+| 9 (task 4.7 too large) | Fixed: the extra cases moved to a new 4.8; the old 4.8 is now 4.9 (reference in 8.1 updated). |
+| 18 (Linear comment of the audit) | Posted with this round's comment, which also gives the answers to the two questions. |

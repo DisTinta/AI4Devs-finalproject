@@ -12,9 +12,11 @@ commit read (the next requirements). Each of them:
   commit of another project contributes to the result, even when a row links it to a row of the
   project (a `file_commit` row between a file of the project and a commit of another, which the
   database does not forbid, contributes nothing);
-- SHALL fail with `ProjectNotFound` for an unknown or malformed project id, a malformed one before
-  any other check and without querying;
-- SHALL then check `paths` as "Validation of read arguments" says;
+- SHALL check its arguments in this order: a malformed project id SHALL fail with `ProjectNotFound`
+  before any other check and without querying; `paths` SHALL then be checked as "Validation of read
+  arguments" says; the single statement SHALL then fail with `ProjectNotFound` when the well-formed
+  id names no project. The in-memory double SHALL follow the same order, so an unknown well-formed
+  id with an invalid `paths` fails with `InvalidStoreQuery`;
 - SHALL return an empty list for an empty `paths`, the project still being checked; a path that
   names no file of the project SHALL contribute nothing, and a path given twice SHALL count once;
 - SHALL return no author data (`author_hash`) and no commit message.
@@ -40,19 +42,24 @@ graph.
 
 - **GIVEN** the saved project of the scenario "Co-changes are read from either end with their pull
   requests"
-- **WHEN** each of the three history reads is called with no path, then with `['nope.php']`
-- **THEN** each result is an empty list
+- **WHEN** each of the three history reads is called with no path, then with `['nope.php']`, then
+  with `['a.php', 'a.php']` and with `['a.php']`
+- **THEN** each result with no path or with `['nope.php']` is an empty list
+- **AND** each read with `['a.php', 'a.php']` equals the same read with `['a.php']`
 
 #### Scenario: The history reads never hold another project's rows
 
 - **GIVEN** two saved projects with files at the same paths, the same `co_changed` edge between
   `a.php` and `b.php`, the same `describes` edge from `README.md` to `a.php`, and in the second
-  project a commit with pull request 77 that touches its `a.php` and `b.php`; and a `file_commit` row,
-  inserted directly in the database, that links the first project's `a.php` and `b.php` to that
-  commit of the second project
+  project a commit with pull request 77 that touches its `a.php` and `b.php`, a file `c.php` with a
+  `co_changed` edge from `a.php` to `c.php`, and a document `docs/second.md` with a `describes` edge
+  towards `a.php`, which the first project lacks; and a `file_commit` row, inserted directly in the
+  database, that links the first project's `a.php` and `b.php` to that commit of the second project
 - **WHEN** the three history reads of the first project are called with the paths `a.php` and `b.php`
-- **THEN** the co-change has no pull request 77, the file commit read returns no commit of the second
-  project, and every path returned is a path of the first project's files
+- **THEN** the co-change result is exactly `{ fromPath: 'a.php', toPath: 'b.php', weight: <the first
+  project's weight>, prNumbers: [] }`
+- **AND** the document link result is exactly `{ README.md, a.php }`
+- **AND** the file commit read returns no commit of the second project
 
 #### Scenario: The in-memory double reads the same history
 
@@ -79,17 +86,26 @@ SHALL be ordered by `fromPath`, then `toPath`, in byte order.
 - **GIVEN** a saved project whose graph has the files `a.php`, `b.php` and `c.php`, a `co_changed`
   edge from `a.php` to `b.php` with `weight` 0.5 and one from `c.php` to `a.php` with `weight` 1, the
   commits with pull requests 4 and 2 and a commit without a pull request touching `a.php` and `b.php`,
-  and two commits with pull request 9 touching `a.php` and `c.php`
+  and two commits with pull request 9 touching `a.php` and `c.php`, every commit with a message and an
+  author hash
 - **WHEN** the co-changes of `['a.php']` are read, then those of `['b.php']`
 - **THEN** the first result is exactly `{ fromPath: 'a.php', toPath: 'b.php', weight: 0.5, prNumbers:
   [2, 4] }` then `{ fromPath: 'c.php', toPath: 'a.php', weight: 1, prNumbers: [9] }`
 - **AND** the second is exactly the first of those two entries
+- **AND** every row holds exactly the keys `fromPath`, `toPath`, `weight` and `prNumbers`
 
 #### Scenario: Edges of other kinds are not co-changes
 
 - **GIVEN** a saved project whose graph has, between the files `a.php` and `b.php` or their symbols,
   edges of kinds `imports`, `calls`, `tested_by` and `describes`, and no `co_changed` edge
 - **WHEN** the co-changes of `['a.php', 'b.php']` are read
+- **THEN** the result is an empty list
+
+#### Scenario: A co-change without weight is not read
+
+- **GIVEN** a saved project whose graph has the files `a.php` and `b.php` and a `co_changed` edge from
+  `a.php` to `b.php` whose `weight` is NULL
+- **WHEN** the co-changes of `['a.php']` are read
 - **THEN** the result is an empty list
 
 ### Requirement: Document link read
@@ -105,8 +121,9 @@ byte order.
 
 - **GIVEN** a saved project whose graph has the document `README.md` with `describes` edges towards
   the symbol `S` of `a.php`, towards the file `a.php` and towards the symbol `T` of `b.php`, the
-  document `docs/x.md` with a `describes` edge towards the file `c.php`, and a `co_changed` edge from
-  `README.md` to `c.php`
+  document `docs/x.md` with a `describes` edge towards the file `c.php`, a `co_changed` edge from
+  `README.md` to `c.php`, and a `describes` edge from the file `src/x.php`, of kind `source`, towards
+  the file `a.php`
 - **WHEN** the document links of `['a.php', 'b.php', 'c.php']` are read, then those of
   `['a.php', 'b.php']`
 - **THEN** the first result is exactly `{ README.md, a.php }`, `{ README.md, b.php }` and
@@ -125,10 +142,11 @@ ordered by `path` in byte order, then `committedAt` ascending, then `sha` in byt
 
 - **GIVEN** a saved project whose graph has the files `a.php` and `b.php`, the commit `k1` dated
   2024-01-02 touching both, the commit `k2` dated 2024-01-01 touching `a.php`, and the commit `k3`
-  without a date touching `a.php`
+  without a date touching `a.php`, every commit with a message and an author hash
 - **WHEN** the file commits of `['a.php', 'b.php']` are read
 - **THEN** the result is exactly `{ a.php, k2, 2024-01-01 }`, `{ a.php, k1, 2024-01-02 }` and
   `{ b.php, k1, 2024-01-02 }`, in that order, each `committedAt` an instant
+- **AND** every row holds exactly the keys `path`, `sha` and `committedAt`
 
 ## MODIFIED Requirements
 

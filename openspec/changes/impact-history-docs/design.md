@@ -77,11 +77,25 @@ unknown id gives no project row and fails with `ProjectNotFound`), filtering `fi
 `edge.project_id` and `commit.project_id` against the project on every join (the `file_commit`
 cross-project risk of the Context). `prNumbers` is computed in SQL (`array_agg(DISTINCT pr_number
 ORDER BY pr_number)` over the commits linked to both files), so the core never sees commit rows of a
-co-change. Validation (`paths` an array of non-empty strings without NUL) is shared by the three
-reads in the store and in the double.
+co-change. The co-change statement leaves out a `co_changed` edge whose `weight` is NULL, so
+`StoredCoChange.weight` is always a `number` (P2).
+
+Validation (`paths` an array of non-empty strings without NUL) is a new `assertValidPaths(paths)` in
+`packages/core/src/knowledge/read-arguments.ts`, beside the other read checks, called by
+`postgres-store.ts` and by `tests/support/in-memory-store.ts`, so there is one copy. The order is the
+existing one (`postgres-store.ts:233`, `:337`): a malformed id fails with `ProjectNotFound` without a
+statement; then `assertValidPaths`; then the statement, through `runProjectQuery`, where zero rows
+means an unknown id. The double follows the same order.
+
+Each statement returns the project row even when nothing matches (the `project` row is left-joined
+with the lateral subquery, `LEFT JOIN LATERAL … ON true`, giving one row with NULL columns, as
+`INDEX_STATE_FILES` gives one with a NULL path through its `LEFT JOIN file`), so `runProjectQuery` fails with `ProjectNotFound` only for an unknown id, and an empty or
+unknown `paths` gives an empty list after the NULL row is dropped in the mapping.
 
 *Alternative rejected:* extend `neighbors` with `weight` and seed provenance — it changes a read with
-many callers and a one-statement recursive query, for a need of one use case.
+four call sites in two modules (`packages/core/src/context/expand.ts:41`,
+`packages/core/src/impact/reverse-walk.ts:42,145,177`) and its one-statement recursive query, for the
+need of one use case.
 
 ### D4. Co-change history, no threshold (enrich decision 4)
 
@@ -109,9 +123,12 @@ returned — `readFileCommits(projectId, docs ∪ described files)`. Dates are c
 
 ### D7. Where the reads run in `impact.ts`
 
-After `buildReport` and before `assessRisk`, only for answered reports: `readCoChanges` with the
+After `directCoverage` and before `assessRisk`, only for answered reports: `readCoChanges` with the
 anchor files, `readDocumentLinks` with the report files, then `readFileCommits` when needed. They run
-in sequence (one connection pool, determinism of the statement order that the unit tests assert). A
+in sequence, in that order (one connection pool, a deterministic statement order; an extra case of
+task 4.8 records the order of the calls on the double). `answer()` then adds `docs` and `history` to
+the body that `buildReport` returned, before calling `assessRisk`, so the body satisfies `ReportBody`
+(`risk.ts:7`, which gains both fields through `Omit`). A
 failure of any of them propagates unchanged and, since the row is written after the report, writes
 no `query_log` row (spec scenario "A failing history read fails the call without a row"). An
 `unknown` report makes none of them. The `ImpactReport` answered variant gains `docs` and `history`
@@ -121,7 +138,9 @@ before `risk`.
 
 `packages/cli/src/commands/impact.ts` prints `DOCUMENTACIÓN` and `HISTORIAL` between `TESTS` and
 `RIESGO` with the formats of the `cli-impact` spec, through the same terminal-safe helper as the other
-lines. The rate is `Math.round(coChangeRate * 100)`. The document line carries no origin tag: its
+lines. The rate is `Math.round(coChangeRate * 100)` computed in double precision, the same wording
+as the `cli-impact` spec (a decimal half that is not exact in binary, such as 0.145, rounds down;
+the stored weights are Jaccard ratios, and the tests use only exact values). The document line carries no origin tag: its
 link is from the graph and its state from git; the `HISTORIAL` lines carry `[git]`, which is the
 separation the demo shows.
 
@@ -174,8 +193,21 @@ this change; B = another existing ticket; C = the author; D = accepted and recor
 | E6 | (6) The CLI prints `DOCUMENTACIÓN` and `HISTORIAL` between `TESTS` and `RIESGO` (design D8). | A |
 | E7 | (7) The `docs/DEMO.md` Paso 4 captures in a new PowerShell terminal are the author's; the agent runs the same commands in Git Bash (task 10.6). | C — author |
 | P1 | A co-changed file is listed in `history` even when it is also in `direct`/`indirect`: the two origins are independent signals, and the parent AC forbids only mixing them in one list. | A |
-| P2 | A `co_changed` edge without `weight` is ignored (DIS-36 always writes one; a null would be a store anomaly). | A |
+| P2 | The co-change read leaves out a `co_changed` edge with a NULL `weight` (spec graph-store "A co-change without weight is not read"); `StoredCoChange.weight` is a `number`, so the core never filters it (DIS-36 always writes one; a null would be a store anomaly). Changed in correction round 1 (finding 6a, option a). | A |
 | P3 | Each history read is one statement that also checks the project (`ProjectNotFound`), as the existing reads. | A |
 | P4 | `readFileCommits` is skipped when no document is related, so a report without documents costs two statements more, not three. | A |
 | P5 | `ImpactDocEntry` is a discriminated union on `stale`, so `staleSince` exists only on stale entries. | A |
 | P6 | No ADR (design D10). | D — accepted |
+
+*Agent's text, correction round 1 of the spec audit (2026-11-02, `reports/2026-11-02-spec-audit.md`
+→ "Resolution of run 1"): the two questions for the author answered by the agent as lead engineer,
+and the choices the audit left open.*
+
+| Id | Decision | Destination |
+|---|---|---|
+| R1-QA1 | The DoD "Q2 completa (`[git]` y doc stale)" and parent AC 2 are read as E1 says: over the real seed `docs` is `README.md` current, and the stale state is proven over the seed with the commit added inside the test transaction (scenario "A later change to the price calculator makes the readme stale") and by hand in task 10.3. `docs/pricing.md` stale since #61 is not reproduced: it has no `describes` edge (DIS-49, signed), and giving it one would be a new linking rule, wider scope owned by DIS-49/DIS-71. Signs E1 for the run. | D — accepted |
+| R1-QA2 | Parent AC 1 is met with the change text «cambiar los descuentos de DiscountService», as DIS-89 and DIS-90: the main spec `impact` → "Limit of the lexical anchor" already says the literal text «cambiar el cálculo de descuentos» anchors `PriceCalculator`, whose file has no `co_changed` edge, so its `history` is empty. Changing the anchor is out of scope. Task 10.2 runs the literal text and records that output. | D — accepted |
+| R1-6a | Option (a) of the audit: the co-change read filters a NULL `weight` (P2 updated, new graph-store scenario); the core does not. | A |
+| R1-6b | Rounding: the spec takes D8's `Math.round(coChangeRate * 100)` in double precision; "halves up" is removed. | A |
+| R1-6c | D7 keeps the claim of a fixed read order, and an extra case of task 4.8 asserts it on the double. | A |
+| R1-8a | `assertValidPaths` lives in `packages/core/src/knowledge/read-arguments.ts`, one copy for the store and the double. | A |

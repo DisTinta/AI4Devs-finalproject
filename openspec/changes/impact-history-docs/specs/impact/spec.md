@@ -90,8 +90,8 @@ values of `direct` and `indirect`.
 
 #### Scenario: A document touched with or after its code is not stale
 
-- **GIVEN** the graph of the previous scenario where `docs/a.md` is also touched by `c2`, and then,
-  instead, by a commit of 2024-04-01
+- **GIVEN** two graphs based on the previous scenario: in the first, `docs/a.md` is touched by `d1`
+  and by `c2`; in the second, by `d1` and by the commit `d2` of 2024-04-01
 - **WHEN** impact is asked for `cambiar run` with `maxHops` 1, once for each graph
 - **THEN** each time `docs` is exactly `{ path: 'docs/a.md', stale: false }`, without a `staleSince`
   key
