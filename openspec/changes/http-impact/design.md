@@ -165,7 +165,7 @@ None: a new route, no schema or data change. Rollback is reverting the PR.
 *Agent's text: decisions taken by the agent as lead engineer in the autonomous run
 (`docs/AUTONOMOUS-RUN.md` §6), without the author. E1–E8 are the DIS-95 enrich decisions 1–8
 (comment of 2026-11-02 in the ticket); P1–P5 are design decisions of this proposal; R1–R5 are the agent's decisions of spec-audit
-correction round 1 (2026-11-02); X1–X2 are the agent's decisions of the apply step. Destinations: A =
+correction round 1 (2026-11-02); X1–X2 are the agent's decisions of the apply step; V1–V3 are the agent's decisions of the review step. Destinations: A =
 this change; B = another existing ticket; C = the author (none in this change, by the author's
 instruction for DIS-95); D = accepted and recorded.*
 
@@ -191,3 +191,6 @@ instruction for DIS-95); D = accepted and recorded.*
 | R5 | Audit run 1, 5.d: in step 6 the non-ASCII bodies are sent with JSON escapes so Git Bash on Windows sends ASCII bytes. | A |
 | X1 | Apply, task 9.5 (decision of the agent): the edit of `## Purpose` of `openspec/specs/impact/spec.md` was tried with the change active and its audit approved, and `protect-specs-and-tests` denied it: «Unattended run: the main spec impact is only synced from an approved delta of the active change (http-impact).» This change has no `impact` delta by design (D8), and adding one only to unlock the edit would widen the scope after the approved audit, so the fallback of D8 applies: the `## Purpose` stays as it is, the denial and its reason are recorded here and in the DIS-95 comment, and the next change that touches `impact` carries the Purpose update (it names the related documentation, current or stale, and the co-change history from git of an answered report; DIS-94 task 13.7). No new ticket. | D — accepted and recorded |
 | X2 | Apply, step 5: the development database holds the two committed seed projects and the integration harness refuses to start with them (`assertNoCommittedProjects`), so the database-backed specs ran against the documented `codemind_test` database with `DATABASE_URL` on the command line; step 6 used the development database and restored it. No file changed. | D — accepted |
+| V1 | Review step, verify V1 / adversarial Major (decision of the agent): the compile-time literal check of D6 resolved to `never` instead of failing; fixed with `Expect<T extends true>` in `packages/api/src/schemas/impact.ts`, red shown by a temporary `'CRITICAL'` literal (`TS2344`), reverted. No runtime change, no test can observe it. | A |
+| V2 | Review step, verify V2 / adversarial Minor: the two event scenarios now assert the event line's `reqId` equals the request's `incoming request` line, as their `THEN` states (`tests/unit/api/impact.spec.ts`, created by this branch). | A |
+| V3 | Review step, adversarial Minor: tasks 9.1–9.4 ticked with their evidence and the CI addendum added to the step 5 report. | A |

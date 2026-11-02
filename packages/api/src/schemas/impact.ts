@@ -41,10 +41,16 @@ const impactUnknownReasonSchema = z.literal('no-anchor');
 /** Whether the types `A` and `B` are identical. */
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
 
-/** Compile-time two-way check of the literals above against core's types (design D6): drift fails the typecheck. */
+/** Accepts only `true`: a `false` argument is a compile error (TS2344), not a silent `never`. */
+type Expect<T extends true> = T;
+
+/**
+ * Compile-time two-way check of the literals above against core's types (design D6): drift in either
+ * direction makes `Equal` `false`, which `Expect` rejects, so `npm run typecheck` fails.
+ */
 export type ImpactLiteralsMatchCore = [
-  Equal<z.infer<typeof riskLevelSchema>, RiskLevel> extends true ? true : never,
-  Equal<z.infer<typeof impactUnknownReasonSchema>, ImpactUnknownReason> extends true ? true : never,
+  Expect<Equal<z.infer<typeof riskLevelSchema>, RiskLevel>>,
+  Expect<Equal<z.infer<typeof impactUnknownReasonSchema>, ImpactUnknownReason>>,
 ];
 
 /** A component of `direct` or `indirect` (D1): its symbol and file, where it comes from, how sure the edge is and the hops. */

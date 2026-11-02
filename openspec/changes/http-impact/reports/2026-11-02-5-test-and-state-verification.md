@@ -86,3 +86,16 @@ Not applicable: `packages/web` is untouched; the HTTP interface is exercised in 
 ## Outcome
 - Status: PASS
 - Blocking issues: none
+
+## Addendum — CI and review fixes (task 9.2, 9.4; 2026-11-02)
+
+*Agent's text (autonomous run, review step).*
+
+- CI of PR #95 at `618dd67`: the six checks green — `scope`, `secrets`, `frontend`, `quality`,
+  `verify` and `mutation` (runs https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/41453575743
+  and https://github.com/DisTinta/AI4Devs-finalproject/actions/runs/41453575859).
+- Review fixes (design Follow-ups V1, V2): the compile-time literal check of `schemas/impact.ts` now
+  fails on drift (`Expect`), and the two event tests tie the event to the request's `reqId`. Re-run:
+  `npx vitest run tests/unit/api` 11 files, 115 tests passed; `npm run typecheck`, `npm run lint`,
+  `npm run docs:coverage` clean. The fix commit's CI is awaited in the review step until no check is
+  pending, and its result is in the DIS-95 comment of that step.

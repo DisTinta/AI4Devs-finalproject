@@ -371,8 +371,9 @@ describe('impact unknown response', () => {
     const eventLines = lines.filter((line) => line.type === 'query_not_logged');
     expect(eventLines).toHaveLength(1);
     expect(eventLines[0]).toMatchObject({ type: 'query_not_logged', code: 'store-write-failed', level: 30 });
-    const requestIds = lines.filter((line) => typeof line.reqId === 'string').map((line) => line.reqId);
-    expect(requestIds).toContain(eventLines[0]!.reqId);
+    const incoming = lines.find((line) => line.msg === 'incoming request');
+    expect(typeof incoming?.reqId).toBe('string');
+    expect(eventLines[0]!.reqId).toBe(incoming!.reqId);
   });
 });
 
@@ -469,7 +470,9 @@ describe('impact events', () => {
     const eventLines = lines.filter((line) => line.type === 'query_not_logged');
     expect(eventLines).toHaveLength(1);
     expect(eventLines[0]).toMatchObject({ code: 'store-write-failed', level: 30, msg: 'impact event' });
-    expect(typeof eventLines[0]!.reqId).toBe('string');
+    const incoming = lines.find((line) => line.msg === 'incoming request');
+    expect(typeof incoming?.reqId).toBe('string');
+    expect(eventLines[0]!.reqId).toBe(incoming!.reqId);
     expect(lines.map((line) => JSON.stringify(line)).join('\n')).not.toContain('SENTINEL-change-7b2c');
   });
 });
