@@ -197,3 +197,26 @@ Add to the `[enhanced]` section, under a heading such as "Decisiones de la audit
 ### Linear DIS-14 / DIS-50
 
 No change is needed beyond task 11.4's comment on DIS-14, unless the author's answer to Q1 differs. In that case, add a Spanish comment on DIS-77 and DIS-14 recording the decision.
+
+---
+
+## Resolution of run 1
+
+*Agent's text: correction round 1 of the autonomous run (`docs/AUTONOMOUS-RUN.md` §6), 2026-11-02. Every decision is recorded in `design.md` → Follow-ups (A1–A8). `openspec validate informative-coverage --strict` passes after the edits.*
+
+| Finding | Resolution | How |
+|---|---|---|
+| Q1 (web in the mutation gate) | Decided by the agent | `packages/web` stays out of `mutate`: the DoD scopes the gate to core, the author's instruction limits the change to what is missing, and adding it reverses DIS-58 D25. No owner ticket (no new Linear issues in this run); the DIS-14 comment of task 11.4 records it. Follow-up A1, destination D. |
+| B1 (TESTING.md without scenario) | Fixed | New requirement "The testing guide states the pyramid and the policy" with the scenario "The testing guide documents the pyramid and the coverage policy"; task 11.1 is now RED (`tests/unit/docs/testing-guide.spec.ts`) and 11.1b GREEN; proposal, D5, D6 updated. A2. |
+| B2 (main spec `local-startup` changed without delta) | Fixed | New delta `specs/local-startup/spec.md` (MODIFIED "Which commands load .env", both scenarios copied whole, `test:coverage` added to the requirement and the fourth bullet); proposal → Modified Capabilities, P5, tasks 2.3 and 13.9 updated. A3. |
+| B3 (wall-clock specs under V8) | Fixed, decided by the agent | New design D7: the four `*.linear.spec.ts` / `*.scaling.spec.ts` specs are excluded from the coverage run (CI `Tests` step and `test:coverage` script, double-quoted globs so the script works in `cmd.exe`, PowerShell and Bash) and run in a new CI step `Timing budgets` without coverage. Requirement, scenario "The CI publishes coverage without blocking", D3, Risks, tasks 2.1, 2.2, 2.4 (checks the four files are not run), 4.1, 4.2 and 11.2 updated. The measured-margin alternative was rejected. A4. |
+| B4 (input cases undecided) | Fixed | Requirement now fixes: only `ENOENT` is "no report"; any other read error, non-object JSON, an entry under `packages/` missing a metric or with a non-numeric `covered`/`total` is "unreadable"; an object with no `packages/` entry gives only the `Total` row with `n/a` and `—`. Scenario "An unreadable coverage report is reported, not failed" widened (missing `branches`, non-numeric `lines.covered`, `EISDIR`); new scenario "An empty summary shows only the Total row"; D4 → Input cases; tasks 3.6 and 3.6b. A5. |
+| I1 (default path untested) | Fixed | AND line added to "A missing coverage report is reported, not failed"; task 3.5. A7. |
+| I2 (rounding against the target) | Fixed | Requirement says "unrounded line percentage"; the 79.96 % → `80.0 %` / `✗ 80 %` case added to scenario 3, D4 and task 3.4. A7. |
+| I3 ("never fail" overstated) | Fixed | Requirement now reads "no coverage figure SHALL fail a local run or a CI run". A7. |
+| I4 (readme ">" vs "at least") | Fixed | D4 records that the readme's ">80 %" / ">70 %" is read as "at least" and that §2.6 is aligned by the docs work. A7. |
+| I5 (coverage cost compared on different projects) | Fixed | Tasks 2.4, 8.3 and 9.1 use `npm run test:coverage -- --project dom --project seed-build --project node`, the same projects as the 0.4 baseline. A7. |
+| I6 (`docs/project-context.md:97-98` not named) | Fixed | Task 11.2 adds `test:coverage` to the quality-scripts list of the `.env` loading bullet. A7. |
+| I7 (`always()` vs `!cancelled()`) | Fixed, decided by the agent | `!cancelled()`, the repository's pattern; spec, D3, task 4.1 and E4 updated; the enhanced criterion 3 of DIS-77 is updated in `[enhanced]`. A6. |
+| I8 (`scripts/**` not in the `runtime` filter) | Decided by the agent: recorded, not fixed | Pre-existing gap for every script; recorded in design → Risks to keep the scope least. A8, destination D. |
+| I9 (manual step too large) | Fixed | Task 9.1 runs the filtered suite once in Bash and only the summary command in the three shells. A7. |

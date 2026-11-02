@@ -70,18 +70,27 @@ this pull request confirms it (task 13).
 
 ### D3 — CI: one pass, one informative step
 
-In `quality`, the `Tests` step's command becomes `npx vitest run --coverage` (the env is unchanged).
-Right after it:
+In `quality`, the `Tests` step's command becomes
+`npx vitest run --coverage --exclude "**/*.linear.spec.ts" --exclude "**/*.scaling.spec.ts"` (the env is
+unchanged; the exclusions are D7). Right after it:
 
 ```yaml
 - name: Coverage summary (informative)
-  if: always() && steps.gate.outputs.run == 'true'
+  if: ${{ !cancelled() && steps.gate.outputs.run == 'true' }}
   continue-on-error: true
   run: node scripts/coverage-summary.mjs coverage/coverage-summary.json >> "$GITHUB_STEP_SUMMARY"
+
+- name: Timing budgets
+  if: steps.gate.outputs.run == 'true'
+  run: npx vitest run tests/unit/index/secret-scanner.linear.spec.ts tests/unit/index/secret-scanner.scaling.spec.ts tests/unit/explain/sanitize.linear.spec.ts tests/unit/explain/sanitize.scaling.spec.ts
 ```
 
-`always()` makes it run when `Tests` failed; the gate condition keeps it off when `quality` skipped the
-suite (docs-only push), and `continue-on-error` means even a crash of the script cannot turn the job red.
+`!cancelled()` makes the summary run when `Tests` failed but not after a cancellation or a job timeout,
+the repository's pattern for "run even when the previous step failed" (`ci.yml` → `secrets`, "Scan
+commits of the event"); it replaces the `always()` of the ticket's enhanced criterion 3 (audit I7). The
+gate condition keeps it off when `quality` skipped the suite (docs-only push), and `continue-on-error`
+means even a crash of the script cannot turn the job red. `Timing budgets` follows the `Hook timing`
+pattern (only on a green run, no coverage).
 A separate coverage job was rejected: it would run the whole suite a second time with its own Postgres
 (enrich E3). The comment of the mutation step ("Coverage is published as a signal") is rewritten to
 point at this step. If the measured `quality` duration on the pull request exceeds 13 of its 15 minutes,
@@ -98,10 +107,20 @@ Pure exports, typed in `scripts/coverage-summary.d.mts`:
 - `renderMarkdown(rows)` → the heading, the sentence and the table of the spec; percentages with
   `toFixed(1)` and ` %`, `n/a` for a zero total; the target cell from a fixed map
   `{ core: 80, 'analyzers/*': 70 }` (the targets of `readme.md` §2.6, parent DIS-50), compared with
-  `>=` on the unrounded line percentage.
+  `>=` on the unrounded line percentage (79.96 % is written `80.0 %` and marked `✗ 80 %`). The
+  readme's ">80 %" / ">70 %" is read as "at least" (the parent DIS-50 writes "80 % core / 70 %
+  analyzers"); aligning §2.6 is left to the docs work, as the ticket says (audit I4).
 - `runCoverageSummary({ args, readFile, stdout })` → reads the file (default
   `coverage/coverage-summary.json`), writes the table or the one-line notice, and returns 0 in every
   case. The entry guard calls it with `node:fs` and `process.stdout` and sets `process.exitCode`.
+
+Input cases (audit B4): a read error with `code === 'ENOENT'` → the "no report" notice. Any other read
+error (`EISDIR`, `EACCES`, …), invalid JSON, JSON that is not a plain object (array, `null`, number), or
+a file entry under `packages/` without one of `lines`, `statements`, `functions`, `branches` or with a
+`covered`/`total` that is not a finite number → the "unreadable" notice. A plain object with no file
+entry under `packages/` (for example only `total`) → the heading, the sentence and a table with only the
+`Total` row, `n/a` in its four metrics and `—` as target. Entries outside `packages/` are ignored
+without being validated.
 
 Texts (Spanish, as `docs/`): heading `## Cobertura por paquete (informativa)`; sentence `La cobertura
 no bloquea el pipeline: la puerta es la puntuación de mutación (stryker.config.json).`; notices
@@ -110,7 +129,7 @@ loads no `.env` and imports only `node:` modules.
 
 ### D5 — Guard tests
 
-- `tests/unit/scripts/coverage-summary.spec.ts`: the five scenarios of "Per-package coverage summary",
+- `tests/unit/scripts/coverage-summary.spec.ts`: the six scenarios of "Per-package coverage summary",
   one test each with the scenario's exact name, calling `runCoverageSummary` with an in-memory
   `readFile` and a string `stdout` (pattern of `tests/unit/scripts/dev-processes.spec.ts`); fixtures
   built in the test, absolute Windows and POSIX paths.
@@ -118,9 +137,17 @@ loads no `.env` and imports only `node:` modules.
   `vitest.config.ts`, reads `package.json`), "The CI publishes coverage without blocking" and "The
   mutation gate stays hard" (parse `ci.yml`, `frontend.yml` with `yaml`, read `stryker.config.json`);
   local `Step`/`Job` interfaces as `e2e-job.spec.ts`.
-- `tests/unit/scripts/wiring.spec.ts` (existing): `test:coverage` added to `QUALITY`.
+- `tests/unit/scripts/wiring.spec.ts` (existing): `test:coverage` added to `QUALITY`; it implements the
+  scenario "The guide's scripts load .env and the quality scripts do not" of `local-startup`, which this
+  change modifies by a delta (audit B2).
+- `tests/unit/docs/testing-guide.spec.ts` (new): "The testing guide documents the pyramid and the
+  coverage policy"; reads `docs/TESTING.md` as text and checks the `Cobertura` row, the five levels of
+  `## Pirámide de tests` with an integer count, the date and commit, and the `## Cobertura` section
+  (audit B1).
 
 ### D6 — The pyramid in `docs/TESTING.md`
+
+Traced by the requirement "The testing guide states the pyramid and the policy" (audit B1).
 
 "Real pyramid" = test files per level, counted at implementation time with a command recorded in the
 section, with date and commit (enrich E7): unit (`tests/unit` + `packages/web/src`), integration, kit
@@ -128,6 +155,21 @@ hooks, accessibility, end-to-end. One more row "Cobertura" in the levels table (
 test:coverage`, `CI` → `quality`, informative), and a section "Cobertura" with the policy: coverage
 informs per package with the §2.6 targets marked, never blocks; the mutation score (`break` 80) is the
 only gate. The mutation row and section stay as they are.
+
+### D7 — Wall-clock specs never run under coverage
+
+The four timed specs (`tests/unit/index/secret-scanner.{linear,scaling}.spec.ts`,
+`tests/unit/explain/sanitize.{linear,scaling}.spec.ts`) measure the time of hot loops against fixed
+budgets (2000 ms per case, an 8× n/4n ratio); V8 block coverage changes exactly what they measure, as
+`vitest.stryker.config.ts` already records for instrumented code. The coverage run excludes them with
+two CLI `--exclude` globs, `"**/*.linear.spec.ts"` and `"**/*.scaling.spec.ts"`, in both the CI `Tests`
+step and the `test:coverage` script; the globs are written with double quotes so the npm script works
+the same under `cmd.exe`, PowerShell and Bash. A new CI step `Timing budgets` (D3) runs the four files
+without coverage, so their budgets keep gating `quality` as before. Their modules keep coverage through
+their other specs (`secret-scanner.spec.ts`, `sanitize.spec.ts`). Plain `npx vitest run` and `npm test`
+still run them. Task 2.4 confirms that the coverage run lists none of the four files. Rejected
+alternative: keep them under coverage and measure the margin, which turns a timing noise into a red
+`Tests` step the next time a runner is slow.
 
 ## Risks / Trade-offs
 
@@ -139,6 +181,10 @@ only gate. The mutation row and section stay as they are.
   fails the `Tests` step: the pin in D1 and a sentence in `docs/project-context.md` → Testing say both
   move together.
 - [Coverage of a red run is partial] → informative by definition; the summary still shows it.
+- [Timed specs under V8 coverage] → excluded from the coverage run and run in `Timing budgets` (D7).
+- [`scripts/**` is not in the `runtime` filter of `quality`] → a pull request that changes only a
+  `scripts/*.mjs` file (this summary script included) skips `Tests`. The gap already exists for every
+  script and is not widened here; recorded, not fixed (audit I8, Follow-up A8).
 
 ## Migration Plan
 
@@ -157,7 +203,7 @@ accepted and recorded.*
 | E1 | The mutation threshold stays at 80 (not lowered to 70): the DoD asks to fail below 70 in core and 80 over core, cli and api already meets it. Only a guard test is added that fails if the gate is removed or lowered below 70. | A |
 | E2 | Coverage with `@vitest/coverage-v8` pinned to the exact `vitest` version (4.1.12), off by default and without `thresholds`; `npm run test:coverage` for local use (D1, D2). | A |
 | E3 | In CI, coverage is collected in the existing `Tests` step of `quality`, not in a new job; if `quality` exceeds ~13 of its 15 minutes, the limit goes to 20 and the figure is recorded (D3). | A |
-| E4 | The per-package summary is written by `scripts/coverage-summary.mjs` to `$GITHUB_STEP_SUMMARY` in a step with `continue-on-error: true` and `always()`; with no report it prints a notice and exits 0 (D3, D4). | A |
+| E4 | The per-package summary is written by `scripts/coverage-summary.mjs` to `$GITHUB_STEP_SUMMARY` in a step with `continue-on-error: true` and `always()` (replaced by `!cancelled()`, A6); with no report it prints a notice and exits 0 (D3, D4). | A |
 | E5 | No external service (Codecov, Coveralls) and no artifact upload: the job summary is enough and keeps the source on the runner. | D — accepted |
 | E6 | `frontend.yml` does not change: its partial suite would give incomplete, duplicated coverage. | D — accepted |
 | E7 | "The real pyramid" = test files per level, measured at implementation time with date and commit (D6). | A |
@@ -167,5 +213,19 @@ accepted and recorded.*
 | P2 | Inbound hand-off from DIS-14 (`impact-page` Follow-ups P7 and P18, destination B to this ticket): `packages/web` is in coverage (D2) but is **not** added to Stryker's `mutate`. The DoD scopes the gate to core, the author asked to limit the change to what is missing, and mutating the web needs jsdom in Stryker's dry run (excluded by DIS-58 D25) and marking the equivalent `signal.aborted` mutants of `useImpact.ts` and `useAsk.ts`. Recorded; the web's coverage row makes the gap visible. | D — accepted |
 | P3 | `reportOnFailure: true`, so a red run still publishes the summary (D2). | A |
 | P4 | The full mutation pass caused by the lock and `vitest.config.ts` changes is accepted (Risks). | D — accepted |
-| P5 | Changed existing test: `tests/unit/scripts/wiring.spec.ts` → "The guide's scripts load .env and the quality scripts do not" gains `test:coverage` in `QUALITY`; the assertion is extended, not weakened (D5). | A |
+| P5 | Changed existing test: `tests/unit/scripts/wiring.spec.ts` → "The guide's scripts load .env and the quality scripts do not" gains `test:coverage` in `QUALITY`; the assertion is extended, not weakened, and the main spec `local-startup` is modified by a delta of this change (D5, audit B2). | A |
 | P6 | The summary texts are in Spanish, like `docs/` and the job summary readers; the code and the CI step name stay in English (D4). | A |
+
+*Agent's text: decisions of the spec-audit correction round 1 (report `reports/2026-11-02-spec-audit.md`
+→ "Resolution of run 1"), taken by the agent as lead engineer without the author.*
+
+| Id | Decision | Destination |
+|---|---|---|
+| A1 | Q1: `packages/web` stays out of Stryker's `mutate` (P2 confirmed). The DoD scopes the gate to core, the author asked to limit the change to what is missing, and mutating the web reverses DIS-58 D25. No owner ticket is opened (no new Linear issues in this run); the web's coverage row keeps the gap visible and the DIS-14 comment of task 11.4 records it. | D — accepted |
+| A2 | B1: the DoD clause on `docs/TESTING.md` becomes the requirement "The testing guide states the pyramid and the policy" with a scenario implemented by `tests/unit/docs/testing-guide.spec.ts`; task 11.1 is RED → GREEN. | A |
+| A3 | B2: the change carries a MODIFIED delta of `local-startup` ("Which commands load .env") adding `test:coverage`; proposal and task 13.9 updated. | A |
+| A4 | B3: the four wall-clock specs never run under coverage; they are excluded from the coverage run and run in a new CI step `Timing budgets` (D7). The alternative of measuring their margin under coverage was rejected. | A |
+| A5 | B4: input cases fixed — only `ENOENT` is "no report"; other read errors, non-object JSON, missing or non-numeric metrics are "unreadable"; an object with no `packages/` entry gives only the `Total` row with `n/a` (D4, two scenarios widened or added). | A |
+| A6 | I7: the summary step uses `!cancelled()` instead of `always()`, the repository's pattern; the ticket's enhanced criterion 3 is updated in its `[enhanced]` section, never in `[original]`. | A |
+| A7 | I1, I2, I3, I4, I5, I6, I9: no-argument default path in a scenario; target on the unrounded percentage with the 79.96 % case; "no coverage figure fails a run"; the readme's ">" read as "at least"; the local coverage runs filtered to `dom`, `seed-build`, `node` and run once; `docs/project-context.md` quality-scripts list gains `test:coverage`. | A |
+| A8 | I8: `scripts/**` missing from the `runtime` filter is a pre-existing gap for every script; recorded in Risks and not widened here (least scope). | D — accepted |
