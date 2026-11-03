@@ -1674,6 +1674,13 @@ services that must be started first, quirks of the local environment.
   `docs/measurements/annotation-agreement.md`. Regenerate only with
   `node scripts/annotation-agreement.mjs merge`, which changes the hashes and fails that test; never
   edit those files.
+- **The Table 1 verdicts live in `docs/measurements/answer-review/verdicts.csv`** (DIS-82): one row per
+  answer of the context measurement (40), judged blind by two independent reviewer agents of different
+  models and a third agent for the disagreements, and frozen by `tests/unit/docs/answer-review.spec.ts`
+  against the hashes of `docs/measurements/answer-review.md`. Regenerate only with
+  `node scripts/answer-review.mjs merge`, which changes the hashes and fails that test; never edit those
+  files. The answers of `docs/measurements/context/answers/` are hashed too, so re-running
+  `npm run measure:context` invalidates the review. No npm script runs the review.
 - **`npm run measure:graph` measures Table 2** (DIS-79): `node scripts/measure-graph.mjs [--root <dir>]`
   checks the nine SHA-256 of `docs/measurements/annotation-agreement.md` first (exit 1, nothing written,
   on any mismatch), then reads `fixtures/annotations/*.callsites.json` and the `project`, `file`,

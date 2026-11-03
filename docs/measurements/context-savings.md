@@ -129,6 +129,7 @@ Ollama 0.40.13 `prompt_eval_count` es el del prompt entero aunque Ollama reutili
   salta; en esta ejecución hubo 0 aciertos.
 - El modelo registrado es el del entorno del script; la API se lanzó con los mismos valores `LLM_*`, pero el script no
   puede leer la configuración de la API.
-- «Correctas (de 20)» no se rellena aquí: la revisión independiente de las respuestas (`context/answers/`, sin modelo,
-  tokens, coste, latencia ni confianza) es de DIS-82.
+- «Correctas (de 20)» no sale de esta medición: viene de la revisión ciega de las respuestas (`context/answers/`, sin
+  modelo, tokens, coste, latencia ni confianza) por dos agentes revisores de modelos distintos, que
+  se describe, con sus veredictos y sus hashes, en [`answer-review.md`](answer-review.md).
 - La estimación `baselineTokens` y su desviación se midieron con un solo tokenizador (el del modelo local).
