@@ -61,36 +61,36 @@
 
 ## 6. Generate the versioned golden drift report (design D6, P1, P4; spec drift-golden "The versioned golden drift file is coherent")
 
-- [ ] 6.1 Create `tests/unit/seed/drift-golden-coherence.spec.ts` (header comment: spec path and DIS-73). RED: test "The versioned golden drift file matches the seed, the table and the code" (no file yet). Its failure message for a stale fingerprint names `npm run drift:build`
-- [ ] 6.2 GREEN: with the local database up and Ollama answering (`qwen2.5-coder`), run `npm run drift:build` (raise `CACHE_BUILD_TIMEOUT_MS` in `.env` only if a request times out; never commit `.env`); record the attempt lines, the model, the duration and the contradictions of `seeds/drift/acme-shop.json` (which of case A they match) in the step 12 report; the 0.4 database counts are unchanged afterwards (the build rolls back). Run the command detached (stdout and stderr to a log in the session scratch directory), poll the log in calls shorter than 10 minutes, and record the start, end and total time. Stop a run after 3 hours without a written file and follow design → Risks (raise `CACHE_BUILD_TIMEOUT_MS`, one more run); if no answered report comes out in two runs, it is a clean stop of the ticket, recorded
-- [ ] 6.3 Run `npm run db:seed` and confirm acme-shop has a `cache_entry` row keyed `drift:`; the coherence test is green
+- [x] 6.1 Create `tests/unit/seed/drift-golden-coherence.spec.ts` (header comment: spec path and DIS-73). RED: test "The versioned golden drift file matches the seed, the table and the code" (no file yet). Its failure message for a stale fingerprint names `npm run drift:build`
+- [x] 6.2 GREEN: with the local database up and Ollama answering (`qwen2.5-coder`), run `npm run drift:build` (raise `CACHE_BUILD_TIMEOUT_MS` in `.env` only if a request times out; never commit `.env`); record the attempt lines, the model, the duration and the contradictions of `seeds/drift/acme-shop.json` (which of case A they match) in the step 12 report; the 0.4 database counts are unchanged afterwards (the build rolls back). Run the command detached (stdout and stderr to a log in the session scratch directory), poll the log in calls shorter than 10 minutes, and record the start, end and total time. Stop a run after 3 hours without a written file and follow design → Risks (raise `CACHE_BUILD_TIMEOUT_MS`, one more run); if no answered report comes out in two runs, it is a clean stop of the ticket, recorded
+- [x] 6.3 Run `npm run db:seed` and confirm acme-shop has a `cache_entry` row keyed `drift:`; the coherence test is green
 
 ## 7. CLI: the `drift` command, unit (TDD; spec cli-drift; design D4)
 
-- [ ] 7.1 Create `tests/unit/cli/drift-command.spec.ts` (header comment: spec path and DIS-73), with seams like `tests/unit/cli/ask-command.spec.ts`. RED: test "Drift help and version print without reading the environment". See it fail
-- [ ] 7.2 GREEN: `packages/cli/src/commands/drift.ts` (`runDriftCommand`, `DRIFT_APPLICATION_NAME` = `codemind-drift` and its own `defaultOpenStore` using it, as `impact.ts:90` has its own; `ask.ts`'s `defaultOpenStore` is not reused (design D4), `formatDriftReport`, `formatDriftUnknown`, `toFailure` handling `InvalidDriftRequest` and delegating to `toFailure` of `ask.ts`), the dispatch and the global-help line in `packages/cli/src/index.ts`; JSDoc on every export
-- [ ] 7.3 RED → GREEN: test "Drift usage errors never quote the arguments"
-- [ ] 7.4 RED → GREEN: test "An invalid drift document path is rejected before any connection"
-- [ ] 7.5 RED → GREEN: test "Drift configuration errors fail before any connection"
-- [ ] 7.6 RED → GREEN: test "A daily budget stops the drift model call" (the store double's index state holds `docs/pricing.md` at an indexed commit and a source double serves it, so the real use case reaches the model call)
-- [ ] 7.7 RED → GREEN: test "Only the exact name resolves the drift project"
-- [ ] 7.8 RED → GREEN: test "Drift receives only the project id and the document path"
-- [ ] 7.9 RED → GREEN: test "A drift report is printed by document with both citations". Extra cases, not scenarios: a report with `cacheHit` `true` ends with an empty line and `note: golden report (answer cache)`; a multi-line statement and claim text are continued with 3 spaces; an empty line is printed without indentation
-- [ ] 7.10 RED → GREEN: test "A project without documents answers no-docs on the command line"
-- [ ] 7.11 RED → GREEN: test "Drift events go to stderr with their level" (each event line rendered with `toTerminalSafeJson`, as the error line of `ask.ts:119`)
-- [ ] 7.12 RED → GREEN: test "Model, budget and source failures keep their code on the command line", including the `SourceUnavailable` reason `missing` throw with path `docs/pricing.md`, whose line keeps `details.path` `docs/pricing.md`
-- [ ] 7.13 RED → GREEN: test "An unexpected drift failure is internal"
-- [ ] 7.14 RED → GREEN: test "Control characters in a drift report are escaped" (stdout and stderr, with the `drift_doc_skipped` event whose `docPath` holds `\u001b[2J`)
+- [x] 7.1 Create `tests/unit/cli/drift-command.spec.ts` (header comment: spec path and DIS-73), with seams like `tests/unit/cli/ask-command.spec.ts`. RED: test "Drift help and version print without reading the environment". See it fail
+- [x] 7.2 GREEN: `packages/cli/src/commands/drift.ts` (`runDriftCommand`, `DRIFT_APPLICATION_NAME` = `codemind-drift` and its own `defaultOpenStore` using it, as `impact.ts:90` has its own; `ask.ts`'s `defaultOpenStore` is not reused (design D4), `formatDriftReport`, `formatDriftUnknown`, `toFailure` handling `InvalidDriftRequest` and delegating to `toFailure` of `ask.ts`), the dispatch and the global-help line in `packages/cli/src/index.ts`; JSDoc on every export
+- [x] 7.3 RED → GREEN: test "Drift usage errors never quote the arguments"
+- [x] 7.4 RED → GREEN: test "An invalid drift document path is rejected before any connection"
+- [x] 7.5 RED → GREEN: test "Drift configuration errors fail before any connection"
+- [x] 7.6 RED → GREEN: test "A daily budget stops the drift model call" (the store double's index state holds `docs/pricing.md` at an indexed commit and a source double serves it, so the real use case reaches the model call)
+- [x] 7.7 RED → GREEN: test "Only the exact name resolves the drift project"
+- [x] 7.8 RED → GREEN: test "Drift receives only the project id and the document path"
+- [x] 7.9 RED → GREEN: test "A drift report is printed by document with both citations". Extra cases, not scenarios: a report with `cacheHit` `true` ends with an empty line and `note: golden report (answer cache)`; a multi-line statement and claim text are continued with 3 spaces; an empty line is printed without indentation
+- [x] 7.10 RED → GREEN: test "A project without documents answers no-docs on the command line"
+- [x] 7.11 RED → GREEN: test "Drift events go to stderr with their level" (each event line rendered with `toTerminalSafeJson`, as the error line of `ask.ts:119`)
+- [x] 7.12 RED → GREEN: test "Model, budget and source failures keep their code on the command line", including the `SourceUnavailable` reason `missing` throw with path `docs/pricing.md`, whose line keeps `details.path` `docs/pricing.md`
+- [x] 7.13 RED → GREEN: test "An unexpected drift failure is internal"
+- [x] 7.14 RED → GREEN: test "Control characters in a drift report are escaped" (stdout and stderr, with the `drift_doc_skipped` event whose `docPath` holds `\u001b[2J`)
 
 ## 8. CLI: the `drift` command, integration (TDD; spec cli-drift; design D4, D7)
 
-- [ ] 8.1 Create `tests/integration/cli/drift-command.spec.ts` (header comment: spec path and DIS-73), set up as `tests/integration/cli/ask-command.spec.ts` and `tests/integration/cli/impact-command.spec.ts` (harness transaction, `loadSeed`, the versioned golden files saved through the real store). RED → GREEN: test "The global help lists drift once"
-- [ ] 8.2 RED → GREEN: test "An unreachable database fails without leaking the URL for drift"
-- [ ] 8.3 RED → GREEN: test "The drift connections are closed after a run"
-- [ ] 8.4 RED → GREEN: test "Q5 is printed from the golden report in evaluation mode" (the scenario's GIVEN as rewritten in audit run 1: `loadSeed` plus `saveCacheEntry` of the versioned `seeds/drift/acme-shop.json` entry in the harness transaction, the command's `openStore` seam on that transaction; the evaluation LLM; `hit_count` and the `query_log` row read back)
-- [ ] 8.5 RED → GREEN: test "Evaluation mode without a golden report answers llm-required on the command line" (over the harness transaction as in 8.4: `loadSeed`, both versioned golden directories saved through the real store, the command's `openStore` seam on that transaction)
-- [ ] 8.6 RED → GREEN: test "A live run over the indexed acme-shop prints the planted contradictions" (acme-shop indexed as in `tests/integration/drift/acme-shop.spec.ts`, the scripted model through the `createLlm` seam, `DAILY_BUDGET_USD` set)
-- [ ] 8.7 REFACTOR with the suite green over `packages/cli/src/commands/drift.ts`, `drift-build.ts`, `cache/`; `npm run lint` passes
+- [x] 8.1 Create `tests/integration/cli/drift-command.spec.ts` (header comment: spec path and DIS-73), set up as `tests/integration/cli/ask-command.spec.ts` and `tests/integration/cli/impact-command.spec.ts` (harness transaction, `loadSeed`, the versioned golden files saved through the real store). RED → GREEN: test "The global help lists drift once"
+- [x] 8.2 RED → GREEN: test "An unreachable database fails without leaking the URL for drift"
+- [x] 8.3 RED → GREEN: test "The drift connections are closed after a run"
+- [x] 8.4 RED → GREEN: test "Q5 is printed from the golden report in evaluation mode" (the scenario's GIVEN as rewritten in audit run 1: `loadSeed` plus `saveCacheEntry` of the versioned `seeds/drift/acme-shop.json` entry in the harness transaction, the command's `openStore` seam on that transaction; the evaluation LLM; `hit_count` and the `query_log` row read back)
+- [x] 8.5 RED → GREEN: test "Evaluation mode without a golden report answers llm-required on the command line" (over the harness transaction as in 8.4: `loadSeed`, both versioned golden directories saved through the real store, the command's `openStore` seam on that transaction)
+- [x] 8.6 RED → GREEN: test "A live run over the indexed acme-shop prints the planted contradictions" (acme-shop indexed as in `tests/integration/drift/acme-shop.spec.ts`, the scripted model through the `createLlm` seam, `DAILY_BUDGET_USD` set)
+- [x] 8.7 REFACTOR with the suite green over `packages/cli/src/commands/drift.ts`, `drift-build.ts`, `cache/`; `npm run lint` passes
 
 ## 9. Documentation of the code
 
