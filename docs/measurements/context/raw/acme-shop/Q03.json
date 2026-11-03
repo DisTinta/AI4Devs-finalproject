@@ -1,0 +1,107 @@
+{
+  "formatVersion": 1,
+  "fixture": "acme-shop",
+  "questionId": "Q03",
+  "question": "¿Qué hace OrderObserver al crear un pedido?",
+  "receivedAt": "2026-11-03T11:04:38.230Z",
+  "status": 200,
+  "body": {
+    "answer": "OrderObserver recalculates totals and dispatches an event when an order is created. OrderPlaced logs the order confirmation. Pricing recalculates totals and logs them when orders are paid.",
+    "statements": [
+      {
+        "text": "OrderObserver llama a RecalculateTotals::dispatch($order) cuando se crea una orden.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-1"
+        ]
+      },
+      {
+        "text": "OrderObserver lanza un evento new OrderPlaced($order) cuando se crea una orden.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-2"
+        ]
+      },
+      {
+        "text": "OrderPlaced registra la confirmación de la orden en los registros de información.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-3"
+        ]
+      },
+      {
+        "text": "RecalculateTotals recalcula los totales y registra la información de los totales de la orden cuando se pagan.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-4",
+          "ev-5"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "app/Observers/OrderObserver.php",
+        "startLine": 14,
+        "endLine": 28,
+        "excerpt": "class OrderObserver\n{\n    public function created(Order $order): void\n    {\n        RecalculateTotals::dispatch($order);\n        event(new OrderPlaced($order));\n    }\n\n    public function updated(Order $order): void\n    {\n        if ($order->wasChanged('status') && $order->status === 'paid') {\n            RecalculateTotals::dispatch($order);\n        }\n    }\n}"
+      },
+      {
+        "id": "ev-2",
+        "file": "app/Observers/OrderObserver.php",
+        "startLine": 14,
+        "endLine": 28,
+        "excerpt": "class OrderObserver\n{\n    public function created(Order $order): void\n    {\n        RecalculateTotals::dispatch($order);\n        event(new OrderPlaced($order));\n    }\n\n    public function updated(Order $order): void\n    {\n        if ($order->wasChanged('status') && $order->status === 'paid') {\n            RecalculateTotals::dispatch($order);\n        }\n    }\n}"
+      },
+      {
+        "id": "ev-3",
+        "file": "app/Listeners/SendOrderConfirmation.php",
+        "startLine": 15,
+        "endLine": 26,
+        "excerpt": "class SendOrderConfirmation\n{\n    public function handle(OrderPlaced $event): void\n    {\n        $total = Pricing::compute($event->order);\n\n        Log::info('order.confirmation', [\n            'order_id' => $event->order->id,\n            'total' => $total->amount(),\n        ]);\n    }\n}"
+      },
+      {
+        "id": "ev-4",
+        "file": "app/Jobs/RecalculateTotals.php",
+        "startLine": 30,
+        "endLine": 38,
+        "excerpt": "    public function handle(): void\n    {\n        $total = Pricing::compute($this->order);\n\n        Log::info('order.totals.recalculated', [\n            'order_id' => $this->order->id,\n            'total' => $total->amount(),\n        ]);\n    }"
+      },
+      {
+        "id": "ev-5",
+        "file": "app/Support/Money.php",
+        "startLine": 14,
+        "endLine": 75,
+        "excerpt": "final class Money\n{\n    private function __construct(\n        public readonly int $cents,\n        public readonly string $currency = 'EUR',\n    ) {\n    }\n\n    public static function fromCents(int $cents, string $currency = 'EUR'): self\n    {\n        return new self($cents, $currency);\n    }\n\n    public static function fromFloat(float $amount, string $currency = 'EUR'): self\n    {\n        return new self((int) round($amount * 100), $currency);\n    }\n\n    public static function zero(string $currency = 'EUR'): self\n    {\n        return new self(0, $currency);\n    }\n\n    public function add(Money $other): self\n    {\n        $this->assertSameCurrency($other);\n\n        return new self($this->cents + $other->cents, $this->currency);\n    }\n\n    public function subtract(Money $other): self\n    {\n        $this->assertSameCurrency($other);\n\n        return new self(max(0, $this->cents - $other->cents), $this->currency);\n    }\n\n    /** Percentage of this amount, rounded half-up to the nearest cent. */\n    public function percentage(float $percent): self\n    {\n        return new self((int) round($this->cents * $percent / 100), $this->currency);\n    }\n\n    public function isGreaterThan(Money $other): bool\n    {\n        $this->assertSameCurrency($other);\n\n        return $this->cents > $other->cents;\n    }\n\n    public function amount(): float\n    {\n        return $this->cents / 100;\n    }\n\n    private function assertSameCurrency(Money $other): void\n    {\n        if ($other->currency !== $this->currency) {\n            throw new InvalidArgumentException('Cannot operate on mixed currencies');\n        }\n    }\n}"
+      }
+    ],
+    "confidence": 0.7941296281990528,
+    "usage": {
+      "inputTokens": 9437,
+      "outputTokens": 255,
+      "baselineTokens": 7341,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": -28.6,
+      "costUsd": 0,
+      "latencyMs": 217998,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 7329,
+        "outputTokens": 220,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 5,
+        "cacheHits": 0,
+        "inputTokens": 2108,
+        "outputTokens": 35,
+        "costUsd": 0,
+        "latencyMs": 31432
+      }
+    }
+  }
+}

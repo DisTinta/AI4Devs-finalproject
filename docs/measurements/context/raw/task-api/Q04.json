@@ -1,0 +1,201 @@
+{
+  "formatVersion": 1,
+  "fixture": "task-api",
+  "questionId": "Q04",
+  "question": "¿Qué hace TaskService al actualizar una tarea?",
+  "receivedAt": "2026-11-03T11:54:09.752Z",
+  "status": 200,
+  "body": {
+    "answer": "TaskService actualiza una tarea, primero obtiene la tarea actual, verifica si la transición de estado es legal, luego actualiza la tarea con la nueva información y guarda los cambios en el repositorio.",
+    "statements": [
+      {
+        "text": "TaskService utiliza el método get para obtener la tarea actual antes de actualizarla.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-1",
+          "ev-2"
+        ]
+      },
+      {
+        "text": "Antes de actualizar, TaskService verifica si la transición de estado de la tarea es legal utilizando la función canTransition.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-3",
+          "ev-4"
+        ]
+      },
+      {
+        "text": "La transición de estado es legal si está permitida de acuerdo a las reglas de transición definidas en la función canTransition.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-5",
+          "ev-6",
+          "ev-7"
+        ]
+      },
+      {
+        "text": "Si la transición es legal, TaskService actúa según la información proporcionada en el input de la tarea y actualiza los detalles de la tarea correspondientes.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-8",
+          "ev-9",
+          "ev-10"
+        ]
+      },
+      {
+        "text": "La actualización de los detalles de la tarea se realiza mediante el uso del método update del repositorio (task.repository.update), donde los detalles de la tarea son modificados con la nueva información proporcionada.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-11",
+          "ev-12",
+          "ev-13"
+        ]
+      },
+      {
+        "text": "Los detalles actualizados de la tarea, incluyendo las fechas de creación y modificación, se guardan en el repositorio durante la transacción de actualización.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-14",
+          "ev-15"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "src/services/task.service.ts",
+        "startLine": 13,
+        "endLine": 68,
+        "excerpt": "export class TaskService {\n  constructor(\n    private readonly repository: TaskRepository,\n    private readonly clock: () => string = () => new Date().toISOString(),\n  ) {}\n\n  async get(id: string): Promise<Task> {\n    const task = await this.repository.findById(id);\n    if (!task) throw new TaskNotFoundError(id);\n    return task;\n  }\n\n  async list(query: TaskQuery): Promise<Page<Task>> {\n    return this.repository.list(query);\n  }\n\n  async create(input: CreateTaskInput): Promise<Task> {\n    const now = this.clock();\n    const task: Task = {\n      id: newId(),\n      title: input.title,\n      description: input.description ?? null,\n      status: input.status ?? 'todo',\n      priority: input.priority ?? 'medium',\n      tags: input.tags ?? [],\n      dueDate: input.dueDate ?? null,\n      createdAt: now,\n      updatedAt: now,\n    };\n    return this.repository.create(task);\n  }\n\n  async update(id: string, input: UpdateTaskInput): Promise<Task> {\n    const current = await this.get(id);\n\n    if (input.status && input.status !== current.status) {\n      if (!canTransition(current.status, input.status)) {\n        throw new IllegalStatusTransitionError(current.status, input.status);\n      }\n    }\n\n    const updated: Task = {\n      ...current,\n      ...pruneUndefined(input),\n      id: current.id,\n      createdAt: current.createdAt,\n      updatedAt: this.clock(),\n    };\n    return this.repository.update(updated);\n  }\n\n  async delete(id: string): Promise<void> {\n    const deleted = await this.repository.delete(id);\n    if (!deleted) throw new TaskNotFoundError(id);\n  }\n}"
+      },
+      {
+        "id": "ev-2",
+        "file": "tests/unit/task.service.test.ts",
+        "startLine": 1,
+        "endLine": 56,
+        "excerpt": "import { beforeEach, describe, expect, it } from 'vitest';\nimport { IllegalStatusTransitionError, TaskNotFoundError } from '../../src/domain/errors.js';\nimport { InMemoryTaskRepository } from '../../src/repositories/in-memory-task.repository.js';\nimport { TaskService } from '../../src/services/task.service.js';\nimport { makeTask } from '../helpers/build-app.js';\n\nconst FIXED_NOW = '2025-06-01T12:00:00.000Z';\n\ndescribe('TaskService', () => {\n  let service: TaskService;\n  let repository: InMemoryTaskRepository;\n\n  beforeEach(() => {\n    repository = new InMemoryTaskRepository();\n    service = new TaskService(repository, () => FIXED_NOW);\n  });\n\n  it('creates a task with defaults and timestamps', async () => {\n    const task = await service.create({ title: 'New task' });\n    expect(task.status).toBe('todo');\n    expect(task.priority).toBe('medium');\n    expect(task.createdAt).toBe(FIXED_NOW);\n    expect(task.updatedAt).toBe(FIXED_NOW);\n  });\n\n  it('throws when getting a missing task', async () => {\n    await expect(service.get('missing')).rejects.toBeInstanceOf(TaskNotFoundError);\n  });\n\n  it('applies a legal status transition', async () => {\n    const created = await repository.create(makeTask({ id: 'x', status: 'todo' }));\n    const updated = await service.update(created.id, { status: 'in_progress' });\n    expect(updated.status).toBe('in_progress');\n  });\n\n  it('rejects an illegal status transition', async () => {\n    await repository.create(makeTask({ id: 'y', status: 'done' }));\n    await expect(service.update('y', { status: 'in_progress' })).rejects.toBeInstanceOf(\n      IllegalStatusTransitionError,\n    );\n  });\n\n  it('does not overwrite fields left out of a partial update', async () => {\n    await repository.create(makeTask({ id: 'z', title: 'Keep me', priority: 'high' }));\n    const updated = await service.update('z', { tags: ['new'] });\n    expect(updated.title).toBe('Keep me');\n    expect(updated.priority).toBe('high');\n    expect(updated.tags).toEqual(['new']);\n  });\n\n  it('deletes an existing task and rejects a missing one', async () => {\n    await repository.create(makeTask({ id: 'd' }));\n    await expect(service.delete('d')).resolves.toBeUndefined();\n    await expect(service.delete('d')).rejects.toBeInstanceOf(TaskNotFoundError);\n  });\n});"
+      },
+      {
+        "id": "ev-3",
+        "file": "src/domain/task-status.ts",
+        "startLine": 25,
+        "endLine": 27,
+        "excerpt": "export function canTransition(from: TaskStatus, to: TaskStatus): boolean {\n  return TRANSITIONS[from].includes(to);\n}"
+      },
+      {
+        "id": "ev-4",
+        "file": "src/services/task.service.ts",
+        "startLine": 13,
+        "endLine": 68,
+        "excerpt": "export class TaskService {\n  constructor(\n    private readonly repository: TaskRepository,\n    private readonly clock: () => string = () => new Date().toISOString(),\n  ) {}\n\n  async get(id: string): Promise<Task> {\n    const task = await this.repository.findById(id);\n    if (!task) throw new TaskNotFoundError(id);\n    return task;\n  }\n\n  async list(query: TaskQuery): Promise<Page<Task>> {\n    return this.repository.list(query);\n  }\n\n  async create(input: CreateTaskInput): Promise<Task> {\n    const now = this.clock();\n    const task: Task = {\n      id: newId(),\n      title: input.title,\n      description: input.description ?? null,\n      status: input.status ?? 'todo',\n      priority: input.priority ?? 'medium',\n      tags: input.tags ?? [],\n      dueDate: input.dueDate ?? null,\n      createdAt: now,\n      updatedAt: now,\n    };\n    return this.repository.create(task);\n  }\n\n  async update(id: string, input: UpdateTaskInput): Promise<Task> {\n    const current = await this.get(id);\n\n    if (input.status && input.status !== current.status) {\n      if (!canTransition(current.status, input.status)) {\n        throw new IllegalStatusTransitionError(current.status, input.status);\n      }\n    }\n\n    const updated: Task = {\n      ...current,\n      ...pruneUndefined(input),\n      id: current.id,\n      createdAt: current.createdAt,\n      updatedAt: this.clock(),\n    };\n    return this.repository.update(updated);\n  }\n\n  async delete(id: string): Promise<void> {\n    const deleted = await this.repository.delete(id);\n    if (!deleted) throw new TaskNotFoundError(id);\n  }\n}"
+      },
+      {
+        "id": "ev-5",
+        "file": "src/domain/task-status.ts",
+        "startLine": 25,
+        "endLine": 27,
+        "excerpt": "export function canTransition(from: TaskStatus, to: TaskStatus): boolean {\n  return TRANSITIONS[from].includes(to);\n}"
+      },
+      {
+        "id": "ev-6",
+        "file": "src/domain/task-status.ts",
+        "startLine": 21,
+        "endLine": 23,
+        "excerpt": "export function isTaskStatus(value: string): value is TaskStatus {\n  return (TASK_STATUSES as readonly string[]).includes(value);\n}"
+      },
+      {
+        "id": "ev-7",
+        "file": "src/domain/errors.ts",
+        "startLine": 7,
+        "endLine": 14,
+        "excerpt": "  constructor(\n    message: string,\n    readonly statusCode: number,\n    readonly code: string,\n  ) {\n    super(message);\n    this.name = new.target.name;\n  }"
+      },
+      {
+        "id": "ev-8",
+        "file": "src/services/task.service.ts",
+        "startLine": 13,
+        "endLine": 68,
+        "excerpt": "export class TaskService {\n  constructor(\n    private readonly repository: TaskRepository,\n    private readonly clock: () => string = () => new Date().toISOString(),\n  ) {}\n\n  async get(id: string): Promise<Task> {\n    const task = await this.repository.findById(id);\n    if (!task) throw new TaskNotFoundError(id);\n    return task;\n  }\n\n  async list(query: TaskQuery): Promise<Page<Task>> {\n    return this.repository.list(query);\n  }\n\n  async create(input: CreateTaskInput): Promise<Task> {\n    const now = this.clock();\n    const task: Task = {\n      id: newId(),\n      title: input.title,\n      description: input.description ?? null,\n      status: input.status ?? 'todo',\n      priority: input.priority ?? 'medium',\n      tags: input.tags ?? [],\n      dueDate: input.dueDate ?? null,\n      createdAt: now,\n      updatedAt: now,\n    };\n    return this.repository.create(task);\n  }\n\n  async update(id: string, input: UpdateTaskInput): Promise<Task> {\n    const current = await this.get(id);\n\n    if (input.status && input.status !== current.status) {\n      if (!canTransition(current.status, input.status)) {\n        throw new IllegalStatusTransitionError(current.status, input.status);\n      }\n    }\n\n    const updated: Task = {\n      ...current,\n      ...pruneUndefined(input),\n      id: current.id,\n      createdAt: current.createdAt,\n      updatedAt: this.clock(),\n    };\n    return this.repository.update(updated);\n  }\n\n  async delete(id: string): Promise<void> {\n    const deleted = await this.repository.delete(id);\n    if (!deleted) throw new TaskNotFoundError(id);\n  }\n}"
+      },
+      {
+        "id": "ev-9",
+        "file": "tests/unit/task.service.test.ts",
+        "startLine": 1,
+        "endLine": 56,
+        "excerpt": "import { beforeEach, describe, expect, it } from 'vitest';\nimport { IllegalStatusTransitionError, TaskNotFoundError } from '../../src/domain/errors.js';\nimport { InMemoryTaskRepository } from '../../src/repositories/in-memory-task.repository.js';\nimport { TaskService } from '../../src/services/task.service.js';\nimport { makeTask } from '../helpers/build-app.js';\n\nconst FIXED_NOW = '2025-06-01T12:00:00.000Z';\n\ndescribe('TaskService', () => {\n  let service: TaskService;\n  let repository: InMemoryTaskRepository;\n\n  beforeEach(() => {\n    repository = new InMemoryTaskRepository();\n    service = new TaskService(repository, () => FIXED_NOW);\n  });\n\n  it('creates a task with defaults and timestamps', async () => {\n    const task = await service.create({ title: 'New task' });\n    expect(task.status).toBe('todo');\n    expect(task.priority).toBe('medium');\n    expect(task.createdAt).toBe(FIXED_NOW);\n    expect(task.updatedAt).toBe(FIXED_NOW);\n  });\n\n  it('throws when getting a missing task', async () => {\n    await expect(service.get('missing')).rejects.toBeInstanceOf(TaskNotFoundError);\n  });\n\n  it('applies a legal status transition', async () => {\n    const created = await repository.create(makeTask({ id: 'x', status: 'todo' }));\n    const updated = await service.update(created.id, { status: 'in_progress' });\n    expect(updated.status).toBe('in_progress');\n  });\n\n  it('rejects an illegal status transition', async () => {\n    await repository.create(makeTask({ id: 'y', status: 'done' }));\n    await expect(service.update('y', { status: 'in_progress' })).rejects.toBeInstanceOf(\n      IllegalStatusTransitionError,\n    );\n  });\n\n  it('does not overwrite fields left out of a partial update', async () => {\n    await repository.create(makeTask({ id: 'z', title: 'Keep me', priority: 'high' }));\n    const updated = await service.update('z', { tags: ['new'] });\n    expect(updated.title).toBe('Keep me');\n    expect(updated.priority).toBe('high');\n    expect(updated.tags).toEqual(['new']);\n  });\n\n  it('deletes an existing task and rejects a missing one', async () => {\n    await repository.create(makeTask({ id: 'd' }));\n    await expect(service.delete('d')).resolves.toBeUndefined();\n    await expect(service.delete('d')).rejects.toBeInstanceOf(TaskNotFoundError);\n  });\n});"
+      },
+      {
+        "id": "ev-10",
+        "file": "src/services/task.service.ts",
+        "startLine": 71,
+        "endLine": 79,
+        "excerpt": "function pruneUndefined<T extends object>(input: T): { [K in keyof T]?: Exclude<T[K], undefined> } {\n  const out: Partial<T> = {};\n  for (const [key, value] of Object.entries(input)) {\n    if (value !== undefined) {\n      out[key as keyof T] = value as T[keyof T];\n    }\n  }\n  return out as { [K in keyof T]?: Exclude<T[K], undefined> };\n}"
+      },
+      {
+        "id": "ev-11",
+        "file": "src/services/task.service.ts",
+        "startLine": 13,
+        "endLine": 68,
+        "excerpt": "export class TaskService {\n  constructor(\n    private readonly repository: TaskRepository,\n    private readonly clock: () => string = () => new Date().toISOString(),\n  ) {}\n\n  async get(id: string): Promise<Task> {\n    const task = await this.repository.findById(id);\n    if (!task) throw new TaskNotFoundError(id);\n    return task;\n  }\n\n  async list(query: TaskQuery): Promise<Page<Task>> {\n    return this.repository.list(query);\n  }\n\n  async create(input: CreateTaskInput): Promise<Task> {\n    const now = this.clock();\n    const task: Task = {\n      id: newId(),\n      title: input.title,\n      description: input.description ?? null,\n      status: input.status ?? 'todo',\n      priority: input.priority ?? 'medium',\n      tags: input.tags ?? [],\n      dueDate: input.dueDate ?? null,\n      createdAt: now,\n      updatedAt: now,\n    };\n    return this.repository.create(task);\n  }\n\n  async update(id: string, input: UpdateTaskInput): Promise<Task> {\n    const current = await this.get(id);\n\n    if (input.status && input.status !== current.status) {\n      if (!canTransition(current.status, input.status)) {\n        throw new IllegalStatusTransitionError(current.status, input.status);\n      }\n    }\n\n    const updated: Task = {\n      ...current,\n      ...pruneUndefined(input),\n      id: current.id,\n      createdAt: current.createdAt,\n      updatedAt: this.clock(),\n    };\n    return this.repository.update(updated);\n  }\n\n  async delete(id: string): Promise<void> {\n    const deleted = await this.repository.delete(id);\n    if (!deleted) throw new TaskNotFoundError(id);\n  }\n}"
+      },
+      {
+        "id": "ev-12",
+        "file": "src/repositories/task.repository.ts",
+        "startLine": 22,
+        "endLine": 28,
+        "excerpt": "export interface TaskRepository {\n  findById(id: string): Promise<Task | null>;\n  list(query: TaskQuery): Promise<Page<Task>>;\n  create(task: Task): Promise<Task>;\n  update(task: Task): Promise<Task>;\n  delete(id: string): Promise<boolean>;\n}"
+      },
+      {
+        "id": "ev-13",
+        "file": "tests/unit/task.service.test.ts",
+        "startLine": 1,
+        "endLine": 56,
+        "excerpt": "import { beforeEach, describe, expect, it } from 'vitest';\nimport { IllegalStatusTransitionError, TaskNotFoundError } from '../../src/domain/errors.js';\nimport { InMemoryTaskRepository } from '../../src/repositories/in-memory-task.repository.js';\nimport { TaskService } from '../../src/services/task.service.js';\nimport { makeTask } from '../helpers/build-app.js';\n\nconst FIXED_NOW = '2025-06-01T12:00:00.000Z';\n\ndescribe('TaskService', () => {\n  let service: TaskService;\n  let repository: InMemoryTaskRepository;\n\n  beforeEach(() => {\n    repository = new InMemoryTaskRepository();\n    service = new TaskService(repository, () => FIXED_NOW);\n  });\n\n  it('creates a task with defaults and timestamps', async () => {\n    const task = await service.create({ title: 'New task' });\n    expect(task.status).toBe('todo');\n    expect(task.priority).toBe('medium');\n    expect(task.createdAt).toBe(FIXED_NOW);\n    expect(task.updatedAt).toBe(FIXED_NOW);\n  });\n\n  it('throws when getting a missing task', async () => {\n    await expect(service.get('missing')).rejects.toBeInstanceOf(TaskNotFoundError);\n  });\n\n  it('applies a legal status transition', async () => {\n    const created = await repository.create(makeTask({ id: 'x', status: 'todo' }));\n    const updated = await service.update(created.id, { status: 'in_progress' });\n    expect(updated.status).toBe('in_progress');\n  });\n\n  it('rejects an illegal status transition', async () => {\n    await repository.create(makeTask({ id: 'y', status: 'done' }));\n    await expect(service.update('y', { status: 'in_progress' })).rejects.toBeInstanceOf(\n      IllegalStatusTransitionError,\n    );\n  });\n\n  it('does not overwrite fields left out of a partial update', async () => {\n    await repository.create(makeTask({ id: 'z', title: 'Keep me', priority: 'high' }));\n    const updated = await service.update('z', { tags: ['new'] });\n    expect(updated.title).toBe('Keep me');\n    expect(updated.priority).toBe('high');\n    expect(updated.tags).toEqual(['new']);\n  });\n\n  it('deletes an existing task and rejects a missing one', async () => {\n    await repository.create(makeTask({ id: 'd' }));\n    await expect(service.delete('d')).resolves.toBeUndefined();\n    await expect(service.delete('d')).rejects.toBeInstanceOf(TaskNotFoundError);\n  });\n});"
+      },
+      {
+        "id": "ev-14",
+        "file": "src/services/task.service.ts",
+        "startLine": 13,
+        "endLine": 68,
+        "excerpt": "export class TaskService {\n  constructor(\n    private readonly repository: TaskRepository,\n    private readonly clock: () => string = () => new Date().toISOString(),\n  ) {}\n\n  async get(id: string): Promise<Task> {\n    const task = await this.repository.findById(id);\n    if (!task) throw new TaskNotFoundError(id);\n    return task;\n  }\n\n  async list(query: TaskQuery): Promise<Page<Task>> {\n    return this.repository.list(query);\n  }\n\n  async create(input: CreateTaskInput): Promise<Task> {\n    const now = this.clock();\n    const task: Task = {\n      id: newId(),\n      title: input.title,\n      description: input.description ?? null,\n      status: input.status ?? 'todo',\n      priority: input.priority ?? 'medium',\n      tags: input.tags ?? [],\n      dueDate: input.dueDate ?? null,\n      createdAt: now,\n      updatedAt: now,\n    };\n    return this.repository.create(task);\n  }\n\n  async update(id: string, input: UpdateTaskInput): Promise<Task> {\n    const current = await this.get(id);\n\n    if (input.status && input.status !== current.status) {\n      if (!canTransition(current.status, input.status)) {\n        throw new IllegalStatusTransitionError(current.status, input.status);\n      }\n    }\n\n    const updated: Task = {\n      ...current,\n      ...pruneUndefined(input),\n      id: current.id,\n      createdAt: current.createdAt,\n      updatedAt: this.clock(),\n    };\n    return this.repository.update(updated);\n  }\n\n  async delete(id: string): Promise<void> {\n    const deleted = await this.repository.delete(id);\n    if (!deleted) throw new TaskNotFoundError(id);\n  }\n}"
+      },
+      {
+        "id": "ev-15",
+        "file": "tests/unit/task.service.test.ts",
+        "startLine": 1,
+        "endLine": 56,
+        "excerpt": "import { beforeEach, describe, expect, it } from 'vitest';\nimport { IllegalStatusTransitionError, TaskNotFoundError } from '../../src/domain/errors.js';\nimport { InMemoryTaskRepository } from '../../src/repositories/in-memory-task.repository.js';\nimport { TaskService } from '../../src/services/task.service.js';\nimport { makeTask } from '../helpers/build-app.js';\n\nconst FIXED_NOW = '2025-06-01T12:00:00.000Z';\n\ndescribe('TaskService', () => {\n  let service: TaskService;\n  let repository: InMemoryTaskRepository;\n\n  beforeEach(() => {\n    repository = new InMemoryTaskRepository();\n    service = new TaskService(repository, () => FIXED_NOW);\n  });\n\n  it('creates a task with defaults and timestamps', async () => {\n    const task = await service.create({ title: 'New task' });\n    expect(task.status).toBe('todo');\n    expect(task.priority).toBe('medium');\n    expect(task.createdAt).toBe(FIXED_NOW);\n    expect(task.updatedAt).toBe(FIXED_NOW);\n  });\n\n  it('throws when getting a missing task', async () => {\n    await expect(service.get('missing')).rejects.toBeInstanceOf(TaskNotFoundError);\n  });\n\n  it('applies a legal status transition', async () => {\n    const created = await repository.create(makeTask({ id: 'x', status: 'todo' }));\n    const updated = await service.update(created.id, { status: 'in_progress' });\n    expect(updated.status).toBe('in_progress');\n  });\n\n  it('rejects an illegal status transition', async () => {\n    await repository.create(makeTask({ id: 'y', status: 'done' }));\n    await expect(service.update('y', { status: 'in_progress' })).rejects.toBeInstanceOf(\n      IllegalStatusTransitionError,\n    );\n  });\n\n  it('does not overwrite fields left out of a partial update', async () => {\n    await repository.create(makeTask({ id: 'z', title: 'Keep me', priority: 'high' }));\n    const updated = await service.update('z', { tags: ['new'] });\n    expect(updated.title).toBe('Keep me');\n    expect(updated.priority).toBe('high');\n    expect(updated.tags).toEqual(['new']);\n  });\n\n  it('deletes an existing task and rejects a missing one', async () => {\n    await repository.create(makeTask({ id: 'd' }));\n    await expect(service.delete('d')).resolves.toBeUndefined();\n    await expect(service.delete('d')).rejects.toBeInstanceOf(TaskNotFoundError);\n  });\n});"
+      }
+    ],
+    "confidence": 0.8021838885585817,
+    "usage": {
+      "inputTokens": 15253,
+      "outputTokens": 514,
+      "baselineTokens": 5917,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": -157.8,
+      "costUsd": 0,
+      "latencyMs": 341933,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 6284,
+        "outputTokens": 395,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 15,
+        "cacheHits": 0,
+        "inputTokens": 8969,
+        "outputTokens": 119,
+        "costUsd": 0,
+        "latencyMs": 136377
+      }
+    }
+  }
+}

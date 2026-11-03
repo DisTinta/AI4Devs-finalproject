@@ -1,0 +1,77 @@
+{
+  "formatVersion": 1,
+  "fixture": "acme-shop",
+  "questionId": "Q17",
+  "question": "¿Qué hace CarrierGateway?",
+  "receivedAt": "2026-11-03T11:41:47.646Z",
+  "status": 200,
+  "body": {
+    "answer": "CarrierGateway es una clase que maneja las tarifas de envío basadas en el país del pedido.",
+    "statements": [
+      {
+        "text": "CarrierGateway procesa llamadas dinámicas como 'flatRateFor' para obtener tarifas de envío según el país del pedido.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-1"
+        ]
+      },
+      {
+        "text": "CarrierGateway se utiliza en ShippingService para determinar las tarifas de envío dinámicamente a partir de los datos del pedido.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-2",
+          "ev-3"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "app/Services/CarrierGateway.php",
+        "startLine": 17,
+        "endLine": 31,
+        "excerpt": "class CarrierGateway\n{\n    /** @param array<int, mixed> $arguments */\n    public function __call(string $name, array $arguments): mixed\n    {\n        if (str_starts_with($name, 'flatRateFor')) {\n            $country = $arguments[0] ?? config('shop.default_country');\n            $rates = config('shop.shipping_rates', []);\n\n            return $rates[$country] ?? config('shop.default_shipping_cents');\n        }\n\n        throw new BadMethodCallException(\"Unknown carrier method: {$name}\");\n    }\n}"
+      },
+      {
+        "id": "ev-2",
+        "file": "app/Services/ShippingService.php",
+        "startLine": 16,
+        "endLine": 35,
+        "excerpt": "class ShippingService\n{\n    public function __construct(private readonly CarrierGateway $carrier)\n    {\n    }\n\n    public function shippingFor(Order $order, Money $base): Money\n    {\n        $threshold = Money::fromFloat((float) config('shop.free_shipping_threshold'));\n\n        if ($base->isGreaterThan($threshold)) {\n            return Money::zero();\n        }\n\n        // Dynamic method: CarrierGateway has no flatRateFor() declared.\n        $cents = $this->carrier->flatRateFor($order->shipping_country);\n\n        return Money::fromCents((int) $cents);\n    }\n}"
+      },
+      {
+        "id": "ev-3",
+        "file": "app/Services/CarrierGateway.php",
+        "startLine": 17,
+        "endLine": 31,
+        "excerpt": "class CarrierGateway\n{\n    /** @param array<int, mixed> $arguments */\n    public function __call(string $name, array $arguments): mixed\n    {\n        if (str_starts_with($name, 'flatRateFor')) {\n            $country = $arguments[0] ?? config('shop.default_country');\n            $rates = config('shop.shipping_rates', []);\n\n            return $rates[$country] ?? config('shop.default_shipping_cents');\n        }\n\n        throw new BadMethodCallException(\"Unknown carrier method: {$name}\");\n    }\n}"
+      }
+    ],
+    "confidence": 0.7844291562034563,
+    "usage": {
+      "inputTokens": 5127,
+      "outputTokens": 163,
+      "baselineTokens": 3839,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": -33.6,
+      "costUsd": 0,
+      "latencyMs": 118815,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 3909,
+        "outputTokens": 142,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 3,
+        "cacheHits": 0,
+        "inputTokens": 1218,
+        "outputTokens": 21,
+        "costUsd": 0,
+        "latencyMs": 16459
+      }
+    }
+  }
+}

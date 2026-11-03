@@ -1,0 +1,14 @@
+{
+  "formatVersion": 1,
+  "fixture": "task-api",
+  "questionId": "Q20",
+  "question": "¿Cómo se envían correos de aviso al asignar una tarea?",
+  "receivedAt": "2026-11-03T12:22:26.679Z",
+  "status": 200,
+  "body": {
+    "answer": "UNKNOWN",
+    "reason": "no-anchor",
+    "statements": [],
+    "evidence": []
+  }
+}

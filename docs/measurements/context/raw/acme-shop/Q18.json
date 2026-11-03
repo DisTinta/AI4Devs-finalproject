@@ -1,0 +1,54 @@
+{
+  "formatVersion": 1,
+  "fixture": "acme-shop",
+  "questionId": "Q18",
+  "question": "¿Qué valores de precios e impuestos define config/shop.php?",
+  "receivedAt": "2026-11-03T11:43:02.924Z",
+  "status": 200,
+  "body": {
+    "answer": "Los valores de precios e impuestos se definen principalmente en el archivo config/shop.php.",
+    "statements": [
+      {
+        "text": "Los costos de envío y impuestos reales se especifican en el archivo config/shop.php, como las tasas de impuesto y el umbral para el envío gratuito.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-1"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "README.md",
+        "startLine": 1,
+        "endLine": 43,
+        "excerpt": "# acme-shop\n\nA small Laravel 11 / PHP 8.2 storefront domain focused on **order pricing**:\norders, order lines, discounts, taxes and shipping. There is no `vendor/`, no\nrunning server — this codebase is meant to be read and explored, not deployed.\n\n## What it models\n\nThe core question the code answers is **\"how is the final price of an order\ncomputed?\"**. The authoritative implementation is\n`App\\Services\\PriceCalculator::compute()`. Pricing rules are documented in\n[`docs/pricing.md`](docs/pricing.md).\n\n## Layout\n\n```\napp/\n  Models/        Order, OrderLine, Product, Customer, Coupon (Eloquent)\n  Services/      PriceCalculator, DiscountService, TaxService, ShippingService,\n                 CouponValidator, CarrierGateway\n  Http/          controllers, form request, middleware\n  Events/ Listeners/ Jobs/ Observers/   order lifecycle side effects\n  Facades/       Pricing (over PriceCalculator)\n  Providers/     container bindings + event map\n  Support/       Money value object\nroutes/          web.php, api.php\nconfig/          app.php, services.php, shop.php (tax + shipping config)\ndatabase/        migrations, factory, seeder\ntests/           Unit + Feature\n```\n\n## Running tests\n\nThis project ships without `vendor/`. Install dependencies with:\n\n```bash\ncomposer install\n./vendor/bin/phpunit\n```\n\nNote: `tests/CreatesApplication.php` references `bootstrap/app.php`, which is\nnot included in this tree. The unit arithmetic in `tests/Unit/` can be verified\nwithout a full Laravel bootstrap; the Feature suite requires it."
+      }
+    ],
+    "confidence": 0.5,
+    "usage": {
+      "inputTokens": 3393,
+      "outputTokens": 90,
+      "baselineTokens": 3657,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": 7.2,
+      "costUsd": 0,
+      "latencyMs": 75211,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 2743,
+        "outputTokens": 83,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 1,
+        "cacheHits": 0,
+        "inputTokens": 650,
+        "outputTokens": 7,
+        "costUsd": 0,
+        "latencyMs": 10314
+      }
+    }
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "formatVersion": 1,
+  "fixture": "acme-shop",
+  "questionId": "Q15",
+  "question": "¿Qué registra RecordDiscountAudit cuando se aplica un descuento?",
+  "receivedAt": "2026-11-03T11:36:38.587Z",
+  "status": 200,
+  "body": {
+    "answer": "RecordDiscountAudit registra el descuento aplicado en el log.",
+    "statements": [
+      {
+        "text": "RecordDiscountAudit envía un evento DiscountApplied cuando se aplica un descuento.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-1"
+        ]
+      },
+      {
+        "text": "DiscountService calcula el descuento y emite un evento DiscountApplied si el descuento es mayor que cero.",
+        "type": "INFERENCE",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-2"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "app/Listeners/RecordDiscountAudit.php",
+        "startLine": 14,
+        "endLine": 23,
+        "excerpt": "class RecordDiscountAudit\n{\n    public function handle(DiscountApplied $event): void\n    {\n        Log::info('discount.applied', [\n            'order_id' => $event->order->id,\n            'amount' => $event->amount->amount(),\n        ]);\n    }\n}"
+      },
+      {
+        "id": "ev-2",
+        "file": "app/Services/DiscountService.php",
+        "startLine": 34,
+        "endLine": 49,
+        "excerpt": "    public function discountFor(Order $order, Money $subtotal): Money\n    {\n        $percent = $this->loyaltyPercent($order);\n        $percent += $this->coupons->percentFor($order->coupon_code);\n        $percent += $this->volumeBonus($order);\n\n        $percent = min($percent, self::MAX_DISCOUNT_PERCENT);\n\n        $discount = $subtotal->percentage($percent);\n\n        if ($discount->isGreaterThan(Money::zero())) {\n            event(new DiscountApplied($order, $discount));\n        }\n\n        return $discount;\n    }"
+      }
+    ],
+    "confidence": 0.7310585786300049,
+    "usage": {
+      "inputTokens": 2500,
+      "outputTokens": 129,
+      "baselineTokens": 2119,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": -18,
+      "costUsd": 0,
+      "latencyMs": 62180,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 1771,
+        "outputTokens": 112,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 2,
+        "cacheHits": 0,
+        "inputTokens": 729,
+        "outputTokens": 17,
+        "costUsd": 0,
+        "latencyMs": 11361
+      }
+    }
+  }
+}

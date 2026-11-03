@@ -1,0 +1,54 @@
+{
+  "formatVersion": 1,
+  "fixture": "acme-shop",
+  "questionId": "Q10",
+  "question": "¿Qué comprueba el middleware EnsureCartNotEmpty?",
+  "receivedAt": "2026-11-03T11:24:52.110Z",
+  "status": 200,
+  "body": {
+    "answer": "Comprueba que la solicitud tenga elementos en el carrito.",
+    "statements": [
+      {
+        "text": "El middleware EnsureCartNotEmpty verifica que la solicitud tenga elementos en el carrito.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-1"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "app/Http/Middleware/EnsureCartNotEmpty.php",
+        "startLine": 15,
+        "endLine": 29,
+        "excerpt": "class EnsureCartNotEmpty\n{\n    public function handle(Request $request, Closure $next): Response\n    {\n        $lines = $request->input('lines', []);\n\n        if (! is_array($lines) || count($lines) === 0) {\n            return response()->json([\n                'error' => ['code' => 'EMPTY_CART', 'message' => 'Cart has no items'],\n            ], 422);\n        }\n\n        return $next($request);\n    }\n}"
+      }
+    ],
+    "confidence": 0.8519528019683106,
+    "usage": {
+      "inputTokens": 860,
+      "outputTokens": 70,
+      "baselineTokens": 166,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": -418.1,
+      "costUsd": 0,
+      "latencyMs": 25285,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 485,
+        "outputTokens": 63,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 1,
+        "cacheHits": 0,
+        "inputTokens": 375,
+        "outputTokens": 7,
+        "costUsd": 0,
+        "latencyMs": 5878
+      }
+    }
+  }
+}

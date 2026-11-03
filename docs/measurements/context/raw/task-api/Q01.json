@@ -1,0 +1,14 @@
+{
+  "formatVersion": 1,
+  "fixture": "task-api",
+  "questionId": "Q01",
+  "question": "¿Cómo valida taskRoutes las peticiones entrantes?",
+  "receivedAt": "2026-11-03T11:46:22.125Z",
+  "status": 200,
+  "body": {
+    "answer": "UNKNOWN",
+    "reason": "invalid-model-output",
+    "statements": [],
+    "evidence": []
+  }
+}

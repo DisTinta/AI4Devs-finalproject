@@ -1,0 +1,450 @@
+{
+  "formatVersion": 1,
+  "counts": [
+    {
+      "file": "fixtures/acme-shop/.env.example",
+      "sha256": "812407940f04ee3cf12f8e9dadea298e7a59f6bdebb583f969b23bc63ea4062d",
+      "providerTokens": 67
+    },
+    {
+      "file": "fixtures/acme-shop/.gitignore",
+      "sha256": "8c0b40d52758b55b98c8ca1f0fbc62662825b16ad552912f71910a50b12361c4",
+      "providerTokens": 18
+    },
+    {
+      "file": "fixtures/acme-shop/README.md",
+      "sha256": "b16685f79f45d9422df9e6b4c3eefeb6de7ad469ba1d9ff2cd93c48b44f7086e",
+      "providerTokens": 352
+    },
+    {
+      "file": "fixtures/acme-shop/app/Events/DiscountApplied.php",
+      "sha256": "e0453a6787f9996dcb713a62861fdf10dcaad4d7c7447bee6cc7d643587281fc",
+      "providerTokens": 98
+    },
+    {
+      "file": "fixtures/acme-shop/app/Events/OrderPlaced.php",
+      "sha256": "bfb035894b465db441a512b8b416b1d0a8ebf096d565109fd28f0d27ceb3062b",
+      "providerTokens": 78
+    },
+    {
+      "file": "fixtures/acme-shop/app/Facades/Pricing.php",
+      "sha256": "f875466620d3eb02835a011cfd9191191a8df0128b09c3fdd7a288a719f27e31",
+      "providerTokens": 135
+    },
+    {
+      "file": "fixtures/acme-shop/app/Http/Controllers/CheckoutController.php",
+      "sha256": "2c9802f3dffcd7df18f25845e4d4ae21112582c2e640977b5ddd0357b5e510fa",
+      "providerTokens": 181
+    },
+    {
+      "file": "fixtures/acme-shop/app/Http/Controllers/Controller.php",
+      "sha256": "e4e5b42862fa3f1a43dfc02fec49778bd697e05605be3f2a0b8f1e8a6a2bbed9",
+      "providerTokens": 60
+    },
+    {
+      "file": "fixtures/acme-shop/app/Http/Controllers/OrderController.php",
+      "sha256": "f53656be2602997d53930a7e3a8c5e988f8032e6c99c80ca2cd5a4f509792616",
+      "providerTokens": 207
+    },
+    {
+      "file": "fixtures/acme-shop/app/Http/Middleware/EnsureCartNotEmpty.php",
+      "sha256": "e95803e7249ac4586527f5fa52a1ac4174c66ea8c19b1ddff4a802ad4489e0bb",
+      "providerTokens": 149
+    },
+    {
+      "file": "fixtures/acme-shop/app/Http/Requests/StoreOrderRequest.php",
+      "sha256": "a2a11dcde3972abebd5851d96c9f01adbe478c8d126d690a92e2450798a8265e",
+      "providerTokens": 316
+    },
+    {
+      "file": "fixtures/acme-shop/app/Jobs/RecalculateTotals.php",
+      "sha256": "95d6faf4f6a9438292bd8a5d563a8d1cb76c58e359fba62670156c6ecc790b2a",
+      "providerTokens": 201
+    },
+    {
+      "file": "fixtures/acme-shop/app/Listeners/RecordDiscountAudit.php",
+      "sha256": "98f279b50c0b4628ae2b064b84e43677744642a43d6034e139caf2b87091a45d",
+      "providerTokens": 114
+    },
+    {
+      "file": "fixtures/acme-shop/app/Listeners/SendOrderConfirmation.php",
+      "sha256": "c4f18f3d1bddc87989b8425b0a59b14e7a330c1e1c6d7a16aa939317c528211c",
+      "providerTokens": 136
+    },
+    {
+      "file": "fixtures/acme-shop/app/Models/Coupon.php",
+      "sha256": "deb414a3c23065f01de54b36547e8179ee3c0b02e1376a720196a37167a868b2",
+      "providerTokens": 155
+    },
+    {
+      "file": "fixtures/acme-shop/app/Models/Customer.php",
+      "sha256": "a186b3d9de6791926f44c0eba9650a3a9c4a18c0fbc760df3e450f597be2c3c0",
+      "providerTokens": 167
+    },
+    {
+      "file": "fixtures/acme-shop/app/Models/Order.php",
+      "sha256": "5e41927c26f76a81916910ea8f37c879dd84e12df63c34a9e6f18fba5f07b288",
+      "providerTokens": 323
+    },
+    {
+      "file": "fixtures/acme-shop/app/Models/OrderLine.php",
+      "sha256": "e2ad6886b29c7509bcf57a62ff88bc184403576634e45b73c966f3e97541122c",
+      "providerTokens": 223
+    },
+    {
+      "file": "fixtures/acme-shop/app/Models/Product.php",
+      "sha256": "2ef3124c436f184b3f8e0aaf5879a754adf7ea6322d37c35589fa0e89dec3094",
+      "providerTokens": 150
+    },
+    {
+      "file": "fixtures/acme-shop/app/Observers/OrderObserver.php",
+      "sha256": "424c623a7d568ec90e194cf966ac48299b11528e96250ec69e95118ecf1ff06c",
+      "providerTokens": 131
+    },
+    {
+      "file": "fixtures/acme-shop/app/Providers/AppServiceProvider.php",
+      "sha256": "9d6e9822e87c03efd79a6aad690674e22b96773967c6999e44e34fa80b0c8f2a",
+      "providerTokens": 356
+    },
+    {
+      "file": "fixtures/acme-shop/app/Providers/EventServiceProvider.php",
+      "sha256": "851e203e856b3c1f39c2d80608483aa9b587c93c14340d9b1de313eec517ef1e",
+      "providerTokens": 128
+    },
+    {
+      "file": "fixtures/acme-shop/app/Services/CarrierGateway.php",
+      "sha256": "1d8d2bd009cc788d4968fc86c285039c117a59f11638afb322cda76c53a6d2df",
+      "providerTokens": 189
+    },
+    {
+      "file": "fixtures/acme-shop/app/Services/CouponValidator.php",
+      "sha256": "4d52e94286521541537ec04cebc47b5cfc064836f5ca115b83334d76a3a4ef02",
+      "providerTokens": 206
+    },
+    {
+      "file": "fixtures/acme-shop/app/Services/DiscountService.php",
+      "sha256": "76dd0d0f510cbd98c9a53afeb2205d8ec983782644c13fcc399a9b55e28439cf",
+      "providerTokens": 458
+    },
+    {
+      "file": "fixtures/acme-shop/app/Services/PriceCalculator.php",
+      "sha256": "31d5e73cc0104988811a74d1db31890e1c11c9e3b0f14fe049af345868894918",
+      "providerTokens": 269
+    },
+    {
+      "file": "fixtures/acme-shop/app/Services/ShippingService.php",
+      "sha256": "28d86718a4997c307937c9745cd43a69457971b4ab2052f02ed409de5c44a43c",
+      "providerTokens": 201
+    },
+    {
+      "file": "fixtures/acme-shop/app/Services/TaxService.php",
+      "sha256": "5e771876daa951073e6106f279336de890ce09e9cbdba66c234d7bc479d8717d",
+      "providerTokens": 181
+    },
+    {
+      "file": "fixtures/acme-shop/app/Support/Money.php",
+      "sha256": "a96c6ab59f921d7a7c3a5043672a7ef0324349e542a9dadc536dd98c9fc66df1",
+      "providerTokens": 443
+    },
+    {
+      "file": "fixtures/acme-shop/artisan",
+      "sha256": "649eca9f79b348e5e3d295c5442104a073dfba6807b13e3b57bb9656215189fc",
+      "providerTokens": 81
+    },
+    {
+      "file": "fixtures/acme-shop/composer.json",
+      "sha256": "577ab92d3bc75da63141d976bd7f2eb29ce4c64bbf41970dc722cfd1a0ade2fc",
+      "providerTokens": 229
+    },
+    {
+      "file": "fixtures/acme-shop/config/app.php",
+      "sha256": "6572051e0cbdb8d053e313ea62f4b44965f28d6305791271837668f31b820955",
+      "providerTokens": 183
+    },
+    {
+      "file": "fixtures/acme-shop/config/shop.php",
+      "sha256": "1f4ee70a23896769d057370124ced82905d628f4f9e0cf94b6a486622f29e22b",
+      "providerTokens": 208
+    },
+    {
+      "file": "fixtures/acme-shop/database/factories/OrderFactory.php",
+      "sha256": "9043a5d5e3d845e5c6aaccf49f6bc9546fc0afc048dc3f8acd848ef9d27c643a",
+      "providerTokens": 175
+    },
+    {
+      "file": "fixtures/acme-shop/database/migrations/2024_01_10_000001_create_customers_table.php",
+      "sha256": "594e5b4f466b8d81d5f57e895a632721adfbd2c0f0a730cb24acadda9f683142",
+      "providerTokens": 140
+    },
+    {
+      "file": "fixtures/acme-shop/database/migrations/2024_01_10_000002_create_products_table.php",
+      "sha256": "2775d7f01c9be0d3555ec824f23caaadb72cb6e7d2f8da7adc81bb7da71037ac",
+      "providerTokens": 133
+    },
+    {
+      "file": "fixtures/acme-shop/database/migrations/2024_01_10_000003_create_coupons_table.php",
+      "sha256": "ec36a6e38e1150c6ab3f8d313bca52104161a813e9103f4b98d42e03ac2f67b4",
+      "providerTokens": 129
+    },
+    {
+      "file": "fixtures/acme-shop/database/migrations/2024_01_10_000004_create_orders_table.php",
+      "sha256": "058e563afb970882c3f0ac6eac817da2fe0b8aa877166499c1a3793a355848bf",
+      "providerTokens": 170
+    },
+    {
+      "file": "fixtures/acme-shop/database/migrations/2024_01_10_000005_create_order_lines_table.php",
+      "sha256": "f4deefd225ed69ed7619fe9afaf627ef3a0360e4c0ed760671496d2912fccbaa",
+      "providerTokens": 145
+    },
+    {
+      "file": "fixtures/acme-shop/database/seeders/DatabaseSeeder.php",
+      "sha256": "c8140d2961d8263a935438dd7d99aa9e824dfe5fd00b3a28491673e00dd1fbcd",
+      "providerTokens": 276
+    },
+    {
+      "file": "fixtures/acme-shop/docs/pricing.md",
+      "sha256": "14e0342ad5b0f96dd9624273d68265b0d0879acbe2f1c337678bb6d388c90085",
+      "providerTokens": 336
+    },
+    {
+      "file": "fixtures/acme-shop/phpunit.xml",
+      "sha256": "be773b058b53518c4de043443ca189bc011a248aea9c09332ad9ec4c28eadc1c",
+      "providerTokens": 208
+    },
+    {
+      "file": "fixtures/acme-shop/routes/api.php",
+      "sha256": "8abe2f239f95bc55f642cd71216496d59c307494c4064ce88e230ebdabc03f8f",
+      "providerTokens": 70
+    },
+    {
+      "file": "fixtures/acme-shop/routes/web.php",
+      "sha256": "24ad5ea6284d1345bbae40e68339b0ef6a8e5cc60813093770c4eaf1ec4b205b",
+      "providerTokens": 62
+    },
+    {
+      "file": "fixtures/acme-shop/tests/CreatesApplication.php",
+      "sha256": "42335a7b18a0a7d97b3d33f33ab24ad167bb22bb33214aeef28aa979a1c6a762",
+      "providerTokens": 80
+    },
+    {
+      "file": "fixtures/acme-shop/tests/Feature/CheckoutTest.php",
+      "sha256": "d2a2dfacfaa47258a5587271dcb5d3127d7a47d689dccbd636618217f2fc00eb",
+      "providerTokens": 321
+    },
+    {
+      "file": "fixtures/acme-shop/tests/Feature/OrderPricingTest.php",
+      "sha256": "25e0de4a31e60bffe45511732c00743859f4bf72ddf354482464b87ba8f207ab",
+      "providerTokens": 557
+    },
+    {
+      "file": "fixtures/acme-shop/tests/TestCase.php",
+      "sha256": "d027c4bfe97e8463f1ef11dd9b74cc668b4e56bbcf68a9301a229e6bd0738372",
+      "providerTokens": 36
+    },
+    {
+      "file": "fixtures/acme-shop/tests/Unit/DiscountServiceTest.php",
+      "sha256": "57cda8a0c9488ddd609b5870e352380a074ea0adea8a671c9b966c0bf4cb1829",
+      "providerTokens": 675
+    },
+    {
+      "file": "fixtures/acme-shop/tests/Unit/PriceCalculatorTest.php",
+      "sha256": "a501fd28cd486d9d903f0157490af6f3f6a0edf41cf4856c1db0963acaca27e4",
+      "providerTokens": 480
+    },
+    {
+      "file": "fixtures/acme-shop/tests/Unit/ShippingServiceTest.php",
+      "sha256": "27714f19050222da6e0fc74e92c5eac4aa538611bc764748c0865b1221ab1ba8",
+      "providerTokens": 287
+    },
+    {
+      "file": "fixtures/acme-shop/tests/Unit/TaxServiceTest.php",
+      "sha256": "bd3995ede048c9db58f78d5fd0c7ddf8d54f2dd90176105f5f72cf830462bbea",
+      "providerTokens": 287
+    },
+    {
+      "file": "fixtures/task-api/.env.example",
+      "sha256": "82d7695826400862f498f60edd4498895ae75ada8eb77dadd17c557488a86537",
+      "providerTokens": 48
+    },
+    {
+      "file": "fixtures/task-api/.gitignore",
+      "sha256": "a53b1a5c814942c22e62bf40845d2567f6bac5d39d008d2b713343ab0b7f0bdb",
+      "providerTokens": 10
+    },
+    {
+      "file": "fixtures/task-api/README.md",
+      "sha256": "7515c06d7cc4067a36ee6d0d20850d985ebd16103eee4e212d351af820906d13",
+      "providerTokens": 469
+    },
+    {
+      "file": "fixtures/task-api/docs/api.md",
+      "sha256": "dce647dec74e757ec2652c34f98005b3d3bd7013e0f19c25a79fb0cd0bf16976",
+      "providerTokens": 487
+    },
+    {
+      "file": "fixtures/task-api/package.json",
+      "sha256": "c253d84af0561ebb23d2d9f8ebf3cfbc05cb7a9b785f44bd51aefc27f6cc9fa7",
+      "providerTokens": 279
+    },
+    {
+      "file": "fixtures/task-api/src/app.ts",
+      "sha256": "6bd0bb79d4e45cca03dfb66070a20f9384d9fc56c2dca4cb315250ccb622624c",
+      "providerTokens": 236
+    },
+    {
+      "file": "fixtures/task-api/src/controllers/health.controller.ts",
+      "sha256": "1eca5638d3d948a8c8a71f227025985e8f7397c562c51f29c5e2e63dddb8e9c3",
+      "providerTokens": 55
+    },
+    {
+      "file": "fixtures/task-api/src/controllers/tasks.controller.ts",
+      "sha256": "3daa22bdef27a56bce609b70bfbc4f9fa7a966f2e49b04fb4837eb99f8dfe7c3",
+      "providerTokens": 368
+    },
+    {
+      "file": "fixtures/task-api/src/domain/errors.ts",
+      "sha256": "47c1a3a29e4903bf8a0aa9fca2457e73575a9a94fda236e659f44f211a2e7ba5",
+      "providerTokens": 174
+    },
+    {
+      "file": "fixtures/task-api/src/domain/pagination.ts",
+      "sha256": "0b585b913772cd800a5af094b7de72910ab45db83b850f947694cbde1d9a72a2",
+      "providerTokens": 131
+    },
+    {
+      "file": "fixtures/task-api/src/domain/task-priority.ts",
+      "sha256": "eb66732746f27b61cd97c4b9a3d1e984144535c3d7da2f703cebacc26f614297",
+      "providerTokens": 154
+    },
+    {
+      "file": "fixtures/task-api/src/domain/task-status.ts",
+      "sha256": "fec7f1ecb42764ef19f9fdd6aafbe13f721db05200cb2f39e924f8ff2e89ec06",
+      "providerTokens": 239
+    },
+    {
+      "file": "fixtures/task-api/src/domain/task.entity.ts",
+      "sha256": "f186b67c226c0a2ecb8e64f97a57774424760453001627054d1d08a0570a028b",
+      "providerTokens": 224
+    },
+    {
+      "file": "fixtures/task-api/src/plugins/db.ts",
+      "sha256": "10afe1e4e6642409ce74efcd77d9d127bfe0c72cf98da9048be7c7727100b630",
+      "providerTokens": 156
+    },
+    {
+      "file": "fixtures/task-api/src/plugins/error-handler.ts",
+      "sha256": "1c7604abc81de08aabe6cc6687129ec2fd4cd5d5be2125fb21fbe7ce940b3e63",
+      "providerTokens": 270
+    },
+    {
+      "file": "fixtures/task-api/src/plugins/swagger.ts",
+      "sha256": "fc760a9a9c18587593c572250d2f7f5c3925b612d04a9a571a9fdec3b1c62d95",
+      "providerTokens": 125
+    },
+    {
+      "file": "fixtures/task-api/src/repositories/in-memory-task.repository.ts",
+      "sha256": "bc6d59da3806998b51de1cef96b76fcfabadcaf3b44cc70572d18e3ee254573e",
+      "providerTokens": 349
+    },
+    {
+      "file": "fixtures/task-api/src/repositories/task.repository.ts",
+      "sha256": "c333735384c843ddd987f6bdc83dfdf6fa0131053dfd99a43fed695690a65382",
+      "providerTokens": 226
+    },
+    {
+      "file": "fixtures/task-api/src/routes/health.routes.ts",
+      "sha256": "4f99227c93f6b754d82082b16a0d739f34165c7afc8a114d25ea7c86e32e7d50",
+      "providerTokens": 58
+    },
+    {
+      "file": "fixtures/task-api/src/routes/index.ts",
+      "sha256": "ac524106249c56e519c9399e115a05f0d6b7068fe983b55e570422e8e212c12c",
+      "providerTokens": 84
+    },
+    {
+      "file": "fixtures/task-api/src/routes/tasks.routes.ts",
+      "sha256": "6632b3e78ad00dcafba3fbb6cd7ce9b2dcd4f356c5990748f3e5412539b1526c",
+      "providerTokens": 252
+    },
+    {
+      "file": "fixtures/task-api/src/schemas/index.ts",
+      "sha256": "0a38291a64b919afdbae9593bfa51e5656f2c3ccd28a5da493213d9b73475810",
+      "providerTokens": 16
+    },
+    {
+      "file": "fixtures/task-api/src/schemas/pagination.schema.ts",
+      "sha256": "225618fc17ede22aaa045a723223f2290022fbc203d56ba4efd8752045b41801",
+      "providerTokens": 241
+    },
+    {
+      "file": "fixtures/task-api/src/schemas/task.schema.ts",
+      "sha256": "e669b8614bba99c1a852882572e74979ecc02aa0a5c19e6b6864988e64cce0d5",
+      "providerTokens": 439
+    },
+    {
+      "file": "fixtures/task-api/src/server.ts",
+      "sha256": "b40ce7d56042a2971082fafbe10beaaa1293dce260401d49e3a710698b2ff917",
+      "providerTokens": 121
+    },
+    {
+      "file": "fixtures/task-api/src/services/id.ts",
+      "sha256": "95c6b184d8fa96008baed793fa100e9f72224dd55e3bed6898bfc55d75a9e2bb",
+      "providerTokens": 55
+    },
+    {
+      "file": "fixtures/task-api/src/services/task.filters.ts",
+      "sha256": "18baf2660c07624efbc7561a4f086219252e2a9242fc7e490f2709e071283f05",
+      "providerTokens": 497
+    },
+    {
+      "file": "fixtures/task-api/src/services/task.service.ts",
+      "sha256": "c9d8c28b2738bbe39897efdd96a887e4bc068e3f8c96b0146a600ea080a7b1e6",
+      "providerTokens": 593
+    },
+    {
+      "file": "fixtures/task-api/src/types/index.ts",
+      "sha256": "9e5f771df5249e402b6081f51ab412c8f9dd05c4fc71a53ef9c05f59e684bedd",
+      "providerTokens": 88
+    },
+    {
+      "file": "fixtures/task-api/tests/helpers/build-app.ts",
+      "sha256": "e5b41c06b7a24d6e8178cb34a67fd193f56d1c75adebddbd8994350dea0a094e",
+      "providerTokens": 250
+    },
+    {
+      "file": "fixtures/task-api/tests/integration/tasks.routes.test.ts",
+      "sha256": "656f62f583f12d970244b341eab4133e99db70883dbed83d5484bd021db17c01",
+      "providerTokens": 546
+    },
+    {
+      "file": "fixtures/task-api/tests/integration/validation.test.ts",
+      "sha256": "e0e9043da334fef14de1d5d17baca3e5a9d76564086d7d326d851f41ee0282a6",
+      "providerTokens": 459
+    },
+    {
+      "file": "fixtures/task-api/tests/unit/task-status.test.ts",
+      "sha256": "1439766ca04a5b1bb3fcb71a63e4cbe7ce6950d93b6089802ebea18d3dc04b57",
+      "providerTokens": 214
+    },
+    {
+      "file": "fixtures/task-api/tests/unit/task.filters.test.ts",
+      "sha256": "5e9fc3b36eac58b2feac6f63826775b2a4339da45dc5b5a6c0c9dbd4876a5be5",
+      "providerTokens": 496
+    },
+    {
+      "file": "fixtures/task-api/tests/unit/task.service.test.ts",
+      "sha256": "72eec63e4c607ded05ca43541e961898f03192d280a31d4fcb7e9772e131e824",
+      "providerTokens": 541
+    },
+    {
+      "file": "fixtures/task-api/tsconfig.json",
+      "sha256": "260f829c25dd3052b89958594ceb45680195260a4f4a04f94a22961490b2ee86",
+      "providerTokens": 165
+    },
+    {
+      "file": "fixtures/task-api/vitest.config.ts",
+      "sha256": "cba5cbf7998d8a77b390aa433223873126e4103054093206ce178b2255ff4607",
+      "providerTokens": 72
+    }
+  ]
+}

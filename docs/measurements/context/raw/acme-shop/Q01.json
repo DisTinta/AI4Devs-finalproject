@@ -1,0 +1,138 @@
+{
+  "formatVersion": 1,
+  "fixture": "acme-shop",
+  "questionId": "Q01",
+  "question": "¿Cómo se calcula el precio final de un pedido?",
+  "receivedAt": "2026-11-03T10:58:20.706Z",
+  "status": 200,
+  "body": {
+    "answer": "El precio final de un pedido se calcula utilizando la clase `PriceCalculator`. Esta clase toma en cuenta el subtotal, los descuentos, los impuestos y el costo de envío.",
+    "statements": [
+      {
+        "text": "La clase `PriceCalculator` es la que realiza el cálculo del precio final de un pedido.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-1",
+          "ev-2"
+        ]
+      },
+      {
+        "text": "El subtotal se calcula sumando el valor de cada línea de pedido en la clase `Order`.",
+        "type": "INFERENCE",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-3"
+        ]
+      },
+      {
+        "text": "Los descuentos se aplican antes de calcular el impuesto, según lo testeado en `tests/Unit/PriceCalculatorTest.php`.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-4"
+        ]
+      },
+      {
+        "text": "El impuesto se calcula sobre el monto antes de impuestos (taxable base).",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-5",
+          "ev-6"
+        ]
+      },
+      {
+        "text": "El costo de envío se incluye al finalizar el cálculo del precio total en la clase `PriceCalculator`.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-7",
+          "ev-8"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "tests/Unit/PriceCalculatorTest.php",
+        "startLine": 21,
+        "endLine": 57,
+        "excerpt": "class PriceCalculatorTest extends TestCase\n{\n    protected function tearDown(): void\n    {\n        Mockery::close();\n        parent::tearDown();\n    }\n\n    public function test_discount_is_applied_before_tax(): void\n    {\n        $subtotal = Money::fromCents(10000);   // €100.00\n        $discount = Money::fromCents(1000);    // €10.00\n        $discountedBase = Money::fromCents(9000);\n\n        $order = Mockery::mock(Order::class);\n        $order->subtotal = $subtotal;\n\n        $discounts = Mockery::mock(DiscountService::class);\n        $discounts->shouldReceive('discountFor')->once()->andReturn($discount);\n\n        $taxes = Mockery::mock(TaxService::class);\n        // The heart of the test: tax is asked about the DISCOUNTED base, not the subtotal.\n        $taxes->shouldReceive('taxFor')\n            ->once()\n            ->with($order, Mockery::on(fn (Money $m) => $m->cents === $discountedBase->cents))\n            ->andReturn(Money::fromCents(1890)); // 21% of 9000\n\n        $shipping = Mockery::mock(ShippingService::class);\n        $shipping->shouldReceive('shippingFor')->once()->andReturn(Money::zero());\n\n        $calculator = new PriceCalculator($discounts, $taxes, $shipping);\n        $total = $calculator->compute($order);\n\n        // 9000 + 1890 + 0\n        $this->assertSame(10890, $total->cents);\n    }\n}"
+      },
+      {
+        "id": "ev-2",
+        "file": "app/Services/PriceCalculator.php",
+        "startLine": 16,
+        "endLine": 44,
+        "excerpt": "class PriceCalculator\n{\n    public function __construct(\n        private readonly DiscountService $discounts,\n        private readonly TaxService $taxes,\n        private readonly ShippingService $shipping,\n    ) {\n    }\n\n    public function compute(Order $order): Money\n    {\n        $subtotal = $order->subtotal;                       // magic accessor\n        $discount = $this->discounts->discountFor($order, $subtotal);\n        $taxable = $subtotal->subtract($discount);\n\n        $tax = $this->taxes->taxFor($order, $taxable);\n        $shipping = $this->shipping->shippingFor($order, $taxable);\n\n        return $taxable->add($tax)->add($shipping);\n    }\n\n    /** Returns the discounted amount before tax and shipping. */\n    public function taxableBase(Order $order): Money\n    {\n        $subtotal = $order->subtotal;\n\n        return $subtotal->subtract($this->discounts->discountFor($order, $subtotal));\n    }\n}"
+      },
+      {
+        "id": "ev-3",
+        "file": "app/Models/Order.php",
+        "startLine": 19,
+        "endLine": 57,
+        "excerpt": "class Order extends Model\n{\n    use HasFactory;\n\n    protected $fillable = ['customer_id', 'status', 'coupon_code', 'shipping_country'];\n\n    public function customer(): BelongsTo\n    {\n        return $this->belongsTo(Customer::class);\n    }\n\n    public function lines(): HasMany\n    {\n        return $this->hasMany(OrderLine::class);\n    }\n\n    public function coupon(): BelongsTo\n    {\n        // Resolved by string column, not by id — the coupon_code magic attribute.\n        return $this->belongsTo(Coupon::class, 'coupon_code', 'code');\n    }\n\n    /**\n     * Accessor exposed as $order->subtotal. Sums the order lines. Because this is\n     * a magic accessor, callers reference a property the analyzer cannot see.\n     */\n    public function getSubtotalAttribute(): Money\n    {\n        return $this->lines->reduce(\n            fn (Money $carry, OrderLine $line) => $carry->add($line->lineTotal()),\n            Money::zero(),\n        );\n    }\n\n    public function lineCount(): int\n    {\n        return $this->lines->count();\n    }\n}"
+      },
+      {
+        "id": "ev-4",
+        "file": "tests/Unit/PriceCalculatorTest.php",
+        "startLine": 21,
+        "endLine": 57,
+        "excerpt": "class PriceCalculatorTest extends TestCase\n{\n    protected function tearDown(): void\n    {\n        Mockery::close();\n        parent::tearDown();\n    }\n\n    public function test_discount_is_applied_before_tax(): void\n    {\n        $subtotal = Money::fromCents(10000);   // €100.00\n        $discount = Money::fromCents(1000);    // €10.00\n        $discountedBase = Money::fromCents(9000);\n\n        $order = Mockery::mock(Order::class);\n        $order->subtotal = $subtotal;\n\n        $discounts = Mockery::mock(DiscountService::class);\n        $discounts->shouldReceive('discountFor')->once()->andReturn($discount);\n\n        $taxes = Mockery::mock(TaxService::class);\n        // The heart of the test: tax is asked about the DISCOUNTED base, not the subtotal.\n        $taxes->shouldReceive('taxFor')\n            ->once()\n            ->with($order, Mockery::on(fn (Money $m) => $m->cents === $discountedBase->cents))\n            ->andReturn(Money::fromCents(1890)); // 21% of 9000\n\n        $shipping = Mockery::mock(ShippingService::class);\n        $shipping->shouldReceive('shippingFor')->once()->andReturn(Money::zero());\n\n        $calculator = new PriceCalculator($discounts, $taxes, $shipping);\n        $total = $calculator->compute($order);\n\n        // 9000 + 1890 + 0\n        $this->assertSame(10890, $total->cents);\n    }\n}"
+      },
+      {
+        "id": "ev-5",
+        "file": "app/Services/PriceCalculator.php",
+        "startLine": 16,
+        "endLine": 44,
+        "excerpt": "class PriceCalculator\n{\n    public function __construct(\n        private readonly DiscountService $discounts,\n        private readonly TaxService $taxes,\n        private readonly ShippingService $shipping,\n    ) {\n    }\n\n    public function compute(Order $order): Money\n    {\n        $subtotal = $order->subtotal;                       // magic accessor\n        $discount = $this->discounts->discountFor($order, $subtotal);\n        $taxable = $subtotal->subtract($discount);\n\n        $tax = $this->taxes->taxFor($order, $taxable);\n        $shipping = $this->shipping->shippingFor($order, $taxable);\n\n        return $taxable->add($tax)->add($shipping);\n    }\n\n    /** Returns the discounted amount before tax and shipping. */\n    public function taxableBase(Order $order): Money\n    {\n        $subtotal = $order->subtotal;\n\n        return $subtotal->subtract($this->discounts->discountFor($order, $subtotal));\n    }\n}"
+      },
+      {
+        "id": "ev-6",
+        "file": "app/Services/TaxService.php",
+        "startLine": 18,
+        "endLine": 28,
+        "excerpt": "class TaxService\n{\n    public function taxFor(Order $order, Money $base): Money\n    {\n        $rates = config('shop.tax_rates', []);\n        $country = $order->shipping_country ?? config('shop.default_country');\n        $rate = $rates[$country] ?? config('shop.default_tax_rate');\n\n        return $base->percentage((float) $rate);\n    }\n}"
+      },
+      {
+        "id": "ev-7",
+        "file": "app/Services/ShippingService.php",
+        "startLine": 16,
+        "endLine": 35,
+        "excerpt": "class ShippingService\n{\n    public function __construct(private readonly CarrierGateway $carrier)\n    {\n    }\n\n    public function shippingFor(Order $order, Money $base): Money\n    {\n        $threshold = Money::fromFloat((float) config('shop.free_shipping_threshold'));\n\n        if ($base->isGreaterThan($threshold)) {\n            return Money::zero();\n        }\n\n        // Dynamic method: CarrierGateway has no flatRateFor() declared.\n        $cents = $this->carrier->flatRateFor($order->shipping_country);\n\n        return Money::fromCents((int) $cents);\n    }\n}"
+      },
+      {
+        "id": "ev-8",
+        "file": "app/Services/PriceCalculator.php",
+        "startLine": 16,
+        "endLine": 44,
+        "excerpt": "class PriceCalculator\n{\n    public function __construct(\n        private readonly DiscountService $discounts,\n        private readonly TaxService $taxes,\n        private readonly ShippingService $shipping,\n    ) {\n    }\n\n    public function compute(Order $order): Money\n    {\n        $subtotal = $order->subtotal;                       // magic accessor\n        $discount = $this->discounts->discountFor($order, $subtotal);\n        $taxable = $subtotal->subtract($discount);\n\n        $tax = $this->taxes->taxFor($order, $taxable);\n        $shipping = $this->shipping->shippingFor($order, $taxable);\n\n        return $taxable->add($tax)->add($shipping);\n    }\n\n    /** Returns the discounted amount before tax and shipping. */\n    public function taxableBase(Order $order): Money\n    {\n        $subtotal = $order->subtotal;\n\n        return $subtotal->subtract($this->discounts->discountFor($order, $subtotal));\n    }\n}"
+      }
+    ],
+    "confidence": 0.8212735763411496,
+    "usage": {
+      "inputTokens": 11111,
+      "outputTokens": 341,
+      "baselineTokens": 7123,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": -56,
+      "costUsd": 0,
+      "latencyMs": 275001,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 6972,
+        "outputTokens": 285,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 8,
+        "cacheHits": 0,
+        "inputTokens": 4139,
+        "outputTokens": 56,
+        "costUsd": 0,
+        "latencyMs": 67721
+      }
+    }
+  }
+}

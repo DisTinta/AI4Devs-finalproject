@@ -1,0 +1,69 @@
+{
+  "formatVersion": 1,
+  "fixture": "task-api",
+  "questionId": "Q13",
+  "question": "¿Cómo carga loadEnv la configuración del entorno?",
+  "receivedAt": "2026-11-03T12:09:56.384Z",
+  "status": 200,
+  "body": {
+    "answer": "La función loadEnv carga la configuración del entorno utilizando una fachada de esquema llamada envSchema.",
+    "statements": [
+      {
+        "text": "loadEnv utiliza un parámetro process.env como valor predeterminado para source",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-1"
+        ]
+      },
+      {
+        "text": "server.ts llama a loadEnv sin pasar ningún argumento, por lo que usa process.env como valor predeterminado",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-2"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "src/config/env.ts",
+        "startLine": 18,
+        "endLine": 20,
+        "excerpt": "export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {\n  return envSchema.parse(source);\n}"
+      },
+      {
+        "id": "ev-2",
+        "file": "src/server.ts",
+        "startLine": 8,
+        "endLine": 18,
+        "excerpt": "async function main(): Promise<void> {\n  const env = loadEnv();\n  const app = buildApp({ logger: true });\n\n  try {\n    await app.listen({ port: env.PORT, host: env.HOST });\n  } catch (error) {\n    app.log.error(error);\n    process.exit(1);\n  }\n}"
+      }
+    ],
+    "confidence": 0.7772998611746911,
+    "usage": {
+      "inputTokens": 1286,
+      "outputTokens": 126,
+      "baselineTokens": 568,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": -126.4,
+      "costUsd": 0,
+      "latencyMs": 42836,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 665,
+        "outputTokens": 112,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 2,
+        "cacheHits": 0,
+        "inputTokens": 621,
+        "outputTokens": 14,
+        "costUsd": 0,
+        "latencyMs": 10253
+      }
+    }
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "formatVersion": 1,
+  "fixture": "task-api",
+  "questionId": "Q10",
+  "question": "¿Para qué sirve priorityRank y qué prioridades existen?",
+  "receivedAt": "2026-11-03T12:03:37.443Z",
+  "status": 200,
+  "body": {
+    "answer": "La función priorityRank asigna un número de prioridad a cada tarea, y las prioridades existentes son 'high', 'medium', y 'low'.",
+    "statements": [
+      {
+        "text": "La función priorityRank transforma una prioridad de tarea en un número utilizando la propiedad PRIORITY_RANK definida en el módulo src/domain/task-priority.ts.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-1"
+        ]
+      },
+      {
+        "text": "Las prioridades existentes son 'high', 'medium', y 'low', las cuales se definen como tipos en el módulo src/domain/task-priority.ts.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-2"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "src/domain/task-priority.ts",
+        "startLine": 20,
+        "endLine": 22,
+        "excerpt": "export function priorityRank(priority: TaskPriority): number {\n  return PRIORITY_RANK[priority];\n}"
+      },
+      {
+        "id": "ev-2",
+        "file": "src/domain/task-priority.ts",
+        "startLine": 16,
+        "endLine": 18,
+        "excerpt": "export function isTaskPriority(value: string): value is TaskPriority {\n  return (TASK_PRIORITIES as readonly string[]).includes(value);\n}"
+      }
+    ],
+    "confidence": 0.7772998611746911,
+    "usage": {
+      "inputTokens": 1486,
+      "outputTokens": 173,
+      "baselineTokens": 678,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": -119.2,
+      "costUsd": 0,
+      "latencyMs": 52891,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 880,
+        "outputTokens": 159,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 2,
+        "cacheHits": 0,
+        "inputTokens": 606,
+        "outputTokens": 14,
+        "costUsd": 0,
+        "latencyMs": 10316
+      }
+    }
+  }
+}

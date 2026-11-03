@@ -1,0 +1,99 @@
+{
+  "formatVersion": 1,
+  "fixture": "acme-shop",
+  "questionId": "Q14",
+  "question": "¿Para qué sirve la fachada Pricing?",
+  "receivedAt": "2026-11-03T11:35:36.334Z",
+  "status": 200,
+  "body": {
+    "answer": "La fachada `Pricing` proporciona acceso simplificado a los cálculos de precio en toda la aplicación.",
+    "statements": [
+      {
+        "text": "La fachada `Pricing` se define en 'app/Facades/Pricing.php'.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-1"
+        ]
+      },
+      {
+        "text": "La fachada `Pricing` permite acceder a los cálculos de precio a través del método `getFacadeAccessor()`, que devuelve 'pricing'.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-2"
+        ]
+      },
+      {
+        "text": "Los cálculos de precio principales se realizan en 'app/Services/PriceCalculator.php' dentro de la clase `PriceCalculator::compute(Order $order)'.",
+        "type": "INFERENCE",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-3"
+        ]
+      },
+      {
+        "text": "En 'tests/Feature/OrderPricingTest.php' se realizan pruebas unitarias de los cálculos de precio utilizando la fachada `Pricing`.",
+        "type": "INFERENCE",
+        "verification": "cited",
+        "evidenceIds": [
+          "ev-4"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "app/Facades/Pricing.php",
+        "startLine": 20,
+        "endLine": 26,
+        "excerpt": "class Pricing extends Facade\n{\n    protected static function getFacadeAccessor(): string\n    {\n        return 'pricing';\n    }\n}"
+      },
+      {
+        "id": "ev-2",
+        "file": "app/Facades/Pricing.php",
+        "startLine": 20,
+        "endLine": 26,
+        "excerpt": "class Pricing extends Facade\n{\n    protected static function getFacadeAccessor(): string\n    {\n        return 'pricing';\n    }\n}"
+      },
+      {
+        "id": "ev-3",
+        "file": "app/Services/PriceCalculator.php",
+        "startLine": 16,
+        "endLine": 44,
+        "excerpt": "class PriceCalculator\n{\n    public function __construct(\n        private readonly DiscountService $discounts,\n        private readonly TaxService $taxes,\n        private readonly ShippingService $shipping,\n    ) {\n    }\n\n    public function compute(Order $order): Money\n    {\n        $subtotal = $order->subtotal;                       // magic accessor\n        $discount = $this->discounts->discountFor($order, $subtotal);\n        $taxable = $subtotal->subtract($discount);\n\n        $tax = $this->taxes->taxFor($order, $taxable);\n        $shipping = $this->shipping->shippingFor($order, $taxable);\n\n        return $taxable->add($tax)->add($shipping);\n    }\n\n    /** Returns the discounted amount before tax and shipping. */\n    public function taxableBase(Order $order): Money\n    {\n        $subtotal = $order->subtotal;\n\n        return $subtotal->subtract($this->discounts->discountFor($order, $subtotal));\n    }\n}"
+      },
+      {
+        "id": "ev-4",
+        "file": "tests/Feature/OrderPricingTest.php",
+        "startLine": 27,
+        "endLine": 52,
+        "excerpt": "class OrderPricingTest extends TestCase\n{\n    use RefreshDatabase;\n\n    public function test_final_price_applies_discount_before_tax(): void\n    {\n        config(['shop.free_shipping_threshold' => 75.00, 'shop.shipping_rates' => ['ES' => 490]]);\n\n        $customer = Customer::factory()->create(['loyalty_tier' => 'gold', 'country' => 'ES']);\n        $widget = Product::factory()->create(['price_cents' => 1500]);\n        $gadget = Product::factory()->create(['price_cents' => 3200]);\n\n        $order = Order::factory()->create([\n            'customer_id' => $customer->id,\n            'shipping_country' => 'ES',\n        ]);\n        $order->lines()->create(['product_id' => $widget->id, 'quantity' => 2, 'unit_price_cents' => 1500]);\n        $order->lines()->create(['product_id' => $gadget->id, 'quantity' => 1, 'unit_price_cents' => 3200]);\n        $order->refresh();\n\n        $total = Pricing::compute($order);\n\n        $this->assertSame(7242, $total->cents);\n        $this->assertEqualsWithDelta(72.42, $total->amount(), 0.001);\n    }\n}"
+      }
+    ],
+    "confidence": 0.8112776300997288,
+    "usage": {
+      "inputTokens": 6596,
+      "outputTokens": 269,
+      "baselineTokens": 5118,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": -28.9,
+      "costUsd": 0,
+      "latencyMs": 162475,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 4874,
+        "outputTokens": 241,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 4,
+        "cacheHits": 0,
+        "inputTokens": 1722,
+        "outputTokens": 28,
+        "costUsd": 0,
+        "latencyMs": 28162
+      }
+    }
+  }
+}

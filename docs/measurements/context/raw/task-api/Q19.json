@@ -1,0 +1,14 @@
+{
+  "formatVersion": 1,
+  "fixture": "task-api",
+  "questionId": "Q19",
+  "question": "¿Cómo se autentican los usuarios?",
+  "receivedAt": "2026-11-03T12:22:26.645Z",
+  "status": 200,
+  "body": {
+    "answer": "UNKNOWN",
+    "reason": "no-anchor",
+    "statements": [],
+    "evidence": []
+  }
+}

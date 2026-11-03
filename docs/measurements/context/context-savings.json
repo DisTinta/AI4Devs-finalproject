@@ -1,0 +1,122 @@
+{
+  "formatVersion": 1,
+  "run": {
+    "startedAt": "2026-11-03T10:53:45.610Z",
+    "ollamaVersion": "0.40.13",
+    "model": "qwen2.5-coder:latest",
+    "modelDigest": "dae161e27b0e90dd1856c8bb3209201fd6736d8eb66298e75ed87571486f4364",
+    "verifyModel": "qwen2.5-coder:latest",
+    "questionsSha256": "e01752687bbf6be2bcba95c7f2dc116c0ea5f3666100b387db7d170e14c893e6",
+    "firstReceivedAt": "2026-11-03T10:58:20.706Z",
+    "lastReceivedAt": "2026-11-03T12:22:26.679Z"
+  },
+  "projects": [
+    {
+      "fixture": "acme-shop",
+      "questions": 20,
+      "answered": 17,
+      "unknown": {
+        "invalid-model-output": 1,
+        "no-anchor": 2
+      },
+      "baselineTokens": 86355,
+      "inputTokens": 116025,
+      "outputTokens": 4234,
+      "savingsTenths": -344,
+      "latencyMs": 2859117,
+      "generation": {
+        "inputTokens": 82750,
+        "outputTokens": 3710
+      },
+      "verification": {
+        "calls": 70,
+        "cacheHits": 0,
+        "inputTokens": 33275,
+        "outputTokens": 524,
+        "costUsd": 0,
+        "latencyMs": 520636,
+        "maxCallsPerAnswer": 9
+      },
+      "costUsd": 0,
+      "shares": {
+        "tokens": 0.2811,
+        "latency": 0.1821,
+        "cost": null
+      },
+      "latency": {
+        "medianMs": 162475,
+        "verifyMedianMs": 24703,
+        "under10s": 0
+      },
+      "expectedUnknown": {
+        "declared": 2,
+        "answeredUnknown": 2
+      }
+    },
+    {
+      "fixture": "task-api",
+      "questions": 20,
+      "answered": 16,
+      "unknown": {
+        "invalid-model-output": 2,
+        "no-anchor": 2
+      },
+      "baselineTokens": 52420,
+      "inputTokens": 85200,
+      "outputTokens": 3769,
+      "savingsTenths": -625,
+      "latencyMs": 2122700,
+      "generation": {
+        "inputTokens": 53382,
+        "outputTokens": 3276
+      },
+      "verification": {
+        "calls": 64,
+        "cacheHits": 0,
+        "inputTokens": 31818,
+        "outputTokens": 493,
+        "costUsd": 0,
+        "latencyMs": 511396,
+        "maxCallsPerAnswer": 15
+      },
+      "costUsd": 0,
+      "shares": {
+        "tokens": 0.3632,
+        "latency": 0.2409,
+        "cost": null
+      },
+      "latency": {
+        "medianMs": 93634,
+        "verifyMedianMs": 11507,
+        "under10s": 0
+      },
+      "expectedUnknown": {
+        "declared": 2,
+        "answeredUnknown": 2
+      }
+    }
+  ],
+  "tokenizer": {
+    "model": "qwen2.5-coder:latest",
+    "files": 89,
+    "excluded": [
+      "fixtures/acme-shop/config/services.php",
+      "fixtures/task-api/src/config/env.ts"
+    ],
+    "estimated": 20628,
+    "provider": 20147,
+    "deviation": 0.0239,
+    "min": {
+      "file": "fixtures/task-api/package.json",
+      "estimated": 192,
+      "provider": 279,
+      "deviation": -0.3118
+    },
+    "max": {
+      "file": "fixtures/acme-shop/app/Http/Controllers/Controller.php",
+      "estimated": 86,
+      "provider": 60,
+      "deviation": 0.4333
+    }
+  }
+}

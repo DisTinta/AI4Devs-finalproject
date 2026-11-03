@@ -1,0 +1,62 @@
+{
+  "formatVersion": 1,
+  "fixture": "task-api",
+  "questionId": "Q14",
+  "question": "¿Qué devuelve el controlador de salud en health.controller.ts?",
+  "receivedAt": "2026-11-03T12:10:43.415Z",
+  "status": 200,
+  "body": {
+    "answer": "El controlador de salud en health.controller.ts devuelve un objeto JSON con el estado 'ok' cuando se realiza una solicitud a la ruta /health.",
+    "statements": [
+      {
+        "text": "El controlador de salud responde con el estado 'ok' cuando se realiza una solicitud a la ruta /health.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-1",
+          "ev-2"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "src/controllers/health.controller.ts",
+        "startLine": 3,
+        "endLine": 7,
+        "excerpt": "export class HealthController {\n  async check(_request: FastifyRequest, reply: FastifyReply): Promise<void> {\n    await reply.send({ status: 'ok' });\n  }\n}"
+      },
+      {
+        "id": "ev-2",
+        "file": "src/routes/health.routes.ts",
+        "startLine": 4,
+        "endLine": 7,
+        "excerpt": "export async function healthRoutes(app: FastifyInstance): Promise<void> {\n  const controller = new HealthController();\n  app.get('/health', controller.check);\n}"
+      }
+    ],
+    "confidence": 0.8670357598021706,
+    "usage": {
+      "inputTokens": 1938,
+      "outputTokens": 110,
+      "baselineTokens": 1156,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": -67.6,
+      "costUsd": 0,
+      "latencyMs": 46999,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 1331,
+        "outputTokens": 96,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 2,
+        "cacheHits": 0,
+        "inputTokens": 607,
+        "outputTokens": 14,
+        "costUsd": 0,
+        "latencyMs": 10224
+      }
+    }
+  }
+}

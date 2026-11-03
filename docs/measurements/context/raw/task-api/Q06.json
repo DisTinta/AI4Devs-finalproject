@@ -1,0 +1,99 @@
+{
+  "formatVersion": 1,
+  "fixture": "task-api",
+  "questionId": "Q06",
+  "question": "¿Cómo ordena sortTasks las tareas?",
+  "receivedAt": "2026-11-03T11:57:15.482Z",
+  "status": 200,
+  "body": {
+    "answer": "sortTasks ordena las tareas según el criterio de sort (por ejemplo, prioridad, fecha de vencimiento) y el orden (ascendente o descendente).",
+    "statements": [
+      {
+        "text": "sortTasks toma como entrada un array de tareas, un criterio de ordenamiento y el orden (ascendente o descendente), ordena las tareas según el criterio y el orden especificados.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-1"
+        ]
+      },
+      {
+        "text": "El criterio de ordenamiento se maneja en la función compareBy, que utiliza un switch para comparar tareas según diferentes atributos como prioridad, fecha de vencimiento, actualización y creación.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-2"
+        ]
+      },
+      {
+        "text": "La función buildPage, definida en src/domain/pagination.ts, construye una página de resultados a partir de una lista de tareas, el número total de tareas, la página actual y el tamaño de la página.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-3"
+        ]
+      },
+      {
+        "text": "La función sortTasks se utiliza en el método list de InMemoryTaskRepository para ordenar las tareas aplicando filtros previamente.",
+        "type": "FACT",
+        "verification": "entailed",
+        "evidenceIds": [
+          "ev-4"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-1",
+        "file": "src/services/task.filters.ts",
+        "startLine": 27,
+        "endLine": 30,
+        "excerpt": "export function sortTasks(tasks: Task[], sort: TaskQuery['sort'], order: TaskQuery['order']): Task[] {\n  const direction = order === 'asc' ? 1 : -1;\n  return [...tasks].sort((a, b) => compareBy(a, b, sort) * direction);\n}"
+      },
+      {
+        "id": "ev-2",
+        "file": "src/services/task.filters.ts",
+        "startLine": 32,
+        "endLine": 44,
+        "excerpt": "function compareBy(a: Task, b: Task, sort: TaskQuery['sort']): number {\n  switch (sort) {\n    case 'priority':\n      return priorityRank(a.priority) - priorityRank(b.priority);\n    case 'dueDate':\n      return compareNullableDate(a.dueDate, b.dueDate);\n    case 'updatedAt':\n      return a.updatedAt.localeCompare(b.updatedAt);\n    case 'createdAt':\n    default:\n      return a.createdAt.localeCompare(b.createdAt);\n  }\n}"
+      },
+      {
+        "id": "ev-3",
+        "file": "src/domain/pagination.ts",
+        "startLine": 13,
+        "endLine": 21,
+        "excerpt": "export function buildPage<T>(items: T[], total: number, page: number, pageSize: number): Page<T> {\n  return {\n    items,\n    total,\n    page,\n    pageSize,\n    pageCount: pageSize > 0 ? Math.ceil(total / pageSize) : 0,\n  };\n}"
+      },
+      {
+        "id": "ev-4",
+        "file": "src/repositories/in-memory-task.repository.ts",
+        "startLine": 24,
+        "endLine": 32,
+        "excerpt": "  async list(query: TaskQuery): Promise<Page<Task>> {\n    const all = [...this.tasks.values()];\n    const filtered = applyFilters(all, query);\n    const sorted = sortTasks(filtered, query.sort, query.order);\n    const total = sorted.length;\n    const start = (query.page - 1) * query.pageSize;\n    const items = sorted.slice(start, start + query.pageSize);\n    return buildPage(items, total, query.page, query.pageSize);\n  }"
+      }
+    ],
+    "confidence": 0.8933094060543487,
+    "usage": {
+      "inputTokens": 3347,
+      "outputTokens": 324,
+      "baselineTokens": 1586,
+      "baselineEstimator": "chars-div-4",
+      "savingsPct": -111,
+      "costUsd": 0,
+      "latencyMs": 112313,
+      "cacheHit": false,
+      "generation": {
+        "inputTokens": 1857,
+        "outputTokens": 296,
+        "costUsd": 0
+      },
+      "verification": {
+        "calls": 4,
+        "cacheHits": 0,
+        "inputTokens": 1490,
+        "outputTokens": 28,
+        "costUsd": 0,
+        "latencyMs": 22350
+      }
+    }
+  }
+}

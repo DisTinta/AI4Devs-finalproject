@@ -1,0 +1,1079 @@
+{
+  "formatVersion": 1,
+  "fixture": "acme-shop",
+  "answers": [
+    {
+      "questionId": "Q01",
+      "question": "¿Cómo se calcula el precio final de un pedido?",
+      "answer": "El precio final de un pedido se calcula utilizando la clase `PriceCalculator`. Esta clase toma en cuenta el subtotal, los descuentos, los impuestos y el costo de envío.",
+      "statements": [
+        {
+          "text": "La clase `PriceCalculator` es la que realiza el cálculo del precio final de un pedido.",
+          "type": "INFERENCE",
+          "evidenceIds": [
+            "ev-1",
+            "ev-2"
+          ]
+        },
+        {
+          "text": "El subtotal se calcula sumando el valor de cada línea de pedido en la clase `Order`.",
+          "type": "INFERENCE",
+          "evidenceIds": [
+            "ev-3"
+          ]
+        },
+        {
+          "text": "Los descuentos se aplican antes de calcular el impuesto, según lo testeado en `tests/Unit/PriceCalculatorTest.php`.",
+          "type": "FACT",
+          "evidenceIds": [
+            "ev-4"
+          ]
+        },
+        {
+          "text": "El impuesto se calcula sobre el monto antes de impuestos (taxable base).",
+          "type": "INFERENCE",
+          "evidenceIds": [
+            "ev-5",
+            "ev-6"
+          ]
+        },
+        {
+          "text": "El costo de envío se incluye al finalizar el cálculo del precio total en la clase `PriceCalculator`.",
+          "type": "INFERENCE",
+          "evidenceIds": [
+            "ev-7",
+            "ev-8"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "id": "ev-1",
+          "file": "tests/Unit/PriceCalculatorTest.php",
+          "startLine": 21,
+          "endLine": 57,
+          "excerpt": "class PriceCalculatorTest extends TestCase\n{\n    protected function tearDown(): void\n    {\n        Mockery::close();\n        parent::tearDown();\n    }\n\n    public function test_discount_is_applied_before_tax(): void\n    {\n        $subtotal = Money::fromCents(10000);   // €100.00\n        $discount = Money::fromCents(1000);    // €10.00\n        $discountedBase = Money::fromCents(9000);\n\n        $order = Mockery::mock(Order::class);\n        $order->subtotal = $subtotal;\n\n        $discounts = Mockery::mock(DiscountService::class);\n        $discounts->shouldReceive('discountFor')->once()->andReturn($discount);\n\n        $taxes = Mockery::mock(TaxService::class);\n        // The heart of the test: tax is asked about the DISCOUNTED base, not the subtotal.\n        $taxes->shouldReceive('taxFor')\n            ->once()\n            ->with($order, Mockery::on(fn (Money $m) => $m->cents === $discountedBase->cents))\n            ->andReturn(Money::fromCents(1890)); // 21% of 9000\n\n        $shipping = Mockery::mock(ShippingService::class);\n        $shipping->shouldReceive('shippingFor')->once()->andReturn(Money::zero());\n\n        $calculator = new PriceCalculator($discounts, $taxes, $shipping);\n        $total = $calculator->compute($order);\n\n        // 9000 + 1890 + 0\n        $this->assertSame(10890, $total->cents);\n    }\n}"
+        },
+        {
+          "id": "ev-2",
+          "file": "app/Services/PriceCalculator.php",
+          "startLine": 16,
+          "endLine": 44,
+          "excerpt": "class PriceCalculator\n{\n    public function __construct(\n        private readonly DiscountService $discounts,\n        private readonly TaxService $taxes,\n        private readonly ShippingService $shipping,\n    ) {\n    }\n\n    public function compute(Order $order): Money\n    {\n        $subtotal = $order->subtotal;                       // magic accessor\n        $discount = $this->discounts->discountFor($order, $subtotal);\n        $taxable = $subtotal->subtract($discount);\n\n        $tax = $this->taxes->taxFor($order, $taxable);\n        $shipping = $this->shipping->shippingFor($order, $taxable);\n\n        return $taxable->add($tax)->add($shipping);\n    }\n\n    /** Returns the discounted amount before tax and shipping. */\n    public function taxableBase(Order $order): Money\n    {\n        $subtotal = $order->subtotal;\n\n        return $subtotal->subtract($this->discounts->discountFor($order, $subtotal));\n    }\n}"
+        },
+        {
+          "id": "ev-3",
+          "file": "app/Models/Order.php",
+          "startLine": 19,
+          "endLine": 57,
+          "excerpt": "class Order extends Model\n{\n    use HasFactory;\n\n    protected $fillable = ['customer_id', 'status', 'coupon_code', 'shipping_country'];\n\n    public function customer(): BelongsTo\n    {\n        return $this->belongsTo(Customer::class);\n    }\n\n    public function lines(): HasMany\n    {\n        return $this->hasMany(OrderLine::class);\n    }\n\n    public function coupon(): BelongsTo\n    {\n        // Resolved by string column, not by id — the coupon_code magic attribute.\n        return $this->belongsTo(Coupon::class, 'coupon_code', 'code');\n    }\n\n    /**\n     * Accessor exposed as $order->subtotal. Sums the order lines. Because this is\n     * a magic accessor, callers reference a property the analyzer cannot see.\n     */\n    public function getSubtotalAttribute(): Money\n    {\n        return $this->lines->reduce(\n            fn (Money $carry, OrderLine $line) => $carry->add($line->lineTotal()),\n            Money::zero(),\n        );\n    }\n\n    public function lineCount(): int\n    {\n        return $this->lines->count();\n    }\n}"
+        },
+        {
+          "id": "ev-4",
+          "file": "tests/Unit/PriceCalculatorTest.php",
+          "startLine": 21,
+          "endLine": 57,
+          "excerpt": "class PriceCalculatorTest extends TestCase\n{\n    protected function tearDown(): void\n    {\n        Mockery::close();\n        parent::tearDown();\n    }\n\n    public function test_discount_is_applied_before_tax(): void\n    {\n        $subtotal = Money::fromCents(10000);   // €100.00\n        $discount = Money::fromCents(1000);    // €10.00\n        $discountedBase = Money::fromCents(9000);\n\n        $order = Mockery::mock(Order::class);\n        $order->subtotal = $subtotal;\n\n        $discounts = Mockery::mock(DiscountService::class);\n        $discounts->shouldReceive('discountFor')->once()->andReturn($discount);\n\n        $taxes = Mockery::mock(TaxService::class);\n        // The heart of the test: tax is asked about the DISCOUNTED base, not the subtotal.\n        $taxes->shouldReceive('taxFor')\n            ->once()\n            ->with($order, Mockery::on(fn (Money $m) => $m->cents === $discountedBase->cents))\n            ->andReturn(Money::fromCents(1890)); // 21% of 9000\n\n        $shipping = Mockery::mock(ShippingService::class);\n        $shipping->shouldReceive('shippingFor')->once()->andReturn(Money::zero());\n\n        $calculator = new PriceCalculator($discounts, $taxes, $shipping);\n        $total = $calculator->compute($order);\n\n        // 9000 + 1890 + 0\n        $this->assertSame(10890, $total->cents);\n    }\n}"
+        },
+        {
+          "id": "ev-5",
+          "file": "app/Services/PriceCalculator.php",
+          "startLine": 16,
+          "endLine": 44,
+          "excerpt": "class PriceCalculator\n{\n    public function __construct(\n        private readonly DiscountService $discounts,\n        private readonly TaxService $taxes,\n        private readonly ShippingService $shipping,\n    ) {\n    }\n\n    public function compute(Order $order): Money\n    {\n        $subtotal = $order->subtotal;                       // magic accessor\n        $discount = $this->discounts->discountFor($order, $subtotal);\n        $taxable = $subtotal->subtract($discount);\n\n        $tax = $this->taxes->taxFor($order, $taxable);\n        $shipping = $this->shipping->shippingFor($order, $taxable);\n\n        return $taxable->add($tax)->add($shipping);\n    }\n\n    /** Returns the discounted amount before tax and shipping. */\n    public function taxableBase(Order $order): Money\n    {\n        $subtotal = $order->subtotal;\n\n        return $subtotal->subtract($this->discounts->discountFor($order, $subtotal));\n    }\n}"
+        },
+        {
+          "id": "ev-6",
+          "file": "app/Services/TaxService.php",
+          "startLine": 18,
+          "endLine": 28,
+          "excerpt": "class TaxService\n{\n    public function taxFor(Order $order, Money $base): Money\n    {\n        $rates = config('shop.tax_rates', []);\n        $country = $order->shipping_country ?? config('shop.default_country');\n        $rate = $rates[$country] ?? config('shop.default_tax_rate');\n\n        return $base->percentage((float) $rate);\n    }\n}"
+        },
+        {
+          "id": "ev-7",
+          "file": "app/Services/ShippingService.php",
+          "startLine": 16,
+          "endLine": 35,
+          "excerpt": "class ShippingService\n{\n    public function __construct(private readonly CarrierGateway $carrier)\n    {\n    }\n\n    public function shippingFor(Order $order, Money $base): Money\n    {\n        $threshold = Money::fromFloat((float) config('shop.free_shipping_threshold'));\n\n        if ($base->isGreaterThan($threshold)) {\n            return Money::zero();\n        }\n\n        // Dynamic method: CarrierGateway has no flatRateFor() declared.\n        $cents = $this->carrier->flatRateFor($order->shipping_country);\n\n        return Money::fromCents((int) $cents);\n    }\n}"
+        },
+        {
+          "id": "ev-8",
+          "file": "app/Services/PriceCalculator.php",
+          "startLine": 16,
+          "endLine": 44,
+          "excerpt": "class PriceCalculator\n{\n    public function __construct(\n        private readonly DiscountService $discounts,\n        private readonly TaxService $taxes,\n        private readonly ShippingService $shipping,\n    ) {\n    }\n\n    public function compute(Order $order): Money\n    {\n        $subtotal = $order->subtotal;                       // magic accessor\n        $discount = $this->discounts->discountFor($order, $subtotal);\n        $taxable = $subtotal->subtract($discount);\n\n        $tax = $this->taxes->taxFor($order, $taxable);\n        $shipping = $this->shipping->shippingFor($order, $taxable);\n\n        return $taxable->add($tax)->add($shipping);\n    }\n\n    /** Returns the discounted amount before tax and shipping. */\n    public function taxableBase(Order $order): Money\n    {\n        $subtotal = $order->subtotal;\n\n        return $subtotal->subtract($this->discounts->discountFor($order, $subtotal));\n    }\n}"
+        }
+      ]
+    },
+    {
+      "questionId": "Q02",
+      "question": "¿Cómo se validan los cupones?",
+      "answer": "Los cupones se validan en el servicio CouponValidator. Este servicio verifica el código del cupón, si es válido (es decir, si está activo y no ha expirado) y devuelve el porcentaje de descuento asociado al cupón.",
+      "statements": [
+        {
+          "text": "El método CouponValidator::isRedeemable verifica si el código del cupón es válido devolviendo true o false.",
+          "type": "FACT",
+          "evidenceIds": [
+            "ev-1"
+          ]
+        },
+        {
+          "text": "El método CouponValidator::percentFor calcula el porcentaje de descuento para el código de cupón proporcionado.",
+          "type": "FACT",
+          "evidenceIds": [
+            "ev-2"
+          ]
+        },
+        {
+          "text": "El método CouponValidator::percentFor usa el método find de la clase Coupon para buscar un cupón activo con el código proporcionado.",
+          "type": "INFERENCE",
+          "evidenceIds": [
+            "ev-3"
+          ]
+        },
+        {
+          "text": "El método CouponValidator::percentFor verifica si el cupón ha expirado antes de devolver el porcentaje de descuento.",
+          "type": "FACT",
+          "evidenceIds": [
+            "ev-4"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "id": "ev-1",
+          "file": "app/Services/CouponValidator.php",
+          "startLine": 14,
+          "endLine": 39,
+          "excerpt": "class CouponValidator\n{\n    public function percentFor(?string $code): float\n    {\n        if ($code === null || $code === '') {\n            return 0.0;\n        }\n\n        $coupon = Coupon::query()->find($code);\n\n        if (! $coupon instanceof Coupon || ! $coupon->active) {\n            return 0.0;\n        }\n\n        if ($coupon->expires_at !== null && $coupon->expires_at->isPast()) {\n            return 0.0;\n        }\n\n        return $coupon->percent_off;\n    }\n\n    public function isRedeemable(?string $code): bool\n    {\n        return $this->percentFor($code) > 0.0;\n    }\n}"
+        },
+        {
+          "id": "ev-2",
+          "file": "app/Services/CouponValidator.php",
+          "startLine": 14,
+          "endLine": 39,
+          "excerpt": "class CouponValidator\n{\n    public function percentFor(?string $code): float\n    {\n        if ($code === null || $code === '') {\n            return 0.0;\n        }\n\n        $coupon = Coupon::query()->find($code);\n\n        if (! $coupon instanceof Coupon || ! $coupon->active) {\n            return 0.0;\n        }\n\n        if ($coupon->expires_at !== null && $coupon->expires_at->isPast()) {\n            return 0.0;\n        }\n\n        return $coupon->percent_off;\n    }\n\n    public function isRedeemable(?string $code): bool\n    {\n        return $this->percentFor($code) > 0.0;\n    }\n}"
+        },
+        {
+          "id": "ev-3",
+          "file": "app/Services/CouponValidator.php",
+          "startLine": 14,
+          "endLine": 39,
+          "excerpt": "class CouponValidator\n{\n    public function percentFor(?string $code): float\n    {\n        if ($code === null || $code === '') {\n            return 0.0;\n        }\n\n        $coupon = Coupon::query()->find($code);\n\n        if (! $coupon instanceof Coupon || ! $coupon->active) {\n            return 0.0;\n        }\n\n        if ($coupon->expires_at !== null && $coupon->expires_at->isPast()) {\n            return 0.0;\n        }\n\n        return $coupon->percent_off;\n    }\n\n    public function isRedeemable(?string $code): bool\n    {\n        return $this->percentFor($code) > 0.0;\n    }\n}"
+        },
+        {
+          "id": "ev-4",
+          "file": "app/Services/CouponValidator.php",
+          "startLine": 14,
+          "endLine": 39,
+          "excerpt": "class CouponValidator\n{\n    public function percentFor(?string $code): float\n    {\n        if ($code === null || $code === '') {\n            return 0.0;\n        }\n\n        $coupon = Coupon::query()->find($code);\n\n        if (! $coupon instanceof Coupon || ! $coupon->active) {\n            return 0.0;\n        }\n\n        if ($coupon->expires_at !== null && $coupon->expires_at->isPast()) {\n            return 0.0;\n        }\n\n        return $coupon->percent_off;\n    }\n\n    public function isRedeemable(?string $code): bool\n    {\n        return $this->percentFor($code) > 0.0;\n    }\n}"
+        }
+      ]
+    },
+    {
+      "questionId": "Q03",
+      "question": "¿Qué hace OrderObserver al crear un pedido?",
+      "answer": "OrderObserver recalculates totals and dispatches an event when an order is created. OrderPlaced logs the order confirmation. Pricing recalculates totals and logs them when orders are paid.",
+      "statements": [
+        {
+          "text": "OrderObserver llama a RecalculateTotals::dispatch($order) cuando se crea una orden.",
+          "type": "FACT",
+          "evidenceIds": [
+            "ev-1"
+          ]
+        },
+        {
+          "text": "OrderObserver lanza un evento new OrderPlaced($order) cuando se crea una orden.",
+          "type": "FACT",
+          "evidenceIds": [
+            "ev-2"
+          ]
+        },
+        {
+          "text": "OrderPlaced registra la confirmación de la orden en los registros de información.",
+          "type": "FACT",
+          "evidenceIds": [
+            "ev-3"
+          ]
+        },
+        {
+          "text": "RecalculateTotals recalcula los totales y registra la información de los totales de la orden cuando se pagan.",
+          "type": "INFERENCE",
+          "evidenceIds": [
+            "ev-4",
+            "ev-5"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "id": "ev-1",
+          "file": "app/Observers/OrderObserver.php",
+          "startLine": 14,
+          "endLine": 28,
+          "excerpt": "class OrderObserver\n{\n    public function created(Order $order): void\n    {\n        RecalculateTotals::dispatch($order);\n        event(new OrderPlaced($order));\n    }\n\n    public function updated(Order $order): void\n    {\n        if ($order->wasChanged('status') && $order->status === 'paid') {\n            RecalculateTotals::dispatch($order);\n        }\n    }\n}"
+        },
+        {
+          "id": "ev-2",
+          "file": "app/Observers/OrderObserver.php",
+          "startLine": 14,
+          "endLine": 28,
+          "excerpt": "class OrderObserver\n{\n    public function created(Order $order): void\n    {\n        RecalculateTotals::dispatch($order);\n        event(new OrderPlaced($order));\n    }\n\n    public function updated(Order $order): void\n    {\n        if ($order->wasChanged('status') && $order->status === 'paid') {\n            RecalculateTotals::dispatch($order);\n        }\n    }\n}"
+        },
+        {
+          "id": "ev-3",
+          "file": "app/Listeners/SendOrderConfirmation.php",
+          "startLine": 15,
+          "endLine": 26,
+          "excerpt": "class SendOrderConfirmation\n{\n    public function handle(OrderPlaced $event): void\n    {\n        $total = Pricing::compute($event->order);\n\n        Log::info('order.confirmation', [\n            'order_id' => $event->order->id,\n            'total' => $total->amount(),\n        ]);\n    }\n}"
+        },
+        {
+          "id": "ev-4",
+          "file": "app/Jobs/RecalculateTotals.php",
+          "startLine": 30,
+          "endLine": 38,
+          "excerpt": "    public function handle(): void\n    {\n        $total = Pricing::compute($this->order);\n\n        Log::info('order.totals.recalculated', [\n            'order_id' => $this->order->id,\n            'total' => $total->amount(),\n        ]);\n    }"
+        },
+        {
+          "id": "ev-5",
+          "file": "app/Support/Money.php",
+          "startLine": 14,
+          "endLine": 75,
+          "excerpt": "final class Money\n{\n    private function __construct(\n        public readonly int $cents,\n        public readonly string $currency = 'EUR',\n    ) {\n    }\n\n    public static function fromCents(int $cents, string $currency = 'EUR'): self\n    {\n        return new self($cents, $currency);\n    }\n\n    public static function fromFloat(float $amount, string $currency = 'EUR'): self\n    {\n        return new self((int) round($amount * 100), $currency);\n    }\n\n    public static function zero(string $currency = 'EUR'): self\n    {\n        return new self(0, $currency);\n    }\n\n    public function add(Money $other): self\n    {\n        $this->assertSameCurrency($other);\n\n        return new self($this->cents + $other->cents, $this->currency);\n    }\n\n    public function subtract(Money $other): self\n    {\n        $this->assertSameCurrency($other);\n\n        return new self(max(0, $this->cents - $other->cents), $this->currency);\n    }\n\n    /** Percentage of this amount, rounded half-up to the nearest cent. */\n    public function percentage(float $percent): self\n    {\n        return new self((int) round($this->cents * $percent / 100), $this->currency);\n    }\n\n    public function isGreaterThan(Money $other): bool\n    {\n        $this->assertSameCurrency($other);\n\n        return $this->cents > $other->cents;\n    }\n\n    public function amount(): float\n    {\n        return $this->cents / 100;\n    }\n\n    private function assertSameCurrency(Money $other): void\n    {\n        if ($other->currency !== $this->currency) {\n            throw new InvalidArgumentException('Cannot operate on mixed currencies');\n        }\n    }\n}"
+        }
+      ]
+    },
+    {
+      "questionId": "Q04",
+      "question": "¿Qué hace DiscountService al aplicar un descuento a un pedido?",
+      "answer": "DiscountService aplica descuentos en varios factores: el nivel de lealtad del cliente, cualquier cupón aplicable y el volumen de pedido. El descuento total no supera un 30%. Después de aplicar el descuento, DiscountService dispara un evento que registra el descuento aplicado para el pedido.",
+      "statements": [
+        {
+          "text": "DiscountService considera el nivel de lealtad del cliente al aplicar descuentos.",
+          "type": "FACT",
+          "evidenceIds": [
+            "ev-1"
+          ]
+        },
+        {
+          "text": "DiscountService realiza un cálculo de volumen que añade un 5% adicional si el pedido tiene más de 5 líneas.",
+          "type": "FACT",
+          "evidenceIds": [
+            "ev-2"
+          ]
+        },
+        {
+          "text": "DiscountService aplica cualquier descuento proporcionado por el validator de cupones.",
+          "type": "INFERENCE",
+          "evidenceIds": [
+            "ev-3",
+            "ev-4"
+          ]
+        },
+        {
+          "text": "DiscountService limite el descuento total a un 30% al aplicar cualquier otro descuento.",
+          "type": "FACT",
+          "evidenceIds": [
+            "ev-5"
+          ]
+        },
+        {
+          "text": "DiscountService genera un evento DiscountApplied cuando se aplica un descuento a un pedido.",
+          "type": "FACT",
+          "evidenceIds": [
+            "ev-6",
+            "ev-7"
+          ]
+        },
+        {
+          "text": "El event RecordDiscountAudit registra el descuento aplicado en los registros.",
+          "type": "INFERENCE",
+          "evidenceIds": [
+            "ev-8",
+            "ev-9"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "id": "ev-1",
+          "file": "app/Services/DiscountService.php",
+          "startLine": 21,
+          "endLine": 66,
+          "excerpt": "class DiscountService\n{\n    private const LOYALTY_SILVER_PERCENT = 5.0;\n    private const LOYALTY_GOLD_PERCENT = 10.0;\n\n    private const VOLUME_LINE_THRESHOLD = 5;\n    private const VOLUME_BONUS_PERCENT = 5.0;\n    private const MAX_DISCOUNT_PERCENT = 30.0;\n\n    public function __construct(private readonly CouponValidator $coupons)\n    {\n    }\n\n    public function discountFor(Order $order, Money $subtotal): Money\n    {\n        $percent = $this->loyaltyPercent($order);\n        $percent += $this->coupons->percentFor($order->coupon_code);\n        $percent += $this->volumeBonus($order);\n\n        $percent = min($percent, self::MAX_DISCOUNT_PERCENT);\n\n        $discount = $subtotal->percentage($percent);\n\n        if ($discount->isGreaterThan(Money::zero())) {\n            event(new DiscountApplied($order, $discount));\n        }\n\n        return $discount;\n    }\n\n    private function loyaltyPercent(Order $order): float\n    {\n        return match ($order->customer->loyalty_tier) {\n            'gold' => self::LOYALTY_GOLD_PERCENT,\n            'silver' => self::LOYALTY_SILVER_PERCENT,\n            default => 0.0,\n        };\n    }\n\n    private function volumeBonus(Order $order): float\n    {\n        return $order->lineCount() > self::VOLUME_LINE_THRESHOLD\n            ? self::VOLUME_BONUS_PERCENT\n            : 0.0;\n    }\n}"
+        },
+        {
+          "id": "ev-2",
+          "file": "app/Services/DiscountService.php",
+          "startLine": 21,
+          "endLine": 66,
+          "excerpt": "class DiscountService\n{\n    private const LOYALTY_SILVER_PERCENT = 5.0;\n    private const LOYALTY_GOLD_PERCENT = 10.0;\n\n    private const VOLUME_LINE_THRESHOLD = 5;\n    private const VOLUME_BONUS_PERCENT = 5.0;\n    private const MAX_DISCOUNT_PERCENT = 30.0;\n\n    public function __construct(private readonly CouponValidator $coupons)\n    {\n    }\n\n    public function discountFor(Order $order, Money $subtotal): Money\n    {\n        $percent = $this->loyaltyPercent($order);\n        $percent += $this->coupons->percentFor($order->coupon_code);\n        $percent += $this->volumeBonus($order);\n\n        $percent = min($percent, self::MAX_DISCOUNT_PERCENT);\n\n        $discount = $subtotal->percentage($percent);\n\n        if ($discount->isGreaterThan(Money::zero())) {\n            event(new DiscountApplied($order, $discount));\n        }\n\n        return $discount;\n    }\n\n    private function loyaltyPercent(Order $order): float\n    {\n        return match ($order->customer->loyalty_tier) {\n            'gold' => self::LOYALTY_GOLD_PERCENT,\n            'silver' => self::LOYALTY_SILVER_PERCENT,\n            default => 0.0,\n        };\n    }\n\n    private function volumeBonus(Order $order): float\n    {\n        return $order->lineCount() > self::VOLUME_LINE_THRESHOLD\n            ? self::VOLUME_BONUS_PERCENT\n            : 0.0;\n    }\n}"
+        },
+        {
+          "id": "ev-3",
+          "file": "app/Services/DiscountService.php",
+          "startLine": 21,
+          "endLine": 66,
+          "excerpt": "class DiscountService\n{\n    private const LOYALTY_SILVER_PERCENT = 5.0;\n    private const LOYALTY_GOLD_PERCENT = 10.0;\n\n    private const VOLUME_LINE_THRESHOLD = 5;\n    private const VOLUME_BONUS_PERCENT = 5.0;\n    private const MAX_DISCOUNT_PERCENT = 30.0;\n\n    public function __construct(private readonly CouponValidator $coupons)\n    {\n    }\n\n    public function discountFor(Order $order, Money $subtotal): Money\n    {\n        $percent = $this->loyaltyPercent($order);\n        $percent += $this->coupons->percentFor($order->coupon_code);\n        $percent += $this->volumeBonus($order);\n\n        $percent = min($percent, self::MAX_DISCOUNT_PERCENT);\n\n        $discount = $subtotal->percentage($percent);\n\n        if ($discount->isGreaterThan(Money::zero())) {\n            event(new DiscountApplied($order, $discount));\n        }\n\n        return $discount;\n    }\n\n    private function loyaltyPercent(Order $order): float\n    {\n        return match ($order->customer->loyalty_tier) {\n            'gold' => self::LOYALTY_GOLD_PERCENT,\n            'silver' => self::LOYALTY_SILVER_PERCENT,\n            default => 0.0,\n        };\n    }\n\n    private function volumeBonus(Order $order): float\n    {\n        return $order->lineCount() > self::VOLUME_LINE_THRESHOLD\n            ? self::VOLUME_BONUS_PERCENT\n            : 0.0;\n    }\n}"
+        },
+        {
+          "id": "ev-4",
+          "file": "app/Services/CouponValidator.php",
+          "startLine": 14,
+          "endLine": 39,
+          "excerpt": "class CouponValidator\n{\n    public function percentFor(?string $code): float\n    {\n        if ($code === null || $code === '') {\n            return 0.0;\n        }\n\n        $coupon = Coupon::query()->find($code);\n\n        if (! $coupon instanceof Coupon || ! $coupon->active) {\n            return 0.0;\n        }\n\n        if ($coupon->expires_at !== null && $coupon->expires_at->isPast()) {\n            return 0.0;\n        }\n\n        return $coupon->percent_off;\n    }\n\n    public function isRedeemable(?string $code): bool\n    {\n        return $this->percentFor($code) > 0.0;\n    }\n}"
+        },
+        {
+          "id": "ev-5",
+          "file": "app/Services/DiscountService.php",
+          "startLine": 21,
+          "endLine": 66,
+          "excerpt": "class DiscountService\n{\n    private const LOYALTY_SILVER_PERCENT = 5.0;\n    private const LOYALTY_GOLD_PERCENT = 10.0;\n\n    private const VOLUME_LINE_THRESHOLD = 5;\n    private const VOLUME_BONUS_PERCENT = 5.0;\n    private const MAX_DISCOUNT_PERCENT = 30.0;\n\n    public function __construct(private readonly CouponValidator $coupons)\n    {\n    }\n\n    public function discountFor(Order $order, Money $subtotal): Money\n    {\n        $percent = $this->loyaltyPercent($order);\n        $percent += $this->coupons->percentFor($order->coupon_code);\n        $percent += $this->volumeBonus($order);\n\n        $percent = min($percent, self::MAX_DISCOUNT_PERCENT);\n\n        $discount = $subtotal->percentage($percent);\n\n        if ($discount->isGreaterThan(Money::zero())) {\n            event(new DiscountApplied($order, $discount));\n        }\n\n        return $discount;\n    }\n\n    private function loyaltyPercent(Order $order): float\n    {\n        return match ($order->customer->loyalty_tier) {\n            'gold' => self::LOYALTY_GOLD_PERCENT,\n            'silver' => self::LOYALTY_SILVER_PERCENT,\n            default => 0.0,\n        };\n    }\n\n    private function volumeBonus(Order $order): float\n    {\n        return $order->lineCount() > self::VOLUME_LINE_THRESHOLD\n            ? self::VOLUME_BONUS_PERCENT\n            : 0.0;\n    }\n}"
+        },
+        {
+          "id": "ev-6",
+          "file": "app/Services/DiscountService.php",
+          "startLine": 21,
+          "endLine": 66,
+          "excerpt": "class DiscountService\n{\n    private const LOYALTY_SILVER_PERCENT = 5.0;\n    private const LOYALTY_GOLD_PERCENT = 10.0;\n\n    private const VOLUME_LINE_THRESHOLD = 5;\n    private const VOLUME_BONUS_PERCENT = 5.0;\n    private const MAX_DISCOUNT_PERCENT = 30.0;\n\n    public function __construct(private readonly CouponValidator $coupons)\n    {\n    }\n\n    public function discountFor(Order $order, Money $subtotal): Money\n    {\n        $percent = $this->loyaltyPercent($order);\n        $percent += $this->coupons->percentFor($order->coupon_code);\n        $percent += $this->volumeBonus($order);\n\n        $percent = min($percent, self::MAX_DISCOUNT_PERCENT);\n\n        $discount = $subtotal->percentage($percent);\n\n        if ($discount->isGreaterThan(Money::zero())) {\n            event(new DiscountApplied($order, $discount));\n        }\n\n        return $discount;\n    }\n\n    private function loyaltyPercent(Order $order): float\n    {\n        return match ($order->customer->loyalty_tier) {\n            'gold' => self::LOYALTY_GOLD_PERCENT,\n            'silver' => self::LOYALTY_SILVER_PERCENT,\n            default => 0.0,\n        };\n    }\n\n    private function volumeBonus(Order $order): float\n    {\n        return $order->lineCount() > self::VOLUME_LINE_THRESHOLD\n            ? self::VOLUME_BONUS_PERCENT\n            : 0.0;\n    }\n}"
+        },
+        {
+          "id": "ev-7",
+          "file": "app/Events/DiscountApplied.php",
+          "startLine": 15,
+          "endLine": 24,
+          "excerpt": "class DiscountApplied\n{\n    use Dispatchable;\n\n    public function __construct(\n        public readonly Order $order,\n        public readonly Money $amount,\n    ) {\n    }\n}"
+        },
+        {
+          "id": "ev-8",
+          "file": "app/Events/DiscountApplied.php",
+          "startLine": 15,
+          "endLine": 24,
+          "excerpt": "class DiscountApplied\n{\n    use Dispatchable;\n\n    public function __construct(\n        public readonly Order $order,\n        public readonly Money $amount,\n    ) {\n    }\n}"
+        },
+        {
+          "id": "ev-9",
+          "file": "app/Listeners/RecordDiscountAudit.php",
+          "startLine": 14,
+          "endLine": 23,
+          "excerpt": "class RecordDiscountAudit\n{\n    public function handle(DiscountApplied $event): void\n    {\n        Log::info('discount.applied', [\n            'order_id' => $event->order->id,\n            'amount' => $event->amount->amount(),\n        ]);\n    }\n}"
+        }
+      ]
+    },
+    {
+      "questionId": "Q05",
+      "question": "¿Cómo calcula TaxService el impuesto de un pedido?",
+      "answer": "TaxService calcula el impuesto de un pedido solicitando un monto basado en el subtotal descontado, es decir, el 'precio base' después de aplicar descuentos.",
+      "statements": [
+        {
+          "text": "El monto sobre el que se calcula el impuesto es el 'precio base' después de aplicar descuentos.",
+          "type": "INFERENCE",
+          "evidenceIds": [
+            "ev-1"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "id": "ev-1",
+          "file": "app/Services/PriceCalculator.php",
+          "startLine": 16,
+          "endLine": 44,
+          "excerpt": "class PriceCalculator\n{\n    public function __construct(\n        private readonly DiscountService $discounts,\n        private readonly TaxService $taxes,\n        private readonly ShippingService $shipping,\n    ) {\n    }\n\n    public function compute(Order $order): Money\n    {\n        $subtotal = $order->subtotal;                       // magic accessor\n        $discount = $this->discounts->discountFor($order, $subtotal);\n        $taxable = $subtotal->subtract($discount);\n\n        $tax = $this->taxes->taxFor($order, $taxable);\n        $shipping = $this->shipping->shippingFor($order, $taxable);\n\n        return $taxable->add($tax)->add($shipping);\n    }\n\n    /** Returns the discounted amount before tax and shipping. */\n    public function taxableBase(Order $order): Money\n    {\n        $subtotal = $order->subtotal;\n\n        return $subtotal->subtract($this->discounts->discountFor($order, $subtotal));\n    }\n}"
+        }
+      ]
+    },
+    {
+      "questionId": "Q06",
+      "question": "¿Cómo decide ShippingService el coste de envío de un pedido?",
+      "answer": "El cálculo del coste de envío en el servicio ShippingService depende del monto total de la orden. Si el monto total supera el umbral libre de envío configurado, el costo de envío es cero. De lo contrario, el costo de envío es el valor fijo definido para el país de envío.",
+      "statements": [
+        {
+          "text": "El método `test_free_above_threshold` en el archivo ShippingServiceTest.php verifica que si el monto total de la orden es mayor que el umbral libre de envío (75.00 EUR), el costo de envío es cero.",
+          "type": "FACT",
+          "evidenceIds": [
+            "ev-1"
+          ]
+        },
+        {
+          "text": "El método `shippingFor` en el archivo ShippingService.php utiliza el método `flatRateFor` del `CarrierGateway` para determinar el costo de envío, siempre y cuando el monto total de la orden no supere el umbral libre de envío.",
+          "type": "INFERENCE",
+          "evidenceIds": [
+            "ev-2",
+            "ev-3"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "id": "ev-1",
+          "file": "tests/Unit/ShippingServiceTest.php",
+          "startLine": 17,
+          "endLine": 42,
+          "excerpt": "class ShippingServiceTest extends TestCase\n{\n    public function test_free_above_threshold(): void\n    {\n        config(['shop.free_shipping_threshold' => 75.00]);\n        $order = new Order(['shipping_country' => 'ES']);\n\n        $cost = (new ShippingService(new CarrierGateway()))->shippingFor($order, Money::fromFloat(80.00));\n\n        $this->assertSame(0, $cost->cents);\n    }\n\n    public function test_flat_rate_below_threshold(): void\n    {\n        config([\n            'shop.free_shipping_threshold' => 75.00,\n            'shop.shipping_rates' => ['ES' => 490],\n            'shop.default_shipping_cents' => 590,\n        ]);\n        $order = new Order(['shipping_country' => 'ES']);\n\n        $cost = (new ShippingService(new CarrierGateway()))->shippingFor($order, Money::fromFloat(40.00));\n\n        $this->assertSame(490, $cost->cents);\n    }\n}"
+        },
+        {
+          "id": "ev-2",
+          "file": "app/Services/ShippingService.php",
+          "startLine": 16,
+          "endLine": 35,
+          "excerpt": "class ShippingService\n{\n    public function __construct(private readonly CarrierGateway $carrier)\n    {\n    }\n\n    public function shippingFor(Order $order, Money $base): Money\n    {\n        $threshold = Money::fromFloat((float) config('shop.free_shipping_threshold'));\n\n        if ($base->isGreaterThan($threshold)) {\n            return Money::zero();\n        }\n\n        // Dynamic method: CarrierGateway has no flatRateFor() declared.\n        $cents = $this->carrier->flatRateFor($order->shipping_country);\n\n        return Money::fromCents((int) $cents);\n    }\n}"
+        },
+        {
+          "id": "ev-3",
+          "file": "app/Services/CarrierGateway.php",
+          "startLine": 17,
+          "endLine": 31,
+          "excerpt": "class CarrierGateway\n{\n    /** @param array<int, mixed> $arguments */\n    public function __call(string $name, array $arguments): mixed\n    {\n        if (str_starts_with($name, 'flatRateFor')) {\n            $country = $arguments[0] ?? config('shop.default_country');\n            $rates = config('shop.shipping_rates', []);\n\n            return $rates[$country] ?? config('shop.default_shipping_cents');\n        }\n\n        throw new BadMethodCallException(\"Unknown carrier method: {$name}\");\n    }\n}"
+        }
+      ]
+    },
+    {
+      "questionId": "Q07",
+      "question": "¿Qué hace el trabajo RecalculateTotals?",
+      "answer": "El trabajo RecalculateTotals es utilizado para recalcular el total de una orden después de que se crea o se actualiza. A través de listeners y controladores, se asegura de que el total se recalcule en diferentes momentos del ciclo de vida de la orden.",
+      "statements": [
+        {
+          "text": "El trabajo RecalculateTotals es implementado como una clase que implementa ShouldQueue, lo que significa que se ejecuta en segundo plano.",
+          "type": "INFERENCE",
+          "evidenceIds": [
+            "ev-1"
+          ]
+        },
+        {
+          "text": "El trabajo RecalculateTotals se dispara desde el observador OrderObserver cuando una orden es creada o actualizada, dependiendo de su estado.",
+          "type": "INFERENCE",
+          "evidenceIds": [
+            "ev-2",
+            "ev-3"
+          ]
+        },
+        {
+          "text": "El método handle de la clase RecalculateTotals es donde se recálcula el total de la orden utilizando el servicio Pricing.",
+          "type": "FACT",
+          "evidenceIds": [
+            "ev-4"
+          ]
+        },
+        {
+          "text": "El método Pricing::compute es responsable del cálculo de los totales de las órdenes, considerando subtotal, descuentos, impuestos y shipping.",
+          "type": "INFERENCE",
+          "evidenceIds": [
+            "ev-5",
+            "ev-6"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "id": "ev-1",
+          "file": "app/Jobs/RecalculateTotals.php",
+          "startLine": 20,
+          "endLine": 39,
+          "excerpt": "class RecalculateTotals implements ShouldQueue\n{\n    use Dispatchable;\n    use InteractsWithQueue;\n    use Queueable;\n\n    public function __construct(private readonly Order $order)\n    {\n    }\n\n    public function handle(): void\n    {\n        $total = Pricing::compute($this->order);\n\n        Log::info('order.totals.recalculated', [\n            'order_id' => $this->order->id,\n            'total' => $total->amount(),\n        ]);\n    }\n}"
+        },
+        {
+          "id": "ev-2",
+          "file": "app/Observers/OrderObserver.php",
+          "startLine": 16,
+          "endLine": 20,
+          "excerpt": "    public function created(Order $order): void\n    {\n        RecalculateTotals::dispatch($order);\n        event(new OrderPlaced($order));\n    }"
+        },
+        {
+          "id": "ev-3",
+          "file": "app/Observers/OrderObserver.php",
+          "startLine": 22,
+          "endLine": 27,
+          "excerpt": "    public function updated(Order $order): void\n    {\n        if ($order->wasChanged('status') && $order->status === 'paid') {\n            RecalculateTotals::dispatch($order);\n        }\n    }"
+        },
+        {
+          "id": "ev-4",
+          "file": "app/Jobs/RecalculateTotals.php",
+          "startLine": 20,
+          "endLine": 39,
+          "excerpt": "class RecalculateTotals implements ShouldQueue\n{\n    use Dispatchable;\n    use InteractsWithQueue;\n    use Queueable;\n\n    public function __construct(private readonly Order $order)\n    {\n    }\n\n    public function handle(): void\n    {\n        $total = Pricing::compute($this->order);\n\n        Log::info('order.totals.recalculated', [\n            'order_id' => $this->order->id,\n            'total' => $total->amount(),\n        ]);\n    }\n}"
+        },
+        {
+          "id": "ev-5",
+          "file": "tests/Feature/OrderPricingTest.php",
+          "startLine": 31,
+          "endLine": 51,
+          "excerpt": "    public function test_final_price_applies_discount_before_tax(): void\n    {\n        config(['shop.free_shipping_threshold' => 75.00, 'shop.shipping_rates' => ['ES' => 490]]);\n\n        $customer = Customer::factory()->create(['loyalty_tier' => 'gold', 'country' => 'ES']);\n        $widget = Product::factory()->create(['price_cents' => 1500]);\n        $gadget = Product::factory()->create(['price_cents' => 3200]);\n\n        $order = Order::factory()->create([\n            'customer_id' => $customer->id,\n            'shipping_country' => 'ES',\n        ]);\n        $order->lines()->create(['product_id' => $widget->id, 'quantity' => 2, 'unit_price_cents' => 1500]);\n        $order->lines()->create(['product_id' => $gadget->id, 'quantity' => 1, 'unit_price_cents' => 3200]);\n        $order->refresh();\n\n        $total = Pricing::compute($order);\n\n        $this->assertSame(7242, $total->cents);\n        $this->assertEqualsWithDelta(72.42, $total->amount(), 0.001);\n    }"
+        },
+        {
+          "id": "ev-6",
+          "file": "app/Services/PriceCalculator.php",
+          "startLine": 25,
+          "endLine": 35,
+          "excerpt": "    public function compute(Order $order): Money\n    {\n        $subtotal = $order->subtotal;                       // magic accessor\n        $discount = $this->discounts->discountFor($order, $subtotal);\n        $taxable = $subtotal->subtract($discount);\n\n        $tax = $this->taxes->taxFor($order, $taxable);\n        $shipping = $this->shipping->shippingFor($order, $taxable);\n\n        return $taxable->add($tax)->add($shipping);\n    }"
+        }
+      ]
+    },
+    {
+      "questionId": "Q08",
+      "question": "¿Qué hace el listener SendOrderConfirmation cuando se crea un pedido?",
+      "answer": "El listener SendOrderConfirmation se encarga de registrar la confirmación de un pedido en el log, calculando el total del pedido utilizando la clase Pricing y registrando el valor del pedido y el total en los logs.",
+      "statements": [
+        {
+          "text": "El listener SendOrderConfirmation maneja el evento OrderPlaced cuando se crea un pedido.",
+          "type": "FACT",
+          "evidenceIds": [
+            "ev-1"
+          ]
+        },
+        {
+          "text": "Cuando se crea un pedido, el método handle de SendOrderConfirmation calcula el total del pedido usando el método compute de la clase Pricing.",
+          "type": "INFERENCE",
+          "evidenceIds": [
+            "ev-2",
+            "ev-3"
+          ]
+        },
+        {
+          "text": "El total del pedido y la información del pedido son registrados en los logs usando el método info de la clase Log.",
+          "type": "FACT",
+          "evidenceIds": [
+            "ev-4"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "id": "ev-1",
+          "file": "app/Listeners/SendOrderConfirmation.php",
+          "startLine": 15,
+          "endLine": 26,
+          "excerpt": "class SendOrderConfirmation\n{\n    public function handle(OrderPlaced $event): void\n    {\n        $total = Pricing::compute($event->order);\n\n        Log::info('order.confirmation', [\n            'order_id' => $event->order->id,\n            'total' => $total->amount(),\n        ]);\n    }\n}"
+        },
+        {
+          "id": "ev-2",
+          "file": "app/Listeners/SendOrderConfirmation.php",
+          "startLine": 15,
+          "endLine": 26,
+          "excerpt": "class SendOrderConfirmation\n{\n    public function handle(OrderPlaced $event): void\n    {\n        $total = Pricing::compute($event->order);\n\n        Log::info('order.confirmation', [\n            'order_id' => $event->order->id,\n            'total' => $total->amount(),\n        ]);\n    }\n}"
+        },
+        {
+          "id": "ev-3",
+          "file": "app/Services/PriceCalculator.php",
+          "startLine": 16,
+          "endLine": 44,
+          "excerpt": "class PriceCalculator\n{\n    public function __construct(\n        private readonly DiscountService $discounts,\n        private readonly TaxService $taxes,\n        private readonly ShippingService $shipping,\n    ) {\n    }\n\n    public function compute(Order $order): Money\n    {\n        $subtotal = $order->subtotal;                       // magic accessor\n        $discount = $this->discounts->discountFor($order, $subtotal);\n        $taxable = $subtotal->subtract($discount);\n\n        $tax = $this->taxes->taxFor($order, $taxable);\n        $shipping = $this->shipping->shippingFor($order, $taxable);\n\n        return $taxable->add($tax)->add($shipping);\n    }\n\n    /** Returns the discounted amount before tax and shipping. */\n    public function taxableBase(Order $order): Money\n    {\n        $subtotal = $order->subtotal;\n\n        return $subtotal->subtract($this->discounts->discountFor($order, $subtotal));\n    }\n}"
+        },
+        {
+          "id": "ev-4",
+          "file": "app/Listeners/SendOrderConfirmation.php",
+          "startLine": 15,
+          "endLine": 26,
+          "excerpt": "class SendOrderConfirmation\n{\n    public function handle(OrderPlaced $event): void\n    {\n        $total = Pricing::compute($event->order);\n\n        Log::info('order.confirmation', [\n            'order_id' => $event->order->id,\n            'total' => $total->amount(),\n        ]);\n    }\n}"
+        }
+      ]
+    },
+    {
+      "questionId": "Q09",
+      "question": "¿Para qué sirve la clase Money?",
+      "answer": "La clase Money es un valor object que se utiliza para representar cantidades monetarias con centavos y una moneda específica. Permite realizar operaciones matemáticas aritméticas y comparaciones entre cantidades monetarias de forma segura y precisa.",
+      "statements": [
+        {
+          "text": "La clase Money contiene dos propiedades, 'cents' y 'currency', que representan respectivamente la cantidad en centavos y la moneda de los objetos Money.",
+          "type": "FACT",
+          "evidenceIds": [
+            "ev-1"
+          ]
+        },
+        {
+          "text": "En el archivo 'DiscountServiceTest.php' (E3 y E4), se utilizan varias veces instancias de la clase Money para calcular descuentos en función del número de líneas de un pedido y si un cupón es aplicable.",
+          "type": "INFERENCE",
+          "evidenceIds": [
+            "ev-2",
+            "ev-3"
+          ]
+        },
+        {
+          "text": "El método 'fromFloat' de la clase Money se utiliza para crear una instancia de Money a partir de un número de tipo flotante, convirtiéndolo internamente a centavos.",
+          "type": "INFERENCE",
+          "evidenceIds": [
+            "ev-4"
+          ]
+        },
+        {
+          "text": "El método 'percentage' de la clase Money se utiliza para calcular el porcentaje de una cantidad monetaria, redondeando el resultado al centro de la unidad más cercana.",
+          "type": "INFERENCE",
+          "evidenceIds": [
+            "ev-5"
+          ]
+        },
+        {
+          "text": "La clase Order incluye un 'accessor' llamado 'subtotal' que utiliza la clase Money para calcular la suma de todas las líneas de pedido en una instancia de Order.",
+          "type": "FACT",
+          "evidenceIds": [
+            "ev-6"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "id": "ev-1",
+          "file": "app/Support/Money.php",
+          "startLine": 14,
+          "endLine": 75,
+          "excerpt": "final class Money\n{\n    private function __construct(\n        public readonly int $cents,\n        public readonly string $currency = 'EUR',\n    ) {\n    }\n\n    public static function fromCents(int $cents, string $currency = 'EUR'): self\n    {\n        return new self($cents, $currency);\n    }\n\n    public static function fromFloat(float $amount, string $currency = 'EUR'): self\n    {\n        return new self((int) round($amount * 100), $currency);\n    }\n\n    public static function zero(string $currency = 'EUR'): self\n    {\n        return new self(0, $currency);\n    }\n\n    public function add(Money $other): self\n    {\n        $this->assertSameCurrency($other);\n\n        return new self($this->cents + $other->cents, $this->currency);\n    }\n\n    public function subtract(Money $other): self\n    {\n        $this->assertSameCurrency($other);\n\n        return new self(max(0, $this->cents - $other->cents), $this->currency);\n    }\n\n    /** Percentage of this amount, rounded half-up to the nearest cent. */\n    public function percentage(float $percent): self\n    {\n        return new self((int) round($this->cents * $percent / 100), $this->currency);\n    }\n\n    public function isGreaterThan(Money $other): bool\n    {\n        $this->assertSameCurrency($other);\n\n        return $this->cents > $other->cents;\n    }\n\n    public function amount(): float\n    {\n        return $this->cents / 100;\n    }\n\n    private function assertSameCurrency(Money $other): void\n    {\n        if ($other->currency !== $this->currency) {\n            throw new InvalidArgumentException('Cannot operate on mixed currencies');\n        }\n    }\n}"
+        },
+        {
+          "id": "ev-2",
+          "file": "tests/Unit/DiscountServiceTest.php",
+          "startLine": 58,
+          "endLine": 68,
+          "excerpt": "    public function test_no_volume_bonus_at_or_below_five_lines(): void\n    {\n        Event::fake();\n        $coupons = Mockery::mock(CouponValidator::class);\n        $coupons->shouldReceive('percentFor')->andReturn(0.0);\n\n        $service = new DiscountService($coupons);\n        $discount = $service->discountFor($this->orderWith('standard', 5), Money::fromCents(10000));\n\n        $this->assertSame(0, $discount->cents);\n    }"
+        },
+        {
+          "id": "ev-3",
+          "file": "tests/Unit/DiscountServiceTest.php",
+          "startLine": 70,
+          "endLine": 81,
+          "excerpt": "    public function test_total_discount_is_capped_at_thirty_percent(): void\n    {\n        Event::fake();\n        $coupons = Mockery::mock(CouponValidator::class);\n        $coupons->shouldReceive('percentFor')->andReturn(25.0);\n\n        $service = new DiscountService($coupons);\n        // gold (10) + coupon (25) + volume (5) = 40% -> capped to 30%\n        $discount = $service->discountFor($this->orderWith('gold', 6, 'BIG25'), Money::fromCents(10000));\n\n        $this->assertSame(3000, $discount->cents);\n    }"
+        },
+        {
+          "id": "ev-4",
+          "file": "app/Support/Money.php",
+          "startLine": 14,
+          "endLine": 75,
+          "excerpt": "final class Money\n{\n    private function __construct(\n        public readonly int $cents,\n        public readonly string $currency = 'EUR',\n    ) {\n    }\n\n    public static function fromCents(int $cents, string $currency = 'EUR'): self\n    {\n        return new self($cents, $currency);\n    }\n\n    public static function fromFloat(float $amount, string $currency = 'EUR'): self\n    {\n        return new self((int) round($amount * 100), $currency);\n    }\n\n    public static function zero(string $currency = 'EUR'): self\n    {\n        return new self(0, $currency);\n    }\n\n    public function add(Money $other): self\n    {\n        $this->assertSameCurrency($other);\n\n        return new self($this->cents + $other->cents, $this->currency);\n    }\n\n    public function subtract(Money $other): self\n    {\n        $this->assertSameCurrency($other);\n\n        return new self(max(0, $this->cents - $other->cents), $this->currency);\n    }\n\n    /** Percentage of this amount, rounded half-up to the nearest cent. */\n    public function percentage(float $percent): self\n    {\n        return new self((int) round($this->cents * $percent / 100), $this->currency);\n    }\n\n    public function isGreaterThan(Money $other): bool\n    {\n        $this->assertSameCurrency($other);\n\n        return $this->cents > $other->cents;\n    }\n\n    public function amount(): float\n    {\n        return $this->cents / 100;\n    }\n\n    private function assertSameCurrency(Money $other): void\n    {\n        if ($other->currency !== $this->currency) {\n            throw new InvalidArgumentException('Cannot operate on mixed currencies');\n        }\n    }\n}"
+        },
+        {
+          "id": "ev-5",
+          "file": "app/Support/Money.php",
+          "startLine": 14,
+          "endLine": 75,
+          "excerpt": "final class Money\n{\n    private function __construct(\n        public readonly int $cents,\n        public readonly string $currency = 'EUR',\n    ) {\n    }\n\n    public static function fromCents(int $cents, string $currency = 'EUR'): self\n    {\n        return new self($cents, $currency);\n    }\n\n    public static function fromFloat(float $amount, string $currency = 'EUR'): self\n    {\n        return new self((int) round($amount * 100), $currency);\n    }\n\n    public static function zero(string $currency = 'EUR'): self\n    {\n        return new self(0, $currency);\n    }\n\n    public function add(Money $other): self\n    {\n        $this->assertSameCurrency($other);\n\n        return new self($this->cents + $other->cents, $this->currency);\n    }\n\n    public function subtract(Money $other): self\n    {\n        $this->assertSameCurrency($other);\n\n        return new self(max(0, $this->cents - $other->cents), $this->currency);\n    }\n\n    /** Percentage of this amount, rounded half-up to the nearest cent. */\n    public function percentage(float $percent): self\n    {\n        return new self((int) round($this->cents * $percent / 100), $this->currency);\n    }\n\n    public function isGreaterThan(Money $other): bool\n    {\n        $this->assertSameCurrency($other);\n\n        return $this->cents > $other->cents;\n    }\n\n    public function amount(): float\n    {\n        return $this->cents / 100;\n    }\n\n    private function assertSameCurrency(Money $other): void\n    {\n        if ($other->currency !== $this->currency) {\n            throw new InvalidArgumentException('Cannot operate on mixed currencies');\n        }\n    }\n}"
+        },
+        {
+          "id": "ev-6",
+          "file": "app/Models/Order.php",
+          "startLine": 19,
+          "endLine": 57,
+          "excerpt": "class Order extends Model\n{\n    use HasFactory;\n\n    protected $fillable = ['customer_id', 'status', 'coupon_code', 'shipping_country'];\n\n    public function customer(): BelongsTo\n    {\n        return $this->belongsTo(Customer::class);\n    }\n\n    public function lines(): HasMany\n    {\n        return $this->hasMany(OrderLine::class);\n    }\n\n    public function coupon(): BelongsTo\n    {\n        // Resolved by string column, not by id — the coupon_code magic attribute.\n        return $this->belongsTo(Coupon::class, 'coupon_code', 'code');\n    }\n\n    /**\n     * Accessor exposed as $order->subtotal. Sums the order lines. Because this is\n     * a magic accessor, callers reference a property the analyzer cannot see.\n     */\n    public function getSubtotalAttribute(): Money\n    {\n        return $this->lines->reduce(\n            fn (Money $carry, OrderLine $line) => $carry->add($line->lineTotal()),\n            Money::zero(),\n        );\n    }\n\n    public function lineCount(): int\n    {\n        return $this->lines->count();\n    }\n}"
+        }
+      ]
+    },
+    {
+      "questionId": "Q10",
+      "question": "¿Qué comprueba el middleware EnsureCartNotEmpty?",
+      "answer": "Comprueba que la solicitud tenga elementos en el carrito.",
+      "statements": [
+        {
+          "text": "El middleware EnsureCartNotEmpty verifica que la solicitud tenga elementos en el carrito.",
+          "type": "FACT",
+          "evidenceIds": [
+            "ev-1"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "id": "ev-1",
+          "file": "app/Http/Middleware/EnsureCartNotEmpty.php",
+          "startLine": 15,
+          "endLine": 29,
+          "excerpt": "class EnsureCartNotEmpty\n{\n    public function handle(Request $request, Closure $next): Response\n    {\n        $lines = $request->input('lines', []);\n\n        if (! is_array($lines) || count($lines) === 0) {\n            return response()->json([\n                'error' => ['code' => 'EMPTY_CART', 'message' => 'Cart has no items'],\n            ], 422);\n        }\n\n        return $next($request);\n    }\n}"
+        }
+      ]
+    },
+    {
+      "questionId": "Q11",
+      "question": "¿Qué valida StoreOrderRequest al crear un pedido?",
+      "answer": "StoreOrderRequest valida varios aspectos al crear un pedido, incluyendo datos importantes como el ID del cliente, el país de envío, el código de cupón (si es aplicable), y las líneas del pedido con su respectivo producto, cantidad y precio unitario. Estas líneas son necesarias para computar el total del pedido. Además, los datos son validados para asegurar que sean correctos y cumplan con ciertos criterios, como existir en la base de datos.",
+      "statements": [
+        {
+          "text": "StoreOrderRequest valida que la ID del cliente es requerida y debe existir en la base de datos como un cliente (id : E1).",
+          "type": "FACT",
+          "evidenceIds": [
+            "ev-1"
+          ]
+        },
+        {
+          "text": "StoreOrderRequest valida que el país de envío es requerido, debe estar dentro de un tamaño de 2 caracteres y existir en la lista de países (ID: E1).",
+          "type": "INFERENCE",
+          "evidenceIds": [
+            "ev-2"
+          ]
+        },
+        {
+          "text": "StoreOrderRequest valida que las líneas del pedido son requeridas y debe tener al menos un elemento (ID: E1).",
+          "type": "FACT",
+          "evidenceIds": [
+            "ev-3"
+          ]
+        },
+        {
+          "text": "StoreOrderRequest valida que los campos de los productos dentro de las líneas del pedido son requeridos, es un entero, existe en la base de datos como un producto y que la cantidad es un entero positivo (ID: E1).",
+          "type": "INFERENCE",
+          "evidenceIds": [
+            "ev-4"
+          ]
+        },
+        {
+          "text": "StoreOrderRequest valida que los campos de la cantidad de productos dentro de las líneas del pedido son requeridos, es un entero positivo (ID: E1).",
+          "type": "FACT",
+          "evidenceIds": [
+            "ev-5"
+          ]
+        },
+        {
+          "text": "StoreOrderRequest valida que los campos de los precios unitarios de productos dentro de las líneas del pedido son requeridos, es un entero positivo (ID: E1).",
+          "type": "FACT",
+          "evidenceIds": [
+            "ev-6"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "id": "ev-1",
+          "file": "app/Http/Requests/StoreOrderRequest.php",
+          "startLine": 13,
+          "endLine": 48,
+          "excerpt": "class StoreOrderRequest extends FormRequest\n{\n    public function authorize(): bool\n    {\n        return true;\n    }\n\n    /** @return array<string, mixed> */\n    public function rules(): array\n    {\n        return [\n            'customer_id' => ['required', 'integer', 'exists:customers,id'],\n            'shipping_country' => ['required', 'string', 'size:2'],\n            'coupon_code' => ['nullable', 'string', 'max:32'],\n            'lines' => ['required', 'array', 'min:1'],\n            'lines.*.product_id' => ['required', 'integer', 'exists:products,id'],\n            'lines.*.quantity' => ['required', 'integer', 'min:1'],\n            'lines.*.unit_price_cents' => ['required', 'integer', 'min:0'],\n        ];\n    }\n\n    /** @return array<int, array<string, mixed>> */\n    public function lines(): array\n    {\n        return $this->validated()['lines'];\n    }\n\n    /** @return array<string, mixed> */\n    public function validated($key = null, $default = null): array\n    {\n        $data = parent::validated();\n        unset($data['lines']);\n\n        return $data;\n    }\n}"
+        },
+        {
+          "id": "ev-2",
+          "file": "app/Http/Requests/StoreOrderRequest.php",
+          "startLine": 13,
+          "endLine": 48,
+          "excerpt": "class StoreOrderRequest extends FormRequest\n{\n    public function authorize(): bool\n    {\n        return true;\n    }\n\n    /** @return array<string, mixed> */\n    public function rules(): array\n    {\n        return [\n            'customer_id' => ['required', 'integer', 'exists:customers,id'],\n            'shipping_country' => ['required', 'string', 'size:2'],\n            'coupon_code' => ['nullable', 'string', 'max:32'],\n            'lines' => ['required', 'array', 'min:1'],\n            'lines.*.product_id' => ['required', 'integer', 'exists:products,id'],\n            'lines.*.quantity' => ['required', 'integer', 'min:1'],\n            'lines.*.unit_price_cents' => ['required', 'integer', 'min:0'],\n        ];\n    }\n\n    /** @return array<int, array<string, mixed>> */\n    public function lines(): array\n    {\n        return $this->validated()['lines'];\n    }\n\n    /** @return array<string, mixed> */\n    public function validated($key = null, $default = null): array\n    {\n        $data = parent::validated();\n        unset($data['lines']);\n\n        return $data;\n    }\n}"
+        },
+        {
+          "id": "ev-3",
+          "file": "app/Http/Requests/StoreOrderRequest.php",
+          "startLine": 13,
+          "endLine": 48,
+          "excerpt": "class StoreOrderRequest extends FormRequest\n{\n    public function authorize(): bool\n    {\n        return true;\n    }\n\n    /** @return array<string, mixed> */\n    public function rules(): array\n    {\n        return [\n            'customer_id' => ['required', 'integer', 'exists:customers,id'],\n            'shipping_country' => ['required', 'string', 'size:2'],\n            'coupon_code' => ['nullable', 'string', 'max:32'],\n            'lines' => ['required', 'array', 'min:1'],\n            'lines.*.product_id' => ['required', 'integer', 'exists:products,id'],\n            'lines.*.quantity' => ['required', 'integer', 'min:1'],\n            'lines.*.unit_price_cents' => ['required', 'integer', 'min:0'],\n        ];\n    }\n\n    /** @return array<int, array<string, mixed>> */\n    public function lines(): array\n    {\n        return $this->validated()['lines'];\n    }\n\n    /** @return array<string, mixed> */\n    public function validated($key = null, $default = null): array\n    {\n        $data = parent::validated();\n        unset($data['lines']);\n\n        return $data;\n    }\n}"
+        },
+        {
+          "id": "ev-4",
+          "file": "app/Http/Requests/StoreOrderRequest.php",
+          "startLine": 13,
+          "endLine": 48,
+          "excerpt": "class StoreOrderRequest extends FormRequest\n{\n    public function authorize(): bool\n    {\n        return true;\n    }\n\n    /** @return array<string, mixed> */\n    public function rules(): array\n    {\n        return [\n            'customer_id' => ['required', 'integer', 'exists:customers,id'],\n            'shipping_country' => ['required', 'string', 'size:2'],\n            'coupon_code' => ['nullable', 'string', 'max:32'],\n            'lines' => ['required', 'array', 'min:1'],\n            'lines.*.product_id' => ['required', 'integer', 'exists:products,id'],\n            'lines.*.quantity' => ['required', 'integer', 'min:1'],\n            'lines.*.unit_price_cents' => ['required', 'integer', 'min:0'],\n        ];\n    }\n\n    /** @return array<int, array<string, mixed>> */\n    public function lines(): array\n    {\n        return $this->validated()['lines'];\n    }\n\n    /** @return array<string, mixed> */\n    public function validated($key = null, $default = null): array\n    {\n        $data = parent::validated();\n        unset($data['lines']);\n\n        return $data;\n    }\n}"
+        },
+        {
+          "id": "ev-5",
+          "file": "app/Http/Requests/StoreOrderRequest.php",
+          "startLine": 13,
+          "endLine": 48,
+          "excerpt": "class StoreOrderRequest extends FormRequest\n{\n    public function authorize(): bool\n    {\n        return true;\n    }\n\n    /** @return array<string, mixed> */\n    public function rules(): array\n    {\n        return [\n            'customer_id' => ['required', 'integer', 'exists:customers,id'],\n            'shipping_country' => ['required', 'string', 'size:2'],\n            'coupon_code' => ['nullable', 'string', 'max:32'],\n            'lines' => ['required', 'array', 'min:1'],\n            'lines.*.product_id' => ['required', 'integer', 'exists:products,id'],\n            'lines.*.quantity' => ['required', 'integer', 'min:1'],\n            'lines.*.unit_price_cents' => ['required', 'integer', 'min:0'],\n        ];\n    }\n\n    /** @return array<int, array<string, mixed>> */\n    public function lines(): array\n    {\n        return $this->validated()['lines'];\n    }\n\n    /** @return array<string, mixed> */\n    public function validated($key = null, $default = null): array\n    {\n        $data = parent::validated();\n        unset($data['lines']);\n\n        return $data;\n    }\n}"
+        },
+        {
+          "id": "ev-6",
+          "file": "app/Http/Requests/StoreOrderRequest.php",
+          "startLine": 13,
+          "endLine": 48,
+          "excerpt": "class StoreOrderRequest extends FormRequest\n{\n    public function authorize(): bool\n    {\n        return true;\n    }\n\n    /** @return array<string, mixed> */\n    public function rules(): array\n    {\n        return [\n            'customer_id' => ['required', 'integer', 'exists:customers,id'],\n            'shipping_country' => ['required', 'string', 'size:2'],\n            'coupon_code' => ['nullable', 'string', 'max:32'],\n            'lines' => ['required', 'array', 'min:1'],\n            'lines.*.product_id' => ['required', 'integer', 'exists:products,id'],\n            'lines.*.quantity' => ['required', 'integer', 'min:1'],\n            'lines.*.unit_price_cents' => ['required', 'integer', 'min:0'],\n        ];\n    }\n\n    /** @return array<int, array<string, mixed>> */\n    public function lines(): array\n    {\n        return $this->validated()['lines'];\n    }\n\n    /** @return array<string, mixed> */\n    public function validated($key = null, $default = null): array\n    {\n        $data = parent::validated();\n        unset($data['lines']);\n\n        return $data;\n    }\n}"
+        }
+      ]
+    },
+    {
+      "questionId": "Q12",
+      "question": "¿Qué hace CheckoutController?",
+      "answer": "El controller CheckoutController maneja procesos relacionados con la finalización de una compra, mientras que las rutas y servicios como Pricing calculan los precios finales considerando descuentos, impuestos yShipping.",
+      "statements": [
+        {
+          "text": "El controller CheckoutController crea órdenes y devuelve el total de la compra.",
+          "type": "FACT",
+          "evidenceIds": [
+            "ev-1"
+          ]
+        },
+        {
+          "text": "Rutas de la aplicación web definen las URL y controladores para manejar las solicitudes de check-out.",
+          "type": "FACT",
+          "evidenceIds": [
+            "ev-2"
+          ]
+        },
+        {
+          "text": "El servicio PricingService se utiliza en varios lugares para calcular el precio final de las órdenes, incluyendo en CheckoutController y OrderController.",
+          "type": "INFERENCE",
+          "evidenceIds": [
+            "ev-3",
+            "ev-4"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "id": "ev-1",
+          "file": "app/Http/Controllers/CheckoutController.php",
+          "startLine": 17,
+          "endLine": 34,
+          "excerpt": "class CheckoutController extends Controller\n{\n    public function store(StoreOrderRequest $request): JsonResponse\n    {\n        $order = Order::create($request->validated());\n\n        foreach ($request->lines() as $line) {\n            $order->lines()->create($line);\n        }\n\n        $order->refresh();\n\n        return response()->json([\n            'id' => $order->id,\n            'total' => Pricing::compute($order)->amount(),\n        ], 201);\n    }\n}"
+        },
+        {
+          "id": "ev-2",
+          "file": "routes/web.php",
+          "startLine": 13,
+          "endLine": 15,
+          "excerpt": "Route::post('/checkout', 'App\\Http\\Controllers\\CheckoutController@store')\n    ->middleware('cart.not_empty')\n    ->name('checkout.store');"
+        },
+        {
+          "id": "ev-3",
+          "file": "app/Services/PriceCalculator.php",
+          "startLine": 25,
+          "endLine": 35,
+          "excerpt": "    public function compute(Order $order): Money\n    {\n        $subtotal = $order->subtotal;                       // magic accessor\n        $discount = $this->discounts->discountFor($order, $subtotal);\n        $taxable = $subtotal->subtract($discount);\n\n        $tax = $this->taxes->taxFor($order, $taxable);\n        $shipping = $this->shipping->shippingFor($order, $taxable);\n\n        return $taxable->add($tax)->add($shipping);\n    }"
+        },
+        {
+          "id": "ev-4",
+          "file": "app/Http/Controllers/OrderController.php",
+          "startLine": 16,
+          "endLine": 26,
+          "excerpt": "    public function show(Order $order): JsonResponse\n    {\n        $total = Pricing::compute($order);\n\n        return response()->json([\n            'id' => $order->id,\n            'status' => $order->status,\n            'subtotal' => $order->subtotal->amount(),\n            'total' => $total->amount(),\n        ]);\n    }"
+        }
+      ]
+    },
+    {
+      "questionId": "Q13",
+      "question": "¿Qué rutas de pedidos define routes/api.php y a qué controlador llevan?",
+      "answer": "UNKNOWN",
+      "reason": "invalid-model-output",
+      "statements": [],
+      "evidence": []
+    },
+    {
+      "questionId": "Q14",
+      "question": "¿Para qué sirve la fachada Pricing?",
+      "answer": "La fachada `Pricing` proporciona acceso simplificado a los cálculos de precio en toda la aplicación.",
+      "statements": [
+        {
+          "text": "La fachada `Pricing` se define en 'app/Facades/Pricing.php'.",
+          "type": "FACT",
+          "evidenceIds": [
+            "ev-1"
+          ]
+        },
+        {
+          "text": "La fachada `Pricing` permite acceder a los cálculos de precio a través del método `getFacadeAccessor()`, que devuelve 'pricing'.",
+          "type": "FACT",
+          "evidenceIds": [
+            "ev-2"
+          ]
+        },
+        {
+          "text": "Los cálculos de precio principales se realizan en 'app/Services/PriceCalculator.php' dentro de la clase `PriceCalculator::compute(Order $order)'.",
+          "type": "INFERENCE",
+          "evidenceIds": [
+            "ev-3"
+          ]
+        },
+        {
+          "text": "En 'tests/Feature/OrderPricingTest.php' se realizan pruebas unitarias de los cálculos de precio utilizando la fachada `Pricing`.",
+          "type": "INFERENCE",
+          "evidenceIds": [
+            "ev-4"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "id": "ev-1",
+          "file": "app/Facades/Pricing.php",
+          "startLine": 20,
+          "endLine": 26,
+          "excerpt": "class Pricing extends Facade\n{\n    protected static function getFacadeAccessor(): string\n    {\n        return 'pricing';\n    }\n}"
+        },
+        {
+          "id": "ev-2",
+          "file": "app/Facades/Pricing.php",
+          "startLine": 20,
+          "endLine": 26,
+          "excerpt": "class Pricing extends Facade\n{\n    protected static function getFacadeAccessor(): string\n    {\n        return 'pricing';\n    }\n}"
+        },
+        {
+          "id": "ev-3",
+          "file": "app/Services/PriceCalculator.php",
+          "startLine": 16,
+          "endLine": 44,
+          "excerpt": "class PriceCalculator\n{\n    public function __construct(\n        private readonly DiscountService $discounts,\n        private readonly TaxService $taxes,\n        private readonly ShippingService $shipping,\n    ) {\n    }\n\n    public function compute(Order $order): Money\n    {\n        $subtotal = $order->subtotal;                       // magic accessor\n        $discount = $this->discounts->discountFor($order, $subtotal);\n        $taxable = $subtotal->subtract($discount);\n\n        $tax = $this->taxes->taxFor($order, $taxable);\n        $shipping = $this->shipping->shippingFor($order, $taxable);\n\n        return $taxable->add($tax)->add($shipping);\n    }\n\n    /** Returns the discounted amount before tax and shipping. */\n    public function taxableBase(Order $order): Money\n    {\n        $subtotal = $order->subtotal;\n\n        return $subtotal->subtract($this->discounts->discountFor($order, $subtotal));\n    }\n}"
+        },
+        {
+          "id": "ev-4",
+          "file": "tests/Feature/OrderPricingTest.php",
+          "startLine": 27,
+          "endLine": 52,
+          "excerpt": "class OrderPricingTest extends TestCase\n{\n    use RefreshDatabase;\n\n    public function test_final_price_applies_discount_before_tax(): void\n    {\n        config(['shop.free_shipping_threshold' => 75.00, 'shop.shipping_rates' => ['ES' => 490]]);\n\n        $customer = Customer::factory()->create(['loyalty_tier' => 'gold', 'country' => 'ES']);\n        $widget = Product::factory()->create(['price_cents' => 1500]);\n        $gadget = Product::factory()->create(['price_cents' => 3200]);\n\n        $order = Order::factory()->create([\n            'customer_id' => $customer->id,\n            'shipping_country' => 'ES',\n        ]);\n        $order->lines()->create(['product_id' => $widget->id, 'quantity' => 2, 'unit_price_cents' => 1500]);\n        $order->lines()->create(['product_id' => $gadget->id, 'quantity' => 1, 'unit_price_cents' => 3200]);\n        $order->refresh();\n\n        $total = Pricing::compute($order);\n\n        $this->assertSame(7242, $total->cents);\n        $this->assertEqualsWithDelta(72.42, $total->amount(), 0.001);\n    }\n}"
+        }
+      ]
+    },
+    {
+      "questionId": "Q15",
+      "question": "¿Qué registra RecordDiscountAudit cuando se aplica un descuento?",
+      "answer": "RecordDiscountAudit registra el descuento aplicado en el log.",
+      "statements": [
+        {
+          "text": "RecordDiscountAudit envía un evento DiscountApplied cuando se aplica un descuento.",
+          "type": "INFERENCE",
+          "evidenceIds": [
+            "ev-1"
+          ]
+        },
+        {
+          "text": "DiscountService calcula el descuento y emite un evento DiscountApplied si el descuento es mayor que cero.",
+          "type": "INFERENCE",
+          "evidenceIds": [
+            "ev-2"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "id": "ev-1",
+          "file": "app/Listeners/RecordDiscountAudit.php",
+          "startLine": 14,
+          "endLine": 23,
+          "excerpt": "class RecordDiscountAudit\n{\n    public function handle(DiscountApplied $event): void\n    {\n        Log::info('discount.applied', [\n            'order_id' => $event->order->id,\n            'amount' => $event->amount->amount(),\n        ]);\n    }\n}"
+        },
+        {
+          "id": "ev-2",
+          "file": "app/Services/DiscountService.php",
+          "startLine": 34,
+          "endLine": 49,
+          "excerpt": "    public function discountFor(Order $order, Money $subtotal): Money\n    {\n        $percent = $this->loyaltyPercent($order);\n        $percent += $this->coupons->percentFor($order->coupon_code);\n        $percent += $this->volumeBonus($order);\n\n        $percent = min($percent, self::MAX_DISCOUNT_PERCENT);\n\n        $discount = $subtotal->percentage($percent);\n\n        if ($discount->isGreaterThan(Money::zero())) {\n            event(new DiscountApplied($order, $discount));\n        }\n\n        return $discount;\n    }"
+        }
+      ]
+    },
+    {
+      "questionId": "Q16",
+      "question": "¿Qué relaciones declara el modelo Order?",
+      "answer": "El modelo Order declara las siguientes relaciones:",
+      "statements": [
+        {
+          "text": "Order tiene una relación con Customer a través de la propiedad customer.",
+          "type": "FACT",
+          "evidenceIds": [
+            "ev-1"
+          ]
+        },
+        {
+          "text": "Order tiene una relación con OrderLine a través de la propiedad lines.",
+          "type": "FACT",
+          "evidenceIds": [
+            "ev-2"
+          ]
+        },
+        {
+          "text": "Order tiene una relación con Coupon a través del método coupon().",
+          "type": "FACT",
+          "evidenceIds": [
+            "ev-3"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "id": "ev-1",
+          "file": "app/Models/Order.php",
+          "startLine": 19,
+          "endLine": 57,
+          "excerpt": "class Order extends Model\n{\n    use HasFactory;\n\n    protected $fillable = ['customer_id', 'status', 'coupon_code', 'shipping_country'];\n\n    public function customer(): BelongsTo\n    {\n        return $this->belongsTo(Customer::class);\n    }\n\n    public function lines(): HasMany\n    {\n        return $this->hasMany(OrderLine::class);\n    }\n\n    public function coupon(): BelongsTo\n    {\n        // Resolved by string column, not by id — the coupon_code magic attribute.\n        return $this->belongsTo(Coupon::class, 'coupon_code', 'code');\n    }\n\n    /**\n     * Accessor exposed as $order->subtotal. Sums the order lines. Because this is\n     * a magic accessor, callers reference a property the analyzer cannot see.\n     */\n    public function getSubtotalAttribute(): Money\n    {\n        return $this->lines->reduce(\n            fn (Money $carry, OrderLine $line) => $carry->add($line->lineTotal()),\n            Money::zero(),\n        );\n    }\n\n    public function lineCount(): int\n    {\n        return $this->lines->count();\n    }\n}"
+        },
+        {
+          "id": "ev-2",
+          "file": "app/Models/Order.php",
+          "startLine": 19,
+          "endLine": 57,
+          "excerpt": "class Order extends Model\n{\n    use HasFactory;\n\n    protected $fillable = ['customer_id', 'status', 'coupon_code', 'shipping_country'];\n\n    public function customer(): BelongsTo\n    {\n        return $this->belongsTo(Customer::class);\n    }\n\n    public function lines(): HasMany\n    {\n        return $this->hasMany(OrderLine::class);\n    }\n\n    public function coupon(): BelongsTo\n    {\n        // Resolved by string column, not by id — the coupon_code magic attribute.\n        return $this->belongsTo(Coupon::class, 'coupon_code', 'code');\n    }\n\n    /**\n     * Accessor exposed as $order->subtotal. Sums the order lines. Because this is\n     * a magic accessor, callers reference a property the analyzer cannot see.\n     */\n    public function getSubtotalAttribute(): Money\n    {\n        return $this->lines->reduce(\n            fn (Money $carry, OrderLine $line) => $carry->add($line->lineTotal()),\n            Money::zero(),\n        );\n    }\n\n    public function lineCount(): int\n    {\n        return $this->lines->count();\n    }\n}"
+        },
+        {
+          "id": "ev-3",
+          "file": "app/Models/Order.php",
+          "startLine": 19,
+          "endLine": 57,
+          "excerpt": "class Order extends Model\n{\n    use HasFactory;\n\n    protected $fillable = ['customer_id', 'status', 'coupon_code', 'shipping_country'];\n\n    public function customer(): BelongsTo\n    {\n        return $this->belongsTo(Customer::class);\n    }\n\n    public function lines(): HasMany\n    {\n        return $this->hasMany(OrderLine::class);\n    }\n\n    public function coupon(): BelongsTo\n    {\n        // Resolved by string column, not by id — the coupon_code magic attribute.\n        return $this->belongsTo(Coupon::class, 'coupon_code', 'code');\n    }\n\n    /**\n     * Accessor exposed as $order->subtotal. Sums the order lines. Because this is\n     * a magic accessor, callers reference a property the analyzer cannot see.\n     */\n    public function getSubtotalAttribute(): Money\n    {\n        return $this->lines->reduce(\n            fn (Money $carry, OrderLine $line) => $carry->add($line->lineTotal()),\n            Money::zero(),\n        );\n    }\n\n    public function lineCount(): int\n    {\n        return $this->lines->count();\n    }\n}"
+        }
+      ]
+    },
+    {
+      "questionId": "Q17",
+      "question": "¿Qué hace CarrierGateway?",
+      "answer": "CarrierGateway es una clase que maneja las tarifas de envío basadas en el país del pedido.",
+      "statements": [
+        {
+          "text": "CarrierGateway procesa llamadas dinámicas como 'flatRateFor' para obtener tarifas de envío según el país del pedido.",
+          "type": "FACT",
+          "evidenceIds": [
+            "ev-1"
+          ]
+        },
+        {
+          "text": "CarrierGateway se utiliza en ShippingService para determinar las tarifas de envío dinámicamente a partir de los datos del pedido.",
+          "type": "INFERENCE",
+          "evidenceIds": [
+            "ev-2",
+            "ev-3"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "id": "ev-1",
+          "file": "app/Services/CarrierGateway.php",
+          "startLine": 17,
+          "endLine": 31,
+          "excerpt": "class CarrierGateway\n{\n    /** @param array<int, mixed> $arguments */\n    public function __call(string $name, array $arguments): mixed\n    {\n        if (str_starts_with($name, 'flatRateFor')) {\n            $country = $arguments[0] ?? config('shop.default_country');\n            $rates = config('shop.shipping_rates', []);\n\n            return $rates[$country] ?? config('shop.default_shipping_cents');\n        }\n\n        throw new BadMethodCallException(\"Unknown carrier method: {$name}\");\n    }\n}"
+        },
+        {
+          "id": "ev-2",
+          "file": "app/Services/ShippingService.php",
+          "startLine": 16,
+          "endLine": 35,
+          "excerpt": "class ShippingService\n{\n    public function __construct(private readonly CarrierGateway $carrier)\n    {\n    }\n\n    public function shippingFor(Order $order, Money $base): Money\n    {\n        $threshold = Money::fromFloat((float) config('shop.free_shipping_threshold'));\n\n        if ($base->isGreaterThan($threshold)) {\n            return Money::zero();\n        }\n\n        // Dynamic method: CarrierGateway has no flatRateFor() declared.\n        $cents = $this->carrier->flatRateFor($order->shipping_country);\n\n        return Money::fromCents((int) $cents);\n    }\n}"
+        },
+        {
+          "id": "ev-3",
+          "file": "app/Services/CarrierGateway.php",
+          "startLine": 17,
+          "endLine": 31,
+          "excerpt": "class CarrierGateway\n{\n    /** @param array<int, mixed> $arguments */\n    public function __call(string $name, array $arguments): mixed\n    {\n        if (str_starts_with($name, 'flatRateFor')) {\n            $country = $arguments[0] ?? config('shop.default_country');\n            $rates = config('shop.shipping_rates', []);\n\n            return $rates[$country] ?? config('shop.default_shipping_cents');\n        }\n\n        throw new BadMethodCallException(\"Unknown carrier method: {$name}\");\n    }\n}"
+        }
+      ]
+    },
+    {
+      "questionId": "Q18",
+      "question": "¿Qué valores de precios e impuestos define config/shop.php?",
+      "answer": "Los valores de precios e impuestos se definen principalmente en el archivo config/shop.php.",
+      "statements": [
+        {
+          "text": "Los costos de envío y impuestos reales se especifican en el archivo config/shop.php, como las tasas de impuesto y el umbral para el envío gratuito.",
+          "type": "INFERENCE",
+          "evidenceIds": [
+            "ev-1"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "id": "ev-1",
+          "file": "README.md",
+          "startLine": 1,
+          "endLine": 43,
+          "excerpt": "# acme-shop\n\nA small Laravel 11 / PHP 8.2 storefront domain focused on **order pricing**:\norders, order lines, discounts, taxes and shipping. There is no `vendor/`, no\nrunning server — this codebase is meant to be read and explored, not deployed.\n\n## What it models\n\nThe core question the code answers is **\"how is the final price of an order\ncomputed?\"**. The authoritative implementation is\n`App\\Services\\PriceCalculator::compute()`. Pricing rules are documented in\n[`docs/pricing.md`](docs/pricing.md).\n\n## Layout\n\n```\napp/\n  Models/        Order, OrderLine, Product, Customer, Coupon (Eloquent)\n  Services/      PriceCalculator, DiscountService, TaxService, ShippingService,\n                 CouponValidator, CarrierGateway\n  Http/          controllers, form request, middleware\n  Events/ Listeners/ Jobs/ Observers/   order lifecycle side effects\n  Facades/       Pricing (over PriceCalculator)\n  Providers/     container bindings + event map\n  Support/       Money value object\nroutes/          web.php, api.php\nconfig/          app.php, services.php, shop.php (tax + shipping config)\ndatabase/        migrations, factory, seeder\ntests/           Unit + Feature\n```\n\n## Running tests\n\nThis project ships without `vendor/`. Install dependencies with:\n\n```bash\ncomposer install\n./vendor/bin/phpunit\n```\n\nNote: `tests/CreatesApplication.php` references `bootstrap/app.php`, which is\nnot included in this tree. The unit arithmetic in `tests/Unit/` can be verified\nwithout a full Laravel bootstrap; the Feature suite requires it."
+        }
+      ]
+    },
+    {
+      "questionId": "Q19",
+      "question": "¿Cómo se gestionan los reembolsos de un pedido?",
+      "answer": "UNKNOWN",
+      "reason": "no-anchor",
+      "statements": [],
+      "evidence": []
+    },
+    {
+      "questionId": "Q20",
+      "question": "¿Cómo se envían las notificaciones por SMS a los clientes?",
+      "answer": "UNKNOWN",
+      "reason": "no-anchor",
+      "statements": [],
+      "evidence": []
+    }
+  ]
+}
