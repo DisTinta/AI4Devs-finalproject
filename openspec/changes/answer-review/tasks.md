@@ -59,15 +59,15 @@ This group is done by independent agents launched by the workflow, outside the a
 
 **Agreement measure** (design D4). Per project, n = 20: agreed answer = same `verdict`; percent agreement = agreed / n × 100, one decimal; unweighted Cohen's kappa over `verdict` (categories `correct`, `partial`, `incorrect`), three decimals, `null` when the expected agreement is 1.
 
-- [ ] 4.1 Reviewer 1 (Opus): judge the 40 answers under the criterion above, from the allowlist only; output `docs/measurements/answer-review/reviewer-1.json`
-- [ ] 4.2 Reviewer 2 (Sonnet): the same, blind to reviewer 1; output `docs/measurements/answer-review/reviewer-2.json`
-- [ ] 4.3 Recording agent: write both outputs exactly as returned, commit them (explicit paths) and push; then run `node scripts/answer-review.mjs agreement`. If it rejects an output, do not complete or correct it: stop the ticket with its message (spec "Review output validation"; no re-run of that reviewer inside this run, design P12). Otherwise commit `docs/measurements/answer-review/agreement.json` and push
-- [ ] 4.4 Resolver (Opus, fresh context): for each disagreement, and only those, read both answers of the reviewers, the answer under review and the fixture code, and decide under the same criterion, justifying with `file:line`; output `docs/measurements/answer-review/resolution.json` (empty `answers` when there is no disagreement); commit it (explicit path) and push
+- [x] 4.1 Reviewer 1 (Opus): judge the 40 answers under the criterion above, from the allowlist only; output `docs/measurements/answer-review/reviewer-1.json`
+- [x] 4.2 Reviewer 2 (Sonnet): the same, blind to reviewer 1; output `docs/measurements/answer-review/reviewer-2.json`
+- [x] 4.3 Recording agent: write both outputs exactly as returned, commit them (explicit paths) and push; then run `node scripts/answer-review.mjs agreement`. If it rejects an output, do not complete or correct it: stop the ticket with its message (spec "Review output validation"; no re-run of that reviewer inside this run, design P12). Otherwise commit `docs/measurements/answer-review/agreement.json` and push
+- [x] 4.4 Resolver (Opus, fresh context): for each disagreement, and only those, read both answers of the reviewers, the answer under review and the fixture code, and decide under the same criterion, justifying with `file:line`; output `docs/measurements/answer-review/resolution.json` (empty `answers` when there is no disagreement); commit it (explicit path) and push
 
 ## 5. After the panel: merge the verdicts (spec "Deterministic merge into the verdicts"; design D7)
 
-- [ ] 5.1 `node scripts/answer-review.mjs merge`: it validates the two reviewer outputs and `resolution.json` and writes `docs/measurements/answer-review/verdicts.csv`. If it fails, stop the ticket with its message; never edit a panel output, the resolution or the generated file by hand
-- [ ] 5.2 Run the merge a second time and confirm `git status --short docs/measurements/answer-review` shows no further change (determinism); commit `verdicts.csv` (explicit path) and push before any README conclusion is written (procedure step 4 of the ticket)
+- [x] 5.1 `node scripts/answer-review.mjs merge`: it validates the two reviewer outputs and `resolution.json` and writes `docs/measurements/answer-review/verdicts.csv`. If it fails, stop the ticket with its message; never edit a panel output, the resolution or the generated file by hand
+- [x] 5.2 Run the merge a second time and confirm `git status --short docs/measurements/answer-review` shows no further change (determinism); commit `verdicts.csv` (explicit path) and push before any README conclusion is written (procedure step 4 of the ticket)
 
 ## 6. After the panel: review report, freeze and Table 1 (TDD; spec `answer-review` "Correctness criterion", "Frozen verdicts and review report"; spec `context-measurement` "Published Table 1", "Measurement report"; design P7, P8)
 
