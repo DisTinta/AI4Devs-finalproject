@@ -625,3 +625,271 @@ the corrections.
 
 The scenario counts of task 10.3 are unchanged (drift-detection 22, seed-load 8, drift-golden 13,
 cli-drift 19): every addition is a case inside an existing scenario.
+
+---
+
+## Run 3 (2026-11-03)
+
+APPROVED
+
+# Spec audit: add-cli-drift (DIS-73), run 3, 2026-11-03
+
+**Questions for the author:** none.
+
+The decisions from runs 1 and 2 are all marked as the agent's text:
+- run 1: B1 option (a), B2–B6, I1–I6;
+- run 2: R2-B1, the `--env-file` form that replaces the audit's `$env:` form, and R2-I1 to R2-I10.
+
+None of them contradicts DIS-73, DIS-48 or the project. R2-B1 also follows `docs/AUTONOMOUS-RUN.md:349-353`, which forbids `$env:` assignments. This audit accepts all of them.
+
+**Inputs read**
+- **The change:** `proposal.md`, `design.md`, `specs/{drift-detection,cli-drift,drift-golden,seed-load}/spec.md`, `tasks.md`, and `reports/2026-11-03-spec-audit.md` (runs 1 and 2 with their resolutions).
+- **Linear:**
+  - DIS-73: its description, including the `[enhanced]` agent note, and all 7 of its comments, including the correction-round-2 comment.
+  - Its parent, DIS-48.
+- **Project docs:** `docs/base-standards.md` §7.1, `docs/openspec-tasks-mandatory-steps.md` (headings), `docs/AUTONOMOUS-RUN.md` §6, and the main spec `openspec/specs/drift-detection/spec.md`.
+- **Code:**
+  - `packages/core/src/drift/drift-report.ts` (`DriftUsage`), `packages/core/src/verify/semantic.ts:23-39` (`VerificationUsage`), `packages/core/src/knowledge/cache-entry.ts`;
+  - `packages/adapters/llm/src/config.ts:79-110`, `scripts/env.mjs:95-108`, `package.json` scripts;
+  - `packages/adapters/store-postgres/migrations/*.up.sql` (no index on `query_log.question` or `cache_entry.question_normalized`);
+  - `packages/cli/src/{seed-load.ts,verify.ts}` imports;
+  - `tests/support/{in-memory-store.ts,drift-doubles.ts}`, `tests/integration/cli/seed-load.spec.ts:60-159`, `tests/integration/api/ask.spec.ts`.
+
+## 1. Scope against the ticket
+
+Clean. Everything in the change follows from DIS-73:
+- the `drift` command;
+- the golden Q5;
+- the `query_log` row with `capability = 'drift'`;
+- `withDailyBudget`;
+- the documentation of D12.
+
+The extra pieces are means to the ticket's own items and are recorded on the ticket (propose comment P1–P3, the `[enhanced]` agent note, the round-1 comment):
+- `npm run drift:build`;
+- the helpers moved to `cache/build-support.ts`;
+- `useCache`;
+- the ADR amending `20261017`.
+
+The non-goals are explicit: case B, HTTP, web, `--json`, document corrections, `verify` of the drift golden, and the panel review. Nothing widens the change to the whole of DIS-48.
+
+## 2. Inherited acceptance criteria
+
+Clean, with one improvable finding.
+
+| Criterion | Covered by |
+|---|---|
+| 1 (DoD) | cli-drift "Q5 is printed from the golden report in evaluation mode", manual task 13.2, PowerShell task 13.5 |
+| 2 | "Evaluation mode without a golden report answers llm-required on the command line"; "A project without documents answers no-docs on the command line" |
+| 3 | "A live run over the indexed acme-shop prints the planted contradictions"; "A daily budget stops the drift model call"; drift-detection "A run with the model leaves one row with its usage"; "A failure after a model call leaves a row and keeps its error" (with `LlmUnavailable`) |
+| 4 | cli-drift arguments, configuration, resolution, events and failures |
+| 5(a), 5(b), 5(c) | "An invalid golden entry is a miss without an event"; seed-load "An invalid golden drift file fails before connecting"; drift-golden "The versioned golden drift file matches the seed, the table and the code" |
+
+The DIS-48 criteria that DIS-73 inherits are all covered:
+- the golden is served in evaluation mode;
+- another project answers `llm-required`;
+- the `query_log` row has `capability = 'drift'`;
+- `no-docs` is not an error.
+
+The planted contradictions and the "confirmed claim" criterion stay with the DIS-71 main spec ("Drift over the indexed acme-shop"), which is not modified.
+
+- **R3-I1 (improvable). A variable name that does not exist.**
+  - Criteria 1 and 2 of the ticket's `[enhanced]` text say `LLM_MODE=evaluation`. No such variable exists: `llmConfigFromEnv` decides the mode from `LLM_BASE_URL` and `LLM_API_KEY` (`packages/adapters/llm/src/config.ts:80-82`), and `.env.example` has no `LLM_MODE`.
+  - The specs use the correct wording ("no `LLM_*` variable").
+  - But the agent note added in run 1 lists only the three replaced names of P1–P3, so the ticket still disagrees with the change on this one.
+  - Fix in Linear (see the corrections).
+
+## 3. Missing scenarios
+
+Clean. Every MUST clause added in runs 1 and 2 has a scenario or a case inside an existing scenario:
+- the `touchCacheEntry` failure;
+- the golden hit whose row write is absorbed;
+- the `drift:` save failure in `db:seed`;
+- the fingerprints that `db:seed` does not check;
+- `DATABASE_UNAVAILABLE` in the build;
+- terminal-safe stderr;
+- `details.path` of `SourceUnavailable`;
+- the precedence of `unsafe-content` over the retry.
+
+## 4. Ambiguity
+
+Clean. None of the listed words appears in a normative sentence:
+- the only "many" is "as many as the seed's `INSERT`s", an exact count copied from the main seed-load spec;
+- "small", "poor" and "often" appear only in the design's rationale and risks.
+
+## 5. Open decisions
+
+No blocking finding.
+
+- **R3-I2 (improvable). `usage.verification.latencyMs` on a golden hit.**
+  - drift-detection "Golden drift report lookup" gives a hit "a `usage` whose every token, cost and call counter (`generation` and `verification` included) is 0 and whose `latencyMs` (and only it) is the latency".
+  - `VerificationUsage` also has its own `latencyMs` (`packages/core/src/verify/semantic.ts:39`), which is neither a token, a cost nor a call counter.
+  - "(and only it)" suggests it is 0, and design P6 says "every counter 0", but neither text names the field.
+  - The `toEqual` in "A golden report is answered from the cache in both modes" (task 1.4) will pin one value.
+  - Fix: state it explicitly (see the corrections).
+- **R3-I3 (improvable). Task 13.4 does not give the evaluation-mode command for `drift task-api`.**
+  - Task 13.4 runs `drift task-api` "in evaluation mode" without the exact command.
+  - On this machine `.env` configures Ollama, so the bare `npm run cli -- drift task-api` would run live and call the model.
+  - Task 13.2 gives the Git Bash form. Reuse it: `LLM_BASE_URL= LLM_API_KEY= npm run cli -- drift task-api`.
+
+## 6. Contradictions inside the change
+
+Clean. The proposal, the design (D1–D14, P1–P10, Follow-ups) and the four deltas agree on:
+- the clock's first read;
+- the order of the lookup;
+- which calls write a row;
+- what the build refuses;
+- the helper move;
+- the PowerShell procedure (13.5 and 15.3, no longer circular).
+
+## 7. Contradictions with the project
+
+Clean.
+- **ADR `20261017-stale-fingerprint-fails-verify`:** the exception is recorded by the new ADR (D14, task 15.5), and the recipe becomes `seed:build` → `cache:build` → `drift:build`.
+- **Agent-written ADR:** allowed in an autonomous run as long as it is marked as the agent's text (task 15.5 marks it).
+- **Scenario names of the main drift-detection spec:** the MODIFIED requirements keep every one (`openspec/specs/drift-detection/spec.md`, Drift request, Unknown drift answers, Drift report, Drift failures, logging and writes).
+- **Requirements the change leaves untouched:** "Documents checked by a call" and "Drift over the indexed acme-shop" stay consistent with the earlier clock read and the lookup. Their projects have no `drift:` entry, so the lookup misses.
+- **Task 13.5:** respects `docs/AUTONOMOUS-RUN.md:349-353` (no `$env:`).
+
+## 8. Contrast with the real code
+
+Clean. The references hold:
+- `scripts/env.mjs:106` keeps a key that is already set (`Object.hasOwn`), so the `--env-file` form of R2-B1 works as described;
+- `config.ts:82` treats blank as unset;
+- `config.ts:105` gives `LLM_CONFIG_INVALID` for an unpriced model under a ceiling (task 13.3);
+- `assertValidCacheKey` accepts any non-blank `drift:…` key (`knowledge/cache-entry.ts:27-31`);
+- no btree index covers `query_log.question` or `cache_entry.question_normalized`, so a key of about 1,006 code points cannot break an index;
+- `findCacheEntry` of the in-memory store rejects an unknown id with `ProjectNotFound` before the key lookup (`tests/support/in-memory-store.ts:502-513`), which matches the "A failing golden lookup stops before the model" case;
+- `failQueryLogWrite` and `failCacheCall.touch` exist (`:497`, `:541`);
+- `verify.ts` imports only `readGoldenFiles` and `readSeed`, so `seeds/drift/` cannot reach `npm run verify`;
+- integration suites that use the adapter's `loadSeed` (for example `tests/integration/api/ask.spec.ts:87`) load no golden file, so their `cache_entry` counts are unaffected;
+- `tests/integration/cli/seed-load.spec.ts` `load()` uses the default directories, and its reload snapshot compares cache rows by key, so the kept scenarios stay green with the versioned drift file (task 5.3).
+
+No new abstraction duplicates an existing one.
+
+## 9. Task size
+
+Clean.
+- The live Ollama runs (6.2, 11.5, 13.3) run detached and are polled in calls under 10 minutes, with a 3-hour ceiling.
+- Mutation (11.4) is split into runs under the call limit.
+- Every other task fits one turn.
+
+## 10. Mandatory steps
+
+Clean.
+- Step 0 creates and checks the branch `feature/dis-73-cli-drift-golden` and comes first.
+- Steps 10, 11, 12, 13, 15 and 17 are present with their labels; step 14 is justified as not applicable.
+- The baseline (0.4) and the restoration (12.1, 13.6: `db:seed` resets `hit_count`; the `query_log` rows are recorded because the table is append-only) are present.
+- The report paths follow the template.
+- The pre-merge review is last, with the archive before the merge.
+
+## 11. Traceability
+
+| Requirement | Scenario | Task(s) |
+|---|---|---|
+| drift-detection: Drift request | An invalid drift request is rejected before the store | 1.2, 1.3 |
+| | A relative workspace root is rejected before the store | existing test, kept (10.3) |
+| drift-detection: Unknown drift answers | Evaluation mode answers llm-required without reading anything | 1.10 (+2.4) |
+| | Evaluation mode without a golden report answers llm-required without reading the project | 1.10 (+2.4) |
+| | A project without documents answers no-docs | existing test, kept; row by 2.4 |
+| | A docPath that is not a stored document answers no-docs | existing test, kept |
+| drift-detection: Drift report | The report of a contradiction carries both citations, its type and its provenance | 2.9 |
+| | The usage adds every answer and verify call of the run | existing test, kept (clock per 1.10) |
+| drift-detection: Drift failures, logging and writes | A failing answer call propagates unchanged | existing test, kept |
+| | A drift run writes nothing | 2.9 |
+| drift-detection: Golden drift report lookup | A golden report is answered from the cache in both modes | 1.4, 1.5 |
+| | An invalid golden entry is a miss without an event | 1.6 |
+| | A docPath is looked up under its own key | 1.7 |
+| | Turning the cache off skips the lookup and saves nothing | 1.8 |
+| | A failing golden lookup stops before the model | 1.9 |
+| drift-detection: Drift query log | A run with the model leaves one row with its usage | 2.1, 2.2 |
+| | A golden report leaves a cache-hit row with zero counters | 2.3 |
+| | An unknown report leaves a zero row | 2.4 |
+| | A failure after a model call leaves a row and keeps its error | 2.5 |
+| | No row when drift fails before a model call resolves | 2.6 |
+| | A failed row write still answers and says so | 2.7 |
+| | Other row write errors propagate | 2.8 |
+| seed-load: Sample projects are loaded idempotently (MODIFIED) | The seed is loaded into an empty database | existing test, kept (5.3) |
+| | Loading again changes nothing and keeps the user's projects | existing test, kept (5.3) |
+| seed-load: Golden answers are loaded with the seed (MODIFIED) | Golden answers are loaded and served in evaluation mode | 5.3 |
+| | A seed without golden files loads only the graph | 5.3 |
+| | Loading golden answers again does not duplicate them | 5.3 |
+| | A failed golden save leaves the database unchanged | 5.3 |
+| seed-load: Golden drift files are checked before connecting | An invalid golden drift file fails before connecting | 5.1, 5.2 |
+| | A golden drift report is loaded under its key | 5.3 |
+| drift-golden: Drift build command contract and configuration | Drift build arguments and configuration fail before anything else | 4.2, 4.3 |
+| | The drift build's request limit applies and the daily ceiling does not | 4.4 |
+| drift-golden: The seed the drift report is built on is current | A missing or outdated seed is refused by the drift build | 4.5 |
+| drift-golden: How a golden drift report is produced | The golden drift report is generated with a scripted model | 4.10 |
+| | A non-sample acme-shop blocks the drift build | 4.11 |
+| drift-golden: Retries and failures of a golden drift report | A skipped document is retried | 4.6 |
+| | A drift report that cannot become golden fails without writing | 4.7 |
+| | A project without documents fails at once | 4.8 |
+| drift-golden: Golden drift file format | The canonical drift render is stable | 3.1, 3.2 |
+| | Golden drift files with an invalid shape are rejected | 3.3 |
+| drift-golden: Golden drift fingerprint | The drift fingerprint covers exactly its declared inputs | 3.4 |
+| drift-golden: A failed drift build never leaves a broken golden drift file | A failed write leaves the previous golden drift file intact | 4.9 |
+| drift-golden: The versioned golden drift file is coherent | The versioned golden drift file matches the seed, the table and the code | 6.1–6.3, 11.5, 17.6 |
+| cli-drift: Drift command arguments | Drift help and version print without reading the environment | 7.1, 7.2 |
+| | The global help lists drift once | 8.1 |
+| | Drift usage errors never quote the arguments | 7.3 |
+| | An invalid drift document path is rejected before any connection | 7.4 |
+| cli-drift: Drift configuration and connection | Drift configuration errors fail before any connection | 7.5 |
+| | An unreachable database fails without leaking the URL for drift | 8.2 |
+| | The drift connections are closed after a run | 8.3 |
+| | A daily budget stops the drift model call | 7.6 |
+| cli-drift: Drift project resolution | Only the exact name resolves the drift project | 7.7 |
+| | Drift receives only the project id and the document path | 7.8 |
+| cli-drift: Drift report output | A drift report is printed by document with both citations | 7.9 |
+| | Q5 is printed from the golden report in evaluation mode | 8.4, manual 13.2, PowerShell 13.5 |
+| | A live run over the indexed acme-shop prints the planted contradictions | 8.6 |
+| cli-drift: Drift UNKNOWN output | Evaluation mode without a golden report answers llm-required on the command line | 8.5 |
+| | A project without documents answers no-docs on the command line | 7.10 |
+| cli-drift: Drift events and failures | Drift events go to stderr with their level | 7.11 |
+| | Model, budget and source failures keep their code on the command line | 7.12 |
+| | An unexpected drift failure is internal | 7.13 |
+| cli-drift: Drift terminal safety | Control characters in a drift report are escaped | 7.14 |
+
+No row is empty. The per-spec counts in task 10.3 match the deltas:
+- drift-detection 22 (10 + 5 + 7);
+- seed-load 8;
+- drift-golden 13 (3 + 7 + 2 + 1);
+- cli-drift 19 (13 + 6).
+
+---
+
+## Corrections to apply
+
+All three are improvable. None blocks the apply.
+
+### `openspec/changes/add-cli-drift/specs/drift-detection/spec.md`
+
+1. **(R3-I2)** In "Golden drift report lookup", replace "a `usage` whose every token, cost and call counter (`generation` and `verification` included) is 0 and whose `latencyMs` (and only it) is the latency between the clock's first and last reads" with:
+
+   "a `usage` whose every token, cost and call counter (`generation` and `verification` included) is 0, whose `verification.latencyMs` is 0, and whose top-level `latencyMs` is the latency between the clock's first and last reads"
+
+### `openspec/changes/add-cli-drift/design.md`
+
+2. **(R3-I2)** In P6, after "(`generation` and `verification` too, `calls` and `cacheHits` 0)", add "and `verification.latencyMs` 0".
+3. Add Follow-up rows R3-I1, R3-I2 and R3-I3, all with destination A.
+
+### `openspec/changes/add-cli-drift/tasks.md`
+
+4. **(R3-I2)** In task 1.4, add: "(the expected `usage` is fully zero, `verification.latencyMs` included, except the top-level `latencyMs`)".
+5. **(R3-I3)** In task 13.4, replace "`drift task-api` in evaluation mode" with "`LLM_BASE_URL= LLM_API_KEY= npm run cli -- drift task-api` (evaluation mode, as in 13.2)".
+
+### Linear: DIS-73
+
+Do not edit the `[original]` block.
+
+**(R3-I1)** In the agent note at the start of the `[enhanced]` part (section 1), append this sentence (Spanish):
+
+> Tampoco existe `LLM_MODE`: el modo evaluación es no definir `LLM_BASE_URL` ni `LLM_API_KEY` (`llmConfigFromEnv`), y los criterios 1 y 2 se leen así.
+
+**Comment (Spanish):**
+
+> *(Texto del agente, auditoría de la spec de `add-cli-drift`, ronda 3, 2026-11-03.)* Veredicto: APPROVED, sin hallazgos bloqueantes. Se aceptan todas las decisiones del agente de las rondas 1 y 2, incluida la forma `--env-file` de la captura en PowerShell. Tres mejoras, que se aplican en los artefactos del cambio:
+> - `usage.verification.latencyMs` vale 0 en un acierto del golden;
+> - la tarea 13.4 da la orden exacta en modo evaluación para `drift task-api`;
+> - la nota del agente del texto enriquecido aclara que `LLM_MODE` no existe.
+>
+> No se crea ninguna issue nueva.
