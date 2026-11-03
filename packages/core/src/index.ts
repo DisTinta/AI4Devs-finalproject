@@ -5,5 +5,6 @@ export * from './llm/index.js';
 export * from './context/index.js';
 export * from './explain/index.js';
 export * from './impact/index.js';
+export * from './drift/index.js';
 export * from './verify/index.js';
 export * from './cache/index.js';

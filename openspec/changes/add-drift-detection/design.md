@@ -257,7 +257,18 @@ updates them with the confidence-score delta.
 secrets, but a configuration prompt does not need environment templates, so names starting with `.env`
 are excluded from the configuration context: the least data sent to the model.
 
-### D16. One quarantine helper exported; a drift-local subcode rule (propose, revised in round 1)
+### D16. A drift-local quarantine helper; the fence rule repeated, pinned equal (propose, revised in round 1 and at apply)
+
+*Revised at apply (agent's text, Follow-up R16):* `packages/core/src/explain/statement-schema.ts` is an
+input of the answer fingerprint of the golden answers (`ANSWER_FINGERPRINT_FILES` in
+`packages/cli/src/cache/answer-fingerprint.ts`), so exporting its private `unfenced` changed the file and
+`npm run verify` failed with `FINGERPRINT_MISMATCH` (golden answers out of date: regenerating them needs a
+live `cache:build`). `statement-schema.ts` is therefore not edited. `drift-quarantine.ts` holds the same
+fence expression as `unfenceDriftOutput`, and `tests/unit/drift/drift-quarantine.spec.ts` pins it equal to
+`parseModelOutput` over the fence shapes of the explain tests. The text below describes the original
+decision and applies with `unfenceDriftOutput` in place of the exported `unfenceModelOutput`.
+
+#### Original text of D16
 
 Only `unfenced(text)` of `statement-schema.ts` is exported, renamed
 `unfenceModelOutput(text: string): string`, so the two drift schemas unwrap a fenced output with the
@@ -367,4 +378,8 @@ All rows are the agent's text (autonomous run, 2026-11-03). No row has destinati
 | R12 | (Audit run 2, B7; D5) The claim and the document of the confrontation prompt are wrapped as `C1` and `D1`; only `E1…En` are known evidence ids, so citing `C1` or `D1` is `unknown_evidence_id` and never reaches `verifyAnswer`. | A |
 | R13 | (Audit run 2, B8; D3, D5) `promptHash` of both drift prompts hashes the UTF-8 bytes of `JSON.stringify(messages)`, the rule of `explain`. | A |
 | R14 | (Audit run 2, improvable; task 1.1) The `verificationContents`/`verificationFailures` options of the drift double are meant for tests with one confronted claim; the switch "after the first confrontation call" is kept, the simpler double. | A |
+| R16 | (Apply; D16, tasks 2.1, 8.1, 9.4) `statement-schema.ts` is an input of the golden-answer fingerprint, so it is not edited: `unfenceModelOutput` is not exported and `drift-quarantine.ts` repeats the fence rule as `unfenceDriftOutput`, pinned equal by `drift-quarantine.spec.ts`; the Stryker mutate set drops `statement-schema.ts`. A live `cache:build` is not needed. | A |
+| R19 | (Apply; task 9.4) Mutation score of `packages/core/src/drift/` about 96 % (429 killed or timed out, 19 survived). The survivors accepted: the `Error` message and `name` string literals of `InvalidDriftRequest` beyond the one asserted, the `issues[0]?.path` optional chaining and its `??` fallback of `parseDriftRequest` (a Zod failure always has an issue), the `tokenBudget !== undefined` spreads whose mutant passes `undefined` (equivalent: the default parameter applies), the unreachable `paths.length === 0` and `file === undefined` guards of `contradiction.ts`, the `status: 'extracted'` literal and the `fileKind`/`origin` of the whole-file document span (never read), and one `utf8` encoding literal of the size check. | D — accepted |
+| R17 | (Apply; task 0.4) The answer-cache table is `cache_entry`, not `answer_cache`; the baseline counts use that name. | A |
+| R18 | (Apply; tasks 5.8, 5.10) `unfenceModelOutput` is not exported (R16), so the "unchanged `statement-schema.ts`" test of task 2.1 is the existing `tests/unit/explain/statement-schema.spec.ts`, untouched. | A |
 | R15 | (Audit run 2, improvable) The scenario of the document with markers names both flag events (`delimiter-spoof` line 2, `ignore-instructions` line 3, evidence id `D1`); task 8.1 names only `unfenceModelOutput`; Risks no longer says "a run is short". | A |

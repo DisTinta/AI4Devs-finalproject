@@ -443,6 +443,16 @@ Verified against `package.json` (root and per package). If a command is not here
   read) see them, whatever `packOf` read before; a given `verificationContents` must hold every file
   the verification reads (an absent one is `file-missing`). `doubles()` also returns `batchReads` and
   `reads`: an answered explain makes two batched reads (the pack's, then the verification's).
+  Since DIS-71 the drift tests (`tests/unit/drift/drift.spec.ts`, `doc-claims.spec.ts`,
+  `contradiction.spec.ts` and `tests/integration/drift/acme-shop.spec.ts`) use
+  `tests/support/drift-doubles.ts`: `createDriftLlm({ extract, confront, verify?, usage?, mode? })` tells
+  the extraction prompt (a `document` key) from the confrontation prompt (a `claim` key), unwraps the
+  untrusted-data markers and hands the script a view (`{ path, lines }` or `{ claim, document,
+  evidence: [{ id, path, startLine, endLine, text }] }`), so a script cites "the span of
+  `config/shop.php`" without knowing its id; `driftDeps({ files, symbols?, describes?, … })` builds the
+  in-memory store and source tree from a list of files. Its `verificationContents` /
+  `verificationFailures` answer the reads made after the first confrontation call, so they suit tests
+  with one confronted claim. It edits none of the other doubles.
 - **Property tests use `fast-check`** (root devDependency since DIS-28,
   `tests/unit/context/budget.spec.ts`): `numRuns ≥ 200`, and `seed` fixed only when `CI` is set
   (`{ ...(process.env.CI ? { seed: 20261011 } : {}) }`), so CI replays and local runs explore.
@@ -1115,12 +1125,27 @@ services that must be started first, quirks of the local environment.
     `fileKind`, `origin` as a string, verdict), so `knowledge/` imports nothing from `explain/` or
     `context/`; `explain/claim-items.ts` maps a `VerifiedStatement` with `toConfidenceStatement`.
     Each claim stores the confidence of its statement alone and the answer carries the one of all its
-    statements; both pass `contradiction: false` until DIS-71. An empty set or a statement without
+    statements; both pass `contradiction: false` (`drift`, DIS-71, finds contradictions but does not store them, so the signal stays 0). An empty set or a statement without
     citation throws `RangeError`. `CONFIDENCE_WEIGHTS` / `EVIDENCE_SATURATION` are mirrored in the
     table of `docs/CONFIDENCE.md` and `tests/unit/knowledge/confidence-doc.spec.ts` fails when they
     differ: changing a weight means the code, the document (with the author's reason), the test run
     and `npm run seed:build` (`knowledge/` is a fingerprint input). Tests compute expected values from
     the exported constants, never hard-coded weights.
+  - Gotcha (DIS-71, `core/drift/`): `drift(dependencies, { projectId, docPath?, tokenBudget? })` finds
+    what the indexed documents say that the code, tests or configuration contradict. It reads the
+    stored files of kind `doc` (byte order of the path, at most `MAX_DRIFT_DOCS` = 10, the rest get a
+    `drift_doc_skipped` `limit` event) in one batched read at the indexed commit; per document one
+    `answer` call extracts the claims (prompt 1: the redacted lines, numbered, wrapped as `D1`; at most
+    `MAX_DOC_CLAIMS` = 12 are confronted), per claim the context is the context pack without `doc`
+    spans plus up to `MAX_CONFIG_SPANS` = 3 `config` files (not `.env*`) that share a term with the
+    claim, and one more `answer` call (prompt 2: claim `C1`, document citation `D1`, evidence `E1…En`)
+    returns `contradicted | consistent | unrelated`. Only a `contradicted` verdict whose document
+    citation and code citations verify (`verifyCitations`, `verifyAnswer`) is reported, always typed
+    `INFERENCE`, with a provenance by path (`driftProvenanceSchema`, since the report is not stored and
+    the store has no path-to-file-id read). It writes nothing (no claim, no `query_log` row: the CLI,
+    the golden Q5 and the row are DIS-73) and logs nothing; an invalid model output skips one document
+    or one claim with an event that holds only a subcode. `evaluation` mode answers `unknown`
+    `llm-required`, no document `no-docs`. `explain` still passes `contradiction: false`.
   - Gotcha (DIS-72, local Ollama): serve it with `OLLAMA_CONTEXT_LENGTH=16384`. Its default context
     cuts `explain`'s 5–7k-token prompt to about 2 000 tokens (`truncating input prompt` in its log),
     the system prompt is lost and every answer is `invalid-model-output`. On CPU one answer takes
